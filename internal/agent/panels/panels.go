@@ -54,7 +54,13 @@ func (r Reader) Read(ctx context.Context, kind dockwellv1.PanelKind) (*agentv1.R
 		if err != nil {
 			return nil, fmt.Errorf("can't list the Swarm services Docker runs: %w", err)
 		}
-		return r.dokploy(list, services), nil
+		// A copy runs on this server alone, so a swarm of more nodes keeps each
+		// Swarm-run app where it is, and one whose nodes can't be read does too.
+		nodes := -1
+		if info, err := r.Docker.Info(ctx); err == nil {
+			nodes = info.Swarm.Nodes
+		}
+		return r.dokploy(list, services, nodes), nil
 	default:
 		return nil, fmt.Errorf("there's no panel %v to read: name Coolify or Dokploy", kind)
 	}
@@ -84,6 +90,8 @@ const (
 	labelProject    = "com.docker.compose.project"
 	labelWorkingDir = "com.docker.compose.project.working_dir"
 	labelStack      = "com.docker.stack.namespace"
+	// labelSwarmService names the Swarm service a task's container runs for.
+	labelSwarmService = "com.docker.swarm.service.name"
 )
 
 func (r Reader) coolify(list []docker.ContainerSummary) *agentv1.ReadPanelResult {
@@ -132,9 +140,17 @@ func (r Reader) coolify(list []docker.ContainerSummary) *agentv1.ReadPanelResult
 	return &agentv1.ReadPanelResult{Found: p}
 }
 
-func (r Reader) dokploy(list []docker.ContainerSummary, services []docker.Service) *agentv1.ReadPanelResult {
+func (r Reader) dokploy(list []docker.ContainerSummary, services []docker.Service, nodes int) *agentv1.ReadPanelResult {
 	p := &dockwellv1.Panel{Kind: dockwellv1.PanelKind_PANEL_KIND_DOKPLOY, Folder: dokployFolder}
 	apps := map[string]*dockwellv1.PanelApp{}
+	// Each Swarm service's running task, which Swarm names <service>.<slot>.<task>:
+	// what it's made again from.
+	tasks := map[string]string{}
+	for i := range list {
+		if svc := list[i].Labels[labelSwarmService]; svc != "" && list[i].State == "running" {
+			tasks[svc] = containerName(&list[i])
+		}
+	}
 	for i := range services {
 		s := &services[i].Spec
 		image := s.TaskTemplate.ContainerSpec.Image
@@ -155,15 +171,25 @@ func (r Reader) dokploy(list []docker.ContainerSummary, services []docker.Servic
 				apps[stack] = a
 			}
 			a.Containers = append(a.Containers, s.Name)
+			a.Tasks = append(a.Tasks, tasks[s.Name])
+			a.Restarts = append(a.Restarts, restartOf(s))
+			a.SwarmLeft = cmp.Or(a.GetSwarmLeft(), swarmLeft(s, nodes))
+			if !dokployOwns(l) {
+				// A stack deployed by hand: Dokploy labels each service of its own.
+				a.SwarmLeft = cmp.Or(a.GetSwarmLeft(), s.Name+" carries none of Dokploy's labels, so Dockwell doesn't act on it as Dokploy's")
+			}
 			a.Domains = append(a.Domains, domainsOf(l)...)
+			a.Published = append(a.Published, publishedOf(strings.TrimPrefix(s.Name, stack+"_"), s)...)
 			continue
 		}
-		if l["dokploy.application"] == "" && l["dokploy.project"] == "" {
+		if !dokployOwns(l) {
 			continue // a service of someone else's
 		}
 		a := r.dokployApp(s.Name, engineOf(image), l)
 		a.Swarm, a.Image = true, image
-		a.Containers = []string{s.Name}
+		a.Containers, a.Tasks, a.Restarts = []string{s.Name}, []string{tasks[s.Name]}, []string{restartOf(s)}
+		a.SwarmLeft = swarmLeft(s, nodes)
+		a.Published = publishedOf(s.Name, s)
 		a.Domains = append(domainsOf(l), r.dynamicDomains(s.Name)...)
 		apps[s.Name] = a
 	}
@@ -392,17 +418,94 @@ func preview(id string) bool {
 	return id != "" && id != "0"
 }
 
+// sortWithTasks sorts an app's containers by name, and its Swarm services' running
+// tasks with them, so each service is read from its own task.
+func sortWithTasks(a *dockwellv1.PanelApp) {
+	if len(a.GetTasks()) != len(a.GetContainers()) {
+		slices.Sort(a.Containers)
+		return
+	}
+	order := make([]int, len(a.Containers))
+	for i := range order {
+		order[i] = i
+	}
+	slices.SortStableFunc(order, func(i, j int) int { return strings.Compare(a.Containers[i], a.Containers[j]) })
+	names, tasks := make([]string, len(order)), make([]string, len(order))
+	restarts := make([]string, len(a.Restarts))
+	for to, from := range order {
+		names[to], tasks[to] = a.Containers[from], a.Tasks[from]
+		if len(restarts) == len(order) {
+			restarts[to] = a.Restarts[from]
+		}
+	}
+	a.Containers, a.Tasks, a.Restarts = names, tasks, restarts
+}
+
+// dokployOwns says labels are Dokploy's own on what it runs: it gives each of an
+// app's, a database's and a stack's services dokploy.project and
+// dokploy.application, among others (buildDokployLabels, Dokploy v0.31). The
+// reader and the stopper ask the same, so nothing the reader offers is refused
+// at plan.
+func dokployOwns(l map[string]string) bool {
+	return l["dokploy.application"] != "" || l["dokploy.project"] != ""
+}
+
+// swarmLeft says why a Swarm service can't be made again as one container on this
+// server, or "": a copy is one container, here, with no Swarm to give it secrets,
+// configs or a volume made anew for each task (ADR 0089).
+func swarmLeft(s *docker.ServiceSpec, nodes int) string {
+	n, replicated := s.Mode.Replicas()
+	spec := &s.TaskTemplate.ContainerSpec
+	switch {
+	case !replicated:
+		return s.Name + " runs a task on every node"
+	case n > 1:
+		return fmt.Sprintf("%s runs %d replicas, and a copy would be one", s.Name, n)
+	case nodes < 0:
+		return "how many nodes the swarm has can't be read, and a copy runs on this server alone"
+	case nodes > 1:
+		return fmt.Sprintf("the swarm has %d nodes, and a copy runs on this server alone", nodes)
+	case len(spec.Secrets) > 0:
+		return s.Name + " reads a Swarm secret, which only Swarm's tasks can"
+	case len(spec.Configs) > 0:
+		return s.Name + " reads a Swarm config, which only Swarm's tasks can"
+	}
+	for _, m := range spec.Mounts {
+		if m.Type == "volume" && m.Source == "" {
+			return fmt.Sprintf("%s keeps data in an anonymous volume at %s, which a copy wouldn't find", s.Name, m.Target)
+		}
+	}
+	return ""
+}
+
+// restartOf is when Swarm starts a service's task again: "any" where its spec
+// doesn't say, as Swarm's default.
+func restartOf(s *docker.ServiceSpec) string {
+	return cmp.Or(s.TaskTemplate.RestartPolicy.Condition, "any")
+}
+
 // sorted are the apps by name, then ID, each with its containers and domains
 // sorted, and each domain once.
 func sorted[K comparable](apps map[K]*dockwellv1.PanelApp) []*dockwellv1.PanelApp {
 	out := slices.Collect(maps.Values(apps))
 	for _, a := range out {
-		slices.Sort(a.Containers)
+		sortWithTasks(a)
 		slices.Sort(a.Domains)
 		a.Domains = slices.Compact(a.Domains)
 	}
 	slices.SortFunc(out, func(a, b *dockwellv1.PanelApp) int {
 		return cmp.Or(strings.Compare(a.GetName(), b.GetName()), strings.Compare(a.GetId(), b.GetId()))
 	})
+	return out
+}
+
+// publishedOf are the ports a Swarm service publishes, for its copy named service.
+func publishedOf(service string, s *docker.ServiceSpec) []*dockwellv1.PanelPort {
+	var out []*dockwellv1.PanelPort
+	for _, p := range s.EndpointSpec.Ports {
+		if p.PublishedPort != 0 && p.TargetPort != 0 {
+			out = append(out, &dockwellv1.PanelPort{Service: service, Port: p.TargetPort, Published: p.PublishedPort, Protocol: cmp.Or(p.Protocol, "tcp")})
+		}
+	}
 	return out
 }

@@ -24,6 +24,10 @@ type PanelAsked struct {
 	Kind string
 	// Start starts again what a stop stopped, as Parts say each stood before it.
 	Start bool
+	// Apps acts on Swarm services of what the panel runs, which Parts name, as each
+	// is made again in Dockwell: a stop scales each to none as Dockwell's copy
+	// starts, and its undo back.
+	Apps bool `json:",omitempty"`
 	// Parts are what to start, and how each stood, for a start: what an undo puts
 	// back. A stop finds them itself.
 	Parts []PanelPart `json:",omitempty"`
@@ -35,6 +39,8 @@ type Panel struct {
 	Kind string
 	// Start says it starts them; otherwise it stops them.
 	Start bool
+	// Apps says it acts on Swarm services of what the panel runs.
+	Apps bool `json:",omitempty"`
 	// Parts are each of the panel's own containers or services the step acts on,
 	// in the order it acts, with how each stood.
 	Parts []PanelPart
@@ -58,6 +64,22 @@ type PanelPart struct {
 	// WasReplicas is how many replicas a Swarm service ran as the stop was planned.
 	// A stop scales it to none, and a start back to this.
 	WasReplicas uint64 `json:",omitempty"`
+	// WasPorts are the ports a Swarm service of what the panel ran published as
+	// the stop was planned: a stop takes them off, as Swarm's routing mesh holds
+	// them while the service publishes them, and a start puts them back.
+	WasPorts []PanelPort `json:",omitempty"`
+	// WasNetworks are the networks such a service joined as the stop was planned,
+	// as Docker has them: a stop takes it off them, so its name answers there for
+	// its copy alone, and a start puts them back exactly.
+	WasNetworks string `json:",omitempty"`
+}
+
+// PanelPort is a port a Swarm service publishes.
+type PanelPort struct {
+	Protocol          string
+	Target, Published uint32
+	// Mode is "ingress", through the routing mesh, or "host".
+	Mode string `json:",omitempty"`
 }
 
 // Name is the panel's name as people call it.
@@ -81,7 +103,7 @@ func (p Panel) Undone() (PanelAsked, bool) {
 	if p.Start || len(p.Parts) == 0 {
 		return PanelAsked{}, false
 	}
-	return PanelAsked{Kind: p.Kind, Start: true, Parts: p.Parts}, true
+	return PanelAsked{Kind: p.Kind, Start: true, Apps: p.Apps, Parts: p.Parts}, true
 }
 
 // PanelProxy is the container a panel's proxy runs as, which holds ports 80 and

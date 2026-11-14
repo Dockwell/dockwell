@@ -631,6 +631,139 @@ func (h *Handler) TakenOn(ctx context.Context, r *containers.Running, name strin
 	return project, nil
 }
 
+// Remake is a container Dockwell makes again as a service of its own, by its
+// name and the service's: a Swarm task, whose service Swarm keeps running
+// whatever happens to the container, so it can't be taken on in place (ADR 0089).
+type Remake struct {
+	Container, Service string
+	// Stack is the Swarm stack it ran in, where it did: its copy answers to the
+	// name the stack gave it, <stack>_<service>, and leaves the stack's own
+	// networks behind, as its project has its own.
+	Stack string
+	// Restart is when its old manager started it again: Swarm's "any",
+	// "on-failure" or "none". A Swarm task's container has no restart policy of
+	// its own, as Swarm restarts it, so its copy takes this one.
+	Restart string
+	// Ports are what its old manager published for it, such as through Swarm's
+	// routing mesh, which the copy publishes on the server.
+	Ports []*resourcev1.PortMapping
+}
+
+// ReadMakingAgain reads what making each container again as a service of its own
+// would plan, into project's default environment, made where it's new: as it runs,
+// on the same volumes and server paths, with what only its old manager reads of it
+// left behind, Swarm's, Traefik's and Dokploy's labels and its networks. Nothing is
+// taken on: the plan makes a new container, and its manager's copy stops as a step
+// of its own. What's in the way is said for each, by its service.
+func (h *Handler) ReadMakingAgain(ctx context.Context, r *containers.Running, list []Remake, project string) (*Taking, map[string][]string, error) {
+	place, err := h.destination(ctx, project, "", "")
+	if err != nil {
+		return nil, nil, err
+	}
+	running, err := h.servicesIn(ctx, place.environment)
+	if err != nil {
+		return nil, nil, h.internal(ctx, err)
+	}
+	t := &Taking{Project: place.project, Made: place.made}
+	refused := map[string][]string{}
+	for _, m := range list {
+		i := slices.IndexFunc(r.Others, func(c *dockwellv1.ServerContainer) bool { return c.GetName() == m.Container })
+		switch {
+		case i < 0:
+			refused[m.Service] = append(refused[m.Service], fmt.Sprintf("no container of it runs on %s now, so there's nothing to read it from", r.Server.Name))
+			continue
+		case slices.Contains(running, m.Service):
+			refused[m.Service] = append(refused[m.Service], fmt.Sprintf("the project %s runs a service %s already", place.project, m.Service))
+			continue
+		}
+		c := r.Others[i]
+		ref := resource.Ref{Kind: service.Kind, Scope: place.environment, Name: m.Service}
+		svc, found, err := h.containers.ReadAs(ctx, r.Server, c, ref)
+		if err != nil {
+			return nil, nil, err
+		}
+		// What leans on it, such as a container sharing its network, would be cut
+		// off as its copy takes its place, so that's refused as for a take-on.
+		// What Swarm gives a task's container that its copy doesn't carry isn't
+		// dropped without a word: it's Swarm's, not the app's.
+		found.Refused = slices.DeleteFunc(found.Refused, swarmOnly)
+		if why := containers.Refusal(c.GetName(), found); why != "" {
+			refused[m.Service] = append(refused[m.Service], why)
+			continue
+		}
+		app := svc.GetApp()
+		remade(app, m)
+		app.Restart = restartFor(m.Restart)
+		for _, p := range m.Ports {
+			if !slices.ContainsFunc(app.GetPorts(), func(have *resourcev1.PortMapping) bool { return have.GetHostPort() == p.GetHostPort() }) {
+				app.Ports = append(app.Ports, p)
+			}
+		}
+		t.Edits = append(t.Edits, &dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Kind: string(service.Kind), Scope: place.environment, Name: m.Service},
+			Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: svc}},
+			Servers:  []string{r.Server.ID},
+		})
+	}
+	return t, refused, nil
+}
+
+// swarmOnly says a take-on's refusal names what Swarm gives a task's container,
+// which its copy doesn't carry as it isn't the app's: an address Swarm pinned on
+// each network the task joined, as the copy joins anew, and the labels and the
+// driver a stack's volume was made with, as the volume is there already and the
+// copy mounts it by its name. A subpath, or anything else, still keeps it back,
+// as that changes what's mounted.
+func swarmOnly(refusal string) bool {
+	for _, prefix := range []string{"ipv4_address on ", "VolumeOptions.Labels on ", "VolumeOptions.DriverConfig on "} {
+		if strings.HasPrefix(refusal, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+// restartFor is the restart policy a copy takes for its Swarm task's restart
+// condition: any restarts it whatever its exit, as unless-stopped does but where
+// a person stopped it; on-failure as it says; none never.
+func restartFor(condition string) resourcev1.RestartPolicy {
+	switch condition {
+	case "none":
+		return resourcev1.RestartPolicy_RESTART_POLICY_NO
+	case "on-failure":
+		return resourcev1.RestartPolicy_RESTART_POLICY_ON_FAILURE
+	}
+	return resourcev1.RestartPolicy_RESTART_POLICY_UNLESS_STOPPED
+}
+
+// remade leaves out of a container's spec what only its old manager reads: Swarm's
+// and Traefik's labels, Dokploy's, which would name it Dokploy's, Swarm's routing
+// mesh, a stack's own networks, and the names Swarm gave its task. It keeps the
+// networks it shares with others, such as Dokploy's, where its proxy and other
+// apps reach it by its name, and a stack's service answers there to the name the
+// stack gave it too.
+func remade(app *resourcev1.Container, m Remake) {
+	for k := range app.GetLabels() {
+		for _, prefix := range []string{"com.docker.swarm.", "com.docker.stack.", "traefik.", "dokploy."} {
+			if strings.HasPrefix(k, prefix) {
+				delete(app.Labels, k)
+			}
+		}
+	}
+	app.Networks = nil
+	app.ExternalNetworks = slices.DeleteFunc(app.ExternalNetworks, func(n string) bool {
+		return n == swarmIngress || m.Stack != "" && strings.HasPrefix(n, m.Stack+"_")
+	})
+	app.Aliases = nil
+	if m.Stack != "" && len(app.ExternalNetworks) > 0 {
+		app.Aliases = []string{m.Stack + "_" + m.Service}
+	}
+}
+
+// swarmIngress is the network of Swarm's routing mesh, which publishes a service's
+// ports: Swarm's alone to join.
+const swarmIngress = "ingress"
+
 // FreeProject is want, or, where a project has that name or claimed has it, the
 // first of want-<from>, want-<from>-2 and on that none has, such as blog-1panel: a
 // project to take something on into that's no one else's, nor another's of the

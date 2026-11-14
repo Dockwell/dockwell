@@ -3,6 +3,7 @@
 package panels
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"slices"
@@ -228,6 +229,115 @@ func TestWhatComesFromGit(t *testing.T) {
 	for _, a := range got.GetFound().GetApps() {
 		if a.GetFromGit() != (a.GetId() == "wiki-ab12") {
 			t.Errorf("%s reads as from Git: %v", a.GetId(), a.GetFromGit())
+		}
+	}
+}
+
+// Each of Dokploy's Swarm services is read with its running task, which it's made
+// again from, and the ports it publishes, each by the name its copy takes: an
+// application's appName, or a stack's service as the stack named it.
+func TestDokploysSwarmServicesComeWithTheirTasksAndPorts(t *testing.T) {
+	e := dockertest.New(t)
+	spec := func(name string, labels map[string]string, ports ...docker.ServicePort) docker.Service {
+		var s docker.ServiceSpec
+		s.Name, s.Labels, s.TaskTemplate.ContainerSpec.Image = name, labels, "postgres:16"
+		s.EndpointSpec.Ports = ports
+		return docker.Service{ID: name, Spec: s}
+	}
+	e.Services = []docker.Service{
+		spec("dokploy", nil),
+		spec("db-x7k2", map[string]string{"dokploy.project": "store", "dokploy.application": "db"}, docker.ServicePort{Protocol: "tcp", TargetPort: 5432, PublishedPort: 5433, PublishMode: "ingress"}),
+		spec("forum-q1_web", map[string]string{"com.docker.stack.namespace": "forum-q1"}, docker.ServicePort{TargetPort: 80, PublishedPort: 8081}),
+	}
+	e.AddContainer(docker.Container{Name: "/db-x7k2.1.abcd", Config: docker.Config{Image: "postgres:16", Labels: map[string]string{"com.docker.swarm.service.name": "db-x7k2"}}})
+	got, err := Reader{Docker: e.Client()}.Read(t.Context(), dockwellv1.PanelKind_PANEL_KIND_DOKPLOY)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, a := range got.GetFound().GetApps() {
+		switch a.GetId() {
+		case "db-x7k2":
+			if !slices.Equal(a.GetTasks(), []string{"db-x7k2.1.abcd"}) || len(a.GetPublished()) != 1 || a.GetPublished()[0].GetPublished() != 5433 || a.GetPublished()[0].GetService() != "db-x7k2" {
+				t.Errorf("the database reads %v", a)
+			}
+		case "forum-q1":
+			if !slices.Equal(a.GetTasks(), []string{""}) || len(a.GetPublished()) != 1 || a.GetPublished()[0].GetService() != "web" || a.GetPublished()[0].GetProtocol() != "tcp" {
+				t.Errorf("the stack reads %v", a)
+			}
+		}
+	}
+}
+
+// A stack's services are read in name order, each beside its own running task,
+// whatever order Swarm lists them in: a copy of db is made from db's task.
+func TestAStacksTasksStayWithTheirServices(t *testing.T) {
+	e := dockertest.New(t)
+	labels := map[string]string{"com.docker.stack.namespace": "forum-q1", "dokploy.project": "community"}
+	for _, name := range []string{"forum-q1_web", "forum-q1_db"} {
+		var s docker.ServiceSpec
+		s.Name, s.Labels = name, labels
+		e.Services = append(e.Services, docker.Service{ID: name, Spec: s})
+		e.AddContainer(docker.Container{
+			Name: "/" + name + ".1.t" + name[len(name)-2:], Config: docker.Config{Image: "nginx:1.27", Labels: map[string]string{"com.docker.swarm.service.name": name}},
+			State: docker.State{Status: "running", Running: true},
+		})
+	}
+	got, err := Reader{Docker: e.Client()}.Read(t.Context(), dockwellv1.PanelKind_PANEL_KIND_DOKPLOY)
+	if err != nil {
+		t.Fatal(err)
+	}
+	apps := got.GetFound().GetApps()
+	if len(apps) != 1 || !slices.Equal(apps[0].GetContainers(), []string{"forum-q1_db", "forum-q1_web"}) ||
+		!slices.Equal(apps[0].GetTasks(), []string{"forum-q1_db.1.tdb", "forum-q1_web.1.teb"}) {
+		t.Errorf("the stack reads %v", apps)
+	}
+}
+
+// What a copy can't carry keeps a Swarm-run app where it is, saying why: a copy is
+// one container on this server, with no Swarm to give it secrets, configs or a
+// volume made anew for each task.
+func TestWhatASwarmAppCantCarry(t *testing.T) {
+	read := func(nodes int, edit func(*docker.ServiceSpec)) string {
+		e := dockertest.New(t)
+		e.SwarmNodes = nodes
+		var s docker.ServiceSpec
+		one := uint64(1)
+		s.Name, s.Labels = "shop-k2m4", map[string]string{"dokploy.project": "store", "dokploy.application": "shop"}
+		s.Mode.Replicated = &struct {
+			Replicas *uint64 `json:"Replicas,omitempty"`
+		}{Replicas: &one}
+		edit(&s)
+		e.Services = []docker.Service{{ID: "s1", Spec: s}}
+		got, err := Reader{Docker: e.Client()}.Read(t.Context(), dockwellv1.PanelKind_PANEL_KIND_DOKPLOY)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return got.GetFound().GetApps()[0].GetSwarmLeft()
+	}
+	if got := read(1, func(*docker.ServiceSpec) {}); got != "" {
+		t.Errorf("a plain service on one node reads %q", got)
+	}
+	two := uint64(2)
+	for want, why := range map[string]string{
+		"shop-k2m4 runs 2 replicas, and a copy would be one": read(1, func(s *docker.ServiceSpec) {
+			s.Mode.Replicated.Replicas = &two
+		}),
+		"shop-k2m4 runs a task on every node": read(1, func(s *docker.ServiceSpec) {
+			s.Mode.Replicated, s.Mode.Global = nil, &struct{}{}
+		}),
+		"the swarm has 3 nodes, and a copy runs on this server alone": read(3, func(*docker.ServiceSpec) {}),
+		"shop-k2m4 reads a Swarm secret, which only Swarm's tasks can": read(1, func(s *docker.ServiceSpec) {
+			s.TaskTemplate.ContainerSpec.Secrets = []json.RawMessage{json.RawMessage(`{"SecretName":"db-password"}`)}
+		}),
+		"shop-k2m4 reads a Swarm config, which only Swarm's tasks can": read(1, func(s *docker.ServiceSpec) {
+			s.TaskTemplate.ContainerSpec.Configs = []json.RawMessage{json.RawMessage(`{"ConfigName":"nginx.conf"}`)}
+		}),
+		"shop-k2m4 keeps data in an anonymous volume at /data, which a copy wouldn't find": read(1, func(s *docker.ServiceSpec) {
+			s.TaskTemplate.ContainerSpec.Mounts = []docker.ServiceMount{{Type: "volume", Source: "shop-data", Target: "/srv"}, {Type: "volume", Target: "/data"}}
+		}),
+	} {
+		if why != want {
+			t.Errorf("read %q, want %q", why, want)
 		}
 	}
 }

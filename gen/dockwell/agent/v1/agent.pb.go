@@ -1989,6 +1989,11 @@ type Hello struct {
 	// True when the agent stops and starts the own containers and services of
 	// Coolify or Dokploy as a step of a change (DesiredResource.panel).
 	StopsPanels bool `protobuf:"varint,332,opt,name=stops_panels,json=stopsPanels,proto3" json:"stops_panels,omitempty"`
+	// True when the agent makes Swarm-run apps again safely (ADR 0089): it waits
+	// on Swarm's tasks, for their grace period, until each is over before a copy
+	// or a scale up starts, and takes a scaled service off its ports and
+	// networks. The control plane makes none again through an agent that doesn't.
+	RemakesSwarmApps bool `protobuf:"varint,335,opt,name=remakes_swarm_apps,json=remakesSwarmApps,proto3" json:"remakes_swarm_apps,omitempty"`
 	// What the agent keeps of what its server should run (ADR 0054), so the
 	// control plane sends what it lacks. An agent that sends none keeps nothing,
 	// and is sent nothing to keep.
@@ -2243,6 +2248,13 @@ func (x *Hello) GetReadsPanels() bool {
 func (x *Hello) GetStopsPanels() bool {
 	if x != nil {
 		return x.StopsPanels
+	}
+	return false
+}
+
+func (x *Hello) GetRemakesSwarmApps() bool {
+	if x != nil {
+		return x.RemakesSwarmApps
 	}
 	return false
 }
@@ -11480,7 +11492,10 @@ type PanelAction struct {
 	Start bool `protobuf:"varint,3,opt,name=start,proto3" json:"start,omitempty"`
 	// How each stood before a stop, as its plan kept it: what a start puts back,
 	// and what a stop that resumes keeps.
-	Parts         []*v1.HostPanelPart `protobuf:"bytes,4,rep,name=parts,proto3" json:"parts,omitempty"`
+	Parts []*v1.HostPanelPart `protobuf:"bytes,4,rep,name=parts,proto3" json:"parts,omitempty"`
+	// True to act on Swarm services of what the panel runs, which parts name, as
+	// each is made again in Dockwell; never the panel's own.
+	Apps          bool `protobuf:"varint,6,opt,name=apps,proto3" json:"apps,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -11541,6 +11556,13 @@ func (x *PanelAction) GetParts() []*v1.HostPanelPart {
 		return x.Parts
 	}
 	return nil
+}
+
+func (x *PanelAction) GetApps() bool {
+	if x != nil {
+		return x.Apps
+	}
+	return false
 }
 
 // DatabaseDump is one database a backup step dumps alone, under the ID the control
@@ -14393,7 +14415,7 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x05Heard\x12\x12\n" +
 	"\x04last\x18\x01 \x01(\tR\x04last\"\n" +
 	"\n" +
-	"\bDraining\"\xc1\n" +
+	"\bDraining\"\xf0\n" +
 	"\n" +
 	"\x05Hello\x12,\n" +
 	"\x05build\x18\x01 \x01(\v2\x16.dockwell.v1.BuildInfoR\x05build\x12:\n" +
@@ -14422,7 +14444,8 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x0fregistry_logins\x18\xba\x02 \x01(\bR\x0eregistryLogins\x12\"\n" +
 	"\fbuild_logins\x18\xbc\x02 \x01(\bR\vbuildLogins\x12\"\n" +
 	"\freads_panels\x18\xca\x02 \x01(\bR\vreadsPanels\x12\"\n" +
-	"\fstops_panels\x18\xcc\x02 \x01(\bR\vstopsPanels\x129\n" +
+	"\fstops_panels\x18\xcc\x02 \x01(\bR\vstopsPanels\x12-\n" +
+	"\x12remakes_swarm_apps\x18\xcf\x02 \x01(\bR\x10remakesSwarmApps\x129\n" +
 	"\adesired\x18\xa0\x01 \x01(\v2\x1e.dockwell.agent.v1.DesiredHeldR\adesired\x12\"\n" +
 	"\fown_settings\x18\xac\x02 \x01(\bR\vownSettings\x12\x15\n" +
 	"\x05links\x18\xa2\x02 \x01(\bR\x05links\x12\"\n" +
@@ -15027,12 +15050,13 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\rregistry_auth\x18\xb6\x02 \x01(\fR\fregistryAuth\x121\n" +
 	"\x14build_registry_auths\x18\xbb\x02 \x01(\fR\x12buildRegistryAuths\x125\n" +
 	"\x05panel\x18\xcd\x02 \x01(\v2\x1e.dockwell.agent.v1.PanelActionR\x05panelB\a\n" +
-	"\x05_spec\"\xa0\x01\n" +
+	"\x05_spec\"\xb4\x01\n" +
 	"\vPanelAction\x12\x1b\n" +
 	"\tchange_id\x18\x01 \x01(\tR\bchangeId\x12,\n" +
 	"\x05panel\x18\x02 \x01(\x0e2\x16.dockwell.v1.PanelKindR\x05panel\x12\x14\n" +
 	"\x05start\x18\x03 \x01(\bR\x05start\x120\n" +
-	"\x05parts\x18\x04 \x03(\v2\x1a.dockwell.v1.HostPanelPartR\x05parts\"G\n" +
+	"\x05parts\x18\x04 \x03(\v2\x1a.dockwell.v1.HostPanelPartR\x05parts\x12\x12\n" +
+	"\x04apps\x18\x06 \x01(\bR\x04apps\"G\n" +
 	"\fDatabaseDump\x12\x1b\n" +
 	"\tbackup_id\x18\x01 \x01(\tR\bbackupId\x12\x1a\n" +
 	"\bdatabase\x18\x02 \x01(\tR\bdatabase\"w\n" +

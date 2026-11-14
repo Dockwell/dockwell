@@ -1054,7 +1054,8 @@ function useTitle(phase: Phase, plan: Plan | undefined, change: Change | undefin
   }
   // Stopping the panel an import came from says so, and starting it again (ADR 0089).
   const panel = panelOf(plan);
-  if (panel) {
+  // An import that makes apps again says what an import does; its scaling is a step.
+  if (panel && !panel.apps) {
     const server = plan?.servers.find((s) => s.steps.length > 0)?.serverName ?? "";
     const name = panelName(panel.kind);
     const [ing, ed] = panel.start

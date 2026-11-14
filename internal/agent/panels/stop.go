@@ -5,6 +5,7 @@ package panels
 import (
 	"cmp"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -35,9 +36,20 @@ const stopWait = 30 * time.Second
 // of its own is one each, and a start asks no more than a stop read.
 const mostReplicas = 16
 
+// defaultGrace is how long Docker gives a task to stop where its service doesn't
+// say, and taskMargin how much longer a scale to none waits for it to be over: for
+// Swarm to act on the new spec, and to kill what didn't stop.
+const (
+	defaultGrace = 10 * time.Second
+	taskMargin   = time.Minute
+)
+
 // Stopper stops and starts a panel's own containers and services, with Docker.
 type Stopper struct {
 	Docker *docker.Client
+	// TaskWait is how long a scale waits for the service's tasks to be over, its
+	// grace period and taskMargin where it's zero; a test sets less.
+	TaskWait time.Duration
 }
 
 // PlanPanel reads how the panel's own containers and services stand, and plans
@@ -48,6 +60,9 @@ type Stopper struct {
 func (s Stopper) PlanPanel(ctx context.Context, ask resource.PanelAsked) (*resource.Panel, bool, error) {
 	if s.Docker == nil {
 		return nil, false, errors.New("this agent reads no Docker, so it can't stop or start a panel")
+	}
+	if ask.Apps {
+		return s.planApps(ctx, ask)
 	}
 	order, ok := stops[ask.Kind]
 	if !ok {
@@ -109,6 +124,54 @@ func (s Stopper) PlanPanel(ctx context.Context, ask resource.PanelAsked) (*resou
 	return plan, left, nil
 }
 
+// planApps plans scaling Swarm services of what Dokploy runs to none, as each is
+// made again in Dockwell, or back to what each ran (ADR 0089). The control plane
+// names them, so each must be a service Dokploy labelled as an app's, never one of
+// its own or another's; a stop reads how each stands, and a stop that resumes or a
+// start takes what its plan kept.
+func (s Stopper) planApps(ctx context.Context, ask resource.PanelAsked) (*resource.Panel, bool, error) {
+	if ask.Kind != resource.PanelDokploy || len(ask.Parts) == 0 {
+		return nil, false, errors.New("only Dokploy runs apps as Swarm services, so name its services to scale")
+	}
+	plan := &resource.Panel{Kind: ask.Kind, Start: ask.Start, Apps: true}
+	left := false
+	for _, p := range ask.Parts {
+		svc, err := s.Docker.InspectService(ctx, p.Name)
+		if err != nil {
+			return nil, false, fmt.Errorf("can't read the Swarm service %s: %w", p.Name, err)
+		}
+		l := svc.Spec.Labels
+		if slices.Contains(stops[resource.PanelDokploy], p.Name) || p.Name == resource.PanelProxy(resource.PanelDokploy) ||
+			!dokployOwns(l) {
+			return nil, false, fmt.Errorf("%s isn't a service Dokploy runs for an app, so Dockwell won't scale it", p.Name)
+		}
+		n, replicated := svc.Spec.Mode.Replicas()
+		if !replicated {
+			return nil, false, fmt.Errorf("the service %s runs one task on each node, so Dockwell can't scale it to none", p.Name)
+		}
+		part := resource.PanelPart{Name: p.Name, Swarm: true, WasRunning: n > 0, WasReplicas: n, WasPorts: portsOf(svc.Spec.EndpointSpec.Ports), WasNetworks: networksOf(&svc.Spec)}
+		if p.WasReplicas > 0 || ask.Start {
+			if p.WasReplicas > mostReplicas {
+				return nil, false, fmt.Errorf("what the plan kept of how %s stood isn't what a stop reads, so Dockwell won't act on it", p.Name)
+			}
+			part.WasRunning, part.WasReplicas, part.WasPorts, part.WasNetworks = p.WasRunning, p.WasReplicas, p.WasPorts, p.WasNetworks
+		}
+		live, err := s.tasksLive(ctx, p.Name)
+		if err != nil {
+			return nil, false, err
+		}
+		if ask.Start {
+			left = left || n != part.WasReplicas
+		} else {
+			// Asking for none isn't done while a task isn't over: a stop that
+			// resumes after a restart waits again, as its copy would start beside it.
+			left = left || n != 0 || live > 0
+		}
+		plan.Parts = append(plan.Parts, part)
+	}
+	return plan, left, nil
+}
+
 // ApplyPanel stops or starts each part as planned, saying each, then reads each
 // again, and fails where one doesn't stand as asked. Each act is one that's safe
 // again: a resume repeats what was done before it stopped.
@@ -119,12 +182,34 @@ func (s Stopper) ApplyPanel(ctx context.Context, p resource.Panel, say func(stri
 	for _, part := range p.Parts {
 		var err error
 		switch {
+		case part.Swarm && p.Start && p.Apps:
+			// What took its place stops first, and nothing of its own may still be
+			// stopping: Swarm's scale up starts a task at once.
+			err = s.untilNoTask(ctx, part.Name, say, "after %s, so Dockwell doesn't scale it back up beside it")
+			if err == nil {
+				say(fmt.Sprintf("Scaling the service %s to %d, with the ports it published and the networks it joined", part.Name, part.WasReplicas))
+				err = s.Docker.PlaceService(ctx, part.Name, part.WasReplicas, servicePorts(part.WasPorts), json.RawMessage(part.WasNetworks))
+			}
 		case part.Swarm && p.Start:
 			say(fmt.Sprintf("Scaling the service %s to %d", part.Name, part.WasReplicas))
 			err = s.Docker.ScaleService(ctx, part.Name, part.WasReplicas)
+		case part.Swarm && p.Apps:
+			// Its ports and networks come off too: Swarm's routing mesh holds a
+			// published port for as long as the service publishes it, so its copy
+			// couldn't, and its name would answer on a network beside its copy's.
+			say(fmt.Sprintf("Scaling the service %s to none, and taking it off its ports and networks", part.Name))
+			err = s.Docker.PlaceService(ctx, part.Name, 0, nil, nil)
+			if err == nil {
+				err = s.untilNoTask(ctx, part.Name, say, "%s after it was scaled to none, so nothing takes its place")
+			}
 		case part.Swarm:
+			// A scale changes the spec at once, and Swarm stops the task after: what
+			// takes its place, such as a copy on the same data, waits for that.
 			say(fmt.Sprintf("Scaling the service %s to none", part.Name))
 			err = s.Docker.ScaleService(ctx, part.Name, 0)
+			if err == nil {
+				err = s.untilNoTask(ctx, part.Name, say, "%s after it was scaled to none, so nothing takes its place")
+			}
 		case p.Start:
 			// Started first, and its policy put back after: one that doesn't start
 			// stays at no, so Docker or a reboot doesn't keep trying it.
@@ -158,6 +243,111 @@ func (s Stopper) ApplyPanel(ctx context.Context, p resource.Panel, say func(stri
 		}
 	}
 	return nil
+}
+
+// portsOf are the ports a Swarm service publishes, as a plan keeps them.
+func portsOf(ports []docker.ServicePort) []resource.PanelPort {
+	var out []resource.PanelPort
+	for _, p := range ports {
+		out = append(out, resource.PanelPort{Protocol: p.Protocol, Target: p.TargetPort, Published: p.PublishedPort, Mode: p.PublishMode})
+	}
+	return out
+}
+
+// networksOf are the networks a Swarm service joins, as Docker has them: in its
+// task template, or where an old client named them, beside it. A start puts them
+// back in its task template, which Docker reads the same.
+func networksOf(s *docker.ServiceSpec) string {
+	if len(s.TaskTemplate.Networks) > 0 {
+		return string(s.TaskTemplate.Networks)
+	}
+	return string(s.Networks)
+}
+
+// servicePorts are the ports a plan kept, as Docker takes them.
+func servicePorts(ports []resource.PanelPort) []docker.ServicePort {
+	out := make([]docker.ServicePort, 0, len(ports))
+	for _, p := range ports {
+		out = append(out, docker.ServicePort{Protocol: p.Protocol, TargetPort: p.Target, PublishedPort: p.Published, PublishMode: p.Mode})
+	}
+	return out
+}
+
+// tasksLive counts what of a Swarm service may still run: each task Swarm's tasks
+// API doesn't call over, on every node, starting ones too, and each container of
+// its tasks on this node that hasn't exited. Both count: on a real Swarm, an
+// update that asks for none and changes the task template, as taking the service
+// off its ports and networks does, drops its task from the tasks API at once,
+// while its container still shuts down, such as a database for two seconds, and a
+// copy that started then would run beside it on the same data.
+func (s Stopper) tasksLive(ctx context.Context, service string) (int, error) {
+	tasks, err := s.Docker.ListTasks(ctx, service)
+	if err != nil {
+		return 0, fmt.Errorf("can't list the tasks of the service %s: %w", service, err)
+	}
+	n := 0
+	for i := range tasks {
+		if !tasks[i].Over() {
+			n++
+		}
+	}
+	list, err := s.Docker.ListContainers(ctx, map[string][]string{"label": {"com.docker.swarm.service.name=" + service}})
+	if err != nil {
+		return 0, fmt.Errorf("can't list the containers of the service %s: %w", service, err)
+	}
+	for i := range list {
+		if containerLive(list[i].State) {
+			n++
+		}
+	}
+	return n, nil
+}
+
+// containerLive says a task's container, in a state Docker names, may run what a
+// copy would run beside: running, restarting, paused or being removed. One made
+// whose start failed, which Swarm leaves behind and a scale to none doesn't take
+// away, isn't, nor one that exited or died: a task really about to start is one
+// the tasks API doesn't call over.
+func containerLive(state string) bool {
+	switch state {
+	case "running", "restarting", "paused", "removing":
+		return true
+	}
+	return false
+}
+
+// untilNoTask waits for a Swarm service to have no task that isn't over, and fails
+// where one still is once its stop's grace period and taskMargin more have passed,
+// or TaskWait where a test sets it, saying why as when holds, with the wait in it.
+func (s Stopper) untilNoTask(ctx context.Context, service string, say func(string), when string) error {
+	wait := s.TaskWait
+	if wait == 0 {
+		grace := defaultGrace
+		if svc, err := s.Docker.InspectService(ctx, service); err == nil && svc.Spec.TaskTemplate.ContainerSpec.StopGracePeriod != nil {
+			grace = time.Duration(*svc.Spec.TaskTemplate.ContainerSpec.StopGracePeriod)
+		}
+		wait = grace + taskMargin
+	}
+	deadline := time.Now().Add(wait)
+	said := false
+	for {
+		n, err := s.tasksLive(ctx, service)
+		if err != nil || n == 0 {
+			return err
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("the service %s still has a task that isn't over "+when, service, wait.Round(time.Second))
+		}
+		if !said {
+			say(fmt.Sprintf("Waiting for the task of %s to stop", service))
+			said = true
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(200 * time.Millisecond):
+		}
+	}
 }
 
 func verb(start bool) string {
@@ -267,6 +457,10 @@ type standing struct {
 	running  bool
 	restart  string
 	replicas uint64
+	// tasks are how many containers of a Swarm service's tasks run on this node.
+	tasks int
+	// ports are how many ports a Swarm service publishes.
+	ports int
 }
 
 func (s Stopper) stands(ctx context.Context, p resource.PanelPart) (standing, error) {
@@ -279,7 +473,11 @@ func (s Stopper) stands(ctx context.Context, p resource.PanelPart) (standing, er
 			return standing{}, fmt.Errorf("can't read the service %s: %w", p.Name, err)
 		}
 		n, _ := svc.Spec.Mode.Replicas()
-		return standing{running: n > 0, replicas: n}, nil
+		tasks, err := s.tasksLive(ctx, p.Name)
+		if err != nil {
+			return standing{}, err
+		}
+		return standing{running: n > 0 || tasks > 0, replicas: n, tasks: tasks, ports: len(svc.Spec.EndpointSpec.Ports)}, nil
 	}
 	c, err := s.Docker.InspectContainer(ctx, p.Name)
 	if docker.IsNotFound(err) {
@@ -298,9 +496,9 @@ func (st standing) like(p resource.PanelPart, start bool) bool {
 	case st.gone:
 		return !start
 	case p.Swarm && start:
-		return st.replicas == p.WasReplicas
+		return st.replicas == p.WasReplicas && (len(p.WasPorts) == 0 || st.ports == len(p.WasPorts))
 	case p.Swarm:
-		return st.replicas == 0
+		return st.replicas == 0 && st.tasks == 0 && (len(p.WasPorts) == 0 || st.ports == 0)
 	case start:
 		return (p.WasRestart == "" || st.restart == p.WasRestart) && (st.running || !p.WasRunning)
 	default:
@@ -313,6 +511,13 @@ func (st standing) words(swarm bool) string {
 	switch {
 	case st.gone:
 		return "it isn't there any more"
+	case swarm && st.ports > 0 && st.replicas == 0 && st.tasks == 0:
+		if st.ports == 1 {
+			return "it runs none, and still publishes a port"
+		}
+		return fmt.Sprintf("it runs none, and still publishes %d ports", st.ports)
+	case swarm && st.replicas == 0 && st.tasks > 0:
+		return fmt.Sprintf("it asks for none, and %d of its tasks still run", st.tasks)
 	case swarm:
 		return fmt.Sprintf("it runs %d replicas", st.replicas)
 	case st.running:

@@ -147,10 +147,12 @@ func TestEachThingASpecCantHoldIsNamed(t *testing.T) {
 
 	// Inside a mount, what isn't known counts too.
 	got := noSpecHolds(c, options(t, map[string]string{
-		"Mounts": `[{"Type": "volume", "Source": "a", "Target": "/a", "VolumeOptions": {"NoCopy": true}},
+		"Mounts": `[{"Type": "volume", "Source": "a", "Target": "/a", "VolumeOptions": {"NoCopy": true, "Labels": {}, "Subpath": "x"}},
 			{"Type": "bind", "Source": "/b", "Target": "/b", "BindOptions": {"Propagation": "rshared"}}]`,
 	}), info)
-	if !slices.Equal(got, []string{"VolumeOptions on /a", "rshared on /b"}) {
+	// Each part of a volume's options by its name, as some mean nothing to a volume
+	// that's there already and some change what's mounted.
+	if !slices.Equal(got, []string{"VolumeOptions.NoCopy on /a", "VolumeOptions.Subpath on /a", "rshared on /b"}) {
 		t.Errorf("noSpecHolds of mount options = %v", got)
 	}
 

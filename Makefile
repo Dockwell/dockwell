@@ -219,6 +219,10 @@ docker-e2e: build-go build-agent ## Run, change, undo and export a service throu
 	go build -o bin/htpasswd ./scripts/htpasswd
 	GITSERVE=bin/gitserve HTPASSWD=bin/htpasswd scripts/docker-e2e.sh $(BIN) $(AGENT_BIN)
 
+.PHONY: swarm-e2e
+swarm-e2e: build-go ## Make Dokploy's Swarm-run apps and a stack again in Dockwell on this machine's Swarm, as docker swarm init leaves it, and undo it
+	scripts/swarm-e2e.sh $(BIN)
+
 .PHONY: catalog-e2e
 catalog-e2e: build-go ## Install, check, upgrade and remove catalog apps on this machine's Docker, as APPS="pgadmin redis" names them
 	@test -n "$(APPS)" || { echo 'catalog-e2e: name the apps to try, such as make catalog-e2e APPS="pgadmin redis"' >&2; exit 1; }

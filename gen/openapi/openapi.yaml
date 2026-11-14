@@ -14032,6 +14032,11 @@ components:
                     description: |-
                         The panel's proxy, which goes on running: it serves the domains of what was
                          taken on until those come as routes, a step of its own.
+                apps:
+                    type: boolean
+                    description: |-
+                        True when it acts on Swarm services of what the panel runs, as each is made
+                         again in Dockwell: a stop scales each to none as Dockwell's copy starts.
             description: |-
                 HostPanel is what stopping or starting the panel an import came from does, for a
                  server's host (docs/adr/0089-importing-from-coolify-and-dokploy.md): its own
@@ -14058,7 +14063,40 @@ components:
                 wasReplicas:
                     type: string
                     description: How many replicas a Swarm service ran as the stop was planned.
+                wasPorts:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/HostPanelPort'
+                    description: |-
+                        The ports a Swarm service of what the panel ran published as the stop was
+                         planned: a stop takes them off, as Swarm's routing mesh holds a published
+                         port for as long as the service publishes it, so its copy can, and a start
+                         puts them back.
+                wasNetworks:
+                    type: string
+                    description: |-
+                        The networks a Swarm service of what the panel ran joined as the stop was
+                         planned, as Docker has them: a stop takes it off them, so its name answers
+                         there for its copy alone, and a start puts them back exactly.
             description: HostPanelPart is one of a panel's own containers or Swarm services.
+        HostPanelPort:
+            type: object
+            properties:
+                protocol:
+                    type: string
+                    description: '"tcp", "udp" or "sctp".'
+                target:
+                    type: integer
+                    description: The port in its tasks' containers.
+                    format: uint32
+                published:
+                    type: integer
+                    description: The port it's published on.
+                    format: uint32
+                mode:
+                    type: string
+                    description: '"ingress", through the routing mesh, or "host", on the node its task runs on.'
+            description: HostPanelPort is a port a Swarm service publishes.
         HostReboot:
             type: object
             properties:
@@ -17196,6 +17234,35 @@ components:
                         True when the panel deploys it from a Git repository, where a push can deploy
                          it again: Coolify's application built from a commit, or Dokploy's app whose
                          code folder is a Git checkout. Both panels deploy on a push by default.
+                tasks:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        The running task container of each of its Swarm services, in the order of
+                         containers, or empty for one with none running: what reads as the service it
+                         would be made again as.
+                published:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/PanelPort'
+                    description: |-
+                        The ports its Swarm services publish, which the copies made again in Dockwell
+                         publish on the server.
+                restarts:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        When Swarm starts each of its services' tasks again, in the order of
+                         containers: "any", "on-failure" or "none". Its copy restarts the same way.
+                swarmLeft:
+                    type: string
+                    description: |-
+                        Why its Swarm services can't be made again as one container each on this
+                         server, or empty where they can: more than one replica, a task on every
+                         node, a swarm of more than one node, a Swarm secret or config, or an
+                         anonymous volume.
             description: |-
                 PanelApp is something a panel runs for people: an app, a service from its
                  templates, or a database.
@@ -17214,6 +17281,26 @@ components:
                         What it's doing, such as "running" or "exited", or "service" for a Swarm
                          service.
             description: PanelContainer is one of a panel's own containers or Swarm services.
+        PanelPort:
+            type: object
+            properties:
+                service:
+                    type: string
+                    description: |-
+                        The service, as its copy in Dockwell is named: an application's appName, or
+                         a stack's service.
+                port:
+                    type: integer
+                    description: The port in the container.
+                    format: uint32
+                published:
+                    type: integer
+                    description: The port it's published on.
+                    format: uint32
+                protocol:
+                    type: string
+                    description: '"tcp" or "udp".'
+            description: PanelPort is a port a Swarm service publishes.
         PanelPortHolder:
             type: object
             properties:

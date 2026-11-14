@@ -907,7 +907,12 @@ func panelWords(p *dockwellv1.HostPanel, server string) []string {
 			containers = append(containers, part.GetName())
 		}
 	}
-	if p.GetStart() {
+	switch {
+	case p.GetApps() && p.GetStart():
+		return []string{fmt.Sprintf("Scales the Swarm services %s back up in %s, once Dockwell's copies are gone.", human.List(services), name)}
+	case p.GetApps():
+		return []string{fmt.Sprintf("Scales the Swarm services %s to none in %s first, so each is down for a moment until Dockwell's copy starts on the same volumes. Undoing this scales each back.", human.List(services), name)}
+	case p.GetStart():
 		return []string{fmt.Sprintf("Starts %s's own containers again on %s, each as it stood before the stop: %s.", name, server, human.List(append(containers, services...)))}
 	}
 	var out []string

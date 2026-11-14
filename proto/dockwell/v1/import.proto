@@ -266,6 +266,34 @@ message PanelApp {
   // it again: Coolify's application built from a commit, or Dokploy's app whose
   // code folder is a Git checkout. Both panels deploy on a push by default.
   bool from_git = 13;
+  // The running task container of each of its Swarm services, in the order of
+  // containers, or empty for one with none running: what reads as the service it
+  // would be made again as.
+  repeated string tasks = 15;
+  // The ports its Swarm services publish, which the copies made again in Dockwell
+  // publish on the server.
+  repeated PanelPort published = 16;
+  // When Swarm starts each of its services' tasks again, in the order of
+  // containers: "any", "on-failure" or "none". Its copy restarts the same way.
+  repeated string restarts = 17;
+  // Why its Swarm services can't be made again as one container each on this
+  // server, or empty where they can: more than one replica, a task on every
+  // node, a swarm of more than one node, a Swarm secret or config, or an
+  // anonymous volume.
+  string swarm_left = 18;
+}
+
+// PanelPort is a port a Swarm service publishes.
+message PanelPort {
+  // The service, as its copy in Dockwell is named: an application's appName, or
+  // a stack's service.
+  string service = 1;
+  // The port in the container.
+  uint32 port = 2;
+  // The port it's published on.
+  uint32 published = 3;
+  // "tcp" or "udp".
+  string protocol = 4;
 }
 
 // PanelContainer is one of a panel's own containers or Swarm services.

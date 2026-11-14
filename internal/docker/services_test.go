@@ -64,3 +64,35 @@ func TestScalingAServiceKeepsTheRestOfIt(t *testing.T) {
 		t.Errorf("scaling a global service = %v", err)
 	}
 }
+
+// Placing a service sets its replicas, what it publishes and the networks it joins
+// alone, and keeps the rest of its spec as Docker has it.
+func TestPlacingAService(t *testing.T) {
+	e := dockertest.New(t)
+	svc := docker.Service{ID: "s1", Version: docker.ServiceVersion{Index: 3}}
+	svc.Spec.Name, svc.Spec.Mode = "shop-k2m4", replicas(1)
+	e.Services = []docker.Service{svc}
+	e.ServiceExtras = map[string]map[string]json.RawMessage{"s1": {
+		"UpdateConfig": json.RawMessage(`{"Monitor":9007199254740993}`),
+	}}
+	c := e.Client()
+	if err := c.PlaceService(t.Context(), "shop-k2m4", 0, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	if sent := e.ServiceUpdates[0]; !strings.Contains(sent, `"Ports":[]`) || !strings.Contains(sent, `"Networks":[]`) || !strings.Contains(sent, `"Monitor":9007199254740993`) || !strings.Contains(sent, `"Replicas":0`) {
+		t.Errorf("freeing its ports sent %s", sent)
+	}
+	back := []docker.ServicePort{{Protocol: "tcp", TargetPort: 80, PublishedPort: 8085, PublishMode: "ingress"}}
+	networks := json.RawMessage(`[{"Target":"k3net","Aliases":["shop-k2m4"]}]`)
+	if err := c.PlaceService(t.Context(), "shop-k2m4", 1, back, networks); err != nil {
+		t.Fatal(err)
+	}
+	read, err := c.InspectService(t.Context(), "shop-k2m4")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n, _ := read.Spec.Mode.Replicas(); n != 1 || len(read.Spec.EndpointSpec.Ports) != 1 || read.Spec.EndpointSpec.Ports[0] != back[0] ||
+		string(read.Spec.TaskTemplate.Networks) != `[{"Aliases":["shop-k2m4"],"Target":"k3net"}]` {
+		t.Errorf("scaled back with its ports, it reads %+v", read.Spec)
+	}
+}

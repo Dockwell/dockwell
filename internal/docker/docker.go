@@ -229,6 +229,11 @@ type Info struct {
 	// RegistryConfig is how it reaches registries: its mirrors of Docker Hub,
 	// and which registries it reaches over plain HTTP.
 	RegistryConfig *RegistryConfig
+	// Swarm is the swarm it's in, where it's in one: Nodes is how many nodes it
+	// has.
+	Swarm struct {
+		Nodes int
+	}
 }
 
 // RegistryConfig is how the engine reaches registries, as its daemon.json says.

@@ -302,6 +302,20 @@ func readMountList(raw json.RawMessage, _ *reading) []string {
 			case "Type", "Source", "Target", "ReadOnly", "Consistency":
 			case "BindOptions":
 				out = append(out, readBindOptions(m[key], target)...)
+			case "VolumeOptions":
+				// Each part by its name, as what the volume was made with, such as a
+				// Swarm stack's labels, means nothing to a volume that's there, and a
+				// subpath means what it mounts.
+				var opts map[string]json.RawMessage
+				if json.Unmarshal(m[key], &opts) != nil {
+					out = append(out, key+" on "+target)
+					continue
+				}
+				for _, sub := range slices.Sorted(maps.Keys(opts)) {
+					if !isZero(opts[sub]) {
+						out = append(out, key+"."+sub+" on "+target)
+					}
+				}
 			default:
 				if !isZero(m[key]) {
 					out = append(out, key+" on "+target)

@@ -485,7 +485,7 @@ func (a *Agents) open(server, name string, hello *agentv1.Hello, send func(*agen
 	s := &Session{
 		agents: a, guardsWaysIn: hello.GetGuardsWaysIn(), readsUpdates: hello.GetUpdates(), managesFiles: hello.GetManagesFiles(), transfersFiles: hello.GetTransfersFiles(), pagesListings: hello.GetPagesListings(), firstPasswords: hello.GetFirstPasswords(), forwards: hello.GetForwards(), drills: hello.GetDrills(), readsOnePanel: hello.GetReadsOnepanel(), terminals: hello.GetTerminals(), containerTerminals: hello.GetContainerTerminals(), openTerminals: slices.Clone(hello.GetOpenTerminals()), opened: time.Now(), server: server, name: name, send: send, deliveryKey: slices.Clone(hello.GetDeliveryKey()), writesReferences: hello.GetWritesReferences(), makesFolders: hello.GetMakesFolders(), keepsRoutesPrivate: hello.GetKeepsRoutesPrivate(),
 		ownSettings: hello.GetOwnSettings(), writesFiles: hello.GetWritesFiles(), ownsVolumes: hello.GetOwnsVolumes(), followsPace: hello.GetFollowsPace(), bootID: hello.GetBootId(), actsOnUnits: hello.GetActsOnUnits(), registryLogins: hello.GetRegistryLogins(), handsBuildLogins: hello.GetBuildLogins(), links: hello.GetLinks(), oneDatabaseBackups: hello.GetOneDatabaseBackups(),
-		loadsCertificates: hello.GetLoadsCertificates(), readsPanels: hello.GetReadsPanels(), stopsPanels: hello.GetStopsPanels(),
+		loadsCertificates: hello.GetLoadsCertificates(), readsPanels: hello.GetReadsPanels(), stopsPanels: hello.GetStopsPanels(), remakesSwarmApps: hello.GetRemakesSwarmApps(),
 		pending: map[uint64]chan *agentv1.CallResult{}, progress: map[uint64]func(resource.Activity){}, outcomes: map[uint64]func(resource.Outcome){}, done: make(chan struct{}),
 		kicked: make(chan struct{}),
 	}
@@ -663,6 +663,9 @@ type Session struct {
 	// stopsPanels says the agent stops and starts Coolify's or Dokploy's own
 	// containers as a step of a change (ADR 0089).
 	stopsPanels bool
+	// remakesSwarmApps says the agent waits on Swarm's tasks before a copy of one
+	// starts, so the control plane makes Swarm-run apps again through it (ADR 0089).
+	remakesSwarmApps bool
 	// terminals says the agent opens terminals, and openTerminals which it had
 	// as the stream opened, which is then.
 	terminals          bool
@@ -1345,7 +1348,7 @@ func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resou
 				return nil, fault.New(ErrOlderAgent, "%s's agent is older than the control plane, and can't stop or start %s. "+
 					"Update its agent by running the install script on the server again", s.name, resource.PanelName(p.Kind))
 			}
-			dr.Panel = &agentv1.PanelAction{ChangeId: p.Change, Panel: resourcepb.PanelKind(p.Kind), Start: p.Start, Parts: resourcepb.PanelParts(p.Parts)}
+			dr.Panel = &agentv1.PanelAction{ChangeId: p.Change, Panel: resourcepb.PanelKind(p.Kind), Start: p.Start, Apps: p.Apps, Parts: resourcepb.PanelParts(p.Parts)}
 		}
 		call.Desired = append(call.Desired, dr)
 	}
