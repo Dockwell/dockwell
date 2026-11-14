@@ -73,6 +73,17 @@ func readWord(word string, text, name func(string)) error {
 	}
 }
 
+// TextOf is a word of a field that names values without its names, each a line
+// break, which no value it could be mistaken for spans, and with $$ as $: what of
+// it is text of its own. A word that can't be read is as it is.
+func TextOf(word string) string {
+	var b strings.Builder
+	if readWord(word, func(s string) { b.WriteString(s) }, func(string) { b.WriteByte('\n') }) != nil {
+		return word
+	}
+	return b.String()
+}
+
 // isName reports what a variable can be called, as Compose has it.
 func isName(s string) bool {
 	if s == "" {

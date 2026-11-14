@@ -180,3 +180,65 @@ func redisID(t *testing.T, b *browser) string {
 	t.Fatal("there's no redis")
 	return ""
 }
+
+// An agent from before a taken-on container's values were kept by name reads that
+// container's command with the values in (ADR 0096). So what was taken on so is read,
+// planned and applied nowhere on its server: drift reports the server as unchecked,
+// and says to update it, and a plan of it refuses. What Dockwell made that names a
+// value plans on it as ever, and updating the agent brings it all back.
+func TestAnAgentThatDoesntKeepTakenReferencesReadsNothingTakenOnSo(t *testing.T) {
+	storetest.Each(t, testAnAgentThatDoesntKeepTakenReferences)
+}
+
+func testAnAgentThatDoesntKeepTakenReferences(t *testing.T, backend store.Backend) {
+	f := startFull(t, backend, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	hz1 := f.lastDocker
+	e.AddLocalImage("redis:8", dockertest.Image{})
+	c := changeClient(b, b.origin)
+	const secret = "pw-alpha-7Hq2mXv9Lr4Kd8Zs"
+	apply(t, c, propose(t, c, "Run redis", secretSpec("DB_PASSWORD", secret), secretNaming("redis:8")))
+	runByHand(t, e, "legacy_api", func(r *docker.CreateRequest) {
+		r.HostConfig.PortBindings, r.HostConfig.Binds = nil, nil
+		r.Healthcheck = &docker.Healthcheck{Test: []string{"CMD", "curl", "-u", "admin:" + secretValue, "http://localhost/"}}
+	})
+	applyConfirmed(t, c, adopt(t, containerClient(b, b.origin), "legacy_api", "legacy"))
+
+	hz1.stop()
+	waitConnected(t, f, hz1.id.ServerID, false)
+	hz1.hello = func(h *agentv1.Hello) { h.ReadsTakenReferences = false }
+	hz1.connect(t, f)
+	drift, err := c.ListDrift(t.Context(), connect.NewRequest(&dockwellv1.ListDriftRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	noValueIn(t, "ListDrift", drift.Msg.String(), secret, secretValue)
+	unchecked := drift.Msg.GetUncheckedServers()
+	if len(unchecked) != 1 || unchecked[0].GetReason() != "agent_outdated" ||
+		!strings.Contains(unchecked[0].GetMessage(), "taken on so") || !strings.Contains(unchecked[0].GetMessage(), "legacy") {
+		t.Errorf("the server's drift reads %v", unchecked)
+	}
+	edit := &dockwellv1.Edit{Resource: &dockwellv1.ResourceRef{Name: "legacy"}, Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: &resourcev1.Service{
+		Runs: &resourcev1.Service_App{App: &resourcev1.Container{Image: "nginx:1.27"}},
+	}}}}
+	if _, err := c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Change legacy", Edits: []*dockwellv1.Edit{edit}})); err == nil ||
+		!strings.Contains(err.Error(), "until you update the agent there") || strings.Contains(err.Error(), secretValue) {
+		t.Errorf("a plan of what was taken on = %v", err)
+	}
+	if _, err := c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Change redis", Edits: []*dockwellv1.Edit{plainRedis("redis-server")}})); err != nil {
+		t.Errorf("a plan of what Dockwell made = %v", err)
+	}
+
+	hz1.stop()
+	waitConnected(t, f, hz1.id.ServerID, false)
+	hz1.hello = nil
+	hz1.connect(t, f)
+	drift, err = c.ListDrift(t.Context(), connect.NewRequest(&dockwellv1.ListDriftRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(drift.Msg.GetUncheckedServers()) != 0 || len(drift.Msg.GetDrift()) != 0 {
+		t.Errorf("once updated, the server reads %v, drift %v", drift.Msg.GetUncheckedServers(), drift.Msg.GetDrift())
+	}
+}

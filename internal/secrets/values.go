@@ -81,6 +81,34 @@ func (k *Keeper) Values(ctx context.Context, server string, ref resource.Ref, de
 	return out, nil
 }
 
+// TakenOnNamingValues says which of refs were taken on from a running container and
+// name values in what runs on server, as NamingValues has it (ADR 0096). An agent
+// that doesn't keep a taken-on container's references reads its command with the
+// values in, so the agent stream reads, plans and applies none of these on one.
+func (k *Keeper) TakenOnNamingValues(ctx context.Context, server string, refs []resource.Ref) ([]resource.Ref, error) {
+	var taken []resource.Ref
+	err := k.db.View(ctx, func(tx *store.Tx) error {
+		names := make([]store.TakenOnName, 0, len(refs))
+		for _, r := range refs {
+			names = append(names, store.TakenOnName{Kind: string(r.Kind), Scope: r.Scope, Name: r.Name})
+		}
+		found, err := tx.TakenOn(ctx, names)
+		if err != nil {
+			return err
+		}
+		for i, n := range names {
+			if found[n] {
+				taken = append(taken, refs[i])
+			}
+		}
+		return nil
+	})
+	if err != nil || len(taken) == 0 {
+		return nil, err
+	}
+	return k.NamingValues(ctx, server, taken)
+}
+
 // NamingValues says which of refs name values in what runs, rather than hold them
 // (Container.references), on server: in their latest revision, or in any revision
 // the server was given, as what it runs may be an older one than the latest, such as

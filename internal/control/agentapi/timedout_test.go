@@ -106,7 +106,7 @@ func TestACancelledCallerIsCancelledWhateverTheAgentSaysAfter(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	var s *Session
-	s = a.open("srv_1", "hz-1", &agentv1.Hello{Kinds: []string{string(firewall.Kind)}, WritesReferences: true}, func(msg *agentv1.ConnectResponse) error {
+	s = a.open("srv_1", "hz-1", &agentv1.Hello{Kinds: []string{string(firewall.Kind)}, WritesReferences: true, ReadsTakenReferences: true}, func(msg *agentv1.ConnectResponse) error {
 		if c := msg.GetCall(); c != nil {
 			cancel()
 			s.deliver(&agentv1.CallResult{Id: c.GetId(), Result: &agentv1.CallResult_Error{Error: &agentv1.CallError{

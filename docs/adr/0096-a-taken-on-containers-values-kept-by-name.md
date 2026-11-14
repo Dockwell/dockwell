@@ -1,7 +1,7 @@
 # 0096. A taken-on container's values, kept by name
 
-- Status: Proposed
-- Date: 2026-11-15
+- Status: Accepted
+- Date: 2026-11-14
 
 ## Context
 
@@ -29,8 +29,12 @@ What was settled already:
 
 - **Where a value of the environment is in a word of `command`, `entrypoint` or `healthcheck.test`, the take-on writes its name there,** as `${NAME}`, writes every other `$` in that field as `$$`, and lists the field in `references`. That is ADR 0022's form, unchanged: a plan shows the name, the value stays sealed in `env`, a rotation reaches it, and it's written in only as a container is made.
 - **No new form of a spec.** `$$NAME` in the field itself would change what runs: in a list with no shell, `mysqladmin -p$$PW` runs with the words `-p$PW`. Expansion of the spec as a whole, with internal/compose's interpolator, would give every field a meaning for `$` that specs from before don't have. Neither is needed: the field already names values, and the agent already writes them in.
-- **What it reads is the value, not a file's syntax.** The container has the words Compose made, with the values in them, so the take-on finds each value as text, as `valuesShown` does now, with the same cutoff: a value of any length for a variable whose name says it's a secret, and 6 characters or more for any other. The longest value is matched first, and matches don't overlap.
-- **One name for a value that several hold.** Where two variables have the same value, a name that says it's a secret is taken first, then the first by name. Any of them comes to the same words now. Which one stands there decides what a later change of it reaches, and the plan shows it, as `-U ${POSTGRES_PASSWORD}` where a password is the same as a user's name, for the person to see before they approve it.
+- **What it reads is the value, not a file's syntax.** The container has the words Compose made, with the values in them, so the take-on finds each value as text, as `valuesShown` does now. The longest value is matched first, and matches don't overlap.
+- **A secret's name goes wherever its value stands; any other name, only where it stands for a word.** A value is named:
+  - for a variable whose name says it's a secret (`PASS`, `SECRET`, `TOKEN`, `KEY` or `CREDENTIAL`, in any case), wherever it stands, at any length, as anything else would show it;
+  - for any other variable, with 6 characters or more as now, only where the value is a whole word, or the whole of what follows `=` in a word, as in `--user=chatwoot`, and never in the word that names the program: the first word of the command or the entrypoint, the first after `CMD`, or a script's first word or one after `;`, `&`, `|`, `(` or a line break.
+  - So `POSTGRES_USER=postgres` beside the command `postgres -c max_connections=200` names nothing, where renaming the user would otherwise change the program that runs. Where a value can't be named by these rules, the container is refused, as now, by name and field: the worst case is today's.
+- **One name for a value that several hold.** Where two variables have the same value, a name that says it's a secret is taken first, then the first by name, of those the rules above let stand there. Any of them comes to the same words now. Which one stands there decides what a later change of it reaches, and the plan shows it, as `-U ${POSTGRES_PASSWORD}` where a password is the same as a user's name, for the person to see before they approve it.
 
 ### What a script and a plain list each get
 
@@ -40,13 +44,13 @@ What was settled already:
 ### Reading a taken-on container back
 
 - **The agent's record of a container it took on keeps its references,** as `dev.dockwell.references` would hold them, beside the paths it keeps already (`docker.Taken.references`). Its client reads them as that label, so `readWords` reads the container as its spec, with the value written into the script as a container docker compose made from an export has it. A field that doesn't come to what Docker has reads as `binding.Unread`, as for any container.
-- **An agent that can't read that record gets no such take-on.** One from before it would read the container's command with the value in, and its reports would carry the value into drift. So an agent says it can (`Hello.reads_taken_references`, 336), and the control plane refuses to plan or apply a take-on that names values on one that doesn't, with how to update it. Its read of the container still offers the spec with the value in the field, which is refused as now. A server that goes back to an older agent after the take-on is held as ADR 0022 holds it, by `Keeper.NamingValues`, which counts a taken-on container's spec as any other.
+- **An agent that can't read that record gets no such take-on, and nothing taken on so.** One from before it would read the container's command with the value in, and its reports would carry the value into drift. So an agent says it can (`Hello.reads_taken_references`, 336). On one that doesn't, the control plane refuses a step that takes a container on with names in it, and reads, plans and applies nothing that a change took on (`change_items.adopts`) and that names values, now or in what the server was given, with how to update the agent (`Keeper.TakenOnNamingValues`, beside ADR 0022's `NamingValues`). With nothing to ask, it reads nothing there, as ADR 0022 has it. Its read of a container still offers the spec with the value in the field, which is refused as now.
 
 ### What still refuses, and what never shows
 
 - **A label still refuses.** Docker can't write a label from the environment as a container is made, and what reads a label, a proxy and Dockwell's own lookups among them, reads it as it is. It's 3 of Dokploy's templates, and a credential in a label stays refused as ADR 0089 has it.
-- **A value in any other field still refuses,** as a value in a script that the shell would read as more than a word does.
-- **A value never reaches a plan, a log or the panel.** The spec that leaves the agent holds names in those fields, and the value only in the sealed `env`. A refusal names the variable and the field. Docker's answers are masked by the values a field names, which now takes in a taken-on container's. Drift reads names on both sides. A test takes on a container from each kind of word above and checks that no value is in the spec's other fields, the plan, the record's references, the agent's log or an error.
+- **A value in any other field still refuses,** as a value in a script that the shell would read as more than a word does. In a field that names values, only its own text counts, as a short secret could match a `${NAME}` the take-on wrote, or the field names in `references`.
+- **A value never reaches a plan, a log or the panel.** The spec that leaves the agent holds names in those fields, and the value only in the sealed `env`. A refusal names the variable and the field. Docker's answers are masked by the values a field names, which now takes in a taken-on container's. Drift reads names on both sides. A test takes on a container from each kind of word above, with a secret whose value shares text with an ordinary variable's, and checks that no value is in the spec's other fields, the plan, the record's references, the agent's log or an error.
 
 ### Where it applies
 
@@ -58,7 +62,8 @@ Every take-on reads a container through the same agent call (`ReadAdoption`, the
 
 ## Consequences
 
-- Up to 40 of Coolify's templates and 61 of Dokploy's that were left behind for this can be taken on, less any with a script value the shell would read as more than a word. The first slice measures it, on both panels' templates, in the repository.
+- **What it takes on, measured.** The first slice ran the take-on's own reading over each panel's templates, with a value made up for every variable, as each panel makes one: of Coolify's 382, 61 hold a value of their environment in another field, 39 of those are taken on now, and 22 are still refused; of Dokploy's 612, 123 do, 102 are taken on now, and 21 are still refused. That's more than the count by variable in the context above, which saw only a variable written in a field, where the take-on sees any value of 6 characters or more, such as a database's name, wherever it stands.
+- **What still refuses** is almost all an ordinary value inside another word or where a program's name goes, such as `appwrite` in `/tmp/.appwrite-ready` or `elastic` in `elastic:${ELASTIC_PASSWORD}`: 12 of Coolify's in a health check and 12 in a command, and 11 and 9 of Dokploy's, with 3 of Dokploy's in a label. Those are refused as before, by name and field. Telling such a word from a secret by its shape is the guess ADR 0022 turned down, so that stays a refusal.
 - The plan of a take-on shows names where it showed nothing before, as it refused. A person reads `${MYSQL_ROOT_PASSWORD}` in a health check, which is what the template's author wrote.
 - When Dockwell first makes the container again, its script reads the value from the environment where it had the text. That's the same words for the shell, and the value leaves the process's command line.
 - A name chosen for a value two variables share can be the wrong one. The plan shows it, and changing the other variable's value doesn't reach that word.

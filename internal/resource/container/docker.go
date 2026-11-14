@@ -291,7 +291,7 @@ func OwnLabels(spec *resourcev1.Container) map[string]string {
 // them, with ${NAME} in them and never a value. Docker can tell only what those
 // fields came to, so reading a container back goes by this, and what they came to
 // is never passed on (ADR 0022).
-const LabelReferences = docker.OwnPrefix + "references"
+const LabelReferences = docker.LabelReferences
 
 // referenceWords are a container's fields that name values, as LabelReferences
 // holds them. Its order is fixed, so one spec makes one label, which the config
