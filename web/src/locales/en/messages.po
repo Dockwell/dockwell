@@ -4893,6 +4893,10 @@ msgstr "Remove {who}"
 msgid "Take {entry} off the list"
 msgstr "Take {entry} off the list"
 
+msgctxt "open a route whose access just changed, as a visitor would"
+msgid "Try it"
+msgstr "Try it"
+
 msgid "Turn on HTTPS for this domain"
 msgstr "Turn on HTTPS for this domain"
 
@@ -4946,14 +4950,17 @@ msgstr "Add an email, a domain or a group"
 msgid "Add anyone at {ownDomain}"
 msgstr "Add anyone at {ownDomain}"
 
+msgid "Add it to the provider's sign-in and sign-out redirect addresses."
+msgstr "Add it to the provider's sign-in and sign-out redirect addresses."
+
 msgid "Add someone who may sign in."
 msgstr "Add someone who may sign in."
 
 msgid "Copy the redirect address"
 msgstr "Copy the redirect address"
 
-msgid "No sign-in provider is here yet. An admin adds one in Settings."
-msgstr "No sign-in provider is here yet. An admin adds one in Settings."
+msgid "No sign-in provider is here for this project yet. An admin adds one in Settings."
+msgstr "No sign-in provider is here for this project yet. An admin adds one in Settings."
 
 msgid "Redirect address at the provider"
 msgstr "Redirect address at the provider"
@@ -4994,6 +5001,9 @@ msgstr "group"
 msgctxt "an email on who may sign in, that is yours"
 msgid "you"
 msgstr "you"
+
+msgid "{kept}, not available to this project"
+msgstr "{kept}, not available to this project"
 
 msgid "Change {name}'s version"
 msgstr "Change {name}'s version"

@@ -79,6 +79,7 @@ export function PrivateSignIn({
   choice,
   onChange,
   ownEmail,
+  project,
   domain,
   path,
   plainHere,
@@ -86,19 +87,25 @@ export function PrivateSignIn({
   choice: SignInChoice;
   onChange: (next: SignInChoice) => void;
   ownEmail: string;
+  /** The route's project, whose providers are offered; undefined until it's known. */
+  project: string | undefined;
   domain: string;
   path: string;
   /** The route is reached over plain HTTP, where a sign-in's cookie can't be kept. */
   plainHere: boolean;
 }) {
   const { t } = useLingui();
-  const providers = useSigninProviders("");
+  const providers = useSigninProviders(project ?? "", project !== undefined);
   const listed = providers.data?.providers ?? [];
   const may = useMay();
   const admin = may(DomainService.method.checkSigninProvider).off === undefined;
   const [typed, setTyped] = useState("");
   // The only provider, or the first, is what a new sign-in starts with, once the list is in.
   const first = listed[0]?.name ?? "";
+  const kept =
+    providers.isSuccess && choice.provider !== "" && !listed.some((p) => p.name === choice.provider)
+      ? choice.provider
+      : "";
   useEffect(() => {
     if (choice.on && choice.provider === "" && first !== "") onChange({ ...choice, provider: first });
   }, [choice, first, onChange]);
@@ -168,13 +175,18 @@ export function PrivateSignIn({
                 </Link>
               </p>
             ) : (
-              <p className="private-why">{t`No sign-in provider is here yet. An admin adds one in Settings.`}</p>
+              <p className="private-why">{t`No sign-in provider is here for this project yet. An admin adds one in Settings.`}</p>
             )
           ) : (
             <SelectField
               label={t`Sign in with`}
               value={choice.provider}
-              options={listed.map((p) => ({ value: p.name, label: p.displayName || p.name }))}
+              options={[
+                ...listed.map((p) => ({ value: p.name, label: p.displayName || p.name })),
+                // The route's own provider, where its project may no longer use it, so what
+                // shows is what the route has; the plan refuses it.
+                ...(kept ? [{ value: kept, label: t`${kept}, not available to this project` }] : []),
+              ]}
               onChange={(event) => onChange({ ...choice, provider: event.target.value })}
             />
           )}
@@ -238,6 +250,8 @@ export function PrivateSignIn({
               label={t`Copy the redirect address`}
               copiedLabel={t`Redirect address copied`}
             />
+            {/* Signing out comes back here too, and some providers keep that list apart (ADR 0087). */}
+            <span className="dw-field-hint">{t`Add it to the provider's sign-in and sign-out redirect addresses.`}</span>
           </div>
         </>
       ) : null}

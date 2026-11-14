@@ -1851,6 +1851,63 @@ describe("who gets in to a route (ADR 0087)", () => {
     expect(whole).not.toHaveTextContent(shared);
   });
 
+  it("offers the providers the route's project may use, once it knows which project that is (ADR 0087)", async () => {
+    const user = userEvent.setup();
+    const asked: string[] = [];
+    const domains = [aDomain({ name: "app.example.com", certificate: issued, route: { trustedProxies: [] } })];
+    renderAt(
+      "/domains?private=rte_app-example-com",
+      api(domains, {
+        more: {
+          auth: { listSessions: () => ({ sessions: [{ id: "ses_1", address: "198.51.100.23", current: true }] }) },
+          domains: {
+            listDomains: () => ({ domains }),
+            listSigninProviders: (req: { project: string }) => {
+              asked.push(req.project);
+              return { providers: req.project === "prj_1" ? [{ name: "shop-auth", displayName: "Shop's" }] : [] };
+            },
+          },
+        },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "Make app.example.com private" });
+    await user.click(within(sheet).getByRole("checkbox", { name: "Sign in with a provider" }));
+    await waitFor(() => expect(within(sheet).getByRole("combobox", { name: "Sign in with" })).toHaveValue("shop-auth"));
+    expect(asked).toEqual(["prj_1"]);
+  });
+
+  it("shows the provider a route signs in with, where its project may no longer use it (ADR 0087)", async () => {
+    const signIn = { provider: "old-auth", emails: ["mira@acme.dev"], generation: 1n };
+    const domains = [
+      aDomain({
+        name: "shop.example.com",
+        certificate: issued,
+        routes: [{ id: "rte_shop-example-com", name: "shop-example-com", service: "web", port: 80, signIn }],
+      }),
+    ];
+    renderAt(
+      "/domains?private=rte_shop-example-com",
+      api(domains, {
+        more: {
+          auth: { listSessions: () => ({ sessions: [{ id: "ses_1", address: "198.51.100.23", current: true }] }) },
+          domains: {
+            listDomains: () => ({ domains }),
+            listSigninProviders: () => ({ providers: [{ name: "shop-auth", displayName: "Shop's" }] }),
+          },
+        },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "Who gets in to shop.example.com" });
+    const picker = await within(sheet).findByRole("combobox", { name: "Sign in with" });
+    await waitFor(() =>
+      expect(
+        within(picker).getByRole("option", { name: "old-auth, not available to this project" }),
+      ).toBeInTheDocument(),
+    );
+    expect(picker).toHaveValue("old-auth");
+    expect(within(sheet).getByText("Add it to the provider's sign-in and sign-out redirect addresses.")).toBeVisible();
+  });
+
   it("offers anyone at your domain only where that isn't anyone at all (#598's final check, L3)", async () => {
     const user = userEvent.setup();
     const domains = [aDomain({ name: "app.example.com", certificate: issued, route: { trustedProxies: [] } })];
