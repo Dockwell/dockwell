@@ -57,9 +57,9 @@ func listEvents(t *testing.T, c dockwellv1connect.EventServiceClient, req *dockw
 	return nil
 }
 
-func actions(events []*dockwellv1.Event) []string {
-	out := make([]string, len(events))
-	for i, e := range events {
+func actions(evs []*dockwellv1.Event) []string {
+	out := make([]string, len(evs))
+	for i, e := range evs {
 		out[i] = e.GetAction()
 		if c := e.GetChange(); c != nil {
 			out[i] += " " + c.GetSummary()
@@ -263,10 +263,10 @@ func testTheTimelineThroughTheAPI(t *testing.T, backend store.Backend) {
 	defer other.Close()
 	var userID string
 	_ = f.store.View(t.Context(), func(tx *store.Tx) error {
-		events, _ := tx.ListEvents(t.Context(), 100)
-		for i := range events {
-			if events[i].Action == "owner.claim" {
-				userID = events[i].Subject
+		kept, _ := tx.ListEvents(t.Context(), 100)
+		for i := range kept {
+			if kept[i].Action == "owner.claim" {
+				userID = kept[i].Subject
 			}
 		}
 		return nil
@@ -637,9 +637,9 @@ func testTheCLIOnTheTimeline(t *testing.T, backend store.Backend) {
 		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Project{Project: &resourcev1.Project{}}},
 	}))
 
-	events := listEvents(t, ev, &dockwellv1.ListEventsRequest{})
+	listed := listEvents(t, ev, &dockwellv1.ListEventsRequest{})
 	var made, change *dockwellv1.Event
-	for _, e := range events {
+	for _, e := range listed {
 		switch {
 		case e.GetAction() == "token.create" && e.GetSubject().GetId() == local.Token.ID:
 			made = e
