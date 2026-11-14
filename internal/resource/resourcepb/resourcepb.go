@@ -142,6 +142,7 @@ func Step(s resource.Step, resourceID string) *dockwellv1.PlanStep {
 	}
 	p.DomainCheck = DomainCheck(s.Domain)
 	p.ReturningContainers = s.Returning
+	p.HandEditedBeside = s.HandEditedBeside
 	p.Unencrypted = s.Unencrypted
 	if a := s.Answers; a != nil {
 		p.Answers = &dockwellv1.RouteAnswers{Reach: routeReaches[a.Reach], Proxies: a.Proxies, Plain: a.Plain}
@@ -504,6 +505,7 @@ func FromStep(p *dockwellv1.PlanStep) (resource.Step, error) {
 		}
 	}
 	s.Returning = p.GetReturningContainers()
+	s.HandEditedBeside = p.GetHandEditedBeside()
 	s.Unencrypted = p.GetUnencrypted()
 	// Who it answers only informs: the control plane has the spec. One this build
 	// doesn't know reads as not known.

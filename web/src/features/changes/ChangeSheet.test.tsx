@@ -473,6 +473,7 @@ describe("the plan sheet", () => {
       here: ["203.0.113.9"],
     });
     step.returningContainers = ["1Panel-openresty-abc12"];
+    step.handEditedBeside = ["app.example.com/legacy"];
     renderSheet(proposeWeb, {
       changes: {
         proposeChange: () => ({ change: routed }),
@@ -490,6 +491,10 @@ describe("the plan sheet", () => {
     expect(sheet).toHaveTextContent("DNS for app.example.com points at 198.51.100.1, not this server (203.0.113.9)");
     expect(sheet).toHaveTextContent("Docker starts 1Panel-openresty-abc12 again when hz-1 next restarts");
     expect(sheet).toHaveTextContent("docker update --restart=no 1Panel-openresty-abc12");
+    // A route edited by hand beside one that signs in is named (#598's review, New 4).
+    expect(sheet).toHaveTextContent(
+      "app.example.com/legacy on hz-1 were edited by hand, so this doesn't write them again, and they may pass its sign-in cookies on to their apps",
+    );
     // It warns, and nothing asks for more than any other plan does.
     const apply = await within(sheet).findByRole("button", { name: /Apply plan/ });
     expect(apply).toBeEnabled();

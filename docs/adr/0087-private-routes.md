@@ -138,9 +138,218 @@ From a lock beside each route, on Domains and on an app's page, **Make it privat
 - **Ask for a password**, with a user name and a password Dockwell makes in the browser: 24 letters and digits no one mixes up, shown once with a copy button, and Review plan waits for "I've kept a copy". A user the route has keeps their password unless you ask for a new one.
 - Applying it is a plan, as any change; the panel sends the whole route, as `DomainRoute` now says its list, its users' names and its trusted proxies.
 
-### Signing in with a provider, next
+### Signing in with a provider
 
-`RouteAccess.sign_in` (3) is kept for an OIDC proxy: Caddy's `forward_auth` to a small proxy Dockwell runs, which sends a visitor to a provider and back, and passes on who they are. It goes beside a list and users, so a route can ask for both. It needs a client secret, which is a secret in the environment's store, delivered as ADR 0022 delivers one to a service, and it is its own issue.
+Proposed with #606's review under way; its code comes in a pull request of its own, after that review, and nothing below depends on what the review changes in the slice before it.
+
+A list keeps out who isn't at the office, and a password is shared. What a team wants in front of an admin panel, a dashboard or a staging app is to sign in as themselves, once, with the provider they already have: a self-hosted Authentik, Authelia, Keycloak, Pocket ID or Zitadel, or Google or Microsoft Entra. All of them speak OpenID Connect. Caddy's stock image, which Dockwell pins by digest (ADR 0024), has no OIDC module.
+
+#### Where it runs: the route's agent
+
+Caddy asks the route's agent before each request, over a socket in Caddy's run directory, as it reaches the panel's (ADR 0024), with the `reverse_proxy` that Caddy's `forward_auth` is made of:
+
+- **Signed in:** the agent answers 200 from a cookie it signed, with no call to anyone, and Caddy goes on to the app with who it is.
+- **Not signed in:** the agent's answer goes back to the visitor as it is: a redirect to the provider, or 401.
+- Checked on Caddy 2.11.7: a 302 and its `Set-Cookie` reach the visitor unchanged, and on a 200 the app gets the agent's header, over one a visitor wrote, with the visitor's own method and path.
+- **Only signing in talks to the provider,** from the server. If the agent is down, Caddy gets no answer, and the visitor gets 502: closed, never open.
+
+Not chosen:
+
+- **A Caddy plugin,** such as caddy-security: Dockwell would build and pin its own Caddy, where it pins the stock image today.
+- **oauth2-proxy beside Caddy on every server:** a third-party image with its own configuration and releases, and tens of megabytes on each server, where an agent runs on every server already.
+- **The control plane in the path:** every sign-in, or every request, would hang on it being reachable from the visitor, where a panel is often reached only through an SSH tunnel.
+
+#### A provider is an install-wide resource
+
+`signin.provider`, saved by an admin and named by the projects that may use it, sealed at rest, as a registry login is ([ADR 0086](0086-registry-logins-for-private-images.md)):
+
+| Field | What it is |
+| --- | --- |
+| `display_name` | What the panel calls it, such as "Our Authentik" |
+| `issuer` | The provider's issuer, such as `https://auth.example.com/application/o/dockwell/` |
+| `client_id` | The client Dockwell is at the provider |
+| `client_secret` | Its secret (sensitive). Empty for a public client, which PKCE protects alone |
+| `scopes` | What it asks for beyond `openid email profile`, such as `groups` |
+| `groups_claim` | The claim that lists someone's groups. Empty takes `groups` |
+| `any_account` | Every account at this provider is your team's, as at an Authentik you run. Refused for an issuer anyone can have an account at, such as Google's or Entra's common one |
+| `projects` | The projects whose routes may use it, by ID |
+
+- **Checked live as it's saved.** The control plane reads the issuer's discovery document through `netguard`, so never a link-local address or a metadata service, and refuses what it can't use, saying why:
+  - an issuer that differs from what was asked for;
+  - an endpoint that isn't HTTPS;
+  - no authorization code flow, or no PKCE with S256;
+  - no signing algorithm Dockwell takes.
+  The form says what it found: "Found auth.example.com: it signs with ES256". A self-hosted provider on a private network is fine, as an admin names it.
+- **A secret is checked at the first sign-in,** as nothing else proves it. After applying, the sheet offers to try signing in.
+
+#### A route asks for it
+
+`RouteAccess.sign_in` (3), a `RouteSignIn`:
+
+| Field | What it is |
+| --- | --- |
+| `provider` | A `signin.provider` its project may use, by name |
+| `emails` | Who may sign in, by email, as the provider says it, verified |
+| `email_domains` | Or anyone at a domain, such as `example.com` |
+| `groups` | Or anyone in a group, from the provider's groups claim |
+| `session_hours` | How long a sign-in lasts. 0 takes 24, and it takes at most 720 |
+| `generation` | Raising it signs everyone out, as Sign everyone out does |
+
+- **Someone must be named,** by email, domain or group, unless the provider says every account is yours (`any_account`). An empty list at Google would let in anyone with a Google account.
+- **A list goes in front,** as with a password: off the list is 403, before any redirect.
+- **With users too,** a request that carries Basic credentials is checked against them, and any other goes to sign in. So a script or a webhook uses a password, and people sign in. Neither is asked for twice.
+- **Sign-in needs HTTPS at the browser,** for its Secure cookie. It's refused on a route that answers anyone over plain HTTP (`plain_for_anyone`). It works with a certificate, and behind a tunnel or a proxy that ends TLS and that the route names, from whose word the route reads `https`.
+- **Who may sign in is checked at sign-in.** Emails and domains are checked again on every request, from the cookie, so taking someone off works at once. A group's change at the provider counts at their next sign-in, which `session_hours` bounds.
+
+#### The flow
+
+OpenID Connect's authorization code flow, with PKCE (S256), `state` and `nonce`. Everything a visitor can send is checked on the server:
+
+- **Not signed in, a navigation** (a GET or HEAD that takes HTML): a redirect to the provider's authorization endpoint. A flow cookie, `__Host-dw_flow_<route>`, holds `state`, `nonce`, the PKCE verifier and the path to come back to (a path on this origin, never a URL). It lasts 10 minutes and is signed.
+- **Not signed in, anything else** (a POST, a fetch, a WebSocket): 401 and nothing else, so a script fails plainly, rather than following a redirect to a sign-in page.
+- **The callback,** at `<route's path>/.dockwell/signin/callback`:
+  1. `state` must match the flow cookie.
+  2. The agent exchanges the code at the token endpoint, with the client secret as discovery says to send it.
+  3. It checks the ID token itself:
+     - the algorithm is RS256, PS256, ES256 or EdDSA, never `none` or an HMAC;
+     - the key comes by `kid` from `jwks_uri`, cached, and fetched again once for a `kid` it hasn't seen, at most once a minute;
+     - `iss` is exactly the issuer;
+     - `aud` holds the client ID, and `azp` is the client ID where `aud` holds several;
+     - `exp`, `nbf` and `iat` hold within two minutes;
+     - `nonce` matches the flow cookie.
+  4. It reads `sub`, `email`, `email_verified` and the groups claim from the ID token.
+- **The session cookie,** `__Host-dw_<route>`, made fresh at each sign-in: HttpOnly, Secure, SameSite=Lax, Path=/, signed with HMAC-SHA256. It holds the route, its generation, `sub`, the email, the route's groups that matched, and when it was made and runs out. `__Host-` means no other subdomain can set or replace it.
+- **Signing out** at `<route's path>/.dockwell/signin/out` clears it, here alone. A provider's own sign-out is a later step.
+- **`/.dockwell/signin/` under a private route's path is Dockwell's.** An app's own path there is out of reach while sign-in is on.
+
+#### What the app gets
+
+- On a signed-in request, `X-Dockwell-User` (the email) and `X-Dockwell-Subject` (`sub`), after Caddy takes out any a visitor sent, as it does the forgeable headers (ADR 0024).
+- Dockwell's cookies don't reach the app, so it can't log them. Caddy takes them out of `Cookie` with a regular expression and leaves the app's own; checked on Caddy 2.11.7.
+- An app that signs people in by a header, such as Grafana's auth proxy, can use them. That's safe only where nothing reaches the app but Caddy, so the sheet says so when the app publishes a port of its own.
+
+#### Keys and secrets on the server
+
+- **The client secret** reaches only the route's agent, sealed to its stream, as a service's secret does (ADR 0022). The agent keeps it in its desired state, sealed (ADR 0054). Caddy's config never holds it, and nothing logs it.
+- **The cookie key** is 32 random bytes the agent makes for each route and keeps in its data directory, readable by root alone. It never leaves the server.
+  - `generation` derives the key from it with HKDF, so raising it ends every session and leaves the provider alone.
+  - A route moved to another server signs everyone out, as its key stays behind.
+
+#### Opening it again needs a person
+
+`Opens` gains these facts:
+- `sign-in-off` (taken off with nothing left in its place);
+- `provider:<name>` (another provider);
+- `email:<address>`, `email-domain:<domain>` and `group:<name>` (each one added);
+- `any-account`.
+
+An admin's edit of a provider that changes who can sign in to the routes that use it counts as `ACCESS_OPENED` on each of them: its issuer, its client, its groups claim, or `any_account` turned on.
+
+#### Limits
+
+- **Signing in reaches out boundedly.** A route exchanges at most 4 codes at once, and 30 a minute. A flood of made-up callbacks costs at most that many requests to the provider, and each first needs a flow cookie, which only a redirect makes.
+- **Discovery and keys** are read through `netguard`, as the control plane reads them.
+- **A cookie stays under 4 KB:** it keeps only the groups the route names.
+
+#### The agent and its protocol
+
+- An agent says `signs_in` (111) in its hello, and a route with `sign_in` is refused on one that doesn't, as `keeps_routes_private` is for the rest.
+- The route's step carries the provider's client ID, scopes and groups claim, which the control plane fills into what the server gets, and the secret as a delivered value. A plan's fingerprint covers the provider's revision, as with a registry login.
+- The agent checks tokens with Go's standard library alone (`crypto/rsa`, `crypto/ecdsa`, `crypto/ed25519`), so the agent build links no new module. `internal/agent/signin` joins its list of packages with what `make budgets` says it costs.
+
+#### What a stranger gets
+
+The stranger check asks as a navigation, and a redirect to the provider's own origin reads as the new outcome `SENT_TO_SIGN_IN` (6): "A stranger is sent to sign in at auth.example.com".
+
+#### In the panel
+
+- **Settings, Integrations, Sign-in providers,** beside registry logins. Adding one checks the issuer live and says the address to register at the provider, with Copy.
+- **Make it private** gains **Sign in with**: a picker of the providers this project may use. With none, an admin is offered to add one, and anyone else sees who can.
+- **Who may sign in** offers your own email first, and its domain, as the list offers your address.
+- **The redirect address** to register at the provider is shown, with Copy.
+- After applying, **Try it** opens the route in a new tab, and the live reading says what a stranger gets.
+
+#### Tests, when it's built
+
+- **Rules:** each refusal, on its own.
+- **The flow,** against a fake provider in Go, refusing each bad token: the wrong `iss`, `aud` or `azp`; `alg: none`; HS256 signed with the public key; expired or not yet valid; the wrong `nonce` or `state`; an unknown `kid`, fetched once. A good one is taken, and its keys rotate.
+- **Real Caddy:**
+  - a redirect, and 401 for a POST;
+  - a callback, then the cookie;
+  - the user header reaching the app, a forged one gone, and Dockwell's cookie gone;
+  - a list in front;
+  - a password for a script beside sign-in;
+  - an agent that's down, as 502.
+- **The gate,** on both stores: each new fact, and a provider's edit, needs a person.
+- **An older agent** is refused.
+- **The panel** and an e2e flow to the plan.
+
+#### What isn't in this slice
+
+- A provider's own sign-out, and refresh tokens.
+- The userinfo endpoint, for a provider that keeps groups only there.
+- GitHub's OAuth, which isn't OpenID Connect.
+- A page to choose among several providers.
+- Rules by path.
+- SAML.
+
+#### As built: providers (slice 1)
+
+- **The kind:** `signin.provider`, as `Spec.signin_provider` (114, past the alerts' 110 to 113 in that message), with IDs `sip_…`, saved at the organization by an admin as a change with a plan. Its client secret is sealed, and a plan never compares it. An update without a secret keeps the saved one while the issuer and client stay the same; moved, it's a public client's, as Dockwell sends what it kept nowhere new.
+- **Reading it:** `DomainService.ListSigninProviders` lists them for a viewer, trimmed below an admin to the name and display name of those their projects may use; `DomainService.CheckSigninProvider` reads an issuer's discovery document, an admin's, signed in.
+- **Checked live as it's typed,** in the panel, which saves the issuer the document names. Only a trailing `/` may differ from what was typed. The control plane doesn't read it again at plan, as with registry logins. It reads through `netguard`, with private networks allowed, as an admin names the issuer, and never this server's own addresses, a link-local one or a metadata service: 256 KiB and 10 s at most.
+- **PKCE:** a document that lists no methods is taken, as Entra's lists none, and the first sign-in shows whether it works; one that lists methods without S256 is refused. Sign-in always sends S256.
+- **Defaults:** the display name is the issuer's host; scopes leave out `openid email profile`, which sign-in always asks for; an empty groups claim is `groups`.
+- **Anyone's accounts:** `any_account` is refused at Google, Apple, GitLab.com, Microsoft's common, `organizations` and `consumers` endpoints and its personal-accounts tenant, and Microsoft's own account service.
+- **Since built (slice 2):** the redirect address to register at the provider, in Make it private; an admin's edit of a provider counting as `ACCESS_OPENED`, on each route that uses it.
+
+#### As built: signing in (slice 2)
+
+- **In Caddy,** a route that signs people in takes out a visitor's own `X-Dockwell-User` and `X-Dockwell-Subject` first. Its next step is what Caddy's `forward_auth` writes: a `reverse_proxy` to the agent's socket, `signin.sock` beside the panel's in Caddy's run directory, asking `GET /route/<the route's proxy ID>` with the visitor's method and URI in `X-Forwarded-Method` and `X-Forwarded-Uri`. A 2xx answer sets the two headers from the agent's, and any other goes back to the visitor as it is. Checked on Caddy 2.11.7, with the agent down as 502.
+- **With users too,** a request with Basic credentials goes through the users' name check and password, and any other asks the agent.
+- **Dockwell's cookies** come out of `Cookie` on the way to the app, by the names the agent gives them, `__Host-dw_` or `__Host-dw_flow_` and 12 hex digits, and the app's own stay.
+- **The agent** keeps each route's sign-in in memory, put there by the ingress before Caddy's route asks and dropped once it doesn't. Each route's cookie key is a file in the agent's `signin-keys` folder, named by a hash of the route's proxy ID, readable by root alone.
+  - A route read back with sign-in reads as what the agent keeps.
+  - After the agent starts again it keeps nothing, so the route reads as a difference and is applied again. Until then it answers 502: closed, never open.
+- **The socket** is listened on as the panel's is, and tried again in the background while something holds its name.
+- **The agent reads the provider** through `netguard`, as the control plane does: private networks allowed, never this server's own addresses, a link-local one or a metadata service.
+- **The control plane fills in the provider** as it plans, from the provider as saved, before it checks the route, whatever the edit says of it. A provider that isn't there, or that the route's project may not use, is refused by name. The secret is in no plan, and the route is stored sealed. An agent that doesn't say `signs_in` is refused a route that signs in.
+- **A provider's edit reaches every route that signs in with it,** in the same change and its plan, filled in again from the provider as the change leaves it. So a rotated secret, another client and every account taken off reach each route's server once it applies, and no route keeps a copy that lets in someone the provider no longer does.
+  - Another issuer, client or groups claim opens each route (`issuer:`, `client:`, `groups-claim:`), as every account turned on does, so a person applies it.
+  - What would leave a route unable to sign anyone in is refused, naming the route: deleting the provider, leaving out the route's project, or taking every account off where the route names no one.
+- **From its security review:**
+  - **Where a sign-in comes back to** is a path and nothing else: no scheme or host, and, as written or once decoded, no backslash, DEL or control character, which a browser drops or reads as a slash. Signing out goes to the route's own path, whatever a link says.
+  - **An address the provider hasn't verified** is neither kept nor told to the app, whatever lets the account in. An app then gets `X-Dockwell-Subject` alone.
+  - **Addresses and domains are ASCII:** a route refuses others, as the Kelvin sign lowers to k, and a token's address in other letters names no one.
+  - **At Google, a domain counts by `hd` alone,** as a Google account can carry an address at a domain that doesn't manage it. Elsewhere it's a verified address's own.
+  - **Exchanges are bounded for each visitor too,** 5 a minute, and each sign-in begun is exchanged once, so one visitor's made-up callbacks can't spend a route's sign-ins.
+    - The visitor is who Caddy says in `X-Dockwell-Client`: what a proxy the route names says, or the peer, never what a visitor writes.
+    - An IPv6 visitor counts by their /64.
+  - **A provider that can't be read stays so for 30 seconds,** with one read at a time, which a visitor stops waiting for when they leave.
+  - **A route's cookie key is bound to its issuer and client,** so another of either signs everyone out.
+  - **Every route takes Dockwell's cookies out on the way to its app,** not only one that signs in: a `__Host-` cookie goes to every path of its host, so an app on a public path beside a private one would get its visitors' sessions. Applying a route that signs people in writes its host's other routes again, as one from before may not. A route from before reads as Dockwell's own, unless it signs in.
+  - **Nor may an app set them:** every route takes a `Set-Cookie` of Dockwell's names, in any case, out of its app's answers. Otherwise an app on the same host could sign its visitors in as someone it chose. The agent's own answers go back from the step that asks it.
+  - **A route edited by hand on the host isn't written again,** and a plan to sign in there names it, as it may pass the cookies on.
+  - **A plan that signs in, made before its provider changed, is stale,** and so is a provider's edit, made before a route started signing in with it. Plans don't run out, so the one applied last would otherwise put back what the provider took away.
+    - A route's `filled.revision` must be the provider's latest, or what the change's own edit of it leaves.
+    - A changing provider must have every route that signs in with it in the change.
+  - **A private path shares its origin with its host's other paths,** whose pages can reach it as whoever signed in there. Make it private says so, in one line, for a route with a path.
+- **From its final check:**
+  - **At a provider anyone has an account at,** as Google or Entra's common one, a route may not let in anyone at a mailbox domain such as gmail.com, as that would let in the world: the plan refuses it, naming the domain, and the sheet offers "Add anyone at" your domain only where that isn't anyone at all.
+  - **Moving a domain behind a tunnel or a proxy keeps who gets in** to each route, and whether it's held. A front that's plain for anyone, the plan refuses to a route with a password or a sign-in.
+  - **The socket's loop** closes a connection whose handler panics, with nothing written, so Caddy answers 502 and the agent goes on; bounds a request's headers as net/http's server does; waits no longer to read or write than to read a request; and closes the connections it kept once it stops.
+- **Make it private signs a route in:** Sign in with a provider offers a picker of the providers there are.
+  - Who may sign in starts with your own address, offers your domain in a click, and takes an email, a domain or a group typed in ASCII.
+  - The redirect address to register at the provider is shown, with Copy.
+  - With no provider, an admin is led to Integrations, and anyone else told who adds one.
+  - Plain HTTP at the browser says why it can't, beside the password's offer of HTTPS.
+- **The domains list says how a route signs in** (`DomainRoute.sign_in`, 112): the provider by name and who may, with nothing of the provider's own. So the sheet keeps it as it moves a domain or turns on HTTPS.
+- **The stranger check asks a route that signs in as a browser navigates,** and a redirect to another origin reads as `SENT_TO_SIGN_IN` at that host: "A stranger is sent to sign in at auth.example.com".
+- **A plan names the routes edited by hand on its host** (`PlanStep.hand_edited_beside`, 110), which applying it doesn't write again.
+- **What it costs every server:** `internal/agent/signin` joins the agent build. The agent answers the socket with a small HTTP/1.1 loop, `signin.Serve`, not net/http's server: with HTTP/2, that server would be linked for this alone ([ADR 0093](0093-what-the-agent-build-leaves-out-of-its-code.md)).
+  - The agent build's code and tables grow 0.33 MB over #628's, where they'd grow 0.67 MB with net/http's server.
+  - Measured with `scripts/budgets.sh` beside #628's build, an idle agent reads 29.3 against 28.7 MB, and 29.4 against 28.3 MB with the builds' places swapped. That's 0.6 to 1.1 MB, nearly all of it the binary's pages, and under the 30 MB warning line.
+- **Not yet:** Try it after applying, a provider's own sign-out, and listing only the providers the route's project may use. The plan refuses another one by name.
 
 ## Consequences
 
@@ -148,7 +357,7 @@ From a lock beside each route, on Domains and on an app's page, **Make it privat
 - A route with access is a few handlers longer in Caddy's config.
 - A route spec with users is sealed at rest, so what reads route specs reads them through the keeper.
 - A password can't be shown again. A forgotten one is replaced.
-- `X-Forwarded-User` or another way for an app to know who signed in isn't here; the provider slice brings identity.
+- How an app knows who signed in comes with signing in with a provider, as `X-Dockwell-User`.
 - What isn't here: "on the list, or with a password", a list that names a country or a network by name, limits on failed attempts, and exceptions for a path under a private route other than a route of its own.
 
 ## Tests

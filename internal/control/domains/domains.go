@@ -26,6 +26,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/certificates"
 	"github.com/dockwell/dockwell/internal/control/dnsproviders"
 	"github.com/dockwell/dockwell/internal/control/fleet"
+	"github.com/dockwell/dockwell/internal/control/signinproviders"
 	"github.com/dockwell/dockwell/internal/ingress"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
@@ -59,6 +60,8 @@ type Handler struct {
 	DNS *dnsproviders.Providers
 	// Certificates are the certificates by DNS (ADR 0088); nil has none.
 	Certificates *certificates.Manager
+	// Providers reads the sign-in providers, and checks an issuer. Nil keeps none.
+	Providers *signinproviders.Providers
 }
 
 var _ dockwellv1connect.DomainServiceHandler = (*Handler)(nil)
@@ -185,7 +188,7 @@ func (h *Handler) add(ctx context.Context, tx *store.Tx, r *store.Resource, byNa
 	d.Routes = append(d.Routes, &dockwellv1.DomainRoute{
 		Id: r.ID, Name: r.Name, Path: rt.GetPath(), Service: rt.GetService(), Port: rt.GetPort(), Url: scheme + route.Where(rt),
 		Tls: rt.GetTls(), HostPort: rt.GetHostPort(), PlainForAnyone: rt.GetPlainForAnyone(), Held: rt.GetHeld(), TrustedProxies: rt.GetTrustedProxies(),
-		Allow: rt.GetAccess().GetAllow(), Users: users,
+		Allow: rt.GetAccess().GetAllow(), Users: users, SignIn: withoutProvider(rt.GetAccess().GetSignIn()),
 	})
 	placed, err := tx.Placement(ctx, r.ID, r.Revision)
 	if err != nil {

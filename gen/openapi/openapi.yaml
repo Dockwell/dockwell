@@ -6106,6 +6106,65 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/signinProviders:
+        get:
+            tags:
+                - DomainService
+            description: |-
+                ListSigninProviders lists the providers people sign in to private routes with
+                 (ADR 0087): an admin's, every provider with everything but its secret; below an
+                 admin, those the caller's projects may use, by name and display name alone.
+            operationId: DomainService_ListSigninProviders
+            parameters:
+                - name: project
+                  in: query
+                  description: Only the providers this project's routes may use, by ID.
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListSigninProvidersResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/signinProviders:check:
+        get:
+            tags:
+                - DomainService
+            description: |-
+                CheckSigninProvider reads an issuer's discovery document from the control
+                 server, as saving a provider does, and saves nothing. It says what it found, or
+                 why Dockwell can't sign people in with it: an issuer other than the one asked
+                 for, an endpoint that isn't HTTPS, no authorization code flow, no PKCE with
+                 S256, or no signing algorithm Dockwell takes. An admin's, signed in, as a
+                 provider is install-wide. See docs/adr/0087-private-routes.md.
+            operationId: DomainService_CheckSigninProvider
+            parameters:
+                - name: issuer
+                  in: query
+                  description: 'The issuer, as typed: "auth.example.com" reads as https://auth.example.com.'
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CheckSigninProviderResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/stepUpPolicy:
         get:
             tags:
@@ -10195,6 +10254,37 @@ components:
                         $ref: '#/components/schemas/ServiceUpdates'
                     description: Each service checked, with what's newer.
             description: CheckServiceUpdatesResponse is what the check found.
+        CheckSigninProviderResponse:
+            type: object
+            properties:
+                state:
+                    enum:
+                        - SIGNIN_PROVIDER_STATE_UNSPECIFIED
+                        - SIGNIN_PROVIDER_STATE_FOUND
+                        - SIGNIN_PROVIDER_STATE_UNREACHABLE
+                        - SIGNIN_PROVIDER_STATE_UNUSABLE
+                    type: string
+                    format: enum
+                issuer:
+                    type: string
+                    description: The issuer as its document says it, which is what a provider saves.
+                host:
+                    type: string
+                    description: The issuer's host, such as "auth.example.com".
+                algorithms:
+                    type: array
+                    items:
+                        type: string
+                    description: The signing algorithms it uses that Dockwell takes, such as "ES256".
+                detail:
+                    type: string
+                    description: Why it can't be used, in a sentence, when it can't.
+                public:
+                    type: boolean
+                    description: |-
+                        Whether anyone can have an account there, as at Google's or Entra's common
+                         issuer, so a route needs someone named.
+            description: CheckSigninProviderResponse says what an issuer's discovery document holds.
         CloseTerminalRequest:
             type: object
             properties:
@@ -11865,6 +11955,13 @@ components:
                         Who may sign in to it with a password, by name, in its order. A password,
                          or its hash, is never shown: an edit that names a user with no password
                          keeps theirs.
+                signIn:
+                    allOf:
+                        - $ref: '#/components/schemas/RouteSignIn'
+                    description: |-
+                        How people sign in to it with a provider, if they do: the provider by name and
+                         who may, with nothing of the provider's own, which the control plane fills in as
+                         it plans (ADR 0087).
             description: DomainRoute is one route of a domain.
         DomainServer:
             type: object
@@ -15959,6 +16056,14 @@ components:
                         $ref: '#/components/schemas/Session'
                     description: Sessions, newest first.
             description: ListSessionsResponse lists sessions.
+        ListSigninProvidersResponse:
+            type: object
+            properties:
+                providers:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/SigninProviderInfo'
+            description: ListSigninProvidersResponse lists sign-in providers.
         ListTaskRunsResponse:
             type: object
             properties:
@@ -18179,6 +18284,15 @@ components:
                          keys under its prefix, such as "shop:*", or "*" for every key it wrote, which
                          nothing tells apart. Taking the user away deletes no key (ADR 0084). Numbered in
                          the block connectable apps hold in other messages, 80 to 89.
+                handEditedBeside:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        The routes on the host of a route that signs people in that were edited by
+                         hand, by domain and path, which applying it doesn't write again, so they may
+                         pass its sign-in cookies on to their apps (ADR 0087). It never stops a plan,
+                         and the fingerprint leaves it out. Numbered in #598's block, 110 to 119.
             description: PlanStep is what applying does to one resource on one server.
         PlanStopPanelRequest:
             type: object
@@ -19560,6 +19674,14 @@ components:
                         Who may sign in, with a name and a password, up to 20. Anyone without one is
                          asked, with 401. An edit that names a user without a password keeps the one
                          they have.
+                signIn:
+                    allOf:
+                        - $ref: '#/components/schemas/RouteSignIn'
+                    description: |-
+                        Who may sign in as themselves, with a provider an admin saved (ADR 0087).
+                         Anyone else navigating is sent to the provider, and anything else gets 401.
+                         With users too, a request with Basic credentials is checked against them, and
+                         any other goes to sign in. It needs HTTPS at the browser.
             description: |-
                 RouteAccess is who a route lets in. With a list and users, a visitor must be on
                  the list and sign in; off the list they get 403 before a password is asked.
@@ -19622,6 +19744,71 @@ components:
                     description: The port on the server it goes to, when it goes to no service.
                     format: uint32
             description: RouteMove is a route leaving one service for another.
+        RouteSignIn:
+            type: object
+            properties:
+                provider:
+                    type: string
+                    description: 'The sign-in provider, by name: one the route''s project may use.'
+                emails:
+                    type: array
+                    items:
+                        type: string
+                    description: Who may sign in, by email, as the provider says it, verified.
+                emailDomains:
+                    type: array
+                    items:
+                        type: string
+                    description: Or anyone at a domain, such as "example.com".
+                groups:
+                    type: array
+                    items:
+                        type: string
+                    description: Or anyone in a group, from the provider's groups claim.
+                sessionHours:
+                    type: integer
+                    description: How long a sign-in lasts, in hours. 0 takes 24, and it takes 720 at most.
+                    format: uint32
+                generation:
+                    type: string
+                    description: Raising it signs everyone out, and leaves the provider alone.
+                filled:
+                    allOf:
+                        - $ref: '#/components/schemas/RouteSignInProvider'
+                    description: |-
+                        What the route's server needs of the provider, which the control plane fills
+                         in from the provider as it plans: what a client sets here is replaced.
+            description: |-
+                RouteSignIn is who may sign in to a private route with a provider, as themselves.
+                 Someone must be named, by email, domain or group, unless the provider says every
+                 account at it is your team's.
+        RouteSignInProvider:
+            type: object
+            properties:
+                issuer:
+                    type: string
+                    description: The provider's issuer, as saved.
+                clientId:
+                    type: string
+                    description: The client Dockwell is at the provider.
+                clientSecret:
+                    type: string
+                    description: The client's secret, sealed, and empty for a public client.
+                scopes:
+                    type: array
+                    items:
+                        type: string
+                    description: What sign-in asks for beyond "openid email profile".
+                groupsClaim:
+                    type: string
+                    description: The claim that lists someone's groups.
+                anyAccount:
+                    type: boolean
+                    description: Whether every account at the provider is your team's.
+                revision:
+                    type: string
+                    description: The provider's revision, so a plan made with another reads as stale.
+            description: RouteSignInProvider is what a route's server needs of its sign-in provider.
         RouteUser:
             type: object
             properties:
@@ -21611,6 +21798,89 @@ components:
             type: object
             properties: {}
             description: SignOutResponse is empty. The response clears the session cookie.
+        SigninProvider:
+            type: object
+            properties:
+                displayName:
+                    type: string
+                    description: What the panel calls it, such as "Our Authentik".
+                issuer:
+                    type: string
+                    description: |-
+                        The provider's issuer, exactly as its discovery document says it, such as
+                         "https://auth.example.com/application/o/dockwell/". It's HTTPS, with no query
+                         or fragment.
+                clientId:
+                    type: string
+                    description: The client Dockwell is at the provider.
+                clientSecret:
+                    type: string
+                    description: |-
+                        The client's secret. Unset for a public client, which PKCE protects alone.
+                         Leave it out of an update to keep it.
+                scopes:
+                    type: array
+                    items:
+                        type: string
+                    description: What sign-in asks for beyond "openid email profile", such as "groups".
+                groupsClaim:
+                    type: string
+                    description: The claim of an ID token that lists someone's groups. Empty takes "groups".
+                anyAccount:
+                    type: boolean
+                    description: |-
+                        Every account at this provider is your team's, as at an Authentik you run, so
+                         a route may let in anyone who signs in. Refused for an issuer anyone can have
+                         an account at, such as Google's or Entra's common one.
+                projects:
+                    type: array
+                    items:
+                        type: string
+                    description: The projects whose routes may use it, by ID. Empty for every project.
+            description: |-
+                SigninProvider is an OpenID Connect provider that people sign in to private
+                 routes with, kind "signin.provider" (ADR 0087): a self-hosted Authentik,
+                 Authelia, Keycloak, Pocket ID or Zitadel, or Google or Microsoft Entra. It's
+                 install-wide: an admin saves it as a change, with a plan, and names the projects
+                 whose routes may use it. The control plane checks its issuer live as it's saved.
+        SigninProviderInfo:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: Its ID, such as "sip_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                name:
+                    type: string
+                    description: Its name, which a route names it by.
+                displayName:
+                    type: string
+                    description: What the panel calls it.
+                issuer:
+                    type: string
+                    description: Its issuer. Empty below an admin.
+                clientId:
+                    type: string
+                    description: The client Dockwell is at the provider. Empty below an admin.
+                hasSecret:
+                    type: boolean
+                    description: Whether it has a client secret, which is never shown. False below an admin.
+                scopes:
+                    type: array
+                    items:
+                        type: string
+                    description: What sign-in asks for beyond "openid email profile".
+                groupsClaim:
+                    type: string
+                    description: The claim that lists someone's groups.
+                anyAccount:
+                    type: boolean
+                    description: Whether every account at the provider is your team's.
+                projects:
+                    type: array
+                    items:
+                        type: string
+                    description: The projects whose routes may use it, by ID. Empty for every project.
+            description: SigninProviderInfo is a sign-in provider, without its secret.
         Signups:
             type: object
             properties:
@@ -21819,6 +22089,13 @@ components:
                         A certificate the control plane proves by DNS-01, for a wildcard or for
                          names the internet can't reach, kind "certificate" (ADR 0088). Numbered in
                          the block DNS-01 holds, 120 to 129.
+                signinProvider:
+                    allOf:
+                        - $ref: '#/components/schemas/SigninProvider'
+                    description: |-
+                        A provider people sign in to private routes with, kind "signin.provider"
+                         (ADR 0087). Numbered in the block private routes hold, 110 to 119, past the
+                         alerts' 110 to 113.
             description: |-
                 Spec is the desired state of one resource, of any kind: the field that is
                  set says which. Edits in the API carry specs in it, so one message takes
@@ -22096,6 +22373,7 @@ components:
                         - STRANGER_OUTCOME_LET_IN
                         - STRANGER_OUTCOME_OTHER
                         - STRANGER_OUTCOME_CANT_TELL
+                        - STRANGER_OUTCOME_SENT_TO_SIGN_IN
                     type: string
                     description: What came of it.
                     format: enum

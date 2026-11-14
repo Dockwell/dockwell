@@ -139,6 +139,11 @@ type Route struct {
 	// With any, a visitor who doesn't gets 401, and Authorization doesn't reach the
 	// upstream.
 	Users []User
+	// SignIn is where the proxy asks whether a visitor has signed in with the route's
+	// provider, as an address it dials, before it sends anything on; empty for a
+	// route that doesn't sign people in. Who may, and with what, is the agent's to
+	// keep (SignIns), as the proxy holds none of it (ADR 0087).
+	SignIn string
 	// Edited is true when it holds something Dockwell doesn't put there, as
 	// after a hand edit, so what it reads as isn't the whole of it.
 	Edited bool
@@ -213,6 +218,9 @@ type Manager struct {
 	// Certs keeps the certificates by DNS on the server's disk. Nil keeps them in
 	// memory alone.
 	Certs CertKeeper
+	// SignIns keeps what the routes that sign people in need, for the agent that
+	// answers the proxy. Nil refuses a route that signs people in (ADR 0087).
+	SignIns SignIns
 
 	mu    gate
 	table table
@@ -386,6 +394,20 @@ func (m *Manager) Observe(ctx context.Context, ref resource.Ref) (*resourcev1.Ro
 	}
 	r := routes[i]
 	out := &resourcev1.Route{Domain: r.Domain, Path: r.Path, TrustedProxies: proxyNames(r.TrustedProxies, r.EdgeProxies), PlainForAnyone: r.PlainForAnyone, Held: r.Held, Access: accessSpec(r)}
+	if r.SignIn != "" {
+		// Who may sign in is the agent's, not the proxy's: what it keeps, or, as after
+		// the agent started again, an empty one, which reads as a difference and
+		// applies the route's again.
+		if out.Access == nil {
+			out.Access = &resourcev1.RouteAccess{}
+		}
+		out.Access.SignIn = &resourcev1.RouteSignIn{}
+		if m.SignIns != nil {
+			if kept := m.SignIns.Get(id); kept != nil {
+				out.Access.SignIn = kept
+			}
+		}
+	}
 	if r.Plain {
 		out.Tls = TLSOff
 	}
@@ -1012,6 +1034,19 @@ func (m *Manager) put(ctx context.Context, ref resource.Ref, spec *resourcev1.Ro
 		Plain: spec.GetTls() == TLSOff, TrustedProxies: named, EdgeProxies: edge, PlainForAnyone: spec.GetPlainForAnyone(), Held: spec.GetHeld(),
 		Allow: allow, Users: users,
 	}
+	// What a route that signs people in needs is the agent's before the proxy asks
+	// for it, and goes once the proxy no longer does.
+	signIn := spec.GetAccess().GetSignIn()
+	if signIn != nil {
+		dial, err := m.signInDial()
+		if err != nil {
+			return fmt.Errorf("the route %s signs people in: %w", ref.Name, err)
+		}
+		r.SignIn = dial
+		if err := m.SignIns.Put(r.ID, spec.GetDomain(), spec.GetPath(), signIn); err != nil {
+			return fmt.Errorf("can't keep how the route %s signs people in: %w", ref.Name, err)
+		}
+	}
 	m.logReplaced(ctx, r)
 	if !r.Plain {
 		if err := m.noteDomain(ctx, r.Domain); err != nil {
@@ -1024,6 +1059,14 @@ func (m *Manager) put(ctx context.Context, ref resource.Ref, spec *resourcev1.Ro
 			err = m.named(ctx, want, err)
 		}
 		return fmt.Errorf("%s refused the route %s: %w", m.Proxy.Name(), ref.Name, err)
+	}
+	if signIn == nil && m.SignIns != nil {
+		m.SignIns.Drop(r.ID)
+	}
+	if signIn != nil {
+		if err := m.rewriteBeside(ctx, r); err != nil {
+			return err
+		}
 	}
 	owner := ""
 	if spec.GetHostPort() != 0 {
@@ -1170,6 +1213,9 @@ func (m *Manager) remove(ctx context.Context, ref resource.Ref) error {
 	id := RouteID(ref)
 	if err := m.Proxy.DeleteRoute(ctx, id); err != nil {
 		return fmt.Errorf("%s can't remove the route %s: %w", m.Proxy.Name(), ref.Name, err)
+	}
+	if m.SignIns != nil {
+		m.SignIns.Drop(id)
 	}
 	if err := m.table.load(m.Dir); err != nil {
 		return err

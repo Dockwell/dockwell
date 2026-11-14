@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"maps"
 	"net/netip"
+	"net/url"
 	"slices"
 	"strconv"
 	"strings"
@@ -313,6 +314,11 @@ type Decision struct {
 	// restarts, and that may then take the ports a server's proxy needs. It never
 	// stops a plan, and a fingerprint leaves it out.
 	Returning []string `json:",omitempty"`
+	// HandEditedBeside names the routes on the host of a route that signs people in
+	// that were edited by hand, by domain and path, which applying it doesn't write
+	// again, so they may pass its sign-in cookies on (ADR 0087). It never stops a
+	// plan, and a fingerprint leaves it out.
+	HandEditedBeside []string `json:",omitempty"`
 	// Rollout is how the step replaces a running service, and why. Nil for a
 	// step that replaces nothing, or one planned without its server, which
 	// can't tell, so its Downtime is the most it could be.
@@ -1465,6 +1471,17 @@ const (
 	OpensUsersOff = "users-off" // its passwords taken off
 	OpensUser     = "user:"     // a user it adds
 	OpensPassword = "password:" // a user whose password changes
+	// Signing in with a provider (ADR 0087).
+	OpensSignInOff   = "sign-in-off"   // sign-in taken off with nothing left in its place
+	OpensProvider    = "provider:"     // another provider
+	OpensEmail       = "email:"        // someone added by email
+	OpensEmailDomain = "email-domain:" // anyone at a domain added
+	OpensGroup       = "group:"        // anyone in a group added, its name path-escaped, as it may hold spaces
+	OpensAnyAccount  = "any-account"   // every account at the provider let in
+	// The provider's own edits, which reach every route that signs in with it.
+	OpensIssuer      = "issuer:"       // the provider moved to another issuer
+	OpensClient      = "client:"       // the provider is another client there
+	OpensGroupsClaim = "groups-claim:" // the provider reads groups from another claim
 )
 
 // openedWords says the Opens facts in Detail, in words.
@@ -1482,6 +1499,28 @@ func openedWords(detail string) string {
 			out = append(out, "adds the user "+plain(strings.TrimPrefix(fact, OpensUser)))
 		case strings.HasPrefix(fact, OpensPassword):
 			out = append(out, "changes the password of "+plain(strings.TrimPrefix(fact, OpensPassword)))
+		case fact == OpensSignInOff:
+			out = append(out, "takes off signing in")
+		case fact == OpensAnyAccount:
+			out = append(out, "lets in every account at its provider")
+		case strings.HasPrefix(fact, OpensIssuer):
+			out = append(out, "signs people in at "+plain(strings.TrimPrefix(fact, OpensIssuer)))
+		case strings.HasPrefix(fact, OpensClient):
+			out = append(out, "signs people in as the client "+plain(strings.TrimPrefix(fact, OpensClient)))
+		case strings.HasPrefix(fact, OpensGroupsClaim):
+			out = append(out, "reads groups from the claim "+plain(strings.TrimPrefix(fact, OpensGroupsClaim)))
+		case strings.HasPrefix(fact, OpensProvider):
+			out = append(out, "signs people in with "+plain(strings.TrimPrefix(fact, OpensProvider)))
+		case strings.HasPrefix(fact, OpensEmailDomain):
+			out = append(out, "lets in anyone at "+plain(strings.TrimPrefix(fact, OpensEmailDomain)))
+		case strings.HasPrefix(fact, OpensEmail):
+			out = append(out, "lets in "+plain(strings.TrimPrefix(fact, OpensEmail)))
+		case strings.HasPrefix(fact, OpensGroup):
+			group, err := url.PathUnescape(strings.TrimPrefix(fact, OpensGroup))
+			if err != nil {
+				group = strings.TrimPrefix(fact, OpensGroup)
+			}
+			out = append(out, "lets in anyone in the group "+plain(group))
 		default:
 			out = append(out, plain(fact))
 		}

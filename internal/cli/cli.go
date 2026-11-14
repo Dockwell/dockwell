@@ -180,6 +180,9 @@ func unknownCommand(root *cobra.Command, name string) error {
 // has, and an agent idled 2 MB higher for it
 // (docs/adr/0060-what-an-idle-agent-keeps-in-memory.md).
 func writeUsage(c *cobra.Command) error {
+	// The parents' persistent flags join the command's first, as cobra's own usage
+	// does: UseLine says [flags] only for a command that has some.
+	c.LocalFlags()
 	var b strings.Builder
 	b.WriteString("Usage:\n  ")
 	if c.HasAvailableSubCommands() {

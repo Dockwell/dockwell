@@ -21,7 +21,7 @@ const ISSUED = 2;
 const ASKED_FOR_PASSWORD = 2;
 
 /** A domain in ListDomains' wire format: one route to service on server, private to users if any, with what a stranger got. */
-function aDomain(
+export function aDomain(
   environment: string,
   server: { id: string; name: string },
   name: string,
@@ -50,7 +50,7 @@ function aDomain(
 }
 
 /** An app as GET /v1/services lists it, with the ports it publishes. */
-interface Listed {
+export interface Listed {
   resource: { name: string; scope: string };
   spec?: { app?: { ports?: { hostIp?: string }[] } };
 }

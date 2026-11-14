@@ -190,6 +190,42 @@ func TestAnOlderAgentIsRefusedAPrivateRoute(t *testing.T) {
 	}
 }
 
+// An agent that doesn't say it signs people in would leave a route that does with no
+// one to answer its proxy, so a plan, a step or a desired state with one is refused
+// there, with the fix, though the agent keeps routes private; an agent that says so
+// takes it (ADR 0087).
+func TestAnOlderAgentIsRefusedARouteThatSignsIn(t *testing.T) {
+	www := resource.Ref{Kind: route.Kind, Scope: "env_1", Name: "www"}
+	signsIn := &resourcev1.Route{Domain: "app.example.com", Service: "web", Port: 80, Access: &resourcev1.RouteAccess{SignIn: &resourcev1.RouteSignIn{
+		Provider: "ours", Emails: []string{"mira@example.com"},
+		Filled: &resourcev1.RouteSignInProvider{Issuer: "https://auth.example.com/", ClientId: "dockwell"},
+	}}}
+	errSent := errors.New("the test stops the call here")
+	open := func(signs bool) *Session {
+		a := NewAgents(resource.NewRegistry(&route.Driver{}), slog.New(slog.DiscardHandler))
+		a.CheckNaming(&naming{})
+		return a.open("srv_1", "hz-1", &agentv1.Hello{Kinds: []string{string(route.Kind)}, WritesReferences: true, KeepsRoutesPrivate: true, SignsIn: signs}, func(*agentv1.ConnectResponse) error { return errSent })
+	}
+	for name, entry := range map[string]func(*Session) error{
+		"planning": func(s *Session) error {
+			_, err := s.Plan(t.Context(), []resource.Desired{{Ref: www, Spec: signsIn}})
+			return err
+		},
+		"applying":    func(s *Session) error { return s.Apply(t.Context(), resource.Step{Ref: www}, signsIn) },
+		"remembering": func(s *Session) error { _, err := s.Remember(t.Context(), www, signsIn, 1, "chg_1", ""); return err },
+	} {
+		t.Run(name, func(t *testing.T) {
+			err := entry(open(false))
+			if !errors.Is(err, resource.ErrAgentTooOld) || !strings.Contains(err.Error(), "from before Dockwell signed people in to a route with a provider, which www asks for. Update the agent on hz-1") {
+				t.Errorf("an older agent, with a route that signs in = %v", err)
+			}
+			if err := entry(open(true)); errors.Is(err, resource.ErrAgentTooOld) {
+				t.Errorf("an agent that signs people in = %v", err)
+			}
+		})
+	}
+}
+
 // An agent that doesn't say it sets what a container asks of itself would leave a
 // hostname, limits and the like out, so a plan or a step that asks for one is refused
 // there, with the fix; one that asks for nothing such goes, and an agent that says so

@@ -1,0 +1,52 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+.signin-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* Two fields side by side, one above the other on a phone. */
+.signin-sheet-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-3);
+}
+
+/* What reading the issuer found, in a line, with what was wrong under it. */
+.signin-sheet-check {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  min-height: 24px;
+}
+
+.signin-sheet-said {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.signin-projects {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.signin-project {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 14px;
+}
+
+/* Remove sits apart from Cancel and Review plan, at the footer's start. */
+.signin-remove {
+  margin-inline-end: auto;
+  color: var(--critical);
+}
