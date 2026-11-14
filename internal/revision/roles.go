@@ -441,7 +441,7 @@ func installWide(a resource.Access) string {
 		return "sends a certificate's key to its server for the first time"
 	case resource.AccessDocker, resource.AccessNetwork, resource.AccessBackupOf,
 		resource.AccessDomain, resource.AccessPlainForAnyone, resource.AccessHTTPSOff, resource.AccessExternalVolume,
-		resource.AccessServerShell, resource.AccessOpened: // as good as root, which the first check holds
+		resource.AccessServerShell, resource.AccessOpened, resource.AccessHostProcesses, resource.AccessRootTogether: // as good as root, which the first check holds
 	}
 	return ""
 }

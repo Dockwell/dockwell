@@ -397,6 +397,11 @@ function StepRow({ step, extra, panel }: { step: ImportStep; extra?: ReactNode; 
             {step.name}
           </span>
           <Tag words>{kindWord(step.kind)}</Tag>
+          {step.needsHostAccess.length > 0 ? (
+            <Tag words icon="lock">
+              <Trans>Needs host access</Trans>
+            </Tag>
+          ) : null}
         </div>
         <p className="onepanel-step-line" lang="en">
           {step.summary}

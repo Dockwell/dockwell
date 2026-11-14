@@ -67,6 +67,8 @@ message AdoptContainerRequest {
   string project = 4;
   // The environment the service goes in, by name or ID.
   string environment = 5;
+  // Takes it on with the host access it needs, as AdoptComposeRequest has it.
+  bool host_access = 6;
 }
 
 // AdoptContainerResponse carries the plan.

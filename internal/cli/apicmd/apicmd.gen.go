@@ -1033,6 +1033,7 @@ func Methods() []*apicli.Method {
 				{Path: "server", Help: "The server it runs on, by name or ID. It can be left out while there is only one."},
 				{Path: "project", Help: "The project its services go in, by name or ID, brought to life if it isn't there. Unset takes one named after it."},
 				{Path: "environment", Help: "The environment its services go in, by name or ID."},
+				{Path: "host_access", Help: "Takes it on with the host access its containers need: devices, GPUs, security options or the server's processes (ADR 0097). Without it, a project that needs some is refused, saying what."},
 			},
 			Call: apicli.Unary[v1.AdoptComposeRequest, v1.AdoptComposeResponse](dockwellv1connect.ComposeServiceAdoptComposeProcedure),
 		},
@@ -1107,6 +1108,7 @@ func Methods() []*apicli.Method {
 				{Path: "service", Help: "What to call the service. Unset takes the container's Compose service, or its own name, written as a service's name."},
 				{Path: "project", Help: "The project the service goes in, by name or ID."},
 				{Path: "environment", Help: "The environment the service goes in, by name or ID."},
+				{Path: "host_access", Help: "Takes it on with the host access it needs, as dockwell compose adoptRequest has it."},
 			},
 			Call: apicli.Unary[v1.AdoptContainerRequest, v1.AdoptContainerResponse](dockwellv1connect.ContainerServiceAdoptContainerProcedure),
 		},
@@ -1727,6 +1729,7 @@ func Methods() []*apicli.Method {
 			Fields: []apicli.Field{
 				{Path: "server_id", Help: "The server running Coolify, such as \"srv_01JD6Z3R8M9QF2K7T4XW5BNC0V\"."},
 				{Path: "skip_plan", Help: "Read and say what an import would do, and plan nothing, for a client that plans only when a person asks to review it."},
+				{Path: "host_access", Help: "The apps, by their IDs as ImportStep.app_id has them, taken on with the host access each needs: devices, GPUs, security options or the server's processes (ADR 0097). Any other that needs some is left behind, saying what."},
 			},
 			Call: apicli.Unary[v1.ImportCoolifyRequest, v1.ImportCoolifyResponse](dockwellv1connect.ImportServiceImportCoolifyProcedure),
 		},
@@ -1742,6 +1745,7 @@ func Methods() []*apicli.Method {
 			Fields: []apicli.Field{
 				{Path: "server_id", Help: "The server running Dokploy, such as \"srv_01JD6Z3R8M9QF2K7T4XW5BNC0V\"."},
 				{Path: "skip_plan", Help: "Read and say what an import would do, and plan nothing."},
+				{Path: "host_access", Help: "The apps taken on with the host access each needs, as dockwell import coolifyRequest has them."},
 			},
 			Call: apicli.Unary[v1.ImportDokployRequest, v1.ImportDokployResponse](dockwellv1connect.ImportServiceImportDokployProcedure),
 		},

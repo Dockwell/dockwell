@@ -4,6 +4,7 @@ package container
 
 import (
 	"cmp"
+	"errors"
 	"fmt"
 	"maps"
 	"os"
@@ -79,9 +80,9 @@ func validateHostAccess(c *resourcev1.Container) error {
 		case g.GetCount() < -1:
 			return fmt.Errorf("%d isn't a count of GPUs: give how many, or -1 for all", g.GetCount())
 		case g.GetCount() != 0 && len(g.GetDeviceIds()) > 0:
-			return fmt.Errorf("gpus gives a count and device_ids. Give one of them")
+			return errors.New("gpus gives a count and device_ids. Give one of them")
 		case g.GetCount() == 0 && len(g.GetDeviceIds()) == 0:
-			return fmt.Errorf("gpus gives no count and no device_ids. Give how many, -1 for all, or which")
+			return errors.New("gpus gives no count and no device_ids. Give how many, -1 for all, or which")
 		}
 		g.Capabilities = sortedSet(g.GetCapabilities())
 		if slices.Equal(g.GetCapabilities(), []string{"gpu"}) {

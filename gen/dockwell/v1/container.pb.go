@@ -110,7 +110,9 @@ type AdoptContainerRequest struct {
 	// The project the service goes in, by name or ID.
 	Project string `protobuf:"bytes,4,opt,name=project,proto3" json:"project,omitempty"`
 	// The environment the service goes in, by name or ID.
-	Environment   string `protobuf:"bytes,5,opt,name=environment,proto3" json:"environment,omitempty"`
+	Environment string `protobuf:"bytes,5,opt,name=environment,proto3" json:"environment,omitempty"`
+	// Takes it on with the host access it needs, as AdoptComposeRequest has it.
+	HostAccess    bool `protobuf:"varint,6,opt,name=host_access,json=hostAccess,proto3" json:"host_access,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -178,6 +180,13 @@ func (x *AdoptContainerRequest) GetEnvironment() string {
 		return x.Environment
 	}
 	return ""
+}
+
+func (x *AdoptContainerRequest) GetHostAccess() bool {
+	if x != nil {
+		return x.HostAccess
+	}
+	return false
 }
 
 // AdoptContainerResponse carries the plan.
@@ -656,13 +665,15 @@ var File_dockwell_v1_container_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_container_proto_rawDesc = "" +
 	"\n" +
-	"\x1bdockwell/v1/container.proto\x12\vdockwell.v1\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x95\x01\n" +
+	"\x1bdockwell/v1/container.proto\x12\vdockwell.v1\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xb6\x01\n" +
 	"\x15AdoptContainerRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x16\n" +
 	"\x06server\x18\x02 \x01(\tR\x06server\x12\x18\n" +
 	"\aservice\x18\x03 \x01(\tR\aservice\x12\x18\n" +
 	"\aproject\x18\x04 \x01(\tR\aproject\x12 \n" +
-	"\venvironment\x18\x05 \x01(\tR\venvironment\"E\n" +
+	"\venvironment\x18\x05 \x01(\tR\venvironment\x12\x1f\n" +
+	"\vhost_access\x18\x06 \x01(\bR\n" +
+	"hostAccess\"E\n" +
 	"\x16AdoptContainerResponse\x12+\n" +
 	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"/\n" +
 	"\x15ListContainersRequest\x12\x16\n" +

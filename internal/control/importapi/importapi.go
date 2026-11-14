@@ -46,7 +46,7 @@ type Handler struct {
 // Taker reads what taking on a Compose project would plan, as AdoptCompose does.
 type Taker interface {
 	ReadRunning(ctx context.Context, server string) (*containers.Running, error)
-	ReadTakingIn(ctx context.Context, r *containers.Running, name, project, environment string) (*composeapi.Taking, error)
+	ReadTakingIn(ctx context.Context, r *containers.Running, name, project, environment string, hostAccess bool) (*composeapi.Taking, error)
 	TakenOn(ctx context.Context, r *containers.Running, name string) (string, error)
 	FreeProject(ctx context.Context, want, from string, claimed map[string]bool) (string, error)
 	ReadMakingAgain(ctx context.Context, r *containers.Running, list []composeapi.Remake, project string) (*composeapi.Taking, map[string][]string, error)
@@ -196,7 +196,8 @@ func (h *Handler) plan(ctx context.Context, srv *dockwellv1.Server, found *dockw
 		if err != nil {
 			return nil, err
 		}
-		t, err := h.taker.ReadTakingIn(ctx, r, name, project, "")
+		// 1Panel's apps ask for no host access a person would choose here.
+		t, err := h.taker.ReadTakingIn(ctx, r, name, project, "", false)
 		switch {
 		case reason(err) == "not_found":
 			leave(step, fmt.Sprintf("1Panel lists it, but Docker runs no container of its Compose project, %s, so there's nothing to take on.", name))

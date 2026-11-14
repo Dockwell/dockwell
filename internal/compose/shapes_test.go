@@ -615,3 +615,37 @@ func TestAnEnvRefusalHoldsNothingItRead(t *testing.T) {
 		})
 	}
 }
+
+// An export says what an app reaches of its server past what Docker gives it, as
+// docker compose writes it, rather than drop it: devices, GPUs, security options,
+// the server's processes and sysctls (ADR 0097). An import doesn't take them back
+// yet, and says so.
+func TestAnExportSaysWhatAnAppReachesOfItsServer(t *testing.T) {
+	app := &resourcev1.Container{
+		Image: "jellyfin/jellyfin:10", Restart: resourcev1.RestartPolicy_RESTART_POLICY_UNLESS_STOPPED,
+		Devices:     []*resourcev1.Device{{HostPath: "/dev/dri/renderD128"}, {HostPath: "/dev/ttyUSB0", ContainerPath: "/dev/zigbee", Permissions: "rw"}},
+		Gpus:        &resourcev1.Gpus{Count: -1, Driver: "nvidia"},
+		SecurityOpt: []string{"seccomp=unconfined"},
+		HostPid:     true,
+		Sysctls:     map[string]string{"net.ipv4.ip_forward": "1"},
+	}
+	if err := container.Validate(app); err != nil {
+		t.Fatal(err)
+	}
+	stack := &compose.Stack{Services: []compose.Item[*resourcev1.Service]{{Name: "media", Spec: &resourcev1.Service{Runs: &resourcev1.Service_App{App: app}}}}}
+	out, err := compose.Export("env_x", stack)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, line := range []string{
+		"- /dev/dri/renderD128:/dev/dri/renderD128", "- /dev/ttyUSB0:/dev/zigbee:rw", "count: all", "driver: nvidia",
+		"- seccomp=unconfined", "pid: host", "net.ipv4.ip_forward: \"1\"",
+	} {
+		if !strings.Contains(string(out.File), line) {
+			t.Errorf("the export has no %q:\n%s", line, out.File)
+		}
+	}
+	if _, err := compose.Parse(t.Context(), out.File, nil); err == nil {
+		t.Error("an import takes devices")
+	}
+}

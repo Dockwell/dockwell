@@ -11987,6 +11987,9 @@ msgstr "Later, once {panel}'s proxy hands over ports 80 and 443"
 msgid "Move in from 1Panel"
 msgstr "Move in from 1Panel"
 
+msgid "Needs host access"
+msgstr "Needs host access"
+
 msgid "Nothing to plan now"
 msgstr "Nothing to plan now"
 
@@ -12042,6 +12045,10 @@ msgstr "Start {proxy} again"
 
 msgid "Stop {name}"
 msgstr "Stop {name}"
+
+#. placeholder {0}: step.needsHostAccess.join(", ")
+msgid "Take it on with {0}"
+msgstr "Take it on with {0}"
 
 msgid "{name} isn't on this server"
 msgstr "{name} isn't on this server"

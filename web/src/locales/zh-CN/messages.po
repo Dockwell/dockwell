@@ -11987,6 +11987,9 @@ msgstr "稍后，在 {panel} 的代理交出 80 和 443 端口之后"
 msgid "Move in from 1Panel"
 msgstr "从 1Panel 迁入"
 
+msgid "Needs host access"
+msgstr "需要访问主机"
+
 msgid "Nothing to plan now"
 msgstr "现在没有可计划的内容"
 
@@ -12042,6 +12045,10 @@ msgstr "重新启动 {proxy}"
 
 msgid "Stop {name}"
 msgstr "停止 {name}"
+
+#. placeholder {0}: step.needsHostAccess.join(", ")
+msgid "Take it on with {0}"
+msgstr "连同 {0} 一起接管"
 
 msgid "{name} isn't on this server"
 msgstr "此服务器上没有 {name}"

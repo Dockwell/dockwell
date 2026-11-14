@@ -4,6 +4,7 @@ package compose
 
 import (
 	"bytes"
+	"cmp"
 	"fmt"
 	"maps"
 	"net/netip"
@@ -68,6 +69,11 @@ type (
 		GroupAdd    []string          `yaml:"group_add,omitempty"`
 		ExtraHosts  []string          `yaml:"extra_hosts,omitempty"`
 		Privileged  bool              `yaml:"privileged,omitempty"`
+		// What it reaches of the server past what Docker gives it (ADR 0097).
+		Devices []string          `yaml:"devices,omitempty"`
+		GPUs    []gpuEntry        `yaml:"gpus,omitempty"`
+		Pid     string            `yaml:"pid,omitempty"`
+		Sysctls map[string]string `yaml:"sysctls,omitempty"`
 		// What a container asks of itself (ADR 0085).
 		Hostname   string                 `yaml:"hostname,omitempty"`
 		Init       bool                   `yaml:"init,omitempty"`
@@ -93,6 +99,12 @@ type (
 	ulimitEntry struct {
 		Soft int64 `yaml:"soft"`
 		Hard int64 `yaml:"hard"`
+	}
+	gpuEntry struct {
+		Driver       string   `yaml:"driver,omitempty"`
+		Count        any      `yaml:"count,omitempty"`
+		DeviceIDs    []string `yaml:"device_ids,omitempty"`
+		Capabilities []string `yaml:"capabilities,omitempty"`
 	}
 	deployEntry struct {
 		Resources    *limitsEntry `yaml:"resources,omitempty"`
@@ -304,6 +316,31 @@ func Export(project string, stack *Stack) (*Exported, error) {
 		if c.GetNoNewPrivileges() {
 			entry.Security = []string{"no-new-privileges:true"}
 		}
+		entry.Security = append(entry.Security, c.GetSecurityOpt()...)
+		for _, d := range c.GetDevices() {
+			line := d.GetHostPath() + ":" + cmp.Or(d.GetContainerPath(), d.GetHostPath())
+			if d.GetPermissions() != "" {
+				line += ":" + d.GetPermissions()
+			}
+			entry.Devices = append(entry.Devices, line)
+		}
+		if g := c.GetGpus(); g != nil {
+			gpu := gpuEntry{Driver: g.GetDriver(), DeviceIDs: g.GetDeviceIds(), Capabilities: g.GetCapabilities()}
+			switch {
+			case g.GetCount() == -1:
+				gpu.Count = "all"
+			case g.GetCount() > 0:
+				gpu.Count = g.GetCount()
+			}
+			if len(gpu.Capabilities) == 0 {
+				gpu.Capabilities = []string{"gpu"}
+			}
+			entry.GPUs = []gpuEntry{gpu}
+		}
+		if c.GetHostPid() {
+			entry.Pid = "host"
+		}
+		entry.Sysctls = c.GetSysctls()
 		for _, u := range c.GetUlimits() {
 			if entry.Ulimits == nil {
 				entry.Ulimits = map[string]ulimitEntry{}

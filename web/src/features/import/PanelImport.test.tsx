@@ -222,4 +222,45 @@ describe("moving in from Coolify", () => {
       proxy: true,
     });
   });
+
+  it("leaves an app that needs host access as a state, and takes it on with that once chosen", async () => {
+    const user = userEvent.setup();
+    const media = (chosen: boolean) =>
+      create(ImportCoolifyResponseSchema, {
+        found: { kind: PanelKind.COOLIFY, version: "4.7.5", knownVersion: true, folder: "/data/coolify" },
+        steps: [
+          {
+            kind: ImportKind.APP,
+            name: "media",
+            summary: "a service from Coolify's templates, in personal / production",
+            action: chosen ? ImportAction.TAKE_ON : ImportAction.LEAVE,
+            becomes: chosen
+              ? "the project media, taken on as it runs, with no restart, its volumes where they are"
+              : "",
+            appId: "j6r2",
+            needsHostAccess: ["/dev/dri/renderD128", "all GPUs"],
+          },
+        ],
+      });
+    const importCoolify = vi.fn((req: { hostAccess: string[] }) => media(req.hostAccess.includes("j6r2")));
+    renderAt("/servers/srv_1/import", api({ imports: { importCoolify } }));
+    await user.click(await screen.findByRole("button", { name: "Read what Coolify runs" }));
+    const choice = await screen.findByRole("checkbox", { name: "Take it on with /dev/dri/renderD128, all GPUs" });
+    expect(screen.getByText("Needs host access")).toBeTruthy();
+    expect((choice as HTMLInputElement).checked).toBe(false);
+    expect(screen.queryByRole("button", { name: "Review the plan" })).toBeNull();
+    await user.click(choice);
+    await waitFor(() =>
+      expect(importCoolify).toHaveBeenLastCalledWith(
+        expect.objectContaining({ hostAccess: ["j6r2"] }),
+        expect.anything(),
+      ),
+    );
+    expect(await screen.findAllByRole("button", { name: "Review the plan" })).not.toHaveLength(0);
+    expect(
+      (screen.getByRole("checkbox", { name: "Take it on with /dev/dri/renderD128, all GPUs" }) as HTMLInputElement)
+        .checked,
+    ).toBe(true);
+    await expectAccessible(document.body);
+  });
 });

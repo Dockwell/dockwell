@@ -39,7 +39,11 @@ type AdoptComposeRequest struct {
 	// there. Unset takes one named after it.
 	Project string `protobuf:"bytes,3,opt,name=project,proto3" json:"project,omitempty"`
 	// The environment its services go in, by name or ID.
-	Environment   string `protobuf:"bytes,4,opt,name=environment,proto3" json:"environment,omitempty"`
+	Environment string `protobuf:"bytes,4,opt,name=environment,proto3" json:"environment,omitempty"`
+	// Takes it on with the host access its containers need: devices, GPUs,
+	// security options or the server's processes (ADR 0097). Without it, a
+	// project that needs some is refused, saying what.
+	HostAccess    bool `protobuf:"varint,5,opt,name=host_access,json=hostAccess,proto3" json:"host_access,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -100,6 +104,13 @@ func (x *AdoptComposeRequest) GetEnvironment() string {
 		return x.Environment
 	}
 	return ""
+}
+
+func (x *AdoptComposeRequest) GetHostAccess() bool {
+	if x != nil {
+		return x.HostAccess
+	}
+	return false
 }
 
 // AdoptComposeResponse carries the plan.
@@ -895,12 +906,14 @@ var File_dockwell_v1_compose_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_compose_proto_rawDesc = "" +
 	"\n" +
-	"\x19dockwell/v1/compose.proto\x12\vdockwell.v1\x1a&dockwell/resource/v1alpha1/specs.proto\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x19dockwell/v1/service.proto\x1a\x1cgoogle/api/annotations.proto\"}\n" +
+	"\x19dockwell/v1/compose.proto\x12\vdockwell.v1\x1a&dockwell/resource/v1alpha1/specs.proto\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x19dockwell/v1/service.proto\x1a\x1cgoogle/api/annotations.proto\"\x9e\x01\n" +
 	"\x13AdoptComposeRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x16\n" +
 	"\x06server\x18\x02 \x01(\tR\x06server\x12\x18\n" +
 	"\aproject\x18\x03 \x01(\tR\aproject\x12 \n" +
-	"\venvironment\x18\x04 \x01(\tR\venvironment\"C\n" +
+	"\venvironment\x18\x04 \x01(\tR\venvironment\x12\x1f\n" +
+	"\vhost_access\x18\x05 \x01(\bR\n" +
+	"hostAccess\"C\n" +
 	"\x14AdoptComposeResponse\x12+\n" +
 	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"\xb2\x03\n" +
 	"\x14ImportComposeRequest\x12\x18\n" +

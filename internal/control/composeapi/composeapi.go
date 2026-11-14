@@ -497,7 +497,7 @@ func (h *Handler) AdoptCompose(ctx context.Context, req *connect.Request[dockwel
 	if m.GetName() == "" {
 		return nil, invalid(errors.New("the request names no Compose project. Pass one in name, such as shop"))
 	}
-	t, err := h.ReadTaking(ctx, m.GetServer(), m.GetName(), m.GetProject(), m.GetEnvironment())
+	t, err := h.ReadTaking(ctx, m.GetServer(), m.GetName(), m.GetProject(), m.GetEnvironment(), m.GetHostAccess())
 	if err != nil {
 		return nil, err
 	}
@@ -526,18 +526,23 @@ type Taking struct {
 	Notes []revision.Note
 	// Refusals are what's in the way of taking it on, each in words a person can act on.
 	Refusals []string
+	// NeedsHostAccess is the host access its containers need, in a few words each,
+	// which a person chooses before it's taken on (ADR 0097), and HostAccessOnly says
+	// that's all of what's in the way.
+	NeedsHostAccess []string
+	HostAccessOnly  bool
 }
 
 // ReadTaking reads what taking on the Compose project name on server would plan,
 // into project and environment, as AdoptCompose takes them. What's in the way is
 // collected, whatever kind it is, so a person fixes it once rather than meeting it
 // one thing at a time.
-func (h *Handler) ReadTaking(ctx context.Context, server, name, project, environment string) (*Taking, error) {
+func (h *Handler) ReadTaking(ctx context.Context, server, name, project, environment string, hostAccess bool) (*Taking, error) {
 	r, err := h.containers.ReadRunning(ctx, server)
 	if err != nil {
 		return nil, err
 	}
-	return h.ReadTakingIn(ctx, r, name, project, environment)
+	return h.ReadTakingIn(ctx, r, name, project, environment, hostAccess)
 }
 
 // ReadRunning reads what a server runs, once, for ReadTakingIn and TakenOn.
@@ -546,7 +551,7 @@ func (h *Handler) ReadRunning(ctx context.Context, server string) (*containers.R
 }
 
 // ReadTakingIn is ReadTaking, of what r read the server running.
-func (h *Handler) ReadTakingIn(ctx context.Context, r *containers.Running, name, project, environment string) (*Taking, error) {
+func (h *Handler) ReadTakingIn(ctx context.Context, r *containers.Running, name, project, environment string, hostAccess bool) (*Taking, error) {
 	s := r.Server
 	list, err := r.InProject(name)
 	if err != nil {
@@ -577,6 +582,7 @@ func (h *Handler) ReadTakingIn(ctx context.Context, r *containers.Running, name,
 		svcs[svcName], founds[svcName] = svc, &found
 	}
 	carryLinks(byName, svcs, founds)
+	hostRefusals := 0
 	for _, svcName := range slices.Sorted(maps.Keys(byName)) {
 		c := byName[svcName][0]
 		if len(byName[svcName]) > 1 {
@@ -590,6 +596,13 @@ func (h *Handler) ReadTakingIn(ctx context.Context, r *containers.Running, name,
 		if why := containers.Refusal(c.GetName(), found); why != "" {
 			t.Refusals = append(t.Refusals, why)
 		}
+		if needs := containers.HostAccessNeeded(svc.GetApp()); len(needs) > 0 {
+			t.NeedsHostAccess = append(t.NeedsHostAccess, needs...)
+			if !hostAccess {
+				t.Refusals = append(t.Refusals, containers.HostAccessRefusal(c.GetName(), needs))
+				hostRefusals++
+			}
+		}
 		manager, folder = cmp.Or(manager, found.Manager), cmp.Or(folder, found.Folder)
 		t.Adopts[ref] = changes.Adoption{ID: c.GetId(), Name: c.GetName()}
 		t.Edits = append(t.Edits, &dockwellv1.Edit{
@@ -598,6 +611,7 @@ func (h *Handler) ReadTakingIn(ctx context.Context, r *containers.Running, name,
 			Servers:  []string{s.ID},
 		})
 	}
+	t.HostAccessOnly = hostRefusals > 0 && hostRefusals == len(t.Refusals)
 	names := make([]string, 0, len(list))
 	for _, c := range list {
 		names = append(names, c.GetName())
