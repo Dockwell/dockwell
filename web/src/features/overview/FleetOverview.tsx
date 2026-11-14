@@ -22,6 +22,7 @@ import type { ReactNode } from "react";
 import { formatFixed, formatLiveBytesOf } from "../../lib/format";
 import { useTimeWords } from "../../lib/time";
 import { FleetUnreadNote } from "../servers/FleetNotes";
+import { byNeed, NEED } from "../servers/server";
 import { useServerTiles } from "../servers/tiles";
 import { useFleetUnread } from "../servers/useFleet";
 import { Page } from "../shell/Page";
@@ -163,22 +164,8 @@ function FleetMetrics({ servers, compact }: { servers: readonly Server[]; compac
 /** Up to this many servers, the panel names each on a line of its own under the tiles. */
 const FEW_SERVERS = 6;
 
-/**
- * What needs a look first, for the few servers' lines and the readout alike: one that's down, then a live one
- * that's degraded, such as one that can't read Docker, before one in no state the fleet knows or waiting for its agent.
- */
-const NEED: Record<Status, number> = {
-  down: 0,
-  degraded: 1,
-  unknown: 2,
-  stopped: 3,
-  deploying: 4,
-  running: 5,
-  healthy: 6,
-};
-
-/** The servers, what needs a look first, in their own order otherwise. */
-const byNeed = (tiles: readonly FleetServer[]) => [...tiles].sort((a, b) => NEED[a.status] - NEED[b.status]);
+/** A tile's state, which says Unknown for every server once what the fleet last said can't stand. */
+const tileStatus = (tile: FleetServer) => tile.status;
 
 /**
  * Every server as a tile, as Overview-Fleet draws them, each opening its page.
@@ -195,7 +182,7 @@ function FleetMap({ servers, compact }: { servers: readonly Server[]; compact: b
   // Otherwise the server to look at first, named under the tiles until another is hovered,
   // as Overview-Fleet draws it, by the same ranking as the lines: any that isn't running.
   const readout = !compact && !few;
-  const first = readout ? byNeed(tiles).find((s) => NEED[s.status] < NEED.running) : undefined;
+  const first = readout ? byNeed(tiles, tileStatus).find((s) => NEED[s.status] < NEED.running) : undefined;
   const grid = (
     <FleetGrid
       servers={tiles}
@@ -227,7 +214,7 @@ function FleetMap({ servers, compact }: { servers: readonly Server[]; compact: b
 function FewServers({ tiles }: { tiles: readonly FleetServer[] }) {
   const { t } = useLingui();
   const strings = useUIStrings();
-  const ordered = byNeed(tiles);
+  const ordered = byNeed(tiles, tileStatus);
   return (
     <ul className="overview-fleet-few" aria-label={t`Each server`}>
       {ordered.map((s) => (

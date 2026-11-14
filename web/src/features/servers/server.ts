@@ -41,6 +41,26 @@ export function serverStatus(server: {
   return STATUS[server.connection] ?? "stopped";
 }
 
+/**
+ * What needs a look first, wherever servers are put in that order, so the Overview's lines, its readout and the
+ * Servers page agree: one that's down, then a live one that's degraded, such as one that can't read Docker, before
+ * one in no state the fleet knows or waiting for its agent.
+ */
+export const NEED: Record<Status, number> = {
+  down: 0,
+  degraded: 1,
+  unknown: 2,
+  stopped: 3,
+  deploying: 4,
+  running: 5,
+  healthy: 6,
+};
+
+/** Servers, or their tiles, what needs a look first by the state each is drawn in, and in their own order otherwise. */
+export function byNeed<T>(items: readonly T[], statusOf: (item: T) => Status): T[] {
+  return [...items].sort((a, b) => NEED[statusOf(a)] - NEED[statusOf(b)]);
+}
+
 /** How a page puts a server in words, from useServerWords. */
 export interface ServerWords {
   /** How long it has been up, "3 days", while its agent reports. */

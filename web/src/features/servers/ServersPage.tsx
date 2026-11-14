@@ -25,7 +25,7 @@ import { Page } from "../shell/Page";
 import { AddServerSheet } from "./AddServerSheet";
 import { Connecting, FleetUnreadNote, usePageReconnecting } from "./FleetNotes";
 import { ServerInspector } from "./ServerInspector";
-import { serverStatus } from "./server";
+import { byNeed, serverStatus } from "./server";
 import { useServerTiles } from "./tiles";
 import { useFleet, useFleetUnread } from "./useFleet";
 import "./ServersPage.css";
@@ -80,9 +80,9 @@ export function ServersPage({
     () => (fleet.status === "connecting" ? [] : [...fleet.servers].sort((a, b) => a.name.localeCompare(b.name))),
     [fleet],
   );
-  // Without a server in the URL, the first that needs a look opens, once: it goes into the
-  // URL, so it stays as others come and go, and a reload or Back keeps it.
-  const firstLook = servers.find(needsLook)?.id;
+  // Without a server in the URL, the one that needs a look first opens, by the ranking the Overview
+  // names one by, once: it goes into the URL, so it stays as others come and go, and a reload or Back keeps it.
+  const firstLook = byNeed(servers, serverStatus).find(needsLook)?.id;
   const pick = search.server === undefined && !search.closed ? firstLook : undefined;
   useEffect(() => {
     if (pick) onSearch({ server: pick }, { replace: true });
