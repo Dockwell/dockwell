@@ -160,6 +160,11 @@ interface Then {
    * app (ADR 0074). Flipping it plans the other opening in this one's place, and lets go of this plan.
    */
   choice?: PlanChoice;
+  /**
+   * A name to type before Apply, in place of the plan's fingerprint, where what goes is
+   * worth naming: the project a deletion takes from other projects' apps (ADR 0084).
+   */
+  confirmName?: string;
 }
 
 /** A switch above a plan, between it and another plan, which `flip` opens. */
@@ -565,8 +570,8 @@ function ChangeSheet({
 
   const plan = change?.plan;
   const phase = phaseOf(opening, change, failure, witnessed);
-  const confirming = phase === "review" && needsConfirming(plan);
-  const confirmWith = confirming ? shortFingerprint(plan) : "";
+  const confirming = phase === "review" && (needsConfirming(plan) || Boolean(opening.confirmName));
+  const confirmWith = confirming ? opening.confirmName || shortFingerprint(plan) : "";
   const confirmed = confirmWith === "" || typed.trim().toLowerCase() === confirmWith.toLowerCase();
   // A server the plan found away may be back by now; the fleet says, and its word is the latest.
   const offline = (plan?.servers ?? [])

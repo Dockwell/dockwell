@@ -6,7 +6,7 @@ import { useLingui } from "@lingui/react/macro";
 import { useNavigate } from "@tanstack/react-router";
 
 import { type Offer, useMay } from "../auth/may";
-import { useChangeSheet } from "../changes/ChangeSheet";
+import { type Opening, useChangeSheet } from "../changes/ChangeSheet";
 import { planDeletingProject } from "./contents";
 import type { ProjectView } from "./useProjects";
 
@@ -34,16 +34,30 @@ export function useProjectDelete(count: number): {
     }
     return admin;
   };
-  const open = (view: ProjectView, after?: () => void) =>
-    sheet.open({
-      kind: "plan",
-      make: () => planDeletingProject(transport, view.project, t`Delete the project ${view.label}`),
-      onClose: (change: Change | undefined) => {
-        if (change && change.state !== ChangeState.PLANNED && change.state !== ChangeState.FAILED) {
-          if (after) after();
-          else void navigate({ to: "/projects" });
-        }
-      },
-    });
+  const onClose = (after?: () => void) => (change: Change | undefined) => {
+    if (change && change.state !== ChangeState.PLANNED && change.state !== ChangeState.FAILED) {
+      if (after) after();
+      else void navigate({ to: "/projects" });
+    }
+  };
+  // What apps of other projects use moves out to keep them working, unless the switch
+  // says to delete it too, which names the project to type (ADR 0084).
+  const opening = (view: ProjectView, after: (() => void) | undefined, anyway: boolean): Opening => ({
+    kind: "plan",
+    make: () => planDeletingProject(transport, view.project, t`Delete the project ${view.label}`, anyway),
+    onClose: onClose(after),
+    ...(anyway ? { confirmName: view.project.resource?.name ?? view.label } : {}),
+    choice: {
+      label: t`Also delete what other apps use`,
+      on: anyway,
+      description: anyway
+        ? t`Those apps stop working; their databases are dumped first`
+        : t`It moves to a project of its own`,
+      // Only where the project shares something with other projects' apps.
+      moot: (plan) => !plan?.notes.some((n) => n.reason === "keeps_shared" || n.reason === "breaks_shared"),
+      flip: () => opening(view, after, !anyway),
+    },
+  });
+  const open = (view: ProjectView, after?: () => void) => sheet.open(opening(view, after, false));
   return { offer, open };
 }

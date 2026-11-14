@@ -52,6 +52,7 @@ import { appOf, environmentOf, isMoving, nameOf } from "./app";
 import { DangerZone } from "./DangerZone";
 import { isServerPath, pathReach, validPort } from "./form";
 import { useImageConfig } from "./imageConfig";
+import { MoveApp } from "./MoveSheet";
 import {
   asGoodAsRoot,
   type CheckKind,
@@ -165,13 +166,14 @@ export function AppSettings() {
     });
   };
 
-  const label: Record<SectionId | "danger", string> = {
+  const label: Record<SectionId | "move" | "danger", string> = {
     general: t`General`,
     health: t`Health check`,
     resources: t`Resources`,
     ports: t`Ports`,
     mounts: t`Volumes and mounts`,
     updates: t`Automatic updates`,
+    move: t`Project`,
     danger: t`Danger zone`,
   };
   const section = (id: SectionId, facts: (app: Container) => ReactNode, form: (props: FormProps) => ReactNode) => {
@@ -216,7 +218,7 @@ export function AppSettings() {
     <div className="app-settings">
       {phone ? null : (
         <nav aria-label={t`Settings sections`} className="app-settings-nav">
-          {[...sections, "danger" as const].map((id) => (
+          {[...sections, "move" as const, "danger" as const].map((id) => (
             <a
               key={id}
               href={`#${id}`}
@@ -283,6 +285,9 @@ export function AppSettings() {
                 (props) => <UpdatesForm {...props} />,
               )
             : null}
+          <div id="move" className="app-settings-anchor is-wide">
+            <MoveApp service={service} title={label.move} />
+          </div>
           <div id="danger" className="app-settings-anchor is-wide">
             <DangerZone service={service} title={label.danger} />
           </div>
@@ -310,17 +315,17 @@ const SECTIONS: readonly SectionId[] = ["general", "health", "resources", "ports
  * The section in view, for the nav to mark: the first whose top has passed the
  * top quarter of the screen and whose end hasn't, as a reader's eye is there.
  */
-function useCurrentSection(ids: readonly SectionId[]): SectionId | "danger" | undefined {
-  const [current, setCurrent] = useState<SectionId | "danger">();
+function useCurrentSection(ids: readonly SectionId[]): SectionId | "move" | "danger" | undefined {
+  const [current, setCurrent] = useState<SectionId | "move" | "danger">();
   useEffect(() => {
     if (typeof IntersectionObserver === "undefined") return;
-    const all = [...ids, "danger"];
+    const all = [...ids, "move", "danger"];
     const seen = new Map<string, boolean>();
     const observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) seen.set(entry.target.id, entry.isIntersecting);
         const first = all.find((id) => seen.get(id));
-        if (first) setCurrent(first as SectionId | "danger");
+        if (first) setCurrent(first as SectionId | "move" | "danger");
       },
       { rootMargin: "-25% 0px -60% 0px" },
     );

@@ -134,6 +134,27 @@ service ServiceService {
       body: "*"
     };
   }
+  // MoveService plans moving an app to another project or environment on the same
+  // servers, with what only it uses, in one plan with undo: each is deleted where it
+  // was and made where it goes, its volumes taking their data, in place where the
+  // server lets the agent rename it and copied otherwise. A value it shares with
+  // what stays is copied, which the response says. What would part it from what
+  // stays, a volume or a network another service uses, or a service it reads or
+  // that reads it, holds it back: the response lists each, with the service to move
+  // too, and plans nothing. A link or a network's member in another project that
+  // meets what moves follows it in the same plan. It needs a role in both places.
+  // See docs/adr/0084-what-an-app-needs-met-by-a-new-service-one-you-run-or-a-connection.md.
+  rpc MoveService(MoveServiceRequest) returns (MoveServiceResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.command) = {verb: "move"};
+    option (google.api.http) = {
+      post: "/v1/services/{id}:move"
+      body: "*"
+    };
+  }
   // OpenService gives the person who asks a one-time address that opens the web
   // UI a service publishes on its server, through the panel, on an origin of
   // the service's own (ADR 0061): the browser that opens it first, within a
@@ -375,6 +396,54 @@ message DeployServiceRequest {
 message DeployServiceResponse {
   // The change, planned, with its plan.
   Change change = 1;
+}
+
+// MoveServiceRequest names a service, and where it goes.
+message MoveServiceRequest {
+  // The service, by ID or by name.
+  string id = 1;
+  // The project of a service named by name, by name or ID, when more than one
+  // has a service of that name.
+  string project = 2;
+  // The environment of a service named by name, by name or ID, when its
+  // project has more than one.
+  string environment = 3;
+  // Where it goes: a project, by name or ID, and its environment, by name or
+  // ID, where it has more than one.
+  string to_project = 4;
+  string to_environment = 5;
+  // A project the plan makes for it, with its one environment, in place of
+  // to_project, such as the app's own name. Making a project is an admin's.
+  string new_project = 6;
+  // More services of its environment that move with it, by name, as a block's
+  // move_too names them.
+  repeated string also = 7;
+  // What the change is for, for the timeline. Empty says what moves where.
+  string summary = 8;
+}
+
+// MoveServiceResponse is the planned move, or what holds it back.
+message MoveServiceResponse {
+  // The change, planned, with its plan. Unset while anything holds it back.
+  Change change = 1;
+  // What goes, as it's named where it is now.
+  repeated ResourceRef moves = 2;
+  // Values what stays reads too, which stay, and which the app gets a copy of.
+  repeated ResourceRef copies = 3;
+  // What in other projects points at what moves, and follows it.
+  repeated ResourceRef follows = 4;
+  // What holds the move back. With any, nothing is planned.
+  repeated MoveBlock blocks = 5;
+}
+
+// MoveBlock is something that holds a move back.
+message MoveBlock {
+  // What's in the way.
+  ResourceRef resource = 1;
+  // Why, in words for people: the fact, then what to do.
+  string why = 2;
+  // A service of the app's environment that moving too clears it, or empty.
+  string move_too = 3;
 }
 
 // UpgradeServiceRequest names a service, and what to update it to.
