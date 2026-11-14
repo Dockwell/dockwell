@@ -42,7 +42,8 @@ func (f *fakeAgent) PutCertificates(_ context.Context, certs []agentapi.Certific
 		return 0, errors.New("the stream went away")
 	}
 	var ids []string
-	for _, c := range certs {
+	for i := range certs {
+		c := &certs[i]
 		if len(c.Key) == 0 || len(c.Chain) == 0 {
 			ids = append(ids, c.ID+":empty")
 			continue
@@ -222,8 +223,8 @@ func TestASharedCertificateGoesWhereItWasConfirmed(t *testing.T) {
 	st := storeIssued(t, m, "srv_1", "app.example.com")
 	st["crt_wild"] = storeIssued(t, m, "crt_wild", "*.example.com")["crt_wild"]
 	wanted := map[Holder]*want{
-		"srv_1":    {Holder: "srv_1", Names: []string{"app.example.com"}, Servers: []string{"srv_1"}},
-		"crt_wild": {Holder: "crt_wild", Names: []string{"*.example.com"}, Servers: []string{"srv_1"}},
+		"srv_1":    {Holder: "srv_1", Name: "hz-1", Names: []string{"app.example.com"}, Servers: []string{"srv_1"}, Serves: map[string][]string{"srv_1": {"app.example.com"}}},
+		"crt_wild": {Holder: "crt_wild", Name: "wild", Names: []string{"*.example.com"}, Servers: []string{"srv_1"}, Serves: map[string][]string{"srv_1": {"api.example.com", "shop.example.com"}}},
 	}
 	confirm(t, m, map[string][]string{"srv_1": {"srv_1"}})
 	m.deliver(t.Context(), wanted, st)
@@ -234,6 +235,19 @@ func TestASharedCertificateGoesWhereItWasConfirmed(t *testing.T) {
 	m.deliver(t.Context(), wanted, st)
 	if got := agents["srv_1"].puts; len(got) != 2 || !slices.Equal(got[1], []string{"crt_wild", "srv_1"}) {
 		t.Errorf("once let have the wildcard, it got %v", got)
+	}
+	// Each says its name and the routes' domains it serves there.
+	for _, c := range agents["srv_1"].given[1:] {
+		w := wanted[c.ID]
+		if c.Name != w.Name || !slices.Equal(c.Serves, w.Serves["srv_1"]) {
+			t.Errorf("%s went as %q serving %v", c.ID, c.Name, c.Serves)
+		}
+	}
+	// Serving another route is news to the server, though the key isn't.
+	wanted["crt_wild"].Serves["srv_1"] = append(wanted["crt_wild"].Serves["srv_1"], "www.example.com")
+	m.deliver(t.Context(), wanted, st)
+	if got := agents["srv_1"].puts; len(got) != 3 {
+		t.Errorf("a route the wildcard serves now didn't reach the server: %v", got)
 	}
 }
 
@@ -265,5 +279,35 @@ func TestEachKeyIsOnTheTimelineOnce(t *testing.T) {
 	again.deliver(t.Context(), wanted, st)
 	if d := deliveries(t, m); len(d) != 2 {
 		t.Errorf("a new key at the same generation isn't on the timeline: %v", d)
+	}
+}
+
+// A key is on record as a server's before it's sent, so a send that may have reached
+// the agent and lost its answer still has the key revoked if the server goes; the
+// server's timeline says it got it once its agent says so, and only then (ADR 0090).
+func TestAKeySentIsRecordedBeforeItGoes(t *testing.T) {
+	m := newManager(t)
+	agents := fakeAgents{"srv_1": {loads: true, fail: true}}
+	m.Agents = agents
+	wanted := map[Holder]*want{"crt_wild": {Holder: "crt_wild", Names: []string{"*.example.com"}, Servers: []string{"srv_1"}}}
+	confirm(t, m, map[string][]string{"srv_1": {"crt_wild"}})
+	st := storeIssued(t, m, "crt_wild", "*.example.com")
+	m.deliver(t.Context(), wanted, st)
+	_, gv := read(t, m)
+	if g := gv[st["crt_wild"].Serial]; g == nil || !slices.Equal(g.Servers, []string{"srv_1"}) || len(g.Delivered) != 0 {
+		t.Fatalf("after a send that lost its answer, given %+v", g)
+	}
+	if d := deliveries(t, m); len(d) != 0 {
+		t.Errorf("the timeline says a key was taken that wasn't: %v", d)
+	}
+	agents["srv_1"].fail = false
+	m.deliver(t.Context(), wanted, st)
+	m.deliver(t.Context(), wanted, st)
+	_, gv = read(t, m)
+	if g := gv[st["crt_wild"].Serial]; !slices.Equal(g.Servers, []string{"srv_1"}) || !slices.Equal(g.Delivered, []string{"srv_1"}) {
+		t.Errorf("once taken, given %+v", g)
+	}
+	if d := deliveries(t, m); len(d) != 1 {
+		t.Errorf("once taken, the timeline holds %v", d)
 	}
 }

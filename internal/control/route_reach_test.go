@@ -27,6 +27,8 @@ import (
 type routesInMemory struct {
 	mu     sync.Mutex
 	routes map[resource.Ref]*resourcev1.Route
+	// check is what DNS says of every domain as a plan is made. Nil says nothing.
+	check *resource.DomainCheck
 }
 
 func (m *routesInMemory) Observe(_ context.Context, ref resource.Ref) (*resourcev1.Route, error) {
@@ -36,8 +38,15 @@ func (m *routesInMemory) Observe(_ context.Context, ref resource.Ref) (*resource
 }
 
 func (*routesInMemory) Check(context.Context, resource.Ref, []resource.Desired) error { return nil }
-func (*routesInMemory) Judge(context.Context, resource.Ref, *resourcev1.Route, []resource.Desired) (*resource.IngressEffect, *resource.DomainCheck, error) {
-	return nil, nil, nil
+func (m *routesInMemory) Judge(_ context.Context, _ resource.Ref, spec *resourcev1.Route, _ []resource.Desired) (*resource.IngressEffect, *resource.DomainCheck, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.check == nil {
+		return nil, nil, nil
+	}
+	c := *m.check
+	c.Domain = spec.GetDomain()
+	return nil, &c, nil
 }
 
 func (*routesInMemory) Goes(context.Context, resource.Ref, []resource.Desired) *resource.RouteGoes {

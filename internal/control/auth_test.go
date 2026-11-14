@@ -35,6 +35,7 @@ import (
 
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
+	"github.com/dockwell/dockwell/internal/agent"
 	"github.com/dockwell/dockwell/internal/auth"
 	"github.com/dockwell/dockwell/internal/auth/authtest"
 	"github.com/dockwell/dockwell/internal/control/agentapi"
@@ -131,6 +132,9 @@ type fullServer struct {
 	// panelsRoot is the next Docker server's root, for Coolify's and Dokploy's
 	// folders, if any.
 	panelsRoot string
+	// certLoader loads the certificates by DNS the next Docker server added is
+	// given. Nil has its agent load none.
+	certLoader agent.CertificateLoader
 	// volumes wraps the volume driver of the next server added, to see what its
 	// agent hears. Nil leaves it as it is.
 	volumes func(*volume.Driver) resource.Type

@@ -4564,6 +4564,39 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/servers:planRemove:
+        post:
+            tags:
+                - ChangeService
+            description: |-
+                PlanRemoveServer plans taking a server out of the fleet: a change whose edits
+                 move, stop or let go of what runs on it, as apps says, and which revokes the
+                 server as its last act. The plan lists what moves, what stops, what stays on
+                 the server, which certificates by DNS it re-issues and revokes, and what
+                 becomes of its backups. With compromised, it revokes the server as it
+                 commits, before any step, and takes none on it. It can't be undone, applying
+                 it takes a person's passkey, and the control server can't be removed. See
+                 docs/adr/0090-removing-a-server-and-marking-one-compromised.md.
+            operationId: ChangeService_PlanRemoveServer
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/PlanRemoveServerRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/PlanRemoveServerResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/servers:planSystemServiceAction:
         post:
             tags:
@@ -17189,6 +17222,12 @@ components:
                         Which project and environment its resources land in, once there's a choice
                          of either, so a plan can't read as another's. Empty while there's one
                          project with one environment. A plan that spans several lists each.
+                removes:
+                    allOf:
+                        - $ref: '#/components/schemas/ServerRemoval'
+                    description: |-
+                        The server it takes out of the fleet, if it does (ADR 0090). Numbered in
+                         the block removal holds, 140 to 149.
             description: |-
                 Plan is what applying a change would do: what changes, where, and for
                  how long.
@@ -17339,6 +17378,43 @@ components:
                         - $ref: '#/components/schemas/Change'
                     description: The change, planned, with its plan.
             description: PlanRebootResponse carries the planned reboot.
+        PlanRemoveServerRequest:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                    description: The server, by ID.
+                apps:
+                    enum:
+                        - APPS_ON_REMOVAL_UNSPECIFIED
+                        - APPS_ON_REMOVAL_LEAVE
+                        - APPS_ON_REMOVAL_MOVE
+                        - APPS_ON_REMOVAL_STOP
+                    type: string
+                    description: What happens to its apps. Unset leaves them running.
+                    format: enum
+                moveTo:
+                    type: string
+                    description: The server they move to, by ID, for APPS_ON_REMOVAL_MOVE.
+                compromised:
+                    type: boolean
+                    description: |-
+                        The server may be in someone else's hands: it's revoked as the change
+                         commits, and the change takes no step on it, so its apps can't be stopped.
+                summary:
+                    type: string
+                    description: What the change is for, for the timeline. Empty says what it removes.
+            description: |-
+                PlanRemoveServerRequest names a server to take out of the fleet, and what
+                 happens to what it runs.
+        PlanRemoveServerResponse:
+            type: object
+            properties:
+                change:
+                    allOf:
+                        - $ref: '#/components/schemas/Change'
+                    description: The change, planned, with its plan.
+            description: PlanRemoveServerResponse carries the planned removal.
         PlanStep:
             type: object
             properties:
@@ -17748,6 +17824,12 @@ components:
                     description: |-
                         What an action on one of its server's system services does, for a server's
                          host the change acts on a unit of (ADR 0082). Track S takes 70 to 79 here.
+                letsGo:
+                    type: boolean
+                    description: |-
+                        The change takes no step for it on the server it removes from the fleet:
+                         what it left there stays as it is, and Dockwell lets go of it (ADR 0090).
+                         Numbered in the block removal holds, 140 to 149.
             description: PlannedResource is what a plan does to one resource as a whole.
         PortMapping:
             type: object
@@ -19826,6 +19908,18 @@ components:
                         What holds it, in words, such as "sshd" or "nginx, in the container
                          legacy-site". Empty when nothing does, and when what does can't be named.
             description: ServerPortHeld is what holds one port on a server.
+        ServerRemoval:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                    description: The server's ID and name.
+                serverName:
+                    type: string
+                compromised:
+                    type: boolean
+                    description: It's revoked as the change commits, as it may be compromised.
+            description: ServerRemoval is the server a change takes out of the fleet.
         ServerSsh:
             type: object
             properties:

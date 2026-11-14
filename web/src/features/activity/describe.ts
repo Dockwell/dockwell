@@ -590,6 +590,14 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
               : t`Sent a certificate's key, proven by DNS, to a server`,
             icon: "key",
           };
+        case "certificate.revoke":
+          // A key by DNS a server that's gone had, revoked with the CA once its certificate had another.
+          return {
+            title: name
+              ? t`Revoked a certificate's key ${name} had, as it's gone`
+              : t`Revoked a certificate's key a server that's gone had`,
+            icon: "key",
+          };
         case "dns_provider.check":
           // A saved DNS provider's token, used again to write and delete a record in its zones.
           return {

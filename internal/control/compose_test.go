@@ -120,6 +120,7 @@ func (f *fullServer) addServerNamed(t *testing.T, name string, more func() []res
 		tasks:   tasks,
 		mounts:  e.Mountinfo,
 	}
+	s.certs = f.certLoader
 	if root := f.onePanelRoot; root != "" {
 		s.onePanel = func(ctx context.Context) (*agentv1.ReadOnePanelResult, error) { return onepanel.Read(ctx, root) }
 	}

@@ -188,7 +188,7 @@ function readingOrder(resource: PlanResource, planned: PlannedResource | undefin
 export function diffResources(
   plan: Plan | undefined,
   rows: FieldRows,
-  options: { expanded?: boolean; tag?: (intent: Intent) => string } = {},
+  options: { expanded?: boolean; tag?: (intent: Intent) => string; letsGo?: string } = {},
 ): PlanResource[] {
   const intent = intentOf(plan);
   const maybe = ifNewerIn(plan);
@@ -218,6 +218,8 @@ export function diffResources(
       out.action = "update";
       if (options.tag) out.note = options.tag(intent);
     }
+    // What a removal lets go of on its server takes no step there: it stays as it is (ADR 0090).
+    if (resource.letsGo && options.letsGo) out.note = options.letsGo;
     // What is at risk is never folded away, as what a plan deletes otherwise starts.
     if (changes.some((c) => c.tone === "critical" || c.tone === "warning")) out.expanded = true;
     if (options.expanded !== undefined) out.expanded = options.expanded;
@@ -365,7 +367,13 @@ export function onlyCreates(plan: Plan | undefined): boolean {
 
 /** True for a plan with nothing to do: nothing changes, and no server has a step. */
 export function isEmpty(plan: Plan | undefined): boolean {
-  return plan !== undefined && changing(plan).length === 0 && plan.servers.every((s) => s.steps.length === 0);
+  // A server leaving the fleet is the change, with nothing on it to change as well (ADR 0090).
+  return (
+    plan !== undefined &&
+    plan.removes === undefined &&
+    changing(plan).length === 0 &&
+    plan.servers.every((s) => s.steps.length === 0)
+  );
 }
 
 /** True when the server went away during a change's step, so nothing can say whether it ran until the server is back. */

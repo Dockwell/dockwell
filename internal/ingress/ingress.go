@@ -20,6 +20,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
@@ -80,6 +81,10 @@ type Proxy interface {
 	// Certificates says where each domain's certificate stands. It works with
 	// the proxy down.
 	Certificates(ctx context.Context, domains []string) (map[string]CertState, error)
+	// SetCertificates loads the certificates the control plane proved by DNS-01,
+	// in place of those loaded before, and gets no certificate of its own for skip
+	// (ADR 0088). It changes nothing when they're as they were.
+	SetCertificates(ctx context.Context, certs []DNSCert, skip []string) error
 	// Retry starts a pending or failed certificate's next try now.
 	Retry(ctx context.Context) error
 }
@@ -205,6 +210,9 @@ type Manager struct {
 	Logger *slog.Logger
 	// Now is the time. Nil means time.Now.
 	Now func() time.Time
+	// Certs keeps the certificates by DNS on the server's disk. Nil keeps them in
+	// memory alone.
+	Certs CertKeeper
 
 	mu    gate
 	table table
@@ -222,6 +230,10 @@ type Manager struct {
 	// moving is the port a rollout's plan has for each route of a service it holds,
 	// by the route's name.
 	moving map[Service]map[string]uint32
+	// bydns are the certificates by DNS this server serves, and controlUp says
+	// whether the control plane is there, as HearControlPlane was given.
+	bydns     byDNS
+	controlUp atomic.Pointer[func() bool]
 }
 
 var _ Upstreams = (*Manager)(nil)
@@ -1092,8 +1104,12 @@ func (m *Manager) start(ctx context.Context, st Status, have []Route, want []Por
 		return m.named(ctx, want, err)
 	}
 	// A proxy resuming its last config ignores the bootstrap, so the panel's
-	// site goes in now if this start of Dockwell has one it hadn't.
-	return m.Proxy.SetPanel(ctx, m.panelSite(ctx))
+	// site goes in now if this start of Dockwell has one it hadn't, and the
+	// certificates by DNS with it.
+	if err := m.Proxy.SetPanel(ctx, m.panelSite(ctx)); err != nil {
+		return err
+	}
+	return m.applyCertificates(ctx)
 }
 
 // retake gives the panel its ports back after a step that couldn't start the
@@ -1344,6 +1360,9 @@ func (m *Manager) Reconcile(ctx context.Context) error {
 	// what it was started with. Within a minute of its own certificate coming,
 	// this is what drops the panel's.
 	if err := m.Proxy.SetPanel(ctx, m.panelSite(ctx)); err != nil {
+		return errors.Join(err, networkErr)
+	}
+	if err := m.applyCertificates(ctx); err != nil {
 		return errors.Join(err, networkErr)
 	}
 	if networkErr != nil {

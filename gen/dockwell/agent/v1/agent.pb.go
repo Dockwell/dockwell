@@ -4667,7 +4667,14 @@ type PutCertificate struct {
 	// The certificate's ID, crt_….
 	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	// The names it covers, such as "*.example.com" and "example.com".
-	Names         []string `protobuf:"bytes,2,rep,name=names,proto3" json:"names,omitempty"`
+	Names []string `protobuf:"bytes,2,rep,name=names,proto3" json:"names,omitempty"`
+	// The routes' domains on this server it serves, which the ingress gets no
+	// certificate of its own for. A shared one may cover others it doesn't serve,
+	// as their projects aren't its.
+	Serves []string `protobuf:"bytes,3,rep,name=serves,proto3" json:"serves,omitempty"`
+	// Its name, which a domain's state says it's served by: a shared certificate's
+	// own, or the server's for its own.
+	Name          string `protobuf:"bytes,4,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4714,6 +4721,20 @@ func (x *PutCertificate) GetNames() []string {
 		return x.Names
 	}
 	return nil
+}
+
+func (x *PutCertificate) GetServes() []string {
+	if x != nil {
+		return x.Serves
+	}
+	return nil
+}
+
+func (x *PutCertificate) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
 }
 
 // PutCertificatesResult says what the agent serves now.
@@ -14453,10 +14474,12 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x04list\x18\x01 \x01(\v2\x18.dockwell.v1.ProcessListR\x04list\"t\n" +
 	"\x13PutCertificatesCall\x12\x16\n" +
 	"\x06sealed\x18\x01 \x01(\fR\x06sealed\x12E\n" +
-	"\fcertificates\x18\x02 \x03(\v2!.dockwell.agent.v1.PutCertificateR\fcertificates\"6\n" +
+	"\fcertificates\x18\x02 \x03(\v2!.dockwell.agent.v1.PutCertificateR\fcertificates\"b\n" +
 	"\x0ePutCertificate\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
-	"\x05names\x18\x02 \x03(\tR\x05names\"/\n" +
+	"\x05names\x18\x02 \x03(\tR\x05names\x12\x16\n" +
+	"\x06serves\x18\x03 \x03(\tR\x06serves\x12\x12\n" +
+	"\x04name\x18\x04 \x01(\tR\x04name\"/\n" +
 	"\x15PutCertificatesResult\x12\x16\n" +
 	"\x06loaded\x18\x01 \x01(\x05R\x06loaded\"i\n" +
 	"\x16CheckRegistryLoginCall\x12#\n" +

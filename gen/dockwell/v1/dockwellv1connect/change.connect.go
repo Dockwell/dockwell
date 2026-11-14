@@ -67,6 +67,9 @@ const (
 	// ChangeServicePlanRebootProcedure is the fully-qualified name of the ChangeService's PlanReboot
 	// RPC.
 	ChangeServicePlanRebootProcedure = "/dockwell.v1.ChangeService/PlanReboot"
+	// ChangeServicePlanRemoveServerProcedure is the fully-qualified name of the ChangeService's
+	// PlanRemoveServer RPC.
+	ChangeServicePlanRemoveServerProcedure = "/dockwell.v1.ChangeService/PlanRemoveServer"
 	// ChangeServicePlanSystemServiceActionProcedure is the fully-qualified name of the ChangeService's
 	// PlanSystemServiceAction RPC.
 	ChangeServicePlanSystemServiceActionProcedure = "/dockwell.v1.ChangeService/PlanSystemServiceAction"
@@ -165,6 +168,15 @@ type ChangeServiceClient interface {
 	// agent connects from another boot, and fails if none has after 15 minutes.
 	// See docs/adr/0064-a-change-on-a-server-installing-updates-and-rebooting.md.
 	PlanReboot(context.Context, *connect.Request[v1.PlanRebootRequest]) (*connect.Response[v1.PlanRebootResponse], error)
+	// PlanRemoveServer plans taking a server out of the fleet: a change whose edits
+	// move, stop or let go of what runs on it, as apps says, and which revokes the
+	// server as its last act. The plan lists what moves, what stops, what stays on
+	// the server, which certificates by DNS it re-issues and revokes, and what
+	// becomes of its backups. With compromised, it revokes the server as it
+	// commits, before any step, and takes none on it. It can't be undone, applying
+	// it takes a person's passkey, and the control server can't be removed. See
+	// docs/adr/0090-removing-a-server-and-marking-one-compromised.md.
+	PlanRemoveServer(context.Context, *connect.Request[v1.PlanRemoveServerRequest]) (*connect.Response[v1.PlanRemoveServerResponse], error)
 	// PlanSystemServiceAction plans an action on one of a server's system
 	// services, its systemd units or OpenRC services: starting, stopping,
 	// restarting or reloading it, or enabling, disabling, masking or unmasking it
@@ -270,6 +282,12 @@ func NewChangeServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(changeServiceMethods.ByName("PlanReboot")),
 			connect.WithClientOptions(opts...),
 		),
+		planRemoveServer: connect.NewClient[v1.PlanRemoveServerRequest, v1.PlanRemoveServerResponse](
+			httpClient,
+			baseURL+ChangeServicePlanRemoveServerProcedure,
+			connect.WithSchema(changeServiceMethods.ByName("PlanRemoveServer")),
+			connect.WithClientOptions(opts...),
+		),
 		planSystemServiceAction: connect.NewClient[v1.PlanSystemServiceActionRequest, v1.PlanSystemServiceActionResponse](
 			httpClient,
 			baseURL+ChangeServicePlanSystemServiceActionProcedure,
@@ -311,6 +329,7 @@ type changeServiceClient struct {
 	restartService          *connect.Client[v1.RestartServiceRequest, v1.RestartServiceResponse]
 	planInstallUpdates      *connect.Client[v1.PlanInstallUpdatesRequest, v1.PlanInstallUpdatesResponse]
 	planReboot              *connect.Client[v1.PlanRebootRequest, v1.PlanRebootResponse]
+	planRemoveServer        *connect.Client[v1.PlanRemoveServerRequest, v1.PlanRemoveServerResponse]
 	planSystemServiceAction *connect.Client[v1.PlanSystemServiceActionRequest, v1.PlanSystemServiceActionResponse]
 	listDrift               *connect.Client[v1.ListDriftRequest, v1.ListDriftResponse]
 	revertDrift             *connect.Client[v1.RevertDriftRequest, v1.RevertDriftResponse]
@@ -370,6 +389,11 @@ func (c *changeServiceClient) PlanInstallUpdates(ctx context.Context, req *conne
 // PlanReboot calls dockwell.v1.ChangeService.PlanReboot.
 func (c *changeServiceClient) PlanReboot(ctx context.Context, req *connect.Request[v1.PlanRebootRequest]) (*connect.Response[v1.PlanRebootResponse], error) {
 	return c.planReboot.CallUnary(ctx, req)
+}
+
+// PlanRemoveServer calls dockwell.v1.ChangeService.PlanRemoveServer.
+func (c *changeServiceClient) PlanRemoveServer(ctx context.Context, req *connect.Request[v1.PlanRemoveServerRequest]) (*connect.Response[v1.PlanRemoveServerResponse], error) {
+	return c.planRemoveServer.CallUnary(ctx, req)
 }
 
 // PlanSystemServiceAction calls dockwell.v1.ChangeService.PlanSystemServiceAction.
@@ -477,6 +501,15 @@ type ChangeServiceHandler interface {
 	// agent connects from another boot, and fails if none has after 15 minutes.
 	// See docs/adr/0064-a-change-on-a-server-installing-updates-and-rebooting.md.
 	PlanReboot(context.Context, *connect.Request[v1.PlanRebootRequest]) (*connect.Response[v1.PlanRebootResponse], error)
+	// PlanRemoveServer plans taking a server out of the fleet: a change whose edits
+	// move, stop or let go of what runs on it, as apps says, and which revokes the
+	// server as its last act. The plan lists what moves, what stops, what stays on
+	// the server, which certificates by DNS it re-issues and revokes, and what
+	// becomes of its backups. With compromised, it revokes the server as it
+	// commits, before any step, and takes none on it. It can't be undone, applying
+	// it takes a person's passkey, and the control server can't be removed. See
+	// docs/adr/0090-removing-a-server-and-marking-one-compromised.md.
+	PlanRemoveServer(context.Context, *connect.Request[v1.PlanRemoveServerRequest]) (*connect.Response[v1.PlanRemoveServerResponse], error)
 	// PlanSystemServiceAction plans an action on one of a server's system
 	// services, its systemd units or OpenRC services: starting, stopping,
 	// restarting or reloading it, or enabling, disabling, masking or unmasking it
@@ -578,6 +611,12 @@ func NewChangeServiceHandler(svc ChangeServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(changeServiceMethods.ByName("PlanReboot")),
 		connect.WithHandlerOptions(opts...),
 	)
+	changeServicePlanRemoveServerHandler := connect.NewUnaryHandler(
+		ChangeServicePlanRemoveServerProcedure,
+		svc.PlanRemoveServer,
+		connect.WithSchema(changeServiceMethods.ByName("PlanRemoveServer")),
+		connect.WithHandlerOptions(opts...),
+	)
 	changeServicePlanSystemServiceActionHandler := connect.NewUnaryHandler(
 		ChangeServicePlanSystemServiceActionProcedure,
 		svc.PlanSystemServiceAction,
@@ -627,6 +666,8 @@ func NewChangeServiceHandler(svc ChangeServiceHandler, opts ...connect.HandlerOp
 			changeServicePlanInstallUpdatesHandler.ServeHTTP(w, r)
 		case ChangeServicePlanRebootProcedure:
 			changeServicePlanRebootHandler.ServeHTTP(w, r)
+		case ChangeServicePlanRemoveServerProcedure:
+			changeServicePlanRemoveServerHandler.ServeHTTP(w, r)
 		case ChangeServicePlanSystemServiceActionProcedure:
 			changeServicePlanSystemServiceActionHandler.ServeHTTP(w, r)
 		case ChangeServiceListDriftProcedure:
@@ -686,6 +727,10 @@ func (UnimplementedChangeServiceHandler) PlanInstallUpdates(context.Context, *co
 
 func (UnimplementedChangeServiceHandler) PlanReboot(context.Context, *connect.Request[v1.PlanRebootRequest]) (*connect.Response[v1.PlanRebootResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ChangeService.PlanReboot is not implemented"))
+}
+
+func (UnimplementedChangeServiceHandler) PlanRemoveServer(context.Context, *connect.Request[v1.PlanRemoveServerRequest]) (*connect.Response[v1.PlanRemoveServerResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ChangeService.PlanRemoveServer is not implemented"))
 }
 
 func (UnimplementedChangeServiceHandler) PlanSystemServiceAction(context.Context, *connect.Request[v1.PlanSystemServiceActionRequest]) (*connect.Response[v1.PlanSystemServiceActionResponse], error) {

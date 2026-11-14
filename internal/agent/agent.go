@@ -8,6 +8,7 @@
 package agent
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -92,6 +93,10 @@ type Config struct {
 	// Public hears the public address the control plane knows this server by.
 	// Nil ignores it.
 	Public PublicAddressListener
+	// Certificates loads the certificates the control plane proves by DNS-01 into
+	// this server's ingress, and hears whether the control plane is there (ADR
+	// 0088). Nil loads none, and the agent's hello says so.
+	Certificates CertificateLoader
 	// NoLookup keeps this server from asking a public STUN server how it reaches
 	// the internet (ADR 0034).
 	NoLookup bool
@@ -210,6 +215,14 @@ type HealthReporter interface {
 type PublicAddressListener interface {
 	// SetPublicAddress takes what's known.
 	SetPublicAddress(known *agentv1.PublicAddress)
+}
+
+// CertificateLoader loads the certificates the control plane proves by DNS-01 into a
+// server's ingress, in place of those it had, and says how many it loaded (ADR
+// 0088). HearControlPlane gives it what says whether the control plane is there.
+type CertificateLoader interface {
+	PutCertificates(ctx context.Context, certs []ingress.DNSCert) (int, error)
+	HearControlPlane(up func() bool)
 }
 
 // DomainReporter says where a server's routes' domains stand (ADR 0024).
@@ -478,6 +491,12 @@ func Run(ctx context.Context, cfg Config) error {
 	defer resource.OnPathBack(cfg.unfinished.wake)()
 	cfg.forwards = &forwardPool{}
 	cfg.presence = newPresence(time.Now())
+	if cfg.Certificates != nil {
+		// Away as the agent counts it before putting back what its server runs, so
+		// a stream that drops and comes back isn't the control plane gone.
+		after := cmp.Or(cfg.AwayAfter, DefaultAwayAfter)
+		cfg.Certificates.HearControlPlane(func() bool { return !cfg.presence.away(time.Now(), after) })
+	}
 	id := cfg.Identity
 	cfg.Logger = cfg.Logger.With(slog.String("server", id.ServerID))
 	cfg.Logger.Info("agent running", slog.String("name", id.ServerName), slog.String("control_plane", id.ControlURL),
@@ -558,9 +577,19 @@ func connectionReason(err error) string {
 
 // forget has an agent whose server was removed stop putting back what it ran, and
 // forget it, values and key: nothing of it is the server's to run any more (ADR
-// 0054). Joining again starts afresh.
+// 0054). The certificates by DNS it was given go from its ingress first, as their
+// keys are revoked (ADR 0090). Joining again starts afresh.
 func forget(ctx context.Context, cfg Config) {
-	if cfg.presence == nil || !cfg.presence.remove() || cfg.Desired == nil {
+	if cfg.presence == nil || !cfg.presence.remove() {
+		return
+	}
+	if cfg.Certificates != nil {
+		if _, err := cfg.Certificates.PutCertificates(ctx, nil); err != nil {
+			cfg.Logger.WarnContext(ctx, "this server was removed from the fleet, and the agent can't take the certificates by DNS it was given out of its ingress. Their keys are revoked; remove them from Caddy's config by hand",
+				slog.String("error", err.Error()))
+		}
+	}
+	if cfg.Desired == nil {
 		return
 	}
 	if err := cfg.Desired.Wipe(); err != nil {
@@ -632,7 +661,7 @@ func session(ctx context.Context, cfg Config) (err error) {
 	}
 	offered := readyKinds(ctx, cfg.Drivers)
 	offered.log(ctx, cfg.Logger)
-	hello := &agentv1.Hello{Build: cfg.Build.Proto(), Inventory: cfg.Collector.Inventory(ctx), DeliveryKey: key.Public(), WritesReferences: true, GuardsWaysIn: true, MakesFolders: true, OwnSettings: true, WritesFiles: true, OwnsVolumes: true, Updates: cfg.Updates != nil, FollowsPace: true, ReadsOnepanel: cfg.OnePanel != nil, ManagesFiles: true, TransfersFiles: true, PagesListings: true, FirstPasswords: true, Forwards: cfg.Docker != nil, Drills: cfg.Backups != nil, ActsOnUnits: cfg.System != nil, RegistryLogins: true, BuildLogins: true, Links: cfg.Docker != nil, ReadsPanels: cfg.Panels != nil, KeepsRoutesPrivate: true, OneDatabaseBackups: cfg.Backups != nil}
+	hello := &agentv1.Hello{Build: cfg.Build.Proto(), Inventory: cfg.Collector.Inventory(ctx), DeliveryKey: key.Public(), WritesReferences: true, GuardsWaysIn: true, MakesFolders: true, OwnSettings: true, WritesFiles: true, OwnsVolumes: true, Updates: cfg.Updates != nil, FollowsPace: true, ReadsOnepanel: cfg.OnePanel != nil, ManagesFiles: true, TransfersFiles: true, PagesListings: true, FirstPasswords: true, Forwards: cfg.Docker != nil, Drills: cfg.Backups != nil, ActsOnUnits: cfg.System != nil, RegistryLogins: true, BuildLogins: true, Links: cfg.Docker != nil, ReadsPanels: cfg.Panels != nil, KeepsRoutesPrivate: true, OneDatabaseBackups: cfg.Backups != nil, LoadsCertificates: cfg.Certificates != nil}
 	if cfg.Updates != nil {
 		// A server whose host reboots says which boot it's on, so a reboot passes once
 		// it connects from another (ADR 0064).

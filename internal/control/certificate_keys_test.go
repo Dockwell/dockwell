@@ -3,8 +3,10 @@
 package control
 
 import (
+	"context"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 
 	"connectrpc.com/connect"
@@ -12,6 +14,8 @@ import (
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
+	"github.com/dockwell/dockwell/internal/control/agentapi"
+	"github.com/dockwell/dockwell/internal/ingress"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/route"
 	"github.com/dockwell/dockwell/internal/revision"
@@ -22,6 +26,7 @@ import (
 // proven by DNS.
 type dnsStand struct {
 	f              *fullServer
+	ing            *routesInMemory
 	b              *browser
 	person, script dockwellv1connect.ChangeServiceClient
 	env, project   string
@@ -34,7 +39,7 @@ func newDNSStand(t *testing.T) *dnsStand {
 	b := signedIn(t, f)
 	ing := &routesInMemory{routes: map[resource.Ref]*resourcev1.Route{}}
 	f.addServerWith(t, func() []resource.Type { return []resource.Type{&route.Driver{Ingress: ing}} })
-	s := &dnsStand{f: f, b: b, person: changeClient(b, b.origin)}
+	s := &dnsStand{f: f, ing: ing, b: b, person: changeClient(b, b.origin)}
 	token := createToken(t, b, dockwellv1.TokenScope_TOKEN_SCOPE_READ_WRITE)
 	s.script = changeClient(bearer{token: token, rt: b.client.Transport}, b.origin)
 	first := importCompose(t, dockwellv1connect.NewComposeServiceClient(b, b.origin, connect.WithProtoJSON()), "services:\n  web:\n    image: ghcr.io/acme/shop:1.4\n", nil, false)
@@ -96,22 +101,15 @@ func keyAccess(ch *dockwellv1.Change) []*dockwellv1.HostAccess {
 // The first time a route proven by DNS would take a certificate's key to a server,
 // the plan says so, no token applies it, and an admin confirms it with a passkey,
 // kept once the change is taken; after that, the server's next names need no one.
-// Where no provider proves the name, no key goes, and the plan says so and asks no
-// one (ADR 0088).
+// A name no provider proves is refused (ADR 0088).
 func TestTheFirstKeyToAServerTakesAnAdminsPasskey(t *testing.T) {
 	s := newDNSStand(t)
 
-	early := propose(t, s.script, "Serve early by DNS", s.route("early", "early.example.com"))
-	if a := keyAccess(early); len(a) != 0 {
-		t.Errorf("a name no provider proves sends a key: %v", a)
-	}
-	if !slices.ContainsFunc(early.GetPlan().GetNotes(), func(n *dockwellv1.PlanNote) bool {
-		return n.GetReason() == "no_dns_provider" && slices.Equal(n.GetNames(), []string{"early.example.com"})
-	}) {
-		t.Errorf("the plan doesn't say no provider proves the name: %v", early.GetPlan().GetNotes())
-	}
-	if got := apply(t, s.script, early); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
-		t.Errorf("a token's route that sends no key: %v", got)
+	// A name no provider proves can get no certificate by DNS, so the plan says
+	// what to connect.
+	_, err := s.script.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Serve early by DNS", Edits: []*dockwellv1.Edit{s.route("early", "early.example.com")}}))
+	if connect.CodeOf(err) != connect.CodeInvalidArgument || !strings.Contains(err.Error(), "no DNS provider proves it") {
+		t.Errorf("a name no provider proves: %v", err)
 	}
 
 	apply(t, s.person, propose(t, s.person, "Cloudflare", dnsEdit("cloudflare", &resourcev1.DnsProvider{Provider: "cloudflare", Zones: []string{"example.com"}, ApiToken: dnsToken, Projects: []string{s.project}})))
@@ -266,5 +264,106 @@ func TestAServersOwnCertificateIsListed(t *testing.T) {
 	hold(in(store.Install, store.RoleViewer))
 	if c := list(); len(c) != 1 {
 		t.Errorf("a viewer of the install lists %v", c)
+	}
+}
+
+// certLoader keeps what an agent loads into its ingress.
+type certLoader struct {
+	mu    sync.Mutex
+	given []ingress.DNSCert
+}
+
+func (l *certLoader) PutCertificates(_ context.Context, certs []ingress.DNSCert) (int, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.given = certs
+	return len(certs), nil
+}
+
+func (l *certLoader) HearControlPlane(func() bool) {}
+
+// An agent that loads certificates by DNS says so as it connects, and what the
+// control plane gives it, sealed to its stream, opens there whole (ADR 0088).
+func TestCertificatesReachAnAgentThatLoadsThem(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	l := &certLoader{}
+	f.certLoader = l
+	f.addServerWith(t, nil)
+	server := f.lastDocker.id.ServerID
+	session, ok := f.agents.Session(server)
+	if !ok || !session.LoadsCertificates() {
+		t.Fatalf("the agent's session: %v, loads certificates %v", ok, ok && session.LoadsCertificates())
+	}
+	loaded, err := session.PutCertificates(t.Context(), []agentapi.Certificate{{
+		ID: "crt_wild", Name: "wild", Names: []string{"*.example.com"}, Serves: []string{"api.example.com"}, Chain: []byte("CHAIN"), Key: []byte("KEY"),
+	}})
+	if err != nil || loaded != 1 {
+		t.Fatalf("loaded %d: %v", loaded, err)
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if len(l.given) != 1 || l.given[0].Name != "wild" || string(l.given[0].Chain) != "CHAIN" || string(l.given[0].Key) != "KEY" || !slices.Equal(l.given[0].Serves, []string{"api.example.com"}) {
+		t.Errorf("the agent loaded %+v", l.given)
+	}
+}
+
+// A route left automatic is proven by DNS where HTTP can't reach its server, as
+// behind a tunnel, and a provider proves its name: the plan says so, sends the
+// server's first key with a passkey, and its certificate is wanted once applied.
+// Where DNS points at the server, it's proven by HTTP, as before (ADR 0088).
+func TestARouteLeftAutomaticBehindATunnelIsProvenByDNS(t *testing.T) {
+	s := newDNSStand(t)
+	apply(t, s.person, propose(t, s.person, "Cloudflare", dnsEdit("cloudflare", &resourcev1.DnsProvider{Provider: "cloudflare", Zones: []string{"example.com"}, ApiToken: dnsToken, Projects: []string{s.project}})))
+	automatic := func(name, domain string) *dockwellv1.Edit {
+		return &dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Kind: string(route.Kind), Scope: s.env, Name: name},
+			Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Route{Route: &resourcev1.Route{Domain: domain, Service: "web", Port: 8080}}},
+		}
+	}
+	s.ing.mu.Lock()
+	s.ing.check = &resource.DomainCheck{State: resource.DomainElsewhere, Found: []string{"198.51.100.20"}}
+	s.ing.mu.Unlock()
+	ch := propose(t, s.person, "Serve app", automatic("www", "app.example.com"))
+	if !slices.ContainsFunc(ch.GetPlan().GetNotes(), func(n *dockwellv1.PlanNote) bool {
+		return n.GetReason() == "proof_by_dns" && strings.Contains(n.GetMessage(), "points elsewhere")
+	}) {
+		t.Errorf("the plan doesn't say it's proven by DNS: %v", ch.GetPlan().GetNotes())
+	}
+	if a := keyAccess(ch); len(a) != 1 || a[0].GetPath() != "app.example.com" {
+		t.Fatalf("the plan names %v, want the first key to the server", a)
+	}
+	w := watch(t, s.person, ch.GetId())
+	if err := s.applyWithPasskey(t, ch); err != nil {
+		t.Fatal(err)
+	}
+	waitWatch(t, w)
+
+	s.ing.mu.Lock()
+	s.ing.check = &resource.DomainCheck{State: resource.DomainHere}
+	s.ing.mu.Unlock()
+	api := propose(t, s.script, "Serve api", automatic("api", "api.example.com"))
+	if a := keyAccess(api); len(a) != 0 || slices.ContainsFunc(api.GetPlan().GetNotes(), func(n *dockwellv1.PlanNote) bool { return n.GetReason() == "proof_by_dns" }) {
+		t.Errorf("a route whose DNS points here: %v, %v", a, api.GetPlan().GetNotes())
+	}
+	if got := apply(t, s.script, api); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("the route by HTTP: %v", got)
+	}
+
+	var proofs map[string]string
+	_ = s.f.store.View(t.Context(), func(tx *store.Tx) error {
+		var err error
+		proofs, err = revision.Proofs(t.Context(), tx)
+		return err
+	})
+	if proofs[s.env+"/www"] != "dns" || proofs[s.env+"/api"] != "http" {
+		t.Errorf("kept %v", proofs)
+	}
+	dc := dockwellv1connect.NewDomainServiceClient(s.b, s.b.origin, connect.WithProtoJSON())
+	listed, err := dc.ListCertificates(t.Context(), connect.NewRequest(&dockwellv1.ListCertificatesRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c := listed.Msg.GetCertificates(); len(c) != 1 || strings.Join(c[0].GetDomains(), ",") != "app.example.com" {
+		t.Errorf("wanted by DNS: %v", c)
 	}
 }

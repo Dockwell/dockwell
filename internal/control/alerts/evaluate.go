@@ -181,7 +181,10 @@ type Evaluator struct {
 	// Catalogs says how the catalog sources that follow a branch stand, for
 	// CONDITION_CATALOG_SOURCE_STUCK. Nil watches none.
 	Catalogs func(context.Context) []Following
-	Sender   *Sender
+	// Revocations says which keys of servers that went aren't revoked yet, for
+	// CONDITION_CERTIFICATE_FAILED (ADR 0090). Nil watches none.
+	Revocations func(context.Context) ([]Revocation, error)
+	Sender      *Sender
 	// Panel is where the panel answers, for links in messages. Empty puts none.
 	Panel  string
 	Logger *slog.Logger

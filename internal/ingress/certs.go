@@ -64,6 +64,10 @@ type CertState struct {
 	// None says it has no certificate and asks for none, as TLS ends before this
 	// server. Phase says nothing then.
 	None bool
+	// ByDNS names the certificate by DNS that serves it, if one does, and Warning
+	// says what's wrong with it, such as its nearing its end unrenewed (ADR 0088).
+	ByDNS   string
+	Warning string
 }
 
 // acmeProblem finds an ACME problem type (RFC 8555) in what a proxy logs,
@@ -152,6 +156,8 @@ func cut(s string, n int) string {
 func certMessage(domain string, st CertState, check *resource.DomainCheck) string {
 	retry := "Dockwell tries again by itself."
 	switch {
+	case st.Warning != "":
+		return st.Warning
 	case st.None:
 		return "None: TLS ends before this server, so it has no certificate here and asks for none."
 	case st.Phase == CertIssued && st.Problem == ProblemNone:
@@ -232,7 +238,7 @@ const offWords = "If this server sits behind a tunnel, or a proxy that ends TLS,
 func routeCertMessage(domain string, st CertState, check *resource.DomainCheck) string {
 	msg := certMessage(domain, st, check)
 	switch {
-	case st.None, msg == "":
+	case st.None, msg == "", st.ByDNS != "":
 		return msg
 	case st.Phase == CertPending:
 		if check == nil || (check.State != resource.DomainElsewhere && !check.Proxied) {
@@ -523,6 +529,8 @@ func (m *Manager) watchOnce(ctx context.Context) (waiting bool) {
 		strangers = AskStrangers(ctx, asker, routes)
 	}
 	retry, rereads := false, rereadsPerWatch
+	byDNS, now := m.servedByDNS(), m.now()
+	checks := map[string]*resource.DomainCheck{}
 	list := make([]*dockwellv1.DomainStatus, 0, len(domains))
 	for _, name := range slices.Sorted(maps.Keys(domains)) {
 		if !domains[name] {
@@ -531,12 +539,27 @@ func (m *Manager) watchOnce(ctx context.Context) (waiting bool) {
 			continue
 		}
 		st := certs[name]
+		c, served := byDNS[name]
+		if served {
+			st = dnsState(c, now)
+		}
 		check, nowHere := m.domainCheck(ctx, name, st, &rereads)
-		retry = retry || (nowHere && st.Phase != CertIssued)
+		checks[name] = check
+		retry = retry || (nowHere && st.Phase != CertIssued && !served)
 		waiting = waiting || st.Phase != CertIssued
 		list = append(list, &dockwellv1.DomainStatus{Domain: name, Certificate: certProto(name, st, check), Dns: resourcepb.DomainCheck(check), Strangers: strangers[name]})
 	}
 	m.status.publish(list)
+	// A name given back to the proxy goes from the certificates it skips now, and
+	// reads as the proxy has it at once.
+	if m.watchCertificates(ctx, checks) && m.mu.lock(ctx) == nil {
+		err := m.applyCertificates(ctx)
+		m.mu.unlock()
+		if err != nil && ctx.Err() == nil {
+			m.logger().WarnContext(ctx, "can't give a name back to the ingress to get its own certificate for; it tries again", slog.String("error", err.Error()))
+		}
+		m.watchNow()
+	}
 	m.reportPanel(ctx)
 	if retry {
 		m.logger().InfoContext(ctx, "a domain's DNS now points here, so the ingress tries for its certificate at once")
@@ -611,7 +634,7 @@ func (m *Manager) domainCheck(ctx context.Context, name string, st CertState, re
 }
 
 func certProto(domain string, st CertState, check *resource.DomainCheck) *dockwellv1.Certificate {
-	out := &dockwellv1.Certificate{State: phases[st.Phase], Problem: problems[st.Problem], Message: routeCertMessage(domain, st, check)}
+	out := &dockwellv1.Certificate{State: phases[st.Phase], Problem: problems[st.Problem], Message: routeCertMessage(domain, st, check), ByDns: st.ByDNS}
 	if st.None {
 		out.State = dockwellv1.CertificateState_CERTIFICATE_STATE_NONE
 	}

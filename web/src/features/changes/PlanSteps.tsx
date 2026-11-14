@@ -70,6 +70,7 @@ export function PlanSteps({ plan, progress }: { plan: Plan | undefined; progress
               words={words}
               fleet={fleet}
               intent={intentOf(plan)}
+              noUndo={plan?.removes !== undefined}
             />
           ))}
         </div>
@@ -84,12 +85,15 @@ function ServerSteps({
   words,
   fleet,
   intent,
+  noUndo,
 }: {
   server: ServerPlan;
   progress: readonly StepProgress[];
   words: ChangeWords;
   fleet: boolean;
   intent: Intent | undefined;
+  /** The change has no undo, as a removal hasn't (ADR 0090). */
+  noUndo: boolean;
 }) {
   const { t } = useLingui();
   const time = useTimeWords();
@@ -132,6 +136,7 @@ function ServerSteps({
               words={words}
               fleet={fleet}
               intent={intent?.resourceId === step.resourceId ? intent : undefined}
+              noUndo={noUndo}
             />
           ))}
         </ol>
@@ -148,6 +153,7 @@ function StepRow({
   words,
   fleet,
   intent,
+  noUndo,
 }: {
   step: PlanStep;
   server: string;
@@ -157,6 +163,7 @@ function StepRow({
   fleet: boolean;
   /** What the change is for, when this step is what does it. */
   intent: Intent | undefined;
+  noUndo: boolean;
 }) {
   const { t } = useLingui();
   const time = useTimeWords();
@@ -232,7 +239,11 @@ function StepRow({
             <span className="plan-step-warn">{t`Its Dockerfile can read any image ${buildLogins} can read`}</span>
           ) : null}
           {step.hidesLogs ? (
-            <span>{t`Its kept logs can't be read from then on, and go in 7 days. Undoing this brings them back`}</span>
+            <span>
+              {noUndo
+                ? t`Its kept logs can't be read from then on, and go in 7 days`
+                : t`Its kept logs can't be read from then on, and go in 7 days. Undoing this brings them back`}
+            </span>
           ) : null}
           {reach ? <span className="plan-step-warn">{t`Reaches ${reach} on ${server}`}</span> : null}
           {httpsOff.map((a) => {

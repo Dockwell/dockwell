@@ -2433,6 +2433,42 @@ const panelCertTag = "dockwell.panel"
 // Caddy's config, in PEM, like what is in Caddy's data directory, rather than in
 // a file whose going missing would stop Caddy starting.
 func (c *Caddy) setPanelCert(ctx context.Context, panel *ingress.PanelSite) error {
+	isOurs := func(cert map[string]any) bool { return tagged(cert, panelCertTag) }
+	changed, err := c.editLoaded(ctx, func(loaded []map[string]any) []map[string]any {
+		has := slices.ContainsFunc(loaded, isOurs)
+		want := panel != nil && panel.Cert != nil
+		if want {
+			if _, own := c.issued(panel.Domain); own {
+				want = false
+			}
+		}
+		if want == has {
+			return loaded
+		}
+		loaded = slices.DeleteFunc(loaded, isOurs)
+		if want {
+			loaded = append(loaded, map[string]any{"certificate": string(panel.Cert.Chain), "key": string(panel.Cert.Key), "tags": []any{panelCertTag}})
+		}
+		return loaded
+	})
+	if err != nil {
+		return fmt.Errorf("can't change the panel's certificate in Caddy: %w", err)
+	}
+	if changed {
+		c.keepRunning(ctx)
+	}
+	return nil
+}
+
+// tagged says whether a loaded certificate carries tag.
+func tagged(cert map[string]any, tag string) bool {
+	tags, _ := cert["tags"].([]any)
+	return slices.Contains(tags, any(tag))
+}
+
+// editLoaded edits the certificates loaded into Caddy's config, in PEM, and says
+// whether that changed them.
+func (c *Caddy) editLoaded(ctx context.Context, edit func([]map[string]any) []map[string]any) (bool, error) {
 	const path = "/config/apps/tls"
 	b, _, err := c.call(ctx, http.MethodGet, path, nil, nil)
 	var ae *adminError
@@ -2440,64 +2476,127 @@ func (c *Caddy) setPanelCert(ctx context.Context, panel *ingress.PanelSite) erro
 		b, err = []byte("null"), nil
 	}
 	if err != nil {
-		return err
+		return false, err
 	}
 	tlsApp := map[string]json.RawMessage{}
 	if !bytes.Equal(bytes.TrimSpace(b), []byte("null")) {
 		if err := json.Unmarshal(b, &tlsApp); err != nil {
-			return fmt.Errorf("can't read Caddy's TLS config: %w", err)
+			return false, fmt.Errorf("can't read Caddy's TLS config: %w", err)
 		}
 	}
 	certs := map[string]json.RawMessage{}
 	if err := unmarshalIf(tlsApp["certificates"], &certs); err != nil {
-		return err
+		return false, err
 	}
 	var loaded []map[string]any
 	if err := unmarshalIf(certs["load_pem"], &loaded); err != nil {
-		return err
+		return false, err
 	}
-	isOurs := func(cert map[string]any) bool {
-		tags, _ := cert["tags"].([]any)
-		return slices.Contains(tags, any(panelCertTag))
+	before, err := json.Marshal(loaded)
+	if err != nil {
+		return false, err
 	}
-	has := slices.ContainsFunc(loaded, isOurs)
-	want := panel != nil && panel.Cert != nil
-	if want {
-		if _, own := c.issued(panel.Domain); own {
-			want = false
-		}
+	loaded = edit(loaded)
+	after, err := json.Marshal(loaded)
+	if err != nil {
+		return false, err
 	}
-	if want == has {
-		return nil
-	}
-	loaded = slices.DeleteFunc(loaded, isOurs)
-	if want {
-		loaded = append(loaded, map[string]any{"certificate": string(panel.Cert.Chain), "key": string(panel.Cert.Key), "tags": []string{panelCertTag}})
+	if sameJSON(before, after) {
+		return false, nil
 	}
 	if len(loaded) == 0 {
 		delete(certs, "load_pem")
-	} else if certs["load_pem"], err = json.Marshal(loaded); err != nil {
-		return err
+	} else {
+		certs["load_pem"] = after
 	}
 	if len(certs) == 0 {
 		delete(tlsApp, "certificates")
 	} else if tlsApp["certificates"], err = json.Marshal(certs); err != nil {
-		return err
+		return false, err
 	}
 	if len(tlsApp) == 0 {
 		_, _, err = c.call(ctx, http.MethodDelete, path, nil, nil)
-	} else {
-		var body []byte
-		if body, err = json.Marshal(tlsApp); err != nil {
-			return err
+		return true, err
+	}
+	body, err := json.Marshal(tlsApp)
+	if err != nil {
+		return false, err
+	}
+	_, _, err = c.call(ctx, http.MethodPost, path, body, nil)
+	return true, err
+}
+
+// dnsCertTag marks the certificates the control plane proved by DNS-01 among those
+// loaded, each with its ID too.
+const dnsCertTag = "dockwell.dns"
+
+// SetCertificates loads the certificates the control plane proved by DNS-01 into
+// Caddy's load_pem, each tagged with its ID, and lists the names they serve in
+// Dockwell's server's automatic_https.skip_certificates, so Caddy asks no CA for
+// those (ADR 0088). Caddy keeps both in its last config, and the agent's copy of it
+// follows.
+func (c *Caddy) SetCertificates(ctx context.Context, certs []ingress.DNSCert, skip []string) error {
+	isOurs := func(cert map[string]any) bool { return tagged(cert, dnsCertTag) }
+	loadedChanged, err := c.editLoaded(ctx, func(loaded []map[string]any) []map[string]any {
+		loaded = slices.DeleteFunc(loaded, isOurs)
+		for i := range certs {
+			loaded = append(loaded, map[string]any{
+				"certificate": string(certs[i].Chain), "key": string(certs[i].Key),
+				"tags": []any{dnsCertTag, dnsCertTag + "." + certs[i].ID},
+			})
 		}
-		_, _, err = c.call(ctx, http.MethodPost, path, body, nil)
+		return loaded
+	})
+	if err != nil {
+		return fmt.Errorf("can't load the certificates by DNS into Caddy: %w", err)
+	}
+	skipChanged, err := c.setSkip(ctx, skip)
+	if err != nil {
+		return fmt.Errorf("can't have Caddy leave the names served by DNS to their certificates: %w", err)
+	}
+	if loadedChanged || skipChanged {
+		c.keepRunning(ctx)
+	}
+	return nil
+}
+
+// setSkip sets the names Caddy gets no certificate of its own for, on Dockwell's
+// server, and says whether that changed them. A config with no such server yet has
+// nothing to serve them on.
+func (c *Caddy) setSkip(ctx context.Context, skip []string) (bool, error) {
+	path := serversPath + "/" + serverName + "/automatic_https"
+	b, _, err := c.call(ctx, http.MethodGet, path, nil, nil)
+	var ae *adminError
+	if errors.As(err, &ae) && (ae.Status == http.StatusNotFound || strings.Contains(ae.Message, "invalid traversal path")) {
+		return false, nil
 	}
 	if err != nil {
-		return fmt.Errorf("can't change the panel's certificate in Caddy: %w", err)
+		return false, err
 	}
-	c.keepRunning(ctx)
-	return nil
+	auto := map[string]json.RawMessage{}
+	if !bytes.Equal(bytes.TrimSpace(b), []byte("null")) {
+		if err := json.Unmarshal(b, &auto); err != nil {
+			return false, fmt.Errorf("can't read Caddy's automatic HTTPS config: %w", err)
+		}
+	}
+	var had []string
+	if err := unmarshalIf(auto["skip_certificates"], &had); err != nil {
+		return false, err
+	}
+	if slices.Equal(had, skip) {
+		return false, nil
+	}
+	if len(skip) == 0 {
+		delete(auto, "skip_certificates")
+	} else if auto["skip_certificates"], err = json.Marshal(skip); err != nil {
+		return false, err
+	}
+	body, err := json.Marshal(auto)
+	if err != nil {
+		return false, err
+	}
+	_, _, err = c.call(ctx, http.MethodPost, path, body, nil)
+	return true, err
 }
 
 func sameJSON(a, b []byte) bool {

@@ -105,6 +105,8 @@ export function needsPasskey(plan: Plan | undefined): boolean {
     (accessOf(plan).some(asGoodAsRoot) ||
       installs(plan) ||
       reboots(plan) ||
+      // A removal cuts a server off and revokes what it holds (ADR 0090).
+      plan.removes !== undefined ||
       plan.resources.some((r) => r.unit?.passkey === true))
   );
 }
@@ -728,6 +730,18 @@ export function useRisks(plan: Plan | undefined, applied = false): Notice[] {
       }
     }
   }
+  // A removal says what it does to the server itself, which nothing puts back (ADR 0090).
+  const removes = plan.removes;
+  if (removes) {
+    const name = removes.serverName;
+    out.push({
+      key: "removes",
+      title: t`${name} leaves the fleet for good`,
+      detail: removes.compromised
+        ? t`It's revoked as this applies, before any step, and its agent is refused from then on.`
+        : t`It's revoked once its steps have passed, and its agent is refused from then on.`,
+    });
+  }
   // A plan that says it destroys data, with no step of it to say which.
   if (out.length === 0 && plan.destructive) {
     out.push({
@@ -1294,7 +1308,10 @@ export function useAsides(plan: Plan | undefined): Notice[] {
       if (step.hidesLogs) {
         out.push({
           key: `hides-logs-${key}`,
-          title: t`${name}'s kept logs can't be read from then on, and go in 7 days. Undoing this brings them back.`,
+          // A removal has no undo to bring them back (ADR 0090).
+          title: plan?.removes
+            ? t`${name}'s kept logs can't be read from then on, and go in 7 days.`
+            : t`${name}'s kept logs can't be read from then on, and go in 7 days. Undoing this brings them back.`,
         });
       }
       if (step.build) {

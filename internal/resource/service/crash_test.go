@@ -142,6 +142,10 @@ func (fileProxy) Certificates(context.Context, []string) (map[string]ingress.Cer
 }
 func (fileProxy) Retry(context.Context) error { return nil }
 
+func (fileProxy) SetCertificates(context.Context, []ingress.DNSCert, []string) error {
+	return nil
+}
+
 // agent is what comes up on a server: nothing in memory but what it read.
 type agent struct {
 	rt    *container.Docker

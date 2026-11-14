@@ -61,7 +61,7 @@ func TestWhichCertificateServesARoute(t *testing.T) {
 	m.place(out, []certificate.Shared{nobody}, providers, "a.example.com", "prj_shop", "srv_1", panel)
 	m.place(out, []certificate.Shared{nobody}, providers, "b.example.com", "prj_shop", "srv_1", panel)
 	m.place(out, []certificate.Shared{nobody}, providers, "c.example.com", "prj_shop", "srv_2", panel)
-	if w := out["srv_1"]; w == nil || strings.Join(w.Names, ",") != "a.example.com,b.example.com" || out["crt_nobody"] != nil {
+	if w := out["srv_1"]; w == nil || strings.Join(w.Names, ",") != "a.example.com,b.example.com" || strings.Join(w.Serves["srv_1"], ",") != "a.example.com,b.example.com" || out["crt_nobody"] != nil {
 		t.Errorf("a shared certificate that names no project, or a server's own: %+v", out)
 	}
 	if w := out["srv_2"]; w == nil || strings.Join(w.Names, ",") != "c.example.com" || !slices.Equal(w.Servers, []string{"srv_2"}) {
@@ -71,7 +71,7 @@ func TestWhichCertificateServesARoute(t *testing.T) {
 	out = map[Holder]*want{}
 	m.place(out, []certificate.Shared{wild}, providers, "a.example.com", "prj_shop", "srv_control", panel)
 	m.place(out, []certificate.Shared{wild}, providers, "b.example.com", "prj_shop", "srv_1", panel)
-	if w := out["crt_wild"]; w == nil || !slices.Equal(w.Servers, []string{"srv_control"}) {
+	if w := out["crt_wild"]; w == nil || !slices.Equal(w.Servers, []string{"srv_control"}) || !slices.Equal(w.Serves["srv_control"], []string{"a.example.com"}) {
 		t.Errorf("a wildcard over the panel's domain went beyond the control server: %+v", w)
 	}
 	if w := out["srv_1"]; w == nil || strings.Join(w.Names, ",") != "b.example.com" {
@@ -358,7 +358,7 @@ func TestANameThatFailsIsDroppedAndTheRestOrdered(t *testing.T) {
 	w := &want{Holder: "srv_1", Names: []string{"*.example.com", "app.example.net"}, Provider: map[string]string{"*.example.com": "test", "app.example.net": "test"}}
 	s := &held{}
 	ordered := map[string][]time.Time{}
-	m.issue(t.Context(), w, s, map[string][]string{"test": {"example.com"}}, ordered)
+	m.issue(t.Context(), w, s, map[string][]string{"test": {"example.com"}}, ordered, map[string]*given{})
 	if s.Gen != 1 || !slices.Equal(s.Names, []string{"*.example.com"}) || !slices.Equal(s.Dropped, []string{"app.example.net"}) || !slices.Equal(s.Wanted, w.Names) {
 		t.Fatalf("issued %+v", s)
 	}
@@ -408,8 +408,10 @@ func (r *recordingAPI) written() []string {
 }
 
 type pebble struct {
-	directory, management string
-	client                *http.Client
+	// directory is the CA's, management pebble-challtestsrv's, and admin Pebble's
+	// own, which says whether a certificate is revoked.
+	directory, management, admin string
+	client                       *http.Client
 }
 
 func freePort(t *testing.T) int {
@@ -431,8 +433,9 @@ func startPebble(t *testing.T, bins string) *pebble {
 	dnsAddr := fmt.Sprintf("127.0.0.1:%d", freePort(t))
 	mgmt := fmt.Sprintf("127.0.0.1:%d", freePort(t))
 	api := freePort(t)
+	admin := fmt.Sprintf("127.0.0.1:%d", freePort(t))
 	config := map[string]any{"pebble": map[string]any{
-		"listenAddress": fmt.Sprintf("127.0.0.1:%d", api), "managementListenAddress": fmt.Sprintf("127.0.0.1:%d", freePort(t)),
+		"listenAddress": fmt.Sprintf("127.0.0.1:%d", api), "managementListenAddress": admin,
 		"certificate": certFile, "privateKey": keyFile, "httpPort": freePort(t), "tlsPort": freePort(t), "ocspResponderURL": "",
 		"externalAccountBindingRequired": false, "retryAfter": map[string]int{"authz": 1, "order": 1},
 	}}
@@ -463,7 +466,7 @@ func startPebble(t *testing.T, bins string) *pebble {
 	pemBytes, _ := os.ReadFile(certFile)
 	roots.AppendCertsFromPEM(pemBytes)
 	p := &pebble{
-		directory: fmt.Sprintf("https://localhost:%d/dir", api), management: "http://" + mgmt,
+		directory: fmt.Sprintf("https://localhost:%d/dir", api), management: "http://" + mgmt, admin: "https://" + admin,
 		client: &http.Client{Timeout: 30 * time.Second, Transport: &http.Transport{TLSClientConfig: &tls.Config{RootCAs: roots, MinVersion: tls.VersionTLS12}}},
 	}
 	deadline := time.Now().Add(20 * time.Second)

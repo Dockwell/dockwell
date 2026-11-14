@@ -64,6 +64,15 @@ type Handler struct {
 	// appliedIn is the session each change to who reaches a server was applied
 	// from, as only that session may confirm it.
 	appliedIn map[string]string
+	// removalNotes say what a server's removal does beyond its resources, such as
+	// to certificates by DNS (ADR 0090). Nil says nothing.
+	removalNotes func(ctx context.Context, server, name string) ([]revision.Note, error)
+}
+
+// SetRemovalNotes says what a server's removal does beyond its resources, for its
+// plan (ADR 0090).
+func (h *Handler) SetRemovalNotes(fn func(ctx context.Context, server, name string) ([]revision.Note, error)) {
+	h.removalNotes = fn
 }
 
 var _ dockwellv1connect.ChangeServiceHandler = (*Handler)(nil)
@@ -373,7 +382,7 @@ func (h *Handler) ApplyChange(ctx context.Context, req *connect.Request[dockwell
 			return nil, stepUpNeeded(err, dockwellv1.StepUpAction_STEP_UP_ACTION_APPROVE_CHANGE, target)
 		}
 		giveBack = back
-	case r.State == store.ChangePlanned && (r.Plan.AsGoodAsRoot() || access || r.Plan.SendsKeys()):
+	case r.State == store.ChangePlanned && (r.Plan.AsGoodAsRoot() || access || r.Plan.SendsKeys() || r.Plan.Removes != nil):
 		// With no proof, the session's cover may stand in (ADR 0075).
 		back, err := h.auth.HoldStepUp(ctx, client, p, req.Msg.GetProof(), auth.StepUpApplyRootChange, r.ID)
 		if err != nil && !errors.Is(err, auth.ErrNeedsStepUp) && !errors.Is(err, auth.ErrNeedsSession) {
@@ -1257,6 +1266,9 @@ func planProto(r *revision.Record) *dockwellv1.Plan {
 	if p == nil {
 		return out
 	}
+	if rm := p.Removes; rm != nil {
+		out.Removes = &dockwellv1.ServerRemoval{ServerId: rm.Server, ServerName: rm.Name, Compromised: rm.Compromised}
+	}
 	for i := range p.Notes {
 		n := &p.Notes[i]
 		out.Notes = append(out.Notes, &dockwellv1.PlanNote{Reason: n.Reason, Message: n.Message, Resource: resourcepb.Ref(n.Ref), Names: n.Names, From: n.From, Deleted: n.Deleted, Named: n.Named})
@@ -1272,6 +1284,7 @@ func planProto(r *revision.Record) *dockwellv1.Plan {
 			Id: r.ID, Resource: resourcepb.Ref(r.Ref), Action: resourcepb.Action(r.Action), BaseRevision: int64(r.Base),
 			Changes: resourcepb.Changes(r.Changes), Servers: r.Servers, PreviousServers: r.Previous,
 			HostAccess: resourcepb.HostAccess(r.HostAccess), Install: resourcepb.Install(r.Install), Reboot: resourcepb.Reboot(r.Reboot), Unit: resourcepb.Unit(r.Unit),
+			LetsGo: r.Forget,
 		})
 	}
 	for i := range p.Servers {

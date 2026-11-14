@@ -112,7 +112,10 @@ func newRunCmd(stdio IO, g *globalFlags) *cobra.Command {
 // plane beside it listens on, which no route may send to; a server that joined
 // has none, as its agent opens no ports.
 func runAgent(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logger, dir datadir.Dir, id *enroll.Identity, build buildinfo.Info, panel *ingress.Panel, ownPorts []int) error {
-	cfg := agentDrivers(ctx, stdio, logger, dir, panel, ownPorts, id.ControlURL)
+	// Opened first, as the ingress keeps its certificates by DNS in it too.
+	kept, journal := keptDesired(logger, dir, id)
+	certs, _ := kept.(ingress.CertKeeper)
+	cfg := agentDrivers(ctx, stdio, logger, dir, panel, ownPorts, id.ControlURL, certs)
 	cfg.Logger, cfg.Dir, cfg.Identity, cfg.Build, cfg.Files = logger, dir.Agent(), id, build, serverFiles(stdio, logger, dir)
 	cfg.OnePanel = serverOnePanel(stdio)
 	if cfg.Docker != nil {
@@ -122,7 +125,7 @@ func runAgent(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logger
 	cfg.Terminals = terminal.New(terminal.Options{
 		Logger: logger, Docker: cfg.Docker, AsGoodAsRoot: agent.ContainerAsGoodAsRoot(cfg.Drivers, cfg.Docker, (&container.Paths{Client: cfg.Docker, DataDir: dir.Root}).Follow, agent.ProcMounts),
 	})
-	cfg.Desired, cfg.Journal = keptDesired(logger, dir, id)
+	cfg.Desired, cfg.Journal = kept, journal
 	linkJoins(cfg.Drivers, cfg.Desired)
 	lookups(&cfg, stdio, g)
 	if err := testAway(&cfg, stdio); err != nil {
@@ -405,7 +408,10 @@ const ingressEvery = time.Minute
 // ctx is done. The collector reads the same Docker's version, and the log reader
 // the same Docker's logs, with what the server kept of the containers a change
 // removed.
-func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.Dir, panel *ingress.Panel, ownPorts []int, controlURL string) agent.Config {
+//
+// certs keeps the certificates by DNS the ingress serves on the server's disk, sealed
+// (ADR 0088); nil keeps them in memory alone.
+func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.Dir, panel *ingress.Panel, ownPorts []int, controlURL string, certs ingress.CertKeeper) agent.Config {
 	collector := collect.New()
 	socket, err := docker.SocketFrom(stdio.Getenv)
 	client := docker.Unusable(err)
@@ -420,7 +426,7 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 	paths := &container.Paths{Client: client, DataDir: dir.Root, Files: filepath.Join(dir.Agent(), "files")}
 	proxy := &caddy.Container{Client: client, Dir: dir.Ingress(), Mirror: stdio.Getenv(envIngressImage)}
 	routes := &ingress.Manager{
-		Client: client, Dir: dir.Ingress(), Panel: panel, OwnPorts: ownPorts, Logger: logger, KeeperImage: proxy.Reference(),
+		Client: client, Dir: dir.Ingress(), Panel: panel, OwnPorts: ownPorts, Logger: logger, KeeperImage: proxy.Reference(), Certs: certs,
 		Proxy: &caddy.Caddy{
 			Dir: dir.Ingress(), Runtime: proxy,
 			ACMEDirectory: stdio.Getenv(envACMEDirectory), ACMERoots: stdio.Getenv(envACMERoots),
@@ -490,7 +496,7 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 			&firewall.Driver{Backend: firewalls}, &firewall.PolicyDriver{Backend: firewalls},
 			&fail2ban.Driver{Backend: jailed}, &host.Driver{Backend: updates.Host{Installer: installs}, Units: units}),
 		Updates:   packages,
-		Collector: collector, Domains: routes, Public: routes, Logs: &logs.Reader{Client: client, Archive: archive, Logger: logger, Journal: units}, Docker: client, Health: monitor,
+		Collector: collector, Domains: routes, Public: routes, Certificates: routes, Logs: &logs.Reader{Client: client, Archive: archive, Logger: logger, Journal: units}, Docker: client, Health: monitor,
 		Backups: backup.Calls{Runner: backups}, Databases: database.Reader{Client: client}, Builds: builder, Tasks: tasks, Tools: tools, Access: firewalls,
 		Jails: jailed.Stored, SSHSessions: sessions,
 		System: units,

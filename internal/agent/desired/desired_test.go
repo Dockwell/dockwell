@@ -585,3 +585,41 @@ func TestAFailedWriteReadsTheSameEachTime(t *testing.T) {
 		t.Errorf("it reads %q; want the folder, and what went wrong", first)
 	}
 }
+
+// The certificates by DNS are kept sealed beside the records, for this server alone:
+// no hello lists them, opening the cache again leaves them be, and another server's
+// copy doesn't open (ADR 0088).
+func TestCertificatesAreKeptBesideTheRecords(t *testing.T) {
+	dir := t.TempDir()
+	s, err := Open(dir, "srv_1", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := s.KeptCertificates(); got != nil || err != nil {
+		t.Fatalf("with nothing kept: %q, %v", got, err)
+	}
+	if err := s.KeepCertificates([]byte(`[{"id":"srv_1","key":"s3cret"}]`)); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(filepath.Join(dir, Folder, certificatesFile))
+	if err != nil || bytes.Contains(raw, []byte("s3cret")) {
+		t.Fatalf("kept in the clear, or not at all: %v", err)
+	}
+	if h := s.Holds(); len(h.GetHeld()) != 0 || h.GetDamaged() != 0 {
+		t.Errorf("the hello lists %v", h)
+	}
+	again, err := Open(dir, "srv_1", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := again.KeptCertificates(); string(got) != `[{"id":"srv_1","key":"s3cret"}]` || err != nil || again.Holds().GetDamaged() != 0 {
+		t.Errorf("opened again: %q, %v, %d damaged", got, err, again.Holds().GetDamaged())
+	}
+	other, err := Open(dir, "srv_2", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := other.KeptCertificates(); got != nil || err != nil {
+		t.Errorf("another server opened them: %q, %v", got, err)
+	}
+}

@@ -676,17 +676,20 @@ function ChangeSheet({
     ...changing(plan).map(shownName),
     ...(plan?.servers ?? []).map((s) => s.serverName),
   ];
-  const applyWords = deleting
-    ? changing(plan).length === 1
-      ? t`Delete ${subject}`
-      : plural(changing(plan).length, { one: "Delete # resource", other: "Delete # resources" })
-    : t`Apply plan`;
+  const serverName = plan?.removes?.serverName;
+  const applyWords = serverName
+    ? t`Remove ${serverName}`
+    : deleting
+      ? changing(plan).length === 1
+        ? t`Delete ${subject}`
+        : plural(changing(plan).length, { one: "Delete # resource", other: "Delete # resources" })
+      : t`Apply plan`;
 
   const applyButton = (
     <Button
       variant={deleting || confirming ? "danger" : "primary"}
       size={size}
-      icon={deleting ? "trash" : "check"}
+      icon={deleting || serverName ? "trash" : "check"}
       kbd={kbd}
       loading={busy === "apply"}
       disabled={!canApply}
@@ -700,7 +703,7 @@ function ChangeSheet({
   const undoNote = (
     <span className="dw-sheet-note">
       <Icon name="undo" size={14} />
-      {restarts(plan) || installs(plan) || reboots(plan) || unitWithoutUndo(plan) ? (
+      {restarts(plan) || installs(plan) || reboots(plan) || unitWithoutUndo(plan) || plan?.removes ? (
         <Trans>No undo</Trans>
       ) : onlyIfNewer(plan) ? (
         <Trans>Undo for {undoDays} days if this replaces anything</Trans>
@@ -1244,6 +1247,7 @@ function PlanBody({
       // Many apps have been read through once: what is left to see once they are live is that they are.
       ...(cameToNothing || (landed && goesLive(plan).length > 1) ? { expanded: false } : {}),
       tag: (intent) => words.intentTag(intent, landed),
+      letsGo: words.letsGo(landed ? "done" : "plan"),
     }),
   );
   const steps = change?.steps ?? [];
@@ -1707,7 +1711,8 @@ function Impact({ plan }: { plan: Plan | undefined }) {
   const deadline = formatDay(new Date(now + windowMs), i18n.locale, now);
   // A deleted volume's data stays on its server for the undo's 7 days; anything else that destroys data doesn't.
   const gone = servers.flatMap((s) => s.steps).some(losesData);
-  const undoable = windowMs > 0 && !gone;
+  // A removal has no undo, whatever it stops (ADR 0090).
+  const undoable = windowMs > 0 && !gone && !plan?.removes;
   const stays = [
     ...new Set(
       away.flatMap((r) =>

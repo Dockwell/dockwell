@@ -266,6 +266,10 @@ type Decision struct {
 	// never stops a plan, and a fingerprint leaves it out, as people often
 	// set DNS after.
 	Domain *DomainCheck `json:",omitempty"`
+	// Proof is how a route left to prove its domain automatically proves it, as
+	// the control plane decided from Domain: "dns" or "http" (ADR 0088). Its
+	// fingerprint covers it, so what a person approved is what's ordered.
+	Proof string `json:",omitempty"`
 	// Restore says what a step that brings a volume's data back from a backup
 	// does. Its fingerprint covers it, so what stops can't change unreviewed.
 	Restore *RestorePlan `json:",omitempty"`
