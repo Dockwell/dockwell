@@ -91,7 +91,12 @@ type Engine struct {
 	// ServiceUpdates are the specs each update of a service was sent, as
 	// "<id> <spec>".
 	ServiceUpdates []string
-	memoryKills    []memoryKill
+	// TaskShutdown is how long Swarm takes to stop a service's tasks once it's
+	// scaled to none: each container labelled as one of its tasks stops that long
+	// after the update, not with it, as a real task shuts down after its spec
+	// changes. A scale back up starts them again.
+	TaskShutdown time.Duration
+	memoryKills  []memoryKill
 	// ahead is how far the engine's clock is ahead of this machine's, for what it
 	// stamps its events and its containers' states with (SetClockAhead).
 	ahead time.Duration
@@ -2531,5 +2536,52 @@ func (e *Engine) updateService(w http.ResponseWriter, r *http.Request, id string
 	e.ServiceExtras[svc.ID] = all
 	svc.Spec = spec
 	svc.Version.Index++
+	e.scaleTasks(spec.Name)
 	writeJSON(w, http.StatusOK, map[string]any{"Warnings": nil})
+}
+
+// scaleTasks has a service's task containers follow its replicas, as Swarm does:
+// stopped a while after a scale to none (TaskShutdown), started again on a scale
+// up. It holds the engine's lock, and takes it again for a stop that waits.
+func (e *Engine) scaleTasks(service string) {
+	svc := e.service(service)
+	if svc == nil {
+		return
+	}
+	n, _ := svc.Spec.Mode.Replicas()
+	var tasks []*container
+	for _, c := range e.containers {
+		if c.Config.Labels["com.docker.swarm.service.name"] == service {
+			tasks = append(tasks, c)
+		}
+	}
+	if n > 0 {
+		for _, c := range tasks {
+			if !c.State.Running {
+				e.clock++
+				c.State = docker.State{Status: "running", Running: true, StartedAt: e.wall().Add(time.Duration(e.clock) * time.Nanosecond).UTC()}
+				e.attach(c)
+				e.emit(c, "start")
+			}
+		}
+		return
+	}
+	stop := func() {
+		for _, c := range tasks {
+			if c.State.Running {
+				c.State = docker.State{Status: "exited", StartedAt: c.State.StartedAt, FinishedAt: e.wall().UTC()}
+				e.detach(c)
+				e.emit(c, "kill", "stop", "die")
+			}
+		}
+	}
+	if e.TaskShutdown <= 0 {
+		stop()
+		return
+	}
+	time.AfterFunc(e.TaskShutdown, func() {
+		e.mu.Lock()
+		defer e.mu.Unlock()
+		stop()
+	})
 }

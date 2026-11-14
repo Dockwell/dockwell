@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
@@ -265,5 +266,55 @@ func TestAStartGivesEachItsOwnPolicy(t *testing.T) {
 		if c := e.Container(name); !c.State.Running || c.HostConfig.RestartPolicy.Name != want {
 			t.Errorf("%s is %v, restart %q, want %q", name, c.State.Running, c.HostConfig.RestartPolicy.Name, want)
 		}
+	}
+}
+
+// A scale to none waits for the service's task to stop, as Swarm stops it a while
+// after the spec changes: what takes its place, such as a copy of a database on
+// the same data, never starts beside it. A task that doesn't stop fails the step.
+func TestAScaleWaitsForItsTaskToStop(t *testing.T) {
+	e := dockertest.New(t)
+	n := uint64(1)
+	svc := docker.Service{ID: "s1"}
+	svc.Spec.Name, svc.Spec.Labels = "db-k2m4", map[string]string{"dokploy.application": "db", "dokploy.project": "store"}
+	svc.Spec.Mode.Replicated = &struct {
+		Replicas *uint64 `json:"Replicas,omitempty"`
+	}{Replicas: &n}
+	e.Services = []docker.Service{svc}
+	e.AddContainer(docker.Container{
+		Name: "/db-k2m4.1.x7k2", Config: docker.Config{Image: "postgres:17", Labels: map[string]string{"com.docker.swarm.service.name": "db-k2m4"}},
+		State: docker.State{Status: "running", Running: true},
+	})
+	e.TaskShutdown = 400 * time.Millisecond
+	s := Stopper{Docker: e.Client()}
+	plan, _, err := s.PlanPanel(t.Context(), resource.PanelAsked{Kind: resource.PanelDokploy, Apps: true, Parts: []resource.PanelPart{{Name: "db-k2m4"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	began := time.Now()
+	var said []string
+	if err := s.ApplyPanel(t.Context(), *plan, func(s string) { said = append(said, s) }); err != nil {
+		t.Fatal(err)
+	}
+	if c := e.Container("db-k2m4.1.x7k2"); c.State.Running || time.Since(began) < 400*time.Millisecond {
+		t.Errorf("the scale ended after %s with its task running %v", time.Since(began), c.State.Running)
+	}
+	if !slices.Contains(said, "Waiting for the task of db-k2m4 to stop") {
+		t.Errorf("the step said %v", said)
+	}
+
+	// Scaled back, the task runs again; one that won't stop fails the step.
+	back, _ := plan.Undone()
+	start, _, err := s.PlanPanel(t.Context(), back)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.ApplyPanel(t.Context(), *start, func(string) {}); err != nil {
+		t.Fatal(err)
+	}
+	e.TaskShutdown = time.Hour
+	s.TaskWait = 300 * time.Millisecond
+	if err := s.ApplyPanel(t.Context(), *plan, func(string) {}); err == nil || !strings.Contains(err.Error(), "still runs a task") {
+		t.Errorf("a task that doesn't stop = %v", err)
 	}
 }

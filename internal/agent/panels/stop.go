@@ -35,9 +35,16 @@ const stopWait = 30 * time.Second
 // of its own is one each, and a start asks no more than a stop read.
 const mostReplicas = 16
 
+// taskWait is how long a Swarm service's tasks have to stop once it's scaled to
+// none: each container's own stop, and Swarm's moment to act on the new spec.
+const taskWait = stopWait + 60*time.Second
+
 // Stopper stops and starts a panel's own containers and services, with Docker.
 type Stopper struct {
 	Docker *docker.Client
+	// TaskWait is how long a scale to none waits for the service's tasks to stop,
+	// taskWait where it's zero; a test sets less.
+	TaskWait time.Duration
 }
 
 // PlanPanel reads how the panel's own containers and services stand, and plans
@@ -168,8 +175,13 @@ func (s Stopper) ApplyPanel(ctx context.Context, p resource.Panel, say func(stri
 			say(fmt.Sprintf("Scaling the service %s to %d", part.Name, part.WasReplicas))
 			err = s.Docker.ScaleService(ctx, part.Name, part.WasReplicas)
 		case part.Swarm:
+			// A scale changes the spec at once, and Swarm stops the task after: what
+			// takes its place, such as a copy on the same data, waits for that.
 			say(fmt.Sprintf("Scaling the service %s to none", part.Name))
 			err = s.Docker.ScaleService(ctx, part.Name, 0)
+			if err == nil {
+				err = s.untilNoTask(ctx, part.Name, say)
+			}
 		case p.Start:
 			// Started first, and its policy put back after: one that doesn't start
 			// stays at no, so Docker or a reboot doesn't keep trying it.
@@ -203,6 +215,48 @@ func (s Stopper) ApplyPanel(ctx context.Context, p resource.Panel, say func(stri
 		}
 	}
 	return nil
+}
+
+// tasksRunning counts the containers of a Swarm service's tasks that run on this
+// node, as Swarm labels them.
+func (s Stopper) tasksRunning(ctx context.Context, service string) (int, error) {
+	list, err := s.Docker.ListContainers(ctx, map[string][]string{"label": {"com.docker.swarm.service.name=" + service}})
+	if err != nil {
+		return 0, fmt.Errorf("can't list the tasks of the service %s: %w", service, err)
+	}
+	n := 0
+	for i := range list {
+		if list[i].State == "running" {
+			n++
+		}
+	}
+	return n, nil
+}
+
+// untilNoTask waits for a service scaled to none to have no task running, and
+// fails where one still runs once TaskWait has passed.
+func (s Stopper) untilNoTask(ctx context.Context, service string, say func(string)) error {
+	wait := cmp.Or(s.TaskWait, taskWait)
+	deadline := time.Now().Add(wait)
+	said := false
+	for {
+		n, err := s.tasksRunning(ctx, service)
+		if err != nil || n == 0 {
+			return err
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("the service %s still runs a task %s after it was scaled to none, so nothing takes its place", service, wait.Round(time.Second))
+		}
+		if !said {
+			say(fmt.Sprintf("Waiting for the task of %s to stop", service))
+			said = true
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(200 * time.Millisecond):
+		}
+	}
 }
 
 func verb(start bool) string {
@@ -312,6 +366,8 @@ type standing struct {
 	running  bool
 	restart  string
 	replicas uint64
+	// tasks are how many containers of a Swarm service's tasks run on this node.
+	tasks int
 }
 
 func (s Stopper) stands(ctx context.Context, p resource.PanelPart) (standing, error) {
@@ -324,7 +380,11 @@ func (s Stopper) stands(ctx context.Context, p resource.PanelPart) (standing, er
 			return standing{}, fmt.Errorf("can't read the service %s: %w", p.Name, err)
 		}
 		n, _ := svc.Spec.Mode.Replicas()
-		return standing{running: n > 0, replicas: n}, nil
+		tasks, err := s.tasksRunning(ctx, p.Name)
+		if err != nil {
+			return standing{}, err
+		}
+		return standing{running: n > 0 || tasks > 0, replicas: n, tasks: tasks}, nil
 	}
 	c, err := s.Docker.InspectContainer(ctx, p.Name)
 	if docker.IsNotFound(err) {
@@ -345,7 +405,7 @@ func (st standing) like(p resource.PanelPart, start bool) bool {
 	case p.Swarm && start:
 		return st.replicas == p.WasReplicas
 	case p.Swarm:
-		return st.replicas == 0
+		return st.replicas == 0 && st.tasks == 0
 	case start:
 		return (p.WasRestart == "" || st.restart == p.WasRestart) && (st.running || !p.WasRunning)
 	default:
@@ -358,6 +418,8 @@ func (st standing) words(swarm bool) string {
 	switch {
 	case st.gone:
 		return "it isn't there any more"
+	case swarm && st.replicas == 0 && st.tasks > 0:
+		return fmt.Sprintf("it asks for none, and %d of its tasks still run", st.tasks)
 	case swarm:
 		return fmt.Sprintf("it runs %d replicas", st.replicas)
 	case st.running:
