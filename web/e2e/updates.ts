@@ -23,6 +23,7 @@ import { parseArgs } from "node:util";
 import { type Browser, chromium, type Page } from "playwright-core";
 
 import { describePages, watchBrowser } from "./report.ts";
+import { onTop } from "./sheets.ts";
 
 // A real binary asks nothing beyond this machine in a test.
 process.env["DOCKWELL_TEST"] = "1";
@@ -418,7 +419,7 @@ async function main() {
   step("Update on one package's row plans it and what it needs, and nothing else waiting");
   await page.goto(`${origin}/servers/${serverId}/updates`);
   await row("openssl").getByRole("button", { name: "Update openssl", exact: true }).click();
-  const one = page.getByRole("dialog", { name: "Review plan" });
+  const one = onTop(page.getByRole("dialog", { name: "Review plan" }));
   const onePackages = one.getByRole("list", { name: /^Packages it installs on / });
   await onePackages.waitFor({ timeout: 30_000 });
   const listed = await onePackages.getByRole("listitem").allTextContents();
@@ -464,7 +465,7 @@ async function main() {
 
   step("Install every update plans what the server simulated, what it pulls in too, and what restarts");
   await page.getByRole("button", { name: "Install every update" }).first().click();
-  const plan = page.getByRole("dialog", { name: "Review plan" });
+  const plan = onTop(page.getByRole("dialog", { name: "Review plan" }));
   const packages = plan.getByRole("list", { name: /^Packages it installs on / });
   await packages.waitFor({ timeout: 30_000 });
   await packages.getByRole("listitem").filter({ hasText: "libssh-4" }).getByText("→", { exact: false }).waitFor();
@@ -529,7 +530,7 @@ async function main() {
   await needs.getByRole("button", { name: "Reboot", exact: true }).click();
 
   step("the reboot's plan says what goes offline, and that the panel stops with the control server");
-  const rebootPlan = page.getByRole("dialog", { name: "Review plan" });
+  const rebootPlan = onTop(page.getByRole("dialog", { name: "Review plan" }));
   await rebootPlan.locator(".plan-step-line", { hasText: /^Reboot / }).waitFor({ timeout: 30_000 });
   await rebootPlan.getByText(/^The panel and the API stop with \S+ and come back on their own/).waitFor();
   await rebootPlan.getByText(/everything there is offline until it's back/).waitFor();

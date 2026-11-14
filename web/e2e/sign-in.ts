@@ -40,6 +40,7 @@ import { dockerMade, dockerProbe, dockerStop, removeMade } from "./docker-probe.
 import { hostTools } from "./firewall-flow.ts";
 import { runFlows } from "./flows.ts";
 import { describePages, watchBrowser } from "./report.ts";
+import { onTop } from "./sheets.ts";
 
 // A real binary asks nothing beyond this machine in a test.
 process.env["DOCKWELL_TEST"] = "1";
@@ -652,7 +653,7 @@ async function main() {
   await bar.getByRole("combobox").fill("garden");
   await shoot(page, "command-bar");
   await bar.getByRole("option", { name: /^Create the project garden/ }).click();
-  const review = page.getByRole("dialog", { name: "Review plan" });
+  const review = onTop(page.getByRole("dialog", { name: "Review plan" }));
   await review.waitFor();
   await expectText(review, "Create the project garden");
   await review.getByText("2", { exact: true }).first().waitFor();
@@ -676,7 +677,7 @@ async function main() {
   await expectText(detail, "Mira Chen");
   await shoot(page, "activity-selected");
   await detail.getByRole("button", { name: "Undo this change" }).click();
-  const undoReview = page.getByRole("dialog", { name: "Review plan" });
+  const undoReview = onTop(page.getByRole("dialog", { name: "Review plan" }));
   await undoReview.waitFor();
   if (!/2\s*to delete/.test(await undoReview.innerText())) {
     fail(`the undo's plan shows ${JSON.stringify(await undoReview.innerText())}`);
@@ -706,7 +707,7 @@ async function main() {
   await page.keyboard.press("Control+k");
   await bar.getByRole("option", { name: /^Delete a project/ }).click();
   await bar.getByRole("option", { name: /^Delete the project orchard/ }).click();
-  const leaving = page.getByRole("dialog", { name: "Review plan" });
+  const leaving = onTop(page.getByRole("dialog", { name: "Review plan" }));
   await leaving.waitFor();
   await expectText(leaving, "Delete the project orchard");
   await leaving.getByText("2", { exact: true }).first().waitFor();
@@ -743,7 +744,7 @@ async function main() {
   if (local.url !== `http://127.0.0.1:${port}`)
     fail(`local access calls ${local.url}, not the panel's loopback address`);
   await page.goto(`${origin}/changes/${changeId}`);
-  const fromCLI = page.getByRole("dialog", { name: "Review plan" });
+  const fromCLI = onTop(page.getByRole("dialog", { name: "Review plan" }));
   await fromCLI.waitFor();
   await expectText(fromCLI, "Add the tools project");
   await shoot(page, "plan-from-cli");
@@ -784,7 +785,7 @@ async function main() {
   const secretValue = "e2e-s3cret-correct-horse";
   await valueForm.getByLabel("Value").fill(secretValue);
   await valueForm.getByRole("button", { name: "Add" }).click();
-  const secretPlan = page.getByRole("dialog", { name: "Review plan" });
+  const secretPlan = onTop(page.getByRole("dialog", { name: "Review plan" }));
   await secretPlan.waitFor();
   await expectText(secretPlan, "Add the secret DB_PASSWORD");
   if ((await secretPlan.innerText()).includes(secretValue)) fail("the plan sheet shows the secret's value");

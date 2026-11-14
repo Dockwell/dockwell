@@ -19,6 +19,7 @@ import type { Page } from "playwright-core";
 
 import type { DockerProbe } from "./docker-probe.ts";
 import type { Flow } from "./flows.ts";
+import { onTop } from "./sheets.ts";
 
 export interface RuntimesFlowOptions {
   origin: string;
@@ -49,7 +50,7 @@ function listening(): Promise<{ server: Server; port: number }> {
 
 /** Reads the plan sheet, applies it, and waits for it to end with the button that ends it. */
 async function applyPlan(page: Page, done: string) {
-  const plan = page.getByRole("dialog", { name: "Review plan" });
+  const plan = onTop(page.getByRole("dialog", { name: "Review plan" }));
   await plan.waitFor({ timeout: 30_000 });
   await plan.getByRole("button", { name: /Apply plan|^Delete / }).click();
   const finish = page.getByRole("button", { name: done, exact: true });
@@ -131,7 +132,7 @@ export async function runtimesFlow(page: Page, { origin, step, shoot, docker }: 
 
     step("runtimes: its plan names the folder it reaches, and a person applies it");
     await sheet.getByRole("button", { name: /Review plan/ }).click();
-    const plan = page.getByRole("dialog", { name: "Review plan" });
+    const plan = onTop(page.getByRole("dialog", { name: "Review plan" }));
     await plan.waitFor({ timeout: 30_000 });
     await plan.getByText(folder).filter({ visible: true }).first().waitFor();
     await shoot(page, "app-plan-folder");

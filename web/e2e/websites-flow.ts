@@ -11,6 +11,7 @@
 import type { Page } from "playwright-core";
 
 import type { Flow } from "./flows.ts";
+import { onTop } from "./sheets.ts";
 import { bytes, number } from "./wire.ts";
 
 export interface WebsitesFlowOptions {
@@ -157,7 +158,7 @@ export async function websitesFlow(page: Page, { origin, step, shoot }: Websites
   if (await sheet.getByLabel("Index files").isVisible()) fail("New website asks for index files, which have a default");
   await shoot(page, "website-new");
   await sheet.getByRole("button", { name: /Review plan/ }).click();
-  const plan = page.getByRole("dialog", { name: "Review plan" });
+  const plan = onTop(page.getByRole("dialog", { name: "Review plan" }));
   await plan.waitFor({ timeout: 30_000 });
   await plan.getByText("/var/www/blog.example.net").filter({ visible: true }).first().waitFor();
   await shoot(page, "website-plan-folder");

@@ -9,6 +9,7 @@ import type { Page } from "playwright-core";
 
 import type { Flow } from "./flows.ts";
 import { ownServerPath } from "./own-server.ts";
+import { onTop } from "./sheets.ts";
 
 interface SystemServicesFlowOptions {
   origin: string;
@@ -68,7 +69,7 @@ export async function systemServicesFlow(page: Page, { origin, step, shoot }: Sy
 
   step("a failed unit restarts from its row, through a plan, and its row reads running after");
   await first.getByRole("button", { name: "Restart nginx.service" }).click();
-  const plan = page.getByRole("dialog", { name: "Review plan" });
+  const plan = onTop(page.getByRole("dialog", { name: "Review plan" }));
   // The step says it; the sheet's subtitle, the change's summary, does too.
   await plan
     .locator(".plan-step-line")

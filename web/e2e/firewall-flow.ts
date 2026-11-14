@@ -13,6 +13,7 @@ import type { Page } from "playwright-core";
 
 import type { Flow } from "./flows.ts";
 import { ownServerPath } from "./own-server.ts";
+import { onTop } from "./sheets.ts";
 
 /** ufw status verbose as ufw prints it, its rows "%-26s %-12s%-26s", app profiles named after their ports. */
 const ufwStatus = [
@@ -200,7 +201,7 @@ export async function firewallFlow(page: Page, { origin, step, shoot, env }: Fir
   const tries = jail.getByLabel("Failed sign-ins that ban an address");
   await tries.fill("3");
   await jail.getByRole("button", { name: "Plan it" }).click();
-  const jailPlan = page.getByRole("dialog", { name: "Review plan" });
+  const jailPlan = onTop(page.getByRole("dialog", { name: "Review plan" }));
   await jailPlan.getByRole("button", { name: /Apply plan/ }).click();
   // The browser's virtual authenticator gives the passkey a jail takes; no timer follows.
   // The first of these is the sheet's ×, which closes it as it applies, so the card reads again as it ends.
@@ -229,7 +230,7 @@ export async function firewallFlow(page: Page, { origin, step, shoot, env }: Fir
   const add = page.getByRole("dialog", { name: /^Add a rule to / });
   await add.getByLabel("Port").fill("8443");
   await add.getByRole("button", { name: "Plan it" }).click();
-  const plan = page.getByRole("dialog", { name: "Review plan" });
+  const plan = onTop(page.getByRole("dialog", { name: "Review plan" }));
   await plan.getByRole("button", { name: /Apply plan/ }).click();
   // The browser's virtual authenticator gives the passkey the change takes. Then the server waits.
   const keep = page.getByRole("button", { name: "Keep the change" });

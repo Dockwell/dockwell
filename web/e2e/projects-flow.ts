@@ -5,6 +5,7 @@
 // a plan; and the leftover goes in two clicks.
 
 import type { Flow } from "./flows.ts";
+import { onTop } from "./sheets.ts";
 
 function fail(message: string): never {
   throw new Error(message);
@@ -61,7 +62,7 @@ export const flow: Flow = {
     await page.getByRole("link", { name: "Projects", exact: true }).first().click();
     const renamed = page.getByRole("table", { name: "Projects" }).getByRole("row", { name: /Leftover shop/ });
     await renamed.getByRole("button", { name: "Delete the project Leftover shop" }).click();
-    const plan = page.getByRole("dialog", { name: "Review plan" });
+    const plan = onTop(page.getByRole("dialog", { name: "Review plan" }));
     await plan.waitFor();
     const text = await plan.innerText();
     if (!/2\s*to delete/.test(text) || !text.includes("production")) fail(`the plan reads ${JSON.stringify(text)}`);

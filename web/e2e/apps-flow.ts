@@ -16,6 +16,7 @@ import type { Page } from "playwright-core";
 
 import type { DockerProbe } from "./docker-probe.ts";
 import type { Flow } from "./flows.ts";
+import { onTop } from "./sheets.ts";
 
 export interface AppsFlowOptions {
   origin: string;
@@ -44,7 +45,7 @@ function fail(message: string): never {
 
 /** Reads the plan sheet's counts, applies it, and waits for it to end with the button that ends it. */
 async function applyPlan(page: Page, done: string) {
-  const plan = page.getByRole("dialog", { name: "Review plan" });
+  const plan = onTop(page.getByRole("dialog", { name: "Review plan" }));
   await plan.waitFor({ timeout: 30_000 });
   await plan.getByRole("button", { name: /Apply plan|^Delete / }).click();
   const finish = page.getByRole("button", { name: done, exact: true });
@@ -155,7 +156,7 @@ export async function appsFlow(
   await sheet.getByLabel("Image", { exact: true }).fill(FIRST);
   await sheet.getByLabel("Name").fill("");
   await sheet.getByRole("button", { name: /Review plan/ }).click();
-  const plan = page.getByRole("dialog", { name: "Review plan" });
+  const plan = onTop(page.getByRole("dialog", { name: "Review plan" }));
   await plan.waitFor({ timeout: 30_000 });
   await plan
     .locator(".dw-plan-summary")
@@ -370,7 +371,7 @@ export async function appsFlow(
   await shoot(page, "apps-domain-tunnel");
   // The server takes what the form asks, and the plan says what that means.
   await addDomain.getByRole("button", { name: /Review plan/ }).click();
-  const tunnelPlan = page.getByRole("dialog", { name: "Review plan" });
+  const tunnelPlan = onTop(page.getByRole("dialog", { name: "Review plan" }));
   await tunnelPlan.waitFor({ timeout: 30_000 });
   await tunnelPlan.getByText(/reaches .+ unencrypted, as TLS ends before it/).waitFor();
   await shoot(page, "apps-domain-tunnel-plan");
@@ -408,7 +409,7 @@ export async function appsFlow(
     await form.getByRole("button", { name: "HTTPS", exact: true }).click();
     await form.getByRole("switch", { name: /A tunnel or a proxy in front handles HTTPS/ }).click();
     await form.getByRole("button", { name: /Review plan/ }).click();
-    const review = page.getByRole("dialog", { name: "Review plan" });
+    const review = onTop(page.getByRole("dialog", { name: "Review plan" }));
     await review.waitFor({ timeout: 30_000 });
     // Nothing moves from the review until the row has settled, in any frame. The sheet slides in first.
     await page.waitForTimeout(400);
@@ -543,7 +544,7 @@ export async function appsFlow(
     // The server's own network is as good as root, so this goes the way a person's
     // does, in the panel: the plan says why it asks, and a passkey confirms it.
     await page.goto(`${origin}/changes/${change?.id}`);
-    const onHostPlan = page.getByRole("dialog", { name: "Review plan" });
+    const onHostPlan = onTop(page.getByRole("dialog", { name: "Review plan" }));
     await onHostPlan.waitFor({ timeout: 30_000 });
     await onHostPlan
       .locator(".plan-risk")

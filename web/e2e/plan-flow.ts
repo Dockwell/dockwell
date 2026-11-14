@@ -18,6 +18,7 @@ import type { Browser, BrowserContext, Page } from "playwright-core";
 
 import type { DockerProbe } from "./docker-probe.ts";
 import type { Flow } from "./flows.ts";
+import { onTop } from "./sheets.ts";
 import { bytes, number } from "./wire.ts";
 
 export interface PlanFlowOptions {
@@ -165,7 +166,7 @@ async function reviewNew(
   await form.getByRole("textbox", { name: /^Name/ }).first().fill(name);
   await more?.(form);
   await form.getByRole("button", { name: /Review plan/ }).click();
-  const plan = page.getByRole("dialog", { name: "Review plan" });
+  const plan = onTop(page.getByRole("dialog", { name: "Review plan" }));
   await plan.waitFor({ timeout: 30_000 });
   return plan;
 }
@@ -268,7 +269,7 @@ export async function planFlow(
   await form.getByRole("textbox", { name: /^Name/ }).first().fill("first");
   const shell = await watchShell(page);
   await page.keyboard.press("Control+Enter");
-  const plan = page.getByRole("dialog", { name: "Review plan" });
+  const plan = onTop(page.getByRole("dialog", { name: "Review plan" }));
   await plan.waitFor({ timeout: 30_000 });
   await page.waitForTimeout(200);
   await shoot(page, "plan-plain");
@@ -522,7 +523,7 @@ export async function planFlow(
 
   step("plan: an undo is a plan in the same sheet, Cancel goes back to the arrival, and applying it reads the same");
   await page.getByRole("button", { name: /Undo until/ }).click();
-  const undo = page.getByRole("dialog", { name: "Review plan" });
+  const undo = onTop(page.getByRole("dialog", { name: "Review plan" }));
   await undo.waitFor();
   await undo.getByText("Undo: Run nginx:1.27-alpine as fixme").waitFor();
   await undo.getByText(/stops, and you can undo this until/).waitFor();
@@ -913,7 +914,7 @@ volumes:
     .getByRole("region", { name: "Danger zone" })
     .getByRole("button", { name: /^Delete / })
     .click();
-  const deleting = page.getByRole("dialog", { name: "Review plan" });
+  const deleting = onTop(page.getByRole("dialog", { name: "Review plan" }));
   await deleting.waitFor();
   const button = deleting.getByRole("button", { name: /Delete fixme/ });
   await button.waitFor();

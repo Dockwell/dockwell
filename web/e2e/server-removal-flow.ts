@@ -12,6 +12,7 @@ import { join } from "node:path";
 import type { Page } from "playwright-core";
 
 import type { Flow, FlowRun } from "./flows.ts";
+import { onTop } from "./sheets.ts";
 
 const SEEN_WITHIN = 30_000;
 
@@ -83,7 +84,7 @@ export async function serverRemovalFlow(
     await shoot(page, "server-removal-choice");
     await choosing.getByRole("button", { name: "Plan removal" }).click();
 
-    const plan = page.getByRole("dialog", { name: "Review plan" });
+    const plan = onTop(page.getByRole("dialog", { name: "Review plan" }));
     const remove = plan.getByRole("button", { name: "Remove second" });
     await remove.waitFor({ timeout: SEEN_WITHIN });
     await plan.getByText("No undo").waitFor();
@@ -117,7 +118,7 @@ export async function serverRemovalFlow(
     await table.getByRole("row", { name: /^spare\b/ }).click({ timeout: SEEN_WITHIN });
     await page.getByRole("link", { name: "Open spare" }).click();
     await page.getByRole("region", { name: "Agent" }).getByRole("button", { name: "Remove from fleet" }).click();
-    const empty = page.getByRole("dialog", { name: "Review plan" });
+    const empty = onTop(page.getByRole("dialog", { name: "Review plan" }));
     const leave = empty.getByRole("button", { name: "Remove spare" });
     await leave.waitFor({ timeout: SEEN_WITHIN });
     await empty.getByText(/spare can't come back once it's removed/).waitFor();

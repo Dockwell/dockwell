@@ -15,6 +15,7 @@ import type { Locator, Page } from "playwright-core";
 
 import type { DockerProbe } from "./docker-probe.ts";
 import type { Flow } from "./flows.ts";
+import { onTop } from "./sheets.ts";
 
 export interface CatalogFlowOptions {
   origin: string;
@@ -188,7 +189,7 @@ export async function catalogFlow(page: Page, { origin, step, shoot, docker, cat
   step("catalog: its plan shows everything it makes, with the password as a secret and no value");
   await chooseServer(sheet);
   await sheet.getByRole("button", { name: /Review plan/ }).click();
-  const plan = page.getByRole("dialog", { name: "Review plan" });
+  const plan = onTop(page.getByRole("dialog", { name: "Review plan" }));
   await plan.waitFor({ timeout: 30_000 });
   // The install form stays in the dialog, hidden under its plan, and lists what it
   // installs too: what's visible is the plan's.
@@ -240,7 +241,7 @@ export async function catalogFlow(page: Page, { origin, step, shoot, docker, cat
   await tools.getByText("Installed", { exact: true }).waitFor();
   await shoot(page, "catalog-database-tools");
   await tools.getByRole("button", { name: "Remove Adminer" }).click();
-  const removing = page.getByRole("dialog", { name: "Review plan" });
+  const removing = onTop(page.getByRole("dialog", { name: "Review plan" }));
   await removing.getByText("Remove Adminer from postgres").waitFor({ timeout: 30_000 });
   await removing.getByText("adminer", { exact: true }).first().waitFor();
   await shoot(page, "catalog-database-tools-plan");
