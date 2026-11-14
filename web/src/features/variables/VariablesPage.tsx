@@ -163,8 +163,13 @@ export interface VariablesPageProps {
   query?: string | undefined;
   /** An app, by ID: only what it runs with is listed. */
   app?: string | undefined;
-  onEnvironment: (id: string, query?: string, app?: string) => void;
+  /** Where the values listed come from: shared by the environment, or set on its apps; unset for both. */
+  from?: Source | undefined;
+  onEnvironment: (id: string, query?: string, app?: string, from?: Source) => void;
 }
+
+/** Where a value comes from: shared by the environment, or set on an app (#618). */
+export type Source = "shared" | "apps";
 
 /**
  * One row of the list: a variable or secret of the environment, which its apps
@@ -206,7 +211,7 @@ function usedByApp(row: Row, app: string): boolean {
  * app's own that may be a secret shows hidden too, as no response carries it
  * (ADR 0081).
  */
-export function VariablesPage({ environment, query, app, onEnvironment }: VariablesPageProps) {
+export function VariablesPage({ environment, query, app, from, onEnvironment }: VariablesPageProps) {
   const { t } = useLingui();
   const phone = useMediaQuery(PHONE_QUERY);
   const envs = useQuery(ResourceService.method.listResources, { kind: "environment" });
@@ -242,27 +247,33 @@ export function VariablesPage({ environment, query, app, onEnvironment }: Variab
     () => (services.data ?? []).filter((s) => s.resource?.scope === chosen?.id && s.spec !== undefined),
     [services.data, chosen?.id],
   );
-  const all = list.data?.variables ?? [];
   const rows = useMemo(() => rowsOf(list.data?.variables ?? [], here), [list.data, here]);
   const only = here.find((s) => s.id === app);
   const onlyName = only ? nameOf(only) : "";
   const q = (query ?? "").trim().toLowerCase();
-  const shown = rows.filter((r) => (!q || r.name.toLowerCase().includes(q)) && (!only || usedByApp(r, only.id)));
-  const secrets = all.filter((v) => v.secret).length;
-  const plain = all.length - secrets;
-  const own = rows.length - all.length;
+  // By name and app first, so each source's number says what choosing it would list. Where the
+  // environment has no values at all, the source is no filter: its control is hidden, and the page
+  // offers the first value (#620's review, L2).
+  const source = rows.length > 0 ? from : undefined;
+  const named = rows.filter((r) => (!q || r.name.toLowerCase().includes(q)) && (!only || usedByApp(r, only.id)));
+  const sharedRows = named.filter((r) => "shared" in r).length;
+  const shown = named.filter((r) => !source || (source === "shared") === "shared" in r);
+  // What the rows listed are: a secret is shared, and an app's own value is a variable, even one
+  // that reads hidden as it may hold a secret, as it's a value of the app's own environment and no
+  // secret of the environment's (ADR 0081); so a hidden row can sit under "0 secrets" (#618).
+  const secrets = shown.filter((r) => "shared" in r && r.shared.secret).length;
   const counts = [
-    plural(plain, { one: "# variable", other: "# variables" }),
+    plural(shown.length - secrets, { one: "# variable", other: "# variables" }),
     plural(secrets, { one: "# secret", other: "# secrets" }),
-    ...(own > 0 ? [plural(own, { one: "# set on an app", other: "# set on apps" })] : []),
   ].join(" · ");
   const failed = envs.error ?? list.error;
   const empty = list.data !== undefined && rows.length === 0;
-  const filter = (next: { q?: string | undefined; app?: string | undefined }) => {
+  const filter = (next: { q?: string | undefined; app?: string | undefined; from?: Source | undefined }) => {
     if (!chosen) return;
     const nq = "q" in next ? next.q : query;
     const na = "app" in next ? next.app : only?.id;
-    onEnvironment(chosen.id, nq || undefined, na || undefined);
+    const nf = "from" in next ? next.from : from;
+    onEnvironment(chosen.id, nq || undefined, na || undefined, nf || undefined);
   };
   const opened = chosen !== undefined && adding === chosen.id;
   const showForm = chosen !== undefined && list.data !== undefined && (!empty || opened || editing !== undefined);
@@ -311,6 +322,27 @@ export function VariablesPage({ environment, query, app, onEnvironment }: Variab
               />
             ) : null}
             {list.data ? <span className="variables-counts">{counts}</span> : null}
+            {chosen && rows.length > 0 ? (
+              <SegmentedControl<"all" | Source>
+                label={t`Where values come from`}
+                size="sm"
+                value={source ?? "all"}
+                options={[
+                  {
+                    value: "all",
+                    label: t({ message: "All", context: "values, from wherever they come" }),
+                    count: named.length,
+                  },
+                  {
+                    value: "shared",
+                    label: t({ message: "Shared", context: "values the environment shares" }),
+                    count: sharedRows,
+                  },
+                  { value: "apps", label: t`Set on apps`, count: named.length - sharedRows },
+                ]}
+                onChange={(next) => filter({ from: next === "all" ? undefined : next })}
+              />
+            ) : null}
             {chosen && here.length > 1 ? (
               <SelectField
                 className="variables-app-filter"
@@ -372,6 +404,25 @@ export function VariablesPage({ environment, query, app, onEnvironment }: Variab
             <p className="variables-note" aria-busy="true">
               <Trans>Loading variables and secrets</Trans>
             </p>
+          ) : source && named.length > 0 && shown.length === 0 && chosen ? (
+            // Only the source emptied the list: say so, and show the rest (#620's review, M1).
+            <EmptyState
+              icon="search"
+              title={
+                source === "shared"
+                  ? only
+                    ? t`${onlyName} uses nothing shared`
+                    : t`Nothing in ${envName} is shared`
+                  : only
+                    ? t`${onlyName} sets no value of its own`
+                    : t`No app in ${envName} sets a value of its own`
+              }
+              action={
+                <Button onClick={() => filter({ from: undefined })}>
+                  <Trans>Show all</Trans>
+                </Button>
+              }
+            />
           ) : (q || only) && shown.length === 0 && chosen ? (
             <EmptyState
               icon="search"

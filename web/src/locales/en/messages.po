@@ -11973,6 +11973,7 @@ msgstr "{0, plural, one {# secret} other {# secrets}}"
 
 #. placeholder {0}: kinds.get("variable") ?? 0
 #. placeholder {0}: n("variable")
+#. placeholder {0}: shown.length - secrets
 msgid "{0, plural, one {# variable} other {# variables}}"
 msgstr "{0, plural, one {# variable} other {# variables}}"
 
@@ -16436,6 +16437,10 @@ msgstr "Add the secret {trimmed}"
 msgid "Add the variable {trimmed}"
 msgstr "Add the variable {trimmed}"
 
+msgctxt "values, from wherever they come"
+msgid "All"
+msgstr "All"
+
 msgid "All apps"
 msgstr "All apps"
 
@@ -16484,6 +16489,9 @@ msgstr "Make {trimmed} a variable"
 msgid "Name it, such as DATABASE_URL."
 msgstr "Name it, such as DATABASE_URL."
 
+msgid "No app in {envName} sets a value of its own"
+msgstr "No app in {envName} sets a value of its own"
+
 msgid "No variables or secrets in {envName} yet"
 msgstr "No variables or secrets in {envName} yet"
 
@@ -16495,6 +16503,9 @@ msgstr "Not used yet"
 
 msgid "Nothing in {envName} is named like that"
 msgstr "Nothing in {envName} is named like that"
+
+msgid "Nothing in {envName} is shared"
+msgstr "Nothing in {envName} is shared"
 
 #. placeholder {0}: view.label
 msgid "Nothing running in {0}"
@@ -16509,9 +16520,16 @@ msgstr "Remove the variable {name}"
 msgid "Reveal {name}"
 msgstr "Reveal {name}"
 
+msgid "Set on apps"
+msgstr "Set on apps"
+
 msgid "Set on the app"
 msgstr "Set on the app"
 
+msgid "Shared"
+msgstr "Shared"
+
+msgctxt "values the environment shares"
 msgid "Shared"
 msgstr "Shared"
 
@@ -16530,6 +16548,9 @@ msgstr "Variables and secrets in {envName}"
 msgid "What the apps in {envName} run with, shared and their own. Changing a value restarts each app that uses it, once you apply its plan."
 msgstr "What the apps in {envName} run with, shared and their own. Changing a value restarts each app that uses it, once you apply its plan."
 
+msgid "Where values come from"
+msgstr "Where values come from"
+
 #. placeholder {0}: use.name
 msgid "as {0}"
 msgstr "as {0}"
@@ -16540,8 +16561,11 @@ msgstr "{name} is no secret: show it"
 msgid "{onlyName} runs with nothing of its own or shared"
 msgstr "{onlyName} runs with nothing of its own or shared"
 
-msgid "{own, plural, one {# set on an app} other {# set on apps}}"
-msgstr "{own, plural, one {# set on an app} other {# set on apps}}"
+msgid "{onlyName} sets no value of its own"
+msgstr "{onlyName} sets no value of its own"
+
+msgid "{onlyName} uses nothing shared"
+msgstr "{onlyName} uses nothing shared"
 
 msgid "Delete the volume {name}"
 msgstr "Delete the volume {name}"

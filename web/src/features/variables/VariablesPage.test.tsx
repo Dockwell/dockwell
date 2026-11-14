@@ -514,13 +514,100 @@ describe("each app's own values beside the shared ones", () => {
       "href",
       "/apps/svc_worker",
     );
-    expect(screen.getByText("1 variable · 1 secret · 3 set on apps")).toBeVisible();
+    // The counts say what the rows are, wherever each comes from (#618).
+    expect(screen.getByText("4 variables · 1 secret")).toBeVisible();
     // Change goes to the app's page, opened on that value.
     expect(within(row("QUEUE")).getByRole("link", { name: "Change QUEUE on worker" })).toHaveAttribute(
       "href",
       "/apps/svc_worker/environment?change=QUEUE",
     );
     await expectAccessible(container);
+  });
+
+  it("filters by where values come from, with how many each holds, and keeps it in the URL", async () => {
+    const user = userEvent.setup();
+    const { router } = renderAt("/variables", api([production], withApps()));
+    const table = await screen.findByRole("table", { name: "Variables and secrets in production" }, { timeout: 5000 });
+    await waitFor(() => expect(within(table).getAllByRole("row")).toHaveLength(6));
+    const from = screen.getByRole("radiogroup", { name: "Where values come from" });
+    const segment = (name: string) => within(from).getByRole("radio", { name: new RegExp(`^${name}`) });
+    expect(segment("All")).toHaveTextContent("All, 5");
+    expect(segment("All")).toHaveAttribute("aria-checked", "true");
+    expect(segment("Shared")).toHaveTextContent("Shared, 2");
+    expect(segment("Set on apps")).toHaveTextContent("Set on apps, 3");
+    const names = () =>
+      within(table)
+        .getAllByRole("row")
+        .slice(1)
+        .map((r) => r.querySelector("code")?.textContent);
+
+    await user.click(segment("Shared"));
+    await waitFor(() => expect(names()).toEqual(["DB_PASSWORD", "LOG_LEVEL"]));
+    expect(screen.getByText("1 variable · 1 secret")).toBeVisible();
+    expect(router.state.location.search).toMatchObject({ from: "shared" });
+
+    await user.click(segment("Set on apps"));
+    await waitFor(() => expect(names()).toEqual(["DB_HOST", "DB_TOKEN", "QUEUE"]));
+    expect(screen.getByText("3 variables · 0 secrets")).toBeVisible();
+    expect(router.state.location.search).toMatchObject({ from: "apps" });
+    // The Source column stays.
+    expect(within(within(table).getByRole("row", { name: /^QUEUE/ })).getByText("Set on the app")).toBeVisible();
+
+    // With an app chosen too, each number counts what that app runs with.
+    await user.selectOptions(screen.getByRole("combobox", { name: "App" }), "svc_worker");
+    await waitFor(() => expect(names()).toEqual(["QUEUE"]));
+    expect(segment("All")).toHaveTextContent("All, 2");
+    expect(segment("Shared")).toHaveTextContent("Shared, 1");
+
+    await user.click(segment("All"));
+    await waitFor(() => expect(router.state.location.search).not.toHaveProperty("from"));
+  });
+
+  it("counts an environment that shares nothing, and says so when only shared values are asked for", async () => {
+    const user = userEvent.setup();
+    const stand = api([production], {
+      ...withApps(),
+      variables: { listVariables: () => ({ environmentId: "env_prod", variables: [] }) },
+    });
+    renderAt("/variables?from=shared", stand);
+    const empty = await screen.findByRole("heading", { name: "Nothing in production is shared" }, { timeout: 5000 });
+    expect(empty).toBeVisible();
+    // Only what the apps set on themselves, none of it shared: variables, and no secret.
+    expect(screen.getByText("0 variables · 0 secrets")).toBeVisible();
+    const from = screen.getByRole("radiogroup", { name: "Where values come from" });
+    expect(within(from).getByRole("radio", { name: /^Shared/ })).toHaveTextContent("Shared, 0");
+    await user.click(within(from).getByRole("radio", { name: /^Set on apps/ }));
+    const table = await screen.findByRole("table", { name: "Variables and secrets in production" });
+    await waitFor(() => expect(within(table).getAllByRole("row")).toHaveLength(4));
+    expect(screen.getByText("3 variables · 0 secrets")).toBeVisible();
+  });
+
+  it("says when only where values come from empties the list, and shows the rest without the other filters", async () => {
+    const user = userEvent.setup();
+    const { router } = renderAt("/variables?q=QUEUE&from=shared", api([production], withApps()));
+    // QUEUE is set on worker alone: the name finds it, and Shared leaves it out.
+    const empty = await screen.findByRole("heading", { name: "Nothing in production is shared" }, { timeout: 5000 });
+    expect(empty).toBeVisible();
+    const from = screen.getByRole("radiogroup", { name: "Where values come from" });
+    expect(within(from).getByRole("radio", { name: /^Set on apps/ })).toHaveTextContent("Set on apps, 1");
+    expect(screen.queryByRole("button", { name: "Clear the filter" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Show all" }));
+    const table = await screen.findByRole("table", { name: "Variables and secrets in production" });
+    await waitFor(() => expect(within(table).getByRole("row", { name: /^QUEUE/ })).toBeVisible());
+    expect(router.state.location.search).toMatchObject({ q: "QUEUE" });
+    expect(router.state.location.search).not.toHaveProperty("from");
+  });
+
+  it("offers the first value where an environment has none, whatever source the URL names", async () => {
+    renderAt(
+      "/variables?from=shared",
+      api([production], { variables: { listVariables: () => ({ environmentId: "env_prod", variables: [] }) } }),
+    );
+    expect(
+      await screen.findByRole("heading", { name: "No variables or secrets in production yet" }, { timeout: 5000 }),
+    ).toBeVisible();
+    expect(screen.getByRole("button", { name: "Add the first" })).toBeVisible();
+    expect(screen.queryByRole("radiogroup", { name: "Where values come from" })).toBeNull();
   });
 
   it("shows only what one app runs with, as its Environment tab does", async () => {

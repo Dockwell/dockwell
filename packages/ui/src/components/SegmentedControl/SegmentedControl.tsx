@@ -74,7 +74,13 @@ export function SegmentedControl<V extends string = string>({
           >
             {option.icon ? <Icon name={option.icon} size={14} /> : null}
             <span>{option.label}</span>
-            {option.count != null ? <span className="dw-seg-count">{option.count}</span> : null}
+            {option.count != null ? (
+              <span className="dw-seg-count">
+                {/* Heard as "Shared, 2", not "Shared2" (#620's review, L4). */}
+                <span className="dw-sr">, </span>
+                {option.count}
+              </span>
+            ) : null}
           </button>
         );
       })}
