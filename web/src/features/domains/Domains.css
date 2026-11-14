@@ -100,8 +100,11 @@
   overflow-wrap: anywhere;
 }
 
-/* Where it is reads as one line that wraps, as a clipped server name is no name. */
-.domains-where {
+/* Where it is reads as one line that wraps, as a clipped server name is no name; its project in the body's font,
+   as Domains-List's second line is, and only the server's name in mono. */
+.domains-where,
+.dw-cell-sub.domains-where {
+  font-family: var(--font-sans);
   font-size: 12.5px;
   line-height: 16px;
   color: var(--ink-muted);
