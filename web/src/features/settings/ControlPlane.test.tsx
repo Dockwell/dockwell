@@ -82,6 +82,11 @@ async function panel(name: string): Promise<HTMLElement> {
   return screen.getByRole("region", { name });
 }
 
+/** Opens a panel's "by hand" disclosure, where its commands are. */
+async function openHow(panel: HTMLElement, label: string) {
+  await userEvent.click(within(panel).getByRole("button", { name: new RegExp(`^${label}`) }));
+}
+
 describe("Control plane", () => {
   it("says what runs it, where it keeps its state, and how it's doing", async () => {
     const { container } = renderPlane();
@@ -123,6 +128,12 @@ describe("Control plane", () => {
     renderPlane();
     const backups = await panel("Backups");
     expect(within(backups).getByText("By hand, for now")).toBeVisible();
+    // What stands comes first; the command is a step away.
+    expect(backups).toHaveTextContent("ScheduleNone: Dockwell doesn't back itself up yet");
+    expect(backups).toHaveTextContent("What to keepThe store and the key, apart");
+    expect(within(backups).getByRole("link", { name: "Apps' backups" })).toHaveAttribute("href", "/backups");
+    expect(within(backups).queryByText(/tar -C/)).toBeNull();
+    await openHow(backups, "Back it up by hand");
     const command = copyCommand("/var/lib/dockwell", "/var/lib/dockwell/control/key", ServiceManager.SYSTEMD);
     expect(within(backups).getByText((_, el) => el?.tagName === "CODE" && el.textContent === command)).toBeVisible();
     // Dockwell's own terminal ends when Dockwell stops, so nothing after the stop runs.
@@ -134,7 +145,6 @@ describe("Control plane", () => {
       "href",
       "https://github.com/Dockwell/dockwell/blob/main/docs/install.md#back-up-the-control-plane",
     );
-    expect(within(backups).getByRole("link", { name: "Backups" })).toHaveAttribute("href", "/backups");
     expect(within(backups).queryByText(/pg_dump/)).toBeNull();
   });
 
@@ -152,7 +162,10 @@ describe("Control plane", () => {
     expect(within(store).getByText("PostgreSQL 17.2")).toBeVisible();
     expect(within(store).getByText("under 0.1 ms")).toBeVisible();
     expect(within(store).getByText("Ready for more than one control plane")).toBeVisible();
-    expect(within(await panel("Backups")).getByText("pg_dump")).toBeVisible();
+    const backups = await panel("Backups");
+    expect(backups).toHaveTextContent("The database and the key, apart");
+    await openHow(backups, "Back it up by hand");
+    expect(within(backups).getByText("pg_dump")).toBeVisible();
     expect(within(screen.getByRole("article", { name: "hz-1" })).getByText("PostgreSQL")).toBeVisible();
   });
 
@@ -161,6 +174,8 @@ describe("Control plane", () => {
     const updates = await panel("Updates");
     expect(within(updates).getByText("0.4.0 runs here")).toBeVisible();
     expect(within(updates).getByText("Built 3 Nov from 3f2a9c1d4e5b")).toBeVisible();
+    expect(within(updates).queryByText(INSTALL_COMMAND)).toBeNull();
+    await openHow(updates, "Update by hand");
     expect(within(updates).getByText(INSTALL_COMMAND)).toBeVisible();
     expect(INSTALL_COMMAND).toBe(
       "curl -fsSL https://raw.githubusercontent.com/Dockwell/dockwell/main/scripts/install.sh | sudo sh",
@@ -272,13 +287,16 @@ describe("copyCommand", () => {
 describe("the backup's words", () => {
   it("say to run it as root under OpenRC, and to stop a hand-started Dockwell first", async () => {
     renderPlane({ serviceManager: ServiceManager.OPENRC });
-    expect(await panel("Backups")).toHaveTextContent("Run it as root over SSH, not in Dockwell's terminal");
-    expect(within(await panel("Backups")).getByText(/rc-service dockwell stop &&/)).toBeVisible();
+    const backups = await panel("Backups");
+    await openHow(backups, "Back it up by hand");
+    expect(backups).toHaveTextContent("Run it as root over SSH, not in Dockwell's terminal");
+    expect(within(backups).getByText(/rc-service dockwell stop &&/)).toBeVisible();
   });
 
   it("say to stop dockwell run first when nothing runs it as a service", async () => {
     renderPlane({ serviceManager: ServiceManager.NONE });
     const backups = await panel("Backups");
+    await openHow(backups, "Back it up by hand");
     expect(backups).toHaveTextContent("Not a service here: stop dockwell run, run this as root, then start it again.");
     expect(backups).not.toHaveTextContent("systemctl");
     // Started by hand, nothing here stops it, so where the command runs doesn't matter.

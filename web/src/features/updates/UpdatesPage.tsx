@@ -50,6 +50,7 @@ import {
 } from "./updates";
 import { useWhyNot, type WhyNot } from "./why";
 import "../servers/ServerPanels.css";
+import { shortVersion } from "../shell/version";
 import "./Updates.css";
 
 /** A server's Updates tab: what waits, which are security fixes, and Docker's and Dockwell's versions. */
@@ -170,8 +171,9 @@ function Updates({ server }: { server: Server }) {
           <SelectionBar server={server} install={install} selection={selection} />
         </div>
         <div className="updates-side">
-          <DockerAndDockwell server={server} updates={updates} summary={summary} release={release} install={install} />
+          {/* How it updates on its own first, then what else runs here to update, as Server-Updates has them. */}
           <HowItUpdates updates={updates} />
+          <DockerAndDockwell server={server} updates={updates} summary={summary} release={release} install={install} />
         </div>
       </div>
     </div>
@@ -1110,13 +1112,15 @@ function DockerAndDockwell({
           <div className="updates-versions-text">
             <span className="updates-versions-name">Dockwell</span>
             <span className="updates-summary">
+              {/* A build's version as every other screen shortens it, with the whole of it on hover. */}
               {agent && control && agent !== control ? (
                 <Trans>
-                  Agent <code>{agent}</code>, control plane <code>{control}</code>
+                  Agent <code title={agent}>{shortVersion(agent)}</code>, control plane{" "}
+                  <code title={control}>{shortVersion(control)}</code>
                 </Trans>
               ) : (
                 <Trans>
-                  <code>{control || agent}</code> · agent and control plane
+                  <code title={control || agent}>{shortVersion(control || agent)}</code> · agent and control plane
                 </Trans>
               )}
             </span>

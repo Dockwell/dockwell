@@ -9,7 +9,6 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useState } from "react";
 
-import { chooseLocale, chosenLocale, LOCALES, type Locale, pickLocale } from "../../app/i18n";
 import { reasonOf, sentence } from "../../lib/errors";
 import { formatDay } from "../../lib/format";
 import { Page } from "../shell/Page";
@@ -49,8 +48,8 @@ export function GeneralPage() {
           <NewAppsPanel settings={s} />
         </div>
         <div className="general-column">
+          {/* The language is this browser's, so it's chosen on Profile, as the mocks have it. */}
           <PanelServed settings={s} />
-          <LanguagePanel />
         </div>
       </div>
     </Page>
@@ -228,32 +227,6 @@ function PanelServed({ settings }: { settings: Settings | undefined }) {
         </dd>
       </dl>
       <PanelDomain panel={panel} />
-    </Panel>
-  );
-}
-
-/** The language this browser shows the panel in. */
-function LanguagePanel() {
-  const { t } = useLingui();
-  const [chosen, setChosen] = useState<Locale | "">(() => chosenLocale() ?? "");
-  const browser = LOCALES[pickLocale(navigator.languages)];
-  const options = [
-    { value: "", label: t`Same as this browser (${browser})` },
-    ...(Object.keys(LOCALES) as Locale[]).map((l) => ({ value: l, label: LOCALES[l] })),
-  ];
-  return (
-    <Panel title={t`Language`} actions={<span className="settings-meta">{t`This browser`}</span>}>
-      <SelectField
-        label={t`Show the panel in`}
-        options={options}
-        value={chosen}
-        hint={t`Only this browser changes. Your other browsers, and the command line, keep their own.`}
-        onChange={(event) => {
-          const next = event.target.value as Locale | "";
-          setChosen(next);
-          void chooseLocale(next === "" ? undefined : next);
-        }}
-      />
     </Panel>
   );
 }

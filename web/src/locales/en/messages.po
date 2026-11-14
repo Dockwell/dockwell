@@ -15080,6 +15080,12 @@ msgstr "{count} events, all there are."
 msgid "{name} and {more} more"
 msgstr "{name} and {more} more"
 
+msgid "A command to run as root"
+msgstr "A command to run as root"
+
+msgid "A command to run as root over SSH"
+msgstr "A command to run as root over SSH"
+
 msgid "A file beside the control plane, for one control plane"
 msgstr "A file beside the control plane, for one control plane"
 
@@ -15095,8 +15101,14 @@ msgstr "Answering"
 msgid "Answers in"
 msgstr "Answers in"
 
-msgid "Apps' volumes and databases have backups of their own, under <0>Backups</0>."
-msgstr "Apps' volumes and databases have backups of their own, under <0>Backups</0>."
+msgid "Apps' backups"
+msgstr "Apps' backups"
+
+msgid "Apps' volumes and databases have backups of their own"
+msgstr "Apps' volumes and databases have backups of their own"
+
+msgid "Back it up by hand"
+msgstr "Back it up by hand"
 
 msgid "Built from {commit}"
 msgstr "Built from {commit}"
@@ -15131,6 +15143,9 @@ msgstr "Key"
 
 msgid "Location"
 msgstr "Location"
+
+msgid "None: Dockwell doesn't back itself up yet"
+msgstr "None: Dockwell doesn't back itself up yet"
 
 msgid "Not a service here: stop <0>dockwell run</0>, run this as root, then start it again."
 msgstr "Not a service here: stop <0>dockwell run</0>, run this as root, then start it again."
@@ -15182,6 +15197,10 @@ msgstr "Run it over SSH, not in Dockwell's terminal: Dockwell stops while it cop
 msgid "SQLite, on this server"
 msgstr "SQLite, on this server"
 
+msgctxt "when backups run"
+msgid "Schedule"
+msgstr "Schedule"
+
 msgid "Set where Dockwell starts; the panel's domain is under <0>General</0>."
 msgstr "Set where Dockwell starts; the panel's domain is under <0>General</0>."
 
@@ -15192,8 +15211,20 @@ msgstr "Size"
 msgid "State store"
 msgstr "State store"
 
+msgid "The database and the key, apart"
+msgstr "The database and the key, apart"
+
 msgid "The database isn't in it: back it up with <0>pg_dump</0>."
 msgstr "The database isn't in it: back it up with <0>pg_dump</0>."
+
+msgid "The install script again, over SSH"
+msgstr "The install script again, over SSH"
+
+msgid "The key opens every secret in a copy"
+msgstr "The key opens every secret in a copy"
+
+msgid "The store and the key, apart"
+msgstr "The store and the key, apart"
 
 msgid "The version that runs here is unknown"
 msgstr "The version that runs here is unknown"
@@ -15204,9 +15235,15 @@ msgstr "Then move <0>/root/dockwell-control.tgz</0> and <1>/root/dockwell-key</1
 msgid "This control plane"
 msgstr "This control plane"
 
+msgid "Update by hand"
+msgstr "Update by hand"
+
 #. placeholder {0}: s.name
 msgid "Update the agent on {0}"
 msgstr "Update the agent on {0}"
+
+msgid "What to keep"
+msgstr "What to keep"
 
 msgid "agent"
 msgstr "agent"
@@ -15309,9 +15346,6 @@ msgstr "Not set: UTC"
 msgid "Nothing yet: the panel has no domain"
 msgstr "Nothing yet: the panel has no domain"
 
-msgid "Only this browser changes. Your other browsers, and the command line, keep their own."
-msgstr "Only this browser changes. Your other browsers, and the command line, keep their own."
-
 msgid "Patch updates, daily from 03:00"
 msgstr "Patch updates, daily from 03:00"
 
@@ -15320,9 +15354,6 @@ msgstr "Saved. It's on Activity."
 
 msgid "Served by"
 msgstr "Served by"
-
-msgid "Show the panel in"
-msgstr "Show the panel in"
 
 msgid "Shown on the sign-in screen and in browser tabs."
 msgstr "Shown on the sign-in screen and in browser tabs."
@@ -17100,7 +17131,7 @@ msgstr "{n, plural, one {# security update for {distro}} other {# security updat
 msgid "{n, plural, one {# security update} other {# security updates}}"
 msgstr "{n, plural, one {# security update} other {# security updates}}"
 
-#. placeholder {0}: control || agent
+#. placeholder {0}: shortVersion(control || agent)
 msgid "<0>{0}</0> · agent and control plane"
 msgstr "<0>{0}</0> · agent and control plane"
 
@@ -17113,8 +17144,10 @@ msgstr "<0>{tool}</0> installs them within about a day; the command installs eve
 msgid "<0>{tool}</0> installs updates"
 msgstr "<0>{tool}</0> installs updates"
 
-msgid "Agent <0>{agent}</0>, control plane <1>{control}</1>"
-msgstr "Agent <0>{agent}</0>, control plane <1>{control}</1>"
+#. placeholder {0}: shortVersion(agent)
+#. placeholder {1}: shortVersion(control)
+msgid "Agent <0>{0}</0>, control plane <1>{1}</1>"
+msgstr "Agent <0>{0}</0>, control plane <1>{1}</1>"
 
 msgid "An install is running on {name}. Docker can update once it ends."
 msgstr "An install is running on {name}. Docker can update once it ends."

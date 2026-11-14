@@ -15080,6 +15080,12 @@ msgstr "共 {count} 个事件，这是全部。"
 msgid "{name} and {more} more"
 msgstr "{name} 等 {more} 项"
 
+msgid "A command to run as root"
+msgstr "一条以 root 运行的命令"
+
+msgid "A command to run as root over SSH"
+msgstr "一条通过 SSH 以 root 运行的命令"
+
 msgid "A file beside the control plane, for one control plane"
 msgstr "控制平面旁的一个文件，适用于单个控制平面"
 
@@ -15095,8 +15101,14 @@ msgstr "正在响应"
 msgid "Answers in"
 msgstr "响应时间"
 
-msgid "Apps' volumes and databases have backups of their own, under <0>Backups</0>."
-msgstr "应用的卷和数据库有各自的备份，见<0>备份</0>。"
+msgid "Apps' backups"
+msgstr "应用的备份"
+
+msgid "Apps' volumes and databases have backups of their own"
+msgstr "应用的卷和数据库有各自的备份"
+
+msgid "Back it up by hand"
+msgstr "手动备份"
 
 msgid "Built from {commit}"
 msgstr "由 {commit} 构建"
@@ -15131,6 +15143,9 @@ msgstr "密钥"
 
 msgid "Location"
 msgstr "位置"
+
+msgid "None: Dockwell doesn't back itself up yet"
+msgstr "无：Dockwell 还不会备份自身"
 
 msgid "Not a service here: stop <0>dockwell run</0>, run this as root, then start it again."
 msgstr "这里没有作为服务运行：先停止 <0>dockwell run</0>，以 root 身份运行以下命令，然后再启动它。"
@@ -15182,6 +15197,10 @@ msgstr "请通过 SSH 运行，不要在 Dockwell 的终端里运行：复制期
 msgid "SQLite, on this server"
 msgstr "SQLite，在这台服务器上"
 
+msgctxt "when backups run"
+msgid "Schedule"
+msgstr "时间表"
+
 msgid "Set where Dockwell starts; the panel's domain is under <0>General</0>."
 msgstr "在 Dockwell 启动的地方设置；面板的域名在<0>常规</0>中。"
 
@@ -15192,8 +15211,20 @@ msgstr "磁盘占用"
 msgid "State store"
 msgstr "状态存储"
 
+msgid "The database and the key, apart"
+msgstr "数据库和密钥，分开保存"
+
 msgid "The database isn't in it: back it up with <0>pg_dump</0>."
 msgstr "其中不含数据库：请用 <0>pg_dump</0> 备份它。"
+
+msgid "The install script again, over SSH"
+msgstr "通过 SSH 再次运行安装脚本"
+
+msgid "The key opens every secret in a copy"
+msgstr "密钥能打开副本中的每个机密"
+
+msgid "The store and the key, apart"
+msgstr "存储和密钥，分开保存"
 
 msgid "The version that runs here is unknown"
 msgstr "无法得知这里运行的版本"
@@ -15204,9 +15235,15 @@ msgstr "然后把 <0>/root/dockwell-control.tgz</0> 和 <1>/root/dockwell-key</1
 msgid "This control plane"
 msgstr "当前控制平面"
 
+msgid "Update by hand"
+msgstr "手动更新"
+
 #. placeholder {0}: s.name
 msgid "Update the agent on {0}"
 msgstr "更新 {0} 上的代理"
+
+msgid "What to keep"
+msgstr "要保存的内容"
 
 msgid "agent"
 msgstr "个代理"
@@ -15309,9 +15346,6 @@ msgstr "未设置：UTC"
 msgid "Nothing yet: the panel has no domain"
 msgstr "暂无：面板还没有域名"
 
-msgid "Only this browser changes. Your other browsers, and the command line, keep their own."
-msgstr "只更改此浏览器。你的其他浏览器和命令行保持各自的设置。"
-
 msgid "Patch updates, daily from 03:00"
 msgstr "补丁更新，每天 03:00 起"
 
@@ -15320,9 +15354,6 @@ msgstr "已保存，并已记入动态。"
 
 msgid "Served by"
 msgstr "提供方"
-
-msgid "Show the panel in"
-msgstr "面板显示语言"
 
 msgid "Shown on the sign-in screen and in browser tabs."
 msgstr "显示在登录页和浏览器标签页上。"
@@ -17100,7 +17131,7 @@ msgstr "{n, plural, other {{distro} 有 # 个安全更新}}"
 msgid "{n, plural, one {# security update} other {# security updates}}"
 msgstr "{n, plural, other {# 个安全更新}}"
 
-#. placeholder {0}: control || agent
+#. placeholder {0}: shortVersion(control || agent)
 msgid "<0>{0}</0> · agent and control plane"
 msgstr "<0>{0}</0> · 代理与控制平面"
 
@@ -17113,8 +17144,10 @@ msgstr "<0>{tool}</0> 会在约一天内安装它们；这条命令会立即安�
 msgid "<0>{tool}</0> installs updates"
 msgstr "<0>{tool}</0> 自动安装更新"
 
-msgid "Agent <0>{agent}</0>, control plane <1>{control}</1>"
-msgstr "代理 <0>{agent}</0>，控制平面 <1>{control}</1>"
+#. placeholder {0}: shortVersion(agent)
+#. placeholder {1}: shortVersion(control)
+msgid "Agent <0>{0}</0>, control plane <1>{1}</1>"
+msgstr "代理 <0>{0}</0>，控制平面 <1>{1}</1>"
 
 msgid "An install is running on {name}. Docker can update once it ends."
 msgstr "{name} 上正在安装更新。安装结束后才能更新 Docker。"
