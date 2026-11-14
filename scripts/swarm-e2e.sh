@@ -64,7 +64,7 @@ dw() { priv env DOCKWELL_DATA_DIR="$data" DOCKWELL_LOG_FORMAT=text "$bin" "$@"; 
 step() { echo "--- $*"; }
 
 cleanup() {
-  for s in shop-k2m4 many-r2 everywhere-g1 keeps-s1 anon-a1 probe-p1; do
+  for s in shop-k2m4 many-r2 everywhere-g1 keeps-s1 anon-a1; do
     docker service rm "$s" >/dev/null 2>&1 || true
   done
   docker stack rm forum-q1 plain-p1 >/dev/null 2>&1 || true
@@ -221,40 +221,6 @@ docker exec "$db_task" psql -U postgres -qc "create table kept (v text); insert 
   fail "can't write a row in the stack's PostgreSQL"
 shop_task=$(docker ps --format '{{.Names}}' --filter label=com.docker.swarm.service.name=shop-k2m4)
 db_task_name=$(docker ps --format '{{.Names}}' --filter label=com.docker.swarm.service.name=forum-q1_db)
-
-step "What Swarm's tasks API says while a task stops (for the record)"
-# A task's state as the tasks API has it, through the filter Dockwell asks with,
-# beside its container's, every 100 ms as a PostgreSQL task scaled to none stops.
-# watch_stop prints, every 100 ms until the task's container stops, what the tasks
-# API answers for a service through the filter Dockwell asks with.
-watch_stop() {
-  local service=$1 container=$2 state tasks
-  for _ in $(seq 60); do
-    state=$(docker inspect --format '{{.State.Status}}' "$container" 2>/dev/null || echo gone)
-    tasks=$(curl -sS --unix-socket /var/run/docker.sock -G --data-urlencode "filters={\"service\":{\"$service\":true}}" http://docker/tasks |
-      jq -c '[.[] | {state: .Status.State, desired: .DesiredState}]')
-    echo "  $(date +%s.%N) container $state, tasks $tasks"
-    [[ "$state" == running ]] || break
-    sleep 0.1
-  done
-}
-# A scale to none alone, then the update Dockwell makes: none, with its ports and
-# networks taken off.
-for how in scale update; do
-  docker service create --quiet --detach=false --name probe-p1 --network dokploy-network --publish published=18099,target=5432 \
-    --env POSTGRES_PASSWORD=not-in-any-plan "$postgres" >/dev/null || fail "can't create probe-p1"
-  probe=$(running_tasks probe-p1)
-  wait_until 60 docker exec "$probe" pg_isready -U postgres || fail "probe-p1 isn't ready"
-  echo "  as $how:"
-  if [[ "$how" == scale ]]; then
-    docker service scale --detach probe-p1=0 >/dev/null
-  else
-    docker service update --detach --replicas 0 --network-rm dokploy-network --publish-rm 18099 probe-p1 >/dev/null
-  fi
-  watch_stop probe-p1 "$probe"
-  docker service rm probe-p1 >/dev/null 2>&1 || true
-  for _ in $(seq 50); do docker inspect "$probe" >/dev/null 2>&1 || break; sleep 0.2; done
-done
 
 step "Dockwell runs as root, as on a server, and is claimed"
 priv env DOCKWELL_TEST=1 DOCKWELL_TEST_PANELS="$root" "$bin" run --listen "$addr" --agent-listen 127.0.0.1:0 --data-dir "$data" --log-format json >>"$log" 2>&1 &

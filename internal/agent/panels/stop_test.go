@@ -289,8 +289,6 @@ func TestAScaleWaitsForItsTaskToStop(t *testing.T) {
 		State: docker.State{Status: "running", Running: true},
 	})
 	e.TaskShutdown = 400 * time.Millisecond
-	// As on a real Swarm, the tasks API calls the task over while it stops.
-	e.TasksOverEarly = true
 	s := Stopper{Docker: e.Client()}
 	plan, _, err := s.PlanPanel(t.Context(), resource.PanelAsked{Kind: resource.PanelDokploy, Apps: true, Parts: []resource.PanelPart{{Name: "db-k2m4"}}})
 	if err != nil {

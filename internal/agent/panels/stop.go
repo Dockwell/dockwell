@@ -275,10 +275,11 @@ func servicePorts(ports []resource.PanelPort) []docker.ServicePort {
 
 // tasksLive counts what of a Swarm service may still run: each task Swarm's tasks
 // API doesn't call over, on every node, starting ones too, and each container of
-// its tasks on this node that hasn't exited. Both count, as on a real Swarm the
-// API calls a task over as its spec changes, while its container still shuts
-// down, such as a database for a second or two, and a copy that started then
-// would run beside it on the same data.
+// its tasks on this node that hasn't exited. Both count: on a real Swarm, an
+// update that asks for none and changes the task template, as taking the service
+// off its ports and networks does, drops its task from the tasks API at once,
+// while its container still shuts down, such as a database for two seconds, and a
+// copy that started then would run beside it on the same data.
 func (s Stopper) tasksLive(ctx context.Context, service string) (int, error) {
 	tasks, err := s.Docker.ListTasks(ctx, service)
 	if err != nil {

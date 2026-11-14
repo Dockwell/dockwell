@@ -9,6 +9,7 @@
 package dockertest
 
 import (
+	"bytes"
 	"cmp"
 	"context"
 	"crypto/rand"
@@ -101,11 +102,11 @@ type Engine struct {
 	// Tasks are tasks of Swarm services beside those of the containers labelled
 	// as one's, by service name, such as one starting on another node.
 	Tasks map[string][]docker.Task
-	// TasksOverEarly makes the tasks API call a service's tasks shut down once
-	// it asks for none, while their containers still stop, as a real Swarm
-	// does.
-	TasksOverEarly bool
-	memoryKills    []memoryKill
+	// dropped are the services whose tasks the tasks API no longer lists: those an
+	// update asked for none of while changing their task template, as a real
+	// Swarm drops them at once while their containers still stop.
+	dropped     map[string]bool
+	memoryKills []memoryKill
 	// ahead is how far the engine's clock is ahead of this machine's, for what it
 	// stamps its events and its containers' states with (SetClockAhead).
 	ahead time.Duration
@@ -2554,6 +2555,19 @@ func (e *Engine) updateService(w http.ResponseWriter, r *http.Request, id string
 		e.ServiceExtras = map[string]map[string]json.RawMessage{}
 	}
 	e.ServiceExtras[svc.ID] = all
+	// A real Swarm drops a service's tasks from its tasks API at once where an
+	// update both asks for none and changes its task template, such as its
+	// networks, while their containers still stop.
+	before, _ := json.Marshal(svc.Spec.TaskTemplate)
+	after, _ := json.Marshal(spec.TaskTemplate)
+	if n, _ := spec.Mode.Replicas(); n == 0 && !bytes.Equal(before, after) {
+		if e.dropped == nil {
+			e.dropped = map[string]bool{}
+		}
+		e.dropped[spec.Name] = true
+	} else if n > 0 {
+		delete(e.dropped, spec.Name)
+	}
 	svc.Spec = spec
 	svc.Version.Index++
 	e.scaleTasks(spec.Name)
@@ -2573,15 +2587,12 @@ func (e *Engine) listTasks(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		for _, c := range e.containers {
-			if c.Config.Labels["com.docker.swarm.service.name"] != svc.Spec.Name {
+			if c.Config.Labels["com.docker.swarm.service.name"] != svc.Spec.Name || e.dropped[svc.Spec.Name] {
 				continue
 			}
 			var t docker.Task
 			t.ID, t.NodeID = c.ID[:12], "node-1"
-			n, _ := svc.Spec.Mode.Replicas()
 			switch {
-			case e.TasksOverEarly && n == 0:
-				t.Status.State = "shutdown"
 			case c.State.Running:
 				t.Status.State = "running"
 			case c.State.Status == "created" || c.State.Status == "":
