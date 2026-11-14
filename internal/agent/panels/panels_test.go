@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"syscall"
 	"testing"
@@ -229,5 +230,43 @@ func TestWhatComesFromGit(t *testing.T) {
 		if a.GetFromGit() != (a.GetId() == "wiki-ab12") {
 			t.Errorf("%s reads as from Git: %v", a.GetId(), a.GetFromGit())
 		}
+	}
+}
+
+// Where a domain goes is read from the proxy's labels on the container: a Traefik
+// router's hosts and path, and the port of the service it names, or the one service
+// the labels have; a Caddy address and the port its reverse_proxy names. A domain
+// with no port says 0, and a router for the same domain twice, as for HTTP and
+// HTTPS, comes once.
+func TestWhereEachDomainGoes(t *testing.T) {
+	got := routesOf(map[string]string{
+		"com.docker.compose.service":                                        "ghost",
+		"traefik.http.routers.http-0-k4s9-ghost.rule":                       "Host(`blog.example.com`) && PathPrefix(`/`)",
+		"traefik.http.routers.https-0-k4s9-ghost.rule":                      "Host(`blog.example.com`) && PathPrefix(`/`)",
+		"traefik.http.routers.https-0-k4s9-ghost.service":                   "https-0-k4s9-ghost",
+		"traefik.http.services.https-0-k4s9-ghost.loadbalancer.server.port": "2368",
+		"traefik.http.routers.api.rule":                                     "Host(`blog.example.com`) && PathPrefix(`/ghost/api`)",
+		"traefik.http.routers.api.service":                                  "nowhere",
+	}, "ghost-k4s9")
+	want := []string{"blog.example.com/ghost/api|ghost|0", "blog.example.com|ghost|2368"}
+	var have []string
+	for _, r := range got {
+		have = append(have, r.GetDomain()+r.GetPath()+"|"+r.GetService()+"|"+strconv.Itoa(int(r.GetPort())))
+		if r.GetContainer() != "ghost-k4s9" {
+			t.Errorf("%s goes to %s", r.GetDomain(), r.GetContainer())
+		}
+	}
+	slices.Sort(have)
+	if !slices.Equal(have, want) {
+		t.Errorf("Traefik's routes are %v, want %v", have, want)
+	}
+
+	got = routesOf(map[string]string{
+		"com.docker.compose.service": "web",
+		"caddy_0":                    "https://shop.example.com, www.shop.example.com",
+		"caddy_0.reverse_proxy":      "{{upstreams 8080}}",
+	}, "web-p2q7")
+	if len(got) != 2 || got[0].GetPort() != 8080 || got[1].GetDomain() != "www.shop.example.com" || got[1].GetService() != "web" {
+		t.Errorf("Caddy's routes are %v", got)
 	}
 }

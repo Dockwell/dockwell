@@ -3953,6 +3953,45 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/imports:domains:
+        post:
+            tags:
+                - ImportService
+            description: |-
+                PlanPanelDomains plans handing over the domains of what was taken on from a
+                 panel: one change that stops the panel's proxy, which holds ports 80 and 443,
+                 and makes a route to each taken-on app's service for each of its domains, as
+                 the proxy's labels send it, so Dockwell's ingress takes the ports and gets a
+                 certificate for each. A domain of what the panel still runs stops answering,
+                 which the plan says. Undoing it deletes those routes and starts the proxy
+                 again. A person applies it.
+            operationId: ImportService_PlanPanelDomains
+            parameters:
+                - name: serverId
+                  in: path
+                  description: The server the panel runs on, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/PlanPanelDomainsRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/PlanPanelDomainsResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/servers/{serverId}/imports:onepanel:
         post:
             tags:
@@ -13677,6 +13716,11 @@ components:
                     description: |-
                         The panel's proxy, which goes on running: it serves the domains of what was
                          taken on until those come as routes, a step of its own.
+                proxy:
+                    type: boolean
+                    description: |-
+                        True when it acts on the panel's proxy alone, which holds ports 80 and 443,
+                         as its domains come over to Dockwell's ingress as routes in the same change.
             description: |-
                 HostPanel is what stopping or starting the panel an import came from does, for a
                  server's host (docs/adr/0089-importing-from-coolify-and-dokploy.md): its own
@@ -14211,6 +14255,7 @@ components:
                         - IMPORT_KIND_PANEL
                         - IMPORT_KIND_COMPOSE_PROJECT
                         - IMPORT_KIND_CONTAINERS
+                        - IMPORT_KIND_DOMAIN
                     type: string
                     description: What it is.
                     format: enum
@@ -14245,6 +14290,7 @@ components:
                         - IMPORT_WAITS_FOR_DATABASES
                         - IMPORT_WAITS_FOR_SCHEDULED_TASKS
                         - IMPORT_WAITS_FOR_FIREWALL
+                        - IMPORT_WAITS_FOR_PORTS
                     type: string
                     description: The part of Dockwell it waits for, where Dockwell can't take it yet.
                     format: enum
@@ -16820,6 +16866,13 @@ components:
                         True when the panel deploys it from a Git repository, where a push can deploy
                          it again: Coolify's application built from a commit, or Dokploy's app whose
                          code folder is a Git checkout. Both panels deploy on a push by default.
+                routes:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/PanelRoute'
+                    description: |-
+                        Where each of its domains goes, as the panel's proxy has it: what comes over
+                         as a route once the proxy hands ports 80 and 443 to Dockwell.
             description: |-
                 PanelApp is something a panel runs for people: an app, a service from its
                  templates, or a database.
@@ -16849,6 +16902,30 @@ components:
                     type: string
                     description: The program, as the kernel names its process, such as "nginx".
             description: PanelPortHolder is a program that holds a port the panel's certificate needs.
+        PanelRoute:
+            type: object
+            properties:
+                domain:
+                    type: string
+                    description: The domain, such as "blog.example.com".
+                path:
+                    type: string
+                    description: The path it's for, such as "/api", or empty for the whole domain.
+                container:
+                    type: string
+                    description: The container it goes to.
+                service:
+                    type: string
+                    description: |-
+                        The Compose service that container runs as, which a route names once it's
+                         taken on.
+                port:
+                    type: integer
+                    description: The port in the container it goes to, or 0 where the labels don't say.
+                    format: uint32
+            description: |-
+                PanelRoute is a domain the panel's proxy sends to one of an app's containers,
+                 read from the proxy's labels on it.
         PanelServing:
             type: object
             properties:
@@ -17204,6 +17281,32 @@ components:
                         True when names and deleted hold all that message says, so a surface can say
                          it in its own words. A note kept from before these did has only its message.
             description: PlanNote is one thing a person should know before applying a plan.
+        PlanPanelDomainsRequest:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                    description: The server the panel runs on, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                panel:
+                    enum:
+                        - PANEL_KIND_UNSPECIFIED
+                        - PANEL_KIND_COOLIFY
+                        - PANEL_KIND_DOKPLOY
+                    type: string
+                    description: The panel whose proxy hands over ports 80 and 443.
+                    format: enum
+                summary:
+                    type: string
+                    description: What the change is for, for the timeline. Empty says what it hands over.
+            description: PlanPanelDomainsRequest names the server and the panel whose domains come over.
+        PlanPanelDomainsResponse:
+            type: object
+            properties:
+                change:
+                    allOf:
+                        - $ref: '#/components/schemas/Change'
+                    description: The change, planned for a person to apply.
+            description: PlanPanelDomainsResponse carries the planned handover.
         PlanPlace:
             type: object
             properties:

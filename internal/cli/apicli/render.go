@@ -908,7 +908,12 @@ func panelWords(p *dockwellv1.HostPanel, server string) []string {
 		}
 	}
 	var out []string
-	if p.GetStart() {
+	switch {
+	case p.GetProxy() && p.GetStart():
+		return []string{fmt.Sprintf("Starts %s's proxy, %s, again on %s, once the routes it hands back ports 80 and 443 from are gone.", name, human.List(containers), server)}
+	case p.GetProxy():
+		return []string{fmt.Sprintf("Stops %s's proxy, %s, first, so Dockwell's ingress takes ports 80 and 443 on %s for the routes after it. It stays stopped when Docker or %s restarts, and undoing this starts it again.", name, human.List(containers), server, server)}
+	case p.GetStart():
 		out = append(out, fmt.Sprintf("Starts %s's own containers again on %s, each as it stood before the stop: %s.", name, server, human.List(append(containers, services...))))
 		return out
 	}

@@ -82,6 +82,29 @@ service ImportService {
     };
   }
 
+  // PlanPanelDomains plans handing over the domains of what was taken on from a
+  // panel: one change that stops the panel's proxy, which holds ports 80 and 443,
+  // and makes a route to each taken-on app's service for each of its domains, as
+  // the proxy's labels send it, so Dockwell's ingress takes the ports and gets a
+  // certificate for each. A domain of what the panel still runs stops answering,
+  // which the plan says. Undoing it deletes those routes and starts the proxy
+  // again. A person applies it.
+  rpc PlanPanelDomains(PlanPanelDomainsRequest) returns (PlanPanelDomainsResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "import"
+      verb: "domains"
+    };
+    option (google.api.http) = {
+      post: "/v1/servers/{server_id}/imports:domains"
+      body: "*"
+    };
+  }
+
   // PlanStopPanel plans stopping the panel an import came from: Coolify's own
   // containers, or Dokploy's own Swarm services, never what it ran, so its auto
   // deploys and its scheduled tasks stop with it. Its proxy goes on running, as it
@@ -105,6 +128,22 @@ service ImportService {
       body: "*"
     };
   }
+}
+
+// PlanPanelDomainsRequest names the server and the panel whose domains come over.
+message PlanPanelDomainsRequest {
+  // The server the panel runs on, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+  string server_id = 1;
+  // The panel whose proxy hands over ports 80 and 443.
+  PanelKind panel = 2;
+  // What the change is for, for the timeline. Empty says what it hands over.
+  string summary = 3;
+}
+
+// PlanPanelDomainsResponse carries the planned handover.
+message PlanPanelDomainsResponse {
+  // The change, planned for a person to apply.
+  Change change = 1;
 }
 
 // PlanStopPanelRequest names the server and the panel to stop there.
@@ -229,6 +268,25 @@ message PanelApp {
   // it again: Coolify's application built from a commit, or Dokploy's app whose
   // code folder is a Git checkout. Both panels deploy on a push by default.
   bool from_git = 13;
+  // Where each of its domains goes, as the panel's proxy has it: what comes over
+  // as a route once the proxy hands ports 80 and 443 to Dockwell.
+  repeated PanelRoute routes = 14;
+}
+
+// PanelRoute is a domain the panel's proxy sends to one of an app's containers,
+// read from the proxy's labels on it.
+message PanelRoute {
+  // The domain, such as "blog.example.com".
+  string domain = 1;
+  // The path it's for, such as "/api", or empty for the whole domain.
+  string path = 2;
+  // The container it goes to.
+  string container = 3;
+  // The Compose service that container runs as, which a route names once it's
+  // taken on.
+  string service = 4;
+  // The port in the container it goes to, or 0 where the labels don't say.
+  uint32 port = 5;
 }
 
 // PanelContainer is one of a panel's own containers or Swarm services.
@@ -296,6 +354,9 @@ enum ImportWaitsFor {
   IMPORT_WAITS_FOR_SCHEDULED_TASKS = 3;
   // Firewall rules.
   IMPORT_WAITS_FOR_FIREWALL = 4;
+  // The panel's proxy handing ports 80 and 443 to Dockwell, a step of its own
+  // (PlanPanelDomains).
+  IMPORT_WAITS_FOR_PORTS = 5;
 }
 
 // ImportKind is a kind of thing another panel keeps.
@@ -321,6 +382,8 @@ enum ImportKind {
   IMPORT_KIND_COMPOSE_PROJECT = 9;
   // Containers the panel started on their own, which it keeps no record of.
   IMPORT_KIND_CONTAINERS = 10;
+  // A domain the panel's proxy serves, which comes as a route.
+  IMPORT_KIND_DOMAIN = 11;
 }
 
 // ImportAction is what an import does with a thing it found.

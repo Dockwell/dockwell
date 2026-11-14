@@ -653,7 +653,7 @@ func Panel(p *resource.Panel) *dockwellv1.HostPanel {
 	if p == nil {
 		return nil
 	}
-	return &dockwellv1.HostPanel{Kind: p.Kind, Start: p.Start, Parts: PanelParts(p.Parts), Stays: p.Stays}
+	return &dockwellv1.HostPanel{Kind: p.Kind, Start: p.Start, Proxy: p.Proxy, Parts: PanelParts(p.Parts), Stays: p.Stays}
 }
 
 // PanelFrom reads what stopping or starting a panel does, as the API says it; nil
@@ -662,7 +662,7 @@ func PanelFrom(p *dockwellv1.HostPanel) *resource.Panel {
 	if p == nil {
 		return nil
 	}
-	return &resource.Panel{Kind: p.GetKind(), Start: p.GetStart(), Parts: PanelPartsFrom(p.GetParts()), Stays: p.GetStays()}
+	return &resource.Panel{Kind: p.GetKind(), Start: p.GetStart(), Proxy: p.GetProxy(), Parts: PanelPartsFrom(p.GetParts()), Stays: p.GetStays()}
 }
 
 // PanelParts are a panel's own containers and services as the API says them.

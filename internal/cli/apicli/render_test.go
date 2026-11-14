@@ -1271,4 +1271,14 @@ func TestAPanelsStopSaysWhatStopsAndWhatStays(t *testing.T) {
 	if !strings.Contains(out, "Starts Dokploy's own containers again on web-1, each as it stood before the stop: dokploy.") {
 		t.Errorf("the start reads %q", out)
 	}
+	proxy := []*dockwellv1.HostPanelPart{{Name: "coolify-proxy", WasRunning: true, WasRestart: "always"}}
+	out = plan(&dockwellv1.HostPanel{Kind: "coolify", Proxy: true, Parts: proxy})
+	if !strings.Contains(out, "Stops Coolify's proxy, coolify-proxy, first, so Dockwell's ingress takes ports 80 and 443 on web-1 for the routes after it.") ||
+		strings.Contains(out, "nothing of Coolify is deleted") {
+		t.Errorf("the handover reads %q", out)
+	}
+	out = plan(&dockwellv1.HostPanel{Kind: "coolify", Proxy: true, Start: true, Parts: proxy})
+	if !strings.Contains(out, "Starts Coolify's proxy, coolify-proxy, again on web-1, once the routes it hands back ports 80 and 443 from are gone.") {
+		t.Errorf("the handover's undo reads %q", out)
+	}
 }

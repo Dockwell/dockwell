@@ -20,6 +20,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -122,6 +123,7 @@ func (r Reader) coolify(list []docker.ContainerSummary) *agentv1.ReadPanelResult
 		}
 		a.Containers = append(a.Containers, name)
 		a.Domains = append(a.Domains, domainsOf(l)...)
+		a.Routes = append(a.Routes, routesOf(l, name)...)
 		a.FromGit = a.GetFromGit() || kind == "application" && (builtFromGit(c.Image, id) || len(a.GetContainers()) > 1)
 	}
 	p.Apps = sorted(apps)
@@ -187,6 +189,7 @@ func (r Reader) dokploy(list []docker.ContainerSummary, services []docker.Servic
 		}
 		a.Containers = append(a.Containers, name)
 		a.Domains = append(a.Domains, domainsOf(l)...)
+		a.Routes = append(a.Routes, routesOf(l, name)...)
 	}
 	p.Apps = sorted(apps)
 	p.KnownVersion = dokployKnown().MatchString(p.Version)
@@ -269,6 +272,82 @@ func domainsOf(l map[string]string) []string {
 		}
 	}
 	return out
+}
+
+// routesOf says where the proxy's labels on a container send each domain: a
+// Traefik router's hosts, path and the port of the service it names, or a Caddy
+// address and the port its reverse_proxy names. Nothing else of a label leaves the
+// server. A domain the labels give no port for has 0.
+func routesOf(l map[string]string, container string) []*dockwellv1.PanelRoute {
+	service := l[labelService]
+	var out []*dockwellv1.PanelRoute
+	add := func(host, path string, port uint32) {
+		if path == "/" {
+			path = ""
+		}
+		for _, r := range out {
+			if r.GetDomain() == host && r.GetPath() == path {
+				if r.GetPort() == 0 {
+					r.Port = port
+				}
+				return
+			}
+		}
+		out = append(out, &dockwellv1.PanelRoute{Domain: host, Path: path, Container: container, Service: service, Port: port})
+	}
+	var services []string
+	for k := range l {
+		if name, ok := strings.CutPrefix(k, "traefik.http.services."); ok && strings.HasSuffix(name, ".loadbalancer.server.port") {
+			services = append(services, strings.TrimSuffix(name, ".loadbalancer.server.port"))
+		}
+	}
+	for _, k := range slices.Sorted(maps.Keys(l)) {
+		switch {
+		case strings.HasPrefix(k, "traefik.http.routers.") && strings.HasSuffix(k, ".rule"):
+			router := strings.TrimSuffix(strings.TrimPrefix(k, "traefik.http.routers."), ".rule")
+			svc := l["traefik.http.routers."+router+".service"]
+			if svc == "" && len(services) == 1 {
+				svc = services[0]
+			}
+			port := portOf(l["traefik.http.services."+cmp.Or(svc, router)+".loadbalancer.server.port"])
+			prefix := ""
+			if m := pathRule().FindStringSubmatch(l[k]); m != nil {
+				prefix = m[1]
+			}
+			for _, h := range hostsIn(l[k]) {
+				add(h, prefix, port)
+			}
+		case caddyLabel().MatchString(k):
+			port := uint32(0)
+			if m := upstreams().FindStringSubmatch(l[k+".reverse_proxy"]); m != nil {
+				port = portOf(m[1])
+			}
+			for _, a := range strings.FieldsFunc(l[k], func(r rune) bool { return r == ',' || r == ' ' }) {
+				if h := hostOf(a); h != "" {
+					add(h, "", port)
+				}
+			}
+		}
+	}
+	return out
+}
+
+// labelService is the Compose service a container runs as.
+const labelService = "com.docker.compose.service"
+
+// pathRule is a PathPrefix() of a Traefik rule, with the path it takes.
+var pathRule = sync.OnceValue(func() *regexp.Regexp { return regexp.MustCompile("PathPrefix\\(\\s*[`\"']([^`\"']+)[`\"']") })
+
+// upstreams is the port caddy-docker-proxy's {{upstreams PORT}} names.
+var upstreams = sync.OnceValue(func() *regexp.Regexp { return regexp.MustCompile(`upstreams\s+(?:https?\s+)?(\d+)`) })
+
+// portOf is a port a label names, or 0 for what isn't one.
+func portOf(s string) uint32 {
+	n, err := strconv.ParseUint(strings.TrimSpace(s), 10, 16)
+	if err != nil || n == 0 {
+		return 0
+	}
+	return uint32(n)
 }
 
 // caddyLabel is a Caddy address label, as caddy-docker-proxy reads them.

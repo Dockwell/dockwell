@@ -16,12 +16,11 @@ import { Button, Callout, Icon, type IconName, Panel, Tag } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useNavigate } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { type ReactNode, useMemo, useState } from "react";
 
 import { reasonOf, sentence } from "../../lib/errors";
 import { RouterButtonLink } from "../../lib/links";
 import { useChangeSheet } from "../changes/ChangeSheet";
-import { ServerFrame } from "../servers/ServerFrame";
 import { useOnePanelHere } from "./onePanelHere";
 import "./OnePanelImport.css";
 
@@ -92,13 +91,8 @@ export function OnePanelCallout({ server }: { server: Server }) {
   );
 }
 
-/** A server's page for moving in from 1Panel. */
-export function OnePanelImportPage({ serverId }: { serverId: string }) {
-  return <ServerFrame id={serverId}>{(server) => <OnePanelImport server={server} />}</ServerFrame>;
-}
-
 /** A group of steps, by when each moves. */
-interface Group {
+export interface Group {
   key: string;
   title: string;
   steps: ImportStep[];
@@ -106,7 +100,8 @@ interface Group {
   folded: boolean;
 }
 
-function OnePanelImport({ server }: { server: Server }) {
+/** Moving in from 1Panel, on a server's Move in page. */
+export function OnePanelImport({ server }: { server: Server }) {
   const { t } = useLingui();
   const transport = useTransport();
   const imports = useMemo(() => createClient(ImportService, transport), [transport]);
@@ -147,7 +142,7 @@ function OnePanelImport({ server }: { server: Server }) {
   };
 
   const steps = found?.steps ?? [];
-  const groups = useGroups(steps);
+  const groups = useGroups(steps, "1Panel");
   const toTake = steps.some((s) => s.action === ImportAction.TAKE_ON);
   const panel = found?.found;
   const notHere = reasonOf(failure) === "onepanel_not_found";
@@ -223,7 +218,7 @@ function OnePanelImport({ server }: { server: Server }) {
 }
 
 /** The steps by when each moves: in this plan, later, in Dockwell already, or not at all. */
-function useGroups(steps: ImportStep[]): Group[] {
+export function useGroups(steps: ImportStep[], panel: string): Group[] {
   const { t } = useLingui();
   const now = (s: ImportStep) =>
     (s.action === ImportAction.TAKE_ON || s.action === ImportAction.MAKE) && s.waitsFor === ImportWaitsFor.UNSPECIFIED;
@@ -255,6 +250,12 @@ function useGroups(steps: ImportStep[]): Group[] {
       folded: true,
     },
     {
+      key: "ports",
+      title: t`Later, once ${panel}'s proxy hands over ports 80 and 443`,
+      steps: steps.filter(later(ImportWaitsFor.PORTS)),
+      folded: false,
+    },
+    {
       key: "done",
       title: t`In Dockwell already`,
       steps: steps.filter((s) => s.action === ImportAction.DONE),
@@ -262,7 +263,7 @@ function useGroups(steps: ImportStep[]): Group[] {
     },
     {
       key: "stays",
-      title: t`Stays with 1Panel`,
+      title: t`Stays with ${panel}`,
       steps: steps.filter((s) => s.action === ImportAction.LEAVE),
       folded: false,
     },
@@ -285,8 +286,22 @@ function keyed(steps: ImportStep[]): { key: string; step: ImportStep }[] {
   });
 }
 
-/** A group's steps, folded to a count where it waits, so a long list stays short. */
-function StepGroup({ group }: { group: Group }) {
+/**
+ * A group's steps, folded to a count where it waits, so a long list stays short.
+ * actions are the group's own, such as the step that brings it over, and extra is
+ * what a step offers beside its words.
+ */
+export function StepGroup({
+  group,
+  actions,
+  extra,
+  panel = "1Panel",
+}: {
+  group: Group;
+  actions?: ReactNode;
+  extra?: (step: ImportStep) => ReactNode;
+  panel?: string;
+}) {
   const { t } = useLingui();
   const [open, setOpen] = useState(!group.folded);
   const count = group.steps.length;
@@ -295,7 +310,8 @@ function StepGroup({ group }: { group: Group }) {
       flush
       title={`${group.title} (${count})`}
       actions={
-        group.folded ? (
+        actions ??
+        (group.folded ? (
           <Button
             size="sm"
             variant="ghost"
@@ -305,13 +321,13 @@ function StepGroup({ group }: { group: Group }) {
           >
             {open ? t`Hide them` : plural(count, { one: "Show it", other: "Show all #" })}
           </Button>
-        ) : undefined
+        ) : undefined)
       }
     >
       {open ? (
         <ul className="onepanel-steps" aria-label={group.title}>
           {keyed(group.steps).map(({ key, step }) => (
-            <StepRow key={key} step={step} />
+            <StepRow key={key} step={step} extra={extra?.(step)} panel={panel} />
           ))}
         </ul>
       ) : null}
@@ -331,9 +347,10 @@ const kindIcons: Record<ImportKind, IconName> = {
   [ImportKind.PANEL]: "settings",
   [ImportKind.COMPOSE_PROJECT]: "layers",
   [ImportKind.CONTAINERS]: "layers",
+  [ImportKind.DOMAIN]: "globe",
 };
 
-function useKindWord(): (k: ImportKind) => string {
+function useKindWord(panel: string): (k: ImportKind) => string {
   const { t } = useLingui();
   return (k) => {
     switch (k) {
@@ -355,8 +372,10 @@ function useKindWord(): (k: ImportKind) => string {
         return t`Compose project`;
       case ImportKind.CONTAINERS:
         return t`Containers`;
+      case ImportKind.DOMAIN:
+        return t`Domain`;
       default:
-        return t`1Panel`;
+        return panel;
     }
   };
 }
@@ -365,8 +384,8 @@ function useKindWord(): (k: ImportKind) => string {
  * One thing found: what it is, what it becomes, and why. Those are the import's own
  * words, in English, which no wrapping here pretends to translate.
  */
-function StepRow({ step }: { step: ImportStep }) {
-  const kindWord = useKindWord();
+function StepRow({ step, extra, panel }: { step: ImportStep; extra?: ReactNode; panel: string }) {
+  const kindWord = useKindWord(panel);
   return (
     <li className="onepanel-step">
       <span className="onepanel-step-icon">
@@ -395,6 +414,7 @@ function StepRow({ step }: { step: ImportStep }) {
             {step.reason}
           </p>
         ) : null}
+        {extra ? <div className="onepanel-step-actions">{extra}</div> : null}
       </div>
     </li>
   );

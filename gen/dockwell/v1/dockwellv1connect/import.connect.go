@@ -44,6 +44,9 @@ const (
 	// ImportServiceImportDokployProcedure is the fully-qualified name of the ImportService's
 	// ImportDokploy RPC.
 	ImportServiceImportDokployProcedure = "/dockwell.v1.ImportService/ImportDokploy"
+	// ImportServicePlanPanelDomainsProcedure is the fully-qualified name of the ImportService's
+	// PlanPanelDomains RPC.
+	ImportServicePlanPanelDomainsProcedure = "/dockwell.v1.ImportService/PlanPanelDomains"
 	// ImportServicePlanStopPanelProcedure is the fully-qualified name of the ImportService's
 	// PlanStopPanel RPC.
 	ImportServicePlanStopPanelProcedure = "/dockwell.v1.ImportService/PlanStopPanel"
@@ -77,6 +80,14 @@ type ImportServiceClient interface {
 	// plans taking on each Compose app it runs with docker compose; what it runs as
 	// a Swarm service stays, with why.
 	ImportDokploy(context.Context, *connect.Request[v1.ImportDokployRequest]) (*connect.Response[v1.ImportDokployResponse], error)
+	// PlanPanelDomains plans handing over the domains of what was taken on from a
+	// panel: one change that stops the panel's proxy, which holds ports 80 and 443,
+	// and makes a route to each taken-on app's service for each of its domains, as
+	// the proxy's labels send it, so Dockwell's ingress takes the ports and gets a
+	// certificate for each. A domain of what the panel still runs stops answering,
+	// which the plan says. Undoing it deletes those routes and starts the proxy
+	// again. A person applies it.
+	PlanPanelDomains(context.Context, *connect.Request[v1.PlanPanelDomainsRequest]) (*connect.Response[v1.PlanPanelDomainsResponse], error)
 	// PlanStopPanel plans stopping the panel an import came from: Coolify's own
 	// containers, or Dokploy's own Swarm services, never what it ran, so its auto
 	// deploys and its scheduled tasks stop with it. Its proxy goes on running, as it
@@ -117,6 +128,12 @@ func NewImportServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(importServiceMethods.ByName("ImportDokploy")),
 			connect.WithClientOptions(opts...),
 		),
+		planPanelDomains: connect.NewClient[v1.PlanPanelDomainsRequest, v1.PlanPanelDomainsResponse](
+			httpClient,
+			baseURL+ImportServicePlanPanelDomainsProcedure,
+			connect.WithSchema(importServiceMethods.ByName("PlanPanelDomains")),
+			connect.WithClientOptions(opts...),
+		),
 		planStopPanel: connect.NewClient[v1.PlanStopPanelRequest, v1.PlanStopPanelResponse](
 			httpClient,
 			baseURL+ImportServicePlanStopPanelProcedure,
@@ -128,10 +145,11 @@ func NewImportServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 
 // importServiceClient implements ImportServiceClient.
 type importServiceClient struct {
-	importOnePanel *connect.Client[v1.ImportOnePanelRequest, v1.ImportOnePanelResponse]
-	importCoolify  *connect.Client[v1.ImportCoolifyRequest, v1.ImportCoolifyResponse]
-	importDokploy  *connect.Client[v1.ImportDokployRequest, v1.ImportDokployResponse]
-	planStopPanel  *connect.Client[v1.PlanStopPanelRequest, v1.PlanStopPanelResponse]
+	importOnePanel   *connect.Client[v1.ImportOnePanelRequest, v1.ImportOnePanelResponse]
+	importCoolify    *connect.Client[v1.ImportCoolifyRequest, v1.ImportCoolifyResponse]
+	importDokploy    *connect.Client[v1.ImportDokployRequest, v1.ImportDokployResponse]
+	planPanelDomains *connect.Client[v1.PlanPanelDomainsRequest, v1.PlanPanelDomainsResponse]
+	planStopPanel    *connect.Client[v1.PlanStopPanelRequest, v1.PlanStopPanelResponse]
 }
 
 // ImportOnePanel calls dockwell.v1.ImportService.ImportOnePanel.
@@ -147,6 +165,11 @@ func (c *importServiceClient) ImportCoolify(ctx context.Context, req *connect.Re
 // ImportDokploy calls dockwell.v1.ImportService.ImportDokploy.
 func (c *importServiceClient) ImportDokploy(ctx context.Context, req *connect.Request[v1.ImportDokployRequest]) (*connect.Response[v1.ImportDokployResponse], error) {
 	return c.importDokploy.CallUnary(ctx, req)
+}
+
+// PlanPanelDomains calls dockwell.v1.ImportService.PlanPanelDomains.
+func (c *importServiceClient) PlanPanelDomains(ctx context.Context, req *connect.Request[v1.PlanPanelDomainsRequest]) (*connect.Response[v1.PlanPanelDomainsResponse], error) {
+	return c.planPanelDomains.CallUnary(ctx, req)
 }
 
 // PlanStopPanel calls dockwell.v1.ImportService.PlanStopPanel.
@@ -182,6 +205,14 @@ type ImportServiceHandler interface {
 	// plans taking on each Compose app it runs with docker compose; what it runs as
 	// a Swarm service stays, with why.
 	ImportDokploy(context.Context, *connect.Request[v1.ImportDokployRequest]) (*connect.Response[v1.ImportDokployResponse], error)
+	// PlanPanelDomains plans handing over the domains of what was taken on from a
+	// panel: one change that stops the panel's proxy, which holds ports 80 and 443,
+	// and makes a route to each taken-on app's service for each of its domains, as
+	// the proxy's labels send it, so Dockwell's ingress takes the ports and gets a
+	// certificate for each. A domain of what the panel still runs stops answering,
+	// which the plan says. Undoing it deletes those routes and starts the proxy
+	// again. A person applies it.
+	PlanPanelDomains(context.Context, *connect.Request[v1.PlanPanelDomainsRequest]) (*connect.Response[v1.PlanPanelDomainsResponse], error)
 	// PlanStopPanel plans stopping the panel an import came from: Coolify's own
 	// containers, or Dokploy's own Swarm services, never what it ran, so its auto
 	// deploys and its scheduled tasks stop with it. Its proxy goes on running, as it
@@ -218,6 +249,12 @@ func NewImportServiceHandler(svc ImportServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(importServiceMethods.ByName("ImportDokploy")),
 		connect.WithHandlerOptions(opts...),
 	)
+	importServicePlanPanelDomainsHandler := connect.NewUnaryHandler(
+		ImportServicePlanPanelDomainsProcedure,
+		svc.PlanPanelDomains,
+		connect.WithSchema(importServiceMethods.ByName("PlanPanelDomains")),
+		connect.WithHandlerOptions(opts...),
+	)
 	importServicePlanStopPanelHandler := connect.NewUnaryHandler(
 		ImportServicePlanStopPanelProcedure,
 		svc.PlanStopPanel,
@@ -232,6 +269,8 @@ func NewImportServiceHandler(svc ImportServiceHandler, opts ...connect.HandlerOp
 			importServiceImportCoolifyHandler.ServeHTTP(w, r)
 		case ImportServiceImportDokployProcedure:
 			importServiceImportDokployHandler.ServeHTTP(w, r)
+		case ImportServicePlanPanelDomainsProcedure:
+			importServicePlanPanelDomainsHandler.ServeHTTP(w, r)
 		case ImportServicePlanStopPanelProcedure:
 			importServicePlanStopPanelHandler.ServeHTTP(w, r)
 		default:
@@ -253,6 +292,10 @@ func (UnimplementedImportServiceHandler) ImportCoolify(context.Context, *connect
 
 func (UnimplementedImportServiceHandler) ImportDokploy(context.Context, *connect.Request[v1.ImportDokployRequest]) (*connect.Response[v1.ImportDokployResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ImportService.ImportDokploy is not implemented"))
+}
+
+func (UnimplementedImportServiceHandler) PlanPanelDomains(context.Context, *connect.Request[v1.PlanPanelDomainsRequest]) (*connect.Response[v1.PlanPanelDomainsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ImportService.PlanPanelDomains is not implemented"))
 }
 
 func (UnimplementedImportServiceHandler) PlanStopPanel(context.Context, *connect.Request[v1.PlanStopPanelRequest]) (*connect.Response[v1.PlanStopPanelResponse], error) {

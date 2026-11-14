@@ -2139,6 +2139,9 @@ message PanelAction {
   // How each stood before a stop, as its plan kept it: what a start puts back,
   // and what a stop that resumes keeps.
   repeated dockwell.v1.HostPanelPart parts = 4;
+  // True to act on the panel's proxy alone, as its domains come over to
+  // Dockwell's ingress; otherwise on its own containers, never its proxy.
+  bool proxy = 5;
 }
 
 // UnitAction is an action a change asks of one of the server's system services.

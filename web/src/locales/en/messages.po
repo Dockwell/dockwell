@@ -7700,6 +7700,9 @@ msgstr "Dockwell let go of {subject}"
 msgid "Dockwell made this change to roll back a failed one."
 msgstr "Dockwell made this change to roll back a failed one."
 
+msgid "Dockwell serves {name}'s domains on {server}"
+msgstr "Dockwell serves {name}'s domains on {server}"
+
 msgid "Each app rolls back to what it runs now if this fails"
 msgstr "Each app rolls back to what it runs now if this fails"
 
@@ -7708,6 +7711,12 @@ msgstr "Enabling {name} at boot on {server}"
 
 msgid "Everything this plan asks for is already as it says, so there is nothing to apply."
 msgstr "Everything this plan asks for is already as it says, so there is nothing to apply."
+
+msgid "Giving ports 80 and 443 back to {name} on {server}"
+msgstr "Giving ports 80 and 443 back to {name} on {server}"
+
+msgid "Handing over {name}'s domains on {server}"
+msgstr "Handing over {name}'s domains on {server}"
 
 msgid "How this works"
 msgstr "How this works"
@@ -8016,6 +8025,9 @@ msgstr "{name} ran to its end"
 msgid "{name} runs again on {server}"
 msgstr "{name} runs again on {server}"
 
+msgid "{name} serves its domains again on {server}"
+msgstr "{name} serves its domains again on {server}"
+
 msgid "{name} starts at boot on {server}"
 msgstr "{name} starts at boot on {server}"
 
@@ -8182,12 +8194,24 @@ msgstr "Scales the Swarm services {services} to none"
 msgid "Start {name} again on <0>{server}</0>"
 msgstr "Start {name} again on <0>{server}</0>"
 
+msgid "Start {proxy} again on <0>{server}</0>"
+msgstr "Start {proxy} again on <0>{server}</0>"
+
+msgid "Starts once the routes that hold ports 80 and 443 are gone"
+msgstr "Starts once the routes that hold ports 80 and 443 are gone"
+
 #. placeholder {0}: list(panel.parts.map((p) => p.name))
 msgid "Starts {0} as each stood before the stop"
 msgstr "Starts {0} as each stood before the stop"
 
+msgid "Stays stopped when Docker or {server} restarts, and its domains come as the routes below"
+msgstr "Stays stopped when Docker or {server} restarts, and its domains come as the routes below"
+
 msgid "Stop {name} on <0>{server}</0>"
 msgstr "Stop {name} on <0>{server}</0>"
+
+msgid "Stop {proxy} on <0>{server}</0>, so Dockwell takes ports 80 and 443"
+msgstr "Stop {proxy} on <0>{server}</0>, so Dockwell takes ports 80 and 443"
 
 msgid "Stops {containers}, which stay stopped when Docker or {server} restarts"
 msgstr "Stops {containers}, which stay stopped when Docker or {server} restarts"
@@ -11164,9 +11188,6 @@ msgstr "{0}, more than the {limit} an upload can be. Copy it over SSH."
 msgid "{entries, plural, one {Uploaded, and unpacked # item into {into}} other {Uploaded, and unpacked # items into {into}}}"
 msgstr "{entries, plural, one {Uploaded, and unpacked # item into {into}} other {Uploaded, and unpacked # items into {into}}}"
 
-msgid "1Panel"
-msgstr "1Panel"
-
 msgid "1Panel isn't on this server"
 msgstr "1Panel isn't on this server"
 
@@ -11234,6 +11255,9 @@ msgstr "Later, once Dockwell has scheduled tasks"
 msgid "Later, once Dockwell has websites"
 msgstr "Later, once Dockwell has websites"
 
+msgid "Later, once {panel}'s proxy hands over ports 80 and 443"
+msgstr "Later, once {panel}'s proxy hands over ports 80 and 443"
+
 msgid "Move in from 1Panel"
 msgstr "Move in from 1Panel"
 
@@ -11249,8 +11273,8 @@ msgstr "Read what 1Panel keeps"
 msgid "Review the plan"
 msgstr "Review the plan"
 
-msgid "Stays with 1Panel"
-msgstr "Stays with 1Panel"
+msgid "Stays with {panel}"
+msgstr "Stays with {panel}"
 
 #. placeholder {0}: panel.version
 msgid "This was written from 1Panel v2.0 to v2.4.2, and v1.10, and this server runs {0}. It was read the same way, by its records' column names, so check what it found before you apply the plan."
@@ -11263,8 +11287,32 @@ msgstr "{0, plural, one {# thing found} other {# things found}}"
 msgid "{count, plural, one {Show it} other {Show all #}}"
 msgstr "{count, plural, one {Show it} other {Show all #}}"
 
+msgid "A version of {name} this wasn't written from"
+msgstr "A version of {name} this wasn't written from"
+
+msgid "Couldn't read what {name} runs"
+msgstr "Couldn't read what {name} runs"
+
+msgid "Dockwell reads what {name} runs from Docker and its folders, read-only. Nothing changes until you apply a plan."
+msgstr "Dockwell reads what {name} runs from Docker and its folders, read-only. Nothing changes until you apply a plan."
+
+msgid "Hand over ports 80 and 443"
+msgstr "Hand over ports 80 and 443"
+
+msgid "It was read by its labels and folders all the same. Check what it found before you apply."
+msgstr "It was read by its labels and folders all the same. Check what it found before you apply."
+
+msgid "Move in from {name}"
+msgstr "Move in from {name}"
+
+msgid "Read what {name} runs"
+msgstr "Read what {name} runs"
+
 msgid "Stop {name}"
 msgstr "Stop {name}"
+
+msgid "{name} isn't on this server"
+msgstr "{name} isn't on this server"
 
 msgid "Stopping it ends its deploys, and what it ran keeps running."
 msgstr "Stopping it ends its deploys, and what it ran keeps running."

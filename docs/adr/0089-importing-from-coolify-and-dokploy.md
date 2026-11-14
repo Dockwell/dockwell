@@ -92,9 +92,17 @@ Nothing here needs one. If a later step reads what only the panel's API knows, t
 
 A server's Move in tab offers each panel it finds running, beside 1Panel, and an import's page is a dry-run report first, as ADR 0056's is: what comes over, what's left behind and why, and Review the plan. The CLI says the same with `dockwell import coolify --server-id <server> --plan-only` and `dockwell import dokploy`.
 
+#### Domains and the screen, as built
+
+- **The read says where each domain goes** (`PanelApp.routes`): a Traefik router's hosts and `PathPrefix`, with the port of the service it names, or the one service the labels have; a Caddy address and the port its `reverse_proxy` names. A domain whose labels give no port reads 0. Nothing else of a label leaves the server.
+- **Each domain is a step of the report** (`IMPORT_KIND_DOMAIN`), which waits for the proxy (`IMPORT_WAITS_FOR_PORTS`): a route to the app's service on its port, once its app is taken on. A domain of what stays in the panel, a preview or a Swarm-run app, says it stops answering; one with no port says to add it from its app's page. Once a route serves it, it reads as in Dockwell.
+- **`ImportService.PlanPanelDomains`** (`dockwell import domains`) plans the handover as one change: the server's host stops the panel's proxy first, as a panel stop with `proxy` set acts on the proxy alone, then a route is made in each taken-on app's environment, to the service the container runs as there, named for its domain. The route check that runs as a plan is made counts the proxy as gone, as the change stops it before any route applies. The plan's note says which domains come, that each is down until its certificate comes, which stop answering, and that undoing it puts the panel back. A person plans it; with nothing taken on there's nothing to hand over, and with everything routed it says so.
+- **Its undo deletes the routes first, then starts the proxy,** each as it stood: a step that starts a panel or its proxy runs after every delete, so Dockwell's ingress lets the ports go before the proxy takes them back. That start has no undo of its own.
+- **The Move in tab** shows where Coolify's or Dokploy's own app runs. Its page reads what the panel runs, plans nothing until Review the plan, groups each step by when it moves, offers Hand over ports 80 and 443 on the domains' group, and Stop on the panel's own row.
+
 ### Numbers
 
-The agent protocol takes 330 to 339: `Hello.reads_panels` (330), `read_panel` in `Call` and `CallResult` (331), `Hello.stops_panels` (332) and `DesiredResource.panel` (333). The API's plan takes 131 in `PlannedResource` and `PlanStep` for `panel`, in the 130 to 139 the import holds in existing messages.
+The agent protocol takes 330 to 339: `Hello.reads_panels` (330), `read_panel` in `Call` and `CallResult` (331), `Hello.stops_panels` (332) and `DesiredResource.panel` (333). The API's plan takes 131 in `PlannedResource` and `PlanStep` for `panel`, in the 130 to 139 the import holds in existing messages. The import's enums gain `IMPORT_KIND_DOMAIN` (11) and `IMPORT_WAITS_FOR_PORTS` (5).
 
 ## Consequences
 

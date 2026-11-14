@@ -17,6 +17,18 @@ export function panelName(kind: string): string {
 /** What stopping or starting the panel an import came from does, in its step's line (ADR 0089). */
 export function PanelLine({ panel, server }: { panel: HostPanel; server: string }) {
   const name = panelName(panel.kind);
+  const proxy = panel.parts[0]?.name ?? "";
+  if (panel.proxy) {
+    return panel.start ? (
+      <Trans>
+        Start {proxy} again on <code>{server}</code>
+      </Trans>
+    ) : (
+      <Trans>
+        Stop {proxy} on <code>{server}</code>, so Dockwell takes ports 80 and 443
+      </Trans>
+    );
+  }
   return panel.start ? (
     <Trans>
       Start {name} again on <code>{server}</code>
@@ -41,7 +53,16 @@ export function PanelPlan({ panel, server }: { panel: HostPanel; server: string 
   const containers = list(panel.parts.filter((p) => !p.swarm).map((p) => p.name));
   const services = list(panel.parts.filter((p) => p.swarm).map((p) => p.name));
   const lines: { key: string; text: string }[] = [];
-  if (panel.start) {
+  if (panel.proxy) {
+    lines.push(
+      panel.start
+        ? { key: "start", text: t`Starts once the routes that hold ports 80 and 443 are gone` }
+        : {
+            key: "stops",
+            text: t`Stays stopped when Docker or ${server} restarts, and its domains come as the routes below`,
+          },
+    );
+  } else if (panel.start) {
     lines.push({ key: "start", text: t`Starts ${list(panel.parts.map((p) => p.name))} as each stood before the stop` });
   } else {
     if (containers !== "") {

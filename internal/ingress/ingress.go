@@ -643,7 +643,7 @@ func (m *Manager) Check(ctx context.Context, _ resource.Ref, desired []resource.
 	if err := m.checkServersNetwork(ctx, desired); err != nil {
 		return err
 	}
-	return m.checkPorts(ctx, have, m.portsFor(needsHTTPS(have, desired)))
+	return m.checkPorts(ctx, have, m.portsFor(needsHTTPS(have, desired)), resource.PanelProxyGoing(desired))
 }
 
 // serversNetwork says why a route can't send to a service on the server's own
@@ -769,8 +769,10 @@ const dockerDaemon = "dockerd"
 
 // checkPorts refuses what would stop the proxy holding the ports it needs: all of
 // them if it has to start, and otherwise those it doesn't hold yet. This comes
-// before the panel lets go of the ports, as they're no use to anyone then.
-func (m *Manager) checkPorts(ctx context.Context, have []Route, want []Port) error {
+// before the panel lets go of the ports, as they're no use to anyone then. going
+// is a container the same change stops first, a panel's proxy as its domains come
+// over (ADR 0089), which holds them for no longer than that.
+func (m *Manager) checkPorts(ctx context.Context, have []Route, want []Port, going string) error {
 	st, err := m.Proxy.Status(ctx)
 	if err != nil {
 		return err
@@ -784,6 +786,9 @@ func (m *Manager) checkPorts(ctx context.Context, have []Route, want []Port) err
 	held, err := m.othersOn(ctx, want)
 	if err != nil {
 		return err
+	}
+	if going != "" {
+		held = slices.DeleteFunc(held, func(h Holder) bool { return h.Container == going })
 	}
 	switch {
 	case len(held) == 0:
@@ -969,7 +974,7 @@ func (m *Manager) put(ctx context.Context, ref resource.Ref, spec *resourcev1.Ro
 	want := m.portsFor(needsHTTPS(have, step))
 	// What a running proxy doesn't hold yet comes before anything else changes.
 	if st.Running {
-		if err := m.checkPorts(ctx, have, want); err != nil {
+		if err := m.checkPorts(ctx, have, want, ""); err != nil {
 			return err
 		}
 	}
@@ -1060,7 +1065,7 @@ func (m *Manager) logReplaced(ctx context.Context, r Route) {
 // the proxy can't start, the panel takes them back.
 func (m *Manager) start(ctx context.Context, st Status, have []Route, want []Port) error {
 	if !st.Running {
-		if err := m.checkPorts(ctx, have, want); err != nil {
+		if err := m.checkPorts(ctx, have, want, ""); err != nil {
 			return err
 		}
 	}

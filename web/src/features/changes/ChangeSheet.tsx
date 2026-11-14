@@ -1040,9 +1040,13 @@ function useTitle(phase: Phase, plan: Plan | undefined, change: Change | undefin
   if (panel) {
     const server = plan?.servers.find((s) => s.steps.length > 0)?.serverName ?? "";
     const name = panelName(panel.kind);
-    const [ing, ed] = panel.start
-      ? [t`Starting ${name} again on ${server}`, t`${name} runs again on ${server}`]
-      : [t`Stopping ${name} on ${server}`, t`${name} is stopped on ${server}`];
+    const [ing, ed] = panel.proxy
+      ? panel.start
+        ? [t`Giving ports 80 and 443 back to ${name} on ${server}`, t`${name} serves its domains again on ${server}`]
+        : [t`Handing over ${name}'s domains on ${server}`, t`Dockwell serves ${name}'s domains on ${server}`]
+      : panel.start
+        ? [t`Starting ${name} again on ${server}`, t`${name} runs again on ${server}`]
+        : [t`Stopping ${name} on ${server}`, t`${name} is stopped on ${server}`];
     if (phase === "applying") return ing;
     if (phase === "failed") return t`${ing} failed`;
     if (phase === "history" || phase === "arrived") return ed;

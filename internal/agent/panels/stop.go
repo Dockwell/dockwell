@@ -27,9 +27,6 @@ var stops = map[string][]string{
 	resource.PanelDokploy: {"dokploy", "dokploy-redis", "dokploy-postgres"},
 }
 
-// proxies are each panel's proxy, which stays.
-var proxies = map[string]string{resource.PanelCoolify: "coolify-proxy", resource.PanelDokploy: "dokploy-traefik"}
-
 // stopWait is how long a container has to stop before Docker kills it.
 const stopWait = 30 * time.Second
 
@@ -55,6 +52,11 @@ func (s Stopper) PlanPanel(ctx context.Context, ask resource.PanelAsked) (*resou
 	if !ok {
 		return nil, false, fmt.Errorf("there's no panel %q to stop: name coolify or dokploy", ask.Kind)
 	}
+	proxy := resource.PanelProxy(ask.Kind)
+	if ask.Proxy {
+		// Its proxy alone, as its domains come over to Dockwell's ingress.
+		order = []string{proxy}
+	}
 	for _, p := range ask.Parts {
 		if !slices.Contains(order, p.Name) {
 			return nil, false, fmt.Errorf("%s isn't one of %s's own containers, so Dockwell won't act on it", p.Name, resource.PanelName(ask.Kind))
@@ -63,8 +65,8 @@ func (s Stopper) PlanPanel(ctx context.Context, ask resource.PanelAsked) (*resou
 			return nil, false, fmt.Errorf("what the plan kept of how %s stood isn't what a stop reads, so Dockwell won't act on it", p.Name)
 		}
 	}
-	plan := &resource.Panel{Kind: ask.Kind, Start: ask.Start, Parts: ask.Parts}
-	if proxy := proxies[ask.Kind]; s.present(ctx, proxy) {
+	plan := &resource.Panel{Kind: ask.Kind, Start: ask.Start, Proxy: ask.Proxy, Parts: ask.Parts}
+	if !ask.Proxy && s.present(ctx, proxy) {
 		plan.Stays = proxy
 	}
 	if len(plan.Parts) == 0 && !ask.Start {
@@ -73,6 +75,9 @@ func (s Stopper) PlanPanel(ctx context.Context, ask resource.PanelAsked) (*resou
 			return nil, false, err
 		}
 		if len(found) == 0 && !s.anyThere(ctx, order) {
+			if ask.Proxy {
+				return nil, false, fmt.Errorf("%s's proxy, %s, isn't on this server, so there's nothing holding ports 80 and 443 for it", resource.PanelName(ask.Kind), proxy)
+			}
 			return nil, false, fmt.Errorf("%s doesn't run here: Docker has none of its own containers or services", resource.PanelName(ask.Kind))
 		}
 		if len(found) == 0 {

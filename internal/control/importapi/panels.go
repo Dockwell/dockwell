@@ -3,6 +3,7 @@
 package importapi
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -14,6 +15,7 @@ import (
 
 	"connectrpc.com/connect"
 
+	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/control/agentapi"
 	"github.com/dockwell/dockwell/internal/control/authapi"
@@ -24,6 +26,7 @@ import (
 	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/container"
+	"github.com/dockwell/dockwell/internal/resource/host"
 	"github.com/dockwell/dockwell/internal/revision"
 )
 
@@ -158,6 +161,28 @@ func panelSteps(w panel, found *dockwellv1.Panel) ([]*dockwellv1.ImportStep, []*
 		}
 		steps = append(steps, step)
 		apps = append(apps, a)
+	}
+	// Each domain its proxy serves comes as a route once the proxy hands over ports
+	// 80 and 443, a step of its own (PlanPanelDomains).
+	for _, a := range found.GetApps() {
+		for _, rt := range a.GetRoutes() {
+			step := &dockwellv1.ImportStep{
+				Kind: dockwellv1.ImportKind_IMPORT_KIND_DOMAIN, Name: rt.GetDomain() + rt.GetPath(),
+				Summary: fmt.Sprintf("a domain of %s, sent to %s", a.GetName(), rt.GetContainer()),
+				Action:  dockwellv1.ImportAction_IMPORT_ACTION_MAKE, WaitsFor: dockwellv1.ImportWaitsFor_IMPORT_WAITS_FOR_PORTS,
+			}
+			switch {
+			case a.GetPreview() || a.GetSwarm() || a.GetComposeProject() == "":
+				leave(step, fmt.Sprintf("It stops answering once %s hands over ports 80 and 443, as %s stays in %s.", w.proxy, a.GetName(), w.name))
+			case rt.GetPort() == 0:
+				leave(step, fmt.Sprintf("%s's labels don't say which port it goes to, so it doesn't come over. Add it from %s's page once it's taken on.", w.proxy, a.GetName()))
+			default:
+				step.Becomes = fmt.Sprintf("a route to %s on port %d", rt.GetService(), rt.GetPort())
+				step.Reason = fmt.Sprintf("It comes once %s hands over ports 80 and 443, a step of its own, after %s is taken on.", w.proxy, a.GetName())
+			}
+			steps = append(steps, step)
+			apps = append(apps, nil)
+		}
 	}
 	own := make([]string, 0, len(found.GetOwn()))
 	for _, c := range found.GetOwn() {
@@ -368,6 +393,9 @@ func (h *Handler) planPanel(ctx context.Context, srv *dockwellv1.Server, w panel
 		takings = append(takings, t)
 		taken = append(taken, step.GetName())
 	}
+	if err := h.domainsDone(ctx, r, steps, apps); err != nil {
+		return nil, err
+	}
 	if len(takings) == 0 || !propose {
 		return nil, nil
 	}
@@ -416,4 +444,191 @@ func (h *Handler) PlanStopPanel(ctx context.Context, req *connect.Request[dockwe
 		return nil, err
 	}
 	return connect.NewResponse(&dockwellv1.PlanStopPanelResponse{Change: c}), nil
+}
+
+// PlanPanelDomains plans handing over the domains of what was taken on from a
+// panel: one change that stops the panel's proxy first, then makes a route to each
+// taken-on app's service for each of its domains, so Dockwell's ingress takes
+// ports 80 and 443 (ADR 0089). Undoing it deletes the routes, then starts the proxy
+// again.
+func (h *Handler) PlanPanelDomains(ctx context.Context, req *connect.Request[dockwellv1.PlanPanelDomainsRequest]) (*connect.Response[dockwellv1.PlanPanelDomainsResponse], error) {
+	kind, err := changes.PanelKindOf(req.Msg.GetPanel())
+	if err != nil {
+		return nil, err
+	}
+	w := panels[req.Msg.GetPanel()]
+	srv, err := h.fleet.Get(req.Msg.GetServerId())
+	if errors.Is(err, fleet.ErrNotFound) {
+		return nil, authapi.ReasonError(connect.CodeNotFound, fmt.Errorf("there's no server %s. List them with ListServers", req.Msg.GetServerId()), "not_found")
+	}
+	if err != nil {
+		return nil, h.rpcError(ctx, err)
+	}
+	session, ok := h.agents.SessionPastMove(ctx, srv.GetId(), agentapi.MoveGrace)
+	if !ok {
+		return nil, authapi.ReasonError(connect.CodeUnavailable,
+			fmt.Errorf("%s's agent isn't connected, so Dockwell can't read what %s runs there. Try again once it reconnects", srv.GetName(), w.name), "server_offline")
+	}
+	if !session.ReadsPanels() || !session.StopsPanels() {
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition,
+			fmt.Errorf("%s's agent is too old to hand over %s's domains. Update the agent on %s, then try again", srv.GetName(), w.name, srv.GetName()), "agent_outdated")
+	}
+	out, err := session.ReadPanel(ctx, req.Msg.GetPanel())
+	if err != nil {
+		return nil, h.rpcError(ctx, err)
+	}
+	if out.GetFound() == nil {
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition,
+			fmt.Errorf("%s doesn't run %s: %s. Run this for a server where %s runs", srv.GetName(), w.name, cut(out.GetNotHere(), w.name+" doesn't run here: "), w.name), "panel_not_found")
+	}
+	r, err := h.taker.ReadRunning(ctx, srv.GetId())
+	if err != nil {
+		return nil, err
+	}
+	routes, err := h.panelRoutes(ctx, r, out.GetFound())
+	if err != nil {
+		return nil, err
+	}
+	var edits []*dockwellv1.Edit
+	var came, stays, noPort []string
+	for _, pr := range routes {
+		switch {
+		case pr.environment == "":
+			stays = append(stays, pr.domain)
+		case pr.done:
+		case pr.route.GetPort() == 0:
+			noPort = append(noPort, pr.domain)
+		default:
+			edits = append(edits, &dockwellv1.Edit{
+				Resource: &dockwellv1.ResourceRef{Kind: "route", Scope: pr.environment, Name: pr.name},
+				Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Route{Route: pr.route}},
+			})
+			came = append(came, pr.domain)
+		}
+	}
+	if len(edits) == 0 {
+		why := fmt.Errorf("none of %s's apps with a domain is taken on yet, so no domain would come over. Take them on first, then hand over its domains", w.name)
+		reason := "not_taken_on"
+		if slices.ContainsFunc(routes, func(pr panelRoute) bool { return pr.done }) && len(noPort) == 0 {
+			why, reason = fmt.Errorf("%s's domains come as routes on %s already, so there's nothing to hand over", w.name, srv.GetName()), changes.ReasonAlready
+		}
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, why, reason)
+	}
+	message := fmt.Sprintf("Stops %s, which holds ports 80 and 443 for %s, so Dockwell's ingress takes them and serves %s, each with its own certificate. Each is down from the stop until its certificate comes, a minute or so. Undoing this deletes these routes and starts %s again",
+		w.proxy, w.name, human.List(came), w.proxy)
+	if len(stays) > 0 {
+		message += fmt.Sprintf(". %s stop answering, as what they go to stays in %s", human.List(stays), w.name)
+	}
+	if len(noPort) > 0 {
+		message += fmt.Sprintf(". %s don't come, as %s's labels don't say their port: add each from its app's page", human.List(noPort), w.proxy)
+	}
+	summary := cmp.Or(strings.TrimSpace(req.Msg.GetSummary()), fmt.Sprintf("Hand over %s's domains on %s", w.name, srv.GetName()))
+	c, err := h.changes.Propose(ctx, summary, edits, nil, changes.Also{
+		Edits: []revision.Edit{{
+			Ref:   resource.Ref{Kind: host.Kind, Scope: srv.GetId(), Name: host.Name},
+			Spec:  &resourcev1.ServerHost{},
+			Panel: &resource.PanelAsked{Kind: kind, Proxy: true},
+		}},
+		Notes: []revision.Note{{Reason: "panel_domains", Message: message}},
+	})
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&dockwellv1.PlanPanelDomainsResponse{Change: c}), nil
+}
+
+// panelRoute is a domain the panel's proxy serves, and where it goes in Dockwell.
+type panelRoute struct {
+	domain string
+	// environment is where the app it goes to was taken on, "" for one that wasn't.
+	environment string
+	// name is the route's name there, and route its spec.
+	name  string
+	route *resourcev1.Route
+	// done says the environment routes it already.
+	done bool
+}
+
+// panelRoutes reads where each domain the panel's proxy serves goes in Dockwell:
+// to the service of the taken-on container its labels send it to, under a name no
+// other route of that environment has.
+func (h *Handler) panelRoutes(ctx context.Context, r *containers.Running, found *dockwellv1.Panel) ([]panelRoute, error) {
+	var out []panelRoute
+	have := map[string]map[string]*resourcev1.Route{}
+	for _, a := range found.GetApps() {
+		for _, rt := range a.GetRoutes() {
+			pr := panelRoute{domain: rt.GetDomain() + rt.GetPath()}
+			_, env, svc, err := h.taker.TakenOnAs(ctx, r, rt.GetContainer())
+			if err != nil {
+				return nil, err
+			}
+			if env == "" || svc == "" || a.GetSwarm() || a.GetPreview() {
+				out = append(out, pr)
+				continue
+			}
+			if have[env] == nil {
+				if have[env], err = h.taker.RoutesIn(ctx, env); err != nil {
+					return nil, err
+				}
+			}
+			pr.environment = env
+			pr.route = &resourcev1.Route{Domain: rt.GetDomain(), Path: rt.GetPath(), Service: svc, Port: rt.GetPort()}
+			for _, existing := range have[env] {
+				pr.done = pr.done || existing.GetDomain() == rt.GetDomain() && existing.GetPath() == rt.GetPath()
+			}
+			if !pr.done && rt.GetPort() != 0 {
+				pr.name = routeName(pr.domain, have[env])
+				have[env][pr.name] = pr.route
+			}
+			out = append(out, pr)
+		}
+	}
+	return out, nil
+}
+
+// routeName is what to call a route to a domain, as a route's name is a DNS label:
+// the domain's letters, digits and dashes, starting with a letter, and a number
+// after it where the environment has a route of that name already.
+func routeName(domain string, have map[string]*resourcev1.Route) string {
+	label := strings.Trim(nonLabel().ReplaceAllString(strings.ToLower(domain), "-"), "-")
+	label = strings.TrimLeft(label, "0123456789-")
+	if label == "" {
+		label = "route"
+	}
+	const most = 63
+	base := strings.TrimRight(label[:min(len(label), most)], "-")
+	if _, taken := have[base]; !taken {
+		return base
+	}
+	for i := 2; ; i++ {
+		suffix := fmt.Sprintf("-%d", i)
+		name := strings.TrimRight(base[:min(len(base), most-len(suffix))], "-") + suffix
+		if _, taken := have[name]; !taken {
+			return name
+		}
+	}
+}
+
+// nonLabel is what a DNS label can't hold.
+var nonLabel = sync.OnceValue(func() *regexp.Regexp { return regexp.MustCompile(`[^a-z0-9-]+`) })
+
+// domainsDone marks each domain step done whose domain a route serves already, in
+// the environment its app was taken on into: its domains came over.
+func (h *Handler) domainsDone(ctx context.Context, r *containers.Running, steps []*dockwellv1.ImportStep, apps []*dockwellv1.PanelApp) error {
+	found := &dockwellv1.Panel{Apps: slices.DeleteFunc(slices.Clone(apps), func(a *dockwellv1.PanelApp) bool { return a == nil })}
+	routes, err := h.panelRoutes(ctx, r, found)
+	if err != nil {
+		return err
+	}
+	for _, pr := range routes {
+		if !pr.done {
+			continue
+		}
+		for _, s := range steps {
+			if s.GetKind() == dockwellv1.ImportKind_IMPORT_KIND_DOMAIN && s.GetName() == pr.domain {
+				s.Action, s.Becomes, s.Reason, s.WaitsFor = dockwellv1.ImportAction_IMPORT_ACTION_DONE, "a route, which Dockwell serves", "", 0
+			}
+		}
+	}
+	return nil
 }

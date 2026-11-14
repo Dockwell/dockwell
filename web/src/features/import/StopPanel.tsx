@@ -41,10 +41,17 @@ export function panelRunning(containers: ServerContainer[]): PanelKind | undefin
 
 /** The panel that runs on a server, where someone here may stop it. */
 function usePanelHere(server: Server): PanelKind | undefined {
+  return usePanelRunning(server, useMay()(ImportService.method.planStopPanel).allowed);
+}
+
+/**
+ * The panel whose own app runs on a server, as its list of containers says, where
+ * allowed too and someone here may read that list.
+ */
+export function usePanelRunning(server: Server, allowedToo = true): PanelKind | undefined {
   const may = useMay();
   const readable = server.connection === Connection.CONNECTED && server.dockerUnreadableSince === undefined;
-  const allowed =
-    may(ContainerService.method.listContainers).allowed && may(ImportService.method.planStopPanel).allowed;
+  const allowed = may(ContainerService.method.listContainers).allowed && allowedToo;
   // The same read as the containers panel's, which the query cache shares.
   const list = useQuery(
     ContainerService.method.listContainers,

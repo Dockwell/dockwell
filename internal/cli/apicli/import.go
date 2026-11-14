@@ -59,7 +59,9 @@ func stepsView(w io.Writer, panel string, all []*dockwellv1.ImportStep, change *
 			return s.GetAction() != dockwellv1.ImportAction_IMPORT_ACTION_LEAVE && s.GetWaitsFor() == wf
 		}})
 	}
-	groups = append(groups, group{"In Dockwell already", func(s *dockwellv1.ImportStep) bool {
+	groups = append(groups, group{"Later, once " + panel + "'s proxy hands over ports 80 and 443 (dockwell import domains)", func(s *dockwellv1.ImportStep) bool {
+		return s.GetAction() != dockwellv1.ImportAction_IMPORT_ACTION_LEAVE && s.GetWaitsFor() == dockwellv1.ImportWaitsFor_IMPORT_WAITS_FOR_PORTS
+	}}, group{"In Dockwell already", func(s *dockwellv1.ImportStep) bool {
 		return s.GetAction() == dockwellv1.ImportAction_IMPORT_ACTION_DONE
 	}}, group{"Stays with " + panel, func(s *dockwellv1.ImportStep) bool {
 		return s.GetAction() == dockwellv1.ImportAction_IMPORT_ACTION_LEAVE
@@ -105,6 +107,8 @@ func waitsForWords(wf dockwellv1.ImportWaitsFor) string {
 		return "scheduled tasks"
 	case dockwellv1.ImportWaitsFor_IMPORT_WAITS_FOR_FIREWALL:
 		return "firewall rules"
+	case dockwellv1.ImportWaitsFor_IMPORT_WAITS_FOR_PORTS:
+		return "ports 80 and 443"
 	case dockwellv1.ImportWaitsFor_IMPORT_WAITS_FOR_UNSPECIFIED:
 	}
 	return "what it needs"
@@ -131,6 +135,8 @@ func kindWord(k dockwellv1.ImportKind) string {
 		return "Compose project"
 	case dockwellv1.ImportKind_IMPORT_KIND_CONTAINERS:
 		return "Containers"
+	case dockwellv1.ImportKind_IMPORT_KIND_DOMAIN:
+		return "Domain"
 	case dockwellv1.ImportKind_IMPORT_KIND_PANEL, dockwellv1.ImportKind_IMPORT_KIND_UNSPECIFIED:
 	}
 	return ""

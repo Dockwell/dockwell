@@ -67,7 +67,7 @@ export function panelOf(plan: Plan | undefined): HostPanel | undefined {
   return plan?.resources.find((r) => r.panel)?.panel;
 }
 
-/** Whether a plan starts a panel again, which puts back a stop and has no undo of its own. */
+/** Whether a plan starts a panel or its proxy again, which puts back a stop and has no undo of its own. */
 export function panelStartsAgain(plan: Plan | undefined): boolean {
   return panelOf(plan)?.start === true;
 }

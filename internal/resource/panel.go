@@ -24,6 +24,10 @@ type PanelAsked struct {
 	Kind string
 	// Start starts again what a stop stopped, as Parts say each stood before it.
 	Start bool
+	// Proxy acts on the panel's proxy alone, which holds ports 80 and 443, as its
+	// domains come over to Dockwell's ingress; otherwise on the panel's own
+	// containers, never its proxy.
+	Proxy bool `json:",omitempty"`
 	// Parts are what to start, and how each stood, for a start: what an undo puts
 	// back. A stop finds them itself.
 	Parts []PanelPart `json:",omitempty"`
@@ -35,6 +39,8 @@ type Panel struct {
 	Kind string
 	// Start says it starts them; otherwise it stops them.
 	Start bool
+	// Proxy says it acts on the panel's proxy alone, as its domains come over.
+	Proxy bool `json:",omitempty"`
 	// Parts are each of the panel's own containers or services the step acts on,
 	// in the order it acts, with how each stood.
 	Parts []PanelPart
@@ -81,7 +87,31 @@ func (p Panel) Undone() (PanelAsked, bool) {
 	if p.Start || len(p.Parts) == 0 {
 		return PanelAsked{}, false
 	}
-	return PanelAsked{Kind: p.Kind, Start: true, Parts: p.Parts}, true
+	return PanelAsked{Kind: p.Kind, Start: true, Proxy: p.Proxy, Parts: p.Parts}, true
+}
+
+// PanelProxy is the container a panel's proxy runs as, which holds ports 80 and
+// 443 until its domains come over, or "" for a panel Dockwell doesn't know.
+func PanelProxy(kind string) string {
+	switch kind {
+	case PanelCoolify:
+		return "coolify-proxy"
+	case PanelDokploy:
+		return "dokploy-traefik"
+	}
+	return ""
+}
+
+// PanelProxyGoing is the panel's proxy a server's desired resources stop, as their
+// domains come over in the same change, or "": what holds ports 80 and 443 now and
+// won't once that step has run.
+func PanelProxyGoing(desired []Desired) string {
+	for i := range desired {
+		if p := desired[i].Panel; p != nil && p.Proxy && !p.Start {
+			return PanelProxy(p.Kind)
+		}
+	}
+	return ""
 }
 
 // PanelActor is a kind that stops or starts a panel's own containers as a step of a

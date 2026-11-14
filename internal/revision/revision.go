@@ -2549,7 +2549,7 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 			// moved since makes the plan stale (ADR 0089).
 			if p := s.Panel; p != nil {
 				panels[ids[s.Ref]] = p
-				fmt.Fprintf(fp, "panel %s|%s|%s|%t|%s", server, ref(s.Ref), p.Kind, p.Start, p.Stays)
+				fmt.Fprintf(fp, "panel %s|%s|%s|%t|%t|%s", server, ref(s.Ref), p.Kind, p.Start, p.Proxy, p.Stays)
 				for _, part := range p.Parts {
 					fmt.Fprintf(fp, "|%s,%t,%t,%s,%d", part.Name, part.Swarm, part.WasRunning, part.WasRestart, part.WasReplicas)
 				}
@@ -3109,18 +3109,23 @@ func (e *Engine) insideGoesAfter(steps []resource.Step, its []*item) []resource.
 }
 
 // order runs creates, updates and replaces in proposal order, then deletes
-// in reverse, so what is built comes first and is taken down last.
+// in reverse, so what is built comes first and is taken down last. Starting a
+// panel's proxy again comes after all of them: the routes it takes back ports 80
+// and 443 from go first (ADR 0089).
 func order(steps []resource.Step) []resource.Step {
-	var out, deletes []resource.Step
+	var out, deletes, last []resource.Step
 	for i := range steps {
-		if steps[i].Action == resource.ActionDelete {
+		switch {
+		case steps[i].Panel != nil && steps[i].Panel.Start:
+			last = append(last, steps[i])
+		case steps[i].Action == resource.ActionDelete:
 			deletes = append(deletes, steps[i])
-		} else {
+		default:
 			out = append(out, steps[i])
 		}
 	}
 	slices.Reverse(deletes)
-	return append(out, deletes...)
+	return append(append(out, deletes...), last...)
 }
 
 // AgentError is a server's agent failing a call, or refusing one, as for
@@ -3700,7 +3705,7 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 		step         *resource.Step
 		index        int // in the change's progress
 	}
-	var builds, deletes []queued
+	var builds, deletes, last []queued
 	for si := range plan.Servers {
 		s := &plan.Servers[si]
 		for i := range s.Steps {
@@ -3708,9 +3713,14 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 			if it, ok := byRef[q.step.Ref]; ok {
 				q.index = progress.index(s.Server, it.id)
 			}
-			if q.step.Action == resource.ActionDelete {
+			switch {
+			case q.step.Panel != nil && q.step.Panel.Start:
+				// A panel's proxy takes ports 80 and 443 back once the routes that hold
+				// them are gone (ADR 0089), as order says.
+				last = append(last, q)
+			case q.step.Action == resource.ActionDelete:
 				deletes = append(deletes, q)
-			} else {
+			default:
 				builds = append(builds, q)
 			}
 		}
@@ -3720,6 +3730,7 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 	slices.SortStableFunc(deletes, func(a, b queued) int {
 		return slices.Index(serversOf(plan), b.server) - slices.Index(serversOf(plan), a.server)
 	})
+	deletes = append(deletes, last...)
 	// A backup goes before anything else on any server, so one that fails leaves them
 	// all as they were. Otherwise a server's steps keep their order.
 	backupFirst := func(q queued) int {

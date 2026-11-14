@@ -11416,7 +11416,10 @@ type PanelAction struct {
 	Start bool `protobuf:"varint,3,opt,name=start,proto3" json:"start,omitempty"`
 	// How each stood before a stop, as its plan kept it: what a start puts back,
 	// and what a stop that resumes keeps.
-	Parts         []*v1.HostPanelPart `protobuf:"bytes,4,rep,name=parts,proto3" json:"parts,omitempty"`
+	Parts []*v1.HostPanelPart `protobuf:"bytes,4,rep,name=parts,proto3" json:"parts,omitempty"`
+	// True to act on the panel's proxy alone, as its domains come over to
+	// Dockwell's ingress; otherwise on its own containers, never its proxy.
+	Proxy         bool `protobuf:"varint,5,opt,name=proxy,proto3" json:"proxy,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -11477,6 +11480,13 @@ func (x *PanelAction) GetParts() []*v1.HostPanelPart {
 		return x.Parts
 	}
 	return nil
+}
+
+func (x *PanelAction) GetProxy() bool {
+	if x != nil {
+		return x.Proxy
+	}
+	return false
 }
 
 // UnitAction is an action a change asks of one of the server's system services.
@@ -14891,12 +14901,13 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\rregistry_auth\x18\xb6\x02 \x01(\fR\fregistryAuth\x121\n" +
 	"\x14build_registry_auths\x18\xbb\x02 \x01(\fR\x12buildRegistryAuths\x125\n" +
 	"\x05panel\x18\xcd\x02 \x01(\v2\x1e.dockwell.agent.v1.PanelActionR\x05panelB\a\n" +
-	"\x05_spec\"\xa0\x01\n" +
+	"\x05_spec\"\xb6\x01\n" +
 	"\vPanelAction\x12\x1b\n" +
 	"\tchange_id\x18\x01 \x01(\tR\bchangeId\x12,\n" +
 	"\x05panel\x18\x02 \x01(\x0e2\x16.dockwell.v1.PanelKindR\x05panel\x12\x14\n" +
 	"\x05start\x18\x03 \x01(\bR\x05start\x120\n" +
-	"\x05parts\x18\x04 \x03(\v2\x1a.dockwell.v1.HostPanelPartR\x05parts\"w\n" +
+	"\x05parts\x18\x04 \x03(\v2\x1a.dockwell.v1.HostPanelPartR\x05parts\x12\x14\n" +
+	"\x05proxy\x18\x05 \x01(\bR\x05proxy\"w\n" +
 	"\n" +
 	"UnitAction\x12\x1b\n" +
 	"\tchange_id\x18\x01 \x01(\tR\bchangeId\x12\x12\n" +

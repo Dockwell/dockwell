@@ -4,6 +4,7 @@ package revision
 
 import (
 	"context"
+	"slices"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/fault"
@@ -73,14 +74,16 @@ func panelIn(c store.Change, ref resource.Ref) *resource.PanelAsked {
 	}
 	for i := range p.Resources {
 		if q := p.Resources[i].Panel; p.Resources[i].Ref == ref && q != nil {
-			return &resource.PanelAsked{Change: c.ID, Kind: q.Kind, Start: q.Start, Parts: q.Parts}
+			return &resource.PanelAsked{Change: c.ID, Kind: q.Kind, Start: q.Start, Proxy: q.Proxy, Parts: q.Parts}
 		}
 	}
 	return nil
 }
 
 // undoPanels plans starting again what change c stopped of a panel, each part as
-// it stood. A start has nothing of its own to put back.
+// it stood, and putting back the revisions it made beside, as the routes a
+// handover of the panel's proxy made are deleted. A start has nothing of its own
+// to put back.
 func (e *Engine) undoPanels(ctx context.Context, c store.Change, took *Plan, by By) (*Plan, error) {
 	if c.State != store.ChangeApplied {
 		return nil, fault.New(ErrCantUndo, "%s is %s, and only applied changes can be undone", c.ID, c.State)
@@ -89,6 +92,13 @@ func (e *Engine) undoPanels(ctx context.Context, c store.Change, took *Plan, by 
 		return nil, err
 	}
 	var edits []Edit
+	if slices.ContainsFunc(took.Resources, func(r ResourcePlan) bool { return r.Panel == nil }) {
+		back, err := e.reverse(ctx, c.ID)
+		if err != nil {
+			return nil, err
+		}
+		edits = back
+	}
 	for i := range took.Resources {
 		r := &took.Resources[i]
 		if r.Panel == nil {

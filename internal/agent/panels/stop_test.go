@@ -185,3 +185,41 @@ func TestAStopActsOnThePanelsOwnAlone(t *testing.T) {
 		t.Errorf("a server with no Coolify = %v", err)
 	}
 }
+
+// Handing over the domains stops the panel's proxy alone, so Dockwell's ingress
+// takes ports 80 and 443, and its undo starts it again as it stood.
+func TestStoppingThePanelsProxyAlone(t *testing.T) {
+	e := coolifyServer(t)
+	s := Stopper{Docker: e.Client()}
+	plan, left, err := s.PlanPanel(t.Context(), resource.PanelAsked{Kind: resource.PanelCoolify, Proxy: true})
+	if err != nil || !left || !plan.Proxy || plan.Stays != "" || !slices.Equal(names(plan.Parts), []string{"coolify-proxy"}) {
+		t.Fatalf("the proxy's stop = %+v, %v, %v", plan, left, err)
+	}
+	if err := s.ApplyPanel(t.Context(), *plan, func(string) {}); err != nil {
+		t.Fatal(err)
+	}
+	if c := e.Container("coolify-proxy"); c.State.Running || c.HostConfig.RestartPolicy.Name != "no" {
+		t.Errorf("the proxy is left %v, restart %q", c.State.Running, c.HostConfig.RestartPolicy.Name)
+	}
+	if c := e.Container("coolify"); !c.State.Running {
+		t.Error("the panel itself was stopped")
+	}
+	back, _ := plan.Undone()
+	if !back.Proxy {
+		t.Fatalf("the undo asks %+v", back)
+	}
+	start, _, err := s.PlanPanel(t.Context(), back)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.ApplyPanel(t.Context(), *start, func(string) {}); err != nil {
+		t.Fatal(err)
+	}
+	if c := e.Container("coolify-proxy"); !c.State.Running || c.HostConfig.RestartPolicy.Name != "always" {
+		t.Errorf("started again, the proxy is %v, restart %q", c.State.Running, c.HostConfig.RestartPolicy.Name)
+	}
+	// A proxy's stop acts on nothing else of the panel's.
+	if _, _, err := s.PlanPanel(t.Context(), resource.PanelAsked{Kind: resource.PanelCoolify, Proxy: true, Start: true, Parts: []resource.PanelPart{{Name: "coolify", WasRunning: true}}}); err == nil {
+		t.Error("a proxy's start acted on coolify")
+	}
+}
