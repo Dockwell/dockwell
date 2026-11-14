@@ -499,6 +499,10 @@ describe("scheduled tasks", () => {
     onPhone();
     renderAt("/scheduled-tasks", api([aTask()]));
     expect(await screen.findByRole("button", { name: /Nightly sales report/ })).toBeVisible();
+    // New task is the header's, as Add server is on Servers, not a button in the list's head.
+    const add = screen.getByRole("button", { name: "New task" });
+    expect(add).toHaveClass("mobile-header-button");
+    expect(screen.getAllByRole("button", { name: /New task/ })).toHaveLength(1);
   });
 
   it("reads in Chinese", async () => {
