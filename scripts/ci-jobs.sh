@@ -69,7 +69,8 @@ some_systemd_arches='["arm64"]'
 # which reach most of the control plane and the agent.
 go="${ci_jobs% swarm-docker} snapshot budgets install systemd"
 # What makes a Swarm-run app again, or reads one (ADR 0089): the panels' reader and
-# stopper, the import and the take-on it reads through, and Docker's client. Only
+# stopper, the import and the take-on it reads through, Docker's client, and what
+# carries a panel's step from the plan to the agent and back. Only
 # these run Swarm import on Docker, as other Go code doesn't reach a Swarm.
 swarm="$go swarm-docker"
 # The panel and its packages: their lint and tests, the generated code, and the
@@ -116,7 +117,8 @@ jobs_for() {
   # The fake Docker Engine is the tests', which reach no Swarm.
   internal/docker/dockertest/*) echo "$go" ;;
   internal/agent/panels/*.go | internal/control/importapi/*.go | internal/control/composeapi/*.go | internal/docker/*.go | \
-    internal/resource/container/*.go | scripts/swarm-e2e.sh)
+    internal/resource/container/*.go | internal/resource/panel.go | internal/resource/resourcepb/*.go | internal/resource/host/*.go | \
+    internal/revision/units.go | scripts/swarm-e2e.sh)
     echo "$swarm"
     ;;
   # go vet ./... compiles a Go file wherever it is, under docs/ too.

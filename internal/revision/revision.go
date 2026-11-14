@@ -2685,6 +2685,11 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 				fmt.Fprintf(fp, "panel %s|%s|%s|%t|%t|%s", server, ref(s.Ref), p.Kind, p.Start, p.Apps, p.Stays)
 				for _, part := range p.Parts {
 					fmt.Fprintf(fp, "|%s,%t,%t,%s,%d", part.Name, part.Swarm, part.WasRunning, part.WasRestart, part.WasReplicas)
+					// What a start puts back of a Swarm service is in it too.
+					for _, port := range part.WasPorts {
+						fmt.Fprintf(fp, ",%s:%d:%d:%s", port.Protocol, port.Target, port.Published, port.Mode)
+					}
+					fmt.Fprintf(fp, ",%q", part.WasNetworks)
 				}
 				fmt.Fprintln(fp)
 			}

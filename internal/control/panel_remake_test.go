@@ -14,6 +14,7 @@ import (
 
 	"connectrpc.com/connect"
 
+	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/agent/panels"
@@ -143,6 +144,7 @@ func TestMakingADokploySwarmAppAgain(t *testing.T) {
 // shopOnDokploy is a server whose Dokploy runs the app shop as the Swarm service
 // shop-k2m4, publishing 8085, with its task running.
 type shopOnDokploy struct {
+	f        *fullServer
 	e        *dockertest.Engine
 	id, task string
 	ic       dockwellv1connect.ImportServiceClient
@@ -202,7 +204,7 @@ func dokployShop(t *testing.T) shopOnDokploy {
 		n, _ := svc.Spec.Mode.Replicas()
 		return n
 	}
-	return shopOnDokploy{e: e, id: id, task: task, ic: importClient(b), c: changeClient(b, b.origin), replicas: replicas, stopper: later}
+	return shopOnDokploy{f: f, e: e, id: id, task: task, ic: importClient(b), c: changeClient(b, b.origin), replicas: replicas, stopper: later}
 }
 
 // An import whose copy of a Swarm app fails to start, after the host scaled
@@ -366,5 +368,24 @@ func TestAStackDeployedByHandStaysBehind(t *testing.T) {
 	}
 	if s := steps["IMPORT_KIND_APP shop"]; s.GetAction() != dockwellv1.ImportAction_IMPORT_ACTION_MAKE || res.Msg.GetChange() == nil {
 		t.Errorf("shop reads %v, with a plan %v", s, res.Msg.GetChange() != nil)
+	}
+}
+
+// An agent from before waits for no Swarm task to be over before a copy starts,
+// so through one, a Swarm-run app stays where it is, saying to update the agent.
+func TestAnOlderAgentMakesNoSwarmAppAgain(t *testing.T) {
+	d := dokployShop(t)
+	server := d.f.lastDocker
+	server.stop()
+	waitConnected(t, d.f, server.id.ServerID, false)
+	server.hello = func(h *agentv1.Hello) { h.RemakesSwarmApps = false }
+	server.connect(t, d.f)
+	res, err := d.ic.ImportDokploy(t.Context(), connect.NewRequest(&dockwellv1.ImportDokployRequest{ServerId: d.id}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s := panelSteps(res.Msg)["IMPORT_KIND_APP shop"]; s.GetAction() != dockwellv1.ImportAction_IMPORT_ACTION_LEAVE ||
+		!strings.Contains(s.GetReason(), "hz-1's agent is too old to make a Swarm-run app again safely. Update its agent, then import again") {
+		t.Errorf("through an older agent, shop reads %v", s)
 	}
 }

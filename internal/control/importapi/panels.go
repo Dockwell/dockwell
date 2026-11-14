@@ -107,6 +107,15 @@ func (h *Handler) importPanel(ctx context.Context, server string, skipPlan bool,
 			fmt.Errorf("%s doesn't run %s: %s. Run this for a server where %s runs", srv.GetName(), w.name, cut(out.GetNotHere(), w.name+" doesn't run here: "), w.name), "panel_not_found")
 	}
 	steps, apps := panelSteps(w, out.GetFound())
+	if !session.RemakesSwarmApps() {
+		// An agent from before waits for no task to be over, so a copy could start
+		// beside the one it replaces.
+		for i, s := range steps {
+			if apps[i] != nil && apps[i].GetSwarm() && s.GetAction() == dockwellv1.ImportAction_IMPORT_ACTION_MAKE {
+				leave(s, fmt.Sprintf("%s's agent is too old to make a Swarm-run app again safely. Update its agent, then import again. It stays as it is, in %s.", srv.GetName(), w.name))
+			}
+		}
+	}
 	res := &imported{found: out.GetFound(), steps: steps}
 	p, ok := authapi.PrincipalFrom(ctx)
 	if !ok || p.Token != nil {

@@ -68,6 +68,11 @@ picks "$go" scripts/docker-e2e.sh
 picks "$go swarm-docker" scripts/swarm-e2e.sh
 picks "$go swarm-docker" internal/control/importapi/panels.go
 picks "$go swarm-docker" internal/agent/panels/stop.go internal/control/server.go
+picks "$go swarm-docker" internal/resource/panel.go
+picks "$go swarm-docker" internal/resource/resourcepb/resourcepb.go
+picks "$go swarm-docker" internal/resource/host/host.go
+picks "$go swarm-docker" internal/revision/units.go
+picks "$go" internal/revision/revision.go internal/resource/resource.go
 picks "go docker-go caddy-go" internal/agent/panels/stop_test.go
 picks "$go" scripts/transfers-load.sh
 picks "$go" scripts/fakedocker/main.go

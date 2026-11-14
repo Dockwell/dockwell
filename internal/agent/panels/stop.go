@@ -149,7 +149,7 @@ func (s Stopper) planApps(ctx context.Context, ask resource.PanelAsked) (*resour
 		if !replicated {
 			return nil, false, fmt.Errorf("the service %s runs one task on each node, so Dockwell can't scale it to none", p.Name)
 		}
-		part := resource.PanelPart{Name: p.Name, Swarm: true, WasRunning: n > 0, WasReplicas: n, WasPorts: portsOf(svc.Spec.EndpointSpec.Ports), WasNetworks: string(svc.Spec.TaskTemplate.Networks)}
+		part := resource.PanelPart{Name: p.Name, Swarm: true, WasRunning: n > 0, WasReplicas: n, WasPorts: portsOf(svc.Spec.EndpointSpec.Ports), WasNetworks: networksOf(&svc.Spec)}
 		if p.WasReplicas > 0 || ask.Start {
 			if p.WasReplicas > mostReplicas {
 				return nil, false, fmt.Errorf("what the plan kept of how %s stood isn't what a stop reads, so Dockwell won't act on it", p.Name)
@@ -252,6 +252,16 @@ func portsOf(ports []docker.ServicePort) []resource.PanelPort {
 		out = append(out, resource.PanelPort{Protocol: p.Protocol, Target: p.TargetPort, Published: p.PublishedPort, Mode: p.PublishMode})
 	}
 	return out
+}
+
+// networksOf are the networks a Swarm service joins, as Docker has them: in its
+// task template, or where an old client named them, beside it. A start puts them
+// back in its task template, which Docker reads the same.
+func networksOf(s *docker.ServiceSpec) string {
+	if len(s.TaskTemplate.Networks) > 0 {
+		return string(s.TaskTemplate.Networks)
+	}
+	return string(s.Networks)
 }
 
 // servicePorts are the ports a plan kept, as Docker takes them.

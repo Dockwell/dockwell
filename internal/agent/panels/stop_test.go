@@ -4,6 +4,7 @@ package panels
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"slices"
 	"strings"
@@ -383,5 +384,45 @@ func TestTheWaitFollowsTheGracePeriod(t *testing.T) {
 	err := Stopper{Docker: e.Client()}.untilNoTask(ctx, "db-k2m4", func(string) {})
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Errorf("with a grace period of two hours, the wait ended %v", err)
+	}
+}
+
+// A service whose networks an old client named beside its task template keeps
+// them in the plan too, and a start puts them back where Docker reads them.
+func TestAServicesOldStyleNetworksComeBack(t *testing.T) {
+	e := dockertest.New(t)
+	n := uint64(1)
+	svc := docker.Service{ID: "s1"}
+	svc.Spec.Name, svc.Spec.Labels = "shop-k2m4", map[string]string{"dokploy.application": "shop", "dokploy.project": "store"}
+	svc.Spec.Mode.Replicated = &struct {
+		Replicas *uint64 `json:"Replicas,omitempty"`
+	}{Replicas: &n}
+	svc.Spec.Networks = json.RawMessage(`[{"Target":"k3net"}]`)
+	e.Services = []docker.Service{svc}
+	s := Stopper{Docker: e.Client()}
+	plan, _, err := s.PlanPanel(t.Context(), resource.PanelAsked{Kind: resource.PanelDokploy, Apps: true, Parts: []resource.PanelPart{{Name: "shop-k2m4"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := plan.Parts[0].WasNetworks; got != `[{"Target":"k3net"}]` {
+		t.Fatalf("the plan keeps %q", got)
+	}
+	if err := s.ApplyPanel(t.Context(), *plan, func(string) {}); err != nil {
+		t.Fatal(err)
+	}
+	back, _ := plan.Undone()
+	start, _, err := s.PlanPanel(t.Context(), back)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.ApplyPanel(t.Context(), *start, func(string) {}); err != nil {
+		t.Fatal(err)
+	}
+	read, err := e.Client().InspectService(t.Context(), "shop-k2m4")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := string(read.Spec.TaskTemplate.Networks); got != `[{"Target":"k3net"}]` || len(read.Spec.Networks) != 0 {
+		t.Errorf("started again, it joins %s, and beside it %s", got, read.Spec.Networks)
 	}
 }

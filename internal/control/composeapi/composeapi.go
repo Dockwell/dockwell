@@ -710,11 +710,17 @@ func (h *Handler) ReadMakingAgain(ctx context.Context, r *containers.Running, li
 
 // swarmOnly says a take-on's refusal names what Swarm gives a task's container,
 // which its copy doesn't carry as it isn't the app's: an address Swarm pinned on
-// each network the task joined, as the copy joins anew, and the options Swarm
-// gave a volume of a stack's, such as its labels, as the volume is there already
-// and the copy mounts it by its name.
+// each network the task joined, as the copy joins anew, and the labels and the
+// driver a stack's volume was made with, as the volume is there already and the
+// copy mounts it by its name. A subpath, or anything else, still keeps it back,
+// as that changes what's mounted.
 func swarmOnly(refusal string) bool {
-	return strings.HasPrefix(refusal, "ipv4_address on ") || strings.HasPrefix(refusal, "VolumeOptions on ")
+	for _, prefix := range []string{"ipv4_address on ", "VolumeOptions.Labels on ", "VolumeOptions.DriverConfig on "} {
+		if strings.HasPrefix(refusal, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 // restartFor is the restart policy a copy takes for its Swarm task's restart

@@ -22,6 +22,10 @@ func (s *Session) ReadsPanels() bool { return s.readsPanels }
 // containers as a step of a change.
 func (s *Session) StopsPanels() bool { return s.stopsPanels }
 
+// RemakesSwarmApps reports an agent that makes Swarm-run apps again safely: it
+// waits on Swarm's tasks until each is over before a copy starts (ADR 0089).
+func (s *Session) RemakesSwarmApps() bool { return s.remakesSwarmApps }
+
 // ReadPanel asks the agent what a panel runs on its server, read-only, from Docker
 // and the panel's folders.
 func (s *Session) ReadPanel(ctx context.Context, kind dockwellv1.PanelKind) (*agentv1.ReadPanelResult, error) {
