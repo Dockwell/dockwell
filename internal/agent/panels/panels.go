@@ -174,11 +174,15 @@ func (r Reader) dokploy(list []docker.ContainerSummary, services []docker.Servic
 			a.Tasks = append(a.Tasks, tasks[s.Name])
 			a.Restarts = append(a.Restarts, restartOf(s))
 			a.SwarmLeft = cmp.Or(a.GetSwarmLeft(), swarmLeft(s, nodes))
+			if !dokployOwns(l) {
+				// A stack deployed by hand: Dokploy labels each service of its own.
+				a.SwarmLeft = cmp.Or(a.GetSwarmLeft(), s.Name+" carries none of Dokploy's labels, so Dockwell doesn't act on it as Dokploy's")
+			}
 			a.Domains = append(a.Domains, domainsOf(l)...)
 			a.Published = append(a.Published, publishedOf(strings.TrimPrefix(s.Name, stack+"_"), s)...)
 			continue
 		}
-		if l["dokploy.application"] == "" && l["dokploy.project"] == "" {
+		if !dokployOwns(l) {
 			continue // a service of someone else's
 		}
 		a := r.dokployApp(s.Name, engineOf(image), l)
@@ -435,6 +439,15 @@ func sortWithTasks(a *dockwellv1.PanelApp) {
 		}
 	}
 	a.Containers, a.Tasks, a.Restarts = names, tasks, restarts
+}
+
+// dokployOwns says labels are Dokploy's own on what it runs: it gives each of an
+// app's, a database's and a stack's services dokploy.project and
+// dokploy.application, among others (buildDokployLabels, Dokploy v0.31). The
+// reader and the stopper ask the same, so nothing the reader offers is refused
+// at plan.
+func dokployOwns(l map[string]string) bool {
+	return l["dokploy.application"] != "" || l["dokploy.project"] != ""
 }
 
 // swarmLeft says why a Swarm service can't be made again as one container on this

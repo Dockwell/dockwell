@@ -142,7 +142,7 @@ func (s Stopper) planApps(ctx context.Context, ask resource.PanelAsked) (*resour
 		}
 		l := svc.Spec.Labels
 		if slices.Contains(stops[resource.PanelDokploy], p.Name) || p.Name == resource.PanelProxy(resource.PanelDokploy) ||
-			l["dokploy.application"] == "" && l["dokploy.project"] == "" {
+			!dokployOwns(l) {
 			return nil, false, fmt.Errorf("%s isn't a service Dokploy runs for an app, so Dockwell won't scale it", p.Name)
 		}
 		n, replicated := svc.Spec.Mode.Replicas()

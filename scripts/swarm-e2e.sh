@@ -57,6 +57,7 @@ nginx=nginx:1.27-alpine
 postgres=postgres:17.11@sha256:748a18a54d3842d43bc156f0840d78029b8d349e0feca98c12b9c4ce3404a6b3
 traefik=traefik:v3.1
 pid=""
+anon_volume=""
 
 priv() { sudo -n "$@"; }
 dw() { priv env DOCKWELL_DATA_DIR="$data" DOCKWELL_LOG_FORMAT=text "$bin" "$@"; }
@@ -66,7 +67,7 @@ cleanup() {
   for s in shop-k2m4 many-r2 everywhere-g1 keeps-s1 anon-a1; do
     docker service rm "$s" >/dev/null 2>&1 || true
   done
-  docker stack rm forum-q1 >/dev/null 2>&1 || true
+  docker stack rm forum-q1 plain-p1 >/dev/null 2>&1 || true
   docker rm --force dokploy-traefik >/dev/null 2>&1 || true
   # Dockwell's copies, by the projects the import made.
   docker ps --all --format '{{.Names}}' | grep -E '^(store|forum)\.' | xargs --no-run-if-empty docker rm --force >/dev/null 2>&1 || true
@@ -80,6 +81,9 @@ cleanup() {
   docker secret rm e2e-swarm-secret >/dev/null 2>&1 || true
   docker network rm dokploy-network >/dev/null 2>&1 || true
   docker volume rm shop-data forum-q1_pgdata >/dev/null 2>&1 || true
+  [[ -z "$anon_volume" ]] || docker volume rm "$anon_volume" >/dev/null 2>&1 || true
+  # The networks Dockwell made for the projects the import made.
+  docker network ls --format '{{.Name}}' | grep -E '^(store|forum)[._-]' | xargs --no-run-if-empty docker network rm >/dev/null 2>&1 || true
   priv rm -rf "$data" "$log" "$cookie" "$passkey" "$stepup" "$root"
 }
 trap cleanup EXIT
@@ -143,8 +147,14 @@ docker run --detach --name dokploy-traefik --network dokploy-network --publish "
 # it serves, and its external port through the routing mesh.
 docker volume create shop-data >/dev/null
 docker run --rm --volume shop-data:/data "$nginx" sh -c 'echo shop-from-dokploy >/data/index.html' || fail "can't fill shop-data"
-docker service create --quiet --detach=false --name shop-k2m4 --network dokploy-network --restart-condition any \
-  --label dokploy.project=store --label dokploy.environment=production --label dokploy.application=shop \
+# dokploy_labels writes the labels Dokploy gives what it runs (buildDokployLabels,
+# Dokploy v0.31.2) as flags, for a project and an application.
+dokploy_labels() {
+  local l=(organization.id=org-e2e "project.id=prj-$1" "project=$1" environment.id=env-e2e environment=production "application.id=app-$2" "application=$2")
+  printf -- '--label\ndokploy.%s\n' "${l[@]}"
+}
+mapfile -t shop_labels < <(dokploy_labels store shop)
+docker service create --quiet --detach=false --name shop-k2m4 --network dokploy-network --restart-condition any "${shop_labels[@]}" \
   --mount type=volume,source=shop-data,target=/usr/share/nginx/html --publish published=8085,target=80 "$nginx" >/dev/null ||
   fail "can't create shop-k2m4"
 # A stack, as Dokploy deploys a Compose app of the type stack.
@@ -158,17 +168,22 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
     networks: [dokploy-network]
+    labels: &dokploy
+      dokploy.organization.id: org-e2e
+      dokploy.project.id: prj-community
+      dokploy.project: community
+      dokploy.environment.id: env-e2e
+      dokploy.environment: production
+      dokploy.application.id: app-forum
+      dokploy.application: forum
     deploy:
-      labels:
-        dokploy.project: community
-        dokploy.application: forum
+      labels: *dokploy
   web:
     image: $nginx
     networks: [dokploy-network]
+    labels: *dokploy
     deploy:
-      labels:
-        dokploy.project: community
-        dokploy.application: forum
+      labels: *dokploy
 volumes:
   pgdata:
 networks:
@@ -176,18 +191,22 @@ networks:
     external: true
 EOF
 docker stack deploy --detach=false --compose-file "$stack" forum-q1 >/dev/null || fail "can't deploy the stack"
+# A stack someone deployed by hand, which Dokploy didn't label: not Dokploy's.
+printf 'services:\n  web:\n    image: %s\n' "$nginx" >"$stack"
+docker stack deploy --detach=false --compose-file "$stack" plain-p1 >/dev/null || fail "can't deploy the stack by hand"
 rm -f "$stack"
 # What can't come: more than one replica, every node, a secret, an anonymous volume.
-labels=(--label dokploy.project=store --label dokploy.environment=production)
-docker service create --quiet --detach=false --name many-r2 --replicas 2 "${labels[@]}" --label dokploy.application=many "$nginx" >/dev/null ||
-  fail "can't create many-r2"
-docker service create --quiet --detach=false --name everywhere-g1 --mode global "${labels[@]}" --label dokploy.application=everywhere "$nginx" >/dev/null ||
-  fail "can't create everywhere-g1"
+mapfile -t labels < <(dokploy_labels store many)
+docker service create --quiet --detach=false --name many-r2 --replicas 2 "${labels[@]}" "$nginx" >/dev/null || fail "can't create many-r2"
+mapfile -t labels < <(dokploy_labels store everywhere)
+docker service create --quiet --detach=false --name everywhere-g1 --mode global "${labels[@]}" "$nginx" >/dev/null || fail "can't create everywhere-g1"
 printf 'not-in-any-plan' | docker secret create e2e-swarm-secret - >/dev/null || fail "can't make a secret"
-docker service create --quiet --detach=false --name keeps-s1 --secret e2e-swarm-secret "${labels[@]}" --label dokploy.application=keeps "$nginx" >/dev/null ||
-  fail "can't create keeps-s1"
-docker service create --quiet --detach=false --name anon-a1 --mount type=volume,target=/data "${labels[@]}" --label dokploy.application=anon "$nginx" >/dev/null ||
-  fail "can't create anon-a1"
+mapfile -t labels < <(dokploy_labels store keeps)
+docker service create --quiet --detach=false --name keeps-s1 --secret e2e-swarm-secret "${labels[@]}" "$nginx" >/dev/null || fail "can't create keeps-s1"
+mapfile -t labels < <(dokploy_labels store anon)
+docker service create --quiet --detach=false --name anon-a1 --mount type=volume,target=/data "${labels[@]}" "$nginx" >/dev/null || fail "can't create anon-a1"
+# The volume Docker made for anon-a1's task, which goes with it.
+anon_volume=$(docker inspect --format '{{range .Mounts}}{{.Name}}{{end}}' "$(running_tasks anon-a1)")
 wait_until 60 serves shop-from-dokploy -H 'Host: shop.example.com' "http://127.0.0.1:$traefik_port/" || fail "Traefik doesn't reach shop-k2m4 before the import"
 wait_until 60 serves shop-from-dokploy "http://127.0.0.1:8085/" || fail "the routing mesh doesn't publish 8085 before the import"
 db_task=$(running_tasks forum-q1_db)
@@ -240,7 +259,7 @@ step_of() { jq -c --arg n "$1" '.steps[] | select(.name == $n)' <<<"$plan"; }
 for app in shop forum; do
   jq -e '.action == "IMPORT_ACTION_MAKE"' <<<"$(step_of $app)" >/dev/null || fail "$app isn't made again: $(step_of $app)"
 done
-for c in "many|2 replicas" "everywhere|every node" "keeps|Swarm secret" "anon|anonymous volume"; do
+for c in "many|2 replicas" "everywhere|every node" "keeps|Swarm secret" "anon|anonymous volume" "plain-p1|none of Dokploy's labels"; do
   app=${c%%|*}
   why=${c#*|}
   jq -e --arg why "$why" '.action == "IMPORT_ACTION_LEAVE" and (.reason | contains($why))' <<<"$(step_of "$app")" >/dev/null ||
@@ -296,4 +315,13 @@ state=$(apply "$undo")
 [[ -z "$(copy_of store shop-k2m4)" && -z "$(copy_of forum db)" ]] || fail "a copy is left after the undo"
 wait_until 60 serves shop-from-dokploy -H 'Host: shop.example.com' "http://127.0.0.1:$traefik_port/" || fail "Traefik doesn't reach shop-k2m4 after the undo"
 wait_until 60 serves shop-from-dokploy "http://127.0.0.1:8085/" || fail "8085 doesn't answer after the undo"
+for s in forum-q1_db forum-q1_web shop-k2m4; do
+  joins=$(docker service inspect --format '{{json .Spec.TaskTemplate.Networks}}' "$s")
+  [[ "$joins" == *"$(docker network inspect --format '{{.Id}}' dokploy-network)"* || "$joins" == *dokploy-network* ]] ||
+    fail "$s isn't back on dokploy-network after the undo: $joins"
+done
+wait_until 60 test -n "$(running_tasks forum-q1_db)" || fail "the stack's PostgreSQL doesn't run again after the undo"
+db_back=$(running_tasks forum-q1_db)
+wait_until 60 docker exec "$db_back" pg_isready -U postgres || fail "the stack's PostgreSQL isn't ready after the undo"
+[[ "$(docker exec "$db_back" psql -U postgres -tAc 'select v from kept')" == row-from-dokploy ]] || fail "the row didn't survive the undo"
 step "all good"

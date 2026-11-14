@@ -330,3 +330,27 @@ func TestWhatLeansOnATaskKeepsItsApp(t *testing.T) {
 		t.Errorf("shop reads %v", step)
 	}
 }
+
+// A stack deployed by hand carries none of Dokploy's labels: it stays behind,
+// saying so, and the rest of the import still plans, where the agent would refuse
+// to scale it.
+func TestAStackDeployedByHandStaysBehind(t *testing.T) {
+	d := dokployShop(t)
+	plain := swarmService("plain-p1_web", "nginx:1.26", map[string]string{"com.docker.stack.namespace": "plain-p1"})
+	d.e.Services = append(d.e.Services, docker.Service{ID: "s9", Spec: plain})
+	runByHand(t, d.e, "plain-p1_web.1.p1", func(r *docker.CreateRequest) {
+		r.HostConfig.PortBindings, r.HostConfig.Binds = nil, nil
+		r.Labels = map[string]string{"com.docker.swarm.service.name": "plain-p1_web", "com.docker.stack.namespace": "plain-p1"}
+	})
+	res, err := d.ic.ImportDokploy(t.Context(), connect.NewRequest(&dockwellv1.ImportDokployRequest{ServerId: d.id}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	steps := panelSteps(res.Msg)
+	if s := steps["IMPORT_KIND_APP plain-p1"]; s.GetAction() != dockwellv1.ImportAction_IMPORT_ACTION_LEAVE || !strings.Contains(s.GetReason(), "carries none of Dokploy's labels") {
+		t.Errorf("the stack deployed by hand reads %v", s)
+	}
+	if s := steps["IMPORT_KIND_APP shop"]; s.GetAction() != dockwellv1.ImportAction_IMPORT_ACTION_MAKE || res.Msg.GetChange() == nil {
+		t.Errorf("shop reads %v, with a plan %v", s, res.Msg.GetChange() != nil)
+	}
+}
