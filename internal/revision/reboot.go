@@ -39,6 +39,19 @@ func (e *Engine) SetControlServer(id string) {
 	e.controlServer = id
 }
 
+// ControlServer is the server the control plane runs on, or "" before it's named.
+func (e *Engine) ControlServer() string {
+	e.pmu.Lock()
+	defer e.pmu.Unlock()
+	return e.controlServer
+}
+
+// Connected reports whether server's agent is connected now.
+func (e *Engine) Connected(server string) bool {
+	_, online := e.agents.Agent(server)
+	return online
+}
+
 // rebootAsked is the reboot an item asks of its server's host, or nil.
 func (it *item) rebootAsked() *resource.RebootAsked {
 	if it.reboot == "" {
@@ -130,7 +143,7 @@ func (e *Engine) lostReboot(c store.Change) (int, resource.Ref, string) {
 	}
 	rebooting := map[resource.Ref]bool{}
 	for i := range p.Resources {
-		if p.Resources[i].Reboot != nil {
+		if p.Resources[i].waitsOn() {
 			rebooting[p.Resources[i].Ref] = true
 		}
 	}
@@ -202,7 +215,7 @@ func waitingReboots(c store.Change) []string {
 	}
 	rebooting := map[resource.Ref]bool{}
 	for i := range p.Resources {
-		if p.Resources[i].Reboot != nil {
+		if p.Resources[i].waitsOn() {
 			rebooting[p.Resources[i].Ref] = true
 		}
 	}
@@ -263,12 +276,15 @@ func (e *Engine) FailLostReboots(ctx context.Context) error {
 		}
 		e.track(id, progress)
 		cause := fault.New(ErrRebootLost, "%s hasn't come back after its reboot, in %s. Check its console, or reach it over SSH", name, RebootLimit)
+		if upgradeIn(c, ref) != nil {
+			cause = fault.New(ErrUpgradeLost, "the agent on %s hasn't come back at its new version, in %s. Read its log with journalctl -u dockwell over SSH, and the script's in /var/lib/dockwell/upgrade", name, RebootLimit)
+		}
 		plain, _ := resource.Explain(cause)
 		_, u := e.failed(id, i, cause)
 		if e.recordProgress(ctx, id) {
 			e.announce(id, u)
 		}
-		e.logger.WarnContext(ctx, "a server hasn't come back after its reboot; its change failed", slog.String("change", id), slog.String("server", name))
+		e.logger.WarnContext(ctx, "a server hasn't come back after its reboot or its agent's upgrade; its change failed", slog.String("change", id), slog.String("server", name))
 		if err := e.fail(ctx, c, ref, cause, plain); err != nil {
 			var failed *FailedError
 			if !errors.As(err, &failed) {

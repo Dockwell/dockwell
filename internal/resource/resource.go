@@ -294,6 +294,9 @@ type Decision struct {
 	// starting its own containers, for a server's host (ADR 0089). Its fingerprint
 	// covers it.
 	Panel *Panel `json:",omitempty"`
+	// AgentUpgrade says a step upgrades its server's agent, for a server's host
+	// (ADR 0094). Its fingerprint covers it, the script's SHA-256 with it.
+	AgentUpgrade *AgentUpgrade `json:",omitempty"`
 	// RegistryLogin names the registry login the step's pull signs in with, as the
 	// control plane picked it (ADR 0086). Its fingerprint covers it, so a login
 	// added between a plan and its apply makes the plan stale.
@@ -863,6 +866,59 @@ type Rebooter interface {
 	// ApplyReboot asks the server to reboot, for the change DeployOf says, at most
 	// once: applied again on the same boot, or once on another, it does nothing.
 	ApplyReboot(ctx context.Context, step Step) error
+}
+
+// AgentUpgrade is what upgrading a server's agent does (ADR 0094): the install
+// script the control plane carries runs on the server, and the agent comes back at
+// the version asked.
+type AgentUpgrade struct {
+	// From is the version the agent runs, and To the one it's upgraded to.
+	From, To string
+	// ScriptSHA256 is the install script's SHA-256, in hex, which the agent checks
+	// before it runs it. The control plane says it, not the agent.
+	ScriptSHA256 string `json:",omitempty"`
+}
+
+// AgentUpgradeAsked is an upgrade of its agent a change asks of a server's host.
+type AgentUpgradeAsked struct {
+	// Change is the change's ID, which the agent's mark of the upgrade names, so
+	// it runs the script at most once for it.
+	Change string
+	// Version is the release to upgrade to, without a "v".
+	Version string
+	// ScriptSHA256 is the install script's SHA-256, in hex.
+	ScriptSHA256 string
+	// Script is the install script, which only a step's apply carries, and Mirror
+	// the mirror it downloads the release from, when it isn't GitHub.
+	Script []byte `json:"-"`
+	Mirror string `json:"-"`
+}
+
+// AgentUpgrader is a kind that upgrades its server's agent as a step of a change:
+// the server's host (ADR 0094).
+type AgentUpgrader interface {
+	// JudgeAgentUpgrade plans the upgrade, and reports false once there's none
+	// left to take: the agent runs the version asked.
+	JudgeAgentUpgrade(ctx context.Context, ref Ref, ask AgentUpgradeAsked) (Decision, bool, error)
+	// ApplyAgentUpgrade starts the script AgentUpgradeOf says, at most once for
+	// its change, and returns as it starts: the agent's service restarts as it
+	// ends. Applied again while it runs, it does nothing; once it has ended with
+	// the agent at its old version, it fails with what the script said.
+	ApplyAgentUpgrade(ctx context.Context, step Step) error
+}
+
+type agentUpgradeKey struct{}
+
+// WithAgentUpgrade gives the step that upgrades the agent, through ctx, what it
+// runs: the script, which travels with the step's call and nowhere else.
+func WithAgentUpgrade(ctx context.Context, ask AgentUpgradeAsked) context.Context {
+	return context.WithValue(ctx, agentUpgradeKey{}, ask)
+}
+
+// AgentUpgradeOf is the upgrade WithAgentUpgrade gave ctx, and whether it gave one.
+func AgentUpgradeOf(ctx context.Context) (AgentUpgradeAsked, bool) {
+	a, ok := ctx.Value(agentUpgradeKey{}).(AgentUpgradeAsked)
+	return a, ok
 }
 
 // Installer is a kind that installs its server's updates as a step of a change:

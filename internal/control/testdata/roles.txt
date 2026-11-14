@@ -83,6 +83,7 @@ ChangeService.DiscardChange                    plan         developer  developer
 ChangeService.GetChange                        read         viewer     viewer     project
 ChangeService.ListChanges                      read         viewer     viewer     project
 ChangeService.ListDrift                        read         viewer     viewer     project
+ChangeService.PlanAgentUpgrade                 plan         admin      admin      install  session
 ChangeService.PlanInstallUpdates               plan         admin      admin      install  session
 ChangeService.PlanReboot                       plan         admin      admin      install  session
 ChangeService.PlanRemoveServer                 plan         admin      admin      install  session

@@ -468,18 +468,62 @@ export function progressOf(
 }
 
 /**
- * A plan's steps in the order they run, in groups. It is one group today, as
- * every server runs side by side. Waves (#28) become more of them, one a wave,
- * each with its label, its servers within it as they are now.
+ * A plan's steps in the order they run, in groups: one a wave, for a change that
+ * rolls out over several servers (ADR 0094), each its servers in the order they
+ * go; one group otherwise.
  */
 export interface StepGroup {
   key: string;
+  /** The wave, from 1, for a change that rolls out; undefined for one group. */
+  wave?: number;
   servers: readonly ServerPlan[];
 }
 
 export function stepGroups(plan: Plan | undefined): StepGroup[] {
   const servers = plan?.servers ?? [];
-  return servers.length > 0 ? [{ key: "all", servers }] : [];
+  if (servers.length === 0) return [];
+  const waves = plan?.rollout?.waves ?? [];
+  if (waves.length === 0) return [{ key: "all", servers }];
+  const byId = new Map(servers.map((s) => [s.serverId, s]));
+  const placed = new Set<string>();
+  const groups: StepGroup[] = waves.map((w, i) => {
+    const members = w.serverIds.map((id) => byId.get(id)).filter((s): s is ServerPlan => s !== undefined);
+    for (const s of members) placed.add(s.serverId);
+    return { key: `wave-${i + 1}`, wave: i + 1, servers: members };
+  });
+  // A server in no wave, as one a removal takes out, comes after them all.
+  const rest = servers.filter((s) => !placed.has(s.serverId));
+  return [...groups.filter((g) => g.servers.length > 0), ...(rest.length > 0 ? [{ key: "rest", servers: rest }] : [])];
+}
+
+/** How a wave stands as its change applies, from its servers' steps. */
+export type WaveState = "waiting" | "running" | "done" | "failed" | "skipped";
+
+/** How a wave stands, and how many of its steps are done, from the change's progress. */
+export function waveProgress(
+  group: StepGroup,
+  progress: readonly StepProgress[],
+): { state: WaveState; done: number; total: number } {
+  const ids = new Set(group.servers.map((s) => s.serverId));
+  const steps = progress.filter((p) => ids.has(p.serverId));
+  const total = steps.length || group.servers.reduce((n, s) => n + s.steps.length, 0);
+  const done = steps.filter((p) => p.state === StepState.DONE).length;
+  // A step that waits once it started, as a reboot's for its server, is running; one that
+  // waits before it started, as for the pause before its wave, isn't yet.
+  const going = (p: StepProgress) =>
+    p.state === StepState.RUNNING || (p.state === StepState.WAITING && p.startTime !== undefined);
+  const state: WaveState = steps.some((p) => p.state === StepState.FAILED)
+    ? "failed"
+    : steps.some(going)
+      ? "running"
+      : steps.length > 0 && done === steps.length
+        ? "done"
+        : steps.length > 0 &&
+            steps.every((p) => p.state === StepState.SKIPPED || p.state === StepState.DONE) &&
+            done < steps.length
+          ? "skipped"
+          : "waiting";
+  return { state, done, total };
 }
 
 /** True once a plan has more than one server, which is when which one starts to matter (PRD principle 4). */

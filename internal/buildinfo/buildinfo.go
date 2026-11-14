@@ -15,6 +15,7 @@
 package buildinfo
 
 import (
+	"regexp"
 	"runtime"
 	"runtime/debug"
 	"sync"
@@ -95,6 +96,20 @@ func (i Info) Proto() *dockwellv1.BuildInfo {
 		pb.CommitTime = timestamppb.New(i.CommitTime)
 	}
 	return pb
+}
+
+// release is a release's version, with or without its "v", and pseudo the tail of
+// a Go pseudo-version, which a build between releases carries. Each is made on
+// first use, as the agent build doesn't read them as it starts.
+var (
+	release = sync.OnceValue(func() *regexp.Regexp { return regexp.MustCompile(`^v?\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$`) })
+	pseudo  = sync.OnceValue(func() *regexp.Regexp { return regexp.MustCompile(`\d{14}-[0-9a-f]{12}$`) })
+)
+
+// Release reports whether the build is a release: a release's version, built from
+// the tree as it was tagged.
+func (i Info) Release() bool {
+	return !i.Modified && release().MatchString(i.Version) && !pseudo().MatchString(i.Version)
 }
 
 // EditionOf is which build a BuildInfo from the API names. A build that

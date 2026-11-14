@@ -7899,6 +7899,9 @@ msgstr "如果失败，将回滚到 <0>{back}</0>"
 msgid "See the guide"
 msgstr "查看指南"
 
+msgid "Servers go one at a time, wave by wave, each wave once the one before has passed."
+msgstr "服务器逐台进行，按批次推进，上一批通过后才开始下一批。"
+
 msgid "Started {name} on {server}"
 msgstr "已在 {server} 上启动 {name}"
 
@@ -8050,9 +8053,9 @@ msgstr "{0, plural, other {# 个数据库}}"
 msgid "{0, plural, one {# resource is deleted} other {# resources are deleted}}"
 msgstr "{0, plural, other {已删除 # 项资源}}"
 
+#. placeholder {0}: group.servers.length
 #. placeholder {0}: names.length
 #. placeholder {0}: servers.length
-#. placeholder {0}: view.servers?.length ?? 0
 msgid "{0, plural, one {# server} other {# servers}}"
 msgstr "{0, plural, other {# 台服务器}}"
 
@@ -8310,6 +8313,9 @@ msgstr "约 {span} 不可用，最多 {bound} 后恢复健康"
 msgid "About {stepSpan} down"
 msgstr "约 {stepSpan} 不可用"
 
+msgid "An upgrade can't be undone"
+msgstr "升级无法撤销"
+
 msgid "Back up <0>{name}</0>"
 msgstr "备份 <0>{name}</0>"
 
@@ -8366,6 +8372,9 @@ msgstr "不会停机"
 msgid "No steps: it left the fleet"
 msgstr "没有步骤：它已离开集群"
 
+msgid "Not run"
+msgstr "未运行"
+
 msgid "Opens {opening}"
 msgstr "将开放{opening}"
 
@@ -8385,6 +8394,9 @@ msgstr "可访问 {server} 上的 {reach}"
 msgid "Reboot <0>{server}</0>"
 msgstr "重启 <0>{server}</0>"
 
+msgid "Runs the control plane's install script, SHA-256 {sha}, which checks the release's signature before it installs it"
+msgstr "运行控制平面自带的安装脚本（SHA-256 {sha}），它会先校验发布版本的签名再安装"
+
 msgctxt "a package update"
 msgid "Security fix"
 msgstr "安全修复"
@@ -8398,20 +8410,53 @@ msgstr "步骤"
 msgid "Steps by server"
 msgstr "各服务器的步骤"
 
+msgid "Steps by wave"
+msgstr "按批次列出的步骤"
+
 msgid "Takes away {stopping}"
 msgstr "将取消{stopping}"
 
 msgid "Takes out of use what its image keeps at {kept}, which the server keeps for 7 days"
 msgstr "停用其镜像在 {kept} 保存的数据，服务器会保留 7 天"
 
+msgid "The step passes once the agent is back at the new version"
+msgstr "代理以新版本重新连接后，此步骤即完成"
+
 msgid "Up to {stepBound} until healthy"
 msgstr "最多 {stepBound} 后恢复健康"
+
+msgid "Upgrade the agent on <0>{server}</0> from {from} to {to}"
+msgstr "将 <0>{server}</0> 上的代理从 {from} 升级到 {to}"
+
+msgid "Waiting"
+msgstr "等待中"
+
+msgid "Wave {wave}"
+msgstr "第 {wave} 批"
+
+msgid "a step that fails doesn't stop the rest, and the change fails at the end"
+msgstr "某一步失败不会中止其余步骤，变更会在最后标记为失败"
+
+msgid "the first step that fails stops the change, and no server after it is touched"
+msgstr "第一个失败的步骤会中止变更，之后的服务器都不会被改动"
+
+msgid "{count, plural, one {# wave} other {# waves}}"
+msgstr "{count, plural, other {# 批}}"
+
+msgid "{done} of {total} done"
+msgstr "已完成 {done}/{total}"
 
 msgid "{n, plural, one {Install # package on} other {Install # packages on}}"
 msgstr "{n, plural, other {安装 # 个软件包到}}"
 
 msgid "{server} needs a reboot for this to take effect, which is a change of its own"
 msgstr "{server} 需要重启才能生效，重启是另一项单独的变更"
+
+msgid "{waves}, one after another"
+msgstr "{waves}，依次进行"
+
+msgid "{waves}, {pause} apart"
+msgstr "{waves}，每批间隔 {pause}"
 
 msgid "Backed up only on {server}"
 msgstr "只在 {server} 上有备份"
@@ -9179,6 +9224,12 @@ msgstr "完成后请在“备份”中恢复 {which}，创建于 {when}。"
 msgid "Revision {revision} ran different images of {image} on each server, so {name} runs what {image} is now"
 msgstr "修订版本 {revision} 在各服务器上运行的 {image} 镜像不同，因此 {name} 将运行 {image} 当前指向的镜像"
 
+msgid "Run it again once it's back."
+msgstr "它恢复连接后请再运行一次。"
+
+msgid "Run it again once they're back."
+msgstr "它们恢复连接后请再运行一次。"
+
 #. placeholder {0}: server.serverName
 msgid "SSH on {0} stays open from nowhere"
 msgstr "{0} 上的 SSH 不再对任何地址开放"
@@ -9345,6 +9396,12 @@ msgstr "撤销会放回 {from}。更早的版本无法运行这些数据。"
 msgid "Undoing this, or removing the jail, doesn't lift a ban already made: sign in from another address or your provider's console, and run fail2ban-client unban with the address."
 msgstr "撤销此变更或移除这个 jail，都不会解除已经生效的封禁：请从其他地址或服务商的控制台登录，然后运行 fail2ban-client unban 加上该地址。"
 
+msgid "Upgrade each by running the install script on it once."
+msgstr "请在每台服务器上运行一次安装脚本来升级。"
+
+msgid "Upgrade it by running the install script on it once."
+msgstr "请在其上运行一次安装脚本来升级。"
+
 msgid "What asks for {shared} there can reach either."
 msgstr "在那里请求 {shared} 可能会到达其中任何一个。"
 
@@ -9451,6 +9508,18 @@ msgstr "{heldBy} 可以改变 {server} 上 {path} 指向的位置"
 
 msgid "{ids} will come from another catalog"
 msgstr "{ids} 将改由另一个目录提供"
+
+msgid "{names} aren't connected, so they aren't in this change"
+msgstr "{names} 未连接，因此不在此变更中"
+
+msgid "{names} have agents older than fleet upgrades, so they aren't in this change"
+msgstr "{names} 的代理早于集群升级功能，因此不在此变更中"
+
+msgid "{names} isn't connected, so it isn't in this change"
+msgstr "{names} 未连接，因此不在此变更中"
+
+msgid "{names}'s agent is older than fleet upgrades, so it isn't in this change"
+msgstr "{names} 的代理早于集群升级功能，因此不在此变更中"
 
 msgid "{name} answers plain HTTP on {path} on {server}"
 msgstr "{name} 在 {server} 上以明文 HTTP 响应 {path}"
@@ -9589,6 +9658,15 @@ msgstr "{name} 的 {where} 中含有你的 .env 里 {variable} 的值"
 #. placeholder {0}: line.text
 msgid "{name}: {0}"
 msgstr "{name}：{0}"
+
+msgid "{on} is the control server, whose agent is the control plane, so it isn't in this change. Upgrade it by running the install script on it."
+msgstr "{on} 是控制服务器，其代理就是控制平面，因此不在此变更中。请在其上运行安装脚本来升级。"
+
+msgid "{on} need nothing, so they take no step."
+msgstr "{on} 无需任何操作，因此没有步骤。"
+
+msgid "{on} needs nothing, so it takes no step."
+msgstr "{on} 无需任何操作，因此没有步骤。"
 
 msgid "{projects} can upgrade again, from the catalog each came from."
 msgstr "{projects} 可以再次从各自的来源目录升级。"
@@ -9958,9 +10036,6 @@ msgstr "更新到 {to}"
 
 msgid "Updating"
 msgstr "正在更新"
-
-msgid "Waiting"
-msgstr "等待中"
 
 msgid "What is in flight gets up to {drain} to finish. What outlasts that, such as a long connection, ends with the old container"
 msgstr "正在处理的请求最多有 {drain} 的时间完成。超过此时间的连接（如长连接）会随旧容器一起结束"
@@ -11298,6 +11373,216 @@ msgstr "{0}，超过单次上传上限 {limit}。请通过 SSH 复制。"
 msgid "{entries, plural, one {Uploaded, and unpacked # item into {into}} other {Uploaded, and unpacked # items into {into}}}"
 msgstr "{entries, plural, other {已上传，并将 # 项解压到 {into}}}"
 
+msgid "A step fails"
+msgstr "某一步失败"
+
+msgid "Act on a system service"
+msgstr "操作系统服务"
+
+msgid "Action"
+msgstr "操作"
+
+msgid "Add a label to the selector"
+msgstr "向筛选条件添加标签"
+
+msgid "Apply OS updates"
+msgstr "安装系统更新"
+
+msgid "Auto: {auto}"
+msgstr "自动：{auto}"
+
+msgid "Batch"
+msgstr "每批数量"
+
+msgid "Canary"
+msgstr "金丝雀"
+
+msgid "Draft"
+msgstr "草稿"
+
+msgid "Each passes once its server is back, before the next goes"
+msgstr "每台服务器恢复后才算完成，然后才轮到下一台"
+
+msgid "Each server has its turn, and the change fails at the end"
+msgstr "每台服务器都会轮到，变更会在最后标记为失败"
+
+msgid "Every server"
+msgstr "所有服务器"
+
+msgid "Every server, until you add a label"
+msgstr "在添加标签之前，目标是所有服务器"
+
+msgid "Every update"
+msgstr "所有更新"
+
+msgid "How fast, and when to stop"
+msgstr "推进速度，以及何时停止"
+
+msgid "Install every update"
+msgstr "安装所有更新"
+
+msgid "Install security fixes"
+msgstr "安装安全修复"
+
+msgid "Minutes between waves"
+msgstr "每批之间的分钟数"
+
+msgid "Never; fails at the end if any step did"
+msgstr "从不停止；若有步骤失败，最后标记为失败"
+
+msgid "New fleet action"
+msgstr "新建集群操作"
+
+msgid "No region"
+msgstr "无区域"
+
+msgid "No server after it is touched"
+msgstr "之后的服务器都不会被改动"
+
+msgid "No server matches"
+msgstr "没有匹配的服务器"
+
+msgid "No server matches while the selector has a term it can't read"
+msgstr "选择器中有无法读取的条件，因此没有服务器匹配"
+
+msgid "No server takes a step, so there are no waves"
+msgstr "没有服务器需要执行步骤，因此不分批"
+
+msgid "On the first step that fails"
+msgstr "第一个步骤失败时"
+
+msgid "One server first, on its own"
+msgstr "先单独处理一台服务器"
+
+msgid "One server is a set of one: no waves"
+msgstr "只有一台服务器，不分批"
+
+msgid "Pick by labels instead"
+msgstr "改为按标签选择"
+
+msgid "Pick servers, an action and a rollout. Nothing runs until you apply the plan."
+msgstr "选择服务器、操作和发布方式。在应用计划之前不会执行任何操作。"
+
+msgid "Reboot"
+msgstr "重启"
+
+msgid "Reboot servers"
+msgstr "重启服务器"
+
+msgid "Reload"
+msgstr "重新加载"
+
+msgid "Reload {service}"
+msgstr "重新加载 {service}"
+
+msgid "Restart {service}"
+msgstr "重启 {service}"
+
+msgid "Restart, reload, start or stop one service on each server"
+msgstr "在每台服务器上重启、重新加载、启动或停止一个服务"
+
+msgid "Security fixes"
+msgstr "安全修复"
+
+msgid "Servers in each wave"
+msgstr "每批的服务器数"
+
+msgid "Servers targeted"
+msgstr "目标服务器"
+
+msgid "Servers whose labels match"
+msgstr "标签匹配的服务器"
+
+msgid "Start {service}"
+msgstr "启动 {service}"
+
+msgid "Stop if"
+msgstr "停止条件"
+
+msgid "Stop {service}"
+msgstr "停止 {service}"
+
+msgid "Stops"
+msgstr "停止"
+
+msgid "Summary"
+msgstr "摘要"
+
+msgid "System service"
+msgstr "系统服务"
+
+msgid "Target"
+msgstr "对象"
+
+msgid "That isn't a system service's name, such as nginx.service"
+msgstr "这不是系统服务的名称，例如 nginx.service"
+
+msgid "The control plane is a development build, so it has no release to upgrade agents to"
+msgstr "控制平面是开发版本，没有可供代理升级的发布版本"
+
+msgid "The plan says what each server would do, before anything runs."
+msgstr "在执行任何操作之前，计划会列出每台服务器将做什么。"
+
+msgid "The servers you picked"
+msgstr "你选择的服务器"
+
+msgid "The updates waiting on each server, as its Updates tab lists them"
+msgstr "每台服务器上待安装的更新，与其“更新”标签页所列一致"
+
+msgid "To {release}, the control plane's version, by its own install script"
+msgstr "升级到控制平面的版本 {release}，使用其自带的安装脚本"
+
+msgid "Upgrade the agent"
+msgstr "升级代理"
+
+msgid "Upgrade the agent to {release}"
+msgstr "将代理升级到 {release}"
+
+msgid "Waves"
+msgstr "批次"
+
+msgid "What runs on each server"
+msgstr "在每台服务器上执行的操作"
+
+msgid "What to do to it"
+msgstr "对它执行的操作"
+
+msgid "label:value"
+msgstr "label:value"
+
+msgid "min between waves"
+msgstr "分钟（每批之间）"
+
+msgid "servers a wave"
+msgstr "台服务器（每批）"
+
+msgid "{agents, plural, one {It runs {release} already} other {All # run {release} already}}"
+msgstr "{agents, plural, other {全部 # 台已运行 {release}}}"
+
+msgid "{count, plural, one {# server matches} other {# servers match}}"
+msgstr "{count, plural, other {# 台服务器匹配}}"
+
+msgid "{count, plural, one {# server picked} other {# servers picked}}"
+msgstr "{count, plural, other {已选择 # 台服务器}}"
+
+msgid "{names} is the control server, which upgrades by the install script on it"
+msgstr "{names} 是控制服务器，需要在其上运行安装脚本来升级"
+
+msgid "{names} run {release} already"
+msgstr "{names} 已运行 {release}"
+
+msgid "{names} runs {release} already"
+msgstr "{names} 已运行 {release}"
+
+msgid "{pauseMinutes} min between waves"
+msgstr "每批之间 {pauseMinutes} 分钟"
+
+msgid "{serverWords} in {waveWords}"
+msgstr "{serverWords}，分 {waveWords}"
+
+msgid "{sizes} servers"
+msgstr "{sizes} 台服务器"
+
 msgid "1Panel isn't on this server"
 msgstr "此服务器上没有 1Panel"
 
@@ -11966,9 +12251,6 @@ msgstr "每台服务器都在上报数据"
 
 msgid "Fleet"
 msgstr "集群"
-
-msgid "No region"
-msgstr "无区域"
 
 msgid "No server is reporting"
 msgstr "没有服务器在上报数据"
@@ -12971,9 +13253,6 @@ msgstr "{tries, plural, other {登录失败 # 次}}"
 msgid "{ways} also let people in, which Dockwell can't check."
 msgstr "{ways} 也能让人登录，Dockwell 无法检查这些方式。"
 
-msgid "Action"
-msgstr "操作"
-
 msgid "Allow"
 msgstr "允许"
 
@@ -13853,9 +14132,6 @@ msgstr "{size} · 未使用"
 msgid "{size} · {inUse} in use"
 msgstr "{size} · 已用 {inUse}"
 
-msgid "Add a label to the selector"
-msgstr "向筛选条件添加标签"
-
 msgid "CPU {cpu}%"
 msgstr "CPU {cpu}%"
 
@@ -13864,9 +14140,6 @@ msgstr "选中的服务器"
 
 msgid "Clear the selector"
 msgstr "清除筛选条件"
-
-msgid "Every server"
-msgstr "所有服务器"
 
 msgid "Group by {k}"
 msgstr "按 {k} 分组"
@@ -13880,14 +14153,20 @@ msgstr "需要关注"
 msgid "No groups"
 msgstr "不分组"
 
-msgid "No server matches"
-msgstr "没有匹配的服务器"
-
 msgid "No {key}"
 msgstr "无 {key}"
 
 msgid "Open"
 msgstr "打开"
+
+msgid "Pick every server shown"
+msgstr "选择显示的所有服务器"
+
+msgid "Picked servers"
+msgstr "已选择的服务器"
+
+msgid "Run fleet action"
+msgstr "执行集群操作"
 
 msgid "Runs"
 msgstr "运行"
@@ -13910,11 +14189,11 @@ msgstr "显示全部 {count} 台"
 msgid "Showing {shown} of {count} · sorted by name"
 msgstr "显示 {count} 台中的 {shown} 台 · 按名称排序"
 
-msgid "label:value"
-msgstr "label:value"
-
 msgid "sorted by name"
 msgstr "按名称排序"
+
+msgid "{count, plural, one {# selected} other {# selected}}"
+msgstr "{count, plural, other {已选择 #}}"
 
 msgid "{count} in {regionWords}"
 msgstr "{count}，分布在 {regionWords}"
@@ -14031,9 +14310,6 @@ msgstr "已搜索到 {searchedWords}"
 
 msgid "System log filters"
 msgstr "系统日志筛选"
-
-msgid "System service"
-msgstr "系统服务"
 
 #. placeholder {0}: server.name
 msgid "The agent on {0} isn't connected, so its system log can't be read now. This reads again when it reconnects."
@@ -14480,9 +14756,6 @@ msgstr "显示最近 30 天"
 
 msgid "Show the last 7 days"
 msgstr "显示最近 7 天"
-
-msgid "Target"
-msgstr "对象"
 
 msgid "The audit log, newest first"
 msgstr "审计日志，最新的在前"
@@ -16539,9 +16812,6 @@ msgstr "来自 {0} 个来源"
 msgid "In review"
 msgstr "待审阅"
 
-msgid "Install every update"
-msgstr "安装所有更新"
-
 msgid "Install security updates"
 msgstr "安装安全更新"
 
@@ -16611,9 +16881,6 @@ msgstr "软件包列表"
 
 msgid "Package manager"
 msgstr "包管理器"
-
-msgid "Reboot"
-msgstr "重启"
 
 msgid "Reboot command copied"
 msgstr "已复制重启命令"

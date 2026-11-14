@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { type Server, ServerService } from "@dockwell/api";
+import { ChangeService, type Server, ServerService } from "@dockwell/api";
 import {
   Button,
   cx,
@@ -347,6 +347,11 @@ function ServersSelector({
  */
 function WideServers({ servers, chosen, select, unknown, groups, groupKey, selector }: ListProps) {
   const { t } = useLingui();
+  // Picking servers is for a fleet action, so it's there for whoever may plan one (ADR 0094).
+  const mayAct = useMay()(ChangeService.method.planReboot, { install: true }).allowed;
+  const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
+  // What the selector leaves out isn't picked any more.
+  const shownPicked = servers.filter((s) => picked.has(s.id));
   const tiles = useServerTiles(servers, unknown);
   const tileGroups = useTileGroups(tiles, groups, groupKey);
   const [all, setAll] = useState(false);
@@ -387,6 +392,7 @@ function WideServers({ servers, chosen, select, unknown, groups, groupKey, selec
             />
           </section>
         ) : null}
+        {shownPicked.length > 0 ? <PickedBar picked={shownPicked} onClear={() => setPicked(new Set())} /> : null}
         <ServersTable
           servers={servers}
           tiles={tiles}
@@ -396,6 +402,8 @@ function WideServers({ servers, chosen, select, unknown, groups, groupKey, selec
           selector={selector}
           all={all || beyond}
           onShowAll={() => setAll(true)}
+          picked={mayAct ? picked : undefined}
+          onPick={setPicked}
         />
       </div>
       {chosen ? (
@@ -414,7 +422,16 @@ function ServersTable({
   selector,
   all,
   onShowAll,
-}: ListProps & { tiles: readonly FleetServer[]; all: boolean; onShowAll: () => void }) {
+  picked,
+  onPick,
+}: ListProps & {
+  tiles: readonly FleetServer[];
+  all: boolean;
+  onShowAll: () => void;
+  /** The servers picked for a fleet action; undefined offers no checkboxes. */
+  picked?: ReadonlySet<string> | undefined;
+  onPick?: (next: ReadonlySet<string>) => void;
+}) {
   const { t } = useLingui();
   const strings = useUIStrings();
   const runs = useRunsByServer();
@@ -434,13 +451,41 @@ function ServersTable({
         selectedKey={chosen?.id ?? null}
         onRowClick={(s) => select(s.id)}
         columns={[
+          ...(picked && onPick
+            ? [
+                {
+                  key: "pick",
+                  header: <PickAll rows={rows} picked={picked} onPick={onPick} />,
+                  width: 40,
+                  // Named by the server's name in its row, so the row is named as it was, by the server first.
+                  render: (s: Server) => {
+                    return (
+                      <input
+                        type="checkbox"
+                        className="servers-pick"
+                        aria-labelledby={`servers-name-${s.id}`}
+                        checked={picked.has(s.id)}
+                        onChange={(e) => {
+                          const next = new Set(picked);
+                          if (e.target.checked) next.add(s.id);
+                          else next.delete(s.id);
+                          onPick(next);
+                        }}
+                      />
+                    );
+                  },
+                },
+              ]
+            : []),
           {
             key: "name",
             header: t`Server`,
             width: 200,
             render: (s) => (
               <span className="dw-cell">
-                <span className="dw-cell-title servers-table-name">{s.name}</span>
+                <span className="dw-cell-title servers-table-name" id={`servers-name-${s.id}`}>
+                  {s.name}
+                </span>
                 {byId.get(s.id)?.ip ? <code className="dw-cell-sub">{byId.get(s.id)?.ip}</code> : null}
               </span>
             ),
@@ -506,6 +551,58 @@ function ServersTable({
           </span>
         )}
       </div>
+    </section>
+  );
+}
+
+/** The table's header checkbox: picks every row shown, or none, and shows some picked as mixed. */
+function PickAll({
+  rows,
+  picked,
+  onPick,
+}: {
+  rows: readonly Server[];
+  picked: ReadonlySet<string>;
+  onPick: (next: ReadonlySet<string>) => void;
+}) {
+  const { t } = useLingui();
+  const shown = rows.filter((s) => picked.has(s.id)).length;
+  const every = rows.length > 0 && shown === rows.length;
+  return (
+    <input
+      type="checkbox"
+      className="servers-pick"
+      aria-label={t`Pick every server shown`}
+      checked={every}
+      ref={(el) => {
+        if (el) el.indeterminate = shown > 0 && !every;
+      }}
+      onChange={() => onPick(every ? new Set() : new Set([...picked, ...rows.map((s) => s.id)]))}
+    />
+  );
+}
+
+/** What's picked, as Servers-List's bar says it: how many, their names, Clear, and Run fleet action. */
+function PickedBar({ picked, onClear }: { picked: readonly Server[]; onClear: () => void }) {
+  const { t } = useLingui();
+  const count = picked.length;
+  const names = picked.map((s) => s.name).join(", ");
+  return (
+    <section className="servers-picked" aria-label={t`Picked servers`}>
+      <span className="servers-picked-count">{plural(count, { one: "# selected", other: "# selected" })}</span>
+      <code className="servers-picked-names">{names}</code>
+      <Button variant="ghost" size="sm" onClick={onClear}>
+        <Trans>Clear</Trans>
+      </Button>
+      <RouterButtonLink
+        to="/fleet-actions"
+        search={{ servers: picked.map((s) => s.id).join(",") }}
+        variant="secondary"
+        size="sm"
+        icon="play"
+      >
+        <Trans>Run fleet action</Trans>
+      </RouterButtonLink>
     </section>
   );
 }

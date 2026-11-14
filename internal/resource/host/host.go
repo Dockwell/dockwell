@@ -8,10 +8,12 @@
 package host
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"maps"
+	"strconv"
 	"strings"
 
 	"google.golang.org/protobuf/proto"
@@ -85,6 +87,19 @@ type Panels interface {
 	ApplyPanel(ctx context.Context, p resource.Panel, say func(string)) error
 }
 
+// Upgrader upgrades the agent by the install script a change carries (ADR 0094).
+// Nil on the control plane.
+type Upgrader interface {
+	// Own is the agent's own version, without a "v".
+	Own() string
+	// Upgrade checks the script against its SHA-256 and starts it for the change,
+	// at most once: asked again while it runs it does nothing, and once it has
+	// ended with the agent at its old version it fails with what the script said.
+	Upgrade(ctx context.Context, ask resource.AgentUpgradeAsked) error
+	// Forget lets go of what the change's upgrade left, once it's done.
+	Forget(change string)
+}
+
 // Driver is a server's host.
 type Driver struct {
 	Backend Backend
@@ -92,6 +107,8 @@ type Driver struct {
 	Units Units
 	// Panels stops and starts a panel's own containers; nil acts on none.
 	Panels Panels
+	// Upgrader upgrades the agent; nil upgrades none.
+	Upgrader Upgrader
 }
 
 var (
@@ -100,6 +117,7 @@ var (
 	_ resource.Rebooter         = (*Driver)(nil)
 	_ resource.UnitActor        = (*Driver)(nil)
 	_ resource.PanelActor       = (*Driver)(nil)
+	_ resource.AgentUpgrader    = (*Driver)(nil)
 	_ resource.ControlOnly      = (*Driver)(nil)
 	_ resource.ControlOnlySayer = (*Driver)(nil)
 )
@@ -316,4 +334,106 @@ func (d *Driver) ApplyPanel(ctx context.Context, step resource.Step) error {
 		return errNoPanels
 	}
 	return d.Panels.ApplyPanel(ctx, *step.Panel, func(line string) { resource.Progress(ctx, line) })
+}
+
+var errCantUpgrade = errors.New("this agent can't upgrade itself")
+
+// JudgeAgentUpgrade plans upgrading the agent to the version asked, and nothing
+// once it runs that or a newer one: a resume finds the upgrade done once the agent
+// is back at it. One that runs still plans, and applying it again does nothing.
+func (d *Driver) JudgeAgentUpgrade(_ context.Context, _ resource.Ref, ask resource.AgentUpgradeAsked) (resource.Decision, bool, error) {
+	if d.Upgrader == nil {
+		return resource.Decision{}, false, errCantUpgrade
+	}
+	own := d.Upgrader.Own()
+	if !Older(own, ask.Version) {
+		d.Upgrader.Forget(ask.Change)
+		return resource.Decision{}, false, nil
+	}
+	return resource.Decision{Action: resource.ActionUpdate, Effect: resource.EffectNone, AgentUpgrade: &resource.AgentUpgrade{From: own, To: ask.Version, ScriptSHA256: ask.ScriptSHA256}}, true, nil
+}
+
+// ApplyAgentUpgrade starts the install script the step's call carries, for the
+// change applying it.
+func (d *Driver) ApplyAgentUpgrade(ctx context.Context, step resource.Step) error {
+	if d.Upgrader == nil {
+		return errCantUpgrade
+	}
+	ask, ok := resource.AgentUpgradeOf(ctx)
+	if !ok || len(ask.Script) == 0 {
+		return errors.New("its call carried no install script. The control plane is older than the agent, so upgrade it first")
+	}
+	if ask.Change = cmp.Or(ask.Change, resource.DeployOf(ctx).Change); ask.Change == "" {
+		return errors.New("an upgrade needs its change, which its mark names")
+	}
+	if step.AgentUpgrade != nil && step.AgentUpgrade.To != ask.Version {
+		return fmt.Errorf("its step upgrades to %s, and its call to %s. Plan the upgrade again", step.AgentUpgrade.To, ask.Version)
+	}
+	return d.Upgrader.Upgrade(ctx, ask)
+}
+
+// Older reports whether version a comes before b, as releases do: by major, minor
+// and patch, then a release after its pre-releases. A version that isn't a
+// release's, as a development build's, comes before any other.
+func Older(a, b string) bool {
+	pa, oka := semver(a)
+	pb, okb := semver(b)
+	switch {
+	case !okb:
+		return false
+	case !oka:
+		return true
+	}
+	for i := range 3 {
+		if pa.n[i] != pb.n[i] {
+			return pa.n[i] < pb.n[i]
+		}
+	}
+	switch {
+	case pa.pre == pb.pre:
+		return false
+	case pa.pre == "":
+		return false
+	case pb.pre == "":
+		return true
+	}
+	xa, xb := strings.Split(pa.pre, "."), strings.Split(pb.pre, ".")
+	for i := range min(len(xa), len(xb)) {
+		na, ea := strconv.Atoi(xa[i])
+		nb, eb := strconv.Atoi(xb[i])
+		switch {
+		case ea == nil && eb == nil && na != nb:
+			return na < nb
+		case (ea == nil) != (eb == nil):
+			return ea == nil
+		case ea != nil && xa[i] != xb[i]:
+			return xa[i] < xb[i]
+		}
+	}
+	return len(xa) < len(xb)
+}
+
+type version struct {
+	n   [3]int
+	pre string
+}
+
+// semver reads a release's version, with or without its "v".
+func semver(v string) (version, bool) {
+	v = strings.TrimPrefix(strings.TrimSpace(v), "v")
+	core, pre, _ := strings.Cut(v, "-")
+	parts := strings.Split(core, ".")
+	if len(parts) != 3 {
+		return version{}, false
+	}
+	var out version
+	for i, p := range parts {
+		n, err := strconv.Atoi(p)
+		if err != nil || n < 0 {
+			return version{}, false
+		}
+		out.n[i] = n
+	}
+	out.pre = pre
+	return out, true
 }

@@ -146,3 +146,19 @@ func TestEachBuildSaysWhichItIs(t *testing.T) {
 		}
 	}
 }
+
+// A release is a release's version from the tree as it was tagged; a build
+// between releases, or from a changed tree, isn't.
+func TestOnlyAReleaseIsOne(t *testing.T) {
+	for v, want := range map[string]bool{
+		"v0.9.4": true, "0.9.4": true, "v0.9.4-rc.1": true,
+		Devel: false, "v0.9.5-0.20261114083000-abcdef123456": false, "v0.0.0-20261114083000-abcdef123456": false,
+	} {
+		if got := (Info{Version: v}).Release(); got != want {
+			t.Errorf("%s is a release: %t, want %t", v, got, want)
+		}
+	}
+	if (Info{Version: "v0.9.4", Modified: true}).Release() {
+		t.Error("a changed tree is a release")
+	}
+}

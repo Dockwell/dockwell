@@ -29,7 +29,7 @@ func NewHost(ctx context.Context, tx *store.Tx, server string) (*resourcev1.Serv
 
 // hostStep reports an edit that takes a step on its server's host.
 func hostStep(ed *Edit) bool {
-	return ed.Reboot || ed.Install != nil || ed.Unit != nil || ed.Panel != nil
+	return ed.Reboot || ed.Install != nil || ed.Unit != nil || ed.Panel != nil || ed.UpgradeAgent != nil
 }
 
 // hostsAsIs gives edits with each step on a host given that host's stored spec, or

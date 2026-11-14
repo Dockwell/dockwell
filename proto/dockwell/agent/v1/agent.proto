@@ -553,6 +553,10 @@ message Hello {
   // none, and its routes get their certificates from Caddy, as before. Numbered in
   // the block DNS-01 holds, 320 to 329.
   bool loads_certificates = 321;
+  // The agent upgrades itself when a change asks it to, by running the install
+  // script the change carries (ADR 0094). Numbered in the block fleet actions
+  // hold, 350 to 359.
+  bool upgrades_itself = 350;
 }
 
 // DesiredHeld is what an agent keeps of what its server should run.
@@ -2087,6 +2091,22 @@ message ObserveCall {
   repeated dockwell.v1.ResourceRef resources = 1;
 }
 
+// UpgradeAgent is an upgrade of the agent a change asks for (ADR 0094).
+message UpgradeAgent {
+  // The change that asks for it.
+  string change = 1;
+  // The version to upgrade to.
+  string version = 2;
+  // The install script to run, the control plane's own, and its SHA-256 in hex,
+  // which the agent checks before it runs it. Only an apply carries the script;
+  // a plan names it by its SHA-256.
+  bytes script = 3;
+  string script_sha256 = 4;
+  // Where to download the release from, when it's a mirror and not GitHub: the
+  // script's --mirror.
+  string mirror = 5;
+}
+
 // DesiredResource is one resource as a change wants it.
 message DesiredResource {
   // The resource.
@@ -2151,6 +2171,10 @@ message DesiredResource {
   // Stops or starts the own containers and services of the panel an import came
   // from, for its host (ADR 0089). Numbered in the import's block, 330 to 339.
   PanelAction panel = 333;
+  // Upgrades the agent, for a server's host: the version, and the install script
+  // to run for it with its SHA-256 (ADR 0094). Numbered in the block fleet
+  // actions hold, 350 to 359.
+  UpgradeAgent upgrade_agent = 351;
 }
 
 // PanelAction is stopping or starting the own containers and services of Coolify

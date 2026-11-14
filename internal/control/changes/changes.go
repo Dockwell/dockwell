@@ -9,6 +9,7 @@
 package changes
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -1250,6 +1251,31 @@ func confirmationOf(steps []*dockwellv1.StepProgress) *dockwellv1.ChangeConfirma
 
 // planProto is a change's plan: in full when the record has it, and in
 // brief in a list.
+// rolloutProto is how plan p runs over its servers, wave by wave, as the API says
+// it, with each server's name; nil for a plan with no waves (ADR 0094).
+func rolloutProto(p *revision.Plan) *dockwellv1.PlanRollout {
+	w := p.Waves
+	if w == nil {
+		return nil
+	}
+	names := map[string]string{}
+	for i := range p.Servers {
+		names[p.Servers[i].Server] = p.Servers[i].Name
+	}
+	out := &dockwellv1.PlanRollout{KeepGoing: w.KeepGoing}
+	if w.Pause > 0 {
+		out.Pause = durationpb.New(w.Pause)
+	}
+	for _, wave := range w.Order {
+		pw := &dockwellv1.RolloutWave{ServerIds: wave}
+		for _, id := range wave {
+			pw.ServerNames = append(pw.ServerNames, cmp.Or(names[id], id))
+		}
+		out.Waves = append(out.Waves, pw)
+	}
+	return out
+}
+
 func planProto(r *revision.Record) *dockwellv1.Plan {
 	b := r.Brief
 	out := &dockwellv1.Plan{
@@ -1269,6 +1295,7 @@ func planProto(r *revision.Record) *dockwellv1.Plan {
 	if rm := p.Removes; rm != nil {
 		out.Removes = &dockwellv1.ServerRemoval{ServerId: rm.Server, ServerName: rm.Name, Compromised: rm.Compromised}
 	}
+	out.Rollout = rolloutProto(p)
 	for i := range p.Notes {
 		n := &p.Notes[i]
 		out.Notes = append(out.Notes, &dockwellv1.PlanNote{Reason: n.Reason, Message: n.Message, Resource: resourcepb.Ref(n.Ref), Names: n.Names, From: n.From, Deleted: n.Deleted, Named: n.Named})
@@ -1284,7 +1311,8 @@ func planProto(r *revision.Record) *dockwellv1.Plan {
 			Id: r.ID, Resource: resourcepb.Ref(r.Ref), Action: resourcepb.Action(r.Action), BaseRevision: int64(r.Base),
 			Changes: resourcepb.Changes(r.Changes), Servers: r.Servers, PreviousServers: r.Previous,
 			HostAccess: resourcepb.HostAccess(r.HostAccess), Install: resourcepb.Install(r.Install), Reboot: resourcepb.Reboot(r.Reboot), Unit: resourcepb.Unit(r.Unit), Panel: resourcepb.Panel(r.Panel),
-			LetsGo: r.Forget,
+			AgentUpgrade: resourcepb.AgentUpgrade(r.AgentUpgrade),
+			LetsGo:       r.Forget,
 		})
 	}
 	for i := range p.Servers {
@@ -1324,6 +1352,7 @@ func stepProto(s *revision.StepProgress) *dockwellv1.StepProgress {
 	p := &dockwellv1.StepProgress{
 		ServerId: s.Server, ResourceId: s.ResourceID, Resource: resourcepb.Ref(s.Ref), Action: resourcepb.Action(s.Action),
 		State: stepStates[s.State], Message: s.Message, Activity: s.Activity, Detail: s.Detail, Reason: s.Reason, Lost: s.Lost,
+		Wave:  int32(s.Wave), //nolint:gosec // a wave's number, at most the fleet's size
 		Phase: dockwellv1.StepPhase(s.Phase), DoneBytes: s.Done, TotalBytes: s.Total,
 	}
 	if !s.Started.IsZero() {
