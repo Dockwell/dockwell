@@ -43,7 +43,7 @@ func pageIDs(res *dockwellv1.ListCatalogEntriesResponse) []string {
 
 // The catalog answers a page at a time, in name order, with how many match and the
 // token to the next page, and every entry at once where no page size is asked for
-// (ADR 0091).
+// (ADR 0092).
 func TestTheCatalogPages(t *testing.T) {
 	var p pageIndex
 	idx := p.of(aCatalog())
@@ -144,7 +144,7 @@ func TestTheCatalogSearchesAndFilters(t *testing.T) {
 }
 
 // The control plane holds one index while the catalog stays the same, and makes it
-// again only once the catalog changes (ADR 0091).
+// again only once the catalog changes (ADR 0092).
 func TestTheIndexIsMadeOnceForEachCatalog(t *testing.T) {
 	var p pageIndex
 	s := aCatalog()

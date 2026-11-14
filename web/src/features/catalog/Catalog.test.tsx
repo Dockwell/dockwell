@@ -185,7 +185,7 @@ describe("The catalog", () => {
   });
 });
 
-describe("The catalog a page at a time (ADR 0091)", () => {
+describe("The catalog a page at a time (ADR 0092)", () => {
   const many = Array.from({ length: 60 }, (_, i) =>
     create(EntrySchema, {
       id: `app-${String(i).padStart(2, "0")}`,

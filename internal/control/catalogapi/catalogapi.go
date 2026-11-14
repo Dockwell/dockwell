@@ -56,7 +56,7 @@ type Handler struct {
 	// shareable lists the database servers an app may share (ADR 0084). Nil offers
 	// none.
 	shareable Shareable
-	// pages is the catalog's index, which every page is cut from (ADR 0091).
+	// pages is the catalog's index, which every page is cut from (ADR 0092).
 	pages pageIndex
 }
 

@@ -24,7 +24,7 @@ export type CatalogRequest = MessageInitShape<typeof ListCatalogEntriesRequestSc
 /**
  * The entries of the catalog a request names, all that match in one answer unless it
  * asks for a page, sorted by name: for a screen that needs a few, by IDs, a category
- * or a catalog. The Catalog page and New app read it a page at a time (ADR 0091).
+ * or a catalog. The Catalog page and New app read it a page at a time (ADR 0092).
  */
 export function useCatalog(request: CatalogRequest, options: { enabled?: boolean } = {}) {
   return useQuery(CatalogService.method.listCatalogEntries, request, { staleTime: 30_000, ...options });
@@ -53,7 +53,7 @@ export function useSettled<T>(value: T, ms: number): T {
 
 /**
  * The categories whose names, in the reader's language, have the words: the control
- * plane translates nothing, so the panel says which it means (ADR 0091).
+ * plane translates nothing, so the panel says which it means (ADR 0092).
  */
 export function categoriesNamed(words: string, i18n: I18n): string[] {
   const query = words.trim().toLowerCase();
@@ -67,7 +67,7 @@ export function categoriesNamed(words: string, i18n: I18n): string[] {
  * The catalog a page at a time, as filters narrow it, searched on the control plane
  * in the reader's language, with how many match and how many each category has. The
  * pages stay in the query cache, so a way back finds the grid as it was; while new
- * filters are read, the entries of the old ones stay (ADR 0091).
+ * filters are read, the entries of the old ones stay (ADR 0092).
  */
 export function useCatalogPages(
   filters: CatalogFilters,

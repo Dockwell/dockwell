@@ -5,7 +5,7 @@ export interface CatalogSearch {
   category?: string | undefined;
   /** The catalog an app is read and installed from, by its source's name, where several have it (ADR 0078). */
   catalog?: string | undefined;
-  /** Only the apps installed here (ADR 0091). */
+  /** Only the apps installed here (ADR 0092). */
   installed?: boolean | undefined;
 }
 

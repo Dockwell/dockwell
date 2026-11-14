@@ -79,7 +79,7 @@ func (CatalogOrder) EnumDescriptor() ([]byte, []int) {
 
 // ListCatalogEntriesRequest asks for a page of the catalog. The filters narrow it,
 // and combine: an entry must pass each one that is set. See
-// docs/adr/0091-the-catalog-a-page-at-a-time.md.
+// docs/adr/0092-the-catalog-a-page-at-a-time.md.
 type ListCatalogEntriesRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// How many entries a page holds, at most 200. Unset lists every entry that

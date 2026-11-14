@@ -40,7 +40,7 @@ export interface CatalogPageProps {
  * what's already installed marked. Every card opens the app's details before the
  * reader chooses to install it or open an existing installation. The control plane
  * searches and pages it, and the next page comes as the reader nears the end
- * (ADR 0091).
+ * (ADR 0092).
  */
 export function CatalogPage({ search = {}, onSearch, children }: CatalogPageProps) {
   const { t, i18n } = useLingui();

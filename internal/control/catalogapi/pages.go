@@ -26,7 +26,7 @@ import (
 const mostPage = 200
 
 // featured are the apps most people start with, in the order New app offers them,
-// where the catalog has them: what a newcomer is most likely to know (ADR 0091).
+// where the catalog has them: what a newcomer is most likely to know (ADR 0092).
 var featured = []string{
 	"wordpress", "postgres", "nextcloud", "gitea", "n8n", "uptime-kuma",
 	"ghost", "plausible", "vaultwarden", "grafana", "jellyfin", "mysql",
@@ -36,7 +36,7 @@ var featured = []string{
 // catalog lists it, in name order, with the words a search reads, lowercased once,
 // and each catalog's own entry of an app another lists first. The control plane
 // holds one while the catalog stays the same, and every request reads it, so a
-// page costs a pass over it and no copy (ADR 0091).
+// page costs a pass over it and no copy (ADR 0092).
 type catalogIndex struct {
 	key     [32]byte
 	entries []*indexed

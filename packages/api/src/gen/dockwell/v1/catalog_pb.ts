@@ -27,7 +27,7 @@ export const file_dockwell_v1_catalog: GenFile = /*@__PURE__*/
 /**
  * ListCatalogEntriesRequest asks for a page of the catalog. The filters narrow it,
  * and combine: an entry must pass each one that is set. See
- * docs/adr/0091-the-catalog-a-page-at-a-time.md.
+ * docs/adr/0092-the-catalog-a-page-at-a-time.md.
  *
  * @generated from message dockwell.v1.ListCatalogEntriesRequest
  */

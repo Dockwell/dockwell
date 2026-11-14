@@ -247,7 +247,7 @@ function SourceCard({
   // Every app it brings, those listed from a catalog before it included, which it offers as another choice.
   const apps = [...source.entries, ...source.also];
   const count = apps.length;
-  // A page of its own apps, each as it has it, for the few icons the card shows (ADR 0091).
+  // A page of its own apps, each as it has it, for the few icons the card shows (ADR 0092).
   const page = useCatalog({ catalog: name, pageSize: FEW * 4 }, { enabled: source.unread === "" }).data?.entries;
   const icons = new Map((page ?? []).map((e) => [e.id, { name: e.name, icon: e.icon }]));
   const few = (page ?? [])

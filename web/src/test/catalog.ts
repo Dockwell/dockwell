@@ -33,7 +33,7 @@ const FEATURED = [
  * A stand-in for ListCatalogEntries that answers as the control plane does: the
  * entries a request's filters keep, searched in its language, in name order or
  * featured first, a page at a time, with how many match and each category's count
- * (ADR 0091). origins names the catalog each entry comes from, also each other
+ * (ADR 0092). origins names the catalog each entry comes from, also each other
  * catalog's entry of an app, and installed how many times each app is installed here.
  */
 export function catalogPages(

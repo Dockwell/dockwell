@@ -42,7 +42,7 @@ export function StartChoices({ compact = false, ways }: { compact?: boolean; way
   // rather than space; two rows on a phone, where nothing stands beside it. The last place says how many more.
   const beside = (ways ?? ["catalog", "git", "image", "compose", "website"]).length - 1;
   const places = ROW * (phone ? 2 : Math.max(beside - 1, 1));
-  // The apps a newcomer most likely knows first, as the control plane orders them (ADR 0091).
+  // The apps a newcomer most likely knows first, as the control plane orders them (ADR 0092).
   const featured = useCatalog({ pageSize: places, order: CatalogOrder.FEATURED }).data;
   const catalog = featured?.entries ?? [];
   const total = featured?.total ?? catalog.length;

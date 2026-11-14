@@ -248,7 +248,7 @@ service CatalogService {
 
 // ListCatalogEntriesRequest asks for a page of the catalog. The filters narrow it,
 // and combine: an entry must pass each one that is set. See
-// docs/adr/0091-the-catalog-a-page-at-a-time.md.
+// docs/adr/0092-the-catalog-a-page-at-a-time.md.
 message ListCatalogEntriesRequest {
   // How many entries a page holds, at most 200. Unset lists every entry that
   // matches, in one answer, as the catalog did before it paged.
