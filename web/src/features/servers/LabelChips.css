@@ -1,0 +1,70 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+/* Chips and a field in one box, as Servers-List's selector draws it: it grows a row as the chips wrap. */
+.label-chips-box {
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  height: auto;
+  min-height: var(--control-md);
+  padding: 4px 12px 4px 10px;
+  box-sizing: border-box;
+  cursor: text;
+}
+
+.label-chips-icon {
+  flex: none;
+  color: var(--ink-muted);
+}
+
+.label-chips-box .dw-tag {
+  flex: none;
+}
+
+/* The field takes what's left of the row, and a row of its own when that's too little to type in. */
+.label-chips-input {
+  flex: 1 1 120px;
+  min-width: 120px;
+  height: 26px;
+  padding: 0 4px;
+}
+
+/* What sits at the end of the box, such as how many match. */
+.label-chips-after {
+  flex: none;
+  margin-left: auto;
+  font-size: 13px;
+  font-weight: 550;
+  white-space: nowrap;
+}
+
+.labels-sheet-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* A server's labels where its facts are, with the way to change them at the end. */
+.server-labels {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+/* Labels with what they are ahead of them, as the phone's status card has them, under its addresses. */
+.server-labels-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  min-height: 48px;
+  padding: var(--space-2) var(--space-3) var(--space-2) var(--space-4);
+  border-top: 1px solid var(--line);
+}
+
+.server-labels-term {
+  color: var(--ink-muted);
+  font-size: 13px;
+}

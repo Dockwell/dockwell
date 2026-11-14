@@ -1834,6 +1834,7 @@ func Methods() []*apicli.Method {
 			Fields: []apicli.Field{
 				{Path: "ttl_seconds", Help: "How long it works, in seconds: an hour when unset, and at most a day."},
 				{Path: "proof", Help: "The proof from dockwell sessions finish-step-up for STEP_UP_ACTION_ADD_SERVER."},
+				{Path: "labels", Help: "The labels the server joining with it gets, each as key:value, such as region:eu: the change that adds its host, as its agent first connects, gives them (ADR 0091). Numbered in the block labels hold, 20 to 29."},
 			},
 			Call: apicli.Unary[v1.CreateJoinTicketRequest, v1.CreateJoinTicketResponse](dockwellv1connect.ServerServiceCreateJoinTicketProcedure),
 		},
@@ -2130,6 +2131,23 @@ func Methods() []*apicli.Method {
 			Call: apicli.Unary[v1.GetServerRequest, v1.GetServerResponse](dockwellv1connect.ServerServiceGetServerProcedure),
 		},
 		{
+			Name:      "dockwell.v1.ChangeService.PlanServerLabels",
+			Procedure: dockwellv1connect.ChangeServicePlanServerLabelsProcedure,
+			HTTP:      "POST /v1/servers:planLabels",
+			Noun:      "servers",
+			Verb:      "label",
+			Short:     "Plan setting and removing labels on servers",
+			Long:      "Plan setting and removing labels on servers, each as key:value, such as\nregion:eu: an edit of each server's host. Only the control plane keeps labels,\nso the change takes no step on any server and applies with them online or not,\nand its plan says so in a \"labels_only\" note. A key is as a Kubernetes label's:\na name of at most 63 characters, letters, digits, -, _ and ., with an optional\nprefix, such as example.com/tier. See docs/adr/0091-server-labels.md.",
+			Effect:    v1.Effect_EFFECT_PLAN,
+			Fields: []apicli.Field{
+				{Path: "server_ids", Help: "The servers, by ID. One server is a set of one."},
+				{Path: "set", Help: "Labels to set, each as key:value, such as region:eu, or a key alone for an empty value. A server that has the key already takes the new value."},
+				{Path: "remove", Help: "Keys of labels to remove, such as region. A key a server doesn't have is nothing to remove."},
+				{Path: "summary", Help: "What the change is for, for the timeline. Empty says what it labels."},
+			},
+			Call: apicli.Unary[v1.PlanServerLabelsRequest, v1.PlanServerLabelsResponse](dockwellv1connect.ChangeServicePlanServerLabelsProcedure),
+		},
+		{
 			Name:      "dockwell.v1.ServerService.ListServers",
 			Procedure: dockwellv1connect.ServerServiceListServersProcedure,
 			HTTP:      "GET /v1/servers",
@@ -2138,7 +2156,10 @@ func Methods() []*apicli.Method {
 			Short:     "Return every server",
 			Long:      "Return every server, connected or not, without history.",
 			Effect:    v1.Effect_EFFECT_READ,
-			Call:      apicli.Unary[v1.ListServersRequest, v1.ListServersResponse](dockwellv1connect.ServerServiceListServersProcedure),
+			Fields: []apicli.Field{
+				{Path: "selector", Help: "The servers whose labels a selector matches, such as \"pool:web region:eu\": key:value terms with spaces between, a key alone for one it has, and ! in front for one it doesn't. Empty lists every server. See docs/adr/0091-server-labels.md. Numbered in the block labels hold, 20 to 29."},
+			},
+			Call: apicli.Unary[v1.ListServersRequest, v1.ListServersResponse](dockwellv1connect.ServerServiceListServersProcedure),
 		},
 		{
 			Name:      "dockwell.v1.ChangeService.PlanSystemServiceAction",
@@ -3183,7 +3204,7 @@ func Nouns() []apicli.Noun {
 		{Name: "registry-logins", Short: "List, check, create, update or delete registry logins", Long: "What signs in to a container registry, so an app can pull an image the registry\nkeeps private. A login is install-wide: an admin saves it as a change, with a\nplan, and decides which projects' apps may pull with it. It's sent only to the\nserver that pulls, for that call, and from there to its registry and the token\nservice it was saved with. dockwell registry-logins check signs in without\nsaving anything. See docs/adr/0086-registry-logins-for-private-images.md.\n\ndockwell registry-logins create, update and delete each propose a change, show\nits plan, and ask before applying it."},
 		{Name: "resources", Short: "Return the resources that exist now", Long: "ResourceService reads the resources Dockwell manages: projects, environments,\nservices, volumes, networks, routes, containers and firewall rules. Change them\nwith ChangeService.\n\nIt names resources and says where they live, and never carries a spec, which may\nhold secrets. A spec's display_name, which never does, is the one exception."},
 		{Name: "secrets", Short: "Reveal, create, update or delete secrets", Long: "A secret is a value of an environment that its services use without anyone\nreading it back, such as a database password. Dockwell keeps it encrypted, sends\nit only to the servers that run a service that uses it, and never shows it in\nplans, history or logs. Its value is read from standard input or a file, never\nfrom a flag. Revealing it takes a passkey, in the panel, and is audited: no API\ntoken can.\n\ndockwell secrets create, update and delete each propose a change, show its plan,\nand ask before applying it."},
-		{Name: "servers", Short: "Reboot, remove, list, get, watch or read servers, and 4 more", Long: "The servers Dockwell manages, with their live state as each server's agent\nreports it. dockwell servers watch has no REST path: REST has no way to stream\nmessages, so a REST client polls dockwell servers list or dockwell servers get\ninstead, and anything that wants the stream opens it with Connect, gRPC or\ngRPC-Web. dockwell servers reboot plans rebooting servers, a change with a plan\nthat makes no revision and takes a person's passkey to apply. See\ndocs/adr/0015-rest-and-openapi-from-the-schema.md and\ndocs/adr/0064-a-change-on-a-server-installing-updates-and-rebooting.md."},
+		{Name: "servers", Short: "Reboot, remove, label, list, get, watch or read servers, and 4 more", Long: "The servers Dockwell manages, with their live state as each server's agent\nreports it. dockwell servers watch has no REST path: REST has no way to stream\nmessages, so a REST client polls dockwell servers list or dockwell servers get\ninstead, and anything that wants the stream opens it with Connect, gRPC or\ngRPC-Web. dockwell servers reboot plans rebooting servers, a change with a plan\nthat makes no revision and takes a person's passkey to apply. See\ndocs/adr/0015-rest-and-openapi-from-the-schema.md and\ndocs/adr/0064-a-change-on-a-server-installing-updates-and-rebooting.md."},
 		{Name: "services", Short: "Restart, list, revisions, deploy, rollback, upgrade, open, reveal, create, update or delete services, and 2 more", Long: "A service is anything that runs in an environment, placed on servers. dockwell\nservices restart plans a restart, which is a change with a plan: it records no\nrevision, as a restart changes no spec, and nothing to undo.\n\nSee docs/adr/0027-health-checks-rollouts-and-rollback.md.\n\ndockwell services create, update and delete each propose a change, show its\nplan, and ask before applying it."},
 		{Name: "sessions", Short: "List or revoke sessions, and 8 more", Long: "A session is a browser you're signed in on. Signing in takes a passkey, a code\nfrom an authenticator app, a recovery code, or a one-time link from dockwell\nrecover, and sets a session cookie. No API token can sign in, or list or end\nsessions: how you sign in changes only by signing in, in the panel."},
 		{Name: "settings", Short: "Get settings, and 7 more", Long: "The install's settings are what it's called, the time zone new schedules start\nin, and how its panel is served. They change what Dockwell says and suggests,\nnot what runs, so a change needs no plan, and each is on the activity log with\nwhat it replaced."},
@@ -3625,6 +3646,9 @@ func Kinds() []*apicli.Kind {
 			Noun:  "server-hosts",
 			Short: "A server's host: what Dockwell does to the server itself, kind \"server.host\", one for each server, named \"host\"",
 			Long:  "ServerHost is a server's host, kind \"server.host\": one for each server, named\n\"host\", made as the server joins. Installing its updates is an edit of it that\nmakes no revision, as a restart of a service is, with a plan, a passkey and an\nadmin (ADR 0064). Later settings of the server itself, such as whether it\ninstalls updates by itself, become fields here.",
+			Fields: []apicli.Field{
+				{Path: "labels", Help: "Its labels, such as region:eu and pool:web, by key, as Kubernetes labels: what the fleet groups and selects servers by. The control plane keeps them, and the server never sees them, so a change of them alone takes no step there. See docs/adr/0091-server-labels.md. Numbered in the block labels hold, 20 to 29."},
+			},
 		},
 		{
 			Field: "task",

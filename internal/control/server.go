@@ -405,7 +405,7 @@ func New(cfg Config) (*Server, error) {
 	}
 	// A service's containers are named after what people call its environment.
 	if cfg.Changes != nil && cfg.Agents != nil && cfg.Store != nil {
-		s.hosts = &Hosts{DB: cfg.Store, Engine: cfg.Changes, Agents: cfg.Agents, Logger: cfg.Logger}
+		s.hosts = &Hosts{DB: cfg.Store, Engine: cfg.Changes, Agents: cfg.Agents, Logger: cfg.Logger, Fleet: cfg.Fleet}
 	}
 	if cfg.Agents != nil && cfg.Store != nil {
 		cfg.Agents.NameScopes(scopeNames{db: cfg.Store})
@@ -983,6 +983,7 @@ func (s *Server) Run(ctx context.Context, ls Listeners) error {
 	}
 	if s.hosts != nil {
 		api.Go(func() { s.hosts.Run(apiCtx) })
+		api.Go(func() { s.hosts.FollowLabels(apiCtx) })
 	}
 	if s.certificates != nil && !s.manualAlerts {
 		api.Go(func() { s.certificates.Run(apiCtx) })

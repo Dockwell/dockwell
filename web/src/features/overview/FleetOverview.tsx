@@ -9,6 +9,7 @@ import {
   type MetricProps,
   Panel,
   PHONE_QUERY,
+  SegmentedControl,
   StatusBadge,
   useMediaQuery,
   useUIStrings,
@@ -16,11 +17,12 @@ import {
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link, useNavigate } from "@tanstack/react-router";
-import type { ReactNode } from "react";
+import { type ReactNode, useMemo, useState } from "react";
 
 import { formatFixed, formatLiveBytesOf } from "../../lib/format";
 import { useTimeWords } from "../../lib/time";
 import { FleetUnreadNote } from "../servers/FleetNotes";
+import { fleetLabels, groupBy } from "../servers/labels";
 import { byNeed, NEED } from "../servers/server";
 import { useServerTiles } from "../servers/tiles";
 import { useFleetUnread } from "../servers/useFleet";
@@ -39,20 +41,33 @@ import "./Overview.css";
  */
 const FLEET_EVENTS: readonly EventKind[] = [EventKind.CHANGE, EventKind.HEALTH];
 
+/** The Region control's choice for every region. */
+const ALL = "*";
+
 /**
  * The overview from the second server on, as Overview-Fleet lays it out: what
  * needs a look first, the fleet's numbers, every server at a glance beside what
  * changed, then the apps and where each runs. On a phone, M-Overview-Fleet's
  * order, with the numbers two by two.
  */
-export function FleetOverview({ servers, status }: { servers: readonly Server[]; status: ReactNode }) {
+export function FleetOverview({ servers: fleet, status }: { servers: readonly Server[]; status: ReactNode }) {
   const { t } = useLingui();
   const strings = useUIStrings();
   const phone = useMediaQuery(PHONE_QUERY);
   const unread = useFleetUnread();
-  const count = strings.fleetGrid.servers(servers.length);
+  // Once servers have a region, the overview is of one region or all (ADR 0091).
+  const regions = useMemo(() => fleetLabels(fleet).get("region") ?? [], [fleet]);
+  const [region, setRegion] = useState(ALL);
+  const shown = regions.includes(region) ? region : ALL;
+  const servers = useMemo(
+    () => (shown === ALL ? fleet : fleet.filter((s) => s.labels["region"] === shown)),
+    [fleet, shown],
+  );
+  const regionWords = plural(regions.length, { one: "# region", other: "# regions" });
+  const total = strings.fleetGrid.servers(fleet.length);
+  const count = regions.length > 0 ? t`${total} in ${regionWords}` : total;
   // As the rail says the control plane's: a build on the way to a release is that release, dev.
-  const versions = [...new Set(agentVersions(servers).map(shortVersion))];
+  const versions = [...new Set(agentVersions(fleet).map(shortVersion))];
   const [version] = versions;
   const agents =
     versions.length === 1 && version
@@ -69,11 +84,30 @@ export function FleetOverview({ servers, status }: { servers: readonly Server[];
       phoneTitle={t`Fleet`}
       phoneSub={count}
       status={status}
+      actions={
+        regions.length > 0 && !phone ? (
+          <SegmentedControl
+            label={t`Region`}
+            size="sm"
+            value={shown}
+            onChange={setRegion}
+            options={[
+              { value: ALL, label: t`All regions`, count: fleet.length },
+              ...regions.map((r) => ({
+                value: r,
+                label: r,
+                count: fleet.filter((s) => s.labels["region"] === r).length,
+              })),
+            ]}
+          />
+        ) : undefined
+      }
     >
-      {unread ? <FleetUnreadNote why={unread.why} heard={unread.heard} /> : <FleetCallout servers={servers} />}
+      {unread ? <FleetUnreadNote why={unread.why} heard={unread.heard} /> : <FleetCallout servers={fleet} />}
       <FleetMetrics servers={servers} compact={phone} />
       <div className="overview-fleet-row">
-        <FleetMap servers={servers} compact={phone} />
+        {/* By region where there's room, as Overview-Fleet has it; one block on a phone, as M-Overview-Fleet does. */}
+        <FleetMap servers={servers} compact={phone} byRegion={shown === ALL && regions.length > 0 && !phone} />
         <RecentChanges kinds={FLEET_EVENTS} className="overview-fleet-changes" unboxed={phone} />
       </div>
       <OverviewApps fleet />
@@ -167,10 +201,11 @@ const FEW_SERVERS = 6;
 const tileStatus = (tile: FleetServer) => tile.status;
 
 /**
- * Every server as a tile, as Overview-Fleet draws them, each opening its page.
- * One group: servers have no region to group them by yet (#319).
+ * Every server as a tile, as Overview-Fleet draws them, each opening its page: by
+ * region once servers have one, with those that have none last, and in one group
+ * until then.
  */
-function FleetMap({ servers, compact }: { servers: readonly Server[]; compact: boolean }) {
+function FleetMap({ servers, compact, byRegion }: { servers: readonly Server[]; compact: boolean; byRegion: boolean }) {
   const { t } = useLingui();
   const navigate = useNavigate();
   const unknown = useFleetUnread() !== undefined;
@@ -182,9 +217,19 @@ function FleetMap({ servers, compact }: { servers: readonly Server[]; compact: b
   // as Overview-Fleet draws it, by the same ranking as the lines: any that isn't running.
   const readout = !compact && !few;
   const first = readout ? byNeed(tiles, tileStatus).find((s) => NEED[s.status] < NEED.running) : undefined;
+  const noRegion = t`No region`;
+  const groups = useMemo(() => {
+    if (!byRegion) return undefined;
+    const byId = new Map(tiles.map((tile) => [tile.id, tile]));
+    return groupBy(servers, "region").map((g) => ({
+      label: g.value ?? noRegion,
+      servers: g.servers.map((s) => byId.get(s.id)).filter((tile): tile is FleetServer => tile !== undefined),
+    }));
+  }, [byRegion, servers, tiles, noRegion]);
   const grid = (
     <FleetGrid
-      servers={tiles}
+      servers={groups ? undefined : tiles}
+      groups={groups}
       size={compact || servers.length > 200 ? "sm" : "md"}
       readout={readout}
       selectedId={first?.id}

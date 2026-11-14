@@ -240,7 +240,8 @@ type Edit struct {
 	BackupAlso []OneBackup
 	// Install installs its server's updates, for a server's host: a step its agent
 	// simulates as it plans and runs in a unit of its own, which makes no revision
-	// (ADR 0064).
+	// (ADR 0064). Install, Reboot and Unit keep the host as it is, so an edit with
+	// one of them leaves Spec out (ADR 0091).
 	Install *resource.InstallAsked
 	// Reboot reboots its server, for a server's host: a step that passes once the
 	// server's agent connects from another boot, which makes no revision (ADR 0064).
@@ -857,8 +858,11 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 			return nil, err
 		}
 	}
-	edits, err := e.withMovedValues(ctx, p.Edits)
+	edits, err := e.hostsAsIs(ctx, p.Edits)
 	if err != nil {
+		return nil, err
+	}
+	if edits, err = e.withMovedValues(ctx, edits); err != nil {
 		return nil, err
 	}
 	p.Edits = edits
@@ -1022,6 +1026,9 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 		return nil, err
 	}
 	if p.Notes, err = e.keptLogsNotes(ctx, plan, items, p.Notes); err != nil {
+		return nil, err
+	}
+	if p.Notes, err = e.controlOnlyNotes(ctx, plan, items, p.Notes); err != nil {
 		return nil, err
 	}
 	if plan.Places, err = e.places(ctx, items); err != nil {

@@ -115,6 +115,7 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "ChangeService.planInstallUpdates": "may",
   "ChangeService.planReboot": "may",
   "ChangeService.planRemoveServer": "may",
+  "ChangeService.planServerLabels": "may",
   "ChangeService.planSystemServiceAction": { within: "ServerService.watchSystemServices" },
   "ChangeService.restartService": "may",
   "ChangeService.revertDrift": "unused",

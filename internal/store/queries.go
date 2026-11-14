@@ -5,6 +5,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -225,12 +226,18 @@ type JoinToken struct {
 	ExpiresAt  time.Time
 	UsedAt     *time.Time
 	UsedBy     string
+	// Labels are what the server joining with it gets (ADR 0091).
+	Labels map[string]string
 }
 
 // CreateJoinToken records a new join token.
 func (t *Tx) CreateJoinToken(ctx context.Context, j JoinToken) error {
-	_, err := t.exec(ctx, `INSERT INTO join_tokens (id, secret_hash, created_at, created_by, expires_at)
-		VALUES (?, ?, ?, ?, ?)`, j.ID, j.SecretHash, millis(j.CreatedAt), j.CreatedBy, millis(j.ExpiresAt))
+	labels, err := labelsColumn(j.Labels)
+	if err != nil {
+		return err
+	}
+	_, err = t.exec(ctx, `INSERT INTO join_tokens (id, secret_hash, created_at, created_by, expires_at, labels)
+		VALUES (?, ?, ?, ?, ?, ?)`, j.ID, j.SecretHash, millis(j.CreatedAt), j.CreatedBy, millis(j.ExpiresAt), labels)
 	if err != nil {
 		return fmt.Errorf("can't record join token: %w", err)
 	}
@@ -243,8 +250,9 @@ func (t *Tx) GetJoinToken(ctx context.Context, id string) (JoinToken, error) {
 	var created, expires int64
 	var used sql.NullInt64
 	var usedBy sql.NullString
-	err := t.queryRow(ctx, `SELECT id, secret_hash, created_at, created_by, expires_at, used_at, used_by
-		FROM join_tokens WHERE id = ?`, id).Scan(&j.ID, &j.SecretHash, &created, &j.CreatedBy, &expires, &used, &usedBy)
+	var labels string
+	err := t.queryRow(ctx, `SELECT id, secret_hash, created_at, created_by, expires_at, used_at, used_by, labels
+		FROM join_tokens WHERE id = ?`, id).Scan(&j.ID, &j.SecretHash, &created, &j.CreatedBy, &expires, &used, &usedBy, &labels)
 	if errors.Is(err, sql.ErrNoRows) {
 		return JoinToken{}, fmt.Errorf("join token %s: %w", id, ErrNotFound)
 	}
@@ -252,7 +260,49 @@ func (t *Tx) GetJoinToken(ctx context.Context, id string) (JoinToken, error) {
 		return JoinToken{}, fmt.Errorf("can't read join token %s: %w", id, err)
 	}
 	j.CreatedAt, j.ExpiresAt, j.UsedAt, j.UsedBy = fromMillis(created), fromMillis(expires), timePtr(used), usedBy.String
+	if j.Labels, err = labelsOf(labels); err != nil {
+		return JoinToken{}, fmt.Errorf("can't read the labels of join token %s: %w", id, err)
+	}
 	return j, nil
+}
+
+// JoinLabels are the labels each server that joined with a token that had some
+// gets, by the server's ID (ADR 0091).
+func (t *Tx) JoinLabels(ctx context.Context) (map[string]map[string]string, error) {
+	rows, err := t.query(ctx, `SELECT used_by, labels FROM join_tokens WHERE used_by IS NOT NULL AND labels <> ''`)
+	if err != nil {
+		return nil, fmt.Errorf("can't read join tokens' labels: %w", err)
+	}
+	defer rows.Close()
+	out := map[string]map[string]string{}
+	for rows.Next() {
+		var server, labels string
+		if err := rows.Scan(&server, &labels); err != nil {
+			return nil, fmt.Errorf("can't read join tokens' labels: %w", err)
+		}
+		if out[server], err = labelsOf(labels); err != nil {
+			return nil, fmt.Errorf("can't read the labels %s joined with: %w", server, err)
+		}
+	}
+	return out, rows.Err()
+}
+
+// labelsColumn is labels as the column keeps them: JSON, or empty for none.
+func labelsColumn(labels map[string]string) (string, error) {
+	if len(labels) == 0 {
+		return "", nil
+	}
+	b, err := json.Marshal(labels)
+	return string(b), err
+}
+
+func labelsOf(column string) (map[string]string, error) {
+	if column == "" {
+		return nil, nil
+	}
+	var out map[string]string
+	err := json.Unmarshal([]byte(column), &out)
+	return out, err
 }
 
 // MarkJoinTokenUsed spends a token. It fails with ErrNotFound if the token

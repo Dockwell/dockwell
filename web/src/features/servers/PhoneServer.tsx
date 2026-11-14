@@ -19,6 +19,7 @@ import { CopyButton } from "../system/CopyCommand";
 import { useCopy } from "./CopyButton";
 import { serviceCommands } from "./commands";
 import { forwardToOf, isSharedAddress, publicAddressOf } from "./network";
+import { ServerLabels } from "./ServerLabels";
 import { HIGH_USE as HIGH, isPrivateAddress, serverStatus, useServerWords } from "./server";
 import { useControlPlaneNow } from "./useFleet";
 import "./PhoneServer.css";
@@ -153,6 +154,7 @@ function PhoneStatus({ server, unread, heard }: { server: Server; unread: boolea
           none={privateIp === "unknown" ? t`Not known` : t`None`}
         />
       </div>
+      <ServerLabels server={server} labelled={t`Labels`} className="phone-status-labels" />
     </section>
   );
 }

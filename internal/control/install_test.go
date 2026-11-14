@@ -182,11 +182,17 @@ func (f *fullServer) addHostServer(t *testing.T, p *packages) *testServer {
 // agent reads its updates from the stand at root, unless root is empty.
 func (f *fullServer) addHostServerReading(t *testing.T, p *packages, root string) *testServer {
 	t.Helper()
+	return f.addNamedHostServer(t, "web-1", p, root)
+}
+
+// addNamedHostServer is addHostServerReading for a server with another name.
+func (f *fullServer) addNamedHostServer(t *testing.T, name string, p *packages, root string) *testServer {
+	t.Helper()
 	key, csr, err := pki.NewServerKey()
 	if err != nil {
 		t.Fatal(err)
 	}
-	joined, err := f.ident.EnrollLocal(t.Context(), csr, "web-1")
+	joined, err := f.ident.EnrollLocal(t.Context(), csr, name)
 	if err != nil {
 		t.Fatal(err)
 	}

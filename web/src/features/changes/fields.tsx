@@ -93,6 +93,8 @@ export function useFieldRows(): FieldRows {
     };
     const kinds: Readonly<Record<string, string>> = {
       "database.user": t`database user`,
+      // A server's own record, which holds its labels (ADR 0091).
+      "server.host": t`server`,
       // How one of an app's needs is met, such as its database (ADR 0084).
       link: t({ message: "link", context: "an app's need, met" }),
     };
@@ -209,7 +211,7 @@ export function useFieldRows(): FieldRows {
     };
 
     /** A variable, a label or an option: named by its key, and hidden when it may hold a secret. */
-    const keyed = (path: string, group: string, key: string, change: FieldChange): PlanChange => {
+    const keyed = (path: string, group: string, key: string, change: FieldChange, kind = ""): PlanChange => {
       const label = group === "env" ? t`variable` : group === "labels" ? t`label` : t`option`;
       const row: PlanChange = { path, label };
       if (change.sensitive) {
@@ -219,8 +221,11 @@ export function useFieldRows(): FieldRows {
         if (change.op === FieldOp.MODIFIED) row.tone = "change";
         return row;
       }
-      if (change.op !== FieldOp.ADDED) row.from = `${key}=${change.from}`;
-      if (change.op !== FieldOp.REMOVED) row.to = `${key}=${change.to}`;
+      // A server's label as the panel and the CLI write it, key:value (ADR 0091); a container's as Docker does.
+      const pair = (value: string) =>
+        kind === "server.host" ? (value === "" ? key : `${key}:${value}`) : `${key}=${value}`;
+      if (change.op !== FieldOp.ADDED) row.from = pair(change.from);
+      if (change.op !== FieldOp.REMOVED) row.to = pair(change.to);
       return row;
     };
 
@@ -358,7 +363,7 @@ export function useFieldRows(): FieldRows {
         const entry = KEYED.exec(path);
         const used = USES.exec(path);
         const row = entry
-          ? keyed(path, entry[1] ?? "", entry[2] ?? "", change)
+          ? keyed(path, entry[1] ?? "", entry[2] ?? "", change, kind)
           : used
             ? uses(path, used[1] ?? "", used[2] ?? "", change)
             : plain(path, change, labels[path] ?? humanize(path), readers[path] ?? yesNo);

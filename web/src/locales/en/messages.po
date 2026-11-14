@@ -7793,6 +7793,15 @@ msgstr "It keeps applying if you close this."
 msgid "Keep this only if you trust what it runs."
 msgstr "Keep this only if you trust what it runs."
 
+msgid "Labelling {on}"
+msgstr "Labelling {on}"
+
+msgid "Labelling {on} failed"
+msgstr "Labelling {on} failed"
+
+msgid "Labels are changed on {on}"
+msgstr "Labels are changed on {on}"
+
 msgid "Leave it for an admin"
 msgstr "Leave it for an admin"
 
@@ -8078,6 +8087,9 @@ msgstr "{name} runs again on {server}"
 
 msgid "{name} starts at boot on {server}"
 msgstr "{name} starts at boot on {server}"
+
+msgid "{on} · no step, nothing goes down"
+msgstr "{on} · no step, nothing goes down"
 
 msgid "{restarts, plural, one {# app in a project you can't see restarts with it} other {# apps in projects you can't see restart with it}}"
 msgstr "{restarts, plural, one {# app in a project you can't see restarts with it} other {# apps in projects you can't see restart with it}}"
@@ -9056,6 +9068,9 @@ msgstr "Its volumes are backed up first"
 
 msgid "Keep a rule that allows the tunnel's UDP port."
 msgstr "Keep a rule that allows the tunnel's UDP port."
+
+msgid "Labels alone: no step runs on {on}, online or offline."
+msgstr "Labels alone: no step runs on {on}, online or offline."
 
 msgid "Leave it alone in 1Panel from now on, and never uninstall it there."
 msgstr "Leave it alone in 1Panel from now on, and never uninstall it there."
@@ -11900,6 +11915,9 @@ msgstr "{name} isn't reporting"
 msgid "Across {cpus} vCPU"
 msgstr "Across {cpus} vCPU"
 
+msgid "All regions"
+msgstr "All regions"
+
 msgid "Each server"
 msgstr "Each server"
 
@@ -11908,6 +11926,9 @@ msgstr "Every server is reporting"
 
 msgid "Fleet"
 msgstr "Fleet"
+
+msgid "No region"
+msgstr "No region"
 
 msgid "No server is reporting"
 msgstr "No server is reporting"
@@ -11935,6 +11956,10 @@ msgstr "{0, plural, one {# can't read Docker} other {# can't read Docker}}"
 msgid "{0, plural, one {# down} other {# down}}"
 msgstr "{0, plural, one {# down} other {# down}}"
 
+#. placeholder {0}: regions.length
+msgid "{0, plural, one {# region} other {# regions}}"
+msgstr "{0, plural, one {# region} other {# regions}}"
+
 #. placeholder {0}: counts.waiting
 msgid "{0, plural, one {# waiting} other {# waiting}}"
 msgstr "{0, plural, one {# waiting} other {# waiting}}"
@@ -11942,6 +11967,9 @@ msgstr "{0, plural, one {# waiting} other {# waiting}}"
 #. placeholder {0}: versions.length
 msgid "{0, plural, one {agents on # version} other {agents on # versions}}"
 msgstr "{0, plural, one {agents on # version} other {agents on # versions}}"
+
+msgid "{total} in {regionWords}"
+msgstr "{total} in {regionWords}"
 
 msgid "{used} of {total}"
 msgstr "{used} of {total}"
@@ -12363,6 +12391,12 @@ msgstr "It reaches {controlName} at {host}."
 msgid "It's the address {controlName} goes out from."
 msgstr "It's the address {controlName} goes out from."
 
+msgid "Joins with"
+msgstr "Joins with"
+
+msgid "Labels"
+msgstr "Labels"
+
 msgid "Make a new command"
 msgstr "Make a new command"
 
@@ -12392,6 +12426,9 @@ msgstr "Run this on the new server"
 
 msgid "Set public address"
 msgstr "Set public address"
+
+msgid "Such as region:eu. The server joins with them."
+msgstr "Such as region:eu. The server joins with them."
 
 msgid "This command expired"
 msgstr "This command expired"
@@ -12586,6 +12623,21 @@ msgstr "{share} of the disk"
 
 msgid "{share} of {size} used"
 msgstr "{share} of {size} used"
+
+msgid "Edit again"
+msgstr "Edit again"
+
+msgid "Labels of {name}"
+msgstr "Labels of {name}"
+
+msgid "No plan yet"
+msgstr "No plan yet"
+
+msgid "Nothing runs on {name}"
+msgstr "Nothing runs on {name}"
+
+msgid "What the fleet groups and selects servers by"
+msgstr "What the fleet groups and selects servers by"
 
 #. placeholder {0}: server.name
 msgid "Every container on {0} stops with it, as Docker needs it to run them."
@@ -13210,6 +13262,39 @@ msgstr "This browser is offline, so your servers are shown as of {ago}. Check yo
 msgid "You're offline"
 msgstr "You're offline"
 
+msgid "A key and a value start and end with a letter or digit"
+msgstr "A key and a value start and end with a letter or digit"
+
+msgid "A label needs a key, such as region"
+msgstr "A label needs a key, such as region"
+
+msgid "A server can have {MAX_LABELS} labels"
+msgstr "A server can have {MAX_LABELS} labels"
+
+msgid "It has a space, and a label holds letters, digits, -, _ and . alone"
+msgstr "It has a space, and a label holds letters, digits, -, _ and . alone"
+
+msgid "It has no name after its prefix"
+msgstr "It has no name after its prefix"
+
+msgid "It has {character}, and a label holds letters, digits, -, _ and . alone"
+msgstr "It has {character}, and a label holds letters, digits, -, _ and . alone"
+
+msgid "It's {length} characters, past the {LABEL_NAME} a label may have"
+msgstr "It's {length} characters, past the {LABEL_NAME} a label may have"
+
+msgid "Its prefix is {length} characters, past the {LABEL_PREFIX} a prefix may have"
+msgstr "Its prefix is {length} characters, past the {LABEL_PREFIX} a prefix may have"
+
+msgid "Its prefix isn't a domain: lowercase letters, digits, - and ., such as example.com"
+msgstr "Its prefix isn't a domain: lowercase letters, digits, - and ., such as example.com"
+
+msgid "Write a prefix before /, such as example.com/, or leave / out"
+msgstr "Write a prefix before /, such as example.com/, or leave / out"
+
+msgid "key:value"
+msgstr "key:value"
+
 msgid "All activity"
 msgstr "All activity"
 
@@ -13568,6 +13653,15 @@ msgstr "No apps run here."
 msgid "Provider"
 msgstr "Provider"
 
+msgid "Add labels"
+msgstr "Add labels"
+
+msgid "Edit labels"
+msgstr "Edit labels"
+
+msgid "Edit {name}'s labels"
+msgstr "Edit {name}'s labels"
+
 msgid "1, 5 and 15 min"
 msgstr "1, 5 and 15 min"
 
@@ -13707,17 +13801,38 @@ msgstr "{size} · none in use"
 msgid "{size} · {inUse} in use"
 msgstr "{size} · {inUse} in use"
 
+msgid "Add a label to the selector"
+msgstr "Add a label to the selector"
+
 msgid "CPU {cpu}%"
 msgstr "CPU {cpu}%"
 
 msgid "Chosen server"
 msgstr "Chosen server"
 
+msgid "Clear the selector"
+msgstr "Clear the selector"
+
 msgid "Every server"
 msgstr "Every server"
 
+msgid "Group by {k}"
+msgstr "Group by {k}"
+
+msgid "Group the servers"
+msgstr "Group the servers"
+
 msgid "Needs attention"
 msgstr "Needs attention"
+
+msgid "No groups"
+msgstr "No groups"
+
+msgid "No server matches"
+msgstr "No server matches"
+
+msgid "No {key}"
+msgstr "No {key}"
 
 msgid "Open"
 msgstr "Open"
@@ -13731,6 +13846,9 @@ msgstr "Server list"
 msgid "Servers at a glance"
 msgstr "Servers at a glance"
 
+msgid "Servers matching {matching}, sorted by name"
+msgstr "Servers matching {matching}, sorted by name"
+
 msgid "Servers, sorted by name"
 msgstr "Servers, sorted by name"
 
@@ -13740,8 +13858,20 @@ msgstr "Show all {count}"
 msgid "Showing {shown} of {count} · sorted by name"
 msgstr "Showing {shown} of {count} · sorted by name"
 
+msgid "label:value"
+msgstr "label:value"
+
 msgid "sorted by name"
 msgstr "sorted by name"
+
+msgid "{count} in {regionWords}"
+msgstr "{count} in {regionWords}"
+
+msgid "{matching, plural, one {# matches} other {# match}}"
+msgstr "{matching, plural, one {# matches} other {# match}}"
+
+msgid "{regions, plural, one {# region} other {# regions}}"
+msgstr "{regions, plural, one {# region} other {# regions}}"
 
 msgid "CPU above {HIGH_USE}%"
 msgstr "CPU above {HIGH_USE}%"

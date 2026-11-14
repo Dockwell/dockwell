@@ -146,11 +146,23 @@ export function routeWhereOf(planned: PlannedResource): string | undefined {
   return `${domain}${path?.to || path?.from || ""}`;
 }
 
-/** What a person calls what a plan changes: a route's domain, which they typed, not the name made from it. */
-export function shownName(planned: PlannedResource | undefined): string {
+/**
+ * What a person calls what a plan changes: a route's domain, which they typed, not the name made from it, and a
+ * server's host by its server's name, from serverName where it's known (ADR 0091).
+ */
+export function shownName(
+  planned: PlannedResource | undefined,
+  serverName?: (id: string) => string | undefined,
+): string {
   if (!planned) return "";
   if (planned.resource?.kind === "route") return routeWhereOf(planned) ?? planned.resource.name;
+  if (planned.resource?.kind === "server.host") return serverName?.(planned.resource.scope) ?? planned.resource.name;
   return planned.resource?.name ?? "";
+}
+
+/** The servers a change of labels alone is on, by name, as its plan says (ADR 0091); empty for any other plan. */
+export function labelsOnly(plan: Plan | undefined): string[] {
+  return plan?.notes.find((n) => n.reason === "labels_only")?.names ?? [];
 }
 
 /**
@@ -202,7 +214,12 @@ function readingOrder(resource: PlanResource, planned: PlannedResource | undefin
 export function diffResources(
   plan: Plan | undefined,
   rows: FieldRows,
-  options: { expanded?: boolean; tag?: (intent: Intent) => string; letsGo?: string } = {},
+  options: {
+    expanded?: boolean;
+    tag?: (intent: Intent) => string;
+    letsGo?: string;
+    serverName?: (id: string) => string | undefined;
+  } = {},
 ): PlanResource[] {
   const intent = intentOf(plan);
   const maybe = ifNewerIn(plan);
@@ -222,7 +239,7 @@ export function diffResources(
       id: resource.id,
       action: ACTIONS[resource.action as Exclude<PlanAction, PlanAction.NONE>],
       kind: diffKind(kind),
-      name: shownName(resource) || resource.id,
+      name: shownName(resource, options.serverName) || resource.id,
       changes,
     };
     if (diffKind(kind) === "resource") out.kindLabel = rows.kindWord?.(kind) ?? kindWord(kind);

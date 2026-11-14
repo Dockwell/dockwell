@@ -7448,7 +7448,13 @@ func (x *AlertTelegram) GetChatId() string {
 // admin (ADR 0064). Later settings of the server itself, such as whether it
 // installs updates by itself, become fields here.
 type ServerHost struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Its labels, such as region:eu and pool:web, by key, as Kubernetes labels:
+	// what the fleet groups and selects servers by. The control plane keeps them,
+	// and the server never sees them, so a change of them alone takes no step there.
+	// See docs/adr/0091-server-labels.md. Numbered in the block labels hold, 20 to
+	// 29.
+	Labels        map[string]string `protobuf:"bytes,20,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -7481,6 +7487,13 @@ func (x *ServerHost) ProtoReflect() protoreflect.Message {
 // Deprecated: Use ServerHost.ProtoReflect.Descriptor instead.
 func (*ServerHost) Descriptor() ([]byte, []int) {
 	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{62}
+}
+
+func (x *ServerHost) GetLabels() map[string]string {
+	if x != nil {
+		return x.Labels
+	}
+	return nil
 }
 
 // Link is how one of an app's needs is met, such as its database: what meets it,
@@ -8364,9 +8377,13 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\x03url\x18\x01 \x01(\tB\x04\xc8\xf3\x18\x01R\x03url\"K\n" +
 	"\rAlertTelegram\x12!\n" +
 	"\tbot_token\x18\x01 \x01(\tB\x04\xc8\xf3\x18\x01R\bbotToken\x12\x17\n" +
-	"\achat_id\x18\x02 \x01(\tR\x06chatId\"\f\n" +
+	"\achat_id\x18\x02 \x01(\tR\x06chatId\"\x93\x01\n" +
 	"\n" +
-	"ServerHost\"\x8c\x03\n" +
+	"ServerHost\x12J\n" +
+	"\x06labels\x18\x14 \x03(\v22.dockwell.resource.v1alpha1.ServerHost.LabelsEntryR\x06labels\x1a9\n" +
+	"\vLabelsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x8c\x03\n" +
 	"\x04Link\x12\x14\n" +
 	"\x05label\x18\x01 \x01(\tR\x05label\x12\x18\n" +
 	"\aservice\x18\x02 \x01(\tR\aservice\x12>\n" +
@@ -8468,7 +8485,7 @@ func file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP() []byte {
 }
 
 var file_dockwell_resource_v1alpha1_specs_proto_enumTypes = make([]protoimpl.EnumInfo, 17)
-var file_dockwell_resource_v1alpha1_specs_proto_msgTypes = make([]protoimpl.MessageInfo, 84)
+var file_dockwell_resource_v1alpha1_specs_proto_msgTypes = make([]protoimpl.MessageInfo, 85)
 var file_dockwell_resource_v1alpha1_specs_proto_goTypes = []any{
 	(RolloutOrder)(0),                 // 0: dockwell.resource.v1alpha1.RolloutOrder
 	(Relabel)(0),                      // 1: dockwell.resource.v1alpha1.Relabel
@@ -8571,7 +8588,8 @@ var file_dockwell_resource_v1alpha1_specs_proto_goTypes = []any{
 	nil,                               // 98: dockwell.resource.v1alpha1.DatabaseUser.RevisionsEntry
 	nil,                               // 99: dockwell.resource.v1alpha1.Network.OptionsEntry
 	nil,                               // 100: dockwell.resource.v1alpha1.Network.LabelsEntry
-	(*descriptorpb.FieldOptions)(nil), // 101: google.protobuf.FieldOptions
+	nil,                               // 101: dockwell.resource.v1alpha1.ServerHost.LabelsEntry
+	(*descriptorpb.FieldOptions)(nil), // 102: google.protobuf.FieldOptions
 }
 var file_dockwell_resource_v1alpha1_specs_proto_depIdxs = []int32{
 	83,  // 0: dockwell.resource.v1alpha1.Container.env:type_name -> dockwell.resource.v1alpha1.Container.EnvEntry
@@ -8673,19 +8691,20 @@ var file_dockwell_resource_v1alpha1_specs_proto_depIdxs = []int32{
 	77,  // 96: dockwell.resource.v1alpha1.AlertChannel.discord:type_name -> dockwell.resource.v1alpha1.AlertDiscord
 	78,  // 97: dockwell.resource.v1alpha1.AlertChannel.telegram:type_name -> dockwell.resource.v1alpha1.AlertTelegram
 	16,  // 98: dockwell.resource.v1alpha1.AlertEmail.security:type_name -> dockwell.resource.v1alpha1.AlertEmail.Security
-	8,   // 99: dockwell.resource.v1alpha1.Link.engine:type_name -> dockwell.resource.v1alpha1.LinkEngine
-	81,  // 100: dockwell.resource.v1alpha1.Link.accepts:type_name -> dockwell.resource.v1alpha1.LinkAccept
-	82,  // 101: dockwell.resource.v1alpha1.Link.sets:type_name -> dockwell.resource.v1alpha1.LinkSet
-	8,   // 102: dockwell.resource.v1alpha1.LinkAccept.engine:type_name -> dockwell.resource.v1alpha1.LinkEngine
-	9,   // 103: dockwell.resource.v1alpha1.LinkSet.part:type_name -> dockwell.resource.v1alpha1.LinkPart
-	37,  // 104: dockwell.resource.v1alpha1.CatalogPin.NeedsEntry.value:type_name -> dockwell.resource.v1alpha1.PinnedNeed
-	101, // 105: dockwell.resource.v1alpha1.sensitive:extendee -> google.protobuf.FieldOptions
-	101, // 106: dockwell.resource.v1alpha1.no_flag:extendee -> google.protobuf.FieldOptions
-	107, // [107:107] is the sub-list for method output_type
-	107, // [107:107] is the sub-list for method input_type
-	107, // [107:107] is the sub-list for extension type_name
-	105, // [105:107] is the sub-list for extension extendee
-	0,   // [0:105] is the sub-list for field type_name
+	101, // 99: dockwell.resource.v1alpha1.ServerHost.labels:type_name -> dockwell.resource.v1alpha1.ServerHost.LabelsEntry
+	8,   // 100: dockwell.resource.v1alpha1.Link.engine:type_name -> dockwell.resource.v1alpha1.LinkEngine
+	81,  // 101: dockwell.resource.v1alpha1.Link.accepts:type_name -> dockwell.resource.v1alpha1.LinkAccept
+	82,  // 102: dockwell.resource.v1alpha1.Link.sets:type_name -> dockwell.resource.v1alpha1.LinkSet
+	8,   // 103: dockwell.resource.v1alpha1.LinkAccept.engine:type_name -> dockwell.resource.v1alpha1.LinkEngine
+	9,   // 104: dockwell.resource.v1alpha1.LinkSet.part:type_name -> dockwell.resource.v1alpha1.LinkPart
+	37,  // 105: dockwell.resource.v1alpha1.CatalogPin.NeedsEntry.value:type_name -> dockwell.resource.v1alpha1.PinnedNeed
+	102, // 106: dockwell.resource.v1alpha1.sensitive:extendee -> google.protobuf.FieldOptions
+	102, // 107: dockwell.resource.v1alpha1.no_flag:extendee -> google.protobuf.FieldOptions
+	108, // [108:108] is the sub-list for method output_type
+	108, // [108:108] is the sub-list for method input_type
+	108, // [108:108] is the sub-list for extension type_name
+	106, // [106:108] is the sub-list for extension extendee
+	0,   // [0:106] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_resource_v1alpha1_specs_proto_init() }
@@ -8759,7 +8778,7 @@ func file_dockwell_resource_v1alpha1_specs_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_resource_v1alpha1_specs_proto_rawDesc), len(file_dockwell_resource_v1alpha1_specs_proto_rawDesc)),
 			NumEnums:      17,
-			NumMessages:   84,
+			NumMessages:   85,
 			NumExtensions: 2,
 			NumServices:   0,
 		},

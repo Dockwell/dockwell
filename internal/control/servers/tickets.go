@@ -20,6 +20,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/identity"
 	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/id"
+	"github.com/dockwell/dockwell/internal/labels"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/store"
 )
@@ -51,6 +52,11 @@ func (s *Service) CreateJoinTicket(ctx context.Context, req *connect.Request[doc
 	if ttl > identity.MaxTicketTTL {
 		return nil, authapi.Invalid(fmt.Errorf("a join ticket works for %s at most, not %s. Ask for less", human.Duration(identity.MaxTicketTTL), human.Duration(ttl)))
 	}
+	// Before the passkey, so a label it can't take doesn't spend one.
+	joinLabels, err := labels.Apply(nil, req.Msg.GetLabels(), nil)
+	if err != nil {
+		return nil, authapi.Invalid(err)
+	}
 	// The action is on the person's own account, so its target is them, as
 	// BeginStepUp fills it in.
 	// With no proof, the session's cover may stand in (ADR 0075).
@@ -71,7 +77,7 @@ func (s *Service) CreateJoinTicket(ctx context.Context, req *connect.Request[doc
 	for _, u := range urls[1:] {
 		others = append(others, u.URL)
 	}
-	tk, err := s.ident.CreateTicket(ctx, urls[0].URL, p.Actor(), ttl, others...)
+	tk, err := s.ident.CreateLabeledTicket(ctx, urls[0].URL, p.Actor(), ttl, joinLabels, others...)
 	if err != nil {
 		giveBack()
 		return nil, err
@@ -82,6 +88,7 @@ func (s *Service) CreateJoinTicket(ctx context.Context, req *connect.Request[doc
 			State:      dockwellv1.JoinTicketState_JOIN_TICKET_STATE_WAITING,
 			ExpireTime: timestamppb.New(tk.ExpiresAt),
 			Addresses:  joinAddresses(urls),
+			Labels:     joinLabels,
 		},
 		Value: tk.Value,
 	}), nil
@@ -116,7 +123,7 @@ func (s *Service) GetJoinTicket(ctx context.Context, req *connect.Request[dockwe
 	if err != nil {
 		return nil, err
 	}
-	out := &dockwellv1.JoinTicket{Id: tok.ID, ExpireTime: timestamppb.New(tok.ExpiresAt)}
+	out := &dockwellv1.JoinTicket{Id: tok.ID, ExpireTime: timestamppb.New(tok.ExpiresAt), Labels: tok.Labels}
 	switch {
 	case tok.UsedAt != nil:
 		out.State = dockwellv1.JoinTicketState_JOIN_TICKET_STATE_JOINED

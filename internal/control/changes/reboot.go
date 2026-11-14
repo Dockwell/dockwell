@@ -9,7 +9,6 @@ import (
 
 	"connectrpc.com/connect"
 
-	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/fault"
@@ -46,7 +45,6 @@ func (h *Handler) PlanReboot(ctx context.Context, req *connect.Request[dockwellv
 			names = append(names, s.Name)
 			edits = append(edits, revision.Edit{
 				Ref:    resource.Ref{Kind: host.Kind, Scope: id, Name: host.Name},
-				Spec:   &resourcev1.ServerHost{},
 				Reboot: true,
 			})
 		}

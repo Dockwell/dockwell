@@ -73,6 +73,9 @@ const (
 	// ChangeServicePlanSystemServiceActionProcedure is the fully-qualified name of the ChangeService's
 	// PlanSystemServiceAction RPC.
 	ChangeServicePlanSystemServiceActionProcedure = "/dockwell.v1.ChangeService/PlanSystemServiceAction"
+	// ChangeServicePlanServerLabelsProcedure is the fully-qualified name of the ChangeService's
+	// PlanServerLabels RPC.
+	ChangeServicePlanServerLabelsProcedure = "/dockwell.v1.ChangeService/PlanServerLabels"
 	// ChangeServiceListDriftProcedure is the fully-qualified name of the ChangeService's ListDrift RPC.
 	ChangeServiceListDriftProcedure = "/dockwell.v1.ChangeService/ListDrift"
 	// ChangeServiceRevertDriftProcedure is the fully-qualified name of the ChangeService's RevertDrift
@@ -190,6 +193,14 @@ type ChangeServiceClient interface {
 	// restarting SSH or Docker, takes a person's passkey to apply. See
 	// docs/adr/0082-acting-on-a-servers-system-services.md.
 	PlanSystemServiceAction(context.Context, *connect.Request[v1.PlanSystemServiceActionRequest]) (*connect.Response[v1.PlanSystemServiceActionResponse], error)
+	// PlanServerLabels plans setting and removing labels on servers, each as
+	// key:value, such as region:eu: an edit of each server's host. Only the
+	// control plane keeps labels, so the change takes no step on any server and
+	// applies with them online or not, and its plan says so in a "labels_only"
+	// note. A key is as a Kubernetes label's: a name of at most 63 characters,
+	// letters, digits, -, _ and ., with an optional prefix, such as
+	// example.com/tier. See docs/adr/0091-server-labels.md.
+	PlanServerLabels(context.Context, *connect.Request[v1.PlanServerLabelsRequest]) (*connect.Response[v1.PlanServerLabelsResponse], error)
 	// ListDrift compares what servers have with the latest revision of each
 	// resource they should have, and returns every difference. It asks each
 	// connected server's agent, and changes nothing.
@@ -294,6 +305,12 @@ func NewChangeServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(changeServiceMethods.ByName("PlanSystemServiceAction")),
 			connect.WithClientOptions(opts...),
 		),
+		planServerLabels: connect.NewClient[v1.PlanServerLabelsRequest, v1.PlanServerLabelsResponse](
+			httpClient,
+			baseURL+ChangeServicePlanServerLabelsProcedure,
+			connect.WithSchema(changeServiceMethods.ByName("PlanServerLabels")),
+			connect.WithClientOptions(opts...),
+		),
 		listDrift: connect.NewClient[v1.ListDriftRequest, v1.ListDriftResponse](
 			httpClient,
 			baseURL+ChangeServiceListDriftProcedure,
@@ -331,6 +348,7 @@ type changeServiceClient struct {
 	planReboot              *connect.Client[v1.PlanRebootRequest, v1.PlanRebootResponse]
 	planRemoveServer        *connect.Client[v1.PlanRemoveServerRequest, v1.PlanRemoveServerResponse]
 	planSystemServiceAction *connect.Client[v1.PlanSystemServiceActionRequest, v1.PlanSystemServiceActionResponse]
+	planServerLabels        *connect.Client[v1.PlanServerLabelsRequest, v1.PlanServerLabelsResponse]
 	listDrift               *connect.Client[v1.ListDriftRequest, v1.ListDriftResponse]
 	revertDrift             *connect.Client[v1.RevertDriftRequest, v1.RevertDriftResponse]
 	adoptDrift              *connect.Client[v1.AdoptDriftRequest, v1.AdoptDriftResponse]
@@ -399,6 +417,11 @@ func (c *changeServiceClient) PlanRemoveServer(ctx context.Context, req *connect
 // PlanSystemServiceAction calls dockwell.v1.ChangeService.PlanSystemServiceAction.
 func (c *changeServiceClient) PlanSystemServiceAction(ctx context.Context, req *connect.Request[v1.PlanSystemServiceActionRequest]) (*connect.Response[v1.PlanSystemServiceActionResponse], error) {
 	return c.planSystemServiceAction.CallUnary(ctx, req)
+}
+
+// PlanServerLabels calls dockwell.v1.ChangeService.PlanServerLabels.
+func (c *changeServiceClient) PlanServerLabels(ctx context.Context, req *connect.Request[v1.PlanServerLabelsRequest]) (*connect.Response[v1.PlanServerLabelsResponse], error) {
+	return c.planServerLabels.CallUnary(ctx, req)
 }
 
 // ListDrift calls dockwell.v1.ChangeService.ListDrift.
@@ -523,6 +546,14 @@ type ChangeServiceHandler interface {
 	// restarting SSH or Docker, takes a person's passkey to apply. See
 	// docs/adr/0082-acting-on-a-servers-system-services.md.
 	PlanSystemServiceAction(context.Context, *connect.Request[v1.PlanSystemServiceActionRequest]) (*connect.Response[v1.PlanSystemServiceActionResponse], error)
+	// PlanServerLabels plans setting and removing labels on servers, each as
+	// key:value, such as region:eu: an edit of each server's host. Only the
+	// control plane keeps labels, so the change takes no step on any server and
+	// applies with them online or not, and its plan says so in a "labels_only"
+	// note. A key is as a Kubernetes label's: a name of at most 63 characters,
+	// letters, digits, -, _ and ., with an optional prefix, such as
+	// example.com/tier. See docs/adr/0091-server-labels.md.
+	PlanServerLabels(context.Context, *connect.Request[v1.PlanServerLabelsRequest]) (*connect.Response[v1.PlanServerLabelsResponse], error)
 	// ListDrift compares what servers have with the latest revision of each
 	// resource they should have, and returns every difference. It asks each
 	// connected server's agent, and changes nothing.
@@ -623,6 +654,12 @@ func NewChangeServiceHandler(svc ChangeServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(changeServiceMethods.ByName("PlanSystemServiceAction")),
 		connect.WithHandlerOptions(opts...),
 	)
+	changeServicePlanServerLabelsHandler := connect.NewUnaryHandler(
+		ChangeServicePlanServerLabelsProcedure,
+		svc.PlanServerLabels,
+		connect.WithSchema(changeServiceMethods.ByName("PlanServerLabels")),
+		connect.WithHandlerOptions(opts...),
+	)
 	changeServiceListDriftHandler := connect.NewUnaryHandler(
 		ChangeServiceListDriftProcedure,
 		svc.ListDrift,
@@ -670,6 +707,8 @@ func NewChangeServiceHandler(svc ChangeServiceHandler, opts ...connect.HandlerOp
 			changeServicePlanRemoveServerHandler.ServeHTTP(w, r)
 		case ChangeServicePlanSystemServiceActionProcedure:
 			changeServicePlanSystemServiceActionHandler.ServeHTTP(w, r)
+		case ChangeServicePlanServerLabelsProcedure:
+			changeServicePlanServerLabelsHandler.ServeHTTP(w, r)
 		case ChangeServiceListDriftProcedure:
 			changeServiceListDriftHandler.ServeHTTP(w, r)
 		case ChangeServiceRevertDriftProcedure:
@@ -735,6 +774,10 @@ func (UnimplementedChangeServiceHandler) PlanRemoveServer(context.Context, *conn
 
 func (UnimplementedChangeServiceHandler) PlanSystemServiceAction(context.Context, *connect.Request[v1.PlanSystemServiceActionRequest]) (*connect.Response[v1.PlanSystemServiceActionResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ChangeService.PlanSystemServiceAction is not implemented"))
+}
+
+func (UnimplementedChangeServiceHandler) PlanServerLabels(context.Context, *connect.Request[v1.PlanServerLabelsRequest]) (*connect.Response[v1.PlanServerLabelsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ChangeService.PlanServerLabels is not implemented"))
 }
 
 func (UnimplementedChangeServiceHandler) ListDrift(context.Context, *connect.Request[v1.ListDriftRequest]) (*connect.Response[v1.ListDriftResponse], error) {

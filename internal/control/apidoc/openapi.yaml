@@ -3332,6 +3332,16 @@ paths:
                 - ServerService
             description: ListServers returns every server, connected or not, without history.
             operationId: ServerService_ListServers
+            parameters:
+                - name: selector
+                  in: query
+                  description: |-
+                    The servers whose labels a selector matches, such as "pool:web region:eu":
+                     key:value terms with spaces between, a key alone for one it has, and ! in front
+                     for one it doesn't. Empty lists every server. See
+                     docs/adr/0091-server-labels.md. Numbered in the block labels hold, 20 to 29.
+                  schema:
+                    type: string
             responses:
                 "200":
                     description: OK
@@ -4603,6 +4613,38 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/FinishUploadResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/servers:planLabels:
+        post:
+            tags:
+                - ChangeService
+            description: |-
+                PlanServerLabels plans setting and removing labels on servers, each as
+                 key:value, such as region:eu: an edit of each server's host. Only the
+                 control plane keeps labels, so the change takes no step on any server and
+                 applies with them online or not, and its plan says so in a "labels_only"
+                 note. A key is as a Kubernetes label's: a name of at most 63 characters,
+                 letters, digits, -, _ and ., with an optional prefix, such as
+                 example.com/tier. See docs/adr/0091-server-labels.md.
+            operationId: ChangeService_PlanServerLabels
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/PlanServerLabelsRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/PlanServerLabelsResponse'
                 default:
                     description: Default error response
                     content:
@@ -10673,6 +10715,14 @@ components:
                 proof:
                     type: string
                     description: The proof from FinishStepUp for STEP_UP_ACTION_ADD_SERVER.
+                labels:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        The labels the server joining with it gets, each as key:value, such as
+                         region:eu: the change that adds its host, as its agent first connects, gives
+                         them (ADR 0091). Numbered in the block labels hold, 20 to 29.
             description: CreateJoinTicketRequest says how long the ticket works.
         CreateJoinTicketResponse:
             type: object
@@ -15076,6 +15126,13 @@ components:
                     description: The server that joined with it, by ID and by name, once one has.
                 serverName:
                     type: string
+                labels:
+                    type: object
+                    additionalProperties:
+                        type: string
+                    description: |-
+                        The labels a server joining with it gets (ADR 0091). Numbered in the block
+                         labels hold, 20 to 29.
             description: JoinTicket is a ticket that adds one server, without its secret.
         Link:
             type: object
@@ -17435,8 +17492,9 @@ components:
                          first, "unbacked_move" for one whose data isn't in a volume Dockwell can back up
                          first, "lowers_release" for one this moves back, which goes only while its
                          data uses nothing newer, and "unbacked_paths" for an update of a service that
-                         mounts server paths, which no backup takes first. Another reason may come: its
-                         message says what it means.
+                         mounts server paths, which no backup takes first, and "labels_only" for a
+                         change of servers' labels alone, which takes no step on them. Another reason
+                         may come: its message says what it means.
                 message:
                     type: string
                     description: 'What it says, for people: the fact, what it means, and what to do.'
@@ -17459,8 +17517,9 @@ components:
                          for "unbacked_paths"; the
                          variables and secrets, by the names the service sees, for "values_latest";
                          the image, the revision and its digest for "digest_pinned" and "digest_gone",
-                         and the image and the revision for "digest_differs"; the container_name, or
-                         the image, or the ports. Never a variable's value.
+                         and the image and the revision for "digest_differs"; the servers, by name,
+                         for "labels_only"; the container_name, or the image, or the ports. Never a
+                         variable's value.
                 from:
                     type: string
                     description: |-
@@ -17545,6 +17604,40 @@ components:
                         - $ref: '#/components/schemas/Change'
                     description: The change, planned, with its plan.
             description: PlanRemoveServerResponse carries the planned removal.
+        PlanServerLabelsRequest:
+            type: object
+            properties:
+                serverIds:
+                    type: array
+                    items:
+                        type: string
+                    description: The servers, by ID. One server is a set of one.
+                set:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        Labels to set, each as key:value, such as region:eu, or a key alone for an
+                         empty value. A server that has the key already takes the new value.
+                remove:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        Keys of labels to remove, such as region. A key a server doesn't have is
+                         nothing to remove.
+                summary:
+                    type: string
+                    description: What the change is for, for the timeline. Empty says what it labels.
+            description: PlanServerLabelsRequest names servers, and the labels to set and remove on each.
+        PlanServerLabelsResponse:
+            type: object
+            properties:
+                change:
+                    allOf:
+                        - $ref: '#/components/schemas/Change'
+                    description: The change, planned, with its plan.
+            description: PlanServerLabelsResponse carries the planned change of labels.
         PlanStartPanelRequest:
             type: object
             properties:
@@ -19595,6 +19688,13 @@ components:
                     type: string
                     description: 'What''s above 90%: memory, or else CPU.'
                     format: enum
+                labels:
+                    type: object
+                    additionalProperties:
+                        type: string
+                    description: |-
+                        Its labels, such as region and pool, which its host's revisions keep, by key
+                         (ADR 0091). Numbered in the block labels hold, 20 to 29.
             description: Server is one machine running the agent.
         ServerContainer:
             type: object
@@ -19877,7 +19977,17 @@ components:
             description: ServerHealth is how a service is on one server.
         ServerHost:
             type: object
-            properties: {}
+            properties:
+                labels:
+                    type: object
+                    additionalProperties:
+                        type: string
+                    description: |-
+                        Its labels, such as region:eu and pool:web, by key, as Kubernetes labels:
+                         what the fleet groups and selects servers by. The control plane keeps them,
+                         and the server never sees them, so a change of them alone takes no step there.
+                         See docs/adr/0091-server-labels.md. Numbered in the block labels hold, 20 to
+                         29.
             description: |-
                 ServerHost is a server's host, kind "server.host": one for each server, named
                  "host", made as the server joins. Installing its updates is an edit of it that

@@ -5,6 +5,7 @@ import {
   Button,
   cx,
   FleetGrid,
+  type FleetGroup,
   type FleetServer,
   Icon,
   PHONE_QUERY,
@@ -14,6 +15,7 @@ import {
   useMediaQuery,
   useUIStrings,
 } from "@dockwell/ui";
+import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -24,20 +26,42 @@ import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
 import { AddServerSheet } from "./AddServerSheet";
 import { Connecting, FleetUnreadNote, usePageReconnecting } from "./FleetNotes";
+import { LabelChips } from "./LabelChips";
+import {
+  defaultGroupKey,
+  fleetLabels,
+  groupBy,
+  isProblem,
+  type LabelGroup,
+  labelSuggestions,
+  matches,
+  parseSelector,
+  parseTerm,
+  selectorText,
+  type Term,
+  termText,
+} from "./labels";
 import { ServerInspector } from "./ServerInspector";
 import { byNeed, serverStatus } from "./server";
 import { useServerTiles } from "./tiles";
 import { useFleet, useFleetUnread } from "./useFleet";
 import "./ServersPage.css";
 
-/** Which server Servers inspects, or that none is, as its URL says. */
+/** Which server Servers inspects, or that none is, and which servers it lists, as its URL says. */
 export interface ServersSearch {
   server?: string;
   /** The inspector was closed, so none opens on its own, a reload and Back included. */
   closed?: boolean;
   /** Add a server opens with the page, as the top bar's New offers it (#617). */
   add?: boolean;
+  /** The servers it lists, by their labels, as a selector: "pool:web region:eu" (ADR 0091). */
+  selector?: string;
+  /** The key its tiles group by, or "none"; unset groups by region where servers have one. */
+  group?: string;
 }
+
+/** What Group by says for no groups, in the URL. */
+const NO_GROUPS = "none";
 
 /** How many rows the table shows before "Show all", as Servers-List pages them. */
 export const TABLE_PAGE = 20;
@@ -76,17 +100,23 @@ export function ServersPage({
     if (!open && search.add) onSearch({ ...search, add: undefined }, { replace: true });
   };
   const mayAdd = useMay()(ServerService.method.createJoinTicket);
-  const servers = useMemo(
+  const fleetServers = useMemo(
     () => (fleet.status === "connecting" ? [] : [...fleet.servers].sort((a, b) => a.name.localeCompare(b.name))),
     [fleet],
   );
+  const terms = useMemo(() => parseSelector(search.selector ?? ""), [search.selector]);
+  const servers = useMemo(() => fleetServers.filter((s) => matches(terms, s.labels)), [fleetServers, terms]);
+  const used = useMemo(() => fleetLabels(fleetServers), [fleetServers]);
+  const groupKey = search.group === NO_GROUPS ? undefined : (search.group ?? defaultGroupKey(used));
+  // What a choice keeps of the URL: which servers it lists, and how.
+  const kept = { selector: search.selector, group: search.group };
   // Without a server in the URL, the one that needs a look first opens, by the ranking the Overview
   // names one by, once: it goes into the URL, so it stays as others come and go, and a reload or Back keeps it.
   const firstLook = byNeed(servers, serverStatus).find(needsLook)?.id;
   const pick = search.server === undefined && !search.closed ? firstLook : undefined;
   useEffect(() => {
-    if (pick) onSearch({ server: pick }, { replace: true });
-  }, [pick, onSearch]);
+    if (pick) onSearch({ server: pick, selector: search.selector, group: search.group }, { replace: true });
+  }, [pick, onSearch, search.selector, search.group]);
 
   if (fleet.status === "connecting") {
     return (
@@ -96,13 +126,25 @@ export function ServersPage({
       </Page>
     );
   }
-  const lead = strings.fleetGrid.servers(servers.length);
-  const controlServer = servers.find((s) => s.controlServer);
+  const count = strings.fleetGrid.servers(fleetServers.length);
+  const controlServer = fleetServers.find((s) => s.controlServer);
   const control = controlServer ? { id: controlServer.id, name: controlServer.name } : undefined;
   const chosenId = search.server ?? pick;
   const chosen = chosenId ? servers.find((s) => s.id === chosenId) : undefined;
   // Each choice is a step Back goes through; closing is one too.
-  const select = (id: string | undefined) => onSearch(id ? { server: id } : { closed: true });
+  const select = (id: string | undefined) => onSearch(id ? { ...kept, server: id } : { ...kept, closed: true });
+  const listing = { server: search.server, closed: search.closed };
+  const setSelector = (next: readonly Term[]) =>
+    onSearch({ ...listing, group: search.group, selector: next.length > 0 ? selectorText(next) : undefined });
+  const setGroup = (key: string | undefined) =>
+    onSearch(
+      { ...listing, selector: search.selector, group: key === defaultGroupKey(used) ? undefined : (key ?? NO_GROUPS) },
+      { replace: true },
+    );
+  const groups = groupKey ? groupBy(servers, groupKey) : undefined;
+  const regions = used.get("region")?.length ?? 0;
+  const regionWords = plural(regions, { one: "# region", other: "# regions" });
+  const lead = regions > 0 ? t`${count} in ${regionWords}` : count;
 
   return (
     // The list with its inspector beside it, as Servers-List lays them out, uses the room: a wide page
@@ -133,7 +175,26 @@ export function ServersPage({
       }
     >
       {unread ? <FleetUnreadNote why={unread.why} heard={unread.heard} /> : null}
-      {servers.length === 0 ? (
+      {used.size > 0 || terms.length > 0 ? (
+        <ServersSelector
+          terms={terms}
+          used={used}
+          matching={servers.length}
+          groupKey={groupKey}
+          onTerms={setSelector}
+          onGroup={setGroup}
+        />
+      ) : null}
+      {fleetServers.length > 0 && servers.length === 0 ? (
+        <section className="dw-panel servers-none">
+          <span>
+            <Trans>No server matches</Trans>
+          </span>
+          <Button variant="ghost" size="sm" onClick={() => setSelector([])}>
+            <Trans>Clear the selector</Trans>
+          </Button>
+        </section>
+      ) : servers.length === 0 ? (
         <EmptyState
           icon="server"
           title={<Trans>No servers yet</Trans>}
@@ -144,9 +205,25 @@ export function ServersPage({
           }
         />
       ) : phone ? (
-        <PhoneServers servers={servers} chosen={chosen} select={select} unknown={unread !== undefined} />
+        <PhoneServers
+          servers={servers}
+          chosen={chosen}
+          select={select}
+          unknown={unread !== undefined}
+          groups={groups}
+          groupKey={groupKey}
+          selector={terms}
+        />
       ) : (
-        <WideServers servers={servers} chosen={chosen} select={select} unknown={unread !== undefined} />
+        <WideServers
+          servers={servers}
+          chosen={chosen}
+          select={select}
+          unknown={unread !== undefined}
+          groups={groups}
+          groupKey={groupKey}
+          selector={terms}
+        />
       )}
       {/* ?add opens it only for someone who may add a server (ADR 0059). */}
       {adding && mayAdd.allowed ? <AddServerSheet control={control} onClose={() => setAdding(false)} /> : null}
@@ -160,6 +237,81 @@ interface ListProps {
   select: (id: string | undefined) => void;
   /** What the fleet last said can't stand, so nobody can say how any server is. */
   unknown: boolean;
+  /** The servers by groupKey's value, for the tiles; undefined for one group. */
+  groups?: LabelGroup[] | undefined;
+  groupKey?: string | undefined;
+  /** The selector they match, for the table's caption. */
+  selector?: readonly Term[];
+}
+
+/**
+ * The selector over the list, as Servers-List draws it: its terms as chips, a field
+ * that takes another and offers the labels the fleet uses, how many servers match,
+ * and Group by, region first.
+ */
+function ServersSelector({
+  terms,
+  used,
+  matching,
+  groupKey,
+  onTerms,
+  onGroup,
+}: {
+  terms: readonly Term[];
+  used: Map<string, string[]>;
+  matching: number;
+  groupKey: string | undefined;
+  onTerms: (next: readonly Term[]) => void;
+  onGroup: (key: string | undefined) => void;
+}) {
+  const { t } = useLingui();
+  const keys = [...used.keys()];
+  return (
+    <div className="servers-selector">
+      <LabelChips
+        className="servers-selector-field"
+        label={t`Add a label to the selector`}
+        icon="filter"
+        chips={terms.map((term) => ({
+          text: termText(term),
+          key: `${term.not ? "!" : ""}${term.key}`,
+          value: term.hasValue ? term.value : undefined,
+        }))}
+        onAdd={(text) => {
+          const term = parseTerm(text);
+          if (isProblem(term)) return;
+          onTerms([...terms.filter((x) => termText(x) !== termText(term)), term]);
+        }}
+        onRemove={(i) => onTerms(terms.filter((_, j) => j !== i))}
+        check={(text) => {
+          const term = parseTerm(text);
+          return isProblem(term) ? term : undefined;
+        }}
+        suggestions={labelSuggestions(used)}
+        placeholder={t`label:value`}
+        after={
+          terms.length > 0 ? (
+            <span className="label-chips-after">{plural(matching, { one: "# matches", other: "# match" })}</span>
+          ) : null
+        }
+      />
+      {keys.length > 0 ? (
+        <label className="dw-btn dw-btn-secondary dw-btn-md servers-group">
+          <Icon name="layers" size={16} />
+          <span className="dw-sr">{t`Group the servers`}</span>
+          <select value={groupKey ?? ""} onChange={(e) => onGroup(e.target.value || undefined)}>
+            {keys.map((k) => (
+              <option key={k} value={k}>
+                {t`Group by ${k}`}
+              </option>
+            ))}
+            <option value="">{t`No groups`}</option>
+          </select>
+          <Icon name="chevron-down" size={14} />
+        </label>
+      ) : null}
+    </div>
+  );
 }
 
 /**
@@ -167,9 +319,10 @@ interface ListProps {
  * stays in view as the page scrolls; where it wraps below the table, a choice brings it
  * into view, and closing it puts the keyboard back on the row it was about.
  */
-function WideServers({ servers, chosen, select, unknown }: ListProps) {
+function WideServers({ servers, chosen, select, unknown, groups, groupKey, selector }: ListProps) {
   const { t } = useLingui();
   const tiles = useServerTiles(servers, unknown);
+  const tileGroups = useTileGroups(tiles, groups, groupKey);
   const [all, setAll] = useState(false);
   const beyond = chosen ? servers.findIndex((s) => s.id === chosen.id) >= TABLE_PAGE : false;
   const layout = useRef<HTMLDivElement>(null);
@@ -200,7 +353,12 @@ function WideServers({ servers, chosen, select, unknown }: ListProps) {
         {/* A map is for telling many apart at a glance. One server is its row, which says the same and more. */}
         {servers.length > 1 ? (
           <section className="dw-panel servers-map" aria-label={t`Servers at a glance`}>
-            <FleetGrid servers={tiles} selectedId={chosen?.id} onSelect={(s) => choose(s.id)} />
+            <FleetGrid
+              servers={tileGroups ? undefined : tiles}
+              groups={tileGroups}
+              selectedId={chosen?.id}
+              onSelect={(s) => choose(s.id)}
+            />
           </section>
         ) : null}
         <ServersTable
@@ -209,6 +367,7 @@ function WideServers({ servers, chosen, select, unknown }: ListProps) {
           chosen={chosen}
           select={choose}
           unknown={unknown}
+          selector={selector}
           all={all || beyond}
           onShowAll={() => setAll(true)}
         />
@@ -226,6 +385,7 @@ function ServersTable({
   tiles,
   chosen,
   select,
+  selector,
   all,
   onShowAll,
 }: ListProps & { tiles: readonly FleetServer[]; all: boolean; onShowAll: () => void }) {
@@ -234,13 +394,14 @@ function ServersTable({
   const runs = useRunsByServer();
   const byId = new Map(tiles.map((tile) => [tile.id, tile]));
   const rows = all ? servers : servers.slice(0, TABLE_PAGE);
+  const matching = selectorText(selector ?? []);
   const count = servers.length;
   const shown = rows.length;
   return (
     <section className="servers-table" aria-label={t`Server list`}>
       <Table<Server>
         density="compact"
-        caption={t`Servers, sorted by name`}
+        caption={matching ? t`Servers matching ${matching}, sorted by name` : t`Servers, sorted by name`}
         rows={rows}
         rowKey="id"
         rowClassName={(s) => `servers-row-${s.id}`}
@@ -323,6 +484,27 @@ function ServersTable({
   );
 }
 
+/**
+ * The tiles by the groups the servers are in, each named by its value, with those
+ * without the key last, as "No region"; undefined while there's one group or none.
+ */
+function useTileGroups(
+  tiles: readonly FleetServer[],
+  groups: LabelGroup[] | undefined,
+  key: string | undefined,
+): FleetGroup[] | undefined {
+  const { t } = useLingui();
+  const none = key ? t`No ${key}` : "";
+  return useMemo(() => {
+    if (!groups || groups.length < 2) return undefined;
+    const byId = new Map(tiles.map((tile) => [tile.id, tile]));
+    return groups.map((g) => ({
+      label: g.value ?? none,
+      servers: g.servers.map((s) => byId.get(s.id)).filter((tile): tile is FleetServer => tile !== undefined),
+    }));
+  }, [tiles, groups, none]);
+}
+
 function percent(value: number | null | undefined) {
   return value == null ? <span aria-hidden="true">—</span> : `${value}%`;
 }
@@ -359,10 +541,11 @@ function useRunsByServer(): Map<string, string> {
  * On a phone: the tiles, the servers that need attention (or every server, when
  * none does), and the one chosen, above the tab bar, with the way to its page.
  */
-function PhoneServers({ servers, chosen, select, unknown }: ListProps) {
+function PhoneServers({ servers, chosen, select, unknown, groups, groupKey }: ListProps) {
   const { t } = useLingui();
   const strings = useUIStrings();
   const tiles = useServerTiles(servers, unknown);
+  const tileGroups = useTileGroups(tiles, groups, groupKey);
   const attention = servers.filter(needsLook);
   const listed = attention.length > 0 ? attention : servers;
   const byId = new Map(tiles.map((tile) => [tile.id, tile]));
@@ -372,7 +555,14 @@ function PhoneServers({ servers, chosen, select, unknown }: ListProps) {
     <>
       {servers.length > 1 ? (
         <section className="dw-panel servers-map" aria-label={t`Servers at a glance`}>
-          <FleetGrid servers={tiles} size="sm" readout={false} selectedId={chosen?.id} onSelect={(s) => select(s.id)} />
+          <FleetGrid
+            servers={tileGroups ? undefined : tiles}
+            groups={tileGroups}
+            size="sm"
+            readout={false}
+            selectedId={chosen?.id}
+            onSelect={(s) => select(s.id)}
+          />
         </section>
       ) : null}
       <section className="servers-phone-section" aria-labelledby="servers-phone-heading">

@@ -19,6 +19,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/identity"
 	"github.com/dockwell/dockwell/internal/datadir"
 	"github.com/dockwell/dockwell/internal/human"
+	"github.com/dockwell/dockwell/internal/labels"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/seal"
 	"github.com/dockwell/dockwell/internal/store"
@@ -33,6 +34,7 @@ func newTokenCmd(stdio IO, g *globalFlags) *cobra.Command {
 	}
 	var ttl time.Duration
 	var controlURL string
+	var joinLabels []string
 	create := &cobra.Command{
 		Use:   "create",
 		Short: "Make a ticket that adds one server",
@@ -40,6 +42,10 @@ func newTokenCmd(stdio IO, g *globalFlags) *cobra.Command {
 			"Run it on the control server, as the user that runs dockwell: with sudo, when it runs as the system service.",
 		Args: noArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			given, err := labels.Apply(nil, joinLabels, nil)
+			if err != nil {
+				return usageError{err}
+			}
 			logger, err := g.logger(stdio.Err)
 			if err != nil {
 				return err
@@ -69,17 +75,22 @@ func newTokenCmd(stdio IO, g *globalFlags) *cobra.Command {
 			for _, u := range urls[1:] {
 				others = append(others, u.URL)
 			}
-			tk, err := auth.CreateTicket(ctx, controlURL, actor(), ttl, others...)
+			tk, err := auth.CreateLabeledTicket(ctx, controlURL, actor(), ttl, given, others...)
 			if err != nil {
 				return usageError{err}
 			}
+			labeled := ""
+			if len(given) > 0 {
+				labeled = " with the labels " + strings.Join(labels.Strings(given), " ")
+			}
 			fmt.Fprintf(cmd.OutOrStdout(), "Run this on the server you're adding, as root:\n\n  dockwell join %s\n\n"+
-				"The ticket adds one server through %s. It works once and expires in %s, at %s.\n%s",
-				tk.Value, strings.Join(append([]string{controlURL}, others...), ", or else "), human.Duration(ttl), tk.ExpiresAt.UTC().Format("15:04 MST on 2 Jan"), joinWords(urls))
+				"The ticket adds one server%s through %s. It works once and expires in %s, at %s.\n%s",
+				tk.Value, labeled, strings.Join(append([]string{controlURL}, others...), ", or else "), human.Duration(ttl), tk.ExpiresAt.UTC().Format("15:04 MST on 2 Jan"), joinWords(urls))
 			return nil
 		},
 	}
 	create.Flags().DurationVar(&ttl, "ttl", identity.DefaultTicketTTL, "how long the ticket works, at most 24h")
+	create.Flags().StringArrayVar(&joinLabels, "label", nil, "a label the server gets as it joins, as key:value, such as region:eu; repeat for more")
 	create.Flags().StringVar(&controlURL, "control-url", "", "the control plane's agent URL to put in the ticket; defaults to what dockwell run advertises")
 	cmd.AddCommand(create)
 	return cmd

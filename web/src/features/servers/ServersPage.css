@@ -238,6 +238,7 @@
 
 .servers-add-make,
 .servers-add-wait,
+.servers-add-labels,
 .servers-add-done {
   display: flex;
   flex-wrap: wrap;
@@ -393,4 +394,61 @@
     scroll-margin-top: calc(56px + var(--space-2));
     scroll-margin-bottom: calc(var(--tabbar-height) + 64px + var(--space-6));
   }
+}
+
+/* ---------- The selector ---------- */
+
+/* The selector, then Group by, as Servers-List lays them over the list. */
+.servers-selector {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.servers-selector-field {
+  flex: 1 1 420px;
+  min-width: 0;
+}
+
+/* Group by is a button that holds the choice, its select over the whole of it. */
+.servers-group {
+  position: relative;
+  flex: none;
+  gap: var(--space-2);
+  cursor: pointer;
+}
+
+.servers-group select {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.servers-group select:focus-visible {
+  outline: none;
+}
+
+.servers-group:has(select:focus-visible) {
+  box-shadow: var(--focus-ring);
+}
+
+.servers-group .dw-icon {
+  flex: none;
+  color: var(--ink-muted);
+  pointer-events: none;
+}
+
+.servers-none {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  color: var(--ink-muted);
+  font-size: 13.5px;
 }

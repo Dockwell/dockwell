@@ -6,7 +6,6 @@ import (
 	"context"
 	"slices"
 
-	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/fault"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/store"
@@ -55,7 +54,7 @@ func (e *Engine) undoUnits(ctx context.Context, c store.Change, took *Plan, by B
 		if !ok {
 			return nil, fault.New(ErrCantUndo, "%s can't be undone: a %s of %s has nothing to put back", c.ID, r.Unit.Action, r.Unit.Name)
 		}
-		edits = append(edits, Edit{Ref: r.Ref, Spec: &resourcev1.ServerHost{}, Unit: &resource.UnitAsked{Name: r.Unit.Name, Action: back}})
+		edits = append(edits, Edit{Ref: r.Ref, Unit: &resource.UnitAsked{Name: r.Unit.Name, Action: back}})
 	}
 	return e.propose(ctx, Proposal{Summary: "Undo: " + c.Summary, Actor: by.Actor, Via: by.Via, Edits: edits}, c.ID, true)
 }
@@ -110,7 +109,7 @@ func (e *Engine) undoPanels(ctx context.Context, c store.Change, took *Plan, by 
 		if !ok {
 			return nil, fault.New(ErrCantUndo, "%s can't be undone: it started %s again. Stop %s again to put that back", c.ID, r.Panel.Name(), r.Panel.Name())
 		}
-		edits = append(edits, Edit{Ref: r.Ref, Spec: &resourcev1.ServerHost{}, Panel: &back})
+		edits = append(edits, Edit{Ref: r.Ref, Panel: &back})
 	}
 	return e.propose(ctx, Proposal{Summary: "Undo: " + c.Summary, Actor: by.Actor, Via: by.Via, Edits: edits}, c.ID, true)
 }
@@ -133,7 +132,7 @@ func panelsBack(c store.Change, progress *Progress) []Edit {
 			return s.Ref == r.Ref && (s.State == StepRunning || s.State == StepDone || s.State == StepFailed)
 		})
 		if back, ok := r.Panel.Undone(); began && ok {
-			out = append(out, Edit{Ref: r.Ref, Spec: &resourcev1.ServerHost{}, Panel: &back})
+			out = append(out, Edit{Ref: r.Ref, Panel: &back})
 		}
 	}
 	return out
