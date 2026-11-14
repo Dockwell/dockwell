@@ -88,6 +88,15 @@ func (m *Manager) deliver(ctx context.Context, wanted map[Holder]*want, st map[s
 			}
 			certs = append(certs, agentapi.Certificate{ID: h, Name: wanted[h].Name, Names: names, Serves: wanted[h].Serves[server], Chain: chain, Key: k})
 		}
+		// Each key is on record as the server's before it's sent, so a server that
+		// loaded it and dropped before saying so is still one to revoke it for if
+		// it goes (ADR 0090). What can't be recorded isn't sent.
+		if whole {
+			if err := m.recordGiven(ctx, server, holders, st); err != nil {
+				m.logger().Warn("can't record which certificates a server gets, so they aren't sent; it tries again", "server", server, "error", err.Error())
+				whole = false
+			}
+		}
 		if whole {
 			_, err := loader.PutCertificates(ctx, certs)
 			if err != nil {
@@ -107,17 +116,18 @@ func (m *Manager) deliver(ctx context.Context, wanted map[Holder]*want, st map[s
 		}
 		m.pushed[server] = now
 		m.pushedMu.Unlock()
-		m.recordDeliveries(ctx, server, holders, st)
+		m.recordDelivered(ctx, server, holders, st)
 	}
 }
 
-// recordDeliveries keeps each key a server gets, by its certificate's serial, until
-// the certificate ends, and puts it on the server's timeline the first time: a key
-// sent again, as its agent reconnected or the control plane restarted, is the same
-// key. A server keeps what it was given, even once it's replaced, so each such key
-// is revoked if the server goes (ADR 0088).
-func (m *Manager) recordDeliveries(ctx context.Context, server string, holders []Holder, st map[string]*held) {
-	_ = m.DB.Update(context.WithoutCancel(ctx), func(tx *store.Tx) error {
+// recordGiven keeps each key a server is about to get, by its certificate's serial,
+// until the certificate ends: a key sent again, as its agent reconnected or the
+// control plane restarted, is the same key. A server keeps what it was given, even
+// once it's replaced, so each such key is revoked if the server goes (ADR 0088).
+// It's kept before the key is sent, so a send that reached the agent and lost its
+// answer leaves no key unaccounted for (ADR 0090).
+func (m *Manager) recordGiven(ctx context.Context, server string, holders []Holder, st map[string]*held) error {
+	return m.DB.Update(context.WithoutCancel(ctx), func(tx *store.Tx) error {
 		gv, err := givenKeys(ctx, tx)
 		if err != nil {
 			return err
@@ -130,11 +140,33 @@ func (m *Manager) recordDeliveries(ctx context.Context, server string, holders [
 				g = &given{Holder: h, Gen: s.Gen, Names: s.Names, NotAfter: s.NotAfter}
 				gv[s.Serial] = g
 			}
-			if slices.Contains(g.Servers, server) {
+			if !slices.Contains(g.Servers, server) {
+				g.Servers, fresh = append(g.Servers, server), true
+			}
+		}
+		if !fresh {
+			return nil
+		}
+		return putJSON(ctx, tx, givenSetting, gv)
+	})
+}
+
+// recordDelivered puts each key a server's agent took on the server's timeline, the
+// first time it took it.
+func (m *Manager) recordDelivered(ctx context.Context, server string, holders []Holder, st map[string]*held) {
+	if err := m.DB.Update(context.WithoutCancel(ctx), func(tx *store.Tx) error {
+		gv, err := givenKeys(ctx, tx)
+		if err != nil {
+			return err
+		}
+		fresh := false
+		for _, h := range holders {
+			s := st[h]
+			g := gv[s.Serial]
+			if g == nil || slices.Contains(g.Delivered, server) {
 				continue
 			}
-			g.Servers = append(g.Servers, server)
-			fresh = true
+			g.Delivered, fresh = append(g.Delivered, server), true
 			detail, _ := json.Marshal(map[string]any{"holder": h, "serial": s.Serial, "names": s.Names})
 			if err := tx.RecordEvent(ctx, store.Event{
 				ID: id.New(id.Event), At: m.now(), Actor: revision.SystemActor, Action: ActionDeliver,
@@ -147,5 +179,7 @@ func (m *Manager) recordDeliveries(ctx context.Context, server string, holders [
 			return nil
 		}
 		return putJSON(ctx, tx, givenSetting, gv)
-	})
+	}); err != nil {
+		m.logger().Warn("can't put a certificate a server got on its timeline", "server", server, "error", err.Error())
+	}
 }

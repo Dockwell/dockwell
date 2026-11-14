@@ -801,8 +801,14 @@ func (e *Engine) Propose(ctx context.Context, p Proposal) (*Plan, error) {
 // propose plans and records a change. With rotate, an edit that sets a
 // secret's value rotates it (item.rotates).
 func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate bool) (*Plan, error) {
-	if len(p.Edits) == 0 {
+	// A removal of a server with nothing on it edits nothing: the server leaving is the change.
+	if len(p.Edits) == 0 && p.Removes == nil {
 		return nil, fault.New(ErrInvalid, "the change has no edits. Add one for each resource to change")
+	}
+	if p.Removes != nil {
+		if err := removerRole(ctx, planning, p.Removes); err != nil {
+			return nil, err
+		}
 	}
 	edits, err := e.withMovedValues(ctx, p.Edits)
 	if err != nil {
@@ -905,7 +911,7 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 	if err := e.pinBuilds(ctx, items, changeID); err != nil {
 		return nil, err
 	}
-	plan, err := e.plan(ctx, changeID, items, false)
+	plan, err := e.plan(ctx, changeID, items, false, p.Removes)
 	if err != nil {
 		return nil, err
 	}
@@ -2321,7 +2327,7 @@ func itOrThem(n int) string {
 // A rollback's plan never fails for an agent: one that can't plan now is
 // planned from its server's last known desired state, like an offline
 // one, and its steps wait for Resume to plan them against the server.
-func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollback bool) (*Plan, error) {
+func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollback bool, removal *Removal) (*Plan, error) {
 	// Which certificate's key a route proven by DNS takes where, read once (ADR 0088).
 	var keys *keyContext
 	var keyNotes []Note
@@ -2329,7 +2335,7 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 		return nil, err
 	}
 	// The server a removal takes out takes no step for what it leaves there.
-	removal := leaving(items)
+	removal = leaving(items, removal)
 	var servers, removed []string
 	byServer := map[string][]*item{}
 	for i := range items {
@@ -2349,6 +2355,10 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 	// A server a removal takes steps on for some items, and lets go of others, is one
 	// with steps (ADR 0090).
 	removed = slices.DeleteFunc(removed, func(s string) bool { return slices.Contains(servers, s) })
+	// The server leaving is on the plan as one, steps or not, as one with nothing on it has none.
+	if removal != nil && !slices.Contains(servers, removal.Server) && !slices.Contains(removed, removal.Server) {
+		removed = append(removed, removal.Server)
+	}
 	names, err := e.serverNames(ctx, slices.Concat(servers, removed))
 	if err != nil {
 		return nil, err
@@ -3579,7 +3589,7 @@ func (e *Engine) commitOwned(ctx context.Context, c store.Change, items []item, 
 	for i := range items {
 		items[i].rollback = rollback
 	}
-	plan, err := e.plan(ctx, c.ID, items, rollback)
+	plan, err := e.plan(ctx, c.ID, items, rollback, removalIn(c))
 	if err != nil {
 		return nil, err
 	}
@@ -3669,7 +3679,7 @@ func (e *Engine) commitOwned(ctx context.Context, c store.Change, items []item, 
 		// A server that may be compromised is out of the fleet from now on,
 		// before any step (ADR 0090).
 		if r := plan.Removes; r != nil && r.Compromised {
-			if err := e.revoke(ctx, tx.Tx, c, r.Server); err != nil {
+			if err := e.revoke(ctx, tx.Tx, c, r.Server, true); err != nil {
 				return err
 			}
 		}
@@ -3719,6 +3729,21 @@ func holds(ctx context.Context, tx *store.Tx, c store.Change, plan *Plan) error 
 	case plan.Fingerprint != c.Fingerprint:
 		return fault.New(ErrPlanChanged, "the servers changed since this plan was made, so it no longer matches them. "+
 			"Plan the change again and review what changed")
+	}
+	// What was placed on a server since its removal was planned isn't in the plan,
+	// which would leave it behind unsaid (ADR 0090).
+	if r := plan.Removes; r != nil {
+		placed, err := tx.ListPlaced(ctx, r.Server)
+		if err != nil {
+			return err
+		}
+		for i := range placed {
+			ref := resource.Ref{Kind: resource.Kind(placed[i].Kind), Scope: placed[i].Scope, Name: placed[i].Name}
+			if !slices.ContainsFunc(plan.Resources, func(rp ResourcePlan) bool { return rp.Ref == ref }) {
+				return fault.New(ErrPlanChanged, "%s was put on %s since this removal was planned, so the plan doesn't say what becomes of it. Plan the removal again",
+					ref.Name, cmp.Or(r.Name, r.Server))
+			}
+		}
 	}
 	return nil
 }
@@ -4042,7 +4067,7 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 	// applied (ADR 0090).
 	var then func(*store.RevisionTx) error
 	if rm := r.plan.Removes; rm != nil && !rm.Compromised {
-		then = func(tx *store.RevisionTx) error { return e.revoke(ctx, tx.Tx, c, rm.Server) }
+		then = func(tx *store.RevisionTx) error { return e.revoke(ctx, tx.Tx, c, rm.Server, false) }
 	}
 	if err := e.finishWith(ctx, c, store.ChangeApplied, "", "change.applied", e.progress(c.ID), then); err != nil {
 		return err
@@ -4371,7 +4396,7 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 			}
 		}
 	}
-	plan, err := e.plan(ctx, c.ID, items, false)
+	plan, err := e.plan(ctx, c.ID, items, false, removalIn(c))
 	if err != nil {
 		e.letGo(ctx, changeID)
 		return nil, err

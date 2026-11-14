@@ -29,7 +29,8 @@ const revokeTimeout = 30 * time.Second
 // revokeDue revokes the keys servers that are gone had, each with its own key and
 // the reason keyCompromise, so the CA refuses that key from then on too; once the
 // key's holder has another, so the servers left aren't serving a revoked one while
-// they could have a new one (ADR 0088).
+// they could have a new one (ADR 0088). One a server removed as compromised had
+// goes at once, whatever its holder has (ADR 0090).
 func (m *Manager) revokeDue(ctx context.Context, wanted map[Holder]*want, st map[string]*held) {
 	var gv map[string]*given
 	if err := m.DB.View(ctx, func(tx *store.Tx) error {
@@ -46,7 +47,8 @@ func (m *Manager) revokeDue(ctx context.Context, wanted map[Holder]*want, st map
 		if len(g.Gone) == 0 || now.Before(g.Next) {
 			continue
 		}
-		if s := st[g.Holder]; wanted[g.Holder] != nil && s != nil && s.Serial == serial {
+		// A key a compromised server had goes at once; otherwise once its holder has another.
+		if s := st[g.Holder]; !g.Compromised && wanted[g.Holder] != nil && s != nil && s.Serial == serial {
 			continue
 		}
 		due = append(due, serial)
@@ -64,6 +66,9 @@ func (m *Manager) revokeDue(ctx context.Context, wanted map[Holder]*want, st map
 			err = m.revoke(ctx, c, serial, g)
 		}
 		if err != nil {
+			if g.Failures == 0 {
+				g.FailingSince = now
+			}
 			g.Failures++
 			g.Message = sentence(err.Error())
 			g.Next = now.Add(backoff(g.Failures))
@@ -207,5 +212,46 @@ func (m *Manager) RemovalNotes(ctx context.Context, server, name string) ([]revi
 			Message: "Revokes the certificates' keys " + name + " had: " + strings.Join(revoke, "; "),
 		})
 	}
+	return out, nil
+}
+
+// Revocation is a key a server that's gone had, still to be revoked: waiting for
+// its holder's next key, or failing (ADR 0090).
+type Revocation struct {
+	Serial string
+	// Names are the certificate's, and Servers the servers gone that had it, by ID.
+	Names   []string
+	Servers []string
+	// Compromised says one of them went as a server that may be compromised.
+	Compromised bool
+	// Message says why it failed, in the CA's words, since Since; empty while it
+	// hasn't. Next is when it's tried again.
+	Message string
+	Since   time.Time
+	Next    time.Time
+}
+
+// Revocations are the keys still to be revoked, by serial, for an alert to say
+// which fail.
+func (m *Manager) Revocations(ctx context.Context) ([]Revocation, error) {
+	var gv map[string]*given
+	if err := m.DB.View(ctx, func(tx *store.Tx) error {
+		var err error
+		gv, err = givenKeys(ctx, tx)
+		return err
+	}); err != nil {
+		return nil, err
+	}
+	var out []Revocation
+	for serial, g := range gv {
+		if len(g.Gone) == 0 {
+			continue
+		}
+		out = append(out, Revocation{
+			Serial: serial, Names: slices.Clone(g.Names), Servers: slices.Clone(g.Gone), Compromised: g.Compromised,
+			Message: g.Message, Since: g.FailingSince, Next: g.Next,
+		})
+	}
+	slices.SortFunc(out, func(a, b Revocation) int { return strings.Compare(a.Serial, b.Serial) })
 	return out, nil
 }

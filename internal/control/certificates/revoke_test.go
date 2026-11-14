@@ -78,7 +78,7 @@ func TestAServerThatGoesMarksItsKeys(t *testing.T) {
 		"srv_2":    {Gen: 1, Serial: "dd"},
 	}
 	m := &Manager{}
-	m.markGone(gv, st, map[string]string{"srv_2": "hz-2"})
+	m.markGone(gv, st, map[string]string{"srv_2": "hz-2"}, nil)
 	for serial, want := range map[string][]string{"aa": {"srv_1"}, "bb": {"srv_1"}, "cc": {"srv_1"}, "dd": nil} {
 		if !slices.Equal(gv[serial].Gone, want) {
 			t.Errorf("%s: gone %v, want %v", serial, gv[serial].Gone, want)
@@ -94,7 +94,7 @@ func TestAServerThatGoesMarksItsKeys(t *testing.T) {
 		t.Error("a key a server that's gone had waits for the hour between orders")
 	}
 	// Marking again changes nothing.
-	m.markGone(gv, st, map[string]string{"srv_2": "hz-2"})
+	m.markGone(gv, st, map[string]string{"srv_2": "hz-2"}, nil)
 	if !slices.Equal(gv["aa"].Gone, []string{"srv_1"}) {
 		t.Errorf("marked twice: %v", gv["aa"].Gone)
 	}
@@ -269,4 +269,69 @@ func certStatus(t *testing.T, p *pebble, serial string) string {
 		t.Fatal(err)
 	}
 	return out.Status
+}
+
+// A key a server removed as compromised had is revoked at once, while its holder
+// still serves it and no other has come, as a copy someone else may hold matters
+// more than that gap; a revocation that fails is listed with why and since when,
+// for an alert to say (ADR 0090).
+func TestACompromisedServersKeyIsRevokedAtOnce(t *testing.T) {
+	m := newManager(t)
+	now := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
+	m.Now = func() time.Time { return now }
+	was := clientTimeout
+	clientTimeout = 2 * time.Second
+	t.Cleanup(func() { clientTimeout = was })
+	var asked atomic.Int32
+	ca := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		asked.Add(1)
+		http.Error(w, "down for upkeep", http.StatusServiceUnavailable)
+	}))
+	t.Cleanup(ca.Close)
+	m.Directory, m.HTTP = ca.URL+"/dir", ca.Client()
+
+	// srv_1 goes as compromised, srv_3 as any server does.
+	addServers(t, m, "srv_1", "srv_2", "srv_3")
+	revokeServer(t, m, "srv_1")
+	revokeServer(t, m, "srv_3")
+	if err := m.DB.Update(t.Context(), func(tx *store.Tx) error {
+		return tx.PutSetting(t.Context(), store.SettingCompromised("srv_1"), []byte(now.Format(time.RFC3339)))
+	}); err != nil {
+		t.Fatal(err)
+	}
+	st := map[string]*held{"crt_wild": {Gen: 2, Serial: "aa"}, "crt_api": {Gen: 1, Serial: "bb"}}
+	gv := map[string]*given{
+		"aa": {Holder: "crt_wild", Gen: 2, Servers: []string{"srv_1", "srv_2"}, Names: []string{"*.example.com"}, NotAfter: now.Add(80 * 24 * time.Hour)},
+		"bb": {Holder: "crt_api", Gen: 1, Servers: []string{"srv_3", "srv_2"}, Names: []string{"api.example.com"}, NotAfter: now.Add(80 * 24 * time.Hour)},
+	}
+	live := map[string]string{"srv_2": "hz-2"}
+	var compromised map[string]bool
+	if err := m.DB.View(t.Context(), func(tx *store.Tx) error {
+		var err error
+		compromised, err = compromisedOf(t.Context(), tx, gv, live)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	m.markGone(gv, st, live, compromised)
+	if !gv["aa"].Compromised || gv["bb"].Compromised || !st["crt_wild"].Rekey {
+		t.Fatalf("marked: aa %+v, bb %+v, wild %+v", gv["aa"], gv["bb"], st["crt_wild"])
+	}
+	if err := m.DB.Update(t.Context(), func(tx *store.Tx) error { return putJSON(t.Context(), tx, givenSetting, gv) }); err != nil {
+		t.Fatal(err)
+	}
+	wanted := map[Holder]*want{"crt_wild": {Holder: "crt_wild"}, "crt_api": {Holder: "crt_api"}}
+	m.revokeDue(t.Context(), wanted, st)
+	_, gv = read(t, m)
+	if a := gv["aa"]; a.Failures != 1 || !a.FailingSince.Equal(now) || !strings.Contains(a.Message, "down for upkeep") || asked.Load() == 0 {
+		t.Errorf("the compromised server's key, still served, wasn't tried at once: %+v, the CA asked %d times", a, asked.Load())
+	}
+	if b := gv["bb"]; b.Failures != 0 {
+		t.Errorf("a key in use whose server went uncompromised was tried before its holder had another: %+v", b)
+	}
+	list, err := m.Revocations(t.Context())
+	if err != nil || len(list) != 2 || list[0].Serial != "aa" || !list[0].Compromised || list[0].Message == "" || !list[0].Since.Equal(now) ||
+		list[1].Serial != "bb" || list[1].Message != "" || !slices.Equal(list[1].Servers, []string{"srv_3"}) {
+		t.Errorf("the revocations listed: %+v, %v", list, err)
+	}
 }

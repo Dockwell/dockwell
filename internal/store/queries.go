@@ -60,6 +60,11 @@ func SettingDesiredUnknown(server string) string { return "server.desired_unknow
 // SettingDomainProofs is the key of what a server's certificates proved of its domains.
 func SettingDomainProofs(server string) string { return "server.domain_proofs." + server }
 
+// SettingCompromised is the key of when a server was removed as one that may be
+// compromised, so what it had is revoked at once rather than once it's replaced
+// (ADR 0090). It stays with the revoked server's row.
+func SettingCompromised(server string) string { return "server.compromised." + server }
+
 // PutSetting stores a singleton value, replacing any earlier one.
 func (t *Tx) PutSetting(ctx context.Context, key string, value []byte) error {
 	_, err := t.exec(ctx, `INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)

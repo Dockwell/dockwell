@@ -346,16 +346,18 @@ func (h *Handler) Terminal(ctx context.Context, stream *connect.BidiStream[agent
 	if err := deliver(first); err != nil {
 		return nil
 	}
-	for {
-		m, err := stream.Receive()
-		if errors.Is(err, io.EOF) {
-			return nil
+	return h.whileIn(ctx, peer, func() error {
+		for {
+			m, err := stream.Receive()
+			if errors.Is(err, io.EOF) {
+				return nil
+			}
+			if err != nil {
+				return err
+			}
+			if err := deliver(m); err != nil {
+				return nil //nolint:nilerr // whoever attached has gone, which ends the terminal as it should
+			}
 		}
-		if err != nil {
-			return err
-		}
-		if err := deliver(m); err != nil {
-			return nil
-		}
-	}
+	})
 }

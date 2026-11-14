@@ -196,21 +196,24 @@ func (h *Handler) Forward(ctx context.Context, stream *connect.BidiStream[agentv
 			}
 		}
 	}()
-	// Up: what the service says goes into the pipe, until it closes or the stream ends.
-	var ended error
-	for m := first; ; {
-		if data := m.GetData(); len(data) > 0 {
-			if _, err := l.end.Write(data); err != nil {
-				break // the client closed: nothing more goes to it
+	// Up: what the service says goes into the pipe, until it closes or the stream ends,
+	// or its server is removed.
+	ended := h.whileIn(ctx, peer, func() error {
+		for m := first; ; {
+			if data := m.GetData(); len(data) > 0 {
+				if _, err := l.end.Write(data); err != nil {
+					return nil //nolint:nilerr // the client closed: nothing more goes to it
+				}
+			}
+			if m.GetClosed() {
+				return nil
+			}
+			var err error
+			if m, err = stream.Receive(); err != nil {
+				return err
 			}
 		}
-		if m.GetClosed() {
-			break
-		}
-		if m, ended = stream.Receive(); ended != nil {
-			break
-		}
-	}
+	})
 	_ = l.end.Close()
 	sendMu.Lock()
 	closed = true

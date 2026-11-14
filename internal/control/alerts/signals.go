@@ -10,6 +10,7 @@ import (
 	"math"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
@@ -48,8 +49,15 @@ func (s *signals) of(ctx context.Context, r rule) ([]finding, error) {
 		return s.disks(r), nil
 	case resourcev1.AlertRule_CONDITION_MEMORY_HIGH:
 		return s.memory(r), nil
-	case resourcev1.AlertRule_CONDITION_CERTIFICATE_EXPIRING, resourcev1.AlertRule_CONDITION_CERTIFICATE_FAILED:
+	case resourcev1.AlertRule_CONDITION_CERTIFICATE_EXPIRING:
 		return s.certificates(ctx, r)
+	case resourcev1.AlertRule_CONDITION_CERTIFICATE_FAILED:
+		out, err := s.certificates(ctx, r)
+		if err != nil {
+			return nil, err
+		}
+		revocations, err := s.revocations(ctx)
+		return append(out, revocations...), err
 	case resourcev1.AlertRule_CONDITION_BACKUP_FAILED:
 		return s.backupsFailed(ctx)
 	case resourcev1.AlertRule_CONDITION_BACKUP_LATE:
@@ -104,6 +112,54 @@ func (s *signals) catalogsStuck(ctx context.Context) []finding {
 		out = append(out, f)
 	}
 	return out
+}
+
+// Revocation is a key a server that's gone had, which the control plane hasn't
+// revoked yet (ADR 0090).
+type Revocation struct {
+	Serial string
+	// Names are its certificate's, and Servers the servers gone that had it, by ID.
+	Names, Servers []string
+	// Message says why revoking it failed, since Since; empty while it hasn't.
+	Message string
+	Since   time.Time
+}
+
+// revocations says, of each key a server that's gone had, whether revoking it fails:
+// until it's revoked, a copy of it still works. One revoked is gone from the list,
+// and what it had open resolves.
+func (s *signals) revocations(ctx context.Context) ([]finding, error) {
+	if s.e.Revocations == nil {
+		return nil, nil
+	}
+	list, err := s.e.Revocations(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var out []finding
+	err = s.e.DB.View(ctx, func(tx *store.Tx) error {
+		for _, r := range list {
+			names := make([]string, 0, len(r.Servers))
+			for _, id := range r.Servers {
+				name := id
+				if srv, err := tx.GetServer(ctx, id); err == nil {
+					name = srv.Name
+				}
+				names = append(names, name)
+			}
+			who := strings.Join(names, " and ")
+			domains := strings.Join(r.Names, ", ")
+			f := finding{thing: "revoke:" + r.Serial, subjectID: r.Serial, subjectName: domains, path: "/domains", verdict: fine, facts: Facts{Server: who}}
+			if r.Message != "" {
+				f.verdict, f.since = holds, r.Since
+				f.title = "The key " + who + " had for " + domains + " isn't revoked"
+				f.detail = strings.TrimSuffix(r.Message, ".") + ". Until it is, a copy of it still works for " + domains + ". Dockwell tries again on its own; if it keeps failing, check the DNS provider on Domains."
+			}
+			out = append(out, f)
+		}
+		return nil
+	})
+	return out, err
 }
 
 // Checks are how the install's checks of a URL stand.

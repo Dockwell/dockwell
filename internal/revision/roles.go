@@ -84,11 +84,19 @@ func (e *Engine) checkRoles(ctx context.Context, tx *store.Tx, actor string, c *
 	// What each item reaches on its server that only an admin may give it, or
 	// keeps while it runs something else.
 	var plan *Plan
-	if a == applying && c != nil {
+	if a != planning && c != nil {
 		var err error
 		if plan, err = DecodePlan(c.Plan); err != nil {
 			return err
 		}
+	}
+	if plan != nil && plan.Removes != nil && !own {
+		if err := removerRole(ctx, a, plan.Removes); err != nil {
+			return err
+		}
+	}
+	if a == discarding {
+		plan = nil // what it would reach on a server doesn't count, as discarding runs nothing there
 	}
 	byID := make(map[string]*item, len(items))
 	for i := range items {
@@ -143,6 +151,22 @@ func (e *Engine) checkRoles(ctx context.Context, tx *store.Tx, actor string, c *
 		if store.RoleRank(held) < store.RoleRank(needs) {
 			return &Refusal{act: a, Held: held, Needs: needs, Why: why}
 		}
+	}
+	return nil
+}
+
+// removerRole refuses a person who isn't the install's admin a removal, to plan,
+// apply or discard, whatever its items are and wherever they are (ADR 0090): it
+// ends the server's access, and marked compromised, revokes its keys. A removal of
+// a server with nothing on it has no item to check at all. Dockwell's own, and
+// the engine's own tests, have no caller and pass.
+func removerRole(ctx context.Context, a act, r *Removal) error {
+	caller, ok := place.CallerFrom(ctx)
+	if !ok {
+		return nil
+	}
+	if held := place.Holds(caller.Grants, place.Install); store.RoleRank(held) < store.RoleRank(store.RoleAdmin) {
+		return &Refusal{act: a, Held: held, Needs: store.RoleAdmin, Why: "it removes " + cmp.Or(r.Name, r.Server) + " from the fleet"}
 	}
 	return nil
 }

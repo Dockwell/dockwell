@@ -88,8 +88,15 @@ func (h *Handler) ReceiveFile(ctx context.Context, req *connect.Request[agentv1.
 	if t == nil {
 		return connect.NewError(connect.CodeNotFound, errors.New("nobody is sending this upload"))
 	}
+	kicked := h.agents.kickOf(peer.ServerID)
 	for {
 		select {
+		case <-kicked:
+			// Its server was removed: the upload ends with it (ADR 0090).
+			kicked = nil
+			if _, err := h.auth.CheckConnection(ctx, peer.ServerID, peer.Serial); err != nil {
+				return h.refuse(ctx, peer, err)
+			}
 		case part, ok := <-t.in:
 			if !ok {
 				return nil
@@ -120,23 +127,26 @@ func (h *Handler) SendFile(ctx context.Context, stream *connect.ClientStream[age
 	if _, err := h.auth.CheckConnection(ctx, peer.ServerID, peer.Serial); err != nil {
 		return nil, h.refuse(ctx, peer, err)
 	}
-	var t *transfer
-	for stream.Receive() {
-		msg := stream.Msg()
-		if t == nil {
-			if t = h.agents.transferFor(peer.ServerID, msg.GetStream()); t == nil {
-				return nil, connect.NewError(connect.CodeNotFound, errors.New("nobody is waiting for this download"))
+	err = h.whileIn(ctx, peer, func() error {
+		var t *transfer
+		for stream.Receive() {
+			msg := stream.Msg()
+			if t == nil {
+				if t = h.agents.transferFor(peer.ServerID, msg.GetStream()); t == nil {
+					return connect.NewError(connect.CodeNotFound, errors.New("nobody is waiting for this download"))
+				}
+			}
+			select {
+			case t.out <- msg:
+			case <-t.done:
+				return nil
+			case <-ctx.Done():
+				return ctx.Err()
 			}
 		}
-		select {
-		case t.out <- msg:
-		case <-t.done:
-			return connect.NewResponse(&agentv1.SendFileResponse{}), nil
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		}
-	}
-	if err := stream.Err(); err != nil {
+		return stream.Err()
+	})
+	if err != nil {
 		return nil, err
 	}
 	return connect.NewResponse(&agentv1.SendFileResponse{}), nil

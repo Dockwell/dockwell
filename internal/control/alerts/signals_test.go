@@ -13,6 +13,8 @@ import (
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/control/checks"
+	"github.com/dockwell/dockwell/internal/store"
+	"github.com/dockwell/dockwell/internal/store/storetest"
 )
 
 // standing is a runner's checks as a test sets them.
@@ -92,5 +94,38 @@ func TestWhatAFollowingCatalogSaysOfItsAlert(t *testing.T) {
 	}
 	if (&signals{e: &Evaluator{}}).catalogsStuck(t.Context()) != nil {
 		t.Error("with no follower, it watched something")
+	}
+}
+
+// A key a server that went had, whose revocation fails, holds an alert of a failed
+// certificate that names the server and says why, from when it began to fail; one
+// waiting its turn is fine, and one revoked, gone from the list, resolves (ADR 0090).
+func TestAKeyThatIsntRevokedSaysSo(t *testing.T) {
+	db, _ := storetest.Open(t, store.SQLite)
+	now := time.Date(2026, 11, 13, 9, 0, 0, 0, time.UTC)
+	if err := db.Update(t.Context(), func(tx *store.Tx) error {
+		return tx.CreateServer(t.Context(), store.Server{ID: "srv_2", Name: "hz-2", CreatedAt: now, CertSerial: "x", CertNotAfter: now.Add(time.Hour)})
+	}); err != nil {
+		t.Fatal(err)
+	}
+	s := &signals{e: &Evaluator{DB: db, Revocations: func(context.Context) ([]Revocation, error) {
+		return []Revocation{
+			{Serial: "aa", Names: []string{"*.example.com"}, Servers: []string{"srv_2"}, Message: "The CA answered 503: down for upkeep.", Since: now},
+			{Serial: "bb", Names: []string{"api.example.com"}, Servers: []string{"srv_2"}},
+		}, nil
+	}}}
+	got, err := s.revocations(t.Context())
+	if err != nil || len(got) != 2 {
+		t.Fatalf("findings: %+v, %v", got, err)
+	}
+	if f := got[0]; f.verdict != holds || !f.since.Equal(now) || f.thing != "revoke:aa" || f.title != "The key hz-2 had for *.example.com isn't revoked" ||
+		!strings.Contains(f.detail, "down for upkeep. Until it is, a copy of it still works") || f.facts.Server != "hz-2" {
+		t.Errorf("a failing revocation: %+v", f)
+	}
+	if got[1].verdict != fine {
+		t.Errorf("a revocation waiting its turn: %v", got[1].verdict)
+	}
+	if out, err := (&signals{e: &Evaluator{}}).revocations(t.Context()); out != nil || err != nil {
+		t.Errorf("with no certificates, it watched %v, %v", out, err)
 	}
 }

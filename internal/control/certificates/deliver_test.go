@@ -281,3 +281,33 @@ func TestEachKeyIsOnTheTimelineOnce(t *testing.T) {
 		t.Errorf("a new key at the same generation isn't on the timeline: %v", d)
 	}
 }
+
+// A key is on record as a server's before it's sent, so a send that may have reached
+// the agent and lost its answer still has the key revoked if the server goes; the
+// server's timeline says it got it once its agent says so, and only then (ADR 0090).
+func TestAKeySentIsRecordedBeforeItGoes(t *testing.T) {
+	m := newManager(t)
+	agents := fakeAgents{"srv_1": {loads: true, fail: true}}
+	m.Agents = agents
+	wanted := map[Holder]*want{"crt_wild": {Holder: "crt_wild", Names: []string{"*.example.com"}, Servers: []string{"srv_1"}}}
+	confirm(t, m, map[string][]string{"srv_1": {"crt_wild"}})
+	st := storeIssued(t, m, "crt_wild", "*.example.com")
+	m.deliver(t.Context(), wanted, st)
+	_, gv := read(t, m)
+	if g := gv[st["crt_wild"].Serial]; g == nil || !slices.Equal(g.Servers, []string{"srv_1"}) || len(g.Delivered) != 0 {
+		t.Fatalf("after a send that lost its answer, given %+v", g)
+	}
+	if d := deliveries(t, m); len(d) != 0 {
+		t.Errorf("the timeline says a key was taken that wasn't: %v", d)
+	}
+	agents["srv_1"].fail = false
+	m.deliver(t.Context(), wanted, st)
+	m.deliver(t.Context(), wanted, st)
+	_, gv = read(t, m)
+	if g := gv[st["crt_wild"].Serial]; !slices.Equal(g.Servers, []string{"srv_1"}) || !slices.Equal(g.Delivered, []string{"srv_1"}) {
+		t.Errorf("once taken, given %+v", g)
+	}
+	if d := deliveries(t, m); len(d) != 1 {
+		t.Errorf("once taken, the timeline holds %v", d)
+	}
+}

@@ -2,8 +2,10 @@
 // Removing a server, as a person does from its page (ADR 0090): the second server
 // the health flow joined, with its agent started again, asks what becomes of the app
 // that runs there, plans its removal, which takes the passkey and the typed code,
-// and once applied it's gone from the fleet and its agent is refused. It runs just
-// before the panel domain's flow, which restarts the control plane and runs last.
+// and once applied it's gone from the fleet and its agent is refused. Then one that
+// has just joined, with nothing on it, plans straight away and leaves the same. It
+// runs just before the panel domain's flow, which restarts the control plane and runs
+// last.
 import { type ChildProcess, execFileSync, spawn } from "node:child_process";
 import { join } from "node:path";
 
@@ -103,6 +105,32 @@ export async function serverRemovalFlow(
     await table.getByRole("row").nth(1).waitFor();
     await table.getByRole("row", { name: /^second\b/ }).waitFor({ state: "detached", timeout: SEEN_WITHIN });
     await shoot(page, "server-removal-done");
+
+    step("server removal: a server that has just joined, with nothing on it, plans straight away and leaves");
+    const ticket = /dockwell join (\S+)/.exec(cli("token", "create"))?.[1];
+    if (!ticket) throw new Error("dockwell token create printed no ticket");
+    execFileSync(bin, ["join", "--data-dir", join(data, "spare-agent"), "--name", "spare", ticket], {
+      encoding: "utf8",
+      env: clean,
+    });
+    await page.goto(`${origin}/servers`);
+    await table.getByRole("row", { name: /^spare\b/ }).click({ timeout: SEEN_WITHIN });
+    await page.getByRole("link", { name: "Open spare" }).click();
+    await page.getByRole("region", { name: "Agent" }).getByRole("button", { name: "Remove from fleet" }).click();
+    const empty = page.getByRole("dialog", { name: "Review plan" });
+    const leave = empty.getByRole("button", { name: "Remove spare" });
+    await leave.waitFor({ timeout: SEEN_WITHIN });
+    await empty.getByText(/spare can't come back once it's removed/).waitFor();
+    await empty
+      .getByRole("textbox", { name: /to apply it/ })
+      .fill(await empty.locator("#plan-confirm-why code").innerText());
+    await leave.click();
+    const left = page.getByRole("dialog").last().getByRole("button", { name: "Done", exact: true });
+    await left.waitFor({ timeout: 60_000 });
+    await left.click();
+    await page.waitForURL(/\/servers$/, { timeout: SEEN_WITHIN });
+    await table.getByRole("row").nth(1).waitFor();
+    await table.getByRole("row", { name: /^spare\b/ }).waitFor({ state: "detached", timeout: SEEN_WITHIN });
   } finally {
     agent.kill("SIGKILL");
     await new Promise((done) => agent.once("exit", done));

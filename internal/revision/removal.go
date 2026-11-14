@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/dockwell/dockwell/internal/fault"
 	"github.com/dockwell/dockwell/internal/human"
@@ -197,16 +198,16 @@ func stayNames(edits []Edit) []string {
 	return out
 }
 
-// leaving is the server the items' change takes out of the fleet, if it does, and
-// marks it removed for each item that takes no step there: those it lets go of, and
-// every one where the server may be compromised.
-func leaving(items []item) *Removal {
-	var r *Removal
+// leaving is the server the items' change takes out of the fleet, r or else as
+// its items say, if it does, and marks it removed for each item that takes no step
+// there: those it lets go of, and every one where the server may be compromised. A
+// removal of a server with nothing on it has no items at all, so r says it.
+func leaving(items []item, r *Removal) *Removal {
 	for i := range items {
-		if items[i].removal != nil {
-			r = items[i].removal
+		if r != nil {
 			break
 		}
+		r = items[i].removal
 	}
 	if r == nil {
 		return nil
@@ -247,7 +248,7 @@ func (e *Engine) OnRemoved(fn func(server string)) { e.onRemoved = fn }
 
 // revoke takes server out of the fleet in tx, for the change c: it's refused from
 // then on, what's said of it goes, and its timeline says so (ADR 0090).
-func (e *Engine) revoke(ctx context.Context, tx *store.Tx, c store.Change, server string) error {
+func (e *Engine) revoke(ctx context.Context, tx *store.Tx, c store.Change, server string, compromised bool) error {
 	srv, err := tx.GetServer(ctx, server)
 	if err != nil {
 		return err
@@ -264,6 +265,12 @@ func (e *Engine) revoke(ctx context.Context, tx *store.Tx, c store.Change, serve
 	}
 	if err := tx.DeleteSetting(ctx, store.SettingDomainProofs(server)); err != nil {
 		return err
+	}
+	// What it had is revoked at once, without waiting for what replaces it (ADR 0090).
+	if compromised {
+		if err := tx.PutSetting(ctx, store.SettingCompromised(server), []byte(now.UTC().Format(time.RFC3339))); err != nil {
+			return err
+		}
 	}
 	actor, via := c.Actor, c.ProposedVia
 	if c.AppliedBy != "" {

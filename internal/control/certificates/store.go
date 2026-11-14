@@ -92,19 +92,27 @@ type given struct {
 	Gen      int       `json:"gen"`
 	Names    []string  `json:"names"`
 	NotAfter time.Time `json:"not_after"`
-	// Servers are those that have it.
+	// Servers are those that have it, or were sent it and may: each is on record
+	// before the key is sent (ADR 0090).
 	Servers []string `json:"servers"`
+	// Delivered are those whose agents said they took it, each on its timeline once.
+	Delivered []string `json:"delivered,omitempty"`
 	// Retired says its sealed copy is at retiredSetting, as its holder has another
 	// or is gone.
 	Retired bool `json:"retired,omitempty"`
 	// Gone are the servers that had it and went, which revoke it once its holder
 	// has another key.
 	Gone []string `json:"gone,omitempty"`
+	// Compromised says one of them went as a server that may be compromised, so it's
+	// revoked at once, while its holder may still serve it until it has another
+	// (ADR 0090): a key someone else may hold matters more than that gap.
+	Compromised bool `json:"compromised,omitempty"`
 	// Message says why revoking it failed, in the CA's words, Failures how often,
-	// and Next when it's tried again.
-	Message  string    `json:"message,omitempty"`
-	Failures int       `json:"failures,omitempty"`
-	Next     time.Time `json:"next,omitzero"`
+	// since FailingSince, and Next when it's tried again.
+	Message      string    `json:"message,omitempty"`
+	Failures     int       `json:"failures,omitempty"`
+	FailingSince time.Time `json:"failing_since,omitzero"`
+	Next         time.Time `json:"next,omitzero"`
 }
 
 // noted is a challenge record about to be written, or written, which a crash

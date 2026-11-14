@@ -88,6 +88,11 @@ type Agents struct {
 	// containers are named after.
 	scopes ScopeNamer
 
+	// kicks close as their server is removed, so every stream of its agent's other
+	// than its main one, a terminal's, a forward's or a transfer's, ends at once too
+	// (ADR 0090). Under mu.
+	kicks map[string]chan struct{}
+
 	mu        sync.Mutex
 	sessions  map[string]*Session      // the newest stream of each server
 	uploads   map[uint64]*upload       // logs calls under way, by their streams
@@ -519,9 +524,58 @@ func (a *Agents) open(server, name string, hello *agentv1.Hello, send func(*agen
 func (a *Agents) Kick(server string) {
 	a.mu.Lock()
 	s := a.sessions[server]
+	k := a.kickLocked(server)
+	select {
+	case <-k:
+	default:
+		close(k)
+	}
 	a.mu.Unlock()
 	if s != nil {
 		s.kickOnce.Do(func() { close(s.kicked) })
+	}
+}
+
+// kickOf closes as server is removed (Kick).
+func (a *Agents) kickOf(server string) <-chan struct{} {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.kickLocked(server)
+}
+
+func (a *Agents) kickLocked(server string) chan struct{} {
+	if a.kicks == nil {
+		a.kicks = map[string]chan struct{}{}
+	}
+	k := a.kicks[server]
+	if k == nil {
+		k = make(chan struct{})
+		a.kicks[server] = k
+	}
+	return k
+}
+
+// whileIn runs loop, the work of one of an agent's streams other than its main one,
+// and returns what it does, unless the stream's server is removed first: then the
+// stream is refused at once, as its main one is, and loop ends as the stream does
+// (ADR 0090).
+func (h *Handler) whileIn(ctx context.Context, peer Peer, loop func() error) error {
+	if h.agents == nil {
+		return loop()
+	}
+	done := make(chan error, 1)
+	go func() { done <- loop() }()
+	kicked := h.agents.kickOf(peer.ServerID)
+	for {
+		select {
+		case err := <-done:
+			return err
+		case <-kicked:
+			kicked = nil
+			if _, err := h.auth.CheckConnection(ctx, peer.ServerID, peer.Serial); err != nil {
+				return h.refuse(ctx, peer, err)
+			}
+		}
 	}
 }
 

@@ -654,6 +654,18 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		if keeper := *updatesOut; keeper != nil {
 			(*alertsOut).Updates = appUpdates(keeper)
 		}
+		if certs := cfg.certificates; certs != nil {
+			// What servers that went had and isn't revoked yet (ADR 0090).
+			(*alertsOut).Revocations = func(ctx context.Context) ([]alerts.Revocation, error) {
+				list, err := certs.Revocations(ctx)
+				out := make([]alerts.Revocation, 0, len(list))
+				for i := range list {
+					r := &list[i]
+					out = append(out, alerts.Revocation{Serial: r.Serial, Names: r.Names, Servers: r.Servers, Message: r.Message, Since: r.Since})
+				}
+				return out, err
+			}
+		}
 		(*alertsOut).Catalogs = func(ctx context.Context) []alerts.Following {
 			var out []alerts.Following
 			for _, s := range follower.Standings(ctx) {

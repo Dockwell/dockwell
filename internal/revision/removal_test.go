@@ -90,6 +90,9 @@ func TestRemovingAServerLeavesItsAppsRunning(t *testing.T) {
 		if !revoked(t, db, "srv_B") || revoked(t, db, "srv_A") || !slices.Equal(heard.heard(), []string{"srv_B"}) {
 			t.Fatalf("after the removal: revoked %v, heard %v", revoked(t, db, "srv_B"), heard.heard())
 		}
+		if compromisedMark(t, db, "srv_B") {
+			t.Error("a server removed as any is marked compromised")
+		}
 		if running(t, f["srv_B"], web.Ref) != "nginx:1.27" || running(t, f["srv_A"], api.Ref) != "api:1" {
 			t.Error("what ran stopped")
 		}
@@ -187,6 +190,10 @@ func TestACompromisedServerIsRevokedAsTheChangeCommits(t *testing.T) {
 		if !revoked(t, db, "srv_B") || !slices.Equal(heard.heard(), []string{"srv_B"}) {
 			t.Errorf("revoked %v, heard %v", revoked(t, db, "srv_B"), heard.heard())
 		}
+		// Marked so, for what it had to be revoked at once.
+		if !compromisedMark(t, db, "srv_B") {
+			t.Error("the compromised server isn't marked so")
+		}
 		if running(t, f["srv_A"], web.Ref) != "nginx:1.27" {
 			t.Error("web didn't move to srv_A")
 		}
@@ -195,6 +202,63 @@ func TestACompromisedServerIsRevokedAsTheChangeCommits(t *testing.T) {
 		}
 		if _, err := e.RemoveServer(t.Context(), RemoveServer{Server: "srv_B"}, By{Actor: "usr_test"}); !errors.Is(err, ErrInvalid) {
 			t.Errorf("removing a removed server: %v", err)
+		}
+	})
+}
+
+// compromisedMark says a server is marked as removed compromised (ADR 0090).
+func compromisedMark(t *testing.T, db *store.DB, server string) bool {
+	t.Helper()
+	var marked bool
+	if err := db.View(t.Context(), func(tx *store.Tx) error {
+		_, err := tx.GetSetting(t.Context(), store.SettingCompromised(server))
+		if errors.Is(err, store.ErrNotFound) {
+			return nil
+		}
+		marked = err == nil
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	return marked
+}
+
+// A server with nothing on it is removed by a change that edits nothing, and its
+// plan has it leave (ADR 0090).
+func TestAnEmptyServerLeavesByAPlanOfNoEdits(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		e, _, db := setup(t, b, "srv_A", "srv_B")
+		p := removeServer(t, e, RemoveServer{Server: "srv_B"})
+		if p.Removes == nil || len(p.Resources) != 0 || len(p.Servers) != 1 || !p.Servers[0].Removed || p.Servers[0].Server != "srv_B" {
+			t.Fatalf("the plan: removes %+v, resources %+v, servers %+v", p.Removes, p.Resources, p.Servers)
+		}
+		apply(t, e, p)
+		if !revoked(t, db, "srv_B") || revoked(t, db, "srv_A") {
+			t.Errorf("after the removal: srv_B revoked %v", revoked(t, db, "srv_B"))
+		}
+		if _, err := e.Propose(t.Context(), Proposal{Summary: "Nothing", Actor: "usr_test"}); !errors.Is(err, ErrInvalid) {
+			t.Errorf("a change of nothing that removes nothing: %v", err)
+		}
+	})
+}
+
+// What's put on a server after its removal was planned isn't in the plan, so the
+// removal is refused as it commits, to be planned again (ADR 0090).
+func TestARemovalIsPlannedAgainForWhatCameSince(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		e, _, db := setup(t, b, "srv_A", "srv_B")
+		env := production(t, db)
+		p := removeServer(t, e, RemoveServer{Server: "srv_B"})
+		apply(t, e, propose(t, e, "Run web on srv_B", app(env, "nginx:1.27", "srv_B")))
+		if err := e.Apply(t.Context(), p.Change); !errors.Is(err, ErrPlanChanged) || !strings.Contains(err.Error(), "web was put on srv_B since this removal was planned") {
+			t.Fatalf("applying a removal planned before web: %v", err)
+		}
+		if revoked(t, db, "srv_B") {
+			t.Error("the refused removal revoked the server")
+		}
+		apply(t, e, removeServer(t, e, RemoveServer{Server: "srv_B"}))
+		if !revoked(t, db, "srv_B") {
+			t.Error("the removal planned again didn't remove the server")
 		}
 	})
 }

@@ -19,6 +19,7 @@ What was settled already:
 ### Removing is a change with a plan
 
 - **`ChangeService.PlanRemoveServer` plans it,** as `PlanReboot` plans a reboot: the server, what happens to what runs there, and whether it may be compromised. It's an admin's, and applying it takes a person's passkey, as it cuts off a server and revokes what it holds. No token applies it.
+- **It's the install's admin's at every step:** to plan, to apply and to discard, whatever runs on the server and wherever that is. The engine checks it as it checks each item's role, so a developer over everything on the server, in an environment no protection holds, can neither apply nor discard someone else's removal, with their passkey or without. The proposer may discard their own, as with any plan.
 - **The plan is the confirmation.** It lists, beside each resource's own row:
   - **what moves:** each app, with its routes and volumes, from this server to the one chosen, the new copy first;
   - **what stops:** each app this server runs, its containers taken off it;
@@ -46,7 +47,10 @@ Whatever the choice, Dockwell takes no step on the server for a volume, a backup
 ### How it's built
 
 - **Each resource on the server is an edit of the change,** as an edit of placement or a deletion, so a removal is revisions with a plan like any other change to managed state. An edit marked `forget` takes no step on the server leaving: the engine treats that server as removed for it, as ADR 0014 does once a server is revoked.
-- **The server's revocation is the change's last act** where it isn't compromised: once every step has passed, the change is applied and the server revoked in one transaction, with `server.revoke` on its timeline, and its agent's stream is closed with the reason that it was removed. A step that fails rolls the change back with the server still in the fleet.
+- **A server with nothing on it,** as one that has just joined, is removed by a change with no edits: the removal is the change, its plan has the server leave, and applying it revokes the server.
+- **What's put on the server after the removal was planned** isn't in the plan, so applying it is refused, to plan it again: the plan would otherwise leave that behind unsaid.
+- **The server's revocation is the change's last act** where it isn't compromised: once every step has passed, the change is applied and the server revoked in one transaction, with `server.revoke` on its timeline, and its agent's stream is closed with the reason that it was removed, and so is every other stream it has open: a terminal's, a forward's and a transfer's. A step that fails rolls the change back with the server still in the fleet.
+- **A compromised server is marked so as it's revoked,** in the same transaction, so the control plane revokes each key it had at once, without waiting for the key's holder to have another (ADR 0088). A revocation that keeps failing raises the certificate-failed alert, naming the server and the CA's words.
 - **The agent, told it was removed,** forgets its desired state as ADR 0054 has it, and takes its certificates by DNS out of Caddy's config and its own copy.
 
 ### Numbers

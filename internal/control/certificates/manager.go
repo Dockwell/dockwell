@@ -364,6 +364,7 @@ func (m *Manager) tick(ctx context.Context, wanted map[Holder]*want, zones map[s
 	var ordered map[string][]time.Time
 	var gv map[string]*given
 	var live map[string]string
+	var compromised map[string]bool
 	if err := m.DB.View(ctx, func(tx *store.Tx) error {
 		var err error
 		if st, err = states(ctx, tx); err != nil {
@@ -375,13 +376,16 @@ func (m *Manager) tick(ctx context.Context, wanted map[Holder]*want, zones map[s
 		if live, err = liveServers(ctx, tx); err != nil {
 			return err
 		}
+		if compromised, err = compromisedOf(ctx, tx, gv, live); err != nil {
+			return err
+		}
 		ordered, err = orders(ctx, tx)
 		return err
 	}); err != nil {
 		return err
 	}
 	now := m.now()
-	m.markGone(gv, st, live)
+	m.markGone(gv, st, live, compromised)
 	holders := make([]Holder, 0, len(wanted))
 	for h := range wanted {
 		holders = append(holders, h)
@@ -459,9 +463,37 @@ func liveServers(ctx context.Context, tx *store.Tx) (map[string]string, error) {
 	return live, nil
 }
 
+// compromisedOf are the servers that had a key and are gone, removed as servers
+// that may be compromised (ADR 0090).
+func compromisedOf(ctx context.Context, tx *store.Tx, gv map[string]*given, live map[string]string) (map[string]bool, error) {
+	out := map[string]bool{}
+	for _, g := range gv {
+		for _, s := range g.Servers {
+			if _, ok := live[s]; ok {
+				continue
+			}
+			if _, seen := out[s]; seen {
+				continue
+			}
+			_, err := tx.GetSetting(ctx, store.SettingCompromised(s))
+			switch {
+			case errors.Is(err, store.ErrNotFound):
+				out[s] = false
+			case err != nil:
+				return nil, err
+			default:
+				out[s] = true
+			}
+		}
+	}
+	return out, nil
+}
+
 // markGone takes each server that's gone off the keys it had, to be revoked, and
-// has the holder of each key still in use order another at once (ADR 0088).
-func (m *Manager) markGone(gv map[string]*given, st map[string]*held, live map[string]string) {
+// has the holder of each key still in use order another at once (ADR 0088). A key
+// a server removed as compromised had is revoked without waiting for that
+// (ADR 0090).
+func (m *Manager) markGone(gv map[string]*given, st map[string]*held, live map[string]string, compromised map[string]bool) {
 	for serial, g := range gv {
 		var gone []string
 		g.Servers = slices.DeleteFunc(g.Servers, func(s string) bool {
@@ -475,6 +507,7 @@ func (m *Manager) markGone(gv map[string]*given, st map[string]*held, live map[s
 			continue
 		}
 		g.Gone = append(g.Gone, gone...)
+		g.Compromised = g.Compromised || slices.ContainsFunc(gone, func(s string) bool { return compromised[s] })
 		if s := st[g.Holder]; s != nil && s.Serial == serial {
 			s.Rekey = true
 		}
