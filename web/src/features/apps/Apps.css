@@ -3121,3 +3121,20 @@
     display: none;
   }
 }
+
+/* On a phone, New app's five sources share its width evenly, by their words alone, so none runs off the sheet. */
+.new-app.is-phone .app-field .dw-seg {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  width: 100%;
+}
+
+.new-app.is-phone .app-field .dw-seg-item {
+  justify-content: center;
+  min-width: 0;
+  padding: 0 var(--space-1);
+}
+
+.new-app.is-phone .app-field .dw-seg-item > svg {
+  display: none;
+}

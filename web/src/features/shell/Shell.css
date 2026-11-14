@@ -428,7 +428,12 @@
   }
 }
 
-/* The top bar's New: a short menu of what can be made from anywhere (#617). */
+/* The top bar's New: a short menu of what can be made from anywhere (#617). While it's open the bar stands above the
+   page's own sticky head, which shares its layer and comes after it. */
+.topbar:has(.new-menu) {
+  z-index: calc(var(--z-sticky) + 1);
+}
+
 .new-menu-anchor {
   position: relative;
   display: flex;

@@ -563,10 +563,12 @@ export function InstallSheet({
             >
               <Trans>Back</Trans>
             </Button>
-          ) : null}
-          <Button variant="ghost" size={phone ? "lg" : "md"} onClick={onClose}>
-            <Trans>Cancel</Trans>
-          </Button>
+          ) : (
+            // In New app, Back takes Cancel's place, and the sheet's close button still leaves.
+            <Button variant="ghost" size={phone ? "lg" : "md"} onClick={onClose}>
+              <Trans>Cancel</Trans>
+            </Button>
+          )}
           <Button
             variant="primary"
             size={phone ? "lg" : "md"}
