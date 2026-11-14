@@ -266,3 +266,28 @@ func TestDokploysSwarmServicesComeWithTheirTasksAndPorts(t *testing.T) {
 		}
 	}
 }
+
+// A stack's services are read in name order, each beside its own running task,
+// whatever order Swarm lists them in: a copy of db is made from db's task.
+func TestAStacksTasksStayWithTheirServices(t *testing.T) {
+	e := dockertest.New(t)
+	labels := map[string]string{"com.docker.stack.namespace": "forum-q1", "dokploy.project": "community"}
+	for _, name := range []string{"forum-q1_web", "forum-q1_db"} {
+		var s docker.ServiceSpec
+		s.Name, s.Labels = name, labels
+		e.Services = append(e.Services, docker.Service{ID: name, Spec: s})
+		e.AddContainer(docker.Container{
+			Name: "/" + name + ".1.t" + name[len(name)-2:], Config: docker.Config{Image: "nginx:1.27", Labels: map[string]string{"com.docker.swarm.service.name": name}},
+			State: docker.State{Status: "running", Running: true},
+		})
+	}
+	got, err := Reader{Docker: e.Client()}.Read(t.Context(), dockwellv1.PanelKind_PANEL_KIND_DOKPLOY)
+	if err != nil {
+		t.Fatal(err)
+	}
+	apps := got.GetFound().GetApps()
+	if len(apps) != 1 || !slices.Equal(apps[0].GetContainers(), []string{"forum-q1_db", "forum-q1_web"}) ||
+		!slices.Equal(apps[0].GetTasks(), []string{"forum-q1_db.1.tdb", "forum-q1_web.1.teb"}) {
+		t.Errorf("the stack reads %v", apps)
+	}
+}

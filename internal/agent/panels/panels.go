@@ -405,12 +405,31 @@ func preview(id string) bool {
 	return id != "" && id != "0"
 }
 
+// sortWithTasks sorts an app's containers by name, and its Swarm services' running
+// tasks with them, so each service is read from its own task.
+func sortWithTasks(a *dockwellv1.PanelApp) {
+	if len(a.GetTasks()) != len(a.GetContainers()) {
+		slices.Sort(a.Containers)
+		return
+	}
+	order := make([]int, len(a.Containers))
+	for i := range order {
+		order[i] = i
+	}
+	slices.SortStableFunc(order, func(i, j int) int { return strings.Compare(a.Containers[i], a.Containers[j]) })
+	names, tasks := make([]string, len(order)), make([]string, len(order))
+	for to, from := range order {
+		names[to], tasks[to] = a.Containers[from], a.Tasks[from]
+	}
+	a.Containers, a.Tasks = names, tasks
+}
+
 // sorted are the apps by name, then ID, each with its containers and domains
 // sorted, and each domain once.
 func sorted[K comparable](apps map[K]*dockwellv1.PanelApp) []*dockwellv1.PanelApp {
 	out := slices.Collect(maps.Values(apps))
 	for _, a := range out {
-		slices.Sort(a.Containers)
+		sortWithTasks(a)
 		slices.Sort(a.Domains)
 		a.Domains = slices.Compact(a.Domains)
 	}
