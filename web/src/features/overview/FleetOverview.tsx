@@ -9,7 +9,6 @@ import {
   type MetricProps,
   Panel,
   PHONE_QUERY,
-  type Status,
   StatusBadge,
   useMediaQuery,
   useUIStrings,
