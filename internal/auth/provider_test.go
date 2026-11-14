@@ -5,6 +5,7 @@ package auth
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/url"
 	"runtime"
 	"strings"
@@ -472,9 +473,10 @@ func TestADeletedProviderLetsItsIssuerComeBack(t *testing.T) {
 	storetest.Each(t, testADeletedProviderLetsItsIssuerComeBack)
 }
 
-// A provider deleted and added again at the same issuer, as a new provider, takes
-// the accounts its old links held: reading the providers deletes the links whose
-// provider is gone, so the account links again and signs in (#646's review, L1).
+// A provider deleted and made again at the same issuer under another name, as a new
+// provider, takes the accounts its old links held: a link through the provider
+// that's gone, in the way of the account at the new one, goes, so the account links
+// again and signs in (#646's review, L1, and re-check, N1).
 func testADeletedProviderLetsItsIssuerComeBack(t *testing.T, backend store.Backend) {
 	s := newProviderStand(t, backend)
 	if _, err := s.link(t, "248289761001"); err != nil {
@@ -488,6 +490,11 @@ func testADeletedProviderLetsItsIssuerComeBack(t *testing.T, backend store.Backe
 	s.saved = []Provider{again}
 	s.mu.Unlock()
 	s.provider = "sip_again"
+	// Signing in there finds the account's link through the provider that's gone, which
+	// stands in the way, and goes.
+	if _, err := s.signIn(t); !errors.Is(err, ErrProviderNotLinked) {
+		t.Fatalf("at the provider added again, an account not linked there signs in: %v", err)
+	}
 	if linked, err := s.link(t, "248289761001"); err != nil || linked.Linked == nil {
 		t.Fatalf("at the provider added again, the account links: %+v, %v", linked, err)
 	}
@@ -516,4 +523,112 @@ func testAProofOutlastsAProviderOutOfReach(t *testing.T, backend store.Backend) 
 	if _, _, err := s.svc.BeginLinkProvider(t.Context(), onDomain, s.owner, s.provider, proof); err != nil {
 		t.Errorf("once it's back, the same proof links: %v", err)
 	}
+}
+
+func TestAnUndoneDeletionKeepsTheLinks(t *testing.T) {
+	storetest.Each(t, testAnUndoneDeletionKeepsTheLinks)
+}
+
+// Deleting a provider ends the sessions its links began and keeps the links, which
+// sign no one in while it's gone, however often the providers are read. An undo
+// brings the provider back with its ID, and the links work again (#646's re-check,
+// N1).
+func testAnUndoneDeletionKeepsTheLinks(t *testing.T, backend store.Backend) {
+	s := newProviderStand(t, backend)
+	ctx := t.Context()
+	if _, err := s.link(t, "248289761001"); err != nil {
+		t.Fatal(err)
+	}
+	done, err := s.signIn(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.mu.Lock()
+	was := s.saved
+	s.mu.Unlock()
+	s.edit(nil)
+	if _, err := s.svc.Authenticate(ctx, onDomain, done.SignedIn.Token); !errors.Is(err, ErrUnauthenticated) {
+		t.Errorf("its provider deleted, its session works: %v", err)
+	}
+	for range 3 {
+		if _, err := s.svc.SignInProviders(ctx, onDomain); err != nil {
+			t.Fatal(err)
+		}
+		if links, err := s.svc.ListProviderLinks(ctx, s.owner); err != nil || len(links) != 0 {
+			t.Errorf("its provider deleted, Profile lists %+v, %v", links, err)
+		}
+		s.clock.advance(providersFor + time.Second)
+	}
+	// Undone: the same provider, with its ID.
+	s.mu.Lock()
+	s.saved = was
+	s.mu.Unlock()
+	s.clock.advance(providersFor + time.Second)
+	if links, err := s.svc.ListProviderLinks(ctx, s.owner); err != nil || len(links) != 1 || links[0].State != LinkWorks {
+		t.Errorf("after the undo, Profile lists %+v, %v", links, err)
+	}
+	if done, err := s.signIn(t); err != nil || done.SignedIn == nil {
+		t.Errorf("after the undo, the account signs in: %+v, %v", done, err)
+	}
+	if got := s.auditDetails(t, "provider_link.delete"); len(got) != 0 {
+		t.Errorf("deleting the provider deleted links: %v", got)
+	}
+}
+
+// While a read of the providers runs, a caller goes on with the list read before
+// only while it's under providersAtMost old; past that it waits for the read, so a
+// slow read doesn't stretch how long a provider that stopped still counts (#646's
+// re-check, N2).
+func TestAListTooOldWaitsForTheRead(t *testing.T) {
+	f := newFixture(t, store.SQLite, onDomain.Site.RPID)
+	ctx := t.Context()
+	release := make(chan struct{})
+	var reads atomic.Int32
+	f.svc.UseProviders(func(context.Context) ([]Provider, error) {
+		n := reads.Add(1)
+		if n > 1 {
+			<-release
+		}
+		return []Provider{{ID: fmt.Sprintf("sip_%d", n)}}, nil
+	}, nil)
+	if _, err := f.svc.allProviders(ctx, false); err != nil {
+		t.Fatal(err)
+	}
+	read := func() <-chan []Provider {
+		out := make(chan []Provider, 1)
+		go func() {
+			list, _ := f.svc.allProviders(ctx, false)
+			out <- list
+		}()
+		return out
+	}
+	f.clock.advance(providersFor + time.Second)
+	leader := read()
+	for reads.Load() < 2 {
+		time.Sleep(time.Millisecond)
+	}
+	select {
+	case got := <-read():
+		if len(got) != 1 || got[0].ID != "sip_1" {
+			t.Errorf("with a list 6 s old, a caller gets %+v", got)
+		}
+	case <-time.After(2 * time.Second):
+		t.Error("with a list 6 s old, a caller waits for the read")
+	}
+	f.clock.advance(providersFor)
+	waiting := read()
+	var got []Provider
+	select {
+	case got = <-waiting:
+		t.Errorf("with a list 11 s old, a caller goes on with %+v", got)
+	case <-time.After(200 * time.Millisecond):
+	}
+	close(release)
+	if got == nil {
+		got = <-waiting
+	}
+	if len(got) != 1 || got[0].ID != "sip_2" {
+		t.Errorf("once the read is done, the caller waiting gets %+v", got)
+	}
+	<-leader
 }
