@@ -519,14 +519,26 @@ func (r *Runner) Delete(ctx context.Context, ref resource.Ref, id, key string, d
 	if strings.ContainsAny(id, "/\\") || id == "" || strings.HasPrefix(id, ".") {
 		return "", fmt.Errorf("%q isn't a backup's ID", id)
 	}
-	dir := r.dir(ref)
 	names := []string{id + ".json", id + ".partial"}
 	for _, format := range formats {
 		names = append(names, id+"."+format)
 	}
-	for _, name := range names {
-		if err := os.Remove(filepath.Join(dir, name)); err != nil && !errors.Is(err, os.ErrNotExist) {
-			return "", fmt.Errorf("can't remove the backup: %w", err)
+	// A backup filed under a volume that moved to another project on another
+	// server may still be in the folder of the environment it was taken in, there:
+	// it goes from wherever a volume of the name keeps it, as backup IDs are unique
+	// (the review of #572).
+	dirs := []string{r.dir(ref)}
+	found, _ := filepath.Glob(filepath.Join(r.Root, "*", ref.Name, id+".*"))
+	for _, f := range found {
+		if dir := filepath.Dir(f); !slices.Contains(dirs, dir) {
+			dirs = append(dirs, dir)
+		}
+	}
+	for _, dir := range dirs {
+		for _, name := range names {
+			if err := os.Remove(filepath.Join(dir, name)); err != nil && !errors.Is(err, os.ErrNotExist) {
+				return "", fmt.Errorf("can't remove the backup: %w", err)
+			}
 		}
 	}
 	if d != nil && key != "" {

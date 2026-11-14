@@ -17,6 +17,7 @@ import (
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/backuppolicy"
 	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/network"
 	"github.com/dockwell/dockwell/internal/resource/service"
@@ -44,11 +45,13 @@ type moveBench struct {
 	engine        *dockertest.Engine
 	agents        onDocker
 	prod, staging string
+	// location is the store's, for what a test does to it directly.
+	location string
 }
 
 func newMoveBench(t *testing.T, b store.Backend) *moveBench {
 	t.Helper()
-	db, _ := storetest.Open(t, b)
+	db, location := storetest.Open(t, b)
 	if _, err := Setup(t.Context(), db, slog.New(slog.DiscardHandler)); err != nil {
 		t.Fatal(err)
 	}
@@ -69,10 +72,10 @@ func newMoveBench(t *testing.T, b store.Backend) *moveBench {
 	}
 	runner := &backup.Runner{Client: client, Root: t.TempDir(), Binary: helper}
 	containers := container.Driver{Runtime: &container.Docker{Client: client, Settle: time.Millisecond, Poll: time.Millisecond, Soak: -1, Deleted: kept}}
-	kinds := resource.NewRegistry(&container.Driver{}, &service.Driver{}, &volume.Driver{}, &network.Driver{}, variable.Type{}, variable.SecretType{})
+	kinds := resource.NewRegistry(&container.Driver{}, &service.Driver{}, &volume.Driver{}, &network.Driver{}, variable.Type{}, variable.SecretType{}, backuppolicy.Type{})
 	agents := onDocker{"srv_A": movingAgent{Local: resource.Local{Drivers: resource.NewRegistry(&containers, &service.Driver{Containers: containers},
 		&volume.Driver{Runtime: &volume.Docker{Client: client, Kept: kept}, Moves: runner}, &network.Driver{Client: client}), Server: "srv_A", Values: secretstest.Keeper(db, kinds)}}}
-	x := &moveBench{e: New(db, kinds, agents, secretstest.Keeper(db, kinds), slog.New(slog.DiscardHandler)), engine: engine, agents: agents}
+	x := &moveBench{e: New(db, kinds, agents, secretstest.Keeper(db, kinds), slog.New(slog.DiscardHandler)), engine: engine, agents: agents, location: location}
 	x.prod = production(t, db)
 	apply(t, x.e, propose(t, x.e, "Add staging", environment(tree(t, db).Projects[0].ID, "staging")))
 	_, env, err := tree(t, db).Resolve("", "staging")
@@ -397,4 +400,97 @@ func TestAMoveFilesTheVolumesBackupsWithIt(t *testing.T) {
 		apply(t, x.e, undo)
 		filed(x.prod, old)
 	})
+}
+
+// resourceID is the ID of what ref names, in the store.
+func (x *moveBench) resourceID(t *testing.T, ref resource.Ref) string {
+	t.Helper()
+	var id string
+	if err := x.e.db.View(t.Context(), func(tx *store.Tx) error {
+		r, err := tx.GetResource(t.Context(), string(ref.Kind), ref.Scope, ref.Name)
+		id = r.ID
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	return id
+}
+
+// backupOf is the backup id as the store has it.
+func (x *moveBench) backupOf(t *testing.T, id string) store.Backup {
+	t.Helper()
+	var b store.Backup
+	if err := x.e.db.View(t.Context(), func(tx *store.Tx) (err error) {
+		b, err = tx.GetBackup(t.Context(), id)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	return b
+}
+
+// A backup policy that moves with the app takes the backups it took, so its
+// retention keeps counting them, and undoing the move gives them back (the review of
+// #572, its N2).
+func TestAMovedPolicyTakesItsBackups(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		x := newMoveBench(t, b)
+		policy := resource.Ref{Kind: backuppolicy.Kind, Scope: x.prod, Name: "data-nightly"}
+		apply(t, x.e, propose(t, x.e, "Back up data", Edit{Ref: policy, Spec: &resourcev1.BackupPolicy{Volume: "data"}}))
+		old := x.resourceID(t, policy)
+		if err := x.e.db.Update(t.Context(), func(tx *store.Tx) error {
+			return tx.CreateBackup(t.Context(), store.Backup{
+				ID: "bkp_nightly", EnvironmentID: x.prod, Volume: "data", VolumeID: x.resourceID(t, resource.Ref{Kind: volume.Kind, Scope: x.prod, Name: "data"}),
+				ServerID: "srv_A", State: store.BackupDone, Actor: "usr_test", StartedAt: time.Now().UTC().Truncate(time.Millisecond), PolicyID: old,
+			})
+		}); err != nil {
+			t.Fatal(err)
+		}
+		edits, report, err := x.e.PlanAppMove(t.Context(), AppMove{From: x.prod, To: x.staging, Services: []string{"web"}})
+		if err != nil || len(report.Blocks) > 0 {
+			t.Fatalf("planning the move = %v, blocks %+v", err, report.Blocks)
+		}
+		p := propose(t, x.e, "Move web", edits...)
+		apply(t, x.e, p)
+		moved := x.resourceID(t, resource.Ref{Kind: backuppolicy.Kind, Scope: x.staging, Name: "data-nightly"})
+		if got := x.backupOf(t, "bkp_nightly"); got.PolicyID != moved || got.EnvironmentID != x.staging {
+			t.Errorf("moved, the backup is %s's in %s, want %s's in %s", got.PolicyID, got.EnvironmentID, moved, x.staging)
+		}
+		undo, err := x.e.Undo(t.Context(), p.Change, By{Actor: "usr_test", Via: ViaPanel})
+		if err != nil {
+			t.Fatal(err)
+		}
+		apply(t, x.e, undo)
+		if got := x.backupOf(t, "bkp_nightly"); got.PolicyID != old || got.EnvironmentID != x.prod {
+			t.Errorf("undone, the backup is %s's in %s, want %s's in %s", got.PolicyID, got.EnvironmentID, old, x.prod)
+		}
+	})
+}
+
+// A backup that can't be filed under the volume its data moved into stops the
+// change, whose rollback moves the data back, so the record and the data never part
+// (the review of #572, its N4).
+func TestAMoveWhoseBackupsCantBeFiledRollsBack(t *testing.T) {
+	x := newMoveBench(t, store.SQLite)
+	old := x.resourceID(t, resource.Ref{Kind: volume.Kind, Scope: x.prod, Name: "data"})
+	if err := x.e.db.Update(t.Context(), func(tx *store.Tx) error {
+		return tx.CreateBackup(t.Context(), store.Backup{ID: "bkp_1", EnvironmentID: x.prod, Volume: "data", VolumeID: old, ServerID: "srv_A", State: store.BackupDone, Actor: "usr_test", StartedAt: time.Now().UTC().Truncate(time.Millisecond)})
+	}); err != nil {
+		t.Fatal(err)
+	}
+	storetest.Exec(t, x.location, `CREATE TRIGGER no_refile BEFORE UPDATE OF volume_id ON backups BEGIN SELECT RAISE(ABORT, 'refused'); END`)
+	p := propose(t, x.e, "Move web", move(x.prod, x.staging, "nginx:1.27")...)
+	var failed *FailedError
+	if err := x.e.Apply(t.Context(), p.Change); !errors.As(err, &failed) || !strings.Contains(err.Error(), "can't file its backups under it") {
+		t.Fatalf("apply = %v", err)
+	}
+	if rb, err := x.e.Change(t.Context(), failed.Rollback); err != nil || rb.State != store.ChangeApplied {
+		t.Fatalf("the rollback = %+v, %v", rb, err)
+	}
+	if x.holds(x.prod) != "the orders" || x.holds(x.staging) != "" {
+		t.Errorf("rolled back, production holds %q and staging %q", x.holds(x.prod), x.holds(x.staging))
+	}
+	if got := x.backupOf(t, "bkp_1"); got.VolumeID != old || got.EnvironmentID != x.prod {
+		t.Errorf("rolled back, the backup is filed under %s %s", got.EnvironmentID, got.VolumeID)
+	}
 }

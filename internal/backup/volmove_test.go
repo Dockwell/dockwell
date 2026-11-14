@@ -286,3 +286,29 @@ func TestACopyNeedsRoom(t *testing.T) {
 		t.Errorf("a gigabyte onto 2 free, leaving 2 alone = %v", err)
 	}
 }
+
+// A backup filed under a volume that moved, on a server its data didn't move on, is
+// still in the folder of the environment it was taken in: deleting it removes it
+// there, and nothing else (the review of #572).
+func TestDeletingABackupFindsItWhereItWasTaken(t *testing.T) {
+	b := newBench(t)
+	old := b.runner.dir(shopData)
+	if err := os.MkdirAll(old, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"bkp_1.json", "bkp_1." + formats[0], "bkp_2.json"} {
+		if err := os.WriteFile(filepath.Join(old, name), []byte("{}"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := b.runner.Delete(t.Context(), storeData, "bkp_1", "", nil); err != nil {
+		t.Fatal(err)
+	}
+	left, err := os.ReadDir(old)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(left) != 1 || left[0].Name() != "bkp_2.json" {
+		t.Errorf("after deleting bkp_1, the old folder holds %v", left)
+	}
+}
