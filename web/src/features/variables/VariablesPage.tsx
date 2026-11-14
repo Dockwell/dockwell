@@ -163,8 +163,13 @@ export interface VariablesPageProps {
   query?: string | undefined;
   /** An app, by ID: only what it runs with is listed. */
   app?: string | undefined;
-  onEnvironment: (id: string, query?: string, app?: string) => void;
+  /** Where the values listed come from: shared by the environment, or set on its apps; unset for both. */
+  from?: Source | undefined;
+  onEnvironment: (id: string, query?: string, app?: string, from?: Source) => void;
 }
+
+/** Where a value comes from: shared by the environment, or set on an app (#618). */
+export type Source = "shared" | "apps";
 
 /**
  * One row of the list: a variable or secret of the environment, which its apps
@@ -206,7 +211,7 @@ function usedByApp(row: Row, app: string): boolean {
  * app's own that may be a secret shows hidden too, as no response carries it
  * (ADR 0081).
  */
-export function VariablesPage({ environment, query, app, onEnvironment }: VariablesPageProps) {
+export function VariablesPage({ environment, query, app, from, onEnvironment }: VariablesPageProps) {
   const { t } = useLingui();
   const phone = useMediaQuery(PHONE_QUERY);
   const envs = useQuery(ResourceService.method.listResources, { kind: "environment" });
@@ -242,27 +247,28 @@ export function VariablesPage({ environment, query, app, onEnvironment }: Variab
     () => (services.data ?? []).filter((s) => s.resource?.scope === chosen?.id && s.spec !== undefined),
     [services.data, chosen?.id],
   );
-  const all = list.data?.variables ?? [];
   const rows = useMemo(() => rowsOf(list.data?.variables ?? [], here), [list.data, here]);
   const only = here.find((s) => s.id === app);
   const onlyName = only ? nameOf(only) : "";
   const q = (query ?? "").trim().toLowerCase();
-  const shown = rows.filter((r) => (!q || r.name.toLowerCase().includes(q)) && (!only || usedByApp(r, only.id)));
-  const secrets = all.filter((v) => v.secret).length;
-  const plain = all.length - secrets;
-  const own = rows.length - all.length;
+  // By name and app first, so each source's number says what choosing it would list.
+  const named = rows.filter((r) => (!q || r.name.toLowerCase().includes(q)) && (!only || usedByApp(r, only.id)));
+  const sharedRows = named.filter((r) => "shared" in r).length;
+  const shown = named.filter((r) => !from || (from === "shared") === "shared" in r);
+  // What the rows listed are: a secret is shared, and an app's own value is a variable (#618).
+  const secrets = shown.filter((r) => "shared" in r && r.shared.secret).length;
   const counts = [
-    plural(plain, { one: "# variable", other: "# variables" }),
+    plural(shown.length - secrets, { one: "# variable", other: "# variables" }),
     plural(secrets, { one: "# secret", other: "# secrets" }),
-    ...(own > 0 ? [plural(own, { one: "# set on an app", other: "# set on apps" })] : []),
   ].join(" · ");
   const failed = envs.error ?? list.error;
   const empty = list.data !== undefined && rows.length === 0;
-  const filter = (next: { q?: string | undefined; app?: string | undefined }) => {
+  const filter = (next: { q?: string | undefined; app?: string | undefined; from?: Source | undefined }) => {
     if (!chosen) return;
     const nq = "q" in next ? next.q : query;
     const na = "app" in next ? next.app : only?.id;
-    onEnvironment(chosen.id, nq || undefined, na || undefined);
+    const nf = "from" in next ? next.from : from;
+    onEnvironment(chosen.id, nq || undefined, na || undefined, nf || undefined);
   };
   const opened = chosen !== undefined && adding === chosen.id;
   const showForm = chosen !== undefined && list.data !== undefined && (!empty || opened || editing !== undefined);
@@ -311,6 +317,27 @@ export function VariablesPage({ environment, query, app, onEnvironment }: Variab
               />
             ) : null}
             {list.data ? <span className="variables-counts">{counts}</span> : null}
+            {chosen && rows.length > 0 ? (
+              <SegmentedControl<"all" | Source>
+                label={t`Where values come from`}
+                size="sm"
+                value={from ?? "all"}
+                options={[
+                  {
+                    value: "all",
+                    label: t({ message: "All", context: "values, from wherever they come" }),
+                    count: named.length,
+                  },
+                  {
+                    value: "shared",
+                    label: t({ message: "Shared", context: "values the environment shares" }),
+                    count: sharedRows,
+                  },
+                  { value: "apps", label: t`Set on apps`, count: named.length - sharedRows },
+                ]}
+                onChange={(next) => filter({ from: next === "all" ? undefined : next })}
+              />
+            ) : null}
             {chosen && here.length > 1 ? (
               <SelectField
                 className="variables-app-filter"
@@ -372,11 +399,17 @@ export function VariablesPage({ environment, query, app, onEnvironment }: Variab
             <p className="variables-note" aria-busy="true">
               <Trans>Loading variables and secrets</Trans>
             </p>
-          ) : (q || only) && shown.length === 0 && chosen ? (
+          ) : (q || only || from) && shown.length === 0 && chosen ? (
             <EmptyState
               icon="search"
               title={
-                q ? t`Nothing in ${envName} is named like that` : t`${onlyName} runs with nothing of its own or shared`
+                q
+                  ? t`Nothing in ${envName} is named like that`
+                  : only
+                    ? t`${onlyName} runs with nothing of its own or shared`
+                    : from === "shared"
+                      ? t`Nothing in ${envName} is shared`
+                      : t`No app in ${envName} sets a value of its own`
               }
               action={
                 <Button onClick={() => onEnvironment(chosen.id)}>

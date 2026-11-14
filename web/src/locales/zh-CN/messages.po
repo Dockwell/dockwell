@@ -11973,6 +11973,7 @@ msgstr "{0, plural, other {# 个密钥}}"
 
 #. placeholder {0}: kinds.get("variable") ?? 0
 #. placeholder {0}: n("variable")
+#. placeholder {0}: shown.length - secrets
 msgid "{0, plural, one {# variable} other {# variables}}"
 msgstr "{0, plural, other {# 个变量}}"
 
@@ -16436,6 +16437,10 @@ msgstr "添加密钥 {trimmed}"
 msgid "Add the variable {trimmed}"
 msgstr "添加变量 {trimmed}"
 
+msgctxt "values, from wherever they come"
+msgid "All"
+msgstr "全部"
+
 msgid "All apps"
 msgstr "所有应用"
 
@@ -16484,6 +16489,9 @@ msgstr "将 {trimmed} 改为变量"
 msgid "Name it, such as DATABASE_URL."
 msgstr "请为它命名，例如 DATABASE_URL。"
 
+msgid "No app in {envName} sets a value of its own"
+msgstr "{envName} 中没有应用设置自己的值"
+
 msgid "No variables or secrets in {envName} yet"
 msgstr "{envName} 中还没有变量或密钥"
 
@@ -16495,6 +16503,9 @@ msgstr "尚未使用"
 
 msgid "Nothing in {envName} is named like that"
 msgstr "{envName} 中没有这样命名的内容"
+
+msgid "Nothing in {envName} is shared"
+msgstr "{envName} 中没有共享的值"
 
 #. placeholder {0}: view.label
 msgid "Nothing running in {0}"
@@ -16509,9 +16520,16 @@ msgstr "移除变量 {name}"
 msgid "Reveal {name}"
 msgstr "显示 {name}"
 
+msgid "Set on apps"
+msgstr "在应用上设置"
+
 msgid "Set on the app"
 msgstr "在应用上设置"
 
+msgid "Shared"
+msgstr "共享"
+
+msgctxt "values the environment shares"
 msgid "Shared"
 msgstr "共享"
 
@@ -16530,6 +16548,9 @@ msgstr "{envName} 中的变量和密钥"
 msgid "What the apps in {envName} run with, shared and their own. Changing a value restarts each app that uses it, once you apply its plan."
 msgstr "{envName} 中的应用运行时使用的值，包括共享的和各自的。更改一个值后，应用其计划时会重启使用它的每个应用。"
 
+msgid "Where values come from"
+msgstr "值的来源"
+
 #. placeholder {0}: use.name
 msgid "as {0}"
 msgstr "作为 {0}"
@@ -16539,9 +16560,6 @@ msgstr "{name} 不是密钥：显示它"
 
 msgid "{onlyName} runs with nothing of its own or shared"
 msgstr "{onlyName} 没有自己的值，也没有使用共享的值"
-
-msgid "{own, plural, one {# set on an app} other {# set on apps}}"
-msgstr "{own, plural, other {# 个在应用上设置}}"
 
 msgid "Delete the volume {name}"
 msgstr "删除卷 {name}"

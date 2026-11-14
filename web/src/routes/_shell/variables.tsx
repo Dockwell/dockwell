@@ -2,13 +2,15 @@
 
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 
-import { VariablesPage } from "../../features/variables/VariablesPage";
+import { type Source, VariablesPage } from "../../features/variables/VariablesPage";
 
 interface VariablesSearch {
   environment?: string;
   q?: string;
   /** An app, by ID: only what it runs with. */
   app?: string;
+  /** Only what's shared, or only what's set on apps (#618). */
+  from?: Source;
 }
 
 /**
@@ -22,23 +24,26 @@ export const Route = createFileRoute("/_shell/variables")({
       out.environment = search["environment"];
     if (typeof search["q"] === "string" && search["q"] !== "") out.q = search["q"];
     if (typeof search["app"] === "string" && search["app"] !== "") out.app = search["app"];
+    if (search["from"] === "shared" || search["from"] === "apps") out.from = search["from"];
     return out;
   },
   component: function Variables() {
-    const { environment, q, app } = Route.useSearch();
+    const { environment, q, app, from } = Route.useSearch();
     const navigate = useNavigate();
     return (
       <VariablesPage
         environment={environment}
         query={q}
         app={app}
-        onEnvironment={(id, query, only) =>
+        from={from}
+        onEnvironment={(id, query, only, source) =>
           void navigate({
             to: "/variables",
             search: {
               ...(id ? { environment: id } : {}),
               ...(query ? { q: query } : {}),
               ...(only ? { app: only } : {}),
+              ...(source ? { from: source } : {}),
             },
             replace: true,
           })
