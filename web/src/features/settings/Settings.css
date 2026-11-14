@@ -1246,6 +1246,8 @@
   flex: var(--cards, 1) 1 calc(var(--cards, 1) * 220px + (var(--cards, 1) - 1) * var(--space-3));
   flex-direction: column;
   min-width: 0;
+  /* At most 360 px a card, so a section with one card alone on a row stays a card's width rather than stretching. */
+  max-width: calc(var(--cards, 1) * 360px + (var(--cards, 1) - 1) * var(--space-3));
 }
 
 .integrations-sections .integrations-grid {
@@ -1255,11 +1257,6 @@
   /* Sections in a row are as tall as each other, so their cards line up at the foot, as a head that wraps
      to two lines in a narrower section would otherwise push its cards below the others. */
   margin-top: auto;
-}
-
-/* A card alone in a wide section stays a card's width rather than stretching beside narrower ones. */
-.integrations-sections .integrations-card {
-  max-width: 360px;
 }
 
 .integrations-aside {
