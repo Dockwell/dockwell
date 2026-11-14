@@ -12,8 +12,10 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
+	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/container"
+	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/store"
 )
 
@@ -173,4 +175,72 @@ func TestAWavesPullsThatFindANewerImageMakeOneRevision(t *testing.T) {
 	}
 	apply(t, s.e, p)
 	s.wantNewerRunning(t, p.Change)
+}
+
+// span is when one step's call to a server's agent ran.
+type span struct {
+	server     string
+	action     resource.Action
+	start, end time.Time
+}
+
+// timed is a server's agent that keeps when each of its calls ran, slowed by wait.
+type timed struct {
+	resource.Agent
+	server string
+	wait   time.Duration
+	mu     *sync.Mutex
+	spans  *[]span
+}
+
+func (a timed) Apply(ctx context.Context, step resource.Step, desired proto.Message) error {
+	start := time.Now()
+	time.Sleep(a.wait)
+	err := a.Agent.Apply(ctx, step, desired)
+	a.mu.Lock()
+	*a.spans = append(*a.spans, span{a.server, step.Action, start, time.Now()})
+	a.mu.Unlock()
+	return err
+}
+
+// A wave whose steps take something off a server, as a move between servers does,
+// goes in the queue's order, as a change without waves does: what's made on the new
+// server is up before what ran on the old one goes.
+func TestAWaveThatTakesSomethingOffAServerGoesInOrder(t *testing.T) {
+	e, f, db := setup(t, store.SQLite, "srv_A", "srv_B")
+	ref := resource.Ref{Kind: service.Kind, Scope: production(t, db), Name: "web"}
+	spec := &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{Image: "nginx:1.27"}}}
+	apply(t, e, propose(t, e, "Make", Edit{Ref: ref, Spec: spec, Servers: []string{"srv_A"}}))
+	var mu sync.Mutex
+	var spans []span
+	for s, wait := range map[string]time.Duration{"srv_A": 0, "srv_B": 300 * time.Millisecond} {
+		f[s].agent = timed{Agent: f[s].agent, server: s, wait: wait, mu: &mu, spans: &spans}
+	}
+	p, err := e.Propose(t.Context(), Proposal{
+		Summary: "Move", Actor: "usr_test",
+		Edits:   []Edit{{Ref: ref, Spec: spec, Base: 1, Servers: []string{"srv_B"}}},
+		Rollout: &Rollout{Servers: []string{"srv_A", "srv_B"}, Batch: 2},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Waves == nil || len(p.Waves.Order) != 1 {
+		t.Fatalf("the waves are %+v, want one of both servers", p.Waves)
+	}
+	apply(t, e, p)
+	var made, gone *span
+	for i := range spans {
+		switch sp := &spans[i]; {
+		case sp.server == "srv_B" && sp.action == resource.ActionCreate:
+			made = sp
+		case sp.server == "srv_A" && sp.action == resource.ActionDelete:
+			gone = sp
+		}
+	}
+	if made == nil || gone == nil {
+		t.Fatalf("the calls were %+v, want a create on srv_B and a delete on srv_A", spans)
+	}
+	if gone.start.Before(made.end) {
+		t.Errorf("srv_A's copy went %s before srv_B's was up", made.end.Sub(gone.start))
+	}
 }

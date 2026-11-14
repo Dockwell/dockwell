@@ -4557,12 +4557,16 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 			}
 			wave = w
 		}
-		// A wave's servers go side by side; any other step goes on its own.
+		// A wave's servers go side by side; any other step goes on its own. So does a
+		// wave that takes something off a server, as a move between servers does: the
+		// queue has what's made before what goes, so what runs on the old server stays
+		// until the new one's is up.
 		end := qi + 1
 		for wave > 0 && end < len(queue) && waves.waveOf(queue[end].server) == wave {
 			end++
 		}
-		if end-qi > 1 && slices.ContainsFunc(queue[qi+1:end], func(o queued) bool { return o.server != q.server }) {
+		if end-qi > 1 && slices.ContainsFunc(queue[qi+1:end], func(o queued) bool { return o.server != q.server }) &&
+			!slices.ContainsFunc(queue[qi:end], func(o queued) bool { return o.step.Action == resource.ActionDelete }) {
 			if err := sideBySide(qi, end); err != nil {
 				return err
 			}
