@@ -1249,17 +1249,17 @@
 }
 
 .integrations-sections .integrations-grid {
-  grid-template-columns: repeat(var(--cards, 1), minmax(0, 1fr));
+  /* As Settings-Integrations' grid: a card at least 200 px, wrapping where a section's cards don't fit, down to
+     one a row on a phone. A section's card count sets only how much of its row it takes. */
+  grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr));
   /* Sections in a row are as tall as each other, so their cards line up at the foot, as a head that wraps
      to two lines in a narrower section would otherwise push its cards below the others. */
   margin-top: auto;
 }
 
-/* On a phone, a card to a row. */
-@media (max-width: 639.98px) {
-  .integrations-sections .integrations-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
+/* A card alone in a wide section stays a card's width rather than stretching beside narrower ones. */
+.integrations-sections .integrations-card {
+  max-width: 360px;
 }
 
 .integrations-aside {

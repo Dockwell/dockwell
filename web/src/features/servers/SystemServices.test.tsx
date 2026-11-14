@@ -196,6 +196,17 @@ describe("SystemServicesPage", () => {
     expect(screen.queryByRole("radiogroup", { name: "Show" })).toBeNull();
   });
 
+  it("takes focus to the section's heading when the filter it was in goes with a failed read", async () => {
+    const user = userEvent.setup();
+    const { system } = await renderServices();
+    const filter = await screen.findByRole("textbox", { name: "Filter system services" });
+    await user.click(filter);
+    system.fail(new ConnectError("hz-1 can't list its system services now: its agent went away", Code.Unavailable));
+    await screen.findByText(/its agent went away/);
+    expect(screen.queryByRole("textbox", { name: "Filter system services" })).toBeNull();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "System services", level: 2 })).toHaveFocus());
+  });
+
   it("says nothing has failed when nothing has, and what nothing matches", async () => {
     const user = userEvent.setup();
     const { system } = await renderServices();

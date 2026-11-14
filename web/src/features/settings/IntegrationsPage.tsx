@@ -74,12 +74,13 @@ export function IntegrationsPage() {
   // Settings-Integrations lays them out, rather than a row each with most of it empty.
   const cards = (n: number) => ({ "--cards": Math.max(1, n) }) as CSSProperties;
   const storageCards = read ? list.length + (connected === 0 ? 1 : 0) : 1;
+  // While a list loads, as many as it shows once it arrives empty, so a section doesn't change rows on every visit.
   const registryCards = logins.data
     ? loginList.length +
       (loginList.some((l) => l.registry === "docker.io") ? 0 : 1) +
       (loginList.some((l) => l.registry === "ghcr.io") ? 0 : 1)
-    : 1;
-  const dnsCards = dnsList.length + (dnsList.length > 0 || (!dns.data && !dns.error) ? 0 : 1) + 1;
+    : 2;
+  const dnsCards = dns.data || dns.error ? dnsList.length + (dnsList.length > 0 ? 0 : 1) + 1 : 2;
   return (
     <Page width="narrow" title={t`Integrations`} lead={lead} phoneSub={lead} back="/settings" actions={variables}>
       <div className="integrations-sections">

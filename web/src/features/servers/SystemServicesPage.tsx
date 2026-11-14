@@ -26,7 +26,7 @@ import {
   useMediaQuery,
 } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { useDeferredValue, useMemo, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 
 import { sentence } from "../../lib/errors";
 import { formatBytes } from "../../lib/format";
@@ -102,6 +102,20 @@ function SystemServices({ server }: { server: Server }) {
         ? t`${server.name} lists no system services here.`
         : t`No system service matches.`;
 
+  // The views and the filter, wherever there's a list to narrow, or one on its way, so it doesn't move in.
+  const filterable = connected && (list ? list.init !== SystemInit.OTHER : !error);
+  // Where they go while someone's in them, as when a read fails, focus goes to the section's heading rather
+  // than to the page's start; anywhere else, it stays where it is.
+  const heading = useRef<HTMLHeadingElement>(null);
+  const lastInBar = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    const was = lastInBar.current;
+    if (filterable || !was) return;
+    lastInBar.current = null;
+    const lost = document.activeElement === null || document.activeElement === document.body;
+    if (!was.isConnected && lost) heading.current?.focus();
+  }, [filterable]);
+
   let body: React.ReactNode;
   if (!connected) {
     body = (
@@ -135,12 +149,21 @@ function SystemServices({ server }: { server: Server }) {
 
   return (
     <section className="sys" aria-labelledby="sys-title">
-      <h2 className="dw-sr" id="sys-title">
+      <h2 className="dw-sr" id="sys-title" ref={heading} tabIndex={-1}>
         {t`System services`}
       </h2>
-      {/* The views and the filter, wherever there's a list to narrow, or one on its way, so it doesn't move in. */}
-      {connected && (list ? list.init !== SystemInit.OTHER : !error) ? (
-        <div className="procs-bar">
+      {filterable ? (
+        <div
+          className="procs-bar"
+          onFocus={(event) => {
+            lastInBar.current = event.target;
+          }}
+          onBlur={(event) => {
+            // Gone on to something else on the page: what the bar does next is none of it.
+            const next = event.relatedTarget as Node | null;
+            if (next && !event.currentTarget.contains(next)) lastInBar.current = null;
+          }}
+        >
           <SegmentedControl options={views} value={view} onChange={setView} label={t`Show`} size="sm" />
           <span className="procs-spacer" />
           {connected && list && !error ? (

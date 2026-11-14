@@ -28,10 +28,6 @@
 .dw-callout-text {
   color: var(--ink);
 }
-/* A long image name wraps rather than widen the page. */
-.dw-callout code {
-  overflow-wrap: anywhere;
-}
 /* A link in a callout's text is the design system's: the link colour, and underlined,
    as one in running text is never colour alone. A button that's a link keeps its own look. */
 .dw-callout a:not(.dw-btn) {
