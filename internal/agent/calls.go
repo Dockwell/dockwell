@@ -1105,7 +1105,7 @@ func backupTaken(b *resource.BackupTaken) *agentv1.BackupResult {
 	if b == nil {
 		return nil
 	}
-	return &agentv1.BackupResult{Id: b.ID, Method: resourcepb.BackupMethod(b.Method), Database: b.Database, Sha256: b.SHA256, SizeBytes: b.Size, FilesChanged: b.Changed}
+	return &agentv1.BackupResult{Id: b.ID, Method: resourcepb.BackupMethod(b.Method), Database: b.Database, Sha256: b.SHA256, SizeBytes: b.Size, FilesChanged: b.Changed, OneDatabase: b.One}
 }
 
 // openDestination opens where a backup goes, sealed to this stream for this volume,

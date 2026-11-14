@@ -2011,6 +2011,11 @@ type Hello struct {
 	// (Mount.make_owner on a volume, ADR 0085). The control plane plans no such mount
 	// on an agent that doesn't say so, which would leave the folder root's.
 	OwnsVolumes bool `protobuf:"varint,302,opt,name=owns_volumes,json=ownsVolumes,proto3" json:"owns_volumes,omitempty"`
+	// It backs up one database alone, as BackupCall.database and
+	// DesiredResource.backup_database ask, and says so in BackupResult.one_database
+	// (ADR 0084). An agent from before ignores those and backs up the whole volume,
+	// so the control plane asks one only of an agent that says this.
+	OneDatabaseBackups bool `protobuf:"varint,295,opt,name=one_database_backups,json=oneDatabaseBackups,proto3" json:"one_database_backups,omitempty"`
 	// True when the agent serves the certificates the control plane proves by
 	// DNS-01 (put_certificates, ADR 0088). The control plane gives one that doesn't
 	// none, and its routes get their certificates from Caddy, as before. Numbered in
@@ -2263,6 +2268,13 @@ func (x *Hello) GetWritesFiles() bool {
 func (x *Hello) GetOwnsVolumes() bool {
 	if x != nil {
 		return x.OwnsVolumes
+	}
+	return false
+}
+
+func (x *Hello) GetOneDatabaseBackups() bool {
+	if x != nil {
+		return x.OneDatabaseBackups
 	}
 	return false
 }
@@ -13235,7 +13247,11 @@ type BackupResult struct {
 	// How many files changed while they were read.
 	FilesChanged int64 `protobuf:"varint,5,opt,name=files_changed,json=filesChanged,proto3" json:"files_changed,omitempty"`
 	// The backup's ID, where a step took it.
-	Id            string `protobuf:"bytes,6,opt,name=id,proto3" json:"id,omitempty"`
+	Id string `protobuf:"bytes,6,opt,name=id,proto3" json:"id,omitempty"`
+	// The one database it dumped alone, where it dumped one: what the control plane
+	// records it as, never what it asked for, as an agent from before backs up the
+	// whole volume, whatever it's asked (ADR 0084).
+	OneDatabase   string `protobuf:"bytes,294,opt,name=one_database,json=oneDatabase,proto3" json:"one_database,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -13308,6 +13324,13 @@ func (x *BackupResult) GetFilesChanged() int64 {
 func (x *BackupResult) GetId() string {
 	if x != nil {
 		return x.Id
+	}
+	return ""
+}
+
+func (x *BackupResult) GetOneDatabase() string {
+	if x != nil {
+		return x.OneDatabase
 	}
 	return ""
 }
@@ -14253,7 +14276,8 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x05Heard\x12\x12\n" +
 	"\x04last\x18\x01 \x01(\tR\x04last\"\n" +
 	"\n" +
-	"\bDraining\"\xea\t\n" +
+	"\bDraining\"\x9d\n" +
+	"\n" +
 	"\x05Hello\x12,\n" +
 	"\x05build\x18\x01 \x01(\v2\x16.dockwell.v1.BuildInfoR\x05build\x12:\n" +
 	"\tinventory\x18\x02 \x01(\v2\x1c.dockwell.v1.ServerInventoryR\tinventory\x12\x14\n" +
@@ -14285,7 +14309,8 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\fown_settings\x18\xac\x02 \x01(\bR\vownSettings\x12\x15\n" +
 	"\x05links\x18\xa2\x02 \x01(\bR\x05links\x12\"\n" +
 	"\fwrites_files\x18\xad\x02 \x01(\bR\vwritesFiles\x12\"\n" +
-	"\fowns_volumes\x18\xae\x02 \x01(\bR\vownsVolumes\x12.\n" +
+	"\fowns_volumes\x18\xae\x02 \x01(\bR\vownsVolumes\x121\n" +
+	"\x14one_database_backups\x18\xa7\x02 \x01(\bR\x12oneDatabaseBackups\x12.\n" +
 	"\x12loads_certificates\x18\xc1\x02 \x01(\bR\x11loadsCertificates\"r\n" +
 	"\vDesiredHeld\x123\n" +
 	"\x04held\x18\x01 \x03(\v2\x1f.dockwell.agent.v1.HeldResourceR\x04held\x12\x18\n" +
@@ -15006,7 +15031,7 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x0eestimate_bytes\x18\x04 \x01(\x03R\restimateBytes\x12\x1d\n" +
 	"\n" +
 	"free_bytes\x18\x05 \x01(\x03R\tfreeBytes\x12#\n" +
-	"\rreserve_bytes\x18\x06 \x01(\x03R\freserveBytes\"\xc9\x01\n" +
+	"\rreserve_bytes\x18\x06 \x01(\x03R\freserveBytes\"\xed\x01\n" +
 	"\fBackupResult\x121\n" +
 	"\x06method\x18\x01 \x01(\x0e2\x19.dockwell.v1.BackupMethodR\x06method\x12\x1a\n" +
 	"\bdatabase\x18\x02 \x01(\tR\bdatabase\x12\x1d\n" +
@@ -15014,7 +15039,8 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"size_bytes\x18\x03 \x01(\x03R\tsizeBytes\x12\x16\n" +
 	"\x06sha256\x18\x04 \x01(\tR\x06sha256\x12#\n" +
 	"\rfiles_changed\x18\x05 \x01(\x03R\ffilesChanged\x12\x0e\n" +
-	"\x02id\x18\x06 \x01(\tR\x02id\"\xd3\x01\n" +
+	"\x02id\x18\x06 \x01(\tR\x02id\x12\"\n" +
+	"\fone_database\x18\xa6\x02 \x01(\tR\voneDatabase\"\xd3\x01\n" +
 	"\x11DrillBackupResult\x120\n" +
 	"\x06result\x18\x01 \x01(\x0e2\x18.dockwell.v1.DrillResultR\x06result\x12\x10\n" +
 	"\x03why\x18\x02 \x01(\tR\x03why\x12\x16\n" +

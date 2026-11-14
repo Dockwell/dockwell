@@ -58,9 +58,11 @@ type bench struct {
 	// loads what each load into one database was given and who signed in, and
 	// loadsFail fails that many loads into one database first.
 	dumpedOne [][]string
-	admin     []string
-	loads     []oneLoad
-	loadsFail int
+	// dumpOneFails names a database whose dump alone fails.
+	dumpOneFails string
+	admin        []string
+	loads        []oneLoad
+	loadsFail    int
 	// The server's roles, as its administrator's SQL leaves them: whether the owner
 	// is kept out, and each role made to load. notOwned is what the database holds
 	// that its owner doesn't, and adminFails fails that many of the administrator's
@@ -181,6 +183,10 @@ func (b *bench) postgres(x dockertest.Exec) int {
 	case strings.Contains(script, "pg_dump "):
 		// One database alone, as its owner.
 		b.dumpedOne = append(b.dumpedOne, slices.Clone(x.Cmd[4:]))
+		if b.dumpOneFails != "" && x.Cmd[4] == b.dumpOneFails {
+			_, _ = io.WriteString(x.Stderr, "pg_dump: error: connection to server failed\n")
+			return 1
+		}
 		data, err := os.ReadFile(file)
 		if err != nil {
 			return 1
@@ -1814,6 +1820,23 @@ func TestOneDatabaseRestoresAlone(t *testing.T) {
 	if len(b.loads) != 1 || b.ownerOut || len(b.loaders) != 0 {
 		t.Errorf("after a load that failed: %d loads, kept out %t, roles that load %v", len(b.loads), b.ownerOut, b.loaders)
 	}
+
+	// Its user wrote on after that: the same restore, tried again, dumps what's there
+	// again, so undoing it keeps what was written in between.
+	b.write("data.sql", "CREATE TABLE orders; -- written after the failure")
+	dumps := len(b.dumpedOne)
+	if err := b.restore(resource.RestoreSource{Backup: "bkp_1", Change: "chg_3"}); err != nil {
+		t.Fatal(err)
+	}
+	if len(b.dumpedOne) != dumps+1 {
+		t.Errorf("tried again, it dumped %d times, want once more", len(b.dumpedOne)-dumps)
+	}
+	if err := b.restore(resource.RestoreSource{Undoes: "chg_3", Change: "chg_3u"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := b.read("data.sql"); !strings.Contains(got, "written after the failure") {
+		t.Errorf("undoing it brought back %q", got)
+	}
 }
 
 // A restore of one database never leaves its app out with nothing to let it back in
@@ -1868,7 +1891,7 @@ func TestARestoreOfOneDatabaseNeverLeavesItsAppOut(t *testing.T) {
 	// change offers takes up its lockout, and lets it in as it was.
 	b.adminFails, b.failsOn = 1, `ALTER ROLE "shop" LOGIN;`
 	err = b.restore(resource.RestoreSource{Backup: "bkp_1", Change: "chg_3"})
-	if err == nil || !strings.Contains(err.Error(), "Apply this change again") || !b.ownerOut {
+	if err == nil || !strings.Contains(err.Error(), "Restore this backup again, or undo this change") || !b.ownerOut {
 		t.Fatalf("a restore that can't let its user in = %v, kept out %t", err, b.ownerOut)
 	}
 	if _, err := os.Stat(record); err != nil {
@@ -1943,9 +1966,11 @@ func TestAStepDumpsEachDatabaseAlone(t *testing.T) {
 		t.Fatalf("judged %+v, %t, %v", dec, left, err)
 	}
 	var told []string
+	ones := map[string]string{}
 	ctx := resource.WithOutcome(t.Context(), func(o resource.Outcome) {
 		if o.Backup != nil {
 			told = append(told, o.Backup.ID)
+			ones[o.Backup.ID] = o.Backup.One
 		}
 	})
 	if err := b.runner.ApplyBackup(ctx, resource.Step{Ref: ref, Decision: dec}); err != nil {
@@ -1954,11 +1979,36 @@ func TestAStepDumpsEachDatabaseAlone(t *testing.T) {
 	if !slices.Equal(told, []string{"bkp_a", "bkp_b"}) || len(b.dumpedOne) != 2 || b.dumpedOne[0][0] != "shop" || b.dumpedOne[1][0] != "blog" {
 		t.Errorf("it said %v, and dumped %v", told, b.dumpedOne)
 	}
+	// Each says the database it dumped alone, which is what the control plane records.
+	if ones["bkp_a"] != "shop" || ones["bkp_b"] != "blog" {
+		t.Errorf("it said it dumped %v", ones)
+	}
 	if _, left, err := b.runner.JudgeBackup(t.Context(), ref, asked); err != nil || left {
 		t.Errorf("both taken, it judged %t, %v", left, err)
 	}
 	asked.Also = append(asked.Also, resource.DatabaseDump{ID: "bkp_c", Database: "tools"})
-	if _, left, err := b.runner.JudgeBackup(t.Context(), ref, asked); err != nil || !left {
-		t.Errorf("one still to take, it judged %t, %v", left, err)
+	dec, left, err = b.runner.JudgeBackup(t.Context(), ref, asked)
+	if err != nil || !left {
+		t.Fatalf("one still to take, it judged %t, %v", left, err)
+	}
+
+	// Taken again, as a step that resumes: what was taken isn't taken again, and each
+	// is said, as the database it is. One that fails stops the step there.
+	told = nil
+	b.dumpedOne = nil
+	if err := b.runner.ApplyBackup(ctx, resource.Step{Ref: ref, Decision: dec}); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(told, []string{"bkp_a", "bkp_b", "bkp_c"}) || len(b.dumpedOne) != 1 || b.dumpedOne[0][0] != "tools" {
+		t.Errorf("resumed, it said %v, and dumped %v", told, b.dumpedOne)
+	}
+	asked.Also = append(asked.Also, resource.DatabaseDump{ID: "bkp_d", Database: "logs"}, resource.DatabaseDump{ID: "bkp_e", Database: "mail"})
+	dec, _, _ = b.runner.JudgeBackup(t.Context(), ref, asked)
+	told, b.dumpOneFails = nil, "logs"
+	if err := b.runner.ApplyBackup(ctx, resource.Step{Ref: ref, Decision: dec}); err == nil || !strings.Contains(err.Error(), "connection to server failed") {
+		t.Errorf("a dump that fails = %v", err)
+	}
+	if slices.Contains(told, "bkp_d") || slices.Contains(told, "bkp_e") {
+		t.Errorf("after a dump that failed, it said %v", told)
 	}
 }

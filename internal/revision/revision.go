@@ -3977,6 +3977,20 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 				e.onBackup(ctx, BackupStep{Change: c, Volume: volume, VolumeID: volumeID, Server: q.server, Taken: b, One: one, For: link})
 			}
 		}
+		// Each database the step was to dump alone, the agent says it dumped alone: one
+		// from before ignores what it's asked, and backs up the whole volume (ADR 0084).
+		if q.step.BackupFirst != nil && it.backupOne != "" {
+			want := map[string]string{it.backups[q.server]: it.backupOne}
+			for _, d := range it.backupAlso[q.server] {
+				want[d.ID] = d.Database
+			}
+			for _, id := range slices.Sorted(maps.Keys(want)) {
+				if !slices.ContainsFunc(taken, func(b resource.BackupTaken) bool { return b.ID == id && b.One == want[id] }) {
+					return stop(qi, fault.New(ErrInvalid, "the agent on %s backed up %s without saying it dumped %s alone, so it isn't kept as the app's, and nothing else in this change ran. Update the agent to the control plane's version, then try again",
+						q.name, it.ref.Name, want[id]), false)
+				}
+			}
+		}
 		did := q.step.Action
 		if told.Did != nil {
 			did = *told.Did
@@ -5015,7 +5029,7 @@ func (e *Engine) checkRestores(ctx context.Context, plan *Plan, items []item) er
 	for i := range items {
 		it := &items[i]
 		for server := range it.backups {
-			if step := plan.step(server, it.ref); step == nil || step.BackupFirst == nil || len(step.BackupFirst.Also) != len(it.backupAlso[server]) {
+			if step := plan.step(server, it.ref); step == nil || step.BackupFirst == nil || step.BackupFirst.One != it.backupOne || len(step.BackupFirst.Also) != len(it.backupAlso[server]) {
 				names, err := e.serverNames(ctx, []string{server})
 				if err != nil {
 					return err
@@ -5033,6 +5047,39 @@ func (e *Engine) checkRestores(ctx context.Context, plan *Plan, items []item) er
 			}
 			return fault.New(ErrInvalid, "%s's agent didn't plan a restore of %s, so it's too old to do one. Update it to the control plane's version, then try again", names[it.restore.Server], it.ref.Name)
 		}
+		if it.forLink != (resource.Ref{}) {
+			if err := e.restoresTheLinks(ctx, it, plan.step(it.restore.Server, it.ref).Restore); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// restoresTheLinks refuses a restore made for an app's link unless what its server
+// plans brings back that link's one database alone: a backup of the whole volume,
+// as an agent from before took where it was asked for one database, would take back
+// what every other app on the server wrote, on the say of someone who may hold no
+// role in their projects (ADR 0084).
+func (e *Engine) restoresTheLinks(ctx context.Context, it *item, planned *resource.RestorePlan) error {
+	var want string
+	if err := e.db.View(ctx, func(tx *store.Tx) error {
+		link, err := e.load(ctx, tx, it.forLink)
+		if err != nil {
+			return err
+		}
+		if l, ok := link.current.(*resourcev1.Link); ok {
+			want = l.GetDatabaseName()
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+	switch {
+	case planned.OneDatabase == "":
+		return fault.New(ErrInvalid, "that backup holds the whole of %s, not the database of link %s alone, so it isn't restored for that link: it would take back what every app on the server wrote. Restore it from the server's page", it.ref.Name, it.forLink.Name)
+	case want == "" || planned.OneDatabase != want:
+		return fault.New(ErrInvalid, "that backup holds the database %s, and link %s reads %s, so it isn't restored for that link. Choose a backup of %s", planned.OneDatabase, it.forLink.Name, cmp.Or(want, "no database of its own"), cmp.Or(want, "the server"))
 	}
 	return nil
 }

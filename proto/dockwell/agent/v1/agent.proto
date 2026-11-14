@@ -535,6 +535,11 @@ message Hello {
   // (Mount.make_owner on a volume, ADR 0085). The control plane plans no such mount
   // on an agent that doesn't say so, which would leave the folder root's.
   bool owns_volumes = 302;
+  // It backs up one database alone, as BackupCall.database and
+  // DesiredResource.backup_database ask, and says so in BackupResult.one_database
+  // (ADR 0084). An agent from before ignores those and backs up the whole volume,
+  // so the control plane asks one only of an agent that says this.
+  bool one_database_backups = 295;
   // True when the agent serves the certificates the control plane proves by
   // DNS-01 (put_certificates, ADR 0088). The control plane gives one that doesn't
   // none, and its routes get their certificates from Caddy, as before. Numbered in
@@ -2403,6 +2408,10 @@ message BackupResult {
   int64 files_changed = 5;
   // The backup's ID, where a step took it.
   string id = 6;
+  // The one database it dumped alone, where it dumped one: what the control plane
+  // records it as, never what it asked for, as an agent from before backs up the
+  // whole volume, whatever it's asked (ADR 0084).
+  string one_database = 294;
 }
 
 // DrillBackupResult says how a restore drill went. A drill that couldn't run, or

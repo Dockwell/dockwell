@@ -137,9 +137,11 @@ func (h *Handler) recordStep(ctx context.Context, step revision.BackupStep) {
 	b := store.Backup{
 		ID: taken.ID, EnvironmentID: step.Volume.Scope, Volume: step.Volume.Name, VolumeID: step.VolumeID, ServerID: step.Server,
 		State: store.BackupDone, Method: taken.Method, Database: taken.Database, SizeBytes: taken.Size, SHA256: taken.SHA256, FilesChanged: taken.Changed,
-		Actor: actor, StartedAt: now, FinishedAt: &now, OneDatabase: step.One,
+		Actor: actor, StartedAt: now, FinishedAt: &now, OneDatabase: taken.One,
 	}
-	if link := step.For; link != (resource.Ref{}) {
+	// What the agent says it dumped, never what the step asked: a backup of the whole
+	// volume isn't recorded as an app's database, nor for its link.
+	if link := step.For; link != (resource.Ref{}) && taken.One != "" && taken.One == step.One {
 		// Taken for an app before its update: its page lists it (ADR 0084).
 		_ = h.db.View(ctx, func(tx *store.Tx) error {
 			r, err := tx.GetResource(ctx, string(link.Kind), link.Scope, link.Name)
@@ -343,6 +345,10 @@ func (h *Handler) begin(ctx context.Context, t taking) (*dockwellv1.Backup, erro
 		return nil, err
 	}
 	if t.one != "" {
+		// An agent from before backs up the whole volume, whatever it's asked.
+		if !s.OneDatabaseBackups() {
+			return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s's agent backs up a whole volume, not one database alone, so %s isn't backed up. Update the agent to the control plane's version, then back it up again", server, t.one), "agent_too_old")
+		}
 		if err := database.CheckSQLName("database", t.one); err != nil {
 			return nil, authapi.ReasonError(connect.CodeInvalidArgument, err, "invalid")
 		}
@@ -450,14 +456,20 @@ func (h *Handler) finish(ctx context.Context, b store.Backup, got *agentv1.Backu
 	now := h.now()
 	b.FinishedAt = &now
 	action := ActionTaken
-	if failed != nil {
+	switch {
+	case failed != nil:
 		b.State, action = store.BackupFailed, ActionFailed
 		plain, _ := resource.Explain(failed)
 		b.Error = plain
 		if errors.Is(failed, context.Canceled) {
 			b.Error = "The control plane stopped while this ran, so its server stopped it too. Take another."
 		}
-	} else {
+	case b.OneDatabase != "" && got.GetOneDatabase() != b.OneDatabase:
+		// It's what the agent says it dumped that counts, never what it was asked: one
+		// from before backs up the whole volume, which isn't the app's to restore.
+		b.State, action = store.BackupFailed, ActionFailed
+		b.Error = fmt.Sprintf("This server's agent backed up the whole volume, not %s alone, so it isn't kept as the app's. Update the agent to the control plane's version, then back it up again.", b.OneDatabase)
+	default:
 		b.State = store.BackupDone
 		b.Method, b.Database = resourcepb.BackupMethodFrom(got.GetMethod()), got.GetDatabase()
 		b.SizeBytes, b.SHA256, b.FilesChanged = got.GetSizeBytes(), got.GetSha256(), got.GetFilesChanged()

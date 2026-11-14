@@ -277,7 +277,7 @@ func (r *Runner) ApplyBackup(ctx context.Context, step resource.Step) error {
 				return err
 			}
 		}
-		resource.Report(ctx, resource.Outcome{Backup: &resource.BackupTaken{ID: m.ID, Method: m.Method, Database: m.Database, SHA256: m.SHA256, Size: m.Size, Changed: m.Changed}})
+		resource.Report(ctx, resource.Outcome{Backup: &resource.BackupTaken{ID: m.ID, Method: m.Method, Database: m.Database, SHA256: m.SHA256, Size: m.Size, Changed: m.Changed, One: m.OneDatabase}})
 	}
 	return nil
 }
@@ -355,7 +355,10 @@ func (r *Runner) ApplyRestore(ctx context.Context, step resource.Step, src resou
 	if st.Stage == stageFinished {
 		return nil
 	}
-	if st.Stage == stageUndone {
+	// An earlier run that failed put back what was there, and what runs went on
+	// writing after: one database alone is dumped again, so undoing this keeps that.
+	undone := st.Stage == stageUndone
+	if undone {
 		st.Stage = stageCopied
 	}
 	run := "restore-" + src.Change
@@ -377,6 +380,9 @@ func (r *Runner) ApplyRestore(ctx context.Context, step resource.Step, src resou
 		return stopping(err)
 	}
 	if m.OneDatabase != "" {
+		if undone {
+			st.Stage = ""
+		}
 		return r.restoreOne(ctx, ref, t, st, m, file)
 	}
 	verify := verifyArchive
@@ -763,7 +769,7 @@ func (r *Runner) restoreOne(ctx context.Context, ref resource.Ref, t volume.Targ
 	// as that restore may have left it not whole.
 	unloaded := func(err error) error {
 		if took {
-			return fmt.Errorf("%w. %s stays kept out of %s, as an earlier restore left it. Apply this change again to try again", err, lockout.Owner, one)
+			return fmt.Errorf("%w. %s stays kept out of %s, as an earlier restore left it. Restore this backup again, or undo this change", err, lockout.Owner, one)
 		}
 		return errors.Join(err, r.letIn(ctx, ref, c, e, one, lockout))
 	}
@@ -826,7 +832,7 @@ func (r *Runner) restoreOne(ctx context.Context, ref resource.Ref, t volume.Targ
 		}
 	}
 	if err := r.letIn(ctx, ref, c, e, one, lockout); err != nil {
-		return fmt.Errorf("%s holds the backup now, and %w. Apply this change again to try again", one, err)
+		return fmt.Errorf("%s holds the backup now, and %w. Restore this backup again, or undo this change", one, err)
 	}
 	return r.saveState(ref, st, stageFinished)
 }

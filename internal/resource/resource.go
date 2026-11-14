@@ -918,6 +918,9 @@ type MovePlan struct {
 type BackupTaken struct {
 	ID, Method, Database, SHA256 string
 	Size, Changed                int64
+	// One is the one database it dumped alone, as the agent says, where it dumped one
+	// (ADR 0084).
+	One string
 }
 
 // Unmanaged is a container Dockwell didn't make, by its name, and the server paths it
