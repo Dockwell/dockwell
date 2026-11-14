@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { CatalogOrder } from "@dockwell/api";
 import { cx, Icon, type IconName, PHONE_QUERY, useMediaQuery } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
@@ -7,22 +8,6 @@ import type { CSSProperties, ReactNode } from "react";
 import { AppIcon } from "../catalog/media";
 import { useCatalog } from "../catalog/useCatalog";
 import "./Start.css";
-
-/** Entries a newcomer is most likely to know, shown first on the catalog's choice when the catalog has them. */
-const KNOWN = [
-  "wordpress",
-  "postgres",
-  "nextcloud",
-  "gitea",
-  "n8n",
-  "uptime-kuma",
-  "ghost",
-  "plausible",
-  "vaultwarden",
-  "grafana",
-  "jellyfin",
-  "mysql",
-];
 
 /** What a first app can come from. */
 export type Way = "catalog" | "git" | "image" | "compose" | "website";
@@ -53,15 +38,16 @@ const ROW = 4;
 export function StartChoices({ compact = false, ways }: { compact?: boolean; ways?: Way[] }) {
   const { t } = useLingui();
   const phone = useMediaQuery(PHONE_QUERY);
-  const catalog = useCatalog().data?.entries ?? [];
-  const known = KNOWN.map((id) => catalog.find((e) => e.id === id)).filter((e) => e !== undefined);
-  const ordered = [...known, ...catalog.filter((e) => !known.includes(e))];
   // A row of apps for each card beside the catalog's, less the row its own words take, so its height holds apps
   // rather than space; two rows on a phone, where nothing stands beside it. The last place says how many more.
   const beside = (ways ?? ["catalog", "git", "image", "compose", "website"]).length - 1;
   const places = ROW * (phone ? 2 : Math.max(beside - 1, 1));
-  const shown = ordered.slice(0, ordered.length > places ? places - 1 : places);
-  const more = catalog.length - shown.length;
+  // The apps a newcomer most likely knows first, as the control plane orders them (ADR 0091).
+  const featured = useCatalog({ pageSize: places, order: CatalogOrder.FEATURED }).data;
+  const catalog = featured?.entries ?? [];
+  const total = featured?.total ?? catalog.length;
+  const shown = catalog.slice(0, total > places ? places - 1 : places);
+  const more = total - shown.length;
   // Fewer than a row of tiles stand centred, each as wide as in a full row, rather than to one side.
   const tiles = shown.length + (more > 0 ? 1 : 0);
   const row = tiles < ROW ? ({ "--start-cols": tiles } as CSSProperties) : undefined;

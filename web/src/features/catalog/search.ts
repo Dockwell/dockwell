@@ -5,6 +5,8 @@ export interface CatalogSearch {
   category?: string | undefined;
   /** The catalog an app is read and installed from, by its source's name, where several have it (ADR 0078). */
   catalog?: string | undefined;
+  /** Only the apps installed here (ADR 0091). */
+  installed?: boolean | undefined;
 }
 
 /** Carry browsing filters through app details, installation and the way back. */
@@ -14,5 +16,6 @@ export function catalogSearch(search: Record<string, unknown>): CatalogSearch {
     const value = search[key];
     if (typeof value === "string" && value !== "") out[key] = value;
   }
+  if (search["installed"] === true || search["installed"] === "1" || search["installed"] === 1) out.installed = true;
   return out;
 }

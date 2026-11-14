@@ -16,6 +16,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
 import { anApp, aProject, aWebsite, ENV, places, projectPlaces, running, SERVER } from "../../test/apps";
+import { catalogPages } from "../../test/catalog";
 import { applied, changeEvent, moved, shopPlanned, since, snapshot, webPlanned } from "../../test/changes";
 import { type Api, feed, onPhone, onScreen, renderAt } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
@@ -91,7 +92,7 @@ describe("the apps list", () => {
 
   it("stands fewer than a row of the catalog's apps in the middle of the lead", async () => {
     const entries = ["wordpress", "postgres", "gitea"].map((id) => ({ id, name: id, icon: "" }));
-    renderAt("/apps", { ...api([]), catalog: { listCatalogEntries: () => ({ entries }) } });
+    renderAt("/apps", { ...api([]), catalog: { listCatalogEntries: catalogPages(entries) } });
     const ways = await screen.findByRole("list", { name: "Ways to run your first app" });
     const lead = within(ways).getByRole("link", { name: "From the catalog" }).closest("li") as HTMLElement;
     await waitFor(() => expect(within(lead).getAllByRole("link", { name: /^Install / })).toHaveLength(3));
@@ -103,7 +104,7 @@ describe("the apps list", () => {
   it("leads with the catalog, its apps by name in two rows of four, the last saying how many more", async () => {
     const ids = ["wordpress", "postgres", "nextcloud", "gitea", "n8n", "uptime-kuma", "ghost", "a", "b", "c"];
     const entries = ids.map((id) => ({ id, name: id, icon: "" }));
-    renderAt("/apps", { ...api([]), catalog: { listCatalogEntries: () => ({ entries }) } });
+    renderAt("/apps", { ...api([]), catalog: { listCatalogEntries: catalogPages(entries) } });
     const ways = await screen.findByRole("list", { name: "Ways to run your first app" });
     const lead = within(ways).getByRole("link", { name: "From the catalog" }).closest("li") as HTMLElement;
     expect(lead).toHaveClass("is-lead");

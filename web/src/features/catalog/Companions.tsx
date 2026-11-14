@@ -16,7 +16,8 @@ import "./Catalog.css";
  * phpMyAdmin, or else its own name, as a header names what's beside a database.
  */
 export function useServiceLabel(install: CatalogInstall | undefined): (service: string) => string {
-  const entry = useCatalog().data?.entries.find((e) => e.id === install?.pin?.entry);
+  const id = install?.pin?.entry ?? "";
+  const entry = useCatalog({ ids: [id] }, { enabled: id !== "" }).data?.entries.find((e) => e.id === id);
   return (service) => entry?.companions.find((c) => c.service === service)?.label ?? service;
 }
 

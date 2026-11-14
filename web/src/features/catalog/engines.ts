@@ -92,7 +92,7 @@ export function groupEngines(
  */
 export function useEngineGroups(): { groups: EngineGroup[]; pending: boolean } {
   const transport = useTransport();
-  const catalog = useCatalog();
+  const catalog = useCatalog({ category: "databases" });
   const { origins } = useOrigins();
   const entries = useMemo(
     () => (catalog.data?.entries ?? []).filter((e) => e.category === "databases"),

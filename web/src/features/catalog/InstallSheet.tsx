@@ -65,7 +65,7 @@ import { Facts, useEntryFacts } from "./access";
 import { type EngineGroup, groupOf } from "./engines";
 import { nextFree } from "./freeName";
 import { projectLink } from "./media";
-import { engineName, entriesFor, needsRequest, optionsByNeed, takesLine } from "./needs";
+import { ENGINE_ENTRY_IDS, engineName, entriesFor, needsRequest, optionsByNeed, takesLine } from "./needs";
 import { type OwnFault, ownFault, ownRule, strongValue } from "./ownSecret";
 import { stranger, useOrigins, useSourceNames } from "./useCatalog";
 // The form is New app's, so its fields sit apart the same way, however the sheet is reached.
@@ -134,8 +134,8 @@ export function InstallSheet({
   const { fleet, servers, only } = useFleetView();
   const client = useMemo(() => createClient(CatalogService, transport), [transport]);
   const got = useQuery(CatalogService.method.getCatalogEntry, { id, catalog });
-  // Where a need nothing here can make yet could be met: the catalog's entries for it.
-  const listed = useQuery(CatalogService.method.listCatalogEntries, {}).data?.entries;
+  // Where a need nothing here can make yet could be met: the catalog's entries for its engines.
+  const listed = useQuery(CatalogService.method.listCatalogEntries, { ids: [...ENGINE_ENTRY_IDS] }).data?.entries;
   const catalogIds = useMemo(() => new Set((listed ?? []).map((e) => e.id)), [listed]);
   const entry = got.data?.entry;
   const email = useSignedInUser()?.email ?? "";

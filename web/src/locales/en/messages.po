@@ -6859,6 +6859,10 @@ msgstr "From the catalogs {0}"
 msgid "From {0}"
 msgstr "From {0}"
 
+msgctxt "catalog filter"
+msgid "Installed"
+msgstr "Installed"
+
 msgid "No app here has <0>{typed}</0> in its name or what it does."
 msgstr "No app here has <0>{typed}</0> in its name or what it does."
 
@@ -6900,10 +6904,15 @@ msgid "also in {0}"
 msgstr "also in {0}"
 
 #. placeholder {0}: apps.length
-#. placeholder {0}: count.apps
-#. placeholder {0}: entries?.length ?? 0
+#. placeholder {0}: catalog.total ?? 0
+#. placeholder {0}: catalog.total ?? shown.length
 msgid "{0, plural, one {# app} other {# apps}}"
 msgstr "{0, plural, one {# app} other {# apps}}"
+
+#. placeholder {0}: (catalog.total ?? 0) - shown.length
+#. placeholder {0}: Math.min(PAGE, found.length - shown)
+msgid "{0, plural, one {Show # more} other {Show # more}}"
+msgstr "{0, plural, one {Show # more} other {Show # more}}"
 
 msgid "{count, plural, one {Installed} other {# installed}}"
 msgstr "{count, plural, one {Installed} other {# installed}}"
@@ -13221,10 +13230,6 @@ msgstr "memory"
 
 msgid "uptime"
 msgstr "uptime"
-
-#. placeholder {0}: Math.min(PAGE, found.length - shown)
-msgid "{0, plural, one {Show # more} other {Show # more}}"
-msgstr "{0, plural, one {Show # more} other {Show # more}}"
 
 msgid "{UNITS} of {total} systemd units"
 msgstr "{UNITS} of {total} systemd units"

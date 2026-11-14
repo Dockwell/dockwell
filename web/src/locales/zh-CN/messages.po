@@ -6859,6 +6859,10 @@ msgstr "来自目录 {0}"
 msgid "From {0}"
 msgstr "来自 {0}"
 
+msgctxt "catalog filter"
+msgid "Installed"
+msgstr "已安装"
+
 msgid "No app here has <0>{typed}</0> in its name or what it does."
 msgstr "没有应用的名称或用途中包含 <0>{typed}</0>。"
 
@@ -6900,10 +6904,15 @@ msgid "also in {0}"
 msgstr "另见于 {0}"
 
 #. placeholder {0}: apps.length
-#. placeholder {0}: count.apps
-#. placeholder {0}: entries?.length ?? 0
+#. placeholder {0}: catalog.total ?? 0
+#. placeholder {0}: catalog.total ?? shown.length
 msgid "{0, plural, one {# app} other {# apps}}"
 msgstr "{0, plural, other {# 个应用}}"
+
+#. placeholder {0}: (catalog.total ?? 0) - shown.length
+#. placeholder {0}: Math.min(PAGE, found.length - shown)
+msgid "{0, plural, one {Show # more} other {Show # more}}"
+msgstr "{0, plural, other {再显示 # 个}}"
 
 msgid "{count, plural, one {Installed} other {# installed}}"
 msgstr "{count, plural, other {已安装 # 个}}"
@@ -13221,10 +13230,6 @@ msgstr "内存"
 
 msgid "uptime"
 msgstr "运行时长"
-
-#. placeholder {0}: Math.min(PAGE, found.length - shown)
-msgid "{0, plural, one {Show # more} other {Show # more}}"
-msgstr "{0, plural, other {再显示 # 个}}"
 
 msgid "{UNITS} of {total} systemd units"
 msgstr "{total} 个 systemd 单元中的 {UNITS} 个"

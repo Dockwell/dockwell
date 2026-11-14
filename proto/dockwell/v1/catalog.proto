@@ -17,7 +17,8 @@ import "google/protobuf/timestamp.proto";
 // until you apply it. See
 // docs/adr/0029-a-catalog-format-fed-from-other-catalogs.md.
 service CatalogService {
-  // ListCatalogEntries returns every app in the catalog, sorted by name.
+  // ListCatalogEntries returns the apps in the catalog that match its filters, a page
+  // at a time, sorted by name or featured first, with how many match in all.
   rpc ListCatalogEntries(ListCatalogEntriesRequest) returns (ListCatalogEntriesResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
@@ -245,18 +246,78 @@ service CatalogService {
   }
 }
 
-// ListCatalogEntriesRequest asks for the whole catalog.
-message ListCatalogEntriesRequest {}
+// ListCatalogEntriesRequest asks for a page of the catalog. The filters narrow it,
+// and combine: an entry must pass each one that is set. See
+// docs/adr/0091-the-catalog-a-page-at-a-time.md.
+message ListCatalogEntriesRequest {
+  // How many entries a page holds, at most 200. Unset lists every entry that
+  // matches, in one answer, as the catalog did before it paged.
+  int32 page_size = 1;
+  // Where to start: the next_page_token of the page before. Pass the same filters
+  // with it. Empty starts at the first.
+  string page_token = 2;
+  // Words an entry has, case aside: in its name, what it does in its own words or
+  // in language's, its category or its features. Empty matches every entry.
+  string search = 3;
+  // Categories a client names with the search's words, in the reader's language,
+  // as the control plane doesn't translate a category's name: an entry in one of
+  // them matches the search too.
+  repeated string search_categories = 4;
+  // The reader's language, such as "zh-CN", whose words for what an entry does the
+  // search reads beside its own.
+  string language = 5;
+  // Only entries of one category, such as "databases". Empty is every category.
+  string category = 6;
+  // Only the apps one catalog has, by its source's name: the entries it lists,
+  // and its own entry of each app another catalog lists first, in that entry's
+  // place. Empty is every catalog.
+  string catalog = 7;
+  // Only the apps installed here, from the catalog the entry comes from.
+  bool installed = 8;
+  // Only the entries of these IDs.
+  repeated string ids = 9;
+  // How the entries are ordered: by name unless set.
+  CatalogOrder order = 10;
+}
 
-// ListCatalogEntriesResponse is the catalog.
+// CatalogOrder is how the catalog's entries are ordered.
+enum CatalogOrder {
+  // By name, as the reader's alphabet sorts it, accents aside.
+  CATALOG_ORDER_UNSPECIFIED = 0;
+  // The apps most people start with first, then those installed here most often,
+  // then the rest by name: what New app shows before any words are typed.
+  CATALOG_ORDER_FEATURED = 1;
+}
+
+// ListCatalogEntriesResponse is a page of the catalog.
 message ListCatalogEntriesResponse {
-  // Every entry, sorted by name: one for each app, from the first catalog that has
-  // it, Dockwell's own first, then each source by its name.
+  // The entries of the page, in the order asked for: one for each app, from the
+  // first catalog that has it, Dockwell's own first, then each source by its name.
   repeated dockwell.catalog.v1alpha1.Entry entries = 1;
   // The same apps from the other catalogs that have them, each beside the entry of
-  // its ID in entries: an entry of the same ID, name and image is the same app, and
-  // anything less certain is another app, which a source leaves out (ADR 0078).
+  // its ID in entries, for the page's entries: an entry of the same ID, name and
+  // image is the same app, and anything less certain is another app, which a
+  // source leaves out (ADR 0078).
   repeated CatalogAlternative also = 20;
+  // How many entries match, across every page.
+  int32 total = 21;
+  // Pass it as page_token for the next page. Empty on the last page.
+  string next_page_token = 22;
+  // The categories of the entries that match every filter but category and the
+  // search, by name, each with how many of those, and how many of them match the
+  // search too: the choices a page of them offers, which stay as words are typed,
+  // and where else the words find something. No one page can say either.
+  repeated CatalogCategoryCount categories = 23;
+}
+
+// CatalogCategoryCount is a category and how many entries are in it.
+message CatalogCategoryCount {
+  // The category, such as "databases".
+  string category = 1;
+  // How many entries in it match the search, and every filter but category.
+  int32 count = 2;
+  // How many entries it has under every filter but category and the search.
+  int32 listed = 3;
 }
 
 // CatalogAlternative is an app's entry in another catalog than the one it's listed

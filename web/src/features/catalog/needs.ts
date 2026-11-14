@@ -29,6 +29,9 @@ const ENGINE_ENTRIES: Partial<Record<Engine, string>> = {
   [Engine.CLICKHOUSE]: "clickhouse",
 };
 
+/** The catalog's entries for every engine, which a need may be met from. */
+export const ENGINE_ENTRY_IDS: readonly string[] = Object.values(ENGINE_ENTRIES);
+
 /**
  * The catalog's entries for the engines a need takes, of those the catalog has, in the
  * need's order: where to go when nothing here can make one yet.
