@@ -78,6 +78,9 @@ generate: deps ## Regenerate code and the OpenAPI document from proto/, and the 
 # buf can't leave a file in an output directory it cleans, which is why buf
 # generate on its own deletes gen/LICENSE; scripts/check-spdx.sh names it then.
 	cp proto/LICENSE gen/LICENSE
+# The public API's files the agent's protocol doesn't reach stay out of the agent
+# build, but in the tests of its packages (ADR 0060).
+	scripts/agent-api.sh
 # The TypeScript generated from googleapis carries Google's Apache-2.0 notice
 # but no SPDX line, which every source file has (ADR 0012); it goes on top.
 	find packages/api/src/gen/google -name '*.ts' -print0 | while IFS= read -r -d '' f; do \
@@ -95,7 +98,7 @@ generate: deps ## Regenerate code and the OpenAPI document from proto/, and the 
 .PHONY: test
 test: deps ## Run the Go and TypeScript tests, the agent build's with its tag too
 	go test -timeout 30m -race -coverprofile=coverage.out ./...
-	go test -race -tags agent $(AGENT_PKGS)
+	go test -race -tags agent,fullapi $(AGENT_PKGS)
 	pnpm -r --if-present test
 
 .PHONY: lint
@@ -103,9 +106,9 @@ lint: deps ## Lint Go, the schema and its OpenAPI document, TypeScript, CSS, she
 	go mod tidy -diff
 	cd tools && go mod tidy -diff
 	go vet ./...
-	go vet -tags agent $(AGENT_PKGS)
+	go vet -tags agent,fullapi $(AGENT_PKGS)
 	$(GOTOOL) golangci-lint run
-	$(GOTOOL) golangci-lint run --build-tags agent $(AGENT_PKGS)
+	$(GOTOOL) golangci-lint run --build-tags agent,fullapi $(AGENT_PKGS)
 	$(GOTOOL) golangci-lint fmt --diff
 	$(GOTOOL) buf lint
 	$(GOTOOL) buf format --diff --exit-code

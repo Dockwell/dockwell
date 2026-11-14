@@ -10,13 +10,14 @@ import (
 	"fmt"
 	"maps"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 	"unicode/utf8"
+
+	"github.com/dockwell/dockwell/internal/lazyre"
 
 	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/resource"
@@ -46,7 +47,7 @@ const (
 
 // stepName matches a Dockerfile step as BuildKit names it: "[4/9] RUN npm ci", or
 // "[build 2/5] COPY . ." in a stage with a name.
-var stepName = regexp.MustCompile(`^\[(?:[^\]\s]+ )?\d+/\d+\] `)
+var stepName = lazyre.Regexp(`^\[(?:[^\]\s]+ )?\d+/\d+\] `)
 
 // solveStatus is one line of buildctl's --progress rawjson: client.SolveStatus,
 // whose fields have no JSON names of their own.
@@ -318,7 +319,7 @@ func (r *report) hideDetection(d *resource.BuildDetection) *resource.BuildDetect
 // BuildKit's own, such as loading the context or exporting the image.
 func (r *report) isStep(name string) bool {
 	if r.builder != resource.BuilderRailpack {
-		return stepName.MatchString(name)
+		return stepName().MatchString(name)
 	}
 	if strings.HasPrefix(name, "[") {
 		return false
@@ -462,7 +463,7 @@ func (r *report) steps() (steps, cached, step int, name string) {
 
 // words is a step as people read it: "RUN npm ci" for "[4/9] RUN npm ci".
 func words(name string) string {
-	if loc := stepName.FindStringIndex(name); loc != nil {
+	if loc := stepName().FindStringIndex(name); loc != nil {
 		return cut(name[loc[1]:], 200)
 	}
 	return cut(name, 200)

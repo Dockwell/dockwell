@@ -11,10 +11,11 @@ package nftables
 import (
 	"fmt"
 	"net/netip"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
+
+	"github.com/dockwell/dockwell/internal/lazyre"
 )
 
 // The table Dockwell writes, and nothing else.
@@ -120,13 +121,13 @@ func (t Table) Skipped() []string {
 // Its length is checked apart from its form, as a counted repetition compiles
 // to as many copies of what it repeats, which every agent pays for as it
 // starts (ADR 0060).
-var ruleName = regexp.MustCompile(`^[A-Za-z0-9 _.:/@-]+$`)
+var ruleName = lazyre.Regexp(`^[A-Za-z0-9 _.:/@-]+$`)
 
 // maxRuleName is how long a rule's name gets.
 const maxRuleName = 100
 
 // isRuleName reports a name a rule's comment can hold.
-func isRuleName(name string) bool { return len(name) <= maxRuleName && ruleName.MatchString(name) }
+func isRuleName(name string) bool { return len(name) <= maxRuleName && ruleName().MatchString(name) }
 
 // Validate refuses a table nft would misread: a rule with no ports, a port of
 // 0, a protocol other than TCP and UDP, or a name or interface that would need

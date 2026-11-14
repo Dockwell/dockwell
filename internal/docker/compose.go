@@ -4,9 +4,10 @@ package docker
 
 import (
 	"encoding/hex"
-	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/dockwell/dockwell/internal/lazyre"
 )
 
 // The labels Docker Compose puts on what it makes, which Dockwell puts on
@@ -37,7 +38,7 @@ const OwnPrefix = "dev.dockwell."
 const LabelIngress = OwnPrefix + "ingress"
 
 // portainerStack is where Portainer runs a stack, in its own data directory.
-var portainerStack = regexp.MustCompile(`^/data/compose/\d+(/|$)`)
+var portainerStack = lazyre.Regexp(`^/data/compose/\d+(/|$)`)
 
 // ManagedBy names the tool that runs a container's Compose project, as its labels
 // show it, or nothing when they don't.
@@ -50,7 +51,7 @@ func ManagedBy(labels map[string]string) string {
 		return "Coolify"
 	case strings.HasPrefix(dir, "/etc/dokploy/"), labels["dokploy.project"] != "":
 		return "Dokploy"
-	case portainerStack.MatchString(dir):
+	case portainerStack().MatchString(dir):
 		return "Portainer"
 	case strings.HasPrefix(dir, "/var/lib/casaos/"):
 		return "CasaOS"

@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"io"
 	"path"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -20,6 +19,7 @@ import (
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	engines "github.com/dockwell/dockwell/internal/database"
 	"github.com/dockwell/dockwell/internal/docker"
+	"github.com/dockwell/dockwell/internal/lazyre"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/volume"
 	"github.com/dockwell/dockwell/internal/volumetool"
@@ -537,7 +537,7 @@ func (r *Runner) dumpAs(ctx context.Context, ref resource.Ref, db *database, one
 }
 
 // quoted finds what a database quotes in what it says.
-var quoted = regexp.MustCompile(`'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"`)
+var quoted = lazyre.Regexp(`'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"`)
 
 // scrubbed keeps the first line of what a database said, without what it quotes. What
 // it says of a row can quote the row, and a change's error is there for anyone who
@@ -550,7 +550,7 @@ func scrubbed(said string) string {
 // withoutValues takes out what a line quotes, and the values PostgreSQL names a key
 // by, unquoted: Key (email)=(someone@example.com) reads Key (email)=(...).
 func withoutValues(line string) string {
-	line = quoted.ReplaceAllString(line, "'...'")
+	line = quoted().ReplaceAllString(line, "'...'")
 	var b strings.Builder
 	for {
 		i := strings.Index(line, ")=(")

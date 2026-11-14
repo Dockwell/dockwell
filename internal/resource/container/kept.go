@@ -11,10 +11,11 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/dockwell/dockwell/internal/lazyre"
 
 	"github.com/dockwell/dockwell/internal/docker"
 )
@@ -49,7 +50,7 @@ func (k *KeptImages) now() time.Time {
 	return time.Now()
 }
 
-var unsafeName = regexp.MustCompile(`[^a-z0-9._-]+`)
+var unsafeName = lazyre.Regexp(`[^a-z0-9._-]+`)
 
 // KeptName is the tag an image ref ran as is kept under: its repository's last
 // part and the image's ID, such as dockwell.local/kept/web:3f2a9c1b7d00.
@@ -58,7 +59,7 @@ func KeptName(ref, imageID string) string {
 	if i := strings.LastIndex(repo, "/"); i >= 0 {
 		repo = repo[i+1:]
 	}
-	repo = strings.Trim(unsafeName.ReplaceAllString(strings.ToLower(repo), "-"), "-._")
+	repo = strings.Trim(unsafeName().ReplaceAllString(strings.ToLower(repo), "-"), "-._")
 	if repo == "" {
 		repo = "image"
 	}

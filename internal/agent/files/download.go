@@ -10,8 +10,9 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"regexp"
 	"time"
+
+	"github.com/dockwell/dockwell/internal/lazyre"
 
 	"golang.org/x/sys/unix"
 
@@ -27,7 +28,7 @@ import (
 
 // keyStarts is where a private key starts, with what follows its first line, so a
 // program that only names one doesn't stop a download.
-var keyStarts = regexp.MustCompile(`-{5}BEGIN [A-Z0-9 ]*PRIVATE KEY-{5}\r?\n[A-Za-z0-9+/=]{16}`)
+var keyStarts = lazyre.Regexp(`-{5}BEGIN [A-Z0-9 ]*PRIVATE KEY-{5}\r?\n[A-Za-z0-9+/=]{16}`)
 
 // keyTail is how much of what went before a part is kept, to find a key that
 // starts across two.
@@ -198,7 +199,7 @@ const lineHead = 512
 func (k *keyScan) check(where string, part []byte) *agentv1.FileRefusal {
 	look := append(k.tail, part[:min(len(part), keyTail*4)]...) //nolint:gocritic // a short window across the join
 	why := ""
-	if keyStarts.Match(look) || keyStarts.Match(part) {
+	if keyStarts().Match(look) || keyStarts().Match(part) {
 		why = whyPrivateKey
 	}
 	k.tail = append(k.tail[:0], part[max(0, len(part)-keyTail):]...)
@@ -212,7 +213,7 @@ func (k *keyScan) check(where string, part []byte) *agentv1.FileRefusal {
 		switch {
 		case bytes.Contains(k.line, []byte("-----BEGIN ")) && holdsPrivateKey(k.line):
 			why = whyPrivateKey
-		case bytes.IndexByte(k.line, '$') >= 0 && hashLine.Match(k.line):
+		case bytes.IndexByte(k.line, '$') >= 0 && hashLine().Match(k.line):
 			why = whyHashes
 		}
 		if ended {

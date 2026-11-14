@@ -10,6 +10,8 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"strings"
+	"unicode"
 
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
@@ -168,30 +170,60 @@ func unknownCommand(root *cobra.Command, name string) error {
 	return usageError{fmt.Errorf("%s. Run %q to see the commands", msg, "dockwell --help")}
 }
 
-// usageTemplate replaces cobra's default help layout with one that follows
+// writeUsage replaces cobra's default help layout with one that follows
 // Dockwell's content rules: sentence-case headings and a plain closing hint.
 // The root lists its commands in groups: those for this server, and those
 // that call the control plane's API.
-const usageTemplate = `Usage:
-  {{if .HasAvailableSubCommands}}{{.CommandPath}} <command> [flags]{{else}}{{.UseLine}}{{end}}{{if .HasExample}}
-
-Examples:
-{{.Example}}{{end}}{{if .HasAvailableSubCommands}}{{$cmds := .Commands}}{{if eq (len .Groups) 0}}
-
-Commands:{{range $cmds}}{{if (or .IsAvailableCommand (eq .Name "help"))}}
-  {{rpad .Name .NamePadding }}  {{.Short}}{{end}}{{end}}{{else}}{{range $group := .Groups}}
-
-{{.Title}}{{range $cmds}}{{if (and (eq .GroupID $group.ID) (or .IsAvailableCommand (eq .Name "help")))}}
-  {{rpad .Name .NamePadding }}  {{.Short}}{{end}}{{end}}{{end}}{{end}}{{end}}{{if .HasAvailableLocalFlags}}
-
-Flags:
-{{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasAvailableInheritedFlags}}
-
-Global flags:
-{{.InheritedFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasAvailableSubCommands}}
-
-Run "{{.CommandPath}} <command> --help" for more about a command.{{end}}
-`
+//
+// It is Go, not a template: text/template finds a method by its name as it
+// runs, so the linker keeps every exported method of every type a binary
+// has, and an agent idled 2 MB higher for it
+// (docs/adr/0060-what-an-idle-agent-keeps-in-memory.md).
+func writeUsage(c *cobra.Command) error {
+	var b strings.Builder
+	b.WriteString("Usage:\n  ")
+	if c.HasAvailableSubCommands() {
+		b.WriteString(c.CommandPath() + " <command> [flags]")
+	} else {
+		b.WriteString(c.UseLine())
+	}
+	if c.HasExample() {
+		b.WriteString("\n\nExamples:\n" + c.Example)
+	}
+	if c.HasAvailableSubCommands() {
+		listed := func(sub *cobra.Command) bool { return sub.IsAvailableCommand() || sub.Name() == "help" }
+		line := func(sub *cobra.Command) { fmt.Fprintf(&b, "\n  %-*s  %s", sub.NamePadding(), sub.Name(), sub.Short) }
+		if len(c.Groups()) == 0 {
+			b.WriteString("\n\nCommands:")
+			for _, sub := range c.Commands() {
+				if listed(sub) {
+					line(sub)
+				}
+			}
+		} else {
+			for _, group := range c.Groups() {
+				b.WriteString("\n\n" + group.Title)
+				for _, sub := range c.Commands() {
+					if sub.GroupID == group.ID && listed(sub) {
+						line(sub)
+					}
+				}
+			}
+		}
+	}
+	if c.HasAvailableLocalFlags() {
+		b.WriteString("\n\nFlags:\n" + strings.TrimRightFunc(c.LocalFlags().FlagUsages(), unicode.IsSpace))
+	}
+	if c.HasAvailableInheritedFlags() {
+		b.WriteString("\n\nGlobal flags:\n" + strings.TrimRightFunc(c.InheritedFlags().FlagUsages(), unicode.IsSpace))
+	}
+	if c.HasAvailableSubCommands() {
+		b.WriteString("\n\nRun \"" + c.CommandPath() + " <command> --help\" for more about a command.")
+	}
+	b.WriteString("\n")
+	_, err := io.WriteString(c.OutOrStderr(), b.String())
+	return err
+}
 
 // usageError marks mistakes in how a command was invoked.
 type usageError struct{ error }
@@ -247,7 +279,7 @@ func newServerCmd(stdio IO) (*cobra.Command, *globalFlags) {
 	}
 	root.SetOut(stdio.Out)
 	root.SetErr(stdio.Err)
-	root.SetUsageTemplate(usageTemplate)
+	root.SetUsageFunc(writeUsage)
 	root.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {
 		return usageError{fmt.Errorf("%w. Run %q to see the flags", err, cmd.CommandPath()+" --help")}
 	})

@@ -188,12 +188,12 @@ func TestAContainerIDIsFoundInEitherCgroupForm(t *testing.T) {
 		"12:cpu:/docker/" + id,
 		"0::/docker/" + id,
 	} {
-		m := containerID.FindStringSubmatch(line)
+		m := containerID().FindStringSubmatch(line)
 		if len(m) != 2 || m[1] != id {
 			t.Errorf("%q gave %v", line, m)
 		}
 	}
-	if containerID.MatchString("0::/user.slice/user-1000.slice") {
+	if containerID().MatchString("0::/user.slice/user-1000.slice") {
 		t.Error("a user's cgroup read as a container's")
 	}
 }

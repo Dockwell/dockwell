@@ -6,11 +6,12 @@ import (
 	"bufio"
 	"io/fs"
 	"path"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/dockwell/dockwell/internal/lazyre"
 
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -265,23 +266,23 @@ func reloadCommand(proc fs.FS, pid, pidFile string) string {
 		_, at, _ = strings.Cut(at, ":")
 		last := path.Base(at)
 		switch {
-		case strings.HasSuffix(last, ".service") && serviceName.MatchString(last):
+		case strings.HasSuffix(last, ".service") && serviceName().MatchString(last):
 			return "systemctl reload " + last
-		case strings.HasPrefix(last, "openrc.") && serviceName.MatchString(strings.TrimPrefix(last, "openrc.")):
+		case strings.HasPrefix(last, "openrc.") && serviceName().MatchString(strings.TrimPrefix(last, "openrc.")):
 			return "rc-service " + strings.TrimPrefix(last, "openrc.") + " reload"
 		}
 	}
-	if safePath.MatchString(pidFile) {
+	if safePath().MatchString(pidFile) {
 		return `kill -HUP "$(cat ` + pidFile + `)"`
 	}
 	return "kill -HUP " + pid
 }
 
 // safePath is a path a command may name as it is, with no quoting.
-var safePath = regexp.MustCompile(`^/[A-Za-z0-9._/-]+$`)
+var safePath = lazyre.Regexp(`^/[A-Za-z0-9._/-]+$`)
 
 // serviceName is a unit's or a service's name a command may name as it is.
-var serviceName = regexp.MustCompile(`^[A-Za-z0-9@._-]+$`)
+var serviceName = lazyre.Regexp(`^[A-Za-z0-9@._-]+$`)
 
 // listenerExe is the program a process runs, as /proc says, without the mark
 // the kernel adds once its file is replaced, as a package's upgrade does. ""

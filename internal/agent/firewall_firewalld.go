@@ -8,9 +8,10 @@ import (
 	"cmp"
 	"context"
 	"fmt"
-	"regexp"
 	"slices"
 	"strings"
+
+	"github.com/dockwell/dockwell/internal/lazyre"
 
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 )
@@ -20,7 +21,7 @@ import (
 // length is checked apart from the form: a counted repetition, such as {1,64},
 // compiles to that many copies of what it repeats, which every agent pays for as
 // it starts (ADR 0060).
-var firewalldZoneName = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
+var firewalldZoneName = lazyre.Regexp(`^[A-Za-z0-9_-]+$`)
 
 const maxFirewalldZoneName = 64
 
@@ -63,7 +64,7 @@ func (f *firewallReader) firewalld(ctx context.Context) []*dockwellv1.FirewallTo
 		if zone == "docker" {
 			continue
 		}
-		if len(zone) > maxFirewalldZoneName || !firewalldZoneName.MatchString(zone) {
+		if len(zone) > maxFirewalldZoneName || !firewalldZoneName().MatchString(zone) {
 			return off(fmt.Errorf("firewalld named a zone %q, which Dockwell doesn't pass on", zone))
 		}
 		out, err := f.output(ctx, "firewall-cmd", "--list-all", "--zone="+zone)
@@ -211,18 +212,18 @@ func zoneReach(l *dockwellv1.HostListener, zone *dockwellv1.FirewallTool) reache
 // richPort and richService are what a rich rule names: port port="5432"
 // protocol="tcp", or service name="ssh".
 var (
-	richPort    = regexp.MustCompile(`\bport port="([0-9-]+)" protocol="([a-z]+)"`)
-	richService = regexp.MustCompile(`\bservice name="([^"]+)"`)
+	richPort    = lazyre.Regexp(`\bport port="([0-9-]+)" protocol="([a-z]+)"`)
+	richService = lazyre.Regexp(`\bservice name="([^"]+)"`)
 )
 
 // richMayCover says whether a rich rule may decide for a listener: it names its
 // port, or a service on it, or names neither and so may cover every port.
 func richMayCover(rule string, l *dockwellv1.HostListener) bool {
-	if m := richPort.FindStringSubmatch(rule); m != nil {
+	if m := richPort().FindStringSubmatch(rule); m != nil {
 		covers, known := coversSpec(m[1]+"/"+m[2], l, "-")
 		return covers || !known
 	}
-	if m := richService.FindStringSubmatch(rule); m != nil {
+	if m := richService().FindStringSubmatch(rule); m != nil {
 		if svc, ok := wellKnownServices[m[1]]; ok {
 			covers, _ := coversSpec(svc, l, "-")
 			return covers

@@ -13,8 +13,9 @@ package variable
 import (
 	"errors"
 	"fmt"
-	"regexp"
 	"strings"
+
+	"github.com/dockwell/dockwell/internal/lazyre"
 
 	"google.golang.org/protobuf/proto"
 
@@ -39,7 +40,7 @@ func Types() []resource.Type { return []resource.Type{Type{}, SecretType{}} }
 // checked apart from the form: a counted repetition, such as {0,254}, compiles to
 // that many copies of what it repeats, which every agent pays for as it starts
 // (ADR 0060).
-var nameRE = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+var nameRE = lazyre.Regexp(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 const maxName = 255
 
@@ -48,7 +49,7 @@ const maxName = 255
 // DATABASE_URL. Variables, secrets and the names services see them as all
 // take such names. what names the thing, such as "variable".
 func CheckName(what, name string) error {
-	if len(name) > maxName || !nameRE.MatchString(name) {
+	if len(name) > maxName || !nameRE().MatchString(name) {
 		return fmt.Errorf("%q isn't a valid %s name: use up to 255 letters, digits and underscores, starting with a letter or an underscore, such as DATABASE_URL",
 			name, what)
 	}

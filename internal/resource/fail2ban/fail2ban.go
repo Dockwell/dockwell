@@ -12,10 +12,11 @@ import (
 	"fmt"
 	"net/netip"
 	"path"
-	"regexp"
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/dockwell/dockwell/internal/lazyre"
 
 	"google.golang.org/protobuf/proto"
 
@@ -91,7 +92,7 @@ func (d *Driver) Ready(ctx context.Context) error {
 // Its length, and a log file's, is checked apart from its form: a counted
 // repetition compiles to as many copies of what it repeats, which every agent
 // pays for as it starts (ADR 0060).
-var jailName = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]*$`)
+var jailName = lazyre.Regexp(`^[A-Za-z0-9][A-Za-z0-9_-]*$`)
 
 const (
 	maxJailName = 64
@@ -100,11 +101,11 @@ const (
 )
 
 // isJailName reports a name fail2ban takes as a jail's, or a filter's.
-func isJailName(name string) bool { return len(name) <= maxJailName && jailName.MatchString(name) }
+func isJailName(name string) bool { return len(name) <= maxJailName && jailName().MatchString(name) }
 
 // hostName is a DNS name as a jail's ignore list may hold one beside addresses,
 // which fail2ban looks up itself: letters, digits, - and dots, with a letter.
-var hostName = regexp.MustCompile(`^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$`)
+var hostName = lazyre.Regexp(`^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$`)
 
 // isHostName reports a DNS name, and not an address: one with a dot, or
 // localhost, as a word alone is more often a slip than a name.
@@ -112,7 +113,7 @@ func isHostName(s string) bool {
 	if strings.EqualFold(s, "localhost") {
 		return true
 	}
-	return len(s) <= maxHostName && hostName.MatchString(s) && strings.Contains(s, ".") && !strings.Contains(s, "..") &&
+	return len(s) <= maxHostName && hostName().MatchString(s) && strings.Contains(s, ".") && !strings.Contains(s, "..") &&
 		strings.ContainsAny(s, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
 }
 
@@ -142,11 +143,11 @@ const LogRoot = "/var/log/"
 // logrotate keeps beside it. Nothing else gets in, as fail2ban reads a space
 // or a new line as the next file or the next setting, and a % as a value of
 // its own to fill in.
-var logPath = regexp.MustCompile(`^/[A-Za-z0-9._+@:*?/-]+$`)
+var logPath = lazyre.Regexp(`^/[A-Za-z0-9._+@:*?/-]+$`)
 
 // CheckLogPath takes a log file a jail may read.
 func CheckLogPath(p string) error {
-	if len(p) > maxLogPath || !logPath.MatchString(p) || !path.IsAbs(p) || path.Clean(p) != p {
+	if len(p) > maxLogPath || !logPath().MatchString(p) || !path.IsAbs(p) || path.Clean(p) != p {
 		return fmt.Errorf("a jail's log file is a full path of letters, digits and . _ - + @ :, such as /var/log/auth.log, not %q", p)
 	}
 	if !strings.HasPrefix(p, LogRoot) {

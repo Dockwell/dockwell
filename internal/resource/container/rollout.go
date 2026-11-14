@@ -12,11 +12,12 @@ import (
 	"maps"
 	"net/netip"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/dockwell/dockwell/internal/lazyre"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/docker"
@@ -110,14 +111,14 @@ func (i *instance) serving() bool { return notRunning(i.Container) == "" && !i.s
 
 // swapName is the name a replace gives what it swaps in, as Compose does: the
 // container it replaces, 12 digits of its ID, then its name.
-var swapName = regexp.MustCompile(`^/?[0-9a-f]{12}_`)
+var swapName = lazyre.Regexp(`^/?[0-9a-f]{12}_`)
 
 // PlainName is the name a container goes by, without what a rollout has in front
 // of it for now: the mark on one it is stopping, or what one that is to take the
 // name waits under. That name is what a person knows it by, and what a log says.
-func PlainName(name string) string { return rolloutPrefix.ReplaceAllString(name, "") }
+func PlainName(name string) string { return rolloutPrefix().ReplaceAllString(name, "") }
 
-var rolloutPrefix = regexp.MustCompile(`^/?(?:` + stoppingPrefix + `[0-9a-f]{12}_)?(?:[0-9a-f]{12}_)?`)
+var rolloutPrefix = lazyre.Regexp(`^/?(?:` + stoppingPrefix + `[0-9a-f]{12}_)?(?:[0-9a-f]{12}_)?`)
 
 // stoppingPrefix starts the name of a container a rollout is stopping. Docker
 // keeps a name through anything, and a label can't change, so the mark is there
@@ -149,7 +150,7 @@ func (d *Docker) instances(ctx context.Context, t Target) ([]*instance, error) {
 			return nil, err
 		}
 		name := strings.TrimPrefix(c.Name, "/")
-		out = append(out, &instance{Container: c, number: s.Number(), temp: swapName.MatchString(c.Name), stopping: strings.HasPrefix(name, stoppingPrefix)})
+		out = append(out, &instance{Container: c, number: s.Number(), temp: swapName().MatchString(c.Name), stopping: strings.HasPrefix(name, stoppingPrefix)})
 	}
 	slices.SortStableFunc(out, func(a, b *instance) int {
 		if a.number != b.number {

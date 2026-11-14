@@ -11,12 +11,13 @@ import (
 	"io/fs"
 	"net/netip"
 	"os"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/dockwell/dockwell/internal/lazyre"
 
 	"github.com/dockwell/dockwell/internal/agent/hosttool"
 	"github.com/dockwell/dockwell/internal/agent/nftables"
@@ -129,7 +130,7 @@ var preAuthTitles = []string{"[accepted]", "[rexeced]", "[net]", "[session-auth"
 // Its length is checked apart from its form: a counted repetition compiles to
 // as many copies of what it repeats, which every agent pays for as it starts
 // (ADR 0060).
-var rootSessionTTY = regexp.MustCompile(`^[A-Za-z0-9/,._-]+$`)
+var rootSessionTTY = lazyre.Regexp(`^[A-Za-z0-9/,._-]+$`)
 
 // maxRootSessionTTY is how long what follows "root@" gets.
 const maxRootSessionTTY = 64
@@ -140,7 +141,7 @@ func isRootSession(title string) bool {
 		return true
 	}
 	tty, ok := strings.CutPrefix(title, "root@")
-	return ok && len(tty) <= maxRootSessionTTY && rootSessionTTY.MatchString(tty)
+	return ok && len(tty) <= maxRootSessionTTY && rootSessionTTY().MatchString(tty)
 }
 
 // signedIn says whether someone has signed in on a connection, by who holds

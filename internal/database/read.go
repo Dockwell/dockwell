@@ -7,11 +7,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"regexp"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/dockwell/dockwell/internal/lazyre"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
@@ -130,10 +131,10 @@ func (r Reader) ask(ctx context.Context, container string, e *Engine, cmd []stri
 		return nil, fmt.Errorf("%s %w", e.Name, ErrStarting)
 	case refusedSignIn(said) || e.KeyValue() && redisRefused(out.String()):
 		return nil, fmt.Errorf("%s refused Dockwell's sign-in with what its environment holds. Dockwell signs in as its image does, with %s", e.Name, e.SignsInWith())
-	case code != 0 && e.SQL() && sqlRefused.MatchString(said):
+	case code != 0 && e.SQL() && sqlRefused().MatchString(said):
 		// It answered, and refused what it was asked, in its own words, which may
 		// follow a notice or two.
-		return nil, fmt.Errorf("%s refused it: %s", e.Name, scrubbed(said[sqlRefused.FindStringIndex(said)[1]:]))
+		return nil, fmt.Errorf("%s refused it: %s", e.Name, scrubbed(said[sqlRefused().FindStringIndex(said)[1]:]))
 	case code != 0:
 		return nil, fmt.Errorf("%s didn't answer, with code %d: %s", e.Name, code, scrubbed(said))
 	case out.over:
@@ -397,17 +398,17 @@ func (c *capped) Write(b []byte) (int, error) {
 }
 
 // quoted finds what a database quotes in what it says.
-var quoted = regexp.MustCompile(`'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"`)
+var quoted = lazyre.Regexp(`'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"`)
 
 // scrubbed keeps the first line of what a database said, without what it quotes,
 // sqlRefused starts what psql, mysql and mariadb say of a statement they refused:
 // "psql:<stdin>:3: ERROR:  ..." or "ERROR 1044 (42000) at line 3: ...".
-var sqlRefused = regexp.MustCompile(`(?m)^(psql:[^\n]*?: ERROR: +|ERROR \d+ \([0-9A-Z]+\)( at line \d+)?: )`)
+var sqlRefused = lazyre.Regexp(`(?m)^(psql:[^\n]*?: ERROR: +|ERROR \d+ \([0-9A-Z]+\)( at line \d+)?: )`)
 
 // which can be a value: a reading is there for anyone who can read the database.
 func scrubbed(said string) string {
 	first, _, _ := strings.Cut(strings.TrimSpace(said), "\n")
-	return quoted.ReplaceAllString(first, "'...'")
+	return quoted().ReplaceAllString(first, "'...'")
 }
 
 // clause is an error as the end of a sentence.

@@ -79,7 +79,7 @@ func (u *upload) part() string { return uploadPrefix + u.ID }
 // name holds the upload's ID.
 func arriving(name string) bool {
 	id, ok := strings.CutPrefix(name, uploadPrefix)
-	return ok && deletedID.MatchString(id)
+	return ok && deletedID().MatchString(id)
 }
 
 func (u *upload) proto(received uint64) *dockwellv1.Upload {
@@ -110,7 +110,7 @@ func (s *Server) loadUpload(id, owner string) (*upload, error) {
 
 // readUpload is the note on the upload id, whoever began it.
 func (s *Server) readUpload(id string) (*upload, error) {
-	if !deletedID.MatchString(id) || s.uploadsDir() == "" {
+	if !deletedID().MatchString(id) || s.uploadsDir() == "" {
 		return nil, os.ErrNotExist
 	}
 	text, err := os.ReadFile(filepath.Join(s.uploadsDir(), id+".json")) //nolint:gosec // an ID deletedID matched, in the agent's own folder

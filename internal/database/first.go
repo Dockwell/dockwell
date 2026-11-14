@@ -7,10 +7,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"regexp"
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/dockwell/dockwell/internal/lazyre"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
@@ -276,13 +277,13 @@ func socketAccounts(ctx context.Context, r *Reader, id string, e *Engine, signIn
 // counted repetition compiles to that many copies, which the agent would build as
 // it starts.
 var (
-	userForm = regexp.MustCompile(`^[A-Za-z0-9_.-]+$`)
-	hostForm = regexp.MustCompile(`^[A-Za-z0-9._%:-]+$`)
+	userForm = lazyre.Regexp(`^[A-Za-z0-9_.-]+$`)
+	hostForm = lazyre.Regexp(`^[A-Za-z0-9._%:-]+$`)
 )
 
-func aUser(s string) bool { return len(s) <= 80 && userForm.MatchString(s) }
+func aUser(s string) bool { return len(s) <= 80 && userForm().MatchString(s) }
 
-func aHost(s string) bool { return len(s) <= 255 && hostForm.MatchString(s) }
+func aHost(s string) bool { return len(s) <= 255 && hostForm().MatchString(s) }
 
 // accounts reads what the users query lists: each user with the hosts it has, as
 // MySQL and MariaDB keep each of those as a user of its own, such as 'root'@'%' and

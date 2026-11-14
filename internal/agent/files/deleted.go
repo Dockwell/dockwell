@@ -14,11 +14,12 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strings"
 	"sync/atomic"
 	"time"
+
+	"github.com/dockwell/dockwell/internal/lazyre"
 
 	"golang.org/x/sys/unix"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -54,7 +55,7 @@ const (
 
 // deletedID is what an ID in Recently deleted looks like: rand.Text's, so no ID can
 // name a path of its own.
-var deletedID = regexp.MustCompile(`^[A-Z2-7]{26}$`)
+var deletedID = lazyre.Regexp(`^[A-Z2-7]{26}$`)
 
 // about is what's said of an entry in Recently deleted.
 type about struct {
@@ -426,7 +427,7 @@ func (s *Server) entries(root int) []kept {
 	_ = dir.Close()
 	var out []kept
 	for _, name := range names {
-		if !deletedID.MatchString(name) {
+		if !deletedID().MatchString(name) {
 			continue
 		}
 		e := kept{id: name}
@@ -454,7 +455,7 @@ func (s *Server) countDeleted(root int) int { return len(s.entries(root)) }
 // now: never over what's there. confirmed is the path a passkey confirmed, if any,
 // where that's a way back in.
 func (s *Server) Restore(ctx context.Context, id, confirmed string) (*agentv1.RestoreFileResult, error) {
-	if !deletedID.MatchString(id) {
+	if !deletedID().MatchString(id) {
 		return nil, fmt.Errorf("%q isn't an ID in Recently deleted. List them with ListDeletedFiles", id)
 	}
 	var began atomic.Bool
@@ -550,7 +551,7 @@ func (s *Server) restore(ctx context.Context, t *trail, id, confirmed string, be
 // Purge deletes for good what's in Recently deleted. It goes out of the list at once,
 // and is removed in the background.
 func (s *Server) Purge(id string) (*agentv1.PurgeDeletedResult, error) {
-	if !deletedID.MatchString(id) {
+	if !deletedID().MatchString(id) {
 		return nil, fmt.Errorf("%q isn't an ID in Recently deleted. List them with ListDeletedFiles", id)
 	}
 	if !s.claim(id) {

@@ -30,7 +30,6 @@ var agentPackages = []string{
 	"cmd/dockwell",
 	"gen/dockwell/agent/v1",
 	"gen/dockwell/agent/v1/agentv1connect",
-	"gen/dockwell/catalog/v1alpha1", // the catalog's format, which gen/dockwell/v1 imports
 	"gen/dockwell/resource/v1alpha1",
 	"gen/dockwell/v1",
 	"internal/agent",
@@ -68,6 +67,7 @@ var agentPackages = []string{
 	"internal/id",
 	"internal/ingress", // what runs a server's routes on a proxy (ADR 0024)
 	"internal/ingress/caddy",
+	"internal/lazyre", // a check's expression, compiled on first use (#622)
 	"internal/logging",
 	"internal/mounts",   // what's mounted, to keep away from a mount that stopped answering
 	"internal/netguard", // the one guarded way to an address a person names, for reading registries
@@ -354,4 +354,62 @@ func TestTheAgentBuildAllocatesLittleAsItStarts(t *testing.T) {
 			"Run GODEBUG=inittrace=1 bin/dockwell-agent version to see which, and build what's large on first use", sum>>10, initBudgetAll>>10)
 	}
 	t.Logf("the agent build's own packages allocate %d KB as it starts", sum>>10)
+}
+
+// Reflection that finds a method by a name it learns as it runs, as text/template
+// does, makes the linker keep every exported method of every type the binary has,
+// as any of them might be called. Cobra's help, written by a template, did that to
+// the agent build: 3.2 MB of code no agent ran, and about 2 MB of every idle agent
+// (docs/adr/0060-what-an-idle-agent-keeps-in-memory.md). So nothing the agent build
+// links may.
+func TestTheAgentBuildFindsNoMethodByName(t *testing.T) {
+	if testing.Short() {
+		t.Skip("builds the agent build")
+	}
+	build := exec.CommandContext(t.Context(), "go", "build", "-tags", "agent", "-ldflags=-dumpdep", "-o", os.DevNull, ".")
+	build.Env = append(os.Environ(), "CGO_ENABLED=0")
+	out, err := build.CombinedOutput()
+	if err != nil {
+		t.Fatalf("go build -tags agent: %v\n%.2000s", err, out)
+	}
+	// Each line is "<what reached it> -> <symbol>", the first time the linker reached
+	// it, with what it noted of each, such as <ReflectMethod>, after its name.
+	name := func(s string) (string, string) {
+		if i := strings.LastIndex(s, " <"); i >= 0 && strings.HasSuffix(s, ">") {
+			return s[:i], s[i+1:]
+		}
+		return s, ""
+	}
+	from := map[string]string{}
+	var found []string
+	edges := 0
+	for line := range strings.Lines(string(out)) {
+		parent, sym, ok := strings.Cut(strings.TrimSpace(line), " -> ")
+		if !ok {
+			continue
+		}
+		edges++
+		sym, notes := name(sym)
+		from[sym], _ = name(parent)
+		if strings.Contains(notes, "<ReflectMethod>") {
+			found = append(found, sym)
+		}
+	}
+	if edges == 0 {
+		t.Fatalf("the linker said nothing of what it kept, so this checked nothing:\n%.2000s", out)
+	}
+	if len(found) == 0 {
+		return
+	}
+	// The first the linker reached is the cause. Once it keeps every method, it
+	// reaches more, such as reflect.Value's own MethodByName, through it.
+	var chain []string
+	for at := from[found[0]]; at != "" && at != "_" && len(chain) < 12; at = from[at] {
+		if !strings.HasPrefix(at, "type:") && !strings.HasPrefix(at, "go:") {
+			chain = append(chain, at)
+		}
+	}
+	t.Errorf("the agent build finds a method by name in %s, so the linker keeps every exported method it has, "+
+		"and %d more such calls with them. It's reached from %s. Write it without text/template or html/template, "+
+		"or call reflect's MethodByName with a constant name", found[0], len(found)-1, strings.Join(chain, " <- "))
 }
