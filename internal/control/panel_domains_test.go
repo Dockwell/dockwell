@@ -102,7 +102,7 @@ func TestHandingOverAPanelsDomains(t *testing.T) {
 	e.AddNetwork(docker.Network{ID: "k4s9net", Name: "k4s9_default", Driver: "bridge"})
 	ghost := composeContainer(t, e, "k4s9", "ghost", "ghost-k4s9", func(r *docker.CreateRequest) {
 		maps.Copy(r.Labels, map[string]string{
-			"coolify.managed": "true", "coolify.type": "service", "coolify.serviceUuid": "k4s9", "coolify.resourceName": "blog",
+			"coolify.managed": "true", "coolify.type": "service", "traefik.enable": "true", "coolify.serviceUuid": "k4s9", "coolify.resourceName": "blog",
 			docker.LabelWorkingDir:                                             "/data/coolify/services/k4s9",
 			"traefik.http.routers.http-0-k4s9-ghost.rule":                      "Host(`blog.example.com`) && PathPrefix(`/`)",
 			"traefik.http.services.http-0-k4s9-ghost.loadbalancer.server.port": "2368",
@@ -112,7 +112,7 @@ func TestHandingOverAPanelsDomains(t *testing.T) {
 	e.AddNetwork(docker.Network{ID: "p2q7net", Name: "p2q7_default", Driver: "bridge"})
 	composeContainer(t, e, "p2q7", "wiki", "wiki-p2q7", func(r *docker.CreateRequest) {
 		maps.Copy(r.Labels, map[string]string{
-			"coolify.managed": "true", "coolify.type": "service", "coolify.serviceUuid": "p2q7", "coolify.resourceName": "wiki",
+			"coolify.managed": "true", "coolify.type": "service", "traefik.enable": "true", "coolify.serviceUuid": "p2q7", "coolify.resourceName": "wiki",
 			docker.LabelWorkingDir:                                            "/data/coolify/services/p2q7",
 			"traefik.http.routers.http-0-p2q7-wiki.rule":                      "Host(`wiki.example.com`)",
 			"traefik.http.routers.http-0-p2q7-wiki.middlewares":               "sso@file",
@@ -233,7 +233,7 @@ func TestAFailedHandoverStartsTheProxyAgain(t *testing.T) {
 	e.AddNetwork(docker.Network{ID: "k4s9net", Name: "k4s9_default", Driver: "bridge"})
 	composeContainer(t, e, "k4s9", "ghost", "ghost-k4s9", func(r *docker.CreateRequest) {
 		maps.Copy(r.Labels, map[string]string{
-			"coolify.managed": "true", "coolify.type": "service", "coolify.serviceUuid": "k4s9", "coolify.resourceName": "blog",
+			"coolify.managed": "true", "coolify.type": "service", "traefik.enable": "true", "coolify.serviceUuid": "k4s9", "coolify.resourceName": "blog",
 			docker.LabelWorkingDir:                                             "/data/coolify/services/k4s9",
 			"traefik.http.routers.http-0-k4s9-ghost.rule":                      "Host(`blog.example.com`)",
 			"traefik.http.services.http-0-k4s9-ghost.loadbalancer.server.port": "2368",
@@ -264,5 +264,49 @@ func TestAFailedHandoverStartsTheProxyAgain(t *testing.T) {
 	}
 	if got := log.read(); len(got) < 3 || got[0] != "stop coolify-proxy" || got[len(got)-1] != "start coolify-proxy" {
 		t.Errorf("the agent did %v", got)
+	}
+}
+
+// A domain whose /admin a sibling router guards with forwardauth doesn't come over
+// at all: a route for its root would serve /admin with no login (N1).
+func TestAGuardedPathKeepsItsDomainBehind(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	stopper := &loggedStopper{log: &handoverLog{}}
+	ing := &loggedRoutes{routesInMemory: &routesInMemory{routes: map[resource.Ref]*resourcev1.Route{}}, log: stopper.log}
+	e := f.addServerWith(t, func() []resource.Type {
+		return []resource.Type{&host.Driver{Panels: stopper}, &route.Driver{Ingress: ing}}
+	})
+	stopper.s = &panels.Stopper{Docker: e.Client()}
+	waitForHost(t, f, f.lastDocker)
+	id := f.lastDocker.id.ServerID
+	for _, name := range []string{"coolify", "coolify-proxy"} {
+		runByHand(t, e, name, func(r *docker.CreateRequest) { r.HostConfig.PortBindings, r.HostConfig.Binds = nil, nil })
+	}
+	e.AddNetwork(docker.Network{ID: "k4s9net", Name: "k4s9_default", Driver: "bridge"})
+	composeContainer(t, e, "k4s9", "app", "app-k4s9", func(r *docker.CreateRequest) {
+		maps.Copy(r.Labels, map[string]string{
+			"coolify.managed": "true", "coolify.type": "service", "coolify.serviceUuid": "k4s9", "coolify.resourceName": "app", "traefik.enable": "true",
+			docker.LabelWorkingDir:                               "/data/coolify/services/k4s9",
+			"traefik.http.routers.app.rule":                      "Host(`app.example.com`)",
+			"traefik.http.services.app.loadbalancer.server.port": "3000",
+			"traefik.http.routers.admin.rule":                    "Host(`app.example.com`) && PathPrefix(`/admin`)",
+			"traefik.http.routers.admin.service":                 "app",
+			"traefik.http.routers.admin.middlewares":             "sso",
+			"traefik.http.middlewares.sso.forwardauth.address":   "http://sso.example.com/verify",
+		})
+	})
+	ic, c := importClient(b), changeClient(b, b.origin)
+	took, err := ic.ImportCoolify(t.Context(), connect.NewRequest(&dockwellv1.ImportCoolifyRequest{ServerId: id}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	applyConfirmed(t, c, took.Msg.GetChange())
+	_, err = ic.PlanPanelDomains(t.Context(), connect.NewRequest(&dockwellv1.PlanPanelDomainsRequest{ServerId: id, Panel: dockwellv1.PanelKind_PANEL_KIND_COOLIFY}))
+	if reasonOf(err) != "nothing_to_route" || !strings.Contains(err.Error(), "app.example.com") {
+		t.Errorf("handing over a domain with a guarded path = %v", err)
+	}
+	if len(ing.routes) != 0 {
+		t.Errorf("routes were made: %v", ing.routes)
 	}
 }

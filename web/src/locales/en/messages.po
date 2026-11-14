@@ -11323,6 +11323,9 @@ msgstr "Read what {name} runs"
 msgid "Start {name} again"
 msgstr "Start {name} again"
 
+msgid "Start {proxy} again"
+msgstr "Start {proxy} again"
+
 msgid "Stop {name}"
 msgstr "Stop {name}"
 

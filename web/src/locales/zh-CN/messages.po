@@ -11323,6 +11323,9 @@ msgstr "读取 {name} 运行的内容"
 msgid "Start {name} again"
 msgstr "重新启动 {name}"
 
+msgid "Start {proxy} again"
+msgstr "重新启动 {proxy}"
+
 msgid "Stop {name}"
 msgstr "停止 {name}"
 

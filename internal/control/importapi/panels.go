@@ -592,6 +592,8 @@ type panelRoute struct {
 	// on yet, which would bring it.
 	left  string
 	waits bool
+	// host is its domain without its path.
+	host string
 }
 
 // panelRoutes reads where each domain the panel's proxy serves goes in Dockwell:
@@ -602,7 +604,7 @@ func (h *Handler) panelRoutes(ctx context.Context, r *containers.Running, found 
 	have := map[string]map[string]*resourcev1.Route{}
 	for _, a := range found.GetApps() {
 		for _, rt := range a.GetRoutes() {
-			pr := panelRoute{domain: rt.GetDomain() + rt.GetPath()}
+			pr := panelRoute{domain: rt.GetDomain() + rt.GetPath(), host: rt.GetDomain()}
 			if pr.left = routeLeft(a, rt); pr.left != "" {
 				out = append(out, pr)
 				continue
@@ -638,11 +640,24 @@ func (h *Handler) panelRoutes(ctx context.Context, r *containers.Running, found 
 			out = append(out, pr)
 		}
 		for _, d := range unrouted(a) {
-			out = append(out, panelRoute{domain: d, left: "Dockwell can't read where it goes"})
+			out = append(out, panelRoute{domain: d, host: d, left: "Dockwell can't read where it goes"})
 		}
 	}
 	for _, d := range found.GetDomains() {
-		out = append(out, panelRoute{domain: d, left: "the panel's own route"})
+		out = append(out, panelRoute{domain: d, host: d, left: "the panel's own route"})
+	}
+	// A path of a domain that stays behind keeps the rest of it behind too: a route
+	// for the domain's root would serve that path, and what guarded it there.
+	for i := range out {
+		if out[i].left == "" {
+			continue
+		}
+		for j := range out {
+			if out[j].host == out[i].host && out[j].left == "" && !out[j].done {
+				out[j].left = "another path of the domain stays behind"
+				out[j].environment = ""
+			}
+		}
 	}
 	return out, nil
 }

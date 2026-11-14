@@ -134,4 +134,35 @@ describe("moving in from Coolify", () => {
     expect(sheet).toHaveTextContent("its domains come as the routes below");
     expect(sheet).toHaveTextContent("Undo for");
   });
+
+  it("offers the proxy's start where it's stopped and no domain is a route", async () => {
+    const user = userEvent.setup();
+    const planStartPanel = vi.fn((_req: { serverId: string; panel: PanelKind; proxy: boolean }) => ({
+      change: handover,
+    }));
+    const stopped = () =>
+      create(ListContainersResponseSchema, {
+        containers: [
+          create(ServerContainerSchema, {
+            name: "coolify",
+            image: "ghcr.io/coollabsio/coolify:4.7.5",
+            state: ContainerState.RUNNING,
+          }),
+          create(ServerContainerSchema, { name: "coolify-proxy", image: "traefik:v3.1", state: ContainerState.EXITED }),
+        ],
+      });
+    renderAt(
+      "/servers/srv_1/import",
+      api({ containers: { listContainers: stopped }, imports: { importCoolify: () => found, planStartPanel } }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Read what Coolify runs" }));
+    expect(screen.queryByRole("button", { name: "Hand over ports 80 and 443" })).toBeNull();
+    await user.click(await screen.findByRole("button", { name: "Start coolify-proxy again" }));
+    await waitFor(() => expect(planStartPanel).toHaveBeenCalledTimes(1));
+    expect(planStartPanel.mock.calls[0]?.[0]).toMatchObject({
+      serverId: "srv_1",
+      panel: PanelKind.COOLIFY,
+      proxy: true,
+    });
+  });
 });

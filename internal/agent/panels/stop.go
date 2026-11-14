@@ -3,6 +3,7 @@
 package panels
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -286,9 +287,14 @@ func (s Stopper) read(ctx context.Context, order []string) ([]resource.PanelPart
 	return out, nil
 }
 
+// ownPolicies are the restart policies each panel's installer gives its own, where
+// it isn't always: Coolify's proxy and sentinel restart unless stopped (Coolify's
+// RESTART_MODE, and its sentinel's docker run). Dokploy's Traefik is always.
+var ownPolicies = map[string]string{"coolify-proxy": "unless-stopped", "coolify-sentinel": "unless-stopped"}
+
 // readStopped finds each of the panel's own, in order, that's stopped: a container
-// not running, which starts with the policy it had, or always where a stop left it
-// at no, as both panels' installers start their own; a Swarm service at none,
+// not running, which starts with the policy it had, or where a stop left it at no,
+// the one the panel's installer gives it (ownPolicies); a Swarm service at none,
 // which scales to one, as each runs.
 func (s Stopper) readStopped(ctx context.Context, order []string) ([]resource.PanelPart, error) {
 	var out []resource.PanelPart
@@ -309,7 +315,7 @@ func (s Stopper) readStopped(ctx context.Context, order []string) ([]resource.Pa
 		if !c.State.Running {
 			restart := c.HostConfig.RestartPolicy.Name
 			if restart == "" || restart == "no" {
-				restart = "always"
+				restart = cmp.Or(ownPolicies[name], "always")
 			}
 			out = append(out, resource.PanelPart{Name: name, WasRunning: true, WasRestart: restart})
 		}

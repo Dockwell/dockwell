@@ -278,3 +278,27 @@ func TestScalingADokployAppsService(t *testing.T) {
 		t.Error("Coolify's apps were scaled as Swarm services")
 	}
 }
+
+// Started from Dockwell with no stop's plan, each of the panel's own takes back the
+// restart policy its installer gives it: Coolify's proxy restarts unless stopped.
+func TestAStartGivesEachItsOwnPolicy(t *testing.T) {
+	e := coolifyServer(t)
+	s := Stopper{Docker: e.Client()}
+	plan, _, err := s.PlanPanel(t.Context(), resource.PanelAsked{Kind: resource.PanelCoolify, Proxy: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.ApplyPanel(t.Context(), *plan, func(string) {}); err != nil {
+		t.Fatal(err)
+	}
+	start, left, err := s.PlanPanel(t.Context(), resource.PanelAsked{Kind: resource.PanelCoolify, Proxy: true, Start: true})
+	if err != nil || !left {
+		t.Fatalf("the start = %v, %v", left, err)
+	}
+	if err := s.ApplyPanel(t.Context(), *start, func(string) {}); err != nil {
+		t.Fatal(err)
+	}
+	if c := e.Container("coolify-proxy"); !c.State.Running || c.HostConfig.RestartPolicy.Name != "unless-stopped" {
+		t.Errorf("the proxy is %v, restart %q", c.State.Running, c.HostConfig.RestartPolicy.Name)
+	}
+}
