@@ -281,6 +281,26 @@ describe("the databases list", () => {
     );
   });
 
+  it("says where each is on a phone too, where several in different projects share a name", async () => {
+    onPhone();
+    renderAt(
+      "/databases",
+      api(
+        [
+          aDatabase({ id: "svc_shop", resource: { kind: "service", scope: "env_shop", name: "db" } }),
+          aDatabase({ id: "svc_blog", resource: { kind: "service", scope: "env_blog", name: "db" } }),
+        ],
+        { resources: projectPlaces("shop", "blog") },
+      ),
+    );
+    await waitFor(() => {
+      const rows = [...document.querySelectorAll(".databases-phone-row")];
+      expect(
+        rows.map((r) => (r.textContent?.includes("shop") ? "shop" : r.textContent?.includes("blog") ? "blog" : "")),
+      ).toEqual(["shop", "blog"]);
+    });
+  });
+
   it("names each app beside a database, and each server it's on, as a link to its page", async () => {
     const adminerApp = anApp("adminer", "adminer:5");
     renderAt(

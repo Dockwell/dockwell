@@ -352,6 +352,9 @@ function PhoneList({ databases, fleet }: { databases: readonly Database[]; fleet
   const { i18n } = useLingui();
   const health = useHealth();
   const words = useHealthWords();
+  // Where each is, as the table says it, where they're in more than one place.
+  const places = usePlaces();
+  const several = new Set(databases.map((d) => d.resource?.scope)).size > 1;
   return (
     <Panel flush className="databases-phone">
       {databases.map((db) => {
@@ -369,6 +372,12 @@ function PhoneList({ databases, fleet }: { databases: readonly Database[]; fleet
                 <span className={cx("databases-phone-word", tone)}>{words.word(runs)}</span>
                 <span aria-hidden="true">·</span>
                 <span>{engineAndVersion(db)}</span>
+                {several ? (
+                  <>
+                    <span aria-hidden="true">·</span>
+                    <span>{places.label(db.resource?.scope ?? "")}</span>
+                  </>
+                ) : null}
                 {read ? (
                   <>
                     <span aria-hidden="true">·</span>
