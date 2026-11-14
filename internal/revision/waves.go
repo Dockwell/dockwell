@@ -3,11 +3,15 @@
 package revision
 
 import (
+	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"time"
 
+	"github.com/dockwell/dockwell/internal/human"
+	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/store"
 )
 
@@ -155,4 +159,56 @@ func (e *Engine) pauseUntil(ctx context.Context, at time.Time) bool {
 		case <-t.C:
 		}
 	}
+}
+
+// wentOn is a step that failed in a run that went on past it, by its place in the
+// change's progress, with what it failed with.
+type wentOn struct {
+	index int
+	err   error
+}
+
+// failGoneOn fails change c if any of its steps failed, as its progress records them
+// across every run of it, naming each server that did: a change that went on past a
+// failure (ADR 0094). It returns nil when none did. A failure of this run keeps its
+// own error; one from a run before has what its step recorded.
+func (e *Engine) failGoneOn(ctx context.Context, c store.Change, now []wentOn) error {
+	progress := e.progress(c.ID)
+	if progress == nil {
+		return nil
+	}
+	names := map[string]string{}
+	if p, err := DecodePlan(c.Plan); err == nil {
+		for i := range p.Servers {
+			names[p.Servers[i].Server] = p.Servers[i].Name
+		}
+	}
+	var servers []string
+	first := -1
+	for i := range progress.Steps {
+		s := &progress.Steps[i]
+		if s.State != StepFailed {
+			continue
+		}
+		if first < 0 {
+			first = i
+		}
+		if name := cmp.Or(names[s.Server], s.Server); !slices.Contains(servers, name) {
+			servers = append(servers, name)
+		}
+	}
+	if first < 0 {
+		return nil
+	}
+	s := &progress.Steps[first]
+	name := cmp.Or(names[s.Server], s.Server)
+	cause := resource.Plainly(s.Message, errors.New(cmp.Or(s.Detail, s.Message)))
+	if j := slices.IndexFunc(now, func(f wentOn) bool { return f.index == first }); j >= 0 {
+		cause = now[j].err
+	}
+	plain, _ := resource.Explain(stepFailure(name, cause))
+	if len(servers) > 1 {
+		plain = fmt.Sprintf("%d servers failed: %s. The first: %s", len(servers), human.List(servers), plain)
+	}
+	return e.fail(ctx, c, s.Ref, cause, plain)
 }

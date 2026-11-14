@@ -2105,6 +2105,9 @@ message UpgradeAgent {
   // Where to download the release from, when it's a mirror and not GitHub: the
   // script's --mirror.
   string mirror = 5;
+  // Where to download cosign from, when it's a mirror: the script's
+  // --cosign-mirror.
+  string cosign_mirror = 6;
 }
 
 // DesiredResource is one resource as a change wants it.

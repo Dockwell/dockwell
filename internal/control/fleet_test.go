@@ -88,6 +88,8 @@ type fakeUpgrader struct {
 	own   string
 	asked []resource.AgentUpgradeAsked
 	fail  error
+	// during runs as an upgrade starts, outside the lock.
+	during func()
 }
 
 func (u *fakeUpgrader) Own() string {
@@ -97,6 +99,13 @@ func (u *fakeUpgrader) Own() string {
 }
 
 func (u *fakeUpgrader) Upgrade(_ context.Context, ask resource.AgentUpgradeAsked) error {
+	u.mu.Lock()
+	during := u.during
+	u.during = nil
+	u.mu.Unlock()
+	if during != nil {
+		during()
+	}
 	u.mu.Lock()
 	defer u.mu.Unlock()
 	if u.fail != nil {
@@ -595,5 +604,274 @@ func TestAnAgentUpgradeThatFailsSaysWhy(t *testing.T) {
 	}
 	if n := noteOf(res.Msg.GetChange(), "older_agent"); n == nil || !slices.Equal(n.GetNames(), []string{"older"}) {
 		t.Errorf("the older agent's note is %v", n)
+	}
+}
+
+// A pause after a wave whose step waited for its server, as an upgrade's does, holds
+// the next wave from when that server came back (ADR 0094).
+func TestAPauseCountsFromAWaveThatWaitedForItsServer(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	c := changeClient(b, b.origin)
+	alpha := f.addFleetServer(t, "alpha", false)
+	bravo := f.addFleetServer(t, "bravo", false)
+	pause := 4 * time.Second
+
+	f.engine.SetAgentRelease(revision.AgentRelease{Version: "0.9.4", Script: []byte("#!/bin/sh\n")})
+	res, err := c.PlanAgentUpgrade(t.Context(), connect.NewRequest(&dockwellv1.PlanAgentUpgradeRequest{ServerIds: idsOf(alpha, bravo), Rollout: &dockwellv1.FleetRollout{Pause: durationpb.New(pause)}}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	change := res.Msg.GetChange()
+	proof := stepUpFor(t, b, dockwellv1.StepUpAction_STEP_UP_ACTION_APPLY_ROOT_CHANGE, change.GetId())
+	if _, err := c.ApplyChange(t.Context(), connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: change.GetId(), Fingerprint: change.GetPlan().GetFingerprint(), Proof: proof})); err != nil {
+		t.Fatal(err)
+	}
+	waitChange(t, c, change.GetId(), "alpha's reboot waits", func(ch *dockwellv1.Change) bool {
+		return slices.ContainsFunc(ch.GetSteps(), func(st *dockwellv1.StepProgress) bool {
+			return st.GetServerId() == alpha.id.ServerID && st.GetState() == dockwellv1.StepState_STEP_STATE_WAITING
+		})
+	})
+	alpha.upgraded(t, f, "0.9.4")
+	back := time.Now()
+	if err := f.engine.Resume(t.Context()); err != nil && !strings.Contains(err.Error(), "reconnect") {
+		t.Logf("resume after alpha: %v", err)
+	}
+	waitChange(t, c, change.GetId(), "bravo's reboot waits", func(ch *dockwellv1.Change) bool {
+		return slices.ContainsFunc(ch.GetSteps(), func(st *dockwellv1.StepProgress) bool {
+			return st.GetServerId() == bravo.id.ServerID && st.GetState() == dockwellv1.StepState_STEP_STATE_WAITING && strings.Contains(st.GetMessage(), "is upgrading")
+		})
+	})
+	if gap := time.Since(back); gap < pause {
+		t.Errorf("bravo was asked to reboot %s after alpha came back, want the pause of %s", gap, pause)
+	}
+}
+
+// A control plane that starts again mid-pause keeps the pause, by the plan's waves
+// and when the wave before ended, as the steps record it (ADR 0094, review M1).
+func TestAPauseSurvivesARestart(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	c := changeClient(b, b.origin)
+	alpha := f.addFleetServer(t, "alpha", false)
+	bravo := f.addFleetServer(t, "bravo", false)
+	pause := 8 * time.Second
+
+	res, err := c.PlanSystemServiceAction(t.Context(), connect.NewRequest(&dockwellv1.PlanSystemServiceActionRequest{
+		ServerIds: idsOf(alpha, bravo), Name: "nginx.service", Action: dockwellv1.SystemServiceAction_SYSTEM_SERVICE_ACTION_RESTART,
+		Rollout: &dockwellv1.FleetRollout{Pause: durationpb.New(pause)},
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	change := res.Msg.GetChange()
+	if _, err := c.ApplyChange(t.Context(), connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: change.GetId(), Fingerprint: change.GetPlan().GetFingerprint()})); err != nil {
+		t.Fatal(err)
+	}
+	waitChange(t, c, change.GetId(), "the pause", func(ch *dockwellv1.Change) bool {
+		return slices.ContainsFunc(ch.GetSteps(), func(st *dockwellv1.StepProgress) bool {
+			return st.GetServerId() == bravo.id.ServerID && strings.Contains(st.GetMessage(), "after the pause")
+		})
+	})
+	_, letIn := f.restart(t, func(*Server) {})
+	engine := f.engine
+	f.agents.OnConnect(func(string) { _ = engine.Resume(context.WithoutCancel(t.Context())) })
+	letIn()
+	done := waitChange(t, c, change.GetId(), "the end", func(ch *dockwellv1.Change) bool {
+		return ch.GetState() == dockwellv1.ChangeState_CHANGE_STATE_APPLIED || ch.GetState() == dockwellv1.ChangeState_CHANGE_STATE_FAILED
+	})
+	var first, second *dockwellv1.StepProgress
+	for _, st := range done.GetSteps() {
+		switch st.GetServerId() {
+		case alpha.id.ServerID:
+			first = st
+		case bravo.id.ServerID:
+			second = st
+		}
+	}
+	if gap := second.GetStartTime().AsTime().Sub(first.GetFinishTime().AsTime()); gap < pause-50*time.Millisecond {
+		t.Errorf("after a restart, the second wave started %s after the first ended, want the pause of %s", gap, pause)
+	}
+}
+
+// With keep_going, a failure before a step that waits for its server still fails the
+// change once that server is back: a resume runs what's left, and the failure is on
+// the change's record (ADR 0094, review H1).
+func TestAChangeThatKeepsGoingRemembersAFailureAcrossAResume(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	c := changeClient(b, b.origin)
+	alpha := f.addFleetServer(t, "alpha", false)
+	bravo := f.addFleetServer(t, "bravo", false)
+	f.engine.SetAgentRelease(revision.AgentRelease{Version: "0.9.4", Script: []byte("#!/bin/sh\n")})
+	alpha.upgrader.mu.Lock()
+	alpha.upgrader.fail = errors.New("the install script ended with status 1")
+	alpha.upgrader.mu.Unlock()
+	res, err := c.PlanAgentUpgrade(t.Context(), connect.NewRequest(&dockwellv1.PlanAgentUpgradeRequest{ServerIds: idsOf(alpha, bravo), Rollout: &dockwellv1.FleetRollout{KeepGoing: true}}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	change := res.Msg.GetChange()
+	proof := stepUpFor(t, b, dockwellv1.StepUpAction_STEP_UP_ACTION_APPLY_ROOT_CHANGE, change.GetId())
+	if _, err := c.ApplyChange(t.Context(), connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: change.GetId(), Fingerprint: change.GetPlan().GetFingerprint(), Proof: proof})); err != nil {
+		t.Fatal(err)
+	}
+	waitChange(t, c, change.GetId(), "bravo's upgrade waits", func(ch *dockwellv1.Change) bool {
+		return slices.ContainsFunc(ch.GetSteps(), func(st *dockwellv1.StepProgress) bool {
+			return st.GetServerId() == bravo.id.ServerID && st.GetState() == dockwellv1.StepState_STEP_STATE_WAITING && strings.Contains(st.GetMessage(), "is upgrading")
+		})
+	})
+	bravo.upgraded(t, f, "0.9.4")
+	if err := f.engine.Resume(t.Context()); err != nil {
+		t.Logf("resume: %v", err)
+	}
+	done := waitChange(t, c, change.GetId(), "the end", func(ch *dockwellv1.Change) bool {
+		return ch.GetState() == dockwellv1.ChangeState_CHANGE_STATE_APPLIED || ch.GetState() == dockwellv1.ChangeState_CHANGE_STATE_FAILED
+	})
+	if done.GetState() != dockwellv1.ChangeState_CHANGE_STATE_FAILED || !strings.Contains(done.GetError(), "status 1") {
+		t.Errorf("with alpha's upgrade failed, the change ended %v (%q)", done.GetState(), done.GetError())
+	}
+}
+
+// With keep_going, a server that's gone before its turn is a failure like any other:
+// the change goes on, and fails once each server had its turn, naming it (ADR 0094,
+// review L5).
+func TestAServerGoneBeforeItsTurnIsAFailureThatKeepsGoing(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	c := changeClient(b, b.origin)
+	alpha := f.addFleetServer(t, "alpha", false)
+	bravo := f.addFleetServer(t, "bravo", false)
+	f.engine.SetAgentRelease(revision.AgentRelease{Version: "0.9.4", Script: []byte("#!/bin/sh\n")})
+	// bravo goes as alpha's upgrade starts, before its own turn in the wave.
+	alpha.upgrader.mu.Lock()
+	alpha.upgrader.during = func() {
+		bravo.stop()
+		waitConnected(t, f, bravo.id.ServerID, false)
+	}
+	alpha.upgrader.mu.Unlock()
+	res, err := c.PlanAgentUpgrade(t.Context(), connect.NewRequest(&dockwellv1.PlanAgentUpgradeRequest{
+		ServerIds: idsOf(alpha, bravo), Rollout: &dockwellv1.FleetRollout{NoCanary: true, BatchSize: 2, KeepGoing: true},
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	change := res.Msg.GetChange()
+	proof := stepUpFor(t, b, dockwellv1.StepUpAction_STEP_UP_ACTION_APPLY_ROOT_CHANGE, change.GetId())
+	if _, err := c.ApplyChange(t.Context(), connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: change.GetId(), Fingerprint: change.GetPlan().GetFingerprint(), Proof: proof})); err != nil {
+		t.Fatal(err)
+	}
+	waiting := waitChange(t, c, change.GetId(), "bravo's step fails while alpha's waits", func(ch *dockwellv1.Change) bool {
+		return slices.ContainsFunc(ch.GetSteps(), func(st *dockwellv1.StepProgress) bool {
+			return st.GetServerId() == bravo.id.ServerID && st.GetState() == dockwellv1.StepState_STEP_STATE_FAILED
+		})
+	})
+	if waiting.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLYING {
+		t.Fatalf("with bravo gone and alpha's upgrade under way, the change is %v: %s", waiting.GetState(), waiting.GetError())
+	}
+	alpha.upgraded(t, f, "0.9.4")
+	if err := f.engine.Resume(t.Context()); err != nil && !strings.Contains(err.Error(), "reconnect") {
+		t.Logf("resume: %v", err)
+	}
+	done := waitChange(t, c, change.GetId(), "the end", func(ch *dockwellv1.Change) bool {
+		return ch.GetState() == dockwellv1.ChangeState_CHANGE_STATE_APPLIED || ch.GetState() == dockwellv1.ChangeState_CHANGE_STATE_FAILED
+	})
+	if done.GetState() != dockwellv1.ChangeState_CHANGE_STATE_FAILED || !strings.Contains(done.GetError(), "bravo") {
+		t.Errorf("the change ended %v: %q, want failed naming bravo", done.GetState(), done.GetError())
+	}
+}
+
+// A resume runs no step on a server that took none when the change was reviewed, as
+// it's in no wave, though it needs one now (ADR 0094, review L1).
+func TestAResumeRunsNoStepOutsideTheWaves(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	c := changeClient(b, b.origin)
+	alpha := f.addFleetServer(t, "alpha", false)
+	bravo := f.addFleetServer(t, "bravo", false)
+	charlie := f.addFleetServer(t, "charlie", false)
+	bravo.upgraded(t, f, "0.9.4")
+	f.engine.SetAgentRelease(revision.AgentRelease{Version: "0.9.4", Script: []byte("#!/bin/sh\n")})
+	res, err := c.PlanAgentUpgrade(t.Context(), connect.NewRequest(&dockwellv1.PlanAgentUpgradeRequest{ServerIds: idsOf(alpha, bravo, charlie)}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	change := res.Msg.GetChange()
+	if got := wavesOf(change); !slices.EqualFunc(got, [][]string{{"alpha"}, {"charlie"}}, slices.Equal) {
+		t.Fatalf("the waves are %v", got)
+	}
+	proof := stepUpFor(t, b, dockwellv1.StepUpAction_STEP_UP_ACTION_APPLY_ROOT_CHANGE, change.GetId())
+	if _, err := c.ApplyChange(t.Context(), connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: change.GetId(), Fingerprint: change.GetPlan().GetFingerprint(), Proof: proof})); err != nil {
+		t.Fatal(err)
+	}
+	waitChange(t, c, change.GetId(), "alpha's upgrade waits", func(ch *dockwellv1.Change) bool {
+		return slices.ContainsFunc(ch.GetSteps(), func(st *dockwellv1.StepProgress) bool {
+			return st.GetServerId() == alpha.id.ServerID && st.GetState() == dockwellv1.StepState_STEP_STATE_WAITING
+		})
+	})
+	// bravo's agent goes back to the old version meanwhile, so it would plan a step.
+	bravo.upgraded(t, f, "0.9.3")
+	alpha.upgraded(t, f, "0.9.4")
+	if err := f.engine.Resume(t.Context()); err != nil && !strings.Contains(err.Error(), "reconnect") {
+		t.Logf("resume: %v", err)
+	}
+	waitChange(t, c, change.GetId(), "charlie's upgrade waits", func(ch *dockwellv1.Change) bool {
+		return slices.ContainsFunc(ch.GetSteps(), func(st *dockwellv1.StepProgress) bool {
+			return st.GetServerId() == charlie.id.ServerID && st.GetState() == dockwellv1.StepState_STEP_STATE_WAITING
+		})
+	})
+	charlie.upgraded(t, f, "0.9.4")
+	if err := f.engine.Resume(t.Context()); err != nil && !strings.Contains(err.Error(), "reconnect") {
+		t.Logf("resume: %v", err)
+	}
+	done := waitChange(t, c, change.GetId(), "the end", func(ch *dockwellv1.Change) bool {
+		return ch.GetState() == dockwellv1.ChangeState_CHANGE_STATE_APPLIED || ch.GetState() == dockwellv1.ChangeState_CHANGE_STATE_FAILED
+	})
+	if done.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("the change ended %v: %s", done.GetState(), done.GetError())
+	}
+	if asked := bravo.upgrader.upgrades(); len(asked) != 0 {
+		t.Errorf("bravo, in no wave, was upgraded: %v", asked)
+	}
+}
+
+// A server that doesn't come back fails its change, and the waves after it are
+// skipped, as a run that stops at a failure skips the rest (ADR 0094, review L6).
+func TestALostServerSkipsTheWavesAfterIt(t *testing.T) {
+	was := revision.RebootLimit
+	revision.RebootLimit = 300 * time.Millisecond
+	t.Cleanup(func() { revision.RebootLimit = was })
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	c := changeClient(b, b.origin)
+	alpha := f.addFleetServer(t, "alpha", false)
+	bravo := f.addFleetServer(t, "bravo", false)
+	res, err := c.PlanReboot(t.Context(), connect.NewRequest(&dockwellv1.PlanRebootRequest{ServerIds: idsOf(alpha, bravo)}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	change := res.Msg.GetChange()
+	proof := stepUpFor(t, b, dockwellv1.StepUpAction_STEP_UP_ACTION_APPLY_ROOT_CHANGE, change.GetId())
+	if _, err := c.ApplyChange(t.Context(), connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: change.GetId(), Fingerprint: change.GetPlan().GetFingerprint(), Proof: proof})); err != nil {
+		t.Fatal(err)
+	}
+	waitChange(t, c, change.GetId(), "alpha's reboot waits", func(ch *dockwellv1.Change) bool {
+		return slices.ContainsFunc(ch.GetSteps(), func(st *dockwellv1.StepProgress) bool {
+			return st.GetServerId() == alpha.id.ServerID && st.GetState() == dockwellv1.StepState_STEP_STATE_WAITING
+		})
+	})
+	alpha.stop()
+	time.Sleep(revision.RebootLimit)
+	if err := f.engine.FailLostReboots(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	got := getChange(t, c, change.GetId())
+	if got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_FAILED {
+		t.Fatalf("past the limit the change is %v", got.GetState())
+	}
+	for _, st := range got.GetSteps() {
+		if st.GetServerId() == bravo.id.ServerID && st.GetState() != dockwellv1.StepState_STEP_STATE_SKIPPED {
+			t.Errorf("bravo's step is %v, want skipped", st.GetState())
+		}
 	}
 }

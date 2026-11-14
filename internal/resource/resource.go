@@ -888,10 +888,12 @@ type AgentUpgradeAsked struct {
 	Version string
 	// ScriptSHA256 is the install script's SHA-256, in hex.
 	ScriptSHA256 string
-	// Script is the install script, which only a step's apply carries, and Mirror
-	// the mirror it downloads the release from, when it isn't GitHub.
-	Script []byte `json:"-"`
-	Mirror string `json:"-"`
+	// Script is the install script, which only a step's apply carries, Mirror the
+	// mirror it downloads the release from, when it isn't GitHub, and CosignMirror
+	// the one it downloads cosign from.
+	Script       []byte `json:"-"`
+	Mirror       string `json:"-"`
+	CosignMirror string `json:"-"`
 }
 
 // AgentUpgrader is a kind that upgrades its server's agent as a step of a change:

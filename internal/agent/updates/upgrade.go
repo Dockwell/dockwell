@@ -36,6 +36,11 @@ import (
 // upgradeUnit names the transient unit an upgrade runs in.
 const upgradeUnit = "dockwell-upgrade"
 
+// upgradeStale is how long an upgrade's script may run without leaving its status
+// before another may start: past the control plane's limit for the step, as a script
+// killed before it ended never leaves one.
+const upgradeStale = 30 * time.Minute
+
 // releaseVersion is what a release's version looks like, without its "v": the
 // script takes it as an argument, so nothing else passes. It's made on first use.
 var releaseVersion = sync.OnceValue(func() *regexp.Regexp {
@@ -43,8 +48,9 @@ var releaseVersion = sync.OnceValue(func() *regexp.Regexp {
 })
 
 // upgradeWrapper runs the script with its arguments, then removes it and leaves its
-// status: $1 is the script, $2 the version, $3 the mirror or "", $4 the status file.
-const upgradeWrapper = `sh "$1" --version "$2" ${3:+--mirror "$3"}
+// status: $1 is the script, $2 the version, $3 the mirror or "", $4 the status file,
+// $5 cosign's mirror or "".
+const upgradeWrapper = `sh "$1" --version "$2" ${3:+--mirror "$3"} ${5:+--cosign-mirror "$5"}
 code=$?
 rm -f "$1"
 echo "$code" > "$4.new" && mv "$4.new" "$4"
@@ -137,8 +143,10 @@ func (u *Upgrader) Upgrade(ctx context.Context, ask resource.AgentUpgradeAsked) 
 	if len(ask.Script) == 0 || subtle.ConstantTimeCompare([]byte(hex.EncodeToString(sum[:])), []byte(ask.ScriptSHA256)) != 1 {
 		return errors.New("the install script it was sent isn't the one its plan named by SHA-256, so it didn't run. Plan the upgrade again")
 	}
-	if strings.ContainsAny(ask.Mirror, " \t\r\n") {
-		return fmt.Errorf("%q isn't a mirror's URL, so the agent wasn't upgraded", ask.Mirror)
+	for _, m := range []string{ask.Mirror, ask.CosignMirror} {
+		if strings.ContainsAny(m, " \t\r\n") {
+			return fmt.Errorf("%q isn't a mirror's URL, so the agent wasn't upgraded", m)
+		}
 	}
 	if m, ok := u.readMark(); ok && m.Change == ask.Change {
 		code, ended := u.ended()
@@ -153,6 +161,14 @@ func (u *Upgrader) Upgrade(ctx context.Context, ask resource.AgentUpgradeAsked) 
 		}
 		return fmt.Errorf("the install script ended with status %d, and the agent still runs %s: %s", code, u.Own(), said)
 	}
+	// One upgrade at a time: another change's script that hasn't left its status
+	// still runs, as nothing else keeps two from running at once without systemd's
+	// unit. One that started long ago and never left one is taken as gone.
+	if m, ok := u.readMark(); ok && m.Change != ask.Change {
+		if _, ended := u.ended(); !ended && u.now().Sub(m.Started) < upgradeStale {
+			return fmt.Errorf("the upgrade to %s that %s asked for still runs here, so this one didn't start. Try again once it ends", m.To, m.Change)
+		}
+	}
 	if err := u.prepare(ask.Script); err != nil {
 		return fmt.Errorf("can't keep the install script where only root reads it, so it didn't run: %w", err)
 	}
@@ -163,7 +179,7 @@ func (u *Upgrader) Upgrade(ctx context.Context, ask resource.AgentUpgradeAsked) 
 	if err := writeSynced(u.file("mark.json"), b); err != nil {
 		return fmt.Errorf("can't keep a mark of the upgrade, so it didn't start: %w", err)
 	}
-	argv := []string{"/bin/sh", "-c", upgradeWrapper, "sh", u.file("install.sh"), ask.Version, ask.Mirror, u.file("status")}
+	argv := []string{"/bin/sh", "-c", upgradeWrapper, "sh", u.file("install.sh"), ask.Version, ask.Mirror, u.file("status"), ask.CosignMirror}
 	if err := u.start(ctx, argv); err != nil {
 		u.Forget(ask.Change)
 		return fmt.Errorf("can't start the install script: %w", err)

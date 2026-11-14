@@ -583,6 +583,13 @@ write_service() {
 	openrc_mirror=
 	[ -z "${mirror:-}" ] || openrc_mirror=": \"\${DOCKWELL_MIRROR:=$mirror}\"
 export DOCKWELL_MIRROR"
+	# So does a mirror of cosign's releases, which an agent's upgrade from the control
+	# plane runs this script with again.
+	cosign_env=
+	[ -z "${cosign_mirror:-}" ] || cosign_env="Environment=\"DOCKWELL_COSIGN_MIRROR=$(printf '%s' "$cosign_mirror" | sed 's/%/%%/g')\""
+	openrc_cosign=
+	[ -z "${cosign_mirror:-}" ] || openrc_cosign=": \"\${DOCKWELL_COSIGN_MIRROR:=$cosign_mirror}\"
+export DOCKWELL_COSIGN_MIRROR"
 	case $init in
 	systemd)
 		put "$UNIT" 0644 <<EOF
@@ -602,6 +609,7 @@ ExecStart=$BIN run
 # A soft limit sized from the 250 MB budget for the control plane and its agent.
 Environment=GOMEMLIMIT=$MEMORY_LIMIT
 $mirror_env
+$cosign_env
 Restart=always
 RestartSec=5s
 # The control plane reads a Compose file in a child it limits, and the kernel may
@@ -631,6 +639,7 @@ error_log="$OPENRC_LOG"
 : "\${GOMEMLIMIT:=$MEMORY_LIMIT}"
 export GOMEMLIMIT
 $openrc_mirror
+$openrc_cosign
 
 depend() {
 	use net

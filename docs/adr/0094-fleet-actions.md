@@ -37,9 +37,14 @@ What exists already:
 - **The plan holds the waves,** as server IDs in order: the canary is the first server by name, then the rest by name. The plan sheet shows them, and the fingerprint covers them, so what's applied is the order that was reviewed.
 - **The engine runs the queue by wave.** Wave 2's steps start only once each step of wave 1 has passed and the pause is over.
   - While it pauses, the change is applying and says until when. A timer resumes it, and a control plane that restarts mid-pause resumes it at the time recorded.
+  - The pause counts from when the wave before ended, by the plan's numbering of the waves and the steps' record, never the run's: a run that resumes partway, as after a restart or a server that came back, keeps it. A step a resume finds done ends then.
+  - A resume runs only the steps left in the reviewed waves: none that ended, and none on a server that took no step when the plan was reviewed, though it would now.
   - Within a wave, servers go one after another in this decision's first slice, as every change's steps go today. The second slice runs a wave's servers side by side, up to its batch, each server's own steps still in order. That's the engine's one real change: the queue runs one step at a time now, and a host step that waits (a reboot, an upgrade) suspends the run.
 - **On a failure with `keep_going` off,** the change fails with the step that failed, and every step after it is skipped. What passed stays: an install or an upgrade can't be undone, and a unit action can (ADR 0082). The change's page says which servers passed, which failed and which weren't touched.
 - **With `keep_going` on,** a failed step is recorded and the next server goes on. The change still ends failed, listing every server that failed.
+  - It counts every failure on the change's record, from every run of it, as a resume runs only what's left.
+  - A server that's gone before its turn is a failure like any other, and the change waits for no server whose steps have all ended.
+  - A server that doesn't come back within the limit fails the change, and the steps that never began are skipped, as after any failure.
 - **A set of one** has no rollout, and its plan says nothing of waves, as today.
 
 ### Upgrading an agent
@@ -47,7 +52,7 @@ What exists already:
 - **To the control plane's version, and no other,** as an agent works best with the control plane it was built with. A server whose agent runs it already takes no step, and the plan says so. The control server is never in an agent upgrade: its agent is the control plane, which upgrades by running the install script on it, as now.
 - **An agent from before fleet upgrades can't upgrade itself,** as it doesn't run the script a change carries. It's left out of the change, which says so, and the install script on its server upgrades it once; later upgrades come from the panel. An agent that runs the version already, or a newer one, takes no step.
 - **A build that isn't a release can't be upgraded to.** `PlanAgentUpgrade` refuses it, saying the control plane runs a development build, and the panel doesn't offer the action.
-- **The script is the control plane's own.** The full build embeds `scripts/install.sh` from its own source, which the release ships unchanged. The plan carries that script to each agent, with the version and the release mirror the control plane uses. The script then checks the release with its pinned cosign, as an install does.
+- **The script is the control plane's own.** The full build embeds `scripts/install.sh` from its own source, which the release ships unchanged. The plan carries that script to each agent, with the version and the mirrors the control plane uses, of the release and of cosign. The install script keeps both in the service's environment, so each upgrade passes them on. The script then checks the release with its pinned cosign, as an install does.
   - Nothing fetches a script from the network.
   - The agent build carries no verifier of its own, and so gains no memory.
 - **The agent runs it outside its own service,** since the script restarts that service:
@@ -57,6 +62,7 @@ What exists already:
 - **The step passes once the agent connects at the version asked,** as a reboot's passes once its agent connects from another boot.
   - A script that ends with the agent at its old version fails the step, with the script's last lines, which the agent keeps beside its status until the step reads them.
   - An agent that's away for 15 minutes fails the step too, as `RebootLimit` does.
+  - One upgrade runs at a time on a server: another change's is refused while an earlier script hasn't left its status, unless that one started more than 30 minutes ago, as a script killed before it ended never leaves one. Under systemd, the transient unit's name holds the same line.
 - **It's as good as root,** so applying takes a person's passkey and no token, as installing updates does. An upgrade can't be undone, and the plan says so.
 
 ### Picking servers in the panel
