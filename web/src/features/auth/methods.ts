@@ -173,9 +173,11 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "ImageService.listRegistryLogins": "read",
   "ImageService.searchImages": "may",
 
-  "ImportService.importCoolify": "unused",
-  "ImportService.importDokploy": "unused",
+  "ImportService.importCoolify": { within: "ImportService.importOnePanel" },
+  "ImportService.importDokploy": { within: "ImportService.importOnePanel" },
   "ImportService.importOnePanel": "may",
+  "ImportService.planStartPanel": { within: "ImportService.importOnePanel" },
+  "ImportService.planStopPanel": "may",
 
   "LogService.listLogSources": "read",
   "LogService.readLogs": "read",

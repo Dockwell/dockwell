@@ -135,6 +135,8 @@ ImageService.SearchImages                      read         developer  developer
 ImportService.ImportCoolify                    plan         admin      admin      install
 ImportService.ImportDokploy                    plan         admin      admin      install
 ImportService.ImportOnePanel                   plan         admin      admin      install
+ImportService.PlanStartPanel                   plan         admin      admin      install  session
+ImportService.PlanStopPanel                    plan         admin      admin      install  session
 LogService.ListLogSources                      read         viewer     viewer     project
 LogService.ReadLogs                            read         viewer     viewer     project
 LogService.WatchLogs                           read         viewer     viewer     project

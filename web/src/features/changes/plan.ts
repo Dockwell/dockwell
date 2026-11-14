@@ -7,6 +7,7 @@ import {
   FieldOp,
   type HostAccess,
   HostAccessKind,
+  type HostPanel,
   type HostUnit,
   IngressChange,
   type Intent,
@@ -56,6 +57,19 @@ export function unitOf(plan: Plan | undefined): HostUnit | undefined {
     for (const step of s.steps) if (step.unit) return step.unit;
   }
   return plan?.resources.find((r) => r.unit)?.unit;
+}
+
+/** What a plan does to the panel an import came from, for a server's host (ADR 0089), if it stops or starts one. */
+export function panelOf(plan: Plan | undefined): HostPanel | undefined {
+  for (const s of plan?.servers ?? []) {
+    for (const step of s.steps) if (step.panel) return step.panel;
+  }
+  return plan?.resources.find((r) => r.panel)?.panel;
+}
+
+/** Whether a plan starts a panel or its proxy again, which puts back a stop and has no undo of its own. */
+export function panelStartsAgain(plan: Plan | undefined): boolean {
+  return panelOf(plan)?.start === true;
 }
 
 /** Whether a plan acts on a system service and has no undo: a restart or a reload puts nothing back. */

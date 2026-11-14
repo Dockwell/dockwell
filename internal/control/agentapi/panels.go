@@ -18,6 +18,10 @@ const PanelTimeout = time.Minute
 // ReadsPanels reports an agent that reads what Coolify or Dokploy runs (ADR 0089).
 func (s *Session) ReadsPanels() bool { return s.readsPanels }
 
+// StopsPanels reports an agent that stops and starts Coolify's or Dokploy's own
+// containers as a step of a change.
+func (s *Session) StopsPanels() bool { return s.stopsPanels }
+
 // ReadPanel asks the agent what a panel runs on its server, read-only, from Docker
 // and the panel's folders.
 func (s *Session) ReadPanel(ctx context.Context, kind dockwellv1.PanelKind) (*agentv1.ReadPanelResult, error) {

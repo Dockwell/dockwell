@@ -81,6 +81,83 @@ service ImportService {
       body: "*"
     };
   }
+
+  // PlanStartPanel plans starting the panel an import came from again: each of
+  // its own containers or services that's stopped starts, a container with the
+  // restart policy its installer gives it where a stop left it at no. It's the
+  // way back where no undo is: a change that failed partway, or an undo after
+  // its window. A person applies it.
+  rpc PlanStartPanel(PlanStartPanelRequest) returns (PlanStartPanelResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "import"
+      verb: "start-panel"
+    };
+    option (google.api.http) = {
+      post: "/v1/servers/{server_id}/imports:startPanel"
+      body: "*"
+    };
+  }
+
+  // PlanStopPanel plans stopping the panel an import came from: Coolify's own
+  // containers, or Dokploy's own Swarm services, never what it ran, so its auto
+  // deploys and its scheduled tasks stop with it. Its proxy goes on running, as it
+  // serves the domains of what was taken on until those come as routes. Each
+  // container's restart policy becomes "no", so it stays stopped with Docker and
+  // the server. It's an edit of the server's host that makes no revision, as an
+  // action on a system service is; nothing of the panel is deleted, and undoing
+  // it starts each again as it stood. A person applies it.
+  rpc PlanStopPanel(PlanStopPanelRequest) returns (PlanStopPanelResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "import"
+      verb: "stop-panel"
+    };
+    option (google.api.http) = {
+      post: "/v1/servers/{server_id}/imports:stopPanel"
+      body: "*"
+    };
+  }
+}
+
+// PlanStartPanelRequest names the server and the panel to start there again.
+message PlanStartPanelRequest {
+  // The server the panel runs on, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+  string server_id = 1;
+  // The panel to start.
+  PanelKind panel = 2;
+  // What the change is for, for the timeline. Empty says what it starts.
+  string summary = 3;
+}
+
+// PlanStartPanelResponse carries the planned start.
+message PlanStartPanelResponse {
+  // The change, planned for a person to apply.
+  Change change = 1;
+}
+
+// PlanStopPanelRequest names the server and the panel to stop there.
+message PlanStopPanelRequest {
+  // The server the panel runs on, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+  string server_id = 1;
+  // The panel to stop.
+  PanelKind panel = 2;
+  // What the change is for, for the timeline. Empty says what it stops.
+  string summary = 3;
+}
+
+// PlanStopPanelResponse carries the planned stop.
+message PlanStopPanelResponse {
+  // The change, planned for a person to apply.
+  Change change = 1;
 }
 
 // ImportCoolifyRequest names the server to import from.

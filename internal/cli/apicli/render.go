@@ -842,6 +842,9 @@ func PlanView(w io.Writer, p *dockwellv1.Plan) {
 			for _, line := range staysWords(st.GetStays(), s.GetServerName()) {
 				fmt.Fprintln(tw, "      "+line)
 			}
+			for _, line := range panelWords(st.GetPanel(), s.GetServerName()) {
+				fmt.Fprintln(tw, "      "+line)
+			}
 			if st.GetResource().GetKind() == "fail2ban.jail" && st.GetAction() != dockwellv1.PlanAction_PLAN_ACTION_DELETE {
 				for _, line := range jailWords(st.GetJail(), s.GetServerName()) {
 					fmt.Fprintln(tw, "      "+line)
@@ -886,6 +889,39 @@ func PlanView(w io.Writer, p *dockwellv1.Plan) {
 		}
 		fmt.Fprintf(w, "%s: %s.\n", label, message)
 	}
+}
+
+// panelWords says what a step that stops or starts the panel an import came from
+// does (ADR 0089): what it stops, that each stays stopped, what goes on running,
+// and what a start puts back.
+func panelWords(p *dockwellv1.HostPanel, server string) []string {
+	if p == nil {
+		return nil
+	}
+	name := resource.PanelName(p.GetKind())
+	var containers, services []string
+	for _, part := range p.GetParts() {
+		if part.GetSwarm() {
+			services = append(services, part.GetName())
+		} else {
+			containers = append(containers, part.GetName())
+		}
+	}
+	if p.GetStart() {
+		return []string{fmt.Sprintf("Starts %s's own containers again on %s, each as it stood before the stop: %s.", name, server, human.List(append(containers, services...)))}
+	}
+	var out []string
+	if len(containers) > 0 {
+		out = append(out, fmt.Sprintf("Stops %s, and sets each one's restart policy to no, so it stays stopped when Docker or %s restarts.", human.List(containers), server))
+	}
+	if len(services) > 0 {
+		out = append(out, fmt.Sprintf("Scales the Swarm services %s to none.", human.List(services)))
+	}
+	if stays := p.GetStays(); stays != "" {
+		out = append(out, stays+" goes on running: it serves the domains of what was taken on until those come as routes.")
+	}
+	out = append(out, fmt.Sprintf("What %s ran goes on running, and nothing of %s is deleted. Undoing this starts it again as it was.", name, name))
+	return out
 }
 
 // restoreWords says what a step that restores a volume does: what it replaces, what
