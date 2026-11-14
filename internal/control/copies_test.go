@@ -26,6 +26,7 @@ import (
 // sendingTo is a server with data on it, and a destination called r2 to send it to.
 type sendingTo struct {
 	f        *fullServer
+	b        *browser
 	c        dockwellv1connect.ChangeServiceClient
 	bc       dockwellv1connect.BackupServiceClient
 	events   dockwellv1connect.EventServiceClient
@@ -38,7 +39,7 @@ func startSending(t *testing.T, backend store.Backend) *sendingTo {
 	f := startFull(t, backend, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)
-	s := &sendingTo{f: f, c: changeClient(b, b.origin), bc: backupClient(b, b.origin), events: eventClient(b, b.origin), bucket: s3test.New(t)}
+	s := &sendingTo{f: f, b: b, c: changeClient(b, b.origin), bc: backupClient(b, b.origin), events: eventClient(b, b.origin), bucket: s3test.New(t)}
 	var dir string
 	s.volumeID, dir = webWithData(t, e, s.c)
 	writeData(t, dir, "orders.db", "the orders")

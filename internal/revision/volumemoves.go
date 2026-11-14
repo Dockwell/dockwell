@@ -29,8 +29,9 @@ func movesWhole(items []item) error {
 			continue
 		}
 		from := slices.IndexFunc(items, func(o item) bool { return o.ref == it.moveFrom })
-		// A link moved is the one it was, for the backups taken for it.
-		if it.ref.Kind == linkKind && it.moveFrom.Kind == linkKind {
+		// A link or a policy moved is the one it was, for the backups taken for it
+		// or by it.
+		if movedRecord(it.ref.Kind) && it.moveFrom.Kind == it.ref.Kind {
 			if it.spec == nil || it.moveFrom.Scope == it.ref.Scope || from < 0 || items[from].spec != nil {
 				return fault.New(ErrInvalid, "%s is %s moved only as the change makes it in another environment and deletes %s", it.ref, it.moveFrom, it.moveFrom.Name)
 			}
@@ -51,6 +52,11 @@ func movesWhole(items []item) error {
 	}
 	return nil
 }
+
+// movedRecord says a kind's backups are filed under it, so one moved takes them:
+// a link the backups taken for it, a backup policy those it took (the review of
+// #572, its N2).
+func movedRecord(kind resource.Kind) bool { return kind == linkKind || kind == policyKind }
 
 // moveFromIn is the volume whose data change c moves into ref, as its plan says.
 func moveFromIn(c store.Change, ref resource.Ref) resource.Ref {

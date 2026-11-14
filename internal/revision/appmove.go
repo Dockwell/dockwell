@@ -651,8 +651,9 @@ func (e *Engine) moveEdits(from, to *moveFrom, ask AppMove, moving, copies map[r
 			there.Servers = slices.Compact(slices.Sorted(slices.Values(slices.Concat(shared.placed, it.placed))))
 		}
 		if moving[ref] {
-			// A volume takes its data with it, and a link the backups taken for it.
-			if ref.Kind == volumeKind || ref.Kind == linkKind {
+			// A volume takes its data with it, and a link or a backup policy the
+			// backups taken for it or by it.
+			if ref.Kind == volumeKind || movedRecord(ref.Kind) {
 				there.MoveFrom = ref
 			}
 			edits = append(edits, Edit{Ref: ref, Base: it.base})

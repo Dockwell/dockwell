@@ -339,3 +339,62 @@ func TestAValueHeldIsWrittenOut(t *testing.T) {
 		t.Errorf("the URL is written out as %q", got)
 	}
 }
+
+// A move files the volume's backups under the volume its data moved into, through
+// the change's run: on the server it moved on as its data moves, and on any other,
+// as the change is applied; undoing it files them back (the review of #572, its N3
+// and N4).
+func TestAMoveFilesTheVolumesBackupsWithIt(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		x := newMoveBench(t, b)
+		volumeID := func(env string) string {
+			t.Helper()
+			var id string
+			if err := x.e.db.View(t.Context(), func(tx *store.Tx) error {
+				r, err := tx.GetResource(t.Context(), string(volume.Kind), env, "data")
+				id = r.ID
+				return err
+			}); err != nil {
+				t.Fatal(err)
+			}
+			return id
+		}
+		old := volumeID(x.prod)
+		now := time.Now().UTC().Truncate(time.Millisecond)
+		if err := x.e.db.Update(t.Context(), func(tx *store.Tx) error {
+			for _, server := range []string{"srv_A", "srv_B"} {
+				if err := tx.CreateBackup(t.Context(), store.Backup{ID: "bkp_" + server, EnvironmentID: x.prod, Volume: "data", VolumeID: old, ServerID: server, State: store.BackupDone, Actor: "usr_test", StartedAt: now}); err != nil {
+					return err
+				}
+			}
+			return nil
+		}); err != nil {
+			t.Fatal(err)
+		}
+		filed := func(env, volumeID string) {
+			t.Helper()
+			_ = x.e.db.View(t.Context(), func(tx *store.Tx) error {
+				for _, id := range []string{"bkp_srv_A", "bkp_srv_B"} {
+					got, err := tx.GetBackup(t.Context(), id)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if got.EnvironmentID != env || got.VolumeID != volumeID {
+						t.Errorf("%s is filed under %s %s, want %s %s", id, got.EnvironmentID, got.VolumeID, env, volumeID)
+					}
+				}
+				return nil
+			})
+		}
+		p := propose(t, x.e, "Move web", move(x.prod, x.staging, "nginx:1.27")...)
+		apply(t, x.e, p)
+		filed(x.staging, volumeID(x.staging))
+
+		undo, err := x.e.Undo(t.Context(), p.Change, By{Actor: "usr_test", Via: ViaPanel})
+		if err != nil {
+			t.Fatal(err)
+		}
+		apply(t, x.e, undo)
+		filed(x.prod, old)
+	})
+}

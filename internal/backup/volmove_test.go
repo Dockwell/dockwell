@@ -263,7 +263,7 @@ func TestAMoveKeepsAVolumesOptions(t *testing.T) {
 			t.Fatal(err)
 		}
 		spec := &resourcev1.Volume{Driver: made.Driver, Options: made.DriverOpts}
-		if _, _, err := b.runner.JudgeMoveData(t.Context(), src.Name, to, spec); err == nil || !strings.Contains(err.Error(), "may not reach the same data") {
+		if _, _, err := b.runner.JudgeMoveData(t.Context(), src.Name, to, spec); err == nil || !strings.Contains(err.Error(), "which Dockwell can't move between projects yet") {
 			t.Errorf("moving %s = %v", name, err)
 		}
 	}

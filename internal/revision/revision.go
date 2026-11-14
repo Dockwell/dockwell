@@ -4265,9 +4265,13 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 		// A volume's backups on the server are the one's its data moved into, in its
 		// environment, as soon as it has: undoing the move moves them back the same way
 		// (ADR 0084, #572).
+		// One that can't be filed so stops the change, which moves the data back, so
+		// what's on record and where the data is never part (the review of #572, its N4).
 		if q.step.VolumeMove != nil && it.moveFrom.Kind == volumeKind {
 			if from := byRef[it.moveFrom]; from != nil {
-				e.refile(ctx, c.ID, store.Refile{Server: q.server, FromVolume: from.id, ToVolume: it.id, ToEnvironment: it.ref.Scope})
+				if err := e.refile(ctx, store.Refile{Server: q.server, FromVolume: from.id, ToVolume: it.id, ToEnvironment: it.ref.Scope}); err != nil {
+					return stop(qi, fault.New(ErrInvalid, "moved the data of %s into %s, but can't file its backups under it, so the change stopped: %v. Try again", it.moveFrom.Name, it.ref.Name, err), false)
+				}
 			}
 		}
 		if q.backupOnly {
@@ -4331,16 +4335,31 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 		}
 		return reconnects(names)
 	}
-	// A removal's last act is the server leaving the fleet, as the change is
-	// applied (ADR 0090).
-	// The backups taken for a link a change moved are the moved one's (ADR 0084).
+	// As the change is applied, the backups of a volume it moved, on any server, of
+	// a link it moved, or by a policy it moved, are the moved one's (ADR 0084); and a removal's last act is the
+	// server leaving the fleet (ADR 0090).
 	then := func(tx *store.RevisionTx) error {
 		for i := range items {
 			it := &items[i]
-			if from := byRef[it.moveFrom]; it.ref.Kind == linkKind && it.moveFrom.Kind == linkKind && from != nil {
-				if _, err := tx.RefileBackups(ctx, store.Refile{FromLink: from.id, ToLink: it.id}); err != nil {
-					return err
-				}
+			from := byRef[it.moveFrom]
+			if from == nil || it.moveFrom.Kind != it.ref.Kind {
+				continue
+			}
+			var r store.Refile
+			switch it.ref.Kind {
+			case volumeKind:
+				// What's on record of it on servers it didn't move on is the app's
+				// history too (the review of #572, its N3).
+				r = store.Refile{FromVolume: from.id, ToVolume: it.id, ToEnvironment: it.ref.Scope}
+			case linkKind:
+				r = store.Refile{FromLink: from.id, ToLink: it.id}
+			case policyKind:
+				r = store.Refile{FromPolicy: from.id, ToPolicy: it.id}
+			default:
+				continue
+			}
+			if _, err := tx.RefileBackups(ctx, r); err != nil {
+				return err
 			}
 		}
 		if rm := r.plan.Removes; rm != nil && !rm.Compromised {
@@ -4358,16 +4377,12 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 	return nil
 }
 
-// refile files backups as r says, once a step has moved what they're of. What can't
-// be written is logged, not fatal: the data has moved either way.
-func (e *Engine) refile(ctx context.Context, changeID string, r store.Refile) {
-	err := e.db.Update(ctx, func(tx *store.Tx) error {
+// refile files backups as r says, once a step has moved what they're of.
+func (e *Engine) refile(ctx context.Context, r store.Refile) error {
+	return e.db.Update(ctx, func(tx *store.Tx) error {
 		_, err := tx.RefileBackups(ctx, r)
 		return err
 	})
-	if err != nil {
-		e.logger.ErrorContext(ctx, "can't file a moved volume's backups under the volume it moved into, so they stay listed under the old one", slog.String("change", changeID), slog.String("from", r.FromVolume), slog.String("to", r.ToVolume), slog.Any("error", err))
-	}
 }
 
 // pulledNewer puts a newer image a pull found on record, before anything is

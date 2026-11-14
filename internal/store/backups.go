@@ -101,27 +101,41 @@ func (t *Tx) MoveBackup(ctx context.Context, id, serverID string) error {
 }
 
 // Refile says the backups of one thing are another's now, as moving an app to
-// another project moves its volumes and its links (ADR 0084, #572): on Server, those
-// of the volume FromVolume are ToVolume's, in ToEnvironment, and their drills with
-// them; and those taken for the link FromLink are ToLink's.
+// another project moves its volumes and its links (ADR 0084, #572): on Server, or on
+// every server when it's empty, those of the volume FromVolume are ToVolume's, in
+// ToEnvironment, and their drills with them; those taken for the link FromLink are ToLink's; and those the policy
+// FromPolicy took are ToPolicy's, so its retention keeps counting them.
 type Refile struct {
 	Server, FromVolume, ToVolume, ToEnvironment string
 	FromLink, ToLink                            string
+	FromPolicy, ToPolicy                        string
 }
 
 // RefileBackups files backups as r says, and returns how many it moved.
 func (t *Tx) RefileBackups(ctx context.Context, r Refile) (int64, error) {
 	var moved int64
 	if r.FromVolume != "" && r.ToVolume != "" {
-		res, err := t.exec(ctx, `UPDATE backups SET volume_id = ?, environment_id = ? WHERE volume_id = ? AND server_id = ?`, r.ToVolume, r.ToEnvironment, r.FromVolume, r.Server)
+		where, args := `volume_id = ?`, []any{r.ToVolume, r.ToEnvironment, r.FromVolume}
+		if r.Server != "" {
+			where, args = where+` AND server_id = ?`, append(args, r.Server)
+		}
+		res, err := t.exec(ctx, `UPDATE backups SET volume_id = ?, environment_id = ? WHERE `+where, args...)
 		if err != nil {
 			return 0, fmt.Errorf("can't file volume %s's backups under %s: %w", r.FromVolume, r.ToVolume, err)
 		}
 		n, _ := res.RowsAffected()
 		moved += n
-		if _, err := t.exec(ctx, `UPDATE backup_drills SET volume_id = ?, environment_id = ? WHERE volume_id = ? AND server_id = ?`, r.ToVolume, r.ToEnvironment, r.FromVolume, r.Server); err != nil {
+		if _, err := t.exec(ctx, `UPDATE backup_drills SET volume_id = ?, environment_id = ? WHERE `+where, args...); err != nil {
 			return 0, fmt.Errorf("can't file volume %s's drills under %s: %w", r.FromVolume, r.ToVolume, err)
 		}
+	}
+	if r.FromPolicy != "" && r.ToPolicy != "" {
+		res, err := t.exec(ctx, `UPDATE backups SET policy_id = ? WHERE policy_id = ?`, r.ToPolicy, r.FromPolicy)
+		if err != nil {
+			return 0, fmt.Errorf("can't file policy %s's backups under %s: %w", r.FromPolicy, r.ToPolicy, err)
+		}
+		n, _ := res.RowsAffected()
+		moved += n
 	}
 	if r.FromLink != "" && r.ToLink != "" {
 		res, err := t.exec(ctx, `UPDATE backups SET for_link = ? WHERE for_link = ?`, r.ToLink, r.FromLink)
