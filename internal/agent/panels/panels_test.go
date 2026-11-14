@@ -517,6 +517,13 @@ func TestAFileReadInPartKeepsItsDomainsBehind(t *testing.T) {
 		"vpnflow-k2m4.yml": "http:\n  routers:\n    shop:\n      rule: Host(`shop.example.com`)\n      entryPoints: [websecure, \"internal\"]\n      service: shop\n" + service,
 		"web-k2m4.yml":     "http:\n  routers:\n    shop:\n      rule: Host(`shop.example.com`)\n      entryPoints:\n      - web\n      - websecure\n      middlewares: []\n      service: shop\n      tls:\n        certResolver: letsencrypt\n" + service,
 		"mtls-k2m4.yml":    "http:\n  routers:\n    shop:\n      rule: Host(`shop.example.com`)\n      service: shop\n      tls:\n        options: mtls\n" + service,
+		// A router's fields 4 deeper than it, and its tls's 4 deeper again.
+		"deep-k2m4.yml":      "http:\n  routers:\n    shop:\n        rule: >-\n            Host(`shop.example.com`)\n        service: shop\n        tls:\n            options: mtls\n" + service,
+		"deepok-k2m4.yml":    "http:\n  routers:\n    shop:\n        rule: Host(`shop.example.com`)\n        entryPoints:\n            - websecure\n        service: shop\n        tls:\n            certResolver: letsencrypt\n            domains:\n                - main: shop.example.com\n" + service,
+		"flowtls-k2m4.yml":   "http:\n  routers:\n    shop:\n      rule: Host(`shop.example.com`)\n      service: shop\n      tls: {certResolver: letsencrypt, options: mtls}\n" + service,
+		"misplaced-k2m4.yml": "http:\n  routers:\n    shop:\n      rule: Host(`shop.example.com`)\n      service: shop\n        options: mtls\n" + service,
+		// Indented by 4 throughout: no router is read, so nothing comes over.
+		"four-k2m4.yml": "http:\n    routers:\n        shop:\n            rule: Host(`shop.example.com`)\n            service: shop\n            tls:\n                options: mtls\n",
 	} {
 		if err := os.WriteFile(filepath.Join(dynamic, name), []byte(body), 0o644); err != nil {
 			t.Fatal(err)
@@ -535,14 +542,21 @@ func TestAFileReadInPartKeepsItsDomainsBehind(t *testing.T) {
 		t.Errorf("built %v", built)
 	}
 	for app, left := range map[string]string{
-		"vpn-k2m4":     "Traefik serves it on the entrypoint internal, not ports 80 and 443",
-		"vpnflow-k2m4": "Traefik serves it on the entrypoint internal, not ports 80 and 443",
-		"web-k2m4":     "",
-		"mtls-k2m4":    "its router sets tls.options, which a route can't say",
+		"vpn-k2m4":       "Traefik serves it on the entrypoint internal, not ports 80 and 443",
+		"vpnflow-k2m4":   "Traefik serves it on the entrypoint internal, not ports 80 and 443",
+		"web-k2m4":       "",
+		"mtls-k2m4":      "its router sets tls.options, which a route can't say",
+		"deep-k2m4":      "its router sets tls.options, which a route can't say",
+		"deepok-k2m4":    "",
+		"flowtls-k2m4":   "its router sets tls.options, which a route can't say",
+		"misplaced-k2m4": "its router's fields in /etc/dokploy/traefik/dynamic/misplaced-k2m4.yml aren't indented as Dockwell reads them",
 	} {
 		if got := r.dynamicRoutes(app, ""); len(got) != 1 || got[0].GetLeft() != left {
 			t.Errorf("%s reads %v, want %q", app, got, left)
 		}
+	}
+	if got := r.dynamicRoutes("four-k2m4", ""); len(got) != 1 || got[0].GetDomain() != "shop.example.com" || got[0].GetLeft() != "its file /etc/dokploy/traefik/dynamic/four-k2m4.yml names 1 rules, and Dockwell reads 0 of them" {
+		t.Errorf("a file indented by 4 throughout reads %v", got)
 	}
 }
 

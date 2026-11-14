@@ -833,6 +833,9 @@ func (r Reader) dynamicRoutesFrom(app, task string, files map[string]string, bui
 		if left == "" && rt.other != "" {
 			left = fmt.Sprintf("its router sets %s, which a route can't say", rt.other)
 		}
+		if left == "" && rt.misplaced {
+			left = fmt.Sprintf("its router's fields in %s aren't indented as Dockwell reads them", at)
+		}
 		for _, e := range rt.entrypoints {
 			if left == "" && !slices.Contains(webEntrypoints, e) {
 				left = fmt.Sprintf("Traefik serves it on the entrypoint %s, not ports 80 and 443", e)
@@ -851,6 +854,18 @@ func (r Reader) dynamicRoutesFrom(app, task string, files map[string]string, bui
 				continue
 			}
 			out = append(out, &dockwellv1.PanelRoute{Domain: h, Path: prefix, Container: task, Service: app, Port: f.ports[rt.service], Left: left})
+		}
+	}
+	if unread != "" {
+		// What the file names that no router read did, it names all the same: each
+		// such domain stays behind, and says why, rather than going unlisted.
+		for _, line := range strings.Split(string(b), "\n") {
+			hosts, _, _ := rulesIn(line)
+			for _, h := range hosts {
+				if !slices.ContainsFunc(out, func(o *dockwellv1.PanelRoute) bool { return o.GetDomain() == h }) {
+					out = append(out, &dockwellv1.PanelRoute{Domain: h, Container: task, Service: app, Left: unread})
+				}
+			}
 		}
 	}
 	return sameDomainLeft(out)
@@ -876,6 +891,8 @@ type fileRouter struct {
 	// other is the first field it sets that a route can't say, such as
 	// tls.options, which can ask a client for a certificate.
 	other string
+	// misplaced says a key under it stands where no field of it does.
+	misplaced bool
 	// top is the section it's in: http, tcp or udp.
 	top string
 }
@@ -897,12 +914,15 @@ var ruleKey = sync.OnceValue(func() *regexp.Regexp { return regexp.MustCompile(`
 func readTraefikFile(b []byte) traefikFile {
 	f := traefikFile{routers: map[string]*fileRouter{}, ports: map[string]uint32{}, middlewares: map[string]string{}}
 	top, section, current, list, field := "", "", "", "", ""
+	// Where a router's fields stand, and its tls's, as the first line deeper than
+	// the router's, and than its tls, has them; and where a folded rule's key is.
+	fieldAt, tlsAt, foldAt := -1, -1, -1
 	folding := false
 	for _, line := range strings.Split(string(b), "\n") {
 		trimmed := strings.TrimSpace(line)
 		indent := len(line) - len(strings.TrimLeft(line, " "))
 		if folding {
-			if indent > 6 && trimmed != "" {
+			if indent > foldAt && trimmed != "" {
 				f.routers[current].rule += " " + trimmed
 				continue
 			}
@@ -912,17 +932,11 @@ func readTraefikFile(b []byte) traefikFile {
 		value = strings.Trim(strings.TrimSpace(value), `"'`)
 		lower := strings.ToLower(key)
 		dash := strings.HasPrefix(trimmed, "-")
-		if section == "routers" && current != "" && trimmed != "" && !dash && !strings.HasPrefix(trimmed, "#") {
-			// A router's own field ends the list before it, and one a route can't
-			// say keeps the router behind.
-			switch {
-			case indent == 6:
-				list, field = "", lower
-				if !slices.Contains(fileRouterFields, lower) {
-					f.routers[current].other = cmp.Or(f.routers[current].other, lower)
-				}
-			case indent == 8 && field == "tls" && !slices.Contains(fileTLSFields, lower):
-				f.routers[current].other = cmp.Or(f.routers[current].other, "tls."+lower)
+		if section == "routers" && current != "" && indent > 4 && trimmed != "" && !dash && !strings.HasPrefix(trimmed, "#") {
+			f.routers[current].field(indent, lower, value, &fieldAt, &tlsAt, &field)
+			if indent == fieldAt {
+				// A router's own field ends the list before it.
+				list = ""
 			}
 		}
 		switch {
@@ -934,7 +948,7 @@ func readTraefikFile(b []byte) traefikFile {
 				top = strings.ToLower(key)
 			}
 		case indent == 4 && value == "" && !strings.HasPrefix(trimmed, "-"):
-			current, list = key, ""
+			current, list, field, fieldAt, tlsAt = key, "", "", -1, -1
 			if section == "routers" {
 				// By its section too: an HTTP router and a TCP one may share a name.
 				current = top + ".routers." + key
@@ -959,7 +973,7 @@ func readTraefikFile(b []byte) traefikFile {
 			list = ""
 			rule := strings.TrimSpace(trimmed[len("rule:"):])
 			if rule == ">-" || rule == ">" || rule == "|" || rule == "|-" {
-				rule, folding = "", true
+				rule, folding, foldAt = "", true, indent
 			}
 			f.routers[current].rule = rule
 			f.rules++
@@ -972,6 +986,38 @@ func readTraefikFile(b []byte) traefikFile {
 		}
 	}
 	return f
+}
+
+// field reads a key of a router's, at indent, as a field of its own where it
+// stands where the first did, or under its tls where it stands where tls's first
+// did, keeping the router behind for one a route can't say, and for one that
+// stands anywhere else, which Dockwell can't place: an indent it doesn't read
+// could hide tls.options as a field of something else.
+func (r *fileRouter) field(indent int, key, value string, fieldAt, tlsAt *int, field *string) {
+	switch {
+	case *fieldAt < 0 || indent == *fieldAt:
+		*fieldAt, *tlsAt, *field = indent, -1, key
+		if !slices.Contains(fileRouterFields, key) {
+			r.other = cmp.Or(r.other, key)
+		}
+		if key == "tls" && value != "" {
+			// In flow style: {certResolver: letsencrypt}.
+			for _, part := range strings.Split(strings.Trim(value, "{}"), ",") {
+				if k, _, _ := strings.Cut(part, ":"); strings.TrimSpace(k) != "" && !slices.Contains(fileTLSFields, strings.ToLower(strings.Trim(strings.TrimSpace(k), `"'`))) {
+					r.other = cmp.Or(r.other, "tls."+strings.ToLower(strings.Trim(strings.TrimSpace(k), `"'`)))
+				}
+			}
+		}
+	case indent > *fieldAt && *field == "tls" && (*tlsAt < 0 || indent == *tlsAt):
+		*tlsAt = indent
+		if !slices.Contains(fileTLSFields, key) {
+			r.other = cmp.Or(r.other, "tls."+key)
+		}
+	case indent > *tlsAt && *tlsAt >= 0 && *field == "tls":
+		// Under tls.domains: its main and sans.
+	default:
+		r.misplaced = true
+	}
 }
 
 // add adds an entry to the router's list called list.
