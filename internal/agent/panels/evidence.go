@@ -247,10 +247,28 @@ func stripCaddyScheme(a string) string {
 	return a
 }
 
-// addLabels scans a set of labels, each as key=value, as owner's.
+// addLabels scans a set of labels, each as key=value, as owner's. Where two keys
+// of a router fold to the same, as traefik.http.routers.App.rule and
+// traefik.http.routers.app.rule do, Traefik reads one and the panel's read the
+// other, which can't be told apart, so neither is the router's: each holds its
+// domains back.
 func (s *scan) addLabels(labels map[string]string, owner, who string) {
+	folded := map[string]int{}
+	for k := range labels {
+		folded[strings.ToLower(k)]++
+	}
+	clash := map[string]bool{}
+	for k := range labels {
+		if folded[strings.ToLower(k)] > 1 {
+			clash[labelRouter(k)] = true
+		}
+	}
 	for _, k := range slices.Sorted(maps.Keys(labels)) {
-		s.add(k+"="+labels[k], owner, labelRouter(k), fmt.Sprintf("the label %s on %s", k, who))
+		router := labelRouter(k)
+		if clash[router] {
+			router = ""
+		}
+		s.add(k+"="+labels[k], owner, router, fmt.Sprintf("the label %s on %s", k, who))
 	}
 	s.addCaddy(labels, owner, who)
 }

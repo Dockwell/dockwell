@@ -186,13 +186,13 @@ func TestOnlyAFileOfDokploysIsRead(t *testing.T) {
 		t.Fatal(err)
 	}
 	r := Reader{Root: root}
-	got := r.dynamicRoutes("shop-k2m4", "shop-k2m4.1.x7k2", nil)
+	got := r.dynamicRoutes("shop-k2m4", "shop-k2m4.1.x7k2")
 	if len(got) != 1 || got[0].GetDomain() != "shop.example.com" || got[0].GetPort() != 3000 || got[0].GetService() != "shop-k2m4" || got[0].GetContainer() != "shop-k2m4.1.x7k2" {
 		t.Errorf("a file's routes = %v", got)
 	}
 	done := make(chan []*dockwellv1.PanelRoute, 1)
 	go func() {
-		done <- append(r.dynamicRoutes("linked-k2m4", "", nil), r.dynamicRoutes("piped-k2m4", "", nil)...)
+		done <- append(r.dynamicRoutes("linked-k2m4", ""), r.dynamicRoutes("piped-k2m4", "")...)
 	}()
 	select {
 	case got := <-done:
@@ -512,6 +512,11 @@ func TestAFileReadInPartKeepsItsDomainsBehind(t *testing.T) {
 			"    admin: {rule: \"Host(`shop.example.com`) && PathPrefix(`/admin`)\", service: shop, middlewares: [auth]}\n" + service,
 		"tcp-k2m4.yml": "http:\n  routers:\n    shop:\n      rule: Host(`shop.example.com`)\n      service: shop\n" + service +
 			"tcp:\n  routers:\n    shop:\n      rule: HostSNI(`shop.example.com`)\n      service: shop\n",
+		// A router on an entrypoint of a VPN's alone, in a list or in flow style.
+		"vpn-k2m4.yml":     "http:\n  routers:\n    shop:\n      rule: Host(`shop.example.com`)\n      service: shop\n      entryPoints:\n        - internal\n      tls:\n        certResolver: letsencrypt\n" + service,
+		"vpnflow-k2m4.yml": "http:\n  routers:\n    shop:\n      rule: Host(`shop.example.com`)\n      entryPoints: [websecure, \"internal\"]\n      service: shop\n" + service,
+		"web-k2m4.yml":     "http:\n  routers:\n    shop:\n      rule: Host(`shop.example.com`)\n      entryPoints:\n      - web\n      - websecure\n      middlewares: []\n      service: shop\n      tls:\n        certResolver: letsencrypt\n" + service,
+		"mtls-k2m4.yml":    "http:\n  routers:\n    shop:\n      rule: Host(`shop.example.com`)\n      service: shop\n      tls:\n        options: mtls\n" + service,
 	} {
 		if err := os.WriteFile(filepath.Join(dynamic, name), []byte(body), 0o644); err != nil {
 			t.Fatal(err)
@@ -528,6 +533,16 @@ func TestAFileReadInPartKeepsItsDomainsBehind(t *testing.T) {
 	}
 	if !built.has("file:/etc/dokploy/traefik/dynamic/tcp-k2m4.yml", "http.routers.shop", "shop.example.com") || built.has("file:/etc/dokploy/traefik/dynamic/tcp-k2m4.yml", "tcp.routers.shop", "shop.example.com") {
 		t.Errorf("built %v", built)
+	}
+	for app, left := range map[string]string{
+		"vpn-k2m4":     "Traefik serves it on the entrypoint internal, not ports 80 and 443",
+		"vpnflow-k2m4": "Traefik serves it on the entrypoint internal, not ports 80 and 443",
+		"web-k2m4":     "",
+		"mtls-k2m4":    "its router sets tls.options, which a route can't say",
+	} {
+		if got := r.dynamicRoutes(app, ""); len(got) != 1 || got[0].GetLeft() != left {
+			t.Errorf("%s reads %v, want %q", app, got, left)
+		}
 	}
 }
 

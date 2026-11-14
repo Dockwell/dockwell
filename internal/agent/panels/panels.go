@@ -804,8 +804,8 @@ const maxDynamic = 256 << 10
 // container runs it. A router behind a middleware other than Dokploy's redirect
 // to HTTPS, such as the basic auth its Security tab adds, or with a rule a route
 // can't say, keeps its domain behind, saying why.
-func (r Reader) dynamicRoutes(app, task string, files map[string]string) []*dockwellv1.PanelRoute {
-	return r.dynamicRoutesFrom(app, task, files, nil)
+func (r Reader) dynamicRoutes(app, task string) []*dockwellv1.PanelRoute {
+	return r.dynamicRoutesFrom(app, task, nil, nil)
 }
 
 // dynamicRoutesFrom is dynamicRoutes, saying in built which router of the file
@@ -830,6 +830,14 @@ func (r Reader) dynamicRoutesFrom(app, task string, files map[string]string, bui
 			continue
 		}
 		hosts, prefix, left := plainRule(rt.rule)
+		if left == "" && rt.other != "" {
+			left = fmt.Sprintf("its router sets %s, which a route can't say", rt.other)
+		}
+		for _, e := range rt.entrypoints {
+			if left == "" && !slices.Contains(webEntrypoints, e) {
+				left = fmt.Sprintf("Traefik serves it on the entrypoint %s, not ports 80 and 443", e)
+			}
+		}
 		if left == "" {
 			left = middlewaresLeft(nil, rt.middlewares, files)
 		}
@@ -864,9 +872,20 @@ type traefikFile struct {
 type fileRouter struct {
 	rule, service string
 	middlewares   []string
+	entrypoints   []string
+	// other is the first field it sets that a route can't say, such as
+	// tls.options, which can ask a client for a certificate.
+	other string
 	// top is the section it's in: http, tcp or udp.
 	top string
 }
+
+// fileRouterFields are the fields of a router in a file a route can do without,
+// in lower case, as Traefik reads a file's keys, and fileTLSFields those of its tls.
+var (
+	fileRouterFields = []string{"rule", "service", "entrypoints", "middlewares", "priority", "tls"}
+	fileTLSFields    = []string{"certresolver", "domains"}
+)
 
 // ruleKey is a key rule in a file of Traefik's, in YAML's block style or its flow
 // style, quoted or not, which counts the rules a file names however it's written.
@@ -877,7 +896,7 @@ var ruleKey = sync.OnceValue(func() *regexp.Regexp { return regexp.MustCompile(`
 // a long one, reads as one.
 func readTraefikFile(b []byte) traefikFile {
 	f := traefikFile{routers: map[string]*fileRouter{}, ports: map[string]uint32{}, middlewares: map[string]string{}}
-	top, section, current, list := "", "", "", ""
+	top, section, current, list, field := "", "", "", "", ""
 	folding := false
 	for _, line := range strings.Split(string(b), "\n") {
 		trimmed := strings.TrimSpace(line)
@@ -891,6 +910,21 @@ func readTraefikFile(b []byte) traefikFile {
 		}
 		key, value, _ := strings.Cut(trimmed, ":")
 		value = strings.Trim(strings.TrimSpace(value), `"'`)
+		lower := strings.ToLower(key)
+		dash := strings.HasPrefix(trimmed, "-")
+		if section == "routers" && current != "" && trimmed != "" && !dash && !strings.HasPrefix(trimmed, "#") {
+			// A router's own field ends the list before it, and one a route can't
+			// say keeps the router behind.
+			switch {
+			case indent == 6:
+				list, field = "", lower
+				if !slices.Contains(fileRouterFields, lower) {
+					f.routers[current].other = cmp.Or(f.routers[current].other, lower)
+				}
+			case indent == 8 && field == "tls" && !slices.Contains(fileTLSFields, lower):
+				f.routers[current].other = cmp.Or(f.routers[current].other, "tls."+lower)
+			}
+		}
 		switch {
 		case indent == 2 && (key == "routers" || key == "services" || key == "middlewares"):
 			section, current, list = key, "", ""
@@ -911,13 +945,14 @@ func readTraefikFile(b []byte) traefikFile {
 			}
 		case section == "middlewares" && current != "" && indent == 6 && f.middlewares[current] == "":
 			f.middlewares[current] = strings.ToLower(key)
-		case section == "routers" && current != "" && list == "middlewares" && strings.HasPrefix(trimmed, "- "):
-			f.routers[current].middlewares = append(f.routers[current].middlewares, strings.Trim(strings.TrimSpace(trimmed[2:]), `"'`))
-		case section == "routers" && current != "" && key == "middlewares":
-			list = key
+		case section == "routers" && current != "" && list != "" && strings.HasPrefix(trimmed, "- "):
+			f.routers[current].add(list, strings.Trim(strings.TrimSpace(trimmed[2:]), `"'`))
+		case section == "routers" && current != "" && (lower == "middlewares" || lower == "entrypoints"):
+			// A list, in block style below or in flow style here.
+			list = lower
 			for _, m := range strings.Split(strings.Trim(value, "[]"), ",") {
 				if m = strings.Trim(strings.TrimSpace(m), `"'`); m != "" {
-					f.routers[current].middlewares = append(f.routers[current].middlewares, m)
+					f.routers[current].add(list, m)
 				}
 			}
 		case section == "routers" && current != "" && key == "rule":
@@ -937,6 +972,16 @@ func readTraefikFile(b []byte) traefikFile {
 		}
 	}
 	return f
+}
+
+// add adds an entry to the router's list called list.
+func (r *fileRouter) add(list, entry string) {
+	switch list {
+	case "middlewares":
+		r.middlewares = append(r.middlewares, entry)
+	case "entrypoints":
+		r.entrypoints = append(r.entrypoints, entry)
+	}
 }
 
 // fileMiddlewares are the kinds of the middlewares a panel's proxy defines in its

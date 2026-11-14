@@ -115,6 +115,26 @@ func TestWhatARuleNames(t *testing.T) {
 	}
 }
 
+// Two keys of a router that fold to the same are neither the router's: Traefik
+// reads one and the panel's read the other.
+func TestRouterKeysThatFoldToOneAreNoRoutersOwn(t *testing.T) {
+	s := scan{hosts: map[string][]mention{}, paths: map[string][]string{}}
+	s.addLabels(map[string]string{
+		"traefik.http.routers.App.rule":        "Host(`app.example.com`) && PathPrefix(`/admin`)",
+		"traefik.http.routers.app.rule":        "Host(`app.example.com`)",
+		"traefik.http.routers.web.rule":        "Host(`web.example.com`)",
+		"traefik.http.routers.web.middlewares": "gzip",
+	}, "container:app-1", "app-1")
+	for _, m := range s.hosts["app.example.com"] {
+		if m.router != "" {
+			t.Errorf("a clashing key reads as the router %s's", m.router)
+		}
+	}
+	if m := s.hosts["web.example.com"]; len(m) != 1 || m[0].router != "traefik.http.routers.web" {
+		t.Errorf("a router of its own reads %+v", m)
+	}
+}
+
 // Traefik's flags: --key=value, --key value, and --key alone for true.
 func TestFlagsAsTraefikReadsThem(t *testing.T) {
 	got := flagsOf([]string{"traefik", "--providers.file.directory", "/srv/routes", "--providers.docker", "--entryPoints.web.address=:80", "--log.level", "DEBUG"})
