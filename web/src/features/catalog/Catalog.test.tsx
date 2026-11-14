@@ -7,6 +7,7 @@ import {
   BackupState,
   CatalogFormat,
   CatalogNeedOptionSchema,
+  CatalogOrder,
   CatalogSourceInfoSchema,
   ChangeSchema,
   ChangeState,
@@ -248,6 +249,50 @@ describe("The catalog a page at a time (ADR 0092)", () => {
     } finally {
       activateLocale("en");
     }
+  });
+
+  it("opens on the apps most people start with, with by name a step away and kept in the address", async () => {
+    const user = userEvent.setup();
+    const asked: ListCatalogEntriesRequest[] = [];
+    const answer = catalogPages([tunnel, proxy, postgres]);
+    const { router } = renderAt(
+      "/catalog",
+      api({
+        listCatalogEntries: (req) => {
+          asked.push(req);
+          return answer(req);
+        },
+      }),
+    );
+    await screen.findByRole("link", { name: /^PostgreSQL/ });
+    const cards = () => [...document.querySelectorAll("a.catalog-card .catalog-card-name")].map((n) => n.textContent);
+    expect(cards()[0]).toBe("PostgreSQL");
+    expect(asked.at(-1)?.order).toBe(CatalogOrder.FEATURED);
+    expect(screen.getByRole("radio", { name: "Popular first" })).toBeChecked();
+
+    await user.click(screen.getByRole("radio", { name: "By name" }));
+    await waitFor(() => expect(router.state.location.search).toEqual({ sort: "name" }));
+    await waitFor(() => expect(cards()).toEqual(["Cloudflare Tunnel", "Nginx Proxy Manager", "PostgreSQL"]));
+    expect(asked.at(-1)?.order).toBe(CatalogOrder.UNSPECIFIED);
+
+    await user.click(screen.getByRole("radio", { name: "Popular first" }));
+    await waitFor(() => expect(router.state.location.search).toEqual({}));
+  });
+
+  it("opens by name from an address that says so", async () => {
+    const asked: ListCatalogEntriesRequest[] = [];
+    const answer = catalogPages([tunnel, postgres]);
+    renderAt(
+      "/catalog?sort=name",
+      api({
+        listCatalogEntries: (req) => {
+          asked.push(req);
+          return answer(req);
+        },
+      }),
+    );
+    expect(await screen.findByRole("radio", { name: "By name" })).toBeChecked();
+    expect(asked.at(-1)?.order).toBe(CatalogOrder.UNSPECIFIED);
   });
 
   it("drops a catalog it doesn't have from the address, so an old link shows every app", async () => {

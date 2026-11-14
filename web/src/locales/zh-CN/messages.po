@@ -6869,6 +6869,9 @@ msgstr "你已安装的应用"
 msgid "{0, plural, one {# installation} other {# installations}}"
 msgstr "{0, plural, other {# 个已安装实例}}"
 
+msgid "By name"
+msgstr "按名称"
+
 msgid "Categories"
 msgstr "分类"
 
@@ -6911,6 +6914,12 @@ msgstr "没有找到？可以把任意镜像或 Compose 文件部署为应用。
 
 msgid "Nothing from the catalog is installed yet"
 msgstr "还没有安装应用目录中的应用"
+
+msgid "Order"
+msgstr "排序"
+
+msgid "Popular first"
+msgstr "热门优先"
 
 msgid "Read apps from a catalog in a Git repository too. <0>Sources</0>"
 msgstr "也可以从 Git 仓库中的目录读取应用。<0>来源</0>"

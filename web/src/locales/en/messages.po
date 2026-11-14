@@ -6869,6 +6869,9 @@ msgstr "Your installations"
 msgid "{0, plural, one {# installation} other {# installations}}"
 msgstr "{0, plural, one {# installation} other {# installations}}"
 
+msgid "By name"
+msgstr "By name"
+
 msgid "Categories"
 msgstr "Categories"
 
@@ -6911,6 +6914,12 @@ msgstr "Not listed? Deploy any image or Compose file as an app. <0>New app</0>"
 
 msgid "Nothing from the catalog is installed yet"
 msgstr "Nothing from the catalog is installed yet"
+
+msgid "Order"
+msgstr "Order"
+
+msgid "Popular first"
+msgstr "Popular first"
 
 msgid "Read apps from a catalog in a Git repository too. <0>Sources</0>"
 msgstr "Read apps from a catalog in a Git repository too. <0>Sources</0>"

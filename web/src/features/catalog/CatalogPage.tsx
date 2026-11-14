@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { CatalogInstall, CatalogSourceInfo, Entry } from "@dockwell/api";
-import { Button, Callout, cx, Icon, SelectField, TextField } from "@dockwell/ui";
+import { type CatalogInstall, CatalogOrder, type CatalogSourceInfo, type Entry } from "@dockwell/api";
+import { Button, Callout, cx, Icon, SegmentedControl, SelectField, TextField } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
@@ -50,7 +50,12 @@ export function CatalogPage({ search = {}, onSearch, children }: CatalogPageProp
   const from = search.catalog ? sources.find((source) => source.name === search.catalog) : undefined;
   // Once the sources are read, only a catalog there is narrows the grid, and one that
   // isn't leaves the address, so an old link never empties the grid with no way out.
-  const catalog = useCatalogPages({ ...search, catalog: origins.data ? from?.name : search.catalog });
+  // The apps most people start with first, then the most installed, as Catalog opens on them; by name a
+  // step away, and kept in the address (#621).
+  const catalog = useCatalogPages(
+    { ...search, catalog: origins.data ? from?.name : search.catalog },
+    { order: search.sort === "name" ? CatalogOrder.UNSPECIFIED : CatalogOrder.FEATURED },
+  );
   useEffect(() => {
     if (origins.data && search.catalog && !from) onSearch?.({ ...search, catalog: undefined });
   }, [origins.data, search, from, onSearch]);
@@ -302,12 +307,25 @@ export function CatalogPage({ search = {}, onSearch, children }: CatalogPageProp
           )
         ) : (
           <>
-            {from ? null : (
-              // Narrowed to one catalog, its own line says how many.
-              <p className="catalog-count" aria-live="polite">
-                {plural(catalog.total ?? shown.length, { one: "# app", other: "# apps" })}
-              </p>
-            )}
+            <div className="catalog-count-row">
+              {from ? null : (
+                // Narrowed to one catalog, its own line says how many.
+                <p className="catalog-count" aria-live="polite">
+                  {plural(catalog.total ?? shown.length, { one: "# app", other: "# apps" })}
+                </p>
+              )}
+              <SegmentedControl
+                className="catalog-order"
+                size="sm"
+                label={t`Order`}
+                value={search.sort ?? "popular"}
+                options={[
+                  { value: "popular", label: t`Popular first` },
+                  { value: "name", label: t`By name` },
+                ]}
+                onChange={(order) => onSearch?.({ ...search, sort: order === "name" ? "name" : undefined })}
+              />
+            </div>
             <div className="catalog-grid" aria-busy={catalog.isPlaceholderData || catalog.settling || undefined}>
               {shown.map((entry) => (
                 <Card
