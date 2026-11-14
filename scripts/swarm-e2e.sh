@@ -92,6 +92,8 @@ fail() {
   echo "swarm-e2e: $*" >&2
   echo "--- Swarm's services" >&2
   docker service ls >&2 || true
+  echo "--- retry-r1's tasks" >&2
+  docker service ps --no-trunc retry-r1 >&2 2>/dev/null || true
   echo "--- containers" >&2
   docker ps --all --format '{{.Names}} {{.Image}} {{.Status}} {{.Ports}}' >&2 || true
   if [[ -n "${change:-}" ]]; then
@@ -221,7 +223,12 @@ mapfile -t labels < <(dokploy_labels store retry)
 docker service create --quiet --detach --name retry-r1 --entrypoint /no-such-binary "${labels[@]}" "$nginx" >/dev/null || fail "can't create retry-r1"
 wait_until 60 left_created retry-r1 ||
   fail "retry-r1's broken deploy left no container: $(docker service ps --no-trunc retry-r1 2>&1)"
-docker service update --quiet --detach=false --entrypoint /docker-entrypoint.sh retry-r1 >/dev/null || fail "can't deploy retry-r1 again"
+# Swarm's --entrypoint drops the image's command too, so it's given again; the
+# update goes on whatever the failed tasks before it did.
+docker service update --quiet --detach=false --update-failure-action continue --entrypoint /docker-entrypoint.sh \
+  --args "nginx -g 'daemon off;'" retry-r1 >/dev/null ||
+  fail "can't deploy retry-r1 again: $(docker service ps --no-trunc retry-r1 2>&1)"
+wait_until 60 runs retry-r1 || fail "retry-r1 doesn't run once deployed again: $(docker service ps --no-trunc retry-r1 2>&1)"
 left_created retry-r1 ||
   fail "retry-r1's broken deploy left no container once it was deployed again"
 # The volume Docker made for anon-a1's task, which goes with it.
