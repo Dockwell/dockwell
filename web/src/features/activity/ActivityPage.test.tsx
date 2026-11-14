@@ -9,6 +9,7 @@ import {
   AlertRule_Condition,
   AlertRule_Severity,
   ChangeState,
+  type CountEventsRequest,
   EventKind,
   FieldOp,
   HealthState,
@@ -137,6 +138,93 @@ describe("Activity", () => {
     expect(row).toHaveTextContent("Planned");
     act(() => watch.push(since([], ["chg_qa"])));
     await waitFor(() => expect(screen.queryByRole("row", { name: /Create the environment qa/ })).toBeNull());
+  });
+
+  it("says how many each view holds, under the other filters, and counts again as events arrive (#639)", async () => {
+    const watch = feed<WatchEventsResponse>();
+    watch.push(snapshot([shopEvent, signIn, joined, token]));
+    const asked: CountEventsRequest[] = [];
+    let changes = 1;
+    renderActivity(watch, {
+      events: {
+        countEvents: (req: CountEventsRequest) => {
+          asked.push(req);
+          return {
+            total: 3 + changes,
+            counts: [
+              { kind: EventKind.CHANGE, count: changes },
+              { kind: EventKind.SERVER, count: 1 },
+              { kind: EventKind.ACCESS, count: 2 },
+            ],
+          };
+        },
+      },
+    });
+    const view = (name: string) => screen.getByRole("radio", { name: new RegExp(`^${name}`) });
+    await waitFor(() => expect(view("All")).toHaveTextContent("All, 4"));
+    expect(view("Changes")).toHaveTextContent("Changes, 1");
+    expect(view("Access")).toHaveTextContent("Access, 2");
+    // A view with none says 0 rather than nothing.
+    expect(view("Alerts")).toHaveTextContent("Alerts, 0");
+
+    const planned = changeEvent(
+      moved(shopPlanned(), {
+        id: "chg_qa",
+        summary: "Create the environment qa",
+        createTime: timestampFromDate(new Date()),
+      }),
+    );
+    changes = 2;
+    const before = asked.length;
+    act(() => watch.push(since([planned])));
+    await waitFor(() => expect(view("Changes")).toHaveTextContent("Changes, 2"));
+    expect(asked.length).toBeGreaterThan(before);
+  });
+
+  it("counts a burst of events once at its start and once after it, not for each (#639's review, M2)", async () => {
+    const watch = feed<WatchEventsResponse>();
+    watch.push(snapshot([shopEvent, signIn, joined, token]));
+    let asked = 0;
+    renderActivity(watch, {
+      events: {
+        countEvents: () => {
+          asked++;
+          return { total: 4, counts: [{ kind: EventKind.CHANGE, count: 1 }] };
+        },
+      },
+    });
+    await waitFor(() => expect(asked).toBe(1));
+    const burst = (id: string) =>
+      changeEvent(moved(shopPlanned(), { id, summary: `Create ${id}`, createTime: timestampFromDate(new Date()) }));
+    act(() => watch.push(since([burst("chg_a")])));
+    await waitFor(() => expect(asked).toBe(2));
+    act(() => watch.push(since([burst("chg_b")])));
+    act(() => watch.push(since([burst("chg_c")])));
+    await new Promise((r) => setTimeout(r, 1_000));
+    expect(asked).toBe(2);
+    await waitFor(() => expect(asked).toBe(3), { timeout: 7_000 });
+  });
+
+  it("counts under the page's other filters, as the list is read (#639)", async () => {
+    const watch = feed<WatchEventsResponse>();
+    watch.push(snapshot([joined]));
+    const asked: CountEventsRequest[] = [];
+    renderActivity(
+      watch,
+      {
+        events: {
+          listEvents: () => ({ events: [joined] }),
+          countEvents: (req: CountEventsRequest) => {
+            asked.push(req);
+            return { total: 1, counts: [{ kind: EventKind.SERVER, count: 1 }] };
+          },
+        },
+      },
+      "/activity?server=srv_1&kind=servers",
+    );
+    await waitFor(() => expect(asked[0]?.serverId).toBe("srv_1"));
+    // The view chosen narrows the list, not the counts: each view still says its own.
+    expect(screen.getByRole("radio", { name: /^Servers/ })).toHaveTextContent("Servers, 1");
   });
 
   it("opens a change beside the list, with its plan, and undoes it with a plan of its own", async () => {

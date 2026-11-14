@@ -13,6 +13,7 @@ import {
   type EventBackup,
   type EventDesiredSent,
   EventKind,
+  EventService,
   type EventTerminal,
   ResourceService,
 } from "@dockwell/api";
@@ -36,6 +37,7 @@ import {
 import type { I18n } from "@lingui/core";
 import { msg, plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
+import { keepPreviousData } from "@tanstack/react-query";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef } from "react";
 
 import { sentence } from "../../lib/errors";
@@ -86,6 +88,10 @@ const KINDS: Readonly<Record<ActivityKind, EventKind>> = {
   alerts: EventKind.ALERT,
 };
 
+/** How often the views' counts are read again as events arrive, at most, and how often regardless. */
+const RECOUNT_MS = 5_000;
+const COUNTS_EVERY_MS = 30_000;
+
 /** Dockwell, in the actor filter. */
 export const DOCKWELL_ACTOR = "dockwell";
 
@@ -119,6 +125,13 @@ export function ActivityPage({
     [search.kind, search.server, search.resource, search.actor],
   );
   const { state, older, loadingOlder, olderError, loadOlder } = useEvents(filter);
+  // How many each view holds, under every filter but the view's own, as Activity draws them on the views (#639).
+  const counted = useQuery(
+    EventService.method.countEvents,
+    { serverId: filter.serverId, resourceId: filter.resourceId, actorId: filter.actorId, actorKind: filter.actorKind },
+    // Every half minute too, as the list watches only its own view, so other views' events reach the counts.
+    { placeholderData: keepPreviousData, refetchInterval: COUNTS_EVERY_MS },
+  );
   // The top bar speaks for the fleet's watch; the timeline has its own, and says so itself.
   const status = state.status === "reconnecting" ? <Reconnecting /> : undefined;
   const events = state.status === "connecting" ? undefined : state.events;
@@ -163,14 +176,43 @@ export function ActivityPage({
       if (detail.offsetTop > list.offsetTop + 8) detail.scrollIntoView?.({ block: "start", behavior: "smooth" });
     });
 
+  // Read again as something new arrives, so the numbers keep up with the list: not on the first, which the
+  // first read counted, and at most once a few seconds, the last of a burst read after it.
+  const newest = state.status === "connecting" ? undefined : state.events[0]?.id;
+  const { refetch } = counted;
+  const lastNewest = useRef<string | undefined>(undefined);
+  const lastRead = useRef(0);
+  const trailing = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => {
+    if (!newest || newest === lastNewest.current) return;
+    const first = lastNewest.current === undefined;
+    lastNewest.current = newest;
+    if (first || trailing.current !== undefined) return;
+    trailing.current = setTimeout(
+      () => {
+        trailing.current = undefined;
+        lastRead.current = Date.now();
+        void refetch();
+      },
+      Math.max(0, lastRead.current + RECOUNT_MS - Date.now()),
+    );
+  }, [newest, refetch]);
+  useEffect(() => () => clearTimeout(trailing.current), []);
+  const counts = counted.data;
+  const countOf = (view: ActivityKind | "all") =>
+    counts === undefined
+      ? undefined
+      : view === "all"
+        ? counts.total
+        : (counts.counts.find((c) => c.kind === KINDS[view])?.count ?? 0);
   const kindOptions = [
-    { value: "all", label: t`All` },
-    { value: "changes", label: t`Changes` },
-    { value: "servers", label: t`Servers` },
-    { value: "access", label: t`Access` },
-    { value: "health", label: t`Health` },
-    { value: "backups", label: t`Backups` },
-    { value: "alerts", label: t`Alerts` },
+    { value: "all", label: t`All`, count: countOf("all") },
+    { value: "changes", label: t`Changes`, count: countOf("changes") },
+    { value: "servers", label: t`Servers`, count: countOf("servers") },
+    { value: "access", label: t`Access`, count: countOf("access") },
+    { value: "health", label: t`Health`, count: countOf("health") },
+    { value: "backups", label: t`Backups`, count: countOf("backups") },
+    { value: "alerts", label: t`Alerts`, count: countOf("alerts") },
   ];
 
   let body: ReactNode;

@@ -109,6 +109,84 @@ func (t *Tx) Timeline(ctx context.Context, q TimelineQuery) ([]TimelineEntry, er
 // would read them, without reading the entries: TimelineEntries reads
 // those, so a reader can skip what it has already.
 func (t *Tx) TimelinePlaces(ctx context.Context, q TimelineQuery) ([]TimelinePlace, error) {
+	union, args := timelineUnion(q)
+	if union == "" {
+		return nil, nil
+	}
+	query := `SELECT at, id, source FROM (` + union + `) entries`
+	if q.Before == nil && q.After != nil {
+		query += ` ORDER BY at, id`
+	} else {
+		query += ` ORDER BY at DESC, id DESC`
+	}
+	if q.Limit > 0 {
+		query += ` LIMIT ?`
+		args = append(args, q.Limit)
+	}
+	var out []TimelinePlace
+	rows, err := t.query(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("can't read the timeline: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var at int64
+		var p TimelinePlace
+		var source string
+		if err := rows.Scan(&at, &p.ID, &source); err != nil {
+			return nil, fmt.Errorf("can't read the timeline: %w", err)
+		}
+		p.At, p.Change, p.Discarded = fromMillis(at), source != "event", source == "discarded"
+		out = append(out, p)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("can't read the timeline: %w", err)
+	}
+	return out, nil
+}
+
+// TimelineTally is how many entries a filter keeps: its changes, and its audit
+// events by action.
+type TimelineTally struct {
+	Changes int
+	Actions map[string]int
+}
+
+// TimelineCounts tallies the entries the filter keeps, as Timeline would read
+// them all, in one grouped query: discarded changes, which it leaves out, aren't
+// counted (#639).
+func (t *Tx) TimelineCounts(ctx context.Context, f TimelineFilter) (TimelineTally, error) {
+	tally := TimelineTally{Actions: map[string]int{}}
+	union, args := timelineUnion(TimelineQuery{Filter: f})
+	if union == "" {
+		return tally, nil
+	}
+	rows, err := t.query(ctx, `SELECT source, action, COUNT(*) FROM (`+union+`) entries GROUP BY source, action`, args...)
+	if err != nil {
+		return tally, fmt.Errorf("can't count the timeline: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var source, action string
+		var n int
+		if err := rows.Scan(&source, &action, &n); err != nil {
+			return tally, fmt.Errorf("can't count the timeline: %w", err)
+		}
+		if source == "event" {
+			tally.Actions[action] += n
+		} else {
+			tally.Changes += n
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return tally, fmt.Errorf("can't count the timeline: %w", err)
+	}
+	return tally, nil
+}
+
+// timelineUnion is the query for the timeline's places a query keeps, from each
+// table it reads, unordered, with its arguments; empty where it keeps none.
+func timelineUnion(q TimelineQuery) (string, []any) {
 	f := q.Filter
 	var parts []string
 	var args []any
@@ -180,10 +258,10 @@ func (t *Tx) TimelinePlaces(ctx context.Context, q TimelineQuery) ([]TimelinePla
 
 	if f.Changes {
 		w := place(changeTime, "c.id", changes("c.state <> ?"))
-		parts = append(parts, `SELECT `+changeTime+` AS at, c.id AS id, 'change' AS source FROM changes c WHERE `+where(w))
+		parts = append(parts, `SELECT `+changeTime+` AS at, c.id AS id, 'change' AS source, '' AS action FROM changes c WHERE `+where(w))
 		if q.Discarded {
 			w := place("e.at", "c.id", changes("c.state = ?"))
-			parts = append(parts, `SELECT e.at AS at, c.id AS id, 'discarded' AS source FROM changes c
+			parts = append(parts, `SELECT e.at AS at, c.id AS id, 'discarded' AS source, '' AS action FROM changes c
 				JOIN audit_events e ON e.subject = c.id AND e.action = 'change.discarded' WHERE `+where(w))
 		}
 	}
@@ -207,41 +285,12 @@ func (t *Tx) TimelinePlaces(ctx context.Context, q TimelineQuery) ([]TimelinePla
 		}
 		w = append(w, actors("actor")...)
 		w = place("at", "id", w)
-		parts = append(parts, `SELECT at, id, 'event' AS source FROM audit_events WHERE `+where(w))
+		parts = append(parts, `SELECT at, id, 'event' AS source, action FROM audit_events WHERE `+where(w))
 	}
 	if len(parts) == 0 {
-		return nil, nil
+		return "", nil
 	}
-	query := `SELECT at, id, source FROM (` + strings.Join(parts, " UNION ALL ") + `) entries`
-	if q.Before == nil && q.After != nil {
-		query += ` ORDER BY at, id`
-	} else {
-		query += ` ORDER BY at DESC, id DESC`
-	}
-	if q.Limit > 0 {
-		query += ` LIMIT ?`
-		args = append(args, q.Limit)
-	}
-	var out []TimelinePlace
-	rows, err := t.query(ctx, query, args...)
-	if err != nil {
-		return nil, fmt.Errorf("can't read the timeline: %w", err)
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var at int64
-		var p TimelinePlace
-		var source string
-		if err := rows.Scan(&at, &p.ID, &source); err != nil {
-			return nil, fmt.Errorf("can't read the timeline: %w", err)
-		}
-		p.At, p.Change, p.Discarded = fromMillis(at), source != "event", source == "discarded"
-		out = append(out, p)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("can't read the timeline: %w", err)
-	}
-	return out, nil
+	return strings.Join(parts, " UNION ALL "), args
 }
 
 // TimelineEntries reads the entries at places, in their order, with a

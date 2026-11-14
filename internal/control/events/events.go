@@ -194,6 +194,120 @@ func (h *Handler) ListEvents(ctx context.Context, req *connect.Request[dockwellv
 	return connect.NewResponse(res), nil
 }
 
+// CountEvents says how many events of each kind there are, under the filters
+// ListEvents takes but the kinds, counting only what the caller's ListEvents
+// would list, so a view's count is what its list holds (#639). It narrows its own
+// answer, as counts hold nothing the interceptor could place.
+func (h *Handler) CountEvents(ctx context.Context, req *connect.Request[dockwellv1.CountEventsRequest]) (*connect.Response[dockwellv1.CountEventsResponse], error) {
+	m := req.Msg
+	every, err := filter(nil, m.GetServerId(), m.GetResourceId(), m.GetActorId(), m.GetActorKind())
+	if err != nil {
+		return nil, err
+	}
+	grants, narrowed := authapi.Narrowed(ctx)
+	counts := map[dockwellv1.EventKind]int{}
+	err = h.db.View(ctx, func(tx *store.Tx) error {
+		if !narrowed {
+			// Everything listed is the caller's: one grouped query.
+			tally, err := tx.TimelineCounts(ctx, every)
+			if err != nil {
+				return err
+			}
+			counts[dockwellv1.EventKind_EVENT_KIND_CHANGE] = tally.Changes
+			for action, n := range tally.Actions {
+				counts[kindOfAction(action)] += n
+			}
+			return nil
+		}
+		// Each event placed as the interceptor places ListEvents', a page at a time.
+		visible := authapi.Visible(ctx, tx, grants)
+		look := actors.New().In(ctx, tx)
+		var before *store.TimelineCursor
+		for {
+			places, err := tx.TimelinePlaces(ctx, store.TimelineQuery{Filter: every, Before: before, Limit: countPage})
+			if err != nil {
+				return err
+			}
+			entries, err := tx.TimelineEntries(ctx, places)
+			if err != nil {
+				return err
+			}
+			for _, e := range entries {
+				var ev *dockwellv1.Event
+				kind := dockwellv1.EventKind_EVENT_KIND_CHANGE
+				if e.Change != nil {
+					ev = &dockwellv1.Event{Kind: kind, Change: &dockwellv1.Change{Id: e.Change.ID}}
+				} else {
+					ev = FromAudit(e.Event, look)
+					kind = kindOfAction(e.Event.Action)
+				}
+				ok, err := visible(ev.ProtoReflect())
+				if err != nil {
+					return err
+				}
+				if ok {
+					counts[kind]++
+				}
+			}
+			if len(places) < countPage {
+				return nil
+			}
+			last := places[len(places)-1]
+			before = &store.TimelineCursor{At: last.At, ID: last.ID}
+		}
+	})
+	if err != nil {
+		return nil, h.internal(ctx, err)
+	}
+	res := &dockwellv1.CountEventsResponse{}
+	total := 0
+	for _, k := range eventKinds() {
+		n := counts[k]
+		total += n
+		res.Counts = append(res.Counts, &dockwellv1.EventKindCount{Kind: k, Count: int32(n)}) //nolint:gosec // a timeline holds far fewer than 2^31 entries
+	}
+	res.Total = int32(total)
+	return connect.NewResponse(res), nil
+}
+
+// countPage is how many of the timeline's places CountEvents reads at once for a
+// caller whose list is narrowed.
+const countPage = 500
+
+// kindOfAction is the kind an audit event's action is listed under, as ListEvents'
+// kinds filter by them.
+func kindOfAction(action string) dockwellv1.EventKind {
+	for _, k := range []struct {
+		kind    dockwellv1.EventKind
+		actions []string
+	}{
+		{dockwellv1.EventKind_EVENT_KIND_SERVER, serverActions},
+		{dockwellv1.EventKind_EVENT_KIND_ACCESS, accessActions},
+		{dockwellv1.EventKind_EVENT_KIND_HEALTH, healthActions},
+		{dockwellv1.EventKind_EVENT_KIND_BACKUP, backupActions},
+		{dockwellv1.EventKind_EVENT_KIND_SETTINGS, settingsActions},
+		{dockwellv1.EventKind_EVENT_KIND_TASK, taskActions},
+		{dockwellv1.EventKind_EVENT_KIND_ALERT, alertActions},
+	} {
+		if slices.Contains(k.actions, action) {
+			return k.kind
+		}
+	}
+	return dockwellv1.EventKind_EVENT_KIND_ACCESS
+}
+
+// eventKinds are the kinds of event there are, in the order EventKind has them.
+func eventKinds() []dockwellv1.EventKind {
+	var out []dockwellv1.EventKind
+	for n := range dockwellv1.EventKind_name {
+		if k := dockwellv1.EventKind(n); k != dockwellv1.EventKind_EVENT_KIND_UNSPECIFIED {
+			out = append(out, k)
+		}
+	}
+	slices.Sort(out)
+	return out
+}
+
 // page reads a page of events, older than before when it is set, with the
 // token for the next and each event's time on the timeline.
 func (h *Handler) page(ctx context.Context, tx *store.Tx, names *actors.Names, f store.TimelineFilter, before *store.TimelineCursor, size int) (

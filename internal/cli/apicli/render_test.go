@@ -1272,3 +1272,20 @@ func TestAPanelsStopSaysWhatStopsAndWhatStays(t *testing.T) {
 		t.Errorf("the start reads %q", out)
 	}
 }
+
+// dockwell events count is a table of each kind's events, none included, and of
+// every kind together (#639).
+func TestEventCountsAreATable(t *testing.T) {
+	var b strings.Builder
+	Render(&b, &dockwellv1.CountEventsResponse{
+		Total: 3,
+		Counts: []*dockwellv1.EventKindCount{
+			{Kind: dockwellv1.EventKind_EVENT_KIND_CHANGE, Count: 3},
+			{Kind: dockwellv1.EventKind_EVENT_KIND_HEALTH},
+		},
+	}, time.Now())
+	got := strings.Join(strings.Fields(b.String()), " ")
+	if want := "Kind Events Change 3 Health 0 Every kind 3"; got != want {
+		t.Errorf("rendered %q, want %q", got, want)
+	}
+}

@@ -66,6 +66,8 @@ func Render(w io.Writer, msg proto.Message, now time.Time) {
 		alertsTable(w, m, now)
 	case *dockwellv1.ListCatalogEntriesResponse:
 		catalogTable(w, m)
+	case *dockwellv1.CountEventsResponse:
+		eventCountsTable(w, m)
 	case *dockwellv1.ListLogSourcesResponse:
 		sourcesTable(w, m, now)
 	case *dockwellv1.ListWebsitesResponse:
@@ -431,6 +433,18 @@ func catalogTable(w io.Writer, res *dockwellv1.ListCatalogEntriesResponse) {
 	if t := res.GetNextPageToken(); t != "" {
 		fmt.Fprintf(w, "\n%d of %d. There are more. See them with dockwell catalog list --page-token %s and the same filters\n", len(res.GetEntries()), res.GetTotal(), t)
 	}
+}
+
+// eventCountsTable is how many events there are of each kind, none included, and
+// of every kind together, as Activity's views count them (#639).
+func eventCountsTable(w io.Writer, res *dockwellv1.CountEventsResponse) {
+	tw := newTable(w)
+	row(tw, "Kind", "Events")
+	for _, c := range res.GetCounts() {
+		row(tw, word(c.GetKind()), strconv.Itoa(int(c.GetCount())))
+	}
+	row(tw, "Every kind", strconv.Itoa(int(res.GetTotal())))
+	_ = tw.Flush()
 }
 
 func driftTable(w io.Writer, res *dockwellv1.ListDriftResponse) {

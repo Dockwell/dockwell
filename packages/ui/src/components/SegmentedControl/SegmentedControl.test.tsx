@@ -30,6 +30,11 @@ describe("SegmentedControl", () => {
     await expectAccessible(container);
   });
 
+  it("groups a large count's digits", () => {
+    render(<SegmentedControl label="Events" options={[{ value: "all", label: "All", count: 12345 }]} />);
+    expect(radio("All")).toHaveTextContent("All, 12,345");
+  });
+
   it("keeps only the selected option in the tab order", async () => {
     const user = userEvent.setup();
     render(
