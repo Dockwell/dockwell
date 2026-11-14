@@ -311,6 +311,16 @@ describe("The catalog a page at a time (ADR 0092)", () => {
     expect(await screen.findByRole("link", { name: /^PostgreSQL/ })).toBeVisible();
   });
 
+  it("keeps the order as Show every app clears the filters, as the order isn't one", async () => {
+    const user = userEvent.setup();
+    const { router } = renderAt(
+      "/catalog?installed=1&sort=name",
+      api({ listCatalogEntries: catalogPages([tunnel, postgres]) }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Show every app" }));
+    await waitFor(() => expect(router.state.location.search).toEqual({ sort: "name" }));
+  });
+
   it("shows an app once where the catalog changed between two pages and it came twice", async () => {
     const user = userEvent.setup();
     renderAt(

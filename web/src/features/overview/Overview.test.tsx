@@ -365,6 +365,55 @@ describe("Overview with a fleet", () => {
     expect(within(map).queryByRole("list", { name: "Each server" })).toBeNull();
   });
 
+  it("names the server that needs a look first under the tiles of more than a few, until another is hovered", async () => {
+    const user = userEvent.setup();
+    const seven = Array.from({ length: 7 }, (_, i) => hz2({ id: `srv_${i}`, name: `hz-${i}` }));
+    seven[2] = hz2({ id: "srv_2", name: "hz-2", connection: Connection.PENDING });
+    seven[4] = hz2({ id: "srv_4", name: "hz-4", dockerUnreadableSince: timestampFromDate(new Date()) });
+    seven[5] = hz2({ id: "srv_5", name: "hz-5", connection: Connection.UNREACHABLE });
+    renderFleet(seven);
+
+    const map = await screen.findByRole("region", { name: "Servers" });
+    const readout = () => map.querySelector(".dw-fleet-readout");
+    const named = () => readout()?.querySelector(".dw-status-label")?.textContent;
+    await waitFor(() => expect(named()).toBe("hz-5"));
+    expect(readout()).toHaveTextContent("Down");
+    expect(within(map).queryByText("Hover or focus a server to inspect it.")).toBeNull();
+    await user.hover(within(map).getByRole("button", { name: /^hz-0,/ }));
+    expect(named()).toBe("hz-0");
+  });
+
+  it("names a live server that can't read Docker before one waiting for its agent", async () => {
+    const seven = Array.from({ length: 7 }, (_, i) => hz2({ id: `srv_${i}`, name: `hz-${i}` }));
+    seven[1] = hz2({ id: "srv_1", name: "hz-1", connection: Connection.PENDING });
+    seven[3] = hz2({ id: "srv_3", name: "hz-3", dockerUnreadableSince: timestampFromDate(new Date()) });
+    renderFleet(seven);
+
+    const map = await screen.findByRole("region", { name: "Servers" });
+    await waitFor(() => expect(map.querySelector(".dw-fleet-readout .dw-status-label")?.textContent).toBe("hz-3"));
+  });
+
+  it("names a server waiting for its agent where it's the only one that isn't running", async () => {
+    const seven = Array.from({ length: 7 }, (_, i) => hz2({ id: `srv_${i}`, name: `hz-${i}` }));
+    seven[6] = hz2({ id: "srv_6", name: "hz-6", connection: Connection.PENDING });
+    renderFleet(seven);
+
+    const map = await screen.findByRole("region", { name: "Servers" });
+    await waitFor(() => expect(map.querySelector(".dw-fleet-readout .dw-status-label")?.textContent).toBe("hz-6"));
+  });
+
+  it("lists a few servers by the same need: down, then degraded, then waiting for an agent", async () => {
+    renderFleet([
+      hz2({ id: "srv_w", name: "waits", connection: Connection.PENDING }),
+      hz2({ id: "srv_d", name: "blind", dockerUnreadableSince: timestampFromDate(new Date()) }),
+      hz2({ id: "srv_x", name: "gone", connection: Connection.UNREACHABLE }),
+    ]);
+
+    const map = await screen.findByRole("region", { name: "Servers" });
+    const lines = within(within(map).getByRole("list", { name: "Each server" })).getAllByRole("link");
+    expect(lines.map((l) => l.querySelector(".dw-status-label")?.textContent)).toEqual(["gone", "blind", "waits"]);
+  });
+
   it("lists the apps with where each runs, and what changed, apps' health included", async () => {
     const kinds: EventKind[][] = [];
     const web = anApp(

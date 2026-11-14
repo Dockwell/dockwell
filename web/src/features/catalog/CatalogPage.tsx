@@ -297,7 +297,14 @@ export function CatalogPage({ search = {}, onSearch, children }: CatalogPageProp
                 <Button
                   size="lg"
                   onClick={() =>
-                    onSearch?.({ q: undefined, category: undefined, catalog: undefined, installed: undefined })
+                    // The order isn't a filter, so it stays.
+                    onSearch?.({
+                      q: undefined,
+                      category: undefined,
+                      catalog: undefined,
+                      installed: undefined,
+                      sort: search.sort,
+                    })
                   }
                 >
                   <Trans>Show every app</Trans>
