@@ -198,17 +198,19 @@ func (s Stopper) ApplyPanel(ctx context.Context, p resource.Panel, say func(stri
 	if s.Docker == nil {
 		return errors.New("this agent reads no Docker, so it can't stop or start a panel")
 	}
-	if p.Proxy && !p.Start {
-		// What the person chose from must still read as it did: the domains' checks
-		// run again, and a digest that differs from the plan's leaves the proxy be.
-		if err := s.checkAgain(ctx, p); err != nil {
-			return err
-		}
-	}
 	if p.Proxy && !p.Start && s.BeforeProxy != nil {
 		say("Pulling the image of Dockwell's ingress, before the proxy stops")
 		if err := s.BeforeProxy(ctx); err != nil {
 			return fmt.Errorf("can't ready Dockwell's ingress, so %s goes on running: %w", p.Parts[0].Name, err)
+		}
+	}
+	if p.Proxy && !p.Start {
+		// What the person chose from must still read as it did: the domains' checks
+		// run again, and a digest that differs from the plan's leaves the proxy be.
+		// They run after the pull, which can take minutes, so the proxy stops right
+		// after what they found.
+		if err := s.checkAgain(ctx, p); err != nil {
+			return err
 		}
 	}
 	for _, part := range p.Parts {

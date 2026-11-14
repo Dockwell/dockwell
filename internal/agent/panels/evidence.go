@@ -42,9 +42,14 @@ const (
 
 // mention is a rule that names a domain: where it is, and who it belongs to.
 type mention struct {
-	// owner is what it belongs to: "container:<name>", "service:<name>",
+	// owner is what it belongs to: "container:<name>", "service:<name>" for a
+	// Swarm service's labels, "task:<name>" for those it gives its tasks,
 	// "file:<path>" or "proxy".
 	owner string
+	// router is the rule's router, as builtFrom names it, such as
+	// "traefik.http.routers.web", "caddy_0" or, in a file, "http.routers.web";
+	// empty where that can't be told.
+	router string
 	// where says it for people, such as "the label traefik.http.routers.a.rule on
 	// web-1".
 	where string
@@ -54,7 +59,8 @@ type mention struct {
 type hostPattern struct {
 	re    *regexp.Regexp
 	where string
-	owner string
+	// paths are the paths its rule names, asked for of any domain it matches.
+	paths []string
 }
 
 // scan is what the broad scan found: each domain any rule names, with where, the
@@ -169,11 +175,11 @@ func matcherOf(p string) (*regexp.Regexp, bool) {
 	return re, err == nil
 }
 
-// add records the rules a text names, as owner's, at where.
-func (s *scan) add(text, owner, where string) {
+// add records the rules a text names, as owner's router's, at where.
+func (s *scan) add(text, owner, router, where string) {
 	hosts, patterns, paths := rulesIn(text)
 	for _, h := range hosts {
-		s.hosts[h] = append(s.hosts[h], mention{owner: owner, where: where})
+		s.hosts[h] = append(s.hosts[h], mention{owner: owner, router: router, where: where})
 		s.paths[h] = append(s.paths[h], paths...)
 	}
 	for _, p := range patterns {
@@ -182,9 +188,26 @@ func (s *scan) add(text, owner, where string) {
 			s.held = cmp.Or(s.held, fmt.Sprintf("a HostRegexp rule in %s can't be read, so it could match any domain", where))
 			continue
 		}
-		s.patterns = append(s.patterns, hostPattern{re: re, where: where, owner: owner})
+		s.patterns = append(s.patterns, hostPattern{re: re, where: where, paths: paths})
 	}
 }
+
+// labelRouter is the router a label belongs to, as builtFrom names it: a Traefik
+// router's, of any protocol, or a Caddy address's, or for any other label, the
+// label itself, which no route is built from.
+func labelRouter(k string) string {
+	k = strings.ToLower(k)
+	if m := routerLabel().FindStringSubmatch(k); m != nil {
+		return m[1]
+	}
+	if root, _, _ := strings.Cut(k, "."); caddyLabel().MatchString(root) {
+		return root
+	}
+	return "label " + k
+}
+
+// routerLabel is a label of a Traefik router, with the router.
+var routerLabel = sync.OnceValue(func() *regexp.Regexp { return regexp.MustCompile(`^(traefik\.(?:http|tcp|udp)\.routers\.[^.]+)\.`) })
 
 // addCaddy records the sites a Caddy label names, caddy or caddy_<n>, and the paths
 // its directives on the same owner match.
@@ -203,13 +226,13 @@ func (s *scan) addCaddy(labels map[string]string, owner, who string) {
 		where := fmt.Sprintf("the label %s on %s", k, who)
 		for _, a := range strings.FieldsFunc(v, func(r rune) bool { return r == ',' || r == ' ' || r == '\t' }) {
 			for _, h := range hostsOrPattern(stripCaddyScheme(a), &patterns) {
-				s.hosts[h] = append(s.hosts[h], mention{owner: owner, where: where})
+				s.hosts[h] = append(s.hosts[h], mention{owner: owner, router: strings.ToLower(k), where: where})
 				s.paths[h] = append(s.paths[h], paths...)
 			}
 		}
 		for _, p := range patterns {
 			re, _ := matcherOf(p)
-			s.patterns = append(s.patterns, hostPattern{re: re, where: where, owner: owner})
+			s.patterns = append(s.patterns, hostPattern{re: re, where: where, paths: paths})
 		}
 	}
 }
@@ -227,18 +250,36 @@ func stripCaddyScheme(a string) string {
 // addLabels scans a set of labels, each as key=value, as owner's.
 func (s *scan) addLabels(labels map[string]string, owner, who string) {
 	for _, k := range slices.Sorted(maps.Keys(labels)) {
-		s.add(k+"="+labels[k], owner, fmt.Sprintf("the label %s on %s", k, who))
+		s.add(k+"="+labels[k], owner, labelRouter(k), fmt.Sprintf("the label %s on %s", k, who))
 	}
 	s.addCaddy(labels, owner, who)
 }
 
 // addFile scans a file of the proxy's, line by line: each rule a line names, and
-// each Caddyfile site a block opens, with the paths its directives match.
+// each Caddyfile site a block opens, with the paths its directives match. A rule
+// in a router of Traefik's YAML, as readTraefikFile reads one, is that router's;
+// any other, as in YAML's flow style, is no router's, so it holds its domains back
+// wherever it is.
 func (s *scan) addFile(at string, b []byte) {
 	owner, where := "file:"+at, "the file "+at
 	var site []string
+	top, section, router := "", "", ""
 	for _, line := range strings.Split(string(b), "\n") {
-		s.add(line, owner, where)
+		trimmed := strings.TrimSpace(line)
+		key, value, _ := strings.Cut(trimmed, ":")
+		value = strings.TrimSpace(value)
+		switch indent := len(line) - len(strings.TrimLeft(line, " ")); {
+		case trimmed == "" || strings.HasPrefix(trimmed, "#"):
+		case indent == 0:
+			top, section, router = strings.ToLower(key), "", ""
+		case indent == 2:
+			section, router = key, ""
+		case indent == 4 && section == "routers" && value == "" && !strings.HasPrefix(trimmed, "-"):
+			router = top + ".routers." + key
+		case indent <= 4:
+			router = ""
+		}
+		s.add(line, owner, router, where)
 		if m := caddySite().FindStringSubmatch(line); m != nil {
 			site = nil
 			var patterns []string
@@ -250,7 +291,7 @@ func (s *scan) addFile(at string, b []byte) {
 			}
 			for _, p := range patterns {
 				re, _ := matcherOf(p)
-				s.patterns = append(s.patterns, hostPattern{re: re, where: where, owner: owner})
+				s.patterns = append(s.patterns, hostPattern{re: re, where: where})
 			}
 			continue
 		}
@@ -289,7 +330,7 @@ func (r Reader) scanServer(ctx context.Context, kind dockwellv1.PanelKind) scan 
 	for i := range services {
 		sp := &services[i].Spec
 		s.addLabels(sp.Labels, "service:"+sp.Name, "the service "+sp.Name)
-		s.addLabels(sp.TaskTemplate.ContainerSpec.Labels, "service:"+sp.Name, "the service "+sp.Name)
+		s.addLabels(sp.TaskTemplate.ContainerSpec.Labels, "task:"+sp.Name, "the service "+sp.Name)
 		s.services++
 	}
 	proxy := resource.PanelProxy(resourcepbKind(kind))
@@ -302,7 +343,7 @@ func (r Reader) scanServer(ctx context.Context, kind dockwellv1.PanelKind) scan 
 		return s
 	}
 	for _, a := range slices.Concat(c.Config.Entrypoint, c.Config.Cmd, c.Config.Env) {
-		s.add(a, "proxy", proxy+"'s own command and environment")
+		s.add(a, "proxy", "", proxy+"'s own command and environment")
 	}
 	if r.Root == "" && len(c.Mounts) > 0 {
 		s.held = cmp.Or(s.held, "the files in "+proxy+"'s mounts can't be read on this agent")
@@ -415,19 +456,10 @@ func readFull(onDisk string) ([]byte, bool) {
 // checks checks each domain a panel's proxy serves for a handover: what layer one
 // read of its route, then the scan, then the probe, each holding it back where it
 // finds anything. Only what nothing held is asked for over the network.
-func (r Reader) checks(ctx context.Context, kind dockwellv1.PanelKind, p *dockwellv1.Panel) []resource.PanelCheck {
+func (r Reader) checks(ctx context.Context, kind dockwellv1.PanelKind, p *dockwellv1.Panel, built builtFrom) []resource.PanelCheck {
 	sc := r.scanServer(ctx, kind)
 	summary := fmt.Sprintf("labels on %d containers and %d services, and %d files in the proxy's mounts", sc.containers, sc.services, sc.files)
-	// What the imported app's own route is: its containers and services, and for a
-	// Swarm app Dokploy routes from a file, that file.
-	own := map[string]map[string]bool{}
 	routed := map[string]string{}
-	allow := func(d, owner string) {
-		if own[d] == nil {
-			own[d] = map[string]bool{}
-		}
-		own[d][owner] = true
-	}
 	var domains []string
 	for _, a := range p.GetApps() {
 		for _, d := range a.GetDomains() {
@@ -443,15 +475,6 @@ func (r Reader) checks(ctx context.Context, kind dockwellv1.PanelKind, p *dockwe
 			if _, ok := routed[d]; !ok {
 				routed[d] = ""
 			}
-			allow(d, "container:"+rt.GetContainer())
-			if a.GetSwarm() {
-				for _, svc := range a.GetContainers() {
-					allow(d, "service:"+svc)
-				}
-				if dir := proxyDir(kind); dir != "" {
-					allow(d, "file:"+path.Join(dir, a.GetId()+".yml"))
-				}
-			}
 		}
 	}
 	for _, d := range p.GetDomains() {
@@ -463,14 +486,23 @@ func (r Reader) checks(ctx context.Context, kind dockwellv1.PanelKind, p *dockwe
 	var asks []probeAsk
 	for _, d := range domains {
 		c := resource.PanelCheck{Domain: d, Scanned: summary}
+		// A rule passes only where it's of the very router a route of the domain
+		// was built from: any other, the app's own included, says something no
+		// route says, such as a path behind a login.
 		for _, m := range sc.hosts[d] {
-			if !own[d][m.owner] && !slices.Contains(c.Mentions, m.where) {
+			if !built.has(m.owner, m.router, d) && !slices.Contains(c.Mentions, m.where) {
 				c.Mentions = append(c.Mentions, m.where)
 			}
 		}
+		// No route is built from a pattern, so each that matches holds the domain,
+		// and the paths it names are its paths too.
+		named := slices.Clone(sc.paths[d])
 		for _, pt := range sc.patterns {
-			if pt.re.MatchString(d) && !own[d][pt.owner] && !slices.Contains(c.Mentions, pt.where) {
-				c.Mentions = append(c.Mentions, pt.where)
+			if pt.re.MatchString(d) {
+				named = append(named, pt.paths...)
+				if !slices.Contains(c.Mentions, pt.where) {
+					c.Mentions = append(c.Mentions, pt.where)
+				}
 			}
 		}
 		left, isRouted := routed[d]
@@ -488,7 +520,7 @@ func (r Reader) checks(ctx context.Context, kind dockwellv1.PanelKind, p *dockwe
 		case len(c.Mentions) > 0:
 			c.Held = "another rule mentions it: " + c.Mentions[0]
 		}
-		paths := probePaths(sc.paths[d])
+		paths := probePaths(named)
 		if c.Held == "" && len(paths) > mostProbePaths {
 			c.Held = fmt.Sprintf("its rules name %d paths, more than Dockwell asks for", len(paths))
 		}
@@ -502,8 +534,18 @@ func (r Reader) checks(ctx context.Context, kind dockwellv1.PanelKind, p *dockwe
 	for i, res := range r.probeAll(ctx, asks) {
 		c := &out[asks[i].check]
 		c.Probes = append(c.Probes, res)
-		if !res.Open && c.Held == "" {
+		c.AskedFrom = cmp.Or(c.AskedFrom, res.From)
+		switch {
+		case res.Open || c.Held != "":
+		case res.Unsure:
+			c.Unsure = cmp.Or(c.Unsure, fmt.Sprintf("a request for %s answered %s, which says nothing of a login", res.Path, res.Answer))
+		default:
 			c.Held = fmt.Sprintf("a request for %s through the proxy answered %s", res.Path, res.Answer)
+		}
+	}
+	for i := range out {
+		if out[i].Held != "" {
+			out[i].Unsure = ""
 		}
 	}
 	return out

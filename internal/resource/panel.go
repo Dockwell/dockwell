@@ -79,8 +79,15 @@ type PanelCheck struct {
 	Mentions []string
 	Probes   []PanelProbe
 	Held     string
+	// Unsure says why a domain nothing held may still be guarded, as a 404 for a
+	// path says nothing either way: one a person can choose, and that isn't chosen
+	// already.
+	Unsure string
 	// Scanned is what the scan read, for people; it's no part of the evidence.
 	Scanned string
+	// AskedFrom is the address the proxy was asked from, which an address limit
+	// that lets it in doesn't show. It's no part of the evidence either.
+	AskedFrom string
 }
 
 // PanelProbe is a request through a panel's proxy for a domain's path.
@@ -89,17 +96,21 @@ type PanelProbe struct {
 	Answer string
 	// Open says the answer shows no login or address limit.
 	Open bool
+	// Unsure says the answer, a 404, says nothing either way.
+	Unsure bool
+	// From is the address it was asked from.
+	From string
 }
 
 // PanelEvidence is a digest of what was checked of each of domains: the plan of a
 // handover keeps it, and the agent computes it again just before the proxy stops,
 // refusing where it differs. An open answer counts as open alone, so an app that
-// answers 200 then 404 reads the same; what held a domain counts as said. A domain
+// answers 200 then 204 reads the same; what held a domain counts as said. A domain
 // with no check reads as missing.
 func PanelEvidence(checks []PanelCheck, domains []string) string {
 	by := map[string]PanelCheck{}
-	for _, c := range checks {
-		by[strings.ToLower(c.Domain)] = c
+	for i := range checks {
+		by[strings.ToLower(checks[i].Domain)] = checks[i]
 	}
 	chosen := slices.Clone(domains)
 	for i := range chosen {

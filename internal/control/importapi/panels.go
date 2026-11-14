@@ -573,7 +573,8 @@ func (h *Handler) readHandover(ctx context.Context, server string, pk dockwellv1
 		return nil, err
 	}
 	ho := &handover{srv: srv, w: w, kind: kind, routes: routes, found: resourcepb.PanelChecksFrom(out.GetFound().GetChecks())}
-	for _, c := range ho.found {
+	for i := range ho.found {
+		c := &ho.found[i]
 		done, left, seen := true, "", false
 		for _, pr := range routes {
 			if !strings.EqualFold(pr.host, c.Domain) {
@@ -586,7 +587,7 @@ func (h *Handler) readHandover(ctx context.Context, server string, pk dockwellv1
 		if seen && done {
 			continue // Dockwell routes it already.
 		}
-		pc := resourcepb.PanelChecks([]resource.PanelCheck{c})[0]
+		pc := resourcepb.PanelChecks([]resource.PanelCheck{*c})[0]
 		pc.Held = cmp.Or(pc.GetHeld(), left)
 		if !seen {
 			pc.Held = cmp.Or(pc.GetHeld(), "Dockwell can't read where it goes")
@@ -665,6 +666,34 @@ func (h *Handler) PlanPanelDomains(ctx context.Context, req *connect.Request[doc
 	if len(stays) > 0 {
 		message += ". These stop answering, as nothing in Dockwell serves them: " + human.List(stays)
 	}
+	notes := []revision.Note{
+		{Reason: "panel_domains", Message: message},
+		// Dockwell checked what it checks and found nothing; it can't promise
+		// there's nothing else, so the person confirms with that in view.
+		{Reason: "panel_domains_unguarded", Message: "No login or address limit found on the old proxy: " + human.List(chosen), Names: chosen},
+	}
+	var unsure []string
+	from := ""
+	for _, c := range ho.checks {
+		if slices.Contains(chosen, c.GetDomain()) {
+			from = cmp.Or(from, c.GetAskedFrom())
+			if c.GetUnsure() != "" {
+				unsure = append(unsure, c.GetDomain())
+			}
+		}
+	}
+	if len(unsure) > 0 {
+		notes = append(notes, revision.Note{
+			Reason:  "panel_domains_unsure",
+			Message: "No clear answer for " + human.List(unsure) + ": a request answered 404, which says nothing of a login", Names: unsure,
+		})
+	}
+	if from != "" {
+		notes = append(notes, revision.Note{
+			Reason:  "panel_domains_asked_from",
+			Message: fmt.Sprintf("Asked from %s, so an address limit that lets in this server or private networks can't be seen", from), Names: []string{from},
+		})
+	}
 	summary := cmp.Or(strings.TrimSpace(req.Msg.GetSummary()), fmt.Sprintf("Hand over %s from %s on %s", human.List(chosen), w.name, srv.GetName()))
 	c, err := h.changes.Propose(ctx, summary, edits, nil, changes.Also{
 		Edits: []revision.Edit{{
@@ -674,12 +703,7 @@ func (h *Handler) PlanPanelDomains(ctx context.Context, req *connect.Request[doc
 				Evidence: resource.PanelEvidence(ho.found, chosen),
 			},
 		}},
-		Notes: []revision.Note{
-			{Reason: "panel_domains", Message: message},
-			// Dockwell checked what it checks and found nothing; it can't promise
-			// there's nothing else, so the person confirms with that in view.
-			{Reason: "panel_domains_unguarded", Message: "No login or address limit found on the old proxy: " + human.List(chosen), Names: chosen},
-		},
+		Notes: notes,
 	})
 	if err != nil {
 		return nil, err

@@ -86,9 +86,11 @@ service ImportService {
   // handover (ADR 0089): a scan of every label on the server and every file in
   // the proxy's mounts for another rule that mentions it, the proxy's static
   // configuration, and a request through the proxy over HTTPS for / and each
-  // path a rule names for it. Each says what was checked, and why it stays
-  // behind where it does; one that doesn't is what a person can choose to hand
-  // over with PlanPanelDomains. It changes nothing.
+  // path a rule names for it. Each request is a GET, as anyone's browser sends,
+  // whose answer is read and not followed. Each says what was checked, and why
+  // it stays behind where it does; one that doesn't is what a person can choose
+  // to hand over with PlanPanelDomains. It changes nothing of Dockwell's or the
+  // panel's, though an app that acts on a GET for one of its paths acts on it.
   rpc CheckPanelDomains(CheckPanelDomainsRequest) returns (CheckPanelDomainsResponse) {
     option (dockwell.v1.effect) = EFFECT_READ;
     option (dockwell.v1.min_role) = NEEDS_ADMIN;
@@ -224,6 +226,13 @@ message PanelDomainCheck {
   // What the scan read, such as "labels on 12 containers and 3 services, and 9
   // files in the proxy's mounts".
   string scanned = 5;
+  // Why one nothing held may still be guarded, such as "a request for /admin
+  // answered 404, which says nothing of a login". A person can choose it; it
+  // isn't chosen already.
+  string unsure = 6;
+  // The address the proxy was asked from, such as "203.0.113.10". An address
+  // limit that lets it in, or the private networks it's on, can't be seen.
+  string asked_from = 7;
 }
 
 // PanelProbe is a request through the panel's proxy, over HTTPS with the
@@ -234,7 +243,8 @@ message PanelProbe {
   // What answered, such as "200", "302 to https://sso.example.com/" or "no TLS
   // handshake".
   string answer = 2;
-  // True where the answer says no login or address limit.
+  // True where the answer is what anyone gets: a 2xx, or a redirect on the
+  // same host to anything but a sign-in.
   bool open = 3;
 }
 
@@ -250,10 +260,10 @@ message PlanStartPanelRequest {
   string server_id = 1;
   // The panel to start.
   PanelKind panel = 2;
-  // Start its proxy alone, which holds ports 80 and 443.
-  bool proxy = 3;
   // What the change is for, for the timeline. Empty says what it starts.
-  string summary = 4;
+  string summary = 3;
+  // Start its proxy alone, which holds ports 80 and 443.
+  bool proxy = 4;
 }
 
 // PlanStartPanelResponse carries the planned start.

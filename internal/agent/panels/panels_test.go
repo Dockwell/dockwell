@@ -497,10 +497,44 @@ func TestDokploysHTTPSDomainComesOver(t *testing.T) {
 	}
 }
 
+// A file of Dokploy's whose routers Dockwell reads fewer of than it names rules,
+// as one in YAML's flow style, keeps each of its domains behind; a TCP router of
+// the same name as an HTTP one is a router of its own, and builds no route.
+func TestAFileReadInPartKeepsItsDomainsBehind(t *testing.T) {
+	root := t.TempDir()
+	dynamic := filepath.Join(root, "etc", "dokploy", "traefik", "dynamic")
+	if err := os.MkdirAll(dynamic, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	service := "  services:\n    shop:\n      loadBalancer:\n        servers:\n          - url: http://shop-k2m4:3000\n"
+	for name, body := range map[string]string{
+		"flow-k2m4.yml": "http:\n  routers:\n    shop:\n      rule: Host(`shop.example.com`)\n      service: shop\n" +
+			"    admin: {rule: \"Host(`shop.example.com`) && PathPrefix(`/admin`)\", service: shop, middlewares: [auth]}\n" + service,
+		"tcp-k2m4.yml": "http:\n  routers:\n    shop:\n      rule: Host(`shop.example.com`)\n      service: shop\n" + service +
+			"tcp:\n  routers:\n    shop:\n      rule: HostSNI(`shop.example.com`)\n      service: shop\n",
+	} {
+		if err := os.WriteFile(filepath.Join(dynamic, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	r := Reader{Root: root}
+	built := builtFrom{}
+	if got := r.dynamicRoutesFrom("flow-k2m4", "", nil, built); len(got) != 1 || got[0].GetLeft() != "its file /etc/dokploy/traefik/dynamic/flow-k2m4.yml names 2 rules, and Dockwell reads 1 of them" || len(built) != 0 {
+		t.Errorf("a file in flow style reads %v, built %v", got, built)
+	}
+	got := r.dynamicRoutesFrom("tcp-k2m4", "", nil, built)
+	if len(got) != 1 || got[0].GetLeft() != "" || got[0].GetPort() != 3000 {
+		t.Errorf("a file with a TCP router reads %v", got)
+	}
+	if !built.has("file:/etc/dokploy/traefik/dynamic/tcp-k2m4.yml", "http.routers.shop", "shop.example.com") || built.has("file:/etc/dokploy/traefik/dynamic/tcp-k2m4.yml", "tcp.routers.shop", "shop.example.com") {
+		t.Errorf("built %v", built)
+	}
+}
+
 // A rule YAML folds onto the next line, as >- writes a long one, is still read.
 func TestAFoldedRuleIsRead(t *testing.T) {
 	f := readTraefikFile([]byte("http:\n  routers:\n    shop-router:\n      rule: >-\n        Host(`shop.example.com`)\n      service: shop\n  services:\n    shop:\n      loadBalancer:\n        servers:\n          - url: http://shop:80\n"))
-	if r := f.routers["shop-router"]; r == nil || !strings.Contains(r.rule, "Host(`shop.example.com`)") || f.ports["shop"] != 80 {
+	if r := f.routers["http.routers.shop-router"]; r == nil || !strings.Contains(r.rule, "Host(`shop.example.com`)") || f.ports["shop"] != 80 {
 		t.Errorf("the folded file reads %+v %v", r, f.ports)
 	}
 }

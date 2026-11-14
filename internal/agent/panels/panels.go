@@ -54,9 +54,12 @@ func (r Reader) Read(ctx context.Context, kind dockwellv1.PanelKind, check bool)
 		return nil, fmt.Errorf("can't list the containers Docker runs: %w", err)
 	}
 	var out *agentv1.ReadPanelResult
+	// Which router built each route, for the check to tell the app's own rules from
+	// any other.
+	built := builtFrom{}
 	switch kind {
 	case dockwellv1.PanelKind_PANEL_KIND_COOLIFY:
-		out = r.coolify(list)
+		out = r.coolify(list, built)
 	case dockwellv1.PanelKind_PANEL_KIND_DOKPLOY:
 		services, err := r.Docker.ListServices(ctx)
 		if err != nil {
@@ -68,7 +71,7 @@ func (r Reader) Read(ctx context.Context, kind dockwellv1.PanelKind, check bool)
 		if info, err := r.Docker.Info(ctx); err == nil {
 			nodes = info.Swarm.Nodes
 		}
-		out = r.dokploy(list, services, nodes)
+		out = r.dokploy(list, services, nodes, built)
 	default:
 		return nil, fmt.Errorf("there's no panel %v to read: name Coolify or Dokploy", kind)
 	}
@@ -78,7 +81,7 @@ func (r Reader) Read(ctx context.Context, kind dockwellv1.PanelKind, check bool)
 		// anything, no domain comes over.
 		p.ProxyLeft = cmp.Or(r.filesLeft(kind), r.staticLeft(ctx, kind, r.fileMiddlewares(kind)))
 		if check {
-			p.Checks = resourcepb.PanelChecks(r.checks(ctx, kind, p))
+			p.Checks = resourcepb.PanelChecks(r.checks(ctx, kind, p, built))
 		}
 	}
 	return out, nil
@@ -112,7 +115,7 @@ const (
 	labelSwarmService = "com.docker.swarm.service.name"
 )
 
-func (r Reader) coolify(list []docker.ContainerSummary) *agentv1.ReadPanelResult {
+func (r Reader) coolify(list []docker.ContainerSummary, built builtFrom) *agentv1.ReadPanelResult {
 	p := &dockwellv1.Panel{Kind: dockwellv1.PanelKind_PANEL_KIND_COOLIFY, Folder: coolifyFolder}
 	files := r.fileMiddlewares(p.GetKind())
 	type key struct{ kind, id string }
@@ -149,7 +152,7 @@ func (r Reader) coolify(list []docker.ContainerSummary) *agentv1.ReadPanelResult
 		}
 		a.Containers = append(a.Containers, name)
 		a.Domains = append(a.Domains, domainsOf(l)...)
-		a.Routes = append(a.Routes, routesOf(l, name, files)...)
+		a.Routes = append(a.Routes, routesFrom(l, name, files, built, "container:"+name)...)
 		a.FromGit = a.GetFromGit() || kind == "application" && (builtFromGit(c.Image, id) || len(a.GetContainers()) > 1)
 	}
 	p.Apps = sorted(apps)
@@ -161,7 +164,7 @@ func (r Reader) coolify(list []docker.ContainerSummary) *agentv1.ReadPanelResult
 	return &agentv1.ReadPanelResult{Found: p}
 }
 
-func (r Reader) dokploy(list []docker.ContainerSummary, services []docker.Service, nodes int) *agentv1.ReadPanelResult {
+func (r Reader) dokploy(list []docker.ContainerSummary, services []docker.Service, nodes int, built builtFrom) *agentv1.ReadPanelResult {
 	p := &dockwellv1.Panel{Kind: dockwellv1.PanelKind_PANEL_KIND_DOKPLOY, Folder: dokployFolder}
 	files := r.fileMiddlewares(p.GetKind())
 	apps := map[string]*dockwellv1.PanelApp{}
@@ -203,7 +206,7 @@ func (r Reader) dokploy(list []docker.ContainerSummary, services []docker.Servic
 			}
 			a.Domains = append(a.Domains, domainsOf(l)...)
 			a.Published = append(a.Published, publishedOf(short, s)...)
-			for _, rt := range routesOf(l, tasks[s.Name], files) {
+			for _, rt := range routesFrom(l, tasks[s.Name], files, built, "service:"+s.Name) {
 				rt.Service = short
 				a.Routes = append(a.Routes, rt)
 			}
@@ -217,7 +220,7 @@ func (r Reader) dokploy(list []docker.ContainerSummary, services []docker.Servic
 		a.Containers, a.Tasks, a.Restarts = []string{s.Name}, []string{tasks[s.Name]}, []string{restartOf(s)}
 		a.SwarmLeft = swarmLeft(s, nodes)
 		a.Published = publishedOf(s.Name, s)
-		routes := r.dynamicRoutes(s.Name, tasks[s.Name], files)
+		routes := r.dynamicRoutesFrom(s.Name, tasks[s.Name], files, built)
 		a.Routes = routes
 		a.Domains = domainsOf(l)
 		for _, rt := range routes {
@@ -245,7 +248,7 @@ func (r Reader) dokploy(list []docker.ContainerSummary, services []docker.Servic
 		}
 		a.Containers = append(a.Containers, name)
 		a.Domains = append(a.Domains, domainsOf(l)...)
-		a.Routes = append(a.Routes, routesOf(l, name, files)...)
+		a.Routes = append(a.Routes, routesFrom(l, name, files, built, "container:"+name)...)
 	}
 	p.Apps = sorted(apps)
 	p.Domains = r.ownDomains(p.GetKind(), p.GetApps())
@@ -369,10 +372,34 @@ func traefikOn(l map[string]string) bool {
 // and a path prefix; or an entrypoint other than the web's. Nothing else of a
 // label leaves the server. A domain the labels give no port for has 0.
 func routesOf(l map[string]string, container string, files map[string]string) []*dockwellv1.PanelRoute {
+	return routesFrom(l, container, files, nil, "")
+}
+
+// builtFrom is each route the panel's read built, by what built it: the owner, as
+// the scan names it, such as "container:web-1", the router, such as
+// "traefik.http.routers.web" or "caddy_0", and the domain. The handover's check
+// passes over a rule of the app's own only where it's one of these: any other,
+// one the read couldn't make a route of among them, holds the domain back.
+type builtFrom map[string]bool
+
+func (b builtFrom) add(owner, router, domain string) {
+	if b != nil && owner != "" {
+		b[owner+"\x00"+router+"\x00"+domain] = true
+	}
+}
+
+func (b builtFrom) has(owner, router, domain string) bool {
+	return router != "" && b[owner+"\x00"+router+"\x00"+domain]
+}
+
+// routesFrom is routesOf, saying in built which router built each route, as
+// owner's.
+func routesFrom(l map[string]string, container string, files map[string]string, built builtFrom, owner string) []*dockwellv1.PanelRoute {
 	l = foldTraefik(l)
 	service := l[labelService]
 	var out []*dockwellv1.PanelRoute
-	add := func(host, path string, port uint32, left string) {
+	add := func(router, host, path string, port uint32, left string) {
+		built.add(owner, router, host)
 		if path == "/" {
 			path = ""
 		}
@@ -391,11 +418,11 @@ func routesOf(l map[string]string, container string, files map[string]string) []
 	}
 	if traefikOn(l) {
 		for _, r := range traefikRoutes(l, files) {
-			add(r.host, r.path, r.port, r.left)
+			add(r.router, r.host, r.path, r.port, r.left)
 		}
 	}
 	for _, r := range caddyRoutes(l) {
-		add(r.host, r.path, r.port, r.left)
+		add(r.router, r.host, r.path, r.port, r.left)
 	}
 	return sameDomainLeft(out)
 }
@@ -422,6 +449,9 @@ func sameDomainLeft(routes []*dockwellv1.PanelRoute) []*dockwellv1.PanelRoute {
 type labelRoute struct {
 	host, path, left string
 	port             uint32
+	// router is what it came from: traefik.http.routers.<name>, or the Caddy
+	// label, such as caddy_0.
+	router string
 }
 
 // webEntrypoints are the entrypoints that answer on ports 80 and 443, as Coolify
@@ -463,7 +493,7 @@ func traefikRoutes(l, files map[string]string) []labelRoute {
 			left = middlewaresLeft(l, strings.Split(l[at+"middlewares"], ","), files)
 		}
 		for _, h := range hosts {
-			out = append(out, labelRoute{host: h, path: prefix, port: port, left: left})
+			out = append(out, labelRoute{host: h, path: prefix, port: port, left: left, router: "traefik.http.routers." + router})
 		}
 	}
 	return out
@@ -637,7 +667,7 @@ func caddyRoutes(l map[string]string) []labelRoute {
 			if siteHasPath(a) {
 				why = cmp.Or(why, "its Caddy address names a path, which Dockwell doesn't read as a route")
 			}
-			out = append(out, labelRoute{host: h, path: prefix, port: port, left: why})
+			out = append(out, labelRoute{host: h, path: prefix, port: port, left: why, router: k})
 		}
 	}
 	return out
@@ -775,18 +805,39 @@ const maxDynamic = 256 << 10
 // to HTTPS, such as the basic auth its Security tab adds, or with a rule a route
 // can't say, keeps its domain behind, saying why.
 func (r Reader) dynamicRoutes(app, task string, files map[string]string) []*dockwellv1.PanelRoute {
+	return r.dynamicRoutesFrom(app, task, files, nil)
+}
+
+// dynamicRoutesFrom is dynamicRoutes, saying in built which router of the file
+// built each route. A file whose routers Dockwell reads fewer or more of than it
+// names rules, as one in YAML's flow style, {rule: ...}, would be, keeps each of
+// its domains behind: a router it didn't read could guard any of them.
+func (r Reader) dynamicRoutesFrom(app, task string, files map[string]string, built builtFrom) []*dockwellv1.PanelRoute {
 	if r.Root == "" || strings.ContainsAny(app, `/\\`) || app == "." || app == ".." {
 		return nil
 	}
-	f := readTraefikFile(r.panelFile(filepath.Join(dokployFolder, "traefik", "dynamic", app+".yml")))
+	at := path.Join(proxyDir(dockwellv1.PanelKind_PANEL_KIND_DOKPLOY), app+".yml")
+	b := r.panelFile(filepath.FromSlash(at))
+	f := readTraefikFile(b)
+	unread := ""
+	if named := len(ruleKey().FindAll(b, -1)); named != f.rules {
+		unread = fmt.Sprintf("its file %s names %d rules, and Dockwell reads %d of them", at, named, f.rules)
+	}
 	var out []*dockwellv1.PanelRoute
 	for _, name := range f.order {
 		rt := f.routers[name]
+		if rt.top != "http" {
+			continue
+		}
 		hosts, prefix, left := plainRule(rt.rule)
 		if left == "" {
 			left = middlewaresLeft(nil, rt.middlewares, files)
 		}
+		left = cmp.Or(unread, left)
 		for _, h := range hosts {
+			if unread == "" {
+				built.add("file:"+at, name, h)
+			}
 			if i := slices.IndexFunc(out, func(o *dockwellv1.PanelRoute) bool { return o.GetDomain() == h && o.GetPath() == prefix }); i >= 0 {
 				out[i].Left = cmp.Or(out[i].GetLeft(), left)
 				continue
@@ -801,23 +852,32 @@ func (r Reader) dynamicRoutes(app, task string, files map[string]string) []*dock
 // route goes: each router's rule, service and middlewares, each service's port,
 // and each middleware's kind.
 type traefikFile struct {
+	// routers are by section and name, such as http.routers.shop.
 	routers     map[string]*fileRouter
 	order       []string
 	ports       map[string]uint32
 	middlewares map[string]string
+	// rules is how many routers it read a rule of, in any section.
+	rules int
 }
 
 type fileRouter struct {
 	rule, service string
 	middlewares   []string
+	// top is the section it's in: http, tcp or udp.
+	top string
 }
+
+// ruleKey is a key rule in a file of Traefik's, in YAML's block style or its flow
+// style, quoted or not, which counts the rules a file names however it's written.
+var ruleKey = sync.OnceValue(func() *regexp.Regexp { return regexp.MustCompile(`(?m)(?:^|[\s{,])["']?rule["']?\s*:`) })
 
 // readTraefikFile reads a file of Traefik's dynamic configuration, as both panels
 // write them, line by line: a rule folded onto the next line, as YAML's >- writes
 // a long one, reads as one.
 func readTraefikFile(b []byte) traefikFile {
 	f := traefikFile{routers: map[string]*fileRouter{}, ports: map[string]uint32{}, middlewares: map[string]string{}}
-	section, current, list := "", "", ""
+	top, section, current, list := "", "", "", ""
 	folding := false
 	for _, line := range strings.Split(string(b), "\n") {
 		trimmed := strings.TrimSpace(line)
@@ -836,11 +896,18 @@ func readTraefikFile(b []byte) traefikFile {
 			section, current, list = key, "", ""
 		case indent < 2:
 			section, current, list = "", "", ""
+			if indent == 0 && trimmed != "" && !strings.HasPrefix(trimmed, "#") {
+				top = strings.ToLower(key)
+			}
 		case indent == 4 && value == "" && !strings.HasPrefix(trimmed, "-"):
 			current, list = key, ""
-			if section == "routers" && f.routers[key] == nil {
-				f.routers[key] = &fileRouter{}
-				f.order = append(f.order, key)
+			if section == "routers" {
+				// By its section too: an HTTP router and a TCP one may share a name.
+				current = top + ".routers." + key
+				if f.routers[current] == nil {
+					f.routers[current] = &fileRouter{top: top}
+					f.order = append(f.order, current)
+				}
 			}
 		case section == "middlewares" && current != "" && indent == 6 && f.middlewares[current] == "":
 			f.middlewares[current] = strings.ToLower(key)
@@ -860,6 +927,7 @@ func readTraefikFile(b []byte) traefikFile {
 				rule, folding = "", true
 			}
 			f.routers[current].rule = rule
+			f.rules++
 		case section == "routers" && current != "" && key == "service":
 			f.routers[current].service, list = value, ""
 		case section == "services" && current != "" && (strings.HasPrefix(trimmed, "- url:") || key == "url"):

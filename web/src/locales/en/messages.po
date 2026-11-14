@@ -8961,6 +8961,9 @@ msgstr "<0>{path}</0> gives it control of Docker on the server, the same as root
 msgid "<0>{path}</0> leads to <1>{leadsTo}</1> through a symlink, which gives it control of Docker on the server, the same as root."
 msgstr "<0>{path}</0> leads to <1>{leadsTo}</1> through a symlink, which gives it control of Docker on the server, the same as root."
 
+msgid "A request answered 404, which says nothing of a login."
+msgstr "A request answered 404, which says nothing of a login."
+
 msgid "A rollback puts back its spec, not its data, so if a newer version changed that data, such as with a migration, the older one may not read it."
 msgstr "A rollback puts back its spec, not its data, so if a newer version changed that data, such as with a migration, the older one may not read it."
 
@@ -8979,6 +8982,9 @@ msgstr "Add it to what the jail never bans first, or apply this knowing it."
 msgid "Adds {names}."
 msgstr "Adds {names}."
 
+msgid "An address limit that lets in this server or private networks can't be seen."
+msgstr "An address limit that lets in this server or private networks can't be seen."
+
 msgid "Anyone who can reach this server gets it, around whatever is in front of it."
 msgstr "Anyone who can reach this server gets it, around whatever is in front of it."
 
@@ -8993,6 +8999,9 @@ msgstr "Anyone who can read this app can see it. Only a variable's value is hidd
 
 msgid "Apply this only if the app can take it."
 msgstr "Apply this only if the app can take it."
+
+msgid "Asked from {from}"
+msgstr "Asked from {from}"
 
 msgid "Back it up first if you need it: undo may not bring it back."
 msgstr "Back it up first if you need it: undo may not bring it back."
@@ -9267,6 +9276,10 @@ msgstr "No backup was taken, and the data stays as it is now"
 
 msgid "No branch or tag is at this commit now"
 msgstr "No branch or tag is at this commit now"
+
+#. placeholder {0}: note.names.join(", ")
+msgid "No clear answer for {0}"
+msgstr "No clear answer for {0}"
 
 msgid "No login or address limit found on the old proxy"
 msgstr "No login or address limit found on the old proxy"
@@ -11657,6 +11670,9 @@ msgstr "{serverWords} in {waveWords}"
 
 msgid "{sizes} servers"
 msgstr "{sizes} servers"
+
+msgid "Asked from {askedFrom}: an address limit that lets in this server or private networks can't be seen."
+msgstr "Asked from {askedFrom}: an address limit that lets in this server or private networks can't be seen."
 
 msgid "Checked {scanned}, and asked the proxy for each."
 msgstr "Checked {scanned}, and asked the proxy for each."

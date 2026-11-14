@@ -43,8 +43,39 @@ func TestTheProbeHoldsWhatAHandshakeRefuses(t *testing.T) {
 	}))
 	open.StartTLS()
 	defer open.Close()
-	if got := (Reader{ProbeAddr: open.Listener.Addr().String()}).probe(t.Context(), "blog.example.com", "/"); !got.Open || got.Answer != "200" {
+	if got := (Reader{ProbeAddr: open.Listener.Addr().String()}).probe(t.Context(), "blog.example.com", "/"); !got.Open || got.Answer != "200" || got.From != "127.0.0.1" {
 		t.Errorf("the domain's name as SNI and host answered %+v", got)
+	}
+}
+
+// Only what anyone gets is open: a 2xx, or a redirect on the same host to
+// anything but a sign-in. A 404 says nothing either way, and anything else holds.
+func TestWhatAnAnswerSays(t *testing.T) {
+	for _, c := range []struct {
+		answer       func(w http.ResponseWriter, r *http.Request)
+		open, unsure bool
+		says         string
+	}{
+		{func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) }, true, false, "204"},
+		{func(w http.ResponseWriter, r *http.Request) { http.Redirect(w, r, "/home", http.StatusFound) }, true, false, "302 to /home"},
+		{func(w http.ResponseWriter, r *http.Request) { http.Redirect(w, r, "/start?rd=%2F", http.StatusFound) }, false, false, "302 to a sign-in, /start"},
+		{func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, "/.pomerium/sign_in", http.StatusFound)
+		}, false, false, "302 to a sign-in, /.pomerium/sign_in"},
+		{func(w http.ResponseWriter, r *http.Request) { http.Redirect(w, r, "/authelia/", http.StatusFound) }, false, false, "302 to a sign-in, /authelia/"},
+		{func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNotFound) }, false, true, "404"},
+		{func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusServiceUnavailable) }, false, false, "503"},
+		{func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusMethodNotAllowed) }, false, false, "405"},
+	} {
+		srv := httptest.NewTLSServer(http.HandlerFunc(c.answer))
+		got := (Reader{ProbeAddr: srv.Listener.Addr().String()}).probe(t.Context(), "blog.example.com", "/")
+		srv.Close()
+		if got.Open != c.open || got.Unsure != c.unsure || got.Answer != c.says {
+			t.Errorf("answered %+v, want open %v, unsure %v, %q", got, c.open, c.unsure, c.says)
+		}
+	}
+	if net.ParseIP(probeHost()) == nil {
+		t.Errorf("the probe asks on %q", probeHost())
 	}
 }
 

@@ -122,8 +122,14 @@ describe("moving in from Coolify", () => {
             domain: "blog.example.com",
             scanned: "labels on 4 containers and 0 services, and 2 files in the proxy's mounts",
             probes: [{ path: "/", answer: "200", open: true }],
+            askedFrom: "203.0.113.10",
           },
           { domain: "wiki.example.com", held: "a request for / through the proxy answered 401" },
+          {
+            domain: "docs.example.com",
+            unsure: "a request for / answered 404, which says nothing of a login",
+            probes: [{ path: "/", answer: "404" }],
+          },
         ],
       }),
     );
@@ -145,10 +151,18 @@ describe("moving in from Coolify", () => {
     const choice = await screen.findByRole("dialog", { name: "Hand over Coolify's domains" });
     const blog = await within(choice).findByRole("checkbox", { name: "blog.example.com" });
     const wiki = within(choice).getByRole("checkbox", { name: "wiki.example.com" });
+    const docs = within(choice).getByRole("checkbox", { name: "docs.example.com" });
     expect(checkPanelDomains.mock.calls[0]?.[0]).toMatchObject({ serverId: "srv_1", panel: PanelKind.COOLIFY });
     // What nothing was found for is chosen already; what stays can't be.
     expect((blog as HTMLInputElement).checked).toBe(true);
     expect((wiki as HTMLInputElement).disabled).toBe(true);
+    // A 404 says nothing either way: it can be chosen, and isn't already.
+    expect((docs as HTMLInputElement).checked).toBe(false);
+    expect((docs as HTMLInputElement).disabled).toBe(false);
+    expect(choice).toHaveTextContent("a request for / answered 404, which says nothing of a login");
+    expect(choice).toHaveTextContent(
+      "Asked from 203.0.113.10: an address limit that lets in this server or private networks can't be seen.",
+    );
     expect(choice).toHaveTextContent("No login or address limit found/ 200");
     expect(choice).toHaveTextContent("a request for / through the proxy answered 401");
     expect(choice).toHaveTextContent(

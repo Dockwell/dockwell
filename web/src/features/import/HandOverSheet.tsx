@@ -15,9 +15,10 @@ import { type Opening, PlanView } from "../changes/ChangeSheet";
  * handover: evidence and a choice"). The sheet checks each domain the panel's
  * proxy serves as it opens: a scan of every rule on the server, the proxy's
  * static configuration, and a request through the proxy. Each nothing was found
- * for is chosen already; each other says why it stays, and can't be chosen. The
- * plan names the chosen ones, and the agent checks them again before the proxy
- * stops.
+ * for is chosen already, but one whose answer said nothing either way, a 404,
+ * which a person chooses or not; each other says why it stays, and can't be
+ * chosen. The plan names the chosen ones, and the agent checks them again before
+ * the proxy stops.
  */
 
 /** The sheet that checks a panel's domains and has a person choose which come over. */
@@ -49,7 +50,7 @@ export function HandOverSheet({
       .then((res) => {
         if (gone) return;
         setChecks(res.domains);
-        setChosen(new Set(res.domains.filter((d) => d.held === "").map((d) => d.domain)));
+        setChosen(new Set(res.domains.filter((d) => d.held === "" && d.unsure === "").map((d) => d.domain)));
       })
       .catch((err: unknown) => {
         if (!gone) setFailure(err);
@@ -82,6 +83,7 @@ export function HandOverSheet({
     });
   };
   const scanned = checks?.[0]?.scanned;
+  const askedFrom = checks?.find((c) => c.askedFrom !== "")?.askedFrom;
   return (
     <Sheet
       open
@@ -118,7 +120,14 @@ export function HandOverSheet({
         <>
           <ul className="handover-domains" aria-label={t`Domains`}>
             {checks.map((c) => (
-              <li key={c.domain} className={cx("handover-domain", c.held !== "" && "is-held")}>
+              <li
+                key={c.domain}
+                className={cx(
+                  "handover-domain",
+                  c.held !== "" && "is-held",
+                  c.held === "" && c.unsure !== "" && "is-unsure",
+                )}
+              >
                 <label>
                   <input
                     type="checkbox"
@@ -133,6 +142,11 @@ export function HandOverSheet({
                     <>
                       <Icon name="lock" size={12} />
                       {c.held}
+                    </>
+                  ) : c.unsure !== "" ? (
+                    <>
+                      <Icon name="question" size={12} />
+                      {c.unsure}
                     </>
                   ) : (
                     <>
@@ -152,6 +166,13 @@ export function HandOverSheet({
           {scanned ? (
             <p className="handover-scanned">
               <Trans>Checked {scanned}, and asked the proxy for each.</Trans>
+            </p>
+          ) : null}
+          {askedFrom ? (
+            <p className="handover-scanned">
+              <Trans>
+                Asked from {askedFrom}: an address limit that lets in this server or private networks can't be seen.
+              </Trans>
             </p>
           ) : null}
         </>

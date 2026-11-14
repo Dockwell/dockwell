@@ -485,7 +485,14 @@ type PanelDomainCheck struct {
 	Held string `protobuf:"bytes,4,opt,name=held,proto3" json:"held,omitempty"`
 	// What the scan read, such as "labels on 12 containers and 3 services, and 9
 	// files in the proxy's mounts".
-	Scanned       string `protobuf:"bytes,5,opt,name=scanned,proto3" json:"scanned,omitempty"`
+	Scanned string `protobuf:"bytes,5,opt,name=scanned,proto3" json:"scanned,omitempty"`
+	// Why one nothing held may still be guarded, such as "a request for /admin
+	// answered 404, which says nothing of a login". A person can choose it; it
+	// isn't chosen already.
+	Unsure string `protobuf:"bytes,6,opt,name=unsure,proto3" json:"unsure,omitempty"`
+	// The address the proxy was asked from, such as "203.0.113.10". An address
+	// limit that lets it in, or the private networks it's on, can't be seen.
+	AskedFrom     string `protobuf:"bytes,7,opt,name=asked_from,json=askedFrom,proto3" json:"asked_from,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -555,6 +562,20 @@ func (x *PanelDomainCheck) GetScanned() string {
 	return ""
 }
 
+func (x *PanelDomainCheck) GetUnsure() string {
+	if x != nil {
+		return x.Unsure
+	}
+	return ""
+}
+
+func (x *PanelDomainCheck) GetAskedFrom() string {
+	if x != nil {
+		return x.AskedFrom
+	}
+	return ""
+}
+
 // PanelProbe is a request through the panel's proxy, over HTTPS with the
 // domain's name, from the server.
 type PanelProbe struct {
@@ -564,7 +585,8 @@ type PanelProbe struct {
 	// What answered, such as "200", "302 to https://sso.example.com/" or "no TLS
 	// handshake".
 	Answer string `protobuf:"bytes,2,opt,name=answer,proto3" json:"answer,omitempty"`
-	// True where the answer says no login or address limit.
+	// True where the answer is what anyone gets: a 2xx, or a redirect on the
+	// same host to anything but a sign-in.
 	Open          bool `protobuf:"varint,3,opt,name=open,proto3" json:"open,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -674,10 +696,10 @@ type PlanStartPanelRequest struct {
 	ServerId string `protobuf:"bytes,1,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
 	// The panel to start.
 	Panel PanelKind `protobuf:"varint,2,opt,name=panel,proto3,enum=dockwell.v1.PanelKind" json:"panel,omitempty"`
-	// Start its proxy alone, which holds ports 80 and 443.
-	Proxy bool `protobuf:"varint,3,opt,name=proxy,proto3" json:"proxy,omitempty"`
 	// What the change is for, for the timeline. Empty says what it starts.
-	Summary       string `protobuf:"bytes,4,opt,name=summary,proto3" json:"summary,omitempty"`
+	Summary string `protobuf:"bytes,3,opt,name=summary,proto3" json:"summary,omitempty"`
+	// Start its proxy alone, which holds ports 80 and 443.
+	Proxy         bool `protobuf:"varint,4,opt,name=proxy,proto3" json:"proxy,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -726,18 +748,18 @@ func (x *PlanStartPanelRequest) GetPanel() PanelKind {
 	return PanelKind_PANEL_KIND_UNSPECIFIED
 }
 
-func (x *PlanStartPanelRequest) GetProxy() bool {
-	if x != nil {
-		return x.Proxy
-	}
-	return false
-}
-
 func (x *PlanStartPanelRequest) GetSummary() string {
 	if x != nil {
 		return x.Summary
 	}
 	return ""
+}
+
+func (x *PlanStartPanelRequest) GetProxy() bool {
+	if x != nil {
+		return x.Proxy
+	}
+	return false
 }
 
 // PlanStartPanelResponse carries the planned start.
@@ -3065,13 +3087,16 @@ const file_dockwell_v1_import_proto_rawDesc = "" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12,\n" +
 	"\x05panel\x18\x02 \x01(\x0e2\x16.dockwell.v1.PanelKindR\x05panel\"T\n" +
 	"\x19CheckPanelDomainsResponse\x127\n" +
-	"\adomains\x18\x01 \x03(\v2\x1d.dockwell.v1.PanelDomainCheckR\adomains\"\xa5\x01\n" +
+	"\adomains\x18\x01 \x03(\v2\x1d.dockwell.v1.PanelDomainCheckR\adomains\"\xdc\x01\n" +
 	"\x10PanelDomainCheck\x12\x16\n" +
 	"\x06domain\x18\x01 \x01(\tR\x06domain\x12\x1a\n" +
 	"\bmentions\x18\x02 \x03(\tR\bmentions\x12/\n" +
 	"\x06probes\x18\x03 \x03(\v2\x17.dockwell.v1.PanelProbeR\x06probes\x12\x12\n" +
 	"\x04held\x18\x04 \x01(\tR\x04held\x12\x18\n" +
-	"\ascanned\x18\x05 \x01(\tR\ascanned\"L\n" +
+	"\ascanned\x18\x05 \x01(\tR\ascanned\x12\x16\n" +
+	"\x06unsure\x18\x06 \x01(\tR\x06unsure\x12\x1d\n" +
+	"\n" +
+	"asked_from\x18\a \x01(\tR\taskedFrom\"L\n" +
 	"\n" +
 	"PanelProbe\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x12\x16\n" +
@@ -3081,9 +3106,9 @@ const file_dockwell_v1_import_proto_rawDesc = "" +
 	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"\x92\x01\n" +
 	"\x15PlanStartPanelRequest\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12,\n" +
-	"\x05panel\x18\x02 \x01(\x0e2\x16.dockwell.v1.PanelKindR\x05panel\x12\x14\n" +
-	"\x05proxy\x18\x03 \x01(\bR\x05proxy\x12\x18\n" +
-	"\asummary\x18\x04 \x01(\tR\asummary\"E\n" +
+	"\x05panel\x18\x02 \x01(\x0e2\x16.dockwell.v1.PanelKindR\x05panel\x12\x18\n" +
+	"\asummary\x18\x03 \x01(\tR\asummary\x12\x14\n" +
+	"\x05proxy\x18\x04 \x01(\bR\x05proxy\"E\n" +
 	"\x16PlanStartPanelResponse\x12+\n" +
 	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"{\n" +
 	"\x14PlanStopPanelRequest\x12\x1b\n" +

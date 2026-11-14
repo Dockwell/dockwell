@@ -157,6 +157,10 @@
   cursor: default;
 }
 
+.handover-domain.is-unsure .handover-found svg {
+  color: var(--warning);
+}
+
 .handover-name {
   font-family: var(--font-mono);
   font-size: 13px;

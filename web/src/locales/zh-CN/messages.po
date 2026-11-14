@@ -8961,6 +8961,9 @@ msgstr "<0>{path}</0> 让它能控制服务器上的 Docker，相当于 root。"
 msgid "<0>{path}</0> leads to <1>{leadsTo}</1> through a symlink, which gives it control of Docker on the server, the same as root."
 msgstr "<0>{path}</0> 通过符号链接指向 <1>{leadsTo}</1>，这让它能控制服务器上的 Docker，相当于 root。"
 
+msgid "A request answered 404, which says nothing of a login."
+msgstr "有一个请求返回了 404，无法据此判断是否需要登录。"
+
 msgid "A rollback puts back its spec, not its data, so if a newer version changed that data, such as with a migration, the older one may not read it."
 msgstr "回滚只恢复配置，不恢复数据。如果新版本改动过这些数据（例如迁移），旧版本可能无法读取。"
 
@@ -8979,6 +8982,9 @@ msgstr "请先把它加入这个 jail 永不封禁的地址，或在知情的情
 msgid "Adds {names}."
 msgstr "添加 {names}。"
 
+msgid "An address limit that lets in this server or private networks can't be seen."
+msgstr "放行本服务器或私有网络的地址限制无法从这里看出。"
+
 msgid "Anyone who can reach this server gets it, around whatever is in front of it."
 msgstr "任何能访问此服务器的人都能访问它，并绕过它前面的任何内容。"
 
@@ -8993,6 +8999,9 @@ msgstr "能读取此应用的任何人都能看到它。只有变量的值会被
 
 msgid "Apply this only if the app can take it."
 msgstr "只有在应用能够承受时才应用此计划。"
+
+msgid "Asked from {from}"
+msgstr "从 {from} 发出请求"
 
 msgid "Back it up first if you need it: undo may not bring it back."
 msgstr "如有需要，请先备份：撤销可能无法恢复。"
@@ -9267,6 +9276,10 @@ msgstr "没有做过备份,数据保持现状"
 
 msgid "No branch or tag is at this commit now"
 msgstr "当前没有分支或标签指向这个提交"
+
+#. placeholder {0}: note.names.join(", ")
+msgid "No clear answer for {0}"
+msgstr "{0} 没有明确的结果"
 
 msgid "No login or address limit found on the old proxy"
 msgstr "在旧代理上未发现登录或地址限制"
@@ -11657,6 +11670,9 @@ msgstr "{serverWords}，分 {waveWords}"
 
 msgid "{sizes} servers"
 msgstr "{sizes} 台服务器"
+
+msgid "Asked from {askedFrom}: an address limit that lets in this server or private networks can't be seen."
+msgstr "从 {askedFrom} 发出请求：放行本服务器或私有网络的地址限制无法从这里看出。"
 
 msgid "Checked {scanned}, and asked the proxy for each."
 msgstr "已检查{scanned}，并逐个通过代理发出请求。"

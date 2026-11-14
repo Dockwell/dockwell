@@ -800,8 +800,9 @@ func PackagesFrom(ps []*dockwellv1.PackageUpdate) []resource.InstallPackage {
 // PanelChecks are what was checked of a panel's domains, as the API says them.
 func PanelChecks(checks []resource.PanelCheck) []*dockwellv1.PanelDomainCheck {
 	out := make([]*dockwellv1.PanelDomainCheck, 0, len(checks))
-	for _, c := range checks {
-		pc := &dockwellv1.PanelDomainCheck{Domain: c.Domain, Mentions: c.Mentions, Held: c.Held, Scanned: c.Scanned}
+	for i := range checks {
+		c := &checks[i]
+		pc := &dockwellv1.PanelDomainCheck{Domain: c.Domain, Mentions: c.Mentions, Held: c.Held, Scanned: c.Scanned, Unsure: c.Unsure, AskedFrom: c.AskedFrom}
 		for _, p := range c.Probes {
 			pc.Probes = append(pc.Probes, &dockwellv1.PanelProbe{Path: p.Path, Answer: p.Answer, Open: p.Open})
 		}
@@ -814,7 +815,7 @@ func PanelChecks(checks []resource.PanelCheck) []*dockwellv1.PanelDomainCheck {
 func PanelChecksFrom(checks []*dockwellv1.PanelDomainCheck) []resource.PanelCheck {
 	out := make([]resource.PanelCheck, 0, len(checks))
 	for _, c := range checks {
-		rc := resource.PanelCheck{Domain: c.GetDomain(), Mentions: c.GetMentions(), Held: c.GetHeld(), Scanned: c.GetScanned()}
+		rc := resource.PanelCheck{Domain: c.GetDomain(), Mentions: c.GetMentions(), Held: c.GetHeld(), Scanned: c.GetScanned(), Unsure: c.GetUnsure(), AskedFrom: c.GetAskedFrom()}
 		for _, p := range c.GetProbes() {
 			rc.Probes = append(rc.Probes, resource.PanelProbe{Path: p.GetPath(), Answer: p.GetAnswer(), Open: p.GetOpen()})
 		}

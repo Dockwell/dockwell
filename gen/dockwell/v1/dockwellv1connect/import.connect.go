@@ -90,9 +90,11 @@ type ImportServiceClient interface {
 	// handover (ADR 0089): a scan of every label on the server and every file in
 	// the proxy's mounts for another rule that mentions it, the proxy's static
 	// configuration, and a request through the proxy over HTTPS for / and each
-	// path a rule names for it. Each says what was checked, and why it stays
-	// behind where it does; one that doesn't is what a person can choose to hand
-	// over with PlanPanelDomains. It changes nothing.
+	// path a rule names for it. Each request is a GET, as anyone's browser sends,
+	// whose answer is read and not followed. Each says what was checked, and why
+	// it stays behind where it does; one that doesn't is what a person can choose
+	// to hand over with PlanPanelDomains. It changes nothing of Dockwell's or the
+	// panel's, though an app that acts on a GET for one of its paths acts on it.
 	CheckPanelDomains(context.Context, *connect.Request[v1.CheckPanelDomainsRequest]) (*connect.Response[v1.CheckPanelDomainsResponse], error)
 	// PlanPanelDomains plans handing over the domains of what was taken on from a
 	// panel: one change that stops the panel's proxy, which holds ports 80 and 443,
@@ -258,9 +260,11 @@ type ImportServiceHandler interface {
 	// handover (ADR 0089): a scan of every label on the server and every file in
 	// the proxy's mounts for another rule that mentions it, the proxy's static
 	// configuration, and a request through the proxy over HTTPS for / and each
-	// path a rule names for it. Each says what was checked, and why it stays
-	// behind where it does; one that doesn't is what a person can choose to hand
-	// over with PlanPanelDomains. It changes nothing.
+	// path a rule names for it. Each request is a GET, as anyone's browser sends,
+	// whose answer is read and not followed. Each says what was checked, and why
+	// it stays behind where it does; one that doesn't is what a person can choose
+	// to hand over with PlanPanelDomains. It changes nothing of Dockwell's or the
+	// panel's, though an app that acts on a GET for one of its paths acts on it.
 	CheckPanelDomains(context.Context, *connect.Request[v1.CheckPanelDomainsRequest]) (*connect.Response[v1.CheckPanelDomainsResponse], error)
 	// PlanPanelDomains plans handing over the domains of what was taken on from a
 	// panel: one change that stops the panel's proxy, which holds ports 80 and 443,

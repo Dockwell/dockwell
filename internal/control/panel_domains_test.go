@@ -325,13 +325,74 @@ func TestTheProbeHoldsWhatALoginAnswers(t *testing.T) {
 		{func(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, "https://sso.example.com/", http.StatusFound)
 		}, "answered 302 to another host, sso.example.com"},
+		{func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, "/oidc/start?next=/", http.StatusFound)
+		}, "answered 302 to a sign-in, /oidc/start"},
 		{func(w http.ResponseWriter, r *http.Request) { http.Redirect(w, r, "/home", http.StatusFound) }, ""},
-		{func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNotFound) }, ""},
+		// An app that's down could be one behind a login that's down.
+		{func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusBadGateway) }, "answered 502"},
+		{func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusTeapot) }, "answered 418"},
+		{func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) }, ""},
 	} {
 		s.answers("blog.example.com", c.answer)
-		if got := s.check(t)["blog.example.com"].GetHeld(); !strings.Contains(got, c.held) || (c.held == "") != (got == "") {
-			t.Errorf("held %q, want %q", got, c.held)
+		got := s.check(t)["blog.example.com"]
+		if held := got.GetHeld(); !strings.Contains(held, c.held) || (c.held == "") != (held == "") || got.GetUnsure() != "" {
+			t.Errorf("held %q, unsure %q, want %q", held, got.GetUnsure(), c.held)
 		}
+	}
+	// A 404 says nothing either way: blog can be chosen, and the plan says so.
+	s.answers("blog.example.com", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNotFound) })
+	got := s.check(t)["blog.example.com"]
+	if got.GetHeld() != "" || got.GetUnsure() != "a request for / answered 404, which says nothing of a login" {
+		t.Errorf("after a 404, held %q, unsure %q", got.GetHeld(), got.GetUnsure())
+	}
+	if got.GetAskedFrom() == "" {
+		t.Error("the check doesn't say what it asked from")
+	}
+	change, err := s.plan(t, "blog.example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !noteSays(change, "panel_domains_unsure", "No clear answer for blog.example.com") ||
+		!noteSays(change, "panel_domains_asked_from", "Asked from "+got.GetAskedFrom()+", so an address limit that lets in this server or private networks can't be seen") {
+		t.Errorf("the plan's notes are %v", change.GetPlan().GetNotes())
+	}
+}
+
+// The app's own rules pass the scan only where the panel's read made a route of
+// that very router. One it couldn't read holds the domain back, as one with a
+// pattern, a TCP router's, or a matcher written with a space would: each could
+// guard a path with a login no route would keep.
+func TestTheAppsOwnRulesPassOnlyWhereARouteCameFromThem(t *testing.T) {
+	s := coolifyHandover(t)
+	for _, c := range []struct{ id, rule, router string }{
+		{"rx", "HostRegexp(`^rx\\.example\\.com$`) && PathPrefix(`/admin`)", "traefik.http.routers.admin"},
+		{"sni", "HostSNI(`sni.example.com`)", "traefik.tcp.routers.admin"},
+		{"sp", "Host (`sp.example.com`) && PathPrefix(`/admin`)", "traefik.http.routers.admin"},
+	} {
+		s.e.AddNetwork(docker.Network{ID: c.id + "net", Name: c.id + "_default", Driver: "bridge"})
+		composeContainer(t, s.e, c.id, "app", "app-"+c.id, func(r *docker.CreateRequest) {
+			maps.Copy(r.Labels, map[string]string{
+				"coolify.managed": "true", "coolify.type": "service", "coolify.serviceUuid": c.id, "coolify.resourceName": c.id, "traefik.enable": "true",
+				docker.LabelWorkingDir:                               "/data/coolify/services/" + c.id,
+				"traefik.http.routers.app.rule":                      "Host(`" + c.id + ".example.com`)",
+				"traefik.http.services.app.loadbalancer.server.port": "3000",
+				c.router + ".rule":                                   c.rule,
+				c.router + ".middlewares":                            "sso",
+				"traefik.http.middlewares.sso.forwardauth.address":   "http://sso.example.com/verify",
+			})
+		})
+	}
+	s.takeOn(t)
+	checks := s.check(t)
+	for _, id := range []string{"rx", "sni", "sp"} {
+		d := checks[id+".example.com"]
+		if !strings.Contains(d.GetHeld(), "on app-"+id) || len(d.GetProbes()) != 0 {
+			t.Errorf("%s reads held %q, probed %v", id, d.GetHeld(), d.GetProbes())
+		}
+	}
+	if got := checks["blog.example.com"]; got.GetHeld() != "" {
+		t.Errorf("blog, whose one router made its route, reads %q", got.GetHeld())
 	}
 }
 

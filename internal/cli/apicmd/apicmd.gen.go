@@ -1707,7 +1707,7 @@ func Methods() []*apicli.Method {
 			Noun:      "import",
 			Verb:      "check-domains",
 			Short:     "Check each domain a panel's proxy serves",
-			Long:      "Check each domain a panel's proxy serves, before a handover (ADR 0089): a scan\nof every label on the server and every file in the proxy's mounts for another\nrule that mentions it, the proxy's static configuration, and a request through\nthe proxy over HTTPS for / and each path a rule names for it. Each says what was\nchecked, and why it stays behind where it does; one that doesn't is what a\nperson can choose to hand over with dockwell import domains. It changes nothing.",
+			Long:      "Check each domain a panel's proxy serves, before a handover (ADR 0089): a scan\nof every label on the server and every file in the proxy's mounts for another\nrule that mentions it, the proxy's static configuration, and a request through\nthe proxy over HTTPS for / and each path a rule names for it. Each request is a\nGET, as anyone's browser sends, whose answer is read and not followed. Each says\nwhat was checked, and why it stays behind where it does; one that doesn't is\nwhat a person can choose to hand over with dockwell import domains. It changes\nnothing of Dockwell's or the panel's, though an app that acts on a GET for one\nof its paths acts on it.",
 			Effect:    v1.Effect_EFFECT_READ,
 			Fields: []apicli.Field{
 				{Path: "server_id", Help: "The server the panel runs on, such as \"srv_01JD6Z3R8M9QF2K7T4XW5BNC0V\"."},
@@ -1774,8 +1774,8 @@ func Methods() []*apicli.Method {
 			Fields: []apicli.Field{
 				{Path: "server_id", Help: "The server the panel runs on, such as \"srv_01JD6Z3R8M9QF2K7T4XW5BNC0V\"."},
 				{Path: "panel", Help: "The panel to start."},
-				{Path: "proxy", Help: "Start its proxy alone, which holds ports 80 and 443."},
 				{Path: "summary", Help: "What the change is for, for the timeline. Empty says what it starts."},
+				{Path: "proxy", Help: "Start its proxy alone, which holds ports 80 and 443."},
 			},
 			Call: apicli.Unary[v1.PlanStartPanelRequest, v1.PlanStartPanelResponse](dockwellv1connect.ImportServicePlanStartPanelProcedure),
 		},

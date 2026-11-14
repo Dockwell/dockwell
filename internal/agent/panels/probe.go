@@ -3,6 +3,7 @@
 package panels
 
 import (
+	"cmp"
 	"context"
 	"crypto/tls"
 	"errors"
@@ -10,6 +11,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"regexp"
 	"strconv"
@@ -23,13 +25,77 @@ import (
 
 // The probe of the domain handover (ADR 0089): before anything stops, each domain
 // nothing else held is asked for through the old proxy, from the server, over
-// HTTPS with its name as SNI, for / and each path a rule names for it. What a
-// login or an address limit answers holds it back: 401, 403 or 407, a redirect to
-// another host or to a login path, or a TLS handshake that fails, as one asking
-// for a client certificate does. Nothing the proxy answers is followed.
+// HTTPS with its name as SNI, with a GET for / and each path a rule names for it.
+// Only what anyone would get counts as open: a 2xx, or a redirect on the same host
+// to anything but a sign-in. A login or an address limit answers otherwise, as
+// 401, 403 or 407, a redirect to another host or a sign-in, or a TLS handshake
+// that fails, as one asking for a client certificate does, and so does an app
+// that's down, with a 5xx: each holds the domain back. A 404 says nothing either
+// way, so its domain can be chosen, and isn't chosen already. Nothing the proxy
+// answers is followed.
+//
+// It's asked on an address of the server's own that isn't loopback, a public one
+// first, so the proxy sees it come from that address and not from Docker's
+// gateway, which an allowlist of private networks lets in. An address limit that
+// lets in this server, or the network it's on, still can't be seen from here, and
+// what it was asked from goes with what it found, for a person to weigh.
 
-// proxyAddr is where the old proxy listens for HTTPS on the server.
-const proxyAddr = "127.0.0.1:443"
+// proxyPort is where the old proxy listens for HTTPS on the server.
+const proxyPort = "443"
+
+// probeHost is the address of the server's own the probe asks the proxy on: a
+// public address on any interface but loopback and the bridges containers run on,
+// or, with none, a private one, or, with none, loopback.
+func probeHost() string {
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return "127.0.0.1"
+	}
+	var public, private netip.Addr
+	for _, ifc := range ifaces {
+		if ifc.Flags&net.FlagUp == 0 || ifc.Flags&net.FlagLoopback != 0 || containerBridge(ifc.Name) {
+			continue
+		}
+		addrs, err := ifc.Addrs()
+		if err != nil {
+			continue
+		}
+		for _, a := range addrs {
+			ipn, ok := a.(*net.IPNet)
+			if !ok {
+				continue
+			}
+			ip, ok := netip.AddrFromSlice(ipn.IP)
+			if !ok || !ip.Unmap().Is4() && !ip.IsGlobalUnicast() {
+				continue
+			}
+			ip = ip.Unmap()
+			switch {
+			case resource.IsPublicAddress(ip) && (!public.IsValid() || ip.Is4() && !public.Is4()):
+				public = ip
+			case !resource.IsPublicAddress(ip) && ip.IsPrivate() && !private.IsValid():
+				private = ip
+			}
+		}
+	}
+	switch {
+	case public.IsValid():
+		return public.String()
+	case private.IsValid():
+		return private.String()
+	}
+	return "127.0.0.1"
+}
+
+// containerBridge reports an interface Docker or another container runtime made.
+func containerBridge(name string) bool {
+	for _, p := range []string{"docker", "br-", "veth", "cni", "flannel", "cali", "virbr", "podman"} {
+		if strings.HasPrefix(name, p) {
+			return true
+		}
+	}
+	return false
+}
 
 // probeWait is how long one request may take, and probeWorkers how many run at
 // once.
@@ -48,12 +114,30 @@ type probeAsk struct {
 // loginPath is a path a redirect to a sign-in goes to: login, sign-in, auth, SSO,
 // OAuth, SAML, CAS and the paths the common forward-auth servers answer on.
 var loginPath = sync.OnceValue(func() *regexp.Regexp {
-	return regexp.MustCompile(`(?i)(^|[/._-])(log-?in|sign-?in|sign_in|auth|authorize|oauth2?|sso|saml|cas|session|outpost\.goauthentik\.io|cdn-cgi/access)([/._?-]|$)`)
+	return regexp.MustCompile(`(?i)(^|[/._-])(log-?in|sign-?in|sign_in|auth|authorize|authenticate|oauth2?|sso|saml|cas|idp|session|authelia|authentik|\.?pomerium|outpost\.goauthentik\.io|cdn-cgi/access)([/._?-]|$)`)
 })
+
+// comesBack reports a redirect that says where to come back to, as a sign-in's
+// does: rd, redirect, next, return and their kin in its query.
+func comesBack(q url.Values) bool {
+	for k := range q {
+		switch strings.ToLower(k) {
+		case "rd", "redirect", "redirect_uri", "redirect_url", "redirect_to", "next", "return", "return_to", "returnto", "returnurl", "return_url", "continue", "came_from":
+			return true
+		}
+	}
+	return false
+}
 
 // probeAll asks for each in parallel, a few at a time, each in order.
 func (r Reader) probeAll(ctx context.Context, asks []probeAsk) []resource.PanelProbe {
 	out := make([]resource.PanelProbe, len(asks))
+	if len(asks) == 0 {
+		return out
+	}
+	if r.ProbeAddr == "" {
+		r.ProbeAddr = net.JoinHostPort(probeHost(), proxyPort)
+	}
 	next := make(chan int)
 	var wg sync.WaitGroup
 	for range min(probeWorkers, len(asks)) {
@@ -76,18 +160,22 @@ func (r Reader) probeAll(ctx context.Context, asks []probeAsk) []resource.PanelP
 // probe asks the proxy for a domain's path, and says what answered.
 func (r Reader) probe(ctx context.Context, domain, p string) resource.PanelProbe {
 	out := resource.PanelProbe{Path: p}
-	addr := r.ProbeAddr
-	if addr == "" {
-		addr = proxyAddr
-	}
+	addr := cmp.Or(r.ProbeAddr, net.JoinHostPort(probeHost(), proxyPort))
 	dialer := &net.Dialer{Timeout: probeWait}
 	client := &http.Client{
 		Timeout: probeWait,
 		Transport: &http.Transport{
 			// Every request goes to the proxy on this server, whatever the domain's DNS
-			// says: it's the proxy's answer that's asked for.
+			// says: it's the proxy's answer that's asked for. Where it came from is
+			// what the proxy saw, unless something between rewrote it.
 			DialContext: func(ctx context.Context, network, _ string) (net.Conn, error) {
-				return dialer.DialContext(ctx, network, addr)
+				conn, err := dialer.DialContext(ctx, network, addr)
+				if err == nil {
+					if a, ok := conn.LocalAddr().(*net.TCPAddr); ok {
+						out.From = a.IP.String()
+					}
+				}
+				return conn, err
 			},
 			// The proxy's certificate may be one it hasn't got yet, or its own default:
 			// what's asked is how it answers, not whom.
@@ -113,8 +201,8 @@ func (r Reader) probe(ctx context.Context, domain, p string) resource.PanelProbe
 	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 64<<10))
 	code := strconv.Itoa(resp.StatusCode)
 	switch {
-	case resp.StatusCode == http.StatusUnauthorized, resp.StatusCode == http.StatusForbidden, resp.StatusCode == http.StatusProxyAuthRequired:
-		out.Answer = code
+	case resp.StatusCode >= 200 && resp.StatusCode < 300:
+		out.Answer, out.Open = code, true
 	case resp.StatusCode >= 300 && resp.StatusCode < 400:
 		loc, err := resp.Location()
 		switch {
@@ -122,13 +210,18 @@ func (r Reader) probe(ctx context.Context, domain, p string) resource.PanelProbe
 			out.Answer = code + " to nowhere Dockwell can read"
 		case !strings.EqualFold(loc.Hostname(), domain):
 			out.Answer = fmt.Sprintf("%s to another host, %s", code, loc.Hostname())
-		case loginPath().MatchString(loc.Path):
+		case loginPath().MatchString(loc.Path) || comesBack(loc.Query()):
 			out.Answer = fmt.Sprintf("%s to a sign-in, %s", code, loc.Path)
 		default:
 			out.Answer, out.Open = fmt.Sprintf("%s to %s", code, loc.Path), true
 		}
+	case resp.StatusCode == http.StatusNotFound:
+		out.Answer, out.Unsure = code, true
 	default:
-		out.Answer, out.Open = code, true
+		// 401, 403 and 407 are a login's or an address limit's; a 5xx is an app
+		// that's down, which could be guarded behind it; any other says nothing
+		// Dockwell can count on.
+		out.Answer = code
 	}
 	return out
 }
