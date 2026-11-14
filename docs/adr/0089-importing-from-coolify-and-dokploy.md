@@ -90,7 +90,9 @@ Once its apps are taken on, the panel goes on running beside Dockwell until a pe
 - **Each of Dokploy's projects comes into one of Dockwell's,** named for it, and each app keeps its appName as its service's name, so apps that reached a database by that name still do.
 - **The switch is in the same change.** The server's host scales each Swarm service to none first, a panel stop with `apps` set, which the agent takes only for a service Dokploy labelled as an app's; then Dockwell's copy is made on the same volumes, so each is down for a moment, which the plan says. Its undo deletes Dockwell's copies first, then scales each service back to what it ran.
 - **Its domains come over** with the handover, from Dokploy's Traefik file for the app: each router's hosts and path, and the port of the server URL its service names, routed to Dockwell's copy.
-- **What stays:** a Compose app of the type `stack`, several services at once, and a service with no task running, each saying why. A port Dokploy published through Swarm's routing mesh isn't read yet, and the plan's copy publishes none.
+- **A stack comes too,** a Compose app of the type `stack`: each of its services from its running task, into a project of the stack's own, named as the stack named them, so they still find each other; a name another stack also uses can't clash. Its routes come from its services' labels, and its services scale to none as their copies start.
+- **What Swarm published comes too:** a port a service published, through its routing mesh or on its node, as Dokploy's external port for a database does, is published by the copy on the server, which a person approves.
+- **What stays:** a Swarm-run app with a service that has no task running, saying why.
 
 ### A token, where one is needed
 

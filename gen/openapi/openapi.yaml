@@ -16932,6 +16932,13 @@ components:
                         The running task container of each of its Swarm services, in the order of
                          containers, or empty for one with none running: what reads as the service it
                          would be made again as.
+                published:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/PanelPort'
+                    description: |-
+                        The ports its Swarm services publish, which the copies made again in Dockwell
+                         publish on the server.
             description: |-
                 PanelApp is something a panel runs for people: an app, a service from its
                  templates, or a database.
@@ -16950,6 +16957,26 @@ components:
                         What it's doing, such as "running" or "exited", or "service" for a Swarm
                          service.
             description: PanelContainer is one of a panel's own containers or Swarm services.
+        PanelPort:
+            type: object
+            properties:
+                service:
+                    type: string
+                    description: |-
+                        The service, as its copy in Dockwell is named: an application's appName, or
+                         a stack's service.
+                port:
+                    type: integer
+                    description: The port in the container.
+                    format: uint32
+                published:
+                    type: integer
+                    description: The port it's published on.
+                    format: uint32
+                protocol:
+                    type: string
+                    description: '"tcp" or "udp".'
+            description: PanelPort is a port a Swarm service publishes.
         PanelPortHolder:
             type: object
             properties:

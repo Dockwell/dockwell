@@ -166,9 +166,15 @@ func (r Reader) dokploy(list []docker.ContainerSummary, services []docker.Servic
 				a.Swarm = true
 				apps[stack] = a
 			}
+			short := strings.TrimPrefix(s.Name, stack+"_")
 			a.Containers = append(a.Containers, s.Name)
 			a.Tasks = append(a.Tasks, tasks[s.Name])
 			a.Domains = append(a.Domains, domainsOf(l)...)
+			for _, rt := range routesOf(l, tasks[s.Name]) {
+				rt.Service = short
+				a.Routes = append(a.Routes, rt)
+			}
+			a.Published = append(a.Published, publishedOf(short, s)...)
 			continue
 		}
 		if l["dokploy.application"] == "" && l["dokploy.project"] == "" {
@@ -177,6 +183,7 @@ func (r Reader) dokploy(list []docker.ContainerSummary, services []docker.Servic
 		a := r.dokployApp(s.Name, engineOf(image), l)
 		a.Swarm, a.Image = true, image
 		a.Containers, a.Tasks = []string{s.Name}, []string{tasks[s.Name]}
+		a.Published = publishedOf(s.Name, s)
 		routes := r.dynamicRoutes(s.Name, tasks[s.Name])
 		a.Routes = routes
 		a.Domains = domainsOf(l)
@@ -598,6 +605,17 @@ func (r Reader) dynamicRoutes(app, task string) []*dockwellv1.PanelRoute {
 				continue
 			}
 			out = append(out, &dockwellv1.PanelRoute{Domain: h, Path: prefix, Container: task, Service: app, Port: ports[rt.service], Left: left})
+		}
+	}
+	return out
+}
+
+// publishedOf are the ports a Swarm service publishes, for its copy named service.
+func publishedOf(service string, s *docker.ServiceSpec) []*dockwellv1.PanelPort {
+	var out []*dockwellv1.PanelPort
+	for _, p := range s.EndpointSpec.Ports {
+		if p.PublishedPort != 0 && p.TargetPort != 0 {
+			out = append(out, &dockwellv1.PanelPort{Service: service, Port: p.TargetPort, Published: p.PublishedPort, Protocol: cmp.Or(p.Protocol, "tcp")})
 		}
 	}
 	return out

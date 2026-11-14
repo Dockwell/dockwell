@@ -2522,7 +2522,7 @@ func (e *Engine) updateService(w http.ResponseWriter, r *http.Request, id string
 		return
 	}
 	e.ServiceUpdates = append(e.ServiceUpdates, svc.ID+" "+string(body))
-	for _, typed := range []string{"Name", "Labels", "TaskTemplate", "Mode"} {
+	for _, typed := range []string{"Name", "Labels", "TaskTemplate", "Mode", "EndpointSpec"} {
 		delete(all, typed)
 	}
 	if e.ServiceExtras == nil {

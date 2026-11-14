@@ -6,6 +6,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -49,9 +50,12 @@ func TestMakingADokploySwarmAppAgain(t *testing.T) {
 	waitForHost(t, f, f.lastDocker)
 	id := f.lastDocker.id.ServerID
 	labels := map[string]string{"dokploy.project": "store", "dokploy.environment": "production", "dokploy.application": "shop"}
+	shopSpec := swarmService("shop-k2m4", "nginx:1.26", labels)
+	// Dokploy's external port, published through Swarm's routing mesh.
+	shopSpec.EndpointSpec.Ports = []docker.ServicePort{{Protocol: "tcp", TargetPort: 80, PublishedPort: 8085, PublishMode: "ingress"}}
 	e.Services = []docker.Service{
 		{ID: "s1", Spec: swarmService("dokploy", "dokploy/dokploy:v0.31.2", nil)},
-		{ID: "s2", Spec: swarmService("shop-k2m4", "nginx:1.26", labels)},
+		{ID: "s2", Spec: shopSpec},
 	}
 	runByHand(t, e, "dokploy-traefik", func(r *docker.CreateRequest) { r.HostConfig.PortBindings, r.HostConfig.Binds = nil, nil })
 	task := runByHand(t, e, "shop-k2m4.1.x7k2", func(r *docker.CreateRequest) {
@@ -109,6 +113,9 @@ func TestMakingADokploySwarmAppAgain(t *testing.T) {
 	if copied == nil || !copied.State.Running {
 		t.Fatalf("Dockwell's copy is %v", copied)
 	}
+	if b := copied.HostConfig.PortBindings["80/tcp"]; len(b) != 1 || b[0].HostPort != "8085" {
+		t.Errorf("Dockwell's copy publishes %v, not Dokploy's external port", copied.HostConfig.PortBindings)
+	}
 	for k := range copied.Config.Labels {
 		if strings.HasPrefix(k, "com.docker.swarm.") || strings.HasPrefix(k, "dokploy.") || strings.HasPrefix(k, "traefik.") {
 			t.Errorf("Dockwell's copy keeps the label %s", k)
@@ -151,5 +158,64 @@ func TestMakingADokploySwarmAppAgain(t *testing.T) {
 	}
 	if e.Container(copied.Name) != nil {
 		t.Error("the undo left Dockwell's copy")
+	}
+}
+
+// A stack Dokploy deploys with docker stack deploy comes again in a project of its
+// own, each service named as the stack named it, so its services still find each
+// other; each Swarm service scales to none as its copy starts.
+func TestMakingADokployStackAgain(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	later := &laterStopper{}
+	e := f.addServerWith(t, func() []resource.Type { return []resource.Type{&host.Driver{Panels: later}} })
+	later.s = &panels.Stopper{Docker: e.Client()}
+	waitForHost(t, f, f.lastDocker)
+	id := f.lastDocker.id.ServerID
+	labels := map[string]string{"com.docker.stack.namespace": "forum-q1", "dokploy.project": "community", "dokploy.application": "forum"}
+	e.Services = []docker.Service{
+		{ID: "s1", Spec: swarmService("dokploy", "dokploy/dokploy:v0.31.2", nil)},
+		{ID: "s2", Spec: swarmService("forum-q1_web", "nginx:1.26", labels)},
+		{ID: "s3", Spec: swarmService("forum-q1_db", "nginx:1.26", labels)},
+	}
+	for _, svc := range []string{"web", "db"} {
+		runByHand(t, e, "forum-q1_"+svc+".1.a"+svc, func(r *docker.CreateRequest) {
+			r.HostConfig.PortBindings = nil
+			r.Labels = map[string]string{"com.docker.swarm.service.name": "forum-q1_" + svc, "com.docker.stack.namespace": "forum-q1"}
+		})
+	}
+	ic, c := importClient(b), changeClient(b, b.origin)
+	res, err := ic.ImportDokploy(t.Context(), connect.NewRequest(&dockwellv1.ImportDokployRequest{ServerId: id}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	step := panelSteps(res.Msg)["IMPORT_KIND_APP forum"]
+	if step.GetAction() != dockwellv1.ImportAction_IMPORT_ACTION_MAKE || !strings.Contains(step.GetBecomes(), "its services, db and web, in the project forum") {
+		t.Fatalf("the stack reads %v", step)
+	}
+	planned := res.Msg.GetChange()
+	var created []string
+	for _, st := range planned.GetPlan().GetServers()[0].GetSteps() {
+		if st.GetResource().GetKind() == "service" {
+			created = append(created, st.GetResource().GetName())
+		}
+		if p := st.GetPanel(); p != nil && len(p.GetParts()) != 2 {
+			t.Errorf("the scale reads %v", p)
+		}
+	}
+	if !slices.Equal(created, []string{"web", "db"}) && !slices.Equal(created, []string{"db", "web"}) {
+		t.Errorf("the plan makes %v", created)
+	}
+	if done := actedOn(t, c, planned, ""); done.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("the import ended %v: %s", done.GetState(), done.GetError())
+	}
+	for _, name := range []string{"forum-q1_web", "forum-q1_db"} {
+		svc, err := e.Client().InspectService(t.Context(), name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if n, _ := svc.Spec.Mode.Replicas(); n != 0 {
+			t.Errorf("%s still runs %d", name, n)
+		}
 	}
 }

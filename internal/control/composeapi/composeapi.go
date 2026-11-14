@@ -634,6 +634,9 @@ func (h *Handler) TakenOn(ctx context.Context, r *containers.Running, name strin
 // whatever happens to the container, so it can't be taken on in place (ADR 0089).
 type Remake struct {
 	Container, Service string
+	// Ports are what its old manager published for it, such as through Swarm's
+	// routing mesh, which the copy publishes on the server.
+	Ports []*resourcev1.PortMapping
 }
 
 // ReadMakingAgain reads what making each container again as a service of its own
@@ -676,7 +679,13 @@ func (h *Handler) ReadMakingAgain(ctx context.Context, r *containers.Running, li
 			refused[m.Service] = append(refused[m.Service], why)
 			continue
 		}
-		remade(svc.GetApp())
+		app := svc.GetApp()
+		remade(app)
+		for _, p := range m.Ports {
+			if !slices.ContainsFunc(app.GetPorts(), func(have *resourcev1.PortMapping) bool { return have.GetHostPort() == p.GetHostPort() }) {
+				app.Ports = append(app.Ports, p)
+			}
+		}
 		t.Edits = append(t.Edits, &dockwellv1.Edit{
 			Resource: &dockwellv1.ResourceRef{Kind: string(service.Kind), Scope: place.environment, Name: m.Service},
 			Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: svc}},

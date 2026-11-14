@@ -38,7 +38,19 @@ type ServiceSpec struct {
 			Labels map[string]string `json:"Labels"`
 		} `json:"ContainerSpec"`
 	} `json:"TaskTemplate"`
-	Mode ServiceMode `json:"Mode"`
+	Mode         ServiceMode `json:"Mode"`
+	EndpointSpec struct {
+		Ports []ServicePort `json:"Ports"`
+	} `json:"EndpointSpec"`
+}
+
+// ServicePort is a port a Swarm service publishes: on every node through Swarm's
+// routing mesh, or on the node a task runs on.
+type ServicePort struct {
+	Protocol      string `json:"Protocol"`
+	TargetPort    uint32 `json:"TargetPort"`
+	PublishedPort uint32 `json:"PublishedPort"`
+	PublishMode   string `json:"PublishMode"`
 }
 
 // ServiceMode is how a Swarm service places its tasks: a number of replicas, or one

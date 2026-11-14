@@ -149,14 +149,18 @@ func panelSteps(w panel, found *dockwellv1.Panel) ([]*dockwellv1.ImportStep, []*
 		switch {
 		case a.GetPreview():
 			leave(step, fmt.Sprintf("It's a pull request's preview, which %s makes and removes with its pull request.", w.name))
-		case a.GetSwarm() && a.GetKind() != "stack" && len(a.GetTasks()) == 1 && a.GetTasks()[0] != "":
+		case a.GetSwarm() && a.GetKind() == "stack" && allTasks(a):
+			// A stack's services, read from their running tasks, come again in a
+			// project of the stack's own, named as the stack named them.
+			step.Action = dockwellv1.ImportAction_IMPORT_ACTION_MAKE
+			step.Becomes = fmt.Sprintf("its services, %s, made again as they run, on their volumes", human.List(stackServices(a)))
+			step.Reason = fmt.Sprintf("%s runs it as a Swarm stack, which Swarm keeps running whatever happens to its containers, so it's made again: %s scales each service to none as Dockwell's copy starts, with a moment down.", w.name, w.name)
+		case a.GetSwarm() && a.GetKind() != "stack" && allTasks(a):
 			// One Swarm service, read from its running task, comes again in Dockwell
 			// as it runs; the project it comes into is the plan's to name.
 			step.Action = dockwellv1.ImportAction_IMPORT_ACTION_MAKE
 			step.Becomes = fmt.Sprintf("the service %s, made again as it runs, on its volumes", containers.Label(a.GetId()))
 			step.Reason = fmt.Sprintf("%s runs it as a Swarm service, which Swarm keeps running whatever happens to its container, so it's made again: %s scales it to none as Dockwell's copy starts, with a moment down.", w.name, w.name)
-		case a.GetSwarm() && a.GetKind() == "stack":
-			leave(step, fmt.Sprintf("%s runs it as a Swarm stack, which Swarm keeps running whatever happens to its containers, so Dockwell can't take it on in place, and a stack isn't made again yet. It stays as it is, in %s.", w.name, w.name))
 		case a.GetSwarm():
 			leave(step, fmt.Sprintf("%s runs it as a Swarm service, and no task of it runs now, so there's nothing to read it from. Start it in %s, then import again.", w.name, w.name))
 		case a.GetComposeProject() == "":
@@ -606,7 +610,7 @@ func (h *Handler) panelRoutes(ctx context.Context, r *containers.Running, found 
 			runs := rt.GetContainer()
 			if a.GetSwarm() {
 				// Made again, it runs as Dockwell's container of its appName's service.
-				runs = remadeAs(r, containers.Label(a.GetId()))
+				runs = remadeAs(r, containers.Label(rt.GetService()))
 			}
 			_, env, svc, err := h.taker.TakenOnAs(ctx, r, runs)
 			if err != nil {
@@ -696,7 +700,7 @@ func routeLeft(a *dockwellv1.PanelApp, rt *dockwellv1.PanelRoute) string {
 	switch {
 	case a.GetPreview():
 		return "it's a pull request's preview"
-	case a.GetKind() == "stack" || !a.GetSwarm() && a.GetComposeProject() == "" || a.GetSwarm() && (len(a.GetTasks()) != 1 || a.GetTasks()[0] == ""):
+	case !a.GetSwarm() && a.GetComposeProject() == "" || a.GetSwarm() && !allTasks(a):
 		return a.GetName() + " stays where it is"
 	case rt.GetLeft() != "":
 		return rt.GetLeft() + ". Add it from " + a.GetName() + "'s page once it's taken on"
@@ -764,6 +768,11 @@ func (h *Handler) planRemakes(ctx context.Context, r *containers.Running, w pane
 			continue
 		}
 		key := cmp.Or(a.GetProject(), a.GetId())
+		if a.GetKind() == "stack" {
+			// A stack's services reach each other by the names it gave them, which
+			// another stack may give too: each comes into a project of its own.
+			key = "stack:" + a.GetId()
+		}
 		if groups[key] == nil {
 			order = append(order, key)
 		}
@@ -773,30 +782,48 @@ func (h *Handler) planRemakes(ctx context.Context, r *containers.Running, w pane
 	var parts []resource.PanelPart
 	var made []string
 	for _, key := range order {
-		project, err := h.taker.FreeProject(ctx, containers.Label(strings.ToLower(key)), w.from, claimed)
+		want := strings.TrimPrefix(key, "stack:")
+		if strings.HasPrefix(key, "stack:") {
+			want = apps[groups[key][0]].GetName()
+		}
+		project, err := h.taker.FreeProject(ctx, containers.Label(strings.ToLower(want)), w.from, claimed)
 		if err != nil {
 			return nil, nil, nil, err
 		}
 		claimed[project] = true
-		list := make([]composeapi.Remake, 0, len(groups[key]))
+		var list []composeapi.Remake
 		for _, i := range groups[key] {
-			list = append(list, composeapi.Remake{Container: apps[i].GetTasks()[0], Service: containers.Label(apps[i].GetId())})
+			list = append(list, remakesOf(apps[i])...)
 		}
 		t, refused, err := h.taker.ReadMakingAgain(ctx, r, list, project)
 		if err != nil {
 			return nil, nil, nil, err
 		}
+		took := false
 		for _, i := range groups[key] {
-			name := containers.Label(apps[i].GetId())
-			if why := refused[name]; len(why) > 0 {
+			var why []string
+			for _, m := range remakesOf(apps[i]) {
+				why = append(why, refused[m.Service]...)
+			}
+			if len(why) > 0 {
 				leave(steps[i], sentences(actionable(why))+fmt.Sprintf(" It stays as it is, in %s, until that's dealt with.", w.name))
+				t.Edits = slices.DeleteFunc(t.Edits, func(e *dockwellv1.Edit) bool {
+					return slices.ContainsFunc(remakesOf(apps[i]), func(m composeapi.Remake) bool { return e.GetResource().GetName() == m.Service })
+				})
 				continue
 			}
-			steps[i].Becomes = fmt.Sprintf("the service %s in the project %s, made again as it runs, on its volumes", name, t.Project)
-			parts = append(parts, resource.PanelPart{Name: apps[i].GetContainers()[0]})
+			if apps[i].GetKind() == "stack" {
+				steps[i].Becomes = fmt.Sprintf("its services, %s, in the project %s, made again as they run, on their volumes", human.List(stackServices(apps[i])), t.Project)
+			} else {
+				steps[i].Becomes = fmt.Sprintf("the service %s in the project %s, made again as it runs, on its volumes", containers.Label(apps[i].GetId()), t.Project)
+			}
+			for _, svc := range apps[i].GetContainers() {
+				parts = append(parts, resource.PanelPart{Name: svc})
+			}
 			made = append(made, steps[i].GetName())
+			took = true
 		}
-		if len(t.Edits) > 0 {
+		if took && len(t.Edits) > 0 {
 			takings = append(takings, t)
 		}
 	}
@@ -812,4 +839,51 @@ func remadeAs(r *containers.Running, service string) string {
 		}
 	}
 	return ""
+}
+
+// allTasks reports a Swarm-run app each of whose services has a task running, to
+// read it from.
+func allTasks(a *dockwellv1.PanelApp) bool {
+	return len(a.GetTasks()) > 0 && len(a.GetTasks()) == len(a.GetContainers()) && !slices.Contains(a.GetTasks(), "")
+}
+
+// stackServices are a stack's services, as the stack named them.
+func stackServices(a *dockwellv1.PanelApp) []string {
+	out := make([]string, 0, len(a.GetContainers()))
+	for _, c := range a.GetContainers() {
+		out = append(out, containers.Label(strings.TrimPrefix(c, a.GetId()+"_")))
+	}
+	return out
+}
+
+// remakesOf are the containers a Swarm-run app is made again from, each with the
+// name its copy takes and the ports its service published: an application's
+// appName, or each of a stack's services by the name the stack gave it.
+func remakesOf(a *dockwellv1.PanelApp) []composeapi.Remake {
+	names := []string{containers.Label(a.GetId())}
+	if a.GetKind() == "stack" {
+		names = stackServices(a)
+	}
+	out := make([]composeapi.Remake, 0, len(names))
+	for i, name := range names {
+		if i >= len(a.GetTasks()) {
+			break
+		}
+		m := composeapi.Remake{Container: a.GetTasks()[i], Service: name}
+		for _, p := range a.GetPublished() {
+			want := p.GetService()
+			if a.GetKind() != "stack" {
+				want = a.GetId()
+			}
+			if containers.Label(want) == name {
+				protocol := resourcev1.Protocol_PROTOCOL_TCP
+				if p.GetProtocol() == "udp" {
+					protocol = resourcev1.Protocol_PROTOCOL_UDP
+				}
+				m.Ports = append(m.Ports, &resourcev1.PortMapping{HostPort: p.GetPublished(), ContainerPort: p.GetPort(), Protocol: protocol})
+			}
+		}
+		out = append(out, m)
+	}
+	return out
 }
