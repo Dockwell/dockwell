@@ -2,11 +2,12 @@
 
 import { createClient } from "@connectrpc/connect";
 import { useTransport } from "@connectrpc/connect-query";
-import { type ServiceInfo, ServiceService, type WebsiteRuntime, WebsiteService } from "@dockwell/api";
-import { Button, Icon, StatusBadge } from "@dockwell/ui";
+import { ChangeService, type ServiceInfo, ServiceService, type WebsiteRuntime, WebsiteService } from "@dockwell/api";
+import { Button, Icon, StatusBadge, useOff } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { Link } from "@tanstack/react-router";
+import { Link, type LinkProps } from "@tanstack/react-router";
+import { useId } from "react";
 import { RouterButtonLink } from "../../lib/links";
 import { environmentOf, nameOf } from "../apps/app";
 import { useHealthWords } from "../apps/Health";
@@ -31,6 +32,10 @@ const NAMED = 5;
 export function Runtimes({ rows, health }: { rows: readonly Row[]; health: HealthView }) {
   const { t } = useLingui();
   const runtimes = useRuntimes();
+  // A tile someone may not use stays, off, with why (#408, ADR 0059). An app from a folder is a plan, as New app's is.
+  const may = useMay();
+  const mayWebsite = may(WebsiteService.method.createWebsite);
+  const mayApp = may(ChangeService.method.proposeChange);
   const services = useApps().data;
   const fromFolders = (services ?? []).filter((s) => runtimeOf(s) !== undefined);
   // An older control plane lists PHP alone, with no ID.
@@ -80,51 +85,44 @@ export function Runtimes({ rows, health }: { rows: readonly Row[]; health: Healt
             <h3>
               <Trans>Not in use</Trans>
             </h3>
-            <span className="websites-muted">
-              <Trans>Pick one to start a website or an app on it</Trans>
-            </span>
+            {/* What a tile does, for whoever may use one: neither, and they're there to read, each saying why. */}
+            {mayWebsite.allowed || mayApp.allowed ? (
+              <span className="websites-muted">
+                <Trans>Pick one to start a website or an app on it</Trans>
+              </span>
+            ) : null}
           </div>
           <ul className="websites-runtimes-tiles">
             {phpNewest ? (
               <li>
-                <Link
-                  to="/websites/new"
-                  search={{ php: phpNewest.version }}
-                  className="websites-runtime-tile"
-                  aria-label={t`New website on ${phpNewest.language} ${phpNewest.version}`}
-                >
-                  <span className="websites-runtime-mark" aria-hidden="true">
-                    Ph
-                  </span>
-                  <span className="websites-runtime-tile-text">
-                    <span className="websites-runtime-tile-name">{phpNewest.language}</span>
-                    <span className="code-sm websites-muted">{phpFree.map((r) => r.version).join(", ")}</span>
-                  </span>
-                  <Icon name="plus" size={16} />
-                </Link>
+                <RuntimeTile
+                  link={{ to: "/websites/new", search: { php: phpNewest.version } }}
+                  mark="Ph"
+                  name={phpNewest.language}
+                  versions={phpFree.map((r) => r.version).join(", ")}
+                  label={t`New website on ${phpNewest.language} ${phpNewest.version}`}
+                  off={mayWebsite.off.off}
+                />
               </li>
             ) : null}
             {languagesFree.map((id) => {
               const versions = versionsOf(id, runtimes.data);
               const [newest] = versions;
               if (!newest) return null;
+              const language = newest.language;
               return (
                 <li key={id}>
-                  <Link
-                    to="/apps/new"
-                    search={{ source: "folder", language: newest.id, version: newest.version }}
-                    className="websites-runtime-tile"
-                    aria-label={t`New app on ${newest.language} ${newest.version}`}
-                  >
-                    <span className="websites-runtime-mark" aria-hidden="true">
-                      {LANGUAGE_MARKS[newest.id] ?? newest.id.slice(0, 2)}
-                    </span>
-                    <span className="websites-runtime-tile-text">
-                      <span className="websites-runtime-tile-name">{newest.language}</span>
-                      <span className="code-sm websites-muted">{versions.map((v) => v.version).join(", ")}</span>
-                    </span>
-                    <Icon name="plus" size={16} />
-                  </Link>
+                  <RuntimeTile
+                    link={{
+                      to: "/apps/new",
+                      search: { source: "folder", language: newest.id, version: newest.version },
+                    }}
+                    mark={LANGUAGE_MARKS[newest.id] ?? newest.id.slice(0, 2)}
+                    name={language}
+                    versions={versions.map((v) => v.version).join(", ")}
+                    label={t`New app on ${language} ${newest.version}`}
+                    off={mayApp.off.off}
+                  />
                 </li>
               );
             })}
@@ -138,6 +136,45 @@ export function Runtimes({ rows, health }: { rows: readonly Row[]; health: Healt
         </Trans>
       </p>
     </section>
+  );
+}
+
+/**
+ * A runtime not in use, as a tile that starts a website or an app on it: named by what it does, with its versions
+ * as its description, and off, with why, for someone who may not.
+ */
+function RuntimeTile({
+  link,
+  mark,
+  name,
+  versions,
+  label,
+  off,
+}: {
+  link: Pick<LinkProps, "to" | "search">;
+  mark: string;
+  name: string;
+  versions: string;
+  label: string;
+  off: string | undefined;
+}) {
+  const id = useId();
+  const offed = useOff(off);
+  const described = [id, offed.props["aria-describedby"]].filter(Boolean).join(" ");
+  return (
+    <Link {...link} className="websites-runtime-tile" aria-label={label} {...offed.props} aria-describedby={described}>
+      <span className="websites-runtime-mark" aria-hidden="true">
+        {mark}
+      </span>
+      <span className="websites-runtime-tile-text">
+        <span className="websites-runtime-tile-name">{name}</span>
+        <span id={id} className="code-sm websites-muted">
+          {versions}
+        </span>
+      </span>
+      <Icon name="plus" size={16} />
+      {offed.why}
+    </Link>
   );
 }
 
@@ -180,11 +217,7 @@ function LanguageCard({
           <h3>{language}</h3>
           <span className="code-sm websites-muted">{versions.map((v) => v.release).join(" · ")}</span>
         </div>
-        {runs ? (
-          <StatusBadge status={runs.status} label={words.word(runs)} labelIsState />
-        ) : (
-          <StatusBadge status="stopped" label={t`Not used`} labelIsState />
-        )}
+        {runs ? <StatusBadge status={runs.status} label={words.word(runs)} labelIsState /> : null}
       </div>
       <dl className="websites-runtime-facts">
         <dt>
@@ -291,11 +324,7 @@ function RuntimeCard({ runtime, sites, health }: { runtime: WebsiteRuntime; site
           <h3>{`${runtime.language} ${runtime.version}`}</h3>
           <span className="code-sm websites-muted">{runtime.release} · php-fpm</span>
         </div>
-        {runs ? (
-          <StatusBadge status={runs.status} label={words.word(runs)} labelIsState />
-        ) : (
-          <StatusBadge status="stopped" label={t`Not used`} labelIsState />
-        )}
+        {runs ? <StatusBadge status={runs.status} label={words.word(runs)} labelIsState /> : null}
       </div>
       <dl className="websites-runtime-facts">
         <dt>

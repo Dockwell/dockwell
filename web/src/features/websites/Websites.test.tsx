@@ -13,6 +13,7 @@ import {
   FileType,
   HealthState,
   PlanAction,
+  Role,
   ServiceSchema,
   UpdateCheck,
   UpdateProblem,
@@ -30,6 +31,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { expectAccessible } from "../../test/a11y";
 import { aHealth, anApp, places, SERVER } from "../../test/apps";
+import { authState, mira } from "../../test/auth";
 import { moved, watched } from "../../test/changes";
 import { type Api, feed, onPhone, renderAt } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
@@ -935,6 +937,28 @@ describe("A PHP website", () => {
       expect.stringMatching(/^\/websites\/new\?php=(8\.4|%228\.4%22)$/),
     );
     await expectAccessible(container);
+  });
+
+  it("names a tile by what it starts, with its versions as its description", async () => {
+    onWideScreen();
+    renderAt("/websites", api([shop]));
+    const runtimes = await screen.findByRole("region", { name: "Runtimes" });
+    const tile = within(runtimes).getByRole("link", { name: "New website on PHP 8.4" });
+    expect(tile).toHaveAccessibleDescription("8.4");
+    expect(within(runtimes).getByText("Pick one to start a website or an app on it")).toBeVisible();
+  });
+
+  it("leaves the tiles in place for a viewer, off, with why, and says nothing of picking one", async () => {
+    onWideScreen();
+    renderAt("/websites", {
+      ...api([shop]),
+      auth: { getAuthState: () => authState({ user: { ...mira, role: Role.VIEWER } }) },
+    });
+    const runtimes = await screen.findByRole("region", { name: "Runtimes" });
+    const tile = within(runtimes).getByRole("link", { name: "New website on PHP 8.4" });
+    await waitFor(() => expect(tile).toHaveAttribute("aria-disabled", "true"));
+    expect(tile).toHaveAccessibleDescription(/^8\.4 Only an admin or the owner/);
+    expect(within(runtimes).queryByText("Pick one to start a website or an app on it")).toBeNull();
   });
 
   it("offers to move a website on an older build of its version to the runtime's", async () => {

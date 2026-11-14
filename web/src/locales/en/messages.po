@@ -16808,11 +16808,6 @@ msgstr "<0>{name}</0> runs an older build of {version}"
 msgid "Extensions"
 msgstr "Extensions"
 
-#. placeholder {0}: newest.language
-#. placeholder {1}: newest.version
-msgid "New app on {0} {1}"
-msgstr "New app on {0} {1}"
-
 #. placeholder {0}: newest.version
 msgid "New app on {language} {0}"
 msgstr "New app on {language} {0}"
@@ -16831,9 +16826,6 @@ msgstr "No website yet"
 
 msgid "Not in use"
 msgstr "Not in use"
-
-msgid "Not used"
-msgstr "Not used"
 
 msgid "Other languages run as apps from an image, or from the <0>Catalog</0>, with a domain of their own."
 msgstr "Other languages run as apps from an image, or from the <0>Catalog</0>, with a domain of their own."

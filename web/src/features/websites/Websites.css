@@ -419,7 +419,7 @@
 
 .websites-runtimes-tiles {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(180px, 100%), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
   gap: var(--space-3);
   margin: 0;
   padding: var(--space-4);
@@ -451,6 +451,11 @@
 .websites-runtime-tile:hover {
   border-color: var(--line-strong);
   background: var(--surface-sunken);
+}
+
+.websites-runtime-tile[data-off]:hover {
+  border-color: var(--line);
+  background: var(--surface);
 }
 
 .websites-runtime-tile:focus-visible {
