@@ -177,6 +177,19 @@ export function TasksPage() {
       back="/more"
       // With none yet the empty state offers it, and a view has one primary button.
       actions={query.isPending || count === 0 ? null : action}
+      phoneAction={
+        // A phone's header has it as the Servers page has Add server: an icon, for whoever may use it.
+        query.isPending || count === 0 || !mayPlan.allowed ? undefined : (
+          <button
+            type="button"
+            className="mobile-header-button"
+            aria-label={t`New task`}
+            onClick={() => setMaking(true)}
+          >
+            <Icon name="plus" size={20} />
+          </button>
+        )
+      }
     >
       {query.error ? (
         <Callout tone="critical" title={t`Dockwell can't read its scheduled tasks`}>
@@ -212,8 +225,6 @@ export function TasksPage() {
                 <h2 className="dw-text-heading" id="tasks-all">
                   <Trans>All tasks</Trans>
                 </h2>
-                {phone ? <span className="tasks-fill" /> : null}
-                {phone ? action : null}
                 {next ? (
                   <span className="tasks-sub">{t`Next: ${nameOf(next.task)} ${words.until(next.at, now)}`}</span>
                 ) : null}

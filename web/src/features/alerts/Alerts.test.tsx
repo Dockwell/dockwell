@@ -25,12 +25,14 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { activateLocale } from "../../app/i18n";
+import { formatClock, formatDateTime, formatDay } from "../../lib/format";
 import { expectAccessible } from "../../test/a11y";
 import { authState, mira } from "../../test/auth";
 import { type Api, feed, onPhone, renderAt } from "../../test/render";
 import { aServer, changed, sample, snapshotComplete } from "../../test/servers";
 
 const NOW = new Date();
+const THREE_DAYS_AGO = new Date(NOW.getTime() - 3 * 24 * 3_600_000);
 
 function aChannel(init: MessageInitShape<typeof AlertChannelInfoSchema>): AlertChannelInfo {
   return create(AlertChannelInfoSchema, init);
@@ -492,6 +494,14 @@ describe("Alerts and rules", () => {
                 state: AlertState.RESOLVED,
                 resolveTime: timestampFromDate(NOW),
               },
+              {
+                id: "alt_3",
+                title: "hz-1's disk / is 91% full",
+                ruleName: "disk-full",
+                severity: Severity.WARNING,
+                state: AlertState.RESOLVED,
+                resolveTime: timestampFromDate(THREE_DAYS_AGO),
+              },
             ],
           }),
         },
@@ -506,7 +516,13 @@ describe("Alerts and rules", () => {
     expect(within(card).getByRole("link", { name: /^Inspect: web fails/ })).toHaveAttribute("href", "/apps/svc_web");
     // What resolved is beside it, with the way to the rest.
     const resolved = screen.getByRole("complementary", { name: "Resolved" });
-    expect(within(resolved).getByRole("listitem")).toHaveTextContent("disk-full");
+    const [today, before] = within(resolved).getAllByRole("listitem");
+    expect(today).toHaveTextContent("disk-full");
+    // When each resolved: the time today, the day before that, the whole of it on hover.
+    const todayAt = today?.querySelector(".alerts-resolved-at");
+    expect(todayAt).toHaveTextContent(formatClock(NOW, "en"));
+    expect(todayAt).toHaveAttribute("title", formatDateTime(NOW, "en"));
+    expect(before?.querySelector(".alerts-resolved-at")).toHaveTextContent(formatDay(THREE_DAYS_AGO, "en"));
     expect(within(resolved).getByRole("link", { name: "History" })).toHaveAttribute("href", "/activity");
     expect(screen.getByText(/1 open · 2 rules · sent to 1 channel/)).toBeVisible();
   });

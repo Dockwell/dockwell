@@ -13,6 +13,7 @@ import {
   AlertRule_Severity as Severity,
 } from "@dockwell/api";
 import { screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { expectAccessible } from "../../test/a11y";
@@ -114,6 +115,58 @@ afterEach(() => {
 });
 
 describe("an alert's page", () => {
+  it("takes an open alert from its page's head, as from its card", async () => {
+    const user = userEvent.setup();
+    const asked: string[] = [];
+    renderAt(
+      "/alerts/alt_1",
+      api([down({ acknowledgeTime: undefined, acknowledgedBy: undefined })], {
+        alerts: {
+          acknowledgeAlert: (req: { id: string }) => {
+            asked.push(req.id);
+            return {};
+          },
+        },
+      }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Acknowledge" }));
+    await waitFor(() => expect(asked).toEqual(["alt_1"]));
+  });
+
+  it("offers to take it on a phone too, under who has it, as M-Incident has it", async () => {
+    onPhone();
+    const asked: string[] = [];
+    renderAt(
+      "/alerts/alt_1",
+      api([down({ acknowledgeTime: undefined, acknowledgedBy: undefined })], {
+        alerts: {
+          acknowledgeAlert: (req: { id: string }) => {
+            asked.push(req.id);
+            return {};
+          },
+        },
+      }),
+    );
+    const take = await screen.findByRole("button", { name: "Acknowledge" });
+    expect(take.closest(".alert-phone-acknowledge")).not.toBeNull();
+    await userEvent.setup().click(take);
+    await waitFor(() => expect(asked).toEqual(["alt_1"]));
+  });
+
+  it("offers to take over an alert someone else has, from its page", async () => {
+    renderAt("/alerts/alt_1", api([down()]));
+    expect(await screen.findByRole("button", { name: "Take over" })).toHaveAttribute(
+      "title",
+      "Take over from Leo Park",
+    );
+  });
+
+  it("offers nothing to take on a resolved alert", async () => {
+    renderAt("/alerts/alt_1", api([down({ state: AlertState.RESOLVED, resolveTime: ago(2) })]));
+    await screen.findByRole("heading", { level: 1 });
+    expect(screen.queryByRole("button", { name: "Acknowledge" })).toBeNull();
+  });
+
   it("says what fired, what its rule saw, who has it, and leads back", async () => {
     const { container } = renderAt("/alerts/alt_1", api([down()]));
     expect(await screen.findByRole("heading", { level: 1, name: "web fails its health check on hz-1" })).toBeVisible();

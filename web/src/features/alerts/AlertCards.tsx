@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { timestampDate } from "@bufbuild/protobuf/wkt";
+import { type Timestamp, timestampDate } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
 import { createConnectQueryKey, useTransport } from "@connectrpc/connect-query";
 import {
   ActorKind,
   type Alert,
   AlertService,
+  AlertState,
   AlertRule_Condition as Condition,
   Connection,
   type Server,
@@ -19,7 +20,7 @@ import { Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 
 import { sentence } from "../../lib/errors";
-import { formatClock, formatDateTime } from "../../lib/format";
+import { formatClock, formatDateTime, formatDay } from "../../lib/format";
 import { RouterButtonLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
 import { useActorWords } from "../activity/actor";
@@ -364,6 +365,8 @@ function MemoryTrend({ alert, server }: { alert: Alert; server: Server | undefin
 export function ResolvedAlerts({ alerts }: { alerts: readonly Alert[] }) {
   const { i18n } = useLingui();
   const words = useTimeWords();
+  // The list's own clock, so a row resolved before midnight turns to its day as the day turns.
+  const now = useControlPlaneNow(60_000);
   if (alerts.length === 0) return null;
   const rows = [...alerts].sort((a, b) => (ms(b.resolveTime) ?? 0) - (ms(a.resolveTime) ?? 0)).slice(0, 20);
   return (
@@ -391,14 +394,68 @@ export function ResolvedAlerts({ alerts }: { alerts: readonly Alert[] }) {
               <Link to="/alerts/$alertId" params={{ alertId: alert.id }} className="alerts-resolved-title">
                 {alertTitle(alert, i18n)}
               </Link>
-              <span className="alerts-resolved-at">
-                {alert.resolveTime ? formatDateTime(timestampDate(alert.resolveTime), i18n.locale) : ""}
-              </span>
+              <ResolvedAt time={alert.resolveTime} now={now} />
               <span className="alerts-resolved-meta">{[lasted, alert.ruleName].filter(Boolean).join(" · ")}</span>
             </li>
           );
         })}
       </ul>
     </aside>
+  );
+}
+
+/**
+ * When an alert resolved, as Alerts' list has it: the time for today, the day before that, so it takes a
+ * narrow column's corner rather than half its row; the whole of it on hover.
+ */
+function ResolvedAt({ time, now }: { time: Timestamp | undefined; now: number }) {
+  const { i18n } = useLingui();
+  if (!time) return <span className="alerts-resolved-at" />;
+  const at = timestampDate(time);
+  const today = at.toDateString() === new Date(now).toDateString();
+  return (
+    <span className="alerts-resolved-at" title={formatDateTime(at, i18n.locale)}>
+      {today ? formatClock(at, i18n.locale) : formatDay(at, i18n.locale)}
+    </span>
+  );
+}
+
+/**
+ * Taking an open alert, on its own page as on its card: Acknowledge, Take over from whoever has it, or Take back
+ * your own, with why where it didn't take. The page's head has it, as Incident's has its actions.
+ */
+export function AlertAcknowledge({ alert }: { alert: Alert }) {
+  const { t } = useLingui();
+  const acknowledge = useAcknowledge();
+  const me = useSignedInUser();
+  const actorWords = useActorWords();
+  if (alert.state !== AlertState.FIRING) return null;
+  const by = alert.acknowledgeTime ? alert.acknowledgedBy : undefined;
+  const mine = by !== undefined && me !== undefined && by.kind === ActorKind.USER && by.id === me.id;
+  const name = actorWords(by).name;
+  const busy = acknowledge.busy.has(alert.id);
+  const failed = acknowledge.failed.get(alert.id);
+  return (
+    <span className="alerts-page-acknowledge">
+      {failed ? (
+        <span role="alert" className="alerts-page-failed">
+          {t`That didn't take: ${sentence(failed)}`}
+        </span>
+      ) : null}
+      {mine ? (
+        <Button variant="ghost" loading={busy} onClick={() => void acknowledge.run(alert.id, false)}>
+          <Trans>Take back</Trans>
+        </Button>
+      ) : (
+        <Button
+          icon="check"
+          loading={busy}
+          title={by === undefined ? undefined : t`Take over from ${name}`}
+          onClick={() => void acknowledge.run(alert.id, true)}
+        >
+          {by === undefined ? <Trans>Acknowledge</Trans> : <Trans>Take over</Trans>}
+        </Button>
+      )}
+    </span>
   );
 }

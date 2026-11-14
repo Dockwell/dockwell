@@ -1327,11 +1327,18 @@ msgstr "撤回你的确认：{title}"
 msgid "Take over"
 msgstr "接手"
 
+msgid "Take over from {name}"
+msgstr "从 {name} 接手"
+
 msgid "Take over from {name}: {title}"
 msgstr "从 {name} 接手：{title}"
 
 msgid "That didn't take"
 msgstr "未能完成"
+
+#. placeholder {0}: sentence(failed)
+msgid "That didn't take: {0}"
+msgstr "未能完成：{0}"
 
 msgid "since {since}"
 msgstr "自 {since} 起"
@@ -15831,7 +15838,7 @@ msgstr "已停止"
 msgid "{0, plural, one {Last run} other {Last # runs}}"
 msgstr "{0, plural, one {最近一次运行} other {最近 # 次运行}}"
 
-#. placeholder {0}: day(lastBad)
+#. placeholder {0}: words.when(timestampDate(lastBad.startTime), now)
 #. placeholder {1}: words.state(lastBad.state).toLowerCase()
 #. placeholder {2}: words.why(lastBad, task, time.span)
 msgid "{0} {1}: {2}"
