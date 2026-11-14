@@ -4,6 +4,7 @@ package database
 
 import (
 	"cmp"
+	"errors"
 	"io"
 	"maps"
 	"slices"
@@ -40,6 +41,11 @@ type fakeRedis struct {
 	// wide is a user made by hand that reaches every key, and handmade one that keeps
 	// to a prefix, by its rules, and can do anything else.
 	wide, handmade bool
+	// away is how many more calls find nothing listening, as redis-cli says while a
+	// Redis loads its modules after it starts, exiting awayCode; silent says nothing
+	// at all instead.
+	away, awayCode int
+	silent         bool
 }
 
 func (f *fakeRedis) exec(x dockertest.Exec) int {
@@ -47,6 +53,13 @@ func (f *fakeRedis) exec(x dockertest.Exec) int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.said = append(f.said, string(b))
+	if f.away > 0 {
+		f.away--
+		if !f.silent {
+			_, _ = io.WriteString(x.Stderr, "Could not connect to Redis at 127.0.0.1:6379: Connection refused\n")
+		}
+		return f.awayCode
+	}
 	for _, line := range strings.Split(strings.TrimSpace(string(b)), "\n") {
 		fields := strings.Fields(line)
 		switch {
@@ -425,5 +438,49 @@ func TestARedisUserChangedByHandIsntTheAgentsOwn(t *testing.T) {
 	plain.EndsApart = true
 	if err := makeUser("shop", plain); err != nil {
 		t.Errorf("making shop with no prefix, as its plan said = %v", err)
+	}
+}
+
+// A Redis that isn't listening yet, as one loading its modules just after it starts,
+// is waited for: redis-cli says it can't connect, whatever it exits with, or says
+// nothing at all. One that never listens fails as not taking connections, and one
+// that answers without its version is still refused (#644's run 43619434500).
+func TestARedisNotListeningYetIsWaitedFor(t *testing.T) {
+	ref := resource.Ref{Kind: UserKind, Scope: "env_1", Name: "shop"}
+	ctx := resource.WithValues(t.Context(), map[string]string{passwordUse: "a-password-no-one-typed"})
+	makeUser := func(d *UserDriver) error {
+		return d.Apply(ctx, resource.Step{Ref: ref, Action: resource.ActionCreate}, &resourcev1.DatabaseUser{Service: "cache", Password: "P"})
+	}
+	type away struct {
+		calls, code int
+		silent      bool
+	}
+	for name, r := range map[string]away{
+		"says it can't connect, exiting 0": {calls: 3},
+		"says it can't connect, exiting 1": {calls: 3, code: 1},
+		"says nothing":                     {calls: 3, silent: true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			d, fake, _, _ := redisStand(t)
+			d.Wait, d.Every = time.Minute, time.Millisecond
+			fake.away, fake.awayCode, fake.silent = r.calls, r.code, r.silent
+			if err := makeUser(d); err != nil {
+				t.Fatalf("making a user on a Redis that starts listening = %v", err)
+			}
+			if _, made := fake.users["shop"]; !made || fake.away != 0 {
+				t.Errorf("made %v, with %d calls still away", fake.users, fake.away)
+			}
+		})
+	}
+	d, fake, _, _ := redisStand(t)
+	d.Wait, d.Every = 50*time.Millisecond, time.Millisecond
+	fake.away = 1 << 20
+	if err := makeUser(d); !errors.Is(err, ErrStarting) {
+		t.Errorf("making a user on a Redis that never listens = %v, want it not taking connections", err)
+	}
+	d, fake, _, _ = redisStand(t)
+	fake.version = "unknown"
+	if err := makeUser(d); err == nil || errors.Is(err, ErrStarting) || !strings.Contains(err.Error(), "didn't say its version") {
+		t.Errorf("making a user on a Redis that answers without its version = %v", err)
 	}
 }
