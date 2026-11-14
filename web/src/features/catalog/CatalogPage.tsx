@@ -316,7 +316,7 @@ export function CatalogPage({ search = {}, onSearch, children }: CatalogPageProp
         <p className="catalog-note">
           <Trans>
             Not listed? Deploy any image or Compose file as an app.{" "}
-            <Link to="/apps/new" className="catalog-link">
+            <Link to="/apps/new" search={{ source: "image" }} className="catalog-link">
               New app
             </Link>
           </Trans>

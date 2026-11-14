@@ -4144,6 +4144,37 @@ msgstr "Versions"
 msgid "latest"
 msgstr "latest"
 
+msgid "Couldn't read the catalog"
+msgstr "Couldn't read the catalog"
+
+msgctxt "catalog apps people start with"
+msgid "Featured"
+msgstr "Featured"
+
+msgid "No app matches"
+msgstr "No app matches"
+
+msgid "Reading the catalog"
+msgstr "Reading the catalog"
+
+msgid "Run an image"
+msgstr "Run an image"
+
+msgid "Search the catalog"
+msgstr "Search the catalog"
+
+#. placeholder {0}: apps.length
+#. placeholder {0}: catalog.total ?? 0
+#. placeholder {0}: catalog.total ?? entries.length
+msgid "{0, plural, one {# app} other {# apps}}"
+msgstr "{0, plural, one {# app} other {# apps}}"
+
+#. placeholder {0}: (catalog.total ?? 0) - entries.length
+#. placeholder {0}: (catalog.total ?? 0) - shown.length
+#. placeholder {0}: Math.min(PAGE, found.length - shown)
+msgid "{0, plural, one {Show # more} other {Show # more}}"
+msgstr "{0, plural, one {Show # more} other {Show # more}}"
+
 msgid ".env file"
 msgstr ".env file"
 
@@ -4218,6 +4249,9 @@ msgstr "Can't make a plan"
 
 msgid "Can't read the file yet"
 msgstr "Can't read the file yet"
+
+msgid "Catalog"
+msgstr "Catalog"
 
 msgid "Check the image and its variables, then try again."
 msgstr "Check the image and its variables, then try again."
@@ -6714,9 +6748,6 @@ msgstr "App information"
 msgid "Back to catalog"
 msgstr "Back to catalog"
 
-msgid "Catalog"
-msgstr "Catalog"
-
 msgid "Catalog to install from"
 msgstr "Catalog to install from"
 
@@ -6835,9 +6866,6 @@ msgstr "Categories"
 msgid "Clear the search"
 msgstr "Clear the search"
 
-msgid "Couldn't read the catalog"
-msgstr "Couldn't read the catalog"
-
 msgid "Couldn't read the sources, so apps from them aren't marked"
 msgstr "Couldn't read the sources, so apps from them aren't marked"
 
@@ -6866,17 +6894,11 @@ msgstr "Installed"
 msgid "No app here has <0>{typed}</0> in its name or what it does."
 msgstr "No app here has <0>{typed}</0> in its name or what it does."
 
-msgid "No app matches"
-msgstr "No app matches"
-
 msgid "Not listed? Deploy any image or Compose file as an app. <0>New app</0>"
 msgstr "Not listed? Deploy any image or Compose file as an app. <0>New app</0>"
 
 msgid "Read apps from a catalog in a Git repository too. <0>Sources</0>"
 msgstr "Read apps from a catalog in a Git repository too. <0>Sources</0>"
-
-msgid "Reading the catalog"
-msgstr "Reading the catalog"
 
 msgid "Search apps"
 msgstr "Search apps"
@@ -6902,17 +6924,6 @@ msgstr "View app"
 #. placeholder {0}: list(also.map(named))
 msgid "also in {0}"
 msgstr "also in {0}"
-
-#. placeholder {0}: apps.length
-#. placeholder {0}: catalog.total ?? 0
-#. placeholder {0}: catalog.total ?? shown.length
-msgid "{0, plural, one {# app} other {# apps}}"
-msgstr "{0, plural, one {# app} other {# apps}}"
-
-#. placeholder {0}: (catalog.total ?? 0) - shown.length
-#. placeholder {0}: Math.min(PAGE, found.length - shown)
-msgid "{0, plural, one {Show # more} other {Show # more}}"
-msgstr "{0, plural, one {Show # more} other {Show # more}}"
 
 msgid "{count, plural, one {Installed} other {# installed}}"
 msgstr "{count, plural, one {Installed} other {# installed}}"

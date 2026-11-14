@@ -18,7 +18,7 @@ interface Choice {
   title: string;
   line: string;
   to: "/catalog" | "/apps/new" | "/websites/new";
-  search?: { source: "git" | "compose" };
+  search?: { source: "git" | "image" | "compose" };
   extra?: ReactNode;
 }
 
@@ -62,14 +62,14 @@ export function StartChoices({ compact = false, ways }: { compact?: boolean; way
       extra:
         shown.length > 0 && !compact ? (
           <span className="start-apps" style={row}>
-            {/* Each straight into its install sheet, which starts from its defaults. */}
+            {/* Each straight into its install form in New app, which starts from its defaults (#617). */}
             {shown.map((e) => {
               const app = e.name;
               return (
                 <Link
                   key={e.id}
-                  to="/catalog/$entryId/install"
-                  params={{ entryId: e.id }}
+                  to="/apps/new"
+                  search={{ entry: e.id }}
                   className="start-app"
                   aria-label={t`Install ${app}`}
                   title={app}
@@ -108,6 +108,7 @@ export function StartChoices({ compact = false, ways }: { compact?: boolean; way
       title: t`A Docker image`,
       line: t`Any image from a registry`,
       to: "/apps/new",
+      search: { source: "image" },
     },
     {
       key: "compose",

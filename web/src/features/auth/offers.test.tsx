@@ -172,7 +172,7 @@ describe("what the panel offers, by what you hold", () => {
 
   it("offers a developer no server folder to pick for a volume, as only an admin reads a server's files", async () => {
     const user = userEvent.setup();
-    renderAt("/apps/new", api(as(["prj_1", Role.DEVELOPER])));
+    renderAt("/apps/new?source=image", api(as(["prj_1", Role.DEVELOPER])));
     const sheet = await screen.findByRole("dialog", { name: "New app" });
     await user.click(await within(sheet).findByRole("button", { name: "Add volume" }));
     expect(within(sheet).getByLabelText("Volume or server path")).toBeVisible();

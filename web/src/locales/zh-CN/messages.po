@@ -4144,6 +4144,37 @@ msgstr "版本"
 msgid "latest"
 msgstr "latest"
 
+msgid "Couldn't read the catalog"
+msgstr "无法读取应用目录"
+
+msgctxt "catalog apps people start with"
+msgid "Featured"
+msgstr "精选"
+
+msgid "No app matches"
+msgstr "没有匹配的应用"
+
+msgid "Reading the catalog"
+msgstr "正在读取应用目录"
+
+msgid "Run an image"
+msgstr "运行一个镜像"
+
+msgid "Search the catalog"
+msgstr "搜索应用目录"
+
+#. placeholder {0}: apps.length
+#. placeholder {0}: catalog.total ?? 0
+#. placeholder {0}: catalog.total ?? entries.length
+msgid "{0, plural, one {# app} other {# apps}}"
+msgstr "{0, plural, other {# 个应用}}"
+
+#. placeholder {0}: (catalog.total ?? 0) - entries.length
+#. placeholder {0}: (catalog.total ?? 0) - shown.length
+#. placeholder {0}: Math.min(PAGE, found.length - shown)
+msgid "{0, plural, one {Show # more} other {Show # more}}"
+msgstr "{0, plural, other {再显示 # 个}}"
+
 msgid ".env file"
 msgstr ".env 文件"
 
@@ -4218,6 +4249,9 @@ msgstr "无法生成计划"
 
 msgid "Can't read the file yet"
 msgstr "暂时无法读取此文件"
+
+msgid "Catalog"
+msgstr "应用目录"
 
 msgid "Check the image and its variables, then try again."
 msgstr "请检查镜像及其变量，然后重试。"
@@ -6714,9 +6748,6 @@ msgstr "应用信息"
 msgid "Back to catalog"
 msgstr "返回应用目录"
 
-msgid "Catalog"
-msgstr "应用目录"
-
 msgid "Catalog to install from"
 msgstr "安装来源目录"
 
@@ -6835,9 +6866,6 @@ msgstr "分类"
 msgid "Clear the search"
 msgstr "清除搜索"
 
-msgid "Couldn't read the catalog"
-msgstr "无法读取应用目录"
-
 msgid "Couldn't read the sources, so apps from them aren't marked"
 msgstr "无法读取来源，因此未标记来自来源的应用"
 
@@ -6866,17 +6894,11 @@ msgstr "已安装"
 msgid "No app here has <0>{typed}</0> in its name or what it does."
 msgstr "没有应用的名称或用途中包含 <0>{typed}</0>。"
 
-msgid "No app matches"
-msgstr "没有匹配的应用"
-
 msgid "Not listed? Deploy any image or Compose file as an app. <0>New app</0>"
 msgstr "没有找到？可以把任意镜像或 Compose 文件部署为应用。<0>新建应用</0>"
 
 msgid "Read apps from a catalog in a Git repository too. <0>Sources</0>"
 msgstr "也可以从 Git 仓库中的目录读取应用。<0>来源</0>"
-
-msgid "Reading the catalog"
-msgstr "正在读取应用目录"
 
 msgid "Search apps"
 msgstr "搜索应用"
@@ -6902,17 +6924,6 @@ msgstr "查看应用"
 #. placeholder {0}: list(also.map(named))
 msgid "also in {0}"
 msgstr "另见于 {0}"
-
-#. placeholder {0}: apps.length
-#. placeholder {0}: catalog.total ?? 0
-#. placeholder {0}: catalog.total ?? shown.length
-msgid "{0, plural, one {# app} other {# apps}}"
-msgstr "{0, plural, other {# 个应用}}"
-
-#. placeholder {0}: (catalog.total ?? 0) - shown.length
-#. placeholder {0}: Math.min(PAGE, found.length - shown)
-msgid "{0, plural, one {Show # more} other {Show # more}}"
-msgstr "{0, plural, other {再显示 # 个}}"
 
 msgid "{count, plural, one {Installed} other {# installed}}"
 msgstr "{count, plural, other {已安装 # 个}}"

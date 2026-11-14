@@ -77,7 +77,10 @@ describe("the apps list", () => {
       "href",
       "/apps/new?source=git",
     );
-    expect(within(ways).getByRole("link", { name: "A Docker image" })).toHaveAttribute("href", "/apps/new");
+    expect(within(ways).getByRole("link", { name: "A Docker image" })).toHaveAttribute(
+      "href",
+      "/apps/new?source=image",
+    );
     expect(within(ways).getByRole("link", { name: "A Compose file" })).toHaveAttribute(
       "href",
       "/apps/new?source=compose",
@@ -109,7 +112,8 @@ describe("the apps list", () => {
     const lead = within(ways).getByRole("link", { name: "From the catalog" }).closest("li") as HTMLElement;
     expect(lead).toHaveClass("is-lead");
     await waitFor(() => expect(within(lead).getAllByRole("link", { name: /^Install / })).toHaveLength(7));
-    expect(within(lead).getByRole("link", { name: "Install ghost" })).toHaveAttribute("href", "/catalog/ghost/install");
+    // Each installs in New app's own sheet, from its defaults (#617).
+    expect(within(lead).getByRole("link", { name: "Install ghost" })).toHaveAttribute("href", "/apps/new?entry=ghost");
     expect(within(lead).queryByRole("link", { name: "Install a" })).toBeNull();
     expect(within(lead).getByText("and 3 more")).toBeInTheDocument();
   });

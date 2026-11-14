@@ -18,7 +18,7 @@ export const flow: Flow = {
       return;
     }
     step("images: a name typed finds Docker Hub's images, and one picked lists its versions newest first");
-    await page.goto(`${origin}/apps/new`);
+    await page.goto(`${origin}/apps/new?source=image`);
     const sheet = page.getByRole("dialog", { name: "New app" });
     await sheet.waitFor();
     const field = sheet.getByRole("combobox", { name: "Image" });

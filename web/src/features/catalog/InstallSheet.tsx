@@ -47,6 +47,7 @@ import { type FormEvent, type ReactNode, useEffect, useId, useLayoutEffect, useM
 
 import { methodCommand } from "../../lib/cli";
 import { reasonOf, sentence } from "../../lib/errors";
+import { useHandOn } from "../../lib/handOn";
 import { onApple } from "../../lib/platform";
 import { portRefusal, SERVICE_NAME, tidyMessage } from "../apps/app";
 import { RunsOnField } from "../apps/NewAppSheet";
@@ -116,6 +117,7 @@ export function InstallSheet({
   catalog = "",
   onClose,
   engines,
+  onBack,
 }: {
   id: string;
   /** The catalog to install it from, by its source's name, where several have it; empty is the one it's listed from. */
@@ -123,8 +125,11 @@ export function InstallSheet({
   onClose: () => void;
   /** The engines to pick from, for New database on the Databases page. */
   engines?: { groups: readonly EngineGroup[]; onPick: (id: string) => void };
+  /** Goes back to what it took the place of, such as the catalog's search in New app. */
+  onBack?: () => void;
 }) {
   const { t } = useLingui();
+  const hand = useHandOn();
   const words = useAppWords();
   // Installing makes a project of its own, which is an admin's (ADR 0049): off, with why, for anyone else.
   const mayInstall = useMay()(CatalogService.method.installCatalogEntry);
@@ -519,7 +524,13 @@ export function InstallSheet({
       title={engines ? t`New database` : t`Install ${app}`}
       subtitle={engines ? undefined : entry?.summary}
       onClose={onClose}
-      className={cx("app-sheet", "catalog-sheet", phone && "is-phone")}
+      className={cx(
+        "app-sheet",
+        "catalog-sheet",
+        phone && "is-phone",
+        hand.inPlace && "is-in-place",
+        hand.handing && "is-handing-on",
+      )}
       footer={
         <>
           <span className="dw-sheet-note">
@@ -540,6 +551,19 @@ export function InstallSheet({
               <Trans>Nothing runs until you apply the plan</Trans>
             )}
           </span>
+          {onBack ? (
+            <Button
+              variant="ghost"
+              size={phone ? "lg" : "md"}
+              icon="arrow-left"
+              onClick={() => {
+                hand.handOn();
+                onBack();
+              }}
+            >
+              <Trans>Back</Trans>
+            </Button>
+          ) : null}
           <Button variant="ghost" size={phone ? "lg" : "md"} onClick={onClose}>
             <Trans>Cancel</Trans>
           </Button>
