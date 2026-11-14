@@ -64,6 +64,18 @@ type PanelPart struct {
 	// WasReplicas is how many replicas a Swarm service ran as the stop was planned.
 	// A stop scales it to none, and a start back to this.
 	WasReplicas uint64 `json:",omitempty"`
+	// WasPorts are the ports a Swarm service of what the panel ran published as
+	// the stop was planned: a stop takes them off, as Swarm's routing mesh holds
+	// them while the service publishes them, and a start puts them back.
+	WasPorts []PanelPort `json:",omitempty"`
+}
+
+// PanelPort is a port a Swarm service publishes.
+type PanelPort struct {
+	Protocol          string
+	Target, Published uint32
+	// Mode is "ingress", through the routing mesh, or "host".
+	Mode string `json:",omitempty"`
 }
 
 // Name is the panel's name as people call it.

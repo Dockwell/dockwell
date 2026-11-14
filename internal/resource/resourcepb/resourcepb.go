@@ -677,7 +677,11 @@ func PanelFrom(p *dockwellv1.HostPanel) *resource.Panel {
 func PanelParts(parts []resource.PanelPart) []*dockwellv1.HostPanelPart {
 	out := make([]*dockwellv1.HostPanelPart, 0, len(parts))
 	for _, p := range parts {
-		out = append(out, &dockwellv1.HostPanelPart{Name: p.Name, Swarm: p.Swarm, WasRunning: p.WasRunning, WasRestart: p.WasRestart, WasReplicas: p.WasReplicas})
+		part := &dockwellv1.HostPanelPart{Name: p.Name, Swarm: p.Swarm, WasRunning: p.WasRunning, WasRestart: p.WasRestart, WasReplicas: p.WasReplicas}
+		for _, port := range p.WasPorts {
+			part.WasPorts = append(part.WasPorts, &dockwellv1.HostPanelPort{Protocol: port.Protocol, Target: port.Target, Published: port.Published, Mode: port.Mode})
+		}
+		out = append(out, part)
 	}
 	return out
 }
@@ -686,7 +690,11 @@ func PanelParts(parts []resource.PanelPart) []*dockwellv1.HostPanelPart {
 func PanelPartsFrom(parts []*dockwellv1.HostPanelPart) []resource.PanelPart {
 	out := make([]resource.PanelPart, 0, len(parts))
 	for _, p := range parts {
-		out = append(out, resource.PanelPart{Name: p.GetName(), Swarm: p.GetSwarm(), WasRunning: p.GetWasRunning(), WasRestart: p.GetWasRestart(), WasReplicas: p.GetWasReplicas()})
+		part := resource.PanelPart{Name: p.GetName(), Swarm: p.GetSwarm(), WasRunning: p.GetWasRunning(), WasRestart: p.GetWasRestart(), WasReplicas: p.GetWasReplicas()}
+		for _, port := range p.GetWasPorts() {
+			part.WasPorts = append(part.WasPorts, resource.PanelPort{Protocol: port.GetProtocol(), Target: port.GetTarget(), Published: port.GetPublished(), Mode: port.GetMode()})
+		}
+		out = append(out, part)
 	}
 	return out
 }

@@ -64,3 +64,33 @@ func TestScalingAServiceKeepsTheRestOfIt(t *testing.T) {
 		t.Errorf("scaling a global service = %v", err)
 	}
 }
+
+// Scaling with ports sets the replicas and what's published alone, and keeps the
+// rest of the spec as Docker has it, the endpoint's own settings too.
+func TestScalingAServiceWithItsPorts(t *testing.T) {
+	e := dockertest.New(t)
+	svc := docker.Service{ID: "s1", Version: docker.ServiceVersion{Index: 3}}
+	svc.Spec.Name, svc.Spec.Mode = "shop-k2m4", replicas(1)
+	e.Services = []docker.Service{svc}
+	e.ServiceExtras = map[string]map[string]json.RawMessage{"s1": {
+		"UpdateConfig": json.RawMessage(`{"Monitor":9007199254740993}`),
+	}}
+	c := e.Client()
+	if err := c.ScaleServicePorts(t.Context(), "shop-k2m4", 0, nil); err != nil {
+		t.Fatal(err)
+	}
+	if sent := e.ServiceUpdates[0]; !strings.Contains(sent, `"Ports":[]`) || !strings.Contains(sent, `"Monitor":9007199254740993`) || !strings.Contains(sent, `"Replicas":0`) {
+		t.Errorf("freeing its ports sent %s", sent)
+	}
+	back := []docker.ServicePort{{Protocol: "tcp", TargetPort: 80, PublishedPort: 8085, PublishMode: "ingress"}}
+	if err := c.ScaleServicePorts(t.Context(), "shop-k2m4", 1, back); err != nil {
+		t.Fatal(err)
+	}
+	read, err := c.InspectService(t.Context(), "shop-k2m4")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n, _ := read.Spec.Mode.Replicas(); n != 1 || len(read.Spec.EndpointSpec.Ports) != 1 || read.Spec.EndpointSpec.Ports[0] != back[0] {
+		t.Errorf("scaled back with its ports, it reads %+v", read.Spec)
+	}
+}

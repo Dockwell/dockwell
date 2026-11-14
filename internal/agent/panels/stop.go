@@ -144,12 +144,12 @@ func (s Stopper) planApps(ctx context.Context, ask resource.PanelAsked) (*resour
 		if !replicated {
 			return nil, false, fmt.Errorf("the service %s runs one task on each node, so Dockwell can't scale it to none", p.Name)
 		}
-		part := resource.PanelPart{Name: p.Name, Swarm: true, WasRunning: n > 0, WasReplicas: n}
+		part := resource.PanelPart{Name: p.Name, Swarm: true, WasRunning: n > 0, WasReplicas: n, WasPorts: portsOf(svc.Spec.EndpointSpec.Ports)}
 		if p.WasReplicas > 0 || ask.Start {
 			if p.WasReplicas > mostReplicas {
 				return nil, false, fmt.Errorf("what the plan kept of how %s stood isn't what a stop reads, so Dockwell won't act on it", p.Name)
 			}
-			part.WasRunning, part.WasReplicas = p.WasRunning, p.WasReplicas
+			part.WasRunning, part.WasReplicas, part.WasPorts = p.WasRunning, p.WasReplicas, p.WasPorts
 		}
 		if ask.Start {
 			left = left || n != part.WasReplicas
@@ -171,9 +171,20 @@ func (s Stopper) ApplyPanel(ctx context.Context, p resource.Panel, say func(stri
 	for _, part := range p.Parts {
 		var err error
 		switch {
+		case part.Swarm && p.Start && p.Apps:
+			say(fmt.Sprintf("Scaling the service %s to %d, with the ports it published", part.Name, part.WasReplicas))
+			err = s.Docker.ScaleServicePorts(ctx, part.Name, part.WasReplicas, servicePorts(part.WasPorts))
 		case part.Swarm && p.Start:
 			say(fmt.Sprintf("Scaling the service %s to %d", part.Name, part.WasReplicas))
 			err = s.Docker.ScaleService(ctx, part.Name, part.WasReplicas)
+		case part.Swarm && p.Apps:
+			// Its ports come off too: Swarm's routing mesh holds a published port for
+			// as long as the service publishes it, so its copy couldn't.
+			say(fmt.Sprintf("Scaling the service %s to none, and freeing the ports it published", part.Name))
+			err = s.Docker.ScaleServicePorts(ctx, part.Name, 0, nil)
+			if err == nil {
+				err = s.untilNoTask(ctx, part.Name, say)
+			}
 		case part.Swarm:
 			// A scale changes the spec at once, and Swarm stops the task after: what
 			// takes its place, such as a copy on the same data, waits for that.
@@ -215,6 +226,24 @@ func (s Stopper) ApplyPanel(ctx context.Context, p resource.Panel, say func(stri
 		}
 	}
 	return nil
+}
+
+// portsOf are the ports a Swarm service publishes, as a plan keeps them.
+func portsOf(ports []docker.ServicePort) []resource.PanelPort {
+	var out []resource.PanelPort
+	for _, p := range ports {
+		out = append(out, resource.PanelPort{Protocol: p.Protocol, Target: p.TargetPort, Published: p.PublishedPort, Mode: p.PublishMode})
+	}
+	return out
+}
+
+// servicePorts are the ports a plan kept, as Docker takes them.
+func servicePorts(ports []resource.PanelPort) []docker.ServicePort {
+	out := make([]docker.ServicePort, 0, len(ports))
+	for _, p := range ports {
+		out = append(out, docker.ServicePort{Protocol: p.Protocol, TargetPort: p.Target, PublishedPort: p.Published, PublishMode: p.Mode})
+	}
+	return out
 }
 
 // tasksRunning counts the containers of a Swarm service's tasks that run on this
@@ -368,6 +397,8 @@ type standing struct {
 	replicas uint64
 	// tasks are how many containers of a Swarm service's tasks run on this node.
 	tasks int
+	// ports are how many ports a Swarm service publishes.
+	ports int
 }
 
 func (s Stopper) stands(ctx context.Context, p resource.PanelPart) (standing, error) {
@@ -384,7 +415,7 @@ func (s Stopper) stands(ctx context.Context, p resource.PanelPart) (standing, er
 		if err != nil {
 			return standing{}, err
 		}
-		return standing{running: n > 0 || tasks > 0, replicas: n, tasks: tasks}, nil
+		return standing{running: n > 0 || tasks > 0, replicas: n, tasks: tasks, ports: len(svc.Spec.EndpointSpec.Ports)}, nil
 	}
 	c, err := s.Docker.InspectContainer(ctx, p.Name)
 	if docker.IsNotFound(err) {
@@ -403,9 +434,9 @@ func (st standing) like(p resource.PanelPart, start bool) bool {
 	case st.gone:
 		return !start
 	case p.Swarm && start:
-		return st.replicas == p.WasReplicas
+		return st.replicas == p.WasReplicas && (len(p.WasPorts) == 0 || st.ports == len(p.WasPorts))
 	case p.Swarm:
-		return st.replicas == 0 && st.tasks == 0
+		return st.replicas == 0 && st.tasks == 0 && (len(p.WasPorts) == 0 || st.ports == 0)
 	case start:
 		return (p.WasRestart == "" || st.restart == p.WasRestart) && (st.running || !p.WasRunning)
 	default:
@@ -418,6 +449,11 @@ func (st standing) words(swarm bool) string {
 	switch {
 	case st.gone:
 		return "it isn't there any more"
+	case swarm && st.ports > 0 && st.replicas == 0 && st.tasks == 0:
+		if st.ports == 1 {
+			return "it runs none, and still publishes a port"
+		}
+		return fmt.Sprintf("it runs none, and still publishes %d ports", st.ports)
 	case swarm && st.replicas == 0 && st.tasks > 0:
 		return fmt.Sprintf("it asks for none, and %d of its tasks still run", st.tasks)
 	case swarm:

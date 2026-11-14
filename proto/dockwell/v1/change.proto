@@ -868,6 +868,23 @@ message HostPanelPart {
   string was_restart = 4;
   // How many replicas a Swarm service ran as the stop was planned.
   uint64 was_replicas = 5;
+  // The ports a Swarm service of what the panel ran published as the stop was
+  // planned: a stop takes them off, as Swarm's routing mesh holds a published
+  // port for as long as the service publishes it, so its copy can, and a start
+  // puts them back.
+  repeated HostPanelPort was_ports = 6;
+}
+
+// HostPanelPort is a port a Swarm service publishes.
+message HostPanelPort {
+  // "tcp", "udp" or "sctp".
+  string protocol = 1;
+  // The port in its tasks' containers.
+  uint32 target = 2;
+  // The port it's published on.
+  uint32 published = 3;
+  // "ingress", through the routing mesh, or "host", on the node its task runs on.
+  string mode = 4;
 }
 
 // HostReboot is what rebooting a server does (ADR 0064): everything on it goes

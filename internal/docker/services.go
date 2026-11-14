@@ -95,11 +95,50 @@ func (c *Client) InspectService(ctx context.Context, id string) (*Service, error
 }
 
 // ScaleService has a Swarm service run n replicas, as docker service scale does,
-// and changes nothing else of it. Swarm takes a service's whole spec on an update,
-// so it's read as Docker has it, every field kept as it was, numbers exactly, and
-// written back with its replicas alone changed, naming the version it read: one
-// changed meanwhile is refused, not written over.
+// and changes nothing else of it.
 func (c *Client) ScaleService(ctx context.Context, id string, n uint64) error {
+	return c.rewriteService(ctx, id, func(spec map[string]any) error { return replicasOf(spec, n) })
+}
+
+// ScaleServicePorts has a Swarm service run n replicas and publish ports, and
+// changes nothing else of it: none takes each port off, which Swarm's routing mesh
+// holds on every node for as long as the service publishes it.
+func (c *Client) ScaleServicePorts(ctx context.Context, id string, n uint64, ports []ServicePort) error {
+	return c.rewriteService(ctx, id, func(spec map[string]any) error {
+		if err := replicasOf(spec, n); err != nil {
+			return err
+		}
+		endpoint, _ := spec["EndpointSpec"].(map[string]any)
+		if endpoint == nil {
+			endpoint = map[string]any{}
+			spec["EndpointSpec"] = endpoint
+		}
+		list := make([]any, 0, len(ports))
+		for _, p := range ports {
+			list = append(list, map[string]any{"Protocol": p.Protocol, "TargetPort": p.TargetPort, "PublishedPort": p.PublishedPort, "PublishMode": p.PublishMode})
+		}
+		endpoint["Ports"] = list
+		return nil
+	})
+}
+
+// replicasOf sets the replicas in a service's spec.
+func replicasOf(spec map[string]any, n uint64) error {
+	mode, _ := spec["Mode"].(map[string]any)
+	replicated, ok := mode["Replicated"].(map[string]any)
+	if !ok {
+		return errors.New("it runs one task on each node, so it has no number of replicas to change")
+	}
+	replicated["Replicas"] = n
+	return nil
+}
+
+// rewriteService changes a Swarm service's spec as change says. Swarm takes a
+// service's whole spec on an update, so it's read as Docker has it, every field
+// kept as it was, numbers exactly, and written back with what change changed
+// alone, naming the version it read: one changed meanwhile is refused, not
+// written over.
+func (c *Client) rewriteService(ctx context.Context, id string, change func(map[string]any) error) error {
 	var read struct {
 		Version ServiceVersion  `json:"Version"`
 		Spec    json.RawMessage `json:"Spec"`
@@ -113,12 +152,9 @@ func (c *Client) ScaleService(ctx context.Context, id string, n uint64) error {
 	if err := dec.Decode(&spec); err != nil {
 		return fmt.Errorf("can't read the service %s's spec: %w", id, err)
 	}
-	mode, _ := spec["Mode"].(map[string]any)
-	replicated, ok := mode["Replicated"].(map[string]any)
-	if !ok {
-		return errors.New("it runs one task on each node, so it has no number of replicas to change")
+	if err := change(spec); err != nil {
+		return err
 	}
-	replicated["Replicas"] = n
 	query := url.Values{"version": {strconv.FormatUint(read.Version.Index, 10)}}
 	return c.do(ctx, http.MethodPost, "/services/"+esc(id)+"/update", query, spec, &struct{}{})
 }

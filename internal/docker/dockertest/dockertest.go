@@ -1272,6 +1272,15 @@ func (e *Engine) portsFree(c *container) error {
 			bound = append(bound, bindings(o)...)
 		}
 	}
+	// Swarm's routing mesh holds each port a service publishes on every node for
+	// as long as the service publishes it, however many replicas it runs.
+	for i := range e.Services {
+		for _, p := range e.Services[i].Spec.EndpointSpec.Ports {
+			if p.PublishedPort != 0 {
+				bound = append(bound, binding{strconv.FormatUint(uint64(p.PublishedPort), 10), strings.ToLower(cmp.Or(p.Protocol, "tcp")), ""})
+			}
+		}
+	}
 	for _, b := range bindings(c) {
 		for _, o := range bound {
 			if b.port == o.port && b.proto == o.proto && overlap(b.ip, o.ip) {

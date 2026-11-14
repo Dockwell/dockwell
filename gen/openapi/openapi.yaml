@@ -14063,7 +14063,34 @@ components:
                 wasReplicas:
                     type: string
                     description: How many replicas a Swarm service ran as the stop was planned.
+                wasPorts:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/HostPanelPort'
+                    description: |-
+                        The ports a Swarm service of what the panel ran published as the stop was
+                         planned: a stop takes them off, as Swarm's routing mesh holds a published
+                         port for as long as the service publishes it, so its copy can, and a start
+                         puts them back.
             description: HostPanelPart is one of a panel's own containers or Swarm services.
+        HostPanelPort:
+            type: object
+            properties:
+                protocol:
+                    type: string
+                    description: '"tcp", "udp" or "sctp".'
+                target:
+                    type: integer
+                    description: The port in its tasks' containers.
+                    format: uint32
+                published:
+                    type: integer
+                    description: The port it's published on.
+                    format: uint32
+                mode:
+                    type: string
+                    description: '"ingress", through the routing mesh, or "host", on the node its task runs on.'
+            description: HostPanelPort is a port a Swarm service publishes.
         HostReboot:
             type: object
             properties:

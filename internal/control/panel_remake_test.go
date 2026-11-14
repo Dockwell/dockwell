@@ -58,6 +58,18 @@ func TestMakingADokploySwarmAppAgain(t *testing.T) {
 	if replicas() != 0 {
 		t.Error("Dokploy's service still runs")
 	}
+	// Swarm's routing mesh holds a published port while the service publishes it,
+	// so the scale takes it off for the copy, and the undo puts it back.
+	published := func() []docker.ServicePort {
+		svc, err := e.Client().InspectService(t.Context(), "shop-k2m4")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return svc.Spec.EndpointSpec.Ports
+	}
+	if got := published(); len(got) != 0 {
+		t.Errorf("Dokploy's service still publishes %v", got)
+	}
 	var copied *docker.Container
 	for _, name := range e.Containers() {
 		if cc := e.Container(name); cc != nil && cc.Config.Labels[docker.LabelService] == "shop-k2m4" && cc.ID != task {
@@ -85,6 +97,9 @@ func TestMakingADokploySwarmAppAgain(t *testing.T) {
 	}
 	if replicas() != 1 {
 		t.Error("the undo left Dokploy's service at none")
+	}
+	if got := published(); len(got) != 1 || got[0].PublishedPort != 8085 || got[0].TargetPort != 80 || got[0].PublishMode != "ingress" {
+		t.Errorf("after the undo Dokploy's service publishes %v", got)
 	}
 	if e.Container(copied.Name) != nil {
 		t.Error("the undo left Dockwell's copy")
