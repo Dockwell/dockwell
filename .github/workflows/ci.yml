@@ -286,6 +286,36 @@ jobs:
         if: steps.pick.outputs.run == 'true'
         run: make docker-e2e
 
+  swarm-docker:
+    name: Swarm import on Docker
+    runs-on: ubuntu-24.04
+    # About 4 minutes, most of it pulling images, so this leaves room for a slow runner.
+    timeout-minutes: 15
+    # What Dokploy runs as Swarm services, made again in Dockwell on a real
+    # single-node Swarm, and undone, with Dockwell as root, as on a server (ADR 0089).
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # The steps after this one run only when this change needs this job,
+      # from the files it changes (docs/adr/0050-ci-runs-what-a-change-needs.md).
+      - name: Whether this change needs this job
+        id: pick
+        run: scripts/ci-jobs.sh needs swarm-docker
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        if: steps.pick.outputs.run == 'true'
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: |
+            go.sum
+            tools/go.sum
+      - name: A single-node Swarm
+        if: steps.pick.outputs.run == 'true'
+        run: |
+          docker version
+          docker swarm init --advertise-addr 127.0.0.1
+      - name: Dokploy's Swarm-run apps made again
+        if: steps.pick.outputs.run == 'true'
+        run: make swarm-e2e
+
   catalog-docker:
     name: Catalog on Docker (${{ matrix.apps }})
     runs-on: ubuntu-24.04

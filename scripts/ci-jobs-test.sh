@@ -20,7 +20,7 @@ failed=0
 scratch=$(mktemp -d)
 trap 'rm -rf "$scratch"' EXIT
 
-all="go docker-go caddy-go docker-e2e catalog-docker store-docker docker-panel logs-load containers-load transfers-load chaos e2e schema panel snapshot budgets install systemd every-leg"
+all="go docker-go caddy-go docker-e2e catalog-docker store-docker docker-panel logs-load containers-load transfers-load chaos e2e schema panel swarm-docker snapshot budgets install systemd every-leg"
 # Go code: every CI job, the budgets, and some install legs.
 go="go docker-go caddy-go docker-e2e catalog-docker store-docker docker-panel logs-load containers-load transfers-load chaos e2e schema panel snapshot budgets install systemd"
 web="schema panel e2e docker-panel"
@@ -64,6 +64,11 @@ picks "$go" internal/cli/join.go
 picks "$go" cmd/dockwell/main.go
 picks "$go" proto/dockwell/v1/servers.proto gen/openapi/openapi.yaml
 picks "$go" scripts/docker-e2e.sh
+# What reaches a Swarm runs Swarm import on Docker too; other Go code doesn't.
+picks "$go swarm-docker" scripts/swarm-e2e.sh
+picks "$go swarm-docker" internal/control/importapi/panels.go
+picks "$go swarm-docker" internal/agent/panels/stop.go internal/control/server.go
+picks "go docker-go caddy-go" internal/agent/panels/stop_test.go
 picks "$go" scripts/transfers-load.sh
 picks "$go" scripts/fakedocker/main.go
 picks "go chaos" scripts/chaos/main.go scripts/chaos.sh
