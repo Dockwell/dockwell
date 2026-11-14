@@ -17,11 +17,12 @@ import (
 	"fmt"
 	"maps"
 	"net/netip"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/dockwell/dockwell/internal/lazyre"
 
 	"google.golang.org/protobuf/proto"
 )
@@ -422,7 +423,7 @@ const (
 )
 
 var (
-	versionNotFound = regexp.MustCompile("failed to resolve version (\\S+) of (\\S+)|package `([^`]+)` not available in Mise")
+	versionNotFound = lazyre.Regexp("failed to resolve version (\\S+) of (\\S+)|package `([^`]+)` not available in Mise")
 	// What a lookup that couldn't reach the internet says, from mise or Go.
 	offlineWords = []string{
 		"temporary failure fetching", "failed to ensure mise is installed", "error sending request", "dns error",
@@ -446,7 +447,7 @@ func RailpackProblem(said string) (problem, tool string) {
 			return ProblemNetwork, ""
 		}
 	}
-	if m := versionNotFound.FindStringSubmatch(said); m != nil {
+	if m := versionNotFound().FindStringSubmatch(said); m != nil {
 		return ProblemVersion, strings.Trim(m[2]+m[3], "`")
 	}
 	if strings.Contains(lower, "failed to get latest version for package") {
@@ -490,7 +491,7 @@ func RailpackRefusal(d *BuildDetection, what string) string {
 }
 
 // variableName is a name a shell takes for a variable.
-var variableName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+var variableName = lazyre.Regexp(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 // RailpackNames checks that a build's arguments and secrets can reach Railpack,
 // which gives each to the build as an environment variable: a variable's name, not
@@ -515,7 +516,7 @@ func RailpackNames(args map[string]string, secrets []string) error {
 
 func railpackName(what, k string) error {
 	switch {
-	case !variableName.MatchString(k):
+	case !variableName().MatchString(k):
 		return fmt.Errorf("the build's %s %s can't reach Railpack, which gives it to the build as an environment variable. Name it with letters, digits and _, starting with a letter or _", what, k)
 	case k == "PATH" || k == "HOME":
 		return fmt.Errorf("%s is the build's own, so a build with Railpack can't set it. Name the %s something else", k, what)
@@ -1714,13 +1715,13 @@ type NameChecker interface {
 // is checked apart from the form: a counted repetition, such as {0,61}, compiles
 // to that many copies of what it repeats, which every agent pays for as it starts
 // (ADR 0060).
-var labelRE = regexp.MustCompile(`^[a-z]([a-z0-9-]*[a-z0-9])?$`)
+var labelRE = lazyre.Regexp(`^[a-z]([a-z0-9-]*[a-z0-9])?$`)
 
 const maxLabel = 63
 
 // IsLabel reports whether name is one CheckLabel takes.
 func IsLabel(name string) bool {
-	return len(name) <= maxLabel && labelRE.MatchString(name)
+	return len(name) <= maxLabel && labelRE().MatchString(name)
 }
 
 // CheckLabel requires a name that is a DNS label, so it fits in URLs, in

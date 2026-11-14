@@ -55,7 +55,7 @@ func validateNetworking(c *resourcev1.Container) error {
 	seen := map[string]bool{}
 	for _, n := range c.GetExternalNetworks() {
 		switch why, reserved := dockerOwnNetworks[n]; {
-		case !NameRE.MatchString(n) || len(n) > maxNameLength:
+		case !NameRE().MatchString(n) || len(n) > maxNameLength:
 			return fmt.Errorf("%q isn't a valid network name: use letters, digits, dots, dashes and underscores, such as backend", n)
 		case reserved:
 			return fmt.Errorf("a service can't join %s as a network the server has. %s", n, why)
@@ -98,7 +98,7 @@ func validateNetworking(c *resourcev1.Container) error {
 // after the name. They don't hold it, as a caller may have it from a variable.
 func CheckAlias(name string) error {
 	switch {
-	case !NameRE.MatchString(name) || len(name) > maxNameLength:
+	case !NameRE().MatchString(name) || len(name) > maxNameLength:
 		return errors.New("isn't a name a container can answer to: use letters, digits, dots, dashes and underscores, starting with a letter or digit, such as db")
 	case strings.HasPrefix(strings.ToLower(name), serviceForm):
 		return fmt.Errorf("has the form of a service's container, %s<ID>-<service>-1, so it can't be another name for one. Choose a name that doesn't start with %q", serviceForm, serviceForm)

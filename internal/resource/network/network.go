@@ -67,7 +67,7 @@ func (*Driver) New() proto.Message { return &resourcev1.Network{} }
 // CheckName requires a name Docker takes, up to 63 characters, as Compose
 // files name networks, such as backend.
 func (*Driver) CheckName(name string) error {
-	if !container.NameRE.MatchString(name) || len(name) > 63 {
+	if !container.NameRE().MatchString(name) || len(name) > 63 {
 		return fmt.Errorf("%q isn't a valid network name: use up to 63 letters, digits, dots, dashes and underscores, starting with a letter or digit, such as backend", name)
 	}
 	return nil
@@ -102,9 +102,9 @@ func checkMembers(n *resourcev1.Network) error {
 		switch {
 		case !strings.HasPrefix(m.GetEnvironment(), "env_"):
 			return errors.New("a network's member names its environment by its ID, such as env_…")
-		case !container.NameRE.MatchString(m.GetService()):
+		case !container.NameRE().MatchString(m.GetService()):
 			return fmt.Errorf("a network's member names its service, such as db, not %q", m.GetService())
-		case !container.NameRE.MatchString(m.GetAlias()):
+		case !container.NameRE().MatchString(m.GetAlias()):
 			return fmt.Errorf("a network's member needs a name it answers to, such as db, not %q", m.GetAlias())
 		case seen[m.GetEnvironment()+"/"+m.GetService()]:
 			return fmt.Errorf("a network names %s as a member twice", m.GetService())

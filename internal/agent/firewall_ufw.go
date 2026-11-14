@@ -8,8 +8,9 @@ import (
 	"context"
 	"fmt"
 	"net/netip"
-	"regexp"
 	"strings"
+
+	"github.com/dockwell/dockwell/internal/lazyre"
 
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 )
@@ -33,7 +34,7 @@ func (f *firewallReader) ufw(ctx context.Context) *dockwellv1.FirewallTool {
 // "%-26s %-12s%-26s%s%s": what it covers, the action and its direction, where
 // from, " (log)" when it logs, and " # comment". It's split on the action, as a
 // long first column leaves a single space before it.
-var ufwRow = regexp.MustCompile(`^(.+?) +(ALLOW|DENY|REJECT|LIMIT)(?: (IN|OUT|FWD))?(?: +(.*))?$`)
+var ufwRow = lazyre.Regexp(`^(.+?) +(ALLOW|DENY|REJECT|LIMIT)(?: (IN|OUT|FWD))?(?: +(.*))?$`)
 
 // parseUFW reads `ufw status verbose`, run in the C locale:
 //
@@ -96,7 +97,7 @@ func parseUFWRule(line string) (*dockwellv1.FirewallSeenRule, bool, error) {
 	if i := strings.Index(line, " # "); i >= 0 {
 		line, comment = line[:i], strings.TrimSpace(line[i+3:])
 	}
-	m := ufwRow.FindStringSubmatch(strings.TrimSpace(line))
+	m := ufwRow().FindStringSubmatch(strings.TrimSpace(line))
 	if m == nil {
 		return nil, false, fmt.Errorf("ufw listed a rule Dockwell can't read: %q", line)
 	}

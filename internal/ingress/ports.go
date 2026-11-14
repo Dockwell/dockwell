@@ -10,12 +10,13 @@ import (
 	"net/netip"
 	"os"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/dockwell/dockwell/internal/lazyre"
 
 	"github.com/dockwell/dockwell/internal/docker"
 )
@@ -329,7 +330,7 @@ func (h *Holders) processName(pid int) string {
 
 // containerID finds a container's ID in a process's cgroup, as
 // /docker/<id> with cgroups v1 and /system.slice/docker-<id>.scope with v2.
-var containerID = regexp.MustCompile(`(?:docker[-/]|/)([0-9a-f]{64})(?:\.scope)?\s*$`)
+var containerID = lazyre.Regexp(`(?:docker[-/]|/)([0-9a-f]{64})(?:\.scope)?\s*$`)
 
 // containerOf is the name of the container a process is in, or empty.
 func (h *Holders) containerOf(ctx context.Context, pid int) string {
@@ -340,7 +341,7 @@ func (h *Holders) containerOf(ctx context.Context, pid int) string {
 	defer file.Close()
 	sc := bufio.NewScanner(file)
 	for sc.Scan() {
-		m := containerID.FindStringSubmatch(sc.Text())
+		m := containerID().FindStringSubmatch(sc.Text())
 		if m == nil {
 			continue
 		}

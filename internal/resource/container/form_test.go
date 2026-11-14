@@ -57,7 +57,7 @@ func TestIsHostnameTakesWhatItsExpressionTook(t *testing.T) {
 
 func TestATagTakesWhatItsExpressionTook(t *testing.T) {
 	formtest.Agree(t, `^\w[\w.-]{0,127}$`,
-		func(tag string) bool { return len(tag) <= maxTagLen && tagRE.MatchString(tag) },
+		func(tag string) bool { return len(tag) <= maxTagLen && tagRE().MatchString(tag) },
 		formtest.Corpus("a_.-Z09", "/: é\n", 128))
 	// And through CheckImage, which is what a spec meets.
 	if err := CheckImage("nginx:" + strings.Repeat("1", 128)); err != nil {

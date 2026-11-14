@@ -5,10 +5,11 @@ package service
 import (
 	"errors"
 	"fmt"
-	"regexp"
 	"slices"
 	"strconv"
 	"time"
+
+	"github.com/dockwell/dockwell/internal/lazyre"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 )
@@ -21,7 +22,7 @@ const (
 	maxUpdateMinutes     = 24 * 60
 )
 
-var clock = regexp.MustCompile(`^([01]\d|2[0-3]):[0-5]\d$`)
+var clock = lazyre.Regexp(`^([01]\d|2[0-3]):[0-5]\d$`)
 
 // checkAutoUpdate fills in a service's automatic updates' defaults, and refuses
 // a window that can't open, or an app that takes none. One that's off is left
@@ -53,7 +54,7 @@ func CheckAutoUpdate(a *resourcev1.AutoUpdate) error {
 	if a.GetAt() == "" {
 		a.At = DefaultUpdateAt
 	}
-	if !clock.MatchString(a.GetAt()) {
+	if !clock().MatchString(a.GetAt()) {
 		return fmt.Errorf("%q isn't a time of day for automatic updates. Use 24-hour HH:MM, such as 03:00", a.GetAt())
 	}
 	if a.GetMinutes() == 0 {
@@ -86,7 +87,7 @@ func CheckAutoUpdate(a *resourcev1.AutoUpdate) error {
 // end. A window that opens late on one day and runs past midnight holds the small
 // hours of the next, on the day it opened.
 func UpdateWindow(a *resourcev1.AutoUpdate, at time.Time) (opens, ends time.Time, ok bool) {
-	if a.GetLevel() == resourcev1.AutoUpdate_LEVEL_UNSPECIFIED || !clock.MatchString(a.GetAt()) {
+	if a.GetLevel() == resourcev1.AutoUpdate_LEVEL_UNSPECIFIED || !clock().MatchString(a.GetAt()) {
 		return time.Time{}, time.Time{}, false
 	}
 	zone, err := time.LoadLocation(a.GetTimeZone())

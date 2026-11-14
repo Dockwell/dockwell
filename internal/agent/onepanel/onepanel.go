@@ -17,11 +17,12 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/dockwell/dockwell/internal/lazyre"
 
 	"golang.org/x/sys/unix"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -41,7 +42,7 @@ var coreTables = []string{"settings", "apps", "app_installs", "runtimes", "websi
 const tries = 5
 
 // known are the versions this was written from: v2.0 to v2.4.2, and v1.10 LTS.
-var known = regexp.MustCompile(`^v?(2\.[0-3]\.\d+|2\.4\.[012]|1\.10\.\d+)(-lts)?$`)
+var known = lazyre.Regexp(`^v?(2\.[0-3]\.\d+|2\.4\.[012]|1\.10\.\d+)(-lts)?$`)
 
 // Read reads what 1Panel keeps on the server whose root is root: "/", but for a test.
 func Read(ctx context.Context, root string) (*agentv1.ReadOnePanelResult, error) {
@@ -173,7 +174,7 @@ func read(ctx context.Context, root, base, records string, v1 bool) (*dockwellv1
 	if found.Version == "" {
 		return nil, false, said{fmt.Errorf("1Panel's records, %s, say no version, so the agent can't tell how to read them. Update 1Panel, then try again", records)}
 	}
-	found.KnownVersion = known.MatchString(found.Version)
+	found.KnownVersion = known().MatchString(found.Version)
 	if err := r.all(found, settings, v1); err != nil {
 		return nil, db.Changed(), fmt.Errorf("the agent can't read 1Panel's records, %s: %w", records, err)
 	}

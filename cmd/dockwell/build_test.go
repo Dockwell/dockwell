@@ -30,8 +30,8 @@ var agentPackages = []string{
 	"cmd/dockwell",
 	"gen/dockwell/agent/v1",
 	"gen/dockwell/agent/v1/agentv1connect",
-	"gen/dockwell/catalog/v1alpha1", // the catalog's format, which gen/dockwell/v1 imports
 	"gen/dockwell/resource/v1alpha1",
+	"gen/dockwell/catalog/v1alpha1", // the catalog's format, which gen/dockwell/v1 imports
 	"gen/dockwell/v1",
 	"internal/agent",
 	"internal/agent/access", // who reaches the server, under the firewall's timer (ADR 0052)
@@ -68,6 +68,7 @@ var agentPackages = []string{
 	"internal/id",
 	"internal/ingress", // what runs a server's routes on a proxy (ADR 0024)
 	"internal/ingress/caddy",
+	"internal/lazyre", // a check's expression, compiled on first use (#622)
 	"internal/logging",
 	"internal/mounts",   // what's mounted, to keep away from a mount that stopped answering
 	"internal/netguard", // the one guarded way to an address a person names, for reading registries

@@ -13,11 +13,12 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/dockwell/dockwell/internal/lazyre"
 
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/human"
@@ -327,7 +328,7 @@ func (b *Builder) checkPlain(ctx context.Context, repo string) error {
 // pull/7/head reaches a pull request's head, which a fork pushes. A plan pins the
 // full name (revision.pinBuilds).
 func checkRef(ref string) error {
-	if strings.HasPrefix(ref, "refs/heads/") || strings.HasPrefix(ref, "refs/tags/") || commitRef.MatchString(ref) {
+	if strings.HasPrefix(ref, "refs/heads/") || strings.HasPrefix(ref, "refs/tags/") || commitRef().MatchString(ref) {
 		return nil
 	}
 	return resource.PlainlyBecause(resource.ReasonBuild,
@@ -335,4 +336,4 @@ func checkRef(ref string) error {
 		errors.New("a build's ref isn't a branch or a tag by its full name"))
 }
 
-var commitRef = regexp.MustCompile(`^(?:[0-9a-f]{40}|[0-9a-f]{64})$`)
+var commitRef = lazyre.Regexp(`^(?:[0-9a-f]{40}|[0-9a-f]{64})$`)

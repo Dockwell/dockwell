@@ -10,12 +10,13 @@ import (
 	"io/fs"
 	"os"
 	"path"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"github.com/dockwell/dockwell/internal/lazyre"
 
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -390,7 +391,7 @@ func readAtMost(fsys fs.FS, name string, n int64) []byte {
 
 // containerID finds a Docker container's ID in a cgroup path: systemd's
 // "docker-<id>.scope", or cgroupfs' "/docker/<id>".
-var containerID = regexp.MustCompile(`(?:docker-|/docker/)([0-9a-f]{64})(?:\.scope)?(?:/|$)`)
+var containerID = lazyre.Regexp(`(?:docker-|/docker/)([0-9a-f]{64})(?:\.scope)?(?:/|$)`)
 
 // cgroupOf reads a process's cgroup: the Docker container it runs in, if any,
 // and otherwise the systemd unit it runs under, such as "docker.service".
@@ -403,7 +404,7 @@ func cgroupOf(b []byte) (container, unit string) {
 			continue
 		}
 		p := parts[2]
-		if m := containerID.FindStringSubmatch(p); m != nil {
+		if m := containerID().FindStringSubmatch(p); m != nil {
 			return m[1], ""
 		}
 		for elem := range strings.SplitSeq(p, "/") {

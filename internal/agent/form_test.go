@@ -13,7 +13,7 @@ import (
 func TestAFirewalldZoneNameTakesWhatItsExpressionTook(t *testing.T) {
 	formtest.Agree(t, `^[A-Za-z0-9_-]{1,64}$`,
 		func(zone string) bool {
-			return len(zone) <= maxFirewalldZoneName && firewalldZoneName.MatchString(zone)
+			return len(zone) <= maxFirewalldZoneName && firewalldZoneName().MatchString(zone)
 		},
 		formtest.Corpus("a_-Z09", ". =é\n", 64))
 }

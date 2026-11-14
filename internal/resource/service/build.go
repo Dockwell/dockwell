@@ -12,11 +12,12 @@ import (
 	"net"
 	"net/url"
 	"path"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
 	"unicode"
+
+	"github.com/dockwell/dockwell/internal/lazyre"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/docker"
@@ -115,10 +116,10 @@ const (
 )
 
 var (
-	argName  = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
-	secretID = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9_.-]*$`)
-	target   = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]*$`)
-	commitID = regexp.MustCompile(`^(?:[0-9a-f]{40}|[0-9a-f]{64})$`)
+	argName  = lazyre.Regexp(`^[A-Za-z_][A-Za-z0-9_]*$`)
+	secretID = lazyre.Regexp(`^[A-Za-z0-9_][A-Za-z0-9_.-]*$`)
+	target   = lazyre.Regexp(`^[A-Za-z0-9][A-Za-z0-9_.-]*$`)
+	commitID = lazyre.Regexp(`^(?:[0-9a-f]{40}|[0-9a-f]{64})$`)
 )
 
 // CheckBuild checks build settings as a service's spec would hold them, and writes
@@ -144,11 +145,11 @@ func checkBuild(svc *resourcev1.Service) error {
 	if err := checkGitRef(g.GetRef()); err != nil {
 		return err
 	}
-	if ref := strings.ToLower(g.GetRef()); commitID.MatchString(ref) {
+	if ref := strings.ToLower(g.GetRef()); commitID().MatchString(ref) {
 		g.Ref = ref
 	}
 	if c := strings.ToLower(g.GetCommit()); c != "" {
-		if !commitID.MatchString(c) {
+		if !commitID().MatchString(c) {
 			return fmt.Errorf("%q isn't a commit: a build's commit is its full ID, 40 hex digits. Leave it out to build what the branch names", g.GetCommit())
 		}
 		g.Commit = c
@@ -179,14 +180,14 @@ func checkBuild(svc *resourcev1.Service) error {
 	if railpack && (b.GetDockerfile() != "" || b.GetTarget() != "") {
 		return errors.New("a build with Railpack takes no Dockerfile path or stage, as Railpack builds with no Dockerfile. Leave them out, or build with the Dockerfile")
 	}
-	if t := b.GetTarget(); t != "" && (len(t) > maxArgName || !target.MatchString(t)) {
+	if t := b.GetTarget(); t != "" && (len(t) > maxArgName || !target().MatchString(t)) {
 		return fmt.Errorf("%q isn't a stage a Dockerfile can name. Use letters, digits, ., _ and -, as in FROM node:22 AS build", t)
 	}
 	if len(b.GetArgs()) > maxArgs {
 		return fmt.Errorf("a build takes up to %d build arguments, and this has %d", maxArgs, len(b.GetArgs()))
 	}
 	for k, v := range b.GetArgs() {
-		if len(k) > maxArgName || !argName.MatchString(k) {
+		if len(k) > maxArgName || !argName().MatchString(k) {
 			return fmt.Errorf("%q isn't a build argument's name. Start with a letter or _, then letters, digits and _, as ARG names it", k)
 		}
 		if len(v) > maxArgValue || strings.ContainsRune(v, 0) {
@@ -213,7 +214,7 @@ func checkBuild(svc *resourcev1.Service) error {
 		return err
 	}
 	for id, name := range b.GetSecrets() {
-		if len(id) > maxArgName || !secretID.MatchString(id) {
+		if len(id) > maxArgName || !secretID().MatchString(id) {
 			return fmt.Errorf("%q isn't a build secret's ID. Use letters, digits, ., _ and -, as RUN --mount=type=secret,id= names it", id)
 		}
 		if name == "" {
@@ -299,7 +300,7 @@ func PrivateHost(host string) bool {
 // commit's ID. Nothing else under refs/: a pull request's head, refs/pull/7/head,
 // is whatever a fork pushed, and its branch check would pass.
 func checkGitRef(ref string) error {
-	if ref == "" || commitID.MatchString(strings.ToLower(ref)) {
+	if ref == "" || commitID().MatchString(strings.ToLower(ref)) {
 		return nil
 	}
 	bad := func(why string) error {
@@ -374,7 +375,7 @@ func buildWriter(svc *resourcev1.Service) string {
 	for _, k := range slices.Sorted(maps.Keys(b.GetArgs())) {
 		parts = append(parts, "arg:"+k+"="+b.GetArgs()[k])
 	}
-	if ref := strings.ToLower(g.GetRef()); commitID.MatchString(ref) {
+	if ref := strings.ToLower(g.GetRef()); commitID().MatchString(ref) {
 		parts = append(parts, "commit="+ref)
 	}
 	// What the image starts is part of its code: the service's own command and

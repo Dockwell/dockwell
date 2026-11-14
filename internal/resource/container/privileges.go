@@ -4,9 +4,10 @@ package container
 
 import (
 	"fmt"
-	"regexp"
 	"slices"
 	"strings"
+
+	"github.com/dockwell/dockwell/internal/lazyre"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/resource"
@@ -40,7 +41,7 @@ var rootGroups = map[string]bool{"0": true, "root": true, "docker": true}
 // name gets, which is longer than a number. The length is checked apart from the
 // form: a counted repetition, such as {0,63}, compiles to that many copies of what
 // it repeats, which every agent pays for as it starts (ADR 0060).
-var groupRE = regexp.MustCompile(`^(\d{1,10}|[a-zA-Z_][a-zA-Z0-9_.-]*)$`)
+var groupRE = lazyre.Regexp(`^(\d{1,10}|[a-zA-Z_][a-zA-Z0-9_.-]*)$`)
 
 const maxGroupName = 64
 
@@ -62,7 +63,7 @@ func validatePrivileges(c *resourcev1.Container) error {
 		return fmt.Errorf("the container joins %d groups, and Dockwell takes up to %d. Join fewer", n, maxGroups)
 	}
 	for _, g := range c.GetGroupAdd() {
-		if len(g) > maxGroupName || !groupRE.MatchString(g) {
+		if len(g) > maxGroupName || !groupRE().MatchString(g) {
 			return fmt.Errorf("%q isn't a group: give its name or number, such as audio or 999", g)
 		}
 	}

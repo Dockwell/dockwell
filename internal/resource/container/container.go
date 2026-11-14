@@ -12,12 +12,13 @@ import (
 	"fmt"
 	"net/netip"
 	"path"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
 	"time"
 	"unicode"
+
+	"github.com/dockwell/dockwell/internal/lazyre"
 
 	"google.golang.org/protobuf/proto"
 
@@ -176,7 +177,7 @@ func (*Driver) Level() resource.Level { return resource.LevelServer }
 func (*Driver) New() proto.Message { return &resourcev1.Container{} }
 
 // NameRE is the names Docker takes for containers, volumes and networks.
-var NameRE = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]*$`)
+var NameRE = lazyre.Regexp(`^[a-zA-Z0-9][a-zA-Z0-9_.-]*$`)
 
 // serviceForm starts the name of every service's container in Docker,
 // <environment ID>-<service>-1 in lowercase (docker.ContainerName), and
@@ -188,7 +189,7 @@ const serviceForm = id.Environment + "_"
 // manages one of theirs.
 func (*Driver) CheckName(name string) error {
 	switch {
-	case !NameRE.MatchString(name):
+	case !NameRE().MatchString(name):
 		return fmt.Errorf("%q isn't a valid container name: use letters, digits, dots, dashes and underscores, starting with a letter or digit, such as web", name)
 	case strings.HasPrefix(strings.ToLower(name), serviceForm):
 		return fmt.Errorf("%q has the form of a service's container, %s<ID>-<service>-1, so a container run by hand can't take it. Choose a name that doesn't start with %q, or run it as a service",
@@ -357,7 +358,7 @@ func Validate(c *resourcev1.Container) error {
 		return err
 	}
 	for _, p := range c.GetExpose() {
-		if !exposedPort.MatchString(p) {
+		if !exposedPort().MatchString(p) {
 			return fmt.Errorf("expose takes a port and its protocol, such as 3000/tcp, and got %q. Write it that way", p)
 		}
 	}
@@ -373,7 +374,7 @@ func Validate(c *resourcev1.Container) error {
 	seen := map[string]bool{}
 	for _, n := range c.GetNetworks() {
 		switch {
-		case !NameRE.MatchString(n):
+		case !NameRE().MatchString(n):
 			return fmt.Errorf("%q isn't a valid network name: use letters, digits, dots, dashes and underscores, such as backend", n)
 		case seen[n]:
 			return fmt.Errorf("the network %s is listed twice; list each network once", n)
@@ -607,7 +608,7 @@ func validateMounts(c *resourcev1.Container) error {
 		m.Target = path.Clean(target)
 		switch src := m.GetSource().(type) {
 		case *resourcev1.Mount_Volume:
-			if !NameRE.MatchString(src.Volume) {
+			if !NameRE().MatchString(src.Volume) {
 				return fmt.Errorf("%q isn't a valid volume name: use letters, digits, dots, dashes and underscores, such as data", src.Volume)
 			}
 			if m.GetRelabel() != resourcev1.Relabel_RELABEL_UNSPECIFIED {
@@ -805,7 +806,7 @@ const maxCheckPath = 1024
 // maxHostname is how long the name gets, checked apart from the form: a counted
 // repetition as long as a name compiles to that many copies of what it repeats,
 // which every agent pays for as it starts (ADR 0060).
-var checkHostRE = regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?(:\d{1,5})?$`)
+var checkHostRE = lazyre.Regexp(`^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?(:\d{1,5})?$`)
 
 const maxHostname = 253
 
@@ -813,7 +814,7 @@ const maxHostname = 253
 func isCheckHost(host string) bool {
 	// A name has no colon, so it ends at the first.
 	name, _, _ := strings.Cut(host, ":")
-	return len(name) <= maxHostname && checkHostRE.MatchString(host)
+	return len(name) <= maxHostname && checkHostRE().MatchString(host)
 }
 
 // imageRuntime is a Runtime that can say which image a container runs.
@@ -1127,7 +1128,7 @@ func (d *Driver) NotRunningAt(ctx context.Context, t Target) (string, error) {
 }
 
 // exposedPort is a port as Docker keeps one it exposes.
-var exposedPort = regexp.MustCompile(`^\d{1,5}/(tcp|udp|sctp)$`)
+var exposedPort = lazyre.Regexp(`^\d{1,5}/(tcp|udp|sctp)$`)
 
 // WhatRuns is a copy of a container's spec without its limits.
 func (*Driver) WhatRuns(spec proto.Message) proto.Message {

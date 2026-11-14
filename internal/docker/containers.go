@@ -13,6 +13,8 @@ import (
 	"slices"
 	"strconv"
 	"time"
+
+	"github.com/dockwell/dockwell/internal/lazyre"
 )
 
 // Config is a container's configuration as the engine takes and reports
@@ -336,7 +338,7 @@ func (c *Client) ContainerNamed(ctx context.Context, name string) (*Container, e
 // forNow starts a name that a rollout gives a container for now: one it is
 // stopping, or one a replace swaps in under the name of the one it replaces,
 // as Compose does. The container driver's PlainName takes it off.
-var forNow = regexp.MustCompile(`^/?(?:stopping_)?[0-9a-f]{12}_`)
+var forNow = lazyre.Regexp(`^/?(?:stopping_)?[0-9a-f]{12}_`)
 
 // ContainerOf returns the container of a Compose project's service of a number,
 // by the labels Compose and Dockwell give it, whatever it's named: Dockwell
@@ -354,7 +356,7 @@ func (c *Client) ContainerOf(ctx context.Context, project, service string, numbe
 	}
 	for i := range list {
 		s := &list[i]
-		if s.Labels[LabelOneoff] == "True" || len(s.Names) == 0 || forNow.MatchString(s.Names[0]) {
+		if s.Labels[LabelOneoff] == "True" || len(s.Names) == 0 || forNow().MatchString(s.Names[0]) {
 			continue
 		}
 		return c.InspectContainer(ctx, s.ID)

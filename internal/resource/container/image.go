@@ -5,23 +5,24 @@ package container
 import (
 	"errors"
 	"fmt"
-	"regexp"
 	"strings"
 	"unicode"
+
+	"github.com/dockwell/dockwell/internal/lazyre"
 )
 
 // An image reference, as Docker reads one: [registry/]name[:tag][@digest].
 // See the grammar in github.com/distribution/reference, which Docker uses.
 var (
-	pathPartRE = regexp.MustCompile(`^[a-z0-9]+(?:(?:[._]|__|-+)[a-z0-9]+)*$`)
+	pathPartRE = lazyre.Regexp(`^[a-z0-9]+(?:(?:[._]|__|-+)[a-z0-9]+)*$`)
 	domainPart = `(?:[a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9])`
-	registryRE = regexp.MustCompile(`^(?:` + domainPart + `(?:\.` + domainPart + `)*|\[[0-9a-fA-F:.]+\])(?::[0-9]+)?$`)
+	registryRE = lazyre.Regexp(`^(?:` + domainPart + `(?:\.` + domainPart + `)*|\[[0-9a-fA-F:.]+\])(?::[0-9]+)?$`)
 	// A tag's length, maxTagLen, is checked apart from its form: a counted
 	// repetition, such as {0,127}, compiles to that many copies of what it repeats,
 	// which every agent pays for as it starts (ADR 0060).
-	tagRE       = regexp.MustCompile(`^\w[\w.-]*$`)
+	tagRE       = lazyre.Regexp(`^\w[\w.-]*$`)
 	maxTagLen   = 128
-	digestRE    = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9]*(?:[-_+.][A-Za-z][A-Za-z0-9]*)*:[0-9a-fA-F]{32,}$`)
+	digestRE    = lazyre.Regexp(`^[A-Za-z][A-Za-z0-9]*(?:[-_+.][A-Za-z][A-Za-z0-9]*)*:[0-9a-fA-F]{32,}$`)
 	maxImageLen = 255
 )
 
@@ -36,14 +37,14 @@ func CheckImage(ref string) error {
 		return fmt.Errorf("the image %q has a space in it, which no image reference has. Write it as name:tag, with nothing between, such as nginx:1.27", ref)
 	}
 	rest, digest, hasDigest := strings.Cut(ref, "@")
-	if hasDigest && !digestRE.MatchString(digest) {
+	if hasDigest && !digestRE().MatchString(digest) {
 		return fmt.Errorf("the image %q has the digest %q, which isn't one Docker takes. Write it as sha256: and the 64 hex digits, such as nginx@sha256:%s",
 			ref, digest, strings.Repeat("0", 64))
 	}
 	name, tag := rest, ""
 	if i := strings.LastIndex(rest, ":"); i > strings.LastIndex(rest, "/") {
 		name, tag = rest[:i], rest[i+1:]
-		if len(tag) > maxTagLen || !tagRE.MatchString(tag) {
+		if len(tag) > maxTagLen || !tagRE().MatchString(tag) {
 			return fmt.Errorf("the image %q has the tag %q, which isn't one Docker takes. A tag is up to 128 letters, digits, underscores, dots and dashes, "+
 				"and doesn't start with a dot or a dash, such as 1.27 or v2-alpine", ref, tag)
 		}
@@ -59,9 +60,9 @@ func CheckImage(ref string) error {
 	// a port, or localhost.
 	if first := parts[0]; len(parts) > 1 && (strings.ContainsAny(first, ".:") || first == "localhost" || first != strings.ToLower(first)) {
 		switch {
-		case registryRE.MatchString(first):
+		case registryRE().MatchString(first):
 			parts = parts[1:]
-		case pathPartRE.MatchString(first):
+		case pathPartRE().MatchString(first):
 			// No host, such as one with an underscore, but a name's part
 			// as it stands, which is how Docker reads it.
 		default:
@@ -71,8 +72,8 @@ func CheckImage(ref string) error {
 	}
 	for _, p := range parts {
 		switch {
-		case pathPartRE.MatchString(p):
-		case pathPartRE.MatchString(strings.ToLower(p)):
+		case pathPartRE().MatchString(p):
+		case pathPartRE().MatchString(strings.ToLower(p)):
 			return fmt.Errorf("the image %q has capital letters in its name, which Docker doesn't take. Write it in lowercase, as %s",
 				ref, strings.Replace(ref, name, lowerPath(name, parts), 1))
 		case p == "":

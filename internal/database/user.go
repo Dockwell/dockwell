@@ -8,7 +8,6 @@ import (
 	"crypto/hmac"
 	"crypto/pbkdf2"
 	"crypto/rand"
-	"crypto/sha1" //nolint:gosec // MariaDB's own password hash, which is what it compares
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
@@ -17,11 +16,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strings"
 	"sync"
 	"time"
+
+	"crypto/sha1" //nolint:gosec // MariaDB's own password hash, which is what it compares
+
+	"github.com/dockwell/dockwell/internal/lazyre"
 
 	"google.golang.org/protobuf/proto"
 
@@ -79,7 +81,7 @@ func (*UserDriver) New() proto.Message { return &resourcev1.DatabaseUser{} }
 // quoting, and maxSQLName how long one gets. The length is checked apart from the
 // form: a counted repetition, such as {0,31}, compiles to that many copies of what
 // it repeats, which every agent pays for as it starts (ADR 0060).
-var sqlName = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
+var sqlName = lazyre.Regexp(`^[a-z][a-z0-9_]*$`)
 
 const maxSQLName = 32
 
@@ -88,7 +90,7 @@ func (*UserDriver) CheckName(name string) error { return CheckSQLName("user", na
 
 // CheckSQLName says whether name is one a user or a database can take.
 func CheckSQLName(what, name string) error {
-	if len(name) > maxSQLName || !sqlName.MatchString(name) {
+	if len(name) > maxSQLName || !sqlName().MatchString(name) {
 		return fmt.Errorf("%q isn't a valid %s name: use up to 32 lowercase letters, digits and underscores, starting with a letter, such as shop", name, what)
 	}
 	return nil

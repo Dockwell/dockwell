@@ -5,9 +5,10 @@ package container
 import (
 	"fmt"
 	"net/netip"
-	"regexp"
 	"slices"
 	"strings"
+
+	"github.com/dockwell/dockwell/internal/lazyre"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 )
@@ -16,7 +17,7 @@ import (
 // maxHostLabel how long a label gets. The length is checked apart from the form: a
 // counted repetition, such as {0,61}, compiles to that many copies of what it
 // repeats, which every agent pays for as it starts (ADR 0060).
-var hostLabelRE = regexp.MustCompile(`^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?$`)
+var hostLabelRE = lazyre.Regexp(`^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?$`)
 
 const maxHostLabel = 63
 
@@ -24,7 +25,7 @@ const maxHostLabel = 63
 // digits and dashes, joined by dots, such as host.docker.internal.
 func isHostname(name string) bool {
 	for label := range strings.SplitSeq(name, ".") {
-		if len(label) > maxHostLabel || !hostLabelRE.MatchString(label) {
+		if len(label) > maxHostLabel || !hostLabelRE().MatchString(label) {
 			return false
 		}
 	}

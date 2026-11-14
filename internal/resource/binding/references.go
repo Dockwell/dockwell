@@ -7,11 +7,12 @@ import (
 	"errors"
 	"fmt"
 	"path"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
 	"unicode"
+
+	"github.com/dockwell/dockwell/internal/lazyre"
 
 	"google.golang.org/protobuf/proto"
 
@@ -310,7 +311,7 @@ func NamedAsText(c *resourcev1.Container, known func(string) bool) map[string][]
 			if i == script {
 				continue
 			}
-			for _, m := range spelledName.FindAllStringSubmatch(w, -1) {
+			for _, m := range spelledName().FindAllStringSubmatch(w, -1) {
 				if known(m[1]) && !slices.Contains(out[field], m[1]) {
 					out[field] = append(out[field], m[1])
 				}
@@ -341,7 +342,7 @@ func NamedAsText(c *resourcev1.Container, known func(string) bool) map[string][]
 }
 
 // spelledName is ${NAME}, as a word that doesn't name values can spell it.
-var spelledName = regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*)\}`)
+var spelledName = lazyre.Regexp(`\$\{([A-Za-z_][A-Za-z0-9_]*)\}`)
 
 // shells are what reads a script with -c, by the name of their program, as in
 // busybox sh.

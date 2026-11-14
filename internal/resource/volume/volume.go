@@ -105,7 +105,7 @@ func (*Driver) New() proto.Message { return &resourcev1.Volume{} }
 // CheckName requires a name Docker takes, up to 63 characters, as Compose
 // files name volumes, such as db-data.
 func (*Driver) CheckName(name string) error {
-	if !container.NameRE.MatchString(name) || len(name) > 63 {
+	if !container.NameRE().MatchString(name) || len(name) > 63 {
 		return fmt.Errorf("%q isn't a valid volume name: use up to 63 letters, digits, dots, dashes and underscores, starting with a letter or digit, such as db-data", name)
 	}
 	return nil

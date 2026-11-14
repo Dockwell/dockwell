@@ -13,6 +13,8 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/dockwell/dockwell/internal/lazyre"
+
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/registry"
 	"github.com/dockwell/dockwell/internal/resource"
@@ -58,28 +60,28 @@ func endsWith(message string, words ...string) bool {
 // "failed to bind host port 0.0.0.0:8080/tcp: …".
 var (
 	portTaken = phrases("port is already allocated", "address already in use")
-	portMark  = regexp.MustCompile(`(?:Bind for|listen (?:tcp|udp)[46]?|host port(?: for)?) (\S+)`)
-	portAfter = regexp.MustCompile(`^(?:\d+\.\d+\.\d+\.\d+|\[[^\]]*\]):(\d+)`)
-	portLast  = regexp.MustCompile(`:(\d+)$`)
-	portOnly  = regexp.MustCompile(`^\d+$`)
+	portMark  = lazyre.Regexp(`(?:Bind for|listen (?:tcp|udp)[46]?|host port(?: for)?) (\S+)`)
+	portAfter = lazyre.Regexp(`^(?:\d+\.\d+\.\d+\.\d+|\[[^\]]*\]):(\d+)`)
+	portLast  = lazyre.Regexp(`:(\d+)$`)
+	portOnly  = lazyre.Regexp(`^\d+$`)
 )
 
 // portIn finds the port on the server a message is about, or nothing. An
 // address comes before the port, and an IPv6 one may have no brackets, as in
 // ::1:8080, where the port is what follows the last colon.
 func portIn(message string) string {
-	m := portMark.FindStringSubmatch(message)
+	m := portMark().FindStringSubmatch(message)
 	if m == nil {
 		return ""
 	}
 	token, _, _ := strings.Cut(strings.TrimRight(m[1], ":"), "/")
-	if portOnly.MatchString(token) {
+	if portOnly().MatchString(token) {
 		return token
 	}
-	if p := portAfter.FindStringSubmatch(token); p != nil {
+	if p := portAfter().FindStringSubmatch(token); p != nil {
 		return p[1]
 	}
-	if p := portLast.FindStringSubmatch(token); p != nil {
+	if p := portLast().FindStringSubmatch(token); p != nil {
 		return p[1]
 	}
 	return ""
@@ -154,9 +156,9 @@ func sentenceOf(msg string) string {
 // for another architecture, isn't in the image, or can't be run.
 var (
 	wrongArchitecture = phrases("exec format error")
-	commandGone       = regexp.MustCompile(`exec: "([^"]+)": (?:executable file not found|stat [^:]*: no such file or directory|no such file or directory)`)
+	commandGone       = lazyre.Regexp(`exec: "([^"]+)": (?:executable file not found|stat [^:]*: no such file or directory|no such file or directory)`)
 	commandNotFound   = phrases("executable file not found")
-	commandDenied     = regexp.MustCompile(`exec: "([^"]+)": permission denied`)
+	commandDenied     = lazyre.Regexp(`exec: "([^"]+)": permission denied`)
 )
 
 // phrases reports whether a message has any of the phrases, in any case.
@@ -328,13 +330,13 @@ func startFailure(t Target, err error) error {
 	case wrongArchitecture(message):
 		return wrongArchitectureFailure(t, err)
 	}
-	if m := commandGone.FindStringSubmatch(message); m != nil {
+	if m := commandGone().FindStringSubmatch(message); m != nil {
 		return resource.PlainlyBecause(resource.ReasonCommand, fmt.Sprintf("The command %s isn't in the image for %s. Check the command and the image, then try again.", m[1], t.Service), err)
 	}
 	if commandNotFound(message) {
 		return resource.PlainlyBecause(resource.ReasonCommand, fmt.Sprintf("The command for %s isn't in its image. Check the command and the image, then try again.", t.Service), err)
 	}
-	if m := commandDenied.FindStringSubmatch(message); m != nil {
+	if m := commandDenied().FindStringSubmatch(message); m != nil {
 		return resource.PlainlyBecause(resource.ReasonCommand, fmt.Sprintf("The command %s can't run in the image for %s, as it isn't executable there. Check the command and the image, then try again.", m[1], t.Service), err)
 	}
 	says := strings.ReplaceAll(dockerSays(message), t.Name, t.Service)

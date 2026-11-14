@@ -7,11 +7,12 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
-	"regexp"
 	"slices"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/dockwell/dockwell/internal/lazyre"
 
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -73,7 +74,7 @@ type CertState struct {
 // acmeProblem finds an ACME problem type (RFC 8555) in what a proxy logs,
 // which goes by type, as the wording varies by certificate authority and the
 // type doesn't.
-var acmeProblem = regexp.MustCompile(`urn:ietf:params:acme:error:([A-Za-z]+)(?: - )?(.*)`)
+var acmeProblem = lazyre.Regexp(`urn:ietf:params:acme:error:([A-Za-z]+)(?: - )?(.*)`)
 
 // ClassifyFailure reads a proxy's word on a failed try. A try cancelled by a
 // reload, which starts it again, isn't a failure, and says false.
@@ -82,7 +83,7 @@ func ClassifyFailure(text string) (Problem, string, bool) {
 		return ProblemNone, "", false
 	}
 	const limit = 400
-	m := acmeProblem.FindStringSubmatch(text)
+	m := acmeProblem().FindStringSubmatch(text)
 	if m == nil {
 		if cantReachCA(text) {
 			return ProblemCantReachCA, cut(text, limit), true

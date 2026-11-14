@@ -7,10 +7,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"regexp"
 	"slices"
 	"strings"
-	"sync"
+
+	"github.com/dockwell/dockwell/internal/lazyre"
 
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -107,7 +107,7 @@ var shownWords = map[protoreflect.Name]string{"healthcheck": "health check"}
 var notSecrets = map[protoreflect.Name]bool{"mounts": true, "working_dir": true}
 
 // secretName says a variable's name says what it holds is a secret.
-var secretName = regexp.MustCompile(`(?i)PASS|SECRET|TOKEN|KEY|CREDENTIAL`)
+var secretName = lazyre.Regexp(`(?i)PASS|SECRET|TOKEN|KEY|CREDENTIAL`)
 
 // shortest is the fewest characters a value of a variable has to have to count as shown
 // when its name says nothing, as anything shorter could be anywhere by chance (ADR 0031).
@@ -123,7 +123,7 @@ func valuesShown(spec *resourcev1.Container) []string {
 	out := CredentialLabels(spec)
 	eachWord(spec.ProtoReflect(), "", func(where, word string) {
 		for name, value := range spec.GetEnv() {
-			if value == "" || !strings.Contains(word, value) || len(value) < shortest && !secretName.MatchString(name) {
+			if value == "" || !strings.Contains(word, value) || len(value) < shortest && !secretName().MatchString(name) {
 				continue
 			}
 			// A label's name can be what holds it, so it can't say where.
@@ -146,16 +146,12 @@ const CredentialIn = "a credential in its label " //nolint:gosec // words that n
 // with their password hashes, as Traefik's basicauth.users and digestauth.users and
 // Caddy's basic_auth are, an Authorization header, or a key named for a secret. It
 // compiles on first use, as the agent's start stays small.
-var credentialKey = sync.OnceValue(func() *regexp.Regexp {
-	return regexp.MustCompile(`(?i)(^|\.)(basic|digest)auth\.users$|^caddy(_\d+)?(\.[^.]+)*\.basic_?auth(\.|$)|authorization|token|secret|passw(or)?d|api[-_]?key|private[-_]?key|credential`)
-})
+var credentialKey = lazyre.Regexp(`(?i)(^|\.)(basic|digest)auth\.users$|^caddy(_\d+)?(\.[^.]+)*\.basic_?auth(\.|$)|authorization|token|secret|passw(or)?d|api[-_]?key|private[-_]?key|credential`)
 
 // credentialValue is a value that's a credential whatever its label is called: a
 // password hash as htpasswd and crypt write one, an Authorization header's value, or
 // a token in a form its issuer gives every one of.
-var credentialValue = sync.OnceValue(func() *regexp.Regexp {
-	return regexp.MustCompile(`\$(2[abxy]|apr1|1|5|6|y)\$[./A-Za-z0-9$]{20,}|\$argon2(id|i|d)\$|(^|:)\{S?SHA\}|^(?i:bearer|basic|token)\s+[A-Za-z0-9._~+/=-]{16,}$|\b(gh[pousr]_[A-Za-z0-9]{36}|github_pat_\w{22,}|glpat-[\w-]{20,}|xox[abpr]-[\w-]{10,})`)
-})
+var credentialValue = lazyre.Regexp(`\$(2[abxy]|apr1|1|5|6|y)\$[./A-Za-z0-9$]{20,}|\$argon2(id|i|d)\$|(^|:)\{S?SHA\}|^(?i:bearer|basic|token)\s+[A-Za-z0-9._~+/=-]{16,}$|\b(gh[pousr]_[A-Za-z0-9]{36}|github_pat_\w{22,}|glpat-[\w-]{20,}|xox[abpr]-[\w-]{10,})`)
 
 // CredentialLabels names the labels of spec that hold a credential. A plan shows a
 // container's labels as they are, so a password hash there, such as a panel's basic

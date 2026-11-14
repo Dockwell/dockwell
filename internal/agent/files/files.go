@@ -22,7 +22,6 @@ import (
 	"os"
 	"os/user"
 	"path"
-	"regexp"
 	"runtime/debug"
 	"slices"
 	"strconv"
@@ -31,6 +30,8 @@ import (
 	"time"
 	"unicode"
 	"unicode/utf8"
+
+	"github.com/dockwell/dockwell/internal/lazyre"
 
 	"golang.org/x/sys/unix"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -555,7 +556,7 @@ func whatItHolds(text []byte) string {
 	switch {
 	case holdsPrivateKey(text):
 		return whyPrivateKey
-	case hashLine.Match(text):
+	case hashLine().Match(text):
 		return whyHashes
 	case holdsDockerState(text):
 		return whyDockerCopy
@@ -582,7 +583,7 @@ func holdsPrivateKey(text []byte) bool {
 
 // hashLine is a line of a password file, as /etc/shadow and its copies have it,
 // and .htpasswd: a name, then a hash in crypt's $id$ form, locked or not.
-var hashLine = regexp.MustCompile(`(?m)^[^:\s#]+:[!*]*\$[0-9a-z-]{1,16}\$\S`)
+var hashLine = lazyre.Regexp(`(?m)^[^:\s#]+:[!*]*\$[0-9a-z-]{1,16}\$\S`)
 
 // credentials says what a path holds when it is one of the server's own
 // credentials by its name, or nothing, for what a listing can mark. A name proves

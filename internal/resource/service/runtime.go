@@ -6,10 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"path"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
+
+	"github.com/dockwell/dockwell/internal/lazyre"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/resource"
@@ -179,7 +180,7 @@ func Offered(language string) string {
 
 // folderRE is what a folder's path may hold, as it goes into a mount and a plan,
 // as a website's does.
-var folderRE = regexp.MustCompile(`^(/[A-Za-z0-9._@+~-]+)+/?$`)
+var folderRE = lazyre.Regexp(`^(/[A-Za-z0-9._@+~-]+)+/?$`)
 
 // checkRuntime checks what an app from a folder says, and writes what it leaves
 // to Dockwell: its version, port and user. A retired version passes, as an app on
@@ -201,7 +202,7 @@ func checkRuntime(rt *resourcev1.Runtime) error {
 	switch {
 	case folder == "" || !path.IsAbs(folder):
 		return errors.New("a runtime's folder is a full path on the server, such as /srv/shop")
-	case !folderRE.MatchString(folder):
+	case !folderRE().MatchString(folder):
 		return fmt.Errorf("%q has a character a folder's path can't hold here. Use letters, digits, -, ., _, @, +, ~ and /", folder)
 	}
 	for _, part := range strings.Split(strings.Trim(folder, "/"), "/") {

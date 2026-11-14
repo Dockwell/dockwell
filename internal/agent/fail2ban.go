@@ -9,11 +9,12 @@ import (
 	"net/netip"
 	"os"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/dockwell/dockwell/internal/lazyre"
 
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -199,7 +200,7 @@ func (f *fail2banReader) jail(ctx context.Context, name string) *dockwellv1.Fail
 
 // ignoredName is a host name in what a jail ignores: no spaces, and a dot, so
 // the line that heads the list isn't one.
-var ignoredName = regexp.MustCompile(`^[A-Za-z0-9]([A-Za-z0-9-]*\.)+[A-Za-z0-9-]*[A-Za-z]$`)
+var ignoredName = lazyre.Regexp(`^[A-Za-z0-9]([A-Za-z0-9-]*\.)+[A-Za-z0-9-]*[A-Za-z]$`)
 
 // ignored reads fail2ban-client get <jail> ignoreip, a tree of addresses and
 // ranges under a line that says so, or one line that says none is ignored.
@@ -211,7 +212,7 @@ func ignored(text string) []string {
 			out = append(out, entry)
 		} else if _, err := netip.ParseAddr(entry); err == nil {
 			out = append(out, entry)
-		} else if ignoredName.MatchString(entry) && len(entry) <= 253 && !strings.HasSuffix(line, ":") {
+		} else if ignoredName().MatchString(entry) && len(entry) <= 253 && !strings.HasSuffix(line, ":") {
 			// A host name, which fail2ban looks up itself: an admin's own list may hold one.
 			out = append(out, entry)
 		}
@@ -223,13 +224,13 @@ func ignored(text string) []string {
 // Its length is checked apart from its form, as a counted repetition compiles
 // to as many copies of what it repeats, which every agent pays for as it
 // starts (ADR 0060).
-var jailArg = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]*$`)
+var jailArg = lazyre.Regexp(`^[A-Za-z0-9][A-Za-z0-9_.-]*$`)
 
 // maxJailArg is how long a jail's name gets.
 const maxJailArg = 128
 
 // isJailArg reports a jail's name the agent passes to fail2ban-client.
-func isJailArg(name string) bool { return len(name) <= maxJailArg && jailArg.MatchString(name) }
+func isJailArg(name string) bool { return len(name) <= maxJailArg && jailArg().MatchString(name) }
 
 // maxBans is how many of a jail's bans a read carries, the latest first. Its
 // count of those banned now is fail2ban's own, and says them all.
@@ -249,13 +250,13 @@ func jailList(status string) []string {
 
 // statusLine is a line of fail2ban-client's status, drawn as a tree:
 // "|  |- Currently failed:\t1".
-var statusLine = regexp.MustCompile("^[\\s|`-]*([A-Za-z][A-Za-z ]*?):\\s*(.*)$")
+var statusLine = lazyre.Regexp("^[\\s|`-]*([A-Za-z][A-Za-z ]*?):\\s*(.*)$")
 
 // statusFields reads fail2ban-client's status lines into what each says.
 func statusFields(status string) map[string]string {
 	out := map[string]string{}
 	for line := range strings.SplitSeq(status, "\n") {
-		if m := statusLine.FindStringSubmatch(line); m != nil {
+		if m := statusLine().FindStringSubmatch(line); m != nil {
 			out[m[1]] = strings.TrimSpace(m[2])
 		}
 	}
@@ -264,7 +265,7 @@ func statusFields(status string) map[string]string {
 
 // timedBan is a ban as --with-time says it, in the server's time zone:
 // "198.51.100.77 \t2026-11-08 03:10:00 + 600 = 2026-11-08 03:20:00".
-var timedBan = regexp.MustCompile(`(\S+)\s+(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d) \+ (-?\d+) = (\d{4}-\d\d-\d\d \d\d:\d\d:\d\d)`)
+var timedBan = lazyre.Regexp(`(\S+)\s+(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d) \+ (-?\d+) = (\d{4}-\d\d-\d\d \d\d:\d\d:\d\d)`)
 
 // timedBans reads the bans --with-time says, the latest first.
 func (f *fail2banReader) timedBans(text string) []*dockwellv1.Fail2BanBan {
@@ -273,7 +274,7 @@ func (f *fail2banReader) timedBans(text string) []*dockwellv1.Fail2BanBan {
 		loc = time.Local
 	}
 	var out []*dockwellv1.Fail2BanBan
-	for _, m := range timedBan.FindAllStringSubmatch(text, -1) {
+	for _, m := range timedBan().FindAllStringSubmatch(text, -1) {
 		b := &dockwellv1.Fail2BanBan{Address: m[1]}
 		if since, err := time.ParseInLocation(time.DateTime, m[2], loc); err == nil {
 			b.Since = timestamppb.New(since)
