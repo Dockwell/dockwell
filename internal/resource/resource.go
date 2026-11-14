@@ -1188,6 +1188,11 @@ const (
 	// plane, going to the server for the first time, for the domain in Path (ADR
 	// 0088). An admin confirms it with a passkey.
 	AccessCertificateKey
+	// AccessOpened is a route that lets in someone what served its domain and path
+	// kept out within the undo window: Path is the domain and path, and Detail says
+	// how, as the Opens facts an Opener gives, joined with spaces. A token could
+	// otherwise let itself in (ADR 0087).
+	AccessOpened
 )
 
 // NewAccess lists what to reaches that from doesn't: access it didn't
@@ -1413,6 +1418,8 @@ func AccessWords(a Access) string {
 			return "the key of the shared certificate for " + a.Detail + ", proven by DNS, going to this server for the first time, for " + plain(a.Path)
 		}
 		return "a certificate's key for " + plain(a.Path) + ", proven by DNS, going to this server for the first time"
+	case AccessOpened:
+		return plain(a.Path) + " to someone it kept out: " + openedWords(a.Detail)
 	}
 	return fmt.Sprintf("access(%d)", int(a.Kind))
 }
@@ -1423,6 +1430,40 @@ func AccessWords(a Access) string {
 func namesARange(proxy string) bool {
 	p, err := netip.ParsePrefix(proxy)
 	return err == nil && !p.IsSingleIP()
+}
+
+// The facts an Opener gives, each a way a route lets in someone it kept out, which
+// AccessOpened's Detail lists with spaces between them (ADR 0087). A fact that ends
+// in a colon is followed by the range or the user's name it's about. words.ts reads
+// them for the panel.
+const (
+	OpensListOff  = "list-off"  // its list of addresses taken off
+	OpensAllow    = "allow:"    // a range it lets in that its list didn't cover
+	OpensUsersOff = "users-off" // its passwords taken off
+	OpensUser     = "user:"     // a user it adds
+	OpensPassword = "password:" // a user whose password changes
+)
+
+// openedWords says the Opens facts in Detail, in words.
+func openedWords(detail string) string {
+	var out []string
+	for _, fact := range strings.Fields(detail) {
+		switch {
+		case fact == OpensListOff:
+			out = append(out, "takes off its list of addresses")
+		case fact == OpensUsersOff:
+			out = append(out, "takes off its passwords")
+		case strings.HasPrefix(fact, OpensAllow):
+			out = append(out, "lets in "+plain(strings.TrimPrefix(fact, OpensAllow)))
+		case strings.HasPrefix(fact, OpensUser):
+			out = append(out, "adds the user "+plain(strings.TrimPrefix(fact, OpensUser)))
+		case strings.HasPrefix(fact, OpensPassword):
+			out = append(out, "changes the password of "+plain(strings.TrimPrefix(fact, OpensPassword)))
+		default:
+			out = append(out, plain(fact))
+		}
+	}
+	return strings.Join(out, "; ")
 }
 
 // plain quotes a name in a plan that holds anything but what a name, a path, an
@@ -1449,6 +1490,30 @@ func plain(s string) string {
 // adopting drift and putting back a revision don't ask it (ADR 0022).
 type Keeper interface {
 	Keep(current, desired proto.Message) (Kept, error)
+}
+
+// Opener is a Claimer whose resources can keep out some of those who reach what they
+// claim, as a private route does (ADR 0087). A Claim's Key covers itself and the Keys
+// under it, after a "/", as a domain's route covers its paths, and what serves a Key
+// is what has the longest Key that covers it. Opens lists, for a person to approve,
+// how desired lets in anyone was kept out, as Opens facts such as
+// "allow:198.51.100.0/24" or "user:ci", with no spaces in them; or nothing, where
+// desired keeps out at least whom was kept out. was served the same Key, now or
+// within the undo window.
+type Opener interface {
+	Opens(was, desired proto.Message) []string
+	// KeepsOut reports a spec that keeps anyone out. A Group with one runs from one
+	// place, as what serves a Key is worked out from specs wherever they run.
+	KeepsOut(spec proto.Message) bool
+}
+
+// SealedLater is a kind kept in the clear until it had a field that may hold a
+// secret, as routes were until they held users' password hashes (ADR 0087). A spec
+// stored before then holds none, so the store reads one that's in the clear and
+// holds no secret as it is, where it refuses that of a kind sealed from the start.
+// Every spec written since is sealed, as any of a sealed kind is.
+type SealedLater interface {
+	SealedLater()
 }
 
 // ChangeChecker is a kind that checks an edit against the rest of its change, as a

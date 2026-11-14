@@ -478,7 +478,7 @@ func (a *Agents) SessionPastMove(ctx context.Context, server string, within time
 // the stream; Session.close ends the session when the stream does.
 func (a *Agents) open(server, name string, hello *agentv1.Hello, send func(*agentv1.ConnectResponse) error) *Session {
 	s := &Session{
-		agents: a, guardsWaysIn: hello.GetGuardsWaysIn(), readsUpdates: hello.GetUpdates(), managesFiles: hello.GetManagesFiles(), transfersFiles: hello.GetTransfersFiles(), pagesListings: hello.GetPagesListings(), firstPasswords: hello.GetFirstPasswords(), forwards: hello.GetForwards(), drills: hello.GetDrills(), readsOnePanel: hello.GetReadsOnepanel(), terminals: hello.GetTerminals(), containerTerminals: hello.GetContainerTerminals(), openTerminals: slices.Clone(hello.GetOpenTerminals()), opened: time.Now(), server: server, name: name, send: send, deliveryKey: slices.Clone(hello.GetDeliveryKey()), writesReferences: hello.GetWritesReferences(), makesFolders: hello.GetMakesFolders(),
+		agents: a, guardsWaysIn: hello.GetGuardsWaysIn(), readsUpdates: hello.GetUpdates(), managesFiles: hello.GetManagesFiles(), transfersFiles: hello.GetTransfersFiles(), pagesListings: hello.GetPagesListings(), firstPasswords: hello.GetFirstPasswords(), forwards: hello.GetForwards(), drills: hello.GetDrills(), readsOnePanel: hello.GetReadsOnepanel(), terminals: hello.GetTerminals(), containerTerminals: hello.GetContainerTerminals(), openTerminals: slices.Clone(hello.GetOpenTerminals()), opened: time.Now(), server: server, name: name, send: send, deliveryKey: slices.Clone(hello.GetDeliveryKey()), writesReferences: hello.GetWritesReferences(), makesFolders: hello.GetMakesFolders(), keepsRoutesPrivate: hello.GetKeepsRoutesPrivate(),
 		ownSettings: hello.GetOwnSettings(), writesFiles: hello.GetWritesFiles(), ownsVolumes: hello.GetOwnsVolumes(), followsPace: hello.GetFollowsPace(), bootID: hello.GetBootId(), actsOnUnits: hello.GetActsOnUnits(), registryLogins: hello.GetRegistryLogins(), handsBuildLogins: hello.GetBuildLogins(), links: hello.GetLinks(),
 		loadsCertificates: hello.GetLoadsCertificates(),
 		pending:           map[uint64]chan *agentv1.CallResult{}, progress: map[uint64]func(resource.Activity){}, outcomes: map[uint64]func(resource.Outcome){}, done: make(chan struct{}),
@@ -559,6 +559,9 @@ type Session struct {
 	writesReferences bool
 	// makesFolders says the agent makes a mount's missing folder as its owner.
 	makesFolders bool
+	// keepsRoutesPrivate says the agent's proxy keeps out who a route's access
+	// doesn't let in (ADR 0087).
+	keepsRoutesPrivate bool
 	// ownSettings says the agent sets what a container asks of itself, and
 	// writesFiles that it writes the files a container mounts, and ownsVolumes that
 	// it gives a volume's empty folder its owner (ADR 0085).
@@ -996,26 +999,45 @@ func (s *Session) call(ctx context.Context, c *agentv1.Call, fallback time.Durat
 		}
 		r, err := s.callOnce(ctx, c)
 		if !errors.Is(err, ErrMoving) {
-			return r, s.timedOut(err, timeout)
+			return r, s.timedOut(err, timeout, deadline)
 		}
 		next, err := s.agents.next(ctx, s)
 		if err != nil {
-			return nil, s.timedOut(err, timeout)
+			return nil, s.timedOut(err, timeout, deadline)
 		}
 		s = next
 	}
 }
 
-// timedOut says, of a call that ran out of time, how long it had. Its time
-// may run out on the agent first, as the agent's clock started later or ran
-// faster, so what the agent said counts as well as the call's own deadline.
-func (s *Session) timedOut(err error, timeout time.Duration) error {
-	if err != nil && errors.Is(err, context.DeadlineExceeded) {
+// timedOut says which time ran out, of a call that ran out of time. Where the
+// control plane stopped waiting, the agent didn't answer within the call's time.
+// Where the agent answered that its time ran out, that was a wait of its own on the
+// server, such as a container's start: its clock for the call starts as the call
+// comes, with what the control plane had left as it sent it, so it never ends
+// before the control plane's own deadline, and by then callOnce gives the control
+// plane's own end. So the answer reads as when it came, with the agent's words,
+// never as no answer within the call's time, as #606's Docker run read "didn't
+// answer within 10 min" of an agent that answered in 30 s.
+func (s *Session) timedOut(err error, timeout time.Duration, deadline time.Time) error {
+	if err == nil || !errors.Is(err, context.DeadlineExceeded) {
+		return err
+	}
+	var said outOfTime
+	if !errors.As(err, &said) {
 		return fault.New(err, "%s's agent didn't answer within %s, so Dockwell stopped waiting. What it was asked may still be running, "+
 			"or stuck on something on the server, such as Docker or a network mount. Check those on %s, then try again",
 			s.name, human.Duration(timeout.Round(time.Second)), s.name)
 	}
-	return err
+	return fault.New(err, "%s's agent answered %s that a wait on the server ran out, so it stopped: %s. Check what it was waiting for on %s, then try again",
+		s.name, answeredAfter(timeout-time.Until(deadline)), strings.TrimRight(strings.TrimSpace(said.message), "."), s.name)
+}
+
+// answeredAfter says how long an agent took to answer, for a message.
+func answeredAfter(took time.Duration) string {
+	if took < time.Second {
+		return "within a second"
+	}
+	return "after " + human.Duration(took.Round(time.Second))
 }
 
 // outOfTime is what an agent said of a call whose time ran out there.
@@ -1337,6 +1359,9 @@ func (s *Session) Apply(ctx context.Context, step resource.Step, desired proto.M
 	if err := s.checkOwnSettings(step.Ref, desired); err != nil {
 		return err
 	}
+	if err := s.checkPrivate(step.Ref, desired); err != nil {
+		return err
+	}
 	if err := s.checkFiles(step.Ref, desired); err != nil {
 		return err
 	}
@@ -1455,6 +1480,11 @@ func (s *Session) Remember(ctx context.Context, ref resource.Ref, spec proto.Mes
 		return false, err
 	}
 	if err := s.checkWrites(ref, spec); err != nil {
+		return false, err
+	}
+	// An older agent's desired state would serve a private route to anyone, once it
+	// put it back by itself.
+	if err := s.checkPrivate(ref, spec); err != nil {
 		return false, err
 	}
 	if err := s.checkReads(ctx, []resource.Ref{ref}); err != nil {
@@ -1594,7 +1624,7 @@ func (s *Session) checkReads(ctx context.Context, refs []resource.Ref) error {
 		"Nothing on %s that names a value is read, planned or applied until you update the agent there", resource.ErrAgentTooOld, s.name, named[0].Name, s.name)
 }
 
-// checkAllWrites is checkWrites, checkFolders and checkOwnSettings for all a plan
+// checkAllWrites is checkWrites, checkFolders, checkOwnSettings and checkPrivate for all a plan
 // asks of this agent.
 func (s *Session) checkAllWrites(desired []resource.Desired) error {
 	for di := range desired {
@@ -1608,6 +1638,9 @@ func (s *Session) checkAllWrites(desired []resource.Desired) error {
 		if err := s.checkOwnSettings(d.Ref, d.Spec); err != nil {
 			return err
 		}
+		if err := s.checkPrivate(d.Ref, d.Spec); err != nil {
+			return err
+		}
 		if err := s.checkFiles(d.Ref, d.Spec); err != nil {
 			return err
 		}
@@ -1616,6 +1649,17 @@ func (s *Session) checkAllWrites(desired []resource.Desired) error {
 		}
 	}
 	return nil
+}
+
+// checkPrivate refuses a route with access for an agent that doesn't say its proxy
+// keeps strangers out: it would serve the route to anyone, as if it had none.
+func (s *Session) checkPrivate(ref resource.Ref, spec proto.Message) error {
+	r, ok := spec.(*resourcev1.Route)
+	if s.keepsRoutesPrivate || !ok || len(r.GetAccess().GetAllow())+len(r.GetAccess().GetUsers()) == 0 {
+		return nil
+	}
+	return fmt.Errorf("%w: the agent on %s is from before Dockwell kept strangers out of a route, which %s asks for, so it would let anyone in. Update the agent on %s",
+		resource.ErrAgentTooOld, s.name, ref.Name, s.name)
 }
 
 // checkFolders refuses a spec with a mount that makes its missing folder as an

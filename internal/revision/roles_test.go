@@ -489,6 +489,7 @@ func TestOnlyWhatADR0048ListsIsAnAdminsToGive(t *testing.T) {
 		{resource.Access{Kind: resource.AccessDomain, Path: "shop.example.com", Detail: "staging"}, false},
 		{resource.Access{Kind: resource.AccessPlainForAnyone, Path: "shop.example.com"}, false},
 		{resource.Access{Kind: resource.AccessHTTPSOff, Path: "shop.example.com"}, false},
+		{resource.Access{Kind: resource.AccessOpened, Path: "shop.example.com/admin", Detail: "lets in 198.51.100.0/24"}, false},
 		{resource.Access{Kind: resource.AccessExternalVolume, Path: "shared"}, false},
 	} {
 		if got := installWide(tt.access) != ""; got != tt.admins {

@@ -587,7 +587,9 @@ func TestAPausedContainerPassesNoCheck(t *testing.T) {
 }
 
 // Waiting for health is bounded twice: by HealthWait, and by the step's
-// own time. Each is blamed only when it is what ran out.
+// own time. Each is blamed only when it is what ran out. A wait above it running
+// out with the step's time left says so, and so does the step being called off
+// (#612).
 func TestHealthWaitsAreTold(t *testing.T) {
 	e := dockertest.New(t)
 	images(e)
@@ -597,17 +599,33 @@ func TestHealthWaitsAreTold(t *testing.T) {
 		t.Fatal(err)
 	}
 	for name, tc := range map[string]struct {
-		wait, step time.Duration
-		want       string
+		wait time.Duration
+		// step is the context the step runs in, and what the driver is given under it.
+		step      func(t *testing.T) context.Context
+		want, not string
 	}{
-		"its own":    {50 * time.Millisecond, time.Minute, "slow didn't pass its health check within 0.05 s"},
-		"the step's": {time.Minute, 100 * time.Millisecond, "the step's time ran out before slow passed its health check"},
+		"its own": {
+			50 * time.Millisecond, func(t *testing.T) context.Context { return within(t.Context(), t, time.Minute) },
+			"slow didn't pass its health check within 0.05 s", "",
+		},
+		"the step's": {
+			time.Minute, func(t *testing.T) context.Context { return within(t.Context(), t, 100*time.Millisecond) },
+			"the step's time ran out before slow passed its health check", "",
+		},
+		"a wait above it, with the step's time left": {time.Minute, func(t *testing.T) context.Context {
+			return within(resource.WithStep(within(t.Context(), t, time.Minute)), t, 100*time.Millisecond)
+		}, "a wait ran out before slow passed its health check, with the step's own time left", "the step's time ran out"},
+		"called off": {time.Minute, func(t *testing.T) context.Context {
+			ctx, cancel := context.WithCancel(t.Context())
+			t.Cleanup(cancel)
+			time.AfterFunc(100*time.Millisecond, cancel)
+			return resource.WithStep(ctx)
+		}, "stopped waiting for", "time ran out"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			rt := &container.Docker{Client: e.Client(), Poll: time.Millisecond, Soak: -1, HealthWait: tc.wait}
 			d := &container.Driver{Runtime: rt}
-			ctx, cancel := context.WithTimeout(t.Context(), tc.step)
-			defer cancel()
+			ctx := tc.step(t)
 			err := d.Apply(ctx, resource.Step{Ref: ref, Decision: resource.Decision{Action: resource.ActionCreate}}, spec)
 			if err == nil {
 				err = d.Verify(ctx, ref, spec)
@@ -615,8 +633,19 @@ func TestHealthWaitsAreTold(t *testing.T) {
 			if err == nil || !strings.Contains(err.Error(), tc.want) {
 				t.Errorf("waiting for a check that keeps starting = %v, want %q", err, tc.want)
 			}
+			if err != nil && tc.not != "" && strings.Contains(err.Error(), tc.not) {
+				t.Errorf("waiting for a check that keeps starting = %v, with %q", err, tc.not)
+			}
 		})
 	}
+}
+
+// within is ctx with a deadline in d, cancelled when the test ends.
+func within(ctx context.Context, t *testing.T, d time.Duration) context.Context {
+	t.Helper()
+	out, cancel := context.WithTimeout(ctx, d)
+	t.Cleanup(cancel)
+	return out
 }
 
 // A Docker that takes the connection but never answers makes the kinds

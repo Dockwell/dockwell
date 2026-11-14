@@ -803,7 +803,7 @@ func (d *Docker) startFirst(ctx context.Context, t Target, spec *resourcev1.Cont
 		}
 		resource.Stage(ctx, resource.PhaseStarting, "Starting "+t.Service)
 		if err := d.Client.StartContainer(ctx, keep.ID); err != nil {
-			err = fmt.Errorf("docker can't start %s: %w", keep.name(), hideIn(err, valuesInContainer(keep.Container)))
+			err = resource.FailedAt(fmt.Errorf("docker can't start %s: %w", keep.name(), hideIn(err, valuesInContainer(keep.Container))), time.Now())
 			if made && dec.Restart != "" {
 				d.discard(ctx, keep.ID, keep.name())
 			}
@@ -822,6 +822,7 @@ func (d *Docker) startFirst(ctx context.Context, t Target, spec *resourcev1.Cont
 		// A restart has no revision to roll back to, and so no rollback to
 		// remove what it made: it goes now, and what ran goes on.
 		if dec.Restart != "" {
+			err = resource.FailedAt(err, time.Now())
 			d.discardFailed(ctx, keep)
 		}
 		return err
@@ -1189,6 +1190,7 @@ func (d *Docker) make(ctx context.Context, t Target, spec *resourcev1.Container,
 		return "", nil, fmt.Errorf("docker can't create %s: %w", t.Name, hideIn(err, valuesInSpec(spec)))
 	}
 	discard := func(err error) error {
+		err = resource.FailedAt(err, time.Now())
 		d.discard(ctx, id, name)
 		undo()
 		return err

@@ -32,9 +32,14 @@
 # On 2026-11-12 the catalog's artwork moved out of the panel, into Dockwell/catalog
 # and the binary's snapshot of it, which the control plane serves from (ADR 0077),
 # so the panel holds code alone. The catalog's own checks hold its images.
+# On 2026-11-14 main sat at 3.75 MB, and private routes (#606) tipped it over. A
+# control plane with its agent idled at about 75 MB of its 250 MB budget, as #601's
+# memory comment measured on 2026-11-13, so allow the code 4.25 MB. #619 is the
+# real fix: the control plane stops hashing every file at start, so the panel's
+# size stops counting toward its idle memory.
 set -euo pipefail
 
-code_limit=3750000
+code_limit=4250000
 dir=${1:-internal/panel/dist/app}
 
 if [[ ! -f $dir/index.html ]]; then

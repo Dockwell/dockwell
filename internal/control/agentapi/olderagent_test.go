@@ -12,6 +12,7 @@ import (
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/route"
 	"github.com/dockwell/dockwell/internal/resource/service"
 )
 
@@ -143,6 +144,47 @@ func TestAnOlderAgentIsRefusedAFolderToMake(t *testing.T) {
 			}
 			if err := entry(open(true), owned); errors.Is(err, resource.ErrAgentTooOld) {
 				t.Errorf("an agent that makes folders = %v", err)
+			}
+		})
+	}
+}
+
+// An agent that doesn't say its proxy keeps strangers out would serve a private route
+// to anyone, so a plan, a step or a desired state with one is refused there, with the
+// fix; a public route goes, and an agent that says so takes it (ADR 0087).
+func TestAnOlderAgentIsRefusedAPrivateRoute(t *testing.T) {
+	www := resource.Ref{Kind: route.Kind, Scope: "env_1", Name: "www"}
+	private := &resourcev1.Route{Domain: "app.example.com", Service: "web", Port: 80, Access: &resourcev1.RouteAccess{Allow: []string{"203.0.113.0/24"}}}
+	public := &resourcev1.Route{Domain: "app.example.com", Service: "web", Port: 80}
+	errSent := errors.New("the test stops the call here")
+	open := func(keeps bool) *Session {
+		a := NewAgents(resource.NewRegistry(&route.Driver{}), slog.New(slog.DiscardHandler))
+		a.CheckNaming(&naming{})
+		return a.open("srv_1", "hz-1", &agentv1.Hello{Kinds: []string{string(route.Kind)}, WritesReferences: true, KeepsRoutesPrivate: keeps}, func(*agentv1.ConnectResponse) error { return errSent })
+	}
+	for name, entry := range map[string]func(*Session, *resourcev1.Route) error{
+		"planning": func(s *Session, spec *resourcev1.Route) error {
+			_, err := s.Plan(t.Context(), []resource.Desired{{Ref: www, Spec: spec}})
+			return err
+		},
+		"applying": func(s *Session, spec *resourcev1.Route) error {
+			return s.Apply(t.Context(), resource.Step{Ref: www}, spec)
+		},
+		"remembering": func(s *Session, spec *resourcev1.Route) error {
+			_, err := s.Remember(t.Context(), www, spec, 1, "chg_1", "")
+			return err
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			err := entry(open(false), private)
+			if !errors.Is(err, resource.ErrAgentTooOld) || !strings.Contains(err.Error(), "from before Dockwell kept strangers out of a route, which www asks for, so it would let anyone in. Update the agent on hz-1") {
+				t.Errorf("an older agent, with a private route = %v", err)
+			}
+			if err := entry(open(false), public); errors.Is(err, resource.ErrAgentTooOld) {
+				t.Errorf("an older agent, with a public route = %v", err)
+			}
+			if err := entry(open(true), private); errors.Is(err, resource.ErrAgentTooOld) {
+				t.Errorf("an agent that keeps routes private = %v", err)
 			}
 		})
 	}

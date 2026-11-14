@@ -157,7 +157,11 @@ func (h *Handler) ListDomains(ctx context.Context, req *connect.Request[dockwell
 
 // add puts one route in its domain.
 func (h *Handler) add(ctx context.Context, tx *store.Tx, r *store.Resource, byName map[string]*dockwellv1.Domain) error {
-	spec, err := h.kinds.Decode(route.Kind, r.Spec)
+	plain, err := tx.Open(ctx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec)
+	if err != nil {
+		return err
+	}
+	spec, err := h.kinds.Decode(route.Kind, plain)
 	if err != nil {
 		return err
 	}
@@ -174,9 +178,14 @@ func (h *Handler) add(ctx context.Context, tx *store.Tx, r *store.Resource, byNa
 		d = &dockwellv1.Domain{Name: name, EnvironmentId: r.Scope, Url: scheme + name}
 		byName[name] = d
 	}
+	var users []string
+	for _, u := range rt.GetAccess().GetUsers() {
+		users = append(users, u.GetName())
+	}
 	d.Routes = append(d.Routes, &dockwellv1.DomainRoute{
 		Id: r.ID, Name: r.Name, Path: rt.GetPath(), Service: rt.GetService(), Port: rt.GetPort(), Url: scheme + route.Where(rt),
 		Tls: rt.GetTls(), HostPort: rt.GetHostPort(), PlainForAnyone: rt.GetPlainForAnyone(), Held: rt.GetHeld(), TrustedProxies: rt.GetTrustedProxies(),
+		Allow: rt.GetAccess().GetAllow(), Users: users,
 	})
 	placed, err := tx.Placement(ctx, r.ID, r.Revision)
 	if err != nil {

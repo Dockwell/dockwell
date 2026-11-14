@@ -347,18 +347,28 @@ func wrongArchitectureFailure(t Target, err error) error {
 	return resource.PlainlyBecause(resource.ReasonImage, fmt.Sprintf("The image for %s isn't built for this server's architecture. Choose a build for this server, or another image, then try again.", t.Service), err)
 }
 
-// explained is what running a container at t failed with, in plain words. A
-// message of Dockwell's own, about what the server has, reads as it is; so
-// does Docker not answering, which says how to fix it. Time running out here,
-// which an agent may answer with before the control plane's own deadline,
-// says what ran out.
-func explained(t Target, err error) error {
+// explained is what running a container at t failed with, in ctx, the step's, in
+// plain words. A message of Dockwell's own, about what the server has, reads as it
+// is; so does Docker not answering, which says how to fix it. A wait that ended
+// says which (resource.StopOf): the step's time, which an agent may answer with
+// before the control plane's own deadline; a wait inside it, with the step's time
+// left, as Docker not answering in time is; or the step called off.
+func explained(ctx context.Context, t Target, err error) error {
 	var plain *resource.Failure
 	if err == nil || errors.As(err, &plain) {
 		return err
 	}
-	if errors.Is(err, context.DeadlineExceeded) {
+	switch resource.StopOf(ctx, err) {
+	case resource.StepTime:
 		return resource.Plainly(fmt.Sprintf("The step's time ran out before %s started, so Dockwell stopped waiting. A long pull may have used it up, so try again.", t.Service), err)
+	case resource.CalledOff:
+		return resource.Plainly(fmt.Sprintf("Dockwell stopped starting %s, as the step was called off: its change was cancelled, the control plane stopped waiting, or the agent stopped. Run the change again if you still want it.", t.Service), err)
+	case resource.InnerWait:
+		if !docker.IsUnavailable(err) {
+			return resource.Plainly(fmt.Sprintf("%s didn't start, as a wait on this server ran out with the step's own time left%s. Check what %s waits on, such as Docker, on this server, then try again.", t.Service, resource.Besides(err), t.Service), err)
+		}
+		// Docker not answering in time says which, and how to check it, below.
+	case resource.NotStopped:
 	}
 	if docker.IsUnavailable(err) {
 		return asIs(err)
@@ -373,8 +383,12 @@ func explained(t Target, err error) error {
 // asIs takes a message that is whole already as the plain words, in a
 // sentence, as it starts lowercase as Go errors do.
 func asIs(err error) error {
-	message := strings.TrimRight(strings.TrimSpace(err.Error()), ".")
-	return resource.Plainly(capitalize(message)+".", err)
+	return resource.Plainly(capitalize(clause(err))+".", err)
+}
+
+// clause is an error's message to go on inside a sentence.
+func clause(err error) string {
+	return strings.TrimRight(strings.TrimSpace(err.Error()), ".")
 }
 
 func capitalize(s string) string {

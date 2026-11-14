@@ -80,6 +80,7 @@ import { ExportSheet } from "./ExportSheet";
 import { HealthBadge, RunsOnServers, useHealthWords, useRunsNow } from "./Health";
 import { type AppHealth, type RunsOnServer, runsAsFarAsAnyoneKnows, useHealth } from "./health";
 import { ImageName, WholeImage } from "./ImageName";
+import { type OpenWay, openWaysOf, PrivateButton, PrivateFact, PrivateSheet } from "./PrivateSheet";
 import { RuntimeSheet } from "./RuntimeSheet";
 import { useRevisionLook, useRevisionTitle, useWhoWords } from "./revision";
 import { knownVersion, newerBuild, runtimeEnv, runtimeOf, runtimeWords } from "./runtime";
@@ -615,6 +616,8 @@ function DomainRow({
   offer,
   onRemove,
   onMoveBehind,
+  onPrivate,
+  open,
 }: {
   domain: Domain;
   route: DomainRoute;
@@ -623,6 +626,9 @@ function DomainRow({
   offer: Offer;
   onRemove: () => void;
   onMoveBehind: () => void;
+  onPrivate: () => void;
+  /** The ways into the app around this route, when it keeps strangers out. */
+  open: readonly OpenWay[];
 }) {
   const { t } = useLingui();
   const look = lookOf(domain, useControlPlaneNow(30_000));
@@ -643,6 +649,7 @@ function DomainRow({
       <div className="app-reach-main">
         <code className="app-reach-at">{where}</code>
         <DomainFacts domain={domain} route={route} look={look} silent={silent} read={read} />
+        <PrivateFact domain={domain} route={route} open={open} />
       </div>
       <div className="app-reach-acts">
         {said ? (
@@ -659,6 +666,7 @@ function DomainRow({
             <Icon name="external" size={16} />
           </a>
         ) : null}
+        <PrivateButton domain={domain} route={route} onOpen={onPrivate} off={offer.off} />
         <Button
           variant="ghost"
           size="sm"
@@ -705,6 +713,8 @@ function ReachedAt({
   const mayPlan = may(ChangeService.method.proposeChange, { environment: environmentOf(service) });
   const { domains, read, isPending, failed, retrying, retry } = useAppDomains(service);
   const sheet = useChangeSheet();
+  // Who gets in to one of its routes (ADR 0087), read fresh from its domains while open.
+  const [privateId, setPrivateId] = useState<string>();
   const name = nameOf(service);
   const ports = app?.ports ?? [];
   // Couldn't read isn't none: it may well be reached at something this can't say.
@@ -762,6 +772,7 @@ function ReachedAt({
   const routes = domains.flatMap((domain) =>
     domain.routes.filter((route) => route.service === name).map((route) => ({ domain, route })),
   );
+  const privateAt = routes.find((at) => at.route.id === privateId);
   const remove = (where: string, route: string) =>
     sheet.open({
       kind: "propose",
@@ -771,6 +782,16 @@ function ReachedAt({
   return (
     <>
       {unread}
+      {privateAt ? (
+        <PrivateSheet
+          domain={privateAt.domain}
+          route={privateAt.route}
+          onClose={() => setPrivateId(undefined)}
+          service={service}
+          all={domains}
+          onOther={setPrivateId}
+        />
+      ) : null}
       <ul className="app-reach">
         {routes.map(({ domain, route }) => (
           <DomainRow
@@ -781,6 +802,8 @@ function ReachedAt({
             offer={mayPlan}
             onRemove={() => remove(routeWhere(domain, route), route.name)}
             onMoveBehind={() => onMoveBehind(moveBehindOf(domain, route))}
+            onPrivate={() => setPrivateId(route.id)}
+            open={openWaysOf(domain, route, service, domains)}
           />
         ))}
         {rows.map((row) => {

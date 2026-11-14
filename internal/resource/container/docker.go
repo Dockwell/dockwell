@@ -1780,7 +1780,7 @@ func (d *Docker) checkRefs(ctx context.Context, t Target, spec *resourcev1.Conta
 // container made again mounts those kept for it. What it fails with is in plain
 // words.
 func (d *Docker) Run(ctx context.Context, t Target, spec *resourcev1.Container, dec resource.Decision) error {
-	return explained(t, d.run(ctx, t, spec, dec))
+	return explained(ctx, t, d.run(ctx, t, spec, dec))
 }
 
 func (d *Docker) run(ctx context.Context, t Target, spec *resourcev1.Container, dec resource.Decision) error {
@@ -2359,22 +2359,30 @@ func (d *Docker) waitHealthy(ctx context.Context, t Target, i *instance, soak ti
 	if last != "" {
 		said = ": " + last
 	}
-	switch cause := context.Cause(ctx); {
-	case errors.Is(cause, errWaited):
+	cause := context.Cause(ctx)
+	if errors.Is(cause, errWaited) {
 		plain := fmt.Sprintf("%s didn't pass its health check within %s, so Dockwell stopped waiting. Check the command its health check runs and how long the app takes to start, then try again.", t.Service, human.Duration(wait))
 		if last != "" {
 			plain = fmt.Sprintf("%s didn't pass its health check within %s, so Dockwell stopped waiting: %s If it only takes longer than that to start, give its check a start period.", t.Service, human.Duration(wait), health.WithFix(last))
 		}
 		return resource.PlainlyBecause(resource.ReasonUnhealthy, plain,
 			fmt.Errorf("%s didn't pass its health check within %s%s", name, human.Duration(wait), said))
-	case errors.Is(cause, context.DeadlineExceeded):
-		lastSaid := ""
-		if last != "" {
-			lastSaid = " Its check last said: " + last + "."
-		}
+	}
+	lastSaid := ""
+	if last != "" {
+		lastSaid = " Its check last said: " + last + "."
+	}
+	inspect := "See how it is with docker inspect --format '{{json .State.Health}}' " + name
+	switch resource.StopOf(ctx, cause) {
+	case resource.StepTime:
 		return resource.Plainly(fmt.Sprintf("The step's time ran out before %s passed its health check, so Dockwell stopped waiting.%s A long pull may have used it up, so try again.", t.Service, lastSaid),
-			fmt.Errorf("the step's time ran out before %s passed its health check, so Dockwell stopped waiting: %w%s. "+
-				"See how it is with docker inspect --format '{{json .State.Health}}' %s", name, cause, said, name))
+			fmt.Errorf("the step's time ran out before %s passed its health check, so Dockwell stopped waiting: %w%s. %s", name, cause, said, inspect))
+	case resource.InnerWait:
+		return resource.Plainly(fmt.Sprintf("A wait on this server ran out before %s passed its health check, with the step's own time left.%s Check what %s waits on, such as Docker, on this server, then try again.", t.Service, lastSaid, t.Service),
+			fmt.Errorf("a wait ran out before %s passed its health check, with the step's own time left: %w%s. %s", name, cause, said, inspect))
+	case resource.CalledOff:
+		return resource.Plainly(fmt.Sprintf("Dockwell stopped waiting for %s's health check, as the step was called off: its change was cancelled, the control plane stopped waiting, or the agent stopped. Run the change again if you still want it.", t.Service),
+			fmt.Errorf("stopped waiting for %s's health check: %w", name, cause))
 	default:
 		return cause
 	}

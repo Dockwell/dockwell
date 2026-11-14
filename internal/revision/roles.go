@@ -371,7 +371,8 @@ func serverName(ctx context.Context, tx *store.Tx, id string) string {
 // domain; a port on the server itself; a container Dockwell didn't make; and
 // anything else as good as root. Claiming another environment's domain,
 // serving plain HTTP to anyone, turning HTTPS off and a volume Dockwell didn't
-// make stay a person's to approve, in a project they may apply in.
+// make, and opening a private route, stay a person's to approve, in a project they
+// may apply in.
 func installWide(a resource.Access) string {
 	if a.AsGoodAsRoot() {
 		return "gets as much as root on its server"
@@ -397,7 +398,7 @@ func installWide(a resource.Access) string {
 		return "sends a certificate's key to its server for the first time"
 	case resource.AccessDocker, resource.AccessNetwork, resource.AccessBackupOf,
 		resource.AccessDomain, resource.AccessPlainForAnyone, resource.AccessHTTPSOff, resource.AccessExternalVolume,
-		resource.AccessServerShell: // as good as root, which the first check holds
+		resource.AccessServerShell, resource.AccessOpened: // as good as root, which the first check holds
 	}
 	return ""
 }

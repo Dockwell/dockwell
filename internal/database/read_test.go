@@ -237,3 +237,16 @@ func TestADeadlineIsSaidAsWhoseItWas(t *testing.T) {
 		t.Errorf("a live context with no deadline is %d, want neither's", got)
 	}
 }
+
+// PostgreSQL's image sets a new database up on a server of its own, then stops it,
+// ending what was connected: that's a server still starting, which a step waits for.
+func TestAServerTheImageStopsIsStillStarting(t *testing.T) {
+	for _, said := range []string{
+		"psql: error: FATAL:  terminating connection due to administrator command",
+		"psql:<stdin>:1: server closed the connection unexpectedly\n\tThis probably means the server terminated abnormally",
+	} {
+		if !startingUp(said) {
+			t.Errorf("%q reads as more than a server starting", said)
+		}
+	}
+}

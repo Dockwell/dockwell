@@ -1928,6 +1928,11 @@ type Hello struct {
 	// take a call for a container as one for the server, so the control plane sends it
 	// none.
 	ContainerTerminals bool `protobuf:"varint,52,opt,name=container_terminals,json=containerTerminals,proto3" json:"container_terminals,omitempty"`
+	// True when the agent's proxy keeps out who a route's access doesn't let in,
+	// and asks each private route what a stranger gets (ADR 0087). The control
+	// plane plans no route with access on an agent that doesn't say so, which
+	// would serve it to anyone. Private routes take 110 to 119 in agent messages.
+	KeepsRoutesPrivate bool `protobuf:"varint,110,opt,name=keeps_routes_private,json=keepsRoutesPrivate,proto3" json:"keeps_routes_private,omitempty"`
 	// True when the agent reads what 1Panel keeps on the server (ReadOnePanelCall).
 	// The importer takes 180 to 189 in agent messages.
 	ReadsOnepanel bool `protobuf:"varint,180,opt,name=reads_onepanel,json=readsOnepanel,proto3" json:"reads_onepanel,omitempty"`
@@ -2128,6 +2133,13 @@ func (x *Hello) GetOpenTerminals() []string {
 func (x *Hello) GetContainerTerminals() bool {
 	if x != nil {
 		return x.ContainerTerminals
+	}
+	return false
+}
+
+func (x *Hello) GetKeepsRoutesPrivate() bool {
+	if x != nil {
+		return x.KeepsRoutesPrivate
 	}
 	return false
 }
@@ -14009,7 +14021,7 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x05Heard\x12\x12\n" +
 	"\x04last\x18\x01 \x01(\tR\x04last\"\n" +
 	"\n" +
-	"\bDraining\"\x94\t\n" +
+	"\bDraining\"\xc6\t\n" +
 	"\x05Hello\x12,\n" +
 	"\x05build\x18\x01 \x01(\v2\x16.dockwell.v1.BuildInfoR\x05build\x12:\n" +
 	"\tinventory\x18\x02 \x01(\v2\x1c.dockwell.v1.ServerInventoryR\tinventory\x12\x14\n" +
@@ -14023,7 +14035,8 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\ffollows_pace\x18( \x01(\bR\vfollowsPace\x12\x1c\n" +
 	"\tterminals\x182 \x01(\bR\tterminals\x12%\n" +
 	"\x0eopen_terminals\x183 \x03(\tR\ropenTerminals\x12/\n" +
-	"\x13container_terminals\x184 \x01(\bR\x12containerTerminals\x12&\n" +
+	"\x13container_terminals\x184 \x01(\bR\x12containerTerminals\x120\n" +
+	"\x14keeps_routes_private\x18n \x01(\bR\x12keepsRoutesPrivate\x12&\n" +
 	"\x0ereads_onepanel\x18\xb4\x01 \x01(\bR\rreadsOnepanel\x12#\n" +
 	"\rmanages_files\x18x \x01(\bR\fmanagesFiles\x12'\n" +
 	"\x0ftransfers_files\x18y \x01(\bR\x0etransfersFiles\x12&\n" +

@@ -1368,6 +1368,12 @@ enum HostAccessKind {
   // A backup of a volume that reached path, which is as good as root, coming back
   // into a volume that doesn't. What it holds can be read from there.
   HOST_ACCESS_KIND_BACKUP_OF = 18;
+  // A private route opened to someone it kept out within the undo window, at the
+  // domain and path in path, and how in detail: its address list taken off or
+  // widened, its users taken off, a user added, or a password changed. A token
+  // could otherwise let itself in. Numbered apart, as open work adds to this enum.
+  // See docs/adr/0087-private-routes.md.
+  HOST_ACCESS_KIND_ACCESS_OPENED = 110;
   // A shell command the agent runs on the server as root, on a schedule (ADR
   // 0053): the same as root. Numbered in the block scheduled tasks hold, as open
   // work adds to this enum.

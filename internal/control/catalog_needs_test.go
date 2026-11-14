@@ -1194,7 +1194,12 @@ func TestUseAnotherDatabaseStartingEmptyHoldsTheRoute(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		return proto.Unmarshal(r.Spec, &held)
+		// Sealed, as a route may hold users' password hashes (ADR 0087).
+		plain, err := tx.Open(t.Context(), store.InRevision(r.ID, r.Kind, r.Revision), r.Spec)
+		if err != nil {
+			return err
+		}
+		return proto.Unmarshal(plain, &held)
 	})
 	if err != nil || !held.GetHeld() {
 		t.Errorf("the blog's route after starting empty is %v, %v", &held, err)
