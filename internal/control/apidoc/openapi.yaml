@@ -2616,6 +2616,57 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/events:count:
+        get:
+            tags:
+                - EventService
+            description: |-
+                CountEvents says how many events of each kind there are, under the
+                 filters ListEvents takes but the kinds, so each of Activity's views can
+                 say how many it holds, as the list would show them (#639).
+            operationId: EventService_CountEvents
+            parameters:
+                - name: serverId
+                  in: query
+                  description: Only what happened on or to one server, by ID.
+                  schema:
+                    type: string
+                - name: resourceId
+                  in: query
+                  description: Only the changes to one resource, by ID, or to what lives in it.
+                  schema:
+                    type: string
+                - name: actorId
+                  in: query
+                  description: Only what one actor did, by the ID their Actor has.
+                  schema:
+                    type: string
+                - name: actorKind
+                  in: query
+                  description: Only what actors of one kind did.
+                  schema:
+                    enum:
+                        - ACTOR_KIND_UNSPECIFIED
+                        - ACTOR_KIND_USER
+                        - ACTOR_KIND_TOKEN
+                        - ACTOR_KIND_DOCKWELL
+                        - ACTOR_KIND_SERVER
+                        - ACTOR_KIND_SHELL
+                    type: string
+                    format: enum
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CountEventsResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/health:
         get:
             tags:
@@ -10618,6 +10669,21 @@ components:
             description: |-
                 ControlPlane is the dockwell run that serves the panel and API, with the
                  agent it runs beside them.
+        CountEventsResponse:
+            type: object
+            properties:
+                counts:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/EventKindCount'
+                    description: |-
+                        Each kind there is, with how many events of it, none included, in the
+                         order EventKind has them.
+                total:
+                    type: integer
+                    description: How many events there are of every kind together.
+                    format: int32
+            description: CountEventsResponse is how many events there are of each kind.
         CreateBackupRequest:
             type: object
             properties:
@@ -12638,6 +12704,26 @@ components:
                  told then. A service that went between good and bad 3 times in 5 minutes keeps
                  changing, and is one event, whose time, flips and output change as it goes on,
                  until it has stayed one way for 5 minutes.
+        EventKindCount:
+            type: object
+            properties:
+                kind:
+                    enum:
+                        - EVENT_KIND_UNSPECIFIED
+                        - EVENT_KIND_CHANGE
+                        - EVENT_KIND_SERVER
+                        - EVENT_KIND_ACCESS
+                        - EVENT_KIND_HEALTH
+                        - EVENT_KIND_BACKUP
+                        - EVENT_KIND_SETTINGS
+                        - EVENT_KIND_ALERT
+                        - EVENT_KIND_TASK
+                    type: string
+                    format: enum
+                count:
+                    type: integer
+                    format: int32
+            description: EventKindCount is how many events of one kind there are.
         EventMember:
             type: object
             properties:

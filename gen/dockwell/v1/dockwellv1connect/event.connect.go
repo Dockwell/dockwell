@@ -37,6 +37,9 @@ const (
 const (
 	// EventServiceListEventsProcedure is the fully-qualified name of the EventService's ListEvents RPC.
 	EventServiceListEventsProcedure = "/dockwell.v1.EventService/ListEvents"
+	// EventServiceCountEventsProcedure is the fully-qualified name of the EventService's CountEvents
+	// RPC.
+	EventServiceCountEventsProcedure = "/dockwell.v1.EventService/CountEvents"
 	// EventServiceWatchEventsProcedure is the fully-qualified name of the EventService's WatchEvents
 	// RPC.
 	EventServiceWatchEventsProcedure = "/dockwell.v1.EventService/WatchEvents"
@@ -46,6 +49,10 @@ const (
 type EventServiceClient interface {
 	// ListEvents returns events, newest first, a page at a time.
 	ListEvents(context.Context, *connect.Request[v1.ListEventsRequest]) (*connect.Response[v1.ListEventsResponse], error)
+	// CountEvents says how many events of each kind there are, under the
+	// filters ListEvents takes but the kinds, so each of Activity's views can
+	// say how many it holds, as the list would show them (#639).
+	CountEvents(context.Context, *connect.Request[v1.CountEventsRequest]) (*connect.Response[v1.CountEventsResponse], error)
 	// WatchEvents sends the newest page of events, as ListEvents would, then
 	// each event as it happens, and a change's event again each time the
 	// change moves on, such as a step that finishes. Events from another
@@ -72,6 +79,13 @@ func NewEventServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 			connect.WithClientOptions(opts...),
 		),
+		countEvents: connect.NewClient[v1.CountEventsRequest, v1.CountEventsResponse](
+			httpClient,
+			baseURL+EventServiceCountEventsProcedure,
+			connect.WithSchema(eventServiceMethods.ByName("CountEvents")),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
 		watchEvents: connect.NewClient[v1.WatchEventsRequest, v1.WatchEventsResponse](
 			httpClient,
 			baseURL+EventServiceWatchEventsProcedure,
@@ -84,12 +98,18 @@ func NewEventServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 // eventServiceClient implements EventServiceClient.
 type eventServiceClient struct {
 	listEvents  *connect.Client[v1.ListEventsRequest, v1.ListEventsResponse]
+	countEvents *connect.Client[v1.CountEventsRequest, v1.CountEventsResponse]
 	watchEvents *connect.Client[v1.WatchEventsRequest, v1.WatchEventsResponse]
 }
 
 // ListEvents calls dockwell.v1.EventService.ListEvents.
 func (c *eventServiceClient) ListEvents(ctx context.Context, req *connect.Request[v1.ListEventsRequest]) (*connect.Response[v1.ListEventsResponse], error) {
 	return c.listEvents.CallUnary(ctx, req)
+}
+
+// CountEvents calls dockwell.v1.EventService.CountEvents.
+func (c *eventServiceClient) CountEvents(ctx context.Context, req *connect.Request[v1.CountEventsRequest]) (*connect.Response[v1.CountEventsResponse], error) {
+	return c.countEvents.CallUnary(ctx, req)
 }
 
 // WatchEvents calls dockwell.v1.EventService.WatchEvents.
@@ -101,6 +121,10 @@ func (c *eventServiceClient) WatchEvents(ctx context.Context, req *connect.Reque
 type EventServiceHandler interface {
 	// ListEvents returns events, newest first, a page at a time.
 	ListEvents(context.Context, *connect.Request[v1.ListEventsRequest]) (*connect.Response[v1.ListEventsResponse], error)
+	// CountEvents says how many events of each kind there are, under the
+	// filters ListEvents takes but the kinds, so each of Activity's views can
+	// say how many it holds, as the list would show them (#639).
+	CountEvents(context.Context, *connect.Request[v1.CountEventsRequest]) (*connect.Response[v1.CountEventsResponse], error)
 	// WatchEvents sends the newest page of events, as ListEvents would, then
 	// each event as it happens, and a change's event again each time the
 	// change moves on, such as a step that finishes. Events from another
@@ -123,6 +147,13 @@ func NewEventServiceHandler(svc EventServiceHandler, opts ...connect.HandlerOpti
 		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 		connect.WithHandlerOptions(opts...),
 	)
+	eventServiceCountEventsHandler := connect.NewUnaryHandler(
+		EventServiceCountEventsProcedure,
+		svc.CountEvents,
+		connect.WithSchema(eventServiceMethods.ByName("CountEvents")),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
 	eventServiceWatchEventsHandler := connect.NewServerStreamHandler(
 		EventServiceWatchEventsProcedure,
 		svc.WatchEvents,
@@ -133,6 +164,8 @@ func NewEventServiceHandler(svc EventServiceHandler, opts ...connect.HandlerOpti
 		switch r.URL.Path {
 		case EventServiceListEventsProcedure:
 			eventServiceListEventsHandler.ServeHTTP(w, r)
+		case EventServiceCountEventsProcedure:
+			eventServiceCountEventsHandler.ServeHTTP(w, r)
 		case EventServiceWatchEventsProcedure:
 			eventServiceWatchEventsHandler.ServeHTTP(w, r)
 		default:
@@ -146,6 +179,10 @@ type UnimplementedEventServiceHandler struct{}
 
 func (UnimplementedEventServiceHandler) ListEvents(context.Context, *connect.Request[v1.ListEventsRequest]) (*connect.Response[v1.ListEventsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.EventService.ListEvents is not implemented"))
+}
+
+func (UnimplementedEventServiceHandler) CountEvents(context.Context, *connect.Request[v1.CountEventsRequest]) (*connect.Response[v1.CountEventsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.EventService.CountEvents is not implemented"))
 }
 
 func (UnimplementedEventServiceHandler) WatchEvents(context.Context, *connect.Request[v1.WatchEventsRequest], *connect.ServerStream[v1.WatchEventsResponse]) error {

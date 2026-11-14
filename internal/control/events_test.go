@@ -375,6 +375,48 @@ func testTheTimelineThroughTheAPI(t *testing.T, backend store.Backend) {
 
 // A project's events include its environments', and resources list by
 // name with their display names, never their specs.
+func TestEventsAreCountedByKind(t *testing.T) { storetest.Each(t, testEventsAreCountedByKind) }
+
+// Each kind's count is what ListEvents lists of it, under the same filters, and
+// what a list leaves out, such as a discarded plan, isn't counted (#639).
+func testEventsAreCountedByKind(t *testing.T, backend store.Backend) {
+	f := startFull(t, backend, nil)
+	b := signedIn(t, f)
+	ev := eventClient(b, b.origin)
+	c := changeClient(b, b.origin)
+	hz1 := f.addServer(t, true)
+	apply(t, c, propose(t, c, "Run web", webEdit("nginx:1.27", nil)))
+	dropped := propose(t, c, "Run web twice", webEdit("nginx:1.28", nil))
+	if _, err := c.DiscardChange(t.Context(), connect.NewRequest(&dockwellv1.DiscardChangeRequest{Id: dropped.GetId()})); err != nil {
+		t.Fatal(err)
+	}
+	for _, server := range []string{"", hz1.id.ServerID} {
+		res, err := ev.CountEvents(t.Context(), connect.NewRequest(&dockwellv1.CountEventsRequest{ServerId: server}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		sum := 0
+		for _, k := range res.Msg.GetCounts() {
+			listed := listEvents(t, ev, &dockwellv1.ListEventsRequest{PageSize: 200, Kinds: []dockwellv1.EventKind{k.GetKind()}, ServerId: server})
+			if int(k.GetCount()) != len(listed) {
+				t.Errorf("server %q, %v: counted %d, ListEvents lists %d", server, k.GetKind(), k.GetCount(), len(listed))
+			}
+			sum += int(k.GetCount())
+		}
+		all := listEvents(t, ev, &dockwellv1.ListEventsRequest{PageSize: 200, ServerId: server})
+		if int(res.Msg.GetTotal()) != len(all) || sum != len(all) {
+			t.Errorf("server %q: total %d, kinds sum to %d, ListEvents lists %d", server, res.Msg.GetTotal(), sum, len(all))
+		}
+		if server == "" && len(res.Msg.GetCounts()) != len(dockwellv1.EventKind_name)-1 {
+			t.Errorf("counts for %d kinds, want every kind, none included", len(res.Msg.GetCounts()))
+		}
+	}
+	// A filter it can't read is refused, as ListEvents refuses it.
+	if _, err := ev.CountEvents(t.Context(), connect.NewRequest(&dockwellv1.CountEventsRequest{ActorId: "nobody"})); connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Errorf("an actor ID that isn't one: %v, want invalid argument", err)
+	}
+}
+
 func TestProjectEventsAndResources(t *testing.T) { storetest.Each(t, testProjectEventsAndResources) }
 
 func testProjectEventsAndResources(t *testing.T, backend store.Backend) {

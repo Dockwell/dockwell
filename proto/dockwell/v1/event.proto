@@ -43,6 +43,18 @@ service EventService {
     option (google.api.http) = {get: "/v1/events"};
   }
 
+  // CountEvents says how many events of each kind there are, under the
+  // filters ListEvents takes but the kinds, so each of Activity's views can
+  // say how many it holds, as the list would show them (#639).
+  rpc CountEvents(CountEventsRequest) returns (CountEventsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (google.api.http) = {get: "/v1/events:count"};
+  }
+
   // WatchEvents sends the newest page of events, as ListEvents would, then
   // each event as it happens, and a change's event again each time the
   // change moves on, such as a step that finishes. Events from another
@@ -90,6 +102,34 @@ message ListEventsResponse {
   repeated Event events = 1;
   // Pass it as page_token for the next page. Empty on the last page.
   string next_page_token = 2;
+}
+
+// CountEventsRequest narrows the events counted as ListEventsRequest's
+// filters do, but for the kinds, which the counts are by.
+message CountEventsRequest {
+  // Only what happened on or to one server, by ID.
+  string server_id = 1;
+  // Only the changes to one resource, by ID, or to what lives in it.
+  string resource_id = 2;
+  // Only what one actor did, by the ID their Actor has.
+  string actor_id = 3;
+  // Only what actors of one kind did.
+  ActorKind actor_kind = 4;
+}
+
+// CountEventsResponse is how many events there are of each kind.
+message CountEventsResponse {
+  // Each kind there is, with how many events of it, none included, in the
+  // order EventKind has them.
+  repeated EventKindCount counts = 1;
+  // How many events there are of every kind together.
+  int32 total = 2;
+}
+
+// EventKindCount is how many events of one kind there are.
+message EventKindCount {
+  EventKind kind = 1;
+  int32 count = 2;
 }
 
 // WatchEventsRequest says which events to watch, with the same filters as

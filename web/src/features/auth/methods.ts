@@ -141,6 +141,7 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "DomainService.listDnsProviders": "read",
   "DomainService.listDomains": "read",
 
+  "EventService.countEvents": "read",
   "EventService.listEvents": "read",
   "EventService.watchEvents": "read",
 

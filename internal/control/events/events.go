@@ -194,6 +194,54 @@ func (h *Handler) ListEvents(ctx context.Context, req *connect.Request[dockwellv
 	return connect.NewResponse(res), nil
 }
 
+// CountEvents says how many events of each kind there are, under the filters
+// ListEvents takes but the kinds, read as ListEvents would read them, so a view's
+// count is what its list holds (#639).
+func (h *Handler) CountEvents(ctx context.Context, req *connect.Request[dockwellv1.CountEventsRequest]) (*connect.Response[dockwellv1.CountEventsResponse], error) {
+	m := req.Msg
+	// Every kind, checked once, with the filters a reader can get wrong.
+	every, err := filter(nil, m.GetServerId(), m.GetResourceId(), m.GetActorId(), m.GetActorKind())
+	if err != nil {
+		return nil, err
+	}
+	res := &dockwellv1.CountEventsResponse{}
+	err = h.db.View(ctx, func(tx *store.Tx) error {
+		total, err := tx.TimelineCount(ctx, every)
+		if err != nil {
+			return err
+		}
+		res.Total = int32(total) //nolint:gosec // a timeline holds far fewer than 2^31 entries
+		for _, k := range eventKinds() {
+			f, err := filter([]dockwellv1.EventKind{k}, m.GetServerId(), m.GetResourceId(), m.GetActorId(), m.GetActorKind())
+			if err != nil {
+				return err
+			}
+			n, err := tx.TimelineCount(ctx, f)
+			if err != nil {
+				return err
+			}
+			res.Counts = append(res.Counts, &dockwellv1.EventKindCount{Kind: k, Count: int32(n)}) //nolint:gosec // as total
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, h.internal(ctx, err)
+	}
+	return connect.NewResponse(res), nil
+}
+
+// eventKinds are the kinds of event there are, in the order EventKind has them.
+func eventKinds() []dockwellv1.EventKind {
+	var out []dockwellv1.EventKind
+	for n := range dockwellv1.EventKind_name {
+		if k := dockwellv1.EventKind(n); k != dockwellv1.EventKind_EVENT_KIND_UNSPECIFIED {
+			out = append(out, k)
+		}
+	}
+	slices.Sort(out)
+	return out
+}
+
 // page reads a page of events, older than before when it is set, with the
 // token for the next and each event's time on the timeline.
 func (h *Handler) page(ctx context.Context, tx *store.Tx, names *actors.Names, f store.TimelineFilter, before *store.TimelineCursor, size int) (
