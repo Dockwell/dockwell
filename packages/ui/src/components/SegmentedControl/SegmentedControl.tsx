@@ -14,6 +14,8 @@ export interface SegmentedOption<V extends string = string> {
   label: ReactNode;
   icon?: IconName;
   count?: number;
+  /** The count is at least what it says, as when counting stopped short: "10,000+". */
+  more?: boolean;
 }
 
 export interface SegmentedControlProps<V extends string = string> {
@@ -80,6 +82,7 @@ export function SegmentedControl<V extends string = string>({
                 <span className="dw-sr">, </span>
                 {/* Grouped, "12,345", as the kit's strings write a count; zh-CN groups the same way. */}
                 {option.count.toLocaleString("en")}
+                {option.more ? "+" : null}
               </span>
             ) : null}
           </button>

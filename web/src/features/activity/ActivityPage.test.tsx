@@ -205,6 +205,19 @@ describe("Activity", () => {
     await waitFor(() => expect(asked).toBe(3), { timeout: 7_000 });
   });
 
+  it("says a count that stopped short at the newest events is at least that (#642's review, N1)", async () => {
+    const watch = feed<WatchEventsResponse>();
+    watch.push(snapshot([joined]));
+    renderActivity(watch, {
+      events: {
+        countEvents: () => ({ total: 10000, capped: true, counts: [{ kind: EventKind.SERVER, count: 9000 }] }),
+      },
+    });
+    const view = (name: string) => screen.getByRole("radio", { name: new RegExp(`^${name}`) });
+    await waitFor(() => expect(view("All")).toHaveTextContent("All, 10,000+"));
+    expect(view("Servers")).toHaveTextContent("Servers, 9,000+");
+  });
+
   it("counts under the page's other filters, as the list is read (#639)", async () => {
     const watch = feed<WatchEventsResponse>();
     watch.push(snapshot([joined]));

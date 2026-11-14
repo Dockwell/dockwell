@@ -19,6 +19,7 @@ import (
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/cli/apicli"
 	"github.com/dockwell/dockwell/internal/control/agentapi"
+	"github.com/dockwell/dockwell/internal/control/events"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
 	"github.com/dockwell/dockwell/internal/id"
@@ -499,6 +500,21 @@ func testEventCountsKeepToWhatTheCallerMayList(t *testing.T, backend store.Backe
 		if k.GetKind() == dockwellv1.EventKind_EVENT_KIND_ACCESS && k.GetCount() != 0 {
 			t.Errorf("a viewer of default counts %d access events, which are the install's", k.GetCount())
 		}
+	}
+	if res.Msg.GetCapped() {
+		t.Error("a short history counted for a viewer says it stopped short")
+	}
+
+	// A long history is counted for them only as far as its newest entries, and says so (#642's review, N1).
+	was := events.CountCap
+	events.CountCap = 2
+	t.Cleanup(func() { events.CountCap = was })
+	short, err := ev.CountEvents(t.Context(), connect.NewRequest(&dockwellv1.CountEventsRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !short.Msg.GetCapped() || short.Msg.GetTotal() > 2 {
+		t.Errorf("counted past the cap: total %d, capped %v; want 2 at most, capped", short.Msg.GetTotal(), short.Msg.GetCapped())
 	}
 }
 

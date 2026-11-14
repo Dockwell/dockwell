@@ -125,6 +125,10 @@ message CountEventsResponse {
   repeated EventKindCount counts = 1;
   // How many events of every kind together the caller may list.
   int32 total = 2;
+  // The counts stopped at the newest 10,000 events, so each is at least what it
+  // says. Counting what someone below an admin may list places each event, so it
+  // stops there to stay quick (#642's review, N1).
+  bool capped = 3;
 }
 
 // EventKindCount is how many events of one kind there are.

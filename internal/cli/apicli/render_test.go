@@ -1289,3 +1289,12 @@ func TestEventCountsAreATable(t *testing.T) {
 		t.Errorf("rendered %q, want %q", got, want)
 	}
 }
+
+// A count that stopped short says so under its table (#642's review, N1).
+func TestEventCountsSayWhenTheyStoppedShort(t *testing.T) {
+	var b strings.Builder
+	Render(&b, &dockwellv1.CountEventsResponse{Total: 10000, Capped: true}, time.Now())
+	if !strings.Contains(b.String(), "each is at least what it says") {
+		t.Errorf("rendered %q, want it to say the counts stopped short", b.String())
+	}
+}

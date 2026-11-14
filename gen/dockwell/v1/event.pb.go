@@ -361,7 +361,11 @@ type CountEventsResponse struct {
 	// order EventKind has them.
 	Counts []*EventKindCount `protobuf:"bytes,1,rep,name=counts,proto3" json:"counts,omitempty"`
 	// How many events of every kind together the caller may list.
-	Total         int32 `protobuf:"varint,2,opt,name=total,proto3" json:"total,omitempty"`
+	Total int32 `protobuf:"varint,2,opt,name=total,proto3" json:"total,omitempty"`
+	// The counts stopped at the newest 10,000 events, so each is at least what it
+	// says. Counting what someone below an admin may list places each event, so it
+	// stops there to stay quick (#642's review, N1).
+	Capped        bool `protobuf:"varint,3,opt,name=capped,proto3" json:"capped,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -408,6 +412,13 @@ func (x *CountEventsResponse) GetTotal() int32 {
 		return x.Total
 	}
 	return 0
+}
+
+func (x *CountEventsResponse) GetCapped() bool {
+	if x != nil {
+		return x.Capped
+	}
+	return false
 }
 
 // EventKindCount is how many events of one kind there are.
@@ -2144,10 +2155,11 @@ const file_dockwell_v1_event_proto_rawDesc = "" +
 	"resourceId\x12\x19\n" +
 	"\bactor_id\x18\x03 \x01(\tR\aactorId\x125\n" +
 	"\n" +
-	"actor_kind\x18\x04 \x01(\x0e2\x16.dockwell.v1.ActorKindR\tactorKind\"`\n" +
+	"actor_kind\x18\x04 \x01(\x0e2\x16.dockwell.v1.ActorKindR\tactorKind\"x\n" +
 	"\x13CountEventsResponse\x123\n" +
 	"\x06counts\x18\x01 \x03(\v2\x1b.dockwell.v1.EventKindCountR\x06counts\x12\x14\n" +
-	"\x05total\x18\x02 \x01(\x05R\x05total\"R\n" +
+	"\x05total\x18\x02 \x01(\x05R\x05total\x12\x16\n" +
+	"\x06capped\x18\x03 \x01(\bR\x06capped\"R\n" +
 	"\x0eEventKindCount\x12*\n" +
 	"\x04kind\x18\x01 \x01(\x0e2\x16.dockwell.v1.EventKindR\x04kind\x12\x14\n" +
 	"\x05count\x18\x02 \x01(\x05R\x05count\"\xef\x01\n" +
