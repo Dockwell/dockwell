@@ -16808,6 +16808,11 @@ msgstr "<0>{name}</0> 运行的是 {version} 的较旧构建"
 msgid "Extensions"
 msgstr "扩展"
 
+#. placeholder {0}: newest.language
+#. placeholder {1}: newest.version
+msgid "New app on {0} {1}"
+msgstr "在 {0} {1} 上新建应用"
+
 #. placeholder {0}: newest.version
 msgid "New app on {language} {0}"
 msgstr "在 {language} {0} 上新建应用"
@@ -16816,14 +16821,25 @@ msgstr "在 {language} {0} 上新建应用"
 msgid "New website on {0}"
 msgstr "用 {0} 新建网站"
 
+#. placeholder {0}: phpNewest.language
+#. placeholder {1}: phpNewest.version
+msgid "New website on {0} {1}"
+msgstr "用 {0} {1} 新建网站"
+
 msgid "No website yet"
 msgstr "还没有网站"
+
+msgid "Not in use"
+msgstr "未使用"
 
 msgid "Not used"
 msgstr "未使用"
 
 msgid "Other languages run as apps from an image, or from the <0>Catalog</0>, with a domain of their own."
 msgstr "其他语言以来自镜像或<0>应用目录</0>的应用运行，并有各自的域名。"
+
+msgid "Pick one to start a website or an app on it"
+msgstr "选择一个，在其上新建网站或应用"
 
 msgid "Runtimes"
 msgstr "运行环境"

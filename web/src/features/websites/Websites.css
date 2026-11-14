@@ -392,6 +392,100 @@
   .websites-runtimes-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  /* One left over takes the row, rather than half of it beside nothing. */
+  .websites-runtimes-grid > :last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+}
+
+/* The runtimes not in use, a tile each, as Websites-List's Add runtime row has them. */
+.websites-runtimes-free-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+}
+
+.websites-runtimes-free-head h3 {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+}
+
+.websites-runtimes-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(180px, 100%), 1fr));
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-4);
+  list-style: none;
+}
+
+.websites-runtimes-tiles > li {
+  display: flex;
+  min-width: 0;
+}
+
+.websites-runtime-tile {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--ink);
+  text-decoration: none;
+  transition:
+    background-color 120ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    border-color 120ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.websites-runtime-tile:hover {
+  border-color: var(--line-strong);
+  background: var(--surface-sunken);
+}
+
+.websites-runtime-tile:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.websites-runtime-tile .websites-runtime-mark {
+  width: 32px;
+  height: 32px;
+  font-size: 13px;
+}
+
+.websites-runtime-tile > .dw-icon {
+  flex: none;
+  color: var(--ink-muted);
+}
+
+.websites-runtime-tile-text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.websites-runtime-tile-name {
+  font-size: 13.5px;
+  font-weight: 550;
+  line-height: 18px;
+}
+
+.websites-runtime-tile-text .websites-muted {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .websites-runtimes-elsewhere {

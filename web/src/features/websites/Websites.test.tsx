@@ -923,14 +923,14 @@ describe("A PHP website", () => {
     expect(row).toHaveTextContent("PHP 8.3");
     expect(row).toHaveTextContent("/var/www/shop");
     const runtimes = await screen.findByRole("region", { name: "Runtimes" });
+    // A card for each version in use, as Websites-List draws them, and a tile for the rest, as its Add runtime row.
     const cards = within(runtimes).getAllByRole("article");
-    expect(cards).toHaveLength(2);
-    expect(cards[1]).toHaveTextContent("PHP 8.3");
-    expect(cards[1]).toHaveTextContent("8.3.36 · php-fpm");
-    expect(cards[1]).toHaveTextContent("1 website · shop.example.com");
-    expect(cards[0]).toHaveTextContent("Not used");
-    expect(cards[0]).toHaveTextContent("opcache, mysqli, gd, intl, imagick and 2 more");
-    expect(within(cards[0] as HTMLElement).getByRole("link", { name: "New website on 8.4" })).toHaveAttribute(
+    expect(cards).toHaveLength(1);
+    expect(cards[0]).toHaveTextContent("PHP 8.3");
+    expect(cards[0]).toHaveTextContent("8.3.36 · php-fpm");
+    expect(cards[0]).toHaveTextContent("1 website · shop.example.com");
+    expect(cards[0]).toHaveTextContent("Extensionsopcache, mysqli");
+    expect(within(runtimes).getByRole("link", { name: "New website on PHP 8.4" })).toHaveAttribute(
       "href",
       expect.stringMatching(/^\/websites\/new\?php=(8\.4|%228\.4%22)$/),
     );
@@ -955,7 +955,7 @@ describe("A PHP website", () => {
     );
     const runtimes = await screen.findByRole("region", { name: "Runtimes" });
     expect(within(runtimes).getByText(/Other languages run as apps from an image/)).toBeVisible();
-    const card = within(runtimes).getAllByRole("article")[1] as HTMLElement;
+    const card = within(runtimes).getAllByRole("article")[0] as HTMLElement;
     expect(card).toHaveTextContent("shop.example.com runs an older build of 8.3");
     await user.click(within(card).getByRole("button", { name: "Update to 8.3.36" }));
     await waitFor(() => expect(asked?.id).toBe("prj_shop"));
