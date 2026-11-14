@@ -6936,9 +6936,6 @@ msgstr "有更新"
 msgid "Upgrade to {latest}"
 msgstr "升级到 {latest}"
 
-msgid "View app"
-msgstr "查看应用"
-
 #. placeholder {0}: list(also.map(named))
 msgid "also in {0}"
 msgstr "另见于 {0}"

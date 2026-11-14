@@ -459,8 +459,7 @@ function Card({
             </span>
           ) : null}
         </span>
-        <span className="catalog-card-more">
-          <Trans>View app</Trans>
+        <span className="catalog-card-more" aria-hidden="true">
           <Icon name="arrow-right" size={14} />
         </span>
       </span>
