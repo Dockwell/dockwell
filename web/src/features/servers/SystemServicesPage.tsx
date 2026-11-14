@@ -110,6 +110,7 @@ function SystemServices({ server }: { server: Server }) {
   const lastInBar = useRef<HTMLElement | null>(null);
   const bar = useRef<HTMLDivElement>(null);
   // What in the bar has focus, and its going on to something else on the page, which is none of the bar's.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the bar mounts and unmounts with filterable, and each one listens anew
   useEffect(() => {
     const el = bar.current;
     if (!el) return;
