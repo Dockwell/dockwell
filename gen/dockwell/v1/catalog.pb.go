@@ -232,10 +232,11 @@ type ListCatalogEntriesResponse struct {
 	Total int32 `protobuf:"varint,21,opt,name=total,proto3" json:"total,omitempty"`
 	// Pass it as page_token for the next page. Empty on the last page.
 	NextPageToken string `protobuf:"bytes,22,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
-	// The categories of the entries that match every filter but category and the
-	// search, by name, each with how many of those, and how many of them match the
-	// search too: the choices a page of them offers, which stay as words are typed,
-	// and where else the words find something. No one page can say either.
+	// The categories of the entries in the catalog and among the IDs asked for, by
+	// name, each with how many of those, and how many match the search and every
+	// other filter but category, the installed filter too: the choices a page of
+	// them offers, which stay as words are typed and as the installed filter is
+	// turned on, and how many each holds then. No one page can say either.
 	Categories    []*CatalogCategoryCount `protobuf:"bytes,23,rep,name=categories,proto3" json:"categories,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -311,9 +312,11 @@ type CatalogCategoryCount struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The category, such as "databases".
 	Category string `protobuf:"bytes,1,opt,name=category,proto3" json:"category,omitempty"`
-	// How many entries in it match the search, and every filter but category.
+	// How many entries in it match the search, and every filter but category,
+	// the installed filter too.
 	Count int32 `protobuf:"varint,2,opt,name=count,proto3" json:"count,omitempty"`
-	// How many entries it has under every filter but category and the search.
+	// How many entries it has in the catalog and among the IDs asked for, before
+	// the search and the installed filter (#632).
 	Listed        int32 `protobuf:"varint,3,opt,name=listed,proto3" json:"listed,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

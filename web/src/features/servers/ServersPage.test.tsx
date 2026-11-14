@@ -109,6 +109,16 @@ describe("Servers", () => {
     expect(screen.queryByRole("complementary")).toBeNull();
   });
 
+  it("opens on the server that needs a look first, as the Overview names it: a degraded one before one waiting", async () => {
+    // By name, the one waiting for its agent comes first; by need, the live one that can't read Docker does.
+    const { router } = renderServers([
+      web1,
+      aServer({ id: "srv_a", name: "a-waits", connection: Connection.PENDING }),
+      web2({ dockerUnreadableSince: timestampFromDate(new Date()) }),
+    ]);
+    await waitFor(() => expect(router.state.location.search).toEqual({ server: "srv_2" }));
+  });
+
   it("inspects the server that needs a look, says why, and closes", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     vi.setSystemTime(new Date(2026, 10, 8, 9, 30));

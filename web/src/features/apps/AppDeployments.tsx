@@ -232,7 +232,7 @@ export function AppDeployments() {
             <span className="dw-cell deploy-who">
               <span className="deploy-who-name">
                 <Icon name={triggerIcon(rev)} size={14} />
-                <span className="deploy-clip" title={name}>
+                <span className="deploy-who-text" title={name}>
                   {name || t`Someone`}
                 </span>
               </span>

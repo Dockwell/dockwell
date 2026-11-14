@@ -376,11 +376,12 @@ export function DomainsPage({
     <Page
       title={t`Domains`}
       back="/more"
-      // The line is held while they load, so the list doesn't move when it lands.
+      // The line is held while they load, so the list doesn't move when it lands; with none, nothing will,
+      // and the empty state sits under the title as Websites' does.
       lead={
-        pending || count === 0 ? (
+        pending ? (
           <span aria-hidden="true">&nbsp;</span>
-        ) : (
+        ) : count === 0 ? undefined : (
           <>
             {[total, trouble].filter(Boolean).join(" · ")}
             {showFirst ? <> {showFirst}</> : null}

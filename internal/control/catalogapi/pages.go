@@ -222,10 +222,15 @@ func (idx *catalogIndex) page(req *dockwellv1.ListCatalogEntriesRequest, install
 				continue
 			}
 		}
-		if len(ids) > 0 && !ids[id] || req.GetInstalled() && installed[id] == 0 {
+		if len(ids) > 0 && !ids[id] {
 			continue
 		}
+		// What there is to choose from stays as the installed filter turns on, so the
+		// choices never all go with one category installed (#632).
 		listed[in.entry.GetCategory()]++
+		if req.GetInstalled() && installed[id] == 0 {
+			continue
+		}
 		if query != "" && !strings.Contains(in.wordsIn(req.GetLanguage()), query) && !named[in.entry.GetCategory()] {
 			continue
 		}

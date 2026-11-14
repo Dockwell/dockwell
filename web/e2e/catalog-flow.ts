@@ -91,7 +91,7 @@ export async function catalogFlow(page: Page, { origin, step, shoot, docker, cat
   await page.getByRole("link", { name: /^PostgreSQL\b/ }).waitFor({ state: "hidden" });
   await page.getByRole("link", { name: /^Cloudflare Tunnel\b/ }).waitFor();
   if (!page.url().includes("category=networking")) fail(`the URL doesn't keep the category: ${page.url()}`);
-  await chips.getByRole("button", { name: "All" }).click();
+  await chips.getByRole("button", { name: "All", exact: true }).click();
   await page.getByRole("textbox", { name: "Search apps" }).fill("relational");
   await page.getByRole("link", { name: /^Nginx Proxy Manager\b/ }).waitFor({ state: "hidden" });
   await page.getByRole("link", { name: /^MySQL\b/ }).waitFor();

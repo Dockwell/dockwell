@@ -38,7 +38,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
-import { anApp, ENV, places, running, SERVER } from "../../test/apps";
+import { anApp, ENV, places, projectPlaces, running, SERVER } from "../../test/apps";
 import { authState, mira } from "../../test/auth";
 import { webPlanned } from "../../test/changes";
 import { expectNamesLinked } from "../../test/links";
@@ -259,6 +259,46 @@ describe("the databases list", () => {
     expect(rows[0]).toHaveTextContent("No volume");
     expect(screen.getByText("2 on hz-1")).toBeVisible();
     await expectAccessible(container);
+  });
+
+  it("says where each is in the backups too, where several in different projects share a name", async () => {
+    renderAt(
+      "/databases",
+      api(
+        [
+          aDatabase({ id: "svc_shop", resource: { kind: "service", scope: "env_shop", name: "db" } }),
+          aDatabase({ id: "svc_blog", resource: { kind: "service", scope: "env_blog", name: "db" } }),
+        ],
+        { resources: projectPlaces("shop", "blog") },
+      ),
+    );
+    const backups = await screen.findByRole("region", { name: "Backups" });
+    await waitFor(() =>
+      expect([...backups.querySelectorAll(".databases-fact-place")].map((p) => p.textContent)).toEqual([
+        "shop",
+        "blog",
+      ]),
+    );
+  });
+
+  it("says where each is on a phone too, where several in different projects share a name", async () => {
+    onPhone();
+    renderAt(
+      "/databases",
+      api(
+        [
+          aDatabase({ id: "svc_shop", resource: { kind: "service", scope: "env_shop", name: "db" } }),
+          aDatabase({ id: "svc_blog", resource: { kind: "service", scope: "env_blog", name: "db" } }),
+        ],
+        { resources: projectPlaces("shop", "blog") },
+      ),
+    );
+    await waitFor(() => {
+      const rows = [...document.querySelectorAll(".databases-phone-row")];
+      expect(
+        rows.map((r) => (r.textContent?.includes("shop") ? "shop" : r.textContent?.includes("blog") ? "blog" : "")),
+      ).toEqual(["shop", "blog"]);
+    });
   });
 
   it("names each app beside a database, and each server it's on, as a link to its page", async () => {

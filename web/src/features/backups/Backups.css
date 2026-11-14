@@ -76,6 +76,15 @@
   white-space: normal;
 }
 
+/* Why one failed, two lines at most in a list. */
+.backup-why.is-reason {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
 /* How a backup's restore drill went (ADR 0068): a failure in red, the rest as facts,
    each with its check as a link-sized action after it. */
 .backup-drill.is-failed {

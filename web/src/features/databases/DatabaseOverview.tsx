@@ -299,7 +299,7 @@ function Numbers({ db, read }: { db: Database; read: DatabaseReading | undefined
   const time = useTimeWords();
   const phone = useMediaQuery(PHONE_QUERY);
   const locale = i18n.locale;
-  const none = "–";
+  const none = "—";
   const sql = speaksSQL(db.engine);
   const connections = Number(read?.connections ?? 0n);
   const most = Number(read?.maxConnections ?? 0n);

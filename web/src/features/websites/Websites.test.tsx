@@ -13,6 +13,7 @@ import {
   FileType,
   HealthState,
   PlanAction,
+  Role,
   ServiceSchema,
   UpdateCheck,
   UpdateProblem,
@@ -30,6 +31,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { expectAccessible } from "../../test/a11y";
 import { aHealth, anApp, places, SERVER } from "../../test/apps";
+import { authState, mira } from "../../test/auth";
 import { moved, watched } from "../../test/changes";
 import { type Api, feed, onPhone, renderAt } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
@@ -923,18 +925,40 @@ describe("A PHP website", () => {
     expect(row).toHaveTextContent("PHP 8.3");
     expect(row).toHaveTextContent("/var/www/shop");
     const runtimes = await screen.findByRole("region", { name: "Runtimes" });
+    // A card for each version in use, as Websites-List draws them, and a tile for the rest, as its Add runtime row.
     const cards = within(runtimes).getAllByRole("article");
-    expect(cards).toHaveLength(2);
-    expect(cards[1]).toHaveTextContent("PHP 8.3");
-    expect(cards[1]).toHaveTextContent("8.3.36 · php-fpm");
-    expect(cards[1]).toHaveTextContent("1 website · shop.example.com");
-    expect(cards[0]).toHaveTextContent("Not used");
-    expect(cards[0]).toHaveTextContent("opcache, mysqli, gd, intl, imagick and 2 more");
-    expect(within(cards[0] as HTMLElement).getByRole("link", { name: "New website on 8.4" })).toHaveAttribute(
+    expect(cards).toHaveLength(1);
+    expect(cards[0]).toHaveTextContent("PHP 8.3");
+    expect(cards[0]).toHaveTextContent("8.3.36 · php-fpm");
+    expect(cards[0]).toHaveTextContent("1 website · shop.example.com");
+    expect(cards[0]).toHaveTextContent("Extensionsopcache, mysqli");
+    expect(within(runtimes).getByRole("link", { name: "New website on PHP 8.4" })).toHaveAttribute(
       "href",
       expect.stringMatching(/^\/websites\/new\?php=(8\.4|%228\.4%22)$/),
     );
     await expectAccessible(container);
+  });
+
+  it("names a tile by what it starts, with its versions as its description", async () => {
+    onWideScreen();
+    renderAt("/websites", api([shop]));
+    const runtimes = await screen.findByRole("region", { name: "Runtimes" });
+    const tile = within(runtimes).getByRole("link", { name: "New website on PHP 8.4" });
+    expect(tile).toHaveAccessibleDescription("8.4");
+    expect(within(runtimes).getByText("Pick one to start a website or an app on it")).toBeVisible();
+  });
+
+  it("leaves the tiles in place for a viewer, off, with why, and says nothing of picking one", async () => {
+    onWideScreen();
+    renderAt("/websites", {
+      ...api([shop]),
+      auth: { getAuthState: () => authState({ user: { ...mira, role: Role.VIEWER } }) },
+    });
+    const runtimes = await screen.findByRole("region", { name: "Runtimes" });
+    const tile = within(runtimes).getByRole("link", { name: "New website on PHP 8.4" });
+    await waitFor(() => expect(tile).toHaveAttribute("aria-disabled", "true"));
+    expect(tile).toHaveAccessibleDescription(/^8\.4 Only an admin or the owner/);
+    expect(within(runtimes).queryByText("Pick one to start a website or an app on it")).toBeNull();
   });
 
   it("offers to move a website on an older build of its version to the runtime's", async () => {
@@ -955,7 +979,7 @@ describe("A PHP website", () => {
     );
     const runtimes = await screen.findByRole("region", { name: "Runtimes" });
     expect(within(runtimes).getByText(/Other languages run as apps from an image/)).toBeVisible();
-    const card = within(runtimes).getAllByRole("article")[1] as HTMLElement;
+    const card = within(runtimes).getAllByRole("article")[0] as HTMLElement;
     expect(card).toHaveTextContent("shop.example.com runs an older build of 8.3");
     await user.click(within(card).getByRole("button", { name: "Update to 8.3.36" }));
     await waitFor(() => expect(asked?.id).toBe("prj_shop"));

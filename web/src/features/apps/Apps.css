@@ -586,6 +586,11 @@
   grid-column: 1 / -1;
 }
 
+/* One between two that take the row, as Automatic updates is between Volumes and the danger zone, takes it too, rather than half a row beside nothing. */
+.app-settings-anchor.is-wide + .app-settings-anchor:not(.is-wide):has(+ .app-settings-anchor.is-wide) {
+  grid-column: 1 / -1;
+}
+
 .app-settings-image {
   overflow-wrap: anywhere;
 }
@@ -2034,14 +2039,27 @@
 
 .deploy-who-name {
   display: inline-flex;
-  align-items: center;
+  align-items: flex-start;
   gap: var(--space-1);
   min-width: 0;
 }
 
 .deploy-who-name .dw-icon {
   flex: none;
+  margin-top: 3px;
   color: var(--ink-muted);
+}
+
+/* Who, on two lines at most, as App-Deployments' trigger takes two, rather than "the CLI on we…" on one. */
+.deploy-who-text {
+  display: -webkit-box;
+  min-width: 0;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .deploy-who-via {
