@@ -7779,6 +7779,9 @@ msgstr "Dockwell 已放开 {subject}"
 msgid "Dockwell made this change to roll back a failed one."
 msgstr "Dockwell 进行此更改以回滚一次失败的更改。"
 
+msgid "Dockwell serves {name}'s domains on {server}"
+msgstr "Dockwell 已在 {server} 上接管 {name} 的域名"
+
 msgid "Each app rolls back to what it runs now if this fails"
 msgstr "如果失败，每个应用都会回滚到当前运行的版本"
 
@@ -7787,6 +7790,12 @@ msgstr "正在设置 {name} 在 {server} 上开机启动"
 
 msgid "Everything this plan asks for is already as it says, so there is nothing to apply."
 msgstr "此计划要求的一切都已就绪，没有需要应用的内容。"
+
+msgid "Giving ports 80 and 443 back to {name} on {server}"
+msgstr "正在 {server} 上把 80 和 443 端口交还给 {name}"
+
+msgid "Handing over {name}'s domains on {server}"
+msgstr "正在 {server} 上接管 {name} 的域名"
 
 msgid "How this works"
 msgstr "工作原理"
@@ -8107,6 +8116,9 @@ msgstr "{name} 已运行完毕"
 msgid "{name} runs again on {server}"
 msgstr "{name} 已在 {server} 上重新运行"
 
+msgid "{name} serves its domains again on {server}"
+msgstr "{name} 已在 {server} 上重新为其域名提供服务"
+
 msgid "{name} starts at boot on {server}"
 msgstr "{name} 会在 {server} 上开机启动"
 
@@ -8273,6 +8285,9 @@ msgstr "Dockwell 因为失败的内容做了这次变更"
 msgid "First, so each is down for a moment until Dockwell's copy starts on the same volumes"
 msgstr "先执行，因此每个应用会短暂停止，直到 Dockwell 的副本在相同的卷上启动"
 
+msgid "Just before the stop, the agent checks {chosen} again, and leaves it running if anything changed"
+msgstr "停止前，代理会再次检查 {chosen}，如有任何变化则保持其运行"
+
 msgid "Runs once Dockwell's copies are gone, as many replicas as each had"
 msgstr "在 Dockwell 的副本删除后运行，各自恢复原来的副本数"
 
@@ -8288,12 +8303,24 @@ msgstr "将 Swarm 服务 {services} 缩减到零个副本"
 msgid "Start {name} again on <0>{server}</0>"
 msgstr "在 <0>{server}</0> 上重新启动 {name}"
 
+msgid "Start {proxy} again on <0>{server}</0>"
+msgstr "在 <0>{server}</0> 上重新启动 {proxy}"
+
+msgid "Starts once the routes that hold ports 80 and 443 are gone"
+msgstr "在占用 80 和 443 端口的路由删除后启动"
+
 #. placeholder {0}: list(panel.parts.map((p) => p.name))
 msgid "Starts {0} as each stood before the stop"
 msgstr "按停止前各自的状态重新启动 {0}"
 
+msgid "Stays stopped when Docker or {server} restarts, and its domains come as the routes below"
+msgstr "Docker 或 {server} 重启后仍保持停止，其域名改由下方的路由提供服务"
+
 msgid "Stop {name} on <0>{server}</0>"
 msgstr "停止 <0>{server}</0> 上的 {name}"
+
+msgid "Stop {proxy} on <0>{server}</0>, so Dockwell takes ports 80 and 443"
+msgstr "停止 <0>{server}</0> 上的 {proxy}，由 Dockwell 接管 80 和 443 端口"
 
 msgid "Stops {containers}, which stay stopped when Docker or {server} restarts"
 msgstr "停止 {containers}，Docker 或 {server} 重启后它们仍保持停止"
@@ -9147,6 +9174,9 @@ msgstr "没有做过备份,数据保持现状"
 
 msgid "No branch or tag is at this commit now"
 msgstr "当前没有分支或标签指向这个提交"
+
+msgid "No login or address limit found on the old proxy"
+msgstr "在旧代理上未发现登录或地址限制"
 
 #. placeholder {0}: server.serverName
 msgid "No rule allows the WireGuard tunnel {tunnels} on {0}"
@@ -11298,6 +11328,30 @@ msgstr "{0}，超过单次上传上限 {limit}。请通过 SSH 复制。"
 msgid "{entries, plural, one {Uploaded, and unpacked # item into {into}} other {Uploaded, and unpacked # items into {into}}}"
 msgstr "{entries, plural, other {已上传，并将 # 项解压到 {into}}}"
 
+msgid "Checked {scanned}, and asked the proxy for each."
+msgstr "已检查{scanned}，并逐个通过代理发出请求。"
+
+msgid "Checking each domain through {name}'s proxy"
+msgstr "正在通过 {name} 的代理检查每个域名"
+
+msgid "Couldn't check {name}'s domains"
+msgstr "无法检查 {name} 的域名"
+
+msgid "Dockwell routes each of {name}'s domains already."
+msgstr "Dockwell 已为 {name} 的每个域名建立路由。"
+
+msgid "Each you choose comes as a route once the proxy stops; the rest stop answering"
+msgstr "代理停止后，你选择的每个域名都会成为路由；其余域名将不再响应"
+
+msgid "Hand over {name}'s domains"
+msgstr "接管 {name} 的域名"
+
+msgid "No login or address limit found"
+msgstr "未发现登录或地址限制"
+
+msgid "Nothing left to hand over"
+msgstr "没有可接管的域名"
+
 msgid "1Panel isn't on this server"
 msgstr "此服务器上没有 1Panel"
 
@@ -11365,6 +11419,9 @@ msgstr "稍后，待 Dockwell 支持计划任务"
 msgid "Later, once Dockwell has websites"
 msgstr "稍后，待 Dockwell 支持网站"
 
+msgid "Later, once {panel}'s proxy hands over ports 80 and 443"
+msgstr "稍后，在 {panel} 的代理交出 80 和 443 端口之后"
+
 msgid "Move in from 1Panel"
 msgstr "从 1Panel 迁入"
 
@@ -11403,6 +11460,9 @@ msgstr "无法读取 {name} 运行的内容"
 msgid "Dockwell reads what {name} runs, read-only, and changes nothing until you apply a plan."
 msgstr "Dockwell 只读地读取 {name} 运行的内容，在你应用计划之前不做任何改变。"
 
+msgid "Hand over ports 80 and 443"
+msgstr "接管 80 和 443 端口"
+
 msgid "It was read by its labels and folders all the same. Check what it found before you apply."
 msgstr "它仍按标签和文件夹读取。应用前请检查读取到的内容。"
 
@@ -11414,6 +11474,9 @@ msgstr "读取 {name} 运行的内容"
 
 msgid "Start {name} again"
 msgstr "重新启动 {name}"
+
+msgid "Start {proxy} again"
+msgstr "重新启动 {proxy}"
 
 msgid "Stop {name}"
 msgstr "停止 {name}"

@@ -3,6 +3,7 @@
 package control
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -124,7 +125,7 @@ func (f *fullServer) addServerNamed(t *testing.T, name string, more func() []res
 	if root := f.onePanelRoot; root != "" {
 		s.onePanel = func(ctx context.Context) (*agentv1.ReadOnePanelResult, error) { return onepanel.Read(ctx, root) }
 	}
-	s.panels = panels.Reader{Docker: client, Root: f.panelsRoot}.Read
+	s.panels = f.panelReader(client).Read
 	s.connect(t, f)
 	f.lastDocker = s
 	return e
@@ -1478,4 +1479,10 @@ func applyConfirmed(t *testing.T, c dockwellv1connect.ChangeServiceClient, ch *d
 	if got := waitWatch(t, w).last(); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
 		t.Fatalf("the change ended %v: %s", got.GetState(), got.GetError())
 	}
+}
+
+// panelReader is the next Docker server's reader of Coolify and Dokploy, whose
+// handover checks ask f.panelsProbe, or a port nothing listens on.
+func (f *fullServer) panelReader(client *docker.Client) panels.Reader {
+	return panels.Reader{Docker: client, Root: f.panelsRoot, ProbeAddr: cmp.Or(f.panelsProbe, "127.0.0.1:1")}
 }

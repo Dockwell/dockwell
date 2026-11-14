@@ -1271,4 +1271,47 @@ func TestAPanelsStopSaysWhatStopsAndWhatStays(t *testing.T) {
 	if !strings.Contains(out, "Starts Dokploy's own containers again on web-1, each as it stood before the stop: dokploy.") {
 		t.Errorf("the start reads %q", out)
 	}
+	proxy := []*dockwellv1.HostPanelPart{{Name: "coolify-proxy", WasRunning: true, WasRestart: "always"}}
+	out = plan(&dockwellv1.HostPanel{Kind: "coolify", Proxy: true, Parts: proxy})
+	if !strings.Contains(out, "Stops Coolify's proxy, coolify-proxy, first, so Dockwell's ingress takes ports 80 and 443 on web-1 for the routes after it.") ||
+		strings.Contains(out, "nothing of Coolify is deleted") {
+		t.Errorf("the handover reads %q", out)
+	}
+	out = plan(&dockwellv1.HostPanel{Kind: "coolify", Proxy: true, Start: true, Parts: proxy})
+	if !strings.Contains(out, "Starts Coolify's proxy, coolify-proxy, again on web-1, once the routes it hands back ports 80 and 443 from are gone.") {
+		t.Errorf("the handover's undo reads %q", out)
+	}
+}
+
+// A domain check says which can be handed over, with what the proxy answered, and
+// which stay behind, each with why; a proxy's stop names the domains it checks
+// again.
+func TestADomainCheckSaysWhatCanBeHandedOver(t *testing.T) {
+	var buf bytes.Buffer
+	Render(&buf, &dockwellv1.CheckPanelDomainsResponse{Domains: []*dockwellv1.PanelDomainCheck{
+		{Domain: "blog.example.com", Scanned: "labels on 4 containers and 0 services, and 2 files in the proxy's mounts", Probes: []*dockwellv1.PanelProbe{{Path: "/", Answer: "200", Open: true}}},
+		{Domain: "wiki.example.com", Held: "a request for / through the proxy answered 401"},
+	}}, time.Now())
+	out := buf.String()
+	for _, says := range []string{
+		"No login or address limit found, so each can be handed over (dockwell import domains --domains):\n  blog.example.com  / 200\n",
+		"Stays behind:\n  wiki.example.com  a request for / through the proxy answered 401\n",
+		"Checked labels on 4 containers and 0 services, and 2 files in the proxy's mounts, and asked the proxy for each.\n",
+	} {
+		if !strings.Contains(out, says) {
+			t.Errorf("the check reads %q, not %q", out, says)
+		}
+	}
+	buf.Reset()
+	PlanView(&buf, &dockwellv1.Plan{Servers: []*dockwellv1.ServerPlan{{
+		ServerName: "web-1",
+		Steps: []*dockwellv1.PlanStep{{
+			Resource: &dockwellv1.ResourceRef{Kind: "server.host", Name: "host"},
+			Action:   dockwellv1.PlanAction_PLAN_ACTION_UPDATE,
+			Panel:    &dockwellv1.HostPanel{Kind: "coolify", Proxy: true, Domains: []string{"blog.example.com"}, Parts: []*dockwellv1.HostPanelPart{{Name: "coolify-proxy", WasRunning: true, WasRestart: "always"}}},
+		}},
+	}}})
+	if !strings.Contains(buf.String(), "Just before the stop, the agent checks blog.example.com again, and leaves the proxy running where anything changed since this plan.") {
+		t.Errorf("the proxy's stop reads %q", buf.String())
+	}
 }

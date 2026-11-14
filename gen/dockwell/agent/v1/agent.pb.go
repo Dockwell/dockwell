@@ -1989,6 +1989,12 @@ type Hello struct {
 	// True when the agent stops and starts the own containers and services of
 	// Coolify or Dokploy as a step of a change (DesiredResource.panel).
 	StopsPanels bool `protobuf:"varint,332,opt,name=stops_panels,json=stopsPanels,proto3" json:"stops_panels,omitempty"`
+	// True when the agent checks a panel's domains for a handover (ADR 0089): it
+	// reads them strictly, as Panel.proxy_left says, answers
+	// ReadPanelCall.check_domains, and checks the chosen domains again before a
+	// stop of the proxy, refusing where its plan's digest differs. The control
+	// plane hands over no domain through an agent that doesn't.
+	ChecksPanelDomains bool `protobuf:"varint,334,opt,name=checks_panel_domains,json=checksPanelDomains,proto3" json:"checks_panel_domains,omitempty"`
 	// True when the agent makes Swarm-run apps again safely (ADR 0089): it waits
 	// on Swarm's tasks, for their grace period, until each is over before a copy
 	// or a scale up starts, and takes a scaled service off its ports and
@@ -2248,6 +2254,13 @@ func (x *Hello) GetReadsPanels() bool {
 func (x *Hello) GetStopsPanels() bool {
 	if x != nil {
 		return x.StopsPanels
+	}
+	return false
+}
+
+func (x *Hello) GetChecksPanelDomains() bool {
+	if x != nil {
+		return x.ChecksPanelDomains
 	}
 	return false
 }
@@ -7712,7 +7725,11 @@ func (x *ReadOnePanelResult) GetNotHere() string {
 type ReadPanelCall struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Which panel to read.
-	Panel         v1.PanelKind `protobuf:"varint,1,opt,name=panel,proto3,enum=dockwell.v1.PanelKind" json:"panel,omitempty"`
+	Panel v1.PanelKind `protobuf:"varint,1,opt,name=panel,proto3,enum=dockwell.v1.PanelKind" json:"panel,omitempty"`
+	// True to check each domain its proxy serves for a handover, as
+	// Panel.checks has it: a scan of every label and the proxy's mounts, and a
+	// request through the proxy for each.
+	CheckDomains  bool `protobuf:"varint,2,opt,name=check_domains,json=checkDomains,proto3" json:"check_domains,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -7752,6 +7769,13 @@ func (x *ReadPanelCall) GetPanel() v1.PanelKind {
 		return x.Panel
 	}
 	return v1.PanelKind(0)
+}
+
+func (x *ReadPanelCall) GetCheckDomains() bool {
+	if x != nil {
+		return x.CheckDomains
+	}
+	return false
 }
 
 // ReadPanelResult is what the panel runs, or why there's nothing to read.
@@ -11493,9 +11517,17 @@ type PanelAction struct {
 	// How each stood before a stop, as its plan kept it: what a start puts back,
 	// and what a stop that resumes keeps.
 	Parts []*v1.HostPanelPart `protobuf:"bytes,4,rep,name=parts,proto3" json:"parts,omitempty"`
+	// True to act on the panel's proxy alone, as its domains come over to
+	// Dockwell's ingress; otherwise on its own containers, never its proxy.
+	Proxy bool `protobuf:"varint,5,opt,name=proxy,proto3" json:"proxy,omitempty"`
 	// True to act on Swarm services of what the panel runs, which parts name, as
 	// each is made again in Dockwell; never the panel's own.
-	Apps          bool `protobuf:"varint,6,opt,name=apps,proto3" json:"apps,omitempty"`
+	Apps bool `protobuf:"varint,6,opt,name=apps,proto3" json:"apps,omitempty"`
+	// For a stop of the proxy: the domains a person chose to hand over, and the
+	// digest of what was checked of them as the plan was made. The agent checks
+	// them again before the proxy stops, and refuses where the digest differs.
+	Domains       []string `protobuf:"bytes,7,rep,name=domains,proto3" json:"domains,omitempty"`
+	Evidence      string   `protobuf:"bytes,8,opt,name=evidence,proto3" json:"evidence,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -11558,11 +11590,32 @@ func (x *PanelAction) GetParts() []*v1.HostPanelPart {
 	return nil
 }
 
+func (x *PanelAction) GetProxy() bool {
+	if x != nil {
+		return x.Proxy
+	}
+	return false
+}
+
 func (x *PanelAction) GetApps() bool {
 	if x != nil {
 		return x.Apps
 	}
 	return false
+}
+
+func (x *PanelAction) GetDomains() []string {
+	if x != nil {
+		return x.Domains
+	}
+	return nil
+}
+
+func (x *PanelAction) GetEvidence() string {
+	if x != nil {
+		return x.Evidence
+	}
+	return ""
 }
 
 // DatabaseDump is one database a backup step dumps alone, under the ID the control
@@ -14415,8 +14468,7 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x05Heard\x12\x12\n" +
 	"\x04last\x18\x01 \x01(\tR\x04last\"\n" +
 	"\n" +
-	"\bDraining\"\xf0\n" +
-	"\n" +
+	"\bDraining\"\xa3\v\n" +
 	"\x05Hello\x12,\n" +
 	"\x05build\x18\x01 \x01(\v2\x16.dockwell.v1.BuildInfoR\x05build\x12:\n" +
 	"\tinventory\x18\x02 \x01(\v2\x1c.dockwell.v1.ServerInventoryR\tinventory\x12\x14\n" +
@@ -14444,7 +14496,8 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x0fregistry_logins\x18\xba\x02 \x01(\bR\x0eregistryLogins\x12\"\n" +
 	"\fbuild_logins\x18\xbc\x02 \x01(\bR\vbuildLogins\x12\"\n" +
 	"\freads_panels\x18\xca\x02 \x01(\bR\vreadsPanels\x12\"\n" +
-	"\fstops_panels\x18\xcc\x02 \x01(\bR\vstopsPanels\x12-\n" +
+	"\fstops_panels\x18\xcc\x02 \x01(\bR\vstopsPanels\x121\n" +
+	"\x14checks_panel_domains\x18\xce\x02 \x01(\bR\x12checksPanelDomains\x12-\n" +
 	"\x12remakes_swarm_apps\x18\xcf\x02 \x01(\bR\x10remakesSwarmApps\x129\n" +
 	"\adesired\x18\xa0\x01 \x01(\v2\x1e.dockwell.agent.v1.DesiredHeldR\adesired\x12\"\n" +
 	"\fown_settings\x18\xac\x02 \x01(\bR\vownSettings\x12\x15\n" +
@@ -14776,9 +14829,10 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x10ReadOnePanelCall\"\\\n" +
 	"\x12ReadOnePanelResult\x12+\n" +
 	"\x05found\x18\x01 \x01(\v2\x15.dockwell.v1.OnePanelR\x05found\x12\x19\n" +
-	"\bnot_here\x18\x02 \x01(\tR\anotHere\"=\n" +
+	"\bnot_here\x18\x02 \x01(\tR\anotHere\"b\n" +
 	"\rReadPanelCall\x12,\n" +
-	"\x05panel\x18\x01 \x01(\x0e2\x16.dockwell.v1.PanelKindR\x05panel\"V\n" +
+	"\x05panel\x18\x01 \x01(\x0e2\x16.dockwell.v1.PanelKindR\x05panel\x12#\n" +
+	"\rcheck_domains\x18\x02 \x01(\bR\fcheckDomains\"V\n" +
 	"\x0fReadPanelResult\x12(\n" +
 	"\x05found\x18\x01 \x01(\v2\x12.dockwell.v1.PanelR\x05found\x12\x19\n" +
 	"\bnot_here\x18\x02 \x01(\tR\anotHere\"k\n" +
@@ -15050,13 +15104,16 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\rregistry_auth\x18\xb6\x02 \x01(\fR\fregistryAuth\x121\n" +
 	"\x14build_registry_auths\x18\xbb\x02 \x01(\fR\x12buildRegistryAuths\x125\n" +
 	"\x05panel\x18\xcd\x02 \x01(\v2\x1e.dockwell.agent.v1.PanelActionR\x05panelB\a\n" +
-	"\x05_spec\"\xb4\x01\n" +
+	"\x05_spec\"\x80\x02\n" +
 	"\vPanelAction\x12\x1b\n" +
 	"\tchange_id\x18\x01 \x01(\tR\bchangeId\x12,\n" +
 	"\x05panel\x18\x02 \x01(\x0e2\x16.dockwell.v1.PanelKindR\x05panel\x12\x14\n" +
 	"\x05start\x18\x03 \x01(\bR\x05start\x120\n" +
-	"\x05parts\x18\x04 \x03(\v2\x1a.dockwell.v1.HostPanelPartR\x05parts\x12\x12\n" +
-	"\x04apps\x18\x06 \x01(\bR\x04apps\"G\n" +
+	"\x05parts\x18\x04 \x03(\v2\x1a.dockwell.v1.HostPanelPartR\x05parts\x12\x14\n" +
+	"\x05proxy\x18\x05 \x01(\bR\x05proxy\x12\x12\n" +
+	"\x04apps\x18\x06 \x01(\bR\x04apps\x12\x18\n" +
+	"\adomains\x18\a \x03(\tR\adomains\x12\x1a\n" +
+	"\bevidence\x18\b \x01(\tR\bevidence\"G\n" +
 	"\fDatabaseDump\x12\x1b\n" +
 	"\tbackup_id\x18\x01 \x01(\tR\bbackupId\x12\x1a\n" +
 	"\bdatabase\x18\x02 \x01(\tR\bdatabase\"w\n" +

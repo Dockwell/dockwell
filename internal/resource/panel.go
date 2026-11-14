@@ -2,7 +2,14 @@
 
 package resource
 
-import "context"
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
+	"slices"
+	"strings"
+)
 
 // Stopping a panel Dockwell imported from (ADR 0089): a change that stops Coolify's
 // or Dokploy's own containers and services, as an edit of the server's host that
@@ -24,6 +31,10 @@ type PanelAsked struct {
 	Kind string
 	// Start starts again what a stop stopped, as Parts say each stood before it.
 	Start bool
+	// Proxy acts on the panel's proxy alone, which holds ports 80 and 443, as its
+	// domains come over to Dockwell's ingress; otherwise on the panel's own
+	// containers, never its proxy.
+	Proxy bool `json:",omitempty"`
 	// Apps acts on Swarm services of what the panel runs, which Parts name, as each
 	// is made again in Dockwell: a stop scales each to none as Dockwell's copy
 	// starts, and its undo back.
@@ -31,6 +42,11 @@ type PanelAsked struct {
 	// Parts are what to start, and how each stood, for a start: what an undo puts
 	// back. A stop finds them itself.
 	Parts []PanelPart `json:",omitempty"`
+	// Domains and Evidence are, for a stop of the proxy, the domains a person chose
+	// to hand over and PanelEvidence of what was checked of them as the plan was
+	// made: the agent checks them again before the proxy stops.
+	Domains  []string `json:",omitempty"`
+	Evidence string   `json:",omitempty"`
 }
 
 // Panel is what stopping or starting a panel does, as its agent planned it.
@@ -39,6 +55,8 @@ type Panel struct {
 	Kind string
 	// Start says it starts them; otherwise it stops them.
 	Start bool
+	// Proxy says it acts on the panel's proxy alone, as its domains come over.
+	Proxy bool `json:",omitempty"`
 	// Apps says it acts on Swarm services of what the panel runs.
 	Apps bool `json:",omitempty"`
 	// Parts are each of the panel's own containers or services the step acts on,
@@ -47,6 +65,72 @@ type Panel struct {
 	// Stays is the panel's proxy, which goes on running: it serves the domains of
 	// what was taken on until those come as routes, a step of its own.
 	Stays string `json:",omitempty"`
+	// Domains and Evidence are, for a stop of the proxy, the domains a person chose
+	// to hand over and the digest of what was checked of them, as PanelAsked has.
+	Domains  []string `json:",omitempty"`
+	Evidence string   `json:",omitempty"`
+}
+
+// PanelCheck is what was checked of a domain a panel's proxy serves, before a
+// handover (ADR 0089): where else a rule mentions it, what answered a request
+// through the proxy for each path, and why it stays behind, if it does.
+type PanelCheck struct {
+	Domain   string
+	Mentions []string
+	Probes   []PanelProbe
+	Held     string
+	// Scanned is what the scan read, for people; it's no part of the evidence.
+	Scanned string
+}
+
+// PanelProbe is a request through a panel's proxy for a domain's path.
+type PanelProbe struct {
+	Path   string
+	Answer string
+	// Open says the answer shows no login or address limit.
+	Open bool
+}
+
+// PanelEvidence is a digest of what was checked of each of domains: the plan of a
+// handover keeps it, and the agent computes it again just before the proxy stops,
+// refusing where it differs. An open answer counts as open alone, so an app that
+// answers 200 then 404 reads the same; what held a domain counts as said. A domain
+// with no check reads as missing.
+func PanelEvidence(checks []PanelCheck, domains []string) string {
+	by := map[string]PanelCheck{}
+	for _, c := range checks {
+		by[strings.ToLower(c.Domain)] = c
+	}
+	chosen := slices.Clone(domains)
+	for i := range chosen {
+		chosen[i] = strings.ToLower(chosen[i])
+	}
+	slices.Sort(chosen)
+	chosen = slices.Compact(chosen)
+	h := sha256.New()
+	for _, d := range chosen {
+		c, ok := by[d]
+		if !ok {
+			fmt.Fprintf(h, "domain %q missing\n", d)
+			continue
+		}
+		fmt.Fprintf(h, "domain %q held %q\n", d, c.Held)
+		mentions := slices.Clone(c.Mentions)
+		slices.Sort(mentions)
+		for _, m := range mentions {
+			fmt.Fprintf(h, "  mention %q\n", m)
+		}
+		probes := slices.Clone(c.Probes)
+		slices.SortFunc(probes, func(a, b PanelProbe) int { return strings.Compare(a.Path, b.Path) })
+		for _, p := range probes {
+			if p.Open {
+				fmt.Fprintf(h, "  probe %q open\n", p.Path)
+			} else {
+				fmt.Fprintf(h, "  probe %q %q\n", p.Path, p.Answer)
+			}
+		}
+	}
+	return hex.EncodeToString(h.Sum(nil))[:32]
 }
 
 // PanelPart is one of a panel's own containers or Swarm services.
@@ -103,7 +187,7 @@ func (p Panel) Undone() (PanelAsked, bool) {
 	if p.Start || len(p.Parts) == 0 {
 		return PanelAsked{}, false
 	}
-	return PanelAsked{Kind: p.Kind, Start: true, Apps: p.Apps, Parts: p.Parts}, true
+	return PanelAsked{Kind: p.Kind, Start: true, Proxy: p.Proxy, Apps: p.Apps, Parts: p.Parts}, true
 }
 
 // PanelProxy is the container a panel's proxy runs as, which holds ports 80 and
@@ -114,6 +198,18 @@ func PanelProxy(kind string) string {
 		return "coolify-proxy"
 	case PanelDokploy:
 		return "dokploy-traefik"
+	}
+	return ""
+}
+
+// PanelProxyGoing is the panel's proxy a server's desired resources stop, as their
+// domains come over in the same change, or "": what holds ports 80 and 443 now and
+// won't once that step has run.
+func PanelProxyGoing(desired []Desired) string {
+	for i := range desired {
+		if p := desired[i].Panel; p != nil && p.Proxy && !p.Start {
+			return PanelProxy(p.Kind)
+		}
 	}
 	return ""
 }

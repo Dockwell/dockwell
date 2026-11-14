@@ -849,9 +849,18 @@ message HostPanel {
   // The panel's proxy, which goes on running: it serves the domains of what was
   // taken on until those come as routes, a step of its own.
   string stays = 4;
+  // True when it acts on the panel's proxy alone, which holds ports 80 and 443,
+  // as its domains come over to Dockwell's ingress as routes in the same change.
+  bool proxy = 5;
   // True when it acts on Swarm services of what the panel runs, as each is made
   // again in Dockwell: a stop scales each to none as Dockwell's copy starts.
   bool apps = 6;
+  // For a stop of the proxy: the domains a person chose to hand over, each one
+  // nothing was found for, and a digest of what was checked of them. The agent
+  // checks them again just before the proxy stops, and refuses where anything
+  // changed.
+  repeated string domains = 7;
+  string evidence = 8;
 }
 
 // HostPanelPart is one of a panel's own containers or Swarm services.

@@ -29,6 +29,18 @@ export function PanelLine({ panel, server }: { panel: HostPanel; server: string 
       </Trans>
     );
   }
+  const proxy = panel.parts[0]?.name ?? "";
+  if (panel.proxy) {
+    return panel.start ? (
+      <Trans>
+        Start {proxy} again on <code>{server}</code>
+      </Trans>
+    ) : (
+      <Trans>
+        Stop {proxy} on <code>{server}</code>, so Dockwell takes ports 80 and 443
+      </Trans>
+    );
+  }
   return panel.start ? (
     <Trans>
       Start {name} again on <code>{server}</code>
@@ -62,6 +74,22 @@ export function PanelPlan({ panel, server }: { panel: HostPanel; server: string 
             text: t`First, so each is down for a moment until Dockwell's copy starts on the same volumes`,
           },
     );
+  } else if (panel.proxy) {
+    lines.push(
+      panel.start
+        ? { key: "start", text: t`Starts once the routes that hold ports 80 and 443 are gone` }
+        : {
+            key: "stops",
+            text: t`Stays stopped when Docker or ${server} restarts, and its domains come as the routes below`,
+          },
+    );
+    if (!panel.start && panel.domains.length > 0) {
+      const chosen = list(panel.domains);
+      lines.push({
+        key: "checks",
+        text: t`Just before the stop, the agent checks ${chosen} again, and leaves it running if anything changed`,
+      });
+    }
   } else if (panel.start) {
     lines.push({ key: "start", text: t`Starts ${list(panel.parts.map((p) => p.name))} as each stood before the stop` });
   } else {

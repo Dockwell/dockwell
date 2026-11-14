@@ -661,7 +661,7 @@ func Panel(p *resource.Panel) *dockwellv1.HostPanel {
 	if p == nil {
 		return nil
 	}
-	return &dockwellv1.HostPanel{Kind: p.Kind, Start: p.Start, Apps: p.Apps, Parts: PanelParts(p.Parts), Stays: p.Stays}
+	return &dockwellv1.HostPanel{Kind: p.Kind, Start: p.Start, Proxy: p.Proxy, Apps: p.Apps, Parts: PanelParts(p.Parts), Stays: p.Stays, Domains: p.Domains, Evidence: p.Evidence}
 }
 
 // PanelFrom reads what stopping or starting a panel does, as the API says it; nil
@@ -670,7 +670,7 @@ func PanelFrom(p *dockwellv1.HostPanel) *resource.Panel {
 	if p == nil {
 		return nil
 	}
-	return &resource.Panel{Kind: p.GetKind(), Start: p.GetStart(), Apps: p.GetApps(), Parts: PanelPartsFrom(p.GetParts()), Stays: p.GetStays()}
+	return &resource.Panel{Kind: p.GetKind(), Start: p.GetStart(), Proxy: p.GetProxy(), Apps: p.GetApps(), Parts: PanelPartsFrom(p.GetParts()), Stays: p.GetStays(), Domains: p.GetDomains(), Evidence: p.GetEvidence()}
 }
 
 // PanelParts are a panel's own containers and services as the API says them.
@@ -748,6 +748,32 @@ func PackagesFrom(ps []*dockwellv1.PackageUpdate) []resource.InstallPackage {
 			Name: u.GetName(), Architecture: u.GetArchitecture(), From: u.GetInstalled(), To: u.GetAvailable(), Origin: u.GetOrigin(), Security: u.GetSecurity(),
 			Reboot: u.GetEffect() == dockwellv1.PackageEffect_PACKAGE_EFFECT_REBOOT, Docker: u.GetEffect() == dockwellv1.PackageEffect_PACKAGE_EFFECT_DOCKER_RESTART,
 		})
+	}
+	return out
+}
+
+// PanelChecks are what was checked of a panel's domains, as the API says them.
+func PanelChecks(checks []resource.PanelCheck) []*dockwellv1.PanelDomainCheck {
+	out := make([]*dockwellv1.PanelDomainCheck, 0, len(checks))
+	for _, c := range checks {
+		pc := &dockwellv1.PanelDomainCheck{Domain: c.Domain, Mentions: c.Mentions, Held: c.Held, Scanned: c.Scanned}
+		for _, p := range c.Probes {
+			pc.Probes = append(pc.Probes, &dockwellv1.PanelProbe{Path: p.Path, Answer: p.Answer, Open: p.Open})
+		}
+		out = append(out, pc)
+	}
+	return out
+}
+
+// PanelChecksFrom reads what was checked of a panel's domains, as the API says them.
+func PanelChecksFrom(checks []*dockwellv1.PanelDomainCheck) []resource.PanelCheck {
+	out := make([]resource.PanelCheck, 0, len(checks))
+	for _, c := range checks {
+		rc := resource.PanelCheck{Domain: c.GetDomain(), Mentions: c.GetMentions(), Held: c.GetHeld(), Scanned: c.GetScanned()}
+		for _, p := range c.GetProbes() {
+			rc.Probes = append(rc.Probes, resource.PanelProbe{Path: p.GetPath(), Answer: p.GetAnswer(), Open: p.GetOpen()})
+		}
+		out = append(out, rc)
 	}
 	return out
 }

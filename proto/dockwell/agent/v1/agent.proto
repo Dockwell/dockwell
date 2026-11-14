@@ -513,6 +513,12 @@ message Hello {
   // True when the agent stops and starts the own containers and services of
   // Coolify or Dokploy as a step of a change (DesiredResource.panel).
   bool stops_panels = 332;
+  // True when the agent checks a panel's domains for a handover (ADR 0089): it
+  // reads them strictly, as Panel.proxy_left says, answers
+  // ReadPanelCall.check_domains, and checks the chosen domains again before a
+  // stop of the proxy, refusing where its plan's digest differs. The control
+  // plane hands over no domain through an agent that doesn't.
+  bool checks_panel_domains = 334;
   // True when the agent makes Swarm-run apps again safely (ADR 0089): it waits
   // on Swarm's tasks, for their grace period, until each is over before a copy
   // or a scale up starts, and takes a scaled service off its ports and
@@ -1436,6 +1442,10 @@ message ReadOnePanelResult {
 message ReadPanelCall {
   // Which panel to read.
   dockwell.v1.PanelKind panel = 1;
+  // True to check each domain its proxy serves for a handover, as
+  // Panel.checks has it: a scan of every label and the proxy's mounts, and a
+  // request through the proxy for each.
+  bool check_domains = 2;
 }
 
 // ReadPanelResult is what the panel runs, or why there's nothing to read.
@@ -2166,9 +2176,17 @@ message PanelAction {
   // How each stood before a stop, as its plan kept it: what a start puts back,
   // and what a stop that resumes keeps.
   repeated dockwell.v1.HostPanelPart parts = 4;
+  // True to act on the panel's proxy alone, as its domains come over to
+  // Dockwell's ingress; otherwise on its own containers, never its proxy.
+  bool proxy = 5;
   // True to act on Swarm services of what the panel runs, which parts name, as
   // each is made again in Dockwell; never the panel's own.
   bool apps = 6;
+  // For a stop of the proxy: the domains a person chose to hand over, and the
+  // digest of what was checked of them as the plan was made. The agent checks
+  // them again before the proxy stops, and refuses where the digest differs.
+  repeated string domains = 7;
+  string evidence = 8;
 }
 
 // DatabaseDump is one database a backup step dumps alone, under the ID the control

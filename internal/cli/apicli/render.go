@@ -91,6 +91,8 @@ func Render(w io.Writer, msg proto.Message, now time.Time) {
 		panelView(w, m.GetFound(), m.GetSteps(), m.GetChange())
 	case *dockwellv1.ImportDokployResponse:
 		panelView(w, m.GetFound(), m.GetSteps(), m.GetChange())
+	case *dockwellv1.CheckPanelDomainsResponse:
+		domainChecksView(w, m.GetDomains())
 	case *dockwellv1.ListServiceUpdatesResponse:
 		updatesTable(w, m.GetServices(), now)
 	case *dockwellv1.CheckServiceUpdatesResponse:
@@ -907,15 +909,27 @@ func panelWords(p *dockwellv1.HostPanel, server string) []string {
 			containers = append(containers, part.GetName())
 		}
 	}
+	var out []string
 	switch {
 	case p.GetApps() && p.GetStart():
 		return []string{fmt.Sprintf("Scales the Swarm services %s back up in %s, once Dockwell's copies are gone.", human.List(services), name)}
 	case p.GetApps():
 		return []string{fmt.Sprintf("Scales the Swarm services %s to none in %s first, so each is down for a moment until Dockwell's copy starts on the same volumes. Undoing this scales each back.", human.List(services), name)}
+	case p.GetProxy() && p.GetStart():
+		return []string{fmt.Sprintf("Starts %s's proxy, %s, again on %s, once the routes it hands back ports 80 and 443 from are gone.", name, human.List(append(containers, services...)), server)}
+	case p.GetProxy() && len(services) > 0:
+		// An older Dokploy runs its Traefik as a Swarm service.
+		return []string{fmt.Sprintf("Scales %s's proxy, the Swarm service %s, to none first, so Dockwell's ingress takes ports 80 and 443 on %s for the routes after it. Undoing this scales it back.", name, human.List(services), server)}
+	case p.GetProxy():
+		out = append(out, fmt.Sprintf("Stops %s's proxy, %s, first, so Dockwell's ingress takes ports 80 and 443 on %s for the routes after it. It stays stopped when Docker or %s restarts, and undoing this starts it again.", name, human.List(containers), server, server))
+		if d := p.GetDomains(); len(d) > 0 {
+			out = append(out, fmt.Sprintf("Just before the stop, the agent checks %s again, and leaves the proxy running where anything changed since this plan.", human.List(d)))
+		}
+		return out
 	case p.GetStart():
-		return []string{fmt.Sprintf("Starts %s's own containers again on %s, each as it stood before the stop: %s.", name, server, human.List(append(containers, services...)))}
+		out = append(out, fmt.Sprintf("Starts %s's own containers again on %s, each as it stood before the stop: %s.", name, server, human.List(append(containers, services...))))
+		return out
 	}
-	var out []string
 	if len(containers) > 0 {
 		out = append(out, fmt.Sprintf("Stops %s, and sets each one's restart policy to no, so it stays stopped when Docker or %s restarts.", human.List(containers), server))
 	}

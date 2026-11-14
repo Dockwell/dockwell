@@ -547,7 +547,7 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 				want.Unit = &resource.UnitAsked{Change: u.GetChangeId(), Name: u.GetName(), Action: resourcepb.UnitActionFrom(u.GetAction())}
 			}
 			if p := d.GetPanel(); p != nil {
-				want.Panel = &resource.PanelAsked{Change: p.GetChangeId(), Kind: resourcepb.PanelKindFrom(p.GetPanel()), Start: p.GetStart(), Apps: p.GetApps(), Parts: resourcepb.PanelPartsFrom(p.GetParts())}
+				want.Panel = &resource.PanelAsked{Change: p.GetChangeId(), Kind: resourcepb.PanelKindFrom(p.GetPanel()), Start: p.GetStart(), Proxy: p.GetProxy(), Apps: p.GetApps(), Parts: resourcepb.PanelPartsFrom(p.GetParts()), Domains: p.GetDomains(), Evidence: p.GetEvidence()}
 			}
 			if in := d.GetInstallUpdates(); in != nil {
 				want.Install = &resource.InstallAsked{Change: in.GetChangeId(), All: in.GetAll(), Names: in.GetNames(), Packages: resourcepb.PackagesFrom(in.GetPackages())}
@@ -998,7 +998,7 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 		if c.cfg.Panels == nil {
 			return fail(errors.New("this agent doesn't read what Coolify or Dokploy runs"))
 		}
-		found, err := c.cfg.Panels(ctx, read.GetPanel())
+		found, err := c.cfg.Panels(ctx, read.GetPanel(), read.GetCheckDomains())
 		if err != nil {
 			return fail(err)
 		}

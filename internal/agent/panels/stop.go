@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/dockwell/dockwell/internal/docker"
@@ -50,6 +51,14 @@ type Stopper struct {
 	// TaskWait is how long a scale waits for the service's tasks to be over, its
 	// grace period and taskMargin where it's zero; a test sets less.
 	TaskWait time.Duration
+	// BeforeProxy readies what takes the proxy's ports, Dockwell's ingress, by
+	// pulling its image, so the time its domains are down never holds a pull. A
+	// failure leaves the proxy as it is.
+	BeforeProxy func(context.Context) error
+	// Check checks a handover's chosen domains again, just before the proxy stops:
+	// PanelEvidence of what it found, or why one stays behind now (Reader.Check).
+	// Without it, a stop of the proxy is refused.
+	Check func(ctx context.Context, kind string, domains []string) (string, error)
 }
 
 // PlanPanel reads how the panel's own containers and services stand, and plans
@@ -69,6 +78,10 @@ func (s Stopper) PlanPanel(ctx context.Context, ask resource.PanelAsked) (*resou
 		return nil, false, fmt.Errorf("there's no panel %q to stop: name coolify or dokploy", ask.Kind)
 	}
 	proxy := resource.PanelProxy(ask.Kind)
+	if ask.Proxy {
+		// Its proxy alone, as its domains come over to Dockwell's ingress.
+		order = []string{proxy}
+	}
 	for _, p := range ask.Parts {
 		if !slices.Contains(order, p.Name) {
 			return nil, false, fmt.Errorf("%s isn't one of %s's own containers, so Dockwell won't act on it", p.Name, resource.PanelName(ask.Kind))
@@ -77,8 +90,11 @@ func (s Stopper) PlanPanel(ctx context.Context, ask resource.PanelAsked) (*resou
 			return nil, false, fmt.Errorf("what the plan kept of how %s stood isn't what a stop reads, so Dockwell won't act on it", p.Name)
 		}
 	}
-	plan := &resource.Panel{Kind: ask.Kind, Start: ask.Start, Parts: ask.Parts}
-	if s.present(ctx, proxy) {
+	plan := &resource.Panel{Kind: ask.Kind, Start: ask.Start, Proxy: ask.Proxy, Parts: ask.Parts}
+	if ask.Proxy && !ask.Start {
+		plan.Domains, plan.Evidence = ask.Domains, ask.Evidence
+	}
+	if !ask.Proxy && s.present(ctx, proxy) {
 		plan.Stays = proxy
 	}
 	if len(plan.Parts) == 0 && !ask.Start {
@@ -87,6 +103,9 @@ func (s Stopper) PlanPanel(ctx context.Context, ask resource.PanelAsked) (*resou
 			return nil, false, err
 		}
 		if len(found) == 0 && !s.anyThere(ctx, order) {
+			if ask.Proxy {
+				return nil, false, fmt.Errorf("%s's proxy, %s, isn't on this server, so there's nothing holding ports 80 and 443 for it", resource.PanelName(ask.Kind), proxy)
+			}
 			return nil, false, fmt.Errorf("%s doesn't run here: Docker has none of its own containers or services", resource.PanelName(ask.Kind))
 		}
 		if len(found) == 0 {
@@ -179,6 +198,19 @@ func (s Stopper) ApplyPanel(ctx context.Context, p resource.Panel, say func(stri
 	if s.Docker == nil {
 		return errors.New("this agent reads no Docker, so it can't stop or start a panel")
 	}
+	if p.Proxy && !p.Start {
+		// What the person chose from must still read as it did: the domains' checks
+		// run again, and a digest that differs from the plan's leaves the proxy be.
+		if err := s.checkAgain(ctx, p); err != nil {
+			return err
+		}
+	}
+	if p.Proxy && !p.Start && s.BeforeProxy != nil {
+		say("Pulling the image of Dockwell's ingress, before the proxy stops")
+		if err := s.BeforeProxy(ctx); err != nil {
+			return fmt.Errorf("can't ready Dockwell's ingress, so %s goes on running: %w", p.Parts[0].Name, err)
+		}
+	}
 	for _, part := range p.Parts {
 		var err error
 		switch {
@@ -241,6 +273,26 @@ func (s Stopper) ApplyPanel(ctx context.Context, p resource.Panel, say func(stri
 		if !as.like(part, p.Start) {
 			return fmt.Errorf("%s doesn't stand as the step left it: %s", part.Name, as.words(part.Swarm))
 		}
+	}
+	return nil
+}
+
+// checkAgain checks a handover's chosen domains again, before its proxy stops, and
+// refuses where one stays behind now or what was found differs from the plan's.
+func (s Stopper) checkAgain(ctx context.Context, p resource.Panel) error {
+	proxy := resource.PanelProxy(p.Kind)
+	switch {
+	case len(p.Domains) == 0 || p.Evidence == "":
+		return fmt.Errorf("this plan names no domains a person chose to hand over, so %s goes on running. Plan the handover again", proxy)
+	case s.Check == nil:
+		return fmt.Errorf("this agent can't check the domains again, so %s goes on running. Update the agent, then plan the handover again", proxy)
+	}
+	got, err := s.Check(ctx, p.Kind, p.Domains)
+	if err != nil {
+		return fmt.Errorf("%s goes on running, as a domain no longer reads as the plan found it: %w. Plan the handover again", proxy, err)
+	}
+	if got != p.Evidence {
+		return fmt.Errorf("%s goes on running, as what Dockwell checked of %s changed since the plan. Plan the handover again to see what changed", proxy, strings.Join(p.Domains, ", "))
 	}
 	return nil
 }
@@ -416,9 +468,9 @@ func (s Stopper) read(ctx context.Context, order []string) ([]resource.PanelPart
 }
 
 // ownPolicies are the restart policies each panel's installer gives its own, where
-// it isn't always: Coolify's sentinel restarts unless stopped, as its docker run
-// says.
-var ownPolicies = map[string]string{"coolify-sentinel": "unless-stopped"}
+// it isn't always: Coolify's proxy and sentinel restart unless stopped (Coolify's
+// RESTART_MODE, and its sentinel's docker run). Dokploy's Traefik is always.
+var ownPolicies = map[string]string{"coolify-proxy": "unless-stopped", "coolify-sentinel": "unless-stopped"}
 
 // readStopped finds each of the panel's own, in order, that's stopped: a container
 // not running, which starts with the policy it had, or where a stop left it at no,

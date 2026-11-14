@@ -22,16 +22,19 @@ import { useMemo, useState } from "react";
 import { reasonOf, sentence } from "../../lib/errors";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { ServerFrame } from "../servers/ServerFrame";
+import { HandOverSheet } from "./HandOverSheet";
 import { OnePanelImport, StepGroup, useGroups } from "./OnePanelImport";
 import { useOnePanelHere } from "./onePanelHere";
-import { usePanelOn } from "./StopPanel";
+import { PANEL_PROXIES, usePanelOn } from "./StopPanel";
 import "./OnePanelImport.css";
 
 /*
  * Moving in from Coolify or Dokploy (docs/adr/0089-importing-from-coolify-and-dokploy.md).
  * The page reads what the panel runs, from Docker and its folders, when a person
- * asks, and plans nothing: Review the plan has the sheet make it. The panel stops
- * as a step of its own. Nothing on the server changes until a plan is applied.
+ * asks, and plans nothing: Review the plan has the sheet make it. Its domains come
+ * over as a step of their own, which stops its proxy, each as a person chooses it
+ * from what was checked, and the panel stops as one more. Nothing on the server
+ * changes until a plan is applied.
  */
 
 /** A server's Move in page: each panel that runs there, 1Panel's as before. */
@@ -44,13 +47,25 @@ function MoveIn({ server }: { server: Server }) {
   const panel = usePanelOn(server);
   return (
     <>
-      {panel !== undefined ? <PanelImport server={server} kind={panel.kind} running={panel.running} /> : null}
+      {panel !== undefined ? (
+        <PanelImport server={server} kind={panel.kind} running={panel.running} proxyStopped={panel.proxyStopped} />
+      ) : null}
       {onePanel || panel === undefined ? <OnePanelImport server={server} /> : null}
     </>
   );
 }
 
-function PanelImport({ server, kind, running }: { server: Server; kind: PanelKind; running: boolean }) {
+function PanelImport({
+  server,
+  kind,
+  running,
+  proxyStopped,
+}: {
+  server: Server;
+  kind: PanelKind;
+  running: boolean;
+  proxyStopped: boolean;
+}) {
   const { t } = useLingui();
   const transport = useTransport();
   const imports = useMemo(() => createClient(ImportService, transport), [transport]);
@@ -60,6 +75,7 @@ function PanelImport({ server, kind, running }: { server: Server; kind: PanelKin
   const [reading, setReading] = useState(false);
   const [failure, setFailure] = useState<unknown>();
   const [found, setFound] = useState<{ found?: PanelFound; steps: ImportStep[] }>();
+  const [handingOver, setHandingOver] = useState(false);
 
   const importIt = (skipPlan: boolean) =>
     kind === PanelKind.COOLIFY
@@ -96,10 +112,23 @@ function PanelImport({ server, kind, running }: { server: Server; kind: PanelKin
       },
     });
   };
+  // The handover checks each domain first, and the person chooses which come.
+  const handOver = () => setHandingOver(true);
   const start = () => {
     sheet.open({
       kind: "plan",
       make: async () => ({ change: (await imports.planStartPanel({ serverId: server.id, panel: kind })).change }),
+      onClose: again,
+    });
+  };
+  // After a handover's undo, or a rollback that couldn't start it, the proxy's
+  // start is the way back; the plan refuses it while a route holds the ports.
+  const startProxy = () => {
+    sheet.open({
+      kind: "plan",
+      make: async () => ({
+        change: (await imports.planStartPanel({ serverId: server.id, panel: kind, proxy: true })).change,
+      }),
       onClose: again,
     });
   };
@@ -119,6 +148,14 @@ function PanelImport({ server, kind, running }: { server: Server; kind: PanelKin
       (s.action === ImportAction.MAKE && s.waitsFor === ImportWaitsFor.UNSPECIFIED),
   );
   const panel = found?.found;
+  // Domains come over for what was taken on, so the handover waits for one.
+  const takenOn = steps.some((s) => s.kind === ImportKind.APP && s.action === ImportAction.DONE);
+  // The proxy is stopped, and no domain is a route that holds its ports.
+  const proxy = PANEL_PROXIES[kind];
+  const proxyBack =
+    found !== undefined &&
+    proxyStopped &&
+    !steps.some((s) => s.kind === ImportKind.DOMAIN && s.action === ImportAction.DONE);
   const notHere = reasonOf(failure) === "panel_not_found";
   const reviewButton = (
     <Button variant="primary" icon="arrow-right" onClick={review}>
@@ -127,6 +164,17 @@ function PanelImport({ server, kind, running }: { server: Server; kind: PanelKin
   );
   return (
     <div className="onepanel">
+      {handingOver ? (
+        <HandOverSheet
+          server={server}
+          kind={kind}
+          name={name}
+          onClose={(applied) => {
+            setHandingOver(false);
+            if (applied) again();
+          }}
+        />
+      ) : null}
       <Panel title={t`Move in from ${name}`}>
         <div className="onepanel-intro">
           <p>
@@ -164,15 +212,35 @@ function PanelImport({ server, kind, running }: { server: Server; kind: PanelKin
           key={g.key}
           group={g}
           panel={name}
+          actions={
+            g.key === "ports" && proxyBack ? (
+              <Button size="sm" icon="play" onClick={startProxy}>
+                <Trans>Start {proxy} again</Trans>
+              </Button>
+            ) : g.key === "ports" && takenOn ? (
+              <Button size="sm" icon="globe" onClick={handOver}>
+                <Trans>Hand over ports 80 and 443</Trans>
+              </Button>
+            ) : undefined
+          }
           extra={(step) =>
-            step.kind !== ImportKind.PANEL ? null : running ? (
-              <Button size="sm" icon="stop" onClick={stop}>
-                <Trans>Stop {name}</Trans>
-              </Button>
-            ) : (
-              <Button size="sm" icon="play" onClick={start}>
-                <Trans>Start {name} again</Trans>
-              </Button>
+            step.kind !== ImportKind.PANEL ? null : (
+              <>
+                {running ? (
+                  <Button size="sm" icon="stop" onClick={stop}>
+                    <Trans>Stop {name}</Trans>
+                  </Button>
+                ) : (
+                  <Button size="sm" icon="play" onClick={start}>
+                    <Trans>Start {name} again</Trans>
+                  </Button>
+                )}
+                {proxyBack && !groups.some((other) => other.key === "ports") ? (
+                  <Button size="sm" icon="play" onClick={startProxy}>
+                    <Trans>Start {proxy} again</Trans>
+                  </Button>
+                ) : null}
+              </>
             )
           }
         />

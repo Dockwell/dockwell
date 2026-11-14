@@ -15,6 +15,7 @@ import (
 
 	"connectrpc.com/connect"
 
+	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/control/agentapi"
@@ -49,6 +50,8 @@ type Taker interface {
 	TakenOn(ctx context.Context, r *containers.Running, name string) (string, error)
 	FreeProject(ctx context.Context, want, from string, claimed map[string]bool) (string, error)
 	ReadMakingAgain(ctx context.Context, r *containers.Running, list []composeapi.Remake, project string) (*composeapi.Taking, map[string][]string, error)
+	TakenOnAs(ctx context.Context, r *containers.Running, name string) (project, environment, service string, err error)
+	RoutesIn(ctx context.Context, environment string) (map[string]*resourcev1.Route, error)
 }
 
 var _ dockwellv1connect.ImportServiceHandler = (*Handler)(nil)

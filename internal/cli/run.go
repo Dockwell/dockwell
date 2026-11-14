@@ -369,13 +369,18 @@ func serverOnePanel(stdio IO) func(context.Context) (*agentv1.ReadOnePanelResult
 // Docker and the panel's folders, so an agent with no Docker reads none. A test
 // reads the folders under DOCKWELL_TEST_PANELS, laid out as a server's root, and
 // none without it.
-func serverPanels(stdio IO, client *docker.Client) func(context.Context, dockwellv1.PanelKind) (*agentv1.ReadPanelResult, error) {
+func serverPanels(stdio IO, client *docker.Client) func(context.Context, dockwellv1.PanelKind, bool) (*agentv1.ReadPanelResult, error) {
+	return panelReader(stdio, client).Read
+}
+
+// panelReader is the reader of what Coolify or Dokploy runs on this server, which
+// a handover's stop of the proxy checks its domains with again too.
+func panelReader(stdio IO, client *docker.Client) panels.Reader {
 	root := "/"
 	if isSet(stdio.Getenv(envTest)) {
 		root = stdio.Getenv(envTestPanels)
 	}
-	r := panels.Reader{Docker: client, Root: root}
-	return r.Read
+	return panels.Reader{Docker: client, Root: root}
 }
 
 // imageReads says where the agent reads images from (ADR 0062). A test asks
@@ -495,7 +500,7 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 			&volume.Driver{Runtime: volumes, Restores: backups, BacksUp: backups}, &network.Driver{Client: client}, &route.Driver{Ingress: routes, Reserved: reserved},
 			users, tasks,
 			&firewall.Driver{Backend: firewalls}, &firewall.PolicyDriver{Backend: firewalls},
-			&fail2ban.Driver{Backend: jailed}, &host.Driver{Backend: updates.Host{Installer: installs}, Units: units, Panels: panels.Stopper{Docker: client}}),
+			&fail2ban.Driver{Backend: jailed}, &host.Driver{Backend: updates.Host{Installer: installs}, Units: units, Panels: panels.Stopper{Docker: client, BeforeProxy: proxy.Pull, Check: panelReader(stdio, client).Check}}),
 		Updates:   packages,
 		Collector: collector, Domains: routes, Public: routes, Certificates: routes, Logs: &logs.Reader{Client: client, Archive: archive, Logger: logger, Journal: units}, Docker: client, Health: monitor,
 		Backups: backup.Calls{Runner: backups}, Databases: database.Reader{Client: client}, Builds: builder, Tasks: tasks, Tools: tools, Access: firewalls,

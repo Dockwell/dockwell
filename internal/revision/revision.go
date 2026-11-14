@@ -2682,7 +2682,9 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 			// moved since makes the plan stale (ADR 0089).
 			if p := s.Panel; p != nil {
 				panels[ids[s.Ref]] = p
-				fmt.Fprintf(fp, "panel %s|%s|%s|%t|%t|%s", server, ref(s.Ref), p.Kind, p.Start, p.Apps, p.Stays)
+				// A handover's chosen domains and the digest of what was checked of them
+				// are in it too, so the plan a person confirmed is what the agent checks.
+				fmt.Fprintf(fp, "panel %s|%s|%s|%t|%t|%t|%s|%s|%s", server, ref(s.Ref), p.Kind, p.Start, p.Proxy, p.Apps, p.Stays, strings.Join(p.Domains, ","), p.Evidence)
 				for _, part := range p.Parts {
 					fmt.Fprintf(fp, "|%s,%t,%t,%s,%d", part.Name, part.Swarm, part.WasRunning, part.WasRestart, part.WasReplicas)
 					// What a start puts back of a Swarm service is in it too.

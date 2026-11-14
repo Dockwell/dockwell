@@ -631,6 +631,70 @@ func (h *Handler) TakenOn(ctx context.Context, r *containers.Running, name strin
 	return project, nil
 }
 
+// TakenOnAs is where Dockwell runs the container called name, as r read the
+// server: its project's name, its environment's ID and its service's name, each ""
+// where Dockwell doesn't run it. A container taken on keeps its name, and runs as
+// its service in its environment's Compose project.
+func (h *Handler) TakenOnAs(ctx context.Context, r *containers.Running, name string) (project, environment, svc string, err error) {
+	env := r.RunsAs(name)
+	if env == "" {
+		return "", "", "", nil
+	}
+	for _, c := range r.All {
+		if c.GetName() == name {
+			svc = c.GetComposeService()
+		}
+	}
+	err = h.db.View(ctx, func(tx *store.Tx) error {
+		tree, err := scope.Load(ctx, tx)
+		if err != nil {
+			return err
+		}
+		for _, p := range tree.Projects {
+			for _, e := range p.Environments {
+				if docker.Project(e.ID) == env {
+					project, environment = p.Name, e.ID
+				}
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return "", "", "", h.internal(ctx, err)
+	}
+	return project, environment, svc, nil
+}
+
+// RoutesIn are the routes an environment has, by name.
+func (h *Handler) RoutesIn(ctx context.Context, environment string) (map[string]*resourcev1.Route, error) {
+	out := map[string]*resourcev1.Route{}
+	err := h.db.View(ctx, func(tx *store.Tx) error {
+		list, err := tx.ListResources(ctx, environment, "route")
+		if err != nil {
+			return err
+		}
+		for _, r := range list {
+			if r.Spec == nil {
+				continue
+			}
+			// A route is sealed since it could hold users' password hashes (ADR 0087).
+			plain, err := tx.Open(ctx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec)
+			if err != nil {
+				return err
+			}
+			spec := &resourcev1.Route{}
+			if proto.Unmarshal(plain, spec) == nil {
+				out[r.Name] = spec
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, h.internal(ctx, err)
+	}
+	return out, nil
+}
+
 // Remake is a container Dockwell makes again as a service of its own, by its
 // name and the service's: a Swarm task, whose service Swarm keeps running
 // whatever happens to the container, so it can't be taken on in place (ADR 0089).

@@ -35,11 +35,19 @@ export function panelRunning(containers: ServerContainer[]): PanelKind | undefin
   return found?.running ? found.kind : undefined;
 }
 
-/** A panel on a server: which, and whether its own app runs. */
+/** A panel on a server: which, whether its own app runs, and whether its proxy is there and stopped. */
 export interface PanelOn {
   kind: PanelKind;
   running: boolean;
+  proxyStopped: boolean;
 }
+
+/** Each panel's proxy, which holds ports 80 and 443 until its domains come over. */
+export const PANEL_PROXIES: Record<PanelKind, string> = {
+  [PanelKind.UNSPECIFIED]: "",
+  [PanelKind.COOLIFY]: "coolify-proxy",
+  [PanelKind.DOKPLOY]: "dokploy-traefik",
+};
 
 /** The panel whose own app is on a server, running or stopped, as its list of containers says. */
 export function panelOn(containers: ServerContainer[]): PanelOn | undefined {
@@ -52,7 +60,11 @@ export function panelOn(containers: ServerContainer[]): PanelOn | undefined {
         : c.name.startsWith("dokploy.") && c.image.includes("dokploy/dokploy")
           ? PanelKind.DOKPLOY
           : undefined;
-    if (kind !== undefined && (found === undefined || running)) found = { kind, running };
+    if (kind !== undefined && (found === undefined || running)) found = { kind, running, proxyStopped: false };
+  }
+  if (found) {
+    const proxy = PANEL_PROXIES[found.kind];
+    found.proxyStopped = containers.some((c) => c.name === proxy && c.state !== ContainerState.RUNNING);
   }
   return found;
 }

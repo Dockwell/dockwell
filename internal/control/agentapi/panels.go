@@ -15,6 +15,11 @@ import (
 // containers and services, and a few small files.
 const PanelTimeout = time.Minute
 
+// PanelCheckTimeout is how long a read that checks a panel's domains may take: a
+// scan of the server's labels and the proxy's files, and a request through the
+// proxy for each path of each domain, a few at a time.
+const PanelCheckTimeout = 3 * time.Minute
+
 // ReadsPanels reports an agent that reads what Coolify or Dokploy runs (ADR 0089).
 func (s *Session) ReadsPanels() bool { return s.readsPanels }
 
@@ -26,10 +31,21 @@ func (s *Session) StopsPanels() bool { return s.stopsPanels }
 // waits on Swarm's tasks until each is over before a copy starts (ADR 0089).
 func (s *Session) RemakesSwarmApps() bool { return s.remakesSwarmApps }
 
+// ChecksPanelDomains reports an agent that checks a panel's domains for a
+// handover: a scan, a probe through the proxy, and the chosen ones again before
+// the proxy stops (ADR 0089).
+func (s *Session) ChecksPanelDomains() bool { return s.checksPanelDomains }
+
 // ReadPanel asks the agent what a panel runs on its server, read-only, from Docker
-// and the panel's folders.
-func (s *Session) ReadPanel(ctx context.Context, kind dockwellv1.PanelKind) (*agentv1.ReadPanelResult, error) {
-	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_ReadPanel{ReadPanel: &agentv1.ReadPanelCall{Panel: kind}}}, PanelTimeout, nil)
+// and the panel's folders. With checkDomains, it checks each domain the panel's
+// proxy serves for a handover too, which asks the proxy for each, so it may take
+// longer.
+func (s *Session) ReadPanel(ctx context.Context, kind dockwellv1.PanelKind, checkDomains bool) (*agentv1.ReadPanelResult, error) {
+	wait := PanelTimeout
+	if checkDomains {
+		wait = PanelCheckTimeout
+	}
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_ReadPanel{ReadPanel: &agentv1.ReadPanelCall{Panel: kind, CheckDomains: checkDomains}}}, wait, nil)
 	if err != nil {
 		return nil, err
 	}

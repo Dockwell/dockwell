@@ -4015,6 +4015,45 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/imports:checkDomains:
+        post:
+            tags:
+                - ImportService
+            description: |-
+                CheckPanelDomains checks each domain a panel's proxy serves, before a
+                 handover (ADR 0089): a scan of every label on the server and every file in
+                 the proxy's mounts for another rule that mentions it, the proxy's static
+                 configuration, and a request through the proxy over HTTPS for / and each
+                 path a rule names for it. Each says what was checked, and why it stays
+                 behind where it does; one that doesn't is what a person can choose to hand
+                 over with PlanPanelDomains. It changes nothing.
+            operationId: ImportService_CheckPanelDomains
+            parameters:
+                - name: serverId
+                  in: path
+                  description: The server the panel runs on, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CheckPanelDomainsRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CheckPanelDomainsResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/servers/{serverId}/imports:coolify:
         post:
             tags:
@@ -4092,6 +4131,48 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/imports:domains:
+        post:
+            tags:
+                - ImportService
+            description: |-
+                PlanPanelDomains plans handing over the domains of what was taken on from a
+                 panel: one change that stops the panel's proxy, which holds ports 80 and 443,
+                 and makes a route to each taken-on app's service for each domain a person
+                 chose, as the proxy's labels send it, so Dockwell's ingress takes the ports
+                 and gets a certificate for each. Each chosen domain must be one
+                 CheckPanelDomains found nothing for; the plan keeps a digest of what was
+                 checked, and the agent checks again just before it stops the proxy, and
+                 refuses where anything changed. Every other domain the proxy serves stops
+                 answering, which the plan says. Undoing it deletes those routes and starts
+                 the proxy again. A person applies it.
+            operationId: ImportService_PlanPanelDomains
+            parameters:
+                - name: serverId
+                  in: path
+                  description: The server the panel runs on, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/PlanPanelDomainsRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/PlanPanelDomainsResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/servers/{serverId}/imports:onepanel:
         post:
             tags:
@@ -4139,11 +4220,13 @@ paths:
             tags:
                 - ImportService
             description: |-
-                PlanStartPanel plans starting the panel an import came from again: each of
-                 its own containers or services that's stopped starts, a container with the
-                 restart policy its installer gives it where a stop left it at no. It's the
-                 way back where no undo is: a change that failed partway, or an undo after
-                 its window. A person applies it.
+                PlanStartPanel plans starting the panel an import came from again, or its
+                 proxy alone: each of its own containers or services that's stopped starts, a
+                 container with the restart policy it had, or always where a stop left it at
+                 no. It's the way back where no undo is: a change that failed partway, or an
+                 undo after its window. A proxy's start is refused while Dockwell's ingress
+                 serves routes on the server, as they hold ports 80 and 443. A person applies
+                 it.
             operationId: ImportService_PlanStartPanel
             parameters:
                 - name: serverId
@@ -10031,6 +10114,32 @@ components:
             description: |-
                 CheckPanelDomainResponse says whether the panel can take a domain, and what
                  stands in the way of a certificate for it.
+        CheckPanelDomainsRequest:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                    description: The server the panel runs on, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                panel:
+                    enum:
+                        - PANEL_KIND_UNSPECIFIED
+                        - PANEL_KIND_COOLIFY
+                        - PANEL_KIND_DOKPLOY
+                    type: string
+                    description: The panel whose proxy serves them.
+                    format: enum
+            description: CheckPanelDomainsRequest names the server and the panel whose domains to check.
+        CheckPanelDomainsResponse:
+            type: object
+            properties:
+                domains:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/PanelDomainCheck'
+                    description: |-
+                        Each domain the panel's proxy serves that doesn't come as a route already,
+                         by name.
+            description: CheckPanelDomainsResponse is what was checked of each domain.
         CheckRegistryLoginRequest:
             type: object
             properties:
@@ -14032,11 +14141,27 @@ components:
                     description: |-
                         The panel's proxy, which goes on running: it serves the domains of what was
                          taken on until those come as routes, a step of its own.
+                proxy:
+                    type: boolean
+                    description: |-
+                        True when it acts on the panel's proxy alone, which holds ports 80 and 443,
+                         as its domains come over to Dockwell's ingress as routes in the same change.
                 apps:
                     type: boolean
                     description: |-
                         True when it acts on Swarm services of what the panel runs, as each is made
                          again in Dockwell: a stop scales each to none as Dockwell's copy starts.
+                domains:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        For a stop of the proxy: the domains a person chose to hand over, each one
+                         nothing was found for, and a digest of what was checked of them. The agent
+                         checks them again just before the proxy stops, and refuses where anything
+                         changed.
+                evidence:
+                    type: string
             description: |-
                 HostPanel is what stopping or starting the panel an import came from does, for a
                  server's host (docs/adr/0089-importing-from-coolify-and-dokploy.md): its own
@@ -14604,6 +14729,7 @@ components:
                         - IMPORT_KIND_PANEL
                         - IMPORT_KIND_COMPOSE_PROJECT
                         - IMPORT_KIND_CONTAINERS
+                        - IMPORT_KIND_DOMAIN
                     type: string
                     description: What it is.
                     format: enum
@@ -14638,6 +14764,7 @@ components:
                         - IMPORT_WAITS_FOR_DATABASES
                         - IMPORT_WAITS_FOR_SCHEDULED_TASKS
                         - IMPORT_WAITS_FOR_FIREWALL
+                        - IMPORT_WAITS_FOR_PORTS
                     type: string
                     description: The part of Dockwell it waits for, where Dockwell can't take it yet.
                     format: enum
@@ -17175,6 +17302,27 @@ components:
                     items:
                         $ref: '#/components/schemas/PanelContainer'
                     description: Its own containers and services, such as coolify-db or dokploy-traefik.
+                domains:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        The domains the panel's proxy routes from its own files, such as the panel's
+                         own dashboard: what stops answering when the proxy hands over its ports.
+                proxyLeft:
+                    type: string
+                    description: |-
+                        Why no domain comes over as a route, where something that could guard every
+                         domain at once can't be read in full or guards one: the proxy's static
+                         configuration, such as a middleware on an entrypoint, or one of its own
+                         files. Empty where Dockwell read all of it and found nothing.
+                checks:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/PanelDomainCheck'
+                    description: |-
+                        What was checked of each domain, where the read was asked to check them
+                         for a handover (CheckPanelDomains).
             description: |-
                 Panel is what a panel runs on a server, as Docker and its folders say, with
                  nothing secret in it.
@@ -17234,6 +17382,13 @@ components:
                         True when the panel deploys it from a Git repository, where a push can deploy
                          it again: Coolify's application built from a commit, or Dokploy's app whose
                          code folder is a Git checkout. Both panels deploy on a push by default.
+                routes:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/PanelRoute'
+                    description: |-
+                        Where each of its domains goes, as the panel's proxy has it: what comes over
+                         as a route once the proxy hands ports 80 and 443 to Dockwell.
                 tasks:
                     type: array
                     items:
@@ -17281,6 +17436,38 @@ components:
                         What it's doing, such as "running" or "exited", or "service" for a Swarm
                          service.
             description: PanelContainer is one of a panel's own containers or Swarm services.
+        PanelDomainCheck:
+            type: object
+            properties:
+                domain:
+                    type: string
+                    description: The domain, such as "blog.example.com".
+                mentions:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        Where else a rule mentions it, beyond the imported app's own route, such as
+                         "the label traefik.http.routers.admin.rule on sso" or "the file
+                         /data/coolify/proxy/dynamic/extra.yaml".
+                probes:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/PanelProbe'
+                    description: What answered each request through the proxy.
+                held:
+                    type: string
+                    description: |-
+                        Why it stays behind, or empty where nothing was found: one a person can
+                         choose to hand over.
+                scanned:
+                    type: string
+                    description: |-
+                        What the scan read, such as "labels on 12 containers and 3 services, and 9
+                         files in the proxy's mounts".
+            description: |-
+                PanelDomainCheck is what Dockwell checked of a domain a panel's proxy serves,
+                 before a handover.
         PanelPort:
             type: object
             properties:
@@ -17312,6 +17499,53 @@ components:
                     type: string
                     description: The program, as the kernel names its process, such as "nginx".
             description: PanelPortHolder is a program that holds a port the panel's certificate needs.
+        PanelProbe:
+            type: object
+            properties:
+                path:
+                    type: string
+                    description: The path asked for, such as "/" or "/admin".
+                answer:
+                    type: string
+                    description: |-
+                        What answered, such as "200", "302 to https://sso.example.com/" or "no TLS
+                         handshake".
+                open:
+                    type: boolean
+                    description: True where the answer says no login or address limit.
+            description: |-
+                PanelProbe is a request through the panel's proxy, over HTTPS with the
+                 domain's name, from the server.
+        PanelRoute:
+            type: object
+            properties:
+                domain:
+                    type: string
+                    description: The domain, such as "blog.example.com".
+                path:
+                    type: string
+                    description: The path it's for, such as "/api", or empty for the whole domain.
+                container:
+                    type: string
+                    description: The container it goes to.
+                service:
+                    type: string
+                    description: |-
+                        The Compose service that container runs as, which a route names once it's
+                         taken on.
+                port:
+                    type: integer
+                    description: The port in the container it goes to, or 0 where the labels don't say.
+                    format: uint32
+                left:
+                    type: string
+                    description: |-
+                        Why it can't come as a plain route, or empty where it can: a middleware or a
+                         directive a route would drop, such as a login or an allowlist, so what it
+                         guards would answer anyone, a stripped path, or a rule a route can't say.
+            description: |-
+                PanelRoute is a domain the panel's proxy sends to one of an app's containers,
+                 read from the proxy's labels on it.
         PanelServing:
             type: object
             properties:
@@ -17675,6 +17909,39 @@ components:
                         True when names and deleted hold all that message says, so a surface can say
                          it in its own words. A note kept from before these did has only its message.
             description: PlanNote is one thing a person should know before applying a plan.
+        PlanPanelDomainsRequest:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                    description: The server the panel runs on, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                panel:
+                    enum:
+                        - PANEL_KIND_UNSPECIFIED
+                        - PANEL_KIND_COOLIFY
+                        - PANEL_KIND_DOKPLOY
+                    type: string
+                    description: The panel whose proxy hands over ports 80 and 443.
+                    format: enum
+                summary:
+                    type: string
+                    description: What the change is for, for the timeline. Empty says what it hands over.
+                domains:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        The domains to hand over, such as "blog.example.com", each one
+                         CheckPanelDomains found nothing for. At least one.
+            description: PlanPanelDomainsRequest names the server and the panel whose domains come over.
+        PlanPanelDomainsResponse:
+            type: object
+            properties:
+                change:
+                    allOf:
+                        - $ref: '#/components/schemas/Change'
+                    description: The change, planned for a person to apply.
+            description: PlanPanelDomainsResponse carries the planned handover.
         PlanPlace:
             type: object
             properties:
@@ -17790,6 +18057,9 @@ components:
                     type: string
                     description: The panel to start.
                     format: enum
+                proxy:
+                    type: boolean
+                    description: Start its proxy alone, which holds ports 80 and 443.
                 summary:
                     type: string
                     description: What the change is for, for the timeline. Empty says what it starts.
