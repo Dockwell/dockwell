@@ -7,10 +7,14 @@
 #
 # It restarts the daemon, before the job runs anything on it. A reload would read
 # the mirror too, but Docker 28 loses host-gateway's address on one, and then a
-# container that maps host-gateway can't start. One small pull, with the daemon's
-# debug log on for it alone, then shows which registry served it, in the daemon's
-# own words. Nothing here fails the job: without the mirror, its pulls go to
-# Docker Hub, as they did before.
+# container that maps host-gateway can't start. One small pull with no login, as
+# Dockwell's own are, with the daemon's debug log on for it alone, then shows which
+# registry served it, in the daemon's own words. Nothing here fails the job:
+# without the mirror, its pulls go to Docker Hub, as they did before.
+#
+# A pull that carries a Docker Hub login, as the runner's docker CLI may have, goes
+# to Docker Hub under that login: the daemon hands the mirror the login too, and the
+# mirror refuses one it doesn't know.
 set -euo pipefail
 
 mirror=${1:?usage: mirror.sh <mirror>}
@@ -53,7 +57,9 @@ fi
 start=$(date +%s)
 had=$(docker image ls -q "$probe")
 pulled=true
-docker pull -q "$probe" >/dev/null || pulled=false
+anonymous=$(mktemp -d)
+DOCKER_CONFIG=$anonymous docker pull -q "$probe" >/dev/null || pulled=false
+rm -rf "$anonymous"
 name=${probe%%:*}
 # What the daemon said of this pull: each registry it tried, and why it went on
 # from one.
@@ -78,7 +84,7 @@ false:*)
   warn "$mirror didn't serve $probe, so Docker Hub did. This job's pulls may still meet Docker Hub's limit."
   ;;
 *"Trying to pull $name from $mirror"*)
-  echo "Docker Hub's images come through $mirror, which served $probe."
+  echo "Docker Hub's images come through $mirror, which served $probe to a pull with no login."
   ;;
 *)
   echo "Docker Hub's images come through $mirror. The daemon's log doesn't say which registry served $probe."
@@ -88,5 +94,11 @@ if [[ -n "$said" ]]; then
   echo "::group::What the daemon said of pulling $probe"
   echo "$said"
   echo "::endgroup::"
+fi
+# Which registries the runner's docker CLI has logins for, by name alone.
+logins=$(jq -r '[(.auths // {} | keys[]), (.credHelpers // {} | keys[])] | unique | join(", ")' \
+  "${DOCKER_CONFIG:-$HOME/.docker}/config.json" 2>/dev/null || true)
+if [[ "$logins" == *docker.io* ]]; then
+  echo "The runner's docker CLI has a login for Docker Hub, so its own pulls, as docker run and compose make, go to Docker Hub under it."
 fi
 echo "Registry mirrors: $(docker info --format '{{json .RegistryConfig.Mirrors}}')"
