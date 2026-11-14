@@ -30,3 +30,18 @@ func TestDriftMasksAValueInWhatRuns(t *testing.T) {
 		t.Errorf("the image reads %q", changes[2].To)
 	}
 }
+
+// Keeping what a server has refuses where what it reports holds a value in its
+// command, entrypoint or health check, as a plan would show it (ADR 0096).
+func TestKeepingAValueInWhatRunsIsRefused(t *testing.T) {
+	const pw = "k8Jd2mQxR4"
+	app := &resourcev1.Container{Image: "mariadb:11", Env: map[string]string{"MARIADB_ROOT_PASSWORD": pw}}
+	app.Healthcheck = &resourcev1.Healthcheck{Test: []string{"CMD-SHELL", "mariadb-admin ping -p" + pw}}
+	if got := showsAValue(&resourcev1.Service{Runs: &resourcev1.Service_App{App: app}}); got != "healthcheck.test" {
+		t.Errorf("a check with the value in reads %q", got)
+	}
+	app.Healthcheck.Test = []string{"CMD-SHELL", "mariadb-admin ping -p${MARIADB_ROOT_PASSWORD}"}
+	if got := showsAValue(&resourcev1.Service{Runs: &resourcev1.Service_App{App: app}}); got != "" {
+		t.Errorf("a check by name reads %q", got)
+	}
+}

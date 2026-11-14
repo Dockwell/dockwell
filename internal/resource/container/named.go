@@ -5,6 +5,7 @@ package container
 import (
 	"cmp"
 	"maps"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -74,7 +75,7 @@ func nameValues(spec *resourcev1.Container) {
 			continue
 		}
 		script := scripts[field]
-		programs := programWords(field, words)
+		args := argumentWords(field, words)
 		out := make([]string, len(words))
 		named := map[string]string{}
 		for i, w := range words {
@@ -85,7 +86,7 @@ func nameValues(spec *resourcev1.Container) {
 			case i == script:
 				spans = scriptSpans(w, cands)
 			default:
-				spans = wordSpans(w, cands, programs[i])
+				spans = wordSpans(w, cands, args[i])
 			}
 			for _, s := range spans {
 				named[s.name] = spec.GetEnv()[s.name]
@@ -215,27 +216,24 @@ type span struct {
 	name    string
 }
 
-// programWords marks the words of a field that name a program: of a command or an
-// entrypoint, as programs reads them; of a health check's test, its CMD or
-// CMD-SHELL, and after CMD as programs reads the rest.
-func programWords(field string, words []string) []bool {
+// argumentWords marks the words of a field that are a program's arguments, where
+// an ordinary value may be named: of a command or an entrypoint, as arguments
+// reads them; of a health check's test, those after CMD's program.
+func argumentWords(field string, words []string) []bool {
 	if field != binding.FieldTest {
-		return programs(words)
+		return arguments(words, nil)
 	}
 	out := make([]bool, len(words))
-	if len(words) > 0 {
-		out[0] = true
-	}
 	if len(words) > 1 && words[0] == "CMD" {
-		copy(out[1:], programs(words[1:]))
+		copy(out[1:], arguments(words[1:], nil))
 	}
 	return out
 }
 
 // wordSpans finds the values a word that isn't a script names: a secret's of
 // shortest characters or more anywhere, any other only as the whole word, or the
-// whole of what follows its first =, and none in a program's word but the former.
-func wordSpans(w string, cands []candidate, program bool) []span {
+// whole of what follows its first =, of a word that's a program's argument.
+func wordSpans(w string, cands []candidate, arg bool) []span {
 	var out []span
 	for _, c := range cands {
 		if c.anywhere {
@@ -243,7 +241,7 @@ func wordSpans(w string, cands []candidate, program bool) []span {
 			continue
 		}
 		switch {
-		case program:
+		case !arg:
 		case w == c.value:
 			out = addSpan(out, span{0, len(w), c.name})
 		default:
@@ -256,19 +254,20 @@ func wordSpans(w string, cands []candidate, program bool) []span {
 }
 
 // scriptSpans finds the values a shell's script names: only one of plain
-// characters, where the shell reads "${NAME}" as the value (scriptSafe); a
-// secret's of shortest characters or more anywhere, any other only as one of the
-// script's words, or the whole of what follows its first =, and never where a
-// command's name goes. A script with a here-document names nothing, as what's in
-// one isn't read as words.
+// characters, where the shell reads "${NAME}" as the value (scriptSafe), and only
+// of a variable the script doesn't set, read or unset itself; a secret's of
+// shortest characters or more anywhere, any other only as a word of the script
+// that's a program's argument, or the whole of what follows its first =. A script
+// with a here-document, a $( or a backquote names nothing: what's in one isn't
+// read as the words around it, and quotes inside one aren't the ones outside.
 func scriptSpans(script string, cands []candidate) []span {
-	if strings.Contains(script, "<<") {
+	if strings.Contains(script, "<<") || strings.Contains(script, "$(") || strings.Contains(script, "`") {
 		return nil
 	}
 	var out []span
 	words := scriptWords(script)
 	for _, c := range cands {
-		if !scriptPlain().MatchString(c.value) {
+		if !scriptPlain().MatchString(c.value) || scriptSets(script, c.name) {
 			continue
 		}
 		if c.anywhere {
@@ -278,7 +277,7 @@ func scriptSpans(script string, cands []candidate) []span {
 		for _, sw := range words {
 			text := script[sw.at:sw.end]
 			switch {
-			case sw.program:
+			case !sw.arg:
 			case text == c.value && scriptSafe(script, sw.at):
 				out = addSpan(out, span{sw.at, sw.end, c.name})
 			default:
@@ -289,6 +288,16 @@ func scriptSpans(script string, cands []candidate) []span {
 		}
 	}
 	return out
+}
+
+// scriptSets reports a script that may set, read or unset a variable itself, so
+// what "${NAME}" reads there is no longer the value: NAME=, or NAME named after
+// unset, read, export and their kin, or a for loop.
+func scriptSets(script, name string) bool {
+	q := regexp.QuoteMeta(name)
+	assigns := regexp.MustCompile(`(^|[^A-Za-z0-9_])` + q + `(\[[^]]*\])?\+?=`)
+	names := regexp.MustCompile(`\b(unset|read|readarray|mapfile|local|declare|typeset|readonly|export|getopts|for|select)\b[^;&|\n]*\b` + q + `\b`)
+	return assigns.MatchString(script) || names.MatchString(script)
 }
 
 // scriptSafe reports a place in a script where "${NAME}" reads as the value would:
@@ -316,41 +325,53 @@ func isNameByte(c byte) bool {
 	return c == '_' || 'a' <= c && c <= 'z' || 'A' <= c && c <= 'Z' || '0' <= c && c <= '9'
 }
 
-// scriptWord is a word of a script, without the quotes around it, and whether a
-// command's name goes there.
+// scriptWord is a word of a script, without the quotes around it, whether it's
+// where a redirection sends or reads, and whether it's a program's argument.
 type scriptWord struct {
-	at, end int
-	program bool
+	at, end  int
+	redirect bool
+	arg      bool
 }
 
 // scriptWords splits a script into its words, roughly as a shell does: at blanks
-// and at what ends a command, ;, &, |, ( and ), a line break, < and >. A quoted
-// word's quotes aren't part of it. Each command's words are read by programs for
-// where a program's name goes. It's rough on purpose: it only says where an
-// ordinary value may stand as a word of its own, and a word it reads wrong only
+// and at what ends a command, ;, &, |, ( and ), and a line break. A quoted word's
+// quotes aren't part of it. A word after <, > and their kin, and a number of a
+// file before one, are a redirection's. Each command's words are read by arguments
+// for which are its program's arguments. It's rough on purpose: it only says where
+// an ordinary value may stand as a word of its own, and a word it reads wrong only
 // leaves a value as it was, refused as before.
 func scriptWords(s string) []scriptWord {
 	var out []scriptWord
 	start := 0 // the first word of the command being read
 	mark := func() {
 		texts := make([]string, 0, len(out)-start)
+		redirects := make([]bool, 0, len(out)-start)
 		for _, w := range out[start:] {
 			texts = append(texts, s[w.at:w.end])
+			redirects = append(redirects, w.redirect)
 		}
-		for i, p := range programs(texts) {
-			out[start+i].program = p
+		for i, a := range arguments(texts, redirects) {
+			out[start+i].arg = a
 		}
 		start = len(out)
 	}
+	redirect := false
 	for i := 0; i < len(s); {
 		c := s[i]
 		switch {
 		case c == ' ' || c == '\t':
 			i++
+		case c == '<' || c == '>' || c == '&' && i+1 < len(s) && s[i+1] == '>':
+			// A number of a file right before it is the redirection's, as 2> is.
+			if n := len(out); n > start && out[n-1].end == i && strings.Trim(s[out[n-1].at:out[n-1].end], "0123456789") == "" {
+				out[n-1].redirect = true
+			}
+			redirect = true
+			for i++; i < len(s) && strings.IndexByte("<>&|", s[i]) >= 0; i++ {
+			}
 		case strings.IndexByte(";&|()\n", c) >= 0:
 			mark()
-			i++
-		case c == '<' || c == '>':
+			redirect = false
 			i++
 		default:
 			end := i
@@ -361,7 +382,8 @@ func scriptWords(s string) []scriptWord {
 			if last-at >= 2 && (s[at] == '"' || s[at] == '\'') && s[last-1] == s[at] {
 				at, last = at+1, last-1
 			}
-			out = append(out, scriptWord{at: at, end: last})
+			out = append(out, scriptWord{at: at, end: last, redirect: redirect})
+			redirect = false
 			i = end
 		}
 	}
@@ -369,96 +391,49 @@ func scriptWords(s string) []scriptWord {
 	return out
 }
 
-// shellKeywords leave the next word where a command's name goes.
-var shellKeywords = []string{"!", "if", "then", "else", "elif", "do", "while", "until", "{", "time"}
+// shellKeywords leave the next word where a command's program goes.
+var shellKeywords = []string{"!", "if", "then", "else", "elif", "do", "while", "until", "{"}
 
 // assignment is a NAME=value word before a command, which leaves the next word
-// where its name goes.
+// where its program goes.
 var assignment = lazyre.Regexp(`^[A-Za-z_][A-Za-z0-9_]*=`)
 
-// programWrappers are programs that run another, with the options of theirs that take
-// the next word: the word after them, their options and what else they take is
-// that program's name.
-var programWrappers = map[string][]string{
-	"exec":      {"-a"},
-	"env":       {"-u", "-C", "-S", "--unset", "--chdir", "--split-string"},
-	"nice":      {"-n", "--adjustment"},
-	"timeout":   {"-s", "-k", "--signal", "--kill-after"},
-	"sudo":      {"-u", "-g", "-C", "-D", "-h", "-p", "-r", "-t", "-U", "--user", "--group"},
-	"tini":      {"-p", "-e", "-l"},
-	"dumb-init": {"-r", "--rewrite"},
-	"gosu":      {},
-	"su-exec":   {},
+// runsAnother are programs that run another, or read a script, or are a shell's
+// own words for doing so, so what follows them may be a program's name: none of
+// their words is read as an argument.
+var runsAnother = []string{
+	"exec", "env", "nice", "nohup", "setsid", "timeout", "time", "xargs", "chroot", "sudo", "doas", "su", "runuser",
+	"gosu", "su-exec", "s6-setuidgid", "chpst", "setpriv", "capsh", "tini", "dumb-init", "catatonit", "busybox",
+	"command", "builtin", "eval", "source", ".", "ionice", "stdbuf", "taskset", "flock", "watch", "strace", "ltrace",
+	"unshare", "nsenter", "for", "case", "select", "function",
+	"sh", "bash", "ash", "dash", "zsh", "ksh", "mksh",
 }
 
-// programs marks the words that name a program: the first, and the first after a
-// shell keyword, a NAME=value word, or a wrapper and what it takes, as gosu's user
-// or timeout's duration. What it can't read for sure, as su's script or an option
-// it doesn't know, it marks all of, so an ordinary value there stays as it was.
-func programs(words []string) []bool {
+// arguments marks the words of a command that are its program's arguments: those
+// after its program, the first word past shell keywords, NAME=value words and
+// redirections, and none of a redirection's. A program that runs another, or one
+// whose word holds a quote, a $ or a =, which can't be read for sure, has none.
+func arguments(words []string, redirects []bool) []bool {
 	out := make([]bool, len(words))
-	all := func(from int) []bool {
-		for j := from; j < len(words); j++ {
-			out[j] = true
+	at := -1
+	for i, w := range words {
+		if i < len(redirects) && redirects[i] || slices.Contains(shellKeywords, w) || assignment().MatchString(w) {
+			continue
 		}
+		at = i
+		break
+	}
+	if at < 0 {
 		return out
 	}
-	for i := 0; i < len(words); i++ {
-		w := words[i]
-		out[i] = true
-		base := w[strings.LastIndexByte(w, '/')+1:]
-		if slices.Contains(shellKeywords, w) || assignment().MatchString(w) {
-			continue
-		}
-		if base == "su" {
-			return all(i + 1)
-		}
-		if _, wraps := programWrappers[base]; !wraps {
-			return out
-		}
-		next, ok := afterWrapper(base, words, i+1)
-		if !ok {
-			return all(i + 1)
-		}
-		i = next - 1
+	program := words[at]
+	if slices.Contains(runsAnother, program[strings.LastIndexByte(program, '/')+1:]) || strings.ContainsAny(program, "$`\"'\\=") {
+		return out
+	}
+	for i := at + 1; i < len(words); i++ {
+		out[i] = i >= len(redirects) || !redirects[i]
 	}
 	return out
-}
-
-// afterWrapper is where the program a wrapper runs is named, from from, past its
-// options, the words they take, and what it takes before the program: gosu's and
-// su-exec's user, timeout's duration, env's NAME=value words. False where it can't
-// tell, as an option it doesn't know.
-func afterWrapper(base string, words []string, from int) (int, bool) {
-	i := from
-	for i < len(words) {
-		w := words[i]
-		if w == "--" {
-			i++
-			break
-		}
-		if base == "env" && assignment().MatchString(w) {
-			i++
-			continue
-		}
-		if !strings.HasPrefix(w, "-") || len(w) == 1 {
-			break
-		}
-		name, _, hasValue := strings.Cut(w, "=")
-		switch {
-		case slices.Contains(programWrappers[base], name) && !hasValue:
-			i += 2
-		case hasValue, len(name) == 2, base == "nice" && strings.Trim(name[1:], "0123456789") == "":
-			i++
-		default:
-			return 0, false
-		}
-	}
-	switch base {
-	case "gosu", "su-exec", "timeout":
-		i++ // the user, or the duration
-	}
-	return i, i <= len(words)
 }
 
 // addAll adds each place a candidate's value stands in w, where ok says it may, or

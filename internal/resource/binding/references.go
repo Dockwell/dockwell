@@ -84,6 +84,44 @@ func TextOf(word string) string {
 	return b.String()
 }
 
+// SecretName says a variable's name says what it holds is a secret: PASS, SECRET,
+// TOKEN, KEY or CREDENTIAL, in any case.
+var SecretName = lazyre.Regexp(`(?i)PASS|SECRET|TOKEN|KEY|CREDENTIAL`)
+
+// Counts says a value of the environment counts as one that would show where
+// it's written in: of shortest characters or more, or of any length under a name
+// that says it's a secret. A shorter one could be anywhere by chance (ADR 0031).
+func Counts(name, value string) bool {
+	return value != "" && (len(value) >= shortest || SecretName().MatchString(name))
+}
+
+// HoldsAValue reports words that hold a value of env that Counts.
+func HoldsAValue(words []string, env map[string]string) bool {
+	for name, value := range env {
+		if !Counts(name, value) {
+			continue
+		}
+		for _, w := range words {
+			if strings.Contains(w, value) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// CountingValues are the values of env that Counts, for Hide.
+func CountingValues(env map[string]string) []string {
+	var out []string
+	for name, value := range env {
+		if Counts(name, value) {
+			out = append(out, value)
+		}
+	}
+	slices.Sort(out)
+	return out
+}
+
 // isName reports what a variable can be called, as Compose has it.
 func isName(s string) bool {
 	if s == "" {

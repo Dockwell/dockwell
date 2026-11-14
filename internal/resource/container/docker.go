@@ -449,15 +449,10 @@ func valuesInContainer(c *docker.Container) []string {
 	label, ok := c.Config.Labels[LabelReferences]
 	if !ok {
 		// One taken on whose record keeps no references may have a value written in
-		// anywhere (hideTakenValues), so each of its environment's counts.
+		// anywhere (hideTakenValues), so each of its environment's that would show
+		// there counts, by the same measure.
 		if c.Config.Labels[docker.LabelAdopted] != "" {
-			var all []string
-			for _, v := range envOf(c.Config.Env) {
-				if v != "" {
-					all = append(all, v)
-				}
-			}
-			return all
+			return binding.CountingValues(envOf(c.Config.Env))
 		}
 		return nil
 	}
@@ -1454,19 +1449,7 @@ func hideTakenValues(c *docker.Container, out *resourcev1.Container) {
 		return
 	}
 	env := envOf(c.Config.Env)
-	holds := func(words []string) bool {
-		for name, value := range env {
-			if value == "" || len(value) < shortest && !secretName().MatchString(name) {
-				continue
-			}
-			for _, w := range words {
-				if strings.Contains(w, value) {
-					return true
-				}
-			}
-		}
-		return false
-	}
+	holds := func(words []string) bool { return binding.HoldsAValue(words, env) }
 	if holds(out.GetCommand()) {
 		out.Command = []string{binding.Unread}
 	}

@@ -10,8 +10,9 @@ import (
 	"github.com/dockwell/dockwell/internal/store/storetest"
 )
 
-// What an applied change took a container on as counts as taken on, and so does
-// what one applying did; a take-on planned, failed or discarded doesn't (ADR 0096).
+// What a change that ran took a container on as counts as taken on, applied,
+// applying or failed, as a failed one keeps its revisions until its rollback
+// commits; a take-on planned or discarded doesn't (ADR 0096).
 func TestWhatWasTakenOn(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, b store.Backend) {
 		db, _ := storetest.Open(t, b)
@@ -47,7 +48,7 @@ func TestWhatWasTakenOn(t *testing.T) {
 			t.Fatal(err)
 		}
 		for _, n := range names {
-			if want := n.Name == "applied" || n.Name == "applying"; got[n] != want {
+			if want := n.Name == "applied" || n.Name == "applying" || n.Name == "failed"; got[n] != want {
 				t.Errorf("%s reads as taken on: %v", n.Name, got[n])
 			}
 		}

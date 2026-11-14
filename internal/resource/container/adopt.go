@@ -113,7 +113,7 @@ var shownWords = map[protoreflect.Name]string{"healthcheck": "health check"}
 var notSecrets = map[protoreflect.Name]bool{"mounts": true, "working_dir": true, "references": true}
 
 // secretName says a variable's name says what it holds is a secret.
-var secretName = lazyre.Regexp(`(?i)PASS|SECRET|TOKEN|KEY|CREDENTIAL`)
+var secretName = binding.SecretName
 
 // shortest is the fewest characters a value of a variable has to have to count as shown
 // when its name says nothing, as anything shorter could be anywhere by chance (ADR 0031).
