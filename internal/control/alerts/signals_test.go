@@ -119,7 +119,8 @@ func TestAKeyThatIsntRevokedSaysSo(t *testing.T) {
 		t.Fatalf("findings: %+v, %v", got, err)
 	}
 	if f := got[0]; f.verdict != holds || !f.since.Equal(now) || f.thing != "revoke:aa" || f.title != "The key hz-2 had for *.example.com isn't revoked" ||
-		!strings.Contains(f.detail, "down for upkeep. Until it is, a copy of it still works") || f.facts.Server != "hz-2" {
+		!strings.Contains(f.detail, "down for upkeep. Until it is, a copy of it still works") || !strings.Contains(f.detail, "check the CA's status") ||
+		strings.Contains(f.detail, "DNS") || f.facts.Server != "hz-2" {
 		t.Errorf("a failing revocation: %+v", f)
 	}
 	if got[1].verdict != fine {

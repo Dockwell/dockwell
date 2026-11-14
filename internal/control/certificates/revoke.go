@@ -8,6 +8,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"time"
@@ -32,6 +33,46 @@ const revokeTimeout = 30 * time.Second
 // they could have a new one (ADR 0088). One a server removed as compromised had
 // goes at once, whatever its holder has (ADR 0090).
 func (m *Manager) revokeDue(ctx context.Context, wanted map[Holder]*want, st map[string]*held) {
+	m.revoking(ctx, wanted, st, false)
+}
+
+// revokeCompromised revokes what servers removed as compromised had, first thing in
+// a tick: ahead of any order the tick makes, and whether or not what's wanted can be
+// read (ADR 0090). It marks what's gone first, so a key such a server had is known
+// as one.
+func (m *Manager) revokeCompromised(ctx context.Context) {
+	if err := m.DB.Update(ctx, func(tx *store.Tx) error {
+		st, err := states(ctx, tx)
+		if err != nil {
+			return err
+		}
+		gv, err := givenKeys(ctx, tx)
+		if err != nil {
+			return err
+		}
+		live, err := liveServers(ctx, tx)
+		if err != nil {
+			return err
+		}
+		compromised, err := compromisedOf(ctx, tx, gv, live)
+		if err != nil || !slices.Contains(slices.Collect(maps.Values(compromised)), true) {
+			return err
+		}
+		m.markGone(gv, st, live, compromised)
+		if err := putJSON(ctx, tx, givenSetting, gv); err != nil {
+			return err
+		}
+		return putJSON(ctx, tx, stateSetting, st)
+	}); err != nil {
+		m.logger().Warn("can't read which keys servers removed as compromised had; it tries again", "error", err.Error())
+		return
+	}
+	m.revoking(ctx, nil, nil, true)
+}
+
+// revoking revokes the keys due, or with compromised, those of servers removed as
+// compromised alone.
+func (m *Manager) revoking(ctx context.Context, wanted map[Holder]*want, st map[string]*held, compromised bool) {
 	var gv map[string]*given
 	if err := m.DB.View(ctx, func(tx *store.Tx) error {
 		var err error
@@ -44,7 +85,7 @@ func (m *Manager) revokeDue(ctx context.Context, wanted map[Holder]*want, st map
 	now := m.now()
 	var due []string
 	for serial, g := range gv {
-		if len(g.Gone) == 0 || now.Before(g.Next) {
+		if len(g.Gone) == 0 || now.Before(g.Next) || compromised && !g.Compromised {
 			continue
 		}
 		// A key a compromised server had goes at once; otherwise once its holder has another.

@@ -335,3 +335,59 @@ func TestACompromisedServersKeyIsRevokedAtOnce(t *testing.T) {
 		t.Errorf("the revocations listed: %+v, %v", list, err)
 	}
 }
+
+// What a compromised server had is revoked first thing in a tick, before what's
+// wanted is read or anything is ordered, and alone: a key whose server went as any
+// does waits for the rest of the tick (ADR 0090).
+func TestACompromisedServersKeysGoFirstInATick(t *testing.T) {
+	m := newManager(t)
+	now := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
+	m.Now = func() time.Time { return now }
+	was := clientTimeout
+	clientTimeout = 2 * time.Second
+	t.Cleanup(func() { clientTimeout = was })
+	var asked atomic.Int32
+	ca := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		asked.Add(1)
+		http.Error(w, "down for upkeep", http.StatusServiceUnavailable)
+	}))
+	t.Cleanup(ca.Close)
+	m.Directory, m.HTTP = ca.URL+"/dir", ca.Client()
+	addServers(t, m, "srv_1", "srv_2", "srv_3")
+	st := map[string]*held{"crt_wild": {Gen: 2, Serial: "aa"}, "crt_api": {Gen: 1, Serial: "bb"}}
+	gv := map[string]*given{
+		"aa": {Holder: "crt_wild", Gen: 2, Servers: []string{"srv_1", "srv_2"}, Names: []string{"*.example.com"}, NotAfter: now.Add(80 * 24 * time.Hour)},
+		"bb": {Holder: "crt_api", Gen: 1, Servers: []string{"srv_3", "srv_2"}, Names: []string{"api.example.com"}, NotAfter: now.Add(80 * 24 * time.Hour)},
+	}
+	if err := m.DB.Update(t.Context(), func(tx *store.Tx) error {
+		if err := putJSON(t.Context(), tx, givenSetting, gv); err != nil {
+			return err
+		}
+		return putJSON(t.Context(), tx, stateSetting, st)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// Nothing went yet: there's nothing to do.
+	m.revokeCompromised(t.Context())
+	if asked.Load() != 0 {
+		t.Fatal("a tick with no server gone asked the CA")
+	}
+	revokeServer(t, m, "srv_1")
+	revokeServer(t, m, "srv_3")
+	if err := m.DB.Update(t.Context(), func(tx *store.Tx) error {
+		return tx.PutSetting(t.Context(), store.SettingCompromised("srv_1"), []byte(now.Format(time.RFC3339)))
+	}); err != nil {
+		t.Fatal(err)
+	}
+	m.revokeCompromised(t.Context())
+	st, gv = read(t, m)
+	if a := gv["aa"]; !a.Compromised || !slices.Equal(a.Gone, []string{"srv_1"}) || a.Failures != 1 || asked.Load() == 0 {
+		t.Errorf("the compromised server's key: %+v, the CA asked %d times", a, asked.Load())
+	}
+	if b := gv["bb"]; b.Failures != 0 || !slices.Equal(b.Gone, []string{"srv_3"}) || b.Compromised {
+		t.Errorf("the key of a server that went as any does: %+v", b)
+	}
+	if !st["crt_wild"].Rekey || !st["crt_api"].Rekey {
+		t.Errorf("what's in use isn't ordered again: wild %+v, api %+v", st["crt_wild"], st["crt_api"])
+	}
+}

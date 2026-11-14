@@ -351,6 +351,8 @@ func (m *Manager) Tick(ctx context.Context) error {
 	m.working.Lock()
 	defer m.working.Unlock()
 	m.once.Do(func() { m.cleanupNoted(ctx) })
+	// What a compromised server had goes first, whatever else this tick can do.
+	m.revokeCompromised(ctx)
 	wanted, zones, err := m.wants(ctx)
 	if err != nil {
 		return err

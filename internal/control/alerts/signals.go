@@ -153,7 +153,8 @@ func (s *signals) revocations(ctx context.Context) ([]finding, error) {
 			if r.Message != "" {
 				f.verdict, f.since = holds, r.Since
 				f.title = "The key " + who + " had for " + domains + " isn't revoked"
-				f.detail = strings.TrimSuffix(r.Message, ".") + ". Until it is, a copy of it still works for " + domains + ". Dockwell tries again on its own; if it keeps failing, check the DNS provider on Domains."
+				// Revoking goes to the CA, signed with the certificate's own key: no DNS provider is in it.
+				f.detail = strings.TrimSuffix(r.Message, ".") + ". Until it is, a copy of it still works for " + domains + ". Dockwell asks the CA again on its own; if it keeps failing, check the CA's status."
 			}
 			out = append(out, f)
 		}

@@ -412,8 +412,12 @@ func (r *runner) applies(c *dockwellv1.Change) bool {
 	return !r.opts.planOnly && !empty(c.GetPlan()) && !needsPerson(c.GetPlan()) && (r.opts.yes || r.env.interactive())
 }
 
-// empty reports a plan that changes nothing.
+// empty reports a plan that changes nothing. A removal never is, as a server with
+// nothing on it leaves by a plan with no other change (ADR 0090).
 func empty(p *dockwellv1.Plan) bool {
+	if p.GetRemoves() != nil {
+		return false
+	}
 	s := p.GetSummary()
 	if s.GetCreate()+s.GetChange()+s.GetReplace()+s.GetDestroy() > 0 {
 		return false
