@@ -2026,7 +2026,12 @@ type Healthcheck struct {
 	Http *HttpCheck `protobuf:"bytes,6,opt,name=http,proto3" json:"http,omitempty"`
 	// A connection the agent makes to the container, on its own network address.
 	// It passes once the port takes it, and turns the image's own check off.
-	Tcp           *TcpCheck `protobuf:"bytes,7,opt,name=tcp,proto3" json:"tcp,omitempty"`
+	Tcp *TcpCheck `protobuf:"bytes,7,opt,name=tcp,proto3" json:"tcp,omitempty"`
+	// How often the test runs while start_period lasts, such as "5s", so a
+	// container that's ready soon is seen healthy soon. Empty runs it at
+	// interval throughout. Only a test takes one, and Docker keeps it from
+	// version 25.
+	StartInterval string `protobuf:"bytes,8,opt,name=start_interval,json=startInterval,proto3" json:"start_interval,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2108,6 +2113,13 @@ func (x *Healthcheck) GetTcp() *TcpCheck {
 		return x.Tcp
 	}
 	return nil
+}
+
+func (x *Healthcheck) GetStartInterval() string {
+	if x != nil {
+		return x.StartInterval
+	}
+	return ""
 }
 
 // HttpCheck is a GET the agent sends to a container. It can name nothing but
@@ -8309,7 +8321,7 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\x06source\"9\n" +
 	"\tMountFile\x12\x18\n" +
 	"\acontent\x18\x01 \x01(\tR\acontent\x12\x12\n" +
-	"\x04mode\x18\x02 \x01(\rR\x04mode\"\x87\x02\n" +
+	"\x04mode\x18\x02 \x01(\rR\x04mode\"\xae\x02\n" +
 	"\vHealthcheck\x12\x12\n" +
 	"\x04test\x18\x01 \x03(\tR\x04test\x12\x1a\n" +
 	"\binterval\x18\x02 \x01(\tR\binterval\x12\x18\n" +
@@ -8317,7 +8329,8 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\fstart_period\x18\x04 \x01(\tR\vstartPeriod\x12\x18\n" +
 	"\aretries\x18\x05 \x01(\rR\aretries\x129\n" +
 	"\x04http\x18\x06 \x01(\v2%.dockwell.resource.v1alpha1.HttpCheckR\x04http\x126\n" +
-	"\x03tcp\x18\a \x01(\v2$.dockwell.resource.v1alpha1.TcpCheckR\x03tcp\"G\n" +
+	"\x03tcp\x18\a \x01(\v2$.dockwell.resource.v1alpha1.TcpCheckR\x03tcp\x12%\n" +
+	"\x0estart_interval\x18\b \x01(\tR\rstartInterval\"G\n" +
 	"\tHttpCheck\x12\x12\n" +
 	"\x04port\x18\x01 \x01(\rR\x04port\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x12\x12\n" +

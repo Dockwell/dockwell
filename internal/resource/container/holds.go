@@ -458,16 +458,23 @@ func readRuntime(raw json.RawMessage, r *reading) []string {
 	return []string{"runtime: " + runtime}
 }
 
-// readHealthcheck reads what a spec's health check can't hold.
+// healthcheckKeys are what a spec's health check holds of Docker's.
+var healthcheckKeys = []string{"Test", "Interval", "Timeout", "StartPeriod", "StartInterval", "Retries"}
+
+// readHealthcheck reads what a spec's health check can't hold: a key Docker adds
+// later, which nothing here can know the meaning of.
 func readHealthcheck(raw json.RawMessage, _ *reading) []string {
 	var check map[string]json.RawMessage
 	if len(raw) == 0 || json.Unmarshal(raw, &check) != nil {
 		return nil
 	}
-	if !isZero(check["StartInterval"]) {
-		return []string{"healthcheck start_interval"}
+	var out []string
+	for _, k := range slices.Sorted(maps.Keys(check)) {
+		if !slices.Contains(healthcheckKeys, k) && !isZero(check[k]) {
+			out = append(out, "Config.Healthcheck."+k)
+		}
 	}
-	return nil
+	return out
 }
 
 // readSecurityOpt reads a container's security options: no-new-privileges a spec

@@ -310,6 +310,11 @@ message Healthcheck {
   // A connection the agent makes to the container, on its own network address.
   // It passes once the port takes it, and turns the image's own check off.
   TcpCheck tcp = 7;
+  // How often the test runs while start_period lasts, such as "5s", so a
+  // container that's ready soon is seen healthy soon. Empty runs it at
+  // interval throughout. Only a test takes one, and Docker keeps it from
+  // version 25.
+  string start_interval = 8;
 }
 
 // HttpCheck is a GET the agent sends to a container. It can name nothing but

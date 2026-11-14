@@ -165,7 +165,8 @@ func TestEachThingASpecCantHoldIsNamed(t *testing.T) {
 	}
 
 	// A hostname, a stop signal and the rest of what a container asks of itself, a
-	// spec holds (ADR 0085); a health check's start interval it doesn't.
+	// spec holds (ADR 0085), and a health check's start interval too; a key of a
+	// health check Docker adds later it doesn't.
 	o := options(t, nil)
 	o.Config["Hostname"] = json.RawMessage(`"db-primary"`)
 	o.Config["StopSignal"] = json.RawMessage(`"SIGTERM"`)
@@ -174,8 +175,8 @@ func TestEachThingASpecCantHoldIsNamed(t *testing.T) {
 	o.HostConfig["Ulimits"] = json.RawMessage(`[{"Name": "nofile", "Soft": 1024, "Hard": 4096}]`)
 	o.HostConfig["PidsLimit"] = json.RawMessage(`100`)
 	o.HostConfig["SecurityOpt"] = json.RawMessage(`["no-new-privileges:true"]`)
-	o.Config["Healthcheck"] = json.RawMessage(`{"Test": ["CMD", "true"], "StartInterval": 1000000000}`)
-	if got := noSpecHolds(c, o, info); !slices.Equal(got, []string{"healthcheck start_interval"}) {
+	o.Config["Healthcheck"] = json.RawMessage(`{"Test": ["CMD", "true"], "StartInterval": 1000000000, "Jitter": 5}`)
+	if got := noSpecHolds(c, o, info); !slices.Equal(got, []string{"Config.Healthcheck.Jitter"}) {
 		t.Errorf("noSpecHolds of its Config = %v", got)
 	}
 }

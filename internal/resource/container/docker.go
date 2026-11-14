@@ -268,6 +268,7 @@ func OwnLabels(spec *resourcev1.Container) map[string]string {
 		add("healthcheck.interval", hc.GetInterval() != "")
 		add("healthcheck.timeout", hc.GetTimeout() != "")
 		add("healthcheck.start_period", hc.GetStartPeriod() != "")
+		add("healthcheck.start_interval", hc.GetStartInterval() != "")
 		add("healthcheck.retries", hc.GetRetries() != 0)
 	}
 	for k := range spec.GetEnv() {
@@ -619,7 +620,7 @@ func healthcheck(hc *resourcev1.Healthcheck) *docker.Healthcheck {
 	}
 	return &docker.Healthcheck{
 		Test: hc.GetTest(), Interval: d(hc.GetInterval()), Timeout: d(hc.GetTimeout()),
-		StartPeriod: d(hc.GetStartPeriod()), Retries: int(hc.GetRetries()),
+		StartPeriod: d(hc.GetStartPeriod()), StartInterval: d(hc.GetStartInterval()), Retries: int(hc.GetRetries()),
 	}
 }
 
@@ -1226,7 +1227,7 @@ func projectHealthcheck(c, img *docker.Healthcheck, set map[string]bool) *resour
 		img = &docker.Healthcheck{}
 	}
 	if !set["healthcheck"] && slices.Equal(c.Test, img.Test) &&
-		c.Interval == img.Interval && c.Timeout == img.Timeout && c.StartPeriod == img.StartPeriod && c.Retries == img.Retries {
+		c.Interval == img.Interval && c.Timeout == img.Timeout && c.StartPeriod == img.StartPeriod && c.StartInterval == img.StartInterval && c.Retries == img.Retries {
 		return nil
 	}
 	// fromImage reports a value Docker filled in from the image.
@@ -1238,10 +1239,11 @@ func projectHealthcheck(c, img *docker.Healthcheck, set map[string]bool) *resour
 		return v.String()
 	}
 	out := &resourcev1.Healthcheck{
-		Test:        c.Test,
-		Interval:    dur("interval", c.Interval, img.Interval),
-		Timeout:     dur("timeout", c.Timeout, img.Timeout),
-		StartPeriod: dur("start_period", c.StartPeriod, img.StartPeriod),
+		Test:          c.Test,
+		Interval:      dur("interval", c.Interval, img.Interval),
+		Timeout:       dur("timeout", c.Timeout, img.Timeout),
+		StartPeriod:   dur("start_period", c.StartPeriod, img.StartPeriod),
+		StartInterval: dur("start_interval", c.StartInterval, img.StartInterval),
 	}
 	if c.Retries > 0 && !fromImage("retries", c.Retries == img.Retries) {
 		out.Retries = uint32(c.Retries) //nolint:gosec // retries are few
@@ -1903,6 +1905,11 @@ func owned(t Target, c *docker.Container) error {
 // how it replaces what runs, and why; and a recreated container's health check,
 // its image's included, says how long it may take to be healthy.
 func (d *Docker) Judge(ctx context.Context, t Target, desired *resourcev1.Container, dec *resource.Decision) error {
+	// Docker before 25 takes a check's start_interval and keeps none of it, so the
+	// container would read back without it, as drift that never ends.
+	if desired.GetHealthcheck().GetStartInterval() != "" && !d.Client.AtLeast("1.44") {
+		return errors.New("Docker on this server is older than 25, which keeps no health check's start_interval. Take start_interval out of the spec, or upgrade Docker Engine on the server")
+	}
 	if dec.Action == resource.ActionDelete {
 		letsGo, err := d.lettingGo(ctx, t)
 		if err != nil {

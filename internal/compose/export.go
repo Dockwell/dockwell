@@ -135,12 +135,13 @@ type (
 		Port uint32 `yaml:"port"`
 	}
 	healthEntry struct {
-		Test        []string `yaml:"test,omitempty"`
-		Interval    string   `yaml:"interval,omitempty"`
-		Timeout     string   `yaml:"timeout,omitempty"`
-		StartPeriod string   `yaml:"start_period,omitempty"`
-		Retries     uint32   `yaml:"retries,omitempty"`
-		Disable     bool     `yaml:"disable,omitempty"`
+		Test          []string `yaml:"test,omitempty"`
+		Interval      string   `yaml:"interval,omitempty"`
+		Timeout       string   `yaml:"timeout,omitempty"`
+		StartPeriod   string   `yaml:"start_period,omitempty"`
+		StartInterval string   `yaml:"start_interval,omitempty"`
+		Retries       uint32   `yaml:"retries,omitempty"`
+		Disable       bool     `yaml:"disable,omitempty"`
 	}
 	networkEntry struct {
 		Driver     string            `yaml:"driver,omitempty"`
@@ -366,7 +367,7 @@ func Export(project string, stack *Stack) (*Exported, error) {
 			default:
 				entry.Healthcheck = &healthEntry{
 					Test: exportWords(c, binding.FieldTest), Interval: hc.GetInterval(), Timeout: hc.GetTimeout(),
-					StartPeriod: hc.GetStartPeriod(), Retries: hc.GetRetries(),
+					StartPeriod: hc.GetStartPeriod(), StartInterval: hc.GetStartInterval(), Retries: hc.GetRetries(),
 				}
 			}
 		}

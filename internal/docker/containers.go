@@ -59,7 +59,9 @@ type Healthcheck struct {
 	Interval    time.Duration `json:"Interval,omitempty"`
 	Timeout     time.Duration `json:"Timeout,omitempty"`
 	StartPeriod time.Duration `json:"StartPeriod,omitempty"`
-	Retries     int           `json:"Retries,omitempty"`
+	// StartInterval is how often it runs while StartPeriod lasts, from API 1.44.
+	StartInterval time.Duration `json:"StartInterval,omitempty"`
+	Retries       int           `json:"Retries,omitempty"`
 }
 
 // HostConfig is how a container runs on the server.
