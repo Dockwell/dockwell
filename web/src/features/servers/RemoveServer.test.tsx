@@ -64,6 +64,16 @@ function removal(compromised: boolean): Change {
   });
 }
 
+/** Removing hz-2 with nothing on it: the removal alone, which edits nothing (ADR 0090). */
+function emptyRemoval(): Change {
+  const c = removal(false);
+  if (c.plan) {
+    c.plan.resources = [];
+    c.plan.servers = [{ ...c.plan.servers[0], removed: true, steps: [] } as (typeof c.plan.servers)[number]];
+  }
+  return c;
+}
+
 function api(planRemoveServer: (req: PlanRemoveServerRequest) => { change: Change }, apps = true) {
   const servers = feed<WatchServersResponse>();
   servers.push(changed(hz1), changed(hz2), snapshotComplete);
@@ -125,12 +135,16 @@ describe("Removing a server", () => {
 
   it("plans it at once for a server that runs nothing, and the control server has no such way", async () => {
     const user = userEvent.setup();
-    const plan = vi.fn((req: PlanRemoveServerRequest) => ({ change: removal(req.compromised) }));
+    const plan = vi.fn((_req: PlanRemoveServerRequest) => ({ change: emptyRemoval() }));
     const { unmount } = renderAt("/servers/srv_2", api(plan, false));
     await user.click(await screen.findByRole("button", { name: "Remove from fleet" }));
     await waitFor(() => expect(plan).toHaveBeenCalledTimes(1));
     expect(plan.mock.calls[0]?.[0]).toMatchObject({ serverId: "srv_2", apps: AppsOnRemoval.LEAVE, compromised: false });
     expect(screen.queryByRole("dialog", { name: "Remove hz-2" })).toBeNull();
+    // A plan with nothing on the server to change still has it leave: it's no plan of nothing.
+    const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+    expect(within(sheet).getByRole("button", { name: "Remove hz-2" })).toBeVisible();
+    expect(sheet).toHaveTextContent("hz-2 can't come back once it's removed");
     unmount();
 
     renderAt("/servers/srv_1", api(plan));

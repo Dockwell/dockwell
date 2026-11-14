@@ -367,7 +367,13 @@ export function onlyCreates(plan: Plan | undefined): boolean {
 
 /** True for a plan with nothing to do: nothing changes, and no server has a step. */
 export function isEmpty(plan: Plan | undefined): boolean {
-  return plan !== undefined && changing(plan).length === 0 && plan.servers.every((s) => s.steps.length === 0);
+  // A server leaving the fleet is the change, with nothing on it to change as well (ADR 0090).
+  return (
+    plan !== undefined &&
+    plan.removes === undefined &&
+    changing(plan).length === 0 &&
+    plan.servers.every((s) => s.steps.length === 0)
+  );
 }
 
 /** True when the server went away during a change's step, so nothing can say whether it ran until the server is back. */
