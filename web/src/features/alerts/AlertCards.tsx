@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { timestampDate } from "@bufbuild/protobuf/wkt";
+import { type Timestamp, timestampDate } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
 import { createConnectQueryKey, useTransport } from "@connectrpc/connect-query";
 import {
@@ -19,7 +19,7 @@ import { Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 
 import { sentence } from "../../lib/errors";
-import { formatClock, formatDateTime } from "../../lib/format";
+import { formatClock, formatDateTime, formatDay } from "../../lib/format";
 import { RouterButtonLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
 import { useActorWords } from "../activity/actor";
@@ -391,14 +391,28 @@ export function ResolvedAlerts({ alerts }: { alerts: readonly Alert[] }) {
               <Link to="/alerts/$alertId" params={{ alertId: alert.id }} className="alerts-resolved-title">
                 {alertTitle(alert, i18n)}
               </Link>
-              <span className="alerts-resolved-at">
-                {alert.resolveTime ? formatDateTime(timestampDate(alert.resolveTime), i18n.locale) : ""}
-              </span>
+              <ResolvedAt time={alert.resolveTime} />
               <span className="alerts-resolved-meta">{[lasted, alert.ruleName].filter(Boolean).join(" · ")}</span>
             </li>
           );
         })}
       </ul>
     </aside>
+  );
+}
+
+/**
+ * When an alert resolved, as Alerts' list has it: the time for today, the day before that, so it takes a
+ * narrow column's corner rather than half its row; the whole of it on hover.
+ */
+function ResolvedAt({ time }: { time: Timestamp | undefined }) {
+  const { i18n } = useLingui();
+  if (!time) return <span className="alerts-resolved-at" />;
+  const at = timestampDate(time);
+  const today = at.toDateString() === new Date().toDateString();
+  return (
+    <span className="alerts-resolved-at" title={formatDateTime(at, i18n.locale)}>
+      {today ? formatClock(at, i18n.locale) : formatDay(at, i18n.locale)}
+    </span>
   );
 }
