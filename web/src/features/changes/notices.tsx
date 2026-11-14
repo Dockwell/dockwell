@@ -1142,6 +1142,7 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
     "catalog_source_follows",
     "catalog_source_pinned",
     "catalog_source_followed",
+    "labels_only",
   ]);
   const fromRollouts = rollouts
     .filter((line) => line.warn)
@@ -1170,7 +1171,7 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
  * it brings back, and a health check it can't know yet.
  */
 export function useAsides(plan: Plan | undefined): Notice[] {
-  const { t } = useLingui();
+  const { t, i18n } = useLingui();
   const words = useChangeWords();
   const detected = useDetectionWords();
   const rollouts = useRolloutLines(plan);
@@ -1190,6 +1191,11 @@ export function useAsides(plan: Plan | undefined): Notice[] {
     }
     // Only the server can say a plan will start what isn't running, and it says how it found it.
     if (note.reason === "starts_stopped") out.push({ key: `starts-${i}`, title: `${note.message}.` });
+    // Only the control plane keeps labels, so a change of them alone runs nothing anywhere (ADR 0091).
+    if (note.reason === "labels_only") {
+      const on = new Intl.ListFormat(i18n.locale, { style: "long", type: "conjunction" }).format(note.names);
+      out.push({ key: `labels-${i}`, title: t`Labels alone: no step runs on ${on}, online or offline.` });
+    }
     // What an edit kept unread of an app's own values, as the server says it, once for each app:
     // the server notes it for each server the app's step is on.
     if (note.reason === "keeps_env") {

@@ -290,6 +290,37 @@ describe("Overview with a fleet", () => {
     await waitFor(() => expect(router.state.location.pathname).toBe("/servers/srv_2"));
   });
 
+  it("groups the fleet by region once servers have one, and the Region control shows one region", async () => {
+    const user = userEvent.setup();
+    const eu = aServer({ ...hz1, labels: { region: "eu" } });
+    const us = hz2({ labels: { region: "us" } });
+    const none = aServer({ id: "srv_3", name: "hz-3" });
+    renderFleet([eu, us, none]);
+
+    expect(
+      await screen.findByText("3 servers in 2 regions, 1 without a region · agent 0.2.1 everywhere", {
+        selector: ".page-lead",
+      }),
+    ).toBeVisible();
+    const map = screen.getByRole("region", { name: "Servers" });
+    expect(within(map).getByText("eu")).toBeVisible();
+    expect(within(map).getByText("No region")).toBeVisible();
+    const region = screen.getByRole("radiogroup", { name: "Region" });
+    await user.click(within(region).getByRole("radio", { name: /^us/ }));
+    await waitFor(() => expect(within(map).queryByRole("button", { name: /^hz-1,/ })).toBeNull());
+    expect(within(map).getByRole("button", { name: /^hz-2,/ })).toBeVisible();
+    expect(within(map).queryByText("No region")).toBeNull();
+  });
+
+  it("keeps the fleet in one block on a phone, as M-Overview-Fleet has it", async () => {
+    onPhone();
+    renderFleet([aServer({ ...hz1, labels: { region: "eu" } }), hz2({ labels: { region: "us" } })]);
+    await screen.findByRole("button", { name: /^hz-2,/ });
+    const map = document.querySelector(".overview-fleet-map") as HTMLElement;
+    expect(within(map).queryByText("eu")).toBeNull();
+    expect(screen.queryByRole("radiogroup", { name: "Region" })).toBeNull();
+  });
+
   it.each([
     ["v0.2.2-0.20261108005608-b92efc90d686", "2 servers · agent 0.2.2-dev everywhere"],
     ["0.2.0", "2 servers · agents on 2 versions"],

@@ -205,6 +205,15 @@ func TestAddAServerThroughTheCLI(t *testing.T) {
 	if r.code != exitError || !strings.Contains(r.err, "there's no control plane") {
 		t.Errorf("token create away from the control server = %d %q", r.code, r.err)
 	}
+	// A ticket with labels says them; one it can't take is refused before anything opens.
+	r = run(t, none, "token", "create", "--data-dir", control, "--label", "region:eu", "--label", "pool:web")
+	if r.code != exitOK || !strings.Contains(r.out, "adds one server with the labels pool:web region:eu through") {
+		t.Errorf("token create with labels = %d:\n%s%s", r.code, r.out, r.err)
+	}
+	r = run(t, none, "token", "create", "--data-dir", t.TempDir(), "--label", "region:eu west")
+	if r.code != exitUsage || !strings.Contains(r.err, "letters, digits") {
+		t.Errorf("token create with a bad label = %d %q", r.code, r.err)
+	}
 	r = run(t, none, "join")
 	if r.code != exitUsage || !strings.Contains(r.err, "takes one join ticket") {
 		t.Errorf("join without a ticket = %d %q", r.code, r.err)

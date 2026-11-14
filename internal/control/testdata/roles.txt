@@ -86,6 +86,7 @@ ChangeService.ListDrift                        read         viewer     viewer   
 ChangeService.PlanInstallUpdates               plan         admin      admin      install  session
 ChangeService.PlanReboot                       plan         admin      admin      install  session
 ChangeService.PlanRemoveServer                 plan         admin      admin      install  session
+ChangeService.PlanServerLabels                 plan         admin      admin      install
 ChangeService.PlanSystemServiceAction          plan         admin      admin      install  session
 ChangeService.ProposeChange                    plan         developer  developer  project
 ChangeService.RestartService                   plan         developer  developer  project

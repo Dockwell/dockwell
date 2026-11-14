@@ -7793,6 +7793,15 @@ msgstr "关闭这里后它会继续应用。"
 msgid "Keep this only if you trust what it runs."
 msgstr "请仅在信任其运行内容时保留。"
 
+msgid "Labelling {on}"
+msgstr "正在为 {on} 设置标签"
+
+msgid "Labelling {on} failed"
+msgstr "为 {on} 设置标签失败"
+
+msgid "Labels are changed on {on}"
+msgstr "{on} 的标签已更改"
+
 msgid "Leave it for an admin"
 msgstr "留给管理员处理"
 
@@ -8078,6 +8087,9 @@ msgstr "{name} 已在 {server} 上重新运行"
 
 msgid "{name} starts at boot on {server}"
 msgstr "{name} 会在 {server} 上开机启动"
+
+msgid "{on} · no step, nothing goes down"
+msgstr "{on} · 无任何步骤，不会中断任何服务"
 
 msgid "{restarts, plural, one {# app in a project you can't see restarts with it} other {# apps in projects you can't see restart with it}}"
 msgstr "{restarts, plural, other {你无法查看的项目中有 # 个应用随之重启}}"
@@ -9056,6 +9068,9 @@ msgstr "它的卷会先备份"
 
 msgid "Keep a rule that allows the tunnel's UDP port."
 msgstr "请保留一条允许隧道 UDP 端口的规则。"
+
+msgid "Labels alone: no step runs on {on}, online or offline."
+msgstr "仅改标签：{on} 上不会运行任何步骤，无论在线与否。"
 
 msgid "Leave it alone in 1Panel from now on, and never uninstall it there."
 msgstr "从现在起不要在 1Panel 中操作它，也绝不要在那里卸载它。"
@@ -11900,6 +11915,9 @@ msgstr "{name} 没有上报数据"
 msgid "Across {cpus} vCPU"
 msgstr "{cpus} 个 vCPU 合计"
 
+msgid "All regions"
+msgstr "所有区域"
+
 msgid "Each server"
 msgstr "每台服务器"
 
@@ -11908,6 +11926,9 @@ msgstr "每台服务器都在上报数据"
 
 msgid "Fleet"
 msgstr "集群"
+
+msgid "No region"
+msgstr "无区域"
 
 msgid "No server is reporting"
 msgstr "没有服务器在上报数据"
@@ -11935,6 +11956,10 @@ msgstr "{0, plural, other {# 台无法读取 Docker}}"
 msgid "{0, plural, one {# down} other {# down}}"
 msgstr "{0, plural, other {# 台宕机}}"
 
+#. placeholder {0}: regions.length
+msgid "{0, plural, one {# region} other {# regions}}"
+msgstr "{0, plural, other {# 个区域}}"
+
 #. placeholder {0}: counts.waiting
 msgid "{0, plural, one {# waiting} other {# waiting}}"
 msgstr "{0, plural, other {# 台等待中}}"
@@ -11943,8 +11968,17 @@ msgstr "{0, plural, other {# 台等待中}}"
 msgid "{0, plural, one {agents on # version} other {agents on # versions}}"
 msgstr "{0, plural, other {代理有 # 个版本}}"
 
+msgid "{total} in {regionWords}"
+msgstr "{total}，分布在 {regionWords}"
+
+msgid "{total} in {regionWords}, {withoutWords}"
+msgstr "{total}，分布在 {regionWords}，{withoutWords}"
+
 msgid "{used} of {total}"
 msgstr "{used} / {total}"
+
+msgid "{without, plural, one {# without a region} other {# without a region}}"
+msgstr "{without, plural, other {# 台没有区域}}"
 
 msgid "Add server"
 msgstr "添加服务器"
@@ -12363,6 +12397,12 @@ msgstr "它通过 {host} 连接 {controlName}。"
 msgid "It's the address {controlName} goes out from."
 msgstr "这是 {controlName} 访问外网所用的地址。"
 
+msgid "Joins with"
+msgstr "加入时带有"
+
+msgid "Labels"
+msgstr "标签"
+
 msgid "Make a new command"
 msgstr "生成新命令"
 
@@ -12392,6 +12432,9 @@ msgstr "在新服务器上运行此命令"
 
 msgid "Set public address"
 msgstr "设置公网地址"
+
+msgid "Such as region:eu. The server joins with them."
+msgstr "例如 region:eu。服务器加入时带上这些标签。"
 
 msgid "This command expired"
 msgstr "此命令已过期"
@@ -12586,6 +12629,21 @@ msgstr "占磁盘的 {share}"
 
 msgid "{share} of {size} used"
 msgstr "{size} 中已用 {share}"
+
+msgid "Edit again"
+msgstr "重新编辑"
+
+msgid "Labels of {name}"
+msgstr "{name} 的标签"
+
+msgid "No plan yet"
+msgstr "还没有计划"
+
+msgid "Nothing runs on {name}"
+msgstr "{name} 上不会运行任何步骤"
+
+msgid "What the fleet groups and selects servers by"
+msgstr "集群据此分组和筛选服务器"
 
 #. placeholder {0}: server.name
 msgid "Every container on {0} stops with it, as Docker needs it to run them."
@@ -13210,6 +13268,45 @@ msgstr "此浏览器已离线，因此你的服务器显示的是{ago}的状态�
 msgid "You're offline"
 msgstr "你已离线"
 
+msgid "A key and a value start and end with a letter or digit"
+msgstr "键和值须以字母或数字开头和结尾"
+
+msgid "A label needs a key, such as region"
+msgstr "标签需要一个键，例如 region"
+
+msgid "A server can have {MAX_LABELS} labels"
+msgstr "一台服务器最多可有 {MAX_LABELS} 个标签"
+
+msgid "Dockwell keeps the prefix {prefix} for its own labels. Use a prefix of your own, such as example.com/"
+msgstr "前缀 {prefix} 留给 Dockwell 自己的标签使用。请换用你自己的前缀，例如 example.com/"
+
+msgid "It has a space, and a label holds letters, digits, -, _ and . alone"
+msgstr "其中含有空格，而标签只能包含字母、数字、-、_ 和 ."
+
+msgid "It has no name after its prefix"
+msgstr "前缀后面没有名称"
+
+msgid "It has {character}, and a label holds letters, digits, -, _ and . alone"
+msgstr "其中含有 {character}，而标签只能包含字母、数字、-、_ 和 ."
+
+msgid "It's {length} characters, past the {LABEL_NAME} a label may have"
+msgstr "共 {length} 个字符，超过了标签最多可有的 {LABEL_NAME} 个"
+
+msgid "Its prefix is {length} characters, past the {LABEL_PREFIX} a prefix may have"
+msgstr "前缀共 {length} 个字符，超过了前缀最多可有的 {LABEL_PREFIX} 个"
+
+msgid "Its prefix isn't a domain: lowercase letters, digits, - and ., such as example.com"
+msgstr "前缀不是域名：只能用小写字母、数字、- 和 .，例如 example.com"
+
+msgid "Write a prefix before /, such as example.com/, or leave / out"
+msgstr "在 / 前写上前缀，例如 example.com/，或去掉 /"
+
+msgid "{badText} can't be read, so no server matches. {badWords}"
+msgstr "无法读取 {badText}，因此没有服务器匹配。{badWords}"
+
+msgid "key:value"
+msgstr "key:value"
+
 msgid "All activity"
 msgstr "全部动态"
 
@@ -13568,6 +13665,15 @@ msgstr "这里没有运行任何应用。"
 msgid "Provider"
 msgstr "云服务商"
 
+msgid "Add labels"
+msgstr "添加标签"
+
+msgid "Edit labels"
+msgstr "编辑标签"
+
+msgid "Edit {name}'s labels"
+msgstr "编辑 {name} 的标签"
+
 msgid "1, 5 and 15 min"
 msgstr "1、5 和 15 分钟"
 
@@ -13707,17 +13813,38 @@ msgstr "{size} · 未使用"
 msgid "{size} · {inUse} in use"
 msgstr "{size} · 已用 {inUse}"
 
+msgid "Add a label to the selector"
+msgstr "向筛选条件添加标签"
+
 msgid "CPU {cpu}%"
 msgstr "CPU {cpu}%"
 
 msgid "Chosen server"
 msgstr "选中的服务器"
 
+msgid "Clear the selector"
+msgstr "清除筛选条件"
+
 msgid "Every server"
 msgstr "所有服务器"
 
+msgid "Group by {k}"
+msgstr "按 {k} 分组"
+
+msgid "Group the servers"
+msgstr "为服务器分组"
+
 msgid "Needs attention"
 msgstr "需要关注"
+
+msgid "No groups"
+msgstr "不分组"
+
+msgid "No server matches"
+msgstr "没有匹配的服务器"
+
+msgid "No {key}"
+msgstr "无 {key}"
 
 msgid "Open"
 msgstr "打开"
@@ -13731,6 +13858,9 @@ msgstr "服务器列表"
 msgid "Servers at a glance"
 msgstr "服务器一览"
 
+msgid "Servers matching {matching}, sorted by name"
+msgstr "匹配 {matching} 的服务器，按名称排序"
+
 msgid "Servers, sorted by name"
 msgstr "服务器，按名称排序"
 
@@ -13740,8 +13870,23 @@ msgstr "显示全部 {count} 台"
 msgid "Showing {shown} of {count} · sorted by name"
 msgstr "显示 {count} 台中的 {shown} 台 · 按名称排序"
 
+msgid "label:value"
+msgstr "label:value"
+
 msgid "sorted by name"
 msgstr "按名称排序"
+
+msgid "{count} in {regionWords}"
+msgstr "{count}，分布在 {regionWords}"
+
+msgid "{count} in {regionWords}, {withoutWords}"
+msgstr "{count}，分布在 {regionWords}，{withoutWords}"
+
+msgid "{matching, plural, one {# matches} other {# match}}"
+msgstr "{matching, plural, other {# 个匹配}}"
+
+msgid "{regions, plural, one {# region} other {# regions}}"
+msgstr "{regions, plural, other {# 个区域}}"
 
 msgid "CPU above {HIGH_USE}%"
 msgstr "CPU 超过 {HIGH_USE}%"

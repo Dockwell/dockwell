@@ -29,6 +29,7 @@ import (
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/id"
+	serverlabels "github.com/dockwell/dockwell/internal/labels"
 	"github.com/dockwell/dockwell/internal/pki"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/seal"
@@ -312,6 +313,16 @@ type Ticket struct {
 // CreateTicket makes a single-use join ticket for the control plane at
 // controlURL, and otherURLs for a joining server to try after it, valid for ttl.
 func (a *Authority) CreateTicket(ctx context.Context, controlURL, actor string, ttl time.Duration, otherURLs ...string) (Ticket, error) {
+	return a.CreateLabeledTicket(ctx, controlURL, actor, ttl, nil, otherURLs...)
+}
+
+// CreateLabeledTicket is CreateTicket for a server that gets labels as it joins
+// (ADR 0091). The labels stay with the join token, on the control plane: the
+// ticket doesn't carry them.
+func (a *Authority) CreateLabeledTicket(ctx context.Context, controlURL, actor string, ttl time.Duration, labels map[string]string, otherURLs ...string) (Ticket, error) {
+	if err := resource.CheckLabels(labels); err != nil {
+		return Ticket{}, err
+	}
 	if ttl < time.Second || ttl > MaxTicketTTL {
 		return Ticket{}, fmt.Errorf("a join ticket can last from 1 s to %s, not %s", human.Duration(MaxTicketTTL), human.Duration(ttl))
 	}
@@ -325,6 +336,7 @@ func (a *Authority) CreateTicket(ctx context.Context, controlURL, actor string, 
 		CreatedAt:  now,
 		CreatedBy:  actor,
 		ExpiresAt:  now.Add(ttl),
+		Labels:     labels,
 	}
 	value := ticket.Encode(&agentv1.JoinTicket{
 		ControlUrl: controlURL,
@@ -340,7 +352,11 @@ func (a *Authority) CreateTicket(ctx context.Context, controlURL, actor string, 
 		if err := tx.CreateJoinToken(ctx, tok); err != nil {
 			return err
 		}
-		return a.audit(ctx, tx, actor, store.SurfaceOf(actor), "join_token.create", tok.ID, "", "expires "+tok.ExpiresAt.UTC().Format(time.RFC3339))
+		detail := "expires " + tok.ExpiresAt.UTC().Format(time.RFC3339)
+		if len(labels) > 0 {
+			detail += ", labels " + strings.Join(serverlabels.Strings(labels), " ")
+		}
+		return a.audit(ctx, tx, actor, store.SurfaceOf(actor), "join_token.create", tok.ID, "", detail)
 	})
 	if err != nil {
 		return Ticket{}, err

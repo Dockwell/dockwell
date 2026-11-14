@@ -12,7 +12,7 @@ import {
   StepUpAction,
   UpdateService,
 } from "@dockwell/api";
-import { Button, Callout, Sheet, StatusBadge } from "@dockwell/ui";
+import { Button, Callout, Sheet, StatusBadge, Tag } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { type ReactNode, useMemo, useState } from "react";
 
@@ -25,6 +25,8 @@ import { StepUpDeclined, withStepUpIfAsked } from "../auth/stepUp";
 import { shortVersion } from "../shell/version";
 import { CopyCommand } from "../system/CopyCommand";
 import { installCommand } from "../updates/updates";
+import { LabelsField } from "./LabelsField";
+import { labelTexts } from "./labels";
 import { SetPublicAddressSheet } from "./SetPublicAddressSheet";
 import { useFleet } from "./useFleet";
 import "./ServersPage.css";
@@ -67,6 +69,8 @@ export function AddServerSheet({
     { enabled: control !== undefined, retry: false },
   );
   const [made, setMade] = useState<{ ticket: JoinTicket; value: string }>();
+  // What the new server joins with, offering the labels the fleet uses (ADR 0091).
+  const [labels, setLabels] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string>();
   const [addressing, setAddressing] = useState(false);
@@ -111,7 +115,7 @@ export function AddServerSheet({
     setFailure(undefined);
     try {
       const res = await withStepUpIfAsked(transport, StepUpAction.ADD_SERVER, "", (proof) =>
-        client.createJoinTicket({ proof }),
+        client.createJoinTicket({ proof, labels: labelTexts(labels) }),
       );
       if (res.ticket) setMade({ ticket: res.ticket, value: res.value });
     } catch (err) {
@@ -143,6 +147,15 @@ export function AddServerSheet({
         <p>
           <Trans>Any Linux server you have root on: another provider, a home lab or a VM.</Trans>
         </p>
+        <LabelsField
+          labels={labels}
+          onChange={setLabels}
+          fleet={servers ?? []}
+          label={t`Labels`}
+          shownLabel
+          optional
+          hint={t`Such as region:eu. The server joins with them.`}
+        />
         {failure ? (
           <Callout tone="critical" title={t`No command yet`}>
             {failure}
@@ -206,6 +219,18 @@ export function AddServerSheet({
             <CopyCommand command="dockwell run" />
           </>
         )}
+        {Object.keys(made.ticket.labels).length > 0 ? (
+          <div className="servers-add-labels">
+            <span className="servers-add-meta">
+              <Trans>Joins with</Trans>
+            </span>
+            {Object.keys(made.ticket.labels)
+              .sort()
+              .map((k) => (
+                <Tag key={k} label={k} value={made.ticket.labels[k] || undefined} />
+              ))}
+          </div>
+        ) : null}
         <div className="servers-add-wait" aria-live="polite">
           {expired ? (
             <>

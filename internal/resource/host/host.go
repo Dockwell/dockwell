@@ -1,15 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 // Package host is a server's host, kind "server.host": what Dockwell does to the
-// server itself. Its spec is empty; installing the server's updates is a flagged
-// edit of it, which makes no revision (ADR 0064), and so is an action on one of
-// its system services (ADR 0082).
+// server itself. Its spec holds the server's labels, which only the control plane
+// keeps (ADR 0091); installing the server's updates is a flagged edit of it, which
+// makes no revision (ADR 0064), and so is an action on one of its system services
+// (ADR 0082).
 package host
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
+	"strings"
 
 	"google.golang.org/protobuf/proto"
 
@@ -92,11 +95,13 @@ type Driver struct {
 }
 
 var (
-	_ resource.Driver     = (*Driver)(nil)
-	_ resource.Installer  = (*Driver)(nil)
-	_ resource.Rebooter   = (*Driver)(nil)
-	_ resource.UnitActor  = (*Driver)(nil)
-	_ resource.PanelActor = (*Driver)(nil)
+	_ resource.Driver           = (*Driver)(nil)
+	_ resource.Installer        = (*Driver)(nil)
+	_ resource.Rebooter         = (*Driver)(nil)
+	_ resource.UnitActor        = (*Driver)(nil)
+	_ resource.PanelActor       = (*Driver)(nil)
+	_ resource.ControlOnly      = (*Driver)(nil)
+	_ resource.ControlOnlySayer = (*Driver)(nil)
 )
 
 // Kind returns "server.host".
@@ -116,8 +121,46 @@ func (*Driver) CheckName(name string) error {
 	return nil
 }
 
-// Validate has nothing to check: the spec is empty.
-func (*Driver) Validate(proto.Message) error { return nil }
+// Validate checks the server's labels, as Kubernetes labels (ADR 0091).
+func (*Driver) Validate(spec proto.Message) error {
+	h, ok := spec.(*resourcev1.ServerHost)
+	if !ok {
+		return fmt.Errorf("a server's host is a ServerHost, not %T", spec)
+	}
+	return resource.CheckLabels(h.GetLabels())
+}
+
+// OnServer leaves out the labels: only the control plane keeps them, so a change
+// of them alone takes no step on the server, and no drift reads them as missing
+// there (ADR 0091).
+func (*Driver) OnServer(spec proto.Message) proto.Message {
+	h, ok := spec.(*resourcev1.ServerHost)
+	if !ok || len(h.GetLabels()) == 0 {
+		return spec
+	}
+	out := proto.CloneOf(h)
+	out.Labels = nil
+	return out
+}
+
+// SayControlOnly says a change of labels alone takes no step on the server, so it
+// applies with the server online or not.
+func (*Driver) SayControlOnly(servers []string) (reason, message string) {
+	return "labels_only", fmt.Sprintf("Changes labels alone, which only Dockwell keeps: no step runs on %s, so this applies whether it's online or not", strings.Join(servers, " or "))
+}
+
+// Readopted puts current's labels back on what the server has, which never holds
+// them.
+func (*Driver) Readopted(current, observed proto.Message) proto.Message {
+	c, ok := current.(*resourcev1.ServerHost)
+	o, isHost := observed.(*resourcev1.ServerHost)
+	if !ok || !isHost || len(c.GetLabels()) == 0 {
+		return observed
+	}
+	out := proto.CloneOf(o)
+	out.Labels = maps.Clone(c.GetLabels())
+	return out
+}
 
 // Observe reads a host that's always there: the server itself.
 func (*Driver) Observe(context.Context, resource.Ref) (proto.Message, error) {

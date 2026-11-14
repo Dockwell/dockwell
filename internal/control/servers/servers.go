@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -24,6 +25,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/feeds"
 	"github.com/dockwell/dockwell/internal/control/fleet"
 	"github.com/dockwell/dockwell/internal/control/identity"
+	"github.com/dockwell/dockwell/internal/labels"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/store"
 )
@@ -61,9 +63,17 @@ func New(hub *fleet.Hub, db *store.DB, agents *agentapi.Agents) *Service {
 	}
 }
 
-// ListServers returns every server.
-func (s *Service) ListServers(context.Context, *connect.Request[dockwellv1.ListServersRequest]) (*connect.Response[dockwellv1.ListServersResponse], error) {
-	return connect.NewResponse(&dockwellv1.ListServersResponse{Servers: s.fleet.List()}), nil
+// ListServers returns every server, or those its selector matches (ADR 0091).
+func (s *Service) ListServers(_ context.Context, req *connect.Request[dockwellv1.ListServersRequest]) (*connect.Response[dockwellv1.ListServersResponse], error) {
+	sel, err := labels.ParseSelector(req.Msg.GetSelector())
+	if err != nil {
+		return nil, authapi.Invalid(err)
+	}
+	all := s.fleet.List()
+	if len(sel) > 0 {
+		all = slices.DeleteFunc(all, func(srv *dockwellv1.Server) bool { return !sel.Matches(srv.GetLabels()) })
+	}
+	return connect.NewResponse(&dockwellv1.ListServersResponse{Servers: all}), nil
 }
 
 // GetServer returns one server with history.

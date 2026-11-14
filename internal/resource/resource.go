@@ -1929,6 +1929,37 @@ func (r *Registry) Readopted(kind Kind, current, observed proto.Message) proto.M
 	return observed
 }
 
+// ControlOnlySayer is a ControlOnly kind that says so in a plan when a change of it
+// is only of what the control plane keeps, which no server takes a step for, as a
+// server's labels are (ADR 0091).
+type ControlOnlySayer interface {
+	// SayControlOnly is the note's reason, such as "labels_only", and its message,
+	// for a resource on servers, by name.
+	SayControlOnly(servers []string) (reason, message string)
+}
+
+// ControlOnlyChange reports a change of a resource of kind, from current to
+// desired, that's only of what the control plane keeps (ControlOnly): its servers
+// see none.
+func (r *Registry) ControlOnlyChange(kind Kind, current, desired proto.Message) bool {
+	if _, ok := r.types[kind].(ControlOnly); !ok || current == nil || desired == nil {
+		return false
+	}
+	return !proto.Equal(current, desired) && proto.Equal(r.OnServer(kind, current), r.OnServer(kind, desired))
+}
+
+// SayControlOnly is the note a plan has for a change of only what the control plane
+// keeps of resources of kind on servers, by name (ControlOnlySayer). ok is false
+// for a kind with no words for it.
+func (r *Registry) SayControlOnly(kind Kind, servers []string) (reason, message string, ok bool) {
+	s, says := r.types[kind].(ControlOnlySayer)
+	if !says {
+		return "", "", false
+	}
+	reason, message = s.SayControlOnly(servers)
+	return reason, message, true
+}
+
 // Shower is a kind whose spec says some of its sensitive values hold no secret, as
 // a service's shown_env does of its app's own values (ADR 0081). A plan shows such a
 // value where both sides of a change show it, and masks it where either doesn't.

@@ -218,6 +218,10 @@ message CreateJoinTicketRequest {
   uint32 ttl_seconds = 1;
   // The proof from FinishStepUp for STEP_UP_ACTION_ADD_SERVER.
   string proof = 2;
+  // The labels the server joining with it gets, each as key:value, such as
+  // region:eu: the change that adds its host, as its agent first connects, gives
+  // them (ADR 0091). Numbered in the block labels hold, 20 to 29.
+  repeated string labels = 20;
 }
 
 // CreateJoinTicketResponse carries the ticket, once.
@@ -254,6 +258,9 @@ message JoinTicket {
   // The server that joined with it, by ID and by name, once one has.
   string server_id = 5;
   string server_name = 6;
+  // The labels a server joining with it gets (ADR 0091). Numbered in the block
+  // labels hold, 20 to 29.
+  map<string, string> labels = 20;
 }
 
 // JoinTicketState is where a ticket is in its life.
@@ -288,8 +295,14 @@ enum JoinReach {
   JOIN_REACH_SAME_NETWORK = 3 [(dockwell.v1.word) = "Same network"];
 }
 
-// ListServersRequest takes no parameters yet.
-message ListServersRequest {}
+// ListServersRequest says which servers to list.
+message ListServersRequest {
+  // The servers whose labels a selector matches, such as "pool:web region:eu":
+  // key:value terms with spaces between, a key alone for one it has, and ! in front
+  // for one it doesn't. Empty lists every server. See
+  // docs/adr/0091-server-labels.md. Numbered in the block labels hold, 20 to 29.
+  string selector = 20;
+}
 
 // ListServersResponse lists servers, oldest first.
 message ListServersResponse {
@@ -506,6 +519,9 @@ message Server {
   google.protobuf.Timestamp strained_since = 15;
   // What's above 90%: memory, or else CPU.
   ServerStrain strain = 16;
+  // Its labels, such as region and pool, which its host's revisions keep, by key
+  // (ADR 0091). Numbered in the block labels hold, 20 to 29.
+  map<string, string> labels = 20;
 }
 
 // ServerStrain is what a server is short of.

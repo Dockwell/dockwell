@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { timestampDate, timestampMs } from "@bufbuild/protobuf/wkt";
-import { ActorKind, Connection, EventKind, type Server, ServerStrain } from "@dockwell/api";
+import { ActorKind, ChangeService, Connection, EventKind, type Server, ServerStrain } from "@dockwell/api";
 import { Button, Icon, Metric, StatusBadge, Tag } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
@@ -15,11 +15,13 @@ import { type EventFilter, useEvents } from "../activity/useEvents";
 import { HealthBadge } from "../apps/Health";
 import { useHealth } from "../apps/health";
 import { useApps } from "../apps/useServices";
+import { useMay } from "../auth/may";
 import { shortVersion } from "../shell/version";
 import { CopyButton } from "../system/CopyCommand";
 import { serviceCommands } from "./commands";
 import { trend } from "./history";
 import { providerName, publicAddressOf } from "./network";
+import { ServerLabels } from "./ServerLabels";
 import { HIGH_USE as HIGH, isPrivateAddress, serverStatus } from "./server";
 import { useControlPlaneNow } from "./useFleet";
 
@@ -95,6 +97,7 @@ function unwellSince(server: Server): number | undefined {
 /** Why it isn't well, then where it is and what it is. */
 function Facts({ server, unknown }: { server: Server; unknown: boolean }) {
   const { t, i18n } = useLingui();
+  const mayLabel = useMay()(ChangeService.method.planServerLabels, { install: true }).allowed;
   const words = useTimeWords();
   const now = useControlPlaneNow(15_000);
   const inv = server.inventory;
@@ -148,6 +151,10 @@ function Facts({ server, unknown }: { server: Server; unknown: boolean }) {
   if (provider) facts.push([t`Provider`, provider]);
   if (inv?.osName) facts.push([t`System`, inv.osName]);
   if (size) facts.push([t({ message: "Size", context: "server" }), size]);
+  // Labels where it has them, and where it has none the way to add them, for whoever may.
+  if (Object.keys(server.labels).length > 0 || mayLabel) {
+    facts.push([t`Labels`, <ServerLabels key="labels" server={server} />]);
+  }
   if (version) {
     facts.push([
       t`Agent`,

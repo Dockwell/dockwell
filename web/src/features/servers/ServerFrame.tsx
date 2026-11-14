@@ -25,6 +25,7 @@ import { summarize, useServerUpdates } from "../updates/updates";
 import { Connecting, usePageReconnecting } from "./FleetNotes";
 import { publicAddressOf } from "./network";
 import { ServerAddress } from "./ServerAddress";
+import { ServerLabels } from "./ServerLabels";
 import { primaryAddress, useServerWords } from "./server";
 import { useFleet, useFleetUnread } from "./useFleet";
 import "./ServerFrame.css";
@@ -131,7 +132,12 @@ function ServerPage({ server, fleet, status, phoneHead, noTabs, children }: Serv
     <ServerFramePage
       title={server.name}
       machineTitle
-      badge={server.controlServer ? <Tag>{t`Runs the control plane`}</Tag> : null}
+      badge={
+        <>
+          {server.controlServer ? <Tag>{t`Runs the control plane`}</Tag> : null}
+          <ServerLabels server={server} />
+        </>
+      }
       lead={lead}
       phoneSub={unread ? t`Unknown` : phoneSub}
       back={fleet ? "/servers" : undefined}

@@ -5,17 +5,24 @@ import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { Code } from "@connectrpc/connect";
 import {
   BuildInfoSchema,
+  ChangeSchema,
+  ChangeState,
   CloudProvider,
   Connection,
   type CreateJoinTicketRequest,
   DeploymentState,
   EventKind,
+  FieldOp,
   JoinReach,
   JoinTicketState,
+  PlanAction,
+  type PlanServerLabelsRequest,
   type Server,
   ServerInventorySchema,
   ServerStrain,
   StepUpAction,
+  Surface,
+  type WatchChangeResponse,
   type WatchServersResponse,
 } from "@dockwell/api";
 import { act, screen, waitFor, within } from "@testing-library/react";
@@ -525,6 +532,200 @@ describe("Servers", () => {
     expect(
       within(screen.getByRole("region", { name: "Chosen server" })).getByRole("link", { name: "Open" }),
     ).toHaveAttribute("href", "/servers/srv_1");
+  });
+
+  describe("labels", () => {
+    const eu = aServer({ ...web1, labels: { region: "eu", pool: "web" } });
+    const us = web2({ labels: { region: "us", pool: "web" } });
+    const db = aServer({ id: "srv_3", name: "db-1", labels: { pool: "db" } });
+
+    it("lists the servers a selector matches, groups their tiles by region, and keeps both in the URL", async () => {
+      const user = userEvent.setup();
+      const { router } = renderServers([eu, us, db], "/servers?closed=true");
+
+      expect(
+        await screen.findByText("3 servers in 2 regions, 1 without a region", { selector: ".page-lead" }),
+      ).toBeVisible();
+      // Grouped by region first, with what has none last.
+      const map = screen.getByRole("region", { name: "Servers at a glance" });
+      expect(within(map).getByText("eu")).toBeVisible();
+      expect(within(map).getByText("us")).toBeVisible();
+      expect(within(map).getByText("No region")).toBeVisible();
+
+      const field = screen.getByRole("combobox", { name: "Add a label to the selector" });
+      await user.type(field, "pool:web{Enter}");
+      await waitFor(() => expect(router.state.location.search).toEqual({ closed: true, selector: "pool:web" }));
+      expect(await screen.findByText("2 match")).toBeVisible();
+      const table = screen.getByRole("table", { name: "Servers matching pool:web, sorted by name" });
+      expect(within(table).getAllByRole("row")).toHaveLength(3);
+      expect(within(table).queryByText("db-1")).toBeNull();
+
+      // A term it can't read says why, in the server's words, and isn't added.
+      await user.type(field, "Reg!on{Enter}");
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "It has !, and a label holds letters, digits, -, _ and . alone",
+      );
+      await user.clear(field);
+      await user.type(field, "!region:eu{Enter}");
+      await waitFor(() => expect(screen.getByText("1 matches")).toBeVisible());
+      expect(router.state.location.search).toMatchObject({ selector: "pool:web !region:eu" });
+
+      await user.type(field, "pool:db{Enter}");
+      expect(await screen.findByText("No server matches")).toBeVisible();
+      await user.click(screen.getByRole("button", { name: "Clear the selector" }));
+      await waitFor(() => expect(router.state.location.search).toEqual({ closed: true }));
+
+      // Group by another key, or none.
+      await user.selectOptions(screen.getByRole("combobox", { name: "Group the servers" }), "Group by pool");
+      await waitFor(() => expect(router.state.location.search).toMatchObject({ group: "pool" }));
+      const byPool = screen.getByRole("region", { name: "Servers at a glance" });
+      await waitFor(() => expect(within(byPool).getByText("db")).toBeVisible());
+      expect(within(byPool).queryByText("eu")).toBeNull();
+      await user.selectOptions(screen.getByRole("combobox", { name: "Group the servers" }), "No groups");
+      await waitFor(() => expect(router.state.location.search).toMatchObject({ group: "-" }));
+      const flat = screen.getByRole("region", { name: "Servers at a glance" });
+      await waitFor(() => expect(within(flat).queryByText("web")).toBeNull());
+    });
+
+    it("matches nothing while the selector has a term it can't read, and shows it until it's removed", async () => {
+      const user = userEvent.setup();
+      // As from an address someone typed or shared.
+      const { router } = renderServers([eu, us, db], "/servers?closed=true&selector=pool%3Aweb+bad%21term");
+
+      expect(await screen.findByText("No server matches")).toBeVisible();
+      expect(screen.getByText("0 match")).toBeVisible();
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "bad!term can't be read, so no server matches. It has !, and a label holds letters, digits, -, _ and . alone",
+      );
+      await user.click(screen.getByRole("button", { name: "Remove bad!term" }));
+      await waitFor(() => expect(router.state.location.search).toEqual({ closed: true, selector: "pool:web" }));
+      expect(await screen.findByText("2 match")).toBeVisible();
+      expect(screen.queryByRole("alert")).toBeNull();
+    });
+
+    it("groups by a key named none, apart from no groups", async () => {
+      const user = userEvent.setup();
+      const odd = aServer({ ...web1, labels: { none: "x" } });
+      const { router } = renderServers([odd, web2()], "/servers?closed=true&group=none");
+      const map = await screen.findByRole("region", { name: "Servers at a glance" });
+      expect(within(map).getByText("x")).toBeVisible();
+      await user.selectOptions(screen.getByRole("combobox", { name: "Group the servers" }), "No groups");
+      await waitFor(() => expect(router.state.location.search).toMatchObject({ group: "-" }));
+    });
+
+    it("shows no selector for a fleet without labels", async () => {
+      renderServers([web1, web2()]);
+      await screen.findByRole("table", { name: "Servers, sorted by name" });
+      expect(screen.queryByRole("combobox", { name: "Add a label to the selector" })).toBeNull();
+    });
+
+    it("edits a server's labels from the inspector, offering what the fleet uses, and plans them", async () => {
+      const user = userEvent.setup();
+      const planned: PlanServerLabelsRequest[] = [];
+      const host = { kind: "server.host", scope: "srv_1", name: "host" };
+      const change = create(ChangeSchema, {
+        id: "chg_labels",
+        summary: "Label web-1 tier:db, without pool",
+        state: ChangeState.PLANNED,
+        proposedVia: Surface.PANEL,
+        plan: {
+          fingerprint: "1a2b3c4d5e6f708192a3b4c5d6e7f809",
+          resources: [
+            {
+              id: "res_host",
+              resource: host,
+              action: PlanAction.UPDATE,
+              servers: ["srv_1"],
+              changes: [
+                { path: "labels[pool]", op: FieldOp.REMOVED, from: "web" },
+                { path: "labels[tier]", op: FieldOp.ADDED, to: "db" },
+              ],
+            },
+          ],
+          // As the engine plans it: a server with no step isn't among the plan's servers.
+          servers: [],
+          notes: [{ reason: "labels_only", names: ["web-1"], named: true, message: "Changes labels alone" }],
+        },
+      });
+      renderServers([eu, us, db], "/servers?server=srv_1", {
+        changes: {
+          planServerLabels: (req: PlanServerLabelsRequest) => {
+            planned.push(req);
+            return { change };
+          },
+          getChange: () => ({ change }),
+          watchChange: feed<WatchChangeResponse>().stream,
+        },
+      });
+
+      const inspector = await screen.findByRole("complementary", { name: "web-1" });
+      expect(inspector).toHaveTextContent("Labelspool:webregion:eu");
+      await user.click(within(inspector).getByRole("button", { name: "Edit web-1's labels" }));
+      const sheet = await screen.findByRole("dialog", { name: "Labels of web-1" });
+      const field = within(sheet).getByRole("combobox", { name: "Labels" });
+      // What the fleet uses, but what it has, is offered.
+      const offered = [...(sheet.querySelectorAll("datalist option") as NodeListOf<HTMLOptionElement>)].map(
+        (o) => o.value,
+      );
+      expect(offered).toEqual(["pool:db", "region:us", "pool:", "region:"]);
+      expect(within(sheet).getByRole("button", { name: "Review plan" })).toBeDisabled();
+
+      await user.click(within(sheet).getByRole("button", { name: "Remove pool:web" }));
+      await user.type(field, "tier:db{Enter}");
+      await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
+      await waitFor(() => expect(planned).toHaveLength(1));
+      expect(planned[0]).toMatchObject({ serverIds: ["srv_1"], set: ["tier:db"], remove: ["pool"] });
+      expect(await screen.findByText("Labels alone: no step runs on web-1, online or offline.")).toBeVisible();
+      // The host goes by its server's name, and its labels as the panel writes them.
+      const plan = screen.getByRole("dialog", { name: "Review plan" });
+      expect(plan).toHaveTextContent("web-1");
+      expect(plan).toHaveTextContent("tier:db");
+      expect(plan).toHaveTextContent("pool:web");
+      expect(plan).not.toHaveTextContent("tier=db");
+      expect(plan).not.toHaveTextContent("server.host");
+      expect(plan).toHaveTextContent("web-1 · no step, nothing goes down");
+    });
+
+    it("gives a new server labels as it joins", async () => {
+      stubPasskeys();
+      const user = userEvent.setup();
+      const made: CreateJoinTicketRequest[] = [];
+      renderServers([eu, us], "/servers?closed=true", {
+        auth: {
+          beginStepUp: () => ({
+            ceremonyId: "cer_1",
+            optionsJson: JSON.stringify({ challenge: "AAAA", allowCredentials: [] }),
+          }),
+          finishStepUp: () => ({ proof: "proof-1" }),
+        },
+        servers: {
+          createJoinTicket: (req: CreateJoinTicketRequest) => {
+            made.push(req);
+            if (!req.proof) throw authError(Code.PermissionDenied, "needs_step_up", "this needs your passkey just now");
+            const labels = Object.fromEntries(req.labels.map((l) => l.split(":") as [string, string]));
+            return {
+              ticket: {
+                id: "jtk_1",
+                state: JoinTicketState.WAITING,
+                labels,
+                addresses: [{ url: "https://203.0.113.7:7443", reach: JoinReach.ANYWHERE }],
+              },
+              value: "TICKET",
+            };
+          },
+          getJoinTicket: () => ({ ticket: { id: "jtk_1", state: JoinTicketState.WAITING } }),
+        },
+      });
+
+      await user.click(await screen.findByRole("button", { name: "Add server" }));
+      const sheet = await screen.findByRole("dialog", { name: "Add a server" });
+      const field = within(sheet).getByRole("combobox", { name: /^Labels/ });
+      await user.type(field, "region:eu{Enter}pool:web{Enter}");
+      await user.click(within(sheet).getByRole("button", { name: "Make the command" }));
+      await within(sheet).findByText("Waiting for the server to join");
+      expect(made.at(-1)?.labels).toEqual(["pool:web", "region:eu"]);
+      expect(sheet).toHaveTextContent("Joins withpool:webregion:eu");
+    });
   });
 
   it("passes axe, wide and on a phone", async () => {

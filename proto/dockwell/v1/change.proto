@@ -288,6 +288,28 @@ service ChangeService {
     };
   }
 
+  // PlanServerLabels plans setting and removing labels on servers, each as
+  // key:value, such as region:eu: an edit of each server's host. Only the
+  // control plane keeps labels, so the change takes no step on any server and
+  // applies with them online or not, and its plan says so in a "labels_only"
+  // note. A key is as a Kubernetes label's: a name of at most 63 characters,
+  // letters, digits, -, _ and ., with an optional prefix, such as
+  // example.com/tier. See docs/adr/0091-server-labels.md.
+  rpc PlanServerLabels(PlanServerLabelsRequest) returns (PlanServerLabelsResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.command) = {
+      noun: "servers"
+      verb: "label"
+    };
+    option (google.api.http) = {
+      post: "/v1/servers:planLabels"
+      body: "*"
+    };
+  }
+
   // ListDrift compares what servers have with the latest revision of each
   // resource they should have, and returns every difference. It asks each
   // connected server's agent, and changes nothing.
@@ -665,6 +687,26 @@ message PlanRemoveServerRequest {
 
 // PlanRemoveServerResponse carries the planned removal.
 message PlanRemoveServerResponse {
+  // The change, planned, with its plan.
+  Change change = 1;
+}
+
+// PlanServerLabelsRequest names servers, and the labels to set and remove on each.
+message PlanServerLabelsRequest {
+  // The servers, by ID. One server is a set of one.
+  repeated string server_ids = 1;
+  // Labels to set, each as key:value, such as region:eu, or a key alone for an
+  // empty value. A server that has the key already takes the new value.
+  repeated string set = 2;
+  // Keys of labels to remove, such as region. A key a server doesn't have is
+  // nothing to remove.
+  repeated string remove = 3;
+  // What the change is for, for the timeline. Empty says what it labels.
+  string summary = 4;
+}
+
+// PlanServerLabelsResponse carries the planned change of labels.
+message PlanServerLabelsResponse {
   // The change, planned, with its plan.
   Change change = 1;
 }
@@ -1221,8 +1263,9 @@ message PlanNote {
   // first, "unbacked_move" for one whose data isn't in a volume Dockwell can back up
   // first, "lowers_release" for one this moves back, which goes only while its
   // data uses nothing newer, and "unbacked_paths" for an update of a service that
-  // mounts server paths, which no backup takes first. Another reason may come: its
-  // message says what it means.
+  // mounts server paths, which no backup takes first, and "labels_only" for a
+  // change of servers' labels alone, which takes no step on them. Another reason
+  // may come: its message says what it means.
   string reason = 1;
   // What it says, for people: the fact, what it means, and what to do.
   string message = 2;
@@ -1238,8 +1281,9 @@ message PlanNote {
   // for "unbacked_paths"; the
   // variables and secrets, by the names the service sees, for "values_latest";
   // the image, the revision and its digest for "digest_pinned" and "digest_gone",
-  // and the image and the revision for "digest_differs"; the container_name, or
-  // the image, or the ports. Never a variable's value.
+  // and the image and the revision for "digest_differs"; the servers, by name,
+  // for "labels_only"; the container_name, or the image, or the ports. Never a
+  // variable's value.
   repeated string names = 4;
   // Where the value came from, for "exposed_variable": "env_file" for the .env
   // sent beside the file, which someone may not have read for this, and

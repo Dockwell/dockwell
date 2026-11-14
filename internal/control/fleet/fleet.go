@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"slices"
 	"sync"
 	"time"
@@ -107,6 +108,9 @@ type live struct {
 	// network is what all of that comes to, and refreshed when that was worked out.
 	network   *dockwellv1.ServerNetwork
 	refreshed time.Time
+	// labels are its host's (ADR 0091), as its latest revision has them. The map is
+	// replaced whole, never changed in place.
+	labels map[string]string
 	// told are who watches for its agent's public addresses changing, one for
 	// each stream.
 	told map[chan struct{}]struct{}
@@ -157,9 +161,14 @@ func New(ctx context.Context, db *store.DB, logger *slog.Logger) (*Hub, error) {
 		if err != nil {
 			return err
 		}
+		labels, err := loadLabels(ctx, tx, logger)
+		if err != nil {
+			return err
+		}
 		for i := range servers {
 			s := &servers[i]
 			l := newLive(*s)
+			l.labels = labels[s.ID]
 			if s.LastSeenAt != nil {
 				l.lastSeen = *s.LastSeenAt
 			}
@@ -596,6 +605,7 @@ func (h *Hub) toProtoLocked(id string, l *live, withHistory bool) *dockwellv1.Se
 		ControlServer: id == h.control,
 		Ingress:       l.ingress,
 		Network:       l.network,
+		Labels:        maps.Clone(l.labels),
 	}
 	switch {
 	case l.streams > 0:

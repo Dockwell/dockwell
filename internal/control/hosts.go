@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"time"
 
-	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	"github.com/dockwell/dockwell/internal/control/fleet"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/host"
 	"github.com/dockwell/dockwell/internal/revision"
@@ -32,6 +32,46 @@ type Hosts struct {
 	// its own and holds up no other server's.
 	Agents revision.Agents
 	Logger *slog.Logger
+	// Fleet, when set, reads servers' labels again as changes move on, so the
+	// fleet's stream shows a change of them at once (ADR 0091).
+	Fleet *fleet.Hub
+}
+
+// FollowLabels has the fleet read servers' labels again each time a change moves
+// on, until ctx ends. A change of labels alone applies at once, so this is what
+// shows it.
+func (h *Hosts) FollowLabels(ctx context.Context) {
+	if h.Fleet == nil {
+		return
+	}
+	updates := h.Engine.WatchAll(ctx)
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case u, ok := <-updates:
+			if !ok {
+				if ctx.Err() != nil {
+					return
+				}
+				// Dropped for falling behind: watch again, and read what was missed.
+				updates = h.Engine.WatchAll(ctx)
+			} else if u.State == "" {
+				continue
+			}
+		}
+		// What else came meanwhile is read with this.
+		for drained := false; !drained; {
+			select {
+			case <-updates:
+			default:
+				drained = true
+			}
+		}
+		if err := h.Fleet.ReadLabels(ctx); err != nil && ctx.Err() == nil {
+			h.Logger.WarnContext(ctx, "can't read servers' labels again; the fleet shows them as they were until the next change", slog.String("error", err.Error()))
+		}
+	}
 }
 
 // runner is an agent that says which kinds it runs, as agentapi's sessions do.
@@ -96,9 +136,16 @@ func (h *Hosts) Make(ctx context.Context) error {
 			has[hosts[i].Scope] = true
 		}
 		for i := range servers {
-			if s := &servers[i]; s.RevokedAt == nil && !has[s.ID] && h.runsHosts(s.ID) {
-				edits = append(edits, revision.Edit{Ref: resource.Ref{Kind: host.Kind, Scope: s.ID, Name: host.Name}, Spec: &resourcev1.ServerHost{}})
+			s := &servers[i]
+			if s.RevokedAt != nil || has[s.ID] || !h.runsHosts(s.ID) {
+				continue
 			}
+			// A new host has the labels its server joined with (ADR 0091).
+			spec, err := revision.NewHost(ctx, tx, s.ID)
+			if err != nil {
+				return err
+			}
+			edits = append(edits, revision.Edit{Ref: resource.Ref{Kind: host.Kind, Scope: s.ID, Name: host.Name}, Spec: spec})
 		}
 		return nil
 	}); err != nil || len(edits) == 0 {

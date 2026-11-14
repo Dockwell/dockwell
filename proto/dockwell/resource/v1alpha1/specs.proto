@@ -1704,7 +1704,14 @@ message AlertTelegram {
 // makes no revision, as a restart of a service is, with a plan, a passkey and an
 // admin (ADR 0064). Later settings of the server itself, such as whether it
 // installs updates by itself, become fields here.
-message ServerHost {}
+message ServerHost {
+  // Its labels, such as region:eu and pool:web, by key, as Kubernetes labels:
+  // what the fleet groups and selects servers by. The control plane keeps them,
+  // and the server never sees them, so a change of them alone takes no step there.
+  // See docs/adr/0091-server-labels.md. Numbered in the block labels hold, 20 to
+  // 29.
+  map<string, string> labels = 20;
+}
 
 // Link is how one of an app's needs is met, such as its database: what meets it,
 // and the variables and secrets it sets in its environment, which the app's

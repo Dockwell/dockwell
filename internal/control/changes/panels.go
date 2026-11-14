@@ -11,7 +11,6 @@ import (
 
 	"connectrpc.com/connect"
 
-	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/resource"
@@ -37,7 +36,6 @@ func (h *Handler) PlanPanelStop(ctx context.Context, server *dockwellv1.Server, 
 		Summary: summary, Actor: who.Actor, Via: who.Via,
 		Edits: []revision.Edit{{
 			Ref:   resource.Ref{Kind: host.Kind, Scope: server.GetId(), Name: host.Name},
-			Spec:  &resourcev1.ServerHost{},
 			Panel: &resource.PanelAsked{Kind: kind},
 		}},
 	})
@@ -74,7 +72,6 @@ func (h *Handler) PlanPanelStart(ctx context.Context, server *dockwellv1.Server,
 		Summary: summary, Actor: who.Actor, Via: who.Via,
 		Edits: []revision.Edit{{
 			Ref:   resource.Ref{Kind: host.Kind, Scope: server.GetId(), Name: host.Name},
-			Spec:  &resourcev1.ServerHost{},
 			Panel: &resource.PanelAsked{Kind: kind, Start: true},
 		}},
 	})

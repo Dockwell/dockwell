@@ -13,7 +13,6 @@ import (
 
 	"connectrpc.com/connect"
 
-	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/fault"
@@ -76,7 +75,6 @@ func (h *Handler) PlanSystemServiceAction(ctx context.Context, req *connect.Requ
 			names = append(names, s.Name)
 			edits = append(edits, revision.Edit{
 				Ref:  resource.Ref{Kind: host.Kind, Scope: id, Name: host.Name},
-				Spec: &resourcev1.ServerHost{},
 				Unit: &resource.UnitAsked{Name: name, Action: action},
 			})
 		}

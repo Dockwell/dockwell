@@ -106,6 +106,7 @@ import {
   isEmpty,
   isFinal,
   isFleet,
+  labelsOnly,
   longestDowntime,
   longestUntilHealthy,
   losesData,
@@ -676,7 +677,7 @@ function ChangeSheet({
   const subject = shownName(changing(plan)[0]);
   const names = [
     ...changing(plan).map((r) => r.resource?.name ?? ""),
-    ...changing(plan).map(shownName),
+    ...changing(plan).map((r) => shownName(r)),
     ...(plan?.servers ?? []).map((s) => s.serverName),
   ];
   const serverName = plan?.removes?.serverName;
@@ -1006,12 +1007,20 @@ function landedAt(change: Change | undefined): Date | undefined {
 }
 
 function useTitle(phase: Phase, plan: Plan | undefined, change: Change | undefined): string {
-  const { t } = useLingui();
+  const { t, i18n } = useLingui();
   const words = useChangeWords();
   const intent = intentOf(plan);
   const health = useHealth();
   // Only what runs can be a website's; a plan that runs nothing, such as a reboot, reads no websites.
   const websiteOf = useWebsiteOfEnvironment(goesLive(plan).length > 0);
+  // A change of labels alone says it of the servers, which take no step (ADR 0091).
+  const labelled = labelsOnly(plan);
+  if (labelled.length > 0) {
+    const on = new Intl.ListFormat(i18n.locale, { style: "long", type: "conjunction" }).format(labelled);
+    if (phase === "applying") return t`Labelling ${on}`;
+    if (phase === "failed") return t`Labelling ${on} failed`;
+    if (phase === "history" || phase === "arrived") return t`Labels are changed on ${on}`;
+  }
   // A reboot says what it does, and that the server came back.
   if (reboots(plan)) {
     const server = plan?.servers.find((s) => s.steps.length > 0)?.serverName ?? "";
@@ -1213,6 +1222,7 @@ function PlanBody({
   const { t } = useLingui();
   const words = useChangeWords();
   const alsoWords = useAlsoWords();
+  const fleetView = useFleetView();
   const risks = useRisks(plan, phase !== "review");
   // Worked out from the review on, so an arrival has what it says as it lands, and room for it.
   const reach = useReach(plan, change, phase === "arrived");
@@ -1268,6 +1278,8 @@ function PlanBody({
       ...(cameToNothing || (landed && goesLive(plan).length > 1) ? { expanded: false } : {}),
       tag: (intent) => words.intentTag(intent, landed),
       letsGo: words.letsGo(landed ? "done" : "plan"),
+      // A server's host goes by its server's name (ADR 0091).
+      serverName: (id) => fleetView.servers?.find((s) => s.id === id)?.name,
     }),
   );
   const steps = change?.steps ?? [];
@@ -1648,6 +1660,12 @@ function Impact({ plan }: { plan: Plan | undefined }) {
   const websiteOf = useWebsiteOfEnvironment(stopsAny);
   const databases = useQuery(DatabaseService.method.listDatabases, {}, { enabled: stopsAny }).data?.databases;
   const servers = (plan?.servers ?? []).filter((s) => !s.removed);
+  // A change of labels alone is on its servers, with no step there (ADR 0091).
+  const labelled = labelsOnly(plan);
+  if (servers.length === 0 && labelled.length > 0) {
+    const on = new Intl.ListFormat(i18n.locale, { style: "long", type: "conjunction" }).format(labelled);
+    return t`${on} · no step, nothing goes down`;
+  }
   if (servers.length === 0) return <Trans>No server · nothing goes down</Trans>;
   const where =
     servers.length <= 2 ? (
