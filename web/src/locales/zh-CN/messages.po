@@ -12329,6 +12329,12 @@ msgstr "未指定项目的应用都放在这里，所以它会保留。"
 msgid "It moves to a project of its own"
 msgstr "它会移到自己的项目中"
 
+msgid "It moves to {place}"
+msgstr "它会移到 {place}"
+
+msgid "Projects of their own"
+msgstr "各自的项目"
+
 msgid "Those apps stop working; their databases are dumped first"
 msgstr "这些应用将停止工作；它们的数据库会先被导出"
 

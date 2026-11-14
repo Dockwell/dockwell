@@ -176,7 +176,8 @@ export type Edit = Message<"dockwell.v1.Edit"> & {
   /**
    * With with_contents: where each database server that an app in another
    * project links to goes, so those apps keep working, as a move takes it, data,
-   * users and all, with their links following it: a project, by name or ID.
+   * users and all, with their links following it: a project with one
+   * environment, by name or ID, or an environment by ID.
    * Empty makes each a project of its own, named for it. Refused with
    * delete_shared. See
    * docs/adr/0084-what-an-app-needs-met-by-a-new-service-one-you-run-or-a-connection.md.

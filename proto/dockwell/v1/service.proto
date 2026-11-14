@@ -434,6 +434,10 @@ message MoveServiceResponse {
   repeated ResourceRef follows = 4;
   // What holds the move back. With any, nothing is planned.
   repeated MoveBlock blocks = 5;
+  // Links of the app's own environment to a database server that stays, which the
+  // move points across: the app reaches it where it is, on a link network of its
+  // own, as the user it had there.
+  repeated ResourceRef crosses = 6;
 }
 
 // MoveBlock is something that holds a move back.

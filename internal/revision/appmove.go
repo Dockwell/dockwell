@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"net/netip"
 	"slices"
 
 	"google.golang.org/protobuf/proto"
@@ -49,6 +50,10 @@ type MoveReport struct {
 	Copies []resource.Ref
 	// Follows is what points at what moves from elsewhere, and follows it.
 	Follows []resource.Ref
+	// Crosses are links of the app's own environment to a database server that stays,
+	// which the move points across: the app reaches it where it is, through a link
+	// network of its own, as the user it had there.
+	Crosses []resource.Ref
 	// Blocks is what holds the move back. With any, there's no plan.
 	Blocks []MoveBlock
 }
@@ -141,12 +146,38 @@ func (e *Engine) PlanAppMove(ctx context.Context, ask AppMove) ([]Edit, *MoveRep
 				})
 			}
 		}
-		copies := e.whatMoves(from, moving, report, ask.Leaving)
-		e.checkPlace(to, moving, copies, report)
+		copies, crossings := e.whatMoves(from, moving, report, ask.Leaving)
+		e.checkPlace(from, to, moving, copies, report)
+		taken, err := e.linkSubnets(ctx, tx)
+		if err != nil {
+			return err
+		}
+		for i := range crossings {
+			c := &crossings[i]
+			net := resource.Ref{Kind: "network", Scope: ask.To, Name: c.link.Name + "-link"}
+			if to.items[net] != nil {
+				report.Blocks = append(report.Blocks, MoveBlock{
+					Ref: net,
+					Why: fmt.Sprintf("there's a network named %s where the app goes already, which its link %s would reach %s on. Rename it first, or choose another place", net.Name, c.link.Name, c.server.Name),
+				})
+			}
+			for _, pw := range c.passwords {
+				if there := (resource.Ref{Kind: pw.Kind, Scope: ask.To, Name: pw.Name}); to.items[there] != nil && !moving[pw] && !copies[pw] {
+					report.Blocks = append(report.Blocks, MoveBlock{
+						Ref: there,
+						Why: fmt.Sprintf("there's a secret named %s where the app goes already, which the app reads %s's password as. Rename it first, or choose another place", pw.Name, c.server.Name),
+					})
+				}
+			}
+			if c.subnet = freeLinkSubnet(taken); c.subnet == "" {
+				return fault.New(ErrInvalid, "every one of the networks Dockwell keeps addresses for links is taken, so the app can't reach %s where it stays. Remove a link you don't use, then try again", c.server.Name)
+			}
+			taken[c.subnet] = true
+		}
 		if len(report.Blocks) > 0 {
 			return nil
 		}
-		edits = slices.Concat(made, e.moveEdits(from, ask, moving, copies))
+		edits = slices.Concat(made, e.moveEdits(from, to, ask, moving, copies, crossings))
 		follows, err := e.whatFollows(ctx, tx, ask, moving)
 		if err != nil {
 			return err
@@ -178,6 +209,7 @@ func (e *Engine) PlanAppMove(ctx context.Context, ask AppMove) ([]Edit, *MoveRep
 	sortRefs(report.Moves)
 	sortRefs(report.Copies)
 	sortRefs(report.Follows)
+	sortRefs(report.Crosses)
 	if len(report.Blocks) > 0 {
 		return nil, report, nil
 	}
@@ -274,12 +306,16 @@ func (e *Engine) usersIn(from *moveFrom) (users, readers map[resource.Ref][]reso
 			}
 		}
 		for _, use := range e.usesOf(it, it.current) {
-			if use.Scope != "" && use.Scope != ref.Scope {
+			// One read with its environment named is read through a link, from wherever
+			// that is, and follows the link rather than what reads it.
+			if use.Scope != "" {
 				continue
 			}
 			to := resource.Ref{Kind: use.Kind, Scope: ref.Scope, Name: use.Name}
 			users[to] = append(users[to], ref)
-			if link, ok := tiedTo[to]; ok && link != ref {
+			// A database user reads the password its link sets as the link's own user,
+			// beside its server, not as an app that reads the link.
+			if link, ok := tiedTo[to]; ok && link != ref && !e.follows(ref.Kind) {
 				readers[link] = append(readers[link], ref)
 			}
 		}
@@ -297,7 +333,7 @@ func (e *Engine) follows(kind resource.Kind) bool {
 
 // whatMoves adds to moving what only the moving services use, and says what's
 // copied, and what holds the move back.
-func (e *Engine) whatMoves(from *moveFrom, moving map[resource.Ref]bool, report *MoveReport, leaving bool) map[resource.Ref]bool {
+func (e *Engine) whatMoves(from *moveFrom, moving map[resource.Ref]bool, report *MoveReport, leaving bool) (map[resource.Ref]bool, []crossing) {
 	users, readers := e.usersIn(from)
 	copies := map[resource.Ref]bool{}
 	allMoving := func(refs []resource.Ref) bool {
@@ -344,9 +380,23 @@ func (e *Engine) whatMoves(from *moveFrom, moving map[resource.Ref]bool, report 
 			}
 		}
 	}
+	crossings := e.crossings(from, moving, readers, leaving)
+	crossed := map[resource.Ref]bool{} // links pointed across, and the values that read the password
+	passwords := map[resource.Ref]bool{}
+	for i := range crossings {
+		crossed[crossings[i].link] = true
+		for _, p := range crossings[i].passwords {
+			passwords[p] = true
+		}
+	}
 	for _, ref := range from.refs {
 		u := users[ref]
-		if leaving || moving[ref] || !anyMoving(u) {
+		if leaving || moving[ref] || !anyMoving(u) || passwords[ref] {
+			continue
+		}
+		// A server that stays, which what moves reads only through links pointed
+		// across, is reached where it is.
+		if ref.Kind == serviceKind && !slices.ContainsFunc(u, func(r resource.Ref) bool { return moving[r] && !crossed[r] }) {
 			continue
 		}
 		var stays []resource.Ref
@@ -421,7 +471,61 @@ func (e *Engine) whatMoves(from *moveFrom, moving map[resource.Ref]bool, report 
 			report.Copies = append(report.Copies, ref)
 		}
 	}
-	return copies
+	for i := range crossings {
+		report.Crosses = append(report.Crosses, crossings[i].link)
+	}
+	return copies, crossings
+}
+
+// crossing is a link of the app's own environment to a database server that stays,
+// which a move points across environments (ADR 0084, #572): in its new place it meets
+// the server where it is, as a link that shares one does, through a link network of
+// its own on which the server answers to its own name, and the app reads its password
+// from the user it had there, which stays with the server.
+type crossing struct {
+	link, server resource.Ref
+	// password is the secret its user's password is in, beside the server.
+	password string
+	// readers are the services that read it, and passwords the values it sets that
+	// hold the password, which read the user's from where it is.
+	readers   []resource.Ref
+	passwords []resource.Ref
+	// subnet is its link network's, where it goes.
+	subnet string
+}
+
+// crossings are the links that move and meet, in their own environment, a server
+// that stays and that they have a user of their own on. One that signs in as the
+// server's administrator, as with no user of its own, isn't: that would take the
+// administrator's password to another project, so it holds the move back.
+func (e *Engine) crossings(from *moveFrom, moving map[resource.Ref]bool, readers map[resource.Ref][]resource.Ref, leaving bool) []crossing {
+	if leaving {
+		return nil
+	}
+	var out []crossing
+	for _, ref := range from.refs {
+		l, ok := from.items[ref].current.(*resourcev1.Link)
+		if ref.Kind != linkKind || !ok || !moving[ref] || l.GetMeetsEnvironment() != "" || l.GetUser() == "" {
+			continue
+		}
+		server := resource.Ref{Kind: serviceKind, Scope: ref.Scope, Name: l.GetService()}
+		if moving[server] || from.items[server] == nil {
+			continue
+		}
+		u, ok := from.items[resource.Ref{Kind: "database.user", Scope: ref.Scope, Name: l.GetUser()}]
+		user, _ := u.current.(*resourcev1.DatabaseUser)
+		if !ok || user.GetService() != l.GetService() {
+			continue
+		}
+		c := crossing{link: ref, server: server, password: user.GetPassword(), readers: readers[ref]}
+		for _, s := range l.GetSets() {
+			if s.GetPart() == resourcev1.LinkPart_LINK_PART_PASSWORD {
+				c.passwords = append(c.passwords, resource.Ref{Kind: "secret", Scope: ref.Scope, Name: s.GetName()})
+			}
+		}
+		out = append(out, c)
+	}
+	return out
 }
 
 // serviceName is a ref's name when it's a service, so moving it too clears a block.
@@ -445,14 +549,15 @@ func uniqueBlocks(blocks []MoveBlock) []MoveBlock {
 }
 
 // checkPlace holds back a move into an environment that has something of the same
-// kind and name already. A network of the name is shared there, as it would be made.
-func (e *Engine) checkPlace(to *moveFrom, moving, copies map[resource.Ref]bool, report *MoveReport) {
+// kind and name already. A network of the name, made the same, is shared there, as
+// it would be made, as each environment's default network is.
+func (e *Engine) checkPlace(from, to *moveFrom, moving, copies map[resource.Ref]bool, report *MoveReport) {
 	for _, set := range []map[resource.Ref]bool{moving, copies} {
 		refs := slices.Collect(maps.Keys(set))
 		sortRefs(refs)
 		for _, ref := range refs {
 			there := resource.Ref{Kind: ref.Kind, Scope: to.scope(), Name: ref.Name}
-			if to.items[there] == nil {
+			if to.items[there] == nil || sharesNetwork(from.items[ref], to.items[there]) {
 				continue
 			}
 			report.Blocks = append(report.Blocks, MoveBlock{
@@ -461,6 +566,12 @@ func (e *Engine) checkPlace(to *moveFrom, moving, copies map[resource.Ref]bool, 
 			})
 		}
 	}
+}
+
+// sharesNetwork reports a network where the app goes that it joins in place of
+// making its own: one of the name, made the same.
+func sharesNetwork(mine, there *item) bool {
+	return mine != nil && there != nil && mine.ref.Kind == "network" && there.current != nil && proto.Equal(mine.current, there.current)
 }
 
 func (m *moveFrom) scope() string {
@@ -472,18 +583,62 @@ func (m *moveFrom) scope() string {
 
 // moveEdits deletes what moves where it is, makes it where it goes, a volume with
 // the old one's data, and makes a copy of each value it shares.
-func (e *Engine) moveEdits(from *moveFrom, ask AppMove, moving, copies map[resource.Ref]bool) []Edit {
+func (e *Engine) moveEdits(from, to *moveFrom, ask AppMove, moving, copies map[resource.Ref]bool, crossings []crossing) []Edit {
 	var edits []Edit
+	// What a link pointed across changes of what moves with it: the link meets the
+	// server where it is, the values that hold the password read its user's there,
+	// and what reads it joins its link network.
+	crossed := map[resource.Ref]*crossing{}
+	readsPassword := map[resource.Ref]*crossing{}
+	joins := map[resource.Ref][]string{}
+	for i := range crossings {
+		c := &crossings[i]
+		crossed[c.link] = c
+		for _, p := range c.passwords {
+			readsPassword[p] = c
+		}
+		for _, r := range c.readers {
+			if r.Kind == serviceKind {
+				joins[r] = append(joins[r], c.link.Name+"-link")
+			}
+		}
+	}
 	for _, ref := range from.refs {
 		it := from.items[ref]
-		if !moving[ref] && !copies[ref] {
+		c := readsPassword[ref]
+		if !moving[ref] && !copies[ref] && c == nil {
 			continue
 		}
 		spec := proto.Clone(it.current)
 		pointAt(spec, ask.To)
+		switch s := spec.(type) {
+		case *resourcev1.Link:
+			if crossed[ref] != nil {
+				s.MeetsEnvironment = ask.From
+			}
+		case *resourcev1.Service:
+			if app := s.GetApp(); app != nil {
+				for _, n := range joins[ref] {
+					if !slices.Contains(app.GetNetworks(), n) {
+						app.Networks = append(app.Networks, n)
+					}
+				}
+			}
+		case *resourcev1.Secret:
+			if c != nil {
+				spec = &resourcev1.Secret{From: &resourcev1.ValueFrom{Source: &resourcev1.ValueFrom_Value{Value: &resourcev1.ValueRef{
+					Environment: ask.From, Secret: true, Name: c.password, Link: c.link.Name,
+				}}}}
+			}
+		}
 		there := Edit{Ref: resource.Ref{Kind: ref.Kind, Scope: ask.To, Name: ref.Name}, Spec: spec}
 		if it.runs {
 			there.Servers = slices.Clone(it.placed)
+		}
+		// A network shared there goes on the servers the app runs on too.
+		if shared := to.items[there.Ref]; sharesNetwork(it, shared) {
+			there.Spec = proto.Clone(shared.current)
+			there.Servers = slices.Compact(slices.Sorted(slices.Values(slices.Concat(shared.placed, it.placed))))
 		}
 		if moving[ref] {
 			if ref.Kind == "volume" {
@@ -493,33 +648,66 @@ func (e *Engine) moveEdits(from *moveFrom, ask AppMove, moving, copies map[resou
 		}
 		edits = append(edits, there)
 	}
+	// Each link pointed across reaches its server on a link network of its own, where
+	// the server answers to its own name, as the app knew it beside it.
+	for i := range crossings {
+		c := &crossings[i]
+		edits = append(edits, Edit{
+			Ref: resource.Ref{Kind: "network", Scope: ask.To, Name: c.link.Name + "-link"},
+			Spec: &resourcev1.Network{Internal: true, Subnet: c.subnet, Members: []*resourcev1.NetworkMember{
+				{Environment: ask.From, Service: c.server.Name, Alias: c.server.Name},
+			}},
+			Servers: slices.Clone(from.items[c.server].placed),
+		})
+	}
 	return edits
 }
 
-// pointAt has a spec that names the environment to, as a link that meets a database
-// there, name its own instead, once it's in to.
-func pointAt(spec proto.Message, to string) {
-	switch s := spec.(type) {
-	case *resourcev1.Link:
-		if s.GetMeetsEnvironment() == to {
-			s.MeetsEnvironment = ""
+// linkRange is where link networks' addresses come from, a /29 each, as sharing a
+// server gives one (ADR 0084).
+var linkRange = netip.MustParsePrefix("10.233.0.0/16")
+
+// linkSubnets are the subnets networks on record have.
+func (e *Engine) linkSubnets(ctx context.Context, tx *store.Tx) (map[string]bool, error) {
+	list, err := tx.ListKind(ctx, "network")
+	if err != nil {
+		return nil, err
+	}
+	taken := map[string]bool{}
+	for i := range list {
+		if list[i].Spec == nil {
+			continue
 		}
-	case *resourcev1.Secret:
-		pointValueAt(s.GetFrom(), to)
-	case *resourcev1.Variable:
-		pointValueAt(s.GetFrom(), to)
-	case *resourcev1.Network:
-		for _, m := range s.GetMembers() {
-			if m.GetEnvironment() == to {
-				m.Environment = ""
-			}
+		it, err := e.load(ctx, tx, resource.Ref{Kind: "network", Scope: list[i].Scope, Name: list[i].Name})
+		if err != nil {
+			return nil, err
+		}
+		if n, ok := it.current.(*resourcev1.Network); ok && n.GetSubnet() != "" {
+			taken[n.GetSubnet()] = true
 		}
 	}
+	return taken, nil
 }
 
-func pointValueAt(f *resourcev1.ValueFrom, to string) {
-	if v := f.GetValue(); v != nil && v.GetEnvironment() == to {
-		v.Environment = ""
+// freeLinkSubnet is a /29 of linkRange taken hasn't, or "".
+func freeLinkSubnet(taken map[string]bool) string {
+	for a := linkRange.Addr(); linkRange.Contains(a); {
+		if p := netip.PrefixFrom(a, 29); !taken[p.String()] {
+			return p.String()
+		}
+		for range 8 {
+			a = a.Next()
+		}
+	}
+	return ""
+}
+
+// pointAt has a link that meets a database in the environment to name its own
+// instead, once it's in to. A network's member and a value read through a link name
+// their environment by ID even when it's their own.
+func pointAt(spec proto.Message, to string) {
+	if s, ok := spec.(*resourcev1.Link); ok && s.GetMeetsEnvironment() == to {
+		s.MeetsEnvironment = ""
 	}
 }
 
@@ -563,13 +751,13 @@ func (e *Engine) whatFollows(ctx context.Context, tx *store.Tx, ask AppMove, mov
 			case *resourcev1.Network:
 				for _, m := range s.GetMembers() {
 					if m.GetEnvironment() == ask.From && movingNamed(serviceKind, m.GetService()) {
-						m.Environment, changed = there, true
+						m.Environment, changed = ask.To, true
 					}
 				}
 			case *resourcev1.Secret:
-				changed = followValue(s.GetFrom(), ask.From, there, movingNamed)
+				changed = followValue(s.GetFrom(), ask.From, ask.To, movingNamed)
 			case *resourcev1.Variable:
-				changed = followValue(s.GetFrom(), ask.From, there, movingNamed)
+				changed = followValue(s.GetFrom(), ask.From, ask.To, movingNamed)
 			}
 			if changed {
 				out = append(out, Edit{Ref: ref, Spec: spec, Base: it.base})

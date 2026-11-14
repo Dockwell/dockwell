@@ -12329,6 +12329,12 @@ msgstr "Apps with no project go here, so it stays."
 msgid "It moves to a project of its own"
 msgstr "It moves to a project of its own"
 
+msgid "It moves to {place}"
+msgstr "It moves to {place}"
+
+msgid "Projects of their own"
+msgstr "Projects of their own"
+
 msgid "Those apps stop working; their databases are dumped first"
 msgstr "Those apps stop working; their databases are dumped first"
 

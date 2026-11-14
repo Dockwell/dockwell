@@ -14,6 +14,7 @@ import (
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/database"
 	"github.com/dockwell/dockwell/internal/fault"
+	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/variable"
 	"github.com/dockwell/dockwell/internal/scope"
@@ -108,7 +109,12 @@ func (e *Engine) sharedWith(ctx context.Context, ed Edit) (shared []resource.Ref
 			}
 		}
 		if ed.KeepSharedIn != "" {
-			p, env, err := tree.Resolve(ed.KeepSharedIn, "")
+			// A project with one environment, or an environment by ID.
+			project, environment := ed.KeepSharedIn, ""
+			if strings.HasPrefix(project, id.Environment+"_") {
+				project, environment = "", project
+			}
+			p, env, err := tree.Resolve(project, environment)
 			if err != nil {
 				return err
 			}
