@@ -562,6 +562,90 @@ describe("an app's settings, where it could go wrong", () => {
     expect(appOf(proposals[0])?.mounts.find((m) => m.target === "/opt")?.external).toBe(true);
   });
 
+  it("shows a file Dockwell writes, and keeps it as it is when the other mounts change", async () => {
+    const user = userEvent.setup();
+    const service = anEditedApp();
+    if (service.spec?.runs.case === "app")
+      service.spec.runs.value.mounts.push(
+        create(MountSchema, {
+          source: { case: "file", value: { content: "listen 80;\nroot /srv;\n", mode: 0o444 } },
+          target: "/etc/app/app.conf",
+          readOnly: true,
+        }),
+      );
+    const proposals: ProposeChangeRequest[] = [];
+    const { container } = renderAt("/apps/svc_web/settings", api(service, proposals));
+    await ready();
+    const mounts = section("Volumes and mounts");
+    expect(within(mounts).getByText("A file Dockwell writes, 2 lines")).toBeVisible();
+    expect(within(mounts).getByText("/etc/app/app.conf")).toBeVisible();
+    await user.click(within(mounts).getByText("A file Dockwell writes, 2 lines"));
+    expect(within(mounts).getByText(/root \/srv;/)).toBeVisible();
+    await expectAccessible(container);
+    await user.click(screen.getByRole("button", { name: "Edit Volumes and mounts" }));
+    const form = screen.getByRole("form", { name: "Edit Volumes and mounts" });
+    expect(within(form).queryByDisplayValue("/etc/app/app.conf")).toBeNull();
+    expect(within(form).getByText("/etc/app/app.conf")).toBeVisible();
+    expect(within(form).getByText("Stays as it is")).toBeVisible();
+    await user.click(within(form).getByRole("button", { name: "Add a volume or mount" }));
+    await user.type(within(form).getByLabelText("Mount 2: volume or server path"), "data");
+    await user.type(within(form).getByLabelText("Mount 2: path in the app"), "/more");
+    await user.click(within(form).getByRole("button", { name: /Review plan/ }));
+    await waitFor(() => expect(proposals).toHaveLength(1));
+    const planned = appOf(proposals[0])?.mounts;
+    expect(planned?.map((m) => `${m.source.case}:${m.target}`)).toEqual([
+      "file:/etc/app/app.conf",
+      "volume:/data",
+      "volume:/more",
+    ]);
+    const file = planned?.[0]?.source;
+    expect(file?.case === "file" ? file.value.content : "").toBe("listen 80;\nroot /srv;\n");
+  });
+
+  it("says whom a volume is made for, and keeps it when the mounts change", async () => {
+    const user = userEvent.setup();
+    const service = anEditedApp();
+    if (service.spec?.runs.case === "app") {
+      const data = service.spec.runs.value.mounts[0];
+      if (data) data.makeOwner = "1000:1000";
+    }
+    const proposals: ProposeChangeRequest[] = [];
+    renderAt("/apps/svc_web/settings", api(service, proposals));
+    await ready();
+    expect(within(section("Volumes and mounts")).getByText("Owned by 1000:1000")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Edit Volumes and mounts" }));
+    const form = screen.getByRole("form", { name: "Edit Volumes and mounts" });
+    await user.click(within(form).getAllByRole("checkbox")[0] as HTMLElement);
+    await user.click(within(form).getByRole("button", { name: /Review plan/ }));
+    await waitFor(() => expect(proposals).toHaveLength(1));
+    const data = appOf(proposals[0])?.mounts.find((m) => m.target === "/data");
+    expect(data?.readOnly).toBe(true);
+    expect(data?.makeOwner).toBe("1000:1000");
+  });
+
+  // L1: an owner goes with the volume it was given for, never to a source typed in its place.
+  it("makes a row's new source for nobody, where its old one was made for a user", async () => {
+    const user = userEvent.setup();
+    const service = anEditedApp();
+    if (service.spec?.runs.case === "app") {
+      const data = service.spec.runs.value.mounts[0];
+      if (data) data.makeOwner = "1000:1000";
+    }
+    const proposals: ProposeChangeRequest[] = [];
+    renderAt("/apps/svc_web/settings", api(service, proposals));
+    await ready();
+    await user.click(screen.getByRole("button", { name: "Edit Volumes and mounts" }));
+    const form = screen.getByRole("form", { name: "Edit Volumes and mounts" });
+    const source = within(form).getByLabelText("Mount 1: volume or server path");
+    await user.clear(source);
+    await user.type(source, "/srv/web");
+    await user.click(within(form).getByRole("button", { name: /Review plan/ }));
+    await waitFor(() => expect(proposals).toHaveLength(1));
+    const data = appOf(proposals[0])?.mounts.find((m) => m.target === "/data");
+    expect(data?.source.case === "hostPath" ? data.source.value : "").toBe("/srv/web");
+    expect(data?.makeOwner).toBe("");
+  });
+
   it("says a mount that's as good as root asks for the passkey, even on an app that isn't yet", async () => {
     const user = userEvent.setup();
     renderAt("/apps/svc_web/settings", api(anEditedApp()));

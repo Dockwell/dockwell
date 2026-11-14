@@ -513,14 +513,16 @@ func testAFolderWebsite(t *testing.T, backend store.Backend) {
 	if !ch.GetPlan().GetHostAccess() {
 		t.Fatalf("a folder plans no host access: %v", planned(ch))
 	}
+	// The site reads its folder, and making the folder for its owner writes to the
+	// server, so the plan names it as written to (ADR 0085).
 	var named bool
 	for _, r := range ch.GetPlan().GetResources() {
 		for _, a := range r.GetHostAccess() {
-			named = named || (a.GetPath() == root && a.GetReadOnly())
+			named = named || (a.GetPath() == root && !a.GetReadOnly())
 		}
 	}
 	if !named {
-		t.Errorf("the plan doesn't name %s, read-only: %v", root, ch.GetPlan().GetResources())
+		t.Errorf("the plan doesn't name %s as written to, as making it is: %v", root, ch.GetPlan().GetResources())
 	}
 	_, err = scriptChanges.ApplyChange(t.Context(), connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: ch.GetId(), Fingerprint: ch.GetPlan().GetFingerprint()}))
 	if reasonOf(err) != authapi.ReasonNeedsSession {

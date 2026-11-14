@@ -479,7 +479,7 @@ func (a *Agents) SessionPastMove(ctx context.Context, server string, within time
 func (a *Agents) open(server, name string, hello *agentv1.Hello, send func(*agentv1.ConnectResponse) error) *Session {
 	s := &Session{
 		agents: a, guardsWaysIn: hello.GetGuardsWaysIn(), readsUpdates: hello.GetUpdates(), managesFiles: hello.GetManagesFiles(), transfersFiles: hello.GetTransfersFiles(), pagesListings: hello.GetPagesListings(), firstPasswords: hello.GetFirstPasswords(), forwards: hello.GetForwards(), drills: hello.GetDrills(), readsOnePanel: hello.GetReadsOnepanel(), terminals: hello.GetTerminals(), containerTerminals: hello.GetContainerTerminals(), openTerminals: slices.Clone(hello.GetOpenTerminals()), opened: time.Now(), server: server, name: name, send: send, deliveryKey: slices.Clone(hello.GetDeliveryKey()), writesReferences: hello.GetWritesReferences(), makesFolders: hello.GetMakesFolders(), keepsRoutesPrivate: hello.GetKeepsRoutesPrivate(),
-		ownSettings: hello.GetOwnSettings(), followsPace: hello.GetFollowsPace(), bootID: hello.GetBootId(), actsOnUnits: hello.GetActsOnUnits(), registryLogins: hello.GetRegistryLogins(), handsBuildLogins: hello.GetBuildLogins(), links: hello.GetLinks(),
+		ownSettings: hello.GetOwnSettings(), writesFiles: hello.GetWritesFiles(), ownsVolumes: hello.GetOwnsVolumes(), followsPace: hello.GetFollowsPace(), bootID: hello.GetBootId(), actsOnUnits: hello.GetActsOnUnits(), registryLogins: hello.GetRegistryLogins(), handsBuildLogins: hello.GetBuildLogins(), links: hello.GetLinks(),
 		loadsCertificates: hello.GetLoadsCertificates(),
 		pending:           map[uint64]chan *agentv1.CallResult{}, progress: map[uint64]func(resource.Activity){}, outcomes: map[uint64]func(resource.Outcome){}, done: make(chan struct{}),
 	}
@@ -562,8 +562,10 @@ type Session struct {
 	// keepsRoutesPrivate says the agent's proxy keeps out who a route's access
 	// doesn't let in (ADR 0087).
 	keepsRoutesPrivate bool
-	// ownSettings says the agent sets what a container asks of itself (ADR 0085).
-	ownSettings bool
+	// ownSettings says the agent sets what a container asks of itself, and
+	// writesFiles that it writes the files a container mounts, and ownsVolumes that
+	// it gives a volume's empty folder its owner (ADR 0085).
+	ownSettings, writesFiles, ownsVolumes bool
 	// guardsWaysIn says the agent asks for a passkey before saving a way in.
 	guardsWaysIn bool
 	// readsUpdates says the agent reads the server's package updates.
@@ -1360,6 +1362,12 @@ func (s *Session) Apply(ctx context.Context, step resource.Step, desired proto.M
 	if err := s.checkPrivate(step.Ref, desired); err != nil {
 		return err
 	}
+	if err := s.checkFiles(step.Ref, desired); err != nil {
+		return err
+	}
+	if err := s.checkVolumeOwners(step.Ref, desired); err != nil {
+		return err
+	}
 	if err := s.checkReads(ctx, []resource.Ref{step.Ref}); err != nil {
 		return err
 	}
@@ -1633,6 +1641,12 @@ func (s *Session) checkAllWrites(desired []resource.Desired) error {
 		if err := s.checkPrivate(d.Ref, d.Spec); err != nil {
 			return err
 		}
+		if err := s.checkFiles(d.Ref, d.Spec); err != nil {
+			return err
+		}
+		if err := s.checkVolumeOwners(d.Ref, d.Spec); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -1670,25 +1684,65 @@ func (s *Session) checkOwnSettings(ref resource.Ref, spec proto.Message) error {
 		resource.ErrAgentTooOld, s.name, ref.Name, s.name)
 }
 
+// checkFiles refuses a spec that mounts a file Dockwell writes, for an agent that
+// doesn't say it writes them: it would make the container without it (ADR 0085).
+func (s *Session) checkFiles(ref resource.Ref, spec proto.Message) error {
+	if s.writesFiles || spec == nil || !mountsFile(spec.ProtoReflect()) {
+		return nil
+	}
+	return fmt.Errorf("%w: the agent on %s is from before Dockwell wrote the files a container mounts, which %s does, so it would run without them. Update the agent on %s",
+		resource.ErrAgentTooOld, s.name, ref.Name, s.name)
+}
+
+// checkVolumeOwners refuses a spec that names a volume's owner, for an agent that
+// doesn't say it gives one: it would leave the volume root's, which what runs as
+// that owner can't write (ADR 0085).
+func (s *Session) checkVolumeOwners(ref resource.Ref, spec proto.Message) error {
+	if s.ownsVolumes || spec == nil || !ownsVolume(spec.ProtoReflect()) {
+		return nil
+	}
+	return fmt.Errorf("%w: the agent on %s is from before Dockwell gave a new volume the owner its mount names, which %s asks for, so it would be root's. Update the agent on %s",
+		resource.ErrAgentTooOld, s.name, ref.Name, s.name)
+}
+
+// ownsVolume reports a spec with a container that names a volume's owner.
+func ownsVolume(m protoreflect.Message) bool {
+	return anyContainer(m, func(c *resourcev1.Container) bool {
+		return slices.ContainsFunc(c.GetMounts(), func(mount *resourcev1.Mount) bool { return mount.GetVolume() != "" && mount.GetMakeOwner() != "" })
+	})
+}
+
+// mountsFile reports a spec with a container that mounts a file Dockwell writes.
+func mountsFile(m protoreflect.Message) bool {
+	return anyContainer(m, func(c *resourcev1.Container) bool {
+		return slices.ContainsFunc(c.GetMounts(), func(mount *resourcev1.Mount) bool { return mount.GetFile() != nil })
+	})
+}
+
 // asksOfItself reports a spec with a container that asks something of itself.
 func asksOfItself(m protoreflect.Message) bool {
+	return anyContainer(m, containerkind.AsksOfItself)
+}
+
+// anyContainer reports a spec with a container that is.
+func anyContainer(m protoreflect.Message, is func(*resourcev1.Container) bool) bool {
 	if c, ok := m.Interface().(*resourcev1.Container); ok {
-		return containerkind.AsksOfItself(c)
+		return is(c)
 	}
 	found := false
 	m.Range(func(fd protoreflect.FieldDescriptor, v protoreflect.Value) bool {
 		switch {
 		case fd.IsList() && fd.Message() != nil:
 			for i := range v.List().Len() {
-				found = found || asksOfItself(v.List().Get(i).Message())
+				found = found || anyContainer(v.List().Get(i).Message(), is)
 			}
 		case fd.IsMap() && fd.MapValue().Message() != nil:
 			v.Map().Range(func(_ protoreflect.MapKey, e protoreflect.Value) bool {
-				found = found || asksOfItself(e.Message())
+				found = found || anyContainer(e.Message(), is)
 				return !found
 			})
 		case fd.Message() != nil && !fd.IsList() && !fd.IsMap():
-			found = asksOfItself(v.Message())
+			found = anyContainer(v.Message(), is)
 		}
 		return !found
 	})

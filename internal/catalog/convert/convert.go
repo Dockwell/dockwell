@@ -16,6 +16,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"path"
 	"slices"
 	"strconv"
 	"strings"
@@ -105,6 +106,21 @@ type App struct {
 	// Shipped says whether a path relative to the Compose file is a file or folder
 	// the source ships beside it, as opposed to one the app makes as it runs.
 	Shipped func(rel string) bool
+	// ReadShipped reads a file the source ships beside the Compose file, by its path
+	// relative to it, which a container mounts as a file Dockwell writes (ADR 0085).
+	// Nil reads none. A file that wasn't fetched says so with errUnread, for the
+	// control plane to fetch it and convert the app again.
+	ReadShipped func(rel string) ([]byte, error)
+	// ShippedUnder lists the files a shipped folder holds, by their paths relative to
+	// the Compose file, and nothing for a file.
+	ShippedUnder func(rel string) []string
+	// Literal says what a shipped file holds is written as it is, as 1Panel's and
+	// Dokploy's are, so every $ in it is its own; otherwise ${NAME} in it is a
+	// variable, as in Coolify's.
+	LiteralFiles bool
+	// scripts is what its store's scripts come to, read as steps Dockwell takes
+	// itself, never run (ADR 0085).
+	scripts scriptSteps
 	// LeftOut is why the adapter couldn't read the app, when it couldn't, and Class
 	// what the report counts it as.
 	LeftOut string
@@ -193,6 +209,9 @@ type Result struct {
 	// are App.Screenshots, the same way.
 	Icon        string
 	Screenshots []Shot
+	// Unread are the shipped files it mounts that weren't read, by their paths in
+	// the source, which the control plane reads and converts it again with.
+	Unread []string
 }
 
 // Pinned is what the converter keeps of an image's tag between runs. Entries pin
@@ -311,6 +330,13 @@ func (c *Converter) convert(ctx context.Context, app App) Result {
 		}
 	}
 	rw, err := rewrite(app)
+	var unread unreadError
+	if errors.As(err, &unread) {
+		for _, rel := range unread {
+			r.Unread = append(r.Unread, path.Join(app.Path, rel))
+		}
+		return fail(leave(ClassShipped, "%s", err), "")
+	}
 	if err != nil {
 		return fail(err, ClassCantSay)
 	}

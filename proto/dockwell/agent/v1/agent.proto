@@ -523,6 +523,14 @@ message Hello {
   // only on a server whose agent does. Connectable apps take 290 to 299 in agent
   // messages.
   bool links = 290;
+  // True when the agent writes the files a container mounts (Mount.file), and
+  // binds them in, read-only (ADR 0085). The control plane plans no such mount on
+  // an agent that doesn't say so.
+  bool writes_files = 301;
+  // True when the agent gives a volume's empty folder the owner its mount names
+  // (Mount.make_owner on a volume, ADR 0085). The control plane plans no such mount
+  // on an agent that doesn't say so, which would leave the folder root's.
+  bool owns_volumes = 302;
   // True when the agent serves the certificates the control plane proves by
   // DNS-01 (put_certificates, ADR 0088). The control plane gives one that doesn't
   // none, and its routes get their certificates from Caddy, as before. Numbered in

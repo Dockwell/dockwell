@@ -405,6 +405,9 @@ func Validate(c *resourcev1.Container) error {
 	if err := validateOwn(c); err != nil {
 		return err
 	}
+	if err := validateFiles(c); err != nil {
+		return err
+	}
 	if err := validateStopGrace(c); err != nil {
 		return err
 	}
@@ -616,8 +619,15 @@ func validateMounts(c *resourcev1.Container) error {
 			if m.GetExternal() && anonymous(src.Volume) {
 				return fmt.Errorf("the volume %s has the form of one Docker made for an image, so it can't be mounted by name. Mount a named volume", src.Volume)
 			}
-			if m.GetMakeOwner() != "" {
-				return fmt.Errorf("the volume %s mounted at %s has a make_owner, which only a server path takes. Leave it out", src.Volume, m.Target)
+			if o := m.GetMakeOwner(); o != "" {
+				if m.GetExternal() {
+					return fmt.Errorf("the volume %s mounted at %s is Docker's own, which Dockwell didn't make, so it takes no make_owner. Leave it out", src.Volume, m.Target)
+				}
+				uid, gid, err := resource.ParseOwner(o)
+				if err != nil {
+					return fmt.Errorf("the volume %s mounted at %s: %w", src.Volume, m.Target, err)
+				}
+				m.MakeOwner = resource.FormatOwner(uid, gid)
 			}
 		case *resourcev1.Mount_HostPath:
 			if m.GetExternal() {
@@ -643,8 +653,12 @@ func validateMounts(c *resourcev1.Container) error {
 				}
 				m.MakeOwner = resource.FormatOwner(uid, gid)
 			}
+		case *resourcev1.Mount_File:
+			if err := validateFile(m, src.File); err != nil {
+				return err
+			}
 		default:
-			return fmt.Errorf("the mount at %s needs a volume or a server path to mount", m.Target)
+			return fmt.Errorf("the mount at %s needs a volume, a server path or a file to mount", m.Target)
 		}
 		if seen[m.Target] {
 			return fmt.Errorf("two mounts share the target %s; give each its own", m.Target)

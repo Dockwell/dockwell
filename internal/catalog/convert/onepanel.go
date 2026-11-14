@@ -194,14 +194,39 @@ func onePanelRead(t *tree, dir string) App {
 	return *newest
 }
 
+// onePanelScripts reads a version's scripts as the steps they take, which Dockwell
+// takes itself, or says why it can't. Nothing in them is ever run (ADR 0085).
+func onePanelScripts(t *tree, dir string) (scriptSteps, error) {
+	entries, err := t.readDir(dir)
+	if err != nil {
+		return scriptSteps{}, leave(ClassFile, "%v", err)
+	}
+	scripts := map[string]string{}
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".sh") {
+			return scriptSteps{}, leave(ClassScripts, "it ships %.60q among its scripts, which isn't a script Dockwell can read as steps, and it runs nothing a store holds", e.Name())
+		}
+		b, err := t.readFile(path.Join(dir, e.Name()))
+		if err != nil {
+			return scriptSteps{}, leave(ClassFile, "%v", err)
+		}
+		scripts[e.Name()] = string(b)
+	}
+	return readScripts(scripts)
+}
+
 // onePanelVersion reads one version of an app.
 func onePanelVersion(t *tree, app App, appDir, version string) App {
 	app.Version = version
 	versionDir := path.Join(appDir, version)
 	app.Path = versionDir
-	if t.isDir(path.Join(versionDir, "scripts")) {
-		app.LeftOut, app.Class = "it runs scripts on the server as it installs or upgrades, which an entry can't, as a plan couldn't show what they do", ClassScripts
-		return app
+	if dir := path.Join(versionDir, "scripts"); t.isDir(dir) {
+		steps, err := onePanelScripts(t, dir)
+		if err != nil {
+			app.LeftOut, app.Class = err.Error(), classOf(err, ClassScripts)
+			return app
+		}
+		app.scripts = steps
 	}
 	var err error
 	if app.Compose, err = t.readFile(path.Join(versionDir, "docker-compose.yml")); err != nil {
@@ -217,6 +242,41 @@ func onePanelVersion(t *tree, app App, appDir, version string) App {
 		delete(shipped, own)
 	}
 	app.Shipped = func(rel string) bool { return shipped[rel] }
+	// What it ships it mounts as files Dockwell writes, as they are, read once a
+	// container mounts them (ADR 0085). A file under scripts/ is never one.
+	app.LiteralFiles = true
+	// A checkout closes once its store is read, so what it ships is read with it; a
+	// commit in memory reads, or asks for, a file as a container mounts it.
+	var read map[string][]byte
+	if t.mem == nil {
+		read = map[string][]byte{}
+		for rel := range shipped {
+			if b, err := t.readFile(path.Join(versionDir, rel)); err == nil && len(b) <= maxShipped {
+				read[rel] = b
+			}
+		}
+	}
+	app.ReadShipped = func(rel string) ([]byte, error) {
+		switch {
+		case !shipped[rel] || strings.HasPrefix(rel, "scripts/"):
+			return nil, fmt.Errorf("%s isn't a file it ships", rel)
+		case read != nil && read[rel] == nil:
+			return nil, fmt.Errorf("it ships %s, which is a folder, or over %d KiB", rel, maxShipped>>10)
+		case read != nil:
+			return read[rel], nil
+		}
+		return t.readFile(path.Join(versionDir, rel))
+	}
+	app.ShippedUnder = func(rel string) []string {
+		var out []string
+		for p := range shipped {
+			if strings.HasPrefix(p, rel+"/") && t.isFile(path.Join(versionDir, p)) {
+				out = append(out, p)
+			}
+		}
+		slices.Sort(out)
+		return out
+	}
 	var form struct {
 		More struct {
 			Fields []onePanelField `yaml:"formFields"`

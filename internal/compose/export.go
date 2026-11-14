@@ -29,6 +29,17 @@ type (
 		Services map[string]serviceEntry `yaml:"services"`
 		Networks map[string]networkEntry `yaml:"networks,omitempty"`
 		Volumes  map[string]volumeEntry  `yaml:"volumes,omitempty"`
+		// Configs are the files Dockwell writes for a service, by a name each
+		// takes from its service and its place (ADR 0085).
+		Configs map[string]configEntry `yaml:"configs,omitempty"`
+	}
+	configEntry struct {
+		Content string `yaml:"content"`
+	}
+	configRefEntry struct {
+		Source string `yaml:"source"`
+		Target string `yaml:"target"`
+		Mode   string `yaml:"mode,omitempty"`
 	}
 	serviceEntry struct {
 		Image string `yaml:"image"`
@@ -67,6 +78,7 @@ type (
 		ReadOnly   bool                   `yaml:"read_only,omitempty"`
 		PidsLimit  int64                  `yaml:"pids_limit,omitempty"`
 		DNS        []string               `yaml:"dns,omitempty"`
+		Configs    []configRefEntry       `yaml:"configs,omitempty"`
 		Security   []string               `yaml:"security_opt,omitempty"`
 		// Logging keeps the rotation Dockwell sets on what docker compose makes
 		// from the file, which it would otherwise leave without a limit, except on
@@ -102,8 +114,9 @@ type (
 		Order string `yaml:"order"`
 	}
 	dockwellEntry struct {
-		Healthcheck *agentCheckEntry `yaml:"healthcheck,omitempty"`
-		Drain       string           `yaml:"drain,omitempty"`
+		Healthcheck *agentCheckEntry  `yaml:"healthcheck,omitempty"`
+		Drain       string            `yaml:"drain,omitempty"`
+		MakeOwner   map[string]quoted `yaml:"make_owner,omitempty"`
 	}
 	agentCheckEntry struct {
 		HTTP        *httpCheckEntry `yaml:"http,omitempty"`
@@ -226,7 +239,20 @@ func Export(project string, stack *Stack) (*Exported, error) {
 		for _, p := range c.GetPorts() {
 			entry.Ports = append(entry.Ports, quoted(portString(p)))
 		}
-		for _, m := range c.GetMounts() {
+		for i, m := range c.GetMounts() {
+			if fm := m.GetFile(); fm != nil {
+				name := s.Name + "-" + strconv.Itoa(i+1)
+				if f.Configs == nil {
+					f.Configs = map[string]configEntry{}
+				}
+				f.Configs[name] = configEntry{Content: escape(fm.GetContent())}
+				ref := configRefEntry{Source: name, Target: escape(m.GetTarget())}
+				if fm.GetMode() != 0 {
+					ref.Mode = fmt.Sprintf("0%o", fm.GetMode())
+				}
+				entry.Configs = append(entry.Configs, ref)
+				continue
+			}
 			src := m.GetVolume()
 			if src == "" {
 				src = m.GetHostPath()
@@ -306,6 +332,18 @@ func Export(project string, stack *Stack) (*Exported, error) {
 		}
 		if d := c.GetRollout().GetDrain(); d != "" {
 			entry.Dockwell = &dockwellEntry{Drain: d}
+		}
+		for _, m := range c.GetMounts() {
+			if o := m.GetMakeOwner(); o != "" && m.GetFile() == nil {
+				if entry.Dockwell == nil {
+					entry.Dockwell = &dockwellEntry{}
+				}
+				if entry.Dockwell.MakeOwner == nil {
+					entry.Dockwell.MakeOwner = map[string]quoted{}
+				}
+				// Quoted, as a YAML 1.1 reader takes 1000:1000 for a number in base 60.
+				entry.Dockwell.MakeOwner[m.GetTarget()] = quoted(o)
+			}
 		}
 		if hc := c.GetHealthcheck(); hc != nil {
 			switch {

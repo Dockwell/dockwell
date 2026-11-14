@@ -37,6 +37,7 @@ import {
   useMediaQuery,
   useUIStrings,
 } from "@dockwell/ui";
+import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { type FormEvent, type ReactNode, useEffect, useId, useMemo, useRef, useState } from "react";
 
@@ -1333,6 +1334,25 @@ function MountsFacts({ app }: { app: Container }) {
   return (
     <ul className="app-settings-list">
       {app.mounts.map((m) => {
+        if (m.source.case === "file") {
+          const lines = m.source.value.content.split("\n").filter((l, i, all) => l !== "" || i < all.length - 1).length;
+          return (
+            <li key={`file:${m.target}`} className="app-settings-file">
+              <details>
+                <summary>
+                  <Icon name="file" size={14} />
+                  <span>
+                    {plural(lines, { one: "A file Dockwell writes, # line", other: "A file Dockwell writes, # lines" })}
+                  </span>
+                  <Icon name="arrow-right" size={12} />
+                  <code>{m.target}</code>
+                  <span className="app-muted">{t`Read-only`}</span>
+                </summary>
+                <pre className="app-settings-file-content">{m.source.value.content}</pre>
+              </details>
+            </li>
+          );
+        }
         const source = m.source.case === "hostPath" || m.source.case === "volume" ? m.source.value : "";
         return (
           <li key={`${source}:${m.target}`}>
@@ -1341,6 +1361,7 @@ function MountsFacts({ app }: { app: Container }) {
             <Icon name="arrow-right" size={12} />
             <code>{m.target}</code>
             {m.readOnly ? <span className="app-muted">{t`Read-only`}</span> : null}
+            {m.makeOwner ? <span className="app-muted">{t`Owned by ${m.makeOwner}`}</span> : null}
           </li>
         );
       })}
@@ -1354,7 +1375,7 @@ interface MountRow {
   target: string;
   readOnly: boolean;
   /** What the form doesn't show, kept as it is. */
-  rest: { relabel: number; external: boolean };
+  rest: { relabel: number; external: boolean; makeOwner: string };
 }
 
 function MountsForm({ service, app, image, name, root, moving, plan, onCancel }: FormProps) {
@@ -1367,15 +1388,20 @@ function MountsForm({ service, app, image, name, root, moving, plan, onCancel }:
     { kind: "volume", scope },
     { enabled: scope !== "" },
   ).data?.resources.map((v) => v.resource?.name ?? "");
-  const first = app.mounts.map(
-    (m, i): MountRow => ({
-      key: i,
-      source: m.source.case === "hostPath" || m.source.case === "volume" ? m.source.value : "",
-      target: m.target,
-      readOnly: m.readOnly,
-      rest: { relabel: m.relabel, external: m.external },
-    }),
-  );
+  // A file Dockwell writes isn't this form's to change: it stays as it is, and the
+  // rows are the rest.
+  const files = app.mounts.filter((m) => m.source.case === "file");
+  const first = app.mounts
+    .filter((m) => m.source.case !== "file")
+    .map(
+      (m, i): MountRow => ({
+        key: i,
+        source: m.source.case === "hostPath" || m.source.case === "volume" ? m.source.value : "",
+        target: m.target,
+        readOnly: m.readOnly,
+        rest: { relabel: m.relabel, external: m.external, makeOwner: m.makeOwner },
+      }),
+    );
   const [rows, setRows] = useState<MountRow[]>(first);
   const [next, setNext] = useState(first.length);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -1416,27 +1442,46 @@ function MountsForm({ service, app, image, name, root, moving, plan, onCancel }:
     plan(t`Change the volumes and mounts of ${name}`, [
       ...extra,
       serviceEdit(service, (a) => {
-        a.mounts = rows.map((r) =>
-          create(MountSchema, {
-            source: isServerPath(r.source)
-              ? { case: "hostPath", value: r.source.trim() }
-              : { case: "volume", value: r.source.trim() },
-            target: r.target.trim(),
-            readOnly: r.readOnly,
-            relabel: r.rest.relabel,
-            external: r.rest.external,
-          }),
-        );
+        a.mounts = [
+          ...files,
+          ...rows.map((r) =>
+            create(MountSchema, {
+              source: isServerPath(r.source)
+                ? { case: "hostPath", value: r.source.trim() }
+                : { case: "volume", value: r.source.trim() },
+              target: r.target.trim(),
+              readOnly: r.readOnly,
+              relabel: r.rest.relabel,
+              // Whom a volume is made for goes with the volume it was given for: a row
+              // that now names another source makes nothing for anyone.
+              makeOwner: r.source.trim() === first.find((f) => f.key === r.key)?.source ? r.rest.makeOwner : "",
+              external: r.rest.external,
+            }),
+          ),
+        ];
       }),
     ]);
   };
   return (
     <form className="app-settings-form" aria-label={t`Edit Volumes and mounts`} onSubmit={submit} noValidate>
-      {rows.length === 0 ? (
+      {files.length > 0 ? (
+        <ul className="app-settings-list">
+          {files.map((m) => (
+            <li key={`file:${m.target}`}>
+              <Icon name="file" size={14} />
+              <span>{t`A file Dockwell writes`}</span>
+              <Icon name="arrow-right" size={12} />
+              <code>{m.target}</code>
+              <span className="app-muted">{t`Stays as it is`}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {rows.length === 0 && files.length === 0 ? (
         <p className="app-settings-empty">
           <Trans>It mounts nothing. Add a volume to keep what it writes across deploys.</Trans>
         </p>
-      ) : (
+      ) : rows.length === 0 ? null : (
         <ul className="app-settings-rows">
           {rows.map((row, i) => (
             <MountEditRow
@@ -1462,7 +1507,13 @@ function MountsForm({ service, app, image, name, root, moving, plan, onCancel }:
           onClick={() => {
             setRows((was) => [
               ...was,
-              { key: next, source: "", target: "", readOnly: false, rest: { relabel: 0, external: false } },
+              {
+                key: next,
+                source: "",
+                target: "",
+                readOnly: false,
+                rest: { relabel: 0, external: false, makeOwner: "" },
+              },
             ]);
             setNext(next + 1);
           }}

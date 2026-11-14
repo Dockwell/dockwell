@@ -729,9 +729,20 @@ func TestCheckRefuses(t *testing.T) {
 		"a secret inside a label": {func(e *catalogv1.Entry) {
 			e.Compose = strings.Replace(e.GetCompose(), "POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}", "POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}\n    labels: {key: \"k-${POSTGRES_PASSWORD}\"}", 1)
 		}, "inside a longer value"},
+		"a secret as all a config holds": {func(e *catalogv1.Entry) {
+			e.Compose += "configs:\n  pass:\n    content: ${POSTGRES_PASSWORD}\n"
+		}, "into a file a plan shows"},
 		"short secret": {func(e *catalogv1.Entry) { e.Inputs[1].Generate = 8 }, "at least 16"},
 		"a secret longer than Dockwell generates": {func(e *catalogv1.Entry) { e.Inputs[1].Generate = 1 << 30 }, "more than the 256 Dockwell generates"},
 		"a database it doesn't run":               {func(e *catalogv1.Entry) { e.Databases = []string{"cache"} }, "marks cache as a database"},
+		// M1: an owner for a server path makes a folder of the server's, whatever
+		// the mount says of reading.
+		"an owner for a server path": {func(e *catalogv1.Entry) {
+			e.Compose = strings.Replace(e.GetCompose(), "      - data:/var/lib/postgresql/data\n", "      - data:/var/lib/postgresql/data\n      - /usr/share/zoneinfo/X:/zone:ro\n    x-dockwell:\n      make_owner: {/zone: \"1000:1000\"}\n", 1)
+		}, "gives the server path /usr/share/zoneinfo/X an owner"},
+		"an owner for a folder beside the file": {func(e *catalogv1.Entry) {
+			e.Compose = strings.Replace(e.GetCompose(), "      - data:/var/lib/postgresql/data\n", "      - data:/var/lib/postgresql/data\n      - type: bind\n        source: ./conf\n        target: /conf\n    x-dockwell:\n      make_owner: {/conf: \"1000:1000\"}\n", 1)
+		}, "gives the server path ./conf an owner"},
 		"a sign-in with a password that isn't a secret": {func(e *catalogv1.Entry) {
 			e.SignIn.PasswordInput = "ADMIN_PORT"
 		}, "isn't one of its secret inputs"},

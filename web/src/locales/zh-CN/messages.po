@@ -2666,6 +2666,9 @@ msgstr "{runsOn}，来自 <0>{0}</0>"
 msgid "A connection to port {0}"
 msgstr "连接端口 {0}"
 
+msgid "A file Dockwell writes"
+msgstr "Dockwell 写入的文件"
+
 msgid "Add a port"
 msgstr "添加端口"
 
@@ -3243,6 +3246,10 @@ msgctxt "a limit typed in"
 msgid "Other"
 msgstr "其他"
 
+#. placeholder {0}: m.makeOwner
+msgid "Owned by {0}"
+msgstr "所有者 {0}"
+
 msgid "Patch updates"
 msgstr "补丁更新"
 
@@ -3284,6 +3291,9 @@ msgstr "填写要运行的命令，例如 curl -f http://localhost/。"
 
 msgid "Settings sections"
 msgstr "设置分区"
+
+msgid "Stays as it is"
+msgstr "保持原样"
 
 msgid "Stop updating {name} on its own"
 msgstr "停止自动更新 {name}"
@@ -3398,6 +3408,9 @@ msgstr "{c} vCPU"
 
 msgid "{hours} h"
 msgstr "{hours} 小时"
+
+msgid "{lines, plural, one {A file Dockwell writes, # line} other {A file Dockwell writes, # lines}}"
+msgstr "{lines, plural, other {Dockwell 写入的文件，# 行}}"
 
 msgid "{name} changed after you started, so the form shows it as it is now. Make your change again."
 msgstr "你开始编辑之后，{name} 发生了变化，所以表单现在显示它当前的样子。请重新做一次你的更改。"

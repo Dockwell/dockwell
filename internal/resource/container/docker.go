@@ -77,6 +77,9 @@ type Docker struct {
 	// the mount gives. Nil makes none, and leaves it to Docker, which makes it
 	// root's.
 	Folders FolderMaker
+	// Files keeps the files containers mount, which Dockwell writes (ADR 0085). Nil
+	// writes none, and a container that mounts one can't be made.
+	Files *Files
 	// Paths finds what no container may mount on this server, and follows
 	// symlinks there. Nil checks only what Validate does.
 	Paths *Paths
@@ -696,6 +699,14 @@ func (d *Docker) createRequest(ctx context.Context, t Target, spec *resourcev1.C
 			})
 		case *resourcev1.Mount_HostPath:
 			req.HostConfig.Binds = append(req.HostConfig.Binds, bind(src.HostPath, m))
+		case *resourcev1.Mount_File:
+			if d.Files != nil {
+				// A bind of HostConfig.Mounts fails where its source is missing, where
+				// Binds would make an empty folder in its place and start the app on it.
+				req.HostConfig.Mounts = append(req.HostConfig.Mounts, docker.Mount{
+					Type: "bind", Source: d.Files.Path(src.File.GetContent(), fileMode(src.File)), Target: m.GetTarget(), ReadOnly: true,
+				})
+			}
 		}
 	}
 	from := imageVolumes(old)
@@ -1124,7 +1135,8 @@ func Project(c *docker.Container, img *docker.Config, t Target) *resourcev1.Cont
 }
 
 // LabelMakeOwners holds whom each server path a container mounts was to be made
-// for, where it wasn't there, by the mount's target, as Docker keeps nothing of it.
+// for, where it wasn't there, and each volume while it was empty, by the mount's
+// target, as Docker keeps nothing of it.
 const LabelMakeOwners = docker.OwnPrefix + "make-owners"
 
 // makeOwnersLabel is LabelMakeOwners for a spec, such as "/var/www/html=82:82", or
@@ -1132,7 +1144,7 @@ const LabelMakeOwners = docker.OwnPrefix + "make-owners"
 func makeOwnersLabel(spec *resourcev1.Container) string {
 	var out []string
 	for _, m := range spec.GetMounts() {
-		if m.GetHostPath() != "" && m.GetMakeOwner() != "" {
+		if (m.GetHostPath() != "" || m.GetVolume() != "") && m.GetMakeOwner() != "" {
 			out = append(out, m.GetTarget()+"="+m.GetMakeOwner())
 		}
 	}
@@ -1153,7 +1165,7 @@ func readMakeOwners(c *docker.Container, out *resourcev1.Container) {
 		}
 	}
 	for _, m := range out.GetMounts() {
-		if m.GetHostPath() != "" {
+		if m.GetHostPath() != "" || m.GetVolume() != "" {
 			m.MakeOwner = owners[m.GetTarget()]
 		}
 	}
@@ -1416,7 +1428,37 @@ func (d *Docker) projected(ctx context.Context, t Target, c *docker.Container) (
 	case !docker.IsNotFound(err):
 		return nil, err
 	}
-	return Project(c, defaults, t), nil
+	out := Project(c, defaults, t)
+	d.readFiles(out)
+	return out, nil
+}
+
+// readFiles reads back each file a container mounts that this server keeps, from
+// its bind, as the file mount the spec said (ADR 0085).
+func (d *Docker) readFiles(c *resourcev1.Container) {
+	for _, m := range c.GetMounts() {
+		if f, ok := d.Files.Read(m.GetHostPath()); ok {
+			m.Source = &resourcev1.Mount_File{File: f}
+		}
+	}
+	sortMounts(c)
+}
+
+// writeFiles keeps each file a container mounts, before it's made.
+func (d *Docker) writeFiles(spec *resourcev1.Container) error {
+	for _, m := range spec.GetMounts() {
+		f := m.GetFile()
+		if f == nil {
+			continue
+		}
+		if d.Files == nil {
+			return fmt.Errorf("this agent keeps no files for containers, and the mount at %s is one. Update the agent", m.GetTarget())
+		}
+		if _, err := d.Files.Write(f.GetContent(), fileMode(f)); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // ensureImage pulls an image that isn't on the server yet. One that is

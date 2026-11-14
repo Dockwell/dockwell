@@ -1169,8 +1169,18 @@ func (d *Docker) make(ctx context.Context, t Target, spec *resourcev1.Container,
 			return "", nil, err
 		}
 	}
-	// What Docker would make root's, Dockwell makes as the mount says, first.
+	// What Docker would make root's, Dockwell makes as the mount says, first, and
+	// each file it mounts is there before it is.
 	if err := d.makeFolders(spec); err != nil {
+		undo()
+		return "", nil, err
+	}
+	give, err := d.ownVolumes(ctx, t, spec)
+	if err != nil {
+		undo()
+		return "", nil, err
+	}
+	if err := d.writeFiles(spec); err != nil {
 		undo()
 		return "", nil, err
 	}
@@ -1184,6 +1194,11 @@ func (d *Docker) make(ctx context.Context, t Target, spec *resourcev1.Container,
 		d.discard(ctx, id, name)
 		undo()
 		return err
+	}
+	// Docker gave each new volume the owner of the image's folder as it made the
+	// container, so its owner comes now, before anything runs.
+	if err := give(ctx); err != nil {
+		return "", nil, discard(err)
 	}
 	for _, n := range later {
 		if err := d.Client.ConnectNetwork(ctx, n, id, endpointAliases(t, spec)); err != nil {

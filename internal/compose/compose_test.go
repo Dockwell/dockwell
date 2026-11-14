@@ -187,6 +187,9 @@ func TestParseRefuses(t *testing.T) {
 		"check of neither": {"services: {web: {image: a, x-dockwell: {healthcheck: {interval: 5s}}}}", "needs http or tcp"},
 		"http keys":        {"services: {web: {image: a, x-dockwell: {healthcheck: {http: {url: 'http://169.254.169.254/'}}}}}", "the service web's x-dockwell's healthcheck's http uses `url`, which Dockwell can't run yet"},
 		"two checks":       {"services: {web: {image: a, healthcheck: {test: [CMD, 'true']}, x-dockwell: {healthcheck: {tcp: {port: 80}}}}}", "a service has one check"},
+		"owner kind":       {"services: {web: {image: a, x-dockwell: {make_owner: 1000}}}", "the service web's x-dockwell's make_owner should be a mapping of each mount's target to its owner"},
+		"owner shape":      {"services: {web: {image: a, volumes: [data:/data], x-dockwell: {make_owner: {/data: www-data}}}}\nvolumes: {data: {}}", "the service web's x-dockwell's make_owner for /data"},
+		"owner of nothing": {"services: {web: {image: a, x-dockwell: {make_owner: {/data: '1000:1000'}}}}", "names /data, which no volume or server path of it mounts"},
 		"long propagation": {
 			"services: {web: {image: a, volumes: [{type: bind, source: /srv, target: /data, bind: {propagation: rshared}}]}}",
 			"the service web's volume's bind uses `propagation`, which Dockwell can't run yet",
@@ -471,6 +474,120 @@ func TestWhatAContainerAsksOfItselfThatDockwellCant(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			_, err := compose.Read(t.Context(), compose.Input{File: []byte(c.file), Variables: map[string]string{"N": "lots"}})
 			if err == nil || !strings.Contains(err.Error(), c.want) {
+				t.Errorf("Read = %v, want %q", err, c.want)
+			}
+		})
+	}
+}
+
+// A config a file writes out as its content is a file Dockwell writes for each
+// service that mounts it, read-only, at its target or at /<name>, and an export
+// writes it back as a config (ADR 0085). One read from a file, a variable of the
+// shell or Swarm is refused with what to do, and so is one written as another
+// user's.
+// Whom a volume or a server path is made for is the service's x-dockwell's, by the
+// mount's target, as Compose has no field for it, and an export writes it back
+// (ADR 0085).
+func TestAMountsOwnerComesFromXDockwell(t *testing.T) {
+	file := `services:
+  web:
+    image: nginx:1.27
+    volumes:
+      - data:/var/lib/app/
+      - /srv/site:/srv
+      - cache:/cache
+    x-dockwell:
+      make_owner:
+        /var/lib/app: "1000:1000"
+        /srv: "0082:82"
+volumes:
+  data: {}
+  cache: {}
+`
+	stack, err := compose.Read(t.Context(), compose.Input{File: []byte(file), Directory: "/opt/app"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	owners := map[string]string{}
+	for _, m := range stack.Services[0].Spec.GetApp().GetMounts() {
+		owners[m.GetTarget()] = m.GetMakeOwner()
+	}
+	if owners["/var/lib/app"] != "1000:1000" || owners["/srv"] != "82:82" || owners["/cache"] != "" {
+		t.Errorf("owners = %v", owners)
+	}
+	out, err := compose.Export("env_x", stack)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if text := string(out.File); !strings.Contains(text, "make_owner:") || !strings.Contains(text, `/var/lib/app: "1000:1000"`) {
+		t.Errorf("the export doesn't say whom each mount is made for:\n%s", text)
+	}
+	again, err := compose.Read(t.Context(), compose.Input{File: out.File})
+	if err != nil {
+		t.Fatalf("reading the export: %v\n%s", err, out.File)
+	}
+	for _, m := range again.Services[0].Spec.GetApp().GetMounts() {
+		if m.GetMakeOwner() != owners[m.GetTarget()] {
+			t.Errorf("the export reads back with %s made for %q, want %q", m.GetTarget(), m.GetMakeOwner(), owners[m.GetTarget()])
+		}
+	}
+}
+
+func TestConfigsAreFilesDockwellWrites(t *testing.T) {
+	file := `services:
+  web:
+    image: nginx:1.27
+    configs:
+      - source: nginx
+        target: /etc/nginx/nginx.conf
+      - source: run
+        mode: 0555
+      - motd
+configs:
+  nginx:
+    content: |
+      events {}
+  run:
+    content: "#!/bin/sh\nexec nginx\n"
+  motd:
+    content: hello
+`
+	stack, err := compose.Read(t.Context(), compose.Input{File: []byte(file)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	files := map[string]*resourcev1.MountFile{}
+	for _, m := range stack.Services[0].Spec.GetApp().GetMounts() {
+		if !m.GetReadOnly() {
+			t.Errorf("the file at %s isn't read-only", m.GetTarget())
+		}
+		files[m.GetTarget()] = m.GetFile()
+	}
+	if files["/etc/nginx/nginx.conf"].GetContent() != "events {}\n" || files["/run"].GetMode() != 0o555 || files["/motd"].GetContent() != "hello" {
+		t.Errorf("mounts read as %v", files)
+	}
+	out, err := compose.Export("env_x", stack)
+	if err != nil {
+		t.Fatal(err)
+	}
+	again, err := compose.Read(t.Context(), compose.Input{File: out.File})
+	if err != nil {
+		t.Fatalf("the export doesn't read back: %v\n%s", err, out.File)
+	}
+	if got, want := again.Services[0].Spec.GetApp(), stack.Services[0].Spec.GetApp(); !proto.Equal(got, want) {
+		t.Errorf("the export reads back as another spec: %v\n%s", resource.Diff(want, got), out.File)
+	}
+
+	for name, c := range map[string]struct{ file, want string }{
+		"from a file":        {"services:\n  web:\n    image: nginx:1.27\n    configs: [c]\nconfigs:\n  c:\n    file: ./nginx.conf\n", "Write what it holds as content"},
+		"from the shell":     {"services:\n  web:\n    image: nginx:1.27\n    configs: [c]\nconfigs:\n  c:\n    environment: CONF\n", "Write it as content"},
+		"from Swarm":         {"services:\n  web:\n    image: nginx:1.27\n    configs: [c]\nconfigs:\n  c:\n    external: true\n", "Write what it holds as content"},
+		"one not written":    {"services:\n  web:\n    image: nginx:1.27\n    configs: [c]\n", "doesn't write"},
+		"another's":          {"services:\n  web:\n    image: nginx:1.27\n    configs: [{source: c, uid: \"1000\"}]\nconfigs:\n  c:\n    content: x\n", "as root's"},
+		"with nothing in it": {"services:\n  web:\n    image: nginx:1.27\n    configs: [c]\nconfigs:\n  c: {}\n", "has no content"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, err := compose.Read(t.Context(), compose.Input{File: []byte(c.file)}); err == nil || !strings.Contains(err.Error(), c.want) {
 				t.Errorf("Read = %v, want %q", err, c.want)
 			}
 		})
