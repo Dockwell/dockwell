@@ -407,7 +407,6 @@ func (h *Handler) planPanel(ctx context.Context, srv *dockwellv1.Server, w panel
 	if len(parts) > 0 {
 		also.Edits = append(also.Edits, revision.Edit{
 			Ref:   resource.Ref{Kind: host.Kind, Scope: srv.GetId(), Name: host.Name},
-			Spec:  &resourcev1.ServerHost{},
 			Panel: &resource.PanelAsked{Kind: resource.PanelDokploy, Apps: true, Parts: parts},
 		})
 		also.Notes = append(also.Notes, revision.Note{Reason: "remakes_" + w.from, Message: fmt.Sprintf(
