@@ -1474,6 +1474,32 @@ describe("a route with no certificate, on a fleet", () => {
     expect(within(steps).getByText(/It answers only what runs on hz-1 itself/)).toHaveClass("plan-step-notice");
   });
 
+  it("says what a private route lets in that it kept out, apart from what it reaches, and why a person approves it", async () => {
+    const change = webPlanned();
+    const plan = change.plan;
+    const first = plan?.servers[0];
+    const step = first?.steps[0];
+    if (!plan || !first || !step) throw new Error("no step");
+    step.hostAccess = [
+      create(HostAccessSchema, {
+        kind: HostAccessKind.ACCESS_OPENED,
+        path: "app.example.com/admin",
+        detail: "allow:198.51.100.0/24 user:ci users-off",
+      }),
+    ];
+    plan.hostAccess = true;
+    plan.resources[0]?.hostAccess.push(...step.hostAccess);
+    plan.servers.push(create(ServerPlanSchema, { serverId: "srv_2", serverName: "hz-2", steps: [] }));
+    show(change);
+    const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+    const steps = await within(sheet).findByRole("region", { name: "Steps by server" });
+    expect(steps).toHaveTextContent(
+      "Opens app.example.com/admin to someone it kept out: it lets in 198.51.100.0/24, adds the user ci and takes off its passwords",
+    );
+    expect(steps).not.toHaveTextContent("Reaches app.example.com/admin");
+    expect(sheet).toHaveTextContent("lets in someone app.example.com/admin kept out");
+  });
+
   it("names a network's driver on its step, as the notice above it does", async () => {
     const change = webPlanned();
     const plan = change.plan;

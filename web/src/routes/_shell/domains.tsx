@@ -8,7 +8,7 @@ import { DomainsPage, type DomainsSearch } from "../../features/domains/DomainsP
 /** Reads the list's filters from its URL, leaving out what isn't one. */
 function readSearch(search: Record<string, unknown>): DomainsSearch {
   const out: DomainsSearch = {};
-  for (const key of ["q", "server"] as const) {
+  for (const key of ["q", "server", "private"] as const) {
     const value = search[key];
     if (typeof value === "string" && value !== "") out[key] = value;
   }

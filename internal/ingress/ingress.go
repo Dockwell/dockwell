@@ -127,6 +127,13 @@ type Route struct {
 	// PlainForAnyone is true for a Plain route that answers anyone. Without it, one
 	// answers only what it trusts, or this server's own loopback if that's nothing.
 	PlainForAnyone bool
+	// Allow is who it lets in, as ranges, by the client it believes; anyone else
+	// gets 403. Empty lets in everyone it answers (ADR 0087).
+	Allow []string
+	// Users may sign in to it with a password, in the order the spec names them.
+	// With any, a visitor who doesn't gets 401, and Authorization doesn't reach the
+	// upstream.
+	Users []User
 	// Edited is true when it holds something Dockwell doesn't put there, as
 	// after a hand edit, so what it reads as isn't the whole of it.
 	Edited bool
@@ -366,7 +373,7 @@ func (m *Manager) Observe(ctx context.Context, ref resource.Ref) (*resourcev1.Ro
 		return nil, nil
 	}
 	r := routes[i]
-	out := &resourcev1.Route{Domain: r.Domain, Path: r.Path, TrustedProxies: proxyNames(r.TrustedProxies, r.EdgeProxies), PlainForAnyone: r.PlainForAnyone, Held: r.Held}
+	out := &resourcev1.Route{Domain: r.Domain, Path: r.Path, TrustedProxies: proxyNames(r.TrustedProxies, r.EdgeProxies), PlainForAnyone: r.PlainForAnyone, Held: r.Held, Access: accessSpec(r)}
 	if r.Plain {
 		out.Tls = TLSOff
 	}
@@ -939,6 +946,9 @@ func (m *Manager) put(ctx context.Context, ref resource.Ref, spec *resourcev1.Ro
 	if err := m.checkLimits(ctx, step, applyMargin); err != nil {
 		return err
 	}
+	if err := checkAccess(ref, spec); err != nil {
+		return err
+	}
 	if err := m.checkHostPorts(ctx, step); err != nil {
 		return err
 	}
@@ -984,9 +994,11 @@ func (m *Manager) put(ctx context.Context, ref resource.Ref, spec *resourcev1.Ro
 		}
 	}
 	named, edge := splitProxies(spec.GetTrustedProxies())
+	allow, users := accessOf(spec)
 	r := Route{
 		ID: RouteID(ref), Domain: spec.GetDomain(), Path: spec.GetPath(), Upstreams: dials,
 		Plain: spec.GetTls() == TLSOff, TrustedProxies: named, EdgeProxies: edge, PlainForAnyone: spec.GetPlainForAnyone(), Held: spec.GetHeld(),
+		Allow: allow, Users: users,
 	}
 	m.logReplaced(ctx, r)
 	if !r.Plain {

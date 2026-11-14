@@ -518,19 +518,23 @@ func (m *Manager) watchOnce(ctx context.Context) (waiting bool) {
 		}
 		return false
 	}
+	var strangers map[string][]*dockwellv1.StrangerCheck
+	if asker, ok := m.Proxy.(Asker); ok {
+		strangers = AskStrangers(ctx, asker, routes)
+	}
 	retry, rereads := false, rereadsPerWatch
 	list := make([]*dockwellv1.DomainStatus, 0, len(domains))
 	for _, name := range slices.Sorted(maps.Keys(domains)) {
 		if !domains[name] {
 			// Its DNS points at whatever is in front, which says nothing here.
-			list = append(list, &dockwellv1.DomainStatus{Domain: name, Certificate: certProto(name, CertState{None: true}, nil)})
+			list = append(list, &dockwellv1.DomainStatus{Domain: name, Certificate: certProto(name, CertState{None: true}, nil), Strangers: strangers[name]})
 			continue
 		}
 		st := certs[name]
 		check, nowHere := m.domainCheck(ctx, name, st, &rereads)
 		retry = retry || (nowHere && st.Phase != CertIssued)
 		waiting = waiting || st.Phase != CertIssued
-		list = append(list, &dockwellv1.DomainStatus{Domain: name, Certificate: certProto(name, st, check), Dns: resourcepb.DomainCheck(check)})
+		list = append(list, &dockwellv1.DomainStatus{Domain: name, Certificate: certProto(name, st, check), Dns: resourcepb.DomainCheck(check), Strangers: strangers[name]})
 	}
 	m.status.publish(list)
 	m.reportPanel(ctx)

@@ -4617,6 +4617,206 @@ msgstr "{name}（默认）"
 msgid "{secrets, plural, one {# variable} other {# variables}}"
 msgstr "{secrets, plural, other {# 个变量}}"
 
+msgid "A private route needs its domain's routes on one server, or a path falls to the route above it."
+msgstr "私有路由要求其域名的所有路由在同一台服务器上，否则路径会落到其上层路由。"
+
+msgid "A stranger gets 403 Forbidden"
+msgstr "陌生人会收到 403 Forbidden"
+
+msgid "A stranger gets in"
+msgstr "陌生人可以进入"
+
+msgid "A stranger gets {said}"
+msgstr "陌生人会收到 {said}"
+
+msgid "A stranger is asked for a password"
+msgstr "陌生人会被要求输入密码"
+
+msgid "Add a user"
+msgstr "添加用户"
+
+msgid "Add an address or a range"
+msgstr "添加地址或地址段"
+
+msgid "Add an address, or turn the list off."
+msgstr "请添加一个地址，或关闭列表。"
+
+msgid "Add your address, {entry}"
+msgstr "添加你的地址 {entry}"
+
+msgid "Add your network, {entry}"
+msgstr "添加你的网络 {entry}"
+
+msgid "Addresses let in"
+msgstr "放行的地址"
+
+msgid "Anyone with a Cloudflare Worker can say who they are here, so ask for a password instead."
+msgstr "任何拥有 Cloudflare Worker 的人都能在这里冒充访客身份，请改用密码。"
+
+msgid "Ask for a password"
+msgstr "要求输入密码"
+
+msgid "Bind it to the server alone"
+msgstr "仅绑定到服务器本机"
+
+msgid "Change who gets in to {where}"
+msgstr "更改可以进入 {where} 的人"
+
+msgid "Copy the password"
+msgstr "复制密码"
+
+msgid "Dockwell shows it only now, and keeps only its hash."
+msgstr "Dockwell 只在此刻显示它，之后只保存其哈希。"
+
+msgid "Every visitor comes from your tunnel's address until the route names it as a proxy."
+msgstr "在路由把隧道列为代理之前，所有访客都显示为隧道的地址。"
+
+msgid "I've kept a copy of each password"
+msgstr "我已保存每个密码的副本"
+
+msgid "I've kept a copy of the password"
+msgstr "我已保存密码的副本"
+
+msgid "Its routes run on more than one server"
+msgstr "它的路由运行在不止一台服务器上"
+
+msgid "Its server can't tell from where it asks"
+msgstr "它的服务器从发起检查的位置无法判断"
+
+msgid "Its server hasn't checked yet"
+msgstr "它的服务器还没有检查"
+
+msgid "Keep strangers out of an app with no sign-in of its own"
+msgstr "为没有自带登录的应用挡住陌生人"
+
+msgid "Keep the password somewhere else"
+msgstr "把密码保存在别处"
+
+msgid "Let anyone in to {where}"
+msgstr "允许任何人进入 {where}"
+
+msgid "Make it private"
+msgstr "设为私有"
+
+msgid "Make {where} private"
+msgstr "将 {where} 设为私有"
+
+msgid "Make {where} private too"
+msgstr "也将 {where} 设为私有"
+
+msgid "Move the whole domain to {serverName}"
+msgstr "将整个域名移到 {serverName}"
+
+msgid "Move {domainName} to {serverName}"
+msgstr "将 {domainName} 移到 {serverName}"
+
+msgid "Name the user, such as admin."
+msgstr "为用户命名，例如 admin。"
+
+msgid "New password for {who}"
+msgstr "为 {who} 生成新密码"
+
+msgid "Now anyone who reaches it gets in"
+msgstr "现在任何能访问到它的人都可以进入"
+
+msgid "On {on}, a stranger gets 403 Forbidden"
+msgstr "在 {on} 上，陌生人会收到 403 Forbidden"
+
+msgid "On {on}, a stranger gets in"
+msgstr "在 {on} 上，陌生人可以进入"
+
+msgid "On {on}, a stranger gets {said}"
+msgstr "在 {on} 上，陌生人会收到 {said}"
+
+msgid "On {on}, a stranger is asked for a password"
+msgstr "在 {on} 上，陌生人会被要求输入密码"
+
+msgid "Once applied, a stranger gets 403 Forbidden"
+msgstr "应用后，陌生人会收到 403 Forbidden"
+
+msgid "Once applied, a stranger is asked for a password"
+msgstr "应用后，陌生人会被要求输入密码"
+
+msgid "Once applied, anyone who reaches it gets in"
+msgstr "应用后，任何能访问到它的人都可以进入"
+
+msgid "Only these addresses"
+msgstr "仅限这些地址"
+
+msgid "Other ways in let anyone reach this app"
+msgstr "其他入口让任何人都能访问这个应用"
+
+msgid "Password copied"
+msgstr "密码已复制"
+
+msgid "Password for {who}"
+msgstr "{who} 的密码"
+
+msgid "Port {port} on its server"
+msgstr "其服务器上的端口 {port}"
+
+msgid "Private"
+msgstr "私有"
+
+msgid "Private here · open at {where}"
+msgstr "此处私有 · 在 {where} 公开"
+
+msgid "Private here · open on port {port}"
+msgstr "此处私有 · 端口 {port} 公开"
+
+msgid "Private · {said}"
+msgstr "私有 · {said}"
+
+msgid "Remove {who}"
+msgstr "删除 {who}"
+
+msgid "Take {entry} off the list"
+msgstr "将 {entry} 移出列表"
+
+msgid "Turn on HTTPS for this domain"
+msgstr "为此域名开启 HTTPS"
+
+msgid "Turn on HTTPS for {domainName}"
+msgstr "为 {domainName} 开启 HTTPS"
+
+msgid "UDP port {port} on its server"
+msgstr "其服务器上的 UDP 端口 {port}"
+
+msgid "User name"
+msgstr "用户名"
+
+msgid "Visitors reach it over plain HTTP, so a password would cross the network in the clear."
+msgstr "访客通过明文 HTTP 访问它，因此密码会以明文在网络上传输。"
+
+msgid "What a stranger gets"
+msgstr "陌生人会遇到什么"
+
+msgid "Who gets in"
+msgstr "谁可以进入"
+
+msgid "Who gets in to {where}"
+msgstr "谁可以进入 {where}"
+
+msgid "Write an address or a range, such as 203.0.113.7 or 2001:db8::/64."
+msgstr "请填写地址或地址段，例如 203.0.113.7 或 2001:db8::/64。"
+
+msgid "You reach the panel through this server, so your own address can't be offered."
+msgstr "你通过这台服务器访问面板，因此无法提供你自己的地址。"
+
+msgid "keeps their password"
+msgstr "保留其密码"
+
+msgctxt "an address on a list, that is yours"
+msgid "you"
+msgstr "你"
+
+msgctxt "an address range on a list, that yours is in"
+msgid "your network"
+msgstr "你的网络"
+
+msgid "{on} can't tell from where it asks"
+msgstr "{on} 从发起检查的位置无法判断"
+
 msgid "Change {name}'s version"
 msgstr "更改 {name} 的版本"
 
@@ -7971,6 +8171,9 @@ msgstr "不会停机"
 msgid "No steps: it left the fleet"
 msgstr "没有步骤：它已离开集群"
 
+msgid "Opens {opening}"
+msgstr "将开放{opening}"
+
 msgid "Packages it installs on {server}"
 msgstr "它在 {server} 上安装的软件包"
 
@@ -8663,6 +8866,9 @@ msgstr "它永不封禁 {never}。"
 msgid "It never bans {never}. {counts} {lifting}"
 msgstr "它永不封禁 {never}。{counts}{lifting}"
 
+msgid "It opens {opening}. A token can keep out more, and only a person lets anyone in."
+msgstr "它会开放{opening}。令牌可以挡住更多人，只有人工批准才能放人进来。"
+
 msgid "It reaches what the server reaches, past Docker's network and the firewall."
 msgstr "它能访问服务器能访问的一切，绕过 Docker 网络和防火墙。"
 
@@ -9074,6 +9280,9 @@ msgstr "{name} 在 {server} 上加入 {leadsTo} 网络 {path}"
 
 msgid "{name} keeps what is in {names} as it is"
 msgstr "{name} 保留 {names} 中的内容不变"
+
+msgid "{name} lets in someone {path} kept out"
+msgstr "{name} 会放进 {path} 原本挡住的人"
 
 #. placeholder {0}: server.serverName
 msgid "{name} loses its data on {0}"
@@ -9573,17 +9782,26 @@ msgstr "{path} 上的一个 {driver} 网络"
 msgid "a {type} mount ({reads})"
 msgstr "一个 {type} 挂载（{reads}）"
 
+msgid "adds the user {named}"
+msgstr "添加用户 {named}"
+
 msgid "anyone on the internet"
 msgstr "互联网上的任何人"
 
 msgid "anyone who can reach {server}"
 msgstr "任何能访问 {server} 的人"
 
+msgid "changes the password of {named}"
+msgstr "更改 {named} 的密码"
+
 msgid "environment {environment}"
 msgstr "环境 {environment}"
 
 msgid "firewall rule"
 msgstr "防火墙规则"
+
+msgid "lets in {named}"
+msgstr "放行 {named}"
 
 msgid "plain HTTP on {path} for anyone who can reach this server, around whatever is in front of it"
 msgstr "{path} 上面向任何能访问此服务器的人的纯 HTTP，绕过它前面的任何东西"
@@ -9599,6 +9817,12 @@ msgstr "读写"
 
 msgid "something else on the server"
 msgstr "服务器上的其他内容"
+
+msgid "takes off its list of addresses"
+msgstr "取消其地址列表"
+
+msgid "takes off its passwords"
+msgstr "取消其密码"
 
 msgid "the Linux capability {path}"
 msgstr "Linux 能力 {path}"
@@ -9713,6 +9937,9 @@ msgstr "{path}，作为它信任的代理，相信它所说的请求来源"
 
 msgid "{path} as a proxy it believes on where a request came from: whatever else is in that range can reach the route, and say who its client is"
 msgstr "{path}，作为它信任的代理，相信它所说的请求来源：该范围内的其他任何东西都能访问这条路由，并声称其客户端是谁"
+
+msgid "{path} to someone it kept out: it {how}"
+msgstr "{path}，让原本被挡住的人进入：它会{how}"
 
 msgid "{proxy} isn't running on {server}, so this route starts it, and it takes ports {ports}"
 msgstr "{proxy} 未在 {server} 上运行，因此此路由将启动它，并由它占用端口 {ports}"
@@ -10021,9 +10248,6 @@ msgstr "{servers}，并加密存放在 {destination}"
 
 msgid "{servers}, unencrypted"
 msgstr "{servers}，未加密"
-
-msgid "Add a user"
-msgstr "添加用户"
 
 msgid "Can do anything"
 msgstr "拥有全部权限"
@@ -13073,9 +13297,6 @@ msgstr "{running, plural, other {# 个正在运行}}"
 
 msgid "{unknown, plural, one {# unknown} other {# unknown}}"
 msgstr "{unknown, plural, other {# 个未知}}"
-
-msgid "Private"
-msgstr "私有"
 
 msgid "Last heard {seen}; the numbers here are from then."
 msgstr "最后一次收到于{seen}；这里的数据来自那时。"

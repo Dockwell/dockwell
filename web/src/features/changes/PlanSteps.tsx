@@ -170,10 +170,11 @@ function StepRow({
   const effect = planning ? words.effect(step.effect) : "";
   const kept = step.keptPaths.join(", ");
   const reach = step.hostAccess
-    .filter((a) => a.kind !== HostAccessKind.HTTPS_OFF)
+    .filter((a) => a.kind !== HostAccessKind.HTTPS_OFF && a.kind !== HostAccessKind.ACCESS_OPENED)
     .map((a) => words.access(a))
     .join("; ");
   const httpsOff = step.hostAccess.filter((a) => a.kind === HostAccessKind.HTTPS_OFF);
+  const opens = step.hostAccess.filter((a) => a.kind === HostAccessKind.ACCESS_OPENED);
   const dns = words.domain(step.domainCheck);
   const returning = words.returning(step.returningContainers, server);
   const buildLogins = step.buildLogins.join(", ");
@@ -239,6 +240,14 @@ function StepRow({
             return (
               <span key={a.path} className="plan-step-warn">
                 {t`Takes away ${stopping}`}
+              </span>
+            );
+          })}
+          {opens.map((a) => {
+            const opening = words.access(a);
+            return (
+              <span key={`opens ${a.path}`} className="plan-step-warn">
+                {t`Opens ${opening}`}
               </span>
             );
           })}

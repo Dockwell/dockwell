@@ -1121,7 +1121,7 @@ func TestHandEditsOfWhatARouteBelievesReadAsThemselvesOnRealCaddy(t *testing.T) 
 			return rt
 		},
 		"an extra step": func(rt route) route {
-			rt.Handle[0].Routes = append(rt.Handle[0].Routes, beliefRoute{Handle: []map[string]string{{"handler": "vars", clientVar: "6.6.6.6"}}})
+			rt.Handle[0].Routes = append(rt.Handle[0].Routes, beliefRoute{Handle: []map[string]any{{"handler": "vars", clientVar: "6.6.6.6"}}})
 			return rt
 		},
 		"its headers": func(rt route) route {

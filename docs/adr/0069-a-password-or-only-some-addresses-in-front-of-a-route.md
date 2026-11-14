@@ -1,6 +1,6 @@
 # 0069. A password, or only some addresses, in front of a route
 
-- Status: Proposed
+- Status: Superseded by [0087](0087-private-routes.md), which was built in its place
 - Date: 2026-11-10
 
 ## Context

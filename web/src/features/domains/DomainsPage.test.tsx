@@ -8,6 +8,7 @@ import {
   Connection,
   DomainCheckState,
   type ProposeChangeRequest,
+  StrangerOutcome,
   type WatchChangeResponse,
   type WatchServersResponse,
 } from "@dockwell/api";
@@ -316,10 +317,13 @@ describe("the list of domains", () => {
     expect(old).not.toHaveAttribute("tabindex");
     expect(port).not.toHaveClass("is-clickable");
 
-    // Tabbing goes past each, to what's in it that does something.
+    // Tabbing goes past each, to what's in it that does something: its link, and who gets in.
     within(app).getByRole("link", { name: "Open app.example.com" }).focus();
     await user.tab();
+    expect(within(app).getByRole("button", { name: "Make app.example.com private" })).toHaveFocus();
+    await user.tab();
     expect(screen.getByRole("link", { name: "Open port.example.com" })).toHaveFocus();
+    await user.tab();
     await user.tab();
     expect(screen.getByRole("link", { name: "Open old.example.com" })).toHaveFocus();
   });
@@ -1516,5 +1520,339 @@ describe("the list of domains on a phone", () => {
     expect(screen.getByRole("button", { name: "Add a domain" })).toBeVisible();
     expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent("3 domains");
     await expectAccessible(container);
+  });
+});
+
+describe("who gets in to a route (ADR 0087)", () => {
+  /** The API, with your session seen from address, and what a change proposes kept. */
+  function privateApi(
+    domains: ReturnType<typeof aDomain>[],
+    address: string,
+    edits: ProposeChangeRequest["edits"],
+  ): Api {
+    return api(domains, {
+      more: {
+        auth: { listSessions: () => ({ sessions: [{ id: "ses_1", address, current: true }] }) },
+        changes: {
+          watchChange: feed<WatchChangeResponse>().stream,
+          discardChange: () => ({}),
+          proposeChange: (req) => {
+            edits.push(...req.edits);
+            return { change: webPlanned() };
+          },
+        },
+      },
+    });
+  }
+
+  it("offers your own address first, says what a stranger gets now, and plans the list for the whole route", async () => {
+    const user = userEvent.setup();
+    const edits: ProposeChangeRequest["edits"] = [];
+    renderAt(
+      "/domains",
+      privateApi(
+        [aDomain({ name: "app.example.com", certificate: issued, route: { trustedProxies: [] } })],
+        "198.51.100.23",
+        edits,
+      ),
+    );
+    const row = await rowOf(/app\.example\.com/);
+    await user.click(within(row).getByRole("button", { name: "Make app.example.com private" }));
+    const sheet = await screen.findByRole("dialog", { name: "Make app.example.com private" });
+    const list = within(sheet).getByRole("list", { name: "Addresses let in" });
+    await waitFor(() => expect(list).toHaveTextContent("198.51.100.23you"));
+    expect(sheet).toHaveTextContent("Now anyone who reaches it gets in");
+    expect(sheet).toHaveTextContent("Once applied, a stranger gets 403 Forbidden");
+    expect(within(sheet).getByRole("checkbox", { name: "Ask for a password" })).not.toBeChecked();
+    await expectAccessible(document.body);
+
+    // An empty list says what to do, and goes no further; your address comes back in a click.
+    await user.click(within(sheet).getByRole("button", { name: "Take 198.51.100.23 off the list" }));
+    expect(sheet).toHaveTextContent("Add an address, or turn the list off.");
+    expect(within(sheet).getByRole("button", { name: /Review plan/ })).toBeDisabled();
+    await user.click(within(sheet).getByRole("button", { name: "Add your address, 198.51.100.23" }));
+    expect(list).toHaveTextContent("198.51.100.23you");
+
+    // What you type has to look like an address, and goes on the list.
+    const add = within(sheet).getByLabelText("Add an address or a range");
+    await user.type(add, "example.com{Enter}");
+    expect(add).toHaveAccessibleDescription(/Write an address or a range/);
+    await user.clear(add);
+    await user.type(add, "2001:db8::/64{Enter}");
+    expect(list).toHaveTextContent("2001:db8::/64");
+
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    await screen.findByRole("dialog", { name: "Review plan" });
+    expect(edits[0]?.resource).toMatchObject({ kind: "route", scope: ENV, name: "app-example-com" });
+    expect(edits[0]?.spec?.kind.value).toMatchObject({
+      domain: "app.example.com",
+      service: "web",
+      port: 80,
+      access: { allow: ["198.51.100.23", "2001:db8::/64"], users: [] },
+    });
+    // It stays on the server it runs on, and as open or held as it was.
+    expect(edits[0]?.servers).toEqual([SERVER]);
+    expect(edits[0]?.spec?.kind.value).toMatchObject({ held: false });
+  });
+
+  it("asks for a password Dockwell makes, shown once, through the SSH tunnel where your address can't be offered", async () => {
+    const user = userEvent.setup();
+    const edits: ProposeChangeRequest["edits"] = [];
+    renderAt(
+      "/domains?private=rte_app-example-com",
+      privateApi([aDomain({ name: "app.example.com", certificate: issued })], "127.0.0.1", edits),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "Make app.example.com private" });
+    await waitFor(() => expect(within(sheet).getByRole("checkbox", { name: "Ask for a password" })).toBeChecked());
+    expect(within(sheet).getByRole("checkbox", { name: "Only these addresses" })).not.toBeChecked();
+    const password = sheet.querySelector(".private-password-value")?.textContent ?? "";
+    expect(password).toMatch(/^[A-HJ-NP-Za-km-z2-9]{24}$/);
+    expect(within(sheet).getByRole("button", { name: "Copy the password" })).toBeVisible();
+    // Nothing goes on until you've kept it, as it isn't shown again.
+    const review = within(sheet).getByRole("button", { name: /Review plan/ });
+    expect(review).toBeDisabled();
+    await user.click(within(sheet).getByRole("checkbox", { name: "I've kept a copy of the password" }));
+    await user.click(review);
+    await screen.findByRole("dialog", { name: "Review plan" });
+    expect(edits[0]?.spec?.kind.value).toMatchObject({ access: { allow: [], users: [{ name: "admin", password }] } });
+  });
+
+  it("keeps each user's password unless you ask for a new one, says what a stranger got, and can't list addresses behind Cloudflare", async () => {
+    const user = userEvent.setup();
+    const edits: ProposeChangeRequest["edits"] = [];
+    const strangers = [
+      { path: "", outcome: StrangerOutcome.ASKED_FOR_PASSWORD, status: 401, said: "401 Unauthorized" },
+    ];
+    renderAt(
+      "/domains",
+      privateApi(
+        [
+          aDomain({
+            name: "app.example.com",
+            certificate: certificate(CertificateState.NONE),
+            route: { tls: "off", trustedProxies: ["cloudflare"], users: ["ci", "ops"] },
+            server: {
+              status: { domain: "app.example.com", certificate: certificate(CertificateState.NONE), strangers },
+            },
+          }),
+        ],
+        "198.51.100.23",
+        edits,
+      ),
+    );
+    const row = await rowOf(/app\.example\.com/);
+    expect(row).toHaveTextContent("Private · A stranger is asked for a password");
+    await user.click(within(row).getByRole("button", { name: "Who gets in to app.example.com" }));
+    const sheet = await screen.findByRole("dialog", { name: "Who gets in to app.example.com" });
+    expect(within(sheet).getByRole("region", { name: "What a stranger gets" })).toHaveTextContent(
+      "A stranger is asked for a password",
+    );
+    expect(within(sheet).getByRole("checkbox", { name: "Only these addresses" })).toBeDisabled();
+    expect(sheet).toHaveTextContent("Anyone with a Cloudflare Worker can say who they are here");
+    expect(sheet).toHaveTextContent("cikeeps their password");
+    await user.click(within(sheet).getByRole("button", { name: "Remove ops" }));
+    // Kept passwords need no copy.
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    await screen.findByRole("dialog", { name: "Review plan" });
+    expect(edits[0]?.spec?.kind.value).toMatchObject({
+      tls: "off",
+      trustedProxies: ["cloudflare"],
+      access: { allow: [], users: [{ name: "ci", password: "" }] },
+    });
+  });
+
+  it("lists the ways into the app around a private route, each with what closes it", async () => {
+    const user = userEvent.setup();
+    const strangers = [{ path: "", outcome: StrangerOutcome.KEPT_OUT, status: 403, said: "403 Forbidden" }];
+    renderAt(
+      "/domains",
+      privateApi(
+        [
+          aDomain({
+            name: "app.example.com",
+            route: { allow: ["203.0.113.0/24"] },
+            server: { status: { domain: "app.example.com", certificate: issued, strangers } },
+          }),
+          aDomain({ name: "other.example.com", certificate: issued }),
+        ],
+        "198.51.100.23",
+        [],
+      ),
+    );
+    const row = await rowOf(/^app\.example\.com/);
+    // What the server found holds for the route, and another way in leads.
+    expect(row).toHaveTextContent("Private here · open at other.example.com");
+    await user.click(within(row).getByRole("button", { name: "Who gets in to app.example.com" }));
+    const sheet = await screen.findByRole("dialog", { name: "Who gets in to app.example.com" });
+    expect(sheet).toHaveTextContent("Other ways in let anyone reach this app");
+    // Another public route to the same app opens its own sheet.
+    await user.click(within(sheet).getByRole("button", { name: "Make other.example.com private too" }));
+    await screen.findByRole("dialog", { name: "Make other.example.com private" });
+  });
+
+  it("names a port the app publishes to anyone, beside the row and in the sheet, with the way to its ports", async () => {
+    const published = anApp("web", "nginx:1.5", {
+      ports: [
+        { hostPort: 8080, containerPort: 80 },
+        { hostPort: 9090, containerPort: 90, hostIp: "127.0.0.1" },
+      ],
+    });
+    renderAt(
+      "/domains?private=rte_app-example-com",
+      api([aDomain({ name: "app.example.com", certificate: issued, route: { users: ["ci"] } })], {
+        services: [published],
+        more: { auth: { listSessions: () => ({ sessions: [] }) } },
+      }),
+    );
+    const row = await rowOf(/^app\.example\.com/);
+    expect(row).toHaveTextContent("Private here · open on port 8080");
+    const sheet = await screen.findByRole("dialog", { name: "Who gets in to app.example.com" });
+    expect(sheet).toHaveTextContent("Port 8080 on its server");
+    expect(sheet).not.toHaveTextContent("Port 9090");
+    expect(within(sheet).getByRole("link", { name: "Bind it to the server alone" })).toHaveAttribute(
+      "href",
+      "/apps/svc_web/settings#ports",
+    );
+  });
+
+  it("pairs a whole network with a password, as everyone there would get in", async () => {
+    renderAt(
+      "/domains?private=rte_app-example-com",
+      privateApi([aDomain({ name: "app.example.com", certificate: issued })], "2001:db8:7:9::abcd", []),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "Make app.example.com private" });
+    await waitFor(() =>
+      expect(within(sheet).getByRole("list", { name: "Addresses let in" })).toHaveTextContent(
+        "2001:db8:7:9::/64your network",
+      ),
+    );
+    expect(within(sheet).getByRole("checkbox", { name: "Ask for a password" })).toBeChecked();
+    expect(within(sheet).getByRole("checkbox", { name: "Only these addresses" })).toBeChecked();
+  });
+
+  it("keeps an app that isn't open yet held, as the sheet sends the whole route", async () => {
+    const user = userEvent.setup();
+    const edits: ProposeChangeRequest["edits"] = [];
+    renderAt(
+      "/domains?private=rte_app-example-com",
+      privateApi(
+        [aDomain({ name: "app.example.com", certificate: issued, route: { held: true } })],
+        "198.51.100.23",
+        edits,
+      ),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "Make app.example.com private" });
+    await waitFor(() =>
+      expect(within(sheet).getByRole("list", { name: "Addresses let in" })).toHaveTextContent("198.51.100.23"),
+    );
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    await screen.findByRole("dialog", { name: "Review plan" });
+    expect(edits[0]?.spec?.kind.value).toMatchObject({ held: true, access: { allow: ["198.51.100.23"] } });
+  });
+
+  it("offers to move a domain whose routes run on two servers to one, before it can be private", async () => {
+    const user = userEvent.setup();
+    const edits: ProposeChangeRequest["edits"] = [];
+    renderAt(
+      "/domains?private=rte_shop-example-com",
+      privateApi(
+        [
+          aDomain({
+            name: "shop.example.com",
+            certificate: issued,
+            routes: [
+              { id: "rte_shop-example-com", name: "shop-example-com", service: "web", port: 80 },
+              { id: "rte_shop-admin", name: "shop-admin", path: "/admin", service: "web", port: 80 },
+            ],
+            servers: [
+              { serverId: SERVER, serverName: "hz-1" },
+              { serverId: "srv_2", serverName: "hz-2" },
+            ],
+          }),
+        ],
+        "198.51.100.23",
+        edits,
+      ),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "Make shop.example.com private" });
+    expect(sheet).toHaveTextContent("Its routes run on more than one server");
+    expect(within(sheet).getByRole("button", { name: /Review plan/ })).toBeDisabled();
+    await user.click(within(sheet).getByRole("button", { name: "Move the whole domain to hz-2" }));
+    await screen.findByRole("dialog", { name: "Review plan" });
+    expect(edits.map((e) => [e.resource?.name, e.servers])).toEqual([
+      ["shop-example-com", ["srv_2"]],
+      ["shop-admin", ["srv_2"]],
+    ]);
+    expect(edits[1]?.spec?.kind.value).toMatchObject({ domain: "shop.example.com", path: "/admin" });
+  });
+
+  it("asks for no password where a browser would send it over plain HTTP, and offers HTTPS", async () => {
+    const user = userEvent.setup();
+    const edits: ProposeChangeRequest["edits"] = [];
+    renderAt(
+      "/domains?private=rte_lan-example-com",
+      privateApi(
+        [
+          aDomain({
+            name: "lan.example.com",
+            certificate: certificate(CertificateState.NONE),
+            routes: [
+              {
+                id: "rte_lan-example-com",
+                name: "lan-example-com",
+                service: "web",
+                port: 80,
+                tls: "off",
+                plainForAnyone: true,
+              },
+              {
+                id: "rte_lan-api",
+                name: "lan-api",
+                path: "/api",
+                service: "web",
+                port: 8080,
+                tls: "off",
+                plainForAnyone: true,
+              },
+            ],
+          }),
+        ],
+        "198.51.100.23",
+        edits,
+      ),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "Make lan.example.com private" });
+    const asks = within(sheet).getByRole("checkbox", { name: "Ask for a password" });
+    expect(asks).toBeDisabled();
+    expect(asks).not.toBeChecked();
+    expect(sheet).toHaveTextContent(
+      "Visitors reach it over plain HTTP, so a password would cross the network in the clear.",
+    );
+    // A list still works: the server sees each visitor as themselves.
+    expect(within(sheet).getByRole("checkbox", { name: "Only these addresses" })).toBeChecked();
+    await user.click(within(sheet).getByRole("button", { name: "Turn on HTTPS for this domain" }));
+    await screen.findByRole("dialog", { name: "Review plan" });
+    expect(edits.map((e) => e.resource?.name)).toEqual(["lan-example-com", "lan-api"]);
+    for (const edit of edits) {
+      expect(edit.spec?.kind.value).toMatchObject({ domain: "lan.example.com", tls: "", plainForAnyone: false });
+    }
+  });
+
+  it("says plainly when a private route lets a stranger in", async () => {
+    const strangers = [{ path: "", outcome: StrangerOutcome.LET_IN, status: 200, said: "200 OK" }];
+    renderAt(
+      "/domains",
+      api([
+        aDomain({
+          name: "app.example.com",
+          route: { allow: ["203.0.113.0/24"] },
+          server: { status: { domain: "app.example.com", certificate: issued, strangers } },
+        }),
+      ]),
+    );
+    const row = await rowOf(/app\.example\.com/);
+    const fact = row.querySelector(".private-fact");
+    expect(fact).toHaveTextContent("Private · A stranger gets in");
+    expect(fact).toHaveClass("is-warning");
   });
 });

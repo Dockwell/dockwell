@@ -271,7 +271,7 @@ func backend(t *testing.T, name string) (dial string) {
 		}
 		_ = json.NewEncoder(w).Encode(map[string]string{
 			"name": name, "host": r.Host, "xff": r.Header.Get("X-Forwarded-For"), "proto": r.Header.Get("X-Forwarded-Proto"), "path": r.URL.Path,
-			"real": r.Header.Get("X-Real-Ip"), "early": r.Header.Get("Early-Data"),
+			"real": r.Header.Get("X-Real-Ip"), "early": r.Header.Get("Early-Data"), "auth": r.Header.Get("Authorization"),
 		})
 	})
 	mux.HandleFunc("/slow", func(w http.ResponseWriter, r *http.Request) {

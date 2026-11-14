@@ -551,6 +551,8 @@ func accessWords(p *revision.Plan) string {
 				parts = append(parts, "has "+r.Ref.Name+" serve "+resource.AccessWords(a))
 			case resource.AccessHTTPSOff:
 				parts = append(parts, "takes away "+resource.AccessWords(a))
+			case resource.AccessOpened:
+				parts = append(parts, "opens "+resource.AccessWords(a))
 			default:
 				reach = append(reach, resource.AccessWords(a))
 			}

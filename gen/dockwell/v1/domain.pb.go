@@ -151,6 +151,72 @@ func (IngressProblem) EnumDescriptor() ([]byte, []int) {
 	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{1}
 }
 
+// StrangerOutcome is what a stranger gets from a private route.
+type StrangerOutcome int32
+
+const (
+	// Not asked yet.
+	StrangerOutcome_STRANGER_OUTCOME_UNSPECIFIED StrangerOutcome = 0
+	// 403: kept out, with nothing else said.
+	StrangerOutcome_STRANGER_OUTCOME_KEPT_OUT StrangerOutcome = 1
+	// 401: asked for a name and password.
+	StrangerOutcome_STRANGER_OUTCOME_ASKED_FOR_PASSWORD StrangerOutcome = 2
+	// Anything below 400: let in, which a private route shouldn't.
+	StrangerOutcome_STRANGER_OUTCOME_LET_IN StrangerOutcome = 3
+	// Another answer, such as a 502 from an app that's down, or none at all.
+	StrangerOutcome_STRANGER_OUTCOME_OTHER StrangerOutcome = 4
+	// The server can't tell what a stranger gets from where it asks: said says
+	// why.
+	StrangerOutcome_STRANGER_OUTCOME_CANT_TELL StrangerOutcome = 5
+)
+
+// Enum value maps for StrangerOutcome.
+var (
+	StrangerOutcome_name = map[int32]string{
+		0: "STRANGER_OUTCOME_UNSPECIFIED",
+		1: "STRANGER_OUTCOME_KEPT_OUT",
+		2: "STRANGER_OUTCOME_ASKED_FOR_PASSWORD",
+		3: "STRANGER_OUTCOME_LET_IN",
+		4: "STRANGER_OUTCOME_OTHER",
+		5: "STRANGER_OUTCOME_CANT_TELL",
+	}
+	StrangerOutcome_value = map[string]int32{
+		"STRANGER_OUTCOME_UNSPECIFIED":        0,
+		"STRANGER_OUTCOME_KEPT_OUT":           1,
+		"STRANGER_OUTCOME_ASKED_FOR_PASSWORD": 2,
+		"STRANGER_OUTCOME_LET_IN":             3,
+		"STRANGER_OUTCOME_OTHER":              4,
+		"STRANGER_OUTCOME_CANT_TELL":          5,
+	}
+)
+
+func (x StrangerOutcome) Enum() *StrangerOutcome {
+	p := new(StrangerOutcome)
+	*p = x
+	return p
+}
+
+func (x StrangerOutcome) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (StrangerOutcome) Descriptor() protoreflect.EnumDescriptor {
+	return file_dockwell_v1_domain_proto_enumTypes[2].Descriptor()
+}
+
+func (StrangerOutcome) Type() protoreflect.EnumType {
+	return &file_dockwell_v1_domain_proto_enumTypes[2]
+}
+
+func (x StrangerOutcome) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use StrangerOutcome.Descriptor instead.
+func (StrangerOutcome) EnumDescriptor() ([]byte, []int) {
+	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{2}
+}
+
 // CertificateState is where a domain's certificate stands.
 type CertificateState int32
 
@@ -198,11 +264,11 @@ func (x CertificateState) String() string {
 }
 
 func (CertificateState) Descriptor() protoreflect.EnumDescriptor {
-	return file_dockwell_v1_domain_proto_enumTypes[2].Descriptor()
+	return file_dockwell_v1_domain_proto_enumTypes[3].Descriptor()
 }
 
 func (CertificateState) Type() protoreflect.EnumType {
-	return &file_dockwell_v1_domain_proto_enumTypes[2]
+	return &file_dockwell_v1_domain_proto_enumTypes[3]
 }
 
 func (x CertificateState) Number() protoreflect.EnumNumber {
@@ -211,7 +277,7 @@ func (x CertificateState) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use CertificateState.Descriptor instead.
 func (CertificateState) EnumDescriptor() ([]byte, []int) {
-	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{2}
+	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{3}
 }
 
 // CertificateProblem is why a certificate failed.
@@ -277,11 +343,11 @@ func (x CertificateProblem) String() string {
 }
 
 func (CertificateProblem) Descriptor() protoreflect.EnumDescriptor {
-	return file_dockwell_v1_domain_proto_enumTypes[3].Descriptor()
+	return file_dockwell_v1_domain_proto_enumTypes[4].Descriptor()
 }
 
 func (CertificateProblem) Type() protoreflect.EnumType {
-	return &file_dockwell_v1_domain_proto_enumTypes[3]
+	return &file_dockwell_v1_domain_proto_enumTypes[4]
 }
 
 func (x CertificateProblem) Number() protoreflect.EnumNumber {
@@ -290,7 +356,7 @@ func (x CertificateProblem) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use CertificateProblem.Descriptor instead.
 func (CertificateProblem) EnumDescriptor() ([]byte, []int) {
-	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{3}
+	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{4}
 }
 
 // ListCertificatesRequest asks for every certificate by DNS-01.
@@ -1171,8 +1237,15 @@ type DomainRoute struct {
 	// The proxies in front it believes, as Route.trusted_proxies names them, so what
 	// reads a route has all of it.
 	TrustedProxies []string `protobuf:"bytes,81,rep,name=trusted_proxies,json=trustedProxies,proto3" json:"trusted_proxies,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// Who it lets in, as addresses and ranges, as Route.access says: anyone else
+	// gets 403. Empty lets in everyone it answers (ADR 0087).
+	Allow []string `protobuf:"bytes,110,rep,name=allow,proto3" json:"allow,omitempty"`
+	// Who may sign in to it with a password, by name, in its order. A password,
+	// or its hash, is never shown: an edit that names a user with no password
+	// keeps theirs.
+	Users         []string `protobuf:"bytes,111,rep,name=users,proto3" json:"users,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *DomainRoute) Reset() {
@@ -1278,6 +1351,20 @@ func (x *DomainRoute) GetHeld() bool {
 func (x *DomainRoute) GetTrustedProxies() []string {
 	if x != nil {
 		return x.TrustedProxies
+	}
+	return nil
+}
+
+func (x *DomainRoute) GetAllow() []string {
+	if x != nil {
+		return x.Allow
+	}
+	return nil
+}
+
+func (x *DomainRoute) GetUsers() []string {
+	if x != nil {
+		return x.Users
 	}
 	return nil
 }
@@ -1487,7 +1574,10 @@ type DomainStatus struct {
 	// Its certificate.
 	Certificate *Certificate `protobuf:"bytes,2,opt,name=certificate,proto3" json:"certificate,omitempty"`
 	// What DNS says of it.
-	Dns           *DomainCheck `protobuf:"bytes,3,opt,name=dns,proto3" json:"dns,omitempty"`
+	Dns *DomainCheck `protobuf:"bytes,3,opt,name=dns,proto3" json:"dns,omitempty"`
+	// What a stranger gets from each of its routes that keeps anyone out, by path,
+	// as the server last asked them (ADR 0087).
+	Strangers     []*StrangerCheck `protobuf:"bytes,110,rep,name=strangers,proto3" json:"strangers,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1543,6 +1633,92 @@ func (x *DomainStatus) GetDns() *DomainCheck {
 	return nil
 }
 
+func (x *DomainStatus) GetStrangers() []*StrangerCheck {
+	if x != nil {
+		return x.Strangers
+	}
+	return nil
+}
+
+// StrangerCheck is what a stranger gets from a private route, as its server asks
+// it about once a minute, and at once after a change: from the server itself,
+// with no password, as an address no list names. A request from there can't be
+// told apart from a stranger's where the server is on the route's list, or where
+// the route answers only proxies the server isn't.
+type StrangerCheck struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The route's path. Empty is the whole domain.
+	Path string `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
+	// What came of it.
+	Outcome StrangerOutcome `protobuf:"varint,2,opt,name=outcome,proto3,enum=dockwell.v1.StrangerOutcome" json:"outcome,omitempty"`
+	// The HTTP status it answered with, such as 403, or 0 when nothing answered
+	// or the server can't tell.
+	Status uint32 `protobuf:"varint,3,opt,name=status,proto3" json:"status,omitempty"`
+	// What it said, in a line, such as "403 Forbidden", or why the server can't
+	// tell, for people.
+	Said          string `protobuf:"bytes,4,opt,name=said,proto3" json:"said,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StrangerCheck) Reset() {
+	*x = StrangerCheck{}
+	mi := &file_dockwell_v1_domain_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StrangerCheck) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StrangerCheck) ProtoMessage() {}
+
+func (x *StrangerCheck) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_domain_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StrangerCheck.ProtoReflect.Descriptor instead.
+func (*StrangerCheck) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *StrangerCheck) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *StrangerCheck) GetOutcome() StrangerOutcome {
+	if x != nil {
+		return x.Outcome
+	}
+	return StrangerOutcome_STRANGER_OUTCOME_UNSPECIFIED
+}
+
+func (x *StrangerCheck) GetStatus() uint32 {
+	if x != nil {
+		return x.Status
+	}
+	return 0
+}
+
+func (x *StrangerCheck) GetSaid() string {
+	if x != nil {
+		return x.Said
+	}
+	return ""
+}
+
 // Certificate is where a domain's certificate stands on a server.
 type Certificate struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -1566,7 +1742,7 @@ type Certificate struct {
 
 func (x *Certificate) Reset() {
 	*x = Certificate{}
-	mi := &file_dockwell_v1_domain_proto_msgTypes[18]
+	mi := &file_dockwell_v1_domain_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1578,7 +1754,7 @@ func (x *Certificate) String() string {
 func (*Certificate) ProtoMessage() {}
 
 func (x *Certificate) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_domain_proto_msgTypes[18]
+	mi := &file_dockwell_v1_domain_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1591,7 +1767,7 @@ func (x *Certificate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Certificate.ProtoReflect.Descriptor instead.
 func (*Certificate) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{18}
+	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *Certificate) GetState() CertificateState {
@@ -1684,7 +1860,7 @@ const file_dockwell_v1_domain_proto_rawDesc = "" +
 	"\x0eenvironment_id\x18\x02 \x01(\tR\renvironmentId\x12\x10\n" +
 	"\x03url\x18\x03 \x01(\tR\x03url\x120\n" +
 	"\x06routes\x18\x04 \x03(\v2\x18.dockwell.v1.DomainRouteR\x06routes\x123\n" +
-	"\aservers\x18\x05 \x03(\v2\x19.dockwell.v1.DomainServerR\aservers\"\x9b\x02\n" +
+	"\aservers\x18\x05 \x03(\v2\x19.dockwell.v1.DomainServerR\aservers\"\xc7\x02\n" +
 	"\vDomainRoute\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x12\n" +
@@ -1696,7 +1872,9 @@ const file_dockwell_v1_domain_proto_rawDesc = "" +
 	"\thost_port\x18\b \x01(\rR\bhostPort\x12(\n" +
 	"\x10plain_for_anyone\x18\t \x01(\bR\x0eplainForAnyone\x12\x12\n" +
 	"\x04held\x18P \x01(\bR\x04held\x12'\n" +
-	"\x0ftrusted_proxies\x18Q \x03(\tR\x0etrustedProxies\"\xcb\x01\n" +
+	"\x0ftrusted_proxies\x18Q \x03(\tR\x0etrustedProxies\x12\x14\n" +
+	"\x05allow\x18n \x03(\tR\x05allow\x12\x14\n" +
+	"\x05users\x18o \x03(\tR\x05users\"\xcb\x01\n" +
 	"\fDomainServer\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x1f\n" +
 	"\vserver_name\x18\x02 \x01(\tR\n" +
@@ -1712,11 +1890,17 @@ const file_dockwell_v1_domain_proto_rawDesc = "" +
 	"\aholders\x18\x05 \x03(\tR\aholders\x12\x18\n" +
 	"\aversion\x18\x06 \x01(\tR\aversion\x12%\n" +
 	"\x0epinned_version\x18\a \x01(\tR\rpinnedVersion\x12\x1a\n" +
-	"\boutdated\x18\b \x01(\bR\boutdated\"\x8e\x01\n" +
+	"\boutdated\x18\b \x01(\bR\boutdated\"\xc8\x01\n" +
 	"\fDomainStatus\x12\x16\n" +
 	"\x06domain\x18\x01 \x01(\tR\x06domain\x12:\n" +
 	"\vcertificate\x18\x02 \x01(\v2\x18.dockwell.v1.CertificateR\vcertificate\x12*\n" +
-	"\x03dns\x18\x03 \x01(\v2\x18.dockwell.v1.DomainCheckR\x03dns\"\xeb\x01\n" +
+	"\x03dns\x18\x03 \x01(\v2\x18.dockwell.v1.DomainCheckR\x03dns\x128\n" +
+	"\tstrangers\x18n \x03(\v2\x1a.dockwell.v1.StrangerCheckR\tstrangers\"\x87\x01\n" +
+	"\rStrangerCheck\x12\x12\n" +
+	"\x04path\x18\x01 \x01(\tR\x04path\x126\n" +
+	"\aoutcome\x18\x02 \x01(\x0e2\x1c.dockwell.v1.StrangerOutcomeR\aoutcome\x12\x16\n" +
+	"\x06status\x18\x03 \x01(\rR\x06status\x12\x12\n" +
+	"\x04said\x18\x04 \x01(\tR\x04said\"\xeb\x01\n" +
 	"\vCertificate\x123\n" +
 	"\x05state\x18\x01 \x01(\x0e2\x1d.dockwell.v1.CertificateStateR\x05state\x129\n" +
 	"\aproblem\x18\x02 \x01(\x0e2\x1f.dockwell.v1.CertificateProblemR\aproblem\x12\x18\n" +
@@ -1735,7 +1919,14 @@ const file_dockwell_v1_domain_proto_rawDesc = "" +
 	"\x1bINGRESS_PROBLEM_UNSPECIFIED\x10\x00\x12\x1f\n" +
 	"\x1bINGRESS_PROBLEM_PORTS_TAKEN\x10\x01\x12 \n" +
 	"\x1cINGRESS_PROBLEM_SUBNET_TAKEN\x10\x02\x12\x1f\n" +
-	"\x1bINGRESS_PROBLEM_NOT_RUNNING\x10\x03*\xac\x01\n" +
+	"\x1bINGRESS_PROBLEM_NOT_RUNNING\x10\x03*\xd4\x01\n" +
+	"\x0fStrangerOutcome\x12 \n" +
+	"\x1cSTRANGER_OUTCOME_UNSPECIFIED\x10\x00\x12\x1d\n" +
+	"\x19STRANGER_OUTCOME_KEPT_OUT\x10\x01\x12'\n" +
+	"#STRANGER_OUTCOME_ASKED_FOR_PASSWORD\x10\x02\x12\x1b\n" +
+	"\x17STRANGER_OUTCOME_LET_IN\x10\x03\x12\x1a\n" +
+	"\x16STRANGER_OUTCOME_OTHER\x10\x04\x12\x1e\n" +
+	"\x1aSTRANGER_OUTCOME_CANT_TELL\x10\x05*\xac\x01\n" +
 	"\x10CertificateState\x12!\n" +
 	"\x1dCERTIFICATE_STATE_UNSPECIFIED\x10\x00\x12\x1d\n" +
 	"\x19CERTIFICATE_STATE_PENDING\x10\x01\x12\x1c\n" +
@@ -1775,70 +1966,74 @@ func file_dockwell_v1_domain_proto_rawDescGZIP() []byte {
 	return file_dockwell_v1_domain_proto_rawDescData
 }
 
-var file_dockwell_v1_domain_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
-var file_dockwell_v1_domain_proto_msgTypes = make([]protoimpl.MessageInfo, 19)
+var file_dockwell_v1_domain_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
+var file_dockwell_v1_domain_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
 var file_dockwell_v1_domain_proto_goTypes = []any{
 	(DnsProviderState)(0),            // 0: dockwell.v1.DnsProviderState
 	(IngressProblem)(0),              // 1: dockwell.v1.IngressProblem
-	(CertificateState)(0),            // 2: dockwell.v1.CertificateState
-	(CertificateProblem)(0),          // 3: dockwell.v1.CertificateProblem
-	(*ListCertificatesRequest)(nil),  // 4: dockwell.v1.ListCertificatesRequest
-	(*ListCertificatesResponse)(nil), // 5: dockwell.v1.ListCertificatesResponse
-	(*CertificateInfo)(nil),          // 6: dockwell.v1.CertificateInfo
-	(*ListDnsProvidersRequest)(nil),  // 7: dockwell.v1.ListDnsProvidersRequest
-	(*ListDnsProvidersResponse)(nil), // 8: dockwell.v1.ListDnsProvidersResponse
-	(*DnsProviderInfo)(nil),          // 9: dockwell.v1.DnsProviderInfo
-	(*CheckDnsProviderRequest)(nil),  // 10: dockwell.v1.CheckDnsProviderRequest
-	(*CheckDnsProviderResponse)(nil), // 11: dockwell.v1.CheckDnsProviderResponse
-	(*DnsZoneCheck)(nil),             // 12: dockwell.v1.DnsZoneCheck
-	(*CheckDomainRequest)(nil),       // 13: dockwell.v1.CheckDomainRequest
-	(*CheckDomainResponse)(nil),      // 14: dockwell.v1.CheckDomainResponse
-	(*ListDomainsRequest)(nil),       // 15: dockwell.v1.ListDomainsRequest
-	(*ListDomainsResponse)(nil),      // 16: dockwell.v1.ListDomainsResponse
-	(*Domain)(nil),                   // 17: dockwell.v1.Domain
-	(*DomainRoute)(nil),              // 18: dockwell.v1.DomainRoute
-	(*DomainServer)(nil),             // 19: dockwell.v1.DomainServer
-	(*IngressStatus)(nil),            // 20: dockwell.v1.IngressStatus
-	(*DomainStatus)(nil),             // 21: dockwell.v1.DomainStatus
-	(*Certificate)(nil),              // 22: dockwell.v1.Certificate
-	(*timestamppb.Timestamp)(nil),    // 23: google.protobuf.Timestamp
-	(*DomainCheck)(nil),              // 24: dockwell.v1.DomainCheck
+	(StrangerOutcome)(0),             // 2: dockwell.v1.StrangerOutcome
+	(CertificateState)(0),            // 3: dockwell.v1.CertificateState
+	(CertificateProblem)(0),          // 4: dockwell.v1.CertificateProblem
+	(*ListCertificatesRequest)(nil),  // 5: dockwell.v1.ListCertificatesRequest
+	(*ListCertificatesResponse)(nil), // 6: dockwell.v1.ListCertificatesResponse
+	(*CertificateInfo)(nil),          // 7: dockwell.v1.CertificateInfo
+	(*ListDnsProvidersRequest)(nil),  // 8: dockwell.v1.ListDnsProvidersRequest
+	(*ListDnsProvidersResponse)(nil), // 9: dockwell.v1.ListDnsProvidersResponse
+	(*DnsProviderInfo)(nil),          // 10: dockwell.v1.DnsProviderInfo
+	(*CheckDnsProviderRequest)(nil),  // 11: dockwell.v1.CheckDnsProviderRequest
+	(*CheckDnsProviderResponse)(nil), // 12: dockwell.v1.CheckDnsProviderResponse
+	(*DnsZoneCheck)(nil),             // 13: dockwell.v1.DnsZoneCheck
+	(*CheckDomainRequest)(nil),       // 14: dockwell.v1.CheckDomainRequest
+	(*CheckDomainResponse)(nil),      // 15: dockwell.v1.CheckDomainResponse
+	(*ListDomainsRequest)(nil),       // 16: dockwell.v1.ListDomainsRequest
+	(*ListDomainsResponse)(nil),      // 17: dockwell.v1.ListDomainsResponse
+	(*Domain)(nil),                   // 18: dockwell.v1.Domain
+	(*DomainRoute)(nil),              // 19: dockwell.v1.DomainRoute
+	(*DomainServer)(nil),             // 20: dockwell.v1.DomainServer
+	(*IngressStatus)(nil),            // 21: dockwell.v1.IngressStatus
+	(*DomainStatus)(nil),             // 22: dockwell.v1.DomainStatus
+	(*StrangerCheck)(nil),            // 23: dockwell.v1.StrangerCheck
+	(*Certificate)(nil),              // 24: dockwell.v1.Certificate
+	(*timestamppb.Timestamp)(nil),    // 25: google.protobuf.Timestamp
+	(*DomainCheck)(nil),              // 26: dockwell.v1.DomainCheck
 }
 var file_dockwell_v1_domain_proto_depIdxs = []int32{
-	6,  // 0: dockwell.v1.ListCertificatesResponse.certificates:type_name -> dockwell.v1.CertificateInfo
-	2,  // 1: dockwell.v1.CertificateInfo.state:type_name -> dockwell.v1.CertificateState
-	23, // 2: dockwell.v1.CertificateInfo.expire_time:type_name -> google.protobuf.Timestamp
-	23, // 3: dockwell.v1.CertificateInfo.next_time:type_name -> google.protobuf.Timestamp
-	9,  // 4: dockwell.v1.ListDnsProvidersResponse.providers:type_name -> dockwell.v1.DnsProviderInfo
+	7,  // 0: dockwell.v1.ListCertificatesResponse.certificates:type_name -> dockwell.v1.CertificateInfo
+	3,  // 1: dockwell.v1.CertificateInfo.state:type_name -> dockwell.v1.CertificateState
+	25, // 2: dockwell.v1.CertificateInfo.expire_time:type_name -> google.protobuf.Timestamp
+	25, // 3: dockwell.v1.CertificateInfo.next_time:type_name -> google.protobuf.Timestamp
+	10, // 4: dockwell.v1.ListDnsProvidersResponse.providers:type_name -> dockwell.v1.DnsProviderInfo
 	0,  // 5: dockwell.v1.CheckDnsProviderResponse.state:type_name -> dockwell.v1.DnsProviderState
-	12, // 6: dockwell.v1.CheckDnsProviderResponse.zones:type_name -> dockwell.v1.DnsZoneCheck
-	24, // 7: dockwell.v1.CheckDomainResponse.check:type_name -> dockwell.v1.DomainCheck
-	17, // 8: dockwell.v1.ListDomainsResponse.domains:type_name -> dockwell.v1.Domain
-	18, // 9: dockwell.v1.Domain.routes:type_name -> dockwell.v1.DomainRoute
-	19, // 10: dockwell.v1.Domain.servers:type_name -> dockwell.v1.DomainServer
-	21, // 11: dockwell.v1.DomainServer.status:type_name -> dockwell.v1.DomainStatus
-	20, // 12: dockwell.v1.DomainServer.ingress:type_name -> dockwell.v1.IngressStatus
+	13, // 6: dockwell.v1.CheckDnsProviderResponse.zones:type_name -> dockwell.v1.DnsZoneCheck
+	26, // 7: dockwell.v1.CheckDomainResponse.check:type_name -> dockwell.v1.DomainCheck
+	18, // 8: dockwell.v1.ListDomainsResponse.domains:type_name -> dockwell.v1.Domain
+	19, // 9: dockwell.v1.Domain.routes:type_name -> dockwell.v1.DomainRoute
+	20, // 10: dockwell.v1.Domain.servers:type_name -> dockwell.v1.DomainServer
+	22, // 11: dockwell.v1.DomainServer.status:type_name -> dockwell.v1.DomainStatus
+	21, // 12: dockwell.v1.DomainServer.ingress:type_name -> dockwell.v1.IngressStatus
 	1,  // 13: dockwell.v1.IngressStatus.problem:type_name -> dockwell.v1.IngressProblem
-	22, // 14: dockwell.v1.DomainStatus.certificate:type_name -> dockwell.v1.Certificate
-	24, // 15: dockwell.v1.DomainStatus.dns:type_name -> dockwell.v1.DomainCheck
-	2,  // 16: dockwell.v1.Certificate.state:type_name -> dockwell.v1.CertificateState
-	3,  // 17: dockwell.v1.Certificate.problem:type_name -> dockwell.v1.CertificateProblem
-	23, // 18: dockwell.v1.Certificate.expire_time:type_name -> google.protobuf.Timestamp
-	15, // 19: dockwell.v1.DomainService.ListDomains:input_type -> dockwell.v1.ListDomainsRequest
-	13, // 20: dockwell.v1.DomainService.CheckDomain:input_type -> dockwell.v1.CheckDomainRequest
-	4,  // 21: dockwell.v1.DomainService.ListCertificates:input_type -> dockwell.v1.ListCertificatesRequest
-	7,  // 22: dockwell.v1.DomainService.ListDnsProviders:input_type -> dockwell.v1.ListDnsProvidersRequest
-	10, // 23: dockwell.v1.DomainService.CheckDnsProvider:input_type -> dockwell.v1.CheckDnsProviderRequest
-	16, // 24: dockwell.v1.DomainService.ListDomains:output_type -> dockwell.v1.ListDomainsResponse
-	14, // 25: dockwell.v1.DomainService.CheckDomain:output_type -> dockwell.v1.CheckDomainResponse
-	5,  // 26: dockwell.v1.DomainService.ListCertificates:output_type -> dockwell.v1.ListCertificatesResponse
-	8,  // 27: dockwell.v1.DomainService.ListDnsProviders:output_type -> dockwell.v1.ListDnsProvidersResponse
-	11, // 28: dockwell.v1.DomainService.CheckDnsProvider:output_type -> dockwell.v1.CheckDnsProviderResponse
-	24, // [24:29] is the sub-list for method output_type
-	19, // [19:24] is the sub-list for method input_type
-	19, // [19:19] is the sub-list for extension type_name
-	19, // [19:19] is the sub-list for extension extendee
-	0,  // [0:19] is the sub-list for field type_name
+	24, // 14: dockwell.v1.DomainStatus.certificate:type_name -> dockwell.v1.Certificate
+	26, // 15: dockwell.v1.DomainStatus.dns:type_name -> dockwell.v1.DomainCheck
+	23, // 16: dockwell.v1.DomainStatus.strangers:type_name -> dockwell.v1.StrangerCheck
+	2,  // 17: dockwell.v1.StrangerCheck.outcome:type_name -> dockwell.v1.StrangerOutcome
+	3,  // 18: dockwell.v1.Certificate.state:type_name -> dockwell.v1.CertificateState
+	4,  // 19: dockwell.v1.Certificate.problem:type_name -> dockwell.v1.CertificateProblem
+	25, // 20: dockwell.v1.Certificate.expire_time:type_name -> google.protobuf.Timestamp
+	16, // 21: dockwell.v1.DomainService.ListDomains:input_type -> dockwell.v1.ListDomainsRequest
+	14, // 22: dockwell.v1.DomainService.CheckDomain:input_type -> dockwell.v1.CheckDomainRequest
+	5,  // 23: dockwell.v1.DomainService.ListCertificates:input_type -> dockwell.v1.ListCertificatesRequest
+	8,  // 24: dockwell.v1.DomainService.ListDnsProviders:input_type -> dockwell.v1.ListDnsProvidersRequest
+	11, // 25: dockwell.v1.DomainService.CheckDnsProvider:input_type -> dockwell.v1.CheckDnsProviderRequest
+	17, // 26: dockwell.v1.DomainService.ListDomains:output_type -> dockwell.v1.ListDomainsResponse
+	15, // 27: dockwell.v1.DomainService.CheckDomain:output_type -> dockwell.v1.CheckDomainResponse
+	6,  // 28: dockwell.v1.DomainService.ListCertificates:output_type -> dockwell.v1.ListCertificatesResponse
+	9,  // 29: dockwell.v1.DomainService.ListDnsProviders:output_type -> dockwell.v1.ListDnsProvidersResponse
+	12, // 30: dockwell.v1.DomainService.CheckDnsProvider:output_type -> dockwell.v1.CheckDnsProviderResponse
+	26, // [26:31] is the sub-list for method output_type
+	21, // [21:26] is the sub-list for method input_type
+	21, // [21:21] is the sub-list for extension type_name
+	21, // [21:21] is the sub-list for extension extendee
+	0,  // [0:21] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_domain_proto_init() }
@@ -1853,8 +2048,8 @@ func file_dockwell_v1_domain_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_domain_proto_rawDesc), len(file_dockwell_v1_domain_proto_rawDesc)),
-			NumEnums:      4,
-			NumMessages:   19,
+			NumEnums:      5,
+			NumMessages:   20,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
