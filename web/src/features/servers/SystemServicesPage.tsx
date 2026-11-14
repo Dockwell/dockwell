@@ -108,6 +108,25 @@ function SystemServices({ server }: { server: Server }) {
   // than to the page's start; anywhere else, it stays where it is.
   const heading = useRef<HTMLHeadingElement>(null);
   const lastInBar = useRef<HTMLElement | null>(null);
+  const bar = useRef<HTMLDivElement>(null);
+  // What in the bar has focus, and its going on to something else on the page, which is none of the bar's.
+  useEffect(() => {
+    const el = bar.current;
+    if (!el) return;
+    const into = (event: FocusEvent) => {
+      lastInBar.current = event.target as HTMLElement;
+    };
+    const away = (event: FocusEvent) => {
+      const next = event.relatedTarget as Node | null;
+      if (next && !el.contains(next)) lastInBar.current = null;
+    };
+    el.addEventListener("focusin", into);
+    el.addEventListener("focusout", away);
+    return () => {
+      el.removeEventListener("focusin", into);
+      el.removeEventListener("focusout", away);
+    };
+  }, [filterable]);
   useEffect(() => {
     const was = lastInBar.current;
     if (filterable || !was) return;
@@ -153,17 +172,7 @@ function SystemServices({ server }: { server: Server }) {
         {t`System services`}
       </h2>
       {filterable ? (
-        <div
-          className="procs-bar"
-          onFocus={(event) => {
-            lastInBar.current = event.target;
-          }}
-          onBlur={(event) => {
-            // Gone on to something else on the page: what the bar does next is none of it.
-            const next = event.relatedTarget as Node | null;
-            if (next && !event.currentTarget.contains(next)) lastInBar.current = null;
-          }}
-        >
+        <div className="procs-bar" ref={bar}>
           <SegmentedControl options={views} value={view} onChange={setView} label={t`Show`} size="sm" />
           <span className="procs-spacer" />
           {connected && list && !error ? (
