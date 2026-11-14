@@ -5972,7 +5972,7 @@ msgstr "改用通行密钥"
 msgid "Use a security key or another device"
 msgstr "使用安全密钥或其他设备"
 
-#. placeholder {0}: version.data.build.version
+#. placeholder {0}: shortVersion(version.data.build.version)
 msgid "Version <0>{0}</0>"
 msgstr "版本 <0>{0}</0>"
 

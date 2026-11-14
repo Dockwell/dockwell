@@ -50,6 +50,16 @@ describe("SignInPage", () => {
     expect(await screen.findByText("0.9.4")).toBeVisible();
   });
 
+  it("says a development build's version as every screen does, with the whole of it on hover", async () => {
+    const build = "v0.2.1-0.20261114200328-b1166397c689";
+    renderAt("/sign-in", {
+      ...api(),
+      system: { getVersion: () => create(GetVersionResponseSchema, { build: { version: build } }) },
+    });
+    expect(await screen.findByText("0.2.1-dev")).toHaveAttribute("title", build);
+    expect(screen.queryByText(build)).toBeNull();
+  });
+
   it("signs in with a passkey and goes where the visit was headed", async () => {
     const passkeys = stubPasskeys();
     const calls = api();

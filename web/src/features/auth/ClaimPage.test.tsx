@@ -11,7 +11,7 @@ import {
   ServerInventorySchema,
   SignInMethod,
 } from "@dockwell/api";
-import { act, screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -58,6 +58,23 @@ function api(overrides: Record<string, unknown> = {}) {
 }
 
 describe("ClaimPage", () => {
+  it("says a development build's version as every screen does, with the whole of it on hover", async () => {
+    const build = "v0.2.1-0.20261114200328-b1166397c689";
+    const dev = () => {
+      const c = checked();
+      if (c.server) c.server.agentBuild = create(BuildInfoSchema, { version: build });
+      return c;
+    };
+    renderAt(`/claim#${TOKEN}`, {
+      ...api({ checkClaim: vi.fn(dev) }),
+      system: { getVersion: () => create(GetVersionResponseSchema, { build: { version: build } }) },
+    });
+    const server = await screen.findByRole("region", { name: "This server" });
+    expect(await within(server).findByText("0.2.1-dev")).toHaveAttribute("title", build);
+    expect(document.querySelector(".claim-version")).toHaveTextContent(/^0\.2\.1-dev$/);
+    expect(screen.queryByText(build)).toBeNull();
+  });
+
   it("reads the token from the link and describes the server", async () => {
     const calls = api();
     const { router } = renderAt(`/claim#${TOKEN}`, calls);

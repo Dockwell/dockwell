@@ -5972,7 +5972,7 @@ msgstr "Use a passkey instead"
 msgid "Use a security key or another device"
 msgstr "Use a security key or another device"
 
-#. placeholder {0}: version.data.build.version
+#. placeholder {0}: shortVersion(version.data.build.version)
 msgid "Version <0>{0}</0>"
 msgstr "Version <0>{0}</0>"
 

@@ -13,6 +13,7 @@ import { formatBytes } from "../../lib/format";
 import { useNow, useTimeWords } from "../../lib/time";
 import { useDocumentTitle } from "../../lib/useDocumentTitle";
 import { createPasskey, passkeysAvailable } from "../../lib/webauthn";
+import { shortVersion } from "../shell/version";
 import { CopyCommand } from "../system/CopyCommand";
 import { StandalonePage } from "../system/StandalonePage";
 import { useDeviceName } from "./device";
@@ -83,7 +84,12 @@ export function ClaimPage() {
     <div className="claim">
       <header className="claim-bar">
         <Logo variant="logotype" height={14} title="Dockwell" />
-        {version.data?.build ? <span className="claim-version">{version.data.build.version}</span> : null}
+        {version.data?.build ? (
+          // As every screen says a build's version, with the whole of it on hover.
+          <span className="claim-version" title={version.data.build.version}>
+            {shortVersion(version.data.build.version)}
+          </span>
+        ) : null}
       </header>
       <main className="claim-main">
         <div className="claim-column">
@@ -354,7 +360,7 @@ function ThisServer({ server, claim }: { server: Server; claim: CheckClaimRespon
               <Trans>Agent</Trans>
             </dt>
             <dd>
-              <code>{server.agentBuild.version}</code>
+              <code title={server.agentBuild.version}>{shortVersion(server.agentBuild.version)}</code>
             </dd>
           </>
         ) : null}

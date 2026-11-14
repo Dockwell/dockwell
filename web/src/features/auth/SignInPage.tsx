@@ -11,6 +11,7 @@ import { type FormEvent, useEffect, useId, useState } from "react";
 import { reasonOf } from "../../lib/errors";
 import { useDocumentTitle } from "../../lib/useDocumentTitle";
 import { getPasskey, PasskeyError, type PasskeyHint, passkeysAvailable } from "../../lib/webauthn";
+import { shortVersion } from "../shell/version";
 import { CopyCommand } from "../system/CopyCommand";
 import { normalizeCode } from "./code";
 import { useAuthError } from "./messages";
@@ -77,8 +78,9 @@ export function SignInPage({ next }: { next?: string }) {
       {version.data?.build ? (
         <footer className="signin-footer">
           <span>
+            {/* As every screen says a build's version, as Sign-In draws "0.9.4", with the whole of it on hover. */}
             <Trans>
-              Version <code>{version.data.build.version}</code>
+              Version <code title={version.data.build.version}>{shortVersion(version.data.build.version)}</code>
             </Trans>
           </span>
         </footer>
