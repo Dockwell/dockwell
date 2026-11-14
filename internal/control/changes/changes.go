@@ -148,8 +148,10 @@ type Also struct {
 	Adopts map[resource.Ref]Adoption
 	// Intent is what the plan is for, when the method proposing it knows.
 	Intent *revision.Intent
-	// BackUp names resources to back up first (revision.Edit).
-	BackUp []resource.Ref
+	// BackUp names resources to back up first (revision.Edit), and BackUpOne apps'
+	// databases to dump alone first (revision.Proposal).
+	BackUp    []resource.Ref
+	BackUpOne []revision.OneBackup
 	// SkipBackup leaves out the backup a database's move takes first
 	// (revision.Proposal).
 	SkipBackup bool
@@ -202,7 +204,7 @@ func (h *Handler) proposeAlso(ctx context.Context, who revision.By, summary stri
 	}
 	plan, err := h.engine.Propose(ctx, revision.Proposal{
 		Summary: summary, Actor: who.Actor, Via: who.Via, Edits: slices.Concat(also.Edits, edits), Notes: also.Notes, IfNothing: also.IfNothing, Intent: also.Intent,
-		SkipBackup: also.SkipBackup, BackUp: also.BackUp,
+		SkipBackup: also.SkipBackup, BackUp: also.BackUp, BackUpOne: also.BackUpOne,
 	})
 	if err != nil {
 		return nil, fail(err)

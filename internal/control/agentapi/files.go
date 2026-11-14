@@ -78,6 +78,10 @@ func (s *Session) FirstPasswords() bool { return s.firstPasswords }
 // network in place, and again as it makes the database's container anew (ADR 0084).
 func (s *Session) Links() bool { return s.links }
 
+// OneDatabaseBackups says the agent backs up one database alone, and says so in what
+// it reports (ADR 0084).
+func (s *Session) OneDatabaseBackups() bool { return s.oneDatabaseBackups }
+
 // MakeFile asks the agent to make an empty file or a folder. confirmed is the path a
 // passkey confirmed, if any.
 func (s *Session) MakeFile(ctx context.Context, path string, kind dockwellv1.FileType, confirmed string) (*agentv1.MakeFileResult, error) {

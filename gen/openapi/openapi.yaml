@@ -513,6 +513,11 @@ paths:
                   description: Only the backups in one environment, by ID.
                   schema:
                     type: string
+                - name: databaseName
+                  in: query
+                  description: Only the backups of this one database, by name, on the volume volume_id names.
+                  schema:
+                    type: string
             responses:
                 "200":
                     description: OK
@@ -697,7 +702,12 @@ paths:
                  backup holds, as a change. Its plan says what it replaces and what stops, and
                  it destroys data, so only a person can apply it, with the plan's fingerprint.
                  The server keeps a copy of what's replaced for 7 days, and undoing the change
-                 puts that back.
+                 puts that back. A database server other projects' apps share is restored whole
+                 only by someone with a role in each of those projects, or an admin, who types
+                 its service's name in confirm; the plan names each app that loses what it wrote
+                 since, and it's refused with the reason confirm_name until confirm says it. A
+                 backup of one app's database restores from that app's page alone, through
+                 RestoreCatalogNeed (ADR 0084).
             operationId: BackupService_RestoreBackup
             parameters:
                 - name: id
@@ -1102,6 +1112,87 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/catalog/installs/{id}/backups:
+        get:
+            tags:
+                - CatalogService
+            description: |-
+                ListCatalogNeedBackups lists the backups of an install's database taken for it,
+                 newest first, as BackUpCatalogNeed takes them (ADR 0084).
+            operationId: CatalogService_ListCatalogNeedBackups
+            parameters:
+                - name: id
+                  in: path
+                  description: The install's project, by name or ID.
+                  required: true
+                  schema:
+                    type: string
+                - name: need
+                  in: query
+                  description: The need, by its name in the entry.
+                  schema:
+                    type: string
+                - name: pageSize
+                  in: query
+                  description: 'How many to return: 50 unless set, and 200 at most.'
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pageToken
+                  in: query
+                  description: 'Where to start: the next_page_token of the page before.'
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListCatalogNeedBackupsResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/catalog/installs/{id}:back-up:
+        post:
+            tags:
+                - CatalogService
+            description: |-
+                BackUpCatalogNeed backs up an install's database alone, a dump of the one
+                 database its need has on the server that meets it, which may be another
+                 project's, as its owner, never the server's administrator: what the app's page
+                 backs up. It needs a role in the install's project alone, and returns the backup
+                 running; follow it with GetBackup (ADR 0084).
+            operationId: CatalogService_BackUpCatalogNeed
+            parameters:
+                - name: id
+                  in: path
+                  description: The install's project, by name or ID.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/BackUpCatalogNeedRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/BackUpCatalogNeedResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/catalog/installs/{id}:open:
         post:
             tags:
@@ -1132,6 +1223,44 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/OpenCatalogInstallResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/catalog/installs/{id}:restore:
+        post:
+            tags:
+                - CatalogService
+            description: |-
+                RestoreCatalogNeed plans bringing an install's database back alone from a
+                 backup taken for it, ready to apply or discard: nothing stops, the app's user
+                 can't sign in while it loads, what the database holds now is kept for 7 days,
+                 which undoing it puts back, and the rest of the server stays as it is. It needs
+                 a role in the install's project, not the server's, as it changes only the app's
+                 own database (ADR 0084).
+            operationId: CatalogService_RestoreCatalogNeed
+            parameters:
+                - name: id
+                  in: path
+                  description: The install's project, by name or ID.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/RestoreCatalogNeedRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/RestoreCatalogNeedResponse'
                 default:
                     description: Default error response
                     content:
@@ -7650,6 +7779,25 @@ components:
                          version stays, or names a tag that moves, such as latest, so skipping one
                          release never skips the next (ADR 0085). Other stores' work takes 90 to 99 here.
             description: AvailableUpdate is one newer version a service can move to.
+        BackUpCatalogNeedRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The install's project, by name or ID.
+                need:
+                    type: string
+                    description: The need, by its name in the entry, such as "db".
+                destination:
+                    type: string
+                    description: A backup destination it goes to as well, by name.
+            description: BackUpCatalogNeedRequest names an install's database to back up.
+        BackUpCatalogNeedResponse:
+            type: object
+            properties:
+                backup:
+                    $ref: '#/components/schemas/Backup'
+            description: BackUpCatalogNeedResponse carries the backup, running.
         Backup:
             type: object
             properties:
@@ -7763,6 +7911,11 @@ components:
                     allOf:
                         - $ref: '#/components/schemas/BackupDrill'
                     description: Its newest restore drill, running or ended. Unset when it was never checked.
+                databaseName:
+                    type: string
+                    description: |-
+                        The one database it holds, for an app's on a server it shares, which restores
+                         alone. Empty for a backup of the whole volume (ADR 0084).
             description: Backup is one backup of one volume.
         BackupDestination:
             type: object
@@ -7924,6 +8077,19 @@ components:
                     description: |-
                         True when nothing could tell: there was no backup before, and measuring the
                          volume took too long. The time the step gets is a guess, and the plan says so.
+                databaseName:
+                    type: string
+                    description: |-
+                        The one database it dumps alone, an app's on a server it shares, taken for
+                         the app before its update (ADR 0084). Empty backs up the whole volume.
+                         Numbered apart, as open work adds to this message.
+                also:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DatabaseDump'
+                    description: |-
+                        More databases on the same server, each dumped alone after database_name under
+                         a backup ID of its own, for apps whose update reads them (ADR 0084).
             description: |-
                 BackupFirst is a backup a change takes before anything else it does, as a catalog
                  upgrade takes one of what the new version may change. If it fails, the change stops
@@ -7979,6 +8145,14 @@ components:
                         - DRILL_MONTHLY
                     type: string
                     format: enum
+                link:
+                    type: string
+                    description: |-
+                        An app's database alone, in place of a volume: the link in this environment,
+                         by its need's name, whose database on whatever server meets it is dumped, as its
+                         owner, on the schedule, and kept as its app's page keeps them (ADR 0084). Such
+                         a policy stops nothing and has no drills. Numbered apart, as open work adds to
+                         this message.
             description: |-
                 BackupPolicy backs up a volume in its environment on a schedule, on every server
                  that has it, and keeps the newest of those backups. A backup someone takes by
@@ -10665,6 +10839,14 @@ components:
             description: |-
                 DatabaseCopy names a database to copy from: the service that runs its server, in
                  an environment, and the database's name there.
+        DatabaseDump:
+            type: object
+            properties:
+                backupId:
+                    type: string
+                databaseName:
+                    type: string
+            description: DatabaseDump is one database a step dumps alone, and its backup's ID.
         DatabaseMove:
             type: object
             properties:
@@ -15002,6 +15184,17 @@ components:
                         $ref: '#/components/schemas/CatalogInstall'
                     description: The installs, sorted by project.
             description: ListCatalogInstallsResponse lists what's installed from the catalog.
+        ListCatalogNeedBackupsResponse:
+            type: object
+            properties:
+                backups:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Backup'
+                nextPageToken:
+                    type: string
+                    description: Where the next page starts. Empty on the last.
+            description: ListCatalogNeedBackupsResponse is a page of them.
         ListCatalogSourceRefsRequest:
             type: object
             properties:
@@ -18153,6 +18346,11 @@ components:
                 summary:
                     type: string
                     description: What it's for, for the timeline. Empty says what it restores.
+                confirm:
+                    type: string
+                    description: |-
+                        The name of the database server's service, typed, where other projects' apps
+                         share it, as restoring it whole takes back what each wrote since.
             description: RestoreBackupRequest asks to restore a backup.
         RestoreBackupResponse:
             type: object
@@ -18162,6 +18360,30 @@ components:
                         - $ref: '#/components/schemas/Change'
                     description: The change, planned, with its plan.
             description: RestoreBackupResponse is the change that restores it.
+        RestoreCatalogNeedRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The install's project, by name or ID.
+                need:
+                    type: string
+                    description: The need, by its name in the entry.
+                backupId:
+                    type: string
+                    description: 'The backup''s ID: one taken for this install''s need.'
+                summary:
+                    type: string
+                    description: What it's for, for the timeline. Empty says what it restores.
+            description: RestoreCatalogNeedRequest names a backup of an install's database to bring back.
+        RestoreCatalogNeedResponse:
+            type: object
+            properties:
+                change:
+                    allOf:
+                        - $ref: '#/components/schemas/Change'
+                    description: The change, planned, with its plan.
+            description: RestoreCatalogNeedResponse carries the planned change.
         RestoreFileRequest:
             type: object
             properties:
@@ -18243,6 +18465,13 @@ components:
                         What the backup's volume reached when it was taken that's as good as root. A
                          backup is tied to a volume by name alone, so what it holds may be that, whatever
                          the volume it comes back into reaches.
+                databaseName:
+                    type: string
+                    description: |-
+                        The one database it brings back, alone, for an app's on a server it shares:
+                         nothing stops, its user can't sign in while it loads, and the rest of the
+                         server stays as it is (ADR 0084). Empty for the whole volume. Numbered apart,
+                         as open work adds to this message.
             description: |-
                 RestorePlan is what a step that restores a volume does: it says what comes
                  back, and what stops while it does. What's in the volume is replaced, and the

@@ -535,6 +535,11 @@ message Hello {
   // (Mount.make_owner on a volume, ADR 0085). The control plane plans no such mount
   // on an agent that doesn't say so, which would leave the folder root's.
   bool owns_volumes = 302;
+  // It backs up one database alone, as BackupCall.database and
+  // DesiredResource.backup_database ask, and says so in BackupResult.one_database
+  // (ADR 0084). An agent from before ignores those and backs up the whole volume,
+  // so the control plane asks one only of an agent that says this.
+  bool one_database_backups = 295;
   // True when the agent serves the certificates the control plane proves by
   // DNS-01 (put_certificates, ADR 0088). The control plane gives one that doesn't
   // none, and its routes get their certificates from Caddy, as before. Numbered in
@@ -1259,6 +1264,9 @@ message BackupCall {
   dockwell.v1.ResourceRef volume = 2;
   // Stop what runs on the volume for an exact copy, and start it again after.
   bool stop = 3;
+  // The one database to dump, for an app's on a server it shares, rather than the
+  // whole server (ADR 0084). Empty backs up the volume as before.
+  string database = 291;
 }
 
 // ListUpdatesCall asks which package updates wait, read with the server's own
@@ -2096,6 +2104,13 @@ message DesiredResource {
   string scope_name = 9;
   // Backs up the resource's data as a step of this change, under this ID.
   string backup_id = 10;
+  // The one database that backup dumps alone, an app's on a server it shares, as
+  // the app's update takes it first (ADR 0084). Empty backs up the whole volume.
+  string backup_database = 292;
+  // More databases on the same server, each dumped alone after backup_database,
+  // under an ID of its own, as an update of apps that read several takes them
+  // first (ADR 0084).
+  repeated DatabaseDump backup_also = 293;
   // Installs updates on the server, for its host (ADR 0064). Numbered in the
   // servers area's block, 230 to 239.
   InstallUpdates install_updates = 232;
@@ -2118,6 +2133,13 @@ message DesiredResource {
   // each registry, sealed to this stream's delivery key as a step's values are
   // (ADR 0086). Numbered in the block registry logins hold, 310 to 319.
   bytes build_registry_auths = 315;
+}
+
+// DatabaseDump is one database a backup step dumps alone, under the ID the control
+// plane gave it (ADR 0084).
+message DatabaseDump {
+  string backup_id = 1;
+  string database = 2;
 }
 
 // UnitAction is an action a change asks of one of the server's system services.
@@ -2386,6 +2408,10 @@ message BackupResult {
   int64 files_changed = 5;
   // The backup's ID, where a step took it.
   string id = 6;
+  // The one database it dumped alone, where it dumped one: what the control plane
+  // records it as, never what it asked for, as an agent from before backs up the
+  // whole volume, whatever it's asked (ADR 0084).
+  string one_database = 294;
 }
 
 // DrillBackupResult says how a restore drill went. A drill that couldn't run, or

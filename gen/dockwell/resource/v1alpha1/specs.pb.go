@@ -4694,8 +4694,14 @@ type BackupPolicy struct {
 	Stop bool `protobuf:"varint,7,opt,name=stop,proto3" json:"stop,omitempty"`
 	// The backup destination each backup also goes to, by name. Empty keeps them on
 	// the server alone, so they go if it does.
-	Destination   string             `protobuf:"bytes,8,opt,name=destination,proto3" json:"destination,omitempty"`
-	Drill         BackupPolicy_Drill `protobuf:"varint,9,opt,name=drill,proto3,enum=dockwell.resource.v1alpha1.BackupPolicy_Drill" json:"drill,omitempty"`
+	Destination string             `protobuf:"bytes,8,opt,name=destination,proto3" json:"destination,omitempty"`
+	Drill       BackupPolicy_Drill `protobuf:"varint,9,opt,name=drill,proto3,enum=dockwell.resource.v1alpha1.BackupPolicy_Drill" json:"drill,omitempty"`
+	// An app's database alone, in place of a volume: the link in this environment,
+	// by its need's name, whose database on whatever server meets it is dumped, as its
+	// owner, on the schedule, and kept as its app's page keeps them (ADR 0084). Such
+	// a policy stops nothing and has no drills. Numbered apart, as open work adds to
+	// this message.
+	Link          string `protobuf:"bytes,80,opt,name=link,proto3" json:"link,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4791,6 +4797,13 @@ func (x *BackupPolicy) GetDrill() BackupPolicy_Drill {
 		return x.Drill
 	}
 	return BackupPolicy_DRILL_UNSPECIFIED
+}
+
+func (x *BackupPolicy) GetLink() string {
+	if x != nil {
+		return x.Link
+	}
+	return ""
 }
 
 // BackupDestination is S3-compatible storage that backups go to as well as the
@@ -8113,7 +8126,7 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\fDatabaseCopy\x12 \n" +
 	"\venvironment\x18\x01 \x01(\tR\venvironment\x12\x18\n" +
 	"\aservice\x18\x02 \x01(\tR\aservice\x12\x1a\n" +
-	"\bdatabase\x18\x03 \x01(\tR\bdatabase\"\xe8\x03\n" +
+	"\bdatabase\x18\x03 \x01(\tR\bdatabase\"\xfc\x03\n" +
 	"\fBackupPolicy\x12\x16\n" +
 	"\x06volume\x18\x01 \x01(\tR\x06volume\x12D\n" +
 	"\x05every\x18\x02 \x01(\x0e2..dockwell.resource.v1alpha1.BackupPolicy.EveryR\x05every\x12\x0e\n" +
@@ -8123,7 +8136,8 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\x04keep\x18\x06 \x01(\rR\x04keep\x12\x12\n" +
 	"\x04stop\x18\a \x01(\bR\x04stop\x12 \n" +
 	"\vdestination\x18\b \x01(\tR\vdestination\x12D\n" +
-	"\x05drill\x18\t \x01(\x0e2..dockwell.resource.v1alpha1.BackupPolicy.DrillR\x05drill\"M\n" +
+	"\x05drill\x18\t \x01(\x0e2..dockwell.resource.v1alpha1.BackupPolicy.DrillR\x05drill\x12\x12\n" +
+	"\x04link\x18P \x01(\tR\x04link\"M\n" +
 	"\x05Every\x12\x15\n" +
 	"\x11EVERY_UNSPECIFIED\x10\x00\x12\x0e\n" +
 	"\n" +

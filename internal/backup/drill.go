@@ -241,6 +241,10 @@ func (r *Runner) yieldDrill(filesystem string) {
 
 // drillIn runs a drill once it has the server's slot.
 func (r *Runner) drillIn(ctx context.Context, d Drill, m *Manifest, file string, run *drillRun, report *DrillReport) (err error) {
+	if m.OneDatabase != "" {
+		// A database alone loads as its owner, whom a scratch server doesn't have.
+		return unchecked("restore checks cover a whole server's backup so far, so this one of %s alone wasn't checked", m.OneDatabase)
+	}
 	kind := drillKind(m)
 	// A drill checks PostgreSQL and MySQL so far: another database, such as a MongoDB
 	// archive or a copy of its files, would read as a backup that didn't restore.

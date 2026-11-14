@@ -46,6 +46,7 @@ import { BackUpSheet } from "./BackUpSheet";
 import { DestinationsPanel, useDestinations } from "./DestinationsPanel";
 import { PoliciesPanel, usePolicies } from "./PoliciesPanel";
 import { PolicySheet } from "./PolicySheet";
+import { useRestoreWhole } from "./RestoreWhole";
 import { useBackups, useVolumes } from "./useBackups";
 import { backupStatus, useMethodWord, useStateWord } from "./words";
 import "./Backups.css";
@@ -153,7 +154,6 @@ export function BackupsPage() {
  */
 export function useBackupActions() {
   const { t } = useLingui();
-  const sheet = useChangeSheet();
   const transport = useTransport();
   const client = useMemo(() => createClient(BackupService, transport), [transport]);
   const queries = useQueryClient();
@@ -194,9 +194,8 @@ export function useBackupActions() {
       });
     }
   };
-  const restore = (backup: Backup) => {
-    sheet.open({ kind: "plan", make: () => client.restoreBackup({ id: backup.id }) });
-  };
+  const whole = useRestoreWhole();
+  const restore = (backup: Backup) => whole.restore(backup.id);
   const bringBack = async (backup: Backup, server: string) => {
     setChoosing(undefined);
     setBringBackFailure(undefined);
@@ -223,6 +222,7 @@ export function useBackupActions() {
           onClose={() => setChoosing(undefined)}
         />
       ) : null}
+      {whole.confirming}
     </>
   );
   return { restore, check: (b: Backup) => void check(b), fetchBack, remove: setDeleting, checking, refused, view };

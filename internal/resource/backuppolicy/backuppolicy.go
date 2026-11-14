@@ -66,8 +66,14 @@ var clock = regexp.MustCompile(`^([01]\d|2[0-3]):[0-5]\d$`)
 // Validate fills in its defaults, and refuses what can't run.
 func (Type) Validate(spec proto.Message) error {
 	p := spec.(*resourcev1.BackupPolicy)
-	if p.GetVolume() == "" {
-		return errors.New("a backup policy needs a volume, by name")
+	switch {
+	case p.GetVolume() == "" && p.GetLink() == "":
+		return errors.New("a backup policy needs a volume, by name, or an app's link, for its database alone")
+	case p.GetVolume() != "" && p.GetLink() != "":
+		return errors.New("a backup policy backs up a volume or an app's database alone, not both. Make one of each")
+	case p.GetLink() != "":
+		// A database alone is dumped, which stops nothing, and isn't drilled yet.
+		p.Stop, p.Drill = false, resourcev1.BackupPolicy_DRILL_NEVER
 	}
 	if p.GetEvery() == resourcev1.BackupPolicy_EVERY_UNSPECIFIED {
 		p.Every = resourcev1.BackupPolicy_EVERY_DAY
@@ -99,13 +105,18 @@ func (Type) Validate(spec proto.Message) error {
 	return nil
 }
 
-// References names the volume, so it can't go while a policy backs it up.
+// References names the volume, or the link of an app's database, so it can't go
+// while a policy backs it up.
 func (Type) References(spec proto.Message) []resource.Reference {
-	return []resource.Reference{{Kind: "volume", Name: spec.(*resourcev1.BackupPolicy).GetVolume(), Verb: "back up", Apart: true}}
+	p := spec.(*resourcev1.BackupPolicy)
+	if p.GetLink() != "" {
+		return []resource.Reference{{Kind: "link", Name: p.GetLink(), Verb: "back up the database of", Apart: true}}
+	}
+	return []resource.Reference{{Kind: "volume", Name: p.GetVolume(), Verb: "back up", Apart: true}}
 }
 
-// ReferenceKinds is volumes.
-func (Type) ReferenceKinds() []resource.Kind { return []resource.Kind{"volume"} }
+// ReferenceKinds is volumes and links.
+func (Type) ReferenceKinds() []resource.Kind { return []resource.Kind{"volume", "link"} }
 
 // Next is the first time a policy runs after a moment.
 func Next(p *resourcev1.BackupPolicy, after time.Time) time.Time {
@@ -146,7 +157,7 @@ func Next(p *resourcev1.BackupPolicy, after time.Time) time.Time {
 // what it has, and unset reads as never.
 func (Type) DefaultNew(_ resource.Ref, spec proto.Message) {
 	p := spec.(*resourcev1.BackupPolicy)
-	if p.GetDrill() == resourcev1.BackupPolicy_DRILL_UNSPECIFIED {
+	if p.GetDrill() == resourcev1.BackupPolicy_DRILL_UNSPECIFIED && p.GetLink() == "" {
 		p.Drill = resourcev1.BackupPolicy_DRILL_WEEKLY
 	}
 }

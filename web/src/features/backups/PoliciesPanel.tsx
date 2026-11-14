@@ -75,7 +75,8 @@ function PolicyRow({ policy }: { policy: BackupPolicyInfo }) {
   const { t, i18n } = useLingui();
   const sheet = useChangeSheet();
   const words = useScheduleWords();
-  const volume = policy.spec?.volume ?? "";
+  // An app's database alone goes by its need's link (ADR 0084).
+  const volume = policy.spec?.volume || policy.spec?.link || "";
   const failed = policy.last?.state === BackupState.FAILED;
   const copyFailed = policy.last?.copy === BackupCopy.FAILED;
   // In the schedule's own zone, as its time is, and named, as that may not be yours.
@@ -94,6 +95,7 @@ function PolicyRow({ policy }: { policy: BackupPolicyInfo }) {
       <div className="backup-state">
         <code>{volume}</code>
         <span className="backup-why">{policy.spec ? t`${words(policy.spec)}, ${zone}` : ""}</span>
+        {policy.spec?.link ? <span className="backup-why">{t`Its app's database alone`}</span> : null}
         <span className="backup-why">{keeps}</span>
         <span className="backup-why">
           {policy.spec?.drill === BackupPolicy_Drill.WEEKLY

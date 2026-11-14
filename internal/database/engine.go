@@ -418,3 +418,28 @@ func port(s string) (uint32, bool) {
 	}
 	return n, n > 0 && n < 65536
 }
+
+// DataVolume is the volume a database server's service keeps its data in: the one at
+// its engine's data path, or its only volume. Empty for none.
+func DataVolume(s *resourcev1.Service) string {
+	app := s.GetApp()
+	var volumes []string
+	data := ""
+	if e := Recognise(app.GetImage()); e != nil && e.Data != nil {
+		data = e.Data(Major(app.GetImage()))
+	}
+	for _, m := range app.GetMounts() {
+		v := m.GetVolume()
+		if v == "" {
+			continue
+		}
+		volumes = append(volumes, v)
+		if data != "" && (m.GetTarget() == data || strings.HasPrefix(data, strings.TrimSuffix(m.GetTarget(), "/")+"/")) {
+			return v
+		}
+	}
+	if len(volumes) == 1 {
+		return volumes[0]
+	}
+	return ""
+}

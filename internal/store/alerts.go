@@ -351,11 +351,12 @@ func (t *Tx) EventsSince(ctx context.Context, action string, after time.Time, li
 	return out, rows.Err()
 }
 
-// LatestBackups returns each volume's newest backup that started after a time, by
-// volume ID.
+// LatestBackups returns each volume's newest backup of the whole volume that started
+// after a time, by volume ID: a dump of one database on it, as an app's on a server
+// it shares, says nothing of the rest (ADR 0084).
 func (t *Tx) LatestBackups(ctx context.Context, after time.Time) (map[string]Backup, error) {
-	rows, err := t.query(ctx, `SELECT `+backupColumns+` FROM backups b WHERE b.started_at > ?
-		AND b.started_at = (SELECT MAX(started_at) FROM backups WHERE volume_id = b.volume_id) ORDER BY b.volume_id, b.id DESC`, millis(after))
+	rows, err := t.query(ctx, `SELECT `+backupColumns+` FROM backups b WHERE b.started_at > ? AND b.one_database = ''
+		AND b.started_at = (SELECT MAX(started_at) FROM backups WHERE volume_id = b.volume_id AND one_database = '') ORDER BY b.volume_id, b.id DESC`, millis(after))
 	if err != nil {
 		return nil, fmt.Errorf("can't read the newest backups: %w", err)
 	}

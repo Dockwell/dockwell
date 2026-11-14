@@ -100,6 +100,15 @@ func (e *Engine) checkRoles(ctx context.Context, tx *store.Tx, actor string, c *
 		if err != nil {
 			return err
 		}
+		if it.forLink != (resource.Ref{}) {
+			// Made for an app's link: the role it needs is where the link is (ADR 0084).
+			if !own {
+				if err := e.forLinkRoles(ctx, tx, caller.Grants, it, at, byID, a); err != nil {
+					return err
+				}
+			}
+			continue
+		}
 		held := place.Holds(caller.Grants, at.Place)
 		if it.follows {
 			// What the change took in through a value it changes is Dockwell's own item:
@@ -121,8 +130,12 @@ func (e *Engine) checkRoles(ctx context.Context, tx *store.Tx, actor string, c *
 		if own {
 			continue
 		}
-		// What it points at in another environment needs a role there too (ADR 0084).
+		// What it points at in another environment needs a role there too, and so does
+		// a whole restore of a server another environment's app shares (ADR 0084).
 		if err := e.reachRoles(ctx, tx, caller.Grants, it, byID, a); err != nil {
+			return err
+		}
+		if err := e.linkedRestoreRoles(ctx, tx, caller.Grants, it, byID, a); err != nil {
 			return err
 		}
 		needs, why := store.RoleDeveloper, ""
@@ -243,6 +256,7 @@ func (e *Engine) reachFirst(ctx context.Context, tx *store.Tx, actor string, edi
 		}
 		it.id = cmp.Or(it.id, edits[i].ID)
 		it.spec = edits[i].Spec
+		it.forLink = edits[i].For
 		items = append(items, it)
 	}
 	err := e.checkRoles(ctx, tx, actor, nil, items, planning)
@@ -568,6 +582,7 @@ func (e *Engine) placed(ctx context.Context, tx *store.Tx, c store.Change) ([]it
 			it.id = ci.ResourceID
 		}
 		it.follows = ci.Follows
+		it.restore, _, _, it.forLink = restoreIn(c, ref)
 		if ref.Kind == scope.EnvironmentKind && ci.Spec != nil {
 			// An environment's spec holds nothing sealed. One that can't be read
 			// counts as protected after.

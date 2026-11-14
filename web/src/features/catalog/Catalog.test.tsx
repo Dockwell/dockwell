@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { clone, create } from "@bufbuild/protobuf";
+import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { Code, ConnectError } from "@connectrpc/connect";
 import {
+  BackupState,
   CatalogFormat,
   CatalogNeedOptionSchema,
   CatalogSourceInfoSchema,
@@ -689,6 +691,77 @@ describe("A database's admin tool", () => {
     await waitFor(() =>
       expect(asked).toEqual({ id: "prj_1", need: "db", choice: "service:data/production/pg", startEmpty: false }),
     );
+  });
+
+  it("lists an app's database's backups on its need, backs it up, and restores it alone as a plan", async () => {
+    const user = userEvent.setup();
+    const asked: string[] = [];
+    const withNeed = create(EntrySchema, {
+      ...withTools,
+      companions: [],
+      needs: [create(NeedSchema, { name: "db", label: "Database", accepts: [{ engine: Engine.POSTGRESQL }] })],
+    });
+    const done = {
+      id: "bkp_1",
+      state: BackupState.DONE,
+      databaseName: "blog",
+      sizeBytes: 3n << 20n,
+      startedAt: timestampFromDate(new Date("2026-11-12T03:00:00Z")),
+    };
+    renderAt("/apps/svc_db", {
+      ...api({
+        getCatalogEntry: () => ({ entry: withNeed, project: "postgres", needs: [] }),
+        listCatalogInstalls: () => ({
+          installs: [
+            {
+              project: "postgres",
+              projectId: "prj_1",
+              environmentId: ENV,
+              pin: { entry: "postgres", version: "17.11", release: 5, needs: { db: { engine: 1, version: "17.11" } } },
+              webServiceId: "svc_db",
+              name: "PostgreSQL",
+              companions: {},
+            },
+          ],
+        }),
+        listCatalogNeedBackups: (req) => {
+          asked.push(`list ${req.id} ${req.need}`);
+          return { backups: [done] };
+        },
+        backUpCatalogNeed: (req) => {
+          asked.push(`back up ${req.id} ${req.need}`);
+          return { backup: { id: "bkp_2", state: BackupState.RUNNING, databaseName: "blog" } };
+        },
+        restoreCatalogNeed: (req) => {
+          asked.push(`restore ${req.id} ${req.need} ${req.backupId}`);
+          throw new ConnectError("nothing more to do here", Code.FailedPrecondition);
+        },
+      }),
+      resources: places(),
+      services: { listServices: () => ({ services: [anApp("db", "postgres:17.11")] }) },
+      backups: { listBackupPolicies: () => ({ policies: [] }) },
+      changes: {
+        proposeChange: (req) => {
+          const policy = req.edits[0]?.spec?.kind;
+          asked.push(
+            `schedule ${req.edits[0]?.resource?.name} ${policy?.case === "backupPolicy" ? policy.value.link : ""}`,
+          );
+          throw new ConnectError("nothing more to do here", Code.FailedPrecondition);
+        },
+      },
+    });
+    const needs = await screen.findByRole("list", { name: "What it needs" });
+    await user.click(within(needs).getByRole("button", { name: "Its backups" }));
+    expect(await screen.findByText("Only by hand")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Back up daily" }));
+    await waitFor(() => expect(asked).toContain("schedule db-daily db"));
+    const list = await screen.findByRole("list", { name: "Its database's backups" });
+    expect(await within(list).findByText(/3 MB/)).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Back up now" }));
+    await waitFor(() => expect(asked).toContain("back up prj_1 db"));
+    await user.click(within(list).getByRole("button", { name: "Restore" }));
+    await waitFor(() => expect(asked).toContain("restore prj_1 db bkp_1"));
+    expect(asked[0]).toBe("list prj_1 db");
   });
 
   it("starts an app empty on a server of another engine only as a choice of its own", async () => {

@@ -50,6 +50,7 @@ import { useThisDatabase } from "./DatabaseLayout";
 import "../servers/ServerMetrics.css";
 import { MayEdit } from "../auth/MayEdit";
 import { useMay } from "../auth/may";
+import { useRestoreWhole } from "../backups/RestoreWhole";
 import { SchemasSection, UsersSection } from "./DatabaseUsers";
 import {
   connectionURL,
@@ -375,11 +376,9 @@ function BackupsPanel({ db }: { db: Database }) {
   const time = useTimeWords();
   const { fleet } = useFleetView();
   const [taking, setTaking] = useState(false);
-  const sheet = useChangeSheet();
-  const transport = useTransport();
   const may = useMay();
-  const restore = (id: string) =>
-    sheet.open({ kind: "plan", make: () => createClient(BackupService, transport).restoreBackup({ id }) });
+  const whole = useRestoreWhole();
+  const restore = (id: string) => whole.restore(id);
   const engine = engineName(db.engine);
   const how = useBackupHow(db);
   const dumpOf = how.database || engine;
@@ -481,6 +480,7 @@ function BackupsPanel({ db }: { db: Database }) {
           onClose={() => setTaking(false)}
         />
       ) : null}
+      {whole.confirming}
     </Panel>
   );
 }

@@ -30,7 +30,7 @@ func (c Calls) Preview(ctx context.Context, call *agentv1.BackupPreviewCall) (*a
 
 // Take takes a backup.
 func (c Calls) Take(ctx context.Context, call *agentv1.BackupCall) (*agentv1.BackupResult, error) {
-	m, err := c.Runner.Take(ctx, Take{ID: call.GetId(), Ref: resourcepb.FromRef(call.GetVolume()), Stop: call.GetStop()})
+	m, err := c.Runner.Take(ctx, Take{ID: call.GetId(), Ref: resourcepb.FromRef(call.GetVolume()), Stop: call.GetStop(), Database: call.GetDatabase()})
 	if err != nil {
 		return nil, err
 	}
@@ -59,6 +59,7 @@ func (c Calls) Drill(ctx context.Context, call *agentv1.DrillBackupCall) (*agent
 func result(m *Manifest) *agentv1.BackupResult {
 	return &agentv1.BackupResult{
 		Method: resourcepb.BackupMethod(m.Method), Database: m.Database, SizeBytes: m.Size, Sha256: m.SHA256, FilesChanged: m.Changed,
+		OneDatabase: m.OneDatabase,
 	}
 }
 

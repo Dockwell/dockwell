@@ -33,8 +33,10 @@ type restores struct {
 	ran []resource.RestoreSource
 	// apply runs inside ApplyRestore; an error stands for the server's.
 	apply func(context.Context) error
-	// reached is what the backup says its volume reached.
+	// reached is what the backup says its volume reached, and one the one database
+	// it holds alone, if it holds one.
 	reached []string
+	one     string
 }
 
 func (r *restores) JudgeRestore(_ context.Context, _ resource.Ref, source resource.RestoreSource) (resource.Decision, bool, error) {
@@ -45,7 +47,7 @@ func (r *restores) JudgeRestore(_ context.Context, _ resource.Ref, source resour
 	}
 	return resource.Decision{
 		Action: resource.ActionReplace, Destroys: true, Downtime: time.Minute,
-		Restore: &resource.RestorePlan{Backup: source.Backup, Undoes: source.Undoes, Method: resource.BackupCopy, Stops: []string{"web"}, Reached: r.reached},
+		Restore: &resource.RestorePlan{Backup: source.Backup, Undoes: source.Undoes, Method: resource.BackupCopy, Stops: []string{"web"}, Reached: r.reached, OneDatabase: r.one},
 	}, true, nil
 }
 
@@ -109,13 +111,19 @@ type restoreBench struct {
 type twoAgents struct {
 	resource.Local
 	volumes resource.Local
+	// old is an agent from before one database could be backed up alone.
+	old bool
 }
+
+// OneDatabaseBackups says it backs up and restores one database alone, as this
+// version's agent does, unless it's from before.
+func (a twoAgents) OneDatabaseBackups() bool { return !a.old }
 
 func (a twoAgents) Plan(ctx context.Context, desired []resource.Desired) ([]resource.Step, error) {
 	steps := make([]resource.Step, len(desired))
 	for i := range desired {
 		l := a.Local
-		if desired[i].Restore != nil {
+		if desired[i].Restore != nil || desired[i].Backup != nil {
 			l = a.volumes
 		}
 		got, err := l.Plan(ctx, desired[i:i+1])
@@ -128,7 +136,7 @@ func (a twoAgents) Plan(ctx context.Context, desired []resource.Desired) ([]reso
 }
 
 func (a twoAgents) Apply(ctx context.Context, step resource.Step, desired proto.Message) error {
-	if step.Restore != nil {
+	if step.Restore != nil || step.BackupFirst != nil {
 		return a.volumes.Apply(ctx, step, desired)
 	}
 	return a.Local.Apply(ctx, step, desired)

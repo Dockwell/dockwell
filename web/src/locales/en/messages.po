@@ -6610,6 +6610,9 @@ msgstr "Doesn't check a restore"
 msgid "Hasn't run yet"
 msgstr "Hasn't run yet"
 
+msgid "Its app's database alone"
+msgstr "Its app's database alone"
+
 #. placeholder {0}: policy.spec?.keep ?? 0
 #. placeholder {1}: policy.kept
 #. placeholder {2}: formatBytes(policy.keptBytes, i18n.locale)
@@ -6720,6 +6723,12 @@ msgstr "What stops starts again once the copy ends, however that goes. Each copy
 #. placeholder {3}: formatBytes(total, i18n.locale)
 msgid "{count, plural, one {Each backup takes about {0}; keeping one, about {1}. The disk has {toGive} to give.} other {Each backup takes about {2}; keeping #, about {3}. The disk has {toGive} to give.}}"
 msgstr "{count, plural, one {Each backup takes about {0}; keeping one, about {1}. The disk has {toGive} to give.} other {Each backup takes about {2}; keeping #, about {3}. The disk has {toGive} to give.}}"
+
+msgid "Restore {server} whole"
+msgstr "Restore {server} whole"
+
+msgid "Type {server} to confirm"
+msgstr "Type {server} to confirm"
 
 msgid "Copy of a running app"
 msgstr "Copy of a running app"
@@ -7199,8 +7208,44 @@ msgstr "Version {next} is out."
 msgid "{name} {version}"
 msgstr "{name} {version}"
 
+msgid "Back up daily"
+msgstr "Back up daily"
+
+msgid "Back up {need}'s database daily"
+msgstr "Back up {need}'s database daily"
+
+msgid "Backing up"
+msgstr "Backing up"
+
+msgid "It wasn't backed up"
+msgstr "It wasn't backed up"
+
+msgid "Its database isn't backed up alone yet"
+msgstr "Its database isn't backed up alone yet"
+
+msgid "Its database's backups"
+msgstr "Its database's backups"
+
+msgid "Only by hand"
+msgstr "Only by hand"
+
+msgid "Reading its backups"
+msgstr "Reading its backups"
+
+msgid "Stop backing up {need}'s database on a schedule"
+msgstr "Stop backing up {need}'s database on a schedule"
+
+msgid "Stop the schedule"
+msgstr "Stop the schedule"
+
+msgid "{how}, keeps {keeps}"
+msgstr "{how}, keeps {keeps}"
+
 msgid "Copies its data"
 msgstr "Copies its data"
+
+msgid "Its backups"
+msgstr "Its backups"
 
 msgid "Its data can't be copied there"
 msgstr "Its data can't be copied there"
@@ -8194,6 +8239,13 @@ msgstr "Docker restarts, and keeps containers running while it does: it's a patc
 
 msgid "Docker restarts: every app and website on {server} stops until it's back, the domains Caddy serves there too"
 msgstr "Docker restarts: every app and website on {server} stops until it's back, the domains Caddy serves there too"
+
+#. placeholder {0}: first.databaseName
+msgid "Dump <0>{0}</0> alone from <1>{name}</1>, with nothing stopped"
+msgstr "Dump <0>{0}</0> alone from <1>{name}</1>, with nothing stopped"
+
+msgid "Dump {databases} alone from <0>{name}</0>, each as a backup of its own, with nothing stopped"
+msgstr "Dump {databases} alone from <0>{name}</0>, each as a backup of its own, with nothing stopped"
 
 msgid "Its Dockerfile can read any image {buildLogins} can read"
 msgstr "Its Dockerfile can read any image {buildLogins} can read"
@@ -10069,9 +10121,6 @@ msgstr "How it's backed up"
 
 msgid "No backups of {name} yet"
 msgstr "No backups of {name} yet"
-
-msgid "Only by hand"
-msgstr "Only by hand"
 
 msgid "Restoring"
 msgstr "Restoring"

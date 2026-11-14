@@ -14,6 +14,7 @@ import (
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/changes"
+	"github.com/dockwell/dockwell/internal/control/linked"
 	"github.com/dockwell/dockwell/internal/fault"
 	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/resource"
@@ -77,6 +78,7 @@ func (h *Handler) UpgradeService(ctx context.Context, req *connect.Request[dockw
 	}
 	var spec *resourcev1.Service
 	var digest string
+	var ones []revision.OneBackup
 	err = h.db.View(ctx, func(tx *store.Tx) error {
 		decoded, err := h.keeper.Decode(ctx, tx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec)
 		if err != nil {
@@ -84,6 +86,13 @@ func (h *Handler) UpgradeService(ctx context.Context, req *connect.Request[dockw
 		}
 		if spec, err = asService(decoded); err != nil {
 			return err
+		}
+		// What it reads of a database it keeps alone on a server another project
+		// runs, through a link, is dumped first, as its volumes are (ADR 0084).
+		if !m.GetSkipBackup() {
+			if ones, err = linked.Databases(ctx, tx, h.keeper, r.Scope, linked.UsedBy(spec)); err != nil {
+				return err
+			}
 		}
 		deployed, err := tx.LatestDeployments(ctx, []string{r.ID})
 		digest = ranDigest(deployed[r.ID])
@@ -123,6 +132,16 @@ func (h *Handler) UpgradeService(ctx context.Context, req *connect.Request[dockw
 	ref := resource.Ref{Kind: resource.Kind(r.Kind), Scope: r.Scope, Name: r.Name}
 	backUp, unbacked := toBackUp(r.Scope, app)
 	notes := upgradeNotes(ref, from, backUp, unbacked, m.GetSkipBackup(), again)
+	if len(ones) > 0 {
+		dbs := make([]string, 0, len(ones))
+		for _, o := range ones {
+			dbs = append(dbs, o.Database)
+		}
+		notes = append(notes, revision.Note{
+			Reason: "backup_first_database", Ref: ref, Names: dbs,
+			Message: fmt.Sprintf("Dockwell dumps the database %s alone first, on a server another project runs, as %s reads it. If that fails, the update stops there", human.List(dbs), r.Name),
+		})
+	}
 	if m.GetSkipBackup() {
 		backUp = nil
 	}
@@ -135,7 +154,7 @@ func (h *Handler) UpgradeService(ctx context.Context, req *connect.Request[dockw
 		Resource: resourcepb.Ref(ref),
 		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: spec}},
 	}}, nil, changes.Also{
-		Base: r.Revision, Pull: again, Run: true, Notes: notes, Intent: intent, BackUp: backUp, SkipBackup: m.GetSkipBackup(),
+		Base: r.Revision, Pull: again, Run: true, Notes: notes, Intent: intent, BackUp: backUp, BackUpOne: ones, SkipBackup: m.GetSkipBackup(),
 		IfNothing: fault.New(revision.ErrInvalid, "%s already runs %s, which can't change, as a digest names one image. Name another image, such as a new tag", r.Name, to),
 	})
 	if err != nil {

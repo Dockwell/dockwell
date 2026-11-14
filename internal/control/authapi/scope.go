@@ -36,6 +36,14 @@ var idLike = regexp.MustCompile(`^[a-z]{3}_[0-9A-Za-z]{10,}$`)
 // notObjects are fields named like IDs that name no object of a project.
 var notObjects = map[string]bool{"actor_id": true, "ceremony_id": true, "session_id": true, "rp_id": true}
 
+// boundToID are a call's fields that name an object of what its id names, which the
+// handler checks is that one's, so the scope check reads the id alone: a backup of an
+// install's database, kept on a server another project may run, taken for the
+// install's link (ADR 0084).
+var boundToID = map[string]map[string]bool{
+	dockwellv1connect.CatalogServiceRestoreCatalogNeedProcedure: {"backup_id": true},
+}
+
 // idNames says what a request's id holds when it's a name, not an ID: a
 // service's or task's, in its project and environment, a project's, or a website's
 // project by name or domain. Elsewhere an id that isn't an ID, such as a
@@ -56,6 +64,9 @@ var idNames = map[string]string{
 	dockwellv1connect.CatalogServiceSetCatalogCompanionProcedure:        "project",
 	dockwellv1connect.CatalogServiceSetCatalogNeedProcedure:             "project",
 	dockwellv1connect.CatalogServiceOpenCatalogInstallProcedure:         "project",
+	dockwellv1connect.CatalogServiceBackUpCatalogNeedProcedure:          "project",
+	dockwellv1connect.CatalogServiceListCatalogNeedBackupsProcedure:     "project",
+	dockwellv1connect.CatalogServiceRestoreCatalogNeedProcedure:         "project",
 	dockwellv1connect.DatabaseServiceGetDatabaseProcedure:               "service",
 	dockwellv1connect.DatabaseServiceCreateDatabaseUserProcedure:        "service",
 	dockwellv1connect.DatabaseServiceChangeDatabasePasswordProcedure:    "service",
@@ -106,6 +117,10 @@ var requestBound = map[string]bool{
 	dockwellv1connect.ComposeServiceCheckComposeProcedure:         true,
 	dockwellv1connect.ComposeServiceImportComposeProcedure:        true,
 	dockwellv1connect.ServiceServiceListServiceRevisionsProcedure: true,
+	// An install's database's backups are the install's, taken for its link, though
+	// they're kept on a server another project may run (ADR 0084).
+	dockwellv1connect.CatalogServiceBackUpCatalogNeedProcedure:      true,
+	dockwellv1connect.CatalogServiceListCatalogNeedBackupsProcedure: true,
 	// What a registry says of an image belongs to no project, and holds nothing
 	// of the server it was read through (ADR 0062).
 	dockwellv1connect.ImageServiceSearchImagesProcedure:  true,
@@ -171,7 +186,7 @@ func requested(procedure string, m protoreflect.Message) (refs, requestFields) {
 			vals = []string{v}
 		}
 		switch {
-		case notObjects[name]:
+		case notObjects[name], boundToID[procedure][name]:
 		case name == "project":
 			at.project = fd
 			if len(vals) > 0 {

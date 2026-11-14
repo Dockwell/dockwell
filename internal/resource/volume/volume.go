@@ -529,11 +529,11 @@ func (d *Driver) ApplyRestore(ctx context.Context, step resource.Step, source re
 }
 
 // JudgeBackup judges a step that backs up a volume.
-func (d *Driver) JudgeBackup(ctx context.Context, ref resource.Ref, id string) (resource.Decision, bool, error) {
+func (d *Driver) JudgeBackup(ctx context.Context, ref resource.Ref, asked resource.BackupAsked) (resource.Decision, bool, error) {
 	if d.BacksUp == nil {
 		return resource.Decision{}, false, errNoRestores
 	}
-	return d.BacksUp.JudgeBackup(ctx, ref, id)
+	return d.BacksUp.JudgeBackup(ctx, ref, asked)
 }
 
 // ApplyBackup carries out a step that backs up a volume.

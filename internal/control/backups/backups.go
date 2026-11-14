@@ -29,6 +29,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/changes"
 	"github.com/dockwell/dockwell/internal/control/paging"
+	"github.com/dockwell/dockwell/internal/database"
 	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
@@ -136,7 +137,19 @@ func (h *Handler) recordStep(ctx context.Context, step revision.BackupStep) {
 	b := store.Backup{
 		ID: taken.ID, EnvironmentID: step.Volume.Scope, Volume: step.Volume.Name, VolumeID: step.VolumeID, ServerID: step.Server,
 		State: store.BackupDone, Method: taken.Method, Database: taken.Database, SizeBytes: taken.Size, SHA256: taken.SHA256, FilesChanged: taken.Changed,
-		Actor: actor, StartedAt: now, FinishedAt: &now,
+		Actor: actor, StartedAt: now, FinishedAt: &now, OneDatabase: taken.One,
+	}
+	// What the agent says it dumped, never what the step asked: a backup of the whole
+	// volume isn't recorded as an app's database, nor for its link.
+	if link := step.For; link != (resource.Ref{}) && taken.One != "" && taken.One == step.One {
+		// Taken for an app before its update: its page lists it (ADR 0084).
+		_ = h.db.View(ctx, func(tx *store.Tx) error {
+			r, err := tx.GetResource(ctx, string(link.Kind), link.Scope, link.Name)
+			if err == nil {
+				b.ForLink = r.ID
+			}
+			return err
+		})
 	}
 	told := Told{ID: b.ID, Volume: b.Volume, Method: b.Method, Size: b.SizeBytes}
 	err := h.say(ctx, &b, ActionTaken, told, actor, store.SurfaceAutomatic, func(tx *store.Tx) error {
@@ -296,15 +309,34 @@ func (h *Handler) PreviewBackup(ctx context.Context, req *connect.Request[dockwe
 	}), nil
 }
 
-// CreateBackup starts a backup, and returns it running.
+// CreateBackup starts a backup of a whole volume, and returns it running.
 func (h *Handler) CreateBackup(ctx context.Context, req *connect.Request[dockwellv1.CreateBackupRequest]) (*connect.Response[dockwellv1.CreateBackupResponse], error) {
 	m := req.Msg
+	out, err := h.begin(ctx, taking{volumeID: m.GetVolumeId(), server: m.GetServer(), destination: m.GetDestination(), stop: m.GetStop()})
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&dockwellv1.CreateBackupResponse{Backup: out}), nil
+}
+
+// taking is a backup to start: of a whole volume, or of one database on it, taken
+// for an app's link.
+type taking struct {
+	volumeID, server, destination string
+	stop                          bool
+	// one is the one database to dump, and forLink the link, by ID, of the app it's
+	// taken for (ADR 0084).
+	one, forLink string
+}
+
+// begin starts a backup, and returns it running.
+func (h *Handler) begin(ctx context.Context, t taking) (*dockwellv1.Backup, error) {
 	p, ok := authapi.PrincipalFrom(ctx)
 	if !ok {
 		return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("sign in first"))
 	}
 	client, _ := authapi.ClientFrom(ctx)
-	ref, server, err := h.volumeOf(ctx, m.GetVolumeId(), m.GetServer())
+	ref, server, err := h.volumeOf(ctx, t.volumeID, t.server)
 	if err != nil {
 		return nil, h.fail(ctx, err)
 	}
@@ -312,23 +344,42 @@ func (h *Handler) CreateBackup(ctx context.Context, req *connect.Request[dockwel
 	if err != nil {
 		return nil, err
 	}
-	destination, err := h.destination(ctx, m.GetDestination())
+	if t.one != "" {
+		// An agent from before backs up the whole volume, whatever it's asked.
+		if !s.OneDatabaseBackups() {
+			return nil, authapi.ReasonError(connect.CodeFailedPrecondition, tooOld(server.Name, t.one), "agent_too_old")
+		}
+		if err := database.CheckSQLName("database", t.one); err != nil {
+			return nil, authapi.ReasonError(connect.CodeInvalidArgument, err, "invalid")
+		}
+		if database.SystemDatabase(t.one) {
+			return nil, authapi.ReasonError(connect.CodeInvalidArgument, fmt.Errorf("%s is a database its server keeps for itself. Back up the whole volume to keep it", t.one), "invalid")
+		}
+	}
+	destination, err := h.destination(ctx, t.destination)
 	if err != nil {
 		return nil, h.fail(ctx, err)
 	}
 	b := store.Backup{
-		ID: id.New(id.Backup), EnvironmentID: ref.Scope, Volume: ref.Name, VolumeID: m.GetVolumeId(), ServerID: server.ID,
-		State: store.BackupRunning, Actor: p.Actor(), StartedAt: h.now(), Destination: m.GetDestination(),
+		ID: id.New(id.Backup), EnvironmentID: ref.Scope, Volume: ref.Name, VolumeID: t.volumeID, ServerID: server.ID,
+		State: store.BackupRunning, Actor: p.Actor(), StartedAt: h.now(), Destination: t.destination, OneDatabase: t.one, ForLink: t.forLink,
 	}
 	if err := h.db.Update(ctx, func(tx *store.Tx) error { return tx.CreateBackup(ctx, b) }); err != nil {
 		return nil, h.fail(ctx, err)
 	}
-	h.wg.Go(func() { h.run(s, b, ref, m.GetStop(), client.Surface(p), 0, destination) })
+	h.wg.Go(func() { h.run(s, b, ref, t.stop, client.Surface(p), 0, destination) })
 	out, err := h.proto(ctx, b)
 	if err != nil {
 		return nil, h.fail(ctx, err)
 	}
-	return connect.NewResponse(&dockwellv1.CreateBackupResponse{Backup: out}), nil
+	return out, nil
+}
+
+// BackUpOne starts a backup of one database alone on a volume, an app's on a server
+// it may share, taken for the app's link, by ID, whose project's role the caller has
+// been checked for, and returns it running (ADR 0084).
+func (h *Handler) BackUpOne(ctx context.Context, volumeID, one, forLink, destination string) (*dockwellv1.Backup, error) {
+	return h.begin(ctx, taking{volumeID: volumeID, destination: destination, one: one, forLink: forLink})
 }
 
 // run takes a backup on its server, and records how that went.
@@ -349,14 +400,16 @@ func (h *Handler) run(s *agentapi.Session, b store.Backup, ref resource.Ref, sto
 	if b.PolicyID != "" {
 		h.prune(ctx, s, b, keep)
 	}
-	got, err := s.Backup(ctx, &agentv1.BackupCall{Id: b.ID, Volume: resourcepb.Ref(ref), Stop: stop})
-	h.finish(context.WithoutCancel(ctx), b, got, err, surface)
+	got, err := s.Backup(ctx, &agentv1.BackupCall{Id: b.ID, Volume: resourcepb.Ref(ref), Stop: stop, Database: b.OneDatabase})
+	done := h.finish(context.WithoutCancel(ctx), b, got, err, surface)
 	// It's on record and the volume is free before this starts, however long it takes.
-	if err == nil && destination != nil {
+	// One recorded as failed, such as the whole volume where one database was asked,
+	// goes nowhere.
+	if done && destination != nil {
 		h.send(ctx, s, b, ref, destination, surface)
 	}
 	// Only once it's whole: a run that fails takes nothing away.
-	if err == nil && b.PolicyID != "" {
+	if done && b.PolicyID != "" {
 		h.prune(context.WithoutCancel(ctx), s, b, keep)
 	}
 }
@@ -400,19 +453,31 @@ func copyCutShort(destination string) string {
 	return "The control plane stopped while this was sent, so it isn't on " + destination + ". It's safe on its server. Take another to send one"
 }
 
+// tooOld is a backup of one database alone that a server's agent can't take, as one
+// from before takes the whole volume, whatever it's asked (ADR 0084).
+func tooOld(server, one string) error {
+	return fmt.Errorf("%s's agent backs up a whole volume, not one database alone, so %s isn't backed up. Update the agent to the control plane's version, then back it up again", server, one)
+}
+
 // finish records how a backup ended, and says so on the timeline.
-func (h *Handler) finish(ctx context.Context, b store.Backup, got *agentv1.BackupResult, failed error, surface string) {
+func (h *Handler) finish(ctx context.Context, b store.Backup, got *agentv1.BackupResult, failed error, surface string) (done bool) {
 	now := h.now()
 	b.FinishedAt = &now
 	action := ActionTaken
-	if failed != nil {
+	switch {
+	case failed != nil:
 		b.State, action = store.BackupFailed, ActionFailed
 		plain, _ := resource.Explain(failed)
 		b.Error = plain
 		if errors.Is(failed, context.Canceled) {
 			b.Error = "The control plane stopped while this ran, so its server stopped it too. Take another."
 		}
-	} else {
+	case b.OneDatabase != "" && got.GetOneDatabase() != b.OneDatabase:
+		// It's what the agent says it dumped that counts, never what it was asked: one
+		// from before backs up the whole volume, which isn't the app's to restore.
+		b.State, action = store.BackupFailed, ActionFailed
+		b.Error = fmt.Sprintf("This server's agent backed up the whole volume, not %s alone, so it isn't kept as the app's. Update the agent to the control plane's version, then back it up again.", b.OneDatabase)
+	default:
 		b.State = store.BackupDone
 		b.Method, b.Database = resourcepb.BackupMethodFrom(got.GetMethod()), got.GetDatabase()
 		b.SizeBytes, b.SHA256, b.FilesChanged = got.GetSizeBytes(), got.GetSha256(), got.GetFilesChanged()
@@ -420,7 +485,7 @@ func (h *Handler) finish(ctx context.Context, b store.Backup, got *agentv1.Backu
 	detail, err := json.Marshal(Told{ID: b.ID, Volume: b.Volume, Method: b.Method, Size: b.SizeBytes, Error: b.Error})
 	if err != nil {
 		h.logger.ErrorContext(ctx, "can't record a backup", slog.String("backup", b.ID), slog.String("error", err.Error()))
-		return
+		return b.State == store.BackupDone
 	}
 	err = h.db.Update(ctx, func(tx *store.Tx) error {
 		if err := tx.FinishBackup(ctx, b); err != nil {
@@ -444,11 +509,12 @@ func (h *Handler) finish(ctx context.Context, b store.Backup, got *agentv1.Backu
 	})
 	if err != nil {
 		h.logger.ErrorContext(ctx, "can't record how a backup ended", slog.String("backup", b.ID), slog.String("error", err.Error()))
-		return
+		return b.State == store.BackupDone
 	}
 	if failed != nil {
 		h.logger.WarnContext(ctx, "a backup failed", slog.String("backup", b.ID), slog.String("volume", b.Volume), slog.String("error", failed.Error()))
 	}
+	return b.State == store.BackupDone
 }
 
 // GetBackup returns one backup.
@@ -480,15 +546,30 @@ func (h *Handler) backup(ctx context.Context, backupID string) (store.Backup, er
 // ListBackups returns a page of backups, newest first.
 func (h *Handler) ListBackups(ctx context.Context, req *connect.Request[dockwellv1.ListBackupsRequest]) (*connect.Response[dockwellv1.ListBackupsResponse], error) {
 	m := req.Msg
-	size, err := paging.Size(m.GetPageSize(), DefaultPageSize, MaxPageSize)
+	out, err := h.list(ctx, store.BackupFilter{VolumeID: m.GetVolumeId(), EnvironmentID: m.GetEnvironmentId(), OneDatabase: m.GetDatabaseName()}, m.GetPageSize(), m.GetPageToken(), "ListBackups")
 	if err != nil {
 		return nil, err
 	}
-	cursor, more, err := paging.Read(m.GetPageToken(), "ListBackups")
+	return connect.NewResponse(out), nil
+}
+
+// ListFor lists the backups taken for an app's link, by ID, whose project's role the
+// caller has been checked for (ADR 0084).
+func (h *Handler) ListFor(ctx context.Context, forLink string, pageSize int32, pageToken string) (*dockwellv1.ListBackupsResponse, error) {
+	return h.list(ctx, store.BackupFilter{ForLink: forLink}, pageSize, pageToken, "ListCatalogNeedBackups")
+}
+
+// list is a page of the backups f keeps, newest first.
+func (h *Handler) list(ctx context.Context, f store.BackupFilter, pageSize int32, pageToken, call string) (*dockwellv1.ListBackupsResponse, error) {
+	size, err := paging.Size(pageSize, DefaultPageSize, MaxPageSize)
 	if err != nil {
 		return nil, err
 	}
-	f := store.BackupFilter{VolumeID: m.GetVolumeId(), EnvironmentID: m.GetEnvironmentId(), Limit: size + 1}
+	cursor, more, err := paging.Read(pageToken, call)
+	if err != nil {
+		return nil, err
+	}
+	f.Limit = size + 1
 	if more {
 		f.AfterAt, f.AfterID = &cursor.At, cursor.ID
 	}
@@ -526,7 +607,7 @@ func (h *Handler) ListBackups(ctx context.Context, req *connect.Request[dockwell
 	if err != nil {
 		return nil, h.fail(ctx, err)
 	}
-	return connect.NewResponse(out), nil
+	return out, nil
 }
 
 // DeleteBackup removes a backup from its server and from the record.
@@ -682,17 +763,54 @@ func (h *Handler) deleteOn(ctx context.Context, s *agentapi.Session, b *store.Ba
 	return got.GetCopyError(), nil
 }
 
-// RestoreBackup plans restoring a backup, as a change.
+// RestoreBackup plans restoring a backup of a whole volume, as a change. A database
+// server other projects' apps share takes a role in each, or an admin, its name
+// typed, and a plan that names what each app loses (ADR 0084).
 func (h *Handler) RestoreBackup(ctx context.Context, req *connect.Request[dockwellv1.RestoreBackupRequest]) (*connect.Response[dockwellv1.RestoreBackupResponse], error) {
 	b, err := h.backup(ctx, req.Msg.GetId())
 	if err != nil {
 		return nil, h.fail(ctx, err)
 	}
+	if b.OneDatabase != "" {
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s holds %s alone, an app's database, which restores from that app's page. Restore it there", b.ID, b.OneDatabase), "restore_from_app")
+	}
+	ref := resource.Ref{Kind: volume.Kind, Scope: b.EnvironmentID, Name: b.Volume}
+	notes, err := h.wholeServer(ctx, ref, &b, req.Msg.GetConfirm())
+	if err != nil {
+		return nil, err
+	}
+	c, err := h.restore(ctx, &b, ref, revision.RestoreAs{Notes: notes}, strings.TrimSpace(req.Msg.GetSummary()))
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&dockwellv1.RestoreBackupResponse{Change: c}), nil
+}
+
+// RestoreOne plans bringing back one database alone from a backup taken for an app's
+// link, by its ID and as its ref, whose project's role the caller has been checked
+// for: the engine checks it again, where the link is (ADR 0084).
+func (h *Handler) RestoreOne(ctx context.Context, backupID, forLink, dbName string, link resource.Ref, summary string) (*dockwellv1.Change, error) {
+	b, err := h.backup(ctx, backupID)
+	if err != nil {
+		return nil, h.fail(ctx, err)
+	}
+	if b.ForLink != forLink || b.OneDatabase == "" {
+		return nil, authapi.ReasonError(connect.CodeNotFound, fmt.Errorf("there's no backup %s of this app's database. List its backups to find one", backupID), "not_found")
+	}
+	if b.OneDatabase != dbName {
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s holds %s, and this app's database is %s now, so it isn't restored. Choose a backup of %s", b.ID, b.OneDatabase, dbName, dbName), "other_database")
+	}
+	ref := resource.Ref{Kind: volume.Kind, Scope: b.EnvironmentID, Name: b.Volume}
+	return h.restore(ctx, &b, ref, revision.RestoreAs{For: link}, cmp.Or(strings.TrimSpace(summary), "Restore "+b.OneDatabase))
+}
+
+// restore plans restoring b into ref, as as says.
+func (h *Handler) restore(ctx context.Context, b *store.Backup, ref resource.Ref, as revision.RestoreAs, summary string) (*dockwellv1.Change, error) {
 	if b.State != store.BackupDone {
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s is %s, so there's nothing to restore. Choose one that finished", b.ID, b.State), "not_restorable")
 	}
 	if b.CopyKey != "" {
-		can, err := h.restorable(ctx, &b)
+		can, err := h.restorable(ctx, b)
 		if err != nil {
 			return nil, h.fail(ctx, err)
 		}
@@ -700,15 +818,10 @@ func (h *Handler) RestoreBackup(ctx context.Context, req *connect.Request[dockwe
 			return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s isn't on a server that can restore it now. Fetch it from %s onto a server that has %s, then restore it", b.ID, b.Destination, b.Volume), "fetch_first")
 		}
 	}
-	c, err := h.changes.Planned(ctx, func(who revision.By) (*revision.Plan, error) {
-		ref := resource.Ref{Kind: volume.Kind, Scope: b.EnvironmentID, Name: b.Volume}
+	return h.changes.Planned(ctx, func(who revision.By) (*revision.Plan, error) {
 		source := resource.RestoreSource{Backup: b.ID, Server: b.ServerID}
-		return h.engine.Restore(ctx, ref, source, who, strings.TrimSpace(req.Msg.GetSummary()))
+		return h.engine.RestoreWith(ctx, ref, source, as, who, summary)
 	})
-	if err != nil {
-		return nil, err
-	}
-	return connect.NewResponse(&dockwellv1.RestoreBackupResponse{Change: c}), nil
 }
 
 var states = map[string]dockwellv1.BackupState{
@@ -865,7 +978,7 @@ func (h *Handler) protoIn(ctx context.Context, tx *store.Tx, f *rowFacts, b *sto
 		Destination: b.Destination, Copy: copied, CopyError: b.CopyError, OnServer: here,
 		FetchError: b.FetchError, SealedEarlier: b.CopyKey != "" && !f.opens(b),
 		Id: b.ID, EnvironmentId: b.EnvironmentID, Volume: b.Volume, VolumeId: b.VolumeID, ServerId: b.ServerID, ServerName: f.look.Name(b.ServerID),
-		State: states[b.State], Method: resourcepb.BackupMethod(b.Method), Database: b.Database, SizeBytes: b.SizeBytes, Sha256: b.SHA256,
+		State: states[b.State], Method: resourcepb.BackupMethod(b.Method), Database: b.Database, DatabaseName: b.OneDatabase, SizeBytes: b.SizeBytes, Sha256: b.SHA256,
 		StartedAt: timestamppb.New(b.StartedAt), Actor: f.look.Actor(b.Actor), Error: b.Error, FilesChanged: b.FilesChanged, PolicyId: b.PolicyID,
 	}
 	if b.CopyKey != "" && !here {

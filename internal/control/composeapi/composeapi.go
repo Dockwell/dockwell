@@ -296,8 +296,10 @@ type planning struct {
 	notes   []revision.Note
 	// deletes are what goes with this, after everything else, in this order.
 	deletes []resource.Ref
-	// backUp are the volumes to back up before anything else.
-	backUp []resource.Ref
+	// backUp are the volumes to back up before anything else, and backUpOne the apps'
+	// databases to dump alone first, on servers they share (ADR 0084).
+	backUp    []resource.Ref
+	backUpOne []revision.OneBackup
 	// skipBackup leaves out the backup a database's move takes first.
 	skipBackup bool
 	// intent is what the plan is for, when the method proposing it knows.
@@ -458,7 +460,7 @@ func (h *Handler) plan(ctx context.Context, m *dockwellv1.ImportComposeRequest, 
 			return "servers"
 		}
 		return ""
-	}, changes.Also{Edits: place.made, BackUp: also.backUp, SkipBackup: also.skipBackup, Intent: also.intent, Notes: slices.Concat(also.notes, updates, planNotes(env, stack.Notices), exposedNotes(env, stack.Exposed, stack.ExposedMore, m.GetVariables()), rotationNotes(env, stack.Rotations))})
+	}, changes.Also{Edits: place.made, BackUp: also.backUp, BackUpOne: also.backUpOne, SkipBackup: also.skipBackup, Intent: also.intent, Notes: slices.Concat(also.notes, updates, planNotes(env, stack.Notices), exposedNotes(env, stack.Exposed, stack.ExposedMore, m.GetVariables()), rotationNotes(env, stack.Rotations))})
 }
 
 // usersAfterTheirServers moves each database user the edits make in env right after

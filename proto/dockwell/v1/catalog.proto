@@ -6,6 +6,7 @@ package dockwell.v1;
 
 import "dockwell/catalog/v1alpha1/entry.proto";
 import "dockwell/resource/v1alpha1/specs.proto";
+import "dockwell/v1/backup.proto";
 import "dockwell/v1/change.proto";
 import "dockwell/v1/options.proto";
 import "google/api/annotations.proto";
@@ -128,6 +129,53 @@ service CatalogService {
     option (dockwell.v1.command) = {verb: "open"};
     option (google.api.http) = {
       post: "/v1/catalog/installs/{id}:open"
+      body: "*"
+    };
+  }
+
+  // BackUpCatalogNeed backs up an install's database alone, a dump of the one
+  // database its need has on the server that meets it, which may be another
+  // project's, as its owner, never the server's administrator: what the app's page
+  // backs up. It needs a role in the install's project alone, and returns the backup
+  // running; follow it with GetBackup (ADR 0084).
+  rpc BackUpCatalogNeed(BackUpCatalogNeedRequest) returns (BackUpCatalogNeedResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.command) = {verb: "back-up"};
+    option (google.api.http) = {
+      post: "/v1/catalog/installs/{id}:back-up"
+      body: "*"
+    };
+  }
+
+  // ListCatalogNeedBackups lists the backups of an install's database taken for it,
+  // newest first, as BackUpCatalogNeed takes them (ADR 0084).
+  rpc ListCatalogNeedBackups(ListCatalogNeedBackupsRequest) returns (ListCatalogNeedBackupsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.command) = {verb: "backups"};
+    option (google.api.http) = {get: "/v1/catalog/installs/{id}/backups"};
+  }
+
+  // RestoreCatalogNeed plans bringing an install's database back alone from a
+  // backup taken for it, ready to apply or discard: nothing stops, the app's user
+  // can't sign in while it loads, what the database holds now is kept for 7 days,
+  // which undoing it puts back, and the rest of the server stays as it is. It needs
+  // a role in the install's project, not the server's, as it changes only the app's
+  // own database (ADR 0084).
+  rpc RestoreCatalogNeed(RestoreCatalogNeedRequest) returns (RestoreCatalogNeedResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.command) = {verb: "restore"};
+    option (google.api.http) = {
+      post: "/v1/catalog/installs/{id}:restore"
       body: "*"
     };
   }
@@ -590,6 +638,58 @@ message SetCatalogNeedRequest {
 
 // SetCatalogNeedResponse carries the planned change.
 message SetCatalogNeedResponse {
+  // The change, planned, with its plan.
+  Change change = 1;
+}
+
+// BackUpCatalogNeedRequest names an install's database to back up.
+message BackUpCatalogNeedRequest {
+  // The install's project, by name or ID.
+  string id = 1;
+  // The need, by its name in the entry, such as "db".
+  string need = 2;
+  // A backup destination it goes to as well, by name.
+  string destination = 3;
+}
+
+// BackUpCatalogNeedResponse carries the backup, running.
+message BackUpCatalogNeedResponse {
+  Backup backup = 1;
+}
+
+// ListCatalogNeedBackupsRequest asks for a page of an install's database's backups.
+message ListCatalogNeedBackupsRequest {
+  // The install's project, by name or ID.
+  string id = 1;
+  // The need, by its name in the entry.
+  string need = 2;
+  // How many to return: 50 unless set, and 200 at most.
+  int32 page_size = 3;
+  // Where to start: the next_page_token of the page before.
+  string page_token = 4;
+}
+
+// ListCatalogNeedBackupsResponse is a page of them.
+message ListCatalogNeedBackupsResponse {
+  repeated Backup backups = 1;
+  // Where the next page starts. Empty on the last.
+  string next_page_token = 2;
+}
+
+// RestoreCatalogNeedRequest names a backup of an install's database to bring back.
+message RestoreCatalogNeedRequest {
+  // The install's project, by name or ID.
+  string id = 1;
+  // The need, by its name in the entry.
+  string need = 2;
+  // The backup's ID: one taken for this install's need.
+  string backup_id = 3;
+  // What it's for, for the timeline. Empty says what it restores.
+  string summary = 4;
+}
+
+// RestoreCatalogNeedResponse carries the planned change.
+message RestoreCatalogNeedResponse {
   // The change, planned, with its plan.
   Change change = 1;
 }

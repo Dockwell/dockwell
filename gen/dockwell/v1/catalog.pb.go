@@ -1714,6 +1714,361 @@ func (x *SetCatalogNeedResponse) GetChange() *Change {
 	return nil
 }
 
+// BackUpCatalogNeedRequest names an install's database to back up.
+type BackUpCatalogNeedRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The install's project, by name or ID.
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// The need, by its name in the entry, such as "db".
+	Need string `protobuf:"bytes,2,opt,name=need,proto3" json:"need,omitempty"`
+	// A backup destination it goes to as well, by name.
+	Destination   string `protobuf:"bytes,3,opt,name=destination,proto3" json:"destination,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BackUpCatalogNeedRequest) Reset() {
+	*x = BackUpCatalogNeedRequest{}
+	mi := &file_dockwell_v1_catalog_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BackUpCatalogNeedRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BackUpCatalogNeedRequest) ProtoMessage() {}
+
+func (x *BackUpCatalogNeedRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_catalog_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BackUpCatalogNeedRequest.ProtoReflect.Descriptor instead.
+func (*BackUpCatalogNeedRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_catalog_proto_rawDescGZIP(), []int{20}
+}
+
+func (x *BackUpCatalogNeedRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *BackUpCatalogNeedRequest) GetNeed() string {
+	if x != nil {
+		return x.Need
+	}
+	return ""
+}
+
+func (x *BackUpCatalogNeedRequest) GetDestination() string {
+	if x != nil {
+		return x.Destination
+	}
+	return ""
+}
+
+// BackUpCatalogNeedResponse carries the backup, running.
+type BackUpCatalogNeedResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Backup        *Backup                `protobuf:"bytes,1,opt,name=backup,proto3" json:"backup,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BackUpCatalogNeedResponse) Reset() {
+	*x = BackUpCatalogNeedResponse{}
+	mi := &file_dockwell_v1_catalog_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BackUpCatalogNeedResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BackUpCatalogNeedResponse) ProtoMessage() {}
+
+func (x *BackUpCatalogNeedResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_catalog_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BackUpCatalogNeedResponse.ProtoReflect.Descriptor instead.
+func (*BackUpCatalogNeedResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_catalog_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *BackUpCatalogNeedResponse) GetBackup() *Backup {
+	if x != nil {
+		return x.Backup
+	}
+	return nil
+}
+
+// ListCatalogNeedBackupsRequest asks for a page of an install's database's backups.
+type ListCatalogNeedBackupsRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The install's project, by name or ID.
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// The need, by its name in the entry.
+	Need string `protobuf:"bytes,2,opt,name=need,proto3" json:"need,omitempty"`
+	// How many to return: 50 unless set, and 200 at most.
+	PageSize int32 `protobuf:"varint,3,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	// Where to start: the next_page_token of the page before.
+	PageToken     string `protobuf:"bytes,4,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListCatalogNeedBackupsRequest) Reset() {
+	*x = ListCatalogNeedBackupsRequest{}
+	mi := &file_dockwell_v1_catalog_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListCatalogNeedBackupsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListCatalogNeedBackupsRequest) ProtoMessage() {}
+
+func (x *ListCatalogNeedBackupsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_catalog_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListCatalogNeedBackupsRequest.ProtoReflect.Descriptor instead.
+func (*ListCatalogNeedBackupsRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_catalog_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *ListCatalogNeedBackupsRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *ListCatalogNeedBackupsRequest) GetNeed() string {
+	if x != nil {
+		return x.Need
+	}
+	return ""
+}
+
+func (x *ListCatalogNeedBackupsRequest) GetPageSize() int32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
+func (x *ListCatalogNeedBackupsRequest) GetPageToken() string {
+	if x != nil {
+		return x.PageToken
+	}
+	return ""
+}
+
+// ListCatalogNeedBackupsResponse is a page of them.
+type ListCatalogNeedBackupsResponse struct {
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	Backups []*Backup              `protobuf:"bytes,1,rep,name=backups,proto3" json:"backups,omitempty"`
+	// Where the next page starts. Empty on the last.
+	NextPageToken string `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListCatalogNeedBackupsResponse) Reset() {
+	*x = ListCatalogNeedBackupsResponse{}
+	mi := &file_dockwell_v1_catalog_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListCatalogNeedBackupsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListCatalogNeedBackupsResponse) ProtoMessage() {}
+
+func (x *ListCatalogNeedBackupsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_catalog_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListCatalogNeedBackupsResponse.ProtoReflect.Descriptor instead.
+func (*ListCatalogNeedBackupsResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_catalog_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *ListCatalogNeedBackupsResponse) GetBackups() []*Backup {
+	if x != nil {
+		return x.Backups
+	}
+	return nil
+}
+
+func (x *ListCatalogNeedBackupsResponse) GetNextPageToken() string {
+	if x != nil {
+		return x.NextPageToken
+	}
+	return ""
+}
+
+// RestoreCatalogNeedRequest names a backup of an install's database to bring back.
+type RestoreCatalogNeedRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The install's project, by name or ID.
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// The need, by its name in the entry.
+	Need string `protobuf:"bytes,2,opt,name=need,proto3" json:"need,omitempty"`
+	// The backup's ID: one taken for this install's need.
+	BackupId string `protobuf:"bytes,3,opt,name=backup_id,json=backupId,proto3" json:"backup_id,omitempty"`
+	// What it's for, for the timeline. Empty says what it restores.
+	Summary       string `protobuf:"bytes,4,opt,name=summary,proto3" json:"summary,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RestoreCatalogNeedRequest) Reset() {
+	*x = RestoreCatalogNeedRequest{}
+	mi := &file_dockwell_v1_catalog_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RestoreCatalogNeedRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RestoreCatalogNeedRequest) ProtoMessage() {}
+
+func (x *RestoreCatalogNeedRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_catalog_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RestoreCatalogNeedRequest.ProtoReflect.Descriptor instead.
+func (*RestoreCatalogNeedRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_catalog_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *RestoreCatalogNeedRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *RestoreCatalogNeedRequest) GetNeed() string {
+	if x != nil {
+		return x.Need
+	}
+	return ""
+}
+
+func (x *RestoreCatalogNeedRequest) GetBackupId() string {
+	if x != nil {
+		return x.BackupId
+	}
+	return ""
+}
+
+func (x *RestoreCatalogNeedRequest) GetSummary() string {
+	if x != nil {
+		return x.Summary
+	}
+	return ""
+}
+
+// RestoreCatalogNeedResponse carries the planned change.
+type RestoreCatalogNeedResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The change, planned, with its plan.
+	Change        *Change `protobuf:"bytes,1,opt,name=change,proto3" json:"change,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RestoreCatalogNeedResponse) Reset() {
+	*x = RestoreCatalogNeedResponse{}
+	mi := &file_dockwell_v1_catalog_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RestoreCatalogNeedResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RestoreCatalogNeedResponse) ProtoMessage() {}
+
+func (x *RestoreCatalogNeedResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_catalog_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RestoreCatalogNeedResponse.ProtoReflect.Descriptor instead.
+func (*RestoreCatalogNeedResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_catalog_proto_rawDescGZIP(), []int{25}
+}
+
+func (x *RestoreCatalogNeedResponse) GetChange() *Change {
+	if x != nil {
+		return x.Change
+	}
+	return nil
+}
+
 // OpenCatalogInstallRequest names the install to open.
 type OpenCatalogInstallRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -1725,7 +2080,7 @@ type OpenCatalogInstallRequest struct {
 
 func (x *OpenCatalogInstallRequest) Reset() {
 	*x = OpenCatalogInstallRequest{}
-	mi := &file_dockwell_v1_catalog_proto_msgTypes[20]
+	mi := &file_dockwell_v1_catalog_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1737,7 +2092,7 @@ func (x *OpenCatalogInstallRequest) String() string {
 func (*OpenCatalogInstallRequest) ProtoMessage() {}
 
 func (x *OpenCatalogInstallRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_catalog_proto_msgTypes[20]
+	mi := &file_dockwell_v1_catalog_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1750,7 +2105,7 @@ func (x *OpenCatalogInstallRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OpenCatalogInstallRequest.ProtoReflect.Descriptor instead.
 func (*OpenCatalogInstallRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_catalog_proto_rawDescGZIP(), []int{20}
+	return file_dockwell_v1_catalog_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *OpenCatalogInstallRequest) GetId() string {
@@ -1771,7 +2126,7 @@ type OpenCatalogInstallResponse struct {
 
 func (x *OpenCatalogInstallResponse) Reset() {
 	*x = OpenCatalogInstallResponse{}
-	mi := &file_dockwell_v1_catalog_proto_msgTypes[21]
+	mi := &file_dockwell_v1_catalog_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1783,7 +2138,7 @@ func (x *OpenCatalogInstallResponse) String() string {
 func (*OpenCatalogInstallResponse) ProtoMessage() {}
 
 func (x *OpenCatalogInstallResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_catalog_proto_msgTypes[21]
+	mi := &file_dockwell_v1_catalog_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1796,7 +2151,7 @@ func (x *OpenCatalogInstallResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OpenCatalogInstallResponse.ProtoReflect.Descriptor instead.
 func (*OpenCatalogInstallResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_catalog_proto_rawDescGZIP(), []int{21}
+	return file_dockwell_v1_catalog_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *OpenCatalogInstallResponse) GetChange() *Change {
@@ -1831,7 +2186,7 @@ type SetCatalogSourceRequest struct {
 
 func (x *SetCatalogSourceRequest) Reset() {
 	*x = SetCatalogSourceRequest{}
-	mi := &file_dockwell_v1_catalog_proto_msgTypes[22]
+	mi := &file_dockwell_v1_catalog_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1843,7 +2198,7 @@ func (x *SetCatalogSourceRequest) String() string {
 func (*SetCatalogSourceRequest) ProtoMessage() {}
 
 func (x *SetCatalogSourceRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_catalog_proto_msgTypes[22]
+	mi := &file_dockwell_v1_catalog_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1856,7 +2211,7 @@ func (x *SetCatalogSourceRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetCatalogSourceRequest.ProtoReflect.Descriptor instead.
 func (*SetCatalogSourceRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_catalog_proto_rawDescGZIP(), []int{22}
+	return file_dockwell_v1_catalog_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *SetCatalogSourceRequest) GetName() string {
@@ -1912,7 +2267,7 @@ type SetCatalogSourceResponse struct {
 
 func (x *SetCatalogSourceResponse) Reset() {
 	*x = SetCatalogSourceResponse{}
-	mi := &file_dockwell_v1_catalog_proto_msgTypes[23]
+	mi := &file_dockwell_v1_catalog_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1924,7 +2279,7 @@ func (x *SetCatalogSourceResponse) String() string {
 func (*SetCatalogSourceResponse) ProtoMessage() {}
 
 func (x *SetCatalogSourceResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_catalog_proto_msgTypes[23]
+	mi := &file_dockwell_v1_catalog_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1937,7 +2292,7 @@ func (x *SetCatalogSourceResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetCatalogSourceResponse.ProtoReflect.Descriptor instead.
 func (*SetCatalogSourceResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_catalog_proto_rawDescGZIP(), []int{23}
+	return file_dockwell_v1_catalog_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *SetCatalogSourceResponse) GetChange() *Change {
@@ -1956,7 +2311,7 @@ type ListCatalogSourcesRequest struct {
 
 func (x *ListCatalogSourcesRequest) Reset() {
 	*x = ListCatalogSourcesRequest{}
-	mi := &file_dockwell_v1_catalog_proto_msgTypes[24]
+	mi := &file_dockwell_v1_catalog_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1968,7 +2323,7 @@ func (x *ListCatalogSourcesRequest) String() string {
 func (*ListCatalogSourcesRequest) ProtoMessage() {}
 
 func (x *ListCatalogSourcesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_catalog_proto_msgTypes[24]
+	mi := &file_dockwell_v1_catalog_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1981,7 +2336,7 @@ func (x *ListCatalogSourcesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListCatalogSourcesRequest.ProtoReflect.Descriptor instead.
 func (*ListCatalogSourcesRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_catalog_proto_rawDescGZIP(), []int{24}
+	return file_dockwell_v1_catalog_proto_rawDescGZIP(), []int{30}
 }
 
 // ListCatalogSourcesResponse is every source.
@@ -1995,7 +2350,7 @@ type ListCatalogSourcesResponse struct {
 
 func (x *ListCatalogSourcesResponse) Reset() {
 	*x = ListCatalogSourcesResponse{}
-	mi := &file_dockwell_v1_catalog_proto_msgTypes[25]
+	mi := &file_dockwell_v1_catalog_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2007,7 +2362,7 @@ func (x *ListCatalogSourcesResponse) String() string {
 func (*ListCatalogSourcesResponse) ProtoMessage() {}
 
 func (x *ListCatalogSourcesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_catalog_proto_msgTypes[25]
+	mi := &file_dockwell_v1_catalog_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2020,7 +2375,7 @@ func (x *ListCatalogSourcesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListCatalogSourcesResponse.ProtoReflect.Descriptor instead.
 func (*ListCatalogSourcesResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_catalog_proto_rawDescGZIP(), []int{25}
+	return file_dockwell_v1_catalog_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *ListCatalogSourcesResponse) GetSources() []*CatalogSourceInfo {
@@ -2079,7 +2434,7 @@ type CatalogSourceInfo struct {
 
 func (x *CatalogSourceInfo) Reset() {
 	*x = CatalogSourceInfo{}
-	mi := &file_dockwell_v1_catalog_proto_msgTypes[26]
+	mi := &file_dockwell_v1_catalog_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2091,7 +2446,7 @@ func (x *CatalogSourceInfo) String() string {
 func (*CatalogSourceInfo) ProtoMessage() {}
 
 func (x *CatalogSourceInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_catalog_proto_msgTypes[26]
+	mi := &file_dockwell_v1_catalog_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2104,7 +2459,7 @@ func (x *CatalogSourceInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CatalogSourceInfo.ProtoReflect.Descriptor instead.
 func (*CatalogSourceInfo) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_catalog_proto_rawDescGZIP(), []int{26}
+	return file_dockwell_v1_catalog_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *CatalogSourceInfo) GetName() string {
@@ -2218,7 +2573,7 @@ type CatalogSourceRefusal struct {
 
 func (x *CatalogSourceRefusal) Reset() {
 	*x = CatalogSourceRefusal{}
-	mi := &file_dockwell_v1_catalog_proto_msgTypes[27]
+	mi := &file_dockwell_v1_catalog_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2230,7 +2585,7 @@ func (x *CatalogSourceRefusal) String() string {
 func (*CatalogSourceRefusal) ProtoMessage() {}
 
 func (x *CatalogSourceRefusal) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_catalog_proto_msgTypes[27]
+	mi := &file_dockwell_v1_catalog_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2243,7 +2598,7 @@ func (x *CatalogSourceRefusal) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CatalogSourceRefusal.ProtoReflect.Descriptor instead.
 func (*CatalogSourceRefusal) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_catalog_proto_rawDescGZIP(), []int{27}
+	return file_dockwell_v1_catalog_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *CatalogSourceRefusal) GetFile() string {
@@ -2283,7 +2638,7 @@ type ListCatalogStoresRequest struct {
 
 func (x *ListCatalogStoresRequest) Reset() {
 	*x = ListCatalogStoresRequest{}
-	mi := &file_dockwell_v1_catalog_proto_msgTypes[28]
+	mi := &file_dockwell_v1_catalog_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2295,7 +2650,7 @@ func (x *ListCatalogStoresRequest) String() string {
 func (*ListCatalogStoresRequest) ProtoMessage() {}
 
 func (x *ListCatalogStoresRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_catalog_proto_msgTypes[28]
+	mi := &file_dockwell_v1_catalog_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2308,7 +2663,7 @@ func (x *ListCatalogStoresRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListCatalogStoresRequest.ProtoReflect.Descriptor instead.
 func (*ListCatalogStoresRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_catalog_proto_rawDescGZIP(), []int{28}
+	return file_dockwell_v1_catalog_proto_rawDescGZIP(), []int{34}
 }
 
 // ListCatalogStoresResponse is every store Dockwell reads directly.
@@ -2322,7 +2677,7 @@ type ListCatalogStoresResponse struct {
 
 func (x *ListCatalogStoresResponse) Reset() {
 	*x = ListCatalogStoresResponse{}
-	mi := &file_dockwell_v1_catalog_proto_msgTypes[29]
+	mi := &file_dockwell_v1_catalog_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2334,7 +2689,7 @@ func (x *ListCatalogStoresResponse) String() string {
 func (*ListCatalogStoresResponse) ProtoMessage() {}
 
 func (x *ListCatalogStoresResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_catalog_proto_msgTypes[29]
+	mi := &file_dockwell_v1_catalog_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2347,7 +2702,7 @@ func (x *ListCatalogStoresResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListCatalogStoresResponse.ProtoReflect.Descriptor instead.
 func (*ListCatalogStoresResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_catalog_proto_rawDescGZIP(), []int{29}
+	return file_dockwell_v1_catalog_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *ListCatalogStoresResponse) GetStores() []*CatalogStore {
@@ -2398,7 +2753,7 @@ type CatalogStore struct {
 
 func (x *CatalogStore) Reset() {
 	*x = CatalogStore{}
-	mi := &file_dockwell_v1_catalog_proto_msgTypes[30]
+	mi := &file_dockwell_v1_catalog_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2410,7 +2765,7 @@ func (x *CatalogStore) String() string {
 func (*CatalogStore) ProtoMessage() {}
 
 func (x *CatalogStore) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_catalog_proto_msgTypes[30]
+	mi := &file_dockwell_v1_catalog_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2423,7 +2778,7 @@ func (x *CatalogStore) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CatalogStore.ProtoReflect.Descriptor instead.
 func (*CatalogStore) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_catalog_proto_rawDescGZIP(), []int{30}
+	return file_dockwell_v1_catalog_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *CatalogStore) GetId() string {
@@ -2528,7 +2883,7 @@ type ListCatalogSourceRefsRequest struct {
 
 func (x *ListCatalogSourceRefsRequest) Reset() {
 	*x = ListCatalogSourceRefsRequest{}
-	mi := &file_dockwell_v1_catalog_proto_msgTypes[31]
+	mi := &file_dockwell_v1_catalog_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2540,7 +2895,7 @@ func (x *ListCatalogSourceRefsRequest) String() string {
 func (*ListCatalogSourceRefsRequest) ProtoMessage() {}
 
 func (x *ListCatalogSourceRefsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_catalog_proto_msgTypes[31]
+	mi := &file_dockwell_v1_catalog_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2553,7 +2908,7 @@ func (x *ListCatalogSourceRefsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListCatalogSourceRefsRequest.ProtoReflect.Descriptor instead.
 func (*ListCatalogSourceRefsRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_catalog_proto_rawDescGZIP(), []int{31}
+	return file_dockwell_v1_catalog_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *ListCatalogSourceRefsRequest) GetRepository() string {
@@ -2585,7 +2940,7 @@ type ListCatalogSourceRefsResponse struct {
 
 func (x *ListCatalogSourceRefsResponse) Reset() {
 	*x = ListCatalogSourceRefsResponse{}
-	mi := &file_dockwell_v1_catalog_proto_msgTypes[32]
+	mi := &file_dockwell_v1_catalog_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2597,7 +2952,7 @@ func (x *ListCatalogSourceRefsResponse) String() string {
 func (*ListCatalogSourceRefsResponse) ProtoMessage() {}
 
 func (x *ListCatalogSourceRefsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_catalog_proto_msgTypes[32]
+	mi := &file_dockwell_v1_catalog_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2610,7 +2965,7 @@ func (x *ListCatalogSourceRefsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListCatalogSourceRefsResponse.ProtoReflect.Descriptor instead.
 func (*ListCatalogSourceRefsResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_catalog_proto_rawDescGZIP(), []int{32}
+	return file_dockwell_v1_catalog_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *ListCatalogSourceRefsResponse) GetRefs() []*CatalogSourceRef {
@@ -2657,7 +3012,7 @@ type CatalogSourceGuess struct {
 
 func (x *CatalogSourceGuess) Reset() {
 	*x = CatalogSourceGuess{}
-	mi := &file_dockwell_v1_catalog_proto_msgTypes[33]
+	mi := &file_dockwell_v1_catalog_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2669,7 +3024,7 @@ func (x *CatalogSourceGuess) String() string {
 func (*CatalogSourceGuess) ProtoMessage() {}
 
 func (x *CatalogSourceGuess) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_catalog_proto_msgTypes[33]
+	mi := &file_dockwell_v1_catalog_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2682,7 +3037,7 @@ func (x *CatalogSourceGuess) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CatalogSourceGuess.ProtoReflect.Descriptor instead.
 func (*CatalogSourceGuess) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_catalog_proto_rawDescGZIP(), []int{33}
+	return file_dockwell_v1_catalog_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *CatalogSourceGuess) GetFormat() v1alpha11.CatalogFormat {
@@ -2719,7 +3074,7 @@ type CatalogSourceRef struct {
 
 func (x *CatalogSourceRef) Reset() {
 	*x = CatalogSourceRef{}
-	mi := &file_dockwell_v1_catalog_proto_msgTypes[34]
+	mi := &file_dockwell_v1_catalog_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2731,7 +3086,7 @@ func (x *CatalogSourceRef) String() string {
 func (*CatalogSourceRef) ProtoMessage() {}
 
 func (x *CatalogSourceRef) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_catalog_proto_msgTypes[34]
+	mi := &file_dockwell_v1_catalog_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2744,7 +3099,7 @@ func (x *CatalogSourceRef) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CatalogSourceRef.ProtoReflect.Descriptor instead.
 func (*CatalogSourceRef) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_catalog_proto_rawDescGZIP(), []int{34}
+	return file_dockwell_v1_catalog_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *CatalogSourceRef) GetName() string {
@@ -2772,7 +3127,7 @@ type CheckCatalogSourceRequest struct {
 
 func (x *CheckCatalogSourceRequest) Reset() {
 	*x = CheckCatalogSourceRequest{}
-	mi := &file_dockwell_v1_catalog_proto_msgTypes[35]
+	mi := &file_dockwell_v1_catalog_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2784,7 +3139,7 @@ func (x *CheckCatalogSourceRequest) String() string {
 func (*CheckCatalogSourceRequest) ProtoMessage() {}
 
 func (x *CheckCatalogSourceRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_catalog_proto_msgTypes[35]
+	mi := &file_dockwell_v1_catalog_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2797,7 +3152,7 @@ func (x *CheckCatalogSourceRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CheckCatalogSourceRequest.ProtoReflect.Descriptor instead.
 func (*CheckCatalogSourceRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_catalog_proto_rawDescGZIP(), []int{35}
+	return file_dockwell_v1_catalog_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *CheckCatalogSourceRequest) GetName() string {
@@ -2821,7 +3176,7 @@ type CheckCatalogSourceResponse struct {
 
 func (x *CheckCatalogSourceResponse) Reset() {
 	*x = CheckCatalogSourceResponse{}
-	mi := &file_dockwell_v1_catalog_proto_msgTypes[36]
+	mi := &file_dockwell_v1_catalog_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2833,7 +3188,7 @@ func (x *CheckCatalogSourceResponse) String() string {
 func (*CheckCatalogSourceResponse) ProtoMessage() {}
 
 func (x *CheckCatalogSourceResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_catalog_proto_msgTypes[36]
+	mi := &file_dockwell_v1_catalog_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2846,7 +3201,7 @@ func (x *CheckCatalogSourceResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CheckCatalogSourceResponse.ProtoReflect.Descriptor instead.
 func (*CheckCatalogSourceResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_catalog_proto_rawDescGZIP(), []int{36}
+	return file_dockwell_v1_catalog_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *CheckCatalogSourceResponse) GetSource() *CatalogSourceInfo {
@@ -2874,7 +3229,7 @@ type RemoveCatalogSourceRequest struct {
 
 func (x *RemoveCatalogSourceRequest) Reset() {
 	*x = RemoveCatalogSourceRequest{}
-	mi := &file_dockwell_v1_catalog_proto_msgTypes[37]
+	mi := &file_dockwell_v1_catalog_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2886,7 +3241,7 @@ func (x *RemoveCatalogSourceRequest) String() string {
 func (*RemoveCatalogSourceRequest) ProtoMessage() {}
 
 func (x *RemoveCatalogSourceRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_catalog_proto_msgTypes[37]
+	mi := &file_dockwell_v1_catalog_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2899,7 +3254,7 @@ func (x *RemoveCatalogSourceRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveCatalogSourceRequest.ProtoReflect.Descriptor instead.
 func (*RemoveCatalogSourceRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_catalog_proto_rawDescGZIP(), []int{37}
+	return file_dockwell_v1_catalog_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *RemoveCatalogSourceRequest) GetName() string {
@@ -2920,7 +3275,7 @@ type RemoveCatalogSourceResponse struct {
 
 func (x *RemoveCatalogSourceResponse) Reset() {
 	*x = RemoveCatalogSourceResponse{}
-	mi := &file_dockwell_v1_catalog_proto_msgTypes[38]
+	mi := &file_dockwell_v1_catalog_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2932,7 +3287,7 @@ func (x *RemoveCatalogSourceResponse) String() string {
 func (*RemoveCatalogSourceResponse) ProtoMessage() {}
 
 func (x *RemoveCatalogSourceResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_catalog_proto_msgTypes[38]
+	mi := &file_dockwell_v1_catalog_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2945,7 +3300,7 @@ func (x *RemoveCatalogSourceResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveCatalogSourceResponse.ProtoReflect.Descriptor instead.
 func (*RemoveCatalogSourceResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_catalog_proto_rawDescGZIP(), []int{38}
+	return file_dockwell_v1_catalog_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *RemoveCatalogSourceResponse) GetChange() *Change {
@@ -2959,7 +3314,7 @@ var File_dockwell_v1_catalog_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_catalog_proto_rawDesc = "" +
 	"\n" +
-	"\x19dockwell/v1/catalog.proto\x12\vdockwell.v1\x1a%dockwell/catalog/v1alpha1/entry.proto\x1a&dockwell/resource/v1alpha1/specs.proto\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xcf\x02\n" +
+	"\x19dockwell/v1/catalog.proto\x12\vdockwell.v1\x1a%dockwell/catalog/v1alpha1/entry.proto\x1a&dockwell/resource/v1alpha1/specs.proto\x1a\x18dockwell/v1/backup.proto\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xcf\x02\n" +
 	"\x19ListCatalogEntriesRequest\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
@@ -3123,6 +3478,28 @@ const file_dockwell_v1_catalog_proto_rawDesc = "" +
 	"\vstart_empty\x18\x04 \x01(\bR\n" +
 	"startEmpty\"E\n" +
 	"\x16SetCatalogNeedResponse\x12+\n" +
+	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"`\n" +
+	"\x18BackUpCatalogNeedRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
+	"\x04need\x18\x02 \x01(\tR\x04need\x12 \n" +
+	"\vdestination\x18\x03 \x01(\tR\vdestination\"H\n" +
+	"\x19BackUpCatalogNeedResponse\x12+\n" +
+	"\x06backup\x18\x01 \x01(\v2\x13.dockwell.v1.BackupR\x06backup\"\x7f\n" +
+	"\x1dListCatalogNeedBackupsRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
+	"\x04need\x18\x02 \x01(\tR\x04need\x12\x1b\n" +
+	"\tpage_size\x18\x03 \x01(\x05R\bpageSize\x12\x1d\n" +
+	"\n" +
+	"page_token\x18\x04 \x01(\tR\tpageToken\"w\n" +
+	"\x1eListCatalogNeedBackupsResponse\x12-\n" +
+	"\abackups\x18\x01 \x03(\v2\x13.dockwell.v1.BackupR\abackups\x12&\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"v\n" +
+	"\x19RestoreCatalogNeedRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
+	"\x04need\x18\x02 \x01(\tR\x04need\x12\x1b\n" +
+	"\tbackup_id\x18\x03 \x01(\tR\bbackupId\x12\x18\n" +
+	"\asummary\x18\x04 \x01(\tR\asummary\"I\n" +
+	"\x1aRestoreCatalogNeedResponse\x12+\n" +
 	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"+\n" +
 	"\x19OpenCatalogInstallRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"I\n" +
@@ -3211,7 +3588,7 @@ const file_dockwell_v1_catalog_proto_rawDesc = "" +
 	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change*I\n" +
 	"\fCatalogOrder\x12\x1d\n" +
 	"\x19CATALOG_ORDER_UNSPECIFIED\x10\x00\x12\x1a\n" +
-	"\x16CATALOG_ORDER_FEATURED\x10\x012\xfe\x12\n" +
+	"\x16CATALOG_ORDER_FEATURED\x10\x012\xa0\x17\n" +
 	"\x0eCatalogService\x12\x95\x01\n" +
 	"\x12ListCatalogEntries\x12&.dockwell.v1.ListCatalogEntriesRequest\x1a'.dockwell.v1.ListCatalogEntriesResponse\".\xa0\xbb\x18\x01\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x03\x82\xd3\xe4\x93\x02\x15\x12\x13/v1/catalog/entries\x90\x02\x01\x12\x91\x01\n" +
 	"\x0fGetCatalogEntry\x12#.dockwell.v1.GetCatalogEntryRequest\x1a$.dockwell.v1.GetCatalogEntryResponse\"3\xa0\xbb\x18\x01\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x03\x82\xd3\xe4\x93\x02\x1a\x12\x18/v1/catalog/entries/{id}\x90\x02\x01\x12\xa7\x01\n" +
@@ -3221,7 +3598,10 @@ const file_dockwell_v1_catalog_proto_rawDesc = "" +
 	"\x13SetCatalogCompanion\x12'.dockwell.v1.SetCatalogCompanionRequest\x1a(.dockwell.v1.SetCatalogCompanionResponse\"U\xa0\xbb\x18\x02\xaa\xbb\x18\x0f\x12\rset-companion\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02,:\x01*\"'/v1/catalog/installs/{id}:set-companion\x12\xa6\x01\n" +
 	"\x0eSetCatalogNeed\x12\".dockwell.v1.SetCatalogNeedRequest\x1a#.dockwell.v1.SetCatalogNeedResponse\"K\xa0\xbb\x18\x02\xaa\xbb\x18\n" +
 	"\x12\bset-need\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02':\x01*\"\"/v1/catalog/installs/{id}:set-need\x12\xaa\x01\n" +
-	"\x12OpenCatalogInstall\x12&.dockwell.v1.OpenCatalogInstallRequest\x1a'.dockwell.v1.OpenCatalogInstallResponse\"C\xa0\xbb\x18\x02\xaa\xbb\x18\x06\x12\x04open\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02#:\x01*\"\x1e/v1/catalog/installs/{id}:open\x12\xa5\x01\n" +
+	"\x12OpenCatalogInstall\x12&.dockwell.v1.OpenCatalogInstallRequest\x1a'.dockwell.v1.OpenCatalogInstallResponse\"C\xa0\xbb\x18\x02\xaa\xbb\x18\x06\x12\x04open\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02#:\x01*\"\x1e/v1/catalog/installs/{id}:open\x12\xad\x01\n" +
+	"\x11BackUpCatalogNeed\x12%.dockwell.v1.BackUpCatalogNeedRequest\x1a&.dockwell.v1.BackUpCatalogNeedResponse\"I\xa0\xbb\x18\x03\xaa\xbb\x18\t\x12\aback-up\xc0\xbb\x18\x03Ȼ\x18\x04л\x18\x04\x82\xd3\xe4\x93\x02&:\x01*\"!/v1/catalog/installs/{id}:back-up\x12\xbc\x01\n" +
+	"\x16ListCatalogNeedBackups\x12*.dockwell.v1.ListCatalogNeedBackupsRequest\x1a+.dockwell.v1.ListCatalogNeedBackupsResponse\"I\xa0\xbb\x18\x01\xaa\xbb\x18\t\x12\abackups\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x04\x82\xd3\xe4\x93\x02#\x12!/v1/catalog/installs/{id}/backups\x90\x02\x01\x12\xb0\x01\n" +
+	"\x12RestoreCatalogNeed\x12&.dockwell.v1.RestoreCatalogNeedRequest\x1a'.dockwell.v1.RestoreCatalogNeedResponse\"I\xa0\xbb\x18\x02\xaa\xbb\x18\t\x12\arestore\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02&:\x01*\"!/v1/catalog/installs/{id}:restore\x12\xa5\x01\n" +
 	"\x13InstallCatalogEntry\x12'.dockwell.v1.InstallCatalogEntryRequest\x1a(.dockwell.v1.InstallCatalogEntryResponse\";\xa0\xbb\x18\x02\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02%:\x01*\" /v1/catalog/entries/{id}:install\x12\xaa\x01\n" +
 	"\x10SetCatalogSource\x12$.dockwell.v1.SetCatalogSourceRequest\x1a%.dockwell.v1.SetCatalogSourceResponse\"I\xa0\xbb\x18\x02\xaa\xbb\x18\f\x12\n" +
 	"set-source\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02#:\x01*\"\x1e/v1/catalog/sources/{name}:set\x12\xa2\x01\n" +
@@ -3245,150 +3625,166 @@ func file_dockwell_v1_catalog_proto_rawDescGZIP() []byte {
 }
 
 var file_dockwell_v1_catalog_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_dockwell_v1_catalog_proto_msgTypes = make([]protoimpl.MessageInfo, 50)
+var file_dockwell_v1_catalog_proto_msgTypes = make([]protoimpl.MessageInfo, 56)
 var file_dockwell_v1_catalog_proto_goTypes = []any{
-	(CatalogOrder)(0),                     // 0: dockwell.v1.CatalogOrder
-	(*ListCatalogEntriesRequest)(nil),     // 1: dockwell.v1.ListCatalogEntriesRequest
-	(*ListCatalogEntriesResponse)(nil),    // 2: dockwell.v1.ListCatalogEntriesResponse
-	(*CatalogCategoryCount)(nil),          // 3: dockwell.v1.CatalogCategoryCount
-	(*CatalogAlternative)(nil),            // 4: dockwell.v1.CatalogAlternative
-	(*GetCatalogEntryRequest)(nil),        // 5: dockwell.v1.GetCatalogEntryRequest
-	(*GetCatalogEntryResponse)(nil),       // 6: dockwell.v1.GetCatalogEntryResponse
-	(*CatalogNeedOption)(nil),             // 7: dockwell.v1.CatalogNeedOption
-	(*CatalogPart)(nil),                   // 8: dockwell.v1.CatalogPart
-	(*ListCatalogInstallsRequest)(nil),    // 9: dockwell.v1.ListCatalogInstallsRequest
-	(*ListCatalogInstallsResponse)(nil),   // 10: dockwell.v1.ListCatalogInstallsResponse
-	(*CatalogInstall)(nil),                // 11: dockwell.v1.CatalogInstall
-	(*CatalogUpgrade)(nil),                // 12: dockwell.v1.CatalogUpgrade
-	(*InstallCatalogEntryRequest)(nil),    // 13: dockwell.v1.InstallCatalogEntryRequest
-	(*InstallCatalogEntryResponse)(nil),   // 14: dockwell.v1.InstallCatalogEntryResponse
-	(*UpgradeCatalogInstallRequest)(nil),  // 15: dockwell.v1.UpgradeCatalogInstallRequest
-	(*UpgradeCatalogInstallResponse)(nil), // 16: dockwell.v1.UpgradeCatalogInstallResponse
-	(*SetCatalogCompanionRequest)(nil),    // 17: dockwell.v1.SetCatalogCompanionRequest
-	(*SetCatalogCompanionResponse)(nil),   // 18: dockwell.v1.SetCatalogCompanionResponse
-	(*SetCatalogNeedRequest)(nil),         // 19: dockwell.v1.SetCatalogNeedRequest
-	(*SetCatalogNeedResponse)(nil),        // 20: dockwell.v1.SetCatalogNeedResponse
-	(*OpenCatalogInstallRequest)(nil),     // 21: dockwell.v1.OpenCatalogInstallRequest
-	(*OpenCatalogInstallResponse)(nil),    // 22: dockwell.v1.OpenCatalogInstallResponse
-	(*SetCatalogSourceRequest)(nil),       // 23: dockwell.v1.SetCatalogSourceRequest
-	(*SetCatalogSourceResponse)(nil),      // 24: dockwell.v1.SetCatalogSourceResponse
-	(*ListCatalogSourcesRequest)(nil),     // 25: dockwell.v1.ListCatalogSourcesRequest
-	(*ListCatalogSourcesResponse)(nil),    // 26: dockwell.v1.ListCatalogSourcesResponse
-	(*CatalogSourceInfo)(nil),             // 27: dockwell.v1.CatalogSourceInfo
-	(*CatalogSourceRefusal)(nil),          // 28: dockwell.v1.CatalogSourceRefusal
-	(*ListCatalogStoresRequest)(nil),      // 29: dockwell.v1.ListCatalogStoresRequest
-	(*ListCatalogStoresResponse)(nil),     // 30: dockwell.v1.ListCatalogStoresResponse
-	(*CatalogStore)(nil),                  // 31: dockwell.v1.CatalogStore
-	(*ListCatalogSourceRefsRequest)(nil),  // 32: dockwell.v1.ListCatalogSourceRefsRequest
-	(*ListCatalogSourceRefsResponse)(nil), // 33: dockwell.v1.ListCatalogSourceRefsResponse
-	(*CatalogSourceGuess)(nil),            // 34: dockwell.v1.CatalogSourceGuess
-	(*CatalogSourceRef)(nil),              // 35: dockwell.v1.CatalogSourceRef
-	(*CheckCatalogSourceRequest)(nil),     // 36: dockwell.v1.CheckCatalogSourceRequest
-	(*CheckCatalogSourceResponse)(nil),    // 37: dockwell.v1.CheckCatalogSourceResponse
-	(*RemoveCatalogSourceRequest)(nil),    // 38: dockwell.v1.RemoveCatalogSourceRequest
-	(*RemoveCatalogSourceResponse)(nil),   // 39: dockwell.v1.RemoveCatalogSourceResponse
-	nil,                                   // 40: dockwell.v1.GetCatalogEntryResponse.ValuesEntry
-	nil,                                   // 41: dockwell.v1.CatalogPart.PathInputsEntry
-	nil,                                   // 42: dockwell.v1.CatalogInstall.CompanionsEntry
-	nil,                                   // 43: dockwell.v1.InstallCatalogEntryRequest.ValuesEntry
-	nil,                                   // 44: dockwell.v1.InstallCatalogEntryRequest.MemoryEntry
-	nil,                                   // 45: dockwell.v1.InstallCatalogEntryRequest.CpusEntry
-	nil,                                   // 46: dockwell.v1.InstallCatalogEntryRequest.RestartEntry
-	nil,                                   // 47: dockwell.v1.InstallCatalogEntryRequest.CompanionsEntry
-	nil,                                   // 48: dockwell.v1.InstallCatalogEntryRequest.NeedsEntry
-	nil,                                   // 49: dockwell.v1.UpgradeCatalogInstallRequest.ValuesEntry
-	nil,                                   // 50: dockwell.v1.SetCatalogCompanionRequest.ValuesEntry
-	(*v1alpha1.Entry)(nil),                // 51: dockwell.catalog.v1alpha1.Entry
-	(v1alpha1.Engine)(0),                  // 52: dockwell.catalog.v1alpha1.Engine
-	(*HostAccess)(nil),                    // 53: dockwell.v1.HostAccess
-	(v1alpha11.RestartPolicy)(0),          // 54: dockwell.resource.v1alpha1.RestartPolicy
-	(*v1alpha11.CatalogPin)(nil),          // 55: dockwell.resource.v1alpha1.CatalogPin
-	(*Change)(nil),                        // 56: dockwell.v1.Change
-	(v1alpha11.CatalogFormat)(0),          // 57: dockwell.resource.v1alpha1.CatalogFormat
-	(*v1alpha11.CatalogSource)(nil),       // 58: dockwell.resource.v1alpha1.CatalogSource
-	(*timestamppb.Timestamp)(nil),         // 59: google.protobuf.Timestamp
+	(CatalogOrder)(0),                      // 0: dockwell.v1.CatalogOrder
+	(*ListCatalogEntriesRequest)(nil),      // 1: dockwell.v1.ListCatalogEntriesRequest
+	(*ListCatalogEntriesResponse)(nil),     // 2: dockwell.v1.ListCatalogEntriesResponse
+	(*CatalogCategoryCount)(nil),           // 3: dockwell.v1.CatalogCategoryCount
+	(*CatalogAlternative)(nil),             // 4: dockwell.v1.CatalogAlternative
+	(*GetCatalogEntryRequest)(nil),         // 5: dockwell.v1.GetCatalogEntryRequest
+	(*GetCatalogEntryResponse)(nil),        // 6: dockwell.v1.GetCatalogEntryResponse
+	(*CatalogNeedOption)(nil),              // 7: dockwell.v1.CatalogNeedOption
+	(*CatalogPart)(nil),                    // 8: dockwell.v1.CatalogPart
+	(*ListCatalogInstallsRequest)(nil),     // 9: dockwell.v1.ListCatalogInstallsRequest
+	(*ListCatalogInstallsResponse)(nil),    // 10: dockwell.v1.ListCatalogInstallsResponse
+	(*CatalogInstall)(nil),                 // 11: dockwell.v1.CatalogInstall
+	(*CatalogUpgrade)(nil),                 // 12: dockwell.v1.CatalogUpgrade
+	(*InstallCatalogEntryRequest)(nil),     // 13: dockwell.v1.InstallCatalogEntryRequest
+	(*InstallCatalogEntryResponse)(nil),    // 14: dockwell.v1.InstallCatalogEntryResponse
+	(*UpgradeCatalogInstallRequest)(nil),   // 15: dockwell.v1.UpgradeCatalogInstallRequest
+	(*UpgradeCatalogInstallResponse)(nil),  // 16: dockwell.v1.UpgradeCatalogInstallResponse
+	(*SetCatalogCompanionRequest)(nil),     // 17: dockwell.v1.SetCatalogCompanionRequest
+	(*SetCatalogCompanionResponse)(nil),    // 18: dockwell.v1.SetCatalogCompanionResponse
+	(*SetCatalogNeedRequest)(nil),          // 19: dockwell.v1.SetCatalogNeedRequest
+	(*SetCatalogNeedResponse)(nil),         // 20: dockwell.v1.SetCatalogNeedResponse
+	(*BackUpCatalogNeedRequest)(nil),       // 21: dockwell.v1.BackUpCatalogNeedRequest
+	(*BackUpCatalogNeedResponse)(nil),      // 22: dockwell.v1.BackUpCatalogNeedResponse
+	(*ListCatalogNeedBackupsRequest)(nil),  // 23: dockwell.v1.ListCatalogNeedBackupsRequest
+	(*ListCatalogNeedBackupsResponse)(nil), // 24: dockwell.v1.ListCatalogNeedBackupsResponse
+	(*RestoreCatalogNeedRequest)(nil),      // 25: dockwell.v1.RestoreCatalogNeedRequest
+	(*RestoreCatalogNeedResponse)(nil),     // 26: dockwell.v1.RestoreCatalogNeedResponse
+	(*OpenCatalogInstallRequest)(nil),      // 27: dockwell.v1.OpenCatalogInstallRequest
+	(*OpenCatalogInstallResponse)(nil),     // 28: dockwell.v1.OpenCatalogInstallResponse
+	(*SetCatalogSourceRequest)(nil),        // 29: dockwell.v1.SetCatalogSourceRequest
+	(*SetCatalogSourceResponse)(nil),       // 30: dockwell.v1.SetCatalogSourceResponse
+	(*ListCatalogSourcesRequest)(nil),      // 31: dockwell.v1.ListCatalogSourcesRequest
+	(*ListCatalogSourcesResponse)(nil),     // 32: dockwell.v1.ListCatalogSourcesResponse
+	(*CatalogSourceInfo)(nil),              // 33: dockwell.v1.CatalogSourceInfo
+	(*CatalogSourceRefusal)(nil),           // 34: dockwell.v1.CatalogSourceRefusal
+	(*ListCatalogStoresRequest)(nil),       // 35: dockwell.v1.ListCatalogStoresRequest
+	(*ListCatalogStoresResponse)(nil),      // 36: dockwell.v1.ListCatalogStoresResponse
+	(*CatalogStore)(nil),                   // 37: dockwell.v1.CatalogStore
+	(*ListCatalogSourceRefsRequest)(nil),   // 38: dockwell.v1.ListCatalogSourceRefsRequest
+	(*ListCatalogSourceRefsResponse)(nil),  // 39: dockwell.v1.ListCatalogSourceRefsResponse
+	(*CatalogSourceGuess)(nil),             // 40: dockwell.v1.CatalogSourceGuess
+	(*CatalogSourceRef)(nil),               // 41: dockwell.v1.CatalogSourceRef
+	(*CheckCatalogSourceRequest)(nil),      // 42: dockwell.v1.CheckCatalogSourceRequest
+	(*CheckCatalogSourceResponse)(nil),     // 43: dockwell.v1.CheckCatalogSourceResponse
+	(*RemoveCatalogSourceRequest)(nil),     // 44: dockwell.v1.RemoveCatalogSourceRequest
+	(*RemoveCatalogSourceResponse)(nil),    // 45: dockwell.v1.RemoveCatalogSourceResponse
+	nil,                                    // 46: dockwell.v1.GetCatalogEntryResponse.ValuesEntry
+	nil,                                    // 47: dockwell.v1.CatalogPart.PathInputsEntry
+	nil,                                    // 48: dockwell.v1.CatalogInstall.CompanionsEntry
+	nil,                                    // 49: dockwell.v1.InstallCatalogEntryRequest.ValuesEntry
+	nil,                                    // 50: dockwell.v1.InstallCatalogEntryRequest.MemoryEntry
+	nil,                                    // 51: dockwell.v1.InstallCatalogEntryRequest.CpusEntry
+	nil,                                    // 52: dockwell.v1.InstallCatalogEntryRequest.RestartEntry
+	nil,                                    // 53: dockwell.v1.InstallCatalogEntryRequest.CompanionsEntry
+	nil,                                    // 54: dockwell.v1.InstallCatalogEntryRequest.NeedsEntry
+	nil,                                    // 55: dockwell.v1.UpgradeCatalogInstallRequest.ValuesEntry
+	nil,                                    // 56: dockwell.v1.SetCatalogCompanionRequest.ValuesEntry
+	(*v1alpha1.Entry)(nil),                 // 57: dockwell.catalog.v1alpha1.Entry
+	(v1alpha1.Engine)(0),                   // 58: dockwell.catalog.v1alpha1.Engine
+	(*HostAccess)(nil),                     // 59: dockwell.v1.HostAccess
+	(v1alpha11.RestartPolicy)(0),           // 60: dockwell.resource.v1alpha1.RestartPolicy
+	(*v1alpha11.CatalogPin)(nil),           // 61: dockwell.resource.v1alpha1.CatalogPin
+	(*Change)(nil),                         // 62: dockwell.v1.Change
+	(*Backup)(nil),                         // 63: dockwell.v1.Backup
+	(v1alpha11.CatalogFormat)(0),           // 64: dockwell.resource.v1alpha1.CatalogFormat
+	(*v1alpha11.CatalogSource)(nil),        // 65: dockwell.resource.v1alpha1.CatalogSource
+	(*timestamppb.Timestamp)(nil),          // 66: google.protobuf.Timestamp
 }
 var file_dockwell_v1_catalog_proto_depIdxs = []int32{
 	0,  // 0: dockwell.v1.ListCatalogEntriesRequest.order:type_name -> dockwell.v1.CatalogOrder
-	51, // 1: dockwell.v1.ListCatalogEntriesResponse.entries:type_name -> dockwell.catalog.v1alpha1.Entry
+	57, // 1: dockwell.v1.ListCatalogEntriesResponse.entries:type_name -> dockwell.catalog.v1alpha1.Entry
 	4,  // 2: dockwell.v1.ListCatalogEntriesResponse.also:type_name -> dockwell.v1.CatalogAlternative
 	3,  // 3: dockwell.v1.ListCatalogEntriesResponse.categories:type_name -> dockwell.v1.CatalogCategoryCount
-	51, // 4: dockwell.v1.CatalogAlternative.entry:type_name -> dockwell.catalog.v1alpha1.Entry
-	51, // 5: dockwell.v1.GetCatalogEntryResponse.entry:type_name -> dockwell.catalog.v1alpha1.Entry
-	40, // 6: dockwell.v1.GetCatalogEntryResponse.values:type_name -> dockwell.v1.GetCatalogEntryResponse.ValuesEntry
+	57, // 4: dockwell.v1.CatalogAlternative.entry:type_name -> dockwell.catalog.v1alpha1.Entry
+	57, // 5: dockwell.v1.GetCatalogEntryResponse.entry:type_name -> dockwell.catalog.v1alpha1.Entry
+	46, // 6: dockwell.v1.GetCatalogEntryResponse.values:type_name -> dockwell.v1.GetCatalogEntryResponse.ValuesEntry
 	8,  // 7: dockwell.v1.GetCatalogEntryResponse.parts:type_name -> dockwell.v1.CatalogPart
 	7,  // 8: dockwell.v1.GetCatalogEntryResponse.needs:type_name -> dockwell.v1.CatalogNeedOption
-	52, // 9: dockwell.v1.CatalogNeedOption.engine:type_name -> dockwell.catalog.v1alpha1.Engine
-	53, // 10: dockwell.v1.CatalogPart.host_access:type_name -> dockwell.v1.HostAccess
-	41, // 11: dockwell.v1.CatalogPart.path_inputs:type_name -> dockwell.v1.CatalogPart.PathInputsEntry
-	54, // 12: dockwell.v1.CatalogPart.restart:type_name -> dockwell.resource.v1alpha1.RestartPolicy
-	52, // 13: dockwell.v1.CatalogPart.engine:type_name -> dockwell.catalog.v1alpha1.Engine
+	58, // 9: dockwell.v1.CatalogNeedOption.engine:type_name -> dockwell.catalog.v1alpha1.Engine
+	59, // 10: dockwell.v1.CatalogPart.host_access:type_name -> dockwell.v1.HostAccess
+	47, // 11: dockwell.v1.CatalogPart.path_inputs:type_name -> dockwell.v1.CatalogPart.PathInputsEntry
+	60, // 12: dockwell.v1.CatalogPart.restart:type_name -> dockwell.resource.v1alpha1.RestartPolicy
+	58, // 13: dockwell.v1.CatalogPart.engine:type_name -> dockwell.catalog.v1alpha1.Engine
 	11, // 14: dockwell.v1.ListCatalogInstallsResponse.installs:type_name -> dockwell.v1.CatalogInstall
-	55, // 15: dockwell.v1.CatalogInstall.pin:type_name -> dockwell.resource.v1alpha1.CatalogPin
+	61, // 15: dockwell.v1.CatalogInstall.pin:type_name -> dockwell.resource.v1alpha1.CatalogPin
 	12, // 16: dockwell.v1.CatalogInstall.upgrade:type_name -> dockwell.v1.CatalogUpgrade
-	42, // 17: dockwell.v1.CatalogInstall.companions:type_name -> dockwell.v1.CatalogInstall.CompanionsEntry
-	43, // 18: dockwell.v1.InstallCatalogEntryRequest.values:type_name -> dockwell.v1.InstallCatalogEntryRequest.ValuesEntry
-	44, // 19: dockwell.v1.InstallCatalogEntryRequest.memory:type_name -> dockwell.v1.InstallCatalogEntryRequest.MemoryEntry
-	45, // 20: dockwell.v1.InstallCatalogEntryRequest.cpus:type_name -> dockwell.v1.InstallCatalogEntryRequest.CpusEntry
-	46, // 21: dockwell.v1.InstallCatalogEntryRequest.restart:type_name -> dockwell.v1.InstallCatalogEntryRequest.RestartEntry
-	47, // 22: dockwell.v1.InstallCatalogEntryRequest.companions:type_name -> dockwell.v1.InstallCatalogEntryRequest.CompanionsEntry
-	48, // 23: dockwell.v1.InstallCatalogEntryRequest.needs:type_name -> dockwell.v1.InstallCatalogEntryRequest.NeedsEntry
-	56, // 24: dockwell.v1.InstallCatalogEntryResponse.change:type_name -> dockwell.v1.Change
-	49, // 25: dockwell.v1.UpgradeCatalogInstallRequest.values:type_name -> dockwell.v1.UpgradeCatalogInstallRequest.ValuesEntry
-	56, // 26: dockwell.v1.UpgradeCatalogInstallResponse.change:type_name -> dockwell.v1.Change
-	50, // 27: dockwell.v1.SetCatalogCompanionRequest.values:type_name -> dockwell.v1.SetCatalogCompanionRequest.ValuesEntry
-	56, // 28: dockwell.v1.SetCatalogCompanionResponse.change:type_name -> dockwell.v1.Change
-	56, // 29: dockwell.v1.SetCatalogNeedResponse.change:type_name -> dockwell.v1.Change
-	56, // 30: dockwell.v1.OpenCatalogInstallResponse.change:type_name -> dockwell.v1.Change
-	57, // 31: dockwell.v1.SetCatalogSourceRequest.format:type_name -> dockwell.resource.v1alpha1.CatalogFormat
-	56, // 32: dockwell.v1.SetCatalogSourceResponse.change:type_name -> dockwell.v1.Change
-	27, // 33: dockwell.v1.ListCatalogSourcesResponse.sources:type_name -> dockwell.v1.CatalogSourceInfo
-	58, // 34: dockwell.v1.CatalogSourceInfo.source:type_name -> dockwell.resource.v1alpha1.CatalogSource
-	28, // 35: dockwell.v1.CatalogSourceInfo.refused:type_name -> dockwell.v1.CatalogSourceRefusal
-	59, // 36: dockwell.v1.CatalogSourceInfo.checked:type_name -> google.protobuf.Timestamp
-	59, // 37: dockwell.v1.CatalogSourceInfo.next_check:type_name -> google.protobuf.Timestamp
-	31, // 38: dockwell.v1.ListCatalogStoresResponse.stores:type_name -> dockwell.v1.CatalogStore
-	57, // 39: dockwell.v1.CatalogStore.format:type_name -> dockwell.resource.v1alpha1.CatalogFormat
-	35, // 40: dockwell.v1.ListCatalogSourceRefsResponse.refs:type_name -> dockwell.v1.CatalogSourceRef
-	34, // 41: dockwell.v1.ListCatalogSourceRefsResponse.formats:type_name -> dockwell.v1.CatalogSourceGuess
-	57, // 42: dockwell.v1.CatalogSourceGuess.format:type_name -> dockwell.resource.v1alpha1.CatalogFormat
-	27, // 43: dockwell.v1.CheckCatalogSourceResponse.source:type_name -> dockwell.v1.CatalogSourceInfo
-	56, // 44: dockwell.v1.CheckCatalogSourceResponse.change:type_name -> dockwell.v1.Change
-	56, // 45: dockwell.v1.RemoveCatalogSourceResponse.change:type_name -> dockwell.v1.Change
-	54, // 46: dockwell.v1.InstallCatalogEntryRequest.RestartEntry.value:type_name -> dockwell.resource.v1alpha1.RestartPolicy
-	1,  // 47: dockwell.v1.CatalogService.ListCatalogEntries:input_type -> dockwell.v1.ListCatalogEntriesRequest
-	5,  // 48: dockwell.v1.CatalogService.GetCatalogEntry:input_type -> dockwell.v1.GetCatalogEntryRequest
-	9,  // 49: dockwell.v1.CatalogService.ListCatalogInstalls:input_type -> dockwell.v1.ListCatalogInstallsRequest
-	15, // 50: dockwell.v1.CatalogService.UpgradeCatalogInstall:input_type -> dockwell.v1.UpgradeCatalogInstallRequest
-	17, // 51: dockwell.v1.CatalogService.SetCatalogCompanion:input_type -> dockwell.v1.SetCatalogCompanionRequest
-	19, // 52: dockwell.v1.CatalogService.SetCatalogNeed:input_type -> dockwell.v1.SetCatalogNeedRequest
-	21, // 53: dockwell.v1.CatalogService.OpenCatalogInstall:input_type -> dockwell.v1.OpenCatalogInstallRequest
-	13, // 54: dockwell.v1.CatalogService.InstallCatalogEntry:input_type -> dockwell.v1.InstallCatalogEntryRequest
-	23, // 55: dockwell.v1.CatalogService.SetCatalogSource:input_type -> dockwell.v1.SetCatalogSourceRequest
-	25, // 56: dockwell.v1.CatalogService.ListCatalogSources:input_type -> dockwell.v1.ListCatalogSourcesRequest
-	29, // 57: dockwell.v1.CatalogService.ListCatalogStores:input_type -> dockwell.v1.ListCatalogStoresRequest
-	32, // 58: dockwell.v1.CatalogService.ListCatalogSourceRefs:input_type -> dockwell.v1.ListCatalogSourceRefsRequest
-	36, // 59: dockwell.v1.CatalogService.CheckCatalogSource:input_type -> dockwell.v1.CheckCatalogSourceRequest
-	38, // 60: dockwell.v1.CatalogService.RemoveCatalogSource:input_type -> dockwell.v1.RemoveCatalogSourceRequest
-	2,  // 61: dockwell.v1.CatalogService.ListCatalogEntries:output_type -> dockwell.v1.ListCatalogEntriesResponse
-	6,  // 62: dockwell.v1.CatalogService.GetCatalogEntry:output_type -> dockwell.v1.GetCatalogEntryResponse
-	10, // 63: dockwell.v1.CatalogService.ListCatalogInstalls:output_type -> dockwell.v1.ListCatalogInstallsResponse
-	16, // 64: dockwell.v1.CatalogService.UpgradeCatalogInstall:output_type -> dockwell.v1.UpgradeCatalogInstallResponse
-	18, // 65: dockwell.v1.CatalogService.SetCatalogCompanion:output_type -> dockwell.v1.SetCatalogCompanionResponse
-	20, // 66: dockwell.v1.CatalogService.SetCatalogNeed:output_type -> dockwell.v1.SetCatalogNeedResponse
-	22, // 67: dockwell.v1.CatalogService.OpenCatalogInstall:output_type -> dockwell.v1.OpenCatalogInstallResponse
-	14, // 68: dockwell.v1.CatalogService.InstallCatalogEntry:output_type -> dockwell.v1.InstallCatalogEntryResponse
-	24, // 69: dockwell.v1.CatalogService.SetCatalogSource:output_type -> dockwell.v1.SetCatalogSourceResponse
-	26, // 70: dockwell.v1.CatalogService.ListCatalogSources:output_type -> dockwell.v1.ListCatalogSourcesResponse
-	30, // 71: dockwell.v1.CatalogService.ListCatalogStores:output_type -> dockwell.v1.ListCatalogStoresResponse
-	33, // 72: dockwell.v1.CatalogService.ListCatalogSourceRefs:output_type -> dockwell.v1.ListCatalogSourceRefsResponse
-	37, // 73: dockwell.v1.CatalogService.CheckCatalogSource:output_type -> dockwell.v1.CheckCatalogSourceResponse
-	39, // 74: dockwell.v1.CatalogService.RemoveCatalogSource:output_type -> dockwell.v1.RemoveCatalogSourceResponse
-	61, // [61:75] is the sub-list for method output_type
-	47, // [47:61] is the sub-list for method input_type
-	47, // [47:47] is the sub-list for extension type_name
-	47, // [47:47] is the sub-list for extension extendee
-	0,  // [0:47] is the sub-list for field type_name
+	48, // 17: dockwell.v1.CatalogInstall.companions:type_name -> dockwell.v1.CatalogInstall.CompanionsEntry
+	49, // 18: dockwell.v1.InstallCatalogEntryRequest.values:type_name -> dockwell.v1.InstallCatalogEntryRequest.ValuesEntry
+	50, // 19: dockwell.v1.InstallCatalogEntryRequest.memory:type_name -> dockwell.v1.InstallCatalogEntryRequest.MemoryEntry
+	51, // 20: dockwell.v1.InstallCatalogEntryRequest.cpus:type_name -> dockwell.v1.InstallCatalogEntryRequest.CpusEntry
+	52, // 21: dockwell.v1.InstallCatalogEntryRequest.restart:type_name -> dockwell.v1.InstallCatalogEntryRequest.RestartEntry
+	53, // 22: dockwell.v1.InstallCatalogEntryRequest.companions:type_name -> dockwell.v1.InstallCatalogEntryRequest.CompanionsEntry
+	54, // 23: dockwell.v1.InstallCatalogEntryRequest.needs:type_name -> dockwell.v1.InstallCatalogEntryRequest.NeedsEntry
+	62, // 24: dockwell.v1.InstallCatalogEntryResponse.change:type_name -> dockwell.v1.Change
+	55, // 25: dockwell.v1.UpgradeCatalogInstallRequest.values:type_name -> dockwell.v1.UpgradeCatalogInstallRequest.ValuesEntry
+	62, // 26: dockwell.v1.UpgradeCatalogInstallResponse.change:type_name -> dockwell.v1.Change
+	56, // 27: dockwell.v1.SetCatalogCompanionRequest.values:type_name -> dockwell.v1.SetCatalogCompanionRequest.ValuesEntry
+	62, // 28: dockwell.v1.SetCatalogCompanionResponse.change:type_name -> dockwell.v1.Change
+	62, // 29: dockwell.v1.SetCatalogNeedResponse.change:type_name -> dockwell.v1.Change
+	63, // 30: dockwell.v1.BackUpCatalogNeedResponse.backup:type_name -> dockwell.v1.Backup
+	63, // 31: dockwell.v1.ListCatalogNeedBackupsResponse.backups:type_name -> dockwell.v1.Backup
+	62, // 32: dockwell.v1.RestoreCatalogNeedResponse.change:type_name -> dockwell.v1.Change
+	62, // 33: dockwell.v1.OpenCatalogInstallResponse.change:type_name -> dockwell.v1.Change
+	64, // 34: dockwell.v1.SetCatalogSourceRequest.format:type_name -> dockwell.resource.v1alpha1.CatalogFormat
+	62, // 35: dockwell.v1.SetCatalogSourceResponse.change:type_name -> dockwell.v1.Change
+	33, // 36: dockwell.v1.ListCatalogSourcesResponse.sources:type_name -> dockwell.v1.CatalogSourceInfo
+	65, // 37: dockwell.v1.CatalogSourceInfo.source:type_name -> dockwell.resource.v1alpha1.CatalogSource
+	34, // 38: dockwell.v1.CatalogSourceInfo.refused:type_name -> dockwell.v1.CatalogSourceRefusal
+	66, // 39: dockwell.v1.CatalogSourceInfo.checked:type_name -> google.protobuf.Timestamp
+	66, // 40: dockwell.v1.CatalogSourceInfo.next_check:type_name -> google.protobuf.Timestamp
+	37, // 41: dockwell.v1.ListCatalogStoresResponse.stores:type_name -> dockwell.v1.CatalogStore
+	64, // 42: dockwell.v1.CatalogStore.format:type_name -> dockwell.resource.v1alpha1.CatalogFormat
+	41, // 43: dockwell.v1.ListCatalogSourceRefsResponse.refs:type_name -> dockwell.v1.CatalogSourceRef
+	40, // 44: dockwell.v1.ListCatalogSourceRefsResponse.formats:type_name -> dockwell.v1.CatalogSourceGuess
+	64, // 45: dockwell.v1.CatalogSourceGuess.format:type_name -> dockwell.resource.v1alpha1.CatalogFormat
+	33, // 46: dockwell.v1.CheckCatalogSourceResponse.source:type_name -> dockwell.v1.CatalogSourceInfo
+	62, // 47: dockwell.v1.CheckCatalogSourceResponse.change:type_name -> dockwell.v1.Change
+	62, // 48: dockwell.v1.RemoveCatalogSourceResponse.change:type_name -> dockwell.v1.Change
+	60, // 49: dockwell.v1.InstallCatalogEntryRequest.RestartEntry.value:type_name -> dockwell.resource.v1alpha1.RestartPolicy
+	1,  // 50: dockwell.v1.CatalogService.ListCatalogEntries:input_type -> dockwell.v1.ListCatalogEntriesRequest
+	5,  // 51: dockwell.v1.CatalogService.GetCatalogEntry:input_type -> dockwell.v1.GetCatalogEntryRequest
+	9,  // 52: dockwell.v1.CatalogService.ListCatalogInstalls:input_type -> dockwell.v1.ListCatalogInstallsRequest
+	15, // 53: dockwell.v1.CatalogService.UpgradeCatalogInstall:input_type -> dockwell.v1.UpgradeCatalogInstallRequest
+	17, // 54: dockwell.v1.CatalogService.SetCatalogCompanion:input_type -> dockwell.v1.SetCatalogCompanionRequest
+	19, // 55: dockwell.v1.CatalogService.SetCatalogNeed:input_type -> dockwell.v1.SetCatalogNeedRequest
+	27, // 56: dockwell.v1.CatalogService.OpenCatalogInstall:input_type -> dockwell.v1.OpenCatalogInstallRequest
+	21, // 57: dockwell.v1.CatalogService.BackUpCatalogNeed:input_type -> dockwell.v1.BackUpCatalogNeedRequest
+	23, // 58: dockwell.v1.CatalogService.ListCatalogNeedBackups:input_type -> dockwell.v1.ListCatalogNeedBackupsRequest
+	25, // 59: dockwell.v1.CatalogService.RestoreCatalogNeed:input_type -> dockwell.v1.RestoreCatalogNeedRequest
+	13, // 60: dockwell.v1.CatalogService.InstallCatalogEntry:input_type -> dockwell.v1.InstallCatalogEntryRequest
+	29, // 61: dockwell.v1.CatalogService.SetCatalogSource:input_type -> dockwell.v1.SetCatalogSourceRequest
+	31, // 62: dockwell.v1.CatalogService.ListCatalogSources:input_type -> dockwell.v1.ListCatalogSourcesRequest
+	35, // 63: dockwell.v1.CatalogService.ListCatalogStores:input_type -> dockwell.v1.ListCatalogStoresRequest
+	38, // 64: dockwell.v1.CatalogService.ListCatalogSourceRefs:input_type -> dockwell.v1.ListCatalogSourceRefsRequest
+	42, // 65: dockwell.v1.CatalogService.CheckCatalogSource:input_type -> dockwell.v1.CheckCatalogSourceRequest
+	44, // 66: dockwell.v1.CatalogService.RemoveCatalogSource:input_type -> dockwell.v1.RemoveCatalogSourceRequest
+	2,  // 67: dockwell.v1.CatalogService.ListCatalogEntries:output_type -> dockwell.v1.ListCatalogEntriesResponse
+	6,  // 68: dockwell.v1.CatalogService.GetCatalogEntry:output_type -> dockwell.v1.GetCatalogEntryResponse
+	10, // 69: dockwell.v1.CatalogService.ListCatalogInstalls:output_type -> dockwell.v1.ListCatalogInstallsResponse
+	16, // 70: dockwell.v1.CatalogService.UpgradeCatalogInstall:output_type -> dockwell.v1.UpgradeCatalogInstallResponse
+	18, // 71: dockwell.v1.CatalogService.SetCatalogCompanion:output_type -> dockwell.v1.SetCatalogCompanionResponse
+	20, // 72: dockwell.v1.CatalogService.SetCatalogNeed:output_type -> dockwell.v1.SetCatalogNeedResponse
+	28, // 73: dockwell.v1.CatalogService.OpenCatalogInstall:output_type -> dockwell.v1.OpenCatalogInstallResponse
+	22, // 74: dockwell.v1.CatalogService.BackUpCatalogNeed:output_type -> dockwell.v1.BackUpCatalogNeedResponse
+	24, // 75: dockwell.v1.CatalogService.ListCatalogNeedBackups:output_type -> dockwell.v1.ListCatalogNeedBackupsResponse
+	26, // 76: dockwell.v1.CatalogService.RestoreCatalogNeed:output_type -> dockwell.v1.RestoreCatalogNeedResponse
+	14, // 77: dockwell.v1.CatalogService.InstallCatalogEntry:output_type -> dockwell.v1.InstallCatalogEntryResponse
+	30, // 78: dockwell.v1.CatalogService.SetCatalogSource:output_type -> dockwell.v1.SetCatalogSourceResponse
+	32, // 79: dockwell.v1.CatalogService.ListCatalogSources:output_type -> dockwell.v1.ListCatalogSourcesResponse
+	36, // 80: dockwell.v1.CatalogService.ListCatalogStores:output_type -> dockwell.v1.ListCatalogStoresResponse
+	39, // 81: dockwell.v1.CatalogService.ListCatalogSourceRefs:output_type -> dockwell.v1.ListCatalogSourceRefsResponse
+	43, // 82: dockwell.v1.CatalogService.CheckCatalogSource:output_type -> dockwell.v1.CheckCatalogSourceResponse
+	45, // 83: dockwell.v1.CatalogService.RemoveCatalogSource:output_type -> dockwell.v1.RemoveCatalogSourceResponse
+	67, // [67:84] is the sub-list for method output_type
+	50, // [50:67] is the sub-list for method input_type
+	50, // [50:50] is the sub-list for extension type_name
+	50, // [50:50] is the sub-list for extension extendee
+	0,  // [0:50] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_catalog_proto_init() }
@@ -3396,6 +3792,7 @@ func file_dockwell_v1_catalog_proto_init() {
 	if File_dockwell_v1_catalog_proto != nil {
 		return
 	}
+	file_dockwell_v1_backup_proto_init()
 	file_dockwell_v1_change_proto_init()
 	file_dockwell_v1_options_proto_init()
 	type x struct{}
@@ -3404,7 +3801,7 @@ func file_dockwell_v1_catalog_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_catalog_proto_rawDesc), len(file_dockwell_v1_catalog_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   50,
+			NumMessages:   56,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
