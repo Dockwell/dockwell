@@ -347,7 +347,7 @@ func (h *Handler) begin(ctx context.Context, t taking) (*dockwellv1.Backup, erro
 	if t.one != "" {
 		// An agent from before backs up the whole volume, whatever it's asked.
 		if !s.OneDatabaseBackups() {
-			return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s's agent backs up a whole volume, not one database alone, so %s isn't backed up. Update the agent to the control plane's version, then back it up again", server, t.one), "agent_too_old")
+			return nil, authapi.ReasonError(connect.CodeFailedPrecondition, tooOld(server.Name, t.one), "agent_too_old")
 		}
 		if err := database.CheckSQLName("database", t.one); err != nil {
 			return nil, authapi.ReasonError(connect.CodeInvalidArgument, err, "invalid")
@@ -401,13 +401,15 @@ func (h *Handler) run(s *agentapi.Session, b store.Backup, ref resource.Ref, sto
 		h.prune(ctx, s, b, keep)
 	}
 	got, err := s.Backup(ctx, &agentv1.BackupCall{Id: b.ID, Volume: resourcepb.Ref(ref), Stop: stop, Database: b.OneDatabase})
-	h.finish(context.WithoutCancel(ctx), b, got, err, surface)
+	done := h.finish(context.WithoutCancel(ctx), b, got, err, surface)
 	// It's on record and the volume is free before this starts, however long it takes.
-	if err == nil && destination != nil {
+	// One recorded as failed, such as the whole volume where one database was asked,
+	// goes nowhere.
+	if done && destination != nil {
 		h.send(ctx, s, b, ref, destination, surface)
 	}
 	// Only once it's whole: a run that fails takes nothing away.
-	if err == nil && b.PolicyID != "" {
+	if done && b.PolicyID != "" {
 		h.prune(context.WithoutCancel(ctx), s, b, keep)
 	}
 }
@@ -451,8 +453,14 @@ func copyCutShort(destination string) string {
 	return "The control plane stopped while this was sent, so it isn't on " + destination + ". It's safe on its server. Take another to send one"
 }
 
+// tooOld is a backup of one database alone that a server's agent can't take, as one
+// from before takes the whole volume, whatever it's asked (ADR 0084).
+func tooOld(server, one string) error {
+	return fmt.Errorf("%s's agent backs up a whole volume, not one database alone, so %s isn't backed up. Update the agent to the control plane's version, then back it up again", server, one)
+}
+
 // finish records how a backup ended, and says so on the timeline.
-func (h *Handler) finish(ctx context.Context, b store.Backup, got *agentv1.BackupResult, failed error, surface string) {
+func (h *Handler) finish(ctx context.Context, b store.Backup, got *agentv1.BackupResult, failed error, surface string) (done bool) {
 	now := h.now()
 	b.FinishedAt = &now
 	action := ActionTaken
@@ -477,7 +485,7 @@ func (h *Handler) finish(ctx context.Context, b store.Backup, got *agentv1.Backu
 	detail, err := json.Marshal(Told{ID: b.ID, Volume: b.Volume, Method: b.Method, Size: b.SizeBytes, Error: b.Error})
 	if err != nil {
 		h.logger.ErrorContext(ctx, "can't record a backup", slog.String("backup", b.ID), slog.String("error", err.Error()))
-		return
+		return b.State == store.BackupDone
 	}
 	err = h.db.Update(ctx, func(tx *store.Tx) error {
 		if err := tx.FinishBackup(ctx, b); err != nil {
@@ -501,11 +509,12 @@ func (h *Handler) finish(ctx context.Context, b store.Backup, got *agentv1.Backu
 	})
 	if err != nil {
 		h.logger.ErrorContext(ctx, "can't record how a backup ended", slog.String("backup", b.ID), slog.String("error", err.Error()))
-		return
+		return b.State == store.BackupDone
 	}
 	if failed != nil {
 		h.logger.WarnContext(ctx, "a backup failed", slog.String("backup", b.ID), slog.String("volume", b.Volume), slog.String("error", failed.Error()))
 	}
+	return b.State == store.BackupDone
 }
 
 // GetBackup returns one backup.

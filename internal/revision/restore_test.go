@@ -111,7 +111,13 @@ type restoreBench struct {
 type twoAgents struct {
 	resource.Local
 	volumes resource.Local
+	// old is an agent from before one database could be backed up alone.
+	old bool
 }
+
+// OneDatabaseBackups says it backs up and restores one database alone, as this
+// version's agent does, unless it's from before.
+func (a twoAgents) OneDatabaseBackups() bool { return !a.old }
 
 func (a twoAgents) Plan(ctx context.Context, desired []resource.Desired) ([]resource.Step, error) {
 	steps := make([]resource.Step, len(desired))

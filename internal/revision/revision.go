@@ -3889,6 +3889,12 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 			}
 			return stop(qi, fault.New(ErrOffline, "%s lost its connection before this step, so the step didn't run. Try again once its agent reconnects", q.name), false)
 		}
+		// A step that backs up or restores one database alone needs an agent that does:
+		// one from before, as one downgraded since the plan, takes the whole volume, and
+		// a restore of that empties it for one app's database (ADR 0084).
+		if (q.step.BackupFirst != nil && q.step.BackupFirst.One != "" || q.step.Restore != nil && q.step.Restore.OneDatabase != "") && !takesOne(agent) {
+			return stop(qi, fault.New(ErrInvalid, "the agent on %s backs up and restores a whole volume, not one database alone, so this step didn't run, nor anything after it. Update the agent to the control plane's version, then try again", q.name), true)
+		}
 		// A reboot's step finishing on the server's new boot keeps when it started,
 		// so its time is the reboot's, from the call until the server was back. So does
 		// one resumed on the boot it left, which asks the agent again and waits on, or
@@ -4374,6 +4380,13 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 	}
 	plan, err := e.plan(ctx, c.ID, items, false)
 	if err != nil {
+		e.letGo(ctx, changeID)
+		return nil, err
+	}
+	// What the agent plans now of a restore, or of a backup of one database alone, is
+	// held to what the change was made for, as when it was proposed: one downgraded
+	// since would take the whole volume (ADR 0084).
+	if err := e.checkRestores(ctx, plan, items); err != nil {
 		e.letGo(ctx, changeID)
 		return nil, err
 	}
@@ -5054,6 +5067,13 @@ func (e *Engine) checkRestores(ctx context.Context, plan *Plan, items []item) er
 		}
 	}
 	return nil
+}
+
+// takesOne reports an agent that backs up and restores one database alone, as it
+// says as it connects.
+func takesOne(agent resource.Agent) bool {
+	a, ok := agent.(interface{ OneDatabaseBackups() bool })
+	return ok && a.OneDatabaseBackups()
 }
 
 // restoresTheLinks refuses a restore made for an app's link unless what its server

@@ -12,6 +12,7 @@ import (
 
 	"connectrpc.com/connect"
 
+	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
@@ -200,6 +201,43 @@ func TestAnAppBacksUpAndRestoresItsOwnDatabase(t *testing.T) {
 			}
 		}
 	}
+
+	// An agent from before backs up the whole volume, whatever it's asked: neither
+	// Back up now nor the schedule asks it (the run's error is the one given before
+	// asking), the run is recorded as failed, and the day before's stays, as a run
+	// that fails takes nothing away.
+	server := f.lastDocker
+	server.stop()
+	waitConnected(t, f, server.id.ServerID, false)
+	server.hello = func(h *agentv1.Hello) { h.OneDatabaseBackups = false }
+	server.connect(t, f)
+	if _, err := cat.BackUpCatalogNeed(t.Context(), connect.NewRequest(&dockwellv1.BackUpCatalogNeedRequest{Id: "blog", Need: "db"})); reasonOf(err) != "agent_too_old" ||
+		!strings.Contains(err.Error(), "hz-1's agent backs up a whole volume, not one database alone") {
+		t.Errorf("backing up the blog's database on an agent from before = %v", err)
+	}
+	runs.Now = func() time.Time { return now.Add(3 * 25 * time.Hour) }
+	if err := runs.RunDue(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	for deadline := time.Now().Add(10 * time.Second); ; time.Sleep(20 * time.Millisecond) {
+		scheduled := slices.DeleteFunc(listed(), func(b *dockwellv1.Backup) bool { return b.GetPolicyId() == "" })
+		failed := slices.ContainsFunc(scheduled, func(b *dockwellv1.Backup) bool {
+			return b.GetState() == dockwellv1.BackupState_BACKUP_STATE_FAILED && strings.Contains(b.GetError(), "backs up a whole volume")
+		})
+		kept := slices.ContainsFunc(scheduled, func(b *dockwellv1.Backup) bool {
+			return b.GetId() == seen && b.GetState() == dockwellv1.BackupState_BACKUP_STATE_DONE
+		})
+		if failed && kept {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("on an agent from before, the blog's scheduled backups are %v", scheduled)
+		}
+	}
+	server.stop()
+	waitConnected(t, f, server.id.ServerID, false)
+	server.hello = nil
+	server.connect(t, f)
 	runs.Now = nil
 
 	// An upgrade of the blog, which changes its project and so is an admin's, dumps its

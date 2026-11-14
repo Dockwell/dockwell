@@ -182,6 +182,12 @@ func (h *Handler) start(ctx context.Context, run due) {
 		h.finish(ctx, b, nil, fmt.Errorf("%s wasn't connected when %s fell due, so this backup didn't run. It runs again on schedule", run.server.Name, run.policy.name), store.SurfaceAutomatic)
 		return
 	}
+	// An agent from before backs up the whole volume, whatever it's asked: it isn't
+	// asked, so no other app's data goes to this one's destination (ADR 0084).
+	if run.one != "" && !s.OneDatabaseBackups() {
+		h.finish(ctx, b, nil, tooOld(run.server.Name, run.one), store.SurfaceAutomatic)
+		return
+	}
 	destination, err := h.destination(ctx, b.Destination)
 	var gone *connect.Error
 	if errors.As(err, &gone) && gone.Code() == connect.CodeNotFound {

@@ -120,6 +120,21 @@ func TestOneDatabaseIsWhatTheAgentSaysItTook(t *testing.T) {
 		t.Errorf("recorded %+v", recorded)
 	}
 
+	// An agent downgraded between the plan and applying it isn't sent the step: it
+	// would back up, or restore, the whole volume.
+	planned, err := dump("shop")
+	if err != nil {
+		t.Fatal(err)
+	}
+	older := x.agents["srv_A"].(twoAgents)
+	older.old = true
+	x.agents["srv_A"] = older
+	if err := e.Apply(t.Context(), planned.Change); err == nil || !strings.Contains(err.Error(), "backs up and restores a whole volume, not one database alone") {
+		t.Errorf("applying on an agent downgraded since the plan = %v", err)
+	}
+	older.old = false
+	x.agents["srv_A"] = older
+
 	// A restore for an app's link: of that link's database alone, and nothing else.
 	e.kinds = e.kinds.With(link.Type{})
 	e.sealer = secretstest.Keeper(x.db, e.kinds)
@@ -137,8 +152,14 @@ func TestOneDatabaseIsWhatTheAgentSaysItTook(t *testing.T) {
 		}
 	}
 	x.r.one = "shop"
-	if _, err := e.RestoreWith(t.Context(), ref, source, forShop, restoreBy(), ""); err != nil {
-		t.Errorf("restoring shop's own database for its link = %v", err)
+	restore, err := e.RestoreWith(t.Context(), ref, source, forShop, restoreBy(), "")
+	if err != nil {
+		t.Fatalf("restoring shop's own database for its link = %v", err)
+	}
+	older.old = true
+	x.agents["srv_A"] = older
+	if err := e.Apply(t.Context(), restore.Change); err == nil || !strings.Contains(err.Error(), "backs up and restores a whole volume") || len(x.r.ran) != 0 {
+		t.Errorf("restoring on an agent downgraded since the plan = %v, ran %v", err, x.r.ran)
 	}
 	if errors.Is(err, ErrNeedsRole) {
 		t.Error("it wanted a role of Dockwell's own")

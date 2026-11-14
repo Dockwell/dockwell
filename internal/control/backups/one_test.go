@@ -34,7 +34,10 @@ func TestAnAgentThatBacksUpTheWholeVolumeIsntKeptAsTheApps(t *testing.T) {
 		if err := db.Update(t.Context(), func(tx *store.Tx) error { return tx.CreateBackup(t.Context(), b) }); err != nil {
 			t.Fatal(err)
 		}
-		h.finish(t.Context(), b, &agentv1.BackupResult{Database: "PostgreSQL", SizeBytes: 10, OneDatabase: tc.said}, nil, store.SurfaceAutomatic)
+		// What run sends to a destination and prunes by: only a backup recorded as done.
+		if done := h.finish(t.Context(), b, &agentv1.BackupResult{Database: "PostgreSQL", SizeBytes: 10, OneDatabase: tc.said}, nil, store.SurfaceAutomatic); done != (tc.want == store.BackupDone) {
+			t.Errorf("an agent that said it dumped %q: finish says done %t", tc.said, done)
+		}
 		var got store.Backup
 		if err := db.View(t.Context(), func(tx *store.Tx) error {
 			var err error
