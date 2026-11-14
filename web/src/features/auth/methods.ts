@@ -173,6 +173,7 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "ImportService.importDokploy": { within: "ImportService.importOnePanel" },
   "ImportService.importOnePanel": "may",
   "ImportService.planPanelDomains": { within: "ImportService.importOnePanel" },
+  "ImportService.planStartPanel": { within: "ImportService.importOnePanel" },
   "ImportService.planStopPanel": "may",
 
   "LogService.listLogSources": "read",

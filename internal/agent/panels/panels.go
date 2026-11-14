@@ -127,6 +127,7 @@ func (r Reader) coolify(list []docker.ContainerSummary) *agentv1.ReadPanelResult
 		a.FromGit = a.GetFromGit() || kind == "application" && (builtFromGit(c.Image, id) || len(a.GetContainers()) > 1)
 	}
 	p.Apps = sorted(apps)
+	p.Domains = r.ownDomains(p.GetKind())
 	p.KnownVersion = coolifyKnown().MatchString(p.Version)
 	if len(p.Own) == 0 && len(p.Apps) == 0 {
 		return &agentv1.ReadPanelResult{NotHere: "Coolify doesn't run here: Docker runs none of its containers, and nothing it labelled"}
@@ -192,6 +193,7 @@ func (r Reader) dokploy(list []docker.ContainerSummary, services []docker.Servic
 		a.Routes = append(a.Routes, routesOf(l, name)...)
 	}
 	p.Apps = sorted(apps)
+	p.Domains = r.ownDomains(p.GetKind())
 	p.KnownVersion = dokployKnown().MatchString(p.Version)
 	if len(p.Own) == 0 && len(p.Apps) == 0 {
 		return &agentv1.ReadPanelResult{NotHere: "Dokploy doesn't run here: Docker runs none of its services or containers, and nothing it labelled"}
@@ -261,7 +263,7 @@ func domainsOf(l map[string]string) []string {
 	for _, k := range slices.Sorted(maps.Keys(l)) {
 		v := l[k]
 		switch {
-		case strings.HasPrefix(k, "traefik.") && strings.HasSuffix(k, ".rule"):
+		case strings.HasPrefix(k, "traefik.") && strings.HasSuffix(k, ".rule") && l["traefik.enable"] != "false":
 			out = append(out, hostsIn(v)...)
 		case caddyLabel().MatchString(k):
 			for _, a := range strings.FieldsFunc(v, func(r rune) bool { return r == ',' || r == ' ' }) {
@@ -275,13 +277,18 @@ func domainsOf(l map[string]string) []string {
 }
 
 // routesOf says where the proxy's labels on a container send each domain: a
-// Traefik router's hosts, path and the port of the service it names, or a Caddy
-// address and the port its reverse_proxy names. Nothing else of a label leaves the
-// server. A domain the labels give no port for has 0.
+// Traefik router's hosts, path and the port of the service it names, or the one
+// service the labels have; a Caddy address, its path and the port its
+// reverse_proxy names. A domain that can't come as a plain route says why (Left):
+// a middleware or a Caddy directive Dockwell can't tell is harmless, such as an
+// SSO check, an allowlist or a stripped path, which a plain route would drop, so
+// what was behind a login would answer anyone; a rule that says more than a host
+// and a path prefix; or an entrypoint other than the web's. Nothing else of a
+// label leaves the server. A domain the labels give no port for has 0.
 func routesOf(l map[string]string, container string) []*dockwellv1.PanelRoute {
 	service := l[labelService]
 	var out []*dockwellv1.PanelRoute
-	add := func(host, path string, port uint32) {
+	add := func(host, path string, port uint32, left string) {
 		if path == "/" {
 			path = ""
 		}
@@ -290,42 +297,154 @@ func routesOf(l map[string]string, container string) []*dockwellv1.PanelRoute {
 				if r.GetPort() == 0 {
 					r.Port = port
 				}
+				// What one router of it can't bring, the domain can't: an HTTPS
+				// router behind a login and an HTTP one that redirects are one site.
+				r.Left = cmp.Or(r.GetLeft(), left)
 				return
 			}
 		}
-		out = append(out, &dockwellv1.PanelRoute{Domain: host, Path: path, Container: container, Service: service, Port: port})
+		out = append(out, &dockwellv1.PanelRoute{Domain: host, Path: path, Container: container, Service: service, Port: port, Left: left})
 	}
+	if l["traefik.enable"] != "false" {
+		for _, r := range traefikRoutes(l) {
+			add(r.host, r.path, r.port, r.left)
+		}
+	}
+	for _, r := range caddyRoutes(l) {
+		add(r.host, r.path, r.port, r.left)
+	}
+	return out
+}
+
+// labelRoute is a domain a proxy's labels route, before it's merged with the
+// container's others.
+type labelRoute struct {
+	host, path, left string
+	port             uint32
+}
+
+// harmless are the middlewares a plain route can do without: a redirect to HTTPS,
+// which Dockwell's ingress does too, compression, headers and a redirect of www.
+var harmless = []string{"redirectscheme", "compress", "headers", "redirectregex"}
+
+// webEntrypoints are the entrypoints that answer on ports 80 and 443, as Coolify
+// and Dokploy name them.
+var webEntrypoints = []string{"http", "https", "web", "websecure"}
+
+func traefikRoutes(l map[string]string) []labelRoute {
 	var services []string
 	for k := range l {
 		if name, ok := strings.CutPrefix(k, "traefik.http.services."); ok && strings.HasSuffix(name, ".loadbalancer.server.port") {
 			services = append(services, strings.TrimSuffix(name, ".loadbalancer.server.port"))
 		}
 	}
+	var out []labelRoute
 	for _, k := range slices.Sorted(maps.Keys(l)) {
-		switch {
-		case strings.HasPrefix(k, "traefik.http.routers.") && strings.HasSuffix(k, ".rule"):
-			router := strings.TrimSuffix(strings.TrimPrefix(k, "traefik.http.routers."), ".rule")
-			svc := l["traefik.http.routers."+router+".service"]
-			if svc == "" && len(services) == 1 {
-				svc = services[0]
-			}
-			port := portOf(l["traefik.http.services."+cmp.Or(svc, router)+".loadbalancer.server.port"])
-			prefix := ""
-			if m := pathRule().FindStringSubmatch(l[k]); m != nil {
-				prefix = m[1]
-			}
-			for _, h := range hostsIn(l[k]) {
-				add(h, prefix, port)
-			}
-		case caddyLabel().MatchString(k):
-			port := uint32(0)
-			if m := upstreams().FindStringSubmatch(l[k+".reverse_proxy"]); m != nil {
-				port = portOf(m[1])
-			}
-			for _, a := range strings.FieldsFunc(l[k], func(r rune) bool { return r == ',' || r == ' ' }) {
-				if h := hostOf(a); h != "" {
-					add(h, "", port)
+		router, ok := strings.CutPrefix(k, "traefik.http.routers.")
+		if !ok || !strings.HasSuffix(router, ".rule") {
+			continue
+		}
+		router = strings.TrimSuffix(router, ".rule")
+		rule := l[k]
+		at := "traefik.http.routers." + router + "."
+		svc := l[at+"service"]
+		if svc == "" && len(services) == 1 {
+			svc = services[0]
+		}
+		port := portOf(l["traefik.http.services."+cmp.Or(svc, router)+".loadbalancer.server.port"])
+		prefix := ""
+		if m := pathRule().FindStringSubmatch(rule); len(m) > 1 {
+			prefix = m[1]
+		}
+		left := ""
+		if entry := l[at+"entrypoints"]; entry != "" {
+			for _, e := range strings.Split(entry, ",") {
+				if !slices.Contains(webEntrypoints, strings.TrimSpace(e)) {
+					left = fmt.Sprintf("Traefik serves it on the entrypoint %s, not ports 80 and 443", strings.TrimSpace(e))
 				}
+			}
+		}
+		if left == "" && (strings.Contains(rule, "||") || strings.Contains(rule, "!") || strings.Contains(rule, "Path(") ||
+			strings.Contains(rule, "Regexp(") || strings.Contains(rule, "Header") || strings.Contains(rule, "Query(")) {
+			// What it matches can't be told, so the whole domain stays with it.
+			left, prefix = "its rule says more than a host and a path prefix", ""
+		}
+		if left == "" {
+			left = middlewaresLeft(l, l[at+"middlewares"])
+		}
+		for _, h := range hostsIn(rule) {
+			out = append(out, labelRoute{host: h, path: prefix, port: port, left: left})
+		}
+	}
+	return out
+}
+
+// middlewaresLeft says why a router's middlewares keep its domain from coming as a
+// plain route, or "" where each is one a route can do without. A middleware
+// defined elsewhere, as in a file of the proxy's, can't be read, so it can't be
+// told harmless either.
+func middlewaresLeft(l map[string]string, list string) string {
+	for _, m := range strings.Split(list, ",") {
+		name, _, _ := strings.Cut(strings.TrimSpace(m), "@")
+		if name == "" {
+			continue
+		}
+		kind := ""
+		for k := range l {
+			if rest, ok := strings.CutPrefix(k, "traefik.http.middlewares."+name+"."); ok {
+				kind, _, _ = strings.Cut(rest, ".")
+			}
+		}
+		switch {
+		case kind == "":
+			return fmt.Sprintf("it passes through the middleware %s, which Dockwell can't read, so it can't tell what a plain route would drop", name)
+		case strings.HasPrefix(kind, "stripprefix"):
+			return "Traefik takes its path off before the app sees it, which a route doesn't"
+		case !slices.Contains(harmless, kind):
+			return fmt.Sprintf("it passes through the middleware %s (%s), which a plain route would drop, so what it guards would answer anyone", name, kind)
+		}
+	}
+	return ""
+}
+
+// caddyHarmless are the directives of caddy-docker-proxy's labels a plain route
+// can do without, as Coolify writes them.
+var caddyHarmless = []string{"header", "try_files", "encode", "redir", "log", "reverse_proxy", "handle", "handle_path"}
+
+func caddyRoutes(l map[string]string) []labelRoute {
+	var out []labelRoute
+	for _, k := range slices.Sorted(maps.Keys(l)) {
+		if !caddyLabel().MatchString(k) {
+			continue
+		}
+		port, prefix, left := uint32(0), "", ""
+		for sub, v := range l {
+			rest, ok := strings.CutPrefix(sub, k+".")
+			if !ok {
+				continue
+			}
+			directive, inner, _ := strings.Cut(rest, ".")
+			if strings.HasSuffix(rest, "reverse_proxy") || strings.HasSuffix(inner, "_reverse_proxy") {
+				if m := upstreams().FindStringSubmatch(v); m != nil {
+					port = portOf(m[1])
+				}
+			}
+			switch {
+			case directive == "handle_path" && inner == "":
+				if p := strings.TrimSuffix(strings.TrimSpace(v), "*"); p != "" && p != "/" {
+					prefix, left = strings.TrimSuffix(p, "/"), cmp.Or(left, "Caddy takes its path off before the app sees it, which a route doesn't")
+				}
+			case directive == "handle" && inner == "":
+				if p := strings.TrimSuffix(strings.TrimSpace(v), "*"); p != "/" {
+					prefix = strings.TrimSuffix(p, "/")
+				}
+			case strings.HasPrefix(directive, "@") || !slices.Contains(caddyHarmless, directive):
+				left = cmp.Or(left, fmt.Sprintf("its Caddy labels say %s, which a plain route would drop", directive))
+			}
+		}
+		for _, a := range strings.FieldsFunc(l[k], func(r rune) bool { return r == ',' || r == ' ' }) {
+			if h := hostOf(a); h != "" {
+				out = append(out, labelRoute{host: h, path: prefix, port: port, left: left})
 			}
 		}
 	}
@@ -397,10 +516,17 @@ func (r Reader) dynamicDomains(app string) []string {
 	if r.Root == "" || strings.ContainsAny(app, `/\`) || app == "." || app == ".." {
 		return nil
 	}
-	// A link, a pipe or a device there is refused as it opens, never followed or
-	// waited on: what's read is a file Dokploy wrote.
-	p := filepath.Join(r.Root, dokployFolder, "traefik", "dynamic", app+".yml")
-	f, err := os.OpenFile(p, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0) //nolint:gosec // a fixed path under Dokploy's folder, refused where it's a link
+	return rulesHosts(r.panelFile(filepath.Join(dokployFolder, "traefik", "dynamic", app+".yml")))
+}
+
+// panelFile is a file under a panel's folder, read only where it's a regular
+// file: a link, a pipe or a device there is refused as it opens, never followed
+// or waited on. Nil where it can't be read.
+func (r Reader) panelFile(rel string) []byte {
+	if r.Root == "" {
+		return nil
+	}
+	f, err := os.OpenFile(filepath.Join(r.Root, rel), os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0) //nolint:gosec // a fixed path under a panel's folder, refused where it's a link
 	if err != nil {
 		return nil
 	}
@@ -412,6 +538,47 @@ func (r Reader) dynamicDomains(app string) []string {
 	if err != nil {
 		return nil
 	}
+	return b
+}
+
+// maxOwnFiles is how many of a proxy's own files are read for its domains.
+const maxOwnFiles = 64
+
+// ownDomains are the domains a panel's proxy routes from its own files: Coolify's
+// proxy/dynamic folder, which holds its dashboard's and any a person added, and
+// Dokploy's dokploy.yml, its dashboard's. Each stops answering when the proxy
+// hands over its ports, as nothing of them comes as a route.
+func (r Reader) ownDomains(kind dockwellv1.PanelKind) []string {
+	var files []string
+	switch kind {
+	case dockwellv1.PanelKind_PANEL_KIND_COOLIFY:
+		dir := r.folder(coolifyFolder, "proxy", "dynamic")
+		if dir == "" {
+			return nil
+		}
+		entries, err := os.ReadDir(filepath.Join(r.Root, dir))
+		if err != nil {
+			return nil
+		}
+		for _, e := range entries {
+			if len(files) < maxOwnFiles && e.Type().IsRegular() && (strings.HasSuffix(e.Name(), ".yaml") || strings.HasSuffix(e.Name(), ".yml")) {
+				files = append(files, path.Join(dir, e.Name()))
+			}
+		}
+	case dockwellv1.PanelKind_PANEL_KIND_DOKPLOY:
+		files = []string{path.Join(dokployFolder, "traefik", "dynamic", "dokploy.yml")}
+	case dockwellv1.PanelKind_PANEL_KIND_UNSPECIFIED:
+	}
+	var out []string
+	for _, f := range files {
+		out = append(out, rulesHosts(r.panelFile(f))...)
+	}
+	slices.Sort(out)
+	return slices.Compact(out)
+}
+
+// rulesHosts are the hosts of each Traefik rule in a file of the proxy's.
+func rulesHosts(b []byte) []string {
 	var out []string
 	for _, line := range strings.Split(string(b), "\n") {
 		if strings.Contains(line, "rule:") {

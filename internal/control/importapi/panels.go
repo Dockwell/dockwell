@@ -27,6 +27,7 @@ import (
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/host"
+	"github.com/dockwell/dockwell/internal/resource/route"
 	"github.com/dockwell/dockwell/internal/revision"
 )
 
@@ -163,7 +164,8 @@ func panelSteps(w panel, found *dockwellv1.Panel) ([]*dockwellv1.ImportStep, []*
 		apps = append(apps, a)
 	}
 	// Each domain its proxy serves comes as a route once the proxy hands over ports
-	// 80 and 443, a step of its own (PlanPanelDomains).
+	// 80 and 443, a step of its own (PlanPanelDomains), or says why it stops
+	// answering then: every domain the proxy serves is down once it stops.
 	for _, a := range found.GetApps() {
 		for _, rt := range a.GetRoutes() {
 			step := &dockwellv1.ImportStep{
@@ -171,18 +173,28 @@ func panelSteps(w panel, found *dockwellv1.Panel) ([]*dockwellv1.ImportStep, []*
 				Summary: fmt.Sprintf("a domain of %s, sent to %s", a.GetName(), rt.GetContainer()),
 				Action:  dockwellv1.ImportAction_IMPORT_ACTION_MAKE, WaitsFor: dockwellv1.ImportWaitsFor_IMPORT_WAITS_FOR_PORTS,
 			}
-			switch {
-			case a.GetPreview() || a.GetSwarm() || a.GetComposeProject() == "":
-				leave(step, fmt.Sprintf("It stops answering once %s hands over ports 80 and 443, as %s stays in %s.", w.proxy, a.GetName(), w.name))
-			case rt.GetPort() == 0:
-				leave(step, fmt.Sprintf("%s's labels don't say which port it goes to, so it doesn't come over. Add it from %s's page once it's taken on.", w.proxy, a.GetName()))
-			default:
+			if why := routeLeft(a, rt); why != "" {
+				leave(step, fmt.Sprintf("It doesn't come as a route, as %s, so it stops answering once %s hands over ports 80 and 443.", why, w.proxy))
+			} else {
 				step.Becomes = fmt.Sprintf("a route to %s on port %d", rt.GetService(), rt.GetPort())
 				step.Reason = fmt.Sprintf("It comes once %s hands over ports 80 and 443, a step of its own, after %s is taken on.", w.proxy, a.GetName())
 			}
 			steps = append(steps, step)
 			apps = append(apps, nil)
 		}
+		for _, d := range unrouted(a) {
+			step := &dockwellv1.ImportStep{Kind: dockwellv1.ImportKind_IMPORT_KIND_DOMAIN, Name: d, Summary: "a domain of " + a.GetName()}
+			why := cmp.Or(routeLeft(a, &dockwellv1.PanelRoute{Port: 1}), fmt.Sprintf("Dockwell can't read where %s sends it", w.proxy))
+			leave(step, fmt.Sprintf("It doesn't come as a route, as %s, so it stops answering once %s hands over ports 80 and 443.", why, w.proxy))
+			steps = append(steps, step)
+			apps = append(apps, nil)
+		}
+	}
+	for _, d := range found.GetDomains() {
+		step := &dockwellv1.ImportStep{Kind: dockwellv1.ImportKind_IMPORT_KIND_DOMAIN, Name: d, Summary: fmt.Sprintf("a domain %s routes from its own files", w.proxy)}
+		leave(step, fmt.Sprintf("Its route is %s's own, such as its dashboard's, which doesn't come over, so it stops answering once %s hands over ports 80 and 443.", w.name, w.proxy))
+		steps = append(steps, step)
+		apps = append(apps, nil)
 	}
 	own := make([]string, 0, len(found.GetOwn()))
 	for _, c := range found.GetOwn() {
@@ -490,14 +502,14 @@ func (h *Handler) PlanPanelDomains(ctx context.Context, req *connect.Request[doc
 		return nil, err
 	}
 	var edits []*dockwellv1.Edit
-	var came, stays, noPort []string
+	var came, stays []string
+	waiting := false
 	for _, pr := range routes {
 		switch {
-		case pr.environment == "":
-			stays = append(stays, pr.domain)
 		case pr.done:
-		case pr.route.GetPort() == 0:
-			noPort = append(noPort, pr.domain)
+		case pr.left != "":
+			stays = append(stays, pr.domain)
+			waiting = waiting || pr.waits
 		default:
 			edits = append(edits, &dockwellv1.Edit{
 				Resource: &dockwellv1.ResourceRef{Kind: "route", Scope: pr.environment, Name: pr.name},
@@ -507,20 +519,22 @@ func (h *Handler) PlanPanelDomains(ctx context.Context, req *connect.Request[doc
 		}
 	}
 	if len(edits) == 0 {
-		why := fmt.Errorf("none of %s's apps with a domain is taken on yet, so no domain would come over. Take them on first, then hand over its domains", w.name)
-		reason := "not_taken_on"
-		if slices.ContainsFunc(routes, func(pr panelRoute) bool { return pr.done }) && len(noPort) == 0 {
+		var why error
+		reason := "nothing_to_route"
+		switch {
+		case waiting:
+			why, reason = fmt.Errorf("no domain of %s's would come as a route yet, as the apps they go to aren't taken on. Take them on first, then hand over its domains", w.name), "not_taken_on"
+		case len(stays) == 0:
 			why, reason = fmt.Errorf("%s's domains come as routes on %s already, so there's nothing to hand over", w.name, srv.GetName()), changes.ReasonAlready
+		default:
+			why = fmt.Errorf("none of %s's domains can come as a route, so handing over its ports would only take %s down. Each says why in the import", w.name, human.List(stays))
 		}
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, why, reason)
 	}
 	message := fmt.Sprintf("Stops %s, which holds ports 80 and 443 for %s, so Dockwell's ingress takes them and serves %s, each with its own certificate. Each is down from the stop until its certificate comes, a minute or so. Undoing this deletes these routes and starts %s again",
 		w.proxy, w.name, human.List(came), w.proxy)
 	if len(stays) > 0 {
-		message += fmt.Sprintf(". %s stop answering, as what they go to stays in %s", human.List(stays), w.name)
-	}
-	if len(noPort) > 0 {
-		message += fmt.Sprintf(". %s don't come, as %s's labels don't say their port: add each from its app's page", human.List(noPort), w.proxy)
+		message += fmt.Sprintf(". These stop answering, as nothing in Dockwell serves them: %s. The import says why for each", human.List(stays))
 	}
 	summary := cmp.Or(strings.TrimSpace(req.Msg.GetSummary()), fmt.Sprintf("Hand over %s's domains on %s", w.name, srv.GetName()))
 	c, err := h.changes.Propose(ctx, summary, edits, nil, changes.Also{
@@ -547,6 +561,10 @@ type panelRoute struct {
 	route *resourcev1.Route
 	// done says the environment routes it already.
 	done bool
+	// left says why it doesn't come as a route, and waits that its app isn't taken
+	// on yet, which would bring it.
+	left  string
+	waits bool
 }
 
 // panelRoutes reads where each domain the panel's proxy serves goes in Dockwell:
@@ -558,11 +576,16 @@ func (h *Handler) panelRoutes(ctx context.Context, r *containers.Running, found 
 	for _, a := range found.GetApps() {
 		for _, rt := range a.GetRoutes() {
 			pr := panelRoute{domain: rt.GetDomain() + rt.GetPath()}
+			if pr.left = routeLeft(a, rt); pr.left != "" {
+				out = append(out, pr)
+				continue
+			}
 			_, env, svc, err := h.taker.TakenOnAs(ctx, r, rt.GetContainer())
 			if err != nil {
 				return nil, err
 			}
-			if env == "" || svc == "" || a.GetSwarm() || a.GetPreview() {
+			if env == "" || svc == "" {
+				pr.left, pr.waits = a.GetName()+" isn't taken on yet", true
 				out = append(out, pr)
 				continue
 			}
@@ -576,12 +599,18 @@ func (h *Handler) panelRoutes(ctx context.Context, r *containers.Running, found 
 			for _, existing := range have[env] {
 				pr.done = pr.done || existing.GetDomain() == rt.GetDomain() && existing.GetPath() == rt.GetPath()
 			}
-			if !pr.done && rt.GetPort() != 0 {
+			if !pr.done {
 				pr.name = routeName(pr.domain, have[env])
 				have[env][pr.name] = pr.route
 			}
 			out = append(out, pr)
 		}
+		for _, d := range unrouted(a) {
+			out = append(out, panelRoute{domain: d, left: "Dockwell can't read where it goes"})
+		}
+	}
+	for _, d := range found.GetDomains() {
+		out = append(out, panelRoute{domain: d, left: "the panel's own route"})
 	}
 	return out, nil
 }
@@ -631,4 +660,65 @@ func (h *Handler) domainsDone(ctx context.Context, r *containers.Running, steps 
 		}
 	}
 	return nil
+}
+
+// routeLeft says why a domain the proxy sends to an app doesn't come as a route,
+// or "" where it does once its app is taken on.
+func routeLeft(a *dockwellv1.PanelApp, rt *dockwellv1.PanelRoute) string {
+	switch {
+	case a.GetPreview():
+		return "it's a pull request's preview"
+	case a.GetKind() == "stack" || a.GetSwarm() || a.GetComposeProject() == "":
+		return a.GetName() + " stays where it is"
+	case rt.GetLeft() != "":
+		return rt.GetLeft() + ". Add it from " + a.GetName() + "'s page once it's taken on"
+	case rt.GetPort() == 0:
+		return "the proxy's labels don't say which port it goes to. Add it from " + a.GetName() + "'s page once it's taken on"
+	}
+	if err := route.CheckPath(rt.GetPath()); rt.GetPath() != "" && err != nil {
+		return "its path can't be a route's: " + strings.TrimSuffix(err.Error(), ".")
+	}
+	return ""
+}
+
+// unrouted are an app's domains the proxy's labels or files give no route for.
+func unrouted(a *dockwellv1.PanelApp) []string {
+	var out []string
+	for _, d := range a.GetDomains() {
+		if !slices.ContainsFunc(a.GetRoutes(), func(rt *dockwellv1.PanelRoute) bool { return rt.GetDomain() == d }) && !slices.Contains(out, d) {
+			out = append(out, d)
+		}
+	}
+	return out
+}
+
+// PlanStartPanel plans starting the panel an import came from again, or its proxy
+// alone: the way back where no undo is (ADR 0089).
+func (h *Handler) PlanStartPanel(ctx context.Context, req *connect.Request[dockwellv1.PlanStartPanelRequest]) (*connect.Response[dockwellv1.PlanStartPanelResponse], error) {
+	kind, err := changes.PanelKindOf(req.Msg.GetPanel())
+	if err != nil {
+		return nil, err
+	}
+	w := panels[req.Msg.GetPanel()]
+	srv, err := h.fleet.Get(req.Msg.GetServerId())
+	if errors.Is(err, fleet.ErrNotFound) {
+		return nil, authapi.ReasonError(connect.CodeNotFound, fmt.Errorf("there's no server %s. List them with ListServers", req.Msg.GetServerId()), "not_found")
+	}
+	if err != nil {
+		return nil, h.rpcError(ctx, err)
+	}
+	session, ok := h.agents.SessionPastMove(ctx, srv.GetId(), agentapi.MoveGrace)
+	if !ok {
+		return nil, authapi.ReasonError(connect.CodeUnavailable,
+			fmt.Errorf("%s's agent isn't connected, so Dockwell can't read how %s stands there. Try again once it reconnects", srv.GetName(), w.name), "server_offline")
+	}
+	if !session.StopsPanels() {
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition,
+			fmt.Errorf("%s's agent is too old to start %s. Update the agent on %s, then try again", srv.GetName(), w.name, srv.GetName()), "agent_outdated")
+	}
+	c, err := h.changes.PlanPanelStart(ctx, srv, kind, req.Msg.GetProxy(), strings.TrimSpace(req.Msg.GetSummary()))
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&dockwellv1.PlanStartPanelResponse{Change: c}), nil
 }

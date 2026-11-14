@@ -4034,6 +4034,45 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/imports:startPanel:
+        post:
+            tags:
+                - ImportService
+            description: |-
+                PlanStartPanel plans starting the panel an import came from again, or its
+                 proxy alone: each of its own containers or services that's stopped starts, a
+                 container with the restart policy it had, or always where a stop left it at
+                 no. It's the way back where no undo is: a change that failed partway, or an
+                 undo after its window. A proxy's start is refused while Dockwell's ingress
+                 serves routes on the server, as they hold ports 80 and 443. A person applies
+                 it.
+            operationId: ImportService_PlanStartPanel
+            parameters:
+                - name: serverId
+                  in: path
+                  description: The server the panel runs on, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/PlanStartPanelRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/PlanStartPanelResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/servers/{serverId}/imports:stopPanel:
         post:
             tags:
@@ -16807,6 +16846,13 @@ components:
                     items:
                         $ref: '#/components/schemas/PanelContainer'
                     description: Its own containers and services, such as coolify-db or dokploy-traefik.
+                domains:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        The domains the panel's proxy routes from its own files, such as the panel's
+                         own dashboard: what stops answering when the proxy hands over its ports.
             description: |-
                 Panel is what a panel runs on a server, as Docker and its folders say, with
                  nothing secret in it.
@@ -16923,6 +16969,12 @@ components:
                     type: integer
                     description: The port in the container it goes to, or 0 where the labels don't say.
                     format: uint32
+                left:
+                    type: string
+                    description: |-
+                        Why it can't come as a plain route, or empty where it can: a middleware or a
+                         directive a route would drop, such as a login or an allowlist, so what it
+                         guards would answer anyone, a stripped path, or a rule a route can't say.
             description: |-
                 PanelRoute is a domain the panel's proxy sends to one of an app's containers,
                  read from the proxy's labels on it.
@@ -17337,6 +17389,35 @@ components:
                         - $ref: '#/components/schemas/Change'
                     description: The change, planned, with its plan.
             description: PlanRebootResponse carries the planned reboot.
+        PlanStartPanelRequest:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                    description: The server the panel runs on, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                panel:
+                    enum:
+                        - PANEL_KIND_UNSPECIFIED
+                        - PANEL_KIND_COOLIFY
+                        - PANEL_KIND_DOKPLOY
+                    type: string
+                    description: The panel to start.
+                    format: enum
+                proxy:
+                    type: boolean
+                    description: Start its proxy alone, which holds ports 80 and 443.
+                summary:
+                    type: string
+                    description: What the change is for, for the timeline. Empty says what it starts.
+            description: PlanStartPanelRequest names the server and the panel to start there again.
+        PlanStartPanelResponse:
+            type: object
+            properties:
+                change:
+                    allOf:
+                        - $ref: '#/components/schemas/Change'
+                    description: The change, planned for a person to apply.
+            description: PlanStartPanelResponse carries the planned start.
         PlanStep:
             type: object
             properties:

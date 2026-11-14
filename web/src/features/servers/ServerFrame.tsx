@@ -18,7 +18,7 @@ import { Fragment, type ReactNode } from "react";
 import { RouterTabLink } from "../../lib/links";
 import { useMay } from "../auth/may";
 import { useOnePanelHere } from "../import/onePanelHere";
-import { usePanelRunning } from "../import/StopPanel";
+import { usePanelOn } from "../import/StopPanel";
 import { EmptyState } from "../shell/EmptyState";
 import { Page, type PageProps } from "../shell/Page";
 import { summarize, useServerUpdates } from "../updates/updates";
@@ -191,7 +191,7 @@ function ServerPage({ server, fleet, status, phoneHead, noTabs, children }: Serv
  */
 function MoveInTab({ server }: { server: Server }) {
   const onePanel = useOnePanelHere(server);
-  const panel = usePanelRunning(server);
+  const panel = usePanelOn(server);
   const here = onePanel || panel !== undefined;
   const on = useRouterState({ select: (s) => s.location.pathname.endsWith("/import") });
   if (!here && !on) return null;

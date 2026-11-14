@@ -105,6 +105,29 @@ service ImportService {
     };
   }
 
+  // PlanStartPanel plans starting the panel an import came from again, or its
+  // proxy alone: each of its own containers or services that's stopped starts, a
+  // container with the restart policy it had, or always where a stop left it at
+  // no. It's the way back where no undo is: a change that failed partway, or an
+  // undo after its window. A proxy's start is refused while Dockwell's ingress
+  // serves routes on the server, as they hold ports 80 and 443. A person applies
+  // it.
+  rpc PlanStartPanel(PlanStartPanelRequest) returns (PlanStartPanelResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "import"
+      verb: "start-panel"
+    };
+    option (google.api.http) = {
+      post: "/v1/servers/{server_id}/imports:startPanel"
+      body: "*"
+    };
+  }
+
   // PlanStopPanel plans stopping the panel an import came from: Coolify's own
   // containers, or Dokploy's own Swarm services, never what it ran, so its auto
   // deploys and its scheduled tasks stop with it. Its proxy goes on running, as it
@@ -142,6 +165,24 @@ message PlanPanelDomainsRequest {
 
 // PlanPanelDomainsResponse carries the planned handover.
 message PlanPanelDomainsResponse {
+  // The change, planned for a person to apply.
+  Change change = 1;
+}
+
+// PlanStartPanelRequest names the server and the panel to start there again.
+message PlanStartPanelRequest {
+  // The server the panel runs on, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+  string server_id = 1;
+  // The panel to start.
+  PanelKind panel = 2;
+  // Start its proxy alone, which holds ports 80 and 443.
+  bool proxy = 3;
+  // What the change is for, for the timeline. Empty says what it starts.
+  string summary = 4;
+}
+
+// PlanStartPanelResponse carries the planned start.
+message PlanStartPanelResponse {
   // The change, planned for a person to apply.
   Change change = 1;
 }
@@ -232,6 +273,9 @@ message Panel {
   repeated PanelApp apps = 5;
   // Its own containers and services, such as coolify-db or dokploy-traefik.
   repeated PanelContainer own = 6;
+  // The domains the panel's proxy routes from its own files, such as the panel's
+  // own dashboard: what stops answering when the proxy hands over its ports.
+  repeated string domains = 7;
 }
 
 // PanelApp is something a panel runs for people: an app, a service from its
@@ -287,6 +331,10 @@ message PanelRoute {
   string service = 4;
   // The port in the container it goes to, or 0 where the labels don't say.
   uint32 port = 5;
+  // Why it can't come as a plain route, or empty where it can: a middleware or a
+  // directive a route would drop, such as a login or an allowlist, so what it
+  // guards would answer anyone, a stripped path, or a rule a route can't say.
+  string left = 6;
 }
 
 // PanelContainer is one of a panel's own containers or Swarm services.

@@ -402,6 +402,125 @@ func (x *PlanPanelDomainsResponse) GetChange() *Change {
 	return nil
 }
 
+// PlanStartPanelRequest names the server and the panel to start there again.
+type PlanStartPanelRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The server the panel runs on, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+	ServerId string `protobuf:"bytes,1,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
+	// The panel to start.
+	Panel PanelKind `protobuf:"varint,2,opt,name=panel,proto3,enum=dockwell.v1.PanelKind" json:"panel,omitempty"`
+	// Start its proxy alone, which holds ports 80 and 443.
+	Proxy bool `protobuf:"varint,3,opt,name=proxy,proto3" json:"proxy,omitempty"`
+	// What the change is for, for the timeline. Empty says what it starts.
+	Summary       string `protobuf:"bytes,4,opt,name=summary,proto3" json:"summary,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PlanStartPanelRequest) Reset() {
+	*x = PlanStartPanelRequest{}
+	mi := &file_dockwell_v1_import_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PlanStartPanelRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PlanStartPanelRequest) ProtoMessage() {}
+
+func (x *PlanStartPanelRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_import_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PlanStartPanelRequest.ProtoReflect.Descriptor instead.
+func (*PlanStartPanelRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *PlanStartPanelRequest) GetServerId() string {
+	if x != nil {
+		return x.ServerId
+	}
+	return ""
+}
+
+func (x *PlanStartPanelRequest) GetPanel() PanelKind {
+	if x != nil {
+		return x.Panel
+	}
+	return PanelKind_PANEL_KIND_UNSPECIFIED
+}
+
+func (x *PlanStartPanelRequest) GetProxy() bool {
+	if x != nil {
+		return x.Proxy
+	}
+	return false
+}
+
+func (x *PlanStartPanelRequest) GetSummary() string {
+	if x != nil {
+		return x.Summary
+	}
+	return ""
+}
+
+// PlanStartPanelResponse carries the planned start.
+type PlanStartPanelResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The change, planned for a person to apply.
+	Change        *Change `protobuf:"bytes,1,opt,name=change,proto3" json:"change,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PlanStartPanelResponse) Reset() {
+	*x = PlanStartPanelResponse{}
+	mi := &file_dockwell_v1_import_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PlanStartPanelResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PlanStartPanelResponse) ProtoMessage() {}
+
+func (x *PlanStartPanelResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_import_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PlanStartPanelResponse.ProtoReflect.Descriptor instead.
+func (*PlanStartPanelResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *PlanStartPanelResponse) GetChange() *Change {
+	if x != nil {
+		return x.Change
+	}
+	return nil
+}
+
 // PlanStopPanelRequest names the server and the panel to stop there.
 type PlanStopPanelRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -417,7 +536,7 @@ type PlanStopPanelRequest struct {
 
 func (x *PlanStopPanelRequest) Reset() {
 	*x = PlanStopPanelRequest{}
-	mi := &file_dockwell_v1_import_proto_msgTypes[2]
+	mi := &file_dockwell_v1_import_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -429,7 +548,7 @@ func (x *PlanStopPanelRequest) String() string {
 func (*PlanStopPanelRequest) ProtoMessage() {}
 
 func (x *PlanStopPanelRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_import_proto_msgTypes[2]
+	mi := &file_dockwell_v1_import_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -442,7 +561,7 @@ func (x *PlanStopPanelRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PlanStopPanelRequest.ProtoReflect.Descriptor instead.
 func (*PlanStopPanelRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{2}
+	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *PlanStopPanelRequest) GetServerId() string {
@@ -477,7 +596,7 @@ type PlanStopPanelResponse struct {
 
 func (x *PlanStopPanelResponse) Reset() {
 	*x = PlanStopPanelResponse{}
-	mi := &file_dockwell_v1_import_proto_msgTypes[3]
+	mi := &file_dockwell_v1_import_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -489,7 +608,7 @@ func (x *PlanStopPanelResponse) String() string {
 func (*PlanStopPanelResponse) ProtoMessage() {}
 
 func (x *PlanStopPanelResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_import_proto_msgTypes[3]
+	mi := &file_dockwell_v1_import_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -502,7 +621,7 @@ func (x *PlanStopPanelResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PlanStopPanelResponse.ProtoReflect.Descriptor instead.
 func (*PlanStopPanelResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{3}
+	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *PlanStopPanelResponse) GetChange() *Change {
@@ -526,7 +645,7 @@ type ImportCoolifyRequest struct {
 
 func (x *ImportCoolifyRequest) Reset() {
 	*x = ImportCoolifyRequest{}
-	mi := &file_dockwell_v1_import_proto_msgTypes[4]
+	mi := &file_dockwell_v1_import_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -538,7 +657,7 @@ func (x *ImportCoolifyRequest) String() string {
 func (*ImportCoolifyRequest) ProtoMessage() {}
 
 func (x *ImportCoolifyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_import_proto_msgTypes[4]
+	mi := &file_dockwell_v1_import_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -551,7 +670,7 @@ func (x *ImportCoolifyRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ImportCoolifyRequest.ProtoReflect.Descriptor instead.
 func (*ImportCoolifyRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{4}
+	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *ImportCoolifyRequest) GetServerId() string {
@@ -587,7 +706,7 @@ type ImportCoolifyResponse struct {
 
 func (x *ImportCoolifyResponse) Reset() {
 	*x = ImportCoolifyResponse{}
-	mi := &file_dockwell_v1_import_proto_msgTypes[5]
+	mi := &file_dockwell_v1_import_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -599,7 +718,7 @@ func (x *ImportCoolifyResponse) String() string {
 func (*ImportCoolifyResponse) ProtoMessage() {}
 
 func (x *ImportCoolifyResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_import_proto_msgTypes[5]
+	mi := &file_dockwell_v1_import_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -612,7 +731,7 @@ func (x *ImportCoolifyResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ImportCoolifyResponse.ProtoReflect.Descriptor instead.
 func (*ImportCoolifyResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{5}
+	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ImportCoolifyResponse) GetFound() *Panel {
@@ -649,7 +768,7 @@ type ImportDokployRequest struct {
 
 func (x *ImportDokployRequest) Reset() {
 	*x = ImportDokployRequest{}
-	mi := &file_dockwell_v1_import_proto_msgTypes[6]
+	mi := &file_dockwell_v1_import_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -661,7 +780,7 @@ func (x *ImportDokployRequest) String() string {
 func (*ImportDokployRequest) ProtoMessage() {}
 
 func (x *ImportDokployRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_import_proto_msgTypes[6]
+	mi := &file_dockwell_v1_import_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -674,7 +793,7 @@ func (x *ImportDokployRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ImportDokployRequest.ProtoReflect.Descriptor instead.
 func (*ImportDokployRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{6}
+	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *ImportDokployRequest) GetServerId() string {
@@ -707,7 +826,7 @@ type ImportDokployResponse struct {
 
 func (x *ImportDokployResponse) Reset() {
 	*x = ImportDokployResponse{}
-	mi := &file_dockwell_v1_import_proto_msgTypes[7]
+	mi := &file_dockwell_v1_import_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -719,7 +838,7 @@ func (x *ImportDokployResponse) String() string {
 func (*ImportDokployResponse) ProtoMessage() {}
 
 func (x *ImportDokployResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_import_proto_msgTypes[7]
+	mi := &file_dockwell_v1_import_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -732,7 +851,7 @@ func (x *ImportDokployResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ImportDokployResponse.ProtoReflect.Descriptor instead.
 func (*ImportDokployResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{7}
+	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *ImportDokployResponse) GetFound() *Panel {
@@ -774,14 +893,17 @@ type Panel struct {
 	// What it runs for people: apps, services and databases.
 	Apps []*PanelApp `protobuf:"bytes,5,rep,name=apps,proto3" json:"apps,omitempty"`
 	// Its own containers and services, such as coolify-db or dokploy-traefik.
-	Own           []*PanelContainer `protobuf:"bytes,6,rep,name=own,proto3" json:"own,omitempty"`
+	Own []*PanelContainer `protobuf:"bytes,6,rep,name=own,proto3" json:"own,omitempty"`
+	// The domains the panel's proxy routes from its own files, such as the panel's
+	// own dashboard: what stops answering when the proxy hands over its ports.
+	Domains       []string `protobuf:"bytes,7,rep,name=domains,proto3" json:"domains,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Panel) Reset() {
 	*x = Panel{}
-	mi := &file_dockwell_v1_import_proto_msgTypes[8]
+	mi := &file_dockwell_v1_import_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -793,7 +915,7 @@ func (x *Panel) String() string {
 func (*Panel) ProtoMessage() {}
 
 func (x *Panel) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_import_proto_msgTypes[8]
+	mi := &file_dockwell_v1_import_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -806,7 +928,7 @@ func (x *Panel) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Panel.ProtoReflect.Descriptor instead.
 func (*Panel) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{8}
+	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *Panel) GetKind() PanelKind {
@@ -847,6 +969,13 @@ func (x *Panel) GetApps() []*PanelApp {
 func (x *Panel) GetOwn() []*PanelContainer {
 	if x != nil {
 		return x.Own
+	}
+	return nil
+}
+
+func (x *Panel) GetDomains() []string {
+	if x != nil {
+		return x.Domains
 	}
 	return nil
 }
@@ -895,7 +1024,7 @@ type PanelApp struct {
 
 func (x *PanelApp) Reset() {
 	*x = PanelApp{}
-	mi := &file_dockwell_v1_import_proto_msgTypes[9]
+	mi := &file_dockwell_v1_import_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -907,7 +1036,7 @@ func (x *PanelApp) String() string {
 func (*PanelApp) ProtoMessage() {}
 
 func (x *PanelApp) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_import_proto_msgTypes[9]
+	mi := &file_dockwell_v1_import_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -920,7 +1049,7 @@ func (x *PanelApp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PanelApp.ProtoReflect.Descriptor instead.
 func (*PanelApp) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{9}
+	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *PanelApp) GetName() string {
@@ -1035,14 +1164,18 @@ type PanelRoute struct {
 	// taken on.
 	Service string `protobuf:"bytes,4,opt,name=service,proto3" json:"service,omitempty"`
 	// The port in the container it goes to, or 0 where the labels don't say.
-	Port          uint32 `protobuf:"varint,5,opt,name=port,proto3" json:"port,omitempty"`
+	Port uint32 `protobuf:"varint,5,opt,name=port,proto3" json:"port,omitempty"`
+	// Why it can't come as a plain route, or empty where it can: a middleware or a
+	// directive a route would drop, such as a login or an allowlist, so what it
+	// guards would answer anyone, a stripped path, or a rule a route can't say.
+	Left          string `protobuf:"bytes,6,opt,name=left,proto3" json:"left,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *PanelRoute) Reset() {
 	*x = PanelRoute{}
-	mi := &file_dockwell_v1_import_proto_msgTypes[10]
+	mi := &file_dockwell_v1_import_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1054,7 +1187,7 @@ func (x *PanelRoute) String() string {
 func (*PanelRoute) ProtoMessage() {}
 
 func (x *PanelRoute) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_import_proto_msgTypes[10]
+	mi := &file_dockwell_v1_import_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1067,7 +1200,7 @@ func (x *PanelRoute) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PanelRoute.ProtoReflect.Descriptor instead.
 func (*PanelRoute) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{10}
+	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *PanelRoute) GetDomain() string {
@@ -1105,6 +1238,13 @@ func (x *PanelRoute) GetPort() uint32 {
 	return 0
 }
 
+func (x *PanelRoute) GetLeft() string {
+	if x != nil {
+		return x.Left
+	}
+	return ""
+}
+
 // PanelContainer is one of a panel's own containers or Swarm services.
 type PanelContainer struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -1121,7 +1261,7 @@ type PanelContainer struct {
 
 func (x *PanelContainer) Reset() {
 	*x = PanelContainer{}
-	mi := &file_dockwell_v1_import_proto_msgTypes[11]
+	mi := &file_dockwell_v1_import_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1133,7 +1273,7 @@ func (x *PanelContainer) String() string {
 func (*PanelContainer) ProtoMessage() {}
 
 func (x *PanelContainer) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_import_proto_msgTypes[11]
+	mi := &file_dockwell_v1_import_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1146,7 +1286,7 @@ func (x *PanelContainer) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PanelContainer.ProtoReflect.Descriptor instead.
 func (*PanelContainer) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{11}
+	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *PanelContainer) GetName() string {
@@ -1184,7 +1324,7 @@ type ImportOnePanelRequest struct {
 
 func (x *ImportOnePanelRequest) Reset() {
 	*x = ImportOnePanelRequest{}
-	mi := &file_dockwell_v1_import_proto_msgTypes[12]
+	mi := &file_dockwell_v1_import_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1196,7 +1336,7 @@ func (x *ImportOnePanelRequest) String() string {
 func (*ImportOnePanelRequest) ProtoMessage() {}
 
 func (x *ImportOnePanelRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_import_proto_msgTypes[12]
+	mi := &file_dockwell_v1_import_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1209,7 +1349,7 @@ func (x *ImportOnePanelRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ImportOnePanelRequest.ProtoReflect.Descriptor instead.
 func (*ImportOnePanelRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{12}
+	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *ImportOnePanelRequest) GetServerId() string {
@@ -1245,7 +1385,7 @@ type ImportOnePanelResponse struct {
 
 func (x *ImportOnePanelResponse) Reset() {
 	*x = ImportOnePanelResponse{}
-	mi := &file_dockwell_v1_import_proto_msgTypes[13]
+	mi := &file_dockwell_v1_import_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1257,7 +1397,7 @@ func (x *ImportOnePanelResponse) String() string {
 func (*ImportOnePanelResponse) ProtoMessage() {}
 
 func (x *ImportOnePanelResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_import_proto_msgTypes[13]
+	mi := &file_dockwell_v1_import_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1270,7 +1410,7 @@ func (x *ImportOnePanelResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ImportOnePanelResponse.ProtoReflect.Descriptor instead.
 func (*ImportOnePanelResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{13}
+	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *ImportOnePanelResponse) GetFound() *OnePanel {
@@ -1318,7 +1458,7 @@ type ImportStep struct {
 
 func (x *ImportStep) Reset() {
 	*x = ImportStep{}
-	mi := &file_dockwell_v1_import_proto_msgTypes[14]
+	mi := &file_dockwell_v1_import_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1330,7 +1470,7 @@ func (x *ImportStep) String() string {
 func (*ImportStep) ProtoMessage() {}
 
 func (x *ImportStep) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_import_proto_msgTypes[14]
+	mi := &file_dockwell_v1_import_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1343,7 +1483,7 @@ func (x *ImportStep) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ImportStep.ProtoReflect.Descriptor instead.
 func (*ImportStep) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{14}
+	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *ImportStep) GetKind() ImportKind {
@@ -1430,7 +1570,7 @@ type OnePanel struct {
 
 func (x *OnePanel) Reset() {
 	*x = OnePanel{}
-	mi := &file_dockwell_v1_import_proto_msgTypes[15]
+	mi := &file_dockwell_v1_import_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1442,7 +1582,7 @@ func (x *OnePanel) String() string {
 func (*OnePanel) ProtoMessage() {}
 
 func (x *OnePanel) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_import_proto_msgTypes[15]
+	mi := &file_dockwell_v1_import_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1455,7 +1595,7 @@ func (x *OnePanel) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OnePanel.ProtoReflect.Descriptor instead.
 func (*OnePanel) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{15}
+	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *OnePanel) GetVersion() string {
@@ -1556,7 +1696,7 @@ type OnePanelCompose struct {
 
 func (x *OnePanelCompose) Reset() {
 	*x = OnePanelCompose{}
-	mi := &file_dockwell_v1_import_proto_msgTypes[16]
+	mi := &file_dockwell_v1_import_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1568,7 +1708,7 @@ func (x *OnePanelCompose) String() string {
 func (*OnePanelCompose) ProtoMessage() {}
 
 func (x *OnePanelCompose) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_import_proto_msgTypes[16]
+	mi := &file_dockwell_v1_import_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1581,7 +1721,7 @@ func (x *OnePanelCompose) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OnePanelCompose.ProtoReflect.Descriptor instead.
 func (*OnePanelCompose) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{16}
+	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *OnePanelCompose) GetName() string {
@@ -1628,7 +1768,7 @@ type OnePanelApp struct {
 
 func (x *OnePanelApp) Reset() {
 	*x = OnePanelApp{}
-	mi := &file_dockwell_v1_import_proto_msgTypes[17]
+	mi := &file_dockwell_v1_import_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1640,7 +1780,7 @@ func (x *OnePanelApp) String() string {
 func (*OnePanelApp) ProtoMessage() {}
 
 func (x *OnePanelApp) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_import_proto_msgTypes[17]
+	mi := &file_dockwell_v1_import_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1653,7 +1793,7 @@ func (x *OnePanelApp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OnePanelApp.ProtoReflect.Descriptor instead.
 func (*OnePanelApp) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{17}
+	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *OnePanelApp) GetName() string {
@@ -1751,7 +1891,7 @@ type OnePanelRuntime struct {
 
 func (x *OnePanelRuntime) Reset() {
 	*x = OnePanelRuntime{}
-	mi := &file_dockwell_v1_import_proto_msgTypes[18]
+	mi := &file_dockwell_v1_import_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1763,7 +1903,7 @@ func (x *OnePanelRuntime) String() string {
 func (*OnePanelRuntime) ProtoMessage() {}
 
 func (x *OnePanelRuntime) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_import_proto_msgTypes[18]
+	mi := &file_dockwell_v1_import_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1776,7 +1916,7 @@ func (x *OnePanelRuntime) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OnePanelRuntime.ProtoReflect.Descriptor instead.
 func (*OnePanelRuntime) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{18}
+	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *OnePanelRuntime) GetName() string {
@@ -1872,7 +2012,7 @@ type OnePanelWebsite struct {
 
 func (x *OnePanelWebsite) Reset() {
 	*x = OnePanelWebsite{}
-	mi := &file_dockwell_v1_import_proto_msgTypes[19]
+	mi := &file_dockwell_v1_import_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1884,7 +2024,7 @@ func (x *OnePanelWebsite) String() string {
 func (*OnePanelWebsite) ProtoMessage() {}
 
 func (x *OnePanelWebsite) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_import_proto_msgTypes[19]
+	mi := &file_dockwell_v1_import_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1897,7 +2037,7 @@ func (x *OnePanelWebsite) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OnePanelWebsite.ProtoReflect.Descriptor instead.
 func (*OnePanelWebsite) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{19}
+	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *OnePanelWebsite) GetAlias() string {
@@ -2006,7 +2146,7 @@ type OnePanelDomain struct {
 
 func (x *OnePanelDomain) Reset() {
 	*x = OnePanelDomain{}
-	mi := &file_dockwell_v1_import_proto_msgTypes[20]
+	mi := &file_dockwell_v1_import_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2018,7 +2158,7 @@ func (x *OnePanelDomain) String() string {
 func (*OnePanelDomain) ProtoMessage() {}
 
 func (x *OnePanelDomain) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_import_proto_msgTypes[20]
+	mi := &file_dockwell_v1_import_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2031,7 +2171,7 @@ func (x *OnePanelDomain) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OnePanelDomain.ProtoReflect.Descriptor instead.
 func (*OnePanelDomain) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{20}
+	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *OnePanelDomain) GetDomain() string {
@@ -2083,7 +2223,7 @@ type OnePanelCertificate struct {
 
 func (x *OnePanelCertificate) Reset() {
 	*x = OnePanelCertificate{}
-	mi := &file_dockwell_v1_import_proto_msgTypes[21]
+	mi := &file_dockwell_v1_import_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2095,7 +2235,7 @@ func (x *OnePanelCertificate) String() string {
 func (*OnePanelCertificate) ProtoMessage() {}
 
 func (x *OnePanelCertificate) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_import_proto_msgTypes[21]
+	mi := &file_dockwell_v1_import_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2108,7 +2248,7 @@ func (x *OnePanelCertificate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OnePanelCertificate.ProtoReflect.Descriptor instead.
 func (*OnePanelCertificate) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{21}
+	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *OnePanelCertificate) GetPrimaryDomain() string {
@@ -2182,7 +2322,7 @@ type OnePanelDatabaseServer struct {
 
 func (x *OnePanelDatabaseServer) Reset() {
 	*x = OnePanelDatabaseServer{}
-	mi := &file_dockwell_v1_import_proto_msgTypes[22]
+	mi := &file_dockwell_v1_import_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2194,7 +2334,7 @@ func (x *OnePanelDatabaseServer) String() string {
 func (*OnePanelDatabaseServer) ProtoMessage() {}
 
 func (x *OnePanelDatabaseServer) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_import_proto_msgTypes[22]
+	mi := &file_dockwell_v1_import_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2207,7 +2347,7 @@ func (x *OnePanelDatabaseServer) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OnePanelDatabaseServer.ProtoReflect.Descriptor instead.
 func (*OnePanelDatabaseServer) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{22}
+	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *OnePanelDatabaseServer) GetName() string {
@@ -2272,7 +2412,7 @@ type OnePanelDatabase struct {
 
 func (x *OnePanelDatabase) Reset() {
 	*x = OnePanelDatabase{}
-	mi := &file_dockwell_v1_import_proto_msgTypes[23]
+	mi := &file_dockwell_v1_import_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2284,7 +2424,7 @@ func (x *OnePanelDatabase) String() string {
 func (*OnePanelDatabase) ProtoMessage() {}
 
 func (x *OnePanelDatabase) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_import_proto_msgTypes[23]
+	mi := &file_dockwell_v1_import_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2297,7 +2437,7 @@ func (x *OnePanelDatabase) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OnePanelDatabase.ProtoReflect.Descriptor instead.
 func (*OnePanelDatabase) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{23}
+	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *OnePanelDatabase) GetName() string {
@@ -2381,7 +2521,7 @@ type OnePanelCronJob struct {
 
 func (x *OnePanelCronJob) Reset() {
 	*x = OnePanelCronJob{}
-	mi := &file_dockwell_v1_import_proto_msgTypes[24]
+	mi := &file_dockwell_v1_import_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2393,7 +2533,7 @@ func (x *OnePanelCronJob) String() string {
 func (*OnePanelCronJob) ProtoMessage() {}
 
 func (x *OnePanelCronJob) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_import_proto_msgTypes[24]
+	mi := &file_dockwell_v1_import_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2406,7 +2546,7 @@ func (x *OnePanelCronJob) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OnePanelCronJob.ProtoReflect.Descriptor instead.
 func (*OnePanelCronJob) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{24}
+	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *OnePanelCronJob) GetName() string {
@@ -2517,6 +2657,13 @@ const file_dockwell_v1_import_proto_rawDesc = "" +
 	"\x05panel\x18\x02 \x01(\x0e2\x16.dockwell.v1.PanelKindR\x05panel\x12\x18\n" +
 	"\asummary\x18\x03 \x01(\tR\asummary\"G\n" +
 	"\x18PlanPanelDomainsResponse\x12+\n" +
+	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"\x92\x01\n" +
+	"\x15PlanStartPanelRequest\x12\x1b\n" +
+	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12,\n" +
+	"\x05panel\x18\x02 \x01(\x0e2\x16.dockwell.v1.PanelKindR\x05panel\x12\x14\n" +
+	"\x05proxy\x18\x03 \x01(\bR\x05proxy\x12\x18\n" +
+	"\asummary\x18\x04 \x01(\tR\asummary\"E\n" +
+	"\x16PlanStartPanelResponse\x12+\n" +
 	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"{\n" +
 	"\x14PlanStopPanelRequest\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12,\n" +
@@ -2537,14 +2684,15 @@ const file_dockwell_v1_import_proto_rawDesc = "" +
 	"\x15ImportDokployResponse\x12(\n" +
 	"\x05found\x18\x01 \x01(\v2\x12.dockwell.v1.PanelR\x05found\x12-\n" +
 	"\x05steps\x18\x02 \x03(\v2\x17.dockwell.v1.ImportStepR\x05steps\x12+\n" +
-	"\x06change\x18\x03 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"\xe4\x01\n" +
+	"\x06change\x18\x03 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"\xfe\x01\n" +
 	"\x05Panel\x12*\n" +
 	"\x04kind\x18\x01 \x01(\x0e2\x16.dockwell.v1.PanelKindR\x04kind\x12\x18\n" +
 	"\aversion\x18\x02 \x01(\tR\aversion\x12#\n" +
 	"\rknown_version\x18\x03 \x01(\bR\fknownVersion\x12\x16\n" +
 	"\x06folder\x18\x04 \x01(\tR\x06folder\x12)\n" +
 	"\x04apps\x18\x05 \x03(\v2\x15.dockwell.v1.PanelAppR\x04apps\x12-\n" +
-	"\x03own\x18\x06 \x03(\v2\x1b.dockwell.v1.PanelContainerR\x03own\"\x8b\x03\n" +
+	"\x03own\x18\x06 \x03(\v2\x1b.dockwell.v1.PanelContainerR\x03own\x12\x18\n" +
+	"\adomains\x18\a \x03(\tR\adomains\"\x8b\x03\n" +
 	"\bPanelApp\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
 	"\x04kind\x18\x02 \x01(\tR\x04kind\x12\x18\n" +
@@ -2562,14 +2710,15 @@ const file_dockwell_v1_import_proto_rawDesc = "" +
 	"\apreview\x18\v \x01(\bR\apreview\x12\x14\n" +
 	"\x05image\x18\f \x01(\tR\x05image\x12\x19\n" +
 	"\bfrom_git\x18\r \x01(\bR\afromGit\x12/\n" +
-	"\x06routes\x18\x0e \x03(\v2\x17.dockwell.v1.PanelRouteR\x06routes\"\x84\x01\n" +
+	"\x06routes\x18\x0e \x03(\v2\x17.dockwell.v1.PanelRouteR\x06routes\"\x98\x01\n" +
 	"\n" +
 	"PanelRoute\x12\x16\n" +
 	"\x06domain\x18\x01 \x01(\tR\x06domain\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x12\x1c\n" +
 	"\tcontainer\x18\x03 \x01(\tR\tcontainer\x12\x18\n" +
 	"\aservice\x18\x04 \x01(\tR\aservice\x12\x12\n" +
-	"\x04port\x18\x05 \x01(\rR\x04port\"P\n" +
+	"\x04port\x18\x05 \x01(\rR\x04port\x12\x12\n" +
+	"\x04left\x18\x06 \x01(\tR\x04left\"P\n" +
 	"\x0ePanelContainer\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
 	"\x05image\x18\x02 \x01(\tR\x05image\x12\x14\n" +
@@ -2721,7 +2870,7 @@ const file_dockwell_v1_import_proto_rawDesc = "" +
 	"\x15IMPORT_ACTION_TAKE_ON\x10\x01\x12\x16\n" +
 	"\x12IMPORT_ACTION_MAKE\x10\x02\x12\x17\n" +
 	"\x13IMPORT_ACTION_LEAVE\x10\x03\x12\x16\n" +
-	"\x12IMPORT_ACTION_DONE\x10\x042\xa2\a\n" +
+	"\x12IMPORT_ACTION_DONE\x10\x042\xe2\b\n" +
 	"\rImportService\x12\xb2\x01\n" +
 	"\x0eImportOnePanel\x12\".dockwell.v1.ImportOnePanelRequest\x1a#.dockwell.v1.ImportOnePanelResponse\"W\xa0\xbb\x18\x02\xaa\xbb\x18\x10\n" +
 	"\x06import\x12\x061panel\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02-:\x01*\"(/v1/servers/{server_id}/imports:onepanel\x12\xaf\x01\n" +
@@ -2730,7 +2879,9 @@ const file_dockwell_v1_import_proto_rawDesc = "" +
 	"\rImportDokploy\x12!.dockwell.v1.ImportDokployRequest\x1a\".dockwell.v1.ImportDokployResponse\"W\xa0\xbb\x18\x02\xaa\xbb\x18\x11\n" +
 	"\x06import\x12\adokploy\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02,:\x01*\"'/v1/servers/{server_id}/imports:dokploy\x12\xbc\x01\n" +
 	"\x10PlanPanelDomains\x12$.dockwell.v1.PlanPanelDomainsRequest\x1a%.dockwell.v1.PlanPanelDomainsResponse\"[\xa0\xbb\x18\x02\xaa\xbb\x18\x11\n" +
-	"\x06import\x12\adomains\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02,:\x01*\"'/v1/servers/{server_id}/imports:domains\x12\xb8\x01\n" +
+	"\x06import\x12\adomains\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02,:\x01*\"'/v1/servers/{server_id}/imports:domains\x12\xbd\x01\n" +
+	"\x0ePlanStartPanel\x12\".dockwell.v1.PlanStartPanelRequest\x1a#.dockwell.v1.PlanStartPanelResponse\"b\xa0\xbb\x18\x02\xaa\xbb\x18\x15\n" +
+	"\x06import\x12\vstart-panel\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02/:\x01*\"*/v1/servers/{server_id}/imports:startPanel\x12\xb8\x01\n" +
 	"\rPlanStopPanel\x12!.dockwell.v1.PlanStopPanelRequest\x1a\".dockwell.v1.PlanStopPanelResponse\"`\xa0\xbb\x18\x02\xaa\xbb\x18\x14\n" +
 	"\x06import\x12\n" +
 	"stop-panel\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02.:\x01*\")/v1/servers/{server_id}/imports:stopPanelB\xa4\x01\n" +
@@ -2749,7 +2900,7 @@ func file_dockwell_v1_import_proto_rawDescGZIP() []byte {
 }
 
 var file_dockwell_v1_import_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
-var file_dockwell_v1_import_proto_msgTypes = make([]protoimpl.MessageInfo, 25)
+var file_dockwell_v1_import_proto_msgTypes = make([]protoimpl.MessageInfo, 27)
 var file_dockwell_v1_import_proto_goTypes = []any{
 	(PanelKind)(0),                   // 0: dockwell.v1.PanelKind
 	(ImportWaitsFor)(0),              // 1: dockwell.v1.ImportWaitsFor
@@ -2757,78 +2908,84 @@ var file_dockwell_v1_import_proto_goTypes = []any{
 	(ImportAction)(0),                // 3: dockwell.v1.ImportAction
 	(*PlanPanelDomainsRequest)(nil),  // 4: dockwell.v1.PlanPanelDomainsRequest
 	(*PlanPanelDomainsResponse)(nil), // 5: dockwell.v1.PlanPanelDomainsResponse
-	(*PlanStopPanelRequest)(nil),     // 6: dockwell.v1.PlanStopPanelRequest
-	(*PlanStopPanelResponse)(nil),    // 7: dockwell.v1.PlanStopPanelResponse
-	(*ImportCoolifyRequest)(nil),     // 8: dockwell.v1.ImportCoolifyRequest
-	(*ImportCoolifyResponse)(nil),    // 9: dockwell.v1.ImportCoolifyResponse
-	(*ImportDokployRequest)(nil),     // 10: dockwell.v1.ImportDokployRequest
-	(*ImportDokployResponse)(nil),    // 11: dockwell.v1.ImportDokployResponse
-	(*Panel)(nil),                    // 12: dockwell.v1.Panel
-	(*PanelApp)(nil),                 // 13: dockwell.v1.PanelApp
-	(*PanelRoute)(nil),               // 14: dockwell.v1.PanelRoute
-	(*PanelContainer)(nil),           // 15: dockwell.v1.PanelContainer
-	(*ImportOnePanelRequest)(nil),    // 16: dockwell.v1.ImportOnePanelRequest
-	(*ImportOnePanelResponse)(nil),   // 17: dockwell.v1.ImportOnePanelResponse
-	(*ImportStep)(nil),               // 18: dockwell.v1.ImportStep
-	(*OnePanel)(nil),                 // 19: dockwell.v1.OnePanel
-	(*OnePanelCompose)(nil),          // 20: dockwell.v1.OnePanelCompose
-	(*OnePanelApp)(nil),              // 21: dockwell.v1.OnePanelApp
-	(*OnePanelRuntime)(nil),          // 22: dockwell.v1.OnePanelRuntime
-	(*OnePanelWebsite)(nil),          // 23: dockwell.v1.OnePanelWebsite
-	(*OnePanelDomain)(nil),           // 24: dockwell.v1.OnePanelDomain
-	(*OnePanelCertificate)(nil),      // 25: dockwell.v1.OnePanelCertificate
-	(*OnePanelDatabaseServer)(nil),   // 26: dockwell.v1.OnePanelDatabaseServer
-	(*OnePanelDatabase)(nil),         // 27: dockwell.v1.OnePanelDatabase
-	(*OnePanelCronJob)(nil),          // 28: dockwell.v1.OnePanelCronJob
-	(*Change)(nil),                   // 29: dockwell.v1.Change
-	(*timestamppb.Timestamp)(nil),    // 30: google.protobuf.Timestamp
+	(*PlanStartPanelRequest)(nil),    // 6: dockwell.v1.PlanStartPanelRequest
+	(*PlanStartPanelResponse)(nil),   // 7: dockwell.v1.PlanStartPanelResponse
+	(*PlanStopPanelRequest)(nil),     // 8: dockwell.v1.PlanStopPanelRequest
+	(*PlanStopPanelResponse)(nil),    // 9: dockwell.v1.PlanStopPanelResponse
+	(*ImportCoolifyRequest)(nil),     // 10: dockwell.v1.ImportCoolifyRequest
+	(*ImportCoolifyResponse)(nil),    // 11: dockwell.v1.ImportCoolifyResponse
+	(*ImportDokployRequest)(nil),     // 12: dockwell.v1.ImportDokployRequest
+	(*ImportDokployResponse)(nil),    // 13: dockwell.v1.ImportDokployResponse
+	(*Panel)(nil),                    // 14: dockwell.v1.Panel
+	(*PanelApp)(nil),                 // 15: dockwell.v1.PanelApp
+	(*PanelRoute)(nil),               // 16: dockwell.v1.PanelRoute
+	(*PanelContainer)(nil),           // 17: dockwell.v1.PanelContainer
+	(*ImportOnePanelRequest)(nil),    // 18: dockwell.v1.ImportOnePanelRequest
+	(*ImportOnePanelResponse)(nil),   // 19: dockwell.v1.ImportOnePanelResponse
+	(*ImportStep)(nil),               // 20: dockwell.v1.ImportStep
+	(*OnePanel)(nil),                 // 21: dockwell.v1.OnePanel
+	(*OnePanelCompose)(nil),          // 22: dockwell.v1.OnePanelCompose
+	(*OnePanelApp)(nil),              // 23: dockwell.v1.OnePanelApp
+	(*OnePanelRuntime)(nil),          // 24: dockwell.v1.OnePanelRuntime
+	(*OnePanelWebsite)(nil),          // 25: dockwell.v1.OnePanelWebsite
+	(*OnePanelDomain)(nil),           // 26: dockwell.v1.OnePanelDomain
+	(*OnePanelCertificate)(nil),      // 27: dockwell.v1.OnePanelCertificate
+	(*OnePanelDatabaseServer)(nil),   // 28: dockwell.v1.OnePanelDatabaseServer
+	(*OnePanelDatabase)(nil),         // 29: dockwell.v1.OnePanelDatabase
+	(*OnePanelCronJob)(nil),          // 30: dockwell.v1.OnePanelCronJob
+	(*Change)(nil),                   // 31: dockwell.v1.Change
+	(*timestamppb.Timestamp)(nil),    // 32: google.protobuf.Timestamp
 }
 var file_dockwell_v1_import_proto_depIdxs = []int32{
 	0,  // 0: dockwell.v1.PlanPanelDomainsRequest.panel:type_name -> dockwell.v1.PanelKind
-	29, // 1: dockwell.v1.PlanPanelDomainsResponse.change:type_name -> dockwell.v1.Change
-	0,  // 2: dockwell.v1.PlanStopPanelRequest.panel:type_name -> dockwell.v1.PanelKind
-	29, // 3: dockwell.v1.PlanStopPanelResponse.change:type_name -> dockwell.v1.Change
-	12, // 4: dockwell.v1.ImportCoolifyResponse.found:type_name -> dockwell.v1.Panel
-	18, // 5: dockwell.v1.ImportCoolifyResponse.steps:type_name -> dockwell.v1.ImportStep
-	29, // 6: dockwell.v1.ImportCoolifyResponse.change:type_name -> dockwell.v1.Change
-	12, // 7: dockwell.v1.ImportDokployResponse.found:type_name -> dockwell.v1.Panel
-	18, // 8: dockwell.v1.ImportDokployResponse.steps:type_name -> dockwell.v1.ImportStep
-	29, // 9: dockwell.v1.ImportDokployResponse.change:type_name -> dockwell.v1.Change
-	0,  // 10: dockwell.v1.Panel.kind:type_name -> dockwell.v1.PanelKind
-	13, // 11: dockwell.v1.Panel.apps:type_name -> dockwell.v1.PanelApp
-	15, // 12: dockwell.v1.Panel.own:type_name -> dockwell.v1.PanelContainer
-	14, // 13: dockwell.v1.PanelApp.routes:type_name -> dockwell.v1.PanelRoute
-	19, // 14: dockwell.v1.ImportOnePanelResponse.found:type_name -> dockwell.v1.OnePanel
-	18, // 15: dockwell.v1.ImportOnePanelResponse.steps:type_name -> dockwell.v1.ImportStep
-	29, // 16: dockwell.v1.ImportOnePanelResponse.change:type_name -> dockwell.v1.Change
-	2,  // 17: dockwell.v1.ImportStep.kind:type_name -> dockwell.v1.ImportKind
-	3,  // 18: dockwell.v1.ImportStep.action:type_name -> dockwell.v1.ImportAction
-	1,  // 19: dockwell.v1.ImportStep.waits_for:type_name -> dockwell.v1.ImportWaitsFor
-	21, // 20: dockwell.v1.OnePanel.apps:type_name -> dockwell.v1.OnePanelApp
-	22, // 21: dockwell.v1.OnePanel.runtimes:type_name -> dockwell.v1.OnePanelRuntime
-	23, // 22: dockwell.v1.OnePanel.websites:type_name -> dockwell.v1.OnePanelWebsite
-	25, // 23: dockwell.v1.OnePanel.certificates:type_name -> dockwell.v1.OnePanelCertificate
-	26, // 24: dockwell.v1.OnePanel.database_servers:type_name -> dockwell.v1.OnePanelDatabaseServer
-	27, // 25: dockwell.v1.OnePanel.databases:type_name -> dockwell.v1.OnePanelDatabase
-	28, // 26: dockwell.v1.OnePanel.cron_jobs:type_name -> dockwell.v1.OnePanelCronJob
-	20, // 27: dockwell.v1.OnePanel.composes:type_name -> dockwell.v1.OnePanelCompose
-	24, // 28: dockwell.v1.OnePanelWebsite.domains:type_name -> dockwell.v1.OnePanelDomain
-	30, // 29: dockwell.v1.OnePanelCertificate.expires:type_name -> google.protobuf.Timestamp
-	16, // 30: dockwell.v1.ImportService.ImportOnePanel:input_type -> dockwell.v1.ImportOnePanelRequest
-	8,  // 31: dockwell.v1.ImportService.ImportCoolify:input_type -> dockwell.v1.ImportCoolifyRequest
-	10, // 32: dockwell.v1.ImportService.ImportDokploy:input_type -> dockwell.v1.ImportDokployRequest
-	4,  // 33: dockwell.v1.ImportService.PlanPanelDomains:input_type -> dockwell.v1.PlanPanelDomainsRequest
-	6,  // 34: dockwell.v1.ImportService.PlanStopPanel:input_type -> dockwell.v1.PlanStopPanelRequest
-	17, // 35: dockwell.v1.ImportService.ImportOnePanel:output_type -> dockwell.v1.ImportOnePanelResponse
-	9,  // 36: dockwell.v1.ImportService.ImportCoolify:output_type -> dockwell.v1.ImportCoolifyResponse
-	11, // 37: dockwell.v1.ImportService.ImportDokploy:output_type -> dockwell.v1.ImportDokployResponse
-	5,  // 38: dockwell.v1.ImportService.PlanPanelDomains:output_type -> dockwell.v1.PlanPanelDomainsResponse
-	7,  // 39: dockwell.v1.ImportService.PlanStopPanel:output_type -> dockwell.v1.PlanStopPanelResponse
-	35, // [35:40] is the sub-list for method output_type
-	30, // [30:35] is the sub-list for method input_type
-	30, // [30:30] is the sub-list for extension type_name
-	30, // [30:30] is the sub-list for extension extendee
-	0,  // [0:30] is the sub-list for field type_name
+	31, // 1: dockwell.v1.PlanPanelDomainsResponse.change:type_name -> dockwell.v1.Change
+	0,  // 2: dockwell.v1.PlanStartPanelRequest.panel:type_name -> dockwell.v1.PanelKind
+	31, // 3: dockwell.v1.PlanStartPanelResponse.change:type_name -> dockwell.v1.Change
+	0,  // 4: dockwell.v1.PlanStopPanelRequest.panel:type_name -> dockwell.v1.PanelKind
+	31, // 5: dockwell.v1.PlanStopPanelResponse.change:type_name -> dockwell.v1.Change
+	14, // 6: dockwell.v1.ImportCoolifyResponse.found:type_name -> dockwell.v1.Panel
+	20, // 7: dockwell.v1.ImportCoolifyResponse.steps:type_name -> dockwell.v1.ImportStep
+	31, // 8: dockwell.v1.ImportCoolifyResponse.change:type_name -> dockwell.v1.Change
+	14, // 9: dockwell.v1.ImportDokployResponse.found:type_name -> dockwell.v1.Panel
+	20, // 10: dockwell.v1.ImportDokployResponse.steps:type_name -> dockwell.v1.ImportStep
+	31, // 11: dockwell.v1.ImportDokployResponse.change:type_name -> dockwell.v1.Change
+	0,  // 12: dockwell.v1.Panel.kind:type_name -> dockwell.v1.PanelKind
+	15, // 13: dockwell.v1.Panel.apps:type_name -> dockwell.v1.PanelApp
+	17, // 14: dockwell.v1.Panel.own:type_name -> dockwell.v1.PanelContainer
+	16, // 15: dockwell.v1.PanelApp.routes:type_name -> dockwell.v1.PanelRoute
+	21, // 16: dockwell.v1.ImportOnePanelResponse.found:type_name -> dockwell.v1.OnePanel
+	20, // 17: dockwell.v1.ImportOnePanelResponse.steps:type_name -> dockwell.v1.ImportStep
+	31, // 18: dockwell.v1.ImportOnePanelResponse.change:type_name -> dockwell.v1.Change
+	2,  // 19: dockwell.v1.ImportStep.kind:type_name -> dockwell.v1.ImportKind
+	3,  // 20: dockwell.v1.ImportStep.action:type_name -> dockwell.v1.ImportAction
+	1,  // 21: dockwell.v1.ImportStep.waits_for:type_name -> dockwell.v1.ImportWaitsFor
+	23, // 22: dockwell.v1.OnePanel.apps:type_name -> dockwell.v1.OnePanelApp
+	24, // 23: dockwell.v1.OnePanel.runtimes:type_name -> dockwell.v1.OnePanelRuntime
+	25, // 24: dockwell.v1.OnePanel.websites:type_name -> dockwell.v1.OnePanelWebsite
+	27, // 25: dockwell.v1.OnePanel.certificates:type_name -> dockwell.v1.OnePanelCertificate
+	28, // 26: dockwell.v1.OnePanel.database_servers:type_name -> dockwell.v1.OnePanelDatabaseServer
+	29, // 27: dockwell.v1.OnePanel.databases:type_name -> dockwell.v1.OnePanelDatabase
+	30, // 28: dockwell.v1.OnePanel.cron_jobs:type_name -> dockwell.v1.OnePanelCronJob
+	22, // 29: dockwell.v1.OnePanel.composes:type_name -> dockwell.v1.OnePanelCompose
+	26, // 30: dockwell.v1.OnePanelWebsite.domains:type_name -> dockwell.v1.OnePanelDomain
+	32, // 31: dockwell.v1.OnePanelCertificate.expires:type_name -> google.protobuf.Timestamp
+	18, // 32: dockwell.v1.ImportService.ImportOnePanel:input_type -> dockwell.v1.ImportOnePanelRequest
+	10, // 33: dockwell.v1.ImportService.ImportCoolify:input_type -> dockwell.v1.ImportCoolifyRequest
+	12, // 34: dockwell.v1.ImportService.ImportDokploy:input_type -> dockwell.v1.ImportDokployRequest
+	4,  // 35: dockwell.v1.ImportService.PlanPanelDomains:input_type -> dockwell.v1.PlanPanelDomainsRequest
+	6,  // 36: dockwell.v1.ImportService.PlanStartPanel:input_type -> dockwell.v1.PlanStartPanelRequest
+	8,  // 37: dockwell.v1.ImportService.PlanStopPanel:input_type -> dockwell.v1.PlanStopPanelRequest
+	19, // 38: dockwell.v1.ImportService.ImportOnePanel:output_type -> dockwell.v1.ImportOnePanelResponse
+	11, // 39: dockwell.v1.ImportService.ImportCoolify:output_type -> dockwell.v1.ImportCoolifyResponse
+	13, // 40: dockwell.v1.ImportService.ImportDokploy:output_type -> dockwell.v1.ImportDokployResponse
+	5,  // 41: dockwell.v1.ImportService.PlanPanelDomains:output_type -> dockwell.v1.PlanPanelDomainsResponse
+	7,  // 42: dockwell.v1.ImportService.PlanStartPanel:output_type -> dockwell.v1.PlanStartPanelResponse
+	9,  // 43: dockwell.v1.ImportService.PlanStopPanel:output_type -> dockwell.v1.PlanStopPanelResponse
+	38, // [38:44] is the sub-list for method output_type
+	32, // [32:38] is the sub-list for method input_type
+	32, // [32:32] is the sub-list for extension type_name
+	32, // [32:32] is the sub-list for extension extendee
+	0,  // [0:32] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_import_proto_init() }
@@ -2844,7 +3001,7 @@ func file_dockwell_v1_import_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_import_proto_rawDesc), len(file_dockwell_v1_import_proto_rawDesc)),
 			NumEnums:      4,
-			NumMessages:   25,
+			NumMessages:   27,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

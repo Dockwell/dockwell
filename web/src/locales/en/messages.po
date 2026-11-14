@@ -11293,8 +11293,8 @@ msgstr "A version of {name} this wasn't written from"
 msgid "Couldn't read what {name} runs"
 msgstr "Couldn't read what {name} runs"
 
-msgid "Dockwell reads what {name} runs from Docker and its folders, read-only. Nothing changes until you apply a plan."
-msgstr "Dockwell reads what {name} runs from Docker and its folders, read-only. Nothing changes until you apply a plan."
+msgid "Dockwell reads what {name} runs, read-only, and changes nothing until you apply a plan."
+msgstr "Dockwell reads what {name} runs, read-only, and changes nothing until you apply a plan."
 
 msgid "Hand over ports 80 and 443"
 msgstr "Hand over ports 80 and 443"
@@ -11307,6 +11307,9 @@ msgstr "Move in from {name}"
 
 msgid "Read what {name} runs"
 msgstr "Read what {name} runs"
+
+msgid "Start {name} again"
+msgstr "Start {name} again"
 
 msgid "Stop {name}"
 msgstr "Stop {name}"

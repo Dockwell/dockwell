@@ -31,12 +31,24 @@ import { useChangeSheet } from "../changes/ChangeSheet";
  * dokploy.<slot>.<task>.
  */
 export function panelRunning(containers: ServerContainer[]): PanelKind | undefined {
+  const found = panelOn(containers);
+  return found?.running ? found.kind : undefined;
+}
+
+/** The panel whose own app is on a server, running or stopped, as its list of containers says. */
+export function panelOn(containers: ServerContainer[]): { kind: PanelKind; running: boolean } | undefined {
+  let found: { kind: PanelKind; running: boolean } | undefined;
   for (const c of containers) {
-    if (c.state !== ContainerState.RUNNING) continue;
-    if (c.name === "coolify" && c.image.includes("coollabsio/coolify")) return PanelKind.COOLIFY;
-    if (c.name.startsWith("dokploy.") && c.image.includes("dokploy/dokploy")) return PanelKind.DOKPLOY;
+    const running = c.state === ContainerState.RUNNING;
+    const kind =
+      c.name === "coolify" && c.image.includes("coollabsio/coolify")
+        ? PanelKind.COOLIFY
+        : c.name.startsWith("dokploy.") && c.image.includes("dokploy/dokploy")
+          ? PanelKind.DOKPLOY
+          : undefined;
+    if (kind !== undefined && (found === undefined || running)) found = { kind, running };
   }
-  return undefined;
+  return found;
 }
 
 /** The panel that runs on a server, where someone here may stop it. */
@@ -49,6 +61,12 @@ function usePanelHere(server: Server): PanelKind | undefined {
  * allowed too and someone here may read that list.
  */
 export function usePanelRunning(server: Server, allowedToo = true): PanelKind | undefined {
+  const found = usePanelOn(server, allowedToo);
+  return found?.running ? found.kind : undefined;
+}
+
+/** The panel whose own app is on a server, running or stopped, where someone here may read its list. */
+export function usePanelOn(server: Server, allowedToo = true): { kind: PanelKind; running: boolean } | undefined {
   const may = useMay();
   const readable = server.connection === Connection.CONNECTED && server.dockerUnreadableSince === undefined;
   const allowed = may(ContainerService.method.listContainers).allowed && allowedToo;
@@ -58,7 +76,7 @@ export function usePanelRunning(server: Server, allowedToo = true): PanelKind | 
     { server: server.id },
     { retry: false, enabled: readable && allowed },
   );
-  return readable && allowed ? panelRunning(list.data?.containers ?? []) : undefined;
+  return readable && allowed ? panelOn(list.data?.containers ?? []) : undefined;
 }
 
 function notNowKey(serverId: string): string {

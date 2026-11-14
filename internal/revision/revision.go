@@ -3469,6 +3469,13 @@ func (e *Engine) rollBack(ctx context.Context, failed store.Change, edits []Edit
 		ID: id.New(id.Change), Summary: "Roll back " + failed.Summary, Actor: SystemActor, State: store.ChangePlanned, Reverts: failed.ID,
 		CreatedAt: e.now(), ProposedVia: ViaAutomatic,
 	}
+	for i := range items {
+		if j := slices.IndexFunc(edits, func(ed Edit) bool { return ed.Panel != nil && ed.Ref == items[i].ref }); j >= 0 {
+			asked := *edits[j].Panel
+			asked.Change = c.ID
+			items[i].panel = &asked
+		}
+	}
 	e.own(c.ID)
 	// It takes over the failed change's resources, so nothing slips in
 	// between.
@@ -4491,6 +4498,9 @@ func (e *Engine) fail(ctx context.Context, c store.Change, at resource.Ref, caus
 	e.logger.WarnContext(ctx, "a change failed; rolling it back", slog.String("change", c.ID), slog.String("at", at.String()),
 		slog.String("error", cause.Error()))
 	edits, err := e.reverse(ctx, c.ID)
+	// A panel or its proxy the change stopped makes no revision, so nothing above
+	// starts it again: the rollback does, last (ADR 0089).
+	edits = append(edits, panelsBack(c, e.progress(c.ID))...)
 	if err != nil || len(edits) == 0 {
 		ferr.RollbackErr = err
 		e.published(c.ID, store.ChangeFailed)

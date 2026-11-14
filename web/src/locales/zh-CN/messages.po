@@ -11293,8 +11293,8 @@ msgstr "不是本导入所依据的 {name} 版本"
 msgid "Couldn't read what {name} runs"
 msgstr "无法读取 {name} 运行的内容"
 
-msgid "Dockwell reads what {name} runs from Docker and its folders, read-only. Nothing changes until you apply a plan."
-msgstr "Dockwell 从 Docker 和 {name} 的文件夹中只读地读取它运行的内容。在你应用计划之前，什么都不会改变。"
+msgid "Dockwell reads what {name} runs, read-only, and changes nothing until you apply a plan."
+msgstr "Dockwell 只读地读取 {name} 运行的内容，在你应用计划之前不做任何改变。"
 
 msgid "Hand over ports 80 and 443"
 msgstr "接管 80 和 443 端口"
@@ -11307,6 +11307,9 @@ msgstr "从 {name} 迁入"
 
 msgid "Read what {name} runs"
 msgstr "读取 {name} 运行的内容"
+
+msgid "Start {name} again"
+msgstr "重新启动 {name}"
 
 msgid "Stop {name}"
 msgstr "停止 {name}"

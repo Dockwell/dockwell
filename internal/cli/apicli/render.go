@@ -910,7 +910,10 @@ func panelWords(p *dockwellv1.HostPanel, server string) []string {
 	var out []string
 	switch {
 	case p.GetProxy() && p.GetStart():
-		return []string{fmt.Sprintf("Starts %s's proxy, %s, again on %s, once the routes it hands back ports 80 and 443 from are gone.", name, human.List(containers), server)}
+		return []string{fmt.Sprintf("Starts %s's proxy, %s, again on %s, once the routes it hands back ports 80 and 443 from are gone.", name, human.List(append(containers, services...)), server)}
+	case p.GetProxy() && len(services) > 0:
+		// An older Dokploy runs its Traefik as a Swarm service.
+		return []string{fmt.Sprintf("Scales %s's proxy, the Swarm service %s, to none first, so Dockwell's ingress takes ports 80 and 443 on %s for the routes after it. Undoing this scales it back.", name, human.List(services), server)}
 	case p.GetProxy():
 		return []string{fmt.Sprintf("Stops %s's proxy, %s, first, so Dockwell's ingress takes ports 80 and 443 on %s for the routes after it. It stays stopped when Docker or %s restarts, and undoing this starts it again.", name, human.List(containers), server, server)}
 	case p.GetStart():

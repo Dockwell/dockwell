@@ -37,6 +37,10 @@ const mostReplicas = 16
 // Stopper stops and starts a panel's own containers and services, with Docker.
 type Stopper struct {
 	Docker *docker.Client
+	// BeforeProxy readies what takes the proxy's ports, Dockwell's ingress, by
+	// pulling its image, so the time its domains are down never holds a pull. A
+	// failure leaves the proxy as it is.
+	BeforeProxy func(context.Context) error
 }
 
 // PlanPanel reads how the panel's own containers and services stand, and plans
@@ -85,6 +89,18 @@ func (s Stopper) PlanPanel(ctx context.Context, ask resource.PanelAsked) (*resou
 		}
 		plan.Parts = found
 	}
+	if len(plan.Parts) == 0 && ask.Start {
+		// Started with no stop's plan to put back, each that's stopped starts, with
+		// the restart policy the panel's installer gives its own.
+		found, err := s.readStopped(ctx, order)
+		if err != nil {
+			return nil, false, err
+		}
+		if len(found) == 0 {
+			return plan, false, nil
+		}
+		plan.Parts = found
+	}
 	if ask.Start {
 		// A start goes the other way to a stop: what the panel keeps its state in first.
 		plan.Parts = slices.Clone(plan.Parts)
@@ -110,6 +126,12 @@ func (s Stopper) ApplyPanel(ctx context.Context, p resource.Panel, say func(stri
 	if s.Docker == nil {
 		return errors.New("this agent reads no Docker, so it can't stop or start a panel")
 	}
+	if p.Proxy && !p.Start && s.BeforeProxy != nil {
+		say("Pulling the image of Dockwell's ingress, before the proxy stops")
+		if err := s.BeforeProxy(ctx); err != nil {
+			return fmt.Errorf("can't ready Dockwell's ingress, so %s goes on running: %w", p.Parts[0].Name, err)
+		}
+	}
 	for _, part := range p.Parts {
 		var err error
 		switch {
@@ -120,12 +142,14 @@ func (s Stopper) ApplyPanel(ctx context.Context, p resource.Panel, say func(stri
 			say(fmt.Sprintf("Scaling the service %s to none", part.Name))
 			err = s.Docker.ScaleService(ctx, part.Name, 0)
 		case p.Start:
+			// Started first, and its policy put back after: one that doesn't start
+			// stays at no, so Docker or a reboot doesn't keep trying it.
 			say("Starting " + part.Name)
-			if part.WasRestart != "" {
-				err = s.Docker.UpdateRestartPolicy(ctx, part.Name, docker.RestartPolicy{Name: part.WasRestart})
-			}
-			if err == nil && part.WasRunning {
+			if part.WasRunning {
 				err = s.start(ctx, part.Name)
+			}
+			if err == nil && part.WasRestart != "" {
+				err = s.Docker.UpdateRestartPolicy(ctx, part.Name, docker.RestartPolicy{Name: part.WasRestart})
 			}
 		default:
 			// Its restart policy first: one that's always would start it again with
@@ -212,6 +236,37 @@ func (s Stopper) read(ctx context.Context, order []string) ([]resource.PanelPart
 		// to stop.
 		if restart := c.HostConfig.RestartPolicy.Name; c.State.Running || restart != "" && restart != "no" {
 			out = append(out, resource.PanelPart{Name: name, WasRunning: c.State.Running, WasRestart: restart})
+		}
+	}
+	return out, nil
+}
+
+// readStopped finds each of the panel's own, in order, that's stopped: a container
+// not running, which starts with the policy it had, or always where a stop left it
+// at no, as both panels' installers start their own; a Swarm service at none,
+// which scales to one, as each runs.
+func (s Stopper) readStopped(ctx context.Context, order []string) ([]resource.PanelPart, error) {
+	var out []resource.PanelPart
+	for _, name := range order {
+		if svc, err := s.Docker.InspectService(ctx, name); err == nil {
+			if n, replicated := svc.Spec.Mode.Replicas(); replicated && n == 0 {
+				out = append(out, resource.PanelPart{Name: name, Swarm: true, WasRunning: true, WasReplicas: 1})
+			}
+			continue
+		}
+		c, err := s.Docker.InspectContainer(ctx, name)
+		if docker.IsNotFound(err) {
+			continue
+		}
+		if err != nil {
+			return nil, fmt.Errorf("can't read the container %s: %w", name, err)
+		}
+		if !c.State.Running {
+			restart := c.HostConfig.RestartPolicy.Name
+			if restart == "" || restart == "no" {
+				restart = "always"
+			}
+			out = append(out, resource.PanelPart{Name: name, WasRunning: true, WasRestart: restart})
 		}
 	}
 	return out, nil

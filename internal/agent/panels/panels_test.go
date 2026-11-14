@@ -3,6 +3,7 @@
 package panels
 
 import (
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -268,5 +269,95 @@ func TestWhereEachDomainGoes(t *testing.T) {
 	}, "web-p2q7")
 	if len(got) != 2 || got[0].GetPort() != 8080 || got[1].GetDomain() != "www.shop.example.com" || got[1].GetService() != "web" {
 		t.Errorf("Caddy's routes are %v", got)
+	}
+}
+
+// A domain behind a middleware a plain route would drop doesn't come over as one,
+// so what was behind a login or an allowlist never answers anyone: only a redirect
+// to HTTPS, compression, headers and a redirect of www pass. A stripped path, a
+// rule a route can't say, an entrypoint other than the web's and a container
+// Traefik leaves alone don't come either. Coolify's Caddy labels, handle_path and
+// all, read as it writes them.
+func TestWhatADomainCantBringStaysWithIt(t *testing.T) {
+	base := map[string]string{
+		"com.docker.compose.service":                                       "web",
+		"traefik.http.middlewares.redirect-to-https.redirectscheme.scheme": "https",
+		"traefik.http.middlewares.gzip.compress":                           "true",
+		"traefik.http.services.http-0-k4s9.loadbalancer.server.port":       "3000",
+		"traefik.http.routers.http-0-k4s9.rule":                            "Host(`app.example.com`) && PathPrefix(`/`)",
+		"traefik.http.routers.http-0-k4s9.entrypoints":                     "http",
+		"traefik.http.routers.http-0-k4s9.middlewares":                     "redirect-to-https",
+		"traefik.http.routers.https-0-k4s9.rule":                           "Host(`app.example.com`) && PathPrefix(`/`)",
+		"traefik.http.routers.https-0-k4s9.entrypoints":                    "https",
+		"traefik.http.routers.https-0-k4s9.middlewares":                    "gzip",
+		"traefik.http.routers.https-0-k4s9.service":                        "http-0-k4s9",
+	}
+	if got := routesOf(base, "web-k4s9"); len(got) != 1 || got[0].GetLeft() != "" || got[0].GetPort() != 3000 {
+		t.Fatalf("Coolify's plain app reads %v", got)
+	}
+	for name, more := range map[string]map[string]string{
+		"forwardauth": {"traefik.http.routers.https-0-k4s9.middlewares": "gzip,authelia@docker", "traefik.http.middlewares.authelia.forwardauth.address": "http://authelia:9091"},
+		"unread":      {"traefik.http.routers.https-0-k4s9.middlewares": "sso@file"},
+		"allowlist":   {"traefik.http.routers.https-0-k4s9.middlewares": "office", "traefik.http.middlewares.office.ipallowlist.sourcerange": "192.0.2.0/24"},
+		"stripprefix": {"traefik.http.routers.https-0-k4s9.middlewares": "gzip,s", "traefik.http.middlewares.s.stripprefix.prefixes": "/app"},
+		"rule":        {"traefik.http.routers.https-0-k4s9.rule": "Host(`app.example.com`) && !PathPrefix(`/admin`)"},
+		"entrypoint":  {"traefik.http.routers.https-0-k4s9.entrypoints": "metrics"},
+	} {
+		l := maps.Clone(base)
+		maps.Copy(l, more)
+		got := routesOf(l, "web-k4s9")
+		if len(got) == 0 || got[0].GetLeft() == "" {
+			t.Errorf("%s: the domain comes as a plain route: %v", name, got)
+		}
+	}
+	off := maps.Clone(base)
+	off["traefik.enable"] = "false"
+	if got := routesOf(off, "web-k4s9"); len(got) != 0 {
+		t.Errorf("a container Traefik leaves alone gives %v", got)
+	}
+
+	// As Coolify writes Caddy's labels: the root path comes, a stripped one doesn't.
+	caddy := func(path string) map[string]string {
+		return map[string]string{
+			"com.docker.compose.service":          "web",
+			"caddy_0":                             "https://shop.example.com",
+			"caddy_0.header":                      "-Server",
+			"caddy_0.try_files":                   "{path} /index.html /index.php",
+			"caddy_0.handle_path.0_reverse_proxy": "{{upstreams 8080}}",
+			"caddy_0.handle_path.0_reverse_proxy.stream_close_delay": "5m",
+			"caddy_0.handle_path": path + "*",
+			"caddy_0.encode":      "zstd gzip",
+		}
+	}
+	if got := routesOf(caddy("/"), "web-p2q7"); len(got) != 1 || got[0].GetPort() != 8080 || got[0].GetLeft() != "" || got[0].GetPath() != "" {
+		t.Errorf("Coolify's Caddy app reads %v", got)
+	}
+	if got := routesOf(caddy("/shop"), "web-p2q7"); len(got) != 1 || got[0].GetLeft() == "" {
+		t.Errorf("a stripped Caddy path reads %v", got)
+	}
+	auth := caddy("/")
+	auth["caddy_0.forward_auth"] = "authelia:9091"
+	if got := routesOf(auth, "web-p2q7"); len(got) != 1 || got[0].GetLeft() == "" {
+		t.Errorf("Caddy's forward_auth reads %v", got)
+	}
+}
+
+// The panel's proxy routes its own dashboard, and anything a person added, from
+// its own files: those domains stop answering when it hands over its ports.
+func TestThePanelsOwnDomains(t *testing.T) {
+	root := t.TempDir()
+	dynamic := filepath.Join(root, "data", "coolify", "proxy", "dynamic")
+	if err := os.MkdirAll(dynamic, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	coolify := "http:\n  routers:\n    coolify-http:\n      rule: Host(`coolify.example.com`)\n"
+	if err := os.WriteFile(filepath.Join(dynamic, "coolify.yaml"), []byte(coolify), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dynamic, "notes.txt"), []byte("rule: Host(`not.example.com`)"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := (Reader{Root: root}).ownDomains(dockwellv1.PanelKind_PANEL_KIND_COOLIFY); !slices.Equal(got, []string{"coolify.example.com"}) {
+		t.Errorf("Coolify's own domains are %v", got)
 	}
 }

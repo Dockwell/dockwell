@@ -119,6 +119,41 @@ func TestStoppingThePanelIsAChangeWithAPlan(t *testing.T) {
 		t.Errorf("undoing the start = %v", err)
 	}
 
+	// Stopped again, it starts from Dockwell with no undo to lean on, with the
+	// policy Coolify's installer gives its own; running, there's nothing to start.
+	again, err := stop()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if done := actedOn(t, c, again, ""); done.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("the second stop ended %v: %s", done.GetState(), done.GetError())
+	}
+	start := func() (*dockwellv1.Change, error) {
+		res, err := ic.PlanStartPanel(t.Context(), connect.NewRequest(&dockwellv1.PlanStartPanelRequest{ServerId: id, Panel: dockwellv1.PanelKind_PANEL_KIND_COOLIFY}))
+		if err != nil {
+			return nil, err
+		}
+		return res.Msg.GetChange(), nil
+	}
+	started, err := start()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if started.GetSummary() != "Start Coolify again on hz-1" {
+		t.Errorf("the start reads %q", started.GetSummary())
+	}
+	if done := actedOn(t, c, started, ""); done.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("the start ended %v: %s", done.GetState(), done.GetError())
+	}
+	for _, name := range parts {
+		if got := e.Container(name); !got.State.Running || got.HostConfig.RestartPolicy.Name != "always" {
+			t.Errorf("after the start %s is %v, restart %q", name, got.State.Running, got.HostConfig.RestartPolicy.Name)
+		}
+	}
+	if _, err := start(); reasonOf(err) != "already" {
+		t.Errorf("starting what runs = %v", err)
+	}
+
 	// A token can't plan one: it's a person's, as an action on the server's host.
 	token := createToken(t, b, dockwellv1.TokenScope_TOKEN_SCOPE_READ_WRITE)
 	script := dockwellv1connect.NewImportServiceClient(bearer{token: token, rt: b.client.Transport}, b.origin, connect.WithProtoJSON())

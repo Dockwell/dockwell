@@ -5,6 +5,7 @@ package revision
 import (
 	"context"
 	"slices"
+	"strings"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/fault"
@@ -85,8 +86,10 @@ func panelIn(c store.Change, ref resource.Ref) *resource.PanelAsked {
 // handover of the panel's proxy made are deleted. A start has nothing of its own
 // to put back.
 func (e *Engine) undoPanels(ctx context.Context, c store.Change, took *Plan, by By) (*Plan, error) {
-	if c.State != store.ChangeApplied {
-		return nil, fault.New(ErrCantUndo, "%s is %s, and only applied changes can be undone", c.ID, c.State)
+	// A failed one may have stopped a panel or its proxy before it failed, and its
+	// undo starts that again where its rollback couldn't.
+	if c.State != store.ChangeApplied && c.State != store.ChangeFailed {
+		return nil, fault.New(ErrCantUndo, "%s is %s, and only applied or failed changes can be undone", c.ID, c.State)
 	}
 	if err := e.withinUndoWindow(c); err != nil {
 		return nil, err
@@ -108,7 +111,66 @@ func (e *Engine) undoPanels(ctx context.Context, c store.Change, took *Plan, by 
 		if !ok {
 			return nil, fault.New(ErrCantUndo, "%s can't be undone: it started %s again. Stop %s again to put that back", c.ID, r.Panel.Name(), r.Panel.Name())
 		}
+		if r.Panel.Proxy {
+			if held, err := e.routesStaying(ctx, r.Ref.Scope, edits); err != nil {
+				return nil, err
+			} else if len(held) > 0 {
+				return nil, fault.New(ErrCantUndo, "%s can't be undone yet: Dockwell's ingress serves %s on that server, which holds ports 80 and 443, so %s's proxy couldn't start. Delete those routes first, then undo this",
+					c.ID, strings.Join(held, ", "), r.Panel.Name())
+			}
+		}
 		edits = append(edits, Edit{Ref: r.Ref, Spec: &resourcev1.ServerHost{}, Panel: &back})
 	}
 	return e.propose(ctx, Proposal{Summary: "Undo: " + c.Summary, Actor: by.Actor, Via: by.Via, Edits: edits}, c.ID, true)
+}
+
+// panelsBack are the edits that start again what change c stopped of a panel or
+// its proxy, for each such step that began, as its progress says: what a rollback
+// of a failed change puts back, as a stop makes no revision to roll back.
+func panelsBack(c store.Change, progress *Progress) []Edit {
+	plan, err := DecodePlan(c.Plan)
+	if err != nil || progress == nil {
+		return nil
+	}
+	var out []Edit
+	for i := range plan.Resources {
+		r := &plan.Resources[i]
+		if r.Panel == nil || r.Panel.Start {
+			continue
+		}
+		began := slices.ContainsFunc(progress.Steps, func(s StepProgress) bool {
+			return s.Ref == r.Ref && (s.State == StepRunning || s.State == StepDone || s.State == StepFailed)
+		})
+		if back, ok := r.Panel.Undone(); began && ok {
+			out = append(out, Edit{Ref: r.Ref, Spec: &resourcev1.ServerHost{}, Panel: &back})
+		}
+	}
+	return out
+}
+
+// RoutesStaying are the routes placed on a server that edits don't delete, as
+// routesStaying says: what starting a panel's proxy there waits for.
+func (e *Engine) RoutesStaying(ctx context.Context, server string, edits []Edit) ([]string, error) {
+	return e.routesStaying(ctx, server, edits)
+}
+
+// routesStaying are the routes placed on a server that edits don't delete: what
+// keeps Dockwell's ingress holding ports 80 and 443 there.
+func (e *Engine) routesStaying(ctx context.Context, server string, edits []Edit) ([]string, error) {
+	var out []string
+	err := e.db.View(ctx, func(tx *store.Tx) error {
+		placed, err := tx.ListPlaced(ctx, server)
+		if err != nil {
+			return err
+		}
+		for _, r := range placed {
+			ref := resource.Ref{Kind: resource.Kind(r.Kind), Scope: r.Scope, Name: r.Name}
+			if r.Kind != "route" || slices.ContainsFunc(edits, func(ed Edit) bool { return ed.Ref == ref && ed.Spec == nil }) {
+				continue
+			}
+			out = append(out, r.Name)
+		}
+		return nil
+	})
+	return out, err
 }

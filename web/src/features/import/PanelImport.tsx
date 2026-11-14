@@ -23,7 +23,7 @@ import { useChangeSheet } from "../changes/ChangeSheet";
 import { ServerFrame } from "../servers/ServerFrame";
 import { OnePanelImport, StepGroup, useGroups } from "./OnePanelImport";
 import { useOnePanelHere } from "./onePanelHere";
-import { usePanelRunning } from "./StopPanel";
+import { usePanelOn } from "./StopPanel";
 import "./OnePanelImport.css";
 
 /*
@@ -41,16 +41,16 @@ export function MoveInPage({ serverId }: { serverId: string }) {
 
 function MoveIn({ server }: { server: Server }) {
   const onePanel = useOnePanelHere(server);
-  const kind = usePanelRunning(server);
+  const panel = usePanelOn(server);
   return (
     <>
-      {kind !== undefined ? <PanelImport server={server} kind={kind} /> : null}
-      {onePanel || kind === undefined ? <OnePanelImport server={server} /> : null}
+      {panel !== undefined ? <PanelImport server={server} kind={panel.kind} running={panel.running} /> : null}
+      {onePanel || panel === undefined ? <OnePanelImport server={server} /> : null}
     </>
   );
 }
 
-function PanelImport({ server, kind }: { server: Server; kind: PanelKind }) {
+function PanelImport({ server, kind, running }: { server: Server; kind: PanelKind; running: boolean }) {
   const { t } = useLingui();
   const transport = useTransport();
   const imports = useMemo(() => createClient(ImportService, transport), [transport]);
@@ -103,6 +103,13 @@ function PanelImport({ server, kind }: { server: Server; kind: PanelKind }) {
       onClose: again,
     });
   };
+  const start = () => {
+    sheet.open({
+      kind: "plan",
+      make: async () => ({ change: (await imports.planStartPanel({ serverId: server.id, panel: kind })).change }),
+      onClose: again,
+    });
+  };
   const stop = () => {
     sheet.open({
       kind: "plan",
@@ -115,6 +122,8 @@ function PanelImport({ server, kind }: { server: Server; kind: PanelKind }) {
   const groups = useGroups(steps, name);
   const toTake = steps.some((s) => s.action === ImportAction.TAKE_ON);
   const panel = found?.found;
+  // Domains come over for what was taken on, so the handover waits for one.
+  const takenOn = steps.some((s) => s.kind === ImportKind.APP && s.action === ImportAction.DONE);
   const notHere = reasonOf(failure) === "panel_not_found";
   const reviewButton = (
     <Button variant="primary" icon="arrow-right" onClick={review}>
@@ -126,10 +135,7 @@ function PanelImport({ server, kind }: { server: Server; kind: PanelKind }) {
       <Panel title={t`Move in from ${name}`}>
         <div className="onepanel-intro">
           <p>
-            <Trans>
-              Dockwell reads what {name} runs from Docker and its folders, read-only. Nothing changes until you apply a
-              plan.
-            </Trans>
+            <Trans>Dockwell reads what {name} runs, read-only, and changes nothing until you apply a plan.</Trans>
           </p>
           <div className="onepanel-actions">
             <Button
@@ -164,18 +170,22 @@ function PanelImport({ server, kind }: { server: Server; kind: PanelKind }) {
           group={g}
           panel={name}
           actions={
-            g.key === "ports" ? (
+            g.key === "ports" && takenOn ? (
               <Button size="sm" icon="globe" onClick={handOver}>
                 <Trans>Hand over ports 80 and 443</Trans>
               </Button>
             ) : undefined
           }
           extra={(step) =>
-            step.kind === ImportKind.PANEL ? (
+            step.kind !== ImportKind.PANEL ? null : running ? (
               <Button size="sm" icon="stop" onClick={stop}>
                 <Trans>Stop {name}</Trans>
               </Button>
-            ) : null
+            ) : (
+              <Button size="sm" icon="play" onClick={start}>
+                <Trans>Start {name} again</Trans>
+              </Button>
+            )
           }
         />
       ))}
