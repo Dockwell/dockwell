@@ -11971,8 +11971,14 @@ msgstr "{0, plural, one {agents on # version} other {agents on # versions}}"
 msgid "{total} in {regionWords}"
 msgstr "{total} in {regionWords}"
 
+msgid "{total} in {regionWords}, {withoutWords}"
+msgstr "{total} in {regionWords}, {withoutWords}"
+
 msgid "{used} of {total}"
 msgstr "{used} of {total}"
+
+msgid "{without, plural, one {# without a region} other {# without a region}}"
+msgstr "{without, plural, one {# without a region} other {# without a region}}"
 
 msgid "Add server"
 msgstr "Add server"
@@ -13271,6 +13277,9 @@ msgstr "A label needs a key, such as region"
 msgid "A server can have {MAX_LABELS} labels"
 msgstr "A server can have {MAX_LABELS} labels"
 
+msgid "Dockwell keeps the prefix {prefix} for its own labels. Use a prefix of your own, such as example.com/"
+msgstr "Dockwell keeps the prefix {prefix} for its own labels. Use a prefix of your own, such as example.com/"
+
 msgid "It has a space, and a label holds letters, digits, -, _ and . alone"
 msgstr "It has a space, and a label holds letters, digits, -, _ and . alone"
 
@@ -13291,6 +13300,9 @@ msgstr "Its prefix isn't a domain: lowercase letters, digits, - and ., such as e
 
 msgid "Write a prefix before /, such as example.com/, or leave / out"
 msgstr "Write a prefix before /, such as example.com/, or leave / out"
+
+msgid "{badText} can't be read, so no server matches. {badWords}"
+msgstr "{badText} can't be read, so no server matches. {badWords}"
 
 msgid "key:value"
 msgstr "key:value"
@@ -13866,6 +13878,9 @@ msgstr "sorted by name"
 
 msgid "{count} in {regionWords}"
 msgstr "{count} in {regionWords}"
+
+msgid "{count} in {regionWords}, {withoutWords}"
+msgstr "{count} in {regionWords}, {withoutWords}"
 
 msgid "{matching, plural, one {# matches} other {# match}}"
 msgstr "{matching, plural, one {# matches} other {# match}}"

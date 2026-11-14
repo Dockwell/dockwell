@@ -27,6 +27,7 @@ export type LabelProblem =
   | { kind: "empty-prefix" }
   | { kind: "long-prefix"; length: number }
   | { kind: "prefix-not-domain" }
+  | { kind: "reserved-prefix"; prefix: string }
   | { kind: "no-name" }
   | { kind: "long"; length: number }
   | { kind: "ends" }
@@ -64,6 +65,14 @@ function nameProblem(name: string): LabelProblem | undefined {
   return undefined;
 }
 
+/** The prefix Dockwell keeps for its own labels, with each of its subdomains. */
+export const RESERVED_PREFIX = "dockwell.io";
+
+/** Whether a key's prefix is one Dockwell keeps for its own labels, as internal/resource/labels.go says. */
+export function reservedPrefix(prefix: string): boolean {
+  return prefix === RESERVED_PREFIX || prefix.endsWith(`.${RESERVED_PREFIX}`);
+}
+
 function dnsSubdomain(s: string): boolean {
   return s.split(".").every((part) => part !== "" && part.length <= 63 && /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/.test(part));
 }
@@ -77,6 +86,7 @@ export function keyProblem(key: string): LabelProblem | undefined {
   if (prefix === "") return { kind: "empty-prefix" };
   if (prefix.length > LABEL_PREFIX) return { kind: "long-prefix", length: prefix.length };
   if (!dnsSubdomain(prefix)) return { kind: "prefix-not-domain" };
+  if (reservedPrefix(prefix)) return { kind: "reserved-prefix", prefix };
   return nameProblem(key.slice(slash + 1));
 }
 
@@ -127,18 +137,41 @@ export function termText(term: Term): string {
   return `${term.not ? "!" : ""}${term.key}${term.hasValue ? `:${term.value}` : ""}`;
 }
 
-/** Reads a selector, terms with spaces between, leaving out a term it can't read. */
-export function parseSelector(text: string): Term[] {
-  return text
-    .split(/\s+/)
-    .filter(Boolean)
-    .map(parseTerm)
-    .filter((t): t is Term => !isProblem(t));
+/** A term of a selector that can't be read, as it was written, and what's wrong with it. */
+export interface BadTerm {
+  text: string;
+  problem: LabelProblem;
 }
 
-/** A selector as parseSelector reads it. */
-export function selectorText(terms: readonly Term[]): string {
-  return terms.map(termText).join(" ");
+/**
+ * A selector, read: the terms it could read, and those it couldn't. A term it can't
+ * read matches no server, rather than be left out: leaving it out would widen the
+ * set, and whatever acts on the set would act on more servers than were meant.
+ */
+export interface Selector {
+  terms: Term[];
+  bad: BadTerm[];
+}
+
+/** Reads a selector, terms with spaces between, keeping each term it can't read. */
+export function parseSelector(text: string): Selector {
+  const out: Selector = { terms: [], bad: [] };
+  for (const part of text.split(/\s+/).filter(Boolean)) {
+    const term = parseTerm(part);
+    if (isProblem(term)) out.bad.push({ text: part, problem: term });
+    else out.terms.push(term);
+  }
+  return out;
+}
+
+/** A selector as parseSelector reads it, with its terms, then those it can't read, as written. */
+export function selectorText(terms: readonly Term[], bad: readonly BadTerm[] = []): string {
+  return [...terms.map(termText), ...bad.map((b) => b.text)].join(" ");
+}
+
+/** Whether labels match a selector: none do while it has a term it can't read. */
+export function matchesSelector(selector: Selector, labels: Readonly<Record<string, string>>): boolean {
+  return selector.bad.length === 0 && matches(selector.terms, labels);
 }
 
 /** Whether labels match every term. */
@@ -187,6 +220,11 @@ export function labelSuggestions(fleet: Map<string, string[]>, has: Readonly<Rec
   }
   for (const k of fleet.keys()) out.push(`${k}:`);
   return out;
+}
+
+/** How many servers have no region label, for a lead that counts the regions servers are in. */
+export function withoutRegion(servers: readonly Server[]): number {
+  return servers.filter((s) => !Object.hasOwn(s.labels, "region")).length;
 }
 
 /** The key the fleet groups by first: region where a server has one, then the key most servers have. */

@@ -22,6 +22,10 @@ export function useLabelProblemWords(): (problem: LabelProblem) => string {
       }
       case "prefix-not-domain":
         return t`Its prefix isn't a domain: lowercase letters, digits, - and ., such as example.com`;
+      case "reserved-prefix": {
+        const { prefix } = problem;
+        return t`Dockwell keeps the prefix ${prefix} for its own labels. Use a prefix of your own, such as example.com/`;
+      }
       case "no-name":
         return t`It has no name after its prefix`;
       case "long": {
@@ -55,6 +59,8 @@ export interface Chip {
   key: string;
   /** Undefined shows the key alone. */
   value?: string | undefined;
+  /** What's wrong with a chip that can't be read, which shows as the field's error until it's fixed or removed. */
+  problem?: LabelProblem | undefined;
 }
 
 /**
@@ -101,13 +107,19 @@ export function LabelChips({
   className?: string;
 }) {
   const words = useLabelProblemWords();
+  const { t } = useLingui();
   const strings = useUIStrings();
   const id = useId();
   const input = useRef<HTMLInputElement>(null);
   const [text, setText] = useState("");
   const [tried, setTried] = useState(false);
   const problem = text.trim() === "" ? undefined : check(text.trim());
-  const shown = problem && (tried || showsAtOnce(problem, text.trim())) ? words(problem) : undefined;
+  const typed = problem && (tried || showsAtOnce(problem, text.trim())) ? words(problem) : undefined;
+  // A chip that can't be read, as from an address someone typed, says so until it's fixed or removed.
+  const bad = chips.find((chip) => chip.problem);
+  const badWords = bad?.problem ? words(bad.problem) : "";
+  const badText = bad?.text ?? "";
+  const shown = typed ?? (bad ? t`${badText} can't be read, so no server matches. ${badWords}` : undefined);
 
   const add = (value = text) => {
     const v = value.trim();
@@ -161,15 +173,21 @@ export function LabelChips({
       {/* biome-ignore lint/a11y/useKeyWithClickEvents: as above */}
       <div className="dw-input label-chips-box" onClick={(e) => e.target === e.currentTarget && input.current?.focus()}>
         {icon ? <Icon name={icon} size={16} className="label-chips-icon" /> : null}
-        {chips.map((chip, i) => (
-          <Tag
-            key={chip.text}
-            label={chip.key}
-            value={chip.value}
-            onRemove={() => onRemove(i)}
-            removeLabel={chip.text}
-          />
-        ))}
+        {chips.map((chip, i) =>
+          chip.problem ? (
+            <Tag key={chip.text} className="label-chips-bad" onRemove={() => onRemove(i)} removeLabel={chip.text}>
+              {chip.text}
+            </Tag>
+          ) : (
+            <Tag
+              key={chip.text}
+              label={chip.key}
+              value={chip.value}
+              onRemove={() => onRemove(i)}
+              removeLabel={chip.text}
+            />
+          ),
+        )}
         {shownLabel ? null : (
           <label htmlFor={id} className="dw-sr">
             {label}

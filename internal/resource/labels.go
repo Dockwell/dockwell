@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"unicode/utf8"
 )
 
 // A label's key and value are as Kubernetes has them (ADR 0091): a name of at
@@ -35,6 +36,8 @@ func CheckLabelKey(key string) error {
 		return fmt.Errorf("the label key %q has a prefix of %d characters, past the %d a prefix may have", key, len(prefix), labelPrefix)
 	case prefixed && !dnsSubdomain(prefix):
 		return fmt.Errorf("the label key %q has a prefix that isn't a domain: lowercase letters, digits, - and ., such as example.com", key)
+	case prefixed && Reserved(prefix):
+		return fmt.Errorf("the label key %q has the prefix %s, which Dockwell keeps for its own labels. Use a prefix of your own, such as example.com/", key, prefix)
 	}
 	if err := checkLabelName(name); err != nil {
 		return fmt.Errorf("the label key %q %w", key, err)
@@ -91,13 +94,25 @@ func checkLabelName(name string) error {
 			if c == ' ' {
 				return errors.New("has a space, and a label holds letters, digits, -, _ and . alone")
 			}
-			return fmt.Errorf("has %q, and a label holds letters, digits, -, _ and . alone", c)
+			// The character as a person typed it, not the first byte of it.
+			r, _ := utf8.DecodeRuneInString(name[i:])
+			return fmt.Errorf("has %q, and a label holds letters, digits, -, _ and . alone", r)
 		}
 	}
 	if !alnum(name[0]) || !alnum(name[len(name)-1]) {
 		return errors.New("must start and end with a letter or digit")
 	}
 	return nil
+}
+
+// reservedPrefix is the prefix Dockwell keeps for its own labels, with each of its
+// subdomains.
+const reservedPrefix = "dockwell.io"
+
+// Reserved reports a key's prefix that Dockwell keeps for its own labels:
+// dockwell.io, or one of its subdomains.
+func Reserved(prefix string) bool {
+	return prefix == reservedPrefix || strings.HasSuffix(prefix, "."+reservedPrefix)
 }
 
 func alnum(c byte) bool {

@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"time"
 
-	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/control/fleet"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/host"
@@ -136,19 +135,17 @@ func (h *Hosts) Make(ctx context.Context) error {
 		for i := range hosts {
 			has[hosts[i].Scope] = true
 		}
-		var labels map[string]map[string]string
 		for i := range servers {
 			s := &servers[i]
 			if s.RevokedAt != nil || has[s.ID] || !h.runsHosts(s.ID) {
 				continue
 			}
 			// A new host has the labels its server joined with (ADR 0091).
-			if labels == nil {
-				if labels, err = tx.JoinLabels(ctx); err != nil {
-					return err
-				}
+			spec, err := revision.NewHost(ctx, tx, s.ID)
+			if err != nil {
+				return err
 			}
-			edits = append(edits, revision.Edit{Ref: resource.Ref{Kind: host.Kind, Scope: s.ID, Name: host.Name}, Spec: &resourcev1.ServerHost{Labels: labels[s.ID]}})
+			edits = append(edits, revision.Edit{Ref: resource.Ref{Kind: host.Kind, Scope: s.ID, Name: host.Name}, Spec: spec})
 		}
 		return nil
 	}); err != nil || len(edits) == 0 {

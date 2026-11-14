@@ -66,15 +66,3 @@ func (h *Hub) ReadLabels(ctx context.Context) error {
 	}
 	return nil
 }
-
-// Labels gives every server's labels, by server ID, for what selects servers by
-// them: each map is the hub's own, so read it and don't change it.
-func (h *Hub) Labels() map[string]map[string]string {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	out := make(map[string]map[string]string, len(h.servers))
-	for id, l := range h.servers {
-		out[id] = l.labels
-	}
-	return out
-}

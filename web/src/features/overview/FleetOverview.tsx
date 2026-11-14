@@ -22,7 +22,7 @@ import { type ReactNode, useMemo, useState } from "react";
 import { formatFixed, formatLiveBytesOf } from "../../lib/format";
 import { useTimeWords } from "../../lib/time";
 import { FleetUnreadNote } from "../servers/FleetNotes";
-import { fleetLabels, groupBy } from "../servers/labels";
+import { fleetLabels, groupBy, withoutRegion } from "../servers/labels";
 import { byNeed, NEED } from "../servers/server";
 import { useServerTiles } from "../servers/tiles";
 import { useFleetUnread } from "../servers/useFleet";
@@ -65,7 +65,15 @@ export function FleetOverview({ servers: fleet, status }: { servers: readonly Se
   );
   const regionWords = plural(regions.length, { one: "# region", other: "# regions" });
   const total = strings.fleetGrid.servers(fleet.length);
-  const count = regions.length > 0 ? t`${total} in ${regionWords}` : total;
+  // The servers without a region are said apart, so the lead never puts them in one.
+  const without = withoutRegion(fleet);
+  const withoutWords = plural(without, { one: "# without a region", other: "# without a region" });
+  const count =
+    regions.length === 0
+      ? total
+      : without > 0
+        ? t`${total} in ${regionWords}, ${withoutWords}`
+        : t`${total} in ${regionWords}`;
   // As the rail says the control plane's: a build on the way to a release is that release, dev.
   const versions = [...new Set(agentVersions(fleet).map(shortVersion))];
   const [version] = versions;

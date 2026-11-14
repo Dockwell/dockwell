@@ -34,12 +34,14 @@ import {
   isProblem,
   type LabelGroup,
   labelSuggestions,
-  matches,
+  matchesSelector,
   parseSelector,
   parseTerm,
+  type Selector,
   selectorText,
   type Term,
   termText,
+  withoutRegion,
 } from "./labels";
 import { ServerInspector } from "./ServerInspector";
 import { byNeed, serverStatus } from "./server";
@@ -60,8 +62,8 @@ export interface ServersSearch {
   group?: string;
 }
 
-/** What Group by says for no groups, in the URL. */
-const NO_GROUPS = "none";
+/** What Group by says for no groups, in the URL: "-", which no label's key can be. */
+export const NO_GROUPS = "-";
 
 /** How many rows the table shows before "Show all", as Servers-List pages them. */
 export const TABLE_PAGE = 20;
@@ -104,8 +106,13 @@ export function ServersPage({
     () => (fleet.status === "connecting" ? [] : [...fleet.servers].sort((a, b) => a.name.localeCompare(b.name))),
     [fleet],
   );
-  const terms = useMemo(() => parseSelector(search.selector ?? ""), [search.selector]);
-  const servers = useMemo(() => fleetServers.filter((s) => matches(terms, s.labels)), [fleetServers, terms]);
+  // A term the selector can't read matches no server, so the list never widens past what was asked.
+  const selector = useMemo(() => parseSelector(search.selector ?? ""), [search.selector]);
+  const terms = selector.terms;
+  const servers = useMemo(
+    () => fleetServers.filter((s) => matchesSelector(selector, s.labels)),
+    [fleetServers, selector],
+  );
   const used = useMemo(() => fleetLabels(fleetServers), [fleetServers]);
   const groupKey = search.group === NO_GROUPS ? undefined : (search.group ?? defaultGroupKey(used));
   // What a choice keeps of the URL: which servers it lists, and how.
@@ -134,8 +141,10 @@ export function ServersPage({
   // Each choice is a step Back goes through; closing is one too.
   const select = (id: string | undefined) => onSearch(id ? { ...kept, server: id } : { ...kept, closed: true });
   const listing = { server: search.server, closed: search.closed };
-  const setSelector = (next: readonly Term[]) =>
-    onSearch({ ...listing, group: search.group, selector: next.length > 0 ? selectorText(next) : undefined });
+  const setSelector = (next: Selector) => {
+    const text = selectorText(next.terms, next.bad);
+    onSearch({ ...listing, group: search.group, selector: text !== "" ? text : undefined });
+  };
   const setGroup = (key: string | undefined) =>
     onSearch(
       { ...listing, selector: search.selector, group: key === defaultGroupKey(used) ? undefined : (key ?? NO_GROUPS) },
@@ -144,7 +153,15 @@ export function ServersPage({
   const groups = groupKey ? groupBy(servers, groupKey) : undefined;
   const regions = used.get("region")?.length ?? 0;
   const regionWords = plural(regions, { one: "# region", other: "# regions" });
-  const lead = regions > 0 ? t`${count} in ${regionWords}` : count;
+  // The servers without a region are said apart, so the lead never puts them in one.
+  const without = withoutRegion(fleetServers);
+  const withoutWords = plural(without, { one: "# without a region", other: "# without a region" });
+  const lead =
+    regions === 0
+      ? count
+      : without > 0
+        ? t`${count} in ${regionWords}, ${withoutWords}`
+        : t`${count} in ${regionWords}`;
 
   return (
     // The list with its inspector beside it, as Servers-List lays them out, uses the room: a wide page
@@ -175,9 +192,9 @@ export function ServersPage({
       }
     >
       {unread ? <FleetUnreadNote why={unread.why} heard={unread.heard} /> : null}
-      {used.size > 0 || terms.length > 0 ? (
+      {used.size > 0 || terms.length > 0 || selector.bad.length > 0 ? (
         <ServersSelector
-          terms={terms}
+          selector={selector}
           used={used}
           matching={servers.length}
           groupKey={groupKey}
@@ -190,7 +207,7 @@ export function ServersPage({
           <span>
             <Trans>No server matches</Trans>
           </span>
-          <Button variant="ghost" size="sm" onClick={() => setSelector([])}>
+          <Button variant="ghost" size="sm" onClick={() => setSelector({ terms: [], bad: [] })}>
             <Trans>Clear the selector</Trans>
           </Button>
         </section>
@@ -250,39 +267,48 @@ interface ListProps {
  * and Group by, region first.
  */
 function ServersSelector({
-  terms,
+  selector,
   used,
   matching,
   groupKey,
   onTerms,
   onGroup,
 }: {
-  terms: readonly Term[];
+  selector: Selector;
   used: Map<string, string[]>;
   matching: number;
   groupKey: string | undefined;
-  onTerms: (next: readonly Term[]) => void;
+  onTerms: (next: Selector) => void;
   onGroup: (key: string | undefined) => void;
 }) {
   const { t } = useLingui();
   const keys = [...used.keys()];
+  const { terms, bad } = selector;
+  const withTerms = (next: readonly Term[]) => onTerms({ terms: [...next], bad });
   return (
     <div className="servers-selector">
       <LabelChips
         className="servers-selector-field"
         label={t`Add a label to the selector`}
         icon="filter"
-        chips={terms.map((term) => ({
-          text: termText(term),
-          key: `${term.not ? "!" : ""}${term.key}`,
-          value: term.hasValue ? term.value : undefined,
-        }))}
+        chips={[
+          ...terms.map((term) => ({
+            text: termText(term),
+            key: `${term.not ? "!" : ""}${term.key}`,
+            value: term.hasValue ? term.value : undefined,
+          })),
+          ...bad.map((b) => ({ text: b.text, key: b.text, problem: b.problem })),
+        ]}
         onAdd={(text) => {
           const term = parseTerm(text);
           if (isProblem(term)) return;
-          onTerms([...terms.filter((x) => termText(x) !== termText(term)), term]);
+          withTerms([...terms.filter((x) => termText(x) !== termText(term)), term]);
         }}
-        onRemove={(i) => onTerms(terms.filter((_, j) => j !== i))}
+        onRemove={(i) =>
+          i < terms.length
+            ? withTerms(terms.filter((_, j) => j !== i))
+            : onTerms({ terms, bad: bad.filter((_, j) => j !== i - terms.length) })
+        }
         check={(text) => {
           const term = parseTerm(text);
           return isProblem(term) ? term : undefined;
@@ -290,7 +316,7 @@ function ServersSelector({
         suggestions={labelSuggestions(used)}
         placeholder={t`label:value`}
         after={
-          terms.length > 0 ? (
+          terms.length > 0 || bad.length > 0 ? (
             <span className="label-chips-after">{plural(matching, { one: "# matches", other: "# match" })}</span>
           ) : null
         }

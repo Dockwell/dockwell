@@ -5,6 +5,7 @@ package revision
 import (
 	"context"
 
+	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/fault"
 	"github.com/dockwell/dockwell/internal/store"
 )
@@ -13,6 +14,18 @@ import (
 // or start, keeps the host as it is, labels and all (ADR 0091): such an edit leaves
 // its spec out, and planning starts it from what's stored, so no caller can lose
 // what it didn't read.
+
+// NewHost is the host a server starts with, before anything made it: the labels it
+// joined with, as its join token had them (ADR 0091). Making a server's host, a
+// step on it before that's made, and a first change of its labels all start here,
+// so none loses what the server joined with.
+func NewHost(ctx context.Context, tx *store.Tx, server string) (*resourcev1.ServerHost, error) {
+	labels, err := tx.JoinLabels(ctx, server)
+	if err != nil {
+		return nil, err
+	}
+	return &resourcev1.ServerHost{Labels: labels}, nil
+}
 
 // hostStep reports an edit that takes a step on its server's host.
 func hostStep(ed *Edit) bool {
@@ -35,23 +48,20 @@ func (e *Engine) hostsAsIs(ctx context.Context, edits []Edit) ([]Edit, error) {
 		if out == nil {
 			out = append([]Edit(nil), edits...)
 		}
-		var it item
 		if err := e.db.View(ctx, func(tx *store.Tx) error {
-			var err error
-			it, err = e.load(ctx, tx, ed.Ref)
+			it, err := e.load(ctx, tx, ed.Ref)
+			if err != nil {
+				return err
+			}
+			if it.current != nil {
+				out[i].Spec, out[i].Base = it.current, it.base
+				return nil
+			}
+			out[i].Spec, err = NewHost(ctx, tx, ed.Ref.Scope)
 			return err
 		}); err != nil {
 			return nil, err
 		}
-		if it.current != nil {
-			out[i].Spec, out[i].Base = it.current, it.base
-			continue
-		}
-		t, err := e.kinds.Type(ed.Ref.Kind)
-		if err != nil {
-			return nil, fault.New(ErrInvalid, "%w", err)
-		}
-		out[i].Spec = t.New()
 	}
 	if out == nil {
 		return edits, nil

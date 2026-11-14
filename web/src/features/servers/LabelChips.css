@@ -68,3 +68,10 @@
   color: var(--ink-muted);
   font-size: 13px;
 }
+
+/* A term that can't be read, in the critical tone: it matches nothing until it's fixed or removed. */
+.label-chips-bad {
+  border-color: var(--critical);
+  background: var(--critical-soft);
+  color: var(--critical);
+}

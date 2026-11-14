@@ -543,7 +543,9 @@ describe("Servers", () => {
       const user = userEvent.setup();
       const { router } = renderServers([eu, us, db], "/servers?closed=true");
 
-      expect(await screen.findByText("3 servers in 2 regions", { selector: ".page-lead" })).toBeVisible();
+      expect(
+        await screen.findByText("3 servers in 2 regions, 1 without a region", { selector: ".page-lead" }),
+      ).toBeVisible();
       // Grouped by region first, with what has none last.
       const map = screen.getByRole("region", { name: "Servers at a glance" });
       expect(within(map).getByText("eu")).toBeVisible();
@@ -580,9 +582,35 @@ describe("Servers", () => {
       await waitFor(() => expect(within(byPool).getByText("db")).toBeVisible());
       expect(within(byPool).queryByText("eu")).toBeNull();
       await user.selectOptions(screen.getByRole("combobox", { name: "Group the servers" }), "No groups");
-      await waitFor(() => expect(router.state.location.search).toMatchObject({ group: "none" }));
+      await waitFor(() => expect(router.state.location.search).toMatchObject({ group: "-" }));
       const flat = screen.getByRole("region", { name: "Servers at a glance" });
       await waitFor(() => expect(within(flat).queryByText("web")).toBeNull());
+    });
+
+    it("matches nothing while the selector has a term it can't read, and shows it until it's removed", async () => {
+      const user = userEvent.setup();
+      // As from an address someone typed or shared.
+      const { router } = renderServers([eu, us, db], "/servers?closed=true&selector=pool%3Aweb+bad%21term");
+
+      expect(await screen.findByText("No server matches")).toBeVisible();
+      expect(screen.getByText("0 match")).toBeVisible();
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "bad!term can't be read, so no server matches. It has !, and a label holds letters, digits, -, _ and . alone",
+      );
+      await user.click(screen.getByRole("button", { name: "Remove bad!term" }));
+      await waitFor(() => expect(router.state.location.search).toEqual({ closed: true, selector: "pool:web" }));
+      expect(await screen.findByText("2 match")).toBeVisible();
+      expect(screen.queryByRole("alert")).toBeNull();
+    });
+
+    it("groups by a key named none, apart from no groups", async () => {
+      const user = userEvent.setup();
+      const odd = aServer({ ...web1, labels: { none: "x" } });
+      const { router } = renderServers([odd, web2()], "/servers?closed=true&group=none");
+      const map = await screen.findByRole("region", { name: "Servers at a glance" });
+      expect(within(map).getByText("x")).toBeVisible();
+      await user.selectOptions(screen.getByRole("combobox", { name: "Group the servers" }), "No groups");
+      await waitFor(() => expect(router.state.location.search).toMatchObject({ group: "-" }));
     });
 
     it("shows no selector for a fleet without labels", async () => {

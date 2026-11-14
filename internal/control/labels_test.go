@@ -237,6 +237,7 @@ func TestAStepOnAHostKeepsItsSpec(t *testing.T) {
 		"a reboot":   {Ref: ref, Spec: &resourcev1.ServerHost{}, Reboot: true},
 		"an install": {Ref: ref, Spec: &resourcev1.ServerHost{}, Install: &resource.InstallAsked{All: true}},
 		"a unit's":   {Ref: ref, Spec: &resourcev1.ServerHost{}, Unit: &resource.UnitAsked{Name: "nginx.service", Action: resource.UnitRestart}},
+		"a panel's":  {Ref: ref, Spec: &resourcev1.ServerHost{}, Panel: &resource.PanelAsked{Kind: resource.PanelCoolify}},
 	} {
 		_, err := f.engine.Propose(t.Context(), revision.Proposal{Summary: name, Actor: revision.SystemActor, Via: revision.ViaAutomatic, Edits: []revision.Edit{ed}})
 		if err == nil || !strings.Contains(err.Error(), "Leave the spec out") {

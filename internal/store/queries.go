@@ -266,21 +266,21 @@ func (t *Tx) GetJoinToken(ctx context.Context, id string) (JoinToken, error) {
 	return j, nil
 }
 
-// JoinLabels are the labels each server that joined with a token that had some
-// gets, by the server's ID (ADR 0091).
-func (t *Tx) JoinLabels(ctx context.Context) (map[string]map[string]string, error) {
-	rows, err := t.query(ctx, `SELECT used_by, labels FROM join_tokens WHERE used_by IS NOT NULL AND labels <> ''`)
+// JoinLabels are the labels server joined with, as its join token had them, or
+// none (ADR 0091).
+func (t *Tx) JoinLabels(ctx context.Context, server string) (map[string]string, error) {
+	rows, err := t.query(ctx, `SELECT labels FROM join_tokens WHERE used_by = ? AND labels <> ''`, server)
 	if err != nil {
-		return nil, fmt.Errorf("can't read join tokens' labels: %w", err)
+		return nil, fmt.Errorf("can't read the labels %s joined with: %w", server, err)
 	}
 	defer rows.Close()
-	out := map[string]map[string]string{}
+	var out map[string]string
 	for rows.Next() {
-		var server, labels string
-		if err := rows.Scan(&server, &labels); err != nil {
-			return nil, fmt.Errorf("can't read join tokens' labels: %w", err)
+		var labels string
+		if err := rows.Scan(&labels); err != nil {
+			return nil, fmt.Errorf("can't read the labels %s joined with: %w", server, err)
 		}
-		if out[server], err = labelsOf(labels); err != nil {
+		if out, err = labelsOf(labels); err != nil {
 			return nil, fmt.Errorf("can't read the labels %s joined with: %w", server, err)
 		}
 	}

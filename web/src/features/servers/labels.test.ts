@@ -11,11 +11,13 @@ import {
   labelChanges,
   labelSuggestions,
   matches,
+  matchesSelector,
   parseLabel,
   parseSelector,
   parseTerm,
   selectorText,
   valueProblem,
+  withoutRegion,
 } from "./labels";
 
 describe("labels", () => {
@@ -44,10 +46,15 @@ describe("labels", () => {
       ["k".repeat(64), "long"],
       ["a/b/c", "character"],
       [`${"p".repeat(254)}/x`, "long-prefix"],
+      ["dockwell.io/pool", "reserved-prefix"],
+      ["ops.dockwell.io/pool", "reserved-prefix"],
+      ["régión", "character"],
     ];
     for (const [key, kind] of cases) {
       expect(keyProblem(key)?.kind, key).toBe(kind);
     }
+    expect(keyProblem("régión")).toEqual({ kind: "character", character: "é" });
+    expect(keyProblem("notdockwell.io/pool")).toBeUndefined();
     for (const value of ["", "eu", "web-1", "1.2.3"]) expect(valueProblem(value), value).toBeUndefined();
     expect(valueProblem("eu/west")?.kind).toBe("character");
   });
@@ -60,15 +67,30 @@ describe("labels", () => {
   });
 
   it("reads a selector, and matches servers by it", () => {
-    const sel = parseSelector("pool:web  region !draining bad!term");
-    expect(selectorText(sel)).toBe("pool:web region !draining");
+    const sel = parseSelector("pool:web  region !draining");
+    expect(selectorText(sel.terms)).toBe("pool:web region !draining");
     expect(parseTerm("!region:eu")).toEqual({ key: "region", value: "eu", hasValue: true, not: true });
-    expect(matches(sel, { pool: "web", region: "eu" })).toBe(true);
-    expect(matches(sel, { pool: "web", region: "eu", draining: "" })).toBe(false);
-    expect(matches(sel, { pool: "api", region: "eu" })).toBe(false);
-    expect(matches(sel, { pool: "web" })).toBe(false);
+    expect(matchesSelector(sel, { pool: "web", region: "eu" })).toBe(true);
+    expect(matchesSelector(sel, { pool: "web", region: "eu", draining: "" })).toBe(false);
+    expect(matchesSelector(sel, { pool: "api", region: "eu" })).toBe(false);
+    expect(matchesSelector(sel, { pool: "web" })).toBe(false);
     expect(matches([], {})).toBe(true);
-    expect(matches(parseSelector("region:"), { region: "" })).toBe(true);
+    expect(matchesSelector(parseSelector("region:"), { region: "" })).toBe(true);
+  });
+
+  it("keeps a term it can't read, which matches no server rather than widen the set", () => {
+    const sel = parseSelector("pool:web bad!term");
+    expect(sel.terms).toEqual([{ key: "pool", value: "web", hasValue: true, not: false }]);
+    expect(sel.bad).toEqual([{ text: "bad!term", problem: { kind: "character", character: "!" } }]);
+    expect(selectorText(sel.terms, sel.bad)).toBe("pool:web bad!term");
+    expect(matchesSelector(sel, { pool: "web" })).toBe(false);
+    expect(matchesSelector(parseSelector("bad!term"), {})).toBe(false);
+  });
+
+  it("counts the servers without a region", () => {
+    expect(
+      withoutRegion([aServer({ labels: { region: "eu" } }), aServer({}), aServer({ labels: { pool: "web" } })]),
+    ).toBe(2);
   });
 
   it("offers what the fleet uses, groups by region first, and says what a change sets", () => {

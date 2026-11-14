@@ -26,10 +26,16 @@ func TestALabelIsAsKubernetesHasIt(t *testing.T) {
 		strings.Repeat("k", 64):         "past the 63",
 		"a/b/c":                         "letters, digits, -, _ and . alone",
 		strings.Repeat("p", 254) + "/x": "past the 253",
+		"dockwell.io/pool":              "keeps for its own labels",
+		"ops.dockwell.io/pool":          "keeps for its own labels",
+		"régión":                        `has 'é'`,
 	} {
 		if err := CheckLabelKey(key); err == nil || !strings.Contains(err.Error(), says) {
 			t.Errorf("CheckLabelKey(%q) = %v, want it to say %q", key, err, says)
 		}
+	}
+	if err := CheckLabelKey("notdockwell.io/pool"); err != nil {
+		t.Errorf("a prefix that only ends as Dockwell's does = %v", err)
 	}
 	for _, value := range []string{"", "eu", "web-1", "1.2.3"} {
 		if err := CheckLabelValue("k", value); err != nil {

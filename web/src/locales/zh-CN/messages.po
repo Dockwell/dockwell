@@ -11971,8 +11971,14 @@ msgstr "{0, plural, other {代理有 # 个版本}}"
 msgid "{total} in {regionWords}"
 msgstr "{total}，分布在 {regionWords}"
 
+msgid "{total} in {regionWords}, {withoutWords}"
+msgstr "{total}，分布在 {regionWords}，{withoutWords}"
+
 msgid "{used} of {total}"
 msgstr "{used} / {total}"
+
+msgid "{without, plural, one {# without a region} other {# without a region}}"
+msgstr "{without, plural, other {# 台没有区域}}"
 
 msgid "Add server"
 msgstr "添加服务器"
@@ -13271,6 +13277,9 @@ msgstr "标签需要一个键，例如 region"
 msgid "A server can have {MAX_LABELS} labels"
 msgstr "一台服务器最多可有 {MAX_LABELS} 个标签"
 
+msgid "Dockwell keeps the prefix {prefix} for its own labels. Use a prefix of your own, such as example.com/"
+msgstr "前缀 {prefix} 留给 Dockwell 自己的标签使用。请换用你自己的前缀，例如 example.com/"
+
 msgid "It has a space, and a label holds letters, digits, -, _ and . alone"
 msgstr "其中含有空格，而标签只能包含字母、数字、-、_ 和 ."
 
@@ -13291,6 +13300,9 @@ msgstr "前缀不是域名：只能用小写字母、数字、- 和 .，例如 e
 
 msgid "Write a prefix before /, such as example.com/, or leave / out"
 msgstr "在 / 前写上前缀，例如 example.com/，或去掉 /"
+
+msgid "{badText} can't be read, so no server matches. {badWords}"
+msgstr "无法读取 {badText}，因此没有服务器匹配。{badWords}"
 
 msgid "key:value"
 msgstr "key:value"
@@ -13866,6 +13878,9 @@ msgstr "按名称排序"
 
 msgid "{count} in {regionWords}"
 msgstr "{count}，分布在 {regionWords}"
+
+msgid "{count} in {regionWords}, {withoutWords}"
+msgstr "{count}，分布在 {regionWords}，{withoutWords}"
 
 msgid "{matching, plural, one {# matches} other {# match}}"
 msgstr "{matching, plural, other {# 个匹配}}"

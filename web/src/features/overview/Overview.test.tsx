@@ -298,7 +298,9 @@ describe("Overview with a fleet", () => {
     renderFleet([eu, us, none]);
 
     expect(
-      await screen.findByText("3 servers in 2 regions · agent 0.2.1 everywhere", { selector: ".page-lead" }),
+      await screen.findByText("3 servers in 2 regions, 1 without a region · agent 0.2.1 everywhere", {
+        selector: ".page-lead",
+      }),
     ).toBeVisible();
     const map = screen.getByRole("region", { name: "Servers" });
     expect(within(map).getByText("eu")).toBeVisible();

@@ -48,7 +48,6 @@ func (h *Handler) PlanServerLabels(ctx context.Context, req *connect.Request[doc
 	var names []string
 	changes := false
 	err = h.db.View(ctx, func(tx *store.Tx) error {
-		var joined map[string]map[string]string
 		for _, id := range m.GetServerIds() {
 			s, err := tx.GetServer(ctx, id)
 			if errors.Is(err, store.ErrNotFound) || err == nil && s.RevokedAt != nil {
@@ -61,16 +60,6 @@ func (h *Handler) PlanServerLabels(ctx context.Context, req *connect.Request[doc
 			now, base, err := h.hostOf(ctx, tx, ref)
 			if err != nil {
 				return err
-			}
-			if base == 0 {
-				// A server whose host isn't made yet starts from what it joined with,
-				// which making its host would have given it.
-				if joined == nil {
-					if joined, err = tx.JoinLabels(ctx); err != nil {
-						return err
-					}
-				}
-				now.Labels = joined[id]
 			}
 			next, err := labels.Apply(now.GetLabels(), m.GetSet(), m.GetRemove())
 			if err != nil {
@@ -117,7 +106,10 @@ func (h *Handler) PlanServerLabels(ctx context.Context, req *connect.Request[doc
 func (h *Handler) hostOf(ctx context.Context, tx *store.Tx, ref resource.Ref) (*resourcev1.ServerHost, int, error) {
 	r, err := tx.GetResource(ctx, string(ref.Kind), ref.Scope, ref.Name)
 	if errors.Is(err, store.ErrNotFound) || err == nil && r.Spec == nil {
-		return &resourcev1.ServerHost{}, r.Revision, nil
+		// A server whose host isn't made yet starts from what it joined with, which
+		// making its host would have given it.
+		spec, err := revision.NewHost(ctx, tx, ref.Scope)
+		return spec, r.Revision, err
 	}
 	if err != nil {
 		return nil, 0, err

@@ -23,13 +23,15 @@ What was settled already:
 ### Keys and values are Kubernetes labels
 
 - **A key** is a name of at most 63 characters, letters, digits, `-`, `_` and `.`, starting and ending with a letter or digit, with an optional prefix, a DNS subdomain of at most 253 characters, and `/`: `region`, `example.com/tier`. A value is empty, or a name as a key's is.
+- **The prefix `dockwell.io/`,** and each subdomain of it, is Dockwell's own, kept for labels it may set itself. A key with it is refused, from the start, so no server's labels need moving later.
 - **The panel and the CLI write a label as `key:value`,** as the mocks do, and a selector as such terms with spaces between: `pool:web region:eu`. A key alone matches a server that has it; `!` in front of a term matches a server that doesn't. Neither a key nor a value can hold `:` or a space, so a term reads one way.
+- **A selector with a term that can't be read matches no server,** in the panel as on the server, which refuses it. Leaving the term out would widen the set, and a fleet action would act on more servers than were meant. The panel shows the term as an invalid chip, with why, until it's fixed or removed.
 - **One parser,** `internal/labels`, reads labels and selectors, for listing servers now and for fleet actions and pools later. The panel's checks as you type follow the same rules, and say the same words.
 
 ### Setting them
 
 - **`ChangeService.PlanServerLabels`** plans setting and removing labels on one server or several in one change, each as `key:value`, as `dockwell servers label --server-ids srv_… --set region:eu --remove arch`. It's an admin's, as the server's host is. A token may apply it: it takes no step on any server. Setting what a server has already is refused, as there's nothing to change.
-- **At join,** the ticket carries them: `CreateJoinTicketRequest.labels` (20) and `JoinTicket.labels` (20), kept with the join token and never in the ticket's value. `dockwell token create --label region:eu` and the Add server sheet both take them. As the server's agent first connects, the change that adds its host gives it those labels, on the timeline as any change.
+- **At join,** the ticket carries them: `CreateJoinTicketRequest.labels` (20) and `JoinTicket.labels` (20), kept with the join token and never in the ticket's value. `dockwell token create --label region:eu` and the Add server sheet both take them. As the server's agent first connects, the change that adds its host gives it those labels, on the timeline as any change. A host starts from them wherever it's first made: by that change, by a step on it before then, such as a reboot, or by a first change of its labels.
 - **On a server's page,** its labels are beside its name, and on a phone in its status card, with Add labels or Edit beside them: a sheet whose picker offers the labels the fleet uses, and each key with its colon for a value of its own. What it can't take says why as it's typed, in the words the server uses.
 
 ### Reading them
