@@ -2621,9 +2621,10 @@ paths:
             tags:
                 - EventService
             description: |-
-                CountEvents says how many events of each kind there are, under the
-                 filters ListEvents takes but the kinds, so each of Activity's views can
-                 say how many it holds, as the list would show them (#639).
+                CountEvents says how many events of each kind the caller's ListEvents
+                 would list, under the same filters but the kinds: for someone below an
+                 admin, only what's in their places. Each of Activity's views says its
+                 count from it (#639).
             operationId: EventService_CountEvents
             parameters:
                 - name: serverId
@@ -10681,9 +10682,9 @@ components:
                          order EventKind has them.
                 total:
                     type: integer
-                    description: How many events there are of every kind together.
+                    description: How many events of every kind together the caller may list.
                     format: int32
-            description: CountEventsResponse is how many events there are of each kind.
+            description: CountEventsResponse is how many events of each kind the caller may list.
         CreateBackupRequest:
             type: object
             properties:

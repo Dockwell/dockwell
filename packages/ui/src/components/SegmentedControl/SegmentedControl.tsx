@@ -78,7 +78,8 @@ export function SegmentedControl<V extends string = string>({
               <span className="dw-seg-count">
                 {/* Heard as "Shared, 2", not "Shared2" (#620's review, L4). */}
                 <span className="dw-sr">, </span>
-                {option.count}
+                {/* Grouped, "12,345", as the kit's strings write a count; zh-CN groups the same way. */}
+                {option.count.toLocaleString("en")}
               </span>
             ) : null}
           </button>

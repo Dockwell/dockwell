@@ -28,6 +28,7 @@ import (
 	"github.com/dockwell/dockwell/internal/resource/firewall"
 	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/revision"
+	"github.com/dockwell/dockwell/internal/scope"
 	"github.com/dockwell/dockwell/internal/secrets/secretstest"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
@@ -414,6 +415,90 @@ func testEventsAreCountedByKind(t *testing.T, backend store.Backend) {
 	// A filter it can't read is refused, as ListEvents refuses it.
 	if _, err := ev.CountEvents(t.Context(), connect.NewRequest(&dockwellv1.CountEventsRequest{ActorId: "nobody"})); connect.CodeOf(err) != connect.CodeInvalidArgument {
 		t.Errorf("an actor ID that isn't one: %v, want invalid argument", err)
+	}
+}
+
+func TestEventCountsKeepToWhatTheCallerMayList(t *testing.T) {
+	storetest.Each(t, testEventCountsKeepToWhatTheCallerMayList)
+}
+
+// Someone below an admin counts only the events their ListEvents lists: another
+// project's changes and the install's access stay out of every count and of the
+// total, as they do out of the list (#639's review, H1).
+func testEventCountsKeepToWhatTheCallerMayList(t *testing.T, backend store.Backend) {
+	f := startFull(t, backend, nil)
+	b := signedIn(t, f)
+	f.addDockerServer(t)
+	c := changeClient(b, b.origin)
+	ev := eventClient(b, b.origin)
+	apply(t, c, propose(t, c, "Run web", runImage("ghcr.io/acme/shop:1.4")))
+	blog := apply(t, c, propose(t, c, "Make blog", &dockwellv1.Edit{
+		Resource: &dockwellv1.ResourceRef{Kind: "project", Name: "blog"},
+		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Project{Project: &resourcev1.Project{}}},
+	}))
+	var blogID, defaultID string
+	for _, r := range blog.GetPlan().GetResources() {
+		if r.GetResource().GetKind() == "project" {
+			blogID = r.GetId()
+		}
+	}
+	_ = f.store.View(t.Context(), func(tx *store.Tx) error {
+		tree, err := scope.Load(t.Context(), tx)
+		if err != nil {
+			return err
+		}
+		for _, p := range tree.Projects {
+			if p.Name == "default" {
+				defaultID = p.ID
+			}
+		}
+		return nil
+	})
+	if blogID == "" || defaultID == "" {
+		t.Fatalf("projects blog %q and default %q", blogID, defaultID)
+	}
+
+	counted := func(who string) int {
+		t.Helper()
+		res, err := ev.CountEvents(t.Context(), connect.NewRequest(&dockwellv1.CountEventsRequest{}))
+		if err != nil {
+			t.Fatalf("%s: %v", who, err)
+		}
+		sum := 0
+		for _, k := range res.Msg.GetCounts() {
+			listed := listEvents(t, ev, &dockwellv1.ListEventsRequest{PageSize: 200, Kinds: []dockwellv1.EventKind{k.GetKind()}})
+			if int(k.GetCount()) != len(listed) {
+				t.Errorf("%s, %v: counted %d, ListEvents lists %d", who, k.GetKind(), k.GetCount(), len(listed))
+			}
+			sum += int(k.GetCount())
+		}
+		all := listEvents(t, ev, &dockwellv1.ListEventsRequest{PageSize: 200})
+		if int(res.Msg.GetTotal()) != len(all) || sum != len(all) {
+			t.Errorf("%s: total %d, kinds sum to %d, ListEvents lists %d", who, res.Msg.GetTotal(), sum, len(all))
+		}
+		if len(res.Msg.GetCounts()) != len(dockwellv1.EventKind_name)-1 {
+			t.Errorf("%s: counts for %d kinds, want every kind", who, len(res.Msg.GetCounts()))
+		}
+		return int(res.Msg.GetTotal())
+	}
+	owner := counted("the owner")
+
+	hold := aMember(t, f)
+	hold(store.Grant{ProjectID: blogID, Role: store.RoleDeveloper})
+	developer := counted("a developer in blog")
+	hold(store.Grant{ProjectID: defaultID, Role: store.RoleViewer})
+	viewer := counted("a viewer of default")
+	if developer == 0 || viewer == 0 || developer >= owner || viewer >= owner {
+		t.Errorf("totals: owner %d, developer %d, viewer %d; want each member's own, fewer than the owner's", owner, developer, viewer)
+	}
+	res, err := ev.CountEvents(t.Context(), connect.NewRequest(&dockwellv1.CountEventsRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, k := range res.Msg.GetCounts() {
+		if k.GetKind() == dockwellv1.EventKind_EVENT_KIND_ACCESS && k.GetCount() != 0 {
+			t.Errorf("a viewer of default counts %d access events, which are the install's", k.GetCount())
+		}
 	}
 }
 

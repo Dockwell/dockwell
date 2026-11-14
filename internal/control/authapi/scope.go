@@ -126,6 +126,9 @@ var requestBound = map[string]bool{
 	dockwellv1connect.ImageServiceSearchImagesProcedure:  true,
 	dockwellv1connect.ImageServiceListImageTagsProcedure: true,
 	dockwellv1connect.ImageServiceGetImageProcedure:      true,
+	// Counts hold nothing to place, so CountEvents places each event itself, as
+	// ListEvents' list is narrowed, and counts what the caller may list (#639).
+	dockwellv1connect.EventServiceCountEventsProcedure: true,
 }
 
 // containerLogs are the calls that, given a server, read a container there
@@ -670,61 +673,7 @@ func (i *interceptor) filter(ctx context.Context, procedure string, msg any) (sk
 	stream := strings.Contains(procedure, "/Watch")
 	narrowed := false
 	err = i.svc.View(ctx, func(tx *store.Tx) error {
-		pl := place.NewPlacer(tx)
-		seen := map[string]bool{}
-		within := func(objectID string) (bool, error) {
-			if ok, done := seen[objectID]; done {
-				return ok, nil
-			}
-			if isChange(objectID) {
-				// A change that reaches another project through a link shows to whoever
-				// holds any of it, narrowed to that by its handler (ADR 0084).
-				edits, takenIn, err := pl.Sides(ctx, objectID)
-				if errors.Is(err, store.ErrNotFound) {
-					err = nil
-				}
-				if err != nil {
-					return false, err
-				}
-				all := slices.Concat(edits, takenIn)
-				ok := len(all) > 0 && (len(takenIn) > 0 && slices.ContainsFunc(all, func(p place.Place) bool { return reaches(grants, p) }) ||
-					!slices.ContainsFunc(all, func(p place.Place) bool { return !reaches(grants, p) }))
-				seen[objectID] = ok
-				return ok, nil
-			}
-			got, err := pl.Of(ctx, objectID)
-			if errors.Is(err, store.ErrNotFound) || errors.Is(err, place.ErrUnknown) {
-				got, err = nil, nil
-			}
-			if err != nil {
-				return false, err
-			}
-			// A change shows only when every one of its items is in reach (ADR 0049).
-			ok := len(got) > 0
-			for _, p := range got {
-				ok = ok && reaches(grants, p)
-			}
-			seen[objectID] = ok
-			return ok, nil
-		}
-		visible := func(e protoreflect.Message) (bool, error) {
-			if aboutTheRequest[e.Descriptor().FullName()] {
-				return true, nil
-			}
-			if e.Descriptor().FullName() == "dockwell.v1.Domain" {
-				return narrowDomain(e, within, func(objectID string) ([]place.Place, error) { return pl.Of(ctx, objectID) })
-			}
-			ids := elementIDs(e)
-			if len(ids) == 0 {
-				return false, nil
-			}
-			for _, objectID := range ids {
-				if ok, err := within(objectID); !ok || err != nil {
-					return false, err
-				}
-			}
-			return true, nil
-		}
+		within, visible := scopeOf(ctx, tx, grants)
 		fields := m.Descriptor().Fields()
 		for k := range fields.Len() {
 			fd := fields.Get(k)
@@ -777,6 +726,86 @@ func (i *interceptor) filter(ctx context.Context, procedure string, msg any) (sk
 		skip = true
 	}
 	return skip, err
+}
+
+// scopeOf is how a narrowed caller's lists are placed: within says whether an
+// object is in the caller's places, and visible whether a list's element is, as
+// filter keeps it. CountEvents counts by it what ListEvents would list (#639).
+func scopeOf(ctx context.Context, tx *store.Tx, grants []store.Grant) (within func(string) (bool, error), visible func(protoreflect.Message) (bool, error)) {
+	pl := place.NewPlacer(tx)
+	seen := map[string]bool{}
+	within = func(objectID string) (bool, error) {
+		if ok, done := seen[objectID]; done {
+			return ok, nil
+		}
+		if isChange(objectID) {
+			// A change that reaches another project through a link shows to whoever
+			// holds any of it, narrowed to that by its handler (ADR 0084).
+			edits, takenIn, err := pl.Sides(ctx, objectID)
+			if errors.Is(err, store.ErrNotFound) {
+				err = nil
+			}
+			if err != nil {
+				return false, err
+			}
+			all := slices.Concat(edits, takenIn)
+			ok := len(all) > 0 && (len(takenIn) > 0 && slices.ContainsFunc(all, func(p place.Place) bool { return reaches(grants, p) }) ||
+				!slices.ContainsFunc(all, func(p place.Place) bool { return !reaches(grants, p) }))
+			seen[objectID] = ok
+			return ok, nil
+		}
+		got, err := pl.Of(ctx, objectID)
+		if errors.Is(err, store.ErrNotFound) || errors.Is(err, place.ErrUnknown) {
+			got, err = nil, nil
+		}
+		if err != nil {
+			return false, err
+		}
+		// A change shows only when every one of its items is in reach (ADR 0049).
+		ok := len(got) > 0
+		for _, p := range got {
+			ok = ok && reaches(grants, p)
+		}
+		seen[objectID] = ok
+		return ok, nil
+	}
+	visible = func(e protoreflect.Message) (bool, error) {
+		if aboutTheRequest[e.Descriptor().FullName()] {
+			return true, nil
+		}
+		if e.Descriptor().FullName() == "dockwell.v1.Domain" {
+			return narrowDomain(e, within, func(objectID string) ([]place.Place, error) { return pl.Of(ctx, objectID) })
+		}
+		ids := elementIDs(e)
+		if len(ids) == 0 {
+			return false, nil
+		}
+		for _, objectID := range ids {
+			if ok, err := within(objectID); !ok || err != nil {
+				return false, err
+			}
+		}
+		return true, nil
+	}
+	return within, visible
+}
+
+// Narrowed reports a caller whose lists that reach projects are narrowed to
+// their places, anyone below an admin, with their grants, as filter narrows
+// them; a call in requestBound narrows its own answer by it.
+func Narrowed(ctx context.Context) ([]store.Grant, bool) {
+	grants, ok := grantsFrom(ctx)
+	if ok && anAdmin(grants) {
+		return nil, false
+	}
+	return grants, true
+}
+
+// Visible is scopeOf's visible for a narrowed caller's grants, for a call that
+// narrows its own answer, such as CountEvents (#639).
+func Visible(ctx context.Context, tx *store.Tx, grants []store.Grant) func(protoreflect.Message) (bool, error) {
+	_, visible := scopeOf(ctx, tx, grants)
+	return visible
 }
 
 // narrowDomain keeps a domain's routes in the caller's places, and the domain

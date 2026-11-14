@@ -181,6 +181,30 @@ describe("Activity", () => {
     expect(asked.length).toBeGreaterThan(before);
   });
 
+  it("counts a burst of events once at its start and once after it, not for each (#639's review, M2)", async () => {
+    const watch = feed<WatchEventsResponse>();
+    watch.push(snapshot([shopEvent, signIn, joined, token]));
+    let asked = 0;
+    renderActivity(watch, {
+      events: {
+        countEvents: () => {
+          asked++;
+          return { total: 4, counts: [{ kind: EventKind.CHANGE, count: 1 }] };
+        },
+      },
+    });
+    await waitFor(() => expect(asked).toBe(1));
+    const burst = (id: string) =>
+      changeEvent(moved(shopPlanned(), { id, summary: `Create ${id}`, createTime: timestampFromDate(new Date()) }));
+    act(() => watch.push(since([burst("chg_a")])));
+    await waitFor(() => expect(asked).toBe(2));
+    act(() => watch.push(since([burst("chg_b")])));
+    act(() => watch.push(since([burst("chg_c")])));
+    await new Promise((r) => setTimeout(r, 1_000));
+    expect(asked).toBe(2);
+    await waitFor(() => expect(asked).toBe(3), { timeout: 7_000 });
+  });
+
   it("counts under the page's other filters, as the list is read (#639)", async () => {
     const watch = feed<WatchEventsResponse>();
     watch.push(snapshot([joined]));

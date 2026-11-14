@@ -177,7 +177,7 @@ export const CountEventsRequestSchema: GenMessage<CountEventsRequest> = /*@__PUR
   messageDesc(file_dockwell_v1_event, 2);
 
 /**
- * CountEventsResponse is how many events there are of each kind.
+ * CountEventsResponse is how many events of each kind the caller may list.
  *
  * @generated from message dockwell.v1.CountEventsResponse
  */
@@ -191,7 +191,7 @@ export type CountEventsResponse = Message<"dockwell.v1.CountEventsResponse"> & {
   counts: EventKindCount[];
 
   /**
-   * How many events there are of every kind together.
+   * How many events of every kind together the caller may list.
    *
    * @generated from field: int32 total = 2;
    */
@@ -1419,9 +1419,10 @@ export const EventService: GenService<{
     output: typeof ListEventsResponseSchema;
   },
   /**
-   * CountEvents says how many events of each kind there are, under the
-   * filters ListEvents takes but the kinds, so each of Activity's views can
-   * say how many it holds, as the list would show them (#639).
+   * CountEvents says how many events of each kind the caller's ListEvents
+   * would list, under the same filters but the kinds: for someone below an
+   * admin, only what's in their places. Each of Activity's views says its
+   * count from it (#639).
    *
    * @generated from rpc dockwell.v1.EventService.CountEvents
    */

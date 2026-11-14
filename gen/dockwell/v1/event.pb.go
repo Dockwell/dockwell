@@ -354,13 +354,13 @@ func (x *CountEventsRequest) GetActorKind() ActorKind {
 	return ActorKind_ACTOR_KIND_UNSPECIFIED
 }
 
-// CountEventsResponse is how many events there are of each kind.
+// CountEventsResponse is how many events of each kind the caller may list.
 type CountEventsResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Each kind there is, with how many events of it, none included, in the
 	// order EventKind has them.
 	Counts []*EventKindCount `protobuf:"bytes,1,rep,name=counts,proto3" json:"counts,omitempty"`
-	// How many events there are of every kind together.
+	// How many events of every kind together the caller may list.
 	Total         int32 `protobuf:"varint,2,opt,name=total,proto3" json:"total,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

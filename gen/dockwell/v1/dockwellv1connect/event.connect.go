@@ -49,9 +49,10 @@ const (
 type EventServiceClient interface {
 	// ListEvents returns events, newest first, a page at a time.
 	ListEvents(context.Context, *connect.Request[v1.ListEventsRequest]) (*connect.Response[v1.ListEventsResponse], error)
-	// CountEvents says how many events of each kind there are, under the
-	// filters ListEvents takes but the kinds, so each of Activity's views can
-	// say how many it holds, as the list would show them (#639).
+	// CountEvents says how many events of each kind the caller's ListEvents
+	// would list, under the same filters but the kinds: for someone below an
+	// admin, only what's in their places. Each of Activity's views says its
+	// count from it (#639).
 	CountEvents(context.Context, *connect.Request[v1.CountEventsRequest]) (*connect.Response[v1.CountEventsResponse], error)
 	// WatchEvents sends the newest page of events, as ListEvents would, then
 	// each event as it happens, and a change's event again each time the
@@ -121,9 +122,10 @@ func (c *eventServiceClient) WatchEvents(ctx context.Context, req *connect.Reque
 type EventServiceHandler interface {
 	// ListEvents returns events, newest first, a page at a time.
 	ListEvents(context.Context, *connect.Request[v1.ListEventsRequest]) (*connect.Response[v1.ListEventsResponse], error)
-	// CountEvents says how many events of each kind there are, under the
-	// filters ListEvents takes but the kinds, so each of Activity's views can
-	// say how many it holds, as the list would show them (#639).
+	// CountEvents says how many events of each kind the caller's ListEvents
+	// would list, under the same filters but the kinds: for someone below an
+	// admin, only what's in their places. Each of Activity's views says its
+	// count from it (#639).
 	CountEvents(context.Context, *connect.Request[v1.CountEventsRequest]) (*connect.Response[v1.CountEventsResponse], error)
 	// WatchEvents sends the newest page of events, as ListEvents would, then
 	// each event as it happens, and a change's event again each time the

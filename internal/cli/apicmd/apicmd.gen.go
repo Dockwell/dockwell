@@ -1306,8 +1306,8 @@ func Methods() []*apicli.Method {
 			HTTP:      "GET /v1/events:count",
 			Noun:      "events",
 			Verb:      "count",
-			Short:     "Say how many events of each kind there are",
-			Long:      "Say how many events of each kind there are, under the filters dockwell events\nlist takes but the kinds, so each of Activity's views can say how many it holds,\nas the list would show them (#639).",
+			Short:     "Say how many events of each kind the caller's dockwell events list would list",
+			Long:      "Say how many events of each kind the caller's dockwell events list would list,\nunder the same filters but the kinds: for someone below an admin, only what's in\ntheir places. Each of Activity's views says its count from it (#639).",
 			Effect:    v1.Effect_EFFECT_READ,
 			Fields: []apicli.Field{
 				{Path: "server_id", Help: "Only what happened on or to one server, by ID."},

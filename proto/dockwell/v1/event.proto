@@ -43,9 +43,10 @@ service EventService {
     option (google.api.http) = {get: "/v1/events"};
   }
 
-  // CountEvents says how many events of each kind there are, under the
-  // filters ListEvents takes but the kinds, so each of Activity's views can
-  // say how many it holds, as the list would show them (#639).
+  // CountEvents says how many events of each kind the caller's ListEvents
+  // would list, under the same filters but the kinds: for someone below an
+  // admin, only what's in their places. Each of Activity's views says its
+  // count from it (#639).
   rpc CountEvents(CountEventsRequest) returns (CountEventsResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
@@ -117,12 +118,12 @@ message CountEventsRequest {
   ActorKind actor_kind = 4;
 }
 
-// CountEventsResponse is how many events there are of each kind.
+// CountEventsResponse is how many events of each kind the caller may list.
 message CountEventsResponse {
   // Each kind there is, with how many events of it, none included, in the
   // order EventKind has them.
   repeated EventKindCount counts = 1;
-  // How many events there are of every kind together.
+  // How many events of every kind together the caller may list.
   int32 total = 2;
 }
 

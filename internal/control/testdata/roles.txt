@@ -108,6 +108,7 @@ DomainService.CheckDomain                      plan         developer  developer
 DomainService.ListCertificates                 read         viewer     viewer     named
 DomainService.ListDnsProviders                 read         viewer     viewer     named
 DomainService.ListDomains                      read         viewer     viewer     project
+EventService.CountEvents                       read         viewer     viewer     project
 EventService.ListEvents                        read         viewer     viewer     project
 EventService.WatchEvents                       read         viewer     viewer     project
 FileService.BeginUpload                        apply        admin      admin      install  session

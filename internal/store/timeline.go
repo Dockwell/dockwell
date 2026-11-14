@@ -145,18 +145,43 @@ func (t *Tx) TimelinePlaces(ctx context.Context, q TimelineQuery) ([]TimelinePla
 	return out, nil
 }
 
-// TimelineCount says how many entries the filter keeps, as Timeline would read
-// them all: discarded changes, which it leaves out, aren't counted (#639).
-func (t *Tx) TimelineCount(ctx context.Context, f TimelineFilter) (int, error) {
+// TimelineTally is how many entries a filter keeps: its changes, and its audit
+// events by action.
+type TimelineTally struct {
+	Changes int
+	Actions map[string]int
+}
+
+// TimelineCounts tallies the entries the filter keeps, as Timeline would read
+// them all, in one grouped query: discarded changes, which it leaves out, aren't
+// counted (#639).
+func (t *Tx) TimelineCounts(ctx context.Context, f TimelineFilter) (TimelineTally, error) {
+	tally := TimelineTally{Actions: map[string]int{}}
 	union, args := timelineUnion(TimelineQuery{Filter: f})
 	if union == "" {
-		return 0, nil
+		return tally, nil
 	}
-	var n int
-	if err := t.queryRow(ctx, `SELECT COUNT(*) FROM (`+union+`) entries`, args...).Scan(&n); err != nil {
-		return 0, fmt.Errorf("can't count the timeline: %w", err)
+	rows, err := t.query(ctx, `SELECT source, action, COUNT(*) FROM (`+union+`) entries GROUP BY source, action`, args...)
+	if err != nil {
+		return tally, fmt.Errorf("can't count the timeline: %w", err)
 	}
-	return n, nil
+	defer rows.Close()
+	for rows.Next() {
+		var source, action string
+		var n int
+		if err := rows.Scan(&source, &action, &n); err != nil {
+			return tally, fmt.Errorf("can't count the timeline: %w", err)
+		}
+		if source == "event" {
+			tally.Actions[action] += n
+		} else {
+			tally.Changes += n
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return tally, fmt.Errorf("can't count the timeline: %w", err)
+	}
+	return tally, nil
 }
 
 // timelineUnion is the query for the timeline's places a query keeps, from each
@@ -233,10 +258,10 @@ func timelineUnion(q TimelineQuery) (string, []any) {
 
 	if f.Changes {
 		w := place(changeTime, "c.id", changes("c.state <> ?"))
-		parts = append(parts, `SELECT `+changeTime+` AS at, c.id AS id, 'change' AS source FROM changes c WHERE `+where(w))
+		parts = append(parts, `SELECT `+changeTime+` AS at, c.id AS id, 'change' AS source, '' AS action FROM changes c WHERE `+where(w))
 		if q.Discarded {
 			w := place("e.at", "c.id", changes("c.state = ?"))
-			parts = append(parts, `SELECT e.at AS at, c.id AS id, 'discarded' AS source FROM changes c
+			parts = append(parts, `SELECT e.at AS at, c.id AS id, 'discarded' AS source, '' AS action FROM changes c
 				JOIN audit_events e ON e.subject = c.id AND e.action = 'change.discarded' WHERE `+where(w))
 		}
 	}
@@ -260,7 +285,7 @@ func timelineUnion(q TimelineQuery) (string, []any) {
 		}
 		w = append(w, actors("actor")...)
 		w = place("at", "id", w)
-		parts = append(parts, `SELECT at, id, 'event' AS source FROM audit_events WHERE `+where(w))
+		parts = append(parts, `SELECT at, id, 'event' AS source, action FROM audit_events WHERE `+where(w))
 	}
 	if len(parts) == 0 {
 		return "", nil
