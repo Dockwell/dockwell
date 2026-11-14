@@ -1231,9 +1231,32 @@
 
 /* ---------- Integrations ---------- */
 
+/*
+ * The sections side by side, as Settings-Integrations has them: each takes room for its cards and grows with the row,
+ * and one that doesn't fit goes to the next, so a row is full rather than a section's few cards beside nothing.
+ */
+.integrations-sections {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-6) var(--space-4);
+}
+
 .integrations-section {
   display: flex;
+  flex: var(--cards, 1) 1 calc(var(--cards, 1) * 220px + (var(--cards, 1) - 1) * var(--space-3));
   flex-direction: column;
+  min-width: 0;
+}
+
+.integrations-sections .integrations-grid {
+  grid-template-columns: repeat(var(--cards, 1), minmax(0, 1fr));
+}
+
+/* On a phone, a card to a row. */
+@media (max-width: 639.98px) {
+  .integrations-sections .integrations-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .integrations-aside {
