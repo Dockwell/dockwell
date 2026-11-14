@@ -159,10 +159,11 @@ export type ListCatalogEntriesResponse = Message<"dockwell.v1.ListCatalogEntries
   nextPageToken: string;
 
   /**
-   * The categories of the entries that match every filter but category and the
-   * search, by name, each with how many of those, and how many of them match the
-   * search too: the choices a page of them offers, which stay as words are typed,
-   * and where else the words find something. No one page can say either.
+   * The categories of the entries in the catalog and among the IDs asked for, by
+   * name, each with how many of those, and how many match the search and every
+   * other filter but category, the installed filter too: the choices a page of
+   * them offers, which stay as words are typed and as the installed filter is
+   * turned on, and how many each holds then. No one page can say either.
    *
    * @generated from field: repeated dockwell.v1.CatalogCategoryCount categories = 23;
    */
@@ -190,14 +191,16 @@ export type CatalogCategoryCount = Message<"dockwell.v1.CatalogCategoryCount"> &
   category: string;
 
   /**
-   * How many entries in it match the search, and every filter but category.
+   * How many entries in it match the search, and every filter but category,
+   * the installed filter too.
    *
    * @generated from field: int32 count = 2;
    */
   count: number;
 
   /**
-   * How many entries it has under every filter but category and the search.
+   * How many entries it has in the catalog and among the IDs asked for, before
+   * the search and the installed filter (#632).
    *
    * @generated from field: int32 listed = 3;
    */

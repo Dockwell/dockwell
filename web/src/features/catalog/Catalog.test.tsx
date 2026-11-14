@@ -321,6 +321,51 @@ describe("The catalog a page at a time (ADR 0092)", () => {
     await waitFor(() => expect(router.state.location.search).toEqual({ sort: "name" }));
   });
 
+  it("keeps every chip with the installed apps in one category, and turns Installed off in place (#632)", async () => {
+    const user = userEvent.setup();
+    const { router } = renderAt(
+      "/catalog",
+      api({ listCatalogEntries: catalogPages([tunnel, proxy, postgres], { installed: { postgres: 1 } }) }),
+    );
+    const chips = await screen.findByRole("group", { name: "Categories" });
+    await user.click(within(chips).getByRole("button", { name: "Installed" }));
+    await waitFor(() => expect(router.state.location.search).toEqual({ installed: true }));
+    // Every category stays, each with how many of its apps are installed, none greyed.
+    await waitFor(() => expect(within(chips).getByRole("button", { name: "Databases 1" })).toBeVisible());
+    const none = within(chips).getByRole("button", { name: "Networking 0" });
+    expect(none).toHaveClass("is-none");
+    expect(within(chips).getByRole("button", { name: "All" })).toHaveAttribute("aria-pressed", "false");
+    await user.click(within(chips).getByRole("button", { name: "Installed" }));
+    await waitFor(() => expect(router.state.location.search).toEqual({}));
+    expect(within(chips).getByRole("button", { name: "Networking" })).toBeVisible();
+  });
+
+  it("holds Installed and a category together, and All clears both", async () => {
+    const user = userEvent.setup();
+    const { router } = renderAt(
+      "/catalog?installed=1&category=networking",
+      api({ listCatalogEntries: catalogPages([tunnel, proxy, postgres], { installed: { postgres: 1 } }) }),
+    );
+    const chips = await screen.findByRole("group", { name: "Categories" });
+    await waitFor(() =>
+      expect(within(chips).getByRole("button", { name: "Networking 0" })).toHaveAttribute("aria-pressed", "true"),
+    );
+    expect(within(chips).getByRole("button", { name: "Installed" })).toHaveAttribute("aria-pressed", "true");
+    await user.click(within(chips).getByRole("button", { name: "All" }));
+    await waitFor(() => expect(router.state.location.search).toEqual({}));
+  });
+
+  it("offers Installed with nothing installed, and keeps the way back from it", async () => {
+    const user = userEvent.setup();
+    const { router } = renderAt("/catalog", api({ listCatalogEntries: catalogPages([tunnel, postgres]) }));
+    const chips = await screen.findByRole("group", { name: "Categories" });
+    await user.click(within(chips).getByRole("button", { name: "Installed" }));
+    expect(await screen.findByRole("heading", { name: "Nothing from the catalog is installed yet" })).toBeVisible();
+    expect(within(chips).getByRole("button", { name: "Installed" })).toHaveAttribute("aria-pressed", "true");
+    await user.click(within(chips).getByRole("button", { name: "Installed" }));
+    await waitFor(() => expect(router.state.location.search).toEqual({}));
+  });
+
   it("shows an app once where the catalog changed between two pages and it came twice", async () => {
     const user = userEvent.setup();
     renderAt(

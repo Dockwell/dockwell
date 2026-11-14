@@ -145,6 +145,17 @@ func TestTheCatalogSearchesAndFilters(t *testing.T) {
 	if want := []string{"cms:0/2", "databases:0/2", "notes:0/1", "support:0/1"}; !slices.Equal(offered, want) {
 		t.Errorf("categories for words that find nothing %v, want %v", offered, want)
 	}
+	// The installed filter leaves every category offered, each counting what's installed in
+	// it, so with the installed apps in one category the others are still there to choose
+	// (#632).
+	mine, _ := idx.page(&dockwellv1.ListCatalogEntriesRequest{Installed: true}, map[string]int{"memos": 1})
+	var held []string
+	for _, c := range mine.GetCategories() {
+		held = append(held, c.GetCategory()+":"+strconv.Itoa(int(c.GetCount()))+"/"+strconv.Itoa(int(c.GetListed())))
+	}
+	if want := []string{"cms:0/2", "databases:0/2", "notes:1/1", "support:0/1"}; !slices.Equal(held, want) {
+		t.Errorf("categories with the installed filter %v, want %v", held, want)
+	}
 }
 
 // The control plane holds one index while the catalog stays the same, and makes it

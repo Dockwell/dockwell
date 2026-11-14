@@ -200,7 +200,9 @@ export function CatalogPage({ search = {}, onSearch, children }: CatalogPageProp
               />
             </div>
           ) : null}
-          {categories.length > 1 ? (
+          {/* Shown wherever there's something to choose, never hidden by a choice made, so the
+              way back from one is always there (#632). */}
+          {categories.length > 0 || search.installed || search.category ? (
             <fieldset
               ref={chips}
               className={cx("catalog-chips", more && "has-more")}
@@ -213,19 +215,20 @@ export function CatalogPage({ search = {}, onSearch, children }: CatalogPageProp
               >
                 {t`All`}
               </Chip>
-              {count > 0 || search.installed ? (
-                <Chip
-                  on={search.installed === true}
-                  onClick={() => onSearch?.({ ...search, installed: search.installed ? undefined : true })}
-                >
-                  {t({ message: "Installed", context: "catalog filter" })}
-                </Chip>
-              ) : null}
+              {/* It turns on and off in place, as a category does. */}
+              <Chip
+                on={search.installed === true}
+                onClick={() => onSearch?.({ ...search, installed: search.installed ? undefined : true })}
+              >
+                {t({ message: "Installed", context: "catalog filter" })}
+              </Chip>
               {categories.map((category) => (
                 <Chip
                   key={category}
                   on={search.category === category}
                   onClick={() => onSearch?.({ ...search, category })}
+                  // With Installed on, how many of its apps are installed, none greyed rather than gone.
+                  count={search.installed ? (counted.find((c) => c.category === category)?.count ?? 0) : undefined}
                 >
                   {words(category)}
                 </Chip>
@@ -389,10 +392,31 @@ export function CatalogPage({ search = {}, onSearch, children }: CatalogPageProp
   );
 }
 
-function Chip({ on, onClick, children }: { on: boolean; onClick: () => void; children: ReactNode }) {
+function Chip({
+  on,
+  onClick,
+  count,
+  children,
+}: {
+  on: boolean;
+  onClick: () => void;
+  count?: number | undefined;
+  children: ReactNode;
+}) {
   return (
-    <button type="button" aria-pressed={on} className={cx("catalog-chip", on && "is-on")} onClick={onClick}>
+    <button
+      type="button"
+      aria-pressed={on}
+      className={cx("catalog-chip", on && "is-on", count === 0 && !on && "is-none")}
+      onClick={onClick}
+    >
       {children}
+      {count === undefined ? null : (
+        <>
+          {" "}
+          <span className="catalog-chip-count">{count}</span>
+        </>
+      )}
     </button>
   );
 }

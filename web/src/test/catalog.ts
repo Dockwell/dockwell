@@ -75,8 +75,8 @@ export function catalogPages(
         else if ((origins[listed.id] ?? "") !== req.catalog) continue;
       }
       if (req.ids.length > 0 && !req.ids.includes(e.id)) continue;
-      if (req.installed && !installed[e.id]) continue;
       offered.set(e.category, (offered.get(e.category) ?? 0) + 1);
+      if (req.installed && !installed[e.id]) continue;
       if (query && !words(e).includes(query) && !req.searchCategories.includes(e.category)) continue;
       counts.set(e.category, (counts.get(e.category) ?? 0) + 1);
       if (!req.category || e.category === req.category) matched.push(e);
