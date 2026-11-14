@@ -2019,6 +2019,11 @@ type Hello struct {
 	// (ADR 0084). An agent from before ignores those and backs up the whole volume,
 	// so the control plane asks one only of an agent that says this.
 	OneDatabaseBackups bool `protobuf:"varint,295,opt,name=one_database_backups,json=oneDatabaseBackups,proto3" json:"one_database_backups,omitempty"`
+	// True when the agent makes a volume with another's data, as
+	// DesiredResource.move_volume_from asks (ADR 0084, #572). An agent from before
+	// ignores it and makes the volume empty, so the control plane moves an app only
+	// on a server whose agent says this.
+	VolumeMoves bool `protobuf:"varint,297,opt,name=volume_moves,json=volumeMoves,proto3" json:"volume_moves,omitempty"`
 	// True when the agent serves the certificates the control plane proves by
 	// DNS-01 (put_certificates, ADR 0088). The control plane gives one that doesn't
 	// none, and its routes get their certificates from Caddy, as before. Numbered in
@@ -2285,6 +2290,13 @@ func (x *Hello) GetOwnsVolumes() bool {
 func (x *Hello) GetOneDatabaseBackups() bool {
 	if x != nil {
 		return x.OneDatabaseBackups
+	}
+	return false
+}
+
+func (x *Hello) GetVolumeMoves() bool {
+	if x != nil {
+		return x.VolumeMoves
 	}
 	return false
 }
@@ -11289,6 +11301,10 @@ type DesiredResource struct {
 	// Acts on one of the server's system services, for its host (ADR 0082).
 	// Numbered in Track S's block, 280 to 289.
 	Unit *UnitAction `protobuf:"bytes,280,opt,name=unit,proto3" json:"unit,omitempty"`
+	// The Docker volume on the server whose data this volume, made by the step,
+	// takes, as moving an app to another project does (ADR 0084, #572). Numbered in
+	// the block connectable apps hold, 290 to 299.
+	MoveVolumeFrom string `protobuf:"bytes,296,opt,name=move_volume_from,json=moveVolumeFrom,proto3" json:"move_volume_from,omitempty"`
 	// The registry login the resource's image is pulled with, sealed to this
 	// stream's delivery key as a step's values are, for a plan's ask and a step's
 	// pull (ADR 0086). Numbered in the block registry logins hold, 310 to 319.
@@ -11444,6 +11460,13 @@ func (x *DesiredResource) GetUnit() *UnitAction {
 		return x.Unit
 	}
 	return nil
+}
+
+func (x *DesiredResource) GetMoveVolumeFrom() string {
+	if x != nil {
+		return x.MoveVolumeFrom
+	}
+	return ""
 }
 
 func (x *DesiredResource) GetRegistryAuth() []byte {
@@ -14393,7 +14416,7 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x05Heard\x12\x12\n" +
 	"\x04last\x18\x01 \x01(\tR\x04last\"\n" +
 	"\n" +
-	"\bDraining\"\xc1\n" +
+	"\bDraining\"\xe5\n" +
 	"\n" +
 	"\x05Hello\x12,\n" +
 	"\x05build\x18\x01 \x01(\v2\x16.dockwell.v1.BuildInfoR\x05build\x12:\n" +
@@ -14428,7 +14451,8 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x05links\x18\xa2\x02 \x01(\bR\x05links\x12\"\n" +
 	"\fwrites_files\x18\xad\x02 \x01(\bR\vwritesFiles\x12\"\n" +
 	"\fowns_volumes\x18\xae\x02 \x01(\bR\vownsVolumes\x121\n" +
-	"\x14one_database_backups\x18\xa7\x02 \x01(\bR\x12oneDatabaseBackups\x12.\n" +
+	"\x14one_database_backups\x18\xa7\x02 \x01(\bR\x12oneDatabaseBackups\x12\"\n" +
+	"\fvolume_moves\x18\xa9\x02 \x01(\bR\vvolumeMoves\x12.\n" +
 	"\x12loads_certificates\x18\xc1\x02 \x01(\bR\x11loadsCertificates\"r\n" +
 	"\vDesiredHeld\x123\n" +
 	"\x04held\x18\x01 \x03(\v2\x1f.dockwell.agent.v1.HeldResourceR\x04held\x12\x18\n" +
@@ -15003,7 +15027,7 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"E\n" +
 	"\vObserveCall\x126\n" +
-	"\tresources\x18\x01 \x03(\v2\x18.dockwell.v1.ResourceRefR\tresources\"\xb1\x06\n" +
+	"\tresources\x18\x01 \x03(\v2\x18.dockwell.v1.ResourceRefR\tresources\"\xdc\x06\n" +
 	"\x0fDesiredResource\x124\n" +
 	"\bresource\x18\x01 \x01(\v2\x18.dockwell.v1.ResourceRefR\bresource\x12\x17\n" +
 	"\x04spec\x18\x02 \x01(\fH\x00R\x04spec\x88\x01\x01\x12\x12\n" +
@@ -15023,7 +15047,8 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x0finstall_updates\x18\xe8\x01 \x01(\v2!.dockwell.agent.v1.InstallUpdatesR\x0einstallUpdates\x12\x17\n" +
 	"\x06reboot\x18\xe9\x01 \x01(\tR\x06reboot\x12E\n" +
 	"\rmove_database\x18\x84\x02 \x01(\v2\x1f.dockwell.agent.v1.MoveDatabaseR\fmoveDatabase\x122\n" +
-	"\x04unit\x18\x98\x02 \x01(\v2\x1d.dockwell.agent.v1.UnitActionR\x04unit\x12$\n" +
+	"\x04unit\x18\x98\x02 \x01(\v2\x1d.dockwell.agent.v1.UnitActionR\x04unit\x12)\n" +
+	"\x10move_volume_from\x18\xa8\x02 \x01(\tR\x0emoveVolumeFrom\x12$\n" +
 	"\rregistry_auth\x18\xb6\x02 \x01(\fR\fregistryAuth\x121\n" +
 	"\x14build_registry_auths\x18\xbb\x02 \x01(\fR\x12buildRegistryAuths\x125\n" +
 	"\x05panel\x18\xcd\x02 \x01(\v2\x1e.dockwell.agent.v1.PanelActionR\x05panelB\a\n" +

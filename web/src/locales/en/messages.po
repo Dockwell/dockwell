@@ -3278,6 +3278,9 @@ msgstr "Port {n} on the server"
 msgid "Ports"
 msgstr "Ports"
 
+msgid "Project"
+msgstr "Project"
+
 msgid "Remove mount {n}"
 msgstr "Remove mount {n}"
 
@@ -4157,6 +4160,42 @@ msgstr "Versions"
 msgid "latest"
 msgstr "latest"
 
+msgid "A new project"
+msgstr "A new project"
+
+msgid "Choose again"
+msgstr "Choose again"
+
+msgid "Move {name}"
+msgstr "Move {name}"
+
+msgid "Move {service} too"
+msgstr "Move {service} too"
+
+msgid "Moves {others} with it"
+msgstr "Moves {others} with it"
+
+msgid "Nothing moves until you apply the plan"
+msgstr "Nothing moves until you apply the plan"
+
+msgid "Project name"
+msgstr "Project name"
+
+msgid "There's a project named {project} already"
+msgstr "There's a project named {project} already"
+
+msgid "To another project, with its data and domains. You review a plan first."
+msgstr "To another project, with its data and domains. You review a plan first."
+
+msgid "What holds it back"
+msgstr "What holds it back"
+
+msgid "Where it goes"
+msgstr "Where it goes"
+
+msgid "With its data, domains and what only it uses"
+msgstr "With its data, domains and what only it uses"
+
 msgid "Couldn't read the catalog"
 msgstr "Couldn't read the catalog"
 
@@ -4437,12 +4476,6 @@ msgstr "Pick a folder on the server"
 
 msgid "Plans say a value changed, and never show it."
 msgstr "Plans say a value changed, and never show it."
-
-msgid "Project"
-msgstr "Project"
-
-msgid "Project name"
-msgstr "Project name"
 
 msgid "Pull {host} images with"
 msgstr "Pull {host} images with"
@@ -4882,9 +4915,6 @@ msgstr "Change {name}'s version"
 
 msgid "Check its logs for what the install or the start said, then try again."
 msgstr "Check its logs for what the install or the start said, then try again."
-
-msgid "Choose again"
-msgstr "Choose again"
 
 msgid "Each start installs again, so check the app's lockfile works with the new version."
 msgstr "Each start installs again, so check the app's lockfile works with the new version."
@@ -11100,9 +11130,6 @@ msgstr "Move"
 msgid "Move {0}"
 msgstr "Move {0}"
 
-msgid "Move {name}"
-msgstr "Move {name}"
-
 #. placeholder {0}: nameOf(folder)
 msgid "New file in {0}"
 msgstr "New file in {0}"
@@ -12293,8 +12320,17 @@ msgstr "{n, plural, one {# volume} other {# volumes}}"
 msgid "{others, plural, one {# other resource} other {# other resources}}"
 msgstr "{others, plural, one {# other resource} other {# other resources}}"
 
+msgid "Also delete what other apps use"
+msgstr "Also delete what other apps use"
+
 msgid "Apps with no project go here, so it stays."
 msgstr "Apps with no project go here, so it stays."
+
+msgid "It moves to a project of its own"
+msgstr "It moves to a project of its own"
+
+msgid "Those apps stop working; their databases are dumped first"
+msgstr "Those apps stop working; their databases are dumped first"
 
 #. placeholder {0}: here.length
 #. placeholder {0}: view.domains.length

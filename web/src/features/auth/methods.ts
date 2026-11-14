@@ -210,6 +210,8 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "ServiceService.deployService": "may",
   "ServiceService.listServiceRevisions": "read",
   "ServiceService.listServices": "read",
+  // Asked by name before Move is offered, from the app's settings (ADR 0084).
+  "ServiceService.moveService": "may",
   "ServiceService.openService": "may",
   "ServiceService.rollBackService": "may",
   // Asked by name before Update is offered, from the app's page and the catalog's (ADR 0080).

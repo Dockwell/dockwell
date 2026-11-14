@@ -86,6 +86,18 @@ type Driver struct {
 	Restores resource.Restorer
 	// BacksUp backs one up as a step of a change, on the agent.
 	BacksUp resource.BackerUp
+	// Moves moves one volume's data into another, on the agent (ADR 0084, #572).
+	Moves DataMover
+}
+
+// DataMover moves one volume's data into another on its server, as moving an app to
+// another project does (ADR 0084, #572).
+type DataMover interface {
+	// JudgeMoveData says how the data of the Docker volume from moves into t, made
+	// as spec, and reports false when from has nothing left to move.
+	JudgeMoveData(ctx context.Context, from string, t Target, spec *resourcev1.Volume) (resource.VolumeMove, bool, error)
+	// MoveData moves it into t, which is made by then.
+	MoveData(ctx context.Context, move resource.VolumeMove, t Target) error
 }
 
 var _ resource.Driver = (*Driver)(nil)
@@ -542,6 +554,53 @@ func (d *Driver) ApplyBackup(ctx context.Context, step resource.Step) error {
 		return errNoRestores
 	}
 	return d.BacksUp.ApplyBackup(ctx, step)
+}
+
+// JudgeVolumeMove adds to a step that makes a volume how its data moves from
+// another's, and reports false when there's nothing left to move.
+func (d *Driver) JudgeVolumeMove(ctx context.Context, ref resource.Ref, from string, step resource.Step, desired proto.Message) (resource.Step, bool, error) {
+	if d.Moves == nil {
+		return step, false, errNoRestores
+	}
+	if step.Action != resource.ActionCreate && step.Action != resource.ActionNone {
+		return step, false, fmt.Errorf("the volume %s is there already, made another way, so it can't take the data of %s", ref.Name, from)
+	}
+	move, left, err := d.Moves.JudgeMoveData(ctx, from, TargetOf(ref), desired.(*resourcev1.Volume))
+	if err != nil || !left {
+		return step, false, err
+	}
+	step.VolumeMove = &move
+	// A volume made by an earlier run of the step has the data still to take.
+	if step.Action == resource.ActionNone {
+		step.Action = resource.ActionUpdate
+	}
+	// What it moves into is new, and the data comes back with an undo: a restore
+	// of a volume the server kept is no part of it.
+	step.Restores = false
+	if move.How == resource.MoveCopy {
+		step.Downtime = CopyTakes(move.Bytes)
+	}
+	return step, true, nil
+}
+
+// CopyTakes is about how long copying a volume's data into another takes, at a speed
+// a small server keeps.
+func CopyTakes(size int64) time.Duration {
+	return time.Minute + 2*time.Duration(size/(20<<20))*time.Second
+}
+
+// ApplyVolumeMove makes the volume, if the step does, then moves the data into it.
+func (d *Driver) ApplyVolumeMove(ctx context.Context, step resource.Step, desired proto.Message) error {
+	if d.Moves == nil {
+		return errNoRestores
+	}
+	t := TargetOf(step.Ref)
+	if step.Action == resource.ActionCreate {
+		if err := d.Runtime.Create(ctx, t, desired.(*resourcev1.Volume), false); err != nil {
+			return err
+		}
+	}
+	return d.Moves.MoveData(ctx, *step.VolumeMove, t)
 }
 
 var errNoRestores = errors.New("this agent can't back up or restore volumes, as it has no Docker driver")

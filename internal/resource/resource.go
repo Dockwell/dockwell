@@ -281,6 +281,10 @@ type Decision struct {
 	// a new volume, does beside replacing its container (ADR 0080). Its fingerprint
 	// covers it, so what stops can't change unreviewed.
 	Move *MovePlan `json:",omitempty"`
+	// VolumeMove says how a step that makes a volume takes its data from another on
+	// its server, as moving an app to another project does (ADR 0084, #572). Its
+	// fingerprint covers it, so a copy a person didn't see never runs.
+	VolumeMove *VolumeMove `json:",omitempty"`
 	// Install says what a step that installs a server's updates does, as its
 	// agent simulated the exact command (ADR 0064). Its fingerprint covers it, so
 	// a person never applies a list they didn't see.
@@ -1621,6 +1625,41 @@ type Mover interface {
 	// JudgeMove adds to a step that replaces the resource what moving its database
 	// does, or says why it can't: what else stops, and for how long.
 	JudgeMove(ctx context.Context, ref Ref, step Step, desired proto.Message, move MoveAsked) (Decision, error)
+}
+
+// How a volume's data moves into another (VolumeMove.How).
+const (
+	// MoveInPlace renames the old volume's folder into the new one's place, on the
+	// same filesystem: it takes no time and no room.
+	MoveInPlace = "in place"
+	// MoveSameOptions makes the new volume with the old one's options, as a bind to
+	// a folder or a share, so it reaches the same data and nothing moves.
+	MoveSameOptions = "same options"
+	// MoveCopy copies the files, then empties the old volume.
+	MoveCopy = "copy"
+)
+
+// VolumeMove is how a step that makes a volume takes its data from another on its
+// server (ADR 0084, #572).
+type VolumeMove struct {
+	// From is the Docker volume the data comes from.
+	From string
+	// How is MoveInPlace, MoveSameOptions or MoveCopy.
+	How string
+	// Bytes is what a copy copies, as its agent measured it for the plan.
+	Bytes int64 `json:",omitempty"`
+}
+
+// VolumeMover is a driver that can make a volume with another's data, as moving an
+// app to another project does (ADR 0084, #572). Nothing may mount the volume the
+// data comes from while it moves: the change deletes what did first.
+type VolumeMover interface {
+	// JudgeVolumeMove adds to a step that makes the volume, or finds it made, how
+	// the data moves from the Docker volume from, and reports false when there's
+	// nothing left to move, as a step that finished and went unheard has.
+	JudgeVolumeMove(ctx context.Context, ref Ref, from string, step Step, desired proto.Message) (Step, bool, error)
+	// ApplyVolumeMove makes the volume, if the step does, and moves the data.
+	ApplyVolumeMove(ctx context.Context, step Step, desired proto.Message) error
 }
 
 // HostAccesser is a kind whose specs can reach their server beyond what

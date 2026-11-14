@@ -157,11 +157,14 @@ type Engine struct {
 	NCPU int
 	// BindError, when set, says why a server path can't be mounted as a
 	// container starts, or nothing when it can.
-	BindError  func(source string) string
-	images     map[string]*image // pulled, by reference and by ID
-	containers map[string]*container
-	volumes    map[string]*docker.Volume
-	networks   map[string]*docker.Network
+	BindError func(source string) string
+	// Mountpoints has a local volume with no options say where its files are, its
+	// VolumeDir, as Docker on the agent's own machine does.
+	Mountpoints bool
+	images      map[string]*image // pulled, by reference and by ID
+	containers  map[string]*container
+	volumes     map[string]*docker.Volume
+	networks    map[string]*docker.Network
 	// Pulls counts pulls, and Creates containers created.
 	Pulls, Creates int
 	clock          int64 // orders what is made
@@ -1641,6 +1644,9 @@ func (e *Engine) serveVolumes(w http.ResponseWriter, r *http.Request, parts []st
 		}
 		if req.DriverOpts != nil {
 			v.Options = maps.Clone(req.DriverOpts)
+		}
+		if e.Mountpoints && v.Driver == "local" && len(v.Options) == 0 {
+			v.Mountpoint = e.volumeDir(v.Name)
 		}
 		writeJSON(w, http.StatusCreated, v)
 	case len(parts) == 1 && r.Method == http.MethodGet:

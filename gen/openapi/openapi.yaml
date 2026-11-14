@@ -5335,6 +5335,48 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/services/{id}:move:
+        post:
+            tags:
+                - ServiceService
+            description: |-
+                MoveService plans moving an app to another project or environment on the same
+                 servers, with what only it uses, in one plan with undo: each is deleted where it
+                 was and made where it goes, its volumes taking their data, in place where the
+                 server lets the agent rename it and copied otherwise. A value it shares with
+                 what stays is copied, which the response says. What would part it from what
+                 stays, a volume or a network another service uses, or a service it reads or
+                 that reads it, holds it back: the response lists each, with the service to move
+                 too, and plans nothing. A link or a network's member in another project that
+                 meets what moves follows it in the same plan. It needs a role in both places.
+                 See docs/adr/0084-what-an-app-needs-met-by-a-new-service-one-you-run-or-a-connection.md.
+            operationId: ServiceService_MoveService
+            parameters:
+                - name: id
+                  in: path
+                  description: The service, by ID or by name.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/MoveServiceRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/MoveServiceResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/services/{id}:open:
         post:
             tags:
@@ -12003,6 +12045,23 @@ components:
                          secret of the name already. Only with base_revision, as for keep_env. See
                          docs/adr/0081-an-apps-own-values-shown-and-its-secrets-kept.md. Numbered
                          apart, as open work adds to this message.
+                keepSharedIn:
+                    type: string
+                    description: |-
+                        With with_contents: where each database server that an app in another
+                         project links to goes, so those apps keep working, as a move takes it, data,
+                         users and all, with their links following it: a project, by name or ID.
+                         Empty makes each a project of its own, named for it. Refused with
+                         delete_shared. See
+                         docs/adr/0084-what-an-app-needs-met-by-a-new-service-one-you-run-or-a-connection.md.
+                         Numbered in the block connectable apps hold in other messages, 80 to 89.
+                deleteShared:
+                    type: boolean
+                    description: |-
+                        With with_contents: deletes the database servers that apps in other projects
+                         link to as well, which the plan names, dumping each linked database alone
+                         first. Those apps stop working. Numbered in the block connectable apps hold in
+                         other messages, 80 to 89.
             description: Edit sets one resource's desired spec, or deletes it.
         EndProcessRequest:
             type: object
@@ -16351,6 +16410,20 @@ components:
             description: |-
                 MountFile is a file Dockwell writes for a container: what it holds, and who
                  may read it.
+        MoveBlock:
+            type: object
+            properties:
+                resource:
+                    allOf:
+                        - $ref: '#/components/schemas/ResourceRef'
+                    description: What's in the way.
+                why:
+                    type: string
+                    description: 'Why, in words for people: the fact, then what to do.'
+                moveToo:
+                    type: string
+                    description: A service of the app's environment that moving too clears it, or empty.
+            description: MoveBlock is something that holds a move back.
         MoveFileRequest:
             type: object
             properties:
@@ -16391,6 +16464,73 @@ components:
                         True when either end is a way back onto the server, which took a
                          passkey.
             description: MoveFileResponse says where it went.
+        MoveServiceRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The service, by ID or by name.
+                project:
+                    type: string
+                    description: |-
+                        The project of a service named by name, by name or ID, when more than one
+                         has a service of that name.
+                environment:
+                    type: string
+                    description: |-
+                        The environment of a service named by name, by name or ID, when its
+                         project has more than one.
+                toProject:
+                    type: string
+                    description: |-
+                        Where it goes: a project, by name or ID, and its environment, by name or
+                         ID, where it has more than one.
+                toEnvironment:
+                    type: string
+                newProject:
+                    type: string
+                    description: |-
+                        A project the plan makes for it, with its one environment, in place of
+                         to_project, such as the app's own name. Making a project is an admin's.
+                also:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        More services of its environment that move with it, by name, as a block's
+                         move_too names them.
+                summary:
+                    type: string
+                    description: What the change is for, for the timeline. Empty says what moves where.
+            description: MoveServiceRequest names a service, and where it goes.
+        MoveServiceResponse:
+            type: object
+            properties:
+                change:
+                    allOf:
+                        - $ref: '#/components/schemas/Change'
+                    description: The change, planned, with its plan. Unset while anything holds it back.
+                moves:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ResourceRef'
+                    description: What goes, as it's named where it is now.
+                copies:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ResourceRef'
+                    description: Values what stays reads too, which stay, and which the app gets a copy of.
+                follows:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ResourceRef'
+                    description: What in other projects points at what moves, and follows it.
+                blocks:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/MoveBlock'
+                    description: What holds the move back. With any, nothing is planned.
+            description: MoveServiceResponse is the planned move, or what holds it back.
         MuteAlertsRequest:
             type: object
             properties:
@@ -18012,6 +18152,13 @@ components:
                          keys under its prefix, such as "shop:*", or "*" for every key it wrote, which
                          nothing tells apart. Taking the user away deletes no key (ADR 0084). Numbered in
                          the block connectable apps hold in other messages, 80 to 89.
+                volumeMove:
+                    allOf:
+                        - $ref: '#/components/schemas/VolumeMove'
+                    description: |-
+                        How a step that makes a volume takes its data from another on its server, as
+                         moving an app to another project does (ADR 0084, #572). Numbered in the block
+                         connectable apps hold in other messages, 80 to 89.
             description: PlanStep is what applying does to one resource on one server.
         PlanStopPanelRequest:
             type: object
@@ -22976,6 +23123,28 @@ components:
                     type: boolean
                     description: Whether the app only reads it.
             description: VolumeMount is an app that mounts a volume.
+        VolumeMove:
+            type: object
+            properties:
+                fromVolume:
+                    type: string
+                    description: The Docker volume the data comes from.
+                method:
+                    enum:
+                        - VOLUME_MOVE_METHOD_UNSPECIFIED
+                        - VOLUME_MOVE_METHOD_IN_PLACE
+                        - VOLUME_MOVE_METHOD_SAME_OPTIONS
+                        - VOLUME_MOVE_METHOD_COPY
+                    type: string
+                    description: How it moves.
+                    format: enum
+                copyBytes:
+                    type: string
+                    description: What a copy copies, in bytes, as the agent measured it for the plan.
+            description: |-
+                VolumeMove is how a step that makes a volume takes its data from another on its
+                 server (ADR 0084, #572). Nothing mounts either while it moves: the change deletes
+                 what mounted the old one first, and the old one stays, empty, for 7 days.
         VolumeOnServer:
             type: object
             properties:

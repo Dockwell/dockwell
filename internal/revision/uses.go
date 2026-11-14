@@ -335,11 +335,36 @@ const linkKind resource.Kind = "link"
 func (e *Engine) refuseLinkedGoing(ctx context.Context, tx *store.Tx, items []item) error {
 	going := map[string]bool{}
 	gone := map[resource.Ref]bool{}
+	asked := map[resource.Ref]proto.Message{} // links the change rewrites, as it asks
+	// A scope deleted with what other projects' apps use takes it knowingly.
+	anyway := map[string]bool{}
+	for i := range items {
+		if it := &items[i]; it.deleteShared {
+			anyway[it.id] = true
+		}
+	}
+	tree, err := scope.Load(ctx, tx)
+	if err != nil {
+		return err
+	}
+	inAnyway := func(env string) bool {
+		for _, p := range tree.Projects {
+			for _, e := range p.Environments {
+				if e.ID == env && (anyway[e.ID] || anyway[p.ID]) {
+					return true
+				}
+			}
+		}
+		return false
+	}
 	for i := range items {
 		it := &items[i]
+		if it.ref.Kind == linkKind && it.spec != nil {
+			asked[it.ref] = it.spec
+		}
 		if it.spec == nil && it.current != nil {
 			gone[it.ref] = true
-			if it.ref.Kind == "service" {
+			if it.ref.Kind == "service" && !inAnyway(it.ref.Scope) {
 				going[it.ref.Scope+"/"+it.ref.Name] = true
 			}
 		}
@@ -364,11 +389,16 @@ func (e *Engine) refuseLinkedGoing(ctx context.Context, tx *store.Tx, items []it
 		if r.Spec == nil || gone[ref] {
 			continue
 		}
-		it, err := e.load(ctx, tx, ref)
-		if err != nil {
-			return err
+		spec := asked[ref]
+		if spec == nil {
+			it, err := e.load(ctx, tx, ref)
+			if err != nil {
+				return err
+			}
+			spec = it.current
 		}
-		l, ok := it.current.(*resourcev1.Link)
+		// A link the change points elsewhere, as a move does, follows what it met.
+		l, ok := spec.(*resourcev1.Link)
 		if !ok || l.GetMeetsEnvironment() == "" || !going[l.GetMeetsEnvironment()+"/"+l.GetService()] {
 			continue
 		}

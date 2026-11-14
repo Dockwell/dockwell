@@ -56,6 +56,9 @@ const (
 	// ServiceServiceChangeServiceRuntimeProcedure is the fully-qualified name of the ServiceService's
 	// ChangeServiceRuntime RPC.
 	ServiceServiceChangeServiceRuntimeProcedure = "/dockwell.v1.ServiceService/ChangeServiceRuntime"
+	// ServiceServiceMoveServiceProcedure is the fully-qualified name of the ServiceService's
+	// MoveService RPC.
+	ServiceServiceMoveServiceProcedure = "/dockwell.v1.ServiceService/MoveService"
 	// ServiceServiceOpenServiceProcedure is the fully-qualified name of the ServiceService's
 	// OpenService RPC.
 	ServiceServiceOpenServiceProcedure = "/dockwell.v1.ServiceService/OpenService"
@@ -105,6 +108,17 @@ type ServiceServiceClient interface {
 	// the service's environment back. The plan replaces its container. See
 	// docs/adr/0058-runtimes-an-app-from-a-folder.md.
 	ChangeServiceRuntime(context.Context, *connect.Request[v1.ChangeServiceRuntimeRequest]) (*connect.Response[v1.ChangeServiceRuntimeResponse], error)
+	// MoveService plans moving an app to another project or environment on the same
+	// servers, with what only it uses, in one plan with undo: each is deleted where it
+	// was and made where it goes, its volumes taking their data, in place where the
+	// server lets the agent rename it and copied otherwise. A value it shares with
+	// what stays is copied, which the response says. What would part it from what
+	// stays, a volume or a network another service uses, or a service it reads or
+	// that reads it, holds it back: the response lists each, with the service to move
+	// too, and plans nothing. A link or a network's member in another project that
+	// meets what moves follows it in the same plan. It needs a role in both places.
+	// See docs/adr/0084-what-an-app-needs-met-by-a-new-service-one-you-run-or-a-connection.md.
+	MoveService(context.Context, *connect.Request[v1.MoveServiceRequest]) (*connect.Response[v1.MoveServiceResponse], error)
 	// OpenService gives the person who asks a one-time address that opens the web
 	// UI a service publishes on its server, through the panel, on an origin of
 	// the service's own (ADR 0061): the browser that opens it first, within a
@@ -173,6 +187,12 @@ func NewServiceServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(serviceServiceMethods.ByName("ChangeServiceRuntime")),
 			connect.WithClientOptions(opts...),
 		),
+		moveService: connect.NewClient[v1.MoveServiceRequest, v1.MoveServiceResponse](
+			httpClient,
+			baseURL+ServiceServiceMoveServiceProcedure,
+			connect.WithSchema(serviceServiceMethods.ByName("MoveService")),
+			connect.WithClientOptions(opts...),
+		),
 		openService: connect.NewClient[v1.OpenServiceRequest, v1.OpenServiceResponse](
 			httpClient,
 			baseURL+ServiceServiceOpenServiceProcedure,
@@ -191,6 +211,7 @@ type serviceServiceClient struct {
 	upgradeService       *connect.Client[v1.UpgradeServiceRequest, v1.UpgradeServiceResponse]
 	addServicePort       *connect.Client[v1.AddServicePortRequest, v1.AddServicePortResponse]
 	changeServiceRuntime *connect.Client[v1.ChangeServiceRuntimeRequest, v1.ChangeServiceRuntimeResponse]
+	moveService          *connect.Client[v1.MoveServiceRequest, v1.MoveServiceResponse]
 	openService          *connect.Client[v1.OpenServiceRequest, v1.OpenServiceResponse]
 }
 
@@ -227,6 +248,11 @@ func (c *serviceServiceClient) AddServicePort(ctx context.Context, req *connect.
 // ChangeServiceRuntime calls dockwell.v1.ServiceService.ChangeServiceRuntime.
 func (c *serviceServiceClient) ChangeServiceRuntime(ctx context.Context, req *connect.Request[v1.ChangeServiceRuntimeRequest]) (*connect.Response[v1.ChangeServiceRuntimeResponse], error) {
 	return c.changeServiceRuntime.CallUnary(ctx, req)
+}
+
+// MoveService calls dockwell.v1.ServiceService.MoveService.
+func (c *serviceServiceClient) MoveService(ctx context.Context, req *connect.Request[v1.MoveServiceRequest]) (*connect.Response[v1.MoveServiceResponse], error) {
+	return c.moveService.CallUnary(ctx, req)
 }
 
 // OpenService calls dockwell.v1.ServiceService.OpenService.
@@ -278,6 +304,17 @@ type ServiceServiceHandler interface {
 	// the service's environment back. The plan replaces its container. See
 	// docs/adr/0058-runtimes-an-app-from-a-folder.md.
 	ChangeServiceRuntime(context.Context, *connect.Request[v1.ChangeServiceRuntimeRequest]) (*connect.Response[v1.ChangeServiceRuntimeResponse], error)
+	// MoveService plans moving an app to another project or environment on the same
+	// servers, with what only it uses, in one plan with undo: each is deleted where it
+	// was and made where it goes, its volumes taking their data, in place where the
+	// server lets the agent rename it and copied otherwise. A value it shares with
+	// what stays is copied, which the response says. What would part it from what
+	// stays, a volume or a network another service uses, or a service it reads or
+	// that reads it, holds it back: the response lists each, with the service to move
+	// too, and plans nothing. A link or a network's member in another project that
+	// meets what moves follows it in the same plan. It needs a role in both places.
+	// See docs/adr/0084-what-an-app-needs-met-by-a-new-service-one-you-run-or-a-connection.md.
+	MoveService(context.Context, *connect.Request[v1.MoveServiceRequest]) (*connect.Response[v1.MoveServiceResponse], error)
 	// OpenService gives the person who asks a one-time address that opens the web
 	// UI a service publishes on its server, through the panel, on an origin of
 	// the service's own (ADR 0061): the browser that opens it first, within a
@@ -342,6 +379,12 @@ func NewServiceServiceHandler(svc ServiceServiceHandler, opts ...connect.Handler
 		connect.WithSchema(serviceServiceMethods.ByName("ChangeServiceRuntime")),
 		connect.WithHandlerOptions(opts...),
 	)
+	serviceServiceMoveServiceHandler := connect.NewUnaryHandler(
+		ServiceServiceMoveServiceProcedure,
+		svc.MoveService,
+		connect.WithSchema(serviceServiceMethods.ByName("MoveService")),
+		connect.WithHandlerOptions(opts...),
+	)
 	serviceServiceOpenServiceHandler := connect.NewUnaryHandler(
 		ServiceServiceOpenServiceProcedure,
 		svc.OpenService,
@@ -364,6 +407,8 @@ func NewServiceServiceHandler(svc ServiceServiceHandler, opts ...connect.Handler
 			serviceServiceAddServicePortHandler.ServeHTTP(w, r)
 		case ServiceServiceChangeServiceRuntimeProcedure:
 			serviceServiceChangeServiceRuntimeHandler.ServeHTTP(w, r)
+		case ServiceServiceMoveServiceProcedure:
+			serviceServiceMoveServiceHandler.ServeHTTP(w, r)
 		case ServiceServiceOpenServiceProcedure:
 			serviceServiceOpenServiceHandler.ServeHTTP(w, r)
 		default:
@@ -401,6 +446,10 @@ func (UnimplementedServiceServiceHandler) AddServicePort(context.Context, *conne
 
 func (UnimplementedServiceServiceHandler) ChangeServiceRuntime(context.Context, *connect.Request[v1.ChangeServiceRuntimeRequest]) (*connect.Response[v1.ChangeServiceRuntimeResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ServiceService.ChangeServiceRuntime is not implemented"))
+}
+
+func (UnimplementedServiceServiceHandler) MoveService(context.Context, *connect.Request[v1.MoveServiceRequest]) (*connect.Response[v1.MoveServiceResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ServiceService.MoveService is not implemented"))
 }
 
 func (UnimplementedServiceServiceHandler) OpenService(context.Context, *connect.Request[v1.OpenServiceRequest]) (*connect.Response[v1.OpenServiceResponse], error) {

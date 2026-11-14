@@ -543,6 +543,11 @@ message Hello {
   // (ADR 0084). An agent from before ignores those and backs up the whole volume,
   // so the control plane asks one only of an agent that says this.
   bool one_database_backups = 295;
+  // True when the agent makes a volume with another's data, as
+  // DesiredResource.move_volume_from asks (ADR 0084, #572). An agent from before
+  // ignores it and makes the volume empty, so the control plane moves an app only
+  // on a server whose agent says this.
+  bool volume_moves = 297;
   // True when the agent serves the certificates the control plane proves by
   // DNS-01 (put_certificates, ADR 0088). The control plane gives one that doesn't
   // none, and its routes get their certificates from Caddy, as before. Numbered in
@@ -2135,6 +2140,10 @@ message DesiredResource {
   // Acts on one of the server's system services, for its host (ADR 0082).
   // Numbered in Track S's block, 280 to 289.
   UnitAction unit = 280;
+  // The Docker volume on the server whose data this volume, made by the step,
+  // takes, as moving an app to another project does (ADR 0084, #572). Numbered in
+  // the block connectable apps hold, 290 to 299.
+  string move_volume_from = 296;
   // The registry login the resource's image is pulled with, sealed to this
   // stream's delivery key as a step's values are, for a plan's ask and a step's
   // pull (ADR 0086). Numbered in the block registry logins hold, 310 to 319.

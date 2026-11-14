@@ -45,11 +45,22 @@ export async function resourcesIn(
  * there as it plans, orders them by what uses what, and checks each as any edit (ADR 0074). The
  * CLI's `dockwell projects delete --with-contents` sends the same edit.
  */
-export async function planDeletingProject(transport: Transport, project: Resource, summary: string) {
+export async function planDeletingProject(
+  transport: Transport,
+  project: Resource,
+  summary: string,
+  /** Deletes what other projects' apps use too, which the server otherwise moves out to keep them working (ADR 0084). */
+  deleteShared = false,
+) {
   return createClient(ChangeService, transport).proposeChange({
     summary,
     edits: [
-      { resource: { kind: "project", name: project.resource?.name ?? project.id }, delete: true, withContents: true },
+      {
+        resource: { kind: "project", name: project.resource?.name ?? project.id },
+        delete: true,
+        withContents: true,
+        deleteShared,
+      },
     ],
   });
 }

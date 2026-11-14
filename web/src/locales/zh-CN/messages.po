@@ -3278,6 +3278,9 @@ msgstr "端口 {n}：服务器上"
 msgid "Ports"
 msgstr "端口"
 
+msgid "Project"
+msgstr "项目"
+
 msgid "Remove mount {n}"
 msgstr "移除挂载 {n}"
 
@@ -4157,6 +4160,42 @@ msgstr "版本"
 msgid "latest"
 msgstr "latest"
 
+msgid "A new project"
+msgstr "新项目"
+
+msgid "Choose again"
+msgstr "重新选择"
+
+msgid "Move {name}"
+msgstr "移动 {name}"
+
+msgid "Move {service} too"
+msgstr "同时移动 {service}"
+
+msgid "Moves {others} with it"
+msgstr "同时移动 {others}"
+
+msgid "Nothing moves until you apply the plan"
+msgstr "应用计划之前不会移动任何内容"
+
+msgid "Project name"
+msgstr "项目名称"
+
+msgid "There's a project named {project} already"
+msgstr "已有名为 {project} 的项目"
+
+msgid "To another project, with its data and domains. You review a plan first."
+msgstr "移到另一个项目，连同其数据和域名。你会先查看计划。"
+
+msgid "What holds it back"
+msgstr "阻止移动的原因"
+
+msgid "Where it goes"
+msgstr "移到哪里"
+
+msgid "With its data, domains and what only it uses"
+msgstr "连同其数据、域名以及仅它使用的内容"
+
 msgid "Couldn't read the catalog"
 msgstr "无法读取应用目录"
 
@@ -4437,12 +4476,6 @@ msgstr "选择服务器上的目录"
 
 msgid "Plans say a value changed, and never show it."
 msgstr "计划只说明值已更改，绝不显示内容。"
-
-msgid "Project"
-msgstr "项目"
-
-msgid "Project name"
-msgstr "项目名称"
 
 msgid "Pull {host} images with"
 msgstr "拉取 {host} 镜像时使用"
@@ -4882,9 +4915,6 @@ msgstr "更改 {name} 的版本"
 
 msgid "Check its logs for what the install or the start said, then try again."
 msgstr "查看它的日志，看安装或启动时输出了什么，然后重试。"
-
-msgid "Choose again"
-msgstr "重新选择"
 
 msgid "Each start installs again, so check the app's lockfile works with the new version."
 msgstr "每次启动都会重新安装，所以请确认应用的锁文件适用于新版本。"
@@ -11100,9 +11130,6 @@ msgstr "移动"
 msgid "Move {0}"
 msgstr "移动 {0}"
 
-msgid "Move {name}"
-msgstr "移动 {name}"
-
 #. placeholder {0}: nameOf(folder)
 msgid "New file in {0}"
 msgstr "在 {0} 中新建文件"
@@ -12293,8 +12320,17 @@ msgstr "{n, plural, other {# 个卷}}"
 msgid "{others, plural, one {# other resource} other {# other resources}}"
 msgstr "{others, plural, other {# 个其他资源}}"
 
+msgid "Also delete what other apps use"
+msgstr "同时删除其他应用使用的内容"
+
 msgid "Apps with no project go here, so it stays."
 msgstr "未指定项目的应用都放在这里，所以它会保留。"
+
+msgid "It moves to a project of its own"
+msgstr "它会移到自己的项目中"
+
+msgid "Those apps stop working; their databases are dumped first"
+msgstr "这些应用将停止工作；它们的数据库会先被导出"
 
 #. placeholder {0}: here.length
 #. placeholder {0}: view.domains.length

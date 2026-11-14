@@ -977,6 +977,7 @@ func (h *Handler) edits(ctx context.Context, in []*dockwellv1.Edit) ([]revision.
 			out = append(out, revision.Edit{
 				Ref: ref, Spec: spec, Servers: servers, Base: int(e.GetBaseRevision()), KeepEnv: e.GetKeepEnv(),
 				EnvToSecrets: e.GetEnvToSecrets(), WithContents: e.GetWithContents(),
+				KeepSharedIn: e.GetKeepSharedIn(), DeleteShared: e.GetDeleteShared(),
 			})
 		}
 		return nil

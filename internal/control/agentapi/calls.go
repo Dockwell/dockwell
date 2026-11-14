@@ -485,7 +485,7 @@ func (a *Agents) open(server, name string, hello *agentv1.Hello, send func(*agen
 	s := &Session{
 		agents: a, guardsWaysIn: hello.GetGuardsWaysIn(), readsUpdates: hello.GetUpdates(), managesFiles: hello.GetManagesFiles(), transfersFiles: hello.GetTransfersFiles(), pagesListings: hello.GetPagesListings(), firstPasswords: hello.GetFirstPasswords(), forwards: hello.GetForwards(), drills: hello.GetDrills(), readsOnePanel: hello.GetReadsOnepanel(), terminals: hello.GetTerminals(), containerTerminals: hello.GetContainerTerminals(), openTerminals: slices.Clone(hello.GetOpenTerminals()), opened: time.Now(), server: server, name: name, send: send, deliveryKey: slices.Clone(hello.GetDeliveryKey()), writesReferences: hello.GetWritesReferences(), makesFolders: hello.GetMakesFolders(), keepsRoutesPrivate: hello.GetKeepsRoutesPrivate(),
 		ownSettings: hello.GetOwnSettings(), writesFiles: hello.GetWritesFiles(), ownsVolumes: hello.GetOwnsVolumes(), followsPace: hello.GetFollowsPace(), bootID: hello.GetBootId(), actsOnUnits: hello.GetActsOnUnits(), registryLogins: hello.GetRegistryLogins(), handsBuildLogins: hello.GetBuildLogins(), links: hello.GetLinks(), oneDatabaseBackups: hello.GetOneDatabaseBackups(),
-		loadsCertificates: hello.GetLoadsCertificates(), readsPanels: hello.GetReadsPanels(), stopsPanels: hello.GetStopsPanels(),
+		loadsCertificates: hello.GetLoadsCertificates(), readsPanels: hello.GetReadsPanels(), stopsPanels: hello.GetStopsPanels(), volumeMoves: hello.GetVolumeMoves(),
 		pending: map[uint64]chan *agentv1.CallResult{}, progress: map[uint64]func(resource.Activity){}, outcomes: map[uint64]func(resource.Outcome){}, done: make(chan struct{}),
 		kicked: make(chan struct{}),
 	}
@@ -684,6 +684,7 @@ type Session struct {
 	// oneDatabaseBackups says the agent backs up one database alone, and says so in
 	// what it reports (ADR 0084).
 	oneDatabaseBackups bool
+	volumeMoves        bool
 	// drills says the agent checks that a backup restores (ADR 0068).
 	drills bool
 	// forwards says the agent carries a connection to a port a service publishes
@@ -1320,6 +1321,7 @@ func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resou
 				dr.BackupAlso = append(dr.BackupAlso, &agentv1.DatabaseDump{BackupId: also.ID, Database: also.Database})
 			}
 		}
+		dr.MoveVolumeFrom = d.MoveVolumeFrom
 		if m := d.Move; m != nil {
 			dr.MoveDatabase = &agentv1.MoveDatabase{BackupId: m.Backup, FromVolume: m.From, ToVolume: m.To, ChangeId: m.Change, FinishOnly: m.Finish}
 		}

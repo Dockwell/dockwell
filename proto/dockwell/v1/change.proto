@@ -425,6 +425,19 @@ message Edit {
   // docs/adr/0081-an-apps-own-values-shown-and-its-secrets-kept.md. Numbered
   // apart, as open work adds to this message.
   repeated string env_to_secrets = 60;
+  // With with_contents: where each database server that an app in another
+  // project links to goes, so those apps keep working, as a move takes it, data,
+  // users and all, with their links following it: a project, by name or ID.
+  // Empty makes each a project of its own, named for it. Refused with
+  // delete_shared. See
+  // docs/adr/0084-what-an-app-needs-met-by-a-new-service-one-you-run-or-a-connection.md.
+  // Numbered in the block connectable apps hold in other messages, 80 to 89.
+  string keep_shared_in = 80;
+  // With with_contents: deletes the database servers that apps in other projects
+  // link to as well, which the plan names, dumping each linked database alone
+  // first. Those apps stop working. Numbered in the block connectable apps hold in
+  // other messages, 80 to 89.
+  bool delete_shared = 81;
 }
 
 // ResourceRef names a resource.
@@ -1716,6 +1729,35 @@ message PlanStep {
   // nothing tells apart. Taking the user away deletes no key (ADR 0084). Numbered in
   // the block connectable apps hold in other messages, 80 to 89.
   string keys_left = 81;
+  // How a step that makes a volume takes its data from another on its server, as
+  // moving an app to another project does (ADR 0084, #572). Numbered in the block
+  // connectable apps hold in other messages, 80 to 89.
+  VolumeMove volume_move = 80;
+}
+
+// VolumeMove is how a step that makes a volume takes its data from another on its
+// server (ADR 0084, #572). Nothing mounts either while it moves: the change deletes
+// what mounted the old one first, and the old one stays, empty, for 7 days.
+message VolumeMove {
+  // The Docker volume the data comes from.
+  string from_volume = 1;
+  // How it moves.
+  VolumeMoveMethod method = 2;
+  // What a copy copies, in bytes, as the agent measured it for the plan.
+  int64 copy_bytes = 3;
+}
+
+// VolumeMoveMethod is how a volume's data moves into another.
+enum VolumeMoveMethod {
+  VOLUME_MOVE_METHOD_UNSPECIFIED = 0;
+  // The old volume's folder is renamed into the new one's place, on the same
+  // filesystem: it takes no time and no room.
+  VOLUME_MOVE_METHOD_IN_PLACE = 1;
+  // The new volume is made with the old one's options, as a bind to a folder or a
+  // share, so it reaches the same data and nothing moves.
+  VOLUME_MOVE_METHOD_SAME_OPTIONS = 2;
+  // The files are copied, then the old volume is emptied.
+  VOLUME_MOVE_METHOD_COPY = 3;
 }
 
 // BuildPlan is what a step builds: a commit of a repository, with its Dockerfile or

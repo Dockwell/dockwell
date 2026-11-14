@@ -2,6 +2,7 @@
 
 import { create } from "@bufbuild/protobuf";
 import {
+  PlanNoteSchema,
   type ProposeChangeRequest,
   type Resource,
   ResourceSchema,
@@ -206,6 +207,47 @@ describe("a project's page", () => {
     await user.click(within(danger).getByRole("button", { name: "Delete the project" }));
     await screen.findByRole("dialog", { name: "Review plan" });
     expect(edits(proposals[0])).toEqual([["project", "blog", true, true]]);
+  });
+
+  it("keeps what other projects' apps use by default, and deletes it too only with the project's name typed", async () => {
+    const user = userEvent.setup();
+    const proposals: ProposeChangeRequest[] = [];
+    const keeps = () => {
+      const change = shopPlanned();
+      change.plan?.notes.push(
+        create(PlanNoteSchema, {
+          reason: "keeps_shared",
+          message: "db moves to a project of its own, db, with its data",
+        }),
+      );
+      return change;
+    };
+    renderAt(
+      "/projects/prj_blog",
+      api(
+        {
+          changes: {
+            proposeChange: (req: ProposeChangeRequest) => {
+              proposals.push(req);
+              return { change: keeps() };
+            },
+            watchChange: feed<WatchChangeResponse>().stream,
+            discardChange: () => ({}),
+          },
+        },
+        proposals,
+      ),
+    );
+    const danger = await screen.findByRole("region", { name: "Danger zone" });
+    await user.click(within(danger).getByRole("button", { name: "Delete the project" }));
+    const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+    expect(proposals[0]?.edits[0]?.deleteShared).toBe(false);
+    const anyway = await within(sheet).findByRole("switch", { name: /Also delete what other apps use/ });
+    expect(anyway).not.toBeChecked();
+    await user.click(anyway);
+    await waitFor(() => expect(proposals).toHaveLength(2));
+    expect(proposals[1]?.edits[0]?.deleteShared).toBe(true);
+    expect(await within(sheet).findByText(/to apply it/)).toHaveTextContent("Type blog to apply it");
   });
 
   it("says what a website and a database with its admin tool hold in the same words in the list and the delete", async () => {

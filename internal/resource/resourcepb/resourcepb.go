@@ -197,6 +197,9 @@ func Step(s resource.Step, resourceID string) *dockwellv1.PlanStep {
 			Stops: m.Stops, EstimateBytes: m.Estimate, Unmeasured: m.Unmeasured, Finishing: m.Finishing, ChangeId: m.Change, StaysStopped: m.StaysStopped,
 		}
 	}
+	if m := s.VolumeMove; m != nil {
+		p.VolumeMove = &dockwellv1.VolumeMove{FromVolume: m.From, Method: VolumeMoveMethod(m.How), CopyBytes: m.Bytes}
+	}
 	if b := s.Build; b != nil {
 		p.Build = &dockwellv1.BuildPlan{
 			Url: b.URL, Ref: b.Ref, Commit: b.Commit, Context: b.Context, Dockerfile: b.Dockerfile, Image: b.Image,
@@ -556,6 +559,9 @@ func FromStep(p *dockwellv1.PlanStep) (resource.Step, error) {
 			Stops: m.GetStops(), Estimate: m.GetEstimateBytes(), Unmeasured: m.GetUnmeasured(), Finishing: m.GetFinishing(), Change: m.GetChangeId(), StaysStopped: m.GetStaysStopped(),
 		}
 	}
+	if m := p.GetVolumeMove(); m != nil {
+		s.VolumeMove = &resource.VolumeMove{From: m.GetFromVolume(), How: VolumeMoveMethodFrom(m.GetMethod()), Bytes: m.GetCopyBytes()}
+	}
 	if b := p.GetBuild(); b != nil {
 		s.Build = &resource.BuildPlan{
 			URL: b.GetUrl(), Ref: b.GetRef(), Commit: b.GetCommit(), Context: b.GetContext(), Dockerfile: b.GetDockerfile(), Image: b.GetImage(),
@@ -563,6 +569,27 @@ func FromStep(p *dockwellv1.PlanStep) (resource.Step, error) {
 		}
 	}
 	return s, nil
+}
+
+// volumeMoveMethods are how a volume's data moves, as the API numbers them.
+var volumeMoveMethods = map[string]dockwellv1.VolumeMoveMethod{
+	resource.MoveInPlace:     dockwellv1.VolumeMoveMethod_VOLUME_MOVE_METHOD_IN_PLACE,
+	resource.MoveSameOptions: dockwellv1.VolumeMoveMethod_VOLUME_MOVE_METHOD_SAME_OPTIONS,
+	resource.MoveCopy:        dockwellv1.VolumeMoveMethod_VOLUME_MOVE_METHOD_COPY,
+}
+
+// VolumeMoveMethod converts how a volume's data moves (resource.MoveInPlace and so on).
+func VolumeMoveMethod(how string) dockwellv1.VolumeMoveMethod { return volumeMoveMethods[how] }
+
+// VolumeMoveMethodFrom converts it back; one this build doesn't know reads as
+// empty, which an agent refuses to apply.
+func VolumeMoveMethodFrom(m dockwellv1.VolumeMoveMethod) string {
+	for how, v := range volumeMoveMethods {
+		if v == m {
+			return how
+		}
+	}
+	return ""
 }
 
 // Duration converts a duration, unset when zero.
