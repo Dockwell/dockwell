@@ -318,7 +318,7 @@ function Unread({ db }: { db: Database }) {
   const why = firstReading(db)?.unread ?? "";
   return (
     <span className="databases-muted" title={why}>
-      –<span className="dw-sr">{why}</span>
+      —<span className="dw-sr">{why}</span>
     </span>
   );
 }
@@ -558,6 +558,9 @@ function BackupsPanel({ databases }: { databases: readonly Database[] }) {
   const schedule = useScheduleWords();
   const time = useTimeWords();
   const [taking, setTaking] = useState(false);
+  // Where each is, as its row says it, where they're in more than one place, as several can share a name such as db.
+  const places = usePlaces();
+  const several = new Set(databases.map((d) => d.resource?.scope)).size > 1;
   const withVolume = databases.filter((db) => db.volumeId !== "");
   const scheduled = withVolume.filter((db) => policiesOf(db, policies).length > 0);
   // The newest run of any of them, whole or not: one that failed since the last whole
@@ -606,6 +609,9 @@ function BackupsPanel({ databases }: { databases: readonly Database[] }) {
             <div key={db.id} className="databases-fact">
               <dt>
                 <code className="databases-fact-name">{db.resource?.name}</code>
+                {several ? (
+                  <span className="databases-fact-place">{places.label(db.resource?.scope ?? "")}</span>
+                ) : null}
               </dt>
               <dd>{how}</dd>
             </div>

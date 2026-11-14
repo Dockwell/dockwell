@@ -316,6 +316,11 @@ a.databases-engine:hover .databases-engine-plus {
   color: var(--ink);
 }
 
+/* Where it is, after its name, as its row says it. */
+.databases-fact-place {
+  margin-left: var(--space-2);
+}
+
 .databases-fact dd {
   margin: 0;
   overflow-wrap: anywhere;
