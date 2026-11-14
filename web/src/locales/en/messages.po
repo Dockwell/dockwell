@@ -15810,7 +15810,7 @@ msgstr "stopped"
 msgid "{0, plural, one {Last run} other {Last # runs}}"
 msgstr "{0, plural, one {Last run} other {Last # runs}}"
 
-#. placeholder {0}: day(lastBad)
+#. placeholder {0}: words.when(timestampDate(lastBad.startTime), now)
 #. placeholder {1}: words.state(lastBad.state).toLowerCase()
 #. placeholder {2}: words.why(lastBad, task, time.span)
 msgid "{0} {1}: {2}"

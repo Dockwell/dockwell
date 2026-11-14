@@ -11,7 +11,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { sentence } from "../../lib/errors";
-import { formatDateTime } from "../../lib/format";
+import { formatDateTime, formatDay } from "../../lib/format";
 import { RouterButtonLink } from "../../lib/links";
 import { useNow, useTimeWords } from "../../lib/time";
 import { useMay } from "../auth/may";
@@ -61,6 +61,13 @@ export function TaskPanel({ task }: { task: TaskInfo }) {
       ? t`App ${spec.runs.value.service}`
       : task.servers.map((s) => s.serverName).join(", ");
   const day = (r: TaskRun) => (r.startTime ? formatDateTime(timestampDate(r.startTime), i18n.locale) : "");
+  /** A run's day at an end of the strip, as Scheduled-Tasks labels it: "Today", "Yesterday", "13 Nov". */
+  const end = (r: TaskRun | undefined) => {
+    if (!r?.startTime) return "";
+    const at = timestampDate(r.startTime);
+    const days = Math.round((startOfDay(new Date(now)) - startOfDay(at)) / 86_400_000);
+    return days === 0 ? t`Today` : days === 1 ? t`Yesterday` : formatDay(at, i18n.locale, now);
+  };
   /** How a run's last attempt ended: "exit 0", "HTTP 200". */
   const exited = (run: TaskRun) => {
     const last = run.attempts.at(-1);
@@ -164,11 +171,13 @@ export function TaskPanel({ task }: { task: TaskInfo }) {
                   );
                 })}
               </ol>
-              <div className="tasks-row tasks-label">
-                <span>{oldestFirst[0] ? day(oldestFirst[0]) : ""}</span>
-                {lastBad ? (
-                  <span className="tasks-bad">{t`${day(lastBad)} ${words.state(lastBad.state).toLowerCase()}: ${words.why(lastBad, task, time.span)}`}</span>
+              {/* The span of time the strip covers, its ends by their day, and the last failure between them. */}
+              <div className="tasks-row tasks-label tasks-strip-ends">
+                <span>{end(oldestFirst[0])}</span>
+                {lastBad?.startTime ? (
+                  <span className="tasks-bad">{t`${words.when(timestampDate(lastBad.startTime), now)} ${words.state(lastBad.state).toLowerCase()}: ${words.why(lastBad, task, time.span)}`}</span>
                 ) : null}
+                {oldestFirst.length > 1 ? <span>{end(oldestFirst.at(-1))}</span> : null}
               </div>
             </>
           ) : (
@@ -252,4 +261,9 @@ export function TaskPanel({ task }: { task: TaskInfo }) {
       {editing ? <TaskSheet task={task} onClose={() => setEditing(false)} /> : null}
     </section>
   );
+}
+
+/** Midnight of a date's day, in the browser's time zone, to count whole days between two. */
+function startOfDay(d: Date): number {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
 }

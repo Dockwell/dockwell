@@ -137,6 +137,20 @@ describe("scheduled tasks", () => {
     expect(await within(panel).findByText("412 orders, 18,240.50 EUR gross")).toBeVisible();
     expect(within(panel).getByText("1 succeeded · 1 failed")).toBeVisible();
     expect(within(panel).getByRole("list", { name: "Last runs, oldest first" }).children).toHaveLength(2);
+    // The strip's ends by their day, as Scheduled-Tasks labels them: a day ago, and a minute ago.
+    const dayOf = (ms: number) => {
+      const d = new Date(now + ms);
+      const today = new Date(now);
+      const days = Math.round(
+        (new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime() -
+          new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()) /
+          86_400_000,
+      );
+      return days === 0 ? "Today" : "Yesterday";
+    };
+    const ends = panel.querySelector(".tasks-strip-ends");
+    expect(ends?.firstElementChild).toHaveTextContent(dayOf(-86_400_000));
+    expect(ends?.lastElementChild).toHaveTextContent(dayOf(-60_000));
     expect(panel).toHaveTextContent("10 min, then retry once");
     expect(panel).toHaveTextContent("Europe/Amsterdam");
     expect(panel).toHaveTextContent("timed out: it took longer than its timeout");
