@@ -37,6 +37,22 @@ type Hosts struct {
 	Fleet *fleet.Hub
 }
 
+// drain reads what waits in updates, and returns once nothing does, or once the
+// watch has closed, as it does when the control plane stops: a closed channel
+// always reads, so a drain that took that for an update would never end.
+func drain(updates <-chan revision.Update) {
+	for {
+		select {
+		case _, ok := <-updates:
+			if !ok {
+				return
+			}
+		default:
+			return
+		}
+	}
+}
+
 // FollowLabels has the fleet read servers' labels again each time a change moves
 // on, until ctx ends. A change of labels alone applies at once, so this is what
 // shows it.
@@ -61,12 +77,9 @@ func (h *Hosts) FollowLabels(ctx context.Context) {
 			}
 		}
 		// What else came meanwhile is read with this.
-		for drained := false; !drained; {
-			select {
-			case <-updates:
-			default:
-				drained = true
-			}
+		drain(updates)
+		if ctx.Err() != nil {
+			return
 		}
 		if err := h.Fleet.ReadLabels(ctx); err != nil && ctx.Err() == nil {
 			h.Logger.WarnContext(ctx, "can't read servers' labels again; the fleet shows them as they were until the next change", slog.String("error", err.Error()))

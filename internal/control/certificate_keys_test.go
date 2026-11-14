@@ -267,16 +267,18 @@ func TestAServersOwnCertificateIsListed(t *testing.T) {
 	}
 }
 
-// certLoader keeps what an agent loads into its ingress.
+// certLoader keeps each set an agent loads into its ingress, in order: the control
+// plane's own delivery gives the agent its whole set too, an empty one for a server
+// with none, whenever its tick finds the agent connected (#641).
 type certLoader struct {
-	mu    sync.Mutex
-	given []ingress.DNSCert
+	mu   sync.Mutex
+	sets [][]ingress.DNSCert
 }
 
 func (l *certLoader) PutCertificates(_ context.Context, certs []ingress.DNSCert) (int, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	l.given = certs
+	l.sets = append(l.sets, certs)
 	return len(certs), nil
 }
 
@@ -302,8 +304,14 @@ func TestCertificatesReachAnAgentThatLoadsThem(t *testing.T) {
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	if len(l.given) != 1 || l.given[0].Name != "wild" || string(l.given[0].Chain) != "CHAIN" || string(l.given[0].Key) != "KEY" || !slices.Equal(l.given[0].Serves, []string{"api.example.com"}) {
-		t.Errorf("the agent loaded %+v", l.given)
+	// The set it was sent arrived whole, whatever else the control plane's own
+	// delivery gave the agent before or after it.
+	whole := func(set []ingress.DNSCert) bool {
+		return len(set) == 1 && set[0].Name == "wild" && string(set[0].Chain) == "CHAIN" && string(set[0].Key) == "KEY" &&
+			slices.Equal(set[0].Serves, []string{"api.example.com"})
+	}
+	if !slices.ContainsFunc(l.sets, whole) {
+		t.Errorf("the agent loaded %+v", l.sets)
 	}
 }
 
