@@ -4,9 +4,11 @@ package control
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"connectrpc.com/connect"
 
@@ -21,10 +23,13 @@ import (
 
 // laterStopper is the agent's stopper on an engine that's there once its server
 // is: the test's agent gets its drivers before its engine is handed back. Where
-// a test sets afterApply, it runs once an apply has acted.
+// a test sets afterApply, it runs once an apply has acted; where it sets
+// failStop, the next stop acts and then fails with it, as a step that stopped
+// the panel and then couldn't read it back would.
 type laterStopper struct {
 	s          *panels.Stopper
 	afterApply func()
+	failStop   error
 }
 
 func (l *laterStopper) PlanPanel(ctx context.Context, ask resource.PanelAsked) (*resource.Panel, bool, error) {
@@ -36,7 +41,50 @@ func (l *laterStopper) ApplyPanel(ctx context.Context, p resource.Panel, say fun
 	if l.afterApply != nil && err == nil {
 		l.afterApply()
 	}
+	if fail := l.failStop; fail != nil && err == nil && !p.Start {
+		l.failStop = nil
+		return fail
+	}
 	return err
+}
+
+// A change that stopped the panel and then failed rolls back with a step that
+// starts it again, as the stop makes no revision to roll back: each of the
+// panel's own runs again, with the restart policy it had (ADR 0089).
+func TestAStopThatFailsStartsThePanelAgain(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	later := &laterStopper{}
+	e := f.addServerWith(t, func() []resource.Type { return []resource.Type{&host.Driver{Panels: later}} })
+	later.s = &panels.Stopper{Docker: e.Client()}
+	waitForHost(t, f, f.lastDocker)
+	for _, name := range []string{"coolify", "coolify-db", "coolify-proxy"} {
+		runByHand(t, e, name, func(r *docker.CreateRequest) { r.HostConfig.PortBindings, r.HostConfig.Binds = nil, nil })
+	}
+	id := f.lastDocker.id.ServerID
+	ic, c := importClient(b), changeClient(b, b.origin)
+	res, err := ic.PlanStopPanel(t.Context(), connect.NewRequest(&dockwellv1.PlanStopPanelRequest{ServerId: id, Panel: dockwellv1.PanelKind_PANEL_KIND_COOLIFY}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	later.failStop = errors.New("coolify-db doesn't stand as the step left it: running")
+	if done := actedOn(t, c, res.Msg.GetChange(), ""); done.GetState() != dockwellv1.ChangeState_CHANGE_STATE_FAILED {
+		t.Fatalf("the stop ended %v: %s", done.GetState(), done.GetError())
+	}
+	for _, name := range []string{"coolify", "coolify-db"} {
+		for deadline := time.Now().Add(10 * time.Second); ; time.Sleep(20 * time.Millisecond) {
+			got := e.Container(name)
+			if got.State.Running && got.HostConfig.RestartPolicy.Name == "always" {
+				break
+			}
+			if time.Now().After(deadline) {
+				t.Fatalf("after the failed stop %s is %v, restart %q", name, got.State.Running, got.HostConfig.RestartPolicy.Name)
+			}
+		}
+	}
+	if p := e.Container("coolify-proxy"); !p.State.Running {
+		t.Error("the proxy was stopped")
+	}
 }
 
 // Stopping the panel an import came from is a change with a plan and no revision
