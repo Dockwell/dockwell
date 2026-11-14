@@ -68,6 +68,10 @@ type PanelPart struct {
 	// the stop was planned: a stop takes them off, as Swarm's routing mesh holds
 	// them while the service publishes them, and a start puts them back.
 	WasPorts []PanelPort `json:",omitempty"`
+	// WasNetworks are the networks such a service joined as the stop was planned,
+	// as Docker has them: a stop takes it off them, so its name answers there for
+	// its copy alone, and a start puts them back exactly.
+	WasNetworks string `json:",omitempty"`
 }
 
 // PanelPort is a port a Swarm service publishes.

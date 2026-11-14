@@ -3810,7 +3810,11 @@ type HostPanelPart struct {
 	// planned: a stop takes them off, as Swarm's routing mesh holds a published
 	// port for as long as the service publishes it, so its copy can, and a start
 	// puts them back.
-	WasPorts      []*HostPanelPort `protobuf:"bytes,6,rep,name=was_ports,json=wasPorts,proto3" json:"was_ports,omitempty"`
+	WasPorts []*HostPanelPort `protobuf:"bytes,6,rep,name=was_ports,json=wasPorts,proto3" json:"was_ports,omitempty"`
+	// The networks a Swarm service of what the panel ran joined as the stop was
+	// planned, as Docker has them: a stop takes it off them, so its name answers
+	// there for its copy alone, and a start puts them back exactly.
+	WasNetworks   string `protobuf:"bytes,7,opt,name=was_networks,json=wasNetworks,proto3" json:"was_networks,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3885,6 +3889,13 @@ func (x *HostPanelPart) GetWasPorts() []*HostPanelPort {
 		return x.WasPorts
 	}
 	return nil
+}
+
+func (x *HostPanelPart) GetWasNetworks() string {
+	if x != nil {
+		return x.WasNetworks
+	}
+	return ""
 }
 
 // HostPanelPort is a port a Swarm service publishes.
@@ -9104,7 +9115,7 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\x05start\x18\x02 \x01(\bR\x05start\x120\n" +
 	"\x05parts\x18\x03 \x03(\v2\x1a.dockwell.v1.HostPanelPartR\x05parts\x12\x14\n" +
 	"\x05stays\x18\x04 \x01(\tR\x05stays\x12\x12\n" +
-	"\x04apps\x18\x06 \x01(\bR\x04apps\"\xd7\x01\n" +
+	"\x04apps\x18\x06 \x01(\bR\x04apps\"\xfa\x01\n" +
 	"\rHostPanelPart\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
 	"\x05swarm\x18\x02 \x01(\bR\x05swarm\x12\x1f\n" +
@@ -9113,7 +9124,8 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\vwas_restart\x18\x04 \x01(\tR\n" +
 	"wasRestart\x12!\n" +
 	"\fwas_replicas\x18\x05 \x01(\x04R\vwasReplicas\x127\n" +
-	"\twas_ports\x18\x06 \x03(\v2\x1a.dockwell.v1.HostPanelPortR\bwasPorts\"u\n" +
+	"\twas_ports\x18\x06 \x03(\v2\x1a.dockwell.v1.HostPanelPortR\bwasPorts\x12!\n" +
+	"\fwas_networks\x18\a \x01(\tR\vwasNetworks\"u\n" +
 	"\rHostPanelPort\x12\x1a\n" +
 	"\bprotocol\x18\x01 \x01(\tR\bprotocol\x12\x16\n" +
 	"\x06target\x18\x02 \x01(\rR\x06target\x12\x1c\n" +

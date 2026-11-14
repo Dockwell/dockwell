@@ -873,6 +873,10 @@ message HostPanelPart {
   // port for as long as the service publishes it, so its copy can, and a start
   // puts them back.
   repeated HostPanelPort was_ports = 6;
+  // The networks a Swarm service of what the panel ran joined as the stop was
+  // planned, as Docker has them: a stop takes it off them, so its name answers
+  // there for its copy alone, and a start puts them back exactly.
+  string was_networks = 7;
 }
 
 // HostPanelPort is a port a Swarm service publishes.

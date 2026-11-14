@@ -3,6 +3,7 @@
 package control
 
 import (
+	"encoding/json"
 	"maps"
 	"slices"
 	"strings"
@@ -70,6 +71,18 @@ func TestMakingADokploySwarmAppAgain(t *testing.T) {
 	if got := published(); len(got) != 0 {
 		t.Errorf("Dokploy's service still publishes %v", got)
 	}
+	// It joins no network, so its name answers on Dokploy's for the copy alone,
+	// which joins that network under it, and not Swarm's routing mesh.
+	joins := func() string {
+		svc, err := e.Client().InspectService(t.Context(), "shop-k2m4")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(svc.Spec.TaskTemplate.Networks)
+	}
+	if got := joins(); got != "[]" {
+		t.Errorf("Dokploy's service still joins %s", got)
+	}
 	var copied *docker.Container
 	for _, name := range e.Containers() {
 		if cc := e.Container(name); cc != nil && cc.Config.Labels[docker.LabelService] == "shop-k2m4" && cc.ID != task {
@@ -83,6 +96,11 @@ func TestMakingADokploySwarmAppAgain(t *testing.T) {
 	// copy restarts as its service did.
 	if got := copied.HostConfig.RestartPolicy.Name; got != "unless-stopped" {
 		t.Errorf("Dockwell's copy restarts %q", got)
+	}
+	if ep := copied.NetworkSettings.Networks["dokploy-network"]; ep == nil || !slices.Contains(ep.Aliases, "shop-k2m4") {
+		t.Errorf("Dockwell's copy is on %v, not on dokploy-network as shop-k2m4", maps.Keys(copied.NetworkSettings.Networks))
+	} else if copied.NetworkSettings.Networks["ingress"] != nil || slices.Contains(ep.Aliases, "x7k2abcdef12") {
+		t.Errorf("Dockwell's copy keeps what Swarm gave its task: %v", ep.Aliases)
 	}
 	if b := copied.HostConfig.PortBindings["80/tcp"]; len(b) != 1 || b[0].HostPort != "8085" {
 		t.Errorf("Dockwell's copy publishes %v, not Dokploy's external port", copied.HostConfig.PortBindings)
@@ -105,6 +123,9 @@ func TestMakingADokploySwarmAppAgain(t *testing.T) {
 	}
 	if got := published(); len(got) != 1 || got[0].PublishedPort != 8085 || got[0].TargetPort != 80 || got[0].PublishMode != "ingress" {
 		t.Errorf("after the undo Dokploy's service publishes %v", got)
+	}
+	if got := joins(); got != `[{"Target":"dokploy-network"}]` {
+		t.Errorf("after the undo Dokploy's service joins %s", got)
 	}
 	if e.Container(copied.Name) != nil {
 		t.Error("the undo left Dockwell's copy")
@@ -135,6 +156,11 @@ func dokployShop(t *testing.T) shopOnDokploy {
 	shopSpec := swarmService("shop-k2m4", "nginx:1.26", labels)
 	// Dokploy's external port, published through Swarm's routing mesh.
 	shopSpec.EndpointSpec.Ports = []docker.ServicePort{{Protocol: "tcp", TargetPort: 80, PublishedPort: 8085, PublishMode: "ingress"}}
+	// Dokploy's network, where its Traefik reaches the app by its appName, and
+	// Swarm's routing mesh.
+	e.AddNetwork(docker.Network{ID: "d0kn", Name: "dokploy-network", Driver: "overlay"})
+	e.AddNetwork(docker.Network{ID: "1ngr", Name: "ingress", Driver: "overlay"})
+	shopSpec.TaskTemplate.Networks = json.RawMessage(`[{"Target":"dokploy-network"}]`)
 	e.Services = []docker.Service{
 		{ID: "s1", Spec: swarmService("dokploy", "dokploy/dokploy:v0.31.2", nil)},
 		{ID: "s2", Spec: shopSpec},
@@ -142,6 +168,8 @@ func dokployShop(t *testing.T) shopOnDokploy {
 	task := runByHand(t, e, "shop-k2m4.1.x7k2", func(r *docker.CreateRequest) {
 		// A Swarm task's container has no restart policy: Swarm restarts it.
 		r.HostConfig.PortBindings, r.HostConfig.RestartPolicy = nil, docker.RestartPolicy{}
+		r.NetworkingConfig.EndpointsConfig = map[string]*docker.EndpointSettings{"dokploy-network": {Aliases: []string{"x7k2abcdef12"}}, "ingress": {}}
+		r.HostConfig.NetworkMode = "dokploy-network"
 		r.Labels = map[string]string{
 			"com.docker.swarm.service.name": "shop-k2m4", "com.docker.swarm.task.id": "x7k2",
 			"traefik.enable": "true",
@@ -212,9 +240,13 @@ func TestMakingADokployStackAgain(t *testing.T) {
 		{ID: "s3", Spec: swarmService("forum-q1_db", "nginx:1.26", labels)},
 	}
 	e.Services[2].Spec.TaskTemplate.RestartPolicy.Condition = "on-failure"
+	e.AddNetwork(docker.Network{ID: "d0kn", Name: "dokploy-network", Driver: "overlay"})
+	e.AddNetwork(docker.Network{ID: "f0rm", Name: "forum-q1_default", Driver: "overlay"})
 	for _, svc := range []string{"web", "db"} {
 		runByHand(t, e, "forum-q1_"+svc+".1.a"+svc, func(r *docker.CreateRequest) {
 			r.HostConfig.PortBindings, r.HostConfig.RestartPolicy = nil, docker.RestartPolicy{}
+			r.NetworkingConfig.EndpointsConfig = map[string]*docker.EndpointSettings{"dokploy-network": {}, "forum-q1_default": {Aliases: []string{svc}}}
+			r.HostConfig.NetworkMode = "forum-q1_default"
 			r.Labels = map[string]string{"com.docker.swarm.service.name": "forum-q1_" + svc, "com.docker.stack.namespace": "forum-q1"}
 		})
 	}
@@ -250,6 +282,18 @@ func TestMakingADokployStackAgain(t *testing.T) {
 		}
 		if n, _ := svc.Spec.Mode.Replicas(); n != 0 {
 			t.Errorf("%s still runs %d", name, n)
+		}
+	}
+	// Each copy answers on Dokploy's network to the name the stack gave it, as
+	// others there reached it, and leaves the stack's own network behind.
+	for _, name := range e.Containers() {
+		c := e.Container(name)
+		if c == nil || c.Config.Labels["com.docker.swarm.service.name"] != "" || c.Config.Labels[docker.LabelService] == "" {
+			continue
+		}
+		service := c.Config.Labels[docker.LabelService]
+		if ep := c.NetworkSettings.Networks["dokploy-network"]; ep == nil || !slices.Contains(ep.Aliases, "forum-q1_"+service) || c.NetworkSettings.Networks["forum-q1_default"] != nil {
+			t.Errorf("the copy of %s is on %v", service, c.NetworkSettings.Networks)
 		}
 	}
 	// Each copy restarts as its service did: web as Swarm's default, db on failure.

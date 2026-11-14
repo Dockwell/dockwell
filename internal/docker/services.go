@@ -37,6 +37,9 @@ type ServiceSpec struct {
 			Image  string            `json:"Image"`
 			Labels map[string]string `json:"Labels"`
 		} `json:"ContainerSpec"`
+		// Networks are the networks its tasks join, as Docker has them, kept raw
+		// so they go back exactly.
+		Networks json.RawMessage `json:"Networks,omitempty"`
 		// RestartPolicy is when Swarm starts a task again: Condition "any", the
 		// default, "on-failure" or "none".
 		RestartPolicy struct {
@@ -105,10 +108,12 @@ func (c *Client) ScaleService(ctx context.Context, id string, n uint64) error {
 	return c.rewriteService(ctx, id, func(spec map[string]any) error { return replicasOf(spec, n) })
 }
 
-// ScaleServicePorts has a Swarm service run n replicas and publish ports, and
-// changes nothing else of it: none takes each port off, which Swarm's routing mesh
-// holds on every node for as long as the service publishes it.
-func (c *Client) ScaleServicePorts(ctx context.Context, id string, n uint64, ports []ServicePort) error {
+// PlaceService has a Swarm service run n replicas, publish ports and join
+// networks, as Docker has them raw, and changes nothing else of it. None of
+// either takes each off: Swarm's routing mesh holds a published port on every
+// node for as long as the service publishes it, and a service on a network
+// answers there by its name, with or without a task.
+func (c *Client) PlaceService(ctx context.Context, id string, n uint64, ports []ServicePort, networks json.RawMessage) error {
 	return c.rewriteService(ctx, id, func(spec map[string]any) error {
 		if err := replicasOf(spec, n); err != nil {
 			return err
@@ -123,6 +128,22 @@ func (c *Client) ScaleServicePorts(ctx context.Context, id string, n uint64, por
 			list = append(list, map[string]any{"Protocol": p.Protocol, "TargetPort": p.TargetPort, "PublishedPort": p.PublishedPort, "PublishMode": p.PublishMode})
 		}
 		endpoint["Ports"] = list
+		template, _ := spec["TaskTemplate"].(map[string]any)
+		if template == nil {
+			template = map[string]any{}
+			spec["TaskTemplate"] = template
+		}
+		joins := []any{}
+		if len(networks) > 0 {
+			dec := json.NewDecoder(bytes.NewReader(networks))
+			dec.UseNumber()
+			if err := dec.Decode(&joins); err != nil {
+				return fmt.Errorf("can't read the networks to put back: %w", err)
+			}
+		}
+		template["Networks"] = joins
+		// The old field for the same, which Docker still reads where it's set.
+		delete(spec, "Networks")
 		return nil
 	})
 }

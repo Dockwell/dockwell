@@ -5,6 +5,7 @@ package panels
 import (
 	"cmp"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -144,12 +145,12 @@ func (s Stopper) planApps(ctx context.Context, ask resource.PanelAsked) (*resour
 		if !replicated {
 			return nil, false, fmt.Errorf("the service %s runs one task on each node, so Dockwell can't scale it to none", p.Name)
 		}
-		part := resource.PanelPart{Name: p.Name, Swarm: true, WasRunning: n > 0, WasReplicas: n, WasPorts: portsOf(svc.Spec.EndpointSpec.Ports)}
+		part := resource.PanelPart{Name: p.Name, Swarm: true, WasRunning: n > 0, WasReplicas: n, WasPorts: portsOf(svc.Spec.EndpointSpec.Ports), WasNetworks: string(svc.Spec.TaskTemplate.Networks)}
 		if p.WasReplicas > 0 || ask.Start {
 			if p.WasReplicas > mostReplicas {
 				return nil, false, fmt.Errorf("what the plan kept of how %s stood isn't what a stop reads, so Dockwell won't act on it", p.Name)
 			}
-			part.WasRunning, part.WasReplicas, part.WasPorts = p.WasRunning, p.WasReplicas, p.WasPorts
+			part.WasRunning, part.WasReplicas, part.WasPorts, part.WasNetworks = p.WasRunning, p.WasReplicas, p.WasPorts, p.WasNetworks
 		}
 		if ask.Start {
 			left = left || n != part.WasReplicas
@@ -172,16 +173,17 @@ func (s Stopper) ApplyPanel(ctx context.Context, p resource.Panel, say func(stri
 		var err error
 		switch {
 		case part.Swarm && p.Start && p.Apps:
-			say(fmt.Sprintf("Scaling the service %s to %d, with the ports it published", part.Name, part.WasReplicas))
-			err = s.Docker.ScaleServicePorts(ctx, part.Name, part.WasReplicas, servicePorts(part.WasPorts))
+			say(fmt.Sprintf("Scaling the service %s to %d, with the ports it published and the networks it joined", part.Name, part.WasReplicas))
+			err = s.Docker.PlaceService(ctx, part.Name, part.WasReplicas, servicePorts(part.WasPorts), json.RawMessage(part.WasNetworks))
 		case part.Swarm && p.Start:
 			say(fmt.Sprintf("Scaling the service %s to %d", part.Name, part.WasReplicas))
 			err = s.Docker.ScaleService(ctx, part.Name, part.WasReplicas)
 		case part.Swarm && p.Apps:
-			// Its ports come off too: Swarm's routing mesh holds a published port for
-			// as long as the service publishes it, so its copy couldn't.
-			say(fmt.Sprintf("Scaling the service %s to none, and freeing the ports it published", part.Name))
-			err = s.Docker.ScaleServicePorts(ctx, part.Name, 0, nil)
+			// Its ports and networks come off too: Swarm's routing mesh holds a
+			// published port for as long as the service publishes it, so its copy
+			// couldn't, and its name would answer on a network beside its copy's.
+			say(fmt.Sprintf("Scaling the service %s to none, and taking it off its ports and networks", part.Name))
+			err = s.Docker.PlaceService(ctx, part.Name, 0, nil, nil)
 			if err == nil {
 				err = s.untilNoTask(ctx, part.Name, say)
 			}

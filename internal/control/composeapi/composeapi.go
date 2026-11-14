@@ -636,6 +636,10 @@ func (h *Handler) TakenOn(ctx context.Context, r *containers.Running, name strin
 // whatever happens to the container, so it can't be taken on in place (ADR 0089).
 type Remake struct {
 	Container, Service string
+	// Stack is the Swarm stack it ran in, where it did: its copy answers to the
+	// name the stack gave it, <stack>_<service>, and leaves the stack's own
+	// networks behind, as its project has its own.
+	Stack string
 	// Restart is when its old manager started it again: Swarm's "any",
 	// "on-failure" or "none". A Swarm task's container has no restart policy of
 	// its own, as Swarm restarts it, so its copy takes this one.
@@ -686,7 +690,7 @@ func (h *Handler) ReadMakingAgain(ctx context.Context, r *containers.Running, li
 			continue
 		}
 		app := svc.GetApp()
-		remade(app)
+		remade(app, m)
 		app.Restart = restartFor(m.Restart)
 		for _, p := range m.Ports {
 			if !slices.ContainsFunc(app.GetPorts(), func(have *resourcev1.PortMapping) bool { return have.GetHostPort() == p.GetHostPort() }) {
@@ -716,9 +720,12 @@ func restartFor(condition string) resourcev1.RestartPolicy {
 }
 
 // remade leaves out of a container's spec what only its old manager reads: Swarm's
-// and Traefik's labels, Dokploy's, which would name it Dokploy's, and the networks it
-// joined, as a service joins its environment's.
-func remade(app *resourcev1.Container) {
+// and Traefik's labels, Dokploy's, which would name it Dokploy's, Swarm's routing
+// mesh, a stack's own networks, and the names Swarm gave its task. It keeps the
+// networks it shares with others, such as Dokploy's, where its proxy and other
+// apps reach it by its name, and a stack's service answers there to the name the
+// stack gave it too.
+func remade(app *resourcev1.Container, m Remake) {
 	for k := range app.GetLabels() {
 		for _, prefix := range []string{"com.docker.swarm.", "com.docker.stack.", "traefik.", "dokploy."} {
 			if strings.HasPrefix(k, prefix) {
@@ -727,7 +734,18 @@ func remade(app *resourcev1.Container) {
 		}
 	}
 	app.Networks = nil
+	app.ExternalNetworks = slices.DeleteFunc(app.ExternalNetworks, func(n string) bool {
+		return n == swarmIngress || m.Stack != "" && strings.HasPrefix(n, m.Stack+"_")
+	})
+	app.Aliases = nil
+	if m.Stack != "" && len(app.ExternalNetworks) > 0 {
+		app.Aliases = []string{m.Stack + "_" + m.Service}
+	}
 }
+
+// swarmIngress is the network of Swarm's routing mesh, which publishes a service's
+// ports: Swarm's alone to join.
+const swarmIngress = "ingress"
 
 // FreeProject is want, or, where a project has that name or claimed has it, the
 // first of want-<from>, want-<from>-2 and on that none has, such as blog-1panel: a
