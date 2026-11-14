@@ -7827,6 +7827,9 @@ msgstr "Dockwell let go of {subject}"
 msgid "Dockwell made this change to roll back a failed one."
 msgstr "Dockwell made this change to roll back a failed one."
 
+msgid "Dockwell serves {name}'s domains on {server}"
+msgstr "Dockwell serves {name}'s domains on {server}"
+
 msgid "Each app rolls back to what it runs now if this fails"
 msgstr "Each app rolls back to what it runs now if this fails"
 
@@ -7835,6 +7838,12 @@ msgstr "Enabling {name} at boot on {server}"
 
 msgid "Everything this plan asks for is already as it says, so there is nothing to apply."
 msgstr "Everything this plan asks for is already as it says, so there is nothing to apply."
+
+msgid "Giving ports 80 and 443 back to {name} on {server}"
+msgstr "Giving ports 80 and 443 back to {name} on {server}"
+
+msgid "Handing over {name}'s domains on {server}"
+msgstr "Handing over {name}'s domains on {server}"
 
 msgid "How this works"
 msgstr "How this works"
@@ -8158,6 +8167,9 @@ msgstr "{name} ran to its end"
 msgid "{name} runs again on {server}"
 msgstr "{name} runs again on {server}"
 
+msgid "{name} serves its domains again on {server}"
+msgstr "{name} serves its domains again on {server}"
+
 msgid "{name} starts at boot on {server}"
 msgstr "{name} starts at boot on {server}"
 
@@ -8324,6 +8336,9 @@ msgstr "Dockwell made this change because of what failed"
 msgid "First, so each is down for a moment until Dockwell's copy starts on the same volumes"
 msgstr "First, so each is down for a moment until Dockwell's copy starts on the same volumes"
 
+msgid "Just before the stop, the agent checks {chosen} again, and leaves it running if anything changed"
+msgstr "Just before the stop, the agent checks {chosen} again, and leaves it running if anything changed"
+
 msgid "Runs once Dockwell's copies are gone, as many replicas as each had"
 msgstr "Runs once Dockwell's copies are gone, as many replicas as each had"
 
@@ -8339,12 +8354,24 @@ msgstr "Scales the Swarm services {services} to none"
 msgid "Start {name} again on <0>{server}</0>"
 msgstr "Start {name} again on <0>{server}</0>"
 
+msgid "Start {proxy} again on <0>{server}</0>"
+msgstr "Start {proxy} again on <0>{server}</0>"
+
+msgid "Starts once the routes that hold ports 80 and 443 are gone"
+msgstr "Starts once the routes that hold ports 80 and 443 are gone"
+
 #. placeholder {0}: list(panel.parts.map((p) => p.name))
 msgid "Starts {0} as each stood before the stop"
 msgstr "Starts {0} as each stood before the stop"
 
+msgid "Stays stopped when Docker or {server} restarts, and its domains come as the routes below"
+msgstr "Stays stopped when Docker or {server} restarts, and its domains come as the routes below"
+
 msgid "Stop {name} on <0>{server}</0>"
 msgstr "Stop {name} on <0>{server}</0>"
+
+msgid "Stop {proxy} on <0>{server}</0>, so Dockwell takes ports 80 and 443"
+msgstr "Stop {proxy} on <0>{server}</0>, so Dockwell takes ports 80 and 443"
 
 msgid "Stops {containers}, which stay stopped when Docker or {server} restarts"
 msgstr "Stops {containers}, which stay stopped when Docker or {server} restarts"
@@ -8934,6 +8961,9 @@ msgstr "<0>{path}</0> gives it control of Docker on the server, the same as root
 msgid "<0>{path}</0> leads to <1>{leadsTo}</1> through a symlink, which gives it control of Docker on the server, the same as root."
 msgstr "<0>{path}</0> leads to <1>{leadsTo}</1> through a symlink, which gives it control of Docker on the server, the same as root."
 
+msgid "A request answered 404, which says nothing of a login."
+msgstr "A request answered 404, which says nothing of a login."
+
 msgid "A rollback puts back its spec, not its data, so if a newer version changed that data, such as with a migration, the older one may not read it."
 msgstr "A rollback puts back its spec, not its data, so if a newer version changed that data, such as with a migration, the older one may not read it."
 
@@ -8952,6 +8982,9 @@ msgstr "Add it to what the jail never bans first, or apply this knowing it."
 msgid "Adds {names}."
 msgstr "Adds {names}."
 
+msgid "An address limit that lets in this server or private networks can't be seen."
+msgstr "An address limit that lets in this server or private networks can't be seen."
+
 msgid "Anyone who can reach this server gets it, around whatever is in front of it."
 msgstr "Anyone who can reach this server gets it, around whatever is in front of it."
 
@@ -8966,6 +8999,9 @@ msgstr "Anyone who can read this app can see it. Only a variable's value is hidd
 
 msgid "Apply this only if the app can take it."
 msgstr "Apply this only if the app can take it."
+
+msgid "Asked from {from}"
+msgstr "Asked from {from}"
 
 msgid "Back it up first if you need it: undo may not bring it back."
 msgstr "Back it up first if you need it: undo may not bring it back."
@@ -9240,6 +9276,13 @@ msgstr "No backup was taken, and the data stays as it is now"
 
 msgid "No branch or tag is at this commit now"
 msgstr "No branch or tag is at this commit now"
+
+#. placeholder {0}: note.names.join(", ")
+msgid "No clear answer for {0}"
+msgstr "No clear answer for {0}"
+
+msgid "No login or address limit found on the old proxy"
+msgstr "No login or address limit found on the old proxy"
 
 #. placeholder {0}: server.serverName
 msgid "No rule allows the WireGuard tunnel {tunnels} on {0}"
@@ -11628,6 +11671,33 @@ msgstr "{serverWords} in {waveWords}"
 msgid "{sizes} servers"
 msgstr "{sizes} servers"
 
+msgid "Asked from {askedFrom}: an address limit that lets in this server or private networks can't be seen."
+msgstr "Asked from {askedFrom}: an address limit that lets in this server or private networks can't be seen."
+
+msgid "Checked {scanned}, and asked the proxy for each."
+msgstr "Checked {scanned}, and asked the proxy for each."
+
+msgid "Checking each domain through {name}'s proxy"
+msgstr "Checking each domain through {name}'s proxy"
+
+msgid "Couldn't check {name}'s domains"
+msgstr "Couldn't check {name}'s domains"
+
+msgid "Dockwell routes each of {name}'s domains already."
+msgstr "Dockwell routes each of {name}'s domains already."
+
+msgid "Each you choose comes as a route once the proxy stops; the rest stop answering"
+msgstr "Each you choose comes as a route once the proxy stops; the rest stop answering"
+
+msgid "Hand over {name}'s domains"
+msgstr "Hand over {name}'s domains"
+
+msgid "No login or address limit found"
+msgstr "No login or address limit found"
+
+msgid "Nothing left to hand over"
+msgstr "Nothing left to hand over"
+
 msgid "1Panel isn't on this server"
 msgstr "1Panel isn't on this server"
 
@@ -11695,6 +11765,9 @@ msgstr "Later, once Dockwell has scheduled tasks"
 msgid "Later, once Dockwell has websites"
 msgstr "Later, once Dockwell has websites"
 
+msgid "Later, once {panel}'s proxy hands over ports 80 and 443"
+msgstr "Later, once {panel}'s proxy hands over ports 80 and 443"
+
 msgid "Move in from 1Panel"
 msgstr "Move in from 1Panel"
 
@@ -11733,6 +11806,9 @@ msgstr "Couldn't read what {name} runs"
 msgid "Dockwell reads what {name} runs, read-only, and changes nothing until you apply a plan."
 msgstr "Dockwell reads what {name} runs, read-only, and changes nothing until you apply a plan."
 
+msgid "Hand over ports 80 and 443"
+msgstr "Hand over ports 80 and 443"
+
 msgid "It was read by its labels and folders all the same. Check what it found before you apply."
 msgstr "It was read by its labels and folders all the same. Check what it found before you apply."
 
@@ -11744,6 +11820,9 @@ msgstr "Read what {name} runs"
 
 msgid "Start {name} again"
 msgstr "Start {name} again"
+
+msgid "Start {proxy} again"
+msgstr "Start {proxy} again"
 
 msgid "Stop {name}"
 msgstr "Stop {name}"

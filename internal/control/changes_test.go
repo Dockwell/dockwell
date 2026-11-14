@@ -112,7 +112,7 @@ type testServer struct {
 	// onePanel reads what 1Panel keeps on it, when set.
 	onePanel func(context.Context) (*agentv1.ReadOnePanelResult, error)
 	// panels reads what Coolify or Dokploy runs on it, when set.
-	panels func(context.Context, dockwellv1.PanelKind) (*agentv1.ReadPanelResult, error)
+	panels func(context.Context, dockwellv1.PanelKind, bool) (*agentv1.ReadPanelResult, error)
 	// certs loads the certificates by DNS it's given, when set.
 	certs agent.CertificateLoader
 	// images is where its agent reads images from. Unset, it reads none, as a test

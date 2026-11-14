@@ -867,6 +867,23 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
               detail: t`Run it again once they're back.`,
             };
       }
+      case "panel_domains_unguarded":
+        // A state a person confirms with in view: what Dockwell read, it can't promise is all (ADR 0089).
+        return { key, title: t`No login or address limit found on the old proxy`, detail: note.names.join(", ") };
+      case "panel_domains_unsure":
+        return {
+          key,
+          title: t`No clear answer for ${note.names.join(", ")}`,
+          detail: t`A request answered 404, which says nothing of a login.`,
+        };
+      case "panel_domains_asked_from": {
+        const from = note.names[0] ?? "";
+        return {
+          key,
+          title: t`Asked from ${from}`,
+          detail: t`An address limit that lets in this server or private networks can't be seen.`,
+        };
+      }
       case "backup_first":
         return {
           key,

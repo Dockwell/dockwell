@@ -5,6 +5,8 @@ package control
 import (
 	"encoding/json"
 	"maps"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"slices"
@@ -15,6 +17,7 @@ import (
 	"connectrpc.com/connect"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
+	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/agent/panels"
@@ -22,6 +25,7 @@ import (
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/host"
+	"github.com/dockwell/dockwell/internal/resource/route"
 	"github.com/dockwell/dockwell/internal/store"
 )
 
@@ -151,6 +155,7 @@ type shopOnDokploy struct {
 	c        dockwellv1connect.ChangeServiceClient
 	replicas func() uint64
 	stopper  *laterStopper
+	ing      *routesInMemory
 }
 
 func dokployShop(t *testing.T) shopOnDokploy {
@@ -161,12 +166,37 @@ func dokployShop(t *testing.T) shopOnDokploy {
 	if err := os.MkdirAll(filepath.Join(root, "etc", "dokploy", "applications", "shop-k2m4", "code", ".git"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	f.panelsRoot = root
+	// Dokploy's Traefik routes shop.example.com to shop by its appName, from its
+	// dynamic folder, with its traefik.yml as Dokploy's installer writes it.
+	dynamic := filepath.Join(root, "etc", "dokploy", "traefik", "dynamic")
+	if err := os.MkdirAll(dynamic, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	routes := "http:\n  routers:\n    shop-k2m4-router-1:\n      rule: Host(`shop.example.com`)\n      service: shop-k2m4-service-1\n" +
+		"  services:\n    shop-k2m4-service-1:\n      loadBalancer:\n        servers:\n          - url: http://shop-k2m4:80\n"
+	static := "providers:\n  swarm:\n    exposedByDefault: false\n  docker:\n    exposedByDefault: false\n" +
+		"  file:\n    directory: /etc/dokploy/traefik/dynamic\n    watch: true\n" +
+		"entryPoints:\n  web:\n    address: :80\n  websecure:\n    address: :443\n"
+	for name, body := range map[string]string{filepath.Join(dynamic, "shop-k2m4.yml"): routes, filepath.Join(root, "etc", "dokploy", "traefik", "traefik.yml"): static} {
+		if err := os.WriteFile(name, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	f.panelsRoot, f.panelsProbe = root, answeringProxy(t)
 	b := signedIn(t, f)
 	later := &laterStopper{}
-	e := f.addServerWith(t, func() []resource.Type { return []resource.Type{&host.Driver{Panels: later}} })
-	later.s = &panels.Stopper{Docker: e.Client()}
+	ing := &routesInMemory{routes: map[resource.Ref]*resourcev1.Route{}}
+	e := f.addServerWith(t, func() []resource.Type {
+		return []resource.Type{&host.Driver{Panels: later}, &route.Driver{Ingress: ing}}
+	})
+	later.s = &panels.Stopper{Docker: e.Client(), Check: f.panelReader(e.Client()).Check}
 	waitForHost(t, f, f.lastDocker)
+	// As Dokploy's installer runs its Traefik.
+	e.AddLocalImage("traefik:v3.1", dockertest.Image{Config: docker.Config{Cmd: []string{"traefik"}}})
+	runByHand(t, e, "dokploy-traefik", func(r *docker.CreateRequest) {
+		r.Image, r.Cmd, r.HostConfig.PortBindings = "traefik:v3.1", nil, nil
+		r.HostConfig.Binds = []string{"/etc/dokploy/traefik/traefik.yml:/etc/traefik/traefik.yml", "/etc/dokploy/traefik/dynamic:/etc/dokploy/traefik/dynamic"}
+	})
 	id := f.lastDocker.id.ServerID
 	labels := map[string]string{"dokploy.project": "store", "dokploy.environment": "production", "dokploy.application": "shop"}
 	shopSpec := swarmService("shop-k2m4", "nginx:1.26", labels)
@@ -204,7 +234,7 @@ func dokployShop(t *testing.T) shopOnDokploy {
 		n, _ := svc.Spec.Mode.Replicas()
 		return n
 	}
-	return shopOnDokploy{f: f, e: e, id: id, task: task, ic: importClient(b), c: changeClient(b, b.origin), replicas: replicas, stopper: later}
+	return shopOnDokploy{f: f, e: e, id: id, task: task, ic: importClient(b), c: changeClient(b, b.origin), replicas: replicas, stopper: later, ing: ing}
 }
 
 // An import whose copy of a Swarm app fails to start, after the host scaled
@@ -388,4 +418,69 @@ func TestAnOlderAgentMakesNoSwarmAppAgain(t *testing.T) {
 		!strings.Contains(s.GetReason(), "hz-1's agent is too old to make a Swarm-run app again safely. Update its agent, then import again") {
 		t.Errorf("through an older agent, shop reads %v", s)
 	}
+}
+
+// Once Dokploy's Swarm-run app is made again, its domain can be handed over as any
+// other's: checked, chosen, and routed to Dockwell's copy by the port Dokploy's
+// Traefik file names, the proxy stopped first; the undo deletes the route and
+// starts the proxy again.
+func TestHandingOverADokploySwarmAppsDomain(t *testing.T) {
+	d := dokployShop(t)
+	res, err := d.ic.ImportDokploy(t.Context(), connect.NewRequest(&dockwellv1.ImportDokployRequest{ServerId: d.id}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if done := actedOn(t, d.c, res.Msg.GetChange(), ""); done.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("the import ended %v: %s", done.GetState(), done.GetError())
+	}
+	checked, err := d.ic.CheckPanelDomains(t.Context(), connect.NewRequest(&dockwellv1.CheckPanelDomainsRequest{ServerId: d.id, Panel: dockwellv1.PanelKind_PANEL_KIND_DOKPLOY}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var shop *dockwellv1.PanelDomainCheck
+	for _, c := range checked.Msg.GetDomains() {
+		if c.GetDomain() == "shop.example.com" {
+			shop = c
+		}
+	}
+	if shop == nil || shop.GetHeld() != "" {
+		t.Fatalf("shop.example.com reads %v", shop)
+	}
+	handover, err := d.ic.PlanPanelDomains(t.Context(), connect.NewRequest(&dockwellv1.PlanPanelDomainsRequest{ServerId: d.id, Panel: dockwellv1.PanelKind_PANEL_KIND_DOKPLOY, Domains: []string{"shop.example.com"}}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if done := actedOn(t, d.c, handover.Msg.GetChange(), ""); done.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("the handover ended %v: %s", done.GetState(), done.GetError())
+	}
+	var routed *resourcev1.Route
+	for _, r := range d.ing.routes {
+		routed = r
+	}
+	if routed.GetDomain() != "shop.example.com" || routed.GetService() != "shop-k2m4" || routed.GetPort() != 80 {
+		t.Errorf("the route is %v", routed)
+	}
+	if p := d.e.Container("dokploy-traefik"); p.State.Running {
+		t.Error("Dokploy's Traefik still runs")
+	}
+	back, err := d.c.UndoChange(t.Context(), connect.NewRequest(&dockwellv1.UndoChangeRequest{Id: handover.Msg.GetChange().GetId()}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if done := actedOn(t, d.c, back.Msg.GetChange(), ""); done.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("the handover's undo ended %v: %s", done.GetState(), done.GetError())
+	}
+	if len(d.ing.routes) != 0 || !d.e.Container("dokploy-traefik").State.Running {
+		t.Errorf("after the undo, routes %v and Traefik running %v", d.ing.routes, d.e.Container("dokploy-traefik").State.Running)
+	}
+}
+
+// answeringProxy is a stand-in for a panel's proxy that answers 200 for every
+// domain, and where it listens.
+func answeringProxy(t *testing.T) string {
+	t.Helper()
+	proxy := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) }))
+	proxy.StartTLS()
+	t.Cleanup(proxy.Close)
+	return proxy.Listener.Addr().String()
 }

@@ -132,6 +132,10 @@ type fullServer struct {
 	// panelsRoot is the next Docker server's root, for Coolify's and Dokploy's
 	// folders, if any.
 	panelsRoot string
+	// panelsProbe is where a handover's check asks the old proxy for each domain on
+	// the next Docker server: a closed port where it's empty, so a test never asks
+	// this machine's own port 443.
+	panelsProbe string
 	// certLoader loads the certificates by DNS the next Docker server added is
 	// given. Nil has its agent load none.
 	certLoader agent.CertificateLoader

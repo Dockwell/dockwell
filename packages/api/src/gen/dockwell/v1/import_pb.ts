@@ -18,7 +18,230 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/import.proto.
  */
 export const file_dockwell_v1_import: GenFile = /*@__PURE__*/
-  fileDesc("Chhkb2Nrd2VsbC92MS9pbXBvcnQucHJvdG8SC2RvY2t3ZWxsLnYxImIKFVBsYW5TdGFydFBhbmVsUmVxdWVzdBIRCglzZXJ2ZXJfaWQYASABKAkSJQoFcGFuZWwYAiABKA4yFi5kb2Nrd2VsbC52MS5QYW5lbEtpbmQSDwoHc3VtbWFyeRgDIAEoCSI9ChZQbGFuU3RhcnRQYW5lbFJlc3BvbnNlEiMKBmNoYW5nZRgBIAEoCzITLmRvY2t3ZWxsLnYxLkNoYW5nZSJhChRQbGFuU3RvcFBhbmVsUmVxdWVzdBIRCglzZXJ2ZXJfaWQYASABKAkSJQoFcGFuZWwYAiABKA4yFi5kb2Nrd2VsbC52MS5QYW5lbEtpbmQSDwoHc3VtbWFyeRgDIAEoCSI8ChVQbGFuU3RvcFBhbmVsUmVzcG9uc2USIwoGY2hhbmdlGAEgASgLMhMuZG9ja3dlbGwudjEuQ2hhbmdlIjwKFEltcG9ydENvb2xpZnlSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCRIRCglza2lwX3BsYW4YAiABKAgihwEKFUltcG9ydENvb2xpZnlSZXNwb25zZRIhCgVmb3VuZBgBIAEoCzISLmRvY2t3ZWxsLnYxLlBhbmVsEiYKBXN0ZXBzGAIgAygLMhcuZG9ja3dlbGwudjEuSW1wb3J0U3RlcBIjCgZjaGFuZ2UYAyABKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2UiPAoUSW1wb3J0RG9rcGxveVJlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJEhEKCXNraXBfcGxhbhgCIAEoCCKHAQoVSW1wb3J0RG9rcGxveVJlc3BvbnNlEiEKBWZvdW5kGAEgASgLMhIuZG9ja3dlbGwudjEuUGFuZWwSJgoFc3RlcHMYAiADKAsyFy5kb2Nrd2VsbC52MS5JbXBvcnRTdGVwEiMKBmNoYW5nZRgDIAEoCzITLmRvY2t3ZWxsLnYxLkNoYW5nZSK0AQoFUGFuZWwSJAoEa2luZBgBIAEoDjIWLmRvY2t3ZWxsLnYxLlBhbmVsS2luZBIPCgd2ZXJzaW9uGAIgASgJEhUKDWtub3duX3ZlcnNpb24YAyABKAgSDgoGZm9sZGVyGAQgASgJEiMKBGFwcHMYBSADKAsyFS5kb2Nrd2VsbC52MS5QYW5lbEFwcBIoCgNvd24YBiADKAsyGy5kb2Nrd2VsbC52MS5QYW5lbENvbnRhaW5lciLHAgoIUGFuZWxBcHASDAoEbmFtZRgBIAEoCRIMCgRraW5kGAIgASgJEg8KB3Byb2plY3QYAyABKAkSEwoLZW52aXJvbm1lbnQYBCABKAkSCgoCaWQYBSABKAkSFwoPY29tcG9zZV9wcm9qZWN0GAYgASgJEhIKCmNvbnRhaW5lcnMYByADKAkSDwoHZG9tYWlucxgIIAMoCRIOCgZmb2xkZXIYCSABKAkSDQoFc3dhcm0YCiABKAgSDwoHcHJldmlldxgLIAEoCBINCgVpbWFnZRgMIAEoCRIQCghmcm9tX2dpdBgNIAEoCBINCgV0YXNrcxgPIAMoCRIpCglwdWJsaXNoZWQYECADKAsyFi5kb2Nrd2VsbC52MS5QYW5lbFBvcnQSEAoIcmVzdGFydHMYESADKAkSEgoKc3dhcm1fbGVmdBgSIAEoCSJPCglQYW5lbFBvcnQSDwoHc2VydmljZRgBIAEoCRIMCgRwb3J0GAIgASgNEhEKCXB1Ymxpc2hlZBgDIAEoDRIQCghwcm90b2NvbBgEIAEoCSI8Cg5QYW5lbENvbnRhaW5lchIMCgRuYW1lGAEgASgJEg0KBWltYWdlGAIgASgJEg0KBXN0YXRlGAMgASgJIj0KFUltcG9ydE9uZVBhbmVsUmVxdWVzdBIRCglzZXJ2ZXJfaWQYASABKAkSEQoJc2tpcF9wbGFuGAIgASgIIosBChZJbXBvcnRPbmVQYW5lbFJlc3BvbnNlEiQKBWZvdW5kGAEgASgLMhUuZG9ja3dlbGwudjEuT25lUGFuZWwSJgoFc3RlcHMYAiADKAsyFy5kb2Nrd2VsbC52MS5JbXBvcnRTdGVwEiMKBmNoYW5nZRgDIAEoCzITLmRvY2t3ZWxsLnYxLkNoYW5nZSLOAQoKSW1wb3J0U3RlcBIlCgRraW5kGAEgASgOMhcuZG9ja3dlbGwudjEuSW1wb3J0S2luZBIMCgRuYW1lGAIgASgJEg8KB3N1bW1hcnkYAyABKAkSKQoGYWN0aW9uGAQgASgOMhkuZG9ja3dlbGwudjEuSW1wb3J0QWN0aW9uEg8KB2JlY29tZXMYBSABKAkSDgoGcmVhc29uGAYgASgJEi4KCXdhaXRzX2ZvchgHIAEoDjIbLmRvY2t3ZWxsLnYxLkltcG9ydFdhaXRzRm9yIucDCghPbmVQYW5lbBIPCgd2ZXJzaW9uGAEgASgJEhAKCGJhc2VfZGlyGAIgASgJEg8KB3JlY29yZHMYAyABKAkSFQoNa25vd25fdmVyc2lvbhgEIAEoCBImCgRhcHBzGAUgAygLMhguZG9ja3dlbGwudjEuT25lUGFuZWxBcHASLgoIcnVudGltZXMYBiADKAsyHC5kb2Nrd2VsbC52MS5PbmVQYW5lbFJ1bnRpbWUSLgoId2Vic2l0ZXMYByADKAsyHC5kb2Nrd2VsbC52MS5PbmVQYW5lbFdlYnNpdGUSNgoMY2VydGlmaWNhdGVzGAggAygLMiAuZG9ja3dlbGwudjEuT25lUGFuZWxDZXJ0aWZpY2F0ZRI9ChBkYXRhYmFzZV9zZXJ2ZXJzGAkgAygLMiMuZG9ja3dlbGwudjEuT25lUGFuZWxEYXRhYmFzZVNlcnZlchIwCglkYXRhYmFzZXMYCiADKAsyHS5kb2Nrd2VsbC52MS5PbmVQYW5lbERhdGFiYXNlEi8KCWNyb25fam9icxgLIAMoCzIcLmRvY2t3ZWxsLnYxLk9uZVBhbmVsQ3JvbkpvYhIuCghjb21wb3NlcxgMIAMoCzIcLmRvY2t3ZWxsLnYxLk9uZVBhbmVsQ29tcG9zZSItCg9PbmVQYW5lbENvbXBvc2USDAoEbmFtZRgBIAEoCRIMCgRmaWxlGAIgASgJIrgBCgtPbmVQYW5lbEFwcBIMCgRuYW1lGAEgASgJEg8KB2FwcF9rZXkYAiABKAkSEAoIYXBwX25hbWUYAyABKAkSDwoHdmVyc2lvbhgEIAEoCRIOCgZzdGF0dXMYBSABKAkSDQoFc3RvcmUYBiABKAkSDgoGZm9sZGVyGAcgASgJEhEKCWNvbnRhaW5lchgIIAEoCRIRCglodHRwX3BvcnQYCSABKA0SEgoKaHR0cHNfcG9ydBgKIAEoDSKVAQoPT25lUGFuZWxSdW50aW1lEgwKBG5hbWUYASABKAkSDAoEdHlwZRgCIAEoCRIPCgd2ZXJzaW9uGAMgASgJEg4KBnN0YXR1cxgEIAEoCRINCgVpbWFnZRgFIAEoCRIOCgZmb2xkZXIYBiABKAkSEwoLY29kZV9mb2xkZXIYByABKAkSEQoJY29udGFpbmVyGAggASgJIoYCCg9PbmVQYW5lbFdlYnNpdGUSDQoFYWxpYXMYASABKAkSFgoOcHJpbWFyeV9kb21haW4YAiABKAkSDAoEdHlwZRgDIAEoCRIsCgdkb21haW5zGAQgAygLMhsuZG9ja3dlbGwudjEuT25lUGFuZWxEb21haW4SDgoGZm9sZGVyGAUgASgJEg0KBXByb3h5GAYgASgJEg8KB3J1bnRpbWUYByABKAkSCwoDYXBwGAggASgJEhMKC2NlcnRpZmljYXRlGAkgASgJEg8KB3Jld3JpdGUYCiABKAgSDQoFaHR0cHMYCyABKAgSDgoGc3RhdHVzGAwgASgJEg4KBnBhcmVudBgNIAEoCSI9Cg5PbmVQYW5lbERvbWFpbhIOCgZkb21haW4YASABKAkSDAoEcG9ydBgCIAEoDRINCgVodHRwcxgDIAEoCCKvAQoTT25lUGFuZWxDZXJ0aWZpY2F0ZRIWCg5wcmltYXJ5X2RvbWFpbhgBIAEoCRIPCgdkb21haW5zGAIgAygJEgwKBGtpbmQYAyABKAkSEAoIcHJvdmlkZXIYBCABKAkSKwoHZXhwaXJlcxgFIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASEgoKYXV0b19yZW5ldxgGIAEoCBIOCgZpc3N1ZXIYByABKAkibwoWT25lUGFuZWxEYXRhYmFzZVNlcnZlchIMCgRuYW1lGAEgASgJEgwKBHR5cGUYAiABKAkSDwoHdmVyc2lvbhgDIAEoCRINCgVsb2NhbBgEIAEoCBILCgNhcHAYBSABKAkSDAoEcG9ydBgGIAEoDSJcChBPbmVQYW5lbERhdGFiYXNlEgwKBG5hbWUYASABKAkSDgoGc2VydmVyGAIgASgJEgwKBHR5cGUYAyABKAkSDAoEdXNlchgEIAEoCRIOCgZmb3JtYXQYBSABKAkikwIKD09uZVBhbmVsQ3JvbkpvYhIMCgRuYW1lGAEgASgJEgwKBHR5cGUYAiABKAkSEAoIc2NoZWR1bGUYAyABKAkSDgoGc3RhdHVzGAQgASgJEhEKCWNvbnRhaW5lchgFIAEoCRIOCgZ0YXJnZXQYBiABKAkSEAoIdXJsX2hvc3QYByABKAkSFAoMc2NyaXB0X2xpbmVzGAggASgNEhMKC3NjcmlwdF9mcm9tGAkgASgJEhMKC3NjcmlwdF9uYW1lGAogASgJEhMKC3NjcmlwdF9wYXRoGAsgASgJEhMKC2ludGVycHJldGVyGAwgASgJEgwKBHVzZXIYDSABKAkSFQoNZGF0YWJhc2VfdHlwZRgOIAEoCSpXCglQYW5lbEtpbmQSGgoWUEFORUxfS0lORF9VTlNQRUNJRklFRBAAEhYKElBBTkVMX0tJTkRfQ09PTElGWRABEhYKElBBTkVMX0tJTkRfRE9LUExPWRACKrYBCg5JbXBvcnRXYWl0c0ZvchIgChxJTVBPUlRfV0FJVFNfRk9SX1VOU1BFQ0lGSUVEEAASHQoZSU1QT1JUX1dBSVRTX0ZPUl9XRUJTSVRFUxABEh4KGklNUE9SVF9XQUlUU19GT1JfREFUQUJBU0VTEAISJAogSU1QT1JUX1dBSVRTX0ZPUl9TQ0hFRFVMRURfVEFTS1MQAxIdChlJTVBPUlRfV0FJVFNfRk9SX0ZJUkVXQUxMEAQqtgIKCkltcG9ydEtpbmQSGwoXSU1QT1JUX0tJTkRfVU5TUEVDSUZJRUQQABITCg9JTVBPUlRfS0lORF9BUFAQARIXChNJTVBPUlRfS0lORF9SVU5USU1FEAISFwoTSU1QT1JUX0tJTkRfV0VCU0lURRADEhsKF0lNUE9SVF9LSU5EX0NFUlRJRklDQVRFEAQSHwobSU1QT1JUX0tJTkRfREFUQUJBU0VfU0VSVkVSEAUSGAoUSU1QT1JUX0tJTkRfREFUQUJBU0UQBhIYChRJTVBPUlRfS0lORF9DUk9OX0pPQhAHEhUKEUlNUE9SVF9LSU5EX1BBTkVMEAgSHwobSU1QT1JUX0tJTkRfQ09NUE9TRV9QUk9KRUNUEAkSGgoWSU1QT1JUX0tJTkRfQ09OVEFJTkVSUxAKKpEBCgxJbXBvcnRBY3Rpb24SHQoZSU1QT1JUX0FDVElPTl9VTlNQRUNJRklFRBAAEhkKFUlNUE9SVF9BQ1RJT05fVEFLRV9PThABEhYKEklNUE9SVF9BQ1RJT05fTUFLRRACEhcKE0lNUE9SVF9BQ1RJT05fTEVBVkUQAxIWChJJTVBPUlRfQUNUSU9OX0RPTkUQBDKjBwoNSW1wb3J0U2VydmljZRKyAQoOSW1wb3J0T25lUGFuZWwSIi5kb2Nrd2VsbC52MS5JbXBvcnRPbmVQYW5lbFJlcXVlc3QaIy5kb2Nrd2VsbC52MS5JbXBvcnRPbmVQYW5lbFJlc3BvbnNlIleguxgCqrsYEAoGaW1wb3J0EgYxcGFuZWzAuxgEyLsYBNC7GAaC0+STAi06ASoiKC92MS9zZXJ2ZXJzL3tzZXJ2ZXJfaWR9L2ltcG9ydHM6b25lcGFuZWwSrwEKDUltcG9ydENvb2xpZnkSIS5kb2Nrd2VsbC52MS5JbXBvcnRDb29saWZ5UmVxdWVzdBoiLmRvY2t3ZWxsLnYxLkltcG9ydENvb2xpZnlSZXNwb25zZSJXoLsYAqq7GBEKBmltcG9ydBIHY29vbGlmecC7GATIuxgE0LsYBoLT5JMCLDoBKiInL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vaW1wb3J0czpjb29saWZ5Eq8BCg1JbXBvcnREb2twbG95EiEuZG9ja3dlbGwudjEuSW1wb3J0RG9rcGxveVJlcXVlc3QaIi5kb2Nrd2VsbC52MS5JbXBvcnREb2twbG95UmVzcG9uc2UiV6C7GAKquxgRCgZpbXBvcnQSB2Rva3Bsb3nAuxgEyLsYBNC7GAaC0+STAiw6ASoiJy92MS9zZXJ2ZXJzL3tzZXJ2ZXJfaWR9L2ltcG9ydHM6ZG9rcGxveRK9AQoOUGxhblN0YXJ0UGFuZWwSIi5kb2Nrd2VsbC52MS5QbGFuU3RhcnRQYW5lbFJlcXVlc3QaIy5kb2Nrd2VsbC52MS5QbGFuU3RhcnRQYW5lbFJlc3BvbnNlImKguxgCqrsYFQoGaW1wb3J0EgtzdGFydC1wYW5lbLC7GAHAuxgEyLsYBNC7GAaC0+STAi86ASoiKi92MS9zZXJ2ZXJzL3tzZXJ2ZXJfaWR9L2ltcG9ydHM6c3RhcnRQYW5lbBK4AQoNUGxhblN0b3BQYW5lbBIhLmRvY2t3ZWxsLnYxLlBsYW5TdG9wUGFuZWxSZXF1ZXN0GiIuZG9ja3dlbGwudjEuUGxhblN0b3BQYW5lbFJlc3BvbnNlImCguxgCqrsYFAoGaW1wb3J0EgpzdG9wLXBhbmVssLsYAcC7GATIuxgE0LsYBoLT5JMCLjoBKiIpL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vaW1wb3J0czpzdG9wUGFuZWxCpAEKD2NvbS5kb2Nrd2VsbC52MUILSW1wb3J0UHJvdG9QAVo3Z2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvdjE7ZG9ja3dlbGx2MaICA0RYWKoCC0RvY2t3ZWxsLlYxygILRG9ja3dlbGxcVjHiAhdEb2Nrd2VsbFxWMVxHUEJNZXRhZGF0YeoCDERvY2t3ZWxsOjpWMWIGcHJvdG8z", [file_dockwell_v1_change, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
+  fileDesc("Chhkb2Nrd2VsbC92MS9pbXBvcnQucHJvdG8SC2RvY2t3ZWxsLnYxInUKF1BsYW5QYW5lbERvbWFpbnNSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCRIlCgVwYW5lbBgCIAEoDjIWLmRvY2t3ZWxsLnYxLlBhbmVsS2luZBIPCgdzdW1tYXJ5GAMgASgJEg8KB2RvbWFpbnMYBCADKAkiVAoYQ2hlY2tQYW5lbERvbWFpbnNSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCRIlCgVwYW5lbBgCIAEoDjIWLmRvY2t3ZWxsLnYxLlBhbmVsS2luZCJLChlDaGVja1BhbmVsRG9tYWluc1Jlc3BvbnNlEi4KB2RvbWFpbnMYASADKAsyHS5kb2Nrd2VsbC52MS5QYW5lbERvbWFpbkNoZWNrIqABChBQYW5lbERvbWFpbkNoZWNrEg4KBmRvbWFpbhgBIAEoCRIQCghtZW50aW9ucxgCIAMoCRInCgZwcm9iZXMYAyADKAsyFy5kb2Nrd2VsbC52MS5QYW5lbFByb2JlEgwKBGhlbGQYBCABKAkSDwoHc2Nhbm5lZBgFIAEoCRIOCgZ1bnN1cmUYBiABKAkSEgoKYXNrZWRfZnJvbRgHIAEoCSI4CgpQYW5lbFByb2JlEgwKBHBhdGgYASABKAkSDgoGYW5zd2VyGAIgASgJEgwKBG9wZW4YAyABKAgiPwoYUGxhblBhbmVsRG9tYWluc1Jlc3BvbnNlEiMKBmNoYW5nZRgBIAEoCzITLmRvY2t3ZWxsLnYxLkNoYW5nZSJxChVQbGFuU3RhcnRQYW5lbFJlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJEiUKBXBhbmVsGAIgASgOMhYuZG9ja3dlbGwudjEuUGFuZWxLaW5kEg8KB3N1bW1hcnkYAyABKAkSDQoFcHJveHkYBCABKAgiPQoWUGxhblN0YXJ0UGFuZWxSZXNwb25zZRIjCgZjaGFuZ2UYASABKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2UiYQoUUGxhblN0b3BQYW5lbFJlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJEiUKBXBhbmVsGAIgASgOMhYuZG9ja3dlbGwudjEuUGFuZWxLaW5kEg8KB3N1bW1hcnkYAyABKAkiPAoVUGxhblN0b3BQYW5lbFJlc3BvbnNlEiMKBmNoYW5nZRgBIAEoCzITLmRvY2t3ZWxsLnYxLkNoYW5nZSI8ChRJbXBvcnRDb29saWZ5UmVxdWVzdBIRCglzZXJ2ZXJfaWQYASABKAkSEQoJc2tpcF9wbGFuGAIgASgIIocBChVJbXBvcnRDb29saWZ5UmVzcG9uc2USIQoFZm91bmQYASABKAsyEi5kb2Nrd2VsbC52MS5QYW5lbBImCgVzdGVwcxgCIAMoCzIXLmRvY2t3ZWxsLnYxLkltcG9ydFN0ZXASIwoGY2hhbmdlGAMgASgLMhMuZG9ja3dlbGwudjEuQ2hhbmdlIjwKFEltcG9ydERva3Bsb3lSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCRIRCglza2lwX3BsYW4YAiABKAgihwEKFUltcG9ydERva3Bsb3lSZXNwb25zZRIhCgVmb3VuZBgBIAEoCzISLmRvY2t3ZWxsLnYxLlBhbmVsEiYKBXN0ZXBzGAIgAygLMhcuZG9ja3dlbGwudjEuSW1wb3J0U3RlcBIjCgZjaGFuZ2UYAyABKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2UiiAIKBVBhbmVsEiQKBGtpbmQYASABKA4yFi5kb2Nrd2VsbC52MS5QYW5lbEtpbmQSDwoHdmVyc2lvbhgCIAEoCRIVCg1rbm93bl92ZXJzaW9uGAMgASgIEg4KBmZvbGRlchgEIAEoCRIjCgRhcHBzGAUgAygLMhUuZG9ja3dlbGwudjEuUGFuZWxBcHASKAoDb3duGAYgAygLMhsuZG9ja3dlbGwudjEuUGFuZWxDb250YWluZXISDwoHZG9tYWlucxgHIAMoCRISCgpwcm94eV9sZWZ0GAggASgJEi0KBmNoZWNrcxgJIAMoCzIdLmRvY2t3ZWxsLnYxLlBhbmVsRG9tYWluQ2hlY2si8AIKCFBhbmVsQXBwEgwKBG5hbWUYASABKAkSDAoEa2luZBgCIAEoCRIPCgdwcm9qZWN0GAMgASgJEhMKC2Vudmlyb25tZW50GAQgASgJEgoKAmlkGAUgASgJEhcKD2NvbXBvc2VfcHJvamVjdBgGIAEoCRISCgpjb250YWluZXJzGAcgAygJEg8KB2RvbWFpbnMYCCADKAkSDgoGZm9sZGVyGAkgASgJEg0KBXN3YXJtGAogASgIEg8KB3ByZXZpZXcYCyABKAgSDQoFaW1hZ2UYDCABKAkSEAoIZnJvbV9naXQYDSABKAgSJwoGcm91dGVzGA4gAygLMhcuZG9ja3dlbGwudjEuUGFuZWxSb3V0ZRINCgV0YXNrcxgPIAMoCRIpCglwdWJsaXNoZWQYECADKAsyFi5kb2Nrd2VsbC52MS5QYW5lbFBvcnQSEAoIcmVzdGFydHMYESADKAkSEgoKc3dhcm1fbGVmdBgSIAEoCSJPCglQYW5lbFBvcnQSDwoHc2VydmljZRgBIAEoCRIMCgRwb3J0GAIgASgNEhEKCXB1Ymxpc2hlZBgDIAEoDRIQCghwcm90b2NvbBgEIAEoCSJqCgpQYW5lbFJvdXRlEg4KBmRvbWFpbhgBIAEoCRIMCgRwYXRoGAIgASgJEhEKCWNvbnRhaW5lchgDIAEoCRIPCgdzZXJ2aWNlGAQgASgJEgwKBHBvcnQYBSABKA0SDAoEbGVmdBgGIAEoCSI8Cg5QYW5lbENvbnRhaW5lchIMCgRuYW1lGAEgASgJEg0KBWltYWdlGAIgASgJEg0KBXN0YXRlGAMgASgJIj0KFUltcG9ydE9uZVBhbmVsUmVxdWVzdBIRCglzZXJ2ZXJfaWQYASABKAkSEQoJc2tpcF9wbGFuGAIgASgIIosBChZJbXBvcnRPbmVQYW5lbFJlc3BvbnNlEiQKBWZvdW5kGAEgASgLMhUuZG9ja3dlbGwudjEuT25lUGFuZWwSJgoFc3RlcHMYAiADKAsyFy5kb2Nrd2VsbC52MS5JbXBvcnRTdGVwEiMKBmNoYW5nZRgDIAEoCzITLmRvY2t3ZWxsLnYxLkNoYW5nZSLOAQoKSW1wb3J0U3RlcBIlCgRraW5kGAEgASgOMhcuZG9ja3dlbGwudjEuSW1wb3J0S2luZBIMCgRuYW1lGAIgASgJEg8KB3N1bW1hcnkYAyABKAkSKQoGYWN0aW9uGAQgASgOMhkuZG9ja3dlbGwudjEuSW1wb3J0QWN0aW9uEg8KB2JlY29tZXMYBSABKAkSDgoGcmVhc29uGAYgASgJEi4KCXdhaXRzX2ZvchgHIAEoDjIbLmRvY2t3ZWxsLnYxLkltcG9ydFdhaXRzRm9yIucDCghPbmVQYW5lbBIPCgd2ZXJzaW9uGAEgASgJEhAKCGJhc2VfZGlyGAIgASgJEg8KB3JlY29yZHMYAyABKAkSFQoNa25vd25fdmVyc2lvbhgEIAEoCBImCgRhcHBzGAUgAygLMhguZG9ja3dlbGwudjEuT25lUGFuZWxBcHASLgoIcnVudGltZXMYBiADKAsyHC5kb2Nrd2VsbC52MS5PbmVQYW5lbFJ1bnRpbWUSLgoId2Vic2l0ZXMYByADKAsyHC5kb2Nrd2VsbC52MS5PbmVQYW5lbFdlYnNpdGUSNgoMY2VydGlmaWNhdGVzGAggAygLMiAuZG9ja3dlbGwudjEuT25lUGFuZWxDZXJ0aWZpY2F0ZRI9ChBkYXRhYmFzZV9zZXJ2ZXJzGAkgAygLMiMuZG9ja3dlbGwudjEuT25lUGFuZWxEYXRhYmFzZVNlcnZlchIwCglkYXRhYmFzZXMYCiADKAsyHS5kb2Nrd2VsbC52MS5PbmVQYW5lbERhdGFiYXNlEi8KCWNyb25fam9icxgLIAMoCzIcLmRvY2t3ZWxsLnYxLk9uZVBhbmVsQ3JvbkpvYhIuCghjb21wb3NlcxgMIAMoCzIcLmRvY2t3ZWxsLnYxLk9uZVBhbmVsQ29tcG9zZSItCg9PbmVQYW5lbENvbXBvc2USDAoEbmFtZRgBIAEoCRIMCgRmaWxlGAIgASgJIrgBCgtPbmVQYW5lbEFwcBIMCgRuYW1lGAEgASgJEg8KB2FwcF9rZXkYAiABKAkSEAoIYXBwX25hbWUYAyABKAkSDwoHdmVyc2lvbhgEIAEoCRIOCgZzdGF0dXMYBSABKAkSDQoFc3RvcmUYBiABKAkSDgoGZm9sZGVyGAcgASgJEhEKCWNvbnRhaW5lchgIIAEoCRIRCglodHRwX3BvcnQYCSABKA0SEgoKaHR0cHNfcG9ydBgKIAEoDSKVAQoPT25lUGFuZWxSdW50aW1lEgwKBG5hbWUYASABKAkSDAoEdHlwZRgCIAEoCRIPCgd2ZXJzaW9uGAMgASgJEg4KBnN0YXR1cxgEIAEoCRINCgVpbWFnZRgFIAEoCRIOCgZmb2xkZXIYBiABKAkSEwoLY29kZV9mb2xkZXIYByABKAkSEQoJY29udGFpbmVyGAggASgJIoYCCg9PbmVQYW5lbFdlYnNpdGUSDQoFYWxpYXMYASABKAkSFgoOcHJpbWFyeV9kb21haW4YAiABKAkSDAoEdHlwZRgDIAEoCRIsCgdkb21haW5zGAQgAygLMhsuZG9ja3dlbGwudjEuT25lUGFuZWxEb21haW4SDgoGZm9sZGVyGAUgASgJEg0KBXByb3h5GAYgASgJEg8KB3J1bnRpbWUYByABKAkSCwoDYXBwGAggASgJEhMKC2NlcnRpZmljYXRlGAkgASgJEg8KB3Jld3JpdGUYCiABKAgSDQoFaHR0cHMYCyABKAgSDgoGc3RhdHVzGAwgASgJEg4KBnBhcmVudBgNIAEoCSI9Cg5PbmVQYW5lbERvbWFpbhIOCgZkb21haW4YASABKAkSDAoEcG9ydBgCIAEoDRINCgVodHRwcxgDIAEoCCKvAQoTT25lUGFuZWxDZXJ0aWZpY2F0ZRIWCg5wcmltYXJ5X2RvbWFpbhgBIAEoCRIPCgdkb21haW5zGAIgAygJEgwKBGtpbmQYAyABKAkSEAoIcHJvdmlkZXIYBCABKAkSKwoHZXhwaXJlcxgFIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASEgoKYXV0b19yZW5ldxgGIAEoCBIOCgZpc3N1ZXIYByABKAkibwoWT25lUGFuZWxEYXRhYmFzZVNlcnZlchIMCgRuYW1lGAEgASgJEgwKBHR5cGUYAiABKAkSDwoHdmVyc2lvbhgDIAEoCRINCgVsb2NhbBgEIAEoCBILCgNhcHAYBSABKAkSDAoEcG9ydBgGIAEoDSJcChBPbmVQYW5lbERhdGFiYXNlEgwKBG5hbWUYASABKAkSDgoGc2VydmVyGAIgASgJEgwKBHR5cGUYAyABKAkSDAoEdXNlchgEIAEoCRIOCgZmb3JtYXQYBSABKAkikwIKD09uZVBhbmVsQ3JvbkpvYhIMCgRuYW1lGAEgASgJEgwKBHR5cGUYAiABKAkSEAoIc2NoZWR1bGUYAyABKAkSDgoGc3RhdHVzGAQgASgJEhEKCWNvbnRhaW5lchgFIAEoCRIOCgZ0YXJnZXQYBiABKAkSEAoIdXJsX2hvc3QYByABKAkSFAoMc2NyaXB0X2xpbmVzGAggASgNEhMKC3NjcmlwdF9mcm9tGAkgASgJEhMKC3NjcmlwdF9uYW1lGAogASgJEhMKC3NjcmlwdF9wYXRoGAsgASgJEhMKC2ludGVycHJldGVyGAwgASgJEgwKBHVzZXIYDSABKAkSFQoNZGF0YWJhc2VfdHlwZRgOIAEoCSpXCglQYW5lbEtpbmQSGgoWUEFORUxfS0lORF9VTlNQRUNJRklFRBAAEhYKElBBTkVMX0tJTkRfQ09PTElGWRABEhYKElBBTkVMX0tJTkRfRE9LUExPWRACKtIBCg5JbXBvcnRXYWl0c0ZvchIgChxJTVBPUlRfV0FJVFNfRk9SX1VOU1BFQ0lGSUVEEAASHQoZSU1QT1JUX1dBSVRTX0ZPUl9XRUJTSVRFUxABEh4KGklNUE9SVF9XQUlUU19GT1JfREFUQUJBU0VTEAISJAogSU1QT1JUX1dBSVRTX0ZPUl9TQ0hFRFVMRURfVEFTS1MQAxIdChlJTVBPUlRfV0FJVFNfRk9SX0ZJUkVXQUxMEAQSGgoWSU1QT1JUX1dBSVRTX0ZPUl9QT1JUUxAFKs4CCgpJbXBvcnRLaW5kEhsKF0lNUE9SVF9LSU5EX1VOU1BFQ0lGSUVEEAASEwoPSU1QT1JUX0tJTkRfQVBQEAESFwoTSU1QT1JUX0tJTkRfUlVOVElNRRACEhcKE0lNUE9SVF9LSU5EX1dFQlNJVEUQAxIbChdJTVBPUlRfS0lORF9DRVJUSUZJQ0FURRAEEh8KG0lNUE9SVF9LSU5EX0RBVEFCQVNFX1NFUlZFUhAFEhgKFElNUE9SVF9LSU5EX0RBVEFCQVNFEAYSGAoUSU1QT1JUX0tJTkRfQ1JPTl9KT0IQBxIVChFJTVBPUlRfS0lORF9QQU5FTBAIEh8KG0lNUE9SVF9LSU5EX0NPTVBPU0VfUFJPSkVDVBAJEhoKFklNUE9SVF9LSU5EX0NPTlRBSU5FUlMQChIWChJJTVBPUlRfS0lORF9ET01BSU4QCyqRAQoMSW1wb3J0QWN0aW9uEh0KGUlNUE9SVF9BQ1RJT05fVU5TUEVDSUZJRUQQABIZChVJTVBPUlRfQUNUSU9OX1RBS0VfT04QARIWChJJTVBPUlRfQUNUSU9OX01BS0UQAhIXChNJTVBPUlRfQUNUSU9OX0xFQVZFEAMSFgoSSU1QT1JUX0FDVElPTl9ET05FEAQyrwoKDUltcG9ydFNlcnZpY2USsgEKDkltcG9ydE9uZVBhbmVsEiIuZG9ja3dlbGwudjEuSW1wb3J0T25lUGFuZWxSZXF1ZXN0GiMuZG9ja3dlbGwudjEuSW1wb3J0T25lUGFuZWxSZXNwb25zZSJXoLsYAqq7GBAKBmltcG9ydBIGMXBhbmVswLsYBMi7GATQuxgGgtPkkwItOgEqIigvdjEvc2VydmVycy97c2VydmVyX2lkfS9pbXBvcnRzOm9uZXBhbmVsEq8BCg1JbXBvcnRDb29saWZ5EiEuZG9ja3dlbGwudjEuSW1wb3J0Q29vbGlmeVJlcXVlc3QaIi5kb2Nrd2VsbC52MS5JbXBvcnRDb29saWZ5UmVzcG9uc2UiV6C7GAKquxgRCgZpbXBvcnQSB2Nvb2xpZnnAuxgEyLsYBNC7GAaC0+STAiw6ASoiJy92MS9zZXJ2ZXJzL3tzZXJ2ZXJfaWR9L2ltcG9ydHM6Y29vbGlmeRKvAQoNSW1wb3J0RG9rcGxveRIhLmRvY2t3ZWxsLnYxLkltcG9ydERva3Bsb3lSZXF1ZXN0GiIuZG9ja3dlbGwudjEuSW1wb3J0RG9rcGxveVJlc3BvbnNlIleguxgCqrsYEQoGaW1wb3J0Egdkb2twbG95wLsYBMi7GATQuxgGgtPkkwIsOgEqIicvdjEvc2VydmVycy97c2VydmVyX2lkfS9pbXBvcnRzOmRva3Bsb3kSygEKEUNoZWNrUGFuZWxEb21haW5zEiUuZG9ja3dlbGwudjEuQ2hlY2tQYW5lbERvbWFpbnNSZXF1ZXN0GiYuZG9ja3dlbGwudjEuQ2hlY2tQYW5lbERvbWFpbnNSZXNwb25zZSJmoLsYAaq7GBcKBmltcG9ydBINY2hlY2stZG9tYWluc7C7GAHAuxgEyLsYBNC7GAaC0+STAjE6ASoiLC92MS9zZXJ2ZXJzL3tzZXJ2ZXJfaWR9L2ltcG9ydHM6Y2hlY2tEb21haW5zErwBChBQbGFuUGFuZWxEb21haW5zEiQuZG9ja3dlbGwudjEuUGxhblBhbmVsRG9tYWluc1JlcXVlc3QaJS5kb2Nrd2VsbC52MS5QbGFuUGFuZWxEb21haW5zUmVzcG9uc2UiW6C7GAKquxgRCgZpbXBvcnQSB2RvbWFpbnOwuxgBwLsYBMi7GATQuxgGgtPkkwIsOgEqIicvdjEvc2VydmVycy97c2VydmVyX2lkfS9pbXBvcnRzOmRvbWFpbnMSvQEKDlBsYW5TdGFydFBhbmVsEiIuZG9ja3dlbGwudjEuUGxhblN0YXJ0UGFuZWxSZXF1ZXN0GiMuZG9ja3dlbGwudjEuUGxhblN0YXJ0UGFuZWxSZXNwb25zZSJioLsYAqq7GBUKBmltcG9ydBILc3RhcnQtcGFuZWywuxgBwLsYBMi7GATQuxgGgtPkkwIvOgEqIiovdjEvc2VydmVycy97c2VydmVyX2lkfS9pbXBvcnRzOnN0YXJ0UGFuZWwSuAEKDVBsYW5TdG9wUGFuZWwSIS5kb2Nrd2VsbC52MS5QbGFuU3RvcFBhbmVsUmVxdWVzdBoiLmRvY2t3ZWxsLnYxLlBsYW5TdG9wUGFuZWxSZXNwb25zZSJgoLsYAqq7GBQKBmltcG9ydBIKc3RvcC1wYW5lbLC7GAHAuxgEyLsYBNC7GAaC0+STAi46ASoiKS92MS9zZXJ2ZXJzL3tzZXJ2ZXJfaWR9L2ltcG9ydHM6c3RvcFBhbmVsQqQBCg9jb20uZG9ja3dlbGwudjFCC0ltcG9ydFByb3RvUAFaN2dpdGh1Yi5jb20vZG9ja3dlbGwvZG9ja3dlbGwvZ2VuL2RvY2t3ZWxsL3YxO2RvY2t3ZWxsdjGiAgNEWFiqAgtEb2Nrd2VsbC5WMcoCC0RvY2t3ZWxsXFYx4gIXRG9ja3dlbGxcVjFcR1BCTWV0YWRhdGHqAgxEb2Nrd2VsbDo6VjFiBnByb3RvMw", [file_dockwell_v1_change, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
+
+/**
+ * PlanPanelDomainsRequest names the server and the panel whose domains come over.
+ *
+ * @generated from message dockwell.v1.PlanPanelDomainsRequest
+ */
+export type PlanPanelDomainsRequest = Message<"dockwell.v1.PlanPanelDomainsRequest"> & {
+  /**
+   * The server the panel runs on, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+   *
+   * @generated from field: string server_id = 1;
+   */
+  serverId: string;
+
+  /**
+   * The panel whose proxy hands over ports 80 and 443.
+   *
+   * @generated from field: dockwell.v1.PanelKind panel = 2;
+   */
+  panel: PanelKind;
+
+  /**
+   * What the change is for, for the timeline. Empty says what it hands over.
+   *
+   * @generated from field: string summary = 3;
+   */
+  summary: string;
+
+  /**
+   * The domains to hand over, such as "blog.example.com", each one
+   * CheckPanelDomains found nothing for. At least one.
+   *
+   * @generated from field: repeated string domains = 4;
+   */
+  domains: string[];
+};
+
+/**
+ * Describes the message dockwell.v1.PlanPanelDomainsRequest.
+ * Use `create(PlanPanelDomainsRequestSchema)` to create a new message.
+ */
+export const PlanPanelDomainsRequestSchema: GenMessage<PlanPanelDomainsRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_import, 0);
+
+/**
+ * CheckPanelDomainsRequest names the server and the panel whose domains to check.
+ *
+ * @generated from message dockwell.v1.CheckPanelDomainsRequest
+ */
+export type CheckPanelDomainsRequest = Message<"dockwell.v1.CheckPanelDomainsRequest"> & {
+  /**
+   * The server the panel runs on, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+   *
+   * @generated from field: string server_id = 1;
+   */
+  serverId: string;
+
+  /**
+   * The panel whose proxy serves them.
+   *
+   * @generated from field: dockwell.v1.PanelKind panel = 2;
+   */
+  panel: PanelKind;
+};
+
+/**
+ * Describes the message dockwell.v1.CheckPanelDomainsRequest.
+ * Use `create(CheckPanelDomainsRequestSchema)` to create a new message.
+ */
+export const CheckPanelDomainsRequestSchema: GenMessage<CheckPanelDomainsRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_import, 1);
+
+/**
+ * CheckPanelDomainsResponse is what was checked of each domain.
+ *
+ * @generated from message dockwell.v1.CheckPanelDomainsResponse
+ */
+export type CheckPanelDomainsResponse = Message<"dockwell.v1.CheckPanelDomainsResponse"> & {
+  /**
+   * Each domain the panel's proxy serves that doesn't come as a route already,
+   * by name.
+   *
+   * @generated from field: repeated dockwell.v1.PanelDomainCheck domains = 1;
+   */
+  domains: PanelDomainCheck[];
+};
+
+/**
+ * Describes the message dockwell.v1.CheckPanelDomainsResponse.
+ * Use `create(CheckPanelDomainsResponseSchema)` to create a new message.
+ */
+export const CheckPanelDomainsResponseSchema: GenMessage<CheckPanelDomainsResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_import, 2);
+
+/**
+ * PanelDomainCheck is what Dockwell checked of a domain a panel's proxy serves,
+ * before a handover.
+ *
+ * @generated from message dockwell.v1.PanelDomainCheck
+ */
+export type PanelDomainCheck = Message<"dockwell.v1.PanelDomainCheck"> & {
+  /**
+   * The domain, such as "blog.example.com".
+   *
+   * @generated from field: string domain = 1;
+   */
+  domain: string;
+
+  /**
+   * Where else a rule mentions it, beyond the imported app's own route, such as
+   * "the label traefik.http.routers.admin.rule on sso" or "the file
+   * /data/coolify/proxy/dynamic/extra.yaml".
+   *
+   * @generated from field: repeated string mentions = 2;
+   */
+  mentions: string[];
+
+  /**
+   * What answered each request through the proxy.
+   *
+   * @generated from field: repeated dockwell.v1.PanelProbe probes = 3;
+   */
+  probes: PanelProbe[];
+
+  /**
+   * Why it stays behind, or empty where nothing was found: one a person can
+   * choose to hand over.
+   *
+   * @generated from field: string held = 4;
+   */
+  held: string;
+
+  /**
+   * What the scan read, such as "labels on 12 containers and 3 services, and 9
+   * files in the proxy's mounts".
+   *
+   * @generated from field: string scanned = 5;
+   */
+  scanned: string;
+
+  /**
+   * Why one nothing held may still be guarded, such as "a request for /admin
+   * answered 404, which says nothing of a login". A person can choose it; it
+   * isn't chosen already.
+   *
+   * @generated from field: string unsure = 6;
+   */
+  unsure: string;
+
+  /**
+   * The address the proxy was asked from, such as "203.0.113.10". An address
+   * limit that lets it in, or the private networks it's on, can't be seen.
+   *
+   * @generated from field: string asked_from = 7;
+   */
+  askedFrom: string;
+};
+
+/**
+ * Describes the message dockwell.v1.PanelDomainCheck.
+ * Use `create(PanelDomainCheckSchema)` to create a new message.
+ */
+export const PanelDomainCheckSchema: GenMessage<PanelDomainCheck> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_import, 3);
+
+/**
+ * PanelProbe is a request through the panel's proxy, over HTTPS with the
+ * domain's name, from the server.
+ *
+ * @generated from message dockwell.v1.PanelProbe
+ */
+export type PanelProbe = Message<"dockwell.v1.PanelProbe"> & {
+  /**
+   * The path asked for, such as "/" or "/admin".
+   *
+   * @generated from field: string path = 1;
+   */
+  path: string;
+
+  /**
+   * What answered, such as "200", "302 to https://sso.example.com/" or "no TLS
+   * handshake".
+   *
+   * @generated from field: string answer = 2;
+   */
+  answer: string;
+
+  /**
+   * True where the answer is what anyone gets: a 2xx, or a redirect on the
+   * same host to anything but a sign-in.
+   *
+   * @generated from field: bool open = 3;
+   */
+  open: boolean;
+};
+
+/**
+ * Describes the message dockwell.v1.PanelProbe.
+ * Use `create(PanelProbeSchema)` to create a new message.
+ */
+export const PanelProbeSchema: GenMessage<PanelProbe> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_import, 4);
+
+/**
+ * PlanPanelDomainsResponse carries the planned handover.
+ *
+ * @generated from message dockwell.v1.PlanPanelDomainsResponse
+ */
+export type PlanPanelDomainsResponse = Message<"dockwell.v1.PlanPanelDomainsResponse"> & {
+  /**
+   * The change, planned for a person to apply.
+   *
+   * @generated from field: dockwell.v1.Change change = 1;
+   */
+  change?: Change | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.PlanPanelDomainsResponse.
+ * Use `create(PlanPanelDomainsResponseSchema)` to create a new message.
+ */
+export const PlanPanelDomainsResponseSchema: GenMessage<PlanPanelDomainsResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_import, 5);
 
 /**
  * PlanStartPanelRequest names the server and the panel to start there again.
@@ -46,6 +269,13 @@ export type PlanStartPanelRequest = Message<"dockwell.v1.PlanStartPanelRequest">
    * @generated from field: string summary = 3;
    */
   summary: string;
+
+  /**
+   * Start its proxy alone, which holds ports 80 and 443.
+   *
+   * @generated from field: bool proxy = 4;
+   */
+  proxy: boolean;
 };
 
 /**
@@ -53,7 +283,7 @@ export type PlanStartPanelRequest = Message<"dockwell.v1.PlanStartPanelRequest">
  * Use `create(PlanStartPanelRequestSchema)` to create a new message.
  */
 export const PlanStartPanelRequestSchema: GenMessage<PlanStartPanelRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_import, 0);
+  messageDesc(file_dockwell_v1_import, 6);
 
 /**
  * PlanStartPanelResponse carries the planned start.
@@ -74,7 +304,7 @@ export type PlanStartPanelResponse = Message<"dockwell.v1.PlanStartPanelResponse
  * Use `create(PlanStartPanelResponseSchema)` to create a new message.
  */
 export const PlanStartPanelResponseSchema: GenMessage<PlanStartPanelResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_import, 1);
+  messageDesc(file_dockwell_v1_import, 7);
 
 /**
  * PlanStopPanelRequest names the server and the panel to stop there.
@@ -109,7 +339,7 @@ export type PlanStopPanelRequest = Message<"dockwell.v1.PlanStopPanelRequest"> &
  * Use `create(PlanStopPanelRequestSchema)` to create a new message.
  */
 export const PlanStopPanelRequestSchema: GenMessage<PlanStopPanelRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_import, 2);
+  messageDesc(file_dockwell_v1_import, 8);
 
 /**
  * PlanStopPanelResponse carries the planned stop.
@@ -130,7 +360,7 @@ export type PlanStopPanelResponse = Message<"dockwell.v1.PlanStopPanelResponse">
  * Use `create(PlanStopPanelResponseSchema)` to create a new message.
  */
 export const PlanStopPanelResponseSchema: GenMessage<PlanStopPanelResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_import, 3);
+  messageDesc(file_dockwell_v1_import, 9);
 
 /**
  * ImportCoolifyRequest names the server to import from.
@@ -159,7 +389,7 @@ export type ImportCoolifyRequest = Message<"dockwell.v1.ImportCoolifyRequest"> &
  * Use `create(ImportCoolifyRequestSchema)` to create a new message.
  */
 export const ImportCoolifyRequestSchema: GenMessage<ImportCoolifyRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_import, 4);
+  messageDesc(file_dockwell_v1_import, 10);
 
 /**
  * ImportCoolifyResponse is what Coolify runs on the server, and what an import
@@ -198,7 +428,7 @@ export type ImportCoolifyResponse = Message<"dockwell.v1.ImportCoolifyResponse">
  * Use `create(ImportCoolifyResponseSchema)` to create a new message.
  */
 export const ImportCoolifyResponseSchema: GenMessage<ImportCoolifyResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_import, 5);
+  messageDesc(file_dockwell_v1_import, 11);
 
 /**
  * ImportDokployRequest names the server to import from.
@@ -226,7 +456,7 @@ export type ImportDokployRequest = Message<"dockwell.v1.ImportDokployRequest"> &
  * Use `create(ImportDokployRequestSchema)` to create a new message.
  */
 export const ImportDokployRequestSchema: GenMessage<ImportDokployRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_import, 6);
+  messageDesc(file_dockwell_v1_import, 12);
 
 /**
  * ImportDokployResponse is what Dokploy runs on the server, and what an import
@@ -262,7 +492,7 @@ export type ImportDokployResponse = Message<"dockwell.v1.ImportDokployResponse">
  * Use `create(ImportDokployResponseSchema)` to create a new message.
  */
 export const ImportDokployResponseSchema: GenMessage<ImportDokployResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_import, 7);
+  messageDesc(file_dockwell_v1_import, 13);
 
 /**
  * Panel is what a panel runs on a server, as Docker and its folders say, with
@@ -315,6 +545,32 @@ export type Panel = Message<"dockwell.v1.Panel"> & {
    * @generated from field: repeated dockwell.v1.PanelContainer own = 6;
    */
   own: PanelContainer[];
+
+  /**
+   * The domains the panel's proxy routes from its own files, such as the panel's
+   * own dashboard: what stops answering when the proxy hands over its ports.
+   *
+   * @generated from field: repeated string domains = 7;
+   */
+  domains: string[];
+
+  /**
+   * Why no domain comes over as a route, where something that could guard every
+   * domain at once can't be read in full or guards one: the proxy's static
+   * configuration, such as a middleware on an entrypoint, or one of its own
+   * files. Empty where Dockwell read all of it and found nothing.
+   *
+   * @generated from field: string proxy_left = 8;
+   */
+  proxyLeft: string;
+
+  /**
+   * What was checked of each domain, where the read was asked to check them
+   * for a handover (CheckPanelDomains).
+   *
+   * @generated from field: repeated dockwell.v1.PanelDomainCheck checks = 9;
+   */
+  checks: PanelDomainCheck[];
 };
 
 /**
@@ -322,7 +578,7 @@ export type Panel = Message<"dockwell.v1.Panel"> & {
  * Use `create(PanelSchema)` to create a new message.
  */
 export const PanelSchema: GenMessage<Panel> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_import, 8);
+  messageDesc(file_dockwell_v1_import, 14);
 
 /**
  * PanelApp is something a panel runs for people: an app, a service from its
@@ -427,6 +683,14 @@ export type PanelApp = Message<"dockwell.v1.PanelApp"> & {
   fromGit: boolean;
 
   /**
+   * Where each of its domains goes, as the panel's proxy has it: what comes over
+   * as a route once the proxy hands ports 80 and 443 to Dockwell.
+   *
+   * @generated from field: repeated dockwell.v1.PanelRoute routes = 14;
+   */
+  routes: PanelRoute[];
+
+  /**
    * The running task container of each of its Swarm services, in the order of
    * containers, or empty for one with none running: what reads as the service it
    * would be made again as.
@@ -467,7 +731,7 @@ export type PanelApp = Message<"dockwell.v1.PanelApp"> & {
  * Use `create(PanelAppSchema)` to create a new message.
  */
 export const PanelAppSchema: GenMessage<PanelApp> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_import, 9);
+  messageDesc(file_dockwell_v1_import, 15);
 
 /**
  * PanelPort is a port a Swarm service publishes.
@@ -510,7 +774,67 @@ export type PanelPort = Message<"dockwell.v1.PanelPort"> & {
  * Use `create(PanelPortSchema)` to create a new message.
  */
 export const PanelPortSchema: GenMessage<PanelPort> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_import, 10);
+  messageDesc(file_dockwell_v1_import, 16);
+
+/**
+ * PanelRoute is a domain the panel's proxy sends to one of an app's containers,
+ * read from the proxy's labels on it.
+ *
+ * @generated from message dockwell.v1.PanelRoute
+ */
+export type PanelRoute = Message<"dockwell.v1.PanelRoute"> & {
+  /**
+   * The domain, such as "blog.example.com".
+   *
+   * @generated from field: string domain = 1;
+   */
+  domain: string;
+
+  /**
+   * The path it's for, such as "/api", or empty for the whole domain.
+   *
+   * @generated from field: string path = 2;
+   */
+  path: string;
+
+  /**
+   * The container it goes to.
+   *
+   * @generated from field: string container = 3;
+   */
+  container: string;
+
+  /**
+   * The Compose service that container runs as, which a route names once it's
+   * taken on.
+   *
+   * @generated from field: string service = 4;
+   */
+  service: string;
+
+  /**
+   * The port in the container it goes to, or 0 where the labels don't say.
+   *
+   * @generated from field: uint32 port = 5;
+   */
+  port: number;
+
+  /**
+   * Why it can't come as a plain route, or empty where it can: a middleware or a
+   * directive a route would drop, such as a login or an allowlist, so what it
+   * guards would answer anyone, a stripped path, or a rule a route can't say.
+   *
+   * @generated from field: string left = 6;
+   */
+  left: string;
+};
+
+/**
+ * Describes the message dockwell.v1.PanelRoute.
+ * Use `create(PanelRouteSchema)` to create a new message.
+ */
+export const PanelRouteSchema: GenMessage<PanelRoute> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_import, 17);
 
 /**
  * PanelContainer is one of a panel's own containers or Swarm services.
@@ -546,7 +870,7 @@ export type PanelContainer = Message<"dockwell.v1.PanelContainer"> & {
  * Use `create(PanelContainerSchema)` to create a new message.
  */
 export const PanelContainerSchema: GenMessage<PanelContainer> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_import, 11);
+  messageDesc(file_dockwell_v1_import, 18);
 
 /**
  * ImportOnePanelRequest names the server to import from.
@@ -575,7 +899,7 @@ export type ImportOnePanelRequest = Message<"dockwell.v1.ImportOnePanelRequest">
  * Use `create(ImportOnePanelRequestSchema)` to create a new message.
  */
 export const ImportOnePanelRequestSchema: GenMessage<ImportOnePanelRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_import, 12);
+  messageDesc(file_dockwell_v1_import, 19);
 
 /**
  * ImportOnePanelResponse is what 1Panel keeps on the server, and what an import
@@ -614,7 +938,7 @@ export type ImportOnePanelResponse = Message<"dockwell.v1.ImportOnePanelResponse
  * Use `create(ImportOnePanelResponseSchema)` to create a new message.
  */
 export const ImportOnePanelResponseSchema: GenMessage<ImportOnePanelResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_import, 13);
+  messageDesc(file_dockwell_v1_import, 20);
 
 /**
  * ImportStep is one thing found, and what an import would do with it.
@@ -678,7 +1002,7 @@ export type ImportStep = Message<"dockwell.v1.ImportStep"> & {
  * Use `create(ImportStepSchema)` to create a new message.
  */
 export const ImportStepSchema: GenMessage<ImportStep> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_import, 14);
+  messageDesc(file_dockwell_v1_import, 21);
 
 /**
  * OnePanel is what 1Panel keeps on a server, as its records say, with nothing
@@ -778,7 +1102,7 @@ export type OnePanel = Message<"dockwell.v1.OnePanel"> & {
  * Use `create(OnePanelSchema)` to create a new message.
  */
 export const OnePanelSchema: GenMessage<OnePanel> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_import, 15);
+  messageDesc(file_dockwell_v1_import, 22);
 
 /**
  * OnePanelCompose is a Compose project made on 1Panel's Containers page, which
@@ -807,7 +1131,7 @@ export type OnePanelCompose = Message<"dockwell.v1.OnePanelCompose"> & {
  * Use `create(OnePanelComposeSchema)` to create a new message.
  */
 export const OnePanelComposeSchema: GenMessage<OnePanelCompose> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_import, 16);
+  messageDesc(file_dockwell_v1_import, 23);
 
 /**
  * OnePanelApp is an install of an app from 1Panel's store.
@@ -892,7 +1216,7 @@ export type OnePanelApp = Message<"dockwell.v1.OnePanelApp"> & {
  * Use `create(OnePanelAppSchema)` to create a new message.
  */
 export const OnePanelAppSchema: GenMessage<OnePanelApp> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_import, 17);
+  messageDesc(file_dockwell_v1_import, 24);
 
 /**
  * OnePanelRuntime is a runtime: a Compose project that runs a language.
@@ -962,7 +1286,7 @@ export type OnePanelRuntime = Message<"dockwell.v1.OnePanelRuntime"> & {
  * Use `create(OnePanelRuntimeSchema)` to create a new message.
  */
 export const OnePanelRuntimeSchema: GenMessage<OnePanelRuntime> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_import, 18);
+  messageDesc(file_dockwell_v1_import, 25);
 
 /**
  * OnePanelWebsite is a website 1Panel's OpenResty serves.
@@ -1069,7 +1393,7 @@ export type OnePanelWebsite = Message<"dockwell.v1.OnePanelWebsite"> & {
  * Use `create(OnePanelWebsiteSchema)` to create a new message.
  */
 export const OnePanelWebsiteSchema: GenMessage<OnePanelWebsite> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_import, 19);
+  messageDesc(file_dockwell_v1_import, 26);
 
 /**
  * OnePanelDomain is a domain a website answers, on a port.
@@ -1104,7 +1428,7 @@ export type OnePanelDomain = Message<"dockwell.v1.OnePanelDomain"> & {
  * Use `create(OnePanelDomainSchema)` to create a new message.
  */
 export const OnePanelDomainSchema: GenMessage<OnePanelDomain> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_import, 20);
+  messageDesc(file_dockwell_v1_import, 27);
 
 /**
  * OnePanelCertificate is a certificate 1Panel keeps for websites. Its key and
@@ -1172,7 +1496,7 @@ export type OnePanelCertificate = Message<"dockwell.v1.OnePanelCertificate"> & {
  * Use `create(OnePanelCertificateSchema)` to create a new message.
  */
 export const OnePanelCertificateSchema: GenMessage<OnePanelCertificate> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_import, 21);
+  messageDesc(file_dockwell_v1_import, 28);
 
 /**
  * OnePanelDatabaseServer is a database server 1Panel knows: one of its store's,
@@ -1229,7 +1553,7 @@ export type OnePanelDatabaseServer = Message<"dockwell.v1.OnePanelDatabaseServer
  * Use `create(OnePanelDatabaseServerSchema)` to create a new message.
  */
 export const OnePanelDatabaseServerSchema: GenMessage<OnePanelDatabaseServer> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_import, 22);
+  messageDesc(file_dockwell_v1_import, 29);
 
 /**
  * OnePanelDatabase is a database on one of 1Panel's database servers, and the
@@ -1279,7 +1603,7 @@ export type OnePanelDatabase = Message<"dockwell.v1.OnePanelDatabase"> & {
  * Use `create(OnePanelDatabaseSchema)` to create a new message.
  */
 export const OnePanelDatabaseSchema: GenMessage<OnePanelDatabase> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_import, 23);
+  messageDesc(file_dockwell_v1_import, 30);
 
 /**
  * OnePanelCronJob is a job 1Panel's own scheduler runs. Its script, command and
@@ -1400,7 +1724,7 @@ export type OnePanelCronJob = Message<"dockwell.v1.OnePanelCronJob"> & {
  * Use `create(OnePanelCronJobSchema)` to create a new message.
  */
 export const OnePanelCronJobSchema: GenMessage<OnePanelCronJob> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_import, 24);
+  messageDesc(file_dockwell_v1_import, 31);
 
 /**
  * PanelKind is a panel an import reads from Docker and its folders.
@@ -1474,6 +1798,14 @@ export enum ImportWaitsFor {
    * @generated from enum value: IMPORT_WAITS_FOR_FIREWALL = 4;
    */
   FIREWALL = 4,
+
+  /**
+   * The panel's proxy handing ports 80 and 443 to Dockwell, a step of its own
+   * (PlanPanelDomains).
+   *
+   * @generated from enum value: IMPORT_WAITS_FOR_PORTS = 5;
+   */
+  PORTS = 5,
 }
 
 /**
@@ -1562,6 +1894,13 @@ export enum ImportKind {
    * @generated from enum value: IMPORT_KIND_CONTAINERS = 10;
    */
   CONTAINERS = 10,
+
+  /**
+   * A domain the panel's proxy serves, which comes as a route.
+   *
+   * @generated from enum value: IMPORT_KIND_DOMAIN = 11;
+   */
+  DOMAIN = 11,
 }
 
 /**
@@ -1676,11 +2015,50 @@ export const ImportService: GenService<{
     output: typeof ImportDokployResponseSchema;
   },
   /**
-   * PlanStartPanel plans starting the panel an import came from again: each of
-   * its own containers or services that's stopped starts, a container with the
-   * restart policy its installer gives it where a stop left it at no. It's the
-   * way back where no undo is: a change that failed partway, or an undo after
-   * its window. A person applies it.
+   * CheckPanelDomains checks each domain a panel's proxy serves, before a
+   * handover (ADR 0089): a scan of every label on the server and every file in
+   * the proxy's mounts for another rule that mentions it, the proxy's static
+   * configuration, and a request through the proxy over HTTPS for / and each
+   * path a rule names for it. Each request is a GET, as anyone's browser sends,
+   * whose answer is read and not followed. Each says what was checked, and why
+   * it stays behind where it does; one that doesn't is what a person can choose
+   * to hand over with PlanPanelDomains. It changes nothing of Dockwell's or the
+   * panel's, though an app that acts on a GET for one of its paths acts on it.
+   *
+   * @generated from rpc dockwell.v1.ImportService.CheckPanelDomains
+   */
+  checkPanelDomains: {
+    methodKind: "unary";
+    input: typeof CheckPanelDomainsRequestSchema;
+    output: typeof CheckPanelDomainsResponseSchema;
+  },
+  /**
+   * PlanPanelDomains plans handing over the domains of what was taken on from a
+   * panel: one change that stops the panel's proxy, which holds ports 80 and 443,
+   * and makes a route to each taken-on app's service for each domain a person
+   * chose, as the proxy's labels send it, so Dockwell's ingress takes the ports
+   * and gets a certificate for each. Each chosen domain must be one
+   * CheckPanelDomains found nothing for; the plan keeps a digest of what was
+   * checked, and the agent checks again just before it stops the proxy, and
+   * refuses where anything changed. Every other domain the proxy serves stops
+   * answering, which the plan says. Undoing it deletes those routes and starts
+   * the proxy again. A person applies it.
+   *
+   * @generated from rpc dockwell.v1.ImportService.PlanPanelDomains
+   */
+  planPanelDomains: {
+    methodKind: "unary";
+    input: typeof PlanPanelDomainsRequestSchema;
+    output: typeof PlanPanelDomainsResponseSchema;
+  },
+  /**
+   * PlanStartPanel plans starting the panel an import came from again, or its
+   * proxy alone: each of its own containers or services that's stopped starts, a
+   * container with the restart policy it had, or always where a stop left it at
+   * no. It's the way back where no undo is: a change that failed partway, or an
+   * undo after its window. A proxy's start is refused while Dockwell's ingress
+   * serves routes on the server, as they hold ports 80 and 443. A person applies
+   * it.
    *
    * @generated from rpc dockwell.v1.ImportService.PlanStartPanel
    */
