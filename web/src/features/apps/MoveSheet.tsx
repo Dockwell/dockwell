@@ -2,7 +2,7 @@
 
 import { createClient } from "@connectrpc/connect";
 import { useTransport } from "@connectrpc/connect-query";
-import { ChangeState, type MoveBlock, type ServiceInfo, ServiceService } from "@dockwell/api";
+import { ChangeService, ChangeState, type MoveBlock, type ServiceInfo, ServiceService } from "@dockwell/api";
 import {
   Button,
   Callout,
@@ -30,9 +30,10 @@ const NEW = "new";
 
 /**
  * Moves an app to another project or environment, data, domains and all, in one plan
- * with undo (ADR 0084, #572). One choice, where it goes, a project of its own by
- * default; what holds it back shows as a line each, with the service to move too
- * beside it, as a button that does it.
+ * with undo (ADR 0084, #572). One choice, where it goes: a project of its own by
+ * default for an admin, who alone makes one, and otherwise the first environment the
+ * person may move it to; what holds it back shows as a line each, with the service
+ * to move too beside it, as a button that does it.
  */
 export function MoveSheet({ service, onClose }: { service: ServiceInfo; onClose: () => void }) {
   const { t } = useLingui();
@@ -40,11 +41,17 @@ export function MoveSheet({ service, onClose }: { service: ServiceInfo; onClose:
   const phone = useMediaQuery(PHONE_QUERY);
   const client = useMemo(() => createClient(ServiceService, transport), [transport]);
   const places = usePlaces();
+  const may = useMay();
   const name = nameOf(service);
   const here = environmentOf(service);
-  const elsewhere = places.environments.filter((e) => e.id !== here);
+  // A new project is an admin's to make; anyone else picks among where they may move it.
+  const makes = may(ChangeService.method.proposeChange, { install: true }).allowed;
+  const elsewhere = places.environments.filter(
+    (e) => e.id !== here && may(ServiceService.method.moveService, { environment: e.id }).allowed,
+  );
   const taken = (project: string) => places.environments.some((e) => e.project === project);
-  const [where, setWhere] = useState(NEW);
+  const [picked, setWhere] = useState<string>();
+  const where = picked ?? (makes ? NEW : (elsewhere[0]?.id ?? ""));
   const [project, setProject] = useState(name);
   const [also, setAlso] = useState<string[]>([]);
   const [blocks, setBlocks] = useState<MoveBlock[]>([]);
@@ -117,7 +124,7 @@ export function MoveSheet({ service, onClose }: { service: ServiceInfo; onClose:
             variant="primary"
             size={phone ? "lg" : "md"}
             loading={busy}
-            disabled={Boolean(clash) || (where === NEW && !project)}
+            disabled={Boolean(clash) || (where === NEW && !project) || where === ""}
             kbd={phone ? undefined : onApple() ? "⌘↵" : "Ctrl ↵"}
             onClick={() => void ask(also)}
           >
@@ -134,13 +141,18 @@ export function MoveSheet({ service, onClose }: { service: ServiceInfo; onClose:
         }}
       >
         {failure ? <Callout tone="critical">{failure}</Callout> : null}
+        {!makes && elsewhere.length === 0 && !places.isPending ? (
+          <Callout tone="info" title={t`Nowhere else you hold`}>
+            <Trans>Ask an admin for a role in the project it goes to.</Trans>
+          </Callout>
+        ) : null}
         <SelectField
           ref={field}
           label={t`Where it goes`}
           value={where}
           error={where === NEW ? undefined : fieldError}
           options={[
-            { value: NEW, label: t`A new project` },
+            ...(makes ? [{ value: NEW, label: t`A new project` }] : []),
             ...elsewhere.map((e) => ({ value: e.id, label: e.label || e.project })),
           ]}
           onChange={(event) => {

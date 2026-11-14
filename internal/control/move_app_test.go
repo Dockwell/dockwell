@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"connectrpc.com/connect"
 
@@ -63,6 +64,22 @@ func TestMovingAnAppThroughTheAPI(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(e.VolumeDir(old), "orders.db"), []byte("the orders"), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	var oldID string
+	for _, r := range first.GetPlan().GetResources() {
+		if r.GetResource().GetKind() == string(volume.Kind) && r.GetResource().GetName() == "data" {
+			oldID = r.GetId()
+		}
+	}
+	// A backup from before the move goes with the volume.
+	bc := backupClient(b, b.origin)
+	made, err := bc.CreateBackup(t.Context(), connect.NewRequest(&dockwellv1.CreateBackupRequest{VolumeId: oldID}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	before := waitBackup(t, bc, made.Msg.GetBackup().GetId())
+	if before.GetState() != dockwellv1.BackupState_BACKUP_STATE_DONE {
+		t.Fatalf("the backup before the move: %v", before)
+	}
 	svc := dockwellv1connect.NewServiceServiceClient(b, b.origin, connect.WithProtoJSON())
 	res, err := svc.MoveService(t.Context(), connect.NewRequest(&dockwellv1.MoveServiceRequest{Id: "web", NewProject: "shop"}))
 	if err != nil {
@@ -100,6 +117,31 @@ func TestMovingAnAppThroughTheAPI(t *testing.T) {
 	if worker := e.Newest(docker.Project(env), "worker"); worker == nil {
 		t.Error("the worker left with it")
 	}
+	// Its backup from before is the moved volume's, listed and restored where it went.
+	var movedID string
+	for _, r := range m.GetChange().GetPlan().GetResources() {
+		if r.GetResource().GetKind() == string(volume.Kind) && r.GetAction() == dockwellv1.PlanAction_PLAN_ACTION_CREATE {
+			movedID = r.GetId()
+		}
+	}
+	listed, err := bc.ListBackups(t.Context(), connect.NewRequest(&dockwellv1.ListBackupsRequest{EnvironmentId: to}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bs := listed.Msg.GetBackups(); len(bs) != 1 || bs[0].GetId() != before.GetId() || bs[0].GetVolumeId() != movedID {
+		t.Fatalf("where it went, the backups are %v", bs)
+	}
+	if err := os.WriteFile(filepath.Join(e.VolumeDir(moved), "orders.db"), []byte("changed since"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	restoring, err := bc.RestoreBackup(t.Context(), connect.NewRequest(&dockwellv1.RestoreBackupRequest{Id: before.GetId()}))
+	if err != nil {
+		t.Fatalf("restoring the backup from before where it went: %v", err)
+	}
+	applyReviewed(t, ch, restoring.Msg.GetChange())
+	if got, _ := os.ReadFile(filepath.Join(e.VolumeDir(moved), "orders.db")); string(got) != "the orders" {
+		t.Errorf("restored where it went, the volume holds %q", got)
+	}
 
 	// Undone, it's all back, data and all.
 	undone, err := ch.UndoChange(t.Context(), connect.NewRequest(&dockwellv1.UndoChangeRequest{Id: m.GetChange().GetId()}))
@@ -109,6 +151,10 @@ func TestMovingAnAppThroughTheAPI(t *testing.T) {
 	applyReviewed(t, ch, undone.Msg.GetChange())
 	if got, _ := os.ReadFile(filepath.Join(e.VolumeDir(old), "orders.db")); string(got) != "the orders" {
 		t.Errorf("undone, the old volume holds %q", got)
+	}
+	// And its backups are the old volume's again.
+	if back, err := bc.ListBackups(t.Context(), connect.NewRequest(&dockwellv1.ListBackupsRequest{VolumeId: oldID})); err != nil || len(back.Msg.GetBackups()) != 1 || back.Msg.GetBackups()[0].GetEnvironmentId() != env {
+		t.Errorf("undone, the old volume's backups are %v, %v", back.Msg.GetBackups(), err)
 	}
 
 	// A worker that mounts its volume too holds it back.
@@ -364,6 +410,25 @@ func TestMovingAnAppLeavesItsSharedDatabaseLinked(t *testing.T) {
 		service("reporter", "ghcr.io/acme/worker:1.0", []string{"side"}, map[string]string{"REPORT_HOST": ""}, nil),
 	))
 
+	// A dump of web's database alone, taken for its link, follows the link.
+	linkID := func(scope string) string {
+		t.Helper()
+		var id string
+		if err := f.store.View(t.Context(), func(tx *store.Tx) error {
+			r, err := tx.GetResource(t.Context(), "link", scope, "db")
+			id = r.ID
+			return err
+		}); err != nil {
+			t.Fatal(err)
+		}
+		return id
+	}
+	now := time.Now()
+	if err := f.store.Update(t.Context(), func(tx *store.Tx) error {
+		return tx.CreateBackup(t.Context(), store.Backup{ID: "bkp_web", EnvironmentID: env, Volume: "db-data", VolumeID: "res_db_data", ServerID: f.lastDocker.id.ServerID, State: store.BackupDone, StartedAt: now, OneDatabase: "web", ForLink: linkID(env)})
+	}); err != nil {
+		t.Fatal(err)
+	}
 	svc := dockwellv1connect.NewServiceServiceClient(b, b.origin, connect.WithProtoJSON())
 	res, err := svc.MoveService(t.Context(), connect.NewRequest(&dockwellv1.MoveServiceRequest{Id: "web", Project: "shop", NewProject: "web"}))
 	if err != nil {
@@ -409,5 +474,131 @@ func TestMovingAnAppLeavesItsSharedDatabaseLinked(t *testing.T) {
 	}
 	if reporter := e.Newest(docker.Project(env), "reporter"); reporter == nil {
 		t.Error("the reporter left")
+	}
+	var dump store.Backup
+	if err := f.store.View(t.Context(), func(tx *store.Tx) (err error) {
+		dump, err = tx.GetBackup(t.Context(), "bkp_web")
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if dump.ForLink != linkID(to) {
+		t.Errorf("the dump taken for web's link is %s's, not the moved link's %s", dump.ForLink, linkID(to))
+	}
+}
+
+// A developer of one project moving an app learns nothing of projects they don't
+// hold: a place elsewhere reads as one that isn't there, a choice names only their
+// own, and making a project for it is an admin's, said before its name is read (the
+// review of #572, its M1).
+func TestMovingAnAppSaysNothingOfOthersProjects(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	f.addDockerServer(t)
+	ch := changeClient(b, b.origin)
+	compose := dockwellv1connect.NewComposeServiceClient(b, b.origin, connect.WithProtoJSON())
+	envOf := map[string]string{}
+	for _, project := range []string{"shop", "hidden"} {
+		res, err := compose.ImportCompose(t.Context(), connect.NewRequest(&dockwellv1.ImportComposeRequest{Project: project, Compose: moveStack}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		apply(t, ch, res.Msg.GetChange())
+		for _, r := range res.Msg.GetChange().GetPlan().GetResources() {
+			if r.GetResource().GetKind() == "service" {
+				envOf[project] = r.GetResource().GetScope()
+			}
+		}
+	}
+	aMember(t, f)(store.Grant{ProjectID: envProject(t, f, envOf["shop"]), Role: store.RoleDeveloper})
+	svc := dockwellv1connect.NewServiceServiceClient(b, b.origin, connect.WithProtoJSON())
+	move := func(req *dockwellv1.MoveServiceRequest) error {
+		t.Helper()
+		req.Id, req.Project = "web", "shop"
+		_, err := svc.MoveService(t.Context(), connect.NewRequest(req))
+		return err
+	}
+	for _, to := range []*dockwellv1.MoveServiceRequest{{ToProject: "nosuch"}, {ToProject: "hidden"}, {ToEnvironment: envOf["hidden"]}} {
+		err := move(to)
+		if connect.CodeOf(err) != connect.CodeNotFound || strings.Contains(err.Error(), "default") || strings.Contains(err.Error(), envOf["hidden"]) && to.GetToEnvironment() == "" {
+			t.Errorf("moving to %v = %v, want not found, naming no other project", to, err)
+		}
+		if to.GetToProject() == "nosuch" && strings.Contains(err.Error(), "hidden") {
+			t.Errorf("moving to nosuch names hidden: %v", err)
+		}
+	}
+	if err := move(&dockwellv1.MoveServiceRequest{NewProject: "hidden"}); connect.CodeOf(err) != connect.CodePermissionDenied || strings.Contains(err.Error(), "already") {
+		t.Errorf("a developer making a project = %v, want refused before its name is read", err)
+	}
+}
+
+// Deleting what another project's app uses too stops that app, which needs a
+// developer's role where its link is, whatever else the plan holds: here the app
+// reads no value of the server's, so nothing else in the plan asks for one (the
+// review of #572, its M3). Refused, it names neither the app nor its project.
+func TestDeletingWhatOthersUseNeedsARoleWhereTheyAre(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	pg := &pgState{roles: map[string]string{"postgres": ""}, databases: map[string]string{"postgres": "postgres"}}
+	e.Registry["postgres:17"] = pg.image()
+	e.Registry["redis:7"] = dockertest.Image{Config: docker.Config{Cmd: []string{"redis-server"}}}
+	ch := changeClient(b, b.origin)
+	compose := dockwellv1connect.NewComposeServiceClient(b, b.origin, connect.WithProtoJSON())
+	serviceEnv := func(c *dockwellv1.Change) string {
+		for _, r := range c.GetPlan().GetResources() {
+			if r.GetResource().GetKind() == "service" {
+				return r.GetResource().GetScope()
+			}
+		}
+		t.Fatalf("no service in %v", c.GetPlan().GetResources())
+		return ""
+	}
+	app, err := compose.ImportCompose(t.Context(), connect.NewRequest(&dockwellv1.ImportComposeRequest{Project: "reporting", Compose: moveStack}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	apply(t, ch, app.Msg.GetChange())
+	data, err := compose.ImportCompose(t.Context(), connect.NewRequest(&dockwellv1.ImportComposeRequest{Project: "data", Compose: moveStack}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	apply(t, ch, data.Msg.GetChange())
+	dataProject := envProject(t, f, serviceEnv(data.Msg.GetChange()))
+	apply(t, ch, propose(t, ch, "A staging environment", &dockwellv1.Edit{
+		Resource: &dockwellv1.ResourceRef{Kind: "environment", Scope: dataProject, Name: "staging"},
+		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Environment{Environment: &resourcev1.Environment{}}},
+	}))
+	staging, err := compose.ImportCompose(t.Context(), connect.NewRequest(&dockwellv1.ImportComposeRequest{Project: "data", Environment: "staging", Compose: databaseStack, Variables: map[string]string{"DB_PASSWORD": "the-administrators"}}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	apply(t, ch, staging.Msg.GetChange())
+	stagingEnv, appEnv := serviceEnv(staging.Msg.GetChange()), serviceEnv(app.Msg.GetChange())
+	apply(t, ch, propose(t, ch, "Reach staging's database",
+		&dockwellv1.Edit{Resource: &dockwellv1.ResourceRef{Kind: "variable", Scope: appEnv, Name: "REPORT_HOST"}, Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Variable{Variable: &resourcev1.Variable{Value: "db"}}}},
+		&dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Kind: "link", Scope: appEnv, Name: "reports"},
+			Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Link{Link: &resourcev1.Link{
+				Label: "Database", Service: "db", MeetsEnvironment: stagingEnv, Engine: resourcev1.LinkEngine_LINK_ENGINE_POSTGRESQL,
+				Accepts: []*resourcev1.LinkAccept{{Engine: resourcev1.LinkEngine_LINK_ENGINE_POSTGRESQL}},
+				Sets:    []*resourcev1.LinkSet{{Name: "REPORT_HOST", Part: resourcev1.LinkPart_LINK_PART_HOST}},
+			}}},
+		}))
+
+	hold := aMember(t, f)
+	deleteStaging := func() error {
+		_, err := ch.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Delete staging", Edits: []*dockwellv1.Edit{{
+			Resource: &dockwellv1.ResourceRef{Kind: "environment", Scope: dataProject, Name: "staging"}, Delete: true, WithContents: true, DeleteShared: true,
+		}}}))
+		return err
+	}
+	hold(store.Grant{ProjectID: dataProject, Role: store.RoleDeveloper})
+	if err := deleteStaging(); connect.CodeOf(err) != connect.CodePermissionDenied || strings.Contains(err.Error(), "reports") || strings.Contains(err.Error(), "reporting") {
+		t.Errorf("a developer of data alone deleting what reporting uses = %v, want refused, naming neither", err)
+	}
+	hold(store.Grant{ProjectID: dataProject, Role: store.RoleDeveloper}, store.Grant{ProjectID: envProject(t, f, appEnv), Role: store.RoleDeveloper})
+	if err := deleteStaging(); err != nil {
+		t.Errorf("a developer of both deleting it = %v", err)
 	}
 }

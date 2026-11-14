@@ -3,6 +3,8 @@
 package backup
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,6 +14,12 @@ import (
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/volume"
+)
+
+// The volume data of env_shop, and of env_store, where it moves.
+var (
+	shopData  = resource.Ref{Kind: volume.Kind, Scope: "env_shop", Name: "data"}
+	storeData = resource.Ref{Kind: volume.Kind, Scope: "env_store", Name: "data"}
 )
 
 // moving makes a volume of the environment env_shop, as Dockwell makes one, holding a
@@ -62,10 +70,18 @@ func TestAMoveRenamesTheVolumesFolderInPlace(t *testing.T) {
 		t.Fatalf("judging the move = %+v, %v, %v", move, left, err)
 	}
 	b.make(t, to, nil)
+	// A backup kept of the old volume, which moves with its data.
+	kept := filepath.Join(b.runner.dir(shopData), "bkp_1.json")
+	if err := os.MkdirAll(filepath.Dir(kept), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(kept, []byte("{}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 
 	// A container that mounts the old volume stops the move, with nothing changed.
 	inUse := b.engine.AddContainer(docker.Container{ID: "user", Name: "/user", Mounts: []docker.MountPoint{{Type: "volume", Name: from, Destination: "/data"}}})
-	if err := b.runner.MoveData(t.Context(), move, to); err == nil || !strings.Contains(err.Error(), "a container mounts "+from) {
+	if err := b.runner.MoveData(t.Context(), move, storeData, to); err == nil || !strings.Contains(err.Error(), "a container mounts "+from) {
 		t.Errorf("moving while a container mounts it = %v", err)
 	}
 	if err := b.client.RemoveContainer(t.Context(), inUse.ID, true); err != nil {
@@ -75,7 +91,7 @@ func TestAMoveRenamesTheVolumesFolderInPlace(t *testing.T) {
 		t.Fatal("a refused move changed something")
 	}
 
-	if err := b.runner.MoveData(t.Context(), move, to); err != nil {
+	if err := b.runner.MoveData(t.Context(), move, storeData, to); err != nil {
 		t.Fatal(err)
 	}
 	if b.holds(to.Name) != "the orders" {
@@ -84,10 +100,16 @@ func TestAMoveRenamesTheVolumesFolderInPlace(t *testing.T) {
 	if entries, err := os.ReadDir(b.engine.VolumeDir(from)); err != nil || len(entries) != 0 {
 		t.Errorf("the old volume holds %v, %v", entries, err)
 	}
+	if _, err := os.Stat(filepath.Join(b.runner.dir(storeData), "bkp_1.json")); err != nil {
+		t.Errorf("the backup kept of the old volume didn't move with it: %v", err)
+	}
+	if _, err := os.Stat(b.runner.dir(shopData)); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("the old volume's backups folder stayed: %v", err)
+	}
 	if _, left, err := b.runner.JudgeMoveData(t.Context(), from, to, &resourcev1.Volume{}); left || err != nil {
 		t.Errorf("judging a move that's done = %v, %v", left, err)
 	}
-	if err := b.runner.MoveData(t.Context(), move, to); err != nil || b.holds(to.Name) != "the orders" {
+	if err := b.runner.MoveData(t.Context(), move, storeData, to); err != nil || b.holds(to.Name) != "the orders" {
 		t.Errorf("a move run again = %v, and the new volume holds %q", err, b.holds(to.Name))
 	}
 
@@ -96,18 +118,21 @@ func TestAMoveRenamesTheVolumesFolderInPlace(t *testing.T) {
 	if err != nil || !left || back.How != resource.MoveInPlace {
 		t.Fatalf("judging the move back = %+v, %v, %v", back, left, err)
 	}
-	if err := b.runner.MoveData(t.Context(), back, volume.TargetOf(resource.Ref{Kind: volume.Kind, Scope: "env_shop", Name: "data"})); err != nil {
+	if err := b.runner.MoveData(t.Context(), back, shopData, volume.TargetOf(shopData)); err != nil {
 		t.Fatal(err)
 	}
 	if b.holds(from) != "the orders" || b.holds(to.Name) != "" {
 		t.Errorf("moved back, the old volume holds %q and the new %q", b.holds(from), b.holds(to.Name))
+	}
+	if _, err := os.Stat(kept); err != nil {
+		t.Errorf("moved back, the backup isn't the old volume's again: %v", err)
 	}
 
 	// Files in the new volume stay, and nothing moves over them.
 	if err := os.WriteFile(filepath.Join(b.engine.VolumeDir(to.Name), "theirs"), []byte("x"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := b.runner.MoveData(t.Context(), move, to); err == nil || !strings.Contains(err.Error(), "already holds files") {
+	if err := b.runner.MoveData(t.Context(), move, storeData, to); err == nil || !strings.Contains(err.Error(), "already holds files") {
 		t.Errorf("moving over files = %v", err)
 	}
 	if b.holds(from) != "the orders" {
@@ -130,7 +155,7 @@ func TestAMoveCutShortAfterItsRenameFinishes(t *testing.T) {
 		t.Fatal(err)
 	}
 	move := resource.VolumeMove{From: from, How: resource.MoveInPlace}
-	if err := b.runner.MoveData(t.Context(), move, to); err != nil {
+	if err := b.runner.MoveData(t.Context(), move, storeData, to); err != nil {
 		t.Fatal(err)
 	}
 	if fi, err := os.Stat(filepath.Join(filepath.Dir(dst), from)); err != nil || !fi.IsDir() {
@@ -152,7 +177,7 @@ func TestAMoveCopiesWhatItCantRename(t *testing.T) {
 		t.Fatalf("judging the copy = %+v, %v, %v", move, left, err)
 	}
 	b.make(t, to, nil)
-	if err := b.runner.MoveData(t.Context(), move, to); err != nil {
+	if err := b.runner.MoveData(t.Context(), move, storeData, to); err != nil {
 		t.Fatal(err)
 	}
 	if b.holds(to.Name) != "the orders" || b.holds(from) != "" {
@@ -177,6 +202,10 @@ func TestAMoveCopiesWhatItCantRename(t *testing.T) {
 	if _, left, err := b.runner.JudgeMoveData(t.Context(), to.Name, back, &resourcev1.Volume{}); left || err != nil {
 		t.Errorf("moving back a copy cut short = %v, %v", left, err)
 	}
+	// Given up, its record goes, so a move into to again doesn't carry on from it.
+	if rec, err := b.runner.readMove(to.Name); rec != nil || err != nil {
+		t.Errorf("a copy given up keeps its record %+v, %v", rec, err)
+	}
 
 	// One that finished copying, and hadn't emptied the old volume: the new one has it
 	// all, and moving back empties the old one first.
@@ -190,7 +219,7 @@ func TestAMoveCopiesWhatItCantRename(t *testing.T) {
 	if err != nil || !left || moveBack.How != resource.MoveCopy {
 		t.Fatalf("judging the move back = %+v, %v, %v", moveBack, left, err)
 	}
-	if err := b.runner.MoveData(t.Context(), moveBack, back); err != nil {
+	if err := b.runner.MoveData(t.Context(), moveBack, shopData, back); err != nil {
 		t.Fatal(err)
 	}
 	if b.holds(from) != "the orders" || b.holds(to.Name) != "" {
@@ -213,11 +242,30 @@ func TestAMoveKeepsAVolumesOptions(t *testing.T) {
 		t.Errorf("moving into a volume without its options = %v", err)
 	}
 	b.make(t, to, options)
-	if err := b.runner.MoveData(t.Context(), move, to); err != nil {
+	if err := b.runner.MoveData(t.Context(), move, storeData, to); err != nil {
 		t.Fatal(err)
 	}
 	if _, left, err := b.runner.JudgeMoveData(t.Context(), from, to, &resourcev1.Volume{Options: options}); left || err != nil {
 		t.Errorf("judging it once made = %v, %v", left, err)
+	}
+
+	// Options that may not reach the same data from another volume, as another
+	// driver's that makes a disk, or the local driver's tmpfs or block device, are
+	// refused, before anything stops (the review of #572, its M2).
+	for name, made := range map[string]docker.VolumeCreate{
+		"a disk":       {Driver: "rexray/ebs", DriverOpts: map[string]string{"size": "10"}},
+		"a tmpfs":      {DriverOpts: map[string]string{"type": "tmpfs", "device": "tmpfs"}},
+		"a block disk": {DriverOpts: map[string]string{"type": "ext4", "device": "/dev/sdb1"}},
+	} {
+		src := volume.TargetOf(resource.Ref{Kind: volume.Kind, Scope: "env_disk", Name: strings.ReplaceAll(name, " ", "-")})
+		made.Name, made.Labels = src.Name, map[string]string{docker.LabelProject: src.Project, docker.LabelVolume: src.Key}
+		if _, err := b.client.CreateVolume(t.Context(), &made); err != nil {
+			t.Fatal(err)
+		}
+		spec := &resourcev1.Volume{Driver: made.Driver, Options: made.DriverOpts}
+		if _, _, err := b.runner.JudgeMoveData(t.Context(), src.Name, to, spec); err == nil || !strings.Contains(err.Error(), "may not reach the same data") {
+			t.Errorf("moving %s = %v", name, err)
+		}
 	}
 
 	if _, err := b.client.CreateVolume(t.Context(), &docker.VolumeCreate{Name: "someones"}); err != nil {

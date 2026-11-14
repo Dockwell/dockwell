@@ -4163,6 +4163,9 @@ msgstr "latest"
 msgid "A new project"
 msgstr "新项目"
 
+msgid "Ask an admin for a role in the project it goes to."
+msgstr "请管理员为你分配目标项目中的角色。"
+
 msgid "Choose again"
 msgstr "重新选择"
 
@@ -4177,6 +4180,9 @@ msgstr "同时移动 {others}"
 
 msgid "Nothing moves until you apply the plan"
 msgstr "应用计划之前不会移动任何内容"
+
+msgid "Nowhere else you hold"
+msgstr "没有你有权限的其他位置"
 
 msgid "Project name"
 msgstr "项目名称"
