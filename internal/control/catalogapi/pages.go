@@ -15,9 +15,11 @@ import (
 	"sync"
 
 	"connectrpc.com/connect"
+	"google.golang.org/protobuf/proto"
 
 	catalogv1 "github.com/dockwell/dockwell/gen/dockwell/catalog/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/internal/control/place"
 	"github.com/dockwell/dockwell/internal/scope"
 	"github.com/dockwell/dockwell/internal/store"
 )
@@ -105,15 +107,28 @@ func (in *indexed) wordsIn(language string) string {
 }
 
 // indexKey says what the catalog holds, so the index is made again only when it
-// changes: each entry and alternative, by ID, version, release, name and catalog.
+// changes: each entry and each alternative whole, marshalled deterministically, with
+// the catalog it comes from, as a search reads its summary, category, features and
+// words in other languages too (the review of #621).
 func indexKey(s sourced) [32]byte {
 	h := sha256.New()
+	marshal := proto.MarshalOptions{Deterministic: true}
+	var buf []byte
+	write := func(e *catalogv1.Entry, from string) {
+		var err error
+		if buf, err = marshal.MarshalAppend(buf[:0], e); err != nil {
+			// What can't be marshalled can't be compared: no key matches it twice.
+			fmt.Fprintf(h, "%p", e)
+		}
+		fmt.Fprintf(h, "%s\x00%d\x00", from, len(buf))
+		h.Write(buf)
+	}
 	for _, e := range s.catalog.All() {
-		fmt.Fprintf(h, "%s\x00%s\x00%d\x00%s\x00%s\x00%s\x01", e.GetId(), e.GetVersion(), e.GetRelease(), e.GetName(), s.origins[e.GetId()].catalog, e.GetIcon())
+		write(e, s.origins[e.GetId()].catalog)
 	}
 	for _, id := range sortedKeys(s.also) {
 		for _, a := range s.also[id] {
-			fmt.Fprintf(h, "%s\x00%s\x00%s\x00%d\x01", id, a.from.catalog, a.entry.GetVersion(), a.entry.GetRelease())
+			write(a.entry, id+"\x00"+a.from.catalog)
 		}
 	}
 	var key [32]byte
@@ -232,9 +247,9 @@ func (idx *catalogIndex) page(req *dockwellv1.ListCatalogEntriesRequest, install
 		})
 	}
 	total := len(matched)
-	if offset > total {
-		return nil, errors.New("page_token is past the last entry, as the catalog changed since. Leave it out to start at the first page")
-	}
+	// A token past the end, where the catalog shrank since the page before, is the
+	// last page: empty, with nothing after it, as the grid keeps what it has.
+	offset = min(offset, total)
 	end := total
 	if size := int(req.GetPageSize()); size > 0 {
 		end = min(offset+min(size, mostPage), total)
@@ -255,8 +270,12 @@ func (idx *catalogIndex) page(req *dockwellv1.ListCatalogEntriesRequest, install
 
 // installedHere is how many projects run each app from the catalog its entry comes
 // from, by the entry's ID: an install of an app of the same ID from another catalog
-// is another app.
+// is another app. It counts only the projects the caller holds a role in, as an
+// install admin holds every one, so neither the installed filter nor the featured
+// order says what another project runs (ADR 0049).
 func (h *Handler) installedHere(ctx context.Context, s sourced) (map[string]int, error) {
+	caller, ok := place.CallerFrom(ctx)
+	everything := !ok || store.RoleRank(place.Holds(caller.Grants, place.Install)) >= store.RoleRank(store.RoleAdmin)
 	out := map[string]int{}
 	err := h.db.View(ctx, func(tx *store.Tx) error {
 		tree, err := scope.Load(ctx, tx)
@@ -264,6 +283,9 @@ func (h *Handler) installedHere(ctx context.Context, s sourced) (map[string]int,
 			return err
 		}
 		for _, p := range tree.Projects {
+			if !everything && place.Holds(caller.Grants, place.Place{Project: p.ID}) == "" {
+				continue
+			}
 			pin, err := h.pinOf(ctx, tx, tree.Organization.ID, p.Name)
 			if err != nil {
 				return err

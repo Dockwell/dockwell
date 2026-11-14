@@ -57,7 +57,8 @@ export const Route = createFileRoute("/_shell/apps/new")({
           // The app picked, as the Catalog page installs it, in the same sheet; Back keeps the words.
           <InstallSheet
             id={entry}
-            onBack={() => void navigate({ to: "/apps/new", search: q ? { q } : {} })}
+            // Back replaces the pick, so the browser's Back after it doesn't return to the form.
+            onBack={() => void navigate({ to: "/apps/new", search: q ? { q } : {}, replace: true })}
             onClose={onClose}
           />
         ) : (

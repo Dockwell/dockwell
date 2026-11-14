@@ -148,7 +148,8 @@ export function ServersPage({
       ) : (
         <WideServers servers={servers} chosen={chosen} select={select} unknown={unread !== undefined} />
       )}
-      {adding ? <AddServerSheet control={control} onClose={() => setAdding(false)} /> : null}
+      {/* ?add opens it only for someone who may add a server (ADR 0059). */}
+      {adding && mayAdd.allowed ? <AddServerSheet control={control} onClose={() => setAdding(false)} /> : null}
     </Page>
   );
 }

@@ -74,10 +74,14 @@ func TestTheCatalogPages(t *testing.T) {
 	if len(first.GetAlso()) != 1 || first.GetAlso()[0].GetId() != "ghost" {
 		t.Errorf("the first page's alternatives: %v", first.GetAlso())
 	}
+	// A token past the end, from a catalog that shrank since, is an empty last page
+	// (the review of #621).
+	if past, err := idx.page(&dockwellv1.ListCatalogEntriesRequest{PageSize: 4, PageToken: pageToken(7)}, nil); err != nil || len(past.GetEntries()) != 0 || past.GetNextPageToken() != "" || past.GetTotal() != 6 {
+		t.Errorf("a token past the end: %v, %v", pageIDs(past), err)
+	}
 	for _, bad := range []*dockwellv1.ListCatalogEntriesRequest{
 		{PageSize: -1},
 		{PageToken: "not a token"},
-		{PageToken: pageToken(7)},
 	} {
 		if _, err := idx.page(bad, nil); err == nil {
 			t.Errorf("%v: no error", bad)
@@ -156,5 +160,18 @@ func TestTheIndexIsMadeOnceForEachCatalog(t *testing.T) {
 	changed.also["ghost"][0].entry.Version = "6.1"
 	if p.of(changed) == first {
 		t.Error("a changed catalog kept the old index")
+	}
+	// Words a search reads count too: a summary, or a summary in another language.
+	for _, change := range []func(sourced){
+		func(s sourced) { s.catalog.All()[0].Summary = "Browse tables and more" },
+		func(s sourced) { s.catalog.All()[2].Translations["zh-CN"].Summary = "笔记" },
+		func(s sourced) { s.catalog.All()[1].Features = append(s.catalog.All()[1].Features, "themes") },
+	} {
+		before := p.of(aCatalog())
+		words := aCatalog()
+		change(words)
+		if p.of(words) == before {
+			t.Error("a catalog whose words changed kept the old index")
+		}
 	}
 }

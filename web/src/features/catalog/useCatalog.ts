@@ -96,7 +96,12 @@ export function useCatalogPages(
     },
   );
   const pages = query.data?.pages;
-  const entries = useMemo(() => pages?.flatMap((page) => page.entries), [pages]);
+  // One of each, as an entry can come twice where the catalog changed between pages.
+  const entries = useMemo(() => {
+    if (!pages) return undefined;
+    const seen = new Set<string>();
+    return pages.flatMap((page) => page.entries).filter((e) => !seen.has(e.id) && seen.add(e.id) !== undefined);
+  }, [pages]);
   // Each app's other catalogs, by its ID, for the entries of the pages read.
   const also = useMemo(() => {
     const out = new Map<string, string[]>();

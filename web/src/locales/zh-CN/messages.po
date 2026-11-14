@@ -6894,8 +6894,14 @@ msgstr "已安装"
 msgid "No app here has <0>{typed}</0> in its name or what it does."
 msgstr "没有应用的名称或用途中包含 <0>{typed}</0>。"
 
+msgid "No app here yet"
+msgstr "这里还没有应用"
+
 msgid "Not listed? Deploy any image or Compose file as an app. <0>New app</0>"
 msgstr "没有找到？可以把任意镜像或 Compose 文件部署为应用。<0>新建应用</0>"
+
+msgid "Nothing from the catalog is installed yet"
+msgstr "还没有安装应用目录中的应用"
 
 msgid "Read apps from a catalog in a Git repository too. <0>Sources</0>"
 msgstr "也可以从 Git 仓库中的目录读取应用。<0>来源</0>"
@@ -6905,6 +6911,9 @@ msgstr "搜索应用"
 
 msgid "Search every category"
 msgstr "在全部分类中搜索"
+
+msgid "Show every app"
+msgstr "显示全部应用"
 
 msgid "Show every catalog"
 msgstr "显示全部目录"

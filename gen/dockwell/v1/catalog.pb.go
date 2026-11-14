@@ -31,7 +31,8 @@ const (
 type CatalogOrder int32
 
 const (
-	// By name, as the reader's alphabet sorts it, accents aside.
+	// By name, lowercased with its accents taken off, as the control plane's own
+	// sort key orders it, whatever the reader's language.
 	CatalogOrder_CATALOG_ORDER_UNSPECIFIED CatalogOrder = 0
 	// The apps most people start with first, then those installed here most often,
 	// then the rest by name: what New app shows before any words are typed.

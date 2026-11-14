@@ -248,6 +248,38 @@ describe("The catalog a page at a time (ADR 0092)", () => {
     }
   });
 
+  it("drops a catalog it doesn't have from the address, so an old link shows every app", async () => {
+    const { router } = renderAt("/catalog?catalog=gone", api({ listCatalogEntries: catalogPages([tunnel, postgres]) }));
+    await waitFor(() => expect(router.state.location.search).toEqual({}));
+    expect(await screen.findByRole("link", { name: /^PostgreSQL/ })).toBeVisible();
+  });
+
+  it("says nothing is installed when the Installed filter holds nothing, with the way to every app", async () => {
+    const user = userEvent.setup();
+    const { router } = renderAt("/catalog?installed=1", api({ listCatalogEntries: catalogPages([tunnel, postgres]) }));
+    expect(await screen.findByRole("heading", { name: "Nothing from the catalog is installed yet" })).toBeVisible();
+    expect(screen.queryByText(/in its name or what it does/)).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Show every app" }));
+    await waitFor(() => expect(router.state.location.search).toEqual({}));
+    expect(await screen.findByRole("link", { name: /^PostgreSQL/ })).toBeVisible();
+  });
+
+  it("shows an app once where the catalog changed between two pages and it came twice", async () => {
+    const user = userEvent.setup();
+    renderAt(
+      "/catalog",
+      api({
+        listCatalogEntries: (req) =>
+          req.pageToken === ""
+            ? { entries: [tunnel, postgres], total: 3, nextPageToken: "2" }
+            : { entries: [postgres, create(EntrySchema, { id: "media", name: "Media", category: "media" })], total: 3 },
+      }),
+    );
+    await user.click(await screen.findByRole("button", { name: /^Show \d+ more$/ }));
+    await waitFor(() => expect(document.querySelectorAll('a.catalog-card[href^="/catalog/media"]')).toHaveLength(1));
+    expect(document.querySelectorAll('a.catalog-card[href^="/catalog/postgres"]')).toHaveLength(1);
+  });
+
   it("narrows to what's installed here, and keeps it in the address", async () => {
     const user = userEvent.setup();
     const asked: ListCatalogEntriesRequest[] = [];

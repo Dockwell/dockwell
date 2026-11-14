@@ -1715,7 +1715,8 @@ export const RemoveCatalogSourceResponseSchema: GenMessage<RemoveCatalogSourceRe
  */
 export enum CatalogOrder {
   /**
-   * By name, as the reader's alphabet sorts it, accents aside.
+   * By name, lowercased with its accents taken off, as the control plane's own
+   * sort key orders it, whatever the reader's language.
    *
    * @generated from enum value: CATALOG_ORDER_UNSPECIFIED = 0;
    */

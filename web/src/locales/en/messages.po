@@ -6894,8 +6894,14 @@ msgstr "Installed"
 msgid "No app here has <0>{typed}</0> in its name or what it does."
 msgstr "No app here has <0>{typed}</0> in its name or what it does."
 
+msgid "No app here yet"
+msgstr "No app here yet"
+
 msgid "Not listed? Deploy any image or Compose file as an app. <0>New app</0>"
 msgstr "Not listed? Deploy any image or Compose file as an app. <0>New app</0>"
+
+msgid "Nothing from the catalog is installed yet"
+msgstr "Nothing from the catalog is installed yet"
 
 msgid "Read apps from a catalog in a Git repository too. <0>Sources</0>"
 msgstr "Read apps from a catalog in a Git repository too. <0>Sources</0>"
@@ -6905,6 +6911,9 @@ msgstr "Search apps"
 
 msgid "Search every category"
 msgstr "Search every category"
+
+msgid "Show every app"
+msgstr "Show every app"
 
 msgid "Show every catalog"
 msgstr "Show every catalog"

@@ -44,8 +44,16 @@ export interface CatalogPageProps {
  */
 export function CatalogPage({ search = {}, onSearch, children }: CatalogPageProps) {
   const { t, i18n } = useLingui();
-  const catalog = useCatalogPages(search);
   const origins = useOrigins();
+  const sources = origins.data?.sources ?? [];
+  // The catalog the grid is narrowed to, by its source's name, as a source's card links to it.
+  const from = search.catalog ? sources.find((source) => source.name === search.catalog) : undefined;
+  // Once the sources are read, only a catalog there is narrows the grid, and one that
+  // isn't leaves the address, so an old link never empties the grid with no way out.
+  const catalog = useCatalogPages({ ...search, catalog: origins.data ? from?.name : search.catalog });
+  useEffect(() => {
+    if (origins.data && search.catalog && !from) onSearch?.({ ...search, catalog: undefined });
+  }, [origins.data, search, from, onSearch]);
   const also = catalog.also;
   const named = useSourceNames();
   // Both reads again, whichever failed.
@@ -55,9 +63,6 @@ export function CatalogPage({ search = {}, onSearch, children }: CatalogPageProp
   };
   const installs = useInstalls().data?.installs;
   const said = useEntryWords();
-  const sources = origins.data?.sources ?? [];
-  // The catalog the grid is narrowed to, by its source's name, as a source's card links to it.
-  const from = search.catalog ? sources.find((source) => source.name === search.catalog) : undefined;
   // The control plane narrows to the chosen catalog, each app as that catalog has it.
   const entries = catalog.entries;
   const words = (category: string) => {
@@ -249,28 +254,52 @@ export function CatalogPage({ search = {}, onSearch, children }: CatalogPageProp
             ))}
           </div>
         ) : shown.length === 0 && !catalog.isPlaceholderData && !catalog.settling ? (
-          <EmptyState
-            icon="search"
-            title={<Trans>No app matches</Trans>}
-            action={
-              // Where other categories have it, the way on is to look there; otherwise to start the search again.
-              search.category && elsewhere ? (
-                <Button size="lg" onClick={() => onSearch?.({ ...search, category: undefined })}>
-                  <Trans>Search every category</Trans>
+          typed !== "" ? (
+            <EmptyState
+              icon="search"
+              title={<Trans>No app matches</Trans>}
+              action={
+                // Where other categories have it, the way on is to look there; otherwise to start the search again.
+                search.category && elsewhere ? (
+                  <Button size="lg" onClick={() => onSearch?.({ ...search, category: undefined })}>
+                    <Trans>Search every category</Trans>
+                  </Button>
+                ) : (
+                  <Button size="lg" onClick={() => onSearch?.({ ...search, q: undefined, category: undefined })}>
+                    <Trans>Clear the search</Trans>
+                  </Button>
+                )
+              }
+            >
+              <p>
+                <Trans>
+                  No app here has <code>{typed}</code> in its name or what it does.
+                </Trans>
+              </p>
+            </EmptyState>
+          ) : (
+            // No words typed: a filter, such as Installed, holds nothing; the way on is every app.
+            <EmptyState
+              icon={search.installed ? "service" : "grid"}
+              title={
+                search.installed ? (
+                  <Trans>Nothing from the catalog is installed yet</Trans>
+                ) : (
+                  <Trans>No app here yet</Trans>
+                )
+              }
+              action={
+                <Button
+                  size="lg"
+                  onClick={() =>
+                    onSearch?.({ q: undefined, category: undefined, catalog: undefined, installed: undefined })
+                  }
+                >
+                  <Trans>Show every app</Trans>
                 </Button>
-              ) : (
-                <Button size="lg" onClick={() => onSearch?.({ ...search, q: undefined, category: undefined })}>
-                  <Trans>Clear the search</Trans>
-                </Button>
-              )
-            }
-          >
-            <p>
-              <Trans>
-                No app here has <code>{typed}</code> in its name or what it does.
-              </Trans>
-            </p>
-          </EmptyState>
+              }
+            />
+          )
         ) : (
           <>
             {from ? null : (

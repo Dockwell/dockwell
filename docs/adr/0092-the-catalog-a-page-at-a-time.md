@@ -30,6 +30,6 @@ The Catalog page reads 48 entries a page and the next as the reader scrolls near
 ## Consequences
 
 - Hundreds of entries no longer cross the wire to show a dozen. The CLI lists everything by default, and pages when asked.
-- The categories offered are the server's counts, so a category with no match under the words drops out of the choices, as it did.
+- The categories offered are the server's counts of every filter but the category and the words (`listed`), so the choices stay put as words are typed, as they did before the catalog paged; `count` says how many of each the words find, for the way to another category when the chosen one has none.
 - The index costs memory once: entries are shared with the catalog, and the search's words are a few hundred bytes an entry for each language.
 - A catalog that changes between two pages can skip or repeat an entry at the seam; a reader who scrolls on sees the new catalog from there. Reading the first page again starts over.

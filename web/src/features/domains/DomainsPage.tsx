@@ -139,6 +139,7 @@ export function DomainsPage({
   const { servers, fleet } = useFleetView();
   const places = usePlaces();
   const navigate = useNavigate();
+  const mayAdd = useMay()(ChangeService.method.proposeChange);
   const [adding, setAddingHere] = useState(search.add === true);
   // Closing the sheet takes its word out of the address, so a reload doesn't open it again.
   const setAdding = (open: boolean) => {
@@ -476,7 +477,8 @@ export function DomainsPage({
           </div>
         )}
       </section>
-      {adding ? <AddDomainSheet apps={apps} onClose={() => setAdding(false)} /> : null}
+      {/* ?add opens it only for someone who may plan a change (ADR 0059). */}
+      {adding && mayAdd.allowed ? <AddDomainSheet apps={apps} onClose={() => setAdding(false)} /> : null}
       {privateAt ? (
         <PrivateSheet
           domain={privateAt.domain}

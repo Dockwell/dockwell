@@ -64,6 +64,8 @@ func Render(w io.Writer, msg proto.Message, now time.Time) {
 		driftTable(w, m)
 	case *dockwellv1.ListAlertsResponse:
 		alertsTable(w, m, now)
+	case *dockwellv1.ListCatalogEntriesResponse:
+		catalogTable(w, m)
 	case *dockwellv1.ListLogSourcesResponse:
 		sourcesTable(w, m, now)
 	case *dockwellv1.ListWebsitesResponse:
@@ -406,6 +408,24 @@ func alertsTable(w io.Writer, res *dockwellv1.ListAlertsResponse, now time.Time)
 	_ = tw.Flush()
 	if t := res.GetNextPageToken(); t != "" {
 		fmt.Fprintf(w, "\nThere are more. See them with dockwell alerts list --page-token %s\n", t)
+	}
+}
+
+// catalogTable is a page of the catalog: each app's ID, name, version and category,
+// how many match in all, and how to see the next page (ADR 0092).
+func catalogTable(w io.Writer, res *dockwellv1.ListCatalogEntriesResponse) {
+	if len(res.GetEntries()) == 0 {
+		fmt.Fprintln(w, "No app in the catalog matches. Leave out --search and the filters to list them all.")
+		return
+	}
+	tw := newTable(w)
+	row(tw, "ID", "Name", "Version", "Category")
+	for _, e := range res.GetEntries() {
+		row(tw, e.GetId(), e.GetName(), e.GetVersion(), orDash(e.GetCategory()))
+	}
+	_ = tw.Flush()
+	if t := res.GetNextPageToken(); t != "" {
+		fmt.Fprintf(w, "\n%d of %d. There are more. See them with dockwell catalog list --page-token %s and the same filters\n", len(res.GetEntries()), res.GetTotal(), t)
 	}
 }
 

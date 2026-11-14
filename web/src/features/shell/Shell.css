@@ -480,3 +480,13 @@
 .new-menu-item:focus-visible {
   box-shadow: inset 0 0 0 2px var(--cobalt);
 }
+
+/* What the reader may not make stays in the menu, quiet, with why on hover (ADR 0059). */
+.new-menu-item.is-off {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.new-menu-item.is-off:hover {
+  background: none;
+}
