@@ -64,7 +64,7 @@ dw() { priv env DOCKWELL_DATA_DIR="$data" DOCKWELL_LOG_FORMAT=text "$bin" "$@"; 
 step() { echo "--- $*"; }
 
 cleanup() {
-  for s in shop-k2m4 many-r2 everywhere-g1 keeps-s1 anon-a1; do
+  for s in shop-k2m4 many-r2 everywhere-g1 keeps-s1 anon-a1 retry-r1; do
     docker service rm "$s" >/dev/null 2>&1 || true
   done
   docker stack rm forum-q1 plain-p1 >/dev/null 2>&1 || true
@@ -210,6 +210,15 @@ mapfile -t labels < <(dokploy_labels store keeps)
 docker service create --quiet --detach=false --name keeps-s1 --secret e2e-swarm-secret "${labels[@]}" "$nginx" >/dev/null || fail "can't create keeps-s1"
 mapfile -t labels < <(dokploy_labels store anon)
 docker service create --quiet --detach=false --name anon-a1 --mount type=volume,target=/data "${labels[@]}" "$nginx" >/dev/null || fail "can't create anon-a1"
+# An application whose first deploy failed to start, which leaves a container made
+# and never started, then deployed again as it should be.
+mapfile -t labels < <(dokploy_labels store retry)
+docker service create --quiet --detach --name retry-r1 --entrypoint /no-such-binary "${labels[@]}" "$nginx" >/dev/null || fail "can't create retry-r1"
+wait_until 60 test -n "$(docker ps --all --quiet --filter label=com.docker.swarm.service.name=retry-r1 --filter status=created)" ||
+  fail "retry-r1's broken deploy left no container: $(docker service ps --no-trunc retry-r1 2>&1)"
+docker service update --quiet --detach=false --entrypoint /docker-entrypoint.sh retry-r1 >/dev/null || fail "can't deploy retry-r1 again"
+[[ -n "$(docker ps --all --quiet --filter label=com.docker.swarm.service.name=retry-r1 --filter status=created)" ]] ||
+  fail "retry-r1's broken deploy left no container once it was deployed again"
 # The volume Docker made for anon-a1's task, which goes with it.
 anon_volume=$(docker inspect --format '{{range .Mounts}}{{.Name}}{{end}}' "$(running_tasks anon-a1)")
 wait_until 60 serves shop-from-dokploy -H 'Host: shop.example.com' "http://127.0.0.1:$traefik_port/" || fail "Traefik doesn't reach shop-k2m4 before the import"
@@ -261,7 +270,7 @@ since=$(date +%s.%N)
 plan=$(person ImportService/ImportDokploy "{\"serverId\":\"$server\"}") || fail "a person can't reach the import"
 [[ "$plan" != *not-in-any-plan* ]] || fail "the import shows a value of an environment or a secret: $plan"
 step_of() { jq -c --arg n "$1" '.steps[] | select(.name == $n)' <<<"$plan"; }
-for app in shop forum; do
+for app in shop forum retry; do
   jq -e '.action == "IMPORT_ACTION_MAKE"' <<<"$(step_of $app)" >/dev/null || fail "$app isn't made again: $(step_of $app)"
 done
 for c in "many|2 replicas" "everywhere|every node" "keeps|Swarm secret" "anon|anonymous volume" "plain-p1|none of Dokploy's labels"; do
@@ -292,6 +301,10 @@ for pair in "$shop_task|$shop_copy" "$db_task_name|$db_copy"; do
   ((died < started)) || fail "$new started at $started, before $old stopped at $died"
 done
 [[ "$(replicas shop-k2m4)" == 0 && -z "$(running_tasks shop-k2m4)" ]] || fail "shop-k2m4 still runs"
+# The leftover container of retry-r1's failed start kept neither its scale nor
+# its copy back.
+[[ "$(replicas retry-r1)" == 0 && -z "$(running_tasks retry-r1)" ]] || fail "retry-r1 still runs"
+[[ -n "$(copy_of store retry-r1)" ]] || fail "retry-r1 wasn't made again"
 ! docker logs "$db_copy" 2>&1 | grep -q 'postmaster.pid' || fail "the copy of PostgreSQL found another on its data: $(docker logs --tail 20 "$db_copy" 2>&1)"
 [[ "$(docker exec "$db_copy" psql -U postgres -tAc 'select v from kept')" == row-from-dokploy ]] || fail "the copy of PostgreSQL doesn't hold the row"
 
@@ -316,6 +329,7 @@ undo=$(person ChangeService/UndoChange "{\"id\":\"$change\"}" | jq -r '.change.i
 state=$(apply "$undo")
 [[ "$state" == CHANGE_STATE_APPLIED ]] || fail "the undo ended $state: $(dw changes get "$undo" --json)"
 [[ "$(replicas shop-k2m4)" == 1 ]] || fail "shop-k2m4 runs $(replicas shop-k2m4) after the undo"
+[[ "$(replicas retry-r1)" == 1 ]] || fail "retry-r1 runs $(replicas retry-r1) after the undo, held back by its leftover container"
 [[ "$(docker service inspect --format '{{len .Endpoint.Ports}}' shop-k2m4)" == 1 ]] || fail "shop-k2m4 doesn't publish 8085 again"
 [[ -z "$(copy_of store shop-k2m4)" && -z "$(copy_of forum db)" ]] || fail "a copy is left after the undo"
 wait_until 60 serves shop-from-dokploy -H 'Host: shop.example.com' "http://127.0.0.1:$traefik_port/" || fail "Traefik doesn't reach shop-k2m4 after the undo"

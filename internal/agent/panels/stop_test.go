@@ -352,7 +352,7 @@ func TestAStopThatResumesWaitsForWhatIsntOver(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := s.ApplyPanel(t.Context(), *start, func(string) {}); err == nil || !strings.Contains(err.Error(), "isn't over") {
+	if err := s.ApplyPanel(t.Context(), *start, func(string) {}); err == nil || !strings.Contains(err.Error(), "so Dockwell doesn't scale it back up beside it") {
 		t.Errorf("a start with a task not over = %v", err)
 	}
 	// Once it's over, the stop is done, and the start scales up.
@@ -381,7 +381,7 @@ func TestTheWaitFollowsTheGracePeriod(t *testing.T) {
 	e.Tasks = map[string][]docker.Task{"db-k2m4": {running}}
 	ctx, cancel := context.WithTimeout(t.Context(), 300*time.Millisecond)
 	defer cancel()
-	err := Stopper{Docker: e.Client()}.untilNoTask(ctx, "db-k2m4", func(string) {})
+	err := Stopper{Docker: e.Client()}.untilNoTask(ctx, "db-k2m4", func(string) {}, "after %s")
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Errorf("with a grace period of two hours, the wait ended %v", err)
 	}
@@ -424,5 +424,55 @@ func TestAServicesOldStyleNetworksComeBack(t *testing.T) {
 	}
 	if got := string(read.Spec.TaskTemplate.Networks); got != `[{"Target":"k3net"}]` || len(read.Spec.Networks) != 0 {
 		t.Errorf("started again, it joins %s, and beside it %s", got, read.Spec.Networks)
+	}
+}
+
+// What may run beside a copy: a container running, restarting, paused or being
+// removed. One whose start failed, which Swarm leaves behind, isn't, nor one that
+// exited or died.
+func TestWhichContainersOfATaskAreLive(t *testing.T) {
+	for state, live := range map[string]bool{
+		"running": true, "restarting": true, "paused": true, "removing": true,
+		"created": false, "exited": false, "dead": false,
+	} {
+		if containerLive(state) != live {
+			t.Errorf("a container %s reads live %v", state, !live)
+		}
+	}
+}
+
+// A task whose start failed leaves its container made and never started, which a
+// scale to none doesn't take away: neither the stop nor the start that undoes it
+// waits on that, so the app isn't left at none.
+func TestALeftoverContainerFromAFailedStartBlocksNothing(t *testing.T) {
+	e := dockertest.New(t)
+	n := uint64(1)
+	svc := docker.Service{ID: "s1"}
+	svc.Spec.Name, svc.Spec.Labels = "shop-k2m4", map[string]string{"dokploy.application": "shop", "dokploy.project": "store"}
+	svc.Spec.Mode.Replicated = &struct {
+		Replicas *uint64 `json:"Replicas,omitempty"`
+	}{Replicas: &n}
+	e.Services = []docker.Service{svc}
+	labels := map[string]string{"com.docker.swarm.service.name": "shop-k2m4"}
+	e.AddContainer(docker.Container{Name: "/shop-k2m4.1.good", Config: docker.Config{Image: "nginx:1.27", Labels: labels}, State: docker.State{Status: "running", Running: true}})
+	e.AddContainer(docker.Container{
+		Name: "/shop-k2m4.1.broken", Config: docker.Config{Image: "nginx:1.27", Labels: labels},
+		State: docker.State{Status: "created", Error: "exec: \"/no-such-binary\": stat /no-such-binary: no such file or directory"},
+	})
+	s := Stopper{Docker: e.Client(), TaskWait: 2 * time.Second}
+	plan, _, err := s.PlanPanel(t.Context(), resource.PanelAsked{Kind: resource.PanelDokploy, Apps: true, Parts: []resource.PanelPart{{Name: "shop-k2m4"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.ApplyPanel(t.Context(), *plan, func(string) {}); err != nil {
+		t.Fatalf("the stop with a leftover container = %v", err)
+	}
+	back, _ := plan.Undone()
+	start, _, err := s.PlanPanel(t.Context(), back)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.ApplyPanel(t.Context(), *start, func(string) {}); err != nil {
+		t.Errorf("the start with a leftover container = %v", err)
 	}
 }

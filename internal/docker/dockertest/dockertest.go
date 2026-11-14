@@ -2595,6 +2595,10 @@ func (e *Engine) listTasks(w http.ResponseWriter, r *http.Request) {
 			switch {
 			case c.State.Running:
 				t.Status.State = "running"
+			case c.State.Status == "created" && c.State.Error != "":
+				// Made, and its start failed: Swarm's task failed, and its container
+				// stays.
+				t.Status.State = "failed"
 			case c.State.Status == "created" || c.State.Status == "":
 				t.Status.State = "starting"
 			default:

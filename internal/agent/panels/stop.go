@@ -185,7 +185,7 @@ func (s Stopper) ApplyPanel(ctx context.Context, p resource.Panel, say func(stri
 		case part.Swarm && p.Start && p.Apps:
 			// What took its place stops first, and nothing of its own may still be
 			// stopping: Swarm's scale up starts a task at once.
-			err = s.untilNoTask(ctx, part.Name, say)
+			err = s.untilNoTask(ctx, part.Name, say, "after %s, so Dockwell doesn't scale it back up beside it")
 			if err == nil {
 				say(fmt.Sprintf("Scaling the service %s to %d, with the ports it published and the networks it joined", part.Name, part.WasReplicas))
 				err = s.Docker.PlaceService(ctx, part.Name, part.WasReplicas, servicePorts(part.WasPorts), json.RawMessage(part.WasNetworks))
@@ -200,7 +200,7 @@ func (s Stopper) ApplyPanel(ctx context.Context, p resource.Panel, say func(stri
 			say(fmt.Sprintf("Scaling the service %s to none, and taking it off its ports and networks", part.Name))
 			err = s.Docker.PlaceService(ctx, part.Name, 0, nil, nil)
 			if err == nil {
-				err = s.untilNoTask(ctx, part.Name, say)
+				err = s.untilNoTask(ctx, part.Name, say, "%s after it was scaled to none, so nothing takes its place")
 			}
 		case part.Swarm:
 			// A scale changes the spec at once, and Swarm stops the task after: what
@@ -208,7 +208,7 @@ func (s Stopper) ApplyPanel(ctx context.Context, p resource.Panel, say func(stri
 			say(fmt.Sprintf("Scaling the service %s to none", part.Name))
 			err = s.Docker.ScaleService(ctx, part.Name, 0)
 			if err == nil {
-				err = s.untilNoTask(ctx, part.Name, say)
+				err = s.untilNoTask(ctx, part.Name, say, "%s after it was scaled to none, so nothing takes its place")
 			}
 		case p.Start:
 			// Started first, and its policy put back after: one that doesn't start
@@ -296,17 +296,30 @@ func (s Stopper) tasksLive(ctx context.Context, service string) (int, error) {
 		return 0, fmt.Errorf("can't list the containers of the service %s: %w", service, err)
 	}
 	for i := range list {
-		if list[i].State != "exited" && list[i].State != "dead" {
+		if containerLive(list[i].State) {
 			n++
 		}
 	}
 	return n, nil
 }
 
+// containerLive says a task's container, in a state Docker names, may run what a
+// copy would run beside: running, restarting, paused or being removed. One made
+// whose start failed, which Swarm leaves behind and a scale to none doesn't take
+// away, isn't, nor one that exited or died: a task really about to start is one
+// the tasks API doesn't call over.
+func containerLive(state string) bool {
+	switch state {
+	case "running", "restarting", "paused", "removing":
+		return true
+	}
+	return false
+}
+
 // untilNoTask waits for a Swarm service to have no task that isn't over, and fails
 // where one still is once its stop's grace period and taskMargin more have passed,
-// or TaskWait where a test sets it.
-func (s Stopper) untilNoTask(ctx context.Context, service string, say func(string)) error {
+// or TaskWait where a test sets it, saying why as when holds, with the wait in it.
+func (s Stopper) untilNoTask(ctx context.Context, service string, say func(string), when string) error {
 	wait := s.TaskWait
 	if wait == 0 {
 		grace := defaultGrace
@@ -323,7 +336,7 @@ func (s Stopper) untilNoTask(ctx context.Context, service string, say func(strin
 			return err
 		}
 		if time.Now().After(deadline) {
-			return fmt.Errorf("the service %s still has a task that isn't over %s after it was scaled to none, so nothing takes its place", service, wait.Round(time.Second))
+			return fmt.Errorf("the service %s still has a task that isn't over "+when, service, wait.Round(time.Second))
 		}
 		if !said {
 			say(fmt.Sprintf("Waiting for the task of %s to stop", service))
