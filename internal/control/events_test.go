@@ -19,6 +19,7 @@ import (
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/cli/apicli"
 	"github.com/dockwell/dockwell/internal/control/agentapi"
+	"github.com/dockwell/dockwell/internal/control/events"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
 	"github.com/dockwell/dockwell/internal/id"
@@ -56,9 +57,9 @@ func listEvents(t *testing.T, c dockwellv1connect.EventServiceClient, req *dockw
 	return nil
 }
 
-func actions(events []*dockwellv1.Event) []string {
-	out := make([]string, len(events))
-	for i, e := range events {
+func actions(evs []*dockwellv1.Event) []string {
+	out := make([]string, len(evs))
+	for i, e := range evs {
 		out[i] = e.GetAction()
 		if c := e.GetChange(); c != nil {
 			out[i] += " " + c.GetSummary()
@@ -262,10 +263,10 @@ func testTheTimelineThroughTheAPI(t *testing.T, backend store.Backend) {
 	defer other.Close()
 	var userID string
 	_ = f.store.View(t.Context(), func(tx *store.Tx) error {
-		events, _ := tx.ListEvents(t.Context(), 100)
-		for i := range events {
-			if events[i].Action == "owner.claim" {
-				userID = events[i].Subject
+		kept, _ := tx.ListEvents(t.Context(), 100)
+		for i := range kept {
+			if kept[i].Action == "owner.claim" {
+				userID = kept[i].Subject
 			}
 		}
 		return nil
@@ -500,6 +501,21 @@ func testEventCountsKeepToWhatTheCallerMayList(t *testing.T, backend store.Backe
 			t.Errorf("a viewer of default counts %d access events, which are the install's", k.GetCount())
 		}
 	}
+	if res.Msg.GetCapped() {
+		t.Error("a short history counted for a viewer says it stopped short")
+	}
+
+	// A long history is counted for them only as far as its newest entries, and says so (#642's review, N1).
+	was := events.CountCap
+	events.CountCap = 2
+	t.Cleanup(func() { events.CountCap = was })
+	short, err := ev.CountEvents(t.Context(), connect.NewRequest(&dockwellv1.CountEventsRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !short.Msg.GetCapped() || short.Msg.GetTotal() > 2 {
+		t.Errorf("counted past the cap: total %d, capped %v; want 2 at most, capped", short.Msg.GetTotal(), short.Msg.GetCapped())
+	}
 }
 
 func TestProjectEventsAndResources(t *testing.T) { storetest.Each(t, testProjectEventsAndResources) }
@@ -621,9 +637,9 @@ func testTheCLIOnTheTimeline(t *testing.T, backend store.Backend) {
 		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Project{Project: &resourcev1.Project{}}},
 	}))
 
-	events := listEvents(t, ev, &dockwellv1.ListEventsRequest{})
+	listed := listEvents(t, ev, &dockwellv1.ListEventsRequest{})
 	var made, change *dockwellv1.Event
-	for _, e := range events {
+	for _, e := range listed {
 		switch {
 		case e.GetAction() == "token.create" && e.GetSubject().GetId() == local.Token.ID:
 			made = e

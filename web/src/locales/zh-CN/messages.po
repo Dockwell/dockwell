@@ -5690,8 +5690,14 @@ msgstr "浅色"
 msgid "Light, whatever your device uses"
 msgstr "浅色，不论设备用哪种"
 
+msgid "Notifications"
+msgstr "通知"
+
 msgid "Preferences"
 msgstr "偏好设置"
+
+msgid "Same as this browser ({browser})"
+msgstr "与此浏览器相同（{browser}）"
 
 msgctxt "theme"
 msgid "System"
@@ -5702,6 +5708,12 @@ msgstr "跟随设备的设置"
 
 msgid "Theme"
 msgstr "主题"
+
+msgid "This browser only"
+msgstr "仅此浏览器"
+
+msgid "Which alerts reach you, and where"
+msgstr "哪些告警会通知你，以及通过哪里"
 
 msgid "Add a passkey for {rpId} now, so you can sign in here next time without another link."
 msgstr "现在为 {rpId} 添加一个通行密钥，下次在这里登录就不再需要链接。"
@@ -8044,8 +8056,8 @@ msgid "{0, plural, one {# database stops.} other {# databases stop.}}"
 msgstr "{0, plural, other {# 个数据库将停止。}}"
 
 #. placeholder {0}: count.databases
+#. placeholder {0}: here.length
 #. placeholder {0}: n.databases
-#. placeholder {0}: view.databases.length
 msgid "{0, plural, one {# database} other {# databases}}"
 msgstr "{0, plural, other {# 个数据库}}"
 
@@ -12558,6 +12570,7 @@ msgstr "{count, plural, other {# 个项目}}"
 msgid "a website"
 msgstr "一个网站"
 
+#. placeholder {0}: here.length
 #. placeholder {0}: sites.length
 #. placeholder {0}: sites.size
 msgid "{0, plural, one {# website} other {# websites}}"
@@ -12856,9 +12869,6 @@ msgstr "筛选容器"
 
 msgid "No container matches this filter."
 msgstr "没有符合此筛选条件的容器。"
-
-msgid "Nothing here that Dockwell didn't make"
-msgstr "这里没有非 Dockwell 创建的容器"
 
 msgid "Reading what Docker runs here"
 msgstr "正在读取 Docker 在这里运行的内容"
@@ -13350,9 +13360,6 @@ msgstr "容器端口"
 msgid "Limit"
 msgstr "限速"
 
-msgid "Note"
-msgstr "备注"
-
 #. placeholder {0}: server.name
 msgid "Nothing filters what comes in to {0}: it has no ufw, firewalld, nftables or iptables rules that could."
 msgstr "没有任何东西过滤进入 {0} 的流量：它没有能起作用的 ufw、firewalld、nftables 或 iptables 规则。"
@@ -13466,6 +13473,14 @@ msgstr "{0, plural, other {# 个端口}}"
 msgid "{0, plural, one {Docker's DOCKER-USER chain holds # rule, which filters these, and which Dockwell doesn't weigh.} other {Docker's DOCKER-USER chain holds # rules, which filter these, and which Dockwell doesn't weigh one by one.}}"
 msgstr "{0, plural, other {Docker 的 DOCKER-USER 链中有 # 条规则会过滤这些端口，Dockwell 不会逐条计入。}}"
 
+#. placeholder {0}: closed.length
+msgid "{0, plural, one {Its one port is closed by a firewall.} other {All # are closed by a firewall.}}"
+msgstr "{0, plural, other {全部 # 个端口都已被防火墙关闭。}}"
+
+#. placeholder {0}: closed.length
+msgid "{0, plural, one {Show # closed port} other {Show # closed ports}}"
+msgstr "{0, plural, other {显示 # 个已关闭的端口}}"
+
 #. placeholder {0}: server.name
 msgid "{0} isn't reporting, so what filters its traffic can't be read now."
 msgstr "{0} 未在上报，因此现在无法读取过滤其流量的规则。"
@@ -13536,6 +13551,9 @@ msgstr "在 {name} 上放行没有规则丢弃的流量"
 
 msgid "Name a port from 1 to 65535, such as 443."
 msgstr "请填写 1 到 65535 之间的端口，例如 443。"
+
+msgid "Note"
+msgstr "备注"
 
 msgid "Nothing listens"
 msgstr "没有监听"
@@ -13892,8 +13910,20 @@ msgstr "从镜像或应用目录部署一个"
 msgid "No apps"
 msgstr "没有应用"
 
+msgid "No databases"
+msgstr "没有数据库"
+
 msgid "No domains"
 msgstr "没有域名"
+
+msgid "No websites"
+msgstr "没有网站"
+
+msgid "Run PostgreSQL, MySQL, Redis and more"
+msgstr "运行 PostgreSQL、MySQL、Redis 等"
+
+msgid "Serve a folder, PHP or an app at a domain"
+msgstr "在域名上提供文件夹、PHP 或应用"
 
 msgid "What runs here"
 msgstr "在此运行"
@@ -13907,6 +13937,21 @@ msgstr "{healthy, plural, other {# 个健康}}"
 
 msgid "{more, plural, one {{shown} and # more} other {{shown} and # more}}"
 msgstr "{more, plural, other {{shown} 等另外 # 个}}"
+
+msgid "{n, plural, one {# PHP {version}} other {# PHP {version}}}"
+msgstr "{n, plural, other {# 个 PHP {version}}}"
+
+msgid "{n, plural, one {# PHP} other {# PHP}}"
+msgstr "{n, plural, other {# 个 PHP}}"
+
+msgid "{n, plural, one {# proxy} other {# proxies}}"
+msgstr "{n, plural, other {# 个反向代理}}"
+
+msgid "{n, plural, one {# static} other {# static}}"
+msgstr "{n, plural, other {# 个静态}}"
+
+msgid "{n, plural, one {# unknown} other {# unknown}}"
+msgstr "{n, plural, other {# 个未知}}"
 
 msgid "{name} deploying"
 msgstr "{name} 正在部署"
@@ -15021,9 +15066,6 @@ msgstr "只更改此浏览器。你的其他浏览器和命令行保持各自的
 
 msgid "Patch updates, daily from 03:00"
 msgstr "补丁更新，每天 03:00 起"
-
-msgid "Same as this browser ({browser})"
-msgstr "与此浏览器相同（{browser}）"
 
 msgid "Saved. It's on Activity."
 msgstr "已保存，并已记入动态。"

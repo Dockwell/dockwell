@@ -1,13 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { equals, type MessageInitShape } from "@bufbuild/protobuf";
+import { useQuery } from "@connectrpc/connect-query";
 import {
+  Connection,
   type DockwellFirewallRule,
   type DockwellTable,
   type EditSchema,
   FirewallAction,
   type FirewallRule,
   FirewallRuleSchema,
+  FirewallService,
   Protocol,
   type Server,
   type ServerFirewall,
@@ -67,21 +70,41 @@ function rowsOf(table: DockwellTable | undefined): RuleRow[] {
   return rows.sort((a, b) => a.id.localeCompare(b.id));
 }
 
-/** What uses a port on the server: the containers Docker publishes it for, or what listens there. */
-function useUsedBy(fw: ServerFirewall | undefined): (rule: FirewallRule | undefined) => string {
+/**
+ * What uses a port on the server: the containers Docker publishes it for, SSH, or
+ * what else listens there. Ports are by protocol; one with no protocol is either.
+ */
+export function usePortUser(
+  server: Server,
+  fw: ServerFirewall | undefined,
+): (ports: readonly { port: number; protocol?: string }[]) => string {
   const { t } = useLingui();
-  return (rule) => {
-    if (!rule || !fw) return "";
-    const protocol = rule.protocol === Protocol.UDP ? "udp" : "tcp";
-    const containers = [
-      ...new Set(
-        fw.published.filter((p) => p.hostPort === rule.port && p.protocol === protocol).map((p) => p.container),
-      ),
-    ];
-    if (containers.length > 0) return containers.join(", ");
-    if (fw.listening.some((l) => l.port === rule.port && l.protocol === protocol)) return t`The server itself`;
-    return t`Nothing listens`;
+  // SSH's ports, as the SSH card reads them, so its rule can name it.
+  const ssh = useQuery(
+    FirewallService.method.getServerSsh,
+    { serverId: server.id },
+    { enabled: server.connection === Connection.CONNECTED, refetchInterval: 30_000, retry: false },
+  );
+  const sshPorts = ssh.data?.ssh?.ports ?? [];
+  return (ports) => {
+    if (!fw || ports.length === 0) return "";
+    const on = (p: { port: number; protocol?: string }, port: number, protocol: string) =>
+      p.port === port && (!p.protocol || p.protocol === protocol);
+    const users: string[] = [];
+    let listens = false;
+    for (const p of ports) {
+      users.push(...fw.published.filter((pub) => on(p, pub.hostPort, pub.protocol)).map((pub) => pub.container));
+      if (sshPorts.includes(p.port) && p.protocol !== "udp") users.push(t`SSH`);
+      if (fw.listening.some((l) => on(p, l.port, l.protocol))) listens = true;
+    }
+    if (users.length > 0) return [...new Set(users)].join(", ");
+    return listens ? t`The server itself` : t`Nothing listens`;
   };
+}
+
+function useUsedBy(server: Server, fw: ServerFirewall | undefined): (rule: FirewallRule | undefined) => string {
+  const user = usePortUser(server, fw);
+  return (rule) => (rule ? user([{ port: rule.port, protocol: rule.protocol === Protocol.UDP ? "udp" : "tcp" }]) : "");
 }
 
 /**
@@ -109,7 +132,7 @@ export function DockwellRules({
   const readAgain = useReadAgainOnceOver(() => onChanged?.());
   const sheet = { open: (opening: Opening) => changes.open({ ...opening, onClose: readAgain }) };
   const [adding, setAdding] = useState(false);
-  const usedBy = useUsedBy(fw);
+  const usedBy = useUsedBy(server, fw);
   const table = fw?.dockwell;
   const name = server.name;
   const denies = table?.policy?.denyEverythingElse ?? false;

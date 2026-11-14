@@ -206,6 +206,7 @@ func (h *Handler) CountEvents(ctx context.Context, req *connect.Request[dockwell
 	}
 	grants, narrowed := authapi.Narrowed(ctx)
 	counts := map[dockwellv1.EventKind]int{}
+	capped := false
 	err = h.db.View(ctx, func(tx *store.Tx) error {
 		if !narrowed {
 			// Everything listed is the caller's: one grouped query.
@@ -223,8 +224,16 @@ func (h *Handler) CountEvents(ctx context.Context, req *connect.Request[dockwell
 		visible := authapi.Visible(ctx, tx, grants)
 		look := actors.New().In(ctx, tx)
 		var before *store.TimelineCursor
-		for {
-			places, err := tx.TimelinePlaces(ctx, store.TimelineQuery{Filter: every, Before: before, Limit: countPage})
+		page := min(countPage, CountCap)
+		for read := 0; ; read += page {
+			// The newest CountCap at most, each placed, so a long history stays quick to count.
+			if read >= CountCap {
+				// Capped only if there is an older one left out.
+				more, err := tx.TimelinePlaces(ctx, store.TimelineQuery{Filter: every, Before: before, Limit: 1})
+				capped = len(more) > 0
+				return err
+			}
+			places, err := tx.TimelinePlaces(ctx, store.TimelineQuery{Filter: every, Before: before, Limit: page})
 			if err != nil {
 				return err
 			}
@@ -249,7 +258,7 @@ func (h *Handler) CountEvents(ctx context.Context, req *connect.Request[dockwell
 					counts[kind]++
 				}
 			}
-			if len(places) < countPage {
+			if len(places) < page {
 				return nil
 			}
 			last := places[len(places)-1]
@@ -259,7 +268,7 @@ func (h *Handler) CountEvents(ctx context.Context, req *connect.Request[dockwell
 	if err != nil {
 		return nil, h.internal(ctx, err)
 	}
-	res := &dockwellv1.CountEventsResponse{}
+	res := &dockwellv1.CountEventsResponse{Capped: capped}
 	total := 0
 	for _, k := range eventKinds() {
 		n := counts[k]
@@ -273,6 +282,10 @@ func (h *Handler) CountEvents(ctx context.Context, req *connect.Request[dockwell
 // countPage is how many of the timeline's places CountEvents reads at once for a
 // caller whose list is narrowed.
 const countPage = 500
+
+// CountCap is how many of the timeline's newest entries CountEvents reads, at most,
+// for a caller whose list is narrowed (#642's review, N1). A test lowers it.
+var CountCap = 10_000
 
 // kindOfAction is the kind an audit event's action is listed under, as ListEvents'
 // kinds filter by them.

@@ -192,7 +192,8 @@ export function ActivityPage({
       () => {
         trailing.current = undefined;
         lastRead.current = Date.now();
-        void refetch();
+        // A slow count, as one for someone below an admin can be, finishes rather than starting over.
+        void refetch({ cancelRefetch: false });
       },
       Math.max(0, lastRead.current + RECOUNT_MS - Date.now()),
     );
@@ -206,13 +207,13 @@ export function ActivityPage({
         ? counts.total
         : (counts.counts.find((c) => c.kind === KINDS[view])?.count ?? 0);
   const kindOptions = [
-    { value: "all", label: t`All`, count: countOf("all") },
-    { value: "changes", label: t`Changes`, count: countOf("changes") },
-    { value: "servers", label: t`Servers`, count: countOf("servers") },
-    { value: "access", label: t`Access`, count: countOf("access") },
-    { value: "health", label: t`Health`, count: countOf("health") },
-    { value: "backups", label: t`Backups`, count: countOf("backups") },
-    { value: "alerts", label: t`Alerts`, count: countOf("alerts") },
+    { value: "all", label: t`All`, count: countOf("all"), more: counts?.capped },
+    { value: "changes", label: t`Changes`, count: countOf("changes"), more: counts?.capped },
+    { value: "servers", label: t`Servers`, count: countOf("servers"), more: counts?.capped },
+    { value: "access", label: t`Access`, count: countOf("access"), more: counts?.capped },
+    { value: "health", label: t`Health`, count: countOf("health"), more: counts?.capped },
+    { value: "backups", label: t`Backups`, count: countOf("backups"), more: counts?.capped },
+    { value: "alerts", label: t`Alerts`, count: countOf("alerts"), more: counts?.capped },
   ];
 
   let body: ReactNode;

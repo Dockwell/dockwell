@@ -108,8 +108,18 @@ export async function containersFlow(
     const taken = await dockerStarted(socket, id);
     if (taken !== before) fail(`taking it on changed it: ${before}, then ${taken}`);
     await page.goto(`${origin}${link}`);
-    await page.getByRole("region", { name: PANEL }).getByText("Dockwell runs").waitFor({ timeout: 20_000 });
-    if (await page.getByRole("region", { name: PANEL }).getByRole("link", { name: NAME }).count()) {
+    // It leaves the list: the panel says Dockwell runs it, or, with nothing else to list,
+    // stays out of the page, as Server-Overview has it.
+    await page.getByRole("region", { name: "What runs here" }).waitFor({ timeout: 20_000 });
+    const outside = page.getByRole("region", { name: PANEL });
+    const gone = Date.now() + 20_000;
+    for (;;) {
+      const shown = await outside.count();
+      if (shown === 0 || (await outside.getByText("Dockwell runs").count()) > 0) break;
+      if (Date.now() > gone) fail(`${PANEL} neither left the page nor said Dockwell runs ${NAME}`);
+      await page.waitForTimeout(250);
+    }
+    if (await outside.getByRole("link", { name: NAME }).count()) {
       fail(`${NAME} is still among what Dockwell didn't make once it was taken on`);
     }
   } finally {

@@ -28,7 +28,6 @@ import { matches, mountSource, portWords, READ_EVERY_MS, statusOf, useContainerS
 import { useTakeOn } from "./takeOn";
 import "./ContainersPanel.css";
 import { useMay } from "../auth/may";
-import { EmptyState } from "../shell/EmptyState";
 
 /** A filter earns its place once there are more containers than read at a glance. */
 const FILTER_FROM = 13;
@@ -78,6 +77,8 @@ export function ContainersPanel({ server }: { server: Server }) {
   const projects = useMemo(() => new Set((containers ?? []).map((c) => c.composeProject)), [containers]);
 
   if (!allowed) return null;
+  // With none to list, the page has nothing to say of them, so the panel stays out, as Server-Overview.dc.html has it.
+  if (connected && !blind && !list.error && list.data && count === 0) return null;
   // What it last read can't stand once it can't be read, so that is all this says.
   const body: ReactNode = !connected ? (
     <p className="containers-note">
@@ -93,21 +94,6 @@ export function ContainersPanel({ server }: { server: Server }) {
     <p className="containers-note" aria-busy="true">
       <Trans>Reading what Docker runs here</Trans>
     </p>
-  ) : count === 0 ? (
-    // Nothing to list: the panel's body says so, as every empty state does.
-    <EmptyState icon="service" title={<Trans>Nothing here that Dockwell didn't make</Trans>}>
-      <p>
-        {own > 0
-          ? plural(own, {
-              one: "Dockwell runs # more container here, which isn't listed.",
-              other: "Dockwell runs # more containers here, which aren't listed.",
-            })
-          : null}{" "}
-        <Trans>
-          Apps you run with Dockwell are under <Link to="/apps">Apps</Link>.
-        </Trans>
-      </p>
-    </EmptyState>
   ) : (
     <>
       <div className="containers-lead">

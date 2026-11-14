@@ -12,6 +12,8 @@ import { nameOf } from "../apps/app";
 import { useAllDomains } from "../apps/domains";
 import { type HealthKind, type HealthView, useHealth } from "../apps/health";
 import { useApps } from "../apps/useServices";
+import { engineName, useDatabases } from "../databases/useDatabases";
+import { kindOf, useWebsites } from "../websites/website";
 import { useFleetView } from "./useFleet";
 import "./RunsHere.css";
 
@@ -30,6 +32,8 @@ export function RunsHere({ server }: { server: Server }) {
       </h2>
       <div className="runs-cards">
         <AppsCard server={server} />
+        <WebsitesCard server={server} />
+        <DatabasesCard server={server} />
         <DomainsCard server={server} />
       </div>
     </section>
@@ -230,6 +234,110 @@ function DomainsCard({ server }: { server: Server }) {
       sub={more > 0 ? plural(more, { one: `${shown} and # more`, other: `${shown} and # more` }) : shown}
       link={{ to: "/domains" }}
       busy={busy}
+    />
+  );
+}
+
+/** "2 static · 1 PHP 8.3": how many websites serve each way, as Websites' Type column words them. */
+function WebsitesCard({ server }: { server: Server }) {
+  const { t } = useLingui();
+  const sites = useWebsites();
+  const here = (sites.data ?? []).filter((w) => w.serverId === server.id);
+  if (sites.error && !sites.data) {
+    return (
+      <Card
+        icon="browser"
+        kind={t`Websites`}
+        title={t`Websites`}
+        sub={sentence(sites.error)}
+        link={{ to: "/websites" }}
+      />
+    );
+  }
+  if (here.length === 0) {
+    return (
+      <Card
+        icon="browser"
+        kind={t`Websites`}
+        title={t`No websites`}
+        sub={t`Serve a folder, PHP or an app at a domain`}
+        link={{ to: "/websites/new" }}
+        busy={sites.isPending}
+      />
+    );
+  }
+  // Each way of serving once, in the order the first of each comes, counted.
+  const ways = new Map<string, number>();
+  for (const site of here) {
+    const kind = kindOf(site.spec);
+    const php = site.spec?.serves.case === "php" ? site.spec.serves.value.version : "";
+    const way = kind === "folder" ? "static" : kind === "php" ? `php ${php}` : kind === "unknown" ? "unknown" : "proxy";
+    ways.set(way, (ways.get(way) ?? 0) + 1);
+  }
+  const words = [...ways].map(([way, n]) => {
+    if (way === "static") return plural(n, { one: "# static", other: "# static" });
+    if (way === "proxy") return plural(n, { one: "# proxy", other: "# proxies" });
+    if (way === "unknown") return plural(n, { one: "# unknown", other: "# unknown" });
+    const version = way.slice(4);
+    return version
+      ? plural(n, { one: `# PHP ${version}`, other: `# PHP ${version}` })
+      : plural(n, { one: "# PHP", other: "# PHP" });
+  });
+  const only = here.length === 1 ? here[0] : undefined;
+  return (
+    <Card
+      icon="browser"
+      kind={t`Websites`}
+      title={plural(here.length, { one: "# website", other: "# websites" })}
+      sub={only ? only.domain || only.name : words.join(" · ")}
+      link={only ? { to: "/websites/$websiteId", params: { websiteId: only.id } } : { to: "/websites" }}
+    />
+  );
+}
+
+/** "PostgreSQL 17.2 · Valkey 8.1": each database here by its engine and the version it says it is here. */
+function DatabasesCard({ server }: { server: Server }) {
+  const { t } = useLingui();
+  const all = useDatabases();
+  const here = (all.data?.databases ?? []).filter((db) => db.readings.some((r) => r.serverId === server.id));
+  if (all.error && !all.data) {
+    return (
+      <Card
+        icon="database"
+        kind={t`Databases`}
+        title={t`Databases`}
+        sub={sentence(all.error)}
+        link={{ to: "/databases" }}
+      />
+    );
+  }
+  if (here.length === 0) {
+    return (
+      <Card
+        icon="database"
+        kind={t`Databases`}
+        title={t`No databases`}
+        sub={t`Run PostgreSQL, MySQL, Redis and more`}
+        link={{ to: "/databases" }}
+        busy={all.isPending}
+      />
+    );
+  }
+  const names = here.map((db) => {
+    const version = db.readings.find((r) => r.serverId === server.id)?.version || db.version;
+    return `${engineName(db.engine)} ${version}`.trim();
+  });
+  // Two fit the card's line; past that, the first and how many more, so it stays one or two lines.
+  const shown = names.length > 2 ? (names[0] ?? "") : names.join(" · ");
+  const more = names.length > 2 ? names.length - 1 : 0;
+  const only = here.length === 1 ? here[0] : undefined;
+  return (
+    <Card
+      icon="database"
+      kind={t`Databases`}
+      title={plural(here.length, { one: "# database", other: "# databases" })}
+      sub={more > 0 ? plural(more, { one: `${shown} and # more`, other: `${shown} and # more` }) : shown}
+      link={only ? { to: "/databases/$serviceId", params: { serviceId: only.id } } : { to: "/databases" }}
     />
   );
 }

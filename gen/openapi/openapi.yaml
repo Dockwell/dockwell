@@ -10718,6 +10718,12 @@ components:
                     type: integer
                     description: How many events of every kind together the caller may list.
                     format: int32
+                capped:
+                    type: boolean
+                    description: |-
+                        The counts stopped at the newest 10,000 events, so each is at least what it
+                         says. Counting what someone below an admin may list places each event, so it
+                         stops there to stay quick (#642's review, N1).
             description: CountEventsResponse is how many events of each kind the caller may list.
         CreateBackupRequest:
             type: object

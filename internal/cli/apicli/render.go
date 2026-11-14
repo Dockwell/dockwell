@@ -445,6 +445,9 @@ func eventCountsTable(w io.Writer, res *dockwellv1.CountEventsResponse) {
 	}
 	row(tw, "Every kind", strconv.Itoa(int(res.GetTotal())))
 	_ = tw.Flush()
+	if res.GetCapped() {
+		fmt.Fprintln(w, "\nThese count the newest events only, so each is at least what it says.")
+	}
 }
 
 func driftTable(w io.Writer, res *dockwellv1.ListDriftResponse) {

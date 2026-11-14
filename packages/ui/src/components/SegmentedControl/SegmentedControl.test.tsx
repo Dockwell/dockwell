@@ -35,6 +35,11 @@ describe("SegmentedControl", () => {
     expect(radio("All")).toHaveTextContent("All, 12,345");
   });
 
+  it("says a count that stopped short is at least what it shows", () => {
+    render(<SegmentedControl label="Events" options={[{ value: "all", label: "All", count: 10000, more: true }]} />);
+    expect(radio("All")).toHaveTextContent("All, 10,000+");
+  });
+
   it("keeps only the selected option in the tab order", async () => {
     const user = userEvent.setup();
     render(

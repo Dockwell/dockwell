@@ -352,13 +352,27 @@
   gap: var(--space-4);
 }
 
+/* A ghost button's padding is pulled back, so its word lines up with the jail's. */
 .firewall-jail-actions {
   display: flex;
   gap: var(--space-1);
   margin-top: var(--space-1);
+  margin-inline-start: -11px;
 }
 
 /* A rule set's name is a machine value, so it stays whole and its column takes its width. */
 .firewall-tool td:first-child code {
   white-space: nowrap;
+}
+
+/* The closed ports, a step away under what reaches out. */
+.firewall-foot {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-2);
+  border-top: 1px solid var(--line);
+}
+
+.firewall-pad {
+  padding: var(--space-3) var(--space-4);
 }

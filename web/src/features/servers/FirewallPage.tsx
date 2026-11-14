@@ -15,15 +15,15 @@ import {
   type Server,
   type ServerFirewall,
 } from "@dockwell/api";
-import { Callout, Panel, PHONE_QUERY, Table, type TableColumn, useMediaQuery } from "@dockwell/ui";
+import { Button, Callout, Panel, PHONE_QUERY, Table, type TableColumn, useMediaQuery } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 
 import { reasonOf, sentence } from "../../lib/errors";
 import { ReadFailed } from "../shell/ReadFailed";
 import { Fail2banPanel, SshPanel } from "./FirewallAccess";
-import { DockwellRules } from "./FirewallRules";
+import { DockwellRules, usePortUser } from "./FirewallRules";
 import { ServerFrame } from "./ServerFrame";
 import "./FirewallPage.css";
 
@@ -162,7 +162,7 @@ function FirewallRead({
           </p>
         </Panel>
       ) : (
-        primary.map((tool) => <ToolPanel key={`${tool.kind}-${tool.name}`} tool={tool} />)
+        primary.map((tool) => <ToolPanel key={`${tool.kind}-${tool.name}`} server={server} fw={fw} tool={tool} />)
       )}
       {ssh}
       <ListeningPanel server={server} listening={fw.listening} />
@@ -195,11 +195,31 @@ function useRuleTo(): (rule: FirewallSeenRule) => string {
   };
 }
 
-/** One firewall Dockwell didn't make: what it is, its default, and its rules, read-only. */
-function ToolPanel({ tool }: { tool: FirewallTool }) {
+/**
+ * The ports a rule names, as ufw and firewalld write them: "22/tcp", "80,443/tcp",
+ * "6000:6007/udp", or a port with no protocol. None for a rule of any port, or one
+ * that names an app profile or a service alone; a range counts what's in it.
+ */
+export function portsOf(rule: string): { port: number; protocol?: string }[] {
+  const m = /^([\d,:]+)(?:\/(tcp|udp))?$/.exec(rule);
+  if (!m?.[1]) return [];
+  const protocol = m[2];
+  return m[1].split(",").flatMap((part) => {
+    const [from, to] = part.split(":").map(Number);
+    if (from === undefined || !Number.isInteger(from)) return [];
+    if (to === undefined) return [{ port: from, protocol }];
+    // A long range lists nothing rather than every port in it.
+    if (!Number.isInteger(to) || to < from || to - from > 1024) return [];
+    return Array.from({ length: to - from + 1 }, (_, i) => ({ port: from + i, protocol }));
+  });
+}
+
+/** One firewall Dockwell didn't make: what it is, its default, and its rules, read-only, with what uses each. */
+function ToolPanel({ server, fw, tool }: { server: Server; fw: ServerFirewall; tool: FirewallTool }) {
   const { t } = useLingui();
   const words = useVerdictWords();
   const ruleTo = useRuleTo();
+  const user = usePortUser(server, fw);
   const title =
     tool.kind === FirewallToolKind.UFW ? t`ufw` : tool.name ? t`firewalld, zone ${tool.name}` : t`firewalld`;
   const rows: RuleRow[] = tool.rules.map((rule, i) => ({ id: `${i}`, rule }));
@@ -214,9 +234,20 @@ function ToolPanel({ tool }: { tool: FirewallTool }) {
     {
       key: "source",
       header: t`From`,
-      render: ({ rule }) => (rule.source ? <code>{rule.source}</code> : rule.ipv6 ? t`Anywhere, IPv6` : t`Anywhere`),
+      // Its note names where it lets in from, as the mock's "Office" under an address.
+      render: ({ rule }) => {
+        const from = rule.source ? <code>{rule.source}</code> : rule.ipv6 ? t`Anywhere, IPv6` : t`Anywhere`;
+        return rule.comment ? (
+          <span className="firewall-stack">
+            {from}
+            <span className="firewall-sub">{rule.comment}</span>
+          </span>
+        ) : (
+          from
+        );
+      },
     },
-    { key: "comment", header: t`Note`, muted: true, render: ({ rule }) => rule.comment },
+    { key: "used", header: t`Used by`, muted: true, render: ({ rule }) => user(portsOf(rule.port)) },
   ];
   return (
     <Panel
@@ -366,13 +397,22 @@ interface ListenerRow {
   listener: HostListener;
 }
 
-/** What listens on the server itself, and how far each reaches past the firewalls that cover it. */
+/**
+ * What listens on the server itself, and how far each reaches past the firewalls
+ * that cover it. What reaches out comes first; what a firewall closes is a step
+ * away, as it's what needs no look.
+ */
 function ListeningPanel({ server, listening }: { server: Server; listening: readonly HostListener[] }) {
   const { t } = useLingui();
   const phone = useMediaQuery(PHONE_QUERY);
   const reach = useReachWords();
+  const [allShown, setAllShown] = useState(false);
   if (listening.length === 0) return null;
-  const rows: ListenerRow[] = listening.map((l) => ({ id: `${l.protocol}-${l.address}-${l.port}`, listener: l }));
+  const closed = listening.filter((l) => l.reach === ListenerReach.CLOSED);
+  const shown = allShown
+    ? [...listening.filter((l) => l.reach !== ListenerReach.CLOSED), ...closed]
+    : listening.filter((l) => l.reach !== ListenerReach.CLOSED);
+  const rows: ListenerRow[] = shown.map((l) => ({ id: `${l.protocol}-${l.address}-${l.port}`, listener: l }));
   // The agent says which sockets on "::" take IPv6 alone: it sees what the tab
   // doesn't, as the socket Docker forwards IPv4 past the rules with.
   const where = (l: HostListener) => <BoundTo address={l.address} ipv4Apart={l.ipv6Only} />;
@@ -407,7 +447,29 @@ function ListeningPanel({ server, listening }: { server: Server; listening: read
       actions={<span className="firewall-meta">{plural(listening.length, { one: "# port", other: "# ports" })}</span>}
       flush
     >
-      <Table columns={columns} rows={rows} rowKey="id" caption={t`What listens on ${server.name}`} density="compact" />
+      {rows.length > 0 ? (
+        <Table
+          columns={columns}
+          rows={rows}
+          rowKey="id"
+          caption={t`What listens on ${server.name}`}
+          density="compact"
+        />
+      ) : (
+        <p className="firewall-note firewall-pad">
+          {plural(closed.length, {
+            one: "Its one port is closed by a firewall.",
+            other: "All # are closed by a firewall.",
+          })}
+        </p>
+      )}
+      {closed.length > 0 && !allShown ? (
+        <div className="firewall-foot">
+          <Button size="sm" variant="ghost" icon="chevron-down" onClick={() => setAllShown(true)}>
+            {plural(closed.length, { one: "Show # closed port", other: "Show # closed ports" })}
+          </Button>
+        </div>
+      ) : null}
     </Panel>
   );
 }

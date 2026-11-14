@@ -159,6 +159,24 @@ describe("ProfilePage", () => {
     expect(document.documentElement).not.toHaveAttribute("data-theme");
   });
 
+  it("sets the language this browser shows the panel in, and leads to where alerts reach you", async () => {
+    const user = userEvent.setup();
+    renderAt("/profile", api());
+    const preferences = await screen.findByRole("region", { name: "Preferences" });
+    const language = within(preferences).getByRole("combobox", { name: "Language" });
+    expect(language).toHaveValue("");
+    await user.selectOptions(language, "zh-CN");
+    await waitFor(() => expect(document.documentElement).toHaveAttribute("lang", "zh-CN"));
+    expect(localStorage.getItem("dockwell.locale")).toBe("zh-CN");
+    await user.selectOptions(within(preferences).getByRole("combobox"), "");
+    await waitFor(() => expect(document.documentElement).toHaveAttribute("lang", "en"));
+    expect(localStorage.getItem("dockwell.locale")).toBeNull();
+    expect(within(preferences).getByRole("link", { name: "Alert channels" })).toHaveAttribute(
+      "href",
+      "/alerts/channels",
+    );
+  });
+
   it("takes who is signed in from the gate, without reading it again", async () => {
     const getAuthState = vi.fn(() => authState());
     renderAt("/profile", api({ getAuthState }));
