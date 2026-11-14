@@ -371,7 +371,7 @@ func (h *Handler) ApplyChange(ctx context.Context, req *connect.Request[dockwell
 			return nil, stepUpNeeded(err, dockwellv1.StepUpAction_STEP_UP_ACTION_APPROVE_CHANGE, target)
 		}
 		giveBack = back
-	case r.State == store.ChangePlanned && (r.Plan.AsGoodAsRoot() || access):
+	case r.State == store.ChangePlanned && (r.Plan.AsGoodAsRoot() || access || r.Plan.SendsKeys()):
 		// With no proof, the session's cover may stand in (ADR 0075).
 		back, err := h.auth.HoldStepUp(ctx, client, p, req.Msg.GetProof(), auth.StepUpApplyRootChange, r.ID)
 		if err != nil && !errors.Is(err, auth.ErrNeedsStepUp) && !errors.Is(err, auth.ErrNeedsSession) {
@@ -386,12 +386,21 @@ func (h *Handler) ApplyChange(ctx context.Context, req *connect.Request[dockwell
 	if access {
 		h.remember(ctx, r.ID, p.Session.ID)
 	}
+	pairs := r.Plan.KeyPairs()
 	if err := h.engine.Start(ctx, r.ID, who); err != nil {
 		giveBack()
 		if access {
 			h.forget(r.ID)
 		}
 		return nil, h.rpcError(ctx, err)
+	}
+	// The admin's passkey let these servers have these certificates' keys by DNS
+	// (ADR 0088), which the control plane sends them as it has them, once the
+	// engine has taken the change.
+	if r.State == store.ChangePlanned && len(pairs) > 0 {
+		if err := h.db.Update(context.WithoutCancel(ctx), func(tx *store.Tx) error { return revision.ConfirmKeys(ctx, tx, pairs) }); err != nil {
+			h.logger.ErrorContext(ctx, "can't keep which servers may have which certificates' keys; apply the change's plan again to send them", slog.String("change", r.ID), slog.String("error", err.Error()))
+		}
 	}
 	c, err := h.change(ctx, r.ID)
 	if err != nil {

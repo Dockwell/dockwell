@@ -117,12 +117,15 @@ async function fakeDocker(): Promise<NodeJS.ProcessEnv> {
   // A registry of a few images beside it, for the agent to read images from (ADR 0062),
   // on a port of its own past the panel's range.
   const registry = `127.0.0.1:${port + 1000}`;
+  // And Cloudflare's API, for the control plane to write DNS through (ADR 0088).
+  const cloudflare = `127.0.0.1:${port + 1001}`;
   docker = spawn(resolve(path), [join(data, "docker")], {
     stdio: ["ignore", "pipe", "inherit"],
     env: {
       ...process.env,
       FAKEDOCKER_ROOT: join(process.cwd(), "bin", "fakedocker-root"),
       FAKEDOCKER_REGISTRY: registry,
+      FAKEDOCKER_CLOUDFLARE: cloudflare,
     },
   });
   // A fake that dies, or says nothing, would otherwise hang until the job's timeout.
@@ -144,7 +147,12 @@ async function fakeDocker(): Promise<NodeJS.ProcessEnv> {
   fakeSocket = socket;
   // Flows see it too, as one that reads images runs only where there's a registry to read.
   process.env["DOCKWELL_TEST_REGISTRY"] = `http://${registry}`;
-  return { DOCKER_HOST: `unix://${socket}`, DOCKWELL_TEST_REGISTRY: `http://${registry}` };
+  process.env["DOCKWELL_TEST_CLOUDFLARE"] = `http://${cloudflare}/client/v4`;
+  return {
+    DOCKER_HOST: `unix://${socket}`,
+    DOCKWELL_TEST_REGISTRY: `http://${registry}`,
+    DOCKWELL_TEST_CLOUDFLARE: `http://${cloudflare}/client/v4`,
+  };
 }
 
 /** Starts dockwell run and waits for the claim link it prints. */

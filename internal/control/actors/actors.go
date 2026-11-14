@@ -73,6 +73,10 @@ type Lookup struct {
 // kind.
 func (l Lookup) Name(objectID string) string { return l.read(objectID).name }
 
+// dnsProvider is a DNS provider's ID prefix, whose check of a saved token is on
+// Activity (ADR 0088).
+const dnsProvider = "dnp"
+
 // Scope returns the ID of what the variable or secret with this ID lives
 // in, its environment, or "" for any other ID.
 func (l Lookup) Scope(objectID string) string { return l.read(objectID).scope }
@@ -108,7 +112,7 @@ func (l Lookup) read(objectID string) read {
 		if p, err := l.tx.GetPasskey(l.ctx, objectID); err == nil {
 			name = p.Name
 		}
-	case id.Secret, id.Variable, id.Service, id.Project:
+	case id.Secret, id.Variable, id.Service, id.Project, dnsProvider:
 		if r, err := l.tx.GetResourceByID(l.ctx, objectID); err == nil {
 			name, scope = r.Name, r.Scope
 		}

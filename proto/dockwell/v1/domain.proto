@@ -4,6 +4,7 @@ syntax = "proto3";
 
 package dockwell.v1;
 
+import "dockwell/resource/v1alpha1/specs.proto";
 import "dockwell/v1/change.proto";
 import "dockwell/v1/options.proto";
 import "google/api/annotations.proto";
@@ -14,6 +15,18 @@ import "google/protobuf/timestamp.proto";
 // to do when it failed. Change routes with ChangeService, as kind "route". See
 // docs/adr/0024-the-caddy-ingress-driver.md.
 service DomainService {
+  option (dockwell.v1.nouns) = {
+    name: "domains"
+    help: "Where the domains of your routes stand: what each sends where, and whether its certificate is pending, issued or failed, with what to do when it failed. Change routes with ChangeService, as kind route. See docs/adr/0024-the-caddy-ingress-driver.md."
+  };
+  option (dockwell.v1.nouns) = {
+    name: "certificates"
+    help: "Certificates the control plane proves by DNS-01 through a DNS provider, and renews: for a wildcard, such as *.example.com, or for names the internet can't reach. Routes whose domains one covers, in the projects it serves, are served with it on any server, and its key goes to those servers alone. A certificate is install-wide: an admin makes it as a change, with a plan. See docs/adr/0088-certificates-by-dns-01-and-wildcard-domains.md."
+  };
+  option (dockwell.v1.nouns) = {
+    name: "dns-providers"
+    help: "What writes a DNS zone's records, so the control plane can prove a name by DNS-01 and get its certificate, behind NAT or for a wildcard. A provider is install-wide: an admin connects it as a change, with a plan. Its token stays on the control plane and goes to no server. CheckDnsProvider writes and deletes a TXT record without saving anything. See docs/adr/0088-certificates-by-dns-01-and-wildcard-domains.md."
+  };
   // ListDomains returns the domains of the routes that exist now, sorted by
   // name, with each one's routes and where its certificate and DNS stand on
   // each server. A domain whose certificate is on its way answers over HTTPS
@@ -44,6 +57,156 @@ service DomainService {
       body: "*"
     };
   }
+
+  // ListCertificates returns the certificates the control plane proves by DNS-01,
+  // sorted by name, with where each stands: issued and until when, on its way, or
+  // failed in the provider's or the authority's own words, and when it's tried
+  // again. A key is never returned. See
+  // docs/adr/0088-certificates-by-dns-01-and-wildcard-domains.md.
+  rpc ListCertificates(ListCertificatesRequest) returns (ListCertificatesResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_NAMED;
+    option (google.api.http) = {get: "/v1/certificates"};
+  }
+
+  // ListDnsProviders returns the DNS providers an admin connected, sorted by
+  // name, with the zones each writes in, so a certificate can name one. A token
+  // is never returned. Below an admin, it says each one's ID, name and zones. See
+  // docs/adr/0088-certificates-by-dns-01-and-wildcard-domains.md.
+  rpc ListDnsProviders(ListDnsProvidersRequest) returns (ListDnsProvidersResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_NAMED;
+    option (google.api.http) = {get: "/v1/dnsProviders"};
+  }
+
+  // CheckDnsProvider checks a DNS provider's token from the control plane, as a
+  // certificate would use it, and saves nothing: with a token as typed, or a
+  // saved provider's again. It lists the zones the token reaches, and in each
+  // zone asked for writes a TXT record, _dockwell-check-<random>.<zone>, then
+  // deletes it. An admin's, signed in, as a provider is install-wide.
+  rpc CheckDnsProvider(CheckDnsProviderRequest) returns (CheckDnsProviderResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
+    option (google.api.http) = {
+      post: "/v1/dnsProviders:check"
+      body: "*"
+    };
+  }
+}
+
+// ListCertificatesRequest asks for every certificate by DNS-01.
+message ListCertificatesRequest {}
+
+// ListCertificatesResponse holds the certificates by DNS-01.
+message ListCertificatesResponse {
+  // Sorted by name.
+  repeated CertificateInfo certificates = 1;
+}
+
+// CertificateInfo is a certificate by DNS-01 and where it stands, without its key.
+message CertificateInfo {
+  // Its ID, crt_….
+  string id = 1;
+  // Its name.
+  string name = 2;
+  // The names it covers.
+  repeated string domains = 3;
+  // The DNS provider that proves them, by name.
+  string dns_provider = 4;
+  // Where it stands.
+  CertificateState state = 5;
+  // When the one issued expires, once one is.
+  google.protobuf.Timestamp expire_time = 6;
+  // For people, when the last try failed: the provider's or the authority's own
+  // words, and what to do. A failed renewal leaves the one issued serving.
+  string message = 7;
+  // When it's tried again, while it's on its way or failing; when it renews,
+  // once it's issued.
+  google.protobuf.Timestamp next_time = 8;
+}
+
+// ListDnsProvidersRequest asks for every DNS provider the caller may see.
+message ListDnsProvidersRequest {}
+
+// ListDnsProvidersResponse holds the DNS providers.
+message ListDnsProvidersResponse {
+  // Sorted by name.
+  repeated DnsProviderInfo providers = 1;
+}
+
+// DnsProviderInfo is a DNS provider, without its token.
+message DnsProviderInfo {
+  // Its ID, dnp_….
+  string id = 1;
+  // Its name.
+  string name = 2;
+  // Which provider's API, such as "cloudflare".
+  string provider = 3;
+  // The zones it writes in.
+  repeated string zones = 4;
+}
+
+// CheckDnsProviderRequest is a token to check, or a saved provider to check
+// again.
+message CheckDnsProviderRequest {
+  // Which provider's API: "cloudflare". Unset when name says which.
+  string provider = 1;
+  // The token, as typed. Unset to check a saved provider's.
+  string api_token = 2 [(dockwell.resource.v1alpha1.sensitive) = true];
+  // The zones to write a record in. Empty lists the zones the token reaches and
+  // writes in none.
+  repeated string zones = 3;
+  // A saved provider to check again, by name, with what it saved for anything
+  // left unset here.
+  string name = 4;
+}
+
+// CheckDnsProviderResponse says what the token may do.
+message CheckDnsProviderResponse {
+  // How the provider answered, taken together.
+  DnsProviderState state = 1;
+  // The zones the token reaches, sorted, which a form offers to pick from.
+  repeated string reaches = 2;
+  // For each zone asked for, whether a record could be written there.
+  repeated DnsZoneCheck zones = 3;
+  // The provider's own words, when it said no or couldn't be reached, in a line.
+  string detail = 4;
+}
+
+// DnsZoneCheck is what writing a record in one zone came to.
+message DnsZoneCheck {
+  // The zone, such as "example.com".
+  string zone = 1;
+  // Whether a record was written there, and deleted.
+  bool writes = 2;
+  // The provider's own words, when it couldn't.
+  string detail = 3;
+}
+
+// DnsProviderState is what a DNS provider said of a token.
+enum DnsProviderState {
+  DNS_PROVIDER_STATE_UNSPECIFIED = 0;
+  // It wrote and deleted a record in every zone asked for.
+  DNS_PROVIDER_STATE_WRITES = 1 [(dockwell.v1.word) = "Can write DNS"];
+  // The provider refused the token, or it isn't an API token.
+  DNS_PROVIDER_STATE_REFUSED = 2 [(dockwell.v1.word) = "Wrong token"];
+  // The token is good, but couldn't write in a zone asked for, or reaches no
+  // zone.
+  DNS_PROVIDER_STATE_CANT_WRITE = 3 [(dockwell.v1.word) = "Can't write DNS"];
+  // The provider couldn't be reached, or didn't answer in time.
+  DNS_PROVIDER_STATE_UNREACHABLE = 4 [(dockwell.v1.word) = "Can't reach the provider"];
+  // The token is good and reaches these zones; no zone was asked for, so
+  // nothing was written.
+  DNS_PROVIDER_STATE_REACHES = 5 [(dockwell.v1.word) = "Token works"];
 }
 
 // CheckDomainRequest names a domain and the server it's meant to reach.
@@ -196,6 +359,10 @@ message Certificate {
   string message = 3;
   // When an issued certificate expires. Renewing it is automatic.
   google.protobuf.Timestamp expire_time = 4;
+  // The certificate by DNS-01 that serves it, by name, when one does (ADR 0088).
+  // Unset for one Caddy got over HTTP. Numbered in the block DNS-01 holds, 120 to
+  // 129.
+  string by_dns = 120;
 }
 
 // CertificateState is where a domain's certificate stands.

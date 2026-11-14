@@ -1152,6 +1152,13 @@ message Route {
   // starts on an empty database, so its owner sets it up first, opening it through
   // the panel (ADR 0084).
   bool held = 80;
+  // How the domain proves itself for its certificate (ADR 0088): empty for
+  // automatic, which is DNS-01 where a DNS provider whose zone holds it serves the
+  // route's project and the internet can't reach this server at the name, and
+  // HTTP-01 otherwise; "http" for HTTP-01 or TLS-ALPN-01 by the server's own
+  // proxy; "dns" for DNS-01 by the control plane. Every route of a domain says the
+  // same. Numbered in the block DNS-01 holds, 120 to 129.
+  string proof = 120;
 }
 
 // CatalogSource is a catalog Dockwell reads apps from, beside its own: a folder of
@@ -1267,7 +1274,53 @@ message Spec {
     // What signs in to a container registry, kind "registry.login". Numbered in
     // the block registry logins hold, 100 to 109.
     RegistryLogin registry_login = 100;
+    // What writes a DNS zone's records, so the control plane can prove a name by
+    // DNS-01, kind "dns.provider" (ADR 0088). Numbered in the block DNS-01 holds,
+    // 120 to 129.
+    DnsProvider dns_provider = 120;
+    // A certificate the control plane proves by DNS-01, for a wildcard or for
+    // names the internet can't reach, kind "certificate" (ADR 0088). Numbered in
+    // the block DNS-01 holds, 120 to 129.
+    DnsCertificate certificate = 121;
   }
+}
+
+// DnsCertificate is a certificate the control plane proves by DNS-01 through a DNS
+// provider, and renews, kind "certificate": for a wildcard, such as *.example.com,
+// or for names the internet can't reach to prove over HTTP. Routes whose domains it
+// covers, in the projects it serves, are served with it on any server, and its key
+// goes to those servers alone. It lives in the organization, and only an admin
+// makes one. See docs/adr/0088-certificates-by-dns-01-and-wildcard-domains.md.
+message DnsCertificate {
+  // The names it covers, such as "*.example.com" and "example.com". A wildcard
+  // covers one label, as a certificate authority issues it.
+  repeated string domains = 1;
+  // The DNS provider that proves them, by name. Each name must be in one of its
+  // zones.
+  string dns_provider = 2;
+  // The projects whose routes it serves, by ID. Empty is none, so making one gives
+  // no server its key until an admin says which projects.
+  repeated string projects = 3;
+}
+
+// DnsProvider is what writes the records of one or more DNS zones through a DNS
+// provider's API, so the control plane can prove a name by DNS-01 and get its
+// certificate, kind "dns.provider". It lives in the organization, and only an
+// admin adds, changes or removes one. Its token stays on the control plane, and
+// goes to no server. See docs/adr/0088-certificates-by-dns-01-and-wildcard-domains.md.
+message DnsProvider {
+  // Which provider's API: "cloudflare".
+  string provider = 1;
+  // The zones it writes in, such as "example.com", each checked before it's
+  // saved.
+  repeated string zones = 2;
+  // The provider's API token: for Cloudflare, an API token with Zone:Read and
+  // DNS:Edit, scoped to its zones, not the Global API Key. Leave it out of an
+  // update to keep it.
+  string api_token = 3 [(sensitive) = true];
+  // The projects whose routes' names it proves, by ID. Empty is none: proving a
+  // name by DNS works wherever it points, so an admin says which projects may.
+  repeated string projects = 4;
 }
 
 // RegistryLogin is what signs in to a container registry, so an app can pull an

@@ -556,6 +556,28 @@ func (p *Plan) AsGoodAsRoot() bool {
 	})
 }
 
+// SendsKeys reports a plan that sends a certificate's key by DNS to a server for the
+// first time, which an admin confirms with a passkey (ADR 0088).
+func (p *Plan) SendsKeys() bool { return len(p.KeyPairs()) > 0 }
+
+// KeyPairs are, for each server, the certificates whose keys a plan sends it for the
+// first time: the server's own by its ID, a shared one by its own.
+func (p *Plan) KeyPairs() map[string][]string {
+	out := map[string][]string{}
+	for si := range p.Servers {
+		sp := &p.Servers[si]
+		for i := range sp.Steps {
+			for j := range sp.Steps[i].HostAccess {
+				a := &sp.Steps[i].HostAccess[j]
+				if a.Kind == resource.AccessCertificateKey && !slices.Contains(out[sp.Server], a.Address) {
+					out[sp.Server] = append(out[sp.Server], a.Address)
+				}
+			}
+		}
+	}
+	return out
+}
+
 // Destructive reports a plan with a step that destroys data, may cut off access,
 // or lets two containers write to one place, as a spec chose: two writers can
 // corrupt a database, and applying can't undo that.
@@ -854,6 +876,8 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 	if err := e.checkRestores(ctx, plan, items); err != nil {
 		return nil, err
 	}
+	// What planning noted itself, such as a route proven by DNS that gets no key.
+	p.Notes = append(slices.Clone(p.Notes), plan.Notes...)
 	// A caller that backs up first, or was asked not to, says so once for the plan.
 	moves = slices.DeleteFunc(moves, func(n Note) bool {
 		return (n.Reason == "backup_first" || n.Reason == "no_backup") && slices.ContainsFunc(p.Notes, func(m Note) bool { return m.Reason == n.Reason })
@@ -2252,6 +2276,12 @@ func itOrThem(n int) string {
 // planned from its server's last known desired state, like an offline
 // one, and its steps wait for Resume to plan them against the server.
 func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollback bool) (*Plan, error) {
+	// Which certificate's key a route proven by DNS takes where, read once (ADR 0088).
+	var keys *keyContext
+	var keyNotes []Note
+	if err := e.checkCertificates(ctx, items); err != nil {
+		return nil, err
+	}
 	var servers, removed []string
 	byServer := map[string][]*item{}
 	for i := range items {
@@ -2517,6 +2547,23 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 				gained = append(gained, a)
 				access[ids[s.Ref]] = append(access[ids[s.Ref]], resource.NewAccess(access[ids[s.Ref]], []resource.Access{a})...)
 			}
+			// A route proven by DNS on a server that has never had a certificate's
+			// key: an admin confirms it, with a passkey (ADR 0088).
+			if it := itemOf(its, s.Ref); it != nil && s.Action != resource.ActionDelete {
+				if rt, ok := it.spec.(*resourcev1.Route); ok && rt.GetProof() == "dns" && rt.GetTls() == "" {
+					if keys == nil {
+						keys = e.keys(ctx)
+					}
+					a, note := e.keyFor(ctx, keys, rt, s.Ref, server)
+					if a != nil {
+						gained = append(gained, *a)
+						access[ids[s.Ref]] = append(access[ids[s.Ref]], resource.NewAccess(access[ids[s.Ref]], []resource.Access{*a})...)
+					}
+					if note != nil {
+						keyNotes = append(keyNotes, *note)
+					}
+				}
+			}
 			s.HostAccess = gained
 			sp.Steps = append(sp.Steps, *s)
 			sp.Downtime += s.Downtime
@@ -2578,6 +2625,7 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 	}
 	plan.Fingerprint = hex.EncodeToString(keyed.Sum(nil)[:16])
 	plan.plain = hex.EncodeToString(plain.Sum(nil)[:16])
+	plan.Notes = append(plan.Notes, keyNotes...)
 	return plan, nil
 }
 

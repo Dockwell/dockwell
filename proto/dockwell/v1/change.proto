@@ -1372,6 +1372,10 @@ enum HostAccessKind {
   // 0053): the same as root. Numbered in the block scheduled tasks hold, as open
   // work adds to this enum.
   HOST_ACCESS_KIND_SERVER_SHELL = 150;
+  // A certificate's key, proven by DNS by the control plane, going to the server
+  // for the first time, for the domain in path (ADR 0088). An admin confirms it
+  // with a passkey. Numbered in the block DNS-01 holds, 120 to 129.
+  HOST_ACCESS_KIND_CERTIFICATE_KEY = 120;
 }
 
 // ServerPlan is the part of a plan on one server.

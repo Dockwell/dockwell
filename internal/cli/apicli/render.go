@@ -1237,6 +1237,7 @@ var accessKinds = map[dockwellv1.HostAccessKind]resource.AccessKind{
 	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_TAKES_ON:         resource.AccessTakesOn,
 	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_BACKUP_OF:        resource.AccessBackupOf,
 	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_SERVER_SHELL:     resource.AccessServerShell,
+	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_CERTIFICATE_KEY:  resource.AccessCertificateKey,
 	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_CAPABILITY:       resource.AccessCapability,
 	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_GROUP:            resource.AccessGroup,
 	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_PRIVILEGED:       resource.AccessPrivileged,
@@ -1410,7 +1411,19 @@ var labels = map[protoreflect.Name]string{
 	"undo_deadline":  "Undo until",
 }
 
-var acronyms = map[string]string{"id": "ID", "rp": "RP", "os": "OS", "cpu": "CPU", "ip": "IP", "url": "URL", "uri": "URI", "json": "JSON", "ttl": "TTL", "api": "API"}
+var acronyms = map[string]string{"id": "ID", "rp": "RP", "os": "OS", "cpu": "CPU", "ip": "IP", "url": "URL", "uri": "URI", "json": "JSON", "ttl": "TTL", "api": "API", "dns": "DNS"}
+
+// kindWords is a kind as a sentence names it: "registry.login" is "registry login",
+// and "dns.provider" "DNS provider".
+func kindWords(kind resource.Kind) string {
+	words := strings.Split(string(kind), ".")
+	for i, w := range words {
+		if a, ok := acronyms[w]; ok {
+			words[i] = a
+		}
+	}
+	return strings.Join(words, " ")
+}
 
 // Label is a field's name for people: "server_name" is "Server name",
 // "create_time" "Created".

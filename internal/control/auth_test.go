@@ -18,6 +18,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/cookiejar"
+	"net/http/httptest"
 	"net/netip"
 	"net/url"
 	"path/filepath"
@@ -38,6 +39,8 @@ import (
 	"github.com/dockwell/dockwell/internal/auth/authtest"
 	"github.com/dockwell/dockwell/internal/control/agentapi"
 	"github.com/dockwell/dockwell/internal/control/authapi"
+	"github.com/dockwell/dockwell/internal/control/dnsproviders"
+	"github.com/dockwell/dockwell/internal/control/dnsproviders/cftest"
 	"github.com/dockwell/dockwell/internal/control/fleet"
 	"github.com/dockwell/dockwell/internal/control/identity"
 	logapi "github.com/dockwell/dockwell/internal/control/logs"
@@ -49,7 +52,9 @@ import (
 	"github.com/dockwell/dockwell/internal/resource/alert"
 	"github.com/dockwell/dockwell/internal/resource/backuppolicy"
 	"github.com/dockwell/dockwell/internal/resource/catalogsource"
+	"github.com/dockwell/dockwell/internal/resource/certificate"
 	"github.com/dockwell/dockwell/internal/resource/container"
+	"github.com/dockwell/dockwell/internal/resource/dnsprovider"
 	"github.com/dockwell/dockwell/internal/resource/fail2ban"
 	"github.com/dockwell/dockwell/internal/resource/firewall"
 	"github.com/dockwell/dockwell/internal/resource/host"
@@ -118,6 +123,8 @@ type fullServer struct {
 	server *Server
 	// lastDocker is the server addDockerServer last added.
 	lastDocker *testServer
+	// cloudflare is Cloudflare's stand-in, which takes dnsToken for its zones.
+	cloudflare *cftest.API
 	// onePanelRoot is where the next Docker server added has 1Panel installed, if anywhere.
 	onePanelRoot string
 	// volumes wraps the volume driver of the next server added, to see what its
@@ -190,7 +197,7 @@ func startFullConfig(t *testing.T, backend store.Backend, public https.Source, l
 	if _, err := revision.Setup(t.Context(), db, logger); err != nil {
 		t.Fatal(err)
 	}
-	kinds := resource.NewRegistry(&container.Driver{}, &firewall.Driver{}, &firewall.PolicyDriver{}, &fail2ban.Driver{}, &service.Driver{}, &volume.Driver{}, &network.Driver{}, &route.Driver{}, variable.Type{}, variable.SecretType{}, backuppolicy.Type{}, backuppolicy.Destination{}, registrylogin.Type{}, catalogsource.Type{}, linkkind.Type{}, &database.UserDriver{}, &task.Driver{}, alert.Rule{}, alert.Channel{}, alert.Check{}, &host.Driver{})
+	kinds := resource.NewRegistry(&container.Driver{}, &firewall.Driver{}, &firewall.PolicyDriver{}, &fail2ban.Driver{}, &service.Driver{}, &volume.Driver{}, &network.Driver{}, &route.Driver{}, variable.Type{}, variable.SecretType{}, backuppolicy.Type{}, backuppolicy.Destination{}, registrylogin.Type{}, dnsprovider.Type{}, certificate.Type{}, catalogsource.Type{}, linkkind.Type{}, &database.UserDriver{}, &task.Driver{}, alert.Rule{}, alert.Channel{}, alert.Check{}, &host.Driver{})
 	keeper := secretstest.Keeper(db, kinds)
 	agents := agentapi.NewAgents(kinds, logger)
 	engine := revision.New(db, kinds, agents, keeper, logger)
@@ -218,6 +225,16 @@ func startFullConfig(t *testing.T, backend store.Backend, public https.Source, l
 		// A test's catalog source is served on loopback, which only a test's client reaches.
 		CatalogClient: gitfetchtest.Client(),
 	}
+	// Cloudflare's stand-in, the one DNS provider a test reaches (ADR 0088).
+	cloudflare := cftest.New(dnsToken, "example.com", "example.org")
+	cfSrv := httptest.NewServer(cloudflare)
+	t.Cleanup(cfSrv.Close)
+	// Certificates by DNS come from a CA on a port nothing answers, so a test reaches
+	// no real one (ADR 0088).
+	config.CertificateCA = "https://127.0.0.1:1/directory"
+	config.DNSAPI = func(token string) dnsproviders.API {
+		return &dnsproviders.Cloudflare{Token: token, Base: cfSrv.URL + "/client/v4", Client: cfSrv.Client()}
+	}
 	if public != nil {
 		// As dockwell run says it of a domain with plain HTTP on port 80 and HTTPS on 8443: the ingress takes the
 		// public ports while there are routes, and serves the domain on 443.
@@ -231,8 +248,9 @@ func startFullConfig(t *testing.T, backend store.Backend, public https.Source, l
 		t.Fatal(err)
 	}
 	f := &fullServer{
-		names: names,
-		auth:  people, engine: engine, agents: agents, keeper: keeper, ident: ident, store: db, db: path,
+		cloudflare: cloudflare,
+		names:      names,
+		auth:       people, engine: engine, agents: agents, keeper: keeper, ident: ident, store: db, db: path,
 		api: ls.API.Addr().String(), agentAddr: ls.Agents.Addr().String(), server: srv, config: config, kinds: kinds,
 	}
 	if public != nil {

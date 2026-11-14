@@ -2187,6 +2187,35 @@ describe("the plan sheet, once it runs", () => {
     });
 
     it.each([
+      ["", "app.example.com sends a certificate's key for app.example.com to hz-1 for the first time"],
+      [
+        "*.example.com, example.com",
+        "app.example.com sends the key of the shared certificate for *.example.com, example.com to hz-1 for the first time",
+      ],
+    ])("names a shared certificate's names as its key goes to a server (%s)", async (names, says) => {
+      const change = moved(aRoutePlan(PlanAction.CREATE), { state: ChangeState.PLANNED });
+      const resource = change.plan?.resources[0];
+      const access = create(HostAccessSchema, {
+        kind: HostAccessKind.CERTIFICATE_KEY,
+        path: "app.example.com",
+        detail: names,
+        address: names ? "crt_wild" : "srv_1",
+      });
+      if (resource) {
+        resource.changes = [create(FieldChangeSchema, { path: "domain", op: FieldOp.ADDED, to: "app.example.com" })];
+        resource.hostAccess = [access];
+      }
+      const step = change.plan?.servers[0]?.steps[0];
+      if (step) step.hostAccess = [access];
+      renderSheet(
+        { kind: "plan", make: () => Promise.resolve({ change }) },
+        { changes: { watchChange: feed<WatchChangeResponse>().stream } },
+      );
+      const review = await screen.findByRole("dialog", { name: "Review plan" });
+      expect(review).toHaveTextContent(says);
+    });
+
+    it.each([
       ["172.20.0.0/16", true],
       ["2001:db8::/32", true],
       ["10.0.0.5/32", false],

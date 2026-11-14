@@ -405,6 +405,12 @@ export function useChangeWords(): ChangeWords {
             return t`a backup of a volume that reached ${path}, which can hold what's there, as good as root`;
           case HostAccessKind.SERVER_SHELL:
             return t`a shell command on the server, which runs as root`;
+          case HostAccessKind.CERTIFICATE_KEY: {
+            const names = access.detail;
+            return names
+              ? t`the key of the shared certificate for ${names}, proven by DNS, going to this server for the first time, for ${path}`
+              : t`a certificate's key for ${path}, proven by DNS, going to this server for the first time`;
+          }
           case HostAccessKind.TAKES_ON:
             return t`the container ${path}, which Dockwell didn't make, and its environment, which comes in with it`;
           case HostAccessKind.CAPABILITY:

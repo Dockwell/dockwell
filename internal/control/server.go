@@ -51,11 +51,13 @@ import (
 	"github.com/dockwell/dockwell/internal/control/backups"
 	"github.com/dockwell/dockwell/internal/control/builds"
 	"github.com/dockwell/dockwell/internal/control/catalogapi"
+	"github.com/dockwell/dockwell/internal/control/certificates"
 	"github.com/dockwell/dockwell/internal/control/changes"
 	"github.com/dockwell/dockwell/internal/control/checks"
 	"github.com/dockwell/dockwell/internal/control/composeapi"
 	"github.com/dockwell/dockwell/internal/control/containers"
 	"github.com/dockwell/dockwell/internal/control/databases"
+	"github.com/dockwell/dockwell/internal/control/dnsproviders"
 	"github.com/dockwell/dockwell/internal/control/domains"
 	"github.com/dockwell/dockwell/internal/control/events"
 	"github.com/dockwell/dockwell/internal/control/files"
@@ -182,6 +184,24 @@ type Config struct {
 	ECR *registrylogins.ECR
 	// logins are the registry logins, read with Secrets from Store.
 	logins *registrylogins.Logins
+	// DNSAPI reaches a DNS provider's API with a token, for the DNS providers
+	// (ADR 0088): Cloudflare's own unless a test passes one that reaches its own
+	// server.
+	DNSAPI func(token string) dnsproviders.API
+	// dns are the DNS providers, read with Secrets from Store.
+	dns *dnsproviders.Providers
+	// CertificateCA is the ACME directory certificates by DNS come from (ADR
+	// 0088): Let's Encrypt's unless set. CertificateClient reaches it, with the
+	// roots it's trusted by; CertificatePropagation waits for each challenge
+	// record, and nil waits for none, as a test's CA reads its own DNS.
+	CertificateCA          string
+	CertificateClient      *http.Client
+	CertificatePropagation certificates.Waiter
+	// CertificatesOff says no certificate by DNS is got, as in a test with no CA
+	// of its own.
+	CertificatesOff bool
+	// certificates gets, renews and keeps certificates by DNS.
+	certificates *certificates.Manager
 	// Logs changes the limits of reading logs, as tests do.
 	Logs logapi.Options
 	// EventPoll is how often a watch of the timeline reads the store again,
@@ -235,6 +255,8 @@ type Server struct {
 	backups *backups.Handler
 	// tasks reads scheduled tasks' runs from the agents that run them.
 	tasks *tasks.Handler
+	// certificates gets and renews certificates by DNS (ADR 0088).
+	certificates *certificates.Manager
 	// updates checks what's newer than what each service runs (ADR 0079).
 	updates *serviceupdates.Keeper
 	public  https.Source
@@ -286,6 +308,41 @@ func New(cfg Config) (*Server, error) {
 		if cfg.ECR != nil {
 			cfg.logins.ECR = cfg.ECR
 		}
+		cfg.dns = dnsproviders.New(cfg.Store, cfg.Secrets)
+		if cfg.DNSAPI != nil {
+			cfg.dns.Cloudflare = cfg.DNSAPI
+		}
+		if !cfg.CertificatesOff {
+			cfg.certificates = &certificates.Manager{
+				DB: cfg.Store, Keeper: cfg.Secrets, DNS: cfg.dns, Directory: cfg.CertificateCA, HTTP: cfg.CertificateClient,
+				Propagation: cfg.CertificatePropagation, Logger: cfg.Logger,
+				PanelDomains: func() []string {
+					var out []string
+					if cfg.Auth != nil {
+						out = append(out, cfg.Auth.Sites().Domain)
+					}
+					// And as it's saved, which the route kind holds (ADR 0024).
+					if t, err := cfg.Changes.Kinds().Type("route"); err == nil {
+						if p, ok := t.(revision.PanelDomains); ok {
+							out = append(out, p.PanelDomains()...)
+						}
+					}
+					return out
+				},
+				ControlServer: func() string {
+					if cfg.Fleet != nil {
+						if s := cfg.Fleet.ControlServer(); s != nil {
+							return s.GetId()
+						}
+					}
+					return ""
+				},
+			}
+			if cfg.Agents != nil {
+				cfg.certificates.Agents = certificateAgents{cfg.Agents}
+				cfg.Agents.OnConnect(cfg.certificates.Reconnected)
+			}
+		}
 	}
 	api, err := apiRoutes(cfg, ui, ports, &logs, &backupHandler, &taskHandler, &evaluator, &updateKeeper, &autoupdates, &follower)
 	if err != nil {
@@ -296,7 +353,7 @@ func New(cfg Config) (*Server, error) {
 		// refuses a person's that comes without (ADR 0049).
 		cfg.Changes.RequireRoles()
 	}
-	s := &Server{logger: cfg.Logger, api: api, logs: logs, backups: backupHandler, tasks: taskHandler, updates: updateKeeper, alerts: evaluator, manualAlerts: cfg.ManualAlerts, public: cfg.Public, changes: cfg.Changes, store: cfg.Store, stepGrace: cfg.StepGrace, autoupdates: autoupdates}
+	s := &Server{logger: cfg.Logger, api: api, logs: logs, backups: backupHandler, tasks: taskHandler, updates: updateKeeper, alerts: evaluator, manualAlerts: cfg.ManualAlerts, public: cfg.Public, changes: cfg.Changes, store: cfg.Store, stepGrace: cfg.StepGrace, autoupdates: autoupdates, certificates: cfg.certificates}
 	s.catalogs = follower
 	if cfg.Agents != nil {
 		agents := cfg.Agents
@@ -458,6 +515,7 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 				variables.New(cfg.Changes.Kinds(), cfg.Store, cfg.Secrets, cfg.Auth, cfg.Logger), opts...))
 		}
 		domainHandler := domains.New(cfg.Changes.Kinds(), cfg.Store, cfg.Agents, fleetOf(cfg), cfg.Logger)
+		domainHandler.DNS, domainHandler.Certificates = cfg.dns, cfg.certificates
 		domainHandler.Lookup = cfg.DNSLookup
 		handle(dockwellv1connect.NewDomainServiceHandler(domainHandler, opts...))
 		if cfg.Fleet != nil {
@@ -892,6 +950,9 @@ func (s *Server) Run(ctx context.Context, ls Listeners) error {
 	if s.hosts != nil {
 		api.Go(func() { s.hosts.Run(apiCtx) })
 	}
+	if s.certificates != nil && !s.manualAlerts {
+		api.Go(func() { s.certificates.Run(apiCtx) })
+	}
 	// Installs from before Dockwell showed an app's plain values show them, once its
 	// servers' agents are back (ADR 0081).
 	if s.catalogs != nil && s.connected != nil {
@@ -1079,4 +1140,17 @@ func loginsOrNil(logins *registrylogins.Logins) serviceupdates.Logins {
 		return nil
 	}
 	return logins
+}
+
+// certificateAgents gives the certificate manager the agents' sessions (ADR 0088).
+type certificateAgents struct{ agents *agentapi.Agents }
+
+func (c certificateAgents) Connected() []string { return c.agents.Connected() }
+
+func (c certificateAgents) Loader(server string) (certificates.Loader, bool) {
+	s, ok := c.agents.Session(server)
+	if !ok {
+		return nil, false
+	}
+	return s, true
 }

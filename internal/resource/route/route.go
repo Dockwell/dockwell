@@ -218,6 +218,16 @@ func CheckPath(p string) error {
 	return nil
 }
 
+// PanelDomains are the panel's domain as it's served and as it's saved, either of
+// which may be empty.
+func (d *Driver) PanelDomains() []string {
+	out := []string{d.Reserved}
+	if d.Saved != nil {
+		out = append(out, d.Saved())
+	}
+	return out
+}
+
 // UnderOrIs reports a domain that is name, or under it.
 func UnderOrIs(domain, name string) bool {
 	return domain == name || strings.HasSuffix(domain, "."+name)
@@ -229,6 +239,14 @@ func (d *Driver) Validate(spec proto.Message) error {
 	r := spec.(*resourcev1.Route)
 	if r.GetPath() == "/" {
 		r.Path = ""
+	}
+	switch r.GetProof() {
+	case "", ProofHTTP, ProofDNS:
+	default:
+		return fmt.Errorf("a route proves its domain by %q, which isn't a way: leave it empty for automatic, or say http or dns", r.GetProof())
+	}
+	if r.GetProof() != "" && plain(r) {
+		return fmt.Errorf("%s takes no certificate, as its tls is off, so it proves nothing. Leave proof empty", Where(r))
 	}
 	if err := checkDomainFor(r); err != nil {
 		return err
@@ -367,8 +385,13 @@ func (*Driver) Claims(spec proto.Message) []resource.Claim {
 		Key: r.GetDomain() + r.GetPath(), Group: r.GetDomain(),
 		Words: Where(r), GroupWords: "the domain " + r.GetDomain(), MannerWords: "takes a certificate",
 	}
-	if plain(r) {
+	switch {
+	case plain(r):
 		c.Manner, c.MannerWords = ingress.TLSOff, "takes none"
+	case r.GetProof() == ProofDNS:
+		c.Manner, c.MannerWords = ProofDNS, "proves itself by DNS"
+	case r.GetProof() == ProofHTTP:
+		c.Manner, c.MannerWords = ProofHTTP, "proves itself over HTTP"
 	}
 	return []resource.Claim{c}
 }
@@ -384,6 +407,13 @@ func (*Driver) TakesOver(group, held string) resource.Access {
 func (*Driver) OneServer() string {
 	return "a certificate comes over HTTP-01 or TLS-ALPN-01 to the server its domain points at, which fails some of the time from two"
 }
+
+// How a route's domain proves itself for its certificate (ADR 0088). Empty is
+// automatic.
+const (
+	ProofHTTP = "http"
+	ProofDNS  = "dns"
+)
 
 // Where is a route's domain and path, as people read them.
 func Where(r *resourcev1.Route) string { return r.GetDomain() + r.GetPath() }

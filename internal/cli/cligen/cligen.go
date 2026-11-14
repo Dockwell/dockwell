@@ -804,7 +804,7 @@ func plural(s string) string {
 }
 
 // acronyms are words help writes in capitals.
-var acronyms = map[string]string{"api": "API", "totp": "TOTP", "id": "ID"}
+var acronyms = map[string]string{"api": "API", "totp": "TOTP", "id": "ID", "dns": "DNS"}
 
 // words writes a kebab-case noun as words, for help: "api-tokens" is "API
 // tokens".
