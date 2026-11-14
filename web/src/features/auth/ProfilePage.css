@@ -260,3 +260,10 @@
   width: auto;
   min-width: 160px;
 }
+
+/* Its words at the size of the theme's options beside it, where a pointer is fine; a finger keeps 16 px. */
+@media (pointer: fine) {
+  .profile-pref-select .dw-select-el {
+    font-size: 12.5px;
+  }
+}

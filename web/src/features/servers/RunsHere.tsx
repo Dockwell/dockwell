@@ -327,8 +327,9 @@ function DatabasesCard({ server }: { server: Server }) {
     const version = db.readings.find((r) => r.serverId === server.id)?.version || db.version;
     return `${engineName(db.engine)} ${version}`.trim();
   });
-  const shown = names.slice(0, 2).join(" · ");
-  const more = names.length - 2;
+  // Two fit the card's line; past that, the first and how many more, so it stays one or two lines.
+  const shown = names.length > 2 ? (names[0] ?? "") : names.join(" · ");
+  const more = names.length > 2 ? names.length - 1 : 0;
   const only = here.length === 1 ? here[0] : undefined;
   return (
     <Card
