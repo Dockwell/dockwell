@@ -170,9 +170,9 @@ type wentOn struct {
 }
 
 // failGoneOn fails change c if any of its steps failed, as its progress records them
-// across every run of it, naming each server that did: a change that went on past a
-// failure (ADR 0094). It returns nil when none did. A failure of this run keeps its
-// own error; one from a run before has what its step recorded.
+// across every run of it, naming each server that did, even one alone: a change
+// that went on past a failure (ADR 0094). It returns nil when none did. A failure
+// of this run keeps its own error; one from a run before has what its step recorded.
 func (e *Engine) failGoneOn(ctx context.Context, c store.Change, now []wentOn) error {
 	progress := e.progress(c.ID)
 	if progress == nil {
@@ -207,9 +207,14 @@ func (e *Engine) failGoneOn(ctx context.Context, c store.Change, now []wentOn) e
 	if j := slices.IndexFunc(now, func(f wentOn) bool { return f.index == first }); j >= 0 {
 		cause = now[j].err
 	}
-	plain, _ := resource.Explain(stepFailure(name, cause))
-	if len(servers) > 1 {
+	plain, detail := resource.Explain(stepFailure(name, cause))
+	switch {
+	case len(servers) > 1:
 		plain = fmt.Sprintf("%d servers failed: %s. The first: %s", len(servers), human.List(servers), plain)
+	case detail != "" && len(names) > 1:
+		// A change's error stands on its own, so it says which server failed, as
+		// one that stopped at a failure does, unless its words have already.
+		plain = name + ": " + plain
 	}
 	return e.fail(ctx, c, s.Ref, cause, plain)
 }

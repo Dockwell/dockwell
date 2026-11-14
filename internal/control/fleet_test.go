@@ -735,8 +735,8 @@ func TestAChangeThatKeepsGoingRemembersAFailureAcrossAResume(t *testing.T) {
 	done := waitChange(t, c, change.GetId(), "the end", func(ch *dockwellv1.Change) bool {
 		return ch.GetState() == dockwellv1.ChangeState_CHANGE_STATE_APPLIED || ch.GetState() == dockwellv1.ChangeState_CHANGE_STATE_FAILED
 	})
-	if done.GetState() != dockwellv1.ChangeState_CHANGE_STATE_FAILED || !strings.Contains(done.GetError(), "status 1") {
-		t.Errorf("with alpha's upgrade failed, the change ended %v (%q)", done.GetState(), done.GetError())
+	if done.GetState() != dockwellv1.ChangeState_CHANGE_STATE_FAILED || !strings.HasPrefix(done.GetError(), "alpha: ") || !strings.Contains(done.GetError(), "status 1") {
+		t.Errorf("with alpha's upgrade failed, the change ended %v (%q), want failed with alpha's error, naming alpha", done.GetState(), done.GetError())
 	}
 }
 
@@ -777,7 +777,8 @@ func TestAServerGoneBeforeItsTurnIsAFailureThatKeepsGoing(t *testing.T) {
 
 // With keep_going, a step that fails beside one that waits for its server leaves the
 // change waiting for that server alone: once it's back, the resume doesn't wait for
-// the one whose step failed and that has gone since, and the change fails with it.
+// the one whose step failed and that has gone since, and the change fails with its
+// error, naming it.
 func TestAResumeWaitsOnlyForServersWithStepsLeft(t *testing.T) {
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
@@ -826,8 +827,8 @@ func TestAResumeWaitsOnlyForServersWithStepsLeft(t *testing.T) {
 	done := waitChange(t, c, change.GetId(), "the end", func(ch *dockwellv1.Change) bool {
 		return ch.GetState() == dockwellv1.ChangeState_CHANGE_STATE_APPLIED || ch.GetState() == dockwellv1.ChangeState_CHANGE_STATE_FAILED
 	})
-	if done.GetState() != dockwellv1.ChangeState_CHANGE_STATE_FAILED || !strings.Contains(done.GetError(), "status 1") {
-		t.Errorf("the change ended %v: %q, want failed with bravo's error", done.GetState(), done.GetError())
+	if done.GetState() != dockwellv1.ChangeState_CHANGE_STATE_FAILED || !strings.HasPrefix(done.GetError(), "bravo: ") || !strings.Contains(done.GetError(), "status 1") {
+		t.Errorf("the change ended %v: %q, want failed with bravo's error, naming bravo", done.GetState(), done.GetError())
 	}
 	if a, b := stepOf(done, alpha).GetState(), stepOf(done, bravo).GetState(); a != dockwellv1.StepState_STEP_STATE_DONE || b != dockwellv1.StepState_STEP_STATE_FAILED {
 		t.Errorf("alpha's step is %v and bravo's %v, want done once alpha is back, and failed", a, b)
