@@ -78,6 +78,8 @@ export interface DomainsSearch {
   server?: string;
   /** The route whose sheet of who gets in is open, by ID (ADR 0087). */
   private?: string;
+  /** Add a domain opens with the page, as the top bar's New offers it (#617). */
+  add?: boolean;
 }
 
 /** How often how long a server has said nothing, and what a certificate has left, are looked at again. */
@@ -137,7 +139,13 @@ export function DomainsPage({
   const { servers, fleet } = useFleetView();
   const places = usePlaces();
   const navigate = useNavigate();
-  const [adding, setAdding] = useState(false);
+  const mayAdd = useMay()(ChangeService.method.proposeChange);
+  const [adding, setAddingHere] = useState(search.add === true);
+  // Closing the sheet takes its word out of the address, so a reload doesn't open it again.
+  const setAdding = (open: boolean) => {
+    setAddingHere(open);
+    if (!open && search.add) onSearch?.({ ...search, add: undefined });
+  };
   const [moving, setMoving] = useState<Row>();
   // Who gets in to a route, in the list's address so a link opens it, or here where the list has none.
   const [privateHere, setPrivateHere] = useState<string>();
@@ -469,7 +477,8 @@ export function DomainsPage({
           </div>
         )}
       </section>
-      {adding ? <AddDomainSheet apps={apps} onClose={() => setAdding(false)} /> : null}
+      {/* ?add opens it only for someone who may plan a change (ADR 0059). */}
+      {adding && mayAdd.allowed ? <AddDomainSheet apps={apps} onClose={() => setAdding(false)} /> : null}
       {privateAt ? (
         <PrivateSheet
           domain={privateAt.domain}

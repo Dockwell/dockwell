@@ -10,6 +10,7 @@ import {
   type Change,
   ChangeElsewhereSchema,
   ChangeState,
+  DatabaseDumpSchema,
   DomainCheckSchema,
   DomainCheckState,
   DroppedMountSchema,
@@ -2936,6 +2937,22 @@ describe("the plan sheet, once it runs", () => {
       show({ ...change, steps: [ran("res_data", StepState.DONE), ran("res_web", StepState.FAILED)] });
       const sheet = await screen.findByRole("dialog");
       expect(await within(sheet).findByText(/with PostgreSQL's own dump, with nothing stopped/)).toBeVisible();
+    });
+
+    it("names each app's database a dump takes alone, each a backup of its own", async () => {
+      const change = upgrade("backup_first");
+      const first = change.plan?.servers[0]?.steps[0]?.backupFirst;
+      if (first) {
+        first.method = BackupMethod.DUMP;
+        first.database = "PostgreSQL";
+        first.stops = [];
+        first.databaseName = "blog";
+        first.also = [create(DatabaseDumpSchema, { backupId: "bkp_2", databaseName: "tools" })];
+      }
+      show({ ...change, steps: [ran("res_data", StepState.DONE), ran("res_web", StepState.FAILED)] });
+      const sheet = await screen.findByRole("dialog");
+      expect(await within(sheet).findByText(/Dump blog and tools alone from/)).toBeVisible();
+      expect(within(sheet).getByText(/each as a backup of its own, with nothing stopped/)).toBeVisible();
     });
 
     it("names the backups an undo leaves you to restore, and when", async () => {

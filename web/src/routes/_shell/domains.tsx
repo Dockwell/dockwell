@@ -16,6 +16,7 @@ function readSearch(search: Record<string, unknown>): DomainsSearch {
   // is in would filter out every domain.
   const state = search["state"] as DomainGroup;
   out.state = DOMAIN_GROUPS.includes(state) ? state : undefined;
+  if (search["add"] === true || search["add"] === 1 || search["add"] === "1") out.add = true;
   return out;
 }
 

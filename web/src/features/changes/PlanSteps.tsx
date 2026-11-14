@@ -292,7 +292,24 @@ function StepRow({
 /** What a step that backs up a volume does: its own dump, or a copy of what stops for it. */
 function BackupFirstLine({ first, name }: { first: BackupFirst; name: string }) {
   const { i18n } = useLingui();
-  const stops = new Intl.ListFormat(i18n.locale, { style: "long", type: "conjunction" }).format(first.stops);
+  const list = new Intl.ListFormat(i18n.locale, { style: "long", type: "conjunction" });
+  const stops = list.format(first.stops);
+  if (first.databaseName && first.also.length > 0) {
+    // Several apps' databases on one server, each dumped alone (ADR 0084).
+    const databases = list.format([first.databaseName, ...first.also.map((d) => d.databaseName)]);
+    return (
+      <Trans>
+        Dump {databases} alone from <code>{name}</code>, each as a backup of its own, with nothing stopped
+      </Trans>
+    );
+  }
+  if (first.databaseName) {
+    return (
+      <Trans>
+        Dump <code>{first.databaseName}</code> alone from <code>{name}</code>, with nothing stopped
+      </Trans>
+    );
+  }
   if (first.method === BackupMethod.DUMP) {
     return (
       <Trans>

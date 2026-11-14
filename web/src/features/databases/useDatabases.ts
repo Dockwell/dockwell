@@ -241,8 +241,8 @@ export function useBackupHow(db: Database): BackupHow {
  */
 export function useOwnInstall(db: Database) {
   const install = installIn(useInstalls().data?.installs ?? [], db.resource?.scope ?? "");
-  const entries = useCatalog().data?.entries ?? [];
   const entry = install?.pin?.entry ?? "";
+  const entries = useCatalog({ ids: [entry] }, { enabled: entry !== "" }).data?.entries ?? [];
   const own =
     entry !== "" && entry === db.catalogEntry && entries.some((e) => e.id === entry && e.category === "databases");
   return own ? install : undefined;

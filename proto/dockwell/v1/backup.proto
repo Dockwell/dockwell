@@ -153,7 +153,12 @@ service BackupService {
   // backup holds, as a change. Its plan says what it replaces and what stops, and
   // it destroys data, so only a person can apply it, with the plan's fingerprint.
   // The server keeps a copy of what's replaced for 7 days, and undoing the change
-  // puts that back.
+  // puts that back. A database server other projects' apps share is restored whole
+  // only by someone with a role in each of those projects, or an admin, who types
+  // its service's name in confirm; the plan names each app that loses what it wrote
+  // since, and it's refused with the reason confirm_name until confirm says it. A
+  // backup of one app's database restores from that app's page alone, through
+  // RestoreCatalogNeed (ADR 0084).
   rpc RestoreBackup(RestoreBackupRequest) returns (RestoreBackupResponse) {
     option (dockwell.v1.effect) = EFFECT_PLAN;
     option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
@@ -305,6 +310,9 @@ message Backup {
   repeated string fetch_onto = 25;
   // Its newest restore drill, running or ended. Unset when it was never checked.
   BackupDrill drill = 26;
+  // The one database it holds, for an app's on a server it shares, which restores
+  // alone. Empty for a backup of the whole volume (ADR 0084).
+  string database_name = 80;
 }
 
 // BackupCopy says where a backup stands on its destination.
@@ -406,6 +414,8 @@ message ListBackupsRequest {
   string volume_id = 3;
   // Only the backups in one environment, by ID.
   string environment_id = 4;
+  // Only the backups of this one database, by name, on the volume volume_id names.
+  string database_name = 80;
 }
 
 // ListBackupsResponse is a page of backups.
@@ -493,6 +503,9 @@ message RestoreBackupRequest {
   string id = 1;
   // What it's for, for the timeline. Empty says what it restores.
   string summary = 2;
+  // The name of the database server's service, typed, where other projects' apps
+  // share it, as restoring it whole takes back what each wrote since.
+  string confirm = 80;
 }
 
 // RestoreBackupResponse is the change that restores it.

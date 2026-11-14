@@ -35,6 +35,8 @@ export interface ServersSearch {
   server?: string;
   /** The inspector was closed, so none opens on its own, a reload and Back included. */
   closed?: boolean;
+  /** Add a server opens with the page, as the top bar's New offers it (#617). */
+  add?: boolean;
 }
 
 /** How many rows the table shows before "Show all", as Servers-List pages them. */
@@ -67,7 +69,12 @@ export function ServersPage({
   const unread = useFleetUnread();
   const status = usePageReconnecting(fleet.status);
   const phone = useMediaQuery(PHONE_QUERY);
-  const [adding, setAdding] = useState(false);
+  const [adding, setAddingHere] = useState(search.add === true);
+  // Closing the sheet takes its word out of the address, so a reload doesn't open it again.
+  const setAdding = (open: boolean) => {
+    setAddingHere(open);
+    if (!open && search.add) onSearch({ ...search, add: undefined }, { replace: true });
+  };
   const mayAdd = useMay()(ServerService.method.createJoinTicket);
   const servers = useMemo(
     () => (fleet.status === "connecting" ? [] : [...fleet.servers].sort((a, b) => a.name.localeCompare(b.name))),
@@ -141,7 +148,8 @@ export function ServersPage({
       ) : (
         <WideServers servers={servers} chosen={chosen} select={select} unknown={unread !== undefined} />
       )}
-      {adding ? <AddServerSheet control={control} onClose={() => setAdding(false)} /> : null}
+      {/* ?add opens it only for someone who may add a server (ADR 0059). */}
+      {adding && mayAdd.allowed ? <AddServerSheet control={control} onClose={() => setAdding(false)} /> : null}
     </Page>
   );
 }

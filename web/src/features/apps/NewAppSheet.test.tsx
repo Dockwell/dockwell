@@ -10,11 +10,13 @@ import {
   CheckComposeResponseSchema,
   type DetectBuildRequest,
   DetectionProblem,
+  EntrySchema,
   FileType,
   HostAccessKind,
   ImageAnswer,
   ImageBuild_Builder,
   type ImportComposeRequest,
+  type InstallCatalogEntryRequest,
   PlanAction,
   type ProposeChangeRequest,
   RestartPolicy,
@@ -30,6 +32,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
 import { anApp, places, projectPlaces, SERVER } from "../../test/apps";
+import { catalogPages } from "../../test/catalog";
 import { moved, watched } from "../../test/changes";
 import { type Api, feed, onPhone, renderAt } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
@@ -87,8 +90,8 @@ describe("New app, from Git", () => {
     const user = userEvent.setup();
     const { container, router } = renderAt("/apps/new", api());
     const sheet = await screen.findByRole("dialog", { name: "New app" });
-    // An image is how most apps start here, so New app opens on one, with Git beside it.
-    expect(within(sheet).getByRole("radio", { name: "Image" })).toBeChecked();
+    // The catalog is where most apps start, so New app opens on it, with Git a step away (#617).
+    expect(within(sheet).getByRole("radio", { name: "Catalog" })).toBeChecked();
     await user.click(within(sheet).getByRole("radio", { name: "Git" }));
     await waitFor(() => expect(router.state.location.search).toEqual({ source: "git" }));
     expect(within(sheet).getByRole("radio", { name: "Git" })).toBeChecked();
@@ -948,8 +951,8 @@ describe("New app, from an image", () => {
     expect(sheet).toHaveAccessibleDescription("Runs on hz-1");
     expect(within(sheet).queryByRole("group", { name: "Runs on" })).not.toBeInTheDocument();
     expect(within(sheet).queryByLabelText("Environment")).not.toBeInTheDocument();
-    // What it doesn't have yet isn't offered.
-    expect(within(sheet).queryByRole("radio", { name: "Catalog" })).not.toBeInTheDocument();
+    // The catalog is the first source, a step away (#617).
+    expect(within(sheet).getByRole("radio", { name: "Catalog" })).not.toBeChecked();
     expect(within(sheet).getByRole("radio", { name: "Git" })).not.toBeChecked();
     expect(within(sheet).getByRole("radio", { name: "Image" })).toBeChecked();
     expect(within(sheet).getByRole("radio", { name: "Compose" })).toBeVisible();
@@ -2330,5 +2333,104 @@ describe("New app, its image picked and read", () => {
     await user.clear(field);
     await user.type(field, "acme/missing:1");
     await waitFor(() => expect(field).toHaveAccessibleDescription(/Not found, or private/));
+  });
+});
+
+describe("New app, from the catalog (#617)", () => {
+  const ghost = create(EntrySchema, {
+    id: "ghost",
+    name: "Ghost",
+    summary: "A blog",
+    category: "cms",
+    version: "6.0.0",
+  });
+  const memos = create(EntrySchema, {
+    id: "memos",
+    name: "Memos",
+    summary: "Short notes",
+    category: "notes",
+    version: "1.0",
+  });
+  const wordpress = create(EntrySchema, {
+    id: "wordpress",
+    name: "WordPress",
+    summary: "Websites",
+    category: "cms",
+    version: "7.1",
+  });
+  const catalogApi = (more: Api["catalog"] = {}): Api =>
+    api({
+      catalog: {
+        listCatalogEntries: catalogPages([ghost, memos, wordpress]),
+        getCatalogEntry: (req) => {
+          const entry = [ghost, memos, wordpress].find((e) => e.id === req.id) ?? ghost;
+          return {
+            entry,
+            project: entry.id,
+            values: {},
+            parts: [{ service: entry.id, image: `${entry.id}:1`, opens: true }],
+          };
+        },
+        ...more,
+      },
+    });
+
+  it("opens on the catalog, the apps most people start with first, and finds others as you type", async () => {
+    const user = userEvent.setup();
+    const { container, router } = renderAt("/apps/new", catalogApi());
+    const sheet = await screen.findByRole("dialog", { name: "New app" });
+    expect(within(sheet).getByRole("radio", { name: "Catalog" })).toBeChecked();
+    const search = within(sheet).getByRole("textbox", { name: "Search the catalog" });
+    expect(search).toHaveFocus();
+    const results = await within(sheet).findByRole("region", { name: "Featured" });
+    expect(
+      within(results)
+        .getAllByRole("button")
+        .map((b) => b.querySelector(".new-app-entry-name")?.textContent),
+    ).toEqual(["WordPress", "Ghost", "Memos"]);
+    await expectAccessible(container);
+    await user.type(search, "notes");
+    await waitFor(() => expect(router.state.location.search).toEqual({ q: "notes" }));
+    const found = await within(sheet).findByRole("region", { name: "1 app" });
+    expect(within(found).getByRole("button", { name: /Memos/ })).toBeVisible();
+    // Image, Compose, Git and a folder stay a step away, in the same sheet.
+    await user.click(within(sheet).getByRole("radio", { name: "Image" }));
+    await waitFor(() => expect(router.state.location.search).toEqual({ source: "image" }));
+    expect(screen.getByRole("dialog", { name: "New app" })).toBe(sheet);
+    expect(within(sheet).getByLabelText("Image")).toBeVisible();
+  });
+
+  it("turns into the app's install form when one is picked, comes back to the words on Back, and installs with a plan", async () => {
+    const user = userEvent.setup();
+    const asked: InstallCatalogEntryRequest[] = [];
+    const { router } = renderAt(
+      "/apps/new?q=blog",
+      catalogApi({
+        installCatalogEntry: (req) => {
+          asked.push(req);
+          throw new ConnectError("stop here", Code.FailedPrecondition);
+        },
+      }),
+    );
+    let sheet = await screen.findByRole("dialog", { name: "New app" });
+    await user.click(await within(sheet).findByRole("button", { name: /Ghost/ }));
+    const install = await screen.findByRole("dialog", { name: "Install Ghost" });
+    expect(router.state.location.search).toEqual({ q: "blog", entry: "ghost" });
+    await user.click(within(install).getByRole("button", { name: "Back" }));
+    sheet = await screen.findByRole("dialog", { name: "New app" });
+    expect(within(sheet).getByRole("textbox", { name: "Search the catalog" })).toHaveValue("blog");
+    await user.click(await within(sheet).findByRole("button", { name: /Ghost/ }));
+    const again = await screen.findByRole("dialog", { name: "Install Ghost" });
+    await user.click(await within(again).findByRole("button", { name: /Review plan/ }));
+    await waitFor(() => expect(asked.map((r) => r.id)).toEqual(["ghost"]));
+  });
+
+  it("offers an image when nothing in the catalog has the words", async () => {
+    const user = userEvent.setup();
+    const { router } = renderAt("/apps/new?q=zzz", catalogApi());
+    const sheet = await screen.findByRole("dialog", { name: "New app" });
+    expect(await within(sheet).findByRole("heading", { name: "No app matches" })).toBeVisible();
+    await user.click(within(sheet).getByRole("button", { name: "Run an image" }));
+    await waitFor(() => expect(router.state.location.search).toEqual({ source: "image" }));
   });
 });

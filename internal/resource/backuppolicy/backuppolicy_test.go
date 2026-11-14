@@ -174,3 +174,25 @@ func TestANewPolicyDrillsWeekly(t *testing.T) {
 		}
 	}
 }
+
+// A policy backs up a volume or an app's database alone, by its link: never both,
+// never neither. One of a database alone stops nothing and isn't drilled, and names
+// its link, so the link can't go while it does (ADR 0084).
+func TestAPolicyOfAnAppsDatabase(t *testing.T) {
+	for _, p := range []*resourcev1.BackupPolicy{{}, {Volume: "data", Link: "db"}} {
+		if err := (Type{}).Validate(p); err == nil {
+			t.Errorf("%v is valid", p)
+		}
+	}
+	p := &resourcev1.BackupPolicy{Link: "db", Stop: true}
+	(Type{}).DefaultNew(resource.Ref{}, p)
+	if err := (Type{}).Validate(p); err != nil {
+		t.Fatal(err)
+	}
+	if p.GetStop() || p.GetDrill() != resourcev1.BackupPolicy_DRILL_NEVER {
+		t.Errorf("a policy of an app's database is %v", p)
+	}
+	if refs := (Type{}).References(p); len(refs) != 1 || refs[0].Kind != "link" || refs[0].Name != "db" {
+		t.Errorf("it names %v", refs)
+	}
+}

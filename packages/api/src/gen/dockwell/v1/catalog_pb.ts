@@ -4,12 +4,14 @@
 // @generated from file dockwell/v1/catalog.proto (package dockwell.v1, syntax proto3)
 /* eslint-disable */
 
-import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
-import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
+import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
+import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
 import type { Engine, Entry } from "../catalog/v1alpha1/entry_pb";
 import { file_dockwell_catalog_v1alpha1_entry } from "../catalog/v1alpha1/entry_pb";
 import type { CatalogFormat, CatalogPin, CatalogSource, RestartPolicy } from "../resource/v1alpha1/specs_pb";
 import { file_dockwell_resource_v1alpha1_specs } from "../resource/v1alpha1/specs_pb";
+import type { Backup } from "./backup_pb";
+import { file_dockwell_v1_backup } from "./backup_pb";
 import type { Change, HostAccess } from "./change_pb";
 import { file_dockwell_v1_change } from "./change_pb";
 import { file_dockwell_v1_options } from "./options_pb";
@@ -22,14 +24,93 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/catalog.proto.
  */
 export const file_dockwell_v1_catalog: GenFile = /*@__PURE__*/
-  fileDesc("Chlkb2Nrd2VsbC92MS9jYXRhbG9nLnByb3RvEgtkb2Nrd2VsbC52MSIbChlMaXN0Q2F0YWxvZ0VudHJpZXNSZXF1ZXN0In4KGkxpc3RDYXRhbG9nRW50cmllc1Jlc3BvbnNlEjEKB2VudHJpZXMYASADKAsyIC5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLkVudHJ5Ei0KBGFsc28YFCADKAsyHy5kb2Nrd2VsbC52MS5DYXRhbG9nQWx0ZXJuYXRpdmUiYgoSQ2F0YWxvZ0FsdGVybmF0aXZlEgoKAmlkGAEgASgJEg8KB2NhdGFsb2cYAiABKAkSLwoFZW50cnkYAyABKAsyIC5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLkVudHJ5IkYKFkdldENhdGFsb2dFbnRyeVJlcXVlc3QSCgoCaWQYASABKAkSDwoHcHJvamVjdBgCIAEoCRIPCgdjYXRhbG9nGBQgASgJIrYCChdHZXRDYXRhbG9nRW50cnlSZXNwb25zZRIvCgVlbnRyeRgBIAEoCzIgLmRvY2t3ZWxsLmNhdGFsb2cudjFhbHBoYTEuRW50cnkSDwoHcHJvamVjdBgCIAEoCRJACgZ2YWx1ZXMYAyADKAsyMC5kb2Nrd2VsbC52MS5HZXRDYXRhbG9nRW50cnlSZXNwb25zZS5WYWx1ZXNFbnRyeRInCgVwYXJ0cxgEIAMoCzIYLmRvY2t3ZWxsLnYxLkNhdGFsb2dQYXJ0EhAKCGNhdGFsb2dzGBQgAygJEi0KBW5lZWRzGFAgAygLMh4uZG9ja3dlbGwudjEuQ2F0YWxvZ05lZWRPcHRpb24aLQoLVmFsdWVzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASKWAgoRQ2F0YWxvZ05lZWRPcHRpb24SDAoEbmVlZBgBIAEoCRIOCgZjaG9pY2UYAiABKAkSMQoGZW5naW5lGAMgASgOMiEuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5FbmdpbmUSDwoHdmVyc2lvbhgEIAEoCRINCgVlbnRyeRgFIAEoCRISCgplbnRyeV9uYW1lGAYgASgJEg8KB3Byb2plY3QYByABKAkSEwoLZW52aXJvbm1lbnQYCCABKAkSDwoHc2VydmljZRgJIAEoCRISCgpzZXJ2aWNlX2lkGAogASgJEgsKA3doeRgLIAEoCRITCgtzaGFyZWRfd2l0aBgMIAMoCRIPCgdzZXJ2ZXJzGA0gAygJIowDCgtDYXRhbG9nUGFydBIPCgdzZXJ2aWNlGAEgASgJEg0KBWltYWdlGAIgASgJEhAKCGRhdGFiYXNlGAMgASgIEg8KB3ZvbHVtZXMYBCADKAkSDQoFb3BlbnMYBSABKAgSLAoLaG9zdF9hY2Nlc3MYBiADKAsyFy5kb2Nrd2VsbC52MS5Ib3N0QWNjZXNzEj0KC3BhdGhfaW5wdXRzGAcgAygLMiguZG9ja3dlbGwudjEuQ2F0YWxvZ1BhcnQuUGF0aElucHV0c0VudHJ5Eg4KBm1lbW9yeRgIIAEoCRIMCgRjcHVzGAkgASgJEjoKB3Jlc3RhcnQYCiABKA4yKS5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5SZXN0YXJ0UG9saWN5EjEKBmVuZ2luZRgeIAEoDjIhLmRvY2t3ZWxsLmNhdGFsb2cudjFhbHBoYTEuRW5naW5lGjEKD1BhdGhJbnB1dHNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBIhwKGkxpc3RDYXRhbG9nSW5zdGFsbHNSZXF1ZXN0IkwKG0xpc3RDYXRhbG9nSW5zdGFsbHNSZXNwb25zZRItCghpbnN0YWxscxgBIAMoCzIbLmRvY2t3ZWxsLnYxLkNhdGFsb2dJbnN0YWxsIt8CCg5DYXRhbG9nSW5zdGFsbBISCgpwcm9qZWN0X2lkGAEgASgJEg8KB3Byb2plY3QYAiABKAkSMwoDcGluGAMgASgLMiYuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuQ2F0YWxvZ1BpbhIMCgRuYW1lGAQgASgJEhYKDndlYl9zZXJ2aWNlX2lkGAUgASgJEhMKC2ZpcnN0X3N0ZXBzGAYgASgJEhYKDmVudmlyb25tZW50X2lkGAcgASgJEiwKB3VwZ3JhZGUYCCABKAsyGy5kb2Nrd2VsbC52MS5DYXRhbG9nVXBncmFkZRI/Cgpjb21wYW5pb25zGAkgAygLMisuZG9ja3dlbGwudjEuQ2F0YWxvZ0luc3RhbGwuQ29tcGFuaW9uc0VudHJ5GjEKD0NvbXBhbmlvbnNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAg6AjgBIjIKDkNhdGFsb2dVcGdyYWRlEg8KB3ZlcnNpb24YASABKAkSDwoHcmVsZWFzZRgCIAEoDSLKBgoaSW5zdGFsbENhdGFsb2dFbnRyeVJlcXVlc3QSCgoCaWQYASABKAkSDwoHcHJvamVjdBgCIAEoCRJJCgZ2YWx1ZXMYAyADKAsyMy5kb2Nrd2VsbC52MS5JbnN0YWxsQ2F0YWxvZ0VudHJ5UmVxdWVzdC5WYWx1ZXNFbnRyeUIEyPMYARIPCgdzZXJ2ZXJzGAQgAygJEkMKBm1lbW9yeRgFIAMoCzIzLmRvY2t3ZWxsLnYxLkluc3RhbGxDYXRhbG9nRW50cnlSZXF1ZXN0Lk1lbW9yeUVudHJ5Ej8KBGNwdXMYBiADKAsyMS5kb2Nrd2VsbC52MS5JbnN0YWxsQ2F0YWxvZ0VudHJ5UmVxdWVzdC5DcHVzRW50cnkSRQoHcmVzdGFydBgHIAMoCzI0LmRvY2t3ZWxsLnYxLkluc3RhbGxDYXRhbG9nRW50cnlSZXF1ZXN0LlJlc3RhcnRFbnRyeRJLCgpjb21wYW5pb25zGAggAygLMjcuZG9ja3dlbGwudjEuSW5zdGFsbENhdGFsb2dFbnRyeVJlcXVlc3QuQ29tcGFuaW9uc0VudHJ5Eg8KB2NhdGFsb2cYFCABKAkSQQoFbmVlZHMYUCADKAsyMi5kb2Nrd2VsbC52MS5JbnN0YWxsQ2F0YWxvZ0VudHJ5UmVxdWVzdC5OZWVkc0VudHJ5Gi0KC1ZhbHVlc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEaLQoLTWVtb3J5RW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ARorCglDcHVzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ARpZCgxSZXN0YXJ0RW50cnkSCwoDa2V5GAEgASgJEjgKBXZhbHVlGAIgASgOMikuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuUmVzdGFydFBvbGljeToCOAEaMQoPQ29tcGFuaW9uc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCDoCOAEaLAoKTmVlZHNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBIkIKG0luc3RhbGxDYXRhbG9nRW50cnlSZXNwb25zZRIjCgZjaGFuZ2UYASABKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2UiuwEKHFVwZ3JhZGVDYXRhbG9nSW5zdGFsbFJlcXVlc3QSCgoCaWQYASABKAkSSwoGdmFsdWVzGAIgAygLMjUuZG9ja3dlbGwudjEuVXBncmFkZUNhdGFsb2dJbnN0YWxsUmVxdWVzdC5WYWx1ZXNFbnRyeUIEyPMYARITCgtza2lwX2JhY2t1cBgDIAEoCBotCgtWYWx1ZXNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBIkQKHVVwZ3JhZGVDYXRhbG9nSW5zdGFsbFJlc3BvbnNlEiMKBmNoYW5nZRgBIAEoCzITLmRvY2t3ZWxsLnYxLkNoYW5nZSK5AQoaU2V0Q2F0YWxvZ0NvbXBhbmlvblJlcXVlc3QSCgoCaWQYASABKAkSDwoHc2VydmljZRgCIAEoCRIKCgJvbhgDIAEoCBJDCgZ2YWx1ZXMYBCADKAsyMy5kb2Nrd2VsbC52MS5TZXRDYXRhbG9nQ29tcGFuaW9uUmVxdWVzdC5WYWx1ZXNFbnRyeRotCgtWYWx1ZXNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBIkIKG1NldENhdGFsb2dDb21wYW5pb25SZXNwb25zZRIjCgZjaGFuZ2UYASABKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2UiVgoVU2V0Q2F0YWxvZ05lZWRSZXF1ZXN0EgoKAmlkGAEgASgJEgwKBG5lZWQYAiABKAkSDgoGY2hvaWNlGAMgASgJEhMKC3N0YXJ0X2VtcHR5GAQgASgIIj0KFlNldENhdGFsb2dOZWVkUmVzcG9uc2USIwoGY2hhbmdlGAEgASgLMhMuZG9ja3dlbGwudjEuQ2hhbmdlIicKGU9wZW5DYXRhbG9nSW5zdGFsbFJlcXVlc3QSCgoCaWQYASABKAkiQQoaT3BlbkNhdGFsb2dJbnN0YWxsUmVzcG9uc2USIwoGY2hhbmdlGAEgASgLMhMuZG9ja3dlbGwudjEuQ2hhbmdlIqQBChdTZXRDYXRhbG9nU291cmNlUmVxdWVzdBIMCgRuYW1lGAEgASgJEhIKCnJlcG9zaXRvcnkYAiABKAkSDAoEcGF0aBgDIAEoCRIOCgZjb21taXQYBCABKAkSDgoGZm9sbG93GAogASgJEjkKBmZvcm1hdBgUIAEoDjIpLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkNhdGFsb2dGb3JtYXQiPwoYU2V0Q2F0YWxvZ1NvdXJjZVJlc3BvbnNlEiMKBmNoYW5nZRgBIAEoCzITLmRvY2t3ZWxsLnYxLkNoYW5nZSIbChlMaXN0Q2F0YWxvZ1NvdXJjZXNSZXF1ZXN0Ik0KGkxpc3RDYXRhbG9nU291cmNlc1Jlc3BvbnNlEi8KB3NvdXJjZXMYASADKAsyHi5kb2Nrd2VsbC52MS5DYXRhbG9nU291cmNlSW5mbyLxAgoRQ2F0YWxvZ1NvdXJjZUluZm8SDAoEbmFtZRgBIAEoCRI5CgZzb3VyY2UYAiABKAsyKS5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5DYXRhbG9nU291cmNlEg8KB2VudHJpZXMYAyADKAkSMgoHcmVmdXNlZBgEIAMoCzIhLmRvY2t3ZWxsLnYxLkNhdGFsb2dTb3VyY2VSZWZ1c2FsEg4KBnVucmVhZBgFIAEoCRIrCgdjaGVja2VkGAogASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIPCgdwcm9ibGVtGAsgASgJEhUKDWJyYW5jaF9jb21taXQYDCABKAkSLgoKbmV4dF9jaGVjaxgNIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASCwoDb3duGA4gASgIEgwKBGFsc28YFCADKAkSDQoFc3RvcmUYHiABKAkSDwoHbGljZW5zZRgfIAEoCSJOChRDYXRhbG9nU291cmNlUmVmdXNhbBIMCgRmaWxlGAEgASgJEg4KBnJlYXNvbhgCIAEoCRIMCgRraW5kGBQgASgJEgoKAmlkGBUgASgJIhoKGExpc3RDYXRhbG9nU3RvcmVzUmVxdWVzdCJGChlMaXN0Q2F0YWxvZ1N0b3Jlc1Jlc3BvbnNlEikKBnN0b3JlcxgBIAMoCzIZLmRvY2t3ZWxsLnYxLkNhdGFsb2dTdG9yZSKHAgoMQ2F0YWxvZ1N0b3JlEgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSDQoFbGFiZWwYAyABKAkSEgoKcmVwb3NpdG9yeRgEIAEoCRI5CgZmb3JtYXQYBSABKA4yKS5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5DYXRhbG9nRm9ybWF0Eg4KBmJyYW5jaBgGIAEoCRIPCgdsaWNlbnNlGAcgASgJEhAKCGhvbWVwYWdlGAggASgJEgwKBGFwcHMYCSABKA0SEAoIaW5zdGFsbHMYCiABKA0SDgoGY29tbWl0GAsgASgJEgwKBGxpdmUYDCABKAgSDgoGc291cmNlGA0gASgJIjIKHExpc3RDYXRhbG9nU291cmNlUmVmc1JlcXVlc3QSEgoKcmVwb3NpdG9yeRgBIAEoCSKaAQodTGlzdENhdGFsb2dTb3VyY2VSZWZzUmVzcG9uc2USKwoEcmVmcxgBIAMoCzIdLmRvY2t3ZWxsLnYxLkNhdGFsb2dTb3VyY2VSZWYSDAoEbW9yZRgCIAEoCBIMCgRoZWFkGAMgASgJEjAKB2Zvcm1hdHMYFCADKAsyHy5kb2Nrd2VsbC52MS5DYXRhbG9nU291cmNlR3Vlc3MiawoSQ2F0YWxvZ1NvdXJjZUd1ZXNzEjkKBmZvcm1hdBgBIAEoDjIpLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkNhdGFsb2dGb3JtYXQSDAoEcGF0aBgCIAEoCRIMCgRhcHBzGAMgASgNIjAKEENhdGFsb2dTb3VyY2VSZWYSDAoEbmFtZRgBIAEoCRIOCgZjb21taXQYAiABKAkiKQoZQ2hlY2tDYXRhbG9nU291cmNlUmVxdWVzdBIMCgRuYW1lGAEgASgJInEKGkNoZWNrQ2F0YWxvZ1NvdXJjZVJlc3BvbnNlEi4KBnNvdXJjZRgBIAEoCzIeLmRvY2t3ZWxsLnYxLkNhdGFsb2dTb3VyY2VJbmZvEiMKBmNoYW5nZRgCIAEoCzITLmRvY2t3ZWxsLnYxLkNoYW5nZSIqChpSZW1vdmVDYXRhbG9nU291cmNlUmVxdWVzdBIMCgRuYW1lGAEgASgJIkIKG1JlbW92ZUNhdGFsb2dTb3VyY2VSZXNwb25zZRIjCgZjaGFuZ2UYASABKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2Uy/hIKDkNhdGFsb2dTZXJ2aWNlEpUBChJMaXN0Q2F0YWxvZ0VudHJpZXMSJi5kb2Nrd2VsbC52MS5MaXN0Q2F0YWxvZ0VudHJpZXNSZXF1ZXN0GicuZG9ja3dlbGwudjEuTGlzdENhdGFsb2dFbnRyaWVzUmVzcG9uc2UiLpACAaC7GAHAuxgCyLsYAtC7GAOC0+STAhUSEy92MS9jYXRhbG9nL2VudHJpZXMSkQEKD0dldENhdGFsb2dFbnRyeRIjLmRvY2t3ZWxsLnYxLkdldENhdGFsb2dFbnRyeVJlcXVlc3QaJC5kb2Nrd2VsbC52MS5HZXRDYXRhbG9nRW50cnlSZXNwb25zZSIzkAIBoLsYAcC7GALIuxgC0LsYA4LT5JMCGhIYL3YxL2NhdGFsb2cvZW50cmllcy97aWR9EqcBChNMaXN0Q2F0YWxvZ0luc3RhbGxzEicuZG9ja3dlbGwudjEuTGlzdENhdGFsb2dJbnN0YWxsc1JlcXVlc3QaKC5kb2Nrd2VsbC52MS5MaXN0Q2F0YWxvZ0luc3RhbGxzUmVzcG9uc2UiPZACAaC7GAGquxgKEghpbnN0YWxsc8C7GALIuxgC0LsYBILT5JMCFhIUL3YxL2NhdGFsb2cvaW5zdGFsbHMSuQEKFVVwZ3JhZGVDYXRhbG9nSW5zdGFsbBIpLmRvY2t3ZWxsLnYxLlVwZ3JhZGVDYXRhbG9nSW5zdGFsbFJlcXVlc3QaKi5kb2Nrd2VsbC52MS5VcGdyYWRlQ2F0YWxvZ0luc3RhbGxSZXNwb25zZSJJoLsYAqq7GAkSB3VwZ3JhZGXAuxgDyLsYA9C7GASC0+STAiY6ASoiIS92MS9jYXRhbG9nL2luc3RhbGxzL3tpZH06dXBncmFkZRK/AQoTU2V0Q2F0YWxvZ0NvbXBhbmlvbhInLmRvY2t3ZWxsLnYxLlNldENhdGFsb2dDb21wYW5pb25SZXF1ZXN0GiguZG9ja3dlbGwudjEuU2V0Q2F0YWxvZ0NvbXBhbmlvblJlc3BvbnNlIlWguxgCqrsYDxINc2V0LWNvbXBhbmlvbsC7GAPIuxgD0LsYBILT5JMCLDoBKiInL3YxL2NhdGFsb2cvaW5zdGFsbHMve2lkfTpzZXQtY29tcGFuaW9uEqYBCg5TZXRDYXRhbG9nTmVlZBIiLmRvY2t3ZWxsLnYxLlNldENhdGFsb2dOZWVkUmVxdWVzdBojLmRvY2t3ZWxsLnYxLlNldENhdGFsb2dOZWVkUmVzcG9uc2UiS6C7GAKquxgKEghzZXQtbmVlZMC7GAPIuxgD0LsYBILT5JMCJzoBKiIiL3YxL2NhdGFsb2cvaW5zdGFsbHMve2lkfTpzZXQtbmVlZBKqAQoST3BlbkNhdGFsb2dJbnN0YWxsEiYuZG9ja3dlbGwudjEuT3BlbkNhdGFsb2dJbnN0YWxsUmVxdWVzdBonLmRvY2t3ZWxsLnYxLk9wZW5DYXRhbG9nSW5zdGFsbFJlc3BvbnNlIkOguxgCqrsYBhIEb3BlbsC7GAPIuxgD0LsYBILT5JMCIzoBKiIeL3YxL2NhdGFsb2cvaW5zdGFsbHMve2lkfTpvcGVuEqUBChNJbnN0YWxsQ2F0YWxvZ0VudHJ5EicuZG9ja3dlbGwudjEuSW5zdGFsbENhdGFsb2dFbnRyeVJlcXVlc3QaKC5kb2Nrd2VsbC52MS5JbnN0YWxsQ2F0YWxvZ0VudHJ5UmVzcG9uc2UiO6C7GALAuxgEyLsYBNC7GAaC0+STAiU6ASoiIC92MS9jYXRhbG9nL2VudHJpZXMve2lkfTppbnN0YWxsEqoBChBTZXRDYXRhbG9nU291cmNlEiQuZG9ja3dlbGwudjEuU2V0Q2F0YWxvZ1NvdXJjZVJlcXVlc3QaJS5kb2Nrd2VsbC52MS5TZXRDYXRhbG9nU291cmNlUmVzcG9uc2UiSaC7GAKquxgMEgpzZXQtc291cmNlwLsYBMi7GATQuxgGgtPkkwIjOgEqIh4vdjEvY2F0YWxvZy9zb3VyY2VzL3tuYW1lfTpzZXQSogEKEkxpc3RDYXRhbG9nU291cmNlcxImLmRvY2t3ZWxsLnYxLkxpc3RDYXRhbG9nU291cmNlc1JlcXVlc3QaJy5kb2Nrd2VsbC52MS5MaXN0Q2F0YWxvZ1NvdXJjZXNSZXNwb25zZSI7kAIBoLsYAaq7GAkSB3NvdXJjZXPAuxgCyLsYAtC7GAOC0+STAhUSEy92MS9jYXRhbG9nL3NvdXJjZXMSnQEKEUxpc3RDYXRhbG9nU3RvcmVzEiUuZG9ja3dlbGwudjEuTGlzdENhdGFsb2dTdG9yZXNSZXF1ZXN0GiYuZG9ja3dlbGwudjEuTGlzdENhdGFsb2dTdG9yZXNSZXNwb25zZSI5kAIBoLsYAaq7GAgSBnN0b3Jlc8C7GALIuxgC0LsYA4LT5JMCFBISL3YxL2NhdGFsb2cvc3RvcmVzErQBChVMaXN0Q2F0YWxvZ1NvdXJjZVJlZnMSKS5kb2Nrd2VsbC52MS5MaXN0Q2F0YWxvZ1NvdXJjZVJlZnNSZXF1ZXN0GiouZG9ja3dlbGwudjEuTGlzdENhdGFsb2dTb3VyY2VSZWZzUmVzcG9uc2UiRKC7GAGquxgNEgtzb3VyY2UtcmVmc8C7GATIuxgE0LsYBoLT5JMCHToBKiIYL3YxL2NhdGFsb2cvc291cmNlczpyZWZzErQBChJDaGVja0NhdGFsb2dTb3VyY2USJi5kb2Nrd2VsbC52MS5DaGVja0NhdGFsb2dTb3VyY2VSZXF1ZXN0GicuZG9ja3dlbGwudjEuQ2hlY2tDYXRhbG9nU291cmNlUmVzcG9uc2UiTaC7GAOquxgOEgxjaGVjay1zb3VyY2XAuxgEyLsYBNC7GAaC0+STAiU6ASoiIC92MS9jYXRhbG9nL3NvdXJjZXMve25hbWV9OmNoZWNrErkBChNSZW1vdmVDYXRhbG9nU291cmNlEicuZG9ja3dlbGwudjEuUmVtb3ZlQ2F0YWxvZ1NvdXJjZVJlcXVlc3QaKC5kb2Nrd2VsbC52MS5SZW1vdmVDYXRhbG9nU291cmNlUmVzcG9uc2UiT6C7GAKquxgPEg1yZW1vdmUtc291cmNlwLsYBMi7GATQuxgGgtPkkwImOgEqIiEvdjEvY2F0YWxvZy9zb3VyY2VzL3tuYW1lfTpyZW1vdmVCpQEKD2NvbS5kb2Nrd2VsbC52MUIMQ2F0YWxvZ1Byb3RvUAFaN2dpdGh1Yi5jb20vZG9ja3dlbGwvZG9ja3dlbGwvZ2VuL2RvY2t3ZWxsL3YxO2RvY2t3ZWxsdjGiAgNEWFiqAgtEb2Nrd2VsbC5WMcoCC0RvY2t3ZWxsXFYx4gIXRG9ja3dlbGxcVjFcR1BCTWV0YWRhdGHqAgxEb2Nrd2VsbDo6VjFiBnByb3RvMw", [file_dockwell_catalog_v1alpha1_entry, file_dockwell_resource_v1alpha1_specs, file_dockwell_v1_change, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
+  fileDesc("Chlkb2Nrd2VsbC92MS9jYXRhbG9nLnByb3RvEgtkb2Nrd2VsbC52MSLsAQoZTGlzdENhdGFsb2dFbnRyaWVzUmVxdWVzdBIRCglwYWdlX3NpemUYASABKAUSEgoKcGFnZV90b2tlbhgCIAEoCRIOCgZzZWFyY2gYAyABKAkSGQoRc2VhcmNoX2NhdGVnb3JpZXMYBCADKAkSEAoIbGFuZ3VhZ2UYBSABKAkSEAoIY2F0ZWdvcnkYBiABKAkSDwoHY2F0YWxvZxgHIAEoCRIRCglpbnN0YWxsZWQYCCABKAgSCwoDaWRzGAkgAygJEigKBW9yZGVyGAogASgOMhkuZG9ja3dlbGwudjEuQ2F0YWxvZ09yZGVyIt0BChpMaXN0Q2F0YWxvZ0VudHJpZXNSZXNwb25zZRIxCgdlbnRyaWVzGAEgAygLMiAuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5FbnRyeRItCgRhbHNvGBQgAygLMh8uZG9ja3dlbGwudjEuQ2F0YWxvZ0FsdGVybmF0aXZlEg0KBXRvdGFsGBUgASgFEhcKD25leHRfcGFnZV90b2tlbhgWIAEoCRI1CgpjYXRlZ29yaWVzGBcgAygLMiEuZG9ja3dlbGwudjEuQ2F0YWxvZ0NhdGVnb3J5Q291bnQiRwoUQ2F0YWxvZ0NhdGVnb3J5Q291bnQSEAoIY2F0ZWdvcnkYASABKAkSDQoFY291bnQYAiABKAUSDgoGbGlzdGVkGAMgASgFImIKEkNhdGFsb2dBbHRlcm5hdGl2ZRIKCgJpZBgBIAEoCRIPCgdjYXRhbG9nGAIgASgJEi8KBWVudHJ5GAMgASgLMiAuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5FbnRyeSJGChZHZXRDYXRhbG9nRW50cnlSZXF1ZXN0EgoKAmlkGAEgASgJEg8KB3Byb2plY3QYAiABKAkSDwoHY2F0YWxvZxgUIAEoCSK2AgoXR2V0Q2F0YWxvZ0VudHJ5UmVzcG9uc2USLwoFZW50cnkYASABKAsyIC5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLkVudHJ5Eg8KB3Byb2plY3QYAiABKAkSQAoGdmFsdWVzGAMgAygLMjAuZG9ja3dlbGwudjEuR2V0Q2F0YWxvZ0VudHJ5UmVzcG9uc2UuVmFsdWVzRW50cnkSJwoFcGFydHMYBCADKAsyGC5kb2Nrd2VsbC52MS5DYXRhbG9nUGFydBIQCghjYXRhbG9ncxgUIAMoCRItCgVuZWVkcxhQIAMoCzIeLmRvY2t3ZWxsLnYxLkNhdGFsb2dOZWVkT3B0aW9uGi0KC1ZhbHVlc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEilgIKEUNhdGFsb2dOZWVkT3B0aW9uEgwKBG5lZWQYASABKAkSDgoGY2hvaWNlGAIgASgJEjEKBmVuZ2luZRgDIAEoDjIhLmRvY2t3ZWxsLmNhdGFsb2cudjFhbHBoYTEuRW5naW5lEg8KB3ZlcnNpb24YBCABKAkSDQoFZW50cnkYBSABKAkSEgoKZW50cnlfbmFtZRgGIAEoCRIPCgdwcm9qZWN0GAcgASgJEhMKC2Vudmlyb25tZW50GAggASgJEg8KB3NlcnZpY2UYCSABKAkSEgoKc2VydmljZV9pZBgKIAEoCRILCgN3aHkYCyABKAkSEwoLc2hhcmVkX3dpdGgYDCADKAkSDwoHc2VydmVycxgNIAMoCSKMAwoLQ2F0YWxvZ1BhcnQSDwoHc2VydmljZRgBIAEoCRINCgVpbWFnZRgCIAEoCRIQCghkYXRhYmFzZRgDIAEoCBIPCgd2b2x1bWVzGAQgAygJEg0KBW9wZW5zGAUgASgIEiwKC2hvc3RfYWNjZXNzGAYgAygLMhcuZG9ja3dlbGwudjEuSG9zdEFjY2VzcxI9CgtwYXRoX2lucHV0cxgHIAMoCzIoLmRvY2t3ZWxsLnYxLkNhdGFsb2dQYXJ0LlBhdGhJbnB1dHNFbnRyeRIOCgZtZW1vcnkYCCABKAkSDAoEY3B1cxgJIAEoCRI6CgdyZXN0YXJ0GAogASgOMikuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuUmVzdGFydFBvbGljeRIxCgZlbmdpbmUYHiABKA4yIS5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLkVuZ2luZRoxCg9QYXRoSW5wdXRzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASIcChpMaXN0Q2F0YWxvZ0luc3RhbGxzUmVxdWVzdCJMChtMaXN0Q2F0YWxvZ0luc3RhbGxzUmVzcG9uc2USLQoIaW5zdGFsbHMYASADKAsyGy5kb2Nrd2VsbC52MS5DYXRhbG9nSW5zdGFsbCLfAgoOQ2F0YWxvZ0luc3RhbGwSEgoKcHJvamVjdF9pZBgBIAEoCRIPCgdwcm9qZWN0GAIgASgJEjMKA3BpbhgDIAEoCzImLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkNhdGFsb2dQaW4SDAoEbmFtZRgEIAEoCRIWCg53ZWJfc2VydmljZV9pZBgFIAEoCRITCgtmaXJzdF9zdGVwcxgGIAEoCRIWCg5lbnZpcm9ubWVudF9pZBgHIAEoCRIsCgd1cGdyYWRlGAggASgLMhsuZG9ja3dlbGwudjEuQ2F0YWxvZ1VwZ3JhZGUSPwoKY29tcGFuaW9ucxgJIAMoCzIrLmRvY2t3ZWxsLnYxLkNhdGFsb2dJbnN0YWxsLkNvbXBhbmlvbnNFbnRyeRoxCg9Db21wYW5pb25zRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgIOgI4ASIyCg5DYXRhbG9nVXBncmFkZRIPCgd2ZXJzaW9uGAEgASgJEg8KB3JlbGVhc2UYAiABKA0iygYKGkluc3RhbGxDYXRhbG9nRW50cnlSZXF1ZXN0EgoKAmlkGAEgASgJEg8KB3Byb2plY3QYAiABKAkSSQoGdmFsdWVzGAMgAygLMjMuZG9ja3dlbGwudjEuSW5zdGFsbENhdGFsb2dFbnRyeVJlcXVlc3QuVmFsdWVzRW50cnlCBMjzGAESDwoHc2VydmVycxgEIAMoCRJDCgZtZW1vcnkYBSADKAsyMy5kb2Nrd2VsbC52MS5JbnN0YWxsQ2F0YWxvZ0VudHJ5UmVxdWVzdC5NZW1vcnlFbnRyeRI/CgRjcHVzGAYgAygLMjEuZG9ja3dlbGwudjEuSW5zdGFsbENhdGFsb2dFbnRyeVJlcXVlc3QuQ3B1c0VudHJ5EkUKB3Jlc3RhcnQYByADKAsyNC5kb2Nrd2VsbC52MS5JbnN0YWxsQ2F0YWxvZ0VudHJ5UmVxdWVzdC5SZXN0YXJ0RW50cnkSSwoKY29tcGFuaW9ucxgIIAMoCzI3LmRvY2t3ZWxsLnYxLkluc3RhbGxDYXRhbG9nRW50cnlSZXF1ZXN0LkNvbXBhbmlvbnNFbnRyeRIPCgdjYXRhbG9nGBQgASgJEkEKBW5lZWRzGFAgAygLMjIuZG9ja3dlbGwudjEuSW5zdGFsbENhdGFsb2dFbnRyeVJlcXVlc3QuTmVlZHNFbnRyeRotCgtWYWx1ZXNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBGi0KC01lbW9yeUVudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEaKwoJQ3B1c0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEaWQoMUmVzdGFydEVudHJ5EgsKA2tleRgBIAEoCRI4CgV2YWx1ZRgCIAEoDjIpLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLlJlc3RhcnRQb2xpY3k6AjgBGjEKD0NvbXBhbmlvbnNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAg6AjgBGiwKCk5lZWRzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASJCChtJbnN0YWxsQ2F0YWxvZ0VudHJ5UmVzcG9uc2USIwoGY2hhbmdlGAEgASgLMhMuZG9ja3dlbGwudjEuQ2hhbmdlIrsBChxVcGdyYWRlQ2F0YWxvZ0luc3RhbGxSZXF1ZXN0EgoKAmlkGAEgASgJEksKBnZhbHVlcxgCIAMoCzI1LmRvY2t3ZWxsLnYxLlVwZ3JhZGVDYXRhbG9nSW5zdGFsbFJlcXVlc3QuVmFsdWVzRW50cnlCBMjzGAESEwoLc2tpcF9iYWNrdXAYAyABKAgaLQoLVmFsdWVzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASJECh1VcGdyYWRlQ2F0YWxvZ0luc3RhbGxSZXNwb25zZRIjCgZjaGFuZ2UYASABKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2UiuQEKGlNldENhdGFsb2dDb21wYW5pb25SZXF1ZXN0EgoKAmlkGAEgASgJEg8KB3NlcnZpY2UYAiABKAkSCgoCb24YAyABKAgSQwoGdmFsdWVzGAQgAygLMjMuZG9ja3dlbGwudjEuU2V0Q2F0YWxvZ0NvbXBhbmlvblJlcXVlc3QuVmFsdWVzRW50cnkaLQoLVmFsdWVzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASJCChtTZXRDYXRhbG9nQ29tcGFuaW9uUmVzcG9uc2USIwoGY2hhbmdlGAEgASgLMhMuZG9ja3dlbGwudjEuQ2hhbmdlIlYKFVNldENhdGFsb2dOZWVkUmVxdWVzdBIKCgJpZBgBIAEoCRIMCgRuZWVkGAIgASgJEg4KBmNob2ljZRgDIAEoCRITCgtzdGFydF9lbXB0eRgEIAEoCCI9ChZTZXRDYXRhbG9nTmVlZFJlc3BvbnNlEiMKBmNoYW5nZRgBIAEoCzITLmRvY2t3ZWxsLnYxLkNoYW5nZSJJChhCYWNrVXBDYXRhbG9nTmVlZFJlcXVlc3QSCgoCaWQYASABKAkSDAoEbmVlZBgCIAEoCRITCgtkZXN0aW5hdGlvbhgDIAEoCSJAChlCYWNrVXBDYXRhbG9nTmVlZFJlc3BvbnNlEiMKBmJhY2t1cBgBIAEoCzITLmRvY2t3ZWxsLnYxLkJhY2t1cCJgCh1MaXN0Q2F0YWxvZ05lZWRCYWNrdXBzUmVxdWVzdBIKCgJpZBgBIAEoCRIMCgRuZWVkGAIgASgJEhEKCXBhZ2Vfc2l6ZRgDIAEoBRISCgpwYWdlX3Rva2VuGAQgASgJIl8KHkxpc3RDYXRhbG9nTmVlZEJhY2t1cHNSZXNwb25zZRIkCgdiYWNrdXBzGAEgAygLMhMuZG9ja3dlbGwudjEuQmFja3VwEhcKD25leHRfcGFnZV90b2tlbhgCIAEoCSJZChlSZXN0b3JlQ2F0YWxvZ05lZWRSZXF1ZXN0EgoKAmlkGAEgASgJEgwKBG5lZWQYAiABKAkSEQoJYmFja3VwX2lkGAMgASgJEg8KB3N1bW1hcnkYBCABKAkiQQoaUmVzdG9yZUNhdGFsb2dOZWVkUmVzcG9uc2USIwoGY2hhbmdlGAEgASgLMhMuZG9ja3dlbGwudjEuQ2hhbmdlIicKGU9wZW5DYXRhbG9nSW5zdGFsbFJlcXVlc3QSCgoCaWQYASABKAkiQQoaT3BlbkNhdGFsb2dJbnN0YWxsUmVzcG9uc2USIwoGY2hhbmdlGAEgASgLMhMuZG9ja3dlbGwudjEuQ2hhbmdlIqQBChdTZXRDYXRhbG9nU291cmNlUmVxdWVzdBIMCgRuYW1lGAEgASgJEhIKCnJlcG9zaXRvcnkYAiABKAkSDAoEcGF0aBgDIAEoCRIOCgZjb21taXQYBCABKAkSDgoGZm9sbG93GAogASgJEjkKBmZvcm1hdBgUIAEoDjIpLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkNhdGFsb2dGb3JtYXQiPwoYU2V0Q2F0YWxvZ1NvdXJjZVJlc3BvbnNlEiMKBmNoYW5nZRgBIAEoCzITLmRvY2t3ZWxsLnYxLkNoYW5nZSIbChlMaXN0Q2F0YWxvZ1NvdXJjZXNSZXF1ZXN0Ik0KGkxpc3RDYXRhbG9nU291cmNlc1Jlc3BvbnNlEi8KB3NvdXJjZXMYASADKAsyHi5kb2Nrd2VsbC52MS5DYXRhbG9nU291cmNlSW5mbyLxAgoRQ2F0YWxvZ1NvdXJjZUluZm8SDAoEbmFtZRgBIAEoCRI5CgZzb3VyY2UYAiABKAsyKS5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5DYXRhbG9nU291cmNlEg8KB2VudHJpZXMYAyADKAkSMgoHcmVmdXNlZBgEIAMoCzIhLmRvY2t3ZWxsLnYxLkNhdGFsb2dTb3VyY2VSZWZ1c2FsEg4KBnVucmVhZBgFIAEoCRIrCgdjaGVja2VkGAogASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIPCgdwcm9ibGVtGAsgASgJEhUKDWJyYW5jaF9jb21taXQYDCABKAkSLgoKbmV4dF9jaGVjaxgNIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASCwoDb3duGA4gASgIEgwKBGFsc28YFCADKAkSDQoFc3RvcmUYHiABKAkSDwoHbGljZW5zZRgfIAEoCSJOChRDYXRhbG9nU291cmNlUmVmdXNhbBIMCgRmaWxlGAEgASgJEg4KBnJlYXNvbhgCIAEoCRIMCgRraW5kGBQgASgJEgoKAmlkGBUgASgJIhoKGExpc3RDYXRhbG9nU3RvcmVzUmVxdWVzdCJGChlMaXN0Q2F0YWxvZ1N0b3Jlc1Jlc3BvbnNlEikKBnN0b3JlcxgBIAMoCzIZLmRvY2t3ZWxsLnYxLkNhdGFsb2dTdG9yZSKHAgoMQ2F0YWxvZ1N0b3JlEgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSDQoFbGFiZWwYAyABKAkSEgoKcmVwb3NpdG9yeRgEIAEoCRI5CgZmb3JtYXQYBSABKA4yKS5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5DYXRhbG9nRm9ybWF0Eg4KBmJyYW5jaBgGIAEoCRIPCgdsaWNlbnNlGAcgASgJEhAKCGhvbWVwYWdlGAggASgJEgwKBGFwcHMYCSABKA0SEAoIaW5zdGFsbHMYCiABKA0SDgoGY29tbWl0GAsgASgJEgwKBGxpdmUYDCABKAgSDgoGc291cmNlGA0gASgJIjIKHExpc3RDYXRhbG9nU291cmNlUmVmc1JlcXVlc3QSEgoKcmVwb3NpdG9yeRgBIAEoCSKaAQodTGlzdENhdGFsb2dTb3VyY2VSZWZzUmVzcG9uc2USKwoEcmVmcxgBIAMoCzIdLmRvY2t3ZWxsLnYxLkNhdGFsb2dTb3VyY2VSZWYSDAoEbW9yZRgCIAEoCBIMCgRoZWFkGAMgASgJEjAKB2Zvcm1hdHMYFCADKAsyHy5kb2Nrd2VsbC52MS5DYXRhbG9nU291cmNlR3Vlc3MiawoSQ2F0YWxvZ1NvdXJjZUd1ZXNzEjkKBmZvcm1hdBgBIAEoDjIpLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkNhdGFsb2dGb3JtYXQSDAoEcGF0aBgCIAEoCRIMCgRhcHBzGAMgASgNIjAKEENhdGFsb2dTb3VyY2VSZWYSDAoEbmFtZRgBIAEoCRIOCgZjb21taXQYAiABKAkiKQoZQ2hlY2tDYXRhbG9nU291cmNlUmVxdWVzdBIMCgRuYW1lGAEgASgJInEKGkNoZWNrQ2F0YWxvZ1NvdXJjZVJlc3BvbnNlEi4KBnNvdXJjZRgBIAEoCzIeLmRvY2t3ZWxsLnYxLkNhdGFsb2dTb3VyY2VJbmZvEiMKBmNoYW5nZRgCIAEoCzITLmRvY2t3ZWxsLnYxLkNoYW5nZSIqChpSZW1vdmVDYXRhbG9nU291cmNlUmVxdWVzdBIMCgRuYW1lGAEgASgJIkIKG1JlbW92ZUNhdGFsb2dTb3VyY2VSZXNwb25zZRIjCgZjaGFuZ2UYASABKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2UqSQoMQ2F0YWxvZ09yZGVyEh0KGUNBVEFMT0dfT1JERVJfVU5TUEVDSUZJRUQQABIaChZDQVRBTE9HX09SREVSX0ZFQVRVUkVEEAEyoBcKDkNhdGFsb2dTZXJ2aWNlEpUBChJMaXN0Q2F0YWxvZ0VudHJpZXMSJi5kb2Nrd2VsbC52MS5MaXN0Q2F0YWxvZ0VudHJpZXNSZXF1ZXN0GicuZG9ja3dlbGwudjEuTGlzdENhdGFsb2dFbnRyaWVzUmVzcG9uc2UiLpACAaC7GAHAuxgCyLsYAtC7GAOC0+STAhUSEy92MS9jYXRhbG9nL2VudHJpZXMSkQEKD0dldENhdGFsb2dFbnRyeRIjLmRvY2t3ZWxsLnYxLkdldENhdGFsb2dFbnRyeVJlcXVlc3QaJC5kb2Nrd2VsbC52MS5HZXRDYXRhbG9nRW50cnlSZXNwb25zZSIzkAIBoLsYAcC7GALIuxgC0LsYA4LT5JMCGhIYL3YxL2NhdGFsb2cvZW50cmllcy97aWR9EqcBChNMaXN0Q2F0YWxvZ0luc3RhbGxzEicuZG9ja3dlbGwudjEuTGlzdENhdGFsb2dJbnN0YWxsc1JlcXVlc3QaKC5kb2Nrd2VsbC52MS5MaXN0Q2F0YWxvZ0luc3RhbGxzUmVzcG9uc2UiPZACAaC7GAGquxgKEghpbnN0YWxsc8C7GALIuxgC0LsYBILT5JMCFhIUL3YxL2NhdGFsb2cvaW5zdGFsbHMSuQEKFVVwZ3JhZGVDYXRhbG9nSW5zdGFsbBIpLmRvY2t3ZWxsLnYxLlVwZ3JhZGVDYXRhbG9nSW5zdGFsbFJlcXVlc3QaKi5kb2Nrd2VsbC52MS5VcGdyYWRlQ2F0YWxvZ0luc3RhbGxSZXNwb25zZSJJoLsYAqq7GAkSB3VwZ3JhZGXAuxgDyLsYA9C7GASC0+STAiY6ASoiIS92MS9jYXRhbG9nL2luc3RhbGxzL3tpZH06dXBncmFkZRK/AQoTU2V0Q2F0YWxvZ0NvbXBhbmlvbhInLmRvY2t3ZWxsLnYxLlNldENhdGFsb2dDb21wYW5pb25SZXF1ZXN0GiguZG9ja3dlbGwudjEuU2V0Q2F0YWxvZ0NvbXBhbmlvblJlc3BvbnNlIlWguxgCqrsYDxINc2V0LWNvbXBhbmlvbsC7GAPIuxgD0LsYBILT5JMCLDoBKiInL3YxL2NhdGFsb2cvaW5zdGFsbHMve2lkfTpzZXQtY29tcGFuaW9uEqYBCg5TZXRDYXRhbG9nTmVlZBIiLmRvY2t3ZWxsLnYxLlNldENhdGFsb2dOZWVkUmVxdWVzdBojLmRvY2t3ZWxsLnYxLlNldENhdGFsb2dOZWVkUmVzcG9uc2UiS6C7GAKquxgKEghzZXQtbmVlZMC7GAPIuxgD0LsYBILT5JMCJzoBKiIiL3YxL2NhdGFsb2cvaW5zdGFsbHMve2lkfTpzZXQtbmVlZBKqAQoST3BlbkNhdGFsb2dJbnN0YWxsEiYuZG9ja3dlbGwudjEuT3BlbkNhdGFsb2dJbnN0YWxsUmVxdWVzdBonLmRvY2t3ZWxsLnYxLk9wZW5DYXRhbG9nSW5zdGFsbFJlc3BvbnNlIkOguxgCqrsYBhIEb3BlbsC7GAPIuxgD0LsYBILT5JMCIzoBKiIeL3YxL2NhdGFsb2cvaW5zdGFsbHMve2lkfTpvcGVuEq0BChFCYWNrVXBDYXRhbG9nTmVlZBIlLmRvY2t3ZWxsLnYxLkJhY2tVcENhdGFsb2dOZWVkUmVxdWVzdBomLmRvY2t3ZWxsLnYxLkJhY2tVcENhdGFsb2dOZWVkUmVzcG9uc2UiSaC7GAOquxgJEgdiYWNrLXVwwLsYA8i7GATQuxgEgtPkkwImOgEqIiEvdjEvY2F0YWxvZy9pbnN0YWxscy97aWR9OmJhY2stdXASvAEKFkxpc3RDYXRhbG9nTmVlZEJhY2t1cHMSKi5kb2Nrd2VsbC52MS5MaXN0Q2F0YWxvZ05lZWRCYWNrdXBzUmVxdWVzdBorLmRvY2t3ZWxsLnYxLkxpc3RDYXRhbG9nTmVlZEJhY2t1cHNSZXNwb25zZSJJkAIBoLsYAaq7GAkSB2JhY2t1cHPAuxgCyLsYAtC7GASC0+STAiMSIS92MS9jYXRhbG9nL2luc3RhbGxzL3tpZH0vYmFja3VwcxKwAQoSUmVzdG9yZUNhdGFsb2dOZWVkEiYuZG9ja3dlbGwudjEuUmVzdG9yZUNhdGFsb2dOZWVkUmVxdWVzdBonLmRvY2t3ZWxsLnYxLlJlc3RvcmVDYXRhbG9nTmVlZFJlc3BvbnNlIkmguxgCqrsYCRIHcmVzdG9yZcC7GAPIuxgD0LsYBILT5JMCJjoBKiIhL3YxL2NhdGFsb2cvaW5zdGFsbHMve2lkfTpyZXN0b3JlEqUBChNJbnN0YWxsQ2F0YWxvZ0VudHJ5EicuZG9ja3dlbGwudjEuSW5zdGFsbENhdGFsb2dFbnRyeVJlcXVlc3QaKC5kb2Nrd2VsbC52MS5JbnN0YWxsQ2F0YWxvZ0VudHJ5UmVzcG9uc2UiO6C7GALAuxgEyLsYBNC7GAaC0+STAiU6ASoiIC92MS9jYXRhbG9nL2VudHJpZXMve2lkfTppbnN0YWxsEqoBChBTZXRDYXRhbG9nU291cmNlEiQuZG9ja3dlbGwudjEuU2V0Q2F0YWxvZ1NvdXJjZVJlcXVlc3QaJS5kb2Nrd2VsbC52MS5TZXRDYXRhbG9nU291cmNlUmVzcG9uc2UiSaC7GAKquxgMEgpzZXQtc291cmNlwLsYBMi7GATQuxgGgtPkkwIjOgEqIh4vdjEvY2F0YWxvZy9zb3VyY2VzL3tuYW1lfTpzZXQSogEKEkxpc3RDYXRhbG9nU291cmNlcxImLmRvY2t3ZWxsLnYxLkxpc3RDYXRhbG9nU291cmNlc1JlcXVlc3QaJy5kb2Nrd2VsbC52MS5MaXN0Q2F0YWxvZ1NvdXJjZXNSZXNwb25zZSI7kAIBoLsYAaq7GAkSB3NvdXJjZXPAuxgCyLsYAtC7GAOC0+STAhUSEy92MS9jYXRhbG9nL3NvdXJjZXMSnQEKEUxpc3RDYXRhbG9nU3RvcmVzEiUuZG9ja3dlbGwudjEuTGlzdENhdGFsb2dTdG9yZXNSZXF1ZXN0GiYuZG9ja3dlbGwudjEuTGlzdENhdGFsb2dTdG9yZXNSZXNwb25zZSI5kAIBoLsYAaq7GAgSBnN0b3Jlc8C7GALIuxgC0LsYA4LT5JMCFBISL3YxL2NhdGFsb2cvc3RvcmVzErQBChVMaXN0Q2F0YWxvZ1NvdXJjZVJlZnMSKS5kb2Nrd2VsbC52MS5MaXN0Q2F0YWxvZ1NvdXJjZVJlZnNSZXF1ZXN0GiouZG9ja3dlbGwudjEuTGlzdENhdGFsb2dTb3VyY2VSZWZzUmVzcG9uc2UiRKC7GAGquxgNEgtzb3VyY2UtcmVmc8C7GATIuxgE0LsYBoLT5JMCHToBKiIYL3YxL2NhdGFsb2cvc291cmNlczpyZWZzErQBChJDaGVja0NhdGFsb2dTb3VyY2USJi5kb2Nrd2VsbC52MS5DaGVja0NhdGFsb2dTb3VyY2VSZXF1ZXN0GicuZG9ja3dlbGwudjEuQ2hlY2tDYXRhbG9nU291cmNlUmVzcG9uc2UiTaC7GAOquxgOEgxjaGVjay1zb3VyY2XAuxgEyLsYBNC7GAaC0+STAiU6ASoiIC92MS9jYXRhbG9nL3NvdXJjZXMve25hbWV9OmNoZWNrErkBChNSZW1vdmVDYXRhbG9nU291cmNlEicuZG9ja3dlbGwudjEuUmVtb3ZlQ2F0YWxvZ1NvdXJjZVJlcXVlc3QaKC5kb2Nrd2VsbC52MS5SZW1vdmVDYXRhbG9nU291cmNlUmVzcG9uc2UiT6C7GAKquxgPEg1yZW1vdmUtc291cmNlwLsYBMi7GATQuxgGgtPkkwImOgEqIiEvdjEvY2F0YWxvZy9zb3VyY2VzL3tuYW1lfTpyZW1vdmVCpQEKD2NvbS5kb2Nrd2VsbC52MUIMQ2F0YWxvZ1Byb3RvUAFaN2dpdGh1Yi5jb20vZG9ja3dlbGwvZG9ja3dlbGwvZ2VuL2RvY2t3ZWxsL3YxO2RvY2t3ZWxsdjGiAgNEWFiqAgtEb2Nrd2VsbC5WMcoCC0RvY2t3ZWxsXFYx4gIXRG9ja3dlbGxcVjFcR1BCTWV0YWRhdGHqAgxEb2Nrd2VsbDo6VjFiBnByb3RvMw", [file_dockwell_catalog_v1alpha1_entry, file_dockwell_resource_v1alpha1_specs, file_dockwell_v1_backup, file_dockwell_v1_change, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
 
 /**
- * ListCatalogEntriesRequest asks for the whole catalog.
+ * ListCatalogEntriesRequest asks for a page of the catalog. The filters narrow it,
+ * and combine: an entry must pass each one that is set. See
+ * docs/adr/0092-the-catalog-a-page-at-a-time.md.
  *
  * @generated from message dockwell.v1.ListCatalogEntriesRequest
  */
 export type ListCatalogEntriesRequest = Message<"dockwell.v1.ListCatalogEntriesRequest"> & {
+  /**
+   * How many entries a page holds, at most 200. Unset lists every entry that
+   * matches, in one answer, as the catalog did before it paged.
+   *
+   * @generated from field: int32 page_size = 1;
+   */
+  pageSize: number;
+
+  /**
+   * Where to start: the next_page_token of the page before. Pass the same filters
+   * with it. Empty starts at the first.
+   *
+   * @generated from field: string page_token = 2;
+   */
+  pageToken: string;
+
+  /**
+   * Words an entry has, case aside: in its name, what it does in its own words or
+   * in language's, its category or its features. Empty matches every entry.
+   *
+   * @generated from field: string search = 3;
+   */
+  search: string;
+
+  /**
+   * Categories a client names with the search's words, in the reader's language,
+   * as the control plane doesn't translate a category's name: an entry in one of
+   * them matches the search too.
+   *
+   * @generated from field: repeated string search_categories = 4;
+   */
+  searchCategories: string[];
+
+  /**
+   * The reader's language, such as "zh-CN", whose words for what an entry does the
+   * search reads beside its own.
+   *
+   * @generated from field: string language = 5;
+   */
+  language: string;
+
+  /**
+   * Only entries of one category, such as "databases". Empty is every category.
+   *
+   * @generated from field: string category = 6;
+   */
+  category: string;
+
+  /**
+   * Only the apps one catalog has, by its source's name: the entries it lists,
+   * and its own entry of each app another catalog lists first, in that entry's
+   * place. Empty is every catalog.
+   *
+   * @generated from field: string catalog = 7;
+   */
+  catalog: string;
+
+  /**
+   * Only the apps installed here, from the catalog the entry comes from.
+   *
+   * @generated from field: bool installed = 8;
+   */
+  installed: boolean;
+
+  /**
+   * Only the entries of these IDs.
+   *
+   * @generated from field: repeated string ids = 9;
+   */
+  ids: string[];
+
+  /**
+   * How the entries are ordered: by name unless set.
+   *
+   * @generated from field: dockwell.v1.CatalogOrder order = 10;
+   */
+  order: CatalogOrder;
 };
 
 /**
@@ -40,14 +121,14 @@ export const ListCatalogEntriesRequestSchema: GenMessage<ListCatalogEntriesReque
   messageDesc(file_dockwell_v1_catalog, 0);
 
 /**
- * ListCatalogEntriesResponse is the catalog.
+ * ListCatalogEntriesResponse is a page of the catalog.
  *
  * @generated from message dockwell.v1.ListCatalogEntriesResponse
  */
 export type ListCatalogEntriesResponse = Message<"dockwell.v1.ListCatalogEntriesResponse"> & {
   /**
-   * Every entry, sorted by name: one for each app, from the first catalog that has
-   * it, Dockwell's own first, then each source by its name.
+   * The entries of the page, in the order asked for: one for each app, from the
+   * first catalog that has it, Dockwell's own first, then each source by its name.
    *
    * @generated from field: repeated dockwell.catalog.v1alpha1.Entry entries = 1;
    */
@@ -55,12 +136,37 @@ export type ListCatalogEntriesResponse = Message<"dockwell.v1.ListCatalogEntries
 
   /**
    * The same apps from the other catalogs that have them, each beside the entry of
-   * its ID in entries: an entry of the same ID, name and image is the same app, and
-   * anything less certain is another app, which a source leaves out (ADR 0078).
+   * its ID in entries, for the page's entries: an entry of the same ID, name and
+   * image is the same app, and anything less certain is another app, which a
+   * source leaves out (ADR 0078).
    *
    * @generated from field: repeated dockwell.v1.CatalogAlternative also = 20;
    */
   also: CatalogAlternative[];
+
+  /**
+   * How many entries match, across every page.
+   *
+   * @generated from field: int32 total = 21;
+   */
+  total: number;
+
+  /**
+   * Pass it as page_token for the next page. Empty on the last page.
+   *
+   * @generated from field: string next_page_token = 22;
+   */
+  nextPageToken: string;
+
+  /**
+   * The categories of the entries that match every filter but category and the
+   * search, by name, each with how many of those, and how many of them match the
+   * search too: the choices a page of them offers, which stay as words are typed,
+   * and where else the words find something. No one page can say either.
+   *
+   * @generated from field: repeated dockwell.v1.CatalogCategoryCount categories = 23;
+   */
+  categories: CatalogCategoryCount[];
 };
 
 /**
@@ -69,6 +175,41 @@ export type ListCatalogEntriesResponse = Message<"dockwell.v1.ListCatalogEntries
  */
 export const ListCatalogEntriesResponseSchema: GenMessage<ListCatalogEntriesResponse> = /*@__PURE__*/
   messageDesc(file_dockwell_v1_catalog, 1);
+
+/**
+ * CatalogCategoryCount is a category and how many entries are in it.
+ *
+ * @generated from message dockwell.v1.CatalogCategoryCount
+ */
+export type CatalogCategoryCount = Message<"dockwell.v1.CatalogCategoryCount"> & {
+  /**
+   * The category, such as "databases".
+   *
+   * @generated from field: string category = 1;
+   */
+  category: string;
+
+  /**
+   * How many entries in it match the search, and every filter but category.
+   *
+   * @generated from field: int32 count = 2;
+   */
+  count: number;
+
+  /**
+   * How many entries it has under every filter but category and the search.
+   *
+   * @generated from field: int32 listed = 3;
+   */
+  listed: number;
+};
+
+/**
+ * Describes the message dockwell.v1.CatalogCategoryCount.
+ * Use `create(CatalogCategoryCountSchema)` to create a new message.
+ */
+export const CatalogCategoryCountSchema: GenMessage<CatalogCategoryCount> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_catalog, 2);
 
 /**
  * CatalogAlternative is an app's entry in another catalog than the one it's listed
@@ -104,7 +245,7 @@ export type CatalogAlternative = Message<"dockwell.v1.CatalogAlternative"> & {
  * Use `create(CatalogAlternativeSchema)` to create a new message.
  */
 export const CatalogAlternativeSchema: GenMessage<CatalogAlternative> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_catalog, 2);
+  messageDesc(file_dockwell_v1_catalog, 3);
 
 /**
  * GetCatalogEntryRequest names an entry.
@@ -141,7 +282,7 @@ export type GetCatalogEntryRequest = Message<"dockwell.v1.GetCatalogEntryRequest
  * Use `create(GetCatalogEntryRequestSchema)` to create a new message.
  */
 export const GetCatalogEntryRequestSchema: GenMessage<GetCatalogEntryRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_catalog, 3);
+  messageDesc(file_dockwell_v1_catalog, 4);
 
 /**
  * GetCatalogEntryResponse is an entry, with what installing it would use.
@@ -207,7 +348,7 @@ export type GetCatalogEntryResponse = Message<"dockwell.v1.GetCatalogEntryRespon
  * Use `create(GetCatalogEntryResponseSchema)` to create a new message.
  */
 export const GetCatalogEntryResponseSchema: GenMessage<GetCatalogEntryResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_catalog, 4);
+  messageDesc(file_dockwell_v1_catalog, 5);
 
 /**
  * CatalogNeedOption is one way to meet an entry's need.
@@ -307,7 +448,7 @@ export type CatalogNeedOption = Message<"dockwell.v1.CatalogNeedOption"> & {
  * Use `create(CatalogNeedOptionSchema)` to create a new message.
  */
 export const CatalogNeedOptionSchema: GenMessage<CatalogNeedOption> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_catalog, 5);
+  messageDesc(file_dockwell_v1_catalog, 6);
 
 /**
  * CatalogPart is one service an entry installs.
@@ -410,7 +551,7 @@ export type CatalogPart = Message<"dockwell.v1.CatalogPart"> & {
  * Use `create(CatalogPartSchema)` to create a new message.
  */
 export const CatalogPartSchema: GenMessage<CatalogPart> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_catalog, 6);
+  messageDesc(file_dockwell_v1_catalog, 7);
 
 /**
  * ListCatalogInstallsRequest asks for everything installed.
@@ -425,7 +566,7 @@ export type ListCatalogInstallsRequest = Message<"dockwell.v1.ListCatalogInstall
  * Use `create(ListCatalogInstallsRequestSchema)` to create a new message.
  */
 export const ListCatalogInstallsRequestSchema: GenMessage<ListCatalogInstallsRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_catalog, 7);
+  messageDesc(file_dockwell_v1_catalog, 8);
 
 /**
  * ListCatalogInstallsResponse lists what's installed from the catalog.
@@ -446,7 +587,7 @@ export type ListCatalogInstallsResponse = Message<"dockwell.v1.ListCatalogInstal
  * Use `create(ListCatalogInstallsResponseSchema)` to create a new message.
  */
 export const ListCatalogInstallsResponseSchema: GenMessage<ListCatalogInstallsResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_catalog, 8);
+  messageDesc(file_dockwell_v1_catalog, 9);
 
 /**
  * CatalogInstall is one project installed from the catalog.
@@ -529,7 +670,7 @@ export type CatalogInstall = Message<"dockwell.v1.CatalogInstall"> & {
  * Use `create(CatalogInstallSchema)` to create a new message.
  */
 export const CatalogInstallSchema: GenMessage<CatalogInstall> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_catalog, 9);
+  messageDesc(file_dockwell_v1_catalog, 10);
 
 /**
  * CatalogUpgrade is a newer release of an install's entry.
@@ -557,7 +698,7 @@ export type CatalogUpgrade = Message<"dockwell.v1.CatalogUpgrade"> & {
  * Use `create(CatalogUpgradeSchema)` to create a new message.
  */
 export const CatalogUpgradeSchema: GenMessage<CatalogUpgrade> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_catalog, 10);
+  messageDesc(file_dockwell_v1_catalog, 11);
 
 /**
  * InstallCatalogEntryRequest is an app to install.
@@ -660,7 +801,7 @@ export type InstallCatalogEntryRequest = Message<"dockwell.v1.InstallCatalogEntr
  * Use `create(InstallCatalogEntryRequestSchema)` to create a new message.
  */
 export const InstallCatalogEntryRequestSchema: GenMessage<InstallCatalogEntryRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_catalog, 11);
+  messageDesc(file_dockwell_v1_catalog, 12);
 
 /**
  * InstallCatalogEntryResponse carries the planned change.
@@ -681,7 +822,7 @@ export type InstallCatalogEntryResponse = Message<"dockwell.v1.InstallCatalogEnt
  * Use `create(InstallCatalogEntryResponseSchema)` to create a new message.
  */
 export const InstallCatalogEntryResponseSchema: GenMessage<InstallCatalogEntryResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_catalog, 12);
+  messageDesc(file_dockwell_v1_catalog, 13);
 
 /**
  * UpgradeCatalogInstallRequest names an install to upgrade.
@@ -717,7 +858,7 @@ export type UpgradeCatalogInstallRequest = Message<"dockwell.v1.UpgradeCatalogIn
  * Use `create(UpgradeCatalogInstallRequestSchema)` to create a new message.
  */
 export const UpgradeCatalogInstallRequestSchema: GenMessage<UpgradeCatalogInstallRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_catalog, 13);
+  messageDesc(file_dockwell_v1_catalog, 14);
 
 /**
  * UpgradeCatalogInstallResponse carries the planned change.
@@ -738,7 +879,7 @@ export type UpgradeCatalogInstallResponse = Message<"dockwell.v1.UpgradeCatalogI
  * Use `create(UpgradeCatalogInstallResponseSchema)` to create a new message.
  */
 export const UpgradeCatalogInstallResponseSchema: GenMessage<UpgradeCatalogInstallResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_catalog, 14);
+  messageDesc(file_dockwell_v1_catalog, 15);
 
 /**
  * SetCatalogCompanionRequest names an install's companion, and whether it runs.
@@ -781,7 +922,7 @@ export type SetCatalogCompanionRequest = Message<"dockwell.v1.SetCatalogCompanio
  * Use `create(SetCatalogCompanionRequestSchema)` to create a new message.
  */
 export const SetCatalogCompanionRequestSchema: GenMessage<SetCatalogCompanionRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_catalog, 15);
+  messageDesc(file_dockwell_v1_catalog, 16);
 
 /**
  * SetCatalogCompanionResponse carries the planned change.
@@ -802,7 +943,7 @@ export type SetCatalogCompanionResponse = Message<"dockwell.v1.SetCatalogCompani
  * Use `create(SetCatalogCompanionResponseSchema)` to create a new message.
  */
 export const SetCatalogCompanionResponseSchema: GenMessage<SetCatalogCompanionResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_catalog, 16);
+  messageDesc(file_dockwell_v1_catalog, 17);
 
 /**
  * SetCatalogNeedRequest names an install's need, and what meets it now.
@@ -852,7 +993,7 @@ export type SetCatalogNeedRequest = Message<"dockwell.v1.SetCatalogNeedRequest">
  * Use `create(SetCatalogNeedRequestSchema)` to create a new message.
  */
 export const SetCatalogNeedRequestSchema: GenMessage<SetCatalogNeedRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_catalog, 17);
+  messageDesc(file_dockwell_v1_catalog, 18);
 
 /**
  * SetCatalogNeedResponse carries the planned change.
@@ -873,7 +1014,192 @@ export type SetCatalogNeedResponse = Message<"dockwell.v1.SetCatalogNeedResponse
  * Use `create(SetCatalogNeedResponseSchema)` to create a new message.
  */
 export const SetCatalogNeedResponseSchema: GenMessage<SetCatalogNeedResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_catalog, 18);
+  messageDesc(file_dockwell_v1_catalog, 19);
+
+/**
+ * BackUpCatalogNeedRequest names an install's database to back up.
+ *
+ * @generated from message dockwell.v1.BackUpCatalogNeedRequest
+ */
+export type BackUpCatalogNeedRequest = Message<"dockwell.v1.BackUpCatalogNeedRequest"> & {
+  /**
+   * The install's project, by name or ID.
+   *
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * The need, by its name in the entry, such as "db".
+   *
+   * @generated from field: string need = 2;
+   */
+  need: string;
+
+  /**
+   * A backup destination it goes to as well, by name.
+   *
+   * @generated from field: string destination = 3;
+   */
+  destination: string;
+};
+
+/**
+ * Describes the message dockwell.v1.BackUpCatalogNeedRequest.
+ * Use `create(BackUpCatalogNeedRequestSchema)` to create a new message.
+ */
+export const BackUpCatalogNeedRequestSchema: GenMessage<BackUpCatalogNeedRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_catalog, 20);
+
+/**
+ * BackUpCatalogNeedResponse carries the backup, running.
+ *
+ * @generated from message dockwell.v1.BackUpCatalogNeedResponse
+ */
+export type BackUpCatalogNeedResponse = Message<"dockwell.v1.BackUpCatalogNeedResponse"> & {
+  /**
+   * @generated from field: dockwell.v1.Backup backup = 1;
+   */
+  backup?: Backup | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.BackUpCatalogNeedResponse.
+ * Use `create(BackUpCatalogNeedResponseSchema)` to create a new message.
+ */
+export const BackUpCatalogNeedResponseSchema: GenMessage<BackUpCatalogNeedResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_catalog, 21);
+
+/**
+ * ListCatalogNeedBackupsRequest asks for a page of an install's database's backups.
+ *
+ * @generated from message dockwell.v1.ListCatalogNeedBackupsRequest
+ */
+export type ListCatalogNeedBackupsRequest = Message<"dockwell.v1.ListCatalogNeedBackupsRequest"> & {
+  /**
+   * The install's project, by name or ID.
+   *
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * The need, by its name in the entry.
+   *
+   * @generated from field: string need = 2;
+   */
+  need: string;
+
+  /**
+   * How many to return: 50 unless set, and 200 at most.
+   *
+   * @generated from field: int32 page_size = 3;
+   */
+  pageSize: number;
+
+  /**
+   * Where to start: the next_page_token of the page before.
+   *
+   * @generated from field: string page_token = 4;
+   */
+  pageToken: string;
+};
+
+/**
+ * Describes the message dockwell.v1.ListCatalogNeedBackupsRequest.
+ * Use `create(ListCatalogNeedBackupsRequestSchema)` to create a new message.
+ */
+export const ListCatalogNeedBackupsRequestSchema: GenMessage<ListCatalogNeedBackupsRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_catalog, 22);
+
+/**
+ * ListCatalogNeedBackupsResponse is a page of them.
+ *
+ * @generated from message dockwell.v1.ListCatalogNeedBackupsResponse
+ */
+export type ListCatalogNeedBackupsResponse = Message<"dockwell.v1.ListCatalogNeedBackupsResponse"> & {
+  /**
+   * @generated from field: repeated dockwell.v1.Backup backups = 1;
+   */
+  backups: Backup[];
+
+  /**
+   * Where the next page starts. Empty on the last.
+   *
+   * @generated from field: string next_page_token = 2;
+   */
+  nextPageToken: string;
+};
+
+/**
+ * Describes the message dockwell.v1.ListCatalogNeedBackupsResponse.
+ * Use `create(ListCatalogNeedBackupsResponseSchema)` to create a new message.
+ */
+export const ListCatalogNeedBackupsResponseSchema: GenMessage<ListCatalogNeedBackupsResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_catalog, 23);
+
+/**
+ * RestoreCatalogNeedRequest names a backup of an install's database to bring back.
+ *
+ * @generated from message dockwell.v1.RestoreCatalogNeedRequest
+ */
+export type RestoreCatalogNeedRequest = Message<"dockwell.v1.RestoreCatalogNeedRequest"> & {
+  /**
+   * The install's project, by name or ID.
+   *
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * The need, by its name in the entry.
+   *
+   * @generated from field: string need = 2;
+   */
+  need: string;
+
+  /**
+   * The backup's ID: one taken for this install's need.
+   *
+   * @generated from field: string backup_id = 3;
+   */
+  backupId: string;
+
+  /**
+   * What it's for, for the timeline. Empty says what it restores.
+   *
+   * @generated from field: string summary = 4;
+   */
+  summary: string;
+};
+
+/**
+ * Describes the message dockwell.v1.RestoreCatalogNeedRequest.
+ * Use `create(RestoreCatalogNeedRequestSchema)` to create a new message.
+ */
+export const RestoreCatalogNeedRequestSchema: GenMessage<RestoreCatalogNeedRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_catalog, 24);
+
+/**
+ * RestoreCatalogNeedResponse carries the planned change.
+ *
+ * @generated from message dockwell.v1.RestoreCatalogNeedResponse
+ */
+export type RestoreCatalogNeedResponse = Message<"dockwell.v1.RestoreCatalogNeedResponse"> & {
+  /**
+   * The change, planned, with its plan.
+   *
+   * @generated from field: dockwell.v1.Change change = 1;
+   */
+  change?: Change | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.RestoreCatalogNeedResponse.
+ * Use `create(RestoreCatalogNeedResponseSchema)` to create a new message.
+ */
+export const RestoreCatalogNeedResponseSchema: GenMessage<RestoreCatalogNeedResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_catalog, 25);
 
 /**
  * OpenCatalogInstallRequest names the install to open.
@@ -894,7 +1220,7 @@ export type OpenCatalogInstallRequest = Message<"dockwell.v1.OpenCatalogInstallR
  * Use `create(OpenCatalogInstallRequestSchema)` to create a new message.
  */
 export const OpenCatalogInstallRequestSchema: GenMessage<OpenCatalogInstallRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_catalog, 19);
+  messageDesc(file_dockwell_v1_catalog, 26);
 
 /**
  * OpenCatalogInstallResponse carries the planned change.
@@ -915,7 +1241,7 @@ export type OpenCatalogInstallResponse = Message<"dockwell.v1.OpenCatalogInstall
  * Use `create(OpenCatalogInstallResponseSchema)` to create a new message.
  */
 export const OpenCatalogInstallResponseSchema: GenMessage<OpenCatalogInstallResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_catalog, 20);
+  messageDesc(file_dockwell_v1_catalog, 27);
 
 /**
  * SetCatalogSourceRequest names a source, and what it reads.
@@ -975,7 +1301,7 @@ export type SetCatalogSourceRequest = Message<"dockwell.v1.SetCatalogSourceReque
  * Use `create(SetCatalogSourceRequestSchema)` to create a new message.
  */
 export const SetCatalogSourceRequestSchema: GenMessage<SetCatalogSourceRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_catalog, 21);
+  messageDesc(file_dockwell_v1_catalog, 28);
 
 /**
  * SetCatalogSourceResponse is the change that sets it.
@@ -996,7 +1322,7 @@ export type SetCatalogSourceResponse = Message<"dockwell.v1.SetCatalogSourceResp
  * Use `create(SetCatalogSourceResponseSchema)` to create a new message.
  */
 export const SetCatalogSourceResponseSchema: GenMessage<SetCatalogSourceResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_catalog, 22);
+  messageDesc(file_dockwell_v1_catalog, 29);
 
 /**
  * ListCatalogSourcesRequest asks for every source.
@@ -1011,7 +1337,7 @@ export type ListCatalogSourcesRequest = Message<"dockwell.v1.ListCatalogSourcesR
  * Use `create(ListCatalogSourcesRequestSchema)` to create a new message.
  */
 export const ListCatalogSourcesRequestSchema: GenMessage<ListCatalogSourcesRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_catalog, 23);
+  messageDesc(file_dockwell_v1_catalog, 30);
 
 /**
  * ListCatalogSourcesResponse is every source.
@@ -1032,7 +1358,7 @@ export type ListCatalogSourcesResponse = Message<"dockwell.v1.ListCatalogSources
  * Use `create(ListCatalogSourcesResponseSchema)` to create a new message.
  */
 export const ListCatalogSourcesResponseSchema: GenMessage<ListCatalogSourcesResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_catalog, 24);
+  messageDesc(file_dockwell_v1_catalog, 31);
 
 /**
  * CatalogSourceInfo is a source, and what Dockwell made of it.
@@ -1151,7 +1477,7 @@ export type CatalogSourceInfo = Message<"dockwell.v1.CatalogSourceInfo"> & {
  * Use `create(CatalogSourceInfoSchema)` to create a new message.
  */
 export const CatalogSourceInfoSchema: GenMessage<CatalogSourceInfo> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_catalog, 25);
+  messageDesc(file_dockwell_v1_catalog, 32);
 
 /**
  * CatalogSourceRefusal is a file of a source the catalog leaves out, and why.
@@ -1196,7 +1522,7 @@ export type CatalogSourceRefusal = Message<"dockwell.v1.CatalogSourceRefusal"> &
  * Use `create(CatalogSourceRefusalSchema)` to create a new message.
  */
 export const CatalogSourceRefusalSchema: GenMessage<CatalogSourceRefusal> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_catalog, 26);
+  messageDesc(file_dockwell_v1_catalog, 33);
 
 /**
  * ListCatalogStoresRequest asks for every store Dockwell reads directly.
@@ -1211,7 +1537,7 @@ export type ListCatalogStoresRequest = Message<"dockwell.v1.ListCatalogStoresReq
  * Use `create(ListCatalogStoresRequestSchema)` to create a new message.
  */
 export const ListCatalogStoresRequestSchema: GenMessage<ListCatalogStoresRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_catalog, 27);
+  messageDesc(file_dockwell_v1_catalog, 34);
 
 /**
  * ListCatalogStoresResponse is every store Dockwell reads directly.
@@ -1232,7 +1558,7 @@ export type ListCatalogStoresResponse = Message<"dockwell.v1.ListCatalogStoresRe
  * Use `create(ListCatalogStoresResponseSchema)` to create a new message.
  */
 export const ListCatalogStoresResponseSchema: GenMessage<ListCatalogStoresResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_catalog, 28);
+  messageDesc(file_dockwell_v1_catalog, 35);
 
 /**
  * CatalogStore is another store's catalog that Dockwell reads directly and
@@ -1343,7 +1669,7 @@ export type CatalogStore = Message<"dockwell.v1.CatalogStore"> & {
  * Use `create(CatalogStoreSchema)` to create a new message.
  */
 export const CatalogStoreSchema: GenMessage<CatalogStore> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_catalog, 29);
+  messageDesc(file_dockwell_v1_catalog, 36);
 
 /**
  * ListCatalogSourceRefsRequest names a repository.
@@ -1364,7 +1690,7 @@ export type ListCatalogSourceRefsRequest = Message<"dockwell.v1.ListCatalogSourc
  * Use `create(ListCatalogSourceRefsRequestSchema)` to create a new message.
  */
 export const ListCatalogSourceRefsRequestSchema: GenMessage<ListCatalogSourceRefsRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_catalog, 30);
+  messageDesc(file_dockwell_v1_catalog, 37);
 
 /**
  * ListCatalogSourceRefsResponse is the repository's branches and tags.
@@ -1411,7 +1737,7 @@ export type ListCatalogSourceRefsResponse = Message<"dockwell.v1.ListCatalogSour
  * Use `create(ListCatalogSourceRefsResponseSchema)` to create a new message.
  */
 export const ListCatalogSourceRefsResponseSchema: GenMessage<ListCatalogSourceRefsResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_catalog, 31);
+  messageDesc(file_dockwell_v1_catalog, 38);
 
 /**
  * CatalogSourceGuess is a layout a repository's folders look like.
@@ -1447,7 +1773,7 @@ export type CatalogSourceGuess = Message<"dockwell.v1.CatalogSourceGuess"> & {
  * Use `create(CatalogSourceGuessSchema)` to create a new message.
  */
 export const CatalogSourceGuessSchema: GenMessage<CatalogSourceGuess> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_catalog, 32);
+  messageDesc(file_dockwell_v1_catalog, 39);
 
 /**
  * CatalogSourceRef is a branch or a tag, and the commit it's at.
@@ -1475,7 +1801,7 @@ export type CatalogSourceRef = Message<"dockwell.v1.CatalogSourceRef"> & {
  * Use `create(CatalogSourceRefSchema)` to create a new message.
  */
 export const CatalogSourceRefSchema: GenMessage<CatalogSourceRef> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_catalog, 33);
+  messageDesc(file_dockwell_v1_catalog, 40);
 
 /**
  * CheckCatalogSourceRequest names a source that follows a branch.
@@ -1496,7 +1822,7 @@ export type CheckCatalogSourceRequest = Message<"dockwell.v1.CheckCatalogSourceR
  * Use `create(CheckCatalogSourceRequestSchema)` to create a new message.
  */
 export const CheckCatalogSourceRequestSchema: GenMessage<CheckCatalogSourceRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_catalog, 34);
+  messageDesc(file_dockwell_v1_catalog, 41);
 
 /**
  * CheckCatalogSourceResponse is what the look found.
@@ -1525,7 +1851,7 @@ export type CheckCatalogSourceResponse = Message<"dockwell.v1.CheckCatalogSource
  * Use `create(CheckCatalogSourceResponseSchema)` to create a new message.
  */
 export const CheckCatalogSourceResponseSchema: GenMessage<CheckCatalogSourceResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_catalog, 35);
+  messageDesc(file_dockwell_v1_catalog, 42);
 
 /**
  * RemoveCatalogSourceRequest names the source to stop reading.
@@ -1546,7 +1872,7 @@ export type RemoveCatalogSourceRequest = Message<"dockwell.v1.RemoveCatalogSourc
  * Use `create(RemoveCatalogSourceRequestSchema)` to create a new message.
  */
 export const RemoveCatalogSourceRequestSchema: GenMessage<RemoveCatalogSourceRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_catalog, 36);
+  messageDesc(file_dockwell_v1_catalog, 43);
 
 /**
  * RemoveCatalogSourceResponse is the change that removes it.
@@ -1567,7 +1893,36 @@ export type RemoveCatalogSourceResponse = Message<"dockwell.v1.RemoveCatalogSour
  * Use `create(RemoveCatalogSourceResponseSchema)` to create a new message.
  */
 export const RemoveCatalogSourceResponseSchema: GenMessage<RemoveCatalogSourceResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_catalog, 37);
+  messageDesc(file_dockwell_v1_catalog, 44);
+
+/**
+ * CatalogOrder is how the catalog's entries are ordered.
+ *
+ * @generated from enum dockwell.v1.CatalogOrder
+ */
+export enum CatalogOrder {
+  /**
+   * By name, lowercased with its accents taken off, as the control plane's own
+   * sort key orders it, whatever the reader's language.
+   *
+   * @generated from enum value: CATALOG_ORDER_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * The apps most people start with first, then those installed here most often,
+   * then the rest by name: what New app shows before any words are typed.
+   *
+   * @generated from enum value: CATALOG_ORDER_FEATURED = 1;
+   */
+  FEATURED = 1,
+}
+
+/**
+ * Describes the enum dockwell.v1.CatalogOrder.
+ */
+export const CatalogOrderSchema: GenEnum<CatalogOrder> = /*@__PURE__*/
+  enumDesc(file_dockwell_v1_catalog, 0);
 
 /**
  * CatalogService lists the apps you can install, and plans installing one as a
@@ -1580,7 +1935,8 @@ export const RemoveCatalogSourceResponseSchema: GenMessage<RemoveCatalogSourceRe
  */
 export const CatalogService: GenService<{
   /**
-   * ListCatalogEntries returns every app in the catalog, sorted by name.
+   * ListCatalogEntries returns the apps in the catalog that match its filters, a page
+   * at a time, sorted by name or featured first, with how many match in all.
    *
    * @generated from rpc dockwell.v1.CatalogService.ListCatalogEntries
    */
@@ -1679,6 +2035,46 @@ export const CatalogService: GenService<{
     methodKind: "unary";
     input: typeof OpenCatalogInstallRequestSchema;
     output: typeof OpenCatalogInstallResponseSchema;
+  },
+  /**
+   * BackUpCatalogNeed backs up an install's database alone, a dump of the one
+   * database its need has on the server that meets it, which may be another
+   * project's, as its owner, never the server's administrator: what the app's page
+   * backs up. It needs a role in the install's project alone, and returns the backup
+   * running; follow it with GetBackup (ADR 0084).
+   *
+   * @generated from rpc dockwell.v1.CatalogService.BackUpCatalogNeed
+   */
+  backUpCatalogNeed: {
+    methodKind: "unary";
+    input: typeof BackUpCatalogNeedRequestSchema;
+    output: typeof BackUpCatalogNeedResponseSchema;
+  },
+  /**
+   * ListCatalogNeedBackups lists the backups of an install's database taken for it,
+   * newest first, as BackUpCatalogNeed takes them (ADR 0084).
+   *
+   * @generated from rpc dockwell.v1.CatalogService.ListCatalogNeedBackups
+   */
+  listCatalogNeedBackups: {
+    methodKind: "unary";
+    input: typeof ListCatalogNeedBackupsRequestSchema;
+    output: typeof ListCatalogNeedBackupsResponseSchema;
+  },
+  /**
+   * RestoreCatalogNeed plans bringing an install's database back alone from a
+   * backup taken for it, ready to apply or discard: nothing stops, the app's user
+   * can't sign in while it loads, what the database holds now is kept for 7 days,
+   * which undoing it puts back, and the rest of the server stays as it is. It needs
+   * a role in the install's project, not the server's, as it changes only the app's
+   * own database (ADR 0084).
+   *
+   * @generated from rpc dockwell.v1.CatalogService.RestoreCatalogNeed
+   */
+  restoreCatalogNeed: {
+    methodKind: "unary";
+    input: typeof RestoreCatalogNeedRequestSchema;
+    output: typeof RestoreCatalogNeedResponseSchema;
   },
   /**
    * InstallCatalogEntry plans installing an app as a project of its own, ready

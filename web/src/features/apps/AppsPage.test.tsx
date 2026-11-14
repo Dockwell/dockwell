@@ -16,6 +16,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
 import { anApp, aProject, aWebsite, ENV, places, projectPlaces, running, SERVER } from "../../test/apps";
+import { catalogPages } from "../../test/catalog";
 import { applied, changeEvent, moved, shopPlanned, since, snapshot, webPlanned } from "../../test/changes";
 import { type Api, feed, onPhone, onScreen, renderAt } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
@@ -76,7 +77,10 @@ describe("the apps list", () => {
       "href",
       "/apps/new?source=git",
     );
-    expect(within(ways).getByRole("link", { name: "A Docker image" })).toHaveAttribute("href", "/apps/new");
+    expect(within(ways).getByRole("link", { name: "A Docker image" })).toHaveAttribute(
+      "href",
+      "/apps/new?source=image",
+    );
     expect(within(ways).getByRole("link", { name: "A Compose file" })).toHaveAttribute(
       "href",
       "/apps/new?source=compose",
@@ -91,7 +95,7 @@ describe("the apps list", () => {
 
   it("stands fewer than a row of the catalog's apps in the middle of the lead", async () => {
     const entries = ["wordpress", "postgres", "gitea"].map((id) => ({ id, name: id, icon: "" }));
-    renderAt("/apps", { ...api([]), catalog: { listCatalogEntries: () => ({ entries }) } });
+    renderAt("/apps", { ...api([]), catalog: { listCatalogEntries: catalogPages(entries) } });
     const ways = await screen.findByRole("list", { name: "Ways to run your first app" });
     const lead = within(ways).getByRole("link", { name: "From the catalog" }).closest("li") as HTMLElement;
     await waitFor(() => expect(within(lead).getAllByRole("link", { name: /^Install / })).toHaveLength(3));
@@ -103,12 +107,13 @@ describe("the apps list", () => {
   it("leads with the catalog, its apps by name in two rows of four, the last saying how many more", async () => {
     const ids = ["wordpress", "postgres", "nextcloud", "gitea", "n8n", "uptime-kuma", "ghost", "a", "b", "c"];
     const entries = ids.map((id) => ({ id, name: id, icon: "" }));
-    renderAt("/apps", { ...api([]), catalog: { listCatalogEntries: () => ({ entries }) } });
+    renderAt("/apps", { ...api([]), catalog: { listCatalogEntries: catalogPages(entries) } });
     const ways = await screen.findByRole("list", { name: "Ways to run your first app" });
     const lead = within(ways).getByRole("link", { name: "From the catalog" }).closest("li") as HTMLElement;
     expect(lead).toHaveClass("is-lead");
     await waitFor(() => expect(within(lead).getAllByRole("link", { name: /^Install / })).toHaveLength(7));
-    expect(within(lead).getByRole("link", { name: "Install ghost" })).toHaveAttribute("href", "/catalog/ghost/install");
+    // Each installs in New app's own sheet, from its defaults (#617).
+    expect(within(lead).getByRole("link", { name: "Install ghost" })).toHaveAttribute("href", "/apps/new?entry=ghost");
     expect(within(lead).queryByRole("link", { name: "Install a" })).toBeNull();
     expect(within(lead).getByText("and 3 more")).toBeInTheDocument();
   });

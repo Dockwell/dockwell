@@ -56,6 +56,15 @@ const (
 	// CatalogServiceOpenCatalogInstallProcedure is the fully-qualified name of the CatalogService's
 	// OpenCatalogInstall RPC.
 	CatalogServiceOpenCatalogInstallProcedure = "/dockwell.v1.CatalogService/OpenCatalogInstall"
+	// CatalogServiceBackUpCatalogNeedProcedure is the fully-qualified name of the CatalogService's
+	// BackUpCatalogNeed RPC.
+	CatalogServiceBackUpCatalogNeedProcedure = "/dockwell.v1.CatalogService/BackUpCatalogNeed"
+	// CatalogServiceListCatalogNeedBackupsProcedure is the fully-qualified name of the CatalogService's
+	// ListCatalogNeedBackups RPC.
+	CatalogServiceListCatalogNeedBackupsProcedure = "/dockwell.v1.CatalogService/ListCatalogNeedBackups"
+	// CatalogServiceRestoreCatalogNeedProcedure is the fully-qualified name of the CatalogService's
+	// RestoreCatalogNeed RPC.
+	CatalogServiceRestoreCatalogNeedProcedure = "/dockwell.v1.CatalogService/RestoreCatalogNeed"
 	// CatalogServiceInstallCatalogEntryProcedure is the fully-qualified name of the CatalogService's
 	// InstallCatalogEntry RPC.
 	CatalogServiceInstallCatalogEntryProcedure = "/dockwell.v1.CatalogService/InstallCatalogEntry"
@@ -81,7 +90,8 @@ const (
 
 // CatalogServiceClient is a client for the dockwell.v1.CatalogService service.
 type CatalogServiceClient interface {
-	// ListCatalogEntries returns every app in the catalog, sorted by name.
+	// ListCatalogEntries returns the apps in the catalog that match its filters, a page
+	// at a time, sorted by name or featured first, with how many match in all.
 	ListCatalogEntries(context.Context, *connect.Request[v1.ListCatalogEntriesRequest]) (*connect.Response[v1.ListCatalogEntriesResponse], error)
 	// GetCatalogEntry returns one app, with what InstallCatalogEntry would use if
 	// you give it nothing: a name that's free, and ports nothing Dockwell runs has
@@ -126,6 +136,22 @@ type CatalogServiceClient interface {
 	// publish listens where it did, as the person who set it up asks. It's refused
 	// with the reason not_held when nothing of it is held (ADR 0084).
 	OpenCatalogInstall(context.Context, *connect.Request[v1.OpenCatalogInstallRequest]) (*connect.Response[v1.OpenCatalogInstallResponse], error)
+	// BackUpCatalogNeed backs up an install's database alone, a dump of the one
+	// database its need has on the server that meets it, which may be another
+	// project's, as its owner, never the server's administrator: what the app's page
+	// backs up. It needs a role in the install's project alone, and returns the backup
+	// running; follow it with GetBackup (ADR 0084).
+	BackUpCatalogNeed(context.Context, *connect.Request[v1.BackUpCatalogNeedRequest]) (*connect.Response[v1.BackUpCatalogNeedResponse], error)
+	// ListCatalogNeedBackups lists the backups of an install's database taken for it,
+	// newest first, as BackUpCatalogNeed takes them (ADR 0084).
+	ListCatalogNeedBackups(context.Context, *connect.Request[v1.ListCatalogNeedBackupsRequest]) (*connect.Response[v1.ListCatalogNeedBackupsResponse], error)
+	// RestoreCatalogNeed plans bringing an install's database back alone from a
+	// backup taken for it, ready to apply or discard: nothing stops, the app's user
+	// can't sign in while it loads, what the database holds now is kept for 7 days,
+	// which undoing it puts back, and the rest of the server stays as it is. It needs
+	// a role in the install's project, not the server's, as it changes only the app's
+	// own database (ADR 0084).
+	RestoreCatalogNeed(context.Context, *connect.Request[v1.RestoreCatalogNeedRequest]) (*connect.Response[v1.RestoreCatalogNeedResponse], error)
 	// InstallCatalogEntry plans installing an app as a project of its own, ready
 	// to apply or discard, as ImportCompose does with a file. The plan makes the
 	// project, its secrets and what its Compose file runs, and pins the project to
@@ -231,6 +257,25 @@ func NewCatalogServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(catalogServiceMethods.ByName("OpenCatalogInstall")),
 			connect.WithClientOptions(opts...),
 		),
+		backUpCatalogNeed: connect.NewClient[v1.BackUpCatalogNeedRequest, v1.BackUpCatalogNeedResponse](
+			httpClient,
+			baseURL+CatalogServiceBackUpCatalogNeedProcedure,
+			connect.WithSchema(catalogServiceMethods.ByName("BackUpCatalogNeed")),
+			connect.WithClientOptions(opts...),
+		),
+		listCatalogNeedBackups: connect.NewClient[v1.ListCatalogNeedBackupsRequest, v1.ListCatalogNeedBackupsResponse](
+			httpClient,
+			baseURL+CatalogServiceListCatalogNeedBackupsProcedure,
+			connect.WithSchema(catalogServiceMethods.ByName("ListCatalogNeedBackups")),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
+		restoreCatalogNeed: connect.NewClient[v1.RestoreCatalogNeedRequest, v1.RestoreCatalogNeedResponse](
+			httpClient,
+			baseURL+CatalogServiceRestoreCatalogNeedProcedure,
+			connect.WithSchema(catalogServiceMethods.ByName("RestoreCatalogNeed")),
+			connect.WithClientOptions(opts...),
+		),
 		installCatalogEntry: connect.NewClient[v1.InstallCatalogEntryRequest, v1.InstallCatalogEntryResponse](
 			httpClient,
 			baseURL+CatalogServiceInstallCatalogEntryProcedure,
@@ -280,20 +325,23 @@ func NewCatalogServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 
 // catalogServiceClient implements CatalogServiceClient.
 type catalogServiceClient struct {
-	listCatalogEntries    *connect.Client[v1.ListCatalogEntriesRequest, v1.ListCatalogEntriesResponse]
-	getCatalogEntry       *connect.Client[v1.GetCatalogEntryRequest, v1.GetCatalogEntryResponse]
-	listCatalogInstalls   *connect.Client[v1.ListCatalogInstallsRequest, v1.ListCatalogInstallsResponse]
-	upgradeCatalogInstall *connect.Client[v1.UpgradeCatalogInstallRequest, v1.UpgradeCatalogInstallResponse]
-	setCatalogCompanion   *connect.Client[v1.SetCatalogCompanionRequest, v1.SetCatalogCompanionResponse]
-	setCatalogNeed        *connect.Client[v1.SetCatalogNeedRequest, v1.SetCatalogNeedResponse]
-	openCatalogInstall    *connect.Client[v1.OpenCatalogInstallRequest, v1.OpenCatalogInstallResponse]
-	installCatalogEntry   *connect.Client[v1.InstallCatalogEntryRequest, v1.InstallCatalogEntryResponse]
-	setCatalogSource      *connect.Client[v1.SetCatalogSourceRequest, v1.SetCatalogSourceResponse]
-	listCatalogSources    *connect.Client[v1.ListCatalogSourcesRequest, v1.ListCatalogSourcesResponse]
-	listCatalogStores     *connect.Client[v1.ListCatalogStoresRequest, v1.ListCatalogStoresResponse]
-	listCatalogSourceRefs *connect.Client[v1.ListCatalogSourceRefsRequest, v1.ListCatalogSourceRefsResponse]
-	checkCatalogSource    *connect.Client[v1.CheckCatalogSourceRequest, v1.CheckCatalogSourceResponse]
-	removeCatalogSource   *connect.Client[v1.RemoveCatalogSourceRequest, v1.RemoveCatalogSourceResponse]
+	listCatalogEntries     *connect.Client[v1.ListCatalogEntriesRequest, v1.ListCatalogEntriesResponse]
+	getCatalogEntry        *connect.Client[v1.GetCatalogEntryRequest, v1.GetCatalogEntryResponse]
+	listCatalogInstalls    *connect.Client[v1.ListCatalogInstallsRequest, v1.ListCatalogInstallsResponse]
+	upgradeCatalogInstall  *connect.Client[v1.UpgradeCatalogInstallRequest, v1.UpgradeCatalogInstallResponse]
+	setCatalogCompanion    *connect.Client[v1.SetCatalogCompanionRequest, v1.SetCatalogCompanionResponse]
+	setCatalogNeed         *connect.Client[v1.SetCatalogNeedRequest, v1.SetCatalogNeedResponse]
+	openCatalogInstall     *connect.Client[v1.OpenCatalogInstallRequest, v1.OpenCatalogInstallResponse]
+	backUpCatalogNeed      *connect.Client[v1.BackUpCatalogNeedRequest, v1.BackUpCatalogNeedResponse]
+	listCatalogNeedBackups *connect.Client[v1.ListCatalogNeedBackupsRequest, v1.ListCatalogNeedBackupsResponse]
+	restoreCatalogNeed     *connect.Client[v1.RestoreCatalogNeedRequest, v1.RestoreCatalogNeedResponse]
+	installCatalogEntry    *connect.Client[v1.InstallCatalogEntryRequest, v1.InstallCatalogEntryResponse]
+	setCatalogSource       *connect.Client[v1.SetCatalogSourceRequest, v1.SetCatalogSourceResponse]
+	listCatalogSources     *connect.Client[v1.ListCatalogSourcesRequest, v1.ListCatalogSourcesResponse]
+	listCatalogStores      *connect.Client[v1.ListCatalogStoresRequest, v1.ListCatalogStoresResponse]
+	listCatalogSourceRefs  *connect.Client[v1.ListCatalogSourceRefsRequest, v1.ListCatalogSourceRefsResponse]
+	checkCatalogSource     *connect.Client[v1.CheckCatalogSourceRequest, v1.CheckCatalogSourceResponse]
+	removeCatalogSource    *connect.Client[v1.RemoveCatalogSourceRequest, v1.RemoveCatalogSourceResponse]
 }
 
 // ListCatalogEntries calls dockwell.v1.CatalogService.ListCatalogEntries.
@@ -329,6 +377,21 @@ func (c *catalogServiceClient) SetCatalogNeed(ctx context.Context, req *connect.
 // OpenCatalogInstall calls dockwell.v1.CatalogService.OpenCatalogInstall.
 func (c *catalogServiceClient) OpenCatalogInstall(ctx context.Context, req *connect.Request[v1.OpenCatalogInstallRequest]) (*connect.Response[v1.OpenCatalogInstallResponse], error) {
 	return c.openCatalogInstall.CallUnary(ctx, req)
+}
+
+// BackUpCatalogNeed calls dockwell.v1.CatalogService.BackUpCatalogNeed.
+func (c *catalogServiceClient) BackUpCatalogNeed(ctx context.Context, req *connect.Request[v1.BackUpCatalogNeedRequest]) (*connect.Response[v1.BackUpCatalogNeedResponse], error) {
+	return c.backUpCatalogNeed.CallUnary(ctx, req)
+}
+
+// ListCatalogNeedBackups calls dockwell.v1.CatalogService.ListCatalogNeedBackups.
+func (c *catalogServiceClient) ListCatalogNeedBackups(ctx context.Context, req *connect.Request[v1.ListCatalogNeedBackupsRequest]) (*connect.Response[v1.ListCatalogNeedBackupsResponse], error) {
+	return c.listCatalogNeedBackups.CallUnary(ctx, req)
+}
+
+// RestoreCatalogNeed calls dockwell.v1.CatalogService.RestoreCatalogNeed.
+func (c *catalogServiceClient) RestoreCatalogNeed(ctx context.Context, req *connect.Request[v1.RestoreCatalogNeedRequest]) (*connect.Response[v1.RestoreCatalogNeedResponse], error) {
+	return c.restoreCatalogNeed.CallUnary(ctx, req)
 }
 
 // InstallCatalogEntry calls dockwell.v1.CatalogService.InstallCatalogEntry.
@@ -368,7 +431,8 @@ func (c *catalogServiceClient) RemoveCatalogSource(ctx context.Context, req *con
 
 // CatalogServiceHandler is an implementation of the dockwell.v1.CatalogService service.
 type CatalogServiceHandler interface {
-	// ListCatalogEntries returns every app in the catalog, sorted by name.
+	// ListCatalogEntries returns the apps in the catalog that match its filters, a page
+	// at a time, sorted by name or featured first, with how many match in all.
 	ListCatalogEntries(context.Context, *connect.Request[v1.ListCatalogEntriesRequest]) (*connect.Response[v1.ListCatalogEntriesResponse], error)
 	// GetCatalogEntry returns one app, with what InstallCatalogEntry would use if
 	// you give it nothing: a name that's free, and ports nothing Dockwell runs has
@@ -413,6 +477,22 @@ type CatalogServiceHandler interface {
 	// publish listens where it did, as the person who set it up asks. It's refused
 	// with the reason not_held when nothing of it is held (ADR 0084).
 	OpenCatalogInstall(context.Context, *connect.Request[v1.OpenCatalogInstallRequest]) (*connect.Response[v1.OpenCatalogInstallResponse], error)
+	// BackUpCatalogNeed backs up an install's database alone, a dump of the one
+	// database its need has on the server that meets it, which may be another
+	// project's, as its owner, never the server's administrator: what the app's page
+	// backs up. It needs a role in the install's project alone, and returns the backup
+	// running; follow it with GetBackup (ADR 0084).
+	BackUpCatalogNeed(context.Context, *connect.Request[v1.BackUpCatalogNeedRequest]) (*connect.Response[v1.BackUpCatalogNeedResponse], error)
+	// ListCatalogNeedBackups lists the backups of an install's database taken for it,
+	// newest first, as BackUpCatalogNeed takes them (ADR 0084).
+	ListCatalogNeedBackups(context.Context, *connect.Request[v1.ListCatalogNeedBackupsRequest]) (*connect.Response[v1.ListCatalogNeedBackupsResponse], error)
+	// RestoreCatalogNeed plans bringing an install's database back alone from a
+	// backup taken for it, ready to apply or discard: nothing stops, the app's user
+	// can't sign in while it loads, what the database holds now is kept for 7 days,
+	// which undoing it puts back, and the rest of the server stays as it is. It needs
+	// a role in the install's project, not the server's, as it changes only the app's
+	// own database (ADR 0084).
+	RestoreCatalogNeed(context.Context, *connect.Request[v1.RestoreCatalogNeedRequest]) (*connect.Response[v1.RestoreCatalogNeedResponse], error)
 	// InstallCatalogEntry plans installing an app as a project of its own, ready
 	// to apply or discard, as ImportCompose does with a file. The plan makes the
 	// project, its secrets and what its Compose file runs, and pins the project to
@@ -514,6 +594,25 @@ func NewCatalogServiceHandler(svc CatalogServiceHandler, opts ...connect.Handler
 		connect.WithSchema(catalogServiceMethods.ByName("OpenCatalogInstall")),
 		connect.WithHandlerOptions(opts...),
 	)
+	catalogServiceBackUpCatalogNeedHandler := connect.NewUnaryHandler(
+		CatalogServiceBackUpCatalogNeedProcedure,
+		svc.BackUpCatalogNeed,
+		connect.WithSchema(catalogServiceMethods.ByName("BackUpCatalogNeed")),
+		connect.WithHandlerOptions(opts...),
+	)
+	catalogServiceListCatalogNeedBackupsHandler := connect.NewUnaryHandler(
+		CatalogServiceListCatalogNeedBackupsProcedure,
+		svc.ListCatalogNeedBackups,
+		connect.WithSchema(catalogServiceMethods.ByName("ListCatalogNeedBackups")),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
+	catalogServiceRestoreCatalogNeedHandler := connect.NewUnaryHandler(
+		CatalogServiceRestoreCatalogNeedProcedure,
+		svc.RestoreCatalogNeed,
+		connect.WithSchema(catalogServiceMethods.ByName("RestoreCatalogNeed")),
+		connect.WithHandlerOptions(opts...),
+	)
 	catalogServiceInstallCatalogEntryHandler := connect.NewUnaryHandler(
 		CatalogServiceInstallCatalogEntryProcedure,
 		svc.InstallCatalogEntry,
@@ -574,6 +673,12 @@ func NewCatalogServiceHandler(svc CatalogServiceHandler, opts ...connect.Handler
 			catalogServiceSetCatalogNeedHandler.ServeHTTP(w, r)
 		case CatalogServiceOpenCatalogInstallProcedure:
 			catalogServiceOpenCatalogInstallHandler.ServeHTTP(w, r)
+		case CatalogServiceBackUpCatalogNeedProcedure:
+			catalogServiceBackUpCatalogNeedHandler.ServeHTTP(w, r)
+		case CatalogServiceListCatalogNeedBackupsProcedure:
+			catalogServiceListCatalogNeedBackupsHandler.ServeHTTP(w, r)
+		case CatalogServiceRestoreCatalogNeedProcedure:
+			catalogServiceRestoreCatalogNeedHandler.ServeHTTP(w, r)
 		case CatalogServiceInstallCatalogEntryProcedure:
 			catalogServiceInstallCatalogEntryHandler.ServeHTTP(w, r)
 		case CatalogServiceSetCatalogSourceProcedure:
@@ -623,6 +728,18 @@ func (UnimplementedCatalogServiceHandler) SetCatalogNeed(context.Context, *conne
 
 func (UnimplementedCatalogServiceHandler) OpenCatalogInstall(context.Context, *connect.Request[v1.OpenCatalogInstallRequest]) (*connect.Response[v1.OpenCatalogInstallResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.CatalogService.OpenCatalogInstall is not implemented"))
+}
+
+func (UnimplementedCatalogServiceHandler) BackUpCatalogNeed(context.Context, *connect.Request[v1.BackUpCatalogNeedRequest]) (*connect.Response[v1.BackUpCatalogNeedResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.CatalogService.BackUpCatalogNeed is not implemented"))
+}
+
+func (UnimplementedCatalogServiceHandler) ListCatalogNeedBackups(context.Context, *connect.Request[v1.ListCatalogNeedBackupsRequest]) (*connect.Response[v1.ListCatalogNeedBackupsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.CatalogService.ListCatalogNeedBackups is not implemented"))
+}
+
+func (UnimplementedCatalogServiceHandler) RestoreCatalogNeed(context.Context, *connect.Request[v1.RestoreCatalogNeedRequest]) (*connect.Response[v1.RestoreCatalogNeedResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.CatalogService.RestoreCatalogNeed is not implemented"))
 }
 
 func (UnimplementedCatalogServiceHandler) InstallCatalogEntry(context.Context, *connect.Request[v1.InstallCatalogEntryRequest]) (*connect.Response[v1.InstallCatalogEntryResponse], error) {

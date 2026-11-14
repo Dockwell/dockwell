@@ -551,7 +551,10 @@ type Backup struct {
 	// for a stored backup that isn't on a server that can restore it now.
 	FetchOnto []string `protobuf:"bytes,25,rep,name=fetch_onto,json=fetchOnto,proto3" json:"fetch_onto,omitempty"`
 	// Its newest restore drill, running or ended. Unset when it was never checked.
-	Drill         *BackupDrill `protobuf:"bytes,26,opt,name=drill,proto3" json:"drill,omitempty"`
+	Drill *BackupDrill `protobuf:"bytes,26,opt,name=drill,proto3" json:"drill,omitempty"`
+	// The one database it holds, for an app's on a server it shares, which restores
+	// alone. Empty for a backup of the whole volume (ADR 0084).
+	DatabaseName  string `protobuf:"bytes,80,opt,name=database_name,json=databaseName,proto3" json:"database_name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -766,6 +769,13 @@ func (x *Backup) GetDrill() *BackupDrill {
 		return x.Drill
 	}
 	return nil
+}
+
+func (x *Backup) GetDatabaseName() string {
+	if x != nil {
+		return x.DatabaseName
+	}
+	return ""
 }
 
 // BackupDestinationInfo is S3-compatible storage, with nothing that signs in to it.
@@ -1284,6 +1294,8 @@ type ListBackupsRequest struct {
 	VolumeId string `protobuf:"bytes,3,opt,name=volume_id,json=volumeId,proto3" json:"volume_id,omitempty"`
 	// Only the backups in one environment, by ID.
 	EnvironmentId string `protobuf:"bytes,4,opt,name=environment_id,json=environmentId,proto3" json:"environment_id,omitempty"`
+	// Only the backups of this one database, by name, on the volume volume_id names.
+	DatabaseName  string `protobuf:"bytes,80,opt,name=database_name,json=databaseName,proto3" json:"database_name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1342,6 +1354,13 @@ func (x *ListBackupsRequest) GetVolumeId() string {
 func (x *ListBackupsRequest) GetEnvironmentId() string {
 	if x != nil {
 		return x.EnvironmentId
+	}
+	return ""
+}
+
+func (x *ListBackupsRequest) GetDatabaseName() string {
+	if x != nil {
+		return x.DatabaseName
 	}
 	return ""
 }
@@ -1862,7 +1881,10 @@ type RestoreBackupRequest struct {
 	// The backup's ID.
 	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	// What it's for, for the timeline. Empty says what it restores.
-	Summary       string `protobuf:"bytes,2,opt,name=summary,proto3" json:"summary,omitempty"`
+	Summary string `protobuf:"bytes,2,opt,name=summary,proto3" json:"summary,omitempty"`
+	// The name of the database server's service, typed, where other projects' apps
+	// share it, as restoring it whole takes back what each wrote since.
+	Confirm       string `protobuf:"bytes,80,opt,name=confirm,proto3" json:"confirm,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1907,6 +1929,13 @@ func (x *RestoreBackupRequest) GetId() string {
 func (x *RestoreBackupRequest) GetSummary() string {
 	if x != nil {
 		return x.Summary
+	}
+	return ""
+}
+
+func (x *RestoreBackupRequest) GetConfirm() string {
+	if x != nil {
+		return x.Confirm
 	}
 	return ""
 }
@@ -2137,7 +2166,7 @@ const file_dockwell_v1_backup_proto_rawDesc = "" +
 	"\vfinished_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"finishedAt\x12(\n" +
 	"\x05actor\x18\n" +
-	" \x01(\v2\x12.dockwell.v1.ActorR\x05actor\"\xa0\a\n" +
+	" \x01(\v2\x12.dockwell.v1.ActorR\x05actor\"\xc5\a\n" +
 	"\x06Backup\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12%\n" +
 	"\x0eenvironment_id\x18\x02 \x01(\tR\renvironmentId\x12\x16\n" +
@@ -2172,7 +2201,8 @@ const file_dockwell_v1_backup_proto_rawDesc = "" +
 	"\x0esealed_earlier\x18\x18 \x01(\bR\rsealedEarlier\x12\x1d\n" +
 	"\n" +
 	"fetch_onto\x18\x19 \x03(\tR\tfetchOnto\x12.\n" +
-	"\x05drill\x18\x1a \x01(\v2\x18.dockwell.v1.BackupDrillR\x05drill\"\xea\x02\n" +
+	"\x05drill\x18\x1a \x01(\v2\x18.dockwell.v1.BackupDrillR\x05drill\x12#\n" +
+	"\rdatabase_name\x18P \x01(\tR\fdatabaseName\"\xea\x02\n" +
 	"\x15BackupDestinationInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1a\n" +
@@ -2207,13 +2237,14 @@ const file_dockwell_v1_backup_proto_rawDesc = "" +
 	"kept_bytes\x18\b \x01(\x03R\tkeptBytes\"\x1b\n" +
 	"\x19ListBackupPoliciesRequest\"W\n" +
 	"\x1aListBackupPoliciesResponse\x129\n" +
-	"\bpolicies\x18\x01 \x03(\v2\x1d.dockwell.v1.BackupPolicyInfoR\bpolicies\"\x94\x01\n" +
+	"\bpolicies\x18\x01 \x03(\v2\x1d.dockwell.v1.BackupPolicyInfoR\bpolicies\"\xb9\x01\n" +
 	"\x12ListBackupsRequest\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
 	"page_token\x18\x02 \x01(\tR\tpageToken\x12\x1b\n" +
 	"\tvolume_id\x18\x03 \x01(\tR\bvolumeId\x12%\n" +
-	"\x0eenvironment_id\x18\x04 \x01(\tR\renvironmentId\"l\n" +
+	"\x0eenvironment_id\x18\x04 \x01(\tR\renvironmentId\x12#\n" +
+	"\rdatabase_name\x18P \x01(\tR\fdatabaseName\"l\n" +
 	"\x13ListBackupsResponse\x12-\n" +
 	"\abackups\x18\x01 \x03(\v2\x13.dockwell.v1.BackupR\abackups\x12&\n" +
 	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\"\n" +
@@ -2243,10 +2274,11 @@ const file_dockwell_v1_backup_proto_rawDesc = "" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1f\n" +
 	"\vserver_only\x18\x02 \x01(\bR\n" +
 	"serverOnly\"\x16\n" +
-	"\x14DeleteBackupResponse\"@\n" +
+	"\x14DeleteBackupResponse\"Z\n" +
 	"\x14RestoreBackupRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
-	"\asummary\x18\x02 \x01(\tR\asummary\"D\n" +
+	"\asummary\x18\x02 \x01(\tR\asummary\x12\x18\n" +
+	"\aconfirm\x18P \x01(\tR\aconfirm\"D\n" +
 	"\x15RestoreBackupResponse\x12+\n" +
 	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"o\n" +
 	"\x1cTestBackupDestinationRequest\x12O\n" +

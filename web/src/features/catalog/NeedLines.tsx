@@ -10,6 +10,7 @@ import { useState } from "react";
 import { usePlaces } from "../apps/useServices";
 import { useMay } from "../auth/may";
 import { useChangeSheet } from "../changes/ChangeSheet";
+import { NeedBackups } from "./NeedBackups";
 import { engineName } from "./needs";
 
 /**
@@ -23,6 +24,7 @@ export function NeedLines({ entry, install }: { entry: Entry; install: CatalogIn
   const sheet = useChangeSheet();
   const places = usePlaces();
   const [open, setOpen] = useState<string>();
+  const [backups, setBackups] = useState<string>();
   const options = useQuery(CatalogService.method.getCatalogEntry, { id: entry.id }, { enabled: entry.needs.length > 0 })
     .data?.needs;
   // An action on what you can see stays where it is, off, with why (ADR 0059).
@@ -63,6 +65,16 @@ export function NeedLines({ entry, install }: { entry: Entry; install: CatalogIn
               <span className="catalog-need-line-name">{need.label}</span>
               <span className="catalog-need-line-now">{now}</span>
             </span>
+            {sqlEngines.includes(engine) ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                aria-expanded={backups === need.name}
+                onClick={() => setBackups(backups === need.name ? undefined : need.name)}
+              >
+                <Trans>Its backups</Trans>
+              </Button>
+            ) : null}
             <Button
               variant="ghost"
               size="sm"
@@ -108,9 +120,13 @@ export function NeedLines({ entry, install }: { entry: Entry; install: CatalogIn
                 })}
               </ul>
             ) : null}
+            {backups === need.name ? <NeedBackups install={install} need={need.name} /> : null}
           </li>
         );
       })}
     </ul>
   );
 }
+
+/** The engines whose one database an app backs up and restores alone (ADR 0084). */
+const sqlEngines = ["PostgreSQL", "MySQL", "MariaDB"];

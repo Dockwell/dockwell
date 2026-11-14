@@ -35,18 +35,18 @@ describe("where a newcomer starts", () => {
     const link = (name: string) => within(choices).getByRole("link", { name });
     expect(link("From the catalog")).toHaveAttribute("href", "/catalog");
     expect(link("A Git repository")).toHaveAttribute("href", "/apps/new?source=git");
-    expect(link("A Docker image")).toHaveAttribute("href", "/apps/new");
+    expect(link("A Docker image")).toHaveAttribute("href", "/apps/new?source=image");
     expect(link("A Compose file")).toHaveAttribute("href", "/apps/new?source=compose");
     expect(link("A website")).toHaveAttribute("href", "/websites/new");
     // The catalog's choice names what's in it: those a newcomer may know first, then the rest while there's room,
     // each straight into its install sheet. Four ways beside it leave room for all five, so none is "more".
     expect(await within(choices).findByRole("link", { name: "Install Adminer" })).toHaveAttribute(
       "href",
-      "/catalog/adminer/install",
+      "/apps/new?entry=adminer",
     );
     expect(within(choices).queryByText(/more$/)).toBeNull();
-    expect(link("Install Postgres")).toHaveAttribute("href", "/catalog/postgres/install");
-    expect(link("Install Wordpress")).toHaveAttribute("href", "/catalog/wordpress/install");
+    expect(link("Install Postgres")).toHaveAttribute("href", "/apps/new?entry=postgres");
+    expect(link("Install Wordpress")).toHaveAttribute("href", "/apps/new?entry=wordpress");
     expect(screen.getByRole("link", { name: "Skip to the overview" })).toHaveAttribute("href", "/");
     await expectAccessible(container);
   });

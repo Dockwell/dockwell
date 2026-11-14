@@ -115,7 +115,12 @@ type BackupServiceClient interface {
 	// backup holds, as a change. Its plan says what it replaces and what stops, and
 	// it destroys data, so only a person can apply it, with the plan's fingerprint.
 	// The server keeps a copy of what's replaced for 7 days, and undoing the change
-	// puts that back.
+	// puts that back. A database server other projects' apps share is restored whole
+	// only by someone with a role in each of those projects, or an admin, who types
+	// its service's name in confirm; the plan names each app that loses what it wrote
+	// since, and it's refused with the reason confirm_name until confirm says it. A
+	// backup of one app's database restores from that app's page alone, through
+	// RestoreCatalogNeed (ADR 0084).
 	RestoreBackup(context.Context, *connect.Request[v1.RestoreBackupRequest]) (*connect.Response[v1.RestoreBackupResponse], error)
 	// DrillBackup checks that a backup on its server restores, in a container and a
 	// volume of its own that nothing reaches and that it throws away, whatever comes
@@ -327,7 +332,12 @@ type BackupServiceHandler interface {
 	// backup holds, as a change. Its plan says what it replaces and what stops, and
 	// it destroys data, so only a person can apply it, with the plan's fingerprint.
 	// The server keeps a copy of what's replaced for 7 days, and undoing the change
-	// puts that back.
+	// puts that back. A database server other projects' apps share is restored whole
+	// only by someone with a role in each of those projects, or an admin, who types
+	// its service's name in confirm; the plan names each app that loses what it wrote
+	// since, and it's refused with the reason confirm_name until confirm says it. A
+	// backup of one app's database restores from that app's page alone, through
+	// RestoreCatalogNeed (ADR 0084).
 	RestoreBackup(context.Context, *connect.Request[v1.RestoreBackupRequest]) (*connect.Response[v1.RestoreBackupResponse], error)
 	// DrillBackup checks that a backup on its server restores, in a container and a
 	// volume of its own that nothing reaches and that it throws away, whatever comes

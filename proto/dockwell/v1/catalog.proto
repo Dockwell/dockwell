@@ -6,6 +6,7 @@ package dockwell.v1;
 
 import "dockwell/catalog/v1alpha1/entry.proto";
 import "dockwell/resource/v1alpha1/specs.proto";
+import "dockwell/v1/backup.proto";
 import "dockwell/v1/change.proto";
 import "dockwell/v1/options.proto";
 import "google/api/annotations.proto";
@@ -17,7 +18,8 @@ import "google/protobuf/timestamp.proto";
 // until you apply it. See
 // docs/adr/0029-a-catalog-format-fed-from-other-catalogs.md.
 service CatalogService {
-  // ListCatalogEntries returns every app in the catalog, sorted by name.
+  // ListCatalogEntries returns the apps in the catalog that match its filters, a page
+  // at a time, sorted by name or featured first, with how many match in all.
   rpc ListCatalogEntries(ListCatalogEntriesRequest) returns (ListCatalogEntriesResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
@@ -127,6 +129,53 @@ service CatalogService {
     option (dockwell.v1.command) = {verb: "open"};
     option (google.api.http) = {
       post: "/v1/catalog/installs/{id}:open"
+      body: "*"
+    };
+  }
+
+  // BackUpCatalogNeed backs up an install's database alone, a dump of the one
+  // database its need has on the server that meets it, which may be another
+  // project's, as its owner, never the server's administrator: what the app's page
+  // backs up. It needs a role in the install's project alone, and returns the backup
+  // running; follow it with GetBackup (ADR 0084).
+  rpc BackUpCatalogNeed(BackUpCatalogNeedRequest) returns (BackUpCatalogNeedResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.command) = {verb: "back-up"};
+    option (google.api.http) = {
+      post: "/v1/catalog/installs/{id}:back-up"
+      body: "*"
+    };
+  }
+
+  // ListCatalogNeedBackups lists the backups of an install's database taken for it,
+  // newest first, as BackUpCatalogNeed takes them (ADR 0084).
+  rpc ListCatalogNeedBackups(ListCatalogNeedBackupsRequest) returns (ListCatalogNeedBackupsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.command) = {verb: "backups"};
+    option (google.api.http) = {get: "/v1/catalog/installs/{id}/backups"};
+  }
+
+  // RestoreCatalogNeed plans bringing an install's database back alone from a
+  // backup taken for it, ready to apply or discard: nothing stops, the app's user
+  // can't sign in while it loads, what the database holds now is kept for 7 days,
+  // which undoing it puts back, and the rest of the server stays as it is. It needs
+  // a role in the install's project, not the server's, as it changes only the app's
+  // own database (ADR 0084).
+  rpc RestoreCatalogNeed(RestoreCatalogNeedRequest) returns (RestoreCatalogNeedResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.command) = {verb: "restore"};
+    option (google.api.http) = {
+      post: "/v1/catalog/installs/{id}:restore"
       body: "*"
     };
   }
@@ -245,18 +294,79 @@ service CatalogService {
   }
 }
 
-// ListCatalogEntriesRequest asks for the whole catalog.
-message ListCatalogEntriesRequest {}
+// ListCatalogEntriesRequest asks for a page of the catalog. The filters narrow it,
+// and combine: an entry must pass each one that is set. See
+// docs/adr/0092-the-catalog-a-page-at-a-time.md.
+message ListCatalogEntriesRequest {
+  // How many entries a page holds, at most 200. Unset lists every entry that
+  // matches, in one answer, as the catalog did before it paged.
+  int32 page_size = 1;
+  // Where to start: the next_page_token of the page before. Pass the same filters
+  // with it. Empty starts at the first.
+  string page_token = 2;
+  // Words an entry has, case aside: in its name, what it does in its own words or
+  // in language's, its category or its features. Empty matches every entry.
+  string search = 3;
+  // Categories a client names with the search's words, in the reader's language,
+  // as the control plane doesn't translate a category's name: an entry in one of
+  // them matches the search too.
+  repeated string search_categories = 4;
+  // The reader's language, such as "zh-CN", whose words for what an entry does the
+  // search reads beside its own.
+  string language = 5;
+  // Only entries of one category, such as "databases". Empty is every category.
+  string category = 6;
+  // Only the apps one catalog has, by its source's name: the entries it lists,
+  // and its own entry of each app another catalog lists first, in that entry's
+  // place. Empty is every catalog.
+  string catalog = 7;
+  // Only the apps installed here, from the catalog the entry comes from.
+  bool installed = 8;
+  // Only the entries of these IDs.
+  repeated string ids = 9;
+  // How the entries are ordered: by name unless set.
+  CatalogOrder order = 10;
+}
 
-// ListCatalogEntriesResponse is the catalog.
+// CatalogOrder is how the catalog's entries are ordered.
+enum CatalogOrder {
+  // By name, lowercased with its accents taken off, as the control plane's own
+  // sort key orders it, whatever the reader's language.
+  CATALOG_ORDER_UNSPECIFIED = 0;
+  // The apps most people start with first, then those installed here most often,
+  // then the rest by name: what New app shows before any words are typed.
+  CATALOG_ORDER_FEATURED = 1;
+}
+
+// ListCatalogEntriesResponse is a page of the catalog.
 message ListCatalogEntriesResponse {
-  // Every entry, sorted by name: one for each app, from the first catalog that has
-  // it, Dockwell's own first, then each source by its name.
+  // The entries of the page, in the order asked for: one for each app, from the
+  // first catalog that has it, Dockwell's own first, then each source by its name.
   repeated dockwell.catalog.v1alpha1.Entry entries = 1;
   // The same apps from the other catalogs that have them, each beside the entry of
-  // its ID in entries: an entry of the same ID, name and image is the same app, and
-  // anything less certain is another app, which a source leaves out (ADR 0078).
+  // its ID in entries, for the page's entries: an entry of the same ID, name and
+  // image is the same app, and anything less certain is another app, which a
+  // source leaves out (ADR 0078).
   repeated CatalogAlternative also = 20;
+  // How many entries match, across every page.
+  int32 total = 21;
+  // Pass it as page_token for the next page. Empty on the last page.
+  string next_page_token = 22;
+  // The categories of the entries that match every filter but category and the
+  // search, by name, each with how many of those, and how many of them match the
+  // search too: the choices a page of them offers, which stay as words are typed,
+  // and where else the words find something. No one page can say either.
+  repeated CatalogCategoryCount categories = 23;
+}
+
+// CatalogCategoryCount is a category and how many entries are in it.
+message CatalogCategoryCount {
+  // The category, such as "databases".
+  string category = 1;
+  // How many entries in it match the search, and every filter but category.
+  int32 count = 2;
+  // How many entries it has under every filter but category and the search.
+  int32 listed = 3;
 }
 
 // CatalogAlternative is an app's entry in another catalog than the one it's listed
@@ -528,6 +638,58 @@ message SetCatalogNeedRequest {
 
 // SetCatalogNeedResponse carries the planned change.
 message SetCatalogNeedResponse {
+  // The change, planned, with its plan.
+  Change change = 1;
+}
+
+// BackUpCatalogNeedRequest names an install's database to back up.
+message BackUpCatalogNeedRequest {
+  // The install's project, by name or ID.
+  string id = 1;
+  // The need, by its name in the entry, such as "db".
+  string need = 2;
+  // A backup destination it goes to as well, by name.
+  string destination = 3;
+}
+
+// BackUpCatalogNeedResponse carries the backup, running.
+message BackUpCatalogNeedResponse {
+  Backup backup = 1;
+}
+
+// ListCatalogNeedBackupsRequest asks for a page of an install's database's backups.
+message ListCatalogNeedBackupsRequest {
+  // The install's project, by name or ID.
+  string id = 1;
+  // The need, by its name in the entry.
+  string need = 2;
+  // How many to return: 50 unless set, and 200 at most.
+  int32 page_size = 3;
+  // Where to start: the next_page_token of the page before.
+  string page_token = 4;
+}
+
+// ListCatalogNeedBackupsResponse is a page of them.
+message ListCatalogNeedBackupsResponse {
+  repeated Backup backups = 1;
+  // Where the next page starts. Empty on the last.
+  string next_page_token = 2;
+}
+
+// RestoreCatalogNeedRequest names a backup of an install's database to bring back.
+message RestoreCatalogNeedRequest {
+  // The install's project, by name or ID.
+  string id = 1;
+  // The need, by its name in the entry.
+  string need = 2;
+  // The backup's ID: one taken for this install's need.
+  string backup_id = 3;
+  // What it's for, for the timeline. Empty says what it restores.
+  string summary = 4;
+}
+
+// RestoreCatalogNeedResponse carries the planned change.
+message RestoreCatalogNeedResponse {
   // The change, planned, with its plan.
   Change change = 1;
 }

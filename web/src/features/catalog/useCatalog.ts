@@ -1,17 +1,122 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { useQuery } from "@connectrpc/connect-query";
-import { type CatalogInstall, CatalogService, type CatalogSourceInfo, type Entry } from "@dockwell/api";
-import type { MessageDescriptor } from "@lingui/core";
+import type { MessageInitShape } from "@bufbuild/protobuf";
+import { useInfiniteQuery, useQuery } from "@connectrpc/connect-query";
+import {
+  type CatalogInstall,
+  CatalogOrder,
+  CatalogService,
+  type CatalogSourceInfo,
+  type Entry,
+  type ListCatalogEntriesRequestSchema,
+} from "@dockwell/api";
+import type { I18n, MessageDescriptor } from "@lingui/core";
 import { msg } from "@lingui/core/macro";
 import { useLingui } from "@lingui/react/macro";
-import { useCallback, useMemo } from "react";
+import { keepPreviousData } from "@tanstack/react-query";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { sourcesWords } from "./SourceFormats";
 
-/** The catalog, sorted by name. */
-export function useCatalog() {
-  return useQuery(CatalogService.method.listCatalogEntries, {});
+/** What a screen asks of the catalog: a page of it, or a few entries by their IDs, a category or a catalog. */
+export type CatalogRequest = MessageInitShape<typeof ListCatalogEntriesRequestSchema>;
+
+/**
+ * The entries of the catalog a request names, all that match in one answer unless it
+ * asks for a page, sorted by name: for a screen that needs a few, by IDs, a category
+ * or a catalog. The Catalog page and New app read it a page at a time (ADR 0092).
+ */
+export function useCatalog(request: CatalogRequest, options: { enabled?: boolean } = {}) {
+  return useQuery(CatalogService.method.listCatalogEntries, request, { staleTime: 30_000, ...options });
+}
+
+/** How many entries a page of the catalog holds: rows of cards on any screen, a few screens' worth. */
+export const CATALOG_PAGE = 48;
+
+/** What narrows a page of the catalog, as the address keeps it. */
+export interface CatalogFilters {
+  q?: string | undefined;
+  category?: string | undefined;
+  catalog?: string | undefined;
+  installed?: boolean | undefined;
+}
+
+/** A value once it has stayed the same for ms, so a page isn't asked for at each letter typed. */
+export function useSettled<T>(value: T, ms: number): T {
+  const [settled, setSettled] = useState(value);
+  useEffect(() => {
+    const timer = setTimeout(() => setSettled(value), ms);
+    return () => clearTimeout(timer);
+  }, [value, ms]);
+  return settled;
+}
+
+/**
+ * The categories whose names, in the reader's language, have the words: the control
+ * plane translates nothing, so the panel says which it means (ADR 0092).
+ */
+export function categoriesNamed(words: string, i18n: I18n): string[] {
+  const query = words.trim().toLowerCase();
+  if (query === "") return [];
+  return Object.entries(CATEGORIES)
+    .filter(([, label]) => i18n._(label).toLowerCase().includes(query))
+    .map(([category]) => category);
+}
+
+/**
+ * The catalog a page at a time, as filters narrow it, searched on the control plane
+ * in the reader's language, with how many match and how many each category has. The
+ * pages stay in the query cache, so a way back finds the grid as it was; while new
+ * filters are read, the entries of the old ones stay (ADR 0092).
+ */
+export function useCatalogPages(
+  filters: CatalogFilters,
+  { pageSize = CATALOG_PAGE, order = CatalogOrder.UNSPECIFIED }: { pageSize?: number; order?: CatalogOrder } = {},
+) {
+  const { i18n } = useLingui();
+  const search = useSettled((filters.q ?? "").trim(), 200);
+  const query = useInfiniteQuery(
+    CatalogService.method.listCatalogEntries,
+    {
+      pageSize,
+      pageToken: "",
+      search,
+      searchCategories: categoriesNamed(search, i18n),
+      language: i18n.locale,
+      category: filters.category ?? "",
+      catalog: filters.catalog ?? "",
+      installed: filters.installed ?? false,
+      order,
+    },
+    {
+      pageParamKey: "pageToken",
+      getNextPageParam: (page) => page.nextPageToken || undefined,
+      placeholderData: keepPreviousData,
+      staleTime: 30_000,
+    },
+  );
+  const pages = query.data?.pages;
+  // One of each, as an entry can come twice where the catalog changed between pages.
+  const entries = useMemo(() => {
+    if (!pages) return undefined;
+    const seen = new Set<string>();
+    return pages.flatMap((page) => page.entries).filter((e) => !seen.has(e.id) && seen.add(e.id) !== undefined);
+  }, [pages]);
+  // Each app's other catalogs, by its ID, for the entries of the pages read.
+  const also = useMemo(() => {
+    const out = new Map<string, string[]>();
+    for (const a of pages?.flatMap((page) => page.also) ?? []) out.set(a.id, [...(out.get(a.id) ?? []), a.catalog]);
+    return out as ReadonlyMap<string, readonly string[]>;
+  }, [pages]);
+  return {
+    ...query,
+    entries,
+    also,
+    total: pages?.[0]?.total,
+    categories: pages?.[0]?.categories ?? [],
+    // Words typed that the page hasn't been asked for yet.
+    settling: search !== (filters.q ?? "").trim(),
+  };
 }
 
 /** The catalogs Dockwell reads apps from beside its own, each with what it shows and leaves out. */
@@ -84,16 +189,6 @@ export function useSourceNames(): (name: string) => string {
     (name: string) => (name === "" || own.has(name) ? t`Dockwell's own` : (words.get(name) ?? name)),
     [words, own, t],
   );
-}
-
-/** The other catalogs that have each app, by its ID, as the catalog lists them. */
-export function useAlso(): ReadonlyMap<string, readonly string[]> {
-  const also = useCatalog().data?.also;
-  return useMemo(() => {
-    const out = new Map<string, string[]>();
-    for (const a of also ?? []) out.set(a.id, [...(out.get(a.id) ?? []), a.catalog]);
-    return out;
-  }, [also]);
 }
 
 /** What's installed from the catalog. A change applied in the plan sheet reads it again. */

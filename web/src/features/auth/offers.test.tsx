@@ -172,7 +172,7 @@ describe("what the panel offers, by what you hold", () => {
 
   it("offers a developer no server folder to pick for a volume, as only an admin reads a server's files", async () => {
     const user = userEvent.setup();
-    renderAt("/apps/new", api(as(["prj_1", Role.DEVELOPER])));
+    renderAt("/apps/new?source=image", api(as(["prj_1", Role.DEVELOPER])));
     const sheet = await screen.findByRole("dialog", { name: "New app" });
     await user.click(await within(sheet).findByRole("button", { name: "Add volume" }));
     expect(within(sheet).getByLabelText("Volume or server path")).toBeVisible();
@@ -259,5 +259,40 @@ describe("what the panel offers, by what you hold", () => {
     expect(
       within(screen.getByRole("navigation", { name: "Main" })).getByRole("link", { name: "Alerts" }),
     ).toBeVisible();
+  });
+});
+
+describe("the top bar's New, by what you hold (#617)", () => {
+  it("offers a developer an app, a database and a domain, and a server only off, with why", async () => {
+    const user = userEvent.setup();
+    renderAt("/apps", api(as(["prj_1", Role.DEVELOPER])));
+    await user.click(await within(await screen.findByRole("banner")).findByRole("button", { name: "New" }));
+    const menu = screen.getByRole("menu", { name: "New" });
+    for (const name of ["App", "Database", "Domain"]) {
+      expect(within(menu).getByRole("menuitem", { name })).toHaveAttribute("href");
+    }
+    const server = within(menu).getByRole("menuitem", { name: "Server" });
+    expect(server).toHaveAttribute("aria-disabled", "true");
+    expect(server).not.toHaveAttribute("href");
+    expect(server).toHaveAttribute("title", ADMINS);
+  });
+
+  it("closes once focus leaves it", async () => {
+    const user = userEvent.setup();
+    renderAt("/apps", api(as(["", Role.ADMIN])));
+    await user.click(await within(await screen.findByRole("banner")).findByRole("button", { name: "New" }));
+    expect(screen.getByRole("menu", { name: "New" })).toBeVisible();
+    await user.tab();
+    await user.tab();
+    await user.tab();
+    await user.tab();
+    await user.tab();
+    expect(screen.queryByRole("menu", { name: "New" })).not.toBeInTheDocument();
+  });
+
+  it("opens Add a server from its address only for someone who may", async () => {
+    renderAt("/servers?add=true", api(as(["prj_1", Role.DEVELOPER])));
+    await screen.findByRole("heading", { level: 1, name: "Servers" });
+    expect(screen.queryByRole("dialog", { name: "Add a server" })).not.toBeInTheDocument();
   });
 });

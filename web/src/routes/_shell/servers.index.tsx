@@ -7,6 +7,7 @@ import { ServersPage, type ServersSearch } from "../../features/servers/ServersP
 
 /** Reads which server is inspected, or that none is, from the URL, leaving out anything else. */
 function readSearch(search: Record<string, unknown>): ServersSearch {
+  if (search["add"] === true || search["add"] === 1 || search["add"] === "1") return { add: true };
   const server = search["server"];
   if (typeof server === "string" && server !== "") return { server };
   const closed = search["closed"];

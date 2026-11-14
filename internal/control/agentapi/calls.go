@@ -484,7 +484,7 @@ func (a *Agents) SessionPastMove(ctx context.Context, server string, within time
 func (a *Agents) open(server, name string, hello *agentv1.Hello, send func(*agentv1.ConnectResponse) error) *Session {
 	s := &Session{
 		agents: a, guardsWaysIn: hello.GetGuardsWaysIn(), readsUpdates: hello.GetUpdates(), managesFiles: hello.GetManagesFiles(), transfersFiles: hello.GetTransfersFiles(), pagesListings: hello.GetPagesListings(), firstPasswords: hello.GetFirstPasswords(), forwards: hello.GetForwards(), drills: hello.GetDrills(), readsOnePanel: hello.GetReadsOnepanel(), terminals: hello.GetTerminals(), containerTerminals: hello.GetContainerTerminals(), openTerminals: slices.Clone(hello.GetOpenTerminals()), opened: time.Now(), server: server, name: name, send: send, deliveryKey: slices.Clone(hello.GetDeliveryKey()), writesReferences: hello.GetWritesReferences(), makesFolders: hello.GetMakesFolders(), keepsRoutesPrivate: hello.GetKeepsRoutesPrivate(),
-		ownSettings: hello.GetOwnSettings(), writesFiles: hello.GetWritesFiles(), ownsVolumes: hello.GetOwnsVolumes(), followsPace: hello.GetFollowsPace(), bootID: hello.GetBootId(), actsOnUnits: hello.GetActsOnUnits(), registryLogins: hello.GetRegistryLogins(), handsBuildLogins: hello.GetBuildLogins(), links: hello.GetLinks(),
+		ownSettings: hello.GetOwnSettings(), writesFiles: hello.GetWritesFiles(), ownsVolumes: hello.GetOwnsVolumes(), followsPace: hello.GetFollowsPace(), bootID: hello.GetBootId(), actsOnUnits: hello.GetActsOnUnits(), registryLogins: hello.GetRegistryLogins(), handsBuildLogins: hello.GetBuildLogins(), links: hello.GetLinks(), oneDatabaseBackups: hello.GetOneDatabaseBackups(),
 		loadsCertificates: hello.GetLoadsCertificates(), readsPanels: hello.GetReadsPanels(),
 		pending: map[uint64]chan *agentv1.CallResult{}, progress: map[uint64]func(resource.Activity){}, outcomes: map[uint64]func(resource.Outcome){}, done: make(chan struct{}),
 		kicked: make(chan struct{}),
@@ -678,6 +678,9 @@ type Session struct {
 	// links says the agent joins a shared database to an app's link network in place
 	// (ADR 0084).
 	links bool
+	// oneDatabaseBackups says the agent backs up one database alone, and says so in
+	// what it reports (ADR 0084).
+	oneDatabaseBackups bool
 	// drills says the agent checks that a backup restores (ADR 0068).
 	drills bool
 	// forwards says the agent carries a connection to a port a service publishes
@@ -1309,7 +1312,10 @@ func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resou
 		}
 		dr.ScopeName = s.scopeName(ctx, d.Ref)
 		if b := d.Backup; b != nil {
-			dr.BackupId = b.ID
+			dr.BackupId, dr.BackupDatabase = b.ID, b.Database
+			for _, also := range b.Also {
+				dr.BackupAlso = append(dr.BackupAlso, &agentv1.DatabaseDump{BackupId: also.ID, Database: also.Database})
+			}
 		}
 		if m := d.Move; m != nil {
 			dr.MoveDatabase = &agentv1.MoveDatabase{BackupId: m.Backup, FromVolume: m.From, ToVolume: m.To, ChangeId: m.Change, FinishOnly: m.Finish}
@@ -2190,6 +2196,7 @@ func backupTaken(b *agentv1.BackupResult) *resource.BackupTaken {
 	}
 	return &resource.BackupTaken{
 		ID: b.GetId(), Method: resourcepb.BackupMethodFrom(b.GetMethod()), Database: b.GetDatabase(), SHA256: b.GetSha256(), Size: b.GetSizeBytes(), Changed: b.GetFilesChanged(),
+		One: b.GetOneDatabase(),
 	}
 }
 

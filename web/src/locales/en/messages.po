@@ -4150,6 +4150,37 @@ msgstr "Versions"
 msgid "latest"
 msgstr "latest"
 
+msgid "Couldn't read the catalog"
+msgstr "Couldn't read the catalog"
+
+msgctxt "catalog apps people start with"
+msgid "Featured"
+msgstr "Featured"
+
+msgid "No app matches"
+msgstr "No app matches"
+
+msgid "Reading the catalog"
+msgstr "Reading the catalog"
+
+msgid "Run an image"
+msgstr "Run an image"
+
+msgid "Search the catalog"
+msgstr "Search the catalog"
+
+#. placeholder {0}: apps.length
+#. placeholder {0}: catalog.total ?? 0
+#. placeholder {0}: catalog.total ?? entries.length
+msgid "{0, plural, one {# app} other {# apps}}"
+msgstr "{0, plural, one {# app} other {# apps}}"
+
+#. placeholder {0}: (catalog.total ?? 0) - entries.length
+#. placeholder {0}: (catalog.total ?? 0) - shown.length
+#. placeholder {0}: Math.min(PAGE, found.length - shown)
+msgid "{0, plural, one {Show # more} other {Show # more}}"
+msgstr "{0, plural, one {Show # more} other {Show # more}}"
+
 msgid ".env file"
 msgstr ".env file"
 
@@ -4224,6 +4255,9 @@ msgstr "Can't make a plan"
 
 msgid "Can't read the file yet"
 msgstr "Can't read the file yet"
+
+msgid "Catalog"
+msgstr "Catalog"
 
 msgid "Check the image and its variables, then try again."
 msgstr "Check the image and its variables, then try again."
@@ -6582,6 +6616,9 @@ msgstr "Doesn't check a restore"
 msgid "Hasn't run yet"
 msgstr "Hasn't run yet"
 
+msgid "Its app's database alone"
+msgstr "Its app's database alone"
+
 #. placeholder {0}: policy.spec?.keep ?? 0
 #. placeholder {1}: policy.kept
 #. placeholder {2}: formatBytes(policy.keptBytes, i18n.locale)
@@ -6693,6 +6730,12 @@ msgstr "What stops starts again once the copy ends, however that goes. Each copy
 msgid "{count, plural, one {Each backup takes about {0}; keeping one, about {1}. The disk has {toGive} to give.} other {Each backup takes about {2}; keeping #, about {3}. The disk has {toGive} to give.}}"
 msgstr "{count, plural, one {Each backup takes about {0}; keeping one, about {1}. The disk has {toGive} to give.} other {Each backup takes about {2}; keeping #, about {3}. The disk has {toGive} to give.}}"
 
+msgid "Restore {server} whole"
+msgstr "Restore {server} whole"
+
+msgid "Type {server} to confirm"
+msgstr "Type {server} to confirm"
+
 msgid "Copy of a running app"
 msgstr "Copy of a running app"
 
@@ -6719,9 +6762,6 @@ msgstr "App information"
 
 msgid "Back to catalog"
 msgstr "Back to catalog"
-
-msgid "Catalog"
-msgstr "Catalog"
 
 msgid "Catalog to install from"
 msgstr "Catalog to install from"
@@ -6841,9 +6881,6 @@ msgstr "Categories"
 msgid "Clear the search"
 msgstr "Clear the search"
 
-msgid "Couldn't read the catalog"
-msgstr "Couldn't read the catalog"
-
 msgid "Couldn't read the sources, so apps from them aren't marked"
 msgstr "Couldn't read the sources, so apps from them aren't marked"
 
@@ -6865,26 +6902,33 @@ msgstr "From the catalogs {0}"
 msgid "From {0}"
 msgstr "From {0}"
 
+msgctxt "catalog filter"
+msgid "Installed"
+msgstr "Installed"
+
 msgid "No app here has <0>{typed}</0> in its name or what it does."
 msgstr "No app here has <0>{typed}</0> in its name or what it does."
 
-msgid "No app matches"
-msgstr "No app matches"
+msgid "No app here yet"
+msgstr "No app here yet"
 
 msgid "Not listed? Deploy any image or Compose file as an app. <0>New app</0>"
 msgstr "Not listed? Deploy any image or Compose file as an app. <0>New app</0>"
 
+msgid "Nothing from the catalog is installed yet"
+msgstr "Nothing from the catalog is installed yet"
+
 msgid "Read apps from a catalog in a Git repository too. <0>Sources</0>"
 msgstr "Read apps from a catalog in a Git repository too. <0>Sources</0>"
-
-msgid "Reading the catalog"
-msgstr "Reading the catalog"
 
 msgid "Search apps"
 msgstr "Search apps"
 
 msgid "Search every category"
 msgstr "Search every category"
+
+msgid "Show every app"
+msgstr "Show every app"
 
 msgid "Show every catalog"
 msgstr "Show every catalog"
@@ -6904,12 +6948,6 @@ msgstr "View app"
 #. placeholder {0}: list(also.map(named))
 msgid "also in {0}"
 msgstr "also in {0}"
-
-#. placeholder {0}: apps.length
-#. placeholder {0}: count.apps
-#. placeholder {0}: entries?.length ?? 0
-msgid "{0, plural, one {# app} other {# apps}}"
-msgstr "{0, plural, one {# app} other {# apps}}"
 
 msgid "{count, plural, one {Installed} other {# installed}}"
 msgstr "{count, plural, one {Installed} other {# installed}}"
@@ -7176,8 +7214,44 @@ msgstr "Version {next} is out."
 msgid "{name} {version}"
 msgstr "{name} {version}"
 
+msgid "Back up daily"
+msgstr "Back up daily"
+
+msgid "Back up {need}'s database daily"
+msgstr "Back up {need}'s database daily"
+
+msgid "Backing up"
+msgstr "Backing up"
+
+msgid "It wasn't backed up"
+msgstr "It wasn't backed up"
+
+msgid "Its database isn't backed up alone yet"
+msgstr "Its database isn't backed up alone yet"
+
+msgid "Its database's backups"
+msgstr "Its database's backups"
+
+msgid "Only by hand"
+msgstr "Only by hand"
+
+msgid "Reading its backups"
+msgstr "Reading its backups"
+
+msgid "Stop backing up {need}'s database on a schedule"
+msgstr "Stop backing up {need}'s database on a schedule"
+
+msgid "Stop the schedule"
+msgstr "Stop the schedule"
+
+msgid "{how}, keeps {keeps}"
+msgstr "{how}, keeps {keeps}"
+
 msgid "Copies its data"
 msgstr "Copies its data"
+
+msgid "Its backups"
+msgstr "Its backups"
 
 msgid "Its data can't be copied there"
 msgstr "Its data can't be copied there"
@@ -8174,6 +8248,13 @@ msgstr "Docker restarts, and keeps containers running while it does: it's a patc
 
 msgid "Docker restarts: every app and website on {server} stops until it's back, the domains Caddy serves there too"
 msgstr "Docker restarts: every app and website on {server} stops until it's back, the domains Caddy serves there too"
+
+#. placeholder {0}: first.databaseName
+msgid "Dump <0>{0}</0> alone from <1>{name}</1>, with nothing stopped"
+msgstr "Dump <0>{0}</0> alone from <1>{name}</1>, with nothing stopped"
+
+msgid "Dump {databases} alone from <0>{name}</0>, each as a backup of its own, with nothing stopped"
+msgstr "Dump {databases} alone from <0>{name}</0>, each as a backup of its own, with nothing stopped"
 
 msgid "Its Dockerfile can read any image {buildLogins} can read"
 msgstr "Its Dockerfile can read any image {buildLogins} can read"
@@ -10064,9 +10145,6 @@ msgstr "How it's backed up"
 
 msgid "No backups of {name} yet"
 msgstr "No backups of {name} yet"
-
-msgid "Only by hand"
-msgstr "Only by hand"
 
 msgid "Restoring"
 msgstr "Restoring"
@@ -13246,10 +13324,6 @@ msgstr "memory"
 
 msgid "uptime"
 msgstr "uptime"
-
-#. placeholder {0}: Math.min(PAGE, found.length - shown)
-msgid "{0, plural, one {Show # more} other {Show # more}}"
-msgstr "{0, plural, one {Show # more} other {Show # more}}"
 
 msgid "{UNITS} of {total} systemd units"
 msgstr "{UNITS} of {total} systemd units"

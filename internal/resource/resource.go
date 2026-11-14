@@ -764,6 +764,9 @@ type RestorePlan struct {
 	Method string
 	// Database names the database of a dump, such as PostgreSQL.
 	Database string `json:",omitempty"`
+	// OneDatabase is the one database it brings back alone, for an app's on a server
+	// it shares (ADR 0084).
+	OneDatabase string `json:",omitempty"`
 	// Taken is when it was taken, and Size how large it is, in bytes.
 	Taken time.Time
 	Size  int64
@@ -871,6 +874,10 @@ type BackupFirst struct {
 	Method string
 	// Database names the database of a dump.
 	Database string `json:",omitempty"`
+	// One is the one database it dumps alone, for an app's on a server it shares
+	// (ADR 0084), and Also more on the same server, each under an ID of its own.
+	One  string         `json:",omitempty"`
+	Also []DatabaseDump `json:",omitempty"`
 	// Stops names what stops while it's copied, sorted.
 	Stops []string `json:",omitempty"`
 	// Estimate is about how much it will take on the disk, in bytes.
@@ -915,6 +922,9 @@ type MovePlan struct {
 type BackupTaken struct {
 	ID, Method, Database, SHA256 string
 	Size, Changed                int64
+	// One is the one database it dumped alone, as the agent says, where it dumped one
+	// (ADR 0084).
+	One string
 }
 
 // Unmanaged is a container Dockwell didn't make, by its name, and the server paths it
@@ -1591,7 +1601,7 @@ type Restorer interface {
 type BackerUp interface {
 	// JudgeBackup judges a step that takes backup id, and reports false when that's
 	// been taken already, as a step that finished and went unheard has.
-	JudgeBackup(ctx context.Context, ref Ref, id string) (Decision, bool, error)
+	JudgeBackup(ctx context.Context, ref Ref, asked BackupAsked) (Decision, bool, error)
 	// ApplyBackup carries out the step, and reports what it took (Report).
 	ApplyBackup(ctx context.Context, step Step) error
 }

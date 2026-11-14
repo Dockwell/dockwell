@@ -906,9 +906,28 @@ var fakePostgres = dockertest.Image{
 			}
 			_, _ = x.Stdout.Write(data)
 			_, _ = io.WriteString(x.Stdout, "\n-- PostgreSQL database cluster dump complete\n")
+		case strings.Contains(script, "pg_dump "):
+			// One database alone, as its owner, whose name ends its arguments.
+			if x.Cmd[len(x.Cmd)-1] != "shop" {
+				_, _ = io.WriteString(x.Stderr, "pg_dump: error: dumped as "+x.Cmd[len(x.Cmd)-1]+", not the database's owner\n")
+				return 1
+			}
+			data, err := os.ReadFile(file)
+			if err != nil {
+				return 1
+			}
+			_, _ = x.Stdout.Write(data)
+			_, _ = io.WriteString(x.Stdout, "\n-- PostgreSQL database dump complete\n")
 		case strings.Contains(script, "psql"):
 			data, err := io.ReadAll(x.Stdin)
-			if err != nil || os.WriteFile(file, data, 0o600) != nil {
+			if err != nil {
+				return 1
+			}
+			if strings.Contains(string(data), "json_build_object('owner'") {
+				_, _ = io.WriteString(x.Stdout, `{"owner":"shop"}`+"\n")
+				return 0
+			}
+			if os.WriteFile(file, data, 0o600) != nil {
 				return 1
 			}
 		}

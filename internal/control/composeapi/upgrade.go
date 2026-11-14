@@ -19,6 +19,7 @@ import (
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/compose"
 	"github.com/dockwell/dockwell/internal/control/authapi"
+	"github.com/dockwell/dockwell/internal/control/linked"
 	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/network"
@@ -140,6 +141,17 @@ func (h *Handler) PlanUpgrade(ctx context.Context, in Upgrade) (*dockwellv1.Chan
 		Ref:     project,
 	}
 	intent := &revision.Intent{Kind: revision.IntentUpgrade, Resource: in.Project, FromRelease: in.FromRelease, Release: in.Release}
+	// The app's own database on a server another project runs is dumped alone first,
+	// as its volumes are backed up, for its app (ADR 0084).
+	var ones []revision.OneBackup
+	if !in.Companion && !in.SkipBackup {
+		if ones, err = h.linkedDatabases(ctx, place.environment); err != nil {
+			return nil, h.internal(ctx, err)
+		}
+		if len(ones) > 0 {
+			say.Message = "Dockwell backs up this app's volumes, and dumps its database alone where another project runs it, before it changes anything. If a backup fails, the upgrade stops there, with nothing else done. Undoing this puts the old version back, but not what the new one changed in its data: restore the backup for that"
+		}
+	}
 	switch {
 	case in.Companion:
 		return h.plan(ctx, req, next, place, planning{needs: in.Needs, secrets: in.Secrets, upgrade: true, deletes: deletes, notes: notes})
@@ -150,10 +162,22 @@ func (h *Handler) PlanUpgrade(ctx context.Context, in Upgrade) (*dockwellv1.Chan
 			Message: "This upgrade takes no backup, as you asked. Undoing it puts the old version back, but not what the new one changed in its data, such as a database it migrated. Back up what you can't lose first",
 			Ref:     project,
 		}
-	case len(backUp) == 0:
+	case len(backUp) == 0 && len(ones) == 0:
 		return h.plan(ctx, req, next, place, planning{needs: in.Needs, secrets: in.Secrets, upgrade: true, deletes: deletes, notes: notes, intent: intent})
 	}
-	return h.plan(ctx, req, next, place, planning{needs: in.Needs, secrets: in.Secrets, upgrade: true, deletes: deletes, backUp: backUp, skipBackup: in.SkipBackup, notes: append([]revision.Note{say}, notes...), intent: intent})
+	return h.plan(ctx, req, next, place, planning{needs: in.Needs, secrets: in.Secrets, upgrade: true, deletes: deletes, backUp: backUp, backUpOne: ones, skipBackup: in.SkipBackup, notes: append([]revision.Note{say}, notes...), intent: intent})
+}
+
+// linkedDatabases are the databases an app in env has alone on servers other
+// environments run, through its links, each to dump first, made for its link.
+func (h *Handler) linkedDatabases(ctx context.Context, env string) ([]revision.OneBackup, error) {
+	var out []revision.OneBackup
+	err := h.db.View(ctx, func(tx *store.Tx) error {
+		var err error
+		out, err = linked.Databases(ctx, tx, h.keeper, env, nil)
+		return err
+	})
+	return out, err
 }
 
 // normalize gives what a file says the shape the store keeps it in, so it compares
