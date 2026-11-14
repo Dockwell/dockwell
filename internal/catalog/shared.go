@@ -36,13 +36,15 @@ type Candidate struct {
 	Databases, Users         []string         // what its reading lists, for names that are free
 	Sizes                    map[string]int64 // how much each of its databases takes, in bytes, as its reading says
 	SharedWith               []string         // the projects whose apps link to it already
+	SharedWithIDs            []string         // and by ID
 	AdministeredBy           string           // a service outside it that signs in as its administrator, if any
 	// Unguarded says it asks no one for a password: a Redis or Valkey that requires
 	// none, or a MongoDB without access control. A user of an app's own there would
 	// keep no one out, so it isn't shared.
 	Unguarded bool
-	// Unprefixed says a user Dockwell made on a Redis or Valkey reaches every key, as
-	// it keeps to no prefix, so its apps read and change each other's data.
+	// Unprefixed says a Redis or Valkey's apps may read and change each other's data: a
+	// user on it that can sign in isn't one Dockwell made with a key prefix, or its
+	// default asks no password, or its users couldn't be read.
 	Unprefixed   bool
 	JoinsInPlace bool // every server it runs on has an agent that joins link networks in place
 	// PartOf names the app whose catalog install it's part of, as WordPress's own
@@ -58,6 +60,19 @@ type Candidate struct {
 // keys: the need sets a key prefix, and every user there has one.
 func (w Way) KeepsApart() bool {
 	return w.Existing != nil && keyValue(w.Engine) && keepsPrefix(w.Need) && !w.Existing.Unprefixed
+}
+
+// EndsApart is what sharing a Redis or Valkey this way ends: where its apps keep to
+// their own keys, an app that keeps to no prefix of its own reaches every one of
+// theirs. It's each project whose apps link to it, by name and by ID, and nothing
+// where the way keeps a prefix, or its apps don't keep apart now. Choosing it is
+// allowed, as a person chose it, with a role in each of those projects (ADR 0084).
+func (w Way) EndsApart() (names, ids []string) {
+	c := w.Existing
+	if c == nil || !keyValue(w.Engine) || c.Unprefixed || keepsPrefix(w.Need) {
+		return nil, nil
+	}
+	return c.SharedWith, c.SharedWithIDs
 }
 
 // Choice is how InstallCatalogEntryRequest.needs names a candidate.

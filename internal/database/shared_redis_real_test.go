@@ -129,9 +129,13 @@ func appsHaveACLUsers(t *testing.T, client *docker.Client, image string) {
 			t.Errorf("news runs %v: %s", args, got)
 		}
 	}
-	// Clients that load their scripts still can.
-	if got := as("news", "SCRIPT", "LOAD", "return 1"); strings.Contains(got, "NOPERM") || len(got) != 40 {
-		t.Errorf("news can't load a script: %s", got)
+	// Clients that load their scripts still can, and ask whether they have.
+	sha := as("news", "SCRIPT", "LOAD", "return 1")
+	if strings.Contains(sha, "NOPERM") || len(sha) != 40 {
+		t.Errorf("news can't load a script: %s", sha)
+	}
+	if got := as("news", "SCRIPT", "EXISTS", sha); got != "1" {
+		t.Errorf("news can't ask whether it loaded its script: %s", got)
 	}
 	// One that keeps to no prefix still reaches news's keys: so a server with one on it
 	// reads as its apps reading and changing each other's data, prefix or not.
@@ -159,6 +163,31 @@ func appsHaveACLUsers(t *testing.T, client *docker.Client, image string) {
 		if got := as("news", "JSON.SET", "news:doc", "$", `{"a":1}`); got != "OK" {
 			t.Errorf("news can't write its own JSON: %s", got)
 		}
+		// A time series is found by its labels past any key pattern.
+		if got := admin("TS.CREATE", "blog:temp", "LABELS", "app", "blog"); got != "OK" {
+			t.Fatalf("this Redis 8 has no time series: %s", got)
+		}
+		for _, args := range [][]string{{"TS.QUERYINDEX", "app=blog"}, {"TS.MGET", "FILTER", "app=blog"}, {"TS.MRANGE", "-", "+", "FILTER", "app=blog"}} {
+			if got := as("news", args...); !strings.Contains(got, "NOPERM") {
+				t.Errorf("news runs %v: %s", args, got)
+			}
+		}
+	}
+
+	// A user made by hand keeps apps from keeping apart, whatever its rules, as do shop
+	// and blog, which keep to no prefix: making a user where the plan said they keep
+	// apart is refused, naming them.
+	if got := admin("ACL", "SETUSER", "jobs", "on", ">a-password-for-jobs", "~jobs:*", "resetchannels", "&jobs:*", "+@all"); got != "OK" {
+		t.Fatalf("making jobs by hand: %s", got)
+	}
+	feed := resource.Step{Ref: resource.Ref{Kind: UserKind, Scope: env, Name: "feed"}, Action: resource.ActionCreate}
+	ctx := resource.WithValues(t.Context(), map[string]string{passwordUse: "a-password-for-feed"})
+	err = d.Apply(ctx, feed, &resourcev1.DatabaseUser{Service: "cache", Password: "P", Shared: true, KeyPrefix: "feed:", KeepsApart: true})
+	if err == nil || !strings.Contains(err.Error(), "jobs") || !strings.Contains(err.Error(), "are there now, which Dockwell didn't make with a prefix") {
+		t.Errorf("making feed beside jobs, made by hand = %v", err)
+	}
+	if got := admin("ACL", "DELUSER", "jobs"); got != "1" {
+		t.Fatalf("taking jobs away: %s", got)
 	}
 
 	// A restart loses them; the agent gives them back.

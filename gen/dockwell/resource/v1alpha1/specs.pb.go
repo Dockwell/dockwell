@@ -4552,9 +4552,9 @@ type DatabaseUser struct {
 	// 0084).
 	KeyPrefix string `protobuf:"bytes,82,opt,name=key_prefix,json=keyPrefix,proto3" json:"key_prefix,omitempty"`
 	// On a Redis or Valkey, the plan said each app on it keeps to its own keys, as
-	// every user there had a key prefix of its own: making the user, or giving it its
-	// password anew, refuses a server where another user, but its default, reaches
-	// past one by then (ADR 0084).
+	// every user there was one Dockwell made with a key prefix: making the user, or
+	// giving it its password anew, refuses a server where any other user, but its
+	// default, can sign in by then (ADR 0084).
 	KeepsApart    bool `protobuf:"varint,83,opt,name=keeps_apart,json=keepsApart,proto3" json:"keeps_apart,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

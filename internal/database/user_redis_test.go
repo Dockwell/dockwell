@@ -5,6 +5,8 @@ package database
 import (
 	"cmp"
 	"io"
+	"maps"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -35,8 +37,9 @@ type fakeRedis struct {
 	// other is a user of its ACL file that asks no password; search, that it runs
 	// the query engine.
 	other, search bool
-	// wide is a user made by hand that reaches every key.
-	wide bool
+	// wide is a user made by hand that reaches every key, and handmade one that keeps
+	// to a prefix, by its rules, and can do anything else.
+	wide, handmade bool
 }
 
 func (f *fakeRedis) exec(x dockertest.Exec) int {
@@ -69,6 +72,12 @@ func (f *fakeRedis) exec(x dockertest.Exec) int {
 			}
 			if f.wide {
 				_, _ = io.WriteString(x.Stdout, "user ops on #0456 ~* &* +@all\n")
+			}
+			if f.handmade {
+				_, _ = io.WriteString(x.Stdout, "user jobs on #0789 ~jobs:* &jobs:* +@all\n")
+			}
+			for _, name := range slices.Sorted(maps.Keys(f.users)) {
+				_, _ = io.WriteString(x.Stdout, "user "+name+" "+strings.TrimPrefix(f.users[name], "reset ")+"\n")
 			}
 		case line == "MODULE LIST":
 			if f.search {
@@ -130,7 +139,7 @@ func TestARedisUserIsAnACLUserOfItsOwn(t *testing.T) {
 	}
 	apply(resource.ActionCreate, desired)
 	hash := redisHash("a-password-no-one-typed")
-	if got := r.users["shop"]; got != "reset on #"+hash+" ~* &* +@all -@admin" {
+	if got := r.users["shop"]; got != "reset on #"+hash+" ~* resetchannels &* +@all -@admin" {
 		t.Errorf("shop's rules on its own Redis are %q", got)
 	}
 	if all := strings.Join(r.said, ""); strings.Contains(all, "a-password-no-one-typed") {
@@ -151,13 +160,13 @@ func TestARedisUserIsAnACLUserOfItsOwn(t *testing.T) {
 		t.Fatalf("read as %v, %v", got, err)
 	}
 	apply(resource.ActionUpdate, shared)
-	if got := r.users["shop"]; got != "reset on #"+hash+" ~* &* "+redisShared+" -function -script|flush -script|kill -pubsub|channels -pubsub|numsub -pubsub|shardchannels -pubsub|shardnumsub -client|tracking" || r.saved != 1 {
+	if got := r.users["shop"]; got != "reset on #"+hash+" ~* resetchannels &* "+redisShared+" -function -script|flush -script|kill -pubsub|channels -pubsub|numsub -pubsub|shardchannels -pubsub|shardnumsub -client|tracking" || r.saved != 1 {
 		t.Errorf("shared, shop's rules are %q, saved %d times", got, r.saved)
 	}
 	// With a key prefix, it keeps to its keys and channels.
 	prefixed := &resourcev1.DatabaseUser{Service: "cache", Password: "SHOP_CACHE_PASSWORD", Shared: true, KeyPrefix: "shop:"}
 	apply(resource.ActionUpdate, prefixed)
-	if got := r.users["shop"]; !strings.Contains(got, " ~shop:* &shop:* -@all ") {
+	if got := r.users["shop"]; !strings.Contains(got, " ~shop:* resetchannels &shop:* -@all ") {
 		t.Errorf("with a prefix, shop's rules are %q", got)
 	}
 	if got, err := d.Observe(t.Context(), ref); err != nil || got.(*resourcev1.DatabaseUser).GetKeyPrefix() != "shop:" {
@@ -240,16 +249,16 @@ func TestARedisUserIsAnACLUserOfItsOwn(t *testing.T) {
 // subcommand, SCRIPT and PUBSUB go whole; where the query engine runs, so does it,
 // as its indexes are no keys a pattern keeps an app out of.
 func TestASharedRedisUsersRulesFollowItsServer(t *testing.T) {
-	if got := redisRules("h", true, "shop:", redisServer{}); !strings.HasSuffix(got, " -scan -randomkey -script +script|load +script|exists -pubsub") || !strings.Contains(got, " ~shop:* &shop:* ") {
+	if got := redisRules("h", true, "shop:", redisServer{}); !strings.HasSuffix(got, " -scan -randomkey -script +script|load +script|exists -pubsub") || !strings.Contains(got, " ~shop:* resetchannels &shop:* ") {
 		t.Errorf("on 6.2: %q", got)
 	}
 	got := redisRules("h", true, "shop:", redisServer{Subcommands: true, Search: true, Timeseries: true})
-	for _, want := range []string{" -function ", " -script|flush ", " -pubsub|channels ", " -client|tracking ", " -scan ", " -randomkey ", " -@search ", " -ts.queryindex "} {
+	for _, want := range []string{" -function ", " -script|flush ", " -pubsub|channels ", " -client|tracking ", " -scan ", " -randomkey ", " -@search ", " -ts.queryindex ", " -ts.mget ", " -ts.mrange "} {
 		if !strings.Contains(got+" ", want) {
 			t.Errorf("on 8 with search, %q lacks %q", got, want)
 		}
 	}
-	if got := redisRules("h", false, "", redisServer{Search: true}); got != "reset on #h ~* &* +@all -@admin" {
+	if got := redisRules("h", false, "", redisServer{Search: true}); got != "reset on #h ~* resetchannels &* +@all -@admin" {
 		t.Errorf("its own server's: %q", got)
 	}
 }
@@ -324,25 +333,6 @@ func TestARedisCommandLinePasswordGoesOnStdin(t *testing.T) {
 	}
 }
 
-// Which ACL users reach past one prefix of their own, by what ACL LIST says of them.
-func TestWhichRedisUsersReachPastAPrefix(t *testing.T) {
-	for rules, want := range map[string]bool{
-		"on #h ~shop:* &shop:* -@all +@read":   false,
-		"on #h ~shop:* resetchannels +@read":   false,
-		"on #h ~* &* +@all":                    true,
-		"on #h allkeys allchannels +@all":      true,
-		"on #h ~shop:* ~blog:* &shop:* +@read": true,
-		"on #h ~shop:* &* +@read":              true,
-		"on #h %R~shop:* &shop:* +@read":       true,
-		"on #h ~sh?p:* &shop:* +@read":         true,
-		"off resetkeys resetchannels -@all":    false,
-	} {
-		if got := RedisReachesPast(strings.Fields(rules)); got != want {
-			t.Errorf("%q reaches past a prefix: %t, want %t", rules, got, want)
-		}
-	}
-}
-
 // A user's rules are made again for what its server says now: once it runs the query
 // engine, a shared user is held from it, on the agent's next look, without a restart.
 // Where the plan said apps on the server keep to their own keys, making the user, or
@@ -368,9 +358,25 @@ func TestARedisUsersRulesFollowItsServer(t *testing.T) {
 	}
 
 	r.wide = true
-	if err := d.Apply(ctx, resource.Step{Ref: ref, Action: resource.ActionUpdate}, shared); err == nil || !strings.Contains(err.Error(), "ops now reaches past a prefix of its own") {
+	if err := d.Apply(ctx, resource.Step{Ref: ref, Action: resource.ActionUpdate}, shared); err == nil || !strings.Contains(err.Error(), "ops is there now, which Dockwell didn't make") {
 		t.Errorf("giving shop its password anew beside a user that reaches every key = %v", err)
 	}
+	// One made by hand that keeps to a prefix by its rules is no different: who made it
+	// is all that counts, as its rules can't say it keeps to its keys.
+	r.wide, r.handmade = false, true
+	if err := d.Apply(ctx, resource.Step{Ref: ref, Action: resource.ActionUpdate}, shared); err == nil || !strings.Contains(err.Error(), "jobs is there now") {
+		t.Errorf("giving shop its password anew beside a user made by hand = %v", err)
+	}
+	// One Dockwell made with a prefix is.
+	r.handmade = false
+	blog := resource.Ref{Kind: UserKind, Scope: "env_1", Name: "blog"}
+	if err := d.Apply(ctx, resource.Step{Ref: blog, Action: resource.ActionCreate}, &resourcev1.DatabaseUser{Service: "cache", Password: "P", Shared: true, KeyPrefix: "blog:"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.Apply(ctx, resource.Step{Ref: ref, Action: resource.ActionUpdate}, shared); err != nil {
+		t.Errorf("giving shop its password anew beside blog, which Dockwell made = %v", err)
+	}
+	r.wide = true
 	plain := &resourcev1.DatabaseUser{Service: "cache", Password: "P", Shared: true}
 	if err := d.Apply(ctx, resource.Step{Ref: ref, Action: resource.ActionUpdate}, plain); err != nil {
 		t.Errorf("where the plan said nothing of keeping apart = %v", err)

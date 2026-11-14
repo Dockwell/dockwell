@@ -70,9 +70,10 @@ type redisServer struct {
 // redisRules is what an app's ACL user may do, by its password's hash: under its key
 // prefix where it has one, or every key.
 func redisRules(hash string, shared bool, prefix string, srv redisServer) string {
-	keys := "~* &*"
+	// Channels start empty, as 6.2 starts a user with every channel even after reset.
+	keys := "~* resetchannels &*"
 	if prefix != "" {
-		keys = "~" + prefix + "* &" + prefix + "*"
+		keys = "~" + prefix + "* resetchannels &" + prefix + "*"
 	}
 	rules := "reset on #" + hash + " " + keys
 	if !shared {
@@ -90,24 +91,28 @@ func redisRules(hash string, shared bool, prefix string, srv redisServer) string
 		rules += " -@search"
 	}
 	if srv.Timeseries {
-		rules += " -ts.queryindex"
+		// Each reads series by their labels, past any key pattern.
+		rules += " -ts.queryindex -ts.mget -ts.mrange -ts.mrevrange"
 	}
 	return rules
 }
 
-// redisInfo reads what the server says of itself: its users, its version and its
-// modules, and which of its users reach past one key prefix of their own, by name,
-// but its default user. refuse says to refuse one an app's user would mean nothing
-// on: any user that asks no password, as the default does when the server requires
-// none, since any app on its network signs in as it; or a Redis before 6.2, which has
-// no channel rules, so a user reaches every other's messages.
+// redisInfo reads what the server says of itself: its version and its modules, and
+// the users that can sign in, but its default user, by name. A user's rules can't say
+// it keeps to its keys, whoever made it, so who's there is all that counts. refuse
+// says to refuse one an app's user would mean nothing on: any user that asks no
+// password, as the default does when the server requires none, since any app on its
+// network signs in as it; or a Redis before 6.2, which has no channel rules, so a user
+// reaches every other's messages. One that doesn't say its version is refused too, as
+// its users' rules can't be made for it.
 func (d *UserDriver) redisInfo(ctx context.Context, c *docker.Container, e *Engine, refuse bool) (redisServer, []string, error) {
 	srv := redisServer{Subcommands: e.Kind != dockwellv1.DatabaseEngine_DATABASE_ENGINE_REDIS}
-	var wide []string
+	var users []string
 	said, err := d.redisAsk(ctx, c, e, "ACL LIST\nINFO server\nMODULE LIST\n")
 	if err != nil {
 		return srv, nil, err
 	}
+	version := ""
 	for _, line := range said {
 		line = strings.TrimSpace(line)
 		fields := strings.Fields(line)
@@ -120,53 +125,28 @@ func (d *UserDriver) redisInfo(ctx context.Context, c *docker.Container, e *Engi
 				}
 				return srv, nil, fmt.Errorf("%s has a user %s that asks no password, so any app on its network signs in as it, and a user of its own keeps no one out. Give %s a password, or turn it off, then try again", e.Name, fields[1], fields[1])
 			}
-			if on && fields[1] != "default" && RedisReachesPast(fields[2:]) {
-				wide = append(wide, fields[1])
+			if on && fields[1] != "default" {
+				users = append(users, fields[1])
 			}
-		case strings.HasPrefix(line, "redis_version:") && e.Kind == dockwellv1.DatabaseEngine_DATABASE_ENGINE_REDIS:
-			v := strings.TrimPrefix(line, "redis_version:")
-			n := versionNumbers(v)
-			srv.Subcommands = len(n) > 0 && n[0] >= 7
-			if refuse && len(n) >= 2 && (n[0] < 6 || n[0] == 6 && n[1] < 2) {
-				return srv, nil, fmt.Errorf("this Redis is %s, which has no rules for channels, so a user of its own would read every app's messages. Upgrade it to 6.2 or later, then try again", v)
-			}
+		case strings.HasPrefix(line, "redis_version:"):
+			version = strings.TrimPrefix(line, "redis_version:")
 		case line == "search" || line == "ft":
 			srv.Search = true
 		case line == "timeseries":
 			srv.Timeseries = true
 		}
 	}
-	return srv, wide, nil
-}
-
-// RedisReachesPast reports an ACL user, by the rules ACL LIST gives it, that reaches
-// keys or channels past one prefix of its own: one with every key or channel, more
-// than one pattern of either, or a pattern that isn't a prefix and a *. One that
-// reaches none of either keeps to them.
-func RedisReachesPast(rules []string) bool {
-	keys, channels := "", ""
-	for _, r := range rules {
+	if e.Kind == dockwellv1.DatabaseEngine_DATABASE_ENGINE_REDIS {
+		n := versionNumbers(version)
 		switch {
-		case r == "allkeys" || r == "allchannels":
-			return true
-		case strings.HasPrefix(r, "~") || strings.HasPrefix(r, "%"):
-			if keys != "" {
-				return true
-			}
-			keys = r
-		case strings.HasPrefix(r, "&"):
-			if channels != "" {
-				return true
-			}
-			channels = r
+		case len(n) < 2:
+			return srv, nil, fmt.Errorf("%s didn't say its version, so Dockwell can't make a user's rules for it. Check it answers INFO, then try again", e.Name)
+		case refuse && (n[0] < 6 || n[0] == 6 && n[1] < 2):
+			return srv, nil, fmt.Errorf("this Redis is %s, which has no rules for channels, so a user of its own would read every app's messages. Upgrade it to 6.2 or later, then try again", version)
 		}
+		srv.Subcommands = n[0] >= 7
 	}
-	prefixed := func(pattern, mark string) bool {
-		p, ok := strings.CutPrefix(pattern, mark)
-		p, star := strings.CutSuffix(p, "*")
-		return ok && star && p != "" && !strings.ContainsAny(p, `*?[]\`)
-	}
-	return keys != "" && !prefixed(keys, "~") || channels != "" && !prefixed(channels, "&")
+	return srv, users, nil
 }
 
 // versionNumbers are a version's numbers, such as 6 and 2 for 6.2.14.

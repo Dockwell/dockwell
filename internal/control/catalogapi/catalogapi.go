@@ -144,6 +144,11 @@ func (h *Handler) GetCatalogEntry(ctx context.Context, req *connect.Request[dock
 		// Who else shares a server is named only where the person holds that project.
 		for _, o := range needs {
 			o.SharedWith = slices.DeleteFunc(o.SharedWith, func(p string) bool { return !seen[p] })
+			ends := len(o.GetEndsApart())
+			o.EndsApart = slices.DeleteFunc(o.EndsApart, func(p string) bool { return !seen[p] })
+			if ends > len(o.GetEndsApart()) && o.GetWhy() == "" {
+				o.Why = "Its apps keep to their own keys, and this one keeps no prefix: sharing it takes a role in each of their projects"
+			}
 		}
 	}
 	return connect.NewResponse(&dockwellv1.GetCatalogEntryResponse{

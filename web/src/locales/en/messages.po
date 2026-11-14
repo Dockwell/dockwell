@@ -7067,6 +7067,9 @@ msgstr "Hide {label}"
 msgid "Its apps can read and change each other's data"
 msgstr "Its apps can read and change each other's data"
 
+msgid "Its apps keep to their own keys, and this one keeps no prefix: {apps} and it could read and change each other's data"
+msgstr "Its apps keep to their own keys, and this one keeps no prefix: {apps} and it could read and change each other's data"
+
 msgid "Its site"
 msgstr "Its site"
 

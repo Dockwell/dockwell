@@ -8988,13 +8988,23 @@ components:
                     type: boolean
                     description: |-
                         For a Redis or Valkey: each app on it keeps to its own keys, as the need sets a
-                         key prefix, every user Dockwell made there keeps to one, and so does every
-                         other user that can sign in, but the default, as the server's latest reading
-                         lists them. False where any reaches past one, or the server couldn't be read,
-                         so its apps can read and change each other's data. It's worked out as the entry
-                         is listed; the plan says it again as it's made, and the agent checks it once
-                         more as it makes the user (DatabaseUser.keeps_apart). Numbered in the block
-                         connectable apps hold, 40 to 49.
+                         key prefix, and every user there that can sign in, as the server's latest
+                         reading lists them, is one Dockwell made with a key prefix, but a default that
+                         asks a password. A user's rules can't show it keeps to its keys, so any other
+                         user, or a server whose users couldn't be read, makes it false: its apps can
+                         read and change each other's data. It's worked out as the entry is listed; the
+                         plan says it again as it's made, and the agent checks it once more as it makes
+                         the user (DatabaseUser.keeps_apart). Numbered in the block connectable apps
+                         hold, 40 to 49.
+                endsApart:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        For a Redis or Valkey whose apps keep to their own keys: the projects, by name,
+                         whose apps would read and change each other's data with this one's, as this app
+                         keeps to no prefix of its own. Choosing it takes a role in each; its plan names
+                         them too. Numbered in the block connectable apps hold, 40 to 49.
             description: CatalogNeedOption is one way to meet an entry's need.
         CatalogPart:
             type: object
@@ -10999,12 +11009,12 @@ components:
                     description: |-
                         The database they sign in to, for MongoDB, as an app names it in authSource,
                          such as "admin" for its root user.
-                reachesPast:
+                noPassword:
                     type: boolean
                     description: |-
-                        On a Redis or Valkey, it reaches keys or channels past one prefix of its own,
-                         so apps sharing the server don't keep apart. Numbered in the block connectable
-                         apps hold in other messages, 80 to 89.
+                        On a Redis or Valkey, it signs in with no password, so anyone who reaches the
+                         server signs in as it. Numbered in the block connectable apps hold in other
+                         messages, 80 to 89.
             description: |-
                 DatabaseAccount is someone who can sign in to a database server: a user, as
                  MySQL and MariaDB call one, or a role, as PostgreSQL does.
@@ -11219,9 +11229,9 @@ components:
                     type: boolean
                     description: |-
                         On a Redis or Valkey, the plan said each app on it keeps to its own keys, as
-                         every user there had a key prefix of its own: making the user, or giving it its
-                         password anew, refuses a server where another user, but its default, reaches
-                         past one by then (ADR 0084).
+                         every user there was one Dockwell made with a key prefix: making the user, or
+                         giving it its password anew, refuses a server where any other user, but its
+                         default, can sign in by then (ADR 0084).
             description: |-
                 DatabaseUser is a database inside a database server that a service of its
                  environment runs, with the user who owns it, who signs in with a secret of the

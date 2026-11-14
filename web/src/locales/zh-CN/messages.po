@@ -7067,6 +7067,9 @@ msgstr "隐藏 {label}"
 msgid "Its apps can read and change each other's data"
 msgstr "其上的应用可以读取和修改彼此的数据"
 
+msgid "Its apps keep to their own keys, and this one keeps no prefix: {apps} and it could read and change each other's data"
+msgstr "其上的应用只使用自己的键，而此应用没有前缀：{apps} 与它将可以读取和修改彼此的数据"
+
 msgid "Its site"
 msgstr "官网"
 

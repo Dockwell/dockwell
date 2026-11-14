@@ -1522,7 +1522,7 @@ func TestAnInstallSharesARedisYouRun(t *testing.T) {
 	mu.Lock()
 	rules := acl["cache"]
 	mu.Unlock()
-	if !strings.Contains(rules, "on #"+hex.EncodeToString(sum[:])+" ~cache:* &cache:* -@all ") || !strings.Contains(rules, " -@admin -@dangerous -scan -randomkey -function ") {
+	if !strings.Contains(rules, "on #"+hex.EncodeToString(sum[:])+" ~cache:* resetchannels &cache:* -@all ") || !strings.Contains(rules, " -@admin -@dangerous -scan -randomkey -function ") {
 		t.Errorf("the board's ACL user is %q", rules)
 	}
 
@@ -1532,6 +1532,16 @@ func TestAnInstallSharesARedisYouRun(t *testing.T) {
 		"      - name: REDIS_PREFIX\n        part: PART_KEY_PREFIX\n", "", "        REDIS_PREFIX: ${REDIS_PREFIX}\n", "").Replace(boardWithUser)
 	if err := os.WriteFile(filepath.Join(dir, "board-plain.yaml"), []byte(plain), 0o600); err != nil {
 		t.Fatal(err)
+	}
+	// Its choice says whose separation it ends, before anything's planned.
+	plainOptions, err := cat.GetCatalogEntry(t.Context(), connect.NewRequest(&dockwellv1.GetCatalogEntryRequest{Id: "board-plain"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, o := range plainOptions.Msg.GetNeeds() {
+		if o.GetService() == "cache" && !slices.Equal(o.GetEndsApart(), []string{"board-user"}) {
+			t.Errorf("sharing it without a prefix reads %v", o)
+		}
 	}
 	second := installApp(t, cat, &dockwellv1.InstallCatalogEntryRequest{Id: "board-plain", Needs: map[string]string{"cache": choice}})
 	if got := apply(t, ch, second); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
@@ -1546,7 +1556,7 @@ func TestAnInstallSharesARedisYouRun(t *testing.T) {
 			t.Errorf("with an app on it that keeps to no prefix, the Redis reads as keeping apps apart: %v", o)
 		}
 	}
-	if keys := notesOf(second, "shared_keys"); len(keys) != 1 || !strings.Contains(keys[0], "can read and change each other's data") {
+	if ends := notesOf(second, "ends_apart"); len(ends) != 1 || !strings.Contains(ends[0], "this one keeps no prefix, so it and board-user can read and change each other's data") {
 		t.Errorf("the second share's plan says %v", second.GetPlan().GetNotes())
 	}
 

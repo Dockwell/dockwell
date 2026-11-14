@@ -599,10 +599,10 @@ type DatabaseAccount struct {
 	// The database they sign in to, for MongoDB, as an app names it in authSource,
 	// such as "admin" for its root user.
 	AuthDatabase string `protobuf:"bytes,10,opt,name=auth_database,json=authDatabase,proto3" json:"auth_database,omitempty"`
-	// On a Redis or Valkey, it reaches keys or channels past one prefix of its own,
-	// so apps sharing the server don't keep apart. Numbered in the block connectable
-	// apps hold in other messages, 80 to 89.
-	ReachesPast   bool `protobuf:"varint,80,opt,name=reaches_past,json=reachesPast,proto3" json:"reaches_past,omitempty"`
+	// On a Redis or Valkey, it signs in with no password, so anyone who reaches the
+	// server signs in as it. Numbered in the block connectable apps hold in other
+	// messages, 80 to 89.
+	NoPassword    bool `protobuf:"varint,80,opt,name=no_password,json=noPassword,proto3" json:"no_password,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -707,9 +707,9 @@ func (x *DatabaseAccount) GetAuthDatabase() string {
 	return ""
 }
 
-func (x *DatabaseAccount) GetReachesPast() bool {
+func (x *DatabaseAccount) GetNoPassword() bool {
 	if x != nil {
-		return x.ReachesPast
+		return x.NoPassword
 	}
 	return false
 }
@@ -1227,7 +1227,7 @@ const file_dockwell_v1_database_proto_rawDesc = "" +
 	"\x05owner\x18\x02 \x01(\tR\x05owner\x12\x1d\n" +
 	"\n" +
 	"size_bytes\x18\x03 \x01(\x03R\tsizeBytes\x12\x16\n" +
-	"\x06system\x18\x04 \x01(\bR\x06system\"\xc7\x02\n" +
+	"\x06system\x18\x04 \x01(\bR\x06system\"\xc5\x02\n" +
 	"\x0fDatabaseAccount\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
 	"\x04host\x18\x02 \x01(\tR\x04host\x12\x1c\n" +
@@ -1240,8 +1240,9 @@ const file_dockwell_v1_database_proto_rawDesc = "" +
 	"\vresource_id\x18\t \x01(\tR\n" +
 	"resourceId\x12#\n" +
 	"\rauth_database\x18\n" +
-	" \x01(\tR\fauthDatabase\x12!\n" +
-	"\freaches_past\x18P \x01(\bR\vreachesPast\"\x16\n" +
+	" \x01(\tR\fauthDatabase\x12\x1f\n" +
+	"\vno_password\x18P \x01(\bR\n" +
+	"noPassword\"\x16\n" +
 	"\x14ListDatabasesRequest\"L\n" +
 	"\x15ListDatabasesResponse\x123\n" +
 	"\tdatabases\x18\x01 \x03(\v2\x15.dockwell.v1.DatabaseR\tdatabases\"`\n" +

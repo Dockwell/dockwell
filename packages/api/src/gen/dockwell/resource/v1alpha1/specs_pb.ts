@@ -2330,9 +2330,9 @@ export type DatabaseUser = Message<"dockwell.resource.v1alpha1.DatabaseUser"> & 
 
   /**
    * On a Redis or Valkey, the plan said each app on it keeps to its own keys, as
-   * every user there had a key prefix of its own: making the user, or giving it its
-   * password anew, refuses a server where another user, but its default, reaches
-   * past one by then (ADR 0084).
+   * every user there was one Dockwell made with a key prefix: making the user, or
+   * giving it its password anew, refuses a server where any other user, but its
+   * default, can sign in by then (ADR 0084).
    *
    * @generated from field: bool keeps_apart = 83;
    */

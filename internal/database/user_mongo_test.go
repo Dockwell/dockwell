@@ -25,8 +25,9 @@ type fakeMongo struct {
 	users     map[string]string
 	passwords map[string]string
 	scripts   []string
-	// open answers one who never signs in, as a server without access control does.
-	open bool
+	// open answers one who never signs in, as a server without access control does,
+	// and away answers no one, as one not up yet.
+	open, away bool
 }
 
 var (
@@ -54,7 +55,7 @@ func (f *fakeMongo) exec(x dockertest.Exec) int {
 		root := slices.ContainsFunc(x.Env, func(kv string) bool {
 			return strings.HasPrefix(kv, "MONGO_INITDB_ROOT_USERNAME=") && len(kv) > len("MONGO_INITDB_ROOT_USERNAME=")
 		})
-		out, _ := json.Marshal(map[string]bool{"root": root, "open": f.open})
+		out, _ := json.Marshal(map[string]bool{"root": root, "answering": !f.away, "open": f.open})
 		_, _ = io.WriteString(x.Stdout, string(out)+"\n")
 	case strings.Contains(script, "createUser("):
 		f.users[name], f.passwords[name] = db, unquote(mongoPwd)
@@ -193,5 +194,36 @@ func TestAMongoDBOpenWhileItStartsIsWaitedFor(t *testing.T) {
 	}
 	if mg.users["shop"] != "shop" {
 		t.Errorf("made %v", mg.users)
+	}
+}
+
+// A MongoDB that isn't answering yet, as while its image makes its root user, is
+// waited for, not refused nor taken as closed (ADR 0084).
+func TestAMongoDBNotAnsweringYetIsWaitedFor(t *testing.T) {
+	mg := &fakeMongo{users: map[string]string{}, passwords: map[string]string{}, away: true}
+	e := dockertest.New(t)
+	e.AddLocalImage("mongo:8.0", dockertest.Image{Config: docker.Config{Cmd: []string{"mongod"}}, Exec: mg.exec})
+	client := e.Client()
+	id, err := client.CreateContainer(t.Context(), "env_1-db-1", &docker.CreateRequest{Config: docker.Config{
+		Image: "mongo:8.0", Labels: map[string]string{docker.LabelProject: "env_1", docker.LabelService: "db", docker.LabelNumber: "1"},
+		Env: []string{"MONGO_INITDB_ROOT_USERNAME=root", "MONGO_INITDB_ROOT_PASSWORD=x"},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := client.StartContainer(t.Context(), id); err != nil {
+		t.Fatal(err)
+	}
+	go func() {
+		time.Sleep(30 * time.Millisecond)
+		mg.mu.Lock()
+		mg.away = false
+		mg.mu.Unlock()
+	}()
+	d := &UserDriver{Client: client, Dir: t.TempDir(), Wait: 5 * time.Second, Every: 10 * time.Millisecond}
+	ctx := resource.WithValues(t.Context(), map[string]string{passwordUse: "a-password"})
+	ref := resource.Ref{Kind: UserKind, Scope: "env_1", Name: "shop"}
+	if err := d.Apply(ctx, resource.Step{Ref: ref, Action: resource.ActionCreate}, &resourcev1.DatabaseUser{Service: "db", Password: "P"}); err != nil {
+		t.Fatalf("making a user on a MongoDB not answering yet = %v", err)
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"crypto/hmac"
 	"crypto/pbkdf2"
 	"crypto/rand"
+	"crypto/sha1" //nolint:gosec // MariaDB's own password hash, which is what it compares
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
@@ -21,15 +22,13 @@ import (
 	"sync"
 	"time"
 
-	"crypto/sha1" //nolint:gosec // MariaDB's own password hash, which is what it compares
-
-	"github.com/dockwell/dockwell/internal/lazyre"
-
 	"google.golang.org/protobuf/proto"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/docker"
+	"github.com/dockwell/dockwell/internal/human"
+	"github.com/dockwell/dockwell/internal/lazyre"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/variable"
 )
@@ -300,14 +299,17 @@ func (d *UserDriver) guard(ctx context.Context, c *docker.Container, e *Engine) 
 		}
 		lines := strings.Split(strings.TrimSpace(string(said)), "\n")
 		var out struct {
-			Root bool `json:"root"`
-			Open bool `json:"open"`
+			Root      bool `json:"root"`
+			Answering bool `json:"answering"`
+			Open      bool `json:"open"`
 		}
 		if err := json.Unmarshal([]byte(lines[len(lines)-1]), &out); err != nil {
 			return fmt.Errorf("can't read what %s said: %w", e.Name, err)
 		}
 		refused := fmt.Errorf("%s runs without access control, so every app on it reaches every other's data, and a user of its own keeps no one out. Give it a root user (MONGO_INITDB_ROOT_USERNAME and its password), then try again", e.Name)
 		switch {
+		case !out.Answering:
+			return fmt.Errorf("%s isn't answering yet: %w", e.Name, ErrStarting)
 		case !out.Root:
 			return refused
 		case out.Open:
@@ -500,12 +502,37 @@ func (d *UserDriver) record(ref resource.Ref, g *given) error {
 	return d.recordKey(ref.String(), g)
 }
 
-// sIfOne and itsOrTheir agree with how many names there are.
-func sIfOne(names []string) string {
+// isOrAre and itsOrTheir agree with how many names there are.
+func isOrAre(names []string) string {
 	if len(names) == 1 {
-		return "es"
+		return "is"
 	}
-	return ""
+	return "are"
+}
+
+// notOurs are the users a server has that can sign in, but the one being made, that
+// this agent didn't make there with a key prefix: by its record, users of service in
+// the environment of ref.
+func (d *UserDriver) notOurs(users []string, ref resource.Ref, service string) ([]string, error) {
+	d.mu.Lock()
+	all, err := d.records()
+	d.mu.Unlock()
+	if err != nil {
+		return nil, err
+	}
+	ours := map[string]bool{}
+	for key := range all {
+		if g := all[key]; g.Env == ref.Scope && g.Service == service && g.KeyPrefix != "" && g.Redis != "" {
+			ours[g.User] = true
+		}
+	}
+	var out []string
+	for _, name := range users {
+		if name != ref.Name && !ours[name] {
+			out = append(out, name)
+		}
+	}
+	return out, nil
 }
 
 func itsOrTheir(names []string) string {
@@ -646,18 +673,21 @@ func (d *UserDriver) Apply(ctx context.Context, step resource.Step, desired prot
 		// or given its password anew; and where the plan said apps on it keep to their
 		// own keys, none but the default may reach past a prefix of its own by now.
 		var srv redisServer
-		var wide []string
+		var users []string
 		if err := d.whileStarting(ctx, func() error {
 			var err error
-			srv, wide, err = d.redisInfo(ctx, c, e, true)
+			srv, users, err = d.redisInfo(ctx, c, e, true)
 			return err
 		}); err != nil {
 			return err
 		}
-		wide = slices.DeleteFunc(wide, func(name string) bool { return name == ref.Name })
-		if u.GetKeepsApart() && len(wide) > 0 {
-			return fmt.Errorf("the plan said apps on %s keep to their own keys, and %s now reach%s past a prefix of %s own, so nothing changed. Plan it again, which says its apps can read and change each other's data",
-				u.GetService(), strings.Join(wide, " and "), sIfOne(wide), itsOrTheir(wide))
+		if u.GetKeepsApart() {
+			if strangers, err := d.notOurs(users, ref, u.GetService()); err != nil {
+				return err
+			} else if len(strangers) > 0 {
+				return fmt.Errorf("the plan said apps on %s keep to their own keys, and %s %s there now, which Dockwell didn't make with a prefix of %s own, so nothing changed. Plan it again, which says its apps can read and change each other's data",
+					u.GetService(), human.List(strangers), isOrAre(strangers), itsOrTheir(strangers))
+			}
 		}
 		hash := redisHash(password)
 		g := &given{

@@ -288,3 +288,23 @@ describe("How apps sharing a server keep apart", () => {
     expect(keepsApart(option(Engine.VALKEY, true))).toBe("prefixes");
   });
 });
+
+describe("Sharing a Redis whose apps keep apart without a prefix", () => {
+  it("says whose data it would reach, in place of how its apps keep apart", async () => {
+    const ending = create(CatalogNeedOptionSchema, {
+      ...sharedDB,
+      choice: "service:data/production/cache",
+      engine: Engine.REDIS,
+      version: "8.2.1",
+      service: "cache",
+      serviceId: "svc_cache",
+      sharedWith: ["shop"],
+      keepsApart: false,
+      endsApart: ["shop"],
+    });
+    renderAt("/catalog/wordpress/install", api([ending]));
+    const sheet = await screen.findByRole("dialog", { name: "Install WordPress" });
+    const picker = await within(sheet).findByRole("group", { name: "Database" });
+    expect(picker).toHaveTextContent("this one keeps no prefix: shop and it could read and change each other's data");
+  });
+});

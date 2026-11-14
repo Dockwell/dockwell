@@ -43,23 +43,23 @@ func TestAServersPasswordIsFoundWhereverItIsTaken(t *testing.T) {
 	}
 }
 
-// A Redis's reading lists its ACL users by name, with whether each can sign in and
-// reaches past a prefix of its own, and nothing of their password hashes.
+// A Redis's reading lists its ACL users by name, with whether each can sign in, and
+// with no password, and nothing of their password hashes.
 func TestARedisReadingListsItsUsers(t *testing.T) {
 	said := "# Server\nredis_version:7.4.1\n" +
-		"user default on #0123 ~* &* +@all\nuser shop on #4567 ~shop:* &shop:* -@all +@read\nuser ops on #89ab ~* &* +@all -@admin\n"
+		"user default on nopass ~* &* +@all\nuser shop on #4567 ~shop:* &shop:* -@all +@read\nuser ops on #89ab ~* &* +@all -@admin\n"
 	r, err := parseRedis(Of(dockwellv1.DatabaseEngine_DATABASE_ENGINE_REDIS), []byte(said))
 	if err != nil {
 		t.Fatal(err)
 	}
 	got := map[string]bool{}
 	for _, u := range r.GetUsers() {
-		got[u.GetName()] = u.GetReachesPast()
+		got[u.GetName()] = u.GetNoPassword()
 		if strings.Contains(u.String(), "#") {
 			t.Errorf("the reading keeps a hash: %v", u)
 		}
 	}
-	if len(got) != 3 || got["shop"] || !got["ops"] || r.GetVersion() != "7.4.1" {
+	if len(got) != 3 || !got["default"] || got["shop"] || got["ops"] || r.GetVersion() != "7.4.1" {
 		t.Errorf("users %v, version %q", got, r.GetVersion())
 	}
 }

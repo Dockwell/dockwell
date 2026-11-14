@@ -22,6 +22,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/composeapi"
 	"github.com/dockwell/dockwell/internal/control/place"
 	"github.com/dockwell/dockwell/internal/database"
+	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/network"
 	"github.com/dockwell/dockwell/internal/resource/variable"
@@ -362,6 +363,17 @@ func (h *Handler) sharedEdits(ctx context.Context, needed *catalog.Needed, fille
 			if err != nil {
 				return err
 			}
+			// Sharing a Redis whose apps keep apart, without a prefix, ends that: a person
+			// may choose it, with a role in each of those apps' projects.
+			if names, ids := w.EndsApart(); len(ids) > 0 {
+				if caller, ok := place.CallerFrom(ctx); ok {
+					for i, id := range ids {
+						if store.RoleRank(place.Holds(caller.Grants, place.Place{Project: id})) < store.RoleRank(store.RoleDeveloper) {
+							return authapi.ReasonError(connect.CodePermissionDenied, fmt.Errorf("apps on %s keep to their own keys, and this app keeps no prefix, so sharing it ends that for %s, which takes a developer's role there", c.Service, projectWords(names, i)), "ends_apart")
+						}
+					}
+				}
+			}
 			user := &resourcev1.DatabaseUser{Service: c.Service, Password: w.Password, CopyFrom: w.CopyFrom}
 			if catalog.KeyValue(c.Engine) {
 				// A shared Redis's users reach no further than their keys, and the
@@ -443,6 +455,14 @@ func (h *Handler) sharedEdits(ctx context.Context, needed *catalog.Needed, fille
 	return out, servers, err
 }
 
+// projectWords names the i'th project of names, as the caller may read it: by name.
+func projectWords(names []string, i int) string {
+	if i < len(names) {
+		return "the apps in " + names[i]
+	}
+	return "apps in a project you can't see"
+}
+
 // shareNotes restate, in the plan, what the share choice said of each Redis or
 // Valkey the install shares, as it stands when the plan is made: whether its apps
 // keep to their own keys, or can read and change each other's data. The agent checks
@@ -456,6 +476,13 @@ func shareNotes(needed *catalog.Needed) []revision.Note {
 			continue
 		}
 		ref := resource.Ref{Kind: "service", Scope: c.EnvironmentID, Name: c.Service}
+		if names, _ := w.EndsApart(); len(names) > 0 {
+			out = append(out, revision.Note{
+				Reason: "ends_apart", Ref: ref, Names: names, Named: true,
+				Message: fmt.Sprintf("Apps on %s keep to their own keys until now: this one keeps no prefix, so it and %s can read and change each other's data", c.Service, human.List(names)),
+			})
+			continue
+		}
 		if w.KeepsApart() {
 			out = append(out, revision.Note{
 				Reason: "shared_keys_apart", Ref: ref, Names: []string{c.Service}, Named: true,

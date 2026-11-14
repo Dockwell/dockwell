@@ -450,14 +450,20 @@ message CatalogNeedOption {
   // The servers it runs on, by name, where the app would go with it.
   repeated string servers = 13;
   // For a Redis or Valkey: each app on it keeps to its own keys, as the need sets a
-  // key prefix, every user Dockwell made there keeps to one, and so does every
-  // other user that can sign in, but the default, as the server's latest reading
-  // lists them. False where any reaches past one, or the server couldn't be read,
-  // so its apps can read and change each other's data. It's worked out as the entry
-  // is listed; the plan says it again as it's made, and the agent checks it once
-  // more as it makes the user (DatabaseUser.keeps_apart). Numbered in the block
-  // connectable apps hold, 40 to 49.
+  // key prefix, and every user there that can sign in, as the server's latest
+  // reading lists them, is one Dockwell made with a key prefix, but a default that
+  // asks a password. A user's rules can't show it keeps to its keys, so any other
+  // user, or a server whose users couldn't be read, makes it false: its apps can
+  // read and change each other's data. It's worked out as the entry is listed; the
+  // plan says it again as it's made, and the agent checks it once more as it makes
+  // the user (DatabaseUser.keeps_apart). Numbered in the block connectable apps
+  // hold, 40 to 49.
   bool keeps_apart = 40;
+  // For a Redis or Valkey whose apps keep to their own keys: the projects, by name,
+  // whose apps would read and change each other's data with this one's, as this app
+  // keeps to no prefix of its own. Choosing it takes a role in each; its plan names
+  // them too. Numbered in the block connectable apps hold, 40 to 49.
+  repeated string ends_apart = 41;
 }
 
 // CatalogPart is one service an entry installs.

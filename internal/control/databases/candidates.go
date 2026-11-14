@@ -84,7 +84,8 @@ func (h *Handler) Candidates(ctx context.Context) ([]catalog.Candidate, error) {
 				projectIDs[e.ID] = p.ID
 			}
 		}
-		shared := map[string][]string{} // by environment ID and service: the projects linking to it
+		shared := map[string][]string{}    // by environment ID and service: the projects linking to it
+		sharedIDs := map[string][]string{} // and by ID
 		links, err := tx.ListKind(ctx, linkKind)
 		if err != nil {
 			return err
@@ -107,6 +108,7 @@ func (h *Handler) Candidates(ctx context.Context) ([]catalog.Candidate, error) {
 				key := l.GetMeetsEnvironment() + "/" + l.GetService()
 				if p := names[r.Scope][0]; p != "" && !slices.Contains(shared[key], p) {
 					shared[key] = append(shared[key], p)
+					sharedIDs[key] = append(sharedIDs[key], projectIDs[r.Scope])
 				}
 			}
 		}
@@ -116,7 +118,7 @@ func (h *Handler) Candidates(ctx context.Context) ([]catalog.Candidate, error) {
 			c := catalog.Candidate{
 				ServiceID: db.GetId(), Service: p.ref.Name,
 				Project: names[env][0], Environment: names[env][1], ProjectID: projectIDs[env], EnvironmentID: env,
-				Engine: catalogv1.Engine(db.GetEngine()), Version: db.GetVersion(), SharedWith: shared[env+"/"+p.ref.Name],
+				Engine: catalogv1.Engine(db.GetEngine()), Version: db.GetVersion(), SharedWith: shared[env+"/"+p.ref.Name], SharedWithIDs: sharedIDs[env+"/"+p.ref.Name],
 				JoinsInPlace: len(p.servers) > 0, Unguarded: p.unguarded, Unprefixed: p.unprefixed,
 			}
 			// A database a catalog install brings in its app's file follows that app's
@@ -139,17 +141,25 @@ func (h *Handler) Candidates(ctx context.Context) ([]catalog.Candidate, error) {
 					c.JoinsInPlace = false
 				}
 			}
-			// A Redis or Valkey keeps its apps apart only where every user on it keeps to a
-			// prefix of its own: one made by hand counts too, and one whose server can't be
-			// read counts as not, so the choice never promises what it can't see.
+			// A Redis or Valkey keeps its apps apart only where every user on it that can
+			// sign in, but a default that asks a password, is one Dockwell made with a key
+			// prefix: a user's rules can't say it keeps to its keys, whoever made it, so any
+			// other counts as reaching every one; and a server whose users can't be read
+			// counts as not, so the choice never promises what it can't see.
 			read := false
 			for _, r := range db.GetReadings() {
 				if r.GetUnread() != "" {
 					continue
 				}
-				read = true
+				read = len(r.GetUsers()) > 0
 				for _, u := range r.GetUsers() {
-					c.Unprefixed = c.Unprefixed || u.GetName() != "default" && u.GetCanSignIn() && u.GetReachesPast()
+					switch {
+					case !u.GetCanSignIn():
+					case u.GetName() == "default":
+						c.Unprefixed = c.Unprefixed || u.GetNoPassword()
+					default:
+						c.Unprefixed = c.Unprefixed || !slices.Contains(p.prefixed, u.GetName())
+					}
 				}
 				if r.GetVersion() != "" {
 					c.Version = r.GetVersion()

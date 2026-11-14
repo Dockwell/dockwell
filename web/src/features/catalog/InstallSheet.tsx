@@ -1063,6 +1063,10 @@ function NeedPicker({
   const id = useId();
   const fresh = options.filter((o) => o.service === "");
   const yours = options.filter((o) => o.service !== "");
+  // Sharing without a prefix a server whose apps keep apart ends that, for apps in
+  // the projects named, which choosing it takes a role in.
+  const endsApart = (apps: string) =>
+    t`Its apps keep to their own keys, and this one keeps no prefix: ${apps} and it could read and change each other's data`;
   // A shared server's state: who shares it, and how its apps keep apart, or don't.
   const sharedState = (how: ReturnType<typeof keepsApart>, apps: string) => {
     switch (how) {
@@ -1142,7 +1146,10 @@ function NeedPicker({
                     {engine} {option.version}
                   </code>
                   <span className="catalog-need-server-state">
-                    {option.why || sharedState(keepsApart(option), apps)}
+                    {option.why ||
+                      (option.endsApart.length > 0
+                        ? endsApart(option.endsApart.join(", "))
+                        : sharedState(keepsApart(option), apps))}
                   </span>
                 </label>
               );

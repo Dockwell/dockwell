@@ -53,13 +53,21 @@ print(JSON.stringify({ dropped: true }));
 `
 }
 
-// mongoOpen says whether the image made a root user, and whether the server answers
-// one who never signs in, as one without access control does.
+// mongoOpen says whether the image made a root user, whether the server answers at
+// all, and whether it answers one who never signs in, as one without access control
+// does. One that refuses the connection, or isn't found, isn't answering yet, as
+// while its image makes its root user; one that refuses the command answers, closed.
 const mongoOpen = `const env = process.env;
-const m = new Mongo("mongodb://127.0.0.1:" + (env.DW_PORT || "27017") + "/?directConnection=true&serverSelectionTimeoutMS=5000&connectTimeoutMS=5000");
+let answering = true;
 let open = false;
-try { open = m.getDB("admin").runCommand({ listDatabases: 1, nameOnly: true }).ok === 1; } catch (e) { open = false; }
-print(JSON.stringify({ root: !!env.MONGO_INITDB_ROOT_USERNAME, open }));
+try {
+  const m = new Mongo("mongodb://127.0.0.1:" + (env.DW_PORT || "27017") + "/?directConnection=true&serverSelectionTimeoutMS=5000&connectTimeoutMS=5000");
+  open = m.getDB("admin").runCommand({ listDatabases: 1, nameOnly: true }).ok === 1;
+} catch (e) {
+  const name = String((e && e.name) || "");
+  if (/Network|ServerSelection|Timeout/.test(name) || /ECONNREFUSED|ECONNRESET|connect/i.test(String((e && e.message) || ""))) answering = false;
+}
+print(JSON.stringify({ root: !!env.MONGO_INITDB_ROOT_USERNAME, answering, open }));
 `
 
 // jsString is s as a JavaScript string.
