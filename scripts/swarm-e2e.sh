@@ -64,7 +64,7 @@ dw() { priv env DOCKWELL_DATA_DIR="$data" DOCKWELL_LOG_FORMAT=text "$bin" "$@"; 
 step() { echo "--- $*"; }
 
 cleanup() {
-  for s in shop-k2m4 many-r2 everywhere-g1 keeps-s1 anon-a1; do
+  for s in shop-k2m4 many-r2 everywhere-g1 keeps-s1 anon-a1 probe-p1; do
     docker service rm "$s" >/dev/null 2>&1 || true
   done
   docker stack rm forum-q1 plain-p1 >/dev/null 2>&1 || true
@@ -94,10 +94,15 @@ fail() {
   docker service ls >&2 || true
   echo "--- containers" >&2
   docker ps --all --format '{{.Names}} {{.Image}} {{.Status}} {{.Ports}}' >&2 || true
+  if [[ -n "${change:-}" ]]; then
+    echo "--- the import's change, as it ran" >&2
+    dw changes get "$change" --json 2>/dev/null | jq -c '.change | {state, error, steps}' >&2 || true
+  fi
   echo "--- dockwell log" >&2
   priv cat "$log" >&2 || true
   exit 1
 }
+change=""
 
 # replicas is how many replicas a Swarm service asks for.
 replicas() { docker service inspect --format '{{.Spec.Mode.Replicated.Replicas}}' "$1"; }
@@ -216,6 +221,24 @@ docker exec "$db_task" psql -U postgres -qc "create table kept (v text); insert 
   fail "can't write a row in the stack's PostgreSQL"
 shop_task=$(docker ps --format '{{.Names}}' --filter label=com.docker.swarm.service.name=shop-k2m4)
 db_task_name=$(docker ps --format '{{.Names}}' --filter label=com.docker.swarm.service.name=forum-q1_db)
+
+step "What Swarm's tasks API says while a task stops (for the record)"
+# A task's state as the tasks API has it, through the filter Dockwell asks with,
+# beside its container's, every 100 ms as a PostgreSQL task scaled to none stops.
+docker service create --quiet --detach=false --name probe-p1 --env POSTGRES_PASSWORD=not-in-any-plan "$postgres" >/dev/null || fail "can't create probe-p1"
+probe=$(running_tasks probe-p1)
+wait_until 60 docker exec "$probe" pg_isready -U postgres || fail "probe-p1 isn't ready"
+docker service scale --detach probe-p1=0 >/dev/null
+for _ in $(seq 60); do
+  container=$(docker inspect --format '{{.State.Status}}' "$probe" 2>/dev/null || echo gone)
+  # shellcheck disable=SC2016 # jq's own
+  tasks=$(curl -sS --unix-socket /var/run/docker.sock -G --data-urlencode 'filters={"service":{"probe-p1":true}}' http://docker/tasks |
+    jq -c '[.[] | {state: .Status.State, desired: .DesiredState}]')
+  echo "  $(date +%s.%N) container $container, tasks $tasks"
+  [[ "$container" == running ]] || break
+  sleep 0.1
+done
+docker service rm probe-p1 >/dev/null 2>&1 || true
 
 step "Dockwell runs as root, as on a server, and is claimed"
 priv env DOCKWELL_TEST=1 DOCKWELL_TEST_PANELS="$root" "$bin" run --listen "$addr" --agent-listen 127.0.0.1:0 --data-dir "$data" --log-format json >>"$log" 2>&1 &
