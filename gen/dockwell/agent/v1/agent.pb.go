@@ -2011,6 +2011,11 @@ type Hello struct {
 	// command with the values in, so the control plane reads, plans and applies
 	// none that names values on it.
 	ReadsTakenReferences bool `protobuf:"varint,336,opt,name=reads_taken_references,json=readsTakenReferences,proto3" json:"reads_taken_references,omitempty"`
+	// True when the agent runs what a container reaches of its server past what
+	// Docker gives it (ADR 0097): devices, GPUs, security options, the server's
+	// processes and sysctls. An agent that doesn't would make the container
+	// without them, so the control plane plans and applies none on it.
+	RunsHostAccess bool `protobuf:"varint,337,opt,name=runs_host_access,json=runsHostAccess,proto3" json:"runs_host_access,omitempty"`
 	// What the agent keeps of what its server should run (ADR 0054), so the
 	// control plane sends what it lacks. An agent that sends none keeps nothing,
 	// and is sent nothing to keep.
@@ -2302,6 +2307,13 @@ func (x *Hello) GetRemakesSwarmApps() bool {
 func (x *Hello) GetReadsTakenReferences() bool {
 	if x != nil {
 		return x.ReadsTakenReferences
+	}
+	return false
+}
+
+func (x *Hello) GetRunsHostAccess() bool {
+	if x != nil {
+		return x.RunsHostAccess
 	}
 	return false
 }
@@ -14708,7 +14720,7 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x05Heard\x12\x12\n" +
 	"\x04last\x18\x01 \x01(\tR\x04last\"\n" +
 	"\n" +
-	"\bDraining\"\xc3\f\n" +
+	"\bDraining\"\xee\f\n" +
 	"\x05Hello\x12,\n" +
 	"\x05build\x18\x01 \x01(\v2\x16.dockwell.v1.BuildInfoR\x05build\x12:\n" +
 	"\tinventory\x18\x02 \x01(\v2\x1c.dockwell.v1.ServerInventoryR\tinventory\x12\x14\n" +
@@ -14740,7 +14752,8 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\fstops_panels\x18\xcc\x02 \x01(\bR\vstopsPanels\x121\n" +
 	"\x14checks_panel_domains\x18\xce\x02 \x01(\bR\x12checksPanelDomains\x12-\n" +
 	"\x12remakes_swarm_apps\x18\xcf\x02 \x01(\bR\x10remakesSwarmApps\x125\n" +
-	"\x16reads_taken_references\x18\xd0\x02 \x01(\bR\x14readsTakenReferences\x129\n" +
+	"\x16reads_taken_references\x18\xd0\x02 \x01(\bR\x14readsTakenReferences\x12)\n" +
+	"\x10runs_host_access\x18\xd1\x02 \x01(\bR\x0erunsHostAccess\x129\n" +
 	"\adesired\x18\xa0\x01 \x01(\v2\x1e.dockwell.agent.v1.DesiredHeldR\adesired\x12\"\n" +
 	"\fown_settings\x18\xac\x02 \x01(\bR\vownSettings\x12\x15\n" +
 	"\x05links\x18\xa2\x02 \x01(\bR\x05links\x12\"\n" +

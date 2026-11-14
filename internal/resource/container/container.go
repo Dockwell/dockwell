@@ -400,6 +400,9 @@ func Validate(c *resourcev1.Container) error {
 	if err := validatePrivileges(c); err != nil {
 		return err
 	}
+	if err := validateHostAccess(c); err != nil {
+		return err
+	}
 	if err := validateExtraHosts(c); err != nil {
 		return err
 	}

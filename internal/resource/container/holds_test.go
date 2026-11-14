@@ -119,8 +119,11 @@ func TestEachThingASpecCantHoldIsNamed(t *testing.T) {
 		value string
 		says  string
 	}{
-		"DeviceRequests":       {`[{"Driver": "nvidia"}]`, "gpus"},
-		"Devices":              {`[{"PathOnHost": "/dev/fuse"}]`, "devices"},
+		// A spec holds one request as --gpus makes it, and devices (ADR 0097).
+		"DeviceRequests":       {`[{"Driver": "nvidia"}, {"Driver": "amd"}]`, "gpus with options or more than one request"},
+		"DeviceCgroupRules":    {`["c 189:* rmw"]`, "device_cgroup_rules"},
+		"PidMode":              {`"container:abc"`, "pid"},
+		"Sysctls":              {`{"vm.swappiness": "10"}`, "sysctls vm.swappiness"},
 		"LogConfig":            {`{"Type": "fluentd", "Config": {}}`, "logging: fluentd"},
 		"PublishAllPorts":      {"true", "publish_all_ports (-P)"},
 		"Mounts":               {`[{"Type": "cluster", "Target": "/cache"}]`, "a cluster mount at /cache"},
@@ -134,7 +137,7 @@ func TestEachThingASpecCantHoldIsNamed(t *testing.T) {
 		"CgroupnsMode":         {`"host"`, "cgroupns_mode: host"},
 		"NetworkMode":          {`"none"`, "network_mode: none"},
 		"Runtime":              {`"runsc"`, "runtime: runsc"},
-		"SecurityOpt":          {`["seccomp=unconfined"]`, "security_opt"},
+		"SecurityOpt":          {`["seccomp=/srv/profile.json"]`, "security_opt seccomp=/srv/profile.json"},
 		"SomethingDockerAdded": {`{"on": true}`, "HostConfig.SomethingDockerAdded"},
 	} {
 		t.Run(key, func(t *testing.T) {

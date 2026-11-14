@@ -670,6 +670,7 @@ func (d *Docker) createRequest(ctx context.Context, t Target, spec *resourcev1.C
 	if spec.GetNoNewPrivileges() {
 		req.HostConfig.SecurityOpt = []string{noNewPrivileges}
 	}
+	writeHostAccess(&req.HostConfig, spec)
 	req.HostConfig.NanoCPUs = cpuNanos(spec.GetResources().GetCpus())
 	req.HostConfig.Memory = memoryBytes(spec.GetResources().GetMemory())
 	req.HostConfig.MemoryReservation = memoryBytes(spec.GetResources().GetMemoryReservation())
@@ -985,6 +986,7 @@ func Project(c *docker.Container, img *docker.Config, t Target) *resourcev1.Cont
 			return ok && on
 		}),
 	}
+	projectHostAccess(c, out)
 	// Docker names each container for the start of its ID unless asked for another,
 	// and gives one on the server's network the server's name.
 	if h := c.Config.Hostname; set["hostname"] || h != "" && !strings.HasPrefix(c.ID, h) && c.HostConfig.NetworkMode != "host" {

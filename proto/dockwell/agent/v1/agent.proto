@@ -535,6 +535,11 @@ message Hello {
   // command with the values in, so the control plane reads, plans and applies
   // none that names values on it.
   bool reads_taken_references = 336;
+  // True when the agent runs what a container reaches of its server past what
+  // Docker gives it (ADR 0097): devices, GPUs, security options, the server's
+  // processes and sysctls. An agent that doesn't would make the container
+  // without them, so the control plane plans and applies none on it.
+  bool runs_host_access = 337;
   // What the agent keeps of what its server should run (ADR 0054), so the
   // control plane sends what it lacks. An agent that sends none keeps nothing,
   // and is sent nothing to keep.

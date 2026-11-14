@@ -160,6 +160,50 @@ message Container {
   // docs/adr/0086-registry-logins-for-private-images.md. Numbered in the block
   // registry logins hold, 100 to 109.
   string registry_login = 100;
+  // Devices of the server it reaches (ADR 0097). Each is host access, and a
+  // block device, or memory's, a port's or one under /dev/mapper, is the same
+  // as root.
+  repeated Device devices = 101;
+  // GPUs it reaches, as Docker's --gpus asks for them. It is host access.
+  Gpus gpus = 102;
+  // Security options past no_new_privileges, each host access:
+  // "seccomp=unconfined", "apparmor=unconfined", "label=disable",
+  // "label=type:spc_t" and the other label fields, and
+  // "systempaths=unconfined". A label type that's unconfined, and
+  // systempaths=unconfined, are the same as root.
+  repeated string security_opt = 103;
+  // Sees and signals every process on the server, as Compose's pid: host
+  // does. It is host access, the same as root.
+  bool host_pid = 104;
+  // Kernel settings of its own namespaces, such as
+  // "net.ipv4.ip_forward": "1". Only net.*, kernel.shm*, kernel.msg*,
+  // kernel.sem and fs.mqueue.* are a container's own, and none reaches the
+  // server. net.* takes no host network.
+  map<string, string> sysctls = 105;
+}
+
+// Device is a device of the server a container reaches.
+message Device {
+  // Where it is on the server, such as "/dev/dri/renderD128".
+  string host_path = 1;
+  // Where the container has it. Empty takes host_path.
+  string container_path = 2;
+  // What the container may do with it, of "r", "w" and "m" (to create it), in
+  // that order. Empty takes all three.
+  string permissions = 3;
+}
+
+// Gpus are the GPUs a container reaches.
+message Gpus {
+  // How many, or -1 for all. 0 with device_ids names them instead.
+  int32 count = 1;
+  // Which, by index or UUID, such as "0" or "GPU-3a4b...".
+  repeated string device_ids = 2;
+  // What it uses them for, such as "gpu", "compute" or "utility". Empty takes
+  // "gpu".
+  repeated string capabilities = 3;
+  // The driver Docker asks, such as "nvidia". Empty takes Docker's default.
+  string driver = 4;
 }
 
 // Ulimit is a limit of a container's processes, by its name, as ulimit says it.

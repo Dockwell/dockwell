@@ -99,14 +99,14 @@ var hostConfigRules = map[string]rule{
 	"CpuPercent": only("cpu_percent"), "CpuPeriod": only("cpu_period"), "CpuQuota": only("cpu_quota"),
 	"CpuRealtimePeriod": only("cpu_rt_period"), "CpuRealtimeRuntime": only("cpu_rt_runtime"),
 	"CpuShares": only("cpu_shares"), "CpusetCpus": only("cpuset"), "CpusetMems": only("cpuset memory nodes"),
-	"DeviceCgroupRules": only("device_cgroup_rules"), "DeviceRequests": only("gpus"), "Devices": only("devices"),
+	"DeviceCgroupRules": only("device_cgroup_rules"), "DeviceRequests": readDeviceRequests, "Devices": kept,
 	"DnsOptions": only("dns_opt"), "DnsSearch": only("dns_search"),
 	"IOMaximumBandwidth": only("an I/O limit"), "IOMaximumIOps": only("an I/O limit"),
 	"IpcMode": only("ipc", `"private"`, `"shareable"`), "Isolation": only("isolation", `"default"`),
 	"Links": kept, "MemorySwappiness": only("mem_swappiness"), "OomKillDisable": only("oom_kill_disable"),
-	"OomScoreAdj": only("oom_score_adj"), "PidMode": only("pid"), "PublishAllPorts": only("publish_all_ports (-P)"),
+	"OomScoreAdj": only("oom_score_adj"), "PidMode": only("pid", `"host"`), "PublishAllPorts": only("publish_all_ports (-P)"),
 	"SecurityOpt": readSecurityOpt,
-	"StorageOpt":  only("storage_opt"), "Sysctls": only("sysctls"), "UTSMode": only("uts"),
+	"StorageOpt":  only("storage_opt"), "Sysctls": readSysctls, "UTSMode": only("uts"),
 	"Umask": only("umask"), "UsernsMode": only("userns_mode"),
 	"VolumeDriver": only("volume_driver"), "VolumesFrom": only("volumes_from"),
 }
@@ -483,7 +483,8 @@ func readHealthcheck(raw json.RawMessage, _ *reading) []string {
 }
 
 // readSecurityOpt reads a container's security options: no-new-privileges a spec
-// holds (ADR 0085), and any other option is named.
+// holds (ADR 0085), and those it holds as security_opt (ADR 0097); any other
+// option is named.
 func readSecurityOpt(raw json.RawMessage, _ *reading) []string {
 	var opts []string
 	if isZero(raw) {
@@ -492,10 +493,43 @@ func readSecurityOpt(raw json.RawMessage, _ *reading) []string {
 	if json.Unmarshal(raw, &opts) != nil {
 		return []string{"security_opt"}
 	}
+	var out []string
 	for _, o := range opts {
-		if _, ok := NoNewPrivileges(o); !ok {
-			return []string{"security_opt"}
+		if _, ok := NoNewPrivileges(o); !ok && !securityOptForms().MatchString(securityOptForm(o)) {
+			out = append(out, "security_opt "+o)
 		}
 	}
+	return out
+}
+
+// readDeviceRequests reads what a container asks of a device driver: a spec holds
+// one request, as --gpus makes it, with no options of the driver's.
+func readDeviceRequests(raw json.RawMessage, _ *reading) []string {
+	var reqs []docker.DeviceRequest
+	if isZero(raw) {
+		return nil
+	}
+	if json.Unmarshal(raw, &reqs) != nil || len(reqs) > 1 || len(reqs) == 1 && (len(reqs[0].Options) > 0 || len(reqs[0].Capabilities) > 1) {
+		return []string{"gpus with options or more than one request"}
+	}
 	return nil
+}
+
+// readSysctls reads a container's kernel settings: a spec holds those of its own
+// namespaces, which are all Docker sets.
+func readSysctls(raw json.RawMessage, _ *reading) []string {
+	var set map[string]string
+	if isZero(raw) {
+		return nil
+	}
+	if json.Unmarshal(raw, &set) != nil {
+		return []string{"sysctls"}
+	}
+	var out []string
+	for _, k := range slices.Sorted(maps.Keys(set)) {
+		if !namespacedSysctl().MatchString(k) {
+			out = append(out, "sysctls "+k)
+		}
+	}
+	return out
 }
