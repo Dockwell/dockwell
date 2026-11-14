@@ -53,9 +53,16 @@ func TestThePanelSignsInWithAProvider(t *testing.T) {
 		t.Fatalf("the auth state offers %v, %v", state.Msg.GetProviders(), err)
 	}
 
+	// cameBack is what the panel's way back answered.
+	type cameBack struct {
+		status  int
+		cookies []string
+		page    string
+		at      *url.URL
+	}
 	// back goes to the provider at target, signs in there as Mira's account, and comes
 	// back to the panel's way back, which answers what back returns.
-	back := func(target string) (*http.Response, string) {
+	back := func(target string) cameBack {
 		t.Helper()
 		to, err := url.Parse(target)
 		if err != nil {
@@ -81,7 +88,7 @@ func TestThePanelSignsInWithAProvider(t *testing.T) {
 		}
 		defer res.Body.Close()
 		page, _ := io.ReadAll(res.Body)
-		return res, string(page)
+		return cameBack{status: res.StatusCode, cookies: res.Header.Values("Set-Cookie"), page: string(page), at: res.Request.URL}
 	}
 
 	proof := stepUpFor(t, b, dockwellv1.StepUpAction_STEP_UP_ACTION_LINK_PROVIDER, id)
@@ -89,8 +96,8 @@ func TestThePanelSignsInWithAProvider(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res, page := back(begun.Msg.GetUrl()); res.StatusCode != http.StatusOK || !strings.Contains(page, "Linked your account at Ours") {
-		t.Fatalf("linking comes back %d: %s", res.StatusCode, page)
+	if linked := back(begun.Msg.GetUrl()); linked.status != http.StatusOK || !strings.Contains(linked.page, "Linked your account at Ours") {
+		t.Fatalf("linking comes back %d: %s", linked.status, linked.page)
 	}
 	links, err := a.ListProviderLinks(t.Context(), connect.NewRequest(&dockwellv1.ListProviderLinksRequest{}))
 	if err != nil || len(links.Msg.GetLinks()) != 1 || links.Msg.GetLinks()[0].GetState() != dockwellv1.ProviderLinkState_PROVIDER_LINK_STATE_WORKS {
@@ -107,11 +114,11 @@ func TestThePanelSignsInWithAProvider(t *testing.T) {
 	if set := started.Header().Get("Set-Cookie"); !strings.Contains(set, auth.ProviderFlowCookie+"=") || !strings.Contains(set, "SameSite=Lax") || !strings.Contains(set, "Secure") {
 		t.Errorf("the flow's cookie is %q", set)
 	}
-	res, page := back(started.Msg.GetUrl())
-	if res.StatusCode != http.StatusOK || !strings.Contains(page, `http-equiv="refresh" content="0;url=/"`) {
-		t.Fatalf("signing in comes back %d: %s", res.StatusCode, page)
+	in := back(started.Msg.GetUrl())
+	if in.status != http.StatusOK || !strings.Contains(in.page, `http-equiv="refresh" content="0;url=/"`) {
+		t.Fatalf("signing in comes back %d: %s", in.status, in.page)
 	}
-	cookies := strings.Join(res.Header.Values("Set-Cookie"), " | ")
+	cookies := strings.Join(in.cookies, " | ")
 	if !strings.Contains(cookies, auth.SecureCookieName+"=") || !strings.Contains(cookies, auth.ProviderFlowCookie+"=; Path=/; Max-Age=0") {
 		t.Errorf("the way back sets %q", cookies)
 	}
@@ -121,8 +128,8 @@ func TestThePanelSignsInWithAProvider(t *testing.T) {
 	}
 
 	// The flow is used once: its way back again signs no one in.
-	again, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, res.Request.URL.String(), http.NoBody)
-	b.client.Jar.SetCookies(res.Request.URL, []*http.Cookie{{Name: auth.ProviderFlowCookie, Value: "used"}})
+	again, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, in.at.String(), http.NoBody)
+	b.client.Jar.SetCookies(in.at, []*http.Cookie{{Name: auth.ProviderFlowCookie, Value: "used"}})
 	replay, err := b.client.Do(again)
 	if err != nil {
 		t.Fatal(err)
