@@ -263,6 +263,14 @@ type Edit struct {
 	// for a server's host: a step that makes no revision (ADR 0089). Its Change is
 	// filled in as it's proposed.
 	Panel *resource.PanelAsked
+	// MoveFrom is the volume, of another environment on the same servers, whose
+	// data this one, a volume, takes as the change makes it, as moving an app to
+	// another project does (ADR 0084, #572). The change deletes MoveFrom too, and
+	// what mounts it first; undoing it moves the data back. The volume's backups on
+	// each server are this one's once its data has moved there. For a link, MoveFrom
+	// is the link of another environment this one is, moved, whose backups are this
+	// one's once the change is applied.
+	MoveFrom resource.Ref
 	// Servers places a resource of an environment-level kind, such as a
 	// service, by server ID. Nil keeps it where it runs now, on the
 	// servers still in the fleet; a new one runs on the only server when
@@ -292,6 +300,13 @@ type Edit struct {
 	// plan lists each item, each is checked as any edit is, and undoing the
 	// change brings them all back.
 	WithContents bool
+	// KeepSharedIn, with WithContents, names the project each database server an app
+	// of another project links to goes to, as a move takes it, so that app keeps
+	// working; empty makes each a project of its own, named for it. DeleteShared
+	// deletes those servers too, dumping each linked database alone first (ADR
+	// 0084, #572).
+	KeepSharedIn string
+	DeleteShared bool
 	// Pull asks the server for the resource's image again as this applies, as a
 	// deploy of the tag it already names does: the plan can't know what the tag
 	// points at now, so a revision comes only if it finds a newer image.
@@ -500,6 +515,12 @@ type ResourcePlan struct {
 	// server's host, which makes no revision (ADR 0089). Undoing a stop plans
 	// starting each part again as it stood.
 	Panel *resource.Panel `json:",omitempty"`
+	// MovesFrom is the volume whose data the change moves into it, or the link it
+	// is, moved (Edit.MoveFrom).
+	MovesFrom *resource.Ref `json:",omitempty"`
+	// DeleteShared says this deletion of a scope takes what other projects' apps use
+	// too (Edit.DeleteShared), so applying it holds to that.
+	DeleteShared bool `json:",omitempty"`
 	// Restore says what the change brings its data back from, which makes no
 	// revision either, and For the link it does that for (Edit.For).
 	Restore *resource.RestoreSource `json:",omitempty"`
@@ -682,6 +703,9 @@ type item struct {
 	// reverses says this item undoes a change, so it takes what that change made
 	// and no more.
 	reverses bool
+	// deleteShared says this deletion of a scope takes what other projects' apps use
+	// too (Edit.DeleteShared).
+	deleteShared bool
 	// withContents says this deletion of a scope takes what lives in it (Edit.WithContents).
 	withContents bool
 	// observed says its spec is what a server has (Edit.Observed).
@@ -778,6 +802,9 @@ type item struct {
 	// panel is stopping or starting the panel an import came from, on a server's
 	// host.
 	panel *resource.PanelAsked
+	// moveFrom is the volume whose data this one takes, or the link this one is,
+	// moved (Edit.MoveFrom).
+	moveFrom resource.Ref
 	// follows says the change took it in because it uses a value the change
 	// changes, as an app restarts with its database user's new password: Dockwell's
 	// own item, not the person's edit, which may be in another project, through a
@@ -788,7 +815,7 @@ type item struct {
 // noRevision reports an item that acts on a resource as it is, so it has nothing
 // to roll back, and what goes wrong leaves its revision as it was.
 func (it item) noRevision() bool {
-	return it.restart != "" || it.restore != nil || it.install != nil && !it.changes() || it.reboot != "" && !it.changes() || it.upgrade != nil && !it.changes() || it.unit != nil && !it.changes() || it.panel != nil && !it.changes() || len(it.backups) > 0 && !it.changes()
+	return it.restart != "" || it.restore != nil || it.moveFrom != (resource.Ref{}) && !it.changes() || it.install != nil && !it.changes() || it.reboot != "" && !it.changes() || it.upgrade != nil && !it.changes() || it.unit != nil && !it.changes() || it.panel != nil && !it.changes() || len(it.backups) > 0 && !it.changes()
 }
 
 // backupOn is the backup the item takes on a server first, if any.
@@ -805,6 +832,14 @@ func (it item) moveOn(server string) *resource.MoveAsked {
 		return nil
 	}
 	return it.move
+}
+
+// moveFromOn is the Docker volume whose data the item takes on a server, if any.
+func (it item) moveFromOn(server string) string {
+	if it.moveFrom.Kind != volumeKind || it.spec == nil || !slices.Contains(it.servers, server) {
+		return ""
+	}
+	return docker.ScopedName(docker.Project(it.moveFrom.Scope), it.moveFrom.Name)
 }
 
 // restoreOn is what the item restores on a server, if anything.
@@ -883,7 +918,22 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 	if edits, err = e.withMovedValues(ctx, edits); err != nil {
 		return nil, err
 	}
-	p.Edits = edits
+	// The caller reaches what they asked for before anything is worked out from it,
+	// as what's worked out may name what's elsewhere; and again below, with what it
+	// adds.
+	if err := e.db.View(ctx, func(tx *store.Tx) error { return e.reachFirst(ctx, tx, p.Actor, edits) }); err != nil {
+		return nil, err
+	}
+	// A project going keeps what apps of other projects use, unless it says not to.
+	var kept, broken []Note
+	if edits, kept, err = e.keepShared(ctx, edits); err != nil {
+		return nil, err
+	}
+	// Or, asked to take that too, says what breaks, and dumps it first.
+	if edits, broken, err = e.breaksShared(ctx, edits); err != nil {
+		return nil, err
+	}
+	p.Edits, p.Notes = edits, slices.Concat(p.Notes, kept, broken)
 	if err := e.db.View(ctx, func(tx *store.Tx) error { return e.reachFirst(ctx, tx, p.Actor, p.Edits) }); err != nil {
 		return nil, err
 	}
@@ -1013,6 +1063,12 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 		if j := slices.IndexFunc(p.Edits, func(ed Edit) bool { return ed.Install != nil && ed.Ref == items[i].ref }); j >= 0 {
 			items[i].install = &resource.InstallAsked{Change: changeID, All: p.Edits[j].Install.All, Names: p.Edits[j].Install.Names}
 		}
+		if j := slices.IndexFunc(p.Edits, func(ed Edit) bool { return ed.MoveFrom != (resource.Ref{}) && ed.Ref == items[i].ref }); j >= 0 {
+			items[i].moveFrom = p.Edits[j].MoveFrom
+		}
+	}
+	if err := movesWhole(items); err != nil {
+		return nil, err
 	}
 	if err := e.pinBuilds(ctx, items, changeID); err != nil {
 		return nil, err
@@ -1569,7 +1625,10 @@ func (e *Engine) items(ctx context.Context, edits []Edit, rotate bool) ([]item, 
 			if ed.WithContents && (ed.Spec != nil || (ed.Ref.Kind != scope.ProjectKind && ed.Ref.Kind != scope.EnvironmentKind)) {
 				return fault.New(ErrInvalid, "%s asks to take what lives in it, which only deleting a project or an environment can. Leave with_contents out", ed.Ref)
 			}
-			it.withContents = ed.WithContents
+			it.withContents, it.deleteShared = ed.WithContents, ed.DeleteShared
+			if (ed.DeleteShared || ed.KeepSharedIn != "") && !ed.WithContents {
+				return fault.New(ErrInvalid, "%s says what happens to what other projects' apps use, which only deleting a project or an environment with what's in it does. Leave keep_shared_in and delete_shared out", ed.Ref)
+			}
 			if ed.Base != 0 && it.base != ed.Base {
 				return fault.New(ErrStale, "%s changed while this was being planned, and planning from what was read would undo that. Try again, to plan it from the latest", ed.Ref)
 			}
@@ -2673,7 +2732,7 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 				fmt.Fprintf(fp, "access %s|%s|%v\n", server, ref(it.ref), gained)
 			}
 		}
-		steps = e.insideGoesAfter(order(steps), its)
+		steps = e.deletesBeforeMoves(e.insideGoesAfter(order(steps), its), its)
 		for i := range steps {
 			s := &steps[i]
 			// The fingerprint covers what an install installs, so a person never
@@ -2788,6 +2847,11 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 					}
 				}
 			}
+			// How the data moves, and from where; what a copy copies stays out, as a
+			// backup's cost does: a file that grew is no reason to review it again.
+			if m := s.VolumeMove; m != nil {
+				fmt.Fprintf(fp, "volume move %s|%s|%s\n", server, m.From, m.How)
+			}
 			if s.Proof != "" {
 				fmt.Fprintf(fp, "proof %s|%s|%s\n", server, ref(s.Ref), s.Proof)
 			}
@@ -2797,8 +2861,8 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 			sp.UntilHealthy += max(s.Downtime, s.UntilHealthy)
 			actions[ids[s.Ref]] = append(actions[ids[s.Ref]], s.Action)
 			downtime := s.Downtime
-			if s.BackupFirst != nil {
-				// A backup's cost can change as its volume grows (ADR 0033).
+			if s.BackupFirst != nil || s.VolumeMove != nil && s.VolumeMove.How == resource.MoveCopy {
+				// A backup's cost, or a copy's, can change as its volume grows (ADR 0033).
 				downtime = 0
 			}
 			fmt.Fprintf(fp, "step %t|%s|%s|%s|%d|%d|%d|%t|%v|%d|%v|%t|%t|%t\n", s.Pull, server, ref(s.Ref), s.Action, s.Effect, downtime, len(s.Changes), s.Destroys, s.Warnings,
@@ -3063,7 +3127,13 @@ func (e *Engine) digest(changeID string, it *item) []byte {
 func (e *Engine) planOn(ctx context.Context, agent resource.Agent, server, name string, its []*item) ([]resource.Step, error) {
 	desired := make([]resource.Desired, len(its))
 	for i, it := range its {
-		desired[i] = resource.Desired{Ref: it.ref, Spec: it.desiredOn(server), Pull: it.pull, Run: it.runsOn(server), Restart: it.restart, Rollback: it.rollback, Adopt: it.adopt, Restore: it.restoreOn(server), Backup: it.backupOn(server), Move: it.moveOn(server), Install: it.install, Reboot: it.rebootAsked(), Unit: it.unit, Panel: it.panel, Upgrade: it.upgrade}
+		desired[i] = resource.Desired{Ref: it.ref, Spec: it.desiredOn(server), Pull: it.pull, Run: it.runsOn(server), Restart: it.restart, Rollback: it.rollback, Adopt: it.adopt, Restore: it.restoreOn(server), Backup: it.backupOn(server), Move: it.moveOn(server), Install: it.install, Reboot: it.rebootAsked(), Unit: it.unit, Panel: it.panel, Upgrade: it.upgrade, MoveVolumeFrom: it.moveFromOn(server)}
+	}
+	// An agent from before would make the volume empty, and the data would stay
+	// behind in one the change deletes (ADR 0084, #572).
+	if slices.ContainsFunc(desired, func(d resource.Desired) bool { return d.MoveVolumeFrom != "" }) && !movesVolumes(agent) {
+		return nil, &AgentError{Server: name, Doing: "plan", Err: fault.New(ErrInvalid,
+			"its agent is too old to move a volume's data into another, and would make the new one empty. Update the agent to the control plane's version, then plan this again")}
 	}
 	ctx, done := e.calling(ctx)
 	defer done()
@@ -3239,6 +3309,11 @@ func (it item) resourcePlan(steps []resource.Action) ResourcePlan {
 		Servers: slices.Clone(it.servers), Previous: slices.Clone(it.placed), Restart: it.restart != "", Restore: it.restore, Backups: it.backups, Move: it.move,
 		BackupOne: it.backupOne, BackupAlso: it.backupAlso, AlsoFor: it.alsoFor,
 	}
+	if it.moveFrom != (resource.Ref{}) {
+		from := it.moveFrom
+		rp.MovesFrom = &from
+	}
+	rp.DeleteShared = it.deleteShared
 	if it.forLink != (resource.Ref{}) {
 		link := it.forLink
 		rp.For = &link
@@ -3676,6 +3751,10 @@ func (e *Engine) rollBack(ctx context.Context, failed store.Change, edits []Edit
 			finish.Finish = true
 			items[i].move = &finish
 		}
+		// Data the failed change moved goes back where it came from.
+		if j := slices.IndexFunc(edits, func(ed Edit) bool { return ed.MoveFrom != (resource.Ref{}) && ed.Ref == items[i].ref }); j >= 0 {
+			items[i].moveFrom = edits[j].MoveFrom
+		}
 	}
 	c := store.Change{
 		ID: id.New(id.Change), Summary: "Roll back " + failed.Summary, Actor: SystemActor, State: store.ChangePlanned, Reverts: failed.ID,
@@ -3953,21 +4032,36 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 		server, name string
 		step         *resource.Step
 		index        int // in the change's progress
+		// backupOnly takes a deletion's backup alone, ahead of the rest, while what
+		// runs on the volume still runs; the deletion follows with the deletes.
+		backupOnly bool
 	}
 	var builds, deletes, last []queued
 	for si := range plan.Servers {
 		s := &plan.Servers[si]
+		// What's deleted before a volume's data moves goes with what's built, in its
+		// place, as nothing may mount the volume as its data moves (deletesBeforeMoves).
+		firstMove := slices.IndexFunc(s.Steps, func(st resource.Step) bool { return st.VolumeMove != nil })
 		for i := range s.Steps {
 			q := queued{server: s.Server, name: s.Name, step: &s.Steps[i]}
 			if it, ok := byRef[q.step.Ref]; ok {
 				q.index = progress.index(s.Server, it.id)
+			}
+			if q.step.Action == resource.ActionDelete && q.step.BackupFirst != nil {
+				// Its backup first, with the builds; the deletion itself, without it, last.
+				backup := *q.step
+				backup.Action, backup.Destroys = resource.ActionUpdate, false
+				builds = append(builds, queued{server: q.server, name: q.name, step: &backup, index: q.index, backupOnly: true})
+				deletion := *q.step
+				deletion.BackupFirst = nil
+				q.step = &deletion
 			}
 			switch {
 			case q.step.Panel != nil && q.step.Panel.Start:
 				// A panel's proxy takes ports 80 and 443 back once the routes that hold
 				// them are gone (ADR 0089), as order says.
 				last = append(last, q)
-			case q.step.Action == resource.ActionDelete:
+			case q.step.Action == resource.ActionDelete && (firstMove < 0 || i > firstMove):
 				deletes = append(deletes, q)
 			default:
 				builds = append(builds, q)
@@ -4174,6 +4268,9 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 		if (q.step.BackupFirst != nil && q.step.BackupFirst.One != "" || q.step.Restore != nil && q.step.Restore.OneDatabase != "") && !takesOne(agent) {
 			return stop(qi, fault.New(ErrInvalid, "the agent on %s backs up and restores a whole volume, not one database alone, so this step didn't run, nor anything after it. Update the agent to the control plane's version, then try again", q.name), true)
 		}
+		if q.step.VolumeMove != nil && !movesVolumes(agent) {
+			return stop(qi, fault.New(ErrInvalid, "the agent on %s can't move a volume's data into another, and would make the new one empty, so this step didn't run, nor anything after it. Update the agent to the control plane's version, then try again", q.name), true)
+		}
 		// A reboot's step finishing on the server's new boot keeps when it started,
 		// so its time is the reboot's, from the call until the server was back. So does
 		// one resumed on the boot it left, which asks the agent again and waits on, or
@@ -4219,7 +4316,12 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 		}
 		last, guarded := lastAccess[q.server]
 		callCtx = resource.WithDeploy(callCtx, resource.Deploy{Revision: it.rev, Change: c.ID, Rollback: IsRollback(c), LastAccess: guarded && last == qi})
-		err := agent.Apply(callCtx, *q.step, it.desiredOn(q.server))
+		desired := it.desiredOn(q.server)
+		if q.backupOnly {
+			// A deletion's backup reads the volume as it is.
+			desired = it.current
+		}
+		err := agent.Apply(callCtx, *q.step, desired)
 		called()
 		if q.step.Unit != nil && e.onUnit != nil {
 			// However it went, the unit stands somewhere new: whoever watches its
@@ -4292,6 +4394,22 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 				}
 			}
 		}
+		// A volume's backups on the server are the one's its data moved into, in its
+		// environment, as soon as it has: undoing the move moves them back the same way
+		// (ADR 0084, #572).
+		// One that can't be filed so stops the change, which moves the data back, so
+		// what's on record and where the data is never part (the review of #572, its N4).
+		if q.step.VolumeMove != nil && it.moveFrom.Kind == volumeKind {
+			if from := byRef[it.moveFrom]; from != nil {
+				if err := e.refile(ctx, store.Refile{Server: q.server, FromVolume: from.id, ToVolume: it.id, ToEnvironment: it.ref.Scope}); err != nil {
+					return stop(qi, fault.New(ErrInvalid, "moved the data of %s into %s, but can't file its backups under it, so the change stopped: %v. Try again", it.moveFrom.Name, it.ref.Name, err), false)
+				}
+			}
+		}
+		if q.backupOnly {
+			// The deletion it comes before finishes the step.
+			continue
+		}
 		did := q.step.Action
 		if told.Did != nil {
 			did = *told.Did
@@ -4357,11 +4475,37 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 			return err
 		}
 	}
-	// A removal's last act is the server leaving the fleet, as the change is
-	// applied (ADR 0090).
-	var then func(*store.RevisionTx) error
-	if rm := r.plan.Removes; rm != nil && !rm.Compromised {
-		then = func(tx *store.RevisionTx) error { return e.revoke(ctx, tx.Tx, c, rm.Server, false) }
+	// As the change is applied, the backups of a volume it moved, on any server, of
+	// a link it moved, or by a policy it moved, are the moved one's (ADR 0084); and
+	// a removal's last act is the server leaving the fleet (ADR 0090).
+	then := func(tx *store.RevisionTx) error {
+		for i := range items {
+			it := &items[i]
+			from := byRef[it.moveFrom]
+			if from == nil || it.moveFrom.Kind != it.ref.Kind {
+				continue
+			}
+			var r store.Refile
+			switch it.ref.Kind {
+			case volumeKind:
+				// What's on record of it on servers it didn't move on is the app's
+				// history too (the review of #572, its N3).
+				r = store.Refile{FromVolume: from.id, ToVolume: it.id, ToEnvironment: it.ref.Scope}
+			case linkKind:
+				r = store.Refile{FromLink: from.id, ToLink: it.id}
+			case policyKind:
+				r = store.Refile{FromPolicy: from.id, ToPolicy: it.id}
+			default:
+				continue
+			}
+			if _, err := tx.RefileBackups(ctx, r); err != nil {
+				return err
+			}
+		}
+		if rm := r.plan.Removes; rm != nil && !rm.Compromised {
+			return e.revoke(ctx, tx.Tx, c, rm.Server, false)
+		}
+		return nil
 	}
 	if err := e.finishWith(ctx, c, store.ChangeApplied, "", "change.applied", e.progress(c.ID), then); err != nil {
 		return err
@@ -4371,6 +4515,14 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 	}
 	e.published(c.ID, store.ChangeApplied)
 	return nil
+}
+
+// refile files backups as r says, once a step has moved what they're of.
+func (e *Engine) refile(ctx context.Context, r store.Refile) error {
+	return e.db.Update(ctx, func(tx *store.Tx) error {
+		_, err := tx.RefileBackups(ctx, r)
+		return err
+	})
 }
 
 // pulledNewer puts a newer image a pull found on record, before anything is
@@ -4614,6 +4766,8 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 			it.reboot = rebootIn(c, ref)
 			it.upgrade = upgradeIn(c, ref)
 			it.unit = unitIn(c, ref)
+			it.moveFrom = moveFromIn(c, ref)
+			it.deleteShared = deletesSharedIn(c, ref)
 			it.removal, it.forget = removalIn(c), forgetIn(c, ref)
 			it.panel = panelIn(c, ref)
 			if err := markGone(ctx, tx, &it); err != nil {
@@ -4840,6 +4994,8 @@ func (e *Engine) current(ctx context.Context, tx *store.Tx, c store.Change) ([]i
 		it.reboot = rebootIn(c, ref)
 		it.upgrade = upgradeIn(c, ref)
 		it.unit = unitIn(c, ref)
+		it.moveFrom = moveFromIn(c, ref)
+		it.deleteShared = deletesSharedIn(c, ref)
 		it.removal, it.forget = removalIn(c), forgetIn(c, ref)
 		it.panel = panelIn(c, ref)
 		items = append(items, it)
@@ -5685,6 +5841,13 @@ func (e *Engine) reverse(ctx context.Context, changeID string) ([]Edit, error) {
 				}
 			}
 			edits = append(edits, ed)
+		}
+		// Data the change moved into a volume moves back into the one it came from,
+		// which the change deleted, as the undo makes that again (ADR 0084, #572).
+		for _, moved := range movesIn(c) {
+			if j := slices.IndexFunc(edits, func(ed Edit) bool { return ed.Ref == moved.from && ed.Spec != nil }); j >= 0 {
+				edits[j].MoveFrom = moved.to
+			}
 		}
 		return nil
 	})

@@ -1682,3 +1682,78 @@ func TestAHandMadeRedisUserKeepsAppsFromKeepingApart(t *testing.T) {
 		t.Fatalf("the Redis isn't offered: %v", got.Msg.GetNeeds())
 	}
 }
+
+// Moving an app that keeps to no prefix onto a Redis whose apps keep apart ends that
+// for the projects its choice names, which takes a developer's role in each: someone
+// who holds the app's project and the server's, and not those, is refused (ADR 0084).
+func TestEndingWhatKeepsAppsApartTakesARoleInEach(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv(catalog.DirEnv, dir)
+	plain := strings.NewReplacer("id: board-user\nname: Board user", "id: board-plain\nname: Board plain",
+		"      - name: REDIS_PREFIX\n        part: PART_KEY_PREFIX\n", "", "        REDIS_PREFIX: ${REDIS_PREFIX}\n", "").Replace(boardWithUser)
+	for name, entry := range map[string]string{"board-user": boardWithUser, "board-plain": plain} {
+		if err := os.WriteFile(filepath.Join(dir, name+".yaml"), []byte(entry), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	var mu sync.Mutex
+	acl := map[string]string{}
+	e.Find = func(ref string) (dockertest.Image, bool) {
+		if strings.Contains(ref, "redis") {
+			return fakeRedisImage(&mu, acl), true
+		}
+		return dockertest.Image{}, true
+	}
+	ch := changeClient(b, b.origin)
+	compose := dockwellv1connect.NewComposeServiceClient(b, b.origin, connect.WithProtoJSON())
+	apply(t, ch, importCompose(t, compose, sharedRedisStack, map[string]string{"CACHE_PASSWORD": "the-administrators"}, false))
+	cat := catalogClient(b)
+	choiceFor := func(id string) string {
+		t.Helper()
+		got, err := cat.GetCatalogEntry(t.Context(), connect.NewRequest(&dockwellv1.GetCatalogEntryRequest{Id: id}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, o := range got.Msg.GetNeeds() {
+			if o.GetService() == "cache" {
+				return o.GetChoice()
+			}
+		}
+		t.Fatalf("%s isn't offered the Redis: %v", id, got.Msg.GetNeeds())
+		return ""
+	}
+	choice := choiceFor("board-user")
+	shared := installApp(t, cat, &dockwellv1.InstallCatalogEntryRequest{Id: "board-user", Needs: map[string]string{"cache": choice}})
+	if got := apply(t, ch, shared); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("the shared install ended %v: %s", got.GetState(), got.GetError())
+	}
+	own := installApp(t, cat, &dockwellv1.InstallCatalogEntryRequest{Id: "board-plain"})
+	if got := apply(t, ch, own); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("board-plain's install ended %v: %s", got.GetState(), got.GetError())
+	}
+	envOf := func(c *dockwellv1.Change, kind string) string {
+		for _, r := range c.GetPlan().GetResources() {
+			if r.GetResource().GetKind() == kind {
+				return r.GetResource().GetScope()
+			}
+		}
+		return ""
+	}
+	userEnv, plainEnv := envOf(shared, "link"), envOf(own, "database.user")
+	serverEnv := envOf(shared, "database.user")
+
+	hold := aMember(t, f)
+	hold(store.Grant{ProjectID: envProject(t, f, plainEnv), Role: store.RoleDeveloper}, store.Grant{ProjectID: envProject(t, f, serverEnv), Role: store.RoleDeveloper})
+	_, err := cat.SetCatalogNeed(t.Context(), connect.NewRequest(&dockwellv1.SetCatalogNeedRequest{Id: "board-plain", Need: "cache", Choice: choice, StartEmpty: true}))
+	if connect.CodeOf(err) != connect.CodePermissionDenied || !strings.Contains(err.Error(), "takes a developer's role there") {
+		t.Errorf("ending what keeps board-user apart without a role there = %v", err)
+	}
+	hold(store.Grant{ProjectID: envProject(t, f, plainEnv), Role: store.RoleDeveloper}, store.Grant{ProjectID: envProject(t, f, serverEnv), Role: store.RoleDeveloper},
+		store.Grant{ProjectID: envProject(t, f, userEnv), Role: store.RoleDeveloper})
+	if _, err := cat.SetCatalogNeed(t.Context(), connect.NewRequest(&dockwellv1.SetCatalogNeedRequest{Id: "board-plain", Need: "cache", Choice: choice, StartEmpty: true})); err != nil && strings.Contains(err.Error(), "takes a developer's role there") {
+		t.Errorf("with a role in board-user's project too = %v", err)
+	}
+}

@@ -246,6 +246,7 @@ var proposers = map[string]bool{
 	"dockwell.v1.ServiceService.AddServicePort":          true,
 	"dockwell.v1.ServiceService.ChangeServiceRuntime":    true,
 	"dockwell.v1.ServiceService.UpgradeService":          true,
+	"dockwell.v1.ServiceService.MoveService":             true,
 	"dockwell.v1.BackupService.RestoreBackup":            true,
 	"dockwell.v1.WebsiteService.CreateWebsite":           true,
 	"dockwell.v1.WebsiteService.UpdateWebsite":           true,

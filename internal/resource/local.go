@@ -59,6 +59,10 @@ type Desired struct {
 	// Upgrade upgrades the server's agent as a step of this change. Its kind is an
 	// AgentUpgrader.
 	Upgrade *AgentUpgradeAsked
+	// MoveVolumeFrom names the Docker volume on this server whose data this one, a
+	// volume, takes as its step makes it, as moving an app to another project does
+	// (ADR 0084, #572). Its kind is a VolumeMover.
+	MoveVolumeFrom string `json:",omitempty"`
 	// Prepare gives what plans this resource, alone, what only it may use, such as
 	// the registry login its image is pulled with (ADR 0086). It's never kept.
 	Prepare func(context.Context) context.Context `json:"-"`
@@ -331,7 +335,7 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 		if err != nil {
 			return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
 		}
-		normal[i], drivers[i] = Desired{Ref: want.Ref, Spec: spec, Pull: want.Pull, Run: want.Run, Restart: want.Restart, Rollback: want.Rollback, Adopt: want.Adopt, Restore: want.Restore, Backup: want.Backup, Move: want.Move, Install: want.Install, Reboot: want.Reboot, Unit: want.Unit, Panel: want.Panel, Upgrade: want.Upgrade, Prepare: want.Prepare}, d
+		normal[i], drivers[i] = Desired{Ref: want.Ref, Spec: spec, Pull: want.Pull, Run: want.Run, Restart: want.Restart, Rollback: want.Rollback, Adopt: want.Adopt, Restore: want.Restore, Backup: want.Backup, Move: want.Move, Install: want.Install, Reboot: want.Reboot, Unit: want.Unit, Panel: want.Panel, Upgrade: want.Upgrade, MoveVolumeFrom: want.MoveVolumeFrom, Prepare: want.Prepare}, d
 	}
 	for i := range normal {
 		want := &normal[i]
@@ -472,6 +476,21 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 			steps = append(steps, step)
 			continue
 		}
+		if want.MoveVolumeFrom != "" && spec != nil {
+			m, ok := d.(VolumeMover)
+			if !ok {
+				return nil, fmt.Errorf("can't plan %s: this agent can't move a %s's data", want.Ref, want.Ref.Kind)
+			}
+			moved, left, err := m.JudgeVolumeMove(ctx, want.Ref, want.MoveVolumeFrom, step, spec)
+			if err != nil {
+				return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
+			}
+			if left {
+				step = moved
+			}
+			steps = append(steps, step)
+			continue
+		}
 		if want.Backup != nil && step.Action == ActionNone {
 			b, ok := d.(BackerUp)
 			if !ok {
@@ -483,6 +502,25 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 			}
 			if left {
 				step.Decision = dec
+			}
+			steps = append(steps, step)
+			continue
+		}
+		// A deletion that backs up first, as deleting a database other projects' apps
+		// use does: the step deletes, and carries the backup, which the control plane
+		// takes before anything else in the change, while what runs on the volume
+		// still runs (ADR 0084).
+		if want.Backup != nil && step.Action == ActionDelete {
+			b, ok := d.(BackerUp)
+			if !ok {
+				return nil, fmt.Errorf("can't plan %s: this agent can't back up a %s", want.Ref, want.Ref.Kind)
+			}
+			dec, left, err := b.JudgeBackup(ctx, want.Ref, *want.Backup)
+			if err != nil {
+				return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
+			}
+			if left {
+				step.BackupFirst = dec.BackupFirst
 			}
 			steps = append(steps, step)
 			continue
@@ -760,6 +798,16 @@ func (l Local) Apply(ctx context.Context, step Step, desired proto.Message) erro
 		}
 		if err := in.ApplyInstall(ctx, step); err != nil {
 			return Plainly(fmt.Sprintf("Dockwell can't install the updates: %s.", clause(err)), fmt.Errorf("can't install the updates: %w", err))
+		}
+		return nil
+	}
+	if step.VolumeMove != nil {
+		m, ok := d.(VolumeMover)
+		if !ok {
+			return cantApply(ctx, step, fmt.Errorf("this agent can't move a %s's data", step.Ref.Kind))
+		}
+		if err := m.ApplyVolumeMove(ctx, step, desired); err != nil {
+			return Plainly(fmt.Sprintf("Dockwell can't move the data into %s: %s.", step.Ref.Name, clause(err)), fmt.Errorf("can't move the data into %s: %w", step.Ref, err))
 		}
 		return nil
 	}

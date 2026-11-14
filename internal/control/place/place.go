@@ -300,6 +300,24 @@ func (pl *Placer) scoped(ctx context.Context, scopeID string) (Place, error) {
 	return Place{}, fmt.Errorf("%w: a scope %s", ErrUnknown, scopeID)
 }
 
+// Reachable is tree with only the projects the caller ctx carries holds a role in,
+// so what resolves a name in it never names another's: the whole tree for an
+// admin of the install, and for a call no person makes.
+func Reachable(ctx context.Context, tree scope.Tree) scope.Tree {
+	caller, ok := CallerFrom(ctx)
+	if !ok || store.RoleRank(Holds(caller.Grants, Install)) >= store.RoleRank(store.RoleAdmin) {
+		return tree
+	}
+	out := tree
+	out.Projects = nil
+	for _, p := range tree.Projects {
+		if Holds(caller.Grants, Place{Project: p.ID}) != "" {
+			out.Projects = append(out.Projects, p)
+		}
+	}
+	return out
+}
+
 // Holds is the role grants give at a place: the highest of a grant on the
 // install and one on the place's project. The install's own place counts only
 // grants on the install. Empty is none: the place is out of reach.

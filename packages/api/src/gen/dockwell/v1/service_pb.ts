@@ -24,7 +24,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/service.proto.
  */
 export const file_dockwell_v1_service: GenFile = /*@__PURE__*/
-  fileDesc("Chlkb2Nrd2VsbC92MS9zZXJ2aWNlLnByb3RvEgtkb2Nrd2VsbC52MSJjChJPcGVuU2VydmljZVJlcXVlc3QSCgoCaWQYASABKAkSDAoEcG9ydBgCIAEoDRIPCgdwcm9qZWN0GAMgASgJEhMKC2Vudmlyb25tZW50GAQgASgJEg0KBXByb29mGAUgASgJImMKE09wZW5TZXJ2aWNlUmVzcG9uc2USCwoDdXJsGAEgASgJEi8KC2V4cGlyZV90aW1lGAIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIOCgZvcmlnaW4YAyABKAkiYgoTTGlzdFNlcnZpY2VzUmVxdWVzdBIPCgdwcm9qZWN0GAEgASgJEhMKC2Vudmlyb25tZW50GAIgASgJEhEKCXBhZ2Vfc2l6ZRgDIAEoBRISCgpwYWdlX3Rva2VuGAQgASgJIlsKFExpc3RTZXJ2aWNlc1Jlc3BvbnNlEioKCHNlcnZpY2VzGAEgAygLMhguZG9ja3dlbGwudjEuU2VydmljZUluZm8SFwoPbmV4dF9wYWdlX3Rva2VuGAIgASgJIsUDCgtTZXJ2aWNlSW5mbxIKCgJpZBgBIAEoCRIqCghyZXNvdXJjZRgCIAEoCzIYLmRvY2t3ZWxsLnYxLlJlc291cmNlUmVmEhAKCHJldmlzaW9uGAMgASgDEi8KC3VwZGF0ZV90aW1lGAQgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIxCgRzcGVjGAUgASgLMiMuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuU2VydmljZRIzCgtkZXBsb3ltZW50cxgGIAMoCzIeLmRvY2t3ZWxsLnYxLlNlcnZpY2VEZXBsb3ltZW50EhEKCWNoYW5nZV9pZBgHIAEoCRIdChVyb2xsZWRfYmFja19jaGFuZ2VfaWQYCCABKAkSLgoMY2hhbmdlX3N0YXRlGAkgASgOMhguZG9ja3dlbGwudjEuQ2hhbmdlU3RhdGUSFwoPc3BlY191bnJlYWRhYmxlGAogASgJEiwKC2hvc3RfYWNjZXNzGAsgAygLMhcuZG9ja3dlbGwudjEuSG9zdEFjY2VzcxIqCgZ1cGRhdGUYFCABKAsyGi5kb2Nrd2VsbC52MS5TZXJ2aWNlVXBkYXRlIrgBChFTZXJ2aWNlRGVwbG95bWVudBIRCglzZXJ2ZXJfaWQYASABKAkSEwoLc2VydmVyX25hbWUYAiABKAkSKwoFc3RhdGUYAyABKA4yHC5kb2Nrd2VsbC52MS5EZXBsb3ltZW50U3RhdGUSDQoFZXJyb3IYBCABKAkSLwoLdXBkYXRlX3RpbWUYBSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEg4KBmRpZ2VzdBgGIAEoCSJ2ChtMaXN0U2VydmljZVJldmlzaW9uc1JlcXVlc3QSCgoCaWQYASABKAkSEQoJcGFnZV9zaXplGAIgASgFEhIKCnBhZ2VfdG9rZW4YAyABKAkSDwoHcHJvamVjdBgEIAEoCRITCgtlbnZpcm9ubWVudBgFIAEoCSJoChxMaXN0U2VydmljZVJldmlzaW9uc1Jlc3BvbnNlEi8KCXJldmlzaW9ucxgBIAMoCzIcLmRvY2t3ZWxsLnYxLlNlcnZpY2VSZXZpc2lvbhIXCg9uZXh0X3BhZ2VfdG9rZW4YAiABKAki+AIKD1NlcnZpY2VSZXZpc2lvbhIOCgZudW1iZXIYASABKAMSLwoLY3JlYXRlX3RpbWUYAiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEg0KBWltYWdlGAMgASgJEg8KB2RlbGV0ZWQYBCABKAgSIwoGY2hhbmdlGAUgASgLMhMuZG9ja3dlbGwudjEuQ2hhbmdlEikKB2NoYW5nZXMYBiADKAsyGC5kb2Nrd2VsbC52MS5GaWVsZENoYW5nZRIzCgtkZXBsb3ltZW50cxgHIAMoCzIeLmRvY2t3ZWxsLnYxLlNlcnZpY2VEZXBsb3ltZW50EhYKDm1hdGNoZXNfbGF0ZXN0GAggASgIEhYKDnJvbGxlZF9iYWNrX3RvGAkgASgDEhUKDXNlcnZlcnNfYWRkZWQYCiADKAkSFAoMc2VydmVyc19sZWZ0GAsgAygJEiIKBWJ1aWxkGIIBIAEoCzISLmRvY2t3ZWxsLnYxLkJ1aWxkImgKFERlcGxveVNlcnZpY2VSZXF1ZXN0EgoKAmlkGAEgASgJEg0KBWltYWdlGAIgASgJEg8KB3N1bW1hcnkYAyABKAkSDwoHcHJvamVjdBgEIAEoCRITCgtlbnZpcm9ubWVudBgFIAEoCSI8ChVEZXBsb3lTZXJ2aWNlUmVzcG9uc2USIwoGY2hhbmdlGAEgASgLMhMuZG9ja3dlbGwudjEuQ2hhbmdlIo8BChVVcGdyYWRlU2VydmljZVJlcXVlc3QSCgoCaWQYASABKAkSDQoFaW1hZ2UYAiABKAkSEwoLc2tpcF9iYWNrdXAYAyABKAgSDwoHc3VtbWFyeRgEIAEoCRIPCgdwcm9qZWN0GAUgASgJEhMKC2Vudmlyb25tZW50GAYgASgJEg8KB3JlYnVpbGQYWiABKAgiPQoWVXBncmFkZVNlcnZpY2VSZXNwb25zZRIjCgZjaGFuZ2UYASABKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2UibQoWUm9sbEJhY2tTZXJ2aWNlUmVxdWVzdBIKCgJpZBgBIAEoCRIQCghyZXZpc2lvbhgCIAEoAxIPCgdzdW1tYXJ5GAMgASgJEg8KB3Byb2plY3QYBCABKAkSEwoLZW52aXJvbm1lbnQYBSABKAkiPgoXUm9sbEJhY2tTZXJ2aWNlUmVzcG9uc2USIwoGY2hhbmdlGAEgASgLMhMuZG9ja3dlbGwudjEuQ2hhbmdlIs4BChVBZGRTZXJ2aWNlUG9ydFJlcXVlc3QSCgoCaWQYASABKAkSEQoJaG9zdF9wb3J0GAIgASgNEhYKDmNvbnRhaW5lcl9wb3J0GAMgASgNEjYKCHByb3RvY29sGAQgASgOMiQuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuUHJvdG9jb2wSDwoHaG9zdF9pcBgFIAEoCRIPCgdzdW1tYXJ5GAYgASgJEg8KB3Byb2plY3QYByABKAkSEwoLZW52aXJvbm1lbnQYCCABKAkiPQoWQWRkU2VydmljZVBvcnRSZXNwb25zZRIjCgZjaGFuZ2UYASABKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2UicQobQ2hhbmdlU2VydmljZVJ1bnRpbWVSZXF1ZXN0EgoKAmlkGAEgASgJEg8KB3ZlcnNpb24YAiABKAkSDwoHc3VtbWFyeRgDIAEoCRIPCgdwcm9qZWN0GAQgASgJEhMKC2Vudmlyb25tZW50GAUgASgJIkMKHENoYW5nZVNlcnZpY2VSdW50aW1lUmVzcG9uc2USIwoGY2hhbmdlGAEgASgLMhMuZG9ja3dlbGwudjEuQ2hhbmdlKqoBCg9EZXBsb3ltZW50U3RhdGUSIAocREVQTE9ZTUVOVF9TVEFURV9VTlNQRUNJRklFRBAAEhwKGERFUExPWU1FTlRfU1RBVEVfUEVORElORxABEhkKFURFUExPWU1FTlRfU1RBVEVfTElWRRACEhsKF0RFUExPWU1FTlRfU1RBVEVfRkFJTEVEEAMSHwobREVQTE9ZTUVOVF9TVEFURV9TVVBFUlNFREVEEAQy9wkKDlNlcnZpY2VTZXJ2aWNlEnwKDExpc3RTZXJ2aWNlcxIgLmRvY2t3ZWxsLnYxLkxpc3RTZXJ2aWNlc1JlcXVlc3QaIS5kb2Nrd2VsbC52MS5MaXN0U2VydmljZXNSZXNwb25zZSInkAIBoLsYAcC7GALIuxgC0LsYBILT5JMCDhIML3YxL3NlcnZpY2VzErIBChRMaXN0U2VydmljZVJldmlzaW9ucxIoLmRvY2t3ZWxsLnYxLkxpc3RTZXJ2aWNlUmV2aXNpb25zUmVxdWVzdBopLmRvY2t3ZWxsLnYxLkxpc3RTZXJ2aWNlUmV2aXNpb25zUmVzcG9uc2UiRZACAaC7GAGquxgLEglyZXZpc2lvbnPAuxgCyLsYAtC7GASC0+STAh0SGy92MS9zZXJ2aWNlcy97aWR9L3JldmlzaW9ucxKLAQoNRGVwbG95U2VydmljZRIhLmRvY2t3ZWxsLnYxLkRlcGxveVNlcnZpY2VSZXF1ZXN0GiIuZG9ja3dlbGwudjEuRGVwbG95U2VydmljZVJlc3BvbnNlIjOguxgCwLsYA8i7GAPQuxgEgtPkkwIdOgEqIhgvdjEvc2VydmljZXMve2lkfTpkZXBsb3kSkwEKD1JvbGxCYWNrU2VydmljZRIjLmRvY2t3ZWxsLnYxLlJvbGxCYWNrU2VydmljZVJlcXVlc3QaJC5kb2Nrd2VsbC52MS5Sb2xsQmFja1NlcnZpY2VSZXNwb25zZSI1oLsYAsC7GAPIuxgD0LsYBILT5JMCHzoBKiIaL3YxL3NlcnZpY2VzL3tpZH06cm9sbGJhY2sSnAEKDlVwZ3JhZGVTZXJ2aWNlEiIuZG9ja3dlbGwudjEuVXBncmFkZVNlcnZpY2VSZXF1ZXN0GiMuZG9ja3dlbGwudjEuVXBncmFkZVNlcnZpY2VSZXNwb25zZSJBoLsYAqq7GAkSB3VwZ3JhZGXAuxgDyLsYA9C7GASC0+STAh46ASoiGS92MS9zZXJ2aWNlcy97aWR9OnVwZ3JhZGUSmwEKDkFkZFNlcnZpY2VQb3J0EiIuZG9ja3dlbGwudjEuQWRkU2VydmljZVBvcnRSZXF1ZXN0GiMuZG9ja3dlbGwudjEuQWRkU2VydmljZVBvcnRSZXNwb25zZSJAoLsYAqq7GAoSCGFkZC1wb3J0wLsYA8i7GAPQuxgEgtPkkwIcOgEqIhcvdjEvc2VydmljZXMve2lkfS9wb3J0cxK8AQoUQ2hhbmdlU2VydmljZVJ1bnRpbWUSKC5kb2Nrd2VsbC52MS5DaGFuZ2VTZXJ2aWNlUnVudGltZVJlcXVlc3QaKS5kb2Nrd2VsbC52MS5DaGFuZ2VTZXJ2aWNlUnVudGltZVJlc3BvbnNlIk+guxgCqrsYEBIOY2hhbmdlLXJ1bnRpbWXAuxgDyLsYA9C7GASC0+STAiU6ASoiIC92MS9zZXJ2aWNlcy97aWR9OmNoYW5nZS1ydW50aW1lEpEBCgtPcGVuU2VydmljZRIfLmRvY2t3ZWxsLnYxLk9wZW5TZXJ2aWNlUmVxdWVzdBogLmRvY2t3ZWxsLnYxLk9wZW5TZXJ2aWNlUmVzcG9uc2UiP6C7GAGquxgGEgRvcGVusLsYAcC7GAPIuxgE0LsYBILT5JMCGzoBKiIWL3YxL3NlcnZpY2VzL3tpZH06b3BlbkKlAQoPY29tLmRvY2t3ZWxsLnYxQgxTZXJ2aWNlUHJvdG9QAVo3Z2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvdjE7ZG9ja3dlbGx2MaICA0RYWKoCC0RvY2t3ZWxsLlYxygILRG9ja3dlbGxcVjHiAhdEb2Nrd2VsbFxWMVxHUEJNZXRhZGF0YeoCDERvY2t3ZWxsOjpWMWIGcHJvdG8z", [file_dockwell_resource_v1alpha1_specs, file_dockwell_v1_build, file_dockwell_v1_change, file_dockwell_v1_options, file_dockwell_v1_service_update, file_google_api_annotations, file_google_protobuf_timestamp]);
+  fileDesc("Chlkb2Nrd2VsbC92MS9zZXJ2aWNlLnByb3RvEgtkb2Nrd2VsbC52MSJjChJPcGVuU2VydmljZVJlcXVlc3QSCgoCaWQYASABKAkSDAoEcG9ydBgCIAEoDRIPCgdwcm9qZWN0GAMgASgJEhMKC2Vudmlyb25tZW50GAQgASgJEg0KBXByb29mGAUgASgJImMKE09wZW5TZXJ2aWNlUmVzcG9uc2USCwoDdXJsGAEgASgJEi8KC2V4cGlyZV90aW1lGAIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIOCgZvcmlnaW4YAyABKAkiYgoTTGlzdFNlcnZpY2VzUmVxdWVzdBIPCgdwcm9qZWN0GAEgASgJEhMKC2Vudmlyb25tZW50GAIgASgJEhEKCXBhZ2Vfc2l6ZRgDIAEoBRISCgpwYWdlX3Rva2VuGAQgASgJIlsKFExpc3RTZXJ2aWNlc1Jlc3BvbnNlEioKCHNlcnZpY2VzGAEgAygLMhguZG9ja3dlbGwudjEuU2VydmljZUluZm8SFwoPbmV4dF9wYWdlX3Rva2VuGAIgASgJIsUDCgtTZXJ2aWNlSW5mbxIKCgJpZBgBIAEoCRIqCghyZXNvdXJjZRgCIAEoCzIYLmRvY2t3ZWxsLnYxLlJlc291cmNlUmVmEhAKCHJldmlzaW9uGAMgASgDEi8KC3VwZGF0ZV90aW1lGAQgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIxCgRzcGVjGAUgASgLMiMuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuU2VydmljZRIzCgtkZXBsb3ltZW50cxgGIAMoCzIeLmRvY2t3ZWxsLnYxLlNlcnZpY2VEZXBsb3ltZW50EhEKCWNoYW5nZV9pZBgHIAEoCRIdChVyb2xsZWRfYmFja19jaGFuZ2VfaWQYCCABKAkSLgoMY2hhbmdlX3N0YXRlGAkgASgOMhguZG9ja3dlbGwudjEuQ2hhbmdlU3RhdGUSFwoPc3BlY191bnJlYWRhYmxlGAogASgJEiwKC2hvc3RfYWNjZXNzGAsgAygLMhcuZG9ja3dlbGwudjEuSG9zdEFjY2VzcxIqCgZ1cGRhdGUYFCABKAsyGi5kb2Nrd2VsbC52MS5TZXJ2aWNlVXBkYXRlIrgBChFTZXJ2aWNlRGVwbG95bWVudBIRCglzZXJ2ZXJfaWQYASABKAkSEwoLc2VydmVyX25hbWUYAiABKAkSKwoFc3RhdGUYAyABKA4yHC5kb2Nrd2VsbC52MS5EZXBsb3ltZW50U3RhdGUSDQoFZXJyb3IYBCABKAkSLwoLdXBkYXRlX3RpbWUYBSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEg4KBmRpZ2VzdBgGIAEoCSJ2ChtMaXN0U2VydmljZVJldmlzaW9uc1JlcXVlc3QSCgoCaWQYASABKAkSEQoJcGFnZV9zaXplGAIgASgFEhIKCnBhZ2VfdG9rZW4YAyABKAkSDwoHcHJvamVjdBgEIAEoCRITCgtlbnZpcm9ubWVudBgFIAEoCSJoChxMaXN0U2VydmljZVJldmlzaW9uc1Jlc3BvbnNlEi8KCXJldmlzaW9ucxgBIAMoCzIcLmRvY2t3ZWxsLnYxLlNlcnZpY2VSZXZpc2lvbhIXCg9uZXh0X3BhZ2VfdG9rZW4YAiABKAki+AIKD1NlcnZpY2VSZXZpc2lvbhIOCgZudW1iZXIYASABKAMSLwoLY3JlYXRlX3RpbWUYAiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEg0KBWltYWdlGAMgASgJEg8KB2RlbGV0ZWQYBCABKAgSIwoGY2hhbmdlGAUgASgLMhMuZG9ja3dlbGwudjEuQ2hhbmdlEikKB2NoYW5nZXMYBiADKAsyGC5kb2Nrd2VsbC52MS5GaWVsZENoYW5nZRIzCgtkZXBsb3ltZW50cxgHIAMoCzIeLmRvY2t3ZWxsLnYxLlNlcnZpY2VEZXBsb3ltZW50EhYKDm1hdGNoZXNfbGF0ZXN0GAggASgIEhYKDnJvbGxlZF9iYWNrX3RvGAkgASgDEhUKDXNlcnZlcnNfYWRkZWQYCiADKAkSFAoMc2VydmVyc19sZWZ0GAsgAygJEiIKBWJ1aWxkGIIBIAEoCzISLmRvY2t3ZWxsLnYxLkJ1aWxkImgKFERlcGxveVNlcnZpY2VSZXF1ZXN0EgoKAmlkGAEgASgJEg0KBWltYWdlGAIgASgJEg8KB3N1bW1hcnkYAyABKAkSDwoHcHJvamVjdBgEIAEoCRITCgtlbnZpcm9ubWVudBgFIAEoCSI8ChVEZXBsb3lTZXJ2aWNlUmVzcG9uc2USIwoGY2hhbmdlGAEgASgLMhMuZG9ja3dlbGwudjEuQ2hhbmdlIqYBChJNb3ZlU2VydmljZVJlcXVlc3QSCgoCaWQYASABKAkSDwoHcHJvamVjdBgCIAEoCRITCgtlbnZpcm9ubWVudBgDIAEoCRISCgp0b19wcm9qZWN0GAQgASgJEhYKDnRvX2Vudmlyb25tZW50GAUgASgJEhMKC25ld19wcm9qZWN0GAYgASgJEgwKBGFsc28YByADKAkSDwoHc3VtbWFyeRgIIAEoCSKLAgoTTW92ZVNlcnZpY2VSZXNwb25zZRIjCgZjaGFuZ2UYASABKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2USJwoFbW92ZXMYAiADKAsyGC5kb2Nrd2VsbC52MS5SZXNvdXJjZVJlZhIoCgZjb3BpZXMYAyADKAsyGC5kb2Nrd2VsbC52MS5SZXNvdXJjZVJlZhIpCgdmb2xsb3dzGAQgAygLMhguZG9ja3dlbGwudjEuUmVzb3VyY2VSZWYSJgoGYmxvY2tzGAUgAygLMhYuZG9ja3dlbGwudjEuTW92ZUJsb2NrEikKB2Nyb3NzZXMYBiADKAsyGC5kb2Nrd2VsbC52MS5SZXNvdXJjZVJlZiJWCglNb3ZlQmxvY2sSKgoIcmVzb3VyY2UYASABKAsyGC5kb2Nrd2VsbC52MS5SZXNvdXJjZVJlZhILCgN3aHkYAiABKAkSEAoIbW92ZV90b28YAyABKAkijwEKFVVwZ3JhZGVTZXJ2aWNlUmVxdWVzdBIKCgJpZBgBIAEoCRINCgVpbWFnZRgCIAEoCRITCgtza2lwX2JhY2t1cBgDIAEoCBIPCgdzdW1tYXJ5GAQgASgJEg8KB3Byb2plY3QYBSABKAkSEwoLZW52aXJvbm1lbnQYBiABKAkSDwoHcmVidWlsZBhaIAEoCCI9ChZVcGdyYWRlU2VydmljZVJlc3BvbnNlEiMKBmNoYW5nZRgBIAEoCzITLmRvY2t3ZWxsLnYxLkNoYW5nZSJtChZSb2xsQmFja1NlcnZpY2VSZXF1ZXN0EgoKAmlkGAEgASgJEhAKCHJldmlzaW9uGAIgASgDEg8KB3N1bW1hcnkYAyABKAkSDwoHcHJvamVjdBgEIAEoCRITCgtlbnZpcm9ubWVudBgFIAEoCSI+ChdSb2xsQmFja1NlcnZpY2VSZXNwb25zZRIjCgZjaGFuZ2UYASABKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2UizgEKFUFkZFNlcnZpY2VQb3J0UmVxdWVzdBIKCgJpZBgBIAEoCRIRCglob3N0X3BvcnQYAiABKA0SFgoOY29udGFpbmVyX3BvcnQYAyABKA0SNgoIcHJvdG9jb2wYBCABKA4yJC5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5Qcm90b2NvbBIPCgdob3N0X2lwGAUgASgJEg8KB3N1bW1hcnkYBiABKAkSDwoHcHJvamVjdBgHIAEoCRITCgtlbnZpcm9ubWVudBgIIAEoCSI9ChZBZGRTZXJ2aWNlUG9ydFJlc3BvbnNlEiMKBmNoYW5nZRgBIAEoCzITLmRvY2t3ZWxsLnYxLkNoYW5nZSJxChtDaGFuZ2VTZXJ2aWNlUnVudGltZVJlcXVlc3QSCgoCaWQYASABKAkSDwoHdmVyc2lvbhgCIAEoCRIPCgdzdW1tYXJ5GAMgASgJEg8KB3Byb2plY3QYBCABKAkSEwoLZW52aXJvbm1lbnQYBSABKAkiQwocQ2hhbmdlU2VydmljZVJ1bnRpbWVSZXNwb25zZRIjCgZjaGFuZ2UYASABKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2UqqgEKD0RlcGxveW1lbnRTdGF0ZRIgChxERVBMT1lNRU5UX1NUQVRFX1VOU1BFQ0lGSUVEEAASHAoYREVQTE9ZTUVOVF9TVEFURV9QRU5ESU5HEAESGQoVREVQTE9ZTUVOVF9TVEFURV9MSVZFEAISGwoXREVQTE9ZTUVOVF9TVEFURV9GQUlMRUQQAxIfChtERVBMT1lNRU5UX1NUQVRFX1NVUEVSU0VERUQQBDKHCwoOU2VydmljZVNlcnZpY2USfAoMTGlzdFNlcnZpY2VzEiAuZG9ja3dlbGwudjEuTGlzdFNlcnZpY2VzUmVxdWVzdBohLmRvY2t3ZWxsLnYxLkxpc3RTZXJ2aWNlc1Jlc3BvbnNlIieQAgGguxgBwLsYAsi7GALQuxgEgtPkkwIOEgwvdjEvc2VydmljZXMSsgEKFExpc3RTZXJ2aWNlUmV2aXNpb25zEiguZG9ja3dlbGwudjEuTGlzdFNlcnZpY2VSZXZpc2lvbnNSZXF1ZXN0GikuZG9ja3dlbGwudjEuTGlzdFNlcnZpY2VSZXZpc2lvbnNSZXNwb25zZSJFkAIBoLsYAaq7GAsSCXJldmlzaW9uc8C7GALIuxgC0LsYBILT5JMCHRIbL3YxL3NlcnZpY2VzL3tpZH0vcmV2aXNpb25zEosBCg1EZXBsb3lTZXJ2aWNlEiEuZG9ja3dlbGwudjEuRGVwbG95U2VydmljZVJlcXVlc3QaIi5kb2Nrd2VsbC52MS5EZXBsb3lTZXJ2aWNlUmVzcG9uc2UiM6C7GALAuxgDyLsYA9C7GASC0+STAh06ASoiGC92MS9zZXJ2aWNlcy97aWR9OmRlcGxveRKTAQoPUm9sbEJhY2tTZXJ2aWNlEiMuZG9ja3dlbGwudjEuUm9sbEJhY2tTZXJ2aWNlUmVxdWVzdBokLmRvY2t3ZWxsLnYxLlJvbGxCYWNrU2VydmljZVJlc3BvbnNlIjWguxgCwLsYA8i7GAPQuxgEgtPkkwIfOgEqIhovdjEvc2VydmljZXMve2lkfTpyb2xsYmFjaxKcAQoOVXBncmFkZVNlcnZpY2USIi5kb2Nrd2VsbC52MS5VcGdyYWRlU2VydmljZVJlcXVlc3QaIy5kb2Nrd2VsbC52MS5VcGdyYWRlU2VydmljZVJlc3BvbnNlIkGguxgCqrsYCRIHdXBncmFkZcC7GAPIuxgD0LsYBILT5JMCHjoBKiIZL3YxL3NlcnZpY2VzL3tpZH06dXBncmFkZRKbAQoOQWRkU2VydmljZVBvcnQSIi5kb2Nrd2VsbC52MS5BZGRTZXJ2aWNlUG9ydFJlcXVlc3QaIy5kb2Nrd2VsbC52MS5BZGRTZXJ2aWNlUG9ydFJlc3BvbnNlIkCguxgCqrsYChIIYWRkLXBvcnTAuxgDyLsYA9C7GASC0+STAhw6ASoiFy92MS9zZXJ2aWNlcy97aWR9L3BvcnRzErwBChRDaGFuZ2VTZXJ2aWNlUnVudGltZRIoLmRvY2t3ZWxsLnYxLkNoYW5nZVNlcnZpY2VSdW50aW1lUmVxdWVzdBopLmRvY2t3ZWxsLnYxLkNoYW5nZVNlcnZpY2VSdW50aW1lUmVzcG9uc2UiT6C7GAKquxgQEg5jaGFuZ2UtcnVudGltZcC7GAPIuxgD0LsYBILT5JMCJToBKiIgL3YxL3NlcnZpY2VzL3tpZH06Y2hhbmdlLXJ1bnRpbWUSjQEKC01vdmVTZXJ2aWNlEh8uZG9ja3dlbGwudjEuTW92ZVNlcnZpY2VSZXF1ZXN0GiAuZG9ja3dlbGwudjEuTW92ZVNlcnZpY2VSZXNwb25zZSI7oLsYAqq7GAYSBG1vdmXAuxgDyLsYA9C7GASC0+STAhs6ASoiFi92MS9zZXJ2aWNlcy97aWR9Om1vdmUSkQEKC09wZW5TZXJ2aWNlEh8uZG9ja3dlbGwudjEuT3BlblNlcnZpY2VSZXF1ZXN0GiAuZG9ja3dlbGwudjEuT3BlblNlcnZpY2VSZXNwb25zZSI/oLsYAaq7GAYSBG9wZW6wuxgBwLsYA8i7GATQuxgEgtPkkwIbOgEqIhYvdjEvc2VydmljZXMve2lkfTpvcGVuQqUBCg9jb20uZG9ja3dlbGwudjFCDFNlcnZpY2VQcm90b1ABWjdnaXRodWIuY29tL2RvY2t3ZWxsL2RvY2t3ZWxsL2dlbi9kb2Nrd2VsbC92MTtkb2Nrd2VsbHYxogIDRFhYqgILRG9ja3dlbGwuVjHKAgtEb2Nrd2VsbFxWMeICF0RvY2t3ZWxsXFYxXEdQQk1ldGFkYXRh6gIMRG9ja3dlbGw6OlYxYgZwcm90bzM", [file_dockwell_resource_v1alpha1_specs, file_dockwell_v1_build, file_dockwell_v1_change, file_dockwell_v1_options, file_dockwell_v1_service_update, file_google_api_annotations, file_google_protobuf_timestamp]);
 
 /**
  * OpenServiceRequest names a service and the port of its web UI.
@@ -627,6 +627,172 @@ export const DeployServiceResponseSchema: GenMessage<DeployServiceResponse> = /*
   messageDesc(file_dockwell_v1_service, 10);
 
 /**
+ * MoveServiceRequest names a service, and where it goes.
+ *
+ * @generated from message dockwell.v1.MoveServiceRequest
+ */
+export type MoveServiceRequest = Message<"dockwell.v1.MoveServiceRequest"> & {
+  /**
+   * The service, by ID or by name.
+   *
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * The project of a service named by name, by name or ID, when more than one
+   * has a service of that name.
+   *
+   * @generated from field: string project = 2;
+   */
+  project: string;
+
+  /**
+   * The environment of a service named by name, by name or ID, when its
+   * project has more than one.
+   *
+   * @generated from field: string environment = 3;
+   */
+  environment: string;
+
+  /**
+   * Where it goes: a project, by name or ID, and its environment, by name or
+   * ID, where it has more than one.
+   *
+   * @generated from field: string to_project = 4;
+   */
+  toProject: string;
+
+  /**
+   * @generated from field: string to_environment = 5;
+   */
+  toEnvironment: string;
+
+  /**
+   * A project the plan makes for it, with its one environment, in place of
+   * to_project, such as the app's own name. Making a project is an admin's.
+   *
+   * @generated from field: string new_project = 6;
+   */
+  newProject: string;
+
+  /**
+   * More services of its environment that move with it, by name, as a block's
+   * move_too names them.
+   *
+   * @generated from field: repeated string also = 7;
+   */
+  also: string[];
+
+  /**
+   * What the change is for, for the timeline. Empty says what moves where.
+   *
+   * @generated from field: string summary = 8;
+   */
+  summary: string;
+};
+
+/**
+ * Describes the message dockwell.v1.MoveServiceRequest.
+ * Use `create(MoveServiceRequestSchema)` to create a new message.
+ */
+export const MoveServiceRequestSchema: GenMessage<MoveServiceRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_service, 11);
+
+/**
+ * MoveServiceResponse is the planned move, or what holds it back.
+ *
+ * @generated from message dockwell.v1.MoveServiceResponse
+ */
+export type MoveServiceResponse = Message<"dockwell.v1.MoveServiceResponse"> & {
+  /**
+   * The change, planned, with its plan. Unset while anything holds it back.
+   *
+   * @generated from field: dockwell.v1.Change change = 1;
+   */
+  change?: Change | undefined;
+
+  /**
+   * What goes, as it's named where it is now.
+   *
+   * @generated from field: repeated dockwell.v1.ResourceRef moves = 2;
+   */
+  moves: ResourceRef[];
+
+  /**
+   * Values what stays reads too, which stay, and which the app gets a copy of.
+   *
+   * @generated from field: repeated dockwell.v1.ResourceRef copies = 3;
+   */
+  copies: ResourceRef[];
+
+  /**
+   * What in other projects points at what moves, and follows it.
+   *
+   * @generated from field: repeated dockwell.v1.ResourceRef follows = 4;
+   */
+  follows: ResourceRef[];
+
+  /**
+   * What holds the move back. With any, nothing is planned.
+   *
+   * @generated from field: repeated dockwell.v1.MoveBlock blocks = 5;
+   */
+  blocks: MoveBlock[];
+
+  /**
+   * Links of the app's own environment to a database server that stays, which the
+   * move points across: the app reaches it where it is, on a link network of its
+   * own, as the user it had there.
+   *
+   * @generated from field: repeated dockwell.v1.ResourceRef crosses = 6;
+   */
+  crosses: ResourceRef[];
+};
+
+/**
+ * Describes the message dockwell.v1.MoveServiceResponse.
+ * Use `create(MoveServiceResponseSchema)` to create a new message.
+ */
+export const MoveServiceResponseSchema: GenMessage<MoveServiceResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_service, 12);
+
+/**
+ * MoveBlock is something that holds a move back.
+ *
+ * @generated from message dockwell.v1.MoveBlock
+ */
+export type MoveBlock = Message<"dockwell.v1.MoveBlock"> & {
+  /**
+   * What's in the way.
+   *
+   * @generated from field: dockwell.v1.ResourceRef resource = 1;
+   */
+  resource?: ResourceRef | undefined;
+
+  /**
+   * Why, in words for people: the fact, then what to do.
+   *
+   * @generated from field: string why = 2;
+   */
+  why: string;
+
+  /**
+   * A service of the app's environment that moving too clears it, or empty.
+   *
+   * @generated from field: string move_too = 3;
+   */
+  moveToo: string;
+};
+
+/**
+ * Describes the message dockwell.v1.MoveBlock.
+ * Use `create(MoveBlockSchema)` to create a new message.
+ */
+export const MoveBlockSchema: GenMessage<MoveBlock> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_service, 13);
+
+/**
  * UpgradeServiceRequest names a service, and what to update it to.
  *
  * @generated from message dockwell.v1.UpgradeServiceRequest
@@ -695,7 +861,7 @@ export type UpgradeServiceRequest = Message<"dockwell.v1.UpgradeServiceRequest">
  * Use `create(UpgradeServiceRequestSchema)` to create a new message.
  */
 export const UpgradeServiceRequestSchema: GenMessage<UpgradeServiceRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_service, 11);
+  messageDesc(file_dockwell_v1_service, 14);
 
 /**
  * UpgradeServiceResponse carries the planned update.
@@ -717,7 +883,7 @@ export type UpgradeServiceResponse = Message<"dockwell.v1.UpgradeServiceResponse
  * Use `create(UpgradeServiceResponseSchema)` to create a new message.
  */
 export const UpgradeServiceResponseSchema: GenMessage<UpgradeServiceResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_service, 12);
+  messageDesc(file_dockwell_v1_service, 15);
 
 /**
  * RollBackServiceRequest names a service and the revision to go back to.
@@ -769,7 +935,7 @@ export type RollBackServiceRequest = Message<"dockwell.v1.RollBackServiceRequest
  * Use `create(RollBackServiceRequestSchema)` to create a new message.
  */
 export const RollBackServiceRequestSchema: GenMessage<RollBackServiceRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_service, 13);
+  messageDesc(file_dockwell_v1_service, 16);
 
 /**
  * RollBackServiceResponse carries the planned rollback.
@@ -790,7 +956,7 @@ export type RollBackServiceResponse = Message<"dockwell.v1.RollBackServiceRespon
  * Use `create(RollBackServiceResponseSchema)` to create a new message.
  */
 export const RollBackServiceResponseSchema: GenMessage<RollBackServiceResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_service, 14);
+  messageDesc(file_dockwell_v1_service, 17);
 
 /**
  * AddServicePortRequest names a service and the port to publish.
@@ -863,7 +1029,7 @@ export type AddServicePortRequest = Message<"dockwell.v1.AddServicePortRequest">
  * Use `create(AddServicePortRequestSchema)` to create a new message.
  */
 export const AddServicePortRequestSchema: GenMessage<AddServicePortRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_service, 15);
+  messageDesc(file_dockwell_v1_service, 18);
 
 /**
  * AddServicePortResponse carries the planned change.
@@ -884,7 +1050,7 @@ export type AddServicePortResponse = Message<"dockwell.v1.AddServicePortResponse
  * Use `create(AddServicePortResponseSchema)` to create a new message.
  */
 export const AddServicePortResponseSchema: GenMessage<AddServicePortResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_service, 16);
+  messageDesc(file_dockwell_v1_service, 19);
 
 /**
  * ChangeServiceRuntimeRequest names an app from a folder and the version to run
@@ -937,7 +1103,7 @@ export type ChangeServiceRuntimeRequest = Message<"dockwell.v1.ChangeServiceRunt
  * Use `create(ChangeServiceRuntimeRequestSchema)` to create a new message.
  */
 export const ChangeServiceRuntimeRequestSchema: GenMessage<ChangeServiceRuntimeRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_service, 17);
+  messageDesc(file_dockwell_v1_service, 20);
 
 /**
  * ChangeServiceRuntimeResponse carries the planned change.
@@ -958,7 +1124,7 @@ export type ChangeServiceRuntimeResponse = Message<"dockwell.v1.ChangeServiceRun
  * Use `create(ChangeServiceRuntimeResponseSchema)` to create a new message.
  */
 export const ChangeServiceRuntimeResponseSchema: GenMessage<ChangeServiceRuntimeResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_service, 18);
+  messageDesc(file_dockwell_v1_service, 21);
 
 /**
  * DeploymentState is where one revision is on one server.
@@ -1120,6 +1286,25 @@ export const ServiceService: GenService<{
     methodKind: "unary";
     input: typeof ChangeServiceRuntimeRequestSchema;
     output: typeof ChangeServiceRuntimeResponseSchema;
+  },
+  /**
+   * MoveService plans moving an app to another project or environment on the same
+   * servers, with what only it uses, in one plan with undo: each is deleted where it
+   * was and made where it goes, its volumes taking their data, in place where the
+   * server lets the agent rename it and copied otherwise. A value it shares with
+   * what stays is copied, which the response says. What would part it from what
+   * stays, a volume or a network another service uses, or a service it reads or
+   * that reads it, holds it back: the response lists each, with the service to move
+   * too, and plans nothing. A link or a network's member in another project that
+   * meets what moves follows it in the same plan. It needs a role in both places.
+   * See docs/adr/0084-what-an-app-needs-met-by-a-new-service-one-you-run-or-a-connection.md.
+   *
+   * @generated from rpc dockwell.v1.ServiceService.MoveService
+   */
+  moveService: {
+    methodKind: "unary";
+    input: typeof MoveServiceRequestSchema;
+    output: typeof MoveServiceResponseSchema;
   },
   /**
    * OpenService gives the person who asks a one-time address that opens the web

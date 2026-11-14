@@ -44,6 +44,7 @@ import {
   type IconName,
   PHONE_QUERY,
   PlanDiff,
+  SelectField,
   Sheet,
   SheetSwap,
   SheetView,
@@ -160,6 +161,26 @@ interface Then {
    * app (ADR 0074). Flipping it plans the other opening in this one's place, and lets go of this plan.
    */
   choice?: PlanChoice;
+  /**
+   * A name to type before Apply, in place of the plan's fingerprint, where what goes is
+   * worth naming: the project a deletion takes from other projects' apps (ADR 0084).
+   */
+  confirmName?: string;
+  /**
+   * A pick among plans, as a picker above it, such as where a deleted project's shared
+   * servers go (ADR 0084). Picking plans the other opening in this one's place.
+   */
+  pick?: PlanPick;
+}
+
+/** A picker above a plan, between it and others, which `pick` opens. */
+export interface PlanPick {
+  label: string;
+  value: string;
+  options: readonly { value: string; label: string }[];
+  pick: (value: string) => Opening;
+  /** Says the plan has no use for it, so the picker goes. */
+  moot?: (plan: Plan | undefined) => boolean;
 }
 
 /** A switch above a plan, between it and another plan, which `flip` opens. */
@@ -565,8 +586,8 @@ function ChangeSheet({
 
   const plan = change?.plan;
   const phase = phaseOf(opening, change, failure, witnessed);
-  const confirming = phase === "review" && needsConfirming(plan);
-  const confirmWith = confirming ? shortFingerprint(plan) : "";
+  const confirming = phase === "review" && (needsConfirming(plan) || Boolean(opening.confirmName));
+  const confirmWith = confirming ? opening.confirmName || shortFingerprint(plan) : "";
   const confirmed = confirmWith === "" || typed.trim().toLowerCase() === confirmWith.toLowerCase();
   // A server the plan found away may be back by now; the fleet says, and its word is the latest.
   const offline = (plan?.servers ?? [])
@@ -923,6 +944,21 @@ function ChangeSheet({
       !opening.choice.moot?.(plan) &&
       (phase === "planning" || phase === "review" || phase === "unplanned") ? (
         <PlanChoiceSwitch choice={opening.choice} onFlip={() => open(opening.choice?.flip() ?? opening)} />
+      ) : null}
+      {opening.pick &&
+      !opening.pick.moot?.(plan) &&
+      (phase === "planning" || phase === "review" || phase === "unplanned") ? (
+        <div className="plan-choice">
+          <SelectField
+            label={opening.pick.label}
+            value={opening.pick.value}
+            options={opening.pick.options.map((o) => ({ value: o.value, label: o.label }))}
+            onChange={(event) => {
+              const pick = opening.pick;
+              if (pick && event.target.value !== pick.value) open(pick.pick(event.target.value));
+            }}
+          />
+        </div>
       ) : null}
       <PlanBody
         key={phase === "planning" ? phase : "plan"}
