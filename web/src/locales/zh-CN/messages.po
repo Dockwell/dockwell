@@ -16561,6 +16561,12 @@ msgstr "{name} 不是密钥：显示它"
 msgid "{onlyName} runs with nothing of its own or shared"
 msgstr "{onlyName} 没有自己的值，也没有使用共享的值"
 
+msgid "{onlyName} sets no value of its own"
+msgstr "{onlyName} 没有设置自己的值"
+
+msgid "{onlyName} uses nothing shared"
+msgstr "{onlyName} 没有使用共享的值"
+
 msgid "Delete the volume {name}"
 msgstr "删除卷 {name}"
 

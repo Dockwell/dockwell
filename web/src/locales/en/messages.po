@@ -16561,6 +16561,12 @@ msgstr "{name} is no secret: show it"
 msgid "{onlyName} runs with nothing of its own or shared"
 msgstr "{onlyName} runs with nothing of its own or shared"
 
+msgid "{onlyName} sets no value of its own"
+msgstr "{onlyName} sets no value of its own"
+
+msgid "{onlyName} uses nothing shared"
+msgstr "{onlyName} uses nothing shared"
+
 msgid "Delete the volume {name}"
 msgstr "Delete the volume {name}"
 

@@ -251,11 +251,16 @@ export function VariablesPage({ environment, query, app, from, onEnvironment }: 
   const only = here.find((s) => s.id === app);
   const onlyName = only ? nameOf(only) : "";
   const q = (query ?? "").trim().toLowerCase();
-  // By name and app first, so each source's number says what choosing it would list.
+  // By name and app first, so each source's number says what choosing it would list. Where the
+  // environment has no values at all, the source is no filter: its control is hidden, and the page
+  // offers the first value (#620's review, L2).
+  const source = rows.length > 0 ? from : undefined;
   const named = rows.filter((r) => (!q || r.name.toLowerCase().includes(q)) && (!only || usedByApp(r, only.id)));
   const sharedRows = named.filter((r) => "shared" in r).length;
-  const shown = named.filter((r) => !from || (from === "shared") === "shared" in r);
-  // What the rows listed are: a secret is shared, and an app's own value is a variable (#618).
+  const shown = named.filter((r) => !source || (source === "shared") === "shared" in r);
+  // What the rows listed are: a secret is shared, and an app's own value is a variable, even one
+  // that reads hidden as it may hold a secret, as it's a value of the app's own environment and no
+  // secret of the environment's (ADR 0081); so a hidden row can sit under "0 secrets" (#618).
   const secrets = shown.filter((r) => "shared" in r && r.shared.secret).length;
   const counts = [
     plural(shown.length - secrets, { one: "# variable", other: "# variables" }),
@@ -321,7 +326,7 @@ export function VariablesPage({ environment, query, app, from, onEnvironment }: 
               <SegmentedControl<"all" | Source>
                 label={t`Where values come from`}
                 size="sm"
-                value={from ?? "all"}
+                value={source ?? "all"}
                 options={[
                   {
                     value: "all",
@@ -399,17 +404,30 @@ export function VariablesPage({ environment, query, app, from, onEnvironment }: 
             <p className="variables-note" aria-busy="true">
               <Trans>Loading variables and secrets</Trans>
             </p>
-          ) : (q || only || from) && shown.length === 0 && chosen ? (
+          ) : source && named.length > 0 && shown.length === 0 && chosen ? (
+            // Only the source emptied the list: say so, and show the rest (#620's review, M1).
             <EmptyState
               icon="search"
               title={
-                q
-                  ? t`Nothing in ${envName} is named like that`
+                source === "shared"
+                  ? only
+                    ? t`${onlyName} uses nothing shared`
+                    : t`Nothing in ${envName} is shared`
                   : only
-                    ? t`${onlyName} runs with nothing of its own or shared`
-                    : from === "shared"
-                      ? t`Nothing in ${envName} is shared`
-                      : t`No app in ${envName} sets a value of its own`
+                    ? t`${onlyName} sets no value of its own`
+                    : t`No app in ${envName} sets a value of its own`
+              }
+              action={
+                <Button onClick={() => filter({ from: undefined })}>
+                  <Trans>Show all</Trans>
+                </Button>
+              }
+            />
+          ) : (q || only) && shown.length === 0 && chosen ? (
+            <EmptyState
+              icon="search"
+              title={
+                q ? t`Nothing in ${envName} is named like that` : t`${onlyName} runs with nothing of its own or shared`
               }
               action={
                 <Button onClick={() => onEnvironment(chosen.id)}>

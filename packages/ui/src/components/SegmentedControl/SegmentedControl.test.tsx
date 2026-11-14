@@ -22,7 +22,10 @@ describe("SegmentedControl", () => {
     expect(screen.getByRole("radiogroup", { name: "Environment" })).toBeVisible();
     expect(radio("Production")).toHaveAttribute("aria-checked", "true");
     expect(radio("Production")).toHaveClass("is-on");
-    expect(radio("Production")).toHaveTextContent("Production14");
+    // The count is heard after a pause, "Production, 14", not run into the label (#620's review, L4).
+    expect(radio("Production")).toHaveTextContent("Production, 14");
+    expect(radio("Production")).toHaveAccessibleName(/^Production, ?14$/);
+    expect(radio("Production").querySelector(".dw-sr")).toHaveTextContent(",");
     expect(radio("Staging")).toHaveAttribute("aria-checked", "false");
     await expectAccessible(container);
   });

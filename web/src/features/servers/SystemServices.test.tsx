@@ -115,7 +115,7 @@ describe("SystemServicesPage", () => {
     system.push(listOf(SystemInit.SYSTEMD, services));
     await screen.findByRole("table", { name: "System services on hz-1" });
     const show = screen.getByRole("radiogroup", { name: "Show" });
-    expect(show).toHaveTextContent("All4Failed1Running2");
+    expect(show).toHaveTextContent("All, 4Failed, 1Running, 2");
     await user.click(within(show).getByRole("radio", { name: /Failed/ }));
     expect(rows().map((r) => r.textContent?.split(".service")[0])).toEqual(["nginx"]);
     await user.click(within(show).getByRole("radio", { name: /Running/ }));
