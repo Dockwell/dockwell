@@ -112,8 +112,11 @@
   background: var(--surface-sunken);
 }
 
+/* In the well, on its surface, as on a wide screen, rather than a card of its own across a phone's well. */
 .terminal-body > .empty-state {
   margin: auto;
+  border: 0;
+  background: transparent;
 }
 
 /* Content-box, as xterm's fit measures the height it's given, and the padding is the well's. */

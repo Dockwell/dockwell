@@ -2,7 +2,7 @@
 
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
-import { Code } from "@connectrpc/connect";
+import { Code, ConnectError } from "@connectrpc/connect";
 import {
   Role,
   SystemInit,
@@ -176,6 +176,35 @@ describe("SystemServicesPage", () => {
     expect(screen.getByRole("link", { name: "Update its agent" })).toHaveAttribute("href", "/servers/srv_1/updates");
     await new Promise((resolve) => setTimeout(resolve, 1_200));
     expect(asked).toBe(1);
+  });
+
+  it("says why it can't list them as an alert, with no filter over nothing to filter", async () => {
+    await renderServices({
+      servers: {
+        // biome-ignore lint/correctness/useYield: it fails before it would send
+        watchSystemServices: async function* () {
+          throw new ConnectError(
+            "hz-1 can't list its system services now: systemctl isn't on its PATH. Install systemd's tools, then look again",
+            Code.Unavailable,
+          );
+        },
+      },
+    });
+    const alert = await screen.findByText(/hz-1 can't list its system services now/);
+    expect(alert.closest(".dw-callout")).not.toBeNull();
+    expect(screen.queryByRole("textbox", { name: "Filter system services" })).toBeNull();
+    expect(screen.queryByRole("radiogroup", { name: "Show" })).toBeNull();
+  });
+
+  it("takes focus to the section's heading when the filter it was in goes with a failed read", async () => {
+    const user = userEvent.setup();
+    const { system } = await renderServices();
+    const filter = await screen.findByRole("textbox", { name: "Filter system services" });
+    await user.click(filter);
+    system.fail(new ConnectError("hz-1 can't list its system services now: its agent went away", Code.Unavailable));
+    await screen.findByText(/its agent went away/);
+    expect(screen.queryByRole("textbox", { name: "Filter system services" })).toBeNull();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "System services", level: 2 })).toHaveFocus());
   });
 
   it("says nothing has failed when nothing has, and what nothing matches", async () => {

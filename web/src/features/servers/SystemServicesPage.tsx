@@ -26,7 +26,7 @@ import {
   useMediaQuery,
 } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { useDeferredValue, useMemo, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 
 import { sentence } from "../../lib/errors";
 import { formatBytes } from "../../lib/format";
@@ -91,7 +91,8 @@ function SystemServices({ server }: { server: Server }) {
       server={server}
     >{t`It's older than the control plane, so it can't list system services.`}</AgentOutdated>
   ) : (
-    <p className="procs-note">{sentence(error)}</p>
+    // What the server said, which says why and what to do, as an alert does rather than a line of small print.
+    <Callout tone="warning">{sentence(error)}</Callout>
   );
   // What shows when no row does: nothing typed in Failed is a server with nothing failed.
   const none =
@@ -100,6 +101,40 @@ function SystemServices({ server }: { server: Server }) {
       : filter.trim() === ""
         ? t`${server.name} lists no system services here.`
         : t`No system service matches.`;
+
+  // The views and the filter, wherever there's a list to narrow, or one on its way, so it doesn't move in.
+  const filterable = connected && (list ? list.init !== SystemInit.OTHER : !error);
+  // Where they go while someone's in them, as when a read fails, focus goes to the section's heading rather
+  // than to the page's start; anywhere else, it stays where it is.
+  const heading = useRef<HTMLHeadingElement>(null);
+  const lastInBar = useRef<HTMLElement | null>(null);
+  const bar = useRef<HTMLDivElement>(null);
+  // What in the bar has focus, and its going on to something else on the page, which is none of the bar's.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the bar mounts and unmounts with filterable, and each one listens anew
+  useEffect(() => {
+    const el = bar.current;
+    if (!el) return;
+    const into = (event: FocusEvent) => {
+      lastInBar.current = event.target as HTMLElement;
+    };
+    const away = (event: FocusEvent) => {
+      const next = event.relatedTarget as Node | null;
+      if (next && !el.contains(next)) lastInBar.current = null;
+    };
+    el.addEventListener("focusin", into);
+    el.addEventListener("focusout", away);
+    return () => {
+      el.removeEventListener("focusin", into);
+      el.removeEventListener("focusout", away);
+    };
+  }, [filterable]);
+  useEffect(() => {
+    const was = lastInBar.current;
+    if (filterable || !was) return;
+    lastInBar.current = null;
+    const lost = document.activeElement === null || document.activeElement === document.body;
+    if (!was.isConnected && lost) heading.current?.focus();
+  }, [filterable]);
 
   let body: React.ReactNode;
   if (!connected) {
@@ -134,32 +169,34 @@ function SystemServices({ server }: { server: Server }) {
 
   return (
     <section className="sys" aria-labelledby="sys-title">
-      <h2 className="dw-sr" id="sys-title">
+      <h2 className="dw-sr" id="sys-title" ref={heading} tabIndex={-1}>
         {t`System services`}
       </h2>
-      <div className="procs-bar">
-        <SegmentedControl options={views} value={view} onChange={setView} label={t`Show`} size="sm" />
-        <span className="procs-spacer" />
-        {connected && list && !error ? (
-          <span className="procs-live">
-            <span className="dw-live">
-              <span className="dw-live-dot" />
-              <Trans>Live</Trans>
+      {filterable ? (
+        <div className="procs-bar" ref={bar}>
+          <SegmentedControl options={views} value={view} onChange={setView} label={t`Show`} size="sm" />
+          <span className="procs-spacer" />
+          {connected && list && !error ? (
+            <span className="procs-live">
+              <span className="dw-live">
+                <span className="dw-live-dot" />
+                <Trans>Live</Trans>
+              </span>
+              <Trans>every 10 s</Trans>
             </span>
-            <Trans>every 10 s</Trans>
-          </span>
-        ) : null}
-        <div className="procs-filter">
-          <TextField
-            size="sm"
-            icon="search"
-            placeholder={t`Filter by name or description`}
-            aria-label={t`Filter system services`}
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-          />
+          ) : null}
+          <div className="procs-filter">
+            <TextField
+              size="sm"
+              icon="search"
+              placeholder={t`Filter by name or description`}
+              aria-label={t`Filter system services`}
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
+          </div>
         </div>
-      </div>
+      ) : null}
       {list ? failure : null}
       {body}
       {opened && list ? (
