@@ -2059,6 +2059,7 @@
   -webkit-line-clamp: 2;
   line-clamp: 2;
   overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .deploy-who-via {
