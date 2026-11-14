@@ -18,6 +18,8 @@
 .dw-callout-body {
   flex: 1;
   min-width: 0;
+  /* A long path or URL in what a server said wraps rather than widen the page; words still break at their ends first. */
+  overflow-wrap: anywhere;
 }
 .dw-callout-title {
   font-weight: 600;

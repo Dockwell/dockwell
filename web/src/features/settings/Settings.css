@@ -1250,6 +1250,9 @@
 
 .integrations-sections .integrations-grid {
   grid-template-columns: repeat(var(--cards, 1), minmax(0, 1fr));
+  /* Sections in a row are as tall as each other, so their cards line up at the foot, as a head that wraps
+     to two lines in a narrower section would otherwise push its cards below the others. */
+  margin-top: auto;
 }
 
 /* On a phone, a card to a row. */
