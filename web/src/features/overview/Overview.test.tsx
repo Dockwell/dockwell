@@ -607,6 +607,11 @@ describe("what the overview shows below the numbers", () => {
     const backups = screen.getByRole("region", { name: "Backups" });
     expect(await within(backups).findByRole("heading", { name: "Nothing to back up yet" })).toBeVisible();
     expect(within(backups).getByText("No app keeps data.")).toBeVisible();
+    expect(within(backups).getByRole("link", { name: "Install a database" })).toHaveAttribute(
+      "href",
+      "/catalog?category=databases",
+    );
+    expect(within(backups).getByRole("link", { name: "New app" })).toHaveAttribute("href", "/apps/new");
     await expectAccessible(container);
   });
 
