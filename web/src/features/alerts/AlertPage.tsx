@@ -14,7 +14,7 @@ import {
   EventService,
   AlertRule_Severity as Severity,
 } from "@dockwell/api";
-import { Callout, Icon, Panel, StatusBadge } from "@dockwell/ui";
+import { Callout, Icon, Panel, PHONE_QUERY, StatusBadge, useMediaQuery } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useQuery as useAnyQuery } from "@tanstack/react-query";
@@ -176,6 +176,8 @@ function Lead({ alert }: { alert: Alert }) {
 
 function Body({ alert }: { alert: Alert }) {
   const { t, i18n } = useLingui();
+  // A phone's head has no room for actions, so taking it sits under who has it, as M-Incident has it.
+  const phone = useMediaQuery(PHONE_QUERY);
   const words = useTimeWords();
   const actorWords = useActorWords();
   const now = useControlPlaneNow(30_000);
@@ -252,6 +254,11 @@ function Body({ alert }: { alert: Alert }) {
               </div>
             ))}
           </dl>
+          {phone ? (
+            <div className="alert-phone-acknowledge">
+              <AlertAcknowledge alert={alert} />
+            </div>
+          ) : null}
         </Panel>
 
         {around.error ? (

@@ -365,6 +365,8 @@ function MemoryTrend({ alert, server }: { alert: Alert; server: Server | undefin
 export function ResolvedAlerts({ alerts }: { alerts: readonly Alert[] }) {
   const { i18n } = useLingui();
   const words = useTimeWords();
+  // The list's own clock, so a row resolved before midnight turns to its day as the day turns.
+  const now = useControlPlaneNow(60_000);
   if (alerts.length === 0) return null;
   const rows = [...alerts].sort((a, b) => (ms(b.resolveTime) ?? 0) - (ms(a.resolveTime) ?? 0)).slice(0, 20);
   return (
@@ -392,7 +394,7 @@ export function ResolvedAlerts({ alerts }: { alerts: readonly Alert[] }) {
               <Link to="/alerts/$alertId" params={{ alertId: alert.id }} className="alerts-resolved-title">
                 {alertTitle(alert, i18n)}
               </Link>
-              <ResolvedAt time={alert.resolveTime} />
+              <ResolvedAt time={alert.resolveTime} now={now} />
               <span className="alerts-resolved-meta">{[lasted, alert.ruleName].filter(Boolean).join(" · ")}</span>
             </li>
           );
@@ -406,11 +408,11 @@ export function ResolvedAlerts({ alerts }: { alerts: readonly Alert[] }) {
  * When an alert resolved, as Alerts' list has it: the time for today, the day before that, so it takes a
  * narrow column's corner rather than half its row; the whole of it on hover.
  */
-function ResolvedAt({ time }: { time: Timestamp | undefined }) {
+function ResolvedAt({ time, now }: { time: Timestamp | undefined; now: number }) {
   const { i18n } = useLingui();
   if (!time) return <span className="alerts-resolved-at" />;
   const at = timestampDate(time);
-  const today = at.toDateString() === new Date().toDateString();
+  const today = at.toDateString() === new Date(now).toDateString();
   return (
     <span className="alerts-resolved-at" title={formatDateTime(at, i18n.locale)}>
       {today ? formatClock(at, i18n.locale) : formatDay(at, i18n.locale)}

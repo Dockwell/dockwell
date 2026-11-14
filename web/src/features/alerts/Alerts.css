@@ -638,3 +638,13 @@ a.alerts-resolved-title:hover {
   font-size: 13px;
   line-height: 18px;
 }
+
+/* On a phone, taking it sits under the alert's facts, the full width of its panel. */
+.alert-phone-acknowledge {
+  margin-top: var(--space-4);
+}
+
+.alert-phone-acknowledge .alerts-page-acknowledge {
+  display: flex;
+  justify-content: flex-start;
+}

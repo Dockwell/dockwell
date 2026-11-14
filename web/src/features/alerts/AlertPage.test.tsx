@@ -133,6 +133,26 @@ describe("an alert's page", () => {
     await waitFor(() => expect(asked).toEqual(["alt_1"]));
   });
 
+  it("offers to take it on a phone too, under who has it, as M-Incident has it", async () => {
+    onPhone();
+    const asked: string[] = [];
+    renderAt(
+      "/alerts/alt_1",
+      api([down({ acknowledgeTime: undefined, acknowledgedBy: undefined })], {
+        alerts: {
+          acknowledgeAlert: (req: { id: string }) => {
+            asked.push(req.id);
+            return {};
+          },
+        },
+      }),
+    );
+    const take = await screen.findByRole("button", { name: "Acknowledge" });
+    expect(take.closest(".alert-phone-acknowledge")).not.toBeNull();
+    await userEvent.setup().click(take);
+    await waitFor(() => expect(asked).toEqual(["alt_1"]));
+  });
+
   it("offers to take over an alert someone else has, from its page", async () => {
     renderAt("/alerts/alt_1", api([down()]));
     expect(await screen.findByRole("button", { name: "Take over" })).toHaveAttribute(
