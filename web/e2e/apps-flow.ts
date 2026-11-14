@@ -118,7 +118,7 @@ export async function appsFlow(
     .click();
   const sheet = page.getByRole("dialog", { name: "New app" });
   await sheet.waitFor();
-  // A Docker image opens New app on an image, as New app on its own does.
+  // A Docker image opens New app on an image, where New app on its own opens on the catalog (#617).
   if (!(await sheet.getByRole("radio", { name: "Image" }).isChecked()))
     fail("A Docker image opens New app on something other than an image");
   if ((await sheet.getByRole("group", { name: "Runs on" }).count()) > 0)

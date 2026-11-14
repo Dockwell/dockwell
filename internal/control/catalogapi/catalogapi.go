@@ -56,6 +56,8 @@ type Handler struct {
 	// shareable lists the database servers an app may share (ADR 0084). Nil offers
 	// none.
 	shareable Shareable
+	// pages is the catalog's index, which every page is cut from (ADR 0092).
+	pages pageIndex
 }
 
 var _ dockwellv1connect.CatalogServiceHandler = (*Handler)(nil)
@@ -72,20 +74,22 @@ func New(imports *composeapi.Handler, ch *changes.Handler, db *store.DB, keeper 
 }
 
 // ListCatalogEntries returns the catalog.
-func (h *Handler) ListCatalogEntries(ctx context.Context, _ *connect.Request[dockwellv1.ListCatalogEntriesRequest]) (*connect.Response[dockwellv1.ListCatalogEntriesResponse], error) {
+func (h *Handler) ListCatalogEntries(ctx context.Context, req *connect.Request[dockwellv1.ListCatalogEntriesRequest]) (*connect.Response[dockwellv1.ListCatalogEntriesResponse], error) {
 	s, err := h.catalog(ctx)
 	if err != nil {
 		return nil, err
 	}
-	also := s.alternatives()
-	for _, a := range also {
-		a.Entry = listed(a.GetEntry())
+	var installed map[string]int
+	if req.Msg.GetInstalled() || req.Msg.GetOrder() == dockwellv1.CatalogOrder_CATALOG_ORDER_FEATURED {
+		if installed, err = h.installedHere(ctx, s); err != nil {
+			return nil, h.internal(ctx, err)
+		}
 	}
-	entries := make([]*catalogv1.Entry, 0, len(s.catalog.All()))
-	for _, e := range s.catalog.All() {
-		entries = append(entries, listed(e))
+	page, err := h.pages.of(s).page(req.Msg, installed)
+	if err != nil {
+		return nil, invalid(err)
 	}
-	return connect.NewResponse(&dockwellv1.ListCatalogEntriesResponse{Entries: entries, Also: also}), nil
+	return connect.NewResponse(page), nil
 }
 
 // listed is an entry as the catalog lists it: without its README, and with only the

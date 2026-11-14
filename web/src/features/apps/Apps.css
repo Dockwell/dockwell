@@ -2979,3 +2979,162 @@
   outline-offset: 2px;
   border-radius: 2px;
 }
+
+/*
+ * A sheet that hands on to another in its place, as New app's catalog does to an app's install form (#617): the one
+ * leaving leaves no copy sliding out, and the one coming doesn't slide in, so they read as one sheet that changed.
+ */
+.dw-sheet-layer.is-leaving:has(.dw-sheet.is-handing-on) {
+  display: none;
+}
+
+.dw-sheet.is-in-place,
+.dw-sheet-layer:has(.dw-sheet.is-in-place) .dw-scrim {
+  animation: none;
+}
+
+/* New app's catalog: a search, and the apps under it, one a row. */
+.new-app-results {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.new-app-results-head {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 18px;
+}
+
+.new-app-entries {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.new-app-entries[aria-busy="true"] {
+  opacity: 0.6;
+}
+
+.new-app-entries > li + li {
+  border-top: 1px solid var(--line);
+}
+
+.new-app-entry {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 56px;
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 120ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.new-app-entry:hover {
+  background: var(--surface-sunken);
+}
+
+.new-app-entry:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--cobalt);
+}
+
+.new-app-entry.is-placeholder {
+  background: var(--surface-sunken);
+  cursor: default;
+}
+
+.new-app-entry .catalog-icon {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+}
+
+.new-app-entry .catalog-icon img {
+  width: 32px;
+  height: 32px;
+}
+
+.new-app-entry-text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.new-app-entry-name,
+.new-app-entry-summary {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.new-app-entry-name {
+  font-size: 14px;
+  font-weight: 550;
+  line-height: 20px;
+}
+
+.new-app-entry-summary {
+  color: var(--ink-muted);
+  font-size: 12.5px;
+  line-height: 18px;
+}
+
+.new-app-entry-version {
+  flex: none;
+  max-width: 9rem;
+  overflow: hidden;
+  color: var(--ink-muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.new-app-entry > .dw-icon {
+  flex: none;
+  color: var(--ink-muted);
+}
+
+.new-app-more {
+  display: flex;
+  justify-content: center;
+}
+
+@media (max-width: 639.98px) {
+  .new-app-entry-version {
+    display: none;
+  }
+}
+
+/* On a phone, New app's five sources share its width evenly, by their words alone, so none runs off the sheet. */
+.new-app.is-phone .app-field .dw-seg {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  width: 100%;
+}
+
+.new-app.is-phone .app-field .dw-seg-item {
+  justify-content: center;
+  min-width: 0;
+  padding: 0 var(--space-1);
+}
+
+.new-app.is-phone .app-field .dw-seg-item > svg {
+  display: none;
+}

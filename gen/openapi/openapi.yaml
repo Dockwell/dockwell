@@ -909,8 +909,84 @@ paths:
         get:
             tags:
                 - CatalogService
-            description: ListCatalogEntries returns every app in the catalog, sorted by name.
+            description: |-
+                ListCatalogEntries returns the apps in the catalog that match its filters, a page
+                 at a time, sorted by name or featured first, with how many match in all.
             operationId: CatalogService_ListCatalogEntries
+            parameters:
+                - name: pageSize
+                  in: query
+                  description: |-
+                    How many entries a page holds, at most 200. Unset lists every entry that
+                     matches, in one answer, as the catalog did before it paged.
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pageToken
+                  in: query
+                  description: |-
+                    Where to start: the next_page_token of the page before. Pass the same filters
+                     with it. Empty starts at the first.
+                  schema:
+                    type: string
+                - name: search
+                  in: query
+                  description: |-
+                    Words an entry has, case aside: in its name, what it does in its own words or
+                     in language's, its category or its features. Empty matches every entry.
+                  schema:
+                    type: string
+                - name: searchCategories
+                  in: query
+                  description: |-
+                    Categories a client names with the search's words, in the reader's language,
+                     as the control plane doesn't translate a category's name: an entry in one of
+                     them matches the search too.
+                  schema:
+                    type: array
+                    items:
+                        type: string
+                - name: language
+                  in: query
+                  description: |-
+                    The reader's language, such as "zh-CN", whose words for what an entry does the
+                     search reads beside its own.
+                  schema:
+                    type: string
+                - name: category
+                  in: query
+                  description: Only entries of one category, such as "databases". Empty is every category.
+                  schema:
+                    type: string
+                - name: catalog
+                  in: query
+                  description: |-
+                    Only the apps one catalog has, by its source's name: the entries it lists,
+                     and its own entry of each app another catalog lists first, in that entry's
+                     place. Empty is every catalog.
+                  schema:
+                    type: string
+                - name: installed
+                  in: query
+                  description: Only the apps installed here, from the catalog the entry comes from.
+                  schema:
+                    type: boolean
+                - name: ids
+                  in: query
+                  description: Only the entries of these IDs.
+                  schema:
+                    type: array
+                    items:
+                        type: string
+                - name: order
+                  in: query
+                  description: 'How the entries are ordered: by name unless set.'
+                  schema:
+                    enum:
+                        - CATALOG_ORDER_UNSPECIFIED
+                        - CATALOG_ORDER_FEATURED
+                    type: string
+                    format: enum
             responses:
                 "200":
                     description: OK
@@ -8459,6 +8535,21 @@ components:
             description: |-
                 CatalogAlternative is an app's entry in another catalog than the one it's listed
                  from.
+        CatalogCategoryCount:
+            type: object
+            properties:
+                category:
+                    type: string
+                    description: The category, such as "databases".
+                count:
+                    type: integer
+                    description: How many entries in it match the search, and every filter but category.
+                    format: int32
+                listed:
+                    type: integer
+                    description: How many entries it has under every filter but category and the search.
+                    format: int32
+            description: CatalogCategoryCount is a category and how many entries are in it.
         CatalogInstall:
             type: object
             properties:
@@ -14874,17 +14965,34 @@ components:
                     items:
                         $ref: '#/components/schemas/Entry'
                     description: |-
-                        Every entry, sorted by name: one for each app, from the first catalog that has
-                         it, Dockwell's own first, then each source by its name.
+                        The entries of the page, in the order asked for: one for each app, from the
+                         first catalog that has it, Dockwell's own first, then each source by its name.
                 also:
                     type: array
                     items:
                         $ref: '#/components/schemas/CatalogAlternative'
                     description: |-
                         The same apps from the other catalogs that have them, each beside the entry of
-                         its ID in entries: an entry of the same ID, name and image is the same app, and
-                         anything less certain is another app, which a source leaves out (ADR 0078).
-            description: ListCatalogEntriesResponse is the catalog.
+                         its ID in entries, for the page's entries: an entry of the same ID, name and
+                         image is the same app, and anything less certain is another app, which a
+                         source leaves out (ADR 0078).
+                total:
+                    type: integer
+                    description: How many entries match, across every page.
+                    format: int32
+                nextPageToken:
+                    type: string
+                    description: Pass it as page_token for the next page. Empty on the last page.
+                categories:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/CatalogCategoryCount'
+                    description: |-
+                        The categories of the entries that match every filter but category and the
+                         search, by name, each with how many of those, and how many of them match the
+                         search too: the choices a page of them offers, which stay as words are typed,
+                         and where else the words find something. No one page can say either.
+            description: ListCatalogEntriesResponse is a page of the catalog.
         ListCatalogInstallsResponse:
             type: object
             properties:

@@ -28,6 +28,7 @@ import {
   FolderPicker,
   Glyph,
   Icon,
+  type IconName,
   PHONE_QUERY,
   PortField,
   SegmentedControl,
@@ -62,6 +63,7 @@ import {
 
 import { editCommand } from "../../lib/cli";
 import { reasonOf, sentence } from "../../lib/errors";
+import { useHandOn } from "../../lib/handOn";
 import { onApple } from "../../lib/platform";
 import { useMay } from "../auth/may";
 import { nextFree } from "../catalog/freeName";
@@ -114,6 +116,7 @@ import {
   validPort,
 } from "./form";
 import { ImageField, type ImageRead } from "./ImageField";
+import { CatalogSource } from "./NewAppCatalog";
 import { useProjectPage } from "./projectPage";
 import { joinWords, splitWords, validCpus, validMemory } from "./specEdit";
 import { usePlaces, useServices } from "./useServices";
@@ -123,7 +126,19 @@ import { useAppWords } from "./words";
  * Where a new app comes from: a Git repository it builds (ADR 0046), an image, a
  * Compose file, or a folder on the server with a runtime (ADR 0058).
  */
-export type NewAppSource = "git" | "image" | "compose" | "folder";
+export type NewAppSource = "catalog" | "git" | "image" | "compose" | "folder";
+
+/** The ways a new app comes in, the catalog first, as the source control offers them (#617). */
+export function useNewAppSources(): { value: NewAppSource; label: string; icon: IconName }[] {
+  const { t } = useLingui();
+  return [
+    { value: "catalog", label: t`Catalog`, icon: "grid" },
+    { value: "git", label: t`Git`, icon: "branch" },
+    { value: "image", label: t`Image`, icon: "layers" },
+    { value: "folder", label: t`Folder`, icon: "folder" },
+    { value: "compose", label: t`Compose`, icon: "file" },
+  ];
+}
 
 /** A running count that gives each row of the form a key of its own. */
 let rowKeys = 0;
@@ -157,14 +172,24 @@ export function NewAppSheet({
   runtime,
   onSource,
   onClose,
+  query = "",
+  onQuery = () => {},
+  onPick = () => {},
 }: {
   source: NewAppSource;
   /** The language and version a runtime's card asked for, for a folder. */
   runtime?: { language: string; version?: string | undefined } | undefined;
   onSource: (source: NewAppSource) => void;
   onClose: () => void;
+  /** From the catalog: the words searched for, and what picking an app does (#617). */
+  query?: string;
+  onQuery?: (query: string) => void;
+  onPick?: (id: string) => void;
 }) {
   const { t } = useLingui();
+  const hand = useHandOn();
+  const catalogField = useRef<HTMLInputElement>(null);
+  const sources = useNewAppSources();
   const phone = useMediaQuery(PHONE_QUERY);
   const transport = useTransport();
   const navigate = useNavigate();
@@ -625,6 +650,58 @@ export function NewAppSheet({
     source === "compose" &&
     (check.data?.services ?? []).some((s) => (appOf(s)?.mounts ?? []).some((m) => m.source.case === "hostPath"));
 
+  // From the catalog, the same sheet holds a search and the apps it finds; a pick hands
+  // the sheet on to that app's install form (#617).
+  if (source === "catalog") {
+    return (
+      <Sheet
+        open
+        initialFocusRef={catalogField}
+        title={t`New app`}
+        onClose={onClose}
+        className={cx(
+          "app-sheet",
+          "new-app",
+          phone && "is-phone",
+          hand.inPlace && "is-in-place",
+          hand.handing && "is-handing-on",
+        )}
+        footer={
+          <>
+            <span className="dw-sheet-note">
+              <Icon name="commit" size={14} />
+              <Trans>Nothing runs until you apply the plan</Trans>
+            </span>
+            <Button variant="ghost" size={phone ? "lg" : "md"} onClick={onClose}>
+              <Trans>Cancel</Trans>
+            </Button>
+          </>
+        }
+      >
+        <div className="app-form">
+          <div className="app-field">
+            <span className="dw-field-label" id="new-app-source">
+              <Trans>Source</Trans>
+            </span>
+            <div>
+              <SegmentedControl<NewAppSource> label={t`Source`} value={source} onChange={onSource} options={sources} />
+            </div>
+          </div>
+          <CatalogSource
+            query={query}
+            onQuery={onQuery}
+            fieldRef={catalogField}
+            onImage={() => onSource("image")}
+            onPick={(id) => {
+              hand.handOn();
+              onPick(id);
+            }}
+          />
+        </div>
+      </Sheet>
+    );
+  }
+
   return (
     <Sheet
       open
@@ -633,7 +710,7 @@ export function NewAppSheet({
       title={t`New app`}
       subtitle={subtitle}
       onClose={leave}
-      className={cx("app-sheet", "new-app", phone && "is-phone")}
+      className={cx("app-sheet", "new-app", phone && "is-phone", hand.inPlace && "is-in-place")}
       footer={
         leaving ? (
           <>
@@ -701,17 +778,7 @@ export function NewAppSheet({
             <Trans>Source</Trans>
           </span>
           <div>
-            <SegmentedControl<NewAppSource>
-              label={t`Source`}
-              value={source}
-              onChange={onSource}
-              options={[
-                { value: "git", label: t`Git`, icon: "branch" },
-                { value: "image", label: t`Image`, icon: "layers" },
-                { value: "folder", label: t`Folder`, icon: "folder" },
-                { value: "compose", label: t`Compose`, icon: "file" },
-              ]}
-            />
+            <SegmentedControl<NewAppSource> label={t`Source`} value={source} onChange={onSource} options={sources} />
           </div>
         </div>
         {source === "git" ? (

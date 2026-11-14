@@ -70,14 +70,7 @@ export function SourcesPage() {
   const { t } = useLingui();
   const phone = useMediaQuery(PHONE_QUERY);
   const sources = useSources();
-  const catalog = useCatalog();
   const [editing, setEditing] = useState<Editing>();
-  // Each app's name and icon, by its ID, for a source's few icons, whichever catalog lists it.
-  const icons = useMemo(() => {
-    const out = new Map<string, { name: string; icon: string }>();
-    for (const e of catalog.data?.entries ?? []) out.set(e.id, { name: e.name, icon: e.icon });
-    return out;
-  }, [catalog.data]);
   const list = sources.data?.sources;
   // To a source's card, from the store that it reads, with its name read out as it lands.
   const go = (name: string) => {
@@ -180,7 +173,6 @@ export function SourcesPage() {
               <SourceCard
                 key={source.name}
                 source={source}
-                icons={icons}
                 moveOff={set.off}
                 removeOff={remove.off}
                 checkOff={check.off}
@@ -225,7 +217,6 @@ const FEW = 6;
  */
 function SourceCard({
   source,
-  icons,
   moveOff,
   removeOff,
   checkOff,
@@ -233,7 +224,6 @@ function SourceCard({
   onMove,
 }: {
   source: CatalogSourceInfo;
-  icons: ReadonlyMap<string, { name: string; icon: string }>;
   /** Spread onto Change, Pin, Check now and Remove: off, with why, for whoever may not. */
   moveOff: { off?: string; disabled?: true };
   removeOff: { off?: string; disabled?: true };
@@ -257,7 +247,13 @@ function SourceCard({
   // Every app it brings, those listed from a catalog before it included, which it offers as another choice.
   const apps = [...source.entries, ...source.also];
   const count = apps.length;
-  const few = apps.filter((id) => icons.get(id)?.icon).slice(0, FEW);
+  // A page of its own apps, each as it has it, for the few icons the card shows (ADR 0092).
+  const page = useCatalog({ catalog: name, pageSize: FEW * 4 }, { enabled: source.unread === "" }).data?.entries;
+  const icons = new Map((page ?? []).map((e) => [e.id, { name: e.name, icon: e.icon }]));
+  const few = (page ?? [])
+    .filter((e) => e.icon)
+    .map((e) => e.id)
+    .slice(0, FEW);
   // Where it reads, as its link writes it, without the scheme or a trailing .git.
   const where =
     repository

@@ -14,6 +14,7 @@ import {
   HostAccessKind,
   InputType,
   type InstallCatalogEntryRequest,
+  type ListCatalogEntriesRequest,
   NeedSchema,
   PlanAction,
   RestartPolicy,
@@ -30,6 +31,7 @@ import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
 import { anApp, ENV, places, projectPlaces, SERVER } from "../../test/apps";
 import { authState, mira } from "../../test/auth";
+import { catalogPages } from "../../test/catalog";
 import { type Api, feed, onPhone, renderAt } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
 
@@ -88,7 +90,7 @@ function api(more: Api["catalog"] = {}): Api {
   return {
     servers: { watchServers: watch.stream },
     catalog: {
-      listCatalogEntries: () => ({ entries: [tunnel, postgres] }),
+      listCatalogEntries: catalogPages([tunnel, postgres]),
       getCatalogEntry: (req) => {
         const values: Record<string, string> = req.id === "postgres" ? { ADMIN_PORT: "8085" } : {};
         const entry = req.id === "postgres" ? postgres : req.id === proxy.id ? proxy : tunnel;
@@ -117,7 +119,7 @@ describe("The catalog", () => {
     await screen.findByRole("heading", { level: 1, name: "Catalog" });
     expect(await screen.findByRole("link", { name: /^PostgreSQL/ })).toHaveAttribute("href", "/catalog/postgres");
     // What isn't listed is an image or a Compose file, as the note says, and New app opens on an image.
-    expect(screen.getByRole("link", { name: "New app" })).toHaveAttribute("href", "/apps/new");
+    expect(screen.getByRole("link", { name: "New app" })).toHaveAttribute("href", "/apps/new?source=image");
     const chips = screen.getByRole("group", { name: "Categories" });
     await user.click(within(chips).getByRole("button", { name: "Networking" }));
     await waitFor(() => expect(screen.queryByRole("link", { name: /^PostgreSQL/ })).not.toBeInTheDocument());
@@ -180,6 +182,126 @@ describe("The catalog", () => {
       }),
     );
     expect(await screen.findByText("Couldn't read the catalog")).toBeVisible();
+  });
+});
+
+describe("The catalog a page at a time (ADR 0092)", () => {
+  const many = Array.from({ length: 60 }, (_, i) =>
+    create(EntrySchema, {
+      id: `app-${String(i).padStart(2, "0")}`,
+      name: `App ${String(i).padStart(2, "0")}`,
+      category: "cms",
+    }),
+  );
+
+  it("shows a page and how many there are, and the next page at a click or as the reader nears it", async () => {
+    const user = userEvent.setup();
+    const asked: ListCatalogEntriesRequest[] = [];
+    const answer = catalogPages(many);
+    renderAt(
+      "/catalog",
+      api({
+        listCatalogEntries: (req) => {
+          asked.push(req);
+          return answer(req);
+        },
+      }),
+    );
+    expect(await screen.findByText("60 apps")).toBeVisible();
+    expect(document.querySelectorAll("a.catalog-card")).toHaveLength(48);
+    expect(asked[0]).toMatchObject({ pageSize: 48, pageToken: "", language: "en" });
+    await user.click(screen.getByRole("button", { name: "Show 12 more" }));
+    await waitFor(() => expect(document.querySelectorAll("a.catalog-card")).toHaveLength(60));
+    expect(asked.at(-1)?.pageToken).toBe("48");
+    expect(screen.queryByRole("button", { name: /^Show \d+ more$/ })).not.toBeInTheDocument();
+  });
+
+  it("paints where the cards go while the first page is read, with no spinner over the grid", async () => {
+    renderAt("/catalog", api({ listCatalogEntries: () => new Promise(() => {}) }));
+    await screen.findByRole("heading", { level: 1, name: "Catalog" });
+    expect(document.querySelectorAll(".catalog-card.is-placeholder").length).toBeGreaterThan(0);
+    expect(screen.getByText("Reading the catalog")).toBeInTheDocument();
+  });
+
+  it("searches on the control plane in the reader's language, naming the categories its words name there", async () => {
+    const user = userEvent.setup();
+    const asked: ListCatalogEntriesRequest[] = [];
+    const answer = catalogPages([tunnel, postgres]);
+    activateLocale("zh-CN");
+    try {
+      renderAt(
+        "/catalog",
+        api({
+          listCatalogEntries: (req) => {
+            asked.push(req);
+            return answer(req);
+          },
+        }),
+      );
+      await user.type(await screen.findByRole("textbox"), "数据库");
+      await waitFor(() => expect(asked.at(-1)).toMatchObject({ search: "数据库", language: "zh-CN" }));
+      expect(asked.at(-1)?.searchCategories).toEqual(["databases"]);
+      expect(await screen.findByRole("link", { name: /^PostgreSQL/ })).toBeVisible();
+      expect(document.querySelector('a.catalog-card[href^="/catalog/cloudflared"]')).toBeNull();
+    } finally {
+      activateLocale("en");
+    }
+  });
+
+  it("drops a catalog it doesn't have from the address, so an old link shows every app", async () => {
+    const { router } = renderAt("/catalog?catalog=gone", api({ listCatalogEntries: catalogPages([tunnel, postgres]) }));
+    await waitFor(() => expect(router.state.location.search).toEqual({}));
+    expect(await screen.findByRole("link", { name: /^PostgreSQL/ })).toBeVisible();
+  });
+
+  it("says nothing is installed when the Installed filter holds nothing, with the way to every app", async () => {
+    const user = userEvent.setup();
+    const { router } = renderAt("/catalog?installed=1", api({ listCatalogEntries: catalogPages([tunnel, postgres]) }));
+    expect(await screen.findByRole("heading", { name: "Nothing from the catalog is installed yet" })).toBeVisible();
+    expect(screen.queryByText(/in its name or what it does/)).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Show every app" }));
+    await waitFor(() => expect(router.state.location.search).toEqual({}));
+    expect(await screen.findByRole("link", { name: /^PostgreSQL/ })).toBeVisible();
+  });
+
+  it("shows an app once where the catalog changed between two pages and it came twice", async () => {
+    const user = userEvent.setup();
+    renderAt(
+      "/catalog",
+      api({
+        listCatalogEntries: (req) =>
+          req.pageToken === ""
+            ? { entries: [tunnel, postgres], total: 3, nextPageToken: "2" }
+            : { entries: [postgres, create(EntrySchema, { id: "media", name: "Media", category: "media" })], total: 3 },
+      }),
+    );
+    await user.click(await screen.findByRole("button", { name: /^Show \d+ more$/ }));
+    await waitFor(() => expect(document.querySelectorAll('a.catalog-card[href^="/catalog/media"]')).toHaveLength(1));
+    expect(document.querySelectorAll('a.catalog-card[href^="/catalog/postgres"]')).toHaveLength(1);
+  });
+
+  it("narrows to what's installed here, and keeps it in the address", async () => {
+    const user = userEvent.setup();
+    const asked: ListCatalogEntriesRequest[] = [];
+    const answer = catalogPages([tunnel, postgres], { installed: { postgres: 1 } });
+    const { router } = renderAt(
+      "/catalog",
+      api({
+        listCatalogEntries: (req) => {
+          asked.push(req);
+          return answer(req);
+        },
+        listCatalogInstalls: () => ({
+          installs: [{ project: "postgres", pin: { entry: "postgres", version: "17.11" } }],
+        }),
+      }),
+    );
+    const chips = await screen.findByRole("group", { name: "Categories" });
+    await user.click(await within(chips).findByRole("button", { name: "Installed" }));
+    await waitFor(() => expect(document.querySelector('a.catalog-card[href^="/catalog/cloudflared"]')).toBeNull());
+    expect(asked.at(-1)?.installed).toBe(true);
+    expect(router.state.location.search).toMatchObject({ installed: true });
+    expect(screen.getByRole("link", { name: /^PostgreSQL/ })).toBeVisible();
   });
 });
 
@@ -1200,7 +1322,7 @@ describe("The same app in several catalogs", () => {
   let asked: InstallCatalogEntryRequest | undefined;
   const several = (): Api => ({
     ...api({
-      listCatalogEntries: () => ({ entries: [own], also: [{ id: "ghost", catalog: "coolify", entry: theirs }] }),
+      listCatalogEntries: catalogPages([own], { also: [{ id: "ghost", catalog: "coolify", entry: theirs }] }),
       listCatalogSources: () => ({
         sources: [
           {
@@ -1278,7 +1400,9 @@ describe("A store's apps, in its own words", () => {
   });
   const stores = (): Api =>
     api({
-      listCatalogEntries: () => ({ entries: [memo, postgres] }),
+      listCatalogEntries: catalogPages([memo, postgres], {
+        origins: { "memo-store": "onepanel", postgres: "dockwell" },
+      }),
       listCatalogSources: () => ({ sources: [own, onepanel] }),
       getCatalogEntry: () => ({ entry: memo, project: "memo-store", catalogs: ["onepanel"] }),
     });

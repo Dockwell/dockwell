@@ -81,7 +81,8 @@ const (
 
 // CatalogServiceClient is a client for the dockwell.v1.CatalogService service.
 type CatalogServiceClient interface {
-	// ListCatalogEntries returns every app in the catalog, sorted by name.
+	// ListCatalogEntries returns the apps in the catalog that match its filters, a page
+	// at a time, sorted by name or featured first, with how many match in all.
 	ListCatalogEntries(context.Context, *connect.Request[v1.ListCatalogEntriesRequest]) (*connect.Response[v1.ListCatalogEntriesResponse], error)
 	// GetCatalogEntry returns one app, with what InstallCatalogEntry would use if
 	// you give it nothing: a name that's free, and ports nothing Dockwell runs has
@@ -368,7 +369,8 @@ func (c *catalogServiceClient) RemoveCatalogSource(ctx context.Context, req *con
 
 // CatalogServiceHandler is an implementation of the dockwell.v1.CatalogService service.
 type CatalogServiceHandler interface {
-	// ListCatalogEntries returns every app in the catalog, sorted by name.
+	// ListCatalogEntries returns the apps in the catalog that match its filters, a page
+	// at a time, sorted by name or featured first, with how many match in all.
 	ListCatalogEntries(context.Context, *connect.Request[v1.ListCatalogEntriesRequest]) (*connect.Response[v1.ListCatalogEntriesResponse], error)
 	// GetCatalogEntry returns one app, with what InstallCatalogEntry would use if
 	// you give it nothing: a name that's free, and ports nothing Dockwell runs has

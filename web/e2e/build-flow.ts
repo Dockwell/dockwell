@@ -42,8 +42,8 @@ export async function buildFlow(page: Page, { origin, step, shoot, git }: BuildF
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto(`${origin}/apps/new`);
   const sheet = page.getByRole("dialog", { name: "New app" });
-  // New app opens on an image, as most apps start here, and Git is one step away.
-  if (!(await sheet.getByRole("radio", { name: "Image" }).isChecked())) fail("New app doesn't open on an image");
+  // New app opens on the catalog, as most apps start there, and Git is one step away (#617).
+  if (!(await sheet.getByRole("radio", { name: "Catalog" }).isChecked())) fail("New app doesn't open on the catalog");
   await sheet.getByRole("radio", { name: "Git" }).click();
   await page.waitForURL(/\/apps\/new\?source=git$/);
   await sheet.getByLabel("Repository").fill(`${git}/web.git`);

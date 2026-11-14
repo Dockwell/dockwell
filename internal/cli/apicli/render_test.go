@@ -15,6 +15,7 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
+	catalogv1 "github.com/dockwell/dockwell/gen/dockwell/catalog/v1alpha1"
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 )
@@ -1209,5 +1210,27 @@ func TestAPlanSaysWhoSSHStaysOpenFrom(t *testing.T) {
 		if !strings.Contains(buf.String(), want) {
 			t.Errorf("the plan doesn't say %q:\n%s", want, buf.String())
 		}
+	}
+}
+
+// A page of the catalog reads as a table, with how many there are and the way to the
+// next page, and a page with nothing says how to see every app (ADR 0092).
+func TestCatalogPage(t *testing.T) {
+	var buf bytes.Buffer
+	Render(&buf, &dockwellv1.ListCatalogEntriesResponse{
+		Entries:       []*catalogv1.Entry{{Id: "memos", Name: "Memos", Version: "1.0", Category: "notes"}, {Id: "odd", Name: "Odd"}},
+		Total:         9,
+		NextPageToken: "tok",
+	}, time.Now())
+	out := buf.String()
+	for _, want := range []string{"ID", "memos", "Memos", "1.0", "notes", "odd", "-", "2 of 9. There are more. See them with dockwell catalog list --page-token tok and the same filters"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("no %q in:\n%s", want, out)
+		}
+	}
+	buf.Reset()
+	Render(&buf, &dockwellv1.ListCatalogEntriesResponse{}, time.Now())
+	if !strings.Contains(buf.String(), "No app in the catalog matches") {
+		t.Errorf("an empty page reads %q", buf.String())
 	}
 }

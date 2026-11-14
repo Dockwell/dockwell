@@ -113,7 +113,15 @@ describe("the shell on wide screens", () => {
       },
     });
     await screen.findByRole("heading", { level: 1 });
-    expect(within(screen.getByRole("banner")).getByRole("link", { name: "New" })).toHaveAttribute("href", "/apps/new");
+    // New is a short menu: an app, a database, a domain, a server, each straight to its sheet (#617).
+    await userEvent.setup().click(within(screen.getByRole("banner")).getByRole("button", { name: "New" }));
+    const menu = within(screen.getByRole("menu", { name: "New" }));
+    expect(menu.getAllByRole("menuitem").map((item) => [item.textContent, item.getAttribute("href")])).toEqual([
+      ["App", "/apps/new"],
+      ["Database", "/databases?new=postgres"],
+      ["Domain", "/domains?add=true"],
+      ["Server", "/servers?add=true"],
+    ]);
     // A glance at what Apps says in full, so screen readers hear the label alone.
     const apps = within(rail()).getByRole("link", { name: "Apps" });
     await waitFor(() => expect(apps).toHaveTextContent(/^Apps\s*2/));

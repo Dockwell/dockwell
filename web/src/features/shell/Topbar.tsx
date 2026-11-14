@@ -4,17 +4,17 @@ import { ChangeService } from "@dockwell/api";
 import { Button, Icon, StatusBadge, useUIStrings } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 
-import { RouterButtonLink } from "../../lib/links";
 import { useMay } from "../auth/may";
 import { FleetUnknown, Reconnecting } from "../servers/FleetNotes";
 import { ServerAddress } from "../servers/ServerAddress";
 import { type FleetView, serverStatus } from "../servers/server";
 import { useFleetUnread } from "../servers/useFleet";
 import { useCommandShortcut, useOpenCommandBar } from "./CommandMenu";
+import { NewMenu } from "./NewMenu";
 
 /**
  * The top bar: what the panel is looking at, then search, then New, which
- * starts a new app from anywhere. With one server what it looks at is the
+ * starts an app, a database, a domain or a server from anywhere. With one server what it looks at is the
  * server itself; with more, how many and how they are.
  */
 export function Topbar({ view }: { view: FleetView }) {
@@ -30,9 +30,7 @@ export function Topbar({ view }: { view: FleetView }) {
         {t`Search or run a command`}
       </Button>
       {mayPlan.allowed ? (
-        <RouterButtonLink to="/apps/new" variant="primary" icon="plus" className="topbar-new">
-          <Trans>New</Trans>
-        </RouterButtonLink>
+        <NewMenu />
       ) : (
         // An action stays where it is, off, with why (ADR 0059).
         <Button variant="primary" icon="plus" className="topbar-new" {...mayPlan.off}>

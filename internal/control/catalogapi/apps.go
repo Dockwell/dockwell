@@ -11,7 +11,6 @@ import (
 	"go.yaml.in/yaml/v4"
 
 	catalogv1 "github.com/dockwell/dockwell/gen/dockwell/catalog/v1alpha1"
-	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/catalog/folder"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/registry"
@@ -75,18 +74,6 @@ func webImage(e *catalogv1.Entry) string {
 		return ""
 	}
 	return ref.Name()
-}
-
-// alternatives are the catalog's other entries of the same apps, as
-// ListCatalogEntries says them, by ID, then catalog.
-func (s sourced) alternatives() []*dockwellv1.CatalogAlternative {
-	var out []*dockwellv1.CatalogAlternative
-	for _, id := range sortedKeys(s.also) {
-		for _, a := range s.also[id] {
-			out = append(out, &dockwellv1.CatalogAlternative{Id: id, Catalog: a.from.catalog, Entry: a.entry})
-		}
-	}
-	return out
 }
 
 // catalogsOf are the catalogs that have an app, the one it's listed from first, by

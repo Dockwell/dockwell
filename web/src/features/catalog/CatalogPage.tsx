@@ -20,8 +20,7 @@ import {
   installOf,
   monogram,
   stranger,
-  useAlso,
-  useCatalog,
+  useCatalogPages,
   useEntryWords,
   useInstalls,
   useOrigins,
@@ -39,13 +38,23 @@ export interface CatalogPageProps {
 /**
  * The catalog (Catalog): the apps you can install, by search and category, with
  * what's already installed marked. Every card opens the app's details before the
- * reader chooses to install it or open an existing installation.
+ * reader chooses to install it or open an existing installation. The control plane
+ * searches and pages it, and the next page comes as the reader nears the end
+ * (ADR 0092).
  */
 export function CatalogPage({ search = {}, onSearch, children }: CatalogPageProps) {
   const { t, i18n } = useLingui();
-  const catalog = useCatalog();
   const origins = useOrigins();
-  const also = useAlso();
+  const sources = origins.data?.sources ?? [];
+  // The catalog the grid is narrowed to, by its source's name, as a source's card links to it.
+  const from = search.catalog ? sources.find((source) => source.name === search.catalog) : undefined;
+  // Once the sources are read, only a catalog there is narrows the grid, and one that
+  // isn't leaves the address, so an old link never empties the grid with no way out.
+  const catalog = useCatalogPages({ ...search, catalog: origins.data ? from?.name : search.catalog });
+  useEffect(() => {
+    if (origins.data && search.catalog && !from) onSearch?.({ ...search, catalog: undefined });
+  }, [origins.data, search, from, onSearch]);
+  const also = catalog.also;
   const named = useSourceNames();
   // Both reads again, whichever failed.
   const retry = () => {
@@ -54,32 +63,23 @@ export function CatalogPage({ search = {}, onSearch, children }: CatalogPageProp
   };
   const installs = useInstalls().data?.installs;
   const said = useEntryWords();
-  const sources = origins.data?.sources ?? [];
-  // The catalog the grid is narrowed to, by its source's name, as a source's card links to it.
-  const from = search.catalog ? sources.find((source) => source.name === search.catalog) : undefined;
-  // Each app as the chosen catalog has it, where it isn't the one the app is listed from.
-  const theirs = useMemo(() => {
-    const out = new Map<string, Entry>();
-    for (const a of catalog.data?.also ?? []) if (a.catalog === from?.name && a.entry) out.set(a.id, a.entry);
-    return out;
-  }, [catalog.data, from]);
-  const entries = useMemo(() => {
-    const all = catalog.data?.entries;
-    if (!all || !from) return all;
-    return all
-      .filter((e) => origins.origins.get(e.id)?.name === from.name || theirs.has(e.id))
-      .map((e) => theirs.get(e.id) ?? e);
-  }, [catalog.data, from, origins.origins, theirs]);
+  // The control plane narrows to the chosen catalog, each app as that catalog has it.
+  const entries = catalog.entries;
   const words = (category: string) => {
     const label = categoryLabel(category);
     return typeof label === "string" ? label : i18n._(label);
   };
-  // In the order the reader's language sorts their words, so zh-CN reads in pinyin.
+  // The categories of what the words and the catalog find, whichever is chosen, in the
+  // order the reader's language sorts their words, so zh-CN reads in pinyin; the chosen
+  // one stays a choice when the words find nothing in it.
+  const counted = catalog.categories;
   // biome-ignore lint/correctness/useExhaustiveDependencies: words reads only the locale, which is here
   const categories = useMemo(() => {
     const collator = new Intl.Collator(i18n.locale);
-    return [...new Set((entries ?? []).map((e) => e.category))].sort((a, b) => collator.compare(words(a), words(b)));
-  }, [entries, i18n.locale]);
+    const all = counted.filter((c) => c.listed > 0).map((c) => c.category);
+    if (search.category && !all.includes(search.category)) all.push(search.category);
+    return all.sort((a, b) => collator.compare(words(a), words(b)));
+  }, [counted, search.category, i18n.locale]);
   const chips = useRef<HTMLFieldSetElement>(null);
   const [more, setMore] = useState(false);
   // A fade at the row's end while there's more of it to scroll to, as on a phone.
@@ -99,14 +99,26 @@ export function CatalogPage({ search = {}, onSearch, children }: CatalogPageProp
     window.addEventListener("resize", measure);
     return () => window.removeEventListener("resize", measure);
   }, [measure]);
-  const query = (search.q ?? "").trim().toLowerCase();
-  const shown = (entries ?? []).filter(
-    (e) => (!search.category || e.category === search.category) && matches(e, said(e), query, words),
-  );
+  const shown = entries ?? [];
   const typed = (search.q ?? "").trim();
   // Whether the words find an app in a category other than the chosen one.
-  const elsewhere = (entries ?? []).some((e) => e.category !== search.category && matches(e, said(e), query, words));
+  const elsewhere = counted.some((c) => c.category !== search.category && c.count > 0);
   const count = new Set((installs ?? []).map((install) => install.project)).size;
+  // The next page, once the reader is near the end of the grid.
+  const end = useRef<HTMLDivElement>(null);
+  const { hasNextPage, isFetchingNextPage, fetchNextPage } = catalog;
+  useEffect(() => {
+    const el = end.current;
+    if (!el || !hasNextPage || typeof IntersectionObserver === "undefined") return;
+    const seen = new IntersectionObserver(
+      (items) => {
+        if (items.some((item) => item.isIntersecting) && !isFetchingNextPage) void fetchNextPage();
+      },
+      { rootMargin: "800px 0px" },
+    );
+    seen.observe(el);
+    return () => seen.disconnect();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
   return (
     <Page
       width="wide"
@@ -190,9 +202,20 @@ export function CatalogPage({ search = {}, onSearch, children }: CatalogPageProp
               aria-label={t`Categories`}
               onScroll={measure}
             >
-              <Chip on={!search.category} onClick={() => onSearch?.({ ...search, category: undefined })}>
+              <Chip
+                on={!search.category && !search.installed}
+                onClick={() => onSearch?.({ ...search, category: undefined, installed: undefined })}
+              >
                 {t`All`}
               </Chip>
+              {count > 0 || search.installed ? (
+                <Chip
+                  on={search.installed === true}
+                  onClick={() => onSearch?.({ ...search, installed: search.installed ? undefined : true })}
+                >
+                  {t({ message: "Installed", context: "catalog filter" })}
+                </Chip>
+              ) : null}
               {categories.map((category) => (
                 <Chip
                   key={category}
@@ -210,7 +233,7 @@ export function CatalogPage({ search = {}, onSearch, children }: CatalogPageProp
             <SourceMark source={from} said={named(from.name)} />
             <span className="catalog-from-words">
               <strong>{t`From ${named(from.name)}`}</strong>
-              <span>{plural(entries?.length ?? 0, { one: "# app", other: "# apps" })}</span>
+              <span>{plural(catalog.total ?? 0, { one: "# app", other: "# apps" })}</span>
             </span>
             <Button
               size="sm"
@@ -222,56 +245,99 @@ export function CatalogPage({ search = {}, onSearch, children }: CatalogPageProp
             </Button>
           </div>
         ) : null}
-        {catalog.error ? null : !entries || (!origins.data && !origins.error) ? (
-          <p className="catalog-note" aria-busy="true">
-            <Trans>Reading the catalog</Trans>
-          </p>
-        ) : shown.length === 0 ? (
-          <EmptyState
-            icon="search"
-            title={<Trans>No app matches</Trans>}
-            action={
-              // Where other categories have it, the way on is to look there; otherwise to start the search again.
-              search.category && elsewhere ? (
-                <Button size="lg" onClick={() => onSearch?.({ ...search, category: undefined })}>
-                  <Trans>Search every category</Trans>
-                </Button>
-              ) : (
-                <Button size="lg" onClick={() => onSearch?.({ ...search, q: undefined, category: undefined })}>
-                  <Trans>Clear the search</Trans>
-                </Button>
-              )
-            }
-          >
-            <p>
-              <Trans>
-                No app here has <code>{typed}</code> in its name or what it does.
-              </Trans>
-            </p>
-          </EmptyState>
-        ) : (
-          <div className="catalog-grid">
-            {shown.map((entry) => (
-              <Card
-                key={entry.id}
-                entry={entry}
-                words={said(entry)}
-                category={words(entry.category)}
-                search={search}
-                source={from ? (from.own ? undefined : from.name) : stranger(origins.origins, entry.id)?.name}
-                also={
-                  // Narrowed to one catalog, the others that have the app, the one it's listed from among them.
-                  from
-                    ? [origins.origins.get(entry.id)?.name ?? "", ...(also.get(entry.id) ?? [])].filter(
-                        (name) => name !== from.name,
-                      )
-                    : also.get(entry.id)
-                }
-                named={named}
-                installs={(installs ?? []).filter((i) => installOf(i, entry.id, origins.origins, origins.also))}
-              />
+        {catalog.error ? null : !entries ? (
+          // Where the cards go, while the first page is read: no spinner over the grid.
+          <div className="catalog-grid" aria-busy="true">
+            <span className="dw-sr">{t`Reading the catalog`}</span>
+            {Array.from({ length: 12 }, (_, i) => `placeholder-${i}`).map((key) => (
+              <span key={key} className="dw-panel catalog-card is-placeholder" />
             ))}
           </div>
+        ) : shown.length === 0 && !catalog.isPlaceholderData && !catalog.settling ? (
+          typed !== "" ? (
+            <EmptyState
+              icon="search"
+              title={<Trans>No app matches</Trans>}
+              action={
+                // Where other categories have it, the way on is to look there; otherwise to start the search again.
+                search.category && elsewhere ? (
+                  <Button size="lg" onClick={() => onSearch?.({ ...search, category: undefined })}>
+                    <Trans>Search every category</Trans>
+                  </Button>
+                ) : (
+                  <Button size="lg" onClick={() => onSearch?.({ ...search, q: undefined, category: undefined })}>
+                    <Trans>Clear the search</Trans>
+                  </Button>
+                )
+              }
+            >
+              <p>
+                <Trans>
+                  No app here has <code>{typed}</code> in its name or what it does.
+                </Trans>
+              </p>
+            </EmptyState>
+          ) : (
+            // No words typed: a filter, such as Installed, holds nothing; the way on is every app.
+            <EmptyState
+              icon={search.installed ? "service" : "grid"}
+              title={
+                search.installed ? (
+                  <Trans>Nothing from the catalog is installed yet</Trans>
+                ) : (
+                  <Trans>No app here yet</Trans>
+                )
+              }
+              action={
+                <Button
+                  size="lg"
+                  onClick={() =>
+                    onSearch?.({ q: undefined, category: undefined, catalog: undefined, installed: undefined })
+                  }
+                >
+                  <Trans>Show every app</Trans>
+                </Button>
+              }
+            />
+          )
+        ) : (
+          <>
+            {from ? null : (
+              // Narrowed to one catalog, its own line says how many.
+              <p className="catalog-count" aria-live="polite">
+                {plural(catalog.total ?? shown.length, { one: "# app", other: "# apps" })}
+              </p>
+            )}
+            <div className="catalog-grid" aria-busy={catalog.isPlaceholderData || catalog.settling || undefined}>
+              {shown.map((entry) => (
+                <Card
+                  key={entry.id}
+                  entry={entry}
+                  words={said(entry)}
+                  category={words(entry.category)}
+                  search={search}
+                  source={from ? (from.own ? undefined : from.name) : stranger(origins.origins, entry.id)?.name}
+                  also={
+                    // Narrowed to one catalog, the others that have the app, the one it's listed from among them.
+                    from
+                      ? [origins.origins.get(entry.id)?.name ?? "", ...(also.get(entry.id) ?? [])].filter(
+                          (name) => name !== from.name,
+                        )
+                      : also.get(entry.id)
+                  }
+                  named={named}
+                  installs={(installs ?? []).filter((i) => installOf(i, entry.id, origins.origins, origins.also))}
+                />
+              ))}
+            </div>
+            {hasNextPage ? (
+              <div ref={end} className="catalog-more">
+                <Button variant="secondary" loading={isFetchingNextPage} onClick={() => void fetchNextPage()}>
+                  {plural((catalog.total ?? 0) - shown.length, { one: "Show # more", other: "Show # more" })}
+                </Button>
+              </div>
+            ) : null}
+          </>
         )}
       </section>
 
@@ -279,7 +345,7 @@ export function CatalogPage({ search = {}, onSearch, children }: CatalogPageProp
         <p className="catalog-note">
           <Trans>
             Not listed? Deploy any image or Compose file as an app.{" "}
-            <Link to="/apps/new" className="catalog-link">
+            <Link to="/apps/new" search={{ source: "image" }} className="catalog-link">
               New app
             </Link>
           </Trans>
@@ -404,18 +470,5 @@ function Card({
     <Link to="/catalog/$entryId" params={{ entryId: entry.id }} search={search} className="dw-panel catalog-card">
       {body}
     </Link>
-  );
-}
-
-/**
- * Whether an entry has the words, lowercased, in its name, what it does in its own
- * language or the reader's, its category or its features.
- */
-function matches(e: Entry, said: EntryWords, query: string, words: (category: string) => string): boolean {
-  return (
-    query === "" ||
-    `${e.name} ${e.summary} ${said.summary} ${e.category} ${words(e.category)} ${e.features.join(" ")}`
-      .toLowerCase()
-      .includes(query)
   );
 }
