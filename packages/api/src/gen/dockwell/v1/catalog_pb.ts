@@ -446,9 +446,13 @@ export type CatalogNeedOption = Message<"dockwell.v1.CatalogNeedOption"> & {
   servers: string[];
 
   /**
-   * For a Redis or Valkey: each app on it keeps to its own keys, as every user
-   * there has a key prefix, and so would this app's. False where any reaches every
-   * key, so its apps can read and change each other's data. Numbered in the block
+   * For a Redis or Valkey: each app on it keeps to its own keys, as the need sets a
+   * key prefix, every user Dockwell made there keeps to one, and so does every
+   * other user that can sign in, but the default, as the server's latest reading
+   * lists them. False where any reaches past one, or the server couldn't be read,
+   * so its apps can read and change each other's data. It's worked out as the entry
+   * is listed; the plan says it again as it's made, and the agent checks it once
+   * more as it makes the user (DatabaseUser.keeps_apart). Numbered in the block
    * connectable apps hold, 40 to 49.
    *
    * @generated from field: bool keeps_apart = 40;

@@ -54,13 +54,17 @@ func redisQuoted(s string) string {
 const redisShared = "-@all +@connection +@read +@write +@keyspace +@pubsub +@transaction +@scripting -@admin -@dangerous -scan -randomkey"
 
 // redisServer is what a Redis or Valkey says of itself that its users' rules follow.
+// The agent keeps what each user's rules were made for, and makes them again when
+// the server says otherwise, as after an upgrade or a MODULE LOAD.
 type redisServer struct {
-	// subcommands says it takes a rule for one subcommand of a command, as 7 does:
-	// before, the whole command goes.
-	subcommands bool
-	// search says it runs the query engine, whose indexes are no keys, so a key
-	// pattern doesn't keep one app out of another's.
-	search bool
+	// Subcommands says it takes a rule for one subcommand of a command, as 7 does:
+	// before, the whole command goes, but for what it adds back.
+	Subcommands bool `json:"subcommands,omitempty"`
+	// Search says it runs the query engine, whose indexes are no keys, so a key
+	// pattern doesn't keep one app out of another's; Timeseries, the time series
+	// module, whose TS.QUERYINDEX lists every series by its labels.
+	Search     bool `json:"search,omitempty"`
+	Timeseries bool `json:"timeseries,omitempty"`
 }
 
 // redisRules is what an app's ACL user may do, by its password's hash: under its key
@@ -75,51 +79,94 @@ func redisRules(hash string, shared bool, prefix string, srv redisServer) string
 		return rules + " +@all -@admin"
 	}
 	rules += " " + redisShared
-	if srv.subcommands {
-		rules += " -function -script|flush -script|kill -pubsub|channels -pubsub|numsub -pubsub|shardchannels -pubsub|shardnumsub"
+	if srv.Subcommands {
+		rules += " -function -script|flush -script|kill -pubsub|channels -pubsub|numsub -pubsub|shardchannels -pubsub|shardnumsub -client|tracking"
 	} else {
-		rules += " -script -pubsub"
+		// SCRIPT LOAD and EXISTS stay, as clients such as redis-py and Sidekiq load
+		// their scripts so.
+		rules += " -script +script|load +script|exists -pubsub"
 	}
-	if srv.search {
+	if srv.Search {
 		rules += " -@search"
+	}
+	if srv.Timeseries {
+		rules += " -ts.queryindex"
 	}
 	return rules
 }
 
 // redisInfo reads what the server says of itself: its users, its version and its
-// modules. refuse says to refuse one an app's user would mean nothing on: any user
-// that asks no password, as the default does when the server requires none, since
-// any app on its network signs in as it; or a Redis before 6.2, which has no channel
-// rules, so a user reaches every other's messages.
-func (d *UserDriver) redisInfo(ctx context.Context, c *docker.Container, e *Engine, refuse bool) (redisServer, error) {
-	srv := redisServer{subcommands: e.Kind != dockwellv1.DatabaseEngine_DATABASE_ENGINE_REDIS}
+// modules, and which of its users reach past one key prefix of their own, by name,
+// but its default user. refuse says to refuse one an app's user would mean nothing
+// on: any user that asks no password, as the default does when the server requires
+// none, since any app on its network signs in as it; or a Redis before 6.2, which has
+// no channel rules, so a user reaches every other's messages.
+func (d *UserDriver) redisInfo(ctx context.Context, c *docker.Container, e *Engine, refuse bool) (redisServer, []string, error) {
+	srv := redisServer{Subcommands: e.Kind != dockwellv1.DatabaseEngine_DATABASE_ENGINE_REDIS}
+	var wide []string
 	said, err := d.redisAsk(ctx, c, e, "ACL LIST\nINFO server\nMODULE LIST\n")
 	if err != nil {
-		return srv, err
+		return srv, nil, err
 	}
 	for _, line := range said {
 		line = strings.TrimSpace(line)
 		fields := strings.Fields(line)
 		switch {
-		case len(fields) >= 2 && fields[0] == "user" && slices.Contains(fields, "on") && slices.Contains(fields, "nopass"):
-			if refuse && fields[1] == "default" {
-				return srv, fmt.Errorf("%s asks no one for a password, so any app on its network signs in as its administrator, and a user of its own keeps no one out. Give it a password (requirepass), then try again", e.Name)
+		case len(fields) >= 2 && fields[0] == "user":
+			on := slices.Contains(fields, "on")
+			if refuse && on && slices.Contains(fields, "nopass") {
+				if fields[1] == "default" {
+					return srv, nil, fmt.Errorf("%s asks no one for a password, so any app on its network signs in as its administrator, and a user of its own keeps no one out. Give it a password (requirepass), then try again", e.Name)
+				}
+				return srv, nil, fmt.Errorf("%s has a user %s that asks no password, so any app on its network signs in as it, and a user of its own keeps no one out. Give %s a password, or turn it off, then try again", e.Name, fields[1], fields[1])
 			}
-			if refuse {
-				return srv, fmt.Errorf("%s has a user %s that asks no password, so any app on its network signs in as it, and a user of its own keeps no one out. Give %s a password, or turn it off, then try again", e.Name, fields[1], fields[1])
+			if on && fields[1] != "default" && RedisReachesPast(fields[2:]) {
+				wide = append(wide, fields[1])
 			}
 		case strings.HasPrefix(line, "redis_version:") && e.Kind == dockwellv1.DatabaseEngine_DATABASE_ENGINE_REDIS:
 			v := strings.TrimPrefix(line, "redis_version:")
 			n := versionNumbers(v)
-			srv.subcommands = len(n) > 0 && n[0] >= 7
+			srv.Subcommands = len(n) > 0 && n[0] >= 7
 			if refuse && len(n) >= 2 && (n[0] < 6 || n[0] == 6 && n[1] < 2) {
-				return srv, fmt.Errorf("this Redis is %s, which has no rules for channels, so a user of its own would read every app's messages. Upgrade it to 6.2 or later, then try again", v)
+				return srv, nil, fmt.Errorf("this Redis is %s, which has no rules for channels, so a user of its own would read every app's messages. Upgrade it to 6.2 or later, then try again", v)
 			}
 		case line == "search" || line == "ft":
-			srv.search = true
+			srv.Search = true
+		case line == "timeseries":
+			srv.Timeseries = true
 		}
 	}
-	return srv, nil
+	return srv, wide, nil
+}
+
+// RedisReachesPast reports an ACL user, by the rules ACL LIST gives it, that reaches
+// keys or channels past one prefix of its own: one with every key or channel, more
+// than one pattern of either, or a pattern that isn't a prefix and a *. One that
+// reaches none of either keeps to them.
+func RedisReachesPast(rules []string) bool {
+	keys, channels := "", ""
+	for _, r := range rules {
+		switch {
+		case r == "allkeys" || r == "allchannels":
+			return true
+		case strings.HasPrefix(r, "~") || strings.HasPrefix(r, "%"):
+			if keys != "" {
+				return true
+			}
+			keys = r
+		case strings.HasPrefix(r, "&"):
+			if channels != "" {
+				return true
+			}
+			channels = r
+		}
+	}
+	prefixed := func(pattern, mark string) bool {
+		p, ok := strings.CutPrefix(pattern, mark)
+		p, star := strings.CutSuffix(p, "*")
+		return ok && star && p != "" && !strings.ContainsAny(p, `*?[]\`)
+	}
+	return keys != "" && !prefixed(keys, "~") || channels != "" && !prefixed(channels, "&")
 }
 
 // versionNumbers are a version's numbers, such as 6 and 2 for 6.2.14.
@@ -237,10 +284,12 @@ func (d *UserDriver) KeepRedisUsers(ctx context.Context) {
 	}
 }
 
-// putRedisUsersBack is one look of KeepRedisUsers'. It holds the Redis lock for
-// each user, and reads its record again under it, so a user a step drops meanwhile
-// isn't put back. A server it couldn't sign in to, or that was still starting, it
-// looks at again next time; what it forgets of servers that are gone.
+// putRedisUsersBack is one look of KeepRedisUsers'. Each server with users of the
+// agent's on it is asked what it is, once; where it started again since the last
+// look, or says something other than what its users' rules were made for, each of
+// them is given its rules again, made for what it says now. A server it couldn't
+// sign in to, or that was still starting, it looks at again next time; what it
+// forgets of servers that are gone.
 func (d *UserDriver) putRedisUsersBack(ctx context.Context, started map[string]time.Time) {
 	d.mu.Lock()
 	all, err := d.records()
@@ -248,7 +297,15 @@ func (d *UserDriver) putRedisUsersBack(ctx context.Context, started map[string]t
 	if err != nil {
 		return
 	}
+	type server struct {
+		c   *docker.Container
+		e   *Engine
+		srv redisServer
+		err error
+	}
+	servers := map[string]*server{}
 	seen := map[string]bool{}
+	failed := map[string]bool{}
 	for _, key := range slices.Sorted(maps.Keys(all)) {
 		g := all[key]
 		if g.Redis == "" || g.Env == "" {
@@ -259,15 +316,28 @@ func (d *UserDriver) putRedisUsersBack(ctx context.Context, started map[string]t
 			continue
 		}
 		seen[c.ID] = true
-		if started[c.ID].Equal(c.State.StartedAt) {
+		s, ok := servers[c.ID]
+		if !ok {
+			s = &server{c: c, e: Recognise(c.Config.Image)}
+			if s.e != nil {
+				s.srv, _, s.err = d.redisInfo(ctx, c, s.e, false)
+			}
+			servers[c.ID] = s
+		}
+		if s.e == nil || s.err != nil {
+			failed[c.ID] = true
 			continue
 		}
-		e := Recognise(c.Config.Image)
-		if e == nil {
+		if started[c.ID].Equal(c.State.StartedAt) && g.MadeFor == s.srv {
 			continue
 		}
-		if err := d.putRedisUserBack(ctx, c, e, key); err == nil {
-			started[c.ID] = c.State.StartedAt
+		if err := d.putRedisUserBack(ctx, c, s.e, key, s.srv); err != nil {
+			failed[c.ID] = true
+		}
+	}
+	for id := range seen {
+		if !failed[id] {
+			started[id] = servers[id].c.State.StartedAt
 		}
 	}
 	for id := range started {
@@ -277,9 +347,9 @@ func (d *UserDriver) putRedisUsersBack(ctx context.Context, started map[string]t
 	}
 }
 
-// putRedisUserBack gives a server the user its record keeps, if the record still
-// keeps it and the server hasn't it.
-func (d *UserDriver) putRedisUserBack(ctx context.Context, c *docker.Container, e *Engine, key string) error {
+// putRedisUserBack gives a server the user its record keeps, made for srv, if the
+// record still keeps it and the server hasn't it, or has it made for another server.
+func (d *UserDriver) putRedisUserBack(ctx context.Context, c *docker.Container, e *Engine, key string, srv redisServer) error {
 	d.redisMu.Lock()
 	defer d.redisMu.Unlock()
 	d.mu.Lock()
@@ -293,8 +363,15 @@ func (d *UserDriver) putRedisUserBack(ctx context.Context, c *docker.Container, 
 		return nil // dropped meanwhile
 	}
 	has, err := d.redisHas(ctx, c, e, g.User)
-	if err == nil && !has {
-		err = d.redisSet(ctx, c, e, g.User, g.Redis)
+	if err != nil || has && g.MadeFor == srv {
+		return err
 	}
-	return err
+	if g.Hash != "" {
+		g.Redis = redisRules(g.Hash, g.Shared, g.KeyPrefix, srv)
+	}
+	if err := d.redisSet(ctx, c, e, g.User, g.Redis); err != nil {
+		return err
+	}
+	g.MadeFor = srv
+	return d.recordKey(key, &g)
 }

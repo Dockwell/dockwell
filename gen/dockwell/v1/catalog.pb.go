@@ -634,9 +634,13 @@ type CatalogNeedOption struct {
 	SharedWith []string `protobuf:"bytes,12,rep,name=shared_with,json=sharedWith,proto3" json:"shared_with,omitempty"`
 	// The servers it runs on, by name, where the app would go with it.
 	Servers []string `protobuf:"bytes,13,rep,name=servers,proto3" json:"servers,omitempty"`
-	// For a Redis or Valkey: each app on it keeps to its own keys, as every user
-	// there has a key prefix, and so would this app's. False where any reaches every
-	// key, so its apps can read and change each other's data. Numbered in the block
+	// For a Redis or Valkey: each app on it keeps to its own keys, as the need sets a
+	// key prefix, every user Dockwell made there keeps to one, and so does every
+	// other user that can sign in, but the default, as the server's latest reading
+	// lists them. False where any reaches past one, or the server couldn't be read,
+	// so its apps can read and change each other's data. It's worked out as the entry
+	// is listed; the plan says it again as it's made, and the agent checks it once
+	// more as it makes the user (DatabaseUser.keeps_apart). Numbered in the block
 	// connectable apps hold, 40 to 49.
 	KeepsApart    bool `protobuf:"varint,40,opt,name=keeps_apart,json=keepsApart,proto3" json:"keeps_apart,omitempty"`
 	unknownFields protoimpl.UnknownFields

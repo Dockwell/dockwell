@@ -22,8 +22,10 @@ import (
 	"github.com/dockwell/dockwell/internal/control/composeapi"
 	"github.com/dockwell/dockwell/internal/control/place"
 	"github.com/dockwell/dockwell/internal/database"
+	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/network"
 	"github.com/dockwell/dockwell/internal/resource/variable"
+	"github.com/dockwell/dockwell/internal/revision"
 	"github.com/dockwell/dockwell/internal/scope"
 	"github.com/dockwell/dockwell/internal/store"
 )
@@ -368,6 +370,8 @@ func (h *Handler) sharedEdits(ctx context.Context, needed *catalog.Needed, fille
 				if catalog.KeepsApart(n) {
 					user.KeyPrefix = w.User + ":"
 				}
+				// What the choice promised, which the agent checks again as it applies.
+				user.KeepsApart = w.KeepsApart()
 				more, err := h.sharedUsers(ctx, tx, c)
 				if err != nil {
 					return err
@@ -437,6 +441,34 @@ func (h *Handler) sharedEdits(ctx context.Context, needed *catalog.Needed, fille
 		return nil
 	})
 	return out, servers, err
+}
+
+// shareNotes restate, in the plan, what the share choice said of each Redis or
+// Valkey the install shares, as it stands when the plan is made: whether its apps
+// keep to their own keys, or can read and change each other's data. The agent checks
+// the first again as it applies (DatabaseUser.keeps_apart).
+func shareNotes(needed *catalog.Needed) []revision.Note {
+	var out []revision.Note
+	for i := range needed.Shared {
+		w := &needed.Shared[i]
+		c := w.Existing
+		if c == nil || c.Project == "" || !catalog.KeyValue(c.Engine) {
+			continue
+		}
+		ref := resource.Ref{Kind: "service", Scope: c.EnvironmentID, Name: c.Service}
+		if w.KeepsApart() {
+			out = append(out, revision.Note{
+				Reason: "shared_keys_apart", Ref: ref, Names: []string{c.Service}, Named: true,
+				Message: fmt.Sprintf("Each app on %s keeps to its own keys", c.Service),
+			})
+			continue
+		}
+		out = append(out, revision.Note{
+			Reason: "shared_keys", Ref: ref, Names: []string{c.Service}, Named: true,
+			Message: fmt.Sprintf("Apps on %s can read and change each other's data", c.Service),
+		})
+	}
+	return out
 }
 
 // owner is a catalog install whose own database the plan pins apart, by its project's

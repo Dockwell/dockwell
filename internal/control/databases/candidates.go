@@ -139,9 +139,17 @@ func (h *Handler) Candidates(ctx context.Context) ([]catalog.Candidate, error) {
 					c.JoinsInPlace = false
 				}
 			}
+			// A Redis or Valkey keeps its apps apart only where every user on it keeps to a
+			// prefix of its own: one made by hand counts too, and one whose server can't be
+			// read counts as not, so the choice never promises what it can't see.
+			read := false
 			for _, r := range db.GetReadings() {
 				if r.GetUnread() != "" {
 					continue
+				}
+				read = true
+				for _, u := range r.GetUsers() {
+					c.Unprefixed = c.Unprefixed || u.GetName() != "default" && u.GetCanSignIn() && u.GetReachesPast()
 				}
 				if r.GetVersion() != "" {
 					c.Version = r.GetVersion()
@@ -157,6 +165,9 @@ func (h *Handler) Candidates(ctx context.Context) ([]catalog.Candidate, error) {
 					c.Users = append(c.Users, u.GetName())
 				}
 				break
+			}
+			if catalog.KeyValue(c.Engine) && !read {
+				c.Unprefixed = true
 			}
 			// The administrator's secret: what else uses it signs in as the administrator.
 			if secret := db.GetPasswordSecret(); secret != "" {

@@ -8987,9 +8987,13 @@ components:
                 keepsApart:
                     type: boolean
                     description: |-
-                        For a Redis or Valkey: each app on it keeps to its own keys, as every user
-                         there has a key prefix, and so would this app's. False where any reaches every
-                         key, so its apps can read and change each other's data. Numbered in the block
+                        For a Redis or Valkey: each app on it keeps to its own keys, as the need sets a
+                         key prefix, every user Dockwell made there keeps to one, and so does every
+                         other user that can sign in, but the default, as the server's latest reading
+                         lists them. False where any reaches past one, or the server couldn't be read,
+                         so its apps can read and change each other's data. It's worked out as the entry
+                         is listed; the plan says it again as it's made, and the agent checks it once
+                         more as it makes the user (DatabaseUser.keeps_apart). Numbered in the block
                          connectable apps hold, 40 to 49.
             description: CatalogNeedOption is one way to meet an entry's need.
         CatalogPart:
@@ -10995,6 +10999,12 @@ components:
                     description: |-
                         The database they sign in to, for MongoDB, as an app names it in authSource,
                          such as "admin" for its root user.
+                reachesPast:
+                    type: boolean
+                    description: |-
+                        On a Redis or Valkey, it reaches keys or channels past one prefix of its own,
+                         so apps sharing the server don't keep apart. Numbered in the block connectable
+                         apps hold in other messages, 80 to 89.
             description: |-
                 DatabaseAccount is someone who can sign in to a database server: a user, as
                  MySQL and MariaDB call one, or a role, as PostgreSQL does.
@@ -11205,6 +11215,13 @@ components:
                          it reaches only keys, and channels, that start with it. Empty reaches every key,
                          as an app that sets no prefix needs. On other engines it changes nothing (ADR
                          0084).
+                keepsApart:
+                    type: boolean
+                    description: |-
+                        On a Redis or Valkey, the plan said each app on it keeps to its own keys, as
+                         every user there had a key prefix of its own: making the user, or giving it its
+                         password anew, refuses a server where another user, but its default, reaches
+                         past one by then (ADR 0084).
             description: |-
                 DatabaseUser is a database inside a database server that a service of its
                  environment runs, with the user who owns it, who signs in with a secret of the

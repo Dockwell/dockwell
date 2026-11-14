@@ -994,6 +994,11 @@ message DatabaseUser {
   // as an app that sets no prefix needs. On other engines it changes nothing (ADR
   // 0084).
   string key_prefix = 82;
+  // On a Redis or Valkey, the plan said each app on it keeps to its own keys, as
+  // every user there had a key prefix of its own: making the user, or giving it its
+  // password anew, refuses a server where another user, but its default, reaches
+  // past one by then (ADR 0084).
+  bool keeps_apart = 83;
 }
 
 // DatabaseCopy names a database to copy from: the service that runs its server, in

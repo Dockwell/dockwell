@@ -256,7 +256,8 @@ func (e *Engine) reading(port uint32) ([]string, string) {
 	if port == 0 {
 		port = e.Port
 	}
-	return withPort("DW_PORT", port, redisClient), ""
+	// Its users too, which say whether apps sharing it keep to their own keys.
+	return withPort("DW_PORT", port, redisClient), "INFO\nACL LIST\n"
 }
 
 // withPort runs cmd with the port in variable, where the command line set one.
@@ -276,7 +277,7 @@ func withPort(variable string, port uint32, cmd []string) []string {
 var (
 	postgresClient = []string{"sh", "-c", `export PGPASSWORD="${POSTGRES_PASSWORD:-}" PGCONNECT_TIMEOUT=5 PGOPTIONS='-c lc_messages=C -c statement_timeout=6000'; exec timeout 7 psql -X -q -A -t -v ON_ERROR_STOP=1 -U "${POSTGRES_USER:-postgres}" -d postgres -f -`}
 	mysqlClient    = []string{"sh", "-c", `export MYSQL_PWD="${MARIADB_ROOT_PASSWORD:-${MYSQL_ROOT_PASSWORD:-}}"; c=mysql; command -v mariadb >/dev/null 2>&1 && c=mariadb; exec timeout 7 "$c" -uroot -N -B --connect-timeout=5`}
-	redisClient    = []string{"sh", "-c", `p="${VALKEY_PASSWORD:-${REDIS_PASSWORD:-}}"; [ -n "$p" ] && export REDISCLI_AUTH="$p"; c=redis-cli; command -v valkey-cli >/dev/null 2>&1 && c=valkey-cli; exec timeout 7 "$c" -p "${DW_PORT:-6379}" INFO`}
+	redisClient    = []string{"sh", "-c", `p="${VALKEY_PASSWORD:-${REDIS_PASSWORD:-}}"; [ -n "$p" ] && export REDISCLI_AUTH="$p"; c=redis-cli; command -v valkey-cli >/dev/null 2>&1 && c=valkey-cli; exec timeout 7 "$c" -p "${DW_PORT:-6379}"`}
 )
 
 // mongoSignIn reads the root user the image made, from MONGO_INITDB_ROOT_USERNAME

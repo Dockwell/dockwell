@@ -4550,7 +4550,12 @@ type DatabaseUser struct {
 	// it reaches only keys, and channels, that start with it. Empty reaches every key,
 	// as an app that sets no prefix needs. On other engines it changes nothing (ADR
 	// 0084).
-	KeyPrefix     string `protobuf:"bytes,82,opt,name=key_prefix,json=keyPrefix,proto3" json:"key_prefix,omitempty"`
+	KeyPrefix string `protobuf:"bytes,82,opt,name=key_prefix,json=keyPrefix,proto3" json:"key_prefix,omitempty"`
+	// On a Redis or Valkey, the plan said each app on it keeps to its own keys, as
+	// every user there had a key prefix of its own: making the user, or giving it its
+	// password anew, refuses a server where another user, but its default, reaches
+	// past one by then (ADR 0084).
+	KeepsApart    bool `protobuf:"varint,83,opt,name=keeps_apart,json=keepsApart,proto3" json:"keeps_apart,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4632,6 +4637,13 @@ func (x *DatabaseUser) GetKeyPrefix() string {
 		return x.KeyPrefix
 	}
 	return ""
+}
+
+func (x *DatabaseUser) GetKeepsApart() bool {
+	if x != nil {
+		return x.KeepsApart
+	}
+	return false
 }
 
 // DatabaseCopy names a database to copy from: the service that runs its server, in
@@ -8154,7 +8166,7 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x82\x03\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xa3\x03\n" +
 	"\fDatabaseUser\x12\x18\n" +
 	"\aservice\x18\x01 \x01(\tR\aservice\x12#\n" +
 	"\rdatabase_name\x18\x02 \x01(\tR\fdatabaseName\x12\x1a\n" +
@@ -8163,7 +8175,9 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\tcopy_from\x18P \x01(\v2(.dockwell.resource.v1alpha1.DatabaseCopyR\bcopyFrom\x12\x16\n" +
 	"\x06shared\x18Q \x01(\bR\x06shared\x12\x1d\n" +
 	"\n" +
-	"key_prefix\x18R \x01(\tR\tkeyPrefix\x1a<\n" +
+	"key_prefix\x18R \x01(\tR\tkeyPrefix\x12\x1f\n" +
+	"\vkeeps_apart\x18S \x01(\bR\n" +
+	"keepsApart\x1a<\n" +
 	"\x0eRevisionsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\x03R\x05value:\x028\x01\"f\n" +

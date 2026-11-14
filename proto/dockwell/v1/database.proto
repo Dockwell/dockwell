@@ -239,6 +239,10 @@ message DatabaseAccount {
   // The database they sign in to, for MongoDB, as an app names it in authSource,
   // such as "admin" for its root user.
   string auth_database = 10;
+  // On a Redis or Valkey, it reaches keys or channels past one prefix of its own,
+  // so apps sharing the server don't keep apart. Numbered in the block connectable
+  // apps hold in other messages, 80 to 89.
+  bool reaches_past = 80;
 }
 
 // ListDatabasesRequest asks for the databases.

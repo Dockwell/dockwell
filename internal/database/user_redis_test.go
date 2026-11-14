@@ -35,6 +35,8 @@ type fakeRedis struct {
 	// other is a user of its ACL file that asks no password; search, that it runs
 	// the query engine.
 	other, search bool
+	// wide is a user made by hand that reaches every key.
+	wide bool
 }
 
 func (f *fakeRedis) exec(x dockertest.Exec) int {
@@ -64,6 +66,9 @@ func (f *fakeRedis) exec(x dockertest.Exec) int {
 			_, _ = io.WriteString(x.Stdout, def+"\n")
 			if f.other {
 				_, _ = io.WriteString(x.Stdout, "user reports on nopass ~reports:* +@read\n")
+			}
+			if f.wide {
+				_, _ = io.WriteString(x.Stdout, "user ops on #0456 ~* &* +@all\n")
 			}
 		case line == "MODULE LIST":
 			if f.search {
@@ -146,7 +151,7 @@ func TestARedisUserIsAnACLUserOfItsOwn(t *testing.T) {
 		t.Fatalf("read as %v, %v", got, err)
 	}
 	apply(resource.ActionUpdate, shared)
-	if got := r.users["shop"]; got != "reset on #"+hash+" ~* &* "+redisShared+" -function -script|flush -script|kill -pubsub|channels -pubsub|numsub -pubsub|shardchannels -pubsub|shardnumsub" || r.saved != 1 {
+	if got := r.users["shop"]; got != "reset on #"+hash+" ~* &* "+redisShared+" -function -script|flush -script|kill -pubsub|channels -pubsub|numsub -pubsub|shardchannels -pubsub|shardnumsub -client|tracking" || r.saved != 1 {
 		t.Errorf("shared, shop's rules are %q, saved %d times", got, r.saved)
 	}
 	// With a key prefix, it keeps to its keys and channels.
@@ -194,7 +199,7 @@ func TestARedisUserIsAnACLUserOfItsOwn(t *testing.T) {
 		t.Error("deleting it left the user")
 	}
 	// What a step dropped isn't put back, whatever the loop read before.
-	if err := d.putRedisUserBack(t.Context(), mustContainer(t, client, id), Of(dockwellv1.DatabaseEngine_DATABASE_ENGINE_REDIS), ref.String()); err != nil {
+	if err := d.putRedisUserBack(t.Context(), mustContainer(t, client, id), Of(dockwellv1.DatabaseEngine_DATABASE_ENGINE_REDIS), ref.String(), redisServer{Subcommands: true}); err != nil {
 		t.Fatal(err)
 	}
 	if _, has := r.users["shop"]; has {
@@ -235,16 +240,16 @@ func TestARedisUserIsAnACLUserOfItsOwn(t *testing.T) {
 // subcommand, SCRIPT and PUBSUB go whole; where the query engine runs, so does it,
 // as its indexes are no keys a pattern keeps an app out of.
 func TestASharedRedisUsersRulesFollowItsServer(t *testing.T) {
-	if got := redisRules("h", true, "shop:", redisServer{}); !strings.HasSuffix(got, " -scan -randomkey -script -pubsub") || !strings.Contains(got, " ~shop:* &shop:* ") {
+	if got := redisRules("h", true, "shop:", redisServer{}); !strings.HasSuffix(got, " -scan -randomkey -script +script|load +script|exists -pubsub") || !strings.Contains(got, " ~shop:* &shop:* ") {
 		t.Errorf("on 6.2: %q", got)
 	}
-	got := redisRules("h", true, "shop:", redisServer{subcommands: true, search: true})
-	for _, want := range []string{" -function ", " -script|flush ", " -pubsub|channels ", " -scan ", " -randomkey ", " -@search"} {
+	got := redisRules("h", true, "shop:", redisServer{Subcommands: true, Search: true, Timeseries: true})
+	for _, want := range []string{" -function ", " -script|flush ", " -pubsub|channels ", " -client|tracking ", " -scan ", " -randomkey ", " -@search ", " -ts.queryindex "} {
 		if !strings.Contains(got+" ", want) {
 			t.Errorf("on 8 with search, %q lacks %q", got, want)
 		}
 	}
-	if got := redisRules("h", false, "", redisServer{search: true}); got != "reset on #h ~* &* +@all -@admin" {
+	if got := redisRules("h", false, "", redisServer{Search: true}); got != "reset on #h ~* &* +@all -@admin" {
 		t.Errorf("its own server's: %q", got)
 	}
 }
@@ -316,5 +321,62 @@ func TestARedisCommandLinePasswordGoesOnStdin(t *testing.T) {
 	}
 	if _, ok := r.users["shop"]; !ok {
 		t.Error("no user was made")
+	}
+}
+
+// Which ACL users reach past one prefix of their own, by what ACL LIST says of them.
+func TestWhichRedisUsersReachPastAPrefix(t *testing.T) {
+	for rules, want := range map[string]bool{
+		"on #h ~shop:* &shop:* -@all +@read":   false,
+		"on #h ~shop:* resetchannels +@read":   false,
+		"on #h ~* &* +@all":                    true,
+		"on #h allkeys allchannels +@all":      true,
+		"on #h ~shop:* ~blog:* &shop:* +@read": true,
+		"on #h ~shop:* &* +@read":              true,
+		"on #h %R~shop:* &shop:* +@read":       true,
+		"on #h ~sh?p:* &shop:* +@read":         true,
+		"off resetkeys resetchannels -@all":    false,
+	} {
+		if got := RedisReachesPast(strings.Fields(rules)); got != want {
+			t.Errorf("%q reaches past a prefix: %t, want %t", rules, got, want)
+		}
+	}
+}
+
+// A user's rules are made again for what its server says now: once it runs the query
+// engine, a shared user is held from it, on the agent's next look, without a restart.
+// Where the plan said apps on the server keep to their own keys, making the user, or
+// giving it its password anew, refuses a server where a user made by hand reaches
+// every key by then, and one where a user asks no password (ADR 0084).
+func TestARedisUsersRulesFollowItsServer(t *testing.T) {
+	d, r, _, _ := redisStand(t)
+	ref := resource.Ref{Kind: UserKind, Scope: "env_1", Name: "shop"}
+	ctx := resource.WithValues(t.Context(), map[string]string{passwordUse: "a-password-no-one-typed"})
+	shared := &resourcev1.DatabaseUser{Service: "cache", Password: "P", Shared: true, KeyPrefix: "shop:", KeepsApart: true}
+	if err := d.Apply(ctx, resource.Step{Ref: ref, Action: resource.ActionCreate}, shared); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(r.users["shop"], "@search") {
+		t.Fatalf("made without the query engine, shop's rules are %q", r.users["shop"])
+	}
+	started := map[string]time.Time{}
+	d.putRedisUsersBack(t.Context(), started)
+	r.search = true
+	d.putRedisUsersBack(t.Context(), started)
+	if !strings.HasSuffix(r.users["shop"], " -@search") {
+		t.Errorf("once the server runs the query engine, shop's rules are %q", r.users["shop"])
+	}
+
+	r.wide = true
+	if err := d.Apply(ctx, resource.Step{Ref: ref, Action: resource.ActionUpdate}, shared); err == nil || !strings.Contains(err.Error(), "ops now reaches past a prefix of its own") {
+		t.Errorf("giving shop its password anew beside a user that reaches every key = %v", err)
+	}
+	plain := &resourcev1.DatabaseUser{Service: "cache", Password: "P", Shared: true}
+	if err := d.Apply(ctx, resource.Step{Ref: ref, Action: resource.ActionUpdate}, plain); err != nil {
+		t.Errorf("where the plan said nothing of keeping apart = %v", err)
+	}
+	r.wide, r.nopass = false, true
+	if err := d.Apply(ctx, resource.Step{Ref: ref, Action: resource.ActionUpdate}, plain); err == nil || !strings.Contains(err.Error(), "asks no one for a password") {
+		t.Errorf("giving shop its password anew on a server that asks none = %v", err)
 	}
 }

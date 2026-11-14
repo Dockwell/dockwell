@@ -143,6 +143,7 @@ func (h *Handler) SetCatalogNeed(ctx context.Context, req *connect.Request[dockw
 	if err != nil {
 		return nil, err
 	}
+	notes = append(notes, shareNotes(needed)...)
 	if len(keeps) > 0 {
 		notes = append(notes, revision.Note{
 			Reason:  "catalog_need_moves",

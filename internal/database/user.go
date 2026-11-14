@@ -290,7 +290,7 @@ func (d *UserDriver) server(ctx context.Context, ref resource.Ref, service strin
 func (d *UserDriver) guard(ctx context.Context, c *docker.Container, e *Engine) error {
 	switch {
 	case e.KeyValue():
-		_, err := d.redisInfo(ctx, c, e, true)
+		_, _, err := d.redisInfo(ctx, c, e, true)
 		return err
 	case e.Kind == dockwellv1.DatabaseEngine_DATABASE_ENGINE_MONGODB:
 		cmd, _ := e.reading(PortOf(e, c.Config.Cmd))
@@ -455,11 +455,17 @@ type given struct {
 	// rules it was given, with its password's hash, which the agent gives it again
 	// on a server that started again without it.
 	Shared bool `json:"shared,omitempty"`
-	// KeyPrefix is the prefix of the keys a Redis or Valkey user keeps to.
-	KeyPrefix string `json:"key_prefix,omitempty"`
-	Env       string `json:"env,omitempty"`
-	User      string `json:"user,omitempty"`
-	Redis     string `json:"redis,omitempty"`
+	// KeyPrefix is the prefix of the keys a Redis or Valkey user keeps to, Hash its
+	// password's SHA-256, and MadeFor what the server said of itself when its rules
+	// were made: the agent makes them again when it says otherwise.
+	KeyPrefix string      `json:"key_prefix,omitempty"`
+	Hash      string      `json:"hash,omitempty"`
+	MadeFor   redisServer `json:"made_for,omitzero"`
+	// KeepsApart is what its plan said of the server (DatabaseUser.keeps_apart).
+	KeepsApart bool   `json:"keeps_apart,omitempty"`
+	Env        string `json:"env,omitempty"`
+	User       string `json:"user,omitempty"`
+	Redis      string `json:"redis,omitempty"`
 	// Copying says a step began copying a database into it and didn't finish: what
 	// the database holds is part of a copy, which reads as no user, so applying again
 	// empties it and copies it whole.
@@ -484,6 +490,26 @@ func (d *UserDriver) records() (map[string]given, error) {
 }
 
 func (d *UserDriver) record(ref resource.Ref, g *given) error {
+	return d.recordKey(ref.String(), g)
+}
+
+// sIfOne and itsOrTheir agree with how many names there are.
+func sIfOne(names []string) string {
+	if len(names) == 1 {
+		return "es"
+	}
+	return ""
+}
+
+func itsOrTheir(names []string) string {
+	if len(names) == 1 {
+		return "its"
+	}
+	return "their"
+}
+
+// recordKey keeps what a user was given, by its key, or forgets it with nil.
+func (d *UserDriver) recordKey(key string, g *given) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	all, err := d.records()
@@ -491,9 +517,9 @@ func (d *UserDriver) record(ref resource.Ref, g *given) error {
 		return err
 	}
 	if g == nil {
-		delete(all, ref.String())
+		delete(all, key)
 	} else {
-		all[ref.String()] = *g
+		all[key] = *g
 	}
 	b, err := json.Marshal(all)
 	if err != nil {
@@ -528,7 +554,7 @@ func (d *UserDriver) Observe(ctx context.Context, ref resource.Ref) (proto.Messa
 	if err != nil || !ok || g.Copying {
 		return nil, err
 	}
-	out := &resourcev1.DatabaseUser{Service: g.Service, DatabaseName: g.Database, Password: g.Uses, Shared: g.Shared, KeyPrefix: g.KeyPrefix}
+	out := &resourcev1.DatabaseUser{Service: g.Service, DatabaseName: g.Database, Password: g.Uses, Shared: g.Shared, KeyPrefix: g.KeyPrefix, KeepsApart: g.KeepsApart}
 	if c := g.CopiedFrom; len(c) == 3 {
 		out.CopyFrom = &resourcev1.DatabaseCopy{Environment: c[0], Service: c[1], Database: c[2]}
 	}
@@ -609,17 +635,27 @@ func (d *UserDriver) Apply(ctx context.Context, step resource.Step, desired prot
 	}
 	if e.KeyValue() {
 		// An ACL user, kept with its rules, so the agent puts it back after a restart.
+		// A user of its own keeps no one out where any user asks no password, made now
+		// or given its password anew; and where the plan said apps on it keep to their
+		// own keys, none but the default may reach past a prefix of its own by now.
 		var srv redisServer
+		var wide []string
 		if err := d.whileStarting(ctx, func() error {
 			var err error
-			srv, err = d.redisInfo(ctx, c, e, false)
+			srv, wide, err = d.redisInfo(ctx, c, e, true)
 			return err
 		}); err != nil {
 			return err
 		}
+		wide = slices.DeleteFunc(wide, func(name string) bool { return name == ref.Name })
+		if u.GetKeepsApart() && len(wide) > 0 {
+			return fmt.Errorf("the plan said apps on %s keep to their own keys, and %s now reach%s past a prefix of %s own, so nothing changed. Plan it again, which says its apps can read and change each other's data",
+				u.GetService(), strings.Join(wide, " and "), sIfOne(wide), itsOrTheir(wide))
+		}
+		hash := redisHash(password)
 		g := &given{
 			Service: u.GetService(), Uses: u.GetPassword(), Revision: u.GetRevisions()[passwordUse], Shared: u.GetShared(), KeyPrefix: u.GetKeyPrefix(),
-			Env: ref.Scope, User: ref.Name, Redis: redisRules(redisHash(password), u.GetShared(), u.GetKeyPrefix(), srv),
+			Env: ref.Scope, User: ref.Name, Hash: hash, MadeFor: srv, Redis: redisRules(hash, u.GetShared(), u.GetKeyPrefix(), srv), KeepsApart: u.GetKeepsApart(),
 		}
 		d.redisMu.Lock()
 		defer d.redisMu.Unlock()

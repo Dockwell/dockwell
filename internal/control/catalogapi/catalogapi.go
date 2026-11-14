@@ -306,6 +306,7 @@ func (h *Handler) InstallCatalogEntry(ctx context.Context, req *connect.Request[
 	if err != nil {
 		return nil, err
 	}
+	pinNotes = append(pinNotes, shareNotes(needed)...)
 	users, err := h.userEdits(ctx, "", needed)
 	if err != nil {
 		return nil, h.internal(ctx, err)

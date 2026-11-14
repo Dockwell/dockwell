@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"io"
+	"maps"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -1420,10 +1421,15 @@ func fakeRedisImage(mu *sync.Mutex, acl map[string]string) dockertest.Image {
 			switch {
 			case len(fields) > 0 && fields[0] == "AUTH":
 				_, _ = io.WriteString(x.Stdout, "OK\n")
-			case line == "INFO server":
+			case line == "INFO server" || line == "INFO":
 				_, _ = io.WriteString(x.Stdout, "# Server\nredis_version:7.4.1\n")
 			case line == "ACL LIST":
+				// The default, and each user it holds, as ACL LIST gives them.
 				_, _ = io.WriteString(x.Stdout, "user default on sanitize-payload #0123 ~* &* +@all\n")
+				for _, name := range slices.Sorted(maps.Keys(acl)) {
+					rules := strings.TrimPrefix(acl[name], "reset ")
+					_, _ = io.WriteString(x.Stdout, "user "+name+" "+rules+"\n")
+				}
 			case len(fields) >= 3 && fields[0] == "ACL" && fields[1] == "SETUSER":
 				acl[fields[2]] = strings.Join(fields[3:], " ")
 				_, _ = io.WriteString(x.Stdout, "OK\n")
@@ -1493,6 +1499,10 @@ func TestAnInstallSharesARedisYouRun(t *testing.T) {
 			t.Errorf("sharing, the plan makes no %s: %v", want, made)
 		}
 	}
+	// The plan says it again, as it stands when it's made.
+	if apart := notesOf(planned, "shared_keys_apart"); len(apart) != 1 || !strings.Contains(apart[0], "Each app on cache keeps to its own keys") {
+		t.Errorf("the plan says %v", planned.GetPlan().GetNotes())
+	}
 	if got := apply(t, ch, planned); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
 		t.Fatalf("the install ended %v: %s", got.GetState(), got.GetError())
 	}
@@ -1535,6 +1545,9 @@ func TestAnInstallSharesARedisYouRun(t *testing.T) {
 		if o.GetService() == "cache" && o.GetKeepsApart() {
 			t.Errorf("with an app on it that keeps to no prefix, the Redis reads as keeping apps apart: %v", o)
 		}
+	}
+	if keys := notesOf(second, "shared_keys"); len(keys) != 1 || !strings.Contains(keys[0], "can read and change each other's data") {
+		t.Errorf("the second share's plan says %v", second.GetPlan().GetNotes())
 	}
 
 	// A developer of the board's project alone isn't offered the server, nor can name it.
@@ -1616,5 +1629,46 @@ func TestAnUpgradeKeepsAUserShared(t *testing.T) {
 				t.Errorf("the upgrade changes whether the user is shared: %v", c)
 			}
 		}
+	}
+}
+
+// A user made by hand on a Redis that reaches every key keeps its apps from keeping
+// apart, whatever Dockwell's own users do, so the choice says they can read and
+// change each other's data (ADR 0084).
+func TestAHandMadeRedisUserKeepsAppsFromKeepingApart(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv(catalog.DirEnv, dir)
+	if err := os.WriteFile(filepath.Join(dir, "board-user.yaml"), []byte(boardWithUser), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	var mu sync.Mutex
+	acl := map[string]string{"ops": "on #0456 ~* &* +@all"}
+	e.Find = func(ref string) (dockertest.Image, bool) {
+		if strings.Contains(ref, "redis") {
+			return fakeRedisImage(&mu, acl), true
+		}
+		return dockertest.Image{}, true
+	}
+	ch := changeClient(b, b.origin)
+	compose := dockwellv1connect.NewComposeServiceClient(b, b.origin, connect.WithProtoJSON())
+	apply(t, ch, importCompose(t, compose, sharedRedisStack, map[string]string{"CACHE_PASSWORD": "the-administrators"}, false))
+	got, err := catalogClient(b).GetCatalogEntry(t.Context(), connect.NewRequest(&dockwellv1.GetCatalogEntryRequest{Id: "board-user"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, o := range got.Msg.GetNeeds() {
+		if o.GetService() == "cache" {
+			found = true
+			if o.GetWhy() != "" || o.GetKeepsApart() {
+				t.Errorf("with ops on it, the Redis reads %v", o)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("the Redis isn't offered: %v", got.Msg.GetNeeds())
 	}
 }
