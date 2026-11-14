@@ -154,3 +154,23 @@ func TestAFailureInAWaveSkipsWhatHasntStarted(t *testing.T) {
 		}
 	}
 }
+
+// A wave's servers that each find a newer image on a pull make one revision of it
+// between them, as servers one after another do: what each step found goes on the
+// change's record one at a time, though the steps go side by side.
+func TestAWavesPullsThatFindANewerImageMakeOneRevision(t *testing.T) {
+	s := runShop(t, store.SQLite, "srv_A", "srv_B")
+	p, err := s.e.Propose(t.Context(), Proposal{
+		Summary: "Deploy", Actor: "usr_test",
+		Edits:   []Edit{{Ref: s.ref, Spec: shopSpec(), Base: 1, Pull: true, Run: true}},
+		Rollout: &Rollout{Servers: []string{"srv_A", "srv_B"}, Batch: 2},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Waves == nil || len(p.Waves.Order) != 1 {
+		t.Fatalf("the waves are %+v, want one of both servers", p.Waves)
+	}
+	apply(t, s.e, p)
+	s.wantNewerRunning(t, p.Change)
+}

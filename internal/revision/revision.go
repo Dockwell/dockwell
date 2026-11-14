@@ -4308,7 +4308,12 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 				e.awaits(c.ID, index, *o.Waits)
 			}
 			if o.Replacing {
+				// It comes during the call, with the run's lock let go, while another
+				// server's step may be finding the same image: the item's revision
+				// changes under the lock, one step at a time.
+				mu.Lock()
 				e.pulledNewer(ctx, c.ID, items, it, q.server, o)
+				mu.Unlock()
 			}
 		})
 		// An agent's upgrade carries the control plane's install script with its call,
