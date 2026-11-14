@@ -70,11 +70,13 @@ type Ingress interface {
 // plane and on the agent beside it: no route may claim it or a name under it.
 // Saved, on the control plane, is a domain saved for the panel and not served
 // yet, as during the restart that serves it (ADR 0063): no route may claim that
-// either.
+// either. Hash, on the control plane alone, hashes a password a route's user is
+// given (ADR 0087).
 type Driver struct {
 	Ingress  Ingress
 	Reserved string
 	Saved    func() string
+	Hash     Hasher
 }
 
 var (
@@ -283,6 +285,9 @@ func (d *Driver) Validate(spec proto.Message) error {
 	}
 	if r.GetPlainForAnyone() && r.GetTls() != ingress.TLSOff {
 		return errors.New("a route's plain_for_anyone says who answers over plain HTTP, and this route takes a certificate. Set tls to off with it, or leave it out")
+	}
+	if err := d.checkAccess(r); err != nil {
+		return err
 	}
 	if r.GetHostPort() != 0 {
 		return checkHostPort(r)

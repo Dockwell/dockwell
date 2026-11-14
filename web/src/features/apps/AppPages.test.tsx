@@ -2013,6 +2013,36 @@ describe("an app's overview", () => {
       ]);
     });
 
+    it("makes a domain private from its row, with a password made for it, as a plan", async () => {
+      const user = userEvent.setup();
+      const edits: { resource?: { kind: string; name: string }; spec?: { kind: { value: unknown } } }[] = [];
+      const running = await atPage(
+        () => ({ domains: [aDomain({ certificate: certificate(CertificateState.ISSUED) })] }),
+        {
+          auth: { listSessions: () => ({ sessions: [{ id: "ses_1", address: "::1", current: true }] }) },
+          changes: {
+            watchChange: feed<WatchChangeResponse>().stream,
+            discardChange: () => ({}),
+            proposeChange: (req) => {
+              edits.push(...(req.edits as never[]));
+              return { change: webPlanned() };
+            },
+          },
+        },
+      );
+      await user.click(await within(running).findByRole("button", { name: "Make app.example.com private" }));
+      const sheet = await screen.findByRole("dialog", { name: "Make app.example.com private" });
+      await waitFor(() => expect(within(sheet).getByRole("checkbox", { name: "Ask for a password" })).toBeChecked());
+      await user.click(within(sheet).getByRole("checkbox", { name: "I've kept a copy of the password" }));
+      await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+      await screen.findByRole("dialog", { name: "Review plan" });
+      expect(edits[0]?.resource).toMatchObject({ kind: "route", name: "app-example-com" });
+      expect(edits[0]?.spec?.kind.value).toMatchObject({
+        domain: "app.example.com",
+        access: { allow: [], users: [{ name: "admin" }] },
+      });
+    });
+
     it("has an app's delete plan take its routes with it, and only its own", async () => {
       const user = userEvent.setup();
       const edits: { resource?: { kind: string; name: string }; delete: boolean }[] = [];

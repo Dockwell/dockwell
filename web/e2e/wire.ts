@@ -14,10 +14,11 @@ const varint = (n: number) => {
 /** A field of bytes, a string or a message. */
 export function bytes(field: number, value: Buffer | string): Buffer {
   const body = Buffer.from(value);
-  return Buffer.concat([Buffer.from([(field << 3) | 2]), varint(body.length), body]);
+  // A tag is a varint too: one byte up to field 15, more past it.
+  return Buffer.concat([varint((field << 3) | 2), varint(body.length), body]);
 }
 
 /** A field of an integer, an enum or a boolean. */
 export function number(field: number, value: number): Buffer {
-  return Buffer.concat([Buffer.from([field << 3]), varint(value)]);
+  return Buffer.concat([varint(field << 3), varint(value)]);
 }

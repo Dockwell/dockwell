@@ -114,8 +114,12 @@ func Takeable(ctx context.Context, tx *store.Tx, domain string) (string, error) 
 		return "", err
 	}
 	for _, r := range routes {
+		plain, err := tx.Open(ctx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec)
+		if err != nil {
+			return "", fmt.Errorf("can't read the route %s: %w", r.Name, err)
+		}
 		spec := &resourcev1.Route{}
-		if err := proto.Unmarshal(r.Spec, spec); err != nil {
+		if err := proto.Unmarshal(plain, spec); err != nil {
 			return "", fmt.Errorf("can't read the route %s: %w", r.Name, err)
 		}
 		if route.UnderOrIs(spec.GetDomain(), domain) {

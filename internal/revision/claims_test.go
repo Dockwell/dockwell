@@ -19,6 +19,7 @@ import (
 	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/network"
 	"github.com/dockwell/dockwell/internal/resource/route"
+	"github.com/dockwell/dockwell/internal/resource/route/routehash"
 	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/resource/volume"
 	"github.com/dockwell/dockwell/internal/scope"
@@ -111,7 +112,7 @@ func setupRoutes(t *testing.T, b store.Backend, ids ...string) (e *Engine, prod,
 	}); err != nil {
 		t.Fatal(err)
 	}
-	kinds := resource.NewRegistry(&container.Driver{}, &service.Driver{}, &volume.Driver{}, &network.Driver{}, &route.Driver{Reserved: panelDomain})
+	kinds := resource.NewRegistry(&container.Driver{}, &service.Driver{}, &volume.Driver{}, &network.Driver{}, &route.Driver{Reserved: panelDomain, Hash: routehash.Hash})
 	e = New(db, kinds, agents, secretstest.Keeper(db, kinds), slog.New(slog.DiscardHandler))
 	prod = production(t, db)
 	apply(t, e, propose(t, e, "Add staging", environment(tree(t, db).Projects[0].ID, "staging")))

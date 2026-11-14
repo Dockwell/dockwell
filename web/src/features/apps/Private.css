@@ -1,0 +1,228 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+/* Who gets in to a route (ADR 0087): what a stranger gets now, the list, and the users. */
+
+.private-now {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+}
+
+.private-now > .dw-icon {
+  flex: none;
+  margin-top: 2px;
+  color: var(--ink-muted);
+}
+
+.private-now-line,
+.private-now-next {
+  margin: 0;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.private-now-line.is-ok {
+  color: var(--healthy);
+}
+
+.private-now-line.is-warning {
+  color: var(--warning);
+}
+
+.private-now-line.is-muted,
+.private-now-next {
+  color: var(--ink-muted);
+}
+
+.private-part {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.private-toggle {
+  font-weight: 600;
+}
+
+.private-why {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.private-entries {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+
+.private-entries:empty {
+  display: none;
+}
+
+.private-entry {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  min-height: 40px;
+  padding: 0 var(--space-1) 0 var(--space-3);
+}
+
+.private-entry + .private-entry {
+  border-top: 1px solid var(--line);
+}
+
+.private-entry code {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+.private-entry-what {
+  display: flex;
+  flex: 1;
+  gap: var(--space-2);
+  align-items: baseline;
+  min-width: 0;
+}
+
+.private-entry-note {
+  color: var(--ink-muted);
+  font-size: 12px;
+}
+
+.private-add {
+  display: flex;
+  gap: var(--space-2);
+  align-items: flex-end;
+}
+
+.private-add > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.private-user {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+
+.private-user-kept {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  margin: 0;
+  font-size: 13px;
+}
+
+.private-user-kept span {
+  color: var(--ink-muted);
+}
+
+.private-password {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.private-password-label {
+  flex-basis: 100%;
+  color: var(--ink-muted);
+  font-size: 12px;
+}
+
+.private-password-value {
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+.private-user-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.private-user-acts:empty {
+  display: none;
+}
+
+.private-saved {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.private-saved-line {
+  margin: 0;
+}
+
+/* A private route's line on a list of domains: a lock, and what a stranger gets. */
+.private-fact {
+  display: inline-flex;
+  gap: var(--space-1);
+  align-items: center;
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.private-fact.is-warning {
+  color: var(--warning);
+}
+
+.private-sheet.is-phone .private-add {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+/* Its small ways to add, at the start of the line, as a list's are. */
+.private-part > .dw-btn {
+  align-self: flex-start;
+}
+
+/* The ways in around a private route, each with what closes it. */
+.private-ways {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: var(--space-1) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.private-ways li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: baseline;
+}
+
+.private-ways code {
+  overflow-wrap: anywhere;
+  font-family: var(--font-mono);
+  font-size: 13px;
+}

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { Domain, DomainRoute, ServiceInfo } from "@dockwell/api";
+import { ChangeService, type Domain, type DomainRoute, type ServiceInfo } from "@dockwell/api";
 import {
   Button,
   Callout,
@@ -55,7 +55,9 @@ import {
   useAllDomains,
   visitorUrl,
 } from "../apps/domains";
+import { type OpenWay, openWaysOf, PrivateButton, PrivateFact, PrivateSheet } from "../apps/PrivateSheet";
 import { usePlaces, useServices } from "../apps/useServices";
+import { useMay } from "../auth/may";
 import { Reconnecting } from "../servers/FleetNotes";
 import { useAgoNow, useControlPlaneNow, useFleetView } from "../servers/useFleet";
 import { EmptyState } from "../shell/EmptyState";
@@ -74,6 +76,8 @@ export interface DomainsSearch {
   q?: string;
   state?: DomainGroup;
   server?: string;
+  /** The route whose sheet of who gets in is open, by ID (ADR 0087). */
+  private?: string;
 }
 
 /** How often how long a server has said nothing, and what a certificate has left, are looked at again. */
@@ -101,6 +105,8 @@ interface Row {
   website: string | undefined;
   /** The first of its domain here, which says once what's wrong with all of them. */
   first: boolean;
+  /** The ways into its app around it, when it keeps strangers out. */
+  open: readonly OpenWay[];
 }
 
 /** An app's key among the routes that reach it. */
@@ -133,6 +139,11 @@ export function DomainsPage({
   const navigate = useNavigate();
   const [adding, setAdding] = useState(false);
   const [moving, setMoving] = useState<Row>();
+  // Who gets in to a route, in the list's address so a link opens it, or here where the list has none.
+  const [privateHere, setPrivateHere] = useState<string>();
+  const privateId = search.private ?? privateHere;
+  const choosePrivate = (id: string | undefined) =>
+    onSearch ? onSearch({ ...search, private: id }) : setPrivateHere(id);
   const [typed, setTyped] = useState(search.q ?? "");
   const query = useDeferredValue(typed);
 
@@ -202,10 +213,27 @@ export function DomainsPage({
       if (!said.join(" ").toLowerCase().includes(wanted)) continue;
       const service = byName.get(appKey(domain.environmentId, route.service));
       const website = websiteOf?.(domain.environmentId)?.id;
-      rows.push({ id: route.id, domain, route, look, silent, service, website, first });
+      rows.push({
+        id: route.id,
+        domain,
+        route,
+        look,
+        silent,
+        service,
+        website,
+        first,
+        open: openWaysOf(domain, route, service, all ?? []),
+      });
       first = false;
     }
   }
+
+  const privateAt = privateId
+    ? (all ?? [])
+        .flatMap((domain) => domain.routes.map((route) => ({ domain, route })))
+        .find((at) => at.route.id === privateId)
+    : undefined;
+  const onPrivate = (row: Row) => choosePrivate(row.route.id);
 
   const open = (row: Row) => {
     if (row.website) void navigate({ to: "/websites/$websiteId", params: { websiteId: row.website } });
@@ -319,6 +347,7 @@ export function DomainsPage({
         fleet={fleet}
         environment={sayWhere ? places.label : undefined}
         onMoveBehind={setMoving}
+        onPrivate={onPrivate}
       />
     );
   } else {
@@ -329,6 +358,7 @@ export function DomainsPage({
         fleet={fleet}
         environment={sayWhere ? places.label : undefined}
         onMoveBehind={setMoving}
+        onPrivate={onPrivate}
         onOpen={open}
       />
     );
@@ -440,6 +470,16 @@ export function DomainsPage({
         )}
       </section>
       {adding ? <AddDomainSheet apps={apps} onClose={() => setAdding(false)} /> : null}
+      {privateAt ? (
+        <PrivateSheet
+          domain={privateAt.domain}
+          route={privateAt.route}
+          onClose={() => choosePrivate(undefined)}
+          service={byName.get(appKey(privateAt.domain.environmentId, privateAt.route.service))}
+          all={all ?? []}
+          onOther={choosePrivate}
+        />
+      ) : null}
       {moving?.service ? (
         <AddDomainSheet
           service={moving.service}
@@ -553,6 +593,12 @@ function Visit({ row, read }: { row: Row; read: DomainRead }) {
       <Icon name="external" size={16} />
     </a>
   );
+}
+
+/** The way to who gets in to a row's route, off with why where your role can't plan there. */
+function Private({ row, onPrivate }: { row: Row; onPrivate: (row: Row) => void }) {
+  const may = useMay()(ChangeService.method.proposeChange, { environment: row.domain.environmentId });
+  return <PrivateButton domain={row.domain} route={row.route} onOpen={() => onPrivate(row)} off={may.off} />;
 }
 
 /** Where a row's domain is, once there's a choice: its servers, and its environment. */
@@ -715,6 +761,7 @@ function DomainsTable({
   fleet,
   environment,
   onMoveBehind,
+  onPrivate,
   onOpen,
 }: {
   rows: readonly Row[];
@@ -722,6 +769,7 @@ function DomainsTable({
   fleet: boolean;
   environment: ((id: string) => string) | undefined;
   onMoveBehind: (row: Row) => void;
+  onPrivate: (row: Row) => void;
   onOpen: (row: Row) => void;
 }) {
   const { t } = useLingui();
@@ -735,7 +783,9 @@ function DomainsTable({
             <span className="domains-name">
               <code className="domains-at">{routeWhere(row.domain, row.route)}</code>
               <Visit row={row} read={read} />
+              <Private row={row} onPrivate={onPrivate} />
             </span>
+            <PrivateFact domain={row.domain} route={row.route} open={row.open} />
             <RowNote row={row} read={read} onMoveBehind={onMoveBehind} />
           </div>
         ),
@@ -750,7 +800,7 @@ function DomainsTable({
       { key: "dns", header: t`DNS`, width: 184, render: (row) => <DnsCell domain={row.domain} read={read} /> },
       { key: "status", header: t`Status`, width: 168, render: (row) => <RowBadge row={row} read={read} /> },
     ],
-    [t, read, fleet, environment, onMoveBehind],
+    [t, read, fleet, environment, onMoveBehind, onPrivate],
   );
   return (
     <Table<Row>
@@ -773,12 +823,14 @@ function PhoneRows({
   fleet,
   environment,
   onMoveBehind,
+  onPrivate,
 }: {
   rows: readonly Row[];
   read: DomainRead;
   fleet: boolean;
   environment: ((id: string) => string) | undefined;
   onMoveBehind: (row: Row) => void;
+  onPrivate: (row: Row) => void;
 }) {
   return (
     <Panel flush className="apps-phone domains-phone">
@@ -790,6 +842,7 @@ function PhoneRows({
           fleet={fleet}
           environment={environment}
           onMoveBehind={onMoveBehind}
+          onPrivate={onPrivate}
         />
       ))}
     </Panel>
@@ -802,12 +855,14 @@ function PhoneRow({
   fleet,
   environment,
   onMoveBehind,
+  onPrivate,
 }: {
   row: Row;
   read: DomainRead;
   fleet: boolean;
   environment: ((id: string) => string) | undefined;
   onMoveBehind: (row: Row) => void;
+  onPrivate: (row: Row) => void;
 }) {
   const [status, word] = useDomainState(row.domain, row.look, row.silent, read);
   const target = useRouteTarget()(row.route);
@@ -862,7 +917,9 @@ function PhoneRow({
           <div className="apps-phone-row is-inert">{body}</div>
         )}
         <Visit row={row} read={read} />
+        <Private row={row} onPrivate={onPrivate} />
       </div>
+      <PrivateFact domain={row.domain} route={row.route} open={row.open} />
       <RowNote row={row} read={read} onMoveBehind={onMoveBehind} />
     </div>
   );

@@ -435,6 +435,31 @@ export function useChangeWords(): ChangeWords {
             return t`plain HTTP on ${path} for anyone who can reach this server, around whatever is in front of it`;
           case HostAccessKind.HTTPS_OFF:
             return t`HTTPS on ${path}, which stops: https:// addresses get an error, and browsers that saw HSTS from it refuse plain HTTP until that runs out`;
+          case HostAccessKind.ACCESS_OPENED: {
+            // The control plane's facts, each a way in that wasn't there (ADR 0087).
+            const facts = access.detail
+              .split(" ")
+              .filter((fact) => fact !== "")
+              .map((fact) => {
+                const [what, about = ""] = fact.split(/:(.*)/s);
+                const named = plain(about);
+                switch (what) {
+                  case "list-off":
+                    return t`takes off its list of addresses`;
+                  case "users-off":
+                    return t`takes off its passwords`;
+                  case "allow":
+                    return t`lets in ${named}`;
+                  case "user":
+                    return t`adds the user ${named}`;
+                  case "password":
+                    return t`changes the password of ${named}`;
+                }
+                return plain(fact);
+              });
+            const how = listWords(i18n.locale, facts);
+            return t`${path} to someone it kept out: it ${how}`;
+          }
         }
         return t`something else on the server`;
       },
