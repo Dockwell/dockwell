@@ -100,8 +100,12 @@ type Engine struct {
 	SwarmNodes int
 	// Tasks are tasks of Swarm services beside those of the containers labelled
 	// as one's, by service name, such as one starting on another node.
-	Tasks       map[string][]docker.Task
-	memoryKills []memoryKill
+	Tasks map[string][]docker.Task
+	// TasksOverEarly makes the tasks API call a service's tasks shut down once
+	// it asks for none, while their containers still stop, as a real Swarm
+	// does.
+	TasksOverEarly bool
+	memoryKills    []memoryKill
 	// ahead is how far the engine's clock is ahead of this machine's, for what it
 	// stamps its events and its containers' states with (SetClockAhead).
 	ahead time.Duration
@@ -2574,7 +2578,10 @@ func (e *Engine) listTasks(w http.ResponseWriter, r *http.Request) {
 			}
 			var t docker.Task
 			t.ID, t.NodeID = c.ID[:12], "node-1"
+			n, _ := svc.Spec.Mode.Replicas()
 			switch {
+			case e.TasksOverEarly && n == 0:
+				t.Status.State = "shutdown"
 			case c.State.Running:
 				t.Status.State = "running"
 			case c.State.Status == "created" || c.State.Status == "":

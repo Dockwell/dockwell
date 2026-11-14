@@ -273,9 +273,12 @@ func servicePorts(ports []resource.PanelPort) []docker.ServicePort {
 	return out
 }
 
-// tasksLive counts a Swarm service's tasks that aren't over, on every node: one
-// running, starting or about to, as Swarm's tasks API has them, so a copy that
-// takes its place never starts beside one, nor during its grace period.
+// tasksLive counts what of a Swarm service may still run: each task Swarm's tasks
+// API doesn't call over, on every node, starting ones too, and each container of
+// its tasks on this node that hasn't exited. Both count, as on a real Swarm the
+// API calls a task over as its spec changes, while its container still shuts
+// down, such as a database for a second or two, and a copy that started then
+// would run beside it on the same data.
 func (s Stopper) tasksLive(ctx context.Context, service string) (int, error) {
 	tasks, err := s.Docker.ListTasks(ctx, service)
 	if err != nil {
@@ -284,6 +287,15 @@ func (s Stopper) tasksLive(ctx context.Context, service string) (int, error) {
 	n := 0
 	for i := range tasks {
 		if !tasks[i].Over() {
+			n++
+		}
+	}
+	list, err := s.Docker.ListContainers(ctx, map[string][]string{"label": {"com.docker.swarm.service.name=" + service}})
+	if err != nil {
+		return 0, fmt.Errorf("can't list the containers of the service %s: %w", service, err)
+	}
+	for i := range list {
+		if list[i].State != "exited" && list[i].State != "dead" {
 			n++
 		}
 	}
