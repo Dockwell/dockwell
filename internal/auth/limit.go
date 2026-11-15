@@ -163,6 +163,20 @@ func (b *buckets) take(key string, now time.Time) bool {
 	return true
 }
 
+// give puts back a token key spent, as one that turned out to be good costs
+// nothing. A bucket that's full, or forgotten, stays as it is.
+func (b *buckets) give(key string, now time.Time) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	k, made := b.keys.get(key, now)
+	if made {
+		*k = bucket{tokens: b.burst, last: now}
+		return
+	}
+	k.tokens = min(b.burst, k.tokens+now.Sub(k.last).Seconds()*b.perSec+1)
+	k.last = now
+}
+
 // sourceKey is the key for limits by source address.
 func sourceKey(addr string) string { return "src:" + networkKey(addr) }
 

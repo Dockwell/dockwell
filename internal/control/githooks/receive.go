@@ -14,6 +14,7 @@ import (
 	"net/url"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/dockwell/dockwell/internal/auth"
 	"github.com/dockwell/dockwell/internal/control/authapi"
@@ -170,6 +171,11 @@ func (p *pushed) add(ref string, deleted bool) {
 // answers at once, 202, and deploys after.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
+	// The body has a deadline from the start, so one that trickles in holds
+	// nothing for long, whatever is answered before it's read.
+	if err := http.NewResponseController(w).SetReadDeadline(time.Now().Add(time.Duration(h.readFor.Load()))); err != nil {
+		h.cfg.Logger.WarnContext(r.Context(), "can't give a delivery's body a deadline", slog.String("error", err.Error()))
+	}
 	client, _ := authapi.ClientFrom(r.Context())
 	if !h.cfg.Auth.TakeHookDelivery(client) {
 		w.Header().Set("Retry-After", "2")
@@ -200,6 +206,16 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		answer(w, http.StatusUnsupportedMediaType, "The delivery isn't JSON. Set the hook's content type to application/json.")
 		return
 	}
+	// Only so many are read at once. One refused here closes its connection, as
+	// its body is never read.
+	if h.reading.Add(1) > h.inFlight.Load() {
+		h.reading.Add(-1)
+		w.Header().Set("Retry-After", "2")
+		w.Header().Set("Connection", "close")
+		answer(w, http.StatusServiceUnavailable, "Dockwell has many deliveries under way. Send it again in a moment.")
+		return
+	}
+	defer h.reading.Add(-1)
 	// Bitbucket's IDs may come in braces.
 	delivery := strings.Trim(r.Header.Get(from.delivery), "{}")
 	if !deliveryID(delivery) {
@@ -245,6 +261,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			payload = []byte(v.Get("payload"))
 		}
 	}
+	// A delivery that proved it knows the secret costs its address nothing.
+	h.cfg.Auth.ReturnHookDelivery(client)
 	hook := *p.Hook
 	d := store.GitHookDelivery{HookID: hook.ID, DeliveryID: delivery, At: h.now(), Provider: from.name, Outcome: store.HookIgnored}
 	event := r.Header.Get(from.event)

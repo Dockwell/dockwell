@@ -214,6 +214,9 @@ func (s *Service) SetMemberRole(ctx context.Context, client Client, p Principal,
 			if out.Ended, err = tx.EndAccess(ctx, userID, now); err != nil {
 				return err
 			}
+			if err := s.auditHooksEnded(ctx, tx, p, userID, out.Ended.Hooks, "its maker's role was lowered"); err != nil {
+				return err
+			}
 			if wasAdmin && role != store.RoleAdmin {
 				if out.Invites, err = s.revokeInvitesBy(ctx, tx, client, p, userID, now); err != nil {
 					return err
@@ -373,6 +376,9 @@ func (s *Service) RemoveMember(ctx context.Context, client Client, p Principal, 
 			return fault.New(ErrTheOwner, "%s is the owner, who isn't removed: ownership moves by a transfer first", out.User.Name)
 		}
 		if err != nil {
+			return err
+		}
+		if err := s.auditHooksEnded(ctx, tx, p, userID, out.Ended.Hooks, "its maker was removed"); err != nil {
 			return err
 		}
 		detail := memberDetail{

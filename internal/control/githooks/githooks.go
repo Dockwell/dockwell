@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"connectrpc.com/connect"
@@ -73,6 +74,13 @@ type Handler struct {
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
 
+	// readFor and inFlight bound what deliveries may hold (SetLimits): how long
+	// one's body may take to arrive, and how many may be read at once. reading
+	// counts those being read.
+	readFor  atomic.Int64
+	inFlight atomic.Int64
+	reading  atomic.Int64
+
 	mu    sync.Mutex
 	lanes map[string]*lane // by the service's ID
 	// planned is the plan each service's last push left for a person, which a
@@ -85,7 +93,25 @@ var _ dockwellv1connect.GitHookServiceHandler = (*Handler)(nil)
 // New returns a Handler.
 func New(cfg Config) *Handler {
 	base, cancel := context.WithCancel(context.Background())
-	return &Handler{cfg: cfg, now: time.Now, base: base, cancel: cancel, lanes: map[string]*lane{}, planned: map[string]string{}}
+	h := &Handler{cfg: cfg, now: time.Now, base: base, cancel: cancel, lanes: map[string]*lane{}, planned: map[string]string{}}
+	h.SetLimits(ReadFor, InFlight)
+	return h
+}
+
+// ReadFor is how long a delivery's body may take to arrive: GitHub gives up on a
+// hook after 10 seconds. InFlight is how many deliveries are read at once, so
+// bodies that trickle in from many addresses can't hold the control plane's
+// memory.
+const (
+	ReadFor  = 15 * time.Second
+	InFlight = 32
+)
+
+// SetLimits sets how long a delivery's body may take and how many are read at
+// once, as a test shortens them. It may be called while deliveries come.
+func (h *Handler) SetLimits(readFor time.Duration, inFlight int) {
+	h.readFor.Store(int64(readFor))
+	h.inFlight.Store(int64(inFlight))
 }
 
 // Stop ends what deploys are under way waiting for, and waits for them: their

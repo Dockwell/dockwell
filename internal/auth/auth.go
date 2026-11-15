@@ -167,14 +167,17 @@ type Service struct {
 	sources        *failures // wrong codes by source address
 	begins         *buckets  // unauthenticated ceremonies and links, by source
 	streams        *streams
-	unflagged      unflagged      // passkeys seen to be copied, until the flag is stored
-	refusals       *refusals      // refused calls with each API token, or hook, since the last audit event
-	hookSources    *buckets       // deliveries to hooks, by source
-	hookBuckets    *buckets       // deliveries to each hook
-	hookDecoy      []byte         // the key a delivery for a hook there isn't is checked with
-	roleRefusals   *refusals      // calls refused for want of a role, by person or token and method
-	stepUps        *stepUps       // proofs of a passkey confirming one action
-	providers      providerSource // sign-in providers for the panel (ADR 0095)
+	unflagged      unflagged // passkeys seen to be copied, until the flag is stored
+	refusals       *refusals // refused calls with each API token, or hook, since the last audit event
+	hookSources    *buckets  // deliveries to hooks, by source
+	hookBuckets    *buckets  // deliveries to each hook
+	hookDecoy      []byte    // the key a delivery for a hook there isn't is checked with
+	// hookDecoySealed is a secret sealed as a hook's is, which a delivery for a
+	// hook there isn't opens, as one for a hook opens its own.
+	hookDecoySealed []byte
+	roleRefusals    *refusals      // calls refused for want of a role, by person or token and method
+	stepUps         *stepUps       // proofs of a passkey confirming one action
+	providers       providerSource // sign-in providers for the panel (ADR 0095)
 	// recheck is how often an open stream checks its session again.
 	recheck time.Duration
 }
@@ -211,11 +214,12 @@ func New(cfg Config) (*Service, error) {
 		roleRefusals: newRefusals(maxRefusalIDs),
 		// 30 deliveries a minute from one address, and 60 for one hook, with as
 		// many at once (ADR 0046).
-		hookSources: newBuckets(30, 2*time.Second, 10_000),
-		hookBuckets: newBuckets(60, time.Second, 10_000),
-		hookDecoy:   decoyKey(),
-		stepUps:     newStepUps(1024, cfg.AfterFunc),
-		recheck:     cmp.Or(cfg.Recheck, streamRecheck),
+		hookSources:     newBuckets(30, 2*time.Second, 10_000),
+		hookBuckets:     newBuckets(60, time.Second, 10_000),
+		hookDecoy:       decoyKey(),
+		hookDecoySealed: cfg.Key.Seal(purposeHook("decoy"), decoyKey()),
+		stepUps:         newStepUps(1024, cfg.AfterFunc),
+		recheck:         cmp.Or(cfg.Recheck, streamRecheck),
 	}, nil
 }
 

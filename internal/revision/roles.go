@@ -575,11 +575,12 @@ func protectionWords(name string, e *resourcev1.Environment) string {
 
 // aPerson reports an actor that's a person, as themselves or with an API token.
 func aPerson(actor string) bool {
-	return strings.HasPrefix(actor, "user:") || strings.HasPrefix(actor, "token:")
+	return strings.HasPrefix(actor, "user:") || strings.HasPrefix(actor, "token:") || strings.HasPrefix(actor, "hook:")
 }
 
 // sameProposer reports a change proposed by the caller: as themselves, or with
-// an API token they made.
+// an API token or a deploy-on-push hook they made. A token or hook that's gone is
+// nobody's, so its plan is someone else's to whoever applies or discards it.
 func sameProposer(ctx context.Context, tx *store.Tx, caller place.Caller, actor string) (bool, error) {
 	kind, actorID, _ := strings.Cut(actor, ":")
 	switch kind {
@@ -591,6 +592,12 @@ func sameProposer(ctx context.Context, tx *store.Tx, caller place.Caller, actor 
 			return false, nil
 		}
 		return err == nil && tok.UserID == caller.UserID, err
+	case "hook":
+		h, err := tx.GetGitHook(ctx, actorID)
+		if errors.Is(err, store.ErrNotFound) {
+			return false, nil
+		}
+		return err == nil && h.UserID == caller.UserID, err
 	}
 	return false, nil
 }

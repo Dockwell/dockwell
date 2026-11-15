@@ -3,6 +3,7 @@
 package control
 
 import (
+	"bufio"
 	"bytes"
 	"crypto/hmac"
 	"crypto/sha256"
@@ -10,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	neturl "net/url"
 	"strconv"
@@ -773,4 +775,184 @@ func TestGitLabAndBitbucketPushesDeploy(t *testing.T) {
 			t.Fatalf("Bitbucket's push ended %v: %s", c.GetState(), c.GetError())
 		}
 	})
+}
+
+// slowDelivery starts a delivery to url whose body comes a byte at a time, every
+// 100 ms, as one meant to hold the receiver would, and gives what it's answered,
+// once it is, or "" if the connection ends with no answer.
+func slowDelivery(t *testing.T, url string) <-chan string {
+	t.Helper()
+	u, err := neturl.Parse(url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var d net.Dialer
+	conn, err := d.DialContext(t.Context(), "tcp", u.Host)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = conn.Close() })
+	fmt.Fprintf(conn, "POST %s HTTP/1.1\r\nHost: %s\r\nContent-Type: application/json\r\nContent-Length: 1000\r\n"+
+		"X-GitHub-Event: push\r\nX-GitHub-Delivery: slow-%d\r\nX-Hub-Signature-256: sha256=00\r\n\r\n", u.Path, u.Host, time.Now().UnixNano())
+	go func() {
+		for range 1000 {
+			if _, err := conn.Write([]byte(" ")); err != nil {
+				return
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+	}()
+	answered := make(chan string, 1)
+	go func() {
+		res, err := http.ReadResponse(bufio.NewReader(conn), nil)
+		if err != nil {
+			answered <- ""
+			return
+		}
+		_ = res.Body.Close()
+		answered <- res.Status + " " + res.Header.Get("Retry-After")
+	}()
+	return answered
+}
+
+// A delivery's body has a deadline, so one that trickles in holds nothing for
+// long, and only so many are read at once: past that, a delivery is told to come
+// again, and nothing of it is read.
+func TestADeliveryThatTricklesInHoldsNothingForLong(t *testing.T) {
+	t.Parallel()
+	g := newGitBench(t, store.SQLite)
+	head := g.repo.Commit("main", "First", map[string]string{"Dockerfile": webDockerfile})
+	g.done(t, g.propose(t, g.buildEdit("main", nil)))
+	web := g.service(t, "", "web")
+	url, secret := g.hook(t, web.GetId())
+	hooks := g.f.server.hooks
+
+	// Two read at once at most: two that trickle hold both, and a third waits. It's
+	// sent to a hook there isn't, so it spends nothing of web's.
+	hooks.SetLimits(5*time.Second, 2)
+	first, second := slowDelivery(t, url), slowDelivery(t, url)
+	none := url[:strings.LastIndex(url, "/")+1] + "ghk_01JD6Z3R8M9QF2K7T4XW5BNC0V"
+	var code int
+	var header http.Header
+	for range 20 {
+		if code, _, header = send(t, none, delivery{id: "busy", event: "push", secret: secret, body: pushBody(g.repo.URL, "refs/heads/main", head)}); code == http.StatusServiceUnavailable {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	if code != http.StatusServiceUnavailable || header.Get("Retry-After") == "" {
+		t.Errorf("a delivery while two trickle in: %d, Retry-After %q; want 503 and when to come again", code, header.Get("Retry-After"))
+	}
+
+	// One that trickles past its deadline is cut off, and frees its place.
+	hooks.SetLimits(300*time.Millisecond, 2)
+	for what, answered := range map[string]<-chan string{"the first": first, "the second": second, "a third": slowDelivery(t, url)} {
+		select {
+		case got := <-answered:
+			if strings.HasPrefix(got, "2") {
+				t.Errorf("%s delivery that trickled in was answered %q", what, got)
+			}
+		case <-time.After(15 * time.Second):
+			t.Errorf("%s delivery that trickled in held its place past its deadline", what)
+		}
+	}
+	if code, text, _ := send(t, url, delivery{id: "after", event: "push", secret: secret, body: pushBody(g.repo.URL, "refs/heads/main", head)}); code != http.StatusAccepted {
+		t.Errorf("a delivery once those ended: %d %q", code, text)
+	}
+}
+
+// devHookInProduction is web, with a hook that acts for a developer, usr_dev,
+// in a protected environment, and the bench signed in as an admin.
+func devHookInProduction(t *testing.T) (g *gitBench, url, secret string, push func(id, n string) store.GitHookDelivery) {
+	t.Helper()
+	g = newGitBench(t, store.SQLite)
+	g.repo.Commit("main", "First", map[string]string{"Dockerfile": webDockerfile})
+	made := g.done(t, g.propose(t, g.buildEdit("main", nil)))
+	production := made.GetPlan().GetResources()[0].GetResource().GetScope()
+	web := g.service(t, "", "web")
+	url, secret = g.hook(t, web.GetId())
+	hold := aMember(t, g.f)
+	hold(onInstall(store.RoleAdmin))
+	err := g.f.store.Update(t.Context(), func(tx *store.Tx) error {
+		if err := tx.CreateUser(t.Context(), store.User{ID: "usr_dev", Email: "dev@example.com", Name: "Dev", WebAuthnHandle: []byte("dev"), CreatedAt: time.Now()}); err != nil {
+			return err
+		}
+		if err := tx.SetGrant(t.Context(), store.Grant{UserID: "usr_dev", ProjectID: store.Install, Role: store.RoleDeveloper, CreatedAt: time.Now()}); err != nil {
+			return err
+		}
+		h, err := tx.GitHookOf(t.Context(), web.GetId())
+		if err != nil {
+			return err
+		}
+		if err := tx.DeleteGitHook(t.Context(), h.ID); err != nil {
+			return err
+		}
+		h.UserID = "usr_dev"
+		return tx.CreateGitHook(t.Context(), h)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	protectEnv(t, g.c, g.f, production, resourcev1.Protection_PROTECTION_PROTECTED)
+	push = func(id, n string) store.GitHookDelivery {
+		t.Helper()
+		commit := g.repo.Commit("main", "Push "+n, map[string]string{"Dockerfile": webDockerfile, "app.js": n})
+		if code, text, _ := send(t, url, delivery{id: id, event: "push", secret: secret, body: pushBody(g.repo.URL, "refs/heads/main", commit)}); code != http.StatusAccepted {
+			t.Fatalf("push: %d %q", code, text)
+		}
+		return g.stored(t, url, id, store.HookNeedsPerson)
+	}
+	return g, url, secret, push
+}
+
+// A developer's push to a protected environment leaves a plan that is someone
+// else's to an admin: applying it approves it, with the fingerprint and a passkey
+// (from #253's review, H1).
+func TestADevelopersPushPlanIsTheirsToAnAdmin(t *testing.T) {
+	t.Parallel()
+	g, _, _, push := devHookInProduction(t)
+	d := push("d-1", "2")
+	got, err := g.c.GetChange(t.Context(), connect.NewRequest(&dockwellv1.GetChangeRequest{Id: d.ChangeID}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.Msg.GetChange().GetApproves() {
+		t.Errorf("an admin reading a developer's push plan in production: approves false, want true")
+	}
+	_, err = g.c.ApplyChange(t.Context(), connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: d.ChangeID}))
+	if reasonOf(err) != "needs_confirmation" {
+		t.Errorf("an admin applying a developer's push plan in production with no fingerprint or passkey: %v, want needs_confirmation", err)
+	}
+	// Nor does an admin's token approve it, as a token approves no one else's plan.
+	token := bearer{token: createToken(t, g.b, dockwellv1.TokenScope_TOKEN_SCOPE_READ_WRITE), rt: g.b.client.Transport}
+	_, err = changeClient(token, g.b.origin).ApplyChange(t.Context(), connect.NewRequest(&dockwellv1.ApplyChangeRequest{
+		Id: d.ChangeID, Fingerprint: got.Msg.GetChange().GetPlan().GetFingerprint(),
+	}))
+	if reasonOf(err) != authapi.ReasonNeedsSession {
+		t.Errorf("an admin's token applying a developer's push plan in production: %v, want %s", err, authapi.ReasonNeedsSession)
+	}
+}
+
+// A newer push's plan takes the place of the one an earlier push left, where the
+// environment is protected too, as the hook discards its own maker's plan (from
+// #253's review, H1).
+func TestANewerPushDiscardsThePlanTheLastOneLeft(t *testing.T) {
+	t.Parallel()
+	g, _, _, push := devHookInProduction(t)
+	d1 := push("d-1", "2")
+	d2 := push("d-2", "3")
+	if d1.ChangeID == d2.ChangeID {
+		t.Fatal("one change for two pushes")
+	}
+	var state dockwellv1.ChangeState
+	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); time.Sleep(100 * time.Millisecond) {
+		got, err := g.c.GetChange(t.Context(), connect.NewRequest(&dockwellv1.GetChangeRequest{Id: d1.ChangeID}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if state = got.Msg.GetChange().GetState(); state == dockwellv1.ChangeState_CHANGE_STATE_DISCARDED {
+			return
+		}
+	}
+	t.Errorf("the first push's plan is %v after a newer push planned, want discarded", state)
 }

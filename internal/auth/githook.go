@@ -3,6 +3,7 @@
 package auth
 
 import (
+	"cmp"
 	"context"
 	"crypto/hmac"
 	"crypto/rand"
@@ -129,6 +130,17 @@ func (s *Service) DeleteGitHook(ctx context.Context, p Principal, serviceID stri
 	})
 }
 
+// auditHooksEnded puts each hook that ended with its maker's access in the audit
+// log, as turning one off is: why says how their access ended.
+func (s *Service) auditHooksEnded(ctx context.Context, tx *store.Tx, p Principal, userID string, hooks []store.GitHook, why string) error {
+	for i := range hooks {
+		if err := s.auditOn(ctx, tx, p.Actor(), "git_hook.delete", userID, hooks[i].ResourceID, "hook "+hooks[i].ID+" deleted, as "+why); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // TakeHookDelivery spends one of a source address's deliveries, as it starts
 // sending one, before anything reads it, and reports false when it has none. An
 // IPv6 /64 counts as one address.
@@ -146,10 +158,13 @@ type HookProof struct {
 
 // GitHookPrincipal checks a delivery's proof against the hook's secret, in
 // constant time, and gives who it acts as: the person who made the hook, with an
-// API token's rights, as the hook. A hook there isn't, or whose person is gone,
-// gets the same work with a key of its own and the same answer as a wrong proof,
-// ErrHookRejected. A hook may take 60 deliveries a minute; a refused proof is in
-// the audit log at most once an hour for each hook.
+// API token's rights, as the hook. A hook there isn't, or whose person is gone or
+// removed, gets the same reads, a decrypt of a decoy and the same answer as a
+// wrong proof, ErrHookRejected, so neither the answer nor its time says which IDs
+// are hooks. Only a delivery whose proof matches spends from the hook's 60 a
+// minute, so nobody who merely knows its URL can use them up; wrong proofs are
+// bounded by their address's bucket. A refused proof is in the audit log at most
+// once an hour for each hook.
 func (s *Service) GitHookPrincipal(ctx context.Context, hookID string, body []byte, proof HookProof) (Principal, error) {
 	now := s.now()
 	var h store.GitHook
@@ -158,33 +173,35 @@ func (s *Service) GitHookPrincipal(ctx context.Context, hookID string, body []by
 	err := s.db.View(ctx, func(tx *store.Tx) error {
 		var err error
 		if h, err = tx.GetGitHook(ctx, hookID); errors.Is(err, store.ErrNotFound) {
+			h = store.GitHook{}
+		} else if err != nil {
+			return err
+		}
+		// A maker is read whether or not there's a hook, as one is, so the time
+		// a delivery takes says nothing of whether its ID is a hook's.
+		if u, err = tx.GetUser(ctx, cmp.Or(h.UserID, "usr_none")); errors.Is(err, store.ErrNotFound) {
 			return nil
 		} else if err != nil {
 			return err
 		}
-		if u, err = tx.GetUser(ctx, h.UserID); errors.Is(err, store.ErrNotFound) {
-			return nil
-		} else if err != nil {
-			return err
-		}
-		found = true
+		found = h.ID != "" && u.RemovedAt == nil
 		return nil
 	})
 	if err != nil {
 		return Principal{}, err
 	}
-	if found && !s.hookBuckets.take("hook:"+h.ID, now) {
-		return Principal{}, ErrTooManyRequests
+	sealed, purpose := s.hookDecoySealed, purposeHook("decoy")
+	if h.ID != "" {
+		sealed, purpose = h.Secret, purposeHook(h.ID)
 	}
 	key := s.hookDecoy
-	if found {
-		secret, err := s.key.Open(purposeHook(h.ID), h.Secret)
-		if err != nil {
-			s.logger.WarnContext(ctx, "can't open a hook's secret, so its deliveries are refused", slog.String("hook", h.ID), slog.String("error", err.Error()))
-			found = false
-		} else {
-			key = secret
-		}
+	secret, openErr := s.key.Open(purpose, sealed)
+	switch {
+	case found && openErr != nil:
+		s.logger.WarnContext(ctx, "can't open a hook's secret, so its deliveries are refused", slog.String("hook", h.ID), slog.String("error", openErr.Error()))
+		found = false
+	case found:
+		key = secret
 	}
 	if !proof.matches(key, body) || !found {
 		if found {
@@ -198,11 +215,21 @@ func (s *Service) GitHookPrincipal(ctx context.Context, hookID string, body []by
 		}
 		return Principal{}, ErrHookRejected
 	}
+	if !s.hookBuckets.take("hook:"+h.ID, now) {
+		return Principal{}, ErrTooManyRequests
+	}
 	return Principal{
 		User:  u,
 		Token: &store.APIToken{ID: h.ID, UserID: u.ID, Name: "Deploy on push", Scope: store.ScopeReadWrite},
 		Hook:  &h,
 	}, nil
+}
+
+// ReturnHookDelivery gives back the delivery a source address spent, once its
+// proof matched: GitHub, GitLab.com and Bitbucket send every install's hooks from
+// shared addresses, so only wrong proofs count against one.
+func (s *Service) ReturnHookDelivery(client Client) {
+	s.hookSources.give(sourceKey(client.Addr), s.now())
 }
 
 // matches reports whether a proof is of key: a signature of body under it, or a

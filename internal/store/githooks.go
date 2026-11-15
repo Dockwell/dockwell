@@ -86,6 +86,33 @@ func (t *Tx) GetGitHook(ctx context.Context, id string) (GitHook, error) {
 	return h, nil
 }
 
+// DeleteGitHooksOf deletes the hooks a person made, with their deliveries, as
+// their access ends, and returns what it deleted.
+func (t *Tx) DeleteGitHooksOf(ctx context.Context, userID string) ([]GitHook, error) {
+	rows, err := t.query(ctx, `SELECT `+gitHookColumns+` FROM git_hooks WHERE user_id = ? ORDER BY id`, userID)
+	if err != nil {
+		return nil, fmt.Errorf("can't list the hooks of %s: %w", userID, err)
+	}
+	var hooks []GitHook
+	for rows.Next() {
+		h, err := scanGitHook(rows)
+		if err != nil {
+			_ = rows.Close()
+			return nil, fmt.Errorf("can't read a hook of %s: %w", userID, err)
+		}
+		hooks = append(hooks, h)
+	}
+	if err := errors.Join(rows.Err(), rows.Close()); err != nil {
+		return nil, fmt.Errorf("can't list the hooks of %s: %w", userID, err)
+	}
+	for i := range hooks {
+		if err := t.DeleteGitHook(ctx, hooks[i].ID); err != nil {
+			return nil, err
+		}
+	}
+	return hooks, nil
+}
+
 // GitHookOf returns a service's hook, or ErrNotFound.
 func (t *Tx) GitHookOf(ctx context.Context, resourceID string) (GitHook, error) {
 	h, err := scanGitHook(t.queryRow(ctx, `SELECT `+gitHookColumns+` FROM git_hooks WHERE resource_id = ?`, resourceID))

@@ -73,3 +73,71 @@ func TestAHookKeepsWhatItsDeliveriesCameTo(t *testing.T) {
 		}
 	})
 }
+
+// A person's hooks are theirs as their tokens are: a plan a hook left is among
+// what they planned, and their hooks go, with their deliveries, as their access
+// ends (ADR 0046, ADR 0049).
+func TestAHookGoesWithItsMakersAccess(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		db, _ := storetest.Open(t, b)
+		ctx := t.Context()
+		at := time.Date(2026, 11, 14, 12, 0, 0, 0, time.UTC)
+		err := db.Update(ctx, func(tx *store.Tx) error {
+			for _, h := range []store.GitHook{
+				{ID: "ghk_ada1", ResourceID: "svc_web", UserID: "usr_ada", Secret: []byte("x"), CreatedAt: at, SecretAt: at},
+				{ID: "ghk_ada2", ResourceID: "svc_api", UserID: "usr_ada", Secret: []byte("x"), CreatedAt: at, SecretAt: at},
+				{ID: "ghk_sam", ResourceID: "svc_docs", UserID: "usr_sam", Secret: []byte("x"), CreatedAt: at, SecretAt: at},
+			} {
+				if err := tx.CreateGitHook(ctx, h); err != nil {
+					return err
+				}
+			}
+			return tx.RecordGitHookDelivery(ctx, store.GitHookDelivery{HookID: "ghk_ada1", DeliveryID: "d1", At: at, Provider: "github", Outcome: store.HookNeedsPerson})
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		revise(t, db, func(tx *store.RevisionTx) error {
+			for _, c := range []store.Change{
+				{ID: "chg_push", Summary: "Deploy web, pushed to main", Actor: "hook:ghk_ada1", State: store.ChangePlanned, Fingerprint: "f", Plan: []byte("{}"), CreatedAt: at},
+				{ID: "chg_sams", Summary: "Deploy docs, pushed to main", Actor: "hook:ghk_sam", State: store.ChangePlanned, Fingerprint: "f", Plan: []byte("{}"), CreatedAt: at},
+			} {
+				if err := tx.CreateChange(ctx, c); err != nil {
+					return err
+				}
+			}
+			return nil
+		})
+		err = db.Update(ctx, func(tx *store.Tx) error {
+			planned, err := tx.PlannedChangesOf(ctx, "usr_ada")
+			if err != nil {
+				return err
+			}
+			if len(planned) != 1 || planned[0].ID != "chg_push" {
+				t.Errorf("what ada planned: %v, want her hook's plan alone", planned)
+			}
+			ended, err := tx.EndAccess(ctx, "usr_ada", at)
+			if err != nil {
+				return err
+			}
+			if len(ended.Hooks) != 2 || ended.Hooks[0].ID != "ghk_ada1" || ended.Hooks[1].ID != "ghk_ada2" {
+				t.Errorf("ending ada's access ended hooks %v, want both of hers", ended.Hooks)
+			}
+			for _, id := range []string{"ghk_ada1", "ghk_ada2"} {
+				if _, err := tx.GetGitHook(ctx, id); !errors.Is(err, store.ErrNotFound) {
+					t.Errorf("hook %s after its maker's access ended: %v", id, err)
+				}
+			}
+			if left, err := tx.GitHookDeliveries(ctx, "ghk_ada1", 10); err != nil || len(left) != 0 {
+				t.Errorf("a deleted hook's deliveries: %v, %v", left, err)
+			}
+			if _, err := tx.GetGitHook(ctx, "ghk_sam"); err != nil {
+				t.Errorf("sam's hook after ada's access ended: %v", err)
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+}
