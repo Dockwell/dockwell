@@ -7667,7 +7667,9 @@ paths:
             description: |-
                 UpdateWebsite plans changing what a website serves, the domains that
                  redirect to it, or its domain, ready to apply or discard. What's in front of
-                 it stays as it is: change that as for any route, and its redirects follow.
+                 it stays as it is: change that as for any route, in the same change as the
+                 routes its other domains have, as the panel's Domains does, or they keep the
+                 front they had until the website's next update.
             operationId: WebsiteService_UpdateWebsite
             parameters:
                 - name: id
@@ -19642,8 +19644,10 @@ components:
                          change of servers' labels alone, which takes no step on them, and
                          "provider_links_stop" for a sign-in provider this deletes, turns off for the
                          panel or moves to another issuer, whose names hold how many people sign in to
-                         Dockwell with it (ADR 0095). Another reason may come: its message says what
-                         it means.
+                         Dockwell with it (ADR 0095), and "add_to_front" for a website's other domain
+                         behind a tunnel or a proxy, which answers only once that sends it here too,
+                         with the domain as its name (ADR 0070). Another reason may come: its message
+                         says what it means.
                 message:
                     type: string
                     description: 'What it says, for people: the fact, what it means, and what to do.'

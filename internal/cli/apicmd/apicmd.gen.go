@@ -3518,7 +3518,7 @@ func Methods() []*apicli.Method {
 			Noun:      "websites",
 			Verb:      "update",
 			Short:     "Plan changing what a website serves",
-			Long:      "Plan changing what a website serves, the domains that redirect to it, or its\ndomain, ready to apply or discard. What's in front of it stays as it is: change\nthat as for any route, and its redirects follow.",
+			Long:      "Plan changing what a website serves, the domains that redirect to it, or its\ndomain, ready to apply or discard. What's in front of it stays as it is: change\nthat as for any route, in the same change as the routes its other domains have,\nas the panel's Domains does, or they keep the front they had until the website's\nnext update.",
 			Effect:    v1.Effect_EFFECT_PLAN,
 			Fields: []apicli.Field{
 				{Path: "id", Help: "The website, by its project's name or ID.", Arg: true},

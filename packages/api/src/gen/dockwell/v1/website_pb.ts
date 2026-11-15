@@ -667,7 +667,9 @@ export const WebsiteService: GenService<{
   /**
    * UpdateWebsite plans changing what a website serves, the domains that
    * redirect to it, or its domain, ready to apply or discard. What's in front of
-   * it stays as it is: change that as for any route, and its redirects follow.
+   * it stays as it is: change that as for any route, in the same change as the
+   * routes its other domains have, as the panel's Domains does, or they keep the
+   * front they had until the website's next update.
    *
    * @generated from rpc dockwell.v1.WebsiteService.UpdateWebsite
    */

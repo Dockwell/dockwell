@@ -177,3 +177,44 @@ func TestAPlainWebsitesRedirectsStayPlain(t *testing.T) {
 		t.Errorf("www is %v", got)
 	}
 }
+
+// A site behind a tunnel says in its plan that each other domain it adds answers only
+// once the tunnel sends it here too (ADR 0070); one it had says nothing again.
+func TestATunnelledWebsitesOtherDomainSaysToAddIt(t *testing.T) {
+	t.Parallel()
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	ing := &routesInMemory{routes: map[resource.Ref]*resourcev1.Route{}}
+	f.probe = connects
+	e := f.addServerWith(t, func() []resource.Type { return []resource.Type{&route.Driver{Ingress: ing}} })
+	pullsAnything(e)
+	c := changeClient(b, b.origin)
+	sites := websiteClient(b, b.origin)
+	w := toURL("https://backend.example.com")
+	w.RedirectFrom = []string{"www.example.com"}
+	res, err := sites.CreateWebsite(t.Context(), connect.NewRequest(&dockwellv1.CreateWebsiteRequest{Domain: "example.com", Website: w, Tls: "off", TrustedProxies: []string{"127.0.0.1"}}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	said := func(ch *dockwellv1.Change) []string {
+		var out []string
+		for _, n := range ch.GetPlan().GetNotes() {
+			if n.GetReason() == "add_to_front" {
+				out = append(out, n.GetMessage())
+			}
+		}
+		return out
+	}
+	if got := said(res.Msg.GetChange()); len(got) != 1 || !strings.Contains(got[0], "www.example.com is behind your tunnel or proxy, as example.com is. It answers only once that sends it here: add www.example.com there too") {
+		t.Errorf("the plan notes %q", got)
+	}
+	applyReviewed(t, c, res.Msg.GetChange())
+	w.RedirectFrom = []string{"www.example.com", "old.example.com"}
+	up, err := sites.UpdateWebsite(t.Context(), connect.NewRequest(&dockwellv1.UpdateWebsiteRequest{Id: "example.com", Website: w}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := said(up.Msg.GetChange()); len(got) != 1 || !strings.Contains(got[0], "old.example.com is behind") {
+		t.Errorf("adding old.example.com notes %q", got)
+	}
+}

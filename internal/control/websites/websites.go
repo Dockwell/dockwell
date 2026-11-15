@@ -31,6 +31,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/changes"
 	"github.com/dockwell/dockwell/internal/fault"
+	"github.com/dockwell/dockwell/internal/ingress"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/network"
 	"github.com/dockwell/dockwell/internal/resource/route"
@@ -352,7 +353,8 @@ func (h *Handler) CreateWebsite(ctx context.Context, req *connect.Request[dockwe
 	serving := website.Resources(spec, domain, website.Front{TLS: m.GetTls(), TrustedProxies: m.GetTrustedProxies(), PlainForAnyone: m.GetPlainForAnyone()})
 	edits := puts(env, serving, m.GetServers(), redirectNames(serving, nil, nil))
 	summary := cmp.Or(strings.TrimSpace(m.GetSummary()), "Add the website "+domain)
-	c, err := h.changes.Propose(ctx, summary, edits, serversField, changes.Also{Edits: made, Notes: folderNotes(env, spec)})
+	notes := append(folderNotes(env, spec), frontNotes(serving, nil)...)
+	c, err := h.changes.Propose(ctx, summary, edits, serversField, changes.Also{Edits: made, Notes: notes})
 	if err != nil {
 		return nil, err
 	}
@@ -466,7 +468,7 @@ func (h *Handler) UpdateWebsite(ctx context.Context, req *connect.Request[dockwe
 	summary := cmp.Or(strings.TrimSpace(m.GetSummary()), updateSummary(s.spec.GetWebsite(), spec, was, domain))
 	c, err := h.changes.Propose(ctx, summary, edits, serversField, changes.Also{
 		IfNothing: fault.New(revision.ErrInvalid, "%s serves that already, so there's nothing to change", domain),
-		Notes:     append(folderNotes(s.env, spec), scriptsStop(s.env, s.spec.GetWebsite(), spec)...),
+		Notes:     slices.Concat(folderNotes(s.env, spec), scriptsStop(s.env, s.spec.GetWebsite(), spec), frontNotes(serving, s.redirects)),
 	})
 	if err != nil {
 		return nil, err
@@ -756,6 +758,29 @@ func (h *Handler) probe(key reachKey, call *agentv1.ProbeCall, done chan struct{
 
 // folderNotes say, in the plan, that a website's folder is made with its owner when
 // it isn't there, as the agent does before its services start.
+// frontNotes says, of each other domain a change adds to a site behind a tunnel or a
+// proxy, that it answers only once what's in front sends it here too (ADR 0070): a
+// redirect behind a tunnel is reached through it, and nothing in Dockwell adds a name
+// to someone's tunnel. had are the domains its list wrote before.
+func frontNotes(serving website.Serving, had map[string]string) []revision.Note {
+	r := serving.Route
+	if r.GetTls() != ingress.TLSOff || r.GetPlainForAnyone() {
+		return nil
+	}
+	var out []revision.Note
+	for _, d := range slices.Sorted(maps.Keys(serving.Redirects)) {
+		if _, ok := had[d]; ok {
+			continue
+		}
+		out = append(out, revision.Note{
+			Reason:  "add_to_front",
+			Message: fmt.Sprintf("%s is behind your tunnel or proxy, as %s is. It answers only once that sends it here: add %s there too", d, r.GetDomain(), d),
+			Names:   []string{d},
+		})
+	}
+	return out
+}
+
 func folderNotes(env string, w *resourcev1.Website) []revision.Note {
 	root, owner, whose := w.GetFolder().GetRoot(), w.GetFolder().GetOwner(), ","
 	if p := w.GetPhp(); p != nil {

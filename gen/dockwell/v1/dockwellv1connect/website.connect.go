@@ -75,7 +75,9 @@ type WebsiteServiceClient interface {
 	CreateWebsite(context.Context, *connect.Request[v1.CreateWebsiteRequest]) (*connect.Response[v1.CreateWebsiteResponse], error)
 	// UpdateWebsite plans changing what a website serves, the domains that
 	// redirect to it, or its domain, ready to apply or discard. What's in front of
-	// it stays as it is: change that as for any route, and its redirects follow.
+	// it stays as it is: change that as for any route, in the same change as the
+	// routes its other domains have, as the panel's Domains does, or they keep the
+	// front they had until the website's next update.
 	UpdateWebsite(context.Context, *connect.Request[v1.UpdateWebsiteRequest]) (*connect.Response[v1.UpdateWebsiteResponse], error)
 	// DeleteWebsite plans deleting a website: its route, what serves it, and its
 	// project. Undoing it brings it all back. Its folder on the server, if it has
@@ -195,7 +197,9 @@ type WebsiteServiceHandler interface {
 	CreateWebsite(context.Context, *connect.Request[v1.CreateWebsiteRequest]) (*connect.Response[v1.CreateWebsiteResponse], error)
 	// UpdateWebsite plans changing what a website serves, the domains that
 	// redirect to it, or its domain, ready to apply or discard. What's in front of
-	// it stays as it is: change that as for any route, and its redirects follow.
+	// it stays as it is: change that as for any route, in the same change as the
+	// routes its other domains have, as the panel's Domains does, or they keep the
+	// front they had until the website's next update.
 	UpdateWebsite(context.Context, *connect.Request[v1.UpdateWebsiteRequest]) (*connect.Response[v1.UpdateWebsiteResponse], error)
 	// DeleteWebsite plans deleting a website: its route, what serves it, and its
 	// project. Undoing it brings it all back. Its folder on the server, if it has

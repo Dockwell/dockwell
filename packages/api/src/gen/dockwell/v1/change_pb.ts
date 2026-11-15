@@ -2622,8 +2622,10 @@ export type PlanNote = Message<"dockwell.v1.PlanNote"> & {
    * change of servers' labels alone, which takes no step on them, and
    * "provider_links_stop" for a sign-in provider this deletes, turns off for the
    * panel or moves to another issuer, whose names hold how many people sign in to
-   * Dockwell with it (ADR 0095). Another reason may come: its message says what
-   * it means.
+   * Dockwell with it (ADR 0095), and "add_to_front" for a website's other domain
+   * behind a tunnel or a proxy, which answers only once that sends it here too,
+   * with the domain as its name (ADR 0070). Another reason may come: its message
+   * says what it means.
    *
    * @generated from field: string reason = 1;
    */
