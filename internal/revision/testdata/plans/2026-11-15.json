@@ -1,0 +1,681 @@
+{
+  "Change": "x",
+  "Summary": "x",
+  "Reverts": "x",
+  "Because": "x",
+  "Resources": [
+    {
+      "ID": "x",
+      "Ref": {
+        "Kind": "x",
+        "Scope": "x",
+        "Name": "x"
+      },
+      "Restart": true,
+      "Install": {
+        "Packages": [
+          {
+            "Name": "x",
+            "Architecture": "x",
+            "From": "x",
+            "To": "x",
+            "Origin": "x",
+            "Security": true,
+            "Reboot": true,
+            "Docker": true
+          }
+        ],
+        "Reboot": true,
+        "DockerRestarts": true,
+        "KeepsRunning": true,
+        "Asked": [
+          "x"
+        ]
+      },
+      "Reboot": {
+        "ControlServer": true,
+        "LastTook": 1
+      },
+      "AgentUpgrade": {
+        "From": "x",
+        "To": "x",
+        "ScriptSHA256": "x"
+      },
+      "Forget": true,
+      "Unit": {
+        "Name": "x",
+        "Action": "x",
+        "WasRunning": true,
+        "WasState": "x",
+        "WasAtBoot": "x",
+        "With": [
+          "x"
+        ],
+        "Triggers": [
+          "x"
+        ],
+        "Guard": 1,
+        "DockerRestarts": true,
+        "OpenRC": true
+      },
+      "Panel": {
+        "Kind": "x",
+        "Start": true,
+        "Proxy": true,
+        "Apps": true,
+        "Parts": [
+          {
+            "Name": "x",
+            "Swarm": true,
+            "WasRunning": true,
+            "WasRestart": "x",
+            "WasReplicas": 1,
+            "WasPorts": [
+              {
+                "Protocol": "x",
+                "Target": 1,
+                "Published": 1,
+                "Mode": "x"
+              }
+            ],
+            "WasNetworks": "x"
+          }
+        ],
+        "Stays": "x",
+        "Domains": [
+          "x"
+        ],
+        "Evidence": "x"
+      },
+      "MovesFrom": {
+        "Kind": "x",
+        "Scope": "x",
+        "Name": "x"
+      },
+      "DeleteShared": true,
+      "Restore": {
+        "Backup": "x",
+        "Undoes": "x",
+        "Change": "x",
+        "Server": "x"
+      },
+      "For": {
+        "Kind": "x",
+        "Scope": "x",
+        "Name": "x"
+      },
+      "Backups": {
+        "x": "x"
+      },
+      "BackupOne": "x",
+      "BackupAlso": {
+        "x": [
+          {
+            "ID": "x",
+            "Database": "x"
+          }
+        ]
+      },
+      "AlsoFor": {
+        "x": {
+          "Kind": "x",
+          "Scope": "x",
+          "Name": "x"
+        }
+      },
+      "Move": {
+        "Server": "x",
+        "Backup": "x",
+        "From": "x",
+        "FromID": "x",
+        "To": "x",
+        "Change": "x",
+        "Finish": true,
+        "Database": "x",
+        "FromSeries": "x",
+        "ToSeries": "x"
+      },
+      "Action": 1,
+      "Base": 1,
+      "Changes": [
+        {
+          "Path": "x",
+          "Op": 1,
+          "From": "x",
+          "To": "x",
+          "Sensitive": true
+        }
+      ],
+      "Servers": [
+        "x"
+      ],
+      "Previous": [
+        "x"
+      ],
+      "HostAccess": [
+        {
+          "Kind": 1,
+          "Path": "x",
+          "ReadOnly": true,
+          "Type": "x",
+          "Address": "x",
+          "Relabel": "x",
+          "Driver": "x",
+          "Detail": "x",
+          "Writer": "x",
+          "User": "x",
+          "SameAsRoot": true,
+          "LeadsTo": "x",
+          "Holds": "x",
+          "HoldsFor": "x",
+          "HeldIn": "x",
+          "HeldBy": "x"
+        }
+      ],
+      "Keeps": [
+        {
+          "Kind": 1,
+          "Path": "x",
+          "ReadOnly": true,
+          "Type": "x",
+          "Address": "x",
+          "Relabel": "x",
+          "Driver": "x",
+          "Detail": "x",
+          "Writer": "x",
+          "User": "x",
+          "SameAsRoot": true,
+          "LeadsTo": "x",
+          "Holds": "x",
+          "HoldsFor": "x",
+          "HeldIn": "x",
+          "HeldBy": "x"
+        }
+      ],
+      "RootDevices": [
+        "x"
+      ]
+    }
+  ],
+  "Servers": [
+    {
+      "Server": "x",
+      "Name": "x",
+      "Offline": true,
+      "Unplanned": "x",
+      "Removed": true,
+      "Downtime": 1,
+      "UntilHealthy": 1,
+      "Steps": [
+        {
+          "Ref": {
+            "Kind": "x",
+            "Scope": "x",
+            "Name": "x"
+          },
+          "PlannedLeads": {
+            "x": "x"
+          },
+          "Action": 1,
+          "Effect": 1,
+          "Downtime": 1,
+          "Destroys": true,
+          "Warnings": [
+            1
+          ],
+          "UntilHealthy": 1,
+          "Kept": [
+            "x"
+          ],
+          "Restores": true,
+          "HidesLogs": true,
+          "HostAccess": [
+            {
+              "Kind": 1,
+              "Path": "x",
+              "ReadOnly": true,
+              "Type": "x",
+              "Address": "x",
+              "Relabel": "x",
+              "Driver": "x",
+              "Detail": "x",
+              "Writer": "x",
+              "User": "x",
+              "SameAsRoot": true,
+              "LeadsTo": "x",
+              "Holds": "x",
+              "HoldsFor": "x",
+              "HeldIn": "x",
+              "HeldBy": "x"
+            }
+          ],
+          "HealthUnknown": true,
+          "DeviceRoot": [
+            "x"
+          ],
+          "Adopts": "x",
+          "Releases": true,
+          "Elsewhere": {
+            "Manager": "x",
+            "Container": "x",
+            "Project": "x",
+            "Folder": "x"
+          },
+          "SharedNames": [
+            {
+              "Name": "x",
+              "Network": "x",
+              "Others": [
+                "x"
+              ]
+            }
+          ],
+          "Leads": {
+            "x": "x"
+          },
+          "LeadsMoved": [
+            "x"
+          ],
+          "Pull": true,
+          "Pulled": true,
+          "Finishing": true,
+          "ImageGone": true,
+          "Ingress": {
+            "Change": 1,
+            "Proxy": "x",
+            "Ports": [
+              "x"
+            ],
+            "PanelDomain": "x"
+          },
+          "Domain": {
+            "Domain": "x",
+            "State": 1,
+            "Found": [
+              "x"
+            ],
+            "Here": [
+              "x"
+            ],
+            "Public": [
+              "x"
+            ],
+            "Unproven": [
+              "x"
+            ],
+            "Carrier": true,
+            "Proxied": true
+          },
+          "Proof": "x",
+          "Restore": {
+            "Backup": "x",
+            "Undoes": "x",
+            "Method": "x",
+            "Database": "x",
+            "OneDatabase": "x",
+            "Taken": "2026-11-15T12:00:00Z",
+            "Size": 1,
+            "Stops": [
+              "x"
+            ],
+            "WrittenBy": "x",
+            "RunsOn": "x",
+            "Reached": [
+              "x"
+            ]
+          },
+          "BackupFirst": {
+            "ID": "x",
+            "Method": "x",
+            "Database": "x",
+            "One": "x",
+            "Also": [
+              {
+                "ID": "x",
+                "Database": "x"
+              }
+            ],
+            "Stops": [
+              "x"
+            ],
+            "Estimate": 1,
+            "Unmeasured": true
+          },
+          "Move": {
+            "Backup": "x",
+            "Database": "x",
+            "FromSeries": "x",
+            "ToSeries": "x",
+            "From": "x",
+            "To": "x",
+            "Stops": [
+              "x"
+            ],
+            "Estimate": 1,
+            "Unmeasured": true,
+            "Finishing": true,
+            "Change": "x",
+            "StaysStopped": [
+              "x"
+            ]
+          },
+          "VolumeMove": {
+            "From": "x",
+            "How": "x",
+            "Bytes": 1
+          },
+          "Install": {
+            "Packages": [
+              {
+                "Name": "x",
+                "Architecture": "x",
+                "From": "x",
+                "To": "x",
+                "Origin": "x",
+                "Security": true,
+                "Reboot": true,
+                "Docker": true
+              }
+            ],
+            "Reboot": true,
+            "DockerRestarts": true,
+            "KeepsRunning": true,
+            "Asked": [
+              "x"
+            ]
+          },
+          "Reboot": {
+            "ControlServer": true,
+            "LastTook": 1
+          },
+          "Unit": {
+            "Name": "x",
+            "Action": "x",
+            "WasRunning": true,
+            "WasState": "x",
+            "WasAtBoot": "x",
+            "With": [
+              "x"
+            ],
+            "Triggers": [
+              "x"
+            ],
+            "Guard": 1,
+            "DockerRestarts": true,
+            "OpenRC": true
+          },
+          "Panel": {
+            "Kind": "x",
+            "Start": true,
+            "Proxy": true,
+            "Apps": true,
+            "Parts": [
+              {
+                "Name": "x",
+                "Swarm": true,
+                "WasRunning": true,
+                "WasRestart": "x",
+                "WasReplicas": 1,
+                "WasPorts": [
+                  {
+                    "Protocol": "x",
+                    "Target": 1,
+                    "Published": 1,
+                    "Mode": "x"
+                  }
+                ],
+                "WasNetworks": "x"
+              }
+            ],
+            "Stays": "x",
+            "Domains": [
+              "x"
+            ],
+            "Evidence": "x"
+          },
+          "AgentUpgrade": {
+            "From": "x",
+            "To": "x",
+            "ScriptSHA256": "x"
+          },
+          "RegistryLogin": "x",
+          "BuildLogins": [
+            "x"
+          ],
+          "BuildLoginVersions": [
+            "x"
+          ],
+          "Returning": [
+            "x"
+          ],
+          "HandEditedBeside": [
+            "x"
+          ],
+          "Rollout": {
+            "Rolling": true,
+            "Ports": [
+              "x"
+            ],
+            "Volumes": [
+              "x"
+            ],
+            "Paths": [
+              "x"
+            ],
+            "ImageData": [
+              "x"
+            ],
+            "Chosen": true,
+            "Drain": 1,
+            "StopGrace": 1,
+            "HealthyWithin": 1,
+            "Others": [
+              "x"
+            ],
+            "CantTell": [
+              "x"
+            ],
+            "EditedRoutes": [
+              "x"
+            ],
+            "EarlyNetworks": [
+              "x"
+            ],
+            "EarlyNames": [
+              "x"
+            ],
+            "HostNetwork": true,
+            "Dropped": [
+              {
+                "Source": "x",
+                "Target": "x",
+                "EmptyVolume": true
+              }
+            ],
+            "Soak": 1,
+            "NoCheck": true,
+            "RoutePorts": {
+              "x": 1
+            }
+          },
+          "Restart": "x",
+          "Unencrypted": true,
+          "Answers": {
+            "Reach": 1,
+            "Proxies": [
+              "x"
+            ],
+            "Plain": true
+          },
+          "ServerPort": {
+            "Port": 1,
+            "Listening": "x",
+            "Nothing": true
+          },
+          "KeysLeft": "x",
+          "Leaves": "x",
+          "Closes": [
+            "x"
+          ],
+          "Stays": {
+            "SSHPorts": [
+              1
+            ],
+            "Pinned": [
+              "x"
+            ],
+            "Allowed": [
+              "x"
+            ],
+            "Tunnels": [
+              "x"
+            ],
+            "PanelPorts": [
+              1
+            ]
+          },
+          "Jail": {
+            "NeverBans": [
+              "x"
+            ],
+            "SignedInNotIgnored": [
+              "x"
+            ],
+            "IgnoresEverything": true
+          },
+          "Goes": {
+            "Where": "x",
+            "Domain": "x",
+            "Find": 1
+          },
+          "Moves": {
+            "Where": "x",
+            "From": "x",
+            "To": "x",
+            "ToPort": 1
+          },
+          "Build": {
+            "URL": "x",
+            "Ref": "x",
+            "Commit": "x",
+            "Context": "x",
+            "Dockerfile": "x",
+            "Image": "x",
+            "Builder": "x",
+            "Detection": {
+              "Builder": "x",
+              "Dockerfile": "x",
+              "BaseImage": "x",
+              "Ports": [
+                1
+              ],
+              "Railpack": "x",
+              "Providers": [
+                "x"
+              ],
+              "Packages": [
+                {
+                  "Name": "x",
+                  "Requested": "x",
+                  "Resolved": "x",
+                  "Source": "x"
+                }
+              ],
+              "Steps": [
+                {
+                  "Name": "x",
+                  "Commands": [
+                    "x"
+                  ]
+                }
+              ],
+              "Start": "x",
+              "Warnings": [
+                "x"
+              ],
+              "Error": "x",
+              "Problem": "x",
+              "ProblemTool": "x"
+            }
+          },
+          "Redirects": {
+            "Where": "x",
+            "To": "x",
+            "Temporary": true,
+            "DropPath": true,
+            "Leaves": "x",
+            "KeepPrefix": true,
+            "Stops": true,
+            "SendsTo": "x",
+            "SendsToPort": 1
+          },
+          "Changes": [
+            {
+              "Path": "x",
+              "Op": 1,
+              "From": "x",
+              "To": "x",
+              "Sensitive": true
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "Revisions": 1,
+  "Fingerprint": "x",
+  "Notes": [
+    {
+      "Reason": "x",
+      "Message": "x",
+      "Ref": {
+        "Kind": "x",
+        "Scope": "x",
+        "Name": "x"
+      },
+      "Names": [
+        "x"
+      ],
+      "Deleted": [
+        "x"
+      ],
+      "Named": true,
+      "From": "x"
+    }
+  ],
+  "Places": [
+    {
+      "Project": "x",
+      "Environment": "x"
+    }
+  ],
+  "RollsBackTo": 1,
+  "Intent": {
+    "Kind": "x",
+    "Resource": "x",
+    "Image": "x",
+    "Port": 1,
+    "Revision": 1,
+    "Commit": "x",
+    "Ref": "x",
+    "FromImage": "x",
+    "FromDigest": "x",
+    "FromRelease": "x",
+    "Release": "x"
+  },
+  "Removes": {
+    "Server": "x",
+    "Name": "x",
+    "Compromised": true
+  },
+  "Waves": {
+    "Order": [
+      [
+        "x"
+      ]
+    ],
+    "Pause": 1,
+    "KeepGoing": true
+  },
+  "Empties": "x"
+}

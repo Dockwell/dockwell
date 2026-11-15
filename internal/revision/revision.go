@@ -3958,7 +3958,8 @@ func (e *Engine) rollBack(ctx context.Context, failed store.Change, edits []Edit
 		e.letGo(ctx, c.ID)
 		return nil, err
 	}
-	r, err := e.commitOwned(ctx, c, readPlan(c), items, system, true, because)
+	// A rollback has no plan until commitOwned makes it, and then reads that one.
+	r, err := e.commitOwned(ctx, c, nil, items, system, true, because)
 	if err != nil {
 		e.letGo(ctx, c.ID)
 	}
@@ -4016,7 +4017,8 @@ func (p *Plan) step(server string, ref resource.Ref) *resource.Step {
 // commitOwned plans a change this process owns, with its resources
 // claimed, and commits it. A person's change must plan as it did when it
 // was reviewed; a rollback isn't, and with create it is put on record here
-// too, with the plan that runs.
+// too, with the plan that runs. asked is c's stored plan as read, nil for a
+// change it creates.
 func (e *Engine) commitOwned(ctx context.Context, c store.Change, asked *planRead, items []item, by By, create bool, because string) (*committed, error) {
 	rollback := IsRollback(c)
 	for i := range items {
@@ -4041,6 +4043,9 @@ func (e *Engine) commitOwned(ctx context.Context, c store.Change, asked *planRea
 			return nil, err
 		}
 		c.Fingerprint, c.Servers = plan.Fingerprint, serversOf(plan)
+		// It runs on the plan it is stored with, read as a resumed run reads it, so
+		// the two never read different plans (#706).
+		asked = readPlan(c)
 	}
 	if by.Actor == "" {
 		by = By{Actor: c.Actor, Via: c.ProposedVia}
