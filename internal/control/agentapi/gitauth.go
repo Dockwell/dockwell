@@ -16,8 +16,10 @@ import (
 
 // GitAuth is the Authorization a build fetches its private repository with: a token
 // the GitHub App's installation login names asks GitHub for, for the repository at
-// url alone (ADR 0098).
-type GitAuth func(ctx context.Context, login, url string) (string, error)
+// url alone (ADR 0098). For a build of an app in environment, the installation must
+// still reach the environment's project, as a narrowing since its plan may have
+// taken it away; a reading names none, as its project was checked as it was asked.
+type GitAuth func(ctx context.Context, login, url, environment string) (string, error)
 
 // SendGitAuth has a step whose build names a git login carry what fetches its
 // repository, asked for as the step runs, sealed to the stream it goes out on.
@@ -48,7 +50,7 @@ func (s *Session) buildGitAuth(ctx context.Context, step resource.Step, spec pro
 	if fn == nil {
 		return "", errors.New("this control plane has no GitHub App to fetch a private repository with")
 	}
-	return fn(ctx, b.GetGitLogin(), b.GetGit().GetUrl())
+	return fn(ctx, b.GetGitLogin(), b.GetGit().GetUrl(), step.Ref.Scope)
 }
 
 // sealGitAuth seals what fetches a build's repository for ref to this stream's
@@ -71,7 +73,7 @@ func (s *Session) detectGitAuth(ctx context.Context, call *agentv1.DetectBuildCa
 	if fn == nil {
 		return nil, errors.New("this control plane has no GitHub App to read a private repository with")
 	}
-	header, err := fn(ctx, b.GetGitLogin(), b.GetGit().GetUrl())
+	header, err := fn(ctx, b.GetGitLogin(), b.GetGit().GetUrl(), "")
 	if err != nil {
 		return nil, err
 	}

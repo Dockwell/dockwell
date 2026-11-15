@@ -16,6 +16,7 @@ import (
 	"github.com/dockwell/dockwell/internal/gitref"
 	"github.com/dockwell/dockwell/internal/resource/githubapp"
 	"github.com/dockwell/dockwell/internal/revision"
+	"github.com/dockwell/dockwell/internal/scope"
 	"github.com/dockwell/dockwell/internal/store"
 )
 
@@ -140,6 +141,31 @@ func (h *Handler) Authorization(ctx context.Context, login, url string) (string,
 		return "", fmt.Errorf("GitHub gave no token to read %s: %w", shown(url), err)
 	}
 	return "Basic " + base64.StdEncoding.EncodeToString([]byte("x-access-token:"+tok)), nil
+}
+
+// AuthorizationIn is Authorization for a build of an app in environment, as its
+// change applies: the installation must still reach the environment's project, as
+// an admin may have narrowed it since the plan was made (review L3). An empty
+// environment checks no project.
+func (h *Handler) AuthorizationIn(ctx context.Context, login, url, environment string) (string, error) {
+	if environment != "" {
+		k, in, err := h.installationOf(ctx, login)
+		if err != nil {
+			return "", err
+		}
+		project := ""
+		if err := h.cfg.DB.View(ctx, func(tx *store.Tx) error {
+			tree, err := scope.Load(ctx, tx)
+			project = projectIn(tree, environment)
+			return err
+		}); err != nil {
+			return "", err
+		}
+		if project == "" || !githubapp.Reaches(k.spec, in.ID, project) {
+			return "", fmt.Errorf("the GitHub App installation %s doesn't reach this app's project any more, so its build can't fetch %s. An admin lets the installation reach the project in Settings, Integrations, then deploy again", login, shown(url))
+		}
+	}
+	return h.Authorization(ctx, login, url)
 }
 
 // shown is a repository's URL as an error says it: no user, no query.

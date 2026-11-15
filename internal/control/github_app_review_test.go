@@ -11,12 +11,14 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"connectrpc.com/connect"
 
+	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/store"
 )
@@ -180,5 +182,40 @@ func TestReviewARemovalEventIsCheckedWithGitHub(t *testing.T) {
 		return nil
 	}); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// Review L3: a plan made through an installation that an admin narrows away from
+// the app's project before it applies doesn't fetch through it: the token is asked
+// for as the build runs, from the installation's reach then.
+func TestReviewABuildPlannedBeforeANarrowingDoesntFetchThroughIt(t *testing.T) {
+	t.Parallel()
+	a := newAppBench(t)
+	ctx := t.Context()
+	a.commit("Second")
+	planned := a.propose(t, a.buildEdit("main", nil))
+	if login := buildStep(planned).GetGitLogin(); login != "dockwell-deploy/7" {
+		t.Fatalf("the plan builds through %q", login)
+	}
+	narrow, err := a.c.ProposeChange(ctx, connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Narrow acme", Edits: []*dockwellv1.Edit{{
+		Resource: &dockwellv1.ResourceRef{Kind: "github.app", Name: a.app.GetName()},
+		Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_GithubApp{GithubApp: &resourcev1.GitHubApp{
+			Reaches: []*resourcev1.GitHubInstallationReach{{InstallationId: 7, Projects: []string{"prj_01JD6Z3R8M9QF2K7T4XW5BNCZZ"}}},
+		}}},
+	}}}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.done(t, narrow.Msg.GetChange())
+	w := watch(t, a.c, planned.GetId())
+	if _, err := applyChange(t, a.c, &dockwellv1.ApplyChangeRequest{Id: planned.GetId()}); err != nil {
+		if !strings.Contains(err.Error(), "doesn't reach") {
+			t.Errorf("applying a build through an installation narrowed since: %v", err)
+		}
+		return
+	}
+	c := waitWatch(t, w).last()
+	if c.GetState() == dockwellv1.ChangeState_CHANGE_STATE_APPLIED || !strings.Contains(c.GetError(), "doesn't reach this app's project any more") {
+		t.Errorf("a build through an installation narrowed since its plan ended %v: %s", c.GetState(), c.GetError())
 	}
 }

@@ -704,7 +704,7 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 			appSources.SetApps(apps)
 			ch.SetGitLogins(apps)
 			if cfg.Agents != nil {
-				cfg.Agents.SendGitAuth(apps.Authorization)
+				cfg.Agents.SendGitAuth(apps.AuthorizationIn)
 			}
 			if buildHandler != nil {
 				// A form's readings fetch a private repository as the plan will.
