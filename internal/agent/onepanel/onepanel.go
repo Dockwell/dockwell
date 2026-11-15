@@ -17,6 +17,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -160,7 +161,7 @@ func read(ctx context.Context, root, base, records string, v1 bool) (*dockwellv1
 		return nil, false, fmt.Errorf("the agent can't read 1Panel's records, %s: %w", records, err)
 	}
 	defer db.Close()
-	r := &reader{ctx: ctx, db: db, base: base}
+	r := &reader{ctx: ctx, db: db, base: base, root: root}
 	found := &dockwellv1.OnePanel{BaseDir: base, Records: records}
 	// What every version has, a version this doesn't know has too, or it isn't
 	// read: a table missing reads as empty otherwise, and says nothing of why.
@@ -185,6 +186,8 @@ type reader struct {
 	ctx  context.Context //nolint:containedctx // it lives as long as one read
 	db   *sqlitefile.DB
 	base string
+	// root is where the server's file system is, "/" but in tests.
+	root string
 }
 
 // rows calls each with each row of table, or with none where there's no such table.
@@ -336,6 +339,7 @@ func (r *reader) websites(found *dockwellv1.OnePanel, settings map[string]string
 			Https: strings.EqualFold(row.Text("protocol"), "HTTPS"), Status: row.Text("status"),
 		}
 		parents[w] = row.Int("parent_website_id")
+		w.Redirects = r.redirects(path.Join(sites, "sites", alias, "redirect"))
 		found.Websites = append(found.Websites, w)
 	}); err != nil {
 		return err
@@ -344,6 +348,87 @@ func (r *reader) websites(found *dockwellv1.OnePanel, settings map[string]string
 		w.Parent = aliases[id]
 	}
 	return nil
+}
+
+// Bounds on reading a site's redirects: how many files, and how much of each.
+const (
+	maxRedirects    = 100
+	maxRedirectFile = 64 << 10
+)
+
+var (
+	// domainRedirect is 1Panel's redirect of a domain: an if on the host, which
+	// returns a status and where to.
+	domainRedirect = regexp.MustCompile(`if\s*\(\$host\s*~\s*'\^([^']+)'\)\s*\{\s*return\s+(30[12])\s+([^;\s]+)\s*;`)
+	// pathRedirect is 1Panel's redirect of a path: a rewrite of everything under it.
+	pathRedirect = regexp.MustCompile(`rewrite\s+\^(\S*?)\(\.\*\)\s+(\S+)\s+(permanent|redirect)\s*;`)
+)
+
+// redirects reads a site's redirects as 1Panel writes them (ADR 0070): each a file in
+// its redirect folder, name.conf while it's on and name.bak once it's off, holding one
+// of three shapes 1Panel writes. A file in another shape reads as one with no type, and
+// a folder that isn't there as none.
+func (r *reader) redirects(dir string) []*dockwellv1.OnePanelRedirect {
+	entries, err := os.ReadDir(filepath.Join(r.root, dir))
+	if err != nil {
+		return nil
+	}
+	var out []*dockwellv1.OnePanelRedirect
+	for _, e := range entries {
+		name, on := strings.CutSuffix(e.Name(), ".conf")
+		if !on {
+			var off bool
+			if name, off = strings.CutSuffix(e.Name(), ".bak"); !off {
+				continue
+			}
+		}
+		if !e.Type().IsRegular() || len(out) == maxRedirects {
+			continue
+		}
+		text, err := readSome(filepath.Join(r.root, dir, e.Name()), maxRedirectFile)
+		if err != nil {
+			continue
+		}
+		out = append(out, parseRedirect(name, on, text))
+	}
+	return out
+}
+
+// parseRedirect reads one redirect file's text in the shapes 1Panel writes it.
+func parseRedirect(name string, on bool, text string) *dockwellv1.OnePanelRedirect {
+	out := &dockwellv1.OnePanelRedirect{Name: name, Enabled: on}
+	if found := domainRedirect.FindAllStringSubmatch(text, -1); len(found) > 0 {
+		out.Type, out.Temporary = "domain", found[0][2] == "302"
+		out.Target, out.KeepPath = strings.CutSuffix(found[0][3], "$request_uri")
+		for _, f := range found {
+			out.Domains = append(out.Domains, f[1])
+		}
+		return out
+	}
+	if found := pathRedirect.FindStringSubmatch(text); found != nil {
+		out.Type, out.Path, out.Temporary = "path", found[1], found[3] == "redirect"
+		if target, kept := strings.CutSuffix(found[2], "$1"); kept {
+			out.Target, out.KeepPath = target, true
+		} else {
+			out.Target = strings.TrimSuffix(found[2], "?")
+		}
+		return out
+	}
+	if strings.Contains(text, "error_page 404") {
+		out.Type = "404"
+	}
+	return out
+}
+
+// readSome reads up to limit bytes of a regular file.
+func readSome(p string, limit int64) (string, error) {
+	f, err := os.Open(p) //nolint:gosec // a file of 1Panel's own, under its site's folder
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	b, err := io.ReadAll(io.LimitReader(f, limit))
+	return string(b), err
 }
 
 func (r *reader) databases(found *dockwellv1.OnePanel, installs map[int64]string) error {

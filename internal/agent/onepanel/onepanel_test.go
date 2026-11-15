@@ -5,7 +5,9 @@ package onepanel
 import (
 	"database/sql"
 	"errors"
+	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -282,5 +284,47 @@ func TestAFailedReadGoesAgain(t *testing.T) {
 	}
 	if _, err := retried(t.Context(), "agent.db", func() (*dockwellv1.OnePanel, bool, error) { return nil, true, nil }, still); err == nil || !strings.Contains(err.Error(), "1Panel changed") {
 		t.Errorf("a file that changes every time = %v", err)
+	}
+}
+
+// A site's redirects are read from its redirect folder, in the shapes 1Panel writes
+// them, each with whether it's on, and nothing else there is (ADR 0070).
+func TestASitesRedirectsAreRead(t *testing.T) {
+	root := onepaneltest.Make(t, "/opt", false)
+	dir := filepath.Join(root, "data", "www", "sites", "blog", "redirect")
+	onepaneltest.WriteFile(t, filepath.Join(dir, "www.conf"), "if ($host ~ '^www.blog.example.com') {\n    return 301 https://blog.example.com$request_uri;\n}\nif ($host ~ '^old.example.com') {\n    return 301 https://blog.example.com$request_uri;\n}\n")
+	onepaneltest.WriteFile(t, filepath.Join(dir, "moved.conf"), "rewrite ^/old-blog(.*) https://blog.example.com$1 permanent;\n")
+	onepaneltest.WriteFile(t, filepath.Join(dir, "promo.bak"), "rewrite ^/promo(.*) https://example.com/sale? redirect;\n")
+	onepaneltest.WriteFile(t, filepath.Join(dir, "lost.conf"), "error_page 404 = @notfound;\nlocation @notfound {\n    return 301 /;\n}\n")
+	onepaneltest.WriteFile(t, filepath.Join(dir, "notes.txt"), "not a redirect")
+	onepaneltest.WriteFile(t, filepath.Join(root, "elsewhere.conf"), "rewrite ^/x(.*) https://evil.example$1 permanent;\n")
+	if err := os.Symlink(filepath.Join(root, "elsewhere.conf"), filepath.Join(dir, "linked.conf")); err != nil {
+		t.Fatal(err)
+	}
+	var blog *dockwellv1.OnePanelWebsite
+	for _, w := range readOK(t, root).GetWebsites() {
+		if w.GetAlias() == "blog" {
+			blog = w
+		}
+	}
+	got := map[string]*dockwellv1.OnePanelRedirect{}
+	for _, r := range blog.GetRedirects() {
+		got[r.GetName()] = r
+	}
+	if len(got) != 4 {
+		t.Fatalf("read %v", blog.GetRedirects())
+	}
+	if www := got["www"]; www.GetType() != "domain" || !slices.Equal(www.GetDomains(), []string{"www.blog.example.com", "old.example.com"}) ||
+		www.GetTarget() != "https://blog.example.com" || !www.GetKeepPath() || www.GetTemporary() || !www.GetEnabled() {
+		t.Errorf("www reads %v", www)
+	}
+	if moved := got["moved"]; moved.GetType() != "path" || moved.GetPath() != "/old-blog" || moved.GetTarget() != "https://blog.example.com" || !moved.GetKeepPath() || moved.GetTemporary() {
+		t.Errorf("moved reads %v", moved)
+	}
+	if promo := got["promo"]; promo.GetType() != "path" || promo.GetTarget() != "https://example.com/sale" || promo.GetKeepPath() || !promo.GetTemporary() || promo.GetEnabled() {
+		t.Errorf("promo reads %v", promo)
+	}
+	if lost := got["lost"]; lost.GetType() != "404" {
+		t.Errorf("lost reads %v", lost)
 	}
 }
