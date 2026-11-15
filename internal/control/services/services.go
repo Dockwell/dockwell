@@ -25,6 +25,7 @@ import (
 	"github.com/dockwell/dockwell/internal/auth"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/changes"
+	"github.com/dockwell/dockwell/internal/control/containers"
 	"github.com/dockwell/dockwell/internal/control/paging"
 	"github.com/dockwell/dockwell/internal/control/serviceupdates"
 	"github.com/dockwell/dockwell/internal/fault"
@@ -182,6 +183,7 @@ func (h *Handler) ListServices(ctx context.Context, req *connect.Request[dockwel
 				// Read from the values as they are, so it goes once the password does
 				// (ADR 0096). It says no more than that it is.
 				info.GuessablePassword = container.GuessablePassword(spec.GetApp())
+				info.Guessable = containers.GuessableProto(container.GuessableKind(spec.GetApp()))
 				subject := serviceupdates.Subject{ID: r.ID, Environment: r.Scope, Spec: spec, Digests: map[string]string{}}
 				for j := range deployments[r.ID] {
 					if d := &deployments[r.ID][j]; d.State == store.DeploymentLive {

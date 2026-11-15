@@ -421,6 +421,9 @@ type ServiceInfo struct {
 	// can be (ADR 0096). It says no more than that: not which password, nor which
 	// name.
 	GuessablePassword bool `protobuf:"varint,12,opt,name=guessable_password,json=guessablePassword,proto3" json:"guessable_password,omitempty"`
+	// What the guessable secret is, for the state's words: a database's password,
+	// another password, or a key. Unspecified where guessable_password is false.
+	Guessable GuessableSecret `protobuf:"varint,13,opt,name=guessable,proto3,enum=dockwell.v1.GuessableSecret" json:"guessable,omitempty"`
 	// What Dockwell last found newer than what it runs, and how its check stands.
 	// Unset before its first check. See
 	// docs/adr/0079-knowing-a-newer-version-of-an-app-is-out.md. Numbered apart,
@@ -542,6 +545,13 @@ func (x *ServiceInfo) GetGuessablePassword() bool {
 		return x.GuessablePassword
 	}
 	return false
+}
+
+func (x *ServiceInfo) GetGuessable() GuessableSecret {
+	if x != nil {
+		return x.Guessable
+	}
+	return GuessableSecret_GUESSABLE_SECRET_UNSPECIFIED
 }
 
 func (x *ServiceInfo) GetUpdate() *ServiceUpdate {
@@ -1938,7 +1948,7 @@ const file_dockwell_v1_service_proto_rawDesc = "" +
 	"page_token\x18\x04 \x01(\tR\tpageToken\"t\n" +
 	"\x14ListServicesResponse\x124\n" +
 	"\bservices\x18\x01 \x03(\v2\x18.dockwell.v1.ServiceInfoR\bservices\x12&\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\xfa\x04\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\xb6\x05\n" +
 	"\vServiceInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x124\n" +
 	"\bresource\x18\x02 \x01(\v2\x18.dockwell.v1.ResourceRefR\bresource\x12\x1a\n" +
@@ -1954,7 +1964,8 @@ const file_dockwell_v1_service_proto_rawDesc = "" +
 	" \x01(\tR\x0especUnreadable\x128\n" +
 	"\vhost_access\x18\v \x03(\v2\x17.dockwell.v1.HostAccessR\n" +
 	"hostAccess\x12-\n" +
-	"\x12guessable_password\x18\f \x01(\bR\x11guessablePassword\x122\n" +
+	"\x12guessable_password\x18\f \x01(\bR\x11guessablePassword\x12:\n" +
+	"\tguessable\x18\r \x01(\x0e2\x1c.dockwell.v1.GuessableSecretR\tguessable\x122\n" +
 	"\x06update\x18\x14 \x01(\v2\x1a.dockwell.v1.ServiceUpdateR\x06update\"\xf0\x01\n" +
 	"\x11ServiceDeployment\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x1f\n" +
@@ -2120,11 +2131,12 @@ var file_dockwell_v1_service_proto_goTypes = []any{
 	(*v1alpha1.Service)(nil),             // 25: dockwell.resource.v1alpha1.Service
 	(ChangeState)(0),                     // 26: dockwell.v1.ChangeState
 	(*HostAccess)(nil),                   // 27: dockwell.v1.HostAccess
-	(*ServiceUpdate)(nil),                // 28: dockwell.v1.ServiceUpdate
-	(*Change)(nil),                       // 29: dockwell.v1.Change
-	(*FieldChange)(nil),                  // 30: dockwell.v1.FieldChange
-	(*Build)(nil),                        // 31: dockwell.v1.Build
-	(v1alpha1.Protocol)(0),               // 32: dockwell.resource.v1alpha1.Protocol
+	(GuessableSecret)(0),                 // 28: dockwell.v1.GuessableSecret
+	(*ServiceUpdate)(nil),                // 29: dockwell.v1.ServiceUpdate
+	(*Change)(nil),                       // 30: dockwell.v1.Change
+	(*FieldChange)(nil),                  // 31: dockwell.v1.FieldChange
+	(*Build)(nil),                        // 32: dockwell.v1.Build
+	(v1alpha1.Protocol)(0),               // 33: dockwell.resource.v1alpha1.Protocol
 }
 var file_dockwell_v1_service_proto_depIdxs = []int32{
 	23, // 0: dockwell.v1.OpenServiceResponse.expire_time:type_name -> google.protobuf.Timestamp
@@ -2135,51 +2147,52 @@ var file_dockwell_v1_service_proto_depIdxs = []int32{
 	6,  // 5: dockwell.v1.ServiceInfo.deployments:type_name -> dockwell.v1.ServiceDeployment
 	26, // 6: dockwell.v1.ServiceInfo.change_state:type_name -> dockwell.v1.ChangeState
 	27, // 7: dockwell.v1.ServiceInfo.host_access:type_name -> dockwell.v1.HostAccess
-	28, // 8: dockwell.v1.ServiceInfo.update:type_name -> dockwell.v1.ServiceUpdate
-	0,  // 9: dockwell.v1.ServiceDeployment.state:type_name -> dockwell.v1.DeploymentState
-	23, // 10: dockwell.v1.ServiceDeployment.update_time:type_name -> google.protobuf.Timestamp
-	9,  // 11: dockwell.v1.ListServiceRevisionsResponse.revisions:type_name -> dockwell.v1.ServiceRevision
-	23, // 12: dockwell.v1.ServiceRevision.create_time:type_name -> google.protobuf.Timestamp
-	29, // 13: dockwell.v1.ServiceRevision.change:type_name -> dockwell.v1.Change
-	30, // 14: dockwell.v1.ServiceRevision.changes:type_name -> dockwell.v1.FieldChange
-	6,  // 15: dockwell.v1.ServiceRevision.deployments:type_name -> dockwell.v1.ServiceDeployment
-	31, // 16: dockwell.v1.ServiceRevision.build:type_name -> dockwell.v1.Build
-	29, // 17: dockwell.v1.DeployServiceResponse.change:type_name -> dockwell.v1.Change
-	29, // 18: dockwell.v1.MoveServiceResponse.change:type_name -> dockwell.v1.Change
-	24, // 19: dockwell.v1.MoveServiceResponse.moves:type_name -> dockwell.v1.ResourceRef
-	24, // 20: dockwell.v1.MoveServiceResponse.copies:type_name -> dockwell.v1.ResourceRef
-	24, // 21: dockwell.v1.MoveServiceResponse.follows:type_name -> dockwell.v1.ResourceRef
-	14, // 22: dockwell.v1.MoveServiceResponse.blocks:type_name -> dockwell.v1.MoveBlock
-	24, // 23: dockwell.v1.MoveServiceResponse.crosses:type_name -> dockwell.v1.ResourceRef
-	24, // 24: dockwell.v1.MoveBlock.resource:type_name -> dockwell.v1.ResourceRef
-	29, // 25: dockwell.v1.UpgradeServiceResponse.change:type_name -> dockwell.v1.Change
-	29, // 26: dockwell.v1.RollBackServiceResponse.change:type_name -> dockwell.v1.Change
-	32, // 27: dockwell.v1.AddServicePortRequest.protocol:type_name -> dockwell.resource.v1alpha1.Protocol
-	29, // 28: dockwell.v1.AddServicePortResponse.change:type_name -> dockwell.v1.Change
-	29, // 29: dockwell.v1.ChangeServiceRuntimeResponse.change:type_name -> dockwell.v1.Change
-	3,  // 30: dockwell.v1.ServiceService.ListServices:input_type -> dockwell.v1.ListServicesRequest
-	7,  // 31: dockwell.v1.ServiceService.ListServiceRevisions:input_type -> dockwell.v1.ListServiceRevisionsRequest
-	10, // 32: dockwell.v1.ServiceService.DeployService:input_type -> dockwell.v1.DeployServiceRequest
-	17, // 33: dockwell.v1.ServiceService.RollBackService:input_type -> dockwell.v1.RollBackServiceRequest
-	15, // 34: dockwell.v1.ServiceService.UpgradeService:input_type -> dockwell.v1.UpgradeServiceRequest
-	19, // 35: dockwell.v1.ServiceService.AddServicePort:input_type -> dockwell.v1.AddServicePortRequest
-	21, // 36: dockwell.v1.ServiceService.ChangeServiceRuntime:input_type -> dockwell.v1.ChangeServiceRuntimeRequest
-	12, // 37: dockwell.v1.ServiceService.MoveService:input_type -> dockwell.v1.MoveServiceRequest
-	1,  // 38: dockwell.v1.ServiceService.OpenService:input_type -> dockwell.v1.OpenServiceRequest
-	4,  // 39: dockwell.v1.ServiceService.ListServices:output_type -> dockwell.v1.ListServicesResponse
-	8,  // 40: dockwell.v1.ServiceService.ListServiceRevisions:output_type -> dockwell.v1.ListServiceRevisionsResponse
-	11, // 41: dockwell.v1.ServiceService.DeployService:output_type -> dockwell.v1.DeployServiceResponse
-	18, // 42: dockwell.v1.ServiceService.RollBackService:output_type -> dockwell.v1.RollBackServiceResponse
-	16, // 43: dockwell.v1.ServiceService.UpgradeService:output_type -> dockwell.v1.UpgradeServiceResponse
-	20, // 44: dockwell.v1.ServiceService.AddServicePort:output_type -> dockwell.v1.AddServicePortResponse
-	22, // 45: dockwell.v1.ServiceService.ChangeServiceRuntime:output_type -> dockwell.v1.ChangeServiceRuntimeResponse
-	13, // 46: dockwell.v1.ServiceService.MoveService:output_type -> dockwell.v1.MoveServiceResponse
-	2,  // 47: dockwell.v1.ServiceService.OpenService:output_type -> dockwell.v1.OpenServiceResponse
-	39, // [39:48] is the sub-list for method output_type
-	30, // [30:39] is the sub-list for method input_type
-	30, // [30:30] is the sub-list for extension type_name
-	30, // [30:30] is the sub-list for extension extendee
-	0,  // [0:30] is the sub-list for field type_name
+	28, // 8: dockwell.v1.ServiceInfo.guessable:type_name -> dockwell.v1.GuessableSecret
+	29, // 9: dockwell.v1.ServiceInfo.update:type_name -> dockwell.v1.ServiceUpdate
+	0,  // 10: dockwell.v1.ServiceDeployment.state:type_name -> dockwell.v1.DeploymentState
+	23, // 11: dockwell.v1.ServiceDeployment.update_time:type_name -> google.protobuf.Timestamp
+	9,  // 12: dockwell.v1.ListServiceRevisionsResponse.revisions:type_name -> dockwell.v1.ServiceRevision
+	23, // 13: dockwell.v1.ServiceRevision.create_time:type_name -> google.protobuf.Timestamp
+	30, // 14: dockwell.v1.ServiceRevision.change:type_name -> dockwell.v1.Change
+	31, // 15: dockwell.v1.ServiceRevision.changes:type_name -> dockwell.v1.FieldChange
+	6,  // 16: dockwell.v1.ServiceRevision.deployments:type_name -> dockwell.v1.ServiceDeployment
+	32, // 17: dockwell.v1.ServiceRevision.build:type_name -> dockwell.v1.Build
+	30, // 18: dockwell.v1.DeployServiceResponse.change:type_name -> dockwell.v1.Change
+	30, // 19: dockwell.v1.MoveServiceResponse.change:type_name -> dockwell.v1.Change
+	24, // 20: dockwell.v1.MoveServiceResponse.moves:type_name -> dockwell.v1.ResourceRef
+	24, // 21: dockwell.v1.MoveServiceResponse.copies:type_name -> dockwell.v1.ResourceRef
+	24, // 22: dockwell.v1.MoveServiceResponse.follows:type_name -> dockwell.v1.ResourceRef
+	14, // 23: dockwell.v1.MoveServiceResponse.blocks:type_name -> dockwell.v1.MoveBlock
+	24, // 24: dockwell.v1.MoveServiceResponse.crosses:type_name -> dockwell.v1.ResourceRef
+	24, // 25: dockwell.v1.MoveBlock.resource:type_name -> dockwell.v1.ResourceRef
+	30, // 26: dockwell.v1.UpgradeServiceResponse.change:type_name -> dockwell.v1.Change
+	30, // 27: dockwell.v1.RollBackServiceResponse.change:type_name -> dockwell.v1.Change
+	33, // 28: dockwell.v1.AddServicePortRequest.protocol:type_name -> dockwell.resource.v1alpha1.Protocol
+	30, // 29: dockwell.v1.AddServicePortResponse.change:type_name -> dockwell.v1.Change
+	30, // 30: dockwell.v1.ChangeServiceRuntimeResponse.change:type_name -> dockwell.v1.Change
+	3,  // 31: dockwell.v1.ServiceService.ListServices:input_type -> dockwell.v1.ListServicesRequest
+	7,  // 32: dockwell.v1.ServiceService.ListServiceRevisions:input_type -> dockwell.v1.ListServiceRevisionsRequest
+	10, // 33: dockwell.v1.ServiceService.DeployService:input_type -> dockwell.v1.DeployServiceRequest
+	17, // 34: dockwell.v1.ServiceService.RollBackService:input_type -> dockwell.v1.RollBackServiceRequest
+	15, // 35: dockwell.v1.ServiceService.UpgradeService:input_type -> dockwell.v1.UpgradeServiceRequest
+	19, // 36: dockwell.v1.ServiceService.AddServicePort:input_type -> dockwell.v1.AddServicePortRequest
+	21, // 37: dockwell.v1.ServiceService.ChangeServiceRuntime:input_type -> dockwell.v1.ChangeServiceRuntimeRequest
+	12, // 38: dockwell.v1.ServiceService.MoveService:input_type -> dockwell.v1.MoveServiceRequest
+	1,  // 39: dockwell.v1.ServiceService.OpenService:input_type -> dockwell.v1.OpenServiceRequest
+	4,  // 40: dockwell.v1.ServiceService.ListServices:output_type -> dockwell.v1.ListServicesResponse
+	8,  // 41: dockwell.v1.ServiceService.ListServiceRevisions:output_type -> dockwell.v1.ListServiceRevisionsResponse
+	11, // 42: dockwell.v1.ServiceService.DeployService:output_type -> dockwell.v1.DeployServiceResponse
+	18, // 43: dockwell.v1.ServiceService.RollBackService:output_type -> dockwell.v1.RollBackServiceResponse
+	16, // 44: dockwell.v1.ServiceService.UpgradeService:output_type -> dockwell.v1.UpgradeServiceResponse
+	20, // 45: dockwell.v1.ServiceService.AddServicePort:output_type -> dockwell.v1.AddServicePortResponse
+	22, // 46: dockwell.v1.ServiceService.ChangeServiceRuntime:output_type -> dockwell.v1.ChangeServiceRuntimeResponse
+	13, // 47: dockwell.v1.ServiceService.MoveService:output_type -> dockwell.v1.MoveServiceResponse
+	2,  // 48: dockwell.v1.ServiceService.OpenService:output_type -> dockwell.v1.OpenServiceResponse
+	40, // [40:49] is the sub-list for method output_type
+	31, // [31:40] is the sub-list for method input_type
+	31, // [31:31] is the sub-list for extension type_name
+	31, // [31:31] is the sub-list for extension extendee
+	0,  // [0:31] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_service_proto_init() }

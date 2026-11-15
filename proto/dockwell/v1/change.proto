@@ -1633,6 +1633,19 @@ message HostAccess {
   string written_by = 16;
 }
 
+// GuessableSecret is what an app's secret is, where its value is one of the app's
+// own names, which anyone can guess (ADR 0096): a database's password, another
+// password, or a key or token.
+enum GuessableSecret {
+  GUESSABLE_SECRET_UNSPECIFIED = 0;
+  // A database's password, by its variable's name or its container's image.
+  GUESSABLE_SECRET_DATABASE_PASSWORD = 1;
+  // Any other password.
+  GUESSABLE_SECRET_PASSWORD = 2;
+  // A key, a token or another secret.
+  GUESSABLE_SECRET_KEY = 3;
+}
+
 // HostAccessKind is what a resource reaches on its server.
 enum HostAccessKind {
   HOST_ACCESS_KIND_UNSPECIFIED = 0;

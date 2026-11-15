@@ -8,6 +8,7 @@ import {
   type CheckPanelDomainsRequest,
   CheckPanelDomainsResponseSchema,
   ContainerState,
+  GuessableSecret,
   ImportAction,
   ImportCoolifyResponseSchema,
   ImportKind,
@@ -302,5 +303,33 @@ describe("moving in from Coolify", () => {
     expect(await screen.findAllByRole("button", { name: "Review the plan" })).not.toHaveLength(0);
     expect((screen.getByRole("checkbox", { name: choiceName }) as HTMLInputElement).checked).toBe(true);
     await expectAccessible(document.body);
+  });
+
+  it("says a key, where the secret that's one of its own names is a key", async () => {
+    const user = userEvent.setup();
+    const importCoolify = vi.fn(() =>
+      create(ImportCoolifyResponseSchema, {
+        found: { kind: PanelKind.COOLIFY, version: "4.7.5", knownVersion: true, folder: "/data/coolify" },
+        steps: [
+          {
+            kind: ImportKind.APP,
+            name: "rentals",
+            summary: "a service from Coolify's templates",
+            action: ImportAction.LEAVE,
+            appId: "r2d4",
+            guessablePassword: true,
+            guessable: GuessableSecret.KEY,
+          },
+        ],
+      }),
+    );
+    renderAt("/servers/srv_1/import", api({ imports: { importCoolify } }));
+    await user.click(await screen.findByRole("button", { name: "Read what Coolify runs" }));
+    expect(
+      await screen.findByRole("checkbox", {
+        name: "Take it on as it is: its key is one of its own names, which anyone can guess.",
+      }),
+    ).toBeTruthy();
+    expect(screen.getByText("Guessable key")).toBeTruthy();
   });
 });

@@ -4,6 +4,7 @@ import { createClient } from "@connectrpc/connect";
 import { useTransport } from "@connectrpc/connect-query";
 import {
   ChangeState,
+  GuessableSecret,
   ImportAction,
   ImportKind,
   type ImportOnePanelResponse,
@@ -404,7 +405,11 @@ function StepRow({ step, extra, panel }: { step: ImportStep; extra?: ReactNode; 
           ) : null}
           {step.guessablePassword ? (
             <Tag words icon="key">
-              <Trans>Guessable password</Trans>
+              {step.guessable === GuessableSecret.KEY ? (
+                <Trans>Guessable key</Trans>
+              ) : (
+                <Trans>Guessable password</Trans>
+              )}
             </Tag>
           ) : null}
         </div>

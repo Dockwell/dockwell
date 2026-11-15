@@ -86,8 +86,9 @@ func TestADatabasePasswordThatIsOneOfItsNamesIsGuessable(t *testing.T) {
 			app:   &resourcev1.Container{Image: "docker.io/library/postgres:17-alpine", Hostname: "answer", Env: map[string]string{"PASSWORD": "answer"}},
 			guess: []string{"the value of PASSWORD in its hostname"},
 		},
-		"not a database's": {
-			app: &resourcev1.Container{Image: "minio:1", ExternalNetworks: []string{"store_default"}, Env: map[string]string{"S3_SECRET": "store"}},
+		"a key, not a database's": {
+			app:   &resourcev1.Container{Image: "minio:1", ExternalNetworks: []string{"store_default"}, Env: map[string]string{"S3_SECRET": "store"}},
+			guess: []string{"the value of S3_SECRET in its external networks"},
 		},
 		"shown in a command too": {
 			app:   &resourcev1.Container{Image: "forgejo:11", Command: []string{"serve", "--password", "forgejo"}, Env: map[string]string{"DB_PASSWORD": "forgejo"}},
@@ -124,5 +125,27 @@ func TestAFlagIsNoSecret(t *testing.T) {
 	app := &resourcev1.Container{Image: "formbricks:1.2", Env: map[string]string{"ADMIN_PASSWORD": "2"}}
 	if got := valuesShown(app); !slices.Equal(got, []string{"the value of ADMIN_PASSWORD in its image"}) {
 		t.Errorf("a short password that isn't a flag shows %q", got)
+	}
+}
+
+// What a guessable secret is, for the words a person reads: a database's password
+// by its variable's name or its image, any other password, or a key; the most
+// telling where there's more than one (ADR 0096, "A secret that's one of its own
+// names").
+func TestWhatAGuessableSecretIs(t *testing.T) {
+	for name, c := range map[string]struct {
+		app  *resourcev1.Container
+		want Guessable
+	}{
+		"a database's":          {&resourcev1.Container{ExternalNetworks: []string{"forgejo_default"}, Env: map[string]string{"POSTGRES_PASSWORD": "forgejo"}}, GuessableDatabasePassword},
+		"in a database's image": {&resourcev1.Container{Image: "postgres:17", Hostname: "answer", Env: map[string]string{"PASSWORD": "answer"}}, GuessableDatabasePassword},
+		"another password":      {&resourcev1.Container{Image: "odoo:17", Env: map[string]string{"PASSWORD": "odoo"}}, GuessablePasswordKind},
+		"a key":                 {&resourcev1.Container{Image: "louez:2", Env: map[string]string{"S3_ACCESS_KEY_ID": "louez"}}, GuessableKey},
+		"a key and a password":  {&resourcev1.Container{Image: "louez:2", Env: map[string]string{"S3_ACCESS_KEY_ID": "louez", "ADMIN_PASSWORD": "louez"}}, GuessablePasswordKind},
+		"none":                  {&resourcev1.Container{Image: "louez:2", Env: map[string]string{"S3_ACCESS_KEY_ID": "k8Jd2mQxLp"}}, GuessableNone},
+	} {
+		if got := GuessableKind(c.app); got != c.want {
+			t.Errorf("%s: %v, want %v", name, got, c.want)
+		}
 	}
 }

@@ -280,6 +280,9 @@ message ServiceInfo {
   // can be (ADR 0096). It says no more than that: not which password, nor which
   // name.
   bool guessable_password = 12;
+  // What the guessable secret is, for the state's words: a database's password,
+  // another password, or a key. Unspecified where guessable_password is false.
+  GuessableSecret guessable = 13;
   // What Dockwell last found newer than what it runs, and how its check stands.
   // Unset before its first check. See
   // docs/adr/0079-knowing-a-newer-version-of-an-app-is-out.md. Numbered apart,

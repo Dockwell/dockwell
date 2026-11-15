@@ -60,8 +60,8 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
       if (event.action === "service.take_on_guessable_password") {
         return {
           title: name
-            ? t`Chose to take on ${name} with a guessable database password`
-            : t`Chose to take on an app with a guessable database password`,
+            ? t`Chose to take on ${name} with a password or key anyone can guess`
+            : t`Chose to take on an app with a password or key anyone can guess`,
           icon: "key",
           tone: "warning",
         };

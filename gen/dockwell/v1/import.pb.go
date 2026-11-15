@@ -1935,8 +1935,12 @@ type ImportStep struct {
 	// can guess, so it's taken on only where a person chooses it, by app_id in
 	// guessable_password (ADR 0096). Nothing here says which password or name.
 	GuessablePassword bool `protobuf:"varint,10,opt,name=guessable_password,json=guessablePassword,proto3" json:"guessable_password,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	// What the guessable secret is, for the words the choice and state take: a
+	// database's password, another password, or a key. Unspecified where
+	// guessable_password is false.
+	Guessable     GuessableSecret `protobuf:"varint,11,opt,name=guessable,proto3,enum=dockwell.v1.GuessableSecret" json:"guessable,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ImportStep) Reset() {
@@ -2037,6 +2041,13 @@ func (x *ImportStep) GetGuessablePassword() bool {
 		return x.GuessablePassword
 	}
 	return false
+}
+
+func (x *ImportStep) GetGuessable() GuessableSecret {
+	if x != nil {
+		return x.Guessable
+	}
+	return GuessableSecret_GUESSABLE_SECRET_UNSPECIFIED
 }
 
 // OnePanel is what 1Panel keeps on a server, as its records say, with nothing
@@ -3272,7 +3283,7 @@ const file_dockwell_v1_import_proto_rawDesc = "" +
 	"\x16ImportOnePanelResponse\x12+\n" +
 	"\x05found\x18\x01 \x01(\v2\x15.dockwell.v1.OnePanelR\x05found\x12-\n" +
 	"\x05steps\x18\x02 \x03(\v2\x17.dockwell.v1.ImportStepR\x05steps\x12+\n" +
-	"\x06change\x18\x03 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"\xf8\x02\n" +
+	"\x06change\x18\x03 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"\xb4\x03\n" +
 	"\n" +
 	"ImportStep\x12+\n" +
 	"\x04kind\x18\x01 \x01(\x0e2\x17.dockwell.v1.ImportKindR\x04kind\x12\x12\n" +
@@ -3285,7 +3296,8 @@ const file_dockwell_v1_import_proto_rawDesc = "" +
 	"\x06app_id\x18\b \x01(\tR\x05appId\x12*\n" +
 	"\x11needs_host_access\x18\t \x03(\tR\x0fneedsHostAccess\x12-\n" +
 	"\x12guessable_password\x18\n" +
-	" \x01(\bR\x11guessablePassword\"\xe8\x04\n" +
+	" \x01(\bR\x11guessablePassword\x12:\n" +
+	"\tguessable\x18\v \x01(\x0e2\x1c.dockwell.v1.GuessableSecretR\tguessable\"\xe8\x04\n" +
 	"\bOnePanel\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\tR\aversion\x12\x19\n" +
 	"\bbase_dir\x18\x02 \x01(\tR\abaseDir\x12\x18\n" +
@@ -3489,7 +3501,8 @@ var file_dockwell_v1_import_proto_goTypes = []any{
 	(*OnePanelDatabase)(nil),          // 34: dockwell.v1.OnePanelDatabase
 	(*OnePanelCronJob)(nil),           // 35: dockwell.v1.OnePanelCronJob
 	(*Change)(nil),                    // 36: dockwell.v1.Change
-	(*timestamppb.Timestamp)(nil),     // 37: google.protobuf.Timestamp
+	(GuessableSecret)(0),              // 37: dockwell.v1.GuessableSecret
+	(*timestamppb.Timestamp)(nil),     // 38: google.protobuf.Timestamp
 }
 var file_dockwell_v1_import_proto_depIdxs = []int32{
 	0,  // 0: dockwell.v1.PlanPanelDomainsRequest.panel:type_name -> dockwell.v1.PanelKind
@@ -3519,35 +3532,36 @@ var file_dockwell_v1_import_proto_depIdxs = []int32{
 	2,  // 24: dockwell.v1.ImportStep.kind:type_name -> dockwell.v1.ImportKind
 	3,  // 25: dockwell.v1.ImportStep.action:type_name -> dockwell.v1.ImportAction
 	1,  // 26: dockwell.v1.ImportStep.waits_for:type_name -> dockwell.v1.ImportWaitsFor
-	28, // 27: dockwell.v1.OnePanel.apps:type_name -> dockwell.v1.OnePanelApp
-	29, // 28: dockwell.v1.OnePanel.runtimes:type_name -> dockwell.v1.OnePanelRuntime
-	30, // 29: dockwell.v1.OnePanel.websites:type_name -> dockwell.v1.OnePanelWebsite
-	32, // 30: dockwell.v1.OnePanel.certificates:type_name -> dockwell.v1.OnePanelCertificate
-	33, // 31: dockwell.v1.OnePanel.database_servers:type_name -> dockwell.v1.OnePanelDatabaseServer
-	34, // 32: dockwell.v1.OnePanel.databases:type_name -> dockwell.v1.OnePanelDatabase
-	35, // 33: dockwell.v1.OnePanel.cron_jobs:type_name -> dockwell.v1.OnePanelCronJob
-	27, // 34: dockwell.v1.OnePanel.composes:type_name -> dockwell.v1.OnePanelCompose
-	31, // 35: dockwell.v1.OnePanelWebsite.domains:type_name -> dockwell.v1.OnePanelDomain
-	37, // 36: dockwell.v1.OnePanelCertificate.expires:type_name -> google.protobuf.Timestamp
-	23, // 37: dockwell.v1.ImportService.ImportOnePanel:input_type -> dockwell.v1.ImportOnePanelRequest
-	14, // 38: dockwell.v1.ImportService.ImportCoolify:input_type -> dockwell.v1.ImportCoolifyRequest
-	16, // 39: dockwell.v1.ImportService.ImportDokploy:input_type -> dockwell.v1.ImportDokployRequest
-	5,  // 40: dockwell.v1.ImportService.CheckPanelDomains:input_type -> dockwell.v1.CheckPanelDomainsRequest
-	4,  // 41: dockwell.v1.ImportService.PlanPanelDomains:input_type -> dockwell.v1.PlanPanelDomainsRequest
-	10, // 42: dockwell.v1.ImportService.PlanStartPanel:input_type -> dockwell.v1.PlanStartPanelRequest
-	12, // 43: dockwell.v1.ImportService.PlanStopPanel:input_type -> dockwell.v1.PlanStopPanelRequest
-	24, // 44: dockwell.v1.ImportService.ImportOnePanel:output_type -> dockwell.v1.ImportOnePanelResponse
-	15, // 45: dockwell.v1.ImportService.ImportCoolify:output_type -> dockwell.v1.ImportCoolifyResponse
-	17, // 46: dockwell.v1.ImportService.ImportDokploy:output_type -> dockwell.v1.ImportDokployResponse
-	6,  // 47: dockwell.v1.ImportService.CheckPanelDomains:output_type -> dockwell.v1.CheckPanelDomainsResponse
-	9,  // 48: dockwell.v1.ImportService.PlanPanelDomains:output_type -> dockwell.v1.PlanPanelDomainsResponse
-	11, // 49: dockwell.v1.ImportService.PlanStartPanel:output_type -> dockwell.v1.PlanStartPanelResponse
-	13, // 50: dockwell.v1.ImportService.PlanStopPanel:output_type -> dockwell.v1.PlanStopPanelResponse
-	44, // [44:51] is the sub-list for method output_type
-	37, // [37:44] is the sub-list for method input_type
-	37, // [37:37] is the sub-list for extension type_name
-	37, // [37:37] is the sub-list for extension extendee
-	0,  // [0:37] is the sub-list for field type_name
+	37, // 27: dockwell.v1.ImportStep.guessable:type_name -> dockwell.v1.GuessableSecret
+	28, // 28: dockwell.v1.OnePanel.apps:type_name -> dockwell.v1.OnePanelApp
+	29, // 29: dockwell.v1.OnePanel.runtimes:type_name -> dockwell.v1.OnePanelRuntime
+	30, // 30: dockwell.v1.OnePanel.websites:type_name -> dockwell.v1.OnePanelWebsite
+	32, // 31: dockwell.v1.OnePanel.certificates:type_name -> dockwell.v1.OnePanelCertificate
+	33, // 32: dockwell.v1.OnePanel.database_servers:type_name -> dockwell.v1.OnePanelDatabaseServer
+	34, // 33: dockwell.v1.OnePanel.databases:type_name -> dockwell.v1.OnePanelDatabase
+	35, // 34: dockwell.v1.OnePanel.cron_jobs:type_name -> dockwell.v1.OnePanelCronJob
+	27, // 35: dockwell.v1.OnePanel.composes:type_name -> dockwell.v1.OnePanelCompose
+	31, // 36: dockwell.v1.OnePanelWebsite.domains:type_name -> dockwell.v1.OnePanelDomain
+	38, // 37: dockwell.v1.OnePanelCertificate.expires:type_name -> google.protobuf.Timestamp
+	23, // 38: dockwell.v1.ImportService.ImportOnePanel:input_type -> dockwell.v1.ImportOnePanelRequest
+	14, // 39: dockwell.v1.ImportService.ImportCoolify:input_type -> dockwell.v1.ImportCoolifyRequest
+	16, // 40: dockwell.v1.ImportService.ImportDokploy:input_type -> dockwell.v1.ImportDokployRequest
+	5,  // 41: dockwell.v1.ImportService.CheckPanelDomains:input_type -> dockwell.v1.CheckPanelDomainsRequest
+	4,  // 42: dockwell.v1.ImportService.PlanPanelDomains:input_type -> dockwell.v1.PlanPanelDomainsRequest
+	10, // 43: dockwell.v1.ImportService.PlanStartPanel:input_type -> dockwell.v1.PlanStartPanelRequest
+	12, // 44: dockwell.v1.ImportService.PlanStopPanel:input_type -> dockwell.v1.PlanStopPanelRequest
+	24, // 45: dockwell.v1.ImportService.ImportOnePanel:output_type -> dockwell.v1.ImportOnePanelResponse
+	15, // 46: dockwell.v1.ImportService.ImportCoolify:output_type -> dockwell.v1.ImportCoolifyResponse
+	17, // 47: dockwell.v1.ImportService.ImportDokploy:output_type -> dockwell.v1.ImportDokployResponse
+	6,  // 48: dockwell.v1.ImportService.CheckPanelDomains:output_type -> dockwell.v1.CheckPanelDomainsResponse
+	9,  // 49: dockwell.v1.ImportService.PlanPanelDomains:output_type -> dockwell.v1.PlanPanelDomainsResponse
+	11, // 50: dockwell.v1.ImportService.PlanStartPanel:output_type -> dockwell.v1.PlanStartPanelResponse
+	13, // 51: dockwell.v1.ImportService.PlanStopPanel:output_type -> dockwell.v1.PlanStopPanelResponse
+	45, // [45:52] is the sub-list for method output_type
+	38, // [38:45] is the sub-list for method input_type
+	38, // [38:38] is the sub-list for extension type_name
+	38, // [38:38] is the sub-list for extension extendee
+	0,  // [0:38] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_import_proto_init() }
