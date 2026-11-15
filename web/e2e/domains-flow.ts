@@ -102,7 +102,7 @@ export async function domainsFlow(page: Page, { origin, step, shoot }: DomainsFl
   const app = form.getByRole("combobox", { name: "App" });
   const named = (await app.getByRole("option").allTextContents()).find((label) => label.startsWith("adminer"));
   if (!named) fail("the form offers no adminer to send a domain to");
-  await form.getByLabel("Domain").fill("first.example.net");
+  await form.getByRole("textbox", { name: "Domain" }).fill("first.example.net");
   await form.getByRole("button", { name: /Review plan/ }).click();
   await form.getByText("Choose the app this domain reaches.").waitFor();
   await app.selectOption({ label: named });
@@ -113,7 +113,21 @@ export async function domainsFlow(page: Page, { origin, step, shoot }: DomainsFl
   await plan.getByText("first.example.net").first().waitFor();
   await plan.getByRole("button", { name: /Cancel/ }).click();
   await form.waitFor();
-  if ((await form.getByLabel("Domain").inputValue()) !== "first.example.net") fail("cancelling loses the domain");
+  if ((await form.getByRole("textbox", { name: "Domain" }).inputValue()) !== "first.example.net")
+    fail("cancelling loses the domain");
+
+  step("domains: a domain that belongs to no app redirects to a URL, as a plan (ADR 0070)");
+  await form.getByRole("radio", { name: /^A URL/ }).check();
+  await form.getByRole("textbox", { name: "Domain" }).fill("old.example.net");
+  await form.getByRole("textbox", { name: "Redirect to" }).fill("https://first.example.net");
+  await form.getByRole("button", { name: /Review plan/ }).click();
+  const redirectPlan = onTop(page.getByRole("dialog", { name: "Review plan" }));
+  await redirectPlan.waitFor({ timeout: 30_000 });
+  await redirectPlan
+    .getByText("old.example.net redirects to https://first.example.net, permanently, keeping the path.")
+    .waitFor();
+  await redirectPlan.getByRole("button", { name: /Cancel/ }).click();
+  await form.waitFor();
   await form.getByRole("button", { name: "Cancel" }).click();
   await page.getByRole("heading", { name: "No domains yet" }).waitFor();
 

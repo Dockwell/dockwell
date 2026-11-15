@@ -1422,6 +1422,77 @@ describe("adding a domain from the list", () => {
     await waitFor(() => expect(router.state.location.pathname).toBe(`/apps/${api_.id}`));
   });
 
+  it("redirects a domain that belongs to no app to a URL, permanently and keeping the path unless asked", async () => {
+    const user = userEvent.setup();
+    const edits: ProposeChangeRequest["edits"] = [];
+    renderAt("/domains", api(some, { services: [web, api_], more: { changes: changes(edits) } }));
+    await screen.findByRole("row", { name: /shop\.example\.com/ });
+    await user.click(await screen.findByRole("button", { name: "Add a domain" }));
+    const sheet = await screen.findByRole("dialog", { name: "Add a domain" });
+    await user.click(within(sheet).getByRole("radio", { name: /^A URL/ }));
+    // Still "Add a domain": it's for no app now.
+    expect(screen.getByRole("dialog", { name: "Add a domain" })).toBe(sheet);
+    expect(within(sheet).queryByRole("combobox", { name: "App" })).toBeNull();
+    expect(within(sheet).queryByLabelText("Port in the app")).toBeNull();
+    await user.type(within(sheet).getByLabelText("Domain"), "old-shop.example.net");
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    expect(within(sheet).getByLabelText("Redirect to")).toHaveAccessibleDescription(
+      "Give the address it sends to, such as https://example.org.",
+    );
+    expect(edits).toHaveLength(0);
+    await user.type(within(sheet).getByLabelText("Redirect to"), "https://shop.example.com");
+    await user.click(within(sheet).getByRole("button", { name: /^Redirect/ }));
+    await user.click(within(sheet).getByRole("checkbox", { name: /For a while/ }));
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    await screen.findByRole("dialog", { name: "Review plan" });
+    expect(edits[0]?.resource).toMatchObject({ kind: "route", scope: ENV, name: "old-shop-example-net" });
+    expect(edits[0]?.spec?.kind.value).toMatchObject({
+      domain: "old-shop.example.net",
+      redirect: { to: "https://shop.example.com", temporary: true, dropPath: false },
+    });
+    expect(edits[0]?.spec?.kind.value).not.toHaveProperty("service", "api");
+  });
+
+  it("also answers on www, redirecting it to the domain, when its DNS answers alike", async () => {
+    const user = userEvent.setup();
+    const edits: ProposeChangeRequest["edits"] = [];
+    renderAt(
+      "/domains",
+      api(some, {
+        services: [web, api_],
+        more: {
+          changes: changes(edits),
+          domains: {
+            listDomains: () => ({ domains: some }),
+            checkDomain: (req) => ({
+              check: { domain: req.domain, state: DomainCheckState.POINTS_HERE, found: ["203.0.113.50"] },
+              companion: "www.example.org",
+              companionCheck: {
+                check: { domain: "www.example.org", state: DomainCheckState.POINTS_HERE, found: ["203.0.113.50"] },
+                answersAlike: true,
+              },
+            }),
+          },
+        },
+      }),
+    );
+    await screen.findByRole("row", { name: /shop\.example\.com/ });
+    await user.click(await screen.findByRole("button", { name: "Add a domain" }));
+    const sheet = await screen.findByRole("dialog", { name: "Add a domain" });
+    await user.selectOptions(within(sheet).getByRole("combobox", { name: "App" }), "api");
+    await user.type(within(sheet).getByLabelText("Domain"), "example.org");
+    const www = await within(sheet).findByRole("checkbox", { name: "Also answer on www.example.org" });
+    await waitFor(() => expect(www).toBeChecked());
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    await screen.findByRole("dialog", { name: "Review plan" });
+    expect(edits).toHaveLength(2);
+    expect(edits[1]?.resource).toMatchObject({ kind: "route", scope: ENV, name: "www-example-org" });
+    expect(edits[1]?.spec?.kind.value).toMatchObject({
+      domain: "www.example.org",
+      redirect: { to: "https://example.org" },
+    });
+  });
+
   it("asks for the app, once there's a choice, and refuses to guess", async () => {
     const user = userEvent.setup();
     const edits: ProposeChangeRequest["edits"] = [];

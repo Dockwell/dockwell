@@ -2191,6 +2191,9 @@ msgstr "Webhook"
 msgid "ntfy"
 msgstr "ntfy"
 
+msgid "A URL"
+msgstr "URL"
+
 msgid "A route runs on the one server its DNS points at."
 msgstr "路由运行在其 DNS 指向的那台服务器上。"
 
@@ -2199,6 +2202,9 @@ msgstr "添加域名"
 
 msgid "Add a domain to {name}"
 msgstr "为 {name} 添加域名"
+
+msgid "An app"
+msgstr "应用"
 
 msgctxt "a port typed in"
 msgid "Another port"
@@ -2219,11 +2225,29 @@ msgstr "域名"
 msgid "Edit and try again"
 msgstr "修改后重试"
 
+msgid "Environment"
+msgstr "环境"
+
+msgid "For a while (302), so browsers ask again each time"
+msgstr "临时（302），浏览器每次都会重新请求"
+
+msgid "For a while, keeping the path"
+msgstr "临时，保留路径"
+
+msgid "For a while, to the address as it is"
+msgstr "临时，原样发送到该地址"
+
+msgid "Give the address it sends to, such as https://example.org."
+msgstr "请填写它发送到的地址，例如 https://example.org。"
+
 msgid "HTTPS"
 msgstr "HTTPS"
 
 msgid "Handled in front of this server"
 msgstr "由此服务器前面的服务处理"
+
+msgid "It goes to"
+msgstr "它通往"
 
 msgid "Its certificate comes by itself once its DNS points here."
 msgstr "DNS 指向这里后，证书会自动获取。"
@@ -2255,6 +2279,12 @@ msgstr "人们通过此名称以明文 HTTP 访问应用"
 msgid "People reach the app at this name, through what's in front of this server"
 msgstr "人们通过此名称访问应用，流量经过此服务器前面的隧道或代理"
 
+msgid "Permanently, keeping the path"
+msgstr "永久，保留路径"
+
+msgid "Permanently, to the address as it is"
+msgstr "永久，原样发送到该地址"
+
 msgid "Point its DNS at this server."
 msgstr "将其 DNS 指向此服务器。"
 
@@ -2270,11 +2300,32 @@ msgstr "应用内端口"
 msgid "Port on the server"
 msgstr "服务器上的端口"
 
+msgid "Redirect"
+msgstr "重定向"
+
+msgid "Redirect to"
+msgstr "重定向到"
+
+msgid "Redirect {wanted} to {goesTo}"
+msgstr "将 {wanted} 重定向到 {goesTo}"
+
+msgid "Send every request to the address as it is, without its path"
+msgstr "把每个请求原样发送到该地址，不带路径"
+
 msgid "Send {wanted} to {name}"
 msgstr "将 {wanted} 发送到 {name}"
 
 msgid "Send {wanted} to {name}, and point {followsApp} at it"
 msgstr "将 {wanted} 发送到 {name}，并让 {followsApp} 指向它"
+
+msgid "Visitors are sent on, such as from an old domain."
+msgstr "访客会被转到别处，例如来自旧域名的访客。"
+
+msgid "Visitors reach an app here."
+msgstr "访客在这里访问应用。"
+
+msgid "Visitors to this name are sent on to the address you give"
+msgstr "访问这个名称的访客会被转到你填写的地址"
 
 msgid "What it listens on on the server, such as 8080; 80 is the proxy's."
 msgstr "它在服务器上监听的端口，例如 8080；80 端口归代理使用。"
@@ -2747,9 +2798,6 @@ msgstr "Dockwell 正在恢复 <0>{image}</0>，开始于 {ago}"
 #. placeholder {0}: state.servers.join(", ")
 msgid "Dockwell puts <0>{image}</0> back once {0} reconnects"
 msgstr "{0} 重新连接后，Dockwell 会恢复 <0>{image}</0>"
-
-msgid "Environment"
-msgstr "环境"
 
 msgid "Go to the apps"
 msgstr "前往应用"
@@ -18744,9 +18792,6 @@ msgstr "由 Dockwell 根据这些设置生成"
 
 msgid "{changes, plural, one {# change} other {# changes}}"
 msgstr "{changes, plural, other {# 处更改}}"
-
-msgid "A URL"
-msgstr "URL"
 
 msgid "A path with no file gets the index, for an app that routes in the browser."
 msgstr "没有对应文件的路径返回首页，适用于在浏览器中路由的应用。"

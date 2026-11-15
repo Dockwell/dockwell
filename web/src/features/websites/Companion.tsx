@@ -70,9 +70,9 @@ export function heldElsewhere(check: CompanionCheck | undefined, env = ""): bool
  * Whether the companion is on: as a person chose it for that name, or else as DNS says,
  * on when it answers as the domain does. Another name starts again from DNS.
  */
-export function useCompanionChoice(read: CompanionRead): [boolean, (on: boolean) => void] {
+export function useCompanionChoice(read: CompanionRead, env = ""): [boolean, (on: boolean) => void] {
   const [choice, setChoice] = useState<{ name: string; on: boolean }>();
-  const free = read.companion !== "" && !heldElsewhere(read.check);
+  const free = read.companion !== "" && !heldElsewhere(read.check, env);
   const on = free && (choice?.name === read.companion ? choice.on : !!read.check?.answersAlike);
   return [on, (next) => setChoice({ name: read.companion, on: next })];
 }
@@ -160,6 +160,7 @@ export function CompanionChoice({
   on,
   onChange,
   tunnel,
+  env = "",
   onLeave,
 }: {
   server: Server | undefined;
@@ -167,6 +168,8 @@ export function CompanionChoice({
   on: boolean;
   onChange: (on: boolean) => void;
   tunnel: boolean;
+  /** The environment it's for, by ID, whose own routes don't count as another's. */
+  env?: string;
   onLeave: () => void;
 }) {
   if (!server || read.companion === "") return null;
@@ -177,7 +180,7 @@ export function CompanionChoice({
         <input
           type="checkbox"
           checked={on}
-          disabled={heldElsewhere(read.check)}
+          disabled={heldElsewhere(read.check, env)}
           onChange={(event) => onChange(event.target.checked)}
         />
         <span>
@@ -186,7 +189,7 @@ export function CompanionChoice({
           </Trans>
         </span>
       </label>
-      <CompanionState server={server} read={read} tunnel={tunnel} onLeave={onLeave} />
+      <CompanionState server={server} read={read} tunnel={tunnel} env={env} onLeave={onLeave} />
     </div>
   );
 }
