@@ -19,6 +19,7 @@ import (
 // production and open for any other, so a name chosen later can't make one
 // protected or open. An edit that leaves it out keeps it (ADR 0049).
 func TestEveryEnvironmentIsMadeWithItsProtection(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		f := startFull(t, backend, nil)
 		b := signedIn(t, f)

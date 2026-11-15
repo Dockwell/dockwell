@@ -26,6 +26,7 @@ import (
 // with two apps' users, shop and blog; the blog, in the default project, links to it
 // as blog. A developer who holds the default project alone tries each way in.
 func TestOneProjectCantReachIntoAnother(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testOneProjectCantReachIntoAnother)
 }
 

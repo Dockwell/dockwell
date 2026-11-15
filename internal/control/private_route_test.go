@@ -29,7 +29,10 @@ import (
 // A private route through the API: a token may make one and keep out more, the
 // server gets the password's hash alone, nothing shows it back, it's sealed at rest,
 // and only a person opens it again (ADR 0087).
-func TestAPrivateRouteThroughTheAPI(t *testing.T) { storetest.Each(t, testAPrivateRouteThroughTheAPI) }
+func TestAPrivateRouteThroughTheAPI(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testAPrivateRouteThroughTheAPI)
+}
 
 func testAPrivateRouteThroughTheAPI(t *testing.T, backend store.Backend) {
 	f := startFull(t, backend, nil)
@@ -131,6 +134,7 @@ func testAPrivateRouteThroughTheAPI(t *testing.T, backend store.Backend) {
 // secret and all; the plan never shows the secret. A provider that isn't there, or
 // that the route's project may not use, is refused by name (ADR 0087).
 func TestARouteSignsInWithItsProviderAsSaved(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testARouteSignsInWithItsProviderAsSaved)
 }
 
@@ -231,6 +235,7 @@ func testARouteSignsInWithItsProviderAsSaved(t *testing.T, backend store.Backend
 // route: taking off every account where a route names no one, leaving out the route's
 // project, deleting the provider (ADR 0087).
 func TestAProvidersEditReachesItsRoutes(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testAProvidersEditReachesItsRoutes)
 }
 
@@ -318,6 +323,7 @@ func testAProvidersEditReachesItsRoutes(t *testing.T, backend store.Backend) {
 // the plan applied last would otherwise put back what the provider took away, as
 // every account let in (#598's review, New 1).
 func TestAPlanMadeBeforeItsProviderChangedIsStale(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testAPlanMadeBeforeItsProviderChangedIsStale)
 }
 

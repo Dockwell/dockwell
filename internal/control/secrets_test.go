@@ -105,6 +105,7 @@ func stepUpFor(t *testing.T, b *browser, action dockwellv1.StepUpAction, target 
 // assertion for that secret, which works once; it is audited, and no API
 // token can do it, or begin the assertion. Listing never shows the value.
 func TestRevealingASecretTakesAPasskey(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testRevealingASecretTakesAPasskey)
 }
 
@@ -215,6 +216,7 @@ func testRevealingASecretTakesAPasskey(t *testing.T, backend store.Backend) {
 // agent's stream, and no others: a service's container on one server
 // holds its secret, and the other server's never see it.
 func TestValuesReachOnlyTheServersThatRunTheService(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testValuesReachOnlyTheServersThatRunTheService)
 }
 
@@ -255,7 +257,10 @@ func testValuesReachOnlyTheServersThatRunTheService(t *testing.T, backend store.
 // service uses is kept in the clear beside it, by reference. So with every
 // data key gone, as from a damaged database, the list still answers in
 // full, and a secret's value still can't be read.
-func TestListingValuesOpensNoSpec(t *testing.T) { storetest.Each(t, testListingValuesOpensNoSpec) }
+func TestListingValuesOpensNoSpec(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testListingValuesOpensNoSpec)
+}
 
 func testListingValuesOpensNoSpec(t *testing.T, backend store.Backend) {
 	f := startFull(t, backend, nil)
@@ -338,7 +343,10 @@ func encodings(value string) []string {
 // services, rotated, undone, revealed and left planned, and a container is
 // run with a secret in its environment, no table holds any of them, in
 // any encoding, while the servers that run them do.
-func TestADatabaseDumpHoldsNoSecret(t *testing.T) { storetest.Each(t, testADatabaseDumpHoldsNoSecret) }
+func TestADatabaseDumpHoldsNoSecret(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testADatabaseDumpHoldsNoSecret)
+}
 
 func testADatabaseDumpHoldsNoSecret(t *testing.T, backend store.Backend) {
 	f := startFull(t, backend, nil)
@@ -408,6 +416,7 @@ func testADatabaseDumpHoldsNoSecret(t *testing.T, backend store.Backend) {
 // still lets someone with no passkey here add one, just after signing in
 // with it, and removing a passkey over REST carries its proof in the body.
 func TestChangingHowYouSignInTakesAPasskeyThroughTheAPI(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testChangingHowYouSignInTakesAPasskeyThroughTheAPI)
 }
 
@@ -556,6 +565,7 @@ func testChangingHowYouSignInTakesAPasskeyThroughTheAPI(t *testing.T, backend st
 // and a wrong one plan alike, each a rotation, with fingerprints of their
 // own.
 func TestATokenCantConfirmAGuessByProposingIt(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testATokenCantConfirmAGuessByProposingIt)
 }
 
@@ -590,6 +600,7 @@ func testATokenCantConfirmAGuessByProposingIt(t *testing.T, backend store.Backen
 // runs, so the container hasn't got it, and that's drift. Read as an empty value it
 // wasn't, and #142's step on real Docker found it.
 func TestANameWithNoValueIsntInAContainersEnvironment(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testANameWithNoValueIsntInAContainersEnvironment)
 }
 
@@ -635,6 +646,7 @@ func testANameWithNoValueIsntInAContainersEnvironment(t *testing.T, backend stor
 // doesn't name it says the image's stands. Read as nothing at all, that was no drift,
 // though what runs had lost something. The check of #142 found this.
 func TestANameWithNoValueOverAnImagesIsDrift(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testANameWithNoValueOverAnImagesIsDrift)
 }
 
@@ -684,6 +696,7 @@ func testANameWithNoValueOverAnImagesIsDrift(t *testing.T, backend store.Backend
 // comparing one is what ADR 0022 is careful not to offer. If this starts failing, what
 // they say has changed too.
 func TestDriftSeesThatAValueIsThereAndNeverWhatItIs(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testDriftSeesThatAValueIsThereAndNeverWhatItIs)
 }
 

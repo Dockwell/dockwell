@@ -76,7 +76,10 @@ func (m *routesInMemory) ReadyKey() any                                  { retur
 // asks: the server's own ports reach past containers, and a proxy it believes can
 // say any client is anyone. So each is asked of a real token through the API, and
 // the server's own refusal is what counts.
-func TestARoutesReachNeedsAPerson(t *testing.T) { storetest.Each(t, testARoutesReach) }
+func TestARoutesReachNeedsAPerson(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testARoutesReach)
+}
 
 func testARoutesReach(t *testing.T, backend store.Backend) {
 	f := startFull(t, backend, nil)
@@ -256,6 +259,7 @@ func testARoutesReach(t *testing.T, backend store.Backend) {
 // certificate and loses it, so the same route now takes that domain off HTTPS, which
 // needs a person, and the old plan says nothing of that.
 func TestAPlanFromBeforeADomainsCertificateDoesntApplyAfter(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testAPlanFromBeforeACertificate)
 }
 
@@ -317,7 +321,10 @@ func hostAccessOf(ch *dockwellv1.Change) string {
 
 // A route moved to a server no person approved anything on is another approval, as
 // what's on a port there is another thing.
-func TestAPortOnAnotherServerNeedsAPerson(t *testing.T) { storetest.Each(t, testAPortOnAnotherServer) }
+func TestAPortOnAnotherServerNeedsAPerson(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testAPortOnAnotherServer)
+}
 
 func testAPortOnAnotherServer(t *testing.T, backend store.Backend) {
 	f := startFull(t, backend, nil)
@@ -374,7 +381,10 @@ func (f *fullServer) addRouteServer(t *testing.T, name string, ing *routesInMemo
 // free, and that route's traffic then goes to its container. docs/security/ingress.md
 // says so, and this is what it says: a published port isn't host access, as it never
 // was. A person approves a port on the understanding that something there answers.
-func TestATokenCanPublishALoopbackPort(t *testing.T) { storetest.Each(t, testATokenCanPublish) }
+func TestATokenCanPublishALoopbackPort(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testATokenCanPublish)
+}
 
 func testATokenCanPublish(t *testing.T, backend store.Backend) {
 	f := startFull(t, backend, nil)

@@ -20,6 +20,7 @@ import (
 // A server's page asks what takes its disk, and the server's agent asks Docker then,
 // and only then: once for two asks close together (ADR 0040).
 func TestDiskUseIsAskedForAndKeptAWhile(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testDiskUseIsAskedForAndKeptAWhile)
 }
 
@@ -87,6 +88,7 @@ func testDiskUseIsAskedForAndKeptAWhile(t *testing.T, backend store.Backend) {
 // When Docker can't say, the page hears why once, in the server's words, with what
 // to do: not "can't say" twice over.
 func TestDiskUseSaysWhyDockerCouldnt(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)

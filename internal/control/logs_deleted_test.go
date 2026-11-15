@@ -144,6 +144,7 @@ func (s *touched) keptOnB() int { return len(s.archiveB.List(docker.Project(s.sc
 // The plan says its logs can't be read, and on every server they are on that holds:
 // b, whose failed move left them, has no step of the deletion.
 func TestADeletionReachesAServerItsFailedMoveTouched(t *testing.T) {
+	t.Parallel()
 	s := aFailedMove(t)
 	gone := deleteWeb(t, s.c, s.scope)
 	said := false
@@ -178,6 +179,7 @@ func TestADeletionReachesAServerItsFailedMoveTouched(t *testing.T) {
 // A new service of the name starts clean on every server, keeps its old ID, and reads
 // what it writes itself. Asked for the old change, it finds nothing.
 func TestANewServiceOfTheNameDoesntReadWhatTheOldOneLeftOnAnyServer(t *testing.T) {
+	t.Parallel()
 	s := aFailedMove(t)
 	deleteWeb(t, s.c, s.scope)
 	s.makeWebAgain(t)
@@ -224,6 +226,7 @@ func TestANewServiceOfTheNameDoesntReadWhatTheOldOneLeftOnAnyServer(t *testing.T
 
 // Undoing the deletion brings back what every server kept.
 func TestUndoingADeletionBringsBackWhatEveryServerKept(t *testing.T) {
+	t.Parallel()
 	s := aFailedMove(t)
 	gone := deleteWeb(t, s.c, s.scope)
 	s.refused(t)
@@ -249,6 +252,7 @@ func TestUndoingADeletionBringsBackWhatEveryServerKept(t *testing.T) {
 // A server that stays connected hears without anyone asking, or what it holds would stay
 // past the deletion's 7 days for as long as it stays up.
 func TestADeletionLeavesAConnectedServerOnceItCantBeUndone(t *testing.T) {
+	t.Parallel()
 	s := aFailedMoveWith(t, logapi.Options{TellEvery: 20 * time.Millisecond})
 	deleteWeb(t, s.c, s.scope)
 	s.clock.Store(int64(7*24*time.Hour + time.Minute))
@@ -258,6 +262,7 @@ func TestADeletionLeavesAConnectedServerOnceItCantBeUndone(t *testing.T) {
 // An undone deletion stops counting against what a server keeps, though no deletion is
 // left to name: when the disk is full, what was replaced goes before what failed.
 func TestAnUndoneDeletionDoesntGoFirstWhenTheDiskIsFull(t *testing.T) {
+	t.Parallel()
 	s := aFailedMove(t)
 	gone := deleteWeb(t, s.c, s.scope)
 	s.f.server.logs.TellAll(t.Context())
@@ -282,6 +287,7 @@ func TestAnUndoneDeletionDoesntGoFirstWhenTheDiskIsFull(t *testing.T) {
 // While a deletion stands, what it left is what goes first when the disk is full, though
 // it failed, which would otherwise go last.
 func TestWhatADeletionLeftGoesFirstWhenTheDiskIsFull(t *testing.T) {
+	t.Parallel()
 	s := aFailedMove(t)
 	deleteWeb(t, s.c, s.scope)
 	s.f.server.logs.TellAll(t.Context())
@@ -329,6 +335,7 @@ func (s *touched) fillB(t *testing.T) {
 // deletion, as the control plane reads nothing there, the plan says they stay on its
 // disk until it is back, and when it is back they go.
 func TestADeletionReachesAServerThatWasOffline(t *testing.T) {
+	t.Parallel()
 	s := aFailedMove(t)
 	s.onB.stop()
 	eventually(t, "b to be offline", func() bool {
@@ -372,6 +379,7 @@ func TestADeletionReachesAServerThatWasOffline(t *testing.T) {
 // A server that joins later hears too, as its disk may hold what a deleted service
 // left, as when it was removed and joined again.
 func TestADeletionReachesAServerThatJoinsLater(t *testing.T) {
+	t.Parallel()
 	s := aFailedMove(t)
 	deleteWeb(t, s.c, s.scope)
 	project := docker.Project(s.scope)
@@ -402,6 +410,7 @@ func TestADeletionReachesAServerThatJoinsLater(t *testing.T) {
 // A first deploy that failed and was rolled back isn't a deletion: what it left is
 // what its reader came for, and stays for a kept log's own time.
 func TestARolledBackFirstDeployIsNotForgotten(t *testing.T) {
+	t.Parallel()
 	clock := &atomic.Int64{}
 	f := startFullWith(t, store.SQLite, nil, slog.New(slog.DiscardHandler), nil, logapi.Options{Now: func() time.Time {
 		return time.Now().Add(time.Duration(clock.Load()))
@@ -433,6 +442,7 @@ func TestARolledBackFirstDeployIsNotForgotten(t *testing.T) {
 
 // A stream open as its service is deleted ends, and says why.
 func TestAFollowEndsWhenItsServiceIsDeleted(t *testing.T) {
+	t.Parallel()
 	s := aFailedMove(t)
 	r := follow(t, s.lc, &dockwellv1.WatchLogsRequest{Id: s.id, Tail: -1})
 	r.waitCaughtUp()
@@ -451,6 +461,7 @@ func TestAFollowEndsWhenItsServiceIsDeleted(t *testing.T) {
 // looks, when the name says nothing has gone. The stream ends all the same, as it
 // reads as far back as it did, and its reader comes back to what the new one wrote.
 func TestAFollowEndsWhenItsServiceIsDeletedAndMadeAgain(t *testing.T) {
+	t.Parallel()
 	s := aFailedMove(t)
 	r := follow(t, s.lc, &dockwellv1.WatchLogsRequest{Id: s.id, Tail: -1})
 	r.waitCaughtUp()

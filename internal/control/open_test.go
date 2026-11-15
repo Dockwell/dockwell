@@ -35,7 +35,10 @@ import (
 // the app through the server's agent, which dials the port the service publishes. It
 // goes on the audit log, with where it was asked from, and signing out of the panel
 // ends it at once.
-func TestAnAppOpensThroughThePanel(t *testing.T) { storetest.Each(t, testAnAppOpensThroughThePanel) }
+func TestAnAppOpensThroughThePanel(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testAnAppOpensThroughThePanel)
+}
 
 func testAnAppOpensThroughThePanel(t *testing.T, backend store.Backend) {
 	app := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -160,6 +163,7 @@ func testAnAppOpensThroughThePanel(t *testing.T, backend store.Backend) {
 // agent's refusal reaches the browser as a full server, in words that say whose
 // apps fill it.
 func TestOpenedAppsGiveTheirForwardsBack(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)

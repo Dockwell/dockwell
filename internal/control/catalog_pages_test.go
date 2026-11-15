@@ -16,6 +16,7 @@ import (
 // projects the reader holds, so a developer of one project learns nothing of what
 // another runs; an install admin counts every one (the review of #621, M1).
 func TestTheCatalogCountsOnlyInstallsTheReaderHolds(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)

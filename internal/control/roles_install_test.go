@@ -24,6 +24,7 @@ import (
 // calls, and the two REST paths that carry a file's bytes past Vanguard, which
 // refuse before they read anything of the request (ADR 0045, ADR 0049).
 func TestAServersFilesAreAnAdmins(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		f := startFull(t, backend, nil)
 		b := signedIn(t, f)
@@ -78,6 +79,7 @@ func TestAServersFilesAreAnAdmins(t *testing.T) {
 // reads those about that project's apps, and none about another project's, a
 // server or a mute, which are the install's (ADR 0044, ADR 0049).
 func TestAnAlertsEventIsReadWhereItsSubjectIs(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		s := newReachStand(t, backend)
 		ctx := t.Context()
@@ -132,6 +134,7 @@ func TestAnAlertsEventIsReadWhereItsSubjectIs(t *testing.T) {
 // The sign-in state says what its person holds, and an environment whether it's
 // protected, so the panel can offer what the server will take (ADR 0059).
 func TestTheSignInStateSaysWhatYouHold(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		s := newReachStand(t, backend)
 		ctx := t.Context()

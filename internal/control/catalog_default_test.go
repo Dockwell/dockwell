@@ -20,7 +20,6 @@ import (
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
-	"github.com/dockwell/dockwell/internal/catalog"
 	"github.com/dockwell/dockwell/internal/catalog/snapshot"
 	"github.com/dockwell/dockwell/internal/control/catalogapi"
 	logapi "github.com/dockwell/dockwell/internal/control/logs"
@@ -38,12 +37,13 @@ import (
 // its upgrades come from there; the change says which, and the pin keeps the build's
 // commit (ADR 0077).
 func TestBuiltInInstallsMoveToDockwellsOwnCatalog(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testBuiltInInstallsMoveToDockwellsOwnCatalog)
 }
 
 func testBuiltInInstallsMoveToDockwellsOwnCatalog(t *testing.T, backend store.Backend) {
 	dir := t.TempDir()
-	t.Setenv(catalog.DirEnv, dir)
+	useCatalogDir(t, dir)
 	f := startFull(t, backend, nil)
 	b := signedIn(t, f)
 	pullsAnything(f.addDockerServer(t))
@@ -207,6 +207,7 @@ func testBuiltInInstallsMoveToDockwellsOwnCatalog(t *testing.T, backend store.Ba
 // commit, and the change says the branch it follows rather than asking GitHub which
 // branches are at it, so an install that starts offline waits for nothing (ADR 0077).
 func TestAFirstStartAsksTheNetworkNothing(t *testing.T) {
+	t.Parallel()
 	var asked atomic.Int32
 	client := &http.Client{Transport: askedOf(func(*http.Request) (*http.Response, error) {
 		asked.Add(1)

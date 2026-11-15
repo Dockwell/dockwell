@@ -152,6 +152,7 @@ func ruleOn(server, name string, port uint32) *dockwellv1.Edit {
 // applied it to confirm, saying until when and on which SSH port to test, and
 // ends applied once they do, from the session they applied it in (ADR 0052).
 func TestAFirewallChangeWaitsForItsConfirmation(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testAFirewallChangeWaitsForItsConfirmation)
 }
 
@@ -233,6 +234,7 @@ func testAFirewallChangeWaitsForItsConfirmation(t *testing.T, backend store.Back
 // Nobody confirms in time: the server puts back its firewall as it was, the
 // change fails and rolls back, and a confirmation that comes after is refused.
 func TestAFirewallChangeNobodyConfirmsRollsBack(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testAFirewallChangeNobodyConfirmsRollsBack)
 }
 
@@ -264,6 +266,7 @@ func testAFirewallChangeNobodyConfirmsRollsBack(t *testing.T, backend store.Back
 // server's confirmation, and a confirmation sent again for the first server
 // never confirms the second.
 func TestOneFirewallChangeWaitsAtATime(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testOneFirewallChangeWaitsAtATime)
 }
 
@@ -314,6 +317,7 @@ func testOneFirewallChangeWaitsAtATime(t *testing.T, backend store.Backend) {
 // test one server loses nothing on another: the change ends with both holding
 // all of it (ADR 0052).
 func TestEachServersFirewallStepsRunTogether(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	x, tx := f.addFirewallServer(t, "hz-1", time.Minute)
@@ -374,6 +378,7 @@ func TestEachServersFirewallStepsRunTogether(t *testing.T) {
 // The person confirms the first server and goes away: the second's timer runs
 // out, the change fails, and its rollback takes the first server back too.
 func TestASecondServerThatTimesOutTakesTheFirstBack(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	// The first server's confirmation comes at once; the second's never does.
@@ -406,6 +411,7 @@ func TestASecondServerThatTimesOutTakesTheFirstBack(t *testing.T) {
 // keep is refused when it's planned, and so is one that would deny the control
 // plane's own port.
 func TestARuleThatWouldCutAccessIsRefused(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testARuleThatWouldCutAccessIsRefused)
 }
 
@@ -445,6 +451,7 @@ func testARuleThatWouldCutAccessIsRefused(t *testing.T, backend store.Backend) {
 // nobody confirms rolls back with what it would have removed still there
 // (ADR 0052).
 func TestFirewallStepsRunBeforeDeletes(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	f.addServer(t, true)
@@ -490,6 +497,7 @@ func (saysRolledBack) Confirm(context.Context, string) resource.AccessVerdict {
 // person hears that the server put its firewall back, and the change isn't
 // confirmed.
 func TestARolledBackVerdictIsntReadAsKept(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	srv, tbl := f.addFirewallServer(t, "hz-1", 2*time.Second, func(s *testServer) { s.access = saysRolledBack{s.access} })
@@ -517,6 +525,7 @@ func TestARolledBackVerdictIsntReadAsKept(t *testing.T) {
 // that restarts inside the timer knows nobody who may confirm it: a
 // confirmation is refused, and the server puts its firewall back on its own.
 func TestNobodyConfirmsAfterTheControlPlaneRestarts(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	srv, tbl := f.addFirewallServer(t, "hz-1", 3*time.Second)
@@ -554,6 +563,7 @@ func TestNobodyConfirmsAfterTheControlPlaneRestarts(t *testing.T) {
 // the policy by name, whatever projects they hold, and neither can their API
 // token (ADR 0049).
 func TestADeveloperCantPlanAFirewallKind(t *testing.T) {
+	t.Parallel()
 	s := newReachStand(t, store.SQLite)
 	token := createToken(t, s.b, dockwellv1.TokenScope_TOKEN_SCOPE_READ_WRITE)
 	script := changeClient(bearer{token: token, rt: s.b.client.Transport}, s.b.origin)
@@ -574,6 +584,7 @@ func TestADeveloperCantPlanAFirewallKind(t *testing.T) {
 // The Firewall tab reads Dockwell's own rules and policy for the server, as
 // applied, beside what the agent reads.
 func TestTheFirewallSaysDockwellsOwnRules(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testTheFirewallSaysDockwellsOwnRules)
 }
 
@@ -645,6 +656,7 @@ func (saysNotKept) Confirm(context.Context, string) resource.AccessVerdict {
 // A confirmation the server couldn't keep isn't read as kept: the person hears
 // the change still waits and why, and it goes on waiting until its time.
 func TestAChangeTheServerCouldntKeepStillWaits(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	srv, tbl := f.addFirewallServer(t, "hz-1", 3*time.Second, func(s *testServer) { s.access = saysNotKept{s.access} })

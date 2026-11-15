@@ -18,6 +18,7 @@ import (
 // A form asks a server's agent what holds a port, only when someone asks: an
 // admin's read, as what holds a server's ports is the install's (ADR 0048).
 func TestServerPortsAreCheckedThroughTheAgent(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	f.addDockerServer(t)

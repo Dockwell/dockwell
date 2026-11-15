@@ -76,7 +76,10 @@ func mutations(e *dockertest.Engine, from int) []string {
 // The point of the issue: someone takes on what they already run, with nothing about
 // it moving, and from then on changing its image is an ordinary plan that keeps its
 // volumes and its environment, and can be undone.
-func TestTakingOnAContainerThenChangingItsImage(t *testing.T) { storetest.Each(t, testTakingOn) }
+func TestTakingOnAContainerThenChangingItsImage(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testTakingOn)
+}
 
 func testTakingOn(t *testing.T, backend store.Backend) {
 	f := startFull(t, backend, nil)
@@ -219,7 +222,10 @@ func testTakingOn(t *testing.T, backend store.Backend) {
 
 // Undoing it, like deleting the service, hands the container back: Dockwell never
 // made it, so nothing stops, and it is on the list again.
-func TestLettingAContainerGo(t *testing.T) { storetest.Each(t, testLettingGo) }
+func TestLettingAContainerGo(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testLettingGo)
+}
 
 func testLettingGo(t *testing.T, backend store.Backend) {
 	f := startFull(t, backend, nil)
@@ -266,6 +272,7 @@ func testLettingGo(t *testing.T, backend store.Backend) {
 // show is too, as a Compose file leaves a value in a command that named it. A person
 // reads why, and nothing changed.
 func TestWhatCantBeTakenOnSaysWhy(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)
@@ -319,6 +326,7 @@ func TestWhatCantBeTakenOnSaysWhy(t *testing.T) {
 // Docker reports for a flag a person can pass, and none is among what a spec holds. A
 // setting Docker adds later is refused too, as nothing here can know what it does.
 func TestWhatNoSpecHoldsIsRefusedByName(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)
@@ -371,6 +379,7 @@ func TestWhatNoSpecHoldsIsRefusedByName(t *testing.T) {
 // A container can run with what's fine to Docker and no spec can say. That's refused by
 // what it is, in words a person can act on, and isn't left to fail validation later.
 func TestWhatASpecCantSayIsSaidBeforeItsPlanned(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)
@@ -416,6 +425,7 @@ func TestWhatASpecCantSayIsSaidBeforeItsPlanned(t *testing.T) {
 // What a spec holds comes along, in either way Docker says a tmpfs, and a replace
 // gives it back: a change of image doesn't lose /dev/shm or what's kept in memory.
 func TestShmSizeAndTmpfsComeAlong(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)
@@ -458,6 +468,7 @@ func TestShmSizeAndTmpfsComeAlong(t *testing.T) {
 // routes to the one exposed port when no label says. A replace keeps it, and the one
 // after, and what its image exposes isn't anyone's to say.
 func TestAnExposedPortComesAlong(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)
@@ -515,6 +526,7 @@ func TestAnExposedPortComesAlong(t *testing.T) {
 // agent reads the container back as its names. Made again, its script reads the
 // value from its environment, and its command line has none.
 func TestATakenOnContainersValuesAreKeptByName(t *testing.T) {
+	t.Parallel()
 	logs := &syncBuffer{}
 	f := startFullLogging(t, store.SQLite, nil, slog.New(slog.NewJSONHandler(logs, &slog.HandlerOptions{Level: slog.LevelDebug})))
 	b := signedIn(t, f)
@@ -586,6 +598,7 @@ func TestATakenOnContainersValuesAreKeptByName(t *testing.T) {
 // doesn't say it. A path isn't a secret, and TZ=Asia/Shanghai beside a mount of its
 // zoneinfo is ordinary.
 func TestAValueOfTheEnvironmentShowsNowhere(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)
@@ -681,6 +694,7 @@ func TestAValueOfTheEnvironmentShowsNowhere(t *testing.T) {
 // container, that can start a second copy on the same folders, so the plan says so,
 // and what to do first. It warns and doesn't refuse: a project made by hand is fine.
 func TestAPlanSaysWhatElseManagesAContainer(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)
@@ -797,6 +811,7 @@ func TestAPlanSaysWhatElseManagesAContainer(t *testing.T) {
 // the container that held its network has gone. So it's refused, by the name of what
 // leans on it, and how, when it's taken on and when a plan would replace it.
 func TestWhatOthersLeanOnStaysAsItIs(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)
@@ -850,6 +865,7 @@ func TestWhatOthersLeanOnStaysAsItIs(t *testing.T) {
 // A step that fails partway leaves no project half taken on: what it had taken on it
 // lets go of, with nothing touched, and the project it made goes.
 func TestAFailedStepLeavesNoProjectHalfTakenOn(t *testing.T) {
+	t.Parallel()
 	for _, failAt := range []int{2, 4} {
 		t.Run(strconv.Itoa(failAt), func(t *testing.T) {
 			f := startFull(t, store.SQLite, nil)
@@ -918,6 +934,7 @@ func TestAFailedStepLeavesNoProjectHalfTakenOn(t *testing.T) {
 // thing is in the way: a scaled service, a name the project runs already, and what no
 // spec holds all come together.
 func TestARefusalSaysEverythingAtOnce(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)
@@ -976,6 +993,7 @@ func TestARefusalSaysEverythingAtOnce(t *testing.T) {
 // nothing about that, so it isn't refused, and the plan says what it means. A clash
 // Dockwell would make itself still is.
 func TestAContainerKeepsANameOthersHoldToo(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)
@@ -1044,6 +1062,7 @@ func TestAContainerKeepsANameOthersHoldToo(t *testing.T) {
 // as anything else is any code with root's reach, so a person approves that, whichever
 // way it got there.
 func TestANewImageAsGoodAsRootNeedsAPerson(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)
@@ -1107,6 +1126,7 @@ func TestANewImageAsGoodAsRootNeedsAPerson(t *testing.T) {
 // A limit runs nothing, and Docker changes one in place, so what was taken on can go on
 // taking them: where its paths lead is on its record, wherever /var/run is a link.
 func TestANewCommandAsGoodAsRootNeedsAPerson(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)
@@ -1179,6 +1199,7 @@ func TestANewCommandAsGoodAsRootNeedsAPerson(t *testing.T) {
 // stays on record for a read-only token. Applying is for a person too: a token could
 // read the environment that comes in through a command of its own.
 func TestATokenCantTakeOnAContainer(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)
@@ -1216,7 +1237,10 @@ func composeContainer(t *testing.T, e *dockertest.Engine, project, service, name
 // A Compose project made elsewhere comes in whole, in one change, with none of it
 // touched: each of its containers a service, on the network and volumes it has, and
 // each one's image can then change on its own.
-func TestTakingOnACompose(t *testing.T) { storetest.Each(t, testTakingOnACompose) }
+func TestTakingOnACompose(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testTakingOnACompose)
+}
 
 func testTakingOnACompose(t *testing.T, backend store.Backend) {
 	f := startFull(t, backend, nil)
@@ -1308,6 +1332,7 @@ func testTakingOnACompose(t *testing.T, backend store.Backend) {
 
 // A project comes in whole or not at all, and a refusal says so for all of it at once.
 func TestAComposeThatCantComeInSaysWhy(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)

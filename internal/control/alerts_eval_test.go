@@ -134,6 +134,7 @@ func tickOn(t *testing.T, e *alerts.Evaluator) {
 // again and again: app-down fires once, as the health recorder folds it, however
 // it reads while up. One that starts slowly once never does.
 func TestACrashLoopFiresAppDown(t *testing.T) {
+	t.Parallel()
 	project := docker.Project("env_zz")
 	for _, tc := range []struct {
 		name     string
@@ -230,6 +231,7 @@ func TestACrashLoopFiresAppDown(t *testing.T) {
 // A one-shot job that exited 0, with a restart policy of no or on-failure, did its
 // work: it isn't down. One that exited otherwise is.
 func TestAOneShotJobThatFinishedIsntDown(t *testing.T) {
+	t.Parallel()
 	h := newHook(t)
 	f, _, _ := evalStand(t, h.srv.URL+"/hook")
 	at := &clock{now: time.Now()}
@@ -254,6 +256,7 @@ func TestAOneShotJobThatFinishedIsntDown(t *testing.T) {
 // A job that finished stays quiet once docker system prune removes its container.
 // Run again, a job that fails before the agent sees it running fires.
 func TestAFinishedJobThatsRunAgain(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name  string
 		again []*dockwellv1.InstanceHealth
@@ -294,6 +297,7 @@ func TestAFinishedJobThatsRunAgain(t *testing.T) {
 // alert: once it's open, a dip into the band under the line keeps it open, and one
 // further under has to last the rule's 10 minutes to resolve it.
 func TestMemoryThatDipsStaysOneAlert(t *testing.T) {
+	t.Parallel()
 	h := newHook(t)
 	f, _, _ := evalStand(t, h.srv.URL+"/hook")
 	at := &clock{now: time.Now()}
@@ -323,6 +327,7 @@ func TestMemoryThatDipsStaysOneAlert(t *testing.T) {
 // 90% for a moment, then under it in the band, isn't over for the rule's 10
 // minutes when it goes over again an hour later.
 func TestMemoryInTheBandIsntOver(t *testing.T) {
+	t.Parallel()
 	h := newHook(t)
 	f, _, _ := evalStand(t, h.srv.URL+"/hook")
 	at := &clock{now: time.Now()}
@@ -358,6 +363,7 @@ func (b *hold) RoundTrip(r *http.Request) (*http.Response, error) {
 // short within StopGrace, and the next start sends it again. A far end that
 // failed is tried again, past a minute, and gets it once it answers.
 func TestTheOutboxDeliversWhatAStopCutShort(t *testing.T) {
+	t.Parallel()
 	h := newHook(t)
 	f, _, _ := evalStand(t, h.srv.URL+"/hook")
 	at := &clock{now: time.Now()}
@@ -426,6 +432,7 @@ func TestTheOutboxDeliversWhatAStopCutShort(t *testing.T) {
 // A far end that's down is tried for a day, and given up then, with the channel's
 // deliveries saying so; one that comes back within it gets what it missed.
 func TestAChannelThatStaysDownIsTriedForADay(t *testing.T) {
+	t.Parallel()
 	h := newHook(t)
 	f, _, _ := evalStand(t, h.srv.URL+"/hook")
 	h.mu.Lock()
@@ -474,6 +481,7 @@ func TestAChannelThatStaysDownIsTriedForADay(t *testing.T) {
 // A message that went gets its resolved one, however the alert ends: under a mute,
 // and when its rule is removed, which the message says.
 func TestAResolvedMessageFollowsWhatWentOut(t *testing.T) {
+	t.Parallel()
 	h := newHook(t)
 	f, c, b := evalStand(t, h.srv.URL+"/hook")
 	sites := dockwellv1connect.NewAlertServiceClient(b, b.origin, connect.WithProtoJSON())
@@ -531,6 +539,7 @@ func TestAResolvedMessageFollowsWhatWentOut(t *testing.T) {
 // from the oldest that hasn't gone: apps that go down 20 seconds apart don't hold
 // it back.
 func TestTheFirstOfManyIsntHeldBack(t *testing.T) {
+	t.Parallel()
 	h := newHook(t)
 	f, _, _ := evalStand(t, h.srv.URL+"/hook")
 	at := &clock{now: time.Now()}
@@ -578,6 +587,7 @@ func (s staggered) Standing(_, _, service string) controlhealth.Standing {
 // alert. Once the write can land, the alert opens at once, not after the rule's
 // duration again.
 func TestARuleThatCantBeWrittenStopsNoOtherAlert(t *testing.T) {
+	t.Parallel()
 	h := newHook(t)
 	f, _, _ := evalStand(t, h.srv.URL+"/hook")
 	at := &clock{now: time.Now()}

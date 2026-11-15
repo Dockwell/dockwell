@@ -59,6 +59,7 @@ func fakeIssuer(t *testing.T) (issuer string, client *http.Client) {
 // it. Below an admin, a provider their projects may use reads as its name alone,
 // and checking or saving one is an admin's (ADR 0087).
 func TestASigninProviderIsAnAdminsAndItsSecretStaysPut(t *testing.T) {
+	t.Parallel()
 	issuer, client := fakeIssuer(t)
 	f := startFullConfig(t, store.SQLite, nil, slog.New(slog.DiscardHandler), nil, logapi.Options{}, func(c *Config) { c.SigninClient = client })
 	b := signedIn(t, f)
@@ -120,6 +121,7 @@ func TestASigninProviderIsAnAdminsAndItsSecretStaysPut(t *testing.T) {
 // A provider whose projects leave a project out isn't that project's routes' to
 // use, and its list doesn't show it.
 func TestASigninProviderIsItsProjectsAlone(t *testing.T) {
+	t.Parallel()
 	issuer, client := fakeIssuer(t)
 	f := startFullConfig(t, store.SQLite, nil, slog.New(slog.DiscardHandler), nil, logapi.Options{}, func(c *Config) { c.SigninClient = client })
 	b := signedIn(t, f)
@@ -151,6 +153,7 @@ func TestASigninProviderIsItsProjectsAlone(t *testing.T) {
 // how many people sign in with it: deleting it, turning it off for the panel, or
 // moving it to another issuer. Another edit says nothing (ADR 0095).
 func TestAProvidersEditSaysWhoSignsInWithIt(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	c := changeClient(b, b.origin)

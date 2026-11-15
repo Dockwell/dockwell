@@ -141,7 +141,10 @@ func (w *eventWatch) until(what string, ok func(*eventWatch) bool) {
 // beside servers joining and sign-ins, with who and from where; filters
 // and pages; a watch that follows it all, events from another process
 // included; and no secret anywhere.
-func TestTheTimelineThroughTheAPI(t *testing.T) { storetest.Each(t, testTheTimelineThroughTheAPI) }
+func TestTheTimelineThroughTheAPI(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testTheTimelineThroughTheAPI)
+}
 
 // ownCatalog is what the change that gives an install Dockwell's own catalog says.
 const ownCatalog = "Add Dockwell's own catalog, following main"
@@ -377,7 +380,10 @@ func testTheTimelineThroughTheAPI(t *testing.T, backend store.Backend) {
 
 // A project's events include its environments', and resources list by
 // name with their display names, never their specs.
-func TestEventsAreCountedByKind(t *testing.T) { storetest.Each(t, testEventsAreCountedByKind) }
+func TestEventsAreCountedByKind(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testEventsAreCountedByKind)
+}
 
 // Each kind's count is what ListEvents lists of it, under the same filters, and
 // what a list leaves out, such as a discarded plan, isn't counted (#639).
@@ -518,7 +524,10 @@ func testEventCountsKeepToWhatTheCallerMayList(t *testing.T, backend store.Backe
 	}
 }
 
-func TestProjectEventsAndResources(t *testing.T) { storetest.Each(t, testProjectEventsAndResources) }
+func TestProjectEventsAndResources(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testProjectEventsAndResources)
+}
 
 func testProjectEventsAndResources(t *testing.T, backend store.Backend) {
 	f := startFull(t, backend, nil)
@@ -618,7 +627,10 @@ func testProjectEventsAndResources(t *testing.T, backend store.Backend) {
 // notion: the shell account that ran dockwell makes the token, and what
 // the CLI does with it is the token's, from the CLI. Its changes and every
 // audit event its calls cause record the CLI the same way.
-func TestTheCLIOnTheTimeline(t *testing.T) { storetest.Each(t, testTheCLIOnTheTimeline) }
+func TestTheCLIOnTheTimeline(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testTheCLIOnTheTimeline)
+}
 
 func testTheCLIOnTheTimeline(t *testing.T, backend store.Backend) {
 	f := startFull(t, backend, nil)
@@ -690,7 +702,10 @@ func testTheCLIOnTheTimeline(t *testing.T, backend store.Backend) {
 // A burst of events, more than a watch reads the store for at a time, all
 // within the moments it reads again, reaches the watch in full: it pages
 // forward through them rather than stalling on the first page.
-func TestAWatchKeepsUpWithABurst(t *testing.T) { storetest.Each(t, testAWatchKeepsUpWithABurst) }
+func TestAWatchKeepsUpWithABurst(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testAWatchKeepsUpWithABurst)
+}
 
 func testAWatchKeepsUpWithABurst(t *testing.T, backend store.Backend) {
 	f := startFull(t, backend, nil)
@@ -734,7 +749,10 @@ func testAWatchKeepsUpWithABurst(t *testing.T, backend store.Backend) {
 // A discarded plan leaves every watch that keeps it, whether the watch
 // sent it or the client read it with ListEvents, and whichever process
 // discarded it.
-func TestAWatchSaysWhatWasDiscarded(t *testing.T) { storetest.Each(t, testAWatchSaysWhatWasDiscarded) }
+func TestAWatchSaysWhatWasDiscarded(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testAWatchSaysWhatWasDiscarded)
+}
 
 func testAWatchSaysWhatWasDiscarded(t *testing.T, backend store.Backend) {
 	f := startFull(t, backend, nil)
@@ -798,6 +816,7 @@ func testAWatchSaysWhatWasDiscarded(t *testing.T, backend store.Backend) {
 // What the timeline says of a change that failed is when it failed, and not when it
 // began, which can be minutes before, for one that waited on a health check.
 func TestTheTimelineSaysWhenAChangeFailed(t *testing.T) {
+	t.Parallel()
 	b := newBench(t, store.SQLite)
 	ev := dockwellv1connect.NewEventServiceClient(b.b, b.b.origin, connect.WithProtoJSON())
 	b.e.Registry["ghcr.io/acme/shop:bad"] = dockertest.Image{Exits: true, Config: docker.Config{Cmd: []string{"shop"}}}

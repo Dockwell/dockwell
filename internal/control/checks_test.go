@@ -212,6 +212,7 @@ func (s *checkStand) downAndAlerting() {
 // row pass, as it read down after 2 failed, and up for 2 minutes, it resolves
 // (ADR 0066).
 func TestACheckThatGoesDownAlertsAndComesBack(t *testing.T) {
+	t.Parallel()
 	s := newCheckStand(t)
 	s.downAndAlerting()
 	s.failing.Store(false)
@@ -233,6 +234,7 @@ func TestACheckThatGoesDownAlertsAndComesBack(t *testing.T) {
 // the 2-minute hold and alert again; every minute, it would never stay down 2
 // minutes and never alert.
 func TestACheckThatFlapsIsOneAlert(t *testing.T) {
+	t.Parallel()
 	for _, every := range []time.Duration{5 * time.Minute, time.Minute} {
 		t.Run(alert.FormatDuration(every), func(t *testing.T) {
 			s := checkStandOf(t, &resourcev1.AlertCheck{Address: "http://shop.example.com/", Every: alert.FormatDuration(every)})
@@ -248,6 +250,7 @@ func TestACheckThatFlapsIsOneAlert(t *testing.T) {
 // Back up and clearing, a check that then fails every other run isn't back: each
 // failure starts its clear time again, and it doesn't resolve.
 func TestACheckFailingEveryOtherRunDoesntResolve(t *testing.T) {
+	t.Parallel()
 	s := newCheckStand(t)
 	s.downAndAlerting()
 	s.cadence(time.Minute, []bool{false, false}, 1)
@@ -262,6 +265,7 @@ func TestACheckFailingEveryOtherRunDoesntResolve(t *testing.T) {
 // the alert opened, and stays down through a failed run. The alert stays open
 // throughout, and says nothing.
 func TestACheckDownAcrossARestartStaysOneAlert(t *testing.T) {
+	t.Parallel()
 	s := newCheckStand(t)
 	s.downAndAlerting()
 	s.restart(s.f.keeper, false)
@@ -284,6 +288,7 @@ func TestACheckDownAcrossARestartStaysOneAlert(t *testing.T) {
 // 2 runs in a row that pass to read up, as before: one pass alone doesn't resolve
 // its alert (ADR 0066).
 func TestACheckThatStartsAgainDuringAnOutageTakesTwoPasses(t *testing.T) {
+	t.Parallel()
 	for _, how := range []string{"restart", "edit"} {
 		t.Run(how, func(t *testing.T) {
 			s := newCheckStand(t)
@@ -326,6 +331,7 @@ func (u unreadable) Decode(ctx context.Context, tx *store.Tx, at store.SpecAt, s
 // A check whose spec can't be read stays, with why, and keeps the alert it had
 // open: what can't be read isn't up.
 func TestACheckThatCantBeReadKeepsItsAlert(t *testing.T) {
+	t.Parallel()
 	s := newCheckStand(t)
 	s.downAndAlerting()
 	s.restart(unreadable{Decoder: s.f.keeper, id: s.id}, true)
@@ -353,6 +359,7 @@ func TestACheckThatCantBeReadKeepsItsAlert(t *testing.T) {
 // Up again and clearing, a check that can no longer be read keeps its alert open
 // though it last read up: what can't be read isn't up.
 func TestACheckThatBecomesUnreadableAsItClearsKeepsItsAlert(t *testing.T) {
+	t.Parallel()
 	s := newCheckStand(t)
 	s.downAndAlerting()
 	s.failing.Store(false)
@@ -372,6 +379,7 @@ func TestACheckThatBecomesUnreadableAsItClearsKeepsItsAlert(t *testing.T) {
 
 // An install keeps 200 checks at most, as each is a request every interval.
 func TestAnInstallKeepsAtMost200Checks(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	c := changeClient(b, b.origin)

@@ -32,6 +32,7 @@ import (
 	"github.com/dockwell/dockwell/internal/agent/enroll"
 	"github.com/dockwell/dockwell/internal/auth"
 	"github.com/dockwell/dockwell/internal/buildinfo"
+	"github.com/dockwell/dockwell/internal/catalog"
 	"github.com/dockwell/dockwell/internal/compose"
 	"github.com/dockwell/dockwell/internal/control"
 	"github.com/dockwell/dockwell/internal/control/agentapi"
@@ -419,6 +420,7 @@ func runControl(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logg
 		Sources:     &gitref.Resolver{Local: isSet(stdio.Getenv(envTest))},
 		Logger:      logger,
 		Build:       build,
+		CatalogDir:  stdio.Getenv(catalog.DirEnv),
 		Identity:    authority,
 		Fleet:       hub,
 		Standings:   recorder,

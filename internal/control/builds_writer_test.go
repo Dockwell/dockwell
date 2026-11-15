@@ -24,6 +24,7 @@ import (
 // reaches further than what was approved, and is asked. A new commit of its branch
 // is the same code, as a new tag of an image is, and goes on as the token's.
 func TestATokenChangingHowAnAppBuildsOverAFolderIsAsked(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		g := newGitBench(t, backend)
 		g.repo.Commit("main", "First", map[string]string{"Dockerfile": webDockerfile, "Dockerfile.debug": webDockerfile})

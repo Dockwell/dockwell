@@ -21,6 +21,7 @@ import (
 // names the release to go through, and one that moves on says its features go up
 // first (ADR 0038).
 func TestAMongoDBMovesOneReleaseAtATime(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)
@@ -80,6 +81,7 @@ func TestAMongoDBMovesOneReleaseAtATime(t *testing.T) {
 // MongoDB's users are read, and Dockwell makes none yet: asking for one is refused
 // in words that say what to do instead, before anything is planned (ADR 0038).
 func TestAMongoDBUserIsRefusedInWords(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)

@@ -50,6 +50,7 @@ func byTheOwner(t *testing.T, s *reachStand, env, name string) *revision.Plan {
 // reach is not found, a project is an admin's to make, and a developer's change
 // in a protected environment plans but waits for an admin (ADR 0048, check 2).
 func TestTheEngineChecksEachItem(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		s := newReachStand(t, backend)
 		ctx := t.Context()
@@ -130,6 +131,7 @@ func TestTheEngineChecksEachItem(t *testing.T) {
 // the owner, in a session, with the fingerprint of the plan they reviewed and a
 // passkey bound to that plan. Their own applies as any change does (ADR 0049).
 func TestSomeoneElsesProtectedChangeIsApprovedWithAPasskey(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		s := newReachStand(t, backend)
 		ctx := t.Context()
@@ -251,6 +253,7 @@ func TestSomeoneElsesProtectedChangeIsApprovedWithAPasskey(t *testing.T) {
 // held out of reach is in use by a project they can't see, as is any name under
 // such a domain (ADR 0048, ADR 0049).
 func TestNoAnswerDescribesAnotherProject(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		s := newReachStand(t, backend)
 		ctx := t.Context()
@@ -337,6 +340,7 @@ func TestNoAnswerDescribesAnotherProject(t *testing.T) {
 // developer's own plan that's as good as root is refused as theirs to apply,
 // not asked for the passkey applying it would take (ADR 0049).
 func TestARoleIsCheckedBeforeAnyPasskey(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		s := newReachStand(t, backend)
 		ctx := t.Context()
@@ -365,6 +369,7 @@ func TestARoleIsCheckedBeforeAnyPasskey(t *testing.T) {
 // as the API's never does, rather than leave it unchecked. Dockwell's own isn't
 // checked.
 func TestAPersonsChangeWithoutACallerIsRefused(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		s := newReachStand(t, backend)
 		edit := []revision.Edit{{Ref: resource.Ref{Kind: "variable", Scope: s.staging, Name: "X"}, Spec: &resourcev1.Variable{Value: "1"}}}
@@ -381,6 +386,7 @@ func TestAPersonsChangeWithoutACallerIsRefused(t *testing.T) {
 // A file exported from an environment names its project only to someone who
 // reaches it, so checking one tells no one else a project's name.
 func TestAnExportedFileNamesItsProjectOnlyInReach(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		s := newReachStand(t, backend)
 		composes := dockwellv1connect.NewComposeServiceClient(s.b, s.b.origin, connect.WithProtoJSON())
@@ -406,6 +412,7 @@ func TestAnExportedFileNamesItsProjectOnlyInReach(t *testing.T) {
 // Installing from the catalog makes a project, which is an admin's, so someone
 // below an admin is told that, however they name the project.
 func TestACatalogInstallIsAnAdminsToMake(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		s := newReachStand(t, backend)
 		cat := catalogClient(s.b)

@@ -73,6 +73,7 @@ func h2cClient() *http.Client {
 }
 
 func TestGetVersionOverEveryProtocol(t *testing.T) {
+	t.Parallel()
 	base := startServer(t, nil)
 	clients := map[string]dockwellv1connect.SystemServiceClient{
 		"connect json":   dockwellv1connect.NewSystemServiceClient(http.DefaultClient, base, connect.WithProtoJSON()),
@@ -99,6 +100,7 @@ func TestGetVersionOverEveryProtocol(t *testing.T) {
 }
 
 func TestGetVersionAsPlainJSON(t *testing.T) {
+	t.Parallel()
 	base := startServer(t, nil)
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost,
 		base+dockwellv1connect.SystemServiceGetVersionProcedure, strings.NewReader("{}"))
@@ -123,6 +125,7 @@ func TestGetVersionAsPlainJSON(t *testing.T) {
 }
 
 func TestHealth(t *testing.T) {
+	t.Parallel()
 	base := startServer(t, nil)
 
 	t.Run("healthz", func(t *testing.T) {
@@ -159,6 +162,7 @@ func TestHealth(t *testing.T) {
 }
 
 func TestPanelServesEverythingElse(t *testing.T) {
+	t.Parallel()
 	base := startServer(t, nil)
 	fetch := func(path, accept string) (int, string) {
 		req, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, base+path, http.NoBody)
@@ -201,6 +205,7 @@ func (w *syncWriter) String() string {
 }
 
 func TestRPCsAreLogged(t *testing.T) {
+	t.Parallel()
 	logs := &syncWriter{}
 	base := startServer(t, logs)
 	client := dockwellv1connect.NewSystemServiceClient(http.DefaultClient, base)
@@ -213,6 +218,7 @@ func TestRPCsAreLogged(t *testing.T) {
 }
 
 func TestNewRequiresLogger(t *testing.T) {
+	t.Parallel()
 	if _, err := New(Config{}); err == nil {
 		t.Fatal("New without a logger succeeded")
 	}

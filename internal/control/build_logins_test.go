@@ -43,6 +43,7 @@ func (g *gitBench) named(logins ...string) *dockwellv1.Edit {
 // its Dockerfile could read any image a login can (security review of #591, H1). One
 // its project may not use, or on the loopback, refuses the plan (H2).
 func TestABuildsPrivateBaseImagePullsWithALogin(t *testing.T) {
+	t.Parallel()
 	g := newGitBench(t, store.SQLite)
 	g.e.Registry[privateImage] = dockertest.Image{Login: loginUser + ":" + loginPassword}
 	reg := newPrivateRegistry(t)
@@ -144,6 +145,7 @@ func TestABuildsPrivateBaseImagePullsWithALogin(t *testing.T) {
 // plans with no login, even one it names, and an apply checks none. (Security review
 // of #591, L5.)
 func TestARailpackBuildPlansWithNoLogin(t *testing.T) {
+	t.Parallel()
 	g := newGitBench(t, store.SQLite)
 	g.repo.Commit("main", "A Node app", nodeApp)
 	apply(t, g.c, propose(t, g.c, "Pull from GHCR", loginEdit("ghcr-ci", &resourcev1.RegistryLogin{Registry: "ghcr.io", Username: loginUser, Password: loginPassword})))

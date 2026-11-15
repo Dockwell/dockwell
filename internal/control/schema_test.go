@@ -18,6 +18,7 @@ import (
 // generators rely on: every Dockwell RPC says how it touches managed state,
 // and only reads are marked free of side effects.
 func TestEveryMethodDeclaresEffect(t *testing.T) {
+	t.Parallel()
 	var methods int
 	protoregistry.GlobalFiles.RangeFiles(func(fd protoreflect.FileDescriptor) bool {
 		if !strings.HasPrefix(string(fd.Package()), "dockwell.") {

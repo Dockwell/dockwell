@@ -103,6 +103,7 @@ func keyAccess(ch *dockwellv1.Change) []*dockwellv1.HostAccess {
 // kept once the change is taken; after that, the server's next names need no one.
 // A name no provider proves is refused (ADR 0088).
 func TestTheFirstKeyToAServerTakesAnAdminsPasskey(t *testing.T) {
+	t.Parallel()
 	s := newDNSStand(t)
 
 	// A name no provider proves can get no certificate by DNS, so the plan says
@@ -168,6 +169,7 @@ func TestTheFirstKeyToAServerTakesAnAdminsPasskey(t *testing.T) {
 // shared certificate names nothing outside its provider's zones, whose token writes
 // there alone (ADR 0088).
 func TestASharedCertificatesKeyTakesItsOwnPasskey(t *testing.T) {
+	t.Parallel()
 	s := newDNSStand(t)
 	apply(t, s.person, propose(t, s.person, "Cloudflare", dnsEdit("cloudflare", &resourcev1.DnsProvider{Provider: "cloudflare", Zones: []string{"example.com"}, ApiToken: dnsToken, Projects: []string{s.project}})))
 	certificate := func(name string, domains ...string) *dockwellv1.Edit {
@@ -226,6 +228,7 @@ func TestASharedCertificatesKeyTakesItsOwnPasskey(t *testing.T) {
 // says where it stands, never its key; to those who read its project alone (ADR
 // 0088).
 func TestAServersOwnCertificateIsListed(t *testing.T) {
+	t.Parallel()
 	s := newDNSStand(t)
 	apply(t, s.person, propose(t, s.person, "Cloudflare", dnsEdit("cloudflare", &resourcev1.DnsProvider{Provider: "cloudflare", Zones: []string{"example.com"}, ApiToken: dnsToken, Projects: []string{s.project}})))
 	ch := propose(t, s.person, "Serve app by DNS", s.route("www", "app.example.com"))
@@ -287,6 +290,7 @@ func (l *certLoader) HearControlPlane(func() bool) {}
 // An agent that loads certificates by DNS says so as it connects, and what the
 // control plane gives it, sealed to its stream, opens there whole (ADR 0088).
 func TestCertificatesReachAnAgentThatLoadsThem(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	l := &certLoader{}
 	f.certLoader = l
@@ -320,6 +324,7 @@ func TestCertificatesReachAnAgentThatLoadsThem(t *testing.T) {
 // server's first key with a passkey, and its certificate is wanted once applied.
 // Where DNS points at the server, it's proven by HTTP, as before (ADR 0088).
 func TestARouteLeftAutomaticBehindATunnelIsProvenByDNS(t *testing.T) {
+	t.Parallel()
 	s := newDNSStand(t)
 	apply(t, s.person, propose(t, s.person, "Cloudflare", dnsEdit("cloudflare", &resourcev1.DnsProvider{Provider: "cloudflare", Zones: []string{"example.com"}, ApiToken: dnsToken, Projects: []string{s.project}})))
 	automatic := func(name, domain string) *dockwellv1.Edit {

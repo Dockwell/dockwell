@@ -42,6 +42,7 @@ func (g *gitBench) detects() int {
 // An app with no Dockerfile builds with Railpack, and its plan says what Railpack
 // found before anything builds.
 func TestAnAppWithNoDockerfilePlansWhatRailpackFound(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		g := newGitBench(t, backend)
 		commit := g.repo.Commit("main", "Add order export endpoint", nodeApp)
@@ -81,6 +82,7 @@ func TestAnAppWithNoDockerfilePlansWhatRailpackFound(t *testing.T) {
 // A form reads how a new app's repository builds before anyone plans it, and the
 // plan that follows reads it from what the form read.
 func TestDetectBuildReadsANewAppsRepository(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		g := newGitBench(t, backend)
 		commit := g.repo.Commit("main", "Add order export endpoint", nodeApp)
@@ -114,6 +116,7 @@ func TestDetectBuildReadsANewAppsRepository(t *testing.T) {
 
 // A service's build reads what its branch names now, on the server it runs on.
 func TestDetectBuildOfAServiceReadsItsBranchNow(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		g := newGitBench(t, backend)
 		g.repo.Commit("main", "Works", map[string]string{"Dockerfile": webDockerfile})
@@ -137,6 +140,7 @@ func TestDetectBuildOfAServiceReadsItsBranchNow(t *testing.T) {
 // A repository's branches are listed from the control server, the default first,
 // so a form checks a URL as it's typed and offers a branch to choose.
 func TestARepositorysBranchesAreListedForABuild(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		g := newGitBench(t, backend)
 		g.repo.Commit("main", "Works", map[string]string{"Dockerfile": webDockerfile})
@@ -168,6 +172,7 @@ func TestARepositorysBranchesAreListedForABuild(t *testing.T) {
 
 // A commit Railpack can't build is refused as it's planned, before anything runs.
 func TestAPlanRailpackCantBuildIsRefused(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		g := newGitBench(t, backend)
 		g.repo.Commit("main", "Docs only", map[string]string{"README.md": "# storefront"})
@@ -184,6 +189,7 @@ func TestAPlanRailpackCantBuildIsRefused(t *testing.T) {
 
 // What can't be read is refused with what to do.
 func TestDetectBuildSaysWhatItCantRead(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		g := newGitBench(t, backend)
 		g.repo.Commit("main", "Works", nodeApp)
@@ -216,6 +222,7 @@ func TestDetectBuildSaysWhatItCantRead(t *testing.T) {
 // command; build and start commands a Dockerfile makes do nothing; and a secret
 // Railpack can't take, for a build that turns out to use Railpack.
 func TestAPlanRefusesWhatARailpackBuildWouldFailOn(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		g := newGitBench(t, backend)
 		propose := func(e *dockwellv1.Edit) error {
@@ -264,6 +271,7 @@ func TestAPlanRefusesWhatARailpackBuildWouldFailOn(t *testing.T) {
 // commit once; and with more than one server, a reading waits to be told which
 // builds the app, rather than read where it may never run.
 func TestReadingsOfACommitAreFewAndWhereItBuilds(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		g := newGitBench(t, backend)
 		g.repo.Commit("main", "Works", nodeApp)
@@ -298,6 +306,7 @@ func TestReadingsOfACommitAreFewAndWhereItBuilds(t *testing.T) {
 // One caller has at most two readings under way: a server reads few at once for
 // everyone, so no one keeps it reading.
 func TestACallerHasFewReadingsUnderWay(t *testing.T) {
+	t.Parallel()
 	g := newGitBench(t, store.SQLite)
 	g.repo.Commit("main", "Works", nodeApp)
 	release := make(chan struct{})

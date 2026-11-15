@@ -90,6 +90,7 @@ volumes:
 // anywhere, a reading is asked for once however many read it, and a server that's
 // away says so.
 func TestDatabasesAreTheServicesThatRunOne(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testDatabasesAreTheServicesThatRunOne)
 }
 
@@ -309,6 +310,7 @@ func (s *pgState) image() dockertest.Image {
 // server for that step alone and in as a SCRAM verifier, never as it is. Setting the
 // secret anew gives the user the new one, and undoing it all drops both.
 func TestADatabaseUserIsAPlanWithAGeneratedSecret(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testADatabaseUserIsAPlanWithAGeneratedSecret)
 }
 
@@ -542,6 +544,7 @@ func scramFits(t *testing.T, verifier, password string) bool {
 // volume, which the deletion keeps, and undo brings back (ADR 0074). The other way
 // round the user's database would go before anything kept it.
 func TestDeletingADatabaseWithItsUserDropsNothingInIt(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testDeletingADatabaseWithItsUserDropsNothingInIt)
 }
 
@@ -593,6 +596,7 @@ func testDeletingADatabaseWithItsUserDropsNothingInIt(t *testing.T, backend stor
 }
 
 func TestADatabasesFirstPasswordChangesThroughAPlan(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testADatabasesFirstPasswordChangesThroughAPlan)
 }
 

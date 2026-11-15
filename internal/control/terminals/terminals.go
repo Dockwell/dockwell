@@ -105,7 +105,9 @@ const (
 	MaxPerSessionInAll = MaxOpen / 2
 )
 
-// HeartbeatEvery is how often an attachment says it's still there.
+// HeartbeatEvery is how often an attachment says it's still there. A Handler reads
+// it, and RemovedEvery, once, as it's made, so a test that sets them sets them for
+// the control planes it starts after, and no goroutine of one before reads them.
 var HeartbeatEvery = 10 * time.Second
 
 // RemovedEvery is how often a terminal looks for its server, which may have been
@@ -120,6 +122,9 @@ type Handler struct {
 	db     *store.DB
 	logger *slog.Logger
 	now    func() time.Time
+	// heartbeatEvery and removedEvery are HeartbeatEvery and RemovedEvery as the
+	// Handler was made.
+	heartbeatEvery, removedEvery time.Duration
 
 	mu    sync.Mutex
 	terms map[string]*entry
@@ -146,7 +151,10 @@ type entry struct {
 // New returns a handler that opens terminals through agents. people checks the
 // passkey opening one takes, and ties each to the session that opened it.
 func New(hub *fleet.Hub, agents *agentapi.Agents, people *auth.Service, db *store.DB, logger *slog.Logger) *Handler {
-	h := &Handler{fleet: hub, agents: agents, auth: people, db: db, logger: logger, now: time.Now, terms: map[string]*entry{}}
+	h := &Handler{
+		fleet: hub, agents: agents, auth: people, db: db, logger: logger, now: time.Now, terms: map[string]*entry{},
+		heartbeatEvery: HeartbeatEvery, removedEvery: RemovedEvery,
+	}
 	agents.OnTerminalEnded(h.ended)
 	agents.OnConnect(h.reconcile)
 	return h
@@ -483,7 +491,7 @@ func (h *Handler) AttachTerminal(ctx context.Context, req *connect.Request[dockw
 		return stream.Send(m)
 	}
 	beating.Go(func() {
-		beat := time.NewTicker(HeartbeatEvery)
+		beat := time.NewTicker(h.heartbeatEvery)
 		defer beat.Stop()
 		for {
 			select {
@@ -633,7 +641,7 @@ func (h *Handler) CloseTerminal(ctx context.Context, req *connect.Request[dockwe
 // agent, which can't reach the control plane either, hangs it up once nobody has
 // been attached for a while.
 func (h *Handler) watch(tied context.Context, e *entry) {
-	tick := time.NewTicker(RemovedEvery)
+	tick := time.NewTicker(h.removedEvery)
 	defer tick.Stop()
 	for {
 		select {

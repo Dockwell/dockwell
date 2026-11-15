@@ -56,6 +56,7 @@ func importClient(b *browser) dockwellv1connect.ImportServiceClient {
 // An import of a server running 1Panel, plan-only as all are for now, says what it would take on, make
 // again and leave, with why, and nothing secret.
 func TestAPlanOnlyImportOf1Panel(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	id := f.addOnePanelServer(t, onepaneltest.Make(t, "/opt", false), nil).id.ServerID
@@ -133,6 +134,7 @@ func TestAPlanOnlyImportOf1Panel(t *testing.T) {
 // A read-write token may ask what an import would do, over REST too, and a
 // read-only one may not, as it's a plan.
 func TestAPlanOnlyImportOverREST(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	id := f.addOnePanelServer(t, onepaneltest.Make(t, "/opt", false), nil).id.ServerID
@@ -149,6 +151,7 @@ func TestAPlanOnlyImportOverREST(t *testing.T) {
 
 // A server without 1Panel says so, and an agent too old to read it says to update it.
 func TestNo1PanelOrAnOldAgentSaysSo(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	id := f.addOnePanelServer(t, t.TempDir(), nil).id.ServerID
@@ -173,6 +176,7 @@ func TestNo1PanelOrAnOldAgentSaysSo(t *testing.T) {
 // runs as it is, with nothing touched. What can't come says why and stays: an app
 // whose container holds what a spec can't, and one with no container at all.
 func TestImportingA1PanelServerTakesOnWhatRuns(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	f.onePanelRoot = onepaneltest.Make(t, "/opt", false)
@@ -280,6 +284,7 @@ func TestImportingA1PanelServerTakesOnWhatRuns(t *testing.T) {
 // a project of its own, and one app that can't come leaves its database server with
 // it, while the rest are planned. Importing again stands in for the last plan.
 func TestAnImportGoesBesideWhatsThere(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	f.onePanelRoot = onepaneltest.Make(t, "/opt", false)

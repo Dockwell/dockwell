@@ -144,6 +144,9 @@ type Config struct {
 	// AskWait is how long a step-up that was asked for has to come before it counts
 	// as missed. Zero means StepUpTTL.
 	AskWait time.Duration
+	// AfterFunc starts that wait, calling f once it's over unless stop is called
+	// first. Nil means time.AfterFunc; a test holds the waits, to end them itself.
+	AfterFunc func(d time.Duration, f func()) (stop func() bool)
 	// Recheck is how often an open stream, or what follows a session, checks it
 	// again, for tests. Zero means 30 s.
 	Recheck time.Duration
@@ -203,7 +206,7 @@ func New(cfg Config) (*Service, error) {
 		streams:      newStreams(),
 		refusals:     newRefusals(maxRefusalIDs),
 		roleRefusals: newRefusals(maxRefusalIDs),
-		stepUps:      newStepUps(1024),
+		stepUps:      newStepUps(1024, cfg.AfterFunc),
 		recheck:      cmp.Or(cfg.Recheck, streamRecheck),
 	}, nil
 }

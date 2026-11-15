@@ -534,7 +534,7 @@ func aPerson(session string) Principal {
 
 // holding is a service with a proof for action on target in session s, by now.
 func holding(now *time.Time, action StepUpAction, target string) *Service {
-	s := &Service{stepUps: newStepUps(8), now: func() time.Time { return *now }, askWait: StepUpTTL}
+	s := &Service{stepUps: newStepUps(8, nil), now: func() time.Time { return *now }, askWait: StepUpTTL}
 	s.stepUps.put(hashToken("proof"), stepUpProof{user: "usr_1", session: "s", action: action, target: target, expires: now.Add(StepUpTTL)}, *now)
 	return s
 }

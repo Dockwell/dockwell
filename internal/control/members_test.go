@@ -18,6 +18,7 @@ import (
 // where it works, their sessions, and no authenticator app. No token reads it,
 // as it names people and their emails (ADR 0048).
 func TestMembersAreTheOwnerAlone(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		f := startFull(t, backend, nil)
 		b := signedIn(t, f)

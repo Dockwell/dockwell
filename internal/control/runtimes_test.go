@@ -27,6 +27,7 @@ import (
 // version, which a token may apply, as it reaches nothing new. An image deploy is
 // refused, as is a version Dockwell doesn't offer (ADR 0058).
 func TestAnAppFromAFolderFromAPlanToAnotherVersion(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testAnAppFromAFolder)
 }
 

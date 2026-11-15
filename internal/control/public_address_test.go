@@ -18,6 +18,7 @@ import (
 )
 
 func TestAPublicAddressIsSetThroughTheAPI(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testAPublicAddressIsSetThroughTheAPI)
 }
 
@@ -108,6 +109,7 @@ func testAPublicAddressIsSetThroughTheAPI(t *testing.T, backend store.Backend) {
 }
 
 func TestADomainIsCheckedAgainstAServerBeforeItHasARoute(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testADomainIsChecked)
 }
 

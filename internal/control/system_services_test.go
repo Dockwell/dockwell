@@ -128,6 +128,7 @@ func TestSystemServicesAreWatchedOnceForEveryone(t *testing.T) {
 
 // No API token reads a server's system services, whatever its scope.
 func TestATokenNeedsASessionForSystemServices(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	srv, lists := f.addSystemServer(t, "web-1")

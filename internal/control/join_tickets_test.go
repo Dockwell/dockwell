@@ -20,6 +20,7 @@ import (
 )
 
 func TestAJoinTicketIsMadeInThePanel(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testAJoinTicketIsMadeInThePanel)
 }
 

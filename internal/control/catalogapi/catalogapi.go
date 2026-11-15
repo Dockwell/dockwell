@@ -60,7 +60,14 @@ type Handler struct {
 	pages pageIndex
 	// backups backs up and restores an app's database alone. Nil can't.
 	backups Backups
+	// entriesDir is a folder whose entries take over Dockwell's own of the same ID,
+	// as catalog.DirEnv names one (EntriesFrom). Empty adds none.
+	entriesDir string
 }
+
+// EntriesFrom has the catalog take the entries in dir, read each time, over
+// Dockwell's own of the same ID, as catalog.DirEnv names one. Empty takes none.
+func (h *Handler) EntriesFrom(dir string) { h.entriesDir = dir }
 
 var _ dockwellv1connect.CatalogServiceHandler = (*Handler)(nil)
 

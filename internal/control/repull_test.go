@@ -79,6 +79,7 @@ func runLatest(t *testing.T, b *bench) (name string, svc *dockwellv1.ServiceInfo
 // Deploying the tag a service already names is how a moving tag gets picked up:
 // pull first, and replace only if that found a newer image.
 func TestDeployingTheSameTagPullsAgain(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		b := newBench(t, backend)
 		name, web := runLatest(t, b)
@@ -158,6 +159,7 @@ func TestDeployingTheSameTagPullsAgain(t *testing.T) {
 // A rollback of a moving tag goes back to what it really ran, and says so; where
 // that's gone, it says that, and still rolls back.
 func TestARollbackOfAMovingTagPutsBackWhatRan(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		b := newBench(t, backend)
 		name, web := runLatest(t, b)
@@ -242,6 +244,7 @@ func TestARollbackOfAMovingTagPutsBackWhatRan(t *testing.T) {
 // A newer image that doesn't run is rolled back to the image before it, which the
 // tag no longer names.
 func TestANewerImageThatFailsGoesBackToTheOneBefore(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		b := newBench(t, backend)
 		name, web := runLatest(t, b)
@@ -268,6 +271,7 @@ func TestANewerImageThatFailsGoesBackToTheOneBefore(t *testing.T) {
 // A pull that can't reach the image leaves what runs alone, with no revision, and
 // nothing to roll back.
 func TestAPullThatFailsLeavesWhatRuns(t *testing.T) {
+	t.Parallel()
 	b := newBench(t, store.SQLite)
 	name, web := runLatest(t, b)
 	before := b.e.Serving(name).ID
@@ -300,6 +304,7 @@ func TestAPullThatFailsLeavesWhatRuns(t *testing.T) {
 // An image built on the server can be deployed under its own tag with nothing built
 // since, which writes no revision, and stops nothing.
 func TestDeployingAnImageBuiltHereUnderItsOwnTag(t *testing.T) {
+	t.Parallel()
 	b := newBench(t, store.SQLite)
 	const built = "acme/built-here:1"
 	b.e.AddLocalImage(built, dockertest.Image{Config: docker.Config{Cmd: []string{"old"}}})
@@ -330,6 +335,7 @@ func TestDeployingAnImageBuiltHereUnderItsOwnTag(t *testing.T) {
 // touches anything, for a service that rolls and one that stops first, and a build that
 // fails its check never gets to fail it. A new tag is the way in.
 func TestABuildUnderTheTagThatRunsIsRefused(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name    string
 		ports   string
@@ -394,6 +400,7 @@ func TestABuildUnderTheTagThatRunsIsRefused(t *testing.T) {
 // the same way. Going back undoes only what the record said, so what runs stays,
 // by the same digest.
 func TestAPullThatFailsLeavesAPinnedApp(t *testing.T) {
+	t.Parallel()
 	b := newBench(t, store.SQLite)
 	name, web := runLatest(t, b)
 	moveLatest(b.e, digestB)
@@ -431,6 +438,7 @@ func TestAPullThatFailsLeavesAPinnedApp(t *testing.T) {
 
 // Undoing a pull that replaced what ran goes back to what ran before it.
 func TestUndoingAPullPutsBackWhatRan(t *testing.T) {
+	t.Parallel()
 	b := newBench(t, store.SQLite)
 	name, web := runLatest(t, b)
 	moveLatest(b.e, digestB)
@@ -447,6 +455,7 @@ func TestUndoingAPullPutsBackWhatRan(t *testing.T) {
 
 // What was pulled reaches the record even when something stops the replace.
 func TestAReplaceThatFailsKeepsWhatItFound(t *testing.T) {
+	t.Parallel()
 	b := newBench(t, store.SQLite)
 	_, web := runLatest(t, b)
 	moveLatest(b.e, digestB)
@@ -471,6 +480,7 @@ func TestAReplaceThatFailsKeepsWhatItFound(t *testing.T) {
 // An image deployed before digests were kept has none on record, so what a pull
 // replaces says what it was, as a failed replace has to go back to it.
 func TestAPullSaysWhatItReplaces(t *testing.T) {
+	t.Parallel()
 	b := newBench(t, store.SQLite)
 	name, web := runLatest(t, b)
 	b.f.execSQL(t, `UPDATE deployments SET digest = ''`)
@@ -491,6 +501,7 @@ func TestAPullSaysWhatItReplaces(t *testing.T) {
 // Each server pulls for itself, so one can find a newer image and another not.
 // The revision that makes holds both, with what each ran.
 func TestAPullOnTwoServersRecordsBoth(t *testing.T) {
+	t.Parallel()
 	b := newBench(t, store.SQLite)
 	other := b.f.addDockerServer(t)
 	for _, e := range []*dockertest.Engine{b.e, other} {
@@ -539,6 +550,7 @@ func TestAPullOnTwoServersRecordsBoth(t *testing.T) {
 // A revision that only moves a service between servers changes no field of its
 // spec, and the panel read that as a pull. It says which servers it added or left.
 func TestARevisionSaysWhichServersItAddedOrLeft(t *testing.T) {
+	t.Parallel()
 	b := newBench(t, store.SQLite)
 	other := b.f.addServerNamed(t, "hz-2", nil, nil)
 	for _, e := range []*dockertest.Engine{b.e, other} {
@@ -576,6 +588,7 @@ func TestARevisionSaysWhichServersItAddedOrLeft(t *testing.T) {
 // What a file would be refused for whatever its variables hold comes before
 // asking for them, through the API as a form reads it.
 func TestCheckComposeRefusesBeforeAskingForValues(t *testing.T) {
+	t.Parallel()
 	b := newBench(t, store.SQLite)
 	res, err := b.cc.CheckCompose(t.Context(), connect.NewRequest(&dockwellv1.CheckComposeRequest{
 		Compose: "services:\n  web:\n    image: nginx:${TAG}\n    network_mode: none\n",
@@ -602,6 +615,7 @@ func TestCheckComposeRefusesBeforeAskingForValues(t *testing.T) {
 // A revision with the image that runs, on the same tag, is nothing to go back to,
 // and pinning it for the going back would replace what runs for nothing.
 func TestGoingBackToWhatRunsIsRefusedHoweverItIsWritten(t *testing.T) {
+	t.Parallel()
 	b := newBench(t, store.SQLite)
 	_, web := runLatest(t, b)
 	b.done(t, b.deploy(t, web.GetId(), "ghcr.io/acme/shop:1.5"))

@@ -22,6 +22,7 @@ import (
 // and deletes it for good, each on the timeline with where it was, never with what a
 // file holds (ADR 0045).
 func TestAPersonManagesAServersFiles(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testAPersonManagesAServersFiles)
 }
 
@@ -117,6 +118,7 @@ func testAPersonManagesAServersFiles(t *testing.T, backend store.Backend) {
 
 // No token makes, moves or deletes anything on a server, whatever its scope.
 func TestNoTokenChangesAServersFiles(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	id := f.addServer(t, false).id.ServerID
@@ -149,6 +151,7 @@ func TestNoTokenChangesAServersFiles(t *testing.T) {
 // Making, moving, deleting or putting back what lets someone back in takes a passkey,
 // for those paths on that server, and one proof is for one write.
 func TestChangingAWayBackInTakesAPasskey(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	id := f.addServer(t, false).id.ServerID
@@ -216,12 +219,14 @@ func TestChangingAWayBackInTakesAPasskey(t *testing.T) {
 	if _, err := c.MakeFile(t.Context(), connect.NewRequest(&dockwellv1.MakeFileRequest{ServerId: id, Path: filepath.Join(dir, ".ssh", "authorized_keys2"), Type: dockwellv1.FileType_FILE_TYPE_FILE})); reasonOf(err) != "needs_step_up" {
 		t.Fatalf("making authorized_keys2 = %v", err)
 	}
+	f.asks.miss()
 	waitForFileEvent(t, b, id, "file.make_unconfirmed", filepath.Join(dir, ".ssh", "authorized_keys2"))
 }
 
 // An agent too old to make, move and delete with the care these take says so, and
 // lists nothing deleted.
 func TestAnAgentThatDoesntManageFilesSaysSo(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	server := f.addServer(t, false)

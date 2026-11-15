@@ -35,6 +35,7 @@ import (
 // the port Swarm published. The plan scales the Swarm service to none first, and its
 // undo deletes Dockwell's copy before it scales the service back.
 func TestMakingADokploySwarmAppAgain(t *testing.T) {
+	t.Parallel()
 	d := dokployShop(t)
 	e, ic, c, task, replicas := d.e, d.ic, d.c, d.task, d.replicas
 	id := d.id
@@ -241,6 +242,7 @@ func dokployShop(t *testing.T) shopOnDokploy {
 // Dokploy's service to none, rolls back, and the rollback scales it again, so the
 // app isn't left down.
 func TestAFailedRemakeScalesDokploysServiceBack(t *testing.T) {
+	t.Parallel()
 	d := dokployShop(t)
 	res, err := d.ic.ImportDokploy(t.Context(), connect.NewRequest(&dockwellv1.ImportDokployRequest{ServerId: d.id}))
 	if err != nil {
@@ -276,6 +278,7 @@ func TestAFailedRemakeScalesDokploysServiceBack(t *testing.T) {
 // own, each service named as the stack named it, so its services still find each
 // other; each Swarm service scales to none as its copy starts.
 func TestMakingADokployStackAgain(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	later := &laterStopper{}
@@ -363,6 +366,7 @@ func TestMakingADokployStackAgain(t *testing.T) {
 // A container that shares a Swarm task's network would lose it as the copy takes
 // the task's place, so the app stays where it is, saying what leans on it.
 func TestWhatLeansOnATaskKeepsItsApp(t *testing.T) {
+	t.Parallel()
 	d := dokployShop(t)
 	runByHand(t, d.e, "shop-sidecar", func(r *docker.CreateRequest) {
 		r.HostConfig.PortBindings, r.HostConfig.Binds = nil, nil
@@ -381,6 +385,7 @@ func TestWhatLeansOnATaskKeepsItsApp(t *testing.T) {
 // saying so, and the rest of the import still plans, where the agent would refuse
 // to scale it.
 func TestAStackDeployedByHandStaysBehind(t *testing.T) {
+	t.Parallel()
 	d := dokployShop(t)
 	plain := swarmService("plain-p1_web", "nginx:1.26", map[string]string{"com.docker.stack.namespace": "plain-p1"})
 	d.e.Services = append(d.e.Services, docker.Service{ID: "s9", Spec: plain})
@@ -404,6 +409,7 @@ func TestAStackDeployedByHandStaysBehind(t *testing.T) {
 // An agent from before waits for no Swarm task to be over before a copy starts,
 // so through one, a Swarm-run app stays where it is, saying to update the agent.
 func TestAnOlderAgentMakesNoSwarmAppAgain(t *testing.T) {
+	t.Parallel()
 	d := dokployShop(t)
 	server := d.f.lastDocker
 	server.stop()
@@ -425,6 +431,7 @@ func TestAnOlderAgentMakesNoSwarmAppAgain(t *testing.T) {
 // Traefik file names, the proxy stopped first; the undo deletes the route and
 // starts the proxy again.
 func TestHandingOverADokploySwarmAppsDomain(t *testing.T) {
+	t.Parallel()
 	d := dokployShop(t)
 	res, err := d.ic.ImportDokploy(t.Context(), connect.NewRequest(&dockwellv1.ImportDokployRequest{ServerId: d.id}))
 	if err != nil {

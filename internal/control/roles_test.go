@@ -73,6 +73,7 @@ func onInstall(role string) store.Grant { return store.Grant{ProjectID: store.In
 // for an API token, its maker's, so a token loses what its maker loses. Someone
 // with no role left can only sign out (ADR 0049).
 func TestARoleGatesEveryCall(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		f := startFull(t, backend, nil)
 		b := signedIn(t, f)
@@ -222,6 +223,7 @@ func TestAStreamEndsWithItsRole(t *testing.T) {
 // builds; a destination's name and how it's doing, not its endpoint or bucket. An
 // admin sees all of it (ADR 0049).
 func TestNamedObjectsReadByNameAndStateBelowAnAdmin(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		f := startFull(t, backend, nil)
 		b := signedIn(t, f)

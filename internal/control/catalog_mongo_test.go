@@ -137,8 +137,9 @@ compose: |
 // app, which signs in as its own user. The root password is the server's alone, and
 // an upgrade keeps it all as it is (ADR 0084).
 func TestAnInstallMakesANewMongoDBWithAUserOfItsOwn(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
-	t.Setenv(catalog.DirEnv, dir)
+	useCatalogDir(t, dir)
 	if err := os.WriteFile(filepath.Join(dir, "notes.yaml"), []byte(notesEntry), 0o600); err != nil {
 		t.Fatal(err)
 	}

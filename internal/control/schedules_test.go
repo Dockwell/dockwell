@@ -82,6 +82,7 @@ func (f *fullServer) restart(t *testing.T, prepare func(*Server)) (srv *Server, 
 // as that takes a moment after a start, and happens once it has. Only a server still
 // away past the grace fails its run, where someone can see it.
 func TestARunMissedWhileDownHappensOnceItsServerIsBack(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)
@@ -127,6 +128,7 @@ func TestARunMissedWhileDownHappensOnceItsServerIsBack(t *testing.T) {
 
 // Past the grace, a server that's away fails its run where someone looks.
 func TestARunFailsOnceItsServerIsPastTheGrace(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)
@@ -183,6 +185,7 @@ func doneOf(all []*dockwellv1.Backup) (done []*dockwellv1.Backup) {
 // A schedule cut back holds more than it keeps, and a run that won't fit used to be
 // the only thing that could take those away. It comes down first, so "keep fewer" helps.
 func TestASmallerScheduleComesDownBeforeARunIsRefusedForRoom(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)
@@ -212,6 +215,7 @@ func TestASmallerScheduleComesDownBeforeARunIsRefusedForRoom(t *testing.T) {
 // Retention leaves what a planned or running restore brings back, and takes it once
 // that's over.
 func TestRetentionLeavesWhatARestoreNames(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)
@@ -251,6 +255,7 @@ func TestRetentionLeavesWhatARestoreNames(t *testing.T) {
 // Two schedules due at once on a server take turns: each looks for room once the last
 // is done, and neither finds the volume taken.
 func TestRunsDueTogetherOnAServerTakeTurns(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)

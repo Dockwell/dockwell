@@ -40,6 +40,7 @@ func applyAsRoot(t *testing.T, b *browser, change *dockwellv1.Change) {
 // the server after the session is gone. So one takes a passkey, just now, for that
 // change, as well as a person and a typed fingerprint.
 func TestAPlanAsGoodAsRootTakesAPasskey(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testAPlanAsGoodAsRootTakesAPasskey)
 }
 
@@ -110,6 +111,7 @@ func testAPlanAsGoodAsRootTakesAPasskey(t *testing.T, backend store.Backend) {
 // What stops short of root asks no more of a person than it did, or the prompt would
 // stop meaning anything. Keeping what a service has asks nothing at all.
 func TestAPlanShortOfRootTakesNoPasskey(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	f.addDockerServer(t)
@@ -126,6 +128,7 @@ func TestAPlanShortOfRootTakesNoPasskey(t *testing.T) {
 
 // The words are for a person, whoever reads them first.
 func TestAskingForAPasskeySaysSo(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	f.addDockerServer(t)
@@ -178,6 +181,7 @@ func askedBy(t *testing.T, c dockwellv1connect.ChangeServiceClient, change *dock
 // token puts in a service with Docker's socket has root, so it's as much as reaching
 // it anew: a person, the typed fingerprint and a passkey.
 func TestWhatKeepsRootAsksAgainForAnythingElseThatRuns(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testWhatKeepsRootAsksAgainForAnythingElseThatRuns)
 }
 
@@ -235,6 +239,7 @@ func testWhatKeepsRootAsksAgainForAnythingElseThatRuns(t *testing.T, backend sto
 // The one thing that goes on as it did is how CI deploys: another tag or digest of
 // the same repository, with nothing else changed, which a token applies.
 func TestANewTagOfTheSameImageKeepsDeployingWithRoot(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	registerImages(f.addDockerServer(t))
@@ -254,6 +259,7 @@ func TestANewTagOfTheSameImageKeepsDeployingWithRoot(t *testing.T) {
 
 // Taking root out and undoing that brings it back, so the undo asks for a passkey.
 func TestAnUndoThatBringsRootBackTakesAPasskey(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	registerImages(f.addDockerServer(t))
@@ -278,6 +284,7 @@ func TestAnUndoThatBringsRootBackTakesAPasskey(t *testing.T) {
 // A folder approved in amber can become a link to /etc. What a person approved was
 // where it led then, so the next plan asks as if for the first time.
 func TestAKeptPathThatLeadsElsewhereAsksAgain(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testAKeptPathThatLeadsElsewhereAsksAgain)
 }
 
@@ -357,6 +364,7 @@ func testAKeptPathThatLeadsElsewhereAsksAgain(t *testing.T, backend store.Backen
 // A proof goes where the action does. One for a change that can't start, as its
 // server is away, isn't used up, and works once the server's back.
 func TestARefusedApplyLeavesItsProofToUse(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	registerImages(f.addDockerServer(t))
@@ -383,6 +391,7 @@ func TestARefusedApplyLeavesItsProofToUse(t *testing.T) {
 // Trying to apply what's as good as root, with no passkey following, is what a stolen
 // session looks like, so it's on Activity. One that's confirmed isn't.
 func TestAPlanNobodyConfirmsIsOnActivity(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	registerImages(f.addDockerServer(t))
@@ -403,6 +412,7 @@ func TestAPlanNobodyConfirmsIsOnActivity(t *testing.T) {
 		}
 		return false
 	}
+	f.asks.miss()
 	deadline := time.Now().Add(5 * time.Second)
 	for !warned(planned.GetId()) {
 		if time.Now().After(deadline) {
@@ -418,7 +428,8 @@ func TestAPlanNobodyConfirmsIsOnActivity(t *testing.T) {
 		t.Fatal(err)
 	}
 	applyAsRoot(t, b, confirmed)
-	time.Sleep(3 * askWait)
+	// Every wait still held runs out now, as time would, however long confirming took.
+	f.asks.miss()
 	if warned(confirmed.GetId()) {
 		t.Error("a plan someone confirmed reads as one nobody did")
 	}
@@ -429,6 +440,7 @@ func TestAPlanNobodyConfirmsIsOnActivity(t *testing.T) {
 // new value, so what's as good as root is what the token is refused on. Rotating such
 // a secret takes a person and their passkey, which is what this costs.
 func TestAValueWhatKeepsRootUsesAsksAgain(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testAValueWhatKeepsRootUsesAsksAgain)
 }
 
@@ -477,6 +489,7 @@ func testAValueWhatKeepsRootUsesAsksAgain(t *testing.T, backend store.Backend) {
 // Docker follow that the next time the second restarted. Now the layout itself reads
 // as what it is, and the token stops at the first step. Another tag still deploys.
 func TestWhatCanMoveAnothersSourceIsOutOfATokensReach(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	registerImages(f.addDockerServer(t))
@@ -523,6 +536,7 @@ func TestWhatCanMoveAnothersSourceIsOutOfATokensReach(t *testing.T) {
 // agent names it, with what it mounts, and the plan for what can write around it asks
 // as root does, naming it.
 func TestWhatDockwellDidntMakeIsHeldThroughTheAgent(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)
@@ -565,6 +579,7 @@ func TestWhatDockwellDidntMakeIsHeldThroughTheAgent(t *testing.T) {
 // The links on the way to a source come from the agent too: what can write a folder
 // one of them is in holds the source, through the agent as in the engine.
 func TestAHoldOfALinkOnTheWayCountsThroughTheAgent(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	registerImages(f.addDockerServer(t))

@@ -47,6 +47,7 @@ func testRegistry(t *testing.T) string {
 // it declares, its tags, and Docker Hub's search, for anyone who may propose an
 // app, and nothing for a viewer (ADR 0062).
 func TestImagesAreReadThroughTheServersAgent(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)

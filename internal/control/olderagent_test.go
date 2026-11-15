@@ -66,6 +66,7 @@ func plainRedis(command ...string) *dockwellv1.Edit {
 // value in. A resource on it that never named a value plans as ever. Updating the
 // agent brings it all back. The review of #113 found this.
 func TestAnOlderAgentReadsNothingThatNamesAValue(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testAnOlderAgentReadsNothingThatNamesAValue)
 }
 
@@ -147,6 +148,7 @@ func testAnOlderAgentReadsNothingThatNamesAValue(t *testing.T, backend store.Bac
 // agent reads that. So a resource whose latest revision names nothing, of which the
 // server was given one that did, is held the same way.
 func TestAnOlderAgentIsHeldToWhatItsServerWasGiven(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testAnOlderAgentIsHeldToWhatItsServerWasGiven)
 }
 
@@ -187,6 +189,7 @@ func redisID(t *testing.T, b *browser) string {
 // and says to update it, and a plan of it refuses. What Dockwell made that names a
 // value plans on it as ever, and updating the agent brings it all back.
 func TestAnAgentThatDoesntKeepTakenReferencesReadsNothingTakenOnSo(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testAnAgentThatDoesntKeepTakenReferences)
 }
 

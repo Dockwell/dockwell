@@ -19,7 +19,10 @@ import (
 // A volume's page reads what it holds on its server, where its files are there, and
 // which apps mount it, and never its options; with its server away, it says why it
 // can't say what it holds, and the rest still answers.
-func TestAVolumesPage(t *testing.T) { storetest.Each(t, testAVolumesPage) }
+func TestAVolumesPage(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testAVolumesPage)
+}
 
 func testAVolumesPage(t *testing.T, backend store.Backend) {
 	f := startFull(t, backend, nil)

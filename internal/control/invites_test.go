@@ -104,6 +104,7 @@ func secretOf(t *testing.T, link string) string {
 // passkey, and signs in, as a new person holding that role there. The invite
 // then works no more (ADR 0048, ADR 0049).
 func TestAnInviteMakesSomeoneNewWithItsRole(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		s := newInviteStand(t, backend)
 		ctx := t.Context()
@@ -213,6 +214,7 @@ func TestAnInviteMakesSomeoneNewWithItsRole(t *testing.T) {
 // replacing an older, a revoked one working no more, and only at the panel's
 // domain.
 func TestWhatAnInviteMayOffer(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		s := newInviteStand(t, backend)
 		ctx := t.Context()
@@ -266,6 +268,7 @@ func TestWhatAnInviteMayOffer(t *testing.T) {
 // An install whose panel has no domain can't invite: the link would lead
 // nowhere the invited person can reach.
 func TestInvitesNeedTheDomain(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	proof := stepUpFor(t, b, dockwellv1.StepUpAction_STEP_UP_ACTION_INVITE, auth.InviteTarget("ada@example.com", store.RoleViewer, store.Install))
@@ -280,6 +283,7 @@ func TestInvitesNeedTheDomain(t *testing.T) {
 // what any invite that doesn't work says: it never makes someone who holds
 // nothing, and never reads as an invite to every project.
 func TestAnInviteToAProjectThatsGoneIsRefused(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		s := newInviteStand(t, backend)
 		ctx := t.Context()

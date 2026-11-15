@@ -36,6 +36,7 @@ func fromSecret(name string, t *resourcev1.ValueTemplate) *dockwellv1.Edit {
 // anew takes in the URL and the service that uses it, in the same plan, and the
 // service starts with the URL written again; no plan or list shows the URL.
 func TestAValueWrittenFromOthersFollowsThem(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testAValueWrittenFromOthersFollowsThem)
 }
 
@@ -114,6 +115,7 @@ func testAValueWrittenFromOthersFollowsThem(t *testing.T, backend store.Backend)
 // writes is refused, and so is one that reads what a service uses there, as an
 // administrator's password is.
 func TestAValueFromAnotherEnvironmentIsALinksAlone(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testAValueFromAnotherEnvironmentIsALinksAlone)
 }
 

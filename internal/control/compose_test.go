@@ -164,7 +164,10 @@ func importCompose(t *testing.T, c dockwellv1connect.ComposeServiceClient, file 
 // on Docker as docker compose would run it, exports back as a file
 // docker compose reads the same, and changes and undoes like anything
 // else.
-func TestComposeThroughTheAPI(t *testing.T) { storetest.Each(t, testComposeThroughTheAPI) }
+func TestComposeThroughTheAPI(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testComposeThroughTheAPI)
+}
 
 func testComposeThroughTheAPI(t *testing.T, backend store.Backend) {
 	f := startFull(t, backend, nil)
@@ -360,6 +363,7 @@ func testComposeThroughTheAPI(t *testing.T, backend store.Backend) {
 // Docker's error for a mount that fails can hold the volume's password,
 // and a change's error is there for anyone who can read changes.
 func TestAFailedMountDoesNotShowItsPassword(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testAFailedMountDoesNotShowItsPassword)
 }
 
@@ -431,6 +435,7 @@ func valuesStack(image string, env map[string]string) []*dockwellv1.Edit {
 // values, so a later rotation still reaches it. What it can't keep it
 // refuses, by name, and never by comparing a secret's value.
 func TestAnExportImportsAgainKeepingVariablesAndSecrets(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testAnExportImportsAgainKeepingVariablesAndSecrets)
 }
 
@@ -627,7 +632,10 @@ func testAnExportImportsAgainKeepingVariablesAndSecrets(t *testing.T, backend st
 // a CIFS password is in no table, in any encoding, on either store, and a
 // plan says the options changed and never what they hold. Reading it back
 // to apply it still gives Docker the password.
-func TestAVolumesPasswordIsSealed(t *testing.T) { storetest.Each(t, testAVolumesPasswordIsSealed) }
+func TestAVolumesPasswordIsSealed(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testAVolumesPasswordIsSealed)
+}
 
 func testAVolumesPasswordIsSealed(t *testing.T, backend store.Backend) {
 	const password = "cifs-pw-7Hq2mXv9Lr4Kd8Zs"
@@ -718,6 +726,7 @@ func testAVolumesPasswordIsSealed(t *testing.T, backend store.Backend) {
 // as Docker can't change it. The last check of #70 found the right one planned
 // nothing and a wrong one was refused, as the options couldn't change.
 func TestATokenCantConfirmAGuessAtAVolumesPassword(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testATokenCantConfirmAGuessAtAVolumesPassword)
 }
 
@@ -824,6 +833,7 @@ func (p *planHeard) options() []string {
 // #140 found a token could have the real options sent to another server's agent by
 // proposing the volume there with none, or with a wrong guess.
 func TestAVolumesPasswordGoesNowhereElse(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testAVolumesPasswordGoesNowhereElse)
 }
 
@@ -966,6 +976,7 @@ func testAVolumesPasswordGoesNowhereElse(t *testing.T, backend store.Backend) {
 // now has options of its own, and a server taken off, as adding one back looked like
 // what TestAVolumesPasswordGoesNowhereElse stops, though it had the volume all along.
 func TestUndoPutsAVolumeBackWhereItRan(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testUndoPutsAVolumeBackWhereItRan)
 }
 
@@ -1123,6 +1134,7 @@ func testUndoPutsAVolumeBackWhereItRan(t *testing.T, backend store.Backend) {
 // hz-2 had pruned its copy. Applying plans again first, so hz-2 heard a password it no
 // longer held, and only then was it refused. The review of #150 found this.
 func TestAPlannedUndoCantOutliveItsWindow(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testAPlannedUndoCantOutliveItsWindow)
 }
 
@@ -1197,6 +1209,7 @@ func testAPlannedUndoCantOutliveItsWindow(t *testing.T, backend store.Backend) {
 // found the stored options went in its place, the agent refused them as a change, and
 // that drift couldn't be adopted.
 func TestAVolumeRemadeByHandCanBeAdopted(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testAVolumeRemadeByHandCanBeAdopted)
 }
 
@@ -1263,6 +1276,7 @@ func testAVolumeRemadeByHandCanBeAdopted(t *testing.T, backend store.Backend) {
 // first, which sends it nothing. Both remade alike is one thing to keep. The check of
 // #140 found this.
 func TestAdoptingAVolumeAsksItsOtherServersFirst(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testAdoptingAVolumeAsksItsOtherServersFirst)
 }
 
@@ -1348,6 +1362,7 @@ func testAdoptingAVolumeAsksItsOtherServersFirst(t *testing.T, backend store.Bac
 // this. Its placement outlives it, so it read as away for good, and the volume's
 // drift could never be adopted. The review of #150 found this.
 func TestAdoptingAVolumeLeavesARemovedServerOut(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testAdoptingAVolumeLeavesARemovedServerOut)
 }
 
@@ -1420,6 +1435,7 @@ func testAdoptingAVolumeLeavesARemovedServerOut(t *testing.T, backend store.Back
 // the plan says that where it says what joins it. The last check of #92 found it read
 // the driver, for a health check, and dropped it. A bridge says nothing more.
 func TestAPlanSaysWhichDriverANetworkItDidntMakeUses(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testAPlanSaysWhichDriverANetworkItDidntMakeUses)
 }
 

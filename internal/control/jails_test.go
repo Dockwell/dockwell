@@ -50,6 +50,7 @@ func jailOn(server, name string, jail *resourcev1.Jail) *dockwellv1.Edit {
 // person and their passkey, and no API token may apply it; it waits for no
 // confirmation, as it can't lock anyone out of a new session (ADR 0052).
 func TestAJailChangeTakesAPersonAndNoWait(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	srv, jails := f.addJailServer(t, "hz-1")
@@ -78,6 +79,7 @@ func TestAJailChangeTakesAPersonAndNoWait(t *testing.T) {
 // jail's settings, and a new line in a log file's path as the next setting,
 // which can be a command it runs as root. Both are refused as they're planned.
 func TestAJailThatSaysMoreThanAJailIsRefusedAtPlanning(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	srv, jails := f.addJailServer(t, "hz-1")
@@ -106,6 +108,7 @@ func TestAJailThatSaysMoreThanAJailIsRefusedAtPlanning(t *testing.T) {
 // token, whatever projects they hold. An admin's token may plan one, as any
 // plan is only a plan, and can't apply it (ADR 0048, 0049, 0052).
 func TestAJailIsAnAdminsHoweverTheChangeComes(t *testing.T) {
+	t.Parallel()
 	s := newReachStand(t, store.SQLite)
 	srv, jails := s.f.addJailServer(t, "hz-2")
 	ctx := t.Context()
@@ -157,6 +160,7 @@ func TestAJailIsAnAdminsHoweverTheChangeComes(t *testing.T) {
 // it, for a jail's form to put in what it never bans; the server's own
 // loopback is nobody's.
 func TestTheCallersAddressIsTheirsOrNone(t *testing.T) {
+	t.Parallel()
 	for addr, want := range map[string]string{"203.0.113.7:51234": "203.0.113.7", "[2001:db8::7]:51234": "2001:db8::7", "127.0.0.1:51234": "", "[::1]:4": "", "": "", "[::ffff:203.0.113.7]:9": "203.0.113.7"} {
 		if got := firewallapi.CallersAddress(addr); got != want {
 			t.Errorf("%q reads %q, want %q", addr, got, want)

@@ -1041,7 +1041,7 @@ func (h *Handler) withSources(ctx context.Context, instead planned) (sourced, er
 		h.sources.tidy(list)
 	}
 	list = instead.apply(list)
-	dir, err := catalog.FromDir()
+	dir, err := catalog.FromDir(h.entriesDir)
 	if err != nil {
 		return sourced{}, err
 	}

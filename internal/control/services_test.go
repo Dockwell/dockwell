@@ -61,6 +61,7 @@ func onlyService(t *testing.T, s dockwellv1connect.ServiceServiceClient) *dockwe
 // included. It costs that row, which says which it is and what to do, and the
 // log has it too. A row in the clear goes the same way.
 func TestARowItWontReadCostsOneServiceAndNotTheList(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		t.Run("sealed for another row", func(t *testing.T) {
 			testARowItWontReadCostsOneService(t, backend, func(other string) string {
@@ -136,7 +137,10 @@ func testARowItWontReadCostsOneService(t *testing.T, backend store.Backend, spec
 
 // A service says what it runs and how that went without its secrets, and
 // deploys and rolls back as plans.
-func TestServicesThroughTheAPI(t *testing.T) { storetest.Each(t, testServicesThroughTheAPI) }
+func TestServicesThroughTheAPI(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testServicesThroughTheAPI)
+}
 
 func testServicesThroughTheAPI(t *testing.T, backend store.Backend) {
 	f := startFull(t, backend, nil)
@@ -273,6 +277,7 @@ func waitFor(t *testing.T, what string, holds func() bool) {
 // Rolling back one service of a stack leaves the rest, and doesn't mark the
 // change that made them all as undone.
 func TestRollingBackOneServiceOfAStack(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		f := startFull(t, backend, nil)
 		b := signedIn(t, f)
@@ -316,6 +321,7 @@ func TestRollingBackOneServiceOfAStack(t *testing.T) {
 
 // A deploy that fails rolls back on its own, and the list says so.
 func TestAFailedDeployShowsAsRolledBack(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		f := startFull(t, backend, nil)
 		b := signedIn(t, f)
@@ -385,6 +391,7 @@ func TestAFailedDeployShowsAsRolledBack(t *testing.T) {
 // Checking a Compose file says what it would make, or why it can't, and
 // records nothing.
 func TestCheckCompose(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		f := startFull(t, backend, nil)
 		b := signedIn(t, f)
@@ -456,6 +463,7 @@ func TestCheckCompose(t *testing.T) {
 // A change says what it is for when the method that proposed it knows, and that
 // stays on its record. A plan of plain edits says nothing of the kind.
 func TestAChangeSaysWhatItIsFor(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		f := startFull(t, backend, nil)
 		b := signedIn(t, f)
@@ -532,6 +540,7 @@ func TestAChangeSaysWhatItIsFor(t *testing.T) {
 // A plan says which of what a change reaches is as good as root: all of it needs
 // a signed-in person, and only that asks them for more than a click.
 func TestAPlanSaysWhatIsAsGoodAsRoot(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		f := startFull(t, backend, nil)
 		b := signedIn(t, f)
@@ -567,6 +576,7 @@ func TestAPlanSaysWhatIsAsGoodAsRoot(t *testing.T) {
 // A symlink on the server reads as what it leads to, from the agent, over its
 // stream, in the plan the API gives: a person sees the alarm /etc would raise.
 func TestAPlanReadsWhereASymlinkLeads(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		f := startFull(t, backend, nil)
 		b := signedIn(t, f)
@@ -612,6 +622,7 @@ func TestAPlanReadsWhereASymlinkLeads(t *testing.T) {
 // it stale, rather than undone. ListServices says what it reaches on the
 // server, so an editor can say a passkey is coming before it plans.
 func TestEditingAServiceWithoutReadingItBack(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		f := startFull(t, backend, nil)
 		b := signedIn(t, f)
@@ -732,6 +743,7 @@ func TestEditingAServiceWithoutReadingItBack(t *testing.T) {
 // A value an edit keeps goes nowhere it hasn't been (ADR 0022): it can't take the
 // service to another server, on a plan alone. Set again in the edit, it can.
 func TestAKeptValueGoesToNoNewServer(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		const secret = "kept-s3cret-9Qz"
 		f := startFull(t, backend, nil)
@@ -790,6 +802,7 @@ func TestAKeptValueGoesToNoNewServer(t *testing.T) {
 // ListServices says what a service reaches as its plan does: through a volume it
 // mounts too, so an editor never says no passkey is coming when one is.
 func TestListServicesSaysWhatAMountedVolumeReaches(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		f := startFull(t, backend, nil)
 		b := signedIn(t, f)

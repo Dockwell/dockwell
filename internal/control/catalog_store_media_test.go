@@ -27,6 +27,7 @@ import (
 // has; and the stores Dockwell reads list what this build measured of each, with no
 // source of one until a source reads the store's own repository (ADR 0083).
 func TestAStoresAppShowsItsOwnLogoAndWords(t *testing.T) {
+	t.Parallel()
 	repo := gitfetchtest.New(t)
 	repo.Filter()
 	board := strings.Replace(boardTemplate, "# port: 80\n", "# port: 80\n# logo: svgs/board.svg\n", 1)
@@ -124,6 +125,7 @@ func communitySourceNamed(t *testing.T, cat dockwellv1connect.CatalogServiceClie
 // the repository's page on a host whose pages Dockwell doesn't know, never the
 // address the store gave (ADR 0083).
 func TestAStoresScreenshotsComeWithItsApp(t *testing.T) {
+	t.Parallel()
 	png := onePixelPNG
 	link := func(file string) string {
 		return "https://cdn.jsdelivr.net/gh/IceWhaleTech/CasaOS-AppStore@main/Apps/Board/" + file

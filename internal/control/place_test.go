@@ -19,6 +19,7 @@ import (
 // protected, whichever kind of object the ID names. An ID of a kind nothing
 // places is refused, so a new kind is closed until it's placed (ADR 0048).
 func TestEveryObjectHasAPlace(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		f := startFull(t, backend, nil)
 		b := signedIn(t, f)

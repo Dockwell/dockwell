@@ -29,6 +29,7 @@ import (
 // from before shows the same once, by Dockwell's own change, but for what a person
 // changed since. Keeping a value without reading it never shows it (ADR 0081).
 func TestAnInstallShowsItsPlainValues(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testAnInstallShowsItsPlainValues)
 }
 
@@ -235,6 +236,7 @@ func asUnshown(t *testing.T, f *fullServer, services []string) {
 // after drift, is left hidden once and never proposed again: Activity doesn't fill
 // with changes Dockwell discards (ADR 0081).
 func TestShowingInstallsLeavesNoTrailWhileItWaits(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testShowingInstallsLeavesNoTrailWhileItWaits)
 }
 

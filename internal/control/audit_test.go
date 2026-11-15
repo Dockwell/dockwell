@@ -22,6 +22,7 @@ import (
 // acted on what by name, narrowed and paged. No API token reads it, as its words
 // name where people signed in from (ADR 0047).
 func TestTheAuditLogIsForAPerson(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		f := startFull(t, backend, nil)
 		b := signedIn(t, f)
@@ -117,6 +118,7 @@ func TestTheAuditLogIsForAPerson(t *testing.T) {
 // for local access stands for, by what made it rather than by what it's called.
 // Nothing in it holds a token's secret.
 func TestTheAuditLogSaysWhatHappened(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		f := startFull(t, backend, nil)
 		b := signedIn(t, f)

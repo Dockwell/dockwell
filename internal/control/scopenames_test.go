@@ -15,6 +15,7 @@ import (
 // An environment goes by its project's name and its own, which its services'
 // containers are named after; anything else by nothing (ADR 0035).
 func TestScopeNamesSayWhatPeopleCallAnEnvironment(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, b store.Backend) {
 		db, _ := storetest.Open(t, b)
 		if _, err := revision.Setup(t.Context(), db, slog.New(slog.DiscardHandler)); err != nil {

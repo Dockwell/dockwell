@@ -58,7 +58,10 @@ func writeFile(t *testing.T, path, content string) {
 	}
 }
 
-func TestAPersonReadsAServersFiles(t *testing.T) { storetest.Each(t, testAPersonReadsAServersFiles) }
+func TestAPersonReadsAServersFiles(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testAPersonReadsAServersFiles)
+}
 
 func testAPersonReadsAServersFiles(t *testing.T, backend store.Backend) {
 	f := startFull(t, backend, nil)
@@ -119,6 +122,7 @@ func testAPersonReadsAServersFiles(t *testing.T, backend store.Backend) {
 // own path, a lookup of one that isn't there goes on no record, and the parent's
 // listing says how many it holds and finds the folder by name (#588).
 func TestAFolderUnderABusyParentIsFoundByItsOwnPath(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	server := f.addServer(t, false)
@@ -165,6 +169,7 @@ func TestAFolderUnderABusyParentIsFoundByItsOwnPath(t *testing.T) {
 // No token reaches a server's files, whatever its scope, and refusing it asks
 // nothing of the server.
 func TestNoTokenReachesAServersFiles(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testNoTokenReachesAServersFiles)
 }
 
@@ -214,7 +219,10 @@ func testNoTokenReachesAServersFiles(t *testing.T, backend store.Backend) {
 	}
 }
 
-func TestAPersonSavesAFile(t *testing.T) { storetest.Each(t, testAPersonSavesAFile) }
+func TestAPersonSavesAFile(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testAPersonSavesAFile)
+}
 
 func testAPersonSavesAFile(t *testing.T, backend store.Backend) {
 	f := startFull(t, backend, nil)
@@ -325,6 +333,7 @@ func testAPersonSavesAFile(t *testing.T, backend store.Backend) {
 }
 
 func TestASaveThatCantBeMadeSaysWhy(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	server := f.addServer(t, false)
@@ -375,6 +384,7 @@ func TestASaveThatCantBeMadeSaysWhy(t *testing.T) {
 
 // What can't go on record isn't written.
 func TestASaveThatCantGoOnRecordWritesNothing(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	id := f.addServer(t, false).id.ServerID
@@ -401,6 +411,7 @@ func TestASaveThatCantGoOnRecordWritesNothing(t *testing.T) {
 // within a bound, and the agent can always end its stream and start another, with
 // the call still stuck, as nothing can stop one.
 func TestAPathThatStopsAnsweringLeavesTheServerOnline(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	server := f.addServer(t, false)
@@ -454,6 +465,7 @@ func TestAPathThatStopsAnsweringLeavesTheServerOnline(t *testing.T) {
 // and reads as a warning on Activity. Being asked isn't a failed save. Anywhere else
 // takes nothing.
 func TestSavingAWayBackInTakesAPasskey(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testSavingAWayBackInTakesAPasskey)
 }
 
@@ -548,6 +560,7 @@ func keysFile(t *testing.T, c dockwellv1connect.FileServiceClient, id string) (s
 // One proof stands for that path on that server for a while, as editing a file means
 // saving it again. A stale save doesn't use it up, and it stands for nothing else.
 func TestOnePasskeyStandsForSavingThatFile(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	id := f.addServer(t, false).id.ServerID
@@ -579,6 +592,7 @@ func TestOnePasskeyStandsForSavingThatFile(t *testing.T) {
 
 // Asked for a passkey to save a way back in, with none following, is on Activity.
 func TestASaveNobodyConfirmsIsOnActivity(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	id := f.addServer(t, false).id.ServerID
@@ -588,12 +602,14 @@ func TestASaveNobodyConfirmsIsOnActivity(t *testing.T) {
 	if reasonOf(err) != "needs_step_up" {
 		t.Fatal(err)
 	}
+	f.asks.miss()
 	waitForFileEvent(t, b, id, "file.save_unconfirmed", keys)
 }
 
 // Only an agent can tell where a path leads, so one too old to ask for a passkey
 // isn't saved through, and says what to do about it.
 func TestAnAgentThatDoesntGuardWaysInIsntSavedThrough(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	server := f.addServer(t, false)
@@ -614,6 +630,7 @@ func TestAnAgentThatDoesntGuardWaysInIsntSavedThrough(t *testing.T) {
 }
 
 func TestAFolderIsSearchedThroughItsAgent(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	server := f.addServer(t, false)
@@ -711,6 +728,7 @@ func waitForFileEvent(t *testing.T, b *browser, server, action, path string) *do
 // what goes on record, under where it got to, not "couldn't save". When it ends, the
 // record says how, as whoever saved it, though nobody was waiting by then.
 func TestASaveThatMayHaveLandedSaysSoThenHowItEnded(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testASaveThatMayHaveLandedSaysSoThenHowItEnded)
 }
 
@@ -761,6 +779,7 @@ func testASaveThatMayHaveLandedSaysSoThenHowItEnded(t *testing.T, backend store.
 // A stream that drops as a save writes leaves it either way too, and what's on
 // record comes from the agent's next stream.
 func TestASaveWhoseStreamDropsMayHaveLanded(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	server, hold, reached, release := heldWrite(t, f, time.Minute)
@@ -806,7 +825,10 @@ func timelineFiles(t *testing.T, b *browser, request *dockwellv1.ListEventsReque
 
 // Not asking for a passkey to read a file rests on this: what a stolen session
 // read can be seen, by the person it was stolen from, without a database.
-func TestWhatsReadIsOnActivity(t *testing.T) { storetest.Each(t, testWhatsReadIsOnActivity) }
+func TestWhatsReadIsOnActivity(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testWhatsReadIsOnActivity)
+}
 
 func testWhatsReadIsOnActivity(t *testing.T, backend store.Backend) {
 	f := startFull(t, backend, nil)
@@ -854,6 +876,7 @@ func testWhatsReadIsOnActivity(t *testing.T, backend store.Backend) {
 // Someone looking for credentials mostly misses, so a miss has to leave a mark as
 // a hit does, whatever kind of refusal it was.
 func TestEveryRefusalIsOnRecord(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	server := f.addServer(t, false)
@@ -929,6 +952,7 @@ func TestEveryRefusalIsOnRecord(t *testing.T) {
 // A file's name can hold anything but a slash, and a link can lead through one,
 // which is how a newline or a terminal's escape codes could reach a log or a screen.
 func TestAPathIsCleanedBeforeItsStored(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	id := f.addServer(t, false).id.ServerID
@@ -998,6 +1022,7 @@ func (c tokenAndCookie) Do(r *http.Request) (*http.Response, error) {
 }
 
 func TestWhatTheAgentRefusesReachesThePerson(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testWhatTheAgentRefusesReachesThePerson)
 }
 
@@ -1083,6 +1108,7 @@ func testWhatTheAgentRefusesReachesThePerson(t *testing.T, backend store.Backend
 // What can't go on record doesn't go out. The test stops the audit log taking
 // this one event with a trigger, which is SQLite's own spelling.
 func TestAReadThatCantGoOnRecordReturnsNothing(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	id := f.addServer(t, false).id.ServerID
@@ -1101,6 +1127,7 @@ func TestAReadThatCantGoOnRecordReturnsNothing(t *testing.T) {
 // An agent from before files, or one without them, says so, through the same
 // way any other failure of an agent comes back.
 func TestAnAgentThatCantReadFilesSaysSo(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	server := f.addServer(t, false)

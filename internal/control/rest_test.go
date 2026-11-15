@@ -149,6 +149,7 @@ func callREST(t *testing.T, b *browser, verb, path string, extra map[string]stri
 // are POSTs or DELETEs; and streams have none, since REST can't carry them
 // and Vanguard would answer every call with 415.
 func TestEveryMethodHasARESTPath(t *testing.T) {
+	t.Parallel()
 	rules := map[string]restMethod{}
 	for _, m := range restMethods(t) {
 		rules[m.procedure] = m
@@ -236,7 +237,10 @@ func TestEveryMethodHasARESTPath(t *testing.T) {
 	}
 }
 
-func TestRESTPathsWithASession(t *testing.T) { storetest.Each(t, testRESTPathsWithASession) }
+func TestRESTPathsWithASession(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testRESTPathsWithASession)
+}
 
 func testRESTPathsWithASession(t *testing.T, backend store.Backend) {
 	srv := startFull(t, backend, nil)
@@ -311,6 +315,7 @@ func testRESTPathsWithASession(t *testing.T, backend store.Backend) {
 // from the panel; one with an API token needs no origin, since no browser
 // adds the token for a page.
 func TestRESTRefusesCrossSiteRequests(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testRESTRefusesCrossSiteRequests)
 }
 
@@ -553,6 +558,7 @@ func h2cTransport(t *testing.T, addr string) *http.Transport {
 // One token works with every protocol the API speaks, and stops working,
 // streams included, the moment it is revoked.
 func TestATokenWorksWithEveryProtocol(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testATokenWorksWithEveryProtocol)
 }
 
@@ -690,7 +696,10 @@ func wantForToken(procedure string, md protoreflect.MethodDescriptor, scope dock
 // TestWhatEachTokenMayCall calls every procedure, and every REST path,
 // with a read-only and a read-write token. Each must be refused exactly
 // when its effect, or its service, puts it out of the token's reach.
-func TestWhatEachTokenMayCall(t *testing.T) { storetest.Each(t, testWhatEachTokenMayCall) }
+func TestWhatEachTokenMayCall(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testWhatEachTokenMayCall)
+}
 
 func testWhatEachTokenMayCall(t *testing.T, backend store.Backend) {
 	srv := startFull(t, backend, nil)
@@ -764,7 +773,10 @@ func testWhatEachTokenMayCall(t *testing.T, backend store.Backend) {
 }
 
 // A token is refused the same way over every protocol, and says why.
-func TestTokenRefusalsSayWhy(t *testing.T) { storetest.Each(t, testTokenRefusalsSayWhy) }
+func TestTokenRefusalsSayWhy(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testTokenRefusalsSayWhy)
+}
 
 func testTokenRefusalsSayWhy(t *testing.T, backend store.Backend) {
 	srv := startFull(t, backend, nil)
@@ -801,7 +813,10 @@ func testTokenRefusalsSayWhy(t *testing.T, backend store.Backend) {
 
 // A token's expiry can be a ttl, which the control plane adds to its own
 // clock, so a client whose clock is off doesn't move it.
-func TestCreateTokenWithATTL(t *testing.T) { storetest.Each(t, testCreateTokenWithATTL) }
+func TestCreateTokenWithATTL(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testCreateTokenWithATTL)
+}
 
 func testCreateTokenWithATTL(t *testing.T, backend store.Backend) {
 	srv := startFull(t, backend, nil)
@@ -841,6 +856,7 @@ func testCreateTokenWithATTL(t *testing.T, backend store.Backend) {
 // Every REST path finds its own method before Vanguard reads it, so who's calling is
 // checked for that method first, whatever its path variables hold.
 func TestEveryRESTPathFindsItsMethod(t *testing.T) {
+	t.Parallel()
 	routes := restRoutes()
 	for _, m := range restMethods(t) {
 		got, ok := routes.procedureOf(m.verb, fillPath(m.path))
@@ -857,6 +873,7 @@ func TestEveryRESTPathFindsItsMethod(t *testing.T) {
 // are read: someone signed out learns they're signed out, and someone whose
 // role doesn't cover the call learns that, however wrong the request.
 func TestRESTChecksTheCallerBeforeTheRequest(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		f := startFull(t, backend, nil)
 		b := signedIn(t, f)

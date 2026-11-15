@@ -33,6 +33,7 @@ func dnsEdit(name string, p *resourcev1.DnsProvider) *dockwellv1.Edit {
 // change, event or answer; a developer sees names and zones alone, and can't check
 // or save one (ADR 0088).
 func TestAnAdminConnectsADNSProvider(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	c := changeClient(b, b.origin)
@@ -132,6 +133,7 @@ func TestAnAdminConnectsADNSProvider(t *testing.T) {
 // A Global API Key can do anything the account can, so it's refused as a provider's
 // token wherever one is saved, not only by the live check (review of #605, M2).
 func TestAGlobalAPIKeyIsNeverSaved(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	c := changeClient(b, b.origin)

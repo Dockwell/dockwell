@@ -91,7 +91,10 @@ func (f *fullServer) addReadingServer(t *testing.T, root string, hello func(*age
 	return s
 }
 
-func TestAServersUpdates(t *testing.T) { storetest.Each(t, testAServersUpdates) }
+func TestAServersUpdates(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testAServersUpdates)
+}
 
 func testAServersUpdates(t *testing.T, backend store.Backend) {
 	f := startFull(t, backend, nil)
@@ -182,6 +185,7 @@ func testAServersUpdates(t *testing.T, backend store.Backend) {
 }
 
 func TestASlowReadAnswersWhileItChecks(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	server := f.addReadingServer(t, aptStand(t, 5*time.Second), nil)
@@ -214,6 +218,7 @@ func TestASlowReadAnswersWhileItChecks(t *testing.T) {
 }
 
 func TestNoUpdatesThroughAnOlderAgent(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	root := aptStand(t, 0)
@@ -234,6 +239,7 @@ func TestNoUpdatesThroughAnOlderAgent(t *testing.T) {
 // A token reads a server's updates, as it reads the rest of what a server is, but
 // can't have it reach its mirrors: Check now takes a person.
 func TestATokenCantCheckNow(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	root := aptStand(t, 0)

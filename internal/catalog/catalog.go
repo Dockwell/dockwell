@@ -51,15 +51,15 @@ type Catalog struct {
 // builtIn is what ships in the binary, Dockwell/catalog's snapshot, read once.
 var builtIn = sync.OnceValues(func() (*Catalog, error) { return load(snapshot.Entries(), "*.yaml") })
 
-// DirEnv names a directory of entries, read each time and taking over from an entry
-// of Dockwell's own of the same ID. It's what a newer release looks like before the
-// catalog can bring one, for trying an entry and for the tests that upgrade one.
+// DirEnv names a directory of entries, taking over from an entry of Dockwell's own of
+// the same ID. It's what a newer release looks like before the catalog can bring one,
+// for trying an entry. The control plane reads it as it starts, and the entries in
+// the directory each time.
 const DirEnv = "DOCKWELL_CATALOG_DIR"
 
-// FromDir returns the entries DirEnv names, or an empty catalog without it, read
-// each time.
-func FromDir() (*Catalog, error) {
-	dir := os.Getenv(DirEnv)
+// FromDir returns the entries in dir, as DirEnv names one, or an empty catalog for
+// none, read each time.
+func FromDir(dir string) (*Catalog, error) {
 	if dir == "" {
 		return &Catalog{}, nil
 	}
@@ -85,7 +85,7 @@ func Load(commit string) (*Catalog, error) {
 	if err != nil {
 		return nil, err
 	}
-	more, err := FromDir()
+	more, err := FromDir(os.Getenv(DirEnv))
 	if err != nil {
 		return nil, err
 	}

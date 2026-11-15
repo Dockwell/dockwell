@@ -61,6 +61,7 @@ func noteSays(c *dockwellv1.Change, reason, words string) bool {
 // asked of Docker; leaves a pull request's preview and Coolify itself, saying why;
 // lists each app's domains for later; and reads again as done.
 func TestImportingFromCoolifyTakesOnWhatRuns(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)
@@ -185,6 +186,7 @@ func TestImportingFromCoolifyTakesOnWhatRuns(t *testing.T) {
 // with their domains from their labels, and leaves what it runs as Swarm services,
 // with the domains Dokploy's Traefik files give an application, saying why.
 func TestImportingFromDokployTakesOnItsComposeApps(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	root := t.TempDir()
@@ -288,6 +290,7 @@ func swarmService(name, image string, labels map[string]string) docker.ServiceSp
 // says to update it, and one that reaches no Docker says to check Docker, as no
 // update would help.
 func TestNoPanelOrAnOldAgentSaysSo(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	f.addDockerServer(t)

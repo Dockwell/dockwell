@@ -16,7 +16,6 @@ import (
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
-	"github.com/dockwell/dockwell/internal/catalog"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
 	"github.com/dockwell/dockwell/internal/store"
@@ -29,8 +28,9 @@ import (
 // every project that shares it or an admin, a plan that names what each loses, and
 // its name typed (ADR 0084).
 func TestAnAppBacksUpAndRestoresItsOwnDatabase(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
-	t.Setenv(catalog.DirEnv, dir)
+	useCatalogDir(t, dir)
 	if err := os.WriteFile(filepath.Join(dir, "blog.yaml"), []byte(blogEntry), 0o600); err != nil {
 		t.Fatal(err)
 	}

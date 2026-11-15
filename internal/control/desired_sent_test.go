@@ -25,6 +25,7 @@ import (
 // A fill that sent a server's agent values is a server event on the timeline,
 // with its counts and whether the cache was new, and never the cache's ID (ADR 0054).
 func TestAFillIsOnTheServersTimeline(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testAFillIsOnTheServersTimeline)
 }
 
@@ -93,6 +94,7 @@ func testAFillIsOnTheServersTimeline(t *testing.T, backend store.Backend) {
 // What a server's agent did on its own reads through the API as server events, each
 // with the resource and why, as the recorder kept them (ADR 0054).
 func TestWhatAnAgentDidOnItsOwnIsOnTheTimeline(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testWhatAnAgentDidOnItsOwnIsOnTheTimeline)
 }
 
@@ -129,6 +131,7 @@ func testWhatAnAgentDidOnItsOwnIsOnTheTimeline(t *testing.T, backend store.Backe
 // a project, whether they ask for everything or for the server (ADR 0049, ADR
 // 0054).
 func TestWhatAnAgentDidOnItsOwnIsAnAdminsToRead(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		s := newReachStand(t, backend)
 		ctx := t.Context()

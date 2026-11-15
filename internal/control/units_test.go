@@ -105,6 +105,7 @@ func actedOn(t *testing.T, c dockwellv1connect.ChangeServiceClient, change *dock
 // disabling one is undone by enabling it again; what stands as asked is refused
 // with why; and a token can't plan one.
 func TestActingOnAUnitIsAChangeWithAPlan(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	stand := systemtest.New(t,
@@ -186,6 +187,7 @@ func TestActingOnAUnitIsAChangeWithAPlan(t *testing.T) {
 // the name asked, and by an alias on the server; restarting SSH takes a passkey;
 // restarting Docker the typed code too.
 func TestWhatDockwellNeedsIsGuarded(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	stand := systemtest.New(t,
@@ -235,6 +237,7 @@ func TestWhatDockwellNeedsIsGuarded(t *testing.T) {
 // An agent older than the control plane would ignore the action, so none is planned
 // through it.
 func TestAnOlderAgentIsntAskedToActOnAUnit(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	stand := systemtest.New(t, systemtest.Unit{Props: systemtest.Running("nginx.service")})
@@ -311,6 +314,7 @@ func TestTheSystemLogIsReadOnRecordAndAFailureSaysWhy(t *testing.T) {
 // refused planning an action, applying one an admin planned, and reading the log
 // (ADR 0082, ADR 0049).
 func TestADeveloperCantActOnAUnit(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	stand := systemtest.New(t, systemtest.Unit{Props: systemtest.Running("nginx.service")})

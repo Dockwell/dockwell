@@ -23,6 +23,7 @@ import (
 // gone from the fleet, its agent's stream ends at once, and a removed server can't
 // be removed again (ADR 0090).
 func TestAnAdminRemovesAServer(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	f.addServerNamed(t, "hz-1", nil, nil)
@@ -93,6 +94,7 @@ func TestAnAdminRemovesAServer(t *testing.T) {
 // over everything on it, in an environment no protection holds, can't plan, apply
 // or discard a removal, marked compromised or not, with their passkey or without.
 func TestOnlyAnAdminActsOnARemoval(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	f.addServerNamed(t, "hz-1", nil, nil)
@@ -167,6 +169,7 @@ func TestOnlyAnAdminActsOnARemoval(t *testing.T) {
 // A server with nothing on it, as one that has just joined, is removed with a plan
 // that edits nothing and says it leaves (ADR 0090).
 func TestAnEmptyServerIsRemoved(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	f.addServerNamed(t, "hz-1", nil, nil)
