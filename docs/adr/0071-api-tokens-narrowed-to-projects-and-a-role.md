@@ -1,6 +1,6 @@
 # 0071. API tokens narrowed to projects and to a role
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-10
 
 ## Context
@@ -54,7 +54,7 @@ By each method's reach:
 - **Running a task is refused** with `token_places`. A shell task runs as root on its servers (ADR 0053), which reaches every project there.
 - **Lists and named objects** are narrowed and trimmed as for anyone below an admin, as both key on grants on the install, and `token_places` covers the first gate, which checks the highest grant anywhere.
 
-So an admin's token narrowed to `shop` deploys, plans and reads in `shop`, and applies in `shop`'s production. It sees the servers by name and state only, can't read or change anything of another project or of the install's own, and what it plans that reaches past `shop` waits for a person.
+So an admin's token narrowed to `shop` deploys, plans and reads in `shop`, and applies in `shop`'s production. It sees the servers by name and state only, and can't read or change anything of another project or of the install's own. One thing reaches past `shop`, as it does for a developer of `shop` alone: an app of another project that uses a value in `shop` restarts when the token changes that value, and where that app's environment is protected, the change waits for a person ([ADR 0084](0084-what-an-app-needs-met-by-a-new-service-one-you-run-or-a-connection.md), what a change takes in). Anything else it plans that reaches past `shop` waits for a person.
 
 ### What a token capped at a role does
 
@@ -69,24 +69,29 @@ So an admin's token narrowed to `shop` deploys, plans and reads in `shop`, and a
 
 - **`CreateToken`** takes `projects`, each an ID or a name, kept as IDs, up to 100, and `role`: developer, viewer, or unset for the maker's.
   - A project the maker holds nothing in is refused in the same words as one that isn't there, as out of reach answers as missing (ADR 0049). A cap at or above their highest role is refused too, as it would be no cap.
+  - Making a token in a session begun with a sign-in provider always takes a passkey tap, whatever the person chose for how often ([ADR 0075](0075-how-often-a-passkey-is-asked-for-again.md)), as such a session never has a passkey's hour ([ADR 0095](0095-signing-in-to-the-panel-with-a-provider.md)).
   - The step-up for making a token keeps no target. With the same proof, a person could make a token that isn't narrowed at all, so a narrowed one asks no more.
 - **`Token`** carries its projects, each with its ID and its name as it is now, and its role. `ListTokens` shows them. A project that has been deleted shows as gone, and one its maker no longer reaches shows as out of reach, not by its new name.
 - **The panel's API tokens page** asks both when a token is made, with the defaults first, under the design system's interaction principles:
   - Projects: "Every project you hold", or projects picked from a list of the maker's.
   - Acts as: "Your role", Developer or Viewer. Developer shows one line on what happens in a protected environment.
   - Each token's row says where it acts and as what, such as "shop, blog · developer" or "Every project you hold".
+  - Members' plan to remove someone says the same of each token it would revoke, so whoever removes them sees what each could reach.
+- **A token Dockwell makes for one project's CI,** such as push-to-deploy's ([#253](https://github.com/Dockwell/dockwell/issues/253)), is narrowed to that project and capped at developer by default, so the first token most people get is the narrow one. Whoever makes it may widen it.
+  - As built for deploy on push ([ADR 0046](0046-builds-from-git.md)): each hook keeps a project list and a role, as a token does, set to its app's project and developer when it's made, and a hook from before takes its app's project then. A push acts with them, so it deploys in its app's project alone, and into a protected environment, production by its name included, it plans and waits for a person. A refusal names the hook, not a token, and its fix is a person's deploy.
+  - Unlike a token's, a hook's role can change, as the hook is made in one step and its secret kept where it was given. On its sheet, its maker, while an admin where the app is, may choose "Deploy without waiting" for a protected environment: one step away, with a passkey (step-up 109, for that service), and the hook acts as an admin, still in its app's project alone, so a push there applies with no person. Choosing to wait again takes no passkey. Someone the hook doesn't act for can't change it, and a new secret from someone else makes a widened hook wait again, as its new maker chooses for themselves. Nobody below an admin sees the choice.
+  - A hook's change is someone else's to everyone, its maker included, as a narrowed token's is, so whoever applies its waiting plan approves it with the fingerprint and a passkey.
 - **The CLI** gets `--project`, which repeats, and `--role` from the schema, like every other field, and the MCP server will when it comes.
 - **`token.create`'s detail** names the projects and the role. A call refused for a token's places is audited as `role.refuse` is, at most once an hour for each token and method with a count of the rest (ADR 0049), naming the token's projects.
-- **The store** gives `api_tokens` two columns, read in the query that already checks a token: `projects`, NULL for every project its maker holds and otherwise the IDs it names, so a list that's emptied, by a cleanup or a hand edit, reaches no project rather than every one; and `role`, empty for the maker's and held to developer or viewer. Tokens made before this have NULL and empty, so they act as they do today. A narrowed token whose projects are all deleted reaches none, which a test checks.
+- **The store** gives `api_tokens` two columns, in migration 0043, read in the query that already checks a token: `projects`, NULL for every project its maker holds and otherwise the IDs it names, so a list that's emptied, by a cleanup or a hand edit, reaches no project rather than every one; and `role`, empty for the maker's and held to developer or viewer. Tokens made before this have NULL and empty, so they act as they do today. A narrowed token whose projects are all deleted reaches none, which a test checks.
 - **An older control plane can't widen a narrowed token:** it refuses a store with a newer schema (`internal/store/migrate.go`), so it can't open it at all. ADR 0057's bundles carry the new columns.
 
 ### What changes a narrowed token's reach later
 
-- **A project its maker loses** is lost to the token too, as it acts as its maker does now.
+- **Lowering its maker, anywhere, or removing them revokes it,** as it revokes every token they made ([ADR 0049](0049-roles-and-invites-by-project.md), "Managing members"). So a narrowed token never goes on below what it was made with.
 - **A project created later** is reached by a token that isn't narrowed, if its maker reaches it, and never by a narrowed one.
-- **A project deleted** stays on the token by ID and reaches nothing. A token whose projects are all gone reaches only what anyone may call, as it holds no grant.
-- **The maker's role dropping below the cap** lowers the token with it: the lower of the two always applies.
-- **The maker's role rising** raises an uncapped token with it, within what a narrowed token holds above: a developer made an admin gives their narrowed token an admin's say in its projects' protected environments. A capped token stays at its cap. In the panel, "Your role" reads as the maker's role as it changes, not as it is now.
+- **A project deleted** stays on the token by ID and reaches nothing. It shows as gone, and no new token can name it. A token whose projects are all gone reaches only what anyone may call, as it holds no grant. Undoing the deletion brings back the same project, by the same ID, and with it the token's reach there. The token can't undo it itself, as a project is an admin's of the install.
+- **The maker's role rising** raises an uncapped token with it, within what a narrowed token holds above: a developer made an admin gives their narrowed token an admin's say in its projects' protected environments. A capped token stays at its cap. In the panel, "Your role" reads as the maker's role as it changes, not as it is now. A raise widens every token that isn't capped (ADR 0049), so a cap is how a CI token stays what it was made for when its maker is made an admin.
 
 ### Not decided here
 

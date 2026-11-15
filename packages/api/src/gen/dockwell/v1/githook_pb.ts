@@ -6,6 +6,8 @@
 
 import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
 import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
+import type { Role } from "./auth_pb";
+import { file_dockwell_v1_auth } from "./auth_pb";
 import type { Actor } from "./change_pb";
 import { file_dockwell_v1_change } from "./change_pb";
 import { file_dockwell_v1_options } from "./options_pb";
@@ -18,7 +20,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/githook.proto.
  */
 export const file_dockwell_v1_githook: GenFile = /*@__PURE__*/
-  fileDesc("Chlkb2Nrd2VsbC92MS9naXRob29rLnByb3RvEgtkb2Nrd2VsbC52MSLyAQoHR2l0SG9vaxIKCgJpZBgBIAEoCRISCgpzZXJ2aWNlX2lkGAIgASgJEgsKA3VybBgDIAEoCRImCgpjcmVhdGVkX2J5GAQgASgLMhIuZG9ja3dlbGwudjEuQWN0b3ISLwoLY3JlYXRlX3RpbWUYBSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi8KC3NlY3JldF90aW1lGAYgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIwCgpkZWxpdmVyaWVzGAcgAygLMhwuZG9ja3dlbGwudjEuR2l0SG9va0RlbGl2ZXJ5ItABCg9HaXRIb29rRGVsaXZlcnkSEwoLZGVsaXZlcnlfaWQYASABKAkSKAoEdGltZRgCIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASEAoIcHJvdmlkZXIYAyABKAkSCwoDcmVmGAQgASgJEg4KBmNvbW1pdBgFIAEoCRIsCgdvdXRjb21lGAYgASgOMhsuZG9ja3dlbGwudjEuR2l0SG9va091dGNvbWUSEQoJY2hhbmdlX2lkGAcgASgJEg4KBmRldGFpbBgIIAEoCSJXChRDcmVhdGVHaXRIb29rUmVxdWVzdBIKCgJpZBgBIAEoCRIPCgdwcm9qZWN0GAIgASgJEhMKC2Vudmlyb25tZW50GAMgASgJEg0KBXByb29mGAQgASgJIksKFUNyZWF0ZUdpdEhvb2tSZXNwb25zZRIiCgRob29rGAEgASgLMhQuZG9ja3dlbGwudjEuR2l0SG9vaxIOCgZzZWNyZXQYAiABKAkiRQoRR2V0R2l0SG9va1JlcXVlc3QSCgoCaWQYASABKAkSDwoHcHJvamVjdBgCIAEoCRITCgtlbnZpcm9ubWVudBgDIAEoCSI4ChJHZXRHaXRIb29rUmVzcG9uc2USIgoEaG9vaxgBIAEoCzIULmRvY2t3ZWxsLnYxLkdpdEhvb2siXQoaUm90YXRlR2l0SG9va1NlY3JldFJlcXVlc3QSCgoCaWQYASABKAkSDwoHcHJvamVjdBgCIAEoCRITCgtlbnZpcm9ubWVudBgDIAEoCRINCgVwcm9vZhgEIAEoCSJRChtSb3RhdGVHaXRIb29rU2VjcmV0UmVzcG9uc2USIgoEaG9vaxgBIAEoCzIULmRvY2t3ZWxsLnYxLkdpdEhvb2sSDgoGc2VjcmV0GAIgASgJIkgKFERlbGV0ZUdpdEhvb2tSZXF1ZXN0EgoKAmlkGAEgASgJEg8KB3Byb2plY3QYAiABKAkSEwoLZW52aXJvbm1lbnQYAyABKAkiFwoVRGVsZXRlR2l0SG9va1Jlc3BvbnNlKpACCg5HaXRIb29rT3V0Y29tZRIgChxHSVRfSE9PS19PVVRDT01FX1VOU1BFQ0lGSUVEEAASHgoaR0lUX0hPT0tfT1VUQ09NRV9ERVBMT1lJTkcQARIhCh1HSVRfSE9PS19PVVRDT01FX05FRURTX1BFUlNPThACEhsKF0dJVF9IT09LX09VVENPTUVfUVVFVUVEEAMSIAocR0lUX0hPT0tfT1VUQ09NRV9OT1RISU5HX05FVxAEEhwKGEdJVF9IT09LX09VVENPTUVfSUdOT1JFRBAFEhsKF0dJVF9IT09LX09VVENPTUVfRkFJTEVEEAYSHwobR0lUX0hPT0tfT1VUQ09NRV9TVVBFUlNFREVEEAcyqwUKDkdpdEhvb2tTZXJ2aWNlEqABCg1DcmVhdGVHaXRIb29rEiEuZG9ja3dlbGwudjEuQ3JlYXRlR2l0SG9va1JlcXVlc3QaIi5kb2Nrd2VsbC52MS5DcmVhdGVHaXRIb29rUmVzcG9uc2UiSKC7GAOquxgLCglnaXQtaG9va3OwuxgBwLsYA8i7GATQuxgEgtPkkwIfOgEqIhovdjEvc2VydmljZXMve2lkfS9naXQtaG9vaxKTAQoKR2V0R2l0SG9vaxIeLmRvY2t3ZWxsLnYxLkdldEdpdEhvb2tSZXF1ZXN0Gh8uZG9ja3dlbGwudjEuR2V0R2l0SG9va1Jlc3BvbnNlIkSQAgGguxgBqrsYCwoJZ2l0LWhvb2tzwLsYAsi7GALQuxgEgtPkkwIcEhovdjEvc2VydmljZXMve2lkfS9naXQtaG9vaxK5AQoTUm90YXRlR2l0SG9va1NlY3JldBInLmRvY2t3ZWxsLnYxLlJvdGF0ZUdpdEhvb2tTZWNyZXRSZXF1ZXN0GiguZG9ja3dlbGwudjEuUm90YXRlR2l0SG9va1NlY3JldFJlc3BvbnNlIk+guxgDqrsYCwoJZ2l0LWhvb2tzsLsYAcC7GAPIuxgE0LsYBILT5JMCJjoBKiIhL3YxL3NlcnZpY2VzL3tpZH0vZ2l0LWhvb2s6cm90YXRlEqMBCg1EZWxldGVHaXRIb29rEiEuZG9ja3dlbGwudjEuRGVsZXRlR2l0SG9va1JlcXVlc3QaIi5kb2Nrd2VsbC52MS5EZWxldGVHaXRIb29rUmVzcG9uc2UiS6C7GAOquxgLCglnaXQtaG9va3PAuxgDyLsYA9C7GASC0+STAiY6ASoiIS92MS9zZXJ2aWNlcy97aWR9L2dpdC1ob29rOmRlbGV0ZUKlAQoPY29tLmRvY2t3ZWxsLnYxQgxHaXRob29rUHJvdG9QAVo3Z2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvdjE7ZG9ja3dlbGx2MaICA0RYWKoCC0RvY2t3ZWxsLlYxygILRG9ja3dlbGxcVjHiAhdEb2Nrd2VsbFxWMVxHUEJNZXRhZGF0YeoCDERvY2t3ZWxsOjpWMWIGcHJvdG8z", [file_dockwell_v1_change, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
+  fileDesc("Chlkb2Nrd2VsbC92MS9naXRob29rLnByb3RvEgtkb2Nrd2VsbC52MSKTAgoHR2l0SG9vaxIKCgJpZBgBIAEoCRISCgpzZXJ2aWNlX2lkGAIgASgJEgsKA3VybBgDIAEoCRImCgpjcmVhdGVkX2J5GAQgASgLMhIuZG9ja3dlbGwudjEuQWN0b3ISLwoLY3JlYXRlX3RpbWUYBSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi8KC3NlY3JldF90aW1lGAYgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIwCgpkZWxpdmVyaWVzGAcgAygLMhwuZG9ja3dlbGwudjEuR2l0SG9va0RlbGl2ZXJ5Eh8KBHJvbGUYCSABKA4yES5kb2Nrd2VsbC52MS5Sb2xlItABCg9HaXRIb29rRGVsaXZlcnkSEwoLZGVsaXZlcnlfaWQYASABKAkSKAoEdGltZRgCIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASEAoIcHJvdmlkZXIYAyABKAkSCwoDcmVmGAQgASgJEg4KBmNvbW1pdBgFIAEoCRIsCgdvdXRjb21lGAYgASgOMhsuZG9ja3dlbGwudjEuR2l0SG9va091dGNvbWUSEQoJY2hhbmdlX2lkGAcgASgJEg4KBmRldGFpbBgIIAEoCSJXChRDcmVhdGVHaXRIb29rUmVxdWVzdBIKCgJpZBgBIAEoCRIPCgdwcm9qZWN0GAIgASgJEhMKC2Vudmlyb25tZW50GAMgASgJEg0KBXByb29mGAQgASgJIksKFUNyZWF0ZUdpdEhvb2tSZXNwb25zZRIiCgRob29rGAEgASgLMhQuZG9ja3dlbGwudjEuR2l0SG9vaxIOCgZzZWNyZXQYAiABKAkiRQoRR2V0R2l0SG9va1JlcXVlc3QSCgoCaWQYASABKAkSDwoHcHJvamVjdBgCIAEoCRITCgtlbnZpcm9ubWVudBgDIAEoCSI4ChJHZXRHaXRIb29rUmVzcG9uc2USIgoEaG9vaxgBIAEoCzIULmRvY2t3ZWxsLnYxLkdpdEhvb2siXQoaUm90YXRlR2l0SG9va1NlY3JldFJlcXVlc3QSCgoCaWQYASABKAkSDwoHcHJvamVjdBgCIAEoCRITCgtlbnZpcm9ubWVudBgDIAEoCRINCgVwcm9vZhgEIAEoCSJRChtSb3RhdGVHaXRIb29rU2VjcmV0UmVzcG9uc2USIgoEaG9vaxgBIAEoCzIULmRvY2t3ZWxsLnYxLkdpdEhvb2sSDgoGc2VjcmV0GAIgASgJInkKFVNldEdpdEhvb2tSb2xlUmVxdWVzdBIKCgJpZBgBIAEoCRIPCgdwcm9qZWN0GAIgASgJEhMKC2Vudmlyb25tZW50GAMgASgJEh8KBHJvbGUYBCABKA4yES5kb2Nrd2VsbC52MS5Sb2xlEg0KBXByb29mGAUgASgJIjwKFlNldEdpdEhvb2tSb2xlUmVzcG9uc2USIgoEaG9vaxgBIAEoCzIULmRvY2t3ZWxsLnYxLkdpdEhvb2siSAoURGVsZXRlR2l0SG9va1JlcXVlc3QSCgoCaWQYASABKAkSDwoHcHJvamVjdBgCIAEoCRITCgtlbnZpcm9ubWVudBgDIAEoCSIXChVEZWxldGVHaXRIb29rUmVzcG9uc2UqkAIKDkdpdEhvb2tPdXRjb21lEiAKHEdJVF9IT09LX09VVENPTUVfVU5TUEVDSUZJRUQQABIeChpHSVRfSE9PS19PVVRDT01FX0RFUExPWUlORxABEiEKHUdJVF9IT09LX09VVENPTUVfTkVFRFNfUEVSU09OEAISGwoXR0lUX0hPT0tfT1VUQ09NRV9RVUVVRUQQAxIgChxHSVRfSE9PS19PVVRDT01FX05PVEhJTkdfTkVXEAQSHAoYR0lUX0hPT0tfT1VUQ09NRV9JR05PUkVEEAUSGwoXR0lUX0hPT0tfT1VUQ09NRV9GQUlMRUQQBhIfChtHSVRfSE9PS19PVVRDT01FX1NVUEVSU0VERUQQBzLaBgoOR2l0SG9va1NlcnZpY2USoAEKDUNyZWF0ZUdpdEhvb2sSIS5kb2Nrd2VsbC52MS5DcmVhdGVHaXRIb29rUmVxdWVzdBoiLmRvY2t3ZWxsLnYxLkNyZWF0ZUdpdEhvb2tSZXNwb25zZSJIoLsYA6q7GAsKCWdpdC1ob29rc7C7GAHAuxgDyLsYBNC7GASC0+STAh86ASoiGi92MS9zZXJ2aWNlcy97aWR9L2dpdC1ob29rEpMBCgpHZXRHaXRIb29rEh4uZG9ja3dlbGwudjEuR2V0R2l0SG9va1JlcXVlc3QaHy5kb2Nrd2VsbC52MS5HZXRHaXRIb29rUmVzcG9uc2UiRJACAaC7GAGquxgLCglnaXQtaG9va3PAuxgCyLsYAtC7GASC0+STAhwSGi92MS9zZXJ2aWNlcy97aWR9L2dpdC1ob29rErkBChNSb3RhdGVHaXRIb29rU2VjcmV0EicuZG9ja3dlbGwudjEuUm90YXRlR2l0SG9va1NlY3JldFJlcXVlc3QaKC5kb2Nrd2VsbC52MS5Sb3RhdGVHaXRIb29rU2VjcmV0UmVzcG9uc2UiT6C7GAOquxgLCglnaXQtaG9va3OwuxgBwLsYA8i7GATQuxgEgtPkkwImOgEqIiEvdjEvc2VydmljZXMve2lkfS9naXQtaG9vazpyb3RhdGUSrAEKDlNldEdpdEhvb2tSb2xlEiIuZG9ja3dlbGwudjEuU2V0R2l0SG9va1JvbGVSZXF1ZXN0GiMuZG9ja3dlbGwudjEuU2V0R2l0SG9va1JvbGVSZXNwb25zZSJRoLsYA6q7GAsKCWdpdC1ob29rc7C7GAHAuxgDyLsYBNC7GASC0+STAig6ASoiIy92MS9zZXJ2aWNlcy97aWR9L2dpdC1ob29rOnNldC1yb2xlEqMBCg1EZWxldGVHaXRIb29rEiEuZG9ja3dlbGwudjEuRGVsZXRlR2l0SG9va1JlcXVlc3QaIi5kb2Nrd2VsbC52MS5EZWxldGVHaXRIb29rUmVzcG9uc2UiS6C7GAOquxgLCglnaXQtaG9va3PAuxgDyLsYA9C7GASC0+STAiY6ASoiIS92MS9zZXJ2aWNlcy97aWR9L2dpdC1ob29rOmRlbGV0ZUKlAQoPY29tLmRvY2t3ZWxsLnYxQgxHaXRob29rUHJvdG9QAVo3Z2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvdjE7ZG9ja3dlbGx2MaICA0RYWKoCC0RvY2t3ZWxsLlYxygILRG9ja3dlbGxcVjHiAhdEb2Nrd2VsbFxWMVxHUEJNZXRhZGF0YeoCDERvY2t3ZWxsOjpWMWIGcHJvdG8z", [file_dockwell_v1_auth, file_dockwell_v1_change, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
 
 /**
  * GitHook is a service's hook, which deploys it on a push.
@@ -75,6 +77,15 @@ export type GitHook = Message<"dockwell.v1.GitHook"> & {
    * @generated from field: repeated dockwell.v1.GitHookDelivery deliveries = 7;
    */
   deliveries: GitHookDelivery[];
+
+  /**
+   * The role it acts as at most in its service's project: ROLE_DEVELOPER, so a
+   * push into a protected environment waits for a person, or ROLE_ADMIN, so it
+   * deploys there too. ROLE_UNSPECIFIED is its maker's role.
+   *
+   * @generated from field: dockwell.v1.Role role = 9;
+   */
+  role: Role;
 };
 
 /**
@@ -353,6 +364,78 @@ export const RotateGitHookSecretResponseSchema: GenMessage<RotateGitHookSecretRe
   messageDesc(file_dockwell_v1_githook, 7);
 
 /**
+ * SetGitHookRoleRequest names a service, the role its hook acts as at most, and
+ * for ROLE_ADMIN, proves a passkey.
+ *
+ * @generated from message dockwell.v1.SetGitHookRoleRequest
+ */
+export type SetGitHookRoleRequest = Message<"dockwell.v1.SetGitHookRoleRequest"> & {
+  /**
+   * The service, by ID or by name.
+   *
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * The project of a service named by name, by name or ID.
+   *
+   * @generated from field: string project = 2;
+   */
+  project: string;
+
+  /**
+   * The environment of a service named by name, by name or ID.
+   *
+   * @generated from field: string environment = 3;
+   */
+  environment: string;
+
+  /**
+   * ROLE_DEVELOPER or ROLE_ADMIN.
+   *
+   * @generated from field: dockwell.v1.Role role = 4;
+   */
+  role: Role;
+
+  /**
+   * The proof from AuthService.FinishStepUp, for widening a hook. Only
+   * ROLE_ADMIN needs one.
+   *
+   * @generated from field: string proof = 5;
+   */
+  proof: string;
+};
+
+/**
+ * Describes the message dockwell.v1.SetGitHookRoleRequest.
+ * Use `create(SetGitHookRoleRequestSchema)` to create a new message.
+ */
+export const SetGitHookRoleRequestSchema: GenMessage<SetGitHookRoleRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_githook, 8);
+
+/**
+ * SetGitHookRoleResponse is the hook as it is now.
+ *
+ * @generated from message dockwell.v1.SetGitHookRoleResponse
+ */
+export type SetGitHookRoleResponse = Message<"dockwell.v1.SetGitHookRoleResponse"> & {
+  /**
+   * The hook.
+   *
+   * @generated from field: dockwell.v1.GitHook hook = 1;
+   */
+  hook?: GitHook | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.SetGitHookRoleResponse.
+ * Use `create(SetGitHookRoleResponseSchema)` to create a new message.
+ */
+export const SetGitHookRoleResponseSchema: GenMessage<SetGitHookRoleResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_githook, 9);
+
+/**
  * DeleteGitHookRequest names a service.
  *
  * @generated from message dockwell.v1.DeleteGitHookRequest
@@ -385,7 +468,7 @@ export type DeleteGitHookRequest = Message<"dockwell.v1.DeleteGitHookRequest"> &
  * Use `create(DeleteGitHookRequestSchema)` to create a new message.
  */
 export const DeleteGitHookRequestSchema: GenMessage<DeleteGitHookRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_githook, 8);
+  messageDesc(file_dockwell_v1_githook, 10);
 
 /**
  * DeleteGitHookResponse says the hook is gone.
@@ -400,7 +483,7 @@ export type DeleteGitHookResponse = Message<"dockwell.v1.DeleteGitHookResponse">
  * Use `create(DeleteGitHookResponseSchema)` to create a new message.
  */
 export const DeleteGitHookResponseSchema: GenMessage<DeleteGitHookResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_githook, 9);
+  messageDesc(file_dockwell_v1_githook, 11);
 
 /**
  * GitHookOutcome is what came of a push.
@@ -477,8 +560,11 @@ export const GitHookOutcomeSchema: GenEnum<GitHookOutcome> = /*@__PURE__*/
  * the branch names then, and applies it with an API token's rights: one that
  * needs a person stays planned. See docs/adr/0046-builds-from-git.md.
  *
- * A hook acts for the person who made it. Making one, and a new secret for one,
- * takes a signed-in person and a passkey; a write token may delete one.
+ * A hook acts for the person who made it, narrowed as an API token is to its
+ * service's project, as a developer at most, so a push into a protected
+ * environment plans and waits for a person (ADR 0071). Making one, a new secret
+ * for one, and letting one deploy without waiting take a signed-in person and a
+ * passkey; a write token may delete one.
  *
  * @generated from service dockwell.v1.GitHookService
  */
@@ -519,6 +605,21 @@ export const GitHookService: GenService<{
     methodKind: "unary";
     input: typeof RotateGitHookSecretRequestSchema;
     output: typeof RotateGitHookSecretResponseSchema;
+  },
+  /**
+   * SetGitHookRole sets the role a service's hook acts as at most in its project:
+   * ROLE_DEVELOPER, as it's made, so a push into a protected environment plans
+   * and waits for a person, or ROLE_ADMIN, so it deploys there without waiting.
+   * It's the hook's maker's choice. ROLE_ADMIN takes their being an admin where
+   * the service is, and a proof from AuthService.FinishStepUp for widening a
+   * hook, with the service's ID as its target; ROLE_DEVELOPER takes neither.
+   *
+   * @generated from rpc dockwell.v1.GitHookService.SetGitHookRole
+   */
+  setGitHookRole: {
+    methodKind: "unary";
+    input: typeof SetGitHookRoleRequestSchema;
+    output: typeof SetGitHookRoleResponseSchema;
   },
   /**
    * DeleteGitHook turns deploy on push off for a service: pushes stop

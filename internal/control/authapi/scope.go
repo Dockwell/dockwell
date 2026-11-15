@@ -86,6 +86,7 @@ var idNames = map[string]string{
 	dockwellv1connect.GitHookServiceCreateGitHookProcedure:              "service",
 	dockwellv1connect.GitHookServiceGetGitHookProcedure:                 "service",
 	dockwellv1connect.GitHookServiceRotateGitHookSecretProcedure:        "service",
+	dockwellv1connect.GitHookServiceSetGitHookRoleProcedure:             "service",
 	dockwellv1connect.GitHookServiceDeleteGitHookProcedure:              "service",
 }
 

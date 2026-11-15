@@ -511,8 +511,9 @@ func checkCopyFrom(items []item, it *item, u *resourcev1.DatabaseUser) error {
 // a restore of the app's database alone on a server it may share: the link has to
 // meet that server, whose service keeps its data in the item's volume, and the role
 // it needs is where the link is, a developer, or an admin where that's protected and
-// the change applies; a protected server's environment holds too, as an admin's
-// (ADR 0084). To one who holds nothing where the link is, it reads as not there.
+// the change applies; on a server in a protected environment, an admin where that
+// server is (ADR 0084, ADR 0071). To one who holds nothing where the link is, it
+// reads as not there.
 func (e *Engine) forLinkRoles(ctx context.Context, tx *store.Tx, grants []store.Grant, it *item, server spot, byID map[string]*item, a act) error {
 	link, err := e.load(ctx, tx, it.forLink)
 	if err != nil {
@@ -548,8 +549,10 @@ func (e *Engine) forLinkRoles(ctx context.Context, tx *store.Tx, grants []store.
 	case a != planning && at.Protected:
 		needs, why = store.RoleAdmin, "it restores "+it.forLink.Name+"'s database for an app in a protected environment"
 	case a != planning && server.Protected:
+		// The role where the server is alone: a token narrowed to the link's project holds
+		// admin there, which never counts on another project's protected server (ADR 0071).
 		needs, why = store.RoleAdmin, "it restores a database on a server in a protected environment"
-		held = maxRole(held, place.Holds(grants, server.Place))
+		held = place.Holds(grants, server.Place)
 	}
 	if store.RoleRank(held) < store.RoleRank(needs) {
 		return &Refusal{act: a, Held: held, Needs: needs, Why: why}
@@ -609,12 +612,4 @@ func (e *Engine) linkedRestoreRoles(ctx context.Context, tx *store.Tx, grants []
 		}
 	}
 	return nil
-}
-
-// maxRole is the higher of two roles.
-func maxRole(a, b string) string {
-	if store.RoleRank(b) > store.RoleRank(a) {
-		return b
-	}
-	return a
 }

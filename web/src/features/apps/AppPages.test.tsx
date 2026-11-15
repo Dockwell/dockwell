@@ -36,8 +36,10 @@ import {
   Role,
   type RollBackServiceRequest,
   RollbackState,
+  type SetGitHookRoleRequest,
   StepProgressSchema,
   StepState,
+  StepUpAction,
   Surface,
   TokenScope,
   type WatchBuildResponse,
@@ -63,7 +65,7 @@ import {
   running,
   SERVER,
 } from "../../test/apps";
-import { authState, mira } from "../../test/auth";
+import { authError, authState, mira, stubPasskeys } from "../../test/auth";
 import { applied, moved, watched, webPlanned } from "../../test/changes";
 import { type Api, feed, onPhone, renderAt } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
@@ -4099,6 +4101,145 @@ describe("an app's deployments, for an app that builds from Git", () => {
       "href",
       "https://github.com/acme/web/settings/hooks",
     );
+  });
+
+  it("says a push plans a deploy for a person where the environment is protected", async () => {
+    const app = builtApp();
+    const hook = { id: "ghk_1", serviceId: "svc_web", url: "https://panel.example.com/hooks/git/ghk_1" };
+    const plain = places();
+    renderAt(
+      "/apps/svc_web",
+      api([app], {
+        resources: {
+          listResources: (req: { kind: string }) => {
+            const res = plain.listResources(req);
+            for (const r of res.resources) if (r.id === ENV) r.protected = true;
+            return res;
+          },
+        },
+        services: { listServices: () => ({ services: [app] }), listServiceRevisions: () => ({ revisions: [] }) },
+        hooks: { getGitHook: () => ({ hook }) },
+      }),
+    );
+    const source = (await screen.findByRole("heading", { name: "Source" })).closest("section") as HTMLElement;
+    const push = await within(source).findByRole("switch", { name: "Deploy on push" });
+    // A hook acts as a developer at most, so here its push waits for a person (ADR 0071).
+    await waitFor(() =>
+      expect(push).toHaveAccessibleDescription(
+        "Each push to main plans a deploy of web, which waits for a person here.",
+      ),
+    );
+  });
+
+  /** The API's places, with production protected. */
+  function protectedPlaces() {
+    const plain = places();
+    return {
+      listResources: (req: { kind: string }) => {
+        const res = plain.listResources(req);
+        for (const r of res.resources) if (r.id === ENV) r.protected = true;
+        return res;
+      },
+    };
+  }
+
+  it("lets the hook's maker, an admin, deploy without waiting where it's protected, with a passkey, and wait again", async () => {
+    stubPasskeys();
+    const app = builtApp();
+    const set: SetGitHookRoleRequest[] = [];
+    const steps: unknown[] = [];
+    let hook = {
+      id: "ghk_1",
+      serviceId: "svc_web",
+      url: "https://panel.example.com/hooks/git/ghk_1",
+      createdBy: { kind: ActorKind.USER, id: mira.id, name: mira.name },
+      role: Role.DEVELOPER,
+    };
+    renderAt(
+      "/apps/svc_web",
+      api([app], {
+        resources: protectedPlaces(),
+        services: { listServices: () => ({ services: [app] }), listServiceRevisions: () => ({ revisions: [] }) },
+        hooks: {
+          getGitHook: () => ({ hook }),
+          setGitHookRole: (req) => {
+            set.push(req);
+            if (req.role === Role.ADMIN && req.proof === "") throw authError(Code.PermissionDenied, "needs_step_up");
+            hook = { ...hook, role: req.role };
+            return { hook };
+          },
+        },
+        auth: {
+          getAuthState: () => authState(),
+          beginStepUp: (req) => {
+            steps.push(req);
+            return { ceremonyId: "cer_1", optionsJson: JSON.stringify({ challenge: "q83v", rpId: "localhost" }) };
+          },
+          finishStepUp: () => ({ proof: "proof_1" }),
+        },
+      }),
+    );
+    const user = userEvent.setup();
+    const source = (await screen.findByRole("heading", { name: "Source" })).closest("section") as HTMLElement;
+    const push = await within(source).findByRole("switch", { name: "Deploy on push" });
+    await waitFor(() =>
+      expect(push).toHaveAccessibleDescription(
+        "Each push to main plans a deploy of web, which waits for a person here.",
+      ),
+    );
+
+    await user.click(await within(source).findByRole("button", { name: "Set up" }));
+    const sheet = await screen.findByRole("dialog", { name: "Deploy web on push" });
+    const choice = await within(sheet).findByRole("switch", { name: "Deploy without waiting" });
+    expect(choice).not.toBeChecked();
+    expect(choice).toHaveAccessibleDescription("Each push into production applies with no person's approval.");
+    await user.click(choice);
+    await waitFor(() => expect(choice).toBeChecked());
+    expect(steps).toEqual([expect.objectContaining({ action: StepUpAction.WIDEN_GIT_HOOK, target: "svc_web" })]);
+    expect(set.at(-1)).toEqual(expect.objectContaining({ id: "svc_web", role: Role.ADMIN, proof: "proof_1" }));
+    await user.click(within(sheet).getByRole("button", { name: "Done" }));
+    await waitFor(() => expect(push).toHaveAccessibleDescription("Each push to main deploys web."));
+
+    // Waiting again takes no passkey.
+    await user.click(within(source).getByRole("button", { name: "Set up" }));
+    const again = await screen.findByRole("dialog", { name: "Deploy web on push" });
+    await user.click(await within(again).findByRole("switch", { name: "Deploy without waiting" }));
+    await waitFor(() =>
+      expect(within(again).getByRole("switch", { name: "Deploy without waiting" })).not.toBeChecked(),
+    );
+    expect(set.at(-1)).toEqual(expect.objectContaining({ role: Role.DEVELOPER, proof: "" }));
+    expect(steps).toHaveLength(1);
+  });
+
+  it("never offers deploying without waiting to a developer, nor to an admin the hook doesn't act for", async () => {
+    const app = builtApp();
+    for (const [who, maker] of [
+      [{ ...mira, role: Role.DEVELOPER }, mira.id],
+      [mira, "usr_someone_else"],
+    ] as const) {
+      const hook = {
+        id: "ghk_1",
+        serviceId: "svc_web",
+        url: "https://panel.example.com/hooks/git/ghk_1",
+        createdBy: { kind: ActorKind.USER, id: maker, name: "Someone" },
+        role: Role.DEVELOPER,
+      };
+      const { unmount } = renderAt(
+        "/apps/svc_web",
+        api([app], {
+          resources: protectedPlaces(),
+          services: { listServices: () => ({ services: [app] }), listServiceRevisions: () => ({ revisions: [] }) },
+          hooks: { getGitHook: () => ({ hook }) },
+          auth: { getAuthState: () => authState({ user: who }) },
+        }),
+      );
+      const source = (await screen.findByRole("heading", { name: "Source" })).closest("section") as HTMLElement;
+      await userEvent.setup().click(await within(source).findByRole("button", { name: "Set up" }));
+      const sheet = await screen.findByRole("dialog", { name: "Deploy web on push" });
+      expect(within(sheet).getByText("https://panel.example.com/hooks/git/ghk_1")).toBeVisible();
+      expect(within(sheet).queryByRole("switch", { name: "Deploy without waiting" })).not.toBeInTheDocument();
+      unmount();
+    }
   });
 
   it("says what the last push came to in a line, and gives the hook a new secret", async () => {

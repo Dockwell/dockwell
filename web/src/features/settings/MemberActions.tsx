@@ -3,7 +3,7 @@
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
 import { createConnectQueryKey, useQuery, useTransport } from "@connectrpc/connect-query";
-import { type Member, MemberService, ResourceService, Role, StepUpAction } from "@dockwell/api";
+import { type Member, MemberService, ResourceService, Role, StepUpAction, TokenRole } from "@dockwell/api";
 import { Button, Callout, SelectField, Sheet } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
@@ -436,17 +436,30 @@ function RemoveSheet({ member, onClose }: { member: Member; onClose: () => void 
                   t`None`
                 ) : (
                   <ul className="members-removal-list">
-                    {p.tokens.map((token) => (
-                      <li key={token.id}>
-                        {token.name}
-                        <span className="members-muted">
-                          {" · "}
-                          {token.lastUsedTime
-                            ? t`last used ${time.ago(timestampDate(token.lastUsedTime), now)}`
-                            : t`never used`}
-                        </span>
-                      </li>
-                    ))}
+                    {p.tokens.map((token) => {
+                      // Where each acts and as what, as the API tokens page says it (ADR 0071).
+                      const where = token.projects.map((place) => place.name || t`a project that's gone`).join(", ");
+                      const as =
+                        token.role === TokenRole.DEVELOPER
+                          ? t`as a developer at most`
+                          : token.role === TokenRole.VIEWER
+                            ? t`as a viewer at most`
+                            : "";
+                      return (
+                        <li key={token.id}>
+                          {token.name}
+                          <span className="members-muted">
+                            {" · "}
+                            {where ? t`in ${where}` : t`every project they hold`}
+                            {as ? ` · ${as}` : null}
+                            {" · "}
+                            {token.lastUsedTime
+                              ? t`last used ${time.ago(timestampDate(token.lastUsedTime), now)}`
+                              : t`never used`}
+                          </span>
+                        </li>
+                      );
+                    })}
                   </ul>
                 )}
               </dd>

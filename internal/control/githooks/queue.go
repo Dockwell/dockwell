@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"time"
 
@@ -116,7 +117,7 @@ func (h *Handler) deploy(l *lane, j *job) {
 		// role, read for each push, where the service is, as the API checks a call.
 		ctx, err := authapi.Check(asHook, h.cfg.Auth, h.cfg.Logger, dockwellv1connect.ServiceServiceDeployServiceProcedure, &dockwellv1.DeployServiceRequest{Id: svc})
 		if err != nil {
-			h.end(asHook, &d, svc, store.HookFailed, "The hook's maker may not deploy it now: "+message(err))
+			h.end(asHook, &d, svc, store.HookFailed, "This hook may not deploy it now: "+message(err))
 			return
 		}
 		b, name, _, err := h.cfg.Services.BuildOf(ctx, svc, "", "")
@@ -371,9 +372,12 @@ func (h *Handler) discard(ctx context.Context, changeID string) {
 }
 
 // stillOn reports a push's hook as it was when the push came: on, with the same
-// secret and maker. Turning it off, or giving it a new secret, as after one
-// leaked, ends what its pushes would still deploy, and the plan one left, if any.
-// A hook turned off took its deliveries with it, so there's nothing to record.
+// secret and maker, narrowed as it was. Turning it off, or giving it a new secret,
+// as after one leaked, ends what its pushes would still deploy, and the plan one
+// left, if any. Narrowing it since, as turning Deploy without waiting off, leaves
+// a plan the push made for a person, and ends a push that hasn't planned yet: the
+// rights it came with aren't the hook's any more (ADR 0071). A hook turned off
+// took its deliveries with it, so there's nothing to record.
 func (h *Handler) stillOn(ctx context.Context, hook store.GitHook, d *store.GitHookDelivery, svc, planned string) bool {
 	var now store.GitHook
 	err := h.cfg.DB.View(ctx, func(tx *store.Tx) error {
@@ -382,8 +386,15 @@ func (h *Handler) stillOn(ctx context.Context, hook store.GitHook, d *store.GitH
 		return err
 	})
 	switch {
-	case err == nil && now.SecretAt.Equal(hook.SecretAt) && now.UserID == hook.UserID:
+	case err == nil && now.SecretAt.Equal(hook.SecretAt) && now.UserID == hook.UserID && !narrowedSince(hook, now):
 		return true
+	case err == nil && now.SecretAt.Equal(hook.SecretAt) && now.UserID == hook.UserID:
+		if planned != "" {
+			h.waitForPerson(ctx, d, svc, planned, "came while Deploy on push could deploy without waiting, which has changed since")
+			return false
+		}
+		h.end(ctx, d, svc, store.HookIgnored, "Deploy on push changed what it may do after this push came, so it deploys nothing. Push again, or deploy it from the panel")
+		return false
 	case err != nil && !errors.Is(err, store.ErrNotFound):
 		// It can't be read: the push goes on, as the next step reads its maker again.
 		h.cfg.Logger.WarnContext(ctx, "can't read a push's hook", slog.String("hook", hook.ID), slog.String("error", err.Error()))
@@ -396,6 +407,12 @@ func (h *Handler) stillOn(ctx context.Context, hook store.GitHook, d *store.GitH
 		h.end(ctx, d, svc, store.HookIgnored, "Deploy on push got a new secret after this push came, so it deploys nothing")
 	}
 	return false
+}
+
+// narrowedSince says the hook's role or projects are not what they were when a
+// push came, so the rights the push holds aren't the hook's now.
+func narrowedSince(then, now store.GitHook) bool {
+	return then.Role != now.Role || !slices.Equal(then.Projects, now.Projects) || (then.Projects == nil) != (now.Projects == nil)
 }
 
 // end keeps what a push came to.

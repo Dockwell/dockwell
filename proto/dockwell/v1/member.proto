@@ -6,6 +6,7 @@ package dockwell.v1;
 
 import "dockwell/v1/auth.proto";
 import "dockwell/v1/options.proto";
+import "dockwell/v1/token.proto";
 import "google/api/annotations.proto";
 import "google/protobuf/timestamp.proto";
 
@@ -371,6 +372,11 @@ message RemovalToken {
   string name = 2;
   // When it was last used. Unset when it never was.
   google.protobuf.Timestamp last_used_time = 3;
+  // Where it acts and as what, as Token says it (ADR 0071): the projects it's
+  // narrowed to, none for every project its maker holds, and the role it acts as
+  // at most.
+  repeated TokenProject projects = 4;
+  TokenRole role = 5;
 }
 
 // RemovalLink is an account at a sign-in provider a removal would delete.

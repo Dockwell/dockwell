@@ -1118,7 +1118,12 @@ type RemovalToken struct {
 	Id    string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	Name  string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
 	// When it was last used. Unset when it never was.
-	LastUsedTime  *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=last_used_time,json=lastUsedTime,proto3" json:"last_used_time,omitempty"`
+	LastUsedTime *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=last_used_time,json=lastUsedTime,proto3" json:"last_used_time,omitempty"`
+	// Where it acts and as what, as Token says it (ADR 0071): the projects it's
+	// narrowed to, none for every project its maker holds, and the role it acts as
+	// at most.
+	Projects      []*TokenProject `protobuf:"bytes,4,rep,name=projects,proto3" json:"projects,omitempty"`
+	Role          TokenRole       `protobuf:"varint,5,opt,name=role,proto3,enum=dockwell.v1.TokenRole" json:"role,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1172,6 +1177,20 @@ func (x *RemovalToken) GetLastUsedTime() *timestamppb.Timestamp {
 		return x.LastUsedTime
 	}
 	return nil
+}
+
+func (x *RemovalToken) GetProjects() []*TokenProject {
+	if x != nil {
+		return x.Projects
+	}
+	return nil
+}
+
+func (x *RemovalToken) GetRole() TokenRole {
+	if x != nil {
+		return x.Role
+	}
+	return TokenRole_TOKEN_ROLE_UNSPECIFIED
 }
 
 // RemovalLink is an account at a sign-in provider a removal would delete.
@@ -1630,7 +1649,7 @@ var File_dockwell_v1_member_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_member_proto_rawDesc = "" +
 	"\n" +
-	"\x18dockwell/v1/member.proto\x12\vdockwell.v1\x1a\x16dockwell/v1/auth.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x82\x01\n" +
+	"\x18dockwell/v1/member.proto\x12\vdockwell.v1\x1a\x16dockwell/v1/auth.proto\x1a\x19dockwell/v1/options.proto\x1a\x17dockwell/v1/token.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x82\x01\n" +
 	"\x13CreateInviteRequest\x12\x14\n" +
 	"\x05email\x18\x01 \x01(\tR\x05email\x12%\n" +
 	"\x04role\x18\x02 \x01(\x0e2\x11.dockwell.v1.RoleR\x04role\x12\x18\n" +
@@ -1709,11 +1728,13 @@ const file_dockwell_v1_member_proto_rawDesc = "" +
 	"\vRemovalHook\x12\x1d\n" +
 	"\n" +
 	"service_id\x18\x01 \x01(\tR\tserviceId\x12!\n" +
-	"\fservice_name\x18\x02 \x01(\tR\vserviceName\"t\n" +
+	"\fservice_name\x18\x02 \x01(\tR\vserviceName\"\xd7\x01\n" +
 	"\fRemovalToken\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12@\n" +
-	"\x0elast_used_time\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\flastUsedTime\"C\n" +
+	"\x0elast_used_time\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\flastUsedTime\x125\n" +
+	"\bprojects\x18\x04 \x03(\v2\x19.dockwell.v1.TokenProjectR\bprojects\x12*\n" +
+	"\x04role\x18\x05 \x01(\x0e2\x16.dockwell.v1.TokenRoleR\x04role\"C\n" +
 	"\vRemovalLink\x12\x1a\n" +
 	"\bprovider\x18\x01 \x01(\tR\bprovider\x12\x18\n" +
 	"\aaccount\x18\x02 \x01(\tR\aaccount\"v\n" +
@@ -1806,6 +1827,8 @@ var file_dockwell_v1_member_proto_goTypes = []any{
 	(Role)(0),                          // 24: dockwell.v1.Role
 	(*timestamppb.Timestamp)(nil),      // 25: google.protobuf.Timestamp
 	(*User)(nil),                       // 26: dockwell.v1.User
+	(*TokenProject)(nil),               // 27: dockwell.v1.TokenProject
+	(TokenRole)(0),                     // 28: dockwell.v1.TokenRole
 }
 var file_dockwell_v1_member_proto_depIdxs = []int32{
 	24, // 0: dockwell.v1.CreateInviteRequest.role:type_name -> dockwell.v1.Role
@@ -1831,30 +1854,32 @@ var file_dockwell_v1_member_proto_depIdxs = []int32{
 	16, // 20: dockwell.v1.PlanMemberRemovalResponse.links:type_name -> dockwell.v1.RemovalLink
 	14, // 21: dockwell.v1.PlanMemberRemovalResponse.hooks:type_name -> dockwell.v1.RemovalHook
 	25, // 22: dockwell.v1.RemovalToken.last_used_time:type_name -> google.protobuf.Timestamp
-	25, // 23: dockwell.v1.RemovalChange.create_time:type_name -> google.protobuf.Timestamp
-	9,  // 24: dockwell.v1.TransferOwnershipResponse.member:type_name -> dockwell.v1.Member
-	25, // 25: dockwell.v1.ConfirmProtectionsResponse.confirm_time:type_name -> google.protobuf.Timestamp
-	7,  // 26: dockwell.v1.MemberService.ListMembers:input_type -> dockwell.v1.ListMembersRequest
-	1,  // 27: dockwell.v1.MemberService.CreateInvite:input_type -> dockwell.v1.CreateInviteRequest
-	3,  // 28: dockwell.v1.MemberService.RevokeInvite:input_type -> dockwell.v1.RevokeInviteRequest
-	10, // 29: dockwell.v1.MemberService.SetMemberRole:input_type -> dockwell.v1.SetMemberRoleRequest
-	12, // 30: dockwell.v1.MemberService.PlanMemberRemoval:input_type -> dockwell.v1.PlanMemberRemovalRequest
-	18, // 31: dockwell.v1.MemberService.RemoveMember:input_type -> dockwell.v1.RemoveMemberRequest
-	20, // 32: dockwell.v1.MemberService.TransferOwnership:input_type -> dockwell.v1.TransferOwnershipRequest
-	22, // 33: dockwell.v1.MemberService.ConfirmProtections:input_type -> dockwell.v1.ConfirmProtectionsRequest
-	8,  // 34: dockwell.v1.MemberService.ListMembers:output_type -> dockwell.v1.ListMembersResponse
-	2,  // 35: dockwell.v1.MemberService.CreateInvite:output_type -> dockwell.v1.CreateInviteResponse
-	4,  // 36: dockwell.v1.MemberService.RevokeInvite:output_type -> dockwell.v1.RevokeInviteResponse
-	11, // 37: dockwell.v1.MemberService.SetMemberRole:output_type -> dockwell.v1.SetMemberRoleResponse
-	13, // 38: dockwell.v1.MemberService.PlanMemberRemoval:output_type -> dockwell.v1.PlanMemberRemovalResponse
-	19, // 39: dockwell.v1.MemberService.RemoveMember:output_type -> dockwell.v1.RemoveMemberResponse
-	21, // 40: dockwell.v1.MemberService.TransferOwnership:output_type -> dockwell.v1.TransferOwnershipResponse
-	23, // 41: dockwell.v1.MemberService.ConfirmProtections:output_type -> dockwell.v1.ConfirmProtectionsResponse
-	34, // [34:42] is the sub-list for method output_type
-	26, // [26:34] is the sub-list for method input_type
-	26, // [26:26] is the sub-list for extension type_name
-	26, // [26:26] is the sub-list for extension extendee
-	0,  // [0:26] is the sub-list for field type_name
+	27, // 23: dockwell.v1.RemovalToken.projects:type_name -> dockwell.v1.TokenProject
+	28, // 24: dockwell.v1.RemovalToken.role:type_name -> dockwell.v1.TokenRole
+	25, // 25: dockwell.v1.RemovalChange.create_time:type_name -> google.protobuf.Timestamp
+	9,  // 26: dockwell.v1.TransferOwnershipResponse.member:type_name -> dockwell.v1.Member
+	25, // 27: dockwell.v1.ConfirmProtectionsResponse.confirm_time:type_name -> google.protobuf.Timestamp
+	7,  // 28: dockwell.v1.MemberService.ListMembers:input_type -> dockwell.v1.ListMembersRequest
+	1,  // 29: dockwell.v1.MemberService.CreateInvite:input_type -> dockwell.v1.CreateInviteRequest
+	3,  // 30: dockwell.v1.MemberService.RevokeInvite:input_type -> dockwell.v1.RevokeInviteRequest
+	10, // 31: dockwell.v1.MemberService.SetMemberRole:input_type -> dockwell.v1.SetMemberRoleRequest
+	12, // 32: dockwell.v1.MemberService.PlanMemberRemoval:input_type -> dockwell.v1.PlanMemberRemovalRequest
+	18, // 33: dockwell.v1.MemberService.RemoveMember:input_type -> dockwell.v1.RemoveMemberRequest
+	20, // 34: dockwell.v1.MemberService.TransferOwnership:input_type -> dockwell.v1.TransferOwnershipRequest
+	22, // 35: dockwell.v1.MemberService.ConfirmProtections:input_type -> dockwell.v1.ConfirmProtectionsRequest
+	8,  // 36: dockwell.v1.MemberService.ListMembers:output_type -> dockwell.v1.ListMembersResponse
+	2,  // 37: dockwell.v1.MemberService.CreateInvite:output_type -> dockwell.v1.CreateInviteResponse
+	4,  // 38: dockwell.v1.MemberService.RevokeInvite:output_type -> dockwell.v1.RevokeInviteResponse
+	11, // 39: dockwell.v1.MemberService.SetMemberRole:output_type -> dockwell.v1.SetMemberRoleResponse
+	13, // 40: dockwell.v1.MemberService.PlanMemberRemoval:output_type -> dockwell.v1.PlanMemberRemovalResponse
+	19, // 41: dockwell.v1.MemberService.RemoveMember:output_type -> dockwell.v1.RemoveMemberResponse
+	21, // 42: dockwell.v1.MemberService.TransferOwnership:output_type -> dockwell.v1.TransferOwnershipResponse
+	23, // 43: dockwell.v1.MemberService.ConfirmProtections:output_type -> dockwell.v1.ConfirmProtectionsResponse
+	36, // [36:44] is the sub-list for method output_type
+	28, // [28:36] is the sub-list for method input_type
+	28, // [28:28] is the sub-list for extension type_name
+	28, // [28:28] is the sub-list for extension extendee
+	0,  // [0:28] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_member_proto_init() }
@@ -1864,6 +1889,7 @@ func file_dockwell_v1_member_proto_init() {
 	}
 	file_dockwell_v1_auth_proto_init()
 	file_dockwell_v1_options_proto_init()
+	file_dockwell_v1_token_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{

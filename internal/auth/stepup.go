@@ -82,6 +82,9 @@ const (
 	// StepUpRotateGitHook gives a service's hook a new secret. Its target is the
 	// service's ID.
 	StepUpRotateGitHook StepUpAction = "git_hook.rotate"
+	// StepUpWidenGitHook lets a service's hook deploy without waiting where its
+	// environment is protected. Its target is the service's ID.
+	StepUpWidenGitHook StepUpAction = "git_hook.widen" //nolint:gosec // an action's name, not a credential
 	// StepUpEndProcess ends a process on a server. Its target is the server's ID
 	// and the process's, as "srv_…:1234".
 	StepUpEndProcess StepUpAction = "process.end"
@@ -162,6 +165,7 @@ var stepUpActions = map[StepUpAction]struct {
 	StepUpSaveWayBackIn:   {"saving", true},
 	StepUpCreateGitHook:   {"turning deploy on push on for", true},
 	StepUpRotateGitHook:   {"making a new hook secret for", true},
+	StepUpWidenGitHook:    {"letting deploy on push go without waiting for", true},
 	StepUpEndProcess:      {"ending process", true},
 	StepUpOpenTerminal:    {"opening a terminal on", true},
 	StepUpApproveChange:   {"approving", true},

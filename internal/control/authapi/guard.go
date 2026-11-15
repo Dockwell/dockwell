@@ -496,6 +496,9 @@ func (i *interceptor) gate(ctx context.Context, p auth.Principal, procedure stri
 // a role. A stream's rechecks don't: what ended it was a change to a grant,
 // audited as it was made.
 func (i *interceptor) gateCall(ctx context.Context, client auth.Client, p auth.Principal, procedure string) (context.Context, error) {
+	if outsideTokenPlaces(p, procedure) {
+		return ctx, ReasonError(connect.CodePermissionDenied, i.svc.RefuseTokenPlaces(ctx, client, p, procedure, pastTokenPlaces[procedure], true), ReasonTokenPlaces)
+	}
 	ctx, held, needs, err := i.check(ctx, p, procedure)
 	if err != nil && needs != "" {
 		i.svc.RefuseRole(ctx, client, p, procedure, held, needs)
@@ -510,6 +513,10 @@ func (i *interceptor) check(ctx context.Context, p auth.Principal, procedure str
 	if !known && unroled[procedure] {
 		return ctx, "", "", nil // gRPC's health and reflection, which read nothing of anyone's
 	}
+	if outsideTokenPlaces(p, procedure) {
+		// For a stream's recheck: gateCall refused and audited it as the call opened.
+		return ctx, "", "", ReasonError(connect.CodePermissionDenied, i.svc.RefuseTokenPlaces(ctx, auth.Client{}, p, procedure, pastTokenPlaces[procedure], false), ReasonTokenPlaces)
+	}
 	needs = roleOf(r.needs)
 	if needs == "" {
 		return ctx, "", "", nil
@@ -521,13 +528,33 @@ func (i *interceptor) check(ctx context.Context, p auth.Principal, procedure str
 	}
 	held = auth.Highest(grants)
 	if store.RoleRank(held) >= store.RoleRank(needs) {
-		return place.WithCaller(ctx, place.Caller{UserID: p.User.ID, Grants: grants}), "", "", nil
+		caller := place.Caller{UserID: p.User.ID, Grants: grants}
+		if p.Token != nil {
+			caller.TokenID, caller.TokenRole, caller.TokenInProjects = p.Token.ID, p.Token.Role, p.Token.Projects != nil
+		}
+		return place.WithCaller(ctx, caller), "", "", nil
 	}
 	if why, ok := adminsBecause[procedure]; ok && held != "" && needs == store.RoleAdmin {
 		return ctx, held, needs, ReasonError(connect.CodePermissionDenied,
 			fmt.Errorf("%s, which only an admin or the owner can do, and %s, so it didn't happen. Ask one of them", why, youAre(p, held)), ReasonNeedsRole)
 	}
 	return ctx, held, needs, ReasonError(connect.CodePermissionDenied, roleRefusal(p, held, needs), ReasonNeedsRole)
+}
+
+// outsideTokenPlaces reports a call of the install's own made with a token
+// narrowed to projects, which reaches none of it (ADR 0071). Within its projects
+// it holds grants on them alone, so the places a call names are checked as they
+// are for anyone who holds projects alone.
+func outsideTokenPlaces(p auth.Principal, procedure string) bool {
+	return p.Token != nil && p.Token.Projects != nil &&
+		(roleRules[procedure].reach == dockwellv1.Reach_REACH_INSTALL || pastTokenPlaces[procedure] != "")
+}
+
+// pastTokenPlaces are calls that name a project and reach past it, which a token
+// narrowed to projects never makes, with what they reach (ADR 0071).
+var pastTokenPlaces = map[string]string{
+	// A shell task runs as root on its servers (ADR 0053).
+	dockwellv1connect.TaskServiceRunTaskProcedure: "running a task runs a shell as root on its servers, which every project there shares",
 }
 
 // unroled are the calls outside dockwell.v1 that need no role: gRPC's health,
@@ -554,8 +581,13 @@ func roleRefusal(p auth.Principal, held, needs string) error {
 		who, whose = "this API token's maker is "+aRole(held), "its maker's"
 	}
 	switch {
+	case held == "" && p.Token != nil && p.Token.Projects != nil:
+		return errors.New("this API token's projects are gone, or its maker holds nothing in them any more, so it can't make calls. Make another token")
 	case held == "" && p.Token != nil:
 		return errors.New("this API token's maker holds no role on this install any more, so it can't make calls. Ask an admin, or use another token")
+	case p.Token != nil && p.Token.Role != "" && store.RoleRank(p.Token.Role) < store.RoleRank(needs):
+		return fmt.Errorf("only %s can do this, and this API token acts as %s at most, so it didn't happen. Use a token that acts as you do",
+			atLeast(needs), aRole(p.Token.Role))
 	case held == "":
 		return errors.New("you hold no role on this install any more, so you can only sign out. Ask an admin to add you again")
 	case needs == store.RoleOwner:

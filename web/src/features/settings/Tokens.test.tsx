@@ -7,8 +7,12 @@ import {
   type BeginStepUpRequest,
   type CreateTokenRequest,
   type FinishStepUpRequest,
+  Role,
+  RoleGrantSchema,
   StepUpAction,
   TokenGrant,
+  TokenProjectSchema,
+  TokenRole,
   TokenSchema,
   TokenScope,
 } from "@dockwell/api";
@@ -223,6 +227,89 @@ describe("API tokens", () => {
     expect(sent).toMatchObject({ name: "Log shipper", scope: TokenScope.READ_ONLY, grants: [TokenGrant.LOGS] });
     expect(sent?.expiration.case).toBeUndefined();
     expect(await screen.findByText(/It doesn't expire\./)).toBeVisible();
+  });
+
+  it("makes a token that acts in projects picked from yours, as a role below yours", async () => {
+    stubPasskeys();
+    const createToken = confirmed((req: CreateTokenRequest) => ({
+      token: create(TokenSchema, {
+        ...deploy,
+        id: "tok_new",
+        name: req.name,
+        projects: [create(TokenProjectSchema, { id: "prj_blog", name: "blog" })],
+        role: req.role,
+      }),
+      secret,
+    }));
+    const projects = [
+      { id: "prj_shop", resource: { kind: "project", name: "shop" } },
+      { id: "prj_blog", resource: { kind: "project", name: "blog" } },
+    ];
+    const listResources = vi.fn(() => ({ resources: projects }));
+    renderAt("/settings/api-tokens", {
+      ...api({ createToken }),
+      resources: { listResources },
+    });
+    const form = within(await screen.findByRole("region", { name: "Create a token" }));
+    // Every project you hold, as you, until changed.
+    expect(form.getByText("In every project you hold, as you")).toBeVisible();
+    await userEvent.click(form.getByRole("button", { name: "Change" }));
+    const picked = within(await form.findByRole("group", { name: "Projects" }));
+    await userEvent.click(picked.getByRole("checkbox", { name: "blog" }));
+    // The owner may cap it at developer or viewer; their own role is "Your role".
+    const acts = form.getByRole("combobox", { name: "Acts as" });
+    expect(
+      within(acts)
+        .getAllByRole("option")
+        .map((o) => o.textContent),
+    ).toEqual(["Your role", "Developer", "Viewer"]);
+    await userEvent.selectOptions(acts, "Developer");
+    expect(form.getByText("Its changes in a protected environment wait for an admin.")).toBeVisible();
+    expect(form.getByText("In blog, as a developer")).toBeVisible();
+
+    await userEvent.type(form.getByRole("textbox", { name: "Name" }), "Blog deploy");
+    await userEvent.click(form.getByRole("button", { name: "Create token" }));
+    await waitFor(() => expect(createToken).toHaveBeenCalledTimes(2));
+    expect(createToken.mock.calls[1]?.[0]).toMatchObject({ projects: ["prj_blog"], role: TokenRole.DEVELOPER });
+    // The form goes back to its defaults.
+    expect(await form.findByText("In every project you hold, as you")).toBeVisible();
+  });
+
+  it("offers a developer only the viewer's role below theirs, and a viewer no role at all", async () => {
+    const developer = authState({ grants: [create(RoleGrantSchema, { projectId: "prj_blog", role: Role.DEVELOPER })] });
+    renderAt("/settings/api-tokens", {
+      ...api(),
+      auth: { ...api().auth, getAuthState: () => developer },
+      resources: {
+        listResources: () => ({ resources: [{ id: "prj_blog", resource: { kind: "project", name: "blog" } }] }),
+      },
+    });
+    const form = within(await screen.findByRole("region", { name: "Create a token" }));
+    await userEvent.click(form.getByRole("button", { name: "Change" }));
+    const acts = await form.findByRole("combobox", { name: "Acts as" });
+    expect(
+      within(acts)
+        .getAllByRole("option")
+        .map((o) => o.textContent),
+    ).toEqual(["Your role", "Viewer"]);
+  });
+
+  it("shows where a narrowed token acts and as what", async () => {
+    const narrowed = create(TokenSchema, {
+      ...deploy,
+      projects: [
+        create(TokenProjectSchema, { id: "prj_shop", name: "shop" }),
+        create(TokenProjectSchema, { id: "prj_gone", name: "" }),
+      ],
+      role: TokenRole.VIEWER,
+    });
+    renderAt("/settings/api-tokens", api({ listTokens: () => ({ tokens: [narrowed, grafana] }) }));
+    const table = await screen.findByRole("table", { name: "Your API tokens" });
+    const [, first, second] = within(table).getAllByRole("row");
+    expect(first).toHaveTextContent("in:shop, a project that's goneas:viewer");
+    // One for every project says so too.
+    expect(second).toHaveTextContent("in:every project you hold");
+    expect(second).not.toHaveTextContent("as:");
   });
 
   it("asks for a name before making a token, and says why one wasn't made", async () => {

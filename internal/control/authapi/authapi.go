@@ -409,6 +409,7 @@ var stepUpActions = map[dockwellv1.StepUpAction]auth.StepUpAction{
 	dockwellv1.StepUpAction_STEP_UP_ACTION_SAVE_WAY_BACK_IN:          auth.StepUpSaveWayBackIn,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_CREATE_GIT_HOOK:           auth.StepUpCreateGitHook,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_ROTATE_GIT_HOOK:           auth.StepUpRotateGitHook,
+	dockwellv1.StepUpAction_STEP_UP_ACTION_WIDEN_GIT_HOOK:            auth.StepUpWidenGitHook,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_END_PROCESS:               auth.StepUpEndProcess,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_OPEN_TERMINAL:             auth.StepUpOpenTerminal,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_APPROVE_CHANGE:            auth.StepUpApproveChange,
@@ -766,6 +767,9 @@ const (
 	// ReasonNeedsRole: the call needs a role the caller doesn't hold, or for
 	// an API token, its maker doesn't (ADR 0049).
 	ReasonNeedsRole = "needs_role"
+	// ReasonTokenPlaces: the call is the install's own, and the API token is
+	// narrowed to projects, so it reaches none of it (ADR 0071).
+	ReasonTokenPlaces = "token_places"
 	// ReasonNeedsStepUp: the call needs a fresh passkey assertion for it,
 	// from FinishStepUp, and its proof is missing, used, expired, or for
 	// something else.
@@ -856,6 +860,8 @@ var codes = []struct {
 	{auth.ErrBelowFloor, connect.CodeFailedPrecondition, "below_floor"},
 	{auth.ErrHookExists, connect.CodeAlreadyExists, "hook_exists"},
 	{auth.ErrNoHook, connect.CodeNotFound, "no_hook"},
+	{auth.ErrHookNotYours, connect.CodePermissionDenied, "hook_not_yours"},
+	{auth.ErrHookAdminOnly, connect.CodePermissionDenied, ReasonNeedsRole},
 }
 
 func (h *Handler) rpcError(ctx context.Context, err error) error {

@@ -17,7 +17,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/token.proto.
  */
 export const file_dockwell_v1_token: GenFile = /*@__PURE__*/
-  fileDesc("Chdkb2Nrd2VsbC92MS90b2tlbi5wcm90bxILZG9ja3dlbGwudjEirAIKBVRva2VuEgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSDAoEaGludBgDIAEoCRImCgVzY29wZRgEIAEoDjIXLmRvY2t3ZWxsLnYxLlRva2VuU2NvcGUSLwoLY3JlYXRlX3RpbWUYBSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi8KC2V4cGlyZV90aW1lGAYgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIyCg5sYXN0X3VzZWRfdGltZRgHIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASFAoMbGFzdF9hZGRyZXNzGAggASgJEicKBmdyYW50cxgJIAMoDjIXLmRvY2t3ZWxsLnYxLlRva2VuR3JhbnQi7QEKEkNyZWF0ZVRva2VuUmVxdWVzdBIMCgRuYW1lGAEgASgJEiYKBXNjb3BlGAIgASgOMhcuZG9ja3dlbGwudjEuVG9rZW5TY29wZRIxCgtleHBpcmVfdGltZRgDIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXBIABIoCgN0dGwYBCABKAsyGS5nb29nbGUucHJvdG9idWYuRHVyYXRpb25IABINCgVwcm9vZhgFIAEoCRInCgZncmFudHMYBiADKA4yFy5kb2Nrd2VsbC52MS5Ub2tlbkdyYW50QgwKCmV4cGlyYXRpb24iSAoTQ3JlYXRlVG9rZW5SZXNwb25zZRIhCgV0b2tlbhgBIAEoCzISLmRvY2t3ZWxsLnYxLlRva2VuEg4KBnNlY3JldBgCIAEoCSITChFMaXN0VG9rZW5zUmVxdWVzdCI4ChJMaXN0VG9rZW5zUmVzcG9uc2USIgoGdG9rZW5zGAEgAygLMhIuZG9ja3dlbGwudjEuVG9rZW4iIAoSUmV2b2tlVG9rZW5SZXF1ZXN0EgoKAmlkGAEgASgJIhUKE1Jldm9rZVRva2VuUmVzcG9uc2UqYAoKVG9rZW5TY29wZRIbChdUT0tFTl9TQ09QRV9VTlNQRUNJRklFRBAAEhkKFVRPS0VOX1NDT1BFX1JFQURfT05MWRABEhoKFlRPS0VOX1NDT1BFX1JFQURfV1JJVEUQAjK1AwoMVG9rZW5TZXJ2aWNlEocBCgtDcmVhdGVUb2tlbhIfLmRvY2t3ZWxsLnYxLkNyZWF0ZVRva2VuUmVxdWVzdBogLmRvY2t3ZWxsLnYxLkNyZWF0ZVRva2VuUmVzcG9uc2UiNaC7GAOquxgMCgphcGktdG9rZW5zwLsYAsi7GALQuxgCgtPkkwIPOgEqIgovdjEvdG9rZW5zEoQBCgpMaXN0VG9rZW5zEh4uZG9ja3dlbGwudjEuTGlzdFRva2Vuc1JlcXVlc3QaHy5kb2Nrd2VsbC52MS5MaXN0VG9rZW5zUmVzcG9uc2UiNZACAaC7GAGquxgMCgphcGktdG9rZW5zwLsYAsi7GALQuxgCgtPkkwIMEgovdjEvdG9rZW5zEpMBCgtSZXZva2VUb2tlbhIfLmRvY2t3ZWxsLnYxLlJldm9rZVRva2VuUmVxdWVzdBogLmRvY2t3ZWxsLnYxLlJldm9rZVRva2VuUmVzcG9uc2UiQaC7GASquxgMCgphcGktdG9rZW5zwLsYAsi7GALQuxgCgtPkkwIbOgEqIhYvdjEvdG9rZW5zL3tpZH06cmV2b2tlQqMBCg9jb20uZG9ja3dlbGwudjFCClRva2VuUHJvdG9QAVo3Z2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvdjE7ZG9ja3dlbGx2MaICA0RYWKoCC0RvY2t3ZWxsLlYxygILRG9ja3dlbGxcVjHiAhdEb2Nrd2VsbFxWMVxHUEJNZXRhZGF0YeoCDERvY2t3ZWxsOjpWMWIGcHJvdG8z", [file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_duration, file_google_protobuf_timestamp]);
+  fileDesc("Chdkb2Nrd2VsbC92MS90b2tlbi5wcm90bxILZG9ja3dlbGwudjEi/wIKBVRva2VuEgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSDAoEaGludBgDIAEoCRImCgVzY29wZRgEIAEoDjIXLmRvY2t3ZWxsLnYxLlRva2VuU2NvcGUSLwoLY3JlYXRlX3RpbWUYBSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi8KC2V4cGlyZV90aW1lGAYgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIyCg5sYXN0X3VzZWRfdGltZRgHIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASFAoMbGFzdF9hZGRyZXNzGAggASgJEicKBmdyYW50cxgJIAMoDjIXLmRvY2t3ZWxsLnYxLlRva2VuR3JhbnQSKwoIcHJvamVjdHMYCiADKAsyGS5kb2Nrd2VsbC52MS5Ub2tlblByb2plY3QSJAoEcm9sZRgLIAEoDjIWLmRvY2t3ZWxsLnYxLlRva2VuUm9sZSIoCgxUb2tlblByb2plY3QSCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCSKyAgoSQ3JlYXRlVG9rZW5SZXF1ZXN0EgwKBG5hbWUYASABKAkSJgoFc2NvcGUYAiABKA4yFy5kb2Nrd2VsbC52MS5Ub2tlblNjb3BlEjEKC2V4cGlyZV90aW1lGAMgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcEgAEigKA3R0bBgEIAEoCzIZLmdvb2dsZS5wcm90b2J1Zi5EdXJhdGlvbkgAEg0KBXByb29mGAUgASgJEicKBmdyYW50cxgGIAMoDjIXLmRvY2t3ZWxsLnYxLlRva2VuR3JhbnQSHQoIcHJvamVjdHMYByADKAlCC6K7GAdwcm9qZWN0EiQKBHJvbGUYCCABKA4yFi5kb2Nrd2VsbC52MS5Ub2tlblJvbGVCDAoKZXhwaXJhdGlvbiJIChNDcmVhdGVUb2tlblJlc3BvbnNlEiEKBXRva2VuGAEgASgLMhIuZG9ja3dlbGwudjEuVG9rZW4SDgoGc2VjcmV0GAIgASgJIhMKEUxpc3RUb2tlbnNSZXF1ZXN0IjgKEkxpc3RUb2tlbnNSZXNwb25zZRIiCgZ0b2tlbnMYASADKAsyEi5kb2Nrd2VsbC52MS5Ub2tlbiIgChJSZXZva2VUb2tlblJlcXVlc3QSCgoCaWQYASABKAkiFQoTUmV2b2tlVG9rZW5SZXNwb25zZSpgCgpUb2tlblNjb3BlEhsKF1RPS0VOX1NDT1BFX1VOU1BFQ0lGSUVEEAASGQoVVE9LRU5fU0NPUEVfUkVBRF9PTkxZEAESGgoWVE9LRU5fU0NPUEVfUkVBRF9XUklURRACKlgKCVRva2VuUm9sZRIaChZUT0tFTl9ST0xFX1VOU1BFQ0lGSUVEEAASGAoUVE9LRU5fUk9MRV9ERVZFTE9QRVIQARIVChFUT0tFTl9ST0xFX1ZJRVdFUhACMrUDCgxUb2tlblNlcnZpY2UShwEKC0NyZWF0ZVRva2VuEh8uZG9ja3dlbGwudjEuQ3JlYXRlVG9rZW5SZXF1ZXN0GiAuZG9ja3dlbGwudjEuQ3JlYXRlVG9rZW5SZXNwb25zZSI1oLsYA6q7GAwKCmFwaS10b2tlbnPAuxgCyLsYAtC7GAKC0+STAg86ASoiCi92MS90b2tlbnMShAEKCkxpc3RUb2tlbnMSHi5kb2Nrd2VsbC52MS5MaXN0VG9rZW5zUmVxdWVzdBofLmRvY2t3ZWxsLnYxLkxpc3RUb2tlbnNSZXNwb25zZSI1kAIBoLsYAaq7GAwKCmFwaS10b2tlbnPAuxgCyLsYAtC7GAKC0+STAgwSCi92MS90b2tlbnMSkwEKC1Jldm9rZVRva2VuEh8uZG9ja3dlbGwudjEuUmV2b2tlVG9rZW5SZXF1ZXN0GiAuZG9ja3dlbGwudjEuUmV2b2tlVG9rZW5SZXNwb25zZSJBoLsYBKq7GAwKCmFwaS10b2tlbnPAuxgCyLsYAtC7GAKC0+STAhs6ASoiFi92MS90b2tlbnMve2lkfTpyZXZva2VCowEKD2NvbS5kb2Nrd2VsbC52MUIKVG9rZW5Qcm90b1ABWjdnaXRodWIuY29tL2RvY2t3ZWxsL2RvY2t3ZWxsL2dlbi9kb2Nrd2VsbC92MTtkb2Nrd2VsbHYxogIDRFhYqgILRG9ja3dlbGwuVjHKAgtEb2Nrd2VsbFxWMeICF0RvY2t3ZWxsXFYxXEdQQk1ldGFkYXRh6gIMRG9ja3dlbGw6OlYxYgZwcm90bzM", [file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_duration, file_google_protobuf_timestamp]);
 
 /**
  * Token is an API token, without its secret.
@@ -91,6 +91,21 @@ export type Token = Message<"dockwell.v1.Token"> & {
    * @generated from field: repeated dockwell.v1.TokenGrant grants = 9;
    */
   grants: TokenGrant[];
+
+  /**
+   * The projects it acts in, or none for every project its maker holds, now
+   * and later.
+   *
+   * @generated from field: repeated dockwell.v1.TokenProject projects = 10;
+   */
+  projects: TokenProject[];
+
+  /**
+   * The role it acts as at most, or TOKEN_ROLE_UNSPECIFIED for its maker's.
+   *
+   * @generated from field: dockwell.v1.TokenRole role = 11;
+   */
+  role: TokenRole;
 };
 
 /**
@@ -99,6 +114,35 @@ export type Token = Message<"dockwell.v1.Token"> & {
  */
 export const TokenSchema: GenMessage<Token> = /*@__PURE__*/
   messageDesc(file_dockwell_v1_token, 0);
+
+/**
+ * TokenProject is a project a token acts in.
+ *
+ * @generated from message dockwell.v1.TokenProject
+ */
+export type TokenProject = Message<"dockwell.v1.TokenProject"> & {
+  /**
+   * The project's ID, such as "prj_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+   *
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * Its name as it is now, such as "shop". Empty once it has been deleted:
+   * the token keeps its ID, and reaches nothing there.
+   *
+   * @generated from field: string name = 2;
+   */
+  name: string;
+};
+
+/**
+ * Describes the message dockwell.v1.TokenProject.
+ * Use `create(TokenProjectSchema)` to create a new message.
+ */
+export const TokenProjectSchema: GenMessage<TokenProject> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_token, 1);
 
 /**
  * CreateTokenRequest describes the new token.
@@ -159,6 +203,24 @@ export type CreateTokenRequest = Message<"dockwell.v1.CreateTokenRequest"> & {
    * @generated from field: repeated dockwell.v1.TokenGrant grants = 6;
    */
   grants: TokenGrant[];
+
+  /**
+   * The projects it acts in, each by its ID or its name, up to 100, each one
+   * its maker holds something in. Leave it empty for every project its maker
+   * holds, now and later. Narrowed, it can't call what's the install's own,
+   * such as its settings, and reads servers by name and state alone.
+   *
+   * @generated from field: repeated string projects = 7;
+   */
+  projects: string[];
+
+  /**
+   * The role it acts as at most, below its maker's. Leave it unset for its
+   * maker's role.
+   *
+   * @generated from field: dockwell.v1.TokenRole role = 8;
+   */
+  role: TokenRole;
 };
 
 /**
@@ -166,7 +228,7 @@ export type CreateTokenRequest = Message<"dockwell.v1.CreateTokenRequest"> & {
  * Use `create(CreateTokenRequestSchema)` to create a new message.
  */
 export const CreateTokenRequestSchema: GenMessage<CreateTokenRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_token, 1);
+  messageDesc(file_dockwell_v1_token, 2);
 
 /**
  * CreateTokenResponse carries the new token and its secret.
@@ -195,7 +257,7 @@ export type CreateTokenResponse = Message<"dockwell.v1.CreateTokenResponse"> & {
  * Use `create(CreateTokenResponseSchema)` to create a new message.
  */
 export const CreateTokenResponseSchema: GenMessage<CreateTokenResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_token, 2);
+  messageDesc(file_dockwell_v1_token, 3);
 
 /**
  * ListTokensRequest takes no parameters.
@@ -210,7 +272,7 @@ export type ListTokensRequest = Message<"dockwell.v1.ListTokensRequest"> & {
  * Use `create(ListTokensRequestSchema)` to create a new message.
  */
 export const ListTokensRequestSchema: GenMessage<ListTokensRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_token, 3);
+  messageDesc(file_dockwell_v1_token, 4);
 
 /**
  * ListTokensResponse lists tokens.
@@ -231,7 +293,7 @@ export type ListTokensResponse = Message<"dockwell.v1.ListTokensResponse"> & {
  * Use `create(ListTokensResponseSchema)` to create a new message.
  */
 export const ListTokensResponseSchema: GenMessage<ListTokensResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_token, 4);
+  messageDesc(file_dockwell_v1_token, 5);
 
 /**
  * RevokeTokenRequest names a token.
@@ -252,7 +314,7 @@ export type RevokeTokenRequest = Message<"dockwell.v1.RevokeTokenRequest"> & {
  * Use `create(RevokeTokenRequestSchema)` to create a new message.
  */
 export const RevokeTokenRequestSchema: GenMessage<RevokeTokenRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_token, 5);
+  messageDesc(file_dockwell_v1_token, 6);
 
 /**
  * RevokeTokenResponse is empty.
@@ -267,7 +329,7 @@ export type RevokeTokenResponse = Message<"dockwell.v1.RevokeTokenResponse"> & {
  * Use `create(RevokeTokenResponseSchema)` to create a new message.
  */
 export const RevokeTokenResponseSchema: GenMessage<RevokeTokenResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_token, 6);
+  messageDesc(file_dockwell_v1_token, 7);
 
 /**
  * TokenScope is what a token may do, by the effect of each method.
@@ -301,6 +363,41 @@ export enum TokenScope {
  */
 export const TokenScopeSchema: GenEnum<TokenScope> = /*@__PURE__*/
   enumDesc(file_dockwell_v1_token, 0);
+
+/**
+ * TokenRole is the role a token acts as at most, below its maker's (ADR 0071).
+ *
+ * @generated from enum dockwell.v1.TokenRole
+ */
+export enum TokenRole {
+  /**
+   * Its maker's role.
+   *
+   * @generated from enum value: TOKEN_ROLE_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * A developer's: it plans and applies in open environments, and its
+   * changes in a protected one wait for an admin or the owner to approve them.
+   *
+   * @generated from enum value: TOKEN_ROLE_DEVELOPER = 1;
+   */
+  DEVELOPER = 1,
+
+  /**
+   * A viewer's: it only reads, whatever its scope.
+   *
+   * @generated from enum value: TOKEN_ROLE_VIEWER = 2;
+   */
+  VIEWER = 2,
+}
+
+/**
+ * Describes the enum dockwell.v1.TokenRole.
+ */
+export const TokenRoleSchema: GenEnum<TokenRole> = /*@__PURE__*/
+  enumDesc(file_dockwell_v1_token, 1);
 
 /**
  * TokenService manages API tokens: secrets for scripts, the CLI and

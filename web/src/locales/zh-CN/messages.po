@@ -775,6 +775,12 @@ msgstr "请求运行 {task}"
 msgid "Backed up {volume}"
 msgstr "已备份 {volume}"
 
+msgid "Changed whether deploy on push waits for a person"
+msgstr "更改了推送时部署是否等人确认"
+
+msgid "Changed whether {name}'s deploy on push waits for a person"
+msgstr "更改了 {name} 的推送时部署是否等人确认"
+
 msgid "Checked a DNS provider"
 msgstr "检查了一个 DNS 服务商"
 
@@ -5272,11 +5278,23 @@ msgstr "推送时部署没有改变"
 msgid "Deploy on push isn't on"
 msgstr "推送时部署没有打开"
 
+msgid "Deploy without waiting"
+msgstr "直接部署，无需等待"
+
+msgid "Deploy without waiting didn't change"
+msgstr "“直接部署，无需等待”未更改"
+
 msgid "Deploy {name} on push"
 msgstr "推送时部署 {name}"
 
+msgid "Each push into {place} applies with no person's approval."
+msgstr "每次推送到 {place} 都会直接应用，无需人工批准。"
+
 msgid "Each push to {branch} deploys {name}."
 msgstr "每次推送到 {branch} 都会部署 {name}。"
+
+msgid "Each push to {branch} plans a deploy of {name}, which waits for a person here."
+msgstr "每次推送到 {branch} 都会计划部署 {name}，在这里等人来应用。"
 
 msgid "Give the panel a domain"
 msgstr "为面板设置域名"
@@ -5358,6 +5376,9 @@ msgstr "已复制 URL"
 
 msgid "the default branch"
 msgstr "默认分支"
+
+msgid "this environment"
+msgstr "此环境"
 
 msgid "{who} can't reach this panel's address."
 msgstr "{who} 无法访问这个面板的地址。"
@@ -8270,6 +8291,9 @@ msgstr "应用计划"
 
 msgid "Apply this only if you trust what it runs."
 msgstr "只有信任它运行的内容时才应用。"
+
+msgid "Applying this approves a change a push planned, with your passkey"
+msgstr "应用此计划即批准一次推送计划的变更，需要验证你的通行密钥"
 
 #. placeholder {0}: change.proposedBy.name
 msgid "Applying this approves a change planned with the API token {0}, with your passkey"
@@ -16174,6 +16198,18 @@ msgstr "你"
 msgid "Your CLI access on the control server"
 msgstr "你在控制服务器上的 CLI 访问"
 
+msgid "as a developer at most"
+msgstr "最多以开发者身份"
+
+msgid "as a viewer at most"
+msgstr "最多以查看者身份"
+
+msgid "every project they hold"
+msgstr "其拥有的所有项目"
+
+msgid "in {where}"
+msgstr "在 {where}"
+
 #. placeholder {0}: time.ago(timestampDate(token.lastUsedTime), now)
 msgid "last used {0}"
 msgstr "上次使用于{0}"
@@ -16560,6 +16596,9 @@ msgstr "1 个令牌"
 msgid "Active tokens"
 msgstr "有效的令牌"
 
+msgid "Acts as"
+msgstr "身份"
+
 msgid "Copy this token now. It won't be shown again."
 msgstr "请立即复制这个令牌。它不会再次显示。"
 
@@ -16577,6 +16616,9 @@ msgstr "已创建 <0>{name}</0>。请在 Authorization 请求头中以 <1>Bearer
 
 msgid "Created <0>{name}</0>. Send it in the Authorization header, as <1>Bearer</1> and the token. It expires {expires}."
 msgstr "已创建 <0>{name}</0>。请在 Authorization 请求头中以 <1>Bearer</1> 加令牌的形式发送。它将于 {expires} 过期。"
+
+msgid "Dockwell can't list your projects"
+msgstr "Dockwell 无法列出你的项目"
 
 msgid "Dockwell can't list your tokens"
 msgstr "Dockwell 无法列出你的令牌"
@@ -16596,11 +16638,20 @@ msgstr "30 天后"
 msgid "In 90 days"
 msgstr "90 天后"
 
+msgid "In {where}, {as}"
+msgstr "在{where}中，{as}"
+
+msgid "Its changes in a protected environment wait for an admin."
+msgstr "它在受保护环境中的变更需等待管理员批准。"
+
 msgid "Last used"
 msgstr "上次使用"
 
 msgid "Loading tokens"
 msgstr "正在加载令牌"
+
+msgid "Loading your projects"
+msgstr "正在加载你的项目"
 
 msgid "Make a token"
 msgstr "创建令牌"
@@ -16658,11 +16709,29 @@ msgstr "令牌在 CI、脚本和 CLI 中代表你行事，权限仅限于你授�
 msgid "What will use this token?"
 msgstr "什么将使用这个令牌？"
 
+msgid "Where it acts"
+msgstr "作用范围"
+
 msgid "Your API tokens"
 msgstr "你的 API 令牌"
 
 msgid "Your passkey confirms it. You see the token once, right after you create it."
 msgstr "需要你的通行密钥确认。令牌只在创建后立即显示一次。"
+
+msgid "Your role"
+msgstr "你的角色"
+
+msgid "as a developer"
+msgstr "以开发者身份"
+
+msgid "as a viewer"
+msgstr "以查看者身份"
+
+msgid "as you"
+msgstr "以你的身份"
+
+msgid "every project you hold"
+msgstr "你拥有的所有项目"
 
 #. placeholder {0}: token.lastAddress
 msgid "from <0>{0}</0>"

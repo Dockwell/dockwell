@@ -180,6 +180,7 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "GitHookService.deleteGitHook": "may",
   "GitHookService.getGitHook": "read",
   "GitHookService.rotateGitHookSecret": "may",
+  "GitHookService.setGitHookRole": "may",
 
   "HealthService.listHealth": "read",
 

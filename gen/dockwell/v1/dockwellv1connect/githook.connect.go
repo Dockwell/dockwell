@@ -44,6 +44,9 @@ const (
 	// GitHookServiceRotateGitHookSecretProcedure is the fully-qualified name of the GitHookService's
 	// RotateGitHookSecret RPC.
 	GitHookServiceRotateGitHookSecretProcedure = "/dockwell.v1.GitHookService/RotateGitHookSecret"
+	// GitHookServiceSetGitHookRoleProcedure is the fully-qualified name of the GitHookService's
+	// SetGitHookRole RPC.
+	GitHookServiceSetGitHookRoleProcedure = "/dockwell.v1.GitHookService/SetGitHookRole"
 	// GitHookServiceDeleteGitHookProcedure is the fully-qualified name of the GitHookService's
 	// DeleteGitHook RPC.
 	GitHookServiceDeleteGitHookProcedure = "/dockwell.v1.GitHookService/DeleteGitHook"
@@ -64,6 +67,13 @@ type GitHookServiceClient interface {
 	// AuthService.FinishStepUp for a hook's secret, with the service's ID as its
 	// target.
 	RotateGitHookSecret(context.Context, *connect.Request[v1.RotateGitHookSecretRequest]) (*connect.Response[v1.RotateGitHookSecretResponse], error)
+	// SetGitHookRole sets the role a service's hook acts as at most in its project:
+	// ROLE_DEVELOPER, as it's made, so a push into a protected environment plans
+	// and waits for a person, or ROLE_ADMIN, so it deploys there without waiting.
+	// It's the hook's maker's choice. ROLE_ADMIN takes their being an admin where
+	// the service is, and a proof from AuthService.FinishStepUp for widening a
+	// hook, with the service's ID as its target; ROLE_DEVELOPER takes neither.
+	SetGitHookRole(context.Context, *connect.Request[v1.SetGitHookRoleRequest]) (*connect.Response[v1.SetGitHookRoleResponse], error)
 	// DeleteGitHook turns deploy on push off for a service: pushes stop
 	// deploying, and its hook's URL answers as if it never was.
 	DeleteGitHook(context.Context, *connect.Request[v1.DeleteGitHookRequest]) (*connect.Response[v1.DeleteGitHookResponse], error)
@@ -99,6 +109,12 @@ func NewGitHookServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(gitHookServiceMethods.ByName("RotateGitHookSecret")),
 			connect.WithClientOptions(opts...),
 		),
+		setGitHookRole: connect.NewClient[v1.SetGitHookRoleRequest, v1.SetGitHookRoleResponse](
+			httpClient,
+			baseURL+GitHookServiceSetGitHookRoleProcedure,
+			connect.WithSchema(gitHookServiceMethods.ByName("SetGitHookRole")),
+			connect.WithClientOptions(opts...),
+		),
 		deleteGitHook: connect.NewClient[v1.DeleteGitHookRequest, v1.DeleteGitHookResponse](
 			httpClient,
 			baseURL+GitHookServiceDeleteGitHookProcedure,
@@ -113,6 +129,7 @@ type gitHookServiceClient struct {
 	createGitHook       *connect.Client[v1.CreateGitHookRequest, v1.CreateGitHookResponse]
 	getGitHook          *connect.Client[v1.GetGitHookRequest, v1.GetGitHookResponse]
 	rotateGitHookSecret *connect.Client[v1.RotateGitHookSecretRequest, v1.RotateGitHookSecretResponse]
+	setGitHookRole      *connect.Client[v1.SetGitHookRoleRequest, v1.SetGitHookRoleResponse]
 	deleteGitHook       *connect.Client[v1.DeleteGitHookRequest, v1.DeleteGitHookResponse]
 }
 
@@ -129,6 +146,11 @@ func (c *gitHookServiceClient) GetGitHook(ctx context.Context, req *connect.Requ
 // RotateGitHookSecret calls dockwell.v1.GitHookService.RotateGitHookSecret.
 func (c *gitHookServiceClient) RotateGitHookSecret(ctx context.Context, req *connect.Request[v1.RotateGitHookSecretRequest]) (*connect.Response[v1.RotateGitHookSecretResponse], error) {
 	return c.rotateGitHookSecret.CallUnary(ctx, req)
+}
+
+// SetGitHookRole calls dockwell.v1.GitHookService.SetGitHookRole.
+func (c *gitHookServiceClient) SetGitHookRole(ctx context.Context, req *connect.Request[v1.SetGitHookRoleRequest]) (*connect.Response[v1.SetGitHookRoleResponse], error) {
+	return c.setGitHookRole.CallUnary(ctx, req)
 }
 
 // DeleteGitHook calls dockwell.v1.GitHookService.DeleteGitHook.
@@ -151,6 +173,13 @@ type GitHookServiceHandler interface {
 	// AuthService.FinishStepUp for a hook's secret, with the service's ID as its
 	// target.
 	RotateGitHookSecret(context.Context, *connect.Request[v1.RotateGitHookSecretRequest]) (*connect.Response[v1.RotateGitHookSecretResponse], error)
+	// SetGitHookRole sets the role a service's hook acts as at most in its project:
+	// ROLE_DEVELOPER, as it's made, so a push into a protected environment plans
+	// and waits for a person, or ROLE_ADMIN, so it deploys there without waiting.
+	// It's the hook's maker's choice. ROLE_ADMIN takes their being an admin where
+	// the service is, and a proof from AuthService.FinishStepUp for widening a
+	// hook, with the service's ID as its target; ROLE_DEVELOPER takes neither.
+	SetGitHookRole(context.Context, *connect.Request[v1.SetGitHookRoleRequest]) (*connect.Response[v1.SetGitHookRoleResponse], error)
 	// DeleteGitHook turns deploy on push off for a service: pushes stop
 	// deploying, and its hook's URL answers as if it never was.
 	DeleteGitHook(context.Context, *connect.Request[v1.DeleteGitHookRequest]) (*connect.Response[v1.DeleteGitHookResponse], error)
@@ -182,6 +211,12 @@ func NewGitHookServiceHandler(svc GitHookServiceHandler, opts ...connect.Handler
 		connect.WithSchema(gitHookServiceMethods.ByName("RotateGitHookSecret")),
 		connect.WithHandlerOptions(opts...),
 	)
+	gitHookServiceSetGitHookRoleHandler := connect.NewUnaryHandler(
+		GitHookServiceSetGitHookRoleProcedure,
+		svc.SetGitHookRole,
+		connect.WithSchema(gitHookServiceMethods.ByName("SetGitHookRole")),
+		connect.WithHandlerOptions(opts...),
+	)
 	gitHookServiceDeleteGitHookHandler := connect.NewUnaryHandler(
 		GitHookServiceDeleteGitHookProcedure,
 		svc.DeleteGitHook,
@@ -196,6 +231,8 @@ func NewGitHookServiceHandler(svc GitHookServiceHandler, opts ...connect.Handler
 			gitHookServiceGetGitHookHandler.ServeHTTP(w, r)
 		case GitHookServiceRotateGitHookSecretProcedure:
 			gitHookServiceRotateGitHookSecretHandler.ServeHTTP(w, r)
+		case GitHookServiceSetGitHookRoleProcedure:
+			gitHookServiceSetGitHookRoleHandler.ServeHTTP(w, r)
 		case GitHookServiceDeleteGitHookProcedure:
 			gitHookServiceDeleteGitHookHandler.ServeHTTP(w, r)
 		default:
@@ -217,6 +254,10 @@ func (UnimplementedGitHookServiceHandler) GetGitHook(context.Context, *connect.R
 
 func (UnimplementedGitHookServiceHandler) RotateGitHookSecret(context.Context, *connect.Request[v1.RotateGitHookSecretRequest]) (*connect.Response[v1.RotateGitHookSecretResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.GitHookService.RotateGitHookSecret is not implemented"))
+}
+
+func (UnimplementedGitHookServiceHandler) SetGitHookRole(context.Context, *connect.Request[v1.SetGitHookRoleRequest]) (*connect.Response[v1.SetGitHookRoleResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.GitHookService.SetGitHookRole is not implemented"))
 }
 
 func (UnimplementedGitHookServiceHandler) DeleteGitHook(context.Context, *connect.Request[v1.DeleteGitHookRequest]) (*connect.Response[v1.DeleteGitHookResponse], error) {

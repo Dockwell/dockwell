@@ -775,6 +775,12 @@ msgstr "Asked to run {task}"
 msgid "Backed up {volume}"
 msgstr "Backed up {volume}"
 
+msgid "Changed whether deploy on push waits for a person"
+msgstr "Changed whether deploy on push waits for a person"
+
+msgid "Changed whether {name}'s deploy on push waits for a person"
+msgstr "Changed whether {name}'s deploy on push waits for a person"
+
 msgid "Checked a DNS provider"
 msgstr "Checked a DNS provider"
 
@@ -5272,11 +5278,23 @@ msgstr "Deploy on push didn't change"
 msgid "Deploy on push isn't on"
 msgstr "Deploy on push isn't on"
 
+msgid "Deploy without waiting"
+msgstr "Deploy without waiting"
+
+msgid "Deploy without waiting didn't change"
+msgstr "Deploy without waiting didn't change"
+
 msgid "Deploy {name} on push"
 msgstr "Deploy {name} on push"
 
+msgid "Each push into {place} applies with no person's approval."
+msgstr "Each push into {place} applies with no person's approval."
+
 msgid "Each push to {branch} deploys {name}."
 msgstr "Each push to {branch} deploys {name}."
+
+msgid "Each push to {branch} plans a deploy of {name}, which waits for a person here."
+msgstr "Each push to {branch} plans a deploy of {name}, which waits for a person here."
 
 msgid "Give the panel a domain"
 msgstr "Give the panel a domain"
@@ -5358,6 +5376,9 @@ msgstr "URL copied"
 
 msgid "the default branch"
 msgstr "the default branch"
+
+msgid "this environment"
+msgstr "this environment"
 
 msgid "{who} can't reach this panel's address."
 msgstr "{who} can't reach this panel's address."
@@ -8270,6 +8291,9 @@ msgstr "Apply plan"
 
 msgid "Apply this only if you trust what it runs."
 msgstr "Apply this only if you trust what it runs."
+
+msgid "Applying this approves a change a push planned, with your passkey"
+msgstr "Applying this approves a change a push planned, with your passkey"
 
 #. placeholder {0}: change.proposedBy.name
 msgid "Applying this approves a change planned with the API token {0}, with your passkey"
@@ -16174,6 +16198,18 @@ msgstr "You"
 msgid "Your CLI access on the control server"
 msgstr "Your CLI access on the control server"
 
+msgid "as a developer at most"
+msgstr "as a developer at most"
+
+msgid "as a viewer at most"
+msgstr "as a viewer at most"
+
+msgid "every project they hold"
+msgstr "every project they hold"
+
+msgid "in {where}"
+msgstr "in {where}"
+
 #. placeholder {0}: time.ago(timestampDate(token.lastUsedTime), now)
 msgid "last used {0}"
 msgstr "last used {0}"
@@ -16560,6 +16596,9 @@ msgstr "1 token"
 msgid "Active tokens"
 msgstr "Active tokens"
 
+msgid "Acts as"
+msgstr "Acts as"
+
 msgid "Copy this token now. It won't be shown again."
 msgstr "Copy this token now. It won't be shown again."
 
@@ -16577,6 +16616,9 @@ msgstr "Created <0>{name}</0>. Send it in the Authorization header, as <1>Bearer
 
 msgid "Created <0>{name}</0>. Send it in the Authorization header, as <1>Bearer</1> and the token. It expires {expires}."
 msgstr "Created <0>{name}</0>. Send it in the Authorization header, as <1>Bearer</1> and the token. It expires {expires}."
+
+msgid "Dockwell can't list your projects"
+msgstr "Dockwell can't list your projects"
 
 msgid "Dockwell can't list your tokens"
 msgstr "Dockwell can't list your tokens"
@@ -16596,11 +16638,20 @@ msgstr "In 30 days"
 msgid "In 90 days"
 msgstr "In 90 days"
 
+msgid "In {where}, {as}"
+msgstr "In {where}, {as}"
+
+msgid "Its changes in a protected environment wait for an admin."
+msgstr "Its changes in a protected environment wait for an admin."
+
 msgid "Last used"
 msgstr "Last used"
 
 msgid "Loading tokens"
 msgstr "Loading tokens"
+
+msgid "Loading your projects"
+msgstr "Loading your projects"
 
 msgid "Make a token"
 msgstr "Make a token"
@@ -16658,11 +16709,29 @@ msgstr "Tokens act for you from CI, scripts and the CLI, with only the scope you
 msgid "What will use this token?"
 msgstr "What will use this token?"
 
+msgid "Where it acts"
+msgstr "Where it acts"
+
 msgid "Your API tokens"
 msgstr "Your API tokens"
 
 msgid "Your passkey confirms it. You see the token once, right after you create it."
 msgstr "Your passkey confirms it. You see the token once, right after you create it."
+
+msgid "Your role"
+msgstr "Your role"
+
+msgid "as a developer"
+msgstr "as a developer"
+
+msgid "as a viewer"
+msgstr "as a viewer"
+
+msgid "as you"
+msgstr "as you"
+
+msgid "every project you hold"
+msgstr "every project you hold"
 
 #. placeholder {0}: token.lastAddress
 msgid "from <0>{0}</0>"
