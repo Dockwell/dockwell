@@ -9,6 +9,7 @@ import {
   DeploymentState,
   EventKind,
   EventSchema,
+  GuessableSecret,
   HealthCheckKind,
   HealthState,
   InstanceHealthSchema,
@@ -1438,5 +1439,14 @@ describe("a guessable database password on the overview", () => {
     renderAt("/apps/svc_web", api([anApp("web", "postgres:17")]));
     const plain = await screen.findByRole("region", { name: "Configuration" });
     expect(within(plain).queryByText("Its database password is guessable")).toBeNull();
+  });
+
+  it.each([
+    [GuessableSecret.PASSWORD, "Its password is guessable"],
+    [GuessableSecret.KEY, "Its key is guessable"],
+  ])("says what kind of secret it is, %s", async (guessable, says) => {
+    renderAt("/apps/svc_web", api([anApp("web", "odoo:17", {}, { guessablePassword: true, guessable })]));
+    const configuration = await screen.findByRole("region", { name: "Configuration" });
+    expect(await within(configuration).findByText(says)).toBeVisible();
   });
 });

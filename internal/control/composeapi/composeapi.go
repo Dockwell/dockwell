@@ -35,6 +35,7 @@ import (
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/binding"
+	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/link"
 	"github.com/dockwell/dockwell/internal/resource/network"
 	"github.com/dockwell/dockwell/internal/resource/service"
@@ -539,6 +540,9 @@ type Taking struct {
 	// are the services it takes on so, for Activity.
 	GuessablePassword bool
 	Guessable         []resource.Ref
+	// GuessableKind is what the most telling of those secrets is, for the words a
+	// person reads.
+	GuessableKind dockwellv1.GuessableSecret
 	// ChoicesOnly says what a person chooses is all of what's in the way.
 	ChoicesOnly bool
 	// NeedsByService is the host access each service made again needs, by the
@@ -546,7 +550,7 @@ type Taking struct {
 	// GuessableLeft are the same of a guessable database password (ADR 0096, 0097).
 	NeedsByService     map[string][]string
 	HostAccessLeft     map[string]bool
-	GuessableByService map[string]bool
+	GuessableByService map[string]dockwellv1.GuessableSecret
 	GuessableLeft      map[string]bool
 }
 
@@ -642,8 +646,9 @@ func (h *Handler) ReadTakingIn(ctx context.Context, r *containers.Running, name,
 		}
 		if guessable {
 			t.GuessablePassword = true
+			t.GuessableKind = max(t.GuessableKind, containers.GuessableProto(container.GuessableKind(svc.GetApp())))
 			if !chose.GuessablePassword {
-				t.Refusals = append(t.Refusals, containers.GuessableRefusal(c.GetName()))
+				t.Refusals = append(t.Refusals, containers.GuessableRefusal(c.GetName(), container.GuessableKind(svc.GetApp())))
 				choiceRefusals++
 			} else {
 				t.Guessable = append(t.Guessable, ref)
@@ -846,7 +851,7 @@ func (h *Handler) ReadMakingAgain(ctx context.Context, r *containers.Running, li
 		// for its copy (ADR 0097), and so is a guessable password (ADR 0096).
 		if t.NeedsByService == nil {
 			t.NeedsByService, t.HostAccessLeft = map[string][]string{}, map[string]bool{}
-			t.GuessableByService, t.GuessableLeft = map[string]bool{}, map[string]bool{}
+			t.GuessableByService, t.GuessableLeft = map[string]dockwellv1.GuessableSecret{}, map[string]bool{}
 		}
 		left := false
 		if needs := containers.HostAccessNeeded(svc.GetApp()); len(needs) > 0 {
@@ -857,9 +862,9 @@ func (h *Handler) ReadMakingAgain(ctx context.Context, r *containers.Running, li
 			}
 		}
 		if guessable {
-			t.GuessableByService[m.Service] = true
+			t.GuessableByService[m.Service] = containers.GuessableProto(container.GuessableKind(svc.GetApp()))
 			if !chosen[m.Service].GuessablePassword {
-				refused[m.Service] = append(refused[m.Service], containers.GuessableRefusal(c.GetName()))
+				refused[m.Service] = append(refused[m.Service], containers.GuessableRefusal(c.GetName(), container.GuessableKind(svc.GetApp())))
 				t.GuessableLeft[m.Service], left = true, true
 			}
 		}

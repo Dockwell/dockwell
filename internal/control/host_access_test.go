@@ -506,3 +506,43 @@ func TestServerPathsAreAChoice(t *testing.T) {
 		t.Errorf("a Compose file mounting /proc plans %v", plan)
 	}
 }
+
+// Any secret that's one of the app's own names is a choice, not only a
+// database's: the refusal and the app's state say what kind it is, a password or
+// a key, and never which (ADR 0096, "A secret that's one of its own names").
+func TestAGuessablePasswordOrKeyIsAChoice(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	c := changeClient(b, b.origin)
+	imports := dockwellv1connect.NewComposeServiceClient(b, b.origin, connect.WithProtoJSON())
+	svcs := dockwellv1connect.NewServiceServiceClient(b, b.origin, connect.WithProtoJSON())
+	for _, tc := range []struct {
+		project, env, says string
+		want               dockwellv1.GuessableSecret
+	}{
+		{"odoo", "PASSWORD=odoo", "the container odoo-web-1's password is one of its own names", dockwellv1.GuessableSecret_GUESSABLE_SECRET_PASSWORD},
+		{"louez", "S3_ACCESS_KEY_ID=louez", "the container louez-web-1's key is one of its own names", dockwellv1.GuessableSecret_GUESSABLE_SECRET_KEY},
+	} {
+		e.AddNetwork(docker.Network{ID: tc.project + "net", Name: tc.project + "_default", Driver: "bridge"})
+		composeContainer(t, e, tc.project, "web", tc.project+"-web-1", func(r *docker.CreateRequest) { r.Env = append(r.Env, tc.env) })
+		_, err := imports.AdoptCompose(t.Context(), connect.NewRequest(&dockwellv1.AdoptComposeRequest{Name: tc.project}))
+		if err == nil || !strings.Contains(err.Error(), tc.says) {
+			t.Errorf("%s unchosen = %v", tc.project, err)
+			continue
+		}
+		res, err := imports.AdoptCompose(t.Context(), connect.NewRequest(&dockwellv1.AdoptComposeRequest{Name: tc.project, GuessablePassword: true}))
+		if err != nil {
+			t.Errorf("%s chosen = %v", tc.project, err)
+			continue
+		}
+		applyConfirmed(t, c, res.Msg.GetChange())
+		list, err := svcs.ListServices(t.Context(), connect.NewRequest(&dockwellv1.ListServicesRequest{Project: tc.project}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := list.Msg.GetServices(); len(got) != 1 || !got[0].GetGuessablePassword() || got[0].GetGuessable() != tc.want {
+			t.Errorf("%s's state = %v", tc.project, got)
+		}
+	}
+}

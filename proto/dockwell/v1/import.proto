@@ -538,6 +538,10 @@ message ImportStep {
   // can guess, so it's taken on only where a person chooses it, by app_id in
   // guessable_password (ADR 0096). Nothing here says which password or name.
   bool guessable_password = 10;
+  // What the guessable secret is, for the words the choice and state take: a
+  // database's password, another password, or a key. Unspecified where
+  // guessable_password is false.
+  GuessableSecret guessable = 11;
 }
 
 // ImportWaitsFor is a part of Dockwell an imported thing waits for, which a

@@ -12,6 +12,7 @@ import {
   type DomainRoute,
   EventKind,
   EventService,
+  GuessableSecret,
   HealthCheckKind,
   type Mount,
   Protocol,
@@ -1281,7 +1282,17 @@ function ConfigurationPanel() {
               with no action until changing a database's password is Dockwell's (ADR 0096). */}
           {service.guessablePassword ? (
             <div className="app-guessable">
-              <StatusBadge status="degraded" label={t`Its database password is guessable`} labelIsState />
+              <StatusBadge
+                status="degraded"
+                label={
+                  service.guessable === GuessableSecret.KEY
+                    ? t`Its key is guessable`
+                    : service.guessable === GuessableSecret.PASSWORD
+                      ? t`Its password is guessable`
+                      : t`Its database password is guessable`
+                }
+                labelIsState
+              />
             </div>
           ) : null}
         </dd>

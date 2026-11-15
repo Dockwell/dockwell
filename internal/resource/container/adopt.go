@@ -212,19 +212,19 @@ func shownIn(spec *resourcev1.Container, visit func(name, where, word, value str
 	})
 }
 
-// GuessableShows are what valuesShown says of a database's password that's shown
-// only as a whole part of a name a plan shows anyway, its aliases, networks, image
-// or hostname, as a template's POSTGRES_PASSWORD: forgejo beside the network
-// forgejo_default. Such a password is one anyone can guess, not one a plan gives
-// away, so a person may choose to take its container on as it is; any other
-// password, or one shown anywhere else, still refuses (ADR 0096, "A database
-// password that's one of its own names").
+// GuessableShows are what valuesShown says of a secret that's shown only as a
+// whole part of a name a plan shows anyway, its aliases, networks, image or
+// hostname, as a template's POSTGRES_PASSWORD: forgejo beside the network
+// forgejo_default, or S3_ACCESS_KEY_ID: louez in the app louez. Such a secret is
+// one anyone can guess, not one a plan gives away, so a person may choose to take
+// its container on as it is; one shown anywhere else as well still refuses (ADR
+// 0096, "A secret that's one of its own names").
 func GuessableShows(spec *resourcev1.Container) []string {
 	whole := map[string]bool{}
 	shownIn(spec, func(name, where, word, value string) {
 		entry := shownAs(name, where)
 		ok, seen := whole[entry]
-		guess := namesShown[where] && secretName().MatchString(name) && databasePassword(spec, name) && wholePart(word, value)
+		guess := namesShown[where] && secretName().MatchString(name) && wholePart(word, value)
 		whole[entry] = guess && (ok || !seen)
 	})
 	var out []string
@@ -237,9 +237,42 @@ func GuessableShows(spec *resourcev1.Container) []string {
 	return out
 }
 
-// GuessablePassword reports a database password of spec that's one of its own
-// names, as GuessableShows has it.
+// GuessablePassword reports a secret of spec that's one of its own names, as
+// GuessableShows has it.
 func GuessablePassword(spec *resourcev1.Container) bool { return len(GuessableShows(spec)) > 0 }
+
+// Guessable is what a guessable secret is, for the words a person reads.
+type Guessable int
+
+// What a guessable secret is, the most telling first.
+const (
+	GuessableNone Guessable = iota
+	GuessableKey
+	GuessablePasswordKind
+	GuessableDatabasePassword
+)
+
+// passwordName is a variable's name that says it holds a password.
+var passwordName = lazyre.Regexp(`(?i)PASS|PWD`)
+
+// GuessableKind is what spec's guessable secrets are, as GuessableShows has them:
+// a database's password where any is, then another password, then a key, or
+// GuessableNone.
+func GuessableKind(spec *resourcev1.Container) Guessable {
+	out := GuessableNone
+	for _, entry := range GuessableShows(spec) {
+		name, _, _ := strings.Cut(strings.TrimPrefix(entry, "the value of "), " ")
+		kind := GuessableKey
+		switch {
+		case databasePassword(spec, name):
+			kind = GuessableDatabasePassword
+		case passwordName().MatchString(name):
+			kind = GuessablePasswordKind
+		}
+		out = max(out, kind)
+	}
+	return out
+}
 
 // databaseWords are the parts of a variable's name, or of an image's, that say it
 // is a database's.

@@ -15689,6 +15689,18 @@ components:
                         True when the app's database password is one of its own names, which anyone
                          can guess, so it's taken on only where a person chooses it, by app_id in
                          guessable_password (ADR 0096). Nothing here says which password or name.
+                guessable:
+                    enum:
+                        - GUESSABLE_SECRET_UNSPECIFIED
+                        - GUESSABLE_SECRET_DATABASE_PASSWORD
+                        - GUESSABLE_SECRET_PASSWORD
+                        - GUESSABLE_SECRET_KEY
+                    type: string
+                    description: |-
+                        What the guessable secret is, for the words the choice and state take: a
+                         database's password, another password, or a key. Unspecified where
+                         guessable_password is false.
+                    format: enum
             description: ImportStep is one thing found, and what an import would do with it.
         IngressEffect:
             type: object
@@ -22636,6 +22648,17 @@ components:
                          networks, image or hostname, which anyone can guess, as a taken-on template's
                          can be (ADR 0096). It says no more than that: not which password, nor which
                          name.
+                guessable:
+                    enum:
+                        - GUESSABLE_SECRET_UNSPECIFIED
+                        - GUESSABLE_SECRET_DATABASE_PASSWORD
+                        - GUESSABLE_SECRET_PASSWORD
+                        - GUESSABLE_SECRET_KEY
+                    type: string
+                    description: |-
+                        What the guessable secret is, for the state's words: a database's password,
+                         another password, or a key. Unspecified where guessable_password is false.
+                    format: enum
                 update:
                     allOf:
                         - $ref: '#/components/schemas/ServiceUpdate'

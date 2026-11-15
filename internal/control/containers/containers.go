@@ -113,7 +113,7 @@ func (h *Handler) AdoptContainer(ctx context.Context, req *connect.Request[dockw
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s. It stays as it is, and nothing was taken on. Choose host access to take it on with that", HostAccessRefusal(c.GetName(), needs)), "needs_host_access")
 	}
 	if guessable && !req.Msg.GetGuessablePassword() {
-		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s. It stays as it is, and nothing was taken on. Choose to take it on as it is, then change the password", GuessableRefusal(c.GetName())), "guessable_password")
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s. It stays as it is, and nothing was taken on. Choose to take it on as it is, then change it", GuessableRefusal(c.GetName(), container.GuessableKind(svc.GetApp()))), "guessable_password")
 	}
 	edit := &dockwellv1.Edit{
 		Resource: &dockwellv1.ResourceRef{Kind: string(service.Kind), Scope: env.ID, Name: name},
@@ -205,11 +205,32 @@ func HostAccessNeeded(app *resourcev1.Container) []string {
 	return out
 }
 
-// GuessableRefusal says a container's database password is one of its own names,
-// which a person hasn't chosen to take on as it is (ADR 0096). It says no more than
-// that: not which password, nor which name.
-func GuessableRefusal(name string) string {
-	return fmt.Sprintf("the container %s's database password is one of its own names, which anyone can guess, so it's taken on as it is only where you choose it", name)
+// GuessableRefusal says a container's secret is one of its own names, which a
+// person hasn't chosen to take on as it is (ADR 0096). It says what kind of secret
+// and no more: not which, nor which name.
+func GuessableRefusal(name string, kind container.Guessable) string {
+	return fmt.Sprintf("the container %s's %s is one of its own names, which anyone can guess, so it's taken on as it is only where you choose it", name, guessableWords[kind])
+}
+
+// guessableWords say what a guessable secret is.
+var guessableWords = map[container.Guessable]string{
+	container.GuessableDatabasePassword: "database password",
+	container.GuessablePasswordKind:     "password",
+	container.GuessableKey:              "key",
+}
+
+// GuessableProto is the API's word for what a guessable secret is.
+func GuessableProto(kind container.Guessable) dockwellv1.GuessableSecret {
+	switch kind {
+	case container.GuessableDatabasePassword:
+		return dockwellv1.GuessableSecret_GUESSABLE_SECRET_DATABASE_PASSWORD
+	case container.GuessablePasswordKind:
+		return dockwellv1.GuessableSecret_GUESSABLE_SECRET_PASSWORD
+	case container.GuessableKey:
+		return dockwellv1.GuessableSecret_GUESSABLE_SECRET_KEY
+	case container.GuessableNone:
+	}
+	return dockwellv1.GuessableSecret_GUESSABLE_SECRET_UNSPECIFIED
 }
 
 // WithoutGuessable is found without what it shows of app's database password where

@@ -384,8 +384,8 @@ describe("Activity", () => {
     const watch = feed<WatchEventsResponse>();
     watch.push(snapshot(events));
     renderActivity(watch);
-    await screen.findByRole("row", { name: /Chose to take on db with a guessable database password/ });
-    await screen.findByRole("row", { name: /Chose to take on an app with a guessable database password/ });
+    await screen.findByRole("row", { name: /Chose to take on db with a password or key anyone can guess/ });
+    await screen.findByRole("row", { name: /Chose to take on an app with a password or key anyone can guess/ });
   });
 
   it("says what a server's public address was set to, and what it was, so it can be put back", async () => {

@@ -429,7 +429,7 @@ func (h *Handler) planPanel(ctx context.Context, srv *dockwellv1.Server, w panel
 			step.AppId, step.NeedsHostAccess = a.GetId(), slices.Compact(slices.Sorted(slices.Values(t.NeedsHostAccess)))
 		}
 		if t != nil && t.GuessablePassword {
-			step.AppId, step.GuessablePassword = a.GetId(), true
+			step.AppId, step.GuessablePassword, step.Guessable = a.GetId(), true, t.GuessableKind
 		}
 		switch {
 		case reason(err) == "not_found":
@@ -994,11 +994,11 @@ func (h *Handler) planRemakes(ctx context.Context, r *containers.Running, w pane
 		took := false
 		for _, i := range groups[key] {
 			var why, needs []string
-			onlyChoices, guessable := true, false
+			onlyChoices, guessable := true, dockwellv1.GuessableSecret_GUESSABLE_SECRET_UNSPECIFIED
 			for _, m := range remakesOf(apps[i]) {
 				why = append(why, refused[m.Service]...)
 				needs = append(needs, t.NeedsByService[m.Service]...)
-				guessable = guessable || t.GuessableByService[m.Service]
+				guessable = max(guessable, t.GuessableByService[m.Service])
 				choicesLeft := 0
 				if t.HostAccessLeft[m.Service] {
 					choicesLeft++
@@ -1011,8 +1011,8 @@ func (h *Handler) planRemakes(ctx context.Context, r *containers.Running, w pane
 			if len(needs) > 0 {
 				steps[i].AppId, steps[i].NeedsHostAccess = apps[i].GetId(), slices.Compact(slices.Sorted(slices.Values(needs)))
 			}
-			if guessable {
-				steps[i].AppId, steps[i].GuessablePassword = apps[i].GetId(), true
+			if guessable != dockwellv1.GuessableSecret_GUESSABLE_SECRET_UNSPECIFIED {
+				steps[i].AppId, steps[i].GuessablePassword, steps[i].Guessable = apps[i].GetId(), true, guessable
 			}
 			if len(why) > 0 && onlyChoices {
 				// The screen says it, as a state and the choice: no prose under it.

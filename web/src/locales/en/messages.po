@@ -763,11 +763,11 @@ msgstr "Checked that a backup of {volume} restores"
 msgid "Checked the DNS provider {name}, writing in its zones"
 msgstr "Checked the DNS provider {name}, writing in its zones"
 
-msgid "Chose to take on an app with a guessable database password"
-msgstr "Chose to take on an app with a guessable database password"
+msgid "Chose to take on an app with a password or key anyone can guess"
+msgstr "Chose to take on an app with a password or key anyone can guess"
 
-msgid "Chose to take on {name} with a guessable database password"
-msgstr "Chose to take on {name} with a guessable database password"
+msgid "Chose to take on {name} with a password or key anyone can guess"
+msgstr "Chose to take on {name} with a password or key anyone can guess"
 
 msgid "Claimed this install"
 msgstr "Claimed this install"
@@ -2860,6 +2860,12 @@ msgstr "It's behind a tunnel or a proxy"
 
 msgid "Its database password is guessable"
 msgstr "Its database password is guessable"
+
+msgid "Its key is guessable"
+msgstr "Its key is guessable"
+
+msgid "Its password is guessable"
+msgstr "Its password is guessable"
 
 msgid "Loading deployments"
 msgstr "Loading deployments"
@@ -12050,6 +12056,9 @@ msgstr "Dockwell reads what 1Panel keeps on {0}, from its own records, read-only
 msgid "Each thing below says whether it's in Dockwell already, what it waits for, or why it stays."
 msgstr "Each thing below says whether it's in Dockwell already, what it waits for, or why it stays."
 
+msgid "Guessable key"
+msgstr "Guessable key"
+
 msgid "Guessable password"
 msgstr "Guessable password"
 
@@ -12138,6 +12147,9 @@ msgstr "Start {proxy} again"
 
 msgid "Stop {name}"
 msgstr "Stop {name}"
+
+msgid "Take it on as it is: its key is one of its own names, which anyone can guess."
+msgstr "Take it on as it is: its key is one of its own names, which anyone can guess."
 
 msgid "Take it on as it is: its password is one of its own names, which anyone can guess."
 msgstr "Take it on as it is: its password is one of its own names, which anyone can guess."

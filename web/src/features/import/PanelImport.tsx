@@ -4,6 +4,7 @@ import { createClient } from "@connectrpc/connect";
 import { useTransport } from "@connectrpc/connect-query";
 import {
   ChangeState,
+  GuessableSecret,
   ImportAction,
   ImportKind,
   ImportService,
@@ -84,7 +85,8 @@ function PanelImport({
   const [found, setFound] = useState<{ found?: PanelFound; steps: ImportStep[] }>();
   const [handingOver, setHandingOver] = useState(false);
   // The apps a person chose to take on with the host access each needs (ADR 0097),
-  // and those taken on as they are with a guessable database password (ADR 0096).
+  // and those taken on as they are with a password or key that's one of their own
+  // names (ADR 0096).
   const [chosen, setChosen] = useState<Chosen>({ hostAccess: [], guessablePassword: [] });
 
   const importIt = (skipPlan: boolean, picked: Chosen = chosen) => {
@@ -267,7 +269,11 @@ function PanelImport({
                       disabled={reading}
                       onChange={(e) => choose("guessablePassword", step.appId, e.currentTarget.checked)}
                     />
-                    <Trans>Take it on as it is: its password is one of its own names, which anyone can guess.</Trans>
+                    {step.guessable === GuessableSecret.KEY ? (
+                      <Trans>Take it on as it is: its key is one of its own names, which anyone can guess.</Trans>
+                    ) : (
+                      <Trans>Take it on as it is: its password is one of its own names, which anyone can guess.</Trans>
+                    )}
                   </label>
                 ) : null}
               </>
