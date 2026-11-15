@@ -186,12 +186,18 @@ smoke: build build-agent ## Start the built binaries: the full build serves the 
 e2e: build ## Claim, sign in, run the panel's flows, follow logs, walk a server's files, read its updates, use its terminal and invite someone in headless Chromium, with a virtual passkey and a fake Docker Engine (SHOTS=dir saves screenshots)
 	go build -o bin/fakedocker ./scripts/fakedocker
 	go build -o bin/gitserve ./scripts/gitserve
-	DOCKWELL_E2E_GITSERVE=bin/gitserve node web/e2e/sign-in.ts $(BIN) --fake-docker bin/fakedocker $(if $(SHOTS),--shots $(SHOTS))
-	node web/e2e/logs.ts $(BIN) $(if $(SHOTS),--shots $(SHOTS))
-	node web/e2e/files.ts $(BIN) $(if $(SHOTS),--shots $(SHOTS))
-	node web/e2e/updates.ts $(BIN) $(if $(SHOTS),--shots $(SHOTS))
-	node web/e2e/terminal.ts $(BIN) --fake-docker bin/fakedocker $(if $(SHOTS),--shots $(SHOTS))
-	node web/e2e/invites.ts $(BIN) $(if $(SHOTS),--shots $(SHOTS))
+	@# Every script runs whatever the one before did, and each says how it went, so one failure
+	@# doesn't hide the rest (#634); then it fails if any did.
+	@failed=""; \
+	run() { name=$$1; shift; "$$@" || failed="$$failed $$name"; }; \
+	run sign-in env DOCKWELL_E2E_GITSERVE=bin/gitserve node web/e2e/sign-in.ts $(BIN) --fake-docker bin/fakedocker $(if $(SHOTS),--shots $(SHOTS)); \
+	run logs node web/e2e/logs.ts $(BIN) $(if $(SHOTS),--shots $(SHOTS)); \
+	run files node web/e2e/files.ts $(BIN) $(if $(SHOTS),--shots $(SHOTS)); \
+	run updates node web/e2e/updates.ts $(BIN) $(if $(SHOTS),--shots $(SHOTS)); \
+	run terminal node web/e2e/terminal.ts $(BIN) --fake-docker bin/fakedocker $(if $(SHOTS),--shots $(SHOTS)); \
+	run invites node web/e2e/invites.ts $(BIN) $(if $(SHOTS),--shots $(SHOTS)); \
+	if [ -n "$$failed" ]; then echo "e2e: these failed:$$failed. Each says why above." >&2; exit 1; fi; \
+	echo "e2e: sign-in, logs, files, updates, terminal and invites passed"
 
 .PHONY: chaos
 chaos: build build-agent ## Break a change and local reconciliation, then check recovery on Docker (CHAOS_FAKE_DOCKER=1 uses the fake Engine)
