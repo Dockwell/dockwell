@@ -191,9 +191,10 @@ func (p *pushed) add(ref string, deleted bool) {
 // answers at once, 202, and deploys after.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	// The body has a deadline from the start, so one that trickles in holds
-	// nothing for long, whatever is answered before it's read.
-	if err := http.NewResponseController(w).SetReadDeadline(time.Now().Add(time.Duration(h.readFor.Load()))); err != nil {
+	// The body has a deadline from the start, as long as its length says it may
+	// need, so one that trickles in holds nothing for long, whatever is answered
+	// before it's read.
+	if err := http.NewResponseController(w).SetReadDeadline(time.Now().Add(readDeadline(r.ContentLength, time.Duration(h.readFor.Load())))); err != nil {
 		h.cfg.Logger.WarnContext(r.Context(), "can't give a delivery's body a deadline", slog.String("error", err.Error()))
 	}
 	client, _ := authapi.ClientFrom(r.Context())
@@ -227,8 +228,16 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		answer(w, http.StatusUnsupportedMediaType, "The delivery isn't JSON. Set the hook's content type to application/json.")
 		return
 	}
-	// Only so many are read at once. One refused here closes its connection, as
-	// its body is never read.
+	// Only so many are read at once, and from one source. One refused here closes
+	// its connection, as its body is never read.
+	source := sourceBlock(client.Addr)
+	if !h.startReading(source) {
+		w.Header().Set("Retry-After", "2")
+		w.Header().Set("Connection", "close")
+		answer(w, http.StatusTooManyRequests, "Too many deliveries under way from this address. Wait for them, then send again.")
+		return
+	}
+	defer h.doneReading(source)
 	if h.reading.Add(1) > h.inFlight.Load() {
 		h.reading.Add(-1)
 		w.Header().Set("Retry-After", "2")

@@ -13,6 +13,8 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
+	"net/netip"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -74,12 +76,16 @@ type Handler struct {
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
 
-	// readFor and inFlight bound what deliveries may hold (SetLimits): how long
-	// one's body may take to arrive, and how many may be read at once. reading
-	// counts those being read.
-	readFor  atomic.Int64
-	inFlight atomic.Int64
-	reading  atomic.Int64
+	// readFor, inFlight and perSource bound what deliveries may hold
+	// (SetLimits): how long one's body may take to arrive at most, and how many
+	// may be read at once, and from one source. reading counts those being read,
+	// and readingFrom those from each source, under readingMu.
+	readFor     atomic.Int64
+	inFlight    atomic.Int64
+	perSource   atomic.Int64
+	reading     atomic.Int64
+	readingMu   sync.Mutex
+	readingFrom map[string]int
 
 	mu    sync.Mutex
 	lanes map[string]*lane // by the service's ID
@@ -94,24 +100,80 @@ var _ dockwellv1connect.GitHookServiceHandler = (*Handler)(nil)
 func New(cfg Config) *Handler {
 	base, cancel := context.WithCancel(context.Background())
 	h := &Handler{cfg: cfg, now: time.Now, base: base, cancel: cancel, lanes: map[string]*lane{}, planned: map[string]string{}}
-	h.SetLimits(ReadFor, InFlight)
+	h.SetLimits(ReadFor, InFlight, PerSource)
 	return h
 }
 
-// ReadFor is how long a delivery's body may take to arrive: GitHub gives up on a
-// hook after 10 seconds. InFlight is how many deliveries are read at once, so
-// bodies that trickle in from many addresses can't hold the control plane's
-// memory.
+// ReadFor is the longest a delivery's body may take to arrive: GitHub gives up on
+// a hook after 10 seconds, and a body has less the shorter it says it is
+// (readDeadline). InFlight is how many deliveries are read at once, so bodies that
+// trickle in from many addresses can't hold the control plane's memory, and
+// PerSource how many of those one source may hold, an IPv6 /48 counting as one,
+// so no one sender holds them all.
 const (
-	ReadFor  = 15 * time.Second
-	InFlight = 32
+	ReadFor   = 15 * time.Second
+	InFlight  = 32
+	PerSource = 4
 )
 
-// SetLimits sets how long a delivery's body may take and how many are read at
-// once, as a test shortens them. It may be called while deliveries come.
-func (h *Handler) SetLimits(readFor time.Duration, inFlight int) {
+// SetLimits sets how long a delivery's body may take at most, how many are read
+// at once and how many from one source, as a test changes them. It may be called
+// while deliveries come.
+func (h *Handler) SetLimits(readFor time.Duration, inFlight, perSource int) {
 	h.readFor.Store(int64(readFor))
 	h.inFlight.Store(int64(inFlight))
+	h.perSource.Store(int64(perSource))
+}
+
+// readDeadline is how long a body of length bytes may take to arrive: at least
+// 2 seconds, and at 64 KiB a second past that, to readFor at most. A push arrives
+// in one write, so only a sender that means to hold a place needs more. A body
+// whose length isn't said gets readFor.
+func readDeadline(length int64, readFor time.Duration) time.Duration {
+	if length < 0 {
+		return readFor
+	}
+	return min(readFor, max(2*time.Second, time.Duration(length)*time.Second/(64<<10)))
+}
+
+// startReading takes a place to read a delivery from source, and reports false
+// when source holds as many as it may.
+func (h *Handler) startReading(source string) bool {
+	h.readingMu.Lock()
+	defer h.readingMu.Unlock()
+	if int64(h.readingFrom[source]) >= h.perSource.Load() {
+		return false
+	}
+	if h.readingFrom == nil {
+		h.readingFrom = map[string]int{}
+	}
+	h.readingFrom[source]++
+	return true
+}
+
+func (h *Handler) doneReading(source string) {
+	h.readingMu.Lock()
+	defer h.readingMu.Unlock()
+	if h.readingFrom[source]--; h.readingFrom[source] <= 0 {
+		delete(h.readingFrom, source)
+	}
+}
+
+// sourceBlock is the block an address counts as for what deliveries it holds: an
+// IPv4 address itself, and an IPv6 /48, as one sender holds many of its addresses.
+func sourceBlock(addr string) string {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		host = addr
+	}
+	ip, err := netip.ParseAddr(host)
+	if err != nil {
+		return host
+	}
+	if ip = ip.Unmap(); ip.Is4() {
+		return ip.String()
+	}
+	return netip.PrefixFrom(ip, 48).Masked().String()
 }
 
 // ForgetOrphans deletes the hooks of apps that were deleted, each on record. Until

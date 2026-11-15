@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestAPushMatchesTheRefABuildFollows(t *testing.T) {
@@ -161,5 +162,36 @@ func TestAPushIsReadWithinItsLimits(t *testing.T) {
 	}
 	if got := capital("über alles"); got != "Über alles" {
 		t.Errorf("capital = %q", got)
+	}
+}
+
+// A source is an IPv4 address, or an IPv6 /48, as one sender holds many of its
+// addresses; and a body has time as its length says it needs, 2 s at least.
+func TestASourceAndItsTimeToSend(t *testing.T) {
+	for addr, want := range map[string]string{
+		"203.0.113.9:443":            "203.0.113.9",
+		"[::ffff:203.0.113.9]:443":   "203.0.113.9",
+		"[2001:db8:1:2::1]:443":      "2001:db8:1::/48",
+		"[2001:db8:1:ffff::abcd]:80": "2001:db8:1::/48",
+		"[2001:db8:2::1]:443":        "2001:db8:2::/48",
+		"not an address":             "not an address",
+	} {
+		if got := sourceBlock(addr); got != want {
+			t.Errorf("sourceBlock(%q) = %q, want %q", addr, got, want)
+		}
+	}
+	for _, c := range []struct {
+		length int64
+		want   time.Duration
+	}{
+		{-1, ReadFor},
+		{0, 2 * time.Second},
+		{1000, 2 * time.Second},
+		{512 << 10, 8 * time.Second},
+		{MaxBody, ReadFor},
+	} {
+		if got := readDeadline(c.length, ReadFor); got != c.want {
+			t.Errorf("a body of %d bytes has %v, want %v", c.length, got, c.want)
+		}
 	}
 }

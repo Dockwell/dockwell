@@ -831,9 +831,11 @@ func slowDelivery(t *testing.T, url string) <-chan string {
 	return answered
 }
 
-// A delivery's body has a deadline, so one that trickles in holds nothing for
-// long, and only so many are read at once: past that, a delivery is told to come
-// again, and nothing of it is read.
+// A delivery's body has a deadline as long as its length says it may need, so
+// one that trickles in holds nothing for long; only so many are read at once, and
+// only so many from one source, so no one sender holds them all. Past either, a
+// delivery is told to come again, and nothing of it is read (from #253's review,
+// M2, and its re-check, N2).
 func TestADeliveryThatTricklesInHoldsNothingForLong(t *testing.T) {
 	t.Parallel()
 	g := newGitBench(t, store.SQLite)
@@ -842,36 +844,55 @@ func TestADeliveryThatTricklesInHoldsNothingForLong(t *testing.T) {
 	web := g.service(t, "", "web")
 	url, secret := g.hook(t, web.GetId())
 	hooks := g.f.server.hooks
-
-	// Two read at once at most: two that trickle hold both, and a third waits. It's
-	// sent to a hook there isn't, so it spends nothing of web's.
-	hooks.SetLimits(5*time.Second, 2)
-	first, second := slowDelivery(t, url), slowDelivery(t, url)
+	// Probes go to a hook there isn't, so they spend nothing of web's.
 	none := url[:strings.LastIndex(url, "/")+1] + "ghk_01JD6Z3R8M9QF2K7T4XW5BNC0V"
-	var code int
-	var header http.Header
-	for range 20 {
-		if code, _, header = send(t, none, delivery{id: "busy", event: "push", secret: secret, body: pushBody(g.repo.URL, "refs/heads/main", head)}); code == http.StatusServiceUnavailable {
-			break
+	probe := func(want int) (int, http.Header) {
+		t.Helper()
+		var code int
+		var header http.Header
+		for range 20 {
+			if code, _, header = send(t, none, delivery{id: "busy", event: "push", secret: secret, body: pushBody(g.repo.URL, "refs/heads/main", head)}); code == want {
+				break
+			}
+			time.Sleep(100 * time.Millisecond)
 		}
-		time.Sleep(100 * time.Millisecond)
+		return code, header
 	}
-	if code != http.StatusServiceUnavailable || header.Get("Retry-After") == "" {
-		t.Errorf("a delivery while two trickle in: %d, Retry-After %q; want 503 and when to come again", code, header.Get("Retry-After"))
-	}
-
-	// One that trickles past its deadline is cut off, and frees its place.
-	hooks.SetLimits(300*time.Millisecond, 2)
-	for what, answered := range map[string]<-chan string{"the first": first, "the second": second, "a third": slowDelivery(t, url)} {
+	ended := func(what string, answered <-chan string) {
+		t.Helper()
 		select {
 		case got := <-answered:
 			if strings.HasPrefix(got, "2") {
-				t.Errorf("%s delivery that trickled in was answered %q", what, got)
+				t.Errorf("%s that trickled in was answered %q", what, got)
 			}
 		case <-time.After(15 * time.Second):
-			t.Errorf("%s delivery that trickled in held its place past its deadline", what)
+			t.Errorf("%s that trickled in held its place for 15 s, though its body is short", what)
 		}
 	}
+
+	// Two read at once at most: two that trickle hold both, and a third waits. Each
+	// says its body is 1,000 bytes, which takes 2 s at most, however long the
+	// limit; the limit here is a minute.
+	hooks.SetLimits(time.Minute, 2, 32)
+	first, second := slowDelivery(t, url), slowDelivery(t, url)
+	if code, header := probe(http.StatusServiceUnavailable); code != http.StatusServiceUnavailable || header.Get("Retry-After") == "" {
+		t.Errorf("a delivery while two trickle in: %d, Retry-After %q; want 503 and when to come again", code, header.Get("Retry-After"))
+	}
+	ended("the first", first)
+	ended("the second", second)
+
+	// Two from one source at most, with places to spare: a third from it waits.
+	hooks.SetLimits(time.Minute, 32, 2)
+	first, second = slowDelivery(t, url), slowDelivery(t, url)
+	if code, header := probe(http.StatusTooManyRequests); code != http.StatusTooManyRequests || header.Get("Retry-After") == "" {
+		t.Errorf("a third delivery from one source while two trickle in: %d, Retry-After %q; want 429 and when to come again", code, header.Get("Retry-After"))
+	}
+	ended("the first from one source", first)
+	ended("the second from one source", second)
+
+	// One whose length isn't short takes as long as the limit allows, and no more.
+	hooks.SetLimits(300*time.Millisecond, 32, 4)
+	ended("one past the limit", slowDelivery(t, url))
 	if code, text, _ := send(t, url, delivery{id: "after", event: "push", secret: secret, body: pushBody(g.repo.URL, "refs/heads/main", head)}); code != http.StatusAccepted {
 		t.Errorf("a delivery once those ended: %d %q", code, text)
 	}
