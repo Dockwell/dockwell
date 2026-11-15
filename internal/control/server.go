@@ -142,6 +142,11 @@ type Config struct {
 	// as a test does by its own clock. The install's first rules are made all the
 	// same.
 	ManualAlerts bool
+	// ManualBackups leaves looking at the backup schedule to whoever calls
+	// RunDue, as a test does by its own clock: the control plane's own looks, as
+	// it starts and every 30 s of real time, would run beside the test's. What
+	// was running when it last stopped is failed all the same.
+	ManualBackups bool
 	// AgentHosts are the names and addresses agents dial; the agent
 	// listener's certificate is valid for them.
 	AgentHosts []string
@@ -257,8 +262,9 @@ type Server struct {
 	autoupdates *autoupdate.Runner
 	// history keeps each server's samples a minute at a time, and by the hour
 	// (ADR 0065).
-	history      *history.Recorder
-	manualAlerts bool
+	history       *history.Recorder
+	manualAlerts  bool
+	manualBackups bool
 	// backups takes backups, and those under way end with the control plane.
 	backups *backups.Handler
 	// tasks reads scheduled tasks' runs from the agents that run them.
@@ -378,7 +384,7 @@ func New(cfg Config) (*Server, error) {
 		// refuses a person's that comes without (ADR 0049).
 		cfg.Changes.RequireRoles()
 	}
-	s := &Server{logger: cfg.Logger, api: api, logs: logs, backups: backupHandler, tasks: taskHandler, updates: updateKeeper, alerts: evaluator, manualAlerts: cfg.ManualAlerts, public: cfg.Public, changes: cfg.Changes, store: cfg.Store, stepGrace: cfg.StepGrace, autoupdates: autoupdates, certificates: cfg.certificates}
+	s := &Server{logger: cfg.Logger, api: api, logs: logs, backups: backupHandler, tasks: taskHandler, updates: updateKeeper, alerts: evaluator, manualAlerts: cfg.ManualAlerts, manualBackups: cfg.ManualBackups, public: cfg.Public, changes: cfg.Changes, store: cfg.Store, stepGrace: cfg.StepGrace, autoupdates: autoupdates, certificates: cfg.certificates}
 	s.catalogs = follower
 	if cfg.Agents != nil {
 		agents := cfg.Agents
@@ -1006,7 +1012,7 @@ func (s *Server) Run(ctx context.Context, ls Listeners) error {
 			api.Go(func() { runner.Run(apiCtx) })
 		}
 	}
-	if s.backups != nil {
+	if s.backups != nil && !s.manualBackups {
 		api.Go(func() { s.backups.KeepRunning(apiCtx) })
 	}
 	if s.hosts != nil {
