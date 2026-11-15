@@ -11,6 +11,7 @@ import {
   type Resource,
   ResourceService,
   Role,
+  SettingsService,
   SignInKind,
   StepUpAction,
 } from "@dockwell/api";
@@ -30,11 +31,12 @@ import {
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { type FormEvent, type ReactNode, useState } from "react";
+import { type FormEvent, type ReactNode, useEffect, useId, useRef, useState } from "react";
 
 import { formatDateTime } from "../../lib/format";
 import { useTimeWords } from "../../lib/time";
 import { PasskeyError } from "../../lib/webauthn";
+import { useMay } from "../auth/may";
 import { useAuthError } from "../auth/messages";
 import { withStepUpIfAsked } from "../auth/stepUp";
 import { useSignedIn } from "../auth/useAuthState";
@@ -205,14 +207,24 @@ function InvitePanel({
   const first = members.length <= 1;
   const protectionChecked = confirmed !== undefined;
   const [protectionUnchecked, setProtectionUnchecked] = useState(false);
+  const may = useMay();
 
   if (!domain) {
+    // Set from the panel (ADR 0063), by whoever may; for anyone else, the state alone.
     return (
-      <Callout tone="info" title={t`Invites need the panel's domain`}>
-        <Trans>
-          Set <code>DOCKWELL_DOMAIN</code> for the service, then invite.
-        </Trans>
-      </Callout>
+      <Callout
+        tone="info"
+        title={t`Invites need the panel's domain`}
+        actions={
+          may(SettingsService.method.setPanelDomain, { install: true }).allowed ? (
+            <Link to="/settings/general" className="dw-btn dw-btn-sm">
+              <span>
+                <Trans>Set the panel's domain</Trans>
+              </span>
+            </Link>
+          ) : undefined
+        }
+      />
     );
   }
 
@@ -360,6 +372,13 @@ function ProtectionCheck({
   const queryClient = useQueryClient();
   const [confirming, setConfirming] = useState(false);
   const [problem, setProblem] = useState<unknown>();
+  const [reviewing, setReviewing] = useState(false);
+  const listId = useId();
+  const confirmButton = useRef<HTMLButtonElement>(null);
+  // Inviting before this was confirmed brings you to the button that does it.
+  useEffect(() => {
+    if (unchecked) confirmButton.current?.focus();
+  }, [unchecked]);
   // On record, in the audit log, with how each environment stood: the first invite is refused without it.
   const confirm = async () => {
     setConfirming(true);
@@ -446,40 +465,53 @@ function ProtectionCheck({
     );
   }
 
-  return (
-    <fieldset className="members-protection">
-      <legend className="members-protection-head">{t`Before anyone else signs in`}</legend>
-      <p className="members-invite-note">
-        <Trans>A developer's change in a protected environment waits for an admin.</Trans>
+  const label = all.length === 0 ? t`Confirm: no environments yet` : t`Confirm: ${shielded} protected, ${open} open`;
+  if (confirmed) {
+    return (
+      <p className="members-protection-ok">
+        <Icon name="check" size={14} />
+        {t`Protection confirmed by ${confirmed.by}, ${formatDateTime(confirmed.at, i18n.locale)}`}
       </p>
-      {list}
-      {confirmed ? (
-        <p className="members-protection-ok">
-          <Icon name="check" size={14} />
-          {t`${confirmed.by} confirmed these on ${formatDateTime(confirmed.at, i18n.locale)}`}
-        </p>
-      ) : (
-        <Button
-          size="sm"
-          icon="check"
-          loading={confirming}
-          aria-invalid={unchecked || undefined}
-          disabled={!environments.data}
-          onClick={() => void confirm()}
-        >
-          {all.length === 0 ? t`Confirm: no environments yet` : t`Confirm: ${shielded} protected, ${open} open`}
-        </Button>
-      )}
+    );
+  }
+  return (
+    <div className="members-protection">
+      {/* One state with its action in it; the environments are one step away (the interaction principles). */}
+      <Callout
+        tone={unchecked ? "warning" : "info"}
+        title={t`Protected environments aren't confirmed`}
+        actions={
+          <>
+            <Button
+              size="sm"
+              variant="ghost"
+              aria-expanded={reviewing}
+              aria-controls={listId}
+              onClick={() => setReviewing(!reviewing)}
+            >
+              <Trans>Review</Trans>
+            </Button>
+            <Button
+              ref={confirmButton}
+              size="sm"
+              icon="check"
+              loading={confirming}
+              aria-invalid={unchecked || undefined}
+              disabled={!environments.data}
+              onClick={() => void confirm()}
+            >
+              {label}
+            </Button>
+          </>
+        }
+      />
+      {reviewing || (environments.error && !environments.data) ? <div id={listId}>{list}</div> : null}
       {problem ? (
         <p className="members-problem" role="alert">
           {explain(problem)}
         </p>
-      ) : unchecked && !confirmed ? (
-        <p className="members-problem" role="alert">
-          {t`Confirm the environments first.`}
-        </p>
       ) : null}
-    </fieldset>
+    </div>
   );
 }
 

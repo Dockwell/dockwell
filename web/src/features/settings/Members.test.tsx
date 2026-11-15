@@ -246,12 +246,15 @@ describe("Members", () => {
     });
     await user.click(await screen.findByRole("button", { name: "Invite someone" }));
     await user.type(screen.getByRole("textbox", { name: "Invite by email" }), " Ada@Example.com ");
-    // The first invite waits until someone confirmed each environment's protection, on record.
+    // The first invite waits until someone confirmed each environment's protection, on record:
+    // one state, with the button that does it, where an early Invite takes you.
+    expect(screen.getByText("Protected environments aren't confirmed")).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Invite" }));
-    expect(await screen.findByText("Confirm the environments first.")).toBeVisible();
+    await waitFor(() => expect(screen.getByRole("button", { name: /^Confirm: / })).toHaveFocus());
     expect(createInvite).not.toHaveBeenCalled();
     await user.click(screen.getByRole("button", { name: /^Confirm: / }));
-    expect(await screen.findByText(/^Mira Chen confirmed these on /)).toBeVisible();
+    expect(await screen.findByText(/^Protection confirmed by Mira Chen, /)).toBeVisible();
+    expect(screen.queryByText("Protected environments aren't confirmed")).toBeNull();
     expect(confirmProtections).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole("button", { name: /^Confirm: / })).toBeNull();
     await user.click(screen.getByRole("button", { name: "Invite" }));
@@ -269,7 +272,7 @@ describe("Members", () => {
     );
   });
 
-  it("lists each environment's protection before the first invite, and plans a change to one", async () => {
+  it("keeps each environment's protection one step away before the first invite, and plans a change to one", async () => {
     const user = userEvent.setup();
     const proposeChange = vi.fn((_: ProposeChangeRequest) => ({}));
     const environment = (id: string, name: string, project: string, isProtected: boolean, displayName = "") => ({
@@ -301,6 +304,13 @@ describe("Members", () => {
       },
     });
     await user.click(await screen.findByRole("button", { name: "Invite someone" }));
+    // The button says what it puts on record, and the list is a step away.
+    expect(await screen.findByRole("button", { name: "Confirm: 2 protected, 1 open" })).toBeVisible();
+    expect(screen.queryByRole("list", { name: "Environments" })).toBeNull();
+    const review = screen.getByRole("button", { name: "Review" });
+    expect(review).toHaveAttribute("aria-expanded", "false");
+    await user.click(review);
+    expect(review).toHaveAttribute("aria-expanded", "true");
     const list = await screen.findByRole("list", { name: "Environments" });
     const items = within(list).getAllByRole("listitem");
     expect(items.map((i) => i.textContent)).toEqual([
@@ -308,8 +318,6 @@ describe("Members", () => {
       "Staging in shopOpen",
       "production in blogProtected",
     ]);
-    // The button says what it puts on record.
-    expect(screen.getByRole("button", { name: "Confirm: 2 protected, 1 open" })).toBeVisible();
     expect(within(list).getByRole("switch", { name: "Protect production in shop" })).toBeChecked();
     const staging = within(list).getByRole("switch", { name: "Protect Staging in shop" });
     expect(staging).not.toBeChecked();
@@ -348,6 +356,9 @@ describe("Members", () => {
     });
     await user.click(await screen.findByRole("button", { name: "Invite someone" }));
     expect(await screen.findByText("Invites need the panel's domain")).toBeVisible();
+    // The state comes with the way to fix it, for the owner, who sets the domain from the panel.
+    expect(screen.getByRole("link", { name: "Set the panel's domain" })).toHaveAttribute("href", "/settings/general");
+    expect(screen.queryByText(/DOCKWELL_DOMAIN/)).toBeNull();
     expect(screen.queryByRole("textbox", { name: "Invite by email" })).toBeNull();
   });
 

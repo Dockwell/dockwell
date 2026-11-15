@@ -1168,13 +1168,6 @@
   border-bottom: 1px solid var(--line);
 }
 
-.members-protection-head {
-  padding: 0;
-  color: var(--ink);
-  font-size: 13px;
-  font-weight: 600;
-}
-
 .members-protection-list {
   display: flex;
   flex-direction: column;

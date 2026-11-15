@@ -15785,26 +15785,17 @@ msgstr "1 人可以登录这个安装，即其所有者"
 msgid "<0>dockwell recover</0> on the control server"
 msgstr "在控制服务器上运行 <0>dockwell recover</0>"
 
-msgid "A developer's change in a protected environment waits for an admin."
-msgstr "开发者在受保护环境中的变更需等待管理员。"
-
 msgid "A project that's gone"
 msgstr "已不存在的项目"
 
 msgid "All projects"
 msgstr "所有项目"
 
-msgid "Before anyone else signs in"
-msgstr "在其他人登录之前"
-
 msgid "Change open environments"
 msgstr "变更开放环境"
 
 msgid "Change protected environments"
 msgstr "变更受保护环境"
-
-msgid "Confirm the environments first."
-msgstr "请先确认环境。"
 
 msgid "Confirm: no environments yet"
 msgstr "确认：还没有环境"
@@ -15929,11 +15920,22 @@ msgstr "保护 {0}"
 msgid "Protect {where}"
 msgstr "保护 {where}"
 
+msgid "Protected environments aren't confirmed"
+msgstr "受保护的环境尚未确认"
+
+#. placeholder {0}: confirmed.by
+#. placeholder {1}: formatDateTime(confirmed.at, i18n.locale)
+msgid "Protection confirmed by {0}, {1}"
+msgstr "{0} 已于 {1} 确认保护设置"
+
 msgid "Read apps, activity and logs"
 msgstr "查看应用、动态和日志"
 
 msgid "Reveal secrets"
 msgstr "查看密钥的值"
+
+msgid "Review"
+msgstr "查看"
 
 msgid "Revoke"
 msgstr "撤销"
@@ -15953,8 +15955,8 @@ msgstr "把此链接发给 {0}"
 msgid "Servers, projects and settings"
 msgstr "服务器、项目和设置"
 
-msgid "Set <0>DOCKWELL_DOMAIN</0> for the service, then invite."
-msgstr "为服务设置 <0>DOCKWELL_DOMAIN</0>，然后再邀请。"
+msgid "Set the panel's domain"
+msgstr "设置面板域名"
 
 msgid "Signed in on"
 msgstr "已登录于"
@@ -15993,11 +15995,6 @@ msgstr "其项目内"
 #. placeholder {0}: member.sessions
 msgid "{0} browsers"
 msgstr "{0} 个浏览器"
-
-#. placeholder {0}: confirmed.by
-#. placeholder {1}: formatDateTime(confirmed.at, i18n.locale)
-msgid "{0} confirmed these on {1}"
-msgstr "{0} 于 {1} 确认"
 
 #. placeholder {0}: invites.length
 msgid "{0} open invites"
@@ -17361,9 +17358,6 @@ msgstr "已安装的更新需重启后生效"
 
 msgid "Nothing waits in its package lists"
 msgstr "软件包列表中没有待装更新"
-
-msgid "Review"
-msgstr "查看"
 
 msgid "Review updates"
 msgstr "查看更新"

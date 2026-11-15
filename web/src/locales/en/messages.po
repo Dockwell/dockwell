@@ -15785,26 +15785,17 @@ msgstr "1 person signs in to this install, its owner"
 msgid "<0>dockwell recover</0> on the control server"
 msgstr "<0>dockwell recover</0> on the control server"
 
-msgid "A developer's change in a protected environment waits for an admin."
-msgstr "A developer's change in a protected environment waits for an admin."
-
 msgid "A project that's gone"
 msgstr "A project that's gone"
 
 msgid "All projects"
 msgstr "All projects"
 
-msgid "Before anyone else signs in"
-msgstr "Before anyone else signs in"
-
 msgid "Change open environments"
 msgstr "Change open environments"
 
 msgid "Change protected environments"
 msgstr "Change protected environments"
-
-msgid "Confirm the environments first."
-msgstr "Confirm the environments first."
 
 msgid "Confirm: no environments yet"
 msgstr "Confirm: no environments yet"
@@ -15929,11 +15920,22 @@ msgstr "Protect {0}"
 msgid "Protect {where}"
 msgstr "Protect {where}"
 
+msgid "Protected environments aren't confirmed"
+msgstr "Protected environments aren't confirmed"
+
+#. placeholder {0}: confirmed.by
+#. placeholder {1}: formatDateTime(confirmed.at, i18n.locale)
+msgid "Protection confirmed by {0}, {1}"
+msgstr "Protection confirmed by {0}, {1}"
+
 msgid "Read apps, activity and logs"
 msgstr "Read apps, activity and logs"
 
 msgid "Reveal secrets"
 msgstr "Reveal secrets"
+
+msgid "Review"
+msgstr "Review"
 
 msgid "Revoke"
 msgstr "Revoke"
@@ -15953,8 +15955,8 @@ msgstr "Send this link to {0}"
 msgid "Servers, projects and settings"
 msgstr "Servers, projects and settings"
 
-msgid "Set <0>DOCKWELL_DOMAIN</0> for the service, then invite."
-msgstr "Set <0>DOCKWELL_DOMAIN</0> for the service, then invite."
+msgid "Set the panel's domain"
+msgstr "Set the panel's domain"
 
 msgid "Signed in on"
 msgstr "Signed in on"
@@ -15993,11 +15995,6 @@ msgstr "their projects"
 #. placeholder {0}: member.sessions
 msgid "{0} browsers"
 msgstr "{0} browsers"
-
-#. placeholder {0}: confirmed.by
-#. placeholder {1}: formatDateTime(confirmed.at, i18n.locale)
-msgid "{0} confirmed these on {1}"
-msgstr "{0} confirmed these on {1}"
 
 #. placeholder {0}: invites.length
 msgid "{0} open invites"
@@ -17361,9 +17358,6 @@ msgstr "For what was installed to take effect"
 
 msgid "Nothing waits in its package lists"
 msgstr "Nothing waits in its package lists"
-
-msgid "Review"
-msgstr "Review"
 
 msgid "Review updates"
 msgstr "Review updates"

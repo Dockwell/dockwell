@@ -248,14 +248,19 @@ async function main() {
 
   step("the first invite waits until its maker confirms each environment's protection, on record");
   await form.getByRole("textbox", { name: "Invite by email" }).fill(" Ada@Example.com ");
-  await form.getByText("Before anyone else signs in", { exact: true }).waitFor();
+  // One state with its action in it, and the environments a step away.
+  await form.getByText("Protected environments aren't confirmed", { exact: true }).waitFor();
+  const confirm = form.getByRole("button", { name: /^Confirm: \d+ protected, \d+ open$/ });
+  await confirm.waitFor();
+  await form.getByRole("button", { name: "Review", exact: true }).click();
   await form.getByRole("list", { name: "Environments" }).getByText("production").first().waitFor();
   await shoot(page, "invites-first");
+  // Inviting first brings you to the button that confirms.
   await form.getByRole("button", { name: "Invite", exact: true }).click();
-  await form.getByText("Confirm the environments first.", { exact: true }).waitFor();
+  await page.waitForFunction(() => document.activeElement?.textContent?.startsWith("Confirm: "));
   // Confirming is on record: the page reads it back from the control plane, and it stays after reading again.
-  await form.getByRole("button", { name: /^Confirm: \d+ protected, \d+ open$/ }).click();
-  await form.getByText(/^Mira Chen confirmed these on /).waitFor();
+  await confirm.click();
+  await form.getByText(/^Protection confirmed by Mira Chen, /).waitFor();
 
   step("a passkey confirms the invite, and its link shows once, at the panel's domain");
   await form.getByRole("button", { name: "Invite", exact: true }).click();
@@ -289,7 +294,7 @@ async function main() {
   const again = page.getByRole("region", { name: "Invite people" });
   await again.getByRole("textbox", { name: "Invite by email" }).fill("ada@example.com");
   // Nothing is asked again: the confirmation was recorded, and the page says by whom.
-  await again.getByText(/^Mira Chen confirmed these on /).waitFor();
+  await again.getByText(/^Protection confirmed by Mira Chen, /).waitFor();
   if ((await again.getByRole("button", { name: /^Confirm: \d+ protected, \d+ open$/ }).count()) !== 0) {
     fail("the protections are asked for again after they were confirmed");
   }
