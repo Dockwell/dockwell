@@ -201,6 +201,9 @@ type pgState struct {
 	sizes map[string]int64
 	// loaded is what each load into one database was given, by database.
 	loaded map[string]string
+	// passwords are what a sign-in from another host takes, by role, as a role made
+	// by hand has it.
+	passwords map[string]string
 }
 
 var (
@@ -210,6 +213,7 @@ var (
 	dropDB     = regexp.MustCompile(`DROP DATABASE IF EXISTS "([a-z0-9_]+)"`)
 	dropRole   = regexp.MustCompile(`DROP ROLE IF EXISTS "([a-z0-9_]+)"`)
 	askLockout = regexp.MustCompile(`'login', r.rolcanlogin, 'super', r.rolsuper, 'loader', .* FROM pg_database d JOIN pg_roles r ON r.oid = d.datdba WHERE d.datname = '([a-z0-9_]+)'`)
+	askReach   = regexp.MustCompile(`pg_has_role\('([a-z0-9_]+)', r\.oid, 'MEMBER'\).*FROM pg_database WHERE datname = '([a-z0-9_]+)'`)
 	askOwner   = regexp.MustCompile(`'owner', r.rolname\) FROM pg_database d JOIN pg_roles r ON r.oid = d.datdba WHERE d.datname = '([a-z0-9_]+)'`)
 	askRole    = regexp.MustCompile(`rolname = '([a-z0-9_]+)'\), 'owner', coalesce\(\(SELECT pg_get_userbyid\(datdba\) FROM pg_database WHERE datname = '([a-z0-9_]+)'`)
 )
@@ -222,6 +226,16 @@ func (s *pgState) image() dockertest.Image {
 			// Anyone signing in from another host needs a password, as the official
 			// image's pg_hba.conf has it.
 			if script := strings.Join(x.Cmd, " "); strings.Contains(script, " -w ") && strings.Contains(script, "SELECT 1") && x.Cmd[len(x.Cmd)-2] != "127.0.0.1" {
+				// One that gives a role's own password signs in, as taking a user on checks.
+				user := x.Cmd[len(x.Cmd)-4]
+				s.mu.Lock()
+				want := s.passwords[user]
+				s.mu.Unlock()
+				for _, kv := range x.Env {
+					if pw, ok := strings.CutPrefix(kv, "PGPASSWORD="); ok && want != "" && pw == want {
+						return 0
+					}
+				}
 				_, _ = io.WriteString(x.Stderr, "psql: error: fe_sendauth: no password supplied\n")
 				return 2
 			}
@@ -252,6 +266,13 @@ func (s *pgState) image() dockertest.Image {
 			}
 			if m := askLockout.FindStringSubmatch(sql); m != nil {
 				_, _ = fmt.Fprintf(x.Stdout, `{"owner":%q,"login":true,"super":false,"loader":null}`+"\n", s.databases[m[1]])
+				return 0
+			}
+			if m := askReach.FindStringSubmatch(sql); m != nil {
+				// What a user reaches: postgres reaches past every database, and a user its
+				// own database where it owns it.
+				one := map[bool]string{true: "1", false: "0"}
+				_, _ = io.WriteString(x.Stdout, one[m[1] == "postgres"]+" "+one[s.databases[m[2]] == m[1]]+"\n")
 				return 0
 			}
 			if m := askOwner.FindStringSubmatch(sql); m != nil {

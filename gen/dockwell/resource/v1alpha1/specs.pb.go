@@ -4781,7 +4781,13 @@ type DatabaseUser struct {
 	// ends what keeps the apps on its server apart, naming whose: making it refuses a
 	// server whose apps keep apart where its plan didn't say so, as one planned before
 	// another app joined with a prefix (ADR 0084).
-	EndsApart     bool `protobuf:"varint,84,opt,name=ends_apart,json=endsApart,proto3" json:"ends_apart,omitempty"`
+	EndsApart bool `protobuf:"varint,84,opt,name=ends_apart,json=endsApart,proto3" json:"ends_apart,omitempty"`
+	// The user, and its database, were the server's already, and Dockwell took them on
+	// for an app, as Connect a database does with one an imported app signs in as: it
+	// checks the user signs in with the password, and keeps it, but never makes the
+	// user or its database, changes its rights, or drops either. See
+	// docs/adr/0084-what-an-app-needs-met-by-a-new-service-one-you-run-or-a-connection.md.
+	TakenOn       bool `protobuf:"varint,85,opt,name=taken_on,json=takenOn,proto3" json:"taken_on,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4875,6 +4881,13 @@ func (x *DatabaseUser) GetKeepsApart() bool {
 func (x *DatabaseUser) GetEndsApart() bool {
 	if x != nil {
 		return x.EndsApart
+	}
+	return false
+}
+
+func (x *DatabaseUser) GetTakenOn() bool {
+	if x != nil {
+		return x.TakenOn
 	}
 	return false
 }
@@ -8872,7 +8885,7 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xc2\x03\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xdd\x03\n" +
 	"\fDatabaseUser\x12\x18\n" +
 	"\aservice\x18\x01 \x01(\tR\aservice\x12#\n" +
 	"\rdatabase_name\x18\x02 \x01(\tR\fdatabaseName\x12\x1a\n" +
@@ -8885,7 +8898,8 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\vkeeps_apart\x18S \x01(\bR\n" +
 	"keepsApart\x12\x1d\n" +
 	"\n" +
-	"ends_apart\x18T \x01(\bR\tendsApart\x1a<\n" +
+	"ends_apart\x18T \x01(\bR\tendsApart\x12\x19\n" +
+	"\btaken_on\x18U \x01(\bR\atakenOn\x1a<\n" +
 	"\x0eRevisionsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\x03R\x05value:\x028\x01\"f\n" +

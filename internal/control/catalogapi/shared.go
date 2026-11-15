@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"maps"
-	"net/netip"
 	"slices"
 	"strings"
 
@@ -99,10 +98,6 @@ func asksToShare(asked map[string]string) bool {
 	return false
 }
 
-// linkRange is where link networks' addresses come from, a /29 each: 8,192 of them,
-// outside the pools Docker gives its own networks (ADR 0084).
-var linkRange = netip.MustParsePrefix("10.233.0.0/16")
-
 // sharedUsers are edits that mark each user a Redis or Valkey has already as one of a
 // server others share, so none of them reaches past its keys (ADR 0084).
 func (h *Handler) sharedUsers(ctx context.Context, tx *store.Tx, c *catalog.Candidate) ([]*dockwellv1.Edit, error) {
@@ -139,7 +134,7 @@ func (h *Handler) sharedUsers(ctx context.Context, tx *store.Tx, c *catalog.Cand
 	return out, nil
 }
 
-// freeSubnet is a /29 in linkRange no network on record has, or an error saying
+// freeSubnet is a /29 in network.LinkRange no network on record has, or an error saying
 // there's none left.
 func (h *Handler) freeSubnet(ctx context.Context, tx *store.Tx) (string, error) {
 	nets, err := tx.ListKind(ctx, string(network.Kind))
@@ -162,14 +157,8 @@ func (h *Handler) freeSubnet(ctx context.Context, tx *store.Tx) (string, error) 
 			taken[n.GetSubnet()] = true
 		}
 	}
-	for a := linkRange.Addr(); linkRange.Contains(a); {
-		p := netip.PrefixFrom(a, 29)
-		if !taken[p.String()] {
-			return p.String(), nil
-		}
-		for range 8 {
-			a = a.Next()
-		}
+	if p := network.FreeLinkSubnet(taken); p != "" {
+		return p, nil
 	}
 	return "", authapi.ReasonError(connect.CodeResourceExhausted,
 		fmt.Errorf("every one of the %d networks Dockwell keeps addresses for links is taken. Remove a link you don't use, or give the app a new database beside it", 1<<13), "no_link_network")

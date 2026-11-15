@@ -19,9 +19,11 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"google.golang.org/protobuf/proto"
 
@@ -143,6 +145,16 @@ func (*UserDriver) Validate(spec proto.Message) error {
 	if err := variable.CheckName("secret", u.GetPassword()); err != nil {
 		return fmt.Errorf("a database user needs the secret its password is in: %w", err)
 	}
+	// A user taken on is the server's own, which Dockwell neither makes, copies into,
+	// nor sets rules for (ADR 0084, Connect a database).
+	if u.GetTakenOn() {
+		switch {
+		case u.GetCopyFrom() != nil:
+			return errors.New("a database user is the server's own (taken_on) or a copy Dockwell makes (copy_from), not both")
+		case u.GetShared() || u.GetKeyPrefix() != "" || u.GetKeepsApart() || u.GetEndsApart():
+			return errors.New("a database user taken on is the server's own, which Dockwell sets no rules for: take shared, key_prefix, keeps_apart and ends_apart away")
+		}
+	}
 	if from := u.GetCopyFrom(); from != nil {
 		switch {
 		case SystemDatabase(from.GetDatabase()):
@@ -205,6 +217,9 @@ func (*UserDriver) Plan(actual, desired proto.Message, changes []resource.Change
 		if c.Path == "service" || c.Path == "database_name" {
 			return resource.Decision{}, errors.New("a database user's service and database can't change. Make another user, then delete this one")
 		}
+		if c.Path == "taken_on" {
+			return resource.Decision{}, errors.New("a database user taken on stays the server's own, and one Dockwell made stays Dockwell's, so taken_on can't change. Make another user, then delete this one")
+		}
 		if strings.HasPrefix(c.Path, "copy_from") {
 			return resource.Decision{}, errors.New("a database user is copied into once, as it's made, so what it's a copy of can't change. Make another user, then delete this one")
 		}
@@ -222,6 +237,11 @@ func (d *UserDriver) Judge(ctx context.Context, ref resource.Ref, actual, desire
 			return resource.Decision{}, err
 		} else if ok && g.Redis != "" {
 			dec.Destroys, dec.KeysLeft = false, g.KeyPrefix+"*"
+		} else if ok && g.TakenOn {
+			// Letting go of one taken on drops nothing: it and its database stay the
+			// server's, which the plan says (ADR 0084).
+			dec.Destroys = false
+			dec.Leaves = Owned(ref.Name, &resourcev1.DatabaseUser{DatabaseName: g.Database})
 		}
 	}
 	if err != nil || dec.Action != resource.ActionCreate {
@@ -251,6 +271,27 @@ func (d *UserDriver) Judge(ctx context.Context, ref resource.Ref, actual, desire
 	there, err := d.there(ctx, c, e, ref.Name, Owned(ref.Name, u))
 	if err != nil {
 		return resource.Decision{}, err
+	}
+	// One taken on is the server's own already, with its database, and isn't its
+	// administrator, which applying checks again with its password (ADR 0084).
+	if u.GetTakenOn() {
+		switch {
+		case !there.user:
+			return resource.Decision{}, fmt.Errorf("%s has no user %s to take on. Pick one it has", u.GetService(), ref.Name)
+		case there.owner == "":
+			return resource.Decision{}, fmt.Errorf("%s has no database %s to take on. Pick one it has", u.GetService(), Owned(ref.Name, u))
+		}
+		if err := d.keptForAnother(ref, u); err != nil {
+			return resource.Decision{}, err
+		}
+		r, err := d.reach(ctx, c, e, ref.Name, Owned(ref.Name, u))
+		if err != nil {
+			return resource.Decision{}, err
+		}
+		if err := r.refusal(ref.Name, u.GetService(), Owned(ref.Name, u)); err != nil {
+			return resource.Decision{}, err
+		}
+		return dec, nil
 	}
 	switch {
 	case there.user:
@@ -485,6 +526,10 @@ type given struct {
 	// the database holds is part of a copy, which reads as no user, so applying again
 	// empties it and copies it whole.
 	Copying bool `json:"copying,omitempty"`
+	// TakenOn says the user and its database were the server's already, and Dockwell
+	// took them on (DatabaseUser.taken_on): it never made them, and deleting the user
+	// only forgets it.
+	TakenOn bool `json:"taken_on,omitempty"`
 }
 
 func (d *UserDriver) recordPath() string { return filepath.Join(d.Dir, "database-users.json") }
@@ -623,7 +668,7 @@ func (d *UserDriver) Observe(ctx context.Context, ref resource.Ref) (proto.Messa
 	if err != nil || !ok || g.Copying {
 		return nil, err
 	}
-	out := &resourcev1.DatabaseUser{Service: g.Service, DatabaseName: g.Database, Password: g.Uses, Shared: g.Shared, KeyPrefix: g.KeyPrefix, KeepsApart: g.KeepsApart, EndsApart: g.EndsApart}
+	out := &resourcev1.DatabaseUser{Service: g.Service, DatabaseName: g.Database, Password: g.Uses, Shared: g.Shared, KeyPrefix: g.KeyPrefix, KeepsApart: g.KeepsApart, EndsApart: g.EndsApart, TakenOn: g.TakenOn}
 	if c := g.CopiedFrom; len(c) == 3 {
 		out.CopyFrom = &resourcev1.DatabaseCopy{Environment: c[0], Service: c[1], Database: c[2]}
 	}
@@ -644,12 +689,25 @@ func (d *UserDriver) Observe(ctx context.Context, ref resource.Ref) (proto.Messa
 	}
 	// A PostgreSQL user that can't make things in its database's public schema reads
 	// as not given its password, so the next plan gives it anew, which puts that right.
-	if e.Kind == dockwellv1.DatabaseEngine_DATABASE_ENGINE_POSTGRESQL {
+	// One taken on keeps the rights the server gave it.
+	if e.Kind == dockwellv1.DatabaseEngine_DATABASE_ENGINE_POSTGRESQL && !g.TakenOn {
 		cant, err := d.cantMake(ctx, c, e, ref.Name, Owned(ref.Name, out))
 		if err != nil {
 			return nil, err
 		}
 		if cant {
+			out.Revisions = nil
+		}
+	}
+	// One taken on that has come to reach past its database since, or lost its rights
+	// in it, by a grant made by hand, reads as drift: the next plan takes it on again,
+	// which refuses it, saying why (ADR 0084).
+	if g.TakenOn && e.SQL() {
+		r, err := d.reach(ctx, c, e, ref.Name, Owned(ref.Name, out))
+		if err != nil {
+			return nil, err
+		}
+		if r.refusal(ref.Name, g.Service, Owned(ref.Name, out)) != nil {
 			out.Revisions = nil
 		}
 	}
@@ -701,6 +759,9 @@ func (d *UserDriver) Apply(ctx context.Context, step resource.Step, desired prot
 		if err := d.whileStarting(ctx, func() error { return d.guard(ctx, c, e) }); err != nil {
 			return err
 		}
+	}
+	if u.GetTakenOn() {
+		return d.takeOn(ctx, ref, u, db, password, c, e)
 	}
 	if e.KeyValue() {
 		// An ACL user, kept with its rules, so the agent puts it back after a restart.
@@ -811,6 +872,221 @@ func (d *UserDriver) Apply(ctx context.Context, step resource.Step, desired prot
 	return d.record(ref, g)
 }
 
+// takeOn takes on a user and its database that the server has already, as Connect
+// a database does for an app that signs in as them (ADR 0084): it checks they're
+// there, that the user isn't the server's administrator, which reaches every other
+// app's data, and that it signs in with the password from another host, and keeps
+// it as taken on. It makes nothing, changes no right, and sets no password.
+func (d *UserDriver) takeOn(ctx context.Context, ref resource.Ref, u *resourcev1.DatabaseUser, db, password string, c *docker.Container, e *Engine) error {
+	if signsInAs[e.Kind] == nil {
+		return fmt.Errorf("a %s user can't be taken on yet, so nothing changed. Connect a new database instead, which makes a user of the app's own", e.Name)
+	}
+	var f found
+	if err := d.whileStarting(ctx, func() (err error) {
+		f, err = d.there(ctx, c, e, ref.Name, db)
+		return err
+	}); err != nil {
+		return err
+	}
+	switch {
+	case !f.user:
+		return fmt.Errorf("%s has no user %s, so there's nothing to take on. Pick a user it has, or connect a new database", u.GetService(), ref.Name)
+	case f.owner == "":
+		return fmt.Errorf("%s has no database %s, so there's nothing to take on. Pick a database it has, or connect a new one", u.GetService(), db)
+	}
+	if err := d.keptForAnother(ref, u); err != nil {
+		return err
+	}
+	if r, err := d.reach(ctx, c, e, ref.Name, db); err != nil {
+		return err
+	} else if err := r.refusal(ref.Name, u.GetService(), db); err != nil {
+		return err
+	}
+	ok, said, err := Loader{Client: d.Client}.SignsIn(ctx, Load{To: c, Engine: e, User: ref.Name, Password: password, Database: db})
+	switch {
+	case err != nil:
+		return err
+	case !ok:
+		return fmt.Errorf("%s doesn't sign in to %s with the password in %s, so it isn't taken on: %s. Set the secret to its password, then try again", ref.Name, db, u.GetPassword(), cmp.Or(said, "the server refused it"))
+	}
+	return d.record(ref, &given{Service: u.GetService(), Database: u.GetDatabaseName(), Uses: u.GetPassword(), Revision: u.GetRevisions()[passwordUse], TakenOn: true})
+}
+
+// rights is what a user reaches on its server: anything past its own database, as an
+// administrator does, and rights in its own database.
+type rights struct{ beyond, own bool }
+
+// refusal is why a user with these rights isn't taken on for one app, or nil.
+func (r rights) refusal(user, service, db string) error {
+	switch {
+	case r.beyond:
+		return fmt.Errorf("%s reaches past its database %s on %s, as an administrator does, and so every other app's data. Connect the app with a user of its own", user, db, service)
+	case !r.own:
+		return fmt.Errorf("%s has no rights in %s on %s: it neither owns it nor may make things in it. Pick the user that owns it", user, db, service)
+	}
+	return nil
+}
+
+// reach asks the server what a user reaches, of that user alone, as a reading lists
+// only so many (ADR 0084, Connect a database). Past its database means, on
+// PostgreSQL, being or reaching through any role it's a member of a superuser, a
+// role that makes roles, replicates or bypasses row security, one of the pg_*
+// roles that read or write every database, the server's files and programs, stall
+// or end other apps' sessions or read their queries, or the owner of another
+// database; on MySQL and MariaDB, any global right, any role, any proxy, any right
+// on another schema, its tables, columns or routines, one on a name whose _ matches
+// another schema too, or one it may grant; and on PostgreSQL, anything it owns or
+// was granted, other than as PUBLIC, in another database it may connect to, which
+// reachElsewhere asks of each (ADR 0084). Its own database is one it owns or may
+// make things in on PostgreSQL, and one it has rights on by name on MySQL and
+// MariaDB.
+func (d *UserDriver) reach(ctx context.Context, c *docker.Container, e *Engine, user, db string) (rights, error) {
+	if err := checkNames(user, db); err != nil {
+		return rights{}, err
+	}
+	sql, err := reachSQL(e, user, db)
+	if err != nil {
+		return rights{}, err
+	}
+	cmd, _ := e.reading(PortOf(e, c.Config.Cmd))
+	said, err := Reader{Client: d.Client}.ask(ctx, c.ID, e, cmd, sql)
+	if err != nil {
+		return rights{}, err
+	}
+	// The first line is the two counts; on PostgreSQL, each line after it another
+	// database the user may connect to.
+	lines := strings.Split(strings.TrimSpace(string(said)), "\n")
+	beyond, own, ok := strings.Cut(lines[0], " ")
+	b, errB := strconv.Atoi(beyond)
+	o, errO := strconv.Atoi(own)
+	if !ok || errB != nil || errO != nil {
+		return rights{}, fmt.Errorf("can't read what %s said of %s's rights: %q", e.Name, user, strings.TrimSpace(string(said)))
+	}
+	if b == 0 && e.Kind == dockwellv1.DatabaseEngine_DATABASE_ENGINE_POSTGRESQL && len(lines) > 1 {
+		if b, err = d.reachElsewhere(ctx, c, e, cmd, user, lines[1:]); err != nil {
+			return rights{}, err
+		}
+	}
+	return rights{beyond: b > 0, own: o > 0}, nil
+}
+
+// reachElsewhere counts what a PostgreSQL user owns or was granted, itself or
+// through a role it's a member of, in each of the other databases: their tables,
+// views and sequences, functions, schemas, columns and large objects. What PUBLIC
+// is granted, as every function's EXECUTE is, isn't the user's. A database's own
+// catalog can be read only from a connection to it, so each is asked in turn.
+func (d *UserDriver) reachElsewhere(ctx context.Context, c *docker.Container, e *Engine, cmd []string, user string, databases []string) (int, error) {
+	var script strings.Builder
+	asked := 0
+	for _, db := range databases {
+		if db == "" {
+			continue
+		}
+		// psql reads the name inside double quotes, where a quote, a backslash or a
+		// line break could end it.
+		if strings.ContainsAny(db, "\"\\") || strings.ContainsFunc(db, unicode.IsControl) {
+			return 0, fmt.Errorf("can't ask %s what %s may do in the database %q, as its name holds a quote, a backslash or a control character. Rename that database, then try again", e.Name, user, db)
+		}
+		script.WriteString("\\connect " + pgName(db) + "\n" + pgElsewhere(user))
+		asked++
+	}
+	if asked == 0 {
+		return 0, nil
+	}
+	said, err := Reader{Client: d.Client}.ask(ctx, c.ID, e, cmd, script.String())
+	if err != nil {
+		return 0, err
+	}
+	total := 0
+	for _, line := range strings.Fields(string(said)) {
+		n, err := strconv.Atoi(line)
+		if err != nil {
+			return 0, fmt.Errorf("can't read what %s said of %s's rights in its other databases: %q", e.Name, user, strings.TrimSpace(string(said)))
+		}
+		total += n
+	}
+	return total, nil
+}
+
+// pgElsewhere counts, in the database it's connected to, what a user owns or was
+// granted there, itself or through a role it's a member of, but not as PUBLIC.
+func pgElsewhere(user string) string {
+	member := func(role string) string { return "pg_has_role('" + user + "', " + role + ", 'MEMBER')" }
+	granted := func(acl string) string {
+		return "EXISTS (SELECT 1 FROM aclexplode(" + acl + ") a WHERE a.grantee <> 0 AND " + member("a.grantee") + ")"
+	}
+	mine := "n.nspname NOT IN ('pg_catalog', 'information_schema') AND n.nspname NOT LIKE 'pg\\_toast%' AND n.nspname NOT LIKE 'pg\\_temp\\_%'"
+	return "SELECT (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE " + mine + " AND (" + member("c.relowner") + " OR " + granted("c.relacl") + "))" +
+		" + (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE " + mine + " AND (" + member("p.proowner") + " OR " + granted("p.proacl") + "))" +
+		" + (SELECT count(*) FROM pg_namespace n WHERE " + mine + " AND (" + member("n.nspowner") + " OR " + granted("n.nspacl") + "))" +
+		" + (SELECT count(*) FROM pg_attribute t JOIN pg_class c ON c.oid = t.attrelid JOIN pg_namespace n ON n.oid = c.relnamespace WHERE " + mine + " AND t.attacl IS NOT NULL AND " + granted("t.attacl") + ")" +
+		" + (SELECT count(*) FROM pg_largeobject_metadata l WHERE " + member("l.lomowner") + " OR " + granted("l.lomacl") + ");\n"
+}
+
+// reachSQL is what reach asks the server, for a user and database checkNames passed.
+func reachSQL(e *Engine, user, db string) (string, error) {
+	switch e.Kind {
+	case dockwellv1.DatabaseEngine_DATABASE_ENGINE_POSTGRESQL:
+		return "SELECT (SELECT count(*) FROM pg_roles r WHERE pg_has_role('" + user + "', r.oid, 'MEMBER') AND (r.rolsuper OR r.rolcreaterole OR r.rolreplication OR r.rolbypassrls" +
+			" OR r.rolname IN ('pg_read_all_data', 'pg_write_all_data', 'pg_execute_server_program', 'pg_read_server_files', 'pg_write_server_files'," +
+			" 'pg_maintain', 'pg_signal_backend', 'pg_read_all_stats', 'pg_monitor')))" +
+			// Another database whose owner it is or may act as: all of that database.
+			" + (SELECT count(*) FROM pg_database WHERE datname <> '" + db + "' AND NOT datistemplate AND datname <> 'postgres' AND pg_has_role('" + user + "', datdba, 'MEMBER'))" +
+			" || ' ' || coalesce((SELECT CASE WHEN pg_get_userbyid(datdba) = '" + user + "' OR has_database_privilege('" + user + "', datname, 'CREATE') THEN 1 ELSE 0 END FROM pg_database WHERE datname = '" + db + "'), 0);\n" +
+			// The other databases it may connect to, where reachElsewhere asks what it may do.
+			"SELECT datname FROM pg_database WHERE datname <> '" + db + "' AND datallowconn AND NOT datistemplate AND has_database_privilege('" + user + "', datname, 'CONNECT') ORDER BY datname;\n", nil
+	case dockwellv1.DatabaseEngine_DATABASE_ENGINE_MYSQL, dockwellv1.DatabaseEngine_DATABASE_ENGINE_MARIADB:
+		grantee := "SUBSTRING_INDEX(GRANTEE, '@', 1) = '''" + user + "'''"
+		// MySQL 5.7 has no roles, nor role_edges: the count is read from 8.0 on.
+		roles := "(0 /*!80000 + (SELECT COUNT(*) FROM mysql.role_edges WHERE TO_USER = '" + user + "') */)"
+		if e.Kind == dockwellv1.DatabaseEngine_DATABASE_ENGINE_MARIADB {
+			roles = "(SELECT COUNT(*) FROM mysql.roles_mapping WHERE User = '" + user + "')"
+		}
+		// A schema grant names a pattern, where _ matches any one character unless it's
+		// written \_: the grant is the database's own written either way, and reaches
+		// past it when the pattern matches another schema the server has, compared as
+		// bytes, as the two columns' collations may differ.
+		schema := "REPLACE(TABLE_SCHEMA, CHAR(92), '')"
+		// USER_PRIVILEGES lists global rights, MySQL's dynamic ones (global_grants) among
+		// them, and a grant option on its own as USAGE that may grant.
+		return "SELECT CONCAT((SELECT COUNT(*) FROM information_schema.USER_PRIVILEGES WHERE " + grantee + " AND (PRIVILEGE_TYPE <> 'USAGE' OR IS_GRANTABLE = 'YES'))" +
+			" + (SELECT COUNT(*) FROM information_schema.SCHEMA_PRIVILEGES WHERE " + grantee + " AND (" + schema + " <> '" + db + "' OR IS_GRANTABLE = 'YES'))" +
+			" + (SELECT COUNT(*) FROM information_schema.SCHEMA_PRIVILEGES p JOIN information_schema.SCHEMATA s ON CAST(s.SCHEMA_NAME AS BINARY) LIKE CAST(p.TABLE_SCHEMA AS BINARY) WHERE SUBSTRING_INDEX(p.GRANTEE, '@', 1) = '''" + user + "''' AND s.SCHEMA_NAME <> '" + db + "')" +
+			" + (SELECT COUNT(*) FROM information_schema.TABLE_PRIVILEGES WHERE " + grantee + " AND (TABLE_SCHEMA <> '" + db + "' OR IS_GRANTABLE = 'YES'))" +
+			" + (SELECT COUNT(*) FROM information_schema.COLUMN_PRIVILEGES WHERE " + grantee + " AND (TABLE_SCHEMA <> '" + db + "' OR IS_GRANTABLE = 'YES'))" +
+			" + (SELECT COUNT(*) FROM mysql.procs_priv WHERE User = '" + user + "' AND (Db <> '" + db + "' OR FIND_IN_SET('Grant', Proc_priv) > 0))" +
+			" + (SELECT COUNT(*) FROM mysql.proxies_priv WHERE User = '" + user + "')" +
+			" + " + roles + ", ' ', (SELECT COUNT(*) FROM information_schema.SCHEMA_PRIVILEGES WHERE " + grantee + " AND " + schema + " = '" + db + "'));\n", nil
+	default:
+		return "", fmt.Errorf("asking what a %s user reaches isn't something Dockwell does yet", e.Name)
+	}
+}
+
+// keptForAnother refuses taking on a user for a database that's kept for another app
+// here: one a user Dockwell made on the same server owns, or one another user taken
+// on there signs in to, as a link's dumps and restores go by its database, as its
+// owner, whatever the user taken on may do in it (ADR 0084).
+func (d *UserDriver) keptForAnother(ref resource.Ref, u *resourcev1.DatabaseUser) error {
+	d.mu.Lock()
+	all, err := d.records()
+	d.mu.Unlock()
+	if err != nil {
+		return err
+	}
+	db := Owned(ref.Name, u)
+	for key := range all {
+		g := all[key]
+		if key == ref.String() || g.Service != u.GetService() || !strings.HasSuffix(key, " in "+ref.Scope) {
+			continue
+		}
+		name := strings.TrimSuffix(strings.TrimPrefix(key, string(UserKind)+" "), " in "+ref.Scope)
+		if Owned(name, &resourcev1.DatabaseUser{DatabaseName: g.Database}) == db {
+			return fmt.Errorf("the database %s on %s is kept for another app, through %s. Pick the app's own database, or connect a new one", db, u.GetService(), name)
+		}
+	}
+	return nil
+}
+
 // drop drops a user and its database, with everything in it. With its server's
 // container gone there's nothing to drop it from: what its volume still holds stays
 // there, for a person to drop, and Dockwell forgets the user.
@@ -818,6 +1094,10 @@ func (d *UserDriver) drop(ctx context.Context, ref resource.Ref) error {
 	g, ok, err := d.recorded(ref)
 	if err != nil || !ok {
 		return err
+	}
+	// One taken on is the server's: deleting it lets go of it, and drops nothing.
+	if g.TakenOn {
+		return d.record(ref, nil)
 	}
 	db := Owned(ref.Name, &resourcev1.DatabaseUser{DatabaseName: g.Database})
 	if err := checkNames(ref.Name, db); err != nil {
@@ -868,6 +1148,14 @@ func (d *UserDriver) Verify(ctx context.Context, ref resource.Ref, desired proto
 		return fmt.Errorf("%s has no user %s after it was made", u.GetService(), ref.Name)
 	case f.owner == "":
 		return fmt.Errorf("%s has no database %s after it was made", u.GetService(), db)
+	case u.GetTakenOn():
+		// The server's own, whoever owns the database: it still reaches its database,
+		// and nothing past it, as rights granted by hand since could change that.
+		r, err := d.reach(ctx, c, e, ref.Name, db)
+		if err != nil {
+			return err
+		}
+		return r.refusal(ref.Name, u.GetService(), db)
 	case e.Kind == dockwellv1.DatabaseEngine_DATABASE_ENGINE_POSTGRESQL && f.owner != ref.Name:
 		return fmt.Errorf("the database %s is %s's, not %s's", db, f.owner, ref.Name)
 	case e.Kind != dockwellv1.DatabaseEngine_DATABASE_ENGINE_POSTGRESQL:

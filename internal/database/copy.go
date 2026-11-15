@@ -77,6 +77,40 @@ var trustsAnyone = map[dockwellv1.DatabaseEngine][]string{
 	dockwellv1.DatabaseEngine_DATABASE_ENGINE_MARIADB:    {"sh", "-c", `unset MYSQL_PWD; c=mysql; command -v mariadb >/dev/null 2>&1 && c=mariadb; exec "$c" --protocol=TCP -h "$3" -P "$2" -u "$1" --password= -e 'SELECT 1' "$4"`, "sh"},
 }
 
+// signsInAs signs in to a server as a user, with the password the environment holds,
+// from another host, to a database: the user, the port, the address and the
+// database are its arguments.
+var signsInAs = map[dockwellv1.DatabaseEngine][]string{
+	dockwellv1.DatabaseEngine_DATABASE_ENGINE_POSTGRESQL: {"sh", "-c", `exec psql -X -w -h "$3" -p "$2" -U "$1" -d "$4" -c 'SELECT 1'`, "sh"},
+	dockwellv1.DatabaseEngine_DATABASE_ENGINE_MYSQL:      {"sh", "-c", `exec mysql --protocol=TCP -h "$3" -P "$2" -u "$1" -e 'SELECT 1' "$4"`, "sh"},
+	dockwellv1.DatabaseEngine_DATABASE_ENGINE_MARIADB:    {"sh", "-c", `c=mysql; command -v mariadb >/dev/null 2>&1 && c=mariadb; exec "$c" --protocol=TCP -h "$3" -P "$2" -u "$1" -e 'SELECT 1' "$4"`, "sh"},
+}
+
+// signsInFromStdin is signsInAs for MySQL and MariaDB with the password read from an
+// option file on the client's input, as MySQL has deprecated MYSQL_PWD and a later
+// image may drop it, and an environment shows in docker inspect while it runs.
+var signsInFromStdin = map[dockwellv1.DatabaseEngine][]string{
+	dockwellv1.DatabaseEngine_DATABASE_ENGINE_MYSQL:   {"sh", "-c", `exec mysql --defaults-extra-file=/dev/stdin --protocol=TCP -h "$3" -P "$2" -u "$1" -e 'SELECT 1' "$4"`, "sh"},
+	dockwellv1.DatabaseEngine_DATABASE_ENGINE_MARIADB: {"sh", "-c", `c=mysql; command -v mariadb >/dev/null 2>&1 && c=mariadb; exec "$c" --defaults-extra-file=/dev/stdin --protocol=TCP -h "$3" -P "$2" -u "$1" -e 'SELECT 1' "$4"`, "sh"},
+}
+
+// mysqlOptions is an option file that gives a MySQL or MariaDB client its password,
+// quoted for what it holds, its backslashes escaped, as option files read escapes. A
+// password holding both quotes, or a line break, can't be written so.
+func mysqlOptions(password string) (string, bool) {
+	if strings.ContainsAny(password, "\r\n") {
+		return "", false
+	}
+	quote := `"`
+	if strings.Contains(password, `"`) {
+		if strings.Contains(password, "'") {
+			return "", false
+		}
+		quote = "'"
+	}
+	return "[client]\npassword=" + quote + strings.ReplaceAll(password, `\`, `\\`) + quote + "\n", true
+}
+
 // clientSays is what the new server's client says of itself, from its own
 // container, to tell what it refuses: psql's version, or a MySQL or MariaDB
 // client's options.
@@ -254,6 +288,41 @@ func (ld Loader) Load(ctx context.Context, l Load, dump io.Reader) error {
 		return &LoadError{Code: code, Said: scrubbed(strings.TrimSpace(said.String()))}
 	}
 	return nil
+}
+
+// SignsIn says whether User signs in to Database on the server To runs with
+// Password, as an app on another host does: from a throwaway of the server's image
+// on an internal network of its own, where the server asks for a password, never
+// from inside the server's container, which its image trusts. What the client said
+// comes back where it doesn't (ADR 0084, Connect a database).
+func (ld Loader) SignsIn(ctx context.Context, l Load) (bool, string, error) {
+	e, to := l.Engine, l.To
+	cmd := signsInAs[e.Kind]
+	if cmd == nil {
+		return false, "", fmt.Errorf("checking how a %s user signs in isn't something Dockwell does yet", e.Name)
+	}
+	port := strconv.FormatUint(uint64(cmp.Or(PortOf(e, to.Config.Cmd), e.Port)), 10)
+	network, addr, leave, err := ld.copyNetwork(ctx, to, l.User)
+	if err != nil {
+		return false, "", err
+	}
+	defer leave()
+	said := &capped{max: 4 << 10}
+	env := []string{copyPassword[e.Kind] + "=" + l.Password}
+	var in io.Reader
+	if file, ok := mysqlOptions(l.Password); ok && signsInFromStdin[e.Kind] != nil {
+		cmd, env, in = signsInFromStdin[e.Kind], nil, strings.NewReader(file)
+	}
+	code, err := ld.throwaway(ctx, to.Config.Image, network, l.User, env, append(slices.Clone(cmd), l.User, port, addr, l.Database), in, said)
+	if err != nil {
+		return false, "", err
+	}
+	out := scrubbed(strings.TrimSpace(said.String()))
+	if l.Password != "" {
+		// A client that echoes what it was given gives nothing of the password back.
+		out = strings.ReplaceAll(out, l.Password, "…")
+	}
+	return code == 0, out, nil
 }
 
 // OwnerOf is who owns a PostgreSQL database, which a dump of it alone runs as: on a

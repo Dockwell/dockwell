@@ -58,6 +58,13 @@ type fakePostgres struct {
 	// closed are the databases whose public schema their owner can't make things in,
 	// as on a server before 15 once template1 was closed, or one upgraded from it.
 	closed map[string]bool
+	// passwords are what a sign-in from another host checks, by role; supers are the
+	// roles its reading says are superusers.
+	passwords map[string]string
+	supers    map[string]bool
+	// elsewhere are the roles that own or were granted something in shop, another
+	// database every role may connect to.
+	elsewhere map[string]bool
 }
 
 // fakeLoad is how a load ran: its environment and the arguments after its script.
@@ -67,6 +74,8 @@ type fakeLoad struct {
 }
 
 var (
+	fakeElsewhere  = regexp.MustCompile(`(?s)^\\connect "shop"\n.*aclexplode\(c\.relacl\) a WHERE a\.grantee <> 0 AND pg_has_role\('([a-z0-9_]+)'`)
+	fakeReach      = regexp.MustCompile(`pg_has_role\('([a-z0-9_]+)', r\.oid, 'MEMBER'\).*FROM pg_database WHERE datname = '([a-z0-9_]+)'`)
 	fakeCreateRole = regexp.MustCompile(`SELECT 'CREATE ROLE "([a-z0-9_]+)" LOGIN'`)
 	fakeCreateDB   = regexp.MustCompile(`SELECT 'CREATE DATABASE "([a-z0-9_]+)" OWNER "([a-z0-9_]+)"'`)
 	fakeAsk        = regexp.MustCompile(`'user', EXISTS \(SELECT 1 FROM pg_roles WHERE rolname = '([a-z0-9_]+)'\), 'owner', coalesce\(\(SELECT pg_get_userbyid\(datdba\) FROM pg_database WHERE datname = '([a-z0-9_]+)'`)
@@ -101,6 +110,18 @@ func (f *fakePostgres) exec(x dockertest.Exec) int {
 		}
 		if f.trusts || x.Cmd[len(x.Cmd)-2] == "127.0.0.1" {
 			return 0
+		}
+		// A sign-in with the password its environment holds, as a user's check makes,
+		// where the role has that password.
+		if !strings.Contains(script, "unset PGPASSWORD") {
+			user := x.Cmd[len(x.Cmd)-4]
+			for _, kv := range x.Env {
+				if pw, ok := strings.CutPrefix(kv, "PGPASSWORD="); ok && pw != "" && f.passwords[user] == pw {
+					return 0
+				}
+			}
+			_, _ = io.WriteString(x.Stderr, "psql: error: connection to server failed: FATAL:  password authentication failed for user \""+user+"\"\n")
+			return 2
 		}
 		_, _ = io.WriteString(x.Stderr, "psql: error: fe_sendauth: no password supplied\n")
 		return 2
@@ -166,6 +187,17 @@ func (f *fakePostgres) exec(x dockertest.Exec) int {
 			_, _ = io.WriteString(x.Stdout, map[bool]string{true: "t", false: "f"}[f.closed[m[1]]]+"\n")
 			return 0
 		}
+	}
+	if m := fakeElsewhere.FindStringSubmatch(sql); m != nil {
+		_, _ = io.WriteString(x.Stdout, map[bool]string{true: "1", false: "0"}[f.elsewhere[m[1]]]+"\n")
+		return 0
+	}
+	if m := fakeReach.FindStringSubmatch(sql); m != nil {
+		// What a user reaches: past its database where supers says so, and its database
+		// where it owns it; then shop, which it may connect to.
+		one := map[bool]string{true: "1", false: "0"}
+		_, _ = io.WriteString(x.Stdout, one[f.supers[m[1]]]+" "+one[f.databases[m[2]] == m[1]]+"\nshop\n")
+		return 0
 	}
 	if m := fakeOwner.FindStringSubmatch(sql); m != nil {
 		_, _ = io.WriteString(x.Stdout, `{"owner":"`+f.databases[m[1]]+`"}`+"\n")
@@ -693,5 +725,202 @@ func TestAUserWhosePublicSchemaIsClosedIsPutRight(t *testing.T) {
 	}
 	if err := d.Verify(t.Context(), ref, desired); err != nil {
 		t.Errorf("given its password anew, it checks as %v", err)
+	}
+}
+
+// A user and database the server has already, as an imported app signs in as, are
+// taken on: checked to be there, to be no administrator, and to sign in with the
+// password from another host, then kept as they are. Nothing is made, no password
+// set, and deleting the user drops nothing (ADR 0084, Connect a database).
+func TestAUserTheServerHasIsTakenOn(t *testing.T) {
+	d, pg, _ := userStand(t)
+	pg.roles["blog"], pg.databases["blog"] = true, "blog"
+	pg.roles["boss"], pg.roles["helper"] = true, true
+	pg.passwords = map[string]string{"blog": "the-blog-password", "boss": "the-bosss-password", "helper": "the-helpers-password"}
+	pg.supers = map[string]bool{"postgres": true, "boss": true}
+	takeOn := func(name, password string) error {
+		step := resource.Step{Ref: resource.Ref{Kind: UserKind, Scope: "env_1", Name: name}, Action: resource.ActionCreate}
+		ctx := resource.WithValues(t.Context(), map[string]string{passwordUse: password})
+		return d.Apply(ctx, step, &resourcev1.DatabaseUser{Service: "db", DatabaseName: "blog", Password: "BLOG_PASSWORD", TakenOn: true})
+	}
+	ref := resource.Ref{Kind: UserKind, Scope: "env_1", Name: "blog"}
+
+	if err := takeOn("blog", "not-its-password"); err == nil || !strings.Contains(err.Error(), "doesn't sign in to blog with the password in BLOG_PASSWORD") {
+		t.Errorf("taking on a user with a wrong password = %v", err)
+	}
+	if got, _ := d.Observe(t.Context(), ref); got != nil {
+		t.Errorf("a refused take-on is kept: %v", got)
+	}
+	if err := takeOn("boss", "the-bosss-password"); err == nil || !strings.Contains(err.Error(), "boss reaches past its database blog on db") {
+		t.Errorf("taking on the administrator = %v", err)
+	}
+	// One that signs in, and neither owns the database nor may make things in it.
+	if err := takeOn("helper", "the-helpers-password"); err == nil || !strings.Contains(err.Error(), "helper has no rights in blog on db") {
+		t.Errorf("taking on a user with no rights in the database = %v", err)
+	}
+	if err := takeOn("nobody", "x"); err == nil || !strings.Contains(err.Error(), "has no user nobody") {
+		t.Errorf("taking on a user it hasn't = %v", err)
+	}
+
+	pg.mu.Lock()
+	said := len(pg.said)
+	pg.mu.Unlock()
+	if err := takeOn("blog", "the-blog-password"); err != nil {
+		t.Fatal(err)
+	}
+	pg.mu.Lock()
+	for _, sql := range pg.said[said:] {
+		if strings.Contains(sql, "CREATE ROLE") || strings.Contains(sql, "ALTER ROLE") || strings.Contains(sql, "CREATE DATABASE") {
+			t.Errorf("taking on a user ran %s", sql)
+		}
+	}
+	pg.mu.Unlock()
+	got, err := d.Observe(t.Context(), ref)
+	if u, ok := got.(*resourcev1.DatabaseUser); err != nil || !ok || !u.GetTakenOn() || u.GetDatabaseName() != "blog" {
+		t.Fatalf("taken on, it reads %v, %v", got, err)
+	}
+	if err := d.Verify(t.Context(), ref, got); err != nil {
+		t.Errorf("taken on, it checks as %v", err)
+	}
+	if err := d.Apply(t.Context(), resource.Step{Ref: ref, Action: resource.ActionDelete}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if !pg.roles["blog"] || pg.databases["blog"] != "blog" {
+		t.Errorf("letting go of a user taken on dropped it: roles %v, databases %v", pg.roles, pg.databases)
+	}
+	if got, _ := d.Observe(t.Context(), ref); got != nil {
+		t.Errorf("let go of, it still reads %v", got)
+	}
+}
+
+// A user taken on stays the server's: no plan turns taken_on on or off, letting go of
+// one destroys nothing, it can't be taken on beside rules or a copy, and a database
+// Dockwell keeps for another app on the server isn't taken on through another user,
+// as that app's dumps and restores go by it (ADR 0084, Connect a database).
+func TestAUserTakenOnStaysTheServers(t *testing.T) {
+	d, pg, _ := userStand(t)
+	pg.roles["blog"], pg.databases["blog"] = true, "blog"
+	pg.roles["helper"] = true
+	pg.passwords = map[string]string{"blog": "the-blog-password", "helper": "the-helpers-password"}
+
+	taken := &resourcev1.DatabaseUser{Service: "db", DatabaseName: "blog", Password: "BLOG_PASSWORD", TakenOn: true}
+	made := &resourcev1.DatabaseUser{Service: "db", DatabaseName: "blog", Password: "BLOG_PASSWORD"}
+	for name, change := range map[string][2]*resourcev1.DatabaseUser{"off": {taken, made}, "on": {made, taken}} {
+		if _, err := d.Plan(change[0], change[1], []resource.Change{{Path: "taken_on"}}); err == nil || !strings.Contains(err.Error(), "taken_on can't change") {
+			t.Errorf("turning taken_on %s plans as %v", name, err)
+		}
+	}
+	for name, u := range map[string]*resourcev1.DatabaseUser{
+		"a copy":     {Service: "db", Password: "P", TakenOn: true, CopyFrom: &resourcev1.DatabaseCopy{Environment: "env_2", Service: "db", Database: "shop"}},
+		"shared":     {Service: "db", Password: "P", TakenOn: true, Shared: true},
+		"a prefix":   {Service: "db", Password: "P", TakenOn: true, KeyPrefix: "shop:"},
+		"kept apart": {Service: "db", Password: "P", TakenOn: true, KeepsApart: true},
+	} {
+		if err := d.Validate(u); err == nil {
+			t.Errorf("a user taken on with %s is valid", name)
+		}
+	}
+
+	ref := resource.Ref{Kind: UserKind, Scope: "env_1", Name: "blog"}
+	ctx := resource.WithValues(t.Context(), map[string]string{passwordUse: "the-blog-password"})
+	if err := d.Apply(ctx, resource.Step{Ref: ref, Action: resource.ActionCreate}, &resourcev1.DatabaseUser{
+		Service: "db", DatabaseName: "blog", Password: "BLOG_PASSWORD", TakenOn: true, Revisions: map[string]int64{passwordUse: 1},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// Granted every right by hand after, it reads as drift, which the next plan takes
+	// on again and so refuses.
+	got, err := d.Observe(t.Context(), ref)
+	if u, ok := got.(*resourcev1.DatabaseUser); err != nil || !ok || u.GetRevisions() == nil {
+		t.Fatalf("taken on, blog reads %v, %v", got, err)
+	}
+	pg.mu.Lock()
+	pg.supers = map[string]bool{"blog": true}
+	pg.mu.Unlock()
+	if got, err := d.Observe(t.Context(), ref); err != nil || got.(*resourcev1.DatabaseUser).GetRevisions() != nil {
+		t.Errorf("made a superuser by hand, blog reads %v, %v", got, err)
+	}
+	pg.mu.Lock()
+	pg.supers = nil
+	pg.elsewhere = map[string]bool{"blog": true}
+	pg.mu.Unlock()
+	// So does a right on a table of shop's, granted by hand, which only a connection
+	// to shop reads.
+	if got, err := d.Observe(t.Context(), ref); err != nil || got.(*resourcev1.DatabaseUser).GetRevisions() != nil {
+		t.Errorf("granted a right in shop by hand, blog reads %v, %v", got, err)
+	}
+	pg.mu.Lock()
+	pg.elsewhere = nil
+	pg.mu.Unlock()
+	if got, err := d.Observe(t.Context(), ref); err != nil || got.(*resourcev1.DatabaseUser).GetRevisions() == nil {
+		t.Errorf("with no right in shop, blog reads %v, %v", got, err)
+	}
+	dec, err := d.Judge(t.Context(), ref, taken, nil, nil)
+	if err != nil || dec.Action != resource.ActionDelete || dec.Destroys || dec.Leaves != "blog" {
+		t.Errorf("letting go of a user taken on plans as %+v, %v", dec, err)
+	}
+
+	// blog is kept for the app that took blog on, so another user isn't taken on for it.
+	other := resource.Ref{Kind: UserKind, Scope: "env_1", Name: "helper"}
+	octx := resource.WithValues(t.Context(), map[string]string{passwordUse: "the-helpers-password"})
+	err = d.Apply(octx, resource.Step{Ref: other, Action: resource.ActionCreate}, &resourcev1.DatabaseUser{Service: "db", DatabaseName: "blog", Password: "HELPER_PASSWORD", TakenOn: true})
+	if err == nil || !strings.Contains(err.Error(), "the database blog on db is kept for another app, through blog") {
+		t.Errorf("taking on another user for a database kept for an app = %v", err)
+	}
+	if _, err := d.Judge(t.Context(), other, nil, &resourcev1.DatabaseUser{Service: "db", DatabaseName: "blog", Password: "HELPER_PASSWORD", TakenOn: true}, nil); err == nil || !strings.Contains(err.Error(), "kept for another app") {
+		t.Errorf("planning to take on another user for a database kept for an app = %v", err)
+	}
+}
+
+// A MySQL or MariaDB client gets the password in an option file on its input, quoted
+// for what it holds, never in its environment, where it can be written so.
+func TestAMySQLPasswordGoesInAnOptionFile(t *testing.T) {
+	for password, want := range map[string]string{
+		"plain":        "[client]\npassword=\"plain\"\n",
+		`back\slash`:   "[client]\npassword=\"back\\\\slash\"\n",
+		`say "hi"`:     "[client]\npassword='say \"hi\"'\n",
+		`both " and '`: "",
+		"two\nlines":   "",
+	} {
+		got, ok := mysqlOptions(password)
+		if got != want || ok != (want != "") {
+			t.Errorf("the option file for %q is %q, %t", password, got, ok)
+		}
+	}
+}
+
+// What reach asks covers the ways past a database the re-check found, on each
+// server it asks: on PostgreSQL, another database's owner it may act as and the
+// pg_* roles over other apps' sessions; on MySQL, roles asked only from 8.0, as 5.7
+// has no role_edges, with column, routine and proxy rights, and a schema grant's _
+// matched against the server's other schemas. TestADatabaseUserIsTakenOnOnRealDocker
+// asks each on a real server.
+func TestReachAsksEveryWayPastItsDatabase(t *testing.T) {
+	t.Parallel()
+	ask := func(k dockwellv1.DatabaseEngine) string {
+		t.Helper()
+		sql, err := reachSQL(&Engine{Kind: k}, "blog", "blog")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return sql
+	}
+	pg := ask(dockwellv1.DatabaseEngine_DATABASE_ENGINE_POSTGRESQL)
+	for _, want := range []string{"pg_has_role('blog', datdba, 'MEMBER')", "'pg_maintain'", "'pg_signal_backend'", "'pg_read_all_stats'", "'pg_monitor'"} {
+		if !strings.Contains(pg, want) {
+			t.Errorf("PostgreSQL isn't asked %s: %s", want, pg)
+		}
+	}
+	my := ask(dockwellv1.DatabaseEngine_DATABASE_ENGINE_MYSQL)
+	if !regexp.MustCompile(`/\*!80000 \+ \(SELECT COUNT\(\*\) FROM mysql\.role_edges [^/]*\*/`).MatchString(my) || strings.Count(my, "role_edges") != 1 {
+		t.Errorf("MySQL 5.7 is asked of role_edges, which it hasn't: %s", my)
+	}
+	for _, want := range []string{"COLUMN_PRIVILEGES", "mysql.procs_priv", "mysql.proxies_priv", "LIKE CAST(p.TABLE_SCHEMA AS BINARY)"} {
+		if !strings.Contains(my, want) {
+			t.Errorf("MySQL isn't asked %s: %s", want, my)
+		}
+	}
+	if maria := ask(dockwellv1.DatabaseEngine_DATABASE_ENGINE_MARIADB); !strings.Contains(maria, "mysql.roles_mapping") || strings.Contains(maria, "role_edges") {
+		t.Errorf("MariaDB is asked of the wrong roles: %s", maria)
 	}
 }

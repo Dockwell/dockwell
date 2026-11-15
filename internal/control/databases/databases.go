@@ -85,7 +85,28 @@ type Handler struct {
 	// features is the feature compatibility version each service's database said
 	// last, by the service's ID, for a plan that moves it back (LastFeatures).
 	features map[string]string
+
+	// signIns are the sign-in checks answered lately, by what each asked, with the
+	// revision of the secret it read, so a sheet that asks again asks no agent.
+	signInMu sync.Mutex
+	signIns  map[string]signInAnswer
+	// signInsBy are when each person's last checks reached an agent, by user ID, which
+	// signInsPerMinute holds them to.
+	signInsBy map[string][]time.Time
 }
+
+// signInsPerMinute is how many sign-in checks one person makes reach an agent in a
+// minute: a sheet asks a few as choices change, and more is a script trying passwords.
+const signInsPerMinute = 20
+
+// signInAnswer is a sign-in check's answer, and when it came.
+type signInAnswer struct {
+	res *dockwellv1.CheckDatabaseSignInResponse
+	at  time.Time
+}
+
+// signInKeep is how long a sign-in check's answer is given again.
+const signInKeep = 30 * time.Second
 
 var _ dockwellv1connect.DatabaseServiceHandler = (*Handler)(nil)
 
@@ -99,7 +120,7 @@ type keptReading struct {
 // New returns a handler that reads the store through keeper, asks agents what each
 // database says, and backups for what's kept of each.
 func New(ch Changes, agents *agentapi.Agents, backups Backups, db *store.DB, keeper Secrets, logger *slog.Logger) *Handler {
-	return &Handler{changes: ch, agents: agents, backups: backups, db: db, keeper: keeper, logger: logger, now: time.Now, kept: map[string]keptReading{}, features: map[string]string{}}
+	return &Handler{changes: ch, agents: agents, backups: backups, db: db, keeper: keeper, logger: logger, now: time.Now, kept: map[string]keptReading{}, features: map[string]string{}, signIns: map[string]signInAnswer{}, signInsBy: map[string][]time.Time{}}
 }
 
 // placed is a database with where it runs.
@@ -365,6 +386,12 @@ func (h *Handler) userSecret(ctx context.Context, env, server, user string) (str
 		}
 		if spec.GetService() != server {
 			return invalidField("user", fmt.Errorf("the user %s is %s's, not %s's", user, spec.GetService(), server))
+		}
+		// One taken on for an app is the person's: Dockwell never sets its password
+		// (ADR 0084, Connect a database).
+		if spec.GetTakenOn() {
+			return authapi.ReasonError(connect.CodeFailedPrecondition,
+				fmt.Errorf("%s is %s's own user, taken on for an app, so Dockwell doesn't change its password. Change it on %s, then update the password Dockwell keeps for it, which checks it signs in", user, server, server), "taken_on")
 		}
 		secret = spec.GetPassword()
 		return nil

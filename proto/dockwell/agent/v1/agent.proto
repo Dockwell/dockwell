@@ -877,6 +877,7 @@ message Call {
     // Sign in at a registry with a login, saving nothing (ADR 0086). Numbered in the
     // block registry logins hold, 310 to 319.
     CheckRegistryLoginCall check_registry_login = 313;
+    CheckDatabaseSignInCall check_database_sign_in = 298;
     // Serve these certificates, which the control plane proved by DNS-01 for this
     // server's routes, and no others it gave before (ADR 0088). Numbered in the
     // block DNS-01 holds, 320 to 329.
@@ -988,6 +989,34 @@ message PutCertificatesResult {
   // How many certificates it loaded into the ingress, which is none on a server
   // with no routes: they're loaded as its first comes.
   int32 loaded = 1;
+}
+
+// CheckDatabaseSignInCall asks the agent whether a user signs in to a database server
+// it runs, with a password, from another host, as taking the user on checks, and saves
+// nothing (ADR 0084, Connect a database).
+message CheckDatabaseSignInCall {
+  // The server: its environment's ID, and its service's name.
+  string environment = 1;
+  string service = 2;
+  // Who signs in, and to which database.
+  string user = 3;
+  string database = 4;
+  // The password, sealed to this stream's delivery key, to the user's database.user
+  // ref, under "password".
+  bytes password = 5;
+}
+
+// CheckDatabaseSignInResult says how the server answered.
+message CheckDatabaseSignInResult {
+  // True where the user signs in with the password.
+  bool signs_in = 1;
+  // What the server's client said where it didn't, with nothing of the password.
+  string said = 2;
+  // True where the user is the server's administrator, which no app is connected as.
+  bool administrator = 3;
+  // True where the user has no rights in the database: it neither owns it nor may
+  // make things in it.
+  bool no_rights = 4;
 }
 
 // CheckRegistryLoginCall asks the agent to sign in at a registry, as its pull would,
@@ -2443,6 +2472,7 @@ message CallResult {
     SystemLogResult system_log = 281;
     // How check_registry_login signed in.
     CheckRegistryLoginResult check_registry_login = 313;
+    CheckDatabaseSignInResult check_database_sign_in = 298;
     // What put_certificates loaded.
     PutCertificatesResult put_certificates = 320;
     // What read_panel found.

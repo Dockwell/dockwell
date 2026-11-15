@@ -95,6 +95,24 @@ func (*Driver) Validate(spec proto.Message) error {
 	return checkMembers(n)
 }
 
+// LinkRange is where link networks' addresses come from, a /29 each: 8,192 of them,
+// outside the pools Docker gives its own networks (ADR 0084).
+var LinkRange = netip.MustParsePrefix("10.233.0.0/16")
+
+// FreeLinkSubnet is a /29 of LinkRange that taken, by subnet, hasn't, or "" where
+// every one is taken.
+func FreeLinkSubnet(taken map[string]bool) string {
+	for a := LinkRange.Addr(); LinkRange.Contains(a); {
+		if p := netip.PrefixFrom(a, 29); !taken[p.String()] {
+			return p.String()
+		}
+		for range 8 {
+			a = a.Next()
+		}
+	}
+	return ""
+}
+
 // checkMembers refuses members and a subnet a link network couldn't have (ADR 0084).
 func checkMembers(n *resourcev1.Network) error {
 	seen := map[string]bool{}

@@ -105,6 +105,8 @@ ComposeService.ImportCompose                   plan         developer  developer
 ContainerService.AdoptContainer                plan         admin      admin      install  session
 ContainerService.ListContainers                read         admin      admin      install
 DatabaseService.ChangeDatabasePassword         plan         developer  developer  project
+DatabaseService.CheckDatabaseSignIn            read         developer  admin      project
+DatabaseService.ConnectDatabase                plan         developer  developer  project
 DatabaseService.CreateDatabaseUser             plan         developer  developer  project
 DatabaseService.GetDatabase                    read         viewer     viewer     project
 DatabaseService.ListDatabases                  read         viewer     viewer     project

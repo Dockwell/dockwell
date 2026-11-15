@@ -2450,6 +2450,9 @@ msgstr "Change {name}"
 msgid "Change {target}"
 msgstr "Change {target}"
 
+msgid "Connect a database"
+msgstr "Connect a database"
+
 msgid "Discard"
 msgstr "Discard"
 
@@ -3747,6 +3750,98 @@ msgstr "{0} went away during the build, so how it ended isn't known."
 msgid "{count} lines left out"
 msgstr "{count} lines left out"
 
+msgid "A new one for {name}"
+msgstr "A new one for {name}"
+
+msgid "Checked as the plan applies"
+msgstr "Checked as the plan applies"
+
+msgid "Checking it signs in"
+msgstr "Checking it signs in"
+
+msgid "Choose again"
+msgstr "Choose again"
+
+msgid "Connect {name} to a database"
+msgstr "Connect {name} to a database"
+
+msgid "Connection URL"
+msgstr "Connection URL"
+
+msgid "Couldn't check now. The plan checks it as it applies."
+msgstr "Couldn't check now. The plan checks it as it applies."
+
+msgid "Database"
+msgstr "Database"
+
+msgctxt "what a variable holds"
+msgid "Database name"
+msgstr "Database name"
+
+msgid "Database server"
+msgstr "Database server"
+
+msgid "Host"
+msgstr "Host"
+
+msgid "Host and port"
+msgstr "Host and port"
+
+msgid "It connects to a PostgreSQL, MySQL or MariaDB that runs where it does."
+msgstr "It connects to a PostgreSQL, MySQL or MariaDB that runs where it does."
+
+msgid "Its data stays where it is"
+msgstr "Its data stays where it is"
+
+msgid "Its password is in"
+msgstr "Its password is in"
+
+msgid "Its values come from the link, and follow the database"
+msgstr "Its values come from the link, and follow the database"
+
+msgid "Never its administrator"
+msgstr "Never its administrator"
+
+#. placeholder {0}: serversOf(service).length > 1 ? t`its servers` : (service.deployments[0]?.serverName ?? t`its server`)
+msgid "No database on {0}"
+msgstr "No database on {0}"
+
+msgid "Not set"
+msgstr "Not set"
+
+msgid "Open Databases"
+msgstr "Open Databases"
+
+msgid "Pick a secret"
+msgstr "Pick a secret"
+
+msgid "Signs in"
+msgstr "Signs in"
+
+msgid "Signs in as"
+msgstr "Signs in as"
+
+msgid "Use a new database"
+msgstr "Use a new database"
+
+msgid "What {name} reads"
+msgstr "What {name} reads"
+
+msgid "its servers"
+msgstr "its servers"
+
+msgid "{name} reads no variable or secret of its environment."
+msgstr "{name} reads no variable or secret of its environment."
+
+msgid "{signsInAs} doesn't sign in with {passwordIn}, so {name} couldn't reach its data. Pick the secret that holds its password."
+msgstr "{signsInAs} doesn't sign in with {passwordIn}, so {name} couldn't reach its data. Pick the secret that holds its password."
+
+msgid "{signsInAs} has no rights in {database}, so {name} couldn't use it. Pick the user that owns it."
+msgstr "{signsInAs} has no rights in {database}, so {name} couldn't use it. Pick the user that owns it."
+
+msgid "{signsInAs} reaches past {database}, as the server's administrator does, so it reaches every app's data. Give {name} a new database of its own."
+msgstr "{signsInAs} reaches past {database}, as the server's administrator does, so it reaches every app's data. Give {name} a new database of its own."
+
 msgid "Delete the project"
 msgstr "Delete the project"
 
@@ -4285,9 +4380,6 @@ msgstr "A new project"
 
 msgid "Ask an admin for a role in the project it goes to."
 msgstr "Ask an admin for a role in the project it goes to."
-
-msgid "Choose again"
-msgstr "Choose again"
 
 msgid "Move {name}"
 msgstr "Move {name}"
@@ -7453,9 +7545,6 @@ msgstr "Choose its {unmetWord} to review the plan"
 msgid "Copy {label}"
 msgstr "Copy {label}"
 
-msgid "Database"
-msgstr "Database"
-
 msgid "Each app has a user of its own"
 msgstr "Each app has a user of its own"
 
@@ -8815,6 +8904,9 @@ msgstr "Leaves the keys it wrote on the server"
 
 msgid "Leaves the keys under {keysUnder} on the server"
 msgstr "Leaves the keys under {keysUnder} on the server"
+
+msgid "Leaves {name} and its database {leftDatabase} on the server, which Dockwell didn't make"
+msgstr "Leaves {name} and its database {leftDatabase} on the server, which Dockwell didn't make"
 
 msgid "May cut off access to {server}"
 msgstr "May cut off access to {server}"
@@ -11016,9 +11108,6 @@ msgstr "Give it a <0>--keyFile</0> every member of {set} shares, make a root use
 msgid "Give it a volume"
 msgstr "Give it a volume"
 
-msgid "Host"
-msgstr "Host"
-
 msgid "It sets no most"
 msgstr "It sets no most"
 
@@ -11191,9 +11280,6 @@ msgstr "Password in"
 
 msgid "Role"
 msgstr "Role"
-
-msgid "Signs in"
-msgstr "Signs in"
 
 msgid "Signs in to"
 msgstr "Signs in to"
@@ -12252,9 +12338,6 @@ msgstr "Couldn't read what 1Panel keeps"
 
 msgid "Cron job"
 msgstr "Cron job"
-
-msgid "Database server"
-msgstr "Database server"
 
 msgid "Dockwell can take on what 1Panel runs as it is, with no restart, and say what it would make again and what it would leave."
 msgstr "Dockwell can take on what 1Panel runs as it is, with no restart, and say what it would make again and what it would leave."

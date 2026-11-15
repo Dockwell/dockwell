@@ -136,6 +136,8 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "ContainerService.listContainers": "may",
 
   "DatabaseService.changeDatabasePassword": "may",
+  "DatabaseService.checkDatabaseSignIn": "may",
+  "DatabaseService.connectDatabase": "may",
   "DatabaseService.createDatabaseUser": "may",
   "DatabaseService.getDatabase": "read",
   "DatabaseService.listDatabases": "read",

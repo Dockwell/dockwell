@@ -47,6 +47,12 @@ const (
 	// DatabaseServiceChangeDatabasePasswordProcedure is the fully-qualified name of the
 	// DatabaseService's ChangeDatabasePassword RPC.
 	DatabaseServiceChangeDatabasePasswordProcedure = "/dockwell.v1.DatabaseService/ChangeDatabasePassword"
+	// DatabaseServiceCheckDatabaseSignInProcedure is the fully-qualified name of the DatabaseService's
+	// CheckDatabaseSignIn RPC.
+	DatabaseServiceCheckDatabaseSignInProcedure = "/dockwell.v1.DatabaseService/CheckDatabaseSignIn"
+	// DatabaseServiceConnectDatabaseProcedure is the fully-qualified name of the DatabaseService's
+	// ConnectDatabase RPC.
+	DatabaseServiceConnectDatabaseProcedure = "/dockwell.v1.DatabaseService/ConnectDatabase"
 )
 
 // DatabaseServiceClient is a client for the dockwell.v1.DatabaseService service.
@@ -75,6 +81,28 @@ type DatabaseServiceClient interface {
 	// keeps signing in (ADR 0038). A database whose password isn't in a secret has
 	// none to change here.
 	ChangeDatabasePassword(context.Context, *connect.Request[v1.ChangeDatabasePasswordRequest]) (*connect.Response[v1.ChangeDatabasePasswordResponse], error)
+	// CheckDatabaseSignIn asks whether a user of a PostgreSQL, MySQL or MariaDB server
+	// Dockwell runs signs in to one of its databases with the password an app's secret
+	// holds, from another host, as connecting the app takes that user on (ADR 0084,
+	// Connect a database). It changes nothing. The password stays on the control plane
+	// and the server's agent, and nothing it answers holds it. It takes a developer's
+	// role in the app's environment and in the server's, and an admin's where the
+	// server's is protected, as revealing its secrets does. One check runs at a time on
+	// a server, and an answer is given again for 30 seconds.
+	CheckDatabaseSignIn(context.Context, *connect.Request[v1.CheckDatabaseSignInRequest]) (*connect.Response[v1.CheckDatabaseSignInResponse], error)
+	// ConnectDatabase plans an app's link to a PostgreSQL, MySQL or MariaDB server
+	// Dockwell runs, for an app from no catalog entry, such as one a Compose file or
+	// an import brought (ADR 0084, Connect a database). The link is a resource in the
+	// app's environment, and what meets it is a new database with a user of the app's
+	// own, made in the plan with a generated password, or a database and user the
+	// server has already, taken on with the password the app signs in with now. That
+	// user stays the server's: Dockwell checks it signs in from another host, and
+	// never changes its rights or its password, nor drops it. Each name of the app's
+	// environment the request names is set from the link, the password as a value
+	// read from the user's own secret, and a URL written from the parts. A server in
+	// another project is reached on a link network of the app's own, which it joins
+	// in place. The app runs on the server the database runs on.
+	ConnectDatabase(context.Context, *connect.Request[v1.ConnectDatabaseRequest]) (*connect.Response[v1.ConnectDatabaseResponse], error)
 }
 
 // NewDatabaseServiceClient constructs a client for the dockwell.v1.DatabaseService service. By
@@ -114,6 +142,19 @@ func NewDatabaseServiceClient(httpClient connect.HTTPClient, baseURL string, opt
 			connect.WithSchema(databaseServiceMethods.ByName("ChangeDatabasePassword")),
 			connect.WithClientOptions(opts...),
 		),
+		checkDatabaseSignIn: connect.NewClient[v1.CheckDatabaseSignInRequest, v1.CheckDatabaseSignInResponse](
+			httpClient,
+			baseURL+DatabaseServiceCheckDatabaseSignInProcedure,
+			connect.WithSchema(databaseServiceMethods.ByName("CheckDatabaseSignIn")),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
+		connectDatabase: connect.NewClient[v1.ConnectDatabaseRequest, v1.ConnectDatabaseResponse](
+			httpClient,
+			baseURL+DatabaseServiceConnectDatabaseProcedure,
+			connect.WithSchema(databaseServiceMethods.ByName("ConnectDatabase")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -123,6 +164,8 @@ type databaseServiceClient struct {
 	getDatabase            *connect.Client[v1.GetDatabaseRequest, v1.GetDatabaseResponse]
 	createDatabaseUser     *connect.Client[v1.CreateDatabaseUserRequest, v1.CreateDatabaseUserResponse]
 	changeDatabasePassword *connect.Client[v1.ChangeDatabasePasswordRequest, v1.ChangeDatabasePasswordResponse]
+	checkDatabaseSignIn    *connect.Client[v1.CheckDatabaseSignInRequest, v1.CheckDatabaseSignInResponse]
+	connectDatabase        *connect.Client[v1.ConnectDatabaseRequest, v1.ConnectDatabaseResponse]
 }
 
 // ListDatabases calls dockwell.v1.DatabaseService.ListDatabases.
@@ -143,6 +186,16 @@ func (c *databaseServiceClient) CreateDatabaseUser(ctx context.Context, req *con
 // ChangeDatabasePassword calls dockwell.v1.DatabaseService.ChangeDatabasePassword.
 func (c *databaseServiceClient) ChangeDatabasePassword(ctx context.Context, req *connect.Request[v1.ChangeDatabasePasswordRequest]) (*connect.Response[v1.ChangeDatabasePasswordResponse], error) {
 	return c.changeDatabasePassword.CallUnary(ctx, req)
+}
+
+// CheckDatabaseSignIn calls dockwell.v1.DatabaseService.CheckDatabaseSignIn.
+func (c *databaseServiceClient) CheckDatabaseSignIn(ctx context.Context, req *connect.Request[v1.CheckDatabaseSignInRequest]) (*connect.Response[v1.CheckDatabaseSignInResponse], error) {
+	return c.checkDatabaseSignIn.CallUnary(ctx, req)
+}
+
+// ConnectDatabase calls dockwell.v1.DatabaseService.ConnectDatabase.
+func (c *databaseServiceClient) ConnectDatabase(ctx context.Context, req *connect.Request[v1.ConnectDatabaseRequest]) (*connect.Response[v1.ConnectDatabaseResponse], error) {
+	return c.connectDatabase.CallUnary(ctx, req)
 }
 
 // DatabaseServiceHandler is an implementation of the dockwell.v1.DatabaseService service.
@@ -171,6 +224,28 @@ type DatabaseServiceHandler interface {
 	// keeps signing in (ADR 0038). A database whose password isn't in a secret has
 	// none to change here.
 	ChangeDatabasePassword(context.Context, *connect.Request[v1.ChangeDatabasePasswordRequest]) (*connect.Response[v1.ChangeDatabasePasswordResponse], error)
+	// CheckDatabaseSignIn asks whether a user of a PostgreSQL, MySQL or MariaDB server
+	// Dockwell runs signs in to one of its databases with the password an app's secret
+	// holds, from another host, as connecting the app takes that user on (ADR 0084,
+	// Connect a database). It changes nothing. The password stays on the control plane
+	// and the server's agent, and nothing it answers holds it. It takes a developer's
+	// role in the app's environment and in the server's, and an admin's where the
+	// server's is protected, as revealing its secrets does. One check runs at a time on
+	// a server, and an answer is given again for 30 seconds.
+	CheckDatabaseSignIn(context.Context, *connect.Request[v1.CheckDatabaseSignInRequest]) (*connect.Response[v1.CheckDatabaseSignInResponse], error)
+	// ConnectDatabase plans an app's link to a PostgreSQL, MySQL or MariaDB server
+	// Dockwell runs, for an app from no catalog entry, such as one a Compose file or
+	// an import brought (ADR 0084, Connect a database). The link is a resource in the
+	// app's environment, and what meets it is a new database with a user of the app's
+	// own, made in the plan with a generated password, or a database and user the
+	// server has already, taken on with the password the app signs in with now. That
+	// user stays the server's: Dockwell checks it signs in from another host, and
+	// never changes its rights or its password, nor drops it. Each name of the app's
+	// environment the request names is set from the link, the password as a value
+	// read from the user's own secret, and a URL written from the parts. A server in
+	// another project is reached on a link network of the app's own, which it joins
+	// in place. The app runs on the server the database runs on.
+	ConnectDatabase(context.Context, *connect.Request[v1.ConnectDatabaseRequest]) (*connect.Response[v1.ConnectDatabaseResponse], error)
 }
 
 // NewDatabaseServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -206,6 +281,19 @@ func NewDatabaseServiceHandler(svc DatabaseServiceHandler, opts ...connect.Handl
 		connect.WithSchema(databaseServiceMethods.ByName("ChangeDatabasePassword")),
 		connect.WithHandlerOptions(opts...),
 	)
+	databaseServiceCheckDatabaseSignInHandler := connect.NewUnaryHandler(
+		DatabaseServiceCheckDatabaseSignInProcedure,
+		svc.CheckDatabaseSignIn,
+		connect.WithSchema(databaseServiceMethods.ByName("CheckDatabaseSignIn")),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
+	databaseServiceConnectDatabaseHandler := connect.NewUnaryHandler(
+		DatabaseServiceConnectDatabaseProcedure,
+		svc.ConnectDatabase,
+		connect.WithSchema(databaseServiceMethods.ByName("ConnectDatabase")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/dockwell.v1.DatabaseService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case DatabaseServiceListDatabasesProcedure:
@@ -216,6 +304,10 @@ func NewDatabaseServiceHandler(svc DatabaseServiceHandler, opts ...connect.Handl
 			databaseServiceCreateDatabaseUserHandler.ServeHTTP(w, r)
 		case DatabaseServiceChangeDatabasePasswordProcedure:
 			databaseServiceChangeDatabasePasswordHandler.ServeHTTP(w, r)
+		case DatabaseServiceCheckDatabaseSignInProcedure:
+			databaseServiceCheckDatabaseSignInHandler.ServeHTTP(w, r)
+		case DatabaseServiceConnectDatabaseProcedure:
+			databaseServiceConnectDatabaseHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -239,4 +331,12 @@ func (UnimplementedDatabaseServiceHandler) CreateDatabaseUser(context.Context, *
 
 func (UnimplementedDatabaseServiceHandler) ChangeDatabasePassword(context.Context, *connect.Request[v1.ChangeDatabasePasswordRequest]) (*connect.Response[v1.ChangeDatabasePasswordResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.DatabaseService.ChangeDatabasePassword is not implemented"))
+}
+
+func (UnimplementedDatabaseServiceHandler) CheckDatabaseSignIn(context.Context, *connect.Request[v1.CheckDatabaseSignInRequest]) (*connect.Response[v1.CheckDatabaseSignInResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.DatabaseService.CheckDatabaseSignIn is not implemented"))
+}
+
+func (UnimplementedDatabaseServiceHandler) ConnectDatabase(context.Context, *connect.Request[v1.ConnectDatabaseRequest]) (*connect.Response[v1.ConnectDatabaseResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.DatabaseService.ConnectDatabase is not implemented"))
 }

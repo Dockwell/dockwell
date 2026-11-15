@@ -249,6 +249,8 @@ function StepRow({
   const kept = step.keptPaths.join(", ");
   // The keys a Redis user's delete leaves, by their prefix, such as "shop:".
   const keysUnder = step.keysLeft.replace(/\*$/, "");
+  // A database user taken on, and its database, which a delete leaves as they are.
+  const leftDatabase = step.leavesDatabase;
   const reach = step.hostAccess
     .filter((a) => a.kind !== HostAccessKind.HTTPS_OFF && a.kind !== HostAccessKind.ACCESS_OPENED)
     .map((a) => words.access(a))
@@ -317,6 +319,9 @@ function StepRow({
                 ? t`Leaves the keys it wrote on the server`
                 : t`Leaves the keys under ${keysUnder} on the server`}
             </span>
+          ) : null}
+          {step.leavesDatabase ? (
+            <span>{t`Leaves ${name} and its database ${leftDatabase} on the server, which Dockwell didn't make`}</span>
           ) : null}
           {step.restores ? <span>{t`Brings back the data the server kept`}</span> : null}
           {step.registryLogin ? <span>{t`Pulls with the registry login ${step.registryLogin}`}</span> : null}

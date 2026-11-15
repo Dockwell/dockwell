@@ -4,6 +4,7 @@ syntax = "proto3";
 
 package dockwell.v1;
 
+import "dockwell/resource/v1alpha1/specs.proto";
 import "dockwell/v1/backup.proto";
 import "dockwell/v1/change.proto";
 import "dockwell/v1/options.proto";
@@ -77,6 +78,47 @@ service DatabaseService {
     option (dockwell.v1.command) = {verb: "change-password"};
     option (google.api.http) = {
       post: "/v1/databases/{id}:changePassword"
+      body: "*"
+    };
+  }
+
+  // CheckDatabaseSignIn asks whether a user of a PostgreSQL, MySQL or MariaDB server
+  // Dockwell runs signs in to one of its databases with the password an app's secret
+  // holds, from another host, as connecting the app takes that user on (ADR 0084,
+  // Connect a database). It changes nothing. The password stays on the control plane
+  // and the server's agent, and nothing it answers holds it. It takes a developer's
+  // role in the app's environment and in the server's, and an admin's where the
+  // server's is protected, as revealing its secrets does. One check runs at a time on
+  // a server, and an answer is given again for 30 seconds.
+  rpc CheckDatabaseSignIn(CheckDatabaseSignInRequest) returns (CheckDatabaseSignInResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.command) = {verb: "check-sign-in"};
+    option (google.api.http) = {get: "/v1/databases/{id}:checkSignIn"};
+  }
+  // ConnectDatabase plans an app's link to a PostgreSQL, MySQL or MariaDB server
+  // Dockwell runs, for an app from no catalog entry, such as one a Compose file or
+  // an import brought (ADR 0084, Connect a database). The link is a resource in the
+  // app's environment, and what meets it is a new database with a user of the app's
+  // own, made in the plan with a generated password, or a database and user the
+  // server has already, taken on with the password the app signs in with now. That
+  // user stays the server's: Dockwell checks it signs in from another host, and
+  // never changes its rights or its password, nor drops it. Each name of the app's
+  // environment the request names is set from the link, the password as a value
+  // read from the user's own secret, and a URL written from the parts. A server in
+  // another project is reached on a link network of the app's own, which it joins
+  // in place. The app runs on the server the database runs on.
+  rpc ConnectDatabase(ConnectDatabaseRequest) returns (ConnectDatabaseResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.command) = {verb: "connect"};
+    option (google.api.http) = {
+      post: "/v1/databases/{id}:connect"
       body: "*"
     };
   }
@@ -264,6 +306,88 @@ message GetDatabaseRequest {
   // The environment of a service named by name, by name or ID, when its project
   // has more than one.
   string environment = 3;
+}
+
+// CheckDatabaseSignInRequest names a database server, a user and database there, and
+// the app's secret that holds the user's password.
+message CheckDatabaseSignInRequest {
+  // The service that runs the database, by ID or by name.
+  string id = 1;
+  // The project of a database named by name, by name or ID.
+  string project = 2;
+  // The environment of a database named by name, by name or ID.
+  string environment = 3;
+  // The user who signs in, one the server has.
+  string user = 4;
+  // The database they sign in to, one the server has.
+  string database = 5 [(dockwell.v1.flag) = "database-name"];
+  // The app's project, by name or ID. Empty is the database's.
+  string app_project = 6;
+  // The app's environment, by name or ID. Empty is the only one its project has.
+  string app_environment = 7;
+  // The secret of the app's environment that holds the user's password, as the app
+  // signs in with it now.
+  string password_secret = 8;
+}
+
+// CheckDatabaseSignInResponse says how the server answered.
+message CheckDatabaseSignInResponse {
+  // True where the user signs in with the password.
+  bool signs_in = 1;
+  // What the server's client said where it didn't, with nothing of the password.
+  string said = 2;
+  // True where the user reaches past its database, as an administrator does, and so
+  // every other app's data, which no app is connected as.
+  bool administrator = 3;
+  // True where the user has no rights in the database: it neither owns it nor may
+  // make things in it.
+  bool no_rights = 4;
+}
+
+// ConnectDatabaseRequest names a database server, the app to connect to it, and
+// what the app reads of it.
+message ConnectDatabaseRequest {
+  // The service that runs the database, by ID or by name.
+  string id = 1;
+  // The project of a database named by name, by name or ID, when more than one has
+  // a service of that name.
+  string project = 2;
+  // The environment of a database named by name, by name or ID, when its project
+  // has more than one.
+  string environment = 3;
+  // The app, by its service's name in its environment.
+  string app = 4;
+  // The app's project, by name or ID. Empty is the database's.
+  string app_project = 5;
+  // The app's environment, by name or ID. Empty is the only one its project has.
+  string app_environment = 6;
+  // The link's name in the app's environment, such as "db". Empty is "db".
+  string link = 7;
+  // The database the app uses there: one the server has, which keeps the app's
+  // data where it is, or a new one. Empty makes a new one, named for the app.
+  string database = 8 [(dockwell.v1.flag) = "database-name"];
+  // The user the app signs in as. With a new database, a new user who owns it,
+  // named as the database unless set. With one the server has, a user there that
+  // isn't its administrator, which is taken on.
+  string user = 9;
+  // With a database the server has: the secret of the app's environment that holds
+  // the user's password, as the app signs in with it now.
+  string password_secret = 10;
+  // The names of the app's environment the link sets, each with what it holds,
+  // such as DB_HOST=host or DATABASE_URL=url. Each is a variable or secret the app
+  // has, and a password or a URL is a secret.
+  map<string, dockwell.resource.v1alpha1.LinkPart> sets = 11;
+  // How a URL the link sets is written, by its name, with {host}, {port},
+  // {address}, {database}, {user} and {password}, such as
+  // "postgres://{user}:{password}@{host}:{port}/{database}?sslmode=disable". Empty is
+  // the engine's own form.
+  map<string, string> templates = 12;
+}
+
+// ConnectDatabaseResponse carries the planned change.
+message ConnectDatabaseResponse {
+  // The change, planned, with its plan.
+  Change change = 1;
 }
 
 // CreateDatabaseUserRequest names a database server, and the user and database to

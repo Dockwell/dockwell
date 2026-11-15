@@ -189,6 +189,22 @@ jobs:
               exit 1
             }
           done
+      # A user and database made by hand are taken on only with the password they sign
+      # in with from another host, a user that reaches past its database never (a
+      # superuser, a role's member, a global grant), on a real PostgreSQL, MySQL 8.4
+      # and 5.7, and MariaDB (ADR 0084, Connect a database). It has to pass, not skip.
+      # MySQL's and MariaDB's sign-in reads the password as an option file on its
+      # input (--defaults-extra-file=/dev/stdin): a client that stops reading one there
+      # fails here as "doesn't sign in", which is the place to look.
+      - name: A database user is taken on
+        if: steps.pick.outputs.run == 'true'
+        run: |
+          for image in postgres:17-alpine mysql:8.4 mysql:5.7 mariadb:11.4; do
+            grep -q -- "--- PASS: TestADatabaseUserIsTakenOnOnRealDocker/$image" "$RUNNER_TEMP/docker.out" || {
+              echo "TestADatabaseUserIsTakenOnOnRealDocker didn't pass on $image, so taking on a user there may let a wrong password or an administrator through. Read its output in Tests against Docker above."
+              exit 1
+            }
+          done
       # Apps share a real Redis and Valkey of each release Dockwell makes users' rules
       # for, each rule loading, and each user kept to its keys (ADR 0084). It has to
       # pass on every one, not skip.

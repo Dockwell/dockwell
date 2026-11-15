@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { timestampDate } from "@bufbuild/protobuf/wkt";
-import { type Change, ChangeService, ChangeState, type EnvironmentVariable } from "@dockwell/api";
+import { type Change, ChangeService, ChangeState, DatabaseService, type EnvironmentVariable } from "@dockwell/api";
 import {
   Button,
   Callout,
@@ -44,6 +44,7 @@ import { RevealsProvider, useReveals } from "../variables/useReveal";
 import { OwnHiddenValue, SecretValue, useAllVariables } from "../variables/VariablesPage";
 import { useApp } from "./AppContext";
 import { environmentOf, isMoving, nameOf } from "./app";
+import { ConnectDatabaseSheet } from "./ConnectDatabaseSheet";
 import {
   alsoRestarts,
   cantMakeSecret,
@@ -85,6 +86,10 @@ export function AppEnvironment({ changeFirst }: { changeFirst?: string | undefin
   const reviewing = useRef(false);
   const [changing, setChanging] = useState<string | undefined>(changeFirst);
   const [importing, setImporting] = useState(false);
+  const [connecting, setConnecting] = useState(false);
+  // Counts the asks to type a new variable's key, from the Connect a database sheet.
+  const [askedForKey, setAskedForKey] = useState(0);
+  const mayConnect = useMay()(DatabaseService.method.connectDatabase, { environment });
   const rows = useMemo(() => envRows(service, pending, store.data?.variables), [service, pending, store.data]);
   const moving = isMoving(state);
   const readable = service.spec !== undefined;
@@ -200,6 +205,15 @@ export function AppEnvironment({ changeFirst }: { changeFirst?: string | undefin
             >
               <Trans>Import .env</Trans>
             </Button>
+            <Button
+              variant="secondary"
+              icon="database"
+              disabled={moving}
+              off={mayConnect.allowed ? undefined : mayConnect.reason || undefined}
+              onClick={() => setConnecting(true)}
+            >
+              <Trans>Connect a database</Trans>
+            </Button>
           </div>
 
           {store.error ? (
@@ -229,6 +243,7 @@ export function AppEnvironment({ changeFirst }: { changeFirst?: string | undefin
             store={store.data?.variables}
             reading={store.data === undefined}
             changing={rows.find((row) => row.name === changing)}
+            askedForKey={askedForKey}
             onAdd={put}
             onDone={() => setChanging(undefined)}
           />
@@ -270,6 +285,18 @@ export function AppEnvironment({ changeFirst }: { changeFirst?: string | undefin
             phone={phone}
             onDiscard={() => setPending(new Map())}
             onReview={review}
+          />
+        ) : null}
+
+        {connecting ? (
+          <ConnectDatabaseSheet
+            service={service}
+            onClose={() => setConnecting(false)}
+            onAddVariable={() => {
+              setConnecting(false);
+              setChanging(undefined);
+              setAskedForKey((n) => n + 1);
+            }}
           />
         ) : null}
 
@@ -637,6 +664,8 @@ interface AddFormProps {
   reading: boolean;
   /** The row whose value is changing; a new one when unset. */
   changing: EnvRow | undefined;
+  /** Grows each time something asks for a new variable's key: the key field takes focus. */
+  askedForKey: number;
   onAdd: (edit: EnvEdit) => void;
   onDone: () => void;
 }
@@ -649,7 +678,7 @@ interface AddFormProps {
  * as its own, shown, or as a secret: one that's hidden starts as a secret, as
  * it may be one.
  */
-function AddForm({ name: app, rows, store, reading, changing, onAdd, onDone }: AddFormProps) {
+function AddForm({ name: app, rows, store, reading, changing, askedForKey, onAdd, onDone }: AddFormProps) {
   const { t } = useLingui();
   const [key, setKey] = useState(changing?.name ?? "");
   // One of its own that's shown starts from what it is; anything else, from nothing.
@@ -661,6 +690,9 @@ function AddForm({ name: app, rows, store, reading, changing, onAdd, onDone }: A
   const [use, setUse] = useState("");
   const valueField = useRef<HTMLInputElement>(null);
   const keyField = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (askedForKey > 0) keyField.current?.focus();
+  }, [askedForKey]);
 
   useEffect(() => {
     if (changing) valueField.current?.focus();

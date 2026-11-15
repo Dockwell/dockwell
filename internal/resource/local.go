@@ -994,6 +994,13 @@ func LoginRef(ref Ref) Ref {
 	return Ref{Kind: "registry.login", Scope: ref.Scope, Name: string(ref.Kind) + "/" + ref.Name}
 }
 
+// DatabaseSignInRef is what a password a sign-in check sends is sealed to on its way
+// to the agent: a database user's, apart from any resource's values, so it opens as
+// nothing else (ADR 0084, Connect a database).
+func DatabaseSignInRef(environment, user string) Ref {
+	return Ref{Kind: "database.signin", Scope: environment, Name: user}
+}
+
 // CertificatesRef is what the certificates the control plane proves by DNS-01 for
 // a server are sealed to on their way to its agent, apart from any resource's
 // values, and to in the agent's keeping (ADR 0088).
