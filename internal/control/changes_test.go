@@ -14,6 +14,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -93,6 +94,9 @@ type testServer struct {
 	// userDir is where its agent keeps what each database user was given.
 	userDir string
 	stop    func()
+	// stopped says stop ended its agent, which the control plane may not have seen
+	// go yet.
+	stopped atomic.Bool
 	// hello changes what its agent says of itself, to stand in for another version.
 	hello func(*agentv1.Hello)
 	// probe answers what a website's server is asked of what it sends to, as a
@@ -193,6 +197,12 @@ func (f *fullServer) addNamedServerWith(t *testing.T, name string, more ...resou
 // connect runs the server's agent until stop, and waits for it.
 func (s *testServer) connect(t *testing.T, f *fullServer) {
 	t.Helper()
+	if s.stopped.Load() {
+		// Gone, as the control plane sees it, before it's back: else the session it
+		// still holds reads as this one connected, and what's asked next goes to it as
+		// it closes, which a loaded machine showed (#197).
+		waitConnected(t, f, s.id.ServerID, false)
+	}
 	s.run(t)
 	waitConnected(t, f, s.id.ServerID, true)
 }
@@ -248,7 +258,8 @@ func (s *testServer) run(t *testing.T) {
 		close(done)
 	}()
 	var once sync.Once
-	s.stop = func() { once.Do(func() { cancel(); <-done }) }
+	s.stopped.Store(false)
+	s.stop = func() { once.Do(func() { cancel(); <-done; s.stopped.Store(true) }) }
 	t.Cleanup(s.stop)
 }
 
@@ -491,6 +502,7 @@ func choiceOf(err error) *dockwellv1.Choice {
 // while a second client watches each step, change it, undo it, and
 // discard a plan.
 func TestPlanApplyAndUndoThroughTheAPI(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testPlanApplyAndUndoThroughTheAPI)
 }
 
@@ -701,6 +713,7 @@ func newBrowserLike(b *browser) *browser {
 // project gets its production environment in the same change, and the
 // hidden defaults keep working until there is a choice.
 func TestProjectsApplyAndUndoWithNoServer(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testProjectsApplyAndUndoWithNoServer)
 }
 
@@ -781,7 +794,10 @@ func testProjectsApplyAndUndoWithNoServer(t *testing.T, backend store.Backend) {
 
 // Apply refuses a plan that no longer holds: a resource that changed
 // since, or servers that no longer match.
-func TestStaleAndChangedPlans(t *testing.T) { storetest.Each(t, testStaleAndChangedPlans) }
+func TestStaleAndChangedPlans(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testStaleAndChangedPlans)
+}
 
 func testStaleAndChangedPlans(t *testing.T, backend store.Backend) {
 	f := startFull(t, backend, nil)
@@ -814,7 +830,10 @@ func testStaleAndChangedPlans(t *testing.T, backend store.Backend) {
 
 // A step that fails stops the change, and the steps already done are
 // rolled back in a change of Dockwell's own, which the failed one names.
-func TestAFailedApplyRollsBack(t *testing.T) { storetest.Each(t, testAFailedApplyRollsBack) }
+func TestAFailedApplyRollsBack(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testAFailedApplyRollsBack)
+}
 
 func testAFailedApplyRollsBack(t *testing.T, backend store.Backend) {
 	f := startFull(t, backend, nil)
@@ -854,6 +873,7 @@ func testAFailedApplyRollsBack(t *testing.T, backend store.Backend) {
 // A stream that drops while a step runs fails the step, and the rollback
 // waits for the server; when its agent reconnects, Resume finishes it.
 func TestADroppedStreamResumesOnReconnect(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testADroppedStreamResumesOnReconnect)
 }
 
@@ -904,7 +924,10 @@ func testADroppedStreamResumesOnReconnect(t *testing.T, backend store.Backend) {
 
 // Drift is listed as a diff from the latest revision, and can be reverted
 // or adopted, each as a plan.
-func TestDriftThroughTheAPI(t *testing.T) { storetest.Each(t, testDriftThroughTheAPI) }
+func TestDriftThroughTheAPI(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testDriftThroughTheAPI)
+}
 
 func testDriftThroughTheAPI(t *testing.T, backend store.Backend) {
 	f := startFull(t, backend, nil)
@@ -972,7 +995,10 @@ func testDriftThroughTheAPI(t *testing.T, backend store.Backend) {
 
 // Secrets never leave the API: not in plans, progress, history, drift,
 // audit events or logs, whichever call or protocol asks.
-func TestSecretsNeverLeaveTheAPI(t *testing.T) { storetest.Each(t, testSecretsNeverLeaveTheAPI) }
+func TestSecretsNeverLeaveTheAPI(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testSecretsNeverLeaveTheAPI)
+}
 
 func testSecretsNeverLeaveTheAPI(t *testing.T, backend store.Backend) {
 	logs := &syncBuffer{}
@@ -1067,6 +1093,7 @@ func testSecretsNeverLeaveTheAPI(t *testing.T, backend store.Backend) {
 // Applying it needs the fingerprint of the plan reviewed, as the API's typed
 // confirmation, and a signed-in session: no API token may apply it.
 func TestDestructivePlansNeedASessionAndAConfirmation(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testDestructivePlansNeedASessionAndAConfirmation)
 }
 
@@ -1141,6 +1168,7 @@ func testDestructivePlansNeedASessionAndAConfirmation(t *testing.T, backend stor
 // In this build agents have no drivers, so a kind that runs on a server
 // fails at planning, saying the server's agent can't run it.
 func TestAKindNoAgentRunsFailsAtPlanning(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testAKindNoAgentRunsFailsAtPlanning)
 }
 
@@ -1190,6 +1218,7 @@ func (b *syncBuffer) String() string {
 // the step that outlasts its grace, then the agent listener. The stop
 // doesn't fail the change, and nothing rolls it back.
 func TestAStopMidApplyLeavesTheChangeForTheNextStart(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testAStopMidApplyLeavesTheChangeForTheNextStart)
 }
 
@@ -1252,6 +1281,7 @@ func (a localAgents) Agent(server string) (resource.Agent, bool) {
 // A server whose drift can't be checked is listed with why, and the others
 // report theirs all the same.
 func TestDriftReportsEachServerItCantCheck(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testDriftReportsEachServerItCantCheck)
 }
 
@@ -1308,6 +1338,7 @@ func testDriftReportsEachServerItCantCheck(t *testing.T, backend store.Backend) 
 // says which it is and what to do, and the log has it too, as the review of #137 found
 // the refusal had taken it out. A row that can't be opened goes the same way.
 func TestARowItWontReadCostsOneServersDrift(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		t.Run("not sealed", func(t *testing.T) {
 			spec := `x'0a0a'`
@@ -1376,6 +1407,7 @@ func testARowItWontReadCostsOneServersDrift(t *testing.T, backend store.Backend,
 // Once there are two projects, an edit names an environment's project
 // beside it, by name; while there is one, it needn't.
 func TestAnEditNamesAnEnvironmentsProject(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testAnEditNamesAnEnvironmentsProject)
 }
 
@@ -1442,7 +1474,10 @@ func testAnEditNamesAnEnvironmentsProject(t *testing.T, backend store.Backend) {
 // applies, so deploys from CI keep working. The control plane decides
 // from the specs, and a path no container may mount is refused when the
 // change is proposed.
-func TestHostAccessNeedsAPerson(t *testing.T) { storetest.Each(t, testHostAccessNeedsAPerson) }
+func TestHostAccessNeedsAPerson(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testHostAccessNeedsAPerson)
+}
 
 func testHostAccessNeedsAPerson(t *testing.T, backend store.Backend) {
 	f := startFull(t, backend, nil)
@@ -1516,6 +1551,7 @@ func testHostAccessNeedsAPerson(t *testing.T, backend store.Backend) {
 // offers to delete that in one plan. A volume going is data going, so that needs a
 // person and their confirmation, as any data loss does, and one change takes it all.
 func TestAProjectGoesWithWhatsLeftInOneChange(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testAProjectGoesWithWhatsLeft)
 }
 

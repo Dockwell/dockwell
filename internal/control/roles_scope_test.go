@@ -25,6 +25,7 @@ import (
 // their project's. A name with no project is in their one. A protected
 // environment's change is an admin's to apply (ADR 0048, check 3; ADR 0049).
 func TestAProjectRoleReachesItsProjectAlone(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		f := startFull(t, backend, nil)
 		b := signedIn(t, f)
@@ -231,6 +232,7 @@ func TestAStreamEndsWhenWhatItNamesLeavesReach(t *testing.T) {
 // doesn't open what runs in its protected environment, by name or by ID. What
 // was opened asks the same again while it stays open (ADR 0061).
 func TestOpeningAnAppKeepsToItsProjectAndItsRule(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		f := startFull(t, backend, nil)
 		b := signedIn(t, f)

@@ -59,6 +59,7 @@ func auditCount(t *testing.T, f *fullServer, action string) int {
 // audited as confirmed so, none reads as unconfirmed, and no API token gets any
 // of it, or reads or changes the choice.
 func TestOnceAnHourThroughTheAPI(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	a := b.authClient()
@@ -155,6 +156,7 @@ func TestOnceAnHourThroughTheAPI(t *testing.T) {
 // applies is the stricter, a choice below it is refused, and an admin can't set
 // it. It's on the activity log, and GetSettings says it.
 func TestTheOwnerSetsTheFloor(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	s := dockwellv1connect.NewSettingsServiceClient(b, b.origin, connect.WithProtoJSON())
@@ -219,6 +221,7 @@ func TestTheOwnerSetsTheFloor(t *testing.T) {
 // which opens again confirmed once the agent asks. Each is audited as confirmed
 // so, and neither reads as unconfirmed.
 func TestOnceAnHourOpensTerminals(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	e := f.addServerWith(t, nil)

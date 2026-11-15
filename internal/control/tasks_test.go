@@ -72,6 +72,7 @@ func outputOf(r *dockwellv1.TaskRun) []string {
 // what it printed. A run that fails is on Activity, and so is the one that succeeds
 // after it.
 func TestAScheduledTaskRunsOnItsServer(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testAScheduledTaskRunsOnItsServer)
 }
 
@@ -189,6 +190,7 @@ func testAScheduledTaskRunsOnItsServer(t *testing.T, backend store.Backend) {
 // A change that makes an app reach what's as good as root names the tasks that run
 // in it, with their commands: they reach the same.
 func TestAnAppThatTurnsRootNamesItsTasks(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	f.addDockerServer(t)

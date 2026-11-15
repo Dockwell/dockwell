@@ -139,7 +139,10 @@ func (r *reader) waitCaughtUp() {
 // back leaves its logs readable, by its revision and its change, and so does the
 // container it replaced. Rotation is on every container Dockwell makes, and none
 // of it reads as drift.
-func TestLogsThroughADeploy(t *testing.T) { storetest.Each(t, testLogsThroughADeploy) }
+func TestLogsThroughADeploy(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testLogsThroughADeploy)
+}
 
 func testLogsThroughADeploy(t *testing.T, backend store.Backend) {
 	f := startFull(t, backend, nil)
@@ -296,6 +299,7 @@ func countLines(chunks []*dockwellv1.LogChunk) int {
 // replaced for it: the plan is empty, and it isn't drift. The source says its log
 // is unbounded, and the next deploy bounds it.
 func TestRotationDoesntForceAReplace(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testRotationDoesntForceAReplace)
 }
 
@@ -344,6 +348,7 @@ func testRotationDoesntForceAReplace(t *testing.T, backend store.Backend) {
 // resume token does the same for a reader who was away too. A reader's going
 // stops the reading on the agent at once.
 func TestLogsCarryOnWhenAServerReturns(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testLogsCarryOnWhenAServerReturns)
 }
 
@@ -408,6 +413,7 @@ func testLogsCarryOnWhenAServerReturns(t *testing.T, backend store.Backend) {
 // move, and each line once, and one who reconnects after the old one has gone reads
 // what it missed of both, from Docker and from what was kept.
 func TestAFollowerReadsBothContainersOfARollout(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		f := startFull(t, backend, nil)
 		b := signedIn(t, f)
@@ -534,6 +540,7 @@ func TestAFollowerReadsBothContainersOfARollout(t *testing.T) {
 // A rolling deploy that fails leaves what ran running: what failed is kept, as failed,
 // and what ran is read from Docker, as it never went.
 func TestARollingDeployThatFailsKeepsOnlyWhatFailed(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)
@@ -585,6 +592,7 @@ func countOf(lines []string, line string) int {
 // A rollback pinned to a digest replaces what ran as well as what failed. What failed
 // is what stays kept as failed, for whoever comes to read why.
 func TestARollbackThatReplacesWhatRanKeepsTheFailureAsFailed(t *testing.T) {
+	t.Parallel()
 	b := newBench(t, store.SQLite)
 	lc := logClient(b.b, b.b.origin)
 	name, web := runLatest(t, b)
@@ -624,6 +632,7 @@ func TestARollbackThatReplacesWhatRanKeepsTheFailureAsFailed(t *testing.T) {
 // read the server list, and not logs. Reading is in the audit log, once an hour
 // for a reader and a service, and never on the timeline.
 func TestReadingLogsNeedsTheGrantAndIsAudited(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testReadingLogsNeedsTheGrantAndIsAudited)
 }
 
@@ -725,6 +734,7 @@ func testReadingLogsNeedsTheGrantAndIsAudited(t *testing.T, backend store.Backen
 // and applies go through, and everything the container wrote is either delivered
 // or counted.
 func TestANoisyLogDoesntStallTheAgent(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testANoisyLogDoesntStallTheAgent)
 }
 
@@ -784,6 +794,7 @@ func testANoisyLogDoesntStallTheAgent(t *testing.T, backend store.Backend) {
 }
 
 func TestLogsREST(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)
@@ -896,6 +907,7 @@ func TestLogsREST(t *testing.T) {
 // place: the token comes with caught up, and a reader back from away reads from
 // when it began, every line written meanwhile, not just a tail's worth.
 func TestAQuietLogResumesFromWhereItBegan(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		f := startFull(t, backend, nil)
 		b := signedIn(t, f)

@@ -60,6 +60,7 @@ func panelDomainStand(t *testing.T) (*fullServer, *atomic.Int32, *atomic.Value) 
 // A domain is checked as it's typed: whether the panel can take it, where its
 // records lead, and what holds the ports its certificate needs (ADR 0063).
 func TestAPanelDomainIsCheckedAsItsTyped(t *testing.T) {
+	t.Parallel()
 	f, _, _ := panelDomainStand(t)
 	b := signedIn(t, f)
 	c := dockwellv1connect.NewSettingsServiceClient(b, b.origin, connect.WithProtoJSON())
@@ -92,6 +93,7 @@ func TestAPanelDomainIsCheckedAsItsTyped(t *testing.T) {
 // the save. A move to another domain waits for a later slice; clearing it goes
 // back to loopback alone. Both are on the activity log, and an admin can't.
 func TestTheOwnerSetsThePanelsDomainWithAPasskey(t *testing.T) {
+	t.Parallel()
 	f, restarts, saved := panelDomainStand(t)
 	b := signedIn(t, f)
 	c := dockwellv1connect.NewSettingsServiceClient(b, b.origin, connect.WithProtoJSON())
@@ -179,6 +181,7 @@ func TestTheOwnerSetsThePanelsDomainWithAPasskey(t *testing.T) {
 // its certificate, for the owner, with a passkey just now; its token rides after
 // the "#".
 func TestASignInLinkLeadsToThePanelsDomain(t *testing.T) {
+	t.Parallel()
 	var certified atomic.Bool
 	f := startFullConfig(t, store.SQLite, fixedDomain("panel.example.com"), slog.New(slog.DiscardHandler), nil, logapi.Options{}, func(c *Config) {
 		c.PanelURL = "https://panel.example.com"

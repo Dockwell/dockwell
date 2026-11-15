@@ -181,6 +181,7 @@ func waitWithin(t *testing.T, limit time.Duration, what string, ok func() bool) 
 // long as connecting does. Someone following its logs hears nothing of that: its
 // server isn't offline, and each line comes once, those written in the move too.
 func TestAMoveIsntAnOfflineServerToAFollower(t *testing.T) {
+	t.Parallel()
 	for _, reconnect := range []time.Duration{0, 150 * time.Millisecond, 400 * time.Millisecond} {
 		t.Run(reconnect.String(), func(t *testing.T) {
 			m := startMoveRig(t, nil)
@@ -210,6 +211,7 @@ func TestAMoveIsntAnOfflineServerToAFollower(t *testing.T) {
 
 // A read begun between an agent's two streams waits for the next one, whichever read.
 func TestAReadBegunInAMoveWaitsForTheNextStream(t *testing.T) {
+	t.Parallel()
 	m := startMoveRig(t, nil)
 	m.print("start")
 	r := follow(t, m.logs, &dockwellv1.WatchLogsRequest{Id: "web"})
@@ -292,6 +294,7 @@ func (l *cutByMove) Stream(ctx context.Context, call *agentv1.LogsCall, send fun
 // A move cuts a read short. A read to the end carries on from its place, and a page
 // starts again, so each line comes once and neither says the server is offline.
 func TestAMoveDoesntCutAReadShort(t *testing.T) {
+	t.Parallel()
 	start := func(t *testing.T) (*moveRig, *cutByMove) {
 		t.Helper()
 		reader := &cutByMove{at: time.Now().Add(-time.Hour), sent: make(chan struct{})}
@@ -351,6 +354,7 @@ func TestAMoveDoesntCutAReadShort(t *testing.T) {
 // read says so once logs.MoveGrace is up, and any read after that says so at once.
 // It carries on when the agent does come back.
 func TestAServerThatDoesntReturnFromAMoveReadsOfflineInTime(t *testing.T) {
+	t.Parallel()
 	const late = 3 * time.Second // what a busy machine adds to the grace
 	m := startMoveRig(t, nil)
 	m.print("start")
@@ -417,6 +421,7 @@ func TestAServerThatDoesntReturnFromAMoveReadsOfflineInTime(t *testing.T) {
 
 // An agent that goes without saying it's moving isn't waited for.
 func TestARealDisconnectReadsOfflineAtOnce(t *testing.T) {
+	t.Parallel()
 	const atOnce = 3 * time.Second // well inside logs.MoveGrace, on a busy machine
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)

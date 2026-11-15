@@ -33,6 +33,7 @@ var rank = map[dockwellv1.Needs]int{
 // developer's or more, and what's the install's alone is an admin's (ADR 0049).
 // A new method fails here until it says.
 func TestEveryMethodSaysWhoMayCallIt(t *testing.T) {
+	t.Parallel()
 	methods := 0
 	protoregistry.GlobalFiles.RangeFilesByPackage("dockwell.v1", func(fd protoreflect.FileDescriptor) bool {
 		for i := range fd.Services().Len() {
@@ -115,6 +116,7 @@ var updateRoles = flag.Bool("update-roles", false, "write "+rolesTable+" from th
 // or its roles shows in review, and the table is read as the source of who may
 // call what.
 func TestTheRolesTableIsCurrent(t *testing.T) {
+	t.Parallel()
 	var lines []string
 	protoregistry.GlobalFiles.RangeFilesByPackage("dockwell.v1", func(fd protoreflect.FileDescriptor) bool {
 		for i := range fd.Services().Len() {
@@ -160,6 +162,7 @@ func TestTheRolesTableIsCurrent(t *testing.T) {
 // sign-in, needing nothing, or acting on the caller's own records, outside where
 // those are true. These are the review's probes, on made-up methods.
 func TestTheRoleRulesHoldForMadeUpMethods(t *testing.T) {
+	t.Parallel()
 	R, A, D := dockwellv1.Effect_EFFECT_READ, dockwellv1.Effect_EFFECT_APPLY, dockwellv1.Effect_EFFECT_DESTRUCTIVE
 	V, N, DEV := dockwellv1.Needs_NEEDS_VIEWER, dockwellv1.Needs_NEEDS_NOTHING, dockwellv1.Needs_NEEDS_DEVELOPER
 	for _, c := range []struct {
@@ -222,6 +225,7 @@ func madeUp(t *testing.T, svc, method string, set func(*descriptorpb.MethodOptio
 // a proxy's log and the browser's history. Checking a link is a read, and stays
 // a POST for that reason alone (proto/dockwell/v1/auth.proto says so on each).
 func TestACallThatCarriesASecretIsNeverAGet(t *testing.T) {
+	t.Parallel()
 	carriesASecret := map[protoreflect.Name]bool{"token": true, "secret": true, "code": true, "proof": true, "password": true, "credential_json": true}
 	seen := 0
 	protoregistry.GlobalFiles.RangeFilesByPackage("dockwell.v1", func(fd protoreflect.FileDescriptor) bool {

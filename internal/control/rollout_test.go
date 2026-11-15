@@ -25,7 +25,10 @@ import (
 
 // Restart reaches the API by a service's name or ID, as a change with a plan to
 // apply, and makes no revision.
-func TestRestartThroughTheAPI(t *testing.T) { storetest.Each(t, testRestartThroughTheAPI) }
+func TestRestartThroughTheAPI(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testRestartThroughTheAPI)
+}
 
 func testRestartThroughTheAPI(t *testing.T, backend store.Backend) {
 	f := startFull(t, backend, nil)
@@ -113,7 +116,10 @@ func testRestartThroughTheAPI(t *testing.T, backend store.Backend) {
 
 // What an agent says of its services reaches the API, a read-only token reads it,
 // and it says nothing an agent didn't.
-func TestHealthThroughTheAPI(t *testing.T) { storetest.Each(t, testHealthThroughTheAPI) }
+func TestHealthThroughTheAPI(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testHealthThroughTheAPI)
+}
 
 func testHealthThroughTheAPI(t *testing.T, backend store.Backend) {
 	f := startFull(t, backend, nil)
@@ -160,11 +166,15 @@ func testHealthThroughTheAPI(t *testing.T, backend store.Backend) {
 
 // A change of health is on the timeline, with what the check said, for the
 // service, its server, and everyone reading the timeline, as an event of its own.
-func TestHealthOnTheTimeline(t *testing.T) { storetest.Each(t, testHealthOnTheTimeline) }
+func TestHealthOnTheTimeline(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testHealthOnTheTimeline)
+}
 
 // A service that keeps changing is one event, which a watch sees change as it goes
 // on: its time, and how often it changed since it began.
 func TestAFlapIsOneEventThatChanges(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	hz1 := f.addServer(t, true)

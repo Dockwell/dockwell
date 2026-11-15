@@ -20,6 +20,7 @@ import (
 // and keeps it: the send compares what reaches the server, not the revision
 // number (#593). A server already in this state heals the same way, on connect.
 func TestAnAgentKeepsAnAppAfterARevisionThatOnlyShowsAValue(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	f.addDockerServer(t)

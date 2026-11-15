@@ -62,6 +62,7 @@ func updatesRegistry(t *testing.T) string {
 // of a new build. A person skips a version, and snoozes an app, and ListServices
 // says the same as ServiceUpdateService (ADR 0079).
 func TestAppsLearnWhatsNewerThroughTheirServer(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testAppsLearnWhatsNewer)
 }
 
@@ -199,6 +200,7 @@ func said(u *dockwellv1.ServiceUpdate) string {
 // snoozed or checked by name or ID, and a list holds their own alone; a viewer
 // reads and sets nothing aside.
 func TestAppUpdatesKeepToAPersonsProjects(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	f.addDockerServer(t)
@@ -252,6 +254,7 @@ func second[T any](_ T, err error) error { return err }
 // once, for a major alone where it says so, and resolves once the app has none
 // that counts (ADR 0079).
 func TestAnUpdateIsSentOnceItsRuleIsOn(t *testing.T) {
+	t.Parallel()
 	h := newHook(t)
 	f, c, _ := evalStand(t, h.srv.URL+"/hook")
 	at := &clock{now: time.Now()}
@@ -313,6 +316,7 @@ func TestAnUpdateIsSentOnceItsRuleIsOn(t *testing.T) {
 // asks no registry, its web server reads as kept current by Dockwell, asked of the
 // server or of the service, nothing counts, and the update alert stays quiet.
 func TestAWebsitesOwnServersAreKeptCurrentByDockwell(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	ing := &routesInMemory{routes: map[resource.Ref]*resourcev1.Route{}}

@@ -89,8 +89,9 @@ needs:
 // password a generated secret, both used by reference, a link that says how, and the
 // pin keeping it, so an upgrade keeps the MySQL.
 func TestAnInstallMeetsItsNeeds(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
-	t.Setenv(catalog.DirEnv, dir)
+	useCatalogDir(t, dir)
 	write := func(release int, image string) {
 		t.Helper()
 		if err := os.WriteFile(filepath.Join(dir, "wordpress.yaml"), []byte(wordpressWithNeeds(t, release, image)), 0o600); err != nil {
@@ -285,8 +286,9 @@ func TestAnInstallMeetsItsNeeds(t *testing.T) {
 // link, and the refusal names the app, not the link, which has the database's name
 // (ADR 0084).
 func TestALinkGoesWithItsApp(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
-	t.Setenv(catalog.DirEnv, dir)
+	useCatalogDir(t, dir)
 	if err := os.WriteFile(filepath.Join(dir, "wordpress.yaml"), []byte(wordpressWithNeeds(t, 5, "")), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -412,8 +414,9 @@ compose: |
 // the database joins in place, answering to the need's name. A new PostgreSQL stays
 // the default: sharing is only ever chosen.
 func TestAnInstallSharesAServerYouRun(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
-	t.Setenv(catalog.DirEnv, dir)
+	useCatalogDir(t, dir)
 	if err := os.WriteFile(filepath.Join(dir, "blog.yaml"), []byte(blogEntry), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -692,8 +695,9 @@ func TestAnInstallSharesAServerYouRun(t *testing.T) {
 // user and database in it, signing in as the administrator, and then the app, which
 // signs in as its own user. The administrator's password is the server's alone.
 func TestAnInstallMakesANewPostgreSQLWithAUserOfItsOwn(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
-	t.Setenv(catalog.DirEnv, dir)
+	useCatalogDir(t, dir)
 	if err := os.WriteFile(filepath.Join(dir, "blog.yaml"), []byte(blogEntry), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -881,8 +885,9 @@ compose: |
 // one password is the app's, as it signs in as the server's default user, and no
 // user that would leave it refused; the Redis publishes nothing (ADR 0084).
 func TestAnInstallMakesANewRedisOfItsOwn(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
-	t.Setenv(catalog.DirEnv, dir)
+	useCatalogDir(t, dir)
 	if err := os.WriteFile(filepath.Join(dir, "board.yaml"), []byte(boardEntry), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -956,6 +961,7 @@ func TestAnInstallMakesANewRedisOfItsOwn(t *testing.T) {
 // plan that shares it changes WordPress's project, whose pin then keeps the database
 // as it runs (ADR 0084).
 func TestSharingAnInstallsOwnServerPinsItApart(t *testing.T) {
+	t.Parallel()
 	// The need named as its server is, or apart from it, as "database" met by "db".
 	for _, need := range []string{"db", "database"} {
 		t.Run(need, func(t *testing.T) { sharesAnInstallsOwnServer(t, need) })
@@ -964,7 +970,7 @@ func TestSharingAnInstallsOwnServerPinsItApart(t *testing.T) {
 
 func sharesAnInstallsOwnServer(t *testing.T, need string) {
 	dir := t.TempDir()
-	t.Setenv(catalog.DirEnv, dir)
+	useCatalogDir(t, dir)
 	entry := strings.Replace(wordpressWithNeeds(t, 5, ""), "needs:\n  - name: db\n", "needs:\n  - name: "+need+"\n", 1)
 	if err := os.WriteFile(filepath.Join(dir, "wordpress.yaml"), []byte(entry), 0o600); err != nil {
 		t.Fatal(err)
@@ -1061,8 +1067,9 @@ func sharesAnInstallsOwnServer(t *testing.T, need string) {
 // name of its own, as the old one keeps running beside it, data and all, which the
 // plan says (ADR 0084).
 func TestUseAnotherDatabase(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
-	t.Setenv(catalog.DirEnv, dir)
+	useCatalogDir(t, dir)
 	if err := os.WriteFile(filepath.Join(dir, "blog.yaml"), []byte(blogEntry), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -1167,8 +1174,9 @@ func TestUseAnotherDatabase(t *testing.T) {
 }
 
 func TestUseAnotherDatabaseStartingEmptyHoldsTheRoute(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
-	t.Setenv(catalog.DirEnv, dir)
+	useCatalogDir(t, dir)
 	owned := strings.Replace(blogEntry, "web:\n  service: app\n", "web:\n  service: app\nfirstVisitorOwns: true\n", 1)
 	// It publishes its port on every address, as a converted 1Panel app does, and
 	// runs an admin service beside it, with a domain of its own.
@@ -1318,8 +1326,9 @@ func TestUseAnotherDatabaseStartingEmptyHoldsTheRoute(t *testing.T) {
 // network it reached the server on, which the server leaves in place; the server
 // keeps running, with the app's database and user, as they're its now (ADR 0084).
 func TestDeletingAnAppTakesItsLinkNetwork(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
-	t.Setenv(catalog.DirEnv, dir)
+	useCatalogDir(t, dir)
 	if err := os.WriteFile(filepath.Join(dir, "blog.yaml"), []byte(blogEntry), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -1451,8 +1460,9 @@ func fakeRedisImage(mu *sync.Mutex, acl map[string]string) dockertest.Image {
 // developer of the app's project alone isn't offered the server, nor can make a user
 // there (ADR 0084).
 func TestAnInstallSharesARedisYouRun(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
-	t.Setenv(catalog.DirEnv, dir)
+	useCatalogDir(t, dir)
 	if err := os.WriteFile(filepath.Join(dir, "board-user.yaml"), []byte(boardWithUser), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -1584,8 +1594,9 @@ func TestAnInstallSharesARedisYouRun(t *testing.T) {
 // since keeps being shared, so it stays held from what reaches past its keys (ADR
 // 0084).
 func TestAnUpgradeKeepsAUserShared(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
-	t.Setenv(catalog.DirEnv, dir)
+	useCatalogDir(t, dir)
 	if err := os.WriteFile(filepath.Join(dir, "board-user.yaml"), []byte(boardWithUser), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -1646,8 +1657,9 @@ func TestAnUpgradeKeepsAUserShared(t *testing.T) {
 // apart, whatever Dockwell's own users do, so the choice says they can read and
 // change each other's data (ADR 0084).
 func TestAHandMadeRedisUserKeepsAppsFromKeepingApart(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
-	t.Setenv(catalog.DirEnv, dir)
+	useCatalogDir(t, dir)
 	if err := os.WriteFile(filepath.Join(dir, "board-user.yaml"), []byte(boardWithUser), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -1687,8 +1699,9 @@ func TestAHandMadeRedisUserKeepsAppsFromKeepingApart(t *testing.T) {
 // for the projects its choice names, which takes a developer's role in each: someone
 // who holds the app's project and the server's, and not those, is refused (ADR 0084).
 func TestEndingWhatKeepsAppsApartTakesARoleInEach(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
-	t.Setenv(catalog.DirEnv, dir)
+	useCatalogDir(t, dir)
 	plain := strings.NewReplacer("id: board-user\nname: Board user", "id: board-plain\nname: Board plain",
 		"      - name: REDIS_PREFIX\n        part: PART_KEY_PREFIX\n", "", "        REDIS_PREFIX: ${REDIS_PREFIX}\n", "").Replace(boardWithUser)
 	for name, entry := range map[string]string{"board-user": boardWithUser, "board-plain": plain} {

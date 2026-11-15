@@ -48,7 +48,10 @@ func installApp(t *testing.T, cat dockwellv1connect.CatalogServiceClient, req *d
 // sealed, used by reference, and on no response; its port one nothing has taken; and
 // the install pinned, so the catalog knows it. A second install lands beside it, and
 // undoing one takes all of it away.
-func TestInstallingFromTheCatalog(t *testing.T) { storetest.Each(t, testInstallingFromTheCatalog) }
+func TestInstallingFromTheCatalog(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testInstallingFromTheCatalog)
+}
 
 func testInstallingFromTheCatalog(t *testing.T, backend store.Backend) {
 	f := startFull(t, backend, nil)
@@ -341,8 +344,9 @@ func envOf(c *docker.Container, name string) string {
 // the secret, even when another service's value is the same text, which a generated
 // one never is.
 func TestAnOwnSecretTakesNothingElsesPlace(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
-	t.Setenv(catalog.DirEnv, dir)
+	useCatalogDir(t, dir)
 	const same = "hello-there-1"
 	side := "    side:\n      image: thing:1@sha256:" + digest1 + "\n      environment:\n        GREETING: " + same + "\n"
 	if err := os.WriteFile(filepath.Join(dir, "thing.yaml"), []byte(testEntry(1, "1.0", "thing:1@sha256:"+digest1, side)), 0o600); err != nil {
@@ -388,6 +392,7 @@ func TestAnOwnSecretTakesNothingElsesPlace(t *testing.T) {
 // What a person types is checked before anything is planned, and an app that needs a
 // token takes it as a secret, by reference, and asks a person to approve what it reaches.
 func TestInstallRefusalsAndHostAccess(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testInstallRefusalsAndHostAccess)
 }
 
@@ -481,8 +486,9 @@ func describeParts(parts []*dockwellv1.CatalogPart) []string {
 // An entry whose parts can't be read still opens, with nothing said of its parts: what
 // it installs is something to read before the plan, which says it again.
 func TestAnEntryWhosePartsCantBeReadStillOpens(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
-	t.Setenv(catalog.DirEnv, dir)
+	useCatalogDir(t, dir)
 	if err := os.WriteFile(filepath.Join(dir, "odd.yaml"), []byte(`id: odd
 name: Odd
 summary: Something whose parts don't read
@@ -529,6 +535,7 @@ var asRoot = map[string]bool{
 // store: a token can plan its install, and is refused applying it with needs_session,
 // and a person with no passkey is asked for one when what it reaches is as good as root.
 func TestAnEntryThatReachesItsServerWaitsForAPerson(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testAnEntryThatReachesItsServerWaitsForAPerson)
 }
 
@@ -636,11 +643,14 @@ compose: |
 // A newer release shows as one, and upgrading is a plan that says no backup is taken,
 // keeps the password and what a person added, and takes the pin along. An undo puts
 // it all back, and an install that's up to date has nothing to upgrade.
-func TestUpgradingAnInstall(t *testing.T) { storetest.Each(t, testUpgradingAnInstall) }
+func TestUpgradingAnInstall(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testUpgradingAnInstall)
+}
 
 func testUpgradingAnInstall(t *testing.T, backend store.Backend) {
 	dir := t.TempDir()
-	t.Setenv(catalog.DirEnv, dir)
+	useCatalogDir(t, dir)
 	write := func(release int, version, image, extra string) {
 		t.Helper()
 		if err := os.WriteFile(filepath.Join(dir, "thing.yaml"), []byte(testEntry(release, version, image, extra)), 0o600); err != nil {
@@ -823,7 +833,7 @@ func startUpgrading(t *testing.T, backend store.Backend, entry string) *upgradin
 func startUpgradingWith(t *testing.T, backend store.Backend, entry string, install *dockwellv1.InstallCatalogEntryRequest) *upgrading {
 	t.Helper()
 	u := &upgrading{t: t, dir: t.TempDir()}
-	t.Setenv(catalog.DirEnv, u.dir)
+	useCatalogDir(t, u.dir)
 	u.release(entry)
 	f := startFull(t, backend, nil)
 	u.b = signedIn(t, f)
@@ -897,6 +907,7 @@ func planHas(ch *dockwellv1.Change, kind, name string) bool {
 // A person's own app in the install's environment isn't the file's, so an upgrade
 // leaves it alone, and an undo too.
 func TestAnUpgradeLeavesAPersonsAppAlone(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testAnUpgradeLeavesAPersonsAppAlone)
 }
 
@@ -919,6 +930,7 @@ func testAnUpgradeLeavesAPersonsAppAlone(t *testing.T, backend store.Backend) {
 
 // What a person changed stays through an upgrade, and through its undo.
 func TestAnUpgradeKeepsWhatAPersonChanged(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testAnUpgradeKeepsWhatAPersonChanged)
 }
 
@@ -967,6 +979,7 @@ func testAnUpgradeKeepsWhatAPersonChanged(t *testing.T, backend store.Backend) {
 // on the app. The entry's own show on its parts, and a service it doesn't have is
 // refused by name.
 func TestAnInstallsLimitsLastThroughItsUpgrades(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testAnInstallsLimitsLastThroughItsUpgrades)
 }
 
@@ -1008,6 +1021,7 @@ func testAnInstallsLimitsLastThroughItsUpgrades(t *testing.T, backend store.Back
 
 // A release can take away what it gave, and what a person took away doesn't come back.
 func TestAReleaseCanTakeAwayWhatItGave(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testAReleaseCanTakeAwayWhatItGave)
 }
 
@@ -1032,6 +1046,7 @@ func testAReleaseCanTakeAwayWhatItGave(t *testing.T, backend store.Backend) {
 // A new version that won't start hurts nothing a person set: the old one runs again with
 // the password it had, the install stays on its release, and the upgrade is still there to try.
 func TestAFailedUpgradeGoesBackToWhatRan(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testAFailedUpgradeGoesBackToWhatRan)
 }
 
@@ -1087,6 +1102,7 @@ func testAFailedUpgradeGoesBackToWhatRan(t *testing.T, backend store.Backend) {
 // Undoing an upgrade puts the old version back on what the new one left, so the plan says
 // that before anyone applies it, and an undo of anything else doesn't.
 func TestUndoingAnUpgradeWarnsOfItsData(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testUndoingAnUpgradeWarnsOfItsData)
 }
 
@@ -1154,7 +1170,10 @@ func testUndoingAnUpgradeWarnsOfItsData(t *testing.T, backend store.Backend) {
 
 // An upgrade backs up what it may change before it touches anything, as a step of its
 // plan. A backup that fails stops it there, and asking for none says so.
-func TestAnUpgradeBacksUpFirst(t *testing.T) { storetest.Each(t, testAnUpgradeBacksUpFirst) }
+func TestAnUpgradeBacksUpFirst(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testAnUpgradeBacksUpFirst)
+}
 
 func testAnUpgradeBacksUpFirst(t *testing.T, backend store.Backend) {
 	u := startUpgrading(t, backend, testEntry(1, "1.0", firstRelease, ""))
@@ -1204,6 +1223,7 @@ func testAnUpgradeBacksUpFirst(t *testing.T, backend store.Backend) {
 }
 
 func TestAnUpgradeCanSkipItsBackupAndSaysSo(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		u := startUpgrading(t, backend, testEntry(1, "1.0", firstRelease, ""))
 		u.release(testEntry(2, "2.0", secondRelease, ""))
@@ -1226,6 +1246,7 @@ func TestAnUpgradeCanSkipItsBackupAndSaysSo(t *testing.T) {
 // A release that changes nothing that runs, such as a typo in its words, offers nothing,
 // and one that changes what runs at the same version still does.
 func TestAReleaseOffersAnUpgradeOnlyIfWhatRunsChanges(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testAReleaseOffersAnUpgradeOnlyIfWhatRunsChanges)
 }
 
@@ -1249,6 +1270,7 @@ func testAReleaseOffersAnUpgradeOnlyIfWhatRunsChanges(t *testing.T, backend stor
 // An install from before Dockwell kept its file has nothing to merge from, so it stays
 // as it is, and says why.
 func TestAnInstallWithNoRecordStaysAsItIs(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testAnInstallWithNoRecordStaysAsItIs)
 }
 
@@ -1305,6 +1327,7 @@ func mustList(t *testing.T, b *browser) *dockwellv1.ListResourcesResponse {
 // the database alone, the pin says so, and the tool comes and goes later as a plan,
 // each with an undo, at the release it's on.
 func TestAnInstallsCompanionsComeAndGo(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)
@@ -1419,8 +1442,9 @@ func TestAnInstallsCompanionsComeAndGo(t *testing.T) {
 // An install from before companions keeps what it ran through an upgrade to a release
 // that marks one; a new install of that release leaves it out, and keeps it out.
 func TestAnUpgradeKeepsTheCompanionsChosen(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
-	t.Setenv(catalog.DirEnv, dir)
+	useCatalogDir(t, dir)
 	tool := "    tool:\n      image: tool:1@sha256:" + digest1 + "\n      ports:\n        - \"${TOOL_PORT}:80\"\n"
 	write := func(release int, image string, companion bool) {
 		t.Helper()

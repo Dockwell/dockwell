@@ -152,6 +152,7 @@ func (m *moveRig) scope(t *testing.T) string {
 // long as connecting does. Nobody reading how its services are, how its domains are or
 // whether it's connected hears of it: its server isn't gone.
 func TestAMoveIsntAServerGoneToWhatReadsIt(t *testing.T) {
+	t.Parallel()
 	for _, reconnect := range []time.Duration{0, 150 * time.Millisecond, 400 * time.Millisecond} {
 		t.Run(reconnect.String(), func(t *testing.T) {
 			m := healthRig(t)
@@ -180,6 +181,7 @@ func TestAMoveIsntAServerGoneToWhatReadsIt(t *testing.T) {
 // out, everywhere at once, and one that went without saying it was moving reads as
 // gone at once.
 func TestAServerThatDoesntReturnFromAMoveReadsGoneInTime(t *testing.T) {
+	t.Parallel()
 	const late = 3 * time.Second // what a busy machine adds
 	m := healthRig(t)
 	l := lookOut(t, m)
@@ -236,6 +238,7 @@ func TestAServerThatDoesntReturnFromAMoveReadsGoneInTime(t *testing.T) {
 // server says it too, so the panel's top bar isn't green for it; a new stream that
 // can says so as well.
 func TestAServerSaysItsAgentCantReadDocker(t *testing.T) {
+	t.Parallel()
 	m := startMoveRig(t, nil)
 	scope := m.scope(t)
 	m.server.stop()

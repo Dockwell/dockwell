@@ -220,11 +220,15 @@ type stepUps struct {
 	max    int
 	m      map[string]stepUpProof    // by hex of the proof's hash
 	stands map[stepUpFor]time.Time   // what stays confirmed, until when
-	asked  map[stepUpFor]*time.Timer // what's been asked for and not confirmed
+	asked  map[stepUpFor]func() bool // what's been asked for and not confirmed, by what stops its wait
+	after  func(time.Duration, func()) (stop func() bool)
 }
 
-func newStepUps(maxProofs int) *stepUps {
-	return &stepUps{max: maxProofs, m: map[string]stepUpProof{}, stands: map[stepUpFor]time.Time{}, asked: map[stepUpFor]*time.Timer{}}
+func newStepUps(maxProofs int, after func(time.Duration, func()) (stop func() bool)) *stepUps {
+	if after == nil {
+		after = func(d time.Duration, f func()) func() bool { return time.AfterFunc(d, f).Stop }
+	}
+	return &stepUps{max: maxProofs, m: map[string]stepUpProof{}, stands: map[stepUpFor]time.Time{}, asked: map[stepUpFor]func() bool{}, after: after}
 }
 
 // stand has what a proof confirmed go on standing until until. Past the limit it
@@ -261,8 +265,8 @@ func (s *stepUps) standing(key stepUpFor, now time.Time) bool {
 func (s *stepUps) settle(key stepUpFor) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if t, ok := s.asked[key]; ok {
-		t.Stop()
+	if stop, ok := s.asked[key]; ok {
+		stop()
 		delete(s.asked, key)
 	}
 }
@@ -278,7 +282,7 @@ func (s *stepUps) ask(key stepUpFor, wait time.Duration, missed func()) bool {
 	if len(s.asked) >= s.max {
 		return false
 	}
-	s.asked[key] = time.AfterFunc(wait, func() {
+	s.asked[key] = s.after(wait, func() {
 		s.mu.Lock()
 		_, still := s.asked[key]
 		delete(s.asked, key)

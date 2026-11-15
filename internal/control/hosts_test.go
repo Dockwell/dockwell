@@ -16,6 +16,7 @@ import (
 // only once (ADR 0064). An agent that doesn't run hosts yet, as an older one,
 // gets none and holds up no other server's.
 func TestAServerGetsItsHostAsItsAgentConnects(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	c := changeClient(b, b.origin)

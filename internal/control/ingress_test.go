@@ -85,6 +85,7 @@ func (p *proxiedPanel) browser(t *testing.T, client string) *browser {
 // the same cookie, and the client's real address. So moving behind Caddy
 // changes nothing about signing in.
 func TestThePanelBehindItsProxyIsItsDomainOverHTTPS(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testThePanelBehindItsProxy)
 }
 
@@ -164,6 +165,7 @@ func testThePanelBehindItsProxy(t *testing.T, backend store.Backend) {
 // network. If a header could say "this was HTTPS", any of them could say it.
 // Only the listener decides, so none of these get anywhere.
 func TestNothingOnLoopbackCanPretendToBeHTTPS(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		srv := startProxied(t, backend)
 		_, port, _ := net.SplitHostPort(srv.api)
@@ -251,6 +253,7 @@ func (a addHeaders) RoundTrip(r *http.Request) (*http.Response, error) {
 // With no X-Forwarded-For, the address can't pass for loopback: nothing the
 // proxy sends is loopback's to claim.
 func TestAMissingForwardedAddressIsntLoopback(t *testing.T) {
+	t.Parallel()
 	seen := ""
 	h := authapi.ViaIngress(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) { seen = r.RemoteAddr }))
 	req, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody)
@@ -263,6 +266,7 @@ func TestAMissingForwardedAddressIsntLoopback(t *testing.T) {
 // The last entry is Caddy's: it overwrites what a client sends, and if a proxy
 // in front ever added to it, the end is what Caddy saw.
 func TestTheForwardedAddressIsTheLastEntry(t *testing.T) {
+	t.Parallel()
 	seen := ""
 	h := authapi.ViaIngress(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) { seen = r.RemoteAddr }))
 	req, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody)
@@ -276,6 +280,7 @@ func TestTheForwardedAddressIsTheLastEntry(t *testing.T) {
 // A request that says it came in early data can be replayed, and is asked to wait
 // for the handshake: this listener marks what it serves as having had one.
 func TestViaIngressRefusesEarlyData(t *testing.T) {
+	t.Parallel()
 	served := false
 	h := authapi.ViaIngress(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { served = true }))
 	r := httptest.NewRequest(http.MethodPost, "/dockwell.v1.ChangeService/ApplyChange", http.NoBody)
@@ -295,6 +300,7 @@ func TestViaIngressRefusesEarlyData(t *testing.T) {
 // Only one process can hold the public ports: the panel gives them up when the
 // proxy starts, and takes them back when it stops.
 func TestThePublicPortsGoAndComeBack(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		cert, roots := selfSigned(t, "panel.acme.dev")
 		srv := startFull(t, backend, &https.Static{Name: "panel.acme.dev", Cert: cert})

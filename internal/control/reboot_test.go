@@ -39,6 +39,7 @@ func planReboot(t *testing.T, c dockwellv1connect.ChangeServiceClient, s *testSe
 // the server and passes once its agent connects from another boot, keeping its time,
 // which the next plan says; the reboot is asked once; and it can't be undone.
 func TestARebootPassesOnceTheServerIsBackOnAnotherBoot(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	p := &packages{installed: map[string]string{}, boot: "boot-1"}
@@ -110,6 +111,7 @@ func TestARebootPassesOnceTheServerIsBackOnAnotherBoot(t *testing.T) {
 // The control server's reboot says so in its plan, as the panel and the API stop
 // with it.
 func TestTheControlServersRebootSaysThePanelStops(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	p := &packages{installed: map[string]string{}, boot: "boot-1"}
@@ -172,6 +174,7 @@ func getChange(t *testing.T, c dockwellv1connect.ChangeServiceClient, id string)
 // An agent that doesn't say which boot it's on can't be told back from a reboot, so
 // a reboot isn't planned through it.
 func TestAnAgentWithNoBootIsRefusedAReboot(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	p := &packages{installed: map[string]string{}}
@@ -187,6 +190,7 @@ func TestAnAgentWithNoBootIsRefusedAReboot(t *testing.T) {
 // fails the step at once with what the command said, keeping when it started, and
 // until then a look leaves the step waiting with its start as it was.
 func TestARebootThatFailsIsSaidAtTheNextLook(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	p := &packages{installed: map[string]string{}, boot: "boot-1"}

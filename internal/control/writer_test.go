@@ -27,6 +27,7 @@ import (
 // a program that runs as root, so so does code from another repository, whatever
 // the user (#247).
 func TestWhoWritesAFolderIsOutOfATokensReach(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testWhoWritesAFolderIsOutOfATokensReach)
 }
 

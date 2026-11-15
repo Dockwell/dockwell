@@ -65,7 +65,10 @@ func rawREST(t *testing.T, b *browser, verb, path string, body []byte, extra map
 // A person uploads a file in parts, picks it up again after a drop, puts it in
 // place, and downloads it and its folder, each on the timeline, and each streamed:
 // a part and the download are each well past what Vanguard would hold.
-func TestAPersonUploadsAndDownloads(t *testing.T) { storetest.Each(t, testAPersonUploadsAndDownloads) }
+func TestAPersonUploadsAndDownloads(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testAPersonUploadsAndDownloads)
+}
 
 func testAPersonUploadsAndDownloads(t *testing.T, backend store.Backend) {
 	f := startFull(t, backend, nil)
@@ -169,6 +172,7 @@ func testAPersonUploadsAndDownloads(t *testing.T, backend store.Backend) {
 
 // No token uploads or downloads, whatever its scope.
 func TestNoTokenUploadsOrDownloads(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	id := f.addServer(t, false).id.ServerID
@@ -204,6 +208,7 @@ func TestNoTokenUploadsOrDownloads(t *testing.T) {
 // What can't go on record doesn't go out, as with a read: the audit log is stopped
 // from taking the download's event, so not a byte of the file is sent.
 func TestADownloadThatCantGoOnRecordSendsNothing(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	id := f.addServer(t, false).id.ServerID
@@ -219,6 +224,7 @@ func TestADownloadThatCantGoOnRecordSendsNothing(t *testing.T) {
 // A download that stops partway, at a private key, cuts the connection, so a browser
 // shows it failed rather than save what came as the whole, and the key stays.
 func TestADownloadCutShortFails(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	id := f.addServer(t, false).id.ServerID
@@ -247,6 +253,7 @@ func TestADownloadCutShortFails(t *testing.T) {
 // of its own, finds no way-in upload's ID in a listing, and with the ID can't see,
 // fill, finish or stop it. The session that began it can stop it.
 func TestAnUploadIsItsSessions(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	owner := signedIn(t, f)
 	id := f.addServer(t, false).id.ServerID

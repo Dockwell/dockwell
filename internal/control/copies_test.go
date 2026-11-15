@@ -113,6 +113,7 @@ func (s *sendingTo) lost(t *testing.T, b *dockwellv1.Backup) {
 // holds what it last had: a key that expires doesn't empty it in a week, as it would if
 // a backup counted toward what's kept wherever its copy went.
 func TestABucketKeepsItsCopiesWhileNewOnesFail(t *testing.T) {
+	t.Parallel()
 	s := startSending(t, store.SQLite)
 	s.schedule(t, 2)
 	h, now := s.f.server.backups, time.Now()
@@ -169,6 +170,7 @@ func TestABucketKeepsItsCopiesWhileNewOnesFail(t *testing.T) {
 // A backup is done when it's whole. Its volume is free while it's sent, however long
 // that takes, and a copy cut short takes nothing from it.
 func TestABackupIsDoneBeforeItsCopyLeaves(t *testing.T) {
+	t.Parallel()
 	s := startSending(t, store.SQLite)
 	hold := make(chan struct{})
 	t.Cleanup(sync1(hold))
@@ -211,6 +213,7 @@ func TestABackupIsDoneBeforeItsCopyLeaves(t *testing.T) {
 
 // How a send is going shows on the backup, which is done by then.
 func TestASendShowsHowItsGoing(t *testing.T) {
+	t.Parallel()
 	s := startSending(t, store.SQLite)
 	hold := make(chan struct{})
 	t.Cleanup(sync1(hold))
@@ -226,6 +229,7 @@ func TestASendShowsHowItsGoing(t *testing.T) {
 
 // A fetch shows from the moment it's asked for, or a page has nothing to wait on.
 func TestAFetchShowsFromTheStart(t *testing.T) {
+	t.Parallel()
 	s := startSending(t, store.SQLite)
 	b := s.sent(t)
 	s.lost(t, b)
@@ -249,6 +253,7 @@ func TestAFetchShowsFromTheStart(t *testing.T) {
 // A control plane that stops mid-send leaves a whole backup whole, with or without a
 // chance to say so. Each start ends what no call is left to finish.
 func TestAStopLeavesABackupWholeWithItsCopyCutShort(t *testing.T) {
+	t.Parallel()
 	s := startSending(t, store.SQLite)
 	hold := make(chan struct{})
 	t.Cleanup(sync1(hold))
@@ -290,6 +295,7 @@ func TestAStopLeavesABackupWholeWithItsCopyCutShort(t *testing.T) {
 // A backup can leave its server and stay on its destination, where a person can get it
 // back, and a backup that's only on its server can't be removed that way.
 func TestAServersCopyCanGoAndTheDestinationsStays(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testAServersCopyCanGoAndTheDestinationsStays)
 }
 
@@ -333,6 +339,7 @@ func testAServersCopyCanGoAndTheDestinationsStays(t *testing.T, backend store.Ba
 // A fetch that fails says so as a fetch, on the row and on Activity: nothing about the
 // copy changed. A person trying again and getting it clears it.
 func TestAFailedFetchSaysItsAFetch(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testAFailedFetchSaysItsAFetch)
 }
 
@@ -369,6 +376,7 @@ func testAFailedFetchSaysItsAFetch(t *testing.T, backend store.Backend) {
 // A bucket that won't let go of a copy doesn't keep the server's. Activity says what it
 // said, and it's tried again: by a person, or by the next run.
 func TestWhatABucketWontDeleteGoesFromTheServerAll(t *testing.T) {
+	t.Parallel()
 	s := startSending(t, store.SQLite)
 	b := s.sent(t)
 	s.bucket.Refuse, s.bucket.RefuseOnly = "AccessDenied", http.MethodDelete
@@ -413,6 +421,7 @@ func TestWhatABucketWontDeleteGoesFromTheServerAll(t *testing.T) {
 // A schedule outlives the destination it named: its backups go on, on their server, and
 // each says what to do.
 func TestAScheduleWhoseDestinationWentKeepsBackingUp(t *testing.T) {
+	t.Parallel()
 	s := startSending(t, store.SQLite)
 	s.schedule(t, 3)
 	apply(t, s.c, propose(t, s.c, "Delete it", &dockwellv1.Edit{Resource: &dockwellv1.ResourceRef{Kind: string(backuppolicy.DestinationKind), Name: "r2"}, Delete: true}))
@@ -430,6 +439,7 @@ func TestAScheduleWhoseDestinationWentKeepsBackingUp(t *testing.T) {
 // it. Leaving it out keeps it, and the plan says so. Giving one is refused in the same
 // words whatever it gives, so a refusal says nothing of a guess.
 func TestAPassphraseOutlivesAnUpdate(t *testing.T) {
+	t.Parallel()
 	s := startSending(t, store.SQLite)
 	b := s.sent(t)
 	giving := func(passphrase string) string {
@@ -482,6 +492,7 @@ func (s *sendingTo) addAgain(t *testing.T) {
 // A new destination needs a passphrase, including one added again under a name that's
 // been used. Only an update can leave it out.
 func TestANewDestinationNeedsAPassphrase(t *testing.T) {
+	t.Parallel()
 	s := startSending(t, store.SQLite)
 	apply(t, s.c, propose(t, s.c, "Delete it", &dockwellv1.Edit{Resource: &dockwellv1.ResourceRef{Kind: string(backuppolicy.DestinationKind), Name: "r2"}, Delete: true}))
 	for _, passphrase := range []string{"", "too short"} {
@@ -497,6 +508,7 @@ func TestANewDestinationNeedsAPassphrase(t *testing.T) {
 // A copy added again with another passphrase is marked, and can't be what's left: it's
 // refused by hand, and retention leaves the server's copy too. Fetching it says why not.
 func TestACopyOnlyAnEarlierPassphraseOpensIsNoWayBack(t *testing.T) {
+	t.Parallel()
 	s := startSending(t, store.SQLite)
 	s.schedule(t, 1)
 	h, now := s.f.server.backups, time.Now()
@@ -534,6 +546,7 @@ func TestACopyOnlyAnEarlierPassphraseOpensIsNoWayBack(t *testing.T) {
 
 // A fetch that needs an earlier passphrase says so.
 func TestAFetchSaysItNeedsAnEarlierPassphrase(t *testing.T) {
+	t.Parallel()
 	s := startSending(t, store.SQLite)
 	b := s.sent(t)
 	s.lost(t, b)
@@ -565,6 +578,7 @@ func (s *sendingTo) place(t *testing.T, servers ...string) {
 // restoring one says what to do, and once a new server has the volume, the backup comes
 // back through its destination.
 func TestARemovedServersBackupComesBackThroughItsDestination(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testARemovedServersBackupComesBackThroughItsDestination)
 }
 
@@ -628,6 +642,7 @@ func testARemovedServersBackupComesBackThroughItsDestination(t *testing.T, backe
 // A volume that moved leaves its backups on a server that can't restore them, however
 // connected that is. What's stored comes back onto where the volume is now.
 func TestABackupOfAVolumeThatMovedCanBeFetchedAfterIt(t *testing.T) {
+	t.Parallel()
 	s := startSending(t, store.SQLite)
 	b := s.sent(t)
 	s.f.addServerNamed(t, "hz-2", nil, nil)
@@ -647,6 +662,7 @@ func TestABackupOfAVolumeThatMovedCanBeFetchedAfterIt(t *testing.T) {
 // A server that's away, and not removed, reads the same: what it holds can't be restored
 // now, and what's stored can come back onto a server that's there.
 func TestABackupOfAServerThatsAwayCanBeFetchedOntoAnother(t *testing.T) {
+	t.Parallel()
 	s := startSending(t, store.SQLite)
 	b := s.sent(t)
 	first := s.f.lastDocker

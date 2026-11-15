@@ -29,7 +29,10 @@ import (
 // A private route through the API: a token may make one and keep out more, the
 // server gets the password's hash alone, nothing shows it back, it's sealed at rest,
 // and only a person opens it again (ADR 0087).
-func TestAPrivateRouteThroughTheAPI(t *testing.T) { storetest.Each(t, testAPrivateRouteThroughTheAPI) }
+func TestAPrivateRouteThroughTheAPI(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testAPrivateRouteThroughTheAPI)
+}
 
 func testAPrivateRouteThroughTheAPI(t *testing.T, backend store.Backend) {
 	f := startFull(t, backend, nil)

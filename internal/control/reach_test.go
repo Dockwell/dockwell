@@ -26,7 +26,10 @@ func nasFile(mount string) string {
 
 // What a read-write token can do once a person has approved one bind
 // volume, read-only in its one service.
-func TestTokenReach(t *testing.T) { storetest.Each(t, testTokenReach) }
+func TestTokenReach(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testTokenReach)
+}
 
 func testTokenReach(t *testing.T, backend store.Backend) {
 	f := startFull(t, backend, nil)

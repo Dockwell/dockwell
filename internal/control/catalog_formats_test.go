@@ -47,6 +47,7 @@ services:
 // keep their store's licence and source; and installing one pins its images by
 // digest, through the agent of the server it goes on (ADR 0078).
 func TestAStoreIsReadAsItsOwnFormat(t *testing.T) {
+	t.Parallel()
 	repo := gitfetchtest.New(t)
 	repo.Filter()
 	head := repo.Commit(map[string]string{
@@ -164,6 +165,7 @@ func TestAStoreIsReadAsItsOwnFormat(t *testing.T) {
 // of the same ID that isn't plainly the same app is left out, as ADR 0029 asks
 // (ADR 0078).
 func TestTheSameAppInTwoCatalogsIsOneCard(t *testing.T) {
+	t.Parallel()
 	first, second := gitfetchtest.New(t), gitfetchtest.New(t)
 	license := "Apache License\nVersion 2.0, January 2004\n"
 	firstHead := first.Commit(map[string]string{"LICENSE": license, "templates/compose/board.yaml": boardTemplate, "templates/compose/notes.yaml": boardTemplate})
@@ -280,6 +282,7 @@ func movingRegistry(t *testing.T, first string) (string, func(digest string)) {
 // until a new one's pushed, which its check then offers, and upgrading the install
 // takes, by a plan that says the new build (ADR 0085).
 func TestAMovingTagIsPinnedAndMovesByItsBuilds(t *testing.T) {
+	t.Parallel()
 	const (
 		buildA = "sha256:aaaa000000000000000000000000000000000000000000000000000000000000"
 		buildB = "sha256:bbbb000000000000000000000000000000000000000000000000000000000000"
@@ -409,6 +412,7 @@ func TestAMovingTagIsPinnedAndMovesByItsBuilds(t *testing.T) {
 // environment as the container is made, never the stand-in a plan reads the file with,
 // and keeps it through an upgrade (ADR 0022, ADR 0085).
 func TestASecretInsideACommandWordReachesTheContainer(t *testing.T) {
+	t.Parallel()
 	template := `# slogan: A cache.
 # port: 6379
 

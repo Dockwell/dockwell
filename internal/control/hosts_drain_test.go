@@ -13,6 +13,7 @@ import (
 // closed, as it does when the control plane stops: one that read a closed channel as
 // an update spun for good, and dockwell run never stopped.
 func TestADrainOfAClosedWatchEnds(t *testing.T) {
+	t.Parallel()
 	waiting := make(chan revision.Update, 2)
 	waiting <- revision.Update{}
 	waiting <- revision.Update{}

@@ -195,6 +195,9 @@ type Config struct {
 	DNSAPI func(token string) dnsproviders.API
 	// dns are the DNS providers, read with Secrets from Store.
 	dns *dnsproviders.Providers
+	// CatalogDir is a folder of catalog entries that take over Dockwell's own of the
+	// same ID, as catalog.DirEnv names one. Empty adds none.
+	CatalogDir string
 	// CertificateCA is the ACME directory certificates by DNS come from (ADR
 	// 0088): Let's Encrypt's unless set. CertificateClient reaches it, with the
 	// roots it's trusted by; CertificatePropagation waits for each challenge
@@ -517,6 +520,7 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		handle(dockwellv1connect.NewComposeServiceHandler(imports, opts...))
 		catalogSources := &catalogapi.Sources{Dir: cfg.CatalogSources, Client: cfg.CatalogClient}
 		catalogHandler := catalogapi.New(imports, ch, cfg.Store, cfg.Secrets, catalogSources, cfg.Build.Commit, cfg.Logger)
+		catalogHandler.EntriesFrom(cfg.CatalogDir)
 		*followOut = catalogHandler.Follow(cfg.Changes)
 		follower := *followOut
 		if cfg.Fleet != nil {

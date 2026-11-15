@@ -114,6 +114,7 @@ func (b *bench) matching(t *testing.T, id string) int64 {
 // deploying the tag it names again, and rolling back to a revision that matches.
 // Each ends with it really running, and only then reads live.
 func TestARollbackThatFailedCanBeRecovered(t *testing.T) {
+	t.Parallel()
 	states := []struct {
 		name string
 		make func(t *testing.T, b *bench) (string, *dockwellv1.ServiceInfo)
@@ -233,6 +234,7 @@ func saysState(step *dockwellv1.PlanStep, from string) bool {
 // A container that won't stay up isn't made to read live: starting it again is
 // verified as any step is.
 func TestRecoveringWhatWontStayUpFails(t *testing.T) {
+	t.Parallel()
 	b := newBench(t, store.SQLite)
 	name, web := runLatest(t, b)
 	b.e.Stop(name)
@@ -251,6 +253,7 @@ func TestRecoveringWhatWontStayUpFails(t *testing.T) {
 // Through the API, a failed deploy and its rollback each say what the check said, with
 // what to do, and a person's way to read it needs nothing else.
 func TestAFailedCheckSaysWhatItSaidThroughTheAPI(t *testing.T) {
+	t.Parallel()
 	b := newBench(t, store.SQLite)
 	b.e.Registry["ghcr.io/acme/shop:sick"] = dockertest.Image{
 		Unhealthy: true, CheckSays: "the database refuses connections",
@@ -280,6 +283,7 @@ func TestAFailedCheckSaysWhatItSaidThroughTheAPI(t *testing.T) {
 
 // Nothing newer doesn't make it healthy: a step that reads done says it is.
 func TestAPullWithNothingNewerStillVerifies(t *testing.T) {
+	t.Parallel()
 	b := newBench(t, store.SQLite)
 	name, web := runLatest(t, b)
 	before := b.e.Serving(name).ID
@@ -299,6 +303,7 @@ func TestAPullWithNothingNewerStillVerifies(t *testing.T) {
 // Nothing is running to keep safe, so the image the server has will do, and the
 // step says that's what happened.
 func TestARemovedContainerComesBackWithItsRegistryDown(t *testing.T) {
+	t.Parallel()
 	b := newBench(t, store.SQLite)
 	name, web := runLatest(t, b)
 	if err := b.e.Client().RemoveContainer(t.Context(), b.e.Serving(name).ID, true); err != nil {
@@ -321,6 +326,7 @@ func TestARemovedContainerComesBackWithItsRegistryDown(t *testing.T) {
 
 // So does a stopped one, as nothing it could break is running.
 func TestAStoppedContainerStartsWithItsRegistryDown(t *testing.T) {
+	t.Parallel()
 	b := newBench(t, store.SQLite)
 	name, web := runLatest(t, b)
 	b.e.Stop(name)
@@ -334,6 +340,7 @@ func TestAStoppedContainerStartsWithItsRegistryDown(t *testing.T) {
 // With no image and no registry, it can't start, and says what's true: nothing
 // runs to go on running.
 func TestARemovedContainerWithNoImageSaysNothingRuns(t *testing.T) {
+	t.Parallel()
 	b := newBench(t, store.SQLite)
 	name, web := runLatest(t, b)
 	if err := b.e.Client().RemoveContainer(t.Context(), b.e.Serving(name).ID, true); err != nil {
@@ -365,6 +372,7 @@ func TestARemovedContainerWithNoImageSaysNothingRuns(t *testing.T) {
 // runs whatever the pull finds. A screen reads "stays as it is" only from what the
 // steps say they did, so that must be what happened, with the undo that goes with it.
 func TestDeployingTheTagAfterARollbackSaysItReplaced(t *testing.T) {
+	t.Parallel()
 	b := newBench(t, store.SQLite)
 	name, web := runLatest(t, b)
 	b.e.Registry["ghcr.io/acme/shop:other"] = dockertest.Image{Digest: digestB, Config: docker.Config{Cmd: []string{"shop"}}}
@@ -402,6 +410,7 @@ func TestDeployingTheTagAfterARollbackSaysItReplaced(t *testing.T) {
 // A pin can't be changed in place, so leaving one replaces the container whatever
 // the pull finds, and the plan and the step say so.
 func TestLeavingAPinSaysItReplaces(t *testing.T) {
+	t.Parallel()
 	b := newBench(t, store.SQLite)
 	name, web := runLatest(t, b)
 	b.done(t, b.deploy(t, web.GetId(), latest+"@"+digestA))
@@ -436,6 +445,7 @@ func TestLeavingAPinSaysItReplaces(t *testing.T) {
 // What a step did is a fact on the step, server by server, rather than something
 // to work out from what it says.
 func TestAStepSaysWhatItDid(t *testing.T) {
+	t.Parallel()
 	didOf := func(c *dockwellv1.Change) []dockwellv1.PlanAction {
 		var out []dockwellv1.PlanAction
 		for _, s := range c.GetSteps() {
@@ -532,6 +542,7 @@ func TestAStepSaysWhatItDid(t *testing.T) {
 // A registry that doesn't answer says nothing of an image, so a rollback stays on
 // the digest, and doesn't claim it's gone. One that says it won't give it does.
 func TestARollbackOnlySaysADigestIsGoneIfItsRegistrySaysSo(t *testing.T) {
+	t.Parallel()
 	setUp := func(t *testing.T) (*bench, *dockwellv1.ServiceInfo) {
 		t.Helper()
 		b := newBench(t, store.SQLite)
@@ -573,6 +584,7 @@ func TestARollbackOnlySaysADigestIsGoneIfItsRegistrySaysSo(t *testing.T) {
 // A form can pass what a file reads beside it, as an import does, so what it says
 // is what importing it would.
 func TestCheckComposeReadsWhatIsBesideTheFile(t *testing.T) {
+	t.Parallel()
 	b := newBench(t, store.SQLite)
 	const file = "services:\n  web:\n    image: nginx:1\n    volumes: [\"./data:/data\"]\n    command: x ${FROM_ENV}\n"
 	res, err := b.cc.CheckCompose(t.Context(), connect.NewRequest(&dockwellv1.CheckComposeRequest{Compose: file, Env: "FROM_ENV=a\n", Directory: "/srv/app"}))
@@ -601,6 +613,7 @@ func TestCheckComposeReadsWhatIsBesideTheFile(t *testing.T) {
 // that container: not a plan with nothing to do, a change to another service, that
 // change failing and being rolled back, or a change it can make in place.
 func TestWhatSomeoneStoppedStaysStopped(t *testing.T) {
+	t.Parallel()
 	const two = "name: shop\nservices:\n  web:\n    image: ghcr.io/acme/shop:1.4\n  api:\n    image: ghcr.io/acme/shop:1.4\n"
 	wantLeft := func(t *testing.T, b *bench, name, id string, plan *dockwellv1.Change) {
 		t.Helper()
@@ -677,6 +690,7 @@ func TestWhatSomeoneStoppedStaysStopped(t *testing.T) {
 // A person's own request to run it does run it, and any change that replaces it does
 // too, each saying so, and each verified before it reads live.
 func TestAskingToRunWhatSomeoneStoppedStartsIt(t *testing.T) {
+	t.Parallel()
 	const image = "ghcr.io/acme/shop:1.4"
 	const file = "name: shop\nservices:\n  web:\n    image: " + image + "\n"
 	setUp := func(t *testing.T) (*bench, string, *dockwellv1.ServiceInfo) {
@@ -763,6 +777,7 @@ func TestAskingToRunWhatSomeoneStoppedStartsIt(t *testing.T) {
 
 // A deploy of what someone removed makes it again whatever a pull finds, and says so.
 func TestDeployingWhatSomeoneRemovedSaysItStartsIt(t *testing.T) {
+	t.Parallel()
 	b := newBench(t, store.SQLite)
 	name, web := runLatest(t, b)
 	if err := b.e.Client().RemoveContainer(t.Context(), b.e.Serving(name).ID, true); err != nil {

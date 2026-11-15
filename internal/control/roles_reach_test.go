@@ -120,6 +120,7 @@ func needsRole(t *testing.T, what string, err error) {
 // a container on its own. Those are an admin's whatever the call needs (ADR
 // 0048, ADR 0049).
 func TestAnInstallRoleBelowAdminReachesProjectsAlone(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		s := newReachStand(t, backend)
 		ctx := t.Context()
@@ -174,6 +175,7 @@ func serviceClientOf(s *reachStand) dockwellv1connect.ServiceServiceClient {
 // grants say (ADR 0048). Until internal/revision checks each item, ApplyChange
 // holds it.
 func TestHostAccessIsAnAdminsToApply(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		s := newReachStand(t, backend)
 		ctx := t.Context()
@@ -210,6 +212,7 @@ func TestHostAccessIsAnAdminsToApply(t *testing.T) {
 // the caller's places, as the API finds it, and checked where it is: never in a
 // place out of reach, and with the role held there (ADR 0049).
 func TestANameWithoutItsProjectIsFoundInReach(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		s := newReachStand(t, backend)
 		ctx := t.Context()
@@ -249,6 +252,7 @@ func TestANameWithoutItsProjectIsFoundInReach(t *testing.T) {
 // Databases are read as their services are: each in its project, and one named
 // by name below an admin is found among the caller's own (ADR 0049).
 func TestDatabasesAreReadInReach(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		s := newReachStand(t, backend)
 		ctx := t.Context()
@@ -313,6 +317,7 @@ func TestDatabasesAreReadInReach(t *testing.T) {
 // project alone gets theirs, and someone with several is asked which of
 // theirs, never told every project's name.
 func TestQuestionsOfWhichProjectNameOnlyTheirs(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		s := newReachStand(t, backend)
 		ctx := t.Context()
@@ -379,6 +384,7 @@ func TestQuestionsOfWhichProjectNameOnlyTheirs(t *testing.T) {
 // sources, a Compose file's services, the volumes of their project, their
 // volume's backups, and each revision of their service.
 func TestAProjectRoleListsAllOfItsOwn(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		s := newReachStand(t, backend)
 		ctx := t.Context()
@@ -446,6 +452,7 @@ func TestAProjectRoleListsAllOfItsOwn(t *testing.T) {
 // A narrowed list's next page token is sealed for its caller, so it says
 // nothing of what's out of their reach, and works only for them.
 func TestANarrowedPageTokenSaysNothing(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		s := newReachStand(t, backend)
 		ctx := t.Context()
@@ -559,6 +566,7 @@ func TestANarrowedStreamSaysNothingOfElsewhere(t *testing.T) {
 // what the narrowing leaves out is only ever what's out of reach, never what
 // it can't place.
 func TestEveryProjectsListReadsWhole(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		s := newReachStand(t, backend)
 		ctx := t.Context()

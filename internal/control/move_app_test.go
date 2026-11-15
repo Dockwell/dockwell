@@ -15,7 +15,6 @@ import (
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
-	"github.com/dockwell/dockwell/internal/catalog"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
 	"github.com/dockwell/dockwell/internal/resource"
@@ -46,6 +45,7 @@ networks:
 // its volume holds the move back, naming itself to move too, and plans nothing
 // (ADR 0084, #572).
 func TestMovingAnAppThroughTheAPI(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	ing := &routesInMemory{routes: map[resource.Ref]*resourcev1.Route{}}
@@ -178,8 +178,9 @@ func TestMovingAnAppThroughTheAPI(t *testing.T) {
 // their passwords, and the app's link follows it, in the deletion's one plan. Deleting
 // it anyway is a choice the deletion says (ADR 0084, #572).
 func TestDeletingAProjectThatSharesKeepsWhatOthersUse(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
-	t.Setenv(catalog.DirEnv, dir)
+	useCatalogDir(t, dir)
 	if err := os.WriteFile(filepath.Join(dir, "blog.yaml"), []byte(blogEntry), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -367,6 +368,7 @@ networks:
 // own where it answers to its own name, reading its user's password from there, as a
 // share across projects has it (ADR 0084, #572).
 func TestMovingAnAppLeavesItsSharedDatabaseLinked(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)
@@ -492,6 +494,7 @@ func TestMovingAnAppLeavesItsSharedDatabaseLinked(t *testing.T) {
 // own, and making a project for it is an admin's, said before its name is read (the
 // review of #572, its M1).
 func TestMovingAnAppSaysNothingOfOthersProjects(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	f.addDockerServer(t)
@@ -537,6 +540,7 @@ func TestMovingAnAppSaysNothingOfOthersProjects(t *testing.T) {
 // reads no value of the server's, so nothing else in the plan asks for one (the
 // review of #572, its M3). Refused, it names neither the app nor its project.
 func TestDeletingWhatOthersUseNeedsARoleWhereTheyAre(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)
@@ -607,6 +611,7 @@ func TestDeletingWhatOthersUseNeedsARoleWhereTheyAre(t *testing.T) {
 // it opens as what it was sealed as, its environment then, and lands as the moved
 // volume's (the review of #572, its N1).
 func TestACopySentBeforeAMoveIsFetchedAfterIt(t *testing.T) {
+	t.Parallel()
 	s := startSending(t, store.SQLite)
 	b := s.sent(t)
 	if b.GetState() != dockwellv1.BackupState_BACKUP_STATE_DONE || b.GetCopyError() != "" {

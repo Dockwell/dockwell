@@ -89,6 +89,7 @@ func (g *gitBench) log(t *testing.T, id string) []string {
 // builds it on the server and runs what it built, and its revision says how the
 // build went.
 func TestAnAppBuildsFromGitAndRunsWhatItBuilt(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		g := newGitBench(t, backend)
 		commit := g.repo.Commit("main", "Add order export endpoint", map[string]string{"Dockerfile": webDockerfile, "app.js": "1"})
@@ -179,6 +180,7 @@ func TestAnAppBuildsFromGitAndRunsWhatItBuilt(t *testing.T) {
 // A build that fails fails its step before anything is touched, so what ran runs
 // on, and the revision says why, with the step and its last line.
 func TestABuildThatFailsLeavesWhatRuns(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		g := newGitBench(t, backend)
 		g.repo.Commit("main", "Works", map[string]string{"Dockerfile": webDockerfile})
@@ -214,6 +216,7 @@ func TestABuildThatFailsLeavesWhatRuns(t *testing.T) {
 // A branch the repository hasn't got is refused as the change is planned, with the
 // branches it has.
 func TestABuildOfABranchThatIsntThereIsRefused(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		g := newGitBench(t, backend)
 		g.repo.Commit("main", "Works", map[string]string{"Dockerfile": webDockerfile})
@@ -226,6 +229,7 @@ func TestABuildOfABranchThatIsntThereIsRefused(t *testing.T) {
 
 // A build's secret reaches its build as a BuildKit secret, and never its log.
 func TestABuildsSecretStaysOutOfItsLog(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		g := newGitBench(t, backend)
 		g.repo.Commit("main", "Install private packages", map[string]string{"Dockerfile": "FROM alpine:3.23\nRUN --mount=type=secret,id=NPM_TOKEN cat /run/secrets/NPM_TOKEN\n"})
@@ -257,6 +261,7 @@ func TestABuildsSecretStaysOutOfItsLog(t *testing.T) {
 
 // Someone can cancel a build under way: its change fails, and what ran runs on.
 func TestSomeoneCanCancelABuildUnderWay(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		g := newGitBench(t, backend)
 		g.repo.Commit("main", "Works", map[string]string{"Dockerfile": webDockerfile})
@@ -318,6 +323,7 @@ func TestSomeoneCanCancelABuildUnderWay(t *testing.T) {
 // token with the logs grant, and a token without it reads that the build failed, at
 // which step, and nothing it printed.
 func TestAFailedBuildsLastLineNeedsTheLogsGrant(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		f := startFull(t, backend, nil)
 		b := signedIn(t, f)
@@ -391,6 +397,7 @@ func TestAFailedBuildsLastLineNeedsTheLogsGrant(t *testing.T) {
 // A service that builds runs only what its own builds made: another service's build
 // is that service's code.
 func TestABuildCantRunAnotherServicesImage(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		g := newGitBench(t, backend)
 		g.repo.Commit("main", "Works", map[string]string{"Dockerfile": webDockerfile})
@@ -410,6 +417,7 @@ func TestABuildCantRunAnotherServicesImage(t *testing.T) {
 // A build follows a branch or a tag, and not what else a repository advertises,
 // such as a pull request's head, which anyone with a fork pushes.
 func TestABuildOfAPullRequestsHeadIsRefused(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		g := newGitBench(t, backend)
 		g.repo.Commit("main", "Works", map[string]string{"Dockerfile": webDockerfile})

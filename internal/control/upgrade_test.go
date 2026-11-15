@@ -61,6 +61,7 @@ volumes:
 // anything else, leaves alone what it only reads, and runs the new image, with
 // each phase it went through said as it went (ADR 0080).
 func TestAnUpdateBacksUpWhatItWritesToFirst(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		b := newBench(t, backend)
 		b.e.Registry["ghcr.io/acme/shop:1.5"] = dockertest.Image{Size: 30 << 20, PullTime: 50e6, Config: docker.Config{Cmd: []string{"shop"}, Env: []string{"PATH=/bin"}}}
@@ -137,6 +138,7 @@ func TestAnUpdateBacksUpWhatItWritesToFirst(t *testing.T) {
 // Asked to, an update takes no backup and says so; one of a moving tag pulls it
 // again and replaces only on a newer image; and one with nothing to go to says so.
 func TestAnUpdateCanSkipItsBackupAndNamesWhatItCantBackUp(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		b := newBench(t, backend)
 		b.run(t, &dockwellv1.ImportComposeRequest{Compose: shopWithData})
@@ -193,6 +195,7 @@ func pgOf(major string) dockertest.Image {
 // Down a release is refused before anything pulls, saying why. A patch goes ahead,
 // with a dump first.
 func TestADatabasesMajorReleaseMovesByADump(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		b := newBench(t, backend)
 		for tag, major := range map[string]string{"16.4": "16", "16.5": "16", "17.2": "17", "15.8": "15"} {
@@ -306,6 +309,7 @@ volumes:
 // goes on as it was, on its volume, what stopped starts again, and no backup goes
 // on record, as its dump went with it.
 func TestAMoveThatWontLoadChangesNothing(t *testing.T) {
+	t.Parallel()
 	b := newBench(t, store.SQLite)
 	b.e.Registry["postgres:16.4"] = pgOf("16")
 	broken := pgOf("17")
@@ -360,6 +364,7 @@ volumes:
 // A move's new volume takes a name no volume of its environment has had, and a
 // volume with options of its own, which Dockwell can't make one like, is refused.
 func TestADatabaseMoveNamesAFreeVolumeAndRefusesOneItCantCopy(t *testing.T) {
+	t.Parallel()
 	b := newBench(t, store.SQLite)
 	b.e.Registry["postgres:16.4"] = pgOf("16")
 	b.e.Registry["postgres:17.2"] = pgOf("17")
@@ -446,6 +451,7 @@ func policyVolume(t *testing.T, b *bench, scope, name string) string {
 // in the same change, so undo puts them back, and undo says what it does to the
 // data written since. Another service on the same volume refuses the move.
 func TestAMoveTakesItsBackupsAlong(t *testing.T) {
+	t.Parallel()
 	b, db := movedShop(t, "")
 	scope := db.GetResource().GetScope()
 	made, err := b.c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Back up pgdata nightly", Edits: []*dockwellv1.Edit{{
@@ -498,6 +504,7 @@ func TestAMoveTakesItsBackupsAlong(t *testing.T) {
 // data as it is; one with the release it held there goes back, and says so. A
 // Compose file that still names the old volume keeps the database on the new one.
 func TestADatabaseDoesntGoBackOntoTheDataItMovedFrom(t *testing.T) {
+	t.Parallel()
 	b, db := movedShop(t, "")
 	scope := db.GetResource().GetScope()
 	b.done(t, b.upgrade(t, &dockwellv1.UpgradeServiceRequest{Id: db.GetId(), Image: "postgres:17.2"}))
@@ -546,6 +553,7 @@ volumes:
 // A service of a catalog install updates its install, with what the release leaves
 // and goes to, and takes no image of its own.
 func TestAnUpdateOfAnInstallsServiceUpgradesTheInstall(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		u := startUpgrading(t, backend, testEntry(1, "1.0", firstRelease, ""))
 		u.release(testEntry(2, "2.0", secondRelease, ""))
@@ -590,6 +598,7 @@ func TestAnUpdateOfAnInstallsServiceUpgradesTheInstall(t *testing.T) {
 // a major release, whose move by a dump this database's data, in its image's own
 // volume, can't take; and snoozed, it knows of none (ADR 0080).
 func TestAnUpdateWithNoImageTakesWhatTheKeeperFound(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)

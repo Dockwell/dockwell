@@ -94,6 +94,7 @@ func readData(t *testing.T, dir, name string) string {
 // The heart of it, end to end through the API and the agent stream: back up, lose
 // the data, restore it through a plan that says what it replaces, and undo that.
 func TestABackupRestoresThroughAPlan(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testABackupRestoresThroughAPlan)
 }
 
@@ -206,6 +207,7 @@ func testABackupRestoresThroughAPlan(t *testing.T, backend store.Backend) {
 // takes: a person, the plan's fingerprint and a passkey, for that change. It can bring
 // back whoever could log in when the backup was taken. Its undo asks the same.
 func TestARestoreIntoTheSystemTakesAPasskey(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	f.addDockerServer(t)
@@ -262,6 +264,7 @@ func TestARestoreIntoTheSystemTakesAPasskey(t *testing.T) {
 // restored into an ordinary volume made under its name once the first had gone, can
 // be read by anything that mounts it. It takes a passkey, as what it came from did.
 func TestABackupOfTheSystemAsksAgainInAnOrdinaryVolume(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)
@@ -319,7 +322,10 @@ func TestABackupOfTheSystemAsksAgainInAnOrdinaryVolume(t *testing.T) {
 }
 
 // Who may do what, as ADR 0033 has it.
-func TestWhoMayBackUpAndDelete(t *testing.T) { storetest.Each(t, testWhoMayBackUpAndDelete) }
+func TestWhoMayBackUpAndDelete(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testWhoMayBackUpAndDelete)
+}
 
 func testWhoMayBackUpAndDelete(t *testing.T, backend store.Backend) {
 	f := startFull(t, backend, nil)
@@ -366,6 +372,7 @@ func testWhoMayBackUpAndDelete(t *testing.T, backend store.Backend) {
 
 // A backup that fails is on the timeline, and says why.
 func TestAFailedBackupShowsOnTheTimeline(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testAFailedBackupShowsOnTheTimeline)
 }
 
@@ -422,7 +429,10 @@ func testAFailedBackupShowsOnTheTimeline(t *testing.T, backend store.Backend) {
 }
 
 // A database's dump stops nothing, and a restore of one takes in the app.
-func TestADumpThroughTheAPI(t *testing.T) { storetest.Each(t, testADumpThroughTheAPI) }
+func TestADumpThroughTheAPI(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testADumpThroughTheAPI)
+}
 
 func testADumpThroughTheAPI(t *testing.T, backend store.Backend) {
 	f := startFull(t, backend, nil)
@@ -504,6 +514,7 @@ func drillingPolicyEdit(keep uint32) *dockwellv1.Edit {
 // A schedule is a plan, its runs are Dockwell's, and it keeps what it says it keeps,
 // never what someone took by hand, and nothing when a run fails.
 func TestAPolicyRunsAndKeepsWhatItSays(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testAPolicyRunsAndKeepsWhatItSays)
 }
 
@@ -674,6 +685,7 @@ func waitCopy(t *testing.T, bc dockwellv1connect.BackupServiceClient, id string)
 // plan, no answer and no row. A backup survives its server through it, and a person
 // gets it back.
 func TestABackupOutlivesItsServerThroughADestination(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testABackupOutlivesItsServerThroughADestination)
 }
 
@@ -785,6 +797,7 @@ func testABackupOutlivesItsServerThroughADestination(t *testing.T, backend store
 
 // A copy that fails leaves the backup, and says so where someone looks.
 func TestACopyThatFailsShowsOnTheTimeline(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testACopyThatFailsShowsOnTheTimeline)
 }
 
@@ -821,6 +834,7 @@ func testACopyThatFailsShowsOnTheTimeline(t *testing.T, backend store.Backend) {
 // didn't get there, when and why, beside the last that did, so nothing reads it as
 // healthy while its uploads fail. One that gets there again is newer than the failure.
 func TestADestinationSaysWhenItsUploadsFail(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testADestinationSaysWhenItsUploadsFail)
 }
 
@@ -938,6 +952,7 @@ var fakePostgres = dockertest.Image{
 // A backup can't be left waiting on a control plane that's gone: the next start fails
 // it. And a stop as it starts lets go of the addresses a restart needs.
 func TestAStartEndsWhatWasRunningAndAStopThenLetsGoOfItsAddresses(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)

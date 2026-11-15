@@ -186,7 +186,10 @@ func waitForTerminalEvent(t *testing.T, b *browser, server, action string) *dock
 // A person opens a root shell on a server with a passkey, types into it, sees what
 // it prints, and closes it. Its opening and closing are on Activity, and nothing
 // typed or printed is on record anywhere.
-func TestAPersonOpensATerminal(t *testing.T) { storetest.Each(t, testAPersonOpensATerminal) }
+func TestAPersonOpensATerminal(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testAPersonOpensATerminal)
+}
 
 func testAPersonOpensATerminal(t *testing.T, backend store.Backend) {
 	f := startFull(t, backend, nil)
@@ -270,7 +273,10 @@ func testAPersonOpensATerminal(t *testing.T, backend store.Backend) {
 
 // No token reaches a terminal, whatever its scope, and refusing it asks nothing of
 // the server.
-func TestNoTokenReachesATerminal(t *testing.T) { storetest.Each(t, testNoTokenReachesATerminal) }
+func TestNoTokenReachesATerminal(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testNoTokenReachesATerminal)
+}
 
 func testNoTokenReachesATerminal(t *testing.T, backend store.Backend) {
 	f := startFull(t, backend, nil)
@@ -318,6 +324,7 @@ func testNoTokenReachesATerminal(t *testing.T, backend store.Backend) {
 // A terminal is its session's alone: another session of the same person can't
 // reach it, and signing out ends it.
 func TestATerminalIsItsSessionsAlone(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testATerminalIsItsSessionsAlone)
 }
 
@@ -370,7 +377,10 @@ func testATerminalIsItsSessionsAlone(t *testing.T, backend store.Backend) {
 }
 
 // A proof opens one terminal on the server it's for.
-func TestAProofOpensOneTerminal(t *testing.T) { storetest.Each(t, testAProofOpensOneTerminal) }
+func TestAProofOpensOneTerminal(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testAProofOpensOneTerminal)
+}
 
 func testAProofOpensOneTerminal(t *testing.T, backend store.Backend) {
 	f := startFull(t, backend, nil)
@@ -399,6 +409,7 @@ func testAProofOpensOneTerminal(t *testing.T, backend store.Backend) {
 
 // A passkey asked for that never comes is on Activity, as a stolen session's try.
 func TestAnUnconfirmedTerminalIsOnActivity(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testAnUnconfirmedTerminalIsOnActivity)
 }
 
@@ -410,6 +421,7 @@ func testAnUnconfirmedTerminalIsOnActivity(t *testing.T, backend store.Backend) 
 	if _, err := c.OpenTerminal(t.Context(), connect.NewRequest(&dockwellv1.OpenTerminalRequest{ServerId: id, Columns: 80, Rows: 24})); reasonOf(err) != authapi.ReasonNeedsStepUp {
 		t.Fatal(err)
 	}
+	f.asks.miss()
 	e := waitForTerminalEvent(t, b, id, "terminal.open_unconfirmed")
 	if e.GetSubject().GetId() != id || e.GetTerminal().GetError() == "" {
 		t.Errorf("reads %v", e)
@@ -446,6 +458,7 @@ func testAnAttachmentBeats(t *testing.T, backend store.Backend) {
 // A terminal outlives its attachment: the next one carries on from the byte the
 // last had, and one from elsewhere moves it there.
 func TestATerminalOutlivesItsAttachment(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testATerminalOutlivesItsAttachment)
 }
 
@@ -492,7 +505,10 @@ func testATerminalOutlivesItsAttachment(t *testing.T, backend store.Backend) {
 
 // What's typed the moment the client hears it's attached has somewhere to go,
 // however the attachment's first message and its stream race in the control plane.
-func TestTypingAsSoonAsAttached(t *testing.T) { storetest.Each(t, testTypingAsSoonAsAttached) }
+func TestTypingAsSoonAsAttached(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testTypingAsSoonAsAttached)
+}
 
 func testTypingAsSoonAsAttached(t *testing.T, backend store.Backend) {
 	f := startFull(t, backend, nil)
@@ -514,7 +530,10 @@ func testTypingAsSoonAsAttached(t *testing.T, backend store.Backend) {
 // When a server's agent restarts its shells go with it, and the terminals go on
 // record as ended that way. One the control plane doesn't know, as it restarted, is
 // closed.
-func TestATerminalEndsWithItsAgent(t *testing.T) { storetest.Each(t, testATerminalEndsWithItsAgent) }
+func TestATerminalEndsWithItsAgent(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testATerminalEndsWithItsAgent)
+}
 
 func testATerminalEndsWithItsAgent(t *testing.T, backend store.Backend) {
 	f := startFull(t, backend, nil)
@@ -578,7 +597,10 @@ func testATerminalEndsWithItsServer(t *testing.T, backend store.Backend) {
 // that reaches no further than itself asks no passkey; one that's as good as root on
 // the server asks for one for that container, which the agent decides on the
 // container it runs the shell in.
-func TestAShellInAContainer(t *testing.T) { storetest.Each(t, testAShellInAContainer) }
+func TestAShellInAContainer(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testAShellInAContainer)
+}
 
 func testAShellInAContainer(t *testing.T, backend store.Backend) {
 	f := startFull(t, backend, nil)
@@ -722,6 +744,7 @@ func testAShellInAContainer(t *testing.T, backend store.Backend) {
 // An agent from before shells in containers would take a call for one as a call
 // for the server's own shell, so the control plane sends it none.
 func TestNoContainerShellThroughAnOlderAgent(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testNoContainerShellThroughAnOlderAgent)
 }
 
@@ -743,7 +766,10 @@ func testNoContainerShellThroughAnOlderAgent(t *testing.T, backend store.Backend
 }
 
 // A server keeps 8 terminals, and the ninth says so.
-func TestAServerKeepsEightTerminals(t *testing.T) { storetest.Each(t, testAServerKeepsEightTerminals) }
+func TestAServerKeepsEightTerminals(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testAServerKeepsEightTerminals)
+}
 
 // A server keeps eight terminals, and one session half of them, so a session, a
 // stolen one too, can't take every place there is.
@@ -776,6 +802,7 @@ func testAServerKeepsEightTerminals(t *testing.T, backend store.Backend) {
 
 // One session keeps half the control plane's terminals, across its servers.
 func TestASessionKeepsSixteenTerminals(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	var servers []string

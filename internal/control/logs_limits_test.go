@@ -44,6 +44,7 @@ func logToken(t *testing.T, b *browser, grants ...dockwellv1.TokenGrant) (string
 // A revoked token stops reading at once, whether it reads or is stuck behind flow
 // control, with its handler blocked in a send.
 func TestARevokedTokenStopsReading(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)
@@ -117,6 +118,7 @@ func logTexts(t *testing.T, lc dockwellv1connect.LogServiceClient, id string) []
 // says so. A new service of the name starts clean. Undoing the deletion brings them
 // back.
 func TestADeletedServicesLogsAreOutOfReachUnlessUndone(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)
@@ -178,6 +180,7 @@ func TestADeletedServicesLogsAreOutOfReachUnlessUndone(t *testing.T) {
 // A first deploy that failed and was rolled back was never deleted: its logs are
 // what its reader needs.
 func TestAFailedFirstDeploysLogsStayReadable(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)
@@ -202,6 +205,7 @@ func TestAFailedFirstDeploysLogsStayReadable(t *testing.T) {
 // A crafted token is refused through the API, by name and by ID, with nothing asked of
 // an agent, and a stream's own token is taken back.
 func TestACraftedTokenIsRefusedAndAStreamsOwnIsTaken(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)
@@ -257,6 +261,7 @@ func TestACraftedTokenIsRefusedAndAStreamsOwnIsTaken(t *testing.T) {
 // A next page goes on working on a service with sources on several servers, each told
 // only of its own.
 func TestPagesReadBackAcrossServers(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	onA := f.addServerNamed(t, "a", nil, nil)
@@ -307,6 +312,7 @@ func TestPagesReadBackAcrossServers(t *testing.T) {
 // A source a stream hadn't heard from when it dropped, as a new container is in a
 // deploy that starts it first, keeps what it printed before another's last line.
 func TestAQuietSourceKeepsItsLinesAcrossAReconnect(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)
@@ -349,6 +355,7 @@ func TestAQuietSourceKeepsItsLinesAcrossAReconnect(t *testing.T) {
 
 // A plan and a check both say when a file's log rotation isn't what Dockwell takes.
 func TestAComposeFilesRotationIsSaidNotDropped(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	f.addDockerServer(t)
@@ -376,6 +383,7 @@ func TestAComposeFilesRotationIsSaidNotDropped(t *testing.T) {
 
 // A query is a search, not a way to send megabytes down an agent's main stream.
 func TestAQueryHasALimit(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	f.addDockerServer(t)
@@ -484,6 +492,7 @@ func TestUnreadPagesDontPinTheControlPlane(t *testing.T) {
 // whose quotes take two bytes each in the answer, once came to more than the REST
 // path holds of a message, and curl got a 429 in words that help nobody.
 func TestAFullPageReadsThroughREST(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)
@@ -560,6 +569,7 @@ func TestAFullPageReadsThroughREST(t *testing.T) {
 
 // Lines that share a time, as a burst can, all come across pages.
 func TestPagesKeepLinesOfOneTime(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)
@@ -605,6 +615,7 @@ func TestPagesKeepLinesOfOneTime(t *testing.T) {
 // a reader who comes back after the limit is on record again. A client that reconnects
 // all day doesn't flood the log.
 func TestAFollowStaysOnRecord(t *testing.T) {
+	t.Parallel()
 	const every = 200 * time.Millisecond
 	f := startFullWith(t, store.SQLite, nil, slog.New(slog.DiscardHandler), nil, logapi.Options{AuditEvery: every})
 	b := signedIn(t, f)
@@ -623,6 +634,7 @@ func TestAFollowStaysOnRecord(t *testing.T) {
 }
 
 func TestReconnectingDoesntFloodTheAuditLog(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	f.addDockerServer(t)

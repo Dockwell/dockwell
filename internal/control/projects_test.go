@@ -44,6 +44,7 @@ func dbScope(c *dockwellv1.Change) string {
 // same name runs beside the first, on a network of its own, rather than
 // planning a change to it (#77).
 func TestEachComposeFileGetsItsOwnProject(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		f := startFull(t, backend, nil)
 		b := signedIn(t, f)
@@ -202,6 +203,7 @@ func TestEachComposeFileGetsItsOwnProject(t *testing.T) {
 
 // A form hears the name a file gives itself, even while it can't read further.
 func TestCheckComposeSaysWhatAFileIsCalled(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		f := startFull(t, backend, nil)
 		b := signedIn(t, f)
@@ -236,6 +238,7 @@ func TestCheckComposeSaysWhatAFileIsCalled(t *testing.T) {
 // who can read the service. It isn't blanked, as seeing a command is useful,
 // so the file's check, the import and the plan each say so.
 func TestAComposeFileSaysWhereItExposesAVariable(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		f := startFull(t, backend, nil)
 		b := signedIn(t, f)
@@ -354,6 +357,7 @@ func TestAComposeFileSaysWhereItExposesAVariable(t *testing.T) {
 // A service goes by its name where that is enough to say which, and two files
 // can each have one called db.
 func TestAServiceGoesByNameWhereThatSaysWhich(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		f := startFull(t, backend, nil)
 		b := signedIn(t, f)
@@ -401,6 +405,7 @@ func TestAServiceGoesByNameWhereThatSaysWhich(t *testing.T) {
 // Adding a port plans it through the same gate as any edit, keeps what no
 // response carries, and refuses what is there already.
 func TestAddingAPortKeepsTheRest(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		f := startFull(t, backend, nil)
 		b := signedIn(t, f)
@@ -452,6 +457,7 @@ func TestAddingAPortKeepsTheRest(t *testing.T) {
 // and which revision a rollback put back; and a rollback of a service with
 // data says the data stays.
 func TestARollbackThatWouldDoNothingIsRefused(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		f := startFull(t, backend, nil)
 		b := signedIn(t, f)

@@ -237,6 +237,7 @@ func (f *fullServer) addNamedHostServer(t *testing.T, name string, p *packages, 
 // root, which a person applies with a passkey and a token can't; its lines are
 // its progress; and it can't be undone.
 func TestInstallingUpdatesIsAPlanAPersonAppliesWithAPasskey(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	p := &packages{
@@ -331,6 +332,7 @@ func TestInstallingUpdatesIsAPlanAPersonAppliesWithAPasskey(t *testing.T) {
 // A plan that needs a reboot after, or restarts Docker, applies: the apply plans
 // again, and what it needs after reads as the plan said, so the fingerprint holds.
 func TestAnInstallThatRebootsOrRestartsDockerApplies(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name    string
 		waiting *resource.Install
@@ -405,6 +407,7 @@ func TestAnInstallLongerThanAnyStepsTimeApplies(t *testing.T) {
 // The control plane restarts while an install runs: the install goes on in its
 // unit, and the change, resumed, follows it to the end, starting nothing again.
 func TestAnInstallIsFollowedAgainAfterTheControlPlaneRestarts(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	p := &packages{installed: map[string]string{}, waiting: &resource.Install{Packages: []resource.InstallPackage{
@@ -470,6 +473,7 @@ func listChanges(t *testing.T, c dockwellv1connect.ChangeServiceClient) []*dockw
 // Updating one package plans it and what it needs, and no other update waiting;
 // the plan says which was asked for, and applies as any install does.
 func TestUpdatingOnePackagePlansItAndWhatItNeeds(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	p := &packages{
@@ -554,6 +558,7 @@ func TestUpdatingOnePackagePlansItAndWhatItNeeds(t *testing.T) {
 // A package list is names, and only names: one with a shell's characters, or one
 // asked for beside every update, is refused before any server is asked.
 func TestPackagesToUpdateAreNamesOnly(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	p := &packages{installed: map[string]string{}, waiting: &resource.Install{Packages: []resource.InstallPackage{{Name: "openssl", From: "1", To: "2"}}}}
@@ -582,6 +587,7 @@ func TestPackagesToUpdateAreNamesOnly(t *testing.T) {
 // An agent from before packages could be picked reads past the names and plans
 // the security fixes: its plan is refused, so nobody applies more than they picked.
 func TestAnOlderAgentIsRefusedPickedPackages(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	p := &packages{
@@ -609,6 +615,7 @@ func TestAnOlderAgentIsRefusedPickedPackages(t *testing.T) {
 // follows it, and aren't read halfway through; once it ends, the next look reads
 // them again, whatever their age, so what it installed is gone from the list.
 func TestTheUpdatesTabFollowsAnInstallAndReadsAgainAfter(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	root := aptStand(t, 0)

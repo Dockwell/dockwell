@@ -22,6 +22,7 @@ import (
 // one is an admin's, as changing or deleting any project is (ADR 0049), by its
 // project's name, ID or domain.
 func TestWebsiteNamesStayWithinTheirProjects(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		f := startFull(t, backend, nil)
 		b := signedIn(t, f)

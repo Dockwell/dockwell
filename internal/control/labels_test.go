@@ -81,6 +81,7 @@ func selected(t *testing.T, servers dockwellv1connect.ServerServiceClient, selec
 // or not. The fleet gives the labels at once, a selector lists by them, drift never
 // reads them as missing, and a reboot's edit of the host keeps them.
 func TestALabelChangeTakesNoStepOnTheServer(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	c := changeClient(b, b.origin)
@@ -230,6 +231,7 @@ func TestALabelChangeTakesNoStepOnTheServer(t *testing.T) {
 // An edit that reboots, installs or acts on a unit takes the host as it is, so an
 // edit that also says a spec is refused, and none can lose its labels.
 func TestAStepOnAHostKeepsItsSpec(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	web := f.addHostServer(t, &packages{installed: map[string]string{}, boot: "boot-1"})
 	ref := resource.Ref{Kind: host.Kind, Scope: web.id.ServerID, Name: host.Name}
@@ -247,6 +249,7 @@ func TestAStepOnAHostKeepsItsSpec(t *testing.T) {
 }
 
 func TestATicketsLabelsGoOnTheServerItAdds(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testATicketsLabelsGoOnTheServerItAdds)
 }
 

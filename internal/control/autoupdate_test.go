@@ -17,7 +17,6 @@ import (
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
-	"github.com/dockwell/dockwell/internal/catalog"
 	"github.com/dockwell/dockwell/internal/control/autoupdate"
 	logapi "github.com/dockwell/dockwell/internal/control/logs"
 	"github.com/dockwell/dockwell/internal/control/services"
@@ -75,6 +74,7 @@ func (b *bench) setAutoUpdate(t *testing.T, svc *dockwellv1.ServiceInfo, a *reso
 // its level takes, as its own change with a backup first; and never a database's
 // major release (ADR 0080).
 func TestAnAutomaticUpdateRunsInItsWindowAsDockwell(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		f := startFullConfig(t, backend, nil, slog.New(slog.DiscardHandler), nil, logapi.Options{}, func(c *Config) { c.ManualAlerts = true })
 		b := benchOn(t, f)
@@ -144,6 +144,7 @@ func TestAnAutomaticUpdateRunsInItsWindowAsDockwell(t *testing.T) {
 
 // A database's major release is never taken on its own, at any level.
 func TestAnAutomaticUpdateNeverMovesADatabasesMajor(t *testing.T) {
+	t.Parallel()
 	f := startFullConfig(t, store.SQLite, nil, slog.New(slog.DiscardHandler), nil, logapi.Options{}, func(c *Config) { c.ManualAlerts = true })
 	b := benchOn(t, f)
 	b.e.Registry["postgres:16.4"] = dockertest.Image{Volumes: []string{"/var/lib/postgresql/data"}, Config: docker.Config{Cmd: []string{"postgres"}, Env: []string{"PG_MAJOR=16"}}}
@@ -214,6 +215,7 @@ func (c *countingPlanner) UpgradeService(ctx context.Context, req *connect.Reque
 // makes, in the install's time zone, and not to one made before, nor one whose
 // change says its own (ADR 0080).
 func TestNewAppsTakeTheInstallsAutomaticUpdates(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		b := newBench(t, backend)
 		b.run(t, &dockwellv1.ImportComposeRequest{Compose: shopFile})
@@ -270,6 +272,7 @@ func (i imagesSay) Config(_ context.Context, _, ref string) (*dockwellv1.ImageCo
 // one whose images say no version only at any, as latest can move an app from
 // 5.x to 6.0 (ADR 0080).
 func TestAMovingTagIsTakenByWhatItsVersionsSay(t *testing.T) {
+	t.Parallel()
 	f := startFullConfig(t, store.SQLite, nil, slog.New(slog.DiscardHandler), nil, logapi.Options{}, func(c *Config) { c.ManualAlerts = true })
 	b := benchOn(t, f)
 	name, web := runLatest(t, b)
@@ -335,6 +338,7 @@ func TestAMovingTagIsTakenByWhatItsVersionsSay(t *testing.T) {
 // taken at patch then; where they say nothing it could be 1.27 moving to 1.28, so
 // only any takes it (ADR 0080).
 func TestATagOfTwoPlacesIsARebuildWhereItsImagesSaySo(t *testing.T) {
+	t.Parallel()
 	f := startFullConfig(t, store.SQLite, nil, slog.New(slog.DiscardHandler), nil, logapi.Options{}, func(c *Config) { c.ManualAlerts = true })
 	b := benchOn(t, f)
 	const tag = "ghcr.io/acme/shop:16.4"
@@ -369,6 +373,7 @@ func TestATagOfTwoPlacesIsARebuildWhereItsImagesSaySo(t *testing.T) {
 // A catalog install's newer release is taken on its own as its install's upgrade,
 // with no image of its own (ADR 0080).
 func TestAnAutomaticUpdateOfACatalogInstallUpgradesIt(t *testing.T) {
+	t.Parallel()
 	u := startUpgrading(t, store.SQLite, testEntry(1, "1.0", firstRelease, ""))
 	u.release(testEntry(2, "2.0", secondRelease, ""))
 	s := dockwellv1connect.NewServiceServiceClient(u.b, u.b.origin, connect.WithProtoJSON())
@@ -407,6 +412,7 @@ func TestAnAutomaticUpdateOfACatalogInstallUpgradesIt(t *testing.T) {
 // that build alone, and never the catalog's newer release beside it, which a person
 // may have skipped: the rebuild is refused, and the release waits (ADR 0085).
 func TestAnAutomaticNewBuildNeverTakesACatalogsNewerRelease(t *testing.T) {
+	t.Parallel()
 	u := startUpgrading(t, store.SQLite, testEntry(1, "1.0", firstRelease, ""))
 	u.release(testEntry(2, "2.0", secondRelease, ""))
 	s := dockwellv1connect.NewServiceServiceClient(u.b, u.b.origin, connect.WithProtoJSON())
@@ -469,8 +475,9 @@ compose: |
 // one that takes postgres from 16 to 17 does, is never applied on its own, whatever
 // its kind: its plan, which moves the data, is left for a person.
 func TestAnAutomaticUpdateNeverMovesADatabaseInACatalogRelease(t *testing.T) {
+	t.Parallel()
 	u := &upgrading{t: t, dir: t.TempDir()}
-	t.Setenv(catalog.DirEnv, u.dir)
+	useCatalogDir(t, u.dir)
 	u.release(dbEntry(1, "1.0", "postgres:16.4@sha256:"+digest1))
 	f := startFull(t, store.SQLite, nil)
 	u.b, u.f = signedIn(t, f), f
@@ -542,6 +549,7 @@ func TestAnAutomaticUpdateNeverMovesADatabaseInACatalogRelease(t *testing.T) {
 // A server another app links to, as a database a person chose to share is, is that
 // app's too: Dockwell leaves its automatic update planned for a person (ADR 0084).
 func TestAnAutomaticUpdateOfASharedServerWaitsForAPerson(t *testing.T) {
+	t.Parallel()
 	f := startFullConfig(t, store.SQLite, nil, slog.New(slog.DiscardHandler), nil, logapi.Options{}, func(c *Config) { c.ManualAlerts = true })
 	b := benchOn(t, f)
 	env := b.run(t, &dockwellv1.ImportComposeRequest{Compose: shopWithData})

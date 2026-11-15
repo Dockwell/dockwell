@@ -29,6 +29,7 @@ import (
 // in its run's words. They can't stop the look that opens the alert, so another
 // check's alert still goes out, and the lists still read.
 func TestAFarEndsBytesCantStopAnAlert(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		h := newHook(t)
 		f := startFullConfig(t, backend, nil, slog.New(slog.DiscardHandler), nil, logapi.Options{}, func(c *Config) { c.ManualAlerts = true })

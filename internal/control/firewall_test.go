@@ -17,6 +17,7 @@ import (
 // A server's firewall is read through its agent, with the ports Docker publishes,
 // and reading it changes nothing (ADR 0052).
 func TestAServersFirewallIsReadThroughItsAgent(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)
@@ -56,6 +57,7 @@ func TestAServersFirewallIsReadThroughItsAgent(t *testing.T) {
 // can't read: an agent that runs none of the server's tools, as in a test,
 // finds no sshd and no fail2ban (ADR 0052).
 func TestAServersSSHAndFail2banAreReadThroughItsAgent(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	f.addDockerServer(t)

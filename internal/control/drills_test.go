@@ -46,7 +46,10 @@ func waitDrill(t *testing.T, bc dockwellv1connect.BackupServiceClient, backup st
 // the volume's newest checked backup: an older one passing doesn't resolve it. A
 // backup a drill is checking can't be deleted, and one the control plane lost track
 // of isn't checked.
-func TestABackupIsCheckedInADrill(t *testing.T) { storetest.Each(t, testABackupIsCheckedInADrill) }
+func TestABackupIsCheckedInADrill(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testABackupIsCheckedInADrill)
+}
 
 func testABackupIsCheckedInADrill(t *testing.T, backend store.Backend) {
 	f := startFull(t, backend, nil)
@@ -188,6 +191,7 @@ func testABackupIsCheckedInADrill(t *testing.T, backend store.Backend) {
 // of its backups that read back whole an hour after its time on Sunday, as its own,
 // for the policy. Two weeks without a pass and restore-drill-late says so.
 func TestAScheduleChecksARestoreWeekly(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)

@@ -209,6 +209,7 @@ func TestADestinationTestThatRunsOutOfTimeSaysSo(t *testing.T) {
 // A test reaches storage as an alert channel's test reaches its far end: never the
 // control server's own loopback, which a test that says what answered would read.
 func TestADestinationTestDoesntReachTheControlServersLoopback(t *testing.T) {
+	t.Parallel()
 	if _, guarded := backups.StorageClient.(*netguard.HTTP); !guarded {
 		t.Fatalf("the storage client is %T, not netguard's, which follows no redirect", backups.StorageClient)
 	}

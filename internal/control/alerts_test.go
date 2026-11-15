@@ -69,7 +69,10 @@ func (h *hook) of(rule string) []string {
 // An install starts with its rules, and a channel added through a plan gets a
 // test, then an alert as a server goes and comes back, each on Activity; a mute is
 // no change, and goes on Activity too.
-func TestAnAlertFromItsRuleToItsWebhook(t *testing.T) { storetest.Each(t, testAnAlert) }
+func TestAnAlertFromItsRuleToItsWebhook(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testAnAlert)
+}
 
 func testAnAlert(t *testing.T, backend store.Backend) {
 	f := startFull(t, backend, nil)
@@ -382,6 +385,7 @@ func testAnAlert(t *testing.T, backend store.Backend) {
 // event or log holds it, and an update that moves a channel's server asks for its
 // password again rather than send the one it kept there.
 func TestEveryChannelKeepsWhatSignsInSealed(t *testing.T) {
+	t.Parallel()
 	logs := &syncBuffer{}
 	f := startFullLogging(t, store.SQLite, nil, slog.New(slog.NewJSONHandler(logs, &slog.HandlerOptions{Level: slog.LevelDebug})))
 	b := signedIn(t, f)

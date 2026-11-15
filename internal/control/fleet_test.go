@@ -180,6 +180,7 @@ func idsOf(servers ...*fleetServer) []string {
 // waves, a canary first and then the batch, by name; and the steps run wave by
 // wave, each server's after the one before.
 func TestAFleetActionRunsOverASelectorInWaves(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	c := changeClient(b, b.origin)
@@ -240,6 +241,7 @@ func TestAFleetActionRunsOverASelectorInWaves(t *testing.T) {
 // By default, the first step that fails stops the change there: no server after it
 // is touched, and what passed stays.
 func TestAFleetActionStopsAtTheFirstFailure(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	c := changeClient(b, b.origin)
@@ -275,6 +277,7 @@ func TestAFleetActionStopsAtTheFirstFailure(t *testing.T) {
 // With keep_going, a failed step is recorded and the next server goes on; the
 // change still fails, naming each server that did.
 func TestAFleetActionThatKeepsGoingFailsAtTheEnd(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	c := changeClient(b, b.origin)
@@ -307,6 +310,7 @@ func TestAFleetActionThatKeepsGoingFailsAtTheEnd(t *testing.T) {
 
 // A pause holds the next wave until it has passed, from when the last ended.
 func TestAFleetActionPausesBetweenWaves(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	c := changeClient(b, b.origin)
@@ -349,6 +353,7 @@ func TestAFleetActionPausesBetweenWaves(t *testing.T) {
 // A server that's offline at planning isn't in the change, and the plan says so; a
 // server that needs nothing takes no step and is in no wave.
 func TestAFleetActionLeavesOutWhatsOfflineOrNeedsNothing(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	c := changeClient(b, b.origin)
@@ -397,6 +402,7 @@ func TestAFleetActionLeavesOutWhatsOfflineOrNeedsNothing(t *testing.T) {
 // The next wave waits for a server of the one before that's still coming back, as
 // from a reboot: the change goes on as it reconnects, and no step runs twice.
 func TestAWaveWaitsForAServerComingBack(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	c := changeClient(b, b.origin)
@@ -460,6 +466,7 @@ func TestAWaveWaitsForAServerComingBack(t *testing.T) {
 // by its SHA-256, on each server but the control server; it takes a passkey, the
 // step passes once the agent is back at the version, and it can't be undone.
 func TestAnAgentUpgradeRunsTheControlPlanesScript(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	c := changeClient(b, b.origin)
@@ -572,6 +579,7 @@ func TestAnAgentUpgradeRunsTheControlPlanesScript(t *testing.T) {
 // An agent whose script ended with it at its old version fails the step with what
 // the script said, and an agent too old to upgrade itself isn't asked.
 func TestAnAgentUpgradeThatFailsSaysWhy(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	c := changeClient(b, b.origin)
@@ -613,6 +621,7 @@ func TestAnAgentUpgradeThatFailsSaysWhy(t *testing.T) {
 // A pause after a wave whose step waited for its server, as an upgrade's does, holds
 // the next wave from when that server came back (ADR 0094).
 func TestAPauseCountsFromAWaveThatWaitedForItsServer(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	c := changeClient(b, b.origin)
@@ -653,6 +662,7 @@ func TestAPauseCountsFromAWaveThatWaitedForItsServer(t *testing.T) {
 // A control plane that starts again mid-pause keeps the pause, by the plan's waves
 // and when the wave before ended, as the steps record it (ADR 0094, review M1).
 func TestAPauseSurvivesARestart(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	c := changeClient(b, b.origin)
@@ -701,6 +711,7 @@ func TestAPauseSurvivesARestart(t *testing.T) {
 // change once that server is back: a resume runs what's left, and the failure is on
 // the change's record (ADR 0094, review H1).
 func TestAChangeThatKeepsGoingRemembersAFailureAcrossAResume(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	c := changeClient(b, b.origin)
@@ -740,6 +751,7 @@ func TestAChangeThatKeepsGoingRemembersAFailureAcrossAResume(t *testing.T) {
 // the change goes on, and fails once each server had its turn, naming it (ADR 0094,
 // review L5).
 func TestAServerGoneBeforeItsTurnIsAFailureThatKeepsGoing(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	c := changeClient(b, b.origin)

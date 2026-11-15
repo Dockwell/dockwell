@@ -23,6 +23,7 @@ import (
 // 0, a capability, another repository's code whatever the user, and what's written
 // that isn't a server path. From #252's review.
 func TestEveryWayToReachFurtherOverWhatsWrittenAsks(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testEveryWayToReachFurtherOverWhatsWrittenAsks)
 }
 

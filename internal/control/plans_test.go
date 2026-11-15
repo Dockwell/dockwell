@@ -137,6 +137,7 @@ const shopFile = "name: shop\nservices:\n  web:\n    image: ghcr.io/acme/shop:1.
 // A file exported from production and imported into staging goes to staging. It
 // used to change production, with a plan that read as staging's.
 func TestAnExportGoesToTheEnvironmentAsked(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		b := newBench(t, backend)
 		first := b.file(t, &dockwellv1.ImportComposeRequest{Compose: shopFile})
@@ -189,6 +190,7 @@ func TestAnExportGoesToTheEnvironmentAsked(t *testing.T) {
 
 // A plan names only what offers a choice.
 func TestAPlanSaysWhereItLandsOnceThereIsAChoice(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		b := newBench(t, backend)
 		// One project with one environment: nothing to say.
@@ -223,6 +225,7 @@ func TestAPlanSaysWhereItLandsOnceThereIsAChoice(t *testing.T) {
 // Going back to a revision that matches the record, or deploying the image the
 // record says, is how someone recovers when what runs doesn't match it.
 func TestRecoveringIsNeverRefused(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		b := newBench(t, backend)
 		tagged := func(tag string) *dockwellv1.ImportComposeRequest {
@@ -276,6 +279,7 @@ func TestRecoveringIsNeverRefused(t *testing.T) {
 // took a race to show: the plan summarised "Publish port 10003" dropped the port
 // that had just been added.
 func TestPortsAddedTogetherAreNeverLost(t *testing.T) {
+	t.Parallel()
 	b := newBench(t, store.SQLite)
 	b.run(t, &dockwellv1.ImportComposeRequest{Compose: shopFile})
 	web := b.service(t, "shop", "web")
@@ -330,6 +334,7 @@ func TestPortsAddedTogetherAreNeverLost(t *testing.T) {
 // To the API and CLI an update of what runs used to read as a new app, and a
 // file's name: can match a project by chance.
 func TestAFileForARunningProjectSaysSo(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		b := newBench(t, backend)
 		two := "name: shop\nservices:\n  web:\n    image: ghcr.io/acme/shop:1.4\n  worker:\n    image: ghcr.io/acme/worker:1.0\n"
@@ -397,6 +402,7 @@ func TestAFileForARunningProjectSaysSo(t *testing.T) {
 // A port something else holds used to plan as normal: applying stopped and
 // removed what ran, failed to start it, and rolled it back.
 func TestAPortSomethingElseHoldsIsRefused(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		b := newBench(t, backend)
 		one := b.run(t, &dockwellv1.ImportComposeRequest{Compose: "name: one\nservices:\n  holder:\n    image: ghcr.io/acme/shop:1.4\n    ports: [\"8080:80\"]\n  beside:\n    image: ghcr.io/acme/shop:1.4\n"})
@@ -529,6 +535,7 @@ func TestAPortSomethingElseHoldsIsRefused(t *testing.T) {
 
 // Listing services reads every sealed spec, so it can't read a key for each.
 func TestListingServicesReadsInFewQueries(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		b := newBench(t, backend)
 		logger := slog.New(slog.DiscardHandler)
@@ -560,6 +567,7 @@ func TestListingServicesReadsInFewQueries(t *testing.T) {
 // What a service uses is in what the API says of it, and a rollback brings back
 // which it uses, with each at its latest value.
 func TestARollbackKeepsWhatAServiceUsesAtItsLatestValue(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		b := newBench(t, backend)
 		const value, newer = "first-secret-value", "second-secret-value"

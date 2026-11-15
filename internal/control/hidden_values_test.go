@@ -24,6 +24,7 @@ import (
 // reveals it, as any secret. One that stays the app's own is revealed with a passkey
 // too, for that value alone, and on record (ADR 0081).
 func TestAHiddenValueMovesToASecretOrIsRevealed(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testAHiddenValueMovesToASecretOrIsRevealed)
 }
 

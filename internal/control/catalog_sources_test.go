@@ -35,7 +35,10 @@ func notesOf(ch *dockwellv1.Change, reason string) []string {
 // says what the commit holds and what Dockwell leaves out of it, its entries join
 // the catalog once it's applied, a move to another commit says what that changes,
 // and removing it takes them away (ADR 0055).
-func TestACatalogFromGit(t *testing.T) { storetest.Each(t, testACatalogFromGit) }
+func TestACatalogFromGit(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testACatalogFromGit)
+}
 
 func testACatalogFromGit(t *testing.T, backend store.Backend) {
 	repo := gitfetchtest.New(t)
@@ -155,6 +158,7 @@ func testACatalogFromGit(t *testing.T, backend store.Backend) {
 // A source is a public repository's HTTPS URL at a commit in full: anything else is
 // refused before anything is read.
 func TestACatalogSourceIsPinnedByCommit(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	cat := catalogClient(b)
@@ -182,6 +186,7 @@ func TestACatalogSourceIsPinnedByCommit(t *testing.T) {
 // from whichever catalog has its ID now, and a source's plan says what changes hands
 // (the first review of #332, its H4).
 func TestAnInstallUpgradesFromWhereItCameFrom(t *testing.T) {
+	t.Parallel()
 	zeta, aaa := gitfetchtest.New(t), gitfetchtest.New(t)
 	// What zeta's file says of its source, Dockwell's own repository, is its own,
 	// and counts for nothing.
@@ -272,6 +277,7 @@ func TestAnInstallUpgradesFromWhereItCameFrom(t *testing.T) {
 // A catalog source changes only through its own methods, which read its commit and
 // say what it holds, not as a plain edit (the first review of #332, its M2).
 func TestACatalogSourceIsNoPlainEdit(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	c := changeClient(b, b.origin)
@@ -291,6 +297,7 @@ func TestACatalogSourceIsNoPlainEdit(t *testing.T) {
 // when its plan is made, so setting and removing one are an admin's: a developer is
 // refused before anything is read. Anyone with a role may list them (ADR 0049).
 func TestACatalogSourceIsAnAdmins(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		repo := gitfetchtest.New(t)
 		commit := repo.Commit(map[string]string{"entries/notes-src.yaml": sourceEntry("notes-src", 1)})
@@ -332,6 +339,7 @@ func TestACatalogSourceIsAnAdmins(t *testing.T) {
 // the commit each is at, a repository that isn't there says so, and an address of
 // this server is refused before anything is asked of it.
 func TestARepositorysBranchesAreListed(t *testing.T) {
+	t.Parallel()
 	repo := gitfetchtest.New(t)
 	commit := repo.Commit(map[string]string{"entries/notes-src.yaml": sourceEntry("notes-src", 1)})
 	f := startFull(t, store.SQLite, nil)

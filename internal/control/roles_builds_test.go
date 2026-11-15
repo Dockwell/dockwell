@@ -19,6 +19,7 @@ import (
 // admin's where it is protected, as applying is, and reading how a repository
 // builds is a developer's.
 func TestBuildsStayWithinTheirProjects(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		g := newGitBench(t, backend)
 		ctx := t.Context()

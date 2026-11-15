@@ -75,6 +75,7 @@ func loginEdit(name string, l *resourcev1.RegistryLogin) *dockwellv1.Edit {
 // which. The password is in no plan, change, event or answer, and goes to Docker
 // for that image's pull alone (ADR 0086).
 func TestAPrivateImagePullsWithASavedLogin(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)
@@ -257,6 +258,7 @@ func TestAPrivateImagePullsWithASavedLogin(t *testing.T) {
 // A login whose projects leave a project out isn't that project's to pull with,
 // and its list doesn't show it.
 func TestALoginIsItsProjectsAlone(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	c := changeClient(b, b.origin)
@@ -287,6 +289,7 @@ func TestALoginIsItsProjectsAlone(t *testing.T) {
 // may not use that login: the server has a copy, and the plan asks the registry
 // with the other app's own pull, which it refuses. (Security review of #584, M1.)
 func TestAnotherProjectDoesntRunAPrivateImageItCantPull(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)
@@ -333,6 +336,7 @@ func TestAnotherProjectDoesntRunAPrivateImageItCantPull(t *testing.T) {
 // stale, as its fingerprint covers which revision of which login a pull uses, not
 // only its name. (Security review of #584, L1.)
 func TestALoginSavedAgainMakesAPlanStale(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)

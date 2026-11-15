@@ -38,6 +38,7 @@ func names(list []*dockwellv1.ServerContainer) []string {
 // what a label looks like: another Dockwell's leftovers, a service this one never
 // heard of and a one-off are all someone else's.
 func TestTheListIsWhatDockwellDidntMake(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testTheListIsWhatDockwellDidntMake)
 }
 
@@ -110,6 +111,7 @@ func testTheListIsWhatDockwellDidntMake(t *testing.T, backend store.Backend) {
 // and the same audit log. A service's own container isn't read this way, as its logs
 // are its service's, with what a deletion put out of reach.
 func TestAContainersLogsReadAsAServicesDo(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testAContainersLogsReadAsAServicesDo)
 }
 
@@ -218,6 +220,7 @@ func testAContainersLogsReadAsAServicesDo(t *testing.T, backend store.Backend) {
 // A container that goes while it is followed stays out of the way: it is gone, and
 // what follows it hears so.
 func TestAFollowEndsWellWhenItsContainerGoes(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)
@@ -240,6 +243,7 @@ func TestAFollowEndsWellWhenItsContainerGoes(t *testing.T) {
 // then docker run leave. The page goes by the name, so its log has to: what the old
 // one wrote stays, a marker says it's gone, and the new one's lines follow.
 func TestAFollowGoesOnWhenItsContainerIsMadeAgain(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)
@@ -273,6 +277,7 @@ func TestAFollowGoesOnWhenItsContainerIsMadeAgain(t *testing.T) {
 // An agent that isn't there can't say what runs. That reads as what it is, for a
 // person to act on, with how to fix it.
 func TestAServerThatIsntThereSaysSo(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	cc := containerClient(b, b.origin)

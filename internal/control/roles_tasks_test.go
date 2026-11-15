@@ -23,6 +23,7 @@ import (
 // Its runs, including their output and server, belong to that task. Narrowing
 // leaves them whole and seals each page token for the caller.
 func TestTaskNamesAndRunsStayWithinTheirProjects(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		s := newReachStand(t, backend)
 		ctx := t.Context()
@@ -202,6 +203,7 @@ func TestTaskNamesAndRunsStayWithinTheirProjects(t *testing.T) {
 // another command for one in an open environment waits for an admin, and one
 // who plans another schedule for it doesn't (ADR 0048, ADR 0049).
 func TestAShellTasksCommandIsAnAdminsToChange(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		s := newReachStand(t, backend)
 		ctx := t.Context()

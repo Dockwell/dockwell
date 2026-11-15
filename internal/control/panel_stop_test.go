@@ -52,6 +52,7 @@ func (l *laterStopper) ApplyPanel(ctx context.Context, p resource.Panel, say fun
 // starts it again, as the stop makes no revision to roll back: each of the
 // panel's own runs again, with the restart policy it had (ADR 0089).
 func TestAStopThatFailsStartsThePanelAgain(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	later := &laterStopper{}
@@ -93,6 +94,7 @@ func TestAStopThatFailsStartsThePanelAgain(t *testing.T) {
 // each again as it stood, and that start has no undo of its own. A token can't
 // plan one, and an agent from before says to update it.
 func TestStoppingThePanelIsAChangeWithAPlan(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	later := &laterStopper{}

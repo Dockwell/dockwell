@@ -28,7 +28,10 @@ import (
 // it's kept, not a form someone hasn't planned; each person or token sends six a
 // minute; and every test is on Activity, with who sent it, to what type and host,
 // and whether it arrived.
-func TestTestingAChannel(t *testing.T) { storetest.Each(t, testTestingAChannel) }
+func TestTestingAChannel(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testTestingAChannel)
+}
 
 func testTestingAChannel(t *testing.T, backend store.Backend) {
 	f := startFull(t, backend, nil)
@@ -136,6 +139,7 @@ func testTestingAChannel(t *testing.T, backend store.Backend) {
 // A far end that asks Dockwell to slow down is waited for as long as it asks,
 // which isn't a failure, and a channel gets one message at a time.
 func TestAChannelThatAsksToSlowDownIsWaitedFor(t *testing.T) {
+	t.Parallel()
 	var calls, inFlight, most atomic.Int32
 	var mu sync.Mutex
 	limited := true

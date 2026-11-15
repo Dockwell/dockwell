@@ -80,7 +80,10 @@ func planned(ch *dockwellv1.Change) []string {
 // route to it, made through one plan that reaches nothing a token can't. It moves to
 // a port on the server, which a person approves and which needs no web server, and
 // back with undo. Deleting it takes all of it, and undo brings it all back.
-func TestAWebsiteFromAPlanToItsUndo(t *testing.T) { storetest.Each(t, testAWebsite) }
+func TestAWebsiteFromAPlanToItsUndo(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testAWebsite)
+}
 
 func testAWebsite(t *testing.T, backend store.Backend) {
 	f := startFull(t, backend, nil)
@@ -229,7 +232,10 @@ func testAWebsite(t *testing.T, backend store.Backend) {
 
 // What can't be served is refused before anything is planned, in words that say what
 // to give, and a name that's taken goes to the next one free.
-func TestWhatAWebsiteRefuses(t *testing.T) { storetest.Each(t, testWhatAWebsiteRefuses) }
+func TestWhatAWebsiteRefuses(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testWhatAWebsiteRefuses)
+}
 
 func testWhatAWebsiteRefuses(t *testing.T, backend store.Backend) {
 	f := startFull(t, backend, nil)
@@ -346,7 +352,10 @@ func testWhatAWebsiteRefuses(t *testing.T, backend store.Backend) {
 // On a fleet, what a website makes runs where its route does: one that moves from
 // a port on the second server to a URL gets its web server there, as nothing in the
 // form or the CLI names a server for it.
-func TestAWebsiteOnTwoServers(t *testing.T) { storetest.Each(t, testAWebsiteOnTwoServers) }
+func TestAWebsiteOnTwoServers(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testAWebsiteOnTwoServers)
+}
 
 func testAWebsiteOnTwoServers(t *testing.T, backend store.Backend) {
 	f := startFull(t, backend, nil)
@@ -409,7 +418,10 @@ func testAWebsiteOnTwoServers(t *testing.T, backend store.Backend) {
 // What a website serves stays in step with what serves it: a plain edit of its
 // project can't change it, and a plain edit of its web server shows as differing
 // from its settings, until an update puts them back.
-func TestAWebsiteStaysInStep(t *testing.T) { storetest.Each(t, testAWebsiteStaysInStep) }
+func TestAWebsiteStaysInStep(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testAWebsiteStaysInStep)
+}
 
 func testAWebsiteStaysInStep(t *testing.T, backend store.Backend) {
 	f := startFull(t, backend, nil)
@@ -479,7 +491,10 @@ func testAWebsiteStaysInStep(t *testing.T, backend store.Backend) {
 
 // A website that serves a folder mounts it into its web server read-only, which a
 // person approves, as any server path is, and a token can't.
-func TestAFolderWebsiteNeedsAPerson(t *testing.T) { storetest.Each(t, testAFolderWebsite) }
+func TestAFolderWebsiteNeedsAPerson(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testAFolderWebsite)
+}
 
 func testAFolderWebsite(t *testing.T, backend store.Backend) {
 	f := startFull(t, backend, nil)
@@ -554,7 +569,10 @@ func testAFolderWebsite(t *testing.T, backend store.Backend) {
 // A PHP website runs PHP-FPM of the version chosen beside its web server, on a
 // network of their own, each mounting the folder; a person approves both. Another
 // version replaces PHP alone, and a folder with no PHP takes PHP and its network away.
-func TestAPHPWebsiteFromAPlanToAFolder(t *testing.T) { storetest.Each(t, testAPHPWebsite) }
+func TestAPHPWebsiteFromAPlanToAFolder(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testAPHPWebsite)
+}
 
 func testAPHPWebsite(t *testing.T, backend store.Backend) {
 	f := startFull(t, backend, nil)

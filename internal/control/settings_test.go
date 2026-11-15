@@ -23,6 +23,7 @@ import (
 // refused when it can't be one, and is on the activity log with what it replaced,
 // once (ADR 0042). The sign-in screen says the name.
 func TestTheInstallsSettings(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testTheInstallsSettings)
 }
 
@@ -127,6 +128,7 @@ func testTheInstallsSettings(t *testing.T, backend store.Backend) {
 // only a signed-in person names the install. A token that writes may set the time
 // zone, which changes only what new schedules start in, and one that reads may not.
 func TestTokensAndTheInstallsSettings(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		f := startFull(t, backend, nil)
 		b := signedIn(t, f)
@@ -163,6 +165,7 @@ func TestTokensAndTheInstallsSettings(t *testing.T) {
 // client, as Settings says, and in UTC where the install has none. One that names
 // a zone keeps it.
 func TestASchedulesZoneIsTheInstalls(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		f := startFull(t, backend, nil)
 		b := signedIn(t, f)
@@ -206,6 +209,7 @@ func TestASchedulesZoneIsTheInstalls(t *testing.T) {
 // where agents reach it, and how it's doing, so the panel can say how to back
 // it up and how to upgrade it.
 func TestTheControlPlaneSaysWhatItIs(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testTheControlPlaneSaysWhatItIs)
 }
 

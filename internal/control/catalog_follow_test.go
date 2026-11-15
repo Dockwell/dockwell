@@ -27,7 +27,10 @@ import (
 // back and keeps it there until the branch moves again; a commit whose entries all
 // fail leaves the source where it is, saying why; and a pinned source has no branch
 // to look at (ADR 0077).
-func TestACatalogFollowsItsBranch(t *testing.T) { storetest.Each(t, testACatalogFollowsItsBranch) }
+func TestACatalogFollowsItsBranch(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testACatalogFollowsItsBranch)
+}
 
 func testACatalogFollowsItsBranch(t *testing.T, backend store.Backend) {
 	repo := gitfetchtest.New(t)
@@ -197,6 +200,7 @@ func TestACatalogFollowsOnItsOwn(t *testing.T) {
 // A source's images are served by the control plane from the commit it keeps, to a
 // signed-in person, and the catalog names them so (ADR 0077).
 func TestACatalogSourcesImagesAreServed(t *testing.T) {
+	t.Parallel()
 	repo := gitfetchtest.New(t)
 	entry := strings.Replace(sourceEntry("notes-src", 1), "name: Thing\n", "name: Thing\nicon: media/notes-icon.png\n", 1)
 	icon := onePixelPNG

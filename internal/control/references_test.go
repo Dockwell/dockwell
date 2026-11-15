@@ -147,6 +147,7 @@ func commandOf(e *dockertest.Engine, project, name string) []string {
 // to the value it had. An export writes ${NAME}, importing that again with the value plans
 // nothing, and a read-back sees nothing to do.
 func TestAPasswordInACommandStaysOutOfEverything(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testAPasswordInACommandStaysOutOfEverything)
 }
 
@@ -290,6 +291,7 @@ func testAPasswordInACommandStaysOutOfEverything(t *testing.T, backend store.Bac
 // rotation reaches it and a rollback keeps today's value. It can't be guessed at through
 // the file or the plan, and a file names it with no value of its own.
 func TestASecretInACommandIsARotationAndNoOracle(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testASecretInACommandIsARotationAndNoOracle)
 }
 
@@ -448,6 +450,7 @@ func testASecretInACommandIsARotationAndNoOracle(t *testing.T, backend store.Bac
 // A server gets the values of what runs on it, and a name in a command is no way round
 // that: another server asking for this service's values is told no, by the same keeper.
 func TestANameInACommandTakesAValueNowhereElse(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testANameInACommandTakesAValueNowhereElse)
 }
 
@@ -491,6 +494,7 @@ func testANameInACommandTakesAValueNowhereElse(t *testing.T, backend store.Backe
 // What is left of a value a file writes as text, and only that, comes with a warning that
 // says why and what to do. What a label says it used stays, and reads back.
 func TestWhatStaysTextIsWarnedOfAndNothingElse(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testWhatStaysTextIsWarnedOfAndNothingElse)
 }
 
@@ -539,6 +543,7 @@ func testWhatStaysTextIsWarnedOfAndNothingElse(t *testing.T, backend store.Backe
 // The label a container carries holds names, and goes round through an export as it
 // is, $ and all, so a container docker compose makes from one reads back the same.
 func TestAReferencesLabelReadsBackFromDockerCompose(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testAReferencesLabelReadsBackFromDockerCompose)
 }
 
@@ -578,6 +583,7 @@ func testAReferencesLabelReadsBackFromDockerCompose(t *testing.T, backend store.
 // so the plan says so, and how to have it name the value, rather than refuse. The
 // review of #113 found it.
 func TestANameWrittenAsTextIsSaid(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)

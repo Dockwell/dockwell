@@ -109,6 +109,8 @@ type fullServer struct {
 	config Config
 	kinds  *resource.Registry
 	auth   *auth.Service
+	// asks holds the waits for step-ups asked for, which run out when a test misses them.
+	asks   *heldAsks
 	engine *revision.Engine
 	agents *agentapi.Agents
 	keeper *secrets.Keeper
@@ -155,8 +157,69 @@ func (f *fullServer) execSQL(t *testing.T, query string) {
 	storetest.Exec(t, f.db, query)
 }
 
-// askWait is how long these tests give a step-up that was asked for.
+// askWait is how long these tests give a step-up that was asked for. The waits are
+// held (heldAsks), so it runs out only when a test says.
 const askWait = 200 * time.Millisecond
+
+// catalogDirs is each test's folder of catalog entries, which the control planes it
+// starts take over Dockwell's own, as catalog.DirEnv names one for a real control
+// plane. A map by test, rather than the environment, lets those tests run side by
+// side (#197).
+var catalogDirs sync.Map // *testing.T to the folder
+
+// useCatalogDir has the control planes t starts from now on take catalog entries from
+// dir too.
+func useCatalogDir(t *testing.T, dir string) {
+	t.Helper()
+	catalogDirs.Store(t, dir)
+	t.Cleanup(func() { catalogDirs.Delete(t) })
+}
+
+// heldAsks holds the waits for step-ups that were asked for, which run out only when
+// a test misses them. A wait on the clock ran out mid-test on a busy machine, before
+// what confirmed it came, and read as nobody confirming (#197).
+type heldAsks struct {
+	mu   sync.Mutex
+	held []*heldAsk
+}
+
+type heldAsk struct {
+	missed func()
+	over   bool
+}
+
+// after starts a wait, as auth's AfterFunc does.
+func (h *heldAsks) after(_ time.Duration, missed func()) func() bool {
+	a := &heldAsk{missed: missed}
+	h.mu.Lock()
+	h.held = append(h.held, a)
+	h.mu.Unlock()
+	return func() bool {
+		h.mu.Lock()
+		defer h.mu.Unlock()
+		stopped := !a.over
+		a.over = true
+		return stopped
+	}
+}
+
+// miss runs out every wait still held, as time would: what wasn't confirmed reads as
+// missed, and what was says nothing.
+func (h *heldAsks) miss() {
+	h.mu.Lock()
+	var due []func()
+	for _, a := range h.held {
+		if !a.over {
+			a.over = true
+			due = append(due, a.missed)
+		}
+	}
+	h.held = nil
+	h.mu.Unlock()
+	for _, missed := range due {
+		missed()
+	}
+}
 
 // testRecheck is how often the next control plane started rechecks a session for
 // what's open on it. Zero keeps auth's own. A test that sets it puts it back.
@@ -203,7 +266,8 @@ func startFullConfig(t *testing.T, backend store.Backend, public https.Source, l
 	if public != nil {
 		sites.Domain = public.Domain()
 	}
-	people, err := auth.New(auth.Config{DB: db, Key: key, Logger: logger, Sites: sites, AskWait: askWait, Recheck: testRecheck})
+	asks := &heldAsks{}
+	people, err := auth.New(auth.Config{DB: db, Key: key, Logger: logger, Sites: sites, AskWait: askWait, AfterFunc: asks.after, Recheck: testRecheck})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -253,6 +317,9 @@ func startFullConfig(t *testing.T, backend store.Backend, public https.Source, l
 		// public ports while there are routes, and serves the domain on 443.
 		config.PanelURL, config.PanelCA, config.PanelHandsOver = "https://"+public.Domain()+":8443", "Let's Encrypt", true
 	}
+	if dir, ok := catalogDirs.Load(t); ok {
+		config.CatalogDir = dir.(string)
+	}
 	if tweak != nil {
 		tweak(&config)
 	}
@@ -261,6 +328,7 @@ func startFullConfig(t *testing.T, backend store.Backend, public https.Source, l
 		t.Fatal(err)
 	}
 	f := &fullServer{
+		asks:       asks,
 		cloudflare: cloudflare,
 		names:      names,
 		auth:       people, engine: engine, agents: agents, keeper: keeper, ident: ident, store: db, db: path,
@@ -375,6 +443,7 @@ func (b *browser) signIn(t *testing.T) {
 }
 
 func TestClaimSignOutAndSignInOverLocalhost(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testClaimSignOutAndSignInOverLocalhost)
 }
 
@@ -448,6 +517,7 @@ func testClaimSignOutAndSignInOverLocalhost(t *testing.T, backend store.Backend)
 // A browser can send any bytes as its User-Agent. The session list still
 // answers.
 func TestSessionsListWithAnyUserAgent(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testSessionsListWithAnyUserAgent)
 }
 
@@ -468,6 +538,7 @@ func testSessionsListWithAnyUserAgent(t *testing.T, backend store.Backend) {
 // serves without a session. Only the public ones may answer; a new RPC is
 // refused until someone adds it to the allowlist on purpose.
 func TestEveryProcedureNeedsASession(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testEveryProcedureNeedsASession)
 }
 
@@ -602,7 +673,10 @@ func callEmptyWith(t *testing.T, b connect.HTTPClient, origin, procedure string,
 	return err
 }
 
-func TestOriginAndHostChecks(t *testing.T) { storetest.Each(t, testOriginAndHostChecks) }
+func TestOriginAndHostChecks(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testOriginAndHostChecks)
+}
 
 func testOriginAndHostChecks(t *testing.T, backend store.Backend) {
 	srv := startFull(t, backend, nil)
@@ -686,6 +760,7 @@ func testOriginAndHostChecks(t *testing.T, backend store.Backend) {
 }
 
 func TestPageLoadsOnALoopbackIPGoToLocalhost(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testPageLoadsOnALoopbackIPGoToLocalhost)
 }
 
@@ -727,6 +802,7 @@ func testPageLoadsOnALoopbackIPGoToLocalhost(t *testing.T, backend store.Backend
 }
 
 func TestStreamsEndWhenTheirSessionIsRevoked(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testStreamsEndWhenTheirSessionIsRevoked)
 }
 
@@ -798,7 +874,10 @@ func selfSigned(t *testing.T, name string) (tls.Certificate, *x509.CertPool) {
 	return tls.Certificate{Certificate: [][]byte{der}, PrivateKey: key, Leaf: leaf}, pool
 }
 
-func TestClaimOverHTTPSWithADomain(t *testing.T) { storetest.Each(t, testClaimOverHTTPSWithADomain) }
+func TestClaimOverHTTPSWithADomain(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testClaimOverHTTPSWithADomain)
+}
 
 func testClaimOverHTTPSWithADomain(t *testing.T, backend store.Backend) {
 	cert, roots := selfSigned(t, "panel.acme.dev")
@@ -881,7 +960,10 @@ func reason(err error) string {
 
 // Every refusal for want of a session says why, so the panel can tell a
 // session that ended from a wrong code.
-func TestRefusalsSayWhy(t *testing.T) { storetest.Each(t, testRefusalsSayWhy) }
+func TestRefusalsSayWhy(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testRefusalsSayWhy)
+}
 
 func testRefusalsSayWhy(t *testing.T, backend store.Backend) {
 	srv := startFull(t, backend, nil)
@@ -939,6 +1021,7 @@ func testRefusalsSayWhy(t *testing.T, backend store.Backend) {
 // can still start signing in. Calls that need a session say to try again,
 // and the cookie stays, as its session may still work.
 func TestPublicCallsGoAheadWhenTheSessionCantBeChecked(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testPublicCallsGoAheadWhenTheSessionCantBeChecked)
 }
 

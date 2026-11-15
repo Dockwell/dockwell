@@ -25,6 +25,7 @@ import (
 // passkey just now. What Dockwell needs, and a process that has gone, are refused,
 // and the end is on Activity (ADR 0041).
 func TestProcessesAreWatchedAndEnded(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testProcessesAreWatchedAndEnded)
 }
 
@@ -180,6 +181,7 @@ func testProcessesAreWatchedAndEnded(t *testing.T, backend store.Backend) {
 // Every watch of a server's processes shares one read of its /proc, and a session
 // may hold only a few watches open (#218's review, L4).
 func TestProcessWatchesShareOneRead(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	f.addDockerServer(t)
@@ -226,6 +228,7 @@ func TestProcessWatchesShareOneRead(t *testing.T) {
 // No API token reads or ends processes, whatever its scope, over Connect or REST:
 // a command line can hold a password, and ending one is as much as root.
 func TestATokenNeedsASessionForProcesses(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	f.addDockerServer(t)

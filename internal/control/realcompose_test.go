@@ -103,6 +103,7 @@ func discard(t *testing.T, c dockwellv1connect.ChangeServiceClient, ch *dockwell
 // Each thing a real file reaches past Docker with needs a person, through the API,
 // with a real token, for a service that is new.
 func TestATokenCantRunWhatReachesPastDocker(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testATokenCantRunWhatReachesPastDocker)
 }
 
@@ -160,6 +161,7 @@ func testATokenCantRunWhatReachesPastDocker(t *testing.T, backend store.Backend)
 // can't add to it by a change to the service, as a file or an edit, by joining the
 // same network as something else, or by a name on that network.
 func TestATokenCantWidenWhatAPersonApproved(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testATokenCantWidenWhatAPersonApproved)
 }
 
@@ -267,7 +269,10 @@ func testATokenCantWidenWhatAPersonApproved(t *testing.T, backend store.Backend)
 // A name can't shadow what is there: in a file, against what is stored and sealed,
 // through an edit, and across projects on a shared network, where only the server
 // knows.
-func TestANameCantShadowAnother(t *testing.T) { storetest.Each(t, testANameCantShadowAnother) }
+func TestANameCantShadowAnother(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testANameCantShadowAnother)
+}
 
 func testANameCantShadowAnother(t *testing.T, backend store.Backend) {
 	r := realServer(t, backend)
@@ -350,6 +355,7 @@ func testANameCantShadowAnother(t *testing.T, backend store.Backend) {
 // A network the server has is never made, changed or deleted, by a plan, an undo
 // or a deletion, and a file that needs one the server hasn't got is refused by name.
 func TestDockwellLeavesTheServersNetworkAlone(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testDockwellLeavesTheServersNetworkAlone)
 }
 
@@ -395,6 +401,7 @@ func testDockwellLeavesTheServersNetworkAlone(t *testing.T, backend store.Backen
 // What a file builds and what a name becomes, the plan says beside its steps. The
 // notes aren't what a fingerprint covers, and they don't stop anyone.
 func TestThePlanSaysWhatTheFileAskedFor(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testThePlanSaysWhatTheFileAskedFor)
 }
 
@@ -420,6 +427,7 @@ func testThePlanSaysWhatTheFileAskedFor(t *testing.T, backend store.Backend) {
 // value the file puts anywhere else does show: see
 // TestAValueOutsideEnvironmentShowsAndThePlanSaysSo.
 func TestAValueInEnvironmentStaysOutOfTheDatabase(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testAValueInEnvironmentStaysOutOfTheDatabase)
 }
 
@@ -479,6 +487,7 @@ func testAValueInEnvironmentStaysOutOfTheDatabase(t *testing.T, backend store.Ba
 // is refused the same way whether or not it is the right one: an import can't
 // confirm a guess.
 func TestAnEnvFileCantConfirmASecret(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testAnEnvFileCantConfirmASecret)
 }
 
@@ -507,6 +516,7 @@ func testAnEnvFileCantConfirmASecret(t *testing.T, backend store.Backend) {
 // it the value the export wrote changes nothing, and one that gives it another is
 // refused as set twice, rather than dropped.
 func TestAnEnvFileAndAVariableAServiceUses(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testAnEnvFileAndAVariableAServiceUses)
 }
 
@@ -525,6 +535,7 @@ func testAnEnvFileAndAVariableAServiceUses(t *testing.T, backend store.Backend) 
 // A refusal of an .env goes back to the caller, so into a CI's output, and into the
 // control plane's log, at info. Neither gets any part of a value.
 func TestAnEnvRefusalStaysOutOfTheLog(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testAnEnvRefusalStaysOutOfTheLog)
 }
 
@@ -568,6 +579,7 @@ func testAnEnvRefusalStaysOutOfTheLog(t *testing.T, backend store.Backend) {
 // how to keep the value hidden, and never holds the value itself. What runs keeps a value
 // by name (ADR 0022), which references_test.go holds to everything that reads one.
 func TestAValueInALabelShowsAndThePlanSaysSo(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testAValueInALabelShowsAndThePlanSaysSo)
 }
 
@@ -678,6 +690,7 @@ func testAValueInALabelShowsAndThePlanSaysSo(t *testing.T, backend store.Backend
 // what it wrote is shown in quotes, so a person can tell it from the plan's own. Not
 // the plan's rows of what changes, which show a file's values as values, and say so.
 func TestAFileCantWriteAPlansWords(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testAFileCantWriteAPlansWords)
 }
 
