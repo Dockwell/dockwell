@@ -16218,8 +16218,8 @@ msgstr "1 份备份，{0}"
 msgid "1 bucket · where backups go beside each server's disk"
 msgstr "1 个存储桶 · 备份在各服务器磁盘之外存放的地方"
 
-msgid "1 connected · the services Dockwell sends backups to and routes behind"
-msgstr "已连接 1 个 · Dockwell 发送备份的服务，以及路由所在的服务"
+msgid "1 connected · the services Dockwell builds from, deploys with, routes through and backs up to"
+msgstr "已连接 1 个 · Dockwell 用来构建、部署、路由和备份的服务"
 
 msgid "1 login · for images a registry keeps private"
 msgstr "1 个登录 · 用于镜像仓库设为私有的镜像"
@@ -16341,11 +16341,11 @@ msgstr "位于服务器路由之前"
 msgid "{0} logins · for images a registry keeps private"
 msgstr "{0} 个登录 · 用于镜像仓库设为私有的镜像"
 
+msgid "{all} connected · the services Dockwell builds from, deploys with, routes through and backs up to"
+msgstr "已连接 {all} 个 · Dockwell 用来构建、部署、路由和备份的服务"
+
 msgid "{connected} buckets · where backups go beside each server's disk"
 msgstr "{connected} 个存储桶 · 备份在各服务器磁盘之外存放的地方"
-
-msgid "{connected} connected · the services Dockwell sends backups to and routes behind"
-msgstr "已连接 {connected} 个 · Dockwell 发送备份的服务，以及路由所在的服务"
 
 msgid "{signinCount} providers · for private routes"
 msgstr "{signinCount} 个提供方 · 用于私有路由"

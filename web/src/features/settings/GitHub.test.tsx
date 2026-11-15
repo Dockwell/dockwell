@@ -104,6 +104,12 @@ describe("GitHub in Integrations", () => {
     const card = await screen.findByRole("article", { name: "GitHub" });
     expect(card).toHaveTextContent("Connected");
     expect(card).toHaveTextContent("GitHub App on acme · 23 repositories");
+    // The page counts it with the rest of what's connected.
+    expect(
+      await screen.findByText(
+        "1 connected · the services Dockwell builds from, deploys with, routes through and backs up to",
+      ),
+    ).toBeVisible();
     expect(card).toHaveTextContent("GitHub can't reach this panel, so Dockwell checks for pushes every minute.");
     expect(within(card).getByRole("link", { name: "Give the panel a domain" })).toHaveAttribute(
       "href",

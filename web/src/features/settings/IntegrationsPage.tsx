@@ -5,6 +5,7 @@ import {
   type BackupDestinationInfo,
   ChangeService,
   type DnsProviderInfo,
+  GitProviderService,
   type RegistryLoginInfo,
   type SigninProviderInfo,
 } from "@dockwell/api";
@@ -26,6 +27,7 @@ import { Page } from "../shell/Page";
 import { issuerHost, useSigninProviders } from "../signin/providers";
 import { SigninProviderSheet } from "../signin/SigninProviderSheet";
 import { GitHubSection } from "./GitHub";
+import { useGitHubApps } from "./github";
 import "../backups/Backups.css";
 import "./Settings.css";
 import { useMay } from "../auth/may";
@@ -59,16 +61,32 @@ export function IntegrationsPage() {
   // A DNS provider to connect, or to change (ADR 0088).
   const [provider, setProvider] = useState<{ editing?: DnsProviderInfo }>();
   // A destination belongs to no project, so connecting one is an admin's: off, with why, otherwise (ADR 0059).
-  const mayPlan = useMay()(ChangeService.method.proposeChange, { install: true });
+  const may = useMay();
+  const mayPlan = may(ChangeService.method.proposeChange, { install: true });
   const read = destinations.data !== undefined;
   const list = destinations.data?.destinations ?? [];
   const connected = list.length;
-  // Counted once the list is read, never as none while it loads or can't be read.
-  const lead = read
-    ? connected === 1
-      ? t`1 connected · the services Dockwell sends backups to and routes behind`
-      : t`${connected} connected · the services Dockwell sends backups to and routes behind`
-    : undefined;
+  // Every integration connected, as the page lists them: GitHub, storage, registry
+  // logins, DNS providers and sign-in providers. A list the caller may not read
+  // counts none of its own.
+  const mayListApps = may(GitProviderService.method.listGitProviders).allowed;
+  const apps = useGitHubApps();
+  const appCount = apps.data ? apps.data.apps.filter((a) => !a.gone).length : mayListApps ? undefined : 0;
+  const counts = [
+    destinations.data ? connected : undefined,
+    logins.data ? loginList.length : undefined,
+    dns.data ? dnsList.length : undefined,
+    signins.data ? signinList.length : undefined,
+    appCount,
+  ];
+  // Counted once every list is read, never as fewer while one loads or can't be read.
+  const all = counts.every((n) => n !== undefined) ? counts.reduce<number>((sum, n) => sum + (n ?? 0), 0) : undefined;
+  const lead =
+    all === undefined
+      ? undefined
+      : all === 1
+        ? t`1 connected · the services Dockwell builds from, deploys with, routes through and backs up to`
+        : t`${all} connected · the services Dockwell builds from, deploys with, routes through and backs up to`;
   const variables = (
     <p className="settings-meta integrations-aside">
       <Trans>

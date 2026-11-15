@@ -16218,8 +16218,8 @@ msgstr "1 backup, {0}"
 msgid "1 bucket · where backups go beside each server's disk"
 msgstr "1 bucket · where backups go beside each server's disk"
 
-msgid "1 connected · the services Dockwell sends backups to and routes behind"
-msgstr "1 connected · the services Dockwell sends backups to and routes behind"
+msgid "1 connected · the services Dockwell builds from, deploys with, routes through and backs up to"
+msgstr "1 connected · the services Dockwell builds from, deploys with, routes through and backs up to"
 
 msgid "1 login · for images a registry keeps private"
 msgstr "1 login · for images a registry keeps private"
@@ -16341,11 +16341,11 @@ msgstr "in front of a server's routes"
 msgid "{0} logins · for images a registry keeps private"
 msgstr "{0} logins · for images a registry keeps private"
 
+msgid "{all} connected · the services Dockwell builds from, deploys with, routes through and backs up to"
+msgstr "{all} connected · the services Dockwell builds from, deploys with, routes through and backs up to"
+
 msgid "{connected} buckets · where backups go beside each server's disk"
 msgstr "{connected} buckets · where backups go beside each server's disk"
-
-msgid "{connected} connected · the services Dockwell sends backups to and routes behind"
-msgstr "{connected} connected · the services Dockwell sends backups to and routes behind"
 
 msgid "{signinCount} providers · for private routes"
 msgstr "{signinCount} providers · for private routes"
