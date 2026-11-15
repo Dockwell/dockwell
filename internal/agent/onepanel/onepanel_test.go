@@ -5,6 +5,7 @@ package onepanel
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -16,6 +17,7 @@ import (
 
 	"google.golang.org/protobuf/encoding/prototext"
 
+	"golang.org/x/sys/unix"
 	_ "modernc.org/sqlite" // SQLite changes the records a test reads
 
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
@@ -289,6 +291,57 @@ func TestAFailedReadGoesAgain(t *testing.T) {
 
 // A site's redirects are read from its redirect folder, in the shapes 1Panel writes
 // them, each with whether it's on, and nothing else there is (ADR 0070).
+// A file swapped for a link or a pipe after the folder was listed is refused, not
+// followed or waited on.
+func TestARedirectFileIsReadOnlyIfRegular(t *testing.T) {
+	dir := t.TempDir()
+	onepaneltest.WriteFile(t, filepath.Join(dir, "www.conf"), "return 301 https://example.com;")
+	if text, err := readSome(filepath.Join(dir, "www.conf"), 8); err != nil || text != "return 3" {
+		t.Errorf("a regular file reads %q, %v", text, err)
+	}
+	if err := os.Symlink(filepath.Join(dir, "www.conf"), filepath.Join(dir, "linked.conf")); err != nil {
+		t.Fatal(err)
+	}
+	if err := unix.Mkfifo(filepath.Join(dir, "pipe.conf"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"linked.conf", "pipe.conf"} {
+		done := make(chan error, 1)
+		go func() {
+			_, err := readSome(filepath.Join(dir, name), 8)
+			done <- err
+		}()
+		select {
+		case err := <-done:
+			if err == nil {
+				t.Errorf("%s was read", name)
+			}
+		case <-time.After(10 * time.Second):
+			t.Fatalf("reading %s waits", name)
+		}
+	}
+}
+
+// However many files the folder holds, only so many are looked at, and they're said by name.
+func TestASitesRedirectsAreBounded(t *testing.T) {
+	root := onepaneltest.Make(t, "/opt", false)
+	dir := filepath.Join(root, "data", "www", "sites", "blog", "redirect")
+	for i := range maxRedirects + 50 {
+		onepaneltest.WriteFile(t, filepath.Join(dir, fmt.Sprintf("r%03d.conf", i)), "rewrite ^/a(.*) https://example.com$1 permanent;\n")
+	}
+	var names []string
+	for _, w := range readOK(t, root).GetWebsites() {
+		if w.GetAlias() == "blog" {
+			for _, r := range w.GetRedirects() {
+				names = append(names, r.GetName())
+			}
+		}
+	}
+	if len(names) != maxRedirects || !slices.IsSorted(names) {
+		t.Errorf("read %d redirects, sorted %v", len(names), slices.IsSorted(names))
+	}
+}
+
 func TestASitesRedirectsAreRead(t *testing.T) {
 	root := onepaneltest.Make(t, "/opt", false)
 	dir := filepath.Join(root, "data", "www", "sites", "blog", "redirect")

@@ -349,10 +349,12 @@ func (r *reader) websites(found *dockwellv1.OnePanel, settings map[string]string
 	return nil
 }
 
-// Bounds on reading a site's redirects: how many files, and how much of each.
+// Bounds on reading a site's redirects: how many files, how much of each, and how
+// many names in the folder to look through for them.
 const (
-	maxRedirects    = 100
-	maxRedirectFile = 64 << 10
+	maxRedirects       = 100
+	maxRedirectFile    = 64 << 10
+	maxRedirectEntries = 10 * maxRedirects
 )
 
 var (
@@ -385,28 +387,39 @@ func hostOf(pattern string) string {
 // of three shapes 1Panel writes. A file in another shape reads as one with no type, and
 // a folder that isn't there as none.
 func (r *reader) redirects(dir string) []*dockwellv1.OnePanelRedirect {
-	entries, err := os.ReadDir(filepath.Join(r.root, dir))
+	folder, err := os.Open(filepath.Join(r.root, dir)) //nolint:gosec // 1Panel's own folder of a site's redirects
 	if err != nil {
 		return nil
 	}
+	defer folder.Close()
 	var out []*dockwellv1.OnePanelRedirect
-	for _, e := range entries {
-		name, on := strings.CutSuffix(e.Name(), ".conf")
-		if !on {
-			var off bool
-			if name, off = strings.CutSuffix(e.Name(), ".bak"); !off {
+	// A batch at a time, so a folder of a great many names costs no more than the bounds.
+	for seen := 0; len(out) < maxRedirects && seen < maxRedirectEntries; {
+		entries, err := folder.ReadDir(maxRedirects)
+		for _, e := range entries {
+			seen++
+			name, on := strings.CutSuffix(e.Name(), ".conf")
+			if !on {
+				var off bool
+				if name, off = strings.CutSuffix(e.Name(), ".bak"); !off {
+					continue
+				}
+			}
+			if !e.Type().IsRegular() || len(out) == maxRedirects {
 				continue
 			}
+			text, err := readSome(filepath.Join(r.root, dir, e.Name()), maxRedirectFile)
+			if err != nil {
+				continue
+			}
+			out = append(out, parseRedirect(name, on, text))
 		}
-		if !e.Type().IsRegular() || len(out) == maxRedirects {
-			continue
-		}
-		text, err := readSome(filepath.Join(r.root, dir, e.Name()), maxRedirectFile)
 		if err != nil {
-			continue
+			break
 		}
-		out = append(out, parseRedirect(name, on, text))
 	}
+	// The folder's own order is no order: say them by name.
+	slices.SortFunc(out, func(a, b *dockwellv1.OnePanelRedirect) int { return cmp.Compare(a.GetName(), b.GetName()) })
 	return out
 }
 
@@ -442,13 +455,19 @@ func parseRedirect(name string, on bool, text string) *dockwellv1.OnePanelRedire
 	return out
 }
 
-// readSome reads up to limit bytes of a regular file.
+// readSome reads up to limit bytes of a regular file. It follows no link and never
+// waits on a pipe, as the file may have been swapped for one since the folder was listed.
 func readSome(p string, limit int64) (string, error) {
-	f, err := os.Open(p) //nolint:gosec // a file of 1Panel's own, under its site's folder
+	f, err := os.OpenFile(p, os.O_RDONLY|unix.O_NOFOLLOW|unix.O_NONBLOCK, 0) //nolint:gosec // a file of 1Panel's own, under its site's folder
 	if err != nil {
 		return "", err
 	}
 	defer f.Close()
+	if st, err := f.Stat(); err != nil {
+		return "", err
+	} else if !st.Mode().IsRegular() {
+		return "", fmt.Errorf("%s isn't a regular file", p)
+	}
 	b, err := io.ReadAll(io.LimitReader(f, limit))
 	return string(b), err
 }
