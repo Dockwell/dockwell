@@ -26,7 +26,9 @@ func TestADatabaseUserIsTakenOnOnRealDocker(t *testing.T) {
 	client := dockertest.Real(t)
 	for _, server := range []struct {
 		image, env string
-		// admin runs SQL as the server's administrator, in its container.
+		// admin runs SQL as the server's administrator, in its container, over TCP to
+		// 127.0.0.1: the image's first-start server listens on its socket alone, so
+		// only the real one answers there.
 		admin []string
 		// setup makes the user blog with its database, and boss with every right;
 		// the users in past reach past blog another way, and helper signs in with no
@@ -46,7 +48,7 @@ func TestADatabaseUserIsTakenOnOnRealDocker(t *testing.T) {
 		{
 			image: "postgres:17-alpine", env: "POSTGRES_PASSWORD=the-administrators",
 			// On its input, so a part may \connect to another database.
-			admin: []string{"sh", "-c", `printf '%s\n' "$1" | exec psql -X -q -v ON_ERROR_STOP=1 -U postgres -d postgres`, "sh"},
+			admin: []string{"sh", "-c", `printf '%s\n' "$1" | PGPASSWORD="$POSTGRES_PASSWORD" exec psql -X -q -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d postgres`, "sh"},
 			setup: []string{
 				"CREATE ROLE blog LOGIN PASSWORD 'the-blog-password'; CREATE ROLE boss LOGIN SUPERUSER PASSWORD 'the-bosss-password';" +
 					" CREATE ROLE member LOGIN PASSWORD 'the-other-password'; GRANT postgres TO member; CREATE ROLE reader LOGIN PASSWORD 'the-other-password'; GRANT pg_read_all_data TO reader;" +
@@ -69,7 +71,7 @@ func TestADatabaseUserIsTakenOnOnRealDocker(t *testing.T) {
 		},
 		{
 			image: "mysql:8.4", env: "MYSQL_ROOT_PASSWORD=the-administrators",
-			admin: []string{"sh", "-c", `MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysql -uroot -e "$1"`, "sh"},
+			admin: []string{"sh", "-c", `MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysql -h 127.0.0.1 --protocol=TCP -uroot -e "$1"`, "sh"},
 			setup: []string{"CREATE DATABASE blog; CREATE USER 'blog'@'%' IDENTIFIED BY 'the-blog-password'; GRANT ALL ON blog.* TO 'blog'@'%'; CREATE USER 'boss'@'%' IDENTIFIED BY 'the-bosss-password'; GRANT ALL PRIVILEGES ON *.* TO 'boss'@'%' WITH GRANT OPTION;" +
 				" CREATE USER 'wide'@'%' IDENTIFIED BY 'the-other-password'; GRANT SELECT ON *.* TO 'wide'@'%'; CREATE ROLE 'everything'; GRANT ALL ON *.* TO 'everything';" +
 				" CREATE USER 'roled'@'%' IDENTIFIED BY 'the-other-password'; GRANT 'everything' TO 'roled'@'%'; SET DEFAULT ROLE ALL TO 'roled'@'%'; CREATE USER 'helper'@'%' IDENTIFIED BY 'the-other-password';" +
@@ -89,7 +91,7 @@ func TestADatabaseUserIsTakenOnOnRealDocker(t *testing.T) {
 		// MySQL 5.7, which has no roles: imported servers still run it.
 		{
 			image: "mysql:5.7", env: "MYSQL_ROOT_PASSWORD=the-administrators",
-			admin: []string{"sh", "-c", `MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysql -uroot -e "$1"`, "sh"},
+			admin: []string{"sh", "-c", `MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysql -h 127.0.0.1 --protocol=TCP -uroot -e "$1"`, "sh"},
 			setup: []string{"CREATE DATABASE blog; CREATE USER 'blog'@'%' IDENTIFIED BY 'the-blog-password'; GRANT ALL ON blog.* TO 'blog'@'%'; CREATE USER 'boss'@'%' IDENTIFIED BY 'the-bosss-password'; GRANT ALL PRIVILEGES ON *.* TO 'boss'@'%' WITH GRANT OPTION;" +
 				" CREATE USER 'wide'@'%' IDENTIFIED BY 'the-other-password'; GRANT SELECT ON *.* TO 'wide'@'%';" +
 				" CREATE USER 'helper'@'%' IDENTIFIED BY 'the-other-password';" +
@@ -107,7 +109,7 @@ func TestADatabaseUserIsTakenOnOnRealDocker(t *testing.T) {
 		},
 		{
 			image: "mariadb:11.4", env: "MARIADB_ROOT_PASSWORD=the-administrators",
-			admin: []string{"sh", "-c", `MYSQL_PWD="$MARIADB_ROOT_PASSWORD" exec mariadb -uroot -e "$1"`, "sh"},
+			admin: []string{"sh", "-c", `MYSQL_PWD="$MARIADB_ROOT_PASSWORD" exec mariadb -h 127.0.0.1 --protocol=TCP -uroot -e "$1"`, "sh"},
 			setup: []string{"CREATE DATABASE blog; CREATE USER 'blog'@'%' IDENTIFIED BY 'the-blog-password'; GRANT ALL ON blog.* TO 'blog'@'%'; CREATE USER 'boss'@'%' IDENTIFIED BY 'the-bosss-password'; GRANT ALL PRIVILEGES ON *.* TO 'boss'@'%' WITH GRANT OPTION;" +
 				" CREATE USER 'wide'@'%' IDENTIFIED BY 'the-other-password'; GRANT SELECT ON *.* TO 'wide'@'%'; CREATE ROLE everything; GRANT ALL ON *.* TO everything;" +
 				" CREATE USER 'roled'@'%' IDENTIFIED BY 'the-other-password'; GRANT everything TO 'roled'@'%'; SET DEFAULT ROLE everything FOR 'roled'@'%'; CREATE USER 'helper'@'%' IDENTIFIED BY 'the-other-password';" +
@@ -153,20 +155,23 @@ func TestADatabaseUserIsTakenOnOnRealDocker(t *testing.T) {
 				}
 				return strings.TrimSpace(errs.String() + out.String()), code == 0
 			}
+			// The setup meets the server once its first start is over: the image's own
+			// first server, which makes its administrator and stops, would take part of
+			// it and go, and each part tried again would then find what it had made.
 			var said string
-			made := false
+			up := false
 			for range 120 {
-				if said, made = run(server.setup[0]); made {
+				if said, up = run("SELECT 1"); up {
 					break
 				}
 				time.Sleep(time.Second)
 			}
-			if !made {
-				t.Fatalf("making the users by hand: %s", said)
+			if !up {
+				t.Fatalf("the server never took a connection over TCP: %s", said)
 			}
-			for _, sql := range server.setup[1:] {
+			for _, sql := range server.setup {
 				if said, ok := run(sql); !ok {
-					t.Fatalf("making the users by hand, %s: %s", sql, said)
+					t.Fatalf("making the users by hand, once, %s: %s", sql, said)
 				}
 			}
 
