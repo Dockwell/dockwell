@@ -11,8 +11,10 @@ import (
 	"time"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	"github.com/dockwell/dockwell/internal/control/place"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/route"
+	"github.com/dockwell/dockwell/internal/scope"
 	"github.com/dockwell/dockwell/internal/secrets/secretstest"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
@@ -126,18 +128,30 @@ func TestDriftIsntReadFromAnAgentThatCantServeARedirect(t *testing.T) {
 	}
 }
 
-// A redirect for www under a name of its own is refused where another route of the
-// install serves www, never taken as an update of that route, and to a caller who
-// can't see that route's project in words that name nothing of it (ADR 0070).
+// A redirect for www under a name of its own, as Add a domain's companion is, is
+// refused where another route of the install serves www, never taken as an update
+// of that route; to a caller who can't see that route's project, in words that
+// name nothing of it (ADR 0070).
 func TestAWwwRedirectNeverTakesOverAServedWww(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, b store.Backend) {
 		e, prod, _, ingresses := setupRoutes(t, b, "srv_A")
+		db := e.db
 		apply(t, e, propose(t, e, "www to web", routeIn(prod, "www-example-org", "www.example.org", "", "srv_A")))
-		_, err := e.Propose(t.Context(), Proposal{Summary: "Send example.org to api", Actor: "usr_test", Edits: []Edit{
-			redirectIn(prod, "www-example-org-2", "www.example.org", "https://example.org", false, "srv_A"),
-		}})
-		if !errors.Is(err, ErrInvalid) || !strings.Contains(err.Error(), "www.example.org") {
-			t.Errorf("a second route for www = %v", err)
+		apply(t, e, propose(t, e, "Add shop", Edit{Ref: resource.Ref{Kind: scope.ProjectKind, Scope: tree(t, db).Organization.ID, Name: "shop"}, Spec: &resourcev1.Project{}}))
+		project, shop, err := tree(t, db).Resolve("shop", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		companion := redirectIn(shop.ID, "www-example-org-2", "www.example.org", "https://example.org", false, "srv_A")
+		_, err = e.Propose(t.Context(), Proposal{Summary: "Send example.org to api", Actor: "usr_test", Edits: []Edit{companion}})
+		if !errors.Is(err, ErrInvalid) || !strings.Contains(err.Error(), "www.example.org is already served by route www-example-org in default's production") {
+			t.Errorf("a second route for www, by an admin = %v", err)
+		}
+		ada := place.WithCaller(t.Context(), place.Caller{UserID: "usr_ada", Grants: []store.Grant{{UserID: "usr_ada", ProjectID: project.ID, Role: store.RoleDeveloper}}})
+		_, err = e.Propose(ada, Proposal{Summary: "Send example.org to api", Actor: "user:usr_ada", Edits: []Edit{companion}})
+		if !errors.Is(err, ErrInvalid) || !strings.Contains(err.Error(), "www.example.org is in use by a project you can't see") ||
+			strings.Contains(err.Error(), "www-example-org ") || strings.Contains(err.Error(), "default") {
+			t.Errorf("a second route for www, by a developer of shop alone = %v", err)
 		}
 		if got := ingresses["srv_A"].routes[resource.Ref{Kind: route.Kind, Scope: prod, Name: "www-example-org"}]; got.GetService() != "web" {
 			t.Errorf("www now %v", got)
