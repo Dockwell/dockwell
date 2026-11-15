@@ -1524,6 +1524,71 @@ describe("adding a domain from the list", () => {
     expect(edits[0]?.spec?.kind.value).not.toHaveProperty("service", "api");
   });
 
+  it("writes the address a redirect sends to as the server takes it, and puts a refusal of it at its field", async () => {
+    const user = userEvent.setup();
+    const edits: ProposeChangeRequest["edits"] = [];
+    let refuse = "";
+    renderAt(
+      "/domains",
+      api(some, {
+        services: [web, api_],
+        more: {
+          changes: {
+            ...changes(edits),
+            proposeChange: (req) => {
+              edits.push(...req.edits);
+              if (refuse) {
+                const err = new ConnectError(refuse, Code.InvalidArgument);
+                err.metadata.set("Dockwell-Error", "invalid");
+                throw err;
+              }
+              return { change: webPlanned() };
+            },
+          },
+        },
+      }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Add a domain" }));
+    const sheet = await screen.findByRole("dialog", { name: "Add a domain" });
+    await user.click(within(sheet).getByRole("radio", { name: /^A URL/ }));
+    await user.type(within(sheet).getByRole("textbox", { name: "Domain" }), "old-shop.example.net");
+    refuse =
+      "old-shop.example.net redirects to https://xn--bcher-kva.example/shop?a=1, which has a query, and keeps each request's path and query after it, which can't follow a query. Leave the query out, or send every request to it as it is with drop_path";
+    const to = within(sheet).getByLabelText("Redirect to");
+    await user.type(to, "Bücher.example/shop?a=1");
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    // https:// and the xn-- form are the form's to add, and what's sent is what the field shows.
+    await waitFor(() => expect(to).toHaveValue("https://xn--bcher-kva.example/shop?a=1"));
+    expect(edits[0]?.spec?.kind.value).toMatchObject({ redirect: { to: "https://xn--bcher-kva.example/shop?a=1" } });
+    await waitFor(() => expect(to).toHaveAccessibleDescription(/which has a query/));
+    expect(within(sheet).getByRole("textbox", { name: "Domain" })).not.toHaveAccessibleDescription(/which has a query/);
+    // A domain and its port is no scheme.
+    refuse = "";
+    await user.clear(to);
+    await user.type(to, "example.org:8443");
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    await screen.findByRole("dialog", { name: "Review plan" });
+    expect(edits.at(-1)?.spec?.kind.value).toMatchObject({ redirect: { to: "https://example.org:8443" } });
+  });
+
+  it("leaves what isn't an address a browser goes to for the form to refuse", async () => {
+    const user = userEvent.setup();
+    const edits: ProposeChangeRequest["edits"] = [];
+    renderAt("/domains", api(some, { services: [web, api_], more: { changes: changes(edits) } }));
+    await user.click(await screen.findByRole("button", { name: "Add a domain" }));
+    const sheet = await screen.findByRole("dialog", { name: "Add a domain" });
+    await user.click(within(sheet).getByRole("radio", { name: /^A URL/ }));
+    await user.type(within(sheet).getByRole("textbox", { name: "Domain" }), "old-shop.example.net");
+    for (const typed of ["javascript:alert(1)", "//evil.example", "https:/evil.example", "ftp://example.org"]) {
+      const to = within(sheet).getByLabelText("Redirect to");
+      await user.clear(to);
+      await user.type(to, typed);
+      await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+      expect(to).toHaveAccessibleDescription("Give the address it sends to, such as https://example.org.");
+    }
+    expect(edits).toHaveLength(0);
+  });
+
   it("also answers on www, redirecting it to the domain, when its DNS answers alike", async () => {
     const user = userEvent.setup();
     const edits: ProposeChangeRequest["edits"] = [];

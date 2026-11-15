@@ -62,6 +62,11 @@ func TestARedirectTakesOnlyWhereABrowserCanGo(t *testing.T) {
 		{"port 0", redirect("www.example.com", "", "https://example.com:0", false), "from 1 to 65535"},
 		{"a port past 65535", redirect("www.example.com", "", "https://example.com:99999", false), "from 1 to 65535"},
 		{"a domain ending in a dot", redirect("www.example.com", "", "https://example.com./", false), "ends in a dot"},
+		// What the slice 3 review typed into Add a domain's Redirect to.
+		{"a line break", redirect("www.example.com", "", "https://evil.example/\r\nSet-Cookie:x", true), "control character"},
+		{"one slash", redirect("www.example.com", "", "https:/evil.example", false), "isn't an address a browser can go to"},
+		{"backslashes", redirect("www.example.com", "", `https:\\evil.example`, false), "isn't an address a browser can go to"},
+		{"a letter that looks like a Latin one", redirect("www.example.com", "", "https://ex\u0430mple.com", false), "xn-- form"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			err := d.Validate(proto.Clone(tc.spec))
@@ -88,6 +93,10 @@ func TestARedirectTakesWhatOneCanBe(t *testing.T) {
 		redirect("promo.example.com", "", "https://example.com/?from=promo", true),
 		redirect("www.example.net", "", "http://example.net", false),
 		{Domain: "www.example.net", Tls: "off", TrustedProxies: []string{"127.0.0.1"}, Redirect: &resourcev1.RouteRedirect{To: "https://example.net", Temporary: true}},
+		// A domain in its xn-- form, an address, and a line break kept encoded.
+		redirect("old.example.net", "", "https://xn--bcher-kva.example", false),
+		redirect("old.example.net", "", "http://[2001:db8::1]:8080", false),
+		redirect("old.example.net", "", "https://example.org/%0d%0a", true),
 	} {
 		if err := d.Validate(proto.Clone(s)); err != nil {
 			t.Errorf("Validate(%v) = %v", s, err)

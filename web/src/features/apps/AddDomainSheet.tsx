@@ -39,7 +39,7 @@ import { useWebsiteOfEnvironment } from "../websites/website";
 import { appOf, environmentOf, nameOf } from "./app";
 import { useRouteTarget, useTunnelSwitchName } from "./DomainNote";
 import { DomainRecord } from "./DomainRecord";
-import { formRefusal, proxyList, refusedField, routeName } from "./domains";
+import { formRefusal, proxyList, redirectTarget, refusedField, refusesTarget, routeName } from "./domains";
 import { FrontFields, frontOf, type InFront } from "./FrontFields";
 import { validPort } from "./form";
 import { routeAsItIs } from "./PrivateSheet";
@@ -277,6 +277,10 @@ export function AddDomainSheet({
   /** Puts what the server refused at the field it's about, or above them all if it's about none of them. */
   const land = (raw: string, wanted: string) => {
     const said = formRefusal(raw, wanted);
+    if (redirecting && refusesTarget(said, wanted)) {
+      setToError(said);
+      return;
+    }
     switch (refusedField(said, { domain: wanted, port, onServer })) {
       case "proxies":
         if (noCertificate && inFront === "proxy") setProxiesError(said);
@@ -297,7 +301,9 @@ export function AddDomainSheet({
     event?.preventDefault();
     if (busy) return;
     const wanted = domain.trim().toLowerCase();
-    const goesTo = to.trim();
+    // What's sent is what the field shows: https:// and a domain's xn-- form are added there.
+    const goesTo = redirecting ? redirectTarget(to) : to.trim();
+    if (redirecting && goesTo !== to) setTo(goesTo);
     const domainOk = wanted !== "" && !/\s/.test(wanted);
     const portOk = redirecting || validPort(port);
     const toOk = !redirecting || /^https?:\/\/\S+$/i.test(goesTo);

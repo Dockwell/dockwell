@@ -6,7 +6,7 @@ import { resolve } from "node:path";
 import { CertificateState, type Domain } from "@dockwell/api";
 import { describe, expect, it } from "vitest";
 
-import { groupConcern, groupNeedsALook, groupOf, lookOf, refusedField } from "./domains";
+import { groupConcern, groupNeedsALook, groupOf, lookOf, redirectTarget, refusedField, refusesTarget } from "./domains";
 
 /**
  * What the server says, from its source, with values in place of its verbs, so this
@@ -191,5 +191,37 @@ describe("how a domain sorts in the list of them", () => {
 
   it("leaves a certificate that says no end alone", () => {
     expect(lookOf(onServer(certificate(CertificateState.ISSUED))).state).toBe("serving");
+  });
+});
+
+describe("where a redirect sends, as typed", () => {
+  it("adds https:// and a domain's xn-- form, and leaves the rest for the form to refuse", () => {
+    for (const [typed, sent] of [
+      ["example.org", "https://example.org"],
+      ["  example.org/shop ", "https://example.org/shop"],
+      ["example.org:8443", "https://example.org:8443"],
+      ["localhost:3000/x", "https://localhost:3000/x"],
+      ["http://example.org", "http://example.org"],
+      ["https://Bücher.example/Straße?a=1", "https://xn--bcher-kva.example/Straße?a=1"],
+      ["bücher.example", "https://xn--bcher-kva.example"],
+      ["https://me@bücher.example", "https://me@bücher.example"],
+      ["javascript:alert(1)", "javascript:alert(1)"],
+      ["mailto:me@example.org", "mailto:me@example.org"],
+      ["//evil.example", "//evil.example"],
+      ["/blog", "/blog"],
+      ["", ""],
+    ]) {
+      expect(redirectTarget(typed as string), typed).toBe(sent);
+    }
+  });
+
+  it("tells a refusal of where it sends from one of its domain", () => {
+    const at = "old.example.net";
+    expect(refusesTarget(`${at} redirects to https://a.example/?q, which has a query`, at)).toBe(true);
+    expect(refusesTarget(`${at} redirects, and needs where to: an address such as https://example.com`, at)).toBe(true);
+    expect(refusesTarget(`${at} would send visitors round in a circle, back to itself`, at)).toBe(true);
+    expect(refusesTarget(`${at} redirects to shop.example.com already. Stop sending it there first`, at)).toBe(false);
+    expect(refusesTarget(`${at} is in use by a project you can't see`, at)).toBe(false);
+    expect(refusesTarget("shop.example.net redirects to https://a.example, which has a query", at)).toBe(false);
   });
 });

@@ -183,6 +183,42 @@ export function refusedField(
 }
 
 /**
+ * Where a redirect sends, written as the server takes it (ADR 0070): https:// before
+ * a domain typed without a scheme, and a domain not in ASCII in its xn-- form. What
+ * can't be read as an address is left as typed, for the form to refuse.
+ */
+export function redirectTarget(typed: string): string {
+  let to = typed.trim();
+  if (to === "") return to;
+  // A scheme, but not a domain and its port such as example.org:8080.
+  if (!/^[a-z][a-z0-9+.-]*:(?!\d)/i.test(to) && !to.startsWith("/")) to = `https://${to}`;
+  const at = /^(https?:\/\/)([^/?#\\]*)(.*)$/is.exec(to);
+  if (!at?.[1] || !at[2] || at[2].includes("@") || ![...at[2]].some((c) => c.charCodeAt(0) > 127)) return to;
+  try {
+    return `${at[1]}${new URL(to).host}${at[3] ?? ""}`;
+  } catch {
+    return to;
+  }
+}
+
+/**
+ * Whether a server's refusal of a redirect route is about where it sends, rather than
+ * its domain: each such starts with the domain, then "redirects to", "redirects, and
+ * needs where to", or "would send visitors round in a circle".
+ */
+export function refusesTarget(said: string, domain: string): boolean {
+  const text = said.toLowerCase();
+  if (!text.startsWith(`${domain.toLowerCase()} `)) return false;
+  const rest = text.slice(domain.length + 1);
+  // "… redirects to shop.example.com already" is about the domain, which one holds.
+  return (
+    (rest.startsWith("redirects to ") && !/ already\b/.test(rest)) ||
+    rest.startsWith("redirects, and needs where to") ||
+    rest.startsWith("would send visitors round in a circle")
+  );
+}
+
+/**
  * A server's refusal of a route as a form says it: what it's about, without which
  * server's agent couldn't plan which route, as this is the only one in front of you.
  * The form has no path to choose another of.
