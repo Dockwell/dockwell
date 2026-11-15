@@ -164,7 +164,7 @@ func (h *Handler) PlanMemberRemoval(ctx context.Context, req *connect.Request[do
 		for i := range plan.Tokens {
 			for _, projectID := range plan.Tokens[i].Projects {
 				p := &dockwellv1.TokenProject{Id: projectID}
-				if r, err := tx.GetResourceByID(ctx, projectID); err == nil {
+				if r, err := tx.GetResourceByID(ctx, projectID); err == nil && r.Spec != nil {
 					p.Name = r.Name
 				}
 				res.Tokens[i].Projects = append(res.Tokens[i].Projects, p)

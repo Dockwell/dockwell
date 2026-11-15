@@ -139,13 +139,14 @@ func projectGrants(ctx context.Context, tx *store.Tx, userID string) ([]*dockwel
 	return out, nil
 }
 
-// projectName is a project's name, or "" for the install or one that's gone.
+// projectName is a project's name, or "" for the install or one that's gone,
+// whose row stays, without a spec.
 func projectName(ctx context.Context, tx *store.Tx, projectID string) string {
 	if projectID == store.Install {
 		return ""
 	}
 	r, err := tx.GetResourceByID(ctx, projectID)
-	if err != nil {
+	if err != nil || r.Spec == nil {
 		return ""
 	}
 	return r.Name

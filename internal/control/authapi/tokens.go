@@ -143,7 +143,7 @@ func (h *Handler) RevokeToken(ctx context.Context, req *connect.Request[dockwell
 }
 
 // tokenProtos are tokens as the API shows them, each project they act in with
-// its name as it is now, or none once it's deleted.
+// its name as it is now, or none once it's deleted: its row stays, without a spec.
 func (h *Handler) tokenProtos(ctx context.Context, tokens []store.APIToken) ([]*dockwellv1.Token, error) {
 	out := make([]*dockwellv1.Token, 0, len(tokens))
 	names := map[string]string{}
@@ -155,10 +155,11 @@ func (h *Handler) tokenProtos(ctx context.Context, tokens []store.APIToken) ([]*
 				if !ok {
 					r, err := tx.GetResourceByID(ctx, projectID)
 					switch {
-					case err == nil:
-						name = r.Name
-					case !errors.Is(err, store.ErrNotFound):
+					case errors.Is(err, store.ErrNotFound):
+					case err != nil:
 						return err
+					case r.Spec != nil:
+						name = r.Name
 					}
 					names[projectID] = name
 				}

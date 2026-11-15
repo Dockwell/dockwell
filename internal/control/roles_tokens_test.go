@@ -259,3 +259,104 @@ func TestATokenIsNarrowedWithinWhatItsMakerHolds(t *testing.T) {
 		}
 	})
 }
+
+// A deleted project stays on a token by its ID and reaches nothing: the token
+// reads it as gone, the plan to remove its maker too, a new token can't be made
+// for it, and a token whose projects are all deleted is refused as one whose
+// projects are gone. Undoing the deletion brings back the same project, and the
+// token's reach in it (ADR 0071).
+func TestATokenWhoseProjectIsDeletedReachesNothing(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		s := newInviteStand(t, backend)
+		ctx := t.Context()
+		owner := changeClient(s.owner, s.origin)
+		blogID := apply(t, owner, propose(t, owner, "Make blog", &dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Kind: "project", Name: "blog"},
+			Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Project{Project: &resourcev1.Project{}}},
+		})).GetPlan().GetResources()[0].GetId()
+		ada, adaID := s.joins(t, "ada@example.com", "Ada Lovelace", dockwellv1.Role_ROLE_DEVELOPER)
+		if _, err := s.invite(t, "bo@example.com", dockwellv1.Role_ROLE_DEVELOPER, "blog", blogID); err != nil {
+			t.Fatal(err)
+		}
+		secret, made := narrowedToken(t, ada, &dockwellv1.CreateTokenRequest{Projects: []string{"blog"}})
+		script := changeClient(bearer{token: secret, rt: ada.client.Transport}, s.origin)
+		if _, err := script.ListChanges(ctx, connect.NewRequest(&dockwellv1.ListChangesRequest{})); err != nil {
+			t.Fatalf("the token reading blog's changes: %v", err)
+		}
+
+		deleted := apply(t, owner, propose(t, owner, "Delete blog", &dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Kind: "project", Name: "blog"}, Delete: true,
+		}))
+		if deleted.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+			t.Fatalf("deleting blog ended %v: %v", deleted.GetState(), deleted.GetError())
+		}
+
+		// Its project reads as gone, by its ID with no name, on API tokens, in the plan to
+		// remove ada, and on an invite to it.
+		tokens := dockwellv1connect.NewTokenServiceClient(ada, s.origin, connect.WithProtoJSON())
+		listed, err := tokens.ListTokens(ctx, connect.NewRequest(&dockwellv1.ListTokensRequest{}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		gone := func(what string, got []*dockwellv1.TokenProject) {
+			t.Helper()
+			if len(got) != 1 || got[0].GetId() != blogID || got[0].GetName() != "" {
+				t.Errorf("%s lists the token in %v, want blog by its ID alone, as gone", what, got)
+			}
+		}
+		i := slices.IndexFunc(listed.Msg.GetTokens(), func(tok *dockwellv1.Token) bool { return tok.GetId() == made.GetId() })
+		if i < 0 {
+			t.Fatalf("API tokens lists %v, without ada's", listed.Msg.GetTokens())
+		}
+		gone("API tokens", listed.Msg.GetTokens()[i].GetProjects())
+		plan, err := s.members.PlanMemberRemoval(ctx, connect.NewRequest(&dockwellv1.PlanMemberRemovalRequest{UserId: adaID}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		i = slices.IndexFunc(plan.Msg.GetTokens(), func(tok *dockwellv1.RemovalToken) bool { return tok.GetId() == made.GetId() })
+		if i < 0 {
+			t.Fatalf("the plan to remove ada lists %v, without her token", plan.Msg.GetTokens())
+		}
+		gone("The plan to remove ada", plan.Msg.GetTokens()[i].GetProjects())
+
+		members, err := s.members.ListMembers(ctx, connect.NewRequest(&dockwellv1.ListMembersRequest{}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		i = slices.IndexFunc(members.Msg.GetInvites(), func(inv *dockwellv1.Invite) bool { return inv.GetEmail() == "bo@example.com" })
+		if i < 0 {
+			t.Fatalf("Members lists invites %v, without bo's", members.Msg.GetInvites())
+		}
+		if inv := members.Msg.GetInvites()[i]; inv.GetProjectId() != blogID || inv.GetProjectName() != "" {
+			t.Errorf("Members lists bo's invite in %q (%s), want blog by its ID alone, as gone", inv.GetProjectName(), inv.GetProjectId())
+		}
+
+		// A new token for it is refused as for a project that isn't there.
+		_, err = tokens.CreateToken(ctx, connect.NewRequest(&dockwellv1.CreateTokenRequest{
+			Name: "CI", Scope: dockwellv1.TokenScope_TOKEN_SCOPE_READ_WRITE, Projects: []string{blogID},
+			Proof: stepUpFor(t, ada, dockwellv1.StepUpAction_STEP_UP_ACTION_CREATE_TOKEN, ""),
+		}))
+		if connect.CodeOf(err) != connect.CodeInvalidArgument || !strings.Contains(err.Error(), "there's no project "+blogID) {
+			t.Errorf("a token for blog once it's deleted: %v, want it refused as for one that isn't there", err)
+		}
+
+		// The token, its one project deleted, reaches nothing, saying why.
+		_, err = script.ListChanges(ctx, connect.NewRequest(&dockwellv1.ListChangesRequest{}))
+		if reasonOf(err) != "needs_role" || !strings.Contains(err.Error(), "this API token's projects are gone") {
+			t.Errorf("the token once blog is deleted: %v, want it refused as one whose projects are gone", err)
+		}
+
+		// Undoing the deletion brings blog back by the same ID, and the token's reach in it.
+		undo, err := owner.UndoChange(ctx, connect.NewRequest(&dockwellv1.UndoChangeRequest{Id: deleted.GetId()}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if back := apply(t, owner, undo.Msg.GetChange()); back.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+			t.Fatalf("undoing blog's deletion ended %v: %v", back.GetState(), back.GetError())
+		}
+		if _, err := script.ListChanges(ctx, connect.NewRequest(&dockwellv1.ListChangesRequest{})); err != nil {
+			t.Errorf("the token once blog's deletion is undone: %v, want it reading blog again", err)
+		}
+	})
+}

@@ -365,7 +365,8 @@ func (s *Service) tokenReachable(ctx context.Context, tx *store.Tx, userID strin
 	var names []string
 	for _, projectID := range reach.Projects {
 		r, err := tx.GetResourceByID(ctx, projectID)
-		if errors.Is(err, store.ErrNotFound) || (err == nil && r.Kind != projectKind) {
+		// A deleted project's row stays, without a spec: it isn't there either.
+		if errors.Is(err, store.ErrNotFound) || (err == nil && (r.Kind != projectKind || r.Spec == nil)) {
 			return "", fmt.Errorf("%w: there's no project %s. Name one you hold, by its name or its ID", ErrInvalid, projectID)
 		}
 		if err != nil {

@@ -20,13 +20,48 @@ func (s *Service) Grants(ctx context.Context, p Principal) ([]store.Grant, error
 	var out []store.Grant
 	err := s.db.View(ctx, func(tx *store.Tx) error {
 		var err error
-		out, err = tx.Grants(ctx, p.User.ID)
+		out, err = grantsIn(ctx, tx, p)
 		return err
 	})
+	return out, err
+}
+
+// grantsIn is Grants as they stand in tx.
+func grantsIn(ctx context.Context, tx *store.Tx, p Principal) ([]store.Grant, error) {
+	grants, err := tx.Grants(ctx, p.User.ID)
 	if err != nil || p.Token == nil {
-		return out, err
+		return grants, err
 	}
-	return Narrow(out, p.Token.Projects, p.Token.Role), nil
+	projects, err := projectsThere(ctx, tx, p.Token.Projects)
+	if err != nil {
+		return nil, err
+	}
+	return Narrow(grants, projects, p.Token.Role), nil
+}
+
+// projectsThere are those of a token's projects that are there now. One that's
+// been deleted stays on the token by its ID and reaches nothing, so a token
+// whose projects are all deleted reaches none; undoing the deletion brings back
+// the same project, and the token's reach in it (ADR 0071). Nil, every project,
+// stays nil, and a list stays a list, even an emptied one.
+func projectsThere(ctx context.Context, tx *store.Tx, projects []string) ([]string, error) {
+	if projects == nil {
+		return nil, nil
+	}
+	out := make([]string, 0, len(projects))
+	for _, projectID := range projects {
+		r, err := tx.GetResourceByID(ctx, projectID)
+		if errors.Is(err, store.ErrNotFound) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		if r.Kind == projectKind && r.Spec != nil {
+			out = append(out, projectID)
+		}
+	}
+	return out, nil
 }
 
 // Narrow is what grants give a token narrowed to projects and capped at role
