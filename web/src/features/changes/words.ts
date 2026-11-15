@@ -643,25 +643,18 @@ export function useChangeWords(): ChangeWords {
           ? t`${where} leaves ${from}, and goes to ${to}.`
           : t`${where} leaves ${from}, and goes to port ${toPort} on the server.`;
       },
-      redirects({ where, to, temporary, dropPath, leaves }) {
-        if (leaves) {
-          if (temporary) {
-            return dropPath
-              ? t`${where} stops sending to ${leaves}, and redirects to ${to}, temporarily, whatever the path.`
-              : t`${where} stops sending to ${leaves}, and redirects to ${to}, temporarily, keeping the path.`;
-          }
-          return dropPath
-            ? t`${where} stops sending to ${leaves}, and redirects to ${to}, permanently, whatever the path.`
-            : t`${where} stops sending to ${leaves}, and redirects to ${to}, permanently, keeping the path.`;
+      redirects({ where, to, temporary, dropPath, keepPrefix, leaves, stops, sendsTo, sendsToPort }) {
+        if (stops) {
+          return sendsTo
+            ? t`${where} stops redirecting to ${to}, and sends to ${sendsTo}.`
+            : t`${where} stops redirecting to ${to}, and sends to port ${sendsToPort} on the server.`;
         }
-        if (temporary) {
-          return dropPath
-            ? t`${where} redirects to ${to}, temporarily, whatever the path.`
-            : t`${where} redirects to ${to}, temporarily, keeping the path.`;
-        }
-        return dropPath
-          ? t`${where} redirects to ${to}, permanently, whatever the path.`
-          : t`${where} redirects to ${to}, permanently, keeping the path.`;
+        const how = temporary ? t`temporarily` : t`permanently`;
+        // A path route that keeps its prefix sends its own path on too.
+        const path = dropPath ? t`whatever the path` : keepPrefix ? t`keeping the whole path` : t`keeping the path`;
+        return leaves
+          ? t`${where} stops sending to ${leaves}, and redirects to ${to}, ${how}, ${path}.`
+          : t`${where} redirects to ${to}, ${how}, ${path}.`;
       },
       answers(answers, port, server) {
         if (!answers) return [];

@@ -532,6 +532,8 @@ describe("the list of domains", () => {
     expect(row).toHaveTextContent("Redirects to example.com/blog");
     expect(row.querySelector(".domains-reaches-mark")).toHaveClass("is-redirect");
     expect(within(row).queryByRole("link", { name: /^web/ })).toBeNull();
+    // A redirect has nothing behind it to protect, so it's never made private.
+    expect(within(row).queryByRole("button", { name: /private|Who gets in/ })).toBeNull();
   });
 
   it("says what an ingress that's down does to a domain with a good certificate", async () => {

@@ -5,6 +5,7 @@ package route
 import (
 	"fmt"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"google.golang.org/protobuf/proto"
@@ -102,7 +103,13 @@ func normalizeTo(where, raw string, dropPath bool) (string, error) {
 	if host == "" {
 		return "", fmt.Errorf("%s redirects to %s, which isn't an address a browser can go to. Start it with https:// and a domain, such as https://example.com", where, raw)
 	}
+	if strings.HasSuffix(host, ".") {
+		return "", fmt.Errorf("%s redirects to %s, whose domain ends in a dot, which the site there won't answer to. Leave the dot off", where, raw)
+	}
 	port := u.Port()
+	if n, err := strconv.Atoi(port); port != "" && (err != nil || n < 1 || n > 65535) {
+		return "", fmt.Errorf("%s redirects to %s, whose port isn't one from 1 to 65535. Give a port in that range, or none", where, raw)
+	}
 	if (u.Scheme == "https" && port == "443") || (u.Scheme == "http" && port == "80") {
 		port = ""
 	}
@@ -131,7 +138,7 @@ func follow(r *resourcev1.Route, reqPath string) (host, path string) {
 	if err != nil {
 		return "", ""
 	}
-	path = strings.TrimSuffix(u.EscapedPath(), "/")
+	path = strings.TrimSuffix(asMatched(u.EscapedPath()), "/")
 	if d.GetDropPath() {
 		return strings.ToLower(u.Hostname()), path
 	}
@@ -140,6 +147,16 @@ func follow(r *resourcev1.Route, reqPath string) (host, path string) {
 		rest = strings.TrimPrefix(reqPath, r.GetPath())
 	}
 	return strings.ToLower(u.Hostname()), strings.TrimSuffix(path+rest, "/")
+}
+
+// asMatched is a path as Caddy's path matcher reads it: decoded, and in lowercase,
+// as it matches without either, so /X and /%79 land where /x and /y do (ADR 0070).
+// A route's own path is lowercase and unreserved already.
+func asMatched(p string) string {
+	if plain, err := url.PathUnescape(p); err == nil {
+		p = plain
+	}
+	return strings.ToLower(p)
 }
 
 // covers reports a route answering a path of its domain: its own path and what's
@@ -171,13 +188,13 @@ func answering(all map[resource.Ref]proto.Message, host, path string) (resource.
 // answered by itself, or by redirects that come back to it within maxHops. The scheme
 // counts for nothing, as plain HTTP goes on to HTTPS on a domain with a certificate
 // (ADR 0070).
-func (*Driver) CheckAcross(ref resource.Ref, desired proto.Message, all map[resource.Ref]proto.Message) error {
+func (*Driver) CheckAcross(ref resource.Ref, desired proto.Message, all map[resource.Ref]proto.Message, seen func(resource.Ref) bool) error {
 	r, ok := desired.(*resourcev1.Route)
 	if !ok || r.GetRedirect() == nil {
 		return nil
 	}
 	where := Where(r)
-	cur, path := r, r.GetPath()
+	cur, curRef, path := r, ref, r.GetPath()
 	for hop := 0; hop <= maxHops; hop++ {
 		host, landed := follow(cur, path)
 		next, n, found := answering(all, host, landed)
@@ -186,12 +203,15 @@ func (*Driver) CheckAcross(ref resource.Ref, desired proto.Message, all map[reso
 			return nil
 		case next == ref && hop == 0:
 			return fmt.Errorf("%s would send visitors round in a circle, back to itself at %s. Send it to a path another route answers, or to another domain", where, Where(n)+strings.TrimPrefix(landed, n.GetPath()))
+		case next == ref && !seen(curRef):
+			// Words that name nothing of a project the caller can't see (ADR 0048).
+			return fmt.Errorf("%s would send visitors round in a circle: a route in a project you can't see redirects back to it. Send it elsewhere, or ask an admin", where)
 		case next == ref:
 			return fmt.Errorf("%s would send visitors round in a circle: %s redirects back to it. Send it to the site, or change %s first", where, Where(cur), Where(cur))
 		case n.GetRedirect() == nil:
 			return nil
 		}
-		cur, path = n, landed
+		cur, curRef, path = n, next, landed
 	}
 	return nil
 }
@@ -209,6 +229,11 @@ func keepRedirect(was, r *resourcev1.Route) error {
 		return errNoTarget
 	}
 	r.Redirect = proto.Clone(was.GetRedirect()).(*resourcev1.RouteRedirect)
+	// Kept, it's a redirect again, which keeps no one out: one that asks for access
+	// is refused here, as it is when it's written, and not later on each server.
+	if a := r.GetAccess(); len(a.GetUsers()) > 0 || a.GetSignIn() != nil || len(a.GetAllow()) > 0 {
+		return fmt.Errorf("%s redirects, and a redirect has nothing behind it to protect, so it lets everyone through. Leave its access as it is, or send it to an app first", Where(r))
+	}
 	return nil
 }
 

@@ -624,6 +624,8 @@ function Visit({ row, read }: { row: Row; read: DomainRead }) {
 /** The way to who gets in to a row's route, off with why where your role can't plan there. */
 function Private({ row, onPrivate }: { row: Row; onPrivate: (row: Row) => void }) {
   const may = useMay()(ChangeService.method.proposeChange, { environment: row.domain.environmentId });
+  // A redirect has nothing behind it to protect, so it lets everyone through (ADR 0070).
+  if (row.route?.redirect) return null;
   return <PrivateButton domain={row.domain} route={row.route} onOpen={() => onPrivate(row)} off={may.off} />;
 }
 

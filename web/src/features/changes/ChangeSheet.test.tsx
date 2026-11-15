@@ -2510,6 +2510,42 @@ describe("the plan sheet, once it runs", () => {
       ).toHaveLength(1);
     });
 
+    it("says a domain that stops redirecting goes to its app, and a kept prefix keeps the whole path", async () => {
+      const change = moved(aRoutePlan(PlanAction.UPDATE), { state: ChangeState.PLANNED });
+      const server = change.plan?.servers[0];
+      const step = server?.steps[0];
+      if (server && step) {
+        step.redirects = create(RouteRedirectsSchema, {
+          where: "www.example.com",
+          to: "https://example.com",
+          stops: true,
+          sendsTo: "web",
+        });
+        server.steps.push(
+          create(PlanStepSchema, {
+            ...step,
+            resourceId: "rte_two",
+            redirects: create(RouteRedirectsSchema, {
+              where: "example.com/old-blog",
+              to: "https://blog.example.com",
+              temporary: true,
+              keepPrefix: true,
+            }),
+          }),
+        );
+      }
+      renderSheet(
+        { kind: "plan", make: () => Promise.resolve({ change }) },
+        { changes: { watchChange: feed<WatchChangeResponse>().stream } },
+      );
+      const review = await screen.findByRole("dialog", { name: "Review plan" });
+      expect(review).toHaveTextContent("www.example.com stops redirecting to https://example.com, and sends to web.");
+      expect(review).not.toHaveTextContent("www.example.com redirects to");
+      expect(review).toHaveTextContent(
+        "example.com/old-blog redirects to https://blog.example.com, temporarily, keeping the whole path.",
+      );
+    });
+
     it("says browsers keep a permanent redirect once, however many it makes, and not for a temporary one", async () => {
       const change = moved(aRoutePlan(PlanAction.UPDATE), { state: ChangeState.PLANNED });
       const server = change.plan?.servers[0];

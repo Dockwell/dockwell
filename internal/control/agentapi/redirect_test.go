@@ -16,7 +16,7 @@ import (
 
 // An agent that doesn't say it serves redirects would write a route that sends to
 // nothing, so a redirect is refused it, planned or applied, with how to put it right
-// (ADR 0070). A route to a service still goes, and an agent that says it serves
+// (ADR 0070), and isn't asked to keep one. A route to a service still goes, and an agent that says it serves
 // redirects gets one.
 func TestAnOlderAgentIsRefusedARedirect(t *testing.T) {
 	www := resource.Ref{Kind: route.Kind, Scope: "env_1", Name: "www-example-com"}
@@ -35,6 +35,11 @@ func TestAnOlderAgentIsRefusedARedirect(t *testing.T) {
 		},
 		"applying": func(s *Session, spec *resourcev1.Route) error {
 			return s.Apply(t.Context(), resource.Step{Ref: www}, spec)
+		},
+		// What it keeps it puts back by itself, as a route that sends to nothing.
+		"remembering": func(s *Session, spec *resourcev1.Route) error {
+			_, err := s.Remember(t.Context(), www, spec, 1, "chg_1", "")
+			return err
 		},
 	}
 	for name, entry := range entries {

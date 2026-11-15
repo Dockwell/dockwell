@@ -1035,6 +1035,9 @@ func TestARedirectSaysWhereItSends(t *testing.T) {
 		{&dockwellv1.RouteRedirects{Where: "www.example.com", To: "https://example.com"}, "www.example.com redirects to https://example.com, permanently, keeping the path."},
 		{&dockwellv1.RouteRedirects{Where: "old.example.com", To: "https://example.com/", Temporary: true, DropPath: true}, "old.example.com redirects to https://example.com/, temporarily, whatever the path."},
 		{&dockwellv1.RouteRedirects{Where: "app.example.com", To: "https://example.com", Leaves: "web"}, "app.example.com stops sending to web, and redirects to https://example.com, permanently, keeping the path."},
+		{&dockwellv1.RouteRedirects{Where: "example.com/old-blog", To: "https://blog.example.com", KeepPrefix: true}, "example.com/old-blog redirects to https://blog.example.com, permanently, keeping the whole path."},
+		{&dockwellv1.RouteRedirects{Where: "www.example.com", To: "https://example.com", Stops: true, SendsTo: "web"}, "www.example.com stops redirecting to https://example.com, and sends to web."},
+		{&dockwellv1.RouteRedirects{Where: "www.example.com", To: "https://example.com", Stops: true, SendsToPort: 3000}, "www.example.com stops redirecting to https://example.com, and sends to port 3000 on the server."},
 		{nil, ""},
 	} {
 		if got := redirectsWords(c.d); got != c.says {
@@ -1356,5 +1359,25 @@ func TestEventCountsSayWhenTheyStoppedShort(t *testing.T) {
 	Render(&b, &dockwellv1.CountEventsResponse{Total: 10000, Capped: true}, time.Now())
 	if !strings.Contains(b.String(), "each is at least what it says") {
 		t.Errorf("rendered %q, want it to say the counts stopped short", b.String())
+	}
+}
+
+// A plan with a permanent redirect says once that browsers keep it, and one with only
+// a temporary or a stopping one says nothing of it (ADR 0070).
+func TestAPlanSaysOnceThatBrowsersKeepAPermanentRedirect(t *testing.T) {
+	step := func(r *dockwellv1.RouteRedirects) *dockwellv1.PlanStep {
+		return &dockwellv1.PlanStep{Resource: &dockwellv1.ResourceRef{Kind: "route", Name: r.GetWhere()}, Action: dockwellv1.PlanAction_PLAN_ACTION_CREATE, Redirects: r}
+	}
+	plan := func(steps ...*dockwellv1.PlanStep) string {
+		var b strings.Builder
+		PlanView(&b, &dockwellv1.Plan{Servers: []*dockwellv1.ServerPlan{{ServerName: "hz-1", Steps: steps}}})
+		return b.String()
+	}
+	const line = "Browsers keep a permanent redirect for up to a day, through an undo too."
+	if got := plan(step(&dockwellv1.RouteRedirects{Where: "www.example.com", To: "https://example.com"}), step(&dockwellv1.RouteRedirects{Where: "old.example.com", To: "https://example.com"})); strings.Count(got, line) != 1 {
+		t.Errorf("two permanent redirects plan:\n%s", got)
+	}
+	if got := plan(step(&dockwellv1.RouteRedirects{Where: "www.example.com", To: "https://example.com", Temporary: true}), step(&dockwellv1.RouteRedirects{Where: "old.example.com", To: "https://example.com", Stops: true, SendsTo: "web"})); strings.Contains(got, line) {
+		t.Errorf("a temporary and a stopping redirect plan:\n%s", got)
 	}
 }

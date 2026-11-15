@@ -1637,6 +1637,10 @@ func (s *Session) Remember(ctx context.Context, ref resource.Ref, spec proto.Mes
 	if err := s.checkHostAccess(ref, spec); err != nil {
 		return false, err
 	}
+	// Nor would it keep a redirect: it would put back a route that sends to nothing.
+	if err := s.checkRedirect(spec); err != nil {
+		return false, err
+	}
 	if err := s.checkReads(ctx, []resource.Ref{ref}); err != nil {
 		return false, err
 	}
@@ -1814,8 +1818,6 @@ func (s *Session) checkTakenWrites(ref resource.Ref, adopts string, spec proto.M
 	return fmt.Errorf("the agent on %s can't keep a taken-on container's values by name, and taking %s on names one. Update the agent on %s", s.name, ref.Name, s.name)
 }
 
-// checkAllWrites is checkWrites, checkFolders, checkOwnSettings and checkPrivate for all a plan
-// asks of this agent.
 // checkRedirect refuses a route that answers with a redirect for an agent that
 // doesn't say it serves one, which would write a route that sends to nothing (ADR
 // 0070).

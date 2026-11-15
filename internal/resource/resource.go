@@ -1762,10 +1762,11 @@ type SealedLater interface {
 // AcrossChecker is a kind that checks an edit against every resource of its kind
 // across the install, as the change leaves them, such as a route's redirect for a
 // loop, which depends on which route answers where it lands (ADR 0070). all holds
-// each by its ref, the edit's own included. Like Keep, it's for what a caller wrote,
-// so adopting drift and putting back a revision don't ask it.
+// each by its ref, the edit's own included. seen says whether the caller may read
+// one, so what's refused names nothing of a project they can't see. Like Keep, it's
+// for what a caller wrote, so adopting drift and putting back a revision don't ask it.
 type AcrossChecker interface {
-	CheckAcross(ref Ref, desired proto.Message, all map[Ref]proto.Message) error
+	CheckAcross(ref Ref, desired proto.Message, all map[Ref]proto.Message, seen func(Ref) bool) error
 }
 
 // ChangeChecker is a kind that checks an edit against the rest of its change, as a

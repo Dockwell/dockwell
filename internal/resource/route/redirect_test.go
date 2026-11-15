@@ -55,6 +55,13 @@ func TestARedirectTakesOnlyWhereABrowserCanGo(t *testing.T) {
 		{"its own root, whatever the path", redirect("example.com", "", "https://example.com/", true), "round in a circle"},
 		{"its own path", redirect("example.com", "/x", "https://example.com/x", true), "round in a circle"},
 		{"its own prefix, kept", &resourcev1.Route{Domain: "example.com", Path: "/old", Redirect: &resourcev1.RouteRedirect{To: "https://example.com", KeepPrefix: true}}, "round in a circle"},
+		// Caddy matches a path decoded and without case, so these land where they start.
+		{"its own path, in capitals", redirect("example.com", "/x", "https://example.com/X", true), "round in a circle"},
+		{"its own path, encoded", redirect("example.com", "/y", "https://example.com/%79", true), "round in a circle"},
+		// A port a browser can't go to, and a domain no site answers to with its dot.
+		{"port 0", redirect("www.example.com", "", "https://example.com:0", false), "from 1 to 65535"},
+		{"a port past 65535", redirect("www.example.com", "", "https://example.com:99999", false), "from 1 to 65535"},
+		{"a domain ending in a dot", redirect("www.example.com", "", "https://example.com./", false), "ends in a dot"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			err := d.Validate(proto.Clone(tc.spec))
@@ -173,6 +180,10 @@ func TestALoopIsDecidedByWhichRouteAnswers(t *testing.T) {
 		{"to plain HTTP of itself", redirect("example.com", "/x", "http://example.com/x/y", true), nil, "back to itself"},
 		{"to a site off the install", redirect("www.example.com", "", "https://example.org", false), map[string]*resourcev1.Route{"site": site}, ""},
 		{"to the site", redirect("www.example.com", "", "https://example.com", false), map[string]*resourcev1.Route{"site": site}, ""},
+		// Under itself in capitals still lands on itself, as Caddy matches without case,
+		// and the path would grow by a segment on each hop.
+		{"a section to under itself, in capitals", redirect("example.com", "/old", "https://example.com/OLD/new", false), map[string]*resourcev1.Route{"site": site}, "back to itself"},
+		{"a section to under itself, encoded", redirect("example.com", "/old", "https://example.com/%6Fld/new", false), map[string]*resourcev1.Route{"site": site}, "back to itself"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			r := proto.Clone(tc.route).(*resourcev1.Route)
@@ -187,7 +198,7 @@ func TestALoopIsDecidedByWhichRouteAnswers(t *testing.T) {
 				}
 				all[ref(name)] = o
 			}
-			err := d.CheckAcross(ref("this"), r, all)
+			err := d.CheckAcross(ref("this"), r, all, func(resource.Ref) bool { return true })
 			switch {
 			case tc.says == "" && err != nil:
 				t.Errorf("CheckAcross = %v", err)
@@ -195,6 +206,43 @@ func TestALoopIsDecidedByWhichRouteAnswers(t *testing.T) {
 				t.Errorf("CheckAcross = %v, want it to say %q", err, tc.says)
 			}
 		})
+	}
+}
+
+// A loop through a route of a project the caller can't see is refused in words that
+// name nothing of it (ADR 0048).
+func TestALoopNamesNoRouteTheCallerCantSee(t *testing.T) {
+	d := &Driver{}
+	mine := resource.Ref{Kind: Kind, Scope: "env_mine", Name: "a"}
+	theirs := resource.Ref{Kind: Kind, Scope: "env_theirs", Name: "c"}
+	all := map[resource.Ref]proto.Message{
+		mine: redirect("a.example.com", "", "https://b.example.com", false),
+		{Kind: Kind, Scope: "env_mine", Name: "b"}: redirect("b.example.com", "", "https://c.example.com", false),
+		theirs: redirect("c.example.com", "", "https://a.example.com", false),
+	}
+	for _, r := range all {
+		if err := d.Validate(r); err != nil {
+			t.Fatal(err)
+		}
+	}
+	err := d.CheckAcross(mine, all[mine], all, func(r resource.Ref) bool { return r.Scope == "env_mine" })
+	if err == nil || !strings.Contains(err.Error(), "a route in a project you can't see redirects back to it. Send it elsewhere, or ask an admin") || strings.Contains(err.Error(), "c.example.com") {
+		t.Errorf("CheckAcross = %v", err)
+	}
+	err = d.CheckAcross(mine, all[mine], all, func(resource.Ref) bool { return true })
+	if err == nil || !strings.Contains(err.Error(), "c.example.com redirects back to it") {
+		t.Errorf("to an admin, CheckAcross = %v", err)
+	}
+}
+
+// A redirect kept through a whole-route edit is a redirect again, so access in that
+// edit is refused there, and not later on each server.
+func TestAKeptRedirectTakesNoAccess(t *testing.T) {
+	d := &Driver{}
+	stored := &resourcev1.Route{Domain: "www.example.com", Redirect: &resourcev1.RouteRedirect{To: "https://example.com"}}
+	private := &resourcev1.Route{Domain: "www.example.com", Access: &resourcev1.RouteAccess{Allow: []string{"198.51.100.0/24"}}}
+	if _, err := d.Keep(stored, private); err == nil || !strings.Contains(err.Error(), "lets everyone through") {
+		t.Errorf("making a redirect private = %v", err)
 	}
 }
 

@@ -187,6 +187,19 @@ The panel offers the redirect most sites want, already decided, and the rest one
 
 The slices are as above, with a fourth: the imports, 1Panel's website redirects and the handover's Traefik redirects. The numbers are as above: `Route.redirect` 10, `Hello.serves_redirects` 240, `PlanStep.redirects` 240, `DomainRoute.redirect` 10, `Website.redirect_from` 4, and `CheckDomainResponse.companion` 2 and `companion_check` 3.
 
+### Slice 1, as built
+
+*2026-11-15, after its review.*
+
+- **A change is checked for the redirects it leaves as they are, too.** Deleting or moving the route a redirect lands on changes which route answers it, so any change to a route checks every redirect of the install as the change leaves them. It's refused when it's what makes one loop, naming that redirect: "route root, which this change leaves as it is, would then send visitors round in a circle". A redirect that looped before holds up nothing else.
+- **Where a redirect lands is matched as Caddy matches it,** decoded and without case, so `/X` and `/%79` land where `/x` and `/y` do, and a section sent to under itself in capitals is refused as in lowercase.
+- **A loop's words name nothing of a project the caller can't see,** as the claims check's don't: "a route in a project you can't see redirects back to it. Send it elsewhere, or ask an admin".
+- **A route that stops redirecting says so,** in the panel and the CLI: "www.example.com stops redirecting to https://example.com, and sends to web." A path route that keeps its prefix says "keeping the whole path". The CLI says the cache line once too.
+- **`to`'s port is one from 1 to 65535, and its domain has no dot at the end,** which the site there wouldn't answer to.
+- **A redirect kept through a whole-route edit takes no access,** refused as the change is proposed, and Domains offers no "Make it private" on a redirect's row.
+- **An older agent isn't asked to keep a redirect** in its desired state, as it isn't to plan or apply one. Refusing one as it's read back, and the row's "Not served on hz-2 · Update its agent", come with slice 3: only an agent downgraded after it served a redirect has one to read back, which the release notes cover.
+- **A request whose target is `*`** gets a `Location` with no `/` after the domain. Browsers never send one, so it stays.
+
 ## Considered
 
 - **A kind of its own, `redirect`:** it would need its own domain claims, certificate handling, Domains rows, DNS checks and alerts, each kept in step with routes. Or it would have none, and a redirect's certificate would fail with nothing to say so.
