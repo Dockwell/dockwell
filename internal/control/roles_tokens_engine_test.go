@@ -47,6 +47,7 @@ func waitApplied(t *testing.T, c dockwellv1connect.ChangeServiceClient, id strin
 			return true
 		case dockwellv1.ChangeState_CHANGE_STATE_FAILED, dockwellv1.ChangeState_CHANGE_STATE_DISCARDED:
 			t.Fatalf("the change ended %v", res.Msg.GetChange().GetState())
+		default:
 		}
 		return false
 	})
