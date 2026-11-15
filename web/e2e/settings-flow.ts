@@ -10,6 +10,7 @@ import { readFile } from "node:fs/promises";
 import type { Page } from "playwright-core";
 
 import type { Flow } from "./flows.ts";
+import { pastTheEdge } from "./sheets.ts";
 
 interface SettingsFlowOptions {
   origin: string;
@@ -183,6 +184,31 @@ export async function settingsFlow(page: Page, { origin, step, shoot }: Settings
   }
   const cpWide = await page.evaluate(() => document.documentElement.scrollWidth);
   if (cpWide > 390) fail(`Control plane is ${cpWide} px wide on a 390 px phone`);
+
+  step("settings: on a phone, every page of Settings fits the screen, opened on its own");
+  // Each opened afresh, as a page that only fits after another loaded its styles wouldn't on its own, with
+  // what earlier flows left, such as storage whose backup failed.
+  for (const path of [
+    "/settings",
+    "/settings/general",
+    "/settings/security",
+    "/settings/members",
+    "/settings/api-tokens",
+    "/settings/audit-log",
+    "/settings/control-plane",
+    "/settings/integrations",
+    "/profile",
+  ]) {
+    await page.goto(`${origin}${path}`);
+    await page.locator("main").first().waitFor();
+    await page
+      .locator('[aria-busy="true"]')
+      .first()
+      .waitFor({ state: "detached", timeout: 15_000 })
+      .catch(() => {});
+    const edge = await pastTheEdge(page);
+    if (edge.wider > 0) fail(`on a phone, ${path} is ${edge.wider}px wider than the page: ${edge.what}`);
+  }
 
   // What later steps and screens read stays as it was.
   await page.setViewportSize({ width: 1440, height: 900 });
