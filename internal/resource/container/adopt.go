@@ -112,6 +112,32 @@ func (d *Docker) ReadAdoption(ctx context.Context, t Target, id string) (resourc
 	}, nil
 }
 
+// namesShown are the fields that name a container, by valuesShown's words for them:
+// a plan shows each as it is, so a value that's a whole part of one, as
+// POSTGRES_DB=shop beside the network shop_default, shows nothing a reader can't
+// read there already. That holds for a value whose name says nothing of a secret;
+// a secret's value is never shown, wherever it is (the gaps survey of #604).
+var namesShown = map[string]bool{"aliases": true, "networks": true, "external networks": true, "image": true, "hostname": true}
+
+// wholePart reports value as a whole part of word: bounded on each side by the
+// start, the end, or one of - _ . / : @, as names and image references are made of.
+// So shop is a whole part of shop_default and shop-db-1, and active isn't of
+// activepieces.
+func wholePart(word, value string) bool {
+	bound := func(s string, at int) bool { return at < 0 || at >= len(s) || strings.IndexByte("-_./:@", s[at]) >= 0 }
+	for i := 0; ; {
+		at := strings.Index(word[i:], value)
+		if at < 0 {
+			return false
+		}
+		at += i
+		if bound(word, at-1) && bound(word, at+len(value)) {
+			return true
+		}
+		i = at + 1
+	}
+}
+
 // shownWords are the fields valuesShown has words of its own for.
 var shownWords = map[protoreflect.Name]string{"healthcheck": "health check"}
 
@@ -150,6 +176,9 @@ func valuesShown(spec *resourcev1.Container) []string {
 	eachWord(spec.ProtoReflect(), "", func(where, word string) {
 		for name, value := range spec.GetEnv() {
 			if value == "" || !strings.Contains(word, value) || len(value) < shortest && !secretName().MatchString(name) {
+				continue
+			}
+			if namesShown[where] && !secretName().MatchString(name) && wholePart(word, value) {
 				continue
 			}
 			// A label's name can be what holds it, so it can't say where.
