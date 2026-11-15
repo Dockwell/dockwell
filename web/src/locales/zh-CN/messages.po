@@ -9426,6 +9426,9 @@ msgstr "请先备份不能丢失的内容。"
 msgid "Before it moves, Dockwell asks what features its data uses, and stops with nothing changed if {to} can't run them."
 msgstr "迁移前，Dockwell 会询问它的数据用到了哪些功能；如果 {to} 无法运行，就停止，不做任何更改。"
 
+msgid "Browsers keep a permanent redirect for up to a day, through an undo too."
+msgstr "浏览器会将永久重定向保留至多一天，撤销后也是如此。"
+
 #. placeholder {0}: server.serverName
 msgid "Builds {repository} at {commit} ({ref}) on {0} first. If the build fails, what runs stays as it is."
 msgstr "先在 {0} 上构建 {repository} 的 {commit}（{ref}）。如果构建失败，正在运行的内容保持不变。"
@@ -10833,6 +10836,30 @@ msgstr "{where} 离开 {from}，转到服务器上的 {toPort} 端口。"
 msgid "{where} leaves {from}, and goes to {to}."
 msgstr "{where} 离开 {from}，转到 {to}。"
 
+msgid "{where} redirects to {to}, permanently, keeping the path."
+msgstr ""
+
+msgid "{where} redirects to {to}, permanently, whatever the path."
+msgstr ""
+
+msgid "{where} redirects to {to}, temporarily, keeping the path."
+msgstr ""
+
+msgid "{where} redirects to {to}, temporarily, whatever the path."
+msgstr ""
+
+msgid "{where} stops sending to {leaves}, and redirects to {to}, permanently, keeping the path."
+msgstr ""
+
+msgid "{where} stops sending to {leaves}, and redirects to {to}, permanently, whatever the path."
+msgstr ""
+
+msgid "{where} stops sending to {leaves}, and redirects to {to}, temporarily, keeping the path."
+msgstr ""
+
+msgid "{where} stops sending to {leaves}, and redirects to {to}, temporarily, whatever the path."
+msgstr ""
+
 msgid "Add a user to {name}"
 msgstr "为 {name} 添加用户"
 
@@ -11392,6 +11419,9 @@ msgstr "这里没有符合所选条件的域名。请试试名称的一部分，
 
 msgid "No domains yet"
 msgstr "还没有域名"
+
+msgid "Redirects to {where}"
+msgstr "重定向到 {where}"
 
 msgid "Renewed automatically"
 msgstr "自动续期"

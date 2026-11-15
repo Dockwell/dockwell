@@ -17,6 +17,7 @@ import {
   type RouteGoes,
   type RouteMove,
   RouteReach,
+  type RouteRedirects,
   type ServerPortCheck,
   StepEffect,
   StepState,
@@ -90,6 +91,8 @@ export interface ChangeWords {
   goes(goes: RouteGoes): string;
   /** A route leaving the app it sent to, which is easy to miss among a plan's fields. */
   moves(moves: RouteMove): string;
+  /** Where a route that redirects sends its visitors, and how (ADR 0070). */
+  redirects(redirects: RouteRedirects): string;
   /** Who a route answers, when it isn't anyone over HTTPS sent to a service, a sentence each. */
   answers(answers: RouteAnswers | undefined, port: ServerPortCheck | undefined, server: string): string[];
   /** How a step replaces what runs, and what that means, a sentence each. `span` words a duration in milliseconds. */
@@ -639,6 +642,26 @@ export function useChangeWords(): ChangeWords {
         return to
           ? t`${where} leaves ${from}, and goes to ${to}.`
           : t`${where} leaves ${from}, and goes to port ${toPort} on the server.`;
+      },
+      redirects({ where, to, temporary, dropPath, leaves }) {
+        if (leaves) {
+          if (temporary) {
+            return dropPath
+              ? t`${where} stops sending to ${leaves}, and redirects to ${to}, temporarily, whatever the path.`
+              : t`${where} stops sending to ${leaves}, and redirects to ${to}, temporarily, keeping the path.`;
+          }
+          return dropPath
+            ? t`${where} stops sending to ${leaves}, and redirects to ${to}, permanently, whatever the path.`
+            : t`${where} stops sending to ${leaves}, and redirects to ${to}, permanently, keeping the path.`;
+        }
+        if (temporary) {
+          return dropPath
+            ? t`${where} redirects to ${to}, temporarily, whatever the path.`
+            : t`${where} redirects to ${to}, temporarily, keeping the path.`;
+        }
+        return dropPath
+          ? t`${where} redirects to ${to}, permanently, whatever the path.`
+          : t`${where} redirects to ${to}, permanently, keeping the path.`;
       },
       answers(answers, port, server) {
         if (!answers) return [];

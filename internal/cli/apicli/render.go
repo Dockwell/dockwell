@@ -856,6 +856,9 @@ func PlanView(w io.Writer, p *dockwellv1.Plan) {
 			if line := movesWords(st.GetMoves()); line != "" {
 				fmt.Fprintln(tw, "      "+line)
 			}
+			if line := redirectsWords(st.GetRedirects()); line != "" {
+				fmt.Fprintln(tw, "      "+line)
+			}
 			for _, warning := range st.GetWarnings() {
 				if warning == dockwellv1.PlanWarning_PLAN_WARNING_MAY_LOCK_OUT {
 					fmt.Fprintln(tw, "      May cut off remote access to "+s.GetServerName()+", such as SSH.")
@@ -1160,6 +1163,26 @@ func movesWords(m *dockwellv1.RouteMove) string {
 		return fmt.Sprintf("%s leaves %s, and goes to port %d on the server.", m.GetWhere(), m.GetFrom(), m.GetToPort())
 	}
 	return fmt.Sprintf("%s leaves %s, and goes to %s.", m.GetWhere(), m.GetFrom(), m.GetTo())
+}
+
+// redirectsWords says where a route that redirects sends its visitors, and how, as
+// where a domain sends them is easy to miss among a plan's fields (ADR 0070).
+func redirectsWords(d *dockwellv1.RouteRedirects) string {
+	if d == nil {
+		return ""
+	}
+	how := "permanently"
+	if d.GetTemporary() {
+		how = "temporarily"
+	}
+	path := "keeping the path"
+	if d.GetDropPath() {
+		path = "whatever the path"
+	}
+	if d.GetLeaves() != "" {
+		return fmt.Sprintf("%s stops sending to %s, and redirects to %s, %s, %s.", d.GetWhere(), d.GetLeaves(), d.GetTo(), how, path)
+	}
+	return fmt.Sprintf("%s redirects to %s, %s, %s.", d.GetWhere(), d.GetTo(), how, path)
 }
 
 // goesWords says what someone visiting a route finds once a step takes it away, as a

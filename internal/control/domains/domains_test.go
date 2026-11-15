@@ -261,6 +261,56 @@ func TestAPlainDomainSaysPlainHTTP(t *testing.T) {
 	})
 }
 
+// A route that redirects lists as its domain, with where it sends, and no service
+// (ADR 0070).
+func TestARedirectListsWhereItSends(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		db, _ := storetest.Open(t, b)
+		logger := slog.New(slog.DiscardHandler)
+		if _, err := revision.Setup(t.Context(), db, logger); err != nil {
+			t.Fatal(err)
+		}
+		now := time.Now()
+		if err := db.Update(t.Context(), func(tx *store.Tx) error {
+			return tx.CreateServer(t.Context(), store.Server{ID: "srv_on", Name: "srv_on", CreatedAt: now, CertSerial: "srv_on", CertNotAfter: now})
+		}); err != nil {
+			t.Fatal(err)
+		}
+		kinds := resource.NewRegistry(&service.Driver{}, &route.Driver{})
+		e := revision.New(db, kinds, agents{}, secretstest.Keeper(db, kinds), logger)
+		var tr scope.Tree
+		if err := db.View(t.Context(), func(tx *store.Tx) (err error) {
+			tr, err = scope.Load(t.Context(), tx)
+			return err
+		}); err != nil {
+			t.Fatal(err)
+		}
+		env := tr.Projects[0].Environments[0].ID
+		to := &resourcev1.RouteRedirect{To: "https://example.com", Temporary: true}
+		p, err := e.Propose(t.Context(), revision.Proposal{Summary: "www to the bare domain", Actor: "usr_test", Edits: []revision.Edit{
+			{Ref: resource.Ref{Kind: route.Kind, Scope: env, Name: "www-example-com"}, Spec: &resourcev1.Route{Domain: "www.example.com", Redirect: to}, Servers: []string{"srv_on"}},
+		}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := e.Apply(t.Context(), p.Change); err != nil {
+			t.Fatal(err)
+		}
+		h := New(kinds, db, reports{}, nil, logger)
+		res, err := h.ListDomains(t.Context(), connect.NewRequest(&dockwellv1.ListDomainsRequest{}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(res.Msg.GetDomains()) != 1 || len(res.Msg.GetDomains()[0].GetRoutes()) != 1 {
+			t.Fatalf("domains: %v", res.Msg.GetDomains())
+		}
+		r := res.Msg.GetDomains()[0].GetRoutes()[0]
+		if !proto.Equal(r.GetRedirect(), to) || r.GetService() != "" || r.GetPort() != 0 || r.GetUrl() != "https://www.example.com" {
+			t.Errorf("its route reads %v", r)
+		}
+	})
+}
+
 // A service on the server's own network has a domain like any other's, as its route
 // says whose it is, though what it dials is a port on the server.
 func TestAServiceFindsARouteThatDialsAPortOnTheServer(t *testing.T) {

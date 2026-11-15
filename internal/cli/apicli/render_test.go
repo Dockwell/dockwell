@@ -1026,6 +1026,23 @@ func TestDNSThatPointsElsewhereNamesTheSetting(t *testing.T) {
 	}
 }
 
+// A redirect says where it sends, and how, in a line of the plan (ADR 0070).
+func TestARedirectSaysWhereItSends(t *testing.T) {
+	for _, c := range []struct {
+		d    *dockwellv1.RouteRedirects
+		says string
+	}{
+		{&dockwellv1.RouteRedirects{Where: "www.example.com", To: "https://example.com"}, "www.example.com redirects to https://example.com, permanently, keeping the path."},
+		{&dockwellv1.RouteRedirects{Where: "old.example.com", To: "https://example.com/", Temporary: true, DropPath: true}, "old.example.com redirects to https://example.com/, temporarily, whatever the path."},
+		{&dockwellv1.RouteRedirects{Where: "app.example.com", To: "https://example.com", Leaves: "web"}, "app.example.com stops sending to web, and redirects to https://example.com, permanently, keeping the path."},
+		{nil, ""},
+	} {
+		if got := redirectsWords(c.d); got != c.says {
+			t.Errorf("redirectsWords(%v) = %q, want %q", c.d, got, c.says)
+		}
+	}
+}
+
 func TestARouteMovingSaysWhichAppItLeaves(t *testing.T) {
 	if got := movesWords(&dockwellv1.RouteMove{Where: "app.example.com", From: "api", To: "nginx"}); got != "app.example.com leaves api, and goes to nginx." {
 		t.Errorf("it says %q", got)

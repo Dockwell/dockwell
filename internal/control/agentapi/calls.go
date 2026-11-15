@@ -488,7 +488,7 @@ func (a *Agents) open(server, name string, hello *agentv1.Hello, send func(*agen
 	s := &Session{
 		agents: a, guardsWaysIn: hello.GetGuardsWaysIn(), readsUpdates: hello.GetUpdates(), managesFiles: hello.GetManagesFiles(), transfersFiles: hello.GetTransfersFiles(), pagesListings: hello.GetPagesListings(), firstPasswords: hello.GetFirstPasswords(), forwards: hello.GetForwards(), drills: hello.GetDrills(), readsOnePanel: hello.GetReadsOnepanel(), terminals: hello.GetTerminals(), containerTerminals: hello.GetContainerTerminals(), openTerminals: slices.Clone(hello.GetOpenTerminals()), opened: time.Now(), server: server, name: name, send: send, deliveryKey: slices.Clone(hello.GetDeliveryKey()), writesReferences: hello.GetWritesReferences(), makesFolders: hello.GetMakesFolders(), keepsRoutesPrivate: hello.GetKeepsRoutesPrivate(),
 		ownSettings: hello.GetOwnSettings(), writesFiles: hello.GetWritesFiles(), ownsVolumes: hello.GetOwnsVolumes(), followsPace: hello.GetFollowsPace(), bootID: hello.GetBootId(), actsOnUnits: hello.GetActsOnUnits(), upgradesItself: hello.GetUpgradesItself(), signsIn: hello.GetSignsIn(), registryLogins: hello.GetRegistryLogins(), handsBuildLogins: hello.GetBuildLogins(), links: hello.GetLinks(), oneDatabaseBackups: hello.GetOneDatabaseBackups(),
-		loadsCertificates: hello.GetLoadsCertificates(), readsPanels: hello.GetReadsPanels(), stopsPanels: hello.GetStopsPanels(), remakesSwarmApps: hello.GetRemakesSwarmApps(), runsHostAccess: hello.GetRunsHostAccess(), checksPanelDomains: hello.GetChecksPanelDomains(), readsTakenReferences: hello.GetReadsTakenReferences(), volumeMoves: hello.GetVolumeMoves(),
+		loadsCertificates: hello.GetLoadsCertificates(), readsPanels: hello.GetReadsPanels(), stopsPanels: hello.GetStopsPanels(), remakesSwarmApps: hello.GetRemakesSwarmApps(), runsHostAccess: hello.GetRunsHostAccess(), servesRedirects: hello.GetServesRedirects(), checksPanelDomains: hello.GetChecksPanelDomains(), readsTakenReferences: hello.GetReadsTakenReferences(), volumeMoves: hello.GetVolumeMoves(),
 		pending: map[uint64]chan *agentv1.CallResult{}, progress: map[uint64]func(resource.Activity){}, outcomes: map[uint64]func(resource.Outcome){}, done: make(chan struct{}),
 		kicked: make(chan struct{}),
 	}
@@ -642,6 +642,8 @@ type Session struct {
 	// writesFiles that it writes the files a container mounts, and ownsVolumes that
 	// it gives a volume's empty folder its owner (ADR 0085).
 	ownSettings, writesFiles, ownsVolumes bool
+	// servesRedirects says the agent serves a route that answers with a redirect.
+	servesRedirects bool
 	// guardsWaysIn says the agent asks for a passkey before saving a way in.
 	guardsWaysIn bool
 	// readsUpdates says the agent reads the server's package updates.
@@ -1497,6 +1499,9 @@ func (s *Session) Apply(ctx context.Context, step resource.Step, desired proto.M
 	if err := s.checkVolumeOwners(step.Ref, desired); err != nil {
 		return err
 	}
+	if err := s.checkRedirect(desired); err != nil {
+		return err
+	}
 	if err := s.checkReads(ctx, []resource.Ref{step.Ref}); err != nil {
 		return err
 	}
@@ -1811,6 +1816,19 @@ func (s *Session) checkTakenWrites(ref resource.Ref, adopts string, spec proto.M
 
 // checkAllWrites is checkWrites, checkFolders, checkOwnSettings and checkPrivate for all a plan
 // asks of this agent.
+// checkRedirect refuses a route that answers with a redirect for an agent that
+// doesn't say it serves one, which would write a route that sends to nothing (ADR
+// 0070).
+func (s *Session) checkRedirect(spec proto.Message) error {
+	r, ok := spec.(*resourcev1.Route)
+	if s.servesRedirects || !ok || r.GetRedirect() == nil {
+		return nil
+	}
+	return fmt.Errorf("%w: %s's agent is older than this release, so it can't serve %s's redirect. Update its agent, then plan again",
+		resource.ErrAgentTooOld, s.name, r.GetDomain()+r.GetPath())
+}
+
+// checkAllWrites is checkWrites for all a plan asks of this agent.
 func (s *Session) checkAllWrites(desired []resource.Desired) error {
 	for di := range desired {
 		d := &desired[di]
@@ -1833,6 +1851,9 @@ func (s *Session) checkAllWrites(desired []resource.Desired) error {
 			return err
 		}
 		if err := s.checkVolumeOwners(d.Ref, d.Spec); err != nil {
+			return err
+		}
+		if err := s.checkRedirect(d.Spec); err != nil {
 			return err
 		}
 	}

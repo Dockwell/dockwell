@@ -34,6 +34,7 @@ import {
   RouteGoesSchema,
   RouteMoveSchema,
   RouteReach,
+  RouteRedirectsSchema,
   ServerPlanSchema,
   ServerPortCheckSchema,
   type ServiceInfoSchema,
@@ -2483,6 +2484,68 @@ describe("the plan sheet, once it runs", () => {
       );
       const review = await screen.findByRole("dialog", { name: "Review plan" });
       expect(review).toHaveTextContent("app.example.com leaves api, and goes to web.");
+    });
+
+    it("says where a domain that redirects sends, and the app it stops sending to", async () => {
+      const change = moved(aRoutePlan(PlanAction.UPDATE), { state: ChangeState.PLANNED });
+      const step = change.plan?.servers[0]?.steps[0];
+      if (step) {
+        step.redirects = create(RouteRedirectsSchema, {
+          where: "app.example.com",
+          to: "https://example.com",
+          leaves: "web",
+        });
+      }
+      renderSheet(
+        { kind: "plan", make: () => Promise.resolve({ change }) },
+        { changes: { watchChange: feed<WatchChangeResponse>().stream } },
+      );
+      const review = await screen.findByRole("dialog", { name: "Review plan" });
+      expect(review).toHaveTextContent(
+        "app.example.com stops sending to web, and redirects to https://example.com, permanently, keeping the path.",
+      );
+      // Browsers keep a permanent one: said once, in one line (ADR 0070).
+      expect(
+        within(review).getAllByText("Browsers keep a permanent redirect for up to a day, through an undo too."),
+      ).toHaveLength(1);
+    });
+
+    it("says browsers keep a permanent redirect once, however many it makes, and not for a temporary one", async () => {
+      const change = moved(aRoutePlan(PlanAction.UPDATE), { state: ChangeState.PLANNED });
+      const server = change.plan?.servers[0];
+      const step = server?.steps[0];
+      if (server && step) {
+        step.redirects = create(RouteRedirectsSchema, { where: "www.example.com", to: "https://example.com" });
+        server.steps.push(
+          create(PlanStepSchema, {
+            ...step,
+            resourceId: "rte_two",
+            redirects: create(RouteRedirectsSchema, { where: "old.example.com", to: "https://example.com" }),
+          }),
+        );
+      }
+      const { unmount } = renderSheet(
+        { kind: "plan", make: () => Promise.resolve({ change }) },
+        { changes: { watchChange: feed<WatchChangeResponse>().stream } },
+      );
+      const review = await screen.findByRole("dialog", { name: "Review plan" });
+      expect(
+        within(review).getAllByText("Browsers keep a permanent redirect for up to a day, through an undo too."),
+      ).toHaveLength(1);
+      unmount();
+
+      for (const s of server?.steps ?? []) if (s.redirects) s.redirects.temporary = true;
+      renderSheet(
+        { kind: "plan", make: () => Promise.resolve({ change }) },
+        { changes: { watchChange: feed<WatchChangeResponse>().stream } },
+      );
+      const again = await screen.findByRole("dialog", { name: "Review plan" });
+      expect(again).toHaveTextContent(
+        "www.example.com redirects to https://example.com, temporarily, keeping the path.",
+      );
+      expect(
+        within(again).queryByText("Browsers keep a permanent redirect for up to a day, through an undo too."),
+      ).toBeNull();
     });
 
     it("says it goes to a port, when that's where it goes", async () => {

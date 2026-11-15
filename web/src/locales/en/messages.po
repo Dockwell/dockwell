@@ -9426,6 +9426,9 @@ msgstr "Back up what you can't lose first."
 msgid "Before it moves, Dockwell asks what features its data uses, and stops with nothing changed if {to} can't run them."
 msgstr "Before it moves, Dockwell asks what features its data uses, and stops with nothing changed if {to} can't run them."
 
+msgid "Browsers keep a permanent redirect for up to a day, through an undo too."
+msgstr "Browsers keep a permanent redirect for up to a day, through an undo too."
+
 #. placeholder {0}: server.serverName
 msgid "Builds {repository} at {commit} ({ref}) on {0} first. If the build fails, what runs stays as it is."
 msgstr "Builds {repository} at {commit} ({ref}) on {0} first. If the build fails, what runs stays as it is."
@@ -10833,6 +10836,30 @@ msgstr "{where} leaves {from}, and goes to port {toPort} on the server."
 msgid "{where} leaves {from}, and goes to {to}."
 msgstr "{where} leaves {from}, and goes to {to}."
 
+msgid "{where} redirects to {to}, permanently, keeping the path."
+msgstr "{where} redirects to {to}, permanently, keeping the path."
+
+msgid "{where} redirects to {to}, permanently, whatever the path."
+msgstr "{where} redirects to {to}, permanently, whatever the path."
+
+msgid "{where} redirects to {to}, temporarily, keeping the path."
+msgstr "{where} redirects to {to}, temporarily, keeping the path."
+
+msgid "{where} redirects to {to}, temporarily, whatever the path."
+msgstr "{where} redirects to {to}, temporarily, whatever the path."
+
+msgid "{where} stops sending to {leaves}, and redirects to {to}, permanently, keeping the path."
+msgstr "{where} stops sending to {leaves}, and redirects to {to}, permanently, keeping the path."
+
+msgid "{where} stops sending to {leaves}, and redirects to {to}, permanently, whatever the path."
+msgstr "{where} stops sending to {leaves}, and redirects to {to}, permanently, whatever the path."
+
+msgid "{where} stops sending to {leaves}, and redirects to {to}, temporarily, keeping the path."
+msgstr "{where} stops sending to {leaves}, and redirects to {to}, temporarily, keeping the path."
+
+msgid "{where} stops sending to {leaves}, and redirects to {to}, temporarily, whatever the path."
+msgstr "{where} stops sending to {leaves}, and redirects to {to}, temporarily, whatever the path."
+
 msgid "Add a user to {name}"
 msgstr "Add a user to {name}"
 
@@ -11392,6 +11419,9 @@ msgstr "No domain here matches what you've chosen. Try part of a name, or anothe
 
 msgid "No domains yet"
 msgstr "No domains yet"
+
+msgid "Redirects to {where}"
+msgstr "Redirects to {where}"
 
 msgid "Renewed automatically"
 msgstr "Renewed automatically"

@@ -3881,6 +3881,10 @@ func Kinds() []*apicli.Kind {
 				{Path: "access.sign_in.filled.groups_claim", Help: "The claim that lists someone's groups."},
 				{Path: "access.sign_in.filled.any_account", Help: "Whether every account at the provider is your team's."},
 				{Path: "access.sign_in.filled.revision", Help: "The provider's revision, so a plan made with another reads as stale."},
+				{Path: "redirect.to", Help: "Where it sends: an absolute https:// or http:// URL, such as \"https://example.com\" or \"https://example.com/blog\". No other scheme, no user, fragment, { or }, and a query only with drop_path."},
+				{Path: "redirect.temporary", Help: "True answers 302 Found, for a while. False, the default, answers 301 Moved Permanently, which browsers keep and search engines follow."},
+				{Path: "redirect.drop_path", Help: "True sends every request to to as it is. False, the default, keeps what follows the route's own path, and the query, after to's own path."},
+				{Path: "redirect.keep_prefix", Help: "For a route with a path that keeps what follows it: true keeps the route's own path too, so /old-blog/post goes to https://blog.example.com/old-blog/post. False, the default, strips it, so /old-blog/post goes to https://blog.example.com/post."},
 			},
 		},
 		{

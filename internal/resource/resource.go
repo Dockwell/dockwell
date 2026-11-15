@@ -378,6 +378,29 @@ type Decision struct {
 	// hasn't the image the spec names and the spec says how to build it. A build
 	// that fails leaves what runs as it was (ADR 0046). Its fingerprint covers it.
 	Build *BuildPlan `json:",omitempty"`
+	// Redirects says what a route that redirects answers with, as where a domain
+	// sends its visitors is easy to miss among a plan's fields (ADR 0070). It never
+	// stops a plan, and the fingerprint covers the spec that says it.
+	Redirects *RouteRedirects `json:",omitempty"`
+}
+
+// RouteRedirects is a route that answers every request with a redirect.
+type RouteRedirects struct {
+	// Where is its domain and path, as people read them, and To where it sends.
+	Where, To string
+	// Temporary answers 302 rather than 301; DropPath sends every request to To as
+	// it is, rather than with its path and query after it.
+	Temporary bool `json:",omitempty"`
+	DropPath  bool `json:",omitempty"`
+	// Leaves is the service it sent to before, for a route that did.
+	Leaves string `json:",omitempty"`
+	// KeepPrefix keeps a path route's own path in what it sends on.
+	KeepPrefix bool `json:",omitempty"`
+	// Stops says it stops redirecting, to To, and sends to SendsTo, or to
+	// SendsToPort on the server.
+	Stops       bool   `json:",omitempty"`
+	SendsTo     string `json:",omitempty"`
+	SendsToPort uint32 `json:",omitempty"`
 }
 
 // BuildPlan is what a step builds: a commit of a repository, with its Dockerfile
@@ -1736,6 +1759,15 @@ type SealedLater interface {
 	SealedLater()
 }
 
+// AcrossChecker is a kind that checks an edit against every resource of its kind
+// across the install, as the change leaves them, such as a route's redirect for a
+// loop, which depends on which route answers where it lands (ADR 0070). all holds
+// each by its ref, the edit's own included. Like Keep, it's for what a caller wrote,
+// so adopting drift and putting back a revision don't ask it.
+type AcrossChecker interface {
+	CheckAcross(ref Ref, desired proto.Message, all map[Ref]proto.Message) error
+}
+
 // ChangeChecker is a kind that checks an edit against the rest of its change, as a
 // website's project changes what it serves only with the route that serves it.
 // current is nil for a resource the change makes, and others are what the change's
@@ -2637,9 +2669,11 @@ func (r *Registry) Type(kind Kind) (Type, error) {
 // plan or apply resources of that kind.
 var ErrNoDriver = errors.New("no driver for this kind")
 
-// ErrAgentTooOld is an agent from before a container's command could name a value,
-// which would read such a container's command as Docker has it, value and all
-// (ADR 0022). Nothing is read, planned or applied on it that names a value.
+// ErrAgentTooOld is an agent from before what a plan needs of it. One from before a
+// container's command could name a value would read such a container's command as
+// Docker has it, value and all (ADR 0022), so nothing is read, planned or applied on it
+// that names a value. One from before a route could redirect would write a route that
+// sends to nothing (ADR 0070), so no redirect is planned on it.
 var ErrAgentTooOld = errors.New("the agent is older than what this server runs")
 
 // Kinds lists the kinds the registry has drivers for, sorted.

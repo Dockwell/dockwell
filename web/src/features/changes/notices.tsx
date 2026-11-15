@@ -1470,6 +1470,18 @@ export function useAsides(plan: Plan | undefined): Notice[] {
       });
     }
   }
+  // Browsers keep a permanent redirect, so an undo takes up to a day to reach someone who
+  // followed one: said once, however many redirects the plan makes (ADR 0070).
+  const keepsRedirect = (plan?.servers ?? []).some((server) =>
+    server.steps.some((step) => step.redirects && !step.redirects.temporary && !step.redirects.stops),
+  );
+  if (keepsRedirect) {
+    out.push({
+      key: "redirect-kept",
+      title: t`Browsers keep a permanent redirect for up to a day, through an undo too.`,
+      notice: true,
+    });
+  }
   for (const server of plan?.servers ?? []) {
     for (const step of server.steps) {
       const name = step.resource?.name ?? step.resourceId;
@@ -1484,6 +1496,9 @@ export function useAsides(plan: Plan | undefined): Notice[] {
       }
       if (step.goes) out.push({ key: `goes-${key}`, title: words.goes(step.goes), notice: true });
       if (step.moves) out.push({ key: `moves-${key}`, title: words.moves(step.moves), notice: true });
+      if (step.redirects) {
+        out.push({ key: `redirects-${key}`, title: words.redirects(step.redirects), notice: true });
+      }
       if (reloadsProxy(step)) out.push({ key: `reload-${key}`, title: `${words.reload(server.serverName)}.` });
       if (step.restores) out.push({ key: `restores-${key}`, title: t`${name} gets back the data the server kept.` });
       if (step.hidesLogs) {

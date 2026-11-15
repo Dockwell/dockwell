@@ -1,6 +1,6 @@
 # 0070. Redirects from one domain to another
 
-- Status: Proposed
+- Status: Accepted, 2026-11-14, with the changes in "As accepted" below
 - Date: 2026-11-10
 
 ## Context
@@ -10,7 +10,7 @@ A site at `example.com` is also expected to answer on `www.example.com`, or the 
 What there is to build on:
 - A route is one domain, or one path under it ([ADR 0024](0024-the-caddy-ingress-driver.md)). It gets its certificate from the ingress, or none behind a tunnel or a proxy that ends TLS, with who it answers and believes ([ADR 0030](0030-routes-behind-a-tunnel-or-a-proxy.md)). The Domains list, DNS checks, certificate states and alerts all read routes.
 - Every change to a route is a revision with a plan ([ADR 0009](0009-resources-revisions-and-plans.md)). A website's route is written from its settings, so the website is the source ([ADR 0039](0039-websites-as-projects-of-their-own.md)).
-- ADR 0069, proposed in #487, puts protection on a route as a field, `access` (9). Every whole-route writer keeps a field it doesn't set.
+- ADR 0069 and [ADR 0087](0087-private-routes.md) put protection on a route as a field, `access` (110): a list of addresses, users with passwords, and sign-in with a provider.
 - An agent announces in `Hello` what it can do, and the control plane refuses to plan what an older agent would get wrong, as `writes_references` does.
 
 ## Decision
@@ -173,6 +173,19 @@ The panel offers the redirect most sites want, already decided, and the rest one
 6. **The importer:** 1Panel strips a path redirect's matched prefix when it keeps the path (`rewrite ^/path(.*)$ target$1`), which is this record's default, so it maps one to one.
 
 `DomainRoute.redirect` takes 10, and ADR 0069's `DomainRoute` fields for users, allow and deny take 11 onwards.
+
+## As accepted
+
+*2026-11-14.* What landed since this was proposed changes six things; where the sections above say otherwise, these win.
+
+- **Protection is `access`, 110, and private routes are in it.** A redirect route carries no `access` of any kind: a list of addresses, users or a sign-in. Making a protected route a redirect takes clearing its access in the same edit, refused otherwise with the words above, or "asks visitors to sign in" or "lets in only some addresses" for the other two. Clearing it opens the route, so a person approves it as any `access` taken off (ADR 0087's `Opens`). The Caddy driver reads a redirect with anything in front of it that keeps people out as a hand edit.
+- **The loop check reads routes through the store's one route reader,** which ADR 0087 made, across the install as the change leaves them.
+- **A DNS-01 wildcard covers www** ([ADR 0088](0088-certificates-by-dns-01-and-wildcard-domains.md)). Where the site's domain has a wildcard certificate, its companion needs none of its own: the checkbox starts checked when the companion's DNS answers as the site's does, and the Domains row shows the wildcard's state, not "Issuing".
+- **The handover brings Traefik's redirect middlewares across** ([ADR 0089](0089-importing-from-coolify-and-dokploy.md)). A Coolify or Dokploy domain whose router redirects, as `redirectregex` from www to the bare domain or the other way, or `redirectscheme`'s plain-to-HTTPS, which Caddy does anyway, comes over as a redirect route, in a slice of its own, rather than being held back. Any other middleware still holds a domain back.
+- **`to` is an absolute `https://` or `http://` URL and nothing else:** never `javascript:` or any other scheme, a bare path, or a host with no scheme. A redirect to another site is the operator's choice, written in a spec a person or a token with that right proposes and a plan shows. It is not an open redirect: nothing a visitor sends sets where it goes, as the only placeholder is the request's own path and query after `to`.
+- **The day a browser keeps a 301 is said once,** in one line of the plan, however many permanent redirects it makes: "Browsers keep a permanent redirect for up to a day, through an undo too." A plan of temporary redirects doesn't say it.
+
+The slices are as above, with a fourth: the imports, 1Panel's website redirects and the handover's Traefik redirects. The numbers are as above: `Route.redirect` 10, `Hello.serves_redirects` 240, `PlanStep.redirects` 240, `DomainRoute.redirect` 10, `Website.redirect_from` 4, and `CheckDomainResponse.companion` 2 and `companion_check` 3.
 
 ## Considered
 
