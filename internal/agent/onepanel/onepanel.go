@@ -17,7 +17,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -359,10 +358,27 @@ const (
 var (
 	// domainRedirect is 1Panel's redirect of a domain: an if on the host, which
 	// returns a status and where to.
-	domainRedirect = regexp.MustCompile(`if\s*\(\$host\s*~\s*'\^([^']+)'\)\s*\{\s*return\s+(30[12])\s+([^;\s]+)\s*;`)
+	domainRedirect = lazyre.Regexp(`if\s*\(\$host\s*~\s*'\^([^']+)'\)\s*\{\s*return\s+(30[12])\s+([^;\s]+)\s*;`)
 	// pathRedirect is 1Panel's redirect of a path: a rewrite of everything under it.
-	pathRedirect = regexp.MustCompile(`rewrite\s+\^(\S*?)\(\.\*\)\s+(\S+)\s+(permanent|redirect)\s*;`)
+	pathRedirect = lazyre.Regexp(`rewrite\s+\^(\S*?)\(\.\*\)\s+(\S+)\s+(permanent|redirect)\s*;`)
+	// hostName is a domain, or a wildcard of one, as a redirect's host reads once
+	// 1Panel's pattern is undone.
+	hostName = lazyre.Regexp(`^(\*\.)?([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)*[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
 )
+
+// hostOf undoes the pattern 1Panel matches a redirect's host with, as its own
+// parseRedirectHostPattern does: '^www.example.com' up to 2.2.0, and from 2.2.5
+// '^www\.example\.com$', with '[^.]+' for a wildcard's label. It's empty for a
+// pattern that doesn't read back as a domain.
+func hostOf(pattern string) string {
+	host := strings.TrimSuffix(strings.TrimPrefix(pattern, "^"), "$")
+	host = strings.ReplaceAll(host, `[^.]+`, "*")
+	host = strings.ToLower(strings.ReplaceAll(host, `\.`, "."))
+	if !hostName().MatchString(host) {
+		return ""
+	}
+	return host
+}
 
 // redirects reads a site's redirects as 1Panel writes them (ADR 0070): each a file in
 // its redirect folder, name.conf while it's on and name.bak once it's off, holding one
@@ -397,15 +413,21 @@ func (r *reader) redirects(dir string) []*dockwellv1.OnePanelRedirect {
 // parseRedirect reads one redirect file's text in the shapes 1Panel writes it.
 func parseRedirect(name string, on bool, text string) *dockwellv1.OnePanelRedirect {
 	out := &dockwellv1.OnePanelRedirect{Name: name, Enabled: on}
-	if found := domainRedirect.FindAllStringSubmatch(text, -1); len(found) > 0 {
-		out.Type, out.Temporary = "domain", found[0][2] == "302"
-		out.Target, out.KeepPath = strings.CutSuffix(found[0][3], "$request_uri")
+	if found := domainRedirect().FindAllStringSubmatch(text, -1); len(found) > 0 {
+		var domains []string
 		for _, f := range found {
-			out.Domains = append(out.Domains, f[1])
+			host := hostOf(f[1])
+			if host == "" {
+				// A host in a shape 1Panel doesn't write: what it is can't be said.
+				return out
+			}
+			domains = append(domains, host)
 		}
+		out.Type, out.Temporary, out.Domains = "domain", found[0][2] == "302", domains
+		out.Target, out.KeepPath = strings.CutSuffix(found[0][3], "$request_uri")
 		return out
 	}
-	if found := pathRedirect.FindStringSubmatch(text); found != nil {
+	if found := pathRedirect().FindStringSubmatch(text); found != nil {
 		out.Type, out.Path, out.Temporary = "path", found[1], found[3] == "redirect"
 		if target, kept := strings.CutSuffix(found[2], "$1"); kept {
 			out.Target, out.KeepPath = target, true

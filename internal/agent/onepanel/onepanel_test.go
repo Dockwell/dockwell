@@ -293,6 +293,9 @@ func TestASitesRedirectsAreRead(t *testing.T) {
 	root := onepaneltest.Make(t, "/opt", false)
 	dir := filepath.Join(root, "data", "www", "sites", "blog", "redirect")
 	onepaneltest.WriteFile(t, filepath.Join(dir, "www.conf"), "if ($host ~ '^www.blog.example.com') {\n    return 301 https://blog.example.com$request_uri;\n}\nif ($host ~ '^old.example.com') {\n    return 301 https://blog.example.com$request_uri;\n}\n")
+	// From 1Panel 2.2.5, a host is escaped and anchored, and a wildcard's label is [^.]+.
+	onepaneltest.WriteFile(t, filepath.Join(dir, "shop.conf"), "if ($host ~ '^shop\\.example\\.com$') {\n    return 302 https://blog.example.com/shop;\n}\nif ($host ~ '^[^.]+\\.blog\\.example\\.com$') {\n    return 302 https://blog.example.com/shop;\n}\n")
+	onepaneltest.WriteFile(t, filepath.Join(dir, "odd.conf"), "if ($host ~ '^(www|m)\\.example\\.com$') {\n    return 301 https://blog.example.com;\n}\n")
 	onepaneltest.WriteFile(t, filepath.Join(dir, "moved.conf"), "rewrite ^/old-blog(.*) https://blog.example.com$1 permanent;\n")
 	onepaneltest.WriteFile(t, filepath.Join(dir, "promo.bak"), "rewrite ^/promo(.*) https://example.com/sale? redirect;\n")
 	onepaneltest.WriteFile(t, filepath.Join(dir, "lost.conf"), "error_page 404 = @notfound;\nlocation @notfound {\n    return 301 /;\n}\n")
@@ -311,12 +314,19 @@ func TestASitesRedirectsAreRead(t *testing.T) {
 	for _, r := range blog.GetRedirects() {
 		got[r.GetName()] = r
 	}
-	if len(got) != 4 {
+	if len(got) != 6 {
 		t.Fatalf("read %v", blog.GetRedirects())
 	}
 	if www := got["www"]; www.GetType() != "domain" || !slices.Equal(www.GetDomains(), []string{"www.blog.example.com", "old.example.com"}) ||
 		www.GetTarget() != "https://blog.example.com" || !www.GetKeepPath() || www.GetTemporary() || !www.GetEnabled() {
 		t.Errorf("www reads %v", www)
+	}
+	if shop := got["shop"]; shop.GetType() != "domain" || !slices.Equal(shop.GetDomains(), []string{"shop.example.com", "*.blog.example.com"}) ||
+		shop.GetTarget() != "https://blog.example.com/shop" || shop.GetKeepPath() || !shop.GetTemporary() {
+		t.Errorf("shop reads %v", shop)
+	}
+	if odd := got["odd"]; odd.GetType() != "" || len(odd.GetDomains()) != 0 {
+		t.Errorf("a host 1Panel doesn't write reads %v", odd)
 	}
 	if moved := got["moved"]; moved.GetType() != "path" || moved.GetPath() != "/old-blog" || moved.GetTarget() != "https://blog.example.com" || !moved.GetKeepPath() || moved.GetTemporary() {
 		t.Errorf("moved reads %v", moved)
