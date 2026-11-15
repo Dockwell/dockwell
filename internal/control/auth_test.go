@@ -304,6 +304,11 @@ func startFullConfig(t *testing.T, backend store.Backend, public https.Source, l
 		AlertClient: &http.Client{},
 		// A test's catalog source is served on loopback, which only a test's client reaches.
 		CatalogClient: gitfetchtest.Client(),
+		// A test that has a backup fall due moves the handler's clock and calls
+		// RunDue itself. The control plane's own looks, as it starts and every 30 s
+		// of real time, would run beside it with the same clock, and record a run
+		// the test then reads half done (#668).
+		ManualBackups: true,
 	}
 	// Cloudflare's stand-in, the one DNS provider a test reaches (ADR 0088).
 	cloudflare := cftest.New(dnsToken, "example.com", "example.org")

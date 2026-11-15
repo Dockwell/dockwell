@@ -150,10 +150,11 @@ func TestARunFailsOnceItsServerIsPastTheGrace(t *testing.T) {
 	if err := srv.backups.RunDue(t.Context()); err != nil {
 		t.Fatal(err)
 	}
-	// The look a start takes can come after the clock moved here, so it may be two.
+	// Only the test looks at the schedule (Config.ManualBackups), so this is the one
+	// run, failed before RunDue returns.
 	got := backupsOf(t, bc)
-	if len(got) == 0 {
-		t.Fatal("a run with its server away past the grace left no word of it")
+	if len(got) != 1 {
+		t.Fatalf("a run with its server away past the grace left %d backups, want 1: %v", len(got), got)
 	}
 	for _, one := range got {
 		if one.GetState() != dockwellv1.BackupState_BACKUP_STATE_FAILED || !strings.Contains(one.GetError(), "wasn't connected") {
