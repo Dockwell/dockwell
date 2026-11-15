@@ -14,6 +14,7 @@ import (
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/route"
 	"github.com/dockwell/dockwell/internal/store"
+	"github.com/dockwell/dockwell/internal/website"
 )
 
 // A website's other domains redirect to it (ADR 0070): each is a route its list
@@ -331,5 +332,59 @@ func TestAnEditOfAListsRedirectStays(t *testing.T) {
 	got := ing.routes[resource.Ref{Kind: route.Kind, Scope: env, Name: "www-example-com"}].GetRedirect()
 	if got.GetTo() != "https://example.com/welcome" || !got.GetTemporary() || !got.GetDropPath() {
 		t.Errorf("www redirects as %v", got)
+	}
+}
+
+// A website's list written as a project's edit, not through Websites, is checked as
+// the API checks it, and can't make a route a person pointed elsewhere the list's to
+// delete (ADR 0070).
+func TestAListWrittenAsAProjectsEditIsChecked(t *testing.T) {
+	t.Parallel()
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	ing := &routesInMemory{routes: map[resource.Ref]*resourcev1.Route{}}
+	f.probe = connects
+	e := f.addServerWith(t, func() []resource.Type { return []resource.Type{&route.Driver{Ingress: ing}} })
+	pullsAnything(e)
+	c := changeClient(b, b.origin)
+	sites := websiteClient(b, b.origin)
+	res, err := sites.CreateWebsite(t.Context(), connect.NewRequest(&dockwellv1.CreateWebsiteRequest{Domain: "example.com", Website: toURL("https://backend.example.com")}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	applyReviewed(t, c, res.Msg.GetChange())
+	site := listWebsites(t, sites)[0]
+	project := func(from ...string) *dockwellv1.Edit {
+		w := toURL("https://backend.example.com")
+		w.RedirectFrom = from
+		return &dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Kind: "project", Scope: "", Name: site.GetName()},
+			Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Project{Project: &resourcev1.Project{DisplayName: "example.com", Website: w}}},
+		}
+	}
+	// What serves a website changes with its route, so a project's edit names both.
+	siteRoute := &dockwellv1.Edit{
+		Resource: &dockwellv1.ResourceRef{Kind: string(route.Kind), Scope: site.GetEnvironmentId(), Name: website.RouteName},
+		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Route{Route: &resourcev1.Route{Domain: "example.com", Service: website.WebService, Port: website.Port}}},
+	}
+	for _, bad := range [][]string{{"example.com/x"}, {"www.example.com", "WWW.example.com"}} {
+		_, err := c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "A list", Edits: []*dockwellv1.Edit{project(bad...), siteRoute}}))
+		if reasonOf(err) != "invalid" || strings.Contains(err.Error(), "changes through Websites") {
+			t.Errorf("a project's list %v = %v, want it refused for the list", bad, err)
+		}
+	}
+	mine := &dockwellv1.Edit{
+		Resource: &dockwellv1.ResourceRef{Kind: string(route.Kind), Scope: site.GetEnvironmentId(), Name: "mine"},
+		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Route{Route: &resourcev1.Route{Domain: "www.example.com", Redirect: &resourcev1.RouteRedirect{To: "https://example.org"}}}},
+	}
+	if got := apply(t, c, propose(t, c, "Mine, and a list naming it", mine, project("www.example.com"), siteRoute)); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("the edit: %v", got)
+	}
+	up, err := sites.UpdateWebsite(t.Context(), connect.NewRequest(&dockwellv1.UpdateWebsiteRequest{Id: "example.com", Website: toURL("https://backend.example.com")}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if order := planned(up.Msg.GetChange()); slices.Contains(order, "route mine delete") {
+		t.Errorf("taking www out of the list plans %v", order)
 	}
 }

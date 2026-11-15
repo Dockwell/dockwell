@@ -268,6 +268,13 @@ func (h *Handler) sites(ctx context.Context, tx *store.Tx) ([]site, error) {
 				s.route, s.rt = &s.routes[i], rt
 			}
 		}
+		// Its list wrote only a redirect to the site itself: one a person made to
+		// somewhere else is theirs, whatever the list names.
+		for d, name := range s.redirects {
+			if u, err := url.Parse(s.specs[name].GetRedirect().GetTo()); err != nil || s.rt == nil || u.Hostname() != s.rt.GetDomain() {
+				delete(s.redirects, d)
+			}
+		}
 		if s.route != nil {
 			if s.placed, err = tx.Placement(ctx, s.route.ID, s.route.Revision); err != nil {
 				return nil, err

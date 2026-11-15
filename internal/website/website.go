@@ -95,17 +95,25 @@ func KindOf(w *resourcev1.Website) Kind {
 // normalises what it can, such as a URL's trailing slash, so equal settings compare
 // equal.
 func Check(w *resourcev1.Website) error {
+	var err error
 	switch {
 	case w == nil:
 		return errors.New("a website needs to say what it serves, such as a URL to send its requests to")
 	case w.GetProxy() != nil:
-		return checkProxy(w.GetProxy())
+		err = checkProxy(w.GetProxy())
 	case w.GetFolder() != nil:
-		return checkFolder(w.GetFolder())
+		err = checkFolder(w.GetFolder())
 	case w.GetPhp() != nil:
-		return checkPHP(w.GetPhp())
+		err = checkPHP(w.GetPhp())
+	default:
+		return errors.New("a website needs to say what it serves, such as a URL to send its requests to")
 	}
-	return errors.New("a website needs to say what it serves, such as a URL to send its requests to")
+	if err != nil {
+		return err
+	}
+	// Its other domains, as far as they can be checked without its own, which the
+	// route holds: however it's written, as a project's edit can write it too.
+	return CheckRedirects(w, "")
 }
 
 // MaxRedirects is how many other domains a website sends to itself, which covers
