@@ -31,7 +31,12 @@ func TestPrivilegedAndHostPidServicesShowNoDriftOnRealDocker(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			ref := resource.Ref{Kind: service.Kind, Scope: scope, Name: name}
+			// As the revision engine checks every edit's spec, which puts it in the form
+			// it's stored and sent in, Docker's defaults among it.
 			spec := &resourcev1.Service{Runs: &resourcev1.Service_App{App: app}}
+			if err := local.Drivers.Validate(service.Kind, spec); err != nil {
+				t.Fatal(err)
+			}
 			steps, err := local.Plan(t.Context(), []resource.Desired{{Ref: ref, Spec: spec}})
 			if err != nil {
 				t.Fatal(err)
