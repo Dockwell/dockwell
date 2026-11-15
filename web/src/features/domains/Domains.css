@@ -274,3 +274,17 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* A domain's other half, folded into its row (ADR 0070). */
+.domains-folded {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  color: var(--ink-muted);
+  font-size: 12.5px;
+}
+
+.domains-folded-trouble {
+  color: var(--warning);
+}

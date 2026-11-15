@@ -536,6 +536,33 @@ describe("the list of domains", () => {
     expect(within(row).queryByRole("button", { name: /private|Who gets in/ })).toBeNull();
   });
 
+  it("folds www that only redirects to its bare domain into that domain's row, and says when it needs a look", async () => {
+    const www = aDomain({
+      name: "www.example.com",
+      certificate: certificate(CertificateState.FAILED, "the CA couldn't reach it"),
+      route: { service: "", port: 0, redirect: { to: "https://example.com", temporary: false, dropPath: false } },
+    });
+    renderAt("/domains", api([aDomain({ name: "example.com", certificate: issued }), www]));
+    const row = await rowOf(/^example\.com/);
+    expect(row).toHaveTextContent("Redirects: www → example.com");
+    expect(row).toHaveTextContent("www.example.com needs a look");
+    expect(screen.queryByRole("row", { name: /^www\.example\.com/ })).toBeNull();
+  });
+
+  it("keeps www's own row where its bare domain isn't listed", async () => {
+    renderAt(
+      "/domains",
+      api([
+        aDomain({
+          name: "www.example.com",
+          certificate: issued,
+          route: { service: "", port: 0, redirect: { to: "https://example.com", temporary: false, dropPath: false } },
+        }),
+      ]),
+    );
+    expect(await rowOf(/^www\.example\.com/)).toHaveTextContent("Redirects to example.com");
+  });
+
   it("says what an ingress that's down does to a domain with a good certificate", async () => {
     const held = "1Panel-openresty holds port 80, so Caddy can't start. Stop it, or move it to another port.";
     renderAt(
