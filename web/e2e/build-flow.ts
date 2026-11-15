@@ -221,7 +221,7 @@ export async function buildFlow(page: Page, { origin, step, shoot, git }: BuildF
   await docs.getByRole("button", { name: "Review plan" }).click();
   await docs.getByText(/Railpack can't tell how to build .*web at [0-9a-f]{7} for docs/).waitFor();
 
-  step("a push deploys what the branch names: turning it on takes a passkey and shows the hook's secret once");
+  step("a push plans what the branch names, for a person where it's protected: turning it on takes a passkey and shows the hook's secret once");
   await page.goto(`${origin}/apps`);
   await page.getByRole("row", { name: /order-api/ }).click();
   await page.getByRole("heading", { level: 1, name: "order-api" }).waitFor();
@@ -248,6 +248,9 @@ export async function buildFlow(page: Page, { origin, step, shoot, git }: BuildF
   // The secret goes with the sheet, once it has faded out.
   await page.getByText(secret).waitFor({ state: "detached", timeout: 5_000 });
   await source.getByText("No push has come yet.").waitFor();
+  // A hook acts as a developer at most, and production is protected by its name, so
+  // each push plans its deploy for a person to apply (ADR 0071).
+  await source.getByText(/^Each push to .+ plans a deploy of order-api, which waits for a person here\.$/).waitFor();
 
   // A delivery signed with anything else is refused, and does nothing.
   if ((await push(url, "not-the-secret", git)) !== 401) fail("a push with a wrong signature wasn't refused");
@@ -260,23 +263,35 @@ export async function buildFlow(page: Page, { origin, step, shoot, git }: BuildF
       .getByText(/^Last push|No push has come yet\.$/)
       .first()
       .waitFor();
-    if ((await source.getByText(/started a deploy of [0-9a-f]{7}/).count()) > 0) break;
-    if (i > 60) fail("the Source panel never said the push started a deploy");
+    if ((await source.getByText(/planned [0-9a-f]{7}, which waits for a person to apply it/).count()) > 0) break;
+    if (i > 60) fail("the Source panel never said the push planned a deploy for a person");
     await page.waitForTimeout(1000);
   }
+  await shoot(page, "push-waits");
+  // The person applies it from its link, as the hook's maker.
+  await source.getByRole("link", { name: /planned [0-9a-f]{7}, which waits for a person to apply it/ }).click();
+  await planSheet(page)
+    .getByRole("button", { name: /Apply plan/ })
+    .click();
+  const applied = page.getByRole("button", { name: "Done", exact: true });
+  await applied.waitFor({ timeout: 120_000 });
+  await applied.click();
+  await page.goto(overview);
   await page.getByRole("link", { name: /Deployments/ }).click();
   const giftcards = page
     .getByRole("table", { name: "Revisions of order-api" })
     .getByRole("row")
     .filter({ hasText: "Add gift cards" });
   await giftcards.first().waitFor({ timeout: 60_000 });
-  await page.goto(overview);
-  await source.getByText(/^Last push .* started a deploy of [0-9a-f]{7}\.$/).waitFor();
   await shoot(page, "push-deployed");
 
   step("the timeline says what the push came to, and turning deploy on push off needs no passkey");
   await page.goto(`${origin}/activity`);
-  await page.getByRole("row", { name: /A push to main started a deploy of [0-9a-f]{7} to order-api/ }).waitFor();
+  await page
+    .getByRole("row", {
+      name: /A push to main planned [0-9a-f]{7} for order-api, which waits for a person to apply it/,
+    })
+    .waitFor();
   await shoot(page, "push-activity");
   await page.goto(overview);
   await onPush.click();
