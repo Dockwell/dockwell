@@ -6,7 +6,17 @@ import { resolve } from "node:path";
 import { CertificateState, type Domain } from "@dockwell/api";
 import { describe, expect, it } from "vitest";
 
-import { groupConcern, groupNeedsALook, groupOf, lookOf, redirectTarget, refusedField, refusesTarget } from "./domains";
+import {
+  freshRouteName,
+  groupConcern,
+  groupNeedsALook,
+  groupOf,
+  lookOf,
+  redirectTarget,
+  refusedField,
+  refusesTarget,
+  routeName,
+} from "./domains";
 
 /**
  * What the server says, from its source, with values in place of its verbs, so this
@@ -223,5 +233,30 @@ describe("where a redirect sends, as typed", () => {
     expect(refusesTarget(`${at} redirects to shop.example.com already. Stop sending it there first`, at)).toBe(false);
     expect(refusesTarget(`${at} is in use by a project you can't see`, at)).toBe(false);
     expect(refusesTarget("shop.example.net redirects to https://a.example, which has a query", at)).toBe(false);
+  });
+});
+
+describe("a fresh route name", () => {
+  const holding = (name: string, routes: string[]) =>
+    ({ name, routes: routes.map((r) => ({ name: r, path: "" })) }) as unknown as Domain;
+
+  it("never names a route that's there, a domain's own root's included", () => {
+    expect(freshRouteName("www.example.org", [])).toBe("www-example-org");
+    // routeName would update www's own root; a fresh name adds one, for the server to refuse.
+    expect(routeName("www.example.org", [holding("www.example.org", ["www-example-org"])])).toBe("www-example-org");
+    expect(freshRouteName("www.example.org", [holding("www.example.org", ["www-example-org"])])).toBe(
+      "www-example-org-2",
+    );
+    expect(
+      freshRouteName("www.example.org", [holding("www.example.org", ["www-example-org", "www-example-org-2"])]),
+    ).toBe("www-example-org-3");
+  });
+
+  it("stays within a label's 63 characters when it's numbered", () => {
+    const long = `www.${"a".repeat(70)}.example.org`;
+    const base = routeName(long);
+    expect(base).toHaveLength(63);
+    const fresh = freshRouteName(long, [holding(long, [base])]);
+    expect(fresh).toBe(`${base.slice(0, 61)}-2`);
   });
 });

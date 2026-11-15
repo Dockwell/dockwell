@@ -1629,6 +1629,48 @@ describe("adding a domain from the list", () => {
     });
   });
 
+  it("names www's redirect afresh, so a route that took www since the check is refused rather than taken over", async () => {
+    const user = userEvent.setup();
+    const edits: ProposeChangeRequest["edits"] = [];
+    // The list has a route for www.example.org that CheckDomain's answer is too old to know of.
+    const since = [...some, aDomain({ name: "www.example.org", certificate: issued })];
+    renderAt(
+      "/domains",
+      api(since, {
+        services: [web, api_],
+        more: {
+          changes: changes(edits),
+          domains: {
+            listDomains: () => ({ domains: since }),
+            checkDomain: (req) => ({
+              check: { domain: req.domain, state: DomainCheckState.POINTS_HERE, found: ["203.0.113.50"] },
+              companion: "www.example.org",
+              companionCheck: {
+                check: { domain: "www.example.org", state: DomainCheckState.POINTS_HERE, found: ["203.0.113.50"] },
+                answersAlike: true,
+              },
+            }),
+          },
+        },
+      }),
+    );
+    await screen.findByRole("row", { name: /shop\.example\.com/ });
+    await user.click(await screen.findByRole("button", { name: "Add a domain" }));
+    const sheet = await screen.findByRole("dialog", { name: "Add a domain" });
+    await user.selectOptions(within(sheet).getByRole("combobox", { name: "App" }), "api");
+    await user.type(within(sheet).getByRole("textbox", { name: "Domain" }), "example.org");
+    const www = await within(sheet).findByRole("checkbox", { name: "Also answer on www.example.org" });
+    await waitFor(() => expect(www).toBeChecked());
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    await screen.findByRole("dialog", { name: "Review plan" });
+    // A name of its own: proposing it adds a route, which the server's check of who holds www refuses.
+    expect(edits[1]?.resource).toMatchObject({ kind: "route", scope: ENV, name: "www-example-org-2" });
+    expect(edits[1]?.spec?.kind.value).toMatchObject({
+      domain: "www.example.org",
+      redirect: { to: "https://example.org" },
+    });
+  });
+
   it("redirects to a URL from the server its field shows, on a fleet of two", async () => {
     const user = userEvent.setup();
     const edits: ProposeChangeRequest["edits"] = [];

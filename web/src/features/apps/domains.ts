@@ -43,19 +43,34 @@ export const TUNNEL_GUIDE =
  * it under that name would move that route instead.
  */
 export function routeName(domain: string, existing: readonly Domain[] = []): string {
+  // Whatever holds the name but this domain's own root, proposing it would move.
+  return nameFor(domain, (name) =>
+    existing.some((d) => d.routes.some((route) => route.name === name && (d.name !== domain || route.path !== ""))),
+  );
+}
+
+/**
+ * A route name for domain that no route of existing has, its own root's included, so
+ * proposing it adds a route and never updates one: where something serves domain
+ * already, the server refuses it rather than taking that over (ADR 0070).
+ */
+export function freshRouteName(domain: string, existing: readonly Domain[] = []): string {
+  const taken = new Set(existing.flatMap((d) => d.routes.map((r) => r.name)));
+  return nameFor(domain, (name) => taken.has(name));
+}
+
+/** A route name for domain, as a label the server takes, numbered past the ones taken. */
+function nameFor(domain: string, taken: (name: string) => boolean): string {
   const label = domain.toLowerCase().replace(/[^a-z0-9-]+/g, "-");
   // A label starts with a letter, and an address has none: it still needs a name, so
   // what's refused is the address, in the server's words, and not a name nobody typed.
   const lettered = label.replace(/^[^a-z]+/, "") || `route-${label.replace(/^-+/, "")}`;
   const base = lettered.slice(0, MAX_LABEL).replace(/-+$/, "");
-  // Whatever holds the name but this domain's own root, proposing it would move.
-  const takenByAnother = (name: string) =>
-    existing.some((d) => d.routes.some((route) => route.name === name && (d.name !== domain || route.path !== "")));
-  if (!takenByAnother(base)) return base;
+  if (!taken(base)) return base;
   for (let i = 2; ; i++) {
     const suffix = `-${i}`;
     const name = `${base.slice(0, MAX_LABEL - suffix.length).replace(/-+$/, "")}${suffix}`;
-    if (!takenByAnother(name)) return name;
+    if (!taken(name)) return name;
   }
 }
 

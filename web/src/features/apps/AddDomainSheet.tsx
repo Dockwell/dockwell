@@ -39,7 +39,15 @@ import { useWebsiteOfEnvironment } from "../websites/website";
 import { appOf, environmentOf, nameOf } from "./app";
 import { useRouteTarget, useTunnelSwitchName } from "./DomainNote";
 import { DomainRecord } from "./DomainRecord";
-import { formRefusal, proxyList, redirectTarget, refusedField, refusesTarget, routeName } from "./domains";
+import {
+  formRefusal,
+  freshRouteName,
+  proxyList,
+  redirectTarget,
+  refusedField,
+  refusesTarget,
+  routeName,
+} from "./domains";
 import { FrontFields, frontOf, type InFront } from "./FrontFields";
 import { validPort } from "./form";
 import { routeAsItIs } from "./PrivateSheet";
@@ -72,17 +80,6 @@ function sendsTo(to: string | undefined, domain: string): boolean {
     return new URL(to).hostname === domain;
   } catch {
     return false;
-  }
-}
-
-/** A route name for domain that no route of domains has, numbered past the ones taken. */
-function freshRouteName(domain: string, domains: readonly Domain[] = []): string {
-  const taken = new Set(domains.flatMap((d) => d.routes.map((r) => r.name)));
-  const base = routeName(domain, []);
-  if (!taken.has(base)) return base;
-  for (let i = 2; ; i++) {
-    const name = `${base}-${i}`;
-    if (!taken.has(name)) return name;
   }
 }
 
