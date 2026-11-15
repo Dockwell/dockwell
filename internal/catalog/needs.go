@@ -156,7 +156,7 @@ func checkNeeds(e *catalogv1.Entry) error {
 			return fmt.Errorf("the need %s sets nothing for the app to read. Add a name to sets, such as DB_HOST", name)
 		}
 		if n.GetKind() != catalogv1.Kind_KIND_UNSPECIFIED {
-			if err := checkKindNeed(n, services, companions); err != nil {
+			if err := checkKindNeed(n, services); err != nil {
 				return err
 			}
 		} else if err := checkDatabaseNeed(e, n, services, companions); err != nil {
@@ -226,25 +226,6 @@ func checkDatabaseNeed(e *catalogv1.Entry, n *catalogv1.Need, services map[strin
 	return checkNeedService(e, n, services, companions)
 }
 
-// s3Images are the images of S3 storage an entry may bring as a need's own
-// service, by repository.
-var s3Images = map[string]bool{
-	"minio/minio": true, "bitnami/minio": true, "quay.io/minio/minio": true,
-	"rustfs/rustfs": true, "dxflrs/garage": true, "chrislusf/seaweedfs": true,
-}
-
-// s3Image reports an image of S3 storage, whatever its tag or registry's prefix.
-func s3Image(image string) bool {
-	repo := image
-	if i := strings.IndexAny(repo, "@"); i >= 0 {
-		repo = repo[:i]
-	}
-	if i := strings.LastIndex(repo, ":"); i > strings.LastIndex(repo, "/") {
-		repo = repo[:i]
-	}
-	return s3Images[strings.TrimPrefix(strings.TrimPrefix(repo, "docker.io/"), "library/")]
-}
-
 // bucketName is a bucket's name as every S3 service takes it.
 var bucketName = regexp.MustCompile(`^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$`)
 
@@ -271,7 +252,7 @@ var s3Features = map[catalogv1.Feature]bool{
 // checkKindNeed refuses a need of a kind beyond the databases that an install
 // couldn't meet as it says (ADR 0099): S3 storage takes its kind with features, a
 // bucket's name, a signed URL's lifetime, and the parts that sign in to it.
-func checkKindNeed(n *catalogv1.Need, services map[string]any, companions map[string]bool) error {
+func checkKindNeed(n *catalogv1.Need, services map[string]any) error {
 	name, kind := n.GetName(), n.GetKind()
 	if kind != catalogv1.Kind_KIND_S3 {
 		return fmt.Errorf("the need %s is for %s, which Dockwell doesn't meet yet. Leave it to inputs for now", name, cmp.Or(catalogv1.Kind_name[int32(kind)], kind.String()))
@@ -315,25 +296,10 @@ func checkKindNeed(n *catalogv1.Need, services map[string]any, companions map[st
 	if _, clash := services[name]; clash && name != n.GetService() {
 		return fmt.Errorf("the need %s brings in a service of its name when it's met otherwise, and its Compose file has a service called %s already. Rename the need, or name %s as its service", name, name, name)
 	}
-	own := n.GetService()
-	if own == "" {
-		return nil
-	}
-	svc, ok := services[own]
-	image, _ := mapGet(svc, "image").(string)
-	switch {
-	case !ok:
-		return fmt.Errorf("the need %s is met by the service %s, which its Compose file doesn't run", name, own)
-	case companions[own]:
-		return fmt.Errorf("the need %s is met by %s, which is a companion too. A need's service isn't one", name, own)
-	case !s3Image(image):
-		return fmt.Errorf("the need %s is met by %s, which runs %s, an image Dockwell doesn't know as S3 storage", name, own, cmp.Or(image, "no image"))
-	}
-	// What a new one is made with: the keys the app signs in with.
-	for _, s := range n.GetSets() {
-		if p := s.GetPart(); (p == catalogv1.Part_PART_ACCESS_KEY_ID || p == catalogv1.Part_PART_SECRET_KEY) && !uses(svc, s.GetName()) {
-			return fmt.Errorf("the need %s's service %s doesn't read %s, so a new one wouldn't be made with the keys the app signs in with. Use ${%s} in its environment", name, own, s.GetName(), s.GetName())
-		}
+	// S3 storage beside the app, its own or the catalog's, is slice 5's (ADR 0099):
+	// until then an entry that brings one keeps it as a service of its own.
+	if n.GetService() != "" {
+		return fmt.Errorf("the need %s is met by %s, its own S3 storage, which Dockwell can't run as a need's yet. Leave service out, and keep %s as a service of the app's", name, n.GetService(), n.GetService())
 	}
 	return nil
 }
@@ -685,6 +651,9 @@ type Way struct {
 	Need    *catalogv1.Need
 	Engine  catalogv1.Engine
 	Version string
+	// Unset leaves an optional need unmet, as the app runs without it: the default
+	// for one, which is never met new unless a person asks (ADR 0099).
+	Unset bool
 	// UpgradeRelease is, for a server Why says another app's install keeps, the
 	// release of that install's entry it would upgrade to for its server to be shared,
 	// and UpgradeApp the app's name.
@@ -718,8 +687,14 @@ func (w Way) Choice() string {
 	if w.Existing != nil {
 		return w.Existing.Choice()
 	}
+	if w.Unset {
+		return ChoiceUnset
+	}
 	return "new:" + EngineWord(w.Engine)
 }
+
+// ChoiceUnset is the choice that leaves an optional need unmet.
+const ChoiceUnset = "unset"
 
 // Shares reports a way that meets its need by a server Dockwell runs already.
 func (w Way) Shares() bool { return w.Existing != nil }
@@ -839,6 +814,15 @@ func waysNew(e *catalogv1.Entry, lookup Lookup) map[string][]Way {
 	services, _ := composeServices(e.GetCompose())
 	for _, n := range e.GetNeeds() {
 		var ways []Way
+		if n.GetOptional() {
+			ways = append(ways, Way{Need: n, Unset: true})
+		}
+		// A kind beyond the databases is met by a connection, which a person makes
+		// (ADR 0099); nothing new beside the app yet.
+		if n.GetKind() != catalogv1.Kind_KIND_UNSPECIFIED {
+			out[n.GetName()] = ways
+			continue
+		}
 		ownEngine := catalogv1.Engine_ENGINE_UNSPECIFIED
 		if own := n.GetService(); own != "" {
 			image, _ := mapGet(services[own], "image").(string)
@@ -891,27 +875,42 @@ func Meet(e *catalogv1.Entry, ways map[string][]Way, asked map[string]string, pi
 		first := slices.IndexFunc(options, func(w Way) bool { return !w.Shares() })
 		switch {
 		case (choice == "" || choice == "new") && first < 0:
+			if n.GetKind() != catalogv1.Kind_KIND_UNSPECIFIED {
+				return nil, fmt.Errorf("%s needs %s, %s, which Dockwell can't make beside it yet. Connect one once the app is in, or install an app that keeps it optional", e.GetName(), strings.ToLower(n.GetLabel()), acceptWords(n))
+			}
 			return nil, fmt.Errorf("%s needs %s, and nothing here can make a new one yet: %s. Choose one you run, if one takes it", e.GetName(), strings.ToLower(n.GetLabel()), acceptWords(n))
-		case choice == "" || choice == "new":
+		case choice == "":
 			out[name] = options[first]
+		case choice == "new":
+			// New is something new, never an optional need left unset.
+			i := slices.IndexFunc(options, func(w Way) bool { return !w.Shares() && !w.Unset })
+			if i < 0 {
+				return nil, fmt.Errorf("%s's need %s takes %s, not %q: nothing here can make a new one yet", e.GetName(), name, strings.Join(choicesOf(options), " or "), choice)
+			}
+			out[name] = options[i]
 		default:
 			i := slices.IndexFunc(options, func(w Way) bool { return w.Choice() == choice })
 			if i >= 0 && options[i].Why != "" {
 				return nil, fmt.Errorf("%s can't meet %s's %s: %s", strings.TrimPrefix(choice, "service:"), e.GetName(), strings.ToLower(n.GetLabel()), options[i].Why)
 			}
 			if i < 0 {
-				var choices []string
-				for i := range options {
-					if options[i].Why == "" {
-						choices = append(choices, options[i].Choice())
-					}
-				}
-				return nil, fmt.Errorf("%s's need %s takes %s, not %q", e.GetName(), name, strings.Join(choices, " or "), choice)
+				return nil, fmt.Errorf("%s's need %s takes %s, not %q", e.GetName(), name, strings.Join(choicesOf(options), " or "), choice)
 			}
 			out[name] = options[i]
 		}
 	}
 	return out, nil
+}
+
+// choicesOf are the choices of the ways that can meet a need.
+func choicesOf(options []Way) []string {
+	var out []string
+	for i := range options {
+		if options[i].Why == "" {
+			out = append(out, options[i].Choice())
+		}
+	}
+	return out
 }
 
 // pinnedWay is the way an install met a need, as its pin says: the entry's own
@@ -922,6 +921,12 @@ func pinnedWay(n *catalogv1.Need, p *resourcev1.PinnedNeed, options []Way) (Way,
 	eng := catalogv1.Engine(p.GetEngine())
 	runs := strings.TrimSpace(EngineName(eng) + " " + p.GetVersion())
 	what := strings.ToLower(cmp.Or(n.GetLabel(), n.GetName()))
+	if p.GetUnset() {
+		if !n.GetOptional() {
+			return Way{}, fmt.Errorf("this release of the app needs its %s, which the install runs without, so it stays on its release. Set up its %s first", what, what)
+		}
+		return Way{Need: n, Unset: true, pin: p}, nil
+	}
 	if eng != catalogv1.Engine_ENGINE_UNSPECIFIED {
 		a := acceptOf(n, eng)
 		switch {
@@ -967,6 +972,9 @@ func needList(e *catalogv1.Entry) string {
 }
 
 func acceptWords(n *catalogv1.Need) string {
+	if n.GetKind() != catalogv1.Kind_KIND_UNSPECIFIED {
+		return kindWords[n.GetKind()]
+	}
 	var out []string
 	for _, a := range n.GetAccepts() {
 		w := EngineName(a.GetEngine())
@@ -976,6 +984,12 @@ func acceptWords(n *catalogv1.Need) string {
 		out = append(out, w)
 	}
 	return strings.Join(out, " or ")
+}
+
+// kindWords say what a need of each kind beyond the databases takes.
+var kindWords = map[catalogv1.Kind]string{
+	catalogv1.Kind_KIND_S3:   "S3 storage",
+	catalogv1.Kind_KIND_SMTP: "a mail server",
 }
 
 // databaseService is an engine entry's service that runs the database, by name, and
@@ -1040,6 +1054,16 @@ func Need(e *catalogv1.Entry, met map[string]Way) (*Needed, error) {
 		w, ok := met[n.GetName()]
 		if !ok {
 			return nil, fmt.Errorf("nothing says how %s's need %s is met", e.GetName(), n.GetName())
+		}
+		if w.Unset {
+			var err error
+			var plain []string
+			if file, plain, err = unsetNeed(file, n, &adds); err != nil {
+				return nil, err
+			}
+			out.Plain = append(out.Plain, plain...)
+			out.Pinned[n.GetName()] = &resourcev1.PinnedNeed{Unset: true, Service: n.GetService(), Plain: plain, LeftOut: leftOut(n)}
+			continue
 		}
 		password := passwordName(n)
 		pinned := &resourcev1.PinnedNeed{Engine: resourcev1.LinkEngine(w.Engine), Version: w.Version}
@@ -1218,6 +1242,16 @@ func withoutService(file, own string) (string, error) {
 func MetFile(file string, pinned map[string]*resourcev1.PinnedNeed) (string, error) {
 	for _, name := range slices.Sorted(maps.Keys(pinned)) {
 		p := pinned[name]
+		if p.GetUnset() {
+			var err error
+			if file, err = withoutService(file, p.GetService()); err != nil {
+				return "", err
+			}
+			if file, err = withoutNames(file, p.GetLeftOut()); err != nil {
+				return "", err
+			}
+			continue
+		}
 		if p.GetEnvironment() != "" {
 			var err error
 			if file, err = withoutService(file, p.GetService()); err != nil {
@@ -1239,6 +1273,94 @@ func MetFile(file string, pinned map[string]*resourcev1.PinnedNeed) (string, err
 		}
 	}
 	return file, nil
+}
+
+// unsetNeed is the file an install that leaves an optional need unset runs: its
+// own service out, the names it sets left out of the app's environment, but its
+// PART_MET set to the app's word for unmet, and those empty_when_unmet set empty,
+// each a plain value adds gains, which it returns by name (ADR 0099).
+func unsetNeed(file string, n *catalogv1.Need, adds *[]*catalogv1.Input) (string, []string, error) {
+	file, err := withoutService(file, n.GetService())
+	if err != nil {
+		return "", nil, err
+	}
+	var plain []string
+	for _, s := range n.GetSets() {
+		value, kept := unsetValue(s)
+		if !kept {
+			continue
+		}
+		*adds = append(*adds, &catalogv1.Input{Name: s.GetName(), Label: s.GetName(), Type: catalogv1.InputType_INPUT_TYPE_TEXT, DefaultValue: value, Optional: true})
+		plain = append(plain, s.GetName())
+	}
+	file, err = withoutNames(file, leftOut(n))
+	return file, plain, err
+}
+
+// unsetValue is what a set holds while its need is unset, and whether it's there
+// at all: PART_MET's word for unmet, unless that's empty, and empty for one
+// empty_when_unmet.
+func unsetValue(s *catalogv1.NeedSet) (string, bool) {
+	if s.GetPart() == catalogv1.Part_PART_MET {
+		for _, w := range s.GetWords() {
+			if w.GetValue() == "unmet" {
+				return w.GetWord(), w.GetWord() != ""
+			}
+		}
+		return "", false
+	}
+	return "", s.GetEmptyWhenUnmet()
+}
+
+// leftOut are the names an unset need leaves out of the app's environment.
+func leftOut(n *catalogv1.Need) []string {
+	var out []string
+	for _, s := range n.GetSets() {
+		if _, kept := unsetValue(s); !kept {
+			out = append(out, s.GetName())
+		}
+	}
+	return out
+}
+
+// withoutNames takes out of each service's environment the entries whose whole
+// value is one of names, as the check has each name a need sets used.
+func withoutNames(file string, names []string) (string, error) {
+	if len(names) == 0 {
+		return file, nil
+	}
+	var doc yaml.Node
+	if err := yaml.Unmarshal([]byte(file), &doc); err != nil || len(doc.Content) != 1 {
+		return "", errors.New("its Compose file isn't YAML")
+	}
+	whole := map[string]bool{}
+	for _, name := range names {
+		whole["${"+name+"}"] = true
+	}
+	services := nodeGet(doc.Content[0], "services")
+	for i := 1; services != nil && i < len(services.Content); i += 2 {
+		env := nodeGet(services.Content[i], "environment")
+		if env == nil {
+			continue
+		}
+		switch env.Kind {
+		case yaml.SequenceNode:
+			env.Content = slices.DeleteFunc(env.Content, func(n *yaml.Node) bool {
+				_, v, ok := strings.Cut(n.Value, "=")
+				return ok && whole[v]
+			})
+		case yaml.MappingNode:
+			kept := env.Content[:0]
+			for j := 0; j+1 < len(env.Content); j += 2 {
+				if !whole[env.Content[j+1].Value] {
+					kept = append(kept, env.Content[j], env.Content[j+1])
+				}
+			}
+			env.Content = kept
+		default:
+		}
+	}
+	return encode(&doc)
 }
 
 // hasService reports a Compose file with a service of that name.

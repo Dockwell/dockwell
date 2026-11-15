@@ -3455,7 +3455,14 @@ type PinnedNeed struct {
 	// The names the need set that hold no password, as the install ran, which its
 	// services use as the environment's variables, so a change that reads the file it
 	// ran uses them as it did, whatever a newer release names.
-	Plain         []string `protobuf:"bytes,13,rep,name=plain,proto3" json:"plain,omitempty"`
+	Plain []string `protobuf:"bytes,13,rep,name=plain,proto3" json:"plain,omitempty"`
+	// The need is optional and left unset, as the app runs without it: its own
+	// service is out of the file, with the names it sets, but those in plain. Numbered
+	// in the block every kind holds in shared messages, 90 to 99. See
+	// docs/adr/0099-every-kind-of-thing-an-app-needs-met-the-same-three-ways.md.
+	Unset bool `protobuf:"varint,90,opt,name=unset,proto3" json:"unset,omitempty"`
+	// The names an unset need leaves out of the app's environment, as the install ran.
+	LeftOut       []string `protobuf:"bytes,91,rep,name=left_out,json=leftOut,proto3" json:"left_out,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3577,6 +3584,20 @@ func (x *PinnedNeed) GetPassword() string {
 func (x *PinnedNeed) GetPlain() []string {
 	if x != nil {
 		return x.Plain
+	}
+	return nil
+}
+
+func (x *PinnedNeed) GetUnset() bool {
+	if x != nil {
+		return x.Unset
+	}
+	return false
+}
+
+func (x *PinnedNeed) GetLeftOut() []string {
+	if x != nil {
+		return x.LeftOut
 	}
 	return nil
 }
@@ -8786,7 +8807,7 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\n" +
 	"NeedsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12<\n" +
-	"\x05value\x18\x02 \x01(\v2&.dockwell.resource.v1alpha1.PinnedNeedR\x05value:\x028\x01\"\xf8\x02\n" +
+	"\x05value\x18\x02 \x01(\v2&.dockwell.resource.v1alpha1.PinnedNeedR\x05value:\x028\x01\"\xa9\x03\n" +
 	"\n" +
 	"PinnedNeed\x12>\n" +
 	"\x06engine\x18\x01 \x01(\x0e2&.dockwell.resource.v1alpha1.LinkEngineR\x06engine\x12\x14\n" +
@@ -8802,7 +8823,9 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	" \x01(\tR\bdatabase\x12\x12\n" +
 	"\x04user\x18\v \x01(\tR\x04user\x12\x1a\n" +
 	"\bpassword\x18\f \x01(\tR\bpassword\x12\x14\n" +
-	"\x05plain\x18\r \x03(\tR\x05plain\"x\n" +
+	"\x05plain\x18\r \x03(\tR\x05plain\x12\x14\n" +
+	"\x05unset\x18Z \x01(\bR\x05unset\x12\x19\n" +
+	"\bleft_out\x18[ \x03(\tR\aleftOut\"x\n" +
 	"\vEnvironment\x12!\n" +
 	"\fdisplay_name\x18\x01 \x01(\tR\vdisplayName\x12F\n" +
 	"\n" +

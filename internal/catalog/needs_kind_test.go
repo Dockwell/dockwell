@@ -99,7 +99,7 @@ func TestCheckRefusesAStorageNeed(t *testing.T) {
 		"the secret S3_SECRET_ACCESS_KEY is inside a longer value": func(e *catalogv1.Entry) {
 			e.Compose = strings.Replace(e.GetCompose(), "S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY}", "S3_SECRET_ACCESS_KEY: x-${S3_SECRET_ACCESS_KEY}", 1)
 		},
-		"an image Dockwell doesn't know as S3 storage": func(e *catalogv1.Entry) { storage(e).Service = "db" },
+		"which Dockwell can't run as a need's yet": func(e *catalogv1.Entry) { storage(e).Service = "db" },
 	} {
 		e := withStorage(t)
 		change(e)
@@ -113,5 +113,88 @@ func TestCheckRefusesAStorageNeed(t *testing.T) {
 	e.Needs[1].Sets[0].Words[1].Word = ""
 	if err := catalog.Check(e); err != nil {
 		t.Errorf("an empty unmet word: %v", err)
+	}
+}
+
+// An optional need installs unset unless a person asks otherwise: the app runs on
+// its own disk, its storage names left out of its environment but the one that says
+// so, which reads the app's word for unmet, and the pin keeps it so, as the file it
+// ran (ADR 0099).
+func TestAnOptionalNeedInstallsUnset(t *testing.T) {
+	e := withStorage(t)
+	ways := catalog.Ways(e, lookupBuiltIn(t))
+	if got := ways["storage"]; len(got) != 1 || !got[0].Unset || got[0].Choice() != catalog.ChoiceUnset {
+		t.Fatalf("the storage need's ways are %+v, want unset alone", got)
+	}
+	met, err := catalog.Meet(e, ways, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !met["storage"].Unset || met["db"].Unset {
+		t.Fatalf("by default, storage is %+v and the database %+v", met["storage"], met["db"])
+	}
+	needed, err := catalog.Need(e, met)
+	if err != nil {
+		t.Fatal(err)
+	}
+	file := needed.Entry.GetCompose()
+	for _, name := range []string{"S3_ENDPOINT", "S3_REGION", "S3_BUCKET", "S3_ACCESS_KEY_ID", "S3_SECRET_ACCESS_KEY", "S3_FORCE_PATH_STYLE"} {
+		if strings.Contains(file, name) {
+			t.Errorf("unset, the file still names %s:\n%s", name, file)
+		}
+	}
+	if !strings.Contains(file, "FILE_STORAGE: ${STORAGE_DRIVER}") || !strings.Contains(file, "WORDPRESS_DB_HOST: ${DB_ADDRESS}") {
+		t.Errorf("unset, the file lost what it keeps:\n%s", file)
+	}
+	var driver *catalogv1.Input
+	for _, in := range needed.Entry.GetInputs() {
+		if in.GetName() == "STORAGE_DRIVER" {
+			driver = in
+		}
+	}
+	if driver == nil || driver.GetDefaultValue() != "local" {
+		t.Errorf("unset, STORAGE_DRIVER is %v, want local", driver)
+	}
+	pin := needed.Pinned["storage"]
+	if !pin.GetUnset() || len(pin.GetLeftOut()) != 6 || len(pin.GetPlain()) != 1 || needed.Links["storage"] != nil {
+		t.Errorf("unset, the pin is %v and the link %v", pin, needed.Links["storage"])
+	}
+	// The file the install ran comes back from its pin, as an upgrade reads it.
+	ran, err := catalog.MetFile(e.GetCompose(), needed.Pinned)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(ran, "S3_ENDPOINT") || !strings.Contains(ran, "${STORAGE_DRIVER}") {
+		t.Errorf("from its pin, the install ran:\n%s", ran)
+	}
+	// An upgrade keeps it unset, and a release that needs it stays on the one it is.
+	if again, err := catalog.Meet(e, ways, nil, needed.Pinned); err != nil || !again["storage"].Unset {
+		t.Errorf("upgraded, storage is %+v, %v", again["storage"], err)
+	}
+	required := withStorage(t)
+	required.Needs[1].Optional = false
+	required.Needs[1].Sets = required.Needs[1].Sets[1:]
+	if _, err := catalog.Meet(required, catalog.Ways(required, lookupBuiltIn(t)), nil, needed.Pinned); err == nil || !strings.Contains(err.Error(), "which the install runs without") {
+		t.Errorf("a release that needs its storage, upgraded from one without: %v", err)
+	}
+	// A need the app can't run without can't be met yet, and says why.
+	if _, err := catalog.Meet(required, catalog.Ways(required, lookupBuiltIn(t)), nil, nil); err == nil || !strings.Contains(err.Error(), "S3 storage, which Dockwell can't make beside it yet") {
+		t.Errorf("a need for storage the app can't run without: %v", err)
+	}
+}
+
+// Set empty while unmet, a name stays in the file, and an unmet word that's empty
+// leaves the switch out too.
+func TestUnsetKeepsWhatItsToldTo(t *testing.T) {
+	e := withStorage(t)
+	e.Needs[1].Sets[0].Words[1].Word = ""
+	e.Needs[1].Sets[2].EmptyWhenUnmet = true
+	needed, err := catalog.Need(e, mustMeet(t, e, lookupBuiltIn(t)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	file := needed.Entry.GetCompose()
+	if strings.Contains(file, "STORAGE_DRIVER") || !strings.Contains(file, "S3_REGION: ${S3_REGION}") {
+		t.Errorf("unset, the file is:\n%s", file)
 	}
 }

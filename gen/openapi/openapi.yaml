@@ -19510,6 +19510,18 @@ components:
                         The names the need set that hold no password, as the install ran, which its
                          services use as the environment's variables, so a change that reads the file it
                          ran uses them as it did, whatever a newer release names.
+                unset:
+                    type: boolean
+                    description: |-
+                        The need is optional and left unset, as the app runs without it: its own
+                         service is out of the file, with the names it sets, but those in plain. Numbered
+                         in the block every kind holds in shared messages, 90 to 99. See
+                         docs/adr/0099-every-kind-of-thing-an-app-needs-met-the-same-three-ways.md.
+                leftOut:
+                    type: array
+                    items:
+                        type: string
+                    description: The names an unset need leaves out of the app's environment, as the install ran.
             description: PinnedNeed is how an install met one of its entry's needs.
         Plan:
             type: object
