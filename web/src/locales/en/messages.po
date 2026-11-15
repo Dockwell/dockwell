@@ -9536,6 +9536,9 @@ msgstr "Before it moves, Dockwell asks what features its data uses, and stops wi
 msgid "Browsers keep a permanent redirect for up to a day, through an undo too."
 msgstr "Browsers keep a permanent redirect for up to a day, through an undo too."
 
+msgid "Browsers keep {back}'s earlier redirect to {to} for up to a day. Anyone who loaded {back} since goes round in a circle until it expires: clearing the browser's cache ends it sooner."
+msgstr "Browsers keep {back}'s earlier redirect to {to} for up to a day. Anyone who loaded {back} since goes round in a circle until it expires: clearing the browser's cache ends it sooner."
+
 #. placeholder {0}: server.serverName
 msgid "Builds {repository} at {commit} ({ref}) on {0} first. If the build fails, what runs stays as it is."
 msgstr "Builds {repository} at {commit} ({ref}) on {0} first. If the build fails, what runs stays as it is."

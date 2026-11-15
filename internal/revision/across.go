@@ -132,7 +132,8 @@ func (e *Engine) noteAcross(ctx context.Context, tx *store.Tx, items []item) ([]
 	for i := range items {
 		it := &items[i]
 		mine[it.ref.Scope] = true
-		if it.reverses || it.observed {
+		// An undo counts, as undoing a redirect can make one that sends back.
+		if it.observed {
 			continue
 		}
 		if t, err := e.kinds.Type(it.ref.Kind); err == nil {
@@ -143,7 +144,7 @@ func (e *Engine) noteAcross(ctx context.Context, tx *store.Tx, items []item) ([]
 	}
 	var out []Note
 	for _, kind := range slices.Sorted(maps.Keys(kinds)) {
-		before, after, inChange, err := e.across(ctx, tx, kind, items)
+		before, after, _, err := e.across(ctx, tx, kind, items)
 		if err != nil {
 			return nil, err
 		}
@@ -151,10 +152,7 @@ func (e *Engine) noteAcross(ctx context.Context, tx *store.Tx, items []item) ([]
 			return cmp.Or(strings.Compare(a.Scope, b.Scope), strings.Compare(a.Name, b.Name))
 		})
 		for _, ref := range refs {
-			if inChange[ref] {
-				continue
-			}
-			reason, words := kinds[kind].NoteAcross(ref, before, after)
+			reason, words, names := kinds[kind].NoteAcross(ref, before, after)
 			if words == "" {
 				continue
 			}
@@ -162,7 +160,7 @@ func (e *Engine) noteAcross(ctx context.Context, tx *store.Tx, items []item) ([]
 				out = append(out, Note{Reason: reason, Message: "A redirect in a project you can't see lands where this change leaves nothing to answer it."})
 				continue
 			}
-			out = append(out, Note{Reason: reason, Message: words, Ref: ref})
+			out = append(out, Note{Reason: reason, Message: words, Ref: ref, Names: names})
 		}
 	}
 	return out, nil

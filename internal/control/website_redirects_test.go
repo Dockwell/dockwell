@@ -110,6 +110,19 @@ func TestAWebsitesOtherDomains(t *testing.T) {
 	if want := "Move the website example.com to www.example.com"; swap.GetSummary() != want {
 		t.Errorf("summary %q, want %q", swap.GetSummary(), want)
 	}
+	// Browsers keep www's redirect to example.com, which now sends back: said once.
+	reversed := func(ch *dockwellv1.Change) []*dockwellv1.PlanNote {
+		var out []*dockwellv1.PlanNote
+		for _, n := range ch.GetPlan().GetNotes() {
+			if n.GetReason() == "redirect_reversed" {
+				out = append(out, n)
+			}
+		}
+		return out
+	}
+	if got := reversed(swap); len(got) != 1 || !slices.Equal(got[0].GetNames(), []string{"www.example.com", "example.com"}) {
+		t.Errorf("the swap notes %v", got)
+	}
 	applyReviewed(t, c, swap)
 	if got := at(env, "site"); got.GetDomain() != "www.example.com" || got.GetService() == "" {
 		t.Errorf("the site's route is %v", got)
@@ -129,6 +142,11 @@ func TestAWebsitesOtherDomains(t *testing.T) {
 	undo, err := c.UndoChange(t.Context(), connect.NewRequest(&dockwellv1.UndoChangeRequest{Id: swap.GetId()}))
 	if err != nil {
 		t.Fatal(err)
+	}
+	// Undoing it sends www back to the bare domain, which browsers keep sending to www.
+	if got := reversed(undo.Msg.GetChange()); len(got) != 1 || !slices.Equal(got[0].GetNames(), []string{"example.com", "www.example.com"}) ||
+		!strings.Contains(got[0].GetMessage(), "Browsers keep example.com's earlier redirect to www.example.com for up to a day. Anyone who loaded example.com since goes round in a circle until it expires") {
+		t.Errorf("the undo notes %v", got)
 	}
 	applyReviewed(t, c, undo.Msg.GetChange())
 	if at(env, "site").GetDomain() != "example.com" || at(env, "www-example-com").GetRedirect().GetTo() != "https://example.com" || at(env, "example-com") != nil {

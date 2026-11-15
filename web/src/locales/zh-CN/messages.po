@@ -9536,6 +9536,9 @@ msgstr "迁移前，Dockwell 会询问它的数据用到了哪些功能；如果
 msgid "Browsers keep a permanent redirect for up to a day, through an undo too."
 msgstr "浏览器会将永久重定向保留至多一天，撤销后也是如此。"
 
+msgid "Browsers keep {back}'s earlier redirect to {to} for up to a day. Anyone who loaded {back} since goes round in a circle until it expires: clearing the browser's cache ends it sooner."
+msgstr "浏览器会将 {back} 之前到 {to} 的重定向保留至多一天。此后访问过 {back} 的人会一直循环，直到它过期：清除浏览器缓存可以更早结束。"
+
 #. placeholder {0}: server.serverName
 msgid "Builds {repository} at {commit} ({ref}) on {0} first. If the build fails, what runs stays as it is."
 msgstr "先在 {0} 上构建 {repository} 的 {commit}（{ref}）。如果构建失败，正在运行的内容保持不变。"

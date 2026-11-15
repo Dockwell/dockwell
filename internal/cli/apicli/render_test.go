@@ -1381,3 +1381,21 @@ func TestAPlanSaysOnceThatBrowsersKeepAPermanentRedirect(t *testing.T) {
 		t.Errorf("a temporary and a stopping redirect plan:\n%s", got)
 	}
 }
+
+// A plan that sends a redirect back where an earlier one sent from says what browsers
+// keep makes of it, in the one line, and not again among its notes (ADR 0070).
+func TestAPlanSaysOnceThatABrowsersRedirectGoesRound(t *testing.T) {
+	msg := "Browsers keep example.com's earlier redirect to www.example.com for up to a day. Anyone who loaded example.com since goes round in a circle until it expires: clearing the browser's cache ends it sooner"
+	var b strings.Builder
+	PlanView(&b, &dockwellv1.Plan{
+		Notes: []*dockwellv1.PlanNote{{Reason: "redirect_reversed", Message: msg, Names: []string{"example.com", "www.example.com"}}},
+		Servers: []*dockwellv1.ServerPlan{{ServerName: "hz-1", Steps: []*dockwellv1.PlanStep{{
+			Resource: &dockwellv1.ResourceRef{Kind: "route", Name: "www-example-com"}, Action: dockwellv1.PlanAction_PLAN_ACTION_CREATE,
+			Redirects: &dockwellv1.RouteRedirects{Where: "www.example.com", To: "https://example.com"},
+		}}}},
+	})
+	got := b.String()
+	if strings.Count(got, "Browsers keep") != 1 || !strings.Contains(got, msg+".") {
+		t.Errorf("the plan reads:\n%s", got)
+	}
+}

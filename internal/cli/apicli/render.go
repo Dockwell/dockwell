@@ -740,12 +740,13 @@ func PlanView(w io.Writer, p *dockwellv1.Plan) {
 		wrote = true
 	}
 	_ = tw.Flush()
-	// Once for the plan, as a browser keeps each permanent redirect alike (ADR 0070).
-	if keepsRedirect(p) {
+	// Once for the plan, as a browser keeps each permanent redirect alike (ADR 0070),
+	// or, where this sends one back where an earlier one sent from, what that makes of it.
+	if line := keptLine(p); line != "" {
 		if wrote {
 			fmt.Fprintln(w)
 		}
-		fmt.Fprintln(w, "Browsers keep a permanent redirect for up to a day, through an undo too.")
+		fmt.Fprintln(w, line)
 		wrote = true
 	}
 	for _, s := range p.GetServers() {
@@ -904,6 +905,10 @@ func PlanView(w io.Writer, p *dockwellv1.Plan) {
 		}
 	}
 	for _, n := range p.GetNotes() {
+		// Said once, in the line on what browsers keep.
+		if n.GetReason() == "redirect_reversed" {
+			continue
+		}
 		// A value anyone can read stops nobody, and is the most a note can say.
 		label := "Note"
 		switch {
@@ -1171,6 +1176,20 @@ func movesWords(m *dockwellv1.RouteMove) string {
 		return fmt.Sprintf("%s leaves %s, and goes to port %d on the server.", m.GetWhere(), m.GetFrom(), m.GetToPort())
 	}
 	return fmt.Sprintf("%s leaves %s, and goes to %s.", m.GetWhere(), m.GetFrom(), m.GetTo())
+}
+
+// keptLine is the plan's one line on what browsers keep of a permanent redirect, or
+// nothing for a plan that makes none.
+func keptLine(p *dockwellv1.Plan) string {
+	for _, n := range p.GetNotes() {
+		if n.GetReason() == "redirect_reversed" {
+			return n.GetMessage() + "."
+		}
+	}
+	if keepsRedirect(p) {
+		return "Browsers keep a permanent redirect for up to a day, through an undo too."
+	}
+	return ""
 }
 
 // keepsRedirect says a plan makes or keeps a permanent redirect, which browsers keep.
