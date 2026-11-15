@@ -214,6 +214,9 @@ func (s *Service) SetMemberRole(ctx context.Context, client Client, p Principal,
 			if out.Ended, err = tx.EndAccess(ctx, userID, now); err != nil {
 				return err
 			}
+			if err := s.auditHooksEnded(ctx, tx, p, userID, out.Ended.Hooks, "its maker's role was lowered"); err != nil {
+				return err
+			}
 			if wasAdmin && role != store.RoleAdmin {
 				if out.Invites, err = s.revokeInvitesBy(ctx, tx, client, p, userID, now); err != nil {
 					return err
@@ -250,6 +253,8 @@ type RemovalPlan struct {
 	// Links are their accounts at sign-in providers, which are deleted, with the
 	// provider's name where it could be read before the transaction (ADR 0095).
 	Links []LinkView
+	// Hooks are the deploy-on-push hooks they made, which are deleted (ADR 0046).
+	Hooks []store.GitHook
 	// Ended and InvitesRevoked are what the removal's transaction ended, as its
 	// audit event says, set once they're removed.
 	Ended          store.Ended
@@ -294,6 +299,9 @@ func (s *Service) plan(ctx context.Context, tx *store.Tx, p Principal, userID st
 		}
 	}
 	if out.Changes, err = tx.PlannedChangesOf(ctx, userID); err != nil {
+		return RemovalPlan{}, err
+	}
+	if out.Hooks, err = tx.GitHooksOf(ctx, userID); err != nil {
 		return RemovalPlan{}, err
 	}
 	return out, nil
@@ -373,6 +381,9 @@ func (s *Service) RemoveMember(ctx context.Context, client Client, p Principal, 
 			return fault.New(ErrTheOwner, "%s is the owner, who isn't removed: ownership moves by a transfer first", out.User.Name)
 		}
 		if err != nil {
+			return err
+		}
+		if err := s.auditHooksEnded(ctx, tx, p, userID, out.Ended.Hooks, "its maker was removed"); err != nil {
 			return err
 		}
 		detail := memberDetail{

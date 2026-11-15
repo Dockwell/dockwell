@@ -76,6 +76,12 @@ const (
 	// StepUpSaveWayBackIn saves a file that's a way back onto a server. Its
 	// target is the server's ID and the file's path, with every link followed.
 	StepUpSaveWayBackIn StepUpAction = "file.save_way_back_in"
+	// StepUpCreateGitHook makes a service's hook, which deploys it on a push.
+	// Its target is the service's ID.
+	StepUpCreateGitHook StepUpAction = "git_hook.create"
+	// StepUpRotateGitHook gives a service's hook a new secret. Its target is the
+	// service's ID.
+	StepUpRotateGitHook StepUpAction = "git_hook.rotate"
 	// StepUpEndProcess ends a process on a server. Its target is the server's ID
 	// and the process's, as "srv_…:1234".
 	StepUpEndProcess StepUpAction = "process.end"
@@ -154,6 +160,8 @@ var stepUpActions = map[StepUpAction]struct {
 	StepUpCreateToken:     {"creating an API token", false},
 	StepUpApplyRootChange: {"applying", true},
 	StepUpSaveWayBackIn:   {"saving", true},
+	StepUpCreateGitHook:   {"turning deploy on push on for", true},
+	StepUpRotateGitHook:   {"making a new hook secret for", true},
 	StepUpEndProcess:      {"ending process", true},
 	StepUpOpenTerminal:    {"opening a terminal on", true},
 	StepUpApproveChange:   {"approving", true},

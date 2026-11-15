@@ -104,9 +104,10 @@ func (h *Handler) SetMemberRole(ctx context.Context, req *connect.Request[dockwe
 	}
 	res := &dockwellv1.SetMemberRoleResponse{
 		Lowered:        changed.Lowered,
-		SessionsEnded:  int32(changed.Ended.Sessions), //nolint:gosec // a person's sessions
-		TokensRevoked:  int32(changed.Ended.Tokens),   //nolint:gosec // a person's tokens
-		InvitesRevoked: int32(changed.Invites),        //nolint:gosec // a person's invites
+		SessionsEnded:  int32(changed.Ended.Sessions),   //nolint:gosec // a person's sessions
+		TokensRevoked:  int32(changed.Ended.Tokens),     //nolint:gosec // a person's tokens
+		InvitesRevoked: int32(changed.Invites),          //nolint:gosec // a person's invites
+		HooksDeleted:   int32(len(changed.Ended.Hooks)), //nolint:gosec // a person's hooks
 	}
 	err = h.db.View(ctx, func(tx *store.Tx) error {
 		var err error
@@ -146,6 +147,13 @@ func (h *Handler) PlanMemberRemoval(ctx context.Context, req *connect.Request[do
 		for i := range plan.Invites {
 			res.Invites = append(res.Invites, h.inviteProto(ctx, tx, &plan.Invites[i]))
 		}
+		for i := range plan.Hooks {
+			hook := &dockwellv1.RemovalHook{ServiceId: plan.Hooks[i].ResourceID, ServiceName: plan.Hooks[i].ResourceID}
+			if r, err := tx.GetResourceByID(ctx, plan.Hooks[i].ResourceID); err == nil {
+				hook.ServiceName = r.Name
+			}
+			res.Hooks = append(res.Hooks, hook)
+		}
 		var err error
 		res.Member, err = h.memberNow(ctx, tx, req.Msg.GetUserId(), p.User.ID)
 		return err
@@ -166,10 +174,11 @@ func (h *Handler) RemoveMember(ctx context.Context, req *connect.Request[dockwel
 	}
 	// What the removal's transaction ended, as its audit event says.
 	res := &dockwellv1.RemoveMemberResponse{
-		SessionsEnded:  int32(gone.Ended.Sessions), //nolint:gosec // a person's sessions
-		TokensRevoked:  int32(gone.Ended.Tokens),   //nolint:gosec // a person's tokens
-		InvitesRevoked: int32(gone.InvitesRevoked), //nolint:gosec // a person's invites
-		LinksDeleted:   int32(gone.Ended.Links),    //nolint:gosec // a person's provider links
+		SessionsEnded:  int32(gone.Ended.Sessions),   //nolint:gosec // a person's sessions
+		TokensRevoked:  int32(gone.Ended.Tokens),     //nolint:gosec // a person's tokens
+		InvitesRevoked: int32(gone.InvitesRevoked),   //nolint:gosec // a person's invites
+		LinksDeleted:   int32(gone.Ended.Links),      //nolint:gosec // a person's provider links
+		HooksDeleted:   int32(len(gone.Ended.Hooks)), //nolint:gosec // a person's hooks
 	}
 	// They're gone already, whatever becomes of these: a change left planned is
 	// checked against whoever applies it, never against who planned it.

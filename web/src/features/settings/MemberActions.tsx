@@ -223,6 +223,7 @@ function RoleSheet({
     ? [
         [t`Sessions`, t`Signed out everywhere`],
         [t`API tokens`, t`Revoked`],
+        [t`Deploy on push`, t`Off where they turned it on`],
         ...(heldThere === Role.ADMIN ? ([[t`Invites they made`, t`Stop working`]] as const) : []),
       ]
     : [
@@ -449,6 +450,19 @@ function RemoveSheet({ member, onClose }: { member: Member; onClose: () => void 
                   </ul>
                 )}
               </dd>
+              {/* Deploy on push acts for whoever turned it on, so it goes with them (ADR 0046). */}
+              {p.hooks.length > 0 ? (
+                <>
+                  <dt>{t`Deploy on push turned off`}</dt>
+                  <dd>
+                    <ul className="members-removal-list">
+                      {p.hooks.map((hook) => (
+                        <li key={hook.serviceId}>{hook.serviceName}</li>
+                      ))}
+                    </ul>
+                  </dd>
+                </>
+              ) : null}
               <dt>{t`Invites revoked`}</dt>
               <dd>
                 {p.invites.length === 0 ? (

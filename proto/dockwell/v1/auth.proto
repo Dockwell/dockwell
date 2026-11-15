@@ -1005,6 +1005,13 @@ enum StepUpAction {
   // Saving a file that's a way back onto a server, with FileService.SaveFile.
   // The target is the server's ID and the path ReadFile gave, as "srv_…:/path".
   STEP_UP_ACTION_SAVE_WAY_BACK_IN = 9;
+  // Making a service's hook, which deploys it on a push, with
+  // GitHookService.CreateGitHook. The target is the service's ID. Numbered in
+  // its block, 100 to 109, which Git providers take (#253).
+  STEP_UP_ACTION_CREATE_GIT_HOOK = 100;
+  // Giving a service's hook a new secret, with
+  // GitHookService.RotateGitHookSecret. The target is the service's ID.
+  STEP_UP_ACTION_ROTATE_GIT_HOOK = 101;
   // End a process on a server (ProcessService.EndProcess), whose target is
   // "<server ID>:<PID>:<start ticks>", so a proof ends no other process that
   // gets the PID once it has gone. Numbered apart, as open work adds to this enum.

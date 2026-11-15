@@ -679,6 +679,27 @@ msgstr "你无法查看的项目中的一项变更"
 msgid "A major update of {subject} is out: {where}"
 msgstr "{subject} 有主要版本更新：{where}"
 
+msgid "A newer push to {ref} took the place of one for {name}"
+msgstr "推送到 {ref} 的更新的推送取代了 {name} 的一次推送"
+
+msgid "A push that {name} doesn't build"
+msgstr "{name} 不构建的一次推送"
+
+msgid "A push to {ref} deployed nothing to {name}"
+msgstr "推送到 {ref} 没有部署任何东西到 {name}"
+
+msgid "A push to {ref} found {name} runs {commit} already"
+msgstr "推送到 {ref}：{name} 已在运行 {commit}"
+
+msgid "A push to {ref} planned {commit} for {name}, which waits for a person to apply it"
+msgstr "推送到 {ref} 为 {name} 计划了 {commit}，等人来应用"
+
+msgid "A push to {ref} started a deploy of {commit} to {name}"
+msgstr "推送到 {ref} 开始把 {commit} 部署到 {name}"
+
+msgid "A push to {ref} waits for the deploy of {name} under way"
+msgstr "推送到 {ref} 在等待 {name} 进行中的部署"
+
 msgid "A scheduled task failed"
 msgstr "某个计划任务失败了"
 
@@ -868,6 +889,12 @@ msgstr "结束了已失效登录提供方的会话"
 msgid "Fetched a backup of {volume} from {destination}"
 msgstr "已从 {destination} 取回 {volume} 的一份备份"
 
+msgid "Gave deploy on push a new secret"
+msgstr "为推送时部署换了新密钥"
+
+msgid "Gave {name}'s deploy on push a new secret"
+msgstr "为 {name} 的推送时部署换了新密钥"
+
 #. placeholder {0}: m?.email ?? ""
 #. placeholder {1}: rolePhrase(m?.role ?? Role.UNSPECIFIED, { projectId: m?.projectId ?? "", projectName: m?.projectName ?? "" })
 msgid "Invited {0} as {1}"
@@ -977,6 +1004,12 @@ msgstr "已放回 {server} 上的 {path}，这里可能让他人重新进入服�
 
 msgid "Read {path} on {server}"
 msgstr "已读取 {server} 上的 {path}"
+
+msgid "Refused a push to {name} whose secret didn't match"
+msgstr "拒绝了一次密钥不匹配的推送到 {name}"
+
+msgid "Refused a push whose secret didn't match"
+msgstr "拒绝了一次密钥不匹配的推送"
 
 msgid "Removed a backup of {volume} from its server, and kept it on {destination}"
 msgstr "已从服务器移除 {volume} 的备份，并保留在 {destination} 上"
@@ -1165,8 +1198,20 @@ msgstr "已从 {from} 接手告警：{title}"
 msgid "Turned off codes from an authenticator app"
 msgstr "关闭了身份验证器应用验证码"
 
+msgid "Turned off deploy on push"
+msgstr "关闭了推送时部署"
+
+msgid "Turned off deploy on push for {name}"
+msgstr "关闭了 {name} 的推送时部署"
+
 msgid "Turned on codes from an authenticator app"
 msgstr "开启了身份验证器应用验证码"
+
+msgid "Turned on deploy on push"
+msgstr "开启了推送时部署"
+
+msgid "Turned on deploy on push for {name}"
+msgstr "开启了 {name} 的推送时部署"
 
 msgid "Undo: {reverted}"
 msgstr "撤销：{reverted}"
@@ -1194,6 +1239,9 @@ msgstr "已上传 {path} 到 {server}，{size}，并解压到 {to}"
 
 msgid "a server"
 msgstr "一台服务器"
+
+msgid "an app"
+msgstr "一个应用"
 
 msgid "its server"
 msgstr "它的服务器"
@@ -5105,6 +5153,123 @@ msgstr "{0}，当前运行的版本"
 msgid "{word} version"
 msgstr "{word} 版本"
 
+msgid "A new secret for {name}'s hook"
+msgstr "{name} 的 Webhook 新密钥"
+
+msgid "A webhook on the repository's host"
+msgstr "仓库托管平台上的 Webhook"
+
+msgid "A webhook on {hostName}"
+msgstr "{hostName} 上的 Webhook"
+
+msgid "Copy URL"
+msgstr "复制 URL"
+
+msgid "Copy secret"
+msgstr "复制密钥"
+
+msgid "Copy the secret now. It won't be shown again."
+msgstr "现在就复制密钥，它不会再显示。"
+
+msgid "Deploy on push"
+msgstr "推送时部署"
+
+msgid "Deploy on push didn't change"
+msgstr "推送时部署没有改变"
+
+msgid "Deploy on push isn't on"
+msgstr "推送时部署没有打开"
+
+msgid "Deploy {name} on push"
+msgstr "推送时部署 {name}"
+
+msgid "Each push to {branch} deploys {name}."
+msgstr "每次推送到 {branch} 都会部署 {name}。"
+
+msgid "Give the panel a domain"
+msgstr "为面板设置域名"
+
+msgid "Hook settings"
+msgstr "Webhook 设置"
+
+msgid "Last commit"
+msgstr "最新提交"
+
+msgid "Last push {ago} deployed nothing."
+msgstr "最近一次推送（{ago}）没有部署任何东西。"
+
+msgid "Last push {ago} gave its place to a newer one."
+msgstr "最近一次推送（{ago}）已被更新的推送取代。"
+
+msgid "Last push {ago} planned {commit}, which waits for a person to apply it."
+msgstr "最近一次推送（{ago}）计划了 {commit}，等人来应用。"
+
+msgid "Last push {ago} started a deploy of {commit}."
+msgstr "最近一次推送（{ago}）开始部署 {commit}。"
+
+msgid "Last push {ago} waits for the deploy under way."
+msgstr "最近一次推送（{ago}）在等待进行中的部署。"
+
+msgid "Last push {ago} wasn't to the branch {name} builds."
+msgstr "最近一次推送（{ago}）不是推送到 {name} 构建的分支。"
+
+msgid "Last push {ago}: {name} runs {commit} already."
+msgstr "最近一次推送（{ago}）：{name} 已在运行 {commit}。"
+
+msgid "No push has come yet."
+msgstr "还没有收到推送。"
+
+msgid "Open the repository's webhooks"
+msgstr "打开仓库的 Webhook"
+
+msgid "Open webhooks"
+msgstr "打开 Webhook"
+
+msgid "Open {hostName}"
+msgstr "打开 {hostName}"
+
+msgid "Payload URL"
+msgstr "Payload URL"
+
+msgid "Pushes to {branch} don't deploy {name}."
+msgstr "推送到 {branch} 不会部署 {name}。"
+
+msgid "Secret copied"
+msgstr "已复制密钥"
+
+msgid "Secret token"
+msgstr "密钥令牌"
+
+msgid "Set up"
+msgstr "设置"
+
+msgid "Shown once, when made"
+msgstr "仅在创建时显示一次"
+
+msgid "Target URL"
+msgstr "目标 URL"
+
+msgid "The hook now refuses pushes. Remove it from the repository too."
+msgstr "这个 Webhook 现在会拒绝推送。也请把它从仓库中移除。"
+
+msgid "The old secret stopped working. Give the hook this one."
+msgstr "旧密钥已失效。请把这个密钥填入 Webhook。"
+
+msgid "The repository's host"
+msgstr "仓库托管平台"
+
+msgid "The secret didn't change"
+msgstr "密钥没有改变"
+
+msgid "URL copied"
+msgstr "已复制 URL"
+
+msgid "the default branch"
+msgstr "默认分支"
+
+msgid "{who} can't reach this panel's address."
+msgstr "{who} 无法访问这个面板的地址。"
+
 msgid "About {span} down"
 msgstr "约 {span} 不可用"
 
@@ -5334,6 +5499,9 @@ msgstr "已重新拉取 {pulled}"
 msgid "Pulling {pulled} again"
 msgstr "正在重新拉取 {pulled}"
 
+msgid "Push"
+msgstr "推送"
+
 msgid "Rolled back"
 msgstr "已回滚"
 
@@ -5379,6 +5547,9 @@ msgstr "{ago}由 {name} 部署"
 msgid "deployed {ago} from the CLI on {local}"
 msgstr "{ago}通过 {local} 上的命令行部署"
 
+msgid "deployed {ago} on a push"
+msgstr "{ago}由推送部署"
+
 msgid "the CLI on {local}"
 msgstr "{local} 上的命令行"
 
@@ -5390,6 +5561,9 @@ msgstr "{revision} 于 {when}由 {name} 部署"
 
 msgid "{revision} deployed {when} from the CLI on {local}"
 msgstr "{revision} 于 {when}通过 {local} 上的命令行部署"
+
+msgid "{revision} deployed {when} on a push"
+msgstr "{revision} 于 {when}由推送部署"
 
 msgid "Also"
 msgstr "另有"
@@ -6213,9 +6387,6 @@ msgstr "保存你的恢复码"
 
 msgid "Scan this code with the app."
 msgstr "用应用扫描这个二维码。"
-
-msgid "Set up"
-msgstr "设置"
 
 msgid "Set up an authenticator app"
 msgstr "设置身份验证器应用"
@@ -10074,6 +10245,9 @@ msgstr "新容器保持健康 {soak} 后接管，在此之前正在运行的容�
 msgid "A new container takes over once it has been healthy for {soak}, and what runs goes on serving until then. If it isn't healthy within {healthyWithin}, the new one goes, and what runs stays"
 msgstr "新容器保持健康 {soak} 后接管，在此之前正在运行的容器继续提供服务。如果它在 {healthyWithin} 内未变为健康，新容器会被移除，正在运行的容器保留"
 
+msgid "A push"
+msgstr "推送"
+
 msgid "API token"
 msgstr "API 令牌"
 
@@ -10184,6 +10358,9 @@ msgstr "位于 {path} 的 Docker 套接字，可控制服务器上的 Docker，�
 
 msgid "Dockwell can't read where {cantTell} really lands, so it can't say two containers wouldn't write to one place, and the old one stops first. If the app can, set its rollout order to start first"
 msgstr "Dockwell 无法读取 {cantTell} 的实际位置，因此无法确定两个容器不会写入同一处，所以旧容器先停止。如果应用支持，请将其发布顺序设置为先启动"
+
+msgid "From a push"
+msgstr "来自推送"
 
 msgid "From the API"
 msgstr "来自 API"
@@ -15748,6 +15925,9 @@ msgstr "更改角色"
 msgid "Change what {name} holds"
 msgstr "更改 {name} 持有的角色"
 
+msgid "Deploy on push turned off"
+msgstr "关闭的推送时部署"
+
 msgid "Dockwell can't say what removing {name} would end"
 msgstr "Dockwell 无法说明移除 {name} 会终止什么"
 
@@ -15778,6 +15958,9 @@ msgstr "没有移除任何人"
 
 msgid "None open"
 msgstr "没有"
+
+msgid "Off where they turned it on"
+msgstr "在他们开启的地方关闭"
 
 msgid "Only {name} can"
 msgstr "只有 {name} 可以"
@@ -16698,9 +16881,6 @@ msgstr "每人在“个人资料和安全”中关联自己的账户。有风险
 
 msgid "Found {answerHost} · signs with {strongest}"
 msgstr "已找到 {answerHost} · 使用 {strongest} 签名"
-
-msgid "Give the panel a domain"
-msgstr "为面板设置域名"
 
 msgid "Groups claim"
 msgstr "用户组声明"

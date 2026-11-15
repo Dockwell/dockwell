@@ -1196,6 +1196,7 @@ var Surfaces = map[string]dockwellv1.Surface{
 	store.SurfaceAPI:       dockwellv1.Surface_SURFACE_API,
 	store.SurfaceCLI:       dockwellv1.Surface_SURFACE_CLI,
 	store.SurfaceAutomatic: dockwellv1.Surface_SURFACE_AUTOMATIC,
+	store.SurfacePush:      dockwellv1.Surface_SURFACE_PUSH,
 }
 
 var states = map[string]dockwellv1.ChangeState{

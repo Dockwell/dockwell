@@ -56,6 +56,9 @@ export function useActorWords(): (actor: Actor | undefined) => ActorWords {
           return { name, icon: "terminal", full: name, machine: true };
         case ActorKind.DOCKWELL:
           return { name, icon: "activity", full: name, machine: false };
+        case ActorKind.HOOK:
+          // "Deploy on push for web": the hook, which deploys as the person who turned it on.
+          return { name, icon: "commit", full: name, machine: false };
         default:
           return { name, icon: undefined, full: name, machine: false };
       }

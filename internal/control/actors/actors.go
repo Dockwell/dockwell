@@ -19,6 +19,7 @@ import (
 const (
 	user      = "user:"
 	token     = "token:"
+	hook      = "hook:" // a service's hook, deploying it on a push, as "hook:ghk_…"
 	server    = "server:"
 	shell     = "cli:" // someone in a shell on the control server, as "cli:mira@hz-1"
 	anonymous = "anonymous:"
@@ -116,6 +117,14 @@ func (l Lookup) read(objectID string) read {
 		if r, err := l.tx.GetResourceByID(l.ctx, objectID); err == nil {
 			name, scope = r.Name, r.Scope
 		}
+	case id.GitHook:
+		// A hook is called after the service it deploys, which outlives it in
+		// the record by its ID.
+		if h, err := l.tx.GetGitHook(l.ctx, objectID); err == nil {
+			if r, err := l.tx.GetResourceByID(l.ctx, h.ResourceID); err == nil {
+				name = "Deploy on push for " + r.Name
+			}
+		}
 	default:
 		return read{}
 	}
@@ -134,8 +143,12 @@ func (l Lookup) Actor(actor string) *dockwellv1.Actor {
 	a := &dockwellv1.Actor{}
 	kind, rest, _ := strings.Cut(actor, ":")
 	switch kind + ":" {
-	case user, token, server:
+	case user, token, server, hook:
 		a.Kind, a.Id, a.Name = named[kind+":"], rest, rest
+		if kind+":" == hook {
+			// A hook turned off is gone from the store, but not from what it did.
+			a.Name = "Deploy on push"
+		}
 		r := l.read(rest)
 		if r.name != "" {
 			a.Name = r.name
@@ -160,6 +173,7 @@ func (l Lookup) Actor(actor string) *dockwellv1.Actor {
 // The kinds of actor that have a name to read, by how the store names them.
 var named = map[string]dockwellv1.ActorKind{
 	user: dockwellv1.ActorKind_ACTOR_KIND_USER, token: dockwellv1.ActorKind_ACTOR_KIND_TOKEN, server: dockwellv1.ActorKind_ACTOR_KIND_SERVER,
+	hook: dockwellv1.ActorKind_ACTOR_KIND_HOOK,
 }
 
 // Store returns the store's name for the actor whose Actor.id is actorID:
@@ -174,6 +188,8 @@ func Store(actorID string) (string, bool) {
 		return token + actorID, true
 	case prefix == id.Server:
 		return server + actorID, true
+	case prefix == id.GitHook:
+		return hook + actorID, true
 	case strings.Contains(actorID, "@") && !strings.ContainsAny(actorID, " :"):
 		return shell + actorID, true
 	}
@@ -194,6 +210,8 @@ func Prefixes(kind dockwellv1.ActorKind) []string {
 		return []string{server}
 	case dockwellv1.ActorKind_ACTOR_KIND_SHELL:
 		return []string{shell}
+	case dockwellv1.ActorKind_ACTOR_KIND_HOOK:
+		return []string{hook}
 	case dockwellv1.ActorKind_ACTOR_KIND_UNSPECIFIED:
 	}
 	return nil

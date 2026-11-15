@@ -10,6 +10,7 @@ import {
   DrillResult,
   type Event,
   EventKind,
+  GitHookOutcome,
   HealthState,
   IntentKind,
   Role,
@@ -48,6 +49,7 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
       if (event.kind === EventKind.CHANGE && change) return describeChange(change, summaries, i18n);
       const name = event.subject?.name ?? "";
       if (event.kind === EventKind.HEALTH) return describeHealth(event, i18n);
+      if (event.kind === EventKind.PUSH) return describePush(event, i18n);
       if (event.kind === EventKind.ALERT) return describeAlert(event, i18n);
       const volume = event.backup?.volume ?? name;
       if (event.action === "backup.taken") return { title: t`Backed up ${volume}`, icon: "archive" };
@@ -642,6 +644,29 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
           return { title: name ? t`Created the API token ${name}` : t`Created an API token`, icon: "key" };
         case "token.revoke":
           return { title: name ? t`Revoked the API token ${name}` : t`Revoked an API token`, icon: "key" };
+        case "git_hook.create":
+          return {
+            title: name ? t`Turned on deploy on push for ${name}` : t`Turned on deploy on push`,
+            icon: "commit",
+          };
+        case "git_hook.rotate":
+          return {
+            title: name ? t`Gave ${name}'s deploy on push a new secret` : t`Gave deploy on push a new secret`,
+            icon: "key",
+          };
+        case "git_hook.delete":
+          return {
+            title: name ? t`Turned off deploy on push for ${name}` : t`Turned off deploy on push`,
+            icon: "commit",
+          };
+        case "git_hook.refused":
+          return {
+            title: name
+              ? t`Refused a push to ${name} whose secret didn't match`
+              : t`Refused a push whose secret didn't match`,
+            icon: "shield",
+            tone: "warning",
+          };
         case "sign_in_link.create":
           return {
             title: name ? t`Made a one-time sign-in link for ${name}` : t`Made a one-time sign-in link`,
@@ -700,6 +725,33 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
     },
     [t, i18n, time, rolePhrase],
   );
+}
+
+/** What a push to an app's hook came to (ADR 0046). */
+function describePush(event: Event, i18n: I18n): Described {
+  const name = event.subject?.name || i18n._(msg`an app`);
+  const delivery = event.push?.delivery;
+  const ref = (delivery?.ref ?? "").replace(/^refs\/(heads|tags)\//, "");
+  const commit = (delivery?.commit ?? "").slice(0, 7);
+  switch (delivery?.outcome) {
+    case GitHookOutcome.DEPLOYING:
+      return { title: i18n._(msg`A push to ${ref} started a deploy of ${commit} to ${name}`), icon: "commit" };
+    case GitHookOutcome.NEEDS_PERSON:
+      return {
+        title: i18n._(msg`A push to ${ref} planned ${commit} for ${name}, which waits for a person to apply it`),
+        icon: "commit",
+        tone: "warning",
+      };
+    case GitHookOutcome.QUEUED:
+      return { title: i18n._(msg`A push to ${ref} waits for the deploy of ${name} under way`), icon: "commit" };
+    case GitHookOutcome.NOTHING_NEW:
+      return { title: i18n._(msg`A push to ${ref} found ${name} runs ${commit} already`), icon: "commit" };
+    case GitHookOutcome.SUPERSEDED:
+      return { title: i18n._(msg`A newer push to ${ref} took the place of one for ${name}`), icon: "commit" };
+    case GitHookOutcome.FAILED:
+      return { title: i18n._(msg`A push to ${ref} deployed nothing to ${name}`), icon: "commit", tone: "warning" };
+  }
+  return { title: i18n._(msg`A push that ${name} doesn't build`), icon: "commit" };
 }
 
 /** Whether a health event stands for a service that keeps changing, which the server tells as one event that goes on. */

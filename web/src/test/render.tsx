@@ -18,6 +18,7 @@ import {
   FileService,
   FirewallService,
   GetVersionResponseSchema,
+  GitHookService,
   HealthService,
   ImageService,
   ImportService,
@@ -78,6 +79,7 @@ export type Api = {
   databases?: Partial<ServiceImpl<typeof DatabaseService>>;
   websites?: Partial<ServiceImpl<typeof WebsiteService>>;
   builds?: Partial<ServiceImpl<typeof BuildService>>;
+  hooks?: Partial<ServiceImpl<typeof GitHookService>>;
   audit?: Partial<ServiceImpl<typeof AuditService>>;
   members?: Partial<ServiceImpl<typeof MemberService>>;
   imports?: Partial<ServiceImpl<typeof ImportService>>;
@@ -179,6 +181,8 @@ function apiWrapper(api: Api, cache: CacheOptions = {}) {
       service(DatabaseService, { listDatabases: () => ({}), ...api.databases });
       service(WebsiteService, { listWebsites: () => ({}), ...api.websites });
       service(BuildService, api.builds ?? {});
+      // An app that builds from Git has deploy on push off unless a test says.
+      service(GitHookService, { getGitHook: () => ({}), ...api.hooks });
     },
     { transport: { interceptors: [watchSession(() => recheckAuth(queryClient))] } },
   );

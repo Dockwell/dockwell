@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"connectrpc.com/connect"
 
@@ -189,13 +190,25 @@ func TestMembersAreManagedOverTheAPI(t *testing.T) {
 			Resource: &dockwellv1.ResourceRef{Kind: "variable", Scope: env, Name: "MODE"},
 			Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Variable{Variable: &resourcev1.Variable{Value: "fast"}}},
 		})
+		// Deploy on push acts for whoever turned it on, so a hook of ada's goes with
+		// her, as the plan and the answer say (#253's re-check, N3).
+		shop := s.shopID(t)
+		if err := s.srv.store.Update(ctx, func(tx *store.Tx) error {
+			now := time.Now()
+			return tx.CreateGitHook(ctx, store.GitHook{ID: "ghk_ada", ResourceID: shop, UserID: adaID, Secret: []byte("x"), CreatedAt: now, SecretAt: now})
+		}); err != nil {
+			t.Fatal(err)
+		}
 		plan, err := s.members.PlanMemberRemoval(ctx, connect.NewRequest(&dockwellv1.PlanMemberRemovalRequest{UserId: adaID}))
 		if err != nil || plan.Msg.GetSessions() != 1 || len(plan.Msg.GetChanges()) != 1 || plan.Msg.GetChanges()[0].GetId() != planned.GetId() || plan.Msg.GetMember().GetUser().GetEmail() != "ada@example.com" {
 			t.Fatalf("the plan to remove ada: %v, %v", plan, err)
 		}
+		if hooks := plan.Msg.GetHooks(); len(hooks) != 1 || hooks[0].GetServiceId() != shop || hooks[0].GetServiceName() != "shop" {
+			t.Errorf("the plan to remove ada lists hooks %v, want hers, by name", hooks)
+		}
 		proof = stepUpFor(t, s.owner, dockwellv1.StepUpAction_STEP_UP_ACTION_REMOVE_MEMBER, adaID)
 		gone, err := s.members.RemoveMember(ctx, connect.NewRequest(&dockwellv1.RemoveMemberRequest{UserId: adaID, Proof: proof}))
-		if err != nil || gone.Msg.GetSessionsEnded() != 1 || gone.Msg.GetChangesDiscarded() != 1 || len(gone.Msg.GetChangesLeft()) != 0 {
+		if err != nil || gone.Msg.GetSessionsEnded() != 1 || gone.Msg.GetChangesDiscarded() != 1 || len(gone.Msg.GetChangesLeft()) != 0 || gone.Msg.GetHooksDeleted() != 1 {
 			t.Fatalf("removing ada: %v, %v", gone, err)
 		}
 		if _, err := ada.authClient().ListSessions(ctx, connect.NewRequest(&dockwellv1.ListSessionsRequest{})); connect.CodeOf(err) != connect.CodeUnauthenticated {

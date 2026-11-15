@@ -1,0 +1,392 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
+import { timestampDate } from "@bufbuild/protobuf/wkt";
+import { createClient } from "@connectrpc/connect";
+import { useQuery, useTransport } from "@connectrpc/connect-query";
+import {
+  type GitHook,
+  type GitHookDelivery,
+  GitHookOutcome,
+  GitHookService,
+  type GitSource,
+  StepUpAction,
+} from "@dockwell/api";
+import { Button, ButtonLink, Callout, Icon, Panel, Sheet, Switch, Tag } from "@dockwell/ui";
+import { Trans, useLingui } from "@lingui/react/macro";
+import { Link } from "@tanstack/react-router";
+import { useState } from "react";
+import { shownRef } from "../../lib/built";
+import { sentence } from "../../lib/errors";
+import { useTimeWords } from "../../lib/time";
+import { useMay } from "../auth/may";
+import { useAuthError } from "../auth/messages";
+import { withStepUpIfAsked } from "../auth/stepUp";
+import { useAgoNow } from "../servers/useFleet";
+import { CopyButton } from "../system/CopyCommand";
+import { useApp, useRevisions } from "./AppContext";
+import { environmentOf, nameOf } from "./app";
+import { shortCommit, shownRepository } from "./Build";
+import { type GitHost, gitHost, hookOutOfReach } from "./gitHost";
+
+import "./Source.css";
+
+/**
+ * Where an app that builds from Git builds from (App-Overview's Source): its
+ * repository and branch, the commit it runs, and whether a push deploys it.
+ */
+export function SourcePanel() {
+  const { t } = useLingui();
+  const { service } = useApp();
+  const build = service.spec?.build;
+  const source = build?.source.case === "git" ? build.source.value : undefined;
+  if (!source) return null;
+  const host = gitHost(source.url);
+  return (
+    <Panel title={t`Source`}>
+      <div className="app-source">
+        <dl className="app-facts">
+          <dt>{t`Repository`}</dt>
+          <dd className="app-source-repo">
+            {host?.name ? (
+              <span>
+                {host.name} <code>{host.path}</code>
+              </span>
+            ) : (
+              <code>{shownRepository(source.url)}</code>
+            )}
+            <Tag icon="branch">{shownRef(source.ref) || t`default branch`}</Tag>
+          </dd>
+          <LastCommit serviceId={service.id} source={source} />
+        </dl>
+        <DeployOnPush source={source} host={host} />
+      </div>
+    </Panel>
+  );
+}
+
+/** The commit the app's build is of, as its build read it. */
+function LastCommit({ serviceId, source }: { serviceId: string; source: GitSource }) {
+  const { t } = useLingui();
+  const time = useTimeWords();
+  const { revisions } = useRevisions(serviceId);
+  const build = source.commit ? revisions?.find((r) => r.build?.commit === source.commit)?.build : undefined;
+  const ended = build?.endTime ?? build?.startTime;
+  const when = ended ? timestampDate(ended) : undefined;
+  const now = useAgoNow(when);
+  if (!source.commit) return null;
+  return (
+    <>
+      <dt>{t`Last commit`}</dt>
+      <dd className="app-source-commit">
+        {build?.commitSubject ? <span className="app-source-subject">{build.commitSubject}</span> : null}
+        <span className="app-muted">
+          {[shortCommit(source.commit), build?.commitAuthor ?? "", when ? time.ago(when, now) : ""]
+            .filter(Boolean)
+            .join(" · ")}
+        </span>
+      </dd>
+    </>
+  );
+}
+
+/** The hook's sheet, open: with its secret just after it was made, or given a new one, which is shown only then. */
+interface Open {
+  secret?: string;
+  rotated?: boolean;
+}
+
+/**
+ * The Deploy on push switch (ADR 0046): a hook the repository's host sends each
+ * push to, signed with a secret only you and the host have. Turning it on asks
+ * for your passkey and opens the hook's sheet, with the secret, once; turning
+ * it off needs none. Under it, the hook's state is one line.
+ */
+function DeployOnPush({ source, host }: { source: GitSource; host: GitHost | undefined }) {
+  const { t } = useLingui();
+  const { service } = useApp();
+  const transport = useTransport();
+  const explain = useAuthError();
+  const may = useMay();
+  const query = useQuery(GitHookService.method.getGitHook, { id: service.id });
+  const hook = query.data?.hook;
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<string>();
+  const [open, setOpen] = useState<Open>();
+  const [turnedOff, setTurnedOff] = useState(false);
+  const name = nameOf(service);
+  const branch = shownRef(source.ref) || t`the default branch`;
+  const on = hook !== undefined;
+  const where = { environment: environmentOf(service) };
+  const mayTurnOn = may(GitHookService.method.createGitHook, where);
+  const mayTurnOff = may(GitHookService.method.deleteGitHook, where);
+  const offer = on ? mayTurnOff : mayTurnOn;
+
+  const turn = async (next: boolean) => {
+    setBusy(true);
+    setProblem(undefined);
+    setTurnedOff(false);
+    const hooks = createClient(GitHookService, transport);
+    try {
+      if (next) {
+        // Your browser asks for your passkey, to confirm it's you, once nothing else stops it.
+        const res = await withStepUpIfAsked(transport, StepUpAction.CREATE_GIT_HOOK, service.id, (proof) =>
+          hooks.createGitHook({ id: service.id, proof }),
+        );
+        setOpen({ secret: res.secret });
+      } else {
+        await hooks.deleteGitHook({ id: service.id });
+        setTurnedOff(true);
+      }
+    } catch (err) {
+      setProblem(explain(err) || sentence(err));
+    } finally {
+      setBusy(false);
+      void query.refetch();
+    }
+  };
+
+  return (
+    <div className="app-source-push">
+      <Switch
+        checked={on}
+        disabled={busy || query.isPending || !offer.allowed}
+        onChange={(next) => void turn(next)}
+        label={t`Deploy on push`}
+        description={
+          offer.reason ||
+          (on ? t`Each push to ${branch} deploys ${name}.` : t`Pushes to ${branch} don't deploy ${name}.`)
+        }
+      />
+      {hook ? (
+        <HookLine hook={hook} source={source} host={host} onOpen={() => setOpen({})} />
+      ) : turnedOff && host ? (
+        <p className="app-source-line">
+          <span className="app-muted">{t`The hook now refuses pushes. Remove it from the repository too.`}</span>
+          <a className="app-panel-link" href={host.hooksPage.replace(/\/new$/, "")} target="_blank" rel="noreferrer">
+            {t`Open webhooks`}
+          </a>
+        </p>
+      ) : null}
+      {problem ? (
+        <Callout tone="critical" title={on ? t`Deploy on push didn't change` : t`Deploy on push isn't on`}>
+          {problem}
+        </Callout>
+      ) : null}
+      {open && hook ? (
+        <HookSheet hook={hook} open={open} host={host} onOpen={setOpen} onClose={() => setOpen(undefined)} />
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * The hook's state in one line, with its action: that its host can't reach it,
+ * that no push has come, or what the last one came to.
+ */
+function HookLine({
+  hook,
+  source,
+  host,
+  onOpen,
+}: {
+  hook: GitHook;
+  source: GitSource;
+  host: GitHost | undefined;
+  onOpen: () => void;
+}) {
+  const { t } = useLingui();
+  const last = hook.deliveries[0];
+  if (hookOutOfReach(hook.url, source.url)) {
+    const who = host?.name || t`The repository's host`;
+    return (
+      <p className="app-source-line is-warning">
+        <Icon name="alert" size={14} />
+        <span>{t`${who} can't reach this panel's address.`}</span>
+        <Link to="/settings/general" className="app-panel-link">
+          {t`Give the panel a domain`}
+        </Link>
+      </p>
+    );
+  }
+  return (
+    <p className="app-source-line">
+      {last ? <LastPush delivery={last} /> : <span className="app-muted">{t`No push has come yet.`}</span>}
+      <button type="button" className="app-panel-link" onClick={onOpen}>
+        {last ? t`Hook settings` : t`Set up`}
+      </button>
+    </p>
+  );
+}
+
+/** The newest push, and what came of it. */
+function LastPush({ delivery }: { delivery: GitHookDelivery }) {
+  const { t } = useLingui();
+  const time = useTimeWords();
+  const { service } = useApp();
+  const name = nameOf(service);
+  const came = delivery.time ? timestampDate(delivery.time) : undefined;
+  const now = useAgoNow(came);
+  const ago = came ? time.ago(came, now) : "";
+  const commit = shortCommit(delivery.commit);
+  let what: string;
+  switch (delivery.outcome) {
+    case GitHookOutcome.DEPLOYING:
+      what = t`Last push ${ago} started a deploy of ${commit}.`;
+      break;
+    case GitHookOutcome.NEEDS_PERSON:
+      what = t`Last push ${ago} planned ${commit}, which waits for a person to apply it.`;
+      break;
+    case GitHookOutcome.QUEUED:
+      what = t`Last push ${ago} waits for the deploy under way.`;
+      break;
+    case GitHookOutcome.NOTHING_NEW:
+      what = t`Last push ${ago}: ${name} runs ${commit} already.`;
+      break;
+    case GitHookOutcome.SUPERSEDED:
+      what = t`Last push ${ago} gave its place to a newer one.`;
+      break;
+    case GitHookOutcome.FAILED:
+      what = t`Last push ${ago} deployed nothing.`;
+      break;
+    default:
+      what = t`Last push ${ago} wasn't to the branch ${name} builds.`;
+  }
+  const words = (
+    <span className={delivery.outcome === GitHookOutcome.FAILED ? "app-source-failed" : "app-muted"}>{what}</span>
+  );
+  return (
+    <>
+      {delivery.changeId ? (
+        <Link to="/changes/$changeId" params={{ changeId: delivery.changeId }} className="app-source-change">
+          {words}
+        </Link>
+      ) : (
+        words
+      )}
+      {delivery.outcome === GitHookOutcome.FAILED && delivery.detail ? (
+        <span className="app-source-why">{delivery.detail}</span>
+      ) : null}
+    </>
+  );
+}
+
+/**
+ * The hook's URL, and its secret just after it was made, with a link to where
+ * the repository's host adds a webhook. Each field is named as that host's form
+ * names it. GitHub, GitLab, Bitbucket, Gitea and Forgejo send a push on their
+ * own, so there's nothing more to set.
+ */
+function HookSheet({
+  hook,
+  open,
+  host,
+  onOpen,
+  onClose,
+}: {
+  hook: GitHook;
+  open: Open;
+  host: GitHost | undefined;
+  onOpen: (open: Open) => void;
+  onClose: () => void;
+}) {
+  const { t } = useLingui();
+  const { service } = useApp();
+  const transport = useTransport();
+  const explain = useAuthError();
+  const may = useMay();
+  const mayRotate = may(GitHookService.method.rotateGitHookSecret, { environment: environmentOf(service) });
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<string>();
+  const name = nameOf(service);
+  const hostName = host?.name ?? "";
+  const urlLabel =
+    host?.kind === "github" ? t`Payload URL` : host?.kind === "gitea" && !host.name ? t`Target URL` : t`URL`;
+  const secretLabel = host?.kind === "gitlab" ? t`Secret token` : t`Secret`;
+
+  const rotate = async () => {
+    setBusy(true);
+    setProblem(undefined);
+    try {
+      const res = await withStepUpIfAsked(transport, StepUpAction.ROTATE_GIT_HOOK, service.id, (proof) =>
+        createClient(GitHookService, transport).rotateGitHookSecret({ id: service.id, proof }),
+      );
+      onOpen({ secret: res.secret, rotated: true });
+    } catch (err) {
+      setProblem(explain(err) || sentence(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Sheet
+      open
+      onClose={onClose}
+      title={open.rotated ? t`A new secret for ${name}'s hook` : t`Deploy ${name} on push`}
+      subtitle={hostName ? t`A webhook on ${hostName}` : t`A webhook on the repository's host`}
+      footer={
+        <>
+          <Button variant={host ? "secondary" : "primary"} onClick={onClose}>
+            <Trans>Done</Trans>
+          </Button>
+          {host ? (
+            <ButtonLink variant="primary" icon="external" href={host.hooksPage} target="_blank" rel="noreferrer">
+              {hostName ? t`Open ${hostName}` : t`Open the repository's webhooks`}
+            </ButtonLink>
+          ) : null}
+        </>
+      }
+    >
+      <div className="app-hook-sheet">
+        {open.secret ? (
+          <Callout tone="healthy" title={t`Copy the secret now. It won't be shown again.`}>
+            {open.rotated ? t`The old secret stopped working. Give the hook this one.` : null}
+          </Callout>
+        ) : null}
+        <dl className="app-facts app-hook-fields">
+          <dt>{urlLabel}</dt>
+          <dd>
+            <span className="copy-command">
+              <code>{hook.url}</code>
+              <CopyButton text={hook.url} label={t`Copy URL`} copiedLabel={t`URL copied`} iconOnly variant="ghost" />
+            </span>
+          </dd>
+          <dt>{secretLabel}</dt>
+          <dd>
+            {open.secret ? (
+              <span className="copy-command">
+                <code>{open.secret}</code>
+                <CopyButton
+                  text={open.secret}
+                  label={t`Copy secret`}
+                  copiedLabel={t`Secret copied`}
+                  iconOnly
+                  variant="ghost"
+                />
+              </span>
+            ) : (
+              <span className="app-hook-secret">
+                <span className="app-muted">{t`Shown once, when made`}</span>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  icon="key"
+                  loading={busy}
+                  onClick={() => void rotate()}
+                  {...mayRotate.off}
+                >
+                  <Trans>New secret</Trans>
+                </Button>
+              </span>
+            )}
+          </dd>
+        </dl>
+        {problem ? (
+          <Callout tone="critical" title={t`The secret didn't change`}>
+            {problem}
+          </Callout>
+        ) : null}
+      </div>
+    </Sheet>
+  );
+}

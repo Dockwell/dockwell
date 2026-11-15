@@ -54,6 +54,10 @@ const (
 	// Someone changed a setting of the install, such as its name or time zone.
 	// Numbered apart, as open work adds to this enum.
 	EventKind_EVENT_KIND_SETTINGS EventKind = 10
+	// A push through a service's hook: what it planned, applied, left for a
+	// person, or why it did nothing. Numbered apart, as open work adds to this
+	// enum.
+	EventKind_EVENT_KIND_PUSH EventKind = 110
 	// An alert fired or resolved, or someone muted a rule or a server, or ended a
 	// mute. Numbered apart, as open work adds to this enum.
 	EventKind_EVENT_KIND_ALERT EventKind = 90
@@ -72,6 +76,7 @@ var (
 		4:   "EVENT_KIND_HEALTH",
 		5:   "EVENT_KIND_BACKUP",
 		10:  "EVENT_KIND_SETTINGS",
+		110: "EVENT_KIND_PUSH",
 		90:  "EVENT_KIND_ALERT",
 		130: "EVENT_KIND_TASK",
 	}
@@ -83,6 +88,7 @@ var (
 		"EVENT_KIND_HEALTH":      4,
 		"EVENT_KIND_BACKUP":      5,
 		"EVENT_KIND_SETTINGS":    10,
+		"EVENT_KIND_PUSH":        110,
 		"EVENT_KIND_ALERT":       90,
 		"EVENT_KIND_TASK":        130,
 	}
@@ -694,6 +700,9 @@ type Event struct {
 	// A setting of the install someone changed, for a settings event. Numbered
 	// apart, as open work adds to this message.
 	Setting *EventSetting `protobuf:"bytes,31,opt,name=setting,proto3" json:"setting,omitempty"`
+	// What a push through a service's hook came to. Numbered apart, as open work
+	// adds to this message.
+	Push *EventPush `protobuf:"bytes,110,opt,name=push,proto3" json:"push,omitempty"`
 	// The alert that fired or resolved, or the mute that began or ended, for an
 	// alert event. Numbered apart, as open work adds to this message.
 	Alert *EventAlert `protobuf:"bytes,90,opt,name=alert,proto3" json:"alert,omitempty"`
@@ -840,6 +849,13 @@ func (x *Event) GetTerminal() *EventTerminal {
 func (x *Event) GetSetting() *EventSetting {
 	if x != nil {
 		return x.Setting
+	}
+	return nil
+}
+
+func (x *Event) GetPush() *EventPush {
+	if x != nil {
+		return x.Push
 	}
 	return nil
 }
@@ -1750,6 +1766,61 @@ func (x *EventBackup) GetServerId() string {
 	return ""
 }
 
+// EventPush is what a push through a service's hook came to.
+type EventPush struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The hook's ID.
+	HookId string `protobuf:"bytes,1,opt,name=hook_id,json=hookId,proto3" json:"hook_id,omitempty"`
+	// The delivery, as the provider names it.
+	Delivery      *GitHookDelivery `protobuf:"bytes,2,opt,name=delivery,proto3" json:"delivery,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EventPush) Reset() {
+	*x = EventPush{}
+	mi := &file_dockwell_v1_event_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EventPush) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EventPush) ProtoMessage() {}
+
+func (x *EventPush) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_event_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EventPush.ProtoReflect.Descriptor instead.
+func (*EventPush) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_event_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *EventPush) GetHookId() string {
+	if x != nil {
+		return x.HookId
+	}
+	return ""
+}
+
+func (x *EventPush) GetDelivery() *GitHookDelivery {
+	if x != nil {
+		return x.Delivery
+	}
+	return nil
+}
+
 // EventPublicAddress is a server's public address as a person changed it.
 type EventPublicAddress struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -1763,7 +1834,7 @@ type EventPublicAddress struct {
 
 func (x *EventPublicAddress) Reset() {
 	*x = EventPublicAddress{}
-	mi := &file_dockwell_v1_event_proto_msgTypes[16]
+	mi := &file_dockwell_v1_event_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1775,7 +1846,7 @@ func (x *EventPublicAddress) String() string {
 func (*EventPublicAddress) ProtoMessage() {}
 
 func (x *EventPublicAddress) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_event_proto_msgTypes[16]
+	mi := &file_dockwell_v1_event_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1788,7 +1859,7 @@ func (x *EventPublicAddress) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EventPublicAddress.ProtoReflect.Descriptor instead.
 func (*EventPublicAddress) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_event_proto_rawDescGZIP(), []int{16}
+	return file_dockwell_v1_event_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *EventPublicAddress) GetAddress() string {
@@ -1837,7 +1908,7 @@ type EventHealth struct {
 
 func (x *EventHealth) Reset() {
 	*x = EventHealth{}
-	mi := &file_dockwell_v1_event_proto_msgTypes[17]
+	mi := &file_dockwell_v1_event_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1849,7 +1920,7 @@ func (x *EventHealth) String() string {
 func (*EventHealth) ProtoMessage() {}
 
 func (x *EventHealth) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_event_proto_msgTypes[17]
+	mi := &file_dockwell_v1_event_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1862,7 +1933,7 @@ func (x *EventHealth) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EventHealth.ProtoReflect.Descriptor instead.
 func (*EventHealth) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_event_proto_rawDescGZIP(), []int{17}
+	return file_dockwell_v1_event_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *EventHealth) GetServerId() string {
@@ -1950,7 +2021,7 @@ type EventSubject struct {
 
 func (x *EventSubject) Reset() {
 	*x = EventSubject{}
-	mi := &file_dockwell_v1_event_proto_msgTypes[18]
+	mi := &file_dockwell_v1_event_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1962,7 +2033,7 @@ func (x *EventSubject) String() string {
 func (*EventSubject) ProtoMessage() {}
 
 func (x *EventSubject) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_event_proto_msgTypes[18]
+	mi := &file_dockwell_v1_event_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1975,7 +2046,7 @@ func (x *EventSubject) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EventSubject.ProtoReflect.Descriptor instead.
 func (*EventSubject) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_event_proto_rawDescGZIP(), []int{18}
+	return file_dockwell_v1_event_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *EventSubject) GetId() string {
@@ -2071,7 +2142,7 @@ type EventMember struct {
 
 func (x *EventMember) Reset() {
 	*x = EventMember{}
-	mi := &file_dockwell_v1_event_proto_msgTypes[19]
+	mi := &file_dockwell_v1_event_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2083,7 +2154,7 @@ func (x *EventMember) String() string {
 func (*EventMember) ProtoMessage() {}
 
 func (x *EventMember) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_event_proto_msgTypes[19]
+	mi := &file_dockwell_v1_event_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2096,7 +2167,7 @@ func (x *EventMember) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EventMember.ProtoReflect.Descriptor instead.
 func (*EventMember) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_event_proto_rawDescGZIP(), []int{19}
+	return file_dockwell_v1_event_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *EventMember) GetEmail() string {
@@ -2187,7 +2258,7 @@ var File_dockwell_v1_event_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_event_proto_rawDesc = "" +
 	"\n" +
-	"\x17dockwell/v1/event.proto\x12\vdockwell.v1\x1a&dockwell/resource/v1alpha1/specs.proto\x1a\x16dockwell/v1/auth.proto\x1a\x18dockwell/v1/backup.proto\x1a\x18dockwell/v1/change.proto\x1a\x18dockwell/v1/health.proto\x1a\x19dockwell/v1/options.proto\x1a\x16dockwell/v1/task.proto\x1a\x1adockwell/v1/terminal.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x8d\x02\n" +
+	"\x17dockwell/v1/event.proto\x12\vdockwell.v1\x1a&dockwell/resource/v1alpha1/specs.proto\x1a\x16dockwell/v1/auth.proto\x1a\x18dockwell/v1/backup.proto\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/githook.proto\x1a\x18dockwell/v1/health.proto\x1a\x19dockwell/v1/options.proto\x1a\x16dockwell/v1/task.proto\x1a\x1adockwell/v1/terminal.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x8d\x02\n" +
 	"\x11ListEventsRequest\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
@@ -2229,7 +2300,7 @@ const file_dockwell_v1_event_proto_rawDesc = "" +
 	"\x06events\x18\x01 \x03(\v2\x12.dockwell.v1.EventR\x06events\x12\x18\n" +
 	"\aremoved\x18\x02 \x03(\tR\aremoved\x12\x1a\n" +
 	"\bsnapshot\x18\x03 \x01(\bR\bsnapshot\x12&\n" +
-	"\x0fnext_page_token\x18\x04 \x01(\tR\rnextPageToken\"\xaf\a\n" +
+	"\x0fnext_page_token\x18\x04 \x01(\tR\rnextPageToken\"\xdb\a\n" +
 	"\x05Event\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12*\n" +
 	"\x04kind\x18\x02 \x01(\x0e2\x16.dockwell.v1.EventKindR\x04kind\x12\x16\n" +
@@ -2245,7 +2316,8 @@ const file_dockwell_v1_event_proto_rawDesc = "" +
 	"\x0epublic_address\x18\v \x01(\v2\x1f.dockwell.v1.EventPublicAddressR\rpublicAddress\x123\n" +
 	"\aprocess\x18\x1e \x01(\v2\x19.dockwell.v1.EventProcessR\aprocess\x126\n" +
 	"\bterminal\x18\x14 \x01(\v2\x1a.dockwell.v1.EventTerminalR\bterminal\x123\n" +
-	"\asetting\x18\x1f \x01(\v2\x19.dockwell.v1.EventSettingR\asetting\x12-\n" +
+	"\asetting\x18\x1f \x01(\v2\x19.dockwell.v1.EventSettingR\asetting\x12*\n" +
+	"\x04push\x18n \x01(\v2\x16.dockwell.v1.EventPushR\x04push\x12-\n" +
 	"\x05alert\x18Z \x01(\v2\x17.dockwell.v1.EventAlertR\x05alert\x125\n" +
 	"\btask_run\x18\x82\x01 \x01(\v2\x19.dockwell.v1.EventTaskRunR\ataskRun\x120\n" +
 	"\x06member\x18x \x01(\v2\x18.dockwell.v1.EventMemberR\x06member\x12A\n" +
@@ -2334,7 +2406,10 @@ const file_dockwell_v1_event_proto_rawDesc = "" +
 	"\x05error\x18\x06 \x01(\tR\x05error\x12 \n" +
 	"\vdestination\x18\a \x01(\tR\vdestination\x12.\n" +
 	"\x05drill\x18\b \x01(\x0e2\x18.dockwell.v1.DrillResultR\x05drill\x12\x1b\n" +
-	"\tserver_id\x18< \x01(\tR\bserverId\"J\n" +
+	"\tserver_id\x18< \x01(\tR\bserverId\"^\n" +
+	"\tEventPush\x12\x17\n" +
+	"\ahook_id\x18\x01 \x01(\tR\x06hookId\x128\n" +
+	"\bdelivery\x18\x02 \x01(\v2\x1c.dockwell.v1.GitHookDeliveryR\bdelivery\"J\n" +
 	"\x12EventPublicAddress\x12\x18\n" +
 	"\aaddress\x18\x01 \x01(\tR\aaddress\x12\x1a\n" +
 	"\bprevious\x18\x02 \x01(\tR\bprevious\"\x91\x02\n" +
@@ -2373,7 +2448,7 @@ const file_dockwell_v1_event_proto_rawDesc = "" +
 	"\ainvites\x18\n" +
 	" \x01(\x05R\ainvites\x12\x18\n" +
 	"\achanges\x18\v \x01(\x05R\achanges\x12\x14\n" +
-	"\x05links\x18\f \x01(\x05R\x05links*\xdf\x01\n" +
+	"\x05links\x18\f \x01(\x05R\x05links*\xf4\x01\n" +
 	"\tEventKind\x12\x1a\n" +
 	"\x16EVENT_KIND_UNSPECIFIED\x10\x00\x12\x15\n" +
 	"\x11EVENT_KIND_CHANGE\x10\x01\x12\x15\n" +
@@ -2382,7 +2457,8 @@ const file_dockwell_v1_event_proto_rawDesc = "" +
 	"\x11EVENT_KIND_HEALTH\x10\x04\x12\x15\n" +
 	"\x11EVENT_KIND_BACKUP\x10\x05\x12\x17\n" +
 	"\x13EVENT_KIND_SETTINGS\x10\n" +
-	"\x12\x14\n" +
+	"\x12\x13\n" +
+	"\x0fEVENT_KIND_PUSH\x10n\x12\x14\n" +
 	"\x10EVENT_KIND_ALERT\x10Z\x12\x14\n" +
 	"\x0fEVENT_KIND_TASK\x10\x82\x012\xe9\x02\n" +
 	"\fEventService\x12t\n" +
@@ -2407,7 +2483,7 @@ func file_dockwell_v1_event_proto_rawDescGZIP() []byte {
 }
 
 var file_dockwell_v1_event_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_dockwell_v1_event_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
+var file_dockwell_v1_event_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
 var file_dockwell_v1_event_proto_goTypes = []any{
 	(EventKind)(0),                    // 0: dockwell.v1.EventKind
 	(*ListEventsRequest)(nil),         // 1: dockwell.v1.ListEventsRequest
@@ -2426,79 +2502,83 @@ var file_dockwell_v1_event_proto_goTypes = []any{
 	(*EventAlert)(nil),                // 14: dockwell.v1.EventAlert
 	(*EventTerminal)(nil),             // 15: dockwell.v1.EventTerminal
 	(*EventBackup)(nil),               // 16: dockwell.v1.EventBackup
-	(*EventPublicAddress)(nil),        // 17: dockwell.v1.EventPublicAddress
-	(*EventHealth)(nil),               // 18: dockwell.v1.EventHealth
-	(*EventSubject)(nil),              // 19: dockwell.v1.EventSubject
-	(*EventMember)(nil),               // 20: dockwell.v1.EventMember
-	(ActorKind)(0),                    // 21: dockwell.v1.ActorKind
-	(*timestamppb.Timestamp)(nil),     // 22: google.protobuf.Timestamp
-	(*Actor)(nil),                     // 23: dockwell.v1.Actor
-	(Surface)(0),                      // 24: dockwell.v1.Surface
-	(*Change)(nil),                    // 25: dockwell.v1.Change
-	(TaskRunState)(0),                 // 26: dockwell.v1.TaskRunState
-	(TaskRunReason)(0),                // 27: dockwell.v1.TaskRunReason
-	(v1alpha1.AlertRule_Severity)(0),  // 28: dockwell.resource.v1alpha1.AlertRule.Severity
-	(v1alpha1.AlertRule_Condition)(0), // 29: dockwell.resource.v1alpha1.AlertRule.Condition
-	(*TerminalEnd)(nil),               // 30: dockwell.v1.TerminalEnd
-	(BackupMethod)(0),                 // 31: dockwell.v1.BackupMethod
-	(DrillResult)(0),                  // 32: dockwell.v1.DrillResult
-	(HealthState)(0),                  // 33: dockwell.v1.HealthState
-	(Role)(0),                         // 34: dockwell.v1.Role
+	(*EventPush)(nil),                 // 17: dockwell.v1.EventPush
+	(*EventPublicAddress)(nil),        // 18: dockwell.v1.EventPublicAddress
+	(*EventHealth)(nil),               // 19: dockwell.v1.EventHealth
+	(*EventSubject)(nil),              // 20: dockwell.v1.EventSubject
+	(*EventMember)(nil),               // 21: dockwell.v1.EventMember
+	(ActorKind)(0),                    // 22: dockwell.v1.ActorKind
+	(*timestamppb.Timestamp)(nil),     // 23: google.protobuf.Timestamp
+	(*Actor)(nil),                     // 24: dockwell.v1.Actor
+	(Surface)(0),                      // 25: dockwell.v1.Surface
+	(*Change)(nil),                    // 26: dockwell.v1.Change
+	(TaskRunState)(0),                 // 27: dockwell.v1.TaskRunState
+	(TaskRunReason)(0),                // 28: dockwell.v1.TaskRunReason
+	(v1alpha1.AlertRule_Severity)(0),  // 29: dockwell.resource.v1alpha1.AlertRule.Severity
+	(v1alpha1.AlertRule_Condition)(0), // 30: dockwell.resource.v1alpha1.AlertRule.Condition
+	(*TerminalEnd)(nil),               // 31: dockwell.v1.TerminalEnd
+	(BackupMethod)(0),                 // 32: dockwell.v1.BackupMethod
+	(DrillResult)(0),                  // 33: dockwell.v1.DrillResult
+	(*GitHookDelivery)(nil),           // 34: dockwell.v1.GitHookDelivery
+	(HealthState)(0),                  // 35: dockwell.v1.HealthState
+	(Role)(0),                         // 36: dockwell.v1.Role
 }
 var file_dockwell_v1_event_proto_depIdxs = []int32{
 	0,  // 0: dockwell.v1.ListEventsRequest.kinds:type_name -> dockwell.v1.EventKind
-	21, // 1: dockwell.v1.ListEventsRequest.actor_kind:type_name -> dockwell.v1.ActorKind
+	22, // 1: dockwell.v1.ListEventsRequest.actor_kind:type_name -> dockwell.v1.ActorKind
 	8,  // 2: dockwell.v1.ListEventsResponse.events:type_name -> dockwell.v1.Event
-	21, // 3: dockwell.v1.CountEventsRequest.actor_kind:type_name -> dockwell.v1.ActorKind
+	22, // 3: dockwell.v1.CountEventsRequest.actor_kind:type_name -> dockwell.v1.ActorKind
 	5,  // 4: dockwell.v1.CountEventsResponse.counts:type_name -> dockwell.v1.EventKindCount
 	0,  // 5: dockwell.v1.EventKindCount.kind:type_name -> dockwell.v1.EventKind
 	0,  // 6: dockwell.v1.WatchEventsRequest.kinds:type_name -> dockwell.v1.EventKind
-	21, // 7: dockwell.v1.WatchEventsRequest.actor_kind:type_name -> dockwell.v1.ActorKind
+	22, // 7: dockwell.v1.WatchEventsRequest.actor_kind:type_name -> dockwell.v1.ActorKind
 	8,  // 8: dockwell.v1.WatchEventsResponse.events:type_name -> dockwell.v1.Event
 	0,  // 9: dockwell.v1.Event.kind:type_name -> dockwell.v1.EventKind
-	22, // 10: dockwell.v1.Event.time:type_name -> google.protobuf.Timestamp
-	23, // 11: dockwell.v1.Event.actor:type_name -> dockwell.v1.Actor
-	24, // 12: dockwell.v1.Event.surface:type_name -> dockwell.v1.Surface
-	25, // 13: dockwell.v1.Event.change:type_name -> dockwell.v1.Change
-	19, // 14: dockwell.v1.Event.subject:type_name -> dockwell.v1.EventSubject
-	18, // 15: dockwell.v1.Event.health:type_name -> dockwell.v1.EventHealth
+	23, // 10: dockwell.v1.Event.time:type_name -> google.protobuf.Timestamp
+	24, // 11: dockwell.v1.Event.actor:type_name -> dockwell.v1.Actor
+	25, // 12: dockwell.v1.Event.surface:type_name -> dockwell.v1.Surface
+	26, // 13: dockwell.v1.Event.change:type_name -> dockwell.v1.Change
+	20, // 14: dockwell.v1.Event.subject:type_name -> dockwell.v1.EventSubject
+	19, // 15: dockwell.v1.Event.health:type_name -> dockwell.v1.EventHealth
 	16, // 16: dockwell.v1.Event.backup:type_name -> dockwell.v1.EventBackup
-	17, // 17: dockwell.v1.Event.public_address:type_name -> dockwell.v1.EventPublicAddress
+	18, // 17: dockwell.v1.Event.public_address:type_name -> dockwell.v1.EventPublicAddress
 	12, // 18: dockwell.v1.Event.process:type_name -> dockwell.v1.EventProcess
 	15, // 19: dockwell.v1.Event.terminal:type_name -> dockwell.v1.EventTerminal
 	13, // 20: dockwell.v1.Event.setting:type_name -> dockwell.v1.EventSetting
-	14, // 21: dockwell.v1.Event.alert:type_name -> dockwell.v1.EventAlert
-	10, // 22: dockwell.v1.Event.task_run:type_name -> dockwell.v1.EventTaskRun
-	20, // 23: dockwell.v1.Event.member:type_name -> dockwell.v1.EventMember
-	11, // 24: dockwell.v1.Event.desired_sent:type_name -> dockwell.v1.EventDesiredSent
-	9,  // 25: dockwell.v1.Event.reconciled:type_name -> dockwell.v1.EventReconciled
-	26, // 26: dockwell.v1.EventTaskRun.state:type_name -> dockwell.v1.TaskRunState
-	27, // 27: dockwell.v1.EventTaskRun.reason:type_name -> dockwell.v1.TaskRunReason
-	28, // 28: dockwell.v1.EventAlert.severity:type_name -> dockwell.resource.v1alpha1.AlertRule.Severity
-	22, // 29: dockwell.v1.EventAlert.open_time:type_name -> google.protobuf.Timestamp
-	22, // 30: dockwell.v1.EventAlert.until:type_name -> google.protobuf.Timestamp
-	29, // 31: dockwell.v1.EventAlert.condition:type_name -> dockwell.resource.v1alpha1.AlertRule.Condition
-	23, // 32: dockwell.v1.EventAlert.taken_from:type_name -> dockwell.v1.Actor
-	22, // 33: dockwell.v1.EventTerminal.open_time:type_name -> google.protobuf.Timestamp
-	30, // 34: dockwell.v1.EventTerminal.end:type_name -> dockwell.v1.TerminalEnd
-	31, // 35: dockwell.v1.EventBackup.method:type_name -> dockwell.v1.BackupMethod
-	32, // 36: dockwell.v1.EventBackup.drill:type_name -> dockwell.v1.DrillResult
-	33, // 37: dockwell.v1.EventHealth.state:type_name -> dockwell.v1.HealthState
-	33, // 38: dockwell.v1.EventHealth.previous:type_name -> dockwell.v1.HealthState
-	22, // 39: dockwell.v1.EventHealth.since:type_name -> google.protobuf.Timestamp
-	34, // 40: dockwell.v1.EventMember.role:type_name -> dockwell.v1.Role
-	34, // 41: dockwell.v1.EventMember.previous_role:type_name -> dockwell.v1.Role
-	1,  // 42: dockwell.v1.EventService.ListEvents:input_type -> dockwell.v1.ListEventsRequest
-	3,  // 43: dockwell.v1.EventService.CountEvents:input_type -> dockwell.v1.CountEventsRequest
-	6,  // 44: dockwell.v1.EventService.WatchEvents:input_type -> dockwell.v1.WatchEventsRequest
-	2,  // 45: dockwell.v1.EventService.ListEvents:output_type -> dockwell.v1.ListEventsResponse
-	4,  // 46: dockwell.v1.EventService.CountEvents:output_type -> dockwell.v1.CountEventsResponse
-	7,  // 47: dockwell.v1.EventService.WatchEvents:output_type -> dockwell.v1.WatchEventsResponse
-	45, // [45:48] is the sub-list for method output_type
-	42, // [42:45] is the sub-list for method input_type
-	42, // [42:42] is the sub-list for extension type_name
-	42, // [42:42] is the sub-list for extension extendee
-	0,  // [0:42] is the sub-list for field type_name
+	17, // 21: dockwell.v1.Event.push:type_name -> dockwell.v1.EventPush
+	14, // 22: dockwell.v1.Event.alert:type_name -> dockwell.v1.EventAlert
+	10, // 23: dockwell.v1.Event.task_run:type_name -> dockwell.v1.EventTaskRun
+	21, // 24: dockwell.v1.Event.member:type_name -> dockwell.v1.EventMember
+	11, // 25: dockwell.v1.Event.desired_sent:type_name -> dockwell.v1.EventDesiredSent
+	9,  // 26: dockwell.v1.Event.reconciled:type_name -> dockwell.v1.EventReconciled
+	27, // 27: dockwell.v1.EventTaskRun.state:type_name -> dockwell.v1.TaskRunState
+	28, // 28: dockwell.v1.EventTaskRun.reason:type_name -> dockwell.v1.TaskRunReason
+	29, // 29: dockwell.v1.EventAlert.severity:type_name -> dockwell.resource.v1alpha1.AlertRule.Severity
+	23, // 30: dockwell.v1.EventAlert.open_time:type_name -> google.protobuf.Timestamp
+	23, // 31: dockwell.v1.EventAlert.until:type_name -> google.protobuf.Timestamp
+	30, // 32: dockwell.v1.EventAlert.condition:type_name -> dockwell.resource.v1alpha1.AlertRule.Condition
+	24, // 33: dockwell.v1.EventAlert.taken_from:type_name -> dockwell.v1.Actor
+	23, // 34: dockwell.v1.EventTerminal.open_time:type_name -> google.protobuf.Timestamp
+	31, // 35: dockwell.v1.EventTerminal.end:type_name -> dockwell.v1.TerminalEnd
+	32, // 36: dockwell.v1.EventBackup.method:type_name -> dockwell.v1.BackupMethod
+	33, // 37: dockwell.v1.EventBackup.drill:type_name -> dockwell.v1.DrillResult
+	34, // 38: dockwell.v1.EventPush.delivery:type_name -> dockwell.v1.GitHookDelivery
+	35, // 39: dockwell.v1.EventHealth.state:type_name -> dockwell.v1.HealthState
+	35, // 40: dockwell.v1.EventHealth.previous:type_name -> dockwell.v1.HealthState
+	23, // 41: dockwell.v1.EventHealth.since:type_name -> google.protobuf.Timestamp
+	36, // 42: dockwell.v1.EventMember.role:type_name -> dockwell.v1.Role
+	36, // 43: dockwell.v1.EventMember.previous_role:type_name -> dockwell.v1.Role
+	1,  // 44: dockwell.v1.EventService.ListEvents:input_type -> dockwell.v1.ListEventsRequest
+	3,  // 45: dockwell.v1.EventService.CountEvents:input_type -> dockwell.v1.CountEventsRequest
+	6,  // 46: dockwell.v1.EventService.WatchEvents:input_type -> dockwell.v1.WatchEventsRequest
+	2,  // 47: dockwell.v1.EventService.ListEvents:output_type -> dockwell.v1.ListEventsResponse
+	4,  // 48: dockwell.v1.EventService.CountEvents:output_type -> dockwell.v1.CountEventsResponse
+	7,  // 49: dockwell.v1.EventService.WatchEvents:output_type -> dockwell.v1.WatchEventsResponse
+	47, // [47:50] is the sub-list for method output_type
+	44, // [44:47] is the sub-list for method input_type
+	44, // [44:44] is the sub-list for extension type_name
+	44, // [44:44] is the sub-list for extension extendee
+	0,  // [0:44] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_event_proto_init() }
@@ -2509,6 +2589,7 @@ func file_dockwell_v1_event_proto_init() {
 	file_dockwell_v1_auth_proto_init()
 	file_dockwell_v1_backup_proto_init()
 	file_dockwell_v1_change_proto_init()
+	file_dockwell_v1_githook_proto_init()
 	file_dockwell_v1_health_proto_init()
 	file_dockwell_v1_options_proto_init()
 	file_dockwell_v1_task_proto_init()
@@ -2519,7 +2600,7 @@ func file_dockwell_v1_event_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_event_proto_rawDesc), len(file_dockwell_v1_event_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   20,
+			NumMessages:   21,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

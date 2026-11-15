@@ -16,6 +16,9 @@ import (
 // Ended counts what ending someone's access took with it.
 type Ended struct {
 	Sessions, Tokens int
+	// Hooks are the deploy-on-push hooks deleted, which act for their maker as
+	// a token does (ADR 0046).
+	Hooks []GitHook
 	// Links are the accounts at sign-in providers deleted with someone removed,
 	// another way they signed in (ADR 0095).
 	Links int
@@ -44,14 +47,19 @@ func (t *Tx) RevokeAPITokens(ctx context.Context, userID string, at time.Time) (
 	return int(n), nil
 }
 
-// EndAccess ends a person's sessions and revokes their API tokens.
+// EndAccess ends a person's sessions, revokes their API tokens, and deletes the
+// deploy-on-push hooks they made.
 func (t *Tx) EndAccess(ctx context.Context, userID string, at time.Time) (Ended, error) {
 	sessions, err := t.RevokeSessions(ctx, userID, at)
 	if err != nil {
 		return Ended{}, err
 	}
 	tokens, err := t.RevokeAPITokens(ctx, userID, at)
-	return Ended{Sessions: sessions, Tokens: tokens}, err
+	if err != nil {
+		return Ended{}, err
+	}
+	hooks, err := t.DeleteGitHooksOf(ctx, userID)
+	return Ended{Sessions: sessions, Tokens: tokens, Hooks: hooks}, err
 }
 
 // RemoveUser removes a person: their sign-in is off, with their passkeys, codes,
@@ -116,11 +124,14 @@ func (t *Tx) AcceptedInvite(ctx context.Context, userID string) (Invite, error) 
 }
 
 // PlannedChangesOf lists the changes a person planned that are still planned,
-// themselves or with any API token they made, whatever its state now, newest
-// first, without their items.
+// themselves or with any API token they made, whatever its state now, or that a
+// deploy-on-push hook planned for them: by whom the change says it acts for, or,
+// for one from before changes said so, by the hook's maker now. Newest first,
+// without their items.
 func (t *Tx) PlannedChangesOf(ctx context.Context, userID string) ([]Change, error) {
-	rows, err := t.query(ctx, `SELECT `+changeColumns+` FROM changes WHERE state = ? AND (actor = ? OR actor IN (SELECT 'token:' || id FROM api_tokens WHERE user_id = ?)) ORDER BY created_at DESC, id DESC`,
-		ChangePlanned, "user:"+userID, userID)
+	rows, err := t.query(ctx, `SELECT `+changeColumns+` FROM changes WHERE state = ? AND (actor = ? OR actor IN (SELECT 'token:' || id FROM api_tokens WHERE user_id = ?)
+		OR acts_for = ? OR acts_for = '' AND actor IN (SELECT 'hook:' || id FROM git_hooks WHERE user_id = ?)) ORDER BY created_at DESC, id DESC`,
+		ChangePlanned, "user:"+userID, userID, userID, userID)
 	if err != nil {
 		return nil, fmt.Errorf("can't list the changes %s planned: %w", userID, err)
 	}

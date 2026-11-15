@@ -154,3 +154,21 @@ func TestAStreamsFailedReadsCountInARow(t *testing.T) {
 		}
 	}
 }
+
+// Check holds a token, as a deploy-on-push hook's is, to what the API holds one
+// to: no call that needs a session, whatever its maker's role; and a call a token
+// may make is checked by the role (from #253's review, L6).
+func TestCheckHoldsATokenToWhatTheAPIDoes(t *testing.T) {
+	i, ada, _ := gated(t, store.RoleAdmin)
+	hook := ada
+	hook.Token = &store.APIToken{ID: "ghk_1", UserID: ada.User.ID, Name: "Deploy on push", Scope: store.ScopeReadWrite}
+	ctx := As(t.Context(), auth.Client{Addr: "203.0.113.5:1"}, hook)
+	// Making a hook needs a session: a token can't, though its maker may.
+	if _, err := Check(ctx, i.svc, i.logger, dockwellv1connect.GitHookServiceCreateGitHookProcedure, nil); reasonOf(err) != ReasonNeedsSession {
+		t.Errorf("a token making a hook through Check: %v, want %s", err, ReasonNeedsSession)
+	}
+	// Planning a change is a write a token may make, as its admin maker may.
+	if _, err := Check(ctx, i.svc, i.logger, dockwellv1connect.ChangeServiceProposeChangeProcedure, nil); err != nil {
+		t.Errorf("a token planning through Check: %v", err)
+	}
+}

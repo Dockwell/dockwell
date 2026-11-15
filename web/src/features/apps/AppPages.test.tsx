@@ -20,6 +20,8 @@ import {
   DomainCheckState,
   EntrySchema,
   FieldOp,
+  GitHookOutcome,
+  type GitHookSchema,
   HealthState,
   ImageAnswer,
   ImageBuild_Builder,
@@ -4024,6 +4026,176 @@ describe("an app's deployments, for an app that builds from Git", () => {
     expect(cancel).toHaveAccessibleDescription(/developer/i);
     await userEvent.setup().click(cancel);
     expect(cancelled).toEqual([]);
+  });
+
+  it("says where the app builds from, and turns deploy on push on, with its secret once, and off", async () => {
+    const app = builtApp();
+    const made: string[] = [];
+    const removed: string[] = [];
+    let hook: MessageInitShape<typeof GitHookSchema> | undefined;
+    const { container } = renderAt(
+      "/apps/svc_web",
+      api([app], {
+        services: {
+          listServices: () => ({ services: [app] }),
+          listServiceRevisions: () => ({ revisions: [aRevision(2n, image, { build: aBuild({}) })] }),
+        },
+        hooks: {
+          getGitHook: () => ({ hook }),
+          createGitHook: (req) => {
+            made.push(req.id);
+            hook = { id: "ghk_1", serviceId: "svc_web", url: "https://panel.example.com/hooks/git/ghk_1" };
+            return { hook, secret: "5e3f8a" };
+          },
+          deleteGitHook: (req) => {
+            removed.push(req.id);
+            hook = undefined;
+            return {};
+          },
+        },
+      }),
+    );
+    const user = userEvent.setup();
+    const source = (await screen.findByRole("heading", { name: "Source" })).closest("section") as HTMLElement;
+    expect(within(source).getByText("acme/web")).toBeVisible();
+    expect(within(source).getByText(/GitHub/)).toBeVisible();
+    expect(await within(source).findByText("Add order export endpoint")).toBeVisible();
+    expect(within(source).getByText(/8be41d2 · Leo Park/)).toBeVisible();
+    const push = within(source).getByRole("switch", { name: "Deploy on push" });
+    await waitFor(() => expect(push).toBeEnabled());
+    expect(push).not.toBeChecked();
+    expect(push).toHaveAccessibleDescription("Pushes to main don't deploy web.");
+
+    await user.click(push);
+    const sheet = await screen.findByRole("dialog", { name: "Deploy web on push" });
+    expect(made).toEqual(["svc_web"]);
+    // Named as GitHub's form names each, with a link to that form, and nothing more to set.
+    expect(within(sheet).getByText("Payload URL")).toBeVisible();
+    expect(within(sheet).getByText("https://panel.example.com/hooks/git/ghk_1")).toBeVisible();
+    expect(within(sheet).getByText("5e3f8a")).toBeVisible();
+    expect(within(sheet).getByRole("link", { name: "Open GitHub" })).toHaveAttribute(
+      "href",
+      "https://github.com/acme/web/settings/hooks/new",
+    );
+    await expectAccessible(sheet);
+    await user.click(within(sheet).getByRole("button", { name: "Done" }));
+    await waitFor(() => expect(push).toBeChecked());
+    expect(push).toHaveAccessibleDescription("Each push to main deploys web.");
+    expect(within(source).getByText("No push has come yet.")).toBeVisible();
+    expect(screen.queryByText("5e3f8a")).not.toBeInTheDocument();
+    await expectAccessible(container);
+
+    // The sheet again shows the URL, never the secret.
+    await user.click(within(source).getByRole("button", { name: "Set up" }));
+    const again = await screen.findByRole("dialog", { name: "Deploy web on push" });
+    expect(within(again).getByText("Shown once, when made")).toBeVisible();
+    expect(within(again).queryByText("5e3f8a")).not.toBeInTheDocument();
+    await user.click(within(again).getByRole("button", { name: "Done" }));
+
+    await user.click(push);
+    await waitFor(() => expect(removed).toEqual(["svc_web"]));
+    await waitFor(() => expect(push).not.toBeChecked());
+    expect(within(source).getByRole("link", { name: "Open webhooks" })).toHaveAttribute(
+      "href",
+      "https://github.com/acme/web/settings/hooks",
+    );
+  });
+
+  it("says what the last push came to in a line, and gives the hook a new secret", async () => {
+    const app = builtApp();
+    const rotated: string[] = [];
+    const hook = {
+      id: "ghk_1",
+      serviceId: "svc_web",
+      url: "https://panel.example.com/hooks/git/ghk_1",
+      deliveries: [
+        {
+          deliveryId: "d-2",
+          time: timestampFromDate(new Date(Date.now() - 120_000)),
+          ref: "refs/heads/main",
+          commit,
+          outcome: GitHookOutcome.NEEDS_PERSON,
+          changeId: "chg_9",
+        },
+      ],
+    };
+    renderAt(
+      "/apps/svc_web",
+      api([app], {
+        services: { listServices: () => ({ services: [app] }), listServiceRevisions: () => ({ revisions: [] }) },
+        hooks: {
+          getGitHook: () => ({ hook }),
+          rotateGitHookSecret: (req) => {
+            rotated.push(req.id);
+            return { hook, secret: "7a1c0d" };
+          },
+        },
+      }),
+    );
+    const user = userEvent.setup();
+    const source = (await screen.findByRole("heading", { name: "Source" })).closest("section") as HTMLElement;
+    const last = await within(source).findByRole("link", {
+      name: "Last push 2 min ago planned 8be41d2, which waits for a person to apply it.",
+    });
+    expect(last).toHaveAttribute("href", "/changes/chg_9");
+
+    await user.click(within(source).getByRole("button", { name: "Hook settings" }));
+    const sheet = await screen.findByRole("dialog", { name: "Deploy web on push" });
+    await user.click(within(sheet).getByRole("button", { name: "New secret" }));
+    await waitFor(() => expect(rotated).toEqual(["svc_web"]));
+    const fresh = await screen.findByRole("dialog", { name: "A new secret for web's hook" });
+    expect(within(fresh).getByText("7a1c0d")).toBeVisible();
+    expect(within(fresh).getByText("The old secret stopped working. Give the hook this one.")).toBeVisible();
+  });
+
+  it("says the repository's host can't reach a panel on this machine, with the way to a domain", async () => {
+    const app = builtApp();
+    renderAt(
+      "/apps/svc_web",
+      api([app], {
+        services: { listServices: () => ({ services: [app] }), listServiceRevisions: () => ({ revisions: [] }) },
+        hooks: {
+          getGitHook: () => ({
+            hook: { id: "ghk_1", serviceId: "svc_web", url: "http://127.0.0.1:7600/hooks/git/ghk_1" },
+          }),
+        },
+      }),
+    );
+    const source = (await screen.findByRole("heading", { name: "Source" })).closest("section") as HTMLElement;
+    expect(await within(source).findByText("GitHub can't reach this panel's address.")).toBeVisible();
+    expect(within(source).getByRole("link", { name: "Give the panel a domain" })).toHaveAttribute(
+      "href",
+      "/settings/general",
+    );
+  });
+
+  it("names a deploy a push started as a push, beside its commit", async () => {
+    const app = builtApp();
+    const pushed = aRevision(2n, image, {
+      build: aBuild({}),
+      change: {
+        id: "chg_2",
+        summary: "Deploy 8be41d2 to web, pushed to main",
+        state: ChangeState.APPLIED,
+        proposedBy: { kind: ActorKind.HOOK, id: "ghk_1", name: "Deploy on push for web" },
+        proposedVia: Surface.PUSH,
+        appliedBy: { kind: ActorKind.HOOK, id: "ghk_1", name: "Deploy on push for web" },
+        appliedVia: Surface.PUSH,
+      },
+    });
+    renderAt(
+      "/apps/svc_web/deployments",
+      api([app], {
+        services: {
+          listServices: () => ({ services: [app] }),
+          listServiceRevisions: () => ({ revisions: [pushed, aRevision(1n, "nginx:1.0")] }),
+        },
+      }),
+    );
+    const row = await screen.findByRole("row", { name: /Add order export endpoint/ });
+    expect(row).toHaveTextContent("8be41d2");
+    expect(row).toHaveTextContent("Push");
+    expect(row).not.toHaveTextContent("Deploy on push for web");
   });
 });
 

@@ -63,6 +63,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/files"
 	"github.com/dockwell/dockwell/internal/control/firewall"
 	"github.com/dockwell/dockwell/internal/control/fleet"
+	"github.com/dockwell/dockwell/internal/control/githooks"
 	"github.com/dockwell/dockwell/internal/control/health"
 	"github.com/dockwell/dockwell/internal/control/history"
 	"github.com/dockwell/dockwell/internal/control/identity"
@@ -267,6 +268,8 @@ type Server struct {
 	manualBackups bool
 	// backups takes backups, and those under way end with the control plane.
 	backups *backups.Handler
+	// hooks deploys on push, and what deploys wait for ends with the control plane.
+	hooks *githooks.Handler
 	// tasks reads scheduled tasks' runs from the agents that run them.
 	tasks *tasks.Handler
 	// certificates gets and renews certificates by DNS (ADR 0088).
@@ -309,6 +312,7 @@ func New(cfg Config) (*Server, error) {
 	}
 	var logs *logapi.Handler
 	var backupHandler *backups.Handler
+	var hooks *githooks.Handler
 	var taskHandler *tasks.Handler
 	// Made first, so the settings can ask it who holds the public ports now.
 	ports := &PublicPorts{ready: make(chan struct{})}
@@ -375,7 +379,7 @@ func New(cfg Config) (*Server, error) {
 			}
 		})
 	}
-	api, err := apiRoutes(cfg, ui, ports, &logs, &backupHandler, &taskHandler, &evaluator, &updateKeeper, &autoupdates, &follower)
+	api, err := apiRoutes(cfg, ui, ports, &logs, &backupHandler, &taskHandler, &evaluator, &updateKeeper, &autoupdates, &follower, &hooks)
 	if err != nil {
 		return nil, err
 	}
@@ -384,7 +388,7 @@ func New(cfg Config) (*Server, error) {
 		// refuses a person's that comes without (ADR 0049).
 		cfg.Changes.RequireRoles()
 	}
-	s := &Server{logger: cfg.Logger, api: api, logs: logs, backups: backupHandler, tasks: taskHandler, updates: updateKeeper, alerts: evaluator, manualAlerts: cfg.ManualAlerts, manualBackups: cfg.ManualBackups, public: cfg.Public, changes: cfg.Changes, store: cfg.Store, stepGrace: cfg.StepGrace, autoupdates: autoupdates, certificates: cfg.certificates}
+	s := &Server{logger: cfg.Logger, api: api, logs: logs, backups: backupHandler, hooks: hooks, tasks: taskHandler, updates: updateKeeper, alerts: evaluator, manualAlerts: cfg.ManualAlerts, manualBackups: cfg.ManualBackups, public: cfg.Public, changes: cfg.Changes, store: cfg.Store, stepGrace: cfg.StepGrace, autoupdates: autoupdates, certificates: cfg.certificates}
 	s.catalogs = follower
 	if cfg.Agents != nil {
 		agents := cfg.Agents
@@ -439,7 +443,7 @@ func New(cfg Config) (*Server, error) {
 // Handler returns the API listener's root handler.
 func (s *Server) Handler() http.Handler { return s.api }
 
-func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi.Handler, backupsOut **backups.Handler, tasksOut **tasks.Handler, alertsOut **alerts.Evaluator, updatesOut **serviceupdates.Keeper, autoupdates **autoupdate.Runner, followOut **catalogapi.Follower) (http.Handler, error) {
+func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi.Handler, backupsOut **backups.Handler, tasksOut **tasks.Handler, alertsOut **alerts.Evaluator, updatesOut **serviceupdates.Keeper, autoupdates **autoupdate.Runner, followOut **catalogapi.Follower, hooksOut **githooks.Handler) (http.Handler, error) {
 	opts := append(serve.HandlerOptions(cfg.Logger), connect.WithInterceptors(authapi.Interceptor(cfg.Auth, cfg.Logger)))
 	mux := http.NewServeMux()
 	var services []string
@@ -603,11 +607,13 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		if cfg.Fleet != nil {
 			(*autoupdates).Images = images.New(cfg.Fleet, cfg.Agents, cfg.logins)
 		}
+		var canceller githooks.Canceller
 		if cfg.Agents != nil {
 			buildHandler := builds.New(cfg.Store, cfg.Agents, serviceHandler, cfg.Logger)
 			buildHandler.SetSources(sources)
 			cfg.Changes.SetDetector(buildHandler)
 			serviceHandler.Builds = buildHandler
+			canceller = buildHandler
 			handle(dockwellv1connect.NewBuildServiceHandler(buildHandler, opts...))
 		}
 		if cfg.Auth != nil && cfg.Agents != nil && cfg.DataDir != "" {
@@ -663,6 +669,16 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		// Automatic updates take what an update with no image would (ADR 0080).
 		(*autoupdates).Updates = serviceHandler.Updates
 		handle(dockwellv1connect.NewServiceServiceHandler(serviceHandler, opts...))
+		if cfg.Auth != nil {
+			// Deploy on push: the API that turns it on, and the receiver its hooks'
+			// URLs name, which faces the internet on the panel's address (ADR 0046).
+			*hooksOut = githooks.New(githooks.Config{
+				Auth: cfg.Auth, DB: cfg.Store, Changes: ch, Engine: cfg.Changes, Services: serviceHandler,
+				Builds: canceller, Sources: sources, Logger: cfg.Logger,
+			})
+			handle(dockwellv1connect.NewGitHookServiceHandler(*hooksOut, opts...))
+			mux.Handle("POST "+githooks.Path+"{id}", *hooksOut)
+		}
 		logs := logapi.New(cfg.Agents, ch, cfg.Store, cfg.Logger, cfg.Logs)
 		*logsOut = logs
 		path, h := dockwellv1connect.NewLogServiceHandler(logs, opts...)
@@ -968,6 +984,9 @@ func (s *Server) Run(ctx context.Context, ls Listeners) error {
 	if s.backups != nil {
 		s.backups.Recover(ctx)
 	}
+	if s.hooks != nil {
+		s.hooks.Recover(ctx)
+	}
 	// An install's first alert rules are there before the API answers, so what
 	// lists rules or changes reads them from the first request (ADR 0044).
 	if s.alerts != nil {
@@ -1014,6 +1033,9 @@ func (s *Server) Run(ctx context.Context, ls Listeners) error {
 	}
 	if s.backups != nil && !s.manualBackups {
 		api.Go(func() { s.backups.KeepRunning(apiCtx) })
+	}
+	if s.hooks != nil {
+		api.Go(func() { s.hooks.KeepForgetting(apiCtx) })
 	}
 	if s.hosts != nil {
 		api.Go(func() { s.hosts.Run(apiCtx) })
@@ -1064,6 +1086,9 @@ func (s *Server) Run(ctx context.Context, ls Listeners) error {
 	s.ports.end()
 	if s.backups != nil {
 		s.backups.Stop()
+	}
+	if s.hooks != nil {
+		s.hooks.Stop()
 	}
 	if s.changes != nil {
 		grace, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.stepGrace)

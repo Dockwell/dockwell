@@ -84,7 +84,11 @@ type Change struct {
 	// Progress is each step of an applying change and how it went, as the
 	// revision store writes it; nil until it applies.
 	Progress []byte
-	Items    []ChangeItem
+	// ActsFor is who a change a deploy-on-push hook planned acts for: its maker
+	// when it planned, so the change stays theirs once the hook is gone. Empty
+	// for every other change.
+	ActsFor string
+	Items   []ChangeItem
 	// Servers are the servers its plan touches, removed ones included, by
 	// ID. CreateChange records them; reads leave them out, and
 	// ChangeServers has them.
@@ -168,9 +172,9 @@ func (t *RevisionTx) CreateChange(ctx context.Context, c Change) error {
 	if scheme == 0 {
 		scheme = 1
 	}
-	_, err := t.exec(ctx, `INSERT INTO changes (id, summary, actor, state, reverts, fingerprint, fingerprint_scheme, plan, created_at, proposed_via)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		c.ID, c.Summary, c.Actor, c.State, nullString(c.Reverts), c.Fingerprint, scheme, c.Plan, millis(c.CreatedAt), c.ProposedVia)
+	_, err := t.exec(ctx, `INSERT INTO changes (id, summary, actor, state, reverts, fingerprint, fingerprint_scheme, plan, created_at, proposed_via, acts_for)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		c.ID, c.Summary, c.Actor, c.State, nullString(c.Reverts), c.Fingerprint, scheme, c.Plan, millis(c.CreatedAt), c.ProposedVia, c.ActsFor)
 	if err != nil {
 		return fmt.Errorf("can't record change %s: %w", c.ID, err)
 	}
@@ -191,7 +195,7 @@ func (t *RevisionTx) CreateChange(ctx context.Context, c Change) error {
 }
 
 const changeColumns = `id, summary, actor, state, reverts, fingerprint, fingerprint_scheme, plan, error, created_at, applied_at,
-	proposed_via, applied_by, applied_via, progress`
+	proposed_via, applied_by, applied_via, progress, acts_for`
 
 func scanChange(row interface{ Scan(...any) error }) (Change, error) {
 	var c Change
@@ -199,7 +203,7 @@ func scanChange(row interface{ Scan(...any) error }) (Change, error) {
 	var created int64
 	var applied sql.NullInt64
 	err := row.Scan(&c.ID, &c.Summary, &c.Actor, &c.State, &reverts, &c.Fingerprint, &c.FingerprintScheme, &c.Plan, &errText, &created, &applied,
-		&c.ProposedVia, &appliedBy, &appliedVia, &c.Progress)
+		&c.ProposedVia, &appliedBy, &appliedVia, &c.Progress, &c.ActsFor)
 	c.Reverts, c.Error, c.CreatedAt = reverts.String, errText.String, fromMillis(created)
 	c.AppliedBy, c.AppliedVia = appliedBy.String, appliedVia.String
 	if applied.Valid {

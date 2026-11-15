@@ -85,6 +85,7 @@ import { type OpenWay, openWaysOf, PrivateButton, PrivateFact, PrivateSheet } fr
 import { RuntimeSheet } from "./RuntimeSheet";
 import { useRevisionLook, useRevisionTitle, useWhoWords } from "./revision";
 import { knownVersion, newerBuild, runtimeEnv, runtimeOf, runtimeWords } from "./runtime";
+import { SourcePanel } from "./Source";
 import { offered, UpdateCard } from "./updates";
 import { UpgradeProgress } from "./upgrade";
 import { usePlaces } from "./useServices";
@@ -119,6 +120,7 @@ export function AppOverview() {
         <RecentDeployments />
       </div>
       <div className="app-aside">
+        <SourcePanel />
         <ConfigurationPanel />
         {update && !offered(update) ? <UpdateCard service={service} /> : null}
         <HealthCheckPanel />

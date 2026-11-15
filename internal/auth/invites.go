@@ -338,7 +338,7 @@ func (s *Service) stillInvites(ctx context.Context, tx *store.Tx, createdBy stri
 const projectKind = "project"
 
 // ActorName is who an actor is, by name, for words: a person's name, or for an
-// API token, its maker's.
+// API token or a deploy-on-push hook, its maker's.
 func (s *Service) ActorName(ctx context.Context, tx *store.Tx, actor string) string {
 	userID := ""
 	switch {
@@ -347,6 +347,10 @@ func (s *Service) ActorName(ctx context.Context, tx *store.Tx, actor string) str
 	case len(actor) > 6 && actor[:6] == "token:":
 		if tok, err := tx.GetAPIToken(ctx, actor[6:]); err == nil {
 			userID = tok.UserID
+		}
+	case len(actor) > 5 && actor[:5] == "hook:":
+		if h, err := tx.GetGitHook(ctx, actor[5:]); err == nil {
+			userID = h.UserID
 		}
 	}
 	if u, err := tx.GetUser(ctx, userID); err == nil {

@@ -679,6 +679,27 @@ msgstr "A change in a project you can't see"
 msgid "A major update of {subject} is out: {where}"
 msgstr "A major update of {subject} is out: {where}"
 
+msgid "A newer push to {ref} took the place of one for {name}"
+msgstr "A newer push to {ref} took the place of one for {name}"
+
+msgid "A push that {name} doesn't build"
+msgstr "A push that {name} doesn't build"
+
+msgid "A push to {ref} deployed nothing to {name}"
+msgstr "A push to {ref} deployed nothing to {name}"
+
+msgid "A push to {ref} found {name} runs {commit} already"
+msgstr "A push to {ref} found {name} runs {commit} already"
+
+msgid "A push to {ref} planned {commit} for {name}, which waits for a person to apply it"
+msgstr "A push to {ref} planned {commit} for {name}, which waits for a person to apply it"
+
+msgid "A push to {ref} started a deploy of {commit} to {name}"
+msgstr "A push to {ref} started a deploy of {commit} to {name}"
+
+msgid "A push to {ref} waits for the deploy of {name} under way"
+msgstr "A push to {ref} waits for the deploy of {name} under way"
+
 msgid "A scheduled task failed"
 msgstr "A scheduled task failed"
 
@@ -868,6 +889,12 @@ msgstr "Ended the sessions of a sign-in provider that stopped"
 msgid "Fetched a backup of {volume} from {destination}"
 msgstr "Fetched a backup of {volume} from {destination}"
 
+msgid "Gave deploy on push a new secret"
+msgstr "Gave deploy on push a new secret"
+
+msgid "Gave {name}'s deploy on push a new secret"
+msgstr "Gave {name}'s deploy on push a new secret"
+
 #. placeholder {0}: m?.email ?? ""
 #. placeholder {1}: rolePhrase(m?.role ?? Role.UNSPECIFIED, { projectId: m?.projectId ?? "", projectName: m?.projectName ?? "" })
 msgid "Invited {0} as {1}"
@@ -977,6 +1004,12 @@ msgstr "Put back {path} on {server}, which can let someone back in"
 
 msgid "Read {path} on {server}"
 msgstr "Read {path} on {server}"
+
+msgid "Refused a push to {name} whose secret didn't match"
+msgstr "Refused a push to {name} whose secret didn't match"
+
+msgid "Refused a push whose secret didn't match"
+msgstr "Refused a push whose secret didn't match"
 
 msgid "Removed a backup of {volume} from its server, and kept it on {destination}"
 msgstr "Removed a backup of {volume} from its server, and kept it on {destination}"
@@ -1165,8 +1198,20 @@ msgstr "Took over the alert from {from}: {title}"
 msgid "Turned off codes from an authenticator app"
 msgstr "Turned off codes from an authenticator app"
 
+msgid "Turned off deploy on push"
+msgstr "Turned off deploy on push"
+
+msgid "Turned off deploy on push for {name}"
+msgstr "Turned off deploy on push for {name}"
+
 msgid "Turned on codes from an authenticator app"
 msgstr "Turned on codes from an authenticator app"
+
+msgid "Turned on deploy on push"
+msgstr "Turned on deploy on push"
+
+msgid "Turned on deploy on push for {name}"
+msgstr "Turned on deploy on push for {name}"
 
 msgid "Undo: {reverted}"
 msgstr "Undo: {reverted}"
@@ -1194,6 +1239,9 @@ msgstr "Uploaded {path} to {server}, {size}, and unpacked it into {to}"
 
 msgid "a server"
 msgstr "a server"
+
+msgid "an app"
+msgstr "an app"
 
 msgid "its server"
 msgstr "its server"
@@ -5105,6 +5153,123 @@ msgstr "{0}, the one it runs"
 msgid "{word} version"
 msgstr "{word} version"
 
+msgid "A new secret for {name}'s hook"
+msgstr "A new secret for {name}'s hook"
+
+msgid "A webhook on the repository's host"
+msgstr "A webhook on the repository's host"
+
+msgid "A webhook on {hostName}"
+msgstr "A webhook on {hostName}"
+
+msgid "Copy URL"
+msgstr "Copy URL"
+
+msgid "Copy secret"
+msgstr "Copy secret"
+
+msgid "Copy the secret now. It won't be shown again."
+msgstr "Copy the secret now. It won't be shown again."
+
+msgid "Deploy on push"
+msgstr "Deploy on push"
+
+msgid "Deploy on push didn't change"
+msgstr "Deploy on push didn't change"
+
+msgid "Deploy on push isn't on"
+msgstr "Deploy on push isn't on"
+
+msgid "Deploy {name} on push"
+msgstr "Deploy {name} on push"
+
+msgid "Each push to {branch} deploys {name}."
+msgstr "Each push to {branch} deploys {name}."
+
+msgid "Give the panel a domain"
+msgstr "Give the panel a domain"
+
+msgid "Hook settings"
+msgstr "Hook settings"
+
+msgid "Last commit"
+msgstr "Last commit"
+
+msgid "Last push {ago} deployed nothing."
+msgstr "Last push {ago} deployed nothing."
+
+msgid "Last push {ago} gave its place to a newer one."
+msgstr "Last push {ago} gave its place to a newer one."
+
+msgid "Last push {ago} planned {commit}, which waits for a person to apply it."
+msgstr "Last push {ago} planned {commit}, which waits for a person to apply it."
+
+msgid "Last push {ago} started a deploy of {commit}."
+msgstr "Last push {ago} started a deploy of {commit}."
+
+msgid "Last push {ago} waits for the deploy under way."
+msgstr "Last push {ago} waits for the deploy under way."
+
+msgid "Last push {ago} wasn't to the branch {name} builds."
+msgstr "Last push {ago} wasn't to the branch {name} builds."
+
+msgid "Last push {ago}: {name} runs {commit} already."
+msgstr "Last push {ago}: {name} runs {commit} already."
+
+msgid "No push has come yet."
+msgstr "No push has come yet."
+
+msgid "Open the repository's webhooks"
+msgstr "Open the repository's webhooks"
+
+msgid "Open webhooks"
+msgstr "Open webhooks"
+
+msgid "Open {hostName}"
+msgstr "Open {hostName}"
+
+msgid "Payload URL"
+msgstr "Payload URL"
+
+msgid "Pushes to {branch} don't deploy {name}."
+msgstr "Pushes to {branch} don't deploy {name}."
+
+msgid "Secret copied"
+msgstr "Secret copied"
+
+msgid "Secret token"
+msgstr "Secret token"
+
+msgid "Set up"
+msgstr "Set up"
+
+msgid "Shown once, when made"
+msgstr "Shown once, when made"
+
+msgid "Target URL"
+msgstr "Target URL"
+
+msgid "The hook now refuses pushes. Remove it from the repository too."
+msgstr "The hook now refuses pushes. Remove it from the repository too."
+
+msgid "The old secret stopped working. Give the hook this one."
+msgstr "The old secret stopped working. Give the hook this one."
+
+msgid "The repository's host"
+msgstr "The repository's host"
+
+msgid "The secret didn't change"
+msgstr "The secret didn't change"
+
+msgid "URL copied"
+msgstr "URL copied"
+
+msgid "the default branch"
+msgstr "the default branch"
+
+msgid "{who} can't reach this panel's address."
+msgstr "{who} can't reach this panel's address."
+
 msgid "About {span} down"
 msgstr "About {span} down"
 
@@ -5334,6 +5499,9 @@ msgstr "Pulled {pulled} again"
 msgid "Pulling {pulled} again"
 msgstr "Pulling {pulled} again"
 
+msgid "Push"
+msgstr "Push"
+
 msgid "Rolled back"
 msgstr "Rolled back"
 
@@ -5379,6 +5547,9 @@ msgstr "deployed {ago} by {name}"
 msgid "deployed {ago} from the CLI on {local}"
 msgstr "deployed {ago} from the CLI on {local}"
 
+msgid "deployed {ago} on a push"
+msgstr "deployed {ago} on a push"
+
 msgid "the CLI on {local}"
 msgstr "the CLI on {local}"
 
@@ -5390,6 +5561,9 @@ msgstr "{revision} deployed {when} by {name}"
 
 msgid "{revision} deployed {when} from the CLI on {local}"
 msgstr "{revision} deployed {when} from the CLI on {local}"
+
+msgid "{revision} deployed {when} on a push"
+msgstr "{revision} deployed {when} on a push"
 
 msgid "Also"
 msgstr "Also"
@@ -6213,9 +6387,6 @@ msgstr "Save your recovery codes"
 
 msgid "Scan this code with the app."
 msgstr "Scan this code with the app."
-
-msgid "Set up"
-msgstr "Set up"
 
 msgid "Set up an authenticator app"
 msgstr "Set up an authenticator app"
@@ -10074,6 +10245,9 @@ msgstr "A new container takes over once it has been healthy for {soak}, and what
 msgid "A new container takes over once it has been healthy for {soak}, and what runs goes on serving until then. If it isn't healthy within {healthyWithin}, the new one goes, and what runs stays"
 msgstr "A new container takes over once it has been healthy for {soak}, and what runs goes on serving until then. If it isn't healthy within {healthyWithin}, the new one goes, and what runs stays"
 
+msgid "A push"
+msgstr "A push"
+
 msgid "API token"
 msgstr "API token"
 
@@ -10184,6 +10358,9 @@ msgstr "Docker's socket at {path}, which gives control of Docker on the server, 
 
 msgid "Dockwell can't read where {cantTell} really lands, so it can't say two containers wouldn't write to one place, and the old one stops first. If the app can, set its rollout order to start first"
 msgstr "Dockwell can't read where {cantTell} really lands, so it can't say two containers wouldn't write to one place, and the old one stops first. If the app can, set its rollout order to start first"
+
+msgid "From a push"
+msgstr "From a push"
 
 msgid "From the API"
 msgstr "From the API"
@@ -15748,6 +15925,9 @@ msgstr "Change role"
 msgid "Change what {name} holds"
 msgstr "Change what {name} holds"
 
+msgid "Deploy on push turned off"
+msgstr "Deploy on push turned off"
+
 msgid "Dockwell can't say what removing {name} would end"
 msgstr "Dockwell can't say what removing {name} would end"
 
@@ -15778,6 +15958,9 @@ msgstr "Nobody was removed"
 
 msgid "None open"
 msgstr "None open"
+
+msgid "Off where they turned it on"
+msgstr "Off where they turned it on"
 
 msgid "Only {name} can"
 msgstr "Only {name} can"
@@ -16698,9 +16881,6 @@ msgstr "Each links their account in Profile and security. Their passkey still co
 
 msgid "Found {answerHost} · signs with {strongest}"
 msgstr "Found {answerHost} · signs with {strongest}"
-
-msgid "Give the panel a domain"
-msgstr "Give the panel a domain"
 
 msgid "Groups claim"
 msgstr "Groups claim"

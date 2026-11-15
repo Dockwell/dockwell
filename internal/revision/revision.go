@@ -1162,6 +1162,7 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 	c := store.Change{
 		ID: plan.Change, Summary: p.Summary, Actor: p.Actor, State: store.ChangePlanned, Reverts: reverts,
 		Fingerprint: plan.Fingerprint, Plan: record, CreatedAt: e.now(), ProposedVia: p.Via, Servers: serversOf(plan),
+		ActsFor: actsFor(ctx, p.Actor),
 	}
 	err = e.db.Revise(ctx, func(tx *store.RevisionTx) error { return e.recordPlanned(ctx, tx, c, items) })
 	if err != nil {
@@ -4092,6 +4093,13 @@ func (e *Engine) commitOwned(ctx context.Context, c store.Change, items []item, 
 			it.id, it.rev = rev.ID, rev.Revision
 			if err := tx.PlaceRevision(ctx, rev.ID, rev.Revision, it.servers, now); err != nil {
 				return err
+			}
+			// A deleted service's deploy-on-push hook goes with it, on record, so
+			// no undo brings its secret back (ADR 0046).
+			if spec == nil {
+				if err := forgetHooks(ctx, tx.Tx, rev.ID, c.ID, by, now); err != nil {
+					return err
+				}
 			}
 		}
 		// How the routes it leaves automatic prove their domains, as it decided,

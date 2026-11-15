@@ -407,6 +407,8 @@ var stepUpActions = map[dockwellv1.StepUpAction]auth.StepUpAction{
 	dockwellv1.StepUpAction_STEP_UP_ACTION_CREATE_TOKEN:              auth.StepUpCreateToken,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_APPLY_ROOT_CHANGE:         auth.StepUpApplyRootChange,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_SAVE_WAY_BACK_IN:          auth.StepUpSaveWayBackIn,
+	dockwellv1.StepUpAction_STEP_UP_ACTION_CREATE_GIT_HOOK:           auth.StepUpCreateGitHook,
+	dockwellv1.StepUpAction_STEP_UP_ACTION_ROTATE_GIT_HOOK:           auth.StepUpRotateGitHook,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_END_PROCESS:               auth.StepUpEndProcess,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_OPEN_TERMINAL:             auth.StepUpOpenTerminal,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_APPROVE_CHANGE:            auth.StepUpApproveChange,
@@ -852,6 +854,8 @@ var codes = []struct {
 	{auth.ErrNoPasskeyHere, connect.CodeFailedPrecondition, "no_passkey_here"},
 	{auth.ErrNeedsFreshSignIn, connect.CodeFailedPrecondition, ReasonNeedsFreshSignIn},
 	{auth.ErrBelowFloor, connect.CodeFailedPrecondition, "below_floor"},
+	{auth.ErrHookExists, connect.CodeAlreadyExists, "hook_exists"},
+	{auth.ErrNoHook, connect.CodeNotFound, "no_hook"},
 }
 
 func (h *Handler) rpcError(ctx context.Context, err error) error {

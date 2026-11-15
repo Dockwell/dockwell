@@ -97,6 +97,42 @@ func PrincipalFrom(ctx context.Context) (auth.Principal, bool) {
 	return p, ok
 }
 
+// As is ctx as a call by p, from client, for what acts for someone outside a
+// request Guard and Interceptor saw, as a service's hook does on a push: they
+// checked nothing of it, so whoever calls As has checked p.
+func As(ctx context.Context, client auth.Client, p auth.Principal) context.Context {
+	ctx = context.WithValue(ctx, requestKey{}, request{client: client})
+	return context.WithValue(ctx, principalKey{}, p)
+}
+
+// Check is what Interceptor checks of a call to procedure with the request msg,
+// for one made as As says: the role p holds, read now, a token's maker's for a
+// token, and where msg's objects are, protected environments included. It returns
+// ctx with p's grants, as a call through the API has them, for what the method
+// checks after. A service's hook calls nothing without it, so a hook deploys only
+// what its maker may deploy now (ADR 0046, ADR 0049).
+func Check(ctx context.Context, svc *auth.Service, logger *slog.Logger, procedure string, msg proto.Message) (context.Context, error) {
+	p, ok := PrincipalFrom(ctx)
+	if !ok {
+		return ctx, ReasonError(connect.CodeUnauthenticated, auth.ErrUnauthenticated, ReasonUnauthenticated)
+	}
+	// A token, as a hook's is, makes no call that needs a session, as the API
+	// holds a token to (authorizeToken).
+	if need := accessFor(procedure); p.Token != nil && need != auth.AccessRead && need != auth.AccessWrite {
+		return ctx, ReasonError(connect.CodePermissionDenied, auth.ErrNeedsSession, ReasonNeedsSession)
+	}
+	i := &interceptor{svc: svc, logger: logger}
+	client, _ := ClientFrom(ctx)
+	ctx, err := i.gateCall(ctx, client, p, procedure)
+	if err != nil {
+		return ctx, err
+	}
+	if err := i.checkScope(ctx, procedure, msg); err != nil {
+		return ctx, err
+	}
+	return ctx, nil
+}
+
 // sessionUnchecked reports a request with a session cookie that couldn't be
 // checked, which went ahead without a principal because its procedure
 // needs none.

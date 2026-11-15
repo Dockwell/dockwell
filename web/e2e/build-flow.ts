@@ -8,6 +8,7 @@
 // BuildKit and Railpack; CI's Docker job builds with the real ones.
 
 import { type ChildProcess, spawn } from "node:child_process";
+import { createHmac, randomUUID } from "node:crypto";
 import { join, resolve } from "node:path";
 
 import type { Locator, Page } from "playwright-core";
@@ -31,6 +32,31 @@ function fail(message: string): never {
 async function move(git: string, to: string) {
   const res = await fetch(`${git}/_move?branch=main&to=${to}`, { method: "POST" });
   if (!res.ok) fail(`the Git server didn't move main to ${to}: ${res.status} ${await res.text()}`);
+}
+
+/**
+ * Sends a push of main to a hook, signed with secret as GitHub signs one, and says
+ * how the hook answered. The payload names a commit the branch doesn't: Dockwell
+ * reads the branch itself.
+ */
+async function push(url: string, secret: string, git: string): Promise<number> {
+  const body = JSON.stringify({
+    ref: "refs/heads/main",
+    after: "1".repeat(40),
+    deleted: false,
+    repository: { clone_url: `${git}/web.git`, html_url: `${git}/web`, default_branch: "main" },
+  });
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-GitHub-Event": "push",
+      "X-GitHub-Delivery": randomUUID(),
+      "X-Hub-Signature-256": `sha256=${createHmac("sha256", secret).update(body).digest("hex")}`,
+    },
+    body,
+  });
+  return res.status;
 }
 
 /** The sheet that has a plan to apply, whatever it's called. */
@@ -194,6 +220,69 @@ export async function buildFlow(page: Page, { origin, step, shoot, git }: BuildF
   await shoot(page, "build-railpack-cant");
   await docs.getByRole("button", { name: "Review plan" }).click();
   await docs.getByText(/Railpack can't tell how to build .*web at [0-9a-f]{7} for docs/).waitFor();
+
+  step("a push deploys what the branch names: turning it on takes a passkey and shows the hook's secret once");
+  await page.goto(`${origin}/apps`);
+  await page.getByRole("row", { name: /order-api/ }).click();
+  await page.getByRole("heading", { level: 1, name: "order-api" }).waitFor();
+  const overview = page.url();
+  const source = page.locator("section").filter({ has: page.getByRole("heading", { name: "Source", exact: true }) });
+  const onPush = source.getByRole("switch", { name: "Deploy on push" });
+  if ((await onPush.getAttribute("aria-checked")) !== "false") fail("deploy on push is on before anyone turned it on");
+  // This browser's authenticator gives the passkey it asks for.
+  await onPush.click();
+  const hook = page.getByRole("dialog", { name: "Deploy order-api on push" });
+  await hook.waitFor({ timeout: 20_000 });
+  const field = (name: string) =>
+    hook
+      .locator("dt", { hasText: new RegExp(`^${name}$`) })
+      .locator("xpath=following-sibling::dd[1]")
+      .locator("code");
+  // A Git server Dockwell can't name is taken for a Gitea, whose form calls it the target URL.
+  const url = (await field("Target URL").textContent()) ?? fail("the hook's sheet has no URL");
+  const secret = (await field("Secret").textContent()) ?? fail("the hook's sheet has no secret");
+  if (!/\/hooks\/git\/ghk_[0-9A-Za-z]+$/.test(url) || !/^[0-9a-f]{64}$/.test(secret))
+    fail(`the hook is at ${url} with a secret of ${secret.length} characters`);
+  await shoot(page, "push-hook-sheet");
+  await hook.getByRole("button", { name: "Done" }).click();
+  // The secret goes with the sheet, once it has faded out.
+  await page.getByText(secret).waitFor({ state: "detached", timeout: 5_000 });
+  await source.getByText("No push has come yet.").waitFor();
+
+  // A delivery signed with anything else is refused, and does nothing.
+  if ((await push(url, "not-the-secret", git)) !== 401) fail("a push with a wrong signature wasn't refused");
+  await move(git, "giftcards");
+  const answered = await push(url, secret, git);
+  if (answered !== 202) fail(`the hook answered a signed push with ${answered}`);
+  for (let i = 0; ; i++) {
+    await page.reload();
+    await source
+      .getByText(/^Last push|No push has come yet\.$/)
+      .first()
+      .waitFor();
+    if ((await source.getByText(/started a deploy of [0-9a-f]{7}/).count()) > 0) break;
+    if (i > 60) fail("the Source panel never said the push started a deploy");
+    await page.waitForTimeout(1000);
+  }
+  await page.getByRole("link", { name: /Deployments/ }).click();
+  const giftcards = page
+    .getByRole("table", { name: "Revisions of order-api" })
+    .getByRole("row")
+    .filter({ hasText: "Add gift cards" });
+  await giftcards.first().waitFor({ timeout: 60_000 });
+  await page.goto(overview);
+  await source.getByText(/^Last push .* started a deploy of [0-9a-f]{7}\.$/).waitFor();
+  await shoot(page, "push-deployed");
+
+  step("the timeline says what the push came to, and turning deploy on push off needs no passkey");
+  await page.goto(`${origin}/activity`);
+  await page.getByRole("row", { name: /A push to main started a deploy of [0-9a-f]{7} to order-api/ }).waitFor();
+  await shoot(page, "push-activity");
+  await page.goto(overview);
+  await onPush.click();
+  await source.getByText("The hook now refuses pushes. Remove it from the repository too.").waitFor();
+  if ((await push(url, secret, git)) !== 401) fail("a hook turned off still takes pushes");
+  await move(git, "stable");
 }
 
 /**

@@ -174,6 +174,11 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "FirewallService.getServerFail2ban": { within: "FirewallService.getServerFirewall" },
   "FirewallService.getServerSsh": { within: "FirewallService.getServerFirewall" },
 
+  "GitHookService.createGitHook": "may",
+  "GitHookService.deleteGitHook": "may",
+  "GitHookService.getGitHook": "read",
+  "GitHookService.rotateGitHookSecret": "may",
+
   "HealthService.listHealth": "read",
 
   "ImageService.checkRegistryLogin": "may",

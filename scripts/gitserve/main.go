@@ -22,6 +22,7 @@
 //   - docs has nothing Railpack knows how to build;
 //   - library is a Node app with nothing that starts it, which Railpack refuses;
 //   - oldnode asks for a Node that isn't, 99, which Railpack can't find;
+//   - giftcards builds as main does, as a push to main would, "Add gift cards";
 //   - stable stays where main began, for main to go back to.
 //
 // Each serves its commit's subject on port 8080 on real Docker.
@@ -82,6 +83,7 @@ type branch struct {
 
 var branches = []branch{
 	{"main", "Add order export endpoint", map[string]string{"Dockerfile": app, "index.html": "Add order export endpoint\n"}},
+	{"giftcards", "Add gift cards", map[string]string{"Dockerfile": app, "index.html": "Add gift cards\n"}},
 	{"broken", "Move sessions to valkey", map[string]string{"Dockerfile": `FROM busybox:1.37
 WORKDIR /app
 COPY . .

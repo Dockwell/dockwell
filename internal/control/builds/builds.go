@@ -643,7 +643,11 @@ func (h *Handler) caller(ctx context.Context) (name, actor string) {
 		return "someone", ""
 	}
 	name = p.User.Name
-	if p.Token != nil {
+	switch {
+	case p.Hook != nil:
+		// A hook cancels a build only for a push that came after it.
+		name = "a newer push"
+	case p.Token != nil:
 		name = "the API token " + p.Token.Name
 	}
 	if name == "" {

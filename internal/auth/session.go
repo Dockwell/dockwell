@@ -37,13 +37,19 @@ type Principal struct {
 	User store.User
 	// Session is the call's session. Zero for a call with an API token.
 	Session store.Session
-	// Token is the call's API token. Nil for a call with a session.
+	// Token is the call's API token. Nil for a call with a session. A delivery to
+	// a service's hook has one that the hook stands in, with its rights.
 	Token *store.APIToken
+	// Hook is the service's hook a delivery came through, which acts for User.
+	Hook *store.GitHook
 }
 
 // Actor names the principal in the audit log: the user, or the token
 // acting for them.
 func (p Principal) Actor() string {
+	if p.Hook != nil {
+		return "hook:" + p.Hook.ID
+	}
 	if p.Token != nil {
 		return "token:" + p.Token.ID
 	}

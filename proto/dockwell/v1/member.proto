@@ -328,6 +328,9 @@ message SetMemberRoleResponse {
   int32 sessions_ended = 3;
   int32 tokens_revoked = 4;
   int32 invites_revoked = 5;
+  // How many of the deploy-on-push hooks they made were deleted, as a lowering
+  // ends them as it does their tokens (ADR 0046).
+  int32 hooks_deleted = 6;
 }
 
 // PlanMemberRemovalRequest names someone.
@@ -350,6 +353,16 @@ message PlanMemberRemovalResponse {
   repeated RemovalChange changes = 5;
   // Their accounts at sign-in providers, which would be deleted (ADR 0095).
   repeated RemovalLink links = 6;
+  // The deploy-on-push hooks they made, which would be deleted (ADR 0046).
+  repeated RemovalHook hooks = 7;
+}
+
+// RemovalHook is a deploy-on-push hook a removal would delete, by the app it
+// deploys.
+message RemovalHook {
+  string service_id = 1;
+  // The app's name, or its ID once it can't be read.
+  string service_name = 2;
 }
 
 // RemovalToken is an API token a removal would revoke.
@@ -395,6 +408,8 @@ message RemoveMemberResponse {
   repeated string changes_left = 5;
   // How many of their accounts at sign-in providers were deleted.
   int32 links_deleted = 6;
+  // How many of the deploy-on-push hooks they made were deleted (ADR 0046).
+  int32 hooks_deleted = 7;
 }
 
 // TransferOwnershipRequest names the new owner.

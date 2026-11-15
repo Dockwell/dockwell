@@ -135,6 +135,10 @@ FileService.UploadFile                         apply        admin      admin    
 FirewallService.GetServerFail2ban              read         admin      admin      install
 FirewallService.GetServerFirewall              read         admin      admin      install
 FirewallService.GetServerSsh                   read         admin      admin      install
+GitHookService.CreateGitHook                   apply        developer  admin      project  session
+GitHookService.DeleteGitHook                   apply        developer  developer  project
+GitHookService.GetGitHook                      read         viewer     viewer     project
+GitHookService.RotateGitHookSecret             apply        developer  admin      project  session
 HealthService.ListHealth                       read         viewer     viewer     project
 ImageService.CheckRegistryLogin                read         admin      admin      install  session
 ImageService.GetImage                          read         developer  developer  project

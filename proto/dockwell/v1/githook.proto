@@ -1,0 +1,210 @@
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package dockwell.v1;
+
+import "dockwell/v1/change.proto";
+import "dockwell/v1/options.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+// GitHookService turns deploy on push on and off for a service that builds from
+// Git: a hook, whose URL and secret GitHub, Gitea or Forgejo signs each push
+// with. A push to the branch the build follows plans a build and deploy of what
+// the branch names then, and applies it with an API token's rights: one that
+// needs a person stays planned. See docs/adr/0046-builds-from-git.md.
+//
+// A hook acts for the person who made it. Making one, and a new secret for one,
+// takes a signed-in person and a passkey; a write token may delete one.
+service GitHookService {
+  // CreateGitHook turns deploy on push on for a service: it makes its hook, and
+  // gives its URL and secret, the secret only here. It needs a proof from
+  // AuthService.FinishStepUp for creating a hook, with the service's ID as its
+  // target. A service has one hook at most.
+  rpc CreateGitHook(CreateGitHookRequest) returns (CreateGitHookResponse) {
+    option (dockwell.v1.command) = {noun: "git-hooks"};
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.needs_session) = true;
+    option (google.api.http) = {
+      post: "/v1/services/{id}/git-hook"
+      body: "*"
+    };
+  }
+
+  // GetGitHook returns a service's hook, its secret left out, and its newest
+  // deliveries.
+  rpc GetGitHook(GetGitHookRequest) returns (GetGitHookResponse) {
+    option (dockwell.v1.command) = {noun: "git-hooks"};
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (google.api.http) = {get: "/v1/services/{id}/git-hook"};
+  }
+
+  // RotateGitHookSecret gives a service's hook a new secret, and gives it, only
+  // here; the old one stops working. It needs a proof from
+  // AuthService.FinishStepUp for a hook's secret, with the service's ID as its
+  // target.
+  rpc RotateGitHookSecret(RotateGitHookSecretRequest) returns (RotateGitHookSecretResponse) {
+    option (dockwell.v1.command) = {noun: "git-hooks"};
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.needs_session) = true;
+    option (google.api.http) = {
+      post: "/v1/services/{id}/git-hook:rotate"
+      body: "*"
+    };
+  }
+
+  // DeleteGitHook turns deploy on push off for a service: pushes stop
+  // deploying, and its hook's URL answers as if it never was.
+  rpc DeleteGitHook(DeleteGitHookRequest) returns (DeleteGitHookResponse) {
+    option (dockwell.v1.command) = {noun: "git-hooks"};
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (google.api.http) = {
+      post: "/v1/services/{id}/git-hook:delete"
+      body: "*"
+    };
+  }
+}
+
+// GitHook is a service's hook, which deploys it on a push.
+message GitHook {
+  // Its ID, such as "ghk_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+  string id = 1;
+  // The service's ID.
+  string service_id = 2;
+  // Where the provider sends pushes, such as
+  // "https://panel.example.com/hooks/git/ghk_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+  string url = 3;
+  // Who made it, which it acts for.
+  Actor created_by = 4;
+  // When it was made.
+  google.protobuf.Timestamp create_time = 5;
+  // When its secret was last made, the first time included.
+  google.protobuf.Timestamp secret_time = 6;
+  // Its newest deliveries, newest first, at most 20.
+  repeated GitHookDelivery deliveries = 7;
+}
+
+// GitHookDelivery is one push a provider sent, and what came of it.
+message GitHookDelivery {
+  // The provider's ID for it.
+  string delivery_id = 1;
+  // When it came.
+  google.protobuf.Timestamp time = 2;
+  // Who sent it: "github", "gitea" or "forgejo".
+  string provider = 3;
+  // The ref it pushed, such as "refs/heads/main".
+  string ref = 4;
+  // The commit the branch named when Dockwell read it, in full, when it read it.
+  string commit = 5;
+  // What came of it.
+  GitHookOutcome outcome = 6;
+  // The change it planned, when it planned one.
+  string change_id = 7;
+  // What came of it, in a sentence, such as "web already runs 8be41d2".
+  string detail = 8;
+}
+
+// GitHookOutcome is what came of a push.
+enum GitHookOutcome {
+  GIT_HOOK_OUTCOME_UNSPECIFIED = 0;
+  // It planned a deploy and applied it.
+  GIT_HOOK_OUTCOME_DEPLOYING = 1;
+  // It planned a deploy that needs a person to apply, which waits for one.
+  GIT_HOOK_OUTCOME_NEEDS_PERSON = 2;
+  // It waits for the deploy under way from an earlier push.
+  GIT_HOOK_OUTCOME_QUEUED = 3;
+  // The branch names what the service runs, or is deploying, already.
+  GIT_HOOK_OUTCOME_NOTHING_NEW = 4;
+  // It was of another branch or repository, a branch's deletion, or not a push.
+  GIT_HOOK_OUTCOME_IGNORED = 5;
+  // Dockwell couldn't plan it, such as when the branch can't be read; detail
+  // says why.
+  GIT_HOOK_OUTCOME_FAILED = 6;
+  // A newer push took its place before it began.
+  GIT_HOOK_OUTCOME_SUPERSEDED = 7;
+}
+
+// CreateGitHookRequest names a service and proves a passkey.
+message CreateGitHookRequest {
+  // The service, by ID or by name.
+  string id = 1;
+  // The project of a service named by name, by name or ID, when more than one
+  // has a service of that name.
+  string project = 2;
+  // The environment of a service named by name, by name or ID, when its project
+  // has more than one.
+  string environment = 3;
+  // The proof from AuthService.FinishStepUp, for creating a hook.
+  string proof = 4;
+}
+
+// CreateGitHookResponse is the hook, and its secret.
+message CreateGitHookResponse {
+  // The hook.
+  GitHook hook = 1;
+  // The secret the provider signs pushes with, only here.
+  string secret = 2;
+}
+
+// GetGitHookRequest names a service.
+message GetGitHookRequest {
+  // The service, by ID or by name.
+  string id = 1;
+  // The project of a service named by name, by name or ID.
+  string project = 2;
+  // The environment of a service named by name, by name or ID.
+  string environment = 3;
+}
+
+// GetGitHookResponse is the service's hook, or none.
+message GetGitHookResponse {
+  // The hook, unset when the service has none.
+  GitHook hook = 1;
+}
+
+// RotateGitHookSecretRequest names a service and proves a passkey.
+message RotateGitHookSecretRequest {
+  // The service, by ID or by name.
+  string id = 1;
+  // The project of a service named by name, by name or ID.
+  string project = 2;
+  // The environment of a service named by name, by name or ID.
+  string environment = 3;
+  // The proof from AuthService.FinishStepUp, for a hook's secret.
+  string proof = 4;
+}
+
+// RotateGitHookSecretResponse is the hook, and its new secret.
+message RotateGitHookSecretResponse {
+  // The hook.
+  GitHook hook = 1;
+  // The new secret, only here.
+  string secret = 2;
+}
+
+// DeleteGitHookRequest names a service.
+message DeleteGitHookRequest {
+  // The service, by ID or by name.
+  string id = 1;
+  // The project of a service named by name, by name or ID.
+  string project = 2;
+  // The environment of a service named by name, by name or ID.
+  string environment = 3;
+}
+
+// DeleteGitHookResponse says the hook is gone.
+message DeleteGitHookResponse {}

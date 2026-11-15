@@ -248,6 +248,13 @@ const (
 	// Saving a file that's a way back onto a server, with FileService.SaveFile.
 	// The target is the server's ID and the path ReadFile gave, as "srv_…:/path".
 	StepUpAction_STEP_UP_ACTION_SAVE_WAY_BACK_IN StepUpAction = 9
+	// Making a service's hook, which deploys it on a push, with
+	// GitHookService.CreateGitHook. The target is the service's ID. Numbered in
+	// its block, 100 to 109, which Git providers take (#253).
+	StepUpAction_STEP_UP_ACTION_CREATE_GIT_HOOK StepUpAction = 100
+	// Giving a service's hook a new secret, with
+	// GitHookService.RotateGitHookSecret. The target is the service's ID.
+	StepUpAction_STEP_UP_ACTION_ROTATE_GIT_HOOK StepUpAction = 101
 	// End a process on a server (ProcessService.EndProcess), whose target is
 	// "<server ID>:<PID>:<start ticks>", so a proof ends no other process that
 	// gets the PID once it has gone. Numbered apart, as open work adds to this enum.
@@ -333,6 +340,8 @@ var (
 		7:   "STEP_UP_ACTION_CREATE_TOKEN",
 		8:   "STEP_UP_ACTION_APPLY_ROOT_CHANGE",
 		9:   "STEP_UP_ACTION_SAVE_WAY_BACK_IN",
+		100: "STEP_UP_ACTION_CREATE_GIT_HOOK",
+		101: "STEP_UP_ACTION_ROTATE_GIT_HOOK",
 		20:  "STEP_UP_ACTION_END_PROCESS",
 		10:  "STEP_UP_ACTION_OPEN_TERMINAL",
 		90:  "STEP_UP_ACTION_MAKE_WAY_BACK_IN",
@@ -364,6 +373,8 @@ var (
 		"STEP_UP_ACTION_CREATE_TOKEN":              7,
 		"STEP_UP_ACTION_APPLY_ROOT_CHANGE":         8,
 		"STEP_UP_ACTION_SAVE_WAY_BACK_IN":          9,
+		"STEP_UP_ACTION_CREATE_GIT_HOOK":           100,
+		"STEP_UP_ACTION_ROTATE_GIT_HOOK":           101,
 		"STEP_UP_ACTION_END_PROCESS":               20,
 		"STEP_UP_ACTION_OPEN_TERMINAL":             10,
 		"STEP_UP_ACTION_MAKE_WAY_BACK_IN":          90,
@@ -4891,7 +4902,7 @@ const file_dockwell_v1_auth_proto_rawDesc = "" +
 	"\x1fPROVIDER_LINK_STATE_UNSPECIFIED\x10\x00\x12\x1d\n" +
 	"\x19PROVIDER_LINK_STATE_WORKS\x10\x01\x12$\n" +
 	" PROVIDER_LINK_STATE_PROVIDER_OFF\x10\x02\x12$\n" +
-	" PROVIDER_LINK_STATE_ISSUER_MOVED\x10\x03*\xa2\b\n" +
+	" PROVIDER_LINK_STATE_ISSUER_MOVED\x10\x03*\xea\b\n" +
 	"\fStepUpAction\x12\x1e\n" +
 	"\x1aSTEP_UP_ACTION_UNSPECIFIED\x10\x00\x12 \n" +
 	"\x1cSTEP_UP_ACTION_REVEAL_SECRET\x10\x01\x12\x1e\n" +
@@ -4902,7 +4913,9 @@ const file_dockwell_v1_auth_proto_rawDesc = "" +
 	"(STEP_UP_ACTION_REGENERATE_RECOVERY_CODES\x10\x06\x12\x1f\n" +
 	"\x1bSTEP_UP_ACTION_CREATE_TOKEN\x10\a\x12$\n" +
 	" STEP_UP_ACTION_APPLY_ROOT_CHANGE\x10\b\x12#\n" +
-	"\x1fSTEP_UP_ACTION_SAVE_WAY_BACK_IN\x10\t\x12\x1e\n" +
+	"\x1fSTEP_UP_ACTION_SAVE_WAY_BACK_IN\x10\t\x12\"\n" +
+	"\x1eSTEP_UP_ACTION_CREATE_GIT_HOOK\x10d\x12\"\n" +
+	"\x1eSTEP_UP_ACTION_ROTATE_GIT_HOOK\x10e\x12\x1e\n" +
 	"\x1aSTEP_UP_ACTION_END_PROCESS\x10\x14\x12 \n" +
 	"\x1cSTEP_UP_ACTION_OPEN_TERMINAL\x10\n" +
 	"\x12#\n" +

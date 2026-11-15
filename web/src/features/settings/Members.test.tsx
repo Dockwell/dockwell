@@ -537,6 +537,7 @@ describe("Members", () => {
       const effects = within(sheet).getByLabelText("What this changes for Ada Park");
       expect(effects).toHaveTextContent("SessionsSigned out everywhere");
       expect(effects).toHaveTextContent("API tokensRevoked");
+      expect(effects).toHaveTextContent("Deploy on pushOff where they turned it on");
       await user.click(within(sheet).getByRole("button", { name: "Change role" }));
       await waitFor(() =>
         expect(setMemberRole).toHaveBeenLastCalledWith(
@@ -590,6 +591,7 @@ describe("Members", () => {
             invites: [{ id: "inv_1", email: "lin@example.com", role: Role.VIEWER }],
             changes: [{ id: "chg_1", summary: "Deploy web 1.5" }],
             links: [{ provider: "Our Authentik", account: "ada@example.com" }],
+            hooks: [{ serviceId: "svc_web", serviceName: "web" }],
           }),
           removeMember,
         },
@@ -603,6 +605,8 @@ describe("Members", () => {
       expect(sheet).toHaveTextContent("Deploy web 1.5");
       expect(sheet).toHaveTextContent("Sign-inPasskeys and codes deleted");
       expect(sheet).toHaveTextContent("Provider accounts unlinkedOur Authentik · ada@example.com");
+      // Deploy on push acts for whoever turned it on, so it goes with them.
+      expect(sheet).toHaveTextContent("Deploy on push turned offweb");
       expect(sheet).toHaveTextContent("Apps and tasks they set upKeep running");
       expect(removeMember).not.toHaveBeenCalled();
       await user.click(within(sheet).getByRole("button", { name: "Remove Ada Park" }));

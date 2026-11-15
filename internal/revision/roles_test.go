@@ -7,6 +7,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"google.golang.org/protobuf/proto"
 
@@ -495,5 +496,42 @@ func TestOnlyWhatADR0048ListsIsAnAdminsToGive(t *testing.T) {
 		if got := installWide(tt.access) != ""; got != tt.admins {
 			t.Errorf("%v: an admin's %v, want %v", tt.access, got, tt.admins)
 		}
+	}
+}
+
+// A hook's change is its maker's, by whom it says it acts for, also once the hook
+// is gone; one from before changes said so is its hook's maker's while the hook
+// is there, and nobody's after (ADR 0046).
+func TestAHooksChangeIsItsMakers(t *testing.T) {
+	db, _ := storetest.Open(t, store.SQLite)
+	ada, sam := place.Caller{UserID: "usr_ada"}, place.Caller{UserID: "usr_sam"}
+	now := time.Now()
+	if err := db.Update(t.Context(), func(tx *store.Tx) error {
+		return tx.CreateGitHook(t.Context(), store.GitHook{ID: "ghk_on", ResourceID: "svc_web", UserID: "usr_ada", Secret: []byte("x"), CreatedAt: now, SecretAt: now})
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.View(t.Context(), func(tx *store.Tx) error {
+		for _, tc := range []struct {
+			what, actor, actsFor string
+			caller               place.Caller
+			want                 bool
+		}{
+			{"a gone hook's plan, to its maker", "hook:ghk_gone", "usr_ada", ada, true},
+			{"a gone hook's plan, to someone else", "hook:ghk_gone", "usr_ada", sam, false},
+			{"an older plan of a hook that's on, to its maker", "hook:ghk_on", "", ada, true},
+			{"an older plan of a gone hook, to anyone", "hook:ghk_gone", "", ada, false},
+		} {
+			got, err := sameProposer(t.Context(), tx, tc.caller, tc.actor, tc.actsFor)
+			if err != nil || got != tc.want {
+				t.Errorf("%s: %t, %v, want %t", tc.what, got, err, tc.want)
+			}
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if !aPerson("hook:ghk_on") {
+		t.Error("a hook's change isn't a person's")
 	}
 }

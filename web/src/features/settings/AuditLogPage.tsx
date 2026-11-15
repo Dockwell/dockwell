@@ -139,6 +139,7 @@ export function AuditLogPage() {
     { value: String(Surface.CLI), label: t`CLI` },
     { value: String(Surface.API), label: t`API` },
     { value: String(Surface.AUTOMATIC), label: t`Automatic` },
+    { value: String(Surface.PUSH), label: t`Push` },
   ];
   const narrowed =
     filters.query !== "" || filters.actor !== AuditActor.UNSPECIFIED || filters.surface !== Surface.UNSPECIFIED;
@@ -307,6 +308,7 @@ const SOURCE_ICONS: Readonly<Partial<Record<Surface, IconName>>> = {
   [Surface.CLI]: "terminal",
   [Surface.API]: "link",
   [Surface.AUTOMATIC]: "refresh",
+  [Surface.PUSH]: "commit",
 };
 
 /** Where an event came from, in a word with its icon. */
@@ -317,6 +319,7 @@ function Source({ surface }: { surface: Surface }) {
     [Surface.CLI]: t`CLI`,
     [Surface.API]: t`API`,
     [Surface.AUTOMATIC]: t`Automatic`,
+    [Surface.PUSH]: t`Push`,
   };
   const icon = SOURCE_ICONS[surface];
   if (!icon) return <span className="settings-muted">–</span>;
@@ -747,12 +750,14 @@ export function auditCSV(events: readonly AuditEvent[], say: (event: AuditEvent)
     [ActorKind.DOCKWELL]: "dockwell",
     [ActorKind.SERVER]: "server",
     [ActorKind.SHELL]: "shell",
+    [ActorKind.HOOK]: "hook",
   };
   const sources: Readonly<Partial<Record<Surface, string>>> = {
     [Surface.PANEL]: "panel",
     [Surface.API]: "api",
     [Surface.CLI]: "cli",
     [Surface.AUTOMATIC]: "automatic",
+    [Surface.PUSH]: "push",
   };
   const header = csvLine([
     "time",
