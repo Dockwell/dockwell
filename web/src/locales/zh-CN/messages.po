@@ -5272,8 +5272,17 @@ msgstr "推送时部署没有改变"
 msgid "Deploy on push isn't on"
 msgstr "推送时部署没有打开"
 
+msgid "Deploy without waiting"
+msgstr "直接部署，无需等待"
+
+msgid "Deploy without waiting didn't change"
+msgstr "“直接部署，无需等待”未更改"
+
 msgid "Deploy {name} on push"
 msgstr "推送时部署 {name}"
+
+msgid "Each push into {place} applies with no person's approval."
+msgstr "每次推送到 {place} 都会直接应用，无需人工批准。"
 
 msgid "Each push to {branch} deploys {name}."
 msgstr "每次推送到 {branch} 都会部署 {name}。"
@@ -5361,6 +5370,9 @@ msgstr "已复制 URL"
 
 msgid "the default branch"
 msgstr "默认分支"
+
+msgid "this environment"
+msgstr "此环境"
 
 msgid "{who} can't reach this panel's address."
 msgstr "{who} 无法访问这个面板的地址。"
@@ -8273,6 +8285,9 @@ msgstr "应用计划"
 
 msgid "Apply this only if you trust what it runs."
 msgstr "只有信任它运行的内容时才应用。"
+
+msgid "Applying this approves a change a push planned, with your passkey"
+msgstr "应用此计划即批准一次推送计划的变更，需要验证你的通行密钥"
 
 #. placeholder {0}: change.proposedBy.name
 msgid "Applying this approves a change planned with the API token {0}, with your passkey"

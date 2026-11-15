@@ -9,6 +9,7 @@ import {
   GitHookOutcome,
   GitHookService,
   type GitSource,
+  Role,
   StepUpAction,
 } from "@dockwell/api";
 import { Button, ButtonLink, Callout, Icon, Panel, Sheet, Switch, Tag } from "@dockwell/ui";
@@ -21,6 +22,7 @@ import { useTimeWords } from "../../lib/time";
 import { useMay } from "../auth/may";
 import { useAuthError } from "../auth/messages";
 import { withStepUpIfAsked } from "../auth/stepUp";
+import { useSignedInUser } from "../auth/useAuthState";
 import { useAgoNow } from "../servers/useFleet";
 import { CopyButton } from "../system/CopyCommand";
 import { useApp, useRevisions } from "./AppContext";
@@ -119,11 +121,13 @@ function DeployOnPush({ source, host }: { source: GitSource; host: GitHost | und
   const on = hook !== undefined;
   const where = { environment: environmentOf(service) };
   // A hook acts as a developer at most, so where the environment is protected a
-  // push plans its deploy for a person to apply (ADR 0071).
+  // push plans its deploy for a person to apply, unless its maker let it deploy
+  // without waiting (ADR 0071).
   const guarded = usePlaces().place(where.environment)?.protected ?? false;
-  const pushes = guarded
-    ? t`Each push to ${branch} plans a deploy of ${name}, which waits for a person here.`
-    : t`Each push to ${branch} deploys ${name}.`;
+  const pushes =
+    guarded && hook?.role !== Role.ADMIN
+      ? t`Each push to ${branch} plans a deploy of ${name}, which waits for a person here.`
+      : t`Each push to ${branch} deploys ${name}.`;
   const mayTurnOn = may(GitHookService.method.createGitHook, where);
   const mayTurnOff = may(GitHookService.method.deleteGitHook, where);
   const offer = on ? mayTurnOff : mayTurnOn;
@@ -177,7 +181,15 @@ function DeployOnPush({ source, host }: { source: GitSource; host: GitHost | und
         </Callout>
       ) : null}
       {open && hook ? (
-        <HookSheet hook={hook} open={open} host={host} onOpen={setOpen} onClose={() => setOpen(undefined)} />
+        <HookSheet
+          hook={hook}
+          open={open}
+          host={host}
+          guarded={guarded}
+          onOpen={setOpen}
+          onChanged={() => void query.refetch()}
+          onClose={() => setOpen(undefined)}
+        />
       ) : null}
     </div>
   );
@@ -278,19 +290,25 @@ function LastPush({ delivery }: { delivery: GitHookDelivery }) {
  * The hook's URL, and its secret just after it was made, with a link to where
  * the repository's host adds a webhook. Each field is named as that host's form
  * names it. GitHub, GitLab, Bitbucket, Gitea and Forgejo send a push on their
- * own, so there's nothing more to set.
+ * own, so there's nothing more to set. Where the environment is protected, the
+ * hook's maker, an admin there, may let its pushes deploy without waiting for a
+ * person, which takes their passkey (ADR 0071).
  */
 function HookSheet({
   hook,
   open,
   host,
+  guarded,
   onOpen,
+  onChanged,
   onClose,
 }: {
   hook: GitHook;
   open: Open;
   host: GitHost | undefined;
+  guarded: boolean;
   onOpen: (open: Open) => void;
+  onChanged: () => void;
   onClose: () => void;
 }) {
   const { t } = useLingui();
@@ -298,9 +316,38 @@ function HookSheet({
   const transport = useTransport();
   const explain = useAuthError();
   const may = useMay();
-  const mayRotate = may(GitHookService.method.rotateGitHookSecret, { environment: environmentOf(service) });
+  const where = { environment: environmentOf(service) };
+  const mayRotate = may(GitHookService.method.rotateGitHookSecret, where);
+  // Where it's protected, only an admin may set it, and it's its maker's choice.
+  const me = useSignedInUser();
+  const chooses =
+    guarded && may(GitHookService.method.setGitHookRole, where).allowed && hook.createdBy?.id === me?.id && !!me;
+  const place = usePlaces().label(where.environment) || t`this environment`;
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string>();
+  const [choosing, setChoosing] = useState(false);
+  const [unchosen, setUnchosen] = useState<string>();
+
+  const choose = async (withoutWaiting: boolean) => {
+    setChoosing(true);
+    setUnchosen(undefined);
+    const hooks = createClient(GitHookService, transport);
+    try {
+      if (withoutWaiting) {
+        // Your browser asks for your passkey, to confirm it's you, once nothing else stops it.
+        await withStepUpIfAsked(transport, StepUpAction.WIDEN_GIT_HOOK, service.id, (proof) =>
+          hooks.setGitHookRole({ id: service.id, role: Role.ADMIN, proof }),
+        );
+      } else {
+        await hooks.setGitHookRole({ id: service.id, role: Role.DEVELOPER });
+      }
+    } catch (err) {
+      setUnchosen(explain(err) || sentence(err));
+    } finally {
+      setChoosing(false);
+      onChanged();
+    }
+  };
   const name = nameOf(service);
   const hostName = host?.name ?? "";
   const urlLabel =
@@ -388,6 +435,20 @@ function HookSheet({
         {problem ? (
           <Callout tone="critical" title={t`The secret didn't change`}>
             {problem}
+          </Callout>
+        ) : null}
+        {chooses ? (
+          <Switch
+            checked={hook.role === Role.ADMIN}
+            disabled={choosing}
+            onChange={(next) => void choose(next)}
+            label={t`Deploy without waiting`}
+            description={t`Each push into ${place} applies with no person's approval.`}
+          />
+        ) : null}
+        {unchosen ? (
+          <Callout tone="critical" title={t`Deploy without waiting didn't change`}>
+            {unchosen}
           </Callout>
         ) : null}
       </div>

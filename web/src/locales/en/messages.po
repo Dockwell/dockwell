@@ -5272,8 +5272,17 @@ msgstr "Deploy on push didn't change"
 msgid "Deploy on push isn't on"
 msgstr "Deploy on push isn't on"
 
+msgid "Deploy without waiting"
+msgstr "Deploy without waiting"
+
+msgid "Deploy without waiting didn't change"
+msgstr "Deploy without waiting didn't change"
+
 msgid "Deploy {name} on push"
 msgstr "Deploy {name} on push"
+
+msgid "Each push into {place} applies with no person's approval."
+msgstr "Each push into {place} applies with no person's approval."
 
 msgid "Each push to {branch} deploys {name}."
 msgstr "Each push to {branch} deploys {name}."
@@ -5361,6 +5370,9 @@ msgstr "URL copied"
 
 msgid "the default branch"
 msgstr "the default branch"
+
+msgid "this environment"
+msgstr "this environment"
 
 msgid "{who} can't reach this panel's address."
 msgstr "{who} can't reach this panel's address."
@@ -8273,6 +8285,9 @@ msgstr "Apply plan"
 
 msgid "Apply this only if you trust what it runs."
 msgstr "Apply this only if you trust what it runs."
+
+msgid "Applying this approves a change a push planned, with your passkey"
+msgstr "Applying this approves a change a push planned, with your passkey"
 
 #. placeholder {0}: change.proposedBy.name
 msgid "Applying this approves a change planned with the API token {0}, with your passkey"

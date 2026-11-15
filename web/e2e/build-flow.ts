@@ -221,7 +221,9 @@ export async function buildFlow(page: Page, { origin, step, shoot, git }: BuildF
   await docs.getByRole("button", { name: "Review plan" }).click();
   await docs.getByText(/Railpack can't tell how to build .*web at [0-9a-f]{7} for docs/).waitFor();
 
-  step("a push plans what the branch names, for a person where it's protected: turning it on takes a passkey and shows the hook's secret once");
+  step(
+    "a push plans what the branch names, for a person where it's protected: turning it on takes a passkey and shows the hook's secret once",
+  );
   await page.goto(`${origin}/apps`);
   await page.getByRole("row", { name: /order-api/ }).click();
   await page.getByRole("heading", { level: 1, name: "order-api" }).waitFor();
@@ -268,11 +270,12 @@ export async function buildFlow(page: Page, { origin, step, shoot, git }: BuildF
     await page.waitForTimeout(1000);
   }
   await shoot(page, "push-waits");
-  // The person applies it from its link, as the hook's maker.
+  // The person approves it from its link, with a passkey, though the hook acts for them (ADR 0071).
   await source.getByRole("link", { name: /planned [0-9a-f]{7}, which waits for a person to apply it/ }).click();
-  await planSheet(page)
-    .getByRole("button", { name: /Apply plan/ })
-    .click();
+  const approving = planSheet(page);
+  await approving.getByText("Applying this approves a change a push planned, with your passkey").waitFor();
+  // This browser's authenticator gives the passkey it asks for.
+  await approving.getByRole("button", { name: /Apply plan/ }).click();
   const applied = page.getByRole("button", { name: "Done", exact: true });
   await applied.waitFor({ timeout: 120_000 });
   await applied.click();
@@ -285,6 +288,31 @@ export async function buildFlow(page: Page, { origin, step, shoot, git }: BuildF
   await giftcards.first().waitFor({ timeout: 60_000 });
   await shoot(page, "push-deployed");
 
+  step("its maker, an admin, lets a push deploy without waiting, with a passkey, and the next one deploys at once");
+  await page.goto(overview);
+  await source.getByRole("button", { name: "Hook settings" }).click();
+  const settings = page.getByRole("dialog", { name: "Deploy order-api on push" });
+  await settings.getByRole("switch", { name: "Deploy without waiting", checked: false }).click();
+  // This browser's authenticator gives the passkey it asks for.
+  await settings.getByRole("switch", { name: "Deploy without waiting", checked: true }).waitFor({ timeout: 20_000 });
+  await shoot(page, "push-without-waiting");
+  await settings.getByRole("button", { name: "Done" }).click();
+  await source.getByText(/^Each push to .+ deploys order-api\.$/).waitFor();
+  await move(git, "stable");
+  if ((await push(url, secret, git)) !== 202)
+    fail("the hook didn't take a signed push after it was let deploy without waiting");
+  for (let i = 0; ; i++) {
+    await page.reload();
+    await source
+      .getByText(/^Last push|No push has come yet\.$/)
+      .first()
+      .waitFor();
+    if ((await source.getByText(/started a deploy of [0-9a-f]{7}/).count()) > 0) break;
+    if (i > 60) fail("the Source panel never said the push started a deploy without waiting");
+    await page.waitForTimeout(1000);
+  }
+  await shoot(page, "push-deployed-at-once");
+
   step("the timeline says what the push came to, and turning deploy on push off needs no passkey");
   await page.goto(`${origin}/activity`);
   await page
@@ -292,6 +320,7 @@ export async function buildFlow(page: Page, { origin, step, shoot, git }: BuildF
       name: /A push to main planned [0-9a-f]{7} for order-api, which waits for a person to apply it/,
     })
     .waitFor();
+  await page.getByRole("row", { name: /A push to main started a deploy of [0-9a-f]{7} to order-api/ }).waitFor();
   await shoot(page, "push-activity");
   await page.goto(overview);
   await onPush.click();

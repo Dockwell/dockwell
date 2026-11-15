@@ -846,6 +846,12 @@ function ChangeSheet({
           <span className="dw-sheet-note">
             <Trans>{offline.join(", ")} has to reconnect first</Trans>
           </span>
+        ) : approves && change?.proposedBy?.kind === ActorKind.HOOK ? (
+          // A hook's plan is the hook's, whoever it acts for, so its maker approves it too (ADR 0071).
+          <span className="dw-sheet-note">
+            <Icon name="key" size={14} />
+            <Trans>Applying this approves a change a push planned, with your passkey</Trans>
+          </span>
         ) : approves && change?.proposedBy?.kind === ActorKind.TOKEN ? (
           <span className="dw-sheet-note">
             <Icon name="key" size={14} />

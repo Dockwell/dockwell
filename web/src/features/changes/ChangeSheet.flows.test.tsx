@@ -1725,6 +1725,26 @@ describe("a plan in a protected environment", () => {
     ).toBeVisible();
   });
 
+  it("says applying a plan a push planned approves it, though its hook acts for you", async () => {
+    const change = moved(protectedPlan(), {
+      approves: true,
+      proposedBy: create(ActorSchema, { kind: ActorKind.HOOK, id: "ghk_1", name: "Deploy on push for web" }),
+    });
+    renderWithApi(
+      <ChangeSheetProvider>
+        <Opener opening={{ kind: "plan", make: () => Promise.resolve({ change }) } as Opening} />
+      </ChangeSheetProvider>,
+      {
+        changes: { watchChange: feed<WatchChangeResponse>().stream } as never,
+        auth: { getAuthState: () => authState() },
+      },
+    );
+    const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+    expect(
+      await within(sheet).findByText("Applying this approves a change a push planned, with your passkey"),
+    ).toBeVisible();
+  });
+
   it("approves someone else's with the passkey the refusal asks for, bound to its plan", async () => {
     stubPasskeys();
     const change = moved(protectedPlan(), { approves: true });
