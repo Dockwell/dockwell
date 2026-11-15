@@ -3,15 +3,12 @@
 package backup
 
 import (
-	"archive/tar"
 	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -109,29 +106,7 @@ func (r *Runner) importHelper(ctx context.Context, image string) error {
 	if path == "" {
 		path = "/proc/self/exe"
 	}
-	f, err := os.Open(path) //nolint:gosec // this process's own binary
-	if err != nil {
-		return fmt.Errorf("can't read the agent's own binary: %w", err)
-	}
-	defer f.Close()
-	fi, err := f.Stat()
-	if err != nil {
-		return fmt.Errorf("can't read the agent's own binary: %w", err)
-	}
-	pr, pw := io.Pipe()
-	go func() {
-		tw := tar.NewWriter(pw)
-		err := tw.WriteHeader(&tar.Header{Name: strings.TrimPrefix(helperBinary, "/"), Typeflag: tar.TypeReg, Mode: 0o755, Size: fi.Size()})
-		if err == nil {
-			_, err = io.Copy(tw, f)
-		}
-		if err == nil {
-			err = tw.Close()
-		}
-		_ = pw.CloseWithError(err)
-	}()
-	defer pr.Close()
-	if err := r.Client.ImportImage(ctx, image, pr); err != nil {
+	if err := r.Client.ImportFiles(ctx, image, []docker.ImageFile{{Name: helperBinary, Path: path, Mode: 0o755}}); err != nil {
 		return fmt.Errorf("docker can't import the helper that reads the volume: %w", err)
 	}
 	return nil

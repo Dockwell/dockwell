@@ -50,6 +50,11 @@ type Options struct {
 	// cross it whatever a name led to: what's left is what Private and Loopback
 	// allow.
 	Local bool
+	// Allow takes these networks though they're private or loopback, as a check
+	// run on an app's own networks reaches what the app does (ADR 0099). Refuse
+	// refuses these whatever else allows them, as the server's own addresses are to
+	// that check. Neither changes what nothing may reach.
+	Allow, Refuse []netip.Prefix
 	// MaxBody caps what an answer's body reads, in bytes: past it, reading fails
 	// with ErrTooLarge. 0 is DefaultMaxBody.
 	MaxBody int64
@@ -100,6 +105,7 @@ const (
 	whyBroadcast  = "a broadcast address"
 	whyReserved   = "a reserved address"
 	whyLoopback   = "this server's own address"
+	whyServer     = "one of this server's own addresses"
 	whyPrivate    = "an address on a private network"
 	whyMetaOnLink = "a link-local address, where a cloud keeps its metadata service"
 	whyInternet   = "on the internet, where nothing goes without TLS"
@@ -182,6 +188,10 @@ func refuses(addr netip.Addr, o Options) string {
 		return whyBroadcast
 	case !addr.IsLoopback() && reservedAddr(addr):
 		return whyReserved
+	case inAny(o.Refuse, addr):
+		return whyServer
+	case inAny(o.Allow, addr):
+		return ""
 	}
 	private := addr.IsPrivate() || cgnat.Contains(addr)
 	switch {
@@ -193,6 +203,15 @@ func refuses(addr netip.Addr, o Options) string {
 		return whyPrivate
 	}
 	return ""
+}
+
+func inAny(prefixes []netip.Prefix, addr netip.Addr) bool {
+	for _, p := range prefixes {
+		if p.Contains(addr) {
+			return true
+		}
+	}
+	return false
 }
 
 func reservedAddr(addr netip.Addr) bool {

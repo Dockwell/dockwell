@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/dockwell/dockwell/internal/docker"
+	"github.com/dockwell/dockwell/internal/probe"
 	"github.com/dockwell/dockwell/internal/volumetool"
 )
 
@@ -222,7 +223,11 @@ func (e *Engine) attachTo(w http.ResponseWriter, r *http.Request, id string) {
 	e.mu.Lock()
 	code := -1
 	var args []string
-	if len(c.Config.Cmd) > 2 && c.Config.Cmd[0] == volumetool.Command {
+	probing := len(c.Config.Cmd) == 1 && c.Config.Cmd[0] == probe.Command
+	if probing {
+		// The probe runs here, on this machine, as its container would.
+		args = nil
+	} else if len(c.Config.Cmd) > 2 && c.Config.Cmd[0] == volumetool.Command {
 		args = c.Config.Cmd[1:]
 		mounts := e.mountsOf(c)
 		dir, mounted := mounts[args[1]]
@@ -242,7 +247,10 @@ func (e *Engine) attachTo(w http.ResponseWriter, r *http.Request, id string) {
 		_, _ = stderr.Write([]byte("exec: not found\n"))
 	}
 	e.mu.Unlock()
-	if code < 0 {
+	switch {
+	case probing:
+		code = probe.Main(in, stdout, stderr)
+	case code < 0:
 		code = volumetool.Main(args, in, stdout, stderr)
 	}
 	e.mu.Lock()

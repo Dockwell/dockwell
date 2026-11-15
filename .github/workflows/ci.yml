@@ -229,6 +229,17 @@ jobs:
               exit 1
             }
           done
+      # A connection is checked from an app's network by the agent's own binary in a
+      # container of its own: it reaches the app's storage by name, refuses the
+      # server and the metadata service, and leaves nothing (ADR 0099). It has to
+      # pass, not skip.
+      - name: A connection is checked from where the app is
+        if: steps.pick.outputs.run == 'true'
+        run: |
+          grep -q -- "--- PASS: TestAProbeChecksFromAnAppsNetworkOnRealDocker" "$RUNNER_TEMP/docker.out" || {
+            echo "TestAProbeChecksFromAnAppsNetworkOnRealDocker didn't pass, so a connection's check may not reach what the app reaches, or may reach the server. Read its output in Tests against Docker above."
+            exit 1
+          }
       # Dockwell's nftables table against the runner's kernel, as root, in a
       # network namespace of its own, so the runner's own firewall is never
       # touched (ADR 0052). It has to pass, not skip.

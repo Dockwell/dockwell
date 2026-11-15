@@ -18,6 +18,7 @@ import (
 
 	"github.com/dockwell/dockwell/internal/datadir"
 	"github.com/dockwell/dockwell/internal/logging"
+	"github.com/dockwell/dockwell/internal/probe"
 	"github.com/dockwell/dockwell/internal/volumetool"
 )
 
@@ -331,6 +332,18 @@ func agentCommands(stdio IO, g *globalFlags) []*cobra.Command {
 			DisableFlagParsing: true,
 			Run: func(_ *cobra.Command, args []string) {
 				if code := volumetool.Main(args, stdio.In, stdio.Out, stdio.Err); code != 0 {
+					os.Exit(code)
+				}
+			},
+		},
+		{
+			// What the agent runs in a throwaway container on an app's networks to
+			// check a connection from where the app is (ADR 0099).
+			Use:                probe.Command,
+			Hidden:             true,
+			DisableFlagParsing: true,
+			Run: func(*cobra.Command, []string) {
+				if code := probe.Main(stdio.In, stdio.Out, stdio.Err); code != 0 {
 					os.Exit(code)
 				}
 			},

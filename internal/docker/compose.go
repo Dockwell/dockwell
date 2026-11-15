@@ -63,6 +63,14 @@ func ManagedBy(labels map[string]string) string {
 // a backup or a restore (ADR 0033).
 const LabelVolumeTool = OwnPrefix + "volume-tool"
 
+// LabelProbe marks a throwaway container that checks a connection from where an
+// app is, and the network made for one where the app has none (ADR 0099), and
+// ProbeRepository names their image, made of the agent's own binary.
+const (
+	LabelProbe      = OwnPrefix + "probe"
+	ProbeRepository = "dockwell-probe"
+)
+
 // LabelDrill marks a restore drill's container and volume, with the drill's ID, which
 // it throws away whatever comes of it (ADR 0068).
 const LabelDrill = OwnPrefix + "drill"

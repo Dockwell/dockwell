@@ -299,3 +299,28 @@ func TestARefusalNamesTheAddressAlone(t *testing.T) {
 		t.Errorf("Words reads %q, %q, %q", Words(ErrTooLarge), Words(errors.New("x")), Words(nil))
 	}
 }
+
+// A check run on an app's own networks takes what they hold, though it's private,
+// and refuses the server's own addresses, though they're public; what nothing may
+// reach stays refused whatever it allows (ADR 0099).
+func TestAllowAndRefuseAddToTheRules(t *testing.T) {
+	o := Options{
+		Allow:  []netip.Prefix{netip.MustParsePrefix("172.18.0.0/16"), netip.MustParsePrefix("169.254.0.0/16"), netip.MustParsePrefix("127.0.0.1/32")},
+		Refuse: []netip.Prefix{netip.MustParsePrefix("203.0.113.40/32"), netip.MustParsePrefix("172.18.0.1/32")},
+	}
+	for addr, want := range map[string]string{
+		"172.18.0.5":      "",
+		"127.0.0.1":       "",
+		"10.0.0.5":        whyPrivate,
+		"127.0.0.2":       whyLoopback,
+		"203.0.113.40":    whyServer,
+		"172.18.0.1":      whyServer,
+		"203.0.113.41":    "",
+		"169.254.10.1":    whyLinkLocal,
+		"169.254.169.254": whyMetaOnLink,
+	} {
+		if got := refuses(netip.MustParseAddr(addr), o); got != want {
+			t.Errorf("%s: refused as %q, want %q", addr, got, want)
+		}
+	}
+}

@@ -35,6 +35,9 @@ type Bucket struct {
 	Region string
 	// Name is the bucket's name.
 	Name string
+	// VirtualHost names the bucket in the host, as <bucket>.<endpoint's host>,
+	// rather than first in the path: AWS's regions since 2020 take this alone.
+	VirtualHost bool
 	// AccessKey and SecretKey sign each request.
 	AccessKey, SecretKey string
 	// Client makes the requests; http.DefaultClient unless set. A test of a form
@@ -252,17 +255,8 @@ func SignV4(req *http.Request, payload, accessKey, secretKey, region, service st
 // do sends a signed request to an object, and returns the answer of one that went
 // well. The caller closes its body.
 func (b *Bucket) do(ctx context.Context, method, key string, q url.Values, body io.Reader, length int64, payload string) (*http.Response, error) {
-	u, err := url.Parse(strings.TrimRight(b.Endpoint, "/"))
+	u, err := b.objectURL(key)
 	if err != nil {
-		return nil, fmt.Errorf("the storage's address doesn't read as a URL: %w", err)
-	}
-	// No bucket is the service itself, as listing the buckets asks it.
-	if b.Name == "" {
-		u.RawPath = u.EscapedPath() + "/"
-	} else {
-		u.RawPath = u.EscapedPath() + "/" + escape(b.Name) + "/" + escapePath(key)
-	}
-	if u.Path, err = url.PathUnescape(u.RawPath); err != nil {
 		return nil, err
 	}
 	u.RawQuery = canonicalQuery(q)
@@ -312,6 +306,59 @@ func (b *Bucket) do(ctx context.Context, method, key string, q url.Values, body 
 	}
 	res.Body = &watchedBody{watched: watched{r: res.Body, timer: timer, wait: wait}, Closer: res.Body, ctx: ctx, host: u.Host, done: ended}
 	return res, nil
+}
+
+// objectURL is where an object is, by path: the endpoint, the bucket and the key.
+// No bucket is the service itself, as listing the buckets asks it.
+func (b *Bucket) objectURL(key string) (*url.URL, error) {
+	u, err := url.Parse(strings.TrimRight(b.Endpoint, "/"))
+	if err != nil {
+		return nil, fmt.Errorf("the storage's address doesn't read as a URL: %w", err)
+	}
+	switch {
+	case b.Name == "":
+		u.RawPath = u.EscapedPath() + "/"
+	case b.VirtualHost:
+		u.Host = b.Name + "." + u.Host
+		u.RawPath = u.EscapedPath() + "/" + escapePath(key)
+	default:
+		u.RawPath = u.EscapedPath() + "/" + escape(b.Name) + "/" + escapePath(key)
+	}
+	if u.Path, err = url.PathUnescape(u.RawPath); err != nil {
+		return nil, err
+	}
+	return u, nil
+}
+
+// Presign is a URL that does method on an object for whoever has it, until expires
+// from now, as an app gives a browser one to upload or download with: AWS Signature
+// Version 4 in the query, signing the host alone, with the payload unsigned.
+func (b *Bucket) Presign(method, key string, expires time.Duration) (string, error) {
+	u, err := b.objectURL(key)
+	if err != nil {
+		return "", err
+	}
+	now := b.now()
+	stamp, day := now.Format("20060102T150405Z"), now.Format("20060102")
+	region := b.region()
+	scope := strings.Join([]string{day, region, "s3", "aws4_request"}, "/")
+	q := url.Values{
+		"X-Amz-Algorithm":     {"AWS4-HMAC-SHA256"},
+		"X-Amz-Credential":    {b.AccessKey + "/" + scope},
+		"X-Amz-Date":          {stamp},
+		"X-Amz-Expires":       {strconv.Itoa(int(expires / time.Second))},
+		"X-Amz-SignedHeaders": {"host"},
+	}
+	query := canonicalQuery(q)
+	request := strings.Join([]string{method, u.EscapedPath(), query, "host:" + u.Host + "\n", "host", "UNSIGNED-PAYLOAD"}, "\n")
+	sum := sha256.Sum256([]byte(request))
+	toSign := strings.Join([]string{"AWS4-HMAC-SHA256", stamp, scope, hex.EncodeToString(sum[:])}, "\n")
+	k := hmacSHA256([]byte("AWS4"+b.SecretKey), day)
+	k = hmacSHA256(k, region)
+	k = hmacSHA256(k, "s3")
+	k = hmacSHA256(k, "aws4_request")
+	u.RawQuery = query + "&X-Amz-Signature=" + hex.EncodeToString(hmacSHA256(k, toSign))
+	return u.String(), nil
 }
 
 // Put stores a small object in one request.

@@ -49,6 +49,7 @@ import (
 	"github.com/dockwell/dockwell/internal/ingress"
 	"github.com/dockwell/dockwell/internal/ingress/caddy"
 	"github.com/dockwell/dockwell/internal/netguard"
+	"github.com/dockwell/dockwell/internal/probe"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/fail2ban"
@@ -474,6 +475,12 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 	go tasks.Keep(ctx)
 	users := &database.UserDriver{Client: client, Dir: filepath.Join(dir.Agent(), "databases")}
 	go users.Clean(ctx)
+	probes := &probe.Runner{Client: client, Logger: logger}
+	go func() {
+		if err := probes.Clean(ctx); err != nil {
+			logger.Warn("can't remove what a connection's check left when the agent stopped; it's tried again at the next start", "error", err.Error())
+		}
+	}()
 	go users.KeepRedisUsers(ctx)
 	var reserved string
 	if panel != nil {
