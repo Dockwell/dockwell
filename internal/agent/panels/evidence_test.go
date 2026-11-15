@@ -24,12 +24,12 @@ func TestTheProbeHoldsWhatAHandshakeRefuses(t *testing.T) {
 	mtls.TLS = &tls.Config{ClientAuth: tls.RequireAnyClientCert, MinVersion: tls.VersionTLS12}
 	mtls.StartTLS()
 	defer mtls.Close()
-	if got := (Reader{ProbeAddr: mtls.Listener.Addr().String()}).probe(t.Context(), "blog.example.com", "/"); got.Open || !strings.Contains(got.Answer, "no TLS handshake") {
+	if got := (Reader{ProbeAddr: mtls.Listener.Addr().String()}).probe(t.Context(), "blog.example.com", "/", ""); got.Open || !strings.Contains(got.Answer, "no TLS handshake") {
 		t.Errorf("a proxy asking for a client certificate answered %+v", got)
 	}
 	// A port nothing listens on, and that nothing else is given while the test runs.
 	addr := testport.Addr(t, "127.0.0.1")
-	if got := (Reader{ProbeAddr: addr}).probe(t.Context(), "blog.example.com", "/"); got.Open || !strings.Contains(got.Answer, "nothing listens on port 443") {
+	if got := (Reader{ProbeAddr: addr}).probe(t.Context(), "blog.example.com", "/", ""); got.Open || !strings.Contains(got.Answer, "nothing listens on port 443") {
 		t.Errorf("a proxy that's gone answered %+v", got)
 	}
 	open := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -41,7 +41,7 @@ func TestTheProbeHoldsWhatAHandshakeRefuses(t *testing.T) {
 	}))
 	open.StartTLS()
 	defer open.Close()
-	if got := (Reader{ProbeAddr: open.Listener.Addr().String()}).probe(t.Context(), "blog.example.com", "/"); !got.Open || got.Answer != "200" || got.From != "127.0.0.1" {
+	if got := (Reader{ProbeAddr: open.Listener.Addr().String()}).probe(t.Context(), "blog.example.com", "/", ""); !got.Open || got.Answer != "200" || got.From != "127.0.0.1" {
 		t.Errorf("the domain's name as SNI and host answered %+v", got)
 	}
 }
@@ -66,7 +66,7 @@ func TestWhatAnAnswerSays(t *testing.T) {
 		{func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusMethodNotAllowed) }, false, false, "405"},
 	} {
 		srv := httptest.NewTLSServer(http.HandlerFunc(c.answer))
-		got := (Reader{ProbeAddr: srv.Listener.Addr().String()}).probe(t.Context(), "blog.example.com", "/")
+		got := (Reader{ProbeAddr: srv.Listener.Addr().String()}).probe(t.Context(), "blog.example.com", "/", "")
 		srv.Close()
 		if got.Open != c.open || got.Unsure != c.unsure || got.Answer != c.says {
 			t.Errorf("answered %+v, want open %v, unsure %v, %q", got, c.open, c.unsure, c.says)

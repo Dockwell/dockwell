@@ -23,11 +23,20 @@ func TestPanelEvidence(t *testing.T) {
 	mentioned.Mentions = []string{"the label traefik.http.routers.a.rule on sso"}
 	closed := blog
 	closed.Probes = []PanelProbe{{Path: "/", Answer: "401"}}
+	// Where it redirects, the proxy is expected to answer with that redirect: one
+	// that redirects elsewhere since reads otherwise (ADR 0070).
+	redirects, elsewhere := blog, blog
+	redirects.RedirectsTo, elsewhere.RedirectsTo = "https://example.com", "https://example.org"
+	if PanelEvidence([]PanelCheck{redirects}, []string{"blog.example.com"}) == PanelEvidence([]PanelCheck{elsewhere}, []string{"blog.example.com"}) {
+		t.Error("a redirect elsewhere digests as the one before")
+	}
 	for name, got := range map[string]string{
-		"a new mention":      PanelEvidence([]PanelCheck{mentioned}, []string{"blog.example.com"}),
-		"a closed answer":    PanelEvidence([]PanelCheck{closed}, []string{"blog.example.com"}),
-		"another choice":     PanelEvidence([]PanelCheck{blog, wiki}, []string{"blog.example.com", "wiki.example.com"}),
-		"a domain unchecked": PanelEvidence(nil, []string{"blog.example.com"}),
+		"a redirect":           PanelEvidence([]PanelCheck{redirects}, []string{"blog.example.com"}),
+		"a redirect elsewhere": PanelEvidence([]PanelCheck{elsewhere}, []string{"blog.example.com"}),
+		"a new mention":        PanelEvidence([]PanelCheck{mentioned}, []string{"blog.example.com"}),
+		"a closed answer":      PanelEvidence([]PanelCheck{closed}, []string{"blog.example.com"}),
+		"another choice":       PanelEvidence([]PanelCheck{blog, wiki}, []string{"blog.example.com", "wiki.example.com"}),
+		"a domain unchecked":   PanelEvidence(nil, []string{"blog.example.com"}),
 	} {
 		if got == base {
 			t.Errorf("%s digests as before", name)

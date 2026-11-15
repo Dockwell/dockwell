@@ -4,6 +4,7 @@ syntax = "proto3";
 
 package dockwell.v1;
 
+import "dockwell/resource/v1alpha1/specs.proto";
 import "dockwell/v1/change.proto";
 import "dockwell/v1/options.proto";
 import "google/api/annotations.proto";
@@ -233,6 +234,10 @@ message PanelDomainCheck {
   // The address the proxy was asked from, such as "203.0.113.10". An address
   // limit that lets it in, or the private networks it's on, can't be seen.
   string asked_from = 7;
+  // Where its route redirects, such as "https://example.com", where it comes as a
+  // redirect: the proxy is expected to answer with that redirect, and anything
+  // else holds it back (ADR 0070).
+  string redirects_to = 8;
 }
 
 // PanelProbe is a request through the panel's proxy, over HTTPS with the
@@ -474,6 +479,11 @@ message PanelRoute {
   // directive a route would drop, such as a login or an allowlist, so what it
   // guards would answer anyone, a stripped path, or a rule a route can't say.
   string left = 6;
+  // Where it redirects every request, where its router does so to its other
+  // half, www.example.com to example.com or the other way round, keeping the
+  // path: it comes as a route that answers with that redirect, not one to the
+  // container (ADR 0070).
+  dockwell.resource.v1alpha1.RouteRedirect redirect = 7;
 }
 
 // PanelContainer is one of a panel's own containers or Swarm services.

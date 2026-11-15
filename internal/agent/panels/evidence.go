@@ -477,7 +477,7 @@ func readFull(onDisk string) ([]byte, bool) {
 func (r Reader) checks(ctx context.Context, kind dockwellv1.PanelKind, p *dockwellv1.Panel, built builtFrom) []resource.PanelCheck {
 	sc := r.scanServer(ctx, kind)
 	summary := fmt.Sprintf("labels on %d containers and %d services, and %d files in the proxy's mounts", sc.containers, sc.services, sc.files)
-	routed := map[string]string{}
+	routed, redirects := map[string]string{}, map[string]string{}
 	var domains []string
 	for _, a := range p.GetApps() {
 		for _, d := range a.GetDomains() {
@@ -489,6 +489,9 @@ func (r Reader) checks(ctx context.Context, kind dockwellv1.PanelKind, p *dockwe
 			if rt.GetLeft() != "" {
 				routed[d] = cmp.Or(routed[d], rt.GetLeft())
 				continue
+			}
+			if to := rt.GetRedirect().GetTo(); to != "" && rt.GetPath() == "" {
+				redirects[d] = to
 			}
 			if _, ok := routed[d]; !ok {
 				routed[d] = ""
@@ -503,7 +506,7 @@ func (r Reader) checks(ctx context.Context, kind dockwellv1.PanelKind, p *dockwe
 	out := make([]resource.PanelCheck, 0, len(domains))
 	var asks []probeAsk
 	for _, d := range domains {
-		c := resource.PanelCheck{Domain: d, Scanned: summary}
+		c := resource.PanelCheck{Domain: d, Scanned: summary, RedirectsTo: redirects[d]}
 		// A rule passes only where it's of the very router a route of the domain
 		// was built from: any other, the app's own included, says something no
 		// route says, such as a path behind a login.
@@ -544,7 +547,7 @@ func (r Reader) checks(ctx context.Context, kind dockwellv1.PanelKind, p *dockwe
 		}
 		if c.Held == "" {
 			for _, pa := range paths {
-				asks = append(asks, probeAsk{check: len(out), domain: d, path: pa})
+				asks = append(asks, probeAsk{check: len(out), domain: d, path: pa, to: redirects[d]})
 			}
 		}
 		out = append(out, c)
@@ -559,6 +562,17 @@ func (r Reader) checks(ctx context.Context, kind dockwellv1.PanelKind, p *dockwe
 			c.Unsure = cmp.Or(c.Unsure, fmt.Sprintf("a request for %s answered %s, which says nothing of a login", res.Path, res.Answer))
 		default:
 			c.Held = fmt.Sprintf("a request for %s through the proxy answered %s", res.Path, res.Answer)
+		}
+	}
+	// A redirect to a domain of the proxy's that stays behind would land on nothing
+	// once the proxy stops, so it stays behind too.
+	for i := range out {
+		if out[i].Held != "" || out[i].RedirectsTo == "" {
+			continue
+		}
+		to := hostOf(out[i].RedirectsTo)
+		if j := slices.IndexFunc(out, func(c resource.PanelCheck) bool { return c.Domain == to }); j >= 0 && out[j].Held != "" {
+			out[i].Held = fmt.Sprintf("it redirects to %s, which stays behind", to)
 		}
 	}
 	for i := range out {

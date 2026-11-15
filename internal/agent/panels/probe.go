@@ -104,11 +104,13 @@ const (
 	probeWorkers = 8
 )
 
-// probeAsk is one request: a path of a domain, for the check at index check.
+// probeAsk is one request: a path of a domain, for the check at index check. to
+// is where the domain's route redirects, where it comes as one (ADR 0070).
 type probeAsk struct {
 	check  int
 	domain string
 	path   string
+	to     string
 }
 
 // loginPath is a path a redirect to a sign-in goes to: login, sign-in, auth, SSO,
@@ -145,7 +147,7 @@ func (r Reader) probeAll(ctx context.Context, asks []probeAsk) []resource.PanelP
 		go func() {
 			defer wg.Done()
 			for i := range next {
-				out[i] = r.probe(ctx, asks[i].domain, asks[i].path)
+				out[i] = r.probe(ctx, asks[i].domain, asks[i].path, asks[i].to)
 			}
 		}()
 	}
@@ -157,8 +159,11 @@ func (r Reader) probeAll(ctx context.Context, asks []probeAsk) []resource.PanelP
 	return out
 }
 
-// probe asks the proxy for a domain's path, and says what answered.
-func (r Reader) probe(ctx context.Context, domain, p string) resource.PanelProbe {
+// probe asks the proxy for a domain's path, and says what answered. A domain that
+// comes as a redirect to to is open only where the proxy answers with that
+// redirect, the path kept: anything else, a page included, isn't what its route
+// will answer, so a guard could be behind it.
+func (r Reader) probe(ctx context.Context, domain, p, to string) resource.PanelProbe {
 	out := resource.PanelProbe{Path: p}
 	addr := cmp.Or(r.ProbeAddr, net.JoinHostPort(probeHost(), proxyPort))
 	dialer := &net.Dialer{Timeout: probeWait}
@@ -200,6 +205,10 @@ func (r Reader) probe(ctx context.Context, domain, p string) resource.PanelProbe
 	defer resp.Body.Close()
 	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 64<<10))
 	code := strconv.Itoa(resp.StatusCode)
+	if to != "" {
+		out.Answer, out.Open = redirectAnswer(resp, code, p, to)
+		return out
+	}
 	switch {
 	case resp.StatusCode >= 200 && resp.StatusCode < 300:
 		out.Answer, out.Open = code, true
@@ -224,6 +233,26 @@ func (r Reader) probe(ctx context.Context, domain, p string) resource.PanelProbe
 		out.Answer = code
 	}
 	return out
+}
+
+// redirectAnswer says how a domain that comes as a redirect to to answered a
+// request for p, and whether that's the redirect its route will answer with.
+func redirectAnswer(resp *http.Response, code, p, to string) (string, bool) {
+	want, err := url.Parse(to)
+	if err != nil {
+		return code + ", and Dockwell can't read where its redirect goes", false
+	}
+	if resp.StatusCode < 300 || resp.StatusCode >= 400 {
+		return fmt.Sprintf("%s, where its redirect would send it to %s", code, want.Host), false
+	}
+	loc, err := resp.Location()
+	switch {
+	case err != nil:
+		return code + " to nowhere Dockwell can read", false
+	case loc.Scheme != "https" || !strings.EqualFold(loc.Host, want.Host) || loc.EscapedPath() != (&url.URL{Path: p}).EscapedPath():
+		return fmt.Sprintf("%s to %s, where its redirect would send it to %s%s", code, loc.Redacted(), want.Host, p), false
+	}
+	return fmt.Sprintf("%s to %s, as its redirect does", code, want.Host), true
 }
 
 // probeFailure says why a request through the proxy got no answer.

@@ -9,6 +9,7 @@
 package dockwellv1
 
 import (
+	v1alpha1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
@@ -492,7 +493,11 @@ type PanelDomainCheck struct {
 	Unsure string `protobuf:"bytes,6,opt,name=unsure,proto3" json:"unsure,omitempty"`
 	// The address the proxy was asked from, such as "203.0.113.10". An address
 	// limit that lets it in, or the private networks it's on, can't be seen.
-	AskedFrom     string `protobuf:"bytes,7,opt,name=asked_from,json=askedFrom,proto3" json:"asked_from,omitempty"`
+	AskedFrom string `protobuf:"bytes,7,opt,name=asked_from,json=askedFrom,proto3" json:"asked_from,omitempty"`
+	// Where its route redirects, such as "https://example.com", where it comes as a
+	// redirect: the proxy is expected to answer with that redirect, and anything
+	// else holds it back (ADR 0070).
+	RedirectsTo   string `protobuf:"bytes,8,opt,name=redirects_to,json=redirectsTo,proto3" json:"redirects_to,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -572,6 +577,13 @@ func (x *PanelDomainCheck) GetUnsure() string {
 func (x *PanelDomainCheck) GetAskedFrom() string {
 	if x != nil {
 		return x.AskedFrom
+	}
+	return ""
+}
+
+func (x *PanelDomainCheck) GetRedirectsTo() string {
+	if x != nil {
+		return x.RedirectsTo
 	}
 	return ""
 }
@@ -1640,7 +1652,12 @@ type PanelRoute struct {
 	// Why it can't come as a plain route, or empty where it can: a middleware or a
 	// directive a route would drop, such as a login or an allowlist, so what it
 	// guards would answer anyone, a stripped path, or a rule a route can't say.
-	Left          string `protobuf:"bytes,6,opt,name=left,proto3" json:"left,omitempty"`
+	Left string `protobuf:"bytes,6,opt,name=left,proto3" json:"left,omitempty"`
+	// Where it redirects every request, where its router does so to its other
+	// half, www.example.com to example.com or the other way round, keeping the
+	// path: it comes as a route that answers with that redirect, not one to the
+	// container (ADR 0070).
+	Redirect      *v1alpha1.RouteRedirect `protobuf:"bytes,7,opt,name=redirect,proto3" json:"redirect,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1715,6 +1732,13 @@ func (x *PanelRoute) GetLeft() string {
 		return x.Left
 	}
 	return ""
+}
+
+func (x *PanelRoute) GetRedirect() *v1alpha1.RouteRedirect {
+	if x != nil {
+		return x.Redirect
+	}
+	return nil
 }
 
 // PanelContainer is one of a panel's own containers or Swarm services.
@@ -3287,7 +3311,7 @@ var File_dockwell_v1_import_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_import_proto_rawDesc = "" +
 	"\n" +
-	"\x18dockwell/v1/import.proto\x12\vdockwell.v1\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x98\x01\n" +
+	"\x18dockwell/v1/import.proto\x12\vdockwell.v1\x1a&dockwell/resource/v1alpha1/specs.proto\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x98\x01\n" +
 	"\x17PlanPanelDomainsRequest\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12,\n" +
 	"\x05panel\x18\x02 \x01(\x0e2\x16.dockwell.v1.PanelKindR\x05panel\x12\x18\n" +
@@ -3297,7 +3321,7 @@ const file_dockwell_v1_import_proto_rawDesc = "" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12,\n" +
 	"\x05panel\x18\x02 \x01(\x0e2\x16.dockwell.v1.PanelKindR\x05panel\"T\n" +
 	"\x19CheckPanelDomainsResponse\x127\n" +
-	"\adomains\x18\x01 \x03(\v2\x1d.dockwell.v1.PanelDomainCheckR\adomains\"\xdc\x01\n" +
+	"\adomains\x18\x01 \x03(\v2\x1d.dockwell.v1.PanelDomainCheckR\adomains\"\xff\x01\n" +
 	"\x10PanelDomainCheck\x12\x16\n" +
 	"\x06domain\x18\x01 \x01(\tR\x06domain\x12\x1a\n" +
 	"\bmentions\x18\x02 \x03(\tR\bmentions\x12/\n" +
@@ -3306,7 +3330,8 @@ const file_dockwell_v1_import_proto_rawDesc = "" +
 	"\ascanned\x18\x05 \x01(\tR\ascanned\x12\x16\n" +
 	"\x06unsure\x18\x06 \x01(\tR\x06unsure\x12\x1d\n" +
 	"\n" +
-	"asked_from\x18\a \x01(\tR\taskedFrom\"L\n" +
+	"asked_from\x18\a \x01(\tR\taskedFrom\x12!\n" +
+	"\fredirects_to\x18\b \x01(\tR\vredirectsTo\"L\n" +
 	"\n" +
 	"PanelProbe\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x12\x16\n" +
@@ -3385,7 +3410,7 @@ const file_dockwell_v1_import_proto_rawDesc = "" +
 	"\aservice\x18\x01 \x01(\tR\aservice\x12\x12\n" +
 	"\x04port\x18\x02 \x01(\rR\x04port\x12\x1c\n" +
 	"\tpublished\x18\x03 \x01(\rR\tpublished\x12\x1a\n" +
-	"\bprotocol\x18\x04 \x01(\tR\bprotocol\"\x98\x01\n" +
+	"\bprotocol\x18\x04 \x01(\tR\bprotocol\"\xdf\x01\n" +
 	"\n" +
 	"PanelRoute\x12\x16\n" +
 	"\x06domain\x18\x01 \x01(\tR\x06domain\x12\x12\n" +
@@ -3393,7 +3418,8 @@ const file_dockwell_v1_import_proto_rawDesc = "" +
 	"\tcontainer\x18\x03 \x01(\tR\tcontainer\x12\x18\n" +
 	"\aservice\x18\x04 \x01(\tR\aservice\x12\x12\n" +
 	"\x04port\x18\x05 \x01(\rR\x04port\x12\x12\n" +
-	"\x04left\x18\x06 \x01(\tR\x04left\"P\n" +
+	"\x04left\x18\x06 \x01(\tR\x04left\x12E\n" +
+	"\bredirect\x18\a \x01(\v2).dockwell.resource.v1alpha1.RouteRedirectR\bredirect\"P\n" +
 	"\x0ePanelContainer\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
 	"\x05image\x18\x02 \x01(\tR\x05image\x12\x14\n" +
@@ -3633,8 +3659,9 @@ var file_dockwell_v1_import_proto_goTypes = []any{
 	(*OnePanelDatabase)(nil),          // 35: dockwell.v1.OnePanelDatabase
 	(*OnePanelCronJob)(nil),           // 36: dockwell.v1.OnePanelCronJob
 	(*Change)(nil),                    // 37: dockwell.v1.Change
-	(GuessableSecret)(0),              // 38: dockwell.v1.GuessableSecret
-	(*timestamppb.Timestamp)(nil),     // 39: google.protobuf.Timestamp
+	(*v1alpha1.RouteRedirect)(nil),    // 38: dockwell.resource.v1alpha1.RouteRedirect
+	(GuessableSecret)(0),              // 39: dockwell.v1.GuessableSecret
+	(*timestamppb.Timestamp)(nil),     // 40: google.protobuf.Timestamp
 }
 var file_dockwell_v1_import_proto_depIdxs = []int32{
 	0,  // 0: dockwell.v1.PlanPanelDomainsRequest.panel:type_name -> dockwell.v1.PanelKind
@@ -3658,43 +3685,44 @@ var file_dockwell_v1_import_proto_depIdxs = []int32{
 	7,  // 18: dockwell.v1.Panel.checks:type_name -> dockwell.v1.PanelDomainCheck
 	21, // 19: dockwell.v1.PanelApp.routes:type_name -> dockwell.v1.PanelRoute
 	20, // 20: dockwell.v1.PanelApp.published:type_name -> dockwell.v1.PanelPort
-	26, // 21: dockwell.v1.ImportOnePanelResponse.found:type_name -> dockwell.v1.OnePanel
-	25, // 22: dockwell.v1.ImportOnePanelResponse.steps:type_name -> dockwell.v1.ImportStep
-	37, // 23: dockwell.v1.ImportOnePanelResponse.change:type_name -> dockwell.v1.Change
-	2,  // 24: dockwell.v1.ImportStep.kind:type_name -> dockwell.v1.ImportKind
-	3,  // 25: dockwell.v1.ImportStep.action:type_name -> dockwell.v1.ImportAction
-	1,  // 26: dockwell.v1.ImportStep.waits_for:type_name -> dockwell.v1.ImportWaitsFor
-	38, // 27: dockwell.v1.ImportStep.guessable:type_name -> dockwell.v1.GuessableSecret
-	28, // 28: dockwell.v1.OnePanel.apps:type_name -> dockwell.v1.OnePanelApp
-	29, // 29: dockwell.v1.OnePanel.runtimes:type_name -> dockwell.v1.OnePanelRuntime
-	30, // 30: dockwell.v1.OnePanel.websites:type_name -> dockwell.v1.OnePanelWebsite
-	33, // 31: dockwell.v1.OnePanel.certificates:type_name -> dockwell.v1.OnePanelCertificate
-	34, // 32: dockwell.v1.OnePanel.database_servers:type_name -> dockwell.v1.OnePanelDatabaseServer
-	35, // 33: dockwell.v1.OnePanel.databases:type_name -> dockwell.v1.OnePanelDatabase
-	36, // 34: dockwell.v1.OnePanel.cron_jobs:type_name -> dockwell.v1.OnePanelCronJob
-	27, // 35: dockwell.v1.OnePanel.composes:type_name -> dockwell.v1.OnePanelCompose
-	32, // 36: dockwell.v1.OnePanelWebsite.domains:type_name -> dockwell.v1.OnePanelDomain
-	31, // 37: dockwell.v1.OnePanelWebsite.redirects:type_name -> dockwell.v1.OnePanelRedirect
-	39, // 38: dockwell.v1.OnePanelCertificate.expires:type_name -> google.protobuf.Timestamp
-	23, // 39: dockwell.v1.ImportService.ImportOnePanel:input_type -> dockwell.v1.ImportOnePanelRequest
-	14, // 40: dockwell.v1.ImportService.ImportCoolify:input_type -> dockwell.v1.ImportCoolifyRequest
-	16, // 41: dockwell.v1.ImportService.ImportDokploy:input_type -> dockwell.v1.ImportDokployRequest
-	5,  // 42: dockwell.v1.ImportService.CheckPanelDomains:input_type -> dockwell.v1.CheckPanelDomainsRequest
-	4,  // 43: dockwell.v1.ImportService.PlanPanelDomains:input_type -> dockwell.v1.PlanPanelDomainsRequest
-	10, // 44: dockwell.v1.ImportService.PlanStartPanel:input_type -> dockwell.v1.PlanStartPanelRequest
-	12, // 45: dockwell.v1.ImportService.PlanStopPanel:input_type -> dockwell.v1.PlanStopPanelRequest
-	24, // 46: dockwell.v1.ImportService.ImportOnePanel:output_type -> dockwell.v1.ImportOnePanelResponse
-	15, // 47: dockwell.v1.ImportService.ImportCoolify:output_type -> dockwell.v1.ImportCoolifyResponse
-	17, // 48: dockwell.v1.ImportService.ImportDokploy:output_type -> dockwell.v1.ImportDokployResponse
-	6,  // 49: dockwell.v1.ImportService.CheckPanelDomains:output_type -> dockwell.v1.CheckPanelDomainsResponse
-	9,  // 50: dockwell.v1.ImportService.PlanPanelDomains:output_type -> dockwell.v1.PlanPanelDomainsResponse
-	11, // 51: dockwell.v1.ImportService.PlanStartPanel:output_type -> dockwell.v1.PlanStartPanelResponse
-	13, // 52: dockwell.v1.ImportService.PlanStopPanel:output_type -> dockwell.v1.PlanStopPanelResponse
-	46, // [46:53] is the sub-list for method output_type
-	39, // [39:46] is the sub-list for method input_type
-	39, // [39:39] is the sub-list for extension type_name
-	39, // [39:39] is the sub-list for extension extendee
-	0,  // [0:39] is the sub-list for field type_name
+	38, // 21: dockwell.v1.PanelRoute.redirect:type_name -> dockwell.resource.v1alpha1.RouteRedirect
+	26, // 22: dockwell.v1.ImportOnePanelResponse.found:type_name -> dockwell.v1.OnePanel
+	25, // 23: dockwell.v1.ImportOnePanelResponse.steps:type_name -> dockwell.v1.ImportStep
+	37, // 24: dockwell.v1.ImportOnePanelResponse.change:type_name -> dockwell.v1.Change
+	2,  // 25: dockwell.v1.ImportStep.kind:type_name -> dockwell.v1.ImportKind
+	3,  // 26: dockwell.v1.ImportStep.action:type_name -> dockwell.v1.ImportAction
+	1,  // 27: dockwell.v1.ImportStep.waits_for:type_name -> dockwell.v1.ImportWaitsFor
+	39, // 28: dockwell.v1.ImportStep.guessable:type_name -> dockwell.v1.GuessableSecret
+	28, // 29: dockwell.v1.OnePanel.apps:type_name -> dockwell.v1.OnePanelApp
+	29, // 30: dockwell.v1.OnePanel.runtimes:type_name -> dockwell.v1.OnePanelRuntime
+	30, // 31: dockwell.v1.OnePanel.websites:type_name -> dockwell.v1.OnePanelWebsite
+	33, // 32: dockwell.v1.OnePanel.certificates:type_name -> dockwell.v1.OnePanelCertificate
+	34, // 33: dockwell.v1.OnePanel.database_servers:type_name -> dockwell.v1.OnePanelDatabaseServer
+	35, // 34: dockwell.v1.OnePanel.databases:type_name -> dockwell.v1.OnePanelDatabase
+	36, // 35: dockwell.v1.OnePanel.cron_jobs:type_name -> dockwell.v1.OnePanelCronJob
+	27, // 36: dockwell.v1.OnePanel.composes:type_name -> dockwell.v1.OnePanelCompose
+	32, // 37: dockwell.v1.OnePanelWebsite.domains:type_name -> dockwell.v1.OnePanelDomain
+	31, // 38: dockwell.v1.OnePanelWebsite.redirects:type_name -> dockwell.v1.OnePanelRedirect
+	40, // 39: dockwell.v1.OnePanelCertificate.expires:type_name -> google.protobuf.Timestamp
+	23, // 40: dockwell.v1.ImportService.ImportOnePanel:input_type -> dockwell.v1.ImportOnePanelRequest
+	14, // 41: dockwell.v1.ImportService.ImportCoolify:input_type -> dockwell.v1.ImportCoolifyRequest
+	16, // 42: dockwell.v1.ImportService.ImportDokploy:input_type -> dockwell.v1.ImportDokployRequest
+	5,  // 43: dockwell.v1.ImportService.CheckPanelDomains:input_type -> dockwell.v1.CheckPanelDomainsRequest
+	4,  // 44: dockwell.v1.ImportService.PlanPanelDomains:input_type -> dockwell.v1.PlanPanelDomainsRequest
+	10, // 45: dockwell.v1.ImportService.PlanStartPanel:input_type -> dockwell.v1.PlanStartPanelRequest
+	12, // 46: dockwell.v1.ImportService.PlanStopPanel:input_type -> dockwell.v1.PlanStopPanelRequest
+	24, // 47: dockwell.v1.ImportService.ImportOnePanel:output_type -> dockwell.v1.ImportOnePanelResponse
+	15, // 48: dockwell.v1.ImportService.ImportCoolify:output_type -> dockwell.v1.ImportCoolifyResponse
+	17, // 49: dockwell.v1.ImportService.ImportDokploy:output_type -> dockwell.v1.ImportDokployResponse
+	6,  // 50: dockwell.v1.ImportService.CheckPanelDomains:output_type -> dockwell.v1.CheckPanelDomainsResponse
+	9,  // 51: dockwell.v1.ImportService.PlanPanelDomains:output_type -> dockwell.v1.PlanPanelDomainsResponse
+	11, // 52: dockwell.v1.ImportService.PlanStartPanel:output_type -> dockwell.v1.PlanStartPanelResponse
+	13, // 53: dockwell.v1.ImportService.PlanStopPanel:output_type -> dockwell.v1.PlanStopPanelResponse
+	47, // [47:54] is the sub-list for method output_type
+	40, // [40:47] is the sub-list for method input_type
+	40, // [40:40] is the sub-list for extension type_name
+	40, // [40:40] is the sub-list for extension extendee
+	0,  // [0:40] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_import_proto_init() }
