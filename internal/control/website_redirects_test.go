@@ -286,3 +286,50 @@ func TestARouteBesideAWebsiteIsSaidInWords(t *testing.T) {
 		t.Errorf("moving the site to www beside it = %v", err)
 	}
 }
+
+// A person's own edit of a route the site's list wrote stays through the site's next
+// update, as an edit of a route does (ADR 0070): made temporary and sent to one page,
+// it isn't put back to a permanent redirect that keeps the path.
+func TestAnEditOfAListsRedirectStays(t *testing.T) {
+	t.Parallel()
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	ing := &routesInMemory{routes: map[resource.Ref]*resourcev1.Route{}}
+	f.probe = connects
+	e := f.addServerWith(t, func() []resource.Type { return []resource.Type{&route.Driver{Ingress: ing}} })
+	pullsAnything(e)
+	c := changeClient(b, b.origin)
+	sites := websiteClient(b, b.origin)
+	w := toURL("https://backend.example.com")
+	w.RedirectFrom = []string{"www.example.com"}
+	res, err := sites.CreateWebsite(t.Context(), connect.NewRequest(&dockwellv1.CreateWebsiteRequest{Domain: "example.com", Website: w}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	applyReviewed(t, c, res.Msg.GetChange())
+	env := listWebsites(t, sites)[0].GetEnvironmentId()
+	edit := &dockwellv1.Edit{
+		Resource: &dockwellv1.ResourceRef{Kind: string(route.Kind), Scope: env, Name: "www-example-com"},
+		Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Route{Route: &resourcev1.Route{
+			Domain:   "www.example.com",
+			Redirect: &resourcev1.RouteRedirect{To: "https://example.com/welcome", Temporary: true, DropPath: true},
+		}}},
+	}
+	if got := apply(t, c, propose(t, c, "Send www to the welcome page for now", edit)); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("the edit: %v", got)
+	}
+	moved := toURL("https://other-backend.example.com")
+	moved.RedirectFrom = []string{"www.example.com"}
+	up, err := sites.UpdateWebsite(t.Context(), connect.NewRequest(&dockwellv1.UpdateWebsiteRequest{Id: "example.com", Website: moved}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if order := planned(up.Msg.GetChange()); slices.Contains(order, "route www-example-com update") {
+		t.Errorf("an update of what the site serves plans %v", order)
+	}
+	applyReviewed(t, c, up.Msg.GetChange())
+	got := ing.routes[resource.Ref{Kind: route.Kind, Scope: env, Name: "www-example-com"}].GetRedirect()
+	if got.GetTo() != "https://example.com/welcome" || !got.GetTemporary() || !got.GetDropPath() {
+		t.Errorf("www redirects as %v", got)
+	}
+}

@@ -116,6 +116,24 @@ type site struct {
 	updated  time.Time
 }
 
+// keepEdits keeps what a person changed of a route the site's list wrote, as an edit of
+// its own (ADR 0070): a redirect made temporary, sending every request to one address,
+// or sending to a path of the site. Where it goes stays the site's domain, reached as
+// the site is, so a change of the site's domain or front still carries it.
+func keepEdits(serving website.Serving, s *site) {
+	for d, r := range serving.Redirects {
+		name, ok := s.redirects[d]
+		if !ok {
+			continue
+		}
+		was := s.specs[name].GetRedirect()
+		r.Redirect.Temporary, r.Redirect.DropPath = was.GetTemporary(), was.GetDropPath()
+		if u, err := url.Parse(was.GetTo()); err == nil && strings.Trim(u.EscapedPath(), "/") != "" {
+			r.Redirect.To += strings.TrimSuffix(u.EscapedPath(), "/")
+		}
+	}
+}
+
 // besideHolds says what serves a domain beside the website, in its environment, from a
 // route its list didn't write, in words for a person, or nothing (ADR 0070).
 func (s *site) besideHolds(domain string) string {
@@ -462,6 +480,7 @@ func (h *Handler) UpdateWebsite(ctx context.Context, req *connect.Request[dockwe
 		return nil, authapi.Invalid(err)
 	}
 	serving := website.Resources(spec, domain, website.FrontOf(s.rt))
+	keepEdits(serving, s)
 	// A website made at its domain is named for it, and follows it.
 	display := s.spec.GetDisplayName()
 	if display == was {
