@@ -1,0 +1,334 @@
+# 0099. Every kind of thing an app needs, met the same three ways
+
+- Status: Accepted. Generalizes [ADR 0084](0084-what-an-app-needs-met-by-a-new-service-one-you-run-or-a-connection.md), whose needs, links and connections are for databases alone, and amends it where a connection serves every project unless it says. Amends the PRD's Connections section, which had a value set per environment and `connections:read`; [ADR 0029](0029-a-catalog-format-fed-from-other-catalogs.md)'s line on MinIO; [ADR 0033](0033-backups-of-volumes-and-databases.md), where a backup destination holds its own endpoint and keys; [ADR 0044](0044-alerts.md), where an alert's email channel holds its own SMTP server; [ADR 0086](0086-registry-logins-for-private-images.md), where an ECR login holds its own AWS key; and [ADR 0088](0088-certificates-by-dns-01-and-wildcard-domains.md), where a DNS provider holds its own token.
+- Date: 2026-11-14
+- Closes, with its slices: #264 (Connections). Follows #569.
+
+## Context
+
+On 2026-11-14 the owner asked for ADR 0084's modularity to hold for everything an app shares, not databases alone. An app that needs S3 should take a Cloudflare R2, Amazon S3, Backblaze B2 or Google Cloud Storage bucket instead of running a MinIO beside it, and every kind should be met the same three ways: a new one beside the app, one you run, or a provider. What's true today:
+
+- **Needs are for databases.** `Entry.needs` takes engines (PostgreSQL, MySQL, MariaDB, Redis, Valkey, MongoDB, ClickHouse), with parts such as host, user and password. ADR 0084 said S3 and SMTP "take the same shape, with parts of their own" and left them for later.
+- **ADR 0084's connections aren't built.** Its slice 4 designed a `connection` for a database outside Dockwell, at the organization level, checked from the app's server. Nothing exists yet.
+- **#264 asks for more than databases.** The PRD makes Connections P0: one saved credential set per service, with templates (Supabase, Neon, R2, S3, B2, Stripe, Resend, Postmark, SMTP, OpenAI, Anthropic, Sentry, Custom), mapped into each app under its own names, tested from the app's server, rotated as a plan, and bound without being read. Credentials Dockwell makes through an integration, such as a scoped R2 token for each app, are P1.
+- **Four kinds already hold a provider's credentials, each its own way.** A `backup.destination` holds an S3 endpoint, bucket and keys. A `dns.provider` holds a Cloudflare token. An ECR `registry.login` holds an AWS key. An `alert.channel` that emails holds an SMTP server and its password. A person with one Cloudflare account pastes into two places today, and will into a third for R2.
+- **The agent already speaks S3,** with no SDK: `internal/backup/s3` signs SigV4 requests and is in the agent build (`cmd/dockwell/build_test.go`). Go's standard library speaks SMTP.
+
+What the stores' apps need, measured on 14 Nov 2026 at 1Panel's `55061b9`, Dokploy's `4f0ddfb`, Coolify's `93c7e53`, Runtipi's `e88c4a7`, CasaOS's `07178f6` and Umbrel's `1d9cd0b`, and Dockwell/catalog's `c5631d8`. An app counts for a kind when one of its services runs an image of it, or it reads a setting named for one it doesn't run (such as `S3_ENDPOINT`, `SMTP_HOST` or `OIDC_ISSUER`). Names are matched, so each count is close, not exact:
+
+| Kind | 1Panel | Dokploy | Coolify | Runtipi | CasaOS | Umbrel | Six stores | Dockwell |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Apps | 269 | 609 | 388 | 267 | 183 | 403 | 2,119 | 33 |
+| PostgreSQL | 4 | 186 | 122 | 49 | 16 | 52 | 429 | 5 |
+| Redis family | 13 | 103 | 72 | 22 | 13 | 26 | 249 | 1 |
+| SMTP | 12 | 74 | 50 | 15 | 4 | 14 | 169 | 0 |
+| MySQL family | 3 | 61 | 53 | 16 | 5 | 20 | 158 | 4 |
+| S3 object storage | 9 | 55 | 31 | 4 | 3 | 4 | 106 | 1 |
+| OpenID Connect | 6 | 26 | 9 | 7 | 5 | 13 | 66 | 0 |
+| An OpenAI-style API | 4 | 25 | 18 | 5 | 5 | 7 | 64 | 1 |
+| MongoDB | 3 | 20 | 4 | 5 | 5 | 5 | 42 | 1 |
+| Search | 4 | 13 | 11 | 2 | 4 | 4 | 38 | 0 |
+| Queues | 5 | 12 | 7 | 2 | 0 | 2 | 28 | 0 |
+| ClickHouse | 1 | 13 | 9 | 1 | 0 | 1 | 25 | 1 |
+| LDAP | 2 | 2 | 1 | 7 | 2 | 3 | 17 | 0 |
+| Document conversion | 1 | 5 | 1 | 2 | 0 | 3 | 12 | 0 |
+
+1Panel's own counts of databases are low because its apps don't bring one: 49 pick an installed app instead (44 a SQL database, 13 a Redis, 2 MongoDB, 1 MinIO, 1 Kafka, ADR 0084). Vector databases (9), time series (8), Sentry (8) and Memcached (5) are below the table's line.
+
+S3 and SMTP differ from databases in what's bundled. Of the 106 apps that use S3, 39 run MinIO or the like beside them and 67 read a bucket someone else runs. Of the 169 that use SMTP, 162 read a server someone else runs, and the 7 that run one run a mail catcher. A database is something an app brings; a bucket is as often a provider's, and mail almost always is.
+
+## Decision
+
+### A kind is a protocol, and its implementations are what speak it
+
+- **A kind is what an app speaks to:** `postgresql`, `mysql`, `redis`, `mongodb`, `clickhouse`, `s3`, `smtp`, and the later ones below. It's a protocol, not a product, so an app that speaks S3 takes R2 as readily as MinIO.
+- **An implementation is a product that speaks a kind,** with versions of its own: MySQL and MariaDB speak `mysql`; Redis and Valkey speak `redis`; Amazon S3, Cloudflare R2, Backblaze B2, Google Cloud Storage, Garage, RustFS, MinIO and SeaweedFS speak `s3`. ADR 0084's engines are the database kinds' implementations, with their numbers kept, so every entry and pin written today reads as it did.
+- **A kind declares its parts:** each a name, whether it's secret, and how it's written in a URL. The parts of the first kinds:
+
+| Kind | Parts | Secret |
+| --- | --- | --- |
+| Databases | as ADR 0084: host, port, address, database, user, password, TLS, key prefix, URL, engine | password, and a URL with it |
+| `s3` | endpoint (a URL), region, bucket, access key ID, secret key, path style, public URL (where objects are read from, as a custom domain), key prefix, URL (`s3://key:secret@endpoint/bucket` where an app reads one) | secret key, and a URL with it |
+| `smtp` | host, port, security (in the app's words for STARTTLS, TLS and none), user, password, sender (the From address), sender name, URL (`smtp://user:password@host:port`) | password, and a URL with it |
+
+- **Compatibility is said three ways,** each in the need's `accepts`:
+  - **Implementations and versions,** as ADR 0084: MySQL `>=8.0`, MariaDB `>=10.6`. A SQL app names each implementation it takes, as dialects don't line up: a kind alone doesn't accept a SQL database.
+  - **The kind and features,** where the app doesn't care which product: `kind: s3` with `features: [presigned_urls]` takes any implementation that has them. This is the default for `s3` and `smtp`.
+  - **Features are named in the format.** What a server can do is proven by the check, not taken on trust; what happens in a browser is set up and stated (below). For `s3`: `presigned_urls` (an app hands browsers a signed URL), `virtual_host` (the bucket in the host name), `path_style` (the bucket in the path), `multipart` (large uploads), `batch_delete` (deleting many objects in one request), `cors` (browsers upload straight to the bucket), `public_read` (objects served to anyone at the public URL), `object_acl` (an ACL per object, as some apps set `public-read` on each), `presigned_post` and `sdk_checksums` (below). For `smtp`: `auth` and `tls`. For a database: an extension, as ADR 0084's `vector`, and for MongoDB `replica_set`, which transactions and change streams need.
+- **Each implementation's known features are a table in code,** from its documentation, and each is proven against the real thing in CI or in its slice before it's offered: Google Cloud Storage takes no batch delete through its S3 API; R2 keeps no per-object ACL; Garage needs a root domain for virtual-host style. A feature the table says is missing greys the implementation, with why: "Google Cloud Storage can't delete many objects at once, which Outline needs." A feature the table doesn't know is tried by the live check.
+
+**A feature is supported, or set up.** What an implementation can do server-side (signing, multipart, batch delete, virtual-host or path style, checksums) comes from the table and the check. What happens in a browser can't be proven from a server, as a browser reaches the bucket by another way than the server does: `presigned_urls` as a browser follows one, `presigned_post`, `cors` and `public_read`. Those are settings Dockwell applies as it makes or links the bucket, and the plan states each as set: CORS for the app's own domains, public reading at the public URL, and on AWS the bucket's object ownership and Block Public Access, which since April 2023 turn ACLs off on every new bucket, so `object_acl` there is set up or refused. Two of them are read back where Dockwell set them, from the check's container: CORS by a preflight `OPTIONS` with the app's `Origin` and method, and public reading by an anonymous GET at the public URL. Whether a browser can reach the host is out of a server's reach, and stays stated. On a pasted connection, where Dockwell sets nothing, the plan says what the app needs the bucket to allow, and that it isn't checked.
+
+**Public reading on R2 needs a domain.** Cloudflare attaches a custom domain to a bucket through the domain's zone, which the credential for buckets and keys has no right to. So attaching one is a step that uses the account's credential for DNS, and only for a zone in that credential's reach, which the plan names. Without one, the bucket is public at its `r2.dev` address, which Cloudflare rate-limits and doesn't offer for production, with the state "Public at a rate-limited address" and **Use a domain**. Two more features are in the table from the start, each proven in CI: `presigned_post` (a browser's form upload, which some apps use, apart from a presigned GET or PUT) and `sdk_checksums` (the CRC32 checksums and streaming trailers AWS's SDKs send by default since early 2025, which some S3-compatible stores refused at first).
+
+**The kinds to start with,** in the order the measurement gives, after the databases ADR 0084 built:
+
+1. **`s3`** (106 apps), first, as an R2 or B2 bucket is what a person most often has already, and backups use the same thing.
+2. **`smtp`** (169 apps), second. It's more common, but most apps run without it, so it's an optional need (below), and none of the six stores' apps can't install for want of it.
+3. **`oidc`** (66) and **`openai`**, an OpenAI-style API (64): a connection first, with clients and keys made per app later.
+4. **`meilisearch` and `elasticsearch`** (38 for search), **`amqp`** and **`kafka`** (28 for queues): each with a user or key of the app's own on one you run.
+5. LDAP, document conversion and the rest, as entries ask for them.
+
+### An optional need
+
+Some needs an app runs without: most apps run without mail, and many keep files on their own disk unless given a bucket (Directus, Docmost, Twenty, Dify, Appwrite, Cal.com, Formbricks and Planka among the survey's). A need may be **`optional`**:
+
+- **The install sheet shows it unset,** as "Storage · On its own disk · Use a bucket" or "Mail · Not set · Set up", the app installs without it, and Set up opens the same three ways later, as a plan. An optional need is never met new by default.
+- **Its names are left out while it's unmet,** as many apps read an empty value otherwise than none (`||` against `??`). A set that the app needs present and empty says `empty_when_unmet`.
+- **A part says whether it's met,** `PART_MET`, in the app's words, as such apps switch on a word of their own: `STORAGE_DRIVER` is `s3` met and `local` unmet, `MAIL_DRIVER` `smtp` or `log`, `GITEA__mailer__ENABLED` `true` or `false`. Unlike the other parts, it's set while the need is unmet too; an empty `unmet` word leaves the name out while unmet, for apps that read an absent driver as their own disk.
+- **Turning a met optional need back to unmet** is a plan that says what it means in a line: "Outline goes back to its own disk. What's in the bucket stays there."
+- SMTP and OIDC needs are optional unless the app can't start without one; an S3 need is optional wherever the app has a storage of its own.
+
+### Three ways for every kind
+
+Every kind has the three ways where they make sense, and says which it has. The install sheet's row, its Change, the CLI's `--needs` and the app page's card are the same for each kind; only the words change ("Storage · New Garage beside Outline · Change").
+
+| Kind | New beside the app | One you run, shared, with the least each app needs | A connection |
+| --- | --- | --- | --- |
+| Databases | ADR 0084 | A database and user of its own; a Redis ACL user | Pasted, or a provider's (later) |
+| `s3` | The catalog's `garage` by default, or `rustfs` | A bucket of its own and a key that reaches it alone | Pasted, or a bucket and key made from a provider account |
+| `smtp` | Outside production only: a Mailpit, labelled in the row and on its card "Catches mail, sends nothing" | Only where the server has an API that makes an account per app (Stalwart) | Pasted, or a key made from a provider account (Resend, Postmark, Amazon SES) |
+| `oidc` | No | A client of its own in an identity provider you run (Pocket ID, Authentik, Keycloak), with the app's own redirect address | Pasted issuer, client ID and secret |
+| `meilisearch` | The catalog's entry | A key that reaches only the app's own index prefix | Pasted |
+| `amqp` | The catalog's `rabbitmq` | A virtual host of its own and a user who reaches it alone | Pasted |
+
+- **New** is the catalog's entry for an implementation, as ADR 0084: its service joins the app's project under the need's name, pinned to that entry, and its administrator's secret is its own.
+  - **For `s3` it's Garage:** stable, light, with an admin API that makes buckets and keys, and AGPL as Dockwell is. Where the need asks for something a browser does (`presigned_urls`, `presigned_post`, `cors`, `public_read`), a new Garage gets a route of its own on a domain the person picks, its default a subdomain of the app's, as a browser can't reach `storage:3900`, and what it signs and serves is for that domain. Without a domain, such a need can't be met new, which the row says, with Pick a domain.
+  - **RustFS is offered below Garage,** with its release state shown, as it shipped as 1.0 alpha through 2025 with a warning against production use; its policies are proven on real Docker before it's offered.
+  - **MinIO isn't new, as it gets no security fixes.** MinIO took the admin console out of its community edition in 2025, stopped publishing its community images and binaries that October, and put the repository in maintenance mode by December; on 14 Nov 2026 neither Docker Hub nor quay.io lists `minio/minio`'s or `minio/mc`'s tags to an anonymous pull: an anonymous pull token from `https://auth.docker.io/token?service=registry.docker.io&scope=repository:minio/minio:pull`, then `GET https://registry-1.docker.io/v2/minio/minio/tags/list`, answers 401, as quay.io's does through `https://quay.io/v2/auth`, where `library/postgres` and `prometheus/node-exporter` answer 200 the same way; no tag was named, so it isn't a missing tag. Old tags could still be pinned, with their CVEs. One you run and a connection take any MinIO, with "No maintained images" as its state. ADR 0029's line on MinIO reads the same, in this record's pull request.
+  - **Mailpit, outside production,** means an environment that isn't protected (ADR 0049). A project starts with one environment, `production`, so an app there never sees Mailpit. What it caught holds password-reset links, so its web UI never gets a public route: by default a route behind a password (ADR 0087) with a password Dockwell makes, revealed to whoever may change the app, or under Advanced no route at all. Protecting an environment later, as real mail would then be caught, makes the plan that protects it name each Mailpit there and ask to replace it.
+- **One you run** is offered only where nothing outside it holds its administrator's secret, as ADR 0084 says of a database, and the plan makes the app's own credential with that secret, which never reaches the app:
+  - **Garage:** a bucket and a key, the key allowed read and write on that bucket alone, through its admin API.
+  - **RustFS and MinIO:** a bucket, a user, and a policy that reaches `arn:aws:s3:::<bucket>` and its objects alone, through their admin API. The slice proves the policy on real Docker for each before it's offered.
+  - **SMTP** only where the server has an API that makes an account for each app, such as Stalwart. A server that signs every app in as one user is a pasted connection, with "Shared with 3 apps" as its state, as each of them can send as any sender.
+  - **A bucket for each app, not a prefix of one.** Most stores can hold a key to a prefix (AWS through IAM, B2's `namePrefix`, Google Cloud through IAM Conditions, MinIO's and RustFS's policies; Garage can't), but lifecycle, CORS, public reading, deleting and Use another are each per bucket, so one app's settings would be every app's. A prefix of a shared bucket is the fallback only where a provider's cap on buckets is reached, as B2's 100, with the state "Shares a bucket with n apps: each keeps to its own prefix".
+  - The row says what sharing means as a state, as for a database: "Shared with Docmost (wiki) · each app has a bucket and key of its own".
+- **A connection** is values from outside Dockwell, pasted or made from a provider account (below). It's used as given.
+  - **It serves one link unless an admin marks it shared,** as ADR 0084 says, with "Used by 4 apps" as a state. A connection Dockwell itself uses, as backups or alert email do, serves no app: an app's key, on every server it runs on, could otherwise delete the backups, or send mail as the alert sender.
+  - **It's one environment's values,** and each environment's link names its own. That keeps the PRD's promise of one binding across environments: **Add connection** is one form with a column for each of the project's environments (production, staging), which makes a connection for each column filled in, named for the service and the environment (`supabase-production`, `supabase-staging`); the install sheet and Use another pick the connection for the app's environment by default, the one named for it or the only one the project may use; and making an environment offers "Use the same as staging" for each link. Each link keeps a credential of its own, so:
+    - **Where an account made staging's,** a new environment and each preview (#253) get one of their own from that account, as staging's was made: a bucket and key, a preview's deleted with it.
+    - **Where staging's is pasted,** a new link may read it only once an admin has turned on, once, "Previews and new environments may use it", a sharing state on the connection with its own words: "Shared with previews".
+    - **Otherwise the need stays unmet,** and the row says why, with the fix: "Staging's storage is a pasted key that serves staging alone. An admin can let previews use it." A preview whose need is required isn't made, and its pull request says so. The Connections list groups them by service, as the PRD's view shows one connection with its environments. This record amends the PRD's Connections section to say so.
+
+Each way ends as a **link**, as ADR 0084: a resource in the app's environment, named for the need, whose sets are the environment's variables and secrets, the secret ones from where the credential lives. ADR 0084's `link` gains the kind, the features, and what meets it as one of a service, a connection or a provider account's credential; its database fields stay, read for the database kinds.
+
+**Connect storage** is on any app's Environment tab, as Connect a database is (ADR 0084): an app from no entry that already reads S3 settings, such as one an import brought, picks the names it reads, and gains a link, its check and Use another.
+
+### Providers are accounts, and connections are what apps use
+
+For the kinds a provider account serves, two kinds hold a provider's credentials:
+
+- **A provider account** (kind `provider.account`, install-wide) lets Dockwell act at a provider: make buckets and keys, write DNS, get a registry token. It's an admin's, on **Settings → Integrations**, one card for each provider: Cloudflare, AWS, Google Cloud, Backblaze.
+- **A connection** (kind `connection`) is one set of values of one kind that something uses: an app, through a link, or Dockwell itself, as backups use a bucket. Pasted, or made by Dockwell from an account. Connections are the rail's **Connections** section, the #264 mocks; Integrations' cards count them.
+
+Registry logins (ADR 0086), sign-in providers (ADR 0087, 0095) and the Git provider's GitHub App (ADR 0098) hold credentials too, and stay their own kinds: none is a provider's storage, mail or DNS, nor something an app reads.
+
+**An account holds a credential for each thing it does,** never one for all: one for DNS, one for buckets and keys, one for registry tokens, each checked for what it may do, and each added as that capability is turned on. So DNS-01 runs on a token that can write DNS and nothing more, and an ECR login keeps a key that may only pull.
+
+**What each credential reaches, said plainly:**
+
+- **For DNS:** writing records in the zones it names, and nothing else, as ADR 0088's token does today. Attaching a domain to an R2 bucket uses it too (above).
+- **For registry tokens:** a pull token and pulls, nothing else: `ecr:GetAuthorizationToken`, and `ecr:BatchGetImage`, `ecr:GetDownloadUrlForLayer` and `ecr:BatchCheckLayerAvailability` on the repositories, as ECR authorizes a token's pulls with the key's own rights, and as ADR 0086's key allows today.
+- **For buckets and keys:** making and deleting buckets, and making credentials. One that may make tokens, IAM users or service-account keys can make one with any right its owner has, so it is the provider account, whatever its name says. The record holds it to match: adding or replacing one is an admin's, with a passkey asked for again (ADR 0011, 0075), on the audit log; each provider's is held as narrowly as the provider allows, as below; and on AWS every user it makes carries a permissions boundary, so none can have more than the boundary allows, whatever policy it's given.
+
+| Provider | What each link gets | What the account's credential for buckets and keys is held to | How its check reads what it may do |
+| --- | --- | --- | --- |
+| Cloudflare R2 | A bucket, and an account-owned API token scoped to that bucket alone, whose S3 keys are derived as Cloudflare documents | An account-owned token, so it outlives any one person's membership, with R2 storage edit and account API tokens edit, under the names Cloudflare's token page uses, which the card's link carries; that such a token makes account-owned tokens scoped to one bucket, through `/accounts/{id}/tokens`, is checked against Cloudflare's documentation and its real API before slice 3 is built | Its own policies, read by its ID with API Tokens Read; token verify alone says only that it's active |
+| Amazon S3 | A bucket, and an IAM user under `/dockwell/` with an inline policy that reaches that bucket alone, and its access key | The policy and boundary below, in full | `iam:SimulatePrincipalPolicy`, which the card's policy includes |
+| Backblaze B2 | A bucket, and an application key restricted to it | An application key with `listBuckets`, `writeBuckets` and `deleteBuckets`, and `listKeys`, `writeKeys` and `deleteKeys`, as looking before making, the sweep, undo and deleting an app need each | The capabilities `b2_authorize_account` returns |
+| Google Cloud Storage | A bucket, a service account with Storage Object Admin on that bucket alone, and its HMAC key | A Google Cloud project of Dockwell's own for buckets, which the card recommends and its Cloud Shell command makes, as on Google Cloud the project is the boundary: `storage.hmacKeys.create` takes its service account as a field of the request, so no condition holds it to `dw-*`, and a credential that may make HMAC keys may make one for any service account in the project. In a project with more in it, the card says so as a state: "Can make keys for every service account in this project" | `testIamPermissions` |
+| Amazon SES, Resend, Postmark | A sending credential held to the app's sending domain or server | The provider's account key | The provider's own read of the key |
+| A generic S3 or SMTP endpoint | Nothing: there's no API, so it's a pasted connection | | |
+
+- **The card does the work,** as the interaction principles ask: **Make the token** opens Cloudflare's token page with its permission groups filled in; **Create in AWS** opens a CloudFormation quick-create of the user, its policy and its boundary; Google Cloud gets a Cloud Shell command with Copy. Copying the policy by hand stays as the fallback. A key the provider calls global, as Cloudflare's Global API Key or AWS's root key, is refused by name.
+- **The check never probes by making something:** each provider's way of reading a credential's rights is in the table. A capability it lacks is a state with the fix, in Cloudflare's own name for the permission: "Can't make R2 buckets: the token lacks R2 storage edit", with **Make the token**.
+- **The AWS pattern, in full,** which the card's CloudFormation quick-create makes, as the person signed in to AWS, and none of which the key may change:
+  - **A boundary,** a managed policy `dw-boundary` that allows S3 on buckets named `dw-*` and their objects, and nothing else.
+  - **The account credential's own user, outside `/dockwell/`** (under `/dockwell-account/`), so nothing its resource scoping allows reaches itself.
+  - **Its policy:** `iam:CreateUser`, `iam:PutUserPolicy` and `iam:PutUserPermissionsBoundary` on `user/dockwell/*`, each only with the condition `iam:PermissionsBoundary` equal to the boundary's ARN; `CreateAccessKey`, `UpdateAccessKey`, `DeleteAccessKey`, `ListAccessKeys`, `DeleteUserPolicy`, `DeleteUser`, `TagUser` and `GetUser` on `user/dockwell/*`; S3 on `dw-*` buckets; and `iam:SimulatePrincipalPolicy` on its own user. No `iam:AttachUserPolicy`, as an app's user needs an inline policy alone, and no `iam:CreatePolicy` at all.
+  - **Explicit denies,** which no allow overrides: `iam:DeleteUserPermissionsBoundary` on `user/dockwell/*`, and `iam:CreatePolicyVersion`, `iam:SetDefaultPolicyVersion`, `iam:DeletePolicy` and `iam:DeletePolicyVersion` on the boundary's ARN.
+  - **No CloudFormation rights:** the stack is the person's, made in their console, and the key may neither update nor delete it.
+  - **Slice 3 proves each escalation is refused,** with `SimulatePrincipalPolicy`: a user made with `AdministratorAccess` as its boundary, or with no boundary; a boundary swapped or deleted; a new version of the boundary; a policy made or attached; and the key acting on its own user. The account's check runs the same questions, and refuses a key for which any is allowed.
+- **Where the provider can't scope a key,** the connection is a pasted one, and its check says what it sees: "Reaches 7 buckets" where listing them works, and nothing where it doesn't, as a key that may read every bucket but not list them looks scoped. A pasted key is never called scoped.
+
+**Names.** Everything Dockwell makes at a provider (a bucket, an IAM user, a service account, a token) is named `dw-`, 4 lowercase letters and digits of the install's own ID, `-`, and 16 from a hash of the link's and the change's IDs (`dw-k3q9-…`), which the AWS policy above holds its keys to. Where the provider has tags or labels (AWS tags, Google Cloud labels), each also carries the install's whole ID, the project and the app; where it has none on keys (R2, B2), the name's mark is what tells installs apart. Bucket names are one namespace for every customer at S3 and Google Cloud Storage and show in virtual-host URLs and public links: one made of the project and app would say what the install runs to anyone who sees a link, and could break a provider's rules (uppercase, underscores, 63 characters, Google Cloud's `goog`, AWS's `xn--` and `-s3alias`). A person may name a bucket under Advanced, and then the plan says the AWS policy's `dw-*` doesn't hold it, and refuses it there. Bucket names are global at Google Cloud and B2 too, so looking before making checks the owner: AWS's `x-amz-expected-bucket-owner`, Google Cloud's project number, B2's account ID. A lookup that answers 403, or finds the bucket another owner's, is a name taken elsewhere, which fails the step, saying so; it's never written to.
+
+**Provider steps are idempotent.** Making a bucket and a key is a step of the plan, run by the control plane, never the agent: "Makes a bucket at Cloudflare R2, and a key that reaches it alone". A provider shows a new key's secret once, and the control plane may stop at any point, so:
+
+- **Each object is named from the link and the change,** as "Names" says, and the step looks for it before it makes it, so a step run again finds what it made.
+- **A key's ID and secret come in one response** (Cloudflare's token, AWS's `CreateAccessKey`, B2's `b2_create_key`, Google Cloud's HMAC key), and the secret is sealed in the transaction that records the step, so a control plane that stops between the two loses it. A step run again finds such a key by its name, or for an AWS access key or an HMAC key, which take no name, by the user or service account it's on, which is named; it revokes the key whose secret it lost and makes another. On AWS it deletes the lost key first, as a user holds 2 at most and a rotation would otherwise be refused.
+- **Orphans are swept, one install's at a time:** objects that carry this install's mark, in their name or their tag, and that nothing records are listed on the account's card, and deleted from there, never on their own. Another install's, sharing the account, are never listed, so a person cleaning up never deletes its live keys.
+- **The first check after making a key is retried, within a bound,** as IAM is eventually consistent and refuses a new key for seconds.
+- **Each provider's caps are in the table,** and a plan that would pass one is refused with it: B2's 100 buckets per account, AWS's 2 access keys per user and Google Cloud's default 100 service accounts per project and 10 HMAC keys per service account. Each is checked against the provider's current documentation in its slice.
+- **Undoing it** deletes the key, and the bucket where it's still empty, and keeps a bucket with objects in it, which the undo says.
+
+### Moving what holds credentials today
+
+Backup destinations, DNS providers, alert email and ECR logins move onto accounts and connections in a slice of their own, after accounts land, as the owner's first use (an app's bucket) needs none of it. Until then each keeps what it holds. The move follows ADR 0022's precedent:
+
+- **A schema version no older Dockwell opens,** as ADR 0022's migration 19 did, as a control plane from before would read a destination without its keys, and a DNS provider without its token, and fail backups and renewals. Going back means restoring the database from before the upgrade. Backing up the control plane (ADR 0073) is proposed and not built, so the migration takes its own copy first: on SQLite with `VACUUM INTO` beside the database, which it says where it is; on PostgreSQL it refuses to run until an operator confirms a backup, as `DOCKWELL_MIGRATE_CONFIRMED_BACKUP=1` says, and the error says how. Once ADR 0073's first slice lands, the migration takes its bundle instead.
+- **Resealed in Go, through the revision store:** sealed values are bound to where they're stored, so each is opened and sealed again by a change of the system actor's that `internal/revision` makes, one revision for each holder, on Activity, never by SQL. A holder's revision from before can't be undone to, as it would put keys back inline.
+- **IDs and passphrases stay.** Each destination keeps its ID, which backups' `sealed_with` names, and its passphrase stays on the destination, not the connection.
+- **Reach keeps its meaning:** each holder's empty becomes the reach it had, every project for a destination and a registry login, none for a DNS provider.
+- **The agent's wire doesn't change:** `SendBackupCall` and `FetchBackupCall` keep carrying a whole sealed `BackupDestination`, made from the destination and its connection, so older agents keep sending.
+- **A backup records the endpoint and bucket it went to,** so a restore fetches from there whatever the connection says later, and pruning keeps to what Dockwell recorded under the destination's prefix. Changing a destination's connection's endpoint or bucket is refused while backups name them, as changing its passphrase is.
+- **Each keeps its own credential:** the DNS token becomes the account's credential for DNS, and the ECR key its credential for registry tokens, neither broadened.
+
+**A connection Dockwell itself uses** is checked and used where it is today: a destination's check and alert email from the control plane, through netguard with today's rules (a private address taken, TLS unless the SMTP server is on this server or its private network, a password only over TLS), and backups sent from each server's agent.
+
+### Checks
+
+Every kind is checked live, as ADR 0084 checks a database connection, where the app reaches it, and again as the plan is made and as the agent applies it. This is a rule for every kind, so later ones inherit it:
+
+- **From where the app is, by the agent's own code in a container of its own.** No kind has an image with its client in it (`minio/mc` is gone, `amazon/aws-cli` is 400 MB of Python), and the agent's own client on the host would dial from the host. So the agent copies its own binary, not mounts it, into a container made from `scratch`, joined to the app's networks, with every capability dropped, a read-only root and no log driver, and runs its `probe` subcommand there: the kind's client (the agent's S3 client, Go's SMTP, an HTTP request), and nothing else. It reaches exactly what the app would, a new Garage at `storage:3900` included, and no more.
+- **The address is checked as it's dialled, in the container.** The probe dials through netguard's `DialFunc`, so each address a name resolves to there is checked at connect time: a name that answers a public address first and a metadata or private one second is refused at the second. A metadata or link-local address is always refused. A private address outside the app's own networks is taken only where an admin added the connection, as a developer's would let them probe the server's network.
+- **Secrets go in on the probe's stdin,** never its environment or its command, so a container a crash leaves behind holds none in `docker inspect`, and the agent removes it as it removes what a crash left of a copy (ADR 0084).
+- **Each step has a bound:** 10 seconds to connect, 60 for the whole check, and the bucket copy one of its own, with progress, as ADR 0084's `CopyWait`.
+- **Where the app has no network of its own,** as a connection no app uses yet, or an app on the host's network (`network_mode: host`), whose network is the host's, the probe runs on a network made for the check, whose bridge has no address on the server (`com.docker.network.bridge.inhibit_ipv4`, as ADR 0084's copy has it), and refuses loopback and the server's own addresses, so it reaches no port on the server. The host itself never dials what a person typed: from the host, loopback, Docker's bridges and the link range `10.233.0.0/16` reach other projects, Caddy's admin API and ports held on 127.0.0.1.
+- **What it answers is a code, never a body:** an S3 error's `Code`, and its `Message` where it holds nothing of the request (`SignatureDoesNotMatch` and `InvalidAccessKeyId` carry the key ID and the string signed), an SMTP reply code, or an HTTP status, as `test_destination.go` reads one today. With it, the address the server reaches out from, and **Copy 203.0.113.40/32** where a provider's allowlist is the likely cause.
+- **`s3`, at plan, at apply and on demand:** sign in, put a small object under the link's prefix and a random name, read it back, presign a URL and fetch it where the need asks for `presigned_urls`, try each other feature the need names, and delete it. It reads the region from the endpoint's answer where it's wrong. The agent's S3 client gains presigning, ListObjectsV2, streamed GetObject and DeleteObjects for it, and the `probe` subcommand, which `make budgets` counts.
+- **`smtp`, at plan, at apply and on demand:** with Go's standard library, connect, `EHLO`, STARTTLS or TLS as set, and sign in, without sending anything; signing in without TLS is refused but on a private address. A port the server can't reach is a state with its fix: "This server can't reach port 587", with **Use port 2525**, which Postmark, Resend and Mailgun take. **Send a test** mails one address the person types.
+- **Later kinds** with their own clients, as a small request each (an OIDC discovery document, an OpenAI-style `/models` with the key, a Meilisearch `/keys/<own>`), under the same rule.
+- **Every 15 minutes, while its app runs, a link is read, never written or signed in to:** `HeadBucket`, or ListObjectsV2 with `max-keys=1` on its prefix, for S3, as a write a version-keeping bucket hides would bill about 96 versions a day, an Object Lock bucket would refuse the delete, and an app that lists its bucket would see it; `EHLO` and STARTTLS without signing in for SMTP, as a sign-in with a revoked password can lock the account. After a refusal it backs off. A failure is an alert ([ADR 0044](0044-alerts.md)) on the app, with the fact, what it means and the fix: "Outline can't reach its storage. Uploads fail until its key works." with **Make a new key**.
+
+### Changing later
+
+**Use another** is on every need's card, for every kind, and is a plan, as ADR 0084's Use another database. Each kind says what happens to its data:
+
+| Kind | Data moves | How |
+| --- | --- | --- |
+| Databases | Where both ends are the same engine | A dump of the one database, as built (ADR 0084) |
+| `s3` | Where both ends answer | A copy from the app's server, below |
+| Search | No: an index is made from the app's data | Where the entry has a `reindex` command, it starts empty and the plan runs it after the restart; otherwise it's refused with `cant_copy` until Start empty is chosen |
+| Queues | No | Refused while the old one holds messages, which the check counts, unless it starts empty |
+| `smtp`, `oidc`, an API | Nothing to move | The values switch, and the app restarts |
+
+**A bucket's copy** runs from the app's server, by the agent's `probe` in a container of its own on the app's networks, as the checks run. It always goes through the server: a GET with the old link's key, a PUT with the new one's. A server-side `CopyObject` would need one key that reads the old bucket and writes the new, which no link holds and the account's credential never sends to a server. In this order:
+
+1. **First while the app runs:** every object, with its `Content-Type`, `Content-Disposition`, `Cache-Control` and `x-amz-meta-*`, and multipart for an object over 5 GB. A manifest of what it copied, by key, size and when, is kept in the agent's data folder, not the container.
+2. **Then the app stops taking writes:** it stops, or, where the person keeps it readable, its routes are held, as ADR 0084 holds them. The downtime starts here, which the plan says.
+3. **Then the old key stops signing,** which ends every URL signed with it, as browsers keep uploading with URLs signed earlier. Where Dockwell made it, it's disabled where the provider can: AWS's access key and Google Cloud's HMAC key are made inactive, and Cloudflare's token disabled. A B2 application key can't be disabled, only deleted, so there it's deleted, and the move's undo makes a new key, which the plan says.
+4. **Where the old key can't be stopped,** as a pasted one, the plan waits out the presign lifetime after the app stopped: the need's `presign_lifetime`, or 7 days, AWS's longest, where the entry doesn't say or the app has no entry, which the plan says, with **Start empty** and **Copy without waiting** as the choices. Copying without waiting says uploads signed before the stop may still land in the old bucket.
+5. **Then a final pass mirrors the source:** what's new or changed against the manifest, by size and listing, never by ETag, which differs for multipart objects across providers, and deletes what the source no longer has. The plan says the downtime grows with how many objects the bucket holds, as the final pass lists them all.
+
+- **A restart mid-move resumes,** as ADR 0084's copy does: the agent reads its manifest back and carries on from it, and the app stays stopped or held until the move ends. A move whose manifest is lost empties the new bucket and copies again whole.
+- **What can't be copied is named before anything moves:** archived objects (Glacier, Archive), SSE-C objects and Object Lock retention. The plan is refused with `cant_copy` until **Start empty** or **Copy what can be copied** is chosen. A versioned bucket's history and delete markers aren't moved either, which the plan says in a line, and doesn't refuse it, as every bucket Dockwell makes keeps versions where it can (below).
+- **A public URL that changes is said,** as an app that keeps absolute URLs in its database (Mastodon, WordPress's offload) still points at the old bucket after.
+- **The old key is revoked once the change is kept,** as a final step of its own, not as it applies, so undoing the move works. An undo after that makes a new key, as a step of its own, which it says.
+
+- **Where data can't move, the plan is refused** with `cant_copy` until **Start empty** is chosen, as built for databases, never a default, with the app's routes held where its first visitor makes its owner.
+- **The old one stays,** marked "No app uses it", with Delete. A bucket made from an account stays at the provider.
+- **Detach** keeps each value as it is now, as a plain variable or secret, as ADR 0084.
+
+### The format
+
+A need says its kind, and everything else is as ADR 0084's:
+
+```yaml
+needs:
+  - name: storage
+    label: Storage
+    kind: KIND_S3
+    optional: true
+    accepts:
+      - kind: KIND_S3
+        features: [presigned_urls]
+    service: garage          # its own, where it brings one
+    bucket: notes            # a name to start from
+    sets:
+      - { name: STORAGE_DRIVER, part: PART_MET, words: { met: "s3", unmet: "local" } }
+      - { name: S3_ENDPOINT, part: PART_ENDPOINT }
+      - { name: S3_REGION, part: PART_REGION }
+      - { name: S3_BUCKET, part: PART_BUCKET }
+      - { name: S3_ACCESS_KEY_ID, part: PART_ACCESS_KEY_ID }
+      - { name: S3_SECRET_ACCESS_KEY, part: PART_SECRET_KEY }
+      - { name: S3_FORCE_PATH_STYLE, part: PART_PATH_STYLE, words: { on: "true", off: "false" } }
+  - name: mail
+    label: Mail
+    kind: KIND_SMTP
+    optional: true
+    sets:
+      - { name: SMTP_HOST, part: PART_HOST }
+      - { name: SMTP_PORT, part: PART_PORT }
+      - { name: SMTP_SECURE, part: PART_SECURITY, words: { tls: "true", starttls: "false", none: "false" } }
+      - { name: SMTP_REQUIRE_TLS, part: PART_SECURITY, words: { tls: "false", starttls: "true", none: "false" } }
+      - { name: SMTP_USER, part: PART_USER }
+      - { name: SMTP_PASSWORD, part: PART_PASSWORD }
+      - { name: MAIL_FROM, part: PART_SENDER }
+```
+
+- **`kind`** is new, and a need without one is a database need, read from its engines as today.
+- **`accepts`** takes implementations with versions, as now, or the kind with features.
+- **Parts** are each kind's, and `catalog.Check` refuses a part the need's kind doesn't have. **`words`** generalizes ADR 0084's TLS words and `PART_ENGINE`'s: any part with a fixed set of values says the app's word for each. A part may be set under more than one name, as STARTTLS here: Nodemailer-style apps read `secure` for TLS from the start and `requireTLS` for STARTTLS, and an app given only the first upgrades only if the server offers it, so a stripped STARTTLS would send its password in the clear.
+- **`presign_lifetime`,** on an `s3` need: how long the app's signed URLs last, such as `1h`, which a bucket's move waits out where it can't stop the old key; 7 days, AWS's longest, unless set. Connect storage takes it too, with 7 days as its default and the app's own value one step away.
+- **`optional`**, `PART_MET`, `empty_when_unmet`, and the kind's own names to start from (`bucket`, as `database` and `user`).
+- **The check** is ADR 0084's, for every kind: each set is used as a whole value, the need's `service` runs an implementation it accepts, and a secret part is never an input.
+
+**The converters** map other stores' fields to needs of any kind, as ADR 0084 maps 1Panel's database fields (Track K, #570):
+
+- **Only what the store's own format declares for the app,** never inferred from an arbitrary name, which ADR 0084 turned down: a form field (1Panel's `formFields`, Runtipi's `form_fields`), a template variable (Dokploy's `template.toml`), or a generated value's name (Coolify's `SERVICE_` names). Umbrel's and CasaOS's Compose files declare no fields, so their apps' S3 and SMTP settings stay as they are. A declared set becomes a need only where every part a kind requires is there, as a bucket, its endpoint and both keys; a partial set stays inputs.
+- **A bundled MinIO or RustFS becomes the need's `service`,** as a bundled database does, so a person can meet it otherwise. A bundled MinIO is never the default New, as it gets no security fixes: the catalog's Garage is, and the row says what it replaced ("New Garage, in place of the store's MinIO"); where a feature the need asks for rules Garage out, RustFS is, then a connection. The store's MinIO stays a choice under Change, with "No maintained images" as its state.
+- **Each store's names for each kind are a reviewed table in the converter,** beside its database names, with each mapping tried in the converters' review tests. SMTP fields, and S3 fields where the store's app has a storage of its own, map to an optional need unless the store marks them required.
+
+### Security
+
+- **Credentials are sealed,** an account's and a connection's alike (`(sensitive)`, ADR 0022). Plans, lists, exports, Activity, logs and URLs name them and never hold them: a plan says "the secret key changed". A presigned URL the check makes lasts a minute, is for an object it deletes, and is never logged.
+- **An account's credential never leaves the control plane,** and the agent never calls a provider's API. What reaches a server is the link's own credential, sealed to the servers that run its app, as every secret is (ADR 0022). A server that's stolen gives up the keys of the apps on it, each to its own bucket, and nothing of the account. A credential that makes credentials is the account, and is held as "Providers are accounts" says.
+- **Per-app scoping** is the default wherever the provider allows, as the table above; a key that reaches more says so on its connection, as a state.
+- **Rotating an account's credential** changes no app: what Dockwell made from it are credentials of their own at the provider. The account is checked again with the new one, and the plan says "nothing restarts".
+- **An account's credential revoked** at the provider leaves every app working on its own key. The card says "Cloudflare refuses the token. Nothing can be made or removed there until it's replaced." with **Replace token**. A plan that would make or revoke something there is refused, and deleting an app says its bucket and key stay at Cloudflare, with a link to them.
+- **A link's own key revoked or expired** fails its check, which alerts on the app. **Make a new key** is a plan, from the account where Dockwell made it, or with a pasted one: it makes the new key, sets it, restarts the app's replicas one at a time, and revokes the old key as a final step once every replica is healthy and the change is kept, as the PRD's rotation asks. Rotating on a schedule is the same plan.
+- **Deleting an app** revokes its keys as a final step of its plan, once the change is kept, and keeps its bucket, marked "No app uses it", unless **Also delete its bucket** is on: off by default, with the bucket's name typed, as a database. Undoing the deletion makes the app a new key, as a step of its own, which it says.
+- **Project reach is said, never implied:** an account, a connection, a registry login and a DNS provider each have `reach`, `none`, `projects` (the ones named) or `every` (every project, new ones too), and Integrations reads them all the same way. From slice 4, empty means none, for every kind; until then registry logins keep ADR 0086's "empty is every project", and only connections, from slice 2, read empty as none. So a holder from before that meant every project is written as `every` when it moves ("Moving what holds credentials today"). A new one reaches none, as ADR 0088's DNS providers do, which amends ADR 0084, where a connection served every project unless it said; one an admin adds from an install sheet reaches that app's project. Where a holder and its account both name projects, it reaches only the projects both name. Below an admin, they read by name and state alone ("named" reach, ADR 0049).
+- **Reaching a connection is reading it.** Linking needs no reveal, and Dockwell's own credential for a link is made in the plan, but ADR 0022 holds: whoever may change a project's apps can read what they're given, by an app that prints its environment. So reach is reading, said where it's chosen, as a state on the connection: "Developers of 3 projects can read it through an app". A pasted key that can't be scoped reaches more than one project only with that state. A key made from an account for each link is the way out, which the connection offers wherever an account could make one. Revealing a value in the panel is an admin's, with a passkey, and on the audit log. A developer may add a connection that reaches their own project alone, from the install sheet.
+- **A token narrowed to projects (ADR 0071)** links only what its projects may use, sees the rest as not there, and never reveals a value: there's no `connections:read`, as revealing is a person's. Making a bucket at a provider is a step its plan may hold in its own projects, as the account names them, at most 10 in one change and 30 in an hour for one token, so a script can't make a thousand, in one change or in a loop; a change that reaches past them waits for a person, as ADR 0071 says.
+
+### What each change does, for every kind
+
+ADR 0084's table holds for every kind, with these for what's new:
+
+- **Upgrade the app:** a release that adds a need, or a feature the link's implementation lacks, is refused with why, or asked for as a new need, as there.
+- **Delete what meets it:** a connection, account or service a link uses can't be deleted, naming the apps, or how many for someone who can't see them.
+- **Backups:** a provider keeping a bucket isn't a backup of it: the app's own key, a bug or a stolen server can delete everything, and R2, Google Cloud Storage and AWS keep no versions unless asked. So an app whose need is met by a bucket shows "Its storage isn't backed up" on its backups card, beside "Back up daily", which backs up its volumes and databases alone. A bucket Dockwell makes keeps what's deleted or overwritten for 7 days where the provider can: on AWS versioning with a rule that expires a noncurrent version after 7 days, on Google Cloud its soft delete, on B2 its own version keeping with a lifecycle rule of 7 days. R2 keeps no versions, so its card says "Its bucket keeps no versions". Undoing the change that made a bucket empties the versions it made before deleting it. A scheduled copy of a bucket to a backup destination comes later. A Garage or RustFS you run is a service whose volumes are backed up with `stop` on, or with Garage's own metadata snapshot, as a copy taken while it runs can restore to metadata that doesn't match its data.
+
+### What we turned down
+
+- **One key for every app,** pasted once on Integrations. It's what other panels do, and one app's leaked key is every app's data.
+- **A prefix of one bucket for each app, by default.** Most stores can hold a key to a prefix, but lifecycle, CORS, public reading, deleting and Use another are per bucket. It's the fallback where a provider's cap on buckets is reached.
+- **One credential an account does everything with.** A DNS token would then make tokens, and a registry key make IAM users.
+- **Moving today's holders in the first slice.** It needs a schema version, a backup first and a slice's care, and an app's bucket needs none of it.
+- **Connections with a value set per environment,** as the PRD sketched. A link lives in one environment already and names its connection, so production and staging each name their own; one connection with two sets would be checked, reached and revealed as two, under one name. One form, a connection per environment and the default pick give what the PRD asks (above), and the PRD says so now.
+- **The agent calling provider APIs.** An account's credential would then be on every server.
+- **Checks from the host.** The host reaches what the app can't (other projects' bridges, its own loopback) and can't reach what the app can (a name on the app's network).
+- **MinIO as a new one from the catalog,** as it gets no security fixes.
+- **Guessing a kind from any Compose file's names,** as ADR 0084 turned down for databases.
+
+## Consequences
+
+- An app that needs S3 takes R2, S3, B2 or Google Cloud Storage, each with a bucket and key of its own made from one account, or a Garage beside it, or a bucket on one you run.
+- Every kind gets the install sheet's row, Use another, the check and the plan's wording from one model, so a new kind is a table of parts, features, a check and a provider's calls.
+- One Cloudflare, AWS, Google Cloud or Backblaze account serves DNS, buckets for apps, buckets for backups and registry tokens, each with a credential of its own, added once.
+- Backup destinations, DNS providers, alert email and ECR logins move in a slice of their own, behind a schema version and a backup, and their sheets become a picker of accounts and connections.
+- The control plane gains a small client for each provider's API, outside the agent build; the agent gains an SMTP check and more of S3, which `make budgets` measures.
+- The converters convert more of the stores: the apps whose store declares their bucket or mail settings get needs.
+
+## Order of work
+
+1. **This record,** its independent review, and the PRD's Connections section amended to match.
+2. **S3 by connection:** the format's `kind`, features, S3 parts, `optional`, `PART_MET` and `empty_when_unmet`; `connection` as a resource with a pasted S3 (and database, ADR 0084's slice 4) value set, with `reach`; the check from a throwaway on the app's networks; a link to a connection; the install sheet's Use a connection and Add a connection; and **Connect storage** on any app's Environment tab. The owner can then give an installed or imported app an R2, S3, B2 or Google Cloud Storage bucket with keys pasted once.
+3. **Provider accounts:** Cloudflare first, then Backblaze, AWS and Google Cloud: a credential per capability, a bucket and key per link made idempotently, caps, the sweep of this install's orphans, revoked with the app as a final step, rotated as a plan, and AWS's pattern proven against each escalation with `SimulatePrincipalPolicy`.
+4. **Today's holders:** backup destinations, DNS providers, alert email and ECR logins moved onto accounts and connections, behind a schema version and a copy of the database taken first, as "Moving what holds credentials today" says.
+5. **S3 new and one you run:** the catalog's `garage` and `rustfs` entries, with a route where a browser needs one, a bucket and key per app on one you run, and Use another with the bucket copy. Dockwell's own entries that bring MinIO take a need.
+6. **SMTP:** the kind, pasted connections with provider templates (Resend, Postmark, SES, Mailgun, Brevo), the check and Send a test, Mailpit outside production on a private route, and per-app keys where an account allows.
+7. **The rest of #264:** templates for Supabase, Neon, Stripe, OpenAI, Anthropic and Sentry, and Custom (a connection of named fields, as a kind of its own); transforms; files under `/run/secrets/` for `*_FILE` names; a config template; Used by; revealing with a passkey; the CLI. With 2, 3 and 6, this closes #264.
+8. **The later kinds:** OIDC with a client per app on a provider you run, an OpenAI-style API, Meilisearch, AMQP and Kafka, each with its least privilege and its check.
+
+### Interactions
+
+- **Track K's converter (#570)** maps S3 and SMTP fields with the tables above, after slice 2's format lands; the 1Panel needs it builds for databases are the pattern.
+- **Track K's importers** (1Panel, ADR 0056; Coolify and Dokploy, ADR 0089) find an imported app's S3 and SMTP values, and offer to turn them into a connection and a link through Connect storage, keeping their names, as ADR 0096 keeps a taken-on container's values by name and Connect a database (ADR 0084) does for a database. Coolify's S3 storages and Dokploy's destinations become `s3` connections, and backup destinations where they were, each with a prefix of Dockwell's own, pruning only what Dockwell recorded, so Dockwell never prunes beside Coolify's or Dokploy's own backups.
+- **Track C's stores (#568)** keep their adapters: what changes is the converters' needs, not how a store is read. A store app whose need can't be met yet (an `oidc` need before slice 8) installs with it as inputs, as today.
+
+### Numbers
+
+`Need.kind`, `features`, `optional`, `bucket`, `empty_when_unmet` and `presign_lifetime`, and the `Kind` and `Feature` enums, in the format's `proto/dockwell/catalog/v1alpha1/entry.proto`; the S3 parts from 50, the SMTP parts from 60 and `PART_MET` 70 in `Part`, free on main and every branch (`PART_ENGINE` 41 is on `t3/part-engine`), so `LinkPart` keeps the same numbers; the `connection` and `provider.account` kinds, `reach` on each Integrations kind, and fields on `Link`, `BackupDestination`, `DnsProvider`, `AlertEmail` and `RegistryLogin` in slice 4. The agent protocol's and the API's blocks come from the lead before slice 2. Migrations take main's next number when they land.
