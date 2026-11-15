@@ -18,10 +18,12 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
 }
 
 .app-source-subject {
   font-weight: 500;
+  overflow-wrap: anywhere;
 }
 
 .app-source-push {
@@ -30,26 +32,45 @@
   gap: var(--space-3);
 }
 
-.app-source-hook {
+/* The hook's state, in one line with its action, which wraps under it on a narrow column. */
+.app-source-line {
+  margin: 0;
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.app-source-hook .copy-command {
-  flex: 1 1 240px;
-  min-width: 0;
-}
-
-.app-source-note {
-  margin: 0;
+  align-items: baseline;
+  gap: 2px var(--space-2);
   font-size: 13px;
   line-height: 20px;
 }
 
+.app-source-line.is-warning {
+  align-items: center;
+}
+
+.app-source-line.is-warning > svg {
+  color: var(--warning);
+}
+
+.app-source-line .app-panel-link {
+  margin-left: auto;
+}
+
+.app-source-change {
+  color: inherit;
+  text-decoration: none;
+}
+
+.app-source-change:hover span,
+.app-source-change:focus-visible span {
+  text-decoration: underline;
+}
+
+.app-source-failed {
+  color: var(--critical);
+}
+
 .app-source-why {
-  display: block;
+  flex-basis: 100%;
   color: var(--ink-muted);
 }
 
@@ -63,18 +84,13 @@
   align-items: center;
 }
 
-.app-hook-where h3 {
-  margin: 0 0 var(--space-2);
-  font-size: 13px;
-  font-weight: 600;
+.app-hook-fields .copy-command {
+  min-width: 0;
 }
 
-.app-hook-where ul {
-  margin: 0;
-  padding-left: var(--space-5);
-  font-size: 13px;
-  line-height: 20px;
+.app-hook-secret {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
+  align-items: center;
   gap: var(--space-2);
 }

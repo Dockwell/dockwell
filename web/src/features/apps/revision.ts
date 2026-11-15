@@ -1,6 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { BuildState, type Change, ChangeState, DeploymentState, FieldOp, type ServiceRevision } from "@dockwell/api";
+import {
+  ActorKind,
+  BuildState,
+  type Change,
+  ChangeState,
+  DeploymentState,
+  FieldOp,
+  type ServiceRevision,
+} from "@dockwell/api";
 import type { Status } from "@dockwell/ui";
 import { useLingui } from "@lingui/react/macro";
 import { createElement, type ReactNode, useCallback, useMemo } from "react";
@@ -177,7 +185,8 @@ export function useRevisionTitle() {
 /**
  * Who did a change, in words that read: a person by name, and what comes from
  * local access, as a token isn't a person, by where it was run, "from the CLI
- * on hz-1". That's what made the token, never what it's called (localHost).
+ * on hz-1". That's what made the token, never what it's called (localHost). A
+ * deploy on push is a push, as Deployments' trigger says (ADR 0046).
  */
 export function useWhoWords() {
   const { t } = useLingui();
@@ -186,13 +195,14 @@ export function useWhoWords() {
       /** Whether the name says where it came from already, as "the CLI on hz-1" does. */
       saysWhere(change: Change | undefined): boolean {
         const actor = change?.appliedBy?.name ? change.appliedBy : change?.proposedBy;
-        return Boolean(localHost(actor));
+        return Boolean(localHost(actor)) || actor?.kind === ActorKind.HOOK;
       },
       /** The name alone, for a row with room for a name: "Mira Chen", "the CLI on hz-1". */
       name(change: Change | undefined): string {
         const actor = change?.appliedBy?.name ? change.appliedBy : change?.proposedBy;
         const name = actor?.name ?? "";
         const local = localHost(actor);
+        if (actor?.kind === ActorKind.HOOK) return t`Push`;
         return local ? t`the CLI on ${local}` : name;
       },
       /** That it deployed, how long ago, and who did it: "deployed 3 min ago by Mira Chen", said whole for other languages. */
@@ -201,6 +211,7 @@ export function useWhoWords() {
         const name = actor?.name ?? "";
         const local = localHost(actor);
         if (local) return t`deployed ${ago} from the CLI on ${local}`;
+        if (actor?.kind === ActorKind.HOOK) return t`deployed ${ago} on a push`;
         return name ? t`deployed ${ago} by ${name}` : t`deployed ${ago}`;
       },
       /** The same on a phone's panel, which says which revision. */
@@ -209,6 +220,7 @@ export function useWhoWords() {
         const name = actor?.name ?? "";
         const local = localHost(actor);
         if (local) return t`${revision} deployed ${when} from the CLI on ${local}`;
+        if (actor?.kind === ActorKind.HOOK) return t`${revision} deployed ${when} on a push`;
         return name ? t`${revision} deployed ${when} by ${name}` : t`${revision} deployed ${when}`;
       },
     }),

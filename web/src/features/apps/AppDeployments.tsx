@@ -78,10 +78,11 @@ const DEPLOYMENT_LOOKS: Partial<Record<DeploymentState, Status>> = {
 /** From this wide, the list has room for how long each revision took. */
 const ROOMY_QUERY = "(min-width: 900px)";
 
-/** Where a change came from, by its mark: a person, a token, or Dockwell. */
+/** Where a change came from, by its mark: a person, a token, a push, or Dockwell. */
 function triggerIcon(rev: ServiceRevision): IconName {
   if (rev.change?.reverts || rev.rolledBackTo > 0n) return "undo";
   const kind = (rev.change?.appliedBy ?? rev.change?.proposedBy)?.kind;
+  if (kind === ActorKind.HOOK) return "commit";
   if (kind === ActorKind.TOKEN) return "key";
   if (kind === ActorKind.SHELL) return "terminal";
   if (kind === ActorKind.DOCKWELL) return "activity";

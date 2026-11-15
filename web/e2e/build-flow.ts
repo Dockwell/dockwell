@@ -238,7 +238,8 @@ export async function buildFlow(page: Page, { origin, step, shoot, git }: BuildF
       .locator("dt", { hasText: new RegExp(`^${name}$`) })
       .locator("xpath=following-sibling::dd[1]")
       .locator("code");
-  const url = (await field("Payload URL").textContent()) ?? fail("the hook's sheet has no URL");
+  // A Git server Dockwell can't name is taken for a Gitea, whose form calls it the target URL.
+  const url = (await field("Target URL").textContent()) ?? fail("the hook's sheet has no URL");
   const secret = (await field("Secret").textContent()) ?? fail("the hook's sheet has no secret");
   if (!/\/hooks\/git\/ghk_[0-9A-Za-z]+$/.test(url) || !/^[0-9a-f]{64}$/.test(secret))
     fail(`the hook is at ${url} with a secret of ${secret.length} characters`);
@@ -270,7 +271,7 @@ export async function buildFlow(page: Page, { origin, step, shoot, git }: BuildF
     .filter({ hasText: "Add gift cards" });
   await giftcards.first().waitFor({ timeout: 60_000 });
   await page.goto(overview);
-  await source.getByText(/Last push, .*: started a deploy of [0-9a-f]{7}/).waitFor();
+  await source.getByText(/^Last push .* started a deploy of [0-9a-f]{7}\.$/).waitFor();
   await shoot(page, "push-deployed");
 
   step("the timeline says what the push came to, and turning deploy on push off needs no passkey");
@@ -279,7 +280,7 @@ export async function buildFlow(page: Page, { origin, step, shoot, git }: BuildF
   await shoot(page, "push-activity");
   await page.goto(overview);
   await onPush.click();
-  await source.getByText(/Deploy on push is off/).waitFor();
+  await source.getByText("The hook now refuses pushes. Remove it from the repository too.").waitFor();
   if ((await push(url, secret, git)) !== 401) fail("a hook turned off still takes pushes");
   await move(git, "stable");
 }
