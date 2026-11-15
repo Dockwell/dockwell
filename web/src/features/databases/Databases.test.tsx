@@ -184,6 +184,17 @@ const ENGINES: Record<string, Engine> = {
   mysql: Engine.MYSQL,
 };
 
+/** A list of the catalog as the control plane answers New database, with each entry's engine (#723). */
+const listed = (entries: readonly (typeof postgres)[]) => ({
+  entries: [...entries],
+  engines: Object.fromEntries(
+    entries.flatMap((e): [string, Engine][] => {
+      const engine = ENGINES[e.id];
+      return engine === undefined ? [] : [[e.id, engine]];
+    }),
+  ),
+});
+
 /** What installing an entry runs: a database for an engine, an app for a tool, and an app with a database beside it. */
 const catalogEntry = (req: { id: string }) => {
   const entry = [postgres, mysql, adminer, tunnel, storePostgres, metabase].find((e) => e.id === req.id) ?? postgres;
@@ -223,7 +234,7 @@ function api(databases: Database[], more: Api = {}): Api {
     resources: places(),
     health: running(...databases),
     catalog: {
-      listCatalogEntries: () => ({ entries: [tunnel, adminer, postgres, mysql] }),
+      listCatalogEntries: () => listed([tunnel, adminer, postgres, mysql]),
       getCatalogEntry: catalogEntry,
     },
     backups: { previewBackup: () => ({ method: BackupMethod.DUMP, database: "PostgreSQL" }) },
@@ -244,6 +255,48 @@ afterEach(() => {
 });
 
 describe("the databases list", () => {
+  it("reads every engine's tile in one request, with no read of each entry, and holds their room meanwhile", async () => {
+    let lists = 0;
+    let withEngines = false;
+    let reads = 0;
+    let answer: (() => void) | undefined;
+    const answered = new Promise<void>((resolve) => {
+      answer = resolve;
+    });
+    localStorage.setItem("dockwell.databases.engines", "2");
+    renderAt(
+      "/databases",
+      api([aDatabase()], {
+        catalog: {
+          listCatalogEntries: async (req) => {
+            if (req.category === "databases") {
+              lists++;
+              withEngines = req.withEngines;
+              await answered;
+            }
+            return listed([adminer, metabase, postgres, storePostgres, mysql]);
+          },
+          getCatalogEntry: (req) => {
+            reads++;
+            return catalogEntry(req);
+          },
+        },
+      }),
+    );
+    // As many places as there were engines last time, while the catalog is read.
+    const busy = await screen.findByRole("list", { name: "Engines" });
+    await waitFor(() => expect(busy.querySelectorAll(".is-placeholder")).toHaveLength(2));
+    answer?.();
+    const tiles = await screen.findAllByRole("link", { name: /PostgreSQL|MySQL/ });
+    expect(tiles).toHaveLength(2);
+    expect(tiles[0]).toHaveTextContent("PostgreSQL");
+    expect(tiles[1]).toHaveTextContent("MySQL");
+    expect(lists).toBe(1);
+    expect(withEngines).toBe(true);
+    expect(reads).toBe(0);
+    localStorage.removeItem("dockwell.databases.engines");
+  });
+
   it("lists each database with what it says of itself, and how it's backed up", async () => {
     const { container } = renderAt("/databases", api([cache(), aDatabase()]));
     const table = await screen.findByRole("table", { name: "Databases" });
@@ -349,7 +402,7 @@ describe("the databases list", () => {
       "/databases",
       api([aDatabase()], {
         catalog: {
-          listCatalogEntries: () => ({ entries: [tunnel, adminer, metabase, postgres, storePostgres, mysql] }),
+          listCatalogEntries: () => listed([tunnel, adminer, metabase, postgres, storePostgres, mysql]),
           getCatalogEntry: catalogEntry,
           listCatalogSources: () => ({ sources: [onePanel] }),
         },
@@ -377,7 +430,7 @@ describe("the databases list", () => {
       "/databases?new=postgres",
       api([aDatabase()], {
         catalog: {
-          listCatalogEntries: () => ({ entries: [adminer, metabase, postgres, storePostgres, mysql] }),
+          listCatalogEntries: () => listed([adminer, metabase, postgres, storePostgres, mysql]),
           getCatalogEntry: catalogEntry,
           listCatalogSources: () => ({ sources: [onePanel] }),
           installCatalogEntry: () => {
@@ -422,7 +475,7 @@ describe("the databases list", () => {
       "/databases",
       api([aDatabase()], {
         catalog: {
-          listCatalogEntries: () => ({ entries: [adminer, postgres, mysql] }),
+          listCatalogEntries: () => listed([adminer, postgres, mysql]),
           getCatalogEntry: catalogEntry,
           installCatalogEntry: (req) => {
             asked.push({ id: req.id, project: req.project });
@@ -453,7 +506,7 @@ describe("the databases list", () => {
       "/databases",
       api([aDatabase()], {
         catalog: {
-          listCatalogEntries: () => ({ entries: [adminer, postgres, mysql] }),
+          listCatalogEntries: () => listed([adminer, postgres, mysql]),
           getCatalogEntry: catalogEntry,
           installCatalogEntry: () =>
             new Promise((_, reject) => {
@@ -935,7 +988,7 @@ describe("a database's backups and upgrades", () => {
       "/databases/svc_db",
       api([aDatabase({ catalogEntry: "postgres" })], {
         catalog: {
-          listCatalogEntries: () => ({ entries: [postgres] }),
+          listCatalogEntries: () => listed([postgres]),
           listCatalogInstalls: () => ({
             installs: [
               {
@@ -983,7 +1036,7 @@ describe("a database's backups and upgrades", () => {
       "/databases/svc_db",
       api([aDatabase({ catalogEntry: "postgres" })], {
         catalog: {
-          listCatalogEntries: () => ({ entries: [withTools] }),
+          listCatalogEntries: () => listed([withTools]),
           getCatalogEntry: () => ({ entry: withTools }),
           listCatalogInstalls: () => ({
             installs: [
@@ -1051,7 +1104,7 @@ describe("a database's backups and upgrades", () => {
       api([aDatabase({ catalogEntry: "postgres" })], {
         backups: { previewBackup: () => ({ method: BackupMethod.COPY }) },
         catalog: {
-          listCatalogEntries: () => ({ entries: [postgres] }),
+          listCatalogEntries: () => listed([postgres]),
           listCatalogInstalls: () => ({
             installs: [
               {

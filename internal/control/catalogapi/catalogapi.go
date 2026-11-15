@@ -94,11 +94,55 @@ func (h *Handler) ListCatalogEntries(ctx context.Context, req *connect.Request[d
 			return nil, h.internal(ctx, err)
 		}
 	}
-	page, err := h.pages.of(s).page(req.Msg, installed)
+	idx := h.pages.of(s)
+	page, err := idx.page(req.Msg, installed)
 	if err != nil {
 		return nil, invalid(err)
 	}
+	if req.Msg.GetWithEngines() {
+		page.Engines = map[string]catalogv1.Engine{}
+		for _, e := range page.GetEntries() {
+			if engine := idx.engineOf(ctx, e); engine != catalogv1.Engine_ENGINE_UNSPECIFIED {
+				page.Engines[e.GetId()] = engine
+			}
+		}
+	}
 	return connect.NewResponse(page), nil
+}
+
+// engineOf is the engine an entry makes a database of: where everything it runs
+// beside its companions is that one engine's database, as its parts read it. A tool,
+// an app that brings a database of its own, or an entry whose file can't be read
+// makes none.
+func engineOf(ctx context.Context, e *catalogv1.Entry) catalogv1.Engine {
+	parts, err := partsOf(ctx, catalog.Standing(e), catalog.Suggest(e, nil))
+	if err != nil {
+		return catalogv1.Engine_ENGINE_UNSPECIFIED
+	}
+	companions := map[string]bool{}
+	for _, c := range e.GetCompanions() {
+		companions[c.GetService()] = true
+	}
+	engine := catalogv1.Engine_ENGINE_UNSPECIFIED
+	own := 0
+	for _, p := range parts {
+		if companions[p.GetService()] {
+			continue
+		}
+		own++
+		switch {
+		case p.GetEngine() == catalogv1.Engine_ENGINE_UNSPECIFIED:
+			return catalogv1.Engine_ENGINE_UNSPECIFIED
+		case engine == catalogv1.Engine_ENGINE_UNSPECIFIED:
+			engine = p.GetEngine()
+		case engine != p.GetEngine():
+			return catalogv1.Engine_ENGINE_UNSPECIFIED
+		}
+	}
+	if own == 0 {
+		return catalogv1.Engine_ENGINE_UNSPECIFIED
+	}
+	return engine
 }
 
 // listed is an entry as the catalog lists it: without its README, and with only the

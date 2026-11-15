@@ -112,7 +112,11 @@ type ListCatalogEntriesRequest struct {
 	// Only the entries of these IDs.
 	Ids []string `protobuf:"bytes,9,rep,name=ids,proto3" json:"ids,omitempty"`
 	// How the entries are ordered: by name unless set.
-	Order         CatalogOrder `protobuf:"varint,10,opt,name=order,proto3,enum=dockwell.v1.CatalogOrder" json:"order,omitempty"`
+	Order CatalogOrder `protobuf:"varint,10,opt,name=order,proto3,enum=dockwell.v1.CatalogOrder" json:"order,omitempty"`
+	// True to have the answer say which engine each entry makes a database of, in
+	// engines, so New database groups the catalog's databases by engine in one
+	// request rather than one for each entry (#723).
+	WithEngines   bool `protobuf:"varint,11,opt,name=with_engines,json=withEngines,proto3" json:"with_engines,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -217,6 +221,13 @@ func (x *ListCatalogEntriesRequest) GetOrder() CatalogOrder {
 	return CatalogOrder_CATALOG_ORDER_UNSPECIFIED
 }
 
+func (x *ListCatalogEntriesRequest) GetWithEngines() bool {
+	if x != nil {
+		return x.WithEngines
+	}
+	return false
+}
+
 // ListCatalogEntriesResponse is a page of the catalog.
 type ListCatalogEntriesResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -237,7 +248,13 @@ type ListCatalogEntriesResponse struct {
 	// other filter but category, the installed filter too: the choices a page of
 	// them offers, which stay as words are typed and as the installed filter is
 	// turned on, and how many each holds then. No one page can say either.
-	Categories    []*CatalogCategoryCount `protobuf:"bytes,23,rep,name=categories,proto3" json:"categories,omitempty"`
+	Categories []*CatalogCategoryCount `protobuf:"bytes,23,rep,name=categories,proto3" json:"categories,omitempty"`
+	// The engine each entry of the page makes a database of, by its ID, when
+	// with_engines asks: where everything it runs beside its companions is one
+	// engine's database, as PostgreSQL for Dockwell's postgres. A tool, such as
+	// Adminer, or an app that brings a database of its own, makes none, and isn't
+	// here. Empty unless asked.
+	Engines       map[string]v1alpha1.Engine `protobuf:"bytes,24,rep,name=engines,proto3" json:"engines,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"varint,2,opt,name=value,enum=dockwell.catalog.v1alpha1.Engine"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -303,6 +320,13 @@ func (x *ListCatalogEntriesResponse) GetNextPageToken() string {
 func (x *ListCatalogEntriesResponse) GetCategories() []*CatalogCategoryCount {
 	if x != nil {
 		return x.Categories
+	}
+	return nil
+}
+
+func (x *ListCatalogEntriesResponse) GetEngines() map[string]v1alpha1.Engine {
+	if x != nil {
+		return x.Engines
 	}
 	return nil
 }
@@ -3378,7 +3402,7 @@ var File_dockwell_v1_catalog_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_catalog_proto_rawDesc = "" +
 	"\n" +
-	"\x19dockwell/v1/catalog.proto\x12\vdockwell.v1\x1a%dockwell/catalog/v1alpha1/entry.proto\x1a&dockwell/resource/v1alpha1/specs.proto\x1a\x18dockwell/v1/backup.proto\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xcf\x02\n" +
+	"\x19dockwell/v1/catalog.proto\x12\vdockwell.v1\x1a%dockwell/catalog/v1alpha1/entry.proto\x1a&dockwell/resource/v1alpha1/specs.proto\x1a\x18dockwell/v1/backup.proto\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xf2\x02\n" +
 	"\x19ListCatalogEntriesRequest\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
@@ -3391,7 +3415,8 @@ const file_dockwell_v1_catalog_proto_rawDesc = "" +
 	"\tinstalled\x18\b \x01(\bR\tinstalled\x12\x10\n" +
 	"\x03ids\x18\t \x03(\tR\x03ids\x12/\n" +
 	"\x05order\x18\n" +
-	" \x01(\x0e2\x19.dockwell.v1.CatalogOrderR\x05order\"\x8e\x02\n" +
+	" \x01(\x0e2\x19.dockwell.v1.CatalogOrderR\x05order\x12!\n" +
+	"\fwith_engines\x18\v \x01(\bR\vwithEngines\"\xbd\x03\n" +
 	"\x1aListCatalogEntriesResponse\x12:\n" +
 	"\aentries\x18\x01 \x03(\v2 .dockwell.catalog.v1alpha1.EntryR\aentries\x123\n" +
 	"\x04also\x18\x14 \x03(\v2\x1f.dockwell.v1.CatalogAlternativeR\x04also\x12\x14\n" +
@@ -3399,7 +3424,11 @@ const file_dockwell_v1_catalog_proto_rawDesc = "" +
 	"\x0fnext_page_token\x18\x16 \x01(\tR\rnextPageToken\x12A\n" +
 	"\n" +
 	"categories\x18\x17 \x03(\v2!.dockwell.v1.CatalogCategoryCountR\n" +
-	"categories\"`\n" +
+	"categories\x12N\n" +
+	"\aengines\x18\x18 \x03(\v24.dockwell.v1.ListCatalogEntriesResponse.EnginesEntryR\aengines\x1a]\n" +
+	"\fEnginesEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x127\n" +
+	"\x05value\x18\x02 \x01(\x0e2!.dockwell.catalog.v1alpha1.EngineR\x05value:\x028\x01\"`\n" +
 	"\x14CatalogCategoryCount\x12\x1a\n" +
 	"\bcategory\x18\x01 \x01(\tR\bcategory\x12\x14\n" +
 	"\x05count\x18\x02 \x01(\x05R\x05count\x12\x16\n" +
@@ -3697,7 +3726,7 @@ func file_dockwell_v1_catalog_proto_rawDescGZIP() []byte {
 }
 
 var file_dockwell_v1_catalog_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_dockwell_v1_catalog_proto_msgTypes = make([]protoimpl.MessageInfo, 56)
+var file_dockwell_v1_catalog_proto_msgTypes = make([]protoimpl.MessageInfo, 57)
 var file_dockwell_v1_catalog_proto_goTypes = []any{
 	(CatalogOrder)(0),                      // 0: dockwell.v1.CatalogOrder
 	(*ListCatalogEntriesRequest)(nil),      // 1: dockwell.v1.ListCatalogEntriesRequest
@@ -3745,118 +3774,121 @@ var file_dockwell_v1_catalog_proto_goTypes = []any{
 	(*CheckCatalogSourceResponse)(nil),     // 43: dockwell.v1.CheckCatalogSourceResponse
 	(*RemoveCatalogSourceRequest)(nil),     // 44: dockwell.v1.RemoveCatalogSourceRequest
 	(*RemoveCatalogSourceResponse)(nil),    // 45: dockwell.v1.RemoveCatalogSourceResponse
-	nil,                                    // 46: dockwell.v1.GetCatalogEntryResponse.ValuesEntry
-	nil,                                    // 47: dockwell.v1.CatalogPart.PathInputsEntry
-	nil,                                    // 48: dockwell.v1.CatalogInstall.CompanionsEntry
-	nil,                                    // 49: dockwell.v1.InstallCatalogEntryRequest.ValuesEntry
-	nil,                                    // 50: dockwell.v1.InstallCatalogEntryRequest.MemoryEntry
-	nil,                                    // 51: dockwell.v1.InstallCatalogEntryRequest.CpusEntry
-	nil,                                    // 52: dockwell.v1.InstallCatalogEntryRequest.RestartEntry
-	nil,                                    // 53: dockwell.v1.InstallCatalogEntryRequest.CompanionsEntry
-	nil,                                    // 54: dockwell.v1.InstallCatalogEntryRequest.NeedsEntry
-	nil,                                    // 55: dockwell.v1.UpgradeCatalogInstallRequest.ValuesEntry
-	nil,                                    // 56: dockwell.v1.SetCatalogCompanionRequest.ValuesEntry
-	(*v1alpha1.Entry)(nil),                 // 57: dockwell.catalog.v1alpha1.Entry
-	(v1alpha1.Engine)(0),                   // 58: dockwell.catalog.v1alpha1.Engine
-	(*HostAccess)(nil),                     // 59: dockwell.v1.HostAccess
-	(v1alpha11.RestartPolicy)(0),           // 60: dockwell.resource.v1alpha1.RestartPolicy
-	(*v1alpha11.CatalogPin)(nil),           // 61: dockwell.resource.v1alpha1.CatalogPin
-	(*Change)(nil),                         // 62: dockwell.v1.Change
-	(*Backup)(nil),                         // 63: dockwell.v1.Backup
-	(v1alpha11.CatalogFormat)(0),           // 64: dockwell.resource.v1alpha1.CatalogFormat
-	(*v1alpha11.CatalogSource)(nil),        // 65: dockwell.resource.v1alpha1.CatalogSource
-	(*timestamppb.Timestamp)(nil),          // 66: google.protobuf.Timestamp
+	nil,                                    // 46: dockwell.v1.ListCatalogEntriesResponse.EnginesEntry
+	nil,                                    // 47: dockwell.v1.GetCatalogEntryResponse.ValuesEntry
+	nil,                                    // 48: dockwell.v1.CatalogPart.PathInputsEntry
+	nil,                                    // 49: dockwell.v1.CatalogInstall.CompanionsEntry
+	nil,                                    // 50: dockwell.v1.InstallCatalogEntryRequest.ValuesEntry
+	nil,                                    // 51: dockwell.v1.InstallCatalogEntryRequest.MemoryEntry
+	nil,                                    // 52: dockwell.v1.InstallCatalogEntryRequest.CpusEntry
+	nil,                                    // 53: dockwell.v1.InstallCatalogEntryRequest.RestartEntry
+	nil,                                    // 54: dockwell.v1.InstallCatalogEntryRequest.CompanionsEntry
+	nil,                                    // 55: dockwell.v1.InstallCatalogEntryRequest.NeedsEntry
+	nil,                                    // 56: dockwell.v1.UpgradeCatalogInstallRequest.ValuesEntry
+	nil,                                    // 57: dockwell.v1.SetCatalogCompanionRequest.ValuesEntry
+	(*v1alpha1.Entry)(nil),                 // 58: dockwell.catalog.v1alpha1.Entry
+	(v1alpha1.Engine)(0),                   // 59: dockwell.catalog.v1alpha1.Engine
+	(*HostAccess)(nil),                     // 60: dockwell.v1.HostAccess
+	(v1alpha11.RestartPolicy)(0),           // 61: dockwell.resource.v1alpha1.RestartPolicy
+	(*v1alpha11.CatalogPin)(nil),           // 62: dockwell.resource.v1alpha1.CatalogPin
+	(*Change)(nil),                         // 63: dockwell.v1.Change
+	(*Backup)(nil),                         // 64: dockwell.v1.Backup
+	(v1alpha11.CatalogFormat)(0),           // 65: dockwell.resource.v1alpha1.CatalogFormat
+	(*v1alpha11.CatalogSource)(nil),        // 66: dockwell.resource.v1alpha1.CatalogSource
+	(*timestamppb.Timestamp)(nil),          // 67: google.protobuf.Timestamp
 }
 var file_dockwell_v1_catalog_proto_depIdxs = []int32{
 	0,  // 0: dockwell.v1.ListCatalogEntriesRequest.order:type_name -> dockwell.v1.CatalogOrder
-	57, // 1: dockwell.v1.ListCatalogEntriesResponse.entries:type_name -> dockwell.catalog.v1alpha1.Entry
+	58, // 1: dockwell.v1.ListCatalogEntriesResponse.entries:type_name -> dockwell.catalog.v1alpha1.Entry
 	4,  // 2: dockwell.v1.ListCatalogEntriesResponse.also:type_name -> dockwell.v1.CatalogAlternative
 	3,  // 3: dockwell.v1.ListCatalogEntriesResponse.categories:type_name -> dockwell.v1.CatalogCategoryCount
-	57, // 4: dockwell.v1.CatalogAlternative.entry:type_name -> dockwell.catalog.v1alpha1.Entry
-	57, // 5: dockwell.v1.GetCatalogEntryResponse.entry:type_name -> dockwell.catalog.v1alpha1.Entry
-	46, // 6: dockwell.v1.GetCatalogEntryResponse.values:type_name -> dockwell.v1.GetCatalogEntryResponse.ValuesEntry
-	8,  // 7: dockwell.v1.GetCatalogEntryResponse.parts:type_name -> dockwell.v1.CatalogPart
-	7,  // 8: dockwell.v1.GetCatalogEntryResponse.needs:type_name -> dockwell.v1.CatalogNeedOption
-	58, // 9: dockwell.v1.CatalogNeedOption.engine:type_name -> dockwell.catalog.v1alpha1.Engine
-	59, // 10: dockwell.v1.CatalogPart.host_access:type_name -> dockwell.v1.HostAccess
-	47, // 11: dockwell.v1.CatalogPart.path_inputs:type_name -> dockwell.v1.CatalogPart.PathInputsEntry
-	60, // 12: dockwell.v1.CatalogPart.restart:type_name -> dockwell.resource.v1alpha1.RestartPolicy
-	58, // 13: dockwell.v1.CatalogPart.engine:type_name -> dockwell.catalog.v1alpha1.Engine
-	11, // 14: dockwell.v1.ListCatalogInstallsResponse.installs:type_name -> dockwell.v1.CatalogInstall
-	61, // 15: dockwell.v1.CatalogInstall.pin:type_name -> dockwell.resource.v1alpha1.CatalogPin
-	12, // 16: dockwell.v1.CatalogInstall.upgrade:type_name -> dockwell.v1.CatalogUpgrade
-	48, // 17: dockwell.v1.CatalogInstall.companions:type_name -> dockwell.v1.CatalogInstall.CompanionsEntry
-	49, // 18: dockwell.v1.InstallCatalogEntryRequest.values:type_name -> dockwell.v1.InstallCatalogEntryRequest.ValuesEntry
-	50, // 19: dockwell.v1.InstallCatalogEntryRequest.memory:type_name -> dockwell.v1.InstallCatalogEntryRequest.MemoryEntry
-	51, // 20: dockwell.v1.InstallCatalogEntryRequest.cpus:type_name -> dockwell.v1.InstallCatalogEntryRequest.CpusEntry
-	52, // 21: dockwell.v1.InstallCatalogEntryRequest.restart:type_name -> dockwell.v1.InstallCatalogEntryRequest.RestartEntry
-	53, // 22: dockwell.v1.InstallCatalogEntryRequest.companions:type_name -> dockwell.v1.InstallCatalogEntryRequest.CompanionsEntry
-	54, // 23: dockwell.v1.InstallCatalogEntryRequest.needs:type_name -> dockwell.v1.InstallCatalogEntryRequest.NeedsEntry
-	62, // 24: dockwell.v1.InstallCatalogEntryResponse.change:type_name -> dockwell.v1.Change
-	55, // 25: dockwell.v1.UpgradeCatalogInstallRequest.values:type_name -> dockwell.v1.UpgradeCatalogInstallRequest.ValuesEntry
-	62, // 26: dockwell.v1.UpgradeCatalogInstallResponse.change:type_name -> dockwell.v1.Change
-	56, // 27: dockwell.v1.SetCatalogCompanionRequest.values:type_name -> dockwell.v1.SetCatalogCompanionRequest.ValuesEntry
-	62, // 28: dockwell.v1.SetCatalogCompanionResponse.change:type_name -> dockwell.v1.Change
-	62, // 29: dockwell.v1.SetCatalogNeedResponse.change:type_name -> dockwell.v1.Change
-	63, // 30: dockwell.v1.BackUpCatalogNeedResponse.backup:type_name -> dockwell.v1.Backup
-	63, // 31: dockwell.v1.ListCatalogNeedBackupsResponse.backups:type_name -> dockwell.v1.Backup
-	62, // 32: dockwell.v1.RestoreCatalogNeedResponse.change:type_name -> dockwell.v1.Change
-	62, // 33: dockwell.v1.OpenCatalogInstallResponse.change:type_name -> dockwell.v1.Change
-	64, // 34: dockwell.v1.SetCatalogSourceRequest.format:type_name -> dockwell.resource.v1alpha1.CatalogFormat
-	62, // 35: dockwell.v1.SetCatalogSourceResponse.change:type_name -> dockwell.v1.Change
-	33, // 36: dockwell.v1.ListCatalogSourcesResponse.sources:type_name -> dockwell.v1.CatalogSourceInfo
-	65, // 37: dockwell.v1.CatalogSourceInfo.source:type_name -> dockwell.resource.v1alpha1.CatalogSource
-	34, // 38: dockwell.v1.CatalogSourceInfo.refused:type_name -> dockwell.v1.CatalogSourceRefusal
-	66, // 39: dockwell.v1.CatalogSourceInfo.checked:type_name -> google.protobuf.Timestamp
-	66, // 40: dockwell.v1.CatalogSourceInfo.next_check:type_name -> google.protobuf.Timestamp
-	37, // 41: dockwell.v1.ListCatalogStoresResponse.stores:type_name -> dockwell.v1.CatalogStore
-	64, // 42: dockwell.v1.CatalogStore.format:type_name -> dockwell.resource.v1alpha1.CatalogFormat
-	41, // 43: dockwell.v1.ListCatalogSourceRefsResponse.refs:type_name -> dockwell.v1.CatalogSourceRef
-	40, // 44: dockwell.v1.ListCatalogSourceRefsResponse.formats:type_name -> dockwell.v1.CatalogSourceGuess
-	64, // 45: dockwell.v1.CatalogSourceGuess.format:type_name -> dockwell.resource.v1alpha1.CatalogFormat
-	33, // 46: dockwell.v1.CheckCatalogSourceResponse.source:type_name -> dockwell.v1.CatalogSourceInfo
-	62, // 47: dockwell.v1.CheckCatalogSourceResponse.change:type_name -> dockwell.v1.Change
-	62, // 48: dockwell.v1.RemoveCatalogSourceResponse.change:type_name -> dockwell.v1.Change
-	60, // 49: dockwell.v1.InstallCatalogEntryRequest.RestartEntry.value:type_name -> dockwell.resource.v1alpha1.RestartPolicy
-	1,  // 50: dockwell.v1.CatalogService.ListCatalogEntries:input_type -> dockwell.v1.ListCatalogEntriesRequest
-	5,  // 51: dockwell.v1.CatalogService.GetCatalogEntry:input_type -> dockwell.v1.GetCatalogEntryRequest
-	9,  // 52: dockwell.v1.CatalogService.ListCatalogInstalls:input_type -> dockwell.v1.ListCatalogInstallsRequest
-	15, // 53: dockwell.v1.CatalogService.UpgradeCatalogInstall:input_type -> dockwell.v1.UpgradeCatalogInstallRequest
-	17, // 54: dockwell.v1.CatalogService.SetCatalogCompanion:input_type -> dockwell.v1.SetCatalogCompanionRequest
-	19, // 55: dockwell.v1.CatalogService.SetCatalogNeed:input_type -> dockwell.v1.SetCatalogNeedRequest
-	27, // 56: dockwell.v1.CatalogService.OpenCatalogInstall:input_type -> dockwell.v1.OpenCatalogInstallRequest
-	21, // 57: dockwell.v1.CatalogService.BackUpCatalogNeed:input_type -> dockwell.v1.BackUpCatalogNeedRequest
-	23, // 58: dockwell.v1.CatalogService.ListCatalogNeedBackups:input_type -> dockwell.v1.ListCatalogNeedBackupsRequest
-	25, // 59: dockwell.v1.CatalogService.RestoreCatalogNeed:input_type -> dockwell.v1.RestoreCatalogNeedRequest
-	13, // 60: dockwell.v1.CatalogService.InstallCatalogEntry:input_type -> dockwell.v1.InstallCatalogEntryRequest
-	29, // 61: dockwell.v1.CatalogService.SetCatalogSource:input_type -> dockwell.v1.SetCatalogSourceRequest
-	31, // 62: dockwell.v1.CatalogService.ListCatalogSources:input_type -> dockwell.v1.ListCatalogSourcesRequest
-	35, // 63: dockwell.v1.CatalogService.ListCatalogStores:input_type -> dockwell.v1.ListCatalogStoresRequest
-	38, // 64: dockwell.v1.CatalogService.ListCatalogSourceRefs:input_type -> dockwell.v1.ListCatalogSourceRefsRequest
-	42, // 65: dockwell.v1.CatalogService.CheckCatalogSource:input_type -> dockwell.v1.CheckCatalogSourceRequest
-	44, // 66: dockwell.v1.CatalogService.RemoveCatalogSource:input_type -> dockwell.v1.RemoveCatalogSourceRequest
-	2,  // 67: dockwell.v1.CatalogService.ListCatalogEntries:output_type -> dockwell.v1.ListCatalogEntriesResponse
-	6,  // 68: dockwell.v1.CatalogService.GetCatalogEntry:output_type -> dockwell.v1.GetCatalogEntryResponse
-	10, // 69: dockwell.v1.CatalogService.ListCatalogInstalls:output_type -> dockwell.v1.ListCatalogInstallsResponse
-	16, // 70: dockwell.v1.CatalogService.UpgradeCatalogInstall:output_type -> dockwell.v1.UpgradeCatalogInstallResponse
-	18, // 71: dockwell.v1.CatalogService.SetCatalogCompanion:output_type -> dockwell.v1.SetCatalogCompanionResponse
-	20, // 72: dockwell.v1.CatalogService.SetCatalogNeed:output_type -> dockwell.v1.SetCatalogNeedResponse
-	28, // 73: dockwell.v1.CatalogService.OpenCatalogInstall:output_type -> dockwell.v1.OpenCatalogInstallResponse
-	22, // 74: dockwell.v1.CatalogService.BackUpCatalogNeed:output_type -> dockwell.v1.BackUpCatalogNeedResponse
-	24, // 75: dockwell.v1.CatalogService.ListCatalogNeedBackups:output_type -> dockwell.v1.ListCatalogNeedBackupsResponse
-	26, // 76: dockwell.v1.CatalogService.RestoreCatalogNeed:output_type -> dockwell.v1.RestoreCatalogNeedResponse
-	14, // 77: dockwell.v1.CatalogService.InstallCatalogEntry:output_type -> dockwell.v1.InstallCatalogEntryResponse
-	30, // 78: dockwell.v1.CatalogService.SetCatalogSource:output_type -> dockwell.v1.SetCatalogSourceResponse
-	32, // 79: dockwell.v1.CatalogService.ListCatalogSources:output_type -> dockwell.v1.ListCatalogSourcesResponse
-	36, // 80: dockwell.v1.CatalogService.ListCatalogStores:output_type -> dockwell.v1.ListCatalogStoresResponse
-	39, // 81: dockwell.v1.CatalogService.ListCatalogSourceRefs:output_type -> dockwell.v1.ListCatalogSourceRefsResponse
-	43, // 82: dockwell.v1.CatalogService.CheckCatalogSource:output_type -> dockwell.v1.CheckCatalogSourceResponse
-	45, // 83: dockwell.v1.CatalogService.RemoveCatalogSource:output_type -> dockwell.v1.RemoveCatalogSourceResponse
-	67, // [67:84] is the sub-list for method output_type
-	50, // [50:67] is the sub-list for method input_type
-	50, // [50:50] is the sub-list for extension type_name
-	50, // [50:50] is the sub-list for extension extendee
-	0,  // [0:50] is the sub-list for field type_name
+	46, // 4: dockwell.v1.ListCatalogEntriesResponse.engines:type_name -> dockwell.v1.ListCatalogEntriesResponse.EnginesEntry
+	58, // 5: dockwell.v1.CatalogAlternative.entry:type_name -> dockwell.catalog.v1alpha1.Entry
+	58, // 6: dockwell.v1.GetCatalogEntryResponse.entry:type_name -> dockwell.catalog.v1alpha1.Entry
+	47, // 7: dockwell.v1.GetCatalogEntryResponse.values:type_name -> dockwell.v1.GetCatalogEntryResponse.ValuesEntry
+	8,  // 8: dockwell.v1.GetCatalogEntryResponse.parts:type_name -> dockwell.v1.CatalogPart
+	7,  // 9: dockwell.v1.GetCatalogEntryResponse.needs:type_name -> dockwell.v1.CatalogNeedOption
+	59, // 10: dockwell.v1.CatalogNeedOption.engine:type_name -> dockwell.catalog.v1alpha1.Engine
+	60, // 11: dockwell.v1.CatalogPart.host_access:type_name -> dockwell.v1.HostAccess
+	48, // 12: dockwell.v1.CatalogPart.path_inputs:type_name -> dockwell.v1.CatalogPart.PathInputsEntry
+	61, // 13: dockwell.v1.CatalogPart.restart:type_name -> dockwell.resource.v1alpha1.RestartPolicy
+	59, // 14: dockwell.v1.CatalogPart.engine:type_name -> dockwell.catalog.v1alpha1.Engine
+	11, // 15: dockwell.v1.ListCatalogInstallsResponse.installs:type_name -> dockwell.v1.CatalogInstall
+	62, // 16: dockwell.v1.CatalogInstall.pin:type_name -> dockwell.resource.v1alpha1.CatalogPin
+	12, // 17: dockwell.v1.CatalogInstall.upgrade:type_name -> dockwell.v1.CatalogUpgrade
+	49, // 18: dockwell.v1.CatalogInstall.companions:type_name -> dockwell.v1.CatalogInstall.CompanionsEntry
+	50, // 19: dockwell.v1.InstallCatalogEntryRequest.values:type_name -> dockwell.v1.InstallCatalogEntryRequest.ValuesEntry
+	51, // 20: dockwell.v1.InstallCatalogEntryRequest.memory:type_name -> dockwell.v1.InstallCatalogEntryRequest.MemoryEntry
+	52, // 21: dockwell.v1.InstallCatalogEntryRequest.cpus:type_name -> dockwell.v1.InstallCatalogEntryRequest.CpusEntry
+	53, // 22: dockwell.v1.InstallCatalogEntryRequest.restart:type_name -> dockwell.v1.InstallCatalogEntryRequest.RestartEntry
+	54, // 23: dockwell.v1.InstallCatalogEntryRequest.companions:type_name -> dockwell.v1.InstallCatalogEntryRequest.CompanionsEntry
+	55, // 24: dockwell.v1.InstallCatalogEntryRequest.needs:type_name -> dockwell.v1.InstallCatalogEntryRequest.NeedsEntry
+	63, // 25: dockwell.v1.InstallCatalogEntryResponse.change:type_name -> dockwell.v1.Change
+	56, // 26: dockwell.v1.UpgradeCatalogInstallRequest.values:type_name -> dockwell.v1.UpgradeCatalogInstallRequest.ValuesEntry
+	63, // 27: dockwell.v1.UpgradeCatalogInstallResponse.change:type_name -> dockwell.v1.Change
+	57, // 28: dockwell.v1.SetCatalogCompanionRequest.values:type_name -> dockwell.v1.SetCatalogCompanionRequest.ValuesEntry
+	63, // 29: dockwell.v1.SetCatalogCompanionResponse.change:type_name -> dockwell.v1.Change
+	63, // 30: dockwell.v1.SetCatalogNeedResponse.change:type_name -> dockwell.v1.Change
+	64, // 31: dockwell.v1.BackUpCatalogNeedResponse.backup:type_name -> dockwell.v1.Backup
+	64, // 32: dockwell.v1.ListCatalogNeedBackupsResponse.backups:type_name -> dockwell.v1.Backup
+	63, // 33: dockwell.v1.RestoreCatalogNeedResponse.change:type_name -> dockwell.v1.Change
+	63, // 34: dockwell.v1.OpenCatalogInstallResponse.change:type_name -> dockwell.v1.Change
+	65, // 35: dockwell.v1.SetCatalogSourceRequest.format:type_name -> dockwell.resource.v1alpha1.CatalogFormat
+	63, // 36: dockwell.v1.SetCatalogSourceResponse.change:type_name -> dockwell.v1.Change
+	33, // 37: dockwell.v1.ListCatalogSourcesResponse.sources:type_name -> dockwell.v1.CatalogSourceInfo
+	66, // 38: dockwell.v1.CatalogSourceInfo.source:type_name -> dockwell.resource.v1alpha1.CatalogSource
+	34, // 39: dockwell.v1.CatalogSourceInfo.refused:type_name -> dockwell.v1.CatalogSourceRefusal
+	67, // 40: dockwell.v1.CatalogSourceInfo.checked:type_name -> google.protobuf.Timestamp
+	67, // 41: dockwell.v1.CatalogSourceInfo.next_check:type_name -> google.protobuf.Timestamp
+	37, // 42: dockwell.v1.ListCatalogStoresResponse.stores:type_name -> dockwell.v1.CatalogStore
+	65, // 43: dockwell.v1.CatalogStore.format:type_name -> dockwell.resource.v1alpha1.CatalogFormat
+	41, // 44: dockwell.v1.ListCatalogSourceRefsResponse.refs:type_name -> dockwell.v1.CatalogSourceRef
+	40, // 45: dockwell.v1.ListCatalogSourceRefsResponse.formats:type_name -> dockwell.v1.CatalogSourceGuess
+	65, // 46: dockwell.v1.CatalogSourceGuess.format:type_name -> dockwell.resource.v1alpha1.CatalogFormat
+	33, // 47: dockwell.v1.CheckCatalogSourceResponse.source:type_name -> dockwell.v1.CatalogSourceInfo
+	63, // 48: dockwell.v1.CheckCatalogSourceResponse.change:type_name -> dockwell.v1.Change
+	63, // 49: dockwell.v1.RemoveCatalogSourceResponse.change:type_name -> dockwell.v1.Change
+	59, // 50: dockwell.v1.ListCatalogEntriesResponse.EnginesEntry.value:type_name -> dockwell.catalog.v1alpha1.Engine
+	61, // 51: dockwell.v1.InstallCatalogEntryRequest.RestartEntry.value:type_name -> dockwell.resource.v1alpha1.RestartPolicy
+	1,  // 52: dockwell.v1.CatalogService.ListCatalogEntries:input_type -> dockwell.v1.ListCatalogEntriesRequest
+	5,  // 53: dockwell.v1.CatalogService.GetCatalogEntry:input_type -> dockwell.v1.GetCatalogEntryRequest
+	9,  // 54: dockwell.v1.CatalogService.ListCatalogInstalls:input_type -> dockwell.v1.ListCatalogInstallsRequest
+	15, // 55: dockwell.v1.CatalogService.UpgradeCatalogInstall:input_type -> dockwell.v1.UpgradeCatalogInstallRequest
+	17, // 56: dockwell.v1.CatalogService.SetCatalogCompanion:input_type -> dockwell.v1.SetCatalogCompanionRequest
+	19, // 57: dockwell.v1.CatalogService.SetCatalogNeed:input_type -> dockwell.v1.SetCatalogNeedRequest
+	27, // 58: dockwell.v1.CatalogService.OpenCatalogInstall:input_type -> dockwell.v1.OpenCatalogInstallRequest
+	21, // 59: dockwell.v1.CatalogService.BackUpCatalogNeed:input_type -> dockwell.v1.BackUpCatalogNeedRequest
+	23, // 60: dockwell.v1.CatalogService.ListCatalogNeedBackups:input_type -> dockwell.v1.ListCatalogNeedBackupsRequest
+	25, // 61: dockwell.v1.CatalogService.RestoreCatalogNeed:input_type -> dockwell.v1.RestoreCatalogNeedRequest
+	13, // 62: dockwell.v1.CatalogService.InstallCatalogEntry:input_type -> dockwell.v1.InstallCatalogEntryRequest
+	29, // 63: dockwell.v1.CatalogService.SetCatalogSource:input_type -> dockwell.v1.SetCatalogSourceRequest
+	31, // 64: dockwell.v1.CatalogService.ListCatalogSources:input_type -> dockwell.v1.ListCatalogSourcesRequest
+	35, // 65: dockwell.v1.CatalogService.ListCatalogStores:input_type -> dockwell.v1.ListCatalogStoresRequest
+	38, // 66: dockwell.v1.CatalogService.ListCatalogSourceRefs:input_type -> dockwell.v1.ListCatalogSourceRefsRequest
+	42, // 67: dockwell.v1.CatalogService.CheckCatalogSource:input_type -> dockwell.v1.CheckCatalogSourceRequest
+	44, // 68: dockwell.v1.CatalogService.RemoveCatalogSource:input_type -> dockwell.v1.RemoveCatalogSourceRequest
+	2,  // 69: dockwell.v1.CatalogService.ListCatalogEntries:output_type -> dockwell.v1.ListCatalogEntriesResponse
+	6,  // 70: dockwell.v1.CatalogService.GetCatalogEntry:output_type -> dockwell.v1.GetCatalogEntryResponse
+	10, // 71: dockwell.v1.CatalogService.ListCatalogInstalls:output_type -> dockwell.v1.ListCatalogInstallsResponse
+	16, // 72: dockwell.v1.CatalogService.UpgradeCatalogInstall:output_type -> dockwell.v1.UpgradeCatalogInstallResponse
+	18, // 73: dockwell.v1.CatalogService.SetCatalogCompanion:output_type -> dockwell.v1.SetCatalogCompanionResponse
+	20, // 74: dockwell.v1.CatalogService.SetCatalogNeed:output_type -> dockwell.v1.SetCatalogNeedResponse
+	28, // 75: dockwell.v1.CatalogService.OpenCatalogInstall:output_type -> dockwell.v1.OpenCatalogInstallResponse
+	22, // 76: dockwell.v1.CatalogService.BackUpCatalogNeed:output_type -> dockwell.v1.BackUpCatalogNeedResponse
+	24, // 77: dockwell.v1.CatalogService.ListCatalogNeedBackups:output_type -> dockwell.v1.ListCatalogNeedBackupsResponse
+	26, // 78: dockwell.v1.CatalogService.RestoreCatalogNeed:output_type -> dockwell.v1.RestoreCatalogNeedResponse
+	14, // 79: dockwell.v1.CatalogService.InstallCatalogEntry:output_type -> dockwell.v1.InstallCatalogEntryResponse
+	30, // 80: dockwell.v1.CatalogService.SetCatalogSource:output_type -> dockwell.v1.SetCatalogSourceResponse
+	32, // 81: dockwell.v1.CatalogService.ListCatalogSources:output_type -> dockwell.v1.ListCatalogSourcesResponse
+	36, // 82: dockwell.v1.CatalogService.ListCatalogStores:output_type -> dockwell.v1.ListCatalogStoresResponse
+	39, // 83: dockwell.v1.CatalogService.ListCatalogSourceRefs:output_type -> dockwell.v1.ListCatalogSourceRefsResponse
+	43, // 84: dockwell.v1.CatalogService.CheckCatalogSource:output_type -> dockwell.v1.CheckCatalogSourceResponse
+	45, // 85: dockwell.v1.CatalogService.RemoveCatalogSource:output_type -> dockwell.v1.RemoveCatalogSourceResponse
+	69, // [69:86] is the sub-list for method output_type
+	52, // [52:69] is the sub-list for method input_type
+	52, // [52:52] is the sub-list for extension type_name
+	52, // [52:52] is the sub-list for extension extendee
+	0,  // [0:52] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_catalog_proto_init() }
@@ -3873,7 +3905,7 @@ func file_dockwell_v1_catalog_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_catalog_proto_rawDesc), len(file_dockwell_v1_catalog_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   56,
+			NumMessages:   57,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
