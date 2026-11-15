@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -461,6 +462,158 @@ func TestPushesToOneAppDeployOneAtATime(t *testing.T) {
 		d5 := g.outcome(t, web.GetId(), "q-5", dockwellv1.GitHookOutcome_GIT_HOOK_OUTCOME_DEPLOYING)
 		if c := g.ended(t, d5.GetChangeId()); c.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED || d5.GetCommit() != newest {
 			t.Fatalf("the newest push ended %v building %s: %s", c.GetState(), d5.GetCommit(), c.GetError())
+		}
+	})
+}
+
+// stored waits for what a delivery came to, read from the store rather than the
+// API, for a maker who may not read the hook any more.
+func (g *gitBench) stored(t *testing.T, hookURL, deliveryID, want string) store.GitHookDelivery {
+	t.Helper()
+	hookID := hookURL[strings.LastIndex(hookURL, "/")+1:]
+	var last store.GitHookDelivery
+	deadline := time.Now().Add(30 * time.Second)
+	for time.Now().Before(deadline) {
+		if err := g.f.store.View(t.Context(), func(tx *store.Tx) error {
+			list, err := tx.GitHookDeliveries(t.Context(), hookID, 50)
+			for _, d := range list {
+				if d.DeliveryID == deliveryID {
+					last = d
+				}
+			}
+			return err
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if last.Outcome == want {
+			return last
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	t.Fatalf("delivery %s came to %+v, not %s", deliveryID, last, want)
+	return last
+}
+
+// A push deploys with its hook's maker's rights as they are when it comes, as
+// an API call would (ADR 0049): a developer's hook deploys where the environment
+// is open, cancels no build where a developer may not, and leaves a plan for a
+// person where the environment is protected. A maker who can't deploy the app
+// any more, or who has left, deploys nothing.
+func TestAHookDeploysOnlyWhatItsMakerMayNow(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		g := newGitBench(t, backend)
+		g.repo.Commit("main", "First", map[string]string{"Dockerfile": webDockerfile})
+		made := g.done(t, g.propose(t, g.buildEdit("main", nil)))
+		production := made.GetPlan().GetResources()[0].GetResource().GetScope()
+		web := g.service(t, "", "web")
+		url, secret := g.hook(t, web.GetId())
+		n := 0
+		push := func(id string) {
+			t.Helper()
+			n++
+			commit := g.repo.Commit("main", fmt.Sprintf("Push %d", n), map[string]string{"Dockerfile": webDockerfile, "app.js": strconv.Itoa(n)})
+			if code, text, _ := send(t, url, delivery{id: id, event: "push", secret: secret, body: pushBody(g.repo.URL, "refs/heads/main", commit)}); code != http.StatusAccepted {
+				t.Fatalf("push %s: %d %q", id, code, text)
+			}
+		}
+		buildOf := func(changeID string) *dockwellv1.Build {
+			t.Helper()
+			list, err := g.builds.ListBuilds(t.Context(), connect.NewRequest(&dockwellv1.ListBuildsRequest{Id: web.GetId()}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, b := range list.Msg.GetBuilds() {
+				if b.GetChangeId() == changeID {
+					return b
+				}
+			}
+			return nil
+		}
+
+		// A developer where the environment is open deploys.
+		protectEnv(t, g.c, g.f, production, resourcev1.Protection_PROTECTION_OPEN)
+		hold := aMember(t, g.f)
+		hold(onInstall(store.RoleDeveloper))
+		push("o-1")
+		d := g.stored(t, url, "o-1", store.HookDeploying)
+		if c := g.ended(t, d.ChangeID); c.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+			t.Fatalf("a developer's push where it's open ended %v: %s", c.GetState(), c.GetError())
+		}
+
+		// Where it's protected, a build waiting for its server is an admin's to
+		// cancel: a newer push from a developer's hook leaves it, and waits.
+		hold(onInstall(store.RoleAdmin))
+		protectEnv(t, g.c, g.f, production, resourcev1.Protection_PROTECTION_PROTECTED)
+		g.repo.Commit("slow", "Slow", map[string]string{"Dockerfile": "FROM alpine:3.23\nRUN echo working && sleep 30\n"})
+		api := g.buildEdit("slow", nil)
+		api.Resource.Name = "api"
+		api.GetSpec().GetService().GetApp().Ports = nil
+		other := g.propose(t, api)
+		ow := watch(t, g.c, other.GetId())
+		if _, err := g.c.ApplyChange(t.Context(), connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: other.GetId(), Fingerprint: other.GetPlan().GetFingerprint()})); err != nil {
+			t.Fatal(err)
+		}
+		var held *dockwellv1.Build
+		for deadline := time.Now().Add(15 * time.Second); held == nil && time.Now().Before(deadline); time.Sleep(50 * time.Millisecond) {
+			list, err := g.builds.ListBuilds(t.Context(), connect.NewRequest(&dockwellv1.ListBuildsRequest{Id: "api"}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if bs := list.Msg.GetBuilds(); len(bs) > 0 && bs[0].GetState() == dockwellv1.BuildState_BUILD_STATE_BUILDING {
+				held = bs[0]
+			}
+		}
+		if held == nil {
+			t.Fatal("the other app's build never got under way")
+		}
+		push("c-1")
+		c1 := g.stored(t, url, "c-1", store.HookDeploying)
+		hold(onInstall(store.RoleDeveloper))
+		push("c-2")
+		g.stored(t, url, "c-2", store.HookQueued)
+		for until := time.Now().Add(2 * time.Second); time.Now().Before(until); time.Sleep(100 * time.Millisecond) {
+			if b := buildOf(c1.ChangeID); b.GetState() != dockwellv1.BuildState_BUILD_STATE_QUEUED {
+				t.Fatalf("a developer's newer push left the waiting build %v, by %q", b.GetState(), b.GetCancelledBy())
+			}
+		}
+		hold(onInstall(store.RoleAdmin))
+		if _, err := g.builds.CancelBuild(t.Context(), connect.NewRequest(&dockwellv1.CancelBuildRequest{Id: held.GetId()})); err != nil {
+			t.Fatal(err)
+		}
+		waitWatch(t, ow)
+		if c := g.ended(t, c1.ChangeID); c.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+			t.Fatalf("the push whose build waited ended %v: %s", c.GetState(), c.GetError())
+		}
+		c2 := g.stored(t, url, "c-2", store.HookDeploying)
+		g.ended(t, c2.ChangeID)
+
+		// A developer's push to a protected environment plans, and waits for a
+		// person who may apply it.
+		hold(onInstall(store.RoleDeveloper))
+		push("p-1")
+		p1 := g.stored(t, url, "p-1", store.HookNeedsPerson)
+		if !strings.Contains(p1.Detail, "may apply it there") {
+			t.Errorf("why a developer's push waits: %q", p1.Detail)
+		}
+		got, err := g.c.GetChange(t.Context(), connect.NewRequest(&dockwellv1.GetChangeRequest{Id: p1.ChangeID}))
+		if err != nil || got.Msg.GetChange().GetState() != dockwellv1.ChangeState_CHANGE_STATE_PLANNED {
+			t.Fatalf("a developer's push's plan is %v, %v", got.Msg.GetChange().GetState(), err)
+		}
+
+		// A viewer's hook deploys nothing, and plans nothing, even where the
+		// environment is open.
+		hold(onInstall(store.RoleAdmin))
+		protectEnv(t, g.c, g.f, production, resourcev1.Protection_PROTECTION_OPEN)
+		hold(onInstall(store.RoleViewer))
+		push("v-1")
+		if v := g.stored(t, url, "v-1", store.HookFailed); !strings.Contains(v.Detail, "may not deploy it now") || v.ChangeID != "" {
+			t.Errorf("a viewer's push came to %+v", v)
+		}
+		// Nor does the hook of someone with no role left.
+		hold()
+		push("x-1")
+		if x := g.stored(t, url, "x-1", store.HookFailed); !strings.Contains(x.Detail, "may not deploy it now") || x.ChangeID != "" {
+			t.Errorf("a push from someone with no role left came to %+v", x)
 		}
 	})
 }
