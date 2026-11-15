@@ -1005,12 +1005,6 @@ msgstr "已放回 {server} 上的 {path}，这里可能让他人重新进入服�
 msgid "Read {path} on {server}"
 msgstr "已读取 {server} 上的 {path}"
 
-msgid "Refused a push to {name} whose secret didn't match"
-msgstr "拒绝了一次密钥不匹配的推送到 {name}"
-
-msgid "Refused a push whose secret didn't match"
-msgstr "拒绝了一次密钥不匹配的推送"
-
 msgid "Removed a backup of {volume} from its server, and kept it on {destination}"
 msgstr "已从服务器移除 {volume} 的备份，并保留在 {destination} 上"
 

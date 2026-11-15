@@ -114,6 +114,26 @@ func (h *Handler) SetLimits(readFor time.Duration, inFlight int) {
 	h.inFlight.Store(int64(inFlight))
 }
 
+// ForgetOrphans deletes the hooks of apps that were deleted, each on record. Until
+// it does, a delivery to one is taken and deploys nothing, as its app is gone.
+func (h *Handler) ForgetOrphans(ctx context.Context) error {
+	return h.cfg.DB.Update(ctx, func(tx *store.Tx) error {
+		gone, err := tx.ForgetOrphanGitHooks(ctx)
+		if err != nil {
+			return err
+		}
+		for i := range gone {
+			if err := tx.RecordEvent(ctx, store.Event{
+				ID: id.New(id.Event), At: h.now(), Actor: revision.SystemActor, Surface: store.SurfaceAutomatic, Action: "git_hook.delete",
+				Subject: gone[i].UserID, Target: gone[i].ResourceID, Detail: "hook " + gone[i].ID + " deleted, as its app was deleted",
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
 // Stop ends what deploys are under way waiting for, and waits for them: their
 // changes go on, and a push that waited is forgotten, as the next push or a
 // person's Deploy builds what the branch names then.
@@ -146,6 +166,9 @@ func (h *Handler) KeepForgetting(ctx context.Context) {
 			return tx.ForgetGitHookDeliveries(ctx, h.now().Add(-store.KeepHookDeliveries))
 		}); err != nil && ctx.Err() == nil {
 			h.cfg.Logger.WarnContext(ctx, "can't forget old deliveries to hooks", slog.String("error", err.Error()))
+		}
+		if err := h.ForgetOrphans(ctx); err != nil && ctx.Err() == nil {
+			h.cfg.Logger.WarnContext(ctx, "can't delete the hooks of deleted apps", slog.String("error", err.Error()))
 		}
 		select {
 		case <-ctx.Done():

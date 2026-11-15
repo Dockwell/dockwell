@@ -99,12 +99,14 @@ func (s *Service) RotateGitHookSecret(ctx context.Context, client Client, p Prin
 		} else if err != nil {
 			return err
 		}
-		h.SecretAt = s.now()
+		// The hook acts for whoever holds its secret now, as nobody makes a
+		// credential for someone else (ADR 0049).
+		h.SecretAt, h.UserID = s.now(), p.User.ID
 		h.Secret = s.key.Seal(purposeHook(h.ID), []byte(secret))
-		if err := tx.SetGitHookSecret(ctx, h.ID, h.Secret, h.SecretAt); err != nil {
+		if err := tx.SetGitHookSecret(ctx, h.ID, h.UserID, h.Secret, h.SecretAt); err != nil {
 			return err
 		}
-		return s.auditOn(ctx, tx, p.Actor(), "git_hook.rotate", p.User.ID, serviceID, "a new secret for hook "+h.ID)
+		return s.auditOn(ctx, tx, p.Actor(), "git_hook.rotate", p.User.ID, serviceID, "a new secret for hook "+h.ID+", which acts for "+p.User.ID+" now")
 	})
 	if err != nil {
 		giveBack()

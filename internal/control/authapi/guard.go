@@ -116,6 +116,11 @@ func Check(ctx context.Context, svc *auth.Service, logger *slog.Logger, procedur
 	if !ok {
 		return ctx, ReasonError(connect.CodeUnauthenticated, auth.ErrUnauthenticated, ReasonUnauthenticated)
 	}
+	// A token, as a hook's is, makes no call that needs a session, as the API
+	// holds a token to (authorizeToken).
+	if need := accessFor(procedure); p.Token != nil && need != auth.AccessRead && need != auth.AccessWrite {
+		return ctx, ReasonError(connect.CodePermissionDenied, auth.ErrNeedsSession, ReasonNeedsSession)
+	}
 	i := &interceptor{svc: svc, logger: logger}
 	client, _ := ClientFrom(ctx)
 	ctx, err := i.gateCall(ctx, client, p, procedure)

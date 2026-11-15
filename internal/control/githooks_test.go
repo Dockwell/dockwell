@@ -9,11 +9,13 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	neturl "net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -1048,5 +1050,190 @@ func TestAPushThatWaitsReadsItsMakersRoleAgain(t *testing.T) {
 	}
 	if got := g.service(t, "", "web").GetSpec().GetBuild().GetGit().GetCommit(); got == pushed {
 		t.Errorf("a viewer's push deployed %s", got)
+	}
+}
+
+// holdApp starts a deploy of the service by hand whose build takes 30 s, which
+// holds it, and gives the way to let it go: cancelling the build, and waiting for
+// its change to end.
+func (g *gitBench) holdApp(t *testing.T, serviceID string) (release func()) {
+	t.Helper()
+	g.repo.Commit("main", "Slow", map[string]string{"Dockerfile": "FROM alpine:3.23\nRUN echo working && sleep 30\n"})
+	slow := g.propose(t, g.buildEdit("main", nil))
+	if _, err := g.c.ApplyChange(t.Context(), connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: slow.GetId(), Fingerprint: slow.GetPlan().GetFingerprint()})); err != nil {
+		t.Fatal(err)
+	}
+	var building *dockwellv1.Build
+	for deadline := time.Now().Add(15 * time.Second); building == nil && time.Now().Before(deadline); time.Sleep(50 * time.Millisecond) {
+		list, err := g.builds.ListBuilds(t.Context(), connect.NewRequest(&dockwellv1.ListBuildsRequest{Id: serviceID}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, b := range list.Msg.GetBuilds() {
+			if b.GetChangeId() == slow.GetId() && b.GetState() == dockwellv1.BuildState_BUILD_STATE_BUILDING {
+				building = b
+			}
+		}
+	}
+	if building == nil {
+		t.Fatal("the deploy by hand never got to building")
+	}
+	return func() {
+		t.Helper()
+		if _, err := g.builds.CancelBuild(t.Context(), connect.NewRequest(&dockwellv1.CancelBuildRequest{Id: building.GetId()})); err != nil {
+			t.Fatal(err)
+		}
+		g.ended(t, slow.GetId())
+	}
+}
+
+// plannedByHook waits for the plan a push made, and gives its ID.
+func (g *gitBench) plannedByHook(t *testing.T, not ...string) string {
+	t.Helper()
+	for deadline := time.Now().Add(15 * time.Second); time.Now().Before(deadline); time.Sleep(50 * time.Millisecond) {
+		list, err := g.c.ListChanges(t.Context(), connect.NewRequest(&dockwellv1.ListChangesRequest{}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, c := range list.Msg.GetChanges() {
+			if c.GetProposedBy().GetKind() == dockwellv1.ActorKind_ACTOR_KIND_HOOK && c.GetState() == dockwellv1.ChangeState_CHANGE_STATE_PLANNED && !slices.Contains(not, c.GetId()) {
+				return c.GetId()
+			}
+		}
+	}
+	t.Fatal("the push never planned its deploy")
+	return ""
+}
+
+// Giving a hook a new secret, or turning it off, ends what its pushes would
+// still deploy, with the plan one left; and a new secret makes the hook act for
+// whoever made it (from #253's review, L1 and L3).
+func TestAHookTurnedOffOrGivenANewSecretDeploysNothingMore(t *testing.T) {
+	t.Parallel()
+	g := newGitBench(t, store.SQLite)
+	g.repo.Commit("main", "First", map[string]string{"Dockerfile": webDockerfile})
+	made := g.done(t, g.propose(t, g.buildEdit("main", nil)))
+	protectEnv(t, g.c, g.f, made.GetPlan().GetResources()[0].GetResource().GetScope(), resourcev1.Protection_PROTECTION_OPEN)
+	web := g.service(t, "", "web")
+	url, secret := g.hook(t, web.GetId())
+	var owner string
+	if err := g.f.store.Update(t.Context(), func(tx *store.Tx) error {
+		if err := tx.CreateUser(t.Context(), store.User{ID: "usr_dev", Email: "dev@example.com", Name: "Dev", WebAuthnHandle: []byte("dev"), CreatedAt: time.Now()}); err != nil {
+			return err
+		}
+		if err := tx.SetGrant(t.Context(), store.Grant{UserID: "usr_dev", ProjectID: store.Install, Role: store.RoleDeveloper, CreatedAt: time.Now()}); err != nil {
+			return err
+		}
+		h, err := tx.GitHookOf(t.Context(), web.GetId())
+		if err != nil {
+			return err
+		}
+		owner = h.UserID
+		if err := tx.DeleteGitHook(t.Context(), h.ID); err != nil {
+			return err
+		}
+		h.UserID = "usr_dev"
+		return tx.CreateGitHook(t.Context(), h)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	push := func(id, n string) {
+		t.Helper()
+		commit := g.repo.Commit("main", "Pushed "+n, map[string]string{"Dockerfile": webDockerfile, "app.js": n})
+		if code, text, _ := send(t, url, delivery{id: id, event: "push", secret: secret, body: pushBody(g.repo.URL, "refs/heads/main", commit)}); code != http.StatusAccepted {
+			t.Fatalf("push %s: %d %q", id, code, text)
+		}
+	}
+	state := func(id string) dockwellv1.ChangeState {
+		t.Helper()
+		got, err := g.c.GetChange(t.Context(), connect.NewRequest(&dockwellv1.GetChangeRequest{Id: id}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return got.Msg.GetChange().GetState()
+	}
+
+	// A new secret while a push waits: it deploys nothing, and the hook is its
+	// new maker's.
+	release := g.holdApp(t, web.GetId())
+	push("n-1", "1")
+	first := g.plannedByHook(t)
+	if _, err := g.hooks().RotateGitHookSecret(t.Context(), connect.NewRequest(&dockwellv1.RotateGitHookSecretRequest{
+		Id: web.GetId(), Proof: stepUpFor(t, g.b, dockwellv1.StepUpAction_STEP_UP_ACTION_ROTATE_GIT_HOOK, web.GetId()),
+	})); err != nil {
+		t.Fatal(err)
+	}
+	release()
+	if d := g.stored(t, url, "n-1", store.HookIgnored); !strings.Contains(d.Detail, "new secret") {
+		t.Errorf("a push that waited while the hook got a new secret: %+v", d)
+	}
+	if got := state(first); got != dockwellv1.ChangeState_CHANGE_STATE_DISCARDED {
+		t.Errorf("its plan is %v, want discarded", got)
+	}
+	if err := g.f.store.View(t.Context(), func(tx *store.Tx) error {
+		h, err := tx.GitHookOf(t.Context(), web.GetId())
+		if err == nil && h.UserID != owner {
+			t.Errorf("the hook acts for %s after the owner gave it a new secret, want %s", h.UserID, owner)
+		}
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Turned off while a push waits: it deploys nothing, and its plan goes.
+	got, err := g.hooks().RotateGitHookSecret(t.Context(), connect.NewRequest(&dockwellv1.RotateGitHookSecretRequest{
+		Id: web.GetId(), Proof: stepUpFor(t, g.b, dockwellv1.StepUpAction_STEP_UP_ACTION_ROTATE_GIT_HOOK, web.GetId()),
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	secret = got.Msg.GetSecret()
+	release = g.holdApp(t, web.GetId())
+	push("o-1", "2")
+	second := g.plannedByHook(t, first)
+	if _, err := g.hooks().DeleteGitHook(t.Context(), connect.NewRequest(&dockwellv1.DeleteGitHookRequest{Id: web.GetId()})); err != nil {
+		t.Fatal(err)
+	}
+	release()
+	for deadline := time.Now().Add(15 * time.Second); state(second) == dockwellv1.ChangeState_CHANGE_STATE_PLANNED && time.Now().Before(deadline); time.Sleep(100 * time.Millisecond) {
+	}
+	if got := state(second); got != dockwellv1.ChangeState_CHANGE_STATE_DISCARDED {
+		t.Errorf("the plan of a push that waited while the hook was turned off is %v, want discarded", got)
+	}
+}
+
+// A deleted app's hook is deleted after it, on record; until then a push to it
+// deploys nothing, as there's nothing to deploy (from #253's review, L2).
+func TestADeletedAppsHookGoesWithIt(t *testing.T) {
+	t.Parallel()
+	g := newGitBench(t, store.SQLite)
+	head := g.repo.Commit("main", "First", map[string]string{"Dockerfile": webDockerfile})
+	g.done(t, g.propose(t, g.buildEdit("main", nil)))
+	web := g.service(t, "", "web")
+	url, secret := g.hook(t, web.GetId())
+	g.done(t, g.propose(t, &dockwellv1.Edit{Resource: &dockwellv1.ResourceRef{Kind: "service", Name: "web"}, Delete: true}))
+
+	send(t, url, delivery{id: "after", event: "push", secret: secret, body: pushBody(g.repo.URL, "refs/heads/main", head)})
+	if d := g.stored(t, url, "after", store.HookIgnored); !strings.Contains(d.Detail, "gone") {
+		t.Errorf("a push to a deleted app's hook: %+v", d)
+	}
+	if err := g.f.server.hooks.ForgetOrphans(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	hookID := url[strings.LastIndex(url, "/")+1:]
+	if err := g.f.store.View(t.Context(), func(tx *store.Tx) error {
+		if _, err := tx.GetGitHook(t.Context(), hookID); !errors.Is(err, store.ErrNotFound) {
+			t.Errorf("a deleted app's hook after the sweep: %v", err)
+		}
+		events, err := tx.ListEvents(t.Context(), 100)
+		for _, e := range events {
+			if e.Action == "git_hook.delete" && e.Target == web.GetId() && strings.Contains(e.Detail, "as its app was deleted") {
+				return err
+			}
+		}
+		t.Error("the sweep left no word of the hook it deleted")
+		return err
+	}); err != nil {
+		t.Fatal(err)
 	}
 }

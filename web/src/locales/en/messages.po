@@ -1005,12 +1005,6 @@ msgstr "Put back {path} on {server}, which can let someone back in"
 msgid "Read {path} on {server}"
 msgstr "Read {path} on {server}"
 
-msgid "Refused a push to {name} whose secret didn't match"
-msgstr "Refused a push to {name} whose secret didn't match"
-
-msgid "Refused a push whose secret didn't match"
-msgstr "Refused a push whose secret didn't match"
-
 msgid "Removed a backup of {volume} from its server, and kept it on {destination}"
 msgstr "Removed a backup of {volume} from its server, and kept it on {destination}"
 

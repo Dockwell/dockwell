@@ -15,6 +15,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/dockwell/dockwell/internal/auth"
 	"github.com/dockwell/dockwell/internal/control/authapi"
@@ -153,6 +155,24 @@ func readBitbucket(body []byte) (pushed, error) {
 	return out, nil
 }
 
+// maxRef and maxEvent are the longest ref and event name a delivery is read
+// with, as each is kept with it and said back: Git's refs are short, and so are
+// each host's events.
+const (
+	maxRef   = 256
+	maxEvent = 64
+)
+
+// fits reports a push whose refs Dockwell keeps as they are.
+func (p *pushed) fits() bool {
+	for _, ref := range slices.Concat(p.refs, p.gone) {
+		if len(ref) > maxRef {
+			return false
+		}
+	}
+	return true
+}
+
 func (p *pushed) add(ref string, deleted bool) {
 	switch {
 	case ref == "":
@@ -269,7 +289,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ping := slices.Contains(from.pings, event)
 	j, why := h.read(r.Context(), client, p, from, event, payload, &d)
 	if j == nil {
-		d.Detail = strings.ToUpper(why[:1]) + why[1:]
+		d.Detail = capital(why)
 	} else {
 		d.Outcome, d.Detail = store.HookQueued, "Reads "+refName(d.Ref)+" and deploys what it names"
 	}
@@ -304,11 +324,13 @@ func (h *Handler) read(ctx context.Context, client auth.Client, p auth.Principal
 	case slices.Contains(from.pushes, event):
 	case slices.Contains(from.pings, event):
 		return nil, "it's a ping, which says the hook works"
+	case len(event) > maxEvent:
+		return nil, "it's an event Dockwell doesn't know, not a push"
 	default:
 		return nil, "it's a " + strings.ReplaceAll(event, "_", " ") + " event, not a push"
 	}
 	in, err := from.read(body)
-	if err != nil || len(in.refs)+len(in.gone) == 0 {
+	if err != nil || len(in.refs)+len(in.gone) == 0 || !in.fits() {
 		return nil, "its payload isn't a push Dockwell can read"
 	}
 	if len(in.refs) == 0 {
@@ -339,6 +361,12 @@ func (h *Handler) read(ctx context.Context, client auth.Client, p auth.Principal
 		}
 	}
 	return nil, "it's a push to " + refName(d.Ref) + ", and " + name + " builds " + refName(builtRef(g.GetRef()))
+}
+
+// capital is words with their first letter a capital, as a sentence starts.
+func capital(words string) string {
+	r, n := utf8.DecodeRuneInString(words)
+	return string(unicode.ToUpper(r)) + words[n:]
 }
 
 // answer says what came of a delivery, in a line, as text.

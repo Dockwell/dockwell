@@ -86,6 +86,37 @@ func (t *Tx) GetGitHook(ctx context.Context, id string) (GitHook, error) {
 	return h, nil
 }
 
+// ForgetOrphanGitHooks deletes the hooks whose services are gone, with their
+// deliveries, and returns what it deleted: nothing deploys a service that isn't
+// there, and nobody could turn its hook off.
+func (t *Tx) ForgetOrphanGitHooks(ctx context.Context) ([]GitHook, error) {
+	rows, err := t.query(ctx, `SELECT h.id, h.resource_id, h.user_id, h.secret, h.created_at, h.secret_at FROM git_hooks h
+		LEFT JOIN resources r ON r.id = h.resource_id
+		LEFT JOIN revisions v ON v.resource_id = r.id AND v.number = r.revision
+		WHERE r.id IS NULL OR v.spec IS NULL ORDER BY h.id`)
+	if err != nil {
+		return nil, fmt.Errorf("can't list the hooks of services that are gone: %w", err)
+	}
+	var hooks []GitHook
+	for rows.Next() {
+		h, err := scanGitHook(rows)
+		if err != nil {
+			_ = rows.Close()
+			return nil, fmt.Errorf("can't read a hook of a service that's gone: %w", err)
+		}
+		hooks = append(hooks, h)
+	}
+	if err := errors.Join(rows.Err(), rows.Close()); err != nil {
+		return nil, fmt.Errorf("can't list the hooks of services that are gone: %w", err)
+	}
+	for i := range hooks {
+		if err := t.DeleteGitHook(ctx, hooks[i].ID); err != nil {
+			return nil, err
+		}
+	}
+	return hooks, nil
+}
+
 // DeleteGitHooksOf deletes the hooks a person made, with their deliveries, as
 // their access ends, and returns what it deleted.
 func (t *Tx) DeleteGitHooksOf(ctx context.Context, userID string) ([]GitHook, error) {
@@ -126,8 +157,8 @@ func (t *Tx) GitHookOf(ctx context.Context, resourceID string) (GitHook, error) 
 }
 
 // SetGitHookSecret gives a hook a new sealed secret.
-func (t *Tx) SetGitHookSecret(ctx context.Context, id string, secret []byte, at time.Time) error {
-	res, err := t.exec(ctx, `UPDATE git_hooks SET secret = ?, secret_at = ? WHERE id = ?`, secret, millis(at), id)
+func (t *Tx) SetGitHookSecret(ctx context.Context, id, userID string, secret []byte, at time.Time) error {
+	res, err := t.exec(ctx, `UPDATE git_hooks SET user_id = ?, secret = ?, secret_at = ? WHERE id = ?`, userID, secret, millis(at), id)
 	if err != nil {
 		return fmt.Errorf("can't give hook %s a new secret: %w", id, err)
 	}

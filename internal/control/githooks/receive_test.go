@@ -4,6 +4,7 @@ package githooks
 
 import (
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -145,5 +146,20 @@ func TestEachProvidersPushReadsTheSame(t *testing.T) {
 		if _, err := read([]byte(`not JSON`)); err == nil {
 			t.Error("a payload that isn't JSON read as a push")
 		}
+	}
+}
+
+// A push whose ref is longer than Git's are isn't read, as it's kept and said
+// back; and a reason starts with a capital whatever its first letter.
+func TestAPushIsReadWithinItsLimits(t *testing.T) {
+	long := pushed{refs: []string{"refs/heads/" + strings.Repeat("a", maxRef)}}
+	if long.fits() {
+		t.Error("a ref past the limit fits")
+	}
+	if fine := (pushed{refs: []string{"refs/heads/main"}, gone: []string{"refs/heads/old"}}); !fine.fits() {
+		t.Error("a short ref doesn't fit")
+	}
+	if got := capital("über alles"); got != "Über alles" {
+		t.Errorf("capital = %q", got)
 	}
 }

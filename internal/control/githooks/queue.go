@@ -109,6 +109,9 @@ func (h *Handler) deploy(l *lane, j *job) {
 	asHook := authapi.As(h.base, j.client, j.p)
 	svc, d := j.hook.ResourceID, j.delivery
 	for tries := 0; ; tries++ {
+		if !h.stillOn(asHook, j.hook, &d, svc, "") {
+			return
+		}
 		// The hook deploys only what its maker may deploy now (ADR 0049): their
 		// role, read for each push, where the service is, as the API checks a call.
 		ctx, err := authapi.Check(asHook, h.cfg.Auth, h.cfg.Logger, dockwellv1connect.ServiceServiceDeployServiceProcedure, &dockwellv1.DeployServiceRequest{Id: svc})
@@ -158,7 +161,7 @@ func (h *Handler) deploy(l *lane, j *job) {
 			h.waitForPerson(ctx, &d, svc, c.GetId(), why)
 			return
 		}
-		switch h.apply(ctx, l, &d, svc, c.GetId(), r.Fingerprint) {
+		switch h.apply(ctx, l, j.hook, &d, svc, c.GetId(), r.Fingerprint) {
 		case applied:
 			h.follow(ctx, l, &d, svc, c.GetId())
 			return
@@ -188,10 +191,13 @@ const (
 // read again: a maker who may plan a deploy but not apply it there, as a
 // developer in a protected environment, or who lost the role while it waited,
 // leaves it for someone who may.
-func (h *Handler) apply(ctx context.Context, l *lane, d *store.GitHookDelivery, svc, changeID, fingerprint string) applying {
+func (h *Handler) apply(ctx context.Context, l *lane, hook store.GitHook, d *store.GitHookDelivery, svc, changeID, fingerprint string) applying {
 	req := &dockwellv1.ApplyChangeRequest{Id: changeID, Fingerprint: fingerprint}
 	began := h.now()
 	for {
+		if !h.stillOn(ctx, hook, d, svc, changeID) {
+			return stopped
+		}
 		cctx, err := authapi.Check(ctx, h.cfg.Auth, h.cfg.Logger, dockwellv1connect.ChangeServiceApplyChangeProcedure, req)
 		switch {
 		case reasonOf(err) == authapi.ReasonNeedsRole:
@@ -351,10 +357,45 @@ func (h *Handler) replacePlanned(ctx context.Context, svc, changeID string) {
 	h.discard(ctx, old)
 }
 
+// discard discards a plan a push made, checked as DiscardChange is through the
+// API, with its maker's role read now.
 func (h *Handler) discard(ctx context.Context, changeID string) {
-	if _, err := h.cfg.Changes.DiscardChange(ctx, connect.NewRequest(&dockwellv1.DiscardChangeRequest{Id: changeID})); err != nil {
+	req := &dockwellv1.DiscardChangeRequest{Id: changeID}
+	cctx, err := authapi.Check(ctx, h.cfg.Auth, h.cfg.Logger, dockwellv1connect.ChangeServiceDiscardChangeProcedure, req)
+	if err == nil {
+		_, err = h.cfg.Changes.DiscardChange(cctx, connect.NewRequest(req))
+	}
+	if err != nil {
 		h.cfg.Logger.WarnContext(ctx, "can't discard a plan a push made", slog.String("change", changeID), slog.String("error", err.Error()))
 	}
+}
+
+// stillOn reports a push's hook as it was when the push came: on, with the same
+// secret and maker. Turning it off, or giving it a new secret, as after one
+// leaked, ends what its pushes would still deploy, and the plan one left, if any.
+// A hook turned off took its deliveries with it, so there's nothing to record.
+func (h *Handler) stillOn(ctx context.Context, hook store.GitHook, d *store.GitHookDelivery, svc, planned string) bool {
+	var now store.GitHook
+	err := h.cfg.DB.View(ctx, func(tx *store.Tx) error {
+		var err error
+		now, err = tx.GetGitHook(ctx, hook.ID)
+		return err
+	})
+	switch {
+	case err == nil && now.SecretAt.Equal(hook.SecretAt) && now.UserID == hook.UserID:
+		return true
+	case err != nil && !errors.Is(err, store.ErrNotFound):
+		// It can't be read: the push goes on, as the next step reads its maker again.
+		h.cfg.Logger.WarnContext(ctx, "can't read a push's hook", slog.String("hook", hook.ID), slog.String("error", err.Error()))
+		return true
+	}
+	if planned != "" {
+		h.discard(ctx, planned)
+	}
+	if err == nil {
+		h.end(ctx, d, svc, store.HookIgnored, "Deploy on push got a new secret after this push came, so it deploys nothing")
+	}
+	return false
 }
 
 // end keeps what a push came to.
