@@ -1,0 +1,15 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+/* Its own file, imported by the link, so a page under the catalog opened directly has it. */
+.catalog-back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--ink-muted);
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.catalog-back:hover {
+  color: var(--ink);
+}

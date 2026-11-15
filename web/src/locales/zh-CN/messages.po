@@ -7428,14 +7428,14 @@ msgstr "每周{day} {at}"
 msgid "{database} dump"
 msgstr "{database} 转储"
 
+msgid "Back to catalog"
+msgstr "返回应用目录"
+
 msgid "About {app}"
 msgstr "关于 {app}"
 
 msgid "App information"
 msgstr "应用信息"
-
-msgid "Back to catalog"
-msgstr "返回应用目录"
 
 msgid "Catalog to install from"
 msgstr "安装来源目录"
@@ -8243,12 +8243,12 @@ msgid "As read at {at}"
 msgstr "读取于 {at}"
 
 msgctxt "catalog store"
-msgid "Go to it"
-msgstr "前往"
+msgid "Browse its apps"
+msgstr "浏览它的应用"
 
 #. placeholder {0}: store.label
-msgid "Go to {0}"
-msgstr "前往 {0}"
+msgid "Browse the apps from {0}"
+msgstr "浏览来自 {0} 的应用"
 
 msgid "None stated"
 msgstr "未声明"

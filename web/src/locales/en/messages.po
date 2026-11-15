@@ -7428,14 +7428,14 @@ msgstr "Weekly on {day} at {at}"
 msgid "{database} dump"
 msgstr "{database} dump"
 
+msgid "Back to catalog"
+msgstr "Back to catalog"
+
 msgid "About {app}"
 msgstr "About {app}"
 
 msgid "App information"
 msgstr "App information"
-
-msgid "Back to catalog"
-msgstr "Back to catalog"
 
 msgid "Catalog to install from"
 msgstr "Catalog to install from"
@@ -8243,12 +8243,12 @@ msgid "As read at {at}"
 msgstr "As read at {at}"
 
 msgctxt "catalog store"
-msgid "Go to it"
-msgstr "Go to it"
+msgid "Browse its apps"
+msgstr "Browse its apps"
 
 #. placeholder {0}: store.label
-msgid "Go to {0}"
-msgstr "Go to {0}"
+msgid "Browse the apps from {0}"
+msgstr "Browse the apps from {0}"
 
 msgid "None stated"
 msgstr "None stated"

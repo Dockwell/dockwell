@@ -13,6 +13,7 @@ import { RouterButtonLink } from "../../lib/links";
 import { Page } from "../shell/Page";
 import { RefLink } from "../shell/RefLink";
 import { Facts, useEntryFacts } from "./access";
+import { CatalogBack } from "./CatalogBack";
 import { Markdown } from "./Markdown";
 import { AppIcon, AppScreenshot, projectLink } from "./media";
 import type { CatalogSearch } from "./search";
@@ -53,12 +54,7 @@ export function CatalogDetailPage({
   const app = entry?.name ?? id;
   const label = categoryLabel(entry?.category ?? "");
   const category = typeof label === "string" ? label : i18n._(label);
-  const back = (
-    <Link to="/catalog" search={search} className="catalog-back" aria-label={t`Back to catalog`}>
-      <Icon name="arrow-left" size={16} />
-      <Trans>Catalog</Trans>
-    </Link>
-  );
+  const back = <CatalogBack search={search} />;
   // A phone's header has room for an arrow, as every other page's has, not for the word beside the app's name.
   const phoneBack = (
     <Link to="/catalog" search={search} className="mobile-header-button" aria-label={t`Back to catalog`}>

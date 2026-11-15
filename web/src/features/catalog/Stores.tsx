@@ -8,6 +8,7 @@ import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { type ReactNode, useMemo } from "react";
 
+import { RouterButtonLink } from "../../lib/links";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { useStoreFormatWords } from "./SourceFormats";
 import { STORE_MARKS } from "./storeMarks";
@@ -146,19 +147,16 @@ export function StoreTile({
 
 /**
  * The stores Dockwell reads, each with its mark, what it brings, its licence, and Add,
- * or once a source reads it, Added and the way to that source. A store never leaves
- * the list once added.
+ * or once a source reads it, Added and the way to its apps in the catalog. A store
+ * never leaves the list once added.
  */
 export function StoreGallery({
   sources,
   off,
-  onGo,
 }: {
   sources: readonly CatalogSourceInfo[];
   /** Spread onto Add: off, with why, for whoever may not add a source. */
   off: { off?: string; disabled?: true };
-  /** Goes to the source that reads a store, by its name. */
-  onGo: (source: string) => void;
 }) {
   const { t } = useLingui();
   const stores = useStores();
@@ -178,15 +176,17 @@ export function StoreGallery({
             store={store}
             action={
               store.source ? (
-                <Button
+                // Added already: its apps, in the catalog, where a person goes next (#725).
+                <RouterButtonLink
+                  to="/catalog"
+                  search={{ catalog: store.source }}
                   size="sm"
                   variant="ghost"
                   icon="arrow-right"
-                  aria-label={t`Go to ${store.label}`}
-                  onClick={() => onGo(store.source)}
+                  aria-label={t`Browse the apps from ${store.label}`}
                 >
-                  <Trans context="catalog store">Go to it</Trans>
-                </Button>
+                  <Trans context="catalog store">Browse its apps</Trans>
+                </RouterButtonLink>
               ) : (
                 <Button size="sm" icon="plus" aria-label={t`Add ${named(store)}`} {...off} onClick={() => add(store)}>
                   <Trans context="catalog store">Add</Trans>
