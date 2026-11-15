@@ -20,7 +20,7 @@ screenshots:
     source: https://user-images.githubusercontent.com/353959/169805900-66be5b89-0859-4816-8da9-528ed7534704.png
 category: cms
 version: "6.72.0"
-release: 4
+release: 5
 homepage: https://ghost.org
 license: AGPL-3.0-only
 appLicense: MIT
@@ -50,11 +50,25 @@ inputs:
     label: Database root password
     type: INPUT_TYPE_SECRET
     generate: 32
-  - name: MYSQL_PASSWORD
-    label: Database password
-    type: INPUT_TYPE_SECRET
-    generate: 32
 databases: [db]
+needs:
+  - name: db
+    label: Database
+    service: db
+    database: ghost
+    user: ghost
+    accepts:
+      - engine: ENGINE_MYSQL
+        versions: ">=8.0"
+    sets:
+      - name: DB_HOST
+        part: PART_HOST
+      - name: DB_NAME
+        part: PART_DATABASE
+      - name: DB_USER
+        part: PART_USER
+      - name: MYSQL_PASSWORD
+        part: PART_PASSWORD
 compose: |
   services:
     ghost:
@@ -66,10 +80,10 @@ compose: |
       environment:
         url: ${URL:-http://localhost:${PORT}}
         database__client: mysql
-        database__connection__host: db
-        database__connection__user: ghost
+        database__connection__host: ${DB_HOST}
+        database__connection__user: ${DB_USER}
         database__connection__password: ${MYSQL_PASSWORD}
-        database__connection__database: ghost
+        database__connection__database: ${DB_NAME}
       ports:
         - "127.0.0.1:${PORT}:2368"
       volumes:
@@ -87,8 +101,8 @@ compose: |
       restart: unless-stopped
       environment:
         MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-        MYSQL_DATABASE: ghost
-        MYSQL_USER: ghost
+        MYSQL_DATABASE: ${DB_NAME}
+        MYSQL_USER: ${DB_USER}
         MYSQL_PASSWORD: ${MYSQL_PASSWORD}
       volumes:
         - data:/var/lib/mysql

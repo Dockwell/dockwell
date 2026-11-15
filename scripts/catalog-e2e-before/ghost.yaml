@@ -1,0 +1,103 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+id: ghost
+name: Ghost
+summary: Blogs, newsletters and memberships
+description: |-
+  Ghost is a publishing platform for articles, newsletters and memberships. Write in its editor, organize a publication, and manage the readers who subscribe to it.
+
+  This install includes Ghost and its database. You can choose a theme and connect your domain after installation. Sending newsletters and taking payments require the corresponding email and payment services.
+icon: media/ghost-icon.webp
+documentation: https://docs.ghost.org
+appSource: https://github.com/TryGhost/Ghost
+features:
+  - "Article and page editor"
+  - "Themes for your publication"
+  - "Member and subscription management"
+  - "Newsletter publishing"
+screenshots:
+  - path: media/ghost-publishing.webp
+    caption: "Ghost publishing and membership tools"
+    source: https://user-images.githubusercontent.com/353959/169805900-66be5b89-0859-4816-8da9-528ed7534704.png
+category: cms
+version: "6.72.0"
+release: 4
+homepage: https://ghost.org
+license: AGPL-3.0-only
+appLicense: MIT
+source:
+  repository: https://github.com/Dockwell/catalog
+  path: entries/ghost.yaml
+web:
+  service: ghost
+firstVisitorOwns: true
+addressVariables:
+  - service: ghost
+    variable: url
+    value: "https://{domain}"
+notes:
+  - "Emails a sign-in code on each new device, so it needs its mail__ settings."
+inputs:
+  - name: PORT
+    label: Port on this server
+    type: INPUT_TYPE_PORT
+    defaultValue: "2368"
+  - name: URL
+    label: Site address
+    hint: "Where Ghost links every page. Empty until it has a domain."
+    type: INPUT_TYPE_TEXT
+    optional: true
+  - name: MYSQL_ROOT_PASSWORD
+    label: Database root password
+    type: INPUT_TYPE_SECRET
+    generate: 32
+  - name: MYSQL_PASSWORD
+    label: Database password
+    type: INPUT_TYPE_SECRET
+    generate: 32
+databases: [db]
+compose: |
+  services:
+    ghost:
+      image: ghost:6.72.0@sha256:c0d83a8d45222b3f37a897572000050ab8e6e507d3eee5a35b3ef8345c7293d6
+      restart: unless-stopped
+      depends_on:
+        db:
+          condition: service_healthy
+      environment:
+        url: ${URL:-http://localhost:${PORT}}
+        database__client: mysql
+        database__connection__host: db
+        database__connection__user: ghost
+        database__connection__password: ${MYSQL_PASSWORD}
+        database__connection__database: ghost
+      ports:
+        - "127.0.0.1:${PORT}:2368"
+      volumes:
+        - content:/var/lib/ghost/content
+      healthcheck:
+        # As the proxy in front asks, once url is HTTPS: Ghost sends an http request to its
+        # https address, out of the container, and trusts this header from loopback.
+        test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:2368/ghost/api/admin/site/', {headers: {'X-Forwarded-Proto': 'https'}, redirect: 'manual'}).then(r => process.exit(r.status === 200 ? 0 : 1), () => process.exit(1))"]
+        interval: 10s
+        timeout: 5s
+        retries: 24
+        start_period: 60s
+    db:
+      image: mysql:8.4.11@sha256:0f51e63e537a1f176423fa03ef559aabe6fa4372a53160a44bc7e75da7d15364
+      restart: unless-stopped
+      environment:
+        MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+        MYSQL_DATABASE: ghost
+        MYSQL_USER: ghost
+        MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      volumes:
+        - data:/var/lib/mysql
+      healthcheck:
+        test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
+        interval: 5s
+        timeout: 5s
+        retries: 30
+        start_period: 30s
+  volumes:
+    content: {}
+    data: {}

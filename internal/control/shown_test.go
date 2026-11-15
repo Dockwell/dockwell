@@ -34,6 +34,9 @@ func TestAnInstallShowsItsPlainValues(t *testing.T) {
 }
 
 func testAnInstallShowsItsPlainValues(t *testing.T, backend store.Backend) {
+	// WordPress as it set its database's address and names in plain values, before
+	// they came from its need.
+	bundled(t, "wordpress")
 	f := startFull(t, backend, nil)
 	b := signedIn(t, f)
 	pullsAnything(f.addDockerServer(t))
@@ -241,6 +244,8 @@ func TestShowingInstallsLeavesNoTrailWhileItWaits(t *testing.T) {
 }
 
 func testShowingInstallsLeavesNoTrailWhileItWaits(t *testing.T, backend store.Backend) {
+	// WordPress as it set plain values, before its database became a need.
+	bundled(t, "wordpress")
 	f := startFull(t, backend, nil)
 	b := signedIn(t, f)
 	near := f.addDockerServer(t)

@@ -576,6 +576,7 @@ func (h *Handler) upgrade(ctx context.Context, m *dockwellv1.UpgradeCatalogInsta
 		return nil, err
 	}
 	pinNotes = append(pinNotes, needNotes...)
+	pinNotes = append(pinNotes, restartsForNeeds(entry, pin, needed)...)
 	free, err := h.whatsFree(ctx, needed.Entry, "")
 	if err != nil {
 		return nil, h.internal(ctx, err)

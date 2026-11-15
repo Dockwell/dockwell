@@ -1,0 +1,92 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+id: wordpress
+name: WordPress
+summary: Websites and blogs, with themes and plugins
+description: |-
+  WordPress is a publishing system for websites, blogs and other content. Build pages with blocks, organize posts, and choose themes and plugins for the site you want to run.
+
+  This entry includes WordPress and its database. Complete the setup screen after installation, then connect a domain and start publishing.
+icon: media/wordpress-icon.webp
+documentation: https://wordpress.org/documentation/
+appSource: https://github.com/WordPress/WordPress
+features:
+  - "Block-based page and post editing"
+  - "Themes and plugins"
+  - "Media library and publishing tools"
+  - "Users and editorial roles"
+screenshots:
+  - path: media/wordpress-editor.webp
+    caption: "Write a post in the WordPress block editor"
+    source: https://wordpress.org/documentation/files/2019/03/block-editor-overview-6.7-1536x869.jpg
+category: cms
+version: "7.1.3"
+release: 4
+homepage: https://wordpress.org
+license: AGPL-3.0-only
+appLicense: GPL-2.0-or-later
+source:
+  repository: https://github.com/Dockwell/catalog
+  path: entries/wordpress.yaml
+web:
+  service: wordpress
+firstVisitorOwns: true
+notes:
+  - "Keeps the address it was set up at until you change it under Settings, General."
+  - "Updates itself, its themes and its plugins from its dashboard; an upgrade here moves PHP and Apache on."
+inputs:
+  - name: PORT
+    label: Port on this server
+    type: INPUT_TYPE_PORT
+    defaultValue: "8085"
+  - name: MARIADB_ROOT_PASSWORD
+    label: Database root password
+    type: INPUT_TYPE_SECRET
+    generate: 32
+  - name: MARIADB_PASSWORD
+    label: Database password
+    type: INPUT_TYPE_SECRET
+    generate: 32
+databases: [db]
+compose: |
+  services:
+    wordpress:
+      image: wordpress:7.1.3-apache@sha256:8901759bfbb7ebc567dbc44a244c0d96d720d0a67c17bc4f42ec355ddba2e863
+      restart: unless-stopped
+      depends_on:
+        db:
+          condition: service_healthy
+      environment:
+        WORDPRESS_DB_HOST: db
+        WORDPRESS_DB_USER: wordpress
+        WORDPRESS_DB_PASSWORD: ${MARIADB_PASSWORD}
+        WORDPRESS_DB_NAME: wordpress
+      ports:
+        - "127.0.0.1:${PORT}:80"
+      volumes:
+        - html:/var/www/html
+      healthcheck:
+        test: ["CMD", "curl", "-fsS", "--max-time", "8", "-o", "/dev/null", "http://127.0.0.1/wp-admin/install.php"]
+        interval: 10s
+        timeout: 10s
+        retries: 18
+        start_period: 20s
+    db:
+      image: mariadb:12.3.3@sha256:d46e102fa8b9b72bfcdeb56f9dd538742092119dc8b11f31fe662605cd234cd9
+      restart: unless-stopped
+      environment:
+        MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD}
+        MARIADB_DATABASE: wordpress
+        MARIADB_USER: wordpress
+        MARIADB_PASSWORD: ${MARIADB_PASSWORD}
+        MARIADB_AUTO_UPGRADE: "1"
+      volumes:
+        - data:/var/lib/mysql
+      healthcheck:
+        test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+        interval: 5s
+        timeout: 5s
+        retries: 30
+        start_period: 30s
+  volumes:
+    html: {}
+    data: {}

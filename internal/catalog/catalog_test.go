@@ -42,6 +42,7 @@ func TestTheBuiltInEntries(t *testing.T) {
 			if e.GetAppLicense() == "" {
 				t.Error("it doesn't say the app's licence")
 			}
+			e := installed(t, e)
 			given := map[string]string{}
 			for _, in := range e.GetInputs() {
 				if catalog.Asks(in) && in.GetDefaultValue() == "" {
@@ -337,6 +338,7 @@ func TestAnAppsOwnAddressFollowsItsPort(t *testing.T) {
 		if !ok {
 			t.Fatalf("the catalog has no %s", id)
 		}
+		e = installed(t, e)
 		filled, err := catalog.Fill(e, map[string]string{"PORT": "7444"}, catalog.Suggest(e, nil))
 		if err != nil {
 			t.Fatal(err)
@@ -352,6 +354,7 @@ func TestAnAppsOwnAddressFollowsItsPort(t *testing.T) {
 	}
 	// Ghost takes its address at install too, in place of its port's.
 	e, _ := c.Entry("ghost")
+	e = installed(t, e)
 	filled, err := catalog.Fill(e, map[string]string{"PORT": "7444", "URL": "https://blog.example.com"}, catalog.Suggest(e, nil))
 	if err != nil {
 		t.Fatal(err)
@@ -701,10 +704,29 @@ func TestEveryEntryHasACatalogJob(t *testing.T) {
 	}
 }
 
+// installed is an entry as an install of it runs, each need met its first way, as
+// an install meets it by default: what its needs set are its inputs then.
+func installed(t *testing.T, e *catalogv1.Entry) *catalogv1.Entry {
+	t.Helper()
+	if len(e.GetNeeds()) == 0 {
+		return e
+	}
+	met, err := catalog.Meet(e, catalog.Ways(e, lookupBuiltIn(t)), nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	needed, err := catalog.Need(e, met)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return needed.Entry
+}
+
 // read reads an entry's Compose file as an install would, with what a person types
 // made up.
 func read(t *testing.T, e *catalogv1.Entry) (*compose.Stack, *catalog.Filled) {
 	t.Helper()
+	e = installed(t, e)
 	given := map[string]string{}
 	for _, in := range e.GetInputs() {
 		if catalog.Asks(in) && in.GetDefaultValue() == "" {
