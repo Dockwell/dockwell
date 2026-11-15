@@ -165,6 +165,9 @@ func TestAPushThroughTheGitHubAppDeploysWhatItReaches(t *testing.T) {
 	g.done(t, widen.Msg.GetChange())
 
 	// GitHub says the installation was removed: pushes through it deploy nothing.
+	gh.mu.Lock()
+	gh.gone = true
+	gh.mu.Unlock()
 	removed, _ := json.Marshal(map[string]any{"action": "deleted", "installation": map[string]any{"id": 7}})
 	if code, _, _ := send(t, webhook, delivery{id: "a-5", event: "installation", secret: "first-webhook-secret", body: removed}); code != http.StatusAccepted {
 		t.Fatalf("an installation's removal: %d", code)

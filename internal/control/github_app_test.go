@@ -57,6 +57,8 @@ type fakeGitHub struct {
 	head       func() string
 	heads      int
 	retryAfter int
+	// gone has GitHub say installation 7 was removed.
+	gone bool
 }
 
 func newFakeGitHub(t *testing.T) *fakeGitHub {
@@ -165,6 +167,13 @@ func (f *fakeGitHub) serve(w http.ResponseWriter, r *http.Request) {
 	case path == "/app":
 		_, _ = fmt.Fprint(w, `{"id":42,"slug":"dockwell-deploy"}`)
 	case path == "/app/installations/7" && r.Method == http.MethodGet:
+		f.mu.Lock()
+		gone := f.gone
+		f.mu.Unlock()
+		if gone {
+			no(404, "Not Found")
+			return
+		}
 		_, _ = fmt.Fprint(w, `{"id":7,"app_id":42,"account":{"login":"acme","type":"Organization"},"repository_selection":"selected"}`)
 	case path == "/app/installations/7" && r.Method == http.MethodDelete:
 		f.mu.Lock()

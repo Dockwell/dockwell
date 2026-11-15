@@ -8,6 +8,7 @@ package control
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"sync/atomic"
@@ -17,6 +18,7 @@ import (
 	"connectrpc.com/connect"
 
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/internal/store"
 )
 
 // Review M1: a branch pushed back to a commit polling deployed before is a push
@@ -141,4 +143,42 @@ func short(s string) string {
 		return s[:6] + "…"
 	}
 	return s
+}
+
+// Review L2: an installation event saying one was removed is checked with GitHub,
+// as the App, before Dockwell keeps it: one GitHub still has stays, and one Dockwell
+// never knew, or another App's, is no row of this App's.
+func TestReviewARemovalEventIsCheckedWithGitHub(t *testing.T) {
+	t.Parallel()
+	a := newAppBench(t)
+	ctx := t.Context()
+	removal := func(id string, installation int64) {
+		t.Helper()
+		body, _ := json.Marshal(map[string]any{"action": "deleted", "installation": map[string]any{"id": installation}})
+		if code, _, _ := send(t, a.webhook, delivery{id: id, event: "installation", secret: "first-webhook-secret", body: body}); code != http.StatusAccepted {
+			t.Fatalf("an installation event: %d", code)
+		}
+	}
+	installed := func() int {
+		t.Helper()
+		listed, err := a.gp.ListGitProviders(ctx, connect.NewRequest(&dockwellv1.ListGitProvidersRequest{}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return len(listed.Msg.GetApps()[0].GetInstallations())
+	}
+	removal("l2-1", 7) // GitHub still has it
+	removal("l2-2", 9) // nobody's
+	time.Sleep(500 * time.Millisecond)
+	if n := installed(); n != 1 {
+		t.Errorf("after removals GitHub didn't make, the App lists %d installations", n)
+	}
+	if err := a.f.store.View(ctx, func(tx *store.Tx) error {
+		if _, err := tx.GetGitHubInstallation(ctx, 9); !errors.Is(err, store.ErrNotFound) {
+			t.Errorf("an event for an installation nobody knew made a row: %v", err)
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
 }

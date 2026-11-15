@@ -67,8 +67,21 @@ func (h *Handler) Installed(ctx context.Context, appID string, installation int6
 		return err
 	}
 	if removed {
-		if h.app(k) != nil {
-			h.app(k).Forget(installation)
+		// Only this App's own installation, and only once GitHub, asked as the App,
+		// says it's gone: an event names it, and isn't the last word (review L2).
+		if !known || was.AppID != k.r.ID || was.RemovedAt != nil {
+			return nil
+		}
+		if app := h.app(k); app != nil {
+			_, err := app.Installation(ctx, installation)
+			var e *github.Error
+			switch {
+			case err == nil:
+				return nil // still there
+			case !errors.As(err, &e) || !e.NotFound():
+				return fmt.Errorf("can't ask GitHub whether installation %d was removed: %w", installation, err)
+			}
+			app.Forget(installation)
 		}
 		now := h.now()
 		was.ID, was.AppID, was.RemovedAt, was.UpdatedAt = installation, k.r.ID, &now, now
