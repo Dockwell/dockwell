@@ -3,12 +3,14 @@
 // Package panel serves the web panel built into the binary.
 //
 // `make web` builds web/ into dist/app, which is embedded here. The handler
-// indexes the build once and then serves it with the headers a production
-// web app needs: precompressed Brotli or gzip variants, immutable caching
-// for content-hashed assets, ETag revalidation for everything else, a
+// indexes the build's names once and then serves it with the headers a
+// production web app needs: precompressed Brotli or gzip variants, immutable
+// caching for content-hashed assets, ETag revalidation for everything else, a
 // client-route fallback for page loads, and strict security headers on HTML.
-// File contents are read from the embedded filesystem per request, so the
-// build isn't copied onto the heap.
+// Starting reads no file's contents (#619): an asset's name is its ETag, the
+// few other files are hashed on their first request, and the build writes a
+// Brotli or gzip variant only where it's smaller. File contents are read from
+// the embedded filesystem per request, so the build isn't copied onto the heap.
 package panel
 
 import (
@@ -24,6 +26,7 @@ import (
 	"path"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -57,10 +60,29 @@ const htmlType = "text/html; charset=utf-8"
 type asset struct {
 	file        string // path within the build
 	contentType string
-	etag        string
 	brotli      bool
 	gzip        bool
 	immutable   bool
+
+	// The ETag: an asset's content-hashed name, and for the rest a hash of the
+	// file, made on its first request and kept.
+	tagOnce sync.Once
+	tag     string
+	tagErr  error
+}
+
+// etag is the asset's ETag, without an encoding's suffix. A content-hashed
+// asset's is its name, which changes with every byte; another file is read
+// once, on its first request, rather than as the control plane starts.
+func (a *asset) etag(fsys fs.FS) (string, error) {
+	a.tagOnce.Do(func() {
+		if a.immutable {
+			a.tag = path.Base(a.file)
+			return
+		}
+		a.tag, a.tagErr = hashFile(fsys, a.file)
+	})
+	return a.tag, a.tagErr
 }
 
 // Handler serves a panel build.
@@ -70,33 +92,40 @@ type Handler struct {
 	index  *asset
 }
 
-// New indexes the build in fsys. A missing or empty build is allowed: the
-// handler then explains how to build the panel instead of serving it.
+// New indexes the build in fsys by its names alone, reading no file. A
+// missing or empty build is allowed: the handler then explains how to build
+// the panel instead of serving it.
 func New(fsys fs.FS) (*Handler, error) {
 	h := &Handler{fsys: fsys, assets: map[string]*asset{}}
+	var names []string
+	variants := map[string]bool{}
 	err := fs.WalkDir(fsys, ".", func(name string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() || strings.HasSuffix(name, ".br") || strings.HasSuffix(name, ".gz") {
+		switch {
+		case err != nil || d.IsDir():
 			return err
-		}
-		sum, size, err := hashFile(fsys, name)
-		if err != nil {
-			return err
-		}
-		h.assets["/"+name] = &asset{
-			file:        name,
-			contentType: contentType(name),
-			etag:        sum,
-			brotli:      smaller(fsys, name+".br", size),
-			gzip:        smaller(fsys, name+".gz", size),
-			immutable:   strings.HasPrefix("/"+name, assetDir),
+		case strings.HasSuffix(name, ".br") || strings.HasSuffix(name, ".gz"):
+			variants[name] = true
+		default:
+			names = append(names, name)
 		}
 		return nil
 	})
-	if errors.Is(err, fs.ErrNotExist) && len(h.assets) == 0 {
+	if errors.Is(err, fs.ErrNotExist) && len(names) == 0 {
 		return h, nil // no build at all
 	}
 	if err != nil {
 		return nil, fmt.Errorf("can't load the panel build: %w", err)
+	}
+	for _, name := range names {
+		// The build writes a variant only where it's smaller (web/vite.config.ts), so
+		// one that's there is served.
+		h.assets["/"+name] = &asset{
+			file:        name,
+			contentType: contentType(name),
+			brotli:      variants[name+".br"],
+			gzip:        variants[name+".gz"],
+			immutable:   strings.HasPrefix("/"+name, assetDir),
+		}
 	}
 	h.index = h.assets["/index.html"]
 	return h, nil
@@ -160,7 +189,11 @@ func (h *Handler) serve(w http.ResponseWriter, r *http.Request, a *asset) {
 			file, encoding = a.file+".gz", "gzip"
 		}
 	}
-	etag := a.etag
+	etag, err := a.etag(h.fsys)
+	if err != nil {
+		http.Error(w, "the panel build changed while running; restart dockwell", http.StatusInternalServerError)
+		return
+	}
 	if encoding != "" {
 		header.Set("Content-Encoding", encoding)
 		etag += "-" + encoding
@@ -237,26 +270,19 @@ func contentType(name string) string {
 	return "application/octet-stream"
 }
 
-// hashFile returns a short content hash and the size, reading the file once
-// without keeping it.
-func hashFile(fsys fs.FS, name string) (string, int64, error) {
+// hashFile returns a short content hash, reading the file once without
+// keeping it.
+func hashFile(fsys fs.FS, name string) (string, error) {
 	f, err := fsys.Open(name)
 	if err != nil {
-		return "", 0, err
+		return "", err
 	}
 	defer f.Close()
 	h := sha256.New()
-	n, err := io.Copy(h, f)
-	if err != nil {
-		return "", 0, err
+	if _, err := io.Copy(h, f); err != nil {
+		return "", err
 	}
-	return hex.EncodeToString(h.Sum(nil)[:12]), n, nil
-}
-
-// smaller reports whether a precompressed variant exists and beats the original.
-func smaller(fsys fs.FS, name string, size int64) bool {
-	info, err := fs.Stat(fsys, name)
-	return err == nil && info.Size() < size
+	return hex.EncodeToString(h.Sum(nil)[:12]), nil
 }
 
 func notFound(w http.ResponseWriter) {

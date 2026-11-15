@@ -282,3 +282,73 @@ func TestEmbeddedLoads(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// counted is a build that counts the files opened in it, directories apart.
+type counted struct {
+	fs.FS
+	opens map[string]int
+}
+
+func (c *counted) Open(name string) (fs.File, error) {
+	f, err := c.FS.Open(name)
+	if err == nil {
+		if info, statErr := f.Stat(); statErr == nil && !info.IsDir() {
+			c.opens[name]++
+		}
+	}
+	return f, err
+}
+
+func (c *counted) total() int {
+	n := 0
+	for _, v := range c.opens {
+		n += v
+	}
+	return n
+}
+
+func TestStartingReadsNoFile(t *testing.T) {
+	build := &counted{FS: fstest.MapFS{
+		"index.html":              {Data: indexHTML},
+		"favicon.svg":             {Data: []byte(`<svg xmlns="http://www.w3.org/2000/svg"/>`)},
+		"assets/app-3f2a9c.js":    {Data: appJS},
+		"assets/app-3f2a9c.js.br": {Data: []byte("brotli bytes")},
+		"assets/app-3f2a9c.js.gz": {Data: gz(t, appJS)},
+	}, opens: map[string]int{}}
+	h, err := New(build)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := build.total(); n != 0 {
+		t.Fatalf("New opened %v, want no file read as the control plane starts", build.opens)
+	}
+
+	// A content-hashed asset's ETag is its name: serving it reads it, and only it.
+	res := get(t, h, http.MethodGet, "/assets/app-3f2a9c.js", map[string]string{"Accept-Encoding": "br"})
+	_ = body(t, res)
+	if tag := res.Header.Get("ETag"); tag != `"app-3f2a9c.js-br"` {
+		t.Errorf("an asset's ETag = %s, want its name with its encoding", tag)
+	}
+	if res.Header.Get("Content-Encoding") != "br" || build.opens["assets/app-3f2a9c.js.br"] != 1 || build.total() != 1 {
+		t.Errorf("serving the asset as Brotli opened %v, want its .br alone", build.opens)
+	}
+
+	// Another file is hashed on its first request, once, and its ETag holds.
+	first := get(t, h, http.MethodGet, "/favicon.svg", nil)
+	_ = body(t, first)
+	again := get(t, h, http.MethodGet, "/favicon.svg", nil)
+	_ = body(t, again)
+	tag := first.Header.Get("ETag")
+	if tag == "" || again.Header.Get("ETag") != tag {
+		t.Errorf("favicon.svg's ETags = %q then %q, want one, the same", tag, again.Header.Get("ETag"))
+	}
+	// Hashed once, then served twice.
+	if n := build.opens["favicon.svg"]; n != 3 {
+		t.Errorf("favicon.svg was opened %d times over two requests, want 3: hashed once, then served twice", n)
+	}
+	revalidated := get(t, h, http.MethodGet, "/favicon.svg", map[string]string{"If-None-Match": tag})
+	_ = body(t, revalidated)
+	if revalidated.StatusCode != http.StatusNotModified {
+		t.Errorf("revalidating favicon.svg = %d, want 304", revalidated.StatusCode)
+	}
+}
