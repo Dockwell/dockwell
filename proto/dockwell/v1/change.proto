@@ -1311,6 +1311,9 @@ enum ActorKind {
   // host name, as "mira@hz-1", since Dockwell hasn't signed them in. What
   // the CLI then does with that token is the token's.
   ACTOR_KIND_SHELL = 5;
+  // A service's hook, deploying it on a push, acting for the person who made
+  // it. Numbered apart, as open work adds to this enum.
+  ACTOR_KIND_HOOK = 110;
 }
 
 // Surface is where a change, or what an event records, came from. A call
@@ -1329,6 +1332,9 @@ enum Surface {
   // The dockwell CLI, with an API token. The CLI says so in its User-Agent,
   // "dockwell-cli/<version>"; any other client with a token is the API.
   SURFACE_CLI = 4;
+  // A push to a Git repository, through a service's hook. Numbered apart, as
+  // open work adds to this enum.
+  SURFACE_PUSH = 110;
 }
 
 // Plan is what applying a change would do: what changes, where, and for

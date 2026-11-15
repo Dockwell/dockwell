@@ -300,6 +300,8 @@ export function useChangeWords(): ChangeWords {
             return t`The CLI`;
           case Surface.AUTOMATIC:
             return t`Automatic`;
+          case Surface.PUSH:
+            return t`A push`;
         }
         return t`Unknown`;
       },
@@ -313,6 +315,8 @@ export function useChangeWords(): ChangeWords {
             return t`From the CLI`;
           case Surface.AUTOMATIC:
             return t`Automatic`;
+          case Surface.PUSH:
+            return t`From a push`;
         }
         return "";
       },

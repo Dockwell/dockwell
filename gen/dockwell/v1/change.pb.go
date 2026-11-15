@@ -388,17 +388,21 @@ const (
 	// host name, as "mira@hz-1", since Dockwell hasn't signed them in. What
 	// the CLI then does with that token is the token's.
 	ActorKind_ACTOR_KIND_SHELL ActorKind = 5
+	// A service's hook, deploying it on a push, acting for the person who made
+	// it. Numbered apart, as open work adds to this enum.
+	ActorKind_ACTOR_KIND_HOOK ActorKind = 110
 )
 
 // Enum value maps for ActorKind.
 var (
 	ActorKind_name = map[int32]string{
-		0: "ACTOR_KIND_UNSPECIFIED",
-		1: "ACTOR_KIND_USER",
-		2: "ACTOR_KIND_TOKEN",
-		3: "ACTOR_KIND_DOCKWELL",
-		4: "ACTOR_KIND_SERVER",
-		5: "ACTOR_KIND_SHELL",
+		0:   "ACTOR_KIND_UNSPECIFIED",
+		1:   "ACTOR_KIND_USER",
+		2:   "ACTOR_KIND_TOKEN",
+		3:   "ACTOR_KIND_DOCKWELL",
+		4:   "ACTOR_KIND_SERVER",
+		5:   "ACTOR_KIND_SHELL",
+		110: "ACTOR_KIND_HOOK",
 	}
 	ActorKind_value = map[string]int32{
 		"ACTOR_KIND_UNSPECIFIED": 0,
@@ -407,6 +411,7 @@ var (
 		"ACTOR_KIND_DOCKWELL":    3,
 		"ACTOR_KIND_SERVER":      4,
 		"ACTOR_KIND_SHELL":       5,
+		"ACTOR_KIND_HOOK":        110,
 	}
 )
 
@@ -455,16 +460,20 @@ const (
 	// The dockwell CLI, with an API token. The CLI says so in its User-Agent,
 	// "dockwell-cli/<version>"; any other client with a token is the API.
 	Surface_SURFACE_CLI Surface = 4
+	// A push to a Git repository, through a service's hook. Numbered apart, as
+	// open work adds to this enum.
+	Surface_SURFACE_PUSH Surface = 110
 )
 
 // Enum value maps for Surface.
 var (
 	Surface_name = map[int32]string{
-		0: "SURFACE_UNSPECIFIED",
-		1: "SURFACE_PANEL",
-		2: "SURFACE_API",
-		3: "SURFACE_AUTOMATIC",
-		4: "SURFACE_CLI",
+		0:   "SURFACE_UNSPECIFIED",
+		1:   "SURFACE_PANEL",
+		2:   "SURFACE_API",
+		3:   "SURFACE_AUTOMATIC",
+		4:   "SURFACE_CLI",
+		110: "SURFACE_PUSH",
 	}
 	Surface_value = map[string]int32{
 		"SURFACE_UNSPECIFIED": 0,
@@ -472,6 +481,7 @@ var (
 		"SURFACE_API":         2,
 		"SURFACE_AUTOMATIC":   3,
 		"SURFACE_CLI":         4,
+		"SURFACE_PUSH":        110,
 	}
 )
 
@@ -10451,20 +10461,22 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\x15CHANGE_STATE_APPLYING\x10\x02\x12\x18\n" +
 	"\x14CHANGE_STATE_APPLIED\x10\x03\x12\x17\n" +
 	"\x13CHANGE_STATE_FAILED\x10\x04\x12\x1a\n" +
-	"\x16CHANGE_STATE_DISCARDED\x10\x05*\x98\x01\n" +
+	"\x16CHANGE_STATE_DISCARDED\x10\x05*\xad\x01\n" +
 	"\tActorKind\x12\x1a\n" +
 	"\x16ACTOR_KIND_UNSPECIFIED\x10\x00\x12\x13\n" +
 	"\x0fACTOR_KIND_USER\x10\x01\x12\x14\n" +
 	"\x10ACTOR_KIND_TOKEN\x10\x02\x12\x17\n" +
 	"\x13ACTOR_KIND_DOCKWELL\x10\x03\x12\x15\n" +
 	"\x11ACTOR_KIND_SERVER\x10\x04\x12\x14\n" +
-	"\x10ACTOR_KIND_SHELL\x10\x05*n\n" +
+	"\x10ACTOR_KIND_SHELL\x10\x05\x12\x13\n" +
+	"\x0fACTOR_KIND_HOOK\x10n*\x80\x01\n" +
 	"\aSurface\x12\x17\n" +
 	"\x13SURFACE_UNSPECIFIED\x10\x00\x12\x11\n" +
 	"\rSURFACE_PANEL\x10\x01\x12\x0f\n" +
 	"\vSURFACE_API\x10\x02\x12\x15\n" +
 	"\x11SURFACE_AUTOMATIC\x10\x03\x12\x0f\n" +
-	"\vSURFACE_CLI\x10\x04*\xab\x01\n" +
+	"\vSURFACE_CLI\x10\x04\x12\x10\n" +
+	"\fSURFACE_PUSH\x10n*\xab\x01\n" +
 	"\n" +
 	"IntentKind\x12\x1b\n" +
 	"\x17INTENT_KIND_UNSPECIFIED\x10\x00\x12\x16\n" +

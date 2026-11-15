@@ -345,6 +345,7 @@ const (
 	SurfaceAPI       = "api"
 	SurfaceCLI       = "cli" // the dockwell CLI: calling the API with a token, or run on a server, such as dockwell join or dockwell recover
 	SurfaceAutomatic = "automatic"
+	SurfacePush      = "push" // a push to a Git repository, through a service's hook
 )
 
 // SurfaceOf is where what an actor does on its own behalf comes from: a
@@ -363,6 +364,8 @@ func SurfaceOf(actor string) string {
 		return SurfaceAPI
 	case "cli":
 		return SurfaceCLI
+	case "hook":
+		return SurfacePush
 	}
 	return SurfaceAutomatic
 }

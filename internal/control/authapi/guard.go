@@ -97,6 +97,14 @@ func PrincipalFrom(ctx context.Context) (auth.Principal, bool) {
 	return p, ok
 }
 
+// As is ctx as a call by p, from client, for what acts for someone outside a
+// request Guard and Interceptor saw, as a service's hook does on a push: they
+// checked nothing of it, so whoever calls As has checked p.
+func As(ctx context.Context, client auth.Client, p auth.Principal) context.Context {
+	ctx = context.WithValue(ctx, requestKey{}, request{client: client})
+	return context.WithValue(ctx, principalKey{}, p)
+}
+
 // sessionUnchecked reports a request with a session cookie that couldn't be
 // checked, which went ahead without a principal because its procedure
 // needs none.

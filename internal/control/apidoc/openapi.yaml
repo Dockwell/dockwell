@@ -359,6 +359,7 @@ paths:
                         - SURFACE_API
                         - SURFACE_AUTOMATIC
                         - SURFACE_CLI
+                        - SURFACE_PUSH
                     type: string
                     format: enum
                 - name: query
@@ -2560,6 +2561,7 @@ paths:
                             - EVENT_KIND_HEALTH
                             - EVENT_KIND_BACKUP
                             - EVENT_KIND_SETTINGS
+                            - EVENT_KIND_PUSH
                             - EVENT_KIND_ALERT
                             - EVENT_KIND_TASK
                         type: string
@@ -2601,6 +2603,7 @@ paths:
                         - ACTOR_KIND_DOCKWELL
                         - ACTOR_KIND_SERVER
                         - ACTOR_KIND_SHELL
+                        - ACTOR_KIND_HOOK
                     type: string
                     format: enum
             responses:
@@ -2653,6 +2656,7 @@ paths:
                         - ACTOR_KIND_DOCKWELL
                         - ACTOR_KIND_SERVER
                         - ACTOR_KIND_SHELL
+                        - ACTOR_KIND_HOOK
                     type: string
                     format: enum
             responses:
@@ -5428,6 +5432,149 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/services/{id}/git-hook:
+        get:
+            tags:
+                - GitHookService
+            description: |-
+                GetGitHook returns a service's hook, its secret left out, and its newest
+                 deliveries.
+            operationId: GitHookService_GetGitHook
+            parameters:
+                - name: id
+                  in: path
+                  description: The service, by ID or by name.
+                  required: true
+                  schema:
+                    type: string
+                - name: project
+                  in: query
+                  description: The project of a service named by name, by name or ID.
+                  schema:
+                    type: string
+                - name: environment
+                  in: query
+                  description: The environment of a service named by name, by name or ID.
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GetGitHookResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+        post:
+            tags:
+                - GitHookService
+            description: |-
+                CreateGitHook turns deploy on push on for a service: it makes its hook, and
+                 gives its URL and secret, the secret only here. It needs a proof from
+                 AuthService.FinishStepUp for creating a hook, with the service's ID as its
+                 target. A service has one hook at most.
+            operationId: GitHookService_CreateGitHook
+            parameters:
+                - name: id
+                  in: path
+                  description: The service, by ID or by name.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CreateGitHookRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CreateGitHookResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/services/{id}/git-hook:delete:
+        post:
+            tags:
+                - GitHookService
+            description: |-
+                DeleteGitHook turns deploy on push off for a service: pushes stop
+                 deploying, and its hook's URL answers as if it never was.
+            operationId: GitHookService_DeleteGitHook
+            parameters:
+                - name: id
+                  in: path
+                  description: The service, by ID or by name.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/DeleteGitHookRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/DeleteGitHookResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/services/{id}/git-hook:rotate:
+        post:
+            tags:
+                - GitHookService
+            description: |-
+                RotateGitHookSecret gives a service's hook a new secret, and gives it, only
+                 here; the old one stops working. It needs a proof from
+                 AuthService.FinishStepUp for a hook's secret, with the service's ID as its
+                 target.
+            operationId: GitHookService_RotateGitHookSecret
+            parameters:
+                - name: id
+                  in: path
+                  description: The service, by ID or by name.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/RotateGitHookSecretRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/RotateGitHookSecretResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/services/{id}/logSources:
         get:
             tags:
@@ -7533,6 +7680,7 @@ components:
                         - ACTOR_KIND_DOCKWELL
                         - ACTOR_KIND_SERVER
                         - ACTOR_KIND_SHELL
+                        - ACTOR_KIND_HOOK
                     type: string
                     description: What kind of actor it is.
                     format: enum
@@ -8339,6 +8487,7 @@ components:
                         - SURFACE_API
                         - SURFACE_AUTOMATIC
                         - SURFACE_CLI
+                        - SURFACE_PUSH
                     type: string
                     description: Where it came from.
                     format: enum
@@ -9050,6 +9199,8 @@ components:
                         - STEP_UP_ACTION_CREATE_TOKEN
                         - STEP_UP_ACTION_APPLY_ROOT_CHANGE
                         - STEP_UP_ACTION_SAVE_WAY_BACK_IN
+                        - STEP_UP_ACTION_CREATE_GIT_HOOK
+                        - STEP_UP_ACTION_ROTATE_GIT_HOOK
                         - STEP_UP_ACTION_END_PROCESS
                         - STEP_UP_ACTION_OPEN_TERMINAL
                         - STEP_UP_ACTION_MAKE_WAY_BACK_IN
@@ -10170,6 +10321,7 @@ components:
                         - SURFACE_API
                         - SURFACE_AUTOMATIC
                         - SURFACE_CLI
+                        - SURFACE_PUSH
                     type: string
                     description: Where it was proposed from.
                     format: enum
@@ -10201,6 +10353,7 @@ components:
                         - SURFACE_API
                         - SURFACE_AUTOMATIC
                         - SURFACE_CLI
+                        - SURFACE_PUSH
                     type: string
                     description: Where it was applied from. Unset until it is applied.
                     format: enum
@@ -11463,6 +11616,37 @@ components:
                         - $ref: '#/components/schemas/Change'
                     description: The change, planned, with its plan.
             description: CreateDatabaseUserResponse carries the planned change.
+        CreateGitHookRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The service, by ID or by name.
+                project:
+                    type: string
+                    description: |-
+                        The project of a service named by name, by name or ID, when more than one
+                         has a service of that name.
+                environment:
+                    type: string
+                    description: |-
+                        The environment of a service named by name, by name or ID, when its project
+                         has more than one.
+                proof:
+                    type: string
+                    description: The proof from AuthService.FinishStepUp, for creating a hook.
+            description: CreateGitHookRequest names a service and proves a passkey.
+        CreateGitHookResponse:
+            type: object
+            properties:
+                hook:
+                    allOf:
+                        - $ref: '#/components/schemas/GitHook'
+                    description: The hook.
+                secret:
+                    type: string
+                    description: The secret the provider signs pushes with, only here.
+            description: CreateGitHookResponse is the hook, and its secret.
         CreateInviteRequest:
             type: object
             properties:
@@ -12064,6 +12248,23 @@ components:
                     type: boolean
                     description: True when it was a way back onto the server, which took a passkey.
             description: DeleteFileResponse says what was deleted.
+        DeleteGitHookRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The service, by ID or by name.
+                project:
+                    type: string
+                    description: The project of a service named by name, by name or ID.
+                environment:
+                    type: string
+                    description: The environment of a service named by name, by name or ID.
+            description: DeleteGitHookRequest names a service.
+        DeleteGitHookResponse:
+            type: object
+            properties: {}
+            description: DeleteGitHookResponse says the hook is gone.
         DeleteProviderLinkRequest:
             type: object
             properties:
@@ -13127,6 +13328,7 @@ components:
                         - EVENT_KIND_HEALTH
                         - EVENT_KIND_BACKUP
                         - EVENT_KIND_SETTINGS
+                        - EVENT_KIND_PUSH
                         - EVENT_KIND_ALERT
                         - EVENT_KIND_TASK
                     type: string
@@ -13158,6 +13360,7 @@ components:
                         - SURFACE_API
                         - SURFACE_AUTOMATIC
                         - SURFACE_CLI
+                        - SURFACE_PUSH
                     type: string
                     description: Where it came from.
                     format: enum
@@ -13208,6 +13411,12 @@ components:
                     description: |-
                         A setting of the install someone changed, for a settings event. Numbered
                          apart, as open work adds to this message.
+                push:
+                    allOf:
+                        - $ref: '#/components/schemas/EventPush'
+                    description: |-
+                        What a push through a service's hook came to. Numbered apart, as open work
+                         adds to this message.
                 alert:
                     allOf:
                         - $ref: '#/components/schemas/EventAlert'
@@ -13486,6 +13695,7 @@ components:
                         - EVENT_KIND_HEALTH
                         - EVENT_KIND_BACKUP
                         - EVENT_KIND_SETTINGS
+                        - EVENT_KIND_PUSH
                         - EVENT_KIND_ALERT
                         - EVENT_KIND_TASK
                     type: string
@@ -13587,6 +13797,17 @@ components:
                     type: string
                     description: What a person had set before, so it can be put back. Empty when they hadn't.
             description: EventPublicAddress is a server's public address as a person changed it.
+        EventPush:
+            type: object
+            properties:
+                hookId:
+                    type: string
+                    description: The hook's ID.
+                delivery:
+                    allOf:
+                        - $ref: '#/components/schemas/GitHookDelivery'
+                    description: The delivery, as the provider names it.
+            description: EventPush is what a push through a service's hook came to.
         EventReconciled:
             type: object
             properties:
@@ -14509,6 +14730,14 @@ components:
                         - $ref: '#/components/schemas/Database'
                     description: The database.
             description: GetDatabaseResponse is one database.
+        GetGitHookResponse:
+            type: object
+            properties:
+                hook:
+                    allOf:
+                        - $ref: '#/components/schemas/GitHook'
+                    description: The hook, unset when the service has none.
+            description: GetGitHookResponse is the service's hook, or none.
         GetImageResponse:
             type: object
             properties:
@@ -14664,6 +14893,77 @@ components:
                         - $ref: '#/components/schemas/VolumeInfo'
                     description: The volume.
             description: GetVolumeResponse is one volume.
+        GitHook:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: Its ID, such as "ghk_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                serviceId:
+                    type: string
+                    description: The service's ID.
+                url:
+                    type: string
+                    description: |-
+                        Where the provider sends pushes, such as
+                         "https://panel.example.com/hooks/git/ghk_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                createdBy:
+                    allOf:
+                        - $ref: '#/components/schemas/Actor'
+                    description: Who made it, which it acts for.
+                createTime:
+                    type: string
+                    description: When it was made.
+                    format: date-time
+                secretTime:
+                    type: string
+                    description: When its secret was last made, the first time included.
+                    format: date-time
+                deliveries:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/GitHookDelivery'
+                    description: Its newest deliveries, newest first, at most 20.
+            description: GitHook is a service's hook, which deploys it on a push.
+        GitHookDelivery:
+            type: object
+            properties:
+                deliveryId:
+                    type: string
+                    description: The provider's ID for it.
+                time:
+                    type: string
+                    description: When it came.
+                    format: date-time
+                provider:
+                    type: string
+                    description: 'Who sent it: "github", "gitea" or "forgejo".'
+                ref:
+                    type: string
+                    description: The ref it pushed, such as "refs/heads/main".
+                commit:
+                    type: string
+                    description: The commit the branch named when Dockwell read it, in full, when it read it.
+                outcome:
+                    enum:
+                        - GIT_HOOK_OUTCOME_UNSPECIFIED
+                        - GIT_HOOK_OUTCOME_DEPLOYING
+                        - GIT_HOOK_OUTCOME_NEEDS_PERSON
+                        - GIT_HOOK_OUTCOME_QUEUED
+                        - GIT_HOOK_OUTCOME_NOTHING_NEW
+                        - GIT_HOOK_OUTCOME_IGNORED
+                        - GIT_HOOK_OUTCOME_FAILED
+                        - GIT_HOOK_OUTCOME_SUPERSEDED
+                    type: string
+                    description: What came of it.
+                    format: enum
+                changeId:
+                    type: string
+                    description: The change it planned, when it planned one.
+                detail:
+                    type: string
+                    description: What came of it, in a sentence, such as "web already runs 8be41d2".
+            description: GitHookDelivery is one push a provider sent, and what came of it.
         GitSource:
             type: object
             properties:
@@ -20990,6 +21290,33 @@ components:
                     items:
                         type: string
             description: RolloutWave is one wave of a rollout.
+        RotateGitHookSecretRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The service, by ID or by name.
+                project:
+                    type: string
+                    description: The project of a service named by name, by name or ID.
+                environment:
+                    type: string
+                    description: The environment of a service named by name, by name or ID.
+                proof:
+                    type: string
+                    description: The proof from AuthService.FinishStepUp, for a hook's secret.
+            description: RotateGitHookSecretRequest names a service and proves a passkey.
+        RotateGitHookSecretResponse:
+            type: object
+            properties:
+                hook:
+                    allOf:
+                        - $ref: '#/components/schemas/GitHook'
+                    description: The hook.
+                secret:
+                    type: string
+                    description: The new secret, only here.
+            description: RotateGitHookSecretResponse is the hook, and its new secret.
         Route:
             type: object
             properties:
@@ -25483,6 +25810,16 @@ tags:
       description: |-
         FirewallService says what filters a server's inbound traffic. Reading it
          changes nothing. See docs/adr/0052-a-servers-firewall-ssh-and-fail2ban.md.
+    - name: GitHookService
+      description: |-
+        GitHookService turns deploy on push on and off for a service that builds from
+         Git: a hook, whose URL and secret GitHub, Gitea or Forgejo signs each push
+         with. A push to the branch the build follows plans a build and deploy of what
+         the branch names then, and applies it with an API token's rights: one that
+         needs a person stays planned. See docs/adr/0046-builds-from-git.md.
+
+         A hook acts for the person who made it. Making one, and a new secret for one,
+         takes a signed-in person and a passkey; a write token may delete one.
     - name: HealthService
       description: |-
         HealthService says how services are, as far as anything checked, from what

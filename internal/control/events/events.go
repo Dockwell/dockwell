@@ -35,6 +35,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/dnsproviders"
 	controlfiles "github.com/dockwell/dockwell/internal/control/files"
 	"github.com/dockwell/dockwell/internal/control/fleet"
+	"github.com/dockwell/dockwell/internal/control/githooks"
 	"github.com/dockwell/dockwell/internal/control/health"
 	"github.com/dockwell/dockwell/internal/control/paging"
 	"github.com/dockwell/dockwell/internal/control/place"
@@ -117,12 +118,14 @@ var (
 	// A scheduled task's run is an event; making or changing the task is a change (ADR 0053).
 	taskActions = tasks.Actions
 	// An alert is the control plane's record, and a mute no change (ADR 0044).
-	alertActions  = alerts.Actions
+	alertActions = alerts.Actions
+	// What a push came to is an event, and the deploy it applied a change (ADR 0046).
+	pushActions   = []string{githooks.Action}
 	accessActions = []string{
 		"owner.claim", "auth.sign_in", "session.revoke",
 		"passkey.add", "passkey.add_with_recovery_code", "passkey.add_with_authenticator_code", "passkey.remove",
 		"totp.enable", "totp.disable", "totp.unlock", "totp.setup_discarded", "recovery_codes.regenerate",
-		"token.create", "token.revoke",
+		"token.create", "token.revoke", "git_hook.create", "git_hook.rotate", "git_hook.delete",
 		"sign_in_link.create", "claim_link.create", "join_token.create",
 		"secret.reveal", "secrets.rotate_key",
 		// A test of a destination's keys, before any plan: who tried which storage.
@@ -309,6 +312,7 @@ func kindOfAction(action string) dockwellv1.EventKind {
 		{dockwellv1.EventKind_EVENT_KIND_SETTINGS, settingsActions},
 		{dockwellv1.EventKind_EVENT_KIND_TASK, taskActions},
 		{dockwellv1.EventKind_EVENT_KIND_ALERT, alertActions},
+		{dockwellv1.EventKind_EVENT_KIND_PUSH, pushActions},
 	} {
 		if slices.Contains(k.actions, action) {
 			return k.kind
@@ -729,6 +733,14 @@ func FromAudit(a *store.Event, look actors.Lookup) *dockwellv1.Event {
 		}
 		return e
 	}
+	if push, ok := githooks.ReadEvent(a); ok {
+		// As for health: only internal/control/githooks writes this, and what it
+		// writes is what the hook's own deliveries say.
+		e.Kind = dockwellv1.EventKind_EVENT_KIND_PUSH
+		e.Subject = &dockwellv1.EventSubject{Id: a.Subject, Name: look.Name(a.Subject), Scope: look.Scope(a.Subject)}
+		e.Push = push
+		return e
+	}
 	if slices.Contains(taskActions, a.Action) {
 		// Only internal/control/tasks writes these, and what it writes holds nothing
 		// a run printed.
@@ -881,7 +893,10 @@ func filter(kinds []dockwellv1.EventKind, serverID, resourceID, actorID string, 
 	if every || want[dockwellv1.EventKind_EVENT_KIND_ALERT] {
 		f.Actions = append(f.Actions, alertActions...)
 	}
-	f.ResourceActions = slices.Concat(healthActions, backupActions, alertActions, taskActions)
+	if every || want[dockwellv1.EventKind_EVENT_KIND_PUSH] {
+		f.Actions = append(f.Actions, pushActions...)
+	}
+	f.ResourceActions = slices.Concat(healthActions, backupActions, alertActions, taskActions, pushActions)
 	if actorID != "" {
 		a, ok := actors.Store(actorID)
 		if !ok {

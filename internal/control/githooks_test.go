@@ -1,0 +1,466 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package control
+
+import (
+	"bytes"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"strings"
+	"testing"
+	"time"
+
+	"connectrpc.com/connect"
+
+	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
+	"github.com/dockwell/dockwell/internal/control/authapi"
+	"github.com/dockwell/dockwell/internal/store"
+	"github.com/dockwell/dockwell/internal/store/storetest"
+)
+
+func (g *gitBench) hooks() dockwellv1connect.GitHookServiceClient {
+	return dockwellv1connect.NewGitHookServiceClient(g.b, g.b.origin, connect.WithProtoJSON())
+}
+
+// hook turns deploy on push on for a service, with a passkey, and gives its URL
+// and secret.
+func (g *gitBench) hook(t *testing.T, serviceID string) (url, secret string) {
+	t.Helper()
+	res, err := g.hooks().CreateGitHook(t.Context(), connect.NewRequest(&dockwellv1.CreateGitHookRequest{
+		Id: serviceID, Proof: stepUpFor(t, g.b, dockwellv1.StepUpAction_STEP_UP_ACTION_CREATE_GIT_HOOK, serviceID),
+	}))
+	if err != nil {
+		t.Fatalf("turning deploy on push on: %v", err)
+	}
+	return res.Msg.GetHook().GetUrl(), res.Msg.GetSecret()
+}
+
+// delivery is what a provider sends a hook.
+type delivery struct {
+	id, event, secret string
+	body              []byte
+	// headers replace what delivery sends by default, as GitHub does; an empty
+	// value leaves one out.
+	headers map[string]string
+}
+
+// pushBody is a push's payload, as GitHub sends it, of ref to after in repo.
+func pushBody(repo, ref, after string) []byte {
+	b, _ := json.Marshal(map[string]any{
+		"ref": ref, "after": after, "before": strings.Repeat("0", 40), "deleted": false,
+		"repository": map[string]any{"clone_url": repo, "html_url": strings.TrimSuffix(repo, ".git"), "default_branch": "main"},
+		"commits":    []map[string]any{{"id": after, "message": "Ship it"}},
+	})
+	return b
+}
+
+// send sends d to url, signed as GitHub signs, and gives the answer's status and
+// text.
+func send(t *testing.T, url string, d delivery) (int, string, http.Header) {
+	t.Helper()
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, url, bytes.NewReader(d.body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	mac := hmac.New(sha256.New, []byte(d.secret))
+	mac.Write(d.body)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-GitHub-Event", d.event)
+	req.Header.Set("X-GitHub-Delivery", d.id)
+	req.Header.Set("X-Hub-Signature-256", "sha256="+hex.EncodeToString(mac.Sum(nil)))
+	req.Header.Set("User-Agent", "GitHub-Hookshot/0a1b2c3")
+	for k, v := range d.headers {
+		if v == "" {
+			req.Header.Del(k)
+		} else {
+			req.Header.Set(k, v)
+		}
+	}
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	text, _ := io.ReadAll(res.Body)
+	return res.StatusCode, strings.TrimSpace(string(text)), res.Header
+}
+
+// outcome waits for what a delivery came to, until it is want.
+func (g *gitBench) outcome(t *testing.T, serviceID, deliveryID string, want dockwellv1.GitHookOutcome) *dockwellv1.GitHookDelivery {
+	t.Helper()
+	var last *dockwellv1.GitHookDelivery
+	deadline := time.Now().Add(30 * time.Second)
+	for time.Now().Before(deadline) {
+		res, err := g.hooks().GetGitHook(t.Context(), connect.NewRequest(&dockwellv1.GetGitHookRequest{Id: serviceID}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, d := range res.Msg.GetHook().GetDeliveries() {
+			if d.GetDeliveryId() == deliveryID {
+				last = d
+			}
+		}
+		if last.GetOutcome() == want {
+			return last
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	t.Fatalf("delivery %s came to %v, not %v", deliveryID, last, want)
+	return nil
+}
+
+// ended waits for a change to end.
+func (g *gitBench) ended(t *testing.T, changeID string) *dockwellv1.Change {
+	t.Helper()
+	return waitWatch(t, watch(t, g.c, changeID)).last()
+}
+
+// A push to the branch an app builds deploys what the branch names, as the hook,
+// on the push surface, and leaves that on the timeline. A delivery sent again does
+// nothing, and so does one that names a commit the branch doesn't: Dockwell reads
+// the branch itself. Pushes to another branch and GitHub's ping are taken and do
+// nothing.
+func TestAPushDeploysWhatTheBranchNames(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		g := newGitBench(t, backend)
+		g.repo.Commit("main", "First", map[string]string{"Dockerfile": webDockerfile, "app.js": "1"})
+		g.done(t, g.propose(t, g.buildEdit("main", nil)))
+		web := g.service(t, "", "web")
+
+		if _, err := g.hooks().CreateGitHook(t.Context(), connect.NewRequest(&dockwellv1.CreateGitHookRequest{Id: web.GetId()})); reasonOf(err) != authapi.ReasonNeedsStepUp {
+			t.Fatalf("turning deploy on push on without a passkey: %v", err)
+		}
+		url, secret := g.hook(t, web.GetId())
+		if !strings.HasPrefix(url, g.b.origin+"/hooks/git/ghk_") || len(secret) != 64 {
+			t.Fatalf("the hook is at %s with secret %q", url, secret)
+		}
+		if _, err := g.hooks().CreateGitHook(t.Context(), connect.NewRequest(&dockwellv1.CreateGitHookRequest{
+			Id: web.GetId(), Proof: stepUpFor(t, g.b, dockwellv1.StepUpAction_STEP_UP_ACTION_CREATE_GIT_HOOK, web.GetId()),
+		})); connect.CodeOf(err) != connect.CodeAlreadyExists {
+			t.Errorf("a second hook: %v", err)
+		}
+
+		second := g.repo.Commit("main", "Second", map[string]string{"Dockerfile": webDockerfile, "app.js": "2"})
+		code, text, _ := send(t, url, delivery{id: "d-1", event: "push", secret: secret, body: pushBody(g.repo.URL, "refs/heads/main", second)})
+		if code != http.StatusAccepted || !strings.Contains(text, "deploys what it names") {
+			t.Fatalf("a push: %d %q", code, text)
+		}
+		d := g.outcome(t, web.GetId(), "d-1", dockwellv1.GitHookOutcome_GIT_HOOK_OUTCOME_DEPLOYING)
+		if d.GetCommit() != second || d.GetChangeId() == "" || d.GetProvider() != "github" || d.GetRef() != "refs/heads/main" {
+			t.Fatalf("the push came to %v", d)
+		}
+		c := g.ended(t, d.GetChangeId())
+		if c.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+			t.Fatalf("the push's deploy ended %v: %s", c.GetState(), c.GetError())
+		}
+		if c.GetAppliedVia() != dockwellv1.Surface_SURFACE_PUSH || c.GetAppliedBy().GetKind() != dockwellv1.ActorKind_ACTOR_KIND_HOOK ||
+			c.GetAppliedBy().GetName() != "Deploy on push for web" || !strings.Contains(c.GetSummary(), "pushed to main") {
+			t.Errorf("the deploy was applied by %v via %v, as %q", c.GetAppliedBy(), c.GetAppliedVia(), c.GetSummary())
+		}
+		if got := g.service(t, "", "web").GetSpec().GetBuild().GetGit().GetCommit(); got != second {
+			t.Errorf("web builds %s, not the commit pushed, %s", got, second)
+		}
+
+		// The same delivery again does nothing.
+		code, text, _ = send(t, url, delivery{id: "d-1", event: "push", secret: secret, body: pushBody(g.repo.URL, "refs/heads/main", second)})
+		if code != http.StatusAccepted || !strings.Contains(text, "already") {
+			t.Errorf("the delivery again: %d %q", code, text)
+		}
+		// A new one that names a commit the branch doesn't, as one forged with a
+		// stolen secret could, builds what the branch names, which web runs.
+		forged := strings.Repeat("ab", 20)
+		send(t, url, delivery{id: "d-2", event: "push", secret: secret, body: pushBody(g.repo.URL, "refs/heads/main", forged)})
+		if d := g.outcome(t, web.GetId(), "d-2", dockwellv1.GitHookOutcome_GIT_HOOK_OUTCOME_NOTHING_NEW); d.GetCommit() != second || d.GetChangeId() != "" {
+			t.Errorf("a push naming a commit main doesn't: %v", d)
+		}
+
+		g.repo.Commit("dev", "Elsewhere", map[string]string{"Dockerfile": webDockerfile, "app.js": "dev"})
+		send(t, url, delivery{id: "d-3", event: "push", secret: secret, body: pushBody(g.repo.URL, "refs/heads/dev", second)})
+		if d := g.outcome(t, web.GetId(), "d-3", dockwellv1.GitHookOutcome_GIT_HOOK_OUTCOME_IGNORED); !strings.Contains(d.GetDetail(), "refs/heads/dev") && !strings.Contains(d.GetDetail(), "dev,") {
+			t.Errorf("a push to another branch: %v", d)
+		}
+		send(t, url, delivery{id: "d-4", event: "push", secret: secret, body: pushBody("https://git.example.com/acme/other.git", "refs/heads/main", second)})
+		g.outcome(t, web.GetId(), "d-4", dockwellv1.GitHookOutcome_GIT_HOOK_OUTCOME_IGNORED)
+		code, text, _ = send(t, url, delivery{id: "d-5", event: "ping", secret: secret, body: []byte(`{"zen":"Keep it logically awesome.","hook_id":1}`)})
+		if code != http.StatusAccepted || !strings.Contains(text, "The hook works") {
+			t.Errorf("a ping: %d %q", code, text)
+		}
+		g.outcome(t, web.GetId(), "d-5", dockwellv1.GitHookOutcome_GIT_HOOK_OUTCOME_IGNORED)
+
+		// The timeline has the pushes that did something, and the change.
+		pushes := listEvents(t, dockwellv1connect.NewEventServiceClient(g.b, g.b.origin), &dockwellv1.ListEventsRequest{
+			Kinds: []dockwellv1.EventKind{dockwellv1.EventKind_EVENT_KIND_PUSH}, ResourceId: web.GetId(),
+		})
+		var outcomes []string
+		for _, e := range pushes {
+			if e.GetSubject().GetName() != "web" || e.GetActor().GetKind() != dockwellv1.ActorKind_ACTOR_KIND_HOOK || e.GetSurface() != dockwellv1.Surface_SURFACE_PUSH {
+				t.Errorf("a push's event is %v", e)
+			}
+			outcomes = append(outcomes, e.GetPush().GetDelivery().GetDeliveryId()+" "+e.GetPush().GetDelivery().GetOutcome().String())
+		}
+		if want := []string{"d-2 GIT_HOOK_OUTCOME_NOTHING_NEW", "d-1 GIT_HOOK_OUTCOME_DEPLOYING"}; strings.Join(outcomes, ", ") != strings.Join(want, ", ") {
+			t.Errorf("the timeline's pushes are %v, want %v", outcomes, want)
+		}
+	})
+}
+
+// The receiver faces the internet: a delivery that isn't signed with the hook's
+// secret is refused, and one for a hook there isn't gets the same answer; one too
+// large, or not JSON, or with no ID is refused before its signature is checked;
+// and one address may send only so many. A hook turned off answers as one there
+// never was.
+func TestAHookTakesOnlyWhatItsSecretSigned(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		g := newGitBench(t, backend)
+		head := g.repo.Commit("main", "First", map[string]string{"Dockerfile": webDockerfile})
+		g.done(t, g.propose(t, g.buildEdit("main", nil)))
+		web := g.service(t, "", "web")
+		url, secret := g.hook(t, web.GetId())
+		body := pushBody(g.repo.URL, "refs/heads/main", head)
+
+		code, wrong, _ := send(t, url, delivery{id: "r-1", event: "push", secret: "not-the-secret", body: body})
+		if code != http.StatusUnauthorized {
+			t.Errorf("a wrong signature: %d %q", code, wrong)
+		}
+		none := url[:strings.LastIndex(url, "/")+1] + "ghk_01JD6Z3R8M9QF2K7T4XW5BNC0V"
+		if code, text, _ := send(t, none, delivery{id: "r-2", event: "push", secret: secret, body: body}); code != http.StatusUnauthorized || text != wrong {
+			t.Errorf("a hook there isn't: %d %q, want the answer a wrong signature gets, %q", code, text, wrong)
+		}
+		if code, text, _ := send(t, url, delivery{id: "r-3", event: "push", secret: secret, body: body, headers: map[string]string{"X-Hub-Signature-256": ""}}); code != http.StatusUnauthorized {
+			t.Errorf("no signature: %d %q", code, text)
+		}
+		if code, text, _ := send(t, url, delivery{id: "r-4", event: "push", secret: secret, body: body, headers: map[string]string{"Content-Type": "application/x-www-form-urlencoded"}}); code != http.StatusUnsupportedMediaType || !strings.Contains(text, "application/json") {
+			t.Errorf("a form: %d %q", code, text)
+		}
+		large := append(bytes.Repeat([]byte(" "), 1<<20), body...)
+		if code, text, _ := send(t, url, delivery{id: "r-5", event: "push", secret: secret, body: large}); code != http.StatusRequestEntityTooLarge {
+			t.Errorf("more than 1 MiB: %d %q", code, text)
+		}
+		if code, text, _ := send(t, url, delivery{event: "push", secret: secret, body: body}); code != http.StatusBadRequest || !strings.Contains(text, "X-GitHub-Delivery") {
+			t.Errorf("no delivery ID: %d %q", code, text)
+		}
+		// Gitea signs with its own header, and sends GitHub's too.
+		mac := hmac.New(sha256.New, []byte(secret))
+		mac.Write(body)
+		if code, text, _ := send(t, url, delivery{id: "r-6", event: "push", secret: "not-the-secret", body: body, headers: map[string]string{
+			"X-Gitea-Signature": hex.EncodeToString(mac.Sum(nil)), "X-Gitea-Event": "push", "X-Gitea-Delivery": "r-6",
+		}}); code != http.StatusAccepted {
+			t.Errorf("Gitea's delivery: %d %q", code, text)
+		}
+		if d := g.outcome(t, web.GetId(), "r-6", dockwellv1.GitHookOutcome_GIT_HOOK_OUTCOME_NOTHING_NEW); d.GetProvider() != "gitea" {
+			t.Errorf("Gitea's delivery came to %v", d)
+		}
+
+		// A refused signature is in the audit log once, however many come.
+		var refused int
+		if err := g.f.store.View(t.Context(), func(tx *store.Tx) error {
+			list, err := tx.ListEvents(t.Context(), 1000)
+			for _, e := range list {
+				if e.Action == "git_hook.refused" {
+					refused++
+				}
+			}
+			return err
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if refused != 1 {
+			t.Errorf("the audit log has %d refused deliveries, want 1", refused)
+		}
+
+		if _, err := g.hooks().DeleteGitHook(t.Context(), connect.NewRequest(&dockwellv1.DeleteGitHookRequest{Id: web.GetId()})); err != nil {
+			t.Fatal(err)
+		}
+		if code, text, _ := send(t, url, delivery{id: "r-7", event: "push", secret: secret, body: body}); code != http.StatusUnauthorized || text != wrong {
+			t.Errorf("a hook turned off: %d %q", code, text)
+		}
+		got, err := g.hooks().GetGitHook(t.Context(), connect.NewRequest(&dockwellv1.GetGitHookRequest{Id: web.GetId()}))
+		if err != nil || got.Msg.GetHook() != nil {
+			t.Errorf("a service with deploy on push off has %v, %v", got.Msg.GetHook(), err)
+		}
+
+		// One address sends 30 a minute, at once at most.
+		var limited http.Header
+		for i := range 40 {
+			code, _, header := send(t, none, delivery{id: fmt.Sprintf("flood-%d", i), event: "push", secret: secret, body: body})
+			if code == http.StatusTooManyRequests {
+				limited = header
+				break
+			}
+		}
+		if limited == nil || limited.Get("Retry-After") == "" {
+			t.Errorf("40 deliveries at once from one address were all taken: %v", limited)
+		}
+	})
+}
+
+// twoWriters is an app that builds from the bench's repository, has one volume,
+// and asks for its new container to start before the old one stops, so a deploy
+// lets two containers write to one place, which a person approves.
+func (g *gitBench) twoWriters() *dockwellv1.Edit {
+	e := g.buildEdit("main", nil)
+	app := e.GetSpec().GetService().GetApp()
+	app.Ports = nil
+	app.Mounts = []*resourcev1.Mount{{Source: &resourcev1.Mount_Volume{Volume: "data"}, Target: "/data"}}
+	app.Rollout = &resourcev1.Rollout{Order: resourcev1.RolloutOrder_ROLLOUT_ORDER_START_FIRST}
+	return e
+}
+
+// A push has an API token's rights: a plan no token may apply waits for a person,
+// and a newer push's plan takes its place.
+func TestAPushLeavesWhatNeedsAPersonForOne(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		g := newGitBench(t, backend)
+		g.repo.Commit("main", "First", map[string]string{"Dockerfile": webDockerfile})
+		g.done(t, g.propose(t, g.twoWriters(), &dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Kind: "volume", Name: "data"},
+			Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Volume{Volume: &resourcev1.Volume{}}},
+		}))
+		web := g.service(t, "", "web")
+		url, secret := g.hook(t, web.GetId())
+
+		second := g.repo.Commit("main", "Second", map[string]string{"Dockerfile": webDockerfile, "app.js": "2"})
+		send(t, url, delivery{id: "p-1", event: "push", secret: secret, body: pushBody(g.repo.URL, "refs/heads/main", second)})
+		first := g.outcome(t, web.GetId(), "p-1", dockwellv1.GitHookOutcome_GIT_HOOK_OUTCOME_NEEDS_PERSON)
+		if !strings.Contains(first.GetDetail(), "write to one place") {
+			t.Errorf("why it waits: %q", first.GetDetail())
+		}
+		got, err := g.c.GetChange(t.Context(), connect.NewRequest(&dockwellv1.GetChangeRequest{Id: first.GetChangeId()}))
+		if err != nil || got.Msg.GetChange().GetState() != dockwellv1.ChangeState_CHANGE_STATE_PLANNED {
+			t.Fatalf("the plan that needs a person is %v, %v", got.Msg.GetChange().GetState(), err)
+		}
+
+		third := g.repo.Commit("main", "Third", map[string]string{"Dockerfile": webDockerfile, "app.js": "3"})
+		send(t, url, delivery{id: "p-2", event: "push", secret: secret, body: pushBody(g.repo.URL, "refs/heads/main", third)})
+		next := g.outcome(t, web.GetId(), "p-2", dockwellv1.GitHookOutcome_GIT_HOOK_OUTCOME_NEEDS_PERSON)
+		if next.GetCommit() != third {
+			t.Errorf("the newer plan builds %s, not %s", next.GetCommit(), third)
+		}
+		got, err = g.c.GetChange(t.Context(), connect.NewRequest(&dockwellv1.GetChangeRequest{Id: first.GetChangeId()}))
+		if err != nil || got.Msg.GetChange().GetState() != dockwellv1.ChangeState_CHANGE_STATE_DISCARDED {
+			t.Errorf("the older plan is %v, %v, not discarded", got.Msg.GetChange().GetState(), err)
+		}
+		// A person applies it, from the panel.
+		plan, err := g.c.GetChange(t.Context(), connect.NewRequest(&dockwellv1.GetChangeRequest{Id: next.GetChangeId()}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if c := applied(t, g.c, plan.Msg.GetChange()); c.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+			t.Fatalf("a person applying the push's plan: %v %s", c.GetState(), c.GetError())
+		}
+	})
+}
+
+// One deploy at a time for each app: a push while a deploy from a push is under way
+// waits, a newer push takes the place of one waiting, and a deploy whose build
+// still waits for its server is cancelled for the newer push.
+func TestPushesToOneAppDeployOneAtATime(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		g := newGitBench(t, backend)
+		g.repo.Commit("main", "First", map[string]string{"Dockerfile": webDockerfile})
+		g.done(t, g.propose(t, g.buildEdit("main", nil)))
+		web := g.service(t, "", "web")
+		url, secret := g.hook(t, web.GetId())
+		push := func(id, commit string) {
+			t.Helper()
+			if code, text, _ := send(t, url, delivery{id: id, event: "push", secret: secret, body: pushBody(g.repo.URL, "refs/heads/main", commit)}); code != http.StatusAccepted {
+				t.Fatalf("push %s: %d %q", id, code, text)
+			}
+		}
+		building := func(changeID string, state dockwellv1.BuildState) *dockwellv1.Build {
+			t.Helper()
+			deadline := time.Now().Add(15 * time.Second)
+			for time.Now().Before(deadline) {
+				list, err := g.builds.ListBuilds(t.Context(), connect.NewRequest(&dockwellv1.ListBuildsRequest{Id: web.GetId()}))
+				if err != nil {
+					t.Fatal(err)
+				}
+				for _, b := range list.Msg.GetBuilds() {
+					if b.GetChangeId() == changeID && b.GetState() == state {
+						return b
+					}
+				}
+				time.Sleep(50 * time.Millisecond)
+			}
+			t.Fatalf("the build of %s never got to %v", changeID, state)
+			return nil
+		}
+
+		// A slow build under way: the next push waits, and the one after takes its
+		// place.
+		slow := g.repo.Commit("main", "Slow", map[string]string{"Dockerfile": "FROM alpine:3.23\nRUN echo working && sleep 30\n"})
+		push("q-1", slow)
+		d1 := g.outcome(t, web.GetId(), "q-1", dockwellv1.GitHookOutcome_GIT_HOOK_OUTCOME_DEPLOYING)
+		b1 := building(d1.GetChangeId(), dockwellv1.BuildState_BUILD_STATE_BUILDING)
+		push("q-2", g.repo.Commit("main", "Next", map[string]string{"Dockerfile": webDockerfile, "app.js": "next"}))
+		g.outcome(t, web.GetId(), "q-2", dockwellv1.GitHookOutcome_GIT_HOOK_OUTCOME_QUEUED)
+		last := g.repo.Commit("main", "Last", map[string]string{"Dockerfile": webDockerfile, "app.js": "last"})
+		push("q-3", last)
+		g.outcome(t, web.GetId(), "q-3", dockwellv1.GitHookOutcome_GIT_HOOK_OUTCOME_QUEUED)
+		g.outcome(t, web.GetId(), "q-2", dockwellv1.GitHookOutcome_GIT_HOOK_OUTCOME_SUPERSEDED)
+
+		// A build under way isn't cancelled for a newer push; a person may.
+		if _, err := g.builds.CancelBuild(t.Context(), connect.NewRequest(&dockwellv1.CancelBuildRequest{Id: b1.GetId()})); err != nil {
+			t.Fatal(err)
+		}
+		d3 := g.outcome(t, web.GetId(), "q-3", dockwellv1.GitHookOutcome_GIT_HOOK_OUTCOME_DEPLOYING)
+		if d3.GetCommit() != last {
+			t.Errorf("the push that waited builds %s, not what main names, %s", d3.GetCommit(), last)
+		}
+		if c := g.ended(t, d3.GetChangeId()); c.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+			t.Fatalf("the push that waited ended %v: %s", c.GetState(), c.GetError())
+		}
+
+		// Another app's slow build holds the server's builder, so web's next build
+		// waits for it, and a newer push cancels that.
+		g.repo.Commit("slow", "Slow", map[string]string{"Dockerfile": "FROM alpine:3.23\nRUN echo working && sleep 30\n"})
+		api := g.buildEdit("slow", nil)
+		api.Resource.Name = "api"
+		api.GetSpec().GetService().GetApp().Ports = nil
+		other := g.propose(t, api)
+		ow := watch(t, g.c, other.GetId())
+		if _, err := g.c.ApplyChange(t.Context(), connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: other.GetId(), Fingerprint: other.GetPlan().GetFingerprint()})); err != nil {
+			t.Fatal(err)
+		}
+		var held *dockwellv1.Build
+		deadline := time.Now().Add(15 * time.Second)
+		for held == nil && time.Now().Before(deadline) {
+			list, err := g.builds.ListBuilds(t.Context(), connect.NewRequest(&dockwellv1.ListBuildsRequest{Id: "api"}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if bs := list.Msg.GetBuilds(); len(bs) > 0 && bs[0].GetState() == dockwellv1.BuildState_BUILD_STATE_BUILDING {
+				held = bs[0]
+			}
+			time.Sleep(50 * time.Millisecond)
+		}
+		if held == nil {
+			t.Fatal("the other app's build never got under way")
+		}
+		push("q-4", g.repo.Commit("main", "Waits", map[string]string{"Dockerfile": webDockerfile, "app.js": "waits"}))
+		d4 := g.outcome(t, web.GetId(), "q-4", dockwellv1.GitHookOutcome_GIT_HOOK_OUTCOME_DEPLOYING)
+		building(d4.GetChangeId(), dockwellv1.BuildState_BUILD_STATE_QUEUED)
+		newest := g.repo.Commit("main", "Newest", map[string]string{"Dockerfile": webDockerfile, "app.js": "newest"})
+		push("q-5", newest)
+		g.outcome(t, web.GetId(), "q-4", dockwellv1.GitHookOutcome_GIT_HOOK_OUTCOME_SUPERSEDED)
+		cancelled := building(d4.GetChangeId(), dockwellv1.BuildState_BUILD_STATE_CANCELLED)
+		if cancelled.GetCancelledBy() != "a newer push" {
+			t.Errorf("the waiting build was cancelled by %q", cancelled.GetCancelledBy())
+		}
+		if _, err := g.builds.CancelBuild(t.Context(), connect.NewRequest(&dockwellv1.CancelBuildRequest{Id: held.GetId()})); err != nil {
+			t.Fatal(err)
+		}
+		waitWatch(t, ow)
+		d5 := g.outcome(t, web.GetId(), "q-5", dockwellv1.GitHookOutcome_GIT_HOOK_OUTCOME_DEPLOYING)
+		if c := g.ended(t, d5.GetChangeId()); c.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED || d5.GetCommit() != newest {
+			t.Fatalf("the newest push ended %v building %s: %s", c.GetState(), d5.GetCommit(), c.GetError())
+		}
+	})
+}

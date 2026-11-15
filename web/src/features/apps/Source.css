@@ -1,0 +1,80 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+/* Source: where an app that builds from Git builds from, and deploy on push (ADR 0046). */
+.app-source {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.app-source-repo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+}
+
+.app-source-commit {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.app-source-subject {
+  font-weight: 500;
+}
+
+.app-source-push {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.app-source-hook {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.app-source-hook .copy-command {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+
+.app-source-note {
+  margin: 0;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.app-source-why {
+  display: block;
+  color: var(--ink-muted);
+}
+
+.app-hook-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.app-hook-fields {
+  align-items: center;
+}
+
+.app-hook-where h3 {
+  margin: 0 0 var(--space-2);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.app-hook-where ul {
+  margin: 0;
+  padding-left: var(--space-5);
+  font-size: 13px;
+  line-height: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}

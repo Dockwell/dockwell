@@ -8,6 +8,7 @@ import "dockwell/resource/v1alpha1/specs.proto";
 import "dockwell/v1/auth.proto";
 import "dockwell/v1/backup.proto";
 import "dockwell/v1/change.proto";
+import "dockwell/v1/githook.proto";
 import "dockwell/v1/health.proto";
 import "dockwell/v1/options.proto";
 import "dockwell/v1/task.proto";
@@ -220,6 +221,9 @@ message Event {
   // A setting of the install someone changed, for a settings event. Numbered
   // apart, as open work adds to this message.
   EventSetting setting = 31;
+  // What a push through a service's hook came to. Numbered apart, as open work
+  // adds to this message.
+  EventPush push = 110;
   // The alert that fired or resolved, or the mute that began or ended, for an
   // alert event. Numbered apart, as open work adds to this message.
   EventAlert alert = 90;
@@ -415,6 +419,14 @@ message EventBackup {
   string server_id = 60;
 }
 
+// EventPush is what a push through a service's hook came to.
+message EventPush {
+  // The hook's ID.
+  string hook_id = 1;
+  // The delivery, as the provider names it.
+  GitHookDelivery delivery = 2;
+}
+
 // EventPublicAddress is a server's public address as a person changed it.
 message EventPublicAddress {
   // What it is now. Empty when they cleared it.
@@ -505,6 +517,10 @@ enum EventKind {
   // Someone changed a setting of the install, such as its name or time zone.
   // Numbered apart, as open work adds to this enum.
   EVENT_KIND_SETTINGS = 10;
+  // A push through a service's hook: what it planned, applied, left for a
+  // person, or why it did nothing. Numbered apart, as open work adds to this
+  // enum.
+  EVENT_KIND_PUSH = 110;
   // An alert fired or resolved, or someone muted a rule or a server, or ended a
   // mute. Numbered apart, as open work adds to this enum.
   EVENT_KIND_ALERT = 90;

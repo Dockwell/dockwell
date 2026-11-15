@@ -12,6 +12,7 @@ import {
   type CountEventsRequest,
   EventKind,
   FieldOp,
+  GitHookOutcome,
   HealthState,
   type ListEventsRequest,
   PlanAction,
@@ -918,6 +919,38 @@ describe("Activity", () => {
       screen.getByRole("row", { name: /Removed a backup of orders from its server, and kept it on r2/ }),
     ).toBeVisible();
     expect(screen.getByRole("row", { name: /r2 kept a backup of orders that was to go/ })).toBeVisible();
+  });
+
+  it("says what a push came to, by the hook it came through", async () => {
+    const pushed = (id: string, outcome: GitHookOutcome) =>
+      auditEvent({
+        id,
+        kind: EventKind.PUSH,
+        action: "git_hook.push",
+        time: timestampFromDate(new Date(Date.now() - HOUR)),
+        actor: { kind: ActorKind.HOOK, id: "ghk_1", name: "Deploy on push for storefront" },
+        surface: Surface.PUSH,
+        subject: { id: "svc_1", name: "storefront" },
+        push: {
+          hookId: "ghk_1",
+          delivery: {
+            deliveryId: id,
+            ref: "refs/heads/main",
+            commit: "8be41d2c3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c",
+            outcome,
+          },
+        },
+      });
+    const watch = feed<WatchEventsResponse>();
+    watch.push(snapshot([pushed("evt_1", GitHookOutcome.DEPLOYING), pushed("evt_2", GitHookOutcome.NEEDS_PERSON)]));
+    renderActivity(watch);
+    expect(
+      await screen.findByRole("row", { name: /A push to main started a deploy of 8be41d2 to storefront/ }),
+    ).toBeVisible();
+    const waits = screen.getByRole("row", {
+      name: /A push to main planned 8be41d2 for storefront, which waits for a person to apply it/,
+    });
+    expect(waits.querySelector(".dw-tone-warning, [data-tone='warning']")).not.toBeNull();
   });
 
   it("shows a backup that failed as worth a look, and says why", async () => {
