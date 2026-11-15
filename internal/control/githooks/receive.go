@@ -12,6 +12,7 @@ import (
 	"mime"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 
 	"github.com/dockwell/dockwell/internal/auth"
@@ -27,26 +28,135 @@ const MaxBody = 1 << 20
 // Gitea sends GitHub's headers too, and Forgejo Gitea's, so the order they are
 // tried in matters.
 type provider struct {
-	name, event, delivery, signature, prefix string
+	name string
+	// event and delivery are the headers that say what a delivery is, and which
+	// one, which a retry sends again.
+	event, delivery string
+	// signature is the header with the body's HMAC-SHA-256 in hex, after prefix.
+	// token is the header with the secret itself, as GitLab sends it instead.
+	signature, prefix, token string
+	// pushes and pings are the events that are a push, and that test the hook.
+	pushes, pings []string
+	// read reads a push's payload.
+	read func([]byte) (pushed, error)
 }
 
 var providers = []provider{
-	{"forgejo", "X-Forgejo-Event", "X-Forgejo-Delivery", "X-Forgejo-Signature", ""},
-	{"gitea", "X-Gitea-Event", "X-Gitea-Delivery", "X-Gitea-Signature", ""},
-	{"github", "X-GitHub-Event", "X-GitHub-Delivery", "X-Hub-Signature-256", "sha256="},
+	{name: "forgejo", event: "X-Forgejo-Event", delivery: "X-Forgejo-Delivery", signature: "X-Forgejo-Signature", pushes: []string{"push"}, read: readGitHub},
+	{name: "gitea", event: "X-Gitea-Event", delivery: "X-Gitea-Delivery", signature: "X-Gitea-Signature", pushes: []string{"push"}, read: readGitHub},
+	{name: "github", event: "X-GitHub-Event", delivery: "X-GitHub-Delivery", signature: "X-Hub-Signature-256", prefix: "sha256=", pushes: []string{"push"}, pings: []string{"ping"}, read: readGitHub},
+	{name: "gitlab", event: "X-Gitlab-Event", delivery: "X-Gitlab-Event-UUID", token: "X-Gitlab-Token", pushes: []string{"Push Hook", "Tag Push Hook"}, read: readGitLab},
+	// Bitbucket Cloud. GitHub sends X-Hub-Signature too, of SHA-1, but is found
+	// by its own header first.
+	{name: "bitbucket", event: "X-Event-Key", delivery: "X-Request-UUID", signature: "X-Hub-Signature", prefix: "sha256=", pushes: []string{"repo:push"}, read: readBitbucket},
 }
 
-// push is what Dockwell reads of a push's payload, which GitHub, Gitea and Forgejo
-// each send in this shape.
-type push struct {
-	Ref        string `json:"ref"`
-	After      string `json:"after"`
-	Deleted    bool   `json:"deleted"`
-	Repository struct {
-		CloneURL      string `json:"clone_url"`
-		HTMLURL       string `json:"html_url"`
-		DefaultBranch string `json:"default_branch"`
-	} `json:"repository"`
+// pushed is what Dockwell reads of a push's payload, whichever provider sent it.
+// Nothing in it is trusted for what to deploy: a push says only that the
+// repository moved, and Dockwell reads the branch itself.
+type pushed struct {
+	// refs are what it moved, and gone what it deleted, by their full names.
+	refs, gone []string
+	// repos are the repository's URLs.
+	repos []string
+	// defaultBranch is the repository's default branch, when the payload says.
+	defaultBranch string
+}
+
+// readGitHub reads a push as GitHub, Gitea and Forgejo send it.
+func readGitHub(body []byte) (pushed, error) {
+	var in struct {
+		Ref        string `json:"ref"`
+		After      string `json:"after"`
+		Deleted    bool   `json:"deleted"`
+		Repository struct {
+			CloneURL      string `json:"clone_url"`
+			HTMLURL       string `json:"html_url"`
+			DefaultBranch string `json:"default_branch"`
+		} `json:"repository"`
+	}
+	if err := json.Unmarshal(body, &in); err != nil {
+		return pushed{}, err
+	}
+	out := pushed{repos: []string{in.Repository.CloneURL, in.Repository.HTMLURL}, defaultBranch: in.Repository.DefaultBranch}
+	out.add(in.Ref, in.Deleted || strings.Trim(in.After, "0") == "")
+	return out, nil
+}
+
+// readGitLab reads a push, or a tag's, as GitLab sends it.
+func readGitLab(body []byte) (pushed, error) {
+	var in struct {
+		Ref     string `json:"ref"`
+		After   string `json:"after"`
+		Project struct {
+			GitHTTPURL    string `json:"git_http_url"`
+			WebURL        string `json:"web_url"`
+			DefaultBranch string `json:"default_branch"`
+		} `json:"project"`
+	}
+	if err := json.Unmarshal(body, &in); err != nil {
+		return pushed{}, err
+	}
+	out := pushed{repos: []string{in.Project.GitHTTPURL, in.Project.WebURL}, defaultBranch: in.Project.DefaultBranch}
+	out.add(in.Ref, strings.Trim(in.After, "0") == "")
+	return out, nil
+}
+
+// readBitbucket reads a push as Bitbucket Cloud sends it: each branch or tag it
+// moved, which may be several, and no default branch.
+func readBitbucket(body []byte) (pushed, error) {
+	type end struct {
+		Type string `json:"type"`
+		Name string `json:"name"`
+	}
+	var in struct {
+		Push struct {
+			Changes []struct {
+				New *end `json:"new"`
+				Old *end `json:"old"`
+			} `json:"changes"`
+		} `json:"push"`
+		Repository struct {
+			Links struct {
+				HTML struct {
+					Href string `json:"href"`
+				} `json:"html"`
+			} `json:"links"`
+		} `json:"repository"`
+	}
+	if err := json.Unmarshal(body, &in); err != nil {
+		return pushed{}, err
+	}
+	out := pushed{repos: []string{in.Repository.Links.HTML.Href}}
+	full := func(e *end) string {
+		switch {
+		case e == nil || e.Name == "":
+			return ""
+		case e.Type == "branch":
+			return "refs/heads/" + e.Name
+		case e.Type == "tag" || e.Type == "annotated_tag":
+			return "refs/tags/" + e.Name
+		}
+		return ""
+	}
+	for _, c := range in.Push.Changes {
+		if ref := full(c.New); ref != "" {
+			out.add(ref, false)
+		} else if ref := full(c.Old); ref != "" && c.New == nil {
+			out.add(ref, true)
+		}
+	}
+	return out, nil
+}
+
+func (p *pushed) add(ref string, deleted bool) {
+	switch {
+	case ref == "":
+	case deleted:
+		p.gone = append(p.gone, ref)
+	default:
+		p.refs = append(p.refs, ref)
+	}
 }
 
 // ServeHTTP receives a delivery at Path plus a hook's ID. It faces the internet as
@@ -73,7 +183,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	var from *provider
 	for i := range providers {
-		if r.Header.Get(providers[i].signature) != "" {
+		if r.Header.Get(providers[i].signature) != "" || r.Header.Get(providers[i].token) != "" {
 			from = &providers[i]
 			break
 		}
@@ -82,7 +192,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		answer(w, http.StatusUnauthorized, "The delivery isn't signed. Give the hook its secret, as Dockwell showed it.")
 		return
 	}
-	delivery := r.Header.Get(from.delivery)
+	// Bitbucket's IDs may come in braces.
+	delivery := strings.Trim(r.Header.Get(from.delivery), "{}")
 	if !deliveryID(delivery) {
 		answer(w, http.StatusBadRequest, "The delivery has no ID in "+from.delivery+", which Dockwell needs to tell it from one sent again.")
 		return
@@ -97,19 +208,21 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		answer(w, http.StatusBadRequest, "The delivery ended before its body did. Send it again.")
 		return
 	}
-	sig, err := hex.DecodeString(strings.TrimPrefix(r.Header.Get(from.signature), from.prefix))
-	if err != nil {
-		sig = nil
+	var proof auth.HookProof
+	if from.token != "" {
+		proof.Token = r.Header.Get(from.token)
+	} else if sig, err := hex.DecodeString(strings.TrimPrefix(r.Header.Get(from.signature), from.prefix)); err == nil {
+		proof.Signature = sig
 	}
 	hookID := strings.TrimPrefix(r.URL.Path, Path)
-	p, err := h.cfg.Auth.GitHookPrincipal(r.Context(), hookID, body, sig)
+	p, err := h.cfg.Auth.GitHookPrincipal(r.Context(), hookID, body, proof)
 	switch {
 	case errors.Is(err, auth.ErrTooManyRequests):
 		w.Header().Set("Retry-After", "1")
 		answer(w, http.StatusTooManyRequests, "Too many deliveries to this hook. Wait a moment, then send again.")
 		return
 	case errors.Is(err, auth.ErrHookRejected):
-		answer(w, http.StatusUnauthorized, "The delivery's signature doesn't match. Give the hook the secret Dockwell showed, or a new one from the panel.")
+		answer(w, http.StatusUnauthorized, "The delivery's signature or token doesn't match the hook's secret. Give the hook the secret Dockwell showed, or a new one from the panel.")
 		return
 	case err != nil:
 		h.cfg.Logger.ErrorContext(r.Context(), "can't check a delivery to a hook", slog.String("error", err.Error()))
@@ -119,7 +232,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	hook := *p.Hook
 	d := store.GitHookDelivery{HookID: hook.ID, DeliveryID: delivery, At: h.now(), Provider: from.name, Outcome: store.HookIgnored}
 	event := r.Header.Get(from.event)
-	j, why := h.read(r.Context(), client, p, event, body, &d)
+	ping := slices.Contains(from.pings, event)
+	j, why := h.read(r.Context(), client, p, from, event, body, &d)
 	if j == nil {
 		d.Detail = strings.ToUpper(why[:1]) + why[1:]
 	} else {
@@ -136,7 +250,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	switch {
-	case j == nil && event == "ping":
+	case j == nil && ping:
 		answer(w, http.StatusAccepted, "Taken. The hook works: a push to the branch the service builds deploys it.")
 		return
 	case j == nil:
@@ -149,24 +263,25 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	answer(w, http.StatusAccepted, "Taken. Dockwell reads "+refName(d.Ref)+" and deploys what it names.")
 }
 
-// read reads a delivery whose signature matched, and gives the deploy it asks for,
-// or why it asks for none. It fills in d's ref.
-func (h *Handler) read(ctx context.Context, client auth.Client, p auth.Principal, event string, body []byte, d *store.GitHookDelivery) (*job, string) {
-	switch event {
-	case "push":
-	case "ping":
+// read reads a delivery whose proof matched, and gives the deploy it asks for, or
+// why it asks for none. It fills in d's ref.
+func (h *Handler) read(ctx context.Context, client auth.Client, p auth.Principal, from *provider, event string, body []byte, d *store.GitHookDelivery) (*job, string) {
+	switch {
+	case slices.Contains(from.pushes, event):
+	case slices.Contains(from.pings, event):
 		return nil, "it's a ping, which says the hook works"
 	default:
 		return nil, "it's a " + strings.ReplaceAll(event, "_", " ") + " event, not a push"
 	}
-	var in push
-	if err := json.Unmarshal(body, &in); err != nil || in.Ref == "" {
+	in, err := from.read(body)
+	if err != nil || len(in.refs)+len(in.gone) == 0 {
 		return nil, "its payload isn't a push Dockwell can read"
 	}
-	d.Ref = in.Ref
-	if in.Deleted || strings.Trim(in.After, "0") == "" {
-		return nil, "it deletes " + refName(in.Ref)
+	if len(in.refs) == 0 {
+		d.Ref = in.gone[0]
+		return nil, "it deletes " + refName(in.gone[0])
 	}
+	d.Ref = in.refs[0]
 	ctx = authapi.As(ctx, client, p)
 	b, name, _, err := h.cfg.Services.BuildOf(ctx, p.Hook.ResourceID, "", "")
 	if err != nil {
@@ -178,12 +293,18 @@ func (h *Handler) read(ctx context.Context, client auth.Client, p auth.Principal
 		return nil, name + " doesn't build from Git now"
 	case isCommit(g.GetRef()):
 		return nil, name + " builds commit " + short(g.GetRef()) + ", which no push moves"
-	case !sameRepository(g.GetUrl(), in.Repository.CloneURL, in.Repository.HTMLURL):
-		return nil, "it's a push to " + shownRepository(in.Repository.HTMLURL, in.Repository.CloneURL) + ", and " + name + " builds from " + shownRepository(g.GetUrl())
-	case !sameRef(g.GetRef(), in.Ref, in.Repository.DefaultBranch):
-		return nil, "it's a push to " + refName(in.Ref) + ", and " + name + " builds " + refName(builtRef(g.GetRef()))
+	case !sameRepository(g.GetUrl(), in.repos...):
+		return nil, "it's a push to " + shownRepository(in.repos...) + ", and " + name + " builds from " + shownRepository(g.GetUrl())
 	}
-	return &job{hook: *p.Hook, p: p, client: client}, ""
+	// A push may move several refs, as Bitbucket's may: it's the build's if it
+	// moved the one the build follows, which a plan names in full.
+	for _, ref := range in.refs {
+		if sameRef(g.GetRef(), ref, in.defaultBranch) {
+			d.Ref = ref
+			return &job{hook: *p.Hook, p: p, client: client}, ""
+		}
+	}
+	return nil, "it's a push to " + refName(d.Ref) + ", and " + name + " builds " + refName(builtRef(g.GetRef()))
 }
 
 // answer says what came of a delivery, in a line, as text.

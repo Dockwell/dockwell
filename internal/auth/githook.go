@@ -27,7 +27,7 @@ var (
 	// ErrHookRejected is the one answer to a delivery whose signature doesn't
 	// match, and to one for a hook there isn't, so it says nothing of which hooks
 	// there are.
-	ErrHookRejected = errors.New("the delivery's signature doesn't match the hook's secret")
+	ErrHookRejected = errors.New("the delivery's signature or token doesn't match the hook's secret")
 )
 
 // hookSecretBytes is how much a hook's secret holds, in random bytes.
@@ -134,13 +134,21 @@ func (s *Service) TakeHookDelivery(client Client) bool {
 	return s.hookSources.take(sourceKey(client.Addr), s.now())
 }
 
-// GitHookPrincipal checks a delivery's signature, the HMAC-SHA-256 of body under the
-// hook's secret, in constant time, and gives who it acts as: the person who made
-// the hook, with an API token's rights, as the hook. A hook there isn't, or whose
-// person is gone, gets the same work with a key of its own and the same answer as
-// a wrong signature, ErrHookRejected. A hook may take 60 deliveries a minute; a
-// refused signature is in the audit log at most once an hour for each hook.
-func (s *Service) GitHookPrincipal(ctx context.Context, hookID string, body, signature []byte) (Principal, error) {
+// HookProof is how a delivery shows it knows its hook's secret: the HMAC-SHA-256
+// of its body under the secret, as GitHub, Gitea, Forgejo and Bitbucket send, or
+// the secret itself, as GitLab sends in X-Gitlab-Token.
+type HookProof struct {
+	Signature []byte
+	Token     string
+}
+
+// GitHookPrincipal checks a delivery's proof against the hook's secret, in
+// constant time, and gives who it acts as: the person who made the hook, with an
+// API token's rights, as the hook. A hook there isn't, or whose person is gone,
+// gets the same work with a key of its own and the same answer as a wrong proof,
+// ErrHookRejected. A hook may take 60 deliveries a minute; a refused proof is in
+// the audit log at most once an hour for each hook.
+func (s *Service) GitHookPrincipal(ctx context.Context, hookID string, body []byte, proof HookProof) (Principal, error) {
 	now := s.now()
 	var h store.GitHook
 	var u store.User
@@ -176,13 +184,11 @@ func (s *Service) GitHookPrincipal(ctx context.Context, hookID string, body, sig
 			key = secret
 		}
 	}
-	mac := hmac.New(sha256.New, key)
-	mac.Write(body)
-	if !hmac.Equal(mac.Sum(nil), signature) || !found {
+	if !proof.matches(key, body) || !found {
 		if found {
 			if _, report := s.refusals.count(h.ID, now); report {
 				if err := s.db.Update(ctx, func(tx *store.Tx) error {
-					return s.auditOn(ctx, tx, "hook:"+h.ID, "git_hook.refused", h.UserID, h.ID, "a delivery whose signature doesn't match the hook's secret")
+					return s.auditOn(ctx, tx, "hook:"+h.ID, "git_hook.refused", h.UserID, h.ID, "a delivery whose signature or token doesn't match the hook's secret")
 				}); err != nil {
 					s.logger.WarnContext(ctx, "can't record a refused delivery", slog.String("hook", h.ID), slog.String("error", err.Error()))
 				}
@@ -195,6 +201,23 @@ func (s *Service) GitHookPrincipal(ctx context.Context, hookID string, body, sig
 		Token: &store.APIToken{ID: h.ID, UserID: u.ID, Name: "Deploy on push", Scope: store.ScopeReadWrite},
 		Hook:  &h,
 	}, nil
+}
+
+// matches reports whether a proof is of key: a signature of body under it, or a
+// token that is it. Either is compared in constant time, and a token by its own
+// HMAC under key, so the time taken doesn't depend on how much of it is right,
+// nor on its length.
+func (p HookProof) matches(key, body []byte) bool {
+	mac := hmac.New(sha256.New, key)
+	if p.Token == "" {
+		mac.Write(body)
+		return hmac.Equal(mac.Sum(nil), p.Signature)
+	}
+	mac.Write([]byte(p.Token))
+	got := mac.Sum(nil)
+	mac.Reset()
+	mac.Write(key)
+	return hmac.Equal(got, mac.Sum(nil))
 }
 
 // decoyKey is a key as long as a hook's secret, so a delivery for a hook there

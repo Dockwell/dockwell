@@ -617,3 +617,117 @@ func TestAHookDeploysOnlyWhatItsMakerMayNow(t *testing.T) {
 		}
 	})
 }
+
+// raw sends body to url with exactly these headers, and gives the answer's status
+// and text.
+func raw(t *testing.T, url string, headers map[string]string, body []byte) (int, string) {
+	t.Helper()
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	text, _ := io.ReadAll(res.Body)
+	return res.StatusCode, strings.TrimSpace(string(text))
+}
+
+// GitLab sends the hook's secret itself, which is compared in constant time, and
+// Bitbucket Cloud signs as GitHub does, in another header. Bitbucket's push may
+// move several branches: it deploys the app if one is the branch it builds, which
+// its plan named in full though the app was made to build the default branch.
+func TestGitLabAndBitbucketPushesDeploy(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		g := newGitBench(t, backend)
+		g.repo.Commit("main", "First", map[string]string{"Dockerfile": webDockerfile})
+		g.done(t, g.propose(t, g.buildEdit("", nil)))
+		web := g.service(t, "", "web")
+		url, secret := g.hook(t, web.GetId())
+		_, wrong, _ := send(t, url, delivery{id: "w-1", event: "push", secret: "not-the-secret", body: pushBody(g.repo.URL, "refs/heads/main", strings.Repeat("ab", 20))})
+		page := strings.TrimSuffix(g.repo.URL, ".git")
+
+		gitlab := func(id, event, token string, body map[string]any) (int, string) {
+			b, _ := json.Marshal(body)
+			return raw(t, url, map[string]string{
+				"Content-Type": "application/json", "User-Agent": "GitLab/18.5.0",
+				"X-Gitlab-Event": event, "X-Gitlab-Event-UUID": id, "X-Gitlab-Token": token,
+			}, b)
+		}
+		gitlabPush := func(ref, after string) map[string]any {
+			return map[string]any{
+				"object_kind": "push", "ref": ref, "before": strings.Repeat("0", 40), "after": after,
+				"project": map[string]any{"git_http_url": g.repo.URL, "web_url": page, "default_branch": "main"},
+			}
+		}
+		second := g.repo.Commit("main", "Second", map[string]string{"Dockerfile": webDockerfile, "app.js": "2"})
+		if code, text := gitlab("6f1e0c2a-2b47-4c55-9a3e-0d3f6b1a2c11", "Push Hook", "not-the-secret", gitlabPush("refs/heads/main", second)); code != http.StatusUnauthorized || text != wrong {
+			t.Errorf("GitLab with a wrong token: %d %q, want the answer a wrong signature gets, %q", code, text, wrong)
+		}
+		if code, text := gitlab("6f1e0c2a-2b47-4c55-9a3e-0d3f6b1a2c12", "Push Hook", secret+"0", gitlabPush("refs/heads/main", second)); code != http.StatusUnauthorized {
+			t.Errorf("GitLab with the secret and more: %d %q", code, text)
+		}
+		if code, text := gitlab("6f1e0c2a-2b47-4c55-9a3e-0d3f6b1a2c13", "Push Hook", secret, gitlabPush("refs/heads/main", second)); code != http.StatusAccepted {
+			t.Fatalf("GitLab's push: %d %q", code, text)
+		}
+		d := g.outcome(t, web.GetId(), "6f1e0c2a-2b47-4c55-9a3e-0d3f6b1a2c13", dockwellv1.GitHookOutcome_GIT_HOOK_OUTCOME_DEPLOYING)
+		if d.GetProvider() != "gitlab" || d.GetCommit() != second || d.GetRef() != "refs/heads/main" {
+			t.Errorf("GitLab's push came to %v", d)
+		}
+		if c := g.ended(t, d.GetChangeId()); c.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+			t.Fatalf("GitLab's push ended %v: %s", c.GetState(), c.GetError())
+		}
+		tag := gitlabPush("refs/tags/v1", second)
+		tag["object_kind"] = "tag_push"
+		gitlab("6f1e0c2a-2b47-4c55-9a3e-0d3f6b1a2c14", "Tag Push Hook", secret, tag)
+		g.outcome(t, web.GetId(), "6f1e0c2a-2b47-4c55-9a3e-0d3f6b1a2c14", dockwellv1.GitHookOutcome_GIT_HOOK_OUTCOME_IGNORED)
+		gitlab("6f1e0c2a-2b47-4c55-9a3e-0d3f6b1a2c15", "Merge Request Hook", secret, map[string]any{"object_kind": "merge_request"})
+		if d := g.outcome(t, web.GetId(), "6f1e0c2a-2b47-4c55-9a3e-0d3f6b1a2c15", dockwellv1.GitHookOutcome_GIT_HOOK_OUTCOME_IGNORED); !strings.Contains(d.GetDetail(), "not a push") {
+			t.Errorf("GitLab's merge request: %v", d)
+		}
+
+		bitbucket := func(id, signedWith string, branches ...string) (int, string) {
+			var changes []map[string]any
+			for _, b := range branches {
+				changes = append(changes, map[string]any{"new": map[string]any{"type": "branch", "name": b}, "old": map[string]any{"type": "branch", "name": b}})
+			}
+			body, _ := json.Marshal(map[string]any{
+				"push":       map[string]any{"changes": changes},
+				"repository": map[string]any{"full_name": "acme/web", "links": map[string]any{"html": map[string]any{"href": page}}},
+			})
+			mac := hmac.New(sha256.New, []byte(signedWith))
+			mac.Write(body)
+			return raw(t, url, map[string]string{
+				"Content-Type": "application/json", "User-Agent": "Bitbucket-Webhooks/2.0",
+				"X-Event-Key": "repo:push", "X-Request-UUID": "{" + id + "}",
+				"X-Hub-Signature": "sha256=" + hex.EncodeToString(mac.Sum(nil)),
+			}, body)
+		}
+		if code, text := bitbucket("b0c1d2e3-0000-4000-8000-000000000001", "not-the-secret", "main"); code != http.StatusUnauthorized || text != wrong {
+			t.Errorf("Bitbucket with a wrong signature: %d %q", code, text)
+		}
+		// A push to dev alone isn't to the branch web builds.
+		g.repo.Commit("dev", "Elsewhere", map[string]string{"Dockerfile": webDockerfile, "app.js": "dev"})
+		if code, text := bitbucket("b0c1d2e3-0000-4000-8000-000000000002", secret, "dev"); code != http.StatusAccepted {
+			t.Fatalf("Bitbucket's push to dev: %d %q", code, text)
+		}
+		if d := g.outcome(t, web.GetId(), "b0c1d2e3-0000-4000-8000-000000000002", dockwellv1.GitHookOutcome_GIT_HOOK_OUTCOME_IGNORED); d.GetProvider() != "bitbucket" || !strings.Contains(d.GetDetail(), "web builds main") || d.GetChangeId() != "" {
+			t.Errorf("Bitbucket's push to dev came to %v", d)
+		}
+		// One that moves dev and main deploys main.
+		third := g.repo.Commit("main", "Third", map[string]string{"Dockerfile": webDockerfile, "app.js": "3"})
+		bitbucket("b0c1d2e3-0000-4000-8000-000000000003", secret, "dev", "main")
+		d = g.outcome(t, web.GetId(), "b0c1d2e3-0000-4000-8000-000000000003", dockwellv1.GitHookOutcome_GIT_HOOK_OUTCOME_DEPLOYING)
+		if d.GetCommit() != third || d.GetRef() != "refs/heads/main" {
+			t.Errorf("Bitbucket's push to dev and main came to %v", d)
+		}
+		if c := g.ended(t, d.GetChangeId()); c.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+			t.Fatalf("Bitbucket's push ended %v: %s", c.GetState(), c.GetError())
+		}
+	})
+}
