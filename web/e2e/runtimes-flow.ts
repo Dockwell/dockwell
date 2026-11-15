@@ -85,6 +85,11 @@ export async function runtimesFlow(page: Page, { origin, step, shoot, docker }: 
     const sheet = page.getByRole("dialog", { name: "New app" });
     await sheet.waitFor();
     await sheet.getByRole("radio", { name: "Folder" }).click();
+    // Where it runs is chosen once the form knows the servers, or nothing gets chosen.
+    await sheet
+      .getByText(/Runs on/)
+      .first()
+      .waitFor();
     const runsOn = sheet.getByRole("group", { name: "Runs on" });
     if ((await runsOn.count()) > 0) await runsOn.getByRole("checkbox").first().check();
     // The folder is picked: here by its path, typed into the picker, as someone who knows it would.

@@ -70,6 +70,12 @@ function fail(message: string): never {
 
 /** Says where an app runs once there's a choice: a server that's connected, as the flow before this leaves another down. */
 async function chooseServer(sheet: Locator) {
+  // The form says where it runs once it knows the servers: a line for the one there
+  // is, or a choice of several. Asked before, it has neither, and nothing gets chosen.
+  await sheet
+    .getByText(/^Runs on/)
+    .first()
+    .waitFor();
   const servers = sheet.getByRole("group", { name: "Runs on" });
   if ((await servers.count()) === 0) return;
   await servers.locator("label", { hasNotText: "Offline" }).first().getByRole("checkbox").check();

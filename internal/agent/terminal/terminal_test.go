@@ -135,6 +135,13 @@ func attach(t *testing.T, m *Manager, offset uint64) *session {
 	return s
 }
 
+// typing types text, and waits for no answer: for what ends the shell, which may end
+// the attachment before the terminal says it took it, as the end says it then (#672).
+func (s *session) typing(text string) {
+	s.t.Helper()
+	s.conn.downs <- &agentv1.TerminalResponse{Offset: s.next, Data: []byte(text)}
+}
+
 // typed types text, and returns how much the terminal says it has taken.
 func (s *session) typed(text string) uint64 {
 	s.t.Helper()
@@ -246,7 +253,7 @@ func TestAShellRunsTypesAndExits(t *testing.T) {
 	s.conn.downs <- &agentv1.TerminalResponse{Columns: 132, Rows: 40}
 	s.typed("stty size\n")
 	s.waitFor("40 132")
-	s.typed("exit 3\n")
+	s.typing("exit 3\n")
 	res := s.ended()
 	if res.GetEnd().GetReason() != dockwellv1.TerminalEndReason_TERMINAL_END_REASON_EXITED || res.GetEnd().GetExitCode() != 3 ||
 		res.GetEnd().GetTime() == nil || res.GetEnd().GetMessage() != "The shell exited with code 3." {
