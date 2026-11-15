@@ -154,7 +154,8 @@ func (h *Handler) startReading(source string) bool {
 func (h *Handler) doneReading(source string) {
 	h.readingMu.Lock()
 	defer h.readingMu.Unlock()
-	if h.readingFrom[source]--; h.readingFrom[source] <= 0 {
+	h.readingFrom[source]--
+	if h.readingFrom[source] <= 0 {
 		delete(h.readingFrom, source)
 	}
 }
