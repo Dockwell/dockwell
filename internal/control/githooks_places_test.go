@@ -228,3 +228,33 @@ func TestAnAdminLetsTheirHookDeployWithoutWaiting(t *testing.T) {
 		}
 	})
 }
+
+// A push that came while its hook could deploy without waiting, and waited behind
+// another change while its maker set the hook to wait again, waits for a person
+// too: it applies with the hook's rights now, not those it came with (ADR 0071).
+func TestAPushQueuedBeforeItsHookWaitsAgainWaitsForAPerson(t *testing.T) {
+	t.Parallel()
+	g := newGitBench(t, store.SQLite)
+	g.repo.Commit("main", "First", map[string]string{"Dockerfile": webDockerfile})
+	made := g.done(t, g.propose(t, g.buildEdit("main", nil)))
+	production := made.GetPlan().GetResources()[0].GetResource().GetScope()
+	protectEnv(t, g.c, g.f, production, resourcev1.Protection_PROTECTION_PROTECTED)
+	web := g.service(t, "", "web")
+	url, secret := g.hook(t, web.GetId())
+	setRole := func(role dockwellv1.Role, proof string) {
+		t.Helper()
+		if _, err := g.hooks().SetGitHookRole(t.Context(), connect.NewRequest(&dockwellv1.SetGitHookRoleRequest{Id: web.GetId(), Role: role, Proof: proof})); err != nil {
+			t.Fatal(err)
+		}
+	}
+	setRole(dockwellv1.Role_ROLE_ADMIN, stepUpFor(t, g.b, dockwellv1.StepUpAction_STEP_UP_ACTION_WIDEN_GIT_HOOK, web.GetId()))
+	release := g.holdApp(t, web.GetId())
+	commit := g.repo.Commit("main", "Pushed", map[string]string{"Dockerfile": webDockerfile, "app.js": "pushed"})
+	if code, text, _ := send(t, url, delivery{id: "q-1", event: "push", secret: secret, body: pushBody(g.repo.URL, "refs/heads/main", commit)}); code != 202 {
+		t.Fatalf("push: %d %q", code, text)
+	}
+	g.plannedByHook(t)
+	setRole(dockwellv1.Role_ROLE_DEVELOPER, "")
+	release()
+	g.stored(t, url, "q-1", store.HookNeedsPerson)
+}
