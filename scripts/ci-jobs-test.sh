@@ -111,6 +111,7 @@ picks "$go $install" scripts/connected.awk
 picks "$install" scripts/install-test/run.sh
 picks "$install" scripts/sigstore_trusted_root.json
 picks "snapshot budgets" scripts/budgets.sh
+picks "$go" scripts/slow-packages.sh
 picks "snapshot budgets $install" .goreleaser.yaml
 picks "$all" .github/workflows/ci.yml
 picks "$all" .github/workflows/chaos.yml

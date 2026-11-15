@@ -89,10 +89,17 @@ jobs:
         run: $GOTOOL golangci-lint fmt --diff
       - name: Test
         if: steps.pick.outputs.run == 'true'
-        # Packages run side by side, so this takes as long as internal/control, the slowest: 27 to 30 minutes
-        # under the race detector on 2026-11-14, when main's run on 46ffb7e44 hit the 30-minute limit with no
-        # test failing. #197 is to bring it down; until then this leaves it room inside the job's 60 minutes.
-        run: go test -timeout 45m -race -coverprofile=coverage.out ./...
+        # Packages run side by side, so this takes as long as the slowest, internal/control: about 6 minutes on
+        # a runner's 4 cores (#197). Its tests run 8 at a time, twice the cores, as many wait on a control plane
+        # of their own. The SQLite driver is C made into Go, and checking its pointer conversions, as -race does
+        # for every package, took a quarter of internal/control's time; the check stays on for Dockwell's own
+        # code, and the race detector runs everywhere.
+        run: |
+          set -o pipefail
+          go test -timeout 20m -race -gcflags='modernc.org/...=-d=checkptr=0' -parallel 8 -coverprofile=coverage.out ./... | tee "$RUNNER_TEMP/go-test.out"
+      - name: Packages near the job's time
+        if: steps.pick.outputs.run == 'true' && !cancelled()
+        run: scripts/slow-packages.sh "$RUNNER_TEMP/go-test.out"
       - name: Test the agent build
         if: steps.pick.outputs.run == 'true'
         run: go test -race -tags agent,fullapi $AGENT_PKGS
