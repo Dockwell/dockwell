@@ -72,6 +72,22 @@ func Guard(local, plain bool) func(network, address string, _ syscall.RawConn) e
 	}
 }
 
+// authKey keys the Authorization a call under a context sends.
+type authKey struct{}
+
+// WithAuth has the calls under ctx send header as their Authorization, for a
+// repository that wants credentials: a GitHub App's token for that repository
+// alone (ADR 0098). Nothing here writes it down or says it, and a redirect to
+// another host or port goes without it.
+func WithAuth(ctx context.Context, header string) context.Context {
+	return context.WithValue(ctx, authKey{}, header)
+}
+
+func authOf(ctx context.Context) string {
+	h, _ := ctx.Value(authKey{}).(string)
+	return h
+}
+
 // Refs is what a repository's branches and tags name.
 type Refs struct {
 	// Head is the branch HEAD names, such as "main", when the repository says.
@@ -156,6 +172,10 @@ func (r *Resolver) List(ctx context.Context, url string) (Refs, error) {
 		return Refs{}, fmt.Errorf("%s isn't a URL Dockwell can ask: %w", where, err)
 	}
 	req.Header.Set("User-Agent", "git/dockwell")
+	auth := authOf(ctx)
+	if auth != "" {
+		req.Header.Set("Authorization", auth)
+	}
 	res, err := r.client(req.URL.Scheme == "http").Do(req)
 	if err != nil {
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
@@ -165,8 +185,10 @@ func (r *Resolver) List(ctx context.Context, url string) (Refs, error) {
 	}
 	defer res.Body.Close()
 	switch {
+	case (res.StatusCode == http.StatusUnauthorized || res.StatusCode == http.StatusForbidden) && auth != "":
+		return Refs{}, fmt.Errorf("%s refused the GitHub App's token, so the App's installation doesn't reach it now. Add it to the installation on GitHub", where)
 	case res.StatusCode == http.StatusUnauthorized, res.StatusCode == http.StatusForbidden:
-		return Refs{}, fmt.Errorf("%s wants credentials, so it's private, or isn't there. Check the URL; Dockwell builds public repositories for now", where)
+		return Refs{}, fmt.Errorf("%s wants credentials, so it's private, or isn't there. Check the URL, or connect GitHub in Settings, Integrations, and install its App on the repository", where)
 	case res.StatusCode == http.StatusNotFound:
 		return Refs{}, fmt.Errorf("there's no repository at %s. Check the URL", where)
 	case res.StatusCode != http.StatusOK:
@@ -201,6 +223,12 @@ func (r *Resolver) client(plain bool) *http.Client {
 			}
 			if via[0].URL.Scheme == "https" && req.URL.Scheme != "https" {
 				return errors.New("it sent the question on over plain HTTP")
+			}
+			// A token is for the repository's own host and port, not wherever it
+			// sends the question on, which Go's client would send it to on the same
+			// host name.
+			if !strings.EqualFold(req.URL.Host, via[0].URL.Host) {
+				req.Header.Del("Authorization")
 			}
 			return nil
 		},

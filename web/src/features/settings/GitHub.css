@@ -1,0 +1,127 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+/* The card's line when GitHub can't reach the panel: the fact, then the fix. */
+.github-unreached {
+  color: var(--warning);
+}
+
+.github-connect,
+.github-manage {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.github-manage-part {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.github-manage-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.github-manage-head h3,
+.github-manage-part h3 {
+  margin: 0;
+}
+
+.github-installations {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+
+.github-installation + .github-installation {
+  border-top: 1px solid var(--line);
+}
+
+.github-installation-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  min-width: 0;
+}
+
+.github-spacer {
+  flex: 1 1 0;
+}
+
+.github-projects {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: 0 var(--space-3) var(--space-3);
+}
+
+.github-project-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.github-project {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 14px;
+}
+
+/* Whether GitHub reaches the panel, as one line. */
+.github-delivery {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+
+.github-delivery.is-unreached {
+  color: var(--warning);
+}
+
+.github-facts dd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.github-fingerprint {
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+
+/* Where the private key's file is dropped. */
+.github-key-drop {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-3);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+}
+
+/* Remove sits apart from Done, at the footer's start. */
+.github-remove {
+  margin-inline-end: auto;
+  color: var(--critical);
+}

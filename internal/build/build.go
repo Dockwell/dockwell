@@ -549,6 +549,14 @@ func (b *Builder) run(ctx context.Context, req service.BuildRequest, rep *report
 	if secrets != "" {
 		mounts = append(mounts, docker.Mount{Type: "bind", Source: secrets, Target: secretsMount, ReadOnly: true})
 	}
+	gitDir, gitCleanup, err := b.gitAuth(req)
+	if err != nil {
+		return facts{}, err
+	}
+	defer gitCleanup()
+	if gitDir != "" {
+		mounts = append(mounts, docker.Mount{Type: "bind", Source: gitDir, Target: gitAuthMount, ReadOnly: true})
+	}
 	environment := env(req, keep)
 	if railpack {
 		mounts = append(mounts, docker.Mount{Type: "bind", Source: planDir, Target: planMount, ReadOnly: true})
@@ -777,6 +785,15 @@ func (b *Builder) cacheBound(ctx context.Context) int64 {
 		return 2 << 30
 	}
 	return min(max(total/10, minCache), maxCache)
+}
+
+// gitAuth writes the Authorization a build fetches its repository with to a folder
+// of its own, in memory, for its builder to mount read-only, or "" for none.
+func (b *Builder) gitAuth(req service.BuildRequest) (string, func(), error) {
+	if req.GitAuth == "" {
+		return "", func() {}, nil
+	}
+	return b.writeSecrets(map[string]string{"authorization": req.GitAuth}, true)
 }
 
 // writeSecrets writes a build's secrets, and with Railpack its build arguments and

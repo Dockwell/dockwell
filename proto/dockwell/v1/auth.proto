@@ -1012,6 +1012,16 @@ enum StepUpAction {
   // Giving a service's hook a new secret, with
   // GitHookService.RotateGitHookSecret. The target is the service's ID.
   STEP_UP_ACTION_ROTATE_GIT_HOOK = 101;
+  // Connecting GitHub as an App, with GitProviderService.StartGitHubApp. It has
+  // no target.
+  STEP_UP_ACTION_CONNECT_GITHUB_APP = 102;
+  // A GitHub App's new webhook secret or private key, with
+  // GitProviderService.RotateGitHubWebhookSecret or ReplaceGitHubPrivateKey. The
+  // target is the App's ID.
+  STEP_UP_ACTION_ROTATE_GITHUB_APP = 103;
+  // Removing a GitHub App, with GitProviderService.RemoveGitHubApp. The target is
+  // the App's ID.
+  STEP_UP_ACTION_REMOVE_GITHUB_APP = 104;
   // Letting a service's hook deploy without waiting where its environment is
   // protected, with GitHookService.SetGitHookRole and the role admin. The
   // target is the service's ID.

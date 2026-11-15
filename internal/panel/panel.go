@@ -46,7 +46,8 @@ func Embedded() fs.FS {
 }
 
 // contentSecurityPolicy allows nothing the panel doesn't load from its own
-// origin: no inline scripts or styles, no framing, no plugins.
+// origin: no inline scripts or styles, no framing, no plugins. Its forms post
+// to the panel alone, unless PostsTo names another origin.
 const contentSecurityPolicy = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; " +
 	"font-src 'self'; connect-src 'self'; manifest-src 'self'; worker-src 'self'; object-src 'none'; " +
 	"base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
@@ -90,13 +91,29 @@ type Handler struct {
 	fsys   fs.FS
 	assets map[string]*asset
 	index  *asset
+	// csp is the Content-Security-Policy its pages are served with.
+	csp string
+}
+
+// PostsTo lets the panel's forms post to origins too, as connecting GitHub posts
+// the App's manifest to GitHub's page that makes it (ADR 0098). Each is a scheme
+// and host, with a port where it has one; nothing else widens. Call it before
+// the handler serves.
+func (h *Handler) PostsTo(origins ...string) {
+	allowed := []string{"form-action 'self'"}
+	for _, o := range origins {
+		if o != "" && !strings.ContainsAny(o, " ;,'\"") {
+			allowed = append(allowed, o)
+		}
+	}
+	h.csp = strings.Replace(contentSecurityPolicy, "form-action 'self'", strings.Join(allowed, " "), 1)
 }
 
 // New indexes the build in fsys by its names alone, reading no file. A
 // missing or empty build is allowed: the handler then explains how to build
 // the panel instead of serving it.
 func New(fsys fs.FS) (*Handler, error) {
-	h := &Handler{fsys: fsys, assets: map[string]*asset{}}
+	h := &Handler{fsys: fsys, assets: map[string]*asset{}, csp: contentSecurityPolicy}
 	var names []string
 	variants := map[string]bool{}
 	err := fs.WalkDir(fsys, ".", func(name string, d fs.DirEntry, err error) error {
@@ -176,7 +193,7 @@ func (h *Handler) serve(w http.ResponseWriter, r *http.Request, a *asset) {
 		header.Set("Cache-Control", "no-cache")
 	}
 	if a.contentType == htmlType {
-		setDocumentHeaders(header)
+		setDocumentHeaders(header, h.csp)
 	}
 
 	file, encoding := a.file, ""
@@ -216,8 +233,8 @@ func (h *Handler) serve(w http.ResponseWriter, r *http.Request, a *asset) {
 	http.ServeContent(w, r, a.file, time.Time{}, content)
 }
 
-func setDocumentHeaders(h http.Header) {
-	h.Set("Content-Security-Policy", contentSecurityPolicy)
+func setDocumentHeaders(h http.Header, csp string) {
+	h.Set("Content-Security-Policy", csp)
 	h.Set("Referrer-Policy", "same-origin")
 	h.Set("X-Frame-Options", "DENY")
 	h.Set("Cross-Origin-Opener-Policy", "same-origin")
@@ -296,7 +313,7 @@ func notBuilt(w http.ResponseWriter) {
 	h := w.Header()
 	h.Set("Content-Type", htmlType)
 	h.Set("Cache-Control", "no-store")
-	setDocumentHeaders(h)
+	setDocumentHeaders(h, contentSecurityPolicy)
 	w.WriteHeader(http.StatusNotFound)
 	_, _ = io.WriteString(w, notBuiltPage)
 }

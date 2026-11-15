@@ -52,7 +52,7 @@ describe("Registry logins", () => {
     expect(within(card).getByText("Connected")).toBeVisible();
     expect(card).toHaveTextContent("ghcr-ci for every project");
     expect(within(section).getByRole("article", { name: "Docker Hub" })).toHaveTextContent("Not connected");
-    expect(screen.getByText("Git providers and cloud providers come later.")).toBeVisible();
+    expect(screen.getByText("Cloud providers come later.")).toBeVisible();
     await expectAccessible(container);
   });
 

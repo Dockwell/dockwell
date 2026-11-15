@@ -1986,6 +1986,11 @@ type Hello struct {
 	// (ADR 0086). The control plane sends a build none through one that doesn't.
 	// Numbered in the block registry logins hold, 310 to 319.
 	BuildLogins bool `protobuf:"varint,316,opt,name=build_logins,json=buildLogins,proto3" json:"build_logins,omitempty"`
+	// True when the agent hands a build's fetch the Authorization it's sent for its
+	// private repository (DesiredResource.build_git_auth), from a file in memory,
+	// and a reading's the same way (DetectBuildCall.git_auth) (ADR 0098). Numbered
+	// in the block GitHub Apps hold, 360 to 369.
+	BuildGitAuth bool `protobuf:"varint,361,opt,name=build_git_auth,json=buildGitAuth,proto3" json:"build_git_auth,omitempty"`
 	// True when the agent reads what Coolify or Dokploy runs on the server, from
 	// Docker and the panel's folders (ReadPanelCall). Importing from them takes 330
 	// to 339 in agent messages (ADR 0089).
@@ -2279,6 +2284,13 @@ func (x *Hello) GetRegistryLogins() bool {
 func (x *Hello) GetBuildLogins() bool {
 	if x != nil {
 		return x.BuildLogins
+	}
+	return false
+}
+
+func (x *Hello) GetBuildGitAuth() bool {
+	if x != nil {
+		return x.BuildGitAuth
 	}
 	return false
 }
@@ -11873,6 +11885,11 @@ type DesiredResource struct {
 	// each registry, sealed to this stream's delivery key as a step's values are
 	// (ADR 0086). Numbered in the block registry logins hold, 310 to 319.
 	BuildRegistryAuths []byte `protobuf:"bytes,315,opt,name=build_registry_auths,json=buildRegistryAuths,proto3" json:"build_registry_auths,omitempty"`
+	// The Authorization a step's build fetches its private repository with: a
+	// GitHub App's token for that repository alone, sealed to this stream's
+	// delivery key as a step's values are (ADR 0098). Numbered in the block GitHub
+	// Apps hold, 360 to 369.
+	BuildGitAuth []byte `protobuf:"bytes,360,opt,name=build_git_auth,json=buildGitAuth,proto3" json:"build_git_auth,omitempty"`
 	// Stops or starts the own containers and services of the panel an import came
 	// from, for its host (ADR 0089). Numbered in the import's block, 330 to 339.
 	Panel *PanelAction `protobuf:"bytes,333,opt,name=panel,proto3" json:"panel,omitempty"`
@@ -12043,6 +12060,13 @@ func (x *DesiredResource) GetRegistryAuth() []byte {
 func (x *DesiredResource) GetBuildRegistryAuths() []byte {
 	if x != nil {
 		return x.BuildRegistryAuths
+	}
+	return nil
+}
+
+func (x *DesiredResource) GetBuildGitAuth() []byte {
+	if x != nil {
+		return x.BuildGitAuth
 	}
 	return nil
 }
@@ -12527,7 +12551,12 @@ type DetectBuildCall struct {
 	Build *v1alpha1.ImageBuild `protobuf:"bytes,1,opt,name=build,proto3" json:"build,omitempty"`
 	// True when the service starts with a command of its own, so the commit
 	// needn't say what starts it.
-	OwnCommand    bool `protobuf:"varint,2,opt,name=own_command,json=ownCommand,proto3" json:"own_command,omitempty"`
+	OwnCommand bool `protobuf:"varint,2,opt,name=own_command,json=ownCommand,proto3" json:"own_command,omitempty"`
+	// What fetches a private repository a GitHub App's installation reaches,
+	// where build names its git login: the Authorization, sealed to this stream's
+	// delivery key for resource.DetectGitRef, as a build's is (ADR 0098). An agent
+	// that says Hello.build_git_auth opens it.
+	GitAuth       []byte `protobuf:"bytes,362,opt,name=git_auth,json=gitAuth,proto3" json:"git_auth,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -12574,6 +12603,13 @@ func (x *DetectBuildCall) GetOwnCommand() bool {
 		return x.OwnCommand
 	}
 	return false
+}
+
+func (x *DetectBuildCall) GetGitAuth() []byte {
+	if x != nil {
+		return x.GitAuth
+	}
+	return nil
 }
 
 // DetectBuildResult is what reading the commit found.
@@ -15144,7 +15180,7 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x05Heard\x12\x12\n" +
 	"\x04last\x18\x01 \x01(\tR\x04last\"\n" +
 	"\n" +
-	"\bDraining\"\xca\r\n" +
+	"\bDraining\"\xf1\r\n" +
 	"\x05Hello\x12,\n" +
 	"\x05build\x18\x01 \x01(\v2\x16.dockwell.v1.BuildInfoR\x05build\x12:\n" +
 	"\tinventory\x18\x02 \x01(\v2\x1c.dockwell.v1.ServerInventoryR\tinventory\x12\x14\n" +
@@ -15171,7 +15207,8 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x06drills\x18\xdd\x01 \x01(\bR\x06drills\x12\x1b\n" +
 	"\bforwards\x18\xca\x01 \x01(\bR\bforwards\x12(\n" +
 	"\x0fregistry_logins\x18\xba\x02 \x01(\bR\x0eregistryLogins\x12\"\n" +
-	"\fbuild_logins\x18\xbc\x02 \x01(\bR\vbuildLogins\x12\"\n" +
+	"\fbuild_logins\x18\xbc\x02 \x01(\bR\vbuildLogins\x12%\n" +
+	"\x0ebuild_git_auth\x18\xe9\x02 \x01(\bR\fbuildGitAuth\x12\"\n" +
 	"\freads_panels\x18\xca\x02 \x01(\bR\vreadsPanels\x12\"\n" +
 	"\fstops_panels\x18\xcc\x02 \x01(\bR\vstopsPanels\x121\n" +
 	"\x14checks_panel_domains\x18\xce\x02 \x01(\bR\x12checksPanelDomains\x12-\n" +
@@ -15795,7 +15832,7 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x06script\x18\x03 \x01(\fR\x06script\x12#\n" +
 	"\rscript_sha256\x18\x04 \x01(\tR\fscriptSha256\x12\x16\n" +
 	"\x06mirror\x18\x05 \x01(\tR\x06mirror\x12#\n" +
-	"\rcosign_mirror\x18\x06 \x01(\tR\fcosignMirror\"\xa3\a\n" +
+	"\rcosign_mirror\x18\x06 \x01(\tR\fcosignMirror\"\xca\a\n" +
 	"\x0fDesiredResource\x124\n" +
 	"\bresource\x18\x01 \x01(\v2\x18.dockwell.v1.ResourceRefR\bresource\x12\x17\n" +
 	"\x04spec\x18\x02 \x01(\fH\x00R\x04spec\x88\x01\x01\x12\x12\n" +
@@ -15818,7 +15855,8 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x04unit\x18\x98\x02 \x01(\v2\x1d.dockwell.agent.v1.UnitActionR\x04unit\x12)\n" +
 	"\x10move_volume_from\x18\xa8\x02 \x01(\tR\x0emoveVolumeFrom\x12$\n" +
 	"\rregistry_auth\x18\xb6\x02 \x01(\fR\fregistryAuth\x121\n" +
-	"\x14build_registry_auths\x18\xbb\x02 \x01(\fR\x12buildRegistryAuths\x125\n" +
+	"\x14build_registry_auths\x18\xbb\x02 \x01(\fR\x12buildRegistryAuths\x12%\n" +
+	"\x0ebuild_git_auth\x18\xe8\x02 \x01(\fR\fbuildGitAuth\x125\n" +
 	"\x05panel\x18\xcd\x02 \x01(\v2\x1e.dockwell.agent.v1.PanelActionR\x05panel\x12E\n" +
 	"\rupgrade_agent\x18\xdf\x02 \x01(\v2\x1f.dockwell.agent.v1.UpgradeAgentR\fupgradeAgentB\a\n" +
 	"\x05_spec\"\x80\x02\n" +
@@ -15855,11 +15893,12 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x0fCancelBuildCall\x12\x1b\n" +
 	"\tchange_id\x18\x01 \x01(\tR\bchangeId\x124\n" +
 	"\bresource\x18\x02 \x01(\v2\x18.dockwell.v1.ResourceRefR\bresource\x12\x0e\n" +
-	"\x02by\x18\x03 \x01(\tR\x02by\"p\n" +
+	"\x02by\x18\x03 \x01(\tR\x02by\"\x8c\x01\n" +
 	"\x0fDetectBuildCall\x12<\n" +
 	"\x05build\x18\x01 \x01(\v2&.dockwell.resource.v1alpha1.ImageBuildR\x05build\x12\x1f\n" +
 	"\vown_command\x18\x02 \x01(\bR\n" +
-	"ownCommand\"N\n" +
+	"ownCommand\x12\x1a\n" +
+	"\bgit_auth\x18\xea\x02 \x01(\fR\agitAuth\"N\n" +
 	"\x11DetectBuildResult\x129\n" +
 	"\tdetection\x18\x01 \x01(\v2\x1b.dockwell.v1.BuildDetectionR\tdetection\"/\n" +
 	"\x11CancelBuildResult\x12\x1a\n" +

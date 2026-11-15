@@ -419,6 +419,9 @@ type BuildPlan struct {
 	// Detection is what reading the commit found, when the plan read it. A
 	// fingerprint leaves it out: the commit and the settings decide it.
 	Detection *BuildDetection `json:",omitempty"`
+	// GitLogin is the GitHub App installation a private repository is fetched
+	// through, as the build names it (ADR 0098).
+	GitLogin string `json:",omitempty"`
 }
 
 // What builds an image.

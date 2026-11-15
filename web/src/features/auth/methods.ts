@@ -185,6 +185,16 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "GitHookService.rotateGitHookSecret": "may",
   "GitHookService.setGitHookRole": "may",
 
+  // GitHub sends the browser back to these once the connect sheet, which asks, posted to it.
+  "GitProviderService.addGitHubInstallation": { within: "GitProviderService.startGitHubApp" },
+  "GitProviderService.finishGitHubApp": { within: "GitProviderService.startGitHubApp" },
+  "GitProviderService.listGitProviders": "may",
+  "GitProviderService.listGitRepositories": "may",
+  "GitProviderService.removeGitHubApp": "may",
+  "GitProviderService.replaceGitHubPrivateKey": "may",
+  "GitProviderService.rotateGitHubWebhookSecret": "may",
+  "GitProviderService.startGitHubApp": "may",
+
   "HealthService.listHealth": "read",
 
   "ImageService.checkRegistryLogin": "may",

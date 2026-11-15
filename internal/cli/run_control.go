@@ -61,6 +61,7 @@ import (
 	"github.com/dockwell/dockwell/internal/resource/dnsprovider"
 	"github.com/dockwell/dockwell/internal/resource/fail2ban"
 	"github.com/dockwell/dockwell/internal/resource/firewall"
+	"github.com/dockwell/dockwell/internal/resource/githubapp"
 	serverhost "github.com/dockwell/dockwell/internal/resource/host"
 	"github.com/dockwell/dockwell/internal/resource/link"
 	"github.com/dockwell/dockwell/internal/resource/network"
@@ -454,6 +455,7 @@ func runControl(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logg
 		// A test asks no host it doesn't run, so a source moves only when asked.
 		CatalogFollow: !isSet(stdio.Getenv(envTest)),
 		DNSAPI:        dnsAPI(stdio.Getenv, logger),
+		GitHub:        gitHub(stdio.Getenv, logger),
 		// Certificates by DNS come from the panel's CA, and a test with none of its
 		// own gets none (ADR 0088).
 		CertificateCA:          f.acmeDirector,
@@ -618,7 +620,7 @@ func refuseClaimedDomain(ctx context.Context, db *store.DB, domain string) error
 // is the panel's domain, which no route may claim. The firewall's driver comes
 // later.
 func controlKinds(domain string, saved func() string) *resource.Registry {
-	return resource.NewRegistry(&container.Driver{}, &firewall.Driver{}, &firewall.PolicyDriver{}, &fail2ban.Driver{}, &service.Driver{}, &volume.Driver{}, &network.Driver{}, &route.Driver{Reserved: domain, Saved: saved, Hash: routehash.Hash}, variable.Type{}, variable.SecretType{}, backuppolicy.Type{}, backuppolicy.Destination{}, registrylogin.Type{}, connection.Type{}, signinprovider.Type{}, dnsprovider.Type{}, certificate.Type{}, catalogsource.Type{}, link.Type{}, &database.UserDriver{}, &task.Driver{}, alert.Rule{}, alert.Channel{}, alert.Check{}, &serverhost.Driver{})
+	return resource.NewRegistry(&container.Driver{}, &firewall.Driver{}, &firewall.PolicyDriver{}, &fail2ban.Driver{}, &service.Driver{}, &volume.Driver{}, &network.Driver{}, &route.Driver{Reserved: domain, Saved: saved, Hash: routehash.Hash}, variable.Type{}, variable.SecretType{}, backuppolicy.Type{}, backuppolicy.Destination{}, registrylogin.Type{}, connection.Type{}, signinprovider.Type{}, dnsprovider.Type{}, githubapp.Type{}, certificate.Type{}, catalogsource.Type{}, link.Type{}, &database.UserDriver{}, &task.Driver{}, alert.Rule{}, alert.Channel{}, alert.Check{}, &serverhost.Driver{})
 }
 
 // openState opens the control plane's key, its state and its identity,
@@ -1059,6 +1061,25 @@ func dnsAPI(getenv func(string) string, logger *slog.Logger) func(token string) 
 		}
 		return &dnsproviders.Cloudflare{Token: token, Base: base, Client: &http.Client{Timeout: 15 * time.Second}}
 	}
+}
+
+// envTestGitHub names, in a test, a stand-in for GitHub, its API and its pages at
+// one address, the only GitHub a test's control plane reaches (ADR 0098).
+const envTestGitHub = "DOCKWELL_TEST_GITHUB"
+
+// gitHub is where the control plane reaches GitHub: GitHub itself, unless this is a
+// test, which reaches only the stand-in DOCKWELL_TEST_GITHUB names, on this
+// machine, and with none an address that never resolves (RFC 2606).
+func gitHub(getenv func(string) string, logger *slog.Logger) control.GitHubConfig {
+	if !isSet(getenv(envTest)) {
+		return control.GitHubConfig{}
+	}
+	base := getenv(envTestGitHub)
+	if base == "" {
+		return control.GitHubConfig{API: "http://github.invalid", Web: "http://github.invalid"}
+	}
+	logger.Info("this is a test, so the control plane reaches the stand-in for GitHub that "+envTestGitHub+" names, and not GitHub", "stand_in", base)
+	return control.GitHubConfig{API: base, Web: base, Client: &http.Client{Timeout: 15 * time.Second}}
 }
 
 // caClient reaches the CA certificates by DNS come from, trusting the roots in the

@@ -25,6 +25,7 @@ import { useControlPlaneNow } from "../servers/useFleet";
 import { Page } from "../shell/Page";
 import { issuerHost, useSigninProviders } from "../signin/providers";
 import { SigninProviderSheet } from "../signin/SigninProviderSheet";
+import { GitHubSection } from "./GitHub";
 import "../backups/Backups.css";
 import "./Settings.css";
 import { useMay } from "../auth/may";
@@ -35,9 +36,9 @@ const CLOUDFLARE =
 
 /**
  * Integrations, as Settings-Integrations.dc.html has them, for what Dockwell
- * connects to today: storage backups go to, which a person adds here as a plan,
- * and Cloudflare in front of routes. What comes later is a line, never drawn as
- * a card to connect.
+ * connects to today: GitHub, as an App, storage backups go to, which a person adds
+ * here as a plan, and Cloudflare in front of routes. What comes later is a line,
+ * never drawn as a card to connect.
  */
 export function IntegrationsPage() {
   const { t } = useLingui();
@@ -97,6 +98,8 @@ export function IntegrationsPage() {
   return (
     <Page width="narrow" title={t`Integrations`} lead={lead} phoneSub={lead} back="/settings" actions={variables}>
       <div className="integrations-sections">
+        <GitHubSection />
+
         <section className="integrations-section" aria-labelledby="integrations-storage" style={cards(storageCards)}>
           <div className="cp-section-head">
             <h2 id="integrations-storage" className="dw-text-heading">
@@ -351,7 +354,7 @@ export function IntegrationsPage() {
         )}
       </section>
 
-      <p className="settings-meta integrations-later">{t`Git providers and cloud providers come later.`}</p>
+      <p className="settings-meta integrations-later">{t`Cloud providers come later.`}</p>
 
       {/* A phone's header has no room for the aside, so it closes the page. */}
       {phone ? variables : null}

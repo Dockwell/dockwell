@@ -118,6 +118,9 @@ type GitHook struct {
 	SecretTime *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=secret_time,json=secretTime,proto3" json:"secret_time,omitempty"`
 	// Its newest deliveries, newest first, at most 20.
 	Deliveries []*GitHookDelivery `protobuf:"bytes,7,rep,name=deliveries,proto3" json:"deliveries,omitempty"`
+	// The GitHub App its pushes come through, by name, for a hook with no URL or
+	// secret of its own: the App's one webhook carries them (ADR 0098).
+	GithubApp string `protobuf:"bytes,8,opt,name=github_app,json=githubApp,proto3" json:"github_app,omitempty"`
 	// The role it acts as at most in its service's project: ROLE_DEVELOPER, so a
 	// push into a protected environment waits for a person, or ROLE_ADMIN, so it
 	// deploys there too. ROLE_UNSPECIFIED is its maker's role.
@@ -203,6 +206,13 @@ func (x *GitHook) GetDeliveries() []*GitHookDelivery {
 		return x.Deliveries
 	}
 	return nil
+}
+
+func (x *GitHook) GetGithubApp() string {
+	if x != nil {
+		return x.GithubApp
+	}
+	return ""
 }
 
 func (x *GitHook) GetRole() Role {
@@ -924,7 +934,7 @@ var File_dockwell_v1_githook_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_githook_proto_rawDesc = "" +
 	"\n" +
-	"\x19dockwell/v1/githook.proto\x12\vdockwell.v1\x1a\x16dockwell/v1/auth.proto\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xdc\x02\n" +
+	"\x19dockwell/v1/githook.proto\x12\vdockwell.v1\x1a\x16dockwell/v1/auth.proto\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xfb\x02\n" +
 	"\aGitHook\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1d\n" +
 	"\n" +
@@ -938,7 +948,9 @@ const file_dockwell_v1_githook_proto_rawDesc = "" +
 	"secretTime\x12<\n" +
 	"\n" +
 	"deliveries\x18\a \x03(\v2\x1c.dockwell.v1.GitHookDeliveryR\n" +
-	"deliveries\x12%\n" +
+	"deliveries\x12\x1d\n" +
+	"\n" +
+	"github_app\x18\b \x01(\tR\tgithubApp\x12%\n" +
 	"\x04role\x18\t \x01(\x0e2\x11.dockwell.v1.RoleR\x04role\"\x94\x02\n" +
 	"\x0fGitHookDelivery\x12\x1f\n" +
 	"\vdelivery_id\x18\x01 \x01(\tR\n" +

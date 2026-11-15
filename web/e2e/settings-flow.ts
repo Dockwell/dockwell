@@ -153,8 +153,9 @@ export async function settingsFlow(page: Page, { origin, step, shoot }: Settings
   await page.getByRole("heading", { level: 1, name: "Integrations" }).waitFor();
   await page.getByRole("article", { name: "Cloudflare" }).waitFor();
   await shoot(page, "settings-integrations");
-  // A card to connect the first, or the section's own button once there is one.
+  // Storage's card to connect the first, or its section's own button once there is one.
   await page
+    .getByRole("region", { name: "Object storage" })
     .getByRole("button", { name: /^Connect( storage)?$/ })
     .first()
     .click();

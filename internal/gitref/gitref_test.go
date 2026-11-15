@@ -130,3 +130,39 @@ func TestResolveFollowsOnlyBranchesAndTags(t *testing.T) {
 		}
 	}
 }
+
+// A call under WithAuth sends its header to the repository's host and no other: a
+// redirect elsewhere goes without it. One the repository refuses says the App's
+// token was refused, not that the repository is private.
+func TestATokenGoesToTheRepositoryAlone(t *testing.T) {
+	var elsewhere string
+	other := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		elsewhere = r.Header.Get("Authorization")
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	t.Cleanup(other.Close)
+	var asked string
+	repo := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		asked = r.Header.Get("Authorization")
+		switch r.URL.Path {
+		case "/moved.git/info/refs":
+			http.Redirect(w, r, other.URL+"/web.git/info/refs?service=git-upload-pack", http.StatusFound)
+		default:
+			w.WriteHeader(http.StatusUnauthorized)
+		}
+	}))
+	t.Cleanup(repo.Close)
+	ctx := WithAuth(t.Context(), "Basic dG9rZW4=")
+	r := &Resolver{Local: true}
+	_, _, err := r.Resolve(ctx, repo.URL+"/web.git", "main")
+	if asked != "Basic dG9rZW4=" || err == nil || !strings.Contains(err.Error(), "refused the GitHub App's token") || strings.Contains(err.Error(), "dG9rZW4") {
+		t.Errorf("the repository was asked with %q, and said %v", asked, err)
+	}
+	_, _, _ = r.Resolve(ctx, repo.URL+"/moved.git", "main")
+	if elsewhere != "" {
+		t.Errorf("a redirect to another host sent %q", elsewhere)
+	}
+	if _, _, err := r.Resolve(t.Context(), repo.URL+"/web.git", "main"); err == nil || !strings.Contains(err.Error(), "connect GitHub") {
+		t.Errorf("a private repository without a token says %v", err)
+	}
+}

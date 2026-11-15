@@ -19,6 +19,7 @@ import {
   FirewallService,
   GetVersionResponseSchema,
   GitHookService,
+  GitProviderService,
   HealthService,
   ImageService,
   ImportService,
@@ -80,6 +81,7 @@ export type Api = {
   websites?: Partial<ServiceImpl<typeof WebsiteService>>;
   builds?: Partial<ServiceImpl<typeof BuildService>>;
   hooks?: Partial<ServiceImpl<typeof GitHookService>>;
+  gitProviders?: Partial<ServiceImpl<typeof GitProviderService>>;
   audit?: Partial<ServiceImpl<typeof AuditService>>;
   members?: Partial<ServiceImpl<typeof MemberService>>;
   imports?: Partial<ServiceImpl<typeof ImportService>>;
@@ -183,6 +185,12 @@ function apiWrapper(api: Api, cache: CacheOptions = {}) {
       service(BuildService, api.builds ?? {});
       // An app that builds from Git has deploy on push off unless a test says.
       service(GitHookService, { getGitHook: () => ({}), ...api.hooks });
+      // No GitHub App is connected unless a test says, and so no project has its repositories.
+      service(GitProviderService, {
+        listGitProviders: () => ({}),
+        listGitRepositories: () => ({}),
+        ...api.gitProviders,
+      });
     },
     { transport: { interceptors: [watchSession(() => recheckAuth(queryClient))] } },
   );

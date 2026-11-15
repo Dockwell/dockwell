@@ -28,8 +28,11 @@ const (
 	// registriesMount holds the registry logins a build's base images pull with, as
 	// Docker's config.json, read-only (ADR 0086).
 	registriesMount = "/run/dockwell-registries"
-	sourceDir       = "/src"
-	buildkitSock    = "unix:///run/buildkit/buildkitd.sock"
+	// gitAuthMount holds the Authorization a private repository is fetched with,
+	// read-only, in memory (ADR 0098).
+	gitAuthMount = "/run/dockwell-git"
+	sourceDir    = "/src"
+	buildkitSock = "unix:///run/buildkit/buildkitd.sock"
 )
 
 // fetchScript fetches the branch or tag the build names, by its full name, and checks
@@ -38,7 +41,19 @@ const (
 // commit the build names as its ref is fetched as it is. It says what the commit is,
 // and finds the build's folder, as ctx, and its Dockerfile, as df, empty when the
 // commit hasn't one where the build says. Neither may lead out of the checkout.
-const fetchScript = `say phase fetch
+// gitAuthScript has git send the Authorization the build was given for its
+// repository, read from its file in memory, as a header git takes from its
+// environment for that repository's URL alone, so a redirect elsewhere doesn't
+// carry it: never in the URL, a command line, the log or BuildKit's cache (ADR
+// 0098).
+const gitAuthScript = `if [ -r ` + gitAuthMount + `/authorization ]; then
+  GIT_CONFIG_KEY_0="http.$DW_URL.extraHeader"
+  GIT_CONFIG_VALUE_0="Authorization: $(cat ` + gitAuthMount + `/authorization)"
+  export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0 GIT_CONFIG_VALUE_0
+fi
+`
+
+const fetchScript = gitAuthScript + `say phase fetch
 mkdir -p ` + sourceDir + ` && cd ` + sourceDir + `
 git init -q
 git remote add origin "$DW_URL"

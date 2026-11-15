@@ -7540,7 +7540,11 @@ type BuildPlan struct {
 	// What reading the commit found: what builds it, and with Railpack, what it
 	// installs and runs. Empty when the build names its Dockerfile, or the server
 	// couldn't be asked; the build then reads it as it starts.
-	Detection     *BuildDetection `protobuf:"bytes,8,opt,name=detection,proto3" json:"detection,omitempty"`
+	Detection *BuildDetection `protobuf:"bytes,8,opt,name=detection,proto3" json:"detection,omitempty"`
+	// The GitHub App installation a private repository is fetched through, as
+	// the build names it, "<App name>/<installation ID>"; empty for a public
+	// repository (ADR 0098).
+	GitLogin      string `protobuf:"bytes,9,opt,name=git_login,json=gitLogin,proto3" json:"git_login,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -7629,6 +7633,13 @@ func (x *BuildPlan) GetDetection() *BuildDetection {
 		return x.Detection
 	}
 	return nil
+}
+
+func (x *BuildPlan) GetGitLogin() string {
+	if x != nil {
+		return x.GitLogin
+	}
+	return ""
 }
 
 // BuildDetection is what reading a commit of a repository found, before
@@ -10389,7 +10400,7 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"fromVolume\x125\n" +
 	"\x06method\x18\x02 \x01(\x0e2\x1d.dockwell.v1.VolumeMoveMethodR\x06method\x12\x1d\n" +
 	"\n" +
-	"copy_bytes\x18\x03 \x01(\x03R\tcopyBytes\"\x9c\x02\n" +
+	"copy_bytes\x18\x03 \x01(\x03R\tcopyBytes\"\xb9\x02\n" +
 	"\tBuildPlan\x12\x10\n" +
 	"\x03url\x18\x01 \x01(\tR\x03url\x12\x10\n" +
 	"\x03ref\x18\x02 \x01(\tR\x03ref\x12\x16\n" +
@@ -10400,7 +10411,8 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"dockerfile\x12\x14\n" +
 	"\x05image\x18\x06 \x01(\tR\x05image\x12H\n" +
 	"\abuilder\x18\a \x01(\x0e2..dockwell.resource.v1alpha1.ImageBuild.BuilderR\abuilder\x129\n" +
-	"\tdetection\x18\b \x01(\v2\x1b.dockwell.v1.BuildDetectionR\tdetection\"\xa5\x04\n" +
+	"\tdetection\x18\b \x01(\v2\x1b.dockwell.v1.BuildDetectionR\tdetection\x12\x1b\n" +
+	"\tgit_login\x18\t \x01(\tR\bgitLogin\"\xa5\x04\n" +
 	"\x0eBuildDetection\x12H\n" +
 	"\abuilder\x18\x01 \x01(\x0e2..dockwell.resource.v1alpha1.ImageBuild.BuilderR\abuilder\x12\x1e\n" +
 	"\n" +

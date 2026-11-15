@@ -131,6 +131,9 @@ func buildWords(b *dockwellv1.BuildPlan) string {
 	if f := strings.Trim(b.GetContext()+"/"+cmpOr(b.GetDockerfile(), "Dockerfile"), "/"); f != "Dockerfile" {
 		where = ", with " + f
 	}
+	if login := b.GetGitLogin(); login != "" {
+		where += ", through the GitHub App installation " + terminalSafe(login, false)
+	}
 	return fmt.Sprintf("Builds %s at %s%s first. If the build fails, what runs stays as it is.", repo, at, where)
 }
 

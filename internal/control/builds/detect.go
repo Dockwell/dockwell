@@ -98,17 +98,27 @@ func (h *Handler) ListRepositoryBranches(ctx context.Context, req *connect.Reque
 	if !ok {
 		return nil, connect.NewError(connect.CodeUnavailable, errors.New("this control plane can't read a repository's branches"))
 	}
+	// For a project, as its builds fetch it: through the installation that reaches
+	// the project and lists the repository, where one does (ADR 0098).
+	project, err := h.projectNamed(ctx, req.Msg.GetProject(), "")
+	if err != nil {
+		return nil, err
+	}
+	login, err := h.loginFor(ctx, project, url, "")
+	if err != nil {
+		return nil, err
+	}
 	select {
 	case h.listing <- struct{}{}:
 		defer func() { <-h.listing }()
 	default:
 		return nil, errTooManyListings
 	}
-	head, branches, err := lister.Branches(ctx, url)
+	head, branches, err := lister.Branches(revision.WithGitLogin(ctx, login), url)
 	if err != nil {
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, err, "unreadable")
 	}
-	res := &dockwellv1.ListRepositoryBranchesResponse{DefaultBranch: fit(head, 255)}
+	res := &dockwellv1.ListRepositoryBranchesResponse{DefaultBranch: fit(head, 255), GitLogin: login}
 	if len(branches) > maxBranches {
 		res.Total = int32(len(branches)) //nolint:gosec // a repository's answer is bounded (gitref)
 		branches = branches[:maxBranches]
@@ -227,9 +237,17 @@ func (h *Handler) DetectBuild(ctx context.Context, req *connect.Request[dockwell
 	var b *resourcev1.ImageBuild
 	var placed []string
 	ownCommand := false
+	var project string
 	if m.GetId() != "" {
 		svc, name, servers, err := h.services.ServiceOf(ctx, m.GetId(), m.GetProject(), m.GetEnvironment())
 		if err != nil {
+			return nil, err
+		}
+		r, err := h.services.Find(ctx, m.GetId(), m.GetProject(), m.GetEnvironment())
+		if err != nil {
+			return nil, err
+		}
+		if project, err = h.projectOfScope(ctx, r.Scope); err != nil {
 			return nil, err
 		}
 		got := svc.GetBuild()
@@ -248,9 +266,23 @@ func (h *Handler) DetectBuild(ctx context.Context, req *connect.Request[dockwell
 			return nil, authapi.Invalid(errors.New("the request names no service and no build settings. Pass a service's ID or name, or the build settings to read"))
 		}
 		b = proto.Clone(m.GetBuild()).(*resourcev1.ImageBuild) //nolint:forcetypeassert // as above
+		var err error
+		if project, err = h.projectNamed(ctx, m.GetProject(), m.GetEnvironment()); err != nil {
+			return nil, err
+		}
 	}
 	if err := service.CheckBuild(b); err != nil {
 		return nil, authapi.Invalid(err)
+	}
+	// A private repository reads through the installation that reaches the project,
+	// as its build fetches it: one named must, and where none is, the plan's pick is
+	// read (ADR 0098).
+	if g := b.GetGit(); g != nil {
+		login, err := h.loginFor(ctx, project, g.GetUrl(), b.GetGitLogin())
+		if err != nil {
+			return nil, err
+		}
+		b.GitLogin = login
 	}
 	server, name, err := h.reader(ctx, m.GetServer(), placed)
 	if err != nil {
@@ -263,7 +295,7 @@ func (h *Handler) DetectBuild(ctx context.Context, req *connect.Request[dockwell
 		if h.sources == nil {
 			return nil, connect.NewError(connect.CodeUnavailable, errors.New("this control plane can't read what a branch names"))
 		}
-		commit, branch, err := h.sources.Resolve(ctx, g.GetUrl(), g.GetRef())
+		commit, branch, err := h.sources.Resolve(revision.WithGitLogin(ctx, b.GetGitLogin()), g.GetUrl(), g.GetRef())
 		if err != nil {
 			return nil, authapi.ReasonError(connect.CodeFailedPrecondition, err, "unreadable")
 		}

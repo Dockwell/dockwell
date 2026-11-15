@@ -12,6 +12,7 @@ import {
   Connection,
   DetectionProblem,
   type ExposedVariable,
+  type GitRepository,
   ImageAnswer,
   ImageBuild_Builder,
   ImageService,
@@ -71,6 +72,7 @@ import { type Opening, PlanView } from "../changes/ChangeSheet";
 import { registryOf, useRegistryLogins } from "../registries/registries";
 import { type PortHolder, type ServerPorts, useServerPorts } from "../servers/ports";
 import { useFleetView } from "../servers/useFleet";
+import { useGitRepositories } from "../settings/github";
 import { CopyAsCommand } from "../system/CopyCommand";
 import { useRuntimes } from "../websites/website";
 import {
@@ -118,6 +120,7 @@ import {
 import { ImageField, type ImageRead } from "./ImageField";
 import { CatalogSource } from "./NewAppCatalog";
 import { useProjectPage } from "./projectPage";
+import { RepositoryField, sameRepository } from "./RepositoryField";
 import { joinWords, splitWords, validCpus, validMemory } from "./specEdit";
 import { usePlaces, useServices } from "./useServices";
 import { useAppWords } from "./words";
@@ -793,6 +796,7 @@ export function NewAppSheet({
             ) : null}
             <GitFields
               git={git}
+              project={places.place(scope)?.scope ?? ""}
               onGit={(next, clear) => {
                 setGit((was) => ({ ...was, ...next }));
                 if (clear) setErrors(({ [clear]: _, ...rest }) => rest);
@@ -1109,6 +1113,7 @@ function ImageFields({
  */
 function GitFields({
   git,
+  project,
   onGit,
   showBuild,
   onShowBuild,
@@ -1126,6 +1131,8 @@ function GitFields({
   serversKnown,
 }: {
   git: GitForm;
+  /** The project it goes in, by ID: its GitHub App installations' repositories are offered, and read through them. */
+  project: string;
   onGit: (next: Partial<GitForm>, clear?: string) => void;
   /** The server it runs on, when one is chosen, which reads how the repository builds. */
   server: string;
@@ -1157,7 +1164,8 @@ function GitFields({
     }
   };
   const placeholderName = nameFromRepository(git.url) || "web";
-  const repository = useRepository(git.url);
+  const repositories = useGitRepositories(project).data?.repositories ?? [];
+  const repository = useRepository(git.url, project, repositories);
   // The default branch first, as the one it builds when none is chosen, then the
   // rest, and a tag or commit someone typed, which the repository's branches don't list.
   const branchOptions = [
@@ -1208,15 +1216,13 @@ function GitFields({
   return (
     <>
       <div className="git-source">
-        <TextField
-          ref={fieldRef}
-          label={t`Repository`}
-          mono
-          placeholder="https://github.com/acme/web"
+        <RepositoryField
+          fieldRef={fieldRef}
           value={git.url}
+          repositories={repositories}
           error={errors["git.url"] ?? repository.failed}
           hint={repository.state}
-          onChange={(event) => onGit({ url: event.target.value }, "git.url")}
+          onChange={(url) => onGit({ url }, "git.url")}
         />
         {branchOptions.length > 1 ? (
           <SelectField
@@ -1244,6 +1250,7 @@ function GitFields({
       </div>
       <BuildRow
         git={git}
+        project={project}
         server={server}
         waitForServer={waitForServer || !serversKnown}
         showBuild={showBuild}
@@ -1378,7 +1385,11 @@ function GitFields({
  * there and public, as a state beside the field, and its branches to choose from,
  * the default first.
  */
-function useRepository(typed: string): {
+function useRepository(
+  typed: string,
+  project: string,
+  repositories: readonly GitRepository[],
+): {
   state?: ReactNode;
   failed?: ReactNode;
   /** True once it answered for the URL as it is typed now. */
@@ -1397,9 +1408,10 @@ function useRepository(typed: string): {
   // Having the control server ask a repository is a developer's, as planning is (ADR 0059).
   const allowed = useMay()(BuildService.method.listRepositoryBranches).allowed;
   const worth = looksLikeRepository(typed) && allowed;
+  // For the project, as its builds fetch it: through its GitHub App installation where one reaches it (ADR 0098).
   const asked = useQuery(
     BuildService.method.listRepositoryBranches,
-    { url },
+    { url, project },
     { enabled: allowed && looksLikeRepository(url), retry: false, staleTime: 5 * 60_000, refetchOnWindowFocus: false },
   );
   if (!worth) return { checked: false, url, branches: [], defaultBranch: "" };
@@ -1431,10 +1443,22 @@ function useRepository(typed: string): {
   }
   const branches = asked.data?.branches ?? [];
   const count = asked.data?.total || branches.length;
+  const through = asked.data?.gitLogin ? repositories.find((r) => sameRepository(r.url, url)) : undefined;
+  const account = through?.account ?? "";
   return {
     checked: true,
     url,
-    state: plural(count, { one: "Public · # branch", other: "Public · # branches" }),
+    state: !asked.data?.gitLogin
+      ? plural(count, { one: "Public · # branch", other: "Public · # branches" })
+      : through?.private
+        ? plural(count, {
+            one: `Private, through ${account} · # branch`,
+            other: `Private, through ${account} · # branches`,
+          })
+        : plural(count, {
+            one: "Through the GitHub App · # branch",
+            other: "Through the GitHub App · # branches",
+          }),
     branches,
     defaultBranch: asked.data?.defaultBranch ?? "",
   };
@@ -1452,6 +1476,7 @@ function looksLikeRepository(url: string): boolean {
  */
 function BuildRow({
   git,
+  project,
   server,
   waitForServer,
   showBuild,
@@ -1461,6 +1486,8 @@ function BuildRow({
   onRegistryLogins,
 }: {
   git: GitForm;
+  /** The project it goes in, by ID, whose GitHub App installation reads a private repository. */
+  project: string;
   server: string;
   waitForServer: boolean;
   showBuild: boolean;
@@ -1500,7 +1527,11 @@ function BuildRow({
   const ready = looksLikeRepository(url) && !waiting && checked && allowed;
   const read = useQuery(
     BuildService.method.detectBuild,
-    { build: buildOf({ url, ref, context, dockerfile, builder, buildCommand, startCommand, args }), server: on },
+    {
+      build: buildOf({ url, ref, context, dockerfile, builder, buildCommand, startCommand, args }),
+      server: on,
+      project,
+    },
     { enabled: ready, retry: false, staleTime: 5 * 60_000, refetchOnWindowFocus: false },
   );
   const reading = looksLikeRepository(git.url) && !waitForServer && checked && (settled !== wanted || read.isFetching);

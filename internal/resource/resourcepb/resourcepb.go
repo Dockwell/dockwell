@@ -215,7 +215,7 @@ func Step(s resource.Step, resourceID string) *dockwellv1.PlanStep {
 	if b := s.Build; b != nil {
 		p.Build = &dockwellv1.BuildPlan{
 			Url: b.URL, Ref: b.Ref, Commit: b.Commit, Context: b.Context, Dockerfile: b.Dockerfile, Image: b.Image,
-			Builder: Builder(b.Builder), Detection: Detection(b.Detection),
+			Builder: Builder(b.Builder), Detection: Detection(b.Detection), GitLogin: b.GitLogin,
 		}
 	}
 	return p
@@ -596,7 +596,7 @@ func FromStep(p *dockwellv1.PlanStep) (resource.Step, error) {
 	if b := p.GetBuild(); b != nil {
 		s.Build = &resource.BuildPlan{
 			URL: b.GetUrl(), Ref: b.GetRef(), Commit: b.GetCommit(), Context: b.GetContext(), Dockerfile: b.GetDockerfile(), Image: b.GetImage(),
-			Builder: BuilderFrom(b.GetBuilder()), Detection: DetectionFrom(b.GetDetection()),
+			Builder: BuilderFrom(b.GetBuilder()), Detection: DetectionFrom(b.GetDetection()), GitLogin: b.GetGitLogin(),
 		}
 	}
 	return s, nil

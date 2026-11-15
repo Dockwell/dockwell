@@ -721,6 +721,12 @@ msgstr "Added a passkey after signing in with a recovery code"
 msgid "Added a passkey after signing in with an authenticator code"
 msgstr "Added a passkey after signing in with an authenticator code"
 
+msgid "Added an installation of a GitHub App"
+msgstr "Added an installation of a GitHub App"
+
+msgid "Added an installation of the GitHub App {name}"
+msgstr "Added an installation of the GitHub App {name}"
+
 msgid "Added the passkey {name}"
 msgstr "Added the passkey {name}"
 
@@ -895,11 +901,29 @@ msgstr "Ended the sessions of a sign-in provider that stopped"
 msgid "Fetched a backup of {volume} from {destination}"
 msgstr "Fetched a backup of {volume} from {destination}"
 
+msgid "Gave a GitHub App a new private key"
+msgstr "Gave a GitHub App a new private key"
+
+msgid "Gave a GitHub App a new webhook secret"
+msgstr "Gave a GitHub App a new webhook secret"
+
 msgid "Gave deploy on push a new secret"
 msgstr "Gave deploy on push a new secret"
 
+msgid "Gave the GitHub App {name} a new private key"
+msgstr "Gave the GitHub App {name} a new private key"
+
+msgid "Gave the GitHub App {name} a new webhook secret"
+msgstr "Gave the GitHub App {name} a new webhook secret"
+
 msgid "Gave {name}'s deploy on push a new secret"
 msgstr "Gave {name}'s deploy on push a new secret"
+
+msgid "GitHub removed an installation of a GitHub App"
+msgstr "GitHub removed an installation of a GitHub App"
+
+msgid "GitHub removed an installation of the GitHub App {name}"
+msgstr "GitHub removed an installation of the GitHub App {name}"
 
 #. placeholder {0}: m?.email ?? ""
 #. placeholder {1}: rolePhrase(m?.role ?? Role.UNSPECIFIED, { projectId: m?.projectId ?? "", projectName: m?.projectName ?? "" })
@@ -1017,11 +1041,17 @@ msgstr "Refused a push to {name} whose secret didn't match"
 msgid "Refused a push whose secret didn't match"
 msgstr "Refused a push whose secret didn't match"
 
+msgid "Removed a GitHub App"
+msgstr "Removed a GitHub App"
+
 msgid "Removed a backup of {volume} from its server, and kept it on {destination}"
 msgstr "Removed a backup of {volume} from its server, and kept it on {destination}"
 
 msgid "Removed a passkey"
 msgstr "Removed a passkey"
+
+msgid "Removed the GitHub App {name}"
+msgstr "Removed the GitHub App {name}"
 
 msgid "Removed the passkey {name}"
 msgstr "Removed the passkey {name}"
@@ -3388,6 +3418,7 @@ msgctxt "a limit typed in"
 msgid "Other"
 msgstr "Other"
 
+#. placeholder {0}: app.owner
 #. placeholder {0}: m.makeOwner
 msgid "Owned by {0}"
 msgstr "Owned by {0}"
@@ -4738,9 +4769,6 @@ msgstr "Remove this volume"
 msgid "Remove what isn't in this file"
 msgstr "Remove what isn't in this file"
 
-msgid "Repository"
-msgstr "Repository"
-
 msgid "Required"
 msgstr "Required"
 
@@ -4922,11 +4950,17 @@ msgstr "{changed, plural, one {# changed} other {# changed}}"
 msgid "{count, plural, one {# other app is here. Otherwise it stays as it is.} other {# other apps are here. Otherwise they stay as they are.}}"
 msgstr "{count, plural, one {# other app is here. Otherwise it stays as it is.} other {# other apps are here. Otherwise they stay as they are.}}"
 
+msgid "{count, plural, one {Private, through {account} · # branch} other {Private, through {account} · # branches}}"
+msgstr "{count, plural, one {Private, through {account} · # branch} other {Private, through {account} · # branches}}"
+
 msgid "{count, plural, one {Public · # branch} other {Public · # branches}}"
 msgstr "{count, plural, one {Public · # branch} other {Public · # branches}}"
 
 msgid "{count, plural, one {Show it} other {Show them}}"
 msgstr "{count, plural, one {Show it} other {Show them}}"
+
+msgid "{count, plural, one {Through the GitHub App · # branch} other {Through the GitHub App · # branches}}"
+msgstr "{count, plural, one {Through the GitHub App · # branch} other {Through the GitHub App · # branches}}"
 
 msgid "{name} (default)"
 msgstr "{name} (default)"
@@ -5214,6 +5248,16 @@ msgstr "you"
 msgid "{kept}, not available to this project"
 msgstr "{kept}, not available to this project"
 
+msgctxt "a repository"
+msgid "Private"
+msgstr "Private"
+
+msgid "Repositories"
+msgstr "Repositories"
+
+msgid "Repository"
+msgstr "Repository"
+
 msgid "Change {name}'s version"
 msgstr "Change {name}'s version"
 
@@ -5259,6 +5303,12 @@ msgstr "A webhook on the repository's host"
 
 msgid "A webhook on {hostName}"
 msgstr "A webhook on {hostName}"
+
+msgid "Add it on GitHub"
+msgstr "Add it on GitHub"
+
+msgid "Connect again"
+msgstr "Connect again"
 
 msgid "Copy URL"
 msgstr "Copy URL"
@@ -5359,6 +5409,12 @@ msgstr "Shown once, when made"
 msgid "Target URL"
 msgstr "Target URL"
 
+msgid "The GitHub App can't reach {name} any more."
+msgstr "The GitHub App can't reach {name} any more."
+
+msgid "The GitHub App was deleted on GitHub."
+msgstr "The GitHub App was deleted on GitHub."
+
 msgid "The hook now refuses pushes. Remove it from the repository too."
 msgstr "The hook now refuses pushes. Remove it from the repository too."
 
@@ -5379,6 +5435,12 @@ msgstr "the default branch"
 
 msgid "this environment"
 msgstr "this environment"
+
+msgid "through the GitHub App"
+msgstr "through the GitHub App"
+
+msgid "through the GitHub App on {account}"
+msgstr "through the GitHub App on {account}"
 
 msgid "{who} can't reach this panel's address."
 msgstr "{who} can't reach this panel's address."
@@ -9564,8 +9626,24 @@ msgid "Browsers keep {back}'s earlier redirect to {to} for up to a day. Anyone w
 msgstr "Browsers keep {back}'s earlier redirect to {to} for up to a day. Anyone who loaded {back} since goes round in a circle until it expires: clearing the browser's cache ends it sooner."
 
 #. placeholder {0}: server.serverName
+msgid "Builds {repository} at {commit} ({ref}) on {0} first, through the GitHub App on {account}. If the build fails, what runs stays as it is."
+msgstr "Builds {repository} at {commit} ({ref}) on {0} first, through the GitHub App on {account}. If the build fails, what runs stays as it is."
+
+#. placeholder {0}: server.serverName
+msgid "Builds {repository} at {commit} ({ref}) on {0} first, through the GitHub App. If the build fails, what runs stays as it is."
+msgstr "Builds {repository} at {commit} ({ref}) on {0} first, through the GitHub App. If the build fails, what runs stays as it is."
+
+#. placeholder {0}: server.serverName
 msgid "Builds {repository} at {commit} ({ref}) on {0} first. If the build fails, what runs stays as it is."
 msgstr "Builds {repository} at {commit} ({ref}) on {0} first. If the build fails, what runs stays as it is."
+
+#. placeholder {0}: server.serverName
+msgid "Builds {repository} at {commit} on {0} first, through the GitHub App on {account}. If the build fails, what runs stays as it is."
+msgstr "Builds {repository} at {commit} on {0} first, through the GitHub App on {account}. If the build fails, what runs stays as it is."
+
+#. placeholder {0}: server.serverName
+msgid "Builds {repository} at {commit} on {0} first, through the GitHub App. If the build fails, what runs stays as it is."
+msgstr "Builds {repository} at {commit} on {0} first, through the GitHub App. If the build fails, what runs stays as it is."
 
 #. placeholder {0}: server.serverName
 msgid "Builds {repository} at {commit} on {0} first. If the build fails, what runs stays as it is."
@@ -15915,6 +15993,218 @@ msgstr "What this install is called, its time zone and how its panel is served"
 msgid "What this install is called, its time zone and how its panel is served · set up {since}"
 msgstr "What this install is called, its time zone and how its panel is served · set up {since}"
 
+msgid "An organization"
+msgstr "An organization"
+
+msgid "As a GitHub App Dockwell makes, which you install on the repositories you pick"
+msgstr "As a GitHub App Dockwell makes, which you install on the repositories you pick"
+
+msgid "Connect GitHub"
+msgstr "Connect GitHub"
+
+msgid "Create on GitHub"
+msgstr "Create on GitHub"
+
+msgid "Delete it on GitHub"
+msgstr "Delete it on GitHub"
+
+msgid "Deleted on GitHub"
+msgstr "Deleted on GitHub"
+
+msgid "Dockwell can't list its GitHub Apps"
+msgstr "Dockwell can't list its GitHub Apps"
+
+msgid "Dockwell uninstalled it from 1 account and forgot its key."
+msgstr "Dockwell uninstalled it from 1 account and forgot its key."
+
+#. placeholder {0}: removed.uninstalled
+msgid "Dockwell uninstalled it from {0} accounts and forgot its key."
+msgstr "Dockwell uninstalled it from {0} accounts and forgot its key."
+
+msgid "GitHub App on <0>{accounts}</0>"
+msgstr "GitHub App on <0>{accounts}</0>"
+
+msgid "GitHub App on <0>{accounts}</0> · 1 repository"
+msgstr "GitHub App on <0>{accounts}</0> · 1 repository"
+
+msgid "GitHub App on <0>{accounts}</0> · {repositories} repositories"
+msgstr "GitHub App on <0>{accounts}</0> · {repositories} repositories"
+
+msgid "GitHub isn't connected"
+msgstr "GitHub isn't connected"
+
+msgid "GitHub keeps the App until you delete it there"
+msgstr "GitHub keeps the App until you delete it there"
+
+msgid "Install on GitHub"
+msgstr "Install on GitHub"
+
+msgid "Its repositories need an App it owns."
+msgstr "Its repositories need an App it owns."
+
+msgid "Loading GitHub Apps"
+msgstr "Loading GitHub Apps"
+
+msgid "Manage"
+msgstr "Manage"
+
+msgid "Organization"
+msgstr "Organization"
+
+msgid "Owned by"
+msgstr "Owned by"
+
+msgid "Private repositories, and deploy on push with nothing to paste."
+msgstr "Private repositories, and deploy on push with nothing to paste."
+
+msgid "The GitHub App isn't installed on an account yet."
+msgstr "The GitHub App isn't installed on an account yet."
+
+msgid "private repositories, and deploy on push"
+msgstr "private repositories, and deploy on push"
+
+msgid "1 project"
+msgstr "1 project"
+
+msgid "1 repository"
+msgstr "1 repository"
+
+msgid "Apps that build through it can't fetch their private repository until it's connected again."
+msgstr "Apps that build through it can't fetch their private repository until it's connected again."
+
+#. placeholder {0}: newKey.oldFingerprint
+msgid "Delete the old one on GitHub: <0>{0}</0>"
+msgstr "Delete the old one on GitHub: <0>{0}</0>"
+
+msgid "Dockwell signs with the new key"
+msgstr "Dockwell signs with the new key"
+
+msgid "Generate a key on GitHub"
+msgstr "Generate a key on GitHub"
+
+#. placeholder {0}: app.name
+msgid "GitHub App {0}"
+msgstr "GitHub App {0}"
+
+msgid "GitHub has the new webhook secret"
+msgstr "GitHub has the new webhook secret"
+
+msgid "Install on another account"
+msgstr "Install on another account"
+
+msgid "Installed on"
+msgstr "Installed on"
+
+msgid "Keep it"
+msgstr "Keep it"
+
+#. placeholder {0}: i.account
+msgid "Let every project build through {0}"
+msgstr "Let every project build through {0}"
+
+#. placeholder {0}: i.account
+msgid "Let only some projects build through {0}"
+msgstr "Let only some projects build through {0}"
+
+msgid "New private key"
+msgstr "New private key"
+
+msgid "New webhook secret"
+msgstr "New webhook secret"
+
+msgid "No account yet."
+msgstr "No account yet."
+
+msgid "Only Dockwell and GitHub have it"
+msgstr "Only Dockwell and GitHub have it"
+
+msgid "Open the App's keys"
+msgstr "Open the App's keys"
+
+#. placeholder {0}: app.owner
+msgid "Owned by the organization {0}"
+msgstr "Owned by the organization {0}"
+
+msgid "Private key"
+msgstr "Private key"
+
+msgid "Remove the GitHub App from Dockwell?"
+msgstr "Remove the GitHub App from Dockwell?"
+
+msgid "Repositories on GitHub"
+msgstr "Repositories on GitHub"
+
+msgid "Secret and key"
+msgstr "Secret and key"
+
+msgid "Suspended on GitHub"
+msgstr "Suspended on GitHub"
+
+msgid "The GitHub App wasn't removed"
+msgstr "The GitHub App wasn't removed"
+
+msgid "The old one works for 10 more minutes, for pushes already sent."
+msgstr "The old one works for 10 more minutes, for pushes already sent."
+
+msgid "The private key didn't change"
+msgstr "The private key didn't change"
+
+msgid "The webhook secret didn't change"
+msgstr "The webhook secret didn't change"
+
+#. placeholder {0}: i.account
+msgid "Their apps alone build through {0}."
+msgstr "Their apps alone build through {0}."
+
+msgid "Then drop the .pem file here."
+msgstr "Then drop the .pem file here."
+
+msgid "Webhook secret"
+msgstr "Webhook secret"
+
+msgid "every repository"
+msgstr "every repository"
+
+#. placeholder {0}: i.projects.length
+#. placeholder {0}: l.projects.length
+#. placeholder {0}: p.projects.length
+msgid "{0} projects"
+msgstr "{0} projects"
+
+#. placeholder {0}: i.repositoryCount
+msgid "{0} repositories"
+msgstr "{0} repositories"
+
+msgid "{reach} · for {who}"
+msgstr "{reach} · for {who}"
+
+msgid "Back to Integrations"
+msgstr "Back to Integrations"
+
+msgid "Checking the installation with GitHub"
+msgstr "Checking the installation with GitHub"
+
+msgid "Connecting GitHub"
+msgstr "Connecting GitHub"
+
+msgid "GitHub asked them. Once they approve it, its repositories show here."
+msgstr "GitHub asked them. Once they approve it, its repositories show here."
+
+msgid "GitHub sent the browser back without the App it made. Connect GitHub again from Integrations."
+msgstr "GitHub sent the browser back without the App it made. Connect GitHub again from Integrations."
+
+msgid "GitHub sent the browser back without the installation. Install the App again from Integrations."
+msgstr "GitHub sent the browser back without the installation. Install the App again from Integrations."
+
+msgid "Installing the GitHub App"
+msgstr "Installing the GitHub App"
+
+msgid "Keeping the App GitHub made"
+msgstr "Keeping the App GitHub made"
+
+msgid "The organization's owner approves it first"
+msgstr "The organization's owner approves it first"
+
 #. placeholder {0}: formatBytes(d.usedBytes, i18n.locale)
 msgid "1 backup, {0}"
 msgstr "1 backup, {0}"
@@ -15927,9 +16217,6 @@ msgstr "1 connected · the services Dockwell sends backups to and routes behind"
 
 msgid "1 login · for images a registry keeps private"
 msgstr "1 login · for images a registry keeps private"
-
-msgid "1 project"
-msgstr "1 project"
 
 msgid "1 provider · for private routes"
 msgstr "1 provider · for private routes"
@@ -15962,6 +16249,9 @@ msgstr "Certificates by DNS, behind NAT or for a wildcard. A route can also sit 
 msgid "Client <0>{clientId}</0>"
 msgstr "Client <0>{clientId}</0>"
 
+msgid "Cloud providers come later."
+msgstr "Cloud providers come later."
+
 msgid "Connect a registry"
 msgstr "Connect a registry"
 
@@ -15983,9 +16273,6 @@ msgstr "Dockwell can't list where backups go"
 msgid "Dockwell says which record to make, then gets the certificate."
 msgstr "Dockwell says which record to make, then gets the certificate."
 
-msgid "Git providers and cloud providers come later."
-msgstr "Git providers and cloud providers come later."
-
 msgid "How to route behind it"
 msgstr "How to route behind it"
 
@@ -15997,9 +16284,6 @@ msgstr "Loading registry logins"
 
 msgid "Loading where backups go"
 msgstr "Loading where backups go"
-
-msgid "Manage"
-msgstr "Manage"
 
 msgid "Manage in Backups"
 msgstr "Manage in Backups"
@@ -16050,11 +16334,6 @@ msgstr "in front of a server's routes"
 #. placeholder {0}: loginList.length
 msgid "{0} logins · for images a registry keeps private"
 msgstr "{0} logins · for images a registry keeps private"
-
-#. placeholder {0}: l.projects.length
-#. placeholder {0}: p.projects.length
-msgid "{0} projects"
-msgstr "{0} projects"
 
 msgid "{connected} buckets · where backups go beside each server's disk"
 msgstr "{connected} buckets · where backups go beside each server's disk"
@@ -16898,6 +17177,21 @@ msgstr "The passkey {name} may have been copied"
 
 msgid "Used from a new address"
 msgstr "Used from a new address"
+
+msgid "GitHub asked Dockwell to slow down, so pushes aren't checked for now."
+msgstr "GitHub asked Dockwell to slow down, so pushes aren't checked for now."
+
+msgid "GitHub asked Dockwell to slow down, so pushes aren't checked until {until}."
+msgstr "GitHub asked Dockwell to slow down, so pushes aren't checked until {until}."
+
+msgid "GitHub can't reach this panel, so Dockwell checks for pushes every minute."
+msgstr "GitHub can't reach this panel, so Dockwell checks for pushes every minute."
+
+msgid "GitHub can't reach this panel, so Dockwell checks for pushes every {minutes} minutes."
+msgstr "GitHub can't reach this panel, so Dockwell checks for pushes every {minutes} minutes."
+
+msgid "Pushes come through the GitHub App."
+msgstr "Pushes come through the GitHub App."
 
 msgid "Check the control plane's status"
 msgstr "Check the control plane's status"

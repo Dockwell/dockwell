@@ -18,6 +18,7 @@
 package control
 
 import (
+	"cmp"
 	"context"
 	"crypto/tls"
 	"errors"
@@ -27,6 +28,7 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"net/url"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -65,6 +67,8 @@ import (
 	"github.com/dockwell/dockwell/internal/control/firewall"
 	"github.com/dockwell/dockwell/internal/control/fleet"
 	"github.com/dockwell/dockwell/internal/control/githooks"
+	"github.com/dockwell/dockwell/internal/control/github"
+	"github.com/dockwell/dockwell/internal/control/gitproviders"
 	"github.com/dockwell/dockwell/internal/control/health"
 	"github.com/dockwell/dockwell/internal/control/history"
 	"github.com/dockwell/dockwell/internal/control/identity"
@@ -140,6 +144,9 @@ type Config struct {
 	// CheckClient runs checks of a URL in place of netguard's guarded client, for
 	// a test whose addresses are on this machine (ADR 0066).
 	CheckClient checks.Doer
+	// GitHub is where GitHub's API and pages are, and the client that reaches
+	// them, in place of github.com through netguard's, for tests (ADR 0098).
+	GitHub GitHubConfig
 	// ManualAlerts leaves evaluating alert rules to whoever calls the evaluator,
 	// as a test does by its own clock. The install's first rules are made all the
 	// same.
@@ -273,6 +280,9 @@ type Server struct {
 	backups *backups.Handler
 	// hooks deploys on push, and what deploys wait for ends with the control plane.
 	hooks *githooks.Handler
+	// apps are the GitHub Apps Dockwell made, which check their deliveries and
+	// poll for pushes where GitHub can't reach the panel (ADR 0098).
+	apps *gitproviders.Handler
 	// tasks reads scheduled tasks' runs from the agents that run them.
 	tasks *tasks.Handler
 	// certificates gets and renews certificates by DNS (ADR 0088).
@@ -307,6 +317,9 @@ func New(cfg Config) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Connecting GitHub posts the App's manifest to GitHub's page that makes it
+	// (ADR 0098).
+	ui.PostsTo(originOf(cmp.Or(cfg.GitHub.Web, github.Web)))
 	if !ui.Built() {
 		cfg.Logger.Warn("this binary has no panel built in; the API works, and make build adds the panel")
 	}
@@ -316,6 +329,7 @@ func New(cfg Config) (*Server, error) {
 	var logs *logapi.Handler
 	var backupHandler *backups.Handler
 	var hooks *githooks.Handler
+	var gitApps *gitproviders.Handler
 	var taskHandler *tasks.Handler
 	// Made first, so the settings can ask it who holds the public ports now.
 	ports := &PublicPorts{ready: make(chan struct{})}
@@ -383,7 +397,7 @@ func New(cfg Config) (*Server, error) {
 			}
 		})
 	}
-	api, err := apiRoutes(cfg, ui, ports, &logs, &backupHandler, &taskHandler, &evaluator, &updateKeeper, &autoupdates, &follower, &hooks)
+	api, err := apiRoutes(cfg, ui, ports, &logs, &backupHandler, &taskHandler, &evaluator, &updateKeeper, &autoupdates, &follower, &hooks, &gitApps)
 	if err != nil {
 		return nil, err
 	}
@@ -392,7 +406,7 @@ func New(cfg Config) (*Server, error) {
 		// refuses a person's that comes without (ADR 0049).
 		cfg.Changes.RequireRoles()
 	}
-	s := &Server{logger: cfg.Logger, api: api, logs: logs, backups: backupHandler, hooks: hooks, tasks: taskHandler, updates: updateKeeper, alerts: evaluator, manualAlerts: cfg.ManualAlerts, manualBackups: cfg.ManualBackups, public: cfg.Public, changes: cfg.Changes, store: cfg.Store, stepGrace: cfg.StepGrace, autoupdates: autoupdates, certificates: cfg.certificates}
+	s := &Server{logger: cfg.Logger, api: api, logs: logs, backups: backupHandler, hooks: hooks, apps: gitApps, tasks: taskHandler, updates: updateKeeper, alerts: evaluator, manualAlerts: cfg.ManualAlerts, manualBackups: cfg.ManualBackups, public: cfg.Public, changes: cfg.Changes, store: cfg.Store, stepGrace: cfg.StepGrace, autoupdates: autoupdates, certificates: cfg.certificates}
 	s.catalogs = follower
 	if cfg.Agents != nil {
 		agents := cfg.Agents
@@ -447,7 +461,7 @@ func New(cfg Config) (*Server, error) {
 // Handler returns the API listener's root handler.
 func (s *Server) Handler() http.Handler { return s.api }
 
-func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi.Handler, backupsOut **backups.Handler, tasksOut **tasks.Handler, alertsOut **alerts.Evaluator, updatesOut **serviceupdates.Keeper, autoupdates **autoupdate.Runner, followOut **catalogapi.Follower, hooksOut **githooks.Handler) (http.Handler, error) {
+func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi.Handler, backupsOut **backups.Handler, tasksOut **tasks.Handler, alertsOut **alerts.Evaluator, updatesOut **serviceupdates.Keeper, autoupdates **autoupdate.Runner, followOut **catalogapi.Follower, hooksOut **githooks.Handler, appsOut **gitproviders.Handler) (http.Handler, error) {
 	opts := append(serve.HandlerOptions(cfg.Logger), connect.WithInterceptors(authapi.Interceptor(cfg.Auth, cfg.Logger)))
 	mux := http.NewServeMux()
 	var services []string
@@ -596,11 +610,15 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		if cfg.Fleet != nil {
 			handle(dockwellv1connect.NewImportServiceHandler(importapi.New(cfg.Fleet, cfg.Agents, imports, ch, cfg.Logger), opts...))
 		}
-		sources := cfg.Sources
-		if sources == nil {
+		base := cfg.Sources
+		if base == nil {
 			// A test's Git server is on this machine.
-			sources = &gitref.Resolver{Local: testing.Testing()}
+			base = &gitref.Resolver{Local: testing.Testing()}
 		}
+		// A private repository reads through the GitHub App's installation its build
+		// names, once the App's handler is made (ADR 0098).
+		appSources := &gitproviders.Sources{Base: base}
+		var sources revision.Sources = appSources
 		cfg.Changes.SetSources(sources)
 		serviceHandler := serviceapi.New(ch, cfg.Changes, cfg.Store, cfg.Secrets, cfg.Logger)
 		serviceHandler.Installs = catalogHandler
@@ -612,8 +630,9 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 			(*autoupdates).Images = images.New(cfg.Fleet, cfg.Agents, cfg.logins)
 		}
 		var canceller githooks.Canceller
+		var buildHandler *builds.Handler
 		if cfg.Agents != nil {
-			buildHandler := builds.New(cfg.Store, cfg.Agents, serviceHandler, cfg.Logger)
+			buildHandler = builds.New(cfg.Store, cfg.Agents, serviceHandler, cfg.Logger)
 			buildHandler.SetSources(sources)
 			cfg.Changes.SetDetector(buildHandler)
 			serviceHandler.Builds = buildHandler
@@ -673,15 +692,45 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		// Automatic updates take what an update with no image would (ADR 0080).
 		(*autoupdates).Updates = serviceHandler.Updates
 		handle(dockwellv1connect.NewServiceServiceHandler(serviceHandler, opts...))
+		var apps *gitproviders.Handler
+		if cfg.Auth != nil && cfg.Secrets != nil {
+			// GitHub as an App Dockwell makes: connecting it, its installations, and
+			// the repositories a project's apps may build from (ADR 0098).
+			apps = gitproviders.New(gitproviders.Config{
+				Auth: cfg.Auth, DB: cfg.Store, Keeper: cfg.Secrets, Changes: ch, Logger: cfg.Logger,
+				API: cfg.GitHub.API, Web: cfg.GitHub.Web, Client: cfg.GitHub.Client, Now: cfg.GitHub.Now,
+			})
+			handle(dockwellv1connect.NewGitProviderServiceHandler(apps, opts...))
+			appSources.SetApps(apps)
+			ch.SetGitLogins(apps)
+			if cfg.Agents != nil {
+				cfg.Agents.SendGitAuth(apps.Authorization)
+			}
+			if buildHandler != nil {
+				// A form's readings fetch a private repository as the plan will.
+				buildHandler.SetGitLogins(apps)
+			}
+		}
 		if cfg.Auth != nil {
-			// Deploy on push: the API that turns it on, and the receiver its hooks'
-			// URLs name, which faces the internet on the panel's address (ADR 0046).
-			*hooksOut = githooks.New(githooks.Config{
+			// Deploy on push: the API that turns it on, and the receivers its hooks'
+			// URLs name and the GitHub App's webhook names, which face the internet
+			// on the panel's address (ADR 0046, ADR 0098).
+			hooksConfig := githooks.Config{
 				Auth: cfg.Auth, DB: cfg.Store, Changes: ch, Engine: cfg.Changes, Services: serviceHandler,
 				Builds: canceller, Sources: sources, Logger: cfg.Logger,
-			})
+			}
+			if apps != nil {
+				hooksConfig.Apps = apps
+			}
+			*hooksOut = githooks.New(hooksConfig)
 			handle(dockwellv1connect.NewGitHookServiceHandler(*hooksOut, opts...))
 			mux.Handle("POST "+githooks.Path+"{id}", *hooksOut)
+			mux.Handle("POST "+githooks.AppPath+"{id}", http.HandlerFunc((*hooksOut).ServeGitHubApp))
+			if apps != nil {
+				// What polling finds deploys as a push would.
+				apps.SetPusher(*hooksOut)
+				*appsOut = apps
+			}
 		}
 		logs := logapi.New(cfg.Agents, ch, cfg.Store, cfg.Logger, cfg.Logs)
 		*logsOut = logs
@@ -1046,6 +1095,9 @@ func (s *Server) Run(ctx context.Context, ls Listeners) error {
 	if s.hooks != nil {
 		api.Go(func() { s.hooks.KeepForgetting(apiCtx) })
 	}
+	if s.apps != nil {
+		api.Go(func() { s.apps.KeepWatching(apiCtx) })
+	}
 	if s.hosts != nil {
 		api.Go(func() { s.hosts.Run(apiCtx) })
 		api.Go(func() { s.hosts.FollowLabels(apiCtx) })
@@ -1276,4 +1328,23 @@ func panelProviders(p *signinproviders.Providers) func(context.Context) ([]auth.
 		}
 		return out, nil
 	}
+}
+
+// originOf is the scheme and host of raw, with its port, or "" where raw isn't an
+// http or https URL.
+func originOf(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" {
+		return ""
+	}
+	return u.Scheme + "://" + u.Host
+}
+
+// GitHubConfig points the GitHub App's calls elsewhere, for tests. Empty fields
+// keep GitHub's own.
+type GitHubConfig struct {
+	API, Web string
+	Client   github.Doer
+	// Now is the App's clock: a test's moves, as its webhook's old secret ends.
+	Now func() time.Time
 }

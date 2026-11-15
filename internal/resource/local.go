@@ -1017,3 +1017,28 @@ var CertificatesRef = Ref{Kind: "certificate", Name: "put"}
 func BuildLoginRef(ref Ref) Ref {
 	return Ref{Kind: "registry.login", Scope: ref.Scope, Name: "build/" + string(ref.Kind) + "/" + ref.Name}
 }
+
+// BuildGitRef is what the Authorization a build of ref fetches its repository with
+// is sealed for, apart from its values and its registry logins (ADR 0098).
+func BuildGitRef(ref Ref) Ref {
+	return Ref{Kind: "github.app", Scope: ref.Scope, Name: "build/" + string(ref.Kind) + "/" + ref.Name}
+}
+
+// DetectGitRef is what the Authorization a reading of how a commit builds fetches
+// its repository with is sealed for, apart from any build's (ADR 0098).
+var DetectGitRef = Ref{Kind: "github.app", Name: "detect"}
+
+// buildGitAuthKey keys the Authorization a build fetches its repository with.
+type buildGitAuthKey struct{}
+
+// WithBuildGitAuth has a build under ctx fetch its repository with header as its
+// Authorization: a GitHub App's token for the repository alone (ADR 0098).
+func WithBuildGitAuth(ctx context.Context, header string) context.Context {
+	return context.WithValue(ctx, buildGitAuthKey{}, header)
+}
+
+// BuildGitAuthOf is the Authorization WithBuildGitAuth gave ctx, or "".
+func BuildGitAuthOf(ctx context.Context) string {
+	h, _ := ctx.Value(buildGitAuthKey{}).(string)
+	return h
+}

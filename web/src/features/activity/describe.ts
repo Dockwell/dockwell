@@ -674,6 +674,33 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
             icon: "shield",
             tone: "warning",
           };
+        case "github_app.install":
+          return {
+            title: name ? t`Added an installation of the GitHub App ${name}` : t`Added an installation of a GitHub App`,
+            icon: "commit",
+          };
+        case "github_app.uninstall":
+          return {
+            title: name
+              ? t`GitHub removed an installation of the GitHub App ${name}`
+              : t`GitHub removed an installation of a GitHub App`,
+            icon: "commit",
+            tone: "warning",
+          };
+        case "github_app.rotate_secret":
+          return {
+            title: name
+              ? t`Gave the GitHub App ${name} a new webhook secret`
+              : t`Gave a GitHub App a new webhook secret`,
+            icon: "key",
+          };
+        case "github_app.replace_key":
+          return {
+            title: name ? t`Gave the GitHub App ${name} a new private key` : t`Gave a GitHub App a new private key`,
+            icon: "key",
+          };
+        case "github_app.remove":
+          return { title: name ? t`Removed the GitHub App ${name}` : t`Removed a GitHub App`, icon: "commit" };
         case "sign_in_link.create":
           return {
             title: name ? t`Made a one-time sign-in link for ${name}` : t`Made a one-time sign-in link`,

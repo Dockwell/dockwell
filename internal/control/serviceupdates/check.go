@@ -22,6 +22,7 @@ import (
 	"github.com/dockwell/dockwell/internal/registry"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/service"
+	"github.com/dockwell/dockwell/internal/revision"
 	"github.com/dockwell/dockwell/internal/scope"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/website"
@@ -248,7 +249,7 @@ func (k *Keeper) check(ctx context.Context, server string, list []subject) {
 			prev, row.CheckedAt, row.Found = decodeFound(s.row.Found), s.row.CheckedAt, s.row.Found
 		}
 		if g := s.Spec.GetBuild().GetGit(); g != nil {
-			k.checkCommit(ctx, g, &row, prev, commits, failed, now)
+			k.checkCommit(ctx, g, s.Spec.GetBuild().GetGitLogin(), &row, prev, commits, failed, now)
 			rows = append(rows, row)
 			continue
 		}
@@ -545,20 +546,21 @@ func retag(image, tag string) string {
 // checkCommit writes into row whether the branch an app builds from has a newer
 // commit than the one it runs, from one read of the repository's refs for every
 // app that follows that branch. A tag or a commit named as the ref never moves.
-func (k *Keeper) checkCommit(ctx context.Context, g *resourcev1.GitSource, row *store.ServiceUpdate, prev []*dockwellv1.AvailableUpdate, commits map[string]string, failed map[string]error, now time.Time) {
+func (k *Keeper) checkCommit(ctx context.Context, g *resourcev1.GitSource, login string, row *store.ServiceUpdate, prev []*dockwellv1.AvailableUpdate, commits map[string]string, failed map[string]error, now time.Time) {
 	ref := g.GetRef()
 	if k.Sources == nil || commitRe.MatchString(ref) || strings.HasPrefix(ref, "refs/tags/") || g.GetCommit() == "" {
 		row.State = int32(dockwellv1.UpdateCheck_UPDATE_CHECK_NOT_CHECKED)
 		return
 	}
-	key := g.GetUrl() + "#" + ref
+	// Another login reads the repository apart: what one may read, another may not.
+	key := g.GetUrl() + "#" + ref + "#" + login
 	commit, ok := commits[key]
 	if !ok {
 		if err, seen := failed[key]; seen {
 			row.State, row.Problem, row.Detail = int32(dockwellv1.UpdateCheck_UPDATE_CHECK_FAILED), int32(dockwellv1.UpdateProblem_UPDATE_PROBLEM_UNREACHABLE), line(err.Error())
 			return
 		}
-		got, full, err := k.Sources.Resolve(ctx, g.GetUrl(), ref)
+		got, full, err := k.Sources.Resolve(revision.WithGitLogin(ctx, login), g.GetUrl(), ref)
 		if err != nil {
 			failed[key] = err
 			row.State, row.Problem, row.Detail = int32(dockwellv1.UpdateCheck_UPDATE_CHECK_FAILED), int32(dockwellv1.UpdateProblem_UPDATE_PROBLEM_UNREACHABLE), line(err.Error())
