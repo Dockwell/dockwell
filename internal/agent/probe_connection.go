@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	"github.com/dockwell/dockwell/internal/docker"
@@ -51,7 +52,11 @@ func (c *calls) probeConnection(ctx context.Context, call *agentv1.ProbeConnecti
 }
 
 // appNetworks are the networks an app's containers are on, by name: none for no
-// app, or for one on the host's network, whose network is the server's.
+// app, or for one on the host's network, whose network is the server's. The
+// ingress network and a database copy's are left out: the ingress gives each
+// container on it an address from its own table, which an address Docker picks for
+// the check could take from a stopped service, and a copy's is Dockwell's for a
+// moment (ADR 0024). Neither reaches anything an app's bucket is on.
 func (c *calls) appNetworks(ctx context.Context, environment, service string) ([]string, error) {
 	if service == "" || c.cfg.Docker == nil {
 		return nil, nil
@@ -66,7 +71,7 @@ func (c *calls) appNetworks(ctx context.Context, environment, service string) ([
 			switch {
 			case name == "host":
 				return nil, nil
-			case name == "none" || slices.Contains(out, name):
+			case name == "none" || name == docker.IngressNetwork || strings.HasPrefix(name, docker.CopyPrefix) || slices.Contains(out, name):
 			default:
 				out = append(out, name)
 			}
