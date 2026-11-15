@@ -1024,6 +1024,13 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 		}
 		return &agentv1.CallResult{Result: &agentv1.CallResult_CheckRegistryLogin{CheckRegistryLogin: c.cfg.images.checkLogin(ctx, a, check.GetFirst())}}
 	}
+	if check := call.GetProbeConnection(); check != nil {
+		found, err := c.probeConnection(ctx, check)
+		if err != nil {
+			return fail(err)
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_ProbeConnection{ProbeConnection: found}}
+	}
 	if read := call.GetReadPanel(); read != nil {
 		if c.cfg.Panels == nil {
 			return fail(errors.New("this agent doesn't read what Coolify or Dokploy runs"))

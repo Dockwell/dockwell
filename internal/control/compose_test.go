@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"maps"
 	"net/http"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"slices"
@@ -36,6 +37,7 @@ import (
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
 	"github.com/dockwell/dockwell/internal/pki"
+	"github.com/dockwell/dockwell/internal/probe"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/binding"
 	"github.com/dockwell/dockwell/internal/resource/container"
@@ -122,6 +124,9 @@ func (f *fullServer) addServerNamed(t *testing.T, name string, more func() []res
 		mounts:  e.Mountinfo,
 	}
 	s.certs = f.certLoader
+	// The test's server owns no address a check refuses, so one reaches what listens
+	// on this machine as an app's network holds it.
+	s.probes = &probe.Runner{Client: client, Binary: "/proc/self/exe", Own: func() ([]netip.Prefix, error) { return nil, nil }}
 	if root := f.onePanelRoot; root != "" {
 		s.onePanel = func(ctx context.Context) (*agentv1.ReadOnePanelResult, error) { return onepanel.Read(ctx, root) }
 	}

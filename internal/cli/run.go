@@ -521,7 +521,7 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 			&fail2ban.Driver{Backend: jailed}, &host.Driver{Backend: updates.Host{Installer: installs}, Units: units, Panels: panels.Stopper{Docker: client, BeforeProxy: proxy.Pull, Check: panelReader(stdio, client).Check}, Upgrader: upgrades}),
 		Updates:        packages,
 		UpgradesItself: true,
-		Collector:      collector, Domains: routes, Public: routes, Certificates: routes, Logs: &logs.Reader{Client: client, Archive: archive, Logger: logger, Journal: units}, Docker: client, Health: monitor,
+		Collector:      collector, Domains: routes, Public: routes, Certificates: routes, Logs: &logs.Reader{Client: client, Archive: archive, Logger: logger, Journal: units}, Docker: client, Probes: probes, Health: monitor,
 		Backups: backup.Calls{Runner: backups}, Databases: database.Reader{Client: client}, Builds: builder, Tasks: tasks, Tools: tools, Access: firewalls,
 		Jails: jailed.Stored, SSHSessions: sessions,
 		System: units,

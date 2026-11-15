@@ -1001,6 +1001,12 @@ func DatabaseSignInRef(environment, user string) Ref {
 	return Ref{Kind: "database.signin", Scope: environment, Name: user}
 }
 
+// ProbeRef is what a connection's check from an app's environment is sealed to on
+// its way to the agent, apart from any resource's values (ADR 0099).
+func ProbeRef(environment string) Ref {
+	return Ref{Kind: "connection.check", Scope: environment, Name: "probe"}
+}
+
 // CertificatesRef is what the certificates the control plane proves by DNS-01 for
 // a server are sealed to on their way to its agent, apart from any resource's
 // values, and to in the agent's keeping (ADR 0088).
