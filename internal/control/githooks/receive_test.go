@@ -213,3 +213,15 @@ func TestClipKeepsSoMuch(t *testing.T) {
 		}
 	}
 }
+
+// A delivery to the App's webhook is checked against two secrets each time, the
+// decoy in place of what isn't there: a webhook there isn't, one with its secret
+// alone, and one in a new secret's overlap take the same work.
+func TestEveryAppDeliveryIsCheckedAgainstTwoSecrets(t *testing.T) {
+	t.Parallel()
+	for _, secrets := range [][][]byte{{decoySecret}, {[]byte("one")}, {[]byte("one"), []byte("two")}} {
+		if got := padded(secrets); len(got) != 2 {
+			t.Errorf("%d secrets padded to %d", len(secrets), len(got))
+		}
+	}
+}

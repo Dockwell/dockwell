@@ -15,6 +15,7 @@ import (
 	"log/slog"
 	"mime"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -63,6 +64,17 @@ var decoySecret = func() []byte {
 	_, _ = rand.Read(b)
 	return b
 }()
+
+// padded is secrets with the decoy after them, to two: a delivery is checked
+// against two each time, so the work says nothing of whether its webhook is there,
+// or in a new secret's overlap (review L1).
+func padded(secrets [][]byte) [][]byte {
+	out := slices.Clone(secrets)
+	for len(out) < 2 {
+		out = append(out, decoySecret)
+	}
+	return out
+}
 
 // signed says sig is body's HMAC-SHA-256 under one of secrets, compared in
 // constant time; each is compared, so the time says nothing of which matched.
@@ -158,6 +170,7 @@ func (h *Handler) ServeGitHubApp(w http.ResponseWriter, r *http.Request) {
 	if !found {
 		secrets = [][]byte{decoySecret}
 	}
+	secrets = padded(secrets)
 	if !signed(secrets, body, sig) || !found {
 		answer(w, http.StatusUnauthorized, "The delivery's signature doesn't match the App's webhook secret. Give it a new one from the panel.")
 		return
