@@ -234,8 +234,6 @@ func (h *Handler) StartGitHubApp(ctx context.Context, req *connect.Request[dockw
 	}), nil
 }
 
-// take uses a connection's state once: it was begun in this session, by this
-// person, in the last 10 minutes.
 // putBack keeps a connection's state again, as it was taken, for a retry.
 func (h *Handler) putBack(state string, s starting) {
 	h.mu.Lock()
@@ -243,6 +241,8 @@ func (h *Handler) putBack(state string, s starting) {
 	h.starting[hashOf(state)] = s
 }
 
+// take uses a connection's state once: it was begun in this session, by this
+// person, in the last 10 minutes.
 func (h *Handler) take(p auth.Principal, state string) (starting, bool) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
