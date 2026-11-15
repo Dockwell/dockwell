@@ -2004,6 +2004,13 @@ type Hello struct {
 	// or a scale up starts, and takes a scaled service off its ports and
 	// networks. The control plane makes none again through an agent that doesn't.
 	RemakesSwarmApps bool `protobuf:"varint,335,opt,name=remakes_swarm_apps,json=remakesSwarmApps,proto3" json:"remakes_swarm_apps,omitempty"`
+	// True when the agent keeps the values of a container it takes on by name
+	// (ADR 0096): it writes them as ${NAME} in its command, entrypoint and health
+	// check, and keeps those fields with its record of the container, so it reads
+	// the container back as names. An agent that doesn't reads such a container's
+	// command with the values in, so the control plane reads, plans and applies
+	// none that names values on it.
+	ReadsTakenReferences bool `protobuf:"varint,336,opt,name=reads_taken_references,json=readsTakenReferences,proto3" json:"reads_taken_references,omitempty"`
 	// What the agent keeps of what its server should run (ADR 0054), so the
 	// control plane sends what it lacks. An agent that sends none keeps nothing,
 	// and is sent nothing to keep.
@@ -2288,6 +2295,13 @@ func (x *Hello) GetChecksPanelDomains() bool {
 func (x *Hello) GetRemakesSwarmApps() bool {
 	if x != nil {
 		return x.RemakesSwarmApps
+	}
+	return false
+}
+
+func (x *Hello) GetReadsTakenReferences() bool {
+	if x != nil {
+		return x.ReadsTakenReferences
 	}
 	return false
 }
@@ -14618,7 +14632,7 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x05Heard\x12\x12\n" +
 	"\x04last\x18\x01 \x01(\tR\x04last\"\n" +
 	"\n" +
-	"\bDraining\"\x8c\f\n" +
+	"\bDraining\"\xc3\f\n" +
 	"\x05Hello\x12,\n" +
 	"\x05build\x18\x01 \x01(\v2\x16.dockwell.v1.BuildInfoR\x05build\x12:\n" +
 	"\tinventory\x18\x02 \x01(\v2\x1c.dockwell.v1.ServerInventoryR\tinventory\x12\x14\n" +
@@ -14649,7 +14663,8 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\freads_panels\x18\xca\x02 \x01(\bR\vreadsPanels\x12\"\n" +
 	"\fstops_panels\x18\xcc\x02 \x01(\bR\vstopsPanels\x121\n" +
 	"\x14checks_panel_domains\x18\xce\x02 \x01(\bR\x12checksPanelDomains\x12-\n" +
-	"\x12remakes_swarm_apps\x18\xcf\x02 \x01(\bR\x10remakesSwarmApps\x129\n" +
+	"\x12remakes_swarm_apps\x18\xcf\x02 \x01(\bR\x10remakesSwarmApps\x125\n" +
+	"\x16reads_taken_references\x18\xd0\x02 \x01(\bR\x14readsTakenReferences\x129\n" +
 	"\adesired\x18\xa0\x01 \x01(\v2\x1e.dockwell.agent.v1.DesiredHeldR\adesired\x12\"\n" +
 	"\fown_settings\x18\xac\x02 \x01(\bR\vownSettings\x12\x15\n" +
 	"\x05links\x18\xa2\x02 \x01(\bR\x05links\x12\"\n" +

@@ -494,7 +494,7 @@ func openStream(t *testing.T, id *enroll.Identity, kinds ...string) *connect.Bid
 	t.Cleanup(cancel)
 	stream := client.Connect(ctx)
 	t.Cleanup(func() { _ = stream.CloseRequest(); _ = stream.CloseResponse() })
-	if err := stream.Send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_Hello{Hello: &agentv1.Hello{Kinds: kinds, WritesReferences: true}}}); err != nil {
+	if err := stream.Send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_Hello{Hello: &agentv1.Hello{Kinds: kinds, WritesReferences: true, ReadsTakenReferences: true}}}); err != nil {
 		t.Fatal(err)
 	}
 	if msg, err := stream.Receive(); err != nil || msg.GetWelcome() == nil {
@@ -580,7 +580,7 @@ func TestAnOlderAgentIsWarnedOfAsItConnects(t *testing.T) {
 	if n := records(warning); n != 1 {
 		t.Errorf("an older agent connecting was warned of %d times, want once, with its version, as a warning:\n%s", n, logs.String())
 	}
-	say(&agentv1.Hello{Build: older, WritesReferences: true}, 2)
+	say(&agentv1.Hello{Build: older, WritesReferences: true, ReadsTakenReferences: true}, 2)
 	if n := records(warning); n != 1 || records("server connected") != 2 {
 		t.Errorf("an agent that writes references in was warned of too:\n%s", logs.String())
 	}

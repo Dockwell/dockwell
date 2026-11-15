@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"slices"
 	"strings"
 	"testing"
 
@@ -19,7 +20,20 @@ import (
 // naming stands in for the keeper: what it lists names values on the server.
 type naming struct {
 	named []resource.Ref
+	// taken are what was taken on from a running container.
+	taken []resource.Ref
 	asked int
+}
+
+func (n *naming) TakenOnNamingValues(ctx context.Context, server string, refs []resource.Ref) ([]resource.Ref, error) {
+	named, err := n.NamingValues(ctx, server, refs)
+	var out []resource.Ref
+	for _, r := range named {
+		if slices.Contains(n.taken, r) {
+			out = append(out, r)
+		}
+	}
+	return out, err
 }
 
 func (n *naming) NamingValues(_ context.Context, _ string, refs []resource.Ref) ([]resource.Ref, error) {
@@ -47,7 +61,7 @@ func TestAnOlderAgentIsRefusedWhatNamesAValueAtEveryEntry(t *testing.T) {
 	open := func(writes bool, n *naming) *Session {
 		a := NewAgents(resource.NewRegistry(&service.Driver{}), slog.New(slog.DiscardHandler))
 		a.CheckNaming(n)
-		return a.open("srv_1", "hz-1", &agentv1.Hello{Kinds: []string{string(service.Kind)}, WritesReferences: writes}, func(*agentv1.ConnectResponse) error { return errSent })
+		return a.open("srv_1", "hz-1", &agentv1.Hello{Kinds: []string{string(service.Kind)}, WritesReferences: writes, ReadsTakenReferences: writes}, func(*agentv1.ConnectResponse) error { return errSent })
 	}
 	entries := map[string]func(*Session, resource.Ref) error{
 		"reading back": func(s *Session, ref resource.Ref) error {
@@ -87,7 +101,7 @@ func TestAnOlderAgentIsRefusedEverythingWhenNothingCanSay(t *testing.T) {
 	errSent := errors.New("the test stops the call here")
 	open := func(writes bool) *Session {
 		a := NewAgents(resource.NewRegistry(&service.Driver{}), slog.New(slog.DiscardHandler))
-		return a.open("srv_1", "hz-1", &agentv1.Hello{Kinds: []string{string(service.Kind)}, WritesReferences: writes}, func(*agentv1.ConnectResponse) error { return errSent })
+		return a.open("srv_1", "hz-1", &agentv1.Hello{Kinds: []string{string(service.Kind)}, WritesReferences: writes, ReadsTakenReferences: writes}, func(*agentv1.ConnectResponse) error { return errSent })
 	}
 	for name, entry := range map[string]func(*Session) error{
 		"reading back": func(s *Session) error {
@@ -110,6 +124,64 @@ func TestAnOlderAgentIsRefusedEverythingWhenNothingCanSay(t *testing.T) {
 	}
 }
 
+// An agent that writes references in but doesn't keep a taken-on container's reads
+// that container's command with its values in (ADR 0096). So what was taken on and
+// names a value is refused it at every entry, and taking one on so is refused; what
+// was made by Dockwell and names a value goes, and so does all of it on an agent
+// that keeps them. With nothing to say, it's refused everything, as above.
+func TestAnAgentThatDoesntKeepTakenReferencesIsRefusedWhatWasTakenOn(t *testing.T) {
+	legacy := resource.Ref{Kind: service.Kind, Scope: "env_1", Name: "legacy"}
+	redis := resource.Ref{Kind: service.Kind, Scope: "env_1", Name: "redis"}
+	plain := &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{Image: "redis:8", Command: []string{"redis-server"}}}}
+	named := &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{
+		Image: "redis:8", Command: []string{"redis-server", "--requirepass", "${REDIS_PASSWORD}"}, References: []string{"command"},
+		Env: map[string]string{"REDIS_PASSWORD": "s3cretpw"},
+	}}}
+	errSent := errors.New("the test stops the call here")
+	open := func(keeps bool, n *naming) *Session {
+		a := NewAgents(resource.NewRegistry(&service.Driver{}), slog.New(slog.DiscardHandler))
+		if n != nil {
+			a.CheckNaming(n)
+		}
+		return a.open("srv_1", "hz-1", &agentv1.Hello{Kinds: []string{string(service.Kind)}, WritesReferences: true, ReadsTakenReferences: keeps}, func(*agentv1.ConnectResponse) error { return errSent })
+	}
+	entries := map[string]func(*Session, resource.Ref) error{
+		"reading back": func(s *Session, ref resource.Ref) error {
+			_, err := s.Observe(t.Context(), []resource.Ref{ref})
+			return err
+		},
+		"planning": func(s *Session, ref resource.Ref) error {
+			_, err := s.Plan(t.Context(), []resource.Desired{{Ref: ref, Spec: plain}})
+			return err
+		},
+		"applying": func(s *Session, ref resource.Ref) error { return s.Apply(t.Context(), resource.Step{Ref: ref}, plain) },
+	}
+	for name, entry := range entries {
+		t.Run(name, func(t *testing.T) {
+			n := &naming{named: []resource.Ref{legacy, redis}, taken: []resource.Ref{legacy}}
+			if err := entry(open(false, n), legacy); !errors.Is(err, resource.ErrAgentTooOld) || !strings.Contains(err.Error(), "taken on so") {
+				t.Errorf("what was taken on and names a value = %v", err)
+			}
+			if err := entry(open(false, n), redis); errors.Is(err, resource.ErrAgentTooOld) {
+				t.Errorf("what Dockwell made and names a value = %v", err)
+			}
+			current := &naming{named: []resource.Ref{legacy}, taken: []resource.Ref{legacy}}
+			if err := entry(open(true, current), legacy); errors.Is(err, resource.ErrAgentTooOld) || current.asked != 0 {
+				t.Errorf("an agent that keeps them = %v, asked %d times", err, current.asked)
+			}
+			if err := entry(open(false, nil), redis); !errors.Is(err, resource.ErrAgentTooOld) {
+				t.Errorf("with nothing to say what was taken on = %v", err)
+			}
+		})
+	}
+	// Taking one on with its values by name, through such an agent.
+	n := &naming{}
+	err := open(false, n).Apply(t.Context(), resource.Step{Ref: legacy, Decision: resource.Decision{Adopts: "abc123"}}, named)
+	if err == nil || !strings.Contains(err.Error(), "can't keep a taken-on container's values by name") || strings.Contains(err.Error(), "s3cretpw") {
+		t.Errorf("taking on by name through an agent that can't keep it = %v", err)
+	}
+}
+
 // An agent that doesn't say it makes a mount's missing folder as its owner would
 // make it root's, so a plan or a step that asks for one is refused there, with the
 // fix; one that asks for nothing such goes, and an agent that says so takes it.
@@ -123,7 +195,7 @@ func TestAnOlderAgentIsRefusedAFolderToMake(t *testing.T) {
 	open := func(makes bool) *Session {
 		a := NewAgents(resource.NewRegistry(&service.Driver{}), slog.New(slog.DiscardHandler))
 		a.CheckNaming(&naming{})
-		return a.open("srv_1", "hz-1", &agentv1.Hello{Kinds: []string{string(service.Kind)}, WritesReferences: true, MakesFolders: makes}, func(*agentv1.ConnectResponse) error { return errSent })
+		return a.open("srv_1", "hz-1", &agentv1.Hello{Kinds: []string{string(service.Kind)}, WritesReferences: true, ReadsTakenReferences: true, MakesFolders: makes}, func(*agentv1.ConnectResponse) error { return errSent })
 	}
 	for name, entry := range map[string]func(*Session, *resourcev1.Service) error{
 		"planning": func(s *Session, spec *resourcev1.Service) error {
@@ -160,7 +232,7 @@ func TestAnOlderAgentIsRefusedAPrivateRoute(t *testing.T) {
 	open := func(keeps bool) *Session {
 		a := NewAgents(resource.NewRegistry(&route.Driver{}), slog.New(slog.DiscardHandler))
 		a.CheckNaming(&naming{})
-		return a.open("srv_1", "hz-1", &agentv1.Hello{Kinds: []string{string(route.Kind)}, WritesReferences: true, KeepsRoutesPrivate: keeps}, func(*agentv1.ConnectResponse) error { return errSent })
+		return a.open("srv_1", "hz-1", &agentv1.Hello{Kinds: []string{string(route.Kind)}, WritesReferences: true, ReadsTakenReferences: true, KeepsRoutesPrivate: keeps}, func(*agentv1.ConnectResponse) error { return errSent })
 	}
 	for name, entry := range map[string]func(*Session, *resourcev1.Route) error{
 		"planning": func(s *Session, spec *resourcev1.Route) error {
@@ -237,7 +309,7 @@ func TestAnOlderAgentIsRefusedWhatAContainerAsksOfItself(t *testing.T) {
 	open := func(sets bool) *Session {
 		a := NewAgents(resource.NewRegistry(&service.Driver{}), slog.New(slog.DiscardHandler))
 		a.CheckNaming(&naming{})
-		return a.open("srv_1", "hz-1", &agentv1.Hello{Kinds: []string{string(service.Kind)}, WritesReferences: true, OwnSettings: sets}, func(*agentv1.ConnectResponse) error { return errSent })
+		return a.open("srv_1", "hz-1", &agentv1.Hello{Kinds: []string{string(service.Kind)}, WritesReferences: true, ReadsTakenReferences: true, OwnSettings: sets}, func(*agentv1.ConnectResponse) error { return errSent })
 	}
 	for field, app := range map[string]*resourcev1.Container{
 		"hostname":          {Image: "redis:8", Hostname: "cache"},
@@ -276,7 +348,7 @@ func TestAnOlderAgentIsRefusedAFileToWrite(t *testing.T) {
 	open := func(writes bool) *Session {
 		a := NewAgents(resource.NewRegistry(&service.Driver{}), slog.New(slog.DiscardHandler))
 		a.CheckNaming(&naming{})
-		return a.open("srv_1", "hz-1", &agentv1.Hello{Kinds: []string{string(service.Kind)}, WritesReferences: true, WritesFiles: writes}, func(*agentv1.ConnectResponse) error { return errSent })
+		return a.open("srv_1", "hz-1", &agentv1.Hello{Kinds: []string{string(service.Kind)}, WritesReferences: true, ReadsTakenReferences: true, WritesFiles: writes}, func(*agentv1.ConnectResponse) error { return errSent })
 	}
 	_, err := open(false).Plan(t.Context(), []resource.Desired{{Ref: web, Spec: spec}})
 	if !errors.Is(err, resource.ErrAgentTooOld) || !strings.Contains(err.Error(), "from before Dockwell wrote the files a container mounts, which web does") {
@@ -301,7 +373,7 @@ func TestAnOlderAgentIsRefusedAVolumesOwner(t *testing.T) {
 	open := func(owns bool) *Session {
 		a := NewAgents(resource.NewRegistry(&service.Driver{}), slog.New(slog.DiscardHandler))
 		a.CheckNaming(&naming{})
-		return a.open("srv_1", "hz-1", &agentv1.Hello{Kinds: []string{string(service.Kind)}, WritesReferences: true, MakesFolders: true, OwnsVolumes: owns}, func(*agentv1.ConnectResponse) error { return errSent })
+		return a.open("srv_1", "hz-1", &agentv1.Hello{Kinds: []string{string(service.Kind)}, WritesReferences: true, ReadsTakenReferences: true, MakesFolders: true, OwnsVolumes: owns}, func(*agentv1.ConnectResponse) error { return errSent })
 	}
 	_, err := open(false).Plan(t.Context(), []resource.Desired{{Ref: web, Spec: spec}})
 	if !errors.Is(err, resource.ErrAgentTooOld) || !strings.Contains(err.Error(), "from before Dockwell gave a new volume the owner its mount names, which web asks for") {

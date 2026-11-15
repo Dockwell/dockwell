@@ -4,6 +4,7 @@ package control
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 	"slices"
 	"strconv"
@@ -271,7 +272,7 @@ func TestWhatCantBeTakenOnSaysWhy(t *testing.T) {
 	cc := containerClient(b, b.origin)
 
 	runByHand(t, e, "in-word", func(r *docker.CreateRequest) {
-		r.Cmd = []string{"nginx", "--password=" + secretValue}
+		r.User = secretValue
 	})
 	runByHand(t, e, "no-oom-kill", func(r *docker.CreateRequest) {
 		r.HostConfig.PortBindings = nil
@@ -507,17 +508,83 @@ func TestAnExposedPortComesAlong(t *testing.T) {
 	}
 }
 
-// A value of the environment is sealed, and a spec's other fields aren't, so a value
-// anywhere else in one would show in the plan, and reach a read-only token and an
-// export. Wherever it is, it's refused, and the refusal doesn't say it. A path isn't a
-// secret, and TZ=Asia/Shanghai beside a mount of its zoneinfo is ordinary.
-func shortIn(name string) func(*docker.CreateRequest) {
-	return func(r *docker.CreateRequest) {
-		r.Env = append(r.Env, name+"=ab1")
-		r.Cmd = []string{"run", "--with", "ab1"}
+// A value of a taken-on container's environment in its command, entrypoint or
+// health check is kept by name (ADR 0096): a secret's wherever it stands, an
+// ordinary one's as a word of its own, beside a secret that shares its text. No value
+// reaches the plan, the change, drift, the control plane's log or a refusal, and the
+// agent reads the container back as its names. Made again, its script reads the
+// value from its environment, and its command line has none.
+func TestATakenOnContainersValuesAreKeptByName(t *testing.T) {
+	logs := &syncBuffer{}
+	f := startFullLogging(t, store.SQLite, nil, slog.New(slog.NewJSONHandler(logs, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	c := changeClient(b, b.origin)
+	cc := containerClient(b, b.origin)
+	svc := dockwellv1connect.NewServiceServiceClient(b, b.origin, connect.WithProtoJSON())
+	const (
+		user  = "shopadmin"
+		admin = "shopadmin-s3cret"
+	)
+	values := []string{secretValue, admin, "s3cr7"}
+	runByHand(t, e, "legacy_shop", func(r *docker.CreateRequest) {
+		r.Env = append(r.Env, "SHOP_USER="+user, "ADMIN_PASSWORD="+admin, "API_TOKEN=s3cr7")
+		r.Entrypoint = []string{"/entry", "--token", "s3cr7"}
+		r.Cmd = []string{"nginx", "--user=" + user, "--password=" + admin, "--db=postgres://app:" + secretValue + "@db/shop"}
+		r.Healthcheck = &docker.Healthcheck{Test: []string{"CMD-SHELL", "curl -fs --user " + user + " --pass " + secretValue + " http://localhost/ && test -n \"$HOME\""}}
+	})
+	planned := adopt(t, cc, "legacy_shop", "shop")
+	resources := planned.GetPlan().GetResources()
+	if len(resources) != 1 {
+		t.Fatalf("the plan has %v", resources)
+	}
+	for _, words := range []string{"--user=${SHOP_USER}", "--password=${ADMIN_PASSWORD}", "--db=postgres://app:${DB_PASSWORD}@db/shop", "${API_TOKEN}", "--user ${SHOP_USER} --pass ${DB_PASSWORD} http://localhost/", "$$HOME"} {
+		if !strings.Contains(planned.String(), words) {
+			t.Errorf("the plan doesn't show %s: %v", words, resources[0].GetChanges())
+		}
+	}
+	applyConfirmed(t, c, planned)
+	drift, err := c.ListDrift(t.Context(), connect.NewRequest(&dockwellv1.ListDriftRequest{}))
+	if err != nil || len(drift.Msg.GetDrift()) != 0 {
+		t.Errorf("drift after taking it on = %v, %v", drift.Msg.GetDrift(), err)
+	}
+	got, err := c.GetChange(t.Context(), connect.NewRequest(&dockwellv1.GetChangeRequest{Id: planned.GetId()}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Made again with a new image: the script keeps the names for the shell, and
+	// the other words get the values.
+	deployed, err := svc.DeployService(t.Context(), connect.NewRequest(&dockwellv1.DeployServiceRequest{Id: "shop", Image: "nginx:1.27"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	second := apply(t, c, deployed.Msg.GetChange())
+	if second.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("the image change ended %v: %s", second.GetState(), second.GetError())
+	}
+	project := docker.Project(resources[0].GetResource().GetScope())
+	now := e.Newest(project, "shop")
+	if now == nil || now.Config.Healthcheck.Test[1] != `curl -fs --user "${SHOP_USER}" --pass "${DB_PASSWORD}" http://localhost/ && test -n "$HOME"` ||
+		!slices.Equal(now.Config.Cmd, []string{"nginx", "--user=" + user, "--password=" + admin, "--db=postgres://app:" + secretValue + "@db/shop"}) {
+		t.Fatalf("Docker runs %+v", now)
+	}
+	for what, text := range map[string]string{
+		"the plan": planned.String(), "the change": got.Msg.String(), "the image change": second.String(),
+		"drift": drift.Msg.String(), "the log": logs.String(),
+	} {
+		for _, v := range values {
+			if strings.Contains(text, v) {
+				t.Errorf("%s holds %q", what, v)
+			}
+		}
 	}
 }
 
+// A value of the environment is sealed, and a spec's other fields aren't, so a value
+// anywhere else in one would show in the plan, and reach a read-only token and an
+// export. Where it can't be kept by name (ADR 0096), it's refused, and the refusal
+// doesn't say it. A path isn't a secret, and TZ=Asia/Shanghai beside a mount of its
+// zoneinfo is ordinary.
 func TestAValueOfTheEnvironmentShowsNowhere(t *testing.T) {
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
@@ -543,22 +610,29 @@ func TestAValueOfTheEnvironmentShowsNowhere(t *testing.T) {
 		"in-both": {func(r *docker.CreateRequest) {
 			r.Labels = map[string]string{"backup." + secretValue: secretValue}
 		}, "the value of DB_PASSWORD in its labels"},
-		// A short value is no less a password. What its name says is what shows it.
+		// A short value is no less a password. What its name says is what shows it:
+		// its health check keeps it by name (ADR 0096), and a label can't.
 		"short-password": {func(r *docker.CreateRequest) {
 			r.Env = append(r.Env, "MYSQL_ROOT_PASSWORD=s3cr7")
 			r.Healthcheck = &docker.Healthcheck{Test: []string{"CMD", "mysqladmin", "ping", "-ps3cr7"}}
 			r.Labels = map[string]string{"backup.pw": "s3cr7"}
-		}, "the value of MYSQL_ROOT_PASSWORD in its health check"},
-		"short-pass":    {shortIn("db_pass"), "the value of db_pass in its command"},
-		"short-secret":  {shortIn("APP_SECRET"), "the value of APP_SECRET in its command"},
-		"short-token":   {shortIn("Api_Token"), "the value of Api_Token in its command"},
-		"short-key":     {shortIn("STRIPE_KEY"), "the value of STRIPE_KEY in its command"},
-		"short-cred":    {shortIn("CREDENTIALS"), "the value of CREDENTIALS in its command"},
-		"in-user":       {func(r *docker.CreateRequest) { r.User = secretValue }, "the value of DB_PASSWORD in its user"},
-		"in-entrypoint": {func(r *docker.CreateRequest) { r.Entrypoint = []string{"run", secretValue} }, "the value of DB_PASSWORD in its entrypoint"},
-		"in-check": {func(r *docker.CreateRequest) {
-			r.Healthcheck = &docker.Healthcheck{Test: []string{"CMD", "curl", "-u", secretValue}}
-		}, "the value of DB_PASSWORD in its health check"},
+		}, "the value of MYSQL_ROOT_PASSWORD in its label backup.pw"},
+		"in-user": {func(r *docker.CreateRequest) { r.User = secretValue }, "the value of DB_PASSWORD in its user"},
+		// What can't be kept by name (ADR 0096): an ordinary value inside a word, or
+		// where the program's name goes, and a script's value the shell would read as
+		// more than a word.
+		"inside-a-word": {func(r *docker.CreateRequest) {
+			r.Env = append(r.Env, "APP_USER=shopadmin")
+			r.Cmd = []string{"nginx", "--url=postgres://shopadmin@db/x"}
+		}, "the value of APP_USER in its command"},
+		"as-the-program": {func(r *docker.CreateRequest) {
+			r.Env = append(r.Env, "APP_BIN=shop-server")
+			r.Cmd = []string{"shop-server", "--port=80"}
+		}, "the value of APP_BIN in its command"},
+		"not-a-word-to-a-shell": {func(r *docker.CreateRequest) {
+			r.Env = append(r.Env, "REDIS_PASSWORD=pa ss;word")
+			r.Healthcheck = &docker.Healthcheck{Test: []string{"CMD-SHELL", "redis-cli -a 'pa ss;word' ping"}}
+		}, "the value of REDIS_PASSWORD in its health check"},
 	} {
 		runByHand(t, e, name, plainly(c.edit))
 		_, err := cc.AdoptContainer(t.Context(), connect.NewRequest(&dockwellv1.AdoptContainerRequest{Id: name}))
@@ -1243,8 +1317,9 @@ func TestAComposeThatCantComeInSaysWhy(t *testing.T) {
 
 	composeContainer(t, e, "shop", "web", "shop-web-1", nil)
 	e.Reports("shop-web-1", "HostConfig", map[string]any{"OomKillDisable": true})
+	// A value in its user can't be kept by name, as a command's can (ADR 0096).
 	composeContainer(t, e, "shop", "db", "shop-db-1", func(r *docker.CreateRequest) {
-		r.Cmd = []string{"db", "--password=" + secretValue}
+		r.User = secretValue
 	})
 	composeContainer(t, e, "scaled", "web", "scaled-web-1", nil)
 	composeContainer(t, e, "scaled", "web", "scaled-web-2", nil)

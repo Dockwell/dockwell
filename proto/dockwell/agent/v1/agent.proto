@@ -528,6 +528,13 @@ message Hello {
   // or a scale up starts, and takes a scaled service off its ports and
   // networks. The control plane makes none again through an agent that doesn't.
   bool remakes_swarm_apps = 335;
+  // True when the agent keeps the values of a container it takes on by name
+  // (ADR 0096): it writes them as ${NAME} in its command, entrypoint and health
+  // check, and keeps those fields with its record of the container, so it reads
+  // the container back as names. An agent that doesn't reads such a container's
+  // command with the values in, so the control plane reads, plans and applies
+  // none that names values on it.
+  bool reads_taken_references = 336;
   // What the agent keeps of what its server should run (ADR 0054), so the
   // control plane sends what it lacks. An agent that sends none keeps nothing,
   // and is sent nothing to keep.

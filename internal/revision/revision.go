@@ -36,6 +36,7 @@ import (
 	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/binding"
 	"github.com/dockwell/dockwell/internal/scope"
 	"github.com/dockwell/dockwell/internal/store"
 )
@@ -6193,11 +6194,64 @@ func (e *Engine) Drift(ctx context.Context, server string) ([]Drift, error) {
 		}
 		d := Drift{ID: r.ID, Ref: refs[i], Server: server, Revision: r.Revision, Observed: observed[i], Missing: observed[i] == nil}
 		if !d.Missing {
-			d.Changes = resource.Diff(want, observed[i])
+			d.Changes = hideInDrift(resource.Diff(want, observed[i]), want)
 		}
 		out = append(out, d)
 	}
 	return out, nil
+}
+
+// showsAValue names the command, entrypoint or health check of what an agent reports
+// that holds a value of its own environment, or "". An agent reads such a field as
+// its names, or as binding.Unread, so this holds should one ever not (ADR 0096):
+// keeping it would write the value into a plan.
+func showsAValue(observed proto.Message) string {
+	var app *resourcev1.Container
+	switch s := observed.(type) {
+	case *resourcev1.Service:
+		app = s.GetApp()
+	case *resourcev1.Container:
+		app = s
+	}
+	for _, field := range binding.ReferenceFields {
+		if binding.HoldsAValue(binding.WordsOf(app, field), app.GetEnv()) {
+			return field
+		}
+	}
+	return ""
+}
+
+// hideInDrift masks the values of want's environment in what drift says of its
+// command, entrypoint and health check (ADR 0096). An agent reads such a field back
+// as names, or as binding.Unread where it can't; this holds should one ever read the
+// text Docker has, as one whose record of a taken-on container lost its references
+// would. Each of those fields is text a plan shows, and a value is sealed.
+func hideInDrift(changes []resource.Change, want proto.Message) []resource.Change {
+	var app *resourcev1.Container
+	switch s := want.(type) {
+	case *resourcev1.Service:
+		app = s.GetApp()
+	case *resourcev1.Container:
+		app = s
+	}
+	values := make([]string, 0, len(app.GetEnv()))
+	for _, v := range app.GetEnv() {
+		if v != "" {
+			values = append(values, v)
+		}
+	}
+	if len(values) == 0 {
+		return changes
+	}
+	for i := range changes {
+		ch := &changes[i]
+		for _, field := range binding.ReferenceFields {
+			if ch.Path == field || strings.HasSuffix(ch.Path, "."+field) || strings.Contains(ch.Path, field+"[") {
+				ch.From, ch.To = binding.Hide(ch.From, values), binding.Hide(ch.To, values)
+			}
+		}
+	}
+	return changes
 }
 
 // Revert plans putting a drifted resource back to its latest revision.
@@ -6229,6 +6283,10 @@ func (e *Engine) Adopt(ctx context.Context, d Drift, by By) (*Plan, error) {
 		return err
 	}); err != nil {
 		return nil, err
+	}
+	if field := showsAValue(d.Observed); field != "" {
+		return nil, fault.New(ErrInvalid, "%s's %s on its server holds a value of its environment, so keeping it would write that value into a plan. Change it from Dockwell instead, or revert it",
+			d.Ref.Name, field)
 	}
 	summary := fmt.Sprintf("Keep the changes made to %s outside Dockwell", d.Ref.Name)
 	// What the server runs already, so nothing restarts, with what only the control

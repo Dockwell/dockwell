@@ -21,6 +21,10 @@ import (
 // never on the container, with the name it came with. See Adopted.
 const LabelAdopted = OwnPrefix + "adopted"
 
+// LabelReferences holds a container's fields that name values, as its spec has
+// them, with ${NAME} in them and never a value (ADR 0022).
+const LabelReferences = OwnPrefix + "references"
+
 // LabelAdoptedFrom says the Compose project such a container came from, in what the
 // client reads alone.
 const LabelAdoptedFrom = OwnPrefix + "adopted-from"
@@ -44,6 +48,10 @@ type Taken struct {
 	// Leads is where the server paths it mounts led when it was taken on, as
 	// LabelLeads has it. Docker can't put a label on what's running.
 	Leads string `json:"leads,omitempty"`
+	// References are its fields that name values, as LabelReferences holds them,
+	// for one whose values were kept by name as it was taken on (ADR 0096), so it
+	// reads back as its spec, names and never values.
+	References string `json:"references,omitempty"`
 }
 
 // Adopted is the record of the containers a server took on as services. Docker
@@ -162,6 +170,9 @@ func asTaken(labels map[string]string, t Taken, name string) map[string]string {
 	}
 	if t.Leads != "" {
 		out[LabelLeads] = t.Leads
+	}
+	if t.References != "" {
+		out[LabelReferences] = t.References
 	}
 	return out
 }

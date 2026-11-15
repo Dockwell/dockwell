@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/dockwell/dockwell/internal/lazyre"
+	"github.com/dockwell/dockwell/internal/resource/binding"
 
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -56,10 +57,14 @@ func (d *Docker) inspectToAdopt(ctx context.Context, t Target, id string) (*dock
 		return nil, nil, err
 	}
 	view := docker.TakenView(c, docker.Taken{Project: t.Project, Service: t.Service})
-	spec, err := d.projected(ctx, t, view)
+	spec, err := d.projectedAsIs(ctx, t, view)
 	if err != nil {
 		return nil, nil, err
 	}
+	// What its environment's values came to in its command, entrypoint and health
+	// check is kept by name where it can be (ADR 0096): the same each time it's read,
+	// so what a person approved is what's checked again.
+	nameValues(spec)
 	Normalize(spec)
 	return c, spec, nil
 }
@@ -104,10 +109,11 @@ var shownWords = map[protoreflect.Name]string{"healthcheck": "health check"}
 // notSecrets are fields that hold a path, which a value of the environment often is
 // by no accident: TZ=Asia/Shanghai beside a mount of its zoneinfo, or a data
 // directory beside the volume at it. A plan shows them, and a password isn't one.
-var notSecrets = map[protoreflect.Name]bool{"mounts": true, "working_dir": true}
+// references holds the names of fields, which a short secret could match by chance.
+var notSecrets = map[protoreflect.Name]bool{"mounts": true, "working_dir": true, "references": true}
 
 // secretName says a variable's name says what it holds is a secret.
-var secretName = lazyre.Regexp(`(?i)PASS|SECRET|TOKEN|KEY|CREDENTIAL`)
+var secretName = binding.SecretName
 
 // shortest is the fewest characters a value of a variable has to have to count as shown
 // when its name says nothing, as anything shorter could be anywhere by chance (ADR 0031).
@@ -121,6 +127,17 @@ const shortest = 6
 // for a variable whose name says it's a secret: a short password is still one.
 func valuesShown(spec *resourcev1.Container) []string {
 	out := CredentialLabels(spec)
+	// A field that names values shows only its text: a ${NAME} in it is a name,
+	// which a short secret could match by chance (ADR 0096).
+	if len(spec.GetReferences()) > 0 {
+		spec = proto.Clone(spec).(*resourcev1.Container)
+		for _, field := range spec.GetReferences() {
+			words := binding.WordsOf(spec, field)
+			for i, w := range words {
+				words[i] = binding.TextOf(w)
+			}
+		}
+	}
 	eachWord(spec.ProtoReflect(), "", func(where, word string) {
 		for name, value := range spec.GetEnv() {
 			if value == "" || !strings.Contains(word, value) || len(value) < shortest && !secretName().MatchString(name) {
@@ -261,7 +278,7 @@ func (d *Docker) Adopt(ctx context.Context, t Target, id string, spec *resourcev
 	}
 	return d.Client.Adopted.Take(id, docker.Taken{
 		Project: t.Project, Service: t.Service, Name: strings.TrimPrefix(c.Name, "/"), Compose: c.Config.Labels[docker.LabelProject],
-		Leads: leads,
+		Leads: leads, References: referencesLabel(spec),
 	})
 }
 

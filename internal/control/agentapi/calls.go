@@ -376,6 +376,9 @@ func (a *Agents) NameScopes(scopes ScopeNamer) {
 // secrets.Keeper.NamingValues.
 type Naming interface {
 	NamingValues(ctx context.Context, server string, refs []resource.Ref) ([]resource.Ref, error)
+	// TakenOnNamingValues says which of refs were taken on and name values
+	// (ADR 0096), the keeper's secrets.Keeper.TakenOnNamingValues.
+	TakenOnNamingValues(ctx context.Context, server string, refs []resource.Ref) ([]resource.Ref, error)
 }
 
 // CheckNaming has each stream ask naming, of an agent that doesn't say it writes a
@@ -485,7 +488,7 @@ func (a *Agents) open(server, name string, hello *agentv1.Hello, send func(*agen
 	s := &Session{
 		agents: a, guardsWaysIn: hello.GetGuardsWaysIn(), readsUpdates: hello.GetUpdates(), managesFiles: hello.GetManagesFiles(), transfersFiles: hello.GetTransfersFiles(), pagesListings: hello.GetPagesListings(), firstPasswords: hello.GetFirstPasswords(), forwards: hello.GetForwards(), drills: hello.GetDrills(), readsOnePanel: hello.GetReadsOnepanel(), terminals: hello.GetTerminals(), containerTerminals: hello.GetContainerTerminals(), openTerminals: slices.Clone(hello.GetOpenTerminals()), opened: time.Now(), server: server, name: name, send: send, deliveryKey: slices.Clone(hello.GetDeliveryKey()), writesReferences: hello.GetWritesReferences(), makesFolders: hello.GetMakesFolders(), keepsRoutesPrivate: hello.GetKeepsRoutesPrivate(),
 		ownSettings: hello.GetOwnSettings(), writesFiles: hello.GetWritesFiles(), ownsVolumes: hello.GetOwnsVolumes(), followsPace: hello.GetFollowsPace(), bootID: hello.GetBootId(), actsOnUnits: hello.GetActsOnUnits(), upgradesItself: hello.GetUpgradesItself(), signsIn: hello.GetSignsIn(), registryLogins: hello.GetRegistryLogins(), handsBuildLogins: hello.GetBuildLogins(), links: hello.GetLinks(), oneDatabaseBackups: hello.GetOneDatabaseBackups(),
-		loadsCertificates: hello.GetLoadsCertificates(), readsPanels: hello.GetReadsPanels(), stopsPanels: hello.GetStopsPanels(), remakesSwarmApps: hello.GetRemakesSwarmApps(), checksPanelDomains: hello.GetChecksPanelDomains(), volumeMoves: hello.GetVolumeMoves(),
+		loadsCertificates: hello.GetLoadsCertificates(), readsPanels: hello.GetReadsPanels(), stopsPanels: hello.GetStopsPanels(), remakesSwarmApps: hello.GetRemakesSwarmApps(), checksPanelDomains: hello.GetChecksPanelDomains(), readsTakenReferences: hello.GetReadsTakenReferences(), volumeMoves: hello.GetVolumeMoves(),
 		pending: map[uint64]chan *agentv1.CallResult{}, progress: map[uint64]func(resource.Activity){}, outcomes: map[uint64]func(resource.Outcome){}, done: make(chan struct{}),
 		kicked: make(chan struct{}),
 	}
@@ -675,6 +678,9 @@ type Session struct {
 	// checksPanelDomains says the agent checks a panel's domains for a handover,
 	// and checks the chosen ones again before the proxy stops (ADR 0089).
 	checksPanelDomains bool
+	// readsTakenReferences says the agent keeps a taken-on container's references,
+	// so it reads one whose values were kept by name as names (ADR 0096).
+	readsTakenReferences bool
 	// terminals says the agent opens terminals, and openTerminals which it had
 	// as the stream opened, which is then.
 	terminals          bool
@@ -1467,6 +1473,9 @@ func (s *Session) Apply(ctx context.Context, step resource.Step, desired proto.M
 	if err := s.checkWrites(step.Ref, desired); err != nil {
 		return err
 	}
+	if err := s.checkTakenWrites(step.Ref, step.Adopts, desired); err != nil {
+		return err
+	}
 	if err := s.checkFolders(step.Ref, desired); err != nil {
 		return err
 	}
@@ -1730,8 +1739,11 @@ func (s *Session) checkWrites(ref resource.Ref, spec proto.Message) error {
 // values, so a control plane that forgot it reads nothing of such an agent's rather
 // than everything.
 func (s *Session) checkReads(ctx context.Context, refs []resource.Ref) error {
-	if s.writesReferences || len(refs) == 0 {
+	if len(refs) == 0 {
 		return nil
+	}
+	if s.writesReferences {
+		return s.checkTakenReads(ctx, refs)
 	}
 	s.agents.mu.Lock()
 	naming := s.agents.naming
@@ -1749,6 +1761,43 @@ func (s *Session) checkReads(ctx context.Context, refs []resource.Ref) error {
 	}
 	return fmt.Errorf("%w: the agent on %s is from before a command could name a value, so it reads %s's command with its values written in. "+
 		"Nothing on %s that names a value is read, planned or applied until you update the agent there", resource.ErrAgentTooOld, s.name, named[0].Name, s.name)
+}
+
+// checkTakenReads refuses, for an agent that doesn't say it keeps a taken-on
+// container's references, any of refs that was taken on and names values on this
+// server. Such an agent reads that container's command as Docker has it, value and
+// all, as checkReads has it for one from before references. With nothing to ask,
+// everything counts as such, as there.
+func (s *Session) checkTakenReads(ctx context.Context, refs []resource.Ref) error {
+	if s.readsTakenReferences {
+		return nil
+	}
+	s.agents.mu.Lock()
+	naming := s.agents.naming
+	s.agents.mu.Unlock()
+	if naming == nil {
+		return fmt.Errorf("%w: the agent on %s is from before a taken-on container's values were kept by name, and this control plane can't tell what on %s was taken on so, so it reads, plans and applies nothing there. "+
+			"Update the agent on %s", resource.ErrAgentTooOld, s.name, s.name, s.name)
+	}
+	named, err := naming.TakenOnNamingValues(ctx, s.server, refs)
+	if err != nil {
+		return fmt.Errorf("can't tell whether what %s took on names a value in its command: %w", s.name, err)
+	}
+	if len(named) == 0 {
+		return nil
+	}
+	return fmt.Errorf("%w: the agent on %s is from before a taken-on container's values were kept by name, so it reads %s's command with its values written in. "+
+		"Nothing on %s taken on so is read, planned or applied until you update the agent there", resource.ErrAgentTooOld, s.name, named[0].Name, s.name)
+}
+
+// checkTakenWrites refuses taking a container on with its values kept by name
+// through an agent that doesn't keep its references, which would read it back with
+// the values in.
+func (s *Session) checkTakenWrites(ref resource.Ref, adopts string, spec proto.Message) error {
+	if s.readsTakenReferences || adopts == "" || spec == nil || !binding.WritesReferences(spec) {
+		return nil
+	}
+	return fmt.Errorf("the agent on %s can't keep a taken-on container's values by name, and taking %s on names one. Update the agent on %s", s.name, ref.Name, s.name)
 }
 
 // checkAllWrites is checkWrites, checkFolders, checkOwnSettings and checkPrivate for all a plan

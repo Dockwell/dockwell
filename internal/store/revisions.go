@@ -953,6 +953,43 @@ func (t *Tx) RevisionsGiven(ctx context.Context, server string, resourceIDs []st
 	return out, rows.Err()
 }
 
+// TakenOnName is a resource by its kind, scope and name, as TakenOn reads it.
+type TakenOnName struct{ Kind, Scope, Name string }
+
+// TakenOn says which of names a change that ran, or runs, took a container on as:
+// every one but a change planned or discarded (ADR 0096). What such a resource runs
+// may be that container still. One Dockwell has made again since counts too, which
+// holds an older agent to more than it needs to, and fails closed.
+func (t *Tx) TakenOn(ctx context.Context, names []TakenOnName) (map[TakenOnName]bool, error) {
+	out := make(map[TakenOnName]bool, len(names))
+	if len(names) == 0 {
+		return out, nil
+	}
+	conds := make([]string, 0, len(names))
+	args := make([]any, 0, 3*len(names))
+	for _, n := range names {
+		conds = append(conds, "(i.kind = ? AND i.scope = ? AND i.name = ?)")
+		args = append(args, n.Kind, n.Scope, n.Name)
+	}
+	// Only what never ran is left out: one applying may have taken it on already,
+	// and a failed one keeps its revisions until its rollback commits.
+	args = append([]any{ChangePlanned, ChangeDiscarded}, args...)
+	rows, err := t.query(ctx, `SELECT DISTINCT i.kind, i.scope, i.name FROM change_items i JOIN changes c ON c.id = i.change_id
+		WHERE c.state NOT IN (?, ?) AND i.adopts <> '' AND (`+strings.Join(conds, " OR ")+`)`, args...)
+	if err != nil {
+		return nil, fmt.Errorf("can't read which resources took a container on: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var n TakenOnName
+		if err := rows.Scan(&n.Kind, &n.Scope, &n.Name); err != nil {
+			return nil, fmt.Errorf("can't read which resources took a container on: %w", err)
+		}
+		out[n] = true
+	}
+	return out, rows.Err()
+}
+
 // DeploymentsOf returns where each of a resource's revisions named was placed,
 // by revision and then server, in one query.
 func (t *Tx) DeploymentsOf(ctx context.Context, resourceID string, revisions []int) (map[int][]Deployment, error) {
