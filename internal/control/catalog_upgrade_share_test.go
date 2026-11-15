@@ -55,7 +55,15 @@ func TestAServerAnOlderReleaseKeepsSaysWhichUpgradeSharesIt(t *testing.T) {
 	c := changeClient(b, b.origin)
 	cat := catalogClient(b)
 
-	// Ghost at the release this build holds, from before its database was a need.
+	// Ghost at release 4, from before its database was a need, as the fixture holds
+	// it: the catalog this build holds has moved on to the need.
+	bundled, err := os.ReadFile(filepath.Join("testdata", "ghost-bundled.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "ghost.yaml"), bundled, 0o600); err != nil {
+		t.Fatal(err)
+	}
 	installed := installApp(t, cat, &dockwellv1.InstallCatalogEntryRequest{Id: "ghost", Project: "site"})
 	if got := apply(t, c, installed); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
 		t.Fatalf("installing Ghost ended %v: %s", got.GetState(), got.GetError())
