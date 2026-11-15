@@ -11,6 +11,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"log/slog"
+	"time"
 
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/store"
@@ -221,13 +222,7 @@ func (s *Service) GitHookPrincipal(ctx context.Context, hookID string, body []by
 	}
 	if !proof.matches(key, body) || !found {
 		if found {
-			if _, report := s.refusals.count(h.ID, now); report {
-				if err := s.db.Update(ctx, func(tx *store.Tx) error {
-					return s.auditOn(ctx, tx, "hook:"+h.ID, "git_hook.refused", h.UserID, h.ResourceID, "a delivery to hook "+h.ID+" whose signature or token doesn't match its secret")
-				}); err != nil {
-					s.logger.WarnContext(ctx, "can't record a refused delivery", slog.String("hook", h.ID), slog.String("error", err.Error()))
-				}
-			}
+			return Principal{}, &HookRefusal{s: s, hook: h, at: now}
 		}
 		return Principal{}, ErrHookRejected
 	}
@@ -239,6 +234,32 @@ func (s *Service) GitHookPrincipal(ctx context.Context, hookID string, body []by
 		Token: &store.APIToken{ID: h.ID, UserID: u.ID, Name: "Deploy on push", Scope: store.ScopeReadWrite},
 		Hook:  &h,
 	}, nil
+}
+
+// HookRefusal is a refused delivery to a hook there is: ErrHookRejected, with its
+// record for the audit log, which the caller writes once it has answered, so a
+// refusal is answered as soon as one for a hook there isn't (#253's re-check, N5).
+type HookRefusal struct {
+	s    *Service
+	hook store.GitHook
+	at   time.Time
+}
+
+func (r *HookRefusal) Error() string { return ErrHookRejected.Error() }
+
+func (r *HookRefusal) Unwrap() error { return ErrHookRejected }
+
+// Record writes the refusal to the audit log, at most once an hour for each hook.
+func (r *HookRefusal) Record(ctx context.Context) {
+	if _, report := r.s.refusals.count(r.hook.ID, r.at); !report {
+		return
+	}
+	h := r.hook
+	if err := r.s.db.Update(ctx, func(tx *store.Tx) error {
+		return r.s.auditOn(ctx, tx, "hook:"+h.ID, "git_hook.refused", h.UserID, h.ResourceID, "a delivery to hook "+h.ID+" whose signature or token doesn't match its secret")
+	}); err != nil {
+		r.s.logger.WarnContext(ctx, "can't record a refused delivery", slog.String("hook", h.ID), slog.String("error", err.Error()))
+	}
 }
 
 // ReturnHookDelivery gives back what a delivery spent of its address's own bound,

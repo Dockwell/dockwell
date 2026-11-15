@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -276,6 +277,13 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	case errors.Is(err, auth.ErrHookRejected):
 		answer(w, http.StatusUnauthorized, "The delivery's signature or token doesn't match the hook's secret. Give the hook the secret Dockwell showed, or a new one from the panel.")
+		// A refusal to a hook there is goes in the audit log once it's answered, so
+		// it's answered as soon as one to a hook there isn't.
+		var refused *auth.HookRefusal
+		if errors.As(err, &refused) {
+			_ = http.NewResponseController(w).Flush()
+			refused.Record(context.WithoutCancel(r.Context()))
+		}
 		return
 	case err != nil:
 		h.cfg.Logger.ErrorContext(r.Context(), "can't check a delivery to a hook", slog.String("error", err.Error()))
@@ -395,6 +403,9 @@ func capital(words string) string {
 func answer(w http.ResponseWriter, code int, msg string) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
+	// Its length is said, so the answer is whole once it's flushed, whatever the
+	// handler does after.
+	w.Header().Set("Content-Length", strconv.Itoa(len(msg)+1))
 	w.WriteHeader(code)
 	_, _ = w.Write([]byte(msg + "\n"))
 }

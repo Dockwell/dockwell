@@ -280,18 +280,22 @@ func TestAHookTakesOnlyWhatItsSecretSigned(t *testing.T) {
 			t.Errorf("Gitea's delivery came to %v", d)
 		}
 
-		// A refused signature is in the audit log once, however many come.
+		// A refused signature is in the audit log once, however many come, written
+		// once it's answered.
 		var refused int
-		if err := g.f.store.View(t.Context(), func(tx *store.Tx) error {
-			list, err := tx.ListEvents(t.Context(), 1000)
-			for _, e := range list {
-				if e.Action == "git_hook.refused" {
-					refused++
+		for deadline := time.Now().Add(10 * time.Second); refused == 0 && time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
+			refused = 0
+			if err := g.f.store.View(t.Context(), func(tx *store.Tx) error {
+				list, err := tx.ListEvents(t.Context(), 1000)
+				for _, e := range list {
+					if e.Action == "git_hook.refused" {
+						refused++
+					}
 				}
+				return err
+			}); err != nil {
+				t.Fatal(err)
 			}
-			return err
-		}); err != nil {
-			t.Fatal(err)
 		}
 		if refused != 1 {
 			t.Errorf("the audit log has %d refused deliveries, want 1", refused)

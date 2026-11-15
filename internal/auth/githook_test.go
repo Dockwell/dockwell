@@ -177,3 +177,42 @@ func TestAnAddressSendsEachHookItsOwnShare(t *testing.T) {
 		t.Error("IDs past a hook's length each had a share of their own")
 	}
 }
+
+// A refused delivery to a hook there is writes nothing as it's refused: its
+// record goes in the audit log when the caller has answered, at most once an hour
+// for each hook, and one to a hook there isn't has none (#253's re-check, N5).
+func TestARefusalIsRecordedOnceItsAnswered(t *testing.T) {
+	f := newFixture(t, store.SQLite, "")
+	h := store.GitHook{ID: "ghk_01REFUSE000000000000000", ResourceID: "res_web", UserID: "usr_maker", CreatedAt: time.Now(), SecretAt: time.Now()}
+	h.Secret = f.key.Seal(purposeHook(h.ID), []byte(newHookSecret()))
+	if err := f.db.Update(t.Context(), func(tx *store.Tx) error {
+		if err := tx.CreateUser(t.Context(), store.User{ID: "usr_maker", Email: "maker@example.com", Name: "Maker", WebAuthnHandle: []byte("m"), CreatedAt: time.Now()}); err != nil {
+			return err
+		}
+		return tx.CreateGitHook(t.Context(), h)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	body := []byte(`{"ref":"refs/heads/main"}`)
+	if _, err := f.svc.GitHookPrincipal(t.Context(), "ghk_01NOTAHOOK000000000000000", body, HookProof{Signature: []byte("wrong")}); !errors.Is(err, ErrHookRejected) {
+		t.Fatalf("a hook there isn't: %v", err)
+	} else if refusal := (*HookRefusal)(nil); errors.As(err, &refusal) {
+		t.Error("a refusal for a hook there isn't has a record to write")
+	}
+	_, err := f.svc.GitHookPrincipal(t.Context(), h.ID, body, HookProof{Signature: []byte("wrong")})
+	var refusal *HookRefusal
+	if !errors.Is(err, ErrHookRejected) || !errors.As(err, &refusal) {
+		t.Fatalf("a wrong proof to a hook there is: %v", err)
+	}
+	if got := f.auditDetails(t, "git_hook.refused"); len(got) != 0 {
+		t.Fatalf("a refusal was recorded before it was answered: %q", got)
+	}
+	refusal.Record(t.Context())
+	_, err = f.svc.GitHookPrincipal(t.Context(), h.ID, body, HookProof{Signature: []byte("wrong again")})
+	if errors.As(err, &refusal) {
+		refusal.Record(t.Context())
+	}
+	if got := f.auditDetails(t, "git_hook.refused"); len(got) != 1 {
+		t.Errorf("two refusals in an hour are recorded %d times, want once", len(got))
+	}
+}
