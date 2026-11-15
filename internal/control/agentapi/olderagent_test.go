@@ -345,7 +345,7 @@ func TestAnOlderAgentIsRefusedHostAccess(t *testing.T) {
 	errSent := errors.New("the test stops the call here")
 	open := func(runs bool) *Session {
 		a := NewAgents(resource.NewRegistry(&service.Driver{}), slog.New(slog.DiscardHandler))
-		return a.open("srv_1", "hz-1", &agentv1.Hello{Kinds: []string{string(service.Kind)}, WritesReferences: true, OwnSettings: true, RunsHostAccess: runs}, func(*agentv1.ConnectResponse) error { return errSent })
+		return a.open("srv_1", "hz-1", &agentv1.Hello{Kinds: []string{string(service.Kind)}, WritesReferences: true, OwnSettings: true, ReadsTakenReferences: true, RunsHostAccess: runs}, func(*agentv1.ConnectResponse) error { return errSent })
 	}
 	for field, app := range map[string]*resourcev1.Container{
 		"devices":      {Image: "jellyfin:10", Devices: []*resourcev1.Device{{HostPath: "/dev/dri/renderD128"}}},
@@ -353,11 +353,14 @@ func TestAnOlderAgentIsRefusedHostAccess(t *testing.T) {
 		"security_opt": {Image: "jellyfin:10", SecurityOpt: []string{"seccomp=unconfined"}},
 		"host_pid":     {Image: "jellyfin:10", HostPid: true},
 		"sysctls":      {Image: "jellyfin:10", Sysctls: map[string]string{"net.ipv4.ip_forward": "1"}},
+		// Fields that came with them (the review of ADR 0097, L7).
+		"start_interval":  {Image: "redis:8", Healthcheck: &resourcev1.Healthcheck{Test: []string{"CMD", "true"}, StartInterval: "2s"}},
+		"network_aliases": {Image: "redis:8", Networks: []string{"a", "b"}, NetworkAliases: []string{"a=storage"}},
 	} {
 		asks := &resourcev1.Service{Runs: &resourcev1.Service_App{App: app}}
 		t.Run(field, func(t *testing.T) {
 			_, err := open(false).Plan(t.Context(), []resource.Desired{{Ref: web, Spec: asks}})
-			if !errors.Is(err, resource.ErrAgentTooOld) || !strings.Contains(err.Error(), "devices, GPUs, security options and sysctls, which web asks for") {
+			if !errors.Is(err, resource.ErrAgentTooOld) || !strings.Contains(err.Error(), "devices, GPUs, security options, sysctls, health check start_interval and names on one network, which web asks for") {
 				t.Errorf("an older agent, planning = %v", err)
 			}
 			if err := open(false).Apply(t.Context(), resource.Step{Ref: web}, asks); !errors.Is(err, resource.ErrAgentTooOld) {

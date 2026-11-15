@@ -101,7 +101,7 @@ func (c *calls) adoption(ctx context.Context, call *agentv1.AdoptionCall) (*agen
 	}
 	out := &agentv1.AdoptionResult{Spec: b, Refused: read.Refused, Shows: read.Shows, Manager: read.Manager, Folder: read.Folder, LeanedOn: read.LeanedOn, Invalid: read.Invalid}
 	for _, l := range read.LinkAliases {
-		out.LinkAliases = append(out.LinkAliases, &agentv1.LinkAlias{Container: l.Container, Service: l.Service, Alias: l.Alias})
+		out.LinkAliases = append(out.LinkAliases, &agentv1.LinkAlias{Container: l.Container, Service: l.Service, Alias: l.Alias, Network: l.Network})
 	}
 	return out, nil
 }

@@ -193,6 +193,12 @@ func TestRealShapes(t *testing.T) {
 			file: web + "    networks: {a: {aliases: [x]}, b: {aliases: [x]}}\nnetworks: {a: {}, b: {}}\n",
 			want: func(c *resourcev1.Container) bool { return slices.Equal(c.GetAliases(), []string{"x"}) },
 		},
+		"aliases that differ, on their networks alone": {
+			file: web + "    networks: {a: {aliases: [x, z]}, b: {aliases: [y, z]}}\nnetworks: {a: {}, b: {}}\n",
+			want: func(c *resourcev1.Container) bool {
+				return slices.Equal(c.GetAliases(), []string{"z"}) && slices.Equal(c.GetNetworkAliases(), []string{"a=x", "b=y"})
+			},
+		},
 		"top-level limits": {
 			file: web + "    cpus: 0.5\n    mem_limit: 512m\n    mem_reservation: 256M\n",
 			want: func(c *resourcev1.Container) bool {
@@ -362,7 +368,6 @@ func TestStillRefused(t *testing.T) {
 		"external with options":     {web + "    networks: [a]\nnetworks:\n  a: {external: true, internal: true}\n", "the network a is external, so Dockwell doesn't make it"},
 		"named, not external":       {web + "    networks: [a]\nnetworks:\n  a: {name: other}\n", "names itself in Docker"},
 		"external volume":           {web + "    volumes: [\"v:/v\"]\nvolumes:\n  v: {external: true}\n", "the volume v is `external`"},
-		"aliases that differ":       {web + "    networks: {a: {aliases: [x]}, b: {aliases: [y]}}\nnetworks: {a: {}, b: {}}\n", "has other aliases on the network b"},
 		"an address on a network":   {web + "    networks: {a: {ipv4_address: 10.0.0.2}}\nnetworks: {a: {}}\n", "the service web's network a uses `ipv4_address`"},
 		"devices":                   {web + "    devices: [/dev/net/tun]\n", "uses the server's devices"},
 		"pid":                       {web + "    pid: host\n", "shares a process namespace"},
@@ -531,6 +536,7 @@ func TestAnExportOfTheNewFieldsReadsBack(t *testing.T) {
 	for name, app := range map[string]*resourcev1.Container{
 		"a network the server has": {ExternalNetworks: []string{"edge"}},
 		"both kinds, with names":   {Networks: []string{"default"}, ExternalNetworks: []string{"edge"}, Aliases: []string{"db", "www"}},
+		"a name on one network":    {Networks: []string{"default"}, ExternalNetworks: []string{"edge"}, Aliases: []string{"db"}, NetworkAliases: []string{"edge=storage"}},
 		"the server's own":         {HostNetwork: true},
 		"limits":                   {Resources: &resourcev1.Resources{Cpus: "0.5", Memory: "512M", MemoryReservation: "256M"}},
 		"privileges":               {CapAdd: []string{"NET_ADMIN"}, CapDrop: []string{"ALL"}, GroupAdd: []string{"999", "audio"}, Privileged: true},

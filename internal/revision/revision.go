@@ -559,6 +559,10 @@ type ResourcePlan struct {
 	// admin's (ADR 0049). It asks no passkey and no warning: who may apply is
 	// all it decides.
 	Keeps []resource.Access `json:",omitempty"`
+	// RootDevices are the devices it reaches that its agent found the same as root
+	// as it was planned (ADR 0097): what a person approved as root, which the next
+	// plan compares what an agent finds with, as a device can come to be a disk.
+	RootDevices []string `json:",omitempty"`
 }
 
 // ServerPlan is the part of a plan on one server.
@@ -2298,6 +2302,80 @@ func sharedNameNotes(plan *Plan, notes []Note) []Note {
 	return out
 }
 
+// rootByAgent is list with each device in root marked the same as root, as an agent
+// found it (ADR 0097).
+func rootByAgent(list []resource.Access, root map[string]bool) []resource.Access {
+	if len(root) == 0 {
+		return list
+	}
+	out := slices.Clone(list)
+	for i := range out {
+		if out[i].Kind == resource.AccessDevice && root[out[i].Path] {
+			out[i].SameAsRoot = true
+		}
+	}
+	return out
+}
+
+// devicesIn are the devices list reaches that are in root.
+func devicesIn(list []resource.Access, root map[string]bool) []string {
+	var out []string
+	for i := range list {
+		if list[i].Kind == resource.AccessDevice && root[list[i].Path] {
+			out = append(out, list[i].Path)
+		}
+	}
+	return out
+}
+
+// approvedRootDevices are the devices the change that made its latest revision
+// found the same as root, which a person approved as such: none for what's new, or
+// for a change from before plans said so.
+func (e *Engine) approvedRootDevices(ctx context.Context, it *item) (map[string]bool, error) {
+	if it.current == nil || it.base == 0 {
+		return nil, nil
+	}
+	out := map[string]bool{}
+	err := e.db.View(ctx, func(tx *store.Tx) error {
+		r, err := tx.GetResource(ctx, string(it.ref.Kind), it.ref.Scope, it.ref.Name)
+		switch {
+		case errors.Is(err, store.ErrNotFound):
+			return nil
+		case err != nil:
+			return err
+		case r.ChangeID == "":
+			return nil
+		}
+		c, err := tx.GetChange(ctx, r.ChangeID)
+		switch {
+		case errors.Is(err, store.ErrNotFound):
+			return nil
+		case err != nil:
+			return err
+		}
+		var p struct {
+			Resources []struct {
+				ID          string
+				RootDevices []string
+			}
+		}
+		// A plan that can't be read approved nothing, so each device the same as root
+		// reads as gained, which is the louder way to be wrong.
+		if json.Unmarshal(c.Plan, &p) != nil {
+			p.Resources = nil
+		}
+		for _, rp := range p.Resources {
+			if rp.ID == r.ID {
+				for _, d := range rp.RootDevices {
+					out[d] = true
+				}
+			}
+		}
+		return nil
+	})
+	return out, err
+}
+
 // asRoot is what of list is as good as root on a server, by where its agent says each
 // path leads.
 func asRoot(list []resource.Access, leads map[string]string) []resource.Access {
@@ -2597,6 +2675,7 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 	units := map[string]*resource.Unit{}            // what each server's host does to a unit
 	panels := map[string]*resource.Panel{}          // what each server's host does to a panel
 	keeps := map[string][]resource.Access{}         // what each keeps while it runs something else
+	rootDevicesOf := map[string][]string{}          // which of each's devices its agent finds the same as root
 	var before, after map[resource.Ref]proto.Message
 	var takes map[resource.Ref][]resource.Access
 	if len(servers) > 0 {
@@ -2707,13 +2786,29 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 		}
 		for _, it := range its {
 			ids[it.ref] = it.id
-			gained := resource.NewAccess(e.reach(it.ref, it.currentOn(server), before), e.reach(it.ref, it.desiredOn(server), after))
+			// A device is as root as its agent finds it now, and was as root as the
+			// change that made the latest revision found it: one that's root now but
+			// wasn't then is new access, which a person approves (ADR 0097).
+			approved, err := e.approvedRootDevices(ctx, it)
+			if err != nil {
+				return nil, err
+			}
+			// What the agent finds can only make it louder: one that plans no step
+			// there says nothing, and what was approved as root stays so.
+			found := maps.Clone(approved)
+			if found == nil {
+				found = map[string]bool{}
+			}
+			maps.Copy(found, rootDevices)
+			now := e.reach(it.ref, it.desiredOn(server), after)
+			rootDevicesOf[it.id] = append(rootDevicesOf[it.id], devicesIn(now, found)...)
+			gained := resource.NewAccess(rootByAgent(e.reach(it.ref, it.currentOn(server), before), approved), rootByAgent(now, found))
 			if desired := it.desiredOn(server); desired != nil {
 				gained = append(gained, takes[it.ref]...)
 				if it.adopt != "" {
 					gained = append(gained, resource.Access{Kind: resource.AccessTakesOn, Path: it.adoptName})
 				}
-				reaches := append(e.reach(it.ref, desired, after), mounts.holderOf(it.ref)...)
+				reaches := append(rootByAgent(e.reach(it.ref, desired, after), found), mounts.holderOf(it.ref)...)
 				gained = append(gained, resource.NewAccess(gained, mounts.gained(it.ref))...)
 				// What runs has all a resource reaches, so where that's as good as
 				// root, running something else is as much as reaching it anew.
@@ -2933,6 +3028,9 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 	for i := range items {
 		rp := items[i].resourcePlan(actions[items[i].id])
 		rp.HostAccess, rp.Keeps, rp.Install, rp.Reboot, rp.Unit, rp.Panel = access[items[i].id], keeps[items[i].id], installs[items[i].id], reboots[items[i].id], units[items[i].id], panels[items[i].id]
+		if root := rootDevicesOf[items[i].id]; len(root) > 0 {
+			rp.RootDevices = slices.Compact(slices.Sorted(slices.Values(root)))
+		}
 		rp.AgentUpgrade = upgrades[items[i].id]
 		rp.Forget = items[i].forget
 		if masked[items[i].ref] {

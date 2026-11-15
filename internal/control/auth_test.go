@@ -143,6 +143,9 @@ type fullServer struct {
 	// volumes wraps the volume driver of the next server added, to see what its
 	// agent hears. Nil leaves it as it is.
 	volumes func(*volume.Driver) resource.Type
+	// devices stands for what the next server's agent finds of a device (ADR 0097):
+	// nil checks nothing.
+	devices func(path string) (bool, error)
 	// probe makes the checks an agent makes of a container on the next server added,
 	// as a fake engine's containers listen nowhere. Nil dials them.
 	probe func(ctx context.Context, c *health.Check, address string) (health.Result, error)

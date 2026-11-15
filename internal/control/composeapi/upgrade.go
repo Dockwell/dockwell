@@ -440,6 +440,7 @@ var keyedLists = map[protoreflect.Name]func(protoreflect.Value) string{
 	"networks":          word("network "),
 	"external_networks": word("network "),
 	"aliases":           word("alias "),
+	"network_aliases":   word("alias "),
 	"cap_add":           word("capability "),
 	"cap_drop":          word("capability "),
 	"group_add":         word("group "),

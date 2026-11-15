@@ -81,6 +81,9 @@ func validateNetworking(c *resourcev1.Container) error {
 		seen[strings.ToLower(a)] = true
 	}
 	slices.Sort(c.Aliases)
+	if err := validateNetworkAliases(c, seen); err != nil {
+		return err
+	}
 	switch {
 	case c.GetHostNetwork() && len(c.GetNetworks())+len(c.GetExternalNetworks()) > 0:
 		return errors.New("a service on the server's own network joins no others. Leave out host_network, or its networks")
@@ -92,6 +95,60 @@ func validateNetworking(c *resourcev1.Container) error {
 		return errors.New("a service answers to other names on its networks, and this one has none, so nothing could reach it by them. Put it on a network, or leave out its aliases")
 	}
 	return nil
+}
+
+// validateNetworkAliases checks the names a container answers to on one network
+// alone, which seen, its other names, mustn't have, and folds them into its aliases
+// where it has one network, as they mean the same there.
+func validateNetworkAliases(c *resourcev1.Container, seen map[string]bool) error {
+	all := slices.Concat(c.GetNetworks(), c.GetExternalNetworks())
+	once := map[string]bool{}
+	for _, na := range c.GetNetworkAliases() {
+		n, a, ok := strings.Cut(na, "=")
+		switch {
+		case !ok || !slices.Contains(all, n):
+			return fmt.Errorf("%q isn't a name on one of the container's networks: give it as network=name, such as default=web, with a network it joins", na)
+		case CheckAlias(a) != nil:
+			return fmt.Errorf("%q %w", a, CheckAlias(a))
+		case seen[strings.ToLower(a)]:
+			return fmt.Errorf("the name %s is one of the container's aliases already, which it answers to on every network. List it once", a)
+		case once[strings.ToLower(na)]:
+			return fmt.Errorf("%s is listed twice; list each name once", na)
+		}
+		once[strings.ToLower(na)] = true
+	}
+	if len(all) == 1 && len(c.GetNetworkAliases()) > 0 {
+		for _, na := range c.GetNetworkAliases() {
+			_, a, _ := strings.Cut(na, "=")
+			c.Aliases = append(c.Aliases, a)
+		}
+		c.NetworkAliases = nil
+		slices.Sort(c.Aliases)
+		return nil
+	}
+	slices.Sort(c.NetworkAliases)
+	return nil
+}
+
+// aliasesOn are the names a container at t answers to on the network the spec calls
+// network: its endpointAliases, and those it answers to there alone.
+func aliasesOn(t Target, spec *resourcev1.Container, network string) []string {
+	out := endpointAliases(t, spec)
+	for _, na := range spec.GetNetworkAliases() {
+		if n, a, _ := strings.Cut(na, "="); n == network && t.Scoped {
+			out = append(out, a)
+		}
+	}
+	return out
+}
+
+// specNetwork is the name a spec gives the network Docker calls name, for a service
+// at t: its environment's without their prefix, and the server's as they are.
+func specNetwork(t Target, name string) string {
+	if t.Scoped {
+		return strings.TrimPrefix(name, t.Project+"_")
+	}
+	return name
 }
 
 // CheckAlias says why name can't be another name for a container, in words that go
@@ -169,6 +226,10 @@ func Answers(name string, c *resourcev1.Container) []resource.Answer {
 			out = append(out, resource.Answer{Network: n, External: true, Name: a})
 		}
 	}
+	for _, na := range c.GetNetworkAliases() {
+		n, a, _ := strings.Cut(na, "=")
+		out = append(out, resource.Answer{Network: n, External: slices.Contains(c.GetExternalNetworks(), n), Name: a})
+	}
 	return out
 }
 
@@ -216,6 +277,8 @@ func projectNetworks(c *docker.Container, t Target, out *resourcev1.Container) {
 	}
 	prefix := t.Project + "_"
 	names := map[string]bool{}
+	// on is each name on each network, by the spec's name of it.
+	on := map[string]map[string]bool{}
 	for _, n := range networks {
 		switch {
 		case !t.Scoped:
@@ -229,6 +292,25 @@ func projectNetworks(c *docker.Container, t Target, out *resourcev1.Container) {
 			for _, a := range ep.Aliases {
 				if a != t.Service && a != t.Name && a != strings.TrimPrefix(c.Name, "/") && (len(a) != 12 || !strings.HasPrefix(c.ID, a)) {
 					names[a] = true
+					if on[a] == nil {
+						on[a] = map[string]bool{}
+					}
+					on[a][specNetwork(t, n)] = true
+				}
+			}
+		}
+	}
+	taken := c.Config.Labels[docker.LabelAdopted] != ""
+	// A name Dockwell gave on some of a service's networks alone is one of its
+	// network_aliases. What was taken on reads as it always did, a name on any of its
+	// networks as an alias, but what others linked to it by.
+	var only []string
+	if t.Scoped && !taken && len(networks) > 1 {
+		for a, nets := range on {
+			if len(nets) < len(networks) {
+				delete(names, a)
+				for n := range nets {
+					only = append(only, n+"="+a)
 				}
 			}
 		}
@@ -238,13 +320,22 @@ func projectNetworks(c *docker.Container, t Target, out *resourcev1.Container) {
 	if came := c.Config.Labels[docker.LabelAdopted]; t.Scoped && came != "" && came != t.Service {
 		names[came] = true
 	}
-	// So do the names others linked to it by (ADR 0089).
+	// So do the names others linked to it by, on the network they linked on
+	// (ADR 0089): on its one network, as an alias.
 	if linked := c.Config.Labels[docker.LabelLinkedAs]; t.Scoped && linked != "" {
-		for _, a := range strings.Split(linked, ",") {
-			names[a] = true
+		for _, na := range strings.Split(linked, ",") {
+			n, a, _ := strings.Cut(na, "=")
+			if len(networks) == 1 {
+				names[a] = true
+				continue
+			}
+			delete(names, a)
+			only = append(only, specNetwork(t, n)+"="+a)
 		}
 	}
 	out.Aliases = slices.Sorted(maps.Keys(names))
+	slices.Sort(only)
+	out.NetworkAliases = slices.Compact(only)
 }
 
 // checkRouted refuses taking a service with a route onto the server's own network,
@@ -336,6 +427,12 @@ func (d *Docker) nameClashes(ctx context.Context, t Target, spec *resourcev1.Con
 	}
 	var out []nameClash
 	for _, name := range networks {
+		here := maps.Clone(ours)
+		if t.Scoped {
+			for _, a := range aliasesOn(t, spec, specNetwork(t, name)) {
+				here[strings.ToLower(a)] = true
+			}
+		}
 		n, err := d.Client.NetworkNamed(ctx, name)
 		switch {
 		case docker.IsNotFound(err):
@@ -372,7 +469,7 @@ func (d *Docker) nameClashes(ctx context.Context, t Target, spec *resourcev1.Con
 		}
 		for _, c := range others {
 			for _, a := range answersTo(c, name) {
-				if ours[strings.ToLower(a)] {
+				if here[strings.ToLower(a)] {
 					out = append(out, nameClash{network: name, name: a, other: c, held: held[strings.ToLower(a)]})
 				}
 			}

@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/dockwell/dockwell/internal/docker"
-	"github.com/dockwell/dockwell/internal/lazyre"
 	"github.com/dockwell/dockwell/internal/resource"
 )
 
@@ -58,26 +57,39 @@ func linksOf(o *docker.Options) []link {
 	return out
 }
 
-// numbered is a name Docker Compose gives a linked container: <service>-<n>, or
-// <project>-<service>-<n>.
-var numbered = lazyre.Regexp(`^(.+)-[0-9]+$`)
-
-// linkedAs reports a name t answers to on network already, as a link by it needs
-// nothing: its own, its Compose service's and the numbered ones Compose links by,
-// and its aliases there.
+// linkedAs reports a name t answers to on network already, and goes on answering to
+// once a replace names it otherwise, as a link by it needs nothing: its own, its
+// aliases there, and what others linked to it by there. A numbered name Compose
+// links by, as db-1, isn't one: nothing answers to it after a replace, so it's kept
+// as one the container takes on.
 func linkedAs(t *docker.Container, network, name string) bool {
-	if slices.Contains(answersTo(t, network), name) || slices.Contains(strings.Split(t.Config.Labels[docker.LabelLinkedAs], ","), name) {
-		return true
+	return slices.Contains(answersTo(t, network), name) || slices.Contains(strings.Split(t.Config.Labels[docker.LabelLinkedAs], ","), network+"="+name)
+}
+
+// othersAnswer reports another container on network than those in except that
+// answers to name, so a link by it, which went to one of them, can't be left to the
+// network's names to reach (the review of ADR 0097, L4).
+func (d *Docker) othersAnswer(ctx context.Context, network, name string, except ...string) (bool, error) {
+	list, err := d.Client.ListContainers(ctx, map[string][]string{"network": {network}})
+	if err != nil {
+		return false, fmt.Errorf("can't list what's on the network %s: %w", network, err)
 	}
-	service, project := t.Config.Labels[docker.LabelService], t.Config.Labels[docker.LabelProject]
-	if service == "" {
-		return false
+	for i := range list {
+		if slices.Contains(except, list[i].ID) {
+			continue
+		}
+		o, err := d.Client.InspectContainer(ctx, list[i].ID)
+		switch {
+		case docker.IsNotFound(err):
+			continue
+		case err != nil:
+			return false, err
+		}
+		if slices.ContainsFunc(answersTo(o, network), func(a string) bool { return strings.EqualFold(a, name) }) {
+			return true, nil
+		}
 	}
-	if name == service {
-		return true
-	}
-	m := numbered().FindStringSubmatch(name)
-	return len(m) == 2 && (m[1] == service || m[1] == project+"-"+service)
+	return false, nil
 }
 
 // readLinks says what c's links ask: a refusal for each a service can't say, and
@@ -94,12 +106,20 @@ func (d *Docker) readLinks(ctx context.Context, c *docker.Container, o *docker.O
 			return nil, nil, fmt.Errorf("can't read %s, which it links to: %w", l.target, err)
 		}
 		network := sharedNetwork(c, t)
-		switch {
-		case network == "":
+		if network == "" {
 			refused = append(refused, fmt.Sprintf("a link to %s on no network of a project's own, where a name of its doesn't reach it otherwise", l.target))
+			continue
+		}
+		others, err := d.othersAnswer(ctx, network, l.alias, c.ID, t.ID)
+		if err != nil {
+			return nil, nil, err
+		}
+		switch {
+		case others:
+			refused = append(refused, fmt.Sprintf("a link to %s as %s, which another container on %s answers to as well", l.target, l.alias, network))
 		case linkedAs(t, network, l.alias):
 		default:
-			aliases = append(aliases, resource.LinkAlias{Container: strings.TrimPrefix(t.Name, "/"), Service: t.Config.Labels[docker.LabelService], Alias: l.alias})
+			aliases = append(aliases, resource.LinkAlias{Container: strings.TrimPrefix(t.Name, "/"), Service: t.Config.Labels[docker.LabelService], Alias: l.alias, Network: network})
 		}
 	}
 	return refused, aliases, nil
@@ -150,8 +170,8 @@ func (d *Docker) linkedNames(ctx context.Context, c *docker.Container) ([]string
 			if l.target != self && (len(l.target) < 12 || !strings.HasPrefix(c.ID, l.target)) {
 				continue
 			}
-			if network := sharedOf(o, c); network != "" && !linkedAs(c, network, l.alias) && !slices.Contains(out, l.alias) {
-				out = append(out, l.alias)
+			if network := sharedOf(o, c); network != "" && !linkedAs(c, network, l.alias) && !slices.Contains(out, network+"="+l.alias) {
+				out = append(out, network+"="+l.alias)
 			}
 		}
 	}

@@ -503,12 +503,18 @@ func exportNetworks(c *resourcev1.Container) any {
 	if len(names) == 0 {
 		return nil
 	}
-	if len(c.GetAliases()) == 0 {
+	if len(c.GetAliases()) == 0 && len(c.GetNetworkAliases()) == 0 {
 		return names
 	}
 	out := make(map[string]joinEntry, len(names))
 	for _, n := range names {
-		out[n] = joinEntry{Aliases: c.GetAliases()}
+		aliases := slices.Clone(c.GetAliases())
+		for _, na := range c.GetNetworkAliases() {
+			if on, a, _ := strings.Cut(na, "="); on == n {
+				aliases = append(aliases, a)
+			}
+		}
+		out[n] = joinEntry{Aliases: aliases}
 	}
 	return out
 }

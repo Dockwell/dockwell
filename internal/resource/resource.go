@@ -1540,13 +1540,22 @@ func AccessWords(a Access) string {
 		}
 		return out
 	case AccessGPUs:
+		var out string
 		switch {
 		case a.Path == "all":
-			return "all of the server's GPUs"
+			out = "all of the server's GPUs"
 		case strings.Trim(a.Path, "0123456789") == "":
-			return plain(a.Path) + " of the server's GPUs"
+			out = plain(a.Path) + " of the server's GPUs"
+		default:
+			out = "the server's GPUs " + plain(a.Path)
 		}
-		return "the server's GPUs " + plain(a.Path)
+		if a.Type != "" {
+			out += ", by the " + plain(a.Type) + " driver"
+		}
+		if a.Detail != "" {
+			out += ", for " + plain(a.Detail)
+		}
+		return out
 	case AccessSecurityOption:
 		out := securityOptionWords(a.Path)
 		if a.SameAsRoot {
@@ -1759,9 +1768,11 @@ func restoreBudget(size int64) time.Duration {
 }
 
 // LinkAlias is a name a container reaches another by through a link: the other
-// container, its Compose service, and the name.
+// container, its Compose service, the name, and the network the link reaches it
+// on, where alone the other container takes the name on (the review of ADR 0097,
+// L4).
 type LinkAlias struct {
-	Container, Service, Alias string
+	Container, Service, Alias, Network string
 }
 
 // Restorer is a driver that can bring a resource's data back from a backup. A

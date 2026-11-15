@@ -531,6 +531,10 @@ type Taking struct {
 	// that's all of what's in the way.
 	NeedsHostAccess []string
 	HostAccessOnly  bool
+	// NeedsByService is the host access each service made again needs, by the
+	// service, and HostAccessLeft those left behind for that alone (ADR 0097).
+	NeedsByService map[string][]string
+	HostAccessLeft map[string]bool
 }
 
 // ReadTaking reads what taking on the Compose project name on server would plan,
@@ -632,7 +636,12 @@ func carryLinks(byName map[string][]*dockwellv1.ServerContainer, svcs map[string
 	for _, found := range founds {
 		found.LinkAliases = slices.DeleteFunc(found.LinkAliases, func(l resource.LinkAlias) bool {
 			to, ok := byName[l.Service]
-			return ok && to[0].GetName() == l.Container && slices.Contains(svcs[l.Service].GetApp().GetAliases(), l.Alias)
+			app := svcs[l.Service].GetApp()
+			return ok && to[0].GetName() == l.Container && (slices.Contains(app.GetAliases(), l.Alias) ||
+				slices.ContainsFunc(app.GetNetworkAliases(), func(na string) bool {
+					// An agent before the review of ADR 0097 says no network.
+					return na == l.Network+"="+l.Alias || l.Network == "" && strings.HasSuffix(na, "="+l.Alias)
+				}))
 		})
 	}
 }
@@ -754,7 +763,7 @@ type Remake struct {
 // left behind, Swarm's, Traefik's and Dokploy's labels and its networks. Nothing is
 // taken on: the plan makes a new container, and its manager's copy stops as a step
 // of its own. What's in the way is said for each, by its service.
-func (h *Handler) ReadMakingAgain(ctx context.Context, r *containers.Running, list []Remake, project string) (*Taking, map[string][]string, error) {
+func (h *Handler) ReadMakingAgain(ctx context.Context, r *containers.Running, list []Remake, project string, chosen map[string]bool) (*Taking, map[string][]string, error) {
 	place, err := h.destination(ctx, project, "", "")
 	if err != nil {
 		return nil, nil, err
@@ -789,6 +798,19 @@ func (h *Handler) ReadMakingAgain(ctx context.Context, r *containers.Running, li
 		if why := containers.Refusal(c.GetName(), found); why != "" {
 			refused[m.Service] = append(refused[m.Service], why)
 			continue
+		}
+		// What Swarm gives a task's container of the server is no less a choice
+		// for its copy (ADR 0097).
+		if needs := containers.HostAccessNeeded(svc.GetApp()); len(needs) > 0 {
+			if t.NeedsByService == nil {
+				t.NeedsByService, t.HostAccessLeft = map[string][]string{}, map[string]bool{}
+			}
+			t.NeedsByService[m.Service] = needs
+			if !chosen[m.Service] {
+				refused[m.Service] = append(refused[m.Service], containers.HostAccessRefusal(c.GetName(), needs))
+				t.HostAccessLeft[m.Service] = true
+				continue
+			}
 		}
 		app := svc.GetApp()
 		remade(app, m)

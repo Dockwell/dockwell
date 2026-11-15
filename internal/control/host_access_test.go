@@ -3,6 +3,7 @@
 package control
 
 import (
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -12,17 +13,19 @@ import (
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
+	"github.com/dockwell/dockwell/internal/agent/onepanel/onepaneltest"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/store"
 )
 
-func deviceEdit(env, name, image string, devices ...string) *dockwellv1.Edit {
+// deviceEdit gives api the image and devices.
+func deviceEdit(env, image string, devices ...string) *dockwellv1.Edit {
 	app := &resourcev1.Container{Image: image}
 	for _, d := range devices {
 		app.Devices = append(app.Devices, &resourcev1.Device{HostPath: d})
 	}
 	return &dockwellv1.Edit{
-		Resource: &dockwellv1.ResourceRef{Scope: env, Name: name},
+		Resource: &dockwellv1.ResourceRef{Scope: env, Name: "api"},
 		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: &resourcev1.Service{Runs: &resourcev1.Service_App{App: app}}}},
 	}
 }
@@ -33,17 +36,17 @@ func deviceEdit(env, name, image string, devices ...string) *dockwellv1.Edit {
 func TestChosenHostAccessIsWidenedOnlyThroughTheGate(t *testing.T) {
 	s := newReachStand(t, store.SQLite)
 	ctx := t.Context()
-	applyConfirmed(t, s.c, propose(t, s.c, "Give api the fuse device", deviceEdit(s.staging, "api", "ghcr.io/acme/shop:1.4", "/dev/fuse")))
+	applyConfirmed(t, s.c, propose(t, s.c, "Give api the fuse device", deviceEdit(s.staging, "ghcr.io/acme/shop:1.4", "/dev/fuse")))
 
 	s.hold(in(s.blogID, store.RoleDeveloper))
-	wider := propose(t, s.c, "Give api KVM too", deviceEdit(s.staging, "api", "ghcr.io/acme/shop:1.4", "/dev/fuse", "/dev/kvm"))
+	wider := propose(t, s.c, "Give api KVM too", deviceEdit(s.staging, "ghcr.io/acme/shop:1.4", "/dev/fuse", "/dev/kvm"))
 	if !wider.GetPlan().GetHostAccess() || !strings.Contains(wider.GetPlan().String(), "HOST_ACCESS_KIND_DEVICE") {
 		t.Fatalf("a plan widening the devices: %v", wider.GetPlan())
 	}
 	_, err := s.c.ApplyChange(ctx, connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: wider.GetId(), Fingerprint: wider.GetPlan().GetFingerprint()}))
 	needsRole(t, "a developer widening an app's devices", err)
 
-	same := propose(t, s.c, "Deploy api", deviceEdit(s.staging, "api", "ghcr.io/acme/shop:1.5", "/dev/fuse"))
+	same := propose(t, s.c, "Deploy api", deviceEdit(s.staging, "ghcr.io/acme/shop:1.5", "/dev/fuse"))
 	if same.GetPlan().GetHostAccess() {
 		t.Errorf("a new image that keeps the device asks for host access: %v", same.GetPlan())
 	}
@@ -148,4 +151,106 @@ func TestAnImportTakesOnHostAccessWhereChosen(t *testing.T) {
 	if step = read("j6r2"); step.GetAction() != dockwellv1.ImportAction_IMPORT_ACTION_TAKE_ON || !slices.Equal(step.GetNeedsHostAccess(), []string{"/dev/dri/renderD128"}) {
 		t.Errorf("chosen, media reads %v", step)
 	}
+}
+
+// A device the agent finds is a disk is the same as root wherever a plan reads it
+// (ADR 0097): a developer's deploy of another tag that keeps it is an admin's, as
+// for anything as good as root (ADR 0048), and one that wasn't a disk when it was
+// approved and is now counts as new access, however little else changes.
+func TestADeviceThatIsADiskIsRootThroughout(t *testing.T) {
+	root := map[string]bool{"/dev/sdb": true}
+	s := newReachStandWith(t, store.SQLite, func(f *fullServer) {
+		f.devices = func(p string) (bool, error) { return root[p], nil }
+	})
+	ctx := t.Context()
+	disk := propose(t, s.c, "Give api the disk", deviceEdit(s.staging, "ghcr.io/acme/shop:1.4", "/dev/sdb", "/dev/serial/by-id/usb-stick"))
+	rootIn := func(p *dockwellv1.Plan, path string) bool {
+		return regexp.MustCompile(`path:"` + regexp.QuoteMeta(path) + `"\s+same_as_root:true`).MatchString(p.String())
+	}
+	if !rootIn(disk.GetPlan(), "/dev/sdb") {
+		t.Fatalf("the plan doesn't read the disk as root: %v", disk.GetPlan())
+	}
+	applyIt := func(ch *dockwellv1.Change) error {
+		proof := stepUpFor(t, s.b, dockwellv1.StepUpAction_STEP_UP_ACTION_APPLY_ROOT_CHANGE, ch.GetId())
+		_, err := s.c.ApplyChange(ctx, connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: ch.GetId(), Fingerprint: ch.GetPlan().GetFingerprint(), Proof: proof}))
+		return err
+	}
+	w := watch(t, s.c, disk.GetId())
+	if err := applyIt(disk); err != nil {
+		t.Fatal(err)
+	}
+	if got := waitWatch(t, w).last(); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("the change ended %v: %s", got.GetState(), got.GetError())
+	}
+
+	s.hold(in(s.blogID, store.RoleDeveloper))
+	deploy := propose(t, s.c, "Deploy api", deviceEdit(s.staging, "ghcr.io/acme/shop:1.5", "/dev/sdb", "/dev/serial/by-id/usb-stick"))
+	if deploy.GetPlan().GetHostAccess() {
+		t.Errorf("a deploy that keeps what was approved gains host access: %v", deploy.GetPlan())
+	}
+	_, err := s.c.ApplyChange(ctx, connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: deploy.GetId(), Fingerprint: deploy.GetPlan().GetFingerprint()}))
+	needsRole(t, "a developer deploying another tag of what keeps a disk", err)
+
+	// The stick's link now leads to a disk.
+	s.hold(onInstall(store.RoleAdmin))
+	root["/dev/serial/by-id/usb-stick"] = true
+	again := propose(t, s.c, "Deploy api", deviceEdit(s.staging, "ghcr.io/acme/shop:1.6", "/dev/sdb", "/dev/serial/by-id/usb-stick"))
+	if !again.GetPlan().GetHostAccess() || !rootIn(again.GetPlan(), "/dev/serial/by-id/usb-stick") {
+		t.Errorf("a device that came to be a disk isn't new: %v", again.GetPlan())
+	}
+}
+
+// A Swarm-run app made again is a choice the same as a take-on: what Swarm gave its
+// task's container of the server is left, as a state, until the app is chosen, by
+// its ID (the review's L1).
+func TestASwarmAppsHostAccessIsAChoiceToo(t *testing.T) {
+	d := dokployShop(t)
+	d.e.Edit(d.task, func(c *docker.Container) { c.HostConfig.SecurityOpt = []string{"seccomp=unconfined"} })
+	read := func(chosen ...string) *dockwellv1.ImportStep {
+		t.Helper()
+		res, err := d.ic.ImportDokploy(t.Context(), connect.NewRequest(&dockwellv1.ImportDokployRequest{ServerId: d.id, SkipPlan: true, HostAccess: chosen}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return panelSteps(res.Msg)["IMPORT_KIND_APP shop"]
+	}
+	step := read()
+	if step.GetAction() != dockwellv1.ImportAction_IMPORT_ACTION_LEAVE || step.GetReason() != "" || step.GetAppId() != "shop-k2m4" ||
+		!slices.Equal(step.GetNeedsHostAccess(), []string{"seccomp=unconfined"}) {
+		t.Errorf("unchosen, shop reads %v", step)
+	}
+	if step = read("shop-k2m4"); step.GetAction() != dockwellv1.ImportAction_IMPORT_ACTION_MAKE {
+		t.Errorf("chosen, shop reads %v", step)
+	}
+}
+
+// 1Panel's import has no host access to choose, so an app that needs some is left
+// with the take-on that chooses it (the review of ADR 0097, L9).
+func TestA1PanelAppWithHostAccessIsLeftWithTheFix(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	f.onePanelRoot = onepaneltest.Make(t, "/opt", false)
+	e := f.addDockerServer(t)
+	e.AddNetwork(docker.Network{ID: "1pnet", Name: "1panel-network", Driver: "bridge"})
+	composeContainer(t, e, "mysql", "mysql", "1Panel-mysql-AbCd", func(r *docker.CreateRequest) {
+		r.HostConfig.NetworkMode = "1panel-network"
+		r.NetworkingConfig.EndpointsConfig = map[string]*docker.EndpointSettings{"1panel-network": {Aliases: []string{"mysql", "1Panel-mysql-AbCd"}}}
+		r.HostConfig.Binds = []string{"/opt/1panel/apps/mysql/mysql/data:/data"}
+		r.HostConfig.Devices = []docker.DeviceMapping{{PathOnHost: "/dev/dri/renderD128", PathInContainer: "/dev/dri/renderD128", CgroupPermissions: "rwm"}}
+	})
+	res, err := importClient(b).ImportOnePanel(t.Context(), connect.NewRequest(&dockwellv1.ImportOnePanelRequest{ServerId: f.lastDocker.id.ServerID}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, s := range res.Msg.GetSteps() {
+		if s.GetKind() != dockwellv1.ImportKind_IMPORT_KIND_APP || s.GetName() != "mysql" {
+			continue
+		}
+		if s.GetAction() != dockwellv1.ImportAction_IMPORT_ACTION_LEAVE || !strings.Contains(s.GetReason(), "needs host access, /dev/dri/renderD128") ||
+			!strings.Contains(s.GetReason(), "dockwell compose adopt --name mysql --host-access") {
+			t.Errorf("mysql = %v %q", s.GetAction(), s.GetReason())
+		}
+		return
+	}
+	t.Error("no step for mysql")
 }

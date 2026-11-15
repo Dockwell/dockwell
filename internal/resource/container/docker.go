@@ -744,9 +744,9 @@ func (d *Docker) createRequest(ctx context.Context, t Target, spec *resourcev1.C
 		req.HostConfig.NetworkMode = "host"
 		return req, nil, restored
 	}
-	aliases := endpointAliases(t, spec)
 	var later []string
 	for i, name := range dockerNetworks(t, spec) {
+		aliases := aliasesOn(t, spec, specNetwork(t, name))
 		if i == 0 {
 			req.HostConfig.NetworkMode = name
 		} else if !d.Client.AtLeast("1.44") {

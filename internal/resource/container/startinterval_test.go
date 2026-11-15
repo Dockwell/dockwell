@@ -54,6 +54,21 @@ func TestAStartIntervalComesAlong(t *testing.T) {
 			t.Errorf("%s with a start_interval is valid", name)
 		}
 	}
+	// Docker refuses each under a millisecond as it makes the container (the review
+	// of ADR 0097, L6).
+	for name, hc := range map[string]*resourcev1.Healthcheck{
+		"interval":       {Test: []string{"CMD", "true"}, Interval: "500us"},
+		"timeout":        {Test: []string{"CMD", "true"}, Timeout: "999us"},
+		"start_period":   {Test: []string{"CMD", "true"}, StartPeriod: "1ns"},
+		"start_interval": {Test: []string{"CMD", "true"}, StartInterval: "500us"},
+	} {
+		if err := Validate(&resourcev1.Container{Image: "redis:8", Healthcheck: hc}); err == nil || !strings.Contains(err.Error(), "under a millisecond") {
+			t.Errorf("a %s under a millisecond = %v", name, err)
+		}
+	}
+	if err := Validate(&resourcev1.Container{Image: "redis:8", Healthcheck: &resourcev1.Healthcheck{Test: []string{"CMD", "true"}, StartInterval: "1ms"}}); err != nil {
+		t.Errorf("a start_interval of 1ms = %v", err)
+	}
 
 	old := dockertest.New(t)
 	old.APIVersion = "1.43"

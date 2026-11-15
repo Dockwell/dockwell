@@ -9182,6 +9182,12 @@ msgstr "先在 {0} 上构建 {repository} 的 {commit}（{ref}）。如果构建
 msgid "Builds {repository} at {commit} on {0} first. If the build fails, what runs stays as it is."
 msgstr "先在 {0} 上构建 {repository} 的 {commit}。如果构建失败，正在运行的内容保持不变。"
 
+msgid "By the {driver} driver, for {what}."
+msgstr "通过 {driver} 驱动，用于 {what}。"
+
+msgid "By the {driver} driver."
+msgstr "通过 {driver} 驱动。"
+
 msgid "Check it's the commit you mean."
 msgstr "请确认这是你想要的提交。"
 
@@ -9254,6 +9260,9 @@ msgstr "文件在读取时发生了变化，因此可能包含写到一半的内
 
 msgid "Follows {branch}: Dockwell moves the catalog along it, by changes you can undo."
 msgstr "跟随 {branch}：Dockwell 会随它移动目录，每次都是可以撤销的变更。"
+
+msgid "For {what}."
+msgstr "用于 {what}。"
 
 msgid "Give it one, such as {target}:size=64m, or give {name} a memory limit."
 msgstr "请设置大小，例如 {target}:size=64m，或者为 {name} 设置内存上限。"

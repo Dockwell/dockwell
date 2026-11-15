@@ -9182,6 +9182,12 @@ msgstr "Builds {repository} at {commit} ({ref}) on {0} first. If the build fails
 msgid "Builds {repository} at {commit} on {0} first. If the build fails, what runs stays as it is."
 msgstr "Builds {repository} at {commit} on {0} first. If the build fails, what runs stays as it is."
 
+msgid "By the {driver} driver, for {what}."
+msgstr "By the {driver} driver, for {what}."
+
+msgid "By the {driver} driver."
+msgstr "By the {driver} driver."
+
 msgid "Check it's the commit you mean."
 msgstr "Check it's the commit you mean."
 
@@ -9254,6 +9260,9 @@ msgstr "Files changed as they were read, so it can hold half a write, and the ap
 
 msgid "Follows {branch}: Dockwell moves the catalog along it, by changes you can undo."
 msgstr "Follows {branch}: Dockwell moves the catalog along it, by changes you can undo."
+
+msgid "For {what}."
+msgstr "For {what}."
 
 msgid "Give it one, such as {target}:size=64m, or give {name} a memory limit."
 msgstr "Give it one, such as {target}:size=64m, or give {name} a memory limit."

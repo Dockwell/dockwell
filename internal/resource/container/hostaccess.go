@@ -13,6 +13,9 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"syscall"
+
+	"golang.org/x/sys/unix"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/docker"
@@ -29,11 +32,14 @@ import (
 // allPermissions are a device's when a spec says none.
 const allPermissions = "rwm"
 
-// WritesHostAccess reports a spec with any of these, sysctls included, which an
-// agent that doesn't say it runs them would drop without a word
-// (Hello.runs_host_access).
+// WritesHostAccess reports a spec with any of these, sysctls included, or a field
+// that came with them, a health check's start_interval and names on one network
+// alone, which an agent that doesn't say it runs them would drop without a word
+// (Hello.runs_host_access; the review of ADR 0097, L7 and L8). The control plane's
+// gate asks this one.
 func WritesHostAccess(c *resourcev1.Container) bool {
-	return len(c.GetDevices()) > 0 || c.GetGpus() != nil || len(c.GetSecurityOpt()) > 0 || c.GetHostPid() || len(c.GetSysctls()) > 0
+	return len(c.GetDevices()) > 0 || c.GetGpus() != nil || len(c.GetSecurityOpt()) > 0 || c.GetHostPid() || len(c.GetSysctls()) > 0 ||
+		c.GetHealthcheck().GetStartInterval() != "" || len(c.GetNetworkAliases()) > 0
 }
 
 // securityOptForms are the security options a spec holds past no_new_privileges.
@@ -84,6 +90,9 @@ func validateHostAccess(c *resourcev1.Container) error {
 		case g.GetCount() == 0 && len(g.GetDeviceIds()) == 0:
 			return errors.New("gpus gives no count and no device_ids. Give how many, -1 for all, or which")
 		}
+		if !slices.Contains(gpuDrivers, g.GetDriver()) {
+			return fmt.Errorf("gpus asks the driver %q, which Dockwell doesn't run. Use nvidia or cdi, or leave it empty for Docker's", g.GetDriver())
+		}
 		g.Capabilities = sortedSet(g.GetCapabilities())
 		if slices.Equal(g.GetCapabilities(), []string{"gpu"}) {
 			g.Capabilities = nil
@@ -97,7 +106,9 @@ func validateHostAccess(c *resourcev1.Container) error {
 			return fmt.Errorf("security_opt has %q, which Dockwell doesn't run. Use seccomp=unconfined, apparmor=unconfined, label=disable, label=type:<type> or systempaths=unconfined", o)
 		}
 	}
-	c.SecurityOpt = sortedSet(c.GetSecurityOpt())
+	// Docker adds label=disable by itself to what's privileged or shares the
+	// server's processes, so a spec that asks for it alone there asks for nothing.
+	c.SecurityOpt = sortedSet(withoutDaemonsLabel(c.GetSecurityOpt(), c.GetPrivileged() || c.GetHostPid()))
 	for _, k := range slices.Sorted(maps.Keys(c.GetSysctls())) {
 		v := c.GetSysctls()[k]
 		switch {
@@ -111,6 +122,10 @@ func validateHostAccess(c *resourcev1.Container) error {
 	}
 	return nil
 }
+
+// gpuDrivers are the drivers a GPU request may ask: Docker's default, NVIDIA's,
+// and the Container Device Interface, whose devices a plan names one by one.
+var gpuDrivers = []string{"", "nvidia", "cdi"}
 
 // orderedPermissions puts a device's permissions in rwm's order.
 func orderedPermissions(p string) string {
@@ -182,11 +197,37 @@ func projectHostAccess(c *docker.Container, out *resourcev1.Container) {
 			out.SecurityOpt = append(out.SecurityOpt, securityOptForm(o))
 		}
 	}
-	out.SecurityOpt = sortedSet(out.SecurityOpt)
+	shared := c.HostConfig.Privileged || c.HostConfig.PidMode == "host" || c.HostConfig.IpcMode == "host"
+	out.SecurityOpt = sortedSet(withoutDaemonsLabel(out.SecurityOpt, shared))
 	out.HostPid = c.HostConfig.PidMode == "host"
 	if len(c.HostConfig.Sysctls) > 0 {
 		out.Sysctls = maps.Clone(c.HostConfig.Sysctls)
 	}
+}
+
+// labelDisable is the security option Docker's daemon adds by itself to a container
+// that's privileged, or shares the server's processes or shared memory, and asks
+// for no SELinux label of its own (moby's generateSecurityOpt, with go-selinux's
+// DisableSecOpt), whether SELinux is on or not.
+const labelDisable = "label=disable"
+
+// withoutDaemonsLabel is opts without the label=disable Docker's daemon adds by
+// itself to a container that runs as shared asks, so nothing reads it as asked for:
+// opts in the form a spec keeps them.
+func withoutDaemonsLabel(opts []string, shared bool) []string {
+	if !shared {
+		return opts
+	}
+	labels := 0
+	for _, o := range opts {
+		if strings.HasPrefix(o, "label=") {
+			labels++
+		}
+	}
+	if labels != 1 || !slices.Contains(opts, labelDisable) {
+		return opts
+	}
+	return slices.DeleteFunc(slices.Clone(opts), func(o string) bool { return o == labelDisable })
 }
 
 // securityOptForm is a security option as a spec keeps it: Docker takes the old
@@ -206,17 +247,40 @@ func securityOptForm(o string) string {
 // link to one of these (HostDevices, Decision.DeviceRoot).
 var rootDevices = []string{"/dev/mem", "/dev/kmem", "/dev/port"}
 
+// rootDevicePrefixes are names of devices that write a disk or firmware directly:
+// SCSI generic, NVMe generic and block SCSI generic devices pass a write command
+// straight to a disk, and MTD devices are flash.
+var rootDevicePrefixes = []string{"/dev/mapper/", "/dev/sg", "/dev/ng", "/dev/bsg/", "/dev/mtd", "/dev/raw/"}
+
 // RootDevice reports a device path that is the same as root by its name.
 func RootDevice(p string) bool {
-	return slices.Contains(rootDevices, p) || strings.HasPrefix(p, "/dev/mapper/")
+	return slices.Contains(rootDevices, p) || slices.ContainsFunc(rootDevicePrefixes, func(prefix string) bool { return strings.HasPrefix(p, prefix) })
 }
 
+// rootSubsystems are the kernel subsystems of character devices that are the same
+// as root: what passes commands straight to a disk, flash, and raw disk access. Of
+// mem's, memory, the kernel's memory and ports are (rootMem), and null, zero and the
+// random ones aren't.
+var rootSubsystems = []string{"scsi_generic", "bsg", "nvme-generic", "mtd", "raw"}
+
+// rootMem are the minor numbers of mem's devices that are the same as root:
+// /dev/mem, /dev/kmem and /dev/port.
+var rootMem = []uint32{1, 2, 4}
+
+// confinedTypes are the SELinux types of a confined container, which keep it as
+// SELinux keeps a container: any other type, as spc_t or one of the server's own
+// domains, may not, so it's the same as root.
+var confinedTypes = []string{"container_t", "container_init_t", "container_kvm_t", "svirt_lxc_net_t"}
+
 // rootSecurityOption reports a security option that is the same as root: the
-// kernel's system paths writable, or an SELinux type that's unconfined, as
-// spc_t, the type of a super-privileged container, is.
+// kernel's system paths writable, an SELinux type that isn't a confined
+// container's, or another SELinux user or role, which can reach what the type
+// can't.
 func rootSecurityOption(o string) bool {
-	t, ok := strings.CutPrefix(o, "label=type:")
-	return o == "systempaths=unconfined" || ok && (t == "spc_t" || strings.Contains(t, "unconfined"))
+	if t, ok := strings.CutPrefix(o, "label=type:"); ok {
+		return !slices.Contains(confinedTypes, t)
+	}
+	return o == "systempaths=unconfined" || strings.HasPrefix(o, "label=user:") || strings.HasPrefix(o, "label=role:")
 }
 
 // hostAccess is what a container's devices, GPUs, security options and the
@@ -238,7 +302,16 @@ func hostAccess(c *resourcev1.Container) []resource.Access {
 		case g.GetCount() > 0:
 			which = strconv.Itoa(int(g.GetCount()))
 		}
-		out = append(out, resource.Access{Kind: resource.AccessGPUs, Path: which})
+		// The driver and what it's asked for are part of what's approved: another of
+		// either reaches something else.
+		out = append(out, resource.Access{Kind: resource.AccessGPUs, Path: which, Type: g.GetDriver(), Detail: strings.Join(g.GetCapabilities(), ",")})
+		// A CDI device can bring any mounts and devices its spec on the server lists, so
+		// each is named as a device of its own.
+		if g.GetDriver() == "cdi" {
+			for _, id := range g.GetDeviceIds() {
+				out = append(out, resource.Access{Kind: resource.AccessDevice, Path: id})
+			}
+		}
 	}
 	for _, o := range c.GetSecurityOpt() {
 		out = append(out, resource.Access{Kind: resource.AccessSecurityOption, Path: o, SameAsRoot: rootSecurityOption(o)})
@@ -291,5 +364,27 @@ func HostDevices(p string) (bool, error) {
 	if fi.Mode()&os.ModeDevice == 0 {
 		return false, fmt.Errorf("%s isn't a device on this server. Give a device's path, or mount it as a path instead", p)
 	}
-	return fi.Mode()&os.ModeCharDevice == 0 || RootDevice(target), nil
+	if fi.Mode()&os.ModeCharDevice == 0 || RootDevice(target) {
+		return true, nil
+	}
+	// A character device is what its kernel subsystem says it is, whatever it's
+	// called, which /sys says by its numbers.
+	if st, ok := fi.Sys().(*syscall.Stat_t); ok {
+		return rootSubsystem(sysDevChar, uint64(st.Rdev)), nil //nolint:unconvert // Rdev is uint32 on some platforms
+	}
+	return false, nil
+}
+
+// sysDevChar is where Linux names each character device by its numbers.
+const sysDevChar = "/sys/dev/char"
+
+// rootSubsystem reports a character device, by its numbers, whose kernel subsystem
+// under root is one of rootSubsystems. One /sys doesn't name is taken as it is.
+func rootSubsystem(root string, rdev uint64) bool {
+	link, err := os.Readlink(filepath.Join(root, fmt.Sprintf("%d:%d", unix.Major(rdev), unix.Minor(rdev)), "subsystem"))
+	if err != nil {
+		return false
+	}
+	sub := filepath.Base(link)
+	return slices.Contains(rootSubsystems, sub) || sub == "mem" && slices.Contains(rootMem, unix.Minor(rdev))
 }

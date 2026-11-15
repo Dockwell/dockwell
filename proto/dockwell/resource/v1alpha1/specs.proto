@@ -180,6 +180,11 @@ message Container {
   // kernel.sem and fs.mqueue.* are a container's own, and none reaches the
   // server. net.* takes no host network.
   map<string, string> sysctls = 105;
+  // Names it answers to on one of its networks alone, each as network=name,
+  // such as "default=web", with the network as networks or external_networks
+  // names it: a name another container there linked to it by (ADR 0089). On a
+  // container with one network, it's the same as aliases, and reads as that.
+  repeated string network_aliases = 106;
 }
 
 // Device is a device of the server a container reaches.

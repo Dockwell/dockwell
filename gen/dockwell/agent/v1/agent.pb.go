@@ -13530,7 +13530,10 @@ type LinkAlias struct {
 	// Compose didn't make.
 	Service string `protobuf:"bytes,2,opt,name=service,proto3" json:"service,omitempty"`
 	// The name, such as "web".
-	Alias         string `protobuf:"bytes,3,opt,name=alias,proto3" json:"alias,omitempty"`
+	Alias string `protobuf:"bytes,3,opt,name=alias,proto3" json:"alias,omitempty"`
+	// The network the link reaches the container on, such as "plane_default",
+	// where alone it takes the name on, or empty from an agent before it.
+	Network       string `protobuf:"bytes,4,opt,name=network,proto3" json:"network,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -13582,6 +13585,13 @@ func (x *LinkAlias) GetService() string {
 func (x *LinkAlias) GetAlias() string {
 	if x != nil {
 		return x.Alias
+	}
+	return ""
+}
+
+func (x *LinkAlias) GetNetwork() string {
+	if x != nil {
+		return x.Network
 	}
 	return ""
 }
@@ -15497,11 +15507,12 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x06folder\x18\x05 \x01(\tR\x06folder\x12\x1b\n" +
 	"\tleaned_on\x18\x06 \x03(\tR\bleanedOn\x12\x18\n" +
 	"\ainvalid\x18\a \x01(\tR\ainvalid\x12?\n" +
-	"\flink_aliases\x18\b \x03(\v2\x1c.dockwell.agent.v1.LinkAliasR\vlinkAliases\"Y\n" +
+	"\flink_aliases\x18\b \x03(\v2\x1c.dockwell.agent.v1.LinkAliasR\vlinkAliases\"s\n" +
 	"\tLinkAlias\x12\x1c\n" +
 	"\tcontainer\x18\x01 \x01(\tR\tcontainer\x12\x18\n" +
 	"\aservice\x18\x02 \x01(\tR\aservice\x12\x14\n" +
-	"\x05alias\x18\x03 \x01(\tR\x05alias\"\xe9\x01\n" +
+	"\x05alias\x18\x03 \x01(\tR\x05alias\x12\x18\n" +
+	"\anetwork\x18\x04 \x01(\tR\anetwork\"\xe9\x01\n" +
 	"\x13BackupPreviewResult\x121\n" +
 	"\x06method\x18\x01 \x01(\x0e2\x19.dockwell.v1.BackupMethodR\x06method\x12\x1a\n" +
 	"\bdatabase\x18\x02 \x01(\tR\bdatabase\x12\x18\n" +

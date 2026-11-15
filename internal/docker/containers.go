@@ -114,8 +114,10 @@ type HostConfig struct {
 	// of a device driver, as --gpus does.
 	Devices        []DeviceMapping `json:"Devices,omitempty"`
 	DeviceRequests []DeviceRequest `json:"DeviceRequests,omitempty"`
-	// PidMode "host" shares the server's processes.
+	// PidMode "host" shares the server's processes, and IpcMode "host" its shared
+	// memory, which Docker reports and a spec doesn't hold.
 	PidMode string `json:"PidMode,omitempty"`
+	IpcMode string `json:"IpcMode,omitempty"`
 	// Sysctls are kernel settings of its own namespaces.
 	Sysctls map[string]string `json:"Sysctls,omitempty"`
 	// Init runs the engine's init as its first process; nil takes the engine's

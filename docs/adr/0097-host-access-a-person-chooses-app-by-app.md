@@ -32,19 +32,22 @@ What was settled already:
 
 ### How loud each is
 
-- **A device by what it is, not by its name.** The agent stats the server path as a plan is made, through links: a block device, or `/dev/mem`, `/dev/kmem`, `/dev/port`, or anything under `/dev/mapper`, is the same as root. Like where a path leads, that's the agent's to tell, and it can only make a plan louder (`Decision.DeviceRoot`, carried as a `DEVICE` entry that's the same as root). A device that isn't on the server fails the plan, by its path. Those names are the same as root from the control plane's reading too, whatever the agent says.
-- **SELinux:** `label=type:spc_t`, and any type with `unconfined` in it, are the same as root; `label=disable` is amber, as `apparmor=unconfined` and `seccomp=unconfined` are. `systempaths=unconfined` is the same as root. So is `host_pid`.
+- **A device by what it is, not by its name.** The agent stats the server path as a plan is made, through links: a block device; a character device whose kernel subsystem reaches a disk or raw memory (`scsi_generic`, `bsg`, `nvme-generic`, `mtd`, `raw`, and `mem`'s `/dev/mem`, `/dev/kmem` and `/dev/port`); or anything under `/dev/mapper`, `/dev/sg`, `/dev/ng`, `/dev/bsg/`, `/dev/mtd` or `/dev/raw/`, is the same as root. Like where a path leads, that's the agent's to tell, and it can only make a plan louder (`Decision.DeviceRoot`, carried as a `DEVICE` entry that's the same as root). A device that isn't on the server fails the plan, by its path. Those names are the same as root from the control plane's reading too, whatever the agent says. The plan keeps which devices it found the same as root (`ResourcePlan.root_devices`), and the next plan compares with what was approved: one that's the same as root now and wasn't then is gained, and a plan's roles reach and admin's gate read the same verdict.
+- **SELinux:** a type is amber only where it confines, `container_t`, `container_init_t`, `container_kvm_t` and `svirt_lxc_net_t`, and any other, with `label=user:` and `label=role:`, is the same as root; `label=disable` is amber, as `apparmor=unconfined` and `seccomp=unconfined` are. `systempaths=unconfined` is the same as root. So is `host_pid`.
+- **The daemon's own `label=disable` is none of the spec's.** Docker adds it to a privileged container, and to one with the server's processes or IPC, that asks no label, so it isn't read back, and a spec can't hold it beside those.
+- **A GPU request says its driver and capabilities,** and a driver is Docker's default, `nvidia` or `cdi`; CDI device IDs are shown as devices.
 - **Together they're more.** Host access with a `cap_add` of `SYS_ADMIN`, `SYS_MODULE`, `SYS_PTRACE`, `SYS_RAWIO` or `ALL`, or with `privileged`, is the same as root for the whole app, said once, at the app's first line (`ROOT_TOGETHER`), and the rest says what it is.
 
 ### Who may apply it
 
 - **As for any host access:** a signed-in person, never a token, and an admin or the owner, whatever the project's grants. A developer can plan it, and can't apply it.
 - **The choice stays the app's.** Once applied, it's in the app's spec, so a later change that keeps it, as a new image, needs nothing more, and one that widens it, as another device, goes through the same gate. A developer can't widen it with `services update`.
-- **An agent that can't run them gets none.** One from before would make the container without them, so an agent says it runs them (`Hello.runs_host_access`, 337), and the control plane plans, applies and remembers none on one that doesn't, with how to update it.
+- **An agent that can't run them gets none.** One from before would make the container without them, so an agent says it runs them (`Hello.runs_host_access`, 337), and the control plane plans, applies and remembers none on one that doesn't, with how to update it. The fields that came beside them, `Healthcheck.start_interval` and `Container.network_aliases`, go through the same gate, and one function names them all for the agent and the control plane.
+- **Making a Swarm app again asks the same choice,** by the app's ID. 1Panel's import has none to make, so an app of it that needs some is left, saying the take-on that chooses it: `dockwell compose adopt --name <project> --host-access`, or `AdoptCompose` with `host_access`.
 
 ### Numbers
 
-`Container` 101 to 105, `Device` and `Gpus`; `HostAccessKind` 170 to 174 (`DEVICE`, `GPUS`, `SECURITY_OPTION`, `HOST_PROCESSES`, `ROOT_TOGETHER`); `Hello.runs_host_access` 337; `ImportCoolifyRequest.host_access` and `ImportDokployRequest.host_access` 3, `AdoptComposeRequest.host_access` 5, `AdoptContainerRequest.host_access` 6, `ImportStep.app_id` 8 and `needs_host_access` 9.
+`Container` 101 to 105, `Device` and `Gpus`; `HostAccessKind` 170 to 174 (`DEVICE`, `GPUS`, `SECURITY_OPTION`, `HOST_PROCESSES`, `ROOT_TOGETHER`); `Hello.runs_host_access` 337; `ImportCoolifyRequest.host_access` and `ImportDokployRequest.host_access` 3, `AdoptComposeRequest.host_access` 5, `AdoptContainerRequest.host_access` 6, `ImportStep.app_id` 8 and `needs_host_access` 9; the plan's `root_devices` is in its stored JSON, not the API.
 
 ## Consequences
 

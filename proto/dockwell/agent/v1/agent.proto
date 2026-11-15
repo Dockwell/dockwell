@@ -2497,6 +2497,9 @@ message LinkAlias {
   string service = 2;
   // The name, such as "web".
   string alias = 3;
+  // The network the link reaches the container on, such as "plane_default",
+  // where alone it takes the name on, or empty from an agent before it.
+  string network = 4;
 }
 
 // BackupPreviewResult says what backing up a volume would do.

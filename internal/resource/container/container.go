@@ -755,9 +755,14 @@ func validateHealthcheck(c *resourcev1.Container) error {
 		if *f == "" {
 			continue
 		}
+		// Docker refuses one under a millisecond as it makes the container, so a plan
+		// would apply nothing (the review of ADR 0097, L6).
 		d, err := time.ParseDuration(*f)
-		if err != nil || d <= 0 {
+		switch {
+		case err != nil || d <= 0:
 			return fmt.Errorf("%q isn't a health check duration; give one such as 30s or 1m", *f)
+		case d < time.Millisecond:
+			return fmt.Errorf("a health check's %s is under a millisecond, which Docker refuses. Give one of 1ms or more, such as 5s", d)
 		}
 		*f = d.String()
 	}

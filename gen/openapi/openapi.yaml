@@ -11056,6 +11056,15 @@ components:
                          "net.ipv4.ip_forward": "1". Only net.*, kernel.shm*, kernel.msg*,
                          kernel.sem and fs.mqueue.* are a container's own, and none reaches the
                          server. net.* takes no host network.
+                networkAliases:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        Names it answers to on one of its networks alone, each as network=name,
+                         such as "default=web", with the network as networks or external_networks
+                         names it: a name another container there linked to it by (ADR 0089). On a
+                         container with one network, it's the same as aliases, and reads as that.
             description: |-
                 Container is one Docker container: run by hand on a server, or a
                  service's app. Docker fills in from the image what a container leaves

@@ -291,7 +291,9 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
                 ? t`${name} reads the device ${path} on ${server}`
                 : t`${name} uses the device ${path} on ${server}`,
             };
-      case HostAccessKind.GPUS:
+      case HostAccessKind.GPUS: {
+        const driver = access.type;
+        const what = access.detail;
         return {
           key,
           title:
@@ -300,7 +302,16 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
               : /^[0-9]+$/.test(path)
                 ? t`${name} uses ${path} GPUs on ${server}`
                 : t`${name} uses the GPUs ${path} on ${server}`,
+          more:
+            driver && what
+              ? t`By the ${driver} driver, for ${what}.`
+              : driver
+                ? t`By the ${driver} driver.`
+                : what
+                  ? t`For ${what}.`
+                  : undefined,
         };
+      }
       case HostAccessKind.SECURITY_OPTION:
         return access.sameAsRoot
           ? {

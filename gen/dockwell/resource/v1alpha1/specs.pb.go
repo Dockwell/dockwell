@@ -1232,9 +1232,14 @@ type Container struct {
 	// "net.ipv4.ip_forward": "1". Only net.*, kernel.shm*, kernel.msg*,
 	// kernel.sem and fs.mqueue.* are a container's own, and none reaches the
 	// server. net.* takes no host network.
-	Sysctls       map[string]string `protobuf:"bytes,105,rep,name=sysctls,proto3" json:"sysctls,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Sysctls map[string]string `protobuf:"bytes,105,rep,name=sysctls,proto3" json:"sysctls,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	// Names it answers to on one of its networks alone, each as network=name,
+	// such as "default=web", with the network as networks or external_networks
+	// names it: a name another container there linked to it by (ADR 0089). On a
+	// container with one network, it's the same as aliases, and reads as that.
+	NetworkAliases []string `protobuf:"bytes,106,rep,name=network_aliases,json=networkAliases,proto3" json:"network_aliases,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *Container) Reset() {
@@ -1578,6 +1583,13 @@ func (x *Container) GetHostPid() bool {
 func (x *Container) GetSysctls() map[string]string {
 	if x != nil {
 		return x.Sysctls
+	}
+	return nil
+}
+
+func (x *Container) GetNetworkAliases() []string {
+	if x != nil {
+		return x.NetworkAliases
 	}
 	return nil
 }
@@ -8428,7 +8440,7 @@ var File_dockwell_resource_v1alpha1_specs_proto protoreflect.FileDescriptor
 
 const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\n" +
-	"&dockwell/resource/v1alpha1/specs.proto\x12\x1adockwell.resource.v1alpha1\x1a\x1fgoogle/api/field_behavior.proto\x1a google/protobuf/descriptor.proto\"\xdf\x0f\n" +
+	"&dockwell/resource/v1alpha1/specs.proto\x12\x1adockwell.resource.v1alpha1\x1a\x1fgoogle/api/field_behavior.proto\x1a google/protobuf/descriptor.proto\"\x88\x10\n" +
 	"\tContainer\x12\x14\n" +
 	"\x05image\x18\x01 \x01(\tR\x05image\x12\x18\n" +
 	"\acommand\x18\x02 \x03(\tR\acommand\x12F\n" +
@@ -8486,7 +8498,8 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\x04gpus\x18f \x01(\v2 .dockwell.resource.v1alpha1.GpusR\x04gpus\x12!\n" +
 	"\fsecurity_opt\x18g \x03(\tR\vsecurityOpt\x12\x19\n" +
 	"\bhost_pid\x18h \x01(\bR\ahostPid\x12L\n" +
-	"\asysctls\x18i \x03(\v22.dockwell.resource.v1alpha1.Container.SysctlsEntryR\asysctls\x1a6\n" +
+	"\asysctls\x18i \x03(\v22.dockwell.resource.v1alpha1.Container.SysctlsEntryR\asysctls\x12'\n" +
+	"\x0fnetwork_aliases\x18j \x03(\tR\x0enetworkAliases\x1a6\n" +
 	"\bEnvEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a9\n" +

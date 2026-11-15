@@ -38,7 +38,16 @@ type reachStand struct {
 
 func newReachStand(t *testing.T, backend store.Backend) *reachStand {
 	t.Helper()
+	return newReachStandWith(t, backend, nil)
+}
+
+// newReachStandWith is newReachStand with its control plane set up by setup first.
+func newReachStandWith(t *testing.T, backend store.Backend, setup func(*fullServer)) *reachStand {
+	t.Helper()
 	f := startFull(t, backend, nil)
+	if setup != nil {
+		setup(f)
+	}
 	b := signedIn(t, f)
 	// It serves routes too, in memory, so a domain can be held.
 	e := f.addServerWith(t, func() []resource.Type {

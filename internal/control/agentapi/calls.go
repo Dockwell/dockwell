@@ -1880,20 +1880,15 @@ func (s *Session) checkOwnSettings(ref resource.Ref, spec proto.Message) error {
 }
 
 // checkHostAccess refuses a spec that reaches the server through a device, a GPU,
-// a security option, the server's processes or a sysctl, for an agent that doesn't
-// say it runs them: it would make the container without them (ADR 0097).
+// a security option, the server's processes or a sysctl, or has a field that came
+// with them, for an agent that doesn't say it runs them: it would make the
+// container without them (ADR 0097).
 func (s *Session) checkHostAccess(ref resource.Ref, spec proto.Message) error {
-	if s.runsHostAccess || spec == nil || !anyContainer(spec.ProtoReflect(), writesHostAccess) {
+	if s.runsHostAccess || spec == nil || !anyContainer(spec.ProtoReflect(), containerkind.WritesHostAccess) {
 		return nil
 	}
-	return fmt.Errorf("%w: the agent on %s is from before Dockwell ran a container's devices, GPUs, security options and sysctls, which %s asks for, so it would leave them out. Update the agent on %s",
+	return fmt.Errorf("%w: the agent on %s is from before Dockwell ran a container's devices, GPUs, security options, sysctls, health check start_interval and names on one network, which %s asks for, so it would leave them out. Update the agent on %s",
 		resource.ErrAgentTooOld, s.name, ref.Name, s.name)
-}
-
-// writesHostAccess reports a container with any of what checkHostAccess asks of
-// an agent, as container.WritesHostAccess does.
-func writesHostAccess(c *resourcev1.Container) bool {
-	return len(c.GetDevices()) > 0 || c.GetGpus() != nil || len(c.GetSecurityOpt()) > 0 || c.GetHostPid() || len(c.GetSysctls()) > 0
 }
 
 // checkFiles refuses a spec that mounts a file Dockwell writes, for an agent that
@@ -2194,7 +2189,7 @@ func (s *Session) Adoption(ctx context.Context, container string, ref resource.R
 	}
 	out := resource.Adoption{Spec: spec, Refused: a.GetRefused(), Shows: a.GetShows(), Manager: a.GetManager(), Folder: a.GetFolder(), LeanedOn: a.GetLeanedOn(), Invalid: a.GetInvalid()}
 	for _, l := range a.GetLinkAliases() {
-		out.LinkAliases = append(out.LinkAliases, resource.LinkAlias{Container: l.GetContainer(), Service: l.GetService(), Alias: l.GetAlias()})
+		out.LinkAliases = append(out.LinkAliases, resource.LinkAlias{Container: l.GetContainer(), Service: l.GetService(), Alias: l.GetAlias(), Network: l.GetNetwork()})
 	}
 	return out, nil
 }

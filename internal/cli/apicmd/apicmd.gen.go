@@ -3519,6 +3519,7 @@ func Kinds() []*apicli.Kind {
 				{Path: "app.security_opt", Help: "Security options past no_new_privileges, each host access: \"seccomp=unconfined\", \"apparmor=unconfined\", \"label=disable\", \"label=type:spc_t\" and the other label fields, and \"systempaths=unconfined\". A label type that's unconfined, and systempaths=unconfined, are the same as root."},
 				{Path: "app.host_pid", Help: "Sees and signals every process on the server, as Compose's pid: host does. It is host access, the same as root."},
 				{Path: "app.sysctls", Help: "Kernel settings of its own namespaces, such as \"net.ipv4.ip_forward\": \"1\". Only net.*, kernel.shm*, kernel.msg*, kernel.sem and fs.mqueue.* are a container's own, and none reaches the server. net.* takes no host network."},
+				{Path: "app.network_aliases", Help: "Names it answers to on one of its networks alone, each as network=name, such as \"default=web\", with the network as networks or external_networks names it: a name another container there linked to it by (ADR 0089). On a container with one network, it's the same as aliases, and reads as that."},
 				{Path: "variables", Help: "The environment's variables the service uses, each under the name the service sees it as: DATABASE_HOST=DB_HOST gives the service the variable DB_HOST as DATABASE_HOST. An empty value means the variable of the same name."},
 				{Path: "secrets", Help: "The environment's secrets the service uses, named as for variables. Using a secret doesn't let anyone read it: its value goes only to the servers the service runs on, and only their agents decrypt it."},
 				{Path: "build.git.url", Help: "The repository, such as \"https://github.com/acme/web.git\", over HTTPS, or HTTP on a private network. It can't hold a user, a password or a token."},
@@ -3615,6 +3616,7 @@ func Kinds() []*apicli.Kind {
 				{Path: "security_opt", Help: "Security options past no_new_privileges, each host access: \"seccomp=unconfined\", \"apparmor=unconfined\", \"label=disable\", \"label=type:spc_t\" and the other label fields, and \"systempaths=unconfined\". A label type that's unconfined, and systempaths=unconfined, are the same as root."},
 				{Path: "host_pid", Help: "Sees and signals every process on the server, as Compose's pid: host does. It is host access, the same as root."},
 				{Path: "sysctls", Help: "Kernel settings of its own namespaces, such as \"net.ipv4.ip_forward\": \"1\". Only net.*, kernel.shm*, kernel.msg*, kernel.sem and fs.mqueue.* are a container's own, and none reaches the server. net.* takes no host network."},
+				{Path: "network_aliases", Help: "Names it answers to on one of its networks alone, each as network=name, such as \"default=web\", with the network as networks or external_networks names it: a name another container there linked to it by (ADR 0089). On a container with one network, it's the same as aliases, and reads as that."},
 			},
 		},
 		{

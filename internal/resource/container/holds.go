@@ -485,13 +485,20 @@ func readHealthcheck(raw json.RawMessage, _ *reading) []string {
 // readSecurityOpt reads a container's security options: no-new-privileges a spec
 // holds (ADR 0085), and those it holds as security_opt (ADR 0097); any other
 // option is named.
-func readSecurityOpt(raw json.RawMessage, _ *reading) []string {
+func readSecurityOpt(raw json.RawMessage, r *reading) []string {
 	var opts []string
 	if isZero(raw) {
 		return nil
 	}
 	if json.Unmarshal(raw, &opts) != nil {
 		return []string{"security_opt"}
+	}
+	for i := range opts {
+		opts[i] = securityOptForm(opts[i])
+	}
+	if r != nil && r.c != nil {
+		h := r.c.HostConfig
+		opts = withoutDaemonsLabel(opts, h.Privileged || h.PidMode == "host" || h.IpcMode == "host")
 	}
 	var out []string
 	for _, o := range opts {
