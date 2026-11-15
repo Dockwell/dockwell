@@ -12537,6 +12537,9 @@ msgstr "No login or address limit found"
 msgid "Nothing left to hand over"
 msgstr "Nothing left to hand over"
 
+msgid "Redirects to {to}"
+msgstr "Redirects to {to}"
+
 msgid "1Panel isn't on this server"
 msgstr "1Panel isn't on this server"
 

@@ -19,7 +19,32 @@ import { type Opening, PlanView } from "../changes/ChangeSheet";
  * which a person chooses or not; each other says why it stays, and can't be
  * chosen. The plan names the chosen ones, and the agent checks them again before
  * the proxy stops.
+ *
+ * A domain the proxy redirects to its other half, www to the bare domain or the
+ * other way, comes as a redirect (ADR 0070), and only with the domain it lands on,
+ * which would stop answering otherwise: choosing one chooses the other, and
+ * leaving the one it lands on leaves it too.
  */
+
+/** The domain a check's redirect lands on, where the proxy serves that one too, or "". */
+function landsOn(c: PanelDomainCheck, checks: readonly PanelDomainCheck[]): string {
+  if (c.redirectsTo === "") return "";
+  try {
+    const host = new URL(c.redirectsTo).hostname;
+    return checks.some((o) => o.domain === host) ? host : "";
+  } catch {
+    return "";
+  }
+}
+
+/** Where a check's redirect goes, as a host, or "". */
+function redirectHost(c: PanelDomainCheck): string {
+  try {
+    return c.redirectsTo === "" ? "" : new URL(c.redirectsTo).host;
+  } catch {
+    return c.redirectsTo;
+  }
+}
 
 /** The sheet that checks a panel's domains and has a person choose which come over. */
 export function HandOverSheet({
@@ -50,7 +75,13 @@ export function HandOverSheet({
       .then((res) => {
         if (gone) return;
         setChecks(res.domains);
-        setChosen(new Set(res.domains.filter((d) => d.held === "" && d.unsure === "").map((d) => d.domain)));
+        const ready = new Set(res.domains.filter((d) => d.held === "" && d.unsure === "").map((d) => d.domain));
+        // A redirect is chosen already only with the domain it lands on.
+        for (const d of res.domains) {
+          const to = landsOn(d, res.domains);
+          if (to !== "" && !ready.has(to)) ready.delete(d.domain);
+        }
+        setChosen(ready);
       })
       .catch((err: unknown) => {
         if (!gone) setFailure(err);
@@ -63,8 +94,16 @@ export function HandOverSheet({
   const pick = (domain: string, on: boolean) =>
     setChosen((was) => {
       const next = new Set(was);
-      if (on) next.add(domain);
-      else next.delete(domain);
+      const all = checks ?? [];
+      if (on) {
+        next.add(domain);
+        const c = all.find((o) => o.domain === domain);
+        const to = c ? landsOn(c, all) : "";
+        if (to !== "") next.add(to);
+      } else {
+        next.delete(domain);
+        for (const o of all) if (landsOn(o, all) === domain) next.delete(o.domain);
+      }
       return next;
     });
   const review = () => {
@@ -137,6 +176,7 @@ export function HandOverSheet({
                   />
                   <span className="handover-name">{c.domain}</span>
                 </label>
+                {c.redirectsTo !== "" ? <Redirects to={redirectHost(c)} /> : null}
                 <span className="handover-found">
                   {c.held !== "" ? (
                     <>
@@ -178,5 +218,15 @@ export function HandOverSheet({
         </>
       )}
     </Sheet>
+  );
+}
+
+/** Where a domain the proxy redirects goes, said beside it. */
+function Redirects({ to }: { to: string }) {
+  return (
+    <span className="handover-found handover-redirects">
+      <Icon name="arrow-right" size={12} />
+      <Trans>Redirects to {to}</Trans>
+    </span>
   );
 }

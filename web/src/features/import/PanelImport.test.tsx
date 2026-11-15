@@ -193,6 +193,60 @@ describe("moving in from Coolify", () => {
     expect(sheet).toHaveTextContent("Undo for");
   });
 
+  it("hands over a domain the proxy redirects only with the domain it lands on, and says where it goes", async () => {
+    const user = userEvent.setup();
+    const open = (domain: string, redirectsTo = "") => ({
+      domain,
+      redirectsTo,
+      probes: [
+        { path: "/", answer: redirectsTo ? "302 to shop.example.com, as its redirect does" : "200", open: true },
+      ],
+    });
+    const checkPanelDomains = vi.fn((_req: CheckPanelDomainsRequest) =>
+      create(CheckPanelDomainsResponseSchema, {
+        domains: [
+          open("shop.example.com"),
+          open("www.shop.example.com", "https://shop.example.com"),
+          { domain: "docs.example.com", unsure: "a request for / answered 404, which says nothing of a login" },
+          open("www.docs.example.com", "https://docs.example.com"),
+        ],
+      }),
+    );
+    const planPanelDomains = vi.fn((_req: PlanPanelDomainsRequest) => ({ change: handover }));
+    renderAt(
+      "/servers/srv_1/import",
+      api({ imports: { importCoolify: () => found, checkPanelDomains, planPanelDomains } }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Read what Coolify runs" }));
+    await user.click(await screen.findByRole("button", { name: "Hand over ports 80 and 443" }));
+    const choice = await screen.findByRole("dialog", { name: "Hand over Coolify's domains" });
+    const shop = (await within(choice).findByRole("checkbox", { name: "shop.example.com" })) as HTMLInputElement;
+    const www = within(choice).getByRole("checkbox", { name: "www.shop.example.com" }) as HTMLInputElement;
+    const docsWww = within(choice).getByRole("checkbox", { name: "www.docs.example.com" }) as HTMLInputElement;
+    const row = www.closest("li");
+    expect(row).toHaveTextContent("Redirects to shop.example.com");
+    expect(row).toHaveTextContent("302 to shop.example.com, as its redirect does");
+    // Chosen already with the domain it lands on, and not where that one isn't.
+    expect(shop.checked && www.checked).toBe(true);
+    expect(docsWww.checked).toBe(false);
+    // Leaving the domain it lands on leaves it too; choosing it chooses that one.
+    await user.click(shop);
+    expect(shop.checked || www.checked).toBe(false);
+    await user.click(www);
+    expect(shop.checked && www.checked).toBe(true);
+    await user.click(docsWww);
+    expect((within(choice).getByRole("checkbox", { name: "docs.example.com" }) as HTMLInputElement).checked).toBe(true);
+    await expectAccessible(choice);
+    await user.click(within(choice).getByRole("button", { name: "Review plan" }));
+    await waitFor(() => expect(planPanelDomains).toHaveBeenCalledTimes(1));
+    expect(planPanelDomains.mock.calls[0]?.[0]?.domains).toEqual([
+      "docs.example.com",
+      "shop.example.com",
+      "www.docs.example.com",
+      "www.shop.example.com",
+    ]);
+  });
+
   it("offers the proxy's start where it's stopped and no domain is a route", async () => {
     const user = userEvent.setup();
     const planStartPanel = vi.fn((_req: { serverId: string; panel: PanelKind; proxy: boolean }) => ({
