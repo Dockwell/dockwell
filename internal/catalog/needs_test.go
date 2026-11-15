@@ -125,8 +125,19 @@ func removeDependsOn(file string) string {
 	return strings.Join(out, "")
 }
 
+// withEngineWord has an entry's need set the engine that meets it as DB_TYPE, in the
+// app's words for MySQL and MariaDB.
+func withEngineWord(e *catalogv1.Entry) *catalogv1.Entry {
+	e.Needs[0].Sets = append(e.Needs[0].Sets, &catalogv1.NeedSet{Name: "DB_TYPE", Part: catalogv1.Part_PART_ENGINE, Words: []*catalogv1.NeedWord{
+		{Engine: catalogv1.Engine_ENGINE_MYSQL, Word: "mysql"},
+		{Engine: catalogv1.Engine_ENGINE_MARIADB, Word: "mariadb"},
+	}})
+	e.Compose = regexp.MustCompile(`(?m)^(\s+)WORDPRESS_DB_NAME: (.*)$`).ReplaceAllString(e.GetCompose(), "${1}WORDPRESS_DB_NAME: $2\n${1}WORDPRESS_DB_TYPE: $${DB_TYPE}")
+	return e
+}
+
 func TestCheckTakesNeeds(t *testing.T) {
-	for _, e := range []*catalogv1.Entry{wordpressNeeds(t), fromAnotherStore(t)} {
+	for _, e := range []*catalogv1.Entry{wordpressNeeds(t), fromAnotherStore(t), withEngineWord(fromAnotherStore(t))} {
 		if err := catalog.Check(e); err != nil {
 			t.Errorf("%s: %v", e.GetId(), err)
 		}
@@ -162,6 +173,25 @@ func TestCheckRefusesANeed(t *testing.T) {
 		"only a TLS part": func(e *catalogv1.Entry) {
 			e.Needs[0].Sets[0].Tls = &catalogv1.NeedTls{On: "true", Off: "false"}
 		},
+		"has no word for MariaDB": func(e *catalogv1.Entry) {
+			withEngineWord(e)
+			e.Needs[0].Sets[4].Words = e.Needs[0].Sets[4].Words[:1]
+		},
+		"which it doesn't accept": func(e *catalogv1.Entry) {
+			withEngineWord(e)
+			e.Needs[0].Sets[4].Words[1].Engine = catalogv1.Engine_ENGINE_POSTGRESQL
+		},
+		"two words for MySQL": func(e *catalogv1.Entry) {
+			withEngineWord(e)
+			e.Needs[0].Sets[4].Words[1].Engine = catalogv1.Engine_ENGINE_MYSQL
+		},
+		"one word the app reads": func(e *catalogv1.Entry) {
+			withEngineWord(e)
+			e.Needs[0].Sets[4].Words[0].Word = "my sql"
+		},
+		"only an engine part reads": func(e *catalogv1.Entry) {
+			e.Needs[0].Sets[0].Words = []*catalogv1.NeedWord{{Engine: catalogv1.Engine_ENGINE_MYSQL, Word: "mysql"}}
+		},
 		"user would be root":       func(e *catalogv1.Entry) { e.Needs[0].User = "root" },
 		"user would be pg_monitor": func(e *catalogv1.Entry) { e.Needs[0].User = "pg_monitor" },
 		"database would be mysql":  func(e *catalogv1.Entry) { e.Needs[0].Database, e.Needs[0].User = "mysql", "blog" },
@@ -179,6 +209,35 @@ func TestCheckRefusesANeed(t *testing.T) {
 	e.Needs[0].Name = "wordpress"
 	if err := catalog.Check(e); err == nil || !strings.Contains(err.Error(), "has a service called wordpress") {
 		t.Errorf("a clash with a service: got %v", err)
+	}
+}
+
+// An engine part is the app's word for the engine that meets its need, whichever that
+// is: what a new MySQL or a new MariaDB beside it sets, as a plain value of the app's.
+func TestAnEngineWordIsTheEngineThatMeetsIt(t *testing.T) {
+	e := withEngineWord(fromAnotherStore(t))
+	for choice, want := range map[string]string{"new:mysql": "mysql", "new:mariadb": "mariadb"} {
+		met, err := catalog.Meet(e, catalog.Ways(e, lookupBuiltIn(t)), map[string]string{"db": choice}, nil)
+		if err != nil {
+			t.Fatalf("%s: %v", choice, err)
+		}
+		needed, err := catalog.Need(e, met)
+		if err != nil {
+			t.Fatalf("%s: %v", choice, err)
+		}
+		i := slices.IndexFunc(needed.Entry.GetInputs(), func(in *catalogv1.Input) bool { return in.GetName() == "DB_TYPE" })
+		if i < 0 || needed.Entry.GetInputs()[i].GetDefaultValue() != want || catalog.Secret(needed.Entry.GetInputs()[i]) {
+			t.Errorf("%s: DB_TYPE = %v, want a plain %q", choice, needed.Entry.GetInputs(), want)
+		}
+		if !slices.Contains(needed.Plain, "DB_TYPE") {
+			t.Errorf("%s: DB_TYPE isn't among the names the need sets plainly, %v", choice, needed.Plain)
+		}
+		if l := needed.Links["db"]; !slices.ContainsFunc(l.GetSets(), func(s *resourcev1.LinkSet) bool {
+			return s.GetName() == "DB_TYPE" && s.GetPart() == resourcev1.LinkPart_LINK_PART_ENGINE
+		}) {
+			t.Errorf("%s: the link doesn't set DB_TYPE as the engine: %v", choice, l)
+		}
+		readsAsInstalled(t, needed.Entry)
 	}
 }
 

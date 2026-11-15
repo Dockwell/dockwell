@@ -16319,6 +16319,7 @@ components:
                         - LINK_PART_URL
                         - LINK_PART_TLS
                         - LINK_PART_KEY_PREFIX
+                        - LINK_PART_ENGINE
                     type: string
                     description: What it holds.
                     format: enum
@@ -17657,6 +17658,7 @@ components:
                         - PART_URL
                         - PART_TLS
                         - PART_KEY_PREFIX
+                        - PART_ENGINE
                     type: string
                     description: What it holds.
                     format: enum
@@ -17675,6 +17677,16 @@ components:
                         How the app reads whether to use TLS, for a TLS part or {tls} in a template:
                          its words for on and off, such as "require" and "disable" for libpq, or
                          "true" and "false" for node-postgres or Go's MySQL driver.
+                words:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/NeedWord'
+                    description: |-
+                        The app's word for each engine the need accepts, for an engine part: what
+                         it reads as the engine that meets it, such as "postgres" for PostgreSQL and
+                         "mysql" for MySQL and MariaDB. One for each engine the need accepts, and
+                         only for an engine part. See
+                         docs/adr/0084-what-an-app-needs-met-by-a-new-service-one-you-run-or-a-connection.md.
             description: NeedSet is a name a need sets in the app's environment, and what it holds.
         NeedTls:
             type: object
@@ -17686,6 +17698,26 @@ components:
                     type: string
                     description: What it reads as off, such as "disable".
             description: NeedTls is how an app reads whether to use TLS.
+        NeedWord:
+            type: object
+            properties:
+                engine:
+                    enum:
+                        - ENGINE_UNSPECIFIED
+                        - ENGINE_POSTGRESQL
+                        - ENGINE_MYSQL
+                        - ENGINE_MARIADB
+                        - ENGINE_REDIS
+                        - ENGINE_VALKEY
+                        - ENGINE_MONGODB
+                        - ENGINE_CLICKHOUSE
+                    type: string
+                    description: The engine.
+                    format: enum
+                word:
+                    type: string
+                    description: The app's word for it, such as "postgres".
+            description: NeedWord is an app's word for an engine, as an engine part writes it.
         Network:
             type: object
             properties:

@@ -992,6 +992,29 @@ describe("the plan sheet", () => {
     );
   });
 
+  it("says first that an app moved onto another engine leaves its data, and asks for the typed code", async () => {
+    const moving = webPlanned();
+    if (moving.plan) {
+      moving.plan.destructive = true;
+      moving.plan.notes = [
+        create(PlanNoteSchema, {
+          reason: "catalog_need_other_engine",
+          message: "Roundcube's data stays in MySQL; PostgreSQL starts empty",
+          names: ["Roundcube", "MySQL", "PostgreSQL"],
+        }),
+      ];
+    }
+    renderSheet(proposeWeb, {
+      changes: { proposeChange: () => ({ change: moving }), watchChange: feed<WatchChangeResponse>().stream },
+    });
+    const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+    await within(sheet).findByText(/data stays in MySQL/);
+    expect(sheet.textContent).toContain("Roundcube's data stays in MySQL; PostgreSQL starts empty");
+    expect(sheet.textContent).toContain("Undo this change to put Roundcube back on its data.");
+    // Destroying data, as a deletion does: the plan's code is typed before Apply acts.
+    expect(within(sheet).getByRole("button", { name: /Apply/ })).toBeDisabled();
+  });
+
   it("says what a server's note means in its own words, so they translate", async () => {
     await activateLocale("zh-CN");
     try {

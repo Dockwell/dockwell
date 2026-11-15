@@ -15,8 +15,8 @@ import (
 // A 1Panel app that uses another app's database server takes it as a need (ADR 0084):
 // met by a new one beside it by default, 1Panel's default engine first, and by one a
 // person runs, on which the app gets a user of its own. Its database's values aren't
-// inputs, the file reads each as a whole value the need sets, and its init.sh turning
-// the engine's word into the app's own is the word written in.
+// inputs, the file reads each as a whole value the need sets, and the engine's word is
+// an engine part, in the app's own word where its init.sh turns 1Panel's into one.
 func TestAOnePanelAppThatUsesADatabaseHasANeed(t *testing.T) {
 	r := convertFixture(t, converter(), "withdb")
 	if r.Entry == nil {
@@ -27,7 +27,7 @@ func TestAOnePanelAppThatUsesADatabaseHasANeed(t *testing.T) {
 		t.Fatalf("needs = %v, want one", needs)
 	}
 	n := needs[0]
-	// The file reads the engine's word, so the need takes 1Panel's default alone.
+	// The form offers PostgreSQL and MySQL, and its URL is postgres://: PostgreSQL alone.
 	if n.GetName() != "db" || len(n.GetAccepts()) != 1 || n.GetAccepts()[0].GetEngine() != catalogv1.Engine_ENGINE_POSTGRESQL {
 		t.Errorf("need = %v, want db, PostgreSQL alone", n)
 	}
@@ -40,10 +40,16 @@ func TestAOnePanelAppThatUsesADatabaseHasANeed(t *testing.T) {
 	}
 	want := map[string]string{
 		"DB_HOST":      "PART_HOST ",
+		"DB_TYPE":      "PART_ENGINE ",
 		"DATABASE_URL": "PART_URL postgres://{user}:{password}@{host}:{port}/{database}",
 	}
 	if !maps.Equal(got, want) {
 		t.Errorf("sets = %v, want %v", got, want)
+	}
+	for _, s := range n.GetSets() {
+		if s.GetName() == "DB_TYPE" && (len(s.GetWords()) != 1 || s.GetWords()[0].GetWord() != "pgsql") {
+			t.Errorf("DB_TYPE's words = %v, want PostgreSQL's alone, as the app's own pgsql", s.GetWords())
+		}
 	}
 	file := r.Entry.GetCompose()
 	for _, gone := range []string{"PANEL_DB", "${DB_NAME}", "${DB_USER}"} {
@@ -51,8 +57,8 @@ func TestAOnePanelAppThatUsesADatabaseHasANeed(t *testing.T) {
 			t.Errorf("the file still names %s\n%s", gone, file)
 		}
 	}
-	if !strings.Contains(file, "DB_TYPE=pgsql") {
-		t.Errorf("the engine's word isn't the app's own, pgsql\n%s", file)
+	if !strings.Contains(file, "DB_TYPE=${DB_TYPE}") {
+		t.Errorf("the file doesn't read the engine's word as the need sets it\n%s", file)
 	}
 	for _, in := range r.Entry.GetInputs() {
 		if strings.HasPrefix(in.GetName(), "DB_") {
@@ -84,6 +90,16 @@ func postgres() NeedDraft {
 			"PANEL_DB_USER_PASSWORD": catalogv1.Part_PART_PASSWORD,
 		},
 	}
+}
+
+// typedDraft is a database need's draft whose app reads which engine it's on, on
+// PostgreSQL or MySQL.
+func typedDraft() NeedDraft {
+	d := postgres()
+	d.Engines = append(d.Engines, catalogv1.Engine_ENGINE_MYSQL)
+	d.Parts["PANEL_DB_TYPE"] = catalogv1.Part_PART_ENGINE
+	d.Words = map[catalogv1.Engine]string{catalogv1.Engine_ENGINE_POSTGRESQL: "pgsql", catalogv1.Engine_ENGINE_MYSQL: "mysql"}
+	return d
 }
 
 // Each value a need sets is a whole value of a service's environment, as an entry's
@@ -172,6 +188,10 @@ func TestWhatANeedCantWrite(t *testing.T) {
 			app: needApp("    environment:\n      - DB_HOST=${PANEL_DB_HOST}\n", postgres()),
 			why: "with no password of its own",
 		},
+		"a URL of an engine it isn't offered": {
+			app: needApp("    environment:\n      - URL=mongodb://${PANEL_DB_USER}:${PANEL_DB_USER_PASSWORD}@${PANEL_DB_HOST}/${PANEL_DB_NAME}\n", postgres()),
+			why: "its URL for Database names an engine its form doesn't offer",
+		},
 	} {
 		_, err := rewrite(tc.app)
 		if err == nil || !strings.Contains(err.Error(), tc.why) || classOf(err, ClassFile) != ClassAnotherApp {
@@ -181,24 +201,64 @@ func TestWhatANeedCantWrite(t *testing.T) {
 }
 
 // A draft the file doesn't use is no need, a need named as a service is renamed, and
-// a word the source fills with the engine's is written in.
+// a variable the source fills with the engine's word is an engine part, with the app's
+// word for each engine the need accepts, which the catalog's checks take.
 func TestANeedsNameAndWhatItLeaves(t *testing.T) {
 	unused := NeedDraft{
 		Name: "redis", Label: "Redis", Engines: []catalogv1.Engine{catalogv1.Engine_ENGINE_REDIS},
 		Parts: map[string]catalogv1.Part{"PANEL_REDIS_HOST": catalogv1.Part_PART_HOST},
 	}
-	typed := postgres()
-	typed.Fixed = map[string]string{"PANEL_DB_TYPE": "pgsql"}
+	typed := typedDraft()
 	app := needApp("    environment:\n      - DB_HOST=${PANEL_DB_HOST}\n      - DB_PASS=${PANEL_DB_USER_PASSWORD}\n      - DB_TYPE=${PANEL_DB_TYPE}\n  db:\n    image: example/other:1.0\n", typed, unused)
 	rw, err := rewrite(app)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(rw.needs) != 1 || rw.needs[0].GetName() != "db-need" {
-		t.Errorf("needs = %v, want db alone, renamed from the service db", rw.needs)
+		t.Fatalf("needs = %v, want db alone, renamed from the service db", rw.needs)
 	}
-	if !strings.Contains(string(rw.file), "DB_TYPE=pgsql") {
-		t.Errorf("the engine's word isn't written in\n%s", rw.file)
+	n := rw.needs[0]
+	if len(n.GetAccepts()) != 2 {
+		t.Errorf("accepts = %v, want PostgreSQL and MySQL", n.GetAccepts())
+	}
+	var words []string
+	for _, s := range n.GetSets() {
+		if s.GetPart() == catalogv1.Part_PART_ENGINE {
+			for _, w := range s.GetWords() {
+				words = append(words, w.GetEngine().String()+"="+w.GetWord())
+			}
+		}
+	}
+	if !slices.Equal(words, []string{"ENGINE_POSTGRESQL=pgsql", "ENGINE_MYSQL=mysql"}) {
+		t.Errorf("the engine part's words = %v, want pgsql for PostgreSQL and mysql for MySQL", words)
+	}
+	if !strings.Contains(string(rw.file), "DB_TYPE=${DB_TYPE}") {
+		t.Errorf("the file doesn't read the engine's word as the need sets it\n%s", rw.file)
+	}
+
+	// The engine's word inside a longer value, as a URL's scheme, is no part: the need
+	// takes its first engine alone, with that engine's word written in.
+	app = needApp("    environment:\n      - DB_HOST=${PANEL_DB_HOST}\n      - DB_PASS=${PANEL_DB_USER_PASSWORD}\n      - DB_TYPE=${PANEL_DB_TYPE}\n      - DRIVER=pdo_${PANEL_DB_TYPE}\n", typed)
+	if rw, err = rewrite(app); err != nil {
+		t.Fatal(err)
+	}
+	if a := rw.needs[0].GetAccepts(); len(a) != 1 || a[0].GetEngine() != catalogv1.Engine_ENGINE_POSTGRESQL {
+		t.Errorf("accepts = %v, want PostgreSQL alone, as the word is part of DRIVER", a)
+	}
+	if file := string(rw.file); !strings.Contains(file, "DRIVER=pdo_pgsql") || !strings.Contains(file, "DB_TYPE=pgsql") {
+		t.Errorf("PostgreSQL's word isn't written in\n%s", file)
+	}
+	if slices.ContainsFunc(rw.needs[0].GetSets(), func(s *catalogv1.NeedSet) bool { return s.GetPart() == catalogv1.Part_PART_ENGINE }) {
+		t.Errorf("sets = %v, want no engine part", rw.needs[0].GetSets())
+	}
+
+	// A URL that names its engine takes that engine alone, and its word alone.
+	app = needApp("    environment:\n      - DB_TYPE=${PANEL_DB_TYPE}\n      - URL=mysql://${PANEL_DB_USER}:${PANEL_DB_USER_PASSWORD}@${PANEL_DB_HOST}/${PANEL_DB_NAME}\n", typed)
+	if rw, err = rewrite(app); err != nil {
+		t.Fatal(err)
+	}
+	if a := rw.needs[0].GetAccepts(); len(a) != 1 || a[0].GetEngine() != catalogv1.Engine_ENGINE_MYSQL {
+		t.Errorf("accepts = %v, want MySQL alone, as its URL is mysql://", a)
 	}
 }
 
@@ -232,7 +292,7 @@ func TestOnePanelsFormMakesNeeds(t *testing.T) {
 		}
 		return out
 	}
-	if len(needs) != 2 || !slices.Equal(engines(needs[0]), []string{"ENGINE_MARIADB", "ENGINE_MYSQL", "ENGINE_POSTGRESQL"}) || needs[0].Fixed != nil {
+	if len(needs) != 2 || !slices.Equal(engines(needs[0]), []string{"ENGINE_MARIADB", "ENGINE_MYSQL", "ENGINE_POSTGRESQL"}) || needs[0].Parts["PANEL_DB_TYPE"] != catalogv1.Part_PART_UNSPECIFIED {
 		t.Errorf("the database need = %v, want MariaDB first, then MySQL and PostgreSQL", needs)
 	}
 	if len(needs) == 2 && (!slices.Equal(engines(needs[1]), []string{"ENGINE_REDIS", "ENGINE_VALKEY"}) || needs[1].Parts["PANEL_REDIS_ROOT_PASSWORD"] != catalogv1.Part_PART_PASSWORD) {
@@ -244,13 +304,15 @@ func TestOnePanelsFormMakesNeeds(t *testing.T) {
 		}
 	}
 
-	// The file reads the engine's word: the default alone, in the app's own word for it.
+	// The file reads the engine's word: an engine part, with 1Panel's word for each
+	// engine, or the app's own where its init.sh turns 1Panel's into one.
 	needs, _, err = onePanelNeeds(fields[:3], []byte("DB_TYPE=${PANEL_DB_TYPE}"), map[string]string{"mariadb": "mysql"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Equal(engines(needs[0]), []string{"ENGINE_MARIADB"}) || needs[0].Fixed["PANEL_DB_TYPE"] != "mysql" {
-		t.Errorf("a typed need = %v, want MariaDB alone, written as mysql", needs[0])
+	want := map[catalogv1.Engine]string{catalogv1.Engine_ENGINE_MARIADB: "mysql", catalogv1.Engine_ENGINE_MYSQL: "mysql", catalogv1.Engine_ENGINE_POSTGRESQL: "postgres"}
+	if !slices.Equal(engines(needs[0]), []string{"ENGINE_MARIADB", "ENGINE_MYSQL", "ENGINE_POSTGRESQL"}) || needs[0].Parts["PANEL_DB_TYPE"] != catalogv1.Part_PART_ENGINE || !maps.Equal(needs[0].Words, want) {
+		t.Errorf("a typed need = %v, want every engine, with an engine part written as %v", needs[0], want)
 	}
 }
 

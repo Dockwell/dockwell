@@ -1173,6 +1173,109 @@ func TestUseAnotherDatabase(t *testing.T) {
 	}
 }
 
+// An app that reads which engine it's on is set the word for the engine that meets
+// its need, and moving it onto an empty database of another engine says first that
+// its data stays where it was: the plan counts as destroying data, so applying it
+// takes its typed fingerprint, as a deletion does (ADR 0084).
+func TestUseAnotherEngineSaysItsDataStays(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	useCatalogDir(t, dir)
+	typed := strings.Replace(blogEntry, "      - engine: ENGINE_POSTGRESQL\n        versions: \">=15\"\n", "      - engine: ENGINE_MYSQL\n      - engine: ENGINE_POSTGRESQL\n        versions: \">=15\"\n", 1)
+	typed = strings.Replace(typed, "      - name: DATABASE_URL\n        part: PART_URL\n", "      - name: DATABASE_URL\n        part: PART_URL\n      - name: DB_TYPE\n        part: PART_ENGINE\n        words:\n          - engine: ENGINE_MYSQL\n            word: mysql\n          - engine: ENGINE_POSTGRESQL\n            word: postgres\n", 1)
+	typed = strings.Replace(typed, "        DATABASE_URL: ${DATABASE_URL}\n", "        DATABASE_URL: ${DATABASE_URL}\n        DB_TYPE: ${DB_TYPE}\n", 1)
+	if err := os.WriteFile(filepath.Join(dir, "blog.yaml"), []byte(typed), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	shared := &pgState{roles: map[string]string{"postgres": ""}, databases: map[string]string{"postgres": "postgres"}}
+	c, err := catalog.Load("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	mysql, _ := c.Entry("mysql")
+	e.Registry[regexp.MustCompile(`image: (mysql:\S+)`).FindStringSubmatch(mysql.GetCompose())[1]] = dockertest.Image{
+		Volumes: []string{"/var/lib/mysql"}, Config: docker.Config{Cmd: []string{"mysqld"}, Env: []string{"MYSQL_MAJOR=8.0"}},
+		// Its own tools take what they're given, as the old user's password follows the app's.
+		Exec: func(x dockertest.Exec) int {
+			sql, _ := io.ReadAll(x.Stdin)
+			if strings.Contains(string(sql), "FROM mysql.user") {
+				// The users its image made, each with the hosts it signs in from.
+				_, _ = io.WriteString(x.Stdout, "root\t%\nroot\tlocalhost\nblog\t%\n")
+			}
+			return 0
+		},
+	}
+	e.Registry["postgres:17"] = shared.image()
+	e.Registry["ghcr.io/acme/shop:1.4"] = dockertest.Image{Config: docker.Config{Cmd: []string{"shop"}}}
+	e.Registry["redis:7"] = dockertest.Image{Config: docker.Config{Cmd: []string{"redis-server"}}}
+	e.Registry["ghcr.io/acme/blog:1@sha256:"+digest1] = dockertest.Image{Config: docker.Config{Cmd: []string{"blog"}}}
+	ch := changeClient(b, b.origin)
+	cat := catalogClient(b)
+	compose := dockwellv1connect.NewComposeServiceClient(b, b.origin, connect.WithProtoJSON())
+	apply(t, ch, importCompose(t, compose, databaseStack, map[string]string{"DB_PASSWORD": "the-administrators"}, false))
+	installed := installApp(t, cat, &dockwellv1.InstallCatalogEntryRequest{Id: "blog", Needs: map[string]string{"db": "new:mysql"}})
+	if got := apply(t, ch, installed); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("the install ended %v: %s", got.GetState(), got.GetError())
+	}
+	var env string
+	for _, r := range installed.GetPlan().GetResources() {
+		if r.GetResource().GetKind() == "link" {
+			env = r.GetResource().GetScope()
+		}
+	}
+	reads := func() map[string]string {
+		t.Helper()
+		read := map[string]string{}
+		for _, kv := range e.Newest(docker.Project(env), "app").Config.Env {
+			k, v, _ := strings.Cut(kv, "=")
+			read[k] = v
+		}
+		return read
+	}
+	if read := reads(); read["DB_TYPE"] != "mysql" || !strings.HasPrefix(read["DATABASE_URL"], "mysql://") {
+		t.Errorf("on a new MySQL, the blog reads %v", read)
+	}
+	entry, err := cat.GetCatalogEntry(t.Context(), connect.NewRequest(&dockwellv1.GetCatalogEntryRequest{Id: "blog"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var choice string
+	for _, o := range entry.Msg.GetNeeds() {
+		if o.GetService() == "db" && o.GetProject() != "blog" && o.GetWhy() == "" {
+			choice = o.GetChoice()
+		}
+	}
+	if choice == "" {
+		t.Fatalf("no PostgreSQL to move to: %v", entry.Msg.GetNeeds())
+	}
+	// Its data can't be copied across engines, so it's refused until asked to start empty.
+	if _, err := cat.SetCatalogNeed(t.Context(), connect.NewRequest(&dockwellv1.SetCatalogNeedRequest{Id: "blog", Need: "db", Choice: choice})); connect.CodeOf(err) != connect.CodeFailedPrecondition || !strings.Contains(err.Error(), "can't be copied across") {
+		t.Errorf("moving it to PostgreSQL, copying = %v", err)
+	}
+	res, err := cat.SetCatalogNeed(t.Context(), connect.NewRequest(&dockwellv1.SetCatalogNeedRequest{Id: "blog", Need: "db", Choice: choice, StartEmpty: true}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	planned := res.Msg.GetChange()
+	if notes := notesOf(planned, "catalog_need_other_engine"); len(notes) != 1 || notes[0] != "Blog's data stays in MySQL; PostgreSQL starts empty" {
+		t.Errorf("the plan says %q of the engine", notes)
+	}
+	if !planned.GetPlan().GetDestructive() {
+		t.Error("moving onto another engine's empty database isn't destructive")
+	}
+	// A plan that destroys data is applied with its typed fingerprint, never without.
+	if _, err := ch.ApplyChange(t.Context(), connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: planned.GetId()})); connect.CodeOf(err) != connect.CodeFailedPrecondition {
+		t.Errorf("applying it without its fingerprint = %v", err)
+	}
+	applyReviewed(t, ch, planned)
+	if read := reads(); read["DB_TYPE"] != "postgres" || !strings.HasPrefix(read["DATABASE_URL"], "postgres://") {
+		t.Errorf("on PostgreSQL, the blog reads %v", read)
+	}
+}
+
 func TestUseAnotherDatabaseStartingEmptyHoldsTheRoute(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()

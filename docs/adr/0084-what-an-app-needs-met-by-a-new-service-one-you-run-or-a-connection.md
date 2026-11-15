@@ -235,6 +235,12 @@ As built, a 1Panel app whose Compose file reads which engine it's on, as Gitea's
 - **The converter:** each value of 1Panel's apps field is the word for its engine, unless the app's init.sh turns it into its own, which is the word. The need then accepts every engine the field lists.
 - **The install sheet:** nothing new to see. Change offers New in each accepted engine, and Use one you have every server of one, as for any need. The plan's wiring names the part with its word, as "Wires DB_TYPE as postgres".
 - **Another engine for an installed app:** Use another database onto another engine sets the word again, as it sets every part, and moves no data, as no dump reads across engines. The plan says that first, as a critical notice ("Gitea's data stays in MySQL; PostgreSQL starts empty"), and counts as destroying data: applying it takes the plan's typed fingerprint, as a deletion does (ADR 0028). That was chosen over refusing the change unless the app has no data yet, as it's the simpler of the two, reusing the plan's own warning and confirmation, and an empty database can't be told reliably: an app writes its tables on its first start.
+- **As built:** as above, with three things learned on the way.
+  - A URL whose scheme names an engine, as `postgres://...`, takes that engine alone, whatever the form offers, so a need never offers MySQL to an app that writes a PostgreSQL URL.
+  - Where the word is part of a longer value, as Umami's `${PANEL_DB_TYPE}://...`, or is used outside a service's environment, the need takes the form's default engine alone with its word written in, as before.
+  - In 1Panel's store at the pinned commit, three apps take an engine part: Roundcube, NocoBase and mliev-dwz. 1Panel's Gitea is left out on a server, as it runs Gitea's Enterprise image under an ID Dockwell's own catalog has (ADR 0078), so Roundcube is the app installed on real Docker on MySQL and on PostgreSQL.
+  - Moving to another engine is still refused with `cant_copy` until start empty is asked for. Then the plan's note `catalog_need_other_engine` says the fact, and `Plan.empties` (in the plan's record and its fingerprint) makes it destructive.
+  - `make store-rates` counts what a server shows beside Dockwell's own catalog, which every install reads first: an app of an ID Dockwell's has, and not the same app by name and web image, is left out as "Dockwell has its own entry".
 
 ### What's installed already
 

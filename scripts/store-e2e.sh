@@ -16,6 +16,10 @@
 # through sudo, as it does on a server.
 #
 #   scripts/store-e2e.sh bin/dockwell 1panel/linux-command dokploy/excalidraw
+#
+# An app named FORMAT/APP@NEED=WAY installs with that need met so, as
+# 1panel/roundcube@db=new:postgresql, and one that reads which engine it's on is
+# checked to read the word for the engine that meets it (ADR 0084).
 set -euo pipefail
 # Anything this starts asks nothing beyond this machine but what it's asked to read
 # (DOCKWELL_TEST, ADR 0034): the stores, and the registries of the images their apps
@@ -178,6 +182,10 @@ for app in "$@"; do
   started=$SECONDS
   format=${app%%/*}
   id=${app#*/}
+  id=${id%%@*}
+  # How a need is met, where the name says, as db=new:postgresql.
+  needs=()
+  [[ "$app" == *@* ]] && needs=(--needs "${app#*@}")
   source=${source_of[$format]}
   step "$app installs from its store, runs and answers"
   entry=$(dw catalog get "$id" --catalog "$source" --json | jq .entry) || fail "the catalog has no $id from $source"
@@ -185,7 +193,7 @@ for app in "$@"; do
   read -r -a input_env <<<"${given_env[$app]:-}"
   values=()
   for kv in "${input_env[@]}"; do values+=(--values "${kv%%=*}"); done
-  planned=$(dw catalog install "$id" --catalog "$source" "${values[@]}" --plan-only --json) || fail "planning to install $id from $source failed"
+  planned=$(dw catalog install "$id" --catalog "$source" "${needs[@]}" "${values[@]}" --plan-only --json) || fail "planning to install $id from $source failed"
   change=$(jq -r '.change.id // empty' <<<"$planned")
   [[ "$change" == chg_* ]] || fail "installing $id planned no change: $planned"
   jq -e '.change.plan.notes | any(.reason == "catalog_pins_images")' <<<"$planned" >/dev/null || fail "installing $id doesn't say the builds it pins: $planned"
@@ -197,7 +205,7 @@ for app in "$@"; do
     registry_trouble "$change" || fail "$change failed: $(dw changes get "$change" --json)"
     echo "store-e2e: $change failed on a registry, not on the entry. Planning it again in 30 s, once" >&2
     sleep 30
-    planned=$(dw catalog install "$id" --catalog "$source" --project "$installed-2" "${values[@]}" --plan-only --json) || fail "planning to install $id again failed"
+    planned=$(dw catalog install "$id" --catalog "$source" --project "$installed-2" "${needs[@]}" "${values[@]}" --plan-only --json) || fail "planning to install $id again failed"
     environment=$(jq -r '[.change.plan.resources[] | select(.resource.kind == "service")][0].resource.scope' <<<"$planned")
     installed="$installed-2"
     project=${environment,,}
@@ -236,6 +244,24 @@ for app in "$@"; do
     [[ -n "$answered" && "$answered" != 000 && "$answered" -lt 500 ]] || fail "$id answers '$answered' on port $hostport two minutes after its install, want a page"
     echo "  $id answers $answered on port $hostport"
   fi
+  # An app that reads which engine it's on reads the app's word for the one that meets
+  # its need: the one asked for, or the need's first.
+  while IFS=$'\t' read -r need named; do
+    [[ -n "$need" ]] || continue
+    way=""
+    [[ "${app#*@}" == "$need="* ]] && way=${app#*@"$need"=new:}
+    engine=$(jq -r --arg n "$need" --arg w "$way" '.needs[] | select(.name == $n) | if $w == "" then .accepts[0].engine else "ENGINE_" + ($w | ascii_upcase) end' <<<"$entry")
+    word=$(jq -r --arg n "$need" --arg s "$named" --arg e "$engine" '.needs[] | select(.name == $n) | .sets[] | select(.name == $s) | .words[] | select(.engine == $e) | .word' <<<"$entry")
+    [[ -n "$word" ]] || fail "$id's need $need has no word for $engine in $named"
+    key=$(jq -r .compose <<<"$entry" | grep -oE "[A-Z0-9_]+[:=] *[$][{]${named}[}]" | head -1 | grep -oE '^[A-Z0-9_]+') || fail "$id's file reads $named under no name"
+    read_as=""
+    for c in $names; do
+      read_as=$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$c" | sed -n "s/^$key=//p" | head -1)
+      [[ -n "$read_as" ]] && break
+    done
+    [[ "$read_as" == "$word" ]] || fail "$id reads $key as '$read_as' on ${engine#ENGINE_}, want $word"
+    echo "  $id reads $key as $word, on ${engine#ENGINE_}"
+  done < <(jq -r '.needs[]? | .name as $n | .sets[]? | select(.part == "PART_ENGINE") | [$n, .name] | @tsv' <<<"$entry")
 
   step "$app goes through a plan"
   all=$(dw resources list --json) || fail "listing resources failed"

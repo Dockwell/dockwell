@@ -1206,6 +1206,15 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
           more: t`Each keeps running as it is.`,
         };
       }
+      case "catalog_need_other_engine": {
+        // No dump reads across engines, so this is the fact to weigh before anything (ADR 0084).
+        const [app = "", before = "", after = ""] = note.names;
+        return {
+          key,
+          title: t`${app}'s data stays in ${before}; ${after} starts empty`,
+          detail: t`Undo this change to put ${app} back on its data.`,
+        };
+      }
       case "exposed_more":
         return {
           key,

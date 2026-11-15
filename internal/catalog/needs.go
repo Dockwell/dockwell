@@ -299,6 +299,9 @@ func checkSet(e *catalogv1.Entry, n *catalogv1.Need, s *catalogv1.NeedSet, input
 	case !usesTLS && tls != nil:
 		return fmt.Errorf("the need %s gives %s words for TLS, which only a TLS part or a template with {tls} reads. Take tls away", need, name)
 	}
+	if err := checkEngineWords(n, s); err != nil {
+		return err
+	}
 	for _, m := range placeholder.FindAllStringSubmatch(s.GetTemplate(), -1) {
 		if !templateParts[m[1]] {
 			return fmt.Errorf("the need %s's template for %s names {%s}, which isn't a part. Use {host}, {port}, {address}, {database}, {user}, {password} or {tls}", need, name, m[1])
@@ -308,6 +311,48 @@ func checkSet(e *catalogv1.Entry, n *catalogv1.Need, s *catalogv1.NeedSet, input
 		return standsAlone(e.GetCompose(), name)
 	}
 	return plainAlone(e.GetCompose(), name)
+}
+
+// checkEngineWords refuses an engine part without the app's word for each engine its need
+// accepts, or with a word that isn't one, and words on any other part, as TLS's are
+// checked.
+func checkEngineWords(n *catalogv1.Need, s *catalogv1.NeedSet) error {
+	need, name := n.GetName(), s.GetName()
+	if s.GetPart() != catalogv1.Part_PART_ENGINE {
+		if len(s.GetWords()) > 0 {
+			return fmt.Errorf("the need %s gives %s words for engines, which only an engine part reads. Take words away", need, name)
+		}
+		return nil
+	}
+	said := map[catalogv1.Engine]bool{}
+	for _, w := range s.GetWords() {
+		e := w.GetEngine()
+		switch {
+		case acceptOf(n, e) == nil:
+			return fmt.Errorf("the need %s gives %s a word for %s, which it doesn't accept. Take it out, or accept %s", need, name, cmp.Or(EngineName(e), e.String()), cmp.Or(EngineName(e), e.String()))
+		case said[e]:
+			return fmt.Errorf("the need %s gives %s two words for %s. Keep one", need, name, EngineName(e))
+		case oneWord(w.GetWord()) != nil:
+			return fmt.Errorf("the need %s gives %s %q for %s, which needs to be one word the app reads, such as postgres", need, name, w.GetWord(), EngineName(e))
+		}
+		said[e] = true
+	}
+	for _, a := range n.GetAccepts() {
+		if !said[a.GetEngine()] {
+			return fmt.Errorf("the need %s sets %s as the engine, and has no word for %s, which it accepts. Give the app's word for it in words", need, name, EngineName(a.GetEngine()))
+		}
+	}
+	return nil
+}
+
+// EngineWordOf is the app's word for engine e, as an engine part writes it.
+func EngineWordOf(s *catalogv1.NeedSet, e catalogv1.Engine) string {
+	for _, w := range s.GetWords() {
+		if w.GetEngine() == e {
+			return w.GetWord()
+		}
+	}
+	return ""
 }
 
 // oneWord refuses what isn't a word an app reads, on one line with no spaces.
@@ -895,8 +940,12 @@ func Need(e *catalogv1.Entry, met map[string]Way) (*Needed, error) {
 			if SecretPart(s) {
 				continue
 			}
+			value := values[s.GetPart()]
+			if s.GetPart() == catalogv1.Part_PART_ENGINE {
+				value = EngineWordOf(s, w.Engine)
+			}
 			// A part may be empty, as a user is on an engine with none, so it's optional.
-			adds = append(adds, &catalogv1.Input{Name: s.GetName(), Label: s.GetName(), Type: catalogv1.InputType_INPUT_TYPE_TEXT, DefaultValue: values[s.GetPart()], Optional: true})
+			adds = append(adds, &catalogv1.Input{Name: s.GetName(), Label: s.GetName(), Type: catalogv1.InputType_INPUT_TYPE_TEXT, DefaultValue: value, Optional: true})
 			out.Plain = append(out.Plain, s.GetName())
 		}
 		adds = append(adds, &catalogv1.Input{Name: password, Label: password, Type: catalogv1.InputType_INPUT_TYPE_SECRET, Generate: 32, SetOnce: n.GetSetOnce()})

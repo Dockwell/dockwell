@@ -48,6 +48,9 @@ type planWith struct {
 	removal *Removal
 	rollout *Rollout
 	waves   *Waves
+	// empties is the app the change starts on an empty database of another engine
+	// (Proposal.Empties).
+	empties string
 }
 
 // wavesOf is how plan runs over the servers that take a step, in the order the
@@ -130,6 +133,16 @@ func wavesIn(c store.Change) *Waves {
 		return nil
 	}
 	return p.Waves
+}
+
+// emptiesIn is the app change c starts on an empty database of another engine, as
+// it was planned.
+func emptiesIn(c store.Change) string {
+	p, err := DecodePlan(c.Plan)
+	if err != nil {
+		return ""
+	}
+	return p.Empties
 }
 
 // endedBefore is when the last step of the waves before wave ended, as progress has

@@ -17,7 +17,9 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/dockwell/dockwell/internal/catalog"
 	"github.com/dockwell/dockwell/internal/catalog/convert"
+	"github.com/dockwell/dockwell/internal/catalog/folder"
 	"github.com/dockwell/dockwell/internal/gitfetch"
 )
 
@@ -48,8 +50,8 @@ type storeRates struct {
 const ratesUsage = `Usage: dockwell-catalog rates [--record] [--pin] [--list] [--show <format>/<id>] [--file <record>]
 
 rates converts each store the control plane reads, at the commit its record pins,
-as a server converts it, and says how many of its apps install and why the rest
-are left out. It fails when an app that converted no longer does, and when the
+as a server converts it, and says how many of its apps install beside Dockwell's
+own catalog, which every install reads first, and why the rest are left out. It fails when an app that converted no longer does, and when the
 record doesn't say what converts, which --record writes. --pin moves each store
 to its default branch's commit first. --show prints one app's converted entry,
 or why it's left out, such as --show coolify/it-tools.
@@ -127,6 +129,10 @@ func rates(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	if err := json.Unmarshal(raw, &was); err != nil {
 		return fmt.Errorf("reading %s: %w", *file, err)
 	}
+	own, err := catalog.BuiltIn("")
+	if err != nil {
+		return fmt.Errorf("reading Dockwell's own catalog: %w", err)
+	}
 	var now ratesRecord
 	for _, rec := range was.Stores {
 		store, ok := convert.StoreOf(rec.Format)
@@ -146,6 +152,7 @@ func rates(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 		if err != nil {
 			return fmt.Errorf("converting %s at %s: %w", store.Name, commit, err)
 		}
+		besideOwn(run, own)
 		if want.format != "" {
 			return showApp(stdout, store, rec, run, want.id)
 		}
@@ -167,6 +174,25 @@ func rates(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 		return nil
 	}
 	return compareRates(was, now)
+}
+
+// besideOwn leaves out what a server reading the store beside Dockwell's own catalog
+// leaves out: an app of an ID Dockwell's has, unless it's the same app, as
+// folder.SameApp says, which a server shows once, from either (ADR 0078). Every
+// install reads Dockwell's own catalog first (ADR 0077), and no other unless a person
+// adds it.
+func besideOwn(run convert.Run, own *catalog.Catalog) {
+	for i := range run.Results {
+		r := &run.Results[i]
+		if r.Entry == nil {
+			continue
+		}
+		if e, ok := own.Entry(r.ID); ok && !folder.SameApp(e, r.Entry) {
+			r.Entry, r.Class = nil, convert.ClassOwn
+			r.LeftOut = fmt.Sprintf("Dockwell's own catalog has an entry of the ID %s, which comes first, and isn't the same app: %s runs %s, where Dockwell's runs %s",
+				r.ID, r.ID, cmp.Or(folder.WebImage(r.Entry), "another image"), cmp.Or(folder.WebImage(e), "another"))
+		}
+	}
 }
 
 // showApp prints one app of a store's run: its entry as the control plane keeps it,

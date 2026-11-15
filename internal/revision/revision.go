@@ -390,6 +390,12 @@ type Proposal struct {
 	// BackUpOne names apps' databases to dump alone before anything else, each on
 	// a server the app may share, made for its link (ADR 0084).
 	BackUpOne []OneBackup
+	// Empties is the app the change starts on an empty database of another engine,
+	// its data left on the one before, as no dump reads across engines (ADR 0084).
+	// No step deletes anything, but the app's data is out of its reach once it's
+	// applied, so it counts as destroying data: applying takes the typed
+	// fingerprint (ADR 0028).
+	Empties string
 }
 
 // OneBackup is an app's database dumped alone before its update: the server's
@@ -476,6 +482,9 @@ type Plan struct {
 	// Waves is how it runs over its servers, wave by wave (ADR 0094). Its
 	// fingerprint covers them, so what's applied is the order reviewed.
 	Waves *Waves `json:",omitempty"`
+	// Empties is the app it starts on an empty database of another engine, as
+	// Proposal.Empties says, which makes it destructive. Its fingerprint covers it.
+	Empties string `json:",omitempty"`
 }
 
 // How a change's fingerprint is made, as its record says (ADR 0022).
@@ -690,8 +699,9 @@ func (p *Plan) KeyPairs() map[string][]string {
 // or lets two containers write to one place, as a spec chose: two writers can
 // corrupt a database, and applying can't undo that.
 func (p *Plan) Destructive() bool {
-	// A removal cuts a server off, which nothing puts back (ADR 0090).
-	if p.Removes != nil {
+	// A removal cuts a server off, which nothing puts back (ADR 0090), and an app
+	// moved onto an empty database of another engine leaves its data behind (ADR 0084).
+	if p.Removes != nil || p.Empties != "" {
 		return true
 	}
 	steps := p.Steps()
@@ -1078,7 +1088,7 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 	if err := e.pinBuilds(ctx, items, changeID); err != nil {
 		return nil, err
 	}
-	plan, err := e.plan(ctx, changeID, items, false, planWith{removal: p.Removes, rollout: p.Rollout})
+	plan, err := e.plan(ctx, changeID, items, false, planWith{removal: p.Removes, rollout: p.Rollout, empties: p.Empties})
 	if err != nil {
 		return nil, err
 	}
@@ -2655,11 +2665,14 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 	}
 	ref := func(r resource.Ref) string { return fmt.Sprintf("%s|%s|%s", r.Kind, stable(r.Scope), r.Name) }
 
-	plan := &Plan{Removes: removal}
+	plan := &Plan{Removes: removal, Empties: with.empties}
 	// fp is the fingerprint, and plain the one an earlier version would
 	// have made, which differ only in how they digest a spec.
 	keyed, plain := sha256.New(), sha256.New()
 	fp := io.MultiWriter(keyed, plain)
+	if with.empties != "" {
+		fmt.Fprintf(fp, "empties %s\n", with.empties)
+	}
 	if removal != nil {
 		fmt.Fprintf(fp, "removes %s|%t\n", removal.Server, removal.Compromised)
 		for i := range items {
@@ -3975,7 +3988,7 @@ func (e *Engine) commitOwned(ctx context.Context, c store.Change, items []item, 
 	for i := range items {
 		items[i].rollback = rollback
 	}
-	plan, err := e.plan(ctx, c.ID, items, rollback, planWith{removal: removalIn(c), waves: wavesIn(c)})
+	plan, err := e.plan(ctx, c.ID, items, rollback, planWith{removal: removalIn(c), waves: wavesIn(c), empties: emptiesIn(c)})
 	if err != nil {
 		return nil, err
 	}
@@ -5205,7 +5218,7 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 			}
 		}
 	}
-	plan, err := e.plan(ctx, c.ID, items, false, planWith{removal: removalIn(c), waves: wavesIn(c)})
+	plan, err := e.plan(ctx, c.ID, items, false, planWith{removal: removalIn(c), waves: wavesIn(c), empties: emptiesIn(c)})
 	if err != nil {
 		e.letGo(ctx, changeID)
 		return nil, err

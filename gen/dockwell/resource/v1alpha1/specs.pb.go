@@ -572,6 +572,7 @@ const (
 	LinkPart_LINK_PART_URL         LinkPart = 7
 	LinkPart_LINK_PART_TLS         LinkPart = 8
 	LinkPart_LINK_PART_KEY_PREFIX  LinkPart = 40
+	LinkPart_LINK_PART_ENGINE      LinkPart = 41
 )
 
 // Enum value maps for LinkPart.
@@ -587,6 +588,7 @@ var (
 		7:  "LINK_PART_URL",
 		8:  "LINK_PART_TLS",
 		40: "LINK_PART_KEY_PREFIX",
+		41: "LINK_PART_ENGINE",
 	}
 	LinkPart_value = map[string]int32{
 		"LINK_PART_UNSPECIFIED": 0,
@@ -599,6 +601,7 @@ var (
 		"LINK_PART_URL":         7,
 		"LINK_PART_TLS":         8,
 		"LINK_PART_KEY_PREFIX":  40,
+		"LINK_PART_ENGINE":      41,
 	}
 )
 
@@ -9147,7 +9150,7 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\x11LINK_ENGINE_REDIS\x10\x04\x12\x16\n" +
 	"\x12LINK_ENGINE_VALKEY\x10\x05\x12\x17\n" +
 	"\x13LINK_ENGINE_MONGODB\x10\x06\x12\x1a\n" +
-	"\x16LINK_ENGINE_CLICKHOUSE\x10\a*\xe8\x01\n" +
+	"\x16LINK_ENGINE_CLICKHOUSE\x10\a*\xfe\x01\n" +
 	"\bLinkPart\x12\x19\n" +
 	"\x15LINK_PART_UNSPECIFIED\x10\x00\x12\x12\n" +
 	"\x0eLINK_PART_HOST\x10\x01\x12\x12\n" +
@@ -9158,7 +9161,8 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\x12LINK_PART_PASSWORD\x10\x06\x12\x11\n" +
 	"\rLINK_PART_URL\x10\a\x12\x11\n" +
 	"\rLINK_PART_TLS\x10\b\x12\x18\n" +
-	"\x14LINK_PART_KEY_PREFIX\x10(:=\n" +
+	"\x14LINK_PART_KEY_PREFIX\x10(\x12\x14\n" +
+	"\x10LINK_PART_ENGINE\x10):=\n" +
 	"\tsensitive\x12\x1d.google.protobuf.FieldOptions\x18\xb9\x8e\x03 \x01(\bR\tsensitive:8\n" +
 	"\ano_flag\x12\x1d.google.protobuf.FieldOptions\x18\xba\x8e\x03 \x01(\bR\x06noFlagB\x84\x02\n" +
 	"\x1ecom.dockwell.resource.v1alpha1B\n" +
