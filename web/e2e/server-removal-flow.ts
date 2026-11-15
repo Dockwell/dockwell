@@ -101,7 +101,8 @@ export async function serverRemovalFlow(
     const done = page.getByRole("dialog").last().getByRole("button", { name: "Done", exact: true });
     await done.waitFor({ timeout: 60_000 });
     await done.click();
-    await page.waitForURL(/\/servers$/, { timeout: SEEN_WITHIN });
+    // The list, perhaps with a server it opens beside it, such as one under strain.
+    await page.waitForURL(/\/servers(\?|$)/, { timeout: SEEN_WITHIN });
     const table = page.getByRole("table", { name: "Servers, sorted by name" });
     await table.getByRole("row").nth(1).waitFor();
     await table.getByRole("row", { name: /^second\b/ }).waitFor({ state: "detached", timeout: SEEN_WITHIN });
@@ -129,7 +130,7 @@ export async function serverRemovalFlow(
     const left = page.getByRole("dialog").last().getByRole("button", { name: "Done", exact: true });
     await left.waitFor({ timeout: 60_000 });
     await left.click();
-    await page.waitForURL(/\/servers$/, { timeout: SEEN_WITHIN });
+    await page.waitForURL(/\/servers(\?|$)/, { timeout: SEEN_WITHIN });
     await table.getByRole("row").nth(1).waitFor();
     await table.getByRole("row", { name: /^spare\b/ }).waitFor({ state: "detached", timeout: SEEN_WITHIN });
   } finally {
