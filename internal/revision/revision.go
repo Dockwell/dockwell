@@ -2936,7 +2936,7 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 	// The waves, as the order applied is the order reviewed (ADR 0094). A server
 	// that takes no step is in none, and the plan says so, once some server does.
 	var idle []string
-	plan.Waves, idle = with.wavesOf(plan)
+	plan.Waves, idle = with.wavesOf(plan, e.ControlServer())
 	fmt.Fprint(fp, plan.Waves.fingerprint())
 	if len(idle) > 0 && len(plan.Servers) > 0 {
 		said := make([]string, 0, len(idle))
@@ -4108,6 +4108,42 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 	}
 	queue := accessBetween(e, plan, builds, deletes, func(q queued) (string, resource.Kind) { return q.server, q.step.Ref.Kind })
 	digests := map[at]string{}
+	// over is how many servers the change was planned over. A resumed run's plan has
+	// only those with steps left, and a change's error names its server once there's
+	// more than one.
+	over := len(plan.Servers)
+	if p, err := DecodePlan(c.Plan); err == nil {
+		over = len(p.Servers)
+	}
+	// failAsked fails each step from lo up to hi that asked its server to go and
+	// waits for it to come back, as a reboot or an upgrade does, as the change fails
+	// beside it: no resume reads a failed change, so it would wait for good.
+	failAsked := func(lo, hi int) {
+		now := e.progress(c.ID)
+		for i := lo; i < hi; i++ {
+			q := queue[i]
+			if now == nil || q.index < 0 || q.index >= len(now.Steps) {
+				continue
+			}
+			if st := now.Steps[q.index]; st.State != StepWaiting || st.Started.IsZero() {
+				continue
+			}
+			if it := byRef[q.step.Ref]; it == nil || !it.waitsForServer() {
+				continue
+			}
+			_, u := e.failed(c.ID, q.index, fault.New(ErrLeftAway, "%s was asked to go, and the change failed beside it before it came back. Check it's back, and plan again what it still needs", q.name))
+			if e.recordProgress(ctx, c.ID) {
+				e.announce(c.ID, u)
+			}
+		}
+	}
+	// A change that stops at a failure, with one on its record already, ends there
+	// before anything runs: a stop that met the failure, or a failed write of how it
+	// failed, left it applying, and the waves after it would run (ADR 0094).
+	if waves != nil && !waves.KeepGoing && slices.ContainsFunc(progress.Steps, func(st StepProgress) bool { return st.State == StepFailed }) {
+		failAsked(0, len(queue))
+		return e.failGoneOn(ctx, c, nil)
+	}
 
 	// A removed server takes no steps. What the change took off it is
 	// superseded there at once; what it was to run there never got there.
@@ -4155,9 +4191,10 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 		for _, rest := range queue[qi+1:] {
 			e.step(c.ID, rest.index, StepSkipped, stepMessage(StepSkipped, rest.step, rest.name))
 		}
+		failAsked(0, qi)
 		// A change's error stands on its own, so once there is more than
 		// one server it says which, unless the message has already.
-		if detail != "" && len(plan.Servers) > 1 {
+		if detail != "" && over > 1 {
 			plain = q.name + ": " + plain
 		}
 		return e.fail(ctx, c, q.step.Ref, err, plain)
@@ -4457,7 +4494,7 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 			}
 			byServer[s] = append(byServer[s], i)
 		}
-		started := map[int]bool{}
+		started, requeued := map[int]bool{}, map[int]bool{}
 		var first *struct {
 			qi            int
 			err           error
@@ -4465,9 +4502,14 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 		}
 		var stopping error
 		var wg sync.WaitGroup
+		// So many calls at once at most: each carries what its step asks, as an
+		// upgrade's install script does, and a batch may hold a thousand servers.
+		calls := make(chan struct{}, sideBySideCalls)
 		mu.Unlock()
 		for _, s := range servers {
 			wg.Go(func() {
+				calls <- struct{}{}
+				defer func() { <-calls }()
 				for _, qi := range byServer[s] {
 					mu.Lock()
 					if first != nil || stopping != nil {
@@ -4492,6 +4534,7 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 							}{qi, err, plain, detail}
 						}
 					case interrupted:
+						requeued[qi] = true
 						if stopping == nil {
 							stopping = r.err
 						}
@@ -4506,20 +4549,21 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 		}
 		wg.Wait()
 		mu.Lock()
-		if stopping != nil {
+		if first == nil {
 			return stopping
 		}
-		if first == nil {
-			return nil
-		}
+		// A failure stands though the engine is stopping: what was under way beside it
+		// and ran no further goes unrun with the rest, and the change fails now, rather
+		// than be resumed to run the waves after it.
 		for i := from; i < len(queue); i++ {
-			if !started[i] {
+			if !started[i] || requeued[i] {
 				e.step(c.ID, queue[i].index, StepSkipped, stepMessage(StepSkipped, queue[i].step, queue[i].name))
 			}
 		}
+		failAsked(from, to)
 		q := queue[first.qi]
 		plain := first.plain
-		if first.detail != "" && len(plan.Servers) > 1 {
+		if first.detail != "" && over > 1 {
 			plain = q.name + ": " + plain
 		}
 		return e.fail(ctx, c, q.step.Ref, first.err, plain)
@@ -4557,16 +4601,13 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 			}
 			wave = w
 		}
-		// A wave's servers go side by side; any other step goes on its own. So does a
-		// wave that takes something off a server, as a move between servers does: the
-		// queue has what's made before what goes, so what runs on the old server stays
-		// until the new one's is up.
-		end := qi + 1
-		for wave > 0 && end < len(queue) && waves.waveOf(queue[end].server) == wave {
-			end++
-		}
+		// A wave's servers go side by side when every step of it is on a host alone;
+		// any other step goes on its own, in the queue's order, as something on one
+		// server may need another's first, as a move or a link does. Taking something
+		// off a server never goes side by side either.
+		end := waveGroup(len(queue), qi, wave, func(i int) int { return waves.waveOf(queue[i].server) })
 		if end-qi > 1 && slices.ContainsFunc(queue[qi+1:end], func(o queued) bool { return o.server != q.server }) &&
-			!slices.ContainsFunc(queue[qi:end], func(o queued) bool { return o.step.Action == resource.ActionDelete }) {
+			!slices.ContainsFunc(queue[qi:end], func(o queued) bool { return !onHostAlone(o.step) || o.step.Action == resource.ActionDelete }) {
 			if err := sideBySide(qi, end); err != nil {
 				return err
 			}
@@ -4676,6 +4717,31 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 	}
 	e.published(c.ID, store.ChangeApplied)
 	return nil
+}
+
+// sideBySideCalls is how many servers of a wave are called at once at most.
+const sideBySideCalls = 32
+
+// waveGroup is where the group of the queue's steps from i ends, of n: with the
+// steps after it of the same wave, while that's the wave under way, or i alone. A
+// step of a wave before, as a delete, which goes after every wave's builds, goes
+// alone.
+func waveGroup(n, i, wave int, waveAt func(int) int) int {
+	end := i + 1
+	if own := waveAt(i); own == 0 || own != wave {
+		return end
+	}
+	for end < n && waveAt(end) == wave {
+		end++
+	}
+	return end
+}
+
+// onHostAlone reports a step on its server's host alone: an install, a reboot, a
+// unit's action or an agent's upgrade, which is all a fleet action plans. Only such
+// steps go side by side (ADR 0094).
+func onHostAlone(s *resource.Step) bool {
+	return s.Install != nil || s.Reboot != nil || s.Unit != nil || s.AgentUpgrade != nil
 }
 
 // refile files backups as r says, once a step has moved what they're of.

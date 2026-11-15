@@ -117,7 +117,12 @@ export function FleetActionPage({
   const acting = targets.filter((s) => !out.has(s.id));
   const batchSize = Number.parseInt(batch, 10) > 0 ? Number.parseInt(batch, 10) : 0;
   const pauseMinutes = Number.parseFloat(pause) > 0 ? Number.parseFloat(pause) : 0;
-  const waves = waveSizes(acting.length, canary, batchSize);
+  const waves = waveSizes(
+    acting.length,
+    canary,
+    batchSize,
+    acting.some((s) => s.controlServer),
+  );
   const unitOk = action !== "unit" || SERVICE_NAME.test(unitName.trim());
   const pickedText = picked ? targets.map((s) => s.name).join(", ") : "";
 

@@ -95,6 +95,9 @@ describe("rollout", () => {
     expect(waveSizes(7, false, 0)).toEqual([2, 2, 2, 1]);
     expect(waveSizes(7, true, 3)).toEqual([1, 3, 3]);
     expect(waveSizes(1, true, 0)).toEqual([]);
+    // The control server goes last, in a wave of its own, as the plan has it.
+    expect(waveSizes(3, false, 3, true)).toEqual([2, 1]);
+    expect(waveSizes(3, true, 0, true)).toEqual([1, 1, 1]);
   });
 
   it("upgrades agents to the control plane's version only when that's a release", () => {

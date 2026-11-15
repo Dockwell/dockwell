@@ -924,3 +924,26 @@ func TestALostServerLeavesNoStepWaitingBesideIt(t *testing.T) {
 		}
 	}
 }
+
+// The control server takes a wave of its own, last, whatever the batch: its reboot,
+// or a restart of what runs it, takes the control plane down, so no step runs beside
+// it, nor after it (ADR 0094, the review of slice 2, M1).
+func TestTheControlServerHasAWaveOfItsOwn(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	c := changeClient(b, b.origin)
+	control := f.addFleetServer(t, "control", false)
+	alpha := f.addFleetServer(t, "alpha", false)
+	bravo := f.addFleetServer(t, "bravo", false)
+	f.engine.SetControlServer(control.id.ServerID)
+	res, err := c.PlanSystemServiceAction(t.Context(), connect.NewRequest(&dockwellv1.PlanSystemServiceActionRequest{
+		ServerIds: idsOf(control, alpha, bravo), Name: "nginx.service", Action: dockwellv1.SystemServiceAction_SYSTEM_SERVICE_ACTION_RESTART,
+		Rollout: &dockwellv1.FleetRollout{NoCanary: true, BatchSize: 3},
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := wavesOf(res.Msg.GetChange()); !slices.EqualFunc(got, [][]string{{"alpha", "bravo"}, {"control"}}, slices.Equal) {
+		t.Errorf("in a batch of three, the waves are %v, want the control server alone, last", got)
+	}
+}
