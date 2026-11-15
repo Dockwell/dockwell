@@ -30,6 +30,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/agentapi"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/changes"
+	"github.com/dockwell/dockwell/internal/control/place"
 	"github.com/dockwell/dockwell/internal/fault"
 	"github.com/dockwell/dockwell/internal/ingress"
 	"github.com/dockwell/dockwell/internal/resource"
@@ -637,6 +638,9 @@ func (h *Handler) holder(ctx context.Context, tx *store.Tx, tree scope.Tree, dom
 				project, _ := ps.(*resourcev1.Project)
 				name := cmp.Or(project.GetDisplayName(), p.Name)
 				switch {
+				case !readsProject(ctx, p.ID):
+					// Words that name nothing of what's out of reach, as the claims check's (ADR 0048).
+					return domain + " is in use by a project you can't see. Use another domain, or ask an admin", nil
 				case project.GetWebsite() != nil:
 					return domain + " is a website already. Open it in Websites, or use another domain", nil
 				case rt.GetService() != "":
@@ -649,6 +653,16 @@ func (h *Handler) holder(ctx context.Context, tx *store.Tx, tree scope.Tree, dom
 		return domain + " is served already. Open it in Domains, or use another domain", nil
 	}
 	return "", nil
+}
+
+// readsProject says whether the caller may read a project, by ID: a role on the
+// whole install reads every one.
+func readsProject(ctx context.Context, project string) bool {
+	c, ok := place.CallerFrom(ctx)
+	if !ok || place.Holds(c.Grants, place.Install) != "" {
+		return true
+	}
+	return place.Holds(c.Grants, place.Place{Project: project}) != ""
 }
 
 // reach fills in what each website's server last found of what it sends to,

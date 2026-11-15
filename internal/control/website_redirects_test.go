@@ -88,7 +88,6 @@ func TestAWebsitesOtherDomains(t *testing.T) {
 	if reasonOf(err) != "domain_taken" || !strings.Contains(err.Error(), "shop.example.com is a website already") {
 		t.Errorf("another website's domain = %v", err)
 	}
-
 	// Making www the main domain moves the site's route to it, and sends the bare
 	// domain there, in one change.
 	swapped := toURL("https://backend.example.com")
