@@ -142,10 +142,11 @@ func TestAJailIsAnAdminsHoweverTheChangeComes(t *testing.T) {
 			jailOn(srv.id.ServerID, "recidive", &resourcev1.Jail{Filter: "recidive", LogPaths: []string{"/var/log/fail2ban.log"}}),
 		}}))
 		needsRole(t, who+" planning a new jail", err)
-		// One that's there is in no place they hold, so it answers as missing does,
-		// which tells them nothing of it: changing it, undoing it, applying a plan of it.
+		// Changing one that's there answers as making a new one does, so the answer
+		// never says which are there. A change or a plan of it is in no place they
+		// hold, so undoing or applying it answers as a missing change does.
 		_, err = c.ProposeChange(ctx, connect.NewRequest(jail(1)))
-		notFound(t, who+" changing the jail", err)
+		needsRole(t, who+" changing the jail", err)
 		_, err = c.UndoChange(ctx, connect.NewRequest(&dockwellv1.UndoChangeRequest{Id: applied.GetId()}))
 		notFound(t, who+" undoing the jail", err)
 		_, err = c.ApplyChange(ctx, connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: waiting.GetId()}))

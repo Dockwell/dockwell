@@ -17,6 +17,8 @@ import (
 	"github.com/dockwell/dockwell/internal/fault"
 	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/connection"
+	"github.com/dockwell/dockwell/internal/resource/variable"
 	"github.com/dockwell/dockwell/internal/scope"
 	"github.com/dockwell/dockwell/internal/store"
 )
@@ -242,6 +244,17 @@ func (e *Engine) revisions(ctx context.Context, tx *store.Tx, items []item, it *
 				revs[u.As] = other.base + 1
 			}
 			continue
+		}
+		if u.Kind == variable.ConnectionKind {
+			// A connection another project uses reads as one that isn't there, as it
+			// does to a link, so a value can't tell them apart either (ADR 0099).
+			spec, err := e.specAfter(ctx, tx, items, ref)
+			if err != nil {
+				return nil, err
+			}
+			if c, ok := spec.(*resourcev1.ConnectionSpec); !ok || !connection.Reaches(c, projectOfScope(ctx, tx, items, it.ref.Scope)) {
+				return nil, connectionUnusable(it, u.Name)
+			}
 		}
 		r, err := tx.GetResource(ctx, string(u.Kind), scopeID, u.Name)
 		if errors.Is(err, store.ErrNotFound) || err == nil && r.Spec == nil {

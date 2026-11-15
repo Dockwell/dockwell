@@ -249,9 +249,16 @@ func (e *Engine) checkConnectionReached(ctx context.Context, tx *store.Tx, items
 		return err
 	}
 	if c, ok := spec.(*resourcev1.ConnectionSpec); !ok || !connection.Reaches(c, projectOfScope(ctx, tx, items, it.ref.Scope)) {
-		return fault.New(ErrInvalid, "%s %s names the connection %s, which isn't one this project can use. Pick one on Connections, or ask an admin", it.ref.Kind, it.ref.Name, name)
+		return connectionUnusable(it, name)
 	}
 	return nil
+}
+
+// connectionUnusable is the one refusal of a connection that isn't there and of one
+// that doesn't reach the item's project, wherever it's looked up: a link naming it,
+// or a value read from it, pinned or checked.
+func connectionUnusable(it *item, name string) error {
+	return fault.New(ErrInvalid, "%s %s names the connection %s, which isn't one this project can use. Pick one on Connections, or ask an admin", it.ref.Kind, it.ref.Name, name)
 }
 
 // checkConnectionValue refuses a value from a connection that no link in its

@@ -3,6 +3,7 @@
 package control
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -200,5 +201,119 @@ func TestAConnectionOfAnotherProjectReadsAsNotThere(t *testing.T) {
 	}
 	if got, err := reveal("STORAGE_URL"); err != nil || !strings.Contains(got, "s3://") {
 		t.Errorf("an admin of the install reveals a secret written from it: %q, %v", got, err)
+	}
+}
+
+// A developer of one project names a connection of another, then one that isn't
+// there, through a value that reads it, alone or beside a link, in either order.
+// Each answers in the same words, as pinning a value looks the connection up before
+// anything else does (ADR 0099).
+func TestAValueFromAConnectionOfAnotherProjectReadsAsNotThere(t *testing.T) {
+	t.Parallel()
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	env := listedEnv(t, b)
+	project := envProject(t, f, env)
+	c := changeClient(b, b.origin)
+	cc := dockwellv1connect.NewConnectionServiceClient(b, b.origin, connect.WithProtoJSON())
+	srv := s3test.New(t)
+	apply(t, c, propose(t, c, "Add the data project", &dockwellv1.Edit{
+		Resource: &dockwellv1.ResourceRef{Name: "data"},
+		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Project{Project: &resourcev1.Project{DisplayName: "Data"}}},
+	}))
+	var dataProject, org string
+	if err := f.store.View(t.Context(), func(tx *store.Tx) error {
+		o, err := tx.Organization(t.Context())
+		if err != nil {
+			return err
+		}
+		org = o.ID
+		p, err := tx.GetResource(t.Context(), "project", o.ID, "data")
+		dataProject = p.ID
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	apply(t, c, propose(t, c, "Add theirs", connectionEdit("theirs-private-name", &resourcev1.ConnectionSpec{
+		DisplayName: "Theirs", Kind: resourcev1.LinkKind_LINK_KIND_S3,
+		Reach: resourcev1.ConnectionReach_CONNECTION_REACH_PROJECTS, Projects: []string{dataProject},
+		S3: &resourcev1.ConnectionS3{Endpoint: srv.URL(), Bucket: "theirs", AccessKeyId: "AKIDTHEIRS", SecretKey: "theirs-secret", PathStyle: true},
+	})))
+
+	hold := aMember(t, f)
+	hold(store.Grant{ProjectID: project, Role: store.RoleDeveloper})
+
+	try := func(what string, edits func(name string) []*dockwellv1.Edit) {
+		t.Helper()
+		var got [2]string
+		for i, name := range []string{"theirs-private-name", "no-such-name"} {
+			_, err := c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Probe", Edits: edits(name)}))
+			if err == nil {
+				got[i] = "<nil>"
+				continue
+			}
+			got[i] = connect.CodeOf(err).String() + ": " + strings.ReplaceAll(err.Error(), name, "X")
+		}
+		if got[0] != got[1] || !strings.Contains(got[0], "which isn't one this project can use") {
+			t.Errorf("%s tells a connection of another project from none:\n  theirs: %s\n  none:   %s", what, got[0], got[1])
+		}
+	}
+	linkEdit := func(name string) *dockwellv1.Edit {
+		return &dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Kind: "link", Scope: env, Name: "guess"},
+			Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Link{Link: &resourcev1.Link{
+				Label: "Storage", Connection: name, Kind: resourcev1.LinkKind_LINK_KIND_S3,
+				Sets: []*resourcev1.LinkSet{{Name: "GUESS_KEY", Part: resourcev1.LinkPart_LINK_PART_SECRET_KEY}},
+			}}},
+		}
+	}
+	secretEdit := func(name string) *dockwellv1.Edit {
+		return &dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Kind: "secret", Scope: env, Name: "GUESS_KEY"},
+			Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Secret{Secret: &resourcev1.Secret{From: &resourcev1.ValueFrom{
+				Source: &resourcev1.ValueFrom_Connection{Connection: &resourcev1.ConnectionRef{Scope: org, Name: name, Part: resourcev1.LinkPart_LINK_PART_SECRET_KEY, Link: "guess"}},
+			}}}},
+		}
+	}
+	varEdit := func(name string) *dockwellv1.Edit {
+		return &dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Kind: "variable", Scope: env, Name: "GUESS_BUCKET"},
+			Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Variable{Variable: &resourcev1.Variable{From: &resourcev1.ValueFrom{
+				Source: &resourcev1.ValueFrom_Connection{Connection: &resourcev1.ConnectionRef{Scope: org, Name: name, Part: resourcev1.LinkPart_LINK_PART_BUCKET, Link: "guess"}},
+			}}}},
+		}
+	}
+	try("link alone", func(n string) []*dockwellv1.Edit { return []*dockwellv1.Edit{linkEdit(n)} })
+	try("link then secret", func(n string) []*dockwellv1.Edit { return []*dockwellv1.Edit{linkEdit(n), secretEdit(n)} })
+	try("secret then link", func(n string) []*dockwellv1.Edit { return []*dockwellv1.Edit{secretEdit(n), linkEdit(n)} })
+	try("variable then link", func(n string) []*dockwellv1.Edit { return []*dockwellv1.Edit{varEdit(n), linkEdit(n)} })
+	try("secret alone", func(n string) []*dockwellv1.Edit { return []*dockwellv1.Edit{secretEdit(n)} })
+	// Saving or deleting one is an admin's, whether it's there or not.
+	tryAny := func(what string, edits func(name string) []*dockwellv1.Edit) {
+		t.Helper()
+		var got [2]string
+		for i, name := range []string{"theirs-private-name", "no-such-name"} {
+			_, err := c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Probe", Edits: edits(name)}))
+			got[i] = connect.CodeOf(err).String() + ": " + strings.ReplaceAll(fmt.Sprint(err), name, "X")
+		}
+		if got[0] != got[1] || !strings.Contains(got[0], "only an admin or the owner can plan this") {
+			t.Errorf("%s tells a connection of another project from none:\n  theirs: %s\n  none:   %s", what, got[0], got[1])
+		}
+	}
+	tryAny("connection set", func(n string) []*dockwellv1.Edit {
+		return []*dockwellv1.Edit{connectionEdit(n, &resourcev1.ConnectionSpec{
+			DisplayName: "Mine", Kind: resourcev1.LinkKind_LINK_KIND_S3, Reach: resourcev1.ConnectionReach_CONNECTION_REACH_EVERY,
+			S3: &resourcev1.ConnectionS3{Endpoint: srv.URL(), Bucket: "mine", AccessKeyId: "AKIDMINE", SecretKey: "mine", PathStyle: true},
+		})}
+	})
+	tryAny("connection delete", func(n string) []*dockwellv1.Edit {
+		return []*dockwellv1.Edit{{Resource: &dockwellv1.ResourceRef{Kind: "connection", Name: n}, Delete: true}}
+	})
+
+	// The list narrowed to another project reads as narrowed to none.
+	_, e1 := cc.ListConnections(t.Context(), connect.NewRequest(&dockwellv1.ListConnectionsRequest{Project: "data"}))
+	_, e2 := cc.ListConnections(t.Context(), connect.NewRequest(&dockwellv1.ListConnectionsRequest{Project: "nope"}))
+	if connect.CodeOf(e1) != connect.CodeOf(e2) || e1 == nil {
+		t.Errorf("the list narrowed to another project, then to none: %v, %v", e1, e2)
 	}
 }
