@@ -16633,6 +16633,17 @@ components:
                          project's ID then.
                 release:
                     type: string
+                fromCatalogRelease:
+                    type: integer
+                    description: |-
+                        The catalog entry's releases it leaves and goes to, such as 4 and 5, for
+                         INTENT_KIND_UPGRADE of an install: a release can keep the app's version, as
+                         one that changes only how Dockwell runs it does, where from_release and
+                         release are the same.
+                    format: uint32
+                catalogRelease:
+                    type: integer
+                    format: uint32
             description: |-
                 Intent is what a change is for, in a person's terms. A plan says what happens
                  to resources, which for a deploy or a new port is that a container is made

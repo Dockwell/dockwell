@@ -57,7 +57,7 @@ import { type AppHealth, type HealthView, healthNeedsALook, type Unread, useHeal
 import { WhatRuns } from "./ImageName";
 import { runtimeOf, runtimeWords } from "./runtime";
 import { PickBox, SelectPatches, type UpdatePicks, UpdatePicksBar, useUpdatePicks } from "./UpdateSeveral";
-import { counts, StackUpdates, UpdateMark, withUpdates } from "./updates";
+import { counts, ofInstall, StackUpdates, UpdateMark, updateCount } from "./updates";
 import { useApps, usePlaces } from "./useServices";
 import { useAppWords } from "./words";
 import "./Apps.css";
@@ -201,7 +201,8 @@ export function AppsPage({
   const environment = choosing ? (search.environment ?? "") : "";
   // Whether an update counts moves only with a snooze's end, so the minute is enough.
   const updatesNow = useNow(UPDATES_TICK_MS);
-  const updates = useMemo(() => withUpdates(all ?? [], updatesNow).length, [all, updatesNow]);
+  // A catalog install's update is one, of the install, whichever of its apps carry it.
+  const updates = useMemo(() => updateCount(all ?? [], updatesNow), [all, updatesNow]);
   // The filter to updates holds only while it has one to show: once the last is
   // applied, skipped or snoozed, it drops on its own and the whole list is back.
   const updating = search.show === "updates" && updates > 0;
@@ -660,10 +661,20 @@ interface TableProps {
   picks: UpdatePicks;
 }
 
-/** What a row picks to update: its app, or its project's apps, of those that can be picked. */
+/**
+ * What a row picks to update: its app, or its project's apps, of those that can be
+ * picked. An app of a catalog install picks nothing of its own: its update is the
+ * install's, which the install's row picks.
+ */
 function picksOf(row: Row, picks: UpdatePicks): string[] {
+  if (row.kind === "member" && row.service && ofInstall(row.service)) return [];
   const services = row.kind === "stack" ? row.group.services : row.service ? [row.service] : [];
   return services.filter((s) => picks.can(s.id)).map((s) => s.id);
+}
+
+/** Whether a row says an update of its own: not an app of a catalog install, whose install's row says it. */
+function marksItsUpdate(row: Row, service: ServiceInfo): boolean {
+  return !(row.kind === "member" && ofInstall(service));
 }
 
 /** A row's box for picking what it updates, where it has something to pick (ADR 0080). */
@@ -770,7 +781,7 @@ function AppsTable({ rows, fleet, caption, collapsed, onToggle, onOpen, health, 
             >
               {name}
             </Link>
-            {counts(service.update, now) ? (
+            {counts(service.update, now) && marksItsUpdate(row, service) ? (
               <span className="dw-cell-sub update-runs">
                 <WhatRuns service={service} />
                 <UpdateMark service={service} now={now} />
@@ -941,7 +952,7 @@ function PhoneList({
           const runs = rowHealth(row, health);
           const count = row.group.services.length;
           const expanded = !collapsed.has(row.group.key);
-          return (
+          const stack = (
             <button
               type="button"
               key={row.id}
@@ -969,6 +980,14 @@ function PhoneList({
               </span>
               <Icon name={expanded ? "chevron-down" : "chevron-right"} size={16} className="apps-phone-chevron" />
             </button>
+          );
+          // A catalog install's update is the install's, so its box is its row's, beside it.
+          if (!row.group.services.some(ofInstall) || picksOf(row, picks).length === 0) return stack;
+          return (
+            <div key={row.id} className="apps-phone-pickrow">
+              <RowPick row={row} picks={picks} order={phoneOrder} />
+              {stack}
+            </div>
           );
         }
         const service = row.service as ServiceInfo;
@@ -1005,14 +1024,14 @@ function PhoneList({
                 <span className="apps-phone-image" title={fleet ? where : image}>
                   {fleet ? where : runtime ? image : shortImage(image)}
                 </span>
-                <UpdateMark service={service} now={now} />
+                {marksItsUpdate(row, service) ? <UpdateMark service={service} now={now} /> : null}
               </span>
             </span>
             <Icon name="chevron-right" size={16} className="apps-phone-chevron" />
           </Link>
         );
         // A box to pick its update by sits beside the row, as a link holds nothing else that acts.
-        if (!picks.can(service.id)) return link;
+        if (!picks.can(service.id) || picksOf(row, picks).length === 0) return link;
         return (
           <div key={row.id} className="apps-phone-pickrow">
             <RowPick row={row} picks={picks} order={phoneOrder} />

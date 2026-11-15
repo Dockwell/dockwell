@@ -58,6 +58,9 @@ type Upgrade struct {
 	// FromRelease and Release are the releases an upgrade leaves and goes to, which
 	// its plan's intent says (ADR 0080). A companion's change has none.
 	FromRelease, Release string
+	// FromCatalogRelease and CatalogRelease are the entry's releases it leaves and goes
+	// to, as a release can keep the app's version.
+	FromCatalogRelease, CatalogRelease uint32
 	// Old is the file the install has now, with what it used and what stood for its
 	// secrets, which nothing but reading it needs.
 	Old          []byte
@@ -143,7 +146,10 @@ func (h *Handler) PlanUpgrade(ctx context.Context, in Upgrade) (*dockwellv1.Chan
 		Message: "Dockwell backs up this app's volumes before it changes anything. If a backup fails, the upgrade stops there, with nothing else done. Undoing this puts the old version back, but not what the new one changed in its data: restore the backup for that",
 		Ref:     project,
 	}
-	intent := &revision.Intent{Kind: revision.IntentUpgrade, Resource: in.Project, FromRelease: in.FromRelease, Release: in.Release}
+	intent := &revision.Intent{
+		Kind: revision.IntentUpgrade, Resource: in.Project, FromRelease: in.FromRelease, Release: in.Release,
+		FromCatalogRelease: in.FromCatalogRelease, CatalogRelease: in.CatalogRelease,
+	}
 	// The app's own database on a server another project runs is dumped alone first,
 	// as its volumes are backed up, for its app (ADR 0084).
 	var ones []revision.OneBackup

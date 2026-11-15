@@ -807,6 +807,24 @@ func testUpgradingAnInstall(t *testing.T, backend store.Backend) {
 	if e.Volume(docker.Project(env)+"_cached") == nil {
 		t.Error("dropping the service took its volume")
 	}
+
+	// A release that keeps the version is a new release of it, never a step from a
+	// version to itself: its summary and its intent say the releases.
+	sameVersion := strings.Replace(testEntry(5, "4.0", second, cache), "    data: {}\n", "    data: {}\n    cached: {}\n", 1)
+	if err := os.WriteFile(filepath.Join(dir, "thing.yaml"), []byte(sameVersion), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	res, err = cat.UpgradeCatalogInstall(t.Context(), connect.NewRequest(&dockwellv1.UpgradeCatalogInstallRequest{Id: "thing"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	same := res.Msg.GetChange()
+	if want := "Upgrade thing to release 5 of Thing, the same 4.0"; same.GetSummary() != want {
+		t.Errorf("summary %q, want %q", same.GetSummary(), want)
+	}
+	if i := same.GetPlan().GetIntent(); i.GetFromCatalogRelease() != 4 || i.GetCatalogRelease() != 5 || i.GetFromRelease() != "4.0" || i.GetRelease() != "4.0" {
+		t.Errorf("its intent reads %v", i)
+	}
 }
 
 // upgrading is an install of the test entry, ready to take a person's changes and a

@@ -619,16 +619,19 @@ func (h *Handler) upgrade(ctx context.Context, m *dockwellv1.UpgradeCatalogInsta
 	return h.imports.PlanUpgrade(ctx, composeapi.Upgrade{
 		Project:     install.GetProjectId(),
 		Environment: install.GetEnvironmentId(),
-		Summary:     cmp.Or(summary, fmt.Sprintf("Upgrade %s from %s to %s", install.GetProject(), pin.GetVersion(), entry.GetVersion())),
+		Summary:     cmp.Or(summary, upgradeSummary(install.GetProject(), pin, entry)),
 		FromRelease: pin.GetVersion(),
 		Release:     entry.GetVersion(),
-		Name:        found.display,
-		File:        []byte(chosen.GetCompose()),
-		Variables:   filled.Variables,
-		Secrets:     filled.Secrets,
-		Stands:      filled.Stands(),
-		Pin:         newPin,
-		SkipBackup:  m.GetSkipBackup(),
+
+		FromCatalogRelease: pin.GetRelease(),
+		CatalogRelease:     entry.GetRelease(),
+		Name:               found.display,
+		File:               []byte(chosen.GetCompose()),
+		Variables:          filled.Variables,
+		Secrets:            filled.Secrets,
+		Stands:             filled.Stands(),
+		Pin:                newPin,
+		SkipBackup:         m.GetSkipBackup(),
 
 		Old:          old.GetFile(),
 		OldVariables: oldVariables,
@@ -636,6 +639,16 @@ func (h *Handler) upgrade(ctx context.Context, m *dockwellv1.UpgradeCatalogInsta
 		Notes:        pinNotes,
 		Needs:        composeapi.Needs{Variables: filled.Linked, Stands: filled.LinkStands, OldStands: oldLinked, Links: needed.Links, Extra: slices.Concat(users, written), Joins: linkJoins(needed)},
 	})
+}
+
+// upgradeSummary says what upgrading an install does: from one version of its app to
+// another, or, for a release that keeps the version, to the entry's next release of
+// the same version, never a step from a version to itself.
+func upgradeSummary(project string, pin *resourcev1.CatalogPin, entry *catalogv1.Entry) string {
+	if pin.GetVersion() == entry.GetVersion() {
+		return fmt.Sprintf("Upgrade %s to release %d of %s, the same %s", project, entry.GetRelease(), entry.GetName(), entry.GetVersion())
+	}
+	return fmt.Sprintf("Upgrade %s from %s to %s", project, pin.GetVersion(), entry.GetVersion())
 }
 
 // SetCatalogCompanion plans adding one of an install's companions, or taking it away,

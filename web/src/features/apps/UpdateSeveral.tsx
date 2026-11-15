@@ -27,8 +27,8 @@ import { needsConfirming } from "../changes/notices";
 import { isEmpty, isFinal, longestDowntime, withoutIds } from "../changes/plan";
 import { upgradePhases } from "../changes/upgrade";
 import { environmentOf, nameOf } from "./app";
-import { counts, offered, planUpdate, stepOf, useKindWord, useMayUpdate } from "./updates";
-import { readServicesAgain } from "./useServices";
+import { counts, offered, ofInstall, planUpdate, updateKey, useKindWord, useMayUpdate, useStep } from "./updates";
+import { readServicesAgain, usePlaces } from "./useServices";
 import "./Updates.css";
 
 /**
@@ -137,7 +137,8 @@ export function SelectPatches({ picks }: { picks: UpdatePicks }) {
 export function UpdatePicksBar({ picks, className }: { picks: UpdatePicks; className?: string }) {
   const { t } = useLingui();
   const [open, setOpen] = useState<readonly ServiceInfo[]>();
-  const n = picks.selected.length;
+  // A catalog install picked by its apps is one update.
+  const n = new Set(picks.selected.map(updateKey)).size;
   return (
     <>
       {n > 0 ? (
@@ -403,14 +404,17 @@ function messageOf(err: unknown): string {
 function SeveralRow({ row }: { row: Row }) {
   const { t } = useLingui();
   const kindWord = useKindWord();
+  const step = useStep();
+  const places = usePlaces();
   const time = useTimeWords();
   const { service, offer, state } = row;
-  const name = nameOf(service);
+  // A catalog install's row is the install's, by its name.
+  const name = ofInstall(service) ? places.place(environmentOf(service))?.label || nameOf(service) : nameOf(service);
   return (
     <li className={cx("update-several-row", `is-${rowLook(state)}`)}>
       <span className="update-several-what">
         <span className="update-several-name">{name}</span>
-        <code className="update-step">{stepOf(offer)}</code>
+        <code className="update-step">{step(offer)}</code>
         <Tag className={cx("update-kind", offer.kind === UpdateKind.MAJOR && "is-major")}>{kindWord(offer.kind)}</Tag>
       </span>
       <span className="update-several-state">

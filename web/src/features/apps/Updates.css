@@ -171,6 +171,16 @@
   padding-right: 0;
 }
 
+/* With a column to pick by, a project's app keeps its box in that column, where a
+   project's row has its own, and its name is what steps in under the project's. */
+.apps-table.has-picks .is-member td:first-child {
+  padding-left: var(--space-4);
+}
+
+.apps-table.has-picks .is-member td:nth-child(2) {
+  padding-left: calc(var(--space-3) + var(--space-5));
+}
+
 .update-picks-bar {
   position: sticky;
   bottom: var(--space-4);
@@ -203,7 +213,8 @@
   padding-left: var(--space-3);
 }
 
-.apps-phone-pickrow > .apps-phone-row {
+.apps-phone-pickrow > .apps-phone-row,
+.apps-phone-pickrow > .apps-phone-stack {
   flex: 1;
   min-width: 0;
 }

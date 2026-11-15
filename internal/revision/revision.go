@@ -465,6 +465,10 @@ type Intent struct {
 	FromDigest  string `json:",omitempty"`
 	FromRelease string `json:",omitempty"`
 	Release     string `json:",omitempty"`
+	// FromCatalogRelease and CatalogRelease are the catalog entry's releases a catalog
+	// install's update leaves and goes to, which can keep the app's version.
+	FromCatalogRelease uint32 `json:",omitempty"`
+	CatalogRelease     uint32 `json:",omitempty"`
 }
 
 // Plan is what applying a change would do.
