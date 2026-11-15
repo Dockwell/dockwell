@@ -5,52 +5,112 @@
   </picture>
 </p>
 
-<p align="center">An open-source control plane for your servers, from one VPS to a fleet of thousands.<br>Websites, apps, databases and deploys in one panel.</p>
+<p align="center">An open-source control panel for your own servers, from one VPS to many.<br>Apps, websites, databases, domains and deploys in one place.</p>
 
-> **Status: Foundations.** Nothing is ready to install yet. This repository holds the product requirements, the design system and the plan. The agent and control plane are being built here in the open; the [milestones](https://github.com/Dockwell/dockwell/milestones) show where things stand.
+<p align="center">
+  <a href="#install">Install</a> ·
+  <a href="#what-you-can-do">What you can do</a> ·
+  <a href="#how-it-works">How it works</a> ·
+  <a href="#documentation">Documentation</a> ·
+  <a href="#contributing">Contributing</a>
+</p>
 
-## Why Dockwell
+> **Status: early.** v0.3.0 is the first release you can install and use day to day. It isn't ready for production yet: expect rough edges, and keep backups of anything that matters. The [milestones](https://github.com/Dockwell/dockwell/milestones) show what's next.
 
-Running your own servers today means stitching together two half-products. Server panels give one box a friendly home but stop at the box. Deployment platforms turn a push into a running container but treat the host as plumbing. Dockwell is both, on one data model, and one install grows from a single server to a fleet without a migration.
+![The app catalog in Dockwell's panel](docs/screenshots/catalog/catalog-light.webp)
 
-- **A real server panel.** Websites, PHP and Node runtimes, one-click apps, databases, files, a terminal, firewall and cron.
-- **Real deploys.** Push to deploy from GitHub, GitLab, Gitea or any Git host, with zero-downtime rollouts, automatic rollback and a preview for every pull request.
-- **Free multi-server.** Add a server with one command. Multiple servers, backups, monitoring and alerts are free, for good.
-- **Plan, apply, undo.** Every change, from a deploy to a firewall rule, shows its plan before it runs and rolls back in one step.
-- **One model, every surface.** The web panel, API, CLI, MCP server and config files are views of the same objects, so anything you can do in one you can do in all.
-- **Works from your phone.** Every screen ships with its phone layout, because servers break when you're away from your desk.
+## Install
 
-The bar for the first release: a live HTTPS URL within 90 seconds of install.
+On a Linux server, as root:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/Dockwell/dockwell/main/scripts/install.sh | sh
+```
+
+This installs the latest release. Run the same command again to upgrade.
+
+**You need:**
+
+- Debian, Ubuntu, a RHEL-family distribution or Alpine, on amd64 or arm64.
+- Docker, which runs your apps.
+
+**Then open the panel.** It listens on `127.0.0.1:7600`, so only the server can reach it at first. From your computer:
+
+```sh
+ssh -L 7600:127.0.0.1:7600 root@your-server
+```
+
+Open the one-time link the install printed, `http://localhost:7600/claim#…`, and create your account with a passkey. Lost the link? Run `sudo dockwell claim` on the server for a new one. To reach the panel on your own domain with HTTPS, set the domain under **Settings → General**.
+
+**Add another server** from **Servers → Add server**. It gives you one command to run on the new server. The new server needs no open ports.
+
+The [install guide](docs/install.md) covers every option: a particular version, mirrors, Cloudflare Tunnel, moving off another panel, and uninstalling.
+
+## What you can do
+
+**Apps**
+
+- Install apps from Dockwell's catalog, or from the Coolify, Dokploy, 1Panel, Runtipi and CasaOS stores.
+- Deploy an image, a Compose file or a Git repository. Push to GitHub and it deploys.
+- See when a new version is out, and upgrade with a plan you can undo.
+
+**Websites and domains**
+
+- Static and PHP websites, with HTTPS from Let's Encrypt.
+- Domains and redirects, including `www`, with DNS checked as you type.
+
+**Databases and storage**
+
+- PostgreSQL, MySQL, MariaDB, Redis and MongoDB, each app with its own user.
+- Share one database between apps, or connect S3-compatible storage.
+- Backups by hand or on a schedule.
+
+**Servers**
+
+- Many servers from one panel. Each runs a small agent that dials out, so it needs no open ports.
+- A terminal, files, a firewall, system services and alerts.
+
+**Your team**
+
+- Members with roles, per project.
+- Passkeys, and API tokens narrowed to the projects they need.
+
+**Moving over**
+
+- Import what runs under 1Panel, Coolify or Dokploy, and take over its domains.
+
+**Every change shows its plan first.** A deploy, a firewall rule or a new member: Dockwell shows what will change before it does, and you can undo it in one step.
 
 ## How it works
 
 ![Agents keep serving even when the control plane is away](docs/product/architecture.svg)
 
-Every server runs one small `dockwell` binary. The first install runs its full build, with the control plane: the panel, API, revision store and scheduler. Servers you add later run the agent build, which has only the agent and dials out over mTLS, so they need no open ports and work behind NAT. Agents keep their own desired state, so if the control plane goes away, your apps keep serving.
+Every server runs one `dockwell` binary.
 
-Underneath it is plain Docker, Compose, Caddy and systemd. Uninstalling Dockwell leaves your workloads running.
+- **The first server is your control server.** It runs the panel, the API and the agent.
+- **Servers you add run the agent alone.** It dials out over mutual TLS, so they work behind NAT with no ports open.
+- **Each agent keeps its own desired state.** If the control server goes away, your apps keep serving.
+
+Underneath, it's plain Docker, Compose, Caddy and systemd. Uninstalling Dockwell leaves your apps running.
+
+## Documentation
+
+| Read | For |
+| --- | --- |
+| [Install guide](docs/install.md) | Installing, upgrading, options, mirrors and uninstalling |
+| [Product requirements](docs/product/prd.md) | What Dockwell is for, its principles and its plan |
+| [Decision records](docs/adr/) | Why things are built the way they are |
+| [Releasing](docs/releasing.md) | How releases are built, signed and verified |
+| [Design](design/README.md) | The design system and every screen's mock, desktop and phone |
+| [Webhooks](docs/webhooks.md) | Deploying on push from a Git host |
 
 ## Free and paid
 
-Operating your own machines, any number of them, is free and open source. Paid editions cover what organizations need to govern many people and many servers: SAML and SCIM, custom roles and policy, approvals, long audit retention, a highly available control plane and support. A hosted control plane is also offered. The rule is to paywall the organization, never the machine.
-
-## Roadmap
-
-![Each phase ships something people can use and ends at a gate](docs/product/roadmap.svg)
-
-## In this repository
-
-| Path | What it holds |
-| --- | --- |
-| [`docs/product/prd.md`](docs/product/prd.md) | Product requirements: users, principles, architecture, every requirement by phase, the signature flows and the targets |
-| [`docs/adr/`](docs/adr/) | Architecture decision records |
-| [`docs/releasing.md`](docs/releasing.md) | How releases are built, signed and verified |
-| [`docs/install.md`](docs/install.md) | How the install script installs, upgrades and removes Dockwell, how it checks what it downloads, and how to install through a mirror, as from mainland China |
-| [`design/`](design/README.md) | The design system (tokens, components, logo, fonts) and every screen mock, desktop and phone |
+Running your own servers, any number of them, is free and open source, for good. Paid editions will cover what larger organizations need: SAML and SCIM, custom roles, approvals, long audit retention, a highly available control plane, and support.
 
 ## Contributing
 
-Dockwell is at the very start, so the most useful contributions right now are issues and discussion: about the requirements, the design, and what you'd need to move your servers over. See [CONTRIBUTING.md](CONTRIBUTING.md). Everyone taking part follows the [code of conduct](CODE_OF_CONDUCT.md).
+Issues and discussion are the most useful contributions right now: what's broken, what's missing, and what you'd need to move your servers over. See [CONTRIBUTING.md](CONTRIBUTING.md). Everyone taking part follows the [code of conduct](CODE_OF_CONDUCT.md).
 
 To report a security problem, follow [SECURITY.md](SECURITY.md) rather than opening a public issue.
 
@@ -58,4 +118,4 @@ To report a security problem, follow [SECURITY.md](SECURITY.md) rather than open
 
 Dockwell is licensed under the [GNU Affero General Public License v3.0](LICENSE).
 
-The API schema and the clients generated from it are licensed under the [Apache License 2.0](proto/LICENSE), so you can build them into your own tools, closed source included. That covers [`proto/`](proto/), [`gen/`](gen/) and [`packages/api/`](packages/api/). [ADR 0012](docs/adr/0012-apache-for-api-schema-and-clients.md) says why.
+The API schema and the clients generated from it are under the [Apache License 2.0](proto/LICENSE), so you can build them into your own tools, closed source included. That covers [`proto/`](proto/), [`gen/`](gen/) and [`packages/api/`](packages/api/). [ADR 0012](docs/adr/0012-apache-for-api-schema-and-clients.md) says why.
