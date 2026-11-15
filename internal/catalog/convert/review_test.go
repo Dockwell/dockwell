@@ -13,6 +13,7 @@ import (
 	catalogv1 "github.com/dockwell/dockwell/gen/dockwell/catalog/v1alpha1"
 	"github.com/dockwell/dockwell/internal/catalog"
 	"github.com/dockwell/dockwell/internal/compose"
+	"github.com/dockwell/dockwell/internal/resource"
 )
 
 // The cases the first review of #302 probed, each held to what it should come to.
@@ -430,7 +431,8 @@ func TestHostAccessIsWhatAPersonLookedAt(t *testing.T) {
 		t.Fatalf("%s: %q", r.Class, r.LeftOut)
 	}
 	c.Overlays["ddns"] = Overlay{Entry: c.Overlays["ddns"].Entry, Reaches: []string{
-		"ddns: control of Docker, through /", "ddns: control of Docker, through /var/run/docker.sock", "ddns: every privilege", "ddns: the server's own network",
+		"ddns: control of Docker, through /", "ddns: control of Docker, through /var/run/docker.sock", "ddns: every privilege",
+		"ddns: the same as root, with privileged mode", "ddns: the server's own network",
 	}}
 	if r := c.Convert(t.Context(), app); r.Entry == nil {
 		t.Errorf("what a person looked at didn't convert: %s", r.LeftOut)
@@ -583,5 +585,21 @@ func TestAPinAndASecretArePlain(t *testing.T) {
 	}
 	if !strings.Contains(r.Entry.GetCompose(), "TOKEN=${TOKEN}") || !strings.Contains(r.Entry.GetCompose(), "KEY=${KEY}") {
 		t.Errorf("its file:\n%s", r.Entry.GetCompose())
+	}
+}
+
+// Each kind of host access ADR 0097 added says what it is in a report and an
+// overlay's reaches, never only Dockwell's number for it.
+func TestHostAccessOfADR0097HasWords(t *testing.T) {
+	for _, a := range []resource.Access{
+		{Kind: resource.AccessRootTogether, Path: "privileged mode"},
+		{Kind: resource.AccessDevice, Path: "/dev/dri/renderD128"},
+		{Kind: resource.AccessGPUs, Path: "all"},
+		{Kind: resource.AccessSecurityOption, Path: "seccomp=unconfined"},
+		{Kind: resource.AccessHostProcesses},
+	} {
+		if w := words(&a); strings.HasPrefix(w, "what Dockwell counts as") {
+			t.Errorf("%v reads %q", a.Kind, w)
+		}
 	}
 }

@@ -732,6 +732,19 @@ func words(a *resource.Access) string {
 		what = strings.TrimSpace("a mount " + strings.Join(slices.DeleteFunc([]string{a.Type, a.Driver, a.Address, a.Path}, func(s string) bool { return s == "" }), " "))
 	case resource.AccessNetworkDriver:
 		what = strings.TrimSpace("the " + a.Driver + " network driver " + strings.TrimSpace(a.Path+" "+a.Detail))
+	// What a container reaches past what Docker gives it (ADR 0097). A converter
+	// refuses most of it, but privileged mode, or a capability that reaches the
+	// kernel, with any other host access, is the same as root for the whole app.
+	case resource.AccessRootTogether:
+		what = "the same as root, with " + a.Path
+	case resource.AccessDevice:
+		what = "the device " + a.Path
+	case resource.AccessGPUs:
+		what = "the server's GPUs, " + a.Path
+	case resource.AccessSecurityOption:
+		what = "the security option " + a.Path
+	case resource.AccessHostProcesses:
+		what = "every process on the server"
 	default:
 		what = strings.TrimSpace(fmt.Sprintf("what Dockwell counts as %v, %s", a.Kind, a.Path))
 	}
