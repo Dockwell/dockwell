@@ -21,8 +21,9 @@ import (
 // whose server hasn't come back.
 
 // RebootLimit is how long a reboot's step waits for its server to come back on
-// another boot before it fails.
-var RebootLimit = 15 * time.Minute
+// another boot before it fails. It's the same for every test: one that needs it
+// past moves the engine's clock (Engine.SetClock), rather than wait.
+const RebootLimit = 15 * time.Minute
 
 // ErrRebootLost is a server that hasn't come back after its reboot.
 var ErrRebootLost = errors.New("the server hasn't come back after its reboot")

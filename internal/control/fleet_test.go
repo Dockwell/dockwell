@@ -850,10 +850,9 @@ func TestAResumeWaitsOnlyForServersWithStepsLeft(t *testing.T) {
 // A server that doesn't come back fails its change, and the waves after it are
 // skipped, as a run that stops at a failure skips the rest (ADR 0094, review L6).
 func TestALostServerSkipsTheWavesAfterIt(t *testing.T) {
-	was := revision.RebootLimit
-	revision.RebootLimit = 300 * time.Millisecond
-	t.Cleanup(func() { revision.RebootLimit = was })
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
+	later := clockFor(f.engine)
 	b := signedIn(t, f)
 	c := changeClient(b, b.origin)
 	alpha := f.addFleetServer(t, "alpha", false)
@@ -873,7 +872,10 @@ func TestALostServerSkipsTheWavesAfterIt(t *testing.T) {
 		})
 	})
 	alpha.stop()
-	time.Sleep(revision.RebootLimit)
+	// The run lets the change go once it's waiting, as the API shows it waiting a
+	// moment before; then its server is past the limit.
+	f.engine.Wait()
+	later(revision.RebootLimit)
 	if err := f.engine.FailLostReboots(t.Context()); err != nil {
 		t.Fatal(err)
 	}
@@ -892,10 +894,9 @@ func TestALostServerSkipsTheWavesAfterIt(t *testing.T) {
 // it waiting: another server asked beside it, and not back yet, ends failed too
 // (ADR 0094, review of e6a849024).
 func TestALostServerLeavesNoStepWaitingBesideIt(t *testing.T) {
-	was := revision.RebootLimit
-	revision.RebootLimit = 300 * time.Millisecond
-	t.Cleanup(func() { revision.RebootLimit = was })
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
+	later := clockFor(f.engine)
 	b := signedIn(t, f)
 	c := changeClient(b, b.origin)
 	alpha := f.addFleetServer(t, "alpha", false)
@@ -922,7 +923,10 @@ func TestALostServerLeavesNoStepWaitingBesideIt(t *testing.T) {
 	})
 	alpha.stop()
 	bravo.stop()
-	time.Sleep(revision.RebootLimit)
+	// The run lets the change go once it's waiting, as the API shows it waiting a
+	// moment before; then its server is past the limit.
+	f.engine.Wait()
+	later(revision.RebootLimit)
 	if err := f.engine.FailLostReboots(t.Context()); err != nil {
 		t.Fatal(err)
 	}
