@@ -54,8 +54,9 @@ type watching struct {
 	// last back-off for a secondary limit was, which doubles each time.
 	backoffUntil time.Time
 	backoffStep  time.Duration
-	// every is how often each app's branch is checked, past the cap.
-	every time.Duration
+	// every is how often each app's branch is checked, past the cap, by
+	// installation, as each takes its own turns.
+	every map[int64]time.Duration
 	// turns is where each installation's turns are, by its ID.
 	turns map[int64]int
 	// refused says the panel refused GitHub's newest delivery: the secret GitHub
@@ -72,7 +73,7 @@ type branch struct {
 func (h *Handler) watchOf(appID string) *watching {
 	w, ok := h.watch[appID]
 	if !ok {
-		w = &watching{state: dockwellv1.GitHubDelivery_STATE_UNKNOWN, turns: map[int64]int{}}
+		w = &watching{state: dockwellv1.GitHubDelivery_STATE_UNKNOWN, turns: map[int64]int{}, every: map[int64]time.Duration{}}
 		h.watch[appID] = w
 	}
 	return w
@@ -99,7 +100,12 @@ func (h *Handler) deliveryProto(appID string) *dockwellv1.GitHubDelivery {
 		out.CheckedTime = timestamppb.New(w.checked)
 	}
 	if w.state == dockwellv1.GitHubDelivery_STATE_POLLING || w.state == dockwellv1.GitHubDelivery_STATE_BACKING_OFF {
-		out.CheckEverySeconds = int32(max(w.every, pollEvery).Seconds())
+		// The slowest installation's, so no app's line says more often than it is.
+		slowest := pollEvery
+		for _, e := range w.every {
+			slowest = max(slowest, e)
+		}
+		out.CheckEverySeconds = int32(slowest.Seconds())
 	}
 	if w.state == dockwellv1.GitHubDelivery_STATE_BACKING_OFF {
 		out.BackoffUntil = timestamppb.New(w.backoffUntil)
@@ -211,6 +217,7 @@ func (h *Handler) Poll(ctx context.Context) {
 		h.cfg.Logger.WarnContext(ctx, "can't read which apps to check for pushes", slog.String("error", err.Error()))
 		return
 	}
+	h.forgetGone(targets)
 	byInstallation := map[int64][]polled{}
 	var order []int64
 	for i := range targets {
@@ -233,7 +240,7 @@ func (h *Handler) Poll(ctx context.Context) {
 			if w.state == dockwellv1.GitHubDelivery_STATE_BACKING_OFF {
 				w.state = dockwellv1.GitHubDelivery_STATE_POLLING
 			}
-			picked, w.turns[installation], w.every = due(len(ts), w.turns[installation], pollCap)
+			picked, w.turns[installation], w.every[installation] = due(len(ts), w.turns[installation], pollCap)
 		}
 		h.mu.Unlock()
 		app, err := h.acting(ts[0].app)
@@ -256,6 +263,12 @@ func (h *Handler) pollOne(ctx context.Context, app *github.App, appID string, t 
 	short := strings.TrimPrefix(strings.TrimPrefix(t.ref, "refs/heads/"), "refs/tags/")
 	commit, etag, rate, err := app.Head(ctx, t.installation, t.repository, t.fullName, short, was.etag)
 	h.noted(appID, err)
+	// GitHub failing backs off as asking too often does, rather than ask each
+	// branch again a minute on (review L4).
+	var e *github.Error
+	if errors.As(err, &e) && e.Status >= 500 {
+		rate.Limited = true
+	}
 	h.mu.Lock()
 	w := h.watchOf(appID)
 	w.slowDown(rate, h.now())
@@ -277,6 +290,35 @@ func (h *Handler) pollOne(ctx context.Context, app *github.App, appID string, t 
 		}
 	}
 	return !backingOff
+}
+
+// forgetGone drops what polling keeps for hooks, installations and Apps no
+// target names any more, so what it holds is bounded by what it checks (review
+// L4). An App's delivery state stays while the App does.
+func (h *Handler) forgetGone(targets []polled) {
+	hooks, installations := map[string]bool{}, map[int64]bool{}
+	for i := range targets {
+		hooks[targets[i].hook], installations[targets[i].installation] = true, true
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for hook := range h.branches {
+		if !hooks[hook] {
+			delete(h.branches, hook)
+		}
+	}
+	for _, w := range h.watch {
+		for in := range w.turns {
+			if !installations[in] {
+				delete(w.turns, in)
+			}
+		}
+		for in := range w.every {
+			if !installations[in] {
+				delete(w.every, in)
+			}
+		}
+	}
 }
 
 // pollTargets are the hooks through an App whose app builds a branch of a
@@ -303,6 +345,10 @@ func (h *Handler) pollTargets(ctx context.Context) ([]polled, error) {
 		}
 		for i := range hooks {
 			hook := &hooks[i]
+			// A hook whose maker is gone deploys nothing, so nothing is asked for it.
+			if u, err := tx.GetUser(ctx, hook.UserID); err != nil || u.RemovedAt != nil {
+				continue
+			}
 			r, err := tx.GetResourceByID(ctx, hook.ResourceID)
 			if errors.Is(err, store.ErrNotFound) || err == nil && r.Spec == nil {
 				continue

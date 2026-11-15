@@ -808,6 +808,7 @@ func (h *Handler) RemoveGitHubApp(ctx context.Context, req *connect.Request[dock
 	h.mu.Lock()
 	delete(h.apps, k.r.ID)
 	delete(h.gone, k.r.ID)
+	delete(h.watch, k.r.ID)
 	h.mu.Unlock()
 	return connect.NewResponse(&dockwellv1.RemoveGitHubAppResponse{
 		Uninstalled: uninstalled, DeleteUrl: settingsURL(h.cfg.Web, k.spec) + "/advanced", ChangeId: changeID,

@@ -68,3 +68,21 @@ func TestPollingBacksOffAsGitHubAsks(t *testing.T) {
 		t.Errorf("a tenth of the hour's calls left waits until %s, %v", w.backoffUntil, w.state)
 	}
 }
+
+// What polling keeps is bounded by what it checks: a hook, or an installation's
+// turns, that no target names any more is dropped, and the rest kept.
+func TestPollingForgetsWhatItNoLongerChecks(t *testing.T) {
+	t.Parallel()
+	h := New(Config{})
+	h.branches["ghw_kept"], h.branches["ghw_gone"] = branch{commit: "a"}, branch{commit: "b"}
+	w := h.watchOf("gha_1")
+	w.turns[7], w.turns[8] = 1, 2
+	w.every[7], w.every[8] = time.Minute, 2*time.Minute
+	h.forgetGone([]polled{{hook: "ghw_kept", installation: 7}})
+	if _, ok := h.branches["ghw_gone"]; ok || len(h.branches) != 1 {
+		t.Errorf("branches kept: %v", h.branches)
+	}
+	if _, ok := w.turns[8]; ok || len(w.turns) != 1 || len(w.every) != 1 {
+		t.Errorf("an installation no target names kept its turns: %v, %v", w.turns, w.every)
+	}
+}

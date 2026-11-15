@@ -57,8 +57,10 @@ type fakeGitHub struct {
 	head       func() string
 	heads      int
 	retryAfter int
-	// gone has GitHub say installation 7 was removed.
-	gone bool
+	// gone has GitHub say installation 7 was removed; headStatus has it answer a
+	// branch's commit with that status, as when it fails.
+	gone       bool
+	headStatus int
 }
 
 func newFakeGitHub(t *testing.T) *fakeGitHub {
@@ -138,8 +140,12 @@ func (f *fakeGitHub) serve(w http.ResponseWriter, r *http.Request) {
 		}
 		f.mu.Lock()
 		f.heads++
-		retry, head := f.retryAfter, f.head
+		retry, head, status := f.retryAfter, f.head, f.headStatus
 		f.mu.Unlock()
+		if status != 0 {
+			no(status, "Server Error")
+			return
+		}
 		if retry > 0 {
 			w.Header().Set("Retry-After", strconv.Itoa(retry))
 			no(403, "You have exceeded a secondary rate limit")

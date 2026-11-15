@@ -219,3 +219,21 @@ func TestReviewABuildPlannedBeforeANarrowingDoesntFetchThroughIt(t *testing.T) {
 		t.Errorf("a build through an installation narrowed since its plan ended %v: %s", c.GetState(), c.GetError())
 	}
 }
+
+// Review L4: GitHub failing a branch's check backs polling off, as asking too
+// often does, rather than ask every branch again each minute.
+func TestReviewGitHubFailingBacksPollingOff(t *testing.T) {
+	t.Parallel()
+	a := newAppBench(t)
+	ctx := t.Context()
+	apps := a.f.server.apps
+	a.gh.mu.Lock()
+	a.gh.deliveries = `[{"id":2,"guid":"g2","event":"push","status_code":0}]`
+	a.gh.headStatus = http.StatusBadGateway
+	a.gh.mu.Unlock()
+	apps.CheckDeliveries(ctx)
+	apps.Poll(ctx)
+	if d := a.delivery(t); d.GetState() != dockwellv1.GitHubDelivery_STATE_BACKING_OFF {
+		t.Errorf("GitHub answered 502, and polling is %v", d.GetState())
+	}
+}
