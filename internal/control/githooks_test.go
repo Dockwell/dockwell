@@ -495,9 +495,9 @@ func (g *gitBench) stored(t *testing.T, hookURL, deliveryID, want string) store.
 	for time.Now().Before(deadline) {
 		if err := g.f.store.View(t.Context(), func(tx *store.Tx) error {
 			list, err := tx.GitHookDeliveries(t.Context(), hookID, 50)
-			for _, d := range list {
-				if d.DeliveryID == deliveryID {
-					last = d
+			for i := range list {
+				if list[i].DeliveryID == deliveryID {
+					last = list[i]
 				}
 			}
 			return err

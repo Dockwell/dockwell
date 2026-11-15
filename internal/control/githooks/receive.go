@@ -48,7 +48,7 @@ var providers = []provider{
 	{name: "forgejo", event: "X-Forgejo-Event", delivery: "X-Forgejo-Delivery", signature: "X-Forgejo-Signature", pushes: []string{"push"}, read: readGitHub},
 	{name: "gitea", event: "X-Gitea-Event", delivery: "X-Gitea-Delivery", signature: "X-Gitea-Signature", pushes: []string{"push"}, read: readGitHub},
 	{name: "github", event: "X-GitHub-Event", delivery: "X-GitHub-Delivery", signature: "X-Hub-Signature-256", prefix: "sha256=", pushes: []string{"push"}, pings: []string{"ping"}, form: true, read: readGitHub},
-	{name: "gitlab", event: "X-Gitlab-Event", delivery: "X-Gitlab-Event-UUID", token: "X-Gitlab-Token", pushes: []string{"Push Hook", "Tag Push Hook"}, read: readGitLab},
+	{name: "gitlab", event: "X-Gitlab-Event", delivery: "X-Gitlab-Event-UUID", token: "X-Gitlab-Token", pushes: []string{"Push Hook", "Tag Push Hook"}, read: readGitLab}, //nolint:gosec // a header's name, not a credential
 	// Bitbucket Cloud. GitHub sends X-Hub-Signature too, of SHA-1, but is found
 	// by its own header first.
 	{name: "bitbucket", event: "X-Event-Key", delivery: "X-Request-UUID", signature: "X-Hub-Signature", prefix: "sha256=", pushes: []string{"repo:push"}, read: readBitbucket},
