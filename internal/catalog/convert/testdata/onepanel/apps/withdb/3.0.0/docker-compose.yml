@@ -5,4 +5,6 @@ services:
     ports:
       - ${PANEL_APP_PORT_HTTP}:80
     environment:
-      - DB=${PANEL_DB_HOST}
+      - DB_HOST=${PANEL_DB_HOST}
+      - DB_TYPE=${PANEL_DB_TYPE}
+      - DATABASE_URL=postgres://${PANEL_DB_USER}:${PANEL_DB_USER_PASSWORD}@${PANEL_DB_HOST}:${PANEL_DB_PORT}/${PANEL_DB_NAME}

@@ -114,7 +114,11 @@ func TestOnServerConvertsWithoutAPerson(t *testing.T) {
 	if r := got["onlylatest"]; r.Entry == nil || r.Entry.GetVersion() != "latest" || !strings.Contains(r.Entry.GetCompose(), "image: example/a:latest\n") {
 		t.Errorf("onlylatest: %v, left out %q", r.Entry, r.LeftOut)
 	}
-	for id, class := range map[string]Class{"scripted": ClassScripts, "amd64only": ClassArch, "withdb": ClassAnotherApp, "shipped": ClassShipped} {
+	// An app that uses another app's database takes it as a need, on the server too (ADR 0084).
+	if r := got["withdb"]; r.Entry == nil || len(r.Entry.GetNeeds()) != 1 {
+		t.Errorf("withdb: needs %v, left out %q, want it converted with its database as a need", r.Entry.GetNeeds(), r.LeftOut)
+	}
+	for id, class := range map[string]Class{"scripted": ClassScripts, "amd64only": ClassArch, "shipped": ClassShipped} {
 		if r := got[id]; r.Entry != nil || r.Class != class {
 			t.Errorf("%s: class %q (%s), want %q", id, r.Class, r.LeftOut, class)
 		}
