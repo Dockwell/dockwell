@@ -162,6 +162,17 @@ const shortest = 6
 // for a variable whose name says it's a secret: a short password is still one.
 func valuesShown(spec *resourcev1.Container) []string {
 	out := CredentialLabels(spec)
+	shownIn(spec, func(name, where, _, _ string) { out = append(out, shownAs(name, where)) })
+	slices.Sort(out)
+	return slices.Compact(out)
+}
+
+// shownAs is what valuesShown says of a value of name in a field.
+func shownAs(name, where string) string { return "the value of " + name + " in its " + where }
+
+// shownIn calls visit for each word of spec's fields a value of its environment is
+// in, by the variable's name and valuesShown's words for the field.
+func shownIn(spec *resourcev1.Container, visit func(name, where, word, value string)) {
 	// A field that names values shows only its text: a ${NAME} in it is a name,
 	// which a short secret could match by chance (ADR 0096).
 	if len(spec.GetReferences()) > 0 {
@@ -182,14 +193,64 @@ func valuesShown(spec *resourcev1.Container) []string {
 				continue
 			}
 			// A label's name can be what holds it, so it can't say where.
+			at := where
 			if strings.Contains(where, value) {
-				where = "labels"
+				at = "labels"
 			}
-			out = append(out, "the value of "+name+" in its "+where)
+			visit(name, at, word, value)
 		}
 	})
+}
+
+// GuessableShows are what valuesShown says of a database's password that's shown
+// only as a whole part of a name a plan shows anyway, its aliases, networks, image
+// or hostname, as a template's POSTGRES_PASSWORD: forgejo beside the network
+// forgejo_default. Such a password is one anyone can guess, not one a plan gives
+// away, so a person may choose to take its container on as it is; any other
+// password, or one shown anywhere else, still refuses (ADR 0096, "A database
+// password that's one of its own names").
+func GuessableShows(spec *resourcev1.Container) []string {
+	whole := map[string]bool{}
+	shownIn(spec, func(name, where, word, value string) {
+		entry := shownAs(name, where)
+		ok, seen := whole[entry]
+		guess := namesShown[where] && secretName().MatchString(name) && databasePassword(spec, name) && wholePart(word, value)
+		whole[entry] = guess && (ok || !seen)
+	})
+	var out []string
+	for entry, ok := range whole {
+		if ok {
+			out = append(out, entry)
+		}
+	}
 	slices.Sort(out)
-	return slices.Compact(out)
+	return out
+}
+
+// GuessablePassword reports a database password of spec that's one of its own
+// names, as GuessableShows has it.
+func GuessablePassword(spec *resourcev1.Container) bool { return len(GuessableShows(spec)) > 0 }
+
+// databaseWords are the parts of a variable's name, or of an image's, that say it
+// is a database's.
+var databaseWords = []string{"db", "database", "postgres", "postgresql", "pg", "mysql", "mariadb", "mongo", "mongodb", "redis", "sql", "valkey"}
+
+// databasePassword reports a variable that holds a database's password by its
+// name, as POSTGRES_PASSWORD, PGPASSWORD or FORGEJO__database__PASSWD, or any
+// secret of a container whose image is a database's, as PASSWORD in postgres.
+func databasePassword(spec *resourcev1.Container, name string) bool {
+	isDatabase := func(part string) bool {
+		part = strings.ToLower(part)
+		return slices.Contains(databaseWords, part) || (strings.HasPrefix(part, "pg") || strings.HasPrefix(part, "db")) && secretName().MatchString(part)
+	}
+	if slices.ContainsFunc(strings.FieldsFunc(name, func(r rune) bool { return r == '_' || r == '.' || r == '-' }), isDatabase) {
+		return true
+	}
+	repo, _, _ := strings.Cut(spec.GetImage(), "@")
+	if i := strings.LastIndex(repo, ":"); i > strings.LastIndex(repo, "/") {
+		repo = repo[:i]
+	}
+	return isDatabase(repo[strings.LastIndex(repo, "/")+1:])
 }
 
 // CredentialIn starts what Shows says of a label that holds a credential, as a

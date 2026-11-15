@@ -365,6 +365,29 @@ describe("Activity", () => {
     await screen.findByRole("row", { name: /Sent a certificate's key, proven by DNS, to hz-1/ });
   });
 
+  it("says who chose to take on an app with a guessable database password, naming the app and never the password", async () => {
+    const events = [
+      auditEvent({
+        id: "evt_guess",
+        kind: EventKind.ACCESS,
+        action: "service.take_on_guessable_password",
+        subject: { id: "svc_db", name: "db", scope: "env_prod" },
+      }),
+      auditEvent({
+        id: "evt_guess_planned",
+        kind: EventKind.ACCESS,
+        action: "service.take_on_guessable_password",
+        time: timestampFromDate(new Date(Date.now() - HOUR)),
+        subject: { id: "svc_new" },
+      }),
+    ];
+    const watch = feed<WatchEventsResponse>();
+    watch.push(snapshot(events));
+    renderActivity(watch);
+    await screen.findByRole("row", { name: /Chose to take on db with a guessable database password/ });
+    await screen.findByRole("row", { name: /Chose to take on an app with a guessable database password/ });
+  });
+
   it("says what a server's public address was set to, and what it was, so it can be put back", async () => {
     const on = { id: "srv_1", name: "hz-1" };
     const events = [

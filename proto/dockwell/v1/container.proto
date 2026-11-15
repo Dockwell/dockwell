@@ -71,6 +71,10 @@ message AdoptContainerRequest {
   // or the server's processes (ADR 0097). Without it, a container that needs
   // some is refused, saying what.
   bool host_access = 6;
+  // Takes it on as it is where its database's password is one of its own names,
+  // which anyone can guess (ADR 0096). Without it, such a container is refused,
+  // saying so.
+  bool guessable_password = 7;
 }
 
 // AdoptContainerResponse carries the plan.

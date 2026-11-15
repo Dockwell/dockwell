@@ -299,6 +299,11 @@ message ImportCoolifyRequest {
   // access each needs: devices, GPUs, security options or the server's processes
   // (ADR 0097). Any other that needs some is left behind, saying what.
   repeated string host_access = 3;
+  // The apps, by their IDs as ImportStep.app_id has them, taken on as they are
+  // where a database's password is one of their own names, which anyone can
+  // guess (ADR 0096). Any other such app is left behind until a person chooses
+  // it.
+  repeated string guessable_password = 4;
 }
 
 // ImportCoolifyResponse is what Coolify runs on the server, and what an import
@@ -325,6 +330,11 @@ message ImportDokployRequest {
   // access each needs: devices, GPUs, security options or the server's processes
   // (ADR 0097). Any other that needs some is left behind, saying what.
   repeated string host_access = 3;
+  // The apps, by their IDs as ImportStep.app_id has them, taken on as they are
+  // where a database's password is one of their own names, which anyone can
+  // guess (ADR 0096). Any other such app is left behind until a person chooses
+  // it.
+  repeated string guessable_password = 4;
 }
 
 // ImportDokployResponse is what Dokploy runs on the server, and what an import
@@ -524,6 +534,10 @@ message ImportStep {
   // "/dev/dri/renderD128" or "all GPUs", where it needs some (ADR 0097). It's
   // taken on with that only where a request chooses it.
   repeated string needs_host_access = 9;
+  // True when the app's database password is one of its own names, which anyone
+  // can guess, so it's taken on only where a person chooses it, by app_id in
+  // guessable_password (ADR 0096). Nothing here says which password or name.
+  bool guessable_password = 10;
 }
 
 // ImportWaitsFor is a part of Dockwell an imported thing waits for, which a

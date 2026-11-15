@@ -763,6 +763,12 @@ msgstr "Checked that a backup of {volume} restores"
 msgid "Checked the DNS provider {name}, writing in its zones"
 msgstr "Checked the DNS provider {name}, writing in its zones"
 
+msgid "Chose to take on an app with a guessable database password"
+msgstr "Chose to take on an app with a guessable database password"
+
+msgid "Chose to take on {name} with a guessable database password"
+msgstr "Chose to take on {name} with a guessable database password"
+
 msgid "Claimed this install"
 msgstr "Claimed this install"
 
@@ -2851,6 +2857,9 @@ msgstr "It stays up until someone changes something. Fix what its check reports,
 
 msgid "It's behind a tunnel or a proxy"
 msgstr "It's behind a tunnel or a proxy"
+
+msgid "Its database password is guessable"
+msgstr "Its database password is guessable"
 
 msgid "Loading deployments"
 msgstr "Loading deployments"
@@ -12035,6 +12044,9 @@ msgstr "Dockwell reads what 1Panel keeps on {0}, from its own records, read-only
 msgid "Each thing below says whether it's in Dockwell already, what it waits for, or why it stays."
 msgstr "Each thing below says whether it's in Dockwell already, what it waits for, or why it stays."
 
+msgid "Guessable password"
+msgstr "Guessable password"
+
 msgid "Hide them"
 msgstr "Hide them"
 
@@ -12120,6 +12132,9 @@ msgstr "Start {proxy} again"
 
 msgid "Stop {name}"
 msgstr "Stop {name}"
+
+msgid "Take it on as it is: its password is one of its own names, which anyone can guess."
+msgstr "Take it on as it is: its password is one of its own names, which anyone can guess."
 
 #. placeholder {0}: step.needsHostAccess.join(", ")
 msgid "Take it on with {0}"

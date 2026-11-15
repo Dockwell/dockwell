@@ -114,9 +114,13 @@ type AdoptContainerRequest struct {
 	// Takes it on with the host access it needs: devices, GPUs, security options
 	// or the server's processes (ADR 0097). Without it, a container that needs
 	// some is refused, saying what.
-	HostAccess    bool `protobuf:"varint,6,opt,name=host_access,json=hostAccess,proto3" json:"host_access,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	HostAccess bool `protobuf:"varint,6,opt,name=host_access,json=hostAccess,proto3" json:"host_access,omitempty"`
+	// Takes it on as it is where its database's password is one of its own names,
+	// which anyone can guess (ADR 0096). Without it, such a container is refused,
+	// saying so.
+	GuessablePassword bool `protobuf:"varint,7,opt,name=guessable_password,json=guessablePassword,proto3" json:"guessable_password,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *AdoptContainerRequest) Reset() {
@@ -187,6 +191,13 @@ func (x *AdoptContainerRequest) GetEnvironment() string {
 func (x *AdoptContainerRequest) GetHostAccess() bool {
 	if x != nil {
 		return x.HostAccess
+	}
+	return false
+}
+
+func (x *AdoptContainerRequest) GetGuessablePassword() bool {
+	if x != nil {
+		return x.GuessablePassword
 	}
 	return false
 }
@@ -667,7 +678,7 @@ var File_dockwell_v1_container_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_container_proto_rawDesc = "" +
 	"\n" +
-	"\x1bdockwell/v1/container.proto\x12\vdockwell.v1\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xb6\x01\n" +
+	"\x1bdockwell/v1/container.proto\x12\vdockwell.v1\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xe5\x01\n" +
 	"\x15AdoptContainerRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x16\n" +
 	"\x06server\x18\x02 \x01(\tR\x06server\x12\x18\n" +
@@ -675,7 +686,8 @@ const file_dockwell_v1_container_proto_rawDesc = "" +
 	"\aproject\x18\x04 \x01(\tR\aproject\x12 \n" +
 	"\venvironment\x18\x05 \x01(\tR\venvironment\x12\x1f\n" +
 	"\vhost_access\x18\x06 \x01(\bR\n" +
-	"hostAccess\"E\n" +
+	"hostAccess\x12-\n" +
+	"\x12guessable_password\x18\a \x01(\bR\x11guessablePassword\"E\n" +
 	"\x16AdoptContainerResponse\x12+\n" +
 	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"/\n" +
 	"\x15ListContainersRequest\x12\x16\n" +

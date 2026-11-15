@@ -9,6 +9,7 @@ package containers
 import (
 	"cmp"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -27,6 +28,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/changes"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/human"
+	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/service"
@@ -103,11 +105,15 @@ func (h *Handler) AdoptContainer(ctx context.Context, req *connect.Request[dockw
 	if err != nil {
 		return nil, err
 	}
+	found, guessable := WithoutGuessable(svc.GetApp(), found)
 	if why := Refusal(c.GetName(), found); why != "" {
 		return nil, authapi.Invalid(fmt.Errorf("%s. It stays as it is, and nothing was taken on. %s", why, Fix(found)))
 	}
 	if needs := HostAccessNeeded(svc.GetApp()); len(needs) > 0 && !req.Msg.GetHostAccess() {
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s. It stays as it is, and nothing was taken on. Choose host access to take it on with that", HostAccessRefusal(c.GetName(), needs)), "needs_host_access")
+	}
+	if guessable && !req.Msg.GetGuessablePassword() {
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s. It stays as it is, and nothing was taken on. Choose to take it on as it is, then change the password", GuessableRefusal(c.GetName())), "guessable_password")
 	}
 	edit := &dockwellv1.Edit{
 		Resource: &dockwellv1.ResourceRef{Kind: string(service.Kind), Scope: env.ID, Name: name},
@@ -125,6 +131,11 @@ func (h *Handler) AdoptContainer(ctx context.Context, req *connect.Request[dockw
 	})
 	if err != nil {
 		return nil, err
+	}
+	if guessable {
+		if err := RecordGuessable(ctx, h.db, change, []resource.Ref{{Kind: service.Kind, Scope: env.ID, Name: name}}); err != nil {
+			return nil, h.internal(ctx, err)
+		}
 	}
 	return connect.NewResponse(&dockwellv1.AdoptContainerResponse{Change: change}), nil
 }
@@ -185,6 +196,61 @@ func HostAccessNeeded(app *resourcev1.Container) []string {
 		}
 	}
 	return out
+}
+
+// GuessableRefusal says a container's database password is one of its own names,
+// which a person hasn't chosen to take on as it is (ADR 0096). It says no more than
+// that: not which password, nor which name.
+func GuessableRefusal(name string) string {
+	return fmt.Sprintf("the container %s's database password is one of its own names, which anyone can guess, so it's taken on as it is only where you choose it", name)
+}
+
+// WithoutGuessable is found without what it shows of app's database password where
+// that's one of its own names (container.GuessableShows), which is a person's choice
+// rather than a refusal, and whether there was any.
+func WithoutGuessable(app *resourcev1.Container, found resource.Adoption) (resource.Adoption, bool) {
+	guess := container.GuessableShows(app)
+	if len(guess) == 0 {
+		return found, false
+	}
+	found.Shows = slices.DeleteFunc(slices.Clone(found.Shows), func(s string) bool { return slices.Contains(guess, s) })
+	return found, true
+}
+
+// ActionGuessablePassword is Activity's word for a person's choice to take on an
+// app whose database password is one of its own names, as it is (ADR 0096). Its
+// target is the service the plan takes on, and its detail the change.
+const ActionGuessablePassword = "service.take_on_guessable_password"
+
+// RecordGuessable puts on Activity that the caller chose to take on the services of
+// change named in chosen as they are, their database password one of their own
+// names: one event each, by the service's ID in the plan.
+func RecordGuessable(ctx context.Context, db *store.DB, change *dockwellv1.Change, chosen []resource.Ref) error {
+	if len(chosen) == 0 || change == nil {
+		return nil
+	}
+	p, _ := authapi.PrincipalFrom(ctx)
+	client, _ := authapi.ClientFrom(ctx)
+	detail, err := json.Marshal(map[string]string{"change": change.GetId()})
+	if err != nil {
+		return err
+	}
+	now := time.Now()
+	return db.Update(ctx, func(tx *store.Tx) error {
+		for _, r := range change.GetPlan().GetResources() {
+			ref := r.GetResource()
+			if !slices.Contains(chosen, resource.Ref{Kind: resource.Kind(ref.GetKind()), Scope: ref.GetScope(), Name: ref.GetName()}) {
+				continue
+			}
+			if err := tx.RecordEvent(ctx, store.Event{
+				ID: id.New(id.Event), At: now, Actor: p.Actor(), Action: ActionGuessablePassword,
+				Target: r.GetId(), Detail: string(detail), Surface: client.Surface(p),
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 // HostAccessRefusal says a container needs host access a person hasn't chosen.

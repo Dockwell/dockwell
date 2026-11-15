@@ -1434,6 +1434,11 @@
 }
 
 /* Facts, label and value, as the mocks' panels list them. */
+/* A state under a fact, such as a guessable database password (ADR 0096). */
+.app-guessable {
+  margin-top: var(--space-1);
+}
+
 .app-facts {
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);

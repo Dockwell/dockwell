@@ -929,9 +929,14 @@ type ImportCoolifyRequest struct {
 	// The apps, by their IDs as ImportStep.app_id has them, taken on with the host
 	// access each needs: devices, GPUs, security options or the server's processes
 	// (ADR 0097). Any other that needs some is left behind, saying what.
-	HostAccess    []string `protobuf:"bytes,3,rep,name=host_access,json=hostAccess,proto3" json:"host_access,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	HostAccess []string `protobuf:"bytes,3,rep,name=host_access,json=hostAccess,proto3" json:"host_access,omitempty"`
+	// The apps, by their IDs as ImportStep.app_id has them, taken on as they are
+	// where a database's password is one of their own names, which anyone can
+	// guess (ADR 0096). Any other such app is left behind until a person chooses
+	// it.
+	GuessablePassword []string `protobuf:"bytes,4,rep,name=guessable_password,json=guessablePassword,proto3" json:"guessable_password,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *ImportCoolifyRequest) Reset() {
@@ -981,6 +986,13 @@ func (x *ImportCoolifyRequest) GetSkipPlan() bool {
 func (x *ImportCoolifyRequest) GetHostAccess() []string {
 	if x != nil {
 		return x.HostAccess
+	}
+	return nil
+}
+
+func (x *ImportCoolifyRequest) GetGuessablePassword() []string {
+	if x != nil {
+		return x.GuessablePassword
 	}
 	return nil
 }
@@ -1063,9 +1075,14 @@ type ImportDokployRequest struct {
 	// The apps, by their IDs as ImportStep.app_id has them, taken on with the host
 	// access each needs: devices, GPUs, security options or the server's processes
 	// (ADR 0097). Any other that needs some is left behind, saying what.
-	HostAccess    []string `protobuf:"bytes,3,rep,name=host_access,json=hostAccess,proto3" json:"host_access,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	HostAccess []string `protobuf:"bytes,3,rep,name=host_access,json=hostAccess,proto3" json:"host_access,omitempty"`
+	// The apps, by their IDs as ImportStep.app_id has them, taken on as they are
+	// where a database's password is one of their own names, which anyone can
+	// guess (ADR 0096). Any other such app is left behind until a person chooses
+	// it.
+	GuessablePassword []string `protobuf:"bytes,4,rep,name=guessable_password,json=guessablePassword,proto3" json:"guessable_password,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *ImportDokployRequest) Reset() {
@@ -1115,6 +1132,13 @@ func (x *ImportDokployRequest) GetSkipPlan() bool {
 func (x *ImportDokployRequest) GetHostAccess() []string {
 	if x != nil {
 		return x.HostAccess
+	}
+	return nil
+}
+
+func (x *ImportDokployRequest) GetGuessablePassword() []string {
+	if x != nil {
+		return x.GuessablePassword
 	}
 	return nil
 }
@@ -1907,8 +1931,12 @@ type ImportStep struct {
 	// "/dev/dri/renderD128" or "all GPUs", where it needs some (ADR 0097). It's
 	// taken on with that only where a request chooses it.
 	NeedsHostAccess []string `protobuf:"bytes,9,rep,name=needs_host_access,json=needsHostAccess,proto3" json:"needs_host_access,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// True when the app's database password is one of its own names, which anyone
+	// can guess, so it's taken on only where a person chooses it, by app_id in
+	// guessable_password (ADR 0096). Nothing here says which password or name.
+	GuessablePassword bool `protobuf:"varint,10,opt,name=guessable_password,json=guessablePassword,proto3" json:"guessable_password,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *ImportStep) Reset() {
@@ -2002,6 +2030,13 @@ func (x *ImportStep) GetNeedsHostAccess() []string {
 		return x.NeedsHostAccess
 	}
 	return nil
+}
+
+func (x *ImportStep) GetGuessablePassword() bool {
+	if x != nil {
+		return x.GuessablePassword
+	}
+	return false
 }
 
 // OnePanel is what 1Panel keeps on a server, as its records say, with nothing
@@ -3159,21 +3194,23 @@ const file_dockwell_v1_import_proto_rawDesc = "" +
 	"\x05panel\x18\x02 \x01(\x0e2\x16.dockwell.v1.PanelKindR\x05panel\x12\x18\n" +
 	"\asummary\x18\x03 \x01(\tR\asummary\"D\n" +
 	"\x15PlanStopPanelResponse\x12+\n" +
-	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"q\n" +
+	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"\xa0\x01\n" +
 	"\x14ImportCoolifyRequest\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x1b\n" +
 	"\tskip_plan\x18\x02 \x01(\bR\bskipPlan\x12\x1f\n" +
 	"\vhost_access\x18\x03 \x03(\tR\n" +
-	"hostAccess\"\x9d\x01\n" +
+	"hostAccess\x12-\n" +
+	"\x12guessable_password\x18\x04 \x03(\tR\x11guessablePassword\"\x9d\x01\n" +
 	"\x15ImportCoolifyResponse\x12(\n" +
 	"\x05found\x18\x01 \x01(\v2\x12.dockwell.v1.PanelR\x05found\x12-\n" +
 	"\x05steps\x18\x02 \x03(\v2\x17.dockwell.v1.ImportStepR\x05steps\x12+\n" +
-	"\x06change\x18\x03 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"q\n" +
+	"\x06change\x18\x03 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"\xa0\x01\n" +
 	"\x14ImportDokployRequest\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x1b\n" +
 	"\tskip_plan\x18\x02 \x01(\bR\bskipPlan\x12\x1f\n" +
 	"\vhost_access\x18\x03 \x03(\tR\n" +
-	"hostAccess\"\x9d\x01\n" +
+	"hostAccess\x12-\n" +
+	"\x12guessable_password\x18\x04 \x03(\tR\x11guessablePassword\"\x9d\x01\n" +
 	"\x15ImportDokployResponse\x12(\n" +
 	"\x05found\x18\x01 \x01(\v2\x12.dockwell.v1.PanelR\x05found\x12-\n" +
 	"\x05steps\x18\x02 \x03(\v2\x17.dockwell.v1.ImportStepR\x05steps\x12+\n" +
@@ -3235,7 +3272,7 @@ const file_dockwell_v1_import_proto_rawDesc = "" +
 	"\x16ImportOnePanelResponse\x12+\n" +
 	"\x05found\x18\x01 \x01(\v2\x15.dockwell.v1.OnePanelR\x05found\x12-\n" +
 	"\x05steps\x18\x02 \x03(\v2\x17.dockwell.v1.ImportStepR\x05steps\x12+\n" +
-	"\x06change\x18\x03 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"\xc9\x02\n" +
+	"\x06change\x18\x03 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"\xf8\x02\n" +
 	"\n" +
 	"ImportStep\x12+\n" +
 	"\x04kind\x18\x01 \x01(\x0e2\x17.dockwell.v1.ImportKindR\x04kind\x12\x12\n" +
@@ -3246,7 +3283,9 @@ const file_dockwell_v1_import_proto_rawDesc = "" +
 	"\x06reason\x18\x06 \x01(\tR\x06reason\x128\n" +
 	"\twaits_for\x18\a \x01(\x0e2\x1b.dockwell.v1.ImportWaitsForR\bwaitsFor\x12\x15\n" +
 	"\x06app_id\x18\b \x01(\tR\x05appId\x12*\n" +
-	"\x11needs_host_access\x18\t \x03(\tR\x0fneedsHostAccess\"\xe8\x04\n" +
+	"\x11needs_host_access\x18\t \x03(\tR\x0fneedsHostAccess\x12-\n" +
+	"\x12guessable_password\x18\n" +
+	" \x01(\bR\x11guessablePassword\"\xe8\x04\n" +
 	"\bOnePanel\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\tR\aversion\x12\x19\n" +
 	"\bbase_dir\x18\x02 \x01(\tR\abaseDir\x12\x18\n" +

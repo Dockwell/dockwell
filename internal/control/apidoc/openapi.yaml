@@ -7644,6 +7644,12 @@ components:
                         Takes it on with the host access its containers need: devices, GPUs,
                          security options or the server's processes (ADR 0097). Without it, a
                          project that needs some is refused, saying what.
+                guessablePassword:
+                    type: boolean
+                    description: |-
+                        Takes it on as it is where a database's password is one of its own names,
+                         which anyone can guess (ADR 0096). Without it, such a project is refused,
+                         saying so.
             description: AdoptComposeRequest names a Compose project on a server.
         AdoptComposeResponse:
             type: object
@@ -7679,6 +7685,12 @@ components:
                         Takes it on with the host access it needs: devices, GPUs, security options
                          or the server's processes (ADR 0097). Without it, a container that needs
                          some is refused, saying what.
+                guessablePassword:
+                    type: boolean
+                    description: |-
+                        Takes it on as it is where its database's password is one of its own names,
+                         which anyone can guess (ADR 0096). Without it, such a container is refused,
+                         saying so.
             description: AdoptContainerRequest names a container, and what to make of it.
         AdoptContainerResponse:
             type: object
@@ -15473,6 +15485,15 @@ components:
                         The apps, by their IDs as ImportStep.app_id has them, taken on with the host
                          access each needs: devices, GPUs, security options or the server's processes
                          (ADR 0097). Any other that needs some is left behind, saying what.
+                guessablePassword:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        The apps, by their IDs as ImportStep.app_id has them, taken on as they are
+                         where a database's password is one of their own names, which anyone can
+                         guess (ADR 0096). Any other such app is left behind until a person chooses
+                         it.
             description: ImportCoolifyRequest names the server to import from.
         ImportCoolifyResponse:
             type: object
@@ -15515,6 +15536,15 @@ components:
                         The apps, by their IDs as ImportStep.app_id has them, taken on with the host
                          access each needs: devices, GPUs, security options or the server's processes
                          (ADR 0097). Any other that needs some is left behind, saying what.
+                guessablePassword:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        The apps, by their IDs as ImportStep.app_id has them, taken on as they are
+                         where a database's password is one of their own names, which anyone can
+                         guess (ADR 0096). Any other such app is left behind until a person chooses
+                         it.
             description: ImportDokployRequest names the server to import from.
         ImportDokployResponse:
             type: object
@@ -15639,6 +15669,12 @@ components:
                         The host access the app needs, each in a few words, such as
                          "/dev/dri/renderD128" or "all GPUs", where it needs some (ADR 0097). It's
                          taken on with that only where a request chooses it.
+                guessablePassword:
+                    type: boolean
+                    description: |-
+                        True when the app's database password is one of its own names, which anyone
+                         can guess, so it's taken on only where a person chooses it, by app_id in
+                         guessable_password (ADR 0096). Nothing here says which password or name.
             description: ImportStep is one thing found, and what an import would do with it.
         IngressEffect:
             type: object
@@ -22579,6 +22615,13 @@ components:
                          of its image or a limit, asks for a passkey, which an editor can say before
                          it plans; one that takes it away asks for none. Empty when it reaches
                          nothing, or its spec can't be read.
+                guessablePassword:
+                    type: boolean
+                    description: |-
+                        True when the app's database password is one of its own names, its aliases,
+                         networks, image or hostname, which anyone can guess, as a taken-on template's
+                         can be (ADR 0096). It says no more than that: not which password, nor which
+                         name.
                 update:
                     allOf:
                         - $ref: '#/components/schemas/ServiceUpdate'

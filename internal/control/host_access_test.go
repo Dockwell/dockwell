@@ -14,7 +14,9 @@ import (
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/agent/onepanel/onepaneltest"
+	"github.com/dockwell/dockwell/internal/control/containers"
 	"github.com/dockwell/dockwell/internal/docker"
+	"github.com/dockwell/dockwell/internal/docker/dockertest"
 	"github.com/dockwell/dockwell/internal/store"
 )
 
@@ -292,5 +294,144 @@ func TestTurningPrivilegedOffSaysTheLabelsComeBack(t *testing.T) {
 	off := confined(propose(t, s.c, "Run api unprivileged", edit(false, "ghcr.io/acme/shop:1.4")))
 	if len(off) != 1 || !strings.Contains(off[0], "api runs under SELinux's labels again") || !strings.Contains(off[0], "add label=disable to its security_opt") {
 		t.Errorf("turning privileged off says %v", off)
+	}
+}
+
+// A database's password that's one of the app's own names is taken on only where a
+// person chooses it, and then as it is: the plan names no value and says nothing
+// of it, Activity says who chose it, and the app's page keeps the state until the
+// password changes (ADR 0096, "A database password that's one of its own names").
+func TestAGuessablePasswordIsAChoice(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	c := changeClient(b, b.origin)
+	cc := containerClient(b, b.origin)
+	imports := dockwellv1connect.NewComposeServiceClient(b, b.origin, connect.WithProtoJSON())
+	e.AddNetwork(docker.Network{ID: "fjnet", Name: "forgejo_default", Driver: "bridge"})
+	composeContainer(t, e, "forgejo", "db", "forgejo-db-1", func(r *docker.CreateRequest) {
+		r.Env = append(r.Env, "POSTGRES_PASSWORD=forgejo")
+	})
+
+	_, err := imports.AdoptCompose(t.Context(), connect.NewRequest(&dockwellv1.AdoptComposeRequest{Name: "forgejo"}))
+	if err == nil || !strings.Contains(err.Error(), "the container forgejo-db-1's database password is one of its own names, which anyone can guess") ||
+		strings.Contains(err.Error(), "POSTGRES_PASSWORD") {
+		t.Fatalf("taking it on unchosen = %v", err)
+	}
+	res, err := imports.AdoptCompose(t.Context(), connect.NewRequest(&dockwellv1.AdoptComposeRequest{Name: "forgejo", GuessablePassword: true}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan := res.Msg.GetChange().GetPlan()
+	for _, n := range plan.GetNotes() {
+		if strings.Contains(strings.ToLower(n.GetMessage()), "password") {
+			t.Errorf("the plan says of the password: %q", n.GetMessage())
+		}
+	}
+	if strings.Contains(plan.String(), "POSTGRES_PASSWORD") && strings.Contains(plan.String(), `to:"forgejo"`) {
+		t.Errorf("the plan names the value: %v", plan)
+	}
+
+	// Activity says who chose it, by the service the plan takes on.
+	events := listEvents(t, eventClient(b, b.origin), &dockwellv1.ListEventsRequest{Kinds: []dockwellv1.EventKind{dockwellv1.EventKind_EVENT_KIND_ACCESS}})
+	var chose []*dockwellv1.Event
+	for _, ev := range events {
+		if ev.GetAction() == containers.ActionGuessablePassword {
+			chose = append(chose, ev)
+		}
+	}
+	if len(chose) != 1 || chose[0].GetActor().GetKind() != dockwellv1.ActorKind_ACTOR_KIND_USER || !strings.HasPrefix(chose[0].GetSubject().GetId(), "svc_") {
+		t.Fatalf("Activity = %v", chose)
+	}
+	applyConfirmed(t, c, res.Msg.GetChange())
+	events = listEvents(t, eventClient(b, b.origin), &dockwellv1.ListEventsRequest{Kinds: []dockwellv1.EventKind{dockwellv1.EventKind_EVENT_KIND_ACCESS}})
+	for _, ev := range events {
+		if ev.GetAction() == containers.ActionGuessablePassword && ev.GetSubject().GetName() != "db" {
+			t.Errorf("once applied, Activity names %q", ev.GetSubject().GetName())
+		}
+	}
+
+	// The app's page keeps the state, read from the values as they are.
+	svcs := dockwellv1connect.NewServiceServiceClient(b, b.origin, connect.WithProtoJSON())
+	guessable := func() bool {
+		t.Helper()
+		list, err := svcs.ListServices(t.Context(), connect.NewRequest(&dockwellv1.ListServicesRequest{}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, s := range list.Msg.GetServices() {
+			if s.GetResource().GetName() == "db" {
+				return s.GetGuessablePassword()
+			}
+		}
+		t.Fatal("no service db")
+		return false
+	}
+	if !guessable() {
+		t.Error("the app's page doesn't say its password is guessable")
+	}
+
+	// A container taken on alone asks the same.
+	e.AddLocalImage("postgres:17", dockertest.Image{Config: docker.Config{Cmd: []string{"postgres"}}})
+	runByHand(t, e, "wiki-db", func(r *docker.CreateRequest) {
+		r.Image = "postgres:17"
+		r.HostConfig.PortBindings, r.HostConfig.Binds = nil, nil
+		r.Env = append(r.Env, "PASSWORD=wiki")
+		r.Hostname = "wiki"
+	})
+	_, err = cc.AdoptContainer(t.Context(), connect.NewRequest(&dockwellv1.AdoptContainerRequest{Id: "wiki-db", Project: "default"}))
+	if reasonOf(err) != "guessable_password" {
+		t.Errorf("a container alone, unchosen = %v", err)
+	}
+	if _, err := cc.AdoptContainer(t.Context(), connect.NewRequest(&dockwellv1.AdoptContainerRequest{Id: "wiki-db", Project: "default", GuessablePassword: true})); err != nil {
+		t.Errorf("a container alone, chosen = %v", err)
+	}
+}
+
+// An import from Coolify leaves an app whose database password is one of its own
+// names, as a state with no words of its own under it, until it's chosen by its ID,
+// when it's taken on as it is, and Activity says who chose it (ADR 0096). With host
+// access needed too, both are asked, and it comes once both are chosen.
+func TestAnImportTakesOnAGuessablePasswordWhereChosen(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	runByHand(t, e, "coolify", func(r *docker.CreateRequest) { r.HostConfig.PortBindings, r.HostConfig.Binds = nil, nil })
+	e.AddNetwork(docker.Network{ID: "k8q4net", Name: "k8q4_default", Driver: "bridge"})
+	composeContainer(t, e, "k8q4", "listmonk", "listmonk-k8q4", func(r *docker.CreateRequest) {
+		r.Labels["coolify.managed"], r.Labels["coolify.type"], r.Labels["coolify.serviceUuid"], r.Labels["coolify.resourceName"] = "true", "service", "k8q4", "newsletter"
+		r.Labels[docker.LabelWorkingDir] = "/data/coolify/services/k8q4"
+		r.Env = append(r.Env, "PGPASSWORD=listmonk")
+		r.HostConfig.Devices = []docker.DeviceMapping{{PathOnHost: "/dev/dri/renderD128", PathInContainer: "/dev/dri/renderD128", CgroupPermissions: "rwm"}}
+	})
+	ic := importClient(b)
+	read := func(skip bool, host, guess []string) *dockwellv1.ImportCoolifyResponse {
+		t.Helper()
+		res, err := ic.ImportCoolify(t.Context(), connect.NewRequest(&dockwellv1.ImportCoolifyRequest{ServerId: f.lastDocker.id.ServerID, SkipPlan: skip, HostAccess: host, GuessablePassword: guess}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return res.Msg
+	}
+	step := panelSteps(read(true, nil, nil))["IMPORT_KIND_APP newsletter"]
+	if step.GetAction() != dockwellv1.ImportAction_IMPORT_ACTION_LEAVE || step.GetReason() != "" || step.GetAppId() != "k8q4" || !step.GetGuessablePassword() {
+		t.Errorf("unchosen, newsletter reads %v", step)
+	}
+	if step = panelSteps(read(true, []string{"k8q4"}, nil))["IMPORT_KIND_APP newsletter"]; step.GetAction() != dockwellv1.ImportAction_IMPORT_ACTION_LEAVE || step.GetReason() != "" {
+		t.Errorf("with host access alone, newsletter reads %v", step)
+	}
+	res := read(false, []string{"k8q4"}, []string{"k8q4"})
+	if step = panelSteps(res)["IMPORT_KIND_APP newsletter"]; step.GetAction() != dockwellv1.ImportAction_IMPORT_ACTION_TAKE_ON || !step.GetGuessablePassword() {
+		t.Errorf("both chosen, newsletter reads %v", step)
+	}
+	events := listEvents(t, eventClient(b, b.origin), &dockwellv1.ListEventsRequest{Kinds: []dockwellv1.EventKind{dockwellv1.EventKind_EVENT_KIND_ACCESS}})
+	n := 0
+	for _, ev := range events {
+		if ev.GetAction() == containers.ActionGuessablePassword {
+			n++
+		}
+	}
+	if res.GetChange() == nil || n != 1 {
+		t.Errorf("the plan %v, with %d choices on Activity", res.GetChange().GetId(), n)
 	}
 }

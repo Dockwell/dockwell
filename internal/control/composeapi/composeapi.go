@@ -499,7 +499,7 @@ func (h *Handler) AdoptCompose(ctx context.Context, req *connect.Request[dockwel
 	if m.GetName() == "" {
 		return nil, invalid(errors.New("the request names no Compose project. Pass one in name, such as shop"))
 	}
-	t, err := h.ReadTaking(ctx, m.GetServer(), m.GetName(), m.GetProject(), m.GetEnvironment(), m.GetHostAccess())
+	t, err := h.ReadTaking(ctx, m.GetServer(), m.GetName(), m.GetProject(), m.GetEnvironment(), Choices{HostAccess: m.GetHostAccess(), GuessablePassword: m.GetGuessablePassword()})
 	if err != nil {
 		return nil, err
 	}
@@ -509,6 +509,9 @@ func (h *Handler) AdoptCompose(ctx context.Context, req *connect.Request[dockwel
 	c, err := h.changes.Propose(ctx, "Take on "+m.GetName(), t.Edits, nil, changes.Also{Edits: t.Made, Adopts: t.Adopts, Notes: t.Notes})
 	if err != nil {
 		return nil, err
+	}
+	if err := containers.RecordGuessable(ctx, h.db, c, t.Guessable); err != nil {
+		return nil, h.internal(ctx, err)
 	}
 	return connect.NewResponse(&dockwellv1.AdoptComposeResponse{Change: c}), nil
 }
@@ -529,26 +532,53 @@ type Taking struct {
 	// Refusals are what's in the way of taking it on, each in words a person can act on.
 	Refusals []string
 	// NeedsHostAccess is the host access its containers need, in a few words each,
-	// which a person chooses before it's taken on (ADR 0097), and HostAccessOnly says
-	// that's all of what's in the way.
+	// which a person chooses before it's taken on (ADR 0097).
 	NeedsHostAccess []string
-	HostAccessOnly  bool
+	// GuessablePassword says a container's database password is one of its own
+	// names, which a person chooses to take on as it is (ADR 0096), and Guessable
+	// are the services it takes on so, for Activity.
+	GuessablePassword bool
+	Guessable         []resource.Ref
+	// ChoicesOnly says what a person chooses is all of what's in the way.
+	ChoicesOnly bool
 	// NeedsByService is the host access each service made again needs, by the
-	// service, and HostAccessLeft those left behind for that alone (ADR 0097).
-	NeedsByService map[string][]string
-	HostAccessLeft map[string]bool
+	// service, and HostAccessLeft those left behind for that; GuessableByService and
+	// GuessableLeft are the same of a guessable database password (ADR 0096, 0097).
+	NeedsByService     map[string][]string
+	HostAccessLeft     map[string]bool
+	GuessableByService map[string]bool
+	GuessableLeft      map[string]bool
+}
+
+// RecordGuessable puts on Activity that the caller chose to take on these services
+// of change as they are, their database password guessable (ADR 0096).
+func (h *Handler) RecordGuessable(ctx context.Context, change *dockwellv1.Change, chosen []resource.Ref) error {
+	if err := containers.RecordGuessable(ctx, h.db, change, chosen); err != nil {
+		return h.internal(ctx, err)
+	}
+	return nil
+}
+
+// Choices are what a person chose of what's taken on only where they choose it.
+type Choices struct {
+	// HostAccess takes on what reaches the server past what Docker gives a
+	// container (ADR 0097).
+	HostAccess bool
+	// GuessablePassword takes on, as it is, what has a database password that's one
+	// of its own names, which anyone can guess (ADR 0096).
+	GuessablePassword bool
 }
 
 // ReadTaking reads what taking on the Compose project name on server would plan,
 // into project and environment, as AdoptCompose takes them. What's in the way is
 // collected, whatever kind it is, so a person fixes it once rather than meeting it
 // one thing at a time.
-func (h *Handler) ReadTaking(ctx context.Context, server, name, project, environment string, hostAccess bool) (*Taking, error) {
+func (h *Handler) ReadTaking(ctx context.Context, server, name, project, environment string, chose Choices) (*Taking, error) {
 	r, err := h.containers.ReadRunning(ctx, server)
 	if err != nil {
 		return nil, err
 	}
-	return h.ReadTakingIn(ctx, r, name, project, environment, hostAccess)
+	return h.ReadTakingIn(ctx, r, name, project, environment, chose)
 }
 
 // ReadRunning reads what a server runs, once, for ReadTakingIn and TakenOn.
@@ -557,7 +587,7 @@ func (h *Handler) ReadRunning(ctx context.Context, server string) (*containers.R
 }
 
 // ReadTakingIn is ReadTaking, of what r read the server running.
-func (h *Handler) ReadTakingIn(ctx context.Context, r *containers.Running, name, project, environment string, hostAccess bool) (*Taking, error) {
+func (h *Handler) ReadTakingIn(ctx context.Context, r *containers.Running, name, project, environment string, chose Choices) (*Taking, error) {
 	s := r.Server
 	list, err := r.InProject(name)
 	if err != nil {
@@ -588,7 +618,7 @@ func (h *Handler) ReadTakingIn(ctx context.Context, r *containers.Running, name,
 		svcs[svcName], founds[svcName] = svc, &found
 	}
 	carryLinks(byName, svcs, founds)
-	hostRefusals := 0
+	choiceRefusals := 0
 	for _, svcName := range slices.Sorted(maps.Keys(byName)) {
 		c := byName[svcName][0]
 		if len(byName[svcName]) > 1 {
@@ -598,15 +628,25 @@ func (h *Handler) ReadTakingIn(ctx context.Context, r *containers.Running, name,
 			t.Refusals = append(t.Refusals, fmt.Sprintf("the project %s runs a service %s already, so it can't take on %s as well. Pass another project", place.project, svcName, c.GetName()))
 		}
 		ref := resource.Ref{Kind: service.Kind, Scope: place.environment, Name: svcName}
-		svc, found := svcs[svcName], *founds[svcName]
+		svc := svcs[svcName]
+		found, guessable := containers.WithoutGuessable(svc.GetApp(), *founds[svcName])
 		if why := containers.Refusal(c.GetName(), found); why != "" {
 			t.Refusals = append(t.Refusals, why)
 		}
 		if needs := containers.HostAccessNeeded(svc.GetApp()); len(needs) > 0 {
 			t.NeedsHostAccess = append(t.NeedsHostAccess, needs...)
-			if !hostAccess {
+			if !chose.HostAccess {
 				t.Refusals = append(t.Refusals, containers.HostAccessRefusal(c.GetName(), needs))
-				hostRefusals++
+				choiceRefusals++
+			}
+		}
+		if guessable {
+			t.GuessablePassword = true
+			if !chose.GuessablePassword {
+				t.Refusals = append(t.Refusals, containers.GuessableRefusal(c.GetName()))
+				choiceRefusals++
+			} else {
+				t.Guessable = append(t.Guessable, ref)
 			}
 		}
 		manager, folder = cmp.Or(manager, found.Manager), cmp.Or(folder, found.Folder)
@@ -617,7 +657,7 @@ func (h *Handler) ReadTakingIn(ctx context.Context, r *containers.Running, name,
 			Servers:  []string{s.ID},
 		})
 	}
-	t.HostAccessOnly = hostRefusals > 0 && hostRefusals == len(t.Refusals)
+	t.ChoicesOnly = choiceRefusals > 0 && choiceRefusals == len(t.Refusals)
 	names := make([]string, 0, len(list))
 	for _, c := range list {
 		names = append(names, c.GetName())
@@ -765,7 +805,7 @@ type Remake struct {
 // left behind, Swarm's, Traefik's and Dokploy's labels and its networks. Nothing is
 // taken on: the plan makes a new container, and its manager's copy stops as a step
 // of its own. What's in the way is said for each, by its service.
-func (h *Handler) ReadMakingAgain(ctx context.Context, r *containers.Running, list []Remake, project string, chosen map[string]bool) (*Taking, map[string][]string, error) {
+func (h *Handler) ReadMakingAgain(ctx context.Context, r *containers.Running, list []Remake, project string, chosen map[string]Choices) (*Taking, map[string][]string, error) {
 	place, err := h.destination(ctx, project, "", "")
 	if err != nil {
 		return nil, nil, err
@@ -797,22 +837,37 @@ func (h *Handler) ReadMakingAgain(ctx context.Context, r *containers.Running, li
 		// What Swarm gives a task's container that its copy doesn't carry isn't
 		// dropped without a word: it's Swarm's, not the app's.
 		found.Refused = slices.DeleteFunc(found.Refused, swarmOnly)
+		found, guessable := containers.WithoutGuessable(svc.GetApp(), found)
 		if why := containers.Refusal(c.GetName(), found); why != "" {
 			refused[m.Service] = append(refused[m.Service], why)
 			continue
 		}
 		// What Swarm gives a task's container of the server is no less a choice
-		// for its copy (ADR 0097).
+		// for its copy (ADR 0097), and so is a guessable password (ADR 0096).
+		if t.NeedsByService == nil {
+			t.NeedsByService, t.HostAccessLeft = map[string][]string{}, map[string]bool{}
+			t.GuessableByService, t.GuessableLeft = map[string]bool{}, map[string]bool{}
+		}
+		left := false
 		if needs := containers.HostAccessNeeded(svc.GetApp()); len(needs) > 0 {
-			if t.NeedsByService == nil {
-				t.NeedsByService, t.HostAccessLeft = map[string][]string{}, map[string]bool{}
-			}
 			t.NeedsByService[m.Service] = needs
-			if !chosen[m.Service] {
+			if !chosen[m.Service].HostAccess {
 				refused[m.Service] = append(refused[m.Service], containers.HostAccessRefusal(c.GetName(), needs))
-				t.HostAccessLeft[m.Service] = true
-				continue
+				t.HostAccessLeft[m.Service], left = true, true
 			}
+		}
+		if guessable {
+			t.GuessableByService[m.Service] = true
+			if !chosen[m.Service].GuessablePassword {
+				refused[m.Service] = append(refused[m.Service], containers.GuessableRefusal(c.GetName()))
+				t.GuessableLeft[m.Service], left = true, true
+			}
+		}
+		if left {
+			continue
+		}
+		if guessable {
+			t.Guessable = append(t.Guessable, ref)
 		}
 		app := svc.GetApp()
 		remade(app, m)
