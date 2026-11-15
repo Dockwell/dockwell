@@ -322,7 +322,18 @@ func (ld Loader) SignsIn(ctx context.Context, l Load) (bool, string, error) {
 		// A client that echoes what it was given gives nothing of the password back.
 		out = strings.ReplaceAll(out, l.Password, "…")
 	}
-	return code == 0, out, nil
+	return signedIn(e, code, out), out, nil
+}
+
+// signedIn says whether a client's sign-in took the password: it ran, or it's
+// MySQL's or MariaDB's refusal of the database alone (ERROR 1044), which the server
+// gives only once the password is right, to a user with no rights there. What such
+// a user may do is what reach asks next.
+func signedIn(e *Engine, code int, said string) bool {
+	if code == 0 {
+		return true
+	}
+	return signsInFromStdin[e.Kind] != nil && strings.Contains(said, "ERROR 1044 ")
 }
 
 // OwnerOf is who owns a PostgreSQL database, which a dump of it alone runs as: on a

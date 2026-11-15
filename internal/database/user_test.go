@@ -889,6 +889,36 @@ func TestAMySQLPasswordGoesInAnOptionFile(t *testing.T) {
 	}
 }
 
+// A MySQL or MariaDB user the server refuses its database to took its password:
+// the server says ERROR 1044 only after one is right, and what the user may do is
+// reach's to say. A wrong password (1045) doesn't sign in, nor does a refusal
+// PostgreSQL gives.
+func TestARefusedDatabaseIsASignIn(t *testing.T) {
+	t.Parallel()
+	mysql := &Engine{Kind: dockwellv1.DatabaseEngine_DATABASE_ENGINE_MYSQL}
+	maria := &Engine{Kind: dockwellv1.DatabaseEngine_DATABASE_ENGINE_MARIADB}
+	pg := &Engine{Kind: dockwellv1.DatabaseEngine_DATABASE_ENGINE_POSTGRESQL}
+	denied := "ERROR 1044 (42000): Access denied for user '...'@'...' to database '...'"
+	wrong := "ERROR 1045 (28000): Access denied for user '...'@'...' (using password: YES)"
+	for _, c := range []struct {
+		e    *Engine
+		code int
+		said string
+		want bool
+	}{
+		{mysql, 0, "", true},
+		{mysql, 1, denied, true},
+		{maria, 1, denied, true},
+		{mysql, 1, wrong, false},
+		{pg, 2, `psql: error: FATAL:  password authentication failed for user "blog"`, false},
+		{pg, 2, denied, false},
+	} {
+		if got := signedIn(c.e, c.code, c.said); got != c.want {
+			t.Errorf("%s exiting %d with %q signs in: %t", c.e.Kind, c.code, c.said, got)
+		}
+	}
+}
+
 // What reach asks covers the ways past a database the re-check found, on each
 // server it asks: on PostgreSQL, another database's owner it may act as and the
 // pg_* roles over other apps' sessions; on MySQL, roles asked only from 8.0, as 5.7
