@@ -100,7 +100,7 @@ func (e *Engine) checkRolesOf(ctx context.Context, tx *store.Tx, actor string, c
 	own := false
 	if a == discarding && c != nil {
 		var err error
-		if own, err = sameProposer(ctx, tx, caller, c.Actor, c.ActsFor); err != nil {
+		if own, err = sameProposer(ctx, tx, caller, c.Actor); err != nil {
 			return err
 		}
 	}
@@ -671,14 +671,13 @@ func aPerson(actor string) bool {
 }
 
 // sameProposer reports a change proposed by the caller: as themselves, or with
-// an API token or a deploy-on-push hook they made. A hook's change says whom it
-// acts for, so it stays its maker's once the hook is gone; one from before it
-// did is its hook's maker's, or nobody's once the hook is gone. A token that's
-// gone is nobody's, so its plan is someone else's to whoever applies or
-// discards it. A token narrowed to projects or capped at a role proposes for
-// itself alone: its change is someone else's to everyone else, its maker
-// included, so a person who applies it approves it (ADR 0071).
-func sameProposer(ctx context.Context, tx *store.Tx, caller place.Caller, actor, actsFor string) (bool, error) {
+// an API token they made. A token that's gone is nobody's, so its plan is
+// someone else's to whoever applies or discards it. A token narrowed to projects
+// or capped at a role proposes for itself alone: its change is someone else's to
+// everyone else, its maker included, so a person who applies it approves it
+// (ADR 0071). A deploy-on-push hook is such a stand-in, narrowed to its app's
+// project, so its change is the hook's alone too, whoever it acts for.
+func sameProposer(ctx context.Context, tx *store.Tx, caller place.Caller, actor string) (bool, error) {
 	kind, actorID, _ := strings.Cut(actor, ":")
 	switch kind {
 	case "user":
@@ -693,14 +692,7 @@ func sameProposer(ctx context.Context, tx *store.Tx, caller place.Caller, actor,
 		}
 		return err == nil && tok.UserID == caller.UserID && !tok.Narrowed(), err
 	case "hook":
-		if actsFor != "" {
-			return actsFor == caller.UserID, nil
-		}
-		h, err := tx.GetGitHook(ctx, actorID)
-		if errors.Is(err, store.ErrNotFound) {
-			return false, nil
-		}
-		return err == nil && h.UserID == caller.UserID, err
+		return caller.TokenID != "" && caller.TokenID == actorID, nil
 	}
 	return false, nil
 }
@@ -791,7 +783,7 @@ func (e *Engine) approvalIn(ctx context.Context, tx *store.Tx, c store.Change) (
 	if !ok || c.State != store.ChangePlanned {
 		return Approval{}, nil
 	}
-	mine, err := sameProposer(ctx, tx, caller, c.Actor, c.ActsFor)
+	mine, err := sameProposer(ctx, tx, caller, c.Actor)
 	if err != nil {
 		return Approval{}, err
 	}

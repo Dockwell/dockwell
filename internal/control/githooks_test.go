@@ -422,12 +422,13 @@ func TestAPushLeavesWhatNeedsAPersonForOne(t *testing.T) {
 		if err != nil || got.Msg.GetChange().GetState() != dockwellv1.ChangeState_CHANGE_STATE_DISCARDED {
 			t.Errorf("the older plan is %v, %v, not discarded", got.Msg.GetChange().GetState(), err)
 		}
-		// A person applies it, from the panel.
+		// A person applies it, from the panel, which approves it, as it's the hook's
+		// and not theirs, though the hook acts for them (ADR 0071).
 		plan, err := g.c.GetChange(t.Context(), connect.NewRequest(&dockwellv1.GetChangeRequest{Id: next.GetChangeId()}))
 		if err != nil {
 			t.Fatal(err)
 		}
-		if c := applied(t, g.c, plan.Msg.GetChange()); c.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		if c := g.approved(t, plan.Msg.GetChange()); c.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
 			t.Fatalf("a person applying the push's plan: %v %s", c.GetState(), c.GetError())
 		}
 	})

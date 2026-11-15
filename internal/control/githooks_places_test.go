@@ -30,6 +30,24 @@ func (g *gitBench) pushTo(t *testing.T, url, secret, deliveryID, want string) st
 	return g.stored(t, url, deliveryID, want)
 }
 
+// approved applies a hook's plan as the person signed in to g, whose applying it
+// approves it, as a hook's change is the hook's alone, whoever it acts for (ADR
+// 0071): asked for a passkey with no proof, and applied with one.
+func (g *gitBench) approved(t *testing.T, c *dockwellv1.Change) *dockwellv1.Change {
+	t.Helper()
+	fingerprint := c.GetPlan().GetFingerprint()
+	_, err := g.c.ApplyChange(t.Context(), connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: c.GetId(), Fingerprint: fingerprint}))
+	if asked := stepUpAsked(err); asked.GetAction() != dockwellv1.StepUpAction_STEP_UP_ACTION_APPROVE_CHANGE || asked.GetTarget() != c.GetId()+":"+fingerprint {
+		t.Fatalf("applying a hook's plan with no passkey: %v, asking %v; want approving %s:%s", err, asked, c.GetId(), fingerprint)
+	}
+	w := watch(t, g.c, c.GetId())
+	proof := stepUpFor(t, g.b, dockwellv1.StepUpAction_STEP_UP_ACTION_APPROVE_CHANGE, c.GetId()+":"+fingerprint)
+	if _, err := g.c.ApplyChange(t.Context(), connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: c.GetId(), Fingerprint: fingerprint, Proof: proof})); err != nil {
+		t.Fatalf("approving a hook's plan with the fingerprint and a passkey: %v", err)
+	}
+	return waitWatch(t, w).last()
+}
+
 // An admin's hook acts as a developer in its app's project: its push into a
 // protected environment plans and waits for a person, where the admin's own token
 // would apply it (ADR 0071).
@@ -59,8 +77,13 @@ func TestAnAdminsHookPushIntoAProtectedEnvironmentWaits(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if state := got.Msg.GetChange().GetState(); state != dockwellv1.ChangeState_CHANGE_STATE_PLANNED {
-			t.Errorf("the owner's push into protected production is %v, want planned, for a person", state)
+		if state := got.Msg.GetChange().GetState(); state != dockwellv1.ChangeState_CHANGE_STATE_PLANNED || !got.Msg.GetChange().GetApproves() {
+			t.Errorf("the owner's push into protected production is %v, approves %v to them; want planned, for them to approve",
+				state, got.Msg.GetChange().GetApproves())
+		}
+		// The owner, whom the hook acts for, approves it with a passkey.
+		if c := g.approved(t, got.Msg.GetChange()); c.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+			t.Fatalf("the owner approving their hook's plan: %v %s", c.GetState(), c.GetError())
 		}
 	})
 }
@@ -104,3 +127,4 @@ func TestAPushPastItsHooksProjectIsRefused(t *testing.T) {
 		}
 	})
 }
+
