@@ -10,6 +10,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -51,7 +52,9 @@ func newHookSecret() string {
 }
 
 // CreateGitHook makes a service's hook, for a person, signed in, with a passkey
-// that confirmed it for the service. It acts for them.
+// that confirmed it for the service. It acts for them, narrowed as an API token
+// is to the service's project, as a developer at most, so a push deploys there
+// alone, and what's protected waits for a person (ADR 0071).
 func (s *Service) CreateGitHook(ctx context.Context, client Client, p Principal, serviceID, proof string) (NewGitHook, error) {
 	if p.Token != nil || p.Session.ID == "" {
 		return NewGitHook{}, ErrNeedsSession
@@ -64,6 +67,11 @@ func (s *Service) CreateGitHook(ctx context.Context, client Client, p Principal,
 	h := store.GitHook{ID: id.New(id.GitHook), ResourceID: serviceID, UserID: p.User.ID, CreatedAt: now, SecretAt: now}
 	h.Secret = s.key.Seal(purposeHook(h.ID), []byte(secret))
 	err = s.db.Update(ctx, func(tx *store.Tx) error {
+		project, perr := serviceProject(ctx, tx, serviceID)
+		if perr != nil {
+			return perr
+		}
+		h.Projects, h.Role = []string{project}, store.RoleDeveloper
 		if err := tx.CreateGitHook(ctx, h); err != nil {
 			if errors.Is(err, store.ErrConflict) {
 				return ErrHookExists
@@ -79,6 +87,19 @@ func (s *Service) CreateGitHook(ctx context.Context, client Client, p Principal,
 		return NewGitHook{}, err
 	}
 	return NewGitHook{Hook: h, Secret: secret}, nil
+}
+
+// serviceProject is the project a service is in: its environment's.
+func serviceProject(ctx context.Context, tx *store.Tx, serviceID string) (string, error) {
+	service, err := tx.GetResourceByID(ctx, serviceID)
+	if err != nil {
+		return "", fmt.Errorf("can't read service %s: %w", serviceID, err)
+	}
+	environment, err := tx.GetResourceByID(ctx, service.Scope)
+	if err != nil {
+		return "", fmt.Errorf("can't read the environment of service %s: %w", serviceID, err)
+	}
+	return environment.Scope, nil
 }
 
 // RotateGitHookSecret gives a service's hook a new secret, for a person, signed in,
@@ -175,7 +196,8 @@ type HookProof struct {
 
 // GitHookPrincipal checks a delivery's proof against the hook's secret, in
 // constant time, and gives who it acts as: the person who made the hook, with an
-// API token's rights, as the hook. A hook there isn't, or whose person is gone or
+// API token's rights, as the hook, narrowed to its projects and role as a token
+// is (ADR 0071). A hook there isn't, or whose person is gone or
 // removed, gets the same reads, a decrypt of a decoy and the same answer as a
 // wrong proof, ErrHookRejected, so neither the answer nor its time says which IDs
 // are hooks. Only a delivery whose proof matches spends from the hook's 60 a
@@ -231,7 +253,7 @@ func (s *Service) GitHookPrincipal(ctx context.Context, hookID string, body []by
 	}
 	return Principal{
 		User:  u,
-		Token: &store.APIToken{ID: h.ID, UserID: u.ID, Name: "Deploy on push", Scope: store.ScopeReadWrite},
+		Token: &store.APIToken{ID: h.ID, UserID: u.ID, Name: "Deploy on push", Scope: store.ScopeReadWrite, Projects: h.Projects, Role: h.Role},
 		Hook:  &h,
 	}, nil
 }

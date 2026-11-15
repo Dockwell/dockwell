@@ -84,6 +84,7 @@ func markToken(ctx context.Context, r *Refusal) {
 		return
 	}
 	r.token, r.tokenCap, r.tokenPlaces = true, caller.TokenRole, caller.TokenInProjects
+	r.hook = isHook(caller.TokenID)
 }
 
 func (e *Engine) checkRolesOf(ctx context.Context, tx *store.Tx, actor string, c *store.Change, asked *planRead, items []item, a act) error {
@@ -505,10 +506,11 @@ type Refusal struct {
 	// Why says what makes it need that role, as a clause, such as "it changes
 	// web in a protected environment". Empty when the role is all there is to it.
 	Why string
-	// token says the call was made with an API token, tokenCap is the role it
-	// acts as at most, if it's capped, and tokenPlaces that it's narrowed to
-	// projects (ADR 0071).
+	// token says the call was made with an API token, or hook that it was a
+	// deploy-on-push hook's, tokenCap is the role it acts as at most, if it's
+	// capped, and tokenPlaces that it's narrowed to projects (ADR 0071).
 	token       bool
+	hook        bool
 	tokenCap    string
 	tokenPlaces bool
 }
@@ -540,11 +542,15 @@ func (r *Refusal) capped() bool {
 	return r.tokenCap != "" && store.RoleRank(r.tokenCap) < store.RoleRank(r.Needs)
 }
 
-// holds says what the caller holds, for a token as what narrows it.
+// holds says what the caller holds, for a token or a hook as what narrows it.
 func (r *Refusal) holds() string {
 	switch {
+	case r.capped() && r.hook:
+		return "deploy on push acts as " + aRoleWord(r.tokenCap) + " at most"
 	case r.capped():
 		return "this API token acts as " + aRoleWord(r.tokenCap) + " at most"
+	case r.tokenPlaces && r.Needs == store.RoleAdmin && r.hook:
+		return "deploy on push acts in its app's project alone, never as an admin of the whole install"
 	case r.tokenPlaces && r.Needs == store.RoleAdmin:
 		return "this API token acts in its projects alone, never as an admin of the whole install"
 	}
@@ -552,12 +558,16 @@ func (r *Refusal) holds() string {
 }
 
 // tokenFix is what to do about a refusal a token's narrowing is why of: a token
-// without it, not a change to its maker's role (ADR 0071). Empty for anything else.
+// without it, not a change to its maker's role, or for a hook, a person's deploy
+// (ADR 0071). Empty for anything else.
 func (r *Refusal) tokenFix() string {
+	narrowed := r.capped() || r.tokenPlaces && r.Needs == store.RoleAdmin
 	switch {
+	case narrowed && r.hook:
+		return "Deploy it from the panel"
 	case r.capped():
 		return "Use a token that acts as you do"
-	case r.tokenPlaces && r.Needs == store.RoleAdmin:
+	case narrowed:
 		return "Use a token made for every project you hold"
 	}
 	return ""

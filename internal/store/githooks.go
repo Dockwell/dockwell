@@ -19,6 +19,12 @@ type GitHook struct {
 	Secret     []byte // sealed
 	CreatedAt  time.Time
 	SecretAt   time.Time
+	// Projects and Role narrow it as an API token's do (ADR 0071): the projects it
+	// acts in, nil for every one its maker holds, and the role it acts as at most,
+	// empty for its maker's. A hook is made for its service's project, as a
+	// developer at most.
+	Projects []string
+	Role     string
 }
 
 // What came of a push.
@@ -48,23 +54,24 @@ type GitHookDelivery struct {
 // KeepHookDeliveries is how long a delivery is kept, so one seen before does nothing.
 const KeepHookDeliveries = 7 * 24 * time.Hour
 
-const gitHookColumns = `id, resource_id, user_id, secret, created_at, secret_at`
+const gitHookColumns = `id, resource_id, user_id, secret, created_at, secret_at, projects, role`
 
 func scanGitHook(row interface{ Scan(...any) error }) (GitHook, error) {
 	var h GitHook
 	var created, secretAt int64
-	if err := row.Scan(&h.ID, &h.ResourceID, &h.UserID, &h.Secret, &created, &secretAt); err != nil {
+	var projects sql.NullString
+	if err := row.Scan(&h.ID, &h.ResourceID, &h.UserID, &h.Secret, &created, &secretAt, &projects, &h.Role); err != nil {
 		return GitHook{}, err
 	}
-	h.CreatedAt, h.SecretAt = fromMillis(created), fromMillis(secretAt)
+	h.CreatedAt, h.SecretAt, h.Projects = fromMillis(created), fromMillis(secretAt), projectsFrom(projects)
 	return h, nil
 }
 
 // CreateGitHook records a service's hook. A service has one at most, and a second
 // is ErrConflict.
 func (t *Tx) CreateGitHook(ctx context.Context, h GitHook) error {
-	_, err := t.exec(ctx, `INSERT INTO git_hooks (`+gitHookColumns+`) VALUES (?, ?, ?, ?, ?, ?)`,
-		h.ID, h.ResourceID, h.UserID, h.Secret, millis(h.CreatedAt), millis(h.SecretAt))
+	_, err := t.exec(ctx, `INSERT INTO git_hooks (`+gitHookColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		h.ID, h.ResourceID, h.UserID, h.Secret, millis(h.CreatedAt), millis(h.SecretAt), projectsColumn(h.Projects), h.Role)
 	if t.unique(err) {
 		return fmt.Errorf("a hook for %s: %w", h.ResourceID, ErrConflict)
 	}
@@ -90,7 +97,7 @@ func (t *Tx) GetGitHook(ctx context.Context, id string) (GitHook, error) {
 // deliveries, and returns what it deleted: nothing deploys a service that isn't
 // there, and nobody could turn its hook off.
 func (t *Tx) ForgetOrphanGitHooks(ctx context.Context) ([]GitHook, error) {
-	rows, err := t.query(ctx, `SELECT h.id, h.resource_id, h.user_id, h.secret, h.created_at, h.secret_at FROM git_hooks h
+	rows, err := t.query(ctx, `SELECT h.id, h.resource_id, h.user_id, h.secret, h.created_at, h.secret_at, h.projects, h.role FROM git_hooks h
 		LEFT JOIN resources r ON r.id = h.resource_id
 		LEFT JOIN revisions v ON v.resource_id = r.id AND v.number = r.revision
 		WHERE r.id IS NULL OR v.spec IS NULL ORDER BY h.id`)

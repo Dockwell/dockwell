@@ -33,6 +33,12 @@ func forgetHooks(ctx context.Context, tx *store.Tx, resourceID, changeID string,
 	return nil
 }
 
+// isHook reports a caller's token that is a deploy-on-push hook's stand-in, by
+// its ID, so a refusal names the hook, not an API token (ADR 0071).
+func isHook(tokenID string) bool {
+	return strings.HasPrefix(tokenID, id.GitHook+"_")
+}
+
 // actsFor is who a change by actor acts for, to record on it: a deploy-on-push
 // hook's maker, who is the caller its steps carry, or nobody for any other actor.
 func actsFor(ctx context.Context, actor string) string {

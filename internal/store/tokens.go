@@ -78,12 +78,7 @@ func scanAPIToken(row interface{ Scan(...any) error }) (APIToken, error) {
 	if grants != "" {
 		t.Grants = strings.Split(grants, ",")
 	}
-	if projects.Valid {
-		t.Projects = []string{}
-		if projects.String != "" {
-			t.Projects = strings.Split(projects.String, ",")
-		}
-	}
+	t.Projects = projectsFrom(projects)
 	t.CreatedAt, t.ExpiresAt, t.LastUsedAt, t.RevokedAt = fromMillis(created), timePtr(expires), timePtr(used), timePtr(revoked)
 	return t, nil
 }
@@ -98,18 +93,35 @@ func (t *Tx) CreateAPIToken(ctx context.Context, tok APIToken) error {
 	// A token that isn't narrowed leaves both to their defaults, which it is the
 	// same as, so it's written the way it was before they were added.
 	if tok.Narrowed() {
-		var projects sql.NullString
-		if tok.Projects != nil {
-			projects = sql.NullString{String: strings.Join(tok.Projects, ","), Valid: true}
-		}
 		columns, values = columns+`, projects, role`, values+`, ?, ?`
-		args = append(args, projects, tok.Role)
+		args = append(args, projectsColumn(tok.Projects), tok.Role)
 	}
 	_, err := t.exec(ctx, `INSERT INTO api_tokens (`+columns+`) VALUES (`+values+`)`, args...)
 	if err != nil {
 		return fmt.Errorf("can't record API token %s: %w", tok.ID, err)
 	}
 	return nil
+}
+
+// projectsColumn is how a token's or a hook's projects are kept: their IDs apart
+// by commas, NULL for nil, every project its maker holds (ADR 0071).
+func projectsColumn(projects []string) sql.NullString {
+	if projects == nil {
+		return sql.NullString{}
+	}
+	return sql.NullString{String: strings.Join(projects, ","), Valid: true}
+}
+
+// projectsFrom reads projectsColumn back: nil for NULL, and a list, even an empty
+// one, for anything else.
+func projectsFrom(column sql.NullString) []string {
+	if !column.Valid {
+		return nil
+	}
+	if column.String == "" {
+		return []string{}
+	}
+	return strings.Split(column.String, ",")
 }
 
 func (t *Tx) getAPIToken(ctx context.Context, where string, arg any) (APIToken, error) {

@@ -7,3 +7,14 @@
 -- docs/adr/0071-api-tokens-narrowed-to-projects-and-a-role.md.
 ALTER TABLE api_tokens ADD COLUMN projects TEXT;
 ALTER TABLE api_tokens ADD COLUMN role TEXT NOT NULL DEFAULT '' CHECK (role IN ('', 'developer', 'viewer'));
+
+-- A deploy-on-push hook is narrowed as a token is, to its service's project, as a
+-- developer at most. A hook made before this takes the project its service is in
+-- now, or none if its service is gone.
+ALTER TABLE git_hooks ADD COLUMN projects TEXT;
+ALTER TABLE git_hooks ADD COLUMN role TEXT NOT NULL DEFAULT 'developer' CHECK (role IN ('', 'developer', 'viewer'));
+UPDATE git_hooks SET projects = COALESCE((
+  SELECT environment.scope FROM resources service
+  JOIN resources environment ON environment.id = service.scope
+  WHERE service.id = git_hooks.resource_id AND environment.kind = 'environment'
+), '');

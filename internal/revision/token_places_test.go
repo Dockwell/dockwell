@@ -108,18 +108,23 @@ func TestANarrowedTokensAdminDoesntCountOnAnotherProjectsProtectedServer(t *test
 
 // A refusal says what narrows the token a call is made with from the caller the
 // guard read it into, so a token no row holds, as a push hook's stand-in, gets
-// the same words as one made on API tokens: its cap, or its projects, and a token
-// without them as the fix, never a change to its maker's role (ADR 0071, the
-// review's M2).
+// words for what narrows it: its cap, or its projects, and as the fix, a token
+// without them, or for a hook, a person's deploy, never a change to its maker's
+// role (ADR 0071, the review's M2).
 func TestARefusalSaysWhatNarrowsATokenNoRowHolds(t *testing.T) {
 	l := withLinkedBlog(t)
 	x := l.x
-	by := By{Actor: "hook:hok_1", Via: ViaAPI}
 	x.r.one = "blog"
 	source := resource.RestoreSource{Backup: "bkp_1", Server: "srv_A"}
-	plan, err := x.e.RestoreWith(t.Context(), x.ref, source, RestoreAs{For: l.forBlog}, by, "")
+	by := By{Actor: "hook:ghk_1", Via: ViaAPI}
+	plan, err := x.e.RestoreWith(place.WithCaller(t.Context(), l.in(t, store.RoleDeveloper)), x.ref, source, RestoreAs{For: l.forBlog}, by, "")
 	if err != nil {
 		t.Fatal(err)
+	}
+	as := func(tokenID, role, capped string, inProjects bool) place.Caller {
+		c := l.in(t, role)
+		c.TokenID, c.TokenRole, c.TokenInProjects = tokenID, capped, inProjects
+		return c
 	}
 	for _, c := range []struct {
 		name   string
@@ -127,16 +132,22 @@ func TestARefusalSaysWhatNarrowsATokenNoRowHolds(t *testing.T) {
 		says   string
 		fix    string
 	}{
-		{"capped at developer", func() place.Caller {
-			c := l.in(t, store.RoleDeveloper)
-			c.TokenID, c.TokenRole, c.TokenInProjects = "hok_1", store.RoleDeveloper, true
-			return c
-		}(), "this API token acts as a developer at most", "Use a token that acts as you do"},
-		{"narrowed to blog", func() place.Caller {
-			c := l.in(t, store.RoleAdmin)
-			c.TokenID, c.TokenInProjects = "hok_1", true
-			return c
-		}(), "this API token acts in its projects alone", "Use a token made for every project you hold"},
+		{
+			"a token capped at developer", as("tok_gone", store.RoleDeveloper, store.RoleDeveloper, false),
+			"this API token acts as a developer at most", "Use a token that acts as you do",
+		},
+		{
+			"a token narrowed to blog", as("tok_gone", store.RoleAdmin, "", true),
+			"this API token acts in its projects alone", "Use a token made for every project you hold",
+		},
+		{
+			"a hook, as a developer at most", as("ghk_1", store.RoleDeveloper, store.RoleDeveloper, true),
+			"deploy on push acts as a developer at most", "Deploy it from the panel",
+		},
+		{
+			"a hook narrowed to blog", as("ghk_1", store.RoleAdmin, "", true),
+			"deploy on push acts in its app's project alone", "Deploy it from the panel",
+		},
 	} {
 		err := x.e.ApplyBy(place.WithCaller(t.Context(), c.caller), plan.Change, by)
 		if !errors.Is(err, ErrNeedsRole) || !strings.Contains(err.Error(), c.says) || !strings.HasSuffix(err.Error(), c.fix) {

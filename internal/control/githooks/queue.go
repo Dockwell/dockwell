@@ -116,7 +116,7 @@ func (h *Handler) deploy(l *lane, j *job) {
 		// role, read for each push, where the service is, as the API checks a call.
 		ctx, err := authapi.Check(asHook, h.cfg.Auth, h.cfg.Logger, dockwellv1connect.ServiceServiceDeployServiceProcedure, &dockwellv1.DeployServiceRequest{Id: svc})
 		if err != nil {
-			h.end(asHook, &d, svc, store.HookFailed, "The hook's maker may not deploy it now: "+message(err))
+			h.end(asHook, &d, svc, store.HookFailed, "This hook may not deploy it now: "+message(err))
 			return
 		}
 		b, name, _, err := h.cfg.Services.BuildOf(ctx, svc, "", "")

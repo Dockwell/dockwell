@@ -122,6 +122,14 @@ func (g *gitBench) outcome(t *testing.T, serviceID, deliveryID string, want dock
 	return nil
 }
 
+// openWhere opens the environment a change made web in, so a push deploys there:
+// a hook acts as a developer at most (ADR 0071), and production is protected by
+// its name.
+func (g *gitBench) openWhere(t *testing.T, made *dockwellv1.Change) {
+	t.Helper()
+	protectEnv(t, g.c, g.f, made.GetPlan().GetResources()[0].GetResource().GetScope(), resourcev1.Protection_PROTECTION_OPEN)
+}
+
 // ended waits for a change to end.
 func (g *gitBench) ended(t *testing.T, changeID string) *dockwellv1.Change {
 	t.Helper()
@@ -138,7 +146,7 @@ func TestAPushDeploysWhatTheBranchNames(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		g := newGitBench(t, backend)
 		g.repo.Commit("main", "First", map[string]string{"Dockerfile": webDockerfile, "app.js": "1"})
-		g.done(t, g.propose(t, g.buildEdit("main", nil)))
+		g.openWhere(t, g.done(t, g.propose(t, g.buildEdit("main", nil))))
 		web := g.service(t, "", "web")
 
 		if _, err := g.hooks().CreateGitHook(t.Context(), connect.NewRequest(&dockwellv1.CreateGitHookRequest{Id: web.GetId()})); reasonOf(err) != authapi.ReasonNeedsStepUp {
@@ -433,7 +441,7 @@ func TestPushesToOneAppDeployOneAtATime(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		g := newGitBench(t, backend)
 		g.repo.Commit("main", "First", map[string]string{"Dockerfile": webDockerfile})
-		g.done(t, g.propose(t, g.buildEdit("main", nil)))
+		g.openWhere(t, g.done(t, g.propose(t, g.buildEdit("main", nil))))
 		web := g.service(t, "", "web")
 		url, secret := g.hook(t, web.GetId())
 		push := func(id, commit string) {
@@ -575,6 +583,23 @@ func TestAHookDeploysOnlyWhatItsMakerMayNow(t *testing.T) {
 		production := made.GetPlan().GetResources()[0].GetResource().GetScope()
 		web := g.service(t, "", "web")
 		url, secret := g.hook(t, web.GetId())
+		// What's tested here is the maker's role as it is now, so the hook acts as its
+		// maker does, its developer cap lifted by hand: a hook as made acts as a
+		// developer at most (ADR 0071), which
+		// TestAnAdminsHookPushIntoAProtectedEnvironmentWaits tests.
+		if err := g.f.store.Update(t.Context(), func(tx *store.Tx) error {
+			h, err := tx.GitHookOf(t.Context(), web.GetId())
+			if err != nil {
+				return err
+			}
+			if err := tx.DeleteGitHook(t.Context(), h.ID); err != nil {
+				return err
+			}
+			h.Role = ""
+			return tx.CreateGitHook(t.Context(), h)
+		}); err != nil {
+			t.Fatal(err)
+		}
 		n := 0
 		push := func(id string) {
 			t.Helper()
@@ -735,7 +760,7 @@ func TestGitLabAndBitbucketPushesDeploy(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		g := newGitBench(t, backend)
 		g.repo.Commit("main", "First", map[string]string{"Dockerfile": webDockerfile})
-		g.done(t, g.propose(t, g.buildEdit("", nil)))
+		g.openWhere(t, g.done(t, g.propose(t, g.buildEdit("", nil))))
 		web := g.service(t, "", "web")
 		url, secret := g.hook(t, web.GetId())
 		_, wrong, _ := send(t, url, delivery{id: "w-1", event: "push", secret: "not-the-secret", body: pushBody(g.repo.URL, "refs/heads/main", strings.Repeat("ab", 20))})
