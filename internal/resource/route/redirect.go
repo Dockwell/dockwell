@@ -216,6 +216,46 @@ func (*Driver) CheckAcross(ref resource.Ref, desired proto.Message, all map[reso
 	return nil
 }
 
+// NoteAcross says a redirect the change leaves as it is lands on nothing once the
+// change applies, where a route answered where it lands before, and one the change
+// makes or edits sends back to where a permanent redirect sent from (ADR 0070).
+func (*Driver) NoteAcross(ref resource.Ref, before, after map[resource.Ref]proto.Message) (reason, words string, names []string) {
+	r, ok := after[ref].(*resourcev1.Route)
+	if !ok || r.GetRedirect() == nil {
+		return "", "", nil
+	}
+	host, landed := follow(r, r.GetPath())
+	if was, ok := before[ref]; !ok || !proto.Equal(was, r) {
+		return reversed(r, host, landed, before)
+	}
+	if _, _, found := answering(after, host, landed); found {
+		return "", "", nil
+	}
+	if _, _, found := answering(before, host, landed); !found {
+		return "", "", nil
+	}
+	return "redirect_stranded", fmt.Sprintf("%s still redirects to %s, so its visitors would land on nothing. Delete it too, or keep what it lands on", Where(r), host+landed), []string{Where(r), host + landed}
+}
+
+// reversed says a permanent redirect a change makes, from r's domain to host, sends
+// back to where a permanent redirect sent from before it, as making www the main
+// domain and undoing it do (ADR 0070). Browsers keep the earlier one for up to a day,
+// so a visitor who loaded host since goes round in a circle until it expires.
+func reversed(r *resourcev1.Route, host, landed string, before map[resource.Ref]proto.Message) (reason, words string, names []string) {
+	if r.GetRedirect().GetTemporary() {
+		return "", "", nil
+	}
+	_, earlier, found := answering(before, host, landed)
+	if !found || earlier.GetRedirect() == nil || earlier.GetRedirect().GetTemporary() {
+		return "", "", nil
+	}
+	if back, _ := follow(earlier, landed); back != r.GetDomain() {
+		return "", "", nil
+	}
+	return "redirect_reversed", fmt.Sprintf("Browsers keep %s's earlier redirect to %s for up to a day. Anyone who loaded %s since goes round in a circle until it expires: clearing the browser's cache ends it sooner",
+		host, r.GetDomain(), host), []string{host, r.GetDomain()}
+}
+
 // keepRedirect keeps a redirect through an edit that names nothing to send to, as
 // whoever writes a whole route without knowing the field, the panel's "Move behind
 // what's in front" or an older CLI, would otherwise lose it, or be refused (ADR

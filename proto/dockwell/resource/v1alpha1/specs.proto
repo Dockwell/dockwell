@@ -525,6 +525,11 @@ message Website {
     // Runs the PHP in a folder on the server, and serves its other files.
     WebsitePhp php = 3;
   }
+  // Other domains that redirect to it, such as "www.example.com" for a site at
+  // "example.com": each a route in its environment that redirects permanently to
+  // its domain, keeping the path, reached as its own route is (ADR 0070). Removing
+  // one deletes only the route this list wrote for it.
+  repeated string redirect_from = 4;
 }
 
 // WebsitePhp runs the PHP in a folder on the server with PHP-FPM, of the version

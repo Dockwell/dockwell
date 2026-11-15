@@ -23,6 +23,7 @@ import (
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/ingress/caddy"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/route"
 )
 
 const (
@@ -94,17 +95,60 @@ func KindOf(w *resourcev1.Website) Kind {
 // normalises what it can, such as a URL's trailing slash, so equal settings compare
 // equal.
 func Check(w *resourcev1.Website) error {
+	var err error
 	switch {
 	case w == nil:
 		return errors.New("a website needs to say what it serves, such as a URL to send its requests to")
 	case w.GetProxy() != nil:
-		return checkProxy(w.GetProxy())
+		err = checkProxy(w.GetProxy())
 	case w.GetFolder() != nil:
-		return checkFolder(w.GetFolder())
+		err = checkFolder(w.GetFolder())
 	case w.GetPhp() != nil:
-		return checkPHP(w.GetPhp())
+		err = checkPHP(w.GetPhp())
+	default:
+		return errors.New("a website needs to say what it serves, such as a URL to send its requests to")
 	}
-	return errors.New("a website needs to say what it serves, such as a URL to send its requests to")
+	if err != nil {
+		return err
+	}
+	// Its other domains, as far as they can be checked without its own, which the
+	// route holds: however it's written, as a project's edit can write it too.
+	return CheckRedirects(w, "")
+}
+
+// MaxRedirects is how many other domains a website sends to itself, which covers
+// www and a few old names with room to spare.
+const MaxRedirects = 20
+
+// CheckRedirects refuses other domains a website at domain can't be sent from,
+// saying why. It writes them lower-case and trimmed, as a route's domain is.
+func CheckRedirects(w *resourcev1.Website, domain string) error {
+	if len(w.GetRedirectFrom()) > MaxRedirects {
+		return fmt.Errorf("a website takes up to %d other domains, and this names %d. Keep the ones visitors still use", MaxRedirects, len(w.GetRedirectFrom()))
+	}
+	seen := map[string]bool{}
+	for i, d := range w.GetRedirectFrom() {
+		d = strings.ToLower(strings.TrimSpace(d))
+		w.RedirectFrom[i] = d
+		if err := route.CheckDomain(d); err != nil {
+			return err
+		}
+		switch {
+		case d == domain:
+			return fmt.Errorf("%s is the website's own domain, so it can't redirect to itself. Take it out of the other domains", d)
+		case seen[d]:
+			return fmt.Errorf("%s is named twice in the other domains. Name it once", d)
+		}
+		seen[d] = true
+	}
+	return nil
+}
+
+// RedirectName is the name of the route that sends from to a website, before any
+// number that keeps it apart from another, as a project's is: www-example-com. A
+// domain has a dot, so it's never the site's own route's name.
+func RedirectName(from string) string {
+	return ProjectName(from)
 }
 
 // indexRE is a file name an index can have: nothing that could leave its place in
@@ -301,8 +345,10 @@ func checkHost(host string) error {
 // Serving is what a website's environment holds: its route, with what it serves
 // filled in, and the services and networks that serve it, by name.
 type Serving struct {
-	Route    *resourcev1.Route
-	Services map[string]*resourcev1.Service
+	Route *resourcev1.Route
+	// Redirects are the routes that send its other domains to it, by domain.
+	Redirects map[string]*resourcev1.Route
+	Services  map[string]*resourcev1.Service
 	// Networks are those its services share, by name.
 	Networks map[string]*resourcev1.Network
 }
@@ -325,7 +371,19 @@ func FrontOf(r *resourcev1.Route) Front {
 // Resources writes what serves a website at a domain. Check it first.
 func Resources(w *resourcev1.Website, domain string, front Front) Serving {
 	r := &resourcev1.Route{Domain: domain, Tls: front.TLS, TrustedProxies: front.TrustedProxies, PlainForAnyone: front.PlainForAnyone, Access: front.Access}
-	out := Serving{Route: r, Services: map[string]*resourcev1.Service{}, Networks: map[string]*resourcev1.Network{}}
+	out := Serving{Route: r, Redirects: map[string]*resourcev1.Route{}, Services: map[string]*resourcev1.Service{}, Networks: map[string]*resourcev1.Network{}}
+	// Visitors reach a site behind a tunnel over HTTPS too, so only a site served
+	// over plain HTTP to anyone sends them to http://.
+	scheme := "https://"
+	if front.PlainForAnyone {
+		scheme = "http://"
+	}
+	for _, from := range w.GetRedirectFrom() {
+		out.Redirects[from] = &resourcev1.Route{
+			Domain: from, Tls: front.TLS, TrustedProxies: front.TrustedProxies, PlainForAnyone: front.PlainForAnyone,
+			Redirect: &resourcev1.RouteRedirect{To: scheme + domain},
+		}
+	}
 	switch KindOf(w) {
 	case ProxyToPort:
 		r.HostPort = w.GetProxy().GetPort()

@@ -16,7 +16,9 @@ import { validPort } from "../apps/form";
 import { useMay } from "../auth/may";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { CopyButton } from "../servers/CopyButton";
+import { useFleet } from "../servers/useFleet";
 import { RefLink } from "../shell/RefLink";
+import { OtherDomains } from "./Companion";
 import { useCertificateWords } from "./Standing";
 import {
   changed,
@@ -92,7 +94,11 @@ function ConfigurationForm({ site }: { site: WebsiteInfo }) {
     sheet.open({
       kind: "plan",
       make: () =>
-        createClient(WebsiteService, transport).updateWebsite({ id: site.id, website: specOf(sendable(now, was)) }),
+        createClient(WebsiteService, transport).updateWebsite({
+          id: site.id,
+          // What it serves changes here; the domains that redirect to it stay.
+          website: { ...specOf(sendable(now, was)), redirectFrom: site.spec?.redirectFrom ?? [] },
+        }),
       retryLabel: t`Edit and try again`,
       onClose: (after) => {
         if (after?.state === ChangeState.APPLIED) setNow(settingsOf(site.spec));
@@ -359,6 +365,8 @@ export function DomainPanel() {
   const { row, read } = useWebsiteValue();
   const certificate = useCertificateWords();
   const { domain, look, site } = row;
+  const fleet = useFleet();
+  const server = fleet.status === "connecting" ? undefined : fleet.servers.find((s) => s.id === site.serverId);
   const reached = !domain
     ? t`No route gives it a domain now`
     : domain.routes[0]?.tls !== "off"
@@ -398,6 +406,7 @@ export function DomainPanel() {
           </>
         ) : null}
       </dl>
+      <OtherDomains site={site} server={server} tunnel={domain?.routes[0]?.tls === "off"} />
     </Panel>
   );
 }

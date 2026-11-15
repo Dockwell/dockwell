@@ -77,6 +77,12 @@ func TestWebsiteNamesStayWithinTheirProjects(t *testing.T) {
 				_, deleted := client.DeleteWebsite(t.Context(), connect.NewRequest(&dockwellv1.DeleteWebsiteRequest{Id: name}))
 				needsRole(t, "a developer planning a website's deletion by "+name, deleted)
 			}
+			// Making one, other domains and all, is an admin's too, as what a domain is
+			// held by can name any project's app (ADR 0070).
+			made := toURL("https://backend.example.com")
+			made.RedirectFrom = []string{"www.new.example.com"}
+			_, created := client.CreateWebsite(t.Context(), connect.NewRequest(&dockwellv1.CreateWebsiteRequest{Domain: "new.example.com", Website: made}))
+			needsRole(t, "a developer planning a new website", created)
 		}
 		// REST has the same request narrowing and name resolution.
 		if code, _, body := callREST(t, b, http.MethodGet, "/v1/websites", nil, ""); code != http.StatusOK || strings.Contains(body, "shop.example.com") || !strings.Contains(body, blog.GetId()) {

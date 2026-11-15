@@ -886,6 +886,8 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
   const rollingBack = plan?.intent?.kind === IntentKind.ROLL_BACK;
   // One a tool still manages leads the plan, as a person acts on it first.
   const worthWarning = (plan?.notes ?? [])
+    // A redirect sent back is said in the cache line, once.
+    .filter((note) => note.reason !== "redirect_reversed")
     .filter((note) => (note.reason !== "volumes_stay" || rollingBack) && !namesItsManager(note))
     .sort((a, b) => Number(b.reason === "managed_elsewhere") - Number(a.reason === "managed_elsewhere"));
   const notes = worthWarning.map((note, i): Notice => {
@@ -1475,7 +1477,17 @@ export function useAsides(plan: Plan | undefined): Notice[] {
   const keepsRedirect = (plan?.servers ?? []).some((server) =>
     server.steps.some((step) => step.redirects && !step.redirects.temporary && !step.redirects.stops),
   );
-  if (keepsRedirect) {
+  // A redirect that sends back where an earlier one sent from turns what browsers kept
+  // into a circle: the same line says that, in its place.
+  const reversed = plan?.notes.find((note) => note.reason === "redirect_reversed");
+  const [back = "", to = ""] = reversed?.names ?? [];
+  if (reversed && back && to) {
+    out.push({
+      key: "redirect-kept",
+      title: t`Browsers keep ${back}'s earlier redirect to ${to} for up to a day. Anyone who loaded ${back} since goes round in a circle until it expires: clearing the browser's cache ends it sooner.`,
+      notice: true,
+    });
+  } else if (keepsRedirect) {
     out.push({
       key: "redirect-kept",
       title: t`Browsers keep a permanent redirect for up to a day, through an undo too.`,

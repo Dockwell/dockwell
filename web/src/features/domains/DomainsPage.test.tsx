@@ -578,6 +578,97 @@ describe("the list of domains", () => {
     expect(edits[0]?.spec?.kind.value).toMatchObject({ domain: "app.example.com", service: "web", tls: "off" });
   });
 
+  describe("a website's domain, with www in its list", () => {
+    const refused =
+      "A certificate authority can't reach example.com. If a tunnel or a proxy ends TLS in front of this server, set tls to off on its routes.";
+    const site = () => ({
+      id: "prj_site",
+      name: "example-com",
+      domain: "example.com",
+      environmentId: ENV,
+      spec: {
+        serves: { case: "proxy" as const, value: { url: "https://backend.example.com" } },
+        redirectFrom: ["www.example.com"],
+      },
+    });
+    const domains = (route: object, wwwTo: string) => [
+      aDomain({ name: "example.com", certificate: certificate(CertificateState.FAILED, refused), route }),
+      aDomain({
+        name: "www.example.com",
+        route: {
+          name: "www-example-com",
+          service: "",
+          port: 0,
+          redirect: { to: wwwTo, temporary: false, dropPath: false },
+          ...route,
+        },
+      }),
+      aDomain({
+        name: "promo.example.com",
+        route: {
+          name: "promo",
+          service: "",
+          port: 0,
+          redirect: { to: "https://example.com", temporary: false, dropPath: false },
+        },
+      }),
+    ];
+    const move = async (route: object, out: boolean, wwwTo = "https://example.com") => {
+      const user = userEvent.setup();
+      const edits: ProposeChangeRequest["edits"] = [];
+      renderAt(
+        "/domains",
+        api(domains(route, wwwTo), {
+          more: {
+            websites: { listWebsites: () => ({ websites: [site()] }) },
+            changes: {
+              watchChange: feed<WatchChangeResponse>().stream,
+              discardChange: () => ({}),
+              proposeChange: (req) => {
+                edits.push(...req.edits);
+                return { change: webPlanned() };
+              },
+            },
+          },
+        }),
+      );
+      const row = await rowOf(/^example\.com/);
+      await user.click(within(row).getByRole("button", { name: "It's behind a tunnel or a proxy" }));
+      const sheet = await screen.findByRole("dialog", { name: "Move example.com behind what's in front" });
+      if (out) await user.click(within(sheet).getByRole("switch", { name: /tunnel/i }));
+      await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+      await screen.findByRole("dialog", { name: "Review plan" });
+      return edits;
+    };
+
+    it("leaves a listed domain a person pointed elsewhere as it is", async () => {
+      const edits = await move({}, false, "https://example.org");
+      expect(edits.map((e) => e.resource?.name)).toEqual(["example-com"]);
+    });
+
+    it("moves www behind the tunnel with it, and not a redirect a person made", async () => {
+      const edits = await move({}, false);
+      expect(edits.map((e) => e.resource?.name)).toEqual(["example-com", "www-example-com"]);
+      expect(edits[1]?.spec?.kind.value).toMatchObject({
+        domain: "www.example.com",
+        redirect: { to: "https://example.com" },
+        tls: "off",
+        trustedProxies: ["127.0.0.1"],
+      });
+    });
+
+    it("moves www out from behind the tunnel with it", async () => {
+      const edits = await move({ tls: "off", trustedProxies: ["127.0.0.1"] }, true);
+      expect(edits.map((e) => e.resource?.name)).toEqual(["example-com", "www-example-com"]);
+      expect(edits[1]?.spec?.kind.value).toMatchObject({
+        domain: "www.example.com",
+        tls: "",
+        trustedProxies: [],
+        plainForAnyone: false,
+      });
+    });
+  });
+
   it("moves a private route behind what's in front with who gets in, and held, as they are", async () => {
     const user = userEvent.setup();
     const edits: ProposeChangeRequest["edits"] = [];

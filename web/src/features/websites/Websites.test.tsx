@@ -9,7 +9,9 @@ import {
   ChangeSchema,
   type ChangeServiceRuntimeRequest,
   ChangeState,
+  type CheckDomainRequest,
   type CreateWebsiteRequest,
+  DomainCheckState,
   FileType,
   HealthState,
   PlanAction,
@@ -1606,5 +1608,293 @@ describe("Marking what a config's edit changes", () => {
       [3, "c", false],
     ]);
     expect(changedLines("a\nc\n", "a\nb\nc\n").map((l) => l.changed)).toEqual([false, true, false]);
+  });
+});
+
+/** What CheckDomain says of a domain and its companion: both point here unless told. */
+function companionOf(
+  companion: string,
+  said: { alike?: boolean; heldBy?: string; heldByEnvironmentId?: string; heldFor?: string; wildcard?: string } = {},
+) {
+  return (req: CheckDomainRequest) => ({
+    check: { domain: req.domain, state: DomainCheckState.POINTS_HERE, found: ["203.0.113.50"] },
+    companion,
+    companionCheck: {
+      check: {
+        domain: companion,
+        state: said.alike === false ? DomainCheckState.NO_RECORD : DomainCheckState.POINTS_HERE,
+        found: said.alike === false ? [] : ["203.0.113.50"],
+      },
+      answersAlike: said.alike ?? true,
+      heldBy: said.heldBy ?? "",
+      heldByEnvironmentId: said.heldByEnvironmentId ?? "",
+      heldFor: said.heldFor ?? "",
+      wildcard: said.wildcard ?? "",
+    },
+  });
+}
+
+const apex = create(WebsiteInfoSchema, {
+  id: "prj_apex",
+  name: "example-com",
+  domain: "example.com",
+  spec: { serves: { case: "proxy", value: { url: "https://backend.example.com" } }, redirectFrom: ["www.example.com"] },
+  environmentId: "env_apex",
+  serviceId: "svc_apexweb",
+  routeId: "rte_apex",
+  updateTime: timestampFromDate(new Date(2026, 10, 1, 12)),
+  serverId: SERVER,
+  serverName: "hz-1",
+});
+
+describe("A website's other domains", () => {
+  it("answers on www too, checked as it points where the domain does", async () => {
+    const user = userEvent.setup();
+    let asked: CreateWebsiteRequest | undefined;
+    renderAt(
+      "/websites/new",
+      api([], {
+        websites: {
+          createWebsite: (req) => {
+            asked = req;
+            return { change: planned };
+          },
+        },
+        domains: { listDomains: () => ({ domains }), checkDomain: companionOf("www.example.com") },
+        changes: { watchChange: feed<WatchChangeResponse>().stream },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "New website" });
+    await user.type(within(sheet).getByLabelText("Domain"), "example.com");
+    const www = await within(sheet).findByRole("checkbox", { name: "Also answer on www.example.com" });
+    await waitFor(() => expect(www).toBeChecked());
+    await user.click(within(sheet).getByRole("radio", { name: /^A URL/ }));
+    await user.type(within(sheet).getByLabelText("URL"), "https://backend.example.com");
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    await waitFor(() => expect(asked).toBeDefined());
+    expect(asked?.website?.redirectFrom).toEqual(["www.example.com"]);
+  });
+
+  it("starts www unchecked while it points nowhere yet, and sends it once checked", async () => {
+    const user = userEvent.setup();
+    let asked: CreateWebsiteRequest | undefined;
+    renderAt(
+      "/websites/new",
+      api([], {
+        websites: {
+          createWebsite: (req) => {
+            asked = req;
+            return { change: planned };
+          },
+        },
+        domains: { listDomains: () => ({ domains }), checkDomain: companionOf("www.example.com", { alike: false }) },
+        changes: { watchChange: feed<WatchChangeResponse>().stream },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "New website" });
+    await user.type(within(sheet).getByLabelText("Domain"), "example.com");
+    const www = await within(sheet).findByRole("checkbox", { name: "Also answer on www.example.com" });
+    expect(www).not.toBeChecked();
+    await user.click(www);
+    expect(www).toBeChecked();
+    await user.click(within(sheet).getByRole("radio", { name: /^A URL/ }));
+    await user.type(within(sheet).getByLabelText("URL"), "https://backend.example.com");
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    await waitFor(() => expect(asked).toBeDefined());
+    expect(asked?.website?.redirectFrom).toEqual(["www.example.com"]);
+  });
+
+  it("leaves www off, with who serves it, when another project has it", async () => {
+    const user = userEvent.setup();
+    let asked: CreateWebsiteRequest | undefined;
+    renderAt(
+      "/websites/new",
+      api([], {
+        websites: {
+          createWebsite: (req) => {
+            asked = req;
+            return { change: planned };
+          },
+        },
+        domains: {
+          listDomains: () => ({ domains }),
+          checkDomain: companionOf("www.example.com", { heldBy: "shop", heldByEnvironmentId: "env_shop" }),
+        },
+        changes: { watchChange: feed<WatchChangeResponse>().stream },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "New website" });
+    await user.type(within(sheet).getByLabelText("Domain"), "example.com");
+    expect(await within(sheet).findByText("www.example.com is served by shop")).toBeVisible();
+    const www = within(sheet).getByRole("checkbox", { name: "Also answer on www.example.com" });
+    expect(www).toBeDisabled();
+    expect(www).not.toBeChecked();
+    expect(within(sheet).getByRole("link", { name: "Open" })).toBeVisible();
+    await user.click(within(sheet).getByRole("radio", { name: /^A URL/ }));
+    await user.type(within(sheet).getByLabelText("URL"), "https://backend.example.com");
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    await waitFor(() => expect(asked).toBeDefined());
+    expect(asked?.website?.redirectFrom).toEqual([]);
+  });
+
+  it("lists what redirects here, and makes www the main domain in one plan", async () => {
+    const user = userEvent.setup();
+    const asked: UpdateWebsiteRequest[] = [];
+    renderAt(
+      "/websites/prj_apex",
+      api([apex], {
+        websites: {
+          updateWebsite: (req) => {
+            asked.push(req);
+            return { change: planned };
+          },
+        },
+        domains: { listDomains: () => ({ domains }), checkDomain: companionOf("www.example.com") },
+        changes: { watchChange: feed<WatchChangeResponse>().stream },
+      }),
+    );
+    const list = await screen.findByRole("list", { name: "Domains that redirect here" });
+    expect(within(list).getByText("www.example.com")).toBeVisible();
+    expect(within(list).getByText("Redirects here")).toBeVisible();
+    await user.click(await screen.findByRole("button", { name: "Make www.example.com the main domain" }));
+    await waitFor(() => expect(asked).toHaveLength(1));
+    expect(asked[0]?.domain).toBe("www.example.com");
+    expect(asked[0]?.website?.redirectFrom).toEqual(["example.com"]);
+    expect(asked[0]?.website?.serves.case).toBe("proxy");
+  });
+
+  it("says who serves www beside the site, with the way there, and offers nothing that would be refused", async () => {
+    const bare = create(WebsiteInfoSchema, {
+      id: "prj_apex",
+      name: "example-com",
+      domain: "example.com",
+      spec: { serves: { case: "proxy", value: { url: "https://backend.example.com" } } },
+      environmentId: "env_apex",
+      serviceId: "svc_apexweb",
+      routeId: "rte_apex",
+      serverId: SERVER,
+      serverName: "hz-1",
+    });
+    renderAt(
+      "/websites/prj_apex",
+      api([bare], {
+        domains: {
+          listDomains: () => ({ domains }),
+          checkDomain: companionOf("www.example.com", {
+            heldBy: "example.com",
+            heldByEnvironmentId: "env_apex",
+            heldFor: "the app web",
+          }),
+        },
+      }),
+    );
+    expect(await screen.findByText("www.example.com is served by the app web here")).toBeVisible();
+    expect(screen.getByRole("link", { name: "Open" })).toHaveAttribute("href", "/domains?q=www.example.com");
+    expect(screen.queryByRole("button", { name: /Also answer on/ })).toBeNull();
+  });
+
+  it("says where a listed domain a person pointed elsewhere goes now, and still offers to stop sending it", async () => {
+    renderAt(
+      "/websites/prj_apex",
+      api([apex], {
+        domains: {
+          listDomains: () => ({
+            domains: [
+              {
+                name: "www.example.com",
+                environmentId: "env_apex",
+                url: "https://www.example.com",
+                routes: [
+                  {
+                    id: "rte_www",
+                    name: "www-example-com",
+                    redirect: { to: "https://example.org", temporary: false, dropPath: false },
+                  },
+                ],
+                servers: [],
+              },
+            ],
+          }),
+          checkDomain: companionOf("www.example.com"),
+        },
+      }),
+    );
+    const list = await screen.findByRole("list", { name: "Domains that redirect here" });
+    expect(await within(list).findByText("Redirects to example.org now")).toBeVisible();
+    expect(within(list).queryByText("Redirects here")).toBeNull();
+    expect(within(list).getByRole("button", { name: "Stop sending www.example.com here" })).toBeVisible();
+  });
+
+  it("stops sending a domain here", async () => {
+    const user = userEvent.setup();
+    const asked: UpdateWebsiteRequest[] = [];
+    renderAt(
+      "/websites/prj_apex",
+      api([apex], {
+        websites: {
+          updateWebsite: (req) => {
+            asked.push(req);
+            return { change: planned };
+          },
+        },
+        domains: { listDomains: () => ({ domains }), checkDomain: companionOf("www.example.com") },
+        changes: { watchChange: feed<WatchChangeResponse>().stream },
+      }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Stop sending www.example.com here" }));
+    await waitFor(() => expect(asked).toHaveLength(1));
+    expect(asked[0]?.website?.redirectFrom).toEqual([]);
+    expect(asked[0]?.domain).toBe("");
+  });
+
+  it("changes the domain, keeping the old one sending here", async () => {
+    const user = userEvent.setup();
+    const asked: UpdateWebsiteRequest[] = [];
+    renderAt(
+      "/websites/prj_apex",
+      api([apex], {
+        websites: {
+          updateWebsite: (req) => {
+            asked.push(req);
+            return { change: planned };
+          },
+        },
+        domains: { listDomains: () => ({ domains }), checkDomain: companionOf("") },
+        changes: { watchChange: feed<WatchChangeResponse>().stream },
+      }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Change domain" }));
+    const sheet = await screen.findByRole("dialog", { name: "Change domain" });
+    await user.type(within(sheet).getByLabelText("New domain"), "Example.org");
+    expect(within(sheet).getByRole("checkbox", { name: "Send example.com here" })).toBeChecked();
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    await waitFor(() => expect(asked).toHaveLength(1));
+    expect(asked[0]?.domain).toBe("example.org");
+    expect(asked[0]?.website?.redirectFrom).toEqual(["www.example.com", "example.com"]);
+  });
+
+  it("sends another domain here", async () => {
+    const user = userEvent.setup();
+    const asked: UpdateWebsiteRequest[] = [];
+    renderAt(
+      "/websites/prj_apex",
+      api([apex], {
+        websites: {
+          updateWebsite: (req) => {
+            asked.push(req);
+            return { change: planned };
+          },
+        },
+        domains: { listDomains: () => ({ domains }), checkDomain: companionOf("") },
+        changes: { watchChange: feed<WatchChangeResponse>().stream },
+      }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Send another domain here" }));
+    const sheet = await screen.findByRole("dialog", { name: "Send another domain here" });
+    await user.type(within(sheet).getByLabelText("Domain"), "old-example.net");
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    await waitFor(() => expect(asked).toHaveLength(1));
+    expect(asked[0]?.domain).toBe("");
+    expect(asked[0]?.website?.redirectFrom).toEqual(["www.example.com", "old-example.net"]);
   });
 });

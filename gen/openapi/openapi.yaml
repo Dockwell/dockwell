@@ -7665,9 +7665,11 @@ paths:
             tags:
                 - WebsiteService
             description: |-
-                UpdateWebsite plans changing what a website serves, ready to apply or
-                 discard. Its domain, and what's in front of it, stay as they are: change
-                 those as for any route.
+                UpdateWebsite plans changing what a website serves, the domains that
+                 redirect to it, or its domain, ready to apply or discard. What's in front of
+                 it stays as it is: change that as for any route, in the same change as the
+                 routes its other domains have, as the panel's Domains does, or they keep the
+                 front they had until the website's next update.
             operationId: WebsiteService_UpdateWebsite
             parameters:
                 - name: id
@@ -10882,6 +10884,11 @@ components:
                 domain:
                     type: string
                     description: The domain, such as "app.example.com".
+                projectId:
+                    type: string
+                    description: |-
+                        The project it's for, by ID, so a shared wildcard certificate that serves that
+                         project counts as covering the domain's companion. Empty for one not made yet.
             description: CheckDomainRequest names a domain and the server it's meant to reach.
         CheckDomainResponse:
             type: object
@@ -10890,6 +10897,17 @@ components:
                     allOf:
                         - $ref: '#/components/schemas/DomainCheck'
                     description: What DNS says, as the control plane reads it.
+                companion:
+                    type: string
+                    description: |-
+                        The domain's other half, which a site is also expected to answer on: its
+                         www name for a registered domain, such as "www.example.co.uk" for
+                         "example.co.uk", or the registered domain for its www name. Empty for any
+                         other name, such as "blog.example.com" (ADR 0070).
+                companionCheck:
+                    allOf:
+                        - $ref: '#/components/schemas/CompanionCheck'
+                    description: Where the companion stands. Unset when there's no companion.
             description: CheckDomainResponse says what DNS says of it.
         CheckInviteRequest:
             type: object
@@ -11184,6 +11202,43 @@ components:
             description: |-
                 Companion is a service an app runs without, such as a database's admin tool,
                  which a person installs only if they want it.
+        CompanionCheck:
+            type: object
+            properties:
+                check:
+                    allOf:
+                        - $ref: '#/components/schemas/DomainCheck'
+                    description: What DNS says of it, as the control plane reads it.
+                answersAlike:
+                    type: boolean
+                    description: |-
+                        It answers as the domain does: both point at the server, or both point at the
+                         same addresses elsewhere, as behind a tunnel or Cloudflare's proxy.
+                heldByEnvironmentId:
+                    type: string
+                    description: |-
+                        The environment that serves it already, by ID. Empty when none does, or when
+                         it's in a project the caller can't read.
+                heldBy:
+                    type: string
+                    description: |-
+                        The project that serves it already, by name, such as "shop", or "another
+                         project" for one the caller can't read. Empty when none does.
+                wildcard:
+                    type: string
+                    description: |-
+                        The shared wildcard certificate that covers it, by name, such as
+                         "example-com", so it needs no certificate of its own (ADR 0088). Empty when
+                         none does.
+                heldFor:
+                    type: string
+                    description: |-
+                        What serves it there, in words, such as "the app web", "a redirect to
+                         example.org" or "port 3000 on the server". Empty when none does, or when it's
+                         in a project the caller can't read.
+            description: |-
+                CompanionCheck is where a domain's companion stands: what DNS says of it, whether
+                 another environment serves it already, and whether a wildcard covers it.
         ComposeRefusal:
             type: object
             properties:
@@ -19595,8 +19650,18 @@ components:
                          change of servers' labels alone, which takes no step on them, and
                          "provider_links_stop" for a sign-in provider this deletes, turns off for the
                          panel or moves to another issuer, whose names hold how many people sign in to
-                         Dockwell with it (ADR 0095). Another reason may come: its message says what
-                         it means.
+                         Dockwell with it (ADR 0095), "add_to_front" for a website's other domain
+                         behind a tunnel or a proxy, which answers only once that sends it here too,
+                         with the domain as its name, "redirect_stranded" for a redirect this leaves as
+                         it is, whose route it lands on this deletes or moves, so its visitors would
+                         land on nothing, with that redirect as its resource, and "redirect_reversed"
+                         for a redirect this makes that sends back to where another one sent from,
+                         which browsers keep for up to a day, so visitors who loaded it go round in a
+                         circle until it expires, with this redirect as its resource, and
+                         "leaves_list" for a website's other domain whose redirect a person pointed
+                         elsewhere, which leaves its list and keeps that redirect, with the domain and
+                         where it sends as its names (ADR 0070).
+                         Another reason may come: its message says what it means.
                 message:
                     type: string
                     description: 'What it says, for people: the fact, what it means, and what to do.'
@@ -25313,10 +25378,18 @@ components:
                 website:
                     allOf:
                         - $ref: '#/components/schemas/Website'
-                    description: What it serves, whole, as JSON, such as {"proxy":{"url":"https://backend.example.com"}}, or {"proxy":{"port":3000}} for a port on the server.
+                    description: |-
+                        What it serves, whole, as JSON, such as {"proxy":{"url":"https://backend.example.com"}}, or {"proxy":{"port":3000}} for a port on the server.
+                         Its redirect_from is whole too: a domain left out stops redirecting to it.
                 summary:
                     type: string
                     description: What the change is for, for the timeline. Empty says what it changes.
+                domain:
+                    type: string
+                    description: |-
+                        The domain it answers at now, such as "example.org", as a route takes one.
+                         Empty keeps the one it has. Moving it to one of redirect_from, as making www
+                         the main domain does, takes it out of that list in the same change.
             description: UpdateWebsiteRequest is what a website should serve now.
         UpdateWebsiteResponse:
             type: object
@@ -25724,6 +25797,15 @@ components:
                     allOf:
                         - $ref: '#/components/schemas/WebsitePhp'
                     description: Runs the PHP in a folder on the server, and serves its other files.
+                redirectFrom:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        Other domains that redirect to it, such as "www.example.com" for a site at
+                         "example.com": each a route in its environment that redirects permanently to
+                         its domain, keeping the path, reached as its own route is (ADR 0070). Removing
+                         one deletes only the route this list wrote for it.
             description: Website is what a website serves at its domain, as a person chose it.
         WebsiteFolder:
             type: object

@@ -17,7 +17,7 @@ const SETTLES_MS = 400;
 const READ_EVERY_MS = 5000;
 
 /** A name worth asking DNS about: one with a dot in it, that's stopped changing. */
-function useSettled(value: string): string {
+export function useSettled(value: string): string {
   const [settled, setSettled] = useState(value);
   useEffect(() => {
     const timer = setTimeout(() => setSettled(value), SETTLES_MS);
@@ -101,14 +101,14 @@ function useRecordWord(): (
 }
 
 /** One DNS record to make, ready to copy, with whether DNS has it yet, and a check again until it does. */
-function RecordRow({
+export function RecordRow({
   domain,
   address,
   read,
 }: {
   domain: string;
   address: string;
-  read: ReturnType<typeof useDomainCheck>;
+  read: Pick<ReturnType<typeof useDomainCheck>, "check" | "again" | "checking">;
 }) {
   const said = useRecordWord()(read.check, address);
   return (

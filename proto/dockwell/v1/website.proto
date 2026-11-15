@@ -73,9 +73,11 @@ service WebsiteService {
     };
   }
 
-  // UpdateWebsite plans changing what a website serves, ready to apply or
-  // discard. Its domain, and what's in front of it, stay as they are: change
-  // those as for any route.
+  // UpdateWebsite plans changing what a website serves, the domains that
+  // redirect to it, or its domain, ready to apply or discard. What's in front of
+  // it stays as it is: change that as for any route, in the same change as the
+  // routes its other domains have, as the panel's Domains does, or they keep the
+  // front they had until the website's next update.
   rpc UpdateWebsite(UpdateWebsiteRequest) returns (UpdateWebsiteResponse) {
     option (dockwell.v1.effect) = EFFECT_PLAN;
     option (dockwell.v1.min_role) = NEEDS_ADMIN;
@@ -253,9 +255,14 @@ message UpdateWebsiteRequest {
   // The website, by its project's name or ID.
   string id = 1;
   // What it serves, whole, as JSON, such as {"proxy":{"url":"https://backend.example.com"}}, or {"proxy":{"port":3000}} for a port on the server.
+  // Its redirect_from is whole too: a domain left out stops redirecting to it.
   dockwell.resource.v1alpha1.Website website = 2;
   // What the change is for, for the timeline. Empty says what it changes.
   string summary = 3;
+  // The domain it answers at now, such as "example.org", as a route takes one.
+  // Empty keeps the one it has. Moving it to one of redirect_from, as making www
+  // the main domain does, takes it out of that list in the same change.
+  string domain = 4;
 }
 
 // UpdateWebsiteResponse carries the planned change.

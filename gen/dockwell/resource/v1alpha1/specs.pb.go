@@ -2875,7 +2875,12 @@ type Website struct {
 	//	*Website_Proxy
 	//	*Website_Folder
 	//	*Website_Php
-	Serves        isWebsite_Serves `protobuf_oneof:"serves"`
+	Serves isWebsite_Serves `protobuf_oneof:"serves"`
+	// Other domains that redirect to it, such as "www.example.com" for a site at
+	// "example.com": each a route in its environment that redirects permanently to
+	// its domain, keeping the path, reached as its own route is (ADR 0070). Removing
+	// one deletes only the route this list wrote for it.
+	RedirectFrom  []string `protobuf:"bytes,4,rep,name=redirect_from,json=redirectFrom,proto3" json:"redirect_from,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2940,6 +2945,13 @@ func (x *Website) GetPhp() *WebsitePhp {
 		if x, ok := x.Serves.(*Website_Php); ok {
 			return x.Php
 		}
+	}
+	return nil
+}
+
+func (x *Website) GetRedirectFrom() []string {
+	if x != nil {
+		return x.RedirectFrom
 	}
 	return nil
 }
@@ -8697,11 +8709,12 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\aProject\x12!\n" +
 	"\fdisplay_name\x18\x01 \x01(\tR\vdisplayName\x12@\n" +
 	"\acatalog\x18\x02 \x01(\v2&.dockwell.resource.v1alpha1.CatalogPinR\acatalog\x12=\n" +
-	"\awebsite\x18\x03 \x01(\v2#.dockwell.resource.v1alpha1.WebsiteR\awebsite\"\xd6\x01\n" +
+	"\awebsite\x18\x03 \x01(\v2#.dockwell.resource.v1alpha1.WebsiteR\awebsite\"\xfb\x01\n" +
 	"\aWebsite\x12@\n" +
 	"\x05proxy\x18\x01 \x01(\v2(.dockwell.resource.v1alpha1.WebsiteProxyH\x00R\x05proxy\x12C\n" +
 	"\x06folder\x18\x02 \x01(\v2).dockwell.resource.v1alpha1.WebsiteFolderH\x00R\x06folder\x12:\n" +
-	"\x03php\x18\x03 \x01(\v2&.dockwell.resource.v1alpha1.WebsitePhpH\x00R\x03phpB\b\n" +
+	"\x03php\x18\x03 \x01(\v2&.dockwell.resource.v1alpha1.WebsitePhpH\x00R\x03php\x12#\n" +
+	"\rredirect_from\x18\x04 \x03(\tR\fredirectFromB\b\n" +
 	"\x06serves\"\xab\x01\n" +
 	"\n" +
 	"WebsitePhp\x12\x12\n" +

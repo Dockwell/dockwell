@@ -9536,6 +9536,9 @@ msgstr "Before it moves, Dockwell asks what features its data uses, and stops wi
 msgid "Browsers keep a permanent redirect for up to a day, through an undo too."
 msgstr "Browsers keep a permanent redirect for up to a day, through an undo too."
 
+msgid "Browsers keep {back}'s earlier redirect to {to} for up to a day. Anyone who loaded {back} since goes round in a circle until it expires: clearing the browser's cache ends it sooner."
+msgstr "Browsers keep {back}'s earlier redirect to {to} for up to a day. Anyone who loaded {back} since goes round in a circle until it expires: clearing the browser's cache ends it sooner."
+
 #. placeholder {0}: server.serverName
 msgid "Builds {repository} at {commit} ({ref}) on {0} first. If the build fails, what runs stays as it is."
 msgstr "Builds {repository} at {commit} ({ref}) on {0} first. If the build fails, what runs stays as it is."
@@ -18355,6 +18358,78 @@ msgstr "{mounts} · Driver {driver}"
 
 msgid "{users} mounts it. Take it off first, then delete it."
 msgstr "{users} mounts it. Take it off first, then delete it."
+
+msgid "Add {name} to your tunnel too."
+msgstr "Add {name} to your tunnel too."
+
+msgid "Also answer on <0>{companion}</0>"
+msgstr "Also answer on <0>{companion}</0>"
+
+msgid "Also answer on <0>{name}</0>"
+msgstr "Also answer on <0>{name}</0>"
+
+msgid "Change domain"
+msgstr "Change domain"
+
+msgid "Domains that redirect here"
+msgstr "Domains that redirect here"
+
+msgid "It redirects to {main}, keeping the path"
+msgstr "It redirects to {main}, keeping the path"
+
+msgid "Make <0>{companion}</0> the main domain"
+msgstr "Make <0>{companion}</0> the main domain"
+
+msgid "Make {companion} the main domain of {main}"
+msgstr "Make {companion} the main domain of {main}"
+
+msgid "Move the website {main} to {typed}"
+msgstr "Move the website {main} to {typed}"
+
+msgid "Name the domain, such as example.org."
+msgstr "Name the domain, such as example.org."
+
+msgid "New domain"
+msgstr "New domain"
+
+msgid "Redirects here"
+msgstr "Redirects here"
+
+msgid "Redirects to {away} now"
+msgstr "Redirects to {away} now"
+
+msgid "Send <0>{main}</0> here"
+msgstr "Send <0>{main}</0> here"
+
+msgid "Send another domain here"
+msgstr "Send another domain here"
+
+msgid "Send {companion} to {main}"
+msgstr "Send {companion} to {main}"
+
+msgid "Send {typed} to {main}"
+msgstr "Send {typed} to {main}"
+
+msgid "Stop sending {from} here"
+msgstr "Stop sending {from} here"
+
+msgid "Stop sending {from} to {main}"
+msgstr "Stop sending {from} to {main}"
+
+msgid "The certificate for {covering} covers it."
+msgstr "The certificate for {covering} covers it."
+
+msgid "{companion} is served by {heldFor} here"
+msgstr "{companion} is served by {heldFor} here"
+
+msgid "{companion} is served here already"
+msgstr "{companion} is served here already"
+
+msgid "{main} answers there instead"
+msgstr "{main} answers there instead"
+
+msgid "{name} is served by {by}"
+msgstr "{name} is served by {by}"
 
 msgid "A static site, sent as its files are."
 msgstr "A static site, sent as its files are."

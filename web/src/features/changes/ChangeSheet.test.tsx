@@ -2546,6 +2546,32 @@ describe("the plan sheet, once it runs", () => {
       );
     });
 
+    it("says once, in its place, that a redirect sent back goes round in browsers that kept the earlier one", async () => {
+      const change = moved(aRoutePlan(PlanAction.UPDATE), { state: ChangeState.PLANNED });
+      const step = change.plan?.servers[0]?.steps[0];
+      if (step) step.redirects = create(RouteRedirectsSchema, { where: "www.example.com", to: "https://example.com" });
+      change.plan?.notes.push(
+        create(PlanNoteSchema, {
+          reason: "redirect_reversed",
+          message: "Browsers keep example.com's earlier redirect to www.example.com for up to a day.",
+          names: ["example.com", "www.example.com"],
+        }),
+      );
+      renderSheet(
+        { kind: "plan", make: () => Promise.resolve({ change }) },
+        { changes: { watchChange: feed<WatchChangeResponse>().stream } },
+      );
+      const review = await screen.findByRole("dialog", { name: "Review plan" });
+      expect(
+        within(review).getAllByText(
+          "Browsers keep example.com's earlier redirect to www.example.com for up to a day. Anyone who loaded example.com since goes round in a circle until it expires: clearing the browser's cache ends it sooner.",
+        ),
+      ).toHaveLength(1);
+      expect(
+        within(review).queryByText("Browsers keep a permanent redirect for up to a day, through an undo too."),
+      ).toBeNull();
+    });
+
     it("says browsers keep a permanent redirect once, however many it makes, and not for a temporary one", async () => {
       const change = moved(aRoutePlan(PlanAction.UPDATE), { state: ChangeState.PLANNED });
       const server = change.plan?.servers[0];
