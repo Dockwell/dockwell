@@ -66,6 +66,36 @@ type spot struct {
 // proposer may always discard theirs. c is nil while planning, and asked is its
 // plan as the caller read it.
 func (e *Engine) checkRoles(ctx context.Context, tx *store.Tx, actor string, c *store.Change, asked *planRead, items []item, a act) error {
+	err := e.checkRolesOf(ctx, tx, actor, c, asked, items, a)
+	var refused *Refusal
+	if errors.As(err, &refused) {
+		if terr := markToken(ctx, tx, refused); terr != nil {
+			return terr
+		}
+	}
+	return err
+}
+
+// markToken says on a refusal what narrows the API token the call is made with,
+// if it is, so its words give that as the reason, and a token without it as the
+// fix (ADR 0071).
+func markToken(ctx context.Context, tx *store.Tx, r *Refusal) error {
+	caller, ok := place.CallerFrom(ctx)
+	if !ok || caller.TokenID == "" {
+		return nil
+	}
+	tok, err := tx.GetAPIToken(ctx, caller.TokenID)
+	if errors.Is(err, store.ErrNotFound) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	r.token, r.tokenCap, r.tokenPlaces = true, tok.Role, tok.Projects != nil
+	return nil
+}
+
+func (e *Engine) checkRolesOf(ctx context.Context, tx *store.Tx, actor string, c *store.Change, asked *planRead, items []item, a act) error {
 	caller, ok := place.CallerFrom(ctx)
 	person := aPerson(actor)
 	switch {
@@ -150,23 +180,30 @@ func (e *Engine) checkRoles(ctx context.Context, tx *store.Tx, actor string, c *
 		if err := e.breakingRoles(ctx, tx, caller.Grants, it, a); err != nil {
 			return err
 		}
+		// An admin's in a project counts in one place, its protected environments, as
+		// a token narrowed to projects holds admin there and never on the install. What's
+		// an admin's because it reaches what every project on a server shares, or is
+		// otherwise the install's, is an admin's on the whole install (ADR 0071). A
+		// person's admin is always the install's, so for them the two are one.
+		wide := place.Holds(caller.Grants, place.Install)
 		needs, why := store.RoleDeveloper, ""
-		switch {
-		case at.admins != "":
-			needs, why = store.RoleAdmin, at.admins
-		case a != planning && at.Protected:
+		if a != planning && at.Protected {
 			needs, why = store.RoleAdmin, "it changes "+it.ref.Name+" in a protected environment"
-		case plan != nil && store.RoleRank(held) < store.RoleRank(store.RoleAdmin):
+		}
+		if store.RoleRank(held) < store.RoleRank(needs) {
+			return &Refusal{act: a, Held: held, Needs: needs, Why: why}
+		}
+		if at.admins != "" && store.RoleRank(wide) < store.RoleRank(store.RoleAdmin) {
+			return &Refusal{act: a, Held: held, Needs: store.RoleAdmin, Why: at.admins}
+		}
+		if plan != nil && store.RoleRank(wide) < store.RoleRank(store.RoleAdmin) {
 			reach, err := e.reachedOnServers(ctx, tx, plan, it, at)
 			if err != nil {
 				return err
 			}
 			if reach != "" {
-				needs, why = store.RoleAdmin, reach
+				return &Refusal{act: a, Held: held, Needs: store.RoleAdmin, Why: reach}
 			}
-		}
-		if store.RoleRank(held) < store.RoleRank(needs) {
-			return &Refusal{act: a, Held: held, Needs: needs, Why: why}
 		}
 	}
 	return nil
@@ -477,6 +514,12 @@ type Refusal struct {
 	// Why says what makes it need that role, as a clause, such as "it changes
 	// web in a protected environment". Empty when the role is all there is to it.
 	Why string
+	// token says the call was made with an API token, tokenCap is the role it
+	// acts as at most, if it's capped, and tokenPlaces that it's narrowed to
+	// projects (ADR 0071).
+	token       bool
+	tokenCap    string
+	tokenPlaces bool
 }
 
 func (r *Refusal) who() string {
@@ -488,10 +531,53 @@ func (r *Refusal) who() string {
 
 func (r *Refusal) Error() string {
 	verb := map[act]string{planning: "plan this", applying: "apply this", discarding: "discard someone else's plan here"}[r.act]
+	if fix := r.tokenFix(); fix != "" {
+		as := ""
+		if r.Why != "" {
+			as = ", as " + r.Why
+		}
+		return "only " + r.who() + " can " + verb + as + ", and " + r.holds() + ", so it didn't happen. " + fix
+	}
 	if r.Why != "" {
 		return "only " + r.who() + " can " + verb + ", as " + r.Why + ", and " + youHold(r.Held) + ", so it didn't happen. Ask an admin or the owner"
 	}
 	return "only " + r.who() + " can " + verb + ", and " + youHold(r.Held) + ", so it didn't happen. Ask an admin to change your role"
+}
+
+// capped reports a refusal the token's cap is why of.
+func (r *Refusal) capped() bool {
+	return r.tokenCap != "" && store.RoleRank(r.tokenCap) < store.RoleRank(r.Needs)
+}
+
+// holds says what the caller holds, for a token as what narrows it.
+func (r *Refusal) holds() string {
+	switch {
+	case r.capped():
+		return "this API token acts as " + aRoleWord(r.tokenCap) + " at most"
+	case r.tokenPlaces && r.Needs == store.RoleAdmin:
+		return "this API token acts in its projects alone, never as an admin of the whole install"
+	}
+	return youHold(r.Held)
+}
+
+// tokenFix is what to do about a refusal a token's narrowing is why of: a token
+// without it, not a change to its maker's role (ADR 0071). Empty for anything else.
+func (r *Refusal) tokenFix() string {
+	switch {
+	case r.capped():
+		return "Use a token that acts as you do"
+	case r.tokenPlaces && r.Needs == store.RoleAdmin:
+		return "Use a token made for every project you hold"
+	}
+	return ""
+}
+
+// aRoleWord is a role with its article: "a developer", "a viewer".
+func aRoleWord(role string) string {
+	if role == store.RoleAdmin || role == store.RoleOwner {
+		return "an " + role
+	}
+	return "a " + role
 }
 
 // Is makes a Refusal ErrNeedsRole.
@@ -500,6 +586,9 @@ func (r *Refusal) Is(target error) bool { return target == ErrNeedsRole }
 // Waits says why a plan the person can't apply waits, and for whom: what
 // makes it theirs, then that they apply it, then what to do meanwhile.
 func (r *Refusal) Waits() string {
+	if fix := r.tokenFix(); fix != "" && r.Why == "" {
+		return "Only " + r.who() + " can apply this, and " + r.holds() + ". Leave it planned for them, or " + strings.ToLower(fix[:1]) + fix[1:]
+	}
 	if r.Why == "" {
 		return "Only " + r.who() + " can apply this, and " + youHold(r.Held) + ". Leave it planned for them, or ask an admin to change your role"
 	}
@@ -585,18 +674,23 @@ func aPerson(actor string) bool {
 // acts for, so it stays its maker's once the hook is gone; one from before it
 // did is its hook's maker's, or nobody's once the hook is gone. A token that's
 // gone is nobody's, so its plan is someone else's to whoever applies or
-// discards it.
+// discards it. A token narrowed to projects or capped at a role proposes for
+// itself alone: its change is someone else's to everyone else, its maker
+// included, so a person who applies it approves it (ADR 0071).
 func sameProposer(ctx context.Context, tx *store.Tx, caller place.Caller, actor, actsFor string) (bool, error) {
 	kind, actorID, _ := strings.Cut(actor, ":")
 	switch kind {
 	case "user":
 		return actorID == caller.UserID, nil
 	case "token":
+		if caller.TokenID != "" && caller.TokenID == actorID {
+			return true, nil
+		}
 		tok, err := tx.GetAPIToken(ctx, actorID)
 		if errors.Is(err, store.ErrNotFound) {
 			return false, nil
 		}
-		return err == nil && tok.UserID == caller.UserID, err
+		return err == nil && tok.UserID == caller.UserID && !tok.Narrowed(), err
 	case "hook":
 		if actsFor != "" {
 			return actsFor == caller.UserID, nil

@@ -371,9 +371,10 @@ func (s *Service) tokenReachable(ctx context.Context, tx *store.Tx, userID strin
 		if err != nil {
 			return "", err
 		}
+		// In the same words as a project that isn't there, as out of reach answers
+		// as missing does (ADR 0049).
 		if len(Narrow(grants, []string{projectID}, "")) == 0 {
-			return "", fmt.Errorf("%w: you hold nothing in %s, so a token can't act there. Choose among the projects you hold, or leave them out",
-				ErrInvalid, r.Name)
+			return "", fmt.Errorf("%w: there's no project %s. Name one you hold, by its name or its ID", ErrInvalid, projectID)
 		}
 		names = append(names, r.Name)
 	}

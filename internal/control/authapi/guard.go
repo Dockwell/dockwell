@@ -497,7 +497,7 @@ func (i *interceptor) gate(ctx context.Context, p auth.Principal, procedure stri
 // audited as it was made.
 func (i *interceptor) gateCall(ctx context.Context, client auth.Client, p auth.Principal, procedure string) (context.Context, error) {
 	if outsideTokenPlaces(p, procedure) {
-		return ctx, ReasonError(connect.CodePermissionDenied, i.svc.RefuseTokenPlaces(ctx, client, p, procedure, true), ReasonTokenPlaces)
+		return ctx, ReasonError(connect.CodePermissionDenied, i.svc.RefuseTokenPlaces(ctx, client, p, procedure, pastTokenPlaces[procedure], true), ReasonTokenPlaces)
 	}
 	ctx, held, needs, err := i.check(ctx, p, procedure)
 	if err != nil && needs != "" {
@@ -515,7 +515,7 @@ func (i *interceptor) check(ctx context.Context, p auth.Principal, procedure str
 	}
 	if outsideTokenPlaces(p, procedure) {
 		// For a stream's recheck: gateCall refused and audited it as the call opened.
-		return ctx, "", "", ReasonError(connect.CodePermissionDenied, i.svc.RefuseTokenPlaces(ctx, auth.Client{}, p, procedure, false), ReasonTokenPlaces)
+		return ctx, "", "", ReasonError(connect.CodePermissionDenied, i.svc.RefuseTokenPlaces(ctx, auth.Client{}, p, procedure, pastTokenPlaces[procedure], false), ReasonTokenPlaces)
 	}
 	needs = roleOf(r.needs)
 	if needs == "" {
@@ -528,7 +528,11 @@ func (i *interceptor) check(ctx context.Context, p auth.Principal, procedure str
 	}
 	held = auth.Highest(grants)
 	if store.RoleRank(held) >= store.RoleRank(needs) {
-		return place.WithCaller(ctx, place.Caller{UserID: p.User.ID, Grants: grants}), "", "", nil
+		caller := place.Caller{UserID: p.User.ID, Grants: grants}
+		if p.Token != nil {
+			caller.TokenID = p.Token.ID
+		}
+		return place.WithCaller(ctx, caller), "", "", nil
 	}
 	if why, ok := adminsBecause[procedure]; ok && held != "" && needs == store.RoleAdmin {
 		return ctx, held, needs, ReasonError(connect.CodePermissionDenied,
@@ -542,7 +546,15 @@ func (i *interceptor) check(ctx context.Context, p auth.Principal, procedure str
 // it holds grants on them alone, so the places a call names are checked as they
 // are for anyone who holds projects alone.
 func outsideTokenPlaces(p auth.Principal, procedure string) bool {
-	return p.Token != nil && p.Token.Projects != nil && roleRules[procedure].reach == dockwellv1.Reach_REACH_INSTALL
+	return p.Token != nil && p.Token.Projects != nil &&
+		(roleRules[procedure].reach == dockwellv1.Reach_REACH_INSTALL || pastTokenPlaces[procedure] != "")
+}
+
+// pastTokenPlaces are calls that name a project and reach past it, which a token
+// narrowed to projects never makes, with what they reach (ADR 0071).
+var pastTokenPlaces = map[string]string{
+	// A shell task runs as root on its servers (ADR 0053).
+	dockwellv1connect.TaskServiceRunTaskProcedure: "running a task runs a shell as root on its servers, which every project there shares",
 }
 
 // unroled are the calls outside dockwell.v1 that need no role: gRPC's health,

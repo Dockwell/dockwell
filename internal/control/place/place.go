@@ -44,6 +44,8 @@ var Install = Place{}
 type Caller struct {
 	UserID string
 	Grants []store.Grant
+	// TokenID is the API token the call is made with, or empty for a session.
+	TokenID string
 }
 
 type callerKey struct{}

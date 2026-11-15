@@ -193,10 +193,18 @@ func (s *Service) RefuseRole(ctx context.Context, client Client, p Principal, ca
 // token narrowed to projects (ADR 0071), naming them as they're called now. When
 // audit is set, it's audited as role.refuse is, at most once an hour for each
 // token and method, with a count of the rest. A stream's recheck doesn't audit.
-func (s *Service) RefuseTokenPlaces(ctx context.Context, client Client, p Principal, call string, audit bool) error {
+//
+// past says what the call reaches past its project, as a clause, such as
+// "running a task runs a shell as root on its servers, which every project there
+// shares"; empty for a call of the install's own.
+func (s *Service) RefuseTokenPlaces(ctx context.Context, client Client, p Principal, call, past string, audit bool) error {
 	names := s.projectNames(ctx, p.Token.Projects)
-	err := fmt.Errorf("this API token acts only in %s, and this is the install's own, so it didn't happen. Use a token made for every project you hold",
-		human.List(names))
+	what := "this is the install's own"
+	if past != "" {
+		what = past
+	}
+	err := fmt.Errorf("this API token acts only in %s, and %s, so it didn't happen. Use a token made for every project you hold",
+		human.List(names), what)
 	if !audit {
 		return err
 	}
@@ -206,6 +214,9 @@ func (s *Service) RefuseTokenPlaces(ctx context.Context, client Client, p Princi
 		return err
 	}
 	detail := fmt.Sprintf("%s, which is the install's own, from %s: token %s acts only in %s", call, client.remoteIP(), p.Token.ID, human.List(names))
+	if past != "" {
+		detail = fmt.Sprintf("%s, as %s, from %s: token %s acts only in %s", call, past, client.remoteIP(), p.Token.ID, human.List(names))
+	}
 	if more > 0 {
 		detail += fmt.Sprintf(", and %d more refused since the last report", more)
 	}

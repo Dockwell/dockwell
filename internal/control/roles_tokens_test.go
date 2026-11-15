@@ -236,7 +236,8 @@ func TestATokenIsNarrowedWithinWhatItsMakerHolds(t *testing.T) {
 				t.Errorf("%s: %v, want it refused saying %q", what, err, says)
 			}
 		}
-		refused("a project they hold nothing in", &dockwellv1.CreateTokenRequest{Projects: []string{"default"}}, "you hold nothing in default")
+		// Out of reach answers as missing does, in the same words, as the project's typed (ADR 0071).
+		refused("a project they hold nothing in", &dockwellv1.CreateTokenRequest{Projects: []string{"default"}}, "there's no project default. Name one you hold")
 		refused("a project that isn't there", &dockwellv1.CreateTokenRequest{Projects: []string{"nowhere"}}, "there's no project nowhere")
 		refused("a cap at their own role", &dockwellv1.CreateTokenRequest{Role: dockwellv1.TokenRole_TOKEN_ROLE_DEVELOPER},
 			"you're a developer, so a token that acts as a developer at most acts as you do already")

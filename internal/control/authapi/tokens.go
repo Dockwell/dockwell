@@ -68,7 +68,7 @@ func (h *Handler) CreateToken(ctx context.Context, req *connect.Request[dockwell
 		reach.Role = store.RoleViewer
 	case dockwellv1.TokenRole_TOKEN_ROLE_UNSPECIFIED:
 	}
-	if reach.Projects, err = h.projectIDs(ctx, m.GetProjects()); err != nil {
+	if reach.Projects, err = h.projectIDs(ctx, p, m.GetProjects()); err != nil {
 		return nil, h.rpcError(ctx, err)
 	}
 	client, _ := ClientFrom(ctx)
@@ -84,18 +84,23 @@ func (h *Handler) CreateToken(ctx context.Context, req *connect.Request[dockwell
 }
 
 // projectIDs are the projects refs name, each by its ID or its name. One that
-// names nothing is refused here; whether its maker holds it is the auth
-// service's to check, as it makes the token.
-func (h *Handler) projectIDs(ctx context.Context, refs []string) ([]string, error) {
+// names nothing, or one p holds nothing in, is refused in the same words, as
+// they're typed: what's out of reach answers as missing does (ADR 0049, ADR
+// 0071). The auth service checks again as it makes the token.
+func (h *Handler) projectIDs(ctx context.Context, p auth.Principal, refs []string) ([]string, error) {
 	if len(refs) == 0 {
 		return nil, nil
 	}
+	held, err := h.auth.Grants(ctx, p)
+	if err != nil {
+		return nil, err
+	}
 	out := make([]string, 0, len(refs))
-	err := h.auth.View(ctx, func(tx *store.Tx) error {
+	err = h.auth.View(ctx, func(tx *store.Tx) error {
 		for _, ref := range refs {
 			ref = strings.TrimSpace(ref)
 			projectID, err := place.Project(ctx, tx, ref)
-			if errors.Is(err, store.ErrNotFound) {
+			if errors.Is(err, store.ErrNotFound) || err == nil && place.Holds(held, place.Place{Project: projectID}) == "" {
 				return fmt.Errorf("%w: there's no project %s. Name one you hold, by its name or its ID", auth.ErrInvalid, ref)
 			}
 			if err != nil {
