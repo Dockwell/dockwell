@@ -136,6 +136,9 @@ func Step(s resource.Step, resourceID string) *dockwellv1.PlanStep {
 	for _, at := range slices.Sorted(maps.Keys(s.Leads)) {
 		p.HostAccess = append(p.HostAccess, &dockwellv1.HostAccess{Kind: dockwellv1.HostAccessKind_HOST_ACCESS_KIND_SERVER_PATH, Path: at, LeadsTo: s.Leads[at], LeadsMoved: slices.Contains(s.LeadsMoved, at)})
 	}
+	for _, at := range s.DeviceRoot {
+		p.HostAccess = append(p.HostAccess, &dockwellv1.HostAccess{Kind: dockwellv1.HostAccessKind_HOST_ACCESS_KIND_DEVICE, Path: at, SameAsRoot: true})
+	}
 	p.Pull, p.ImageGone = s.Pull, s.ImageGone
 	if i := s.Ingress; i != nil {
 		p.Ingress = &dockwellv1.IngressEffect{Change: ingressChanges[i.Change], Proxy: i.Proxy, Ports: i.Ports, PanelDomain: i.PanelDomain}
@@ -413,6 +416,12 @@ var accessKinds = map[resource.AccessKind]dockwellv1.HostAccessKind{
 	resource.AccessBackupOf:       dockwellv1.HostAccessKind_HOST_ACCESS_KIND_BACKUP_OF,
 	resource.AccessServerShell:    dockwellv1.HostAccessKind_HOST_ACCESS_KIND_SERVER_SHELL,
 	resource.AccessCertificateKey: dockwellv1.HostAccessKind_HOST_ACCESS_KIND_CERTIFICATE_KEY,
+
+	resource.AccessDevice:         dockwellv1.HostAccessKind_HOST_ACCESS_KIND_DEVICE,
+	resource.AccessGPUs:           dockwellv1.HostAccessKind_HOST_ACCESS_KIND_GPUS,
+	resource.AccessSecurityOption: dockwellv1.HostAccessKind_HOST_ACCESS_KIND_SECURITY_OPTION,
+	resource.AccessHostProcesses:  dockwellv1.HostAccessKind_HOST_ACCESS_KIND_HOST_PROCESSES,
+	resource.AccessRootTogether:   dockwellv1.HostAccessKind_HOST_ACCESS_KIND_ROOT_TOGETHER,
 }
 
 // HostAccess converts what a resource reaches on its server.
@@ -463,9 +472,13 @@ func FromStep(p *dockwellv1.PlanStep) (resource.Step, error) {
 		s.UntilHealthy = max(d.AsDuration(), 0)
 	}
 	// An agent's word on host access counts for nothing: the control plane
-	// decides it from the specs. All it takes from one is where a path leads,
-	// which only an agent can read, and which can only make a plan louder.
+	// decides it from the specs. All it takes from one is where a path leads, and
+	// which devices are the same as root there, which only an agent can read, and
+	// which can only make a plan louder.
 	for _, a := range p.GetHostAccess() {
+		if a.GetKind() == dockwellv1.HostAccessKind_HOST_ACCESS_KIND_DEVICE && a.GetSameAsRoot() {
+			s.DeviceRoot = append(s.DeviceRoot, a.GetPath())
+		}
 		if a.GetLeadsTo() != "" {
 			if s.Leads == nil {
 				s.Leads = map[string]string{}

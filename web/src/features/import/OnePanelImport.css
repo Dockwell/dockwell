@@ -187,3 +187,13 @@
   font-size: 13px;
   color: var(--ink-muted);
 }
+
+.onepanel-host-access {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  min-height: 24px;
+  font-size: 13px;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}

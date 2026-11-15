@@ -6,6 +6,7 @@ import (
 	"errors"
 	"maps"
 	"reflect"
+	"slices"
 	"testing"
 	"time"
 
@@ -24,6 +25,21 @@ func TestAStepReadsBack(t *testing.T) {
 	got, err := FromStep(Step(s, ""))
 	if err != nil || got.Action != s.Action || got.Effect != s.Effect || !got.Destroys || len(got.Warnings) != 1 || got.Ref != s.Ref {
 		t.Errorf("FromStep(Step(%+v)) = %+v, %v", s, got, err)
+	}
+}
+
+// Which devices an agent found the same as root comes back from it, and nothing
+// else of its word on host access does (ADR 0097).
+func TestAStepCarriesItsRootDevices(t *testing.T) {
+	s := resource.Step{
+		Ref:      resource.Ref{Kind: "service", Scope: "env_1", Name: "media"},
+		Decision: resource.Decision{Action: resource.ActionCreate, DeviceRoot: []string{"/dev/sdb"}},
+	}
+	p := Step(s, "")
+	p.HostAccess = append(p.HostAccess, &dockwellv1.HostAccess{Kind: dockwellv1.HostAccessKind_HOST_ACCESS_KIND_HOST_PROCESSES, SameAsRoot: true})
+	got, err := FromStep(p)
+	if err != nil || !slices.Equal(got.DeviceRoot, []string{"/dev/sdb"}) || len(got.HostAccess) != 0 {
+		t.Errorf("the step reads back as %+v, %v", got, err)
 	}
 }
 

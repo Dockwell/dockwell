@@ -96,6 +96,10 @@ message AdoptComposeRequest {
   string project = 3;
   // The environment its services go in, by name or ID.
   string environment = 4;
+  // Takes it on with the host access its containers need: devices, GPUs,
+  // security options or the server's processes (ADR 0097). Without it, a
+  // project that needs some is refused, saying what.
+  bool host_access = 5;
 }
 
 // AdoptComposeResponse carries the plan.

@@ -337,6 +337,45 @@ func TestAnOlderAgentIsRefusedWhatAContainerAsksOfItself(t *testing.T) {
 	}
 }
 
+// An agent that doesn't say it runs what a container reaches of its server is
+// refused a spec that asks for any of it, with the fix, at every entry, and an agent
+// that says so takes it (ADR 0097).
+func TestAnOlderAgentIsRefusedHostAccess(t *testing.T) {
+	web := resource.Ref{Kind: service.Kind, Scope: "env_1", Name: "web"}
+	errSent := errors.New("the test stops the call here")
+	open := func(runs bool) *Session {
+		a := NewAgents(resource.NewRegistry(&service.Driver{}), slog.New(slog.DiscardHandler))
+		return a.open("srv_1", "hz-1", &agentv1.Hello{Kinds: []string{string(service.Kind)}, WritesReferences: true, OwnSettings: true, ReadsTakenReferences: true, RunsHostAccess: runs}, func(*agentv1.ConnectResponse) error { return errSent })
+	}
+	for field, app := range map[string]*resourcev1.Container{
+		"devices":      {Image: "jellyfin:10", Devices: []*resourcev1.Device{{HostPath: "/dev/dri/renderD128"}}},
+		"gpus":         {Image: "jellyfin:10", Gpus: &resourcev1.Gpus{Count: -1}},
+		"security_opt": {Image: "jellyfin:10", SecurityOpt: []string{"seccomp=unconfined"}},
+		"host_pid":     {Image: "jellyfin:10", HostPid: true},
+		"sysctls":      {Image: "jellyfin:10", Sysctls: map[string]string{"net.ipv4.ip_forward": "1"}},
+		// Fields that came with them (the review of ADR 0097, L7).
+		"start_interval":  {Image: "redis:8", Healthcheck: &resourcev1.Healthcheck{Test: []string{"CMD", "true"}, StartInterval: "2s"}},
+		"network_aliases": {Image: "redis:8", Networks: []string{"a", "b"}, NetworkAliases: []string{"a=storage"}},
+	} {
+		asks := &resourcev1.Service{Runs: &resourcev1.Service_App{App: app}}
+		t.Run(field, func(t *testing.T) {
+			_, err := open(false).Plan(t.Context(), []resource.Desired{{Ref: web, Spec: asks}})
+			if !errors.Is(err, resource.ErrAgentTooOld) || !strings.Contains(err.Error(), "devices, GPUs, security options, sysctls, health check start_interval and names on one network, which web asks for") {
+				t.Errorf("an older agent, planning = %v", err)
+			}
+			if err := open(false).Apply(t.Context(), resource.Step{Ref: web}, asks); !errors.Is(err, resource.ErrAgentTooOld) {
+				t.Errorf("an older agent, applying = %v", err)
+			}
+			if _, err := open(false).Remember(t.Context(), web, asks, 1, "chg_1", ""); !errors.Is(err, resource.ErrAgentTooOld) {
+				t.Errorf("an older agent, remembering = %v", err)
+			}
+			if _, err := open(true).Plan(t.Context(), []resource.Desired{{Ref: web, Spec: asks}}); errors.Is(err, resource.ErrAgentTooOld) {
+				t.Errorf("an agent that runs them = %v", err)
+			}
+		})
+	}
+}
+
 // An agent that doesn't say it writes the files a container mounts is refused a spec
 // that mounts one, with the fix, and an agent that says so takes it (ADR 0085).
 func TestAnOlderAgentIsRefusedAFileToWrite(t *testing.T) {

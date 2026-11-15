@@ -546,6 +546,12 @@ func (*Driver) HostAccess(spec proto.Message) []resource.Access {
 	return container.ServiceAccess(spec.(*resourcev1.Service).GetApp())
 }
 
+// ConfinedAgain says SELinux confines the app again, as container.ConfinedAgain
+// does.
+func (*Driver) ConfinedAgain(current, desired proto.Message) string {
+	return container.ConfinedAgain(current.(*resourcev1.Service).GetApp(), desired.(*resourcev1.Service).GetApp())
+}
+
 // NamedAsText says what the app writes as ${NAME} as text, for what its environment
 // or the service's uses has.
 func (*Driver) NamedAsText(spec proto.Message) map[string][]string {

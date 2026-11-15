@@ -120,6 +120,12 @@ const WORST: Readonly<Partial<Record<HostAccessKind, number>>> = {
   [HostAccessKind.HOST_NETWORK]: 1,
   [HostAccessKind.CAPABILITY]: 2,
   [HostAccessKind.GROUP]: 2,
+  // What makes the rest root together leads, once for the app (ADR 0097).
+  [HostAccessKind.ROOT_TOGETHER]: 0,
+  [HostAccessKind.HOST_PROCESSES]: 0,
+  [HostAccessKind.DEVICE]: 2,
+  [HostAccessKind.SECURITY_OPTION]: 2,
+  [HostAccessKind.GPUS]: 3,
   [HostAccessKind.NETWORK_DRIVER]: 3,
   [HostAccessKind.EXTERNAL_NETWORK]: 3,
   [HostAccessKind.EXTERNAL_VOLUME]: 3,
@@ -249,6 +255,80 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
           ),
           trust: true,
         };
+      case HostAccessKind.ROOT_TOGETHER:
+        return {
+          key,
+          title: t`${name} gets root on ${server}`,
+          detail: (
+            <Trans>
+              What it reaches of the server, with <code>{path}</code>, is the same as root.
+            </Trans>
+          ),
+          trust: true,
+        };
+      case HostAccessKind.HOST_PROCESSES:
+        return {
+          key,
+          title: t`${name} gets root on ${server}`,
+          detail: t`It sees and signals every process on the server.`,
+          trust: true,
+        };
+      case HostAccessKind.DEVICE:
+        return access.sameAsRoot
+          ? {
+              key,
+              title: t`${name} gets root on ${server}`,
+              detail: (
+                <Trans>
+                  It uses the device <code>{path}</code>, which is the same as root.
+                </Trans>
+              ),
+              trust: true,
+            }
+          : {
+              key,
+              title: access.readOnly
+                ? t`${name} reads the device ${path} on ${server}`
+                : t`${name} uses the device ${path} on ${server}`,
+            };
+      case HostAccessKind.GPUS: {
+        const driver = access.type;
+        const what = access.detail;
+        return {
+          key,
+          title:
+            path === "all"
+              ? t`${name} uses all the GPUs on ${server}`
+              : /^[0-9]+$/.test(path)
+                ? t`${name} uses ${path} GPUs on ${server}`
+                : t`${name} uses the GPUs ${path} on ${server}`,
+          more:
+            driver && what
+              ? t`By the ${driver} driver, for ${what}.`
+              : driver
+                ? t`By the ${driver} driver.`
+                : what
+                  ? t`For ${what}.`
+                  : undefined,
+        };
+      }
+      case HostAccessKind.SECURITY_OPTION:
+        return access.sameAsRoot
+          ? {
+              key,
+              title: t`${name} gets root on ${server}`,
+              detail: (
+                <Trans>
+                  It runs with <code>{path}</code>, which is the same as root.
+                </Trans>
+              ),
+              trust: true,
+            }
+          : {
+              key,
+              title: t`${name} runs with ${path} on ${server}`,
+              more: t`That takes away some of what Docker confines a container in.`,
+            };
       case HostAccessKind.PRIVILEGED:
         return {
           key,

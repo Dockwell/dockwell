@@ -9182,6 +9182,12 @@ msgstr "先在 {0} 上构建 {repository} 的 {commit}（{ref}）。如果构建
 msgid "Builds {repository} at {commit} on {0} first. If the build fails, what runs stays as it is."
 msgstr "先在 {0} 上构建 {repository} 的 {commit}。如果构建失败，正在运行的内容保持不变。"
 
+msgid "By the {driver} driver, for {what}."
+msgstr "通过 {driver} 驱动，用于 {what}。"
+
+msgid "By the {driver} driver."
+msgstr "通过 {driver} 驱动。"
+
 msgid "Check it's the commit you mean."
 msgstr "请确认这是你想要的提交。"
 
@@ -9254,6 +9260,9 @@ msgstr "文件在读取时发生了变化，因此可能包含写到一半的内
 
 msgid "Follows {branch}: Dockwell moves the catalog along it, by changes you can undo."
 msgstr "跟随 {branch}：Dockwell 会随它移动目录，每次都是可以撤销的变更。"
+
+msgid "For {what}."
+msgstr "用于 {what}。"
 
 msgid "Give it one, such as {target}:size=64m, or give {name} a memory limit."
 msgstr "请设置大小，例如 {target}:size=64m，或者为 {name} 设置内存上限。"
@@ -9358,6 +9367,12 @@ msgstr "它通过 Compose 项目 {project} 运行。在 Dockwell 更换它的镜
 msgid "It runs through the Compose project {project}. Until Dockwell changes its image, what you do to it in {tool} acts on this container. After that, starting or redeploying it there can start a second copy, on the same folders and under the same name. Before you remove it there, find out what that does to {where}, as it may delete what this service mounts."
 msgstr "它通过 Compose 项目 {project} 运行。在 Dockwell 更换它的镜像之前，你在 {tool} 中的操作会作用于这个容器。更换之后，在那里启动或重新部署可能会启动第二个副本，使用相同的目录和相同的名称。在那里移除它之前，请先弄清楚这会对 {where} 做什么，因为它可能会删除此服务挂载的内容。"
 
+msgid "It runs with <0>{path}</0>, which is the same as root."
+msgstr "它以 <0>{path}</0> 运行，这等同于 root。"
+
+msgid "It sees and signals every process on the server."
+msgstr "它能看到并向服务器上的每个进程发送信号。"
+
 msgid "It takes that proxy's word for where a request came from."
 msgstr "它会相信该代理所说的请求来源。"
 
@@ -9366,6 +9381,9 @@ msgstr "它会相信该代理所说的请求来源。该范围内的其他任何
 
 msgid "It took too long to measure. If an hour is too short, this stops there, with nothing else done."
 msgstr "测量耗时过长。如果一小时不够，操作会在此停止，其他内容都不会改动。"
+
+msgid "It uses the device <0>{path}</0>, which is the same as root."
+msgstr "它使用设备 <0>{path}</0>，这等同于 root。"
 
 msgid "It's revoked as this applies, before any step, and its agent is refused from then on."
 msgstr "应用时立即吊销，先于任何步骤，此后它的代理会被拒绝。"
@@ -9512,6 +9530,9 @@ msgstr "这是服务器本身，绕过其容器，通过明文 HTTP 位于 {at}�
 msgid "That is the server itself, past its containers, at {at}."
 msgstr "这是服务器本身，绕过其容器，位于 {at}。"
 
+msgid "That takes away some of what Docker confines a container in."
+msgstr "这会解除 Docker 对容器的部分限制。"
+
 msgid "That's what the server kept on {taken}, {size}."
 msgstr "这是服务器在 {taken} 保留的内容，大小为 {size}。"
 
@@ -9648,6 +9669,9 @@ msgstr "请在其上运行一次安装脚本来升级。"
 
 msgid "What asks for {shared} there can reach either."
 msgstr "在那里请求 {shared} 可能会到达其中任何一个。"
+
+msgid "What it reaches of the server, with <0>{path}</0>, is the same as root."
+msgstr "它对服务器的访问加上 <0>{path}</0>，等同于 root。"
 
 msgid "What ran before this failed may have changed the data, such as with a migration, and the version that runs now may refuse it or misread it."
 msgstr "失败之前运行的内容可能已改动数据（例如迁移），当前运行的版本可能拒绝或误读这些数据。"
@@ -9841,11 +9865,17 @@ msgstr "{name} 可访问 {server} 上的 {path}，它指向 {leadsTo}"
 msgid "{name} reaches {reach} on {server}"
 msgstr "{name} 可访问 {server} 上的 {reach}"
 
+msgid "{name} reads the device {path} on {server}"
+msgstr "{name} 读取 {server} 上的设备 {path}"
+
 msgid "{name} runs a shell command as root on {server}"
 msgstr "{name} 在 {server} 上以 root 身份运行 shell 命令"
 
 msgid "{name} runs with the latest value of {names}"
 msgstr "{name} 使用 {names} 的最新值运行"
+
+msgid "{name} runs with {path} on {server}"
+msgstr "{name} 在 {server} 上以 {path} 运行"
 
 msgid "{name} runs {image} as revision {revision} ran it, {digest}, even if the tag has moved since"
 msgstr "{name} 按修订版本 {revision} 当时的方式运行 {image}（{digest}），即使该标签此后已指向别处"
@@ -9864,6 +9894,18 @@ msgstr "{name} 在 {server} 上停止 {path} 的 HTTPS"
 
 msgid "{name} takes on the container {path} on {server}"
 msgstr "{name} 在 {server} 上接管容器 {path}"
+
+msgid "{name} uses all the GPUs on {server}"
+msgstr "{name} 使用 {server} 上的所有 GPU"
+
+msgid "{name} uses the GPUs {path} on {server}"
+msgstr "{name} 使用 {server} 上的 GPU {path}"
+
+msgid "{name} uses the device {path} on {server}"
+msgstr "{name} 使用 {server} 上的设备 {path}"
+
+msgid "{name} uses {path} GPUs on {server}"
+msgstr "{name} 使用 {server} 上的 {path} 个 GPU"
 
 msgid "{name}'s data isn't backed up first"
 msgstr "{name} 的数据不会先备份"
@@ -11954,6 +11996,9 @@ msgstr "稍后，在 {panel} 的代理交出 80 和 443 端口之后"
 msgid "Move in from 1Panel"
 msgstr "从 1Panel 迁入"
 
+msgid "Needs host access"
+msgstr "需要访问主机"
+
 msgid "Nothing to plan now"
 msgstr "现在没有可计划的内容"
 
@@ -12009,6 +12054,10 @@ msgstr "重新启动 {proxy}"
 
 msgid "Stop {name}"
 msgstr "停止 {name}"
+
+#. placeholder {0}: step.needsHostAccess.join(", ")
+msgid "Take it on with {0}"
+msgstr "连同 {0} 一起接管"
 
 msgid "{name} isn't on this server"
 msgstr "此服务器上没有 {name}"

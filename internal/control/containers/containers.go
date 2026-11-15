@@ -106,6 +106,9 @@ func (h *Handler) AdoptContainer(ctx context.Context, req *connect.Request[dockw
 	if why := Refusal(c.GetName(), found); why != "" {
 		return nil, authapi.Invalid(fmt.Errorf("%s. It stays as it is, and nothing was taken on. %s", why, Fix(found)))
 	}
+	if needs := HostAccessNeeded(svc.GetApp()); len(needs) > 0 && !req.Msg.GetHostAccess() {
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s. It stays as it is, and nothing was taken on. Choose host access to take it on with that", HostAccessRefusal(c.GetName(), needs)), "needs_host_access")
+	}
 	edit := &dockwellv1.Edit{
 		Resource: &dockwellv1.ResourceRef{Kind: string(service.Kind), Scope: env.ID, Name: name},
 		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: svc}},
@@ -143,6 +146,9 @@ func Refusal(name string, a resource.Adoption) string {
 	if len(a.LeanedOn) > 0 {
 		why = append(why, fmt.Sprintf("the container %s can't be replaced while others depend on it: %s, so a new container would cut that off", name, human.List(a.LeanedOn)))
 	}
+	for _, l := range a.LinkAliases {
+		why = append(why, fmt.Sprintf("the container %s reaches %s as %s through a link, which only a Compose project taken on whole, with %s, can keep", name, l.Container, l.Alias, l.Container))
+	}
 	return strings.Join(why, ". ")
 }
 
@@ -153,9 +159,42 @@ func itOrThem(n int) string {
 	return "them"
 }
 
+// HostAccessNeeded is the host access app needs that a person chooses before it's
+// taken on (ADR 0097), each in a few words: a device by its path, the GPUs, a
+// security option, the server's processes. Its sysctls are its own namespaces',
+// which reach nothing of the server.
+func HostAccessNeeded(app *resourcev1.Container) []string {
+	var out []string
+	access := container.ServiceAccess(app)
+	for i := range access {
+		a := &access[i]
+		switch a.Kind { //nolint:exhaustive // only what a person chooses here, the rest a plan gates as ever
+		case resource.AccessDevice, resource.AccessSecurityOption:
+			out = append(out, a.Path)
+		case resource.AccessGPUs:
+			switch {
+			case a.Path == "all":
+				out = append(out, "all GPUs")
+			case strings.Trim(a.Path, "0123456789") == "":
+				out = append(out, a.Path+" GPUs")
+			default:
+				out = append(out, "GPUs "+a.Path)
+			}
+		case resource.AccessHostProcesses:
+			out = append(out, "the server's processes")
+		}
+	}
+	return out
+}
+
+// HostAccessRefusal says a container needs host access a person hasn't chosen.
+func HostAccessRefusal(name string, needs []string) string {
+	return fmt.Sprintf("the container %s needs host access, %s, which is taken on only where you choose it", name, human.List(needs))
+}
+
 // Fix says what to do about what Refusal said of a.
 func Fix(a resource.Adoption) string {
-	n := len(a.Refused) + len(a.Shows) + len(a.LeanedOn)
+	n := len(a.Refused) + len(a.Shows) + len(a.LeanedOn) + len(a.LinkAliases)
 	if a.Invalid != "" {
 		n++
 	}

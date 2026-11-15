@@ -99,14 +99,14 @@ var hostConfigRules = map[string]rule{
 	"CpuPercent": only("cpu_percent"), "CpuPeriod": only("cpu_period"), "CpuQuota": only("cpu_quota"),
 	"CpuRealtimePeriod": only("cpu_rt_period"), "CpuRealtimeRuntime": only("cpu_rt_runtime"),
 	"CpuShares": only("cpu_shares"), "CpusetCpus": only("cpuset"), "CpusetMems": only("cpuset memory nodes"),
-	"DeviceCgroupRules": only("device_cgroup_rules"), "DeviceRequests": only("gpus"), "Devices": only("devices"),
+	"DeviceCgroupRules": only("device_cgroup_rules"), "DeviceRequests": readDeviceRequests, "Devices": kept,
 	"DnsOptions": only("dns_opt"), "DnsSearch": only("dns_search"),
 	"IOMaximumBandwidth": only("an I/O limit"), "IOMaximumIOps": only("an I/O limit"),
 	"IpcMode": only("ipc", `"private"`, `"shareable"`), "Isolation": only("isolation", `"default"`),
-	"Links": only("links"), "MemorySwappiness": only("mem_swappiness"), "OomKillDisable": only("oom_kill_disable"),
-	"OomScoreAdj": only("oom_score_adj"), "PidMode": only("pid"), "PublishAllPorts": only("publish_all_ports (-P)"),
+	"Links": kept, "MemorySwappiness": only("mem_swappiness"), "OomKillDisable": only("oom_kill_disable"),
+	"OomScoreAdj": only("oom_score_adj"), "PidMode": only("pid", `"host"`), "PublishAllPorts": only("publish_all_ports (-P)"),
 	"SecurityOpt": readSecurityOpt,
-	"StorageOpt":  only("storage_opt"), "Sysctls": only("sysctls"), "UTSMode": only("uts"),
+	"StorageOpt":  only("storage_opt"), "Sysctls": readSysctls, "UTSMode": only("uts"),
 	"Umask": only("umask"), "UsernsMode": only("userns_mode"),
 	"VolumeDriver": only("volume_driver"), "VolumesFrom": only("volumes_from"),
 }
@@ -193,8 +193,13 @@ func leans(o *docker.Options, c *docker.Container) []string {
 			return is(strings.TrimPrefix(source, "/"))
 		})
 	}
-	if sources("Links") {
-		out = append(out, name+" links to it")
+	// A link on a network both are on goes on reaching it once it's replaced: by a
+	// name it answers to already, or by one it takes on as an alias of its own
+	// (linkedNames). One on Docker's default bridge doesn't.
+	for _, l := range linksOf(o) {
+		if is(l.target) && len(sharedNetworks(o.NetworkSettings.Networks, c)) == 0 {
+			out = append(out, name+" links to it")
+		}
 	}
 	if sources("VolumesFrom") {
 		out = append(out, name+" mounts its volumes")
@@ -219,7 +224,7 @@ func readKeys(section string, keys map[string]json.RawMessage, rules map[string]
 func readEndpoint(network string, ep map[string]json.RawMessage) []string {
 	var out []string
 	for _, s := range []struct{ key, name string }{
-		{"IPAMConfig", "ipv4_address"}, {"DriverOpts", "driver_opts"}, {"Links", "links"}, {"GwPriority", "gw_priority"},
+		{"IPAMConfig", "ipv4_address"}, {"DriverOpts", "driver_opts"}, {"GwPriority", "gw_priority"},
 	} {
 		if !isZero(ep[s.key]) {
 			out = append(out, s.name+" on "+network)
@@ -458,21 +463,29 @@ func readRuntime(raw json.RawMessage, r *reading) []string {
 	return []string{"runtime: " + runtime}
 }
 
-// readHealthcheck reads what a spec's health check can't hold.
+// healthcheckKeys are what a spec's health check holds of Docker's.
+var healthcheckKeys = []string{"Test", "Interval", "Timeout", "StartPeriod", "StartInterval", "Retries"}
+
+// readHealthcheck reads what a spec's health check can't hold: a key Docker adds
+// later, which nothing here can know the meaning of.
 func readHealthcheck(raw json.RawMessage, _ *reading) []string {
 	var check map[string]json.RawMessage
 	if len(raw) == 0 || json.Unmarshal(raw, &check) != nil {
 		return nil
 	}
-	if !isZero(check["StartInterval"]) {
-		return []string{"healthcheck start_interval"}
+	var out []string
+	for _, k := range slices.Sorted(maps.Keys(check)) {
+		if !slices.Contains(healthcheckKeys, k) && !isZero(check[k]) {
+			out = append(out, "Config.Healthcheck."+k)
+		}
 	}
-	return nil
+	return out
 }
 
 // readSecurityOpt reads a container's security options: no-new-privileges a spec
-// holds (ADR 0085), and any other option is named.
-func readSecurityOpt(raw json.RawMessage, _ *reading) []string {
+// holds (ADR 0085), and those it holds as security_opt (ADR 0097); any other
+// option is named.
+func readSecurityOpt(raw json.RawMessage, r *reading) []string {
 	var opts []string
 	if isZero(raw) {
 		return nil
@@ -480,10 +493,50 @@ func readSecurityOpt(raw json.RawMessage, _ *reading) []string {
 	if json.Unmarshal(raw, &opts) != nil {
 		return []string{"security_opt"}
 	}
+	for i := range opts {
+		opts[i] = securityOptForm(opts[i])
+	}
+	if r != nil && r.c != nil {
+		h := r.c.HostConfig
+		opts = withoutDaemonsLabel(opts, h.Privileged || h.PidMode == "host" || h.IpcMode == "host")
+	}
+	var out []string
 	for _, o := range opts {
-		if _, ok := NoNewPrivileges(o); !ok {
-			return []string{"security_opt"}
+		if _, ok := NoNewPrivileges(o); !ok && !securityOptForms().MatchString(securityOptForm(o)) {
+			out = append(out, "security_opt "+o)
 		}
 	}
+	return out
+}
+
+// readDeviceRequests reads what a container asks of a device driver: a spec holds
+// one request, as --gpus makes it, with no options of the driver's.
+func readDeviceRequests(raw json.RawMessage, _ *reading) []string {
+	var reqs []docker.DeviceRequest
+	if isZero(raw) {
+		return nil
+	}
+	if json.Unmarshal(raw, &reqs) != nil || len(reqs) > 1 || len(reqs) == 1 && (len(reqs[0].Options) > 0 || len(reqs[0].Capabilities) > 1) {
+		return []string{"gpus with options or more than one request"}
+	}
 	return nil
+}
+
+// readSysctls reads a container's kernel settings: a spec holds those of its own
+// namespaces, which are all Docker sets.
+func readSysctls(raw json.RawMessage, _ *reading) []string {
+	var set map[string]string
+	if isZero(raw) {
+		return nil
+	}
+	if json.Unmarshal(raw, &set) != nil {
+		return []string{"sysctls"}
+	}
+	var out []string
+	for _, k := range slices.Sorted(maps.Keys(set)) {
+		if !namespacedSysctl().MatchString(k) {
+			out = append(out, "sysctls "+k)
+		}
+	}
+	return out
 }

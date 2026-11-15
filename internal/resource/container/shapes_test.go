@@ -97,7 +97,8 @@ func TestAServiceRunsAndReadsBackAsItsSpec(t *testing.T) {
 	if cfg := c.Config; cfg.Hostname != "mail.example.com" || !cfg.Tty || !cfg.OpenStdin || cfg.StopSignal != "SIGQUIT" {
 		t.Errorf("its own settings on Docker: %+v", cfg)
 	}
-	if h.Init == nil || !*h.Init || !h.ReadonlyRootfs || !slices.Equal(h.SecurityOpt, []string{"no-new-privileges"}) || h.PidsLimit != 200 || !slices.Equal(h.DNS, []string{"10.0.0.53", "1.1.1.1"}) ||
+	// Docker adds label=disable by itself, as the container is privileged (ADR 0097).
+	if h.Init == nil || !*h.Init || !h.ReadonlyRootfs || !slices.Equal(h.SecurityOpt, []string{"no-new-privileges", "label=disable"}) || h.PidsLimit != 200 || !slices.Equal(h.DNS, []string{"10.0.0.53", "1.1.1.1"}) ||
 		len(h.Ulimits) != 2 || h.Ulimits[0] != (docker.Ulimit{Name: "memlock", Soft: -1, Hard: -1}) {
 		t.Errorf("its own limits on Docker: %+v", h)
 	}
@@ -233,6 +234,30 @@ func TestOlderEnginesGiveTheSameNames(t *testing.T) {
 		if ep := c.NetworkSettings.Networks[n]; ep == nil || !slices.Equal(ep.Aliases, []string{"web", "db"}) {
 			t.Errorf("on %s it answers to %+v", n, ep)
 		}
+	}
+}
+
+// A name on one network alone is one the container answers to there, and on none
+// of its others, where another may answer to it (the review of ADR 0097, L4). On
+// one network, it's an alias like any other.
+func TestANameOnOneNetworkIsThereAlone(t *testing.T) {
+	// An engine before 1.44 joins the second network after create.
+	for _, version := range []string{"", "1.43"} {
+		e, l := shapesEngine(t)
+		if version != "" {
+			e.APIVersion = version
+		}
+		planAndApply(t, l, webRef(), svc(&resourcev1.Container{Networks: []string{"back"}, ExternalNetworks: []string{"edge"}, NetworkAliases: []string{"edge=storage"}}))
+		c := e.Container(service.ContainerName(webRef()))
+		for n, want := range map[string][]string{docker.ScopedName(shapesEnv, "back"): {"web"}, "edge": {"web", "storage"}} {
+			if ep := c.NetworkSettings.Networks[n]; ep == nil || !slices.Equal(ep.Aliases, want) {
+				t.Errorf("API %q: on %s it answers to %+v, want %v", version, n, ep, want)
+			}
+		}
+	}
+	one := &resourcev1.Container{Image: "nginx:1.27", ExternalNetworks: []string{"edge"}, NetworkAliases: []string{"edge=storage"}}
+	if err := container.Validate(one); err != nil || !slices.Equal(one.GetAliases(), []string{"storage"}) || len(one.GetNetworkAliases()) != 0 {
+		t.Errorf("on one network = %v, %v, %v", one.GetAliases(), one.GetNetworkAliases(), err)
 	}
 }
 
@@ -485,6 +510,9 @@ func TestWhatASpecTakes(t *testing.T) {
 		"one network twice":            {&resourcev1.Container{ExternalNetworks: []string{"a", "a"}}, "listed twice"},
 		"both kinds of one name":       {&resourcev1.Container{Networks: []string{"a"}, ExternalNetworks: []string{"a"}}, "both as one of the environment's and as one the server has"},
 		"one name twice":               {&resourcev1.Container{Networks: []string{"a"}, Aliases: []string{"x", "X"}}, "listed twice"},
+		"a name on no network of its":  {&resourcev1.Container{Networks: []string{"a", "b"}, NetworkAliases: []string{"c=x"}}, "isn't a name on one of the container's networks"},
+		"a name with no network":       {&resourcev1.Container{Networks: []string{"a", "b"}, NetworkAliases: []string{"x"}}, "give it as network=name"},
+		"a name on one and every":      {&resourcev1.Container{Networks: []string{"a", "b"}, Aliases: []string{"x"}, NetworkAliases: []string{"a=X"}}, "one of the container's aliases already"},
 		"an environment's network":     {&resourcev1.Container{ExternalNetworks: []string{"ENV_01ABC_back"}}, "has the form of an environment's"},
 		"another form of a container":  {&resourcev1.Container{Networks: []string{"a"}, Aliases: []string{"env_01abc-web-1"}}, "has the form of a service's container"},
 		"a hostname with a space":      {&resourcev1.Container{Hostname: "mail server"}, "isn't a hostname"},

@@ -59,7 +59,9 @@ type Healthcheck struct {
 	Interval    time.Duration `json:"Interval,omitempty"`
 	Timeout     time.Duration `json:"Timeout,omitempty"`
 	StartPeriod time.Duration `json:"StartPeriod,omitempty"`
-	Retries     int           `json:"Retries,omitempty"`
+	// StartInterval is how often it runs while StartPeriod lasts, from API 1.44.
+	StartInterval time.Duration `json:"StartInterval,omitempty"`
+	Retries       int           `json:"Retries,omitempty"`
 }
 
 // HostConfig is how a container runs on the server.
@@ -108,12 +110,38 @@ type HostConfig struct {
 	UsernsMode string `json:"UsernsMode,omitempty"`
 	// SecurityOpt sets options such as no-new-privileges.
 	SecurityOpt []string `json:"SecurityOpt,omitempty"`
+	// Devices are the server's devices it reaches, and DeviceRequests what it asks
+	// of a device driver, as --gpus does.
+	Devices        []DeviceMapping `json:"Devices,omitempty"`
+	DeviceRequests []DeviceRequest `json:"DeviceRequests,omitempty"`
+	// PidMode "host" shares the server's processes, and IpcMode "host" its shared
+	// memory, which Docker reports and a spec doesn't hold.
+	PidMode string `json:"PidMode,omitempty"`
+	IpcMode string `json:"IpcMode,omitempty"`
+	// Sysctls are kernel settings of its own namespaces.
+	Sysctls map[string]string `json:"Sysctls,omitempty"`
 	// Init runs the engine's init as its first process; nil takes the engine's
 	// default, which is none unless the daemon says otherwise.
 	Init *bool `json:"Init,omitempty"`
 	// Ulimits are its processes' limits, and DNS the servers it asks for names.
 	Ulimits []Ulimit `json:"Ulimits,omitempty"`
 	DNS     []string `json:"Dns,omitempty"`
+}
+
+// DeviceMapping is a device of the server a container reaches.
+type DeviceMapping struct {
+	PathOnHost        string `json:"PathOnHost"`
+	PathInContainer   string `json:"PathInContainer"`
+	CgroupPermissions string `json:"CgroupPermissions"`
+}
+
+// DeviceRequest is what a container asks of a device driver, as --gpus does.
+type DeviceRequest struct {
+	Driver       string            `json:"Driver,omitempty"`
+	Count        int               `json:"Count,omitempty"`
+	DeviceIDs    []string          `json:"DeviceIDs,omitempty"`
+	Capabilities [][]string        `json:"Capabilities,omitempty"`
+	Options      map[string]string `json:"Options,omitempty"`
 }
 
 // Ulimit is one of a container's process limits, as ulimit names it, such as

@@ -302,24 +302,36 @@ func joinNetworks(name string, s *types.ServiceConfig, c *resourcev1.Container, 
 			})
 		}
 	}
-	var aliases []string
-	for i, key := range slices.Sorted(maps.Keys(s.Networks)) {
-		n := p.Networks[key]
+	// A name on each of its networks is an alias; one on some alone is one of its
+	// network_aliases, as network=name (the review of ADR 0097, L4).
+	on := map[string][]string{}
+	for _, key := range slices.Sorted(maps.Keys(s.Networks)) {
+		n, spec := p.Networks[key], key
 		if bool(n.External) {
-			c.ExternalNetworks = append(c.ExternalNetworks, cmp.Or(n.Name, key))
+			spec = cmp.Or(n.Name, key)
+			c.ExternalNetworks = append(c.ExternalNetworks, spec)
 		} else {
 			c.Networks = append(c.Networks, key)
 		}
-		var here []string
 		if cfg := s.Networks[key]; cfg != nil {
-			here = slices.Sorted(slices.Values(cfg.Aliases))
+			for _, a := range cfg.Aliases {
+				if !slices.Contains(on[a], spec) {
+					on[a] = append(on[a], spec)
+				}
+			}
 		}
-		if i > 0 && !slices.Equal(here, aliases) {
-			return invalid("%s has other aliases on the network %s than on its others, and Dockwell gives a service one set of names on all its networks. Give each the same aliases", what, key)
-		}
-		aliases = here
 	}
-	c.Aliases = aliases
+	c.Aliases = nil
+	for _, a := range slices.Sorted(maps.Keys(on)) {
+		if len(on[a]) == len(s.Networks) {
+			c.Aliases = append(c.Aliases, a)
+			continue
+		}
+		for _, n := range on[a] {
+			c.NetworkAliases = append(c.NetworkAliases, n+"="+a)
+		}
+	}
+	slices.Sort(c.NetworkAliases)
 	joined := len(c.Networks)+len(c.ExternalNetworks) > 0
 	own := s.ContainerName
 	if own != "" && own != name {
@@ -335,6 +347,7 @@ func joinNetworks(name string, s *types.ServiceConfig, c *resourcev1.Container, 
 		if !slices.Contains(c.Aliases, own) {
 			c.Aliases = append(c.Aliases, own)
 		}
+		c.NetworkAliases = slices.DeleteFunc(c.NetworkAliases, func(na string) bool { return strings.HasSuffix(na, "="+own) })
 		p.notices = append(p.notices, Notice{
 			Reason: "container_name", Service: name, Names: []string{own},
 			Message: fmt.Sprintf("%s runs under the name Dockwell gives it, not %s, as Dockwell names what it runs as Compose does. Other containers on its networks still reach it by %s", name, own, own),

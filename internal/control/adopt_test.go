@@ -1363,3 +1363,150 @@ func TestAComposeThatCantComeInSaysWhy(t *testing.T) {
 		t.Errorf("a project that isn't there: %v", err)
 	}
 }
+
+// Links come in (ADR 0089). A link by a name the linked container answers to
+// already needs nothing; one by another name the linked container takes on as an
+// alias of its own, alone or with its project, and reads back as. A container that
+// links by such a name can't be taken on before what it links to is, and a link on
+// Docker's default bridge still refuses.
+func TestAComposeProjectsLinksComeAlong(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	c := changeClient(b, b.origin)
+	cc := containerClient(b, b.origin)
+	imports := dockwellv1connect.NewComposeServiceClient(b, b.origin, connect.WithProtoJSON())
+	links := func(name string, links ...string) { e.Reports(name, "HostConfig", map[string]any{"Links": links}) }
+
+	// As Compose links "links: [database]", and "plane-web:web".
+	e.AddNetwork(docker.Network{ID: "pteronet", Name: "ptero_default", Driver: "bridge"})
+	composeContainer(t, e, "ptero", "database", "ptero-database-1", nil)
+	composeContainer(t, e, "ptero", "panel", "ptero-panel-1", nil)
+	links("ptero-panel-1", "/ptero-database-1:/ptero-panel-1/database", "/ptero-database-1:/ptero-panel-1/database-1", "/ptero-database-1:/ptero-panel-1/ptero-database-1")
+	e.AddNetwork(docker.Network{ID: "planenet", Name: "plane_default", Driver: "bridge"})
+	composeContainer(t, e, "plane", "plane-web", "plane-plane-web-1", nil)
+	composeContainer(t, e, "plane", "proxy", "plane-proxy-1", nil)
+	links("plane-proxy-1", "/plane-plane-web-1:/plane-proxy-1/web", "/plane-plane-web-1:/plane-proxy-1/plane-web-1")
+
+	// Alone, the proxy can't keep its name for plane-web while plane-web isn't
+	// Dockwell's.
+	_, err := cc.AdoptContainer(t.Context(), connect.NewRequest(&dockwellv1.AdoptContainerRequest{Id: "plane-proxy-1"}))
+	if err == nil || !strings.Contains(err.Error(), "reaches plane-plane-web-1 as web through a link, which only a Compose project taken on whole") {
+		t.Errorf("taking the proxy on alone = %v", err)
+	}
+
+	for project, want := range map[string]bool{"ptero": false, "plane": true} {
+		res, err := imports.AdoptCompose(t.Context(), connect.NewRequest(&dockwellv1.AdoptComposeRequest{Name: project}))
+		if err != nil {
+			t.Fatalf("taking %s on = %v", project, err)
+		}
+		// A numbered name Compose links by, as plane-web-1, is one nothing answers
+		// to after a replace, so it's kept as one too (the review of ADR 0097, L5).
+		if want && !strings.Contains(res.Msg.GetChange().String(), `to:"plane-plane-web-1, plane-web-1, web"`) {
+			t.Errorf("%s's plan has no aliases plane-web-1 and web: %v", project, res.Msg.GetChange().GetPlan().GetResources())
+		}
+		applyConfirmed(t, c, res.Msg.GetChange())
+	}
+	drift, err := c.ListDrift(t.Context(), connect.NewRequest(&dockwellv1.ListDriftRequest{}))
+	if err != nil || len(drift.Msg.GetDrift()) != 0 {
+		t.Errorf("drift after taking them on = %v, %v", drift.Msg.GetDrift(), err)
+	}
+
+	// Alone, the linked container takes the name on, and then what links to it
+	// comes too.
+	e.AddNetwork(docker.Network{ID: "solonet", Name: "solo_default", Driver: "bridge"})
+	composeContainer(t, e, "solo", "db", "solo-db-1", nil)
+	composeContainer(t, e, "solo", "app", "solo-app-1", nil)
+	links("solo-app-1", "/solo-db-1:/solo-app-1/storage")
+	alone := func(id, as string) {
+		t.Helper()
+		res, err := cc.AdoptContainer(t.Context(), connect.NewRequest(&dockwellv1.AdoptContainerRequest{Id: id, Service: as, Project: "plane"}))
+		if err != nil {
+			t.Fatalf("taking %s on alone = %v", id, err)
+		}
+		applyConfirmed(t, c, res.Msg.GetChange())
+	}
+	alone("solo-db-1", "store")
+	alone("solo-app-1", "app")
+	drift, err = c.ListDrift(t.Context(), connect.NewRequest(&dockwellv1.ListDriftRequest{}))
+	if err != nil || len(drift.Msg.GetDrift()) != 0 {
+		t.Errorf("drift after taking each on alone = %v, %v", drift.Msg.GetDrift(), err)
+	}
+
+	// On Docker's default bridge, a name reaches nothing without the link.
+	runByHand(t, e, "old-db", func(r *docker.CreateRequest) { r.HostConfig.PortBindings, r.HostConfig.Binds = nil, nil })
+	runByHand(t, e, "old-app", func(r *docker.CreateRequest) { r.HostConfig.PortBindings, r.HostConfig.Binds = nil, nil })
+	links("old-app", "/old-db:/old-app/db")
+	_, err = cc.AdoptContainer(t.Context(), connect.NewRequest(&dockwellv1.AdoptContainerRequest{Id: "old-app", Project: "plane"}))
+	if err == nil || !strings.Contains(err.Error(), "a link to old-db on no network of a project's own") {
+		t.Errorf("taking on a link on the default bridge = %v", err)
+	}
+}
+
+// A name a link gives holds on the network the link was on alone: a container on
+// two networks answers to it there, and not on the other, where it could take
+// another's name (the review of ADR 0097, L4). And a link by a name another
+// container on its network answers to as well refuses: which one the name reaches
+// there is Docker's to pick.
+func TestALinksNameHoldsOnItsNetworkAlone(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	c := changeClient(b, b.origin)
+	imports := dockwellv1connect.NewComposeServiceClient(b, b.origin, connect.WithProtoJSON())
+	links := func(name string, links ...string) { e.Reports(name, "HostConfig", map[string]any{"Links": links}) }
+
+	// A panel's network every app joins sorts first, and the name goes on the
+	// project's own one all the same (the narrow check of ADR 0097, N1).
+	e.AddNetwork(docker.Network{ID: "panelnet", Name: "dokploy-network", Driver: "bridge"})
+	e.AddNetwork(docker.Network{ID: "duofront", Name: "duo_front", Driver: "bridge", Labels: map[string]string{docker.LabelProject: "duo"}})
+	e.AddNetwork(docker.Network{ID: "duoback", Name: "duo_back", Driver: "bridge", Labels: map[string]string{docker.LabelProject: "duo"}})
+	composeContainer(t, e, "duo", "db", "duo-db-1", func(r *docker.CreateRequest) {
+		r.HostConfig.NetworkMode = "duo_back"
+		r.NetworkingConfig.EndpointsConfig = map[string]*docker.EndpointSettings{"duo_back": {Aliases: []string{"db", "duo-db-1"}}, "duo_front": {Aliases: []string{"db", "duo-db-1"}}, "dokploy-network": {}}
+	})
+	composeContainer(t, e, "duo", "app", "duo-app-1", func(r *docker.CreateRequest) {
+		r.HostConfig.NetworkMode = "dokploy-network"
+		r.NetworkingConfig.EndpointsConfig = map[string]*docker.EndpointSettings{"duo_back": {Aliases: []string{"app", "duo-app-1"}}, "dokploy-network": {}}
+	})
+	links("duo-app-1", "/duo-db-1:/duo-app-1/storage")
+
+	res, err := imports.AdoptCompose(t.Context(), connect.NewRequest(&dockwellv1.AdoptComposeRequest{Name: "duo"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	said := map[string]string{}
+	for _, r := range res.Msg.GetChange().GetPlan().GetResources() {
+		for _, ch := range r.GetChanges() {
+			said[r.GetResource().GetName()+" "+ch.GetPath()] = ch.GetTo()
+		}
+	}
+	if said["db app.network_aliases"] != "duo_back=storage" || strings.Contains(said["db app.aliases"], "storage") {
+		t.Errorf("db doesn't answer to storage on duo_back alone: %v", said)
+	}
+	applyConfirmed(t, c, res.Msg.GetChange())
+	drift, err := c.ListDrift(t.Context(), connect.NewRequest(&dockwellv1.ListDriftRequest{}))
+	if err != nil || len(drift.Msg.GetDrift()) != 0 {
+		t.Errorf("drift after taking duo on = %v, %v", drift.Msg.GetDrift(), err)
+	}
+
+	// Another on duo_back answers to storage too.
+	e.AddNetwork(docker.Network{ID: "trioback", Name: "trio_back", Driver: "bridge"})
+	composeContainer(t, e, "trio", "db", "trio-db-1", func(r *docker.CreateRequest) {
+		r.HostConfig.NetworkMode = "trio_back"
+		r.NetworkingConfig.EndpointsConfig = map[string]*docker.EndpointSettings{"trio_back": {}}
+	})
+	composeContainer(t, e, "trio", "app", "trio-app-1", func(r *docker.CreateRequest) {
+		r.HostConfig.NetworkMode = "trio_back"
+		r.NetworkingConfig.EndpointsConfig = map[string]*docker.EndpointSettings{"trio_back": {}}
+	})
+	composeContainer(t, e, "trio", "files", "trio-files-1", func(r *docker.CreateRequest) {
+		r.HostConfig.NetworkMode = "trio_back"
+		r.NetworkingConfig.EndpointsConfig = map[string]*docker.EndpointSettings{"trio_back": {Aliases: []string{"files", "trio-files-1", "storage"}}}
+	})
+	links("trio-app-1", "/trio-db-1:/trio-app-1/storage")
+	_, err = imports.AdoptCompose(t.Context(), connect.NewRequest(&dockwellv1.AdoptComposeRequest{Name: "trio"}))
+	if err == nil || !strings.Contains(err.Error(), "a link to trio-db-1 as storage, which another container on trio_back answers to as well") {
+		t.Errorf("a link by a name another answers to = %v", err)
+	}
+}

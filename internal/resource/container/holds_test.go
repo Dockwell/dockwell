@@ -119,8 +119,11 @@ func TestEachThingASpecCantHoldIsNamed(t *testing.T) {
 		value string
 		says  string
 	}{
-		"DeviceRequests":       {`[{"Driver": "nvidia"}]`, "gpus"},
-		"Devices":              {`[{"PathOnHost": "/dev/fuse"}]`, "devices"},
+		// A spec holds one request as --gpus makes it, and devices (ADR 0097).
+		"DeviceRequests":       {`[{"Driver": "nvidia"}, {"Driver": "amd"}]`, "gpus with options or more than one request"},
+		"DeviceCgroupRules":    {`["c 189:* rmw"]`, "device_cgroup_rules"},
+		"PidMode":              {`"container:abc"`, "pid"},
+		"Sysctls":              {`{"vm.swappiness": "10"}`, "sysctls vm.swappiness"},
 		"LogConfig":            {`{"Type": "fluentd", "Config": {}}`, "logging: fluentd"},
 		"PublishAllPorts":      {"true", "publish_all_ports (-P)"},
 		"Mounts":               {`[{"Type": "cluster", "Target": "/cache"}]`, "a cluster mount at /cache"},
@@ -134,7 +137,7 @@ func TestEachThingASpecCantHoldIsNamed(t *testing.T) {
 		"CgroupnsMode":         {`"host"`, "cgroupns_mode: host"},
 		"NetworkMode":          {`"none"`, "network_mode: none"},
 		"Runtime":              {`"runsc"`, "runtime: runsc"},
-		"SecurityOpt":          {`["seccomp=unconfined"]`, "security_opt"},
+		"SecurityOpt":          {`["seccomp=/srv/profile.json"]`, "security_opt seccomp=/srv/profile.json"},
 		"SomethingDockerAdded": {`{"on": true}`, "HostConfig.SomethingDockerAdded"},
 	} {
 		t.Run(key, func(t *testing.T) {
@@ -165,7 +168,8 @@ func TestEachThingASpecCantHoldIsNamed(t *testing.T) {
 	}
 
 	// A hostname, a stop signal and the rest of what a container asks of itself, a
-	// spec holds (ADR 0085); a health check's start interval it doesn't.
+	// spec holds (ADR 0085), and a health check's start interval too; a key of a
+	// health check Docker adds later it doesn't.
 	o := options(t, nil)
 	o.Config["Hostname"] = json.RawMessage(`"db-primary"`)
 	o.Config["StopSignal"] = json.RawMessage(`"SIGTERM"`)
@@ -174,8 +178,8 @@ func TestEachThingASpecCantHoldIsNamed(t *testing.T) {
 	o.HostConfig["Ulimits"] = json.RawMessage(`[{"Name": "nofile", "Soft": 1024, "Hard": 4096}]`)
 	o.HostConfig["PidsLimit"] = json.RawMessage(`100`)
 	o.HostConfig["SecurityOpt"] = json.RawMessage(`["no-new-privileges:true"]`)
-	o.Config["Healthcheck"] = json.RawMessage(`{"Test": ["CMD", "true"], "StartInterval": 1000000000}`)
-	if got := noSpecHolds(c, o, info); !slices.Equal(got, []string{"healthcheck start_interval"}) {
+	o.Config["Healthcheck"] = json.RawMessage(`{"Test": ["CMD", "true"], "StartInterval": 1000000000, "Jitter": 5}`)
+	if got := noSpecHolds(c, o, info); !slices.Equal(got, []string{"Config.Healthcheck.Jitter"}) {
 		t.Errorf("noSpecHolds of its Config = %v", got)
 	}
 }

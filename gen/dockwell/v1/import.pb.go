@@ -925,7 +925,11 @@ type ImportCoolifyRequest struct {
 	ServerId string `protobuf:"bytes,1,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
 	// Read and say what an import would do, and plan nothing, for a client that
 	// plans only when a person asks to review it.
-	SkipPlan      bool `protobuf:"varint,2,opt,name=skip_plan,json=skipPlan,proto3" json:"skip_plan,omitempty"`
+	SkipPlan bool `protobuf:"varint,2,opt,name=skip_plan,json=skipPlan,proto3" json:"skip_plan,omitempty"`
+	// The apps, by their IDs as ImportStep.app_id has them, taken on with the host
+	// access each needs: devices, GPUs, security options or the server's processes
+	// (ADR 0097). Any other that needs some is left behind, saying what.
+	HostAccess    []string `protobuf:"bytes,3,rep,name=host_access,json=hostAccess,proto3" json:"host_access,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -972,6 +976,13 @@ func (x *ImportCoolifyRequest) GetSkipPlan() bool {
 		return x.SkipPlan
 	}
 	return false
+}
+
+func (x *ImportCoolifyRequest) GetHostAccess() []string {
+	if x != nil {
+		return x.HostAccess
+	}
+	return nil
 }
 
 // ImportCoolifyResponse is what Coolify runs on the server, and what an import
@@ -1048,7 +1059,11 @@ type ImportDokployRequest struct {
 	// The server running Dokploy, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
 	ServerId string `protobuf:"bytes,1,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
 	// Read and say what an import would do, and plan nothing.
-	SkipPlan      bool `protobuf:"varint,2,opt,name=skip_plan,json=skipPlan,proto3" json:"skip_plan,omitempty"`
+	SkipPlan bool `protobuf:"varint,2,opt,name=skip_plan,json=skipPlan,proto3" json:"skip_plan,omitempty"`
+	// The apps, by their IDs as ImportStep.app_id has them, taken on with the host
+	// access each needs: devices, GPUs, security options or the server's processes
+	// (ADR 0097). Any other that needs some is left behind, saying what.
+	HostAccess    []string `protobuf:"bytes,3,rep,name=host_access,json=hostAccess,proto3" json:"host_access,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1095,6 +1110,13 @@ func (x *ImportDokployRequest) GetSkipPlan() bool {
 		return x.SkipPlan
 	}
 	return false
+}
+
+func (x *ImportDokployRequest) GetHostAccess() []string {
+	if x != nil {
+		return x.HostAccess
+	}
+	return nil
 }
 
 // ImportDokployResponse is what Dokploy runs on the server, and what an import
@@ -1877,9 +1899,16 @@ type ImportStep struct {
 	// Why, and what a person can do about it, where that isn't plain.
 	Reason string `protobuf:"bytes,6,opt,name=reason,proto3" json:"reason,omitempty"`
 	// The part of Dockwell it waits for, where Dockwell can't take it yet.
-	WaitsFor      ImportWaitsFor `protobuf:"varint,7,opt,name=waits_for,json=waitsFor,proto3,enum=dockwell.v1.ImportWaitsFor" json:"waits_for,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	WaitsFor ImportWaitsFor `protobuf:"varint,7,opt,name=waits_for,json=waitsFor,proto3,enum=dockwell.v1.ImportWaitsFor" json:"waits_for,omitempty"`
+	// The panel's ID of the app, such as Coolify's UUID or Dokploy's appName, which
+	// a request names to choose its host access.
+	AppId string `protobuf:"bytes,8,opt,name=app_id,json=appId,proto3" json:"app_id,omitempty"`
+	// The host access the app needs, each in a few words, such as
+	// "/dev/dri/renderD128" or "all GPUs", where it needs some (ADR 0097). It's
+	// taken on with that only where a request chooses it.
+	NeedsHostAccess []string `protobuf:"bytes,9,rep,name=needs_host_access,json=needsHostAccess,proto3" json:"needs_host_access,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *ImportStep) Reset() {
@@ -1959,6 +1988,20 @@ func (x *ImportStep) GetWaitsFor() ImportWaitsFor {
 		return x.WaitsFor
 	}
 	return ImportWaitsFor_IMPORT_WAITS_FOR_UNSPECIFIED
+}
+
+func (x *ImportStep) GetAppId() string {
+	if x != nil {
+		return x.AppId
+	}
+	return ""
+}
+
+func (x *ImportStep) GetNeedsHostAccess() []string {
+	if x != nil {
+		return x.NeedsHostAccess
+	}
+	return nil
 }
 
 // OnePanel is what 1Panel keeps on a server, as its records say, with nothing
@@ -3116,17 +3159,21 @@ const file_dockwell_v1_import_proto_rawDesc = "" +
 	"\x05panel\x18\x02 \x01(\x0e2\x16.dockwell.v1.PanelKindR\x05panel\x12\x18\n" +
 	"\asummary\x18\x03 \x01(\tR\asummary\"D\n" +
 	"\x15PlanStopPanelResponse\x12+\n" +
-	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"P\n" +
+	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"q\n" +
 	"\x14ImportCoolifyRequest\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x1b\n" +
-	"\tskip_plan\x18\x02 \x01(\bR\bskipPlan\"\x9d\x01\n" +
+	"\tskip_plan\x18\x02 \x01(\bR\bskipPlan\x12\x1f\n" +
+	"\vhost_access\x18\x03 \x03(\tR\n" +
+	"hostAccess\"\x9d\x01\n" +
 	"\x15ImportCoolifyResponse\x12(\n" +
 	"\x05found\x18\x01 \x01(\v2\x12.dockwell.v1.PanelR\x05found\x12-\n" +
 	"\x05steps\x18\x02 \x03(\v2\x17.dockwell.v1.ImportStepR\x05steps\x12+\n" +
-	"\x06change\x18\x03 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"P\n" +
+	"\x06change\x18\x03 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"q\n" +
 	"\x14ImportDokployRequest\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x1b\n" +
-	"\tskip_plan\x18\x02 \x01(\bR\bskipPlan\"\x9d\x01\n" +
+	"\tskip_plan\x18\x02 \x01(\bR\bskipPlan\x12\x1f\n" +
+	"\vhost_access\x18\x03 \x03(\tR\n" +
+	"hostAccess\"\x9d\x01\n" +
 	"\x15ImportDokployResponse\x12(\n" +
 	"\x05found\x18\x01 \x01(\v2\x12.dockwell.v1.PanelR\x05found\x12-\n" +
 	"\x05steps\x18\x02 \x03(\v2\x17.dockwell.v1.ImportStepR\x05steps\x12+\n" +
@@ -3188,7 +3235,7 @@ const file_dockwell_v1_import_proto_rawDesc = "" +
 	"\x16ImportOnePanelResponse\x12+\n" +
 	"\x05found\x18\x01 \x01(\v2\x15.dockwell.v1.OnePanelR\x05found\x12-\n" +
 	"\x05steps\x18\x02 \x03(\v2\x17.dockwell.v1.ImportStepR\x05steps\x12+\n" +
-	"\x06change\x18\x03 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"\x86\x02\n" +
+	"\x06change\x18\x03 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"\xc9\x02\n" +
 	"\n" +
 	"ImportStep\x12+\n" +
 	"\x04kind\x18\x01 \x01(\x0e2\x17.dockwell.v1.ImportKindR\x04kind\x12\x12\n" +
@@ -3197,7 +3244,9 @@ const file_dockwell_v1_import_proto_rawDesc = "" +
 	"\x06action\x18\x04 \x01(\x0e2\x19.dockwell.v1.ImportActionR\x06action\x12\x18\n" +
 	"\abecomes\x18\x05 \x01(\tR\abecomes\x12\x16\n" +
 	"\x06reason\x18\x06 \x01(\tR\x06reason\x128\n" +
-	"\twaits_for\x18\a \x01(\x0e2\x1b.dockwell.v1.ImportWaitsForR\bwaitsFor\"\xe8\x04\n" +
+	"\twaits_for\x18\a \x01(\x0e2\x1b.dockwell.v1.ImportWaitsForR\bwaitsFor\x12\x15\n" +
+	"\x06app_id\x18\b \x01(\tR\x05appId\x12*\n" +
+	"\x11needs_host_access\x18\t \x03(\tR\x0fneedsHostAccess\"\xe8\x04\n" +
 	"\bOnePanel\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\tR\aversion\x12\x19\n" +
 	"\bbase_dir\x18\x02 \x01(\tR\abaseDir\x12\x18\n" +

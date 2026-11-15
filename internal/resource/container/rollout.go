@@ -1202,7 +1202,7 @@ func (d *Docker) make(ctx context.Context, t Target, spec *resourcev1.Container,
 		return "", nil, discard(err)
 	}
 	for _, n := range later {
-		if err := d.Client.ConnectNetwork(ctx, n, id, endpointAliases(t, spec)); err != nil {
+		if err := d.Client.ConnectNetwork(ctx, n, id, aliasesOn(t, spec, specNetwork(t, n))); err != nil {
 			return "", nil, discard(fmt.Errorf("can't put %s on the network %s: %w", t.Name, n, err))
 		}
 	}

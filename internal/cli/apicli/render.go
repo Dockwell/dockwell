@@ -1357,6 +1357,12 @@ var accessKinds = map[dockwellv1.HostAccessKind]resource.AccessKind{
 	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_PLAIN_FOR_ANYONE: resource.AccessPlainForAnyone,
 	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_HTTPS_OFF:        resource.AccessHTTPSOff,
 	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_ACCESS_OPENED:    resource.AccessOpened,
+
+	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_DEVICE:          resource.AccessDevice,
+	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_GPUS:            resource.AccessGPUs,
+	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_SECURITY_OPTION: resource.AccessSecurityOption,
+	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_HOST_PROCESSES:  resource.AccessHostProcesses,
+	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_ROOT_TOGETHER:   resource.AccessRootTogether,
 }
 
 // upTo writes a bound to the second, rounding up, as "1 min 50 s", so it

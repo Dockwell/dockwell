@@ -38,7 +38,16 @@ type reachStand struct {
 
 func newReachStand(t *testing.T, backend store.Backend) *reachStand {
 	t.Helper()
+	return newReachStandWith(t, backend, nil)
+}
+
+// newReachStandWith is newReachStand with its control plane set up by setup first.
+func newReachStandWith(t *testing.T, backend store.Backend, setup func(*fullServer)) *reachStand {
+	t.Helper()
 	f := startFull(t, backend, nil)
+	if setup != nil {
+		setup(f)
+	}
 	b := signedIn(t, f)
 	// It serves routes too, in memory, so a domain can be held.
 	e := f.addServerWith(t, func() []resource.Type {
@@ -198,7 +207,8 @@ func TestHostAccessIsAnAdminsToApply(t *testing.T) {
 		}
 		err = applyIt()
 		needsRole(t, "blog's developer applying a privileged service in blog", err)
-		if err != nil && !strings.Contains(err.Error(), "only an admin or the owner can apply this, as app reaches the server path /srv/other-projects") {
+		// Privileged mode beside a server path is root together, which leads (ADR 0097).
+		if err != nil && !strings.Contains(err.Error(), "only an admin or the owner can apply this, as app gets as much as root on its server") {
 			t.Errorf("the refusal says %q, want who may apply it", err)
 		}
 		s.hold(onInstall(store.RoleAdmin))

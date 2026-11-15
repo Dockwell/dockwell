@@ -357,6 +357,10 @@ func accessClass(a resource.Access) string {
 		return "a domain"
 	case resource.AccessServerPort, resource.AccessTrustedProxy, resource.AccessPlainForAnyone, resource.AccessHTTPSOff, resource.AccessOpened:
 		return "a route's reach"
+	case resource.AccessDevice, resource.AccessGPUs:
+		return "a device of the server"
+	case resource.AccessSecurityOption, resource.AccessHostProcesses, resource.AccessRootTogether:
+		return "less of Docker's confinement"
 	}
 	return fmt.Sprintf("access(%d)", int(a.Kind))
 }

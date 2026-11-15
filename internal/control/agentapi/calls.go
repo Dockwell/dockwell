@@ -488,7 +488,7 @@ func (a *Agents) open(server, name string, hello *agentv1.Hello, send func(*agen
 	s := &Session{
 		agents: a, guardsWaysIn: hello.GetGuardsWaysIn(), readsUpdates: hello.GetUpdates(), managesFiles: hello.GetManagesFiles(), transfersFiles: hello.GetTransfersFiles(), pagesListings: hello.GetPagesListings(), firstPasswords: hello.GetFirstPasswords(), forwards: hello.GetForwards(), drills: hello.GetDrills(), readsOnePanel: hello.GetReadsOnepanel(), terminals: hello.GetTerminals(), containerTerminals: hello.GetContainerTerminals(), openTerminals: slices.Clone(hello.GetOpenTerminals()), opened: time.Now(), server: server, name: name, send: send, deliveryKey: slices.Clone(hello.GetDeliveryKey()), writesReferences: hello.GetWritesReferences(), makesFolders: hello.GetMakesFolders(), keepsRoutesPrivate: hello.GetKeepsRoutesPrivate(),
 		ownSettings: hello.GetOwnSettings(), writesFiles: hello.GetWritesFiles(), ownsVolumes: hello.GetOwnsVolumes(), followsPace: hello.GetFollowsPace(), bootID: hello.GetBootId(), actsOnUnits: hello.GetActsOnUnits(), upgradesItself: hello.GetUpgradesItself(), signsIn: hello.GetSignsIn(), registryLogins: hello.GetRegistryLogins(), handsBuildLogins: hello.GetBuildLogins(), links: hello.GetLinks(), oneDatabaseBackups: hello.GetOneDatabaseBackups(),
-		loadsCertificates: hello.GetLoadsCertificates(), readsPanels: hello.GetReadsPanels(), stopsPanels: hello.GetStopsPanels(), remakesSwarmApps: hello.GetRemakesSwarmApps(), checksPanelDomains: hello.GetChecksPanelDomains(), readsTakenReferences: hello.GetReadsTakenReferences(), volumeMoves: hello.GetVolumeMoves(),
+		loadsCertificates: hello.GetLoadsCertificates(), readsPanels: hello.GetReadsPanels(), stopsPanels: hello.GetStopsPanels(), remakesSwarmApps: hello.GetRemakesSwarmApps(), runsHostAccess: hello.GetRunsHostAccess(), checksPanelDomains: hello.GetChecksPanelDomains(), readsTakenReferences: hello.GetReadsTakenReferences(), volumeMoves: hello.GetVolumeMoves(),
 		pending: map[uint64]chan *agentv1.CallResult{}, progress: map[uint64]func(resource.Activity){}, outcomes: map[uint64]func(resource.Outcome){}, done: make(chan struct{}),
 		kicked: make(chan struct{}),
 	}
@@ -681,6 +681,9 @@ type Session struct {
 	// readsTakenReferences says the agent keeps a taken-on container's references,
 	// so it reads one whose values were kept by name as names (ADR 0096).
 	readsTakenReferences bool
+	// runsHostAccess says the agent runs a container's devices, GPUs, security
+	// options, the server's processes and sysctls (ADR 0097).
+	runsHostAccess bool
 	// terminals says the agent opens terminals, and openTerminals which it had
 	// as the stream opened, which is then.
 	terminals          bool
@@ -1482,6 +1485,9 @@ func (s *Session) Apply(ctx context.Context, step resource.Step, desired proto.M
 	if err := s.checkOwnSettings(step.Ref, desired); err != nil {
 		return err
 	}
+	if err := s.checkHostAccess(step.Ref, desired); err != nil {
+		return err
+	}
 	if err := s.checkPrivate(step.Ref, desired); err != nil {
 		return err
 	}
@@ -1619,8 +1625,11 @@ func (s *Session) Remember(ctx context.Context, ref resource.Ref, spec proto.Mes
 		return false, err
 	}
 	// An older agent's desired state would serve a private route to anyone, once it
-	// put it back by itself.
+	// put it back by itself, and make a container without what it reaches.
 	if err := s.checkPrivate(ref, spec); err != nil {
+		return false, err
+	}
+	if err := s.checkHostAccess(ref, spec); err != nil {
 		return false, err
 	}
 	if err := s.checkReads(ctx, []resource.Ref{ref}); err != nil {
@@ -1814,6 +1823,9 @@ func (s *Session) checkAllWrites(desired []resource.Desired) error {
 		if err := s.checkOwnSettings(d.Ref, d.Spec); err != nil {
 			return err
 		}
+		if err := s.checkHostAccess(d.Ref, d.Spec); err != nil {
+			return err
+		}
 		if err := s.checkPrivate(d.Ref, d.Spec); err != nil {
 			return err
 		}
@@ -1864,6 +1876,18 @@ func (s *Session) checkOwnSettings(ref resource.Ref, spec proto.Message) error {
 		return nil
 	}
 	return fmt.Errorf("%w: the agent on %s is from before Dockwell set a container's hostname, limits and the like, which %s asks for, so it would leave them out. Update the agent on %s",
+		resource.ErrAgentTooOld, s.name, ref.Name, s.name)
+}
+
+// checkHostAccess refuses a spec that reaches the server through a device, a GPU,
+// a security option, the server's processes or a sysctl, or has a field that came
+// with them, for an agent that doesn't say it runs them: it would make the
+// container without them (ADR 0097).
+func (s *Session) checkHostAccess(ref resource.Ref, spec proto.Message) error {
+	if s.runsHostAccess || spec == nil || !anyContainer(spec.ProtoReflect(), containerkind.WritesHostAccess) {
+		return nil
+	}
+	return fmt.Errorf("%w: the agent on %s is from before Dockwell ran a container's devices, GPUs, security options, sysctls, health check start_interval and names on one network, which %s asks for, so it would leave them out. Update the agent on %s",
 		resource.ErrAgentTooOld, s.name, ref.Name, s.name)
 }
 
@@ -2163,7 +2187,11 @@ func (s *Session) Adoption(ctx context.Context, container string, ref resource.R
 	if err != nil {
 		return resource.Adoption{}, fmt.Errorf("can't read %s from %s's agent: %w", container, s.name, err)
 	}
-	return resource.Adoption{Spec: spec, Refused: a.GetRefused(), Shows: a.GetShows(), Manager: a.GetManager(), Folder: a.GetFolder(), LeanedOn: a.GetLeanedOn(), Invalid: a.GetInvalid()}, nil
+	out := resource.Adoption{Spec: spec, Refused: a.GetRefused(), Shows: a.GetShows(), Manager: a.GetManager(), Folder: a.GetFolder(), LeanedOn: a.GetLeanedOn(), Invalid: a.GetInvalid()}
+	for _, l := range a.GetLinkAliases() {
+		out.LinkAliases = append(out.LinkAliases, resource.LinkAlias{Container: l.GetContainer(), Service: l.GetService(), Alias: l.GetAlias(), Network: l.GetNetwork()})
+	}
+	return out, nil
 }
 
 // Containers asks the agent what Docker lists: every container, or the one named.

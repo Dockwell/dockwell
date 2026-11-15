@@ -46,10 +46,10 @@ type Handler struct {
 // Taker reads what taking on a Compose project would plan, as AdoptCompose does.
 type Taker interface {
 	ReadRunning(ctx context.Context, server string) (*containers.Running, error)
-	ReadTakingIn(ctx context.Context, r *containers.Running, name, project, environment string) (*composeapi.Taking, error)
+	ReadTakingIn(ctx context.Context, r *containers.Running, name, project, environment string, hostAccess bool) (*composeapi.Taking, error)
 	TakenOn(ctx context.Context, r *containers.Running, name string) (string, error)
 	FreeProject(ctx context.Context, want, from string, claimed map[string]bool) (string, error)
-	ReadMakingAgain(ctx context.Context, r *containers.Running, list []composeapi.Remake, project string) (*composeapi.Taking, map[string][]string, error)
+	ReadMakingAgain(ctx context.Context, r *containers.Running, list []composeapi.Remake, project string, chosen map[string]bool) (*composeapi.Taking, map[string][]string, error)
 	TakenOnAs(ctx context.Context, r *containers.Running, name string) (project, environment, service string, err error)
 	RoutesIn(ctx context.Context, environment string) (map[string]*resourcev1.Route, error)
 }
@@ -196,7 +196,9 @@ func (h *Handler) plan(ctx context.Context, srv *dockwellv1.Server, found *dockw
 		if err != nil {
 			return nil, err
 		}
-		t, err := h.taker.ReadTakingIn(ctx, r, name, project, "")
+		// 1Panel's import has no host access to choose: an app that needs some is
+		// left, with the take-on that chooses it (the review of ADR 0097, L9).
+		t, err := h.taker.ReadTakingIn(ctx, r, name, project, "", false)
 		switch {
 		case reason(err) == "not_found":
 			leave(step, fmt.Sprintf("1Panel lists it, but Docker runs no container of its Compose project, %s, so there's nothing to take on.", name))
@@ -205,6 +207,10 @@ func (h *Handler) plan(ctx context.Context, srv *dockwellv1.Server, found *dockw
 		case err != nil:
 			// One that can't be read says why, and the rest go on.
 			leave(step, sentences([]string{message(err)})+" It stays as it is, in 1Panel.")
+			left[step.GetName()] = true
+			continue
+		case t.HostAccessOnly:
+			leave(step, sentences(actionable(t.Refusals))+fmt.Sprintf(" 1Panel's import chooses none, so it stays as it is, in 1Panel. Take on the Compose project %s by itself with its host access chosen: dockwell compose adopt --name %s --host-access, or ComposeService.AdoptCompose with host_access.", name, name))
 			left[step.GetName()] = true
 			continue
 		case len(t.Refusals) > 0:

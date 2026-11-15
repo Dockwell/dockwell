@@ -1438,6 +1438,13 @@ func (e *Engine) create(w http.ResponseWriter, r *http.Request) {
 	c.Image = img.id
 	c.Config = merge(req.Config, img.Config)
 	c.HostConfig = req.HostConfig
+	// As the daemon does (moby's generateSecurityOpt): what's privileged, or shares
+	// the server's processes or shared memory, and asks for no label of its own,
+	// gets label=disable, SELinux or not.
+	if h := &c.HostConfig; (h.Privileged || h.PidMode == "host" || h.IpcMode == "host") &&
+		!slices.ContainsFunc(h.SecurityOpt, func(o string) bool { return strings.HasPrefix(o, "label") }) {
+		h.SecurityOpt = append(slices.Clone(h.SecurityOpt), "label=disable")
+	}
 	if c.HostConfig.ShmSize == 0 {
 		c.HostConfig.ShmSize = 64 << 20 // Docker reports what it took
 	}

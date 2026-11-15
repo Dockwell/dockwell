@@ -295,6 +295,10 @@ message ImportCoolifyRequest {
   // Read and say what an import would do, and plan nothing, for a client that
   // plans only when a person asks to review it.
   bool skip_plan = 2;
+  // The apps, by their IDs as ImportStep.app_id has them, taken on with the host
+  // access each needs: devices, GPUs, security options or the server's processes
+  // (ADR 0097). Any other that needs some is left behind, saying what.
+  repeated string host_access = 3;
 }
 
 // ImportCoolifyResponse is what Coolify runs on the server, and what an import
@@ -317,6 +321,10 @@ message ImportDokployRequest {
   string server_id = 1;
   // Read and say what an import would do, and plan nothing.
   bool skip_plan = 2;
+  // The apps, by their IDs as ImportStep.app_id has them, taken on with the host
+  // access each needs: devices, GPUs, security options or the server's processes
+  // (ADR 0097). Any other that needs some is left behind, saying what.
+  repeated string host_access = 3;
 }
 
 // ImportDokployResponse is what Dokploy runs on the server, and what an import
@@ -509,6 +517,13 @@ message ImportStep {
   string reason = 6;
   // The part of Dockwell it waits for, where Dockwell can't take it yet.
   ImportWaitsFor waits_for = 7;
+  // The panel's ID of the app, such as Coolify's UUID or Dokploy's appName, which
+  // a request names to choose its host access.
+  string app_id = 8;
+  // The host access the app needs, each in a few words, such as
+  // "/dev/dri/renderD128" or "all GPUs", where it needs some (ADR 0097). It's
+  // taken on with that only where a request chooses it.
+  repeated string needs_host_access = 9;
 }
 
 // ImportWaitsFor is a part of Dockwell an imported thing waits for, which a

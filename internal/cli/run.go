@@ -448,7 +448,7 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 	mounted := &container.Files{Dir: paths.Files, Client: client}
 	go mounted.KeepPruned(ctx, logger)
 	containers := container.Driver{Runtime: &container.Docker{
-		Client: client, Deleted: kept, Logger: logger, Paths: paths, Folders: container.HostFolders{}, Files: mounted, Ingress: routes, Logs: archive,
+		Client: client, Deleted: kept, Logger: logger, Paths: paths, Folders: container.HostFolders{}, Files: mounted, Ingress: routes, Logs: archive, Devices: container.HostDevices,
 		BeforeReplace: database.Reader{Client: client}.BeforeReplace, Room: dockerRoom(client), Kept: keptImages,
 		PullLogins: &container.PullLogins{Path: filepath.Join(dir.Agent(), "pull-logins.json")},
 	}}

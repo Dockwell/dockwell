@@ -55,7 +55,7 @@ var panels = map[dockwellv1.PanelKind]panel{
 // ImportCoolify reads what Coolify runs on a server, and says what an import would
 // do with each thing. For a person, it plans taking on what runs as it is.
 func (h *Handler) ImportCoolify(ctx context.Context, req *connect.Request[dockwellv1.ImportCoolifyRequest]) (*connect.Response[dockwellv1.ImportCoolifyResponse], error) {
-	r, err := h.importPanel(ctx, req.Msg.GetServerId(), req.Msg.GetSkipPlan(), dockwellv1.PanelKind_PANEL_KIND_COOLIFY)
+	r, err := h.importPanel(ctx, req.Msg.GetServerId(), req.Msg.GetSkipPlan(), dockwellv1.PanelKind_PANEL_KIND_COOLIFY, req.Msg.GetHostAccess())
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +64,7 @@ func (h *Handler) ImportCoolify(ctx context.Context, req *connect.Request[dockwe
 
 // ImportDokploy reads what Dokploy runs on a server, as ImportCoolify does.
 func (h *Handler) ImportDokploy(ctx context.Context, req *connect.Request[dockwellv1.ImportDokployRequest]) (*connect.Response[dockwellv1.ImportDokployResponse], error) {
-	r, err := h.importPanel(ctx, req.Msg.GetServerId(), req.Msg.GetSkipPlan(), dockwellv1.PanelKind_PANEL_KIND_DOKPLOY)
+	r, err := h.importPanel(ctx, req.Msg.GetServerId(), req.Msg.GetSkipPlan(), dockwellv1.PanelKind_PANEL_KIND_DOKPLOY, req.Msg.GetHostAccess())
 	if err != nil {
 		return nil, err
 	}
@@ -78,7 +78,7 @@ type imported struct {
 	change *dockwellv1.Change
 }
 
-func (h *Handler) importPanel(ctx context.Context, server string, skipPlan bool, kind dockwellv1.PanelKind) (*imported, error) {
+func (h *Handler) importPanel(ctx context.Context, server string, skipPlan bool, kind dockwellv1.PanelKind, hostAccess []string) (*imported, error) {
 	w := panels[kind]
 	srv, err := h.fleet.Get(server)
 	if errors.Is(err, fleet.ErrNotFound) {
@@ -123,7 +123,7 @@ func (h *Handler) importPanel(ctx context.Context, server string, skipPlan bool,
 	if !ok || p.Token != nil {
 		return res, nil
 	}
-	if res.change, err = h.planPanel(ctx, srv, w, steps, apps, !skipPlan); err != nil {
+	if res.change, err = h.planPanel(ctx, srv, w, steps, apps, !skipPlan, hostAccess); err != nil {
 		return nil, err
 	}
 	if !skipPlan {
@@ -376,7 +376,7 @@ func asRoot(edits []*dockwellv1.Edit, server string) string {
 // and plans the ones nothing stands in the way of, in one change, as plan does for
 // 1Panel's. Without propose, each step says what the plan would do, and nothing is
 // planned.
-func (h *Handler) planPanel(ctx context.Context, srv *dockwellv1.Server, w panel, steps []*dockwellv1.ImportStep, apps []*dockwellv1.PanelApp, propose bool) (*dockwellv1.Change, error) {
+func (h *Handler) planPanel(ctx context.Context, srv *dockwellv1.Server, w panel, steps []*dockwellv1.ImportStep, apps []*dockwellv1.PanelApp, propose bool, hostAccess []string) (*dockwellv1.Change, error) {
 	r, err := h.taker.ReadRunning(ctx, srv.GetId())
 	if err != nil {
 		if connect.CodeOf(err) != connect.CodeUnavailable {
@@ -415,13 +415,20 @@ func (h *Handler) planPanel(ctx context.Context, srv *dockwellv1.Server, w panel
 			return nil, err
 		}
 		claimed[project] = true
-		t, err := h.taker.ReadTakingIn(ctx, r, a.GetComposeProject(), project, "")
+		t, err := h.taker.ReadTakingIn(ctx, r, a.GetComposeProject(), project, "", slices.Contains(hostAccess, a.GetId()))
+		if t != nil && len(t.NeedsHostAccess) > 0 {
+			step.AppId, step.NeedsHostAccess = a.GetId(), slices.Compact(slices.Sorted(slices.Values(t.NeedsHostAccess)))
+		}
 		switch {
 		case reason(err) == "not_found":
 			leave(step, fmt.Sprintf("%s lists it, but Docker runs no container of its Compose project, %s, so there's nothing to take on.", w.name, a.GetComposeProject()))
 			continue
 		case err != nil:
 			leave(step, sentences([]string{message(err)})+fmt.Sprintf(" It stays as it is, in %s.", w.name))
+			continue
+		case t.HostAccessOnly:
+			// The screen says it, as a state and the choice: no prose under it.
+			leave(step, "")
 			continue
 		case len(t.Refusals) > 0:
 			leave(step, strings.TrimSpace(sentences(actionable(t.Refusals))+fmt.Sprintf(" It stays as it is, in %s, until that's dealt with. ", w.name)+credentialFix(w, a, t.Refusals)))
@@ -437,7 +444,7 @@ func (h *Handler) planPanel(ctx context.Context, srv *dockwellv1.Server, w panel
 	}
 	// What runs as a Swarm service is made again, the apps of each of the panel's
 	// projects in one of Dockwell's, so they find each other by the names they had.
-	remakes, parts, made, err := h.planRemakes(ctx, r, w, srv.GetName(), steps, apps, claimed)
+	remakes, parts, made, err := h.planRemakes(ctx, r, w, srv.GetName(), steps, apps, claimed, hostAccess)
 	if err != nil {
 		return nil, err
 	}
@@ -917,7 +924,7 @@ func (h *Handler) PlanStartPanel(ctx context.Context, req *connect.Request[dockw
 // each of the panel's projects into one of Dockwell's named for it, and leaves
 // what's in the way, saying why. It returns the takings, the Swarm services the
 // panel scales to none as their copies start, and the steps' names.
-func (h *Handler) planRemakes(ctx context.Context, r *containers.Running, w panel, server string, steps []*dockwellv1.ImportStep, apps []*dockwellv1.PanelApp, claimed map[string]bool) ([]*composeapi.Taking, []resource.PanelPart, []string, error) {
+func (h *Handler) planRemakes(ctx context.Context, r *containers.Running, w panel, server string, steps []*dockwellv1.ImportStep, apps []*dockwellv1.PanelApp, claimed map[string]bool, hostAccess []string) ([]*composeapi.Taking, []resource.PanelPart, []string, error) {
 	groups := map[string][]int{}
 	var order []string
 	for i, step := range steps {
@@ -950,18 +957,38 @@ func (h *Handler) planRemakes(ctx context.Context, r *containers.Running, w pane
 		}
 		claimed[project] = true
 		var list []composeapi.Remake
+		chosen := map[string]bool{}
 		for _, i := range groups[key] {
 			list = append(list, remakesOf(apps[i])...)
+			if slices.Contains(hostAccess, apps[i].GetId()) {
+				for _, m := range remakesOf(apps[i]) {
+					chosen[m.Service] = true
+				}
+			}
 		}
-		t, refused, err := h.taker.ReadMakingAgain(ctx, r, list, project)
+		t, refused, err := h.taker.ReadMakingAgain(ctx, r, list, project, chosen)
 		if err != nil {
 			return nil, nil, nil, err
 		}
 		took := false
 		for _, i := range groups[key] {
-			var why []string
+			var why, needs []string
+			onlyHost := true
 			for _, m := range remakesOf(apps[i]) {
 				why = append(why, refused[m.Service]...)
+				needs = append(needs, t.NeedsByService[m.Service]...)
+				onlyHost = onlyHost && (len(refused[m.Service]) == 0 || t.HostAccessLeft[m.Service] && len(refused[m.Service]) == 1)
+			}
+			if len(needs) > 0 {
+				steps[i].AppId, steps[i].NeedsHostAccess = apps[i].GetId(), slices.Compact(slices.Sorted(slices.Values(needs)))
+			}
+			if len(why) > 0 && onlyHost {
+				// The screen says it, as a state and the choice: no prose under it.
+				leave(steps[i], "")
+				t.Edits = slices.DeleteFunc(t.Edits, func(e *dockwellv1.Edit) bool {
+					return slices.ContainsFunc(remakesOf(apps[i]), func(m composeapi.Remake) bool { return e.GetResource().GetName() == m.Service })
+				})
+				continue
 			}
 			if len(why) > 0 {
 				leave(steps[i], sentences(actionable(why))+fmt.Sprintf(" It stays as it is, in %s, until that's dealt with.", w.name))

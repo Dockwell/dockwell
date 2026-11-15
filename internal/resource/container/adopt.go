@@ -56,7 +56,11 @@ func (d *Docker) inspectToAdopt(ctx context.Context, t Target, id string) (*dock
 	if err != nil {
 		return nil, nil, err
 	}
-	view := docker.TakenView(c, docker.Taken{Project: t.Project, Service: t.Service})
+	linked, err := d.linkedNames(ctx, c)
+	if err != nil {
+		return nil, nil, err
+	}
+	view := docker.TakenView(c, docker.Taken{Project: t.Project, Service: t.Service, LinkedAs: strings.Join(linked, ",")})
 	spec, err := d.projectedAsIs(ctx, t, view)
 	if err != nil {
 		return nil, nil, err
@@ -89,6 +93,11 @@ func (d *Docker) ReadAdoption(ctx context.Context, t Target, id string) (resourc
 		return resource.Adoption{}, err
 	}
 	refused := noSpecHolds(c, options, info)
+	linksRefused, aliases, err := d.readLinks(ctx, c, options)
+	if err != nil {
+		return resource.Adoption{}, err
+	}
+	refused = append(refused, linksRefused...)
 	// What's fine to Docker and no spec can say is refused by what it is, here, rather
 	// than by a plan that can't name the container. What's refused above would fail too.
 	var invalid string
@@ -98,7 +107,7 @@ func (d *Docker) ReadAdoption(ctx context.Context, t Target, id string) (resourc
 		}
 	}
 	return resource.Adoption{
-		Spec: spec, Refused: refused, Invalid: invalid, Shows: valuesShown(spec), LeanedOn: leaning,
+		Spec: spec, Refused: refused, Invalid: invalid, Shows: valuesShown(spec), LeanedOn: leaning, LinkAliases: aliases,
 		Manager: docker.ManagedBy(c.Config.Labels), Folder: c.Config.Labels[docker.LabelWorkingDir],
 	}, nil
 }
@@ -276,9 +285,13 @@ func (d *Docker) Adopt(ctx context.Context, t Target, id string, spec *resourcev
 	if err != nil {
 		return err
 	}
+	linked, err := d.linkedNames(ctx, c)
+	if err != nil {
+		return err
+	}
 	return d.Client.Adopted.Take(id, docker.Taken{
 		Project: t.Project, Service: t.Service, Name: strings.TrimPrefix(c.Name, "/"), Compose: c.Config.Labels[docker.LabelProject],
-		Leads: leads, References: referencesLabel(spec),
+		Leads: leads, References: referencesLabel(spec), LinkedAs: strings.Join(linked, ","),
 	})
 }
 

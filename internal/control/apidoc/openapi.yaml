@@ -7463,6 +7463,12 @@ components:
                 environment:
                     type: string
                     description: The environment its services go in, by name or ID.
+                hostAccess:
+                    type: boolean
+                    description: |-
+                        Takes it on with the host access its containers need: devices, GPUs,
+                         security options or the server's processes (ADR 0097). Without it, a
+                         project that needs some is refused, saying what.
             description: AdoptComposeRequest names a Compose project on a server.
         AdoptComposeResponse:
             type: object
@@ -7492,6 +7498,12 @@ components:
                 environment:
                     type: string
                     description: The environment the service goes in, by name or ID.
+                hostAccess:
+                    type: boolean
+                    description: |-
+                        Takes it on with the host access it needs: devices, GPUs, security options
+                         or the server's processes (ADR 0097). Without it, a container that needs
+                         some is refused, saying what.
             description: AdoptContainerRequest names a container, and what to make of it.
         AdoptContainerResponse:
             type: object
@@ -11011,6 +11023,51 @@ components:
                          use, when there's exactly one, and with none otherwise. See
                          docs/adr/0086-registry-logins-for-private-images.md. Numbered in the block
                          registry logins hold, 100 to 109.
+                devices:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Device'
+                    description: |-
+                        Devices of the server it reaches (ADR 0097). Each is host access, and a
+                         block device, or memory's, a port's or one under /dev/mapper, is the same
+                         as root.
+                gpus:
+                    allOf:
+                        - $ref: '#/components/schemas/Gpus'
+                    description: GPUs it reaches, as Docker's --gpus asks for them. It is host access.
+                securityOpt:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        Security options past no_new_privileges, each host access:
+                         "seccomp=unconfined", "apparmor=unconfined", "label=disable",
+                         "label=type:spc_t" and the other label fields, and
+                         "systempaths=unconfined". A label type that's unconfined, and
+                         systempaths=unconfined, are the same as root.
+                hostPid:
+                    type: boolean
+                    description: |-
+                        Sees and signals every process on the server, as Compose's pid: host
+                         does. It is host access, the same as root.
+                sysctls:
+                    type: object
+                    additionalProperties:
+                        type: string
+                    description: |-
+                        Kernel settings of its own namespaces, such as
+                         "net.ipv4.ip_forward": "1". Only net.*, kernel.shm*, kernel.msg*,
+                         kernel.sem and fs.mqueue.* are a container's own, and none reaches the
+                         server. net.* takes no host network.
+                networkAliases:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        Names it answers to on one of its networks alone, each as network=name,
+                         such as "default=web", with the network as networks or external_networks
+                         names it: a name another container there linked to it by (ADR 0089). On a
+                         container with one network, it's the same as aliases, and reads as that.
             description: |-
                 Container is one Docker container: run by hand on a server, or a
                  service's app. Docker fills in from the image what a container leaves
@@ -11960,6 +12017,21 @@ components:
                         type: string
                     description: The commands, such as "npm ci", in order.
             description: DetectedStep is a step of a Railpack build and the commands it runs.
+        Device:
+            type: object
+            properties:
+                hostPath:
+                    type: string
+                    description: Where it is on the server, such as "/dev/dri/renderD128".
+                containerPath:
+                    type: string
+                    description: Where the container has it. Empty takes host_path.
+                permissions:
+                    type: string
+                    description: |-
+                        What the container may do with it, of "r", "w" and "m" (to create it), in
+                         that order. Empty takes all three.
+            description: Device is a device of the server a container reaches.
         DisableTotpRequest:
             type: object
             properties:
@@ -14374,6 +14446,29 @@ components:
                     description: The type of the serialized message.
             additionalProperties: true
             description: Contains an arbitrary serialized message along with a @type that describes the type of the serialized message.
+        Gpus:
+            type: object
+            properties:
+                count:
+                    type: integer
+                    description: How many, or -1 for all. 0 with device_ids names them instead.
+                    format: int32
+                deviceIds:
+                    type: array
+                    items:
+                        type: string
+                    description: Which, by index or UUID, such as "0" or "GPU-3a4b...".
+                capabilities:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        What it uses them for, such as "gpu", "compute" or "utility". Empty takes
+                         "gpu".
+                driver:
+                    type: string
+                    description: The driver Docker asks, such as "nvidia". Empty takes Docker's default.
+            description: Gpus are the GPUs a container reaches.
         HealthResult:
             type: object
             properties:
@@ -14439,6 +14534,13 @@ components:
                     description: |-
                         A connection the agent makes to the container, on its own network address.
                          It passes once the port takes it, and turns the image's own check off.
+                startInterval:
+                    type: string
+                    description: |-
+                        How often the test runs while start_period lasts, such as "5s", so a
+                         container that's ready soon is seen healthy soon. Empty runs it at
+                         interval throughout. Only a test takes one, and Docker keeps it from
+                         version 25.
             description: |-
                 Healthcheck says how to check a container is healthy: a command Docker runs
                  in the container, or a request the server's agent makes to it. Give one of
@@ -14470,6 +14572,11 @@ components:
                         - HOST_ACCESS_KIND_ACCESS_OPENED
                         - HOST_ACCESS_KIND_SERVER_SHELL
                         - HOST_ACCESS_KIND_CERTIFICATE_KEY
+                        - HOST_ACCESS_KIND_DEVICE
+                        - HOST_ACCESS_KIND_GPUS
+                        - HOST_ACCESS_KIND_SECURITY_OPTION
+                        - HOST_ACCESS_KIND_HOST_PROCESSES
+                        - HOST_ACCESS_KIND_ROOT_TOGETHER
                     type: string
                     description: What it is.
                     format: enum
@@ -15139,6 +15246,14 @@ components:
                     description: |-
                         Read and say what an import would do, and plan nothing, for a client that
                          plans only when a person asks to review it.
+                hostAccess:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        The apps, by their IDs as ImportStep.app_id has them, taken on with the host
+                         access each needs: devices, GPUs, security options or the server's processes
+                         (ADR 0097). Any other that needs some is left behind, saying what.
             description: ImportCoolifyRequest names the server to import from.
         ImportCoolifyResponse:
             type: object
@@ -15173,6 +15288,14 @@ components:
                 skipPlan:
                     type: boolean
                     description: Read and say what an import would do, and plan nothing.
+                hostAccess:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        The apps, by their IDs as ImportStep.app_id has them, taken on with the host
+                         access each needs: devices, GPUs, security options or the server's processes
+                         (ADR 0097). Any other that needs some is left behind, saying what.
             description: ImportDokployRequest names the server to import from.
         ImportDokployResponse:
             type: object
@@ -15284,6 +15407,19 @@ components:
                     type: string
                     description: The part of Dockwell it waits for, where Dockwell can't take it yet.
                     format: enum
+                appId:
+                    type: string
+                    description: |-
+                        The panel's ID of the app, such as Coolify's UUID or Dokploy's appName, which
+                         a request names to choose its host access.
+                needsHostAccess:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        The host access the app needs, each in a few words, such as
+                         "/dev/dri/renderD128" or "all GPUs", where it needs some (ADR 0097). It's
+                         taken on with that only where a request chooses it.
             description: ImportStep is one thing found, and what an import would do with it.
         IngressEffect:
             type: object
