@@ -50,6 +50,10 @@ func TestAServerGetsItsHostAsItsAgentConnects(t *testing.T) {
 			continue
 		}
 		made++
+		// The host is on record as its change starts applying, and the change ends
+		// once the agent has it: its watch ends with it, on the engine's own word.
+		waitWatch(t, watch(t, c, ch.GetId()))
+		ch = getChange(t, c, ch.GetId())
 		if ch.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED || ch.GetProposedBy().GetKind() != dockwellv1.ActorKind_ACTOR_KIND_DOCKWELL {
 			t.Errorf("the host's change is %v, by %v", ch.GetState(), ch.GetProposedBy())
 		}
