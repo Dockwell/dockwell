@@ -120,7 +120,8 @@ function companionName(name: string): string {
 
 /** The domain a domain only redirects to, whole, when that's its other half, or empty. */
 function foldsInto(domain: Domain): string {
-  if (domain.routes.length === 0) return "";
+  // One not served somewhere keeps its own row, which says where and the way to fix it.
+  if (domain.routes.length === 0 || domain.servers.some((s) => s.redirectUnserved)) return "";
   const target = companionName(domain.name);
   const into = domain.routes.every((route) => {
     if (route.path !== "" || !route.redirect) return false;

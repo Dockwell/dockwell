@@ -105,7 +105,9 @@ export type DomainGroup = (typeof DOMAIN_GROUPS)[number];
 export function groupOf(domain: Domain, look: DomainLook, silent: boolean): DomainGroup {
   if (look.stale) return "not-connected";
   if (silent && look.unreported) return "no-report";
+  // A redirect a server's agent is too old to serve isn't answered there (ADR 0070).
   if (look.state === "failed" || look.warning || look.orphaned) return "failing";
+  if (domain.servers.some((s) => s.redirectUnserved)) return "failing";
   if (look.state === "pending") return "waiting";
   return look.noCertificate && !plainForAnyone(domain) ? "tunnel" : "serving";
 }

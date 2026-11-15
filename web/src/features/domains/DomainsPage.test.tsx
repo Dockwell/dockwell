@@ -566,6 +566,21 @@ describe("the list of domains", () => {
     expect(within(row).getByRole("link", { name: "Update its agent" })).toHaveAttribute("href", `/servers/${SERVER}`);
   });
 
+  it("never folds www that isn't served somewhere: its row says where, with the fix", async () => {
+    const www = aDomain({
+      name: "www.example.com",
+      certificate: issued,
+      route: { service: "", port: 0, redirect: { to: "https://example.com", temporary: false, dropPath: false } },
+      server: { redirectUnserved: true },
+    });
+    const { container } = renderAt("/domains", api([aDomain({ name: "example.com", certificate: issued }), www]));
+    expect(await rowOf(/^example\.com/)).not.toHaveTextContent("Redirects: www → example.com");
+    expect(container.querySelector(".page-lead")).toHaveTextContent("2 domains · 1 needs a look");
+    const own = await rowOf(/^www\.example\.com/);
+    expect(own).toHaveTextContent("Not served on hz-1");
+    expect(within(own).getByRole("link", { name: "Update its agent" })).toBeVisible();
+  });
+
   it("keeps www's own row where its bare domain isn't listed", async () => {
     renderAt(
       "/domains",
