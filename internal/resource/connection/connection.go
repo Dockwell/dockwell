@@ -154,8 +154,10 @@ func (Type) CheckNew(spec proto.Message) error {
 
 // Keep holds on to the keys when an update leaves them out, so a form can change a
 // connection's name or reach without asking for its keys again. It keeps only while
-// where they go stays: the same endpoint, region and bucket, as a key is never sent
-// somewhere it wasn't saved to go.
+// where they go stays: the same endpoint, region and bucket, and the bucket still in
+// the path where it was, as a key is never sent somewhere it wasn't saved to go.
+// Turning path style off sends it to the bucket's own host, a name under the
+// endpoint's that on a shared domain may be someone else's.
 func (Type) Keep(current, desired proto.Message) (resource.Kept, error) {
 	was, ok := current.(*resourcev1.ConnectionSpec)
 	is, same := desired.(*resourcev1.ConnectionSpec)
@@ -169,6 +171,8 @@ func (Type) Keep(current, desired proto.Message) (resource.Kept, error) {
 	switch {
 	case to.GetEndpoint() != from.GetEndpoint() || to.GetRegion() != from.GetRegion() || to.GetBucket() != from.GetBucket():
 		return resource.Kept{}, errors.New("the connection moves to another endpoint, region or bucket, so it needs its secret key again: Dockwell won't send what it kept to where it hasn't sent it before")
+	case from.GetPathStyle() && !to.GetPathStyle():
+		return resource.Kept{}, errors.New("the connection stops putting the bucket in the path, so its requests go to the bucket's own host, and it needs its secret key again: Dockwell won't send what it kept to where it hasn't sent it before. Give the key, or keep path style on")
 	case to.GetAccessKeyId() != "" && to.GetAccessKeyId() != from.GetAccessKeyId():
 		return resource.Kept{}, errors.New("a new access key needs its secret too")
 	}

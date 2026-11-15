@@ -70,9 +70,11 @@ func TestAConnectionThatCantReachABucketIsRefused(t *testing.T) {
 }
 
 // An update that leaves the keys out keeps them while they'd go where they went;
-// one that moves the connection elsewhere needs them again.
+// one that moves the connection elsewhere needs them again, as does one that stops
+// putting the bucket in the path, which sends them to the bucket's own host.
 func TestAnUpdateKeepsTheKeysOnlyWhereTheyWent(t *testing.T) {
 	was := aBucket()
+	was.S3.PathStyle = true
 	if err := (Type{}).Validate(was); err != nil {
 		t.Fatal(err)
 	}
@@ -87,6 +89,7 @@ func TestAnUpdateKeepsTheKeysOnlyWhereTheyWent(t *testing.T) {
 		"bucket":     func(s *resourcev1.ConnectionS3) { s.Bucket = "other" },
 		"region":     func(s *resourcev1.ConnectionS3) { s.Region = "eu-central-1" },
 		"access key": func(s *resourcev1.ConnectionS3) { s.AccessKeyId = "AKIDOTHER" },
+		"host":       func(s *resourcev1.ConnectionS3) { s.PathStyle = false },
 	} {
 		moved := proto.CloneOf(was)
 		moved.S3.SecretKey = ""
