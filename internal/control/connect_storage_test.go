@@ -22,9 +22,10 @@ import (
 // An app that reads S3 names is connected to a connection's bucket: the bucket is
 // checked from the app's network on its server first, then one change links the app
 // to the connection, its names reading the connection through the link, a key as a
-// secret, and the app runs with them. No key is in the plan; a check that fails, or a
-// connection the project may not use, plans nothing; a value from a connection that
-// no link writes is refused, whoever proposes it (ADR 0099).
+// secret, and the app runs with them. No key is in the plan; a new key reaches every
+// app linked to the connection in one plan; a check that fails, or a connection the
+// project may not use, plans nothing; a value from a connection that no link writes
+// is refused, whoever proposes it (ADR 0099).
 func TestAnAppIsConnectedToStorage(t *testing.T) {
 	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
@@ -49,10 +50,10 @@ func TestAnAppIsConnectedToStorage(t *testing.T) {
 	apply(t, c, propose(t, c, "Run the notes app",
 		variableSpec("S3_ENDPOINT", "http://old.example.com"), variableSpec("S3_BUCKET", "old"), variableSpec("S3_FORCE_PATH_STYLE", "false"),
 		secretSpec("S3_ACCESS_KEY_ID", "old-id"), secretSpec("S3_SECRET_ACCESS_KEY", "old-secret"), notes))
-	appEnv := func() []string {
+	appEnv := func(app string) []string {
 		t.Helper()
 		for _, name := range e.Containers() {
-			if strings.Contains(name, "notes") {
+			if strings.Contains(name, app) {
 				got, err := e.Client().InspectContainer(t.Context(), name)
 				if err != nil {
 					t.Fatal(err)
@@ -60,22 +61,26 @@ func TestAnAppIsConnectedToStorage(t *testing.T) {
 				return got.Config.Env
 			}
 		}
-		t.Fatal("the notes app doesn't run")
+		t.Fatalf("the %s app doesn't run", app)
 		return nil
 	}
 	// Its network holds this machine's loopback, where the fake S3 listens.
-	for _, name := range e.Containers() {
-		if !strings.Contains(name, "notes") {
-			continue
-		}
-		got, err := e.Client().InspectContainer(t.Context(), name)
-		if err != nil {
-			t.Fatal(err)
-		}
-		for net := range got.NetworkSettings.Networks {
-			e.AddNetwork(docker.Network{Name: net, IPAM: docker.IPAM{Config: []docker.IPAMConfig{{Subnet: "127.0.0.0/8"}}}})
+	onLoopback := func(app string) {
+		t.Helper()
+		for _, name := range e.Containers() {
+			if !strings.Contains(name, app) {
+				continue
+			}
+			got, err := e.Client().InspectContainer(t.Context(), name)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for net := range got.NetworkSettings.Networks {
+				e.AddNetwork(docker.Network{Name: net, IPAM: docker.IPAM{Config: []docker.IPAMConfig{{Subnet: "127.0.0.0/8"}}}})
+			}
 		}
 	}
+	onLoopback("notes")
 
 	srv := s3test.New(t)
 	apply(t, c, propose(t, c, "Add the uploads bucket", connectionEdit("uploads", &resourcev1.ConnectionSpec{
@@ -115,24 +120,73 @@ func TestAnAppIsConnectedToStorage(t *testing.T) {
 	if done := apply(t, c, planned.Msg.GetChange()); done.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
 		t.Fatalf("connecting the app ended %v: %s", done.GetState(), done.GetError())
 	}
-	got := appEnv()
+	got := appEnv("notes")
 	for _, want := range []string{"S3_ENDPOINT=" + srv.URL(), "S3_BUCKET=uploads", "S3_ACCESS_KEY_ID=AKIDEXAMPLE", "S3_SECRET_ACCESS_KEY=" + connectionSecret, "S3_FORCE_PATH_STYLE=true"} {
 		if !slices.Contains(got, want) {
 			t.Errorf("the app runs without %s: %v", want, got)
 		}
 	}
 
-	// A new key for the connection reaches the app in the same plan.
-	rotated := apply(t, c, propose(t, c, "Rotate the uploads key", connectionEdit("uploads", &resourcev1.ConnectionSpec{
+	// A second app reads the same bucket through a link of its own, by names of its own.
+	gallery := &dockwellv1.Edit{
+		Resource: &dockwellv1.ResourceRef{Name: "gallery"},
+		Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: &resourcev1.Service{
+			Runs:      &resourcev1.Service_App{App: &resourcev1.Container{Image: "acme/gallery:1"}},
+			Variables: map[string]string{"MEDIA_ENDPOINT": "MEDIA_ENDPOINT", "MEDIA_BUCKET": "MEDIA_BUCKET"},
+			Secrets:   map[string]string{"MEDIA_KEY_ID": "MEDIA_KEY_ID", "MEDIA_SECRET": "MEDIA_SECRET"},
+		}}},
+		Servers: []string{f.lastDocker.id.ServerID},
+	}
+	apply(t, c, propose(t, c, "Run the gallery app",
+		variableSpec("MEDIA_ENDPOINT", "http://old.example.com"), variableSpec("MEDIA_BUCKET", "old"),
+		secretSpec("MEDIA_KEY_ID", "old-id"), secretSpec("MEDIA_SECRET", "old-secret"), gallery))
+	onLoopback("gallery")
+	second, err := cc.ConnectStorage(t.Context(), connect.NewRequest(&dockwellv1.ConnectStorageRequest{
+		Project: project, App: "gallery", Connection: "uploads", Link: "media", Prefix: "gallery/",
+		Sets: map[string]resourcev1.LinkPart{
+			"MEDIA_ENDPOINT": resourcev1.LinkPart_LINK_PART_ENDPOINT, "MEDIA_BUCKET": resourcev1.LinkPart_LINK_PART_BUCKET,
+			"MEDIA_KEY_ID": resourcev1.LinkPart_LINK_PART_ACCESS_KEY_ID, "MEDIA_SECRET": resourcev1.LinkPart_LINK_PART_SECRET_KEY,
+		},
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if done := apply(t, c, second.Msg.GetChange()); done.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("connecting the gallery ended %v: %s", done.GetState(), done.GetError())
+	}
+	if got := appEnv("gallery"); !slices.Contains(got, "MEDIA_SECRET="+connectionSecret) {
+		t.Errorf("the gallery runs without the connection's key: %v", got)
+	}
+
+	// A new key for the connection reaches both apps in one plan, which holds no key.
+	const newKey = "a-new-secret-key"
+	plan := propose(t, c, "Rotate the uploads key", connectionEdit("uploads", &resourcev1.ConnectionSpec{
 		DisplayName: "Uploads", Kind: resourcev1.LinkKind_LINK_KIND_S3,
 		Reach: resourcev1.ConnectionReach_CONNECTION_REACH_PROJECTS, Projects: []string{project},
-		S3: &resourcev1.ConnectionS3{Endpoint: srv.URL(), Bucket: "uploads", AccessKeyId: "AKIDEXAMPLE", SecretKey: "a-new-secret-key", PathStyle: true},
-	})))
-	if rotated.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		S3: &resourcev1.ConnectionS3{Endpoint: srv.URL(), Bucket: "uploads", AccessKeyId: "AKIDEXAMPLE", SecretKey: newKey, PathStyle: true},
+	}))
+	if raw, _ := protojson.Marshal(plan); strings.Contains(string(raw), newKey) || strings.Contains(string(raw), connectionSecret) {
+		t.Error("the rotation's plan holds a key")
+	}
+	var restarted []string
+	for _, srv := range plan.GetPlan().GetServers() {
+		for _, step := range srv.GetSteps() {
+			restarted = append(restarted, step.GetResource().GetName())
+		}
+	}
+	for _, app := range []string{"notes", "gallery"} {
+		if !slices.Contains(restarted, app) {
+			t.Errorf("the rotation's plan leaves out %s: it has steps for %v", app, restarted)
+		}
+	}
+	if rotated := apply(t, c, plan); rotated.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
 		t.Fatalf("rotating the key ended %v: %s", rotated.GetState(), rotated.GetError())
 	}
-	if got := appEnv(); !slices.Contains(got, "S3_SECRET_ACCESS_KEY=a-new-secret-key") {
-		t.Errorf("after the key's rotation, the app runs with %v", got)
+	if got := appEnv("notes"); !slices.Contains(got, "S3_SECRET_ACCESS_KEY="+newKey) {
+		t.Errorf("after the key's rotation, the notes app runs with %v", got)
+	}
+	if got := appEnv("gallery"); !slices.Contains(got, "MEDIA_SECRET="+newKey) {
+		t.Errorf("after the key's rotation, the gallery runs with %v", got)
 	}
 
 	// A value from a connection that no link writes is refused, made by hand.
