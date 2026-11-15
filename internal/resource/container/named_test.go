@@ -205,7 +205,7 @@ func TestAScriptRunsAsItDid(t *testing.T) {
 	}{
 		"a short secret in a port":      {env: map[string]string{"PASSWORD_MIN_LENGTH": "8"}, test: []string{"CMD-SHELL", "echo http://localhost:8080/health"}},
 		"a short secret in a path":      {env: map[string]string{"KEYCLOAK_ADMIN": "admin"}, test: []string{"CMD", "curl", "-f", "http://localhost:8080/admin/health"}},
-		"a short secret as a program":   {env: map[string]string{"ENABLE_PASSWORD_LOGIN": "true"}, test: []string{"CMD-SHELL", "false || true; echo $?"}},
+		"a short secret as a program":   {env: map[string]string{"DB_PASS": "sleep"}, test: []string{"CMD-SHELL", "sleep 1; echo $?"}},
 		"a one-letter secret":           {env: map[string]string{"PASS_N": "n"}, test: []string{"CMD-SHELL", `printf "ok\n"; echo "a\nb"`}},
 		"a secret after a backslash":    {env: map[string]string{"DB_PASSWORD": "k8Jd2mQx"}, test: []string{"CMD-SHELL", `echo "x\k8Jd2mQx"`}},
 		"a secret after a $ and a name": {env: map[string]string{"DB_PASSWORD": "k8Jd2mQx", "FOOk8Jd2mQx": "zz"}, test: []string{"CMD-SHELL", `echo $FOOk8Jd2mQx`}},

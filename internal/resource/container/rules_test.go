@@ -203,10 +203,11 @@ func TestAContainerOnItsOwnKeepsToItsOwn(t *testing.T) {
 }
 
 // Every spelling of a refused path, on the spec's own path, none a path a
-// person could approve by accident.
+// person could approve by accident. / and /proc, a person may choose as they're
+// written, so only their spellings through . and .. are here (ADR 0097).
 func TestRefusedSpellings(t *testing.T) {
 	for _, p := range []string{
-		"/", "//", "///", "/.", "/./", "/..", "/../", "/../..", "/srv/..", "/srv/../", "/srv/./..", "//proc", "/proc/", "/./proc", "/proc/.", "/x/../proc", "/proc//1",
+		"/.", "/./", "/..", "/../", "/../..", "/srv/..", "/srv/../", "/srv/./..", "/./proc", "/proc/.", "/x/../proc",
 		"/sys/", "/dev//sda", "/boot/.", "/var", "/var/", "/var/lib", "/var/lib/", "//var//lib//docker//", "/var/lib/docker/../dockwell", "/var/./lib/dockwell/x",
 		"relative", "./x", "../x", "~", "~/x", "", ".", "C:\\", "C:/", "\\\\host\\share", "%2F", "%2Fproc",
 	} {

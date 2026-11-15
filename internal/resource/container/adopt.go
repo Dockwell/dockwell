@@ -167,6 +167,16 @@ func valuesShown(spec *resourcev1.Container) []string {
 	return slices.Compact(out)
 }
 
+// flags are what a variable holds that's a setting, not a secret, whatever its
+// name says: PASSWORD_RESET_DISABLED=1, ANONYMOUS_IDENTITY_KEY_VERSION=1. Anything
+// shorter than shortest is skipped for any other name already (ADR 0096).
+var flags = []string{"1", "0", "true", "false", "yes", "no"}
+
+// flag reports a value that's one of flags, in any case.
+func flag(value string) bool {
+	return slices.ContainsFunc(flags, func(f string) bool { return strings.EqualFold(f, value) })
+}
+
 // shownAs is what valuesShown says of a value of name in a field.
 func shownAs(name, where string) string { return "the value of " + name + " in its " + where }
 
@@ -186,7 +196,7 @@ func shownIn(spec *resourcev1.Container, visit func(name, where, word, value str
 	}
 	eachWord(spec.ProtoReflect(), "", func(where, word string) {
 		for name, value := range spec.GetEnv() {
-			if value == "" || !strings.Contains(word, value) || len(value) < shortest && !secretName().MatchString(name) {
+			if value == "" || !strings.Contains(word, value) || len(value) < shortest && !secretName().MatchString(name) || flag(value) {
 				continue
 			}
 			if namesShown[where] && !secretName().MatchString(name) && wholePart(word, value) {

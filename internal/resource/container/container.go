@@ -647,7 +647,7 @@ func validateMounts(c *resourcev1.Container) error {
 				return err
 			}
 			src.HostPath = path.Clean(src.HostPath)
-			if err := DefaultHost.CheckPath(src.HostPath, fmt.Sprintf("the server path %s mounted at %s", src.HostPath, m.Target)); err != nil {
+			if err := DefaultHost.CheckMount(src.HostPath, fmt.Sprintf("the server path %s mounted at %s", src.HostPath, m.Target), m.GetReadOnly()); err != nil {
 				return err
 			}
 			if o := m.GetMakeOwner(); o != "" {

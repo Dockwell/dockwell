@@ -443,9 +443,9 @@ func TestCheckCompose(t *testing.T) {
 		if got := res.GetRefusal(); !strings.HasPrefix(got.GetMessage(), "the service web builds an image") || got.GetLine() != 4 || len(res.GetServices()) != 0 {
 			t.Errorf("checking a build = %v", res)
 		}
-		res = check("services:\n  sh:\n    image: alpine\n    volumes: [\"/:/host\"]\n", nil)
-		if got := res.GetRefusal(); !strings.Contains(got.GetMessage(), "the server's whole file system") || got.GetLine() == 0 {
-			t.Errorf("checking a mount of / = %v", res)
+		res = check("services:\n  sh:\n    image: alpine\n    volumes: [\"/boot:/host\"]\n", nil)
+		if got := res.GetRefusal(); !strings.Contains(got.GetMessage(), "the server path /boot mounted at /host is in /boot") || got.GetLine() == 0 {
+			t.Errorf("checking a mount of /boot = %v", res)
 		}
 
 		all, err := c.ListChanges(t.Context(), connect.NewRequest(&dockwellv1.ListChangesRequest{}))
