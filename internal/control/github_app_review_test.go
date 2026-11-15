@@ -279,3 +279,25 @@ func TestReviewFinishingTriesAgainWhenGitHubWasOutOfReach(t *testing.T) {
 		t.Errorf("finishing again, with the same code and state: %v, %v", res, err)
 	}
 }
+
+// Review L7: a delivery sent again, as a signed body caught before, doesn't say
+// GitHub reaches the panel: polling goes on until a new one does.
+func TestReviewAReplayedDeliveryDoesntEndPolling(t *testing.T) {
+	t.Parallel()
+	a := newAppBench(t)
+	ctx := t.Context()
+	ping, _ := json.Marshal(map[string]any{"zen": "Mind your words, they are important.", "hook_id": 1})
+	if code, _, _ := send(t, a.webhook, delivery{id: "l7-1", event: "ping", secret: "first-webhook-secret", body: ping}); code != http.StatusAccepted {
+		t.Fatalf("a ping: %d", code)
+	}
+	a.gh.mu.Lock()
+	a.gh.deliveries = `[{"id":2,"guid":"g2","event":"push","status_code":0}]`
+	a.gh.mu.Unlock()
+	a.f.server.apps.CheckDeliveries(ctx)
+	if code, _, _ := send(t, a.webhook, delivery{id: "l7-1", event: "ping", secret: "first-webhook-secret", body: ping}); code != http.StatusAccepted {
+		t.Fatalf("the ping again: %d", code)
+	}
+	if d := a.delivery(t); d.GetState() != dockwellv1.GitHubDelivery_STATE_POLLING {
+		t.Errorf("a replayed delivery left polling %v", d.GetState())
+	}
+}

@@ -176,7 +176,6 @@ func (h *Handler) ServeGitHubApp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.cfg.Auth.ReturnHookDelivery(client)
-	h.cfg.Apps.Delivered(app.ID)
 	ctx := r.Context()
 	event := r.Header.Get("X-GitHub-Event")
 	d := store.GitHookDelivery{HookID: app.ID, DeliveryID: delivery, At: h.now(), Provider: "github-app", Outcome: store.HookIgnored}
@@ -188,6 +187,9 @@ func (h *Handler) ServeGitHubApp(w http.ResponseWriter, r *http.Request) {
 		answer(w, http.StatusServiceUnavailable, "Dockwell can't keep deliveries right now. Send it again in a moment.")
 		return
 	}
+	// A new delivery, not one sent again, says GitHub reaches the panel now: a
+	// replay could be any signed body caught before (review L7).
+	h.cfg.Apps.Delivered(app.ID)
 	var ev appEvent
 	_ = json.Unmarshal(body, &ev)
 	switch event {
