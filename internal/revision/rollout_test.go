@@ -1248,6 +1248,7 @@ func mustCurrent(t *testing.T, e *Engine, changeID string) []item {
 		if err != nil {
 			return err
 		}
+		asked := readPlan(c)
 		for i := range c.Items {
 			ci := &c.Items[i]
 			ref := resource.Ref{Kind: resource.Kind(ci.Kind), Scope: ci.Scope, Name: ci.Name}
@@ -1256,7 +1257,7 @@ func mustCurrent(t *testing.T, e *Engine, changeID string) []item {
 				return err
 			}
 			it.spec, it.encoded, it.servers = it.current, ci.Spec, it.placed
-			if restarts(c, ref) {
+			if restarts(asked, ref) {
 				it.restart = c.ID
 			}
 			items = append(items, it)

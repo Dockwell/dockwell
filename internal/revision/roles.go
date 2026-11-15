@@ -63,8 +63,9 @@ type spot struct {
 // someone else's plan needs what applying it would in its places, an admin
 // where an item is protected or is an admin's to make; what it would reach on
 // a server doesn't count, as discarding runs nothing there (ADR 0049). The
-// proposer may always discard theirs. c is nil while planning.
-func (e *Engine) checkRoles(ctx context.Context, tx *store.Tx, actor string, c *store.Change, items []item, a act) error {
+// proposer may always discard theirs. c is nil while planning, and asked is its
+// plan as the caller read it.
+func (e *Engine) checkRoles(ctx context.Context, tx *store.Tx, actor string, c *store.Change, asked *planRead, items []item, a act) error {
 	caller, ok := place.CallerFrom(ctx)
 	person := aPerson(actor)
 	switch {
@@ -86,7 +87,7 @@ func (e *Engine) checkRoles(ctx context.Context, tx *store.Tx, actor string, c *
 	var plan *Plan
 	if a != planning && c != nil {
 		var err error
-		if plan, err = DecodePlan(c.Plan); err != nil {
+		if plan, err = asked.whole(); err != nil {
 			return err
 		}
 	}
@@ -286,7 +287,7 @@ func (e *Engine) reachFirst(ctx context.Context, tx *store.Tx, actor string, edi
 		it.forLink = edits[i].For
 		items = append(items, it)
 	}
-	err := e.checkRoles(ctx, tx, actor, nil, items, planning)
+	err := e.checkRoles(ctx, tx, actor, nil, nil, items, planning)
 	if errors.Is(err, store.ErrNotFound) {
 		return fault.New(ErrOutOfReach, "%s", ErrOutOfReach.Error())
 	}
@@ -458,11 +459,12 @@ func (e *Engine) CheckApply(ctx context.Context, changeID string) error {
 		if err != nil || c.State != store.ChangePlanned {
 			return err
 		}
-		items, err := e.placed(ctx, tx, c)
+		asked := readPlan(c)
+		items, err := e.placed(ctx, tx, c, asked)
 		if err != nil {
 			return err
 		}
-		return e.checkRoles(ctx, tx, c.Actor, &c, items, applying)
+		return e.checkRoles(ctx, tx, c.Actor, &c, asked, items, applying)
 	})
 }
 
@@ -611,7 +613,7 @@ func sameProposer(ctx context.Context, tx *store.Tx, caller place.Caller, actor,
 // placed are a change's items as far as checking roles needs: each as it is
 // now, with what the change asks of an environment. Unlike current, it reads a
 // plan that went stale, as discarding one has to work.
-func (e *Engine) placed(ctx context.Context, tx *store.Tx, c store.Change) ([]item, error) {
+func (e *Engine) placed(ctx context.Context, tx *store.Tx, c store.Change, asked *planRead) ([]item, error) {
 	items := make([]item, 0, len(c.Items))
 	for i := range c.Items {
 		ci := &c.Items[i]
@@ -624,7 +626,7 @@ func (e *Engine) placed(ctx context.Context, tx *store.Tx, c store.Change) ([]it
 			it.id = ci.ResourceID
 		}
 		it.follows = ci.Follows
-		it.restore, _, _, it.forLink = restoreIn(c, ref)
+		it.restore, _, _, it.forLink = restoreIn(asked, ref)
 		if ref.Kind == scope.EnvironmentKind && ci.Spec != nil {
 			// An environment's spec holds nothing sealed. One that can't be read
 			// counts as protected after.
@@ -640,7 +642,7 @@ func (e *Engine) placed(ctx context.Context, tx *store.Tx, c store.Change) ([]it
 // protectedChange reports a change with an item in a protected environment,
 // before or after, for the API's approval of someone else's change.
 func (e *Engine) protectedChange(ctx context.Context, tx *store.Tx, c store.Change) (bool, error) {
-	items, err := e.placed(ctx, tx, c)
+	items, err := e.placed(ctx, tx, c, readPlan(c))
 	if err != nil {
 		return false, err
 	}
@@ -726,12 +728,13 @@ func (e *Engine) ApplyingOf(ctx context.Context, tx *store.Tx, changeID string) 
 	if err != nil || c.State != store.ChangePlanned {
 		return Applying{}, err
 	}
-	items, err := e.placed(ctx, tx, c)
+	asked := readPlan(c)
+	items, err := e.placed(ctx, tx, c, asked)
 	if err != nil {
 		return Applying{}, err
 	}
 	var refused *Refusal
-	switch err := e.checkRoles(ctx, tx, c.Actor, &c, items, applying); {
+	switch err := e.checkRoles(ctx, tx, c.Actor, &c, asked, items, applying); {
 	case errors.As(err, &refused) && refused.Needs == store.RoleAdmin:
 		return Applying{Waits: refused.Waits()}, nil
 	case errors.As(err, &refused):

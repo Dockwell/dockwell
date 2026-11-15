@@ -126,23 +126,21 @@ func (w *Waves) fingerprint() string {
 	return fmt.Sprintf("waves %v|%s|%t\n", w.Order, w.Pause, w.KeepGoing)
 }
 
-// wavesIn is the waves change c runs by, as its plan says, or nil.
-func wavesIn(c store.Change) *Waves {
-	p, err := DecodePlan(c.Plan)
-	if err != nil {
+// wavesIn is the waves change p runs by, as its plan says, or nil.
+func wavesIn(p *planRead) *Waves {
+	if p == nil || p.plan == nil {
 		return nil
 	}
-	return p.Waves
+	return p.plan.Waves
 }
 
-// emptiesIn is the app change c starts on an empty database of another engine, as
+// emptiesIn is the app change p starts on an empty database of another engine, as
 // it was planned.
-func emptiesIn(c store.Change) string {
-	p, err := DecodePlan(c.Plan)
-	if err != nil {
+func emptiesIn(p *planRead) string {
+	if p == nil || p.plan == nil {
 		return ""
 	}
-	return p.Empties
+	return p.plan.Empties
 }
 
 // endedBefore is when the last step of the waves before wave ended, as progress has

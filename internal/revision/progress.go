@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/dockwell/dockwell/internal/fault"
@@ -730,8 +731,15 @@ func unitMessage(state StepState, u *resource.Unit, server string) string {
 	return ""
 }
 
+// planDecoded hears of each plan DecodePlan reads, for the tests that hold
+// applying a change to reading its plan as often whatever its size (#686).
+var planDecoded atomic.Pointer[func(b []byte)]
+
 // DecodePlan reads a plan as the store keeps it.
 func DecodePlan(b []byte) (*Plan, error) {
+	if heard := planDecoded.Load(); heard != nil {
+		(*heard)(b)
+	}
 	var p Plan
 	if err := json.Unmarshal(b, &p); err != nil {
 		return nil, fmt.Errorf("can't read a stored plan: %w", err)

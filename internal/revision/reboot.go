@@ -65,16 +65,10 @@ func (it *item) rebootAsked() *resource.RebootAsked {
 	return &resource.RebootAsked{Change: it.reboot}
 }
 
-// rebootIn names the reboot change c asks of ref, as its plan says: c's ID, or "".
-func rebootIn(c store.Change, ref resource.Ref) string {
-	p, err := DecodePlan(c.Plan)
-	if err != nil {
-		return ""
-	}
-	for i := range p.Resources {
-		if p.Resources[i].Ref == ref && p.Resources[i].Reboot != nil {
-			return c.ID
-		}
+// rebootIn names the reboot change p asks of ref, as its plan says: the change's ID, or "".
+func rebootIn(p *planRead, ref resource.Ref) string {
+	if p.first(ref, func(r *ResourcePlan) bool { return r.Reboot != nil }) != nil {
+		return p.id
 	}
 	return ""
 }
@@ -281,7 +275,7 @@ func (e *Engine) FailLostReboots(ctx context.Context) error {
 		}
 		e.track(id, progress)
 		cause := fault.New(ErrRebootLost, "%s hasn't come back after its reboot, in %s. Check its console, or reach it over SSH", name, RebootLimit)
-		if upgradeIn(c, ref) != nil {
+		if upgradeIn(readPlan(c), ref) != nil {
 			cause = fault.New(ErrUpgradeLost, "the agent on %s hasn't come back at its new version, in %s. Over SSH, read what the install script said in "+
 				"/var/lib/dockwell/agent/upgrade/output.log, and the agent's log with journalctl -u dockwell, or in /var/log/dockwell.log under OpenRC", name, RebootLimit)
 		}

@@ -1039,7 +1039,7 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 		}
 	}
 	if err := e.db.View(ctx, func(tx *store.Tx) error {
-		if err := e.checkRoles(ctx, tx, p.Actor, nil, items, planning); err != nil {
+		if err := e.checkRoles(ctx, tx, p.Actor, nil, nil, items, planning); err != nil {
 			return err
 		}
 		if err := e.capsHeld(ctx, tx, items); err != nil {
@@ -3846,7 +3846,9 @@ func (e *Engine) stoppedBy(err error) bool {
 
 // committed is a change whose revisions are on record, ready to run.
 type committed struct {
-	c     store.Change
+	c store.Change
+	// asked is c's plan as it was planned, read once (#686).
+	asked *planRead
 	items []item
 	plan  *Plan
 	// resumed is a run of what remains of a change left applying, planned
@@ -3870,6 +3872,7 @@ func (e *Engine) commit(ctx context.Context, changeID string, by By) (*committed
 		return nil, fault.New(ErrBusy, "%s is being applied already. Watch it to follow its steps", changeID)
 	}
 	var c store.Change
+	var asked *planRead
 	var items []item
 	var held []item
 	err := e.db.View(ctx, func(tx *store.Tx) error {
@@ -3883,13 +3886,15 @@ func (e *Engine) commit(ctx context.Context, changeID string, by By) (*committed
 		if c.State != store.ChangePlanned {
 			return notPlanned(changeID, c.State)
 		}
-		if err := e.stillUndoable(ctx, tx, c); err != nil {
+		// Its plan is read once, for every item and every question (#686).
+		asked = readPlan(c)
+		if err := e.stillUndoable(ctx, tx, c, asked); err != nil {
 			return err
 		}
-		if items, err = e.current(ctx, tx, c); err != nil {
+		if items, err = e.current(ctx, tx, c, asked); err != nil {
 			return err
 		}
-		if err := e.checkRoles(ctx, tx, cmp.Or(by.Actor, c.Actor), &c, items, applying); err != nil {
+		if err := e.checkRoles(ctx, tx, cmp.Or(by.Actor, c.Actor), &c, asked, items, applying); err != nil {
 			return err
 		}
 		held, err = e.holdsToo(ctx, tx, items)
@@ -3902,7 +3907,7 @@ func (e *Engine) commit(ctx context.Context, changeID string, by By) (*committed
 		e.letGo(ctx, changeID)
 		return nil, err
 	}
-	r, err := e.commitOwned(ctx, c, items, by, false, "")
+	r, err := e.commitOwned(ctx, c, asked, items, by, false, "")
 	if err != nil {
 		e.letGo(ctx, changeID)
 	}
@@ -3923,8 +3928,9 @@ func (e *Engine) rollBack(ctx context.Context, failed store.Change, edits []Edit
 	}
 	// What a move of the failed change stopped, and its dump, the rollback's step of
 	// the database finishes, as nothing else starts what a move stopped.
+	took := readPlan(failed)
 	for i := range items {
-		if _, _, move, _ := restoreIn(failed, items[i].ref); move != nil {
+		if _, _, move, _ := restoreIn(took, items[i].ref); move != nil {
 			finish := *move
 			finish.Finish = true
 			items[i].move = &finish
@@ -3952,7 +3958,7 @@ func (e *Engine) rollBack(ctx context.Context, failed store.Change, edits []Edit
 		e.letGo(ctx, c.ID)
 		return nil, err
 	}
-	r, err := e.commitOwned(ctx, c, items, system, true, because)
+	r, err := e.commitOwned(ctx, c, readPlan(c), items, system, true, because)
 	if err != nil {
 		e.letGo(ctx, c.ID)
 	}
@@ -4011,12 +4017,12 @@ func (p *Plan) step(server string, ref resource.Ref) *resource.Step {
 // claimed, and commits it. A person's change must plan as it did when it
 // was reviewed; a rollback isn't, and with create it is put on record here
 // too, with the plan that runs.
-func (e *Engine) commitOwned(ctx context.Context, c store.Change, items []item, by By, create bool, because string) (*committed, error) {
+func (e *Engine) commitOwned(ctx context.Context, c store.Change, asked *planRead, items []item, by By, create bool, because string) (*committed, error) {
 	rollback := IsRollback(c)
 	for i := range items {
 		items[i].rollback = rollback
 	}
-	plan, err := e.plan(ctx, c.ID, items, rollback, planWith{removal: removalIn(c), waves: wavesIn(c), empties: emptiesIn(c)})
+	plan, err := e.plan(ctx, c.ID, items, rollback, planWith{removal: removalIn(asked), waves: wavesIn(asked), empties: emptiesIn(asked)})
 	if err != nil {
 		return nil, err
 	}
@@ -4133,7 +4139,7 @@ func (e *Engine) commitOwned(ctx context.Context, c store.Change, items []item, 
 	if r := plan.Removes; r != nil && r.Compromised {
 		e.removed(r.Server)
 	}
-	return &committed{c: c, items: items, plan: plan}, nil
+	return &committed{c: c, asked: asked, items: items, plan: plan}, nil
 }
 
 // holds checks, as it commits, that a person's change still applies as it
@@ -4280,7 +4286,7 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 	// only those with steps left, and a change's error names its server once there's
 	// more than one.
 	over := len(plan.Servers)
-	if p, err := DecodePlan(c.Plan); err == nil {
+	if p, err := r.asked.whole(); err == nil {
 		over = len(p.Servers)
 	}
 	// failAsked fails each step from lo up to hi that asked its server to go and
@@ -5107,6 +5113,7 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 		return nil, nil
 	}
 	var c store.Change
+	var planned *planRead
 	var items []item
 	err := e.db.View(ctx, func(tx *store.Tx) error {
 		var err error
@@ -5116,6 +5123,7 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 		if c.State != store.ChangeApplying {
 			return nil // it finished meanwhile
 		}
+		planned = readPlan(c)
 		for i := range c.Items {
 			ci := &c.Items[i]
 			ref := resource.Ref{Kind: resource.Kind(ci.Kind), Scope: ci.Scope, Name: ci.Name}
@@ -5152,19 +5160,19 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 			if it.placed, err = e.placement(ctx, tx, it, ci.BaseRevision); err != nil {
 				return err
 			}
-			if restarts(c, ref) {
+			if restarts(planned, ref) {
 				it.restart = c.ID
 			}
-			it.restore, it.backups, it.move, it.forLink = restoreIn(c, ref)
-			it.backupOne, it.backupAlso, it.alsoFor = backupOneIn(c, ref)
-			it.install = installIn(c, ref)
-			it.reboot = rebootIn(c, ref)
-			it.upgrade = upgradeIn(c, ref)
-			it.unit = unitIn(c, ref)
-			it.moveFrom = moveFromIn(c, ref)
-			it.deleteShared = deletesSharedIn(c, ref)
-			it.removal, it.forget = removalIn(c), forgetIn(c, ref)
-			it.panel = panelIn(c, ref)
+			it.restore, it.backups, it.move, it.forLink = restoreIn(planned, ref)
+			it.backupOne, it.backupAlso, it.alsoFor = backupOneIn(planned, ref)
+			it.install = installIn(planned, ref)
+			it.reboot = rebootIn(planned, ref)
+			it.upgrade = upgradeIn(planned, ref)
+			it.unit = unitIn(planned, ref)
+			it.moveFrom = moveFromIn(planned, ref)
+			it.deleteShared = deletesSharedIn(planned, ref)
+			it.removal, it.forget = removalIn(planned), forgetIn(planned, ref)
+			it.panel = panelIn(planned, ref)
 			if err := markGone(ctx, tx, &it); err != nil {
 				return err
 			}
@@ -5179,7 +5187,7 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 	// A change that rolls out waits for no server whose steps have all ended, as one
 	// gone before its turn that failed: it has nothing left to run there (ADR 0094).
 	var ended func(server, id string) bool
-	if wavesIn(c) != nil {
+	if wavesIn(planned) != nil {
 		if p, err := decodeProgress(c.Progress); err == nil {
 			ended = p.ended
 		}
@@ -5221,7 +5229,7 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 		return nil, fault.New(ErrPending, "%w", err)
 	}
 	e.logger.InfoContext(ctx, "resuming a change left applying", slog.String("change", c.ID))
-	recorded, err := DecodePlan(c.Plan)
+	recorded, err := planned.whole()
 	if err != nil {
 		e.letGo(ctx, changeID)
 		return nil, err
@@ -5232,7 +5240,7 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 		return nil, err
 	}
 	// What its own steps made may not have got as far as starting. And a step can be
-	// cut short once what it makes reads as asked for, while it waits for its check,
+	// cut short once what it makes reads as planned for, while it waits for its check,
 	// with nothing left over to say so: only the record knows it didn't end.
 	for i := range items {
 		it := &items[i]
@@ -5253,7 +5261,7 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 			}
 		}
 	}
-	plan, err := e.plan(ctx, c.ID, items, false, planWith{removal: removalIn(c), waves: wavesIn(c), empties: emptiesIn(c)})
+	plan, err := e.plan(ctx, c.ID, items, false, planWith{removal: removalIn(planned), waves: wavesIn(planned), empties: emptiesIn(planned)})
 	if err != nil {
 		e.letGo(ctx, changeID)
 		return nil, err
@@ -5310,7 +5318,7 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 	// A wait on record is what says a step never began, and from here it may.
 	e.recordProgress(ctx, changeID)
 	e.published(changeID, store.ChangeApplying)
-	return &committed{c: c, items: items, plan: plan, resumed: true}, nil
+	return &committed{c: c, asked: planned, items: items, plan: plan, resumed: true}, nil
 }
 
 // resumingPull carries a change's pull over to the run that resumes it, as the
@@ -5342,7 +5350,7 @@ func resumingPull(ctx context.Context, tx *store.Tx, changeID string, ci *store.
 
 // current checks that every item still starts from the latest revision,
 // and that its scope is still there, and reads them as they stand.
-func (e *Engine) current(ctx context.Context, tx *store.Tx, c store.Change) ([]item, error) {
+func (e *Engine) current(ctx context.Context, tx *store.Tx, c store.Change, asked *planRead) ([]item, error) {
 	items := make([]item, 0, len(c.Items))
 	for i := range c.Items {
 		ci := &c.Items[i]
@@ -5380,19 +5388,19 @@ func (e *Engine) current(ctx context.Context, tx *store.Tx, c store.Change) ([]i
 				return nil, err
 			}
 		}
-		if restarts(c, ref) {
+		if restarts(asked, ref) {
 			it.restart = c.ID
 		}
-		it.restore, it.backups, it.move, it.forLink = restoreIn(c, ref)
-		it.backupOne, it.backupAlso, it.alsoFor = backupOneIn(c, ref)
-		it.install = installIn(c, ref)
-		it.reboot = rebootIn(c, ref)
-		it.upgrade = upgradeIn(c, ref)
-		it.unit = unitIn(c, ref)
-		it.moveFrom = moveFromIn(c, ref)
-		it.deleteShared = deletesSharedIn(c, ref)
-		it.removal, it.forget = removalIn(c), forgetIn(c, ref)
-		it.panel = panelIn(c, ref)
+		it.restore, it.backups, it.move, it.forLink = restoreIn(asked, ref)
+		it.backupOne, it.backupAlso, it.alsoFor = backupOneIn(asked, ref)
+		it.install = installIn(asked, ref)
+		it.reboot = rebootIn(asked, ref)
+		it.upgrade = upgradeIn(asked, ref)
+		it.unit = unitIn(asked, ref)
+		it.moveFrom = moveFromIn(asked, ref)
+		it.deleteShared = deletesSharedIn(asked, ref)
+		it.removal, it.forget = removalIn(asked), forgetIn(asked, ref)
+		it.panel = panelIn(asked, ref)
 		items = append(items, it)
 	}
 	if err := e.checkPlanned(ctx, tx, c, items); err != nil {
@@ -5598,10 +5606,10 @@ func (e *Engine) reachedThen(ctx context.Context, backupID string) ([]string, er
 }
 
 // restoring finds what a change restored, if it restored anything.
-func restoring(c store.Change) (resource.Ref, *resource.RestoreSource, bool) {
+func restoring(c store.Change, took *planRead) (resource.Ref, *resource.RestoreSource, bool) {
 	for i := range c.Items {
 		ref := resource.Ref{Kind: resource.Kind(c.Items[i].Kind), Scope: c.Items[i].Scope, Name: c.Items[i].Name}
-		if source, _, _, _ := restoreIn(c, ref); source != nil {
+		if source, _, _, _ := restoreIn(took, ref); source != nil {
 			return ref, source, true
 		}
 	}
@@ -5611,105 +5619,42 @@ func restoring(c store.Change) (resource.Ref, *resource.RestoreSource, bool) {
 // restoreIn is what a change restores a resource from, and the backups it takes of
 // it, as its plan says: like a restart, neither is in the spec the store keeps for
 // the change's item.
-func restoreIn(c store.Change, ref resource.Ref) (*resource.RestoreSource, map[string]string, *resource.MoveAsked, resource.Ref) {
-	if len(c.Plan) == 0 {
+func restoreIn(p *planRead, ref resource.Ref) (*resource.RestoreSource, map[string]string, *resource.MoveAsked, resource.Ref) {
+	r := p.first(ref, nil)
+	if r == nil {
 		return nil, nil, nil, resource.Ref{}
 	}
-	var p struct {
-		Resources []struct {
-			Ref     resource.Ref
-			Restore *resource.RestoreSource
-			For     *resource.Ref
-			Backups map[string]string
-			Move    *resource.MoveAsked
-		}
+	var link resource.Ref
+	if r.For != nil {
+		link = *r.For
 	}
-	if json.Unmarshal(c.Plan, &p) != nil {
-		return nil, nil, nil, resource.Ref{}
-	}
-	for i := range p.Resources {
-		if r := p.Resources[i]; r.Ref == ref {
-			var link resource.Ref
-			if r.For != nil {
-				link = *r.For
-			}
-			return r.Restore, r.Backups, r.Move, link
-		}
-	}
-	return nil, nil, nil, resource.Ref{}
+	return r.Restore, r.Backups, r.Move, link
 }
 
 // backupOneIn is the one database change c's backup of ref dumps alone, as its plan
 // fixed it, or "", and the more it dumps alone beside, by server ID, with the link
 // each is for, by database.
-func backupOneIn(c store.Change, ref resource.Ref) (string, map[string][]resource.DatabaseDump, map[string]resource.Ref) {
-	if len(c.Plan) == 0 || !bytes.Contains(c.Plan, []byte(`"BackupOne"`)) {
-		return "", nil, nil
-	}
-	var p struct {
-		Resources []struct {
-			Ref        resource.Ref
-			BackupOne  string
-			BackupAlso map[string][]resource.DatabaseDump
-			AlsoFor    map[string]resource.Ref
-		}
-	}
-	if json.Unmarshal(c.Plan, &p) != nil {
-		return "", nil, nil
-	}
-	for i := range p.Resources {
-		if r := &p.Resources[i]; r.Ref == ref {
-			return r.BackupOne, r.BackupAlso, r.AlsoFor
-		}
+func backupOneIn(p *planRead, ref resource.Ref) (string, map[string][]resource.DatabaseDump, map[string]resource.Ref) {
+	// BackupAlso and AlsoFor are only ever beside a BackupOne.
+	if r := p.first(ref, nil); r != nil && r.BackupOne != "" {
+		return r.BackupOne, r.BackupAlso, r.AlsoFor
 	}
 	return "", nil, nil
 }
 
-// installIn is the install of updates change c asks of ref, as its plan fixed
+// installIn is the install of updates change p asks of ref, as its plan fixed
 // it, or nil: what a resume plans what's left of against.
-func installIn(c store.Change, ref resource.Ref) *resource.InstallAsked {
-	if len(c.Plan) == 0 {
-		return nil
-	}
-	var p struct {
-		Resources []struct {
-			Ref     resource.Ref
-			Install *resource.Install
-		}
-	}
-	if json.Unmarshal(c.Plan, &p) != nil {
-		return nil
-	}
-	for _, r := range p.Resources {
-		if r.Ref == ref && r.Install != nil {
-			return &resource.InstallAsked{Change: c.ID, Packages: r.Install.Packages}
-		}
+func installIn(p *planRead, ref resource.Ref) *resource.InstallAsked {
+	if r := p.first(ref, func(r *ResourcePlan) bool { return r.Install != nil }); r != nil {
+		return &resource.InstallAsked{Change: p.id, Packages: r.Install.Packages}
 	}
 	return nil
 }
 
 // restarts reports a change that restarts a resource, as its plan says: a
 // restart isn't in the spec the store keeps for the change's item.
-func restarts(c store.Change, ref resource.Ref) bool {
-	if len(c.Plan) == 0 {
-		return false
-	}
-	var p struct {
-		Resources []struct {
-			Ref     resource.Ref
-			Restart bool
-		}
-	}
-	if json.Unmarshal(c.Plan, &p) != nil {
-		return false
-	}
-	return slices.ContainsFunc(p.Resources, func(r struct {
-		Ref     resource.Ref
-		Restart bool
-	},
-	) bool {
-		return r.Restart && r.Ref == ref
-	})
+func restarts(p *planRead, ref resource.Ref) bool {
+	return p.first(ref, func(r *ResourcePlan) bool { return r.Restart }) != nil
 }
 
 // Restart plans restarting a resource on every server it runs on, with its spec
@@ -6124,8 +6069,8 @@ func (e *Engine) guardsAccess(kind resource.Kind) bool {
 
 // undoRestore plans putting back what a change's restore replaced, which is all
 // there is to undo of it: it made no revision. One made for a link is undone for it.
-func (e *Engine) undoRestore(ctx context.Context, c store.Change, ref resource.Ref, source *resource.RestoreSource, by By) (*Plan, error) {
-	_, _, _, link := restoreIn(c, ref)
+func (e *Engine) undoRestore(ctx context.Context, c store.Change, took *planRead, ref resource.Ref, source *resource.RestoreSource, by By) (*Plan, error) {
+	_, _, _, link := restoreIn(took, ref)
 	return e.restore(ctx, ref, resource.RestoreSource{Undoes: c.ID, Server: source.Server}, by, "Undo: "+c.Summary, c.ID, RestoreAs{For: link})
 }
 
@@ -6142,11 +6087,12 @@ func (e *Engine) Discard(ctx context.Context, changeID string, by By) error {
 		case c.State != store.ChangePlanned:
 			return fault.New(ErrNotPlanned, "%s is %s, and only a planned change can be discarded", changeID, c.State)
 		}
-		items, err := e.placed(ctx, tx.Tx, c)
+		asked := readPlan(c)
+		items, err := e.placed(ctx, tx.Tx, c, asked)
 		if err != nil {
 			return err
 		}
-		if err := e.checkRoles(ctx, tx.Tx, by.Actor, &c, items, discarding); err != nil {
+		if err := e.checkRoles(ctx, tx.Tx, by.Actor, &c, asked, items, discarding); err != nil {
 			return err
 		}
 		if err := tx.SetChangeState(ctx, changeID, store.ChangeDiscarded, "", time.Time{}); err != nil {
@@ -6239,7 +6185,7 @@ func (e *Engine) reverse(ctx context.Context, changeID string) ([]Edit, error) {
 		}
 		// Data the change moved into a volume moves back into the one it came from,
 		// which the change deleted, as the undo makes that again (ADR 0084, #572).
-		for _, moved := range movesIn(c) {
+		for _, moved := range movesIn(readPlan(c)) {
 			if j := slices.IndexFunc(edits, func(ed Edit) bool { return ed.Ref == moved.from && ed.Spec != nil }); j >= 0 {
 				edits[j].MoveFrom = moved.to
 			}
@@ -6358,11 +6304,11 @@ func (e *Engine) withinUndoWindow(c store.Change) error {
 // is what says they still have that (ADR 0022), so this comes before anything is sent.
 // Reverts alone doesn't make an undo: a rollback a person asks for has it too, and goes
 // back any distance.
-func (e *Engine) stillUndoable(ctx context.Context, tx *store.Tx, c store.Change) error {
+func (e *Engine) stillUndoable(ctx context.Context, tx *store.Tx, c store.Change, asked *planRead) error {
 	if c.Reverts == "" {
 		return nil
 	}
-	plan, err := DecodePlan(c.Plan)
+	plan, err := asked.whole()
 	if err != nil {
 		return err
 	}
@@ -6392,26 +6338,27 @@ func (e *Engine) Undo(ctx context.Context, changeID string, by By) (*Plan, error
 	}
 	// A restore that failed may have left a volume it couldn't put right, and undoing
 	// it is the way back: its server says if there's nothing to undo.
-	ref, source, restores := restoring(c)
+	took := readPlan(c)
+	ref, source, restores := restoring(c, took)
 	// An upgrade stays installed: what a change installed can't be taken back,
 	// and its plan said so (ADR 0064).
-	if took, err := DecodePlan(c.Plan); err == nil && slices.ContainsFunc(took.Resources, func(r ResourcePlan) bool { return r.Install != nil }) {
+	if took.any(func(r *ResourcePlan) bool { return r.Install != nil }) {
 		return nil, fault.New(ErrCantUndo, "installing updates can't be undone: what %s installed stays installed. Install an older version over SSH if one is needed", changeID)
 	}
-	if took, err := DecodePlan(c.Plan); err == nil && slices.ContainsFunc(took.Resources, func(r ResourcePlan) bool { return r.Reboot != nil }) {
+	if took.any(func(r *ResourcePlan) bool { return r.Reboot != nil }) {
 		return nil, fault.New(ErrCantUndo, "a reboot can't be undone: %s rebooted its server, and nothing it changed is to put back", changeID)
 	}
-	if took, err := DecodePlan(c.Plan); err == nil && slices.ContainsFunc(took.Resources, func(r ResourcePlan) bool { return r.AgentUpgrade != nil }) {
+	if took.any(func(r *ResourcePlan) bool { return r.AgentUpgrade != nil }) {
 		return nil, fault.New(ErrCantUndo, "an agent's upgrade can't be undone: %s upgraded the agent, which stays at its new version. Run the install script with --version and --downgrade over SSH if an older one is needed", changeID)
 	}
-	if took, err := DecodePlan(c.Plan); err == nil && took.Removes != nil {
-		return nil, fault.New(ErrCantUndo, "a removal can't be undone: %s took %s out of the fleet. Join it again with a new ticket from Add server", changeID, cmp.Or(took.Removes.Name, took.Removes.Server))
+	if removes := removalIn(took); removes != nil {
+		return nil, fault.New(ErrCantUndo, "a removal can't be undone: %s took %s out of the fleet. Join it again with a new ticket from Add server", changeID, cmp.Or(removes.Name, removes.Server))
 	}
-	if took, err := DecodePlan(c.Plan); err == nil && slices.ContainsFunc(took.Resources, func(r ResourcePlan) bool { return r.Unit != nil }) {
-		return e.undoUnits(ctx, c, took, by)
+	if took.any(func(r *ResourcePlan) bool { return r.Unit != nil }) {
+		return e.undoUnits(ctx, c, took.plan, by)
 	}
-	if took, err := DecodePlan(c.Plan); err == nil && slices.ContainsFunc(took.Resources, func(r ResourcePlan) bool { return r.Panel != nil }) {
-		return e.undoPanels(ctx, c, took, by)
+	if took.any(func(r *ResourcePlan) bool { return r.Panel != nil }) {
+		return e.undoPanels(ctx, c, took.plan, by)
 	}
 	if c.State != store.ChangeApplied && (c.State != store.ChangeFailed || !restores) {
 		return nil, fault.New(ErrCantUndo, "%s is %s, and only applied changes can be undone", changeID, c.State)
@@ -6420,7 +6367,7 @@ func (e *Engine) Undo(ctx context.Context, changeID string, by By) (*Plan, error
 		return nil, err
 	}
 	if restores {
-		return e.undoRestore(ctx, c, ref, source, by)
+		return e.undoRestore(ctx, c, took, ref, source, by)
 	}
 	edits, err := e.reverse(ctx, changeID)
 	if err != nil {
@@ -6429,7 +6376,7 @@ func (e *Engine) Undo(ctx context.Context, changeID string, by By) (*Plan, error
 	if len(edits) == 0 {
 		return nil, fault.New(ErrCantUndo, "%s made no revisions, so there's nothing to undo", changeID)
 	}
-	plan, err := DecodePlan(c.Plan)
+	plan, err := took.whole()
 	if err != nil {
 		return nil, err
 	}

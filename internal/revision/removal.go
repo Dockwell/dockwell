@@ -224,22 +224,17 @@ func leaving(items []item, r *Removal) *Removal {
 	return r
 }
 
-// removalIn is the server change c takes out of the fleet, as its plan says.
-func removalIn(c store.Change) *Removal {
-	p, err := DecodePlan(c.Plan)
-	if err != nil {
+// removalIn is the server change p takes out of the fleet, as its plan says.
+func removalIn(p *planRead) *Removal {
+	if p == nil || p.plan == nil {
 		return nil
 	}
-	return p.Removes
+	return p.plan.Removes
 }
 
-// forgetIn says change c lets go of ref on the server it removes.
-func forgetIn(c store.Change, ref resource.Ref) bool {
-	p, err := DecodePlan(c.Plan)
-	if err != nil {
-		return false
-	}
-	return slices.ContainsFunc(p.Resources, func(r ResourcePlan) bool { return r.Ref == ref && r.Forget })
+// forgetIn says change p lets go of ref on the server it removes.
+func forgetIn(p *planRead, ref resource.Ref) bool {
+	return p.first(ref, func(r *ResourcePlan) bool { return r.Forget }) != nil
 }
 
 // OnRemoved says what hears of each server a change took out of the fleet, as it's
