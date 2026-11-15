@@ -1824,10 +1824,12 @@ func (s *Session) checkTakenWrites(ref resource.Ref, adopts string, spec proto.M
 // CheckRead refuses to read back a route that answers with a redirect from an agent
 // that doesn't serve them, as it would read the redirect's handlers as a hand edit,
 // and taking that would lose the redirect (ADR 0070).
+// Its words name no route, as drift is listed to anyone who can read any project.
 func (s *Session) CheckRead(desired []resource.Desired) error {
 	for i := range desired {
-		if err := s.checkRedirect(desired[i].Spec); err != nil {
-			return err
+		if s.checkRedirect(desired[i].Spec) != nil {
+			return fmt.Errorf("%w: %s's agent is older than this release, so it can't serve a redirect that runs there. Update its agent, then check drift again",
+				resource.ErrAgentTooOld, s.name)
 		}
 	}
 	return nil

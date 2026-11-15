@@ -87,7 +87,7 @@ type refusesRedirects struct{ resource.Local }
 func (refusesRedirects) CheckRead(desired []resource.Desired) error {
 	for i := range desired {
 		if r, ok := desired[i].Spec.(*resourcev1.Route); ok && r.GetRedirect() != nil {
-			return errors.New("srv_A's agent is older than this release, so it can't serve www.example.com's redirect. Update its agent, then plan again")
+			return errors.New("srv_A's agent is older than this release, so it can't serve a redirect that runs there. Update its agent, then check drift again")
 		}
 	}
 	return nil
@@ -117,7 +117,7 @@ func TestDriftIsntReadFromAnAgentThatCantServeARedirect(t *testing.T) {
 
 	agents["srv_A"] = refusesRedirects{local}
 	_, err := e.Drift(t.Context(), "srv_A")
-	if err == nil || !strings.Contains(err.Error(), "can't serve www.example.com's redirect. Update its agent") {
+	if err == nil || !strings.Contains(err.Error(), "can't serve a redirect that runs there. Update its agent") {
 		t.Errorf("drift from an agent that can't serve a redirect = %v", err)
 	}
 	agents["srv_A"] = local
