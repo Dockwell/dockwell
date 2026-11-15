@@ -67,6 +67,9 @@ type Config struct {
 	Client github.Doer
 	// Now is the clock: time.Now unless a test's.
 	Now func() time.Time
+	// BeforeChange runs between reading an App and keeping a change made from it,
+	// where another change may land: a test's, nil otherwise.
+	BeforeChange func()
 }
 
 // Handler implements GitProviderService.
@@ -397,6 +400,9 @@ func (h *Handler) changeFresh(ctx context.Context, appID, summary string, edit f
 		k, err := h.one(ctx, appID)
 		if err != nil {
 			return "", err
+		}
+		if h.cfg.BeforeChange != nil {
+			h.cfg.BeforeChange()
 		}
 		changeID, err := h.change(ctx, summary, k.r.Name, int64(k.r.Revision), edit(k))
 		var cerr *connect.Error

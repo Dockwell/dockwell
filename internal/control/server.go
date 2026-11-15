@@ -698,7 +698,7 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 			// the repositories a project's apps may build from (ADR 0098).
 			apps = gitproviders.New(gitproviders.Config{
 				Auth: cfg.Auth, DB: cfg.Store, Keeper: cfg.Secrets, Changes: ch, Logger: cfg.Logger,
-				API: cfg.GitHub.API, Web: cfg.GitHub.Web, Client: cfg.GitHub.Client, Now: cfg.GitHub.Now,
+				API: cfg.GitHub.API, Web: cfg.GitHub.Web, Client: cfg.GitHub.Client, Now: cfg.GitHub.Now, BeforeChange: cfg.GitHub.BeforeChange,
 			})
 			handle(dockwellv1connect.NewGitProviderServiceHandler(apps, opts...))
 			appSources.SetApps(apps)
@@ -1347,4 +1347,7 @@ type GitHubConfig struct {
 	Client   github.Doer
 	// Now is the App's clock: a test's moves, as its webhook's old secret ends.
 	Now func() time.Time
+	// BeforeChange runs between reading an App and keeping a change to it: a
+	// test's, to land another change there.
+	BeforeChange func()
 }

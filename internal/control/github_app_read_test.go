@@ -5,6 +5,7 @@ package control
 import (
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"connectrpc.com/connect"
@@ -168,5 +169,48 @@ func TestAnInstallationsProjectsChangeFromTheAppAsRead(t *testing.T) {
 	}
 	if got := listed.Msg.GetApps()[0].GetInstallations()[0].GetProjects(); len(got) != 1 || got[0] != "prj_01JD6Z3R8M9QF2K7T4XW5BNCZZ" {
 		t.Errorf("after a new webhook secret, installation 7 reaches %v, not the first narrowing", got)
+	}
+}
+
+// A narrowing that lands between a new webhook secret's read of the App and its
+// change isn't undone by it: the change names the revision it read, is stale, and
+// is made again from the App as it is then (re-check N4).
+func TestANarrowingThatLandsMidRotationStays(t *testing.T) {
+	t.Parallel()
+	var a *appBench
+	var landed atomic.Bool
+	a = newAppBenchWith(t, func(c *GitHubConfig) {
+		c.BeforeChange = func() {
+			if a == nil || !landed.CompareAndSwap(false, true) {
+				return
+			}
+			p, err := a.c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Narrow acme", Edits: []*dockwellv1.Edit{{
+				Resource: &dockwellv1.ResourceRef{Kind: "github.app", Name: a.app.GetName()},
+				Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_GithubApp{GithubApp: &resourcev1.GitHubApp{
+					Reaches: []*resourcev1.GitHubInstallationReach{{InstallationId: 7, Projects: []string{"prj_01JD6Z3R8M9QF2K7T4XW5BNCZZ"}}},
+				}}},
+			}}}))
+			if err != nil {
+				t.Errorf("narrowing mid-rotation: %v", err)
+				return
+			}
+			a.done(t, p.Msg.GetChange())
+		}
+	})
+	ctx := t.Context()
+	if _, err := a.gp.RotateGitHubWebhookSecret(ctx, connect.NewRequest(&dockwellv1.RotateGitHubWebhookSecretRequest{
+		Id: a.app.GetId(), Proof: stepUpFor(t, a.b, dockwellv1.StepUpAction_STEP_UP_ACTION_ROTATE_GITHUB_APP, a.app.GetId()),
+	})); err != nil {
+		t.Fatal(err)
+	}
+	if !landed.Load() {
+		t.Fatal("no narrowing landed mid-rotation, so nothing here holds the base revision")
+	}
+	listed, err := a.gp.ListGitProviders(ctx, connect.NewRequest(&dockwellv1.ListGitProvidersRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := listed.Msg.GetApps()[0].GetInstallations()[0].GetProjects(); len(got) != 1 || got[0] != "prj_01JD6Z3R8M9QF2K7T4XW5BNCZZ" {
+		t.Errorf("a narrowing that landed mid-rotation was undone: installation 7 reaches %v", got)
 	}
 }
