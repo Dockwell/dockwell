@@ -1110,3 +1110,27 @@ func TestServerPathsAPersonChooses(t *testing.T) {
 		}
 	}
 }
+
+// Docker's own folder of every container's log is taken as it is, never followed, as
+// an agent that doesn't run as root can't follow it on any real server; any other
+// path the agent can't follow still fails, saying so (ADR 0097).
+func TestDockersLogFolderIsTakenWithoutFollowingIt(t *testing.T) {
+	root := t.TempDir()
+	logs := filepath.Join(root, "containers")
+	h := container.Host{DockerRoots: []string{root}, Resolve: func(p string) (string, error) {
+		if p == logs {
+			return "", os.ErrPermission
+		}
+		return p, nil
+	}}
+	if err := h.CheckMount(logs, "the server path "+logs, true); err != nil {
+		t.Errorf("CheckMount = %v", err)
+	}
+	if leads, err := h.Leads(logs); err != nil || len(leads) != 0 {
+		t.Errorf("Leads = %v, %v", leads, err)
+	}
+	other := container.Host{DockerRoots: []string{root}, Resolve: func(string) (string, error) { return "", os.ErrPermission }}
+	if err := other.CheckMount("/proc", "the server path /proc", true); err == nil || !strings.Contains(err.Error(), "can't follow") {
+		t.Errorf("CheckMount of a path it can't follow = %v", err)
+	}
+}

@@ -125,6 +125,16 @@ func (h Host) choiceOnly(p string) bool {
 	if p == "/" || within(p, "/proc") || within(p, "/sys") || within(p, "/dev/disk") {
 		return true
 	}
+	return h.dockerLogs(p)
+}
+
+// dockerLogs reports Docker's own folder of every container's log, in a data
+// directory the server's Docker names. It's taken as it is, never followed: it's
+// root's alone on every server, so an agent that doesn't run as root can't follow
+// it, and Docker made it, where nothing a container writes can lead it elsewhere
+// (ADR 0097, "Server paths a person chooses").
+func (h Host) dockerLogs(p string) bool {
+	p = path.Clean(p)
 	return slices.ContainsFunc(h.DockerRoots, func(d string) bool { return d != "" && p == path.Join(d, "containers") })
 }
 
@@ -157,7 +167,7 @@ func (h Host) CheckMount(p, what string, readOnly bool) error {
 		return fmt.Errorf("%s can change the kernel's settings, and a container only needs to read them. Mount it read-only", what)
 	case !h.choiceOnly(clean):
 		return h.CheckPath(p, what)
-	case h.Resolve == nil:
+	case h.Resolve == nil, h.dockerLogs(clean):
 		return nil
 	}
 	to, err := h.Resolve(p)
@@ -543,6 +553,9 @@ func (h Host) Leads(paths ...string) (map[string]string, error) {
 	}
 	out := map[string]string{}
 	for _, p := range paths {
+		if h.dockerLogs(p) {
+			continue // where it is, as Docker made it
+		}
 		to, err := h.Resolve(p)
 		if err != nil {
 			return nil, fmt.Errorf("can't follow the server path %s to see where it leads: %w. Mount a path the agent can read", p, err)

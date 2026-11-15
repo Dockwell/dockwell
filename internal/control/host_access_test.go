@@ -440,8 +440,8 @@ func TestAnImportTakesOnAGuessablePasswordWhereChosen(t *testing.T) {
 // A server path that's the same as root to reach is taken on only where a person
 // chooses it, as a device is, each one: /proc read-only, /sys read-only, Docker's
 // folder of every container's log, /dev/disk and /. The kernel's random numbers read-only need no
-// choice, as they're no host access. A Compose file a person imports can't ask for
-// the rest (ADR 0097, "Server paths a person chooses").
+// choice, as they're no host access. A Compose file a person imports asks for them in
+// its plan, as a catalog app does (ADR 0097, "Server paths a person chooses").
 func TestServerPathsAreAChoice(t *testing.T) {
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
@@ -491,11 +491,18 @@ func TestServerPathsAreAChoice(t *testing.T) {
 		}
 	}
 
+	// A Compose file a person imports asks for it as any host access, in its plan:
+	// the same as root, which only a signed-in admin applies. Only a take-on, whose
+	// plan asks nothing, needs the choice made first.
+	pullsAnything(e)
 	compose := dockwellv1connect.NewComposeServiceClient(b, b.origin, connect.WithProtoJSON())
-	_, err = compose.ImportCompose(t.Context(), connect.NewRequest(&dockwellv1.ImportComposeRequest{
+	imported, err := compose.ImportCompose(t.Context(), connect.NewRequest(&dockwellv1.ImportComposeRequest{
 		Project: "default", Compose: "services:\n  netdata:\n    image: netdata/netdata:v2\n    volumes:\n      - /proc:/host/proc:ro\n",
 	}))
-	if err == nil || !strings.Contains(err.Error(), "mounts the server path /proc, which is the same as root to reach") {
-		t.Errorf("a Compose file mounting /proc = %v", err)
+	if err != nil {
+		t.Fatalf("a Compose file mounting /proc = %v", err)
+	}
+	if plan := imported.Msg.GetChange().GetPlan(); !regexp.MustCompile(`path:"/proc"[^}]*same_as_root:true`).MatchString(plan.String()) {
+		t.Errorf("a Compose file mounting /proc plans %v", plan)
 	}
 }

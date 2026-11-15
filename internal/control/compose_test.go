@@ -186,13 +186,18 @@ func testComposeThroughTheAPI(t *testing.T, backend store.Backend) {
 	// What a container may never mount is refused as the file imports, as
 	// a bind or a volume's bind device; another server path is host access.
 	for file, want := range map[string]string{
-		"services:\n  sh:\n    image: alpine\n    volumes: [\"/:/host\"]\n":                                                                                       "mounts the server path /, which is the same as root to reach",
+		"services:\n  sh:\n    image: alpine\n    volumes: [\"/boot:/host\"]\n":                                                                                   "the server path /boot mounted at /host is in /boot",
 		"services:\n  sh:\n    image: alpine\n    volumes: [\"keys:/k\"]\nvolumes:\n  keys:\n    driver_opts: {type: none, o: bind, device: /var/lib/dockwell}\n": "the server path /var/lib/dockwell that the volume binds is in Dockwell's data directory",
 	} {
 		_, err := cc.ImportCompose(t.Context(), connect.NewRequest(&dockwellv1.ImportComposeRequest{Compose: file}))
 		if err == nil || !strings.Contains(err.Error(), want) {
 			t.Errorf("importing %q = %v, want it refused, saying %s", file, err, want)
 		}
+	}
+	// The whole server is host access its plan asks for, the same as root (ADR 0097).
+	whole := importCompose(t, cc, "services:\n  sh:\n    image: alpine\n    volumes: [\"/:/host\"]\n", nil, false)
+	if !whole.GetPlan().GetHostAccess() || !strings.Contains(whole.GetPlan().String(), "same_as_root:true") {
+		t.Errorf("importing a bind of / plans %v", whole.GetPlan())
 	}
 	logs := importCompose(t, cc, "services:\n  sh:\n    image: alpine\n    volumes: [\"/srv/logs:/logs:ro\"]\n", nil, false)
 	if !logs.GetPlan().GetHostAccess() {

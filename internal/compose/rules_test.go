@@ -141,12 +141,7 @@ func TestComposeRefusals(t *testing.T) {
 		"home":           svc("    volumes: [\"~/x:/x\"]\n"),
 		"windows":        svc("    volumes: [\"C:\\\\x:/x\"]\n"),
 		"anonymous":      svc("    volumes: [\"/x\"]\n"),
-		"root short":     svc("    volumes: [\"/:/x\"]\n"),
 		"root dots":      svc("    volumes: [\"/srv/../:/x\"]\n"),
-		"root slashes":   svc("    volumes: [\"//:/x\"]\n"),
-		"root long":      svc("    volumes:\n      - {type: bind, source: /, target: /x}\n"),
-		"root var":       svc("    volumes:\n      - {type: \"${T}\", source: \"${S}\", target: /x}\n"),
-		"proc":           svc("    volumes: [\"/proc/1/root:/x\"]\n"),
 		"data":           svc("    volumes: [\"/var/lib/dockwell/control:/x:ro\"]\n"),
 		"docker":         svc("    volumes: [\"/var/lib/docker/:/x:ro\"]\n"),
 		"merge key":      "x-a: &a\n  pid: host\nservices:\n  s:\n    <<: *a\n    image: alpine:3\n",
@@ -294,6 +289,34 @@ func TestComposeLoggingTakesRotationAlone(t *testing.T) {
 			t.Errorf("%s: %v", file, err)
 		case want != "" && (err == nil || !strings.Contains(err.Error(), want)):
 			t.Errorf("%s = %v, want it refused, saying %s", file, err, want)
+		}
+	}
+}
+
+// The whole of the server, however it's spelled, is no refusal but host access a
+// plan asks for, the same as root, which only a signed-in admin applies, as a catalog
+// app's file manager or backup asks for it (ADR 0097, "Server paths a person chooses").
+func TestTheWholeServerIsHostAccessAPlanAsksFor(t *testing.T) {
+	vars := map[string]string{"T": "bind", "S": "/"}
+	for file, path := range map[string]string{
+		"    volumes: [\"/:/x\"]\n":                                              "/",
+		"    volumes: [\"//:/x\"]\n":                                             "/",
+		"    volumes:\n      - {type: bind, source: /, target: /x}\n":            "/",
+		"    volumes:\n      - {type: \"${T}\", source: \"${S}\", target: /x}\n": "/",
+		// The server's own root, through its first process.
+		"    volumes: [\"/proc/1/root:/x\"]\n": "/proc/1/root",
+	} {
+		s, err := Parse(t.Context(), []byte("services:\n  s:\n    image: alpine:3\n"+file), vars)
+		if err != nil {
+			t.Fatalf("%s: %v", file, err)
+		}
+		app := s.Services[0].Spec.GetApp()
+		if err := container.Validate(app); err != nil {
+			t.Fatalf("%s: %v", file, err)
+		}
+		access := (&container.Driver{}).HostAccess(app)
+		if !slices.ContainsFunc(access, func(a resource.Access) bool { return a.Path == path && !a.ReadOnly }) {
+			t.Errorf("%s reaches %v", file, access)
 		}
 	}
 }

@@ -43,6 +43,7 @@ func TestNothingThatReachesItsServerConvertsUnlooked(t *testing.T) {
 		"privileged through a merge key":   {"x-base: &base\n  privileged: true\nservices:\n  a:\n    <<: *base\n    image: example/a:1.0\n", "a: every privilege"},
 		"a capability":                     {"services:\n  a:\n    image: example/a:1.0\n    cap_add: [SYS_ADMIN]\n", "a: the capability"},
 		"Docker's socket through an alias": {"x-v: &v\n  - /var/run/docker.sock:/var/run/docker.sock\nservices:\n  a:\n    image: example/a:1.0\n    volumes: *v\n", "a: control of Docker, through /var/run/docker.sock"},
+		"/ through an alias":               {"x-v: &v\n  - /:/host\nservices:\n  a:\n    image: example/a:1.0\n    volumes: *v\n", "a: control of Docker, through /"},
 		"a folder a person names":          {"services:\n  a:\n    image: example/a:1.0\n    volumes:\n      - ${PANEL_DATA}:/data\n", "a: a server path a person names, ${DATA}"},
 		"Docker's group":                   {"services:\n  a:\n    image: example/a:1.0\n    group_add: [docker]\n", "a:"},
 		"/etc/localtime, writable":         {"services:\n  a:\n    image: example/a:1.0\n    volumes:\n      - /etc/localtime:/etc/localtime\n", "a: the server path /etc/localtime"},
@@ -419,7 +420,7 @@ func TestAnOverlayCanMakeASecret(t *testing.T) {
 // What a person looked at is what converts: an app that reaches more, or less, waits
 // for them to look again.
 func TestHostAccessIsWhatAPersonLookedAt(t *testing.T) {
-	file := "services:\n  ddns:\n    image: example/ddns:1.0\n    network_mode: host\n    privileged: true\n    volumes:\n      - /var/run/docker.sock:/var/run/docker.sock\n"
+	file := "services:\n  ddns:\n    image: example/ddns:1.0\n    network_mode: host\n    privileged: true\n    volumes:\n      - /:/host\n      - /var/run/docker.sock:/var/run/docker.sock\n"
 	app := App{ID: "ddns", Name: "DDNS", Version: "1.0", Compose: []byte(file)}
 	c := converter()
 	c.Overlays["ddns"] = Overlay{
@@ -431,7 +432,7 @@ func TestHostAccessIsWhatAPersonLookedAt(t *testing.T) {
 		t.Fatalf("%s: %q", r.Class, r.LeftOut)
 	}
 	c.Overlays["ddns"] = Overlay{Entry: c.Overlays["ddns"].Entry, Reaches: []string{
-		"ddns: control of Docker, through /var/run/docker.sock", "ddns: every privilege",
+		"ddns: control of Docker, through /", "ddns: control of Docker, through /var/run/docker.sock", "ddns: every privilege",
 		"ddns: the same as root, with privileged mode", "ddns: the server's own network",
 	}}
 	if r := c.Convert(t.Context(), app); r.Entry == nil {
@@ -604,14 +605,27 @@ func TestHostAccessOfADR0097HasWords(t *testing.T) {
 	}
 }
 
-// What a container may reach only where a person chose it, as it runs, a catalog
-// app can't ask for: the four server paths ADR 0097 makes a choice of are refused,
-// as its devices are.
-func TestACatalogAppCantAskForAServerPathAPersonChooses(t *testing.T) {
-	for _, p := range []string{"/", "/proc", "/var/lib/docker/containers", "/dev/disk/by-id"} {
-		r := convertPlain(t, converter(), "services:\n  a:\n    image: example/a:1.0\n    volumes:\n      - "+p+":/host:ro\n")
-		if r.Entry != nil || !strings.Contains(r.LeftOut, "mounts the server path "+p+", which is the same as root to reach") {
-			t.Errorf("%s: %s %q", p, r.Class, r.LeftOut)
+// A server path ADR 0097 makes a choice of for a take-on converts in a catalog app as
+// before: it waits until a person has looked at what it reaches, then converts, and
+// its install plan asks for it, the same as root, which only an admin applies.
+// Monitoring tools, backups and file managers in the stores mount them.
+func TestACatalogAppAsksForAServerPathInItsPlan(t *testing.T) {
+	for p, reaches := range map[string]string{
+		"/":                          "a: control of Docker, through /",
+		"/proc":                      "a: the server path /proc, read-only",
+		"/var/lib/docker/containers": "a: the server path /var/lib/docker/containers, read-only",
+		"/dev/disk/by-id":            "a: the server path /dev/disk/by-id, read-only",
+	} {
+		app := App{ID: "a", Name: "A", Version: "1.0", Compose: []byte("services:\n  a:\n    image: example/a:1.0\n    volumes:\n      - " + p + ":/host:ro\n")}
+		c := converter()
+		r := c.Convert(t.Context(), app)
+		if r.Entry != nil || r.Class != ClassReaches || !strings.Contains(r.LeftOut, `"`+reaches) {
+			t.Errorf("%s, with nobody looking: %s %q", p, r.Class, r.LeftOut)
+			continue
+		}
+		c.Overlays["a"] = Overlay{Entry: &catalogv1.Entry{Summary: "Reads the server", Category: "monitoring", HostAccess: "The server, to read it"}, Reaches: []string{reaches}}
+		if r := c.Convert(t.Context(), app); r.Entry == nil {
+			t.Errorf("%s, looked at: %s %q", p, r.Class, r.LeftOut)
 		}
 	}
 }
