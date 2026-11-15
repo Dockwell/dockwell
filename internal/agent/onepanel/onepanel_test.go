@@ -289,14 +289,17 @@ func TestAFailedReadGoesAgain(t *testing.T) {
 	}
 }
 
-// A site's redirects are read from its redirect folder, in the shapes 1Panel writes
-// them, each with whether it's on, and nothing else there is (ADR 0070).
 // A file swapped for a link or a pipe after the folder was listed is refused, not
-// followed or waited on.
+// followed or waited on, and a folder swapped for a link isn't followed either.
 func TestARedirectFileIsReadOnlyIfRegular(t *testing.T) {
 	dir := t.TempDir()
 	onepaneltest.WriteFile(t, filepath.Join(dir, "www.conf"), "return 301 https://example.com;")
-	if text, err := readSome(filepath.Join(dir, "www.conf"), 8); err != nil || text != "return 3" {
+	folder, err := os.Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer folder.Close()
+	if text, err := readSome(folder, "www.conf", 8); err != nil || text != "return 3" {
 		t.Errorf("a regular file reads %q, %v", text, err)
 	}
 	if err := os.Symlink(filepath.Join(dir, "www.conf"), filepath.Join(dir, "linked.conf")); err != nil {
@@ -308,7 +311,7 @@ func TestARedirectFileIsReadOnlyIfRegular(t *testing.T) {
 	for _, name := range []string{"linked.conf", "pipe.conf"} {
 		done := make(chan error, 1)
 		go func() {
-			_, err := readSome(filepath.Join(dir, name), 8)
+			_, err := readSome(folder, name, 8)
 			done <- err
 		}()
 		select {
@@ -320,28 +323,58 @@ func TestARedirectFileIsReadOnlyIfRegular(t *testing.T) {
 			t.Fatalf("reading %s waits", name)
 		}
 	}
+
+	// The folder, listed, is swapped for a link to another holding the same names:
+	// what's read is still the listed folder's.
+	parent := t.TempDir()
+	listed, elsewhere := filepath.Join(parent, "redirect"), filepath.Join(parent, "elsewhere")
+	onepaneltest.WriteFile(t, filepath.Join(listed, "www.conf"), "listed")
+	onepaneltest.WriteFile(t, filepath.Join(elsewhere, "www.conf"), "elsewhere")
+	opened, err := os.Open(listed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer opened.Close()
+	if err := os.Rename(listed, filepath.Join(parent, "moved")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(elsewhere, listed); err != nil {
+		t.Fatal(err)
+	}
+	if text, err := readSome(opened, "www.conf", 64); err != nil || text != "listed" {
+		t.Errorf("a folder swapped for a link after it was listed reads %q, %v", text, err)
+	}
+	if got := readRedirects(listed, maxRedirects, maxRedirectEntries); got != nil {
+		t.Errorf("a redirect folder that's a link reads %v", got)
+	}
 }
 
-// However many files the folder holds, only so many are looked at, and they're said by name.
+// However many names the folder holds, only so many are looked at, and only so many
+// redirects read, a batch at a time; what's read is said by name.
 func TestASitesRedirectsAreBounded(t *testing.T) {
-	root := onepaneltest.Make(t, "/opt", false)
-	dir := filepath.Join(root, "data", "www", "sites", "blog", "redirect")
-	for i := range maxRedirects + 50 {
+	dir := t.TempDir()
+	for i := range 150 {
 		onepaneltest.WriteFile(t, filepath.Join(dir, fmt.Sprintf("r%03d.conf", i)), "rewrite ^/a(.*) https://example.com$1 permanent;\n")
 	}
-	var names []string
-	for _, w := range readOK(t, root).GetWebsites() {
-		if w.GetAlias() == "blog" {
-			for _, r := range w.GetRedirects() {
-				names = append(names, r.GetName())
-			}
+	for _, tc := range []struct{ files, entries, want int }{
+		{files: 100, entries: 1000, want: 100},
+		// Fewer names looked at than there are redirects: no more are read.
+		{files: 100, entries: 30, want: 30},
+		{files: 100, entries: 1, want: 1},
+	} {
+		got := readRedirects(dir, tc.files, tc.entries)
+		names := make([]string, 0, len(got))
+		for _, r := range got {
+			names = append(names, r.GetName())
 		}
-	}
-	if len(names) != maxRedirects || !slices.IsSorted(names) {
-		t.Errorf("read %d redirects, sorted %v", len(names), slices.IsSorted(names))
+		if len(names) != tc.want || !slices.IsSorted(names) {
+			t.Errorf("%d files from %d names: read %d, sorted %v", tc.files, tc.entries, len(names), slices.IsSorted(names))
+		}
 	}
 }
 
+// A site's redirects are read from its redirect folder, in the shapes 1Panel writes
+// them, each with whether it's on, and nothing else there is (ADR 0070).
 func TestASitesRedirectsAreRead(t *testing.T) {
 	root := onepaneltest.Make(t, "/opt", false)
 	dir := filepath.Join(root, "data", "www", "sites", "blog", "redirect")
