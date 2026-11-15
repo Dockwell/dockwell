@@ -21,6 +21,7 @@ import (
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/control/alerts"
 	"github.com/dockwell/dockwell/internal/control/health"
+	logapi "github.com/dockwell/dockwell/internal/control/logs"
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource/alert"
 	"github.com/dockwell/dockwell/internal/revision"
@@ -75,7 +76,10 @@ func TestAnAlertFromItsRuleToItsWebhook(t *testing.T) {
 }
 
 func testAnAlert(t *testing.T, backend store.Backend) {
-	f := startFull(t, backend, nil)
+	// The test's evaluator is the only one: the control plane's own, on the clock,
+	// would take the failed change below as it ticks beside it, and wait out its 30
+	// seconds by the clock where the test never does.
+	f := startFullConfig(t, backend, nil, slog.New(slog.DiscardHandler), nil, logapi.Options{}, func(c *Config) { c.ManualAlerts = true })
 	b := signedIn(t, f)
 	c := changeClient(b, b.origin)
 	sites := dockwellv1connect.NewAlertServiceClient(b, b.origin, connect.WithProtoJSON())
