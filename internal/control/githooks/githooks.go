@@ -151,6 +151,14 @@ func (h *Handler) startReading(source string) bool {
 	return true
 }
 
+// ReadingFrom says how many deliveries from addr's source are being read now, as
+// a test waits for the ones it holds open.
+func (h *Handler) ReadingFrom(addr string) int {
+	h.readingMu.Lock()
+	defer h.readingMu.Unlock()
+	return h.readingFrom[sourceBlock(addr)]
+}
+
 func (h *Handler) doneReading(source string) {
 	h.readingMu.Lock()
 	defer h.readingMu.Unlock()
