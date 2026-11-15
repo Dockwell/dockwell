@@ -551,6 +551,7 @@ describe("Members", () => {
             tokens: [{ id: "tok_1", name: "GitHub Actions deploy" }],
             invites: [{ id: "inv_1", email: "lin@example.com", role: Role.VIEWER }],
             changes: [{ id: "chg_1", summary: "Deploy web 1.5" }],
+            links: [{ provider: "Our Authentik", account: "ada@example.com" }],
           }),
           removeMember,
         },
@@ -563,6 +564,7 @@ describe("Members", () => {
       expect(sheet).toHaveTextContent("lin@example.com");
       expect(sheet).toHaveTextContent("Deploy web 1.5");
       expect(sheet).toHaveTextContent("Sign-inPasskeys and codes deleted");
+      expect(sheet).toHaveTextContent("Provider accounts unlinkedOur Authentik · ada@example.com");
       expect(sheet).toHaveTextContent("Apps and tasks they set upKeep running");
       expect(removeMember).not.toHaveBeenCalled();
       await user.click(within(sheet).getByRole("button", { name: "Remove Ada Park" }));

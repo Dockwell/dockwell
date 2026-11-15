@@ -15689,6 +15689,9 @@ msgstr "Passkeys and codes deleted"
 msgid "Planned changes discarded"
 msgstr "Planned changes discarded"
 
+msgid "Provider accounts unlinked"
+msgstr "Provider accounts unlinked"
+
 msgid "Reading what this would end"
 msgstr "Reading what this would end"
 

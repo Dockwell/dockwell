@@ -407,6 +407,25 @@ function RemoveSheet({ member, onClose }: { member: Member; onClose: () => void 
                   ? t`None open`
                   : plural(p.sessions, { one: "# browser is signed out", other: "# browsers are signed out" })}
               </dd>
+              {/* Another way they signed in, at a provider (ADR 0095): said only where there's one. */}
+              {p.links.length > 0 ? (
+                <>
+                  <dt>{t`Provider accounts unlinked`}</dt>
+                  <dd>
+                    <ul className="members-removal-list">
+                      {p.links.map((link) => (
+                        <li key={link.provider}>
+                          {link.provider}
+                          <span className="members-muted">
+                            {" · "}
+                            {link.account}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </dd>
+                </>
+              ) : null}
               <dt>{t`API tokens revoked`}</dt>
               <dd>
                 {p.tokens.length === 0 ? (

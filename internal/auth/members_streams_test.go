@@ -95,7 +95,7 @@ func TestRemovingSomeoneEndsTheirLinksAndStreams(t *testing.T) {
 		streams := map[string]context.Context{}
 		for what, p := range map[string]Principal{"her passkey's session": ada.p, "her provider's session": viaProvider, "her API token": viaToken} {
 			stream, stop := f.svc.Track(t.Context(), onDomain, p)
-			defer stop()
+			t.Cleanup(stop)
 			streams[what] = stream
 		}
 		owners, stop := f.svc.Track(t.Context(), onDomain, f.owner)

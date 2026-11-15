@@ -15689,6 +15689,9 @@ msgstr "通行密钥和验证码已删除"
 msgid "Planned changes discarded"
 msgstr "丢弃的计划变更"
 
+msgid "Provider accounts unlinked"
+msgstr "取消关联的登录提供方账户"
+
 msgid "Reading what this would end"
 msgstr "正在读取这会终止什么"
 

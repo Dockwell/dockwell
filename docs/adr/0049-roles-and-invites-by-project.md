@@ -191,28 +191,33 @@ Decided when changing a role, removing someone and transferring ownership were b
 **The calls,** each `needs_session`, admin on the install (the owner alone for a transfer), each with its own step-up bound to what it's for:
 
 - `SetMemberRole` (111, bound to the person, the role and the place): gives a role in a place, the install or one project, in place of what they held there. An admin holds the install, so making someone an admin takes back their project grants, which it covers. A role of none takes back what they hold in that place; taking back the last thing someone holds is refused, as that is removing them, which says so.
-- `PlanMemberRemoval`: reads what removing someone would end, so whoever removes them sees it first: their sessions, their API tokens with when each was last used, the open invites they made, and the changes they planned and didn't apply.
+- `PlanMemberRemoval`: reads what removing someone would end, so whoever removes them sees it first: their sessions, their API tokens with when each was last used, their accounts at sign-in providers by the provider's name, the open invites they made, and the changes they planned and didn't apply.
 - `RemoveMember` (112, bound to the person): does it.
 - `TransferOwnership` (113, bound to the person).
 
 **What removing someone does,** in one transaction:
 
 - Their sign-in is off: passkeys, authenticator codes and recovery codes are deleted, and their sessions end.
+- **Their accounts at sign-in providers are deleted** ([ADR 0095](0095-signing-in-to-the-panel-with-a-provider.md)), as each is another way they signed in.
 - **Every API token they made is revoked,** the CLI's local one too. A token acts for its maker (ADR 0016), so none outlives them under anyone's name: whoever needs what a token did makes their own.
 - **The open invites they made are revoked,** each audited, so nobody joins on the word of someone who's gone.
 - Their grants go.
 - Their name stays: the person's row is kept, marked removed, so Activity and the audit log still say who did what. Their email is free again, and inviting it later makes a new person.
 
+Once it commits, **every stream they have open ends at once,** on any session or token.
+
 Then, outside that transaction, **the changes they planned and hadn't applied are discarded,** by Dockwell, each on Activity. If one can't be discarded it stays planned, and applying it is checked against whoever applies it, never against who planned it.
 
 **What lowering someone's role does.** Lowering is giving a lower role in a place, or taking a place back. An owner who becomes an admin in a transfer isn't lowered in this sense: they keep managing, and only the CLI's local token that acted for them as owner is revoked. In the same transaction as the change:
 
-- Their sessions end, so they sign in again as who they now are, and nothing they had open, a terminal, a file, a passkey's proof, a stream, goes on as who they were. A stream ends at its next recheck, within 30 seconds.
+- Their sessions end, so they sign in again as who they now are, and nothing they had open, a terminal, a file, a passkey's proof, a stream, goes on as who they were.
 - **Their API tokens are revoked,** as on removal. Each call already checks a token against its maker's grants as they stand, so a token could do no more than its maker now can; revoking is the plainer rule, and whoever still needs one makes it again with what they hold now.
 - **The open invites they made are revoked** when they are no longer an admin, as only an admin invites.
 - The changes they planned stay planned: applying is checked against whoever applies.
 
-Raising someone's role ends nothing.
+Raising someone's role ends no session or token.
+
+**Any change to what someone holds ends their open streams at once,** once it commits: a raise, a lowering, a project's role, and both people in a transfer. Each stream was narrowed to what they held when it opened, and a recheck within 30 seconds would end one only once they may no longer make it, so a stream could show a lowered person more than they now hold for that long. Ending them all is the plainer rule: a page opens its streams again as the person now may, or, signed out, not at all. Open streams are kept by whose they are as well as by session or token, for this.
 
 **Nothing that acts on a server keeps running on a removed person's authority.** Checked against what acts:
 
@@ -222,7 +227,7 @@ Raising someone's role ends nothing.
 - Alert mutes: a mute holds messages for a while and acts on nothing; it stays until it ends, with their name beside it.
 - Sessions, terminals, uploads and passkey proofs: ended with their sessions.
 
-**On record.** `member.role` says who, the role and place, and the role before. `member.remove` says who, and how many sessions, tokens, invites and changes went with them. `owner.transfer` says who is the owner now, and who was. Each is an access event, on Activity and in the audit log.
+**On record.** `member.role` says who, the role and place, and the role before. `member.remove` says who, and how many sessions, tokens, provider links, invites and changes went with them. `owner.transfer` says who is the owner now, and who was. Each is an access event, on Activity and in the audit log.
 
 **The protection confirmation is a recorded step.** This replaces "a prompt, not a gate" above. Before anyone else can sign in, an admin or the owner confirms they've looked at which environments are protected: `ConfirmProtections`, audited as `member.protections_confirm` with each environment's protection as it stood. Until it's recorded, `CreateInvite` is refused on an install where only one person signs in, whoever calls it, with the reason `protections_unconfirmed`. It's recorded once and kept: changing an environment's protection later is a change with a plan of its own, and asks nothing again. An install that already has a second person needs none.
 
