@@ -484,6 +484,11 @@ type Way struct {
 	Need    *catalogv1.Need
 	Engine  catalogv1.Engine
 	Version string
+	// UpgradeRelease is, for a server Why says another app's install keeps, the
+	// release of that install's entry it would upgrade to for its server to be shared,
+	// and UpgradeApp the app's name.
+	UpgradeRelease uint32
+	UpgradeApp     string
 	// From is the catalog entry a new one comes from, nil for the entry's own
 	// service, and FromCatalog the source it's in.
 	From        *catalogv1.Entry
@@ -623,7 +628,7 @@ func Ways(e *catalogv1.Entry, lookup Lookup) map[string][]Way {
 func WaysWith(e *catalogv1.Entry, lookup Lookup, candidates []Candidate, on string) map[string][]Way {
 	out := waysNew(e, lookup)
 	for _, n := range e.GetNeeds() {
-		out[n.GetName()] = append(out[n.GetName()], existing(n, e.GetName(), candidates, on)...)
+		out[n.GetName()] = append(out[n.GetName()], existing(n, e.GetName(), candidates, on, lookup)...)
 	}
 	return out
 }

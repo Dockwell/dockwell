@@ -464,6 +464,15 @@ message CatalogNeedOption {
   // keeps to no prefix of its own. Choosing it takes a role in each; its plan names
   // them too. Numbered in the block connectable apps hold, 40 to 49.
   repeated string ends_apart = 41;
+  // Where why is that another app's catalog install keeps the server in its own
+  // file, at a release from before its own database was a need: that install's
+  // project, by ID, which UpgradeCatalogInstall takes, the release it would upgrade
+  // to, whose need the server meets, and the app's name. Once it has, the server is
+  // offered, and the plan that first shares it pins it apart (ADR 0084). Numbered in
+  // the block connectable apps hold, 40 to 49.
+  string upgrade_install = 42;
+  uint32 upgrade_release = 43;
+  string upgrade_app = 44;
 }
 
 // CatalogPart is one service an entry installs.

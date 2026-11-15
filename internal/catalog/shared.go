@@ -54,6 +54,10 @@ type Candidate struct {
 	// that isn't waits (ADR 0084).
 	PartOf   string
 	Pinnable bool
+	// PartOfRelease is the release of PartOf's entry its install's pin is at, which an
+	// upgrade to one whose need its service meets lets the plan that first shares it
+	// pin it apart (ADR 0084).
+	PartOfRelease uint32
 }
 
 // KeepsApart reports a Redis or Valkey shared way on which each app keeps to its own
@@ -95,7 +99,7 @@ func usersOwn(e catalogv1.Engine) bool {
 // existing lists the candidates for a need, the usable first, each with why it can't
 // meet the need where it can't. on is the server the app goes on, by ID, or empty
 // where the app can go wherever the candidate is.
-func existing(n *catalogv1.Need, app string, candidates []Candidate, on string) []Way {
+func existing(n *catalogv1.Need, app string, candidates []Candidate, on string, lookup Lookup) []Way {
 	var usable, not []Way
 	for i := range candidates {
 		c := &candidates[i]
@@ -123,6 +127,14 @@ func existing(n *catalogv1.Need, app string, candidates []Candidate, on string) 
 		case c.AdministeredBy != "":
 			w.Why = c.AdministeredBy + " signs in to it as its administrator"
 		case c.PartOf != "" && !c.Pinnable:
+			// One its install's release keeps in its own file can be shared once that
+			// install upgrades to a release whose need it meets: the row says so, with the
+			// upgrade, rather than leaving a person nowhere to go.
+			if upgrade, name := upgradeShares(c, lookup); upgrade > 0 {
+				w.Why = fmt.Sprintf("%s's release %d keeps it in its own install", name, c.PartOfRelease)
+				w.UpgradeRelease, w.UpgradeApp = upgrade, name
+				break
+			}
 			w.Why = fmt.Sprintf("Part of %s's install, whose upgrades would change it", c.PartOf)
 		case len(c.Servers) != 1:
 			w.Why = "Runs on more than one server"
@@ -301,4 +313,24 @@ func ServiceNames(file string) ([]string, error) {
 		return nil, err
 	}
 	return slices.Sorted(maps.Keys(services)), nil
+}
+
+// upgradeShares is the release of a candidate's install's entry, and the entry's name,
+// that the install would upgrade to for its server to be shared: one past the pin's,
+// in which a need of the entry is met by that service, of the engine it runs, so the
+// plan that first shares it pins it apart. Zero where there's none.
+func upgradeShares(c *Candidate, lookup Lookup) (uint32, string) {
+	if lookup == nil || c.PartOfRelease == 0 {
+		return 0, ""
+	}
+	e, _, ok := lookup(c.PartOf)
+	if !ok || e.GetRelease() <= c.PartOfRelease {
+		return 0, ""
+	}
+	for _, n := range e.GetNeeds() {
+		if n.GetService() == c.Service && acceptOf(n, c.Engine) != nil {
+			return e.GetRelease(), e.GetName()
+		}
+	}
+	return 0, ""
 }

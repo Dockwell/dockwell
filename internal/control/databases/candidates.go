@@ -28,32 +28,35 @@ const linkKind = "link"
 // pinnable reports the entry's own service for a need of its name, which the plan
 // that first shares it pins apart from the app, so the app's upgrades leave it as it
 // runs (ADR 0084).
-func pinnedApart(ctx context.Context, tx *store.Tx, environment, service string, engine catalogv1.Engine) (kept, pinnable bool, err error) {
+//
+// release is the release of the install's entry its pin is at.
+func pinnedApart(ctx context.Context, tx *store.Tx, environment, service string, engine catalogv1.Engine) (kept, pinnable bool, release uint32, err error) {
 	env, err := tx.GetResourceByID(ctx, environment)
 	if errors.Is(err, store.ErrNotFound) {
-		return false, false, nil
+		return false, false, 0, nil
 	}
 	if err != nil {
-		return false, false, err
+		return false, false, 0, err
 	}
 	project, err := tx.GetResourceByID(ctx, env.Scope)
 	if errors.Is(err, store.ErrNotFound) || err == nil && project.Spec == nil {
-		return false, false, nil
+		return false, false, 0, nil
 	}
 	if err != nil {
-		return false, false, err
+		return false, false, 0, err
 	}
 	// A project is never sealed (ADR 0022).
 	spec := &resourcev1.Project{}
 	if err := proto.Unmarshal(project.Spec, spec); err != nil {
-		return false, false, fmt.Errorf("can't read the project %s: %w", project.Name, err)
+		return false, false, 0, fmt.Errorf("can't read the project %s: %w", project.Name, err)
 	}
+	release = spec.GetCatalog().GetRelease()
 	key, ok := catalog.NeedOf(spec.GetCatalog(), service, engine)
 	if !ok {
-		return false, false, nil
+		return false, false, release, nil
 	}
 	n := spec.GetCatalog().GetNeeds()[key]
-	return len(n.GetFile()) > 0, len(n.GetFile()) == 0 && len(spec.GetCatalog().GetFile()) > 0, nil
+	return len(n.GetFile()) > 0, len(n.GetFile()) == 0 && len(spec.GetCatalog().GetFile()) > 0, release, nil
 }
 
 // databaseEntries are the catalog's entries that install a database of its own.
@@ -126,12 +129,12 @@ func (h *Handler) Candidates(ctx context.Context) ([]catalog.Candidate, error) {
 			// a need's new one from the catalog added, which the install's pin keeps as
 			// it ran.
 			if entry := db.GetCatalogEntry(); entry != "" && !databaseEntries[entry] {
-				kept, pinnable, err := pinnedApart(ctx, tx, env, p.ref.Name, catalogv1.Engine(db.GetEngine()))
+				kept, pinnable, release, err := pinnedApart(ctx, tx, env, p.ref.Name, catalogv1.Engine(db.GetEngine()))
 				if err != nil {
 					return err
 				}
 				if !kept {
-					c.PartOf, c.Pinnable = entry, pinnable
+					c.PartOf, c.Pinnable, c.PartOfRelease = entry, pinnable, release
 				}
 			}
 			for i := range p.servers {

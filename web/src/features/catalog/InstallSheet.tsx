@@ -416,6 +416,23 @@ export function InstallSheet({
     ...parts.map((part) => part.image),
   ].join(" · ");
 
+  // The upgrade of another app's install that lets its server be shared, planned over
+  // the sheet; once it's applied, the sheet asks again what can meet each need.
+  const upgradeFor = (option: CatalogNeedOption) =>
+    setPlan({
+      kind: "plan",
+      make: () => client.upgradeCatalogInstall({ id: option.upgradeInstall }),
+      onDone: () => {
+        setPlan(undefined);
+        void got.refetch();
+      },
+      doneLabel: t`Back to ${app}`,
+      onClose: () => {
+        setPlan(undefined);
+        void got.refetch();
+      },
+    });
+
   const review = (planned: Change | undefined) => {
     const service = (name: string) =>
       planned?.plan?.resources.find((r) => r.resource?.kind === "service" && r.resource.name === name);
@@ -670,6 +687,7 @@ export function InstallSheet({
                       value={pick?.choice ?? ""}
                       disabled={busy}
                       onPick={(choice) => setNeedPicks((was) => ({ ...was, [need.name]: choice }))}
+                      onUpgrade={upgradeFor}
                     />
                   );
                 }
@@ -1050,12 +1068,15 @@ function NeedPicker({
   options,
   value,
   onPick,
+  onUpgrade,
   disabled,
 }: {
   need: Need;
   options: readonly CatalogNeedOption[];
   value: string;
   onPick: (choice: string) => void;
+  // Plans the upgrade of the install a server is part of, which lets it be shared.
+  onUpgrade: (option: CatalogNeedOption) => void;
   // While its plan is asked for, the pick stays as it is.
   disabled?: boolean;
 }) {
@@ -1124,6 +1145,30 @@ function NeedPicker({
               const project = option.project;
               const engine = engineName(option.engine);
               const apps = option.sharedWith.join(", ");
+              // Another app's install keeps it, at a release from before its own database
+              // was a need: the row says so with the upgrade that lets it be shared, rather
+              // than leaving a person nowhere to go (ADR 0084).
+              if (option.upgradeInstall !== "") {
+                const upgraded = option.upgradeApp;
+                return (
+                  <div key={option.choice} className="catalog-need-server is-off">
+                    <span className="catalog-need-server-name">
+                      <Trans>
+                        {service} in {project}
+                      </Trans>
+                    </span>{" "}
+                    <code className="catalog-engine-version">
+                      {engine} {option.version}
+                    </code>
+                    <span className="catalog-need-server-state catalog-need-upgrade">
+                      <span>{option.why}</span>
+                      <Button size="sm" variant="secondary" disabled={disabled} onClick={() => onUpgrade(option)}>
+                        <Trans>Upgrade {upgraded}</Trans>
+                      </Button>
+                    </span>
+                  </div>
+                );
+              }
               return (
                 <label
                   key={option.choice}
