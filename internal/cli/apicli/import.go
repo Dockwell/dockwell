@@ -167,7 +167,12 @@ func domainChecksView(w io.Writer, checks []*dockwellv1.PanelDomainCheck) {
 			for _, p := range c.GetProbes() {
 				answers = append(answers, p.GetPath()+" "+p.GetAnswer())
 			}
-			fmt.Fprintf(tw, "  %s\t%s\n", c.GetDomain(), strings.Join(answers, ", "))
+			said := strings.Join(answers, ", ")
+			if to := c.GetRedirectsTo(); to != "" {
+				// It comes as a redirect, and only with the domain it lands on.
+				said = "redirects to " + to + ": " + said
+			}
+			fmt.Fprintf(tw, "  %s\t%s\n", c.GetDomain(), said)
 		}
 	}
 	if len(held) > 0 {
