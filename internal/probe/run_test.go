@@ -3,7 +3,9 @@
 package probe_test
 
 import (
+	"bytes"
 	"errors"
+	"log/slog"
 	"net/netip"
 	"slices"
 	"strings"
@@ -172,5 +174,27 @@ func TestACheckRefusesAPrefixThatClimbsOut(t *testing.T) {
 	}
 	if got := srv.Objects(); len(got) != 0 {
 		t.Errorf("a refused prefix wrote %v", got)
+	}
+}
+
+// What the probe prints when it stops goes to the agent's log, without the
+// request's keys, and the caller gets the code alone: a panic, or an error that
+// says what it was given, never reaches whoever asked for the check.
+func TestWhatTheProbePrintsStaysInTheAgentsLog(t *testing.T) {
+	t.Parallel()
+	e := dockertest.New(t)
+	srv := s3test.New(t)
+	var logged bytes.Buffer
+	r := runner(e)
+	r.Logger = slog.New(slog.NewTextHandler(&logged, nil))
+	req := bucket(srv, false)
+	// A kind the probe doesn't check, which it says back, here the request's key.
+	req.Kind = "the-secret"
+	_, err := r.Run(t.Context(), req, nil)
+	if err == nil || strings.Contains(err.Error(), "the-secret") || strings.Contains(err.Error(), "doesn't check") || !strings.Contains(err.Error(), "with code 1") {
+		t.Errorf("the caller is told %v", err)
+	}
+	if got := logged.String(); strings.Contains(got, "the-secret") || !strings.Contains(got, "doesn't check") {
+		t.Errorf("the agent logs %s", got)
 	}
 }

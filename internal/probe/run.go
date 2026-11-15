@@ -149,7 +149,13 @@ func (r *Runner) Run(ctx context.Context, req Request, networks []string) (Resul
 	case err != nil:
 		return Result{}, fmt.Errorf("can't run the check's container: %w", err)
 	case code != 0:
-		return Result{}, fmt.Errorf("the check stopped with code %d: %s", code, strings.TrimSpace(errs.String()))
+		// What it printed stays in the agent's log, without the request's keys: a
+		// panic or a future error could carry what it was given, and the caller
+		// gets the code alone.
+		if r.Logger != nil {
+			r.Logger.Warn("a connection's check stopped before it finished", "code", code, "said", withoutKeys(strings.TrimSpace(errs.String()), req))
+		}
+		return Result{}, fmt.Errorf("the check stopped before it finished, with code %d. Try again, or read the agent's log on the server", code)
 	}
 	var res Result
 	if err := json.Unmarshal(out.Bytes(), &res); err != nil {
@@ -251,4 +257,17 @@ func (c *capped) Write(p []byte) (int, error) {
 		c.Buffer.Write(p[:min(len(p), room)])
 	}
 	return len(p), nil
+}
+
+// withoutKeys is what the probe printed with its request's keys taken out.
+func withoutKeys(said string, req Request) string {
+	if req.S3 == nil {
+		return said
+	}
+	for _, key := range []string{req.S3.SecretKey, req.S3.AccessKey} {
+		if key != "" {
+			said = strings.ReplaceAll(said, key, "[key]")
+		}
+	}
+	return said
 }
