@@ -193,7 +193,7 @@ Decided when changing a role, removing someone and transferring ownership were b
 - `SetMemberRole` (111, bound to the person, the role and the place): gives a role in a place, the install or one project, in place of what they held there. An admin holds the install, so making someone an admin takes back their project grants, which it covers. A role of none takes back what they hold in that place; taking back the last thing someone holds is refused, as that is removing them, which says so.
 - `PlanMemberRemoval`: reads what removing someone would end, so whoever removes them sees it first: their sessions, their API tokens with when each was last used, their accounts at sign-in providers by the provider's name, the open invites they made, and the changes they planned and didn't apply.
 - `RemoveMember` (112, bound to the person): does it.
-- `TransferOwnership` (113, bound to the person).
+- `TransferOwnership` (113, bound to the person). It asks for the passkey each time, whatever the owner chose for how often ([ADR 0075](0075-how-often-a-passkey-is-asked-for-again.md)), as a stolen session within its hour would otherwise give the install away for good. Changing a role and removing someone follow that choice, as inviting does.
 
 **What removing someone does,** in one transaction:
 
