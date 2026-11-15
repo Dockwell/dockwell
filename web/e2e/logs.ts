@@ -20,7 +20,7 @@
 
 import { type ChildProcess, execFileSync, spawn } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { availableParallelism, loadavg, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 
@@ -129,18 +129,55 @@ async function startServer(socket: string): Promise<void> {
   await until("its agent to connect", () => serverLog.join("").includes("connected to the control plane"));
 }
 
-/** Records a page's frame times and long tasks until the function it returns is called. */
-async function watchFrames(page: Page): Promise<
-  () => Promise<{
-    frames: number;
-    p50: number;
-    p95: number;
-    max: number;
-    longTasks: number;
-    longest: number;
-    heapMb: number;
-  }>
-> {
+/** What a page's frames and its own main thread did while it was watched. */
+interface Watched {
+  frames: number;
+  p50: number;
+  p95: number;
+  max: number;
+  longTasks: number;
+  longest: number;
+  heapMb: number;
+  /**
+   * The page's main thread's CPU time per second watched, from 0 to 1: its scripting, style,
+   * layout and paint, as Chrome counts the thread's time (Performance.getMetrics' ThreadTime).
+   * It's the page's own work, so other processes busy on the machine don't raise it, as they
+   * stretch the wall time between frames.
+   */
+  busy: number;
+  /**
+   * The page's main-thread tasks while it was watched, by their thread time, from a trace:
+   * how long a task ran on the CPU, which other processes don't stretch as they stretch its
+   * wall time. How many ran past LONGEST_TASK_MS, the longest, and the 95th percentile, in ms.
+   */
+  tasks: { count: number; long: number; longest: number; p95: number };
+}
+
+/**
+ * Records a page's frame times, long tasks and its main thread's CPU time until the
+ * function it returns is called.
+ */
+async function watchFrames(page: Page): Promise<() => Promise<Watched>> {
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Performance.enable");
+  const thread = async () => {
+    const { metrics } = await cdp.send("Performance.getMetrics");
+    const of = (name: string) => metrics.find((m) => m.name === name)?.value ?? 0;
+    return { cpu: of("ThreadTime"), at: of("Timestamp") };
+  };
+  const from = await thread();
+  // A trace of the page's tasks, for each one's own thread time (tdur), in microseconds.
+  type TraceEvent = { name: string; ph: string; tdur?: number; tid: number; pid: number; args?: { name?: string } };
+  const events: TraceEvent[] = [];
+  cdp.on("Tracing.dataCollected", (e) => {
+    for (const ev of e.value as unknown as TraceEvent[]) {
+      if (ev.name === "thread_name" || ev.name === "ThreadControllerImpl::RunTask") events.push(ev);
+    }
+  });
+  await cdp.send("Tracing.start", {
+    traceConfig: { includedCategories: ["toplevel", "__metadata"], recordMode: "recordContinuously" },
+    transferMode: "ReportEvents",
+  });
   await page.evaluate(() => {
     const w = window as unknown as { __frames: number[]; __long: number[]; __stop: boolean };
     w.__frames = [];
@@ -157,8 +194,8 @@ async function watchFrames(page: Page): Promise<
     };
     requestAnimationFrame(tick);
   });
-  return async () =>
-    page.evaluate(() => {
+  return async () => {
+    const frames = await page.evaluate(() => {
       const w = window as unknown as { __frames: number[]; __long: number[]; __stop: boolean };
       w.__stop = true;
       const sorted = [...w.__frames].sort((a, b) => a - b);
@@ -174,6 +211,50 @@ async function watchFrames(page: Page): Promise<
         heapMb: mem ? mem.usedJSHeapSize / 1e6 : 0,
       };
     });
+    const to = await thread();
+    const traced = new Promise<void>((r) => cdp.once("Tracing.tracingComplete", () => r()));
+    await cdp.send("Tracing.end");
+    await traced;
+    await cdp.detach();
+    const main = events.find((e) => e.name === "thread_name" && e.args?.name === "CrRendererMain");
+    const tdurs = events
+      .filter(
+        (e) =>
+          e.ph === "X" &&
+          e.name === "ThreadControllerImpl::RunTask" &&
+          main &&
+          e.tid === main.tid &&
+          e.pid === main.pid,
+      )
+      .map((e) => (e.tdur ?? 0) / 1000)
+      .sort((a, b) => a - b);
+    const tasks = {
+      count: tdurs.length,
+      long: tdurs.filter((d) => d > LONGEST_TASK_MS).length,
+      longest: tdurs[tdurs.length - 1] ?? 0,
+      p95: tdurs[Math.floor(tdurs.length * 0.95)] ?? 0,
+    };
+    return { ...frames, busy: to.at > from.at ? (to.cpu - from.cpu) / (to.at - from.at) : 0, tasks };
+  };
+}
+
+/**
+ * A long task by its own thread time, in ms: three frames. A frame's work and a batch of lines
+ * take a few ms here, and more only where the page does too much at once.
+ */
+const LONGEST_TASK_MS = 50;
+
+/**
+ * How many of the page's own tasks may run past LONGEST_TASK_MS in 21 s of filling. The page
+ * ran none on a quiet machine, and 19 under 28 busy loops on 16 CPUs, where it catches up in
+ * bigger batches; drawing each line 0.5 ms more dearly ran 168 (#634).
+ */
+const LONG_TASKS = 60;
+
+/** How busy the machine is: its 1-minute load average, and how many CPUs it has. */
+function machineLoad(): { load: number; cpus: number } {
+  const average = loadavg()[0] ?? 0;
+  return { load: average, cpus: availableParallelism() };
 }
 
 function fmt(n: number): string {
@@ -777,18 +858,36 @@ async function main() {
   await page.goto(url);
   const written = async () => Number((await (await fetch(`${load}/written`)).text()).trim());
   const writtenBefore = await written();
-  await post("/rate?lines=5000&size=120");
   await page.getByRole("status").getByText("Following").waitFor();
+  // The same page with nothing arriving first, in the same browser on the same machine: what its
+  // main thread and frames cost with no lines, so what the flood adds is told from the machine.
+  const stopIdle = await watchFrames(page);
+  await sleep(5_000);
+  const idle = await stopIdle();
+  await post("/rate?lines=5000&size=120");
   const stopFilling = await watchFrames(page);
   await sleep(21_000);
   const filling = await stopFilling();
   const wrote = (await written()) - writtenBefore;
-  step(
-    `  filling, 21 s, ${wrote.toLocaleString("en")} lines written: ${filling.frames} frames, p50 ${fmt(filling.p50)} ms, p95 ${fmt(filling.p95)} ms, worst ${fmt(filling.max)} ms; ${filling.longTasks} long tasks, longest ${fmt(filling.longest)} ms; JS heap ${fmt(filling.heapMb)} MB`,
-  );
-  // Generous, as machines vary. A line drawn too dearly shows up here, as one did.
-  if (filling.p95 > 50) fail(`at 5,000 lines a second from each replica, the p95 frame took ${fmt(filling.p95)} ms`);
   await post("/rate?lines=0");
+  const machine = machineLoad();
+  const pct = (n: number) => `${Math.round(n * 100)}%`;
+  const tasksSaid = (w: Watched) =>
+    `${w.tasks.count} tasks, ${w.tasks.long} past ${LONGEST_TASK_MS} ms of their own, the longest ${fmt(w.tasks.longest)} ms, p95 ${fmt(w.tasks.p95)} ms`;
+  step(
+    `  idle, 5 s: main thread ${pct(idle.busy)} of a CPU, ${tasksSaid(idle)}; p95 frame ${fmt(idle.p95)} ms; load ${fmt(machine.load)} on ${machine.cpus} CPUs`,
+  );
+  step(
+    `  filling, 21 s, ${wrote.toLocaleString("en")} lines written: main thread ${pct(filling.busy)} of a CPU, ${tasksSaid(filling)}; ${filling.frames} frames, p50 ${fmt(filling.p50)} ms, p95 ${fmt(filling.p95)} ms, worst ${fmt(filling.max)} ms; ${filling.longTasks} long tasks by the wall, longest ${fmt(filling.longest)} ms; JS heap ${fmt(filling.heapMb)} MB`,
+  );
+  // What the page itself holds the thread for while it fills, by each task's own thread time,
+  // rather than the wall time between frames, which other work on a busy machine stretches as
+  // much as anything the page does (#634). Frames are said above, for a person to read.
+  if (filling.tasks.long > LONG_TASKS) {
+    fail(
+      `at 5,000 lines a second from each replica, the page ran ${filling.tasks.long} tasks past ${LONGEST_TASK_MS} ms of its own thread time, more than ${LONG_TASKS}: the longest ${fmt(filling.tasks.longest)} ms, of ${filling.tasks.count}. With nothing arriving it ran ${idle.tasks.long}. The machine's load was ${fmt(machine.load)} on ${machine.cpus} CPUs, and frames were p95 ${fmt(filling.p95)} ms`,
+    );
+  }
   const rows = await page.locator(".dw-log-row").count();
   step(`  ${rows} rows in the DOM`);
   if (rows > 300) fail(`${rows} rows are drawn, and only those that show should be`);
