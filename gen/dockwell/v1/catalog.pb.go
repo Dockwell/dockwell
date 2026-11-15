@@ -648,9 +648,18 @@ type CatalogNeedOption struct {
 	// whose apps would read and change each other's data with this one's, as this app
 	// keeps to no prefix of its own. Choosing it takes a role in each; its plan names
 	// them too. Numbered in the block connectable apps hold, 40 to 49.
-	EndsApart     []string `protobuf:"bytes,41,rep,name=ends_apart,json=endsApart,proto3" json:"ends_apart,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	EndsApart []string `protobuf:"bytes,41,rep,name=ends_apart,json=endsApart,proto3" json:"ends_apart,omitempty"`
+	// Where why is that another app's catalog install keeps the server in its own
+	// file, at a release from before its own database was a need: that install's
+	// project, by ID, which UpgradeCatalogInstall takes, the release it would upgrade
+	// to, whose need the server meets, and the app's name. Once it has, the server is
+	// offered, and the plan that first shares it pins it apart (ADR 0084). Numbered in
+	// the block connectable apps hold, 40 to 49.
+	UpgradeInstall string `protobuf:"bytes,42,opt,name=upgrade_install,json=upgradeInstall,proto3" json:"upgrade_install,omitempty"`
+	UpgradeRelease uint32 `protobuf:"varint,43,opt,name=upgrade_release,json=upgradeRelease,proto3" json:"upgrade_release,omitempty"`
+	UpgradeApp     string `protobuf:"bytes,44,opt,name=upgrade_app,json=upgradeApp,proto3" json:"upgrade_app,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *CatalogNeedOption) Reset() {
@@ -786,6 +795,27 @@ func (x *CatalogNeedOption) GetEndsApart() []string {
 		return x.EndsApart
 	}
 	return nil
+}
+
+func (x *CatalogNeedOption) GetUpgradeInstall() string {
+	if x != nil {
+		return x.UpgradeInstall
+	}
+	return ""
+}
+
+func (x *CatalogNeedOption) GetUpgradeRelease() uint32 {
+	if x != nil {
+		return x.UpgradeRelease
+	}
+	return 0
+}
+
+func (x *CatalogNeedOption) GetUpgradeApp() string {
+	if x != nil {
+		return x.UpgradeApp
+	}
+	return ""
 }
 
 // CatalogPart is one service an entry installs.
@@ -3391,7 +3421,7 @@ const file_dockwell_v1_catalog_proto_rawDesc = "" +
 	"\x05needs\x18P \x03(\v2\x1e.dockwell.v1.CatalogNeedOptionR\x05needs\x1a9\n" +
 	"\vValuesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xcb\x03\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xbe\x04\n" +
 	"\x11CatalogNeedOption\x12\x12\n" +
 	"\x04need\x18\x01 \x01(\tR\x04need\x12\x16\n" +
 	"\x06choice\x18\x02 \x01(\tR\x06choice\x129\n" +
@@ -3413,7 +3443,11 @@ const file_dockwell_v1_catalog_proto_rawDesc = "" +
 	"\vkeeps_apart\x18( \x01(\bR\n" +
 	"keepsApart\x12\x1d\n" +
 	"\n" +
-	"ends_apart\x18) \x03(\tR\tendsApart\"\xf9\x03\n" +
+	"ends_apart\x18) \x03(\tR\tendsApart\x12'\n" +
+	"\x0fupgrade_install\x18* \x01(\tR\x0eupgradeInstall\x12'\n" +
+	"\x0fupgrade_release\x18+ \x01(\rR\x0eupgradeRelease\x12\x1f\n" +
+	"\vupgrade_app\x18, \x01(\tR\n" +
+	"upgradeApp\"\xf9\x03\n" +
 	"\vCatalogPart\x12\x18\n" +
 	"\aservice\x18\x01 \x01(\tR\aservice\x12\x14\n" +
 	"\x05image\x18\x02 \x01(\tR\x05image\x12\x1a\n" +

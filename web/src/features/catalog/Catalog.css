@@ -1519,6 +1519,18 @@
   line-height: 16px;
 }
 
+/* Another app's install keeps it until it upgrades: the state, and the upgrade beside it. */
+.catalog-need-upgrade {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+}
+
+.catalog-need-server.is-off .catalog-need-upgrade .dw-btn {
+  cursor: pointer;
+}
+
 /* What meets each of an install's needs, with Use another database (ADR 0084). */
 .catalog-need-lines {
   display: flex;

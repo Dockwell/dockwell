@@ -7255,6 +7255,9 @@ msgstr "At least {0} characters"
 msgid "At least {0} characters: letters, digits and - . _ ~"
 msgstr "At least {0} characters: letters, digits and - . _ ~"
 
+msgid "Back to {app}"
+msgstr "Back to {app}"
+
 msgid "Change {what}"
 msgstr "Change {what}"
 
@@ -7375,6 +7378,9 @@ msgstr "Such as 512M or 2G."
 
 msgid "Take away the space at its start or end."
 msgstr "Take away the space at its start or end."
+
+msgid "Upgrade {upgraded}"
+msgstr "Upgrade {upgraded}"
 
 msgid "Use a generated {label}"
 msgstr "Use a generated {label}"

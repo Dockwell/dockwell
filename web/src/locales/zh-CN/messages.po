@@ -7255,6 +7255,9 @@ msgstr "至少 {0} 个字符"
 msgid "At least {0} characters: letters, digits and - . _ ~"
 msgstr "至少 {0} 个字符：字母、数字和 - . _ ~"
 
+msgid "Back to {app}"
+msgstr "返回 {app}"
+
 msgid "Change {what}"
 msgstr "更改{what}"
 
@@ -7375,6 +7378,9 @@ msgstr "例如 512M 或 2G。"
 
 msgid "Take away the space at its start or end."
 msgstr "请去掉开头或结尾的空格。"
+
+msgid "Upgrade {upgraded}"
+msgstr "升级 {upgraded}"
 
 msgid "Use a generated {label}"
 msgstr "改用生成的 {label}"

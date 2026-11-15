@@ -55,6 +55,9 @@ func needOptions(e *catalogv1.Entry, ways map[string][]catalog.Way) []*dockwellv
 				o.SharedWith, o.Servers = c.SharedWith, c.ServerNames
 				o.KeepsApart = w.KeepsApart()
 				o.EndsApart, _ = w.EndsApart()
+				if w.UpgradeRelease > 0 {
+					o.UpgradeInstall, o.UpgradeRelease, o.UpgradeApp = c.ProjectID, w.UpgradeRelease, w.UpgradeApp
+				}
 			}
 			out = append(out, o)
 		}

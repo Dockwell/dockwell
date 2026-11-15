@@ -264,6 +264,63 @@ describe("A server you run, shared because you pick it", () => {
     expect(picker).toHaveTextContent("Shared with shop · its apps can read and change each other's data");
   });
 
+  it("names the upgrade that lets another app's server be shared, plans it over the sheet, and offers the server once it's applied", async () => {
+    const user = userEvent.setup();
+    const kept = create(CatalogNeedOptionSchema, {
+      need: "db",
+      choice: "service:site/production/db",
+      engine: Engine.MYSQL,
+      version: "8.4.11",
+      project: "site",
+      environment: "production",
+      service: "db",
+      serviceId: "svc_site_db",
+      why: "Ghost's release 4 keeps it in its own install",
+      upgradeInstall: "prj_site",
+      upgradeRelease: 5,
+      upgradeApp: "Ghost",
+    });
+    const offered = create(CatalogNeedOptionSchema, {
+      ...kept,
+      why: "",
+      upgradeInstall: "",
+      upgradeRelease: 0,
+      upgradeApp: "",
+    });
+    const needs = [ownMariaDB, catalogMySQL, kept];
+    let upgraded = "";
+    const change = create(ChangeSchema, {
+      id: "chg_ghost",
+      summary: "Upgrade Ghost to 6.72.0",
+      state: ChangeState.PLANNED,
+    });
+    const { container } = renderAt(
+      "/catalog/wordpress/install",
+      api(needs, {
+        upgradeCatalogInstall: (req) => {
+          upgraded = req.id;
+          // Once it's upgraded, the server reads as one that can be shared.
+          needs[2] = offered;
+          return { change };
+        },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "Install WordPress" });
+    const row = await within(sheet).findByRole("group", { name: "Database" });
+    await user.click(within(row).getByRole("button", { name: "Change database" }));
+    const picker = within(sheet).getByRole("group", { name: "Database" });
+    expect(picker).toHaveTextContent("Ghost's release 4 keeps it in its own install");
+    expect(within(picker).queryByRole("radio", { name: /db in site/ })).toBeNull();
+    await expectAccessible(container);
+    await user.click(within(picker).getByRole("button", { name: "Upgrade Ghost" }));
+    await waitFor(() => expect(upgraded).toBe("prj_site"));
+    expect(await screen.findByText("Upgrade Ghost to 6.72.0")).toBeVisible();
+    // Back from the plan, the sheet asks again, and the server is offered.
+    await user.click(within(sheet).getByRole("button", { name: "Cancel" }));
+    const again = await within(sheet).findByRole("radio", { name: /db in site/ });
+    expect(again).toBeEnabled();
+  });
+
   it("asks you to choose one where nothing new can be made", async () => {
     renderAt("/catalog/wordpress/install", api([sharedDB]));
     const sheet = await screen.findByRole("dialog", { name: "Install WordPress" });
