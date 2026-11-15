@@ -124,11 +124,13 @@ func (t *Tx) AcceptedInvite(ctx context.Context, userID string) (Invite, error) 
 }
 
 // PlannedChangesOf lists the changes a person planned that are still planned,
-// themselves or with any API token they made, whatever its state now, newest
-// first, without their items.
+// themselves or with any API token they made, whatever its state now, or that a
+// deploy-on-push hook planned for them: by whom the change says it acts for, or,
+// for one from before changes said so, by the hook's maker now. Newest first,
+// without their items.
 func (t *Tx) PlannedChangesOf(ctx context.Context, userID string) ([]Change, error) {
 	rows, err := t.query(ctx, `SELECT `+changeColumns+` FROM changes WHERE state = ? AND (actor = ? OR actor IN (SELECT 'token:' || id FROM api_tokens WHERE user_id = ?)
-		OR actor IN (SELECT 'hook:' || id FROM git_hooks WHERE user_id = ?) OR acts_for = ?) ORDER BY created_at DESC, id DESC`,
+		OR acts_for = ? OR acts_for = '' AND actor IN (SELECT 'hook:' || id FROM git_hooks WHERE user_id = ?)) ORDER BY created_at DESC, id DESC`,
 		ChangePlanned, "user:"+userID, userID, userID, userID)
 	if err != nil {
 		return nil, fmt.Errorf("can't list the changes %s planned: %w", userID, err)

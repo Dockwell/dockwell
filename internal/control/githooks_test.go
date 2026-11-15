@@ -1285,3 +1285,50 @@ func TestADeletedAppsHookGoesWithIt(t *testing.T) {
 		t.Errorf("web brought back has the hook %v, %v", got.Msg.GetHook(), err)
 	}
 }
+
+// A developer's push plan stays someone else's to an admin after the admin gives
+// the hook a new secret: rotating rebinds the hook, not the plans it left, which
+// stay among what the developer planned (from #253's re-check, N1).
+func TestRotatingAHookLeavesItsPlansTheirMakers(t *testing.T) {
+	t.Parallel()
+	g, push := devHookInProduction(t)
+	d := push("d-1", "2")
+	web := g.service(t, "", "web")
+	if _, err := g.hooks().RotateGitHookSecret(t.Context(), connect.NewRequest(&dockwellv1.RotateGitHookSecretRequest{
+		Id: web.GetId(), Proof: stepUpFor(t, g.b, dockwellv1.StepUpAction_STEP_UP_ACTION_ROTATE_GIT_HOOK, web.GetId()),
+	})); err != nil {
+		t.Fatal(err)
+	}
+	got, err := g.c.GetChange(t.Context(), connect.NewRequest(&dockwellv1.GetChangeRequest{Id: d.ChangeID}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.Msg.GetChange().GetApproves() {
+		t.Errorf("an admin reading a developer's push plan after rotating the hook: approves false, want true")
+	}
+	token := bearer{token: createToken(t, g.b, dockwellv1.TokenScope_TOKEN_SCOPE_READ_WRITE), rt: g.b.client.Transport}
+	_, err = changeClient(token, g.b.origin).ApplyChange(t.Context(), connect.NewRequest(&dockwellv1.ApplyChangeRequest{
+		Id: d.ChangeID, Fingerprint: got.Msg.GetChange().GetPlan().GetFingerprint(),
+	}))
+	if reasonOf(err) != authapi.ReasonNeedsSession {
+		t.Errorf("an admin's token applying a developer's push plan after rotating the hook: %v, want %s", err, authapi.ReasonNeedsSession)
+	}
+	if err := g.f.store.View(t.Context(), func(tx *store.Tx) error {
+		h, err := tx.GitHookOf(t.Context(), web.GetId())
+		if err != nil {
+			return err
+		}
+		for who, want := range map[string]bool{"usr_dev": true, h.UserID: false} {
+			planned, err := tx.PlannedChangesOf(t.Context(), who)
+			if err != nil {
+				return err
+			}
+			if has := slices.ContainsFunc(planned, func(c store.Change) bool { return c.ID == d.ChangeID }); has != want {
+				t.Errorf("what %s planned holds the developer's push plan after the rotation: %t, want %t", who, has, want)
+			}
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
