@@ -236,6 +236,10 @@ message GitHubAppInfo {
   GitHubDelivery delivery = 10;
   // GitHub refuses the App: deleted on GitHub, or its key removed there.
   bool gone = 11;
+  // The App's revision, which an edit of which projects its installations reach
+  // names as its base_revision, so it can't put back what another made since.
+  // An admin's alone.
+  int64 revision = 12;
 }
 
 // GitHubDelivery is whether GitHub's deliveries reach the panel, and so whether

@@ -119,3 +119,54 @@ func TestAProjectReadsAPrivateRepositoryThroughTheGitHubApp(t *testing.T) {
 		t.Errorf("a developer sees the App's key, settings or the projects it reaches: %v", app)
 	}
 }
+
+// Which projects an installation reaches is changed from the App as it was read:
+// a narrowing made from a read another admin's change has moved past is stale,
+// not a silent undo of theirs, and a new webhook secret keeps what reaches it now.
+func TestAnInstallationsProjectsChangeFromTheAppAsRead(t *testing.T) {
+	t.Parallel()
+	a := newAppBench(t)
+	ctx := t.Context()
+	read := func() int64 {
+		t.Helper()
+		listed, err := a.gp.ListGitProviders(ctx, connect.NewRequest(&dockwellv1.ListGitProvidersRequest{}))
+		if err != nil || len(listed.Msg.GetApps()) != 1 || listed.Msg.GetApps()[0].GetRevision() == 0 {
+			t.Fatalf("the App as an admin reads it: %v, %v", listed, err)
+		}
+		return listed.Msg.GetApps()[0].GetRevision()
+	}
+	narrow := func(base int64, project string) error {
+		t.Helper()
+		p, err := a.c.ProposeChange(ctx, connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Narrow acme", Edits: []*dockwellv1.Edit{{
+			Resource: &dockwellv1.ResourceRef{Kind: "github.app", Name: a.app.GetName()}, BaseRevision: base,
+			Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_GithubApp{GithubApp: &resourcev1.GitHubApp{
+				Reaches: []*resourcev1.GitHubInstallationReach{{InstallationId: 7, Projects: []string{project}}},
+			}}},
+		}}}))
+		if err != nil {
+			return err
+		}
+		a.done(t, p.Msg.GetChange())
+		return nil
+	}
+	both := read()
+	if err := narrow(both, "prj_01JD6Z3R8M9QF2K7T4XW5BNCZZ"); err != nil {
+		t.Fatal(err)
+	}
+	// The second admin read the App before the first narrowed it.
+	if err := narrow(both, "prj_01JD6Z3R8M9QF2K7T4XW5BNCYY"); reasonOf(err) != "plan_stale" {
+		t.Errorf("a narrowing from a read another change moved past: %v", err)
+	}
+	if _, err := a.gp.RotateGitHubWebhookSecret(ctx, connect.NewRequest(&dockwellv1.RotateGitHubWebhookSecretRequest{
+		Id: a.app.GetId(), Proof: stepUpFor(t, a.b, dockwellv1.StepUpAction_STEP_UP_ACTION_ROTATE_GITHUB_APP, a.app.GetId()),
+	})); err != nil {
+		t.Fatal(err)
+	}
+	listed, err := a.gp.ListGitProviders(ctx, connect.NewRequest(&dockwellv1.ListGitProvidersRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := listed.Msg.GetApps()[0].GetInstallations()[0].GetProjects(); len(got) != 1 || got[0] != "prj_01JD6Z3R8M9QF2K7T4XW5BNCZZ" {
+		t.Errorf("after a new webhook secret, installation 7 reaches %v, not the first narrowing", got)
+	}
+}

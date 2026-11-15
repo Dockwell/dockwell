@@ -16111,6 +16111,12 @@ components:
                 gone:
                     type: boolean
                     description: 'GitHub refuses the App: deleted on GitHub, or its key removed there.'
+                revision:
+                    type: string
+                    description: |-
+                        The App's revision, which an edit of which projects its installations reach
+                         names as its base_revision, so it can't put back what another made since.
+                         An admin's alone.
             description: |-
                 GitHubAppInfo is a connected GitHub App, as anyone may see it: its key and webhook
                  secret are never in an answer.

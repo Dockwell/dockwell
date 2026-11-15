@@ -523,7 +523,11 @@ type GitHubAppInfo struct {
 	// last said.
 	Delivery *GitHubDelivery `protobuf:"bytes,10,opt,name=delivery,proto3" json:"delivery,omitempty"`
 	// GitHub refuses the App: deleted on GitHub, or its key removed there.
-	Gone          bool `protobuf:"varint,11,opt,name=gone,proto3" json:"gone,omitempty"`
+	Gone bool `protobuf:"varint,11,opt,name=gone,proto3" json:"gone,omitempty"`
+	// The App's revision, which an edit of which projects its installations reach
+	// names as its base_revision, so it can't put back what another made since.
+	// An admin's alone.
+	Revision      int64 `protobuf:"varint,12,opt,name=revision,proto3" json:"revision,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -633,6 +637,13 @@ func (x *GitHubAppInfo) GetGone() bool {
 		return x.Gone
 	}
 	return false
+}
+
+func (x *GitHubAppInfo) GetRevision() int64 {
+	if x != nil {
+		return x.Revision
+	}
+	return 0
 }
 
 // GitHubDelivery is whether GitHub's deliveries reach the panel, and so whether
@@ -1413,7 +1424,7 @@ const file_dockwell_v1_gitprovider_proto_rawDesc = "" +
 	"\finstallation\x18\x01 \x01(\v2\x1f.dockwell.v1.GitHubInstallationR\finstallation\"\x19\n" +
 	"\x17ListGitProvidersRequest\"J\n" +
 	"\x18ListGitProvidersResponse\x12.\n" +
-	"\x04apps\x18\x01 \x03(\v2\x1a.dockwell.v1.GitHubAppInfoR\x04apps\"\x8f\x03\n" +
+	"\x04apps\x18\x01 \x03(\v2\x1a.dockwell.v1.GitHubAppInfoR\x04apps\"\xab\x03\n" +
 	"\rGitHubAppInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x15\n" +
@@ -1426,7 +1437,8 @@ const file_dockwell_v1_gitprovider_proto_rawDesc = "" +
 	"\rinstallations\x18\t \x03(\v2\x1f.dockwell.v1.GitHubInstallationR\rinstallations\x127\n" +
 	"\bdelivery\x18\n" +
 	" \x01(\v2\x1b.dockwell.v1.GitHubDeliveryR\bdelivery\x12\x12\n" +
-	"\x04gone\x18\v \x01(\bR\x04gone\"\x90\x03\n" +
+	"\x04gone\x18\v \x01(\bR\x04gone\x12\x1a\n" +
+	"\brevision\x18\f \x01(\x03R\brevision\"\x90\x03\n" +
 	"\x0eGitHubDelivery\x127\n" +
 	"\x05state\x18\x01 \x01(\x0e2!.dockwell.v1.GitHubDelivery.StateR\x05state\x12=\n" +
 	"\fchecked_time\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\vcheckedTime\x12.\n" +

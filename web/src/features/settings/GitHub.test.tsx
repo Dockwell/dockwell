@@ -40,6 +40,7 @@ function acme(init: MessageInitShape<typeof GitHubAppInfoSchema> = {}): GitHubAp
       },
     ],
     delivery: { state: GitHubDelivery_State.REACHED },
+    revision: 3n,
   };
   return create(GitHubAppInfoSchema, { ...base, ...init } as MessageInitShape<typeof GitHubAppInfoSchema>);
 }
@@ -206,6 +207,8 @@ describe("GitHub in Integrations", () => {
     const edit = proposed.mock.calls[0]?.[0].edits[0];
     expect(edit?.resource).toMatchObject({ kind: "github.app", name: "dockwell-deploy" });
     expect(edit?.spec?.kind.value).toMatchObject({ reaches: [{ installationId: 7n, projects: ["prj_shop"] }] });
+    // From the App as the sheet read it, so a narrowing made since isn't put back.
+    expect(edit?.baseRevision).toBe(3n);
   });
 
   it("gives the App a new webhook secret, and a new key from its file, each with a passkey, and says which key to delete", async () => {

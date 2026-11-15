@@ -275,7 +275,7 @@ func (h *Handler) FinishGitHubApp(ctx context.Context, req *connect.Request[dock
 		AppId: conv.ID, Slug: conv.Slug, Owner: conv.Owner.Login, OwnerIsOrganization: conv.Owner.Type == "Organization",
 		ClientId: conv.ClientID, PrivateKey: conv.PEM, WebhookSecret: conv.WebhookSecret, KeyFingerprint: fp, HookId: s.hookID,
 	}
-	changeID, err := h.change(ctx, "Connect the GitHub App "+conv.Slug, conv.Slug, spec)
+	changeID, err := h.change(ctx, "Connect the GitHub App "+conv.Slug, conv.Slug, 0, spec)
 	if err != nil {
 		return nil, err
 	}
@@ -290,8 +290,10 @@ func (h *Handler) FinishGitHubApp(ctx context.Context, req *connect.Request[dock
 
 // change keeps spec as the App named name, as a change the caller proposes and
 // applies, held to what ChangeService holds them to; nil deletes it.
-func (h *Handler) change(ctx context.Context, summary, name string, spec *resourcev1.GitHubApp) (string, error) {
-	edit := &dockwellv1.Edit{Resource: &dockwellv1.ResourceRef{Kind: string(githubapp.Kind), Name: name}}
+func (h *Handler) change(ctx context.Context, summary, name string, base int64, spec *resourcev1.GitHubApp) (string, error) {
+	// From the revision it read, so it can't put back what another change made
+	// since, as a narrowing of an installation (review M5).
+	edit := &dockwellv1.Edit{Resource: &dockwellv1.ResourceRef{Kind: string(githubapp.Kind), Name: name}, BaseRevision: base}
 	if spec == nil {
 		edit.Delete = true
 	} else {
@@ -367,6 +369,24 @@ func (h *Handler) one(ctx context.Context, ref string) (kept, error) {
 		return said(connect.CodeNotFound, "not_found", "there's no GitHub App %s. Connect one from Settings, Integrations", ref)
 	})
 	return found, err
+}
+
+// changeFresh keeps a change to App appID made from it as it is now: edit gives the
+// spec from what it reads, with which projects its installations reach as they
+// are. A change that lands between the read and the change makes it stale, and it
+// reads the App again once.
+func (h *Handler) changeFresh(ctx context.Context, appID, summary string, edit func(kept) *resourcev1.GitHubApp) (string, error) {
+	for try := 0; ; try++ {
+		k, err := h.one(ctx, appID)
+		if err != nil {
+			return "", err
+		}
+		changeID, err := h.change(ctx, summary, k.r.Name, int64(k.r.Revision), edit(k))
+		var cerr *connect.Error
+		if err == nil || try > 0 || !errors.As(err, &cerr) || cerr.Meta().Get(authapi.ReasonKey) != "plan_stale" {
+			return changeID, err
+		}
+	}
 }
 
 // acting is the App k as it acts, made once for its revision.
@@ -516,7 +536,7 @@ func (h *Handler) appProto(k kept, ins []store.GitHubInstallation) *dockwellv1.G
 	out := &dockwellv1.GitHubAppInfo{
 		Id: k.r.ID, Name: k.r.Name, AppId: a.GetAppId(), Owner: a.GetOwner(), OwnerIsOrganization: a.GetOwnerIsOrganization(),
 		HtmlUrl: strings.TrimSuffix(h.cfg.Web, "/") + "/apps/" + url.PathEscape(a.GetSlug()), SettingsUrl: settingsURL(h.cfg.Web, a),
-		KeyFingerprint: a.GetKeyFingerprint(), Gone: gone, Delivery: h.deliveryProto(k.r.ID),
+		KeyFingerprint: a.GetKeyFingerprint(), Gone: gone, Delivery: h.deliveryProto(k.r.ID), Revision: int64(k.r.Revision),
 	}
 	for i := range ins {
 		if ins[i].RemovedAt != nil {
@@ -639,9 +659,11 @@ func (h *Handler) RotateGitHubWebhookSecret(ctx context.Context, req *connect.Re
 	// then is GitHub given it. Nothing GitHub sends between is refused.
 	old, secret := k.spec.GetWebhookSecret(), randomHex(32)
 	keep := func(summary, now, before string) (string, error) {
-		return h.change(ctx, summary, k.r.Name, &resourcev1.GitHubApp{
-			WebhookSecret: now, PreviousWebhookSecret: before, PreviousUntil: h.now().Add(keepOldSecret).Unix(),
-			Reaches: k.spec.GetReaches(),
+		return h.changeFresh(ctx, k.r.ID, summary, func(at kept) *resourcev1.GitHubApp {
+			return &resourcev1.GitHubApp{
+				WebhookSecret: now, PreviousWebhookSecret: before, PreviousUntil: h.now().Add(keepOldSecret).Unix(),
+				Reaches: at.spec.GetReaches(),
+			}
 		})
 	}
 	changeID, err := keep("Give the GitHub App "+k.r.Name+" a new webhook secret", secret, old)
@@ -710,8 +732,9 @@ func (h *Handler) ReplaceGitHubPrivateKey(ctx context.Context, req *connect.Requ
 		giveBack()
 		return nil, h.internal(ctx, "reading the new key", err)
 	}
-	changeID, err := h.change(ctx, "Give the GitHub App "+k.r.Name+" a new private key", k.r.Name,
-		&resourcev1.GitHubApp{PrivateKey: text, KeyFingerprint: fp, Reaches: k.spec.GetReaches()})
+	changeID, err := h.changeFresh(ctx, k.r.ID, "Give the GitHub App "+k.r.Name+" a new private key", func(at kept) *resourcev1.GitHubApp {
+		return &resourcev1.GitHubApp{PrivateKey: text, KeyFingerprint: fp, Reaches: at.spec.GetReaches()}
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -769,7 +792,7 @@ func (h *Handler) RemoveGitHubApp(ctx context.Context, req *connect.Request[dock
 			app.Forget(in.ID)
 		}
 	}
-	changeID, err := h.change(ctx, "Remove the GitHub App "+k.r.Name, k.r.Name, nil)
+	changeID, err := h.change(ctx, "Remove the GitHub App "+k.r.Name, k.r.Name, 0, nil)
 	if err != nil {
 		return nil, err
 	}

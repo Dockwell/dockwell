@@ -333,6 +333,9 @@ function InstallationRow({
         {
           resource: { kind: "github.app", name: app.name },
           spec: { kind: { case: "githubApp", value: { reaches } } },
+          // From the App as this sheet read it: a narrowing another admin made since
+          // makes the plan stale, rather than put back (review M5).
+          baseRevision: app.revision,
         },
       ],
       onClose: (change) => {
