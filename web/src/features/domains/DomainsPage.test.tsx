@@ -581,6 +581,18 @@ describe("the list of domains", () => {
     expect(within(own).getByRole("link", { name: "Update its agent" })).toBeVisible();
   });
 
+  it("keeps www's own row where its bare domain is in another environment", async () => {
+    const www = aDomain({
+      name: "www.example.com",
+      environment: "env_other",
+      certificate: issued,
+      route: { service: "", port: 0, redirect: { to: "https://example.com", temporary: false, dropPath: false } },
+    });
+    renderAt("/domains", api([aDomain({ name: "example.com", certificate: issued }), www]));
+    expect(await rowOf(/^example\.com/)).not.toHaveTextContent("Redirects: www → example.com");
+    expect(await rowOf(/^www\.example\.com/)).toBeVisible();
+  });
+
   it("keeps www's own row where its bare domain isn't listed", async () => {
     renderAt(
       "/domains",

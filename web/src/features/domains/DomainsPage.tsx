@@ -236,14 +236,13 @@ export function DomainsPage({
       !(search.server && !domain.servers.some((s) => s.serverId === search.server)),
   );
   // www that only redirects to its bare domain, or the other way round, folds into that
-  // domain's row, as the mock has it, where both are listed.
-  const listed = new Set(shown.map((one) => one.domain.name));
+  // domain's row, as the mock has it, where both are listed in the same environment:
+  // one of another keeps its own row, which says where it is and what it offers.
   const folds = new Map<string, Standing[]>();
   for (const one of shown) {
     const into = foldsInto(one.domain);
-    if (into && listed.has(into) && !foldsInto(shown.find((o) => o.domain.name === into)?.domain ?? one.domain)) {
-      folds.set(into, [...(folds.get(into) ?? []), one]);
-    }
+    const host = shown.find((o) => o.domain.name === into && o.domain.environmentId === one.domain.environmentId);
+    if (into && host && !foldsInto(host.domain)) folds.set(into, [...(folds.get(into) ?? []), one]);
   }
   const foldedAway = new Set([...folds.values()].flat().map((one) => one.domain.name));
   for (const { domain, look, silent } of shown) {
