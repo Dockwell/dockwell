@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	neturl "net/url"
 	"strconv"
 	"strings"
 	"testing"
@@ -237,8 +238,22 @@ func TestAHookTakesOnlyWhatItsSecretSigned(t *testing.T) {
 		if code, text, _ := send(t, url, delivery{id: "r-3", event: "push", secret: secret, body: body, headers: map[string]string{"X-Hub-Signature-256": ""}}); code != http.StatusUnauthorized {
 			t.Errorf("no signature: %d %q", code, text)
 		}
-		if code, text, _ := send(t, url, delivery{id: "r-4", event: "push", secret: secret, body: body, headers: map[string]string{"Content-Type": "application/x-www-form-urlencoded"}}); code != http.StatusUnsupportedMediaType || !strings.Contains(text, "application/json") {
-			t.Errorf("a form: %d %q", code, text)
+		if code, text, _ := send(t, url, delivery{id: "r-4", event: "push", secret: secret, body: body, headers: map[string]string{"Content-Type": "text/plain"}}); code != http.StatusUnsupportedMediaType || !strings.Contains(text, "application/json") {
+			t.Errorf("text: %d %q", code, text)
+		}
+		// GitHub's hooks send a form unless told JSON, and sign the form.
+		form := []byte("payload=" + neturl.QueryEscape(string(body)))
+		if code, text, _ := send(t, url, delivery{id: "r-8", event: "push", secret: secret, body: form, headers: map[string]string{"Content-Type": "application/x-www-form-urlencoded"}}); code != http.StatusAccepted {
+			t.Errorf("GitHub's form: %d %q", code, text)
+		}
+		if d := g.outcome(t, web.GetId(), "r-8", dockwellv1.GitHookOutcome_GIT_HOOK_OUTCOME_NOTHING_NEW); d.GetProvider() != "github" || d.GetCommit() != head {
+			t.Errorf("GitHub's form came to %v", d)
+		}
+		// Gitea's isn't taken as a form, as it doesn't sign one.
+		if code, text, _ := send(t, url, delivery{id: "r-9", event: "push", secret: secret, body: form, headers: map[string]string{
+			"Content-Type": "application/x-www-form-urlencoded", "X-Gitea-Signature": "00", "X-Gitea-Event": "push", "X-Gitea-Delivery": "r-9",
+		}}); code != http.StatusUnsupportedMediaType {
+			t.Errorf("Gitea's form: %d %q", code, text)
 		}
 		large := append(bytes.Repeat([]byte(" "), 1<<20), body...)
 		if code, text, _ := send(t, url, delivery{id: "r-5", event: "push", secret: secret, body: large}); code != http.StatusRequestEntityTooLarge {

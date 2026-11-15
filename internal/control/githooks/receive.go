@@ -37,6 +37,9 @@ type provider struct {
 	signature, prefix, token string
 	// pushes and pings are the events that are a push, and that test the hook.
 	pushes, pings []string
+	// form says it may send its payload as a form's payload field, signing the
+	// form, as GitHub does unless its hook says JSON.
+	form bool
 	// read reads a push's payload.
 	read func([]byte) (pushed, error)
 }
@@ -44,7 +47,7 @@ type provider struct {
 var providers = []provider{
 	{name: "forgejo", event: "X-Forgejo-Event", delivery: "X-Forgejo-Delivery", signature: "X-Forgejo-Signature", pushes: []string{"push"}, read: readGitHub},
 	{name: "gitea", event: "X-Gitea-Event", delivery: "X-Gitea-Delivery", signature: "X-Gitea-Signature", pushes: []string{"push"}, read: readGitHub},
-	{name: "github", event: "X-GitHub-Event", delivery: "X-GitHub-Delivery", signature: "X-Hub-Signature-256", prefix: "sha256=", pushes: []string{"push"}, pings: []string{"ping"}, read: readGitHub},
+	{name: "github", event: "X-GitHub-Event", delivery: "X-GitHub-Delivery", signature: "X-Hub-Signature-256", prefix: "sha256=", pushes: []string{"push"}, pings: []string{"ping"}, form: true, read: readGitHub},
 	{name: "gitlab", event: "X-Gitlab-Event", delivery: "X-Gitlab-Event-UUID", token: "X-Gitlab-Token", pushes: []string{"Push Hook", "Tag Push Hook"}, read: readGitLab},
 	// Bitbucket Cloud. GitHub sends X-Hub-Signature too, of SHA-1, but is found
 	// by its own header first.
@@ -177,10 +180,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		answer(w, http.StatusRequestEntityTooLarge, "The delivery is larger than 1 MiB, which no push is.")
 		return
 	}
-	if t, _, err := mime.ParseMediaType(r.Header.Get("Content-Type")); err != nil || t != "application/json" {
-		answer(w, http.StatusUnsupportedMediaType, "The delivery isn't JSON. Set the hook's content type to application/json.")
-		return
-	}
 	var from *provider
 	for i := range providers {
 		if r.Header.Get(providers[i].signature) != "" || r.Header.Get(providers[i].token) != "" {
@@ -190,6 +189,15 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if from == nil {
 		answer(w, http.StatusUnauthorized, "The delivery isn't signed. Give the hook its secret, as Dockwell showed it.")
+		return
+	}
+	form := false
+	switch t, _, err := mime.ParseMediaType(r.Header.Get("Content-Type")); {
+	case err == nil && t == "application/json":
+	case err == nil && t == "application/x-www-form-urlencoded" && from.form:
+		form = true
+	default:
+		answer(w, http.StatusUnsupportedMediaType, "The delivery isn't JSON. Set the hook's content type to application/json.")
 		return
 	}
 	// Bitbucket's IDs may come in braces.
@@ -229,11 +237,19 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		answer(w, http.StatusServiceUnavailable, "Dockwell can't check deliveries right now. Send it again in a moment.")
 		return
 	}
+	// A form is read once its signature matched, which is of the form.
+	payload := body
+	if form {
+		payload = nil
+		if v, err := url.ParseQuery(string(body)); err == nil {
+			payload = []byte(v.Get("payload"))
+		}
+	}
 	hook := *p.Hook
 	d := store.GitHookDelivery{HookID: hook.ID, DeliveryID: delivery, At: h.now(), Provider: from.name, Outcome: store.HookIgnored}
 	event := r.Header.Get(from.event)
 	ping := slices.Contains(from.pings, event)
-	j, why := h.read(r.Context(), client, p, from, event, body, &d)
+	j, why := h.read(r.Context(), client, p, from, event, payload, &d)
 	if j == nil {
 		d.Detail = strings.ToUpper(why[:1]) + why[1:]
 	} else {
