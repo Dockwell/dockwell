@@ -102,6 +102,8 @@ ComposeService.AdoptCompose                    plan         admin      admin    
 ComposeService.CheckCompose                    plan         developer  developer  project
 ComposeService.ExportCompose                   read         viewer     viewer     project
 ComposeService.ImportCompose                   plan         developer  developer  project
+ConnectionService.CheckConnection              read         admin      admin      install  session
+ConnectionService.ListConnections              read         viewer     viewer     named
 ContainerService.AdoptContainer                plan         admin      admin      install  session
 ContainerService.ListContainers                read         admin      admin      install
 DatabaseService.ChangeDatabasePassword         plan         developer  developer  project

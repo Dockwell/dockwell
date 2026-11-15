@@ -132,6 +132,8 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "ComposeService.exportCompose": "read",
   "ComposeService.importCompose": "may",
 
+  "ConnectionService.checkConnection": "unused",
+  "ConnectionService.listConnections": "unused",
   "ContainerService.adoptContainer": { within: "ContainerService.listContainers" },
   "ContainerService.listContainers": "may",
 

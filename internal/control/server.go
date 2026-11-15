@@ -55,6 +55,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/changes"
 	"github.com/dockwell/dockwell/internal/control/checks"
 	"github.com/dockwell/dockwell/internal/control/composeapi"
+	"github.com/dockwell/dockwell/internal/control/connections"
 	"github.com/dockwell/dockwell/internal/control/containers"
 	"github.com/dockwell/dockwell/internal/control/databases"
 	"github.com/dockwell/dockwell/internal/control/dnsproviders"
@@ -195,6 +196,8 @@ type Config struct {
 	ECR *registrylogins.ECR
 	// logins are the registry logins, read with Secrets from Store.
 	logins *registrylogins.Logins
+	// connections are the connections apps use (ADR 0099).
+	connections *connections.Connections
 	// DNSAPI reaches a DNS provider's API with a token, for the DNS providers
 	// (ADR 0088): Cloudflare's own unless a test passes one that reaches its own
 	// server.
@@ -323,6 +326,7 @@ func New(cfg Config) (*Server, error) {
 	// A pull signs in with the registry login its app's project may use (ADR 0086).
 	if cfg.Store != nil && cfg.Secrets != nil {
 		cfg.logins = registrylogins.New(cfg.Store, cfg.Secrets)
+		cfg.connections = connections.NewConnections(cfg.Store, cfg.Secrets)
 		if cfg.ECR != nil {
 			cfg.logins.ECR = cfg.ECR
 		}
@@ -522,6 +526,10 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		}
 		handle(dockwellv1connect.NewServerServiceHandler(serverHandler, opts...))
 		handle(dockwellv1connect.NewImageServiceHandler(images.New(cfg.Fleet, cfg.Agents, cfg.logins), opts...))
+		if cfg.connections != nil {
+			// The connections apps use, and their check from where an app is (ADR 0099).
+			handle(dockwellv1connect.NewConnectionServiceHandler(connections.New(cfg.connections, cfg.Fleet, cfg.Agents), opts...))
+		}
 		handle(dockwellv1connect.NewFirewallServiceHandler(firewall.New(cfg.Fleet, cfg.Agents), opts...))
 	}
 	if cfg.Changes != nil {

@@ -2085,6 +2085,73 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/connections:
+        get:
+            tags:
+                - ConnectionService
+            description: |-
+                ListConnections lists the connections the caller may see: an admin's, every
+                 one, with everything but its keys; below an admin, those the caller's projects
+                 may use, by name, kind and state alone.
+            operationId: ConnectionService_ListConnections
+            parameters:
+                - name: project
+                  in: query
+                  description: |-
+                    Only those this project may use, by name or ID. Empty lists every connection the
+                     caller may see.
+                  schema:
+                    type: string
+                - name: environment
+                  in: query
+                  description: Only those this environment's project may use, by ID, in place of project.
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListConnectionsResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/connections:check:
+        post:
+            tags:
+                - ConnectionService
+            description: |-
+                CheckConnection checks a connection from a server, as an app there would reach
+                 it: in a container of the agent's own binary, on the app's networks where it
+                 names one, or on a network of the check's own, with the server's own addresses,
+                 the metadata service and link-local addresses refused whatever the connection
+                 says. It writes a small object, reads it back and deletes it, and saves
+                 nothing: with a connection as typed, or a saved one again. An admin's, signed
+                 in, as a connection is install-wide.
+            operationId: ConnectionService_CheckConnection
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CheckConnectionRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CheckConnectionResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/containers:
         get:
             tags:
@@ -10803,6 +10870,69 @@ components:
                          people, such as a log rotation of its own in place of the file's. A plan's
                          notes say the same.
             description: CheckComposeResponse says what a Compose file would make, or why it can't.
+        CheckConnectionRequest:
+            type: object
+            properties:
+                name:
+                    type: string
+                    description: |-
+                        A saved connection to check again, by name, with what's typed here in place of
+                         what it saved.
+                s3:
+                    allOf:
+                        - $ref: '#/components/schemas/ConnectionS3'
+                    description: |-
+                        S3 storage as typed. A saved connection's keys are kept where this leaves them
+                         out, while its endpoint, region and bucket stay.
+                server:
+                    type: string
+                    description: The server that checks it, by ID. It can be left out while there is one.
+                environment:
+                    type: string
+                    description: |-
+                        An app to check it from, on that app's networks: its environment, by ID, and its
+                         service's name. Empty checks from a network of the check's own.
+                app:
+                    type: string
+                presign:
+                    type: boolean
+                    description: |-
+                        Fetch the check's object by a presigned URL too, as an app that hands browsers
+                         one does.
+                prefix:
+                    type: string
+                    description: Where the check's object goes in the bucket, such as "outline/".
+            description: CheckConnectionRequest is a connection to check, as typed, or a saved one again.
+        CheckConnectionResponse:
+            type: object
+            properties:
+                passed:
+                    type: boolean
+                    description: It did everything asked of it.
+                step:
+                    type: string
+                    description: 'Where it stopped: write, read, presign or delete.'
+                code:
+                    type: string
+                    description: |-
+                        What the storage said, such as an S3 error's code, or what kept it from
+                         answering: refused, timeout, unreachable or tls. Status is its HTTP status.
+                status:
+                    type: integer
+                    format: int32
+                message:
+                    type: string
+                    description: The storage's own message, where it holds nothing of the request.
+                words:
+                    type: string
+                    description: Why it couldn't connect, in a few words.
+                region:
+                    type: string
+                    description: The bucket's region, where the storage said another than asked.
+                server:
+                    type: string
+                    description: The server that checked it, by name.
+            description: 'CheckConnectionResponse is what a check found: codes, never a body.'
         CheckDatabaseSignInResponse:
             type: object
             properties:
@@ -11420,6 +11550,157 @@ components:
                         - $ref: '#/components/schemas/Change'
                     description: The change, planned, with its plan.
             description: ConnectDatabaseResponse carries the planned change.
+        ConnectionInfo:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: Its resource's ID, and its name, such as "outline-uploads".
+                name:
+                    type: string
+                displayName:
+                    type: string
+                    description: What the panel calls it.
+                kind:
+                    enum:
+                        - LINK_KIND_UNSPECIFIED
+                        - LINK_KIND_S3
+                        - LINK_KIND_SMTP
+                    type: string
+                    description: What kind of thing it reaches.
+                    format: enum
+                endpoint:
+                    type: string
+                    description: |-
+                        Where its bucket is, for an admin: its endpoint, region and bucket, whether the
+                         bucket goes in the path, and its public address.
+                region:
+                    type: string
+                bucket:
+                    type: string
+                pathStyle:
+                    type: boolean
+                publicUrl:
+                    type: string
+                reach:
+                    enum:
+                        - CONNECTION_REACH_UNSPECIFIED
+                        - CONNECTION_REACH_PROJECTS
+                        - CONNECTION_REACH_EVERY
+                    type: string
+                    description: Which projects may use it, for an admin, and those by ID.
+                    format: enum
+                projects:
+                    type: array
+                    items:
+                        type: string
+            description: |-
+                ConnectionInfo is a connection as a caller may see it: never its keys. Below an
+                 admin, its name, kind and what it reaches alone.
+        ConnectionRef:
+            type: object
+            properties:
+                scope:
+                    type: string
+                    description: The connection's scope, the organization, by ID, and its name there.
+                name:
+                    type: string
+                part:
+                    enum:
+                        - LINK_PART_UNSPECIFIED
+                        - LINK_PART_HOST
+                        - LINK_PART_PORT
+                        - LINK_PART_ADDRESS
+                        - LINK_PART_DATABASE
+                        - LINK_PART_USER
+                        - LINK_PART_PASSWORD
+                        - LINK_PART_URL
+                        - LINK_PART_TLS
+                        - LINK_PART_KEY_PREFIX
+                        - LINK_PART_ENGINE
+                        - LINK_PART_ENDPOINT
+                        - LINK_PART_REGION
+                        - LINK_PART_BUCKET
+                        - LINK_PART_ACCESS_KEY_ID
+                        - LINK_PART_SECRET_KEY
+                        - LINK_PART_PATH_STYLE
+                        - LINK_PART_PUBLIC_URL
+                        - LINK_PART_MET
+                    type: string
+                    description: Which of its values, such as its secret key.
+                    format: enum
+                link:
+                    type: string
+                    description: The link in this environment that writes it, by name.
+            description: |-
+                ConnectionRef is a part of a connection's values, read through the link in this
+                 environment that names the connection.
+        ConnectionS3:
+            type: object
+            properties:
+                endpoint:
+                    type: string
+                    description: The service's address, a URL, such as "https://<account>.r2.cloudflarestorage.com".
+                region:
+                    type: string
+                    description: The bucket's region, such as "auto" or "eu-central-1". Empty is "auto".
+                bucket:
+                    type: string
+                    description: The bucket's name.
+                accessKeyId:
+                    type: string
+                    description: |-
+                        The access key's ID, and its secret. Leave the secret out of an update to keep
+                         it, while the endpoint, the bucket and the key's ID stay.
+                secretKey:
+                    type: string
+                pathStyle:
+                    type: boolean
+                    description: The bucket goes in the path, not the host, as most S3-compatible stores take.
+                publicUrl:
+                    type: string
+                    description: Where objects are read from publicly, such as a custom domain. Empty is none.
+            description: ConnectionS3 is a bucket of S3-compatible storage and the keys that reach it.
+        ConnectionSpec:
+            type: object
+            properties:
+                displayName:
+                    type: string
+                    description: What the panel calls it, such as "Outline's uploads".
+                kind:
+                    enum:
+                        - LINK_KIND_UNSPECIFIED
+                        - LINK_KIND_S3
+                        - LINK_KIND_SMTP
+                    type: string
+                    description: What kind of thing it reaches.
+                    format: enum
+                s3:
+                    allOf:
+                        - $ref: '#/components/schemas/ConnectionS3'
+                    description: S3-compatible storage, for KIND_S3.
+                reach:
+                    enum:
+                        - CONNECTION_REACH_UNSPECIFIED
+                        - CONNECTION_REACH_PROJECTS
+                        - CONNECTION_REACH_EVERY
+                    type: string
+                    description: Which projects may use it. Unset reaches none.
+                    format: enum
+                projects:
+                    type: array
+                    items:
+                        type: string
+                    description: The projects it reaches, by ID, for REACH_PROJECTS.
+            description: |-
+                ConnectionSpec is one set of values of one kind that something uses, kind
+                 "connection": an app through a link, or Dockwell itself (ADR 0099). It lives in the
+                 organization, and says which projects may use it, as reaching it is reading it:
+                 whoever may change an app that links to it can read what it's given. A pasted one
+                 is checked from where an app is, by the agent's own code in a container of its own.
+                 Dockwell keeps its secrets encrypted, and sends them only to the servers that run
+                 an app linked to it. See
+                 docs/adr/0099-every-kind-of-thing-an-app-needs-met-the-same-three-ways.md.
         Container:
             type: object
             properties:
@@ -16946,6 +17227,45 @@ components:
                          one: a server in another project, shared because a person chose it, on which
                          Dockwell made the app a database and a user of its own. Named apart from the
                          CLI's own --environment, which says where the link is.
+                connection:
+                    type: string
+                    description: |-
+                        The connection that meets it, by name, for a link to one (ADR 0099): its values
+                         are the connection's, read at the revision the link's values pin. Numbered, with
+                         what follows, in the block every kind holds in shared messages, 90 to 99.
+                kind:
+                    enum:
+                        - LINK_KIND_UNSPECIFIED
+                        - LINK_KIND_S3
+                        - LINK_KIND_SMTP
+                    type: string
+                    description: What kind of thing it reaches. Unset is a database, of its engine.
+                    format: enum
+                prefix:
+                    type: string
+                    description: |-
+                        Where the app's objects go in an S3 connection's bucket, such as "outline/",
+                         which the check writes under too. Empty is the bucket's root.
+                features:
+                    type: array
+                    items:
+                        enum:
+                            - LINK_FEATURE_UNSPECIFIED
+                            - LINK_FEATURE_PRESIGNED_URLS
+                            - LINK_FEATURE_VIRTUAL_HOST
+                            - LINK_FEATURE_PATH_STYLE
+                            - LINK_FEATURE_MULTIPART
+                            - LINK_FEATURE_BATCH_DELETE
+                            - LINK_FEATURE_CORS
+                            - LINK_FEATURE_PUBLIC_READ
+                            - LINK_FEATURE_OBJECT_ACL
+                            - LINK_FEATURE_PRESIGNED_POST
+                            - LINK_FEATURE_SDK_CHECKSUMS
+                        type: string
+                        format: enum
+                    description: |-
+                        What the app needs of what it reaches, which the check tries, such as presigned
+                         URLs.
             description: |-
                 Link is how one of an app's needs is met, such as its database: what meets it,
                  and the variables and secrets it sets in its environment, which the app's
@@ -17254,6 +17574,14 @@ components:
                     type: string
                     description: Pass it as page_token for the next page. Empty on the last page.
             description: ListChangesResponse is a page of changes.
+        ListConnectionsResponse:
+            type: object
+            properties:
+                connections:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ConnectionInfo'
+            description: ListConnectionsResponse lists connections.
         ListContainersResponse:
             type: object
             properties:
@@ -24454,6 +24782,10 @@ components:
                     description: |-
                         What signs in to a container registry, kind "registry.login". Numbered in
                          the block registry logins hold, 100 to 109.
+                connection:
+                    allOf:
+                        - $ref: '#/components/schemas/ConnectionSpec'
+                    description: Numbered in the block every kind holds in shared messages, 90 to 99.
                 dnsProvider:
                     allOf:
                         - $ref: '#/components/schemas/DnsProvider'
@@ -25656,6 +25988,12 @@ components:
                         Another environment's value, which only a link writes, as it would
                          otherwise read that environment's secrets with none of what revealing them
                          asks for (ADR 0084).
+                connection:
+                    allOf:
+                        - $ref: '#/components/schemas/ConnectionRef'
+                    description: |-
+                        A part of a connection's values, which only a link to it writes (ADR 0099).
+                         Numbered in the block every kind holds in shared messages, 90 to 99.
             description: |-
                 ValueFrom is where a variable's or a secret's value comes from, rather than
                  one it holds: Dockwell writes it out at the revisions its revisions pin, as
@@ -26288,6 +26626,15 @@ tags:
          Compose gives its own, so docker compose sees them, and an exported file
          runs the same with docker compose alone (PRD principle 6). See
          docs/adr/0021-the-docker-driver.md and docs/adr/0026-the-app-screens.md.
+    - name: ConnectionService
+      description: |-
+        ConnectionService reads the connections apps use, and checks one from where an
+         app is. A connection is one set of values of one kind, such as a bucket of
+         S3-compatible storage and the keys that reach it, kind "connection": it's
+         install-wide, an admin saves it as a change, with a plan, and says which projects
+         may use it. Its keys are sealed, and go to a server only with the values of an app
+         linked to it, or for a check. See
+         docs/adr/0099-every-kind-of-thing-an-app-needs-met-the-same-three-ways.md.
     - name: ContainerService
       description: |-
         ContainerService reads the containers on a server that Dockwell didn't make:
