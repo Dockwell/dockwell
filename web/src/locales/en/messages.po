@@ -16171,6 +16171,18 @@ msgstr "You"
 msgid "Your CLI access on the control server"
 msgstr "Your CLI access on the control server"
 
+msgid "as a developer at most"
+msgstr "as a developer at most"
+
+msgid "as a viewer at most"
+msgstr "as a viewer at most"
+
+msgid "every project they hold"
+msgstr "every project they hold"
+
+msgid "in {where}"
+msgstr "in {where}"
+
 #. placeholder {0}: time.ago(timestampDate(token.lastUsedTime), now)
 msgid "last used {0}"
 msgstr "last used {0}"

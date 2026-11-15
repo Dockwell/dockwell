@@ -16171,6 +16171,18 @@ msgstr "你"
 msgid "Your CLI access on the control server"
 msgstr "你在控制服务器上的 CLI 访问"
 
+msgid "as a developer at most"
+msgstr "最多以开发者身份"
+
+msgid "as a viewer at most"
+msgstr "最多以查看者身份"
+
+msgid "every project they hold"
+msgstr "其拥有的所有项目"
+
+msgid "in {where}"
+msgstr "在 {where}"
+
 #. placeholder {0}: time.ago(timestampDate(token.lastUsedTime), now)
 msgid "last used {0}"
 msgstr "上次使用于{0}"

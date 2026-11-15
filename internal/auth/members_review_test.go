@@ -403,3 +403,34 @@ func TestAnAdminHoldsNoProjectRole(t *testing.T) {
 		}
 	})
 }
+
+// Making a token in a session begun with a sign-in provider takes a passkey tap,
+// whatever its person chose for how often: such a session has no passkey's hour,
+// where one begun with a passkey makes it without one (ADR 0071, ADR 0095).
+func TestAProviderSessionMakesATokenOnlyWithAPasskey(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		ctx := t.Context()
+		s := newProviderStand(t, backend)
+		if _, err := s.link(t, "248289761001"); err != nil {
+			t.Fatal(err)
+		}
+		proof := s.stepUpAt(t, onDomain, s.owner, s.passkeys, StepUpSetPolicy, "").Proof
+		if _, err := s.svc.SetStepUpPolicy(ctx, onDomain, s.owner, AskAtSignIn, proof); err != nil {
+			t.Fatal(err)
+		}
+		viaProvider, err := providerSession(t, s, "248289761001")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := s.svc.CreateToken(ctx, onDomain, viaProvider, "CI", store.ScopeReadOnly, nil, nil, ""); !errors.Is(err, ErrNeedsStepUp) {
+			t.Errorf("making a token in a provider's session with no passkey: %v, want it to ask for one", err)
+		}
+		viaPasskey, err := s.svc.Authenticate(ctx, onDomain, s.ownerToken(t))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := s.svc.CreateToken(ctx, onDomain, viaPasskey, "CI", store.ScopeReadOnly, nil, nil, ""); err != nil {
+			t.Errorf("making a token in a passkey's session, asked at sign-in alone: %v", err)
+		}
+	})
+}

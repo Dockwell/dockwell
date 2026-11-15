@@ -11,6 +11,7 @@ import {
   Role,
   SignInKind,
   StepUpAction,
+  TokenRole,
 } from "@dockwell/api";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -587,7 +588,10 @@ describe("Members", () => {
           planMemberRemoval: () => ({
             member: ada,
             sessions: 2,
-            tokens: [{ id: "tok_1", name: "GitHub Actions deploy" }],
+            tokens: [
+              { id: "tok_1", name: "GitHub Actions deploy" },
+              { id: "tok_2", name: "Shop's CI", projects: [{ id: "prj_1", name: "shop" }], role: TokenRole.DEVELOPER },
+            ],
             invites: [{ id: "inv_1", email: "lin@example.com", role: Role.VIEWER }],
             changes: [{ id: "chg_1", summary: "Deploy web 1.5" }],
             links: [{ provider: "Our Authentik", account: "ada@example.com" }],
@@ -600,7 +604,9 @@ describe("Members", () => {
       await user.click(screen.getByRole("menuitem", { name: "Remove" }));
       const sheet = await screen.findByRole("dialog", { name: "Remove Ada Park" });
       expect(await within(sheet).findByText("2 browsers are signed out")).toBeVisible();
-      expect(sheet).toHaveTextContent("GitHub Actions deploy · never used");
+      // Where each token acts and as what, as the API tokens page says it (ADR 0071).
+      expect(sheet).toHaveTextContent("GitHub Actions deploy · every project they hold · never used");
+      expect(sheet).toHaveTextContent("Shop's CI · in shop · as a developer at most · never used");
       expect(sheet).toHaveTextContent("lin@example.com");
       expect(sheet).toHaveTextContent("Deploy web 1.5");
       expect(sheet).toHaveTextContent("Sign-inPasskeys and codes deleted");

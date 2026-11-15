@@ -134,6 +134,12 @@ func (h *Handler) PlanMemberRemoval(ctx context.Context, req *connect.Request[do
 		if t.LastUsedAt != nil {
 			token.LastUsedTime = timestamppb.New(*t.LastUsedAt)
 		}
+		switch t.Role {
+		case store.RoleDeveloper:
+			token.Role = dockwellv1.TokenRole_TOKEN_ROLE_DEVELOPER
+		case store.RoleViewer:
+			token.Role = dockwellv1.TokenRole_TOKEN_ROLE_VIEWER
+		}
 		res.Tokens = append(res.Tokens, token)
 	}
 	for i := range plan.Changes {
@@ -153,6 +159,16 @@ func (h *Handler) PlanMemberRemoval(ctx context.Context, req *connect.Request[do
 				hook.ServiceName = r.Name
 			}
 			res.Hooks = append(res.Hooks, hook)
+		}
+		// Each token's projects by their names now; one that's gone has none (ADR 0071).
+		for i := range plan.Tokens {
+			for _, projectID := range plan.Tokens[i].Projects {
+				p := &dockwellv1.TokenProject{Id: projectID}
+				if r, err := tx.GetResourceByID(ctx, projectID); err == nil {
+					p.Name = r.Name
+				}
+				res.Tokens[i].Projects = append(res.Tokens[i].Projects, p)
+			}
 		}
 		var err error
 		res.Member, err = h.memberNow(ctx, tx, req.Msg.GetUserId(), p.User.ID)

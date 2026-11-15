@@ -20907,6 +20907,21 @@ components:
                     type: string
                     description: When it was last used. Unset when it never was.
                     format: date-time
+                projects:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/TokenProject'
+                    description: |-
+                        Where it acts and as what, as Token says it (ADR 0071): the projects it's
+                         narrowed to, none for every project its maker holds, and the role it acts as
+                         at most.
+                role:
+                    enum:
+                        - TOKEN_ROLE_UNSPECIFIED
+                        - TOKEN_ROLE_DEVELOPER
+                        - TOKEN_ROLE_VIEWER
+                    type: string
+                    format: enum
             description: RemovalToken is an API token a removal would revoke.
         RemoveCatalogSourceRequest:
             type: object

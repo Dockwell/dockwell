@@ -199,12 +199,23 @@ func TestMembersAreManagedOverTheAPI(t *testing.T) {
 		}); err != nil {
 			t.Fatal(err)
 		}
+		// And has a token for shop alone, as a viewer at most, which the plan says where it acts (ADR 0071).
+		_, ci := narrowedToken(t, ada, &dockwellv1.CreateTokenRequest{Projects: []string{"shop"}, Role: dockwellv1.TokenRole_TOKEN_ROLE_VIEWER})
 		plan, err := s.members.PlanMemberRemoval(ctx, connect.NewRequest(&dockwellv1.PlanMemberRemovalRequest{UserId: adaID}))
 		if err != nil || plan.Msg.GetSessions() != 1 || len(plan.Msg.GetChanges()) != 1 || plan.Msg.GetChanges()[0].GetId() != planned.GetId() || plan.Msg.GetMember().GetUser().GetEmail() != "ada@example.com" {
 			t.Fatalf("the plan to remove ada: %v, %v", plan, err)
 		}
 		if hooks := plan.Msg.GetHooks(); len(hooks) != 1 || hooks[0].GetServiceId() != shop || hooks[0].GetServiceName() != "shop" {
 			t.Errorf("the plan to remove ada lists hooks %v, want hers, by name", hooks)
+		}
+		var listed *dockwellv1.RemovalToken
+		for _, tok := range plan.Msg.GetTokens() {
+			if tok.GetId() == ci.GetId() {
+				listed = tok
+			}
+		}
+		if got := listed.GetProjects(); len(got) != 1 || got[0].GetName() != "shop" || listed.GetRole() != dockwellv1.TokenRole_TOKEN_ROLE_VIEWER {
+			t.Errorf("the plan lists ada's token as %v, want it in shop, as a viewer at most", listed)
 		}
 		proof = stepUpFor(t, s.owner, dockwellv1.StepUpAction_STEP_UP_ACTION_REMOVE_MEMBER, adaID)
 		gone, err := s.members.RemoveMember(ctx, connect.NewRequest(&dockwellv1.RemoveMemberRequest{UserId: adaID, Proof: proof}))
