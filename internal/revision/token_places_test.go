@@ -4,6 +4,7 @@ package revision
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
@@ -103,4 +104,43 @@ func TestANarrowedTokensAdminDoesntCountOnAnotherProjectsProtectedServer(t *test
 			t.Errorf("a token narrowed to blog applying a change that dumps its database first on another project's protected server: %v, want it to wait for a person", err)
 		}
 	})
+}
+
+// A refusal says what narrows the token a call is made with from the caller the
+// guard read it into, so a token no row holds, as a push hook's stand-in, gets
+// the same words as one made on API tokens: its cap, or its projects, and a token
+// without them as the fix, never a change to its maker's role (ADR 0071, the
+// review's M2).
+func TestARefusalSaysWhatNarrowsATokenNoRowHolds(t *testing.T) {
+	l := withLinkedBlog(t)
+	x := l.x
+	by := By{Actor: "hook:hok_1", Via: ViaAPI}
+	x.r.one = "blog"
+	source := resource.RestoreSource{Backup: "bkp_1", Server: "srv_A"}
+	plan, err := x.e.RestoreWith(t.Context(), x.ref, source, RestoreAs{For: l.forBlog}, by, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []struct {
+		name   string
+		caller place.Caller
+		says   string
+		fix    string
+	}{
+		{"capped at developer", func() place.Caller {
+			c := l.in(t, store.RoleDeveloper)
+			c.TokenID, c.TokenRole, c.TokenInProjects = "hok_1", store.RoleDeveloper, true
+			return c
+		}(), "this API token acts as a developer at most", "Use a token that acts as you do"},
+		{"narrowed to blog", func() place.Caller {
+			c := l.in(t, store.RoleAdmin)
+			c.TokenID, c.TokenInProjects = "hok_1", true
+			return c
+		}(), "this API token acts in its projects alone", "Use a token made for every project you hold"},
+	} {
+		err := x.e.ApplyBy(place.WithCaller(t.Context(), c.caller), plan.Change, by)
+		if !errors.Is(err, ErrNeedsRole) || !strings.Contains(err.Error(), c.says) || !strings.HasSuffix(err.Error(), c.fix) {
+			t.Errorf("%s: %v, want it to say %q and %q", c.name, err, c.says, c.fix)
+		}
+	}
 }

@@ -46,6 +46,12 @@ type Caller struct {
 	Grants []store.Grant
 	// TokenID is the API token the call is made with, or empty for a session.
 	TokenID string
+	// TokenRole is the role that token acts as at most, or empty when it isn't
+	// capped; TokenInProjects says it acts in the projects it names alone, not in
+	// every project its maker holds (ADR 0071). Grants are narrowed by both already:
+	// these say why, for a refusal's words.
+	TokenRole       string
+	TokenInProjects bool
 }
 
 type callerKey struct{}

@@ -69,30 +69,21 @@ func (e *Engine) checkRoles(ctx context.Context, tx *store.Tx, actor string, c *
 	err := e.checkRolesOf(ctx, tx, actor, c, asked, items, a)
 	var refused *Refusal
 	if errors.As(err, &refused) {
-		if terr := markToken(ctx, tx, refused); terr != nil {
-			return terr
-		}
+		markToken(ctx, refused)
 	}
 	return err
 }
 
 // markToken says on a refusal what narrows the API token the call is made with,
 // if it is, so its words give that as the reason, and a token without it as the
-// fix (ADR 0071).
-func markToken(ctx context.Context, tx *store.Tx, r *Refusal) error {
+// fix (ADR 0071). It reads them from the caller, as the guard put them there from
+// the token the call was made with, whether a stored one or a hook's stand-in.
+func markToken(ctx context.Context, r *Refusal) {
 	caller, ok := place.CallerFrom(ctx)
 	if !ok || caller.TokenID == "" {
-		return nil
+		return
 	}
-	tok, err := tx.GetAPIToken(ctx, caller.TokenID)
-	if errors.Is(err, store.ErrNotFound) {
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-	r.token, r.tokenCap, r.tokenPlaces = true, tok.Role, tok.Projects != nil
-	return nil
+	r.token, r.tokenCap, r.tokenPlaces = true, caller.TokenRole, caller.TokenInProjects
 }
 
 func (e *Engine) checkRolesOf(ctx context.Context, tx *store.Tx, actor string, c *store.Change, asked *planRead, items []item, a act) error {

@@ -530,7 +530,7 @@ func (i *interceptor) check(ctx context.Context, p auth.Principal, procedure str
 	if store.RoleRank(held) >= store.RoleRank(needs) {
 		caller := place.Caller{UserID: p.User.ID, Grants: grants}
 		if p.Token != nil {
-			caller.TokenID = p.Token.ID
+			caller.TokenID, caller.TokenRole, caller.TokenInProjects = p.Token.ID, p.Token.Role, p.Token.Projects != nil
 		}
 		return place.WithCaller(ctx, caller), "", "", nil
 	}
