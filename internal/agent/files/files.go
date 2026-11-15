@@ -85,6 +85,10 @@ type Server struct {
 	// Writing hears of each save about to write its file, past where it can still
 	// stop, as Touching does. Nil hears nothing.
 	Writing func(path string)
+	// RootsSaved hears that a save of where Docker keeps its data ended, however
+	// it did, so a test can wait for one a stalled disk held before it lets go of
+	// the folder. Nil hears nothing.
+	RootsSaved func()
 
 	dataDir    string
 	logger     *slog.Logger
