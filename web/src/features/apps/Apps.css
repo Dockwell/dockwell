@@ -3089,11 +3089,6 @@
   font-size: 13px;
 }
 
-.new-app-entry .catalog-icon img {
-  width: 32px;
-  height: 32px;
-}
-
 .new-app-entry-text {
   display: flex;
   flex: 1 1 auto;

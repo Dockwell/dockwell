@@ -118,11 +118,6 @@
   outline-offset: 2px;
 }
 
-.start-apps .catalog-icon img {
-  width: 24px;
-  height: 24px;
-}
-
 /*
  * In the lead, apps by name in rows of four across the card (fewer than four centred, each as wide), centred in the
  * height it shares with the cards beside it, under its header, so that height holds apps to install with even space
@@ -167,8 +162,7 @@
   text-decoration: none;
 }
 
-.is-lead .start-apps .catalog-icon,
-.is-lead .start-apps .catalog-icon img {
+.is-lead .start-apps .catalog-icon {
   width: 32px;
   height: 32px;
 }

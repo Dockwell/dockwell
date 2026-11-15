@@ -184,39 +184,6 @@
   min-width: 0;
 }
 
-.catalog-icon {
-  display: grid;
-  flex: none;
-  width: 48px;
-  height: 48px;
-  place-items: center;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  background: var(--surface-sunken);
-  font-size: 14px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-}
-
-/* A logo sits on the light tile it was drawn for, in both themes, as many draw in black (ADR 0083). */
-.catalog-icon.has-art {
-  background: var(--art-ground);
-}
-
-.catalog-icon img {
-  display: block;
-  width: 100%;
-  height: 100%;
-  border-radius: inherit;
-  object-fit: contain;
-}
-
-.catalog-icon.is-large {
-  width: 72px;
-  height: 72px;
-  font-size: 22px;
-}
-
 .catalog-card-title {
   display: flex;
   flex: 1 1 auto;

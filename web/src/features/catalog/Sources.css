@@ -252,32 +252,13 @@
   flex: none;
 }
 
-/* Whole here, as the catalog's own styles load only with its pages (route CSS is split). */
+/* Its size here: the tile itself comes with AppIcon, whose styles load with it. */
 .source-card-icons .catalog-icon {
-  display: grid;
-  flex: none;
   width: 28px;
   height: 28px;
-  place-items: center;
-  overflow: hidden;
-  border: 1px solid var(--line);
   border-radius: var(--radius-sm);
-  background: var(--surface-sunken);
   box-shadow: 0 0 0 2px var(--surface);
   font-size: 10px;
-  font-weight: 600;
-}
-
-.source-card-icons .catalog-icon.has-art {
-  padding: 2px;
-  background: var(--art-ground);
-}
-
-.source-card-icons .catalog-icon img {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
 }
 
 .source-card-icons .catalog-icon + .catalog-icon {
