@@ -182,6 +182,8 @@ func Methods() []*apicli.Method {
 				{Path: "ttl", Help: "How long it works for, from when the control plane makes it, such as \"7776000s\" for 90 days. The control plane's clock sets the expiry, so a client whose clock is off doesn't move it."},
 				{Path: "proof", Help: "The proof from AuthService.dockwell sessions finish-step-up, for creating a token."},
 				{Path: "grants", Help: "What it may do beyond its scope, such as TOKEN_GRANT_LOGS to read logs. Either scope can have it."},
+				{Path: "projects", Flag: "project", Help: "The projects it acts in, each by its ID or its name, up to 100, each one its maker holds something in. Leave it empty for every project its maker holds, now and later. Narrowed, it can't call what's the install's own, such as its settings, and reads servers by name and state alone."},
+				{Path: "role", Help: "The role it acts as at most, below its maker's. Leave it unset for its maker's role."},
 			},
 			Call: apicli.Unary[v1.CreateTokenRequest, v1.CreateTokenResponse](dockwellv1connect.TokenServiceCreateTokenProcedure),
 		},

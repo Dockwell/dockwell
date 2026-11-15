@@ -3,7 +3,16 @@
 import { durationFromMs, timestampDate } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
 import { useQuery, useTransport } from "@connectrpc/connect-query";
-import { StepUpAction, type Token, TokenGrant, TokenScope, TokenService } from "@dockwell/api";
+import {
+  ResourceService,
+  Role,
+  StepUpAction,
+  type Token,
+  TokenGrant,
+  TokenRole,
+  TokenScope,
+  TokenService,
+} from "@dockwell/api";
 import {
   Button,
   Callout,
@@ -25,8 +34,10 @@ import { type FormEvent, type ReactNode, useId, useState } from "react";
 
 import { formatDay } from "../../lib/format";
 import { useTimeWords } from "../../lib/time";
+import { highestRole, ranksAbove } from "../auth/may";
 import { useAuthError } from "../auth/messages";
 import { withStepUpIfAsked } from "../auth/stepUp";
+import { useSignedIn } from "../auth/useAuthState";
 import { useControlPlaneNow } from "../servers/useFleet";
 import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
@@ -166,13 +177,21 @@ export function expiresWithin(token: Token, now: number, ms: number): boolean {
   return token.expireTime !== undefined && timestampDate(token.expireTime).getTime() - now < ms;
 }
 
-/** What a token may do, as tags: every token reads, and some write or read logs too. */
+/**
+ * What a token may do, as tags: every token reads, and some write or read logs
+ * too; and for one narrowed, where it acts and as what (ADR 0071).
+ */
 function Scopes({ token }: { token: Token }) {
+  const { t } = useLingui();
+  const where = token.projects.map((p) => p.name || t`a project that's gone`).join(", ");
   return (
     <span className="tokens-tags">
       <Tag label="read" value="*" />
       {token.scope === TokenScope.READ_WRITE ? <Tag label="write" value="undoable" /> : null}
       {token.grants.includes(TokenGrant.LOGS) ? <Tag label="logs" value="read" /> : null}
+      {where ? <Tag label="in" value={where} /> : null}
+      {token.role === TokenRole.DEVELOPER ? <Tag label="as" value="developer" /> : null}
+      {token.role === TokenRole.VIEWER ? <Tag label="as" value="viewer" /> : null}
     </span>
   );
 }
@@ -417,6 +436,8 @@ function CreateToken({ onCreated }: { onCreated: (made: Made) => void }) {
   const [writes, setWrites] = useState(false);
   const [readsLogs, setReadsLogs] = useState(false);
   const [expiry, setExpiry] = useState<Expiry>("90");
+  const [projects, setProjects] = useState<readonly string[]>([]);
+  const [role, setRole] = useState<TokenRole>(TokenRole.UNSPECIFIED);
   const [nameError, setNameError] = useState<string>();
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string>();
@@ -438,6 +459,8 @@ function CreateToken({ onCreated }: { onCreated: (made: Made) => void }) {
           name: trimmed,
           scope: writes ? TokenScope.READ_WRITE : TokenScope.READ_ONLY,
           grants: readsLogs ? [TokenGrant.LOGS] : [],
+          projects: [...projects],
+          role,
           proof,
           // A ttl, so the control plane's clock sets the expiry, whatever the browser's says.
           expiration:
@@ -455,6 +478,8 @@ function CreateToken({ onCreated }: { onCreated: (made: Made) => void }) {
       setWrites(false);
       setReadsLogs(false);
       setExpiry("90");
+      setProjects([]);
+      setRole(TokenRole.UNSPECIFIED);
     } catch (err) {
       setProblem(explain(err));
     } finally {
@@ -535,6 +560,7 @@ function CreateToken({ onCreated }: { onCreated: (made: Made) => void }) {
             <Trans>Start with read access, and add only what the job needs.</Trans>
           </span>
         </fieldset>
+        <Reach projects={projects} onProjects={setProjects} role={role} onRole={setRole} />
         {problem ? (
           <Callout tone="critical" title={t`The token wasn't created`}>
             {problem}
@@ -550,6 +576,108 @@ function CreateToken({ onCreated }: { onCreated: (made: Made) => void }) {
         </div>
       </form>
     </Panel>
+  );
+}
+
+/**
+ * Where a token acts and as what (ADR 0071): every project you hold, as you, in
+ * one line, which Change opens to pick projects from yours and a role below
+ * yours. Nothing to type: both are picked.
+ */
+function Reach({
+  projects,
+  onProjects,
+  role,
+  onRole,
+}: {
+  projects: readonly string[];
+  onProjects: (projects: readonly string[]) => void;
+  role: TokenRole;
+  onRole: (role: TokenRole) => void;
+}) {
+  const { t } = useLingui();
+  const [open, setOpen] = useState(false);
+  // The projects you hold: the list is narrowed to them for anyone below an admin (ADR 0049).
+  const listed = useQuery(ResourceService.method.listResources, { kind: "project" }, { enabled: open });
+  const yours = useSignedIn()?.grants ?? [];
+  const highest = highestRole(yours);
+  const all = listed.data?.resources ?? [];
+  const nameOf = (id: string) => {
+    const p = all.find((r) => r.id === id);
+    return p ? p.displayName || p.resource?.name || id : id;
+  };
+  const roles = [
+    { value: String(TokenRole.UNSPECIFIED), label: t`Your role` },
+    ...(ranksAbove(highest, Role.DEVELOPER) ? [{ value: String(TokenRole.DEVELOPER), label: t`Developer` }] : []),
+    ...(ranksAbove(highest, Role.VIEWER) ? [{ value: String(TokenRole.VIEWER), label: t`Viewer` }] : []),
+  ];
+  const where = projects.length === 0 ? t`every project you hold` : projects.map(nameOf).join(", ");
+  const as = role === TokenRole.DEVELOPER ? t`as a developer` : role === TokenRole.VIEWER ? t`as a viewer` : t`as you`;
+  return (
+    <fieldset className="tokens-scopes tokens-reach">
+      <legend className="dw-field-label">
+        <Trans>Where it acts</Trans>
+      </legend>
+      <div className="tokens-reach-summary">
+        <span>{t`In ${where}, ${as}`}</span>
+        <Button size="sm" variant="ghost" aria-expanded={open} onClick={() => setOpen(!open)}>
+          {open ? <Trans>Done</Trans> : <Trans>Change</Trans>}
+        </Button>
+      </div>
+      {open ? (
+        <div className="tokens-reach-choices">
+          <fieldset className="tokens-reach-projects" aria-label={t`Projects`}>
+            {listed.data ? (
+              all.map((p) => (
+                <ProjectCheck
+                  key={p.id}
+                  name={p.displayName || p.resource?.name || p.id}
+                  checked={projects.includes(p.id)}
+                  onChange={(on) => onProjects(on ? [...projects, p.id] : projects.filter((id) => id !== p.id))}
+                />
+              ))
+            ) : (
+              <span className="settings-muted" aria-busy="true">
+                {listed.error ? t`Dockwell can't list your projects` : t`Loading your projects`}
+              </span>
+            )}
+          </fieldset>
+          {roles.length > 1 ? (
+            <SelectField
+              className="tokens-expiry"
+              label={t`Acts as`}
+              value={String(role)}
+              options={roles}
+              hint={
+                role === TokenRole.DEVELOPER ? t`Its changes in a protected environment wait for an admin.` : undefined
+              }
+              onChange={(e) => onRole(Number(e.target.value) as TokenRole)}
+            />
+          ) : null}
+        </div>
+      ) : null}
+    </fieldset>
+  );
+}
+
+/** A project a token may act in, as a checkbox. None checked is every project you hold. */
+function ProjectCheck({
+  name,
+  checked,
+  onChange,
+}: {
+  name: string;
+  checked: boolean;
+  onChange: (on: boolean) => void;
+}) {
+  return (
+    <label className={cx("tokens-scope tokens-project", checked && "is-on")}>
+      <input type="checkbox" className="dw-sr" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+      <span className="tokens-box" aria-hidden="true">
+        {checked ? <Icon name="check" size={12} /> : null}
+      </span>
+      <span>{name}</span>
+    </label>
   );
 }
 

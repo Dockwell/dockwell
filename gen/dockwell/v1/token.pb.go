@@ -79,6 +79,60 @@ func (TokenScope) EnumDescriptor() ([]byte, []int) {
 	return file_dockwell_v1_token_proto_rawDescGZIP(), []int{0}
 }
 
+// TokenRole is the role a token acts as at most, below its maker's (ADR 0071).
+type TokenRole int32
+
+const (
+	// Its maker's role.
+	TokenRole_TOKEN_ROLE_UNSPECIFIED TokenRole = 0
+	// A developer's: it plans and applies in open environments, and its
+	// changes in a protected one wait for an admin or the owner to approve them.
+	TokenRole_TOKEN_ROLE_DEVELOPER TokenRole = 1
+	// A viewer's: it only reads, whatever its scope.
+	TokenRole_TOKEN_ROLE_VIEWER TokenRole = 2
+)
+
+// Enum value maps for TokenRole.
+var (
+	TokenRole_name = map[int32]string{
+		0: "TOKEN_ROLE_UNSPECIFIED",
+		1: "TOKEN_ROLE_DEVELOPER",
+		2: "TOKEN_ROLE_VIEWER",
+	}
+	TokenRole_value = map[string]int32{
+		"TOKEN_ROLE_UNSPECIFIED": 0,
+		"TOKEN_ROLE_DEVELOPER":   1,
+		"TOKEN_ROLE_VIEWER":      2,
+	}
+)
+
+func (x TokenRole) Enum() *TokenRole {
+	p := new(TokenRole)
+	*p = x
+	return p
+}
+
+func (x TokenRole) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (TokenRole) Descriptor() protoreflect.EnumDescriptor {
+	return file_dockwell_v1_token_proto_enumTypes[1].Descriptor()
+}
+
+func (TokenRole) Type() protoreflect.EnumType {
+	return &file_dockwell_v1_token_proto_enumTypes[1]
+}
+
+func (x TokenRole) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use TokenRole.Descriptor instead.
+func (TokenRole) EnumDescriptor() ([]byte, []int) {
+	return file_dockwell_v1_token_proto_rawDescGZIP(), []int{1}
+}
+
 // Token is an API token, without its secret.
 type Token struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -103,7 +157,12 @@ type Token struct {
 	// never.
 	LastAddress string `protobuf:"bytes,8,opt,name=last_address,json=lastAddress,proto3" json:"last_address,omitempty"`
 	// What it may do beyond its scope.
-	Grants        []TokenGrant `protobuf:"varint,9,rep,packed,name=grants,proto3,enum=dockwell.v1.TokenGrant" json:"grants,omitempty"`
+	Grants []TokenGrant `protobuf:"varint,9,rep,packed,name=grants,proto3,enum=dockwell.v1.TokenGrant" json:"grants,omitempty"`
+	// The projects it acts in, or none for every project its maker holds, now
+	// and later.
+	Projects []*TokenProject `protobuf:"bytes,10,rep,name=projects,proto3" json:"projects,omitempty"`
+	// The role it acts as at most, or TOKEN_ROLE_UNSPECIFIED for its maker's.
+	Role          TokenRole `protobuf:"varint,11,opt,name=role,proto3,enum=dockwell.v1.TokenRole" json:"role,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -201,6 +260,76 @@ func (x *Token) GetGrants() []TokenGrant {
 	return nil
 }
 
+func (x *Token) GetProjects() []*TokenProject {
+	if x != nil {
+		return x.Projects
+	}
+	return nil
+}
+
+func (x *Token) GetRole() TokenRole {
+	if x != nil {
+		return x.Role
+	}
+	return TokenRole_TOKEN_ROLE_UNSPECIFIED
+}
+
+// TokenProject is a project a token acts in.
+type TokenProject struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The project's ID, such as "prj_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// Its name as it is now, such as "shop". Empty once it has been deleted:
+	// the token keeps its ID, and reaches nothing there.
+	Name          string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TokenProject) Reset() {
+	*x = TokenProject{}
+	mi := &file_dockwell_v1_token_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TokenProject) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TokenProject) ProtoMessage() {}
+
+func (x *TokenProject) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_token_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TokenProject.ProtoReflect.Descriptor instead.
+func (*TokenProject) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_token_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *TokenProject) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *TokenProject) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
 // CreateTokenRequest describes the new token.
 type CreateTokenRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -219,14 +348,22 @@ type CreateTokenRequest struct {
 	Proof string `protobuf:"bytes,5,opt,name=proof,proto3" json:"proof,omitempty"`
 	// What it may do beyond its scope, such as TOKEN_GRANT_LOGS to read logs.
 	// Either scope can have it.
-	Grants        []TokenGrant `protobuf:"varint,6,rep,packed,name=grants,proto3,enum=dockwell.v1.TokenGrant" json:"grants,omitempty"`
+	Grants []TokenGrant `protobuf:"varint,6,rep,packed,name=grants,proto3,enum=dockwell.v1.TokenGrant" json:"grants,omitempty"`
+	// The projects it acts in, each by its ID or its name, up to 100, each one
+	// its maker holds something in. Leave it empty for every project its maker
+	// holds, now and later. Narrowed, it can't call what's the install's own,
+	// such as its settings, and reads servers by name and state alone.
+	Projects []string `protobuf:"bytes,7,rep,name=projects,proto3" json:"projects,omitempty"`
+	// The role it acts as at most, below its maker's. Leave it unset for its
+	// maker's role.
+	Role          TokenRole `protobuf:"varint,8,opt,name=role,proto3,enum=dockwell.v1.TokenRole" json:"role,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *CreateTokenRequest) Reset() {
 	*x = CreateTokenRequest{}
-	mi := &file_dockwell_v1_token_proto_msgTypes[1]
+	mi := &file_dockwell_v1_token_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -238,7 +375,7 @@ func (x *CreateTokenRequest) String() string {
 func (*CreateTokenRequest) ProtoMessage() {}
 
 func (x *CreateTokenRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_token_proto_msgTypes[1]
+	mi := &file_dockwell_v1_token_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -251,7 +388,7 @@ func (x *CreateTokenRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateTokenRequest.ProtoReflect.Descriptor instead.
 func (*CreateTokenRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_token_proto_rawDescGZIP(), []int{1}
+	return file_dockwell_v1_token_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *CreateTokenRequest) GetName() string {
@@ -307,6 +444,20 @@ func (x *CreateTokenRequest) GetGrants() []TokenGrant {
 	return nil
 }
 
+func (x *CreateTokenRequest) GetProjects() []string {
+	if x != nil {
+		return x.Projects
+	}
+	return nil
+}
+
+func (x *CreateTokenRequest) GetRole() TokenRole {
+	if x != nil {
+		return x.Role
+	}
+	return TokenRole_TOKEN_ROLE_UNSPECIFIED
+}
+
 type isCreateTokenRequest_Expiration interface {
 	isCreateTokenRequest_Expiration()
 }
@@ -341,7 +492,7 @@ type CreateTokenResponse struct {
 
 func (x *CreateTokenResponse) Reset() {
 	*x = CreateTokenResponse{}
-	mi := &file_dockwell_v1_token_proto_msgTypes[2]
+	mi := &file_dockwell_v1_token_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -353,7 +504,7 @@ func (x *CreateTokenResponse) String() string {
 func (*CreateTokenResponse) ProtoMessage() {}
 
 func (x *CreateTokenResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_token_proto_msgTypes[2]
+	mi := &file_dockwell_v1_token_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -366,7 +517,7 @@ func (x *CreateTokenResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateTokenResponse.ProtoReflect.Descriptor instead.
 func (*CreateTokenResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_token_proto_rawDescGZIP(), []int{2}
+	return file_dockwell_v1_token_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *CreateTokenResponse) GetToken() *Token {
@@ -392,7 +543,7 @@ type ListTokensRequest struct {
 
 func (x *ListTokensRequest) Reset() {
 	*x = ListTokensRequest{}
-	mi := &file_dockwell_v1_token_proto_msgTypes[3]
+	mi := &file_dockwell_v1_token_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -404,7 +555,7 @@ func (x *ListTokensRequest) String() string {
 func (*ListTokensRequest) ProtoMessage() {}
 
 func (x *ListTokensRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_token_proto_msgTypes[3]
+	mi := &file_dockwell_v1_token_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -417,7 +568,7 @@ func (x *ListTokensRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListTokensRequest.ProtoReflect.Descriptor instead.
 func (*ListTokensRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_token_proto_rawDescGZIP(), []int{3}
+	return file_dockwell_v1_token_proto_rawDescGZIP(), []int{4}
 }
 
 // ListTokensResponse lists tokens.
@@ -431,7 +582,7 @@ type ListTokensResponse struct {
 
 func (x *ListTokensResponse) Reset() {
 	*x = ListTokensResponse{}
-	mi := &file_dockwell_v1_token_proto_msgTypes[4]
+	mi := &file_dockwell_v1_token_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -443,7 +594,7 @@ func (x *ListTokensResponse) String() string {
 func (*ListTokensResponse) ProtoMessage() {}
 
 func (x *ListTokensResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_token_proto_msgTypes[4]
+	mi := &file_dockwell_v1_token_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -456,7 +607,7 @@ func (x *ListTokensResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListTokensResponse.ProtoReflect.Descriptor instead.
 func (*ListTokensResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_token_proto_rawDescGZIP(), []int{4}
+	return file_dockwell_v1_token_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *ListTokensResponse) GetTokens() []*Token {
@@ -477,7 +628,7 @@ type RevokeTokenRequest struct {
 
 func (x *RevokeTokenRequest) Reset() {
 	*x = RevokeTokenRequest{}
-	mi := &file_dockwell_v1_token_proto_msgTypes[5]
+	mi := &file_dockwell_v1_token_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -489,7 +640,7 @@ func (x *RevokeTokenRequest) String() string {
 func (*RevokeTokenRequest) ProtoMessage() {}
 
 func (x *RevokeTokenRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_token_proto_msgTypes[5]
+	mi := &file_dockwell_v1_token_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -502,7 +653,7 @@ func (x *RevokeTokenRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RevokeTokenRequest.ProtoReflect.Descriptor instead.
 func (*RevokeTokenRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_token_proto_rawDescGZIP(), []int{5}
+	return file_dockwell_v1_token_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *RevokeTokenRequest) GetId() string {
@@ -521,7 +672,7 @@ type RevokeTokenResponse struct {
 
 func (x *RevokeTokenResponse) Reset() {
 	*x = RevokeTokenResponse{}
-	mi := &file_dockwell_v1_token_proto_msgTypes[6]
+	mi := &file_dockwell_v1_token_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -533,7 +684,7 @@ func (x *RevokeTokenResponse) String() string {
 func (*RevokeTokenResponse) ProtoMessage() {}
 
 func (x *RevokeTokenResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_token_proto_msgTypes[6]
+	mi := &file_dockwell_v1_token_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -546,14 +697,14 @@ func (x *RevokeTokenResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RevokeTokenResponse.ProtoReflect.Descriptor instead.
 func (*RevokeTokenResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_token_proto_rawDescGZIP(), []int{6}
+	return file_dockwell_v1_token_proto_rawDescGZIP(), []int{7}
 }
 
 var File_dockwell_v1_token_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_token_proto_rawDesc = "" +
 	"\n" +
-	"\x17dockwell/v1/token.proto\x12\vdockwell.v1\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xfe\x02\n" +
+	"\x17dockwell/v1/token.proto\x12\vdockwell.v1\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xe1\x03\n" +
 	"\x05Token\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x12\n" +
@@ -565,7 +716,13 @@ const file_dockwell_v1_token_proto_rawDesc = "" +
 	"expireTime\x12@\n" +
 	"\x0elast_used_time\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\flastUsedTime\x12!\n" +
 	"\flast_address\x18\b \x01(\tR\vlastAddress\x12/\n" +
-	"\x06grants\x18\t \x03(\x0e2\x17.dockwell.v1.TokenGrantR\x06grants\"\x9a\x02\n" +
+	"\x06grants\x18\t \x03(\x0e2\x17.dockwell.v1.TokenGrantR\x06grants\x125\n" +
+	"\bprojects\x18\n" +
+	" \x03(\v2\x19.dockwell.v1.TokenProjectR\bprojects\x12*\n" +
+	"\x04role\x18\v \x01(\x0e2\x16.dockwell.v1.TokenRoleR\x04role\"2\n" +
+	"\fTokenProject\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\"\xef\x02\n" +
 	"\x12CreateTokenRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12-\n" +
 	"\x05scope\x18\x02 \x01(\x0e2\x17.dockwell.v1.TokenScopeR\x05scope\x12=\n" +
@@ -573,7 +730,9 @@ const file_dockwell_v1_token_proto_rawDesc = "" +
 	"expireTime\x12-\n" +
 	"\x03ttl\x18\x04 \x01(\v2\x19.google.protobuf.DurationH\x00R\x03ttl\x12\x14\n" +
 	"\x05proof\x18\x05 \x01(\tR\x05proof\x12/\n" +
-	"\x06grants\x18\x06 \x03(\x0e2\x17.dockwell.v1.TokenGrantR\x06grantsB\f\n" +
+	"\x06grants\x18\x06 \x03(\x0e2\x17.dockwell.v1.TokenGrantR\x06grants\x12'\n" +
+	"\bprojects\x18\a \x03(\tB\v\xa2\xbb\x18\aprojectR\bprojects\x12*\n" +
+	"\x04role\x18\b \x01(\x0e2\x16.dockwell.v1.TokenRoleR\x04roleB\f\n" +
 	"\n" +
 	"expiration\"W\n" +
 	"\x13CreateTokenResponse\x12(\n" +
@@ -589,7 +748,11 @@ const file_dockwell_v1_token_proto_rawDesc = "" +
 	"TokenScope\x12\x1b\n" +
 	"\x17TOKEN_SCOPE_UNSPECIFIED\x10\x00\x12\x19\n" +
 	"\x15TOKEN_SCOPE_READ_ONLY\x10\x01\x12\x1a\n" +
-	"\x16TOKEN_SCOPE_READ_WRITE\x10\x022\xb5\x03\n" +
+	"\x16TOKEN_SCOPE_READ_WRITE\x10\x02*X\n" +
+	"\tTokenRole\x12\x1a\n" +
+	"\x16TOKEN_ROLE_UNSPECIFIED\x10\x00\x12\x18\n" +
+	"\x14TOKEN_ROLE_DEVELOPER\x10\x01\x12\x15\n" +
+	"\x11TOKEN_ROLE_VIEWER\x10\x022\xb5\x03\n" +
 	"\fTokenService\x12\x87\x01\n" +
 	"\vCreateToken\x12\x1f.dockwell.v1.CreateTokenRequest\x1a .dockwell.v1.CreateTokenResponse\"5\xa0\xbb\x18\x03\xaa\xbb\x18\f\n" +
 	"\n" +
@@ -618,44 +781,49 @@ func file_dockwell_v1_token_proto_rawDescGZIP() []byte {
 	return file_dockwell_v1_token_proto_rawDescData
 }
 
-var file_dockwell_v1_token_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_dockwell_v1_token_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_dockwell_v1_token_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_dockwell_v1_token_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_dockwell_v1_token_proto_goTypes = []any{
 	(TokenScope)(0),               // 0: dockwell.v1.TokenScope
-	(*Token)(nil),                 // 1: dockwell.v1.Token
-	(*CreateTokenRequest)(nil),    // 2: dockwell.v1.CreateTokenRequest
-	(*CreateTokenResponse)(nil),   // 3: dockwell.v1.CreateTokenResponse
-	(*ListTokensRequest)(nil),     // 4: dockwell.v1.ListTokensRequest
-	(*ListTokensResponse)(nil),    // 5: dockwell.v1.ListTokensResponse
-	(*RevokeTokenRequest)(nil),    // 6: dockwell.v1.RevokeTokenRequest
-	(*RevokeTokenResponse)(nil),   // 7: dockwell.v1.RevokeTokenResponse
-	(*timestamppb.Timestamp)(nil), // 8: google.protobuf.Timestamp
-	(TokenGrant)(0),               // 9: dockwell.v1.TokenGrant
-	(*durationpb.Duration)(nil),   // 10: google.protobuf.Duration
+	(TokenRole)(0),                // 1: dockwell.v1.TokenRole
+	(*Token)(nil),                 // 2: dockwell.v1.Token
+	(*TokenProject)(nil),          // 3: dockwell.v1.TokenProject
+	(*CreateTokenRequest)(nil),    // 4: dockwell.v1.CreateTokenRequest
+	(*CreateTokenResponse)(nil),   // 5: dockwell.v1.CreateTokenResponse
+	(*ListTokensRequest)(nil),     // 6: dockwell.v1.ListTokensRequest
+	(*ListTokensResponse)(nil),    // 7: dockwell.v1.ListTokensResponse
+	(*RevokeTokenRequest)(nil),    // 8: dockwell.v1.RevokeTokenRequest
+	(*RevokeTokenResponse)(nil),   // 9: dockwell.v1.RevokeTokenResponse
+	(*timestamppb.Timestamp)(nil), // 10: google.protobuf.Timestamp
+	(TokenGrant)(0),               // 11: dockwell.v1.TokenGrant
+	(*durationpb.Duration)(nil),   // 12: google.protobuf.Duration
 }
 var file_dockwell_v1_token_proto_depIdxs = []int32{
 	0,  // 0: dockwell.v1.Token.scope:type_name -> dockwell.v1.TokenScope
-	8,  // 1: dockwell.v1.Token.create_time:type_name -> google.protobuf.Timestamp
-	8,  // 2: dockwell.v1.Token.expire_time:type_name -> google.protobuf.Timestamp
-	8,  // 3: dockwell.v1.Token.last_used_time:type_name -> google.protobuf.Timestamp
-	9,  // 4: dockwell.v1.Token.grants:type_name -> dockwell.v1.TokenGrant
-	0,  // 5: dockwell.v1.CreateTokenRequest.scope:type_name -> dockwell.v1.TokenScope
-	8,  // 6: dockwell.v1.CreateTokenRequest.expire_time:type_name -> google.protobuf.Timestamp
-	10, // 7: dockwell.v1.CreateTokenRequest.ttl:type_name -> google.protobuf.Duration
-	9,  // 8: dockwell.v1.CreateTokenRequest.grants:type_name -> dockwell.v1.TokenGrant
-	1,  // 9: dockwell.v1.CreateTokenResponse.token:type_name -> dockwell.v1.Token
-	1,  // 10: dockwell.v1.ListTokensResponse.tokens:type_name -> dockwell.v1.Token
-	2,  // 11: dockwell.v1.TokenService.CreateToken:input_type -> dockwell.v1.CreateTokenRequest
-	4,  // 12: dockwell.v1.TokenService.ListTokens:input_type -> dockwell.v1.ListTokensRequest
-	6,  // 13: dockwell.v1.TokenService.RevokeToken:input_type -> dockwell.v1.RevokeTokenRequest
-	3,  // 14: dockwell.v1.TokenService.CreateToken:output_type -> dockwell.v1.CreateTokenResponse
-	5,  // 15: dockwell.v1.TokenService.ListTokens:output_type -> dockwell.v1.ListTokensResponse
-	7,  // 16: dockwell.v1.TokenService.RevokeToken:output_type -> dockwell.v1.RevokeTokenResponse
-	14, // [14:17] is the sub-list for method output_type
-	11, // [11:14] is the sub-list for method input_type
-	11, // [11:11] is the sub-list for extension type_name
-	11, // [11:11] is the sub-list for extension extendee
-	0,  // [0:11] is the sub-list for field type_name
+	10, // 1: dockwell.v1.Token.create_time:type_name -> google.protobuf.Timestamp
+	10, // 2: dockwell.v1.Token.expire_time:type_name -> google.protobuf.Timestamp
+	10, // 3: dockwell.v1.Token.last_used_time:type_name -> google.protobuf.Timestamp
+	11, // 4: dockwell.v1.Token.grants:type_name -> dockwell.v1.TokenGrant
+	3,  // 5: dockwell.v1.Token.projects:type_name -> dockwell.v1.TokenProject
+	1,  // 6: dockwell.v1.Token.role:type_name -> dockwell.v1.TokenRole
+	0,  // 7: dockwell.v1.CreateTokenRequest.scope:type_name -> dockwell.v1.TokenScope
+	10, // 8: dockwell.v1.CreateTokenRequest.expire_time:type_name -> google.protobuf.Timestamp
+	12, // 9: dockwell.v1.CreateTokenRequest.ttl:type_name -> google.protobuf.Duration
+	11, // 10: dockwell.v1.CreateTokenRequest.grants:type_name -> dockwell.v1.TokenGrant
+	1,  // 11: dockwell.v1.CreateTokenRequest.role:type_name -> dockwell.v1.TokenRole
+	2,  // 12: dockwell.v1.CreateTokenResponse.token:type_name -> dockwell.v1.Token
+	2,  // 13: dockwell.v1.ListTokensResponse.tokens:type_name -> dockwell.v1.Token
+	4,  // 14: dockwell.v1.TokenService.CreateToken:input_type -> dockwell.v1.CreateTokenRequest
+	6,  // 15: dockwell.v1.TokenService.ListTokens:input_type -> dockwell.v1.ListTokensRequest
+	8,  // 16: dockwell.v1.TokenService.RevokeToken:input_type -> dockwell.v1.RevokeTokenRequest
+	5,  // 17: dockwell.v1.TokenService.CreateToken:output_type -> dockwell.v1.CreateTokenResponse
+	7,  // 18: dockwell.v1.TokenService.ListTokens:output_type -> dockwell.v1.ListTokensResponse
+	9,  // 19: dockwell.v1.TokenService.RevokeToken:output_type -> dockwell.v1.RevokeTokenResponse
+	17, // [17:20] is the sub-list for method output_type
+	14, // [14:17] is the sub-list for method input_type
+	14, // [14:14] is the sub-list for extension type_name
+	14, // [14:14] is the sub-list for extension extendee
+	0,  // [0:14] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_token_proto_init() }
@@ -664,7 +832,7 @@ func file_dockwell_v1_token_proto_init() {
 		return
 	}
 	file_dockwell_v1_options_proto_init()
-	file_dockwell_v1_token_proto_msgTypes[1].OneofWrappers = []any{
+	file_dockwell_v1_token_proto_msgTypes[2].OneofWrappers = []any{
 		(*CreateTokenRequest_ExpireTime)(nil),
 		(*CreateTokenRequest_Ttl)(nil),
 	}
@@ -673,8 +841,8 @@ func file_dockwell_v1_token_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_token_proto_rawDesc), len(file_dockwell_v1_token_proto_rawDesc)),
-			NumEnums:      1,
-			NumMessages:   7,
+			NumEnums:      2,
+			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

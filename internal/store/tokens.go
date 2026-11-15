@@ -34,7 +34,19 @@ type APIToken struct {
 	// a token for the CLI's local access, as "mira@hz-1". Empty for every
 	// other token.
 	LocalAccount string
+	// Projects are the IDs of the projects it acts in. Nil, as NULL is stored,
+	// is every project its maker holds; a list, even an empty one, is exactly
+	// those, so a list emptied by a cleanup or a hand edit reaches no project
+	// rather than every one (ADR 0071).
+	Projects []string
+	// Role is the role it acts as at most, RoleDeveloper or RoleViewer, or empty
+	// for its maker's (ADR 0071).
+	Role string
 }
+
+// Narrowed reports a token that acts in some projects or as a lower role than its
+// maker's (ADR 0071).
+func (t *APIToken) Narrowed() bool { return t.Projects != nil || t.Role != "" }
 
 // Token scopes, as stored.
 const (
@@ -51,18 +63,26 @@ func (t *APIToken) HasGrant(grant string) bool { return slices.Contains(t.Grants
 // MaxTokenAddresses bounds the addresses kept for each token.
 const MaxTokenAddresses = 256
 
-const apiTokenColumns = `id, token_hash, user_id, name, hint, scope, created_at, expires_at, last_used_at, last_ip, revoked_at, grants, local_account` //nolint:gosec // column names
+const apiTokenColumns = `id, token_hash, user_id, name, hint, scope, created_at, expires_at, last_used_at, last_ip, revoked_at, grants, local_account, projects, role` //nolint:gosec // column names
 
 func scanAPIToken(row interface{ Scan(...any) error }) (APIToken, error) {
 	var t APIToken
 	var created int64
 	var expires, used, revoked sql.NullInt64
 	var grants string
-	if err := row.Scan(&t.ID, &t.TokenHash, &t.UserID, &t.Name, &t.Hint, &t.Scope, &created, &expires, &used, &t.LastIP, &revoked, &grants, &t.LocalAccount); err != nil {
+	var projects sql.NullString
+	if err := row.Scan(&t.ID, &t.TokenHash, &t.UserID, &t.Name, &t.Hint, &t.Scope, &created, &expires, &used, &t.LastIP, &revoked, &grants, &t.LocalAccount,
+		&projects, &t.Role); err != nil {
 		return APIToken{}, err
 	}
 	if grants != "" {
 		t.Grants = strings.Split(grants, ",")
+	}
+	if projects.Valid {
+		t.Projects = []string{}
+		if projects.String != "" {
+			t.Projects = strings.Split(projects.String, ",")
+		}
 	}
 	t.CreatedAt, t.ExpiresAt, t.LastUsedAt, t.RevokedAt = fromMillis(created), timePtr(expires), timePtr(used), timePtr(revoked)
 	return t, nil
@@ -70,10 +90,22 @@ func scanAPIToken(row interface{ Scan(...any) error }) (APIToken, error) {
 
 // CreateAPIToken records a new token.
 func (t *Tx) CreateAPIToken(ctx context.Context, tok APIToken) error {
-	_, err := t.exec(ctx, `INSERT INTO api_tokens (id, token_hash, user_id, name, hint, scope, created_at, expires_at, grants, local_account)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+	columns, values := `id, token_hash, user_id, name, hint, scope, created_at, expires_at, grants, local_account`, `?, ?, ?, ?, ?, ?, ?, ?, ?, ?`
+	args := []any{
 		tok.ID, tok.TokenHash, tok.UserID, tok.Name, tok.Hint, tok.Scope, millis(tok.CreatedAt), nullMillis(tok.ExpiresAt), strings.Join(tok.Grants, ","),
-		tok.LocalAccount)
+		tok.LocalAccount,
+	}
+	// A token that isn't narrowed leaves both to their defaults, which it is the
+	// same as, so it's written the way it was before they were added.
+	if tok.Narrowed() {
+		var projects sql.NullString
+		if tok.Projects != nil {
+			projects = sql.NullString{String: strings.Join(tok.Projects, ","), Valid: true}
+		}
+		columns, values = columns+`, projects, role`, values+`, ?, ?`
+		args = append(args, projects, tok.Role)
+	}
+	_, err := t.exec(ctx, `INSERT INTO api_tokens (`+columns+`) VALUES (`+values+`)`, args...)
 	if err != nil {
 		return fmt.Errorf("can't record API token %s: %w", tok.ID, err)
 	}

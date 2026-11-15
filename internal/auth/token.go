@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/store"
 )
@@ -151,9 +152,39 @@ func liveToken(tok *store.APIToken, now time.Time) bool {
 // refused before the proof is asked for. Where the session's cover stands in
 // for the proof (ADR 0075), that's recorded with the token, from client.
 func (s *Service) CreateToken(ctx context.Context, client Client, p Principal, name, scope string, grants []string, expires *time.Time, proof string) (NewToken, error) {
+	return s.CreateTokenWithin(ctx, client, p, name, scope, grants, expires, TokenReach{}, proof)
+}
+
+// TokenReach is what a token is narrowed to when it's made (ADR 0071). The zero
+// value acts as its maker does, everywhere they do.
+type TokenReach struct {
+	// Projects are the IDs of the projects it acts in, or none for every
+	// project its maker holds, now and later.
+	Projects []string
+	// Role is store.RoleDeveloper or store.RoleViewer to act as that at most,
+	// or empty for its maker's.
+	Role string
+}
+
+// maxTokenProjects bounds the projects a token names.
+const maxTokenProjects = 100
+
+// CreateTokenWithin is CreateToken for a token narrowed to reach. Each project
+// must be one its maker holds something in, and the role one below their
+// highest, as a cap at it would be no cap.
+func (s *Service) CreateTokenWithin(ctx context.Context, client Client, p Principal, name, scope string, grants []string, expires *time.Time, reach TokenReach,
+	proof string,
+) (NewToken, error) {
 	if p.Token != nil || p.Session.ID == "" {
 		return NewToken{}, ErrNeedsSession
 	}
+	if reach.Role != "" && reach.Role != store.RoleDeveloper && reach.Role != store.RoleViewer {
+		return NewToken{}, fmt.Errorf("%w: a token can act as a developer or a viewer at most, or as you do", ErrInvalid)
+	}
+	if len(reach.Projects) > maxTokenProjects {
+		return NewToken{}, fmt.Errorf("%w: a token can name up to %d projects. Leave them out for every project you hold", ErrInvalid, maxTokenProjects)
+	}
+	reach.Projects = slices.Compact(slices.Sorted(slices.Values(reach.Projects)))
 	// Its maker as they stand with the write: someone removed since the request began
 	// makes nothing, as their tokens were revoked by then (ADR 0049).
 	maker := func(tx *store.Tx) (store.User, error) {
@@ -163,7 +194,7 @@ func (s *Service) CreateToken(ctx context.Context, client Client, p Principal, n
 		}
 		return u, err
 	}
-	return s.createToken(ctx, maker, p.Actor(), "", name, scope, grants, expires,
+	return s.createToken(ctx, maker, p.Actor(), "", name, scope, grants, expires, reach,
 		func(tx *store.Tx) error { return s.confirmedIn(ctx, tx, client, p, proof, StepUpCreateToken) })
 }
 
@@ -188,7 +219,7 @@ func (s *Service) CreateLocalToken(ctx context.Context, actor, name, scope strin
 			return u, errNoOwner(ctx, tx, "local access has nobody to act for")
 		}
 		return u, err
-	}, actor, strings.TrimPrefix(actor, "cli:"), name, scope, []string{store.GrantLogs}, &expires, nil)
+	}, actor, strings.TrimPrefix(actor, "cli:"), name, scope, []string{store.GrantLogs}, &expires, TokenReach{}, nil)
 }
 
 // RevokeLocalToken revokes a token CreateLocalToken made, for whoever can
@@ -230,7 +261,7 @@ func (s *Service) RevokeLocalToken(ctx context.Context, actor, tokenID string) (
 // local is the shell account a token for the CLI's local access is for, or
 // empty for any other token.
 func (s *Service) createToken(ctx context.Context, who func(*store.Tx) (store.User, error), actor, local, name, scope string, grants []string, expires *time.Time,
-	confirm func(*store.Tx) error,
+	reach TokenReach, confirm func(*store.Tx) error,
 ) (NewToken, error) {
 	name = strings.Join(strings.Fields(cleanText(name)), " ")
 	if name == "" || len([]rune(name)) > maxTokenName {
@@ -265,6 +296,8 @@ func (s *Service) createToken(ctx context.Context, who func(*store.Tx) (store.Us
 		ExpiresAt: expires,
 
 		LocalAccount: local,
+		Projects:     reach.Projects,
+		Role:         reach.Role,
 	}
 	err := s.db.Update(ctx, func(tx *store.Tx) error {
 		user, err := who(tx)
@@ -283,6 +316,10 @@ func (s *Service) createToken(ctx context.Context, who func(*store.Tx) (store.Us
 			return fmt.Errorf("%w: you have %d API tokens, the most you can have. Revoke one you no longer use, then try again",
 				ErrInvalid, maxTokens)
 		}
+		where, err := s.tokenReachable(ctx, tx, user.ID, reach)
+		if err != nil {
+			return err
+		}
 		if confirm != nil {
 			if err := confirm(tx); err != nil {
 				return err
@@ -299,12 +336,66 @@ func (s *Service) createToken(ctx context.Context, who func(*store.Tx) (store.Us
 		if tok.HasGrant(store.GrantLogs) {
 			detail = fmt.Sprintf("token %s %q, %s, can read logs, %s", tok.ID, name, scope, expiry)
 		}
+		detail += where
 		return s.auditOn(ctx, tx, actor, "token.create", user.ID, tok.ID, detail)
 	})
 	if err != nil {
 		return NewToken{}, err
 	}
 	return NewToken{Token: tok, Secret: secret}, nil
+}
+
+// tokenReachable checks that reach narrows what userID holds now: each project
+// one they hold something in, and a role below their highest. It returns what
+// the audit log says of it, such as ", in shop and blog, as a developer at
+// most", or nothing for a token that isn't narrowed.
+func (s *Service) tokenReachable(ctx context.Context, tx *store.Tx, userID string, reach TokenReach) (string, error) {
+	if len(reach.Projects) == 0 && reach.Role == "" {
+		return "", nil
+	}
+	grants, err := tx.Grants(ctx, userID)
+	if err != nil {
+		return "", err
+	}
+	highest := Highest(grants)
+	if reach.Role != "" && store.RoleRank(reach.Role) >= store.RoleRank(highest) {
+		return "", fmt.Errorf("%w: you're %s, so a token that acts as %s at most acts as you do already. Leave its role unset%s",
+			ErrInvalid, aRole(highest), aRole(reach.Role), lowerCap(highest))
+	}
+	var names []string
+	for _, projectID := range reach.Projects {
+		r, err := tx.GetResourceByID(ctx, projectID)
+		if errors.Is(err, store.ErrNotFound) || (err == nil && r.Kind != projectKind) {
+			return "", fmt.Errorf("%w: there's no project %s. Name one you hold, by its name or its ID", ErrInvalid, projectID)
+		}
+		if err != nil {
+			return "", err
+		}
+		if len(Narrow(grants, []string{projectID}, "")) == 0 {
+			return "", fmt.Errorf("%w: you hold nothing in %s, so a token can't act there. Choose among the projects you hold, or leave them out",
+				ErrInvalid, r.Name)
+		}
+		names = append(names, r.Name)
+	}
+	where := ""
+	if len(names) > 0 {
+		where = ", in " + human.List(names)
+	}
+	if reach.Role != "" {
+		where += ", as " + aRole(reach.Role) + " at most"
+	}
+	return where, nil
+}
+
+// lowerCap says what a token could be capped at below highest, if anything.
+func lowerCap(highest string) string {
+	if store.RoleRank(highest) > store.RoleRank(store.RoleDeveloper) {
+		return ", or cap it at developer or viewer"
+	}
+	if store.RoleRank(highest) > store.RoleRank(store.RoleViewer) {
+		return ", or cap it at viewer"
+	}
+	return ""
 }
 
 // ListTokens returns the principal's tokens that still work, newest first.

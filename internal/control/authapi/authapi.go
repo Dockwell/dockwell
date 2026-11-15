@@ -766,6 +766,9 @@ const (
 	// ReasonNeedsRole: the call needs a role the caller doesn't hold, or for
 	// an API token, its maker doesn't (ADR 0049).
 	ReasonNeedsRole = "needs_role"
+	// ReasonTokenPlaces: the call is the install's own, and the API token is
+	// narrowed to projects, so it reaches none of it (ADR 0071).
+	ReasonTokenPlaces = "token_places"
 	// ReasonNeedsStepUp: the call needs a fresh passkey assertion for it,
 	// from FinishStepUp, and its proof is missing, used, expired, or for
 	// something else.

@@ -7,13 +7,15 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 
+	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/store"
 )
 
 // Grants returns what a principal may act with: a person's own grants, or for an
 // API token, its maker's, as they stand now, so a token loses what its maker
-// loses (ADR 0049).
+// loses (ADR 0049), narrowed to the token's projects and role (ADR 0071).
 func (s *Service) Grants(ctx context.Context, p Principal) ([]store.Grant, error) {
 	var out []store.Grant
 	err := s.db.View(ctx, func(tx *store.Tx) error {
@@ -21,7 +23,64 @@ func (s *Service) Grants(ctx context.Context, p Principal) ([]store.Grant, error
 		out, err = tx.Grants(ctx, p.User.ID)
 		return err
 	})
-	return out, err
+	if err != nil || p.Token == nil {
+		return out, err
+	}
+	return Narrow(out, p.Token.Projects, p.Token.Role), nil
+}
+
+// Narrow is what grants give a token narrowed to projects and capped at role
+// (ADR 0071). Each grant counts as the lower of it and role, when there is one.
+// With projects, a token holds a grant on each of them alone, at the role its
+// maker holds there, and none on the install, so the install's own is out of its
+// reach, and lists are narrowed to those projects as they are below an admin. A
+// project its maker no longer holds anything in is dropped. In a project, the
+// owner counts as an admin: what's the owner's alone needs a session anyway.
+//
+// Nil projects is every project its maker holds; a list, even an empty one, is
+// exactly those.
+func Narrow(grants []store.Grant, projects []string, role string) []store.Grant {
+	if projects == nil && role == "" {
+		return grants
+	}
+	capped := func(r string) string {
+		if role != "" && store.RoleRank(r) > store.RoleRank(role) {
+			return role
+		}
+		return r
+	}
+	var out []store.Grant
+	if projects == nil {
+		for _, g := range grants {
+			g.Role = capped(g.Role)
+			out = append(out, g)
+		}
+		return out
+	}
+	for _, project := range projects {
+		held := ""
+		for _, g := range grants {
+			if (g.ProjectID == store.Install || g.ProjectID == project) && store.RoleRank(g.Role) > store.RoleRank(held) {
+				held = g.Role
+			}
+		}
+		if held == "" {
+			continue
+		}
+		if held == store.RoleOwner {
+			held = store.RoleAdmin
+		}
+		out = append(out, store.Grant{UserID: userOf(grants), ProjectID: project, Role: capped(held)})
+	}
+	return out
+}
+
+// userOf is whose grants these are.
+func userOf(grants []store.Grant) string {
+	if len(grants) == 0 {
+		return ""
+	}
+	return grants[0].UserID
 }
 
 // Highest is the highest role among grants, anywhere, or "" for none.
@@ -128,6 +187,49 @@ func (s *Service) RefuseRole(ctx context.Context, client Client, p Principal, ca
 	}); err != nil {
 		s.logger.WarnContext(ctx, "can't audit a call refused for its role", slog.String("actor", p.Actor()), slog.Any("error", err))
 	}
+}
+
+// RefuseTokenPlaces is the refusal of a call of the install's own made with a
+// token narrowed to projects (ADR 0071), naming them as they're called now. When
+// audit is set, it's audited as role.refuse is, at most once an hour for each
+// token and method, with a count of the rest. A stream's recheck doesn't audit.
+func (s *Service) RefuseTokenPlaces(ctx context.Context, client Client, p Principal, call string, audit bool) error {
+	names := s.projectNames(ctx, p.Token.Projects)
+	err := fmt.Errorf("this API token acts only in %s, and this is the install's own, so it didn't happen. Use a token made for every project you hold",
+		human.List(names))
+	if !audit {
+		return err
+	}
+	more, report := s.roleRefusals.count("token:"+p.Token.ID+" places "+call, s.now())
+	s.logger.InfoContext(ctx, "refused a call outside a token's projects", slog.String("actor", p.Actor()), slog.String("call", call))
+	if !report {
+		return err
+	}
+	detail := fmt.Sprintf("%s, which is the install's own, from %s: token %s acts only in %s", call, client.remoteIP(), p.Token.ID, human.List(names))
+	if more > 0 {
+		detail += fmt.Sprintf(", and %d more refused since the last report", more)
+	}
+	if aerr := s.db.Update(ctx, func(tx *store.Tx) error {
+		return s.auditFrom(ctx, tx, p.Actor(), client.Surface(p), "role.refuse", p.User.ID, detail)
+	}); aerr != nil {
+		s.logger.WarnContext(ctx, "can't audit a call refused for a token's projects", slog.String("actor", p.Actor()), slog.Any("error", aerr))
+	}
+	return err
+}
+
+// projectNames are the projects' names as they are now, or their IDs for one
+// that's gone or can't be read.
+func (s *Service) projectNames(ctx context.Context, projectIDs []string) []string {
+	out := slices.Clone(projectIDs)
+	_ = s.db.View(ctx, func(tx *store.Tx) error {
+		for i, projectID := range projectIDs {
+			if r, err := tx.GetResourceByID(ctx, projectID); err == nil {
+				out[i] = r.Name
+			}
+		}
+		return nil
+	})
+	return out
 }
 
 // aRole names a role with its article: "a viewer", "an admin".

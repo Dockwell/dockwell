@@ -16557,6 +16557,9 @@ msgstr "1 token"
 msgid "Active tokens"
 msgstr "Active tokens"
 
+msgid "Acts as"
+msgstr "Acts as"
+
 msgid "Copy this token now. It won't be shown again."
 msgstr "Copy this token now. It won't be shown again."
 
@@ -16574,6 +16577,9 @@ msgstr "Created <0>{name}</0>. Send it in the Authorization header, as <1>Bearer
 
 msgid "Created <0>{name}</0>. Send it in the Authorization header, as <1>Bearer</1> and the token. It expires {expires}."
 msgstr "Created <0>{name}</0>. Send it in the Authorization header, as <1>Bearer</1> and the token. It expires {expires}."
+
+msgid "Dockwell can't list your projects"
+msgstr "Dockwell can't list your projects"
 
 msgid "Dockwell can't list your tokens"
 msgstr "Dockwell can't list your tokens"
@@ -16593,11 +16599,20 @@ msgstr "In 30 days"
 msgid "In 90 days"
 msgstr "In 90 days"
 
+msgid "In {where}, {as}"
+msgstr "In {where}, {as}"
+
+msgid "Its changes in a protected environment wait for an admin."
+msgstr "Its changes in a protected environment wait for an admin."
+
 msgid "Last used"
 msgstr "Last used"
 
 msgid "Loading tokens"
 msgstr "Loading tokens"
+
+msgid "Loading your projects"
+msgstr "Loading your projects"
 
 msgid "Make a token"
 msgstr "Make a token"
@@ -16655,11 +16670,29 @@ msgstr "Tokens act for you from CI, scripts and the CLI, with only the scope you
 msgid "What will use this token?"
 msgstr "What will use this token?"
 
+msgid "Where it acts"
+msgstr "Where it acts"
+
 msgid "Your API tokens"
 msgstr "Your API tokens"
 
 msgid "Your passkey confirms it. You see the token once, right after you create it."
 msgstr "Your passkey confirms it. You see the token once, right after you create it."
+
+msgid "Your role"
+msgstr "Your role"
+
+msgid "as a developer"
+msgstr "as a developer"
+
+msgid "as a viewer"
+msgstr "as a viewer"
+
+msgid "as you"
+msgstr "as you"
+
+msgid "every project you hold"
+msgstr "every project you hold"
 
 #. placeholder {0}: token.lastAddress
 msgid "from <0>{0}</0>"

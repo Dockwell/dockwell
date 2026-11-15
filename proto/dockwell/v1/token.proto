@@ -71,6 +71,17 @@ enum TokenScope {
   TOKEN_SCOPE_READ_WRITE = 2;
 }
 
+// TokenRole is the role a token acts as at most, below its maker's (ADR 0071).
+enum TokenRole {
+  // Its maker's role.
+  TOKEN_ROLE_UNSPECIFIED = 0;
+  // A developer's: it plans and applies in open environments, and its
+  // changes in a protected one wait for an admin or the owner to approve them.
+  TOKEN_ROLE_DEVELOPER = 1;
+  // A viewer's: it only reads, whatever its scope.
+  TOKEN_ROLE_VIEWER = 2;
+}
+
 // Token is an API token, without its secret.
 message Token {
   // The token's ID, such as "tok_01JD6Z3R8M9QF2K7T4XW5BNC0V". It isn't
@@ -95,6 +106,20 @@ message Token {
   string last_address = 8;
   // What it may do beyond its scope.
   repeated TokenGrant grants = 9;
+  // The projects it acts in, or none for every project its maker holds, now
+  // and later.
+  repeated TokenProject projects = 10;
+  // The role it acts as at most, or TOKEN_ROLE_UNSPECIFIED for its maker's.
+  TokenRole role = 11;
+}
+
+// TokenProject is a project a token acts in.
+message TokenProject {
+  // The project's ID, such as "prj_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+  string id = 1;
+  // Its name as it is now, such as "shop". Empty once it has been deleted:
+  // the token keeps its ID, and reaches nothing there.
+  string name = 2;
 }
 
 // CreateTokenRequest describes the new token.
@@ -117,6 +142,14 @@ message CreateTokenRequest {
   // What it may do beyond its scope, such as TOKEN_GRANT_LOGS to read logs.
   // Either scope can have it.
   repeated TokenGrant grants = 6;
+  // The projects it acts in, each by its ID or its name, up to 100, each one
+  // its maker holds something in. Leave it empty for every project its maker
+  // holds, now and later. Narrowed, it can't call what's the install's own,
+  // such as its settings, and reads servers by name and state alone.
+  repeated string projects = 7 [(dockwell.v1.flag) = "project"];
+  // The role it acts as at most, below its maker's. Leave it unset for its
+  // maker's role.
+  TokenRole role = 8;
 }
 
 // CreateTokenResponse carries the new token and its secret.

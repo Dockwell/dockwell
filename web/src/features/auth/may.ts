@@ -106,6 +106,12 @@ export function ruleOf(method: DescMethod) {
 
 const highest = (roles: Role[]): Role => roles.reduce((best, r) => (RANK[r] > RANK[best] ? r : best), Role.UNSPECIFIED);
 
+/** The highest role grants hold anywhere, or none. */
+export const highestRole = (grants: readonly Pick<RoleGrant, "role">[]): Role => highest(grants.map((g) => g.role));
+
+/** Whether role a ranks above role b, as the store ranks them. */
+export const ranksAbove = (a: Role, b: Role): boolean => RANK[a] > RANK[b];
+
 /**
  * Whether whoever holds `holding` may call `method` where `where` says, as the
  * interceptor decides it: the lowest role the method needs anywhere against the

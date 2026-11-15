@@ -4,7 +4,9 @@ package authapi
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"connectrpc.com/connect"
@@ -13,6 +15,7 @@ import (
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/auth"
+	"github.com/dockwell/dockwell/internal/control/place"
 	"github.com/dockwell/dockwell/internal/store"
 )
 
@@ -57,12 +60,52 @@ func (h *Handler) CreateToken(ctx context.Context, req *connect.Request[dockwell
 		}
 		grants = append(grants, store.GrantLogs)
 	}
+	reach := auth.TokenReach{}
+	switch m.GetRole() {
+	case dockwellv1.TokenRole_TOKEN_ROLE_DEVELOPER:
+		reach.Role = store.RoleDeveloper
+	case dockwellv1.TokenRole_TOKEN_ROLE_VIEWER:
+		reach.Role = store.RoleViewer
+	case dockwellv1.TokenRole_TOKEN_ROLE_UNSPECIFIED:
+	}
+	if reach.Projects, err = h.projectIDs(ctx, m.GetProjects()); err != nil {
+		return nil, h.rpcError(ctx, err)
+	}
 	client, _ := ClientFrom(ctx)
-	made, err := h.auth.CreateToken(ctx, client, p, m.GetName(), scope, grants, expires, m.GetProof())
+	made, err := h.auth.CreateTokenWithin(ctx, client, p, m.GetName(), scope, grants, expires, reach, m.GetProof())
 	if err != nil {
 		return nil, h.rpcError(ctx, err)
 	}
-	return connect.NewResponse(&dockwellv1.CreateTokenResponse{Token: tokenProto(&made.Token), Secret: made.Secret}), nil
+	out, err := h.tokenProtos(ctx, []store.APIToken{made.Token})
+	if err != nil {
+		return nil, h.rpcError(ctx, err)
+	}
+	return connect.NewResponse(&dockwellv1.CreateTokenResponse{Token: out[0], Secret: made.Secret}), nil
+}
+
+// projectIDs are the projects refs name, each by its ID or its name. One that
+// names nothing is refused here; whether its maker holds it is the auth
+// service's to check, as it makes the token.
+func (h *Handler) projectIDs(ctx context.Context, refs []string) ([]string, error) {
+	if len(refs) == 0 {
+		return nil, nil
+	}
+	out := make([]string, 0, len(refs))
+	err := h.auth.View(ctx, func(tx *store.Tx) error {
+		for _, ref := range refs {
+			ref = strings.TrimSpace(ref)
+			projectID, err := place.Project(ctx, tx, ref)
+			if errors.Is(err, store.ErrNotFound) {
+				return fmt.Errorf("%w: there's no project %s. Name one you hold, by its name or its ID", auth.ErrInvalid, ref)
+			}
+			if err != nil {
+				return err
+			}
+			out = append(out, projectID)
+		}
+		return nil
+	})
+	return out, err
 }
 
 // ListTokens lists the signed-in user's API tokens that still work.
@@ -75,9 +118,9 @@ func (h *Handler) ListTokens(ctx context.Context, _ *connect.Request[dockwellv1.
 	if err != nil {
 		return nil, h.rpcError(ctx, err)
 	}
-	out := make([]*dockwellv1.Token, 0, len(all))
-	for i := range all {
-		out = append(out, tokenProto(&all[i]))
+	out, err := h.tokenProtos(ctx, all)
+	if err != nil {
+		return nil, h.rpcError(ctx, err)
 	}
 	return connect.NewResponse(&dockwellv1.ListTokensResponse{Tokens: out}), nil
 }
@@ -92,6 +135,35 @@ func (h *Handler) RevokeToken(ctx context.Context, req *connect.Request[dockwell
 		return nil, h.rpcError(ctx, err)
 	}
 	return connect.NewResponse(&dockwellv1.RevokeTokenResponse{}), nil
+}
+
+// tokenProtos are tokens as the API shows them, each project they act in with
+// its name as it is now, or none once it's deleted.
+func (h *Handler) tokenProtos(ctx context.Context, tokens []store.APIToken) ([]*dockwellv1.Token, error) {
+	out := make([]*dockwellv1.Token, 0, len(tokens))
+	names := map[string]string{}
+	err := h.auth.View(ctx, func(tx *store.Tx) error {
+		for i := range tokens {
+			t := tokenProto(&tokens[i])
+			for _, projectID := range tokens[i].Projects {
+				name, ok := names[projectID]
+				if !ok {
+					r, err := tx.GetResourceByID(ctx, projectID)
+					switch {
+					case err == nil:
+						name = r.Name
+					case !errors.Is(err, store.ErrNotFound):
+						return err
+					}
+					names[projectID] = name
+				}
+				t.Projects = append(t.Projects, &dockwellv1.TokenProject{Id: projectID, Name: name})
+			}
+			out = append(out, t)
+		}
+		return nil
+	})
+	return out, err
 }
 
 func tokenProto(t *store.APIToken) *dockwellv1.Token {
@@ -110,6 +182,12 @@ func tokenProto(t *store.APIToken) *dockwellv1.Token {
 	}
 	if t.HasGrant(store.GrantLogs) {
 		out.Grants = append(out.Grants, dockwellv1.TokenGrant_TOKEN_GRANT_LOGS)
+	}
+	switch t.Role {
+	case store.RoleDeveloper:
+		out.Role = dockwellv1.TokenRole_TOKEN_ROLE_DEVELOPER
+	case store.RoleViewer:
+		out.Role = dockwellv1.TokenRole_TOKEN_ROLE_VIEWER
 	}
 	if t.ExpiresAt != nil {
 		out.ExpireTime = timestamppb.New(*t.ExpiresAt)

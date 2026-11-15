@@ -11995,6 +11995,25 @@ components:
                     description: |-
                         What it may do beyond its scope, such as TOKEN_GRANT_LOGS to read logs.
                          Either scope can have it.
+                projects:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        The projects it acts in, each by its ID or its name, up to 100, each one
+                         its maker holds something in. Leave it empty for every project its maker
+                         holds, now and later. Narrowed, it can't call what's the install's own,
+                         such as its settings, and reads servers by name and state alone.
+                role:
+                    enum:
+                        - TOKEN_ROLE_UNSPECIFIED
+                        - TOKEN_ROLE_DEVELOPER
+                        - TOKEN_ROLE_VIEWER
+                    type: string
+                    description: |-
+                        The role it acts as at most, below its maker's. Leave it unset for its
+                         maker's role.
+                    format: enum
             description: CreateTokenRequest describes the new token.
         CreateTokenResponse:
             type: object
@@ -25159,7 +25178,34 @@ components:
                         type: string
                         format: enum
                     description: What it may do beyond its scope.
+                projects:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/TokenProject'
+                    description: |-
+                        The projects it acts in, or none for every project its maker holds, now
+                         and later.
+                role:
+                    enum:
+                        - TOKEN_ROLE_UNSPECIFIED
+                        - TOKEN_ROLE_DEVELOPER
+                        - TOKEN_ROLE_VIEWER
+                    type: string
+                    description: The role it acts as at most, or TOKEN_ROLE_UNSPECIFIED for its maker's.
+                    format: enum
             description: Token is an API token, without its secret.
+        TokenProject:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The project's ID, such as "prj_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                name:
+                    type: string
+                    description: |-
+                        Its name as it is now, such as "shop". Empty once it has been deleted:
+                         the token keeps its ID, and reaches nothing there.
+            description: TokenProject is a project a token acts in.
         Totp:
             type: object
             properties:
