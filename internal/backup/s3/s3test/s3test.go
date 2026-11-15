@@ -139,7 +139,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		n, _ := strconv.Atoi(q.Get("partNumber"))
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
-			s.t.Error(err)
+			return // its sender went away, as one stopped or cancelled does: nothing of it is kept
 		}
 		if int64(len(body)) != r.ContentLength {
 			s.t.Errorf("part %d says %d bytes and holds %d", n, r.ContentLength, len(body))
@@ -175,7 +175,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case r.Method == http.MethodPut:
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
-			s.t.Error(err)
+			return // its sender went away, as one stopped or cancelled does: nothing of it is kept
 		}
 		s.objects[key] = body
 	case r.Method == http.MethodGet, r.Method == http.MethodHead:

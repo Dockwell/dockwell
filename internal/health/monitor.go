@@ -306,6 +306,22 @@ func (m *Monitor) Run(ctx context.Context) {
 // paused or restarting.
 const dockerRunning = "running"
 
+// dockerStateOf is the word Docker's list would have for a container as s says it
+// is: its status, which an inspect has as the list does, or from what s says.
+func dockerStateOf(s docker.State) string {
+	switch {
+	case s.Status != "":
+		return s.Status
+	case s.Restarting:
+		return "restarting"
+	case s.Paused:
+		return "paused"
+	case s.Running:
+		return dockerRunning
+	}
+	return "exited"
+}
+
 // checkFloor keeps the loop from spinning on a check due right now.
 const checkFloor = time.Millisecond
 
@@ -503,6 +519,9 @@ func (m *Monitor) read(ctx context.Context, id string, w *watched) {
 	}
 	w.readAt = time.Now()
 	s := c.State
+	// What a read finds is newer than the list before it: a container it finds
+	// paused or stopped is so to a check under way too, which then says nothing.
+	w.dockerState = dockerStateOf(s)
 	restarted := !c.State.StartedAt.IsZero() && !c.State.StartedAt.Equal(w.started)
 	w.started = c.State.StartedAt
 	w.address = Address(c.NetworkSettings.Networks)

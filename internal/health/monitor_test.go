@@ -728,11 +728,12 @@ func TestAPausedContainerReadsAsPaused(t *testing.T) {
 	}
 }
 
-// What a check found out before the container paused says nothing of it now. The next
-// list would put that right, so this reads it before one comes.
+// What a check found out before the container paused says nothing of it now, though
+// the list before said it ran, and only a read since has found it paused (#684).
 func TestACheckUnderWayWhenAContainerPausesSaysNothing(t *testing.T) {
 	e := dockertest.New(t)
-	name := strings.TrimPrefix(add(e, "web", health.Label, `{"tcp":{"port":80},"interval":1000000}`).Name, "/")
+	c := add(e, "web", health.Label, `{"tcp":{"port":80},"interval":1000000}`)
+	name := strings.TrimPrefix(c.Name, "/")
 	var began sync.Once
 	asked, release := make(chan struct{}), make(chan struct{})
 	var hold atomic.Bool
@@ -743,6 +744,16 @@ func TestACheckUnderWayWhenAContainerPausesSaysNothing(t *testing.T) {
 		}
 		return health.Result{Passed: true, Output: "ok", At: time.Now()}, nil
 	}}
+	// Once a check is held, the container pauses as the next read of it comes, which
+	// is after a list that said it ran.
+	var paused atomic.Bool
+	e.Intercept(func(r *http.Request) error {
+		if hold.Load() && r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/containers/"+c.ID+"/json") && paused.CompareAndSwap(false, true) {
+			e.Edit(name, func(c *docker.Container) { c.State.Paused, c.State.Status = true, "paused" })
+		}
+		return nil
+	})
+	defer e.Intercept(nil)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() { defer close(done); m.Run(ctx) }()
@@ -750,9 +761,7 @@ func TestACheckUnderWayWhenAContainerPausesSaysNothing(t *testing.T) {
 	eventually(t, "it is healthy", m, stateOf(name, dockwellv1.HealthState_HEALTH_STATE_HEALTHY))
 	hold.Store(true)
 	<-asked
-	e.Edit(name, func(c *docker.Container) { c.State.Paused, c.State.Status = true, "paused" })
 	eventually(t, "it reads as paused", m, stateOf(name, dockwellv1.HealthState_HEALTH_STATE_PAUSED))
-	time.Sleep(30 * time.Millisecond) // for the read that list started, which would put it right too
 	close(release)
 	for end := time.Now().Add(100 * time.Millisecond); time.Now().Before(end); time.Sleep(time.Millisecond) {
 		if got := m.Report()[0].GetState(); got != dockwellv1.HealthState_HEALTH_STATE_PAUSED {
