@@ -315,10 +315,18 @@ func TestAClockSetBackDoesntStopTheTasks(t *testing.T) {
 	for m := 0; m <= 60; m += 5 { // an hour once the clock is right
 		c.set(time.Date(2026, 11, 4, 10, 5, 0, 0, time.UTC).Add(time.Duration(m) * time.Minute))
 		d.tick(t.Context())
-		time.Sleep(20 * time.Millisecond)
+		// Each run ends before the clock moves on, however long it takes on a loaded
+		// machine: a slot due while the last run goes is skipped, which is another
+		// test's. Waiting a while instead lost a slot under load (#699).
+		d.runs.Wait()
 	}
-	if runs := d.ended(t, 12); len(runs) < 12 {
-		t.Errorf("in the hour after the clock went back, it ran %d times", len(runs)-1)
+	runs := d.ended(t, 13)
+	skipped := 0
+	for _, r := range runs {
+		skipped += int(r.GetSkippedSlots())
+	}
+	if len(runs) != 13 || skipped != 0 {
+		t.Errorf("in the hour after the clock went back, it ran %d times, want 12, and skipped %d slots", len(runs)-1, skipped)
 	}
 }
 
