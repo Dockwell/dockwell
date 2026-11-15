@@ -240,7 +240,7 @@ func (h *Handler) plainValues(ctx context.Context, connected func(string) bool, 
 			return err
 		}
 		for _, p := range tree.Projects {
-			pin, err := h.pinOf(ctx, tx, tree.Organization.ID, p.Name)
+			pin, err := h.pinOf(ctx, tx, tree, p)
 			if err != nil || len(pin.GetFile()) == 0 {
 				// Not an install, or one from before Dockwell kept its file, which can't say
 				// where a value came from.

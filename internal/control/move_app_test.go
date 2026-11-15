@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	"google.golang.org/protobuf/proto"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
@@ -222,6 +223,19 @@ func TestDeletingAProjectThatSharesKeepsWhatOthersUse(t *testing.T) {
 			appEnv = r.GetResource().GetScope()
 		}
 	}
+	// The server's project is an install of its own, as an app's database beside it is.
+	apply(t, ch, propose(t, ch, "Pin data", &dockwellv1.Edit{
+		Resource: &dockwellv1.ResourceRef{Kind: "project", Name: "data"},
+		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Project{Project: &resourcev1.Project{Catalog: &resourcev1.CatalogPin{Entry: "data", Version: "1"}}}},
+	}))
+	// Moving a part of it alone is held back, as an install moves whole.
+	svc := dockwellv1connect.NewServiceServiceClient(b, b.origin, connect.WithProtoJSON())
+	if res, err := svc.MoveService(t.Context(), connect.NewRequest(&dockwellv1.MoveServiceRequest{Id: "web", Project: "data", NewProject: "shop"})); err != nil ||
+		!slices.ContainsFunc(res.Msg.GetBlocks(), func(b *dockwellv1.MoveBlock) bool {
+			return strings.Contains(b.GetWhy(), "part of the same install, which moves whole")
+		}) {
+		t.Errorf("moving a part of an install alone = %v, %v", res.Msg.GetBlocks(), err)
+	}
 	deleteData := func(anyway bool, keepIn string) (*dockwellv1.Change, error) {
 		res, err := ch.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Delete data", Edits: []*dockwellv1.Edit{{
 			Resource: &dockwellv1.ResourceRef{Kind: "project", Name: "data"}, Delete: true, WithContents: true, DeleteShared: anyway, KeepSharedIn: keepIn,
@@ -288,6 +302,44 @@ func TestDeletingAProjectThatSharesKeepsWhatOthersUse(t *testing.T) {
 	applyReviewed(t, ch, kept)
 	if c := e.Newest(docker.Project(to), "db"); c == nil {
 		t.Error("the server doesn't run where it went")
+	}
+	// The blog's install says where what meets its need is now, as its link does,
+	// which its page and its upgrades read (#722).
+	installs, err := cat.ListCatalogInstalls(t.Context(), connect.NewRequest(&dockwellv1.ListCatalogInstallsRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var blogPin *resourcev1.CatalogPin
+	for _, in := range installs.Msg.GetInstalls() {
+		if n := in.GetPin().GetNeeds()["db"]; in.GetPin().GetEntry() == "blog" {
+			blogPin = in.GetPin()
+			if n.GetEnvironment() != to || n.GetMeets() != "db" {
+				t.Errorf("after the deletion, the blog's need reads %v, not %s's db", n, to)
+			}
+		}
+	}
+	// An install a release before this left naming the environment deleted reads
+	// where its link says the server is.
+	var deleted string
+	for _, r := range imported.Msg.GetChange().GetPlan().GetResources() {
+		if r.GetResource().GetKind() == "service" && r.GetResource().GetName() == "db" {
+			deleted = r.GetResource().GetScope()
+		}
+	}
+	stale := proto.CloneOf(blogPin)
+	stale.GetNeeds()["db"].Environment = deleted
+	apply(t, ch, propose(t, ch, "Pin the blog as before #722", &dockwellv1.Edit{
+		Resource: &dockwellv1.ResourceRef{Kind: "project", Name: "blog"},
+		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Project{Project: &resourcev1.Project{Catalog: stale}}},
+	}))
+	installs, err = cat.ListCatalogInstalls(t.Context(), connect.NewRequest(&dockwellv1.ListCatalogInstallsRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, in := range installs.Msg.GetInstalls() {
+		if n := in.GetPin().GetNeeds()["db"]; in.GetPin().GetEntry() == "blog" && (n.GetEnvironment() != to || n.GetMeets() != "db") {
+			t.Errorf("a pin naming the environment deleted reads %v, not %s's db", n, to)
+		}
 	}
 	if c := e.Newest(docker.Project(appEnv), "app"); c == nil {
 		t.Error("the blog stopped")
