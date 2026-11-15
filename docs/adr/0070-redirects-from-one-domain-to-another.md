@@ -215,6 +215,18 @@ The slices are as above, with a fourth: the imports, 1Panel's website redirects 
 - **Making www the main domain against real Caddy:** the site's route and the bare domain's redirect are written in either order, and the route the change deletes is gone by the end; each answers as it should.
 - **A site's other domains move with it.** Moving its domain behind a tunnel or a proxy from Domains, or out from behind one, moves the routes its list wrote in the same change, so www is never left with the old front, a 308 loop behind a tunnel or nothing answering out of one. A plan that adds an other domain to a site behind a tunnel or a proxy says so, as `add_to_front`: "www.example.com is behind your tunnel or proxy, as example.com is. It answers only once that sends it here: add www.example.com there too".
 
+### Slice 3, as built
+
+*2026-11-15.*
+
+- **Add a domain** offers "Also answer on www.example.com" for an app's domain as New website does, started from what DNS says, and adds a redirect route to the app's environment beside the app's own. Opened from Domains, it also offers "A URL" beside "An app", for a domain that belongs to no app: the address it sends to, the environment it's kept in once there's a choice, and under Advanced "For a while (302)" and "Send every request to the address as it is". Keeping a path route's prefix has no place there, as Add a domain makes whole-domain routes; it stays a route's own field.
+- **Domains folds** www that only redirects to its bare domain, or the other way round, into that domain's row as "Redirects: www → example.com", where both are listed, and says "www.example.com needs a look" on that row when its certificate or DNS does. A redirect whose domain isn't listed keeps its own row.
+- **An app's page** says, under each of its domains, "www.example.com redirects here" for a whole domain of its environment that redirects there, with Stop sending as a plan.
+- **A plan says a redirect would land on nothing** (`redirect_stranded`, from slice 2's review) in its own words. "Delete it too" as an action on that note waits for plan notes to carry actions.
+- **An older agent:** the engine asks an agent before it reads resources back (`resource.ReadChecker`), and one that doesn't serve redirects refuses to read a redirect route, so drift is never taken from its hand-edit reading. Domains says "Not served on hz-2 · Update its agent" on a redirect's row for each such server (`DomainServer.redirect_unserved`, field 10), known while the server is connected.
+- **1Panel's import** reads each site's redirects from its redirect folder, in the three shapes 1Panel writes (a domain's, a path's and a 404's), on or off (`OnePanelWebsite.redirects`, 14; `OnePanelRedirect`). Its step says what each becomes: a whole domain sent to the site for good, keeping the path, is one of its other domains; a domain or a path sent elsewhere or for a while is a redirect route beside it; one of pages it doesn't have stays, said among what has no place yet. One that's off says nothing.
+- **Not in this slice:** a domain's own page as Domain-Traffic has it, as the panel has no domain page yet; its redirect row comes with that page.
+
 ## Considered
 
 - **A kind of its own, `redirect`:** it would need its own domain claims, certificate handling, Domains rows, DNS checks and alerts, each kept in step with routes. Or it would have none, and a redirect's certificate would fail with nothing to say so.
