@@ -290,7 +290,7 @@ func (m *Manager) Open(ctx context.Context, call *agentv1.OpenTerminalCall) (*ag
 		return nil, err
 	}
 	m.mu.Lock()
-	t := &Terminal{m: m, id: id, record: call.GetRecord(), out: newOutput(Keep), changed: make(chan struct{}), exited: make(chan struct{})}
+	t := &Terminal{m: m, id: id, record: call.GetRecord(), out: newOutput(Keep), changed: make(chan struct{}), exited: make(chan struct{}), removed: make(chan struct{})}
 	t.begin(proc, title)
 	m.open[id] = t
 	m.mu.Unlock()
@@ -384,6 +384,9 @@ type Terminal struct {
 	opened time.Time
 	proc   process
 	exited chan struct{} // closed once the shell has exited
+	// removed is closed once the terminal is out of what's open, and its end is
+	// to be told, so a hang-up returns only then, whoever finished it.
+	removed chan struct{}
 
 	mu            sync.Mutex
 	out           *output
@@ -569,7 +572,9 @@ func (t *Terminal) hangUp(reason dockwellv1.TerminalEndReason, message string) *
 }
 
 // finish closes the terminal's side of the pseudo-terminal, which hangs up the
-// shell's, and tells the control plane how it ended, once.
+// shell's, and tells the control plane how it ended, once. Whoever calls it second,
+// as a hang-up does once its shell exited first, returns only once the first has
+// taken the terminal out of what's open, so a place a close frees is free (#716).
 func (t *Terminal) finish() {
 	t.mu.Lock()
 	first := t.end.GetTime() == nil
@@ -580,6 +585,7 @@ func (t *Terminal) finish() {
 	t.notify()
 	t.mu.Unlock()
 	if !first {
+		<-t.removed
 		return
 	}
 	_ = t.proc.close()
@@ -588,6 +594,7 @@ func (t *Terminal) finish() {
 	delete(m.open, t.id)
 	m.ended = append(m.ended, &agentv1.TerminalEnded{Id: t.id, Record: t.record, End: end, Opened: timestamppb.New(t.opened)})
 	m.mu.Unlock()
+	close(t.removed)
 	m.signal()
 	m.logger.Info("a terminal ended", slog.String("terminal", t.id), slog.String("reason", end.GetReason().String()))
 }
