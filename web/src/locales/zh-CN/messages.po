@@ -2842,6 +2842,9 @@ msgstr "{name} 日志"
 msgid "{runsOn} from <0>{0}</0>"
 msgstr "{runsOn}，来自 <0>{0}</0>"
 
+msgid "<0>{from}</0> redirects here"
+msgstr "<0>{from}</0> 重定向到这里"
+
 #. placeholder {0}: check.tcp.port
 #. placeholder {0}: check?.tcp?.port
 msgid "A connection to port {0}"
@@ -3073,6 +3076,12 @@ msgstr "{name} 有部分在运行，但 Dockwell 无法确定是哪个版本。�
 
 msgid "Starts with"
 msgstr "启动命令"
+
+msgid "Stop sending {from} here"
+msgstr "不再把 {from} 发送到这里"
+
+msgid "Stop sending {from} to {to}"
+msgstr "不再把 {from} 发送到 {to}"
 
 msgid "The agent on {server} hasn't said how it runs lately. It may well be running."
 msgstr "{server} 上的代理最近没有报告它的运行情况。它很可能仍在运行。"
@@ -18532,9 +18541,6 @@ msgstr "把 {companion} 发送到 {main}"
 
 msgid "Send {typed} to {main}"
 msgstr "把 {typed} 发送到 {main}"
-
-msgid "Stop sending {from} here"
-msgstr "不再把 {from} 发送到这里"
 
 msgid "Stop sending {from} to {main}"
 msgstr "不再把 {from} 发送到 {main}"

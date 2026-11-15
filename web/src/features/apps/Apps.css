@@ -3222,3 +3222,12 @@
 .app-connect-fix {
   align-self: flex-start;
 }
+
+/* Another domain that redirects to this one, under it (ADR 0070). */
+.app-reach-redirect {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  color: var(--ink-muted);
+  font-size: 12.5px;
+}

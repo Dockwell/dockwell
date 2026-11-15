@@ -621,10 +621,15 @@ function DomainRow({
   onMoveBehind,
   onPrivate,
   open,
+  redirectsHere = [],
+  onStopRedirect,
 }: {
   domain: Domain;
   route: DomainRoute;
   read: DomainRead;
+  /** The other domains of its environment that redirect here, whole (ADR 0070). */
+  redirectsHere?: readonly { domain: Domain; route: DomainRoute }[];
+  onStopRedirect?: (at: { domain: Domain; route: DomainRoute }) => void;
   /** Whether its reader may plan here: removing it is off, with why, when not (ADR 0059). */
   offer: Offer;
   onRemove: () => void;
@@ -653,6 +658,29 @@ function DomainRow({
         <code className="app-reach-at">{where}</code>
         <DomainFacts domain={domain} route={route} look={look} silent={silent} read={read} />
         <PrivateFact domain={domain} route={route} open={open} />
+        {redirectsHere.map((at) => {
+          const from = routeWhere(at.domain, at.route);
+          return (
+            <span key={at.route.id} className="app-reach-redirect">
+              <Icon name="arrow-right" size={12} />
+              <span>
+                <Trans>
+                  <code>{from}</code> redirects here
+                </Trans>
+              </span>
+              {onStopRedirect ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  icon="trash"
+                  aria-label={t`Stop sending ${from} here`}
+                  onClick={() => onStopRedirect(at)}
+                  {...offer.off}
+                />
+              ) : null}
+            </span>
+          );
+        })}
       </div>
       <div className="app-reach-acts">
         {said ? (
@@ -776,6 +804,20 @@ function ReachedAt({
     domain.routes.filter((route) => route.service === name).map((route) => ({ domain, route })),
   );
   const privateAt = routes.find((at) => at.route.id === privateId);
+  // A whole domain of its environment that redirects to one of its own (ADR 0070).
+  const redirectsTo = (target: Domain) =>
+    domains.flatMap((domain) =>
+      domain.routes
+        .filter((route) => {
+          if (route.path !== "" || !route.redirect) return false;
+          try {
+            return new URL(route.redirect.to).hostname === target.name;
+          } catch {
+            return false;
+          }
+        })
+        .map((route) => ({ domain, route })),
+    );
   const remove = (where: string, route: string) =>
     sheet.open({
       kind: "propose",
@@ -807,6 +849,18 @@ function ReachedAt({
             onMoveBehind={() => onMoveBehind(moveBehindOf(domain, route))}
             onPrivate={() => setPrivateId(route.id)}
             open={openWaysOf(domain, route, service, domains)}
+            redirectsHere={route.path === "" ? redirectsTo(domain) : []}
+            onStopRedirect={(at) => {
+              const from = routeWhere(at.domain, at.route);
+              const to = routeWhere(domain, route);
+              sheet.open({
+                kind: "propose",
+                summary: t`Stop sending ${from} to ${to}`,
+                edits: [
+                  { resource: { kind: "route", scope: environmentOf(service), name: at.route.name }, delete: true },
+                ],
+              });
+            }}
           />
         ))}
         {rows.map((row) => {

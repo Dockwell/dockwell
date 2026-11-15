@@ -2017,6 +2017,47 @@ describe("an app's overview", () => {
       ]);
     });
 
+    it("says which domain redirects to its domain, and stops it as a plan", async () => {
+      const user = userEvent.setup();
+      const edits: { resource?: { kind: string; name: string }; delete: boolean }[] = [];
+      const www = {
+        name: "www.app.example.com",
+        url: "https://www.app.example.com",
+        routes: [
+          {
+            id: "rte_www",
+            name: "www-app-example-com",
+            redirect: { to: "https://app.example.com", temporary: false, dropPath: false },
+          },
+        ],
+        servers: [{ serverId: SERVER, serverName: "hz-1" }],
+      };
+      const running = await atPage(
+        () => ({ domains: [aDomain({ certificate: certificate(CertificateState.ISSUED) }), www] }),
+        {
+          changes: {
+            watchChange: feed<WatchChangeResponse>().stream,
+            discardChange: () => ({}),
+            proposeChange: (req) => {
+              edits.push(...(req.edits as never[]));
+              return { change: webPlanned() };
+            },
+          },
+        },
+      );
+      expect(await within(running).findByText("redirects here", { exact: false })).toHaveTextContent(
+        "www.app.example.com redirects here",
+      );
+      await user.click(within(running).getByRole("button", { name: "Stop sending www.app.example.com here" }));
+      await screen.findByRole("dialog", { name: "Review plan" });
+      expect(edits).toEqual([
+        expect.objectContaining({
+          resource: expect.objectContaining({ kind: "route", name: "www-app-example-com" }),
+          delete: true,
+        }),
+      ]);
+    });
+
     it("makes a domain private from its row, with a password made for it, as a plan", async () => {
       const user = userEvent.setup();
       const edits: { resource?: { kind: string; name: string }; spec?: { kind: { value: unknown } } }[] = [];

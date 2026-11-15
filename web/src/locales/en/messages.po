@@ -2842,6 +2842,9 @@ msgstr "{name} logs"
 msgid "{runsOn} from <0>{0}</0>"
 msgstr "{runsOn} from <0>{0}</0>"
 
+msgid "<0>{from}</0> redirects here"
+msgstr "<0>{from}</0> redirects here"
+
 #. placeholder {0}: check.tcp.port
 #. placeholder {0}: check?.tcp?.port
 msgid "A connection to port {0}"
@@ -3073,6 +3076,12 @@ msgstr "Something of {name} runs, and Dockwell can't say which version. Check it
 
 msgid "Starts with"
 msgstr "Starts with"
+
+msgid "Stop sending {from} here"
+msgstr "Stop sending {from} here"
+
+msgid "Stop sending {from} to {to}"
+msgstr "Stop sending {from} to {to}"
 
 msgid "The agent on {server} hasn't said how it runs lately. It may well be running."
 msgstr "The agent on {server} hasn't said how it runs lately. It may well be running."
@@ -18532,9 +18541,6 @@ msgstr "Send {companion} to {main}"
 
 msgid "Send {typed} to {main}"
 msgstr "Send {typed} to {main}"
-
-msgid "Stop sending {from} here"
-msgstr "Stop sending {from} here"
 
 msgid "Stop sending {from} to {main}"
 msgstr "Stop sending {from} to {main}"
