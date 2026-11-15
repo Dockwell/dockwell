@@ -23,6 +23,7 @@ import (
 	"github.com/dockwell/dockwell/internal/probe"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/connection"
+	"github.com/dockwell/dockwell/internal/resource/link"
 	"github.com/dockwell/dockwell/internal/resource/variable"
 	"github.com/dockwell/dockwell/internal/scope"
 	"github.com/dockwell/dockwell/internal/store"
@@ -82,6 +83,9 @@ func (s *Service) ConnectStorage(ctx context.Context, req *connect.Request[dockw
 	if prefix == "" {
 		prefix = m.GetApp() + "/"
 	}
+	if err := link.CheckPrefix(prefix); err != nil {
+		return nil, authapi.Invalid(err)
+	}
 	if len(m.GetSets()) == 0 {
 		return nil, authapi.Invalid(errors.New("say which of the app's names hold what, such as S3_BUCKET=bucket"))
 	}
@@ -109,17 +113,17 @@ func (s *Service) ConnectStorage(ctx context.Context, req *connect.Request[dockw
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s, so nothing was planned. %s", checkWords(check), checkFix(check)), "check_failed")
 	}
 
-	link := &resourcev1.Link{Label: "Storage", Connection: conn.Name, Kind: resourcev1.LinkKind_LINK_KIND_S3, Prefix: prefix}
+	spec := &resourcev1.Link{Label: "Storage", Connection: conn.Name, Kind: resourcev1.LinkKind_LINK_KIND_S3, Prefix: prefix}
 	if m.GetPresignedUrls() {
-		link.Features = []resourcev1.LinkFeature{resourcev1.LinkFeature_LINK_FEATURE_PRESIGNED_URLS}
+		spec.Features = []resourcev1.LinkFeature{resourcev1.LinkFeature_LINK_FEATURE_PRESIGNED_URLS}
 	}
 	edits := []*dockwellv1.Edit{{
 		Resource: &dockwellv1.ResourceRef{Kind: "link", Scope: a.env, Name: linkName},
-		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Link{Link: link}},
+		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Link{Link: spec}},
 	}}
 	for _, name := range slices.Sorted(maps.Keys(m.GetSets())) {
 		part := m.GetSets()[name]
-		link.Sets = append(link.Sets, &resourcev1.LinkSet{Name: name, Part: part})
+		spec.Sets = append(spec.Sets, &resourcev1.LinkSet{Name: name, Part: part})
 		edits = append(edits, valueEdit(a, conn, linkName, name, part))
 	}
 	summary := fmt.Sprintf("Connect %s to %s", m.GetApp(), cmp.Or(conn.Spec.GetDisplayName(), conn.Name))

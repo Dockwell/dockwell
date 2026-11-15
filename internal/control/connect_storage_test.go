@@ -99,9 +99,17 @@ func TestAnAppIsConnectedToStorage(t *testing.T) {
 		}))
 	}
 
+	// A prefix that climbs out of the bucket is refused before any check runs.
+	_, err := cc.ConnectStorage(t.Context(), connect.NewRequest(&dockwellv1.ConnectStorageRequest{
+		Project: project, App: "notes", Connection: "uploads", Sets: sets, Prefix: "../other-bucket/",
+	}))
+	if connect.CodeOf(err) != connect.CodeInvalidArgument || !strings.Contains(err.Error(), "isn't a prefix in a bucket") || len(srv.Objects()) != 0 {
+		t.Errorf("a prefix out of the bucket: %v, and the bucket holds %v", err, srv.Objects())
+	}
+
 	// A check that fails plans nothing, and says the fact and the fix.
 	srv.Refuse = "AccessDenied"
-	_, err := connectIt()
+	_, err = connectIt()
 	srv.Refuse = ""
 	if connect.CodeOf(err) != connect.CodeFailedPrecondition || !strings.Contains(err.Error(), "AccessDenied") || !strings.Contains(err.Error(), "Check the connection's keys") {
 		t.Errorf("a bucket that refuses the check: %v", err)

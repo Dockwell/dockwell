@@ -3,11 +3,13 @@
 package probe_test
 
 import (
+	"errors"
 	"net/netip"
 	"slices"
 	"strings"
 	"testing"
 
+	"github.com/dockwell/dockwell/internal/backup/s3"
 	"github.com/dockwell/dockwell/internal/backup/s3/s3test"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
@@ -148,5 +150,27 @@ func TestCleanRemovesWhatACrashLeft(t *testing.T) {
 	}
 	if n := e.Network(docker.ProbeRepository + "-left"); n != nil {
 		t.Errorf("Clean left the network %s", n.Name)
+	}
+}
+
+// A prefix that isn't folders in a bucket, such as one that climbs out of it, is
+// refused before anything's made: a server, or a proxy before it, may read
+// /uploads/../other/ as another bucket the keys reach.
+func TestACheckRefusesAPrefixThatClimbsOut(t *testing.T) {
+	t.Parallel()
+	e := dockertest.New(t)
+	srv := s3test.New(t)
+	for _, prefix := range []string{"../other/", "a/../../other/", "a?b/", "outline"} {
+		req := bucket(srv, false)
+		req.S3.Prefix = prefix
+		if _, err := runner(e).Run(t.Context(), req, nil); !errors.Is(err, s3.ErrPrefix) {
+			t.Errorf("a check under %q: %v", prefix, err)
+		}
+	}
+	if seen := e.Seen(); len(seen) != 0 {
+		t.Errorf("a refused prefix asked Docker to %v", seen)
+	}
+	if got := srv.Objects(); len(got) != 0 {
+		t.Errorf("a refused prefix wrote %v", got)
 	}
 }

@@ -111,6 +111,11 @@ func TestAConnectionIsSavedListedAndChecked(t *testing.T) {
 	if connect.CodeOf(err) != connect.CodeInvalidArgument || !strings.Contains(err.Error(), "needs its secret key again") {
 		t.Errorf("checking a saved connection at another endpoint: %v", err)
 	}
+	// A prefix that climbs out of the bucket is refused before the check runs.
+	_, err = cc.CheckConnection(t.Context(), connect.NewRequest(&dockwellv1.CheckConnectionRequest{Name: "uploads", Prefix: "notes/../../other/"}))
+	if connect.CodeOf(err) != connect.CodeInvalidArgument || !strings.Contains(err.Error(), "isn't a prefix in a bucket") {
+		t.Errorf("checking under a prefix out of the bucket: %v", err)
+	}
 
 	// Below an admin: names alone, of what reaches their project, and nothing to
 	// check or save.

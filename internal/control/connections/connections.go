@@ -28,6 +28,7 @@ import (
 	"github.com/dockwell/dockwell/internal/probe"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/connection"
+	"github.com/dockwell/dockwell/internal/resource/link"
 	"github.com/dockwell/dockwell/internal/secrets"
 	"github.com/dockwell/dockwell/internal/store"
 )
@@ -204,6 +205,9 @@ func (s *Service) CheckConnection(ctx context.Context, req *connect.Request[dock
 	}
 	if (req.Msg.GetEnvironment() == "") != (req.Msg.GetApp() == "") {
 		return nil, authapi.Invalid(errors.New("a check from an app names its environment and its service, or neither for a network of the check's own"))
+	}
+	if err := link.CheckPrefix(req.Msg.GetPrefix()); err != nil {
+		return nil, authapi.Invalid(err)
 	}
 	session, srv, err := s.session(ctx, req.Msg.GetServer())
 	if err != nil {

@@ -18,6 +18,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	"github.com/dockwell/dockwell/internal/backup/s3"
 	"github.com/dockwell/dockwell/internal/resource"
 )
 
@@ -121,9 +122,15 @@ var connectionParts = map[resourcev1.LinkPart]bool{
 	resourcev1.LinkPart_LINK_PART_PATH_STYLE: true, resourcev1.LinkPart_LINK_PART_MET: true,
 }
 
-// prefix is where an app's objects go in a bucket: segments of letters, digits and
-// -._, each followed by a slash.
-var prefix = regexp.MustCompile(`^([A-Za-z0-9._-]+/)*$`)
+// CheckPrefix refuses a prefix that isn't folders in a bucket, for the link and for
+// what checks a connection before a link is planned, so a check never writes
+// outside where the link will.
+func CheckPrefix(prefix string) error {
+	if s3.CheckPrefix(prefix) != nil {
+		return fmt.Errorf("%q isn't a prefix in a bucket. Write it as folders, each ending with a slash, such as outline/", prefix)
+	}
+	return nil
+}
 
 // validateToConnection refuses a link to a connection that says what only a link to
 // a database does, or sets what a connection doesn't hold (ADR 0099).
@@ -140,8 +147,8 @@ func validateToConnection(l *resourcev1.Link) error {
 		return errors.New("a link to a connection names no service, environment, engine, database or user, which only a link to a database does")
 	case len(l.GetSets()) == 0:
 		return errors.New("a link needs the names it sets, such as S3_BUCKET")
-	case len(l.GetPrefix()) > 256 || !prefix.MatchString(l.GetPrefix()) || strings.Contains("/"+l.GetPrefix(), "/../") || strings.Contains("/"+l.GetPrefix(), "/./"):
-		return fmt.Errorf("%q isn't a prefix in a bucket. Write it as folders, each ending with a slash, such as outline/", l.GetPrefix())
+	case CheckPrefix(l.GetPrefix()) != nil:
+		return CheckPrefix(l.GetPrefix())
 	}
 	for _, f := range l.GetFeatures() {
 		if f == resourcev1.LinkFeature_LINK_FEATURE_UNSPECIFIED || resourcev1.LinkFeature_name[int32(f)] == "" {

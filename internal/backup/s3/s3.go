@@ -20,6 +20,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -589,4 +590,21 @@ func (b *Bucket) sendPart(ctx context.Context, up Upload, id string, i int) (str
 		}
 	}
 	return "", last
+}
+
+// prefixForm is where objects go in a bucket: folders of letters, digits and -._,
+// each ending with a slash.
+var prefixForm = regexp.MustCompile(`^([A-Za-z0-9._-]+/)*$`)
+
+// ErrPrefix is a prefix that isn't folders in a bucket, such as one that climbs
+// out with "..", which a server or a proxy before it may read as another bucket.
+var ErrPrefix = errors.New("a prefix in a bucket is folders, each ending with a slash, such as outline/")
+
+// CheckPrefix refuses a prefix that isn't folders in a bucket. Empty is the
+// bucket's top.
+func CheckPrefix(prefix string) error {
+	if len(prefix) > 256 || !prefixForm.MatchString(prefix) || strings.Contains("/"+prefix, "/../") || strings.Contains("/"+prefix, "/./") {
+		return ErrPrefix
+	}
+	return nil
 }

@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dockwell/dockwell/internal/backup/s3"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/resource"
 )
@@ -64,6 +65,9 @@ type Runner struct {
 // host's network, it runs on a network made for it. The server's own addresses
 // are refused whatever networks it's on.
 func (r *Runner) Run(ctx context.Context, req Request, networks []string) (Result, error) {
+	if req.S3 != nil && s3.CheckPrefix(req.S3.Prefix) != nil {
+		return Result{}, fmt.Errorf("the check's prefix isn't folders in a bucket, so nothing ran: %w", s3.ErrPrefix)
+	}
 	run := randomHex()
 	name := docker.ProbeRepository + "-" + run
 	image := docker.ProbeRepository + ":" + run

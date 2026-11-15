@@ -281,3 +281,18 @@ func TestAPresignedURLSignsAsAWSDoes(t *testing.T) {
 		t.Errorf("presigned as\n%s\nwant\n%s", got, want)
 	}
 }
+
+// A prefix is folders in a bucket, and never climbs out of it.
+func TestAPrefixIsFoldersInTheBucket(t *testing.T) {
+	t.Parallel()
+	for _, ok := range []string{"", "outline/", "a/b.c/d-e_f/"} {
+		if err := CheckPrefix(ok); err != nil {
+			t.Errorf("%q: %v", ok, err)
+		}
+	}
+	for _, bad := range []string{"outline", "../other/", "a/../b/", "./a/", "a//", "/a/", "a?b/", "a b/", "a%2F../", strings.Repeat("a/", 129)} {
+		if err := CheckPrefix(bad); !errors.Is(err, ErrPrefix) {
+			t.Errorf("%q is taken: %v", bad, err)
+		}
+	}
+}
