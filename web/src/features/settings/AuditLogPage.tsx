@@ -35,10 +35,11 @@ import { sentence } from "../../lib/errors";
 import { fileDay, formatClock, formatMoment, formatWeekday } from "../../lib/format";
 import { useActorWords } from "../activity/actor";
 import { RecordedPlan } from "../activity/RecordedPlan";
+import { usePlaces } from "../apps/useServices";
 import { useFieldRows } from "../changes/fields";
 import { changing } from "../changes/plan";
 import { useChangeWords } from "../changes/words";
-import { useControlPlaneClock, useControlPlaneNow } from "../servers/useFleet";
+import { useControlPlaneClock, useControlPlaneNow, useFleetView } from "../servers/useFleet";
 import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
 import { useAuditWords } from "./auditWords";
@@ -367,17 +368,32 @@ function initialsOf(name: string): string {
   return (lead(words[0]) + (words.length > 1 ? lead(words[words.length - 1]) : "")).toLocaleUpperCase();
 }
 
-/** Where a change lands: its first service or route and its environment, "web · production". */
+/**
+ * Where a change lands: what it touched first and the place that's in, "web · production",
+ * with how many more it touched. The audit log sends what a change touched apart from its
+ * plan, which a list sends in brief (#659); a plan in full says it too.
+ */
 function useChangeWhere(): (change: Change | undefined) => string {
   const { t } = useLingui();
+  const places = usePlaces();
+  const { servers } = useFleetView();
   return (change) => {
-    const resources = changing(change?.plan);
-    const first = resources[0]?.resource;
+    const refs = change?.touches.length
+      ? change.touches
+      : changing(change?.plan).flatMap((r) => (r.resource ? [r.resource] : []));
+    const first = refs[0];
     if (!first) return "";
-    const more = new Set(resources.map((r) => r.resource?.name ?? "")).size - 1;
+    const more = new Set(refs.map((r) => r.name)).size - 1;
     const { name } = first;
     const what = more > 0 ? t`${name} and ${more} more` : name;
-    return first.scope ? `${what} · ${first.scope}` : what;
+    // Its scope by name: an environment's, or a server's for what lives on one, such as a firewall rule.
+    const scope = first.scope;
+    const where = scope.startsWith("env_")
+      ? places.label(scope)
+      : scope.startsWith("srv_")
+        ? (servers?.find((s) => s.id === scope)?.name ?? "")
+        : "";
+    return where ? `${what} · ${where}` : what;
   };
 }
 

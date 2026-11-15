@@ -49,14 +49,18 @@ export async function settingsFlow(page: Page, { origin, step, shoot }: Settings
   await page.getByText("Named this install Acme servers", { exact: true }).first().waitFor();
   await page.getByText("Set the time zone for new schedules to Europe/Amsterdam", { exact: true }).first().waitFor();
 
-  step("settings: the panel shows in the language chosen for this browser, and goes back");
-  await page.goto(`${origin}/settings/general`);
-  const language = page.getByRole("region", { name: "Language" });
-  await language.getByRole("combobox").selectOption("zh-CN");
-  await page.getByRole("heading", { level: 1, name: "常规" }).waitFor();
+  step("settings: the panel shows in the language chosen for this browser on Profile, and goes back");
+  await page.goto(`${origin}/profile`);
+  await page
+    .getByRole("region", { name: "Preferences" })
+    .getByRole("combobox", { name: "Language" })
+    .selectOption("zh-CN");
+  await page.getByRole("heading", { level: 1, name: "个人资料和安全" }).waitFor();
   await page.reload();
-  await page.getByRole("heading", { level: 1, name: "常规" }).waitFor();
-  await page.getByRole("region", { name: "语言" }).getByRole("combobox").selectOption("");
+  await page.getByRole("heading", { level: 1, name: "个人资料和安全" }).waitFor();
+  await page.getByRole("region", { name: "偏好设置" }).getByRole("combobox", { name: "语言" }).selectOption("");
+  await page.getByRole("heading", { level: 1, name: "Profile and security" }).waitFor();
+  await page.goto(`${origin}/settings/general`);
   await page.getByRole("heading", { level: 1, name: "General" }).waitFor();
 
   step("settings: Control plane says what runs it, where its state is, and how to back it up and upgrade it");
@@ -67,6 +71,9 @@ export async function settingsFlow(page: Page, { origin, step, shoot }: Settings
   await store.getByText(/\/control\/state\.db$/).waitFor();
   // Started by hand, as here, nothing it could name would stop it, so it says to, and only copies.
   const backups = page.getByRole("region", { name: "Backups" });
+  await backups.getByText(/^None: Dockwell doesn't back itself up yet/).waitFor();
+  // How to copy it by hand is a step away.
+  await backups.getByRole("button", { name: /^Back it up by hand/ }).click();
   await backups.getByText(/--exclude 'control\/key\*' -czf \/root\/dockwell-control\.tgz control agent &&/).waitFor();
   await backups.getByText(/run this as root, then start it again/).waitFor();
   await page

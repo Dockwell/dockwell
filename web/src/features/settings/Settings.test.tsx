@@ -16,7 +16,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { activateLocale, chosenLocale } from "../../app/i18n";
+import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
 import { authError, authState, mira } from "../../test/auth";
 import { type Api, feed, onPhone, renderAt } from "../../test/render";
@@ -364,16 +364,12 @@ describe("Settings", () => {
     );
   });
 
-  it("shows the panel in the language chosen for this browser, and goes back to the browser's", async () => {
-    const user = userEvent.setup();
+  it("leaves the language to Profile, where each browser chooses its own", async () => {
     renderSettings("/settings/general");
-    const language = await screen.findByRole("region", { name: "Language" });
-    await user.selectOptions(within(language).getByRole("combobox", { name: "Show the panel in" }), "zh-CN");
-    expect(await screen.findByRole("heading", { level: 1, name: "常规" })).toBeVisible();
-    expect(chosenLocale()).toBe("zh-CN");
-    await user.selectOptions(within(screen.getByRole("region", { name: "语言" })).getByRole("combobox"), "");
-    expect(await screen.findByRole("heading", { level: 1, name: "General" })).toBeVisible();
-    expect(chosenLocale()).toBeUndefined();
+    await screen.findByRole("heading", { level: 1, name: "General" });
+    expect(await screen.findByRole("region", { name: "Panel address" })).toBeVisible();
+    expect(screen.queryByRole("region", { name: "Language" })).toBeNull();
+    expect(screen.queryByRole("combobox", { name: "Show the panel in" })).toBeNull();
   });
 
   it("names the install in the browser's tab", async () => {

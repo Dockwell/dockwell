@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -1229,7 +1230,8 @@ func testChangesListPlansInBrief(t *testing.T, backend store.Backend) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if r.Plan != nil || r.Brief != full.Plan.Brief() || r.Brief != full.Brief {
+		// The brief read from the stored plan is the one the full plan makes, what it touched included.
+		if r.Plan != nil || !reflect.DeepEqual(r.Brief, full.Plan.Brief()) || !reflect.DeepEqual(r.Brief, full.Brief) || len(r.Brief.Touched) == 0 {
 			t.Errorf("%s is listed with plan %v, brief %+v; want no plan, and the brief %+v", r.ID, r.Plan, r.Brief, full.Plan.Brief())
 		}
 		var got string

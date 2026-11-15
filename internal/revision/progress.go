@@ -890,6 +890,10 @@ type Brief struct {
 	Because     string
 	Restart     bool
 	Restore     bool // it puts a volume back from a backup
+	// Touched is what the plan changes, by reference, in its order: each
+	// resource whose action isn't none. A list says a change by it, as the
+	// audit log does, without reading the plan in full.
+	Touched []resource.Ref
 }
 
 // Brief sums up the plan.
@@ -898,7 +902,20 @@ func (p *Plan) Brief() Brief {
 		Fingerprint: p.Fingerprint, Counts: p.Counts(), Destructive: p.Destructive(), HostAccess: p.HostAccess(), Intent: p.Intent, Because: p.Because,
 		Restart: slices.ContainsFunc(p.Resources, func(r ResourcePlan) bool { return r.Restart }),
 		Restore: slices.ContainsFunc(p.Resources, func(r ResourcePlan) bool { return r.Restore != nil }),
+		Touched: touchedRefs(p.Resources),
 	}
+}
+
+// touchedRefs is the references of what a plan's resources change, leaving out
+// those it leaves as they are.
+func touchedRefs(rs []ResourcePlan) []resource.Ref {
+	var out []resource.Ref
+	for i := range rs {
+		if rs[i].Action != resource.ActionNone {
+			out = append(out, rs[i].Ref)
+		}
+	}
+	return out
 }
 
 // brief reads a stored plan in brief, leaving out the rest: its field
@@ -909,6 +926,7 @@ func brief(b []byte) (Brief, error) {
 		Intent      *Intent
 		Because     string
 		Resources   []struct {
+			Ref        resource.Ref
 			Action     resource.Action
 			HostAccess []resource.Access
 			Restart    bool
@@ -928,7 +946,7 @@ func brief(b []byte) (Brief, error) {
 	p := Plan{Fingerprint: stored.Fingerprint, Intent: stored.Intent, Because: stored.Because, Resources: make([]ResourcePlan, len(stored.Resources)), Servers: make([]ServerPlan, len(stored.Servers))}
 	for i := range stored.Resources {
 		p.Resources[i].Action, p.Resources[i].HostAccess, p.Resources[i].Restart = stored.Resources[i].Action, stored.Resources[i].HostAccess, stored.Resources[i].Restart
-		p.Resources[i].Restore = stored.Resources[i].Restore
+		p.Resources[i].Restore, p.Resources[i].Ref = stored.Resources[i].Restore, stored.Resources[i].Ref
 	}
 	for i := range stored.Servers {
 		for _, st := range stored.Servers[i].Steps {

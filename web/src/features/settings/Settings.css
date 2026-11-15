@@ -338,7 +338,7 @@
   gap: var(--space-3);
 }
 
-/* Agents stands as tall as State store beside it: its facts at the top, adding a server at its foot over a rule. */
+/* Agents stands as tall as Updates beside it: its facts at the top, adding a server at its foot over a rule. */
 .cp-agents-panel {
   display: flex;
   flex-direction: column;
@@ -380,12 +380,11 @@
   line-height: 18px;
 }
 
-.cp-divided {
+/* What a disclosure holds of doing it by hand: a line, the command, and a note. */
+.cp-how {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  padding-top: var(--space-4);
-  border-top: 1px solid var(--line);
 }
 
 .cp-head-link {

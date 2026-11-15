@@ -9925,6 +9925,16 @@ components:
                         What of the change is in projects the reader holds no role in, as a count, where
                          it reaches one through a link (ADR 0084, amending ADR 0049): the change shows
                          only what the reader holds. Unset where they hold all of it.
+                touches:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ResourceRef'
+                    description: |-
+                        What its plan changes, each by kind, scope and name, in the plan's order,
+                         so a list that sends the plan in brief can still say what the change is
+                         about. Only the audit log sends it, which only an admin reads: a change
+                         can touch places a reader below an admin can't see, so it's empty
+                         everywhere else. Numbered apart, as open work adds to this message.
             description: |-
                 Change is one action's worth of edits to managed resources: planned,
                  then applied, failed or discarded.

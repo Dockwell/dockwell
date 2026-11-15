@@ -1207,6 +1207,12 @@ message Change {
   // it reaches one through a link (ADR 0084, amending ADR 0049): the change shows
   // only what the reader holds. Unset where they hold all of it.
   ChangeElsewhere elsewhere = 80;
+  // What its plan changes, each by kind, scope and name, in the plan's order,
+  // so a list that sends the plan in brief can still say what the change is
+  // about. Only the audit log sends it, which only an admin reads: a change
+  // can touch places a reader below an admin can't see, so it's empty
+  // everywhere else. Numbered apart, as open work adds to this message.
+  repeated ResourceRef touches = 290;
 }
 
 // RollbackStatus is how the rollback of a failed change is going, for

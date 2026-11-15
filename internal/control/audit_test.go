@@ -181,6 +181,22 @@ func TestTheAuditLogSaysWhatHappened(t *testing.T) {
 			c.GetState() != dockwellv1.ChangeState_CHANGE_STATE_DISCARDED || c.GetPlan() == nil {
 			t.Errorf("a discarded change reads as %v, want the change, with its plan", discarded.GetEvent())
 		}
+		// A row names what the change touched, not its ID: the plan is sent in brief, so it's said apart (#659).
+		var web *dockwellv1.ResourceRef
+		for _, ref := range discarded.GetEvent().GetChange().GetTouches() {
+			if ref.GetKind() == "service" && ref.GetName() == "web" {
+				web = ref
+			}
+		}
+		if web == nil || !strings.HasPrefix(web.GetScope(), "env_") {
+			t.Errorf("a discarded change touches %v, want the service web in its environment", discarded.GetEvent().GetChange().GetTouches())
+		}
+		// Activity's changes don't say it: a change can touch places a reader below an admin can't see.
+		for _, e := range listEvents(t, dockwellv1connect.NewEventServiceClient(b, b.origin), &dockwellv1.ListEventsRequest{}) {
+			if n := len(e.GetChange().GetTouches()); n > 0 {
+				t.Errorf("Activity's %s says what its change touched (%d), which only the audit log says", e.GetAction(), n)
+			}
+		}
 
 		whole, err := protojson.Marshal(read.Msg)
 		if err != nil {
