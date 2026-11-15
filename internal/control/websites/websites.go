@@ -134,6 +134,40 @@ func keepEdits(serving website.Serving, s *site) {
 	}
 }
 
+// leftTheList is each domain the website's list names whose whole-domain redirect
+// beside it sends somewhere else than the site, as a person pointed it, by domain to
+// where it sends now.
+func (s *site) leftTheList() map[string]string {
+	out := map[string]string{}
+	if s.rt == nil {
+		return out
+	}
+	for _, name := range slices.Sorted(maps.Keys(s.specs)) {
+		rt := s.specs[name]
+		if rt.GetRedirect() == nil || rt.GetPath() != "" || !slices.Contains(s.spec.GetWebsite().GetRedirectFrom(), rt.GetDomain()) {
+			continue
+		}
+		if u, err := url.Parse(rt.GetRedirect().GetTo()); err == nil && u.Hostname() != s.rt.GetDomain() {
+			out[rt.GetDomain()] = u.Host + strings.TrimSuffix(u.EscapedPath(), "/")
+		}
+	}
+	return out
+}
+
+// leftNotes says, of each domain that leaves the list as its redirect goes elsewhere,
+// that it does, in the plan that takes it out.
+func leftNotes(left map[string]string) []revision.Note {
+	var out []revision.Note
+	for _, d := range slices.Sorted(maps.Keys(left)) {
+		out = append(out, revision.Note{
+			Reason:  "leaves_list",
+			Message: fmt.Sprintf("%s redirects to %s now, so it leaves this website's other domains, and keeps its redirect", d, left[d]),
+			Names:   []string{d, left[d]},
+		})
+	}
+	return out
+}
+
 // besideHolds says what serves a domain beside the website, in its environment, from a
 // route its list didn't write, in words for a person, or nothing (ADR 0070).
 func (s *site) besideHolds(domain string) string {
@@ -452,6 +486,10 @@ func (h *Handler) UpdateWebsite(ctx context.Context, req *connect.Request[dockwe
 	if err := website.CheckRedirects(spec, domain); err != nil {
 		return nil, authapi.Invalid(err)
 	}
+	// A domain the list named whose redirect a person pointed elsewhere is theirs
+	// now: it leaves the list, and its route stays as they made it (ADR 0070).
+	left := s.leftTheList()
+	spec.RedirectFrom = slices.DeleteFunc(spec.RedirectFrom, func(d string) bool { _, gone := left[d]; return gone })
 	var all []site
 	var taken string
 	if err := h.db.View(ctx, func(tx *store.Tx) error {
@@ -520,7 +558,7 @@ func (h *Handler) UpdateWebsite(ctx context.Context, req *connect.Request[dockwe
 	summary := cmp.Or(strings.TrimSpace(m.GetSummary()), updateSummary(s.spec.GetWebsite(), spec, was, domain))
 	c, err := h.changes.Propose(ctx, summary, edits, serversField, changes.Also{
 		IfNothing: fault.New(revision.ErrInvalid, "%s serves that already, so there's nothing to change", domain),
-		Notes:     slices.Concat(folderNotes(s.env, spec), scriptsStop(s.env, s.spec.GetWebsite(), spec), frontNotes(serving, s.redirects)),
+		Notes:     slices.Concat(folderNotes(s.env, spec), scriptsStop(s.env, s.spec.GetWebsite(), spec), frontNotes(serving, s.redirects), leftNotes(left)),
 	})
 	if err != nil {
 		return nil, err

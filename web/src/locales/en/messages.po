@@ -18395,6 +18395,9 @@ msgstr "New domain"
 msgid "Redirects here"
 msgstr "Redirects here"
 
+msgid "Redirects to {away} now"
+msgstr "Redirects to {away} now"
+
 msgid "Send <0>{main}</0> here"
 msgstr "Send <0>{main}</0> here"
 

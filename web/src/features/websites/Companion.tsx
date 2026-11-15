@@ -209,6 +209,19 @@ export function OtherDomains({
   const read = useCompanion(server?.id ?? "", site.domain, site.id);
   const list = site.spec?.redirectFrom ?? [];
   const companion = read.companion;
+  // A listed domain whose redirect a person pointed elsewhere says where it goes now:
+  // the site's next update takes it out of the list, and leaves its redirect be.
+  const routes = useQuery(DomainService.method.listDomains, { environment: site.environmentId }).data?.domains;
+  const elsewhere = (from: string): string => {
+    const to = routes?.find((d) => d.name === from)?.routes.find((r) => r.path === "" && r.redirect)?.redirect?.to;
+    if (!to) return "";
+    try {
+      const u = new URL(to);
+      return u.hostname === site.domain ? "" : u.host + u.pathname.replace(/\/$/, "");
+    } catch {
+      return "";
+    }
+  };
   const heldFor = read.check?.heldFor ?? "";
   const plan = (redirectFrom: string[], summary: string, domain = "") =>
     sheet.open({
@@ -227,27 +240,30 @@ export function OtherDomains({
     <div className="website-others">
       {list.length > 0 ? (
         <ul className="website-others-list" aria-label={t`Domains that redirect here`}>
-          {list.map((from) => (
-            <li key={from}>
-              <code className="website-others-domain">{from}</code>
-              <span className="website-others-word">
-                <Trans>Redirects here</Trans>
-              </span>
-              <Button
-                size="sm"
-                variant="ghost"
-                icon="trash"
-                aria-label={t`Stop sending ${from} here`}
-                {...may.off}
-                onClick={() =>
-                  plan(
-                    list.filter((d) => d !== from),
-                    t`Stop sending ${from} to ${main}`,
-                  )
-                }
-              />
-            </li>
-          ))}
+          {list.map((from) => {
+            const away = elsewhere(from);
+            return (
+              <li key={from}>
+                <code className="website-others-domain">{from}</code>
+                <span className="website-others-word">
+                  {away ? <Trans>Redirects to {away} now</Trans> : <Trans>Redirects here</Trans>}
+                </span>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  icon="trash"
+                  aria-label={t`Stop sending ${from} here`}
+                  {...may.off}
+                  onClick={() =>
+                    plan(
+                      list.filter((d) => d !== from),
+                      t`Stop sending ${from} to ${main}`,
+                    )
+                  }
+                />
+              </li>
+            );
+          })}
         </ul>
       ) : null}
       {/* Served beside the site by a route its list didn't write: who has it, and the way there. */}

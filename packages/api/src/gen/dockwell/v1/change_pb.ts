@@ -2629,7 +2629,10 @@ export type PlanNote = Message<"dockwell.v1.PlanNote"> & {
    * land on nothing, with that redirect as its resource, and "redirect_reversed"
    * for a redirect this makes that sends back to where another one sent from,
    * which browsers keep for up to a day, so visitors who loaded it go round in a
-   * circle until it expires, with this redirect as its resource (ADR 0070).
+   * circle until it expires, with this redirect as its resource, and
+   * "leaves_list" for a website's other domain whose redirect a person pointed
+   * elsewhere, which leaves its list and keeps that redirect, with the domain and
+   * where it sends as its names (ADR 0070).
    * Another reason may come: its message says what it means.
    *
    * @generated from field: string reason = 1;

@@ -388,3 +388,67 @@ func TestAListWrittenAsAProjectsEditIsChecked(t *testing.T) {
 		t.Errorf("taking www out of the list plans %v", order)
 	}
 }
+
+// A domain the list names whose redirect a person pointed elsewhere leaves the list
+// on the site's next update, which says so, and its redirect stays theirs: no update
+// that sends the list back, as the configuration form does, is refused over it, and a
+// change of the site's domain goes through too (ADR 0070).
+func TestARepointedOtherDomainLeavesTheList(t *testing.T) {
+	t.Parallel()
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	ing := &routesInMemory{routes: map[resource.Ref]*resourcev1.Route{}}
+	f.probe = connects
+	e := f.addServerWith(t, func() []resource.Type { return []resource.Type{&route.Driver{Ingress: ing}} })
+	pullsAnything(e)
+	c := changeClient(b, b.origin)
+	sites := websiteClient(b, b.origin)
+	w := toURL("https://backend.example.com")
+	w.RedirectFrom = []string{"www.example.com"}
+	res, err := sites.CreateWebsite(t.Context(), connect.NewRequest(&dockwellv1.CreateWebsiteRequest{Domain: "example.com", Website: w}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	applyReviewed(t, c, res.Msg.GetChange())
+	env := listWebsites(t, sites)[0].GetEnvironmentId()
+	away := &dockwellv1.Edit{
+		Resource: &dockwellv1.ResourceRef{Kind: string(route.Kind), Scope: env, Name: "www-example-com"},
+		Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Route{Route: &resourcev1.Route{
+			Domain: "www.example.com", Redirect: &resourcev1.RouteRedirect{To: "https://example.org"},
+		}}},
+	}
+	if got := apply(t, c, propose(t, c, "Send www to the other site", away)); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("the edit: %v", got)
+	}
+
+	// The configuration form sends the stored list back with a new setting.
+	again := toURL("https://other-backend.example.com")
+	again.RedirectFrom = []string{"www.example.com"}
+	up, err := sites.UpdateWebsite(t.Context(), connect.NewRequest(&dockwellv1.UpdateWebsiteRequest{Id: "example.com", Website: again}))
+	if err != nil {
+		t.Fatalf("an update that sends the list back = %v", err)
+	}
+	ch := up.Msg.GetChange()
+	if order := planned(ch); slices.Contains(order, "route www-example-com update") || slices.Contains(order, "route www-example-com delete") {
+		t.Errorf("the update plans %v", order)
+	}
+	i := slices.IndexFunc(ch.GetPlan().GetNotes(), func(n *dockwellv1.PlanNote) bool { return n.GetReason() == "leaves_list" })
+	if i < 0 || !strings.Contains(ch.GetPlan().GetNotes()[i].GetMessage(), "www.example.com redirects to example.org now, so it leaves this website's other domains, and keeps its redirect") {
+		t.Errorf("the plan notes %v", ch.GetPlan().GetNotes())
+	}
+	applyReviewed(t, c, ch)
+	if got := listWebsites(t, sites)[0].GetSpec().GetRedirectFrom(); len(got) != 0 {
+		t.Errorf("the list is %v", got)
+	}
+	if got := ing.routes[resource.Ref{Kind: route.Kind, Scope: env, Name: "www-example-com"}]; got.GetRedirect().GetTo() != "https://example.org" {
+		t.Errorf("www redirects as %v", got)
+	}
+	// And a change of the site's domain goes through, the person's redirect as it is.
+	moved, err := sites.UpdateWebsite(t.Context(), connect.NewRequest(&dockwellv1.UpdateWebsiteRequest{Id: "example.com", Domain: "example.net", Website: toURL("https://other-backend.example.com")}))
+	if err != nil {
+		t.Fatalf("changing the domain = %v", err)
+	}
+	if order := planned(moved.Msg.GetChange()); slices.Contains(order, "route www-example-com update") || slices.Contains(order, "route www-example-com delete") {
+		t.Errorf("changing the domain plans %v", order)
+	}
+}

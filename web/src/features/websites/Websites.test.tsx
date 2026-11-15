@@ -1793,6 +1793,38 @@ describe("A website's other domains", () => {
     expect(screen.queryByRole("button", { name: /Also answer on/ })).toBeNull();
   });
 
+  it("says where a listed domain a person pointed elsewhere goes now, and still offers to stop sending it", async () => {
+    renderAt(
+      "/websites/prj_apex",
+      api([apex], {
+        domains: {
+          listDomains: () => ({
+            domains: [
+              {
+                name: "www.example.com",
+                environmentId: "env_apex",
+                url: "https://www.example.com",
+                routes: [
+                  {
+                    id: "rte_www",
+                    name: "www-example-com",
+                    redirect: { to: "https://example.org", temporary: false, dropPath: false },
+                  },
+                ],
+                servers: [],
+              },
+            ],
+          }),
+          checkDomain: companionOf("www.example.com"),
+        },
+      }),
+    );
+    const list = await screen.findByRole("list", { name: "Domains that redirect here" });
+    expect(await within(list).findByText("Redirects to example.org now")).toBeVisible();
+    expect(within(list).queryByText("Redirects here")).toBeNull();
+    expect(within(list).getByRole("button", { name: "Stop sending www.example.com here" })).toBeVisible();
+  });
+
   it("stops sending a domain here", async () => {
     const user = userEvent.setup();
     const asked: UpdateWebsiteRequest[] = [];
