@@ -183,22 +183,25 @@ const (
 
 // apply applies a plan, by ApplyChange, as the hook. While another change to the
 // service is under way it tries again, unless a newer push waits by then, which
-// takes its place.
+// takes its place, or it has waited BusyFor, when it leaves the plan for a person.
+// Each try is checked as ApplyChange is through the API, with the maker's role
+// read again: a maker who may plan a deploy but not apply it there, as a
+// developer in a protected environment, or who lost the role while it waited,
+// leaves it for someone who may.
 func (h *Handler) apply(ctx context.Context, l *lane, d *store.GitHookDelivery, svc, changeID, fingerprint string) applying {
-	// Applying is checked as ApplyChange is through the API: a maker who may plan
-	// a deploy but not apply it there, as a developer in a protected environment,
-	// leaves it for someone who may.
-	ctx, err := authapi.Check(ctx, h.cfg.Auth, h.cfg.Logger, dockwellv1connect.ChangeServiceApplyChangeProcedure, &dockwellv1.ApplyChangeRequest{Id: changeID, Fingerprint: fingerprint})
-	switch {
-	case reasonOf(err) == authapi.ReasonNeedsRole:
-		h.waitForPerson(ctx, d, svc, changeID, "needs someone who may apply it there")
-		return stopped
-	case err != nil:
-		h.end(ctx, d, svc, store.HookFailed, fmt.Sprintf("Dockwell couldn't apply %s: %s. Apply it from the panel", changeID, message(err)))
-		return stopped
-	}
+	req := &dockwellv1.ApplyChangeRequest{Id: changeID, Fingerprint: fingerprint}
+	began := h.now()
 	for {
-		_, err := h.cfg.Changes.ApplyChange(ctx, connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: changeID, Fingerprint: fingerprint}))
+		cctx, err := authapi.Check(ctx, h.cfg.Auth, h.cfg.Logger, dockwellv1connect.ChangeServiceApplyChangeProcedure, req)
+		switch {
+		case reasonOf(err) == authapi.ReasonNeedsRole:
+			h.waitForPerson(ctx, d, svc, changeID, "needs someone who may apply it there")
+			return stopped
+		case err != nil:
+			h.end(ctx, d, svc, store.HookFailed, fmt.Sprintf("Dockwell couldn't apply %s: %s. Apply it from the panel", changeID, message(err)))
+			return stopped
+		}
+		_, err = h.cfg.Changes.ApplyChange(cctx, connect.NewRequest(req))
 		if err == nil {
 			h.mu.Lock()
 			l.change = changeID
@@ -214,6 +217,10 @@ func (h *Handler) apply(ctx context.Context, l *lane, d *store.GitHookDelivery, 
 			if newer {
 				h.discard(ctx, changeID)
 				h.end(ctx, d, svc, store.HookSuperseded, "A newer push took its place before it began")
+				return stopped
+			}
+			if h.now().Sub(began) >= BusyFor {
+				h.waitForPerson(ctx, d, svc, changeID, "waited 30 minutes for another change to the app")
 				return stopped
 			}
 			select {
@@ -233,6 +240,10 @@ func (h *Handler) apply(ctx context.Context, l *lane, d *store.GitHookDelivery, 
 		}
 	}
 }
+
+// BusyFor is how long a push's deploy waits for another change to its app
+// before it leaves its plan for a person.
+const BusyFor = 30 * time.Minute
 
 // follow waits for a deploy to end, as the next push waits for it. One whose build
 // a newer push cancelled, as it waited for its server, gave its place to that push.

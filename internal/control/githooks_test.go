@@ -956,3 +956,97 @@ func TestANewerPushDiscardsThePlanTheLastOneLeft(t *testing.T) {
 	}
 	t.Errorf("the first push's plan is %v after a newer push planned, want discarded", state)
 }
+
+// A push that waits for another change to its app reads its maker's role again
+// at each try, as an API call would: a maker lowered while it waited applies
+// nothing, and the plan waits for a person (from #253's review, M4).
+func TestAPushThatWaitsReadsItsMakersRoleAgain(t *testing.T) {
+	t.Parallel()
+	g := newGitBench(t, store.SQLite)
+	g.repo.Commit("main", "First", map[string]string{"Dockerfile": webDockerfile})
+	made := g.done(t, g.propose(t, g.buildEdit("main", nil)))
+	protectEnv(t, g.c, g.f, made.GetPlan().GetResources()[0].GetResource().GetScope(), resourcev1.Protection_PROTECTION_OPEN)
+	web := g.service(t, "", "web")
+	url, secret := g.hook(t, web.GetId())
+	// The hook is a developer's, and the bench's owner deploys by hand.
+	if err := g.f.store.Update(t.Context(), func(tx *store.Tx) error {
+		if err := tx.CreateUser(t.Context(), store.User{ID: "usr_dev", Email: "dev@example.com", Name: "Dev", WebAuthnHandle: []byte("dev"), CreatedAt: time.Now()}); err != nil {
+			return err
+		}
+		if err := tx.SetGrant(t.Context(), store.Grant{UserID: "usr_dev", ProjectID: store.Install, Role: store.RoleDeveloper, CreatedAt: time.Now()}); err != nil {
+			return err
+		}
+		h, err := tx.GitHookOf(t.Context(), web.GetId())
+		if err != nil {
+			return err
+		}
+		if err := tx.DeleteGitHook(t.Context(), h.ID); err != nil {
+			return err
+		}
+		h.UserID = "usr_dev"
+		return tx.CreateGitHook(t.Context(), h)
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// A slow deploy by hand holds web.
+	g.repo.Commit("main", "Slow", map[string]string{"Dockerfile": "FROM alpine:3.23\nRUN echo working && sleep 30\n"})
+	slow := g.propose(t, g.buildEdit("main", nil))
+	if _, err := g.c.ApplyChange(t.Context(), connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: slow.GetId(), Fingerprint: slow.GetPlan().GetFingerprint()})); err != nil {
+		t.Fatal(err)
+	}
+	var building *dockwellv1.Build
+	for deadline := time.Now().Add(15 * time.Second); building == nil && time.Now().Before(deadline); time.Sleep(50 * time.Millisecond) {
+		list, err := g.builds.ListBuilds(t.Context(), connect.NewRequest(&dockwellv1.ListBuildsRequest{Id: web.GetId()}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, b := range list.Msg.GetBuilds() {
+			if b.GetChangeId() == slow.GetId() && b.GetState() == dockwellv1.BuildState_BUILD_STATE_BUILDING {
+				building = b
+			}
+		}
+	}
+	if building == nil {
+		t.Fatal("the deploy by hand never got to building")
+	}
+
+	// The developer pushes; their deploy plans, and waits for web.
+	pushed := g.repo.Commit("main", "Pushed", map[string]string{"Dockerfile": webDockerfile, "app.js": "pushed"})
+	if code, text, _ := send(t, url, delivery{id: "w-1", event: "push", secret: secret, body: pushBody(g.repo.URL, "refs/heads/main", pushed)}); code != http.StatusAccepted {
+		t.Fatalf("the push: %d %q", code, text)
+	}
+	var planned string
+	for deadline := time.Now().Add(15 * time.Second); planned == "" && time.Now().Before(deadline); time.Sleep(50 * time.Millisecond) {
+		list, err := g.c.ListChanges(t.Context(), connect.NewRequest(&dockwellv1.ListChangesRequest{}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, c := range list.Msg.GetChanges() {
+			if c.GetProposedBy().GetKind() == dockwellv1.ActorKind_ACTOR_KIND_HOOK && c.GetState() == dockwellv1.ChangeState_CHANGE_STATE_PLANNED {
+				planned = c.GetId()
+			}
+		}
+	}
+	if planned == "" {
+		t.Fatal("the push never planned its deploy")
+	}
+
+	// While it waits, the developer becomes a viewer, and then web is free.
+	if err := g.f.store.Update(t.Context(), func(tx *store.Tx) error {
+		return tx.SetGrant(t.Context(), store.Grant{UserID: "usr_dev", ProjectID: store.Install, Role: store.RoleViewer, CreatedAt: time.Now()})
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := g.builds.CancelBuild(t.Context(), connect.NewRequest(&dockwellv1.CancelBuildRequest{Id: building.GetId()})); err != nil {
+		t.Fatal(err)
+	}
+	g.ended(t, slow.GetId())
+	d := g.stored(t, url, "w-1", store.HookNeedsPerson)
+	if !strings.Contains(d.Detail, "may apply it there") {
+		t.Errorf("why the push waits: %q", d.Detail)
+	}
+	if got := g.service(t, "", "web").GetSpec().GetBuild().GetGit().GetCommit(); got == pushed {
+		t.Errorf("a viewer's push deployed %s", got)
+	}
+}
