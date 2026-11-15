@@ -92,7 +92,11 @@ func (s *Server) remember(root string) {
 	if known {
 		return
 	}
-	if err := s.saveRoots(); err != nil {
+	err := s.saveRoots()
+	if s.RootsSaved != nil {
+		s.RootsSaved()
+	}
+	if err != nil {
 		s.logger.Warn("can't keep where Docker's data is, so after a restart with Docker away it goes by what it looks like", "error", err.Error())
 	}
 }

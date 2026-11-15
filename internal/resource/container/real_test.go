@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"maps"
-	"net"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -22,6 +21,7 @@ import (
 	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/network"
 	"github.com/dockwell/dockwell/internal/resource/service"
+	"github.com/dockwell/dockwell/internal/testport"
 )
 
 // On a real Docker Engine, what Docker fills in from the image never reads
@@ -89,12 +89,7 @@ func TestContainersOnRealDocker(t *testing.T) {
 
 func freePort(t *testing.T) int {
 	t.Helper()
-	l, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer l.Close()
-	return l.Addr().(*net.TCPAddr).Port
+	return testport.Free(t)
 }
 
 // On a real Docker Engine, a container's, image's or network's ID prefix

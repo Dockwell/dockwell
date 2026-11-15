@@ -719,14 +719,26 @@ func TestARootThatWontSaveDoesntHoldUpTheStream(t *testing.T) {
 	if err := unix.Mkfifo(fifo, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() {
-		if fd, err := unix.Open(fifo, unix.O_RDONLY|unix.O_NONBLOCK, 0); err == nil {
-			time.Sleep(100 * time.Millisecond)
-			_ = unix.Close(fd)
-		}
-	})
 	disk := files.New(data, nil, func(context.Context) (string, error) { return "/data/docker", nil })
 	disk.AnswerWithin = 100 * time.Millisecond
+	// The save left behind goes on once its disk answers, and ends before the test
+	// lets go of its folder, or it writes there as the folder goes.
+	saved := make(chan struct{})
+	var once sync.Once
+	disk.RootsSaved = func() { once.Do(func() { close(saved) }) }
+	t.Cleanup(func() {
+		fd, err := unix.Open(fifo, unix.O_RDONLY|unix.O_NONBLOCK, 0)
+		if err != nil {
+			t.Errorf("can't open the stalled disk to let its save go on: %v", err)
+			return
+		}
+		defer unix.Close(fd)
+		select {
+		case <-saved:
+		case <-time.After(10 * time.Second):
+			t.Error("the save left behind never ended once its disk answered")
+		}
+	})
 	s := &sent{results: map[uint64]*agentv1.CallResult{}}
 	c := newCalls(context.Background(), Config{Logger: slog.New(slog.DiscardHandler), Files: disk, CallGrace: 50 * time.Millisecond}, s.send, nil)
 	c.start(listCall(1, dir, time.Minute))

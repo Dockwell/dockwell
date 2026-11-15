@@ -733,6 +733,9 @@ func (h *Handler) ended(server string, msg *agentv1.TerminalEnded) {
 }
 
 func (h *Handler) recordClose(ctx context.Context, server, terminalID, actor, surface, title string, in where, opened time.Time, end *dockwellv1.TerminalEnd) {
+	if end.GetReason() == dockwellv1.TerminalEndReason_TERMINAL_END_REASON_AGENT_RESTARTED && h.removed(ctx, server) {
+		end = asRemoved(end)
+	}
 	name := server
 	if srv, err := h.fleet.Get(server); err == nil {
 		name = srv.GetName()
@@ -751,6 +754,34 @@ func (h *Handler) recordClose(ctx context.Context, server, terminalID, actor, su
 		})
 	}); err != nil {
 		h.logger.ErrorContext(ctx, "can't record that a terminal closed", slog.String("terminal", terminalID), slog.String("error", err.Error()))
+	}
+}
+
+// removed says a server was removed from Dockwell: off the fleet, or its
+// certificate revoked, which comes first. Its agent may say its terminals ended
+// as it stopped before the control plane sees it go.
+func (h *Handler) removed(ctx context.Context, server string) bool {
+	if _, err := h.fleet.Get(server); errors.Is(err, fleet.ErrNotFound) {
+		return true
+	}
+	revoked := false
+	if err := h.db.View(ctx, func(tx *store.Tx) error {
+		srv, err := tx.GetServer(ctx, server)
+		revoked = err == nil && srv.RevokedAt != nil
+		return nil
+	}); err != nil {
+		h.logger.WarnContext(ctx, "can't read whether a terminal's server was removed", slog.String("server", server), slog.String("error", err.Error()))
+	}
+	return revoked
+}
+
+// asRemoved is how the end of a terminal whose server was removed goes on record:
+// its agent stopped, or restarted, with its shell, as its server was removed, and
+// whoever reads the audit log needs to see that it was removed (#714).
+func asRemoved(end *dockwellv1.TerminalEnd) *dockwellv1.TerminalEnd {
+	return &dockwellv1.TerminalEnd{
+		Reason: dockwellv1.TerminalEndReason_TERMINAL_END_REASON_SERVER_REMOVED, Time: end.GetTime(),
+		Message: "Its server was removed from Dockwell.",
 	}
 }
 

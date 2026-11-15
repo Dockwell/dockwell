@@ -27,6 +27,7 @@ import (
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/control/authapi"
+	"github.com/dockwell/dockwell/internal/control/githooks"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
 )
@@ -847,10 +848,10 @@ func TestGitLabAndBitbucketPushesDeploy(t *testing.T) {
 	})
 }
 
-// slowDelivery starts a delivery to url whose body comes a byte at a time, every
-// 100 ms, as one meant to hold the receiver would, and gives what it's answered,
-// once it is, or "" if the connection ends with no answer.
-func slowDelivery(t *testing.T, url string) <-chan string {
+// slowDelivery sends a delivery that says its body is length bytes long, and
+// trickles it in a byte at a time. It says what it was answered, or nothing for
+// a connection that ended unanswered, and end closes it.
+func slowDelivery(t *testing.T, url string, length int) (answered <-chan string, end func()) {
 	t.Helper()
 	u, err := neturl.Parse(url)
 	if err != nil {
@@ -862,34 +863,36 @@ func slowDelivery(t *testing.T, url string) <-chan string {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = conn.Close() })
-	fmt.Fprintf(conn, "POST %s HTTP/1.1\r\nHost: %s\r\nContent-Type: application/json\r\nContent-Length: 1000\r\n"+
-		"X-GitHub-Event: push\r\nX-GitHub-Delivery: slow-%d\r\nX-Hub-Signature-256: sha256=00\r\n\r\n", u.Path, u.Host, time.Now().UnixNano())
+	fmt.Fprintf(conn, "POST %s HTTP/1.1\r\nHost: %s\r\nContent-Type: application/json\r\nContent-Length: %d\r\n"+
+		"X-GitHub-Event: push\r\nX-GitHub-Delivery: slow-%d\r\nX-Hub-Signature-256: sha256=00\r\n\r\n", u.Path, u.Host, length, time.Now().UnixNano())
 	go func() {
-		for range 1000 {
+		for range length {
 			if _, err := conn.Write([]byte(" ")); err != nil {
 				return
 			}
 			time.Sleep(100 * time.Millisecond)
 		}
 	}()
-	answered := make(chan string, 1)
+	out := make(chan string, 1)
 	go func() {
 		res, err := http.ReadResponse(bufio.NewReader(conn), nil)
 		if err != nil {
-			answered <- ""
+			out <- ""
 			return
 		}
 		_ = res.Body.Close()
-		answered <- res.Status + " " + res.Header.Get("Retry-After")
+		out <- res.Status + " " + res.Header.Get("Retry-After")
 	}()
-	return answered
+	return out, func() { _ = conn.Close() }
 }
 
 // A delivery's body has a deadline as long as its length says it may need, so
 // one that trickles in holds nothing for long; only so many are read at once, and
 // only so many from one source, so no one sender holds them all. Past either, a
 // delivery is told to come again, and nothing of it is read (from #253's review,
-// M2, and its re-check, N2).
+// M2, and its re-check, N2). Each limit is probed while the handler says the
+// deliveries that fill it are being read, so a slow runner can't let them end
+// first (#707).
 func TestADeliveryThatTricklesInHoldsNothingForLong(t *testing.T) {
 	t.Parallel()
 	g := newGitBench(t, store.SQLite)
@@ -900,17 +903,36 @@ func TestADeliveryThatTricklesInHoldsNothingForLong(t *testing.T) {
 	hooks := g.f.server.hooks
 	// Probes go to a hook there isn't, so they spend nothing of web's.
 	none := url[:strings.LastIndex(url, "/")+1] + "ghk_01JD6Z3R8M9QF2K7T4XW5BNC0V"
-	probe := func(want int) (int, http.Header) {
+	probe := func() (int, http.Header) {
 		t.Helper()
-		var code int
-		var header http.Header
-		for range 20 {
-			if code, _, header = send(t, none, delivery{id: "busy", event: "push", secret: secret, body: pushBody(g.repo.URL, "refs/heads/main", head)}); code == want {
-				break
-			}
-			time.Sleep(100 * time.Millisecond)
-		}
+		code, _, header := send(t, none, delivery{id: "busy", event: "push", secret: secret, body: pushBody(g.repo.URL, "refs/heads/main", head)})
 		return code, header
+	}
+	// reading waits until the handler reads n deliveries from this machine.
+	reading := func(n int) {
+		t.Helper()
+		deadline := time.Now().Add(15 * time.Second)
+		for hooks.ReadingFrom("127.0.0.1") != n {
+			if time.Now().After(deadline) {
+				t.Fatalf("the handler reads %d deliveries from here, want %d", hooks.ReadingFrom("127.0.0.1"), n)
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+	// held are two deliveries that trickle in and say they're 1 MiB, the most a
+	// body may be, so only the limit or the test ends them, and the handler reads
+	// both before held returns. release ends them, and waits until it reads none.
+	held := func() (release func()) {
+		t.Helper()
+		_, closeFirst := slowDelivery(t, url, githooks.MaxBody)
+		_, closeSecond := slowDelivery(t, url, githooks.MaxBody)
+		reading(2)
+		return func() {
+			t.Helper()
+			closeFirst()
+			closeSecond()
+			reading(0)
+		}
 	}
 	ended := func(what string, answered <-chan string) {
 		t.Helper()
@@ -924,29 +946,31 @@ func TestADeliveryThatTricklesInHoldsNothingForLong(t *testing.T) {
 		}
 	}
 
-	// Two read at once at most: two that trickle hold both, and a third waits. Each
-	// says its body is 1,000 bytes, which takes 2 s at most, however long the
-	// limit; the limit here is a minute.
+	// Two read at once at most: two that trickle hold both, and a third waits.
 	hooks.SetLimits(time.Minute, 2, 32)
-	first, second := slowDelivery(t, url), slowDelivery(t, url)
-	if code, header := probe(http.StatusServiceUnavailable); code != http.StatusServiceUnavailable || header.Get("Retry-After") == "" {
+	release := held()
+	if code, header := probe(); code != http.StatusServiceUnavailable || header.Get("Retry-After") == "" {
 		t.Errorf("a delivery while two trickle in: %d, Retry-After %q; want 503 and when to come again", code, header.Get("Retry-After"))
 	}
-	ended("the first", first)
-	ended("the second", second)
+	release()
 
 	// Two from one source at most, with places to spare: a third from it waits.
 	hooks.SetLimits(time.Minute, 32, 2)
-	first, second = slowDelivery(t, url), slowDelivery(t, url)
-	if code, header := probe(http.StatusTooManyRequests); code != http.StatusTooManyRequests || header.Get("Retry-After") == "" {
+	release = held()
+	if code, header := probe(); code != http.StatusTooManyRequests || header.Get("Retry-After") == "" {
 		t.Errorf("a third delivery from one source while two trickle in: %d, Retry-After %q; want 429 and when to come again", code, header.Get("Retry-After"))
 	}
-	ended("the first from one source", first)
-	ended("the second from one source", second)
+	release()
+
+	// One that says its body is 1,000 bytes takes 2 s at most, however long the
+	// limit; the limit here is a minute.
+	short, _ := slowDelivery(t, url, 1000)
+	ended("one that says it's short", short)
 
 	// One whose length isn't short takes as long as the limit allows, and no more.
 	hooks.SetLimits(300*time.Millisecond, 32, 4)
-	ended("one past the limit", slowDelivery(t, url))
+	past, _ := slowDelivery(t, url, 1000)
+	ended("one past the limit", past)
 	if code, text, _ := send(t, url, delivery{id: "after", event: "push", secret: secret, body: pushBody(g.repo.URL, "refs/heads/main", head)}); code != http.StatusAccepted {
 		t.Errorf("a delivery once those ended: %d %q", code, text)
 	}

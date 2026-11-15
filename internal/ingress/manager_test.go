@@ -28,6 +28,7 @@ import (
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/testport"
 )
 
 // fakeProxy is a proxy in memory, which says what was done to it.
@@ -2552,15 +2553,9 @@ func TestARolloutTakesARouteToThePortItsPlanHas(t *testing.T) {
 	s := newSetup(t)
 	s.engine.PickSubnet = "127.78.0.0/16"
 	s.DrainPoll = time.Millisecond
-	// A port nothing on this machine has, whatever else listens on every address.
-	free, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	was := uint32(free.Addr().(*net.TCPAddr).Port)
-	if err := free.Close(); err != nil {
-		t.Fatal(err)
-	}
+	// A port nothing on this machine has, whatever else listens on every address,
+	// and that nothing else is given while the test runs.
+	was := uint32(testport.Free(t))
 	s.apply(t, "www", spec("www.example.com", "", "web", was))
 	s.apply(t, "api", spec("www.example.com", "/api", "web", 8081))
 	project := docker.Project(envID)

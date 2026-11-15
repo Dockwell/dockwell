@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	mrand "math/rand/v2"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -29,6 +28,7 @@ import (
 	"github.com/quic-go/quic-go/http3"
 
 	"github.com/dockwell/dockwell/internal/ingress"
+	"github.com/dockwell/dockwell/internal/testport"
 )
 
 // envCaddy names a Caddy binary of the pinned version, which these tests run
@@ -129,54 +129,12 @@ func (p *process) Remove(context.Context) error {
 	return nil
 }
 
-// portsGiven is what freePort has given out, as nothing holds a port until the
-// Caddy it's for starts, so asking again would find it free.
-var (
-	portsGivenMu sync.Mutex
-	portsGiven   = map[int]bool{}
-)
-
 // freePort finds a port nothing holds, on TCP and on UDP, on every address, as
-// Caddy binds, and that it hasn't given out before. It is below the kernel's
-// ephemeral range, so that an outgoing connection or another test's listener
-// doesn't take it in the meantime.
+// Caddy binds, below the kernel's ephemeral range and given out once, as nothing
+// holds it until the Caddy it's for starts.
 func freePort(t *testing.T) int {
 	t.Helper()
-	portsGivenMu.Lock()
-	defer portsGivenMu.Unlock()
-	for range 200 {
-		port := 20000 + mrand.IntN(12000)
-		if portsGiven[port] {
-			continue
-		}
-		l, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp", fmt.Sprintf(":%d", port))
-		if err != nil {
-			continue
-		}
-		_ = l.Close()
-		if u, err := (&net.ListenConfig{}).ListenPacket(context.Background(), "udp", fmt.Sprintf(":%d", port)); err == nil {
-			_ = u.Close()
-			portsGiven[port] = true
-			return port
-		}
-	}
-	t.Fatal("no free port")
-	return 0
-}
-
-// Nothing holds a port between freePort and Caddy starting, so asking again can't
-// be told it's taken: the HTTP and HTTPS ports once came back the same, and Caddy
-// refused the config.
-func TestAPortIsGivenOutOnce(t *testing.T) {
-	seen := map[int]bool{}
-	// Without the memory, a repeat is all but certain well before this many.
-	for range 500 {
-		port := freePort(t)
-		if seen[port] {
-			t.Fatalf("port %d was given out twice", port)
-		}
-		seen[port] = true
-	}
+	return testport.Free(t)
 }
 
 // shortDir is a directory whose sockets fit the 108 bytes Linux allows.

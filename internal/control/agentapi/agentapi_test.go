@@ -42,6 +42,7 @@ import (
 	"github.com/dockwell/dockwell/internal/seal"
 	"github.com/dockwell/dockwell/internal/serve"
 	"github.com/dockwell/dockwell/internal/store"
+	"github.com/dockwell/dockwell/internal/testport"
 )
 
 type stack struct {
@@ -670,12 +671,8 @@ func TestAPublicAddressGoesRoundThroughARealStream(t *testing.T) {
 // public address doesn't come back in. It joins for good through the one that worked.
 func TestATicketGoesOnToItsNextAddress(t *testing.T) {
 	s := startStack(t, 5*time.Second)
-	refused, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	dead := "https://" + refused.Addr().String()
-	_ = refused.Close()
+	// An address nothing listens on, and that nothing else is given while the test runs.
+	dead := "https://" + testport.Addr(t, "127.0.0.1")
 
 	tk, err := s.auth.CreateTicket(t.Context(), dead, "cli:test", time.Hour, s.url)
 	if err != nil {

@@ -4,7 +4,6 @@ package service_test
 
 import (
 	"context"
-	"net"
 	"slices"
 	"strconv"
 	"strings"
@@ -18,6 +17,7 @@ import (
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/service"
+	"github.com/dockwell/dockwell/internal/testport"
 )
 
 // What a rollout leans on in Docker itself, on a real engine: that a rename holds,
@@ -196,12 +196,7 @@ func (s *dockerScene) rollingDeploy(t *testing.T) {
 
 func freeDockerPort(t *testing.T) int {
 	t.Helper()
-	l, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer l.Close()
-	return l.Addr().(*net.TCPAddr).Port
+	return testport.Free(t)
 }
 
 func TestARollingDeployOnRealDocker(t *testing.T) {

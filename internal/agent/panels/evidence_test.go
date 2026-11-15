@@ -12,6 +12,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/dockwell/dockwell/internal/testport"
 )
 
 // A proxy that asks for a client certificate refuses the handshake a request
@@ -25,12 +27,8 @@ func TestTheProbeHoldsWhatAHandshakeRefuses(t *testing.T) {
 	if got := (Reader{ProbeAddr: mtls.Listener.Addr().String()}).probe(t.Context(), "blog.example.com", "/"); got.Open || !strings.Contains(got.Answer, "no TLS handshake") {
 		t.Errorf("a proxy asking for a client certificate answered %+v", got)
 	}
-	closed, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	addr := closed.Addr().String()
-	_ = closed.Close()
+	// A port nothing listens on, and that nothing else is given while the test runs.
+	addr := testport.Addr(t, "127.0.0.1")
 	if got := (Reader{ProbeAddr: addr}).probe(t.Context(), "blog.example.com", "/"); got.Open || !strings.Contains(got.Answer, "nothing listens on port 443") {
 		t.Errorf("a proxy that's gone answered %+v", got)
 	}
