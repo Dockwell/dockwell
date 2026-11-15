@@ -105,6 +105,29 @@ func As(ctx context.Context, client auth.Client, p auth.Principal) context.Conte
 	return context.WithValue(ctx, principalKey{}, p)
 }
 
+// Check is what Interceptor checks of a call to procedure with the request msg,
+// for one made as As says: the role p holds, read now, a token's maker's for a
+// token, and where msg's objects are, protected environments included. It returns
+// ctx with p's grants, as a call through the API has them, for what the method
+// checks after. A service's hook calls nothing without it, so a hook deploys only
+// what its maker may deploy now (ADR 0046, ADR 0049).
+func Check(ctx context.Context, svc *auth.Service, logger *slog.Logger, procedure string, msg proto.Message) (context.Context, error) {
+	p, ok := PrincipalFrom(ctx)
+	if !ok {
+		return ctx, ReasonError(connect.CodeUnauthenticated, auth.ErrUnauthenticated, ReasonUnauthenticated)
+	}
+	i := &interceptor{svc: svc, logger: logger}
+	client, _ := ClientFrom(ctx)
+	ctx, err := i.gateCall(ctx, client, p, procedure)
+	if err != nil {
+		return ctx, err
+	}
+	if err := i.checkScope(ctx, procedure, msg); err != nil {
+		return ctx, err
+	}
+	return ctx, nil
+}
+
 // sessionUnchecked reports a request with a session cookie that couldn't be
 // checked, which went ahead without a principal because its procedure
 // needs none.

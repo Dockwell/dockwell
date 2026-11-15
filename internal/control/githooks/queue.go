@@ -13,6 +13,7 @@ import (
 	"connectrpc.com/connect"
 
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/auth"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/revision"
@@ -105,9 +106,16 @@ func (h *Handler) run(svc string, l *lane) {
 // hook, with an API token's rights. A plan a token may not apply waits for a
 // person. It returns once the deploy ends, so the next push waits for it.
 func (h *Handler) deploy(l *lane, j *job) {
-	ctx := authapi.As(h.base, j.client, j.p)
+	asHook := authapi.As(h.base, j.client, j.p)
 	svc, d := j.hook.ResourceID, j.delivery
 	for tries := 0; ; tries++ {
+		// The hook deploys only what its maker may deploy now (ADR 0049): their
+		// role, read for each push, where the service is, as the API checks a call.
+		ctx, err := authapi.Check(asHook, h.cfg.Auth, h.cfg.Logger, dockwellv1connect.ServiceServiceDeployServiceProcedure, &dockwellv1.DeployServiceRequest{Id: svc})
+		if err != nil {
+			h.end(asHook, &d, svc, store.HookFailed, "The hook's maker may not deploy it now: "+message(err))
+			return
+		}
 		b, name, _, err := h.cfg.Services.BuildOf(ctx, svc, "", "")
 		if err != nil {
 			h.end(ctx, &d, svc, store.HookFailed, "Dockwell can't read the service it deploys: "+message(err))
@@ -177,6 +185,18 @@ const (
 // service is under way it tries again, unless a newer push waits by then, which
 // takes its place.
 func (h *Handler) apply(ctx context.Context, l *lane, d *store.GitHookDelivery, svc, changeID, fingerprint string) applying {
+	// Applying is checked as ApplyChange is through the API: a maker who may plan
+	// a deploy but not apply it there, as a developer in a protected environment,
+	// leaves it for someone who may.
+	ctx, err := authapi.Check(ctx, h.cfg.Auth, h.cfg.Logger, dockwellv1connect.ChangeServiceApplyChangeProcedure, &dockwellv1.ApplyChangeRequest{Id: changeID, Fingerprint: fingerprint})
+	switch {
+	case reasonOf(err) == authapi.ReasonNeedsRole:
+		h.waitForPerson(ctx, d, svc, changeID, "needs someone who may apply it there")
+		return stopped
+	case err != nil:
+		h.end(ctx, d, svc, store.HookFailed, fmt.Sprintf("Dockwell couldn't apply %s: %s. Apply it from the panel", changeID, message(err)))
+		return stopped
+	}
 	for {
 		_, err := h.cfg.Changes.ApplyChange(ctx, connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: changeID, Fingerprint: fingerprint}))
 		if err == nil {
@@ -276,7 +296,15 @@ func (h *Handler) cancelWaiting(j *job, l *lane, change string) {
 		return
 	}
 	for i := range waiting {
-		if _, err := h.cfg.Builds.CancelBuild(ctx, connect.NewRequest(&dockwellv1.CancelBuildRequest{Id: waiting[i].ID})); err != nil {
+		// Cancelling is checked as CancelBuild is through the API: a maker who
+		// may not cancel there leaves the build, and the newer push waits for it.
+		req := &dockwellv1.CancelBuildRequest{Id: waiting[i].ID}
+		cctx, err := authapi.Check(ctx, h.cfg.Auth, h.cfg.Logger, dockwellv1connect.BuildServiceCancelBuildProcedure, req)
+		if err != nil {
+			h.cfg.Logger.DebugContext(ctx, "didn't cancel a build for a newer push, as the hook's maker may not", slog.String("build", waiting[i].ID), slog.String("error", err.Error()))
+			continue
+		}
+		if _, err := h.cfg.Builds.CancelBuild(cctx, connect.NewRequest(req)); err != nil {
 			// It began, or ended, meanwhile: the newer push waits for it.
 			h.cfg.Logger.DebugContext(ctx, "didn't cancel a build for a newer push", slog.String("build", waiting[i].ID), slog.String("error", err.Error()))
 			continue

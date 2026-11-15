@@ -843,17 +843,17 @@ const file_dockwell_v1_githook_proto_rawDesc = "" +
 	"\x1cGIT_HOOK_OUTCOME_NOTHING_NEW\x10\x04\x12\x1c\n" +
 	"\x18GIT_HOOK_OUTCOME_IGNORED\x10\x05\x12\x1b\n" +
 	"\x17GIT_HOOK_OUTCOME_FAILED\x10\x06\x12\x1f\n" +
-	"\x1bGIT_HOOK_OUTCOME_SUPERSEDED\x10\a2\xfb\x04\n" +
-	"\x0eGitHookService\x12\x94\x01\n" +
-	"\rCreateGitHook\x12!.dockwell.v1.CreateGitHookRequest\x1a\".dockwell.v1.CreateGitHookResponse\"<\xa0\xbb\x18\x03\xaa\xbb\x18\v\n" +
-	"\tgit-hooks\xb0\xbb\x18\x01\x82\xd3\xe4\x93\x02\x1f:\x01*\"\x1a/v1/services/{id}/git-hook\x12\x87\x01\n" +
+	"\x1bGIT_HOOK_OUTCOME_SUPERSEDED\x10\a2\xab\x05\n" +
+	"\x0eGitHookService\x12\xa0\x01\n" +
+	"\rCreateGitHook\x12!.dockwell.v1.CreateGitHookRequest\x1a\".dockwell.v1.CreateGitHookResponse\"H\xa0\xbb\x18\x03\xaa\xbb\x18\v\n" +
+	"\tgit-hooks\xb0\xbb\x18\x01\xc0\xbb\x18\x03Ȼ\x18\x04л\x18\x04\x82\xd3\xe4\x93\x02\x1f:\x01*\"\x1a/v1/services/{id}/git-hook\x12\x93\x01\n" +
 	"\n" +
-	"GetGitHook\x12\x1e.dockwell.v1.GetGitHookRequest\x1a\x1f.dockwell.v1.GetGitHookResponse\"8\xa0\xbb\x18\x01\xaa\xbb\x18\v\n" +
-	"\tgit-hooks\x82\xd3\xe4\x93\x02\x1c\x12\x1a/v1/services/{id}/git-hook\x90\x02\x01\x12\xad\x01\n" +
-	"\x13RotateGitHookSecret\x12'.dockwell.v1.RotateGitHookSecretRequest\x1a(.dockwell.v1.RotateGitHookSecretResponse\"C\xa0\xbb\x18\x03\xaa\xbb\x18\v\n" +
-	"\tgit-hooks\xb0\xbb\x18\x01\x82\xd3\xe4\x93\x02&:\x01*\"!/v1/services/{id}/git-hook:rotate\x12\x97\x01\n" +
-	"\rDeleteGitHook\x12!.dockwell.v1.DeleteGitHookRequest\x1a\".dockwell.v1.DeleteGitHookResponse\"?\xa0\xbb\x18\x03\xaa\xbb\x18\v\n" +
-	"\tgit-hooks\x82\xd3\xe4\x93\x02&:\x01*\"!/v1/services/{id}/git-hook:deleteB\xa5\x01\n" +
+	"GetGitHook\x12\x1e.dockwell.v1.GetGitHookRequest\x1a\x1f.dockwell.v1.GetGitHookResponse\"D\xa0\xbb\x18\x01\xaa\xbb\x18\v\n" +
+	"\tgit-hooks\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x04\x82\xd3\xe4\x93\x02\x1c\x12\x1a/v1/services/{id}/git-hook\x90\x02\x01\x12\xb9\x01\n" +
+	"\x13RotateGitHookSecret\x12'.dockwell.v1.RotateGitHookSecretRequest\x1a(.dockwell.v1.RotateGitHookSecretResponse\"O\xa0\xbb\x18\x03\xaa\xbb\x18\v\n" +
+	"\tgit-hooks\xb0\xbb\x18\x01\xc0\xbb\x18\x03Ȼ\x18\x04л\x18\x04\x82\xd3\xe4\x93\x02&:\x01*\"!/v1/services/{id}/git-hook:rotate\x12\xa3\x01\n" +
+	"\rDeleteGitHook\x12!.dockwell.v1.DeleteGitHookRequest\x1a\".dockwell.v1.DeleteGitHookResponse\"K\xa0\xbb\x18\x03\xaa\xbb\x18\v\n" +
+	"\tgit-hooks\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02&:\x01*\"!/v1/services/{id}/git-hook:deleteB\xa5\x01\n" +
 	"\x0fcom.dockwell.v1B\fGithookProtoP\x01Z7github.com/dockwell/dockwell/gen/dockwell/v1;dockwellv1\xa2\x02\x03DXX\xaa\x02\vDockwell.V1\xca\x02\vDockwell\\V1\xe2\x02\x17Dockwell\\V1\\GPBMetadata\xea\x02\fDockwell::V1b\x06proto3"
 
 var (
