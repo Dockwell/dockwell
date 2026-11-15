@@ -921,7 +921,7 @@ describe("Activity", () => {
     expect(screen.getByRole("row", { name: /r2 kept a backup of orders that was to go/ })).toBeVisible();
   });
 
-  it("says what a push came to, by the hook it came through", async () => {
+  it("says what a push came to, by the hook it came through, and a push it refused", async () => {
     const pushed = (id: string, outcome: GitHookOutcome) =>
       auditEvent({
         id,
@@ -941,9 +941,23 @@ describe("Activity", () => {
           },
         },
       });
+    // A delivery whose secret didn't match is on Activity too, as the app's.
+    const refused = auditEvent({
+      id: "evt_3",
+      kind: EventKind.ACCESS,
+      action: "git_hook.refused",
+      time: timestampFromDate(new Date(Date.now() - HOUR)),
+      actor: { kind: ActorKind.HOOK, id: "ghk_1", name: "Deploy on push for storefront" },
+      surface: Surface.PUSH,
+      subject: { id: "svc_1", name: "storefront" },
+    });
     const watch = feed<WatchEventsResponse>();
-    watch.push(snapshot([pushed("evt_1", GitHookOutcome.DEPLOYING), pushed("evt_2", GitHookOutcome.NEEDS_PERSON)]));
+    watch.push(
+      snapshot([pushed("evt_1", GitHookOutcome.DEPLOYING), pushed("evt_2", GitHookOutcome.NEEDS_PERSON), refused]),
+    );
     renderActivity(watch);
+    const forged = await screen.findByRole("row", { name: /Refused a push to storefront whose secret didn't match/ });
+    expect(forged.querySelector(".dw-tone-warning, [data-tone='warning']")).not.toBeNull();
     expect(
       await screen.findByRole("row", { name: /A push to main started a deploy of 8be41d2 to storefront/ }),
     ).toBeVisible();

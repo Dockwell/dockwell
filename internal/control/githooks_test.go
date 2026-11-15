@@ -296,6 +296,20 @@ func TestAHookTakesOnlyWhatItsSecretSigned(t *testing.T) {
 		if refused != 1 {
 			t.Errorf("the audit log has %d refused deliveries, want 1", refused)
 		}
+		// And it's on the timeline, as the app's, as someone may be forging pushes
+		// to it (from #253's review, L7).
+		onTimeline := 0
+		for _, e := range listEvents(t, dockwellv1connect.NewEventServiceClient(g.b, g.b.origin), &dockwellv1.ListEventsRequest{Kinds: []dockwellv1.EventKind{dockwellv1.EventKind_EVENT_KIND_ACCESS}}) {
+			if e.GetAction() == "git_hook.refused" {
+				onTimeline++
+				if e.GetSubject().GetId() != web.GetId() || e.GetSubject().GetName() != "web" {
+					t.Errorf("a refused delivery's event is about %v, not web", e.GetSubject())
+				}
+			}
+		}
+		if onTimeline != 1 {
+			t.Errorf("the timeline has %d refused deliveries, want 1", onTimeline)
+		}
 
 		if _, err := g.hooks().DeleteGitHook(t.Context(), connect.NewRequest(&dockwellv1.DeleteGitHookRequest{Id: web.GetId()})); err != nil {
 			t.Fatal(err)
@@ -316,7 +330,7 @@ func TestAHookTakesOnlyWhatItsSecretSigned(t *testing.T) {
 				done = append(done, e.GetAction()+" "+e.GetSubject().GetName())
 			}
 		}
-		if want := "git_hook.delete web, git_hook.create web"; strings.Join(done, ", ") != want {
+		if want := "git_hook.delete web, git_hook.refused web, git_hook.create web"; strings.Join(done, ", ") != want {
 			t.Errorf("the app's access events are %q, want %q", done, want)
 		}
 		for _, e := range listEvents(t, eventsAPI, &dockwellv1.ListEventsRequest{Kinds: []dockwellv1.EventKind{dockwellv1.EventKind_EVENT_KIND_PUSH}, ResourceId: web.GetId()}) {

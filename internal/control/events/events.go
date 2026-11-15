@@ -126,6 +126,10 @@ var (
 		"passkey.add", "passkey.add_with_recovery_code", "passkey.add_with_authenticator_code", "passkey.remove",
 		"totp.enable", "totp.disable", "totp.unlock", "totp.setup_discarded", "recovery_codes.regenerate",
 		"token.create", "token.revoke", "git_hook.create", "git_hook.rotate", "git_hook.delete",
+		// The one refusal on the timeline: a delivery to an app's hook whose proof
+		// didn't match is someone sending it a push they may not, which the app's
+		// people should see (ADR 0046). It's there at most once an hour a hook.
+		"git_hook.refused",
 		"sign_in_link.create", "claim_link.create", "join_token.create",
 		"secret.reveal", "secrets.rotate_key",
 		// A test of a destination's keys, before any plan: who tried which storage.

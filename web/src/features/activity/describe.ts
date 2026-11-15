@@ -659,6 +659,14 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
             title: name ? t`Turned off deploy on push for ${name}` : t`Turned off deploy on push`,
             icon: "commit",
           };
+        case "git_hook.refused":
+          return {
+            title: name
+              ? t`Refused a push to ${name} whose secret didn't match`
+              : t`Refused a push whose secret didn't match`,
+            icon: "shield",
+            tone: "warning",
+          };
         case "sign_in_link.create":
           return {
             title: name ? t`Made a one-time sign-in link for ${name}` : t`Made a one-time sign-in link`,
