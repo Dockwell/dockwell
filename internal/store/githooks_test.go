@@ -51,8 +51,12 @@ func TestAHookKeepsWhatItsDeliveriesCameTo(t *testing.T) {
 			if err != nil || len(list) != 2 || list[0].DeliveryID != "d3" || list[0].Outcome != store.HookDeploying || list[0].ChangeID != "chg_1" {
 				t.Errorf("the newest deliveries = %+v, %v", list, err)
 			}
-			if err := tx.SetGitHookSecret(ctx, "ghk_1", []byte("new"), at.Add(time.Hour)); err != nil {
+			// A new secret binds the hook to whoever gave it.
+			if err := tx.SetGitHookSecret(ctx, "ghk_1", "usr_2", []byte("new"), at.Add(time.Hour)); err != nil {
 				return err
+			}
+			if h, err := tx.GetGitHook(ctx, "ghk_1"); err != nil || h.UserID != "usr_2" || string(h.Secret) != "new" || !h.SecretAt.Equal(at.Add(time.Hour)) {
+				t.Errorf("after a new secret, the hook is %+v, %v", h, err)
 			}
 			if err := tx.ForgetGitHookDeliveries(ctx, at.Add(90*time.Minute)); err != nil {
 				return err
