@@ -20,7 +20,8 @@ import (
 // A developer, then a viewer, of one project tries every way at a connection that
 // reaches another project. It isn't listed, checked, linked or changed, and every
 // refusal reads as for a connection that isn't there, so trying names tells them
-// nothing (ADR 0099).
+// nothing. Nor can a developer reveal a connection's key through their own app's
+// secret (ADR 0099).
 func TestAConnectionOfAnotherProjectReadsAsNotThere(t *testing.T) {
 	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
@@ -146,5 +147,58 @@ func TestAConnectionOfAnotherProjectReadsAsNotThere(t *testing.T) {
 		if err == nil {
 			t.Errorf("%s changes ours", who)
 		}
+	}
+
+	// A developer who connects their app to ours can't reveal its key through their
+	// app's secret, or through a secret written from it: revealing a connection's
+	// value is an admin's, as it's the install's, whichever app reads it. A secret of
+	// their own they still reveal, and an admin of the install reveals both.
+	hold(store.Grant{ProjectID: project, Role: store.RoleDeveloper})
+	planned, err := cc.ConnectStorage(t.Context(), connect.NewRequest(&dockwellv1.ConnectStorageRequest{
+		Project: project, App: "notes", Connection: "ours",
+		Sets: map[string]resourcev1.LinkPart{"S3_SECRET_ACCESS_KEY": resourcev1.LinkPart_LINK_PART_SECRET_KEY},
+	}))
+	if err != nil {
+		t.Fatalf("a developer connects to ours: %v", err)
+	}
+	if done := apply(t, c, planned.Msg.GetChange()); done.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("applied %v: %s", done.GetState(), done.GetError())
+	}
+	apply(t, c, propose(t, c, "Write the storage URL", secretSpec("PLAIN", "a-secret-of-theirs"), fromSecret("STORAGE_URL", &resourcev1.ValueTemplate{
+		Text:  "s3://${S3_SECRET_ACCESS_KEY}@storage",
+		Names: []*resourcev1.TemplateName{{Name: "S3_SECRET_ACCESS_KEY", Secret: true, Encoding: resourcev1.Encoding_ENCODING_USERINFO}},
+	})))
+	v := variablesClient(b, b.origin)
+	list, err := v.ListVariables(t.Context(), connect.NewRequest(&dockwellv1.ListVariablesRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ids := map[string]string{}
+	for _, x := range list.Msg.GetVariables() {
+		ids[x.GetName()] = x.GetId()
+	}
+	reveal := func(name string) (string, error) {
+		t.Helper()
+		shown, err := v.RevealSecret(t.Context(), connect.NewRequest(&dockwellv1.RevealSecretRequest{Id: ids[name], Proof: stepUp(t, b, ids[name])}))
+		if err != nil {
+			return "", err
+		}
+		return shown.Msg.GetValue(), nil
+	}
+	for _, name := range []string{"S3_SECRET_ACCESS_KEY", "STORAGE_URL"} {
+		got, err := reveal(name)
+		if connect.CodeOf(err) != connect.CodePermissionDenied || !strings.Contains(err.Error(), "from the connection ours, so only an admin reveals it") || got != "" {
+			t.Errorf("a developer reveals %s, which reads ours: %q, %v", name, got, err)
+		}
+	}
+	if got, err := reveal("PLAIN"); err != nil || got != "a-secret-of-theirs" {
+		t.Errorf("a developer reveals a secret of their own: %q, %v", got, err)
+	}
+	hold(store.Grant{ProjectID: store.Install, Role: store.RoleAdmin})
+	if got, err := reveal("S3_SECRET_ACCESS_KEY"); err != nil || got != connectionSecret {
+		t.Errorf("an admin of the install reveals the connection's key: %q, %v", got, err)
+	}
+	if got, err := reveal("STORAGE_URL"); err != nil || !strings.Contains(got, "s3://") {
+		t.Errorf("an admin of the install reveals a secret written from it: %q, %v", got, err)
 	}
 }

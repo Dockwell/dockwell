@@ -184,8 +184,17 @@ func (k *Keeper) namesValuesAt(ctx context.Context, tx *store.Tx, r store.Resour
 
 // valueAt reads what a use resolves to, at the revision it is pinned to.
 func (k *Keeper) valueAt(ctx context.Context, tx *store.Tx, scopeID string, u resource.Use) (string, error) {
-	return k.valueFrom(ctx, tx, scopeID, u, 0)
+	return k.valueFrom(ctx, tx, scopeID, u, 0, nil)
 }
+
+// trace stops a read where a value comes from a connection, and says which. A
+// reveal below an admin reads with one first, before it asks for the passkey.
+type trace struct {
+	connection string
+}
+
+// errFromConnection stops a traced read at a connection's value.
+var errFromConnection = errors.New("a value comes from a connection")
 
 // maxFrom bounds how far values written from others go: a URL from a password from
 // another environment is two deep.
@@ -193,7 +202,7 @@ const maxFrom = 4
 
 // valueFrom is valueAt, depth steps into values written from others. A use that names
 // its own scope, as a link's value from another environment does, is read there.
-func (k *Keeper) valueFrom(ctx context.Context, tx *store.Tx, scopeID string, u resource.Use, depth int) (string, error) {
+func (k *Keeper) valueFrom(ctx context.Context, tx *store.Tx, scopeID string, u resource.Use, depth int, tr *trace) (string, error) {
 	if u.Scope != "" {
 		scopeID = u.Scope
 	}
@@ -225,12 +234,13 @@ func (k *Keeper) valueFrom(ctx context.Context, tx *store.Tx, scopeID string, u 
 	if err != nil {
 		return "", err
 	}
-	return k.written(ctx, tx, scopeID, u.Kind, spec, depth)
+	return k.written(ctx, tx, scopeID, u.Kind, spec, depth, tr)
 }
 
 // written is a value's spec written out: what it holds, or what it comes from, read
-// at the revisions it pins (ADR 0084).
-func (k *Keeper) written(ctx context.Context, tx *store.Tx, scopeID string, kind resource.Kind, spec proto.Message, depth int) (string, error) {
+// at the revisions it pins (ADR 0084). With a trace, it stops at a value from a
+// connection, before reading it.
+func (k *Keeper) written(ctx context.Context, tx *store.Tx, scopeID string, kind resource.Kind, spec proto.Message, depth int, tr *trace) (string, error) {
 	vt, err := k.kinds.Type(kind)
 	if err != nil {
 		return "", err
@@ -251,7 +261,7 @@ func (k *Keeper) written(ctx context.Context, tx *store.Tx, scopeID string, kind
 	case *resourcev1.ValueFrom_Template:
 		values := make(map[string]string, len(uses))
 		for _, u := range uses {
-			v, err := k.valueFrom(ctx, tx, scopeID, u, depth+1)
+			v, err := k.valueFrom(ctx, tx, scopeID, u, depth+1, tr)
 			if err != nil {
 				return "", err
 			}
@@ -262,10 +272,14 @@ func (k *Keeper) written(ctx context.Context, tx *store.Tx, scopeID string, kind
 		if len(uses) != 1 {
 			return "", errors.New("a value from another environment names none")
 		}
-		return k.valueFrom(ctx, tx, scopeID, uses[0], depth+1)
+		return k.valueFrom(ctx, tx, scopeID, uses[0], depth+1, tr)
 	case *resourcev1.ValueFrom_Connection:
 		if len(uses) != 1 {
 			return "", errors.New("a value from a connection names none")
+		}
+		if tr != nil {
+			tr.connection = src.Connection.GetName()
+			return "", errFromConnection
 		}
 		return k.connectionPart(ctx, tx, uses[0], src.Connection.GetPart())
 	}
@@ -316,14 +330,20 @@ type Revealed struct {
 // ErrNotSecret means a reveal named something that isn't a secret.
 var ErrNotSecret = errors.New("there's no such secret")
 
+// ErrConnectionKey means a reveal below an admin named a secret that reads a
+// connection's value, which is install-wide (ADR 0099).
+var ErrConnectionKey = errors.New("only an admin reveals a connection's value")
+
 // Reveal returns a secret's latest value, and records in the audit log, in
 // the same transaction, that actor revealed it. If the record can't be
 // written, nothing is revealed. confirm checks, in the same transaction,
 // that a person in a signed-in session confirmed it with a passkey just now,
 // or with their session's cover (ADR 0075), and may spend the proof: it is
 // called once nothing else refuses, such as there being no such secret, and
-// before the value is read.
-func (k *Keeper) Reveal(ctx context.Context, secretID, actor, surface string, confirm func(*store.Tx) error) (Revealed, error) {
+// before the value is read. A secret that reads a connection's value, directly or
+// through others, is revealed only where connections says the caller is an admin
+// of the install: the value is the connection's, whichever app reads it (ADR 0099).
+func (k *Keeper) Reveal(ctx context.Context, secretID, actor, surface string, connections bool, confirm func(*store.Tx) error) (Revealed, error) {
 	var out Revealed
 	err := k.db.Update(ctx, func(tx *store.Tx) error {
 		r, err := tx.GetResourceByID(ctx, secretID)
@@ -333,14 +353,20 @@ func (k *Keeper) Reveal(ctx context.Context, secretID, actor, surface string, co
 		if err != nil {
 			return err
 		}
-		if err := confirm(tx); err != nil {
-			return err
-		}
 		spec, err := k.Decode(ctx, tx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec)
 		if err != nil {
 			return err
 		}
-		value, err := k.written(ctx, tx, r.Scope, variable.SecretKind, spec, 0)
+		if !connections {
+			var tr trace
+			if _, err := k.written(ctx, tx, r.Scope, variable.SecretKind, spec, 0, &tr); errors.Is(err, errFromConnection) {
+				return fault.New(ErrConnectionKey, "%s reads its value from the connection %s, so only an admin reveals it. Ask an admin of the install", r.Name, tr.connection)
+			}
+		}
+		if err := confirm(tx); err != nil {
+			return err
+		}
+		value, err := k.written(ctx, tx, r.Scope, variable.SecretKind, spec, 0, nil)
 		if err != nil {
 			return err
 		}
