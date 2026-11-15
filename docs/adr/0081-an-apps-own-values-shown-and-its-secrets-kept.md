@@ -66,3 +66,4 @@ So the dots aren't a bug in the panel: no response carries the values. And for a
 - What a token that can read an app sees grows by those values. They were in the entry's public file, or typed into an input the entry says isn't secret.
 - A plan names the values it changes where both sides show them, as it does for a variable.
 - `dockwell services update` keeps an app's own values it doesn't set; `--remove-env` is how to take one out.
+- The same reasoning holds where a container is taken on: a value whose name says nothing of a secret, and that's a whole part of a name the plan shows anyway, its aliases, networks, image or hostname, doesn't count as shown there ([ADR 0096](0096-a-taken-on-containers-values-kept-by-name.md), "What still refuses, and what never shows").

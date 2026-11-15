@@ -1510,3 +1510,29 @@ func TestALinksNameHoldsOnItsNetworkAlone(t *testing.T) {
 		t.Errorf("a link by a name another answers to = %v", err)
 	}
 }
+
+// A Compose project whose database is named as the project comes over: the value
+// is a whole part of its network's name, which the plan shows anyway. A password
+// with that value still refuses (the gaps survey of #604).
+func TestAValueNamedAsTheProjectComesOver(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	imports := dockwellv1connect.NewComposeServiceClient(b, b.origin, connect.WithProtoJSON())
+	e.AddNetwork(docker.Network{ID: "apnet", Name: "activepieces_default", Driver: "bridge"})
+	composeContainer(t, e, "activepieces", "postgres", "activepieces-postgres-1", func(r *docker.CreateRequest) {
+		r.Env = append(r.Env, "POSTGRES_DB=activepieces", "POSTGRES_USER=activepieces")
+	})
+	if _, err := imports.AdoptCompose(t.Context(), connect.NewRequest(&dockwellv1.AdoptComposeRequest{Name: "activepieces"})); err != nil {
+		t.Errorf("a database named as the project = %v", err)
+	}
+
+	e.AddNetwork(docker.Network{ID: "fjnet", Name: "forgejo_default", Driver: "bridge"})
+	composeContainer(t, e, "forgejo", "db", "forgejo-db-1", func(r *docker.CreateRequest) {
+		r.Env = append(r.Env, "POSTGRES_PASSWORD=forgejo")
+	})
+	_, err := imports.AdoptCompose(t.Context(), connect.NewRequest(&dockwellv1.AdoptComposeRequest{Name: "forgejo"}))
+	if err == nil || !strings.Contains(err.Error(), "the value of POSTGRES_PASSWORD in its external networks") {
+		t.Errorf("a password named as the project = %v", err)
+	}
+}
