@@ -320,6 +320,47 @@ func TestAnAppFromNoEntryConnectsToADatabase(t *testing.T) {
 	if limited != 18 {
 		t.Errorf("checks were held back from the %dth, want the 19th of these", limited+1)
 	}
+
+	// A developer of the tools project alone can't reach the database another project
+	// runs, named by its name and its project: each call reads it as not there, before
+	// any handler, and its name is read as a service of that project's.
+	dataProject, toolsProject := envProject(t, f, dbEnv), envProject(t, f, toolsEnv)
+	hold := aMember(t, f)
+	hold(store.Grant{ProjectID: toolsProject, Role: store.RoleDeveloper})
+	gone := "there's nothing by that ID or name here"
+	_, err = dc.ConnectDatabase(t.Context(), connect.NewRequest(&dockwellv1.ConnectDatabaseRequest{
+		Id: "db", Project: dataProject, App: "blog", AppProject: "tools", Database: "blog", User: "blog", PasswordSecret: "BLOG_PASSWORD", Sets: sets,
+	}))
+	if connect.CodeOf(err) != connect.CodeNotFound || !strings.Contains(fmt.Sprint(err), gone) {
+		t.Errorf("a developer of tools alone connecting to data's database by name: %v", err)
+	}
+	_, err = dc.CheckDatabaseSignIn(t.Context(), connect.NewRequest(&dockwellv1.CheckDatabaseSignInRequest{
+		Id: "db", Project: dataProject, User: "blog", Database: "blog", AppProject: "tools", PasswordSecret: "BLOG_PASSWORD",
+	}))
+	if connect.CodeOf(err) != connect.CodeNotFound || !strings.Contains(fmt.Sprint(err), gone) {
+		t.Errorf("a developer of tools alone checking a sign-in to data's database by name: %v", err)
+	}
+	// Named without its project, as the only service of that name, it's no more there.
+	_, err = dc.ConnectDatabase(t.Context(), connect.NewRequest(&dockwellv1.ConnectDatabaseRequest{
+		Id: "db", App: "blog", AppProject: "tools", Database: "blog", User: "blog", PasswordSecret: "BLOG_PASSWORD", Sets: sets,
+	}))
+	if connect.CodeOf(err) != connect.CodeNotFound {
+		t.Errorf("a developer of tools alone connecting to data's database by its name alone: %v", err)
+	}
+	_, err = dc.CheckDatabaseSignIn(t.Context(), connect.NewRequest(&dockwellv1.CheckDatabaseSignInRequest{
+		Id: "db", User: "blog", Database: "blog", AppProject: "tools", PasswordSecret: "BLOG_PASSWORD",
+	}))
+	if connect.CodeOf(err) != connect.CodeNotFound {
+		t.Errorf("a developer of tools alone checking a sign-in to data's database by its name alone: %v", err)
+	}
+	// With a role in both, the same name reaches the handler, which reads it.
+	hold(store.Grant{ProjectID: toolsProject, Role: store.RoleDeveloper}, store.Grant{ProjectID: dataProject, Role: store.RoleDeveloper})
+	_, err = dc.ConnectDatabase(t.Context(), connect.NewRequest(&dockwellv1.ConnectDatabaseRequest{
+		Id: "db", Project: dataProject, App: "nothing-here", AppProject: "tools",
+	}))
+	if connect.CodeOf(err) == connect.CodeNotFound && strings.Contains(fmt.Sprint(err), gone) || err == nil {
+		t.Errorf("a developer of both connecting to data's database by name: %v", err)
+	}
 }
 
 // networksOf are the networks a container is on, by name.
