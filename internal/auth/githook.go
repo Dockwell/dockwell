@@ -143,11 +143,25 @@ func (s *Service) auditHooksEnded(ctx context.Context, tx *store.Tx, p Principal
 	return nil
 }
 
-// TakeHookDelivery spends one of a source address's deliveries, as it starts
-// sending one, before anything reads it, and reports false when it has none. An
-// IPv6 /64 counts as one address.
-func (s *Service) TakeHookDelivery(client Client) bool {
-	return s.hookSources.take(sourceKey(client.Addr), s.now())
+// TakeHookDelivery spends one of the deliveries a source address may send to
+// hookID, and one of all it may send, as it starts sending one, before anything
+// reads it, and reports false when either has none. An IPv6 /64 counts as one
+// address. Keyed by hook as well as address, a Git host's shared senders are held
+// to each hook's own share; the address's own bound is for deliveries whose proof
+// doesn't match, as a good one gives its share back (ReturnHookDelivery).
+func (s *Service) TakeHookDelivery(client Client, hookID string) bool {
+	now, source := s.now(), sourceKey(client.Addr)
+	// The ID is the sender's to choose: only as much of it as a hook's keys it.
+	return s.hookFloods.take(source, now) && s.hookSources.take(source+" "+hookKey(hookID), now)
+}
+
+// hookKey is as much of a hook ID as a bucket is keyed by: one far longer is no
+// hook's, and keyed so, as all those are, it can't grow the buckets' keys.
+func hookKey(hookID string) string {
+	if len(hookID) > 64 {
+		return "long"
+	}
+	return hookID
 }
 
 // HookProof is how a delivery shows it knows its hook's secret: the HMAC-SHA-256
@@ -227,11 +241,12 @@ func (s *Service) GitHookPrincipal(ctx context.Context, hookID string, body []by
 	}, nil
 }
 
-// ReturnHookDelivery gives back the delivery a source address spent, once its
-// proof matched: GitHub, GitLab.com and Bitbucket send every install's hooks from
-// shared addresses, so only wrong proofs count against one.
+// ReturnHookDelivery gives back what a delivery spent of its address's own bound,
+// once its proof matched: GitHub, GitLab.com and Bitbucket send every install's
+// hooks from shared addresses, so only wrong proofs count against one. Its share
+// of its hook's stays spent.
 func (s *Service) ReturnHookDelivery(client Client) {
-	s.hookSources.give(sourceKey(client.Addr), s.now())
+	s.hookFloods.give(sourceKey(client.Addr), s.now())
 }
 
 // matches reports whether a proof is of key: a signature of body under it, or a

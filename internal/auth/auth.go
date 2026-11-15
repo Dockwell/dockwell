@@ -169,7 +169,8 @@ type Service struct {
 	streams        *streams
 	unflagged      unflagged // passkeys seen to be copied, until the flag is stored
 	refusals       *refusals // refused calls with each API token, or hook, since the last audit event
-	hookSources    *buckets  // deliveries to hooks, by source
+	hookSources    *buckets  // deliveries to each hook, by source
+	hookFloods     *buckets  // deliveries from each source whose proofs didn't match
 	hookBuckets    *buckets  // deliveries to each hook
 	hookDecoy      []byte    // the key a delivery for a hook there isn't is checked with
 	// hookDecoySealed is a secret sealed as a hook's is, which a delivery for a
@@ -215,6 +216,7 @@ func New(cfg Config) (*Service, error) {
 		// 30 deliveries a minute from one address, and 60 for one hook, with as
 		// many at once (ADR 0046).
 		hookSources:     newBuckets(30, 2*time.Second, 10_000),
+		hookFloods:      newBuckets(60, time.Second, 10_000),
 		hookBuckets:     newBuckets(60, time.Second, 10_000),
 		hookDecoy:       decoyKey(),
 		hookDecoySealed: cfg.Key.Seal(purposeHook("decoy"), decoyKey()),

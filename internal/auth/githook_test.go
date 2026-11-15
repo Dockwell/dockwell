@@ -6,6 +6,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -125,5 +126,49 @@ func TestWrongProofsSpendNothingOfAHooksPushes(t *testing.T) {
 	}
 	if !errors.Is(unknown, known) && !errors.Is(known, unknown) {
 		t.Errorf("after 61 wrong proofs, a hook there isn't answers %v, and one there is %v", unknown, known)
+	}
+}
+
+// An address's deliveries are counted for each hook, so a Git host's shared
+// sender is held to each hook's share; and what an address may send whatever the
+// hook bounds wrong proofs alone, as a good one gives its share back (from #253's
+// review, L4). The fixture's clock stands still, so nothing refills.
+func TestAnAddressSendsEachHookItsOwnShare(t *testing.T) {
+	f := newFixture(t, store.SQLite, "")
+	host := Client{Addr: "192.0.2.10:443"}
+	for i := range 30 {
+		if !f.svc.TakeHookDelivery(host, "ghk_a") {
+			t.Fatalf("delivery %d to one hook from a host's sender was refused", i+1)
+		}
+		f.svc.ReturnHookDelivery(host)
+	}
+	if f.svc.TakeHookDelivery(host, "ghk_a") {
+		t.Error("a 31st delivery to one hook from one address was taken")
+	}
+	for i := range 30 {
+		if !f.svc.TakeHookDelivery(host, "ghk_b") {
+			t.Fatalf("delivery %d to another hook from the same address was refused", i+1)
+		}
+		f.svc.ReturnHookDelivery(host)
+	}
+	// Wrong proofs give nothing back: one address sends 60, whatever IDs it names.
+	flood := Client{Addr: "203.0.113.9:1"}
+	taken := 0
+	for i := range 100 {
+		if f.svc.TakeHookDelivery(flood, fmt.Sprintf("ghk_%d", i)) {
+			taken++
+		}
+	}
+	if taken != 60 {
+		t.Errorf("one address sent %d deliveries to new IDs, want 60", taken)
+	}
+	// An ID far longer than a hook's is keyed as all of those are.
+	other := Client{Addr: "203.0.113.20:1"}
+	for i := range 30 {
+		f.svc.TakeHookDelivery(other, strings.Repeat("x", 100+i))
+		f.svc.ReturnHookDelivery(other)
+	}
+	if f.svc.TakeHookDelivery(other, strings.Repeat("y", 200)) {
+		t.Error("IDs past a hook's length each had a share of their own")
 	}
 }

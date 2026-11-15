@@ -197,7 +197,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.cfg.Logger.WarnContext(r.Context(), "can't give a delivery's body a deadline", slog.String("error", err.Error()))
 	}
 	client, _ := authapi.ClientFrom(r.Context())
-	if !h.cfg.Auth.TakeHookDelivery(client) {
+	hookID := strings.TrimPrefix(r.URL.Path, Path)
+	if !h.cfg.Auth.TakeHookDelivery(client, hookID) {
 		w.Header().Set("Retry-After", "2")
 		answer(w, http.StatusTooManyRequests, "Too many deliveries from this address. Wait a moment, then send again.")
 		return
@@ -258,7 +259,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	} else if sig, err := hex.DecodeString(strings.TrimPrefix(r.Header.Get(from.signature), from.prefix)); err == nil {
 		proof.Signature = sig
 	}
-	hookID := strings.TrimPrefix(r.URL.Path, Path)
 	p, err := h.cfg.Auth.GitHookPrincipal(r.Context(), hookID, body, proof)
 	switch {
 	case errors.Is(err, auth.ErrTooManyRequests):
