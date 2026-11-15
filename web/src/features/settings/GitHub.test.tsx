@@ -17,6 +17,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { expectAccessible } from "../../test/a11y";
+import { authError } from "../../test/auth";
 import { type Api, feed, renderAt } from "../../test/render";
 
 function acme(init: MessageInitShape<typeof GitHubAppInfoSchema> = {}): GitHubAppInfo {
@@ -302,6 +303,31 @@ describe("Back from GitHub", () => {
     );
     expect(finished).toHaveBeenCalledTimes(1);
     expect(finished).toHaveBeenCalledWith(expect.objectContaining({ code: "c1", state: "s1" }), expect.anything());
+  });
+
+  it("tries again from the same page when GitHub was out of reach, as the code still works", async () => {
+    const user = userEvent.setup();
+    const assign = vi.fn();
+    vi.stubGlobal("location", { ...window.location, assign });
+    let calls = 0;
+    renderAt(
+      "/settings/integrations/github/created?code=c1&state=s1",
+      api([], {
+        gitProviders: {
+          finishGitHubApp: () => {
+            calls++;
+            if (calls === 1) throw authError(Code.Unavailable, "github_unreachable");
+            return { installUrl: "https://github.com/apps/dockwell-deploy/installations/new" };
+          },
+        },
+      }),
+    );
+    expect(await screen.findByText("GitHub isn't connected")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+    await waitFor(() =>
+      expect(assign).toHaveBeenCalledWith("https://github.com/apps/dockwell-deploy/installations/new"),
+    );
+    expect(calls).toBe(2);
   });
 
   it("says why it couldn't keep the App, with the way back", async () => {

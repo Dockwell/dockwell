@@ -236,6 +236,13 @@ func (h *Handler) StartGitHubApp(ctx context.Context, req *connect.Request[dockw
 
 // take uses a connection's state once: it was begun in this session, by this
 // person, in the last 10 minutes.
+// putBack keeps a connection's state again, as it was taken, for a retry.
+func (h *Handler) putBack(state string, s starting) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.starting[hashOf(state)] = s
+}
+
 func (h *Handler) take(p auth.Principal, state string) (starting, bool) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -261,6 +268,16 @@ func (h *Handler) FinishGitHubApp(ctx context.Context, req *connect.Request[dock
 	}
 	conv, err := github.Convert(ctx, h.cfg.Client, h.cfg.API, req.Msg.GetCode())
 	if err != nil {
+		// GitHub out of reach, or failing, left the code good for an hour and the
+		// App made on GitHub: the state goes back, as it was, so the same page tries
+		// again rather than connect anew, which would make a second App there that
+		// no API can delete (review L6). A code GitHub refused is spent.
+		var e *github.Error
+		if !errors.As(err, &e) || e.Status >= 500 {
+			h.putBack(req.Msg.GetState(), s)
+			return nil, said(connect.CodeUnavailable, "github_unreachable",
+				"Dockwell can't reach GitHub to keep the App it made: %s. Try again from this page; it works until 10 minutes after you started", err.Error())
+		}
 		return nil, fromGitHub("making the App", err)
 	}
 	key, err := github.ParseKey([]byte(conv.PEM))

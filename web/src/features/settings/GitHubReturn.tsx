@@ -3,19 +3,30 @@
 import { createClient } from "@connectrpc/connect";
 import { useTransport } from "@connectrpc/connect-query";
 import { GitProviderService } from "@dockwell/api";
-import { Callout, Glyph, STATUS } from "@dockwell/ui";
+import { Button, Callout, Glyph, STATUS } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 
-import { sentence } from "../../lib/errors";
+import { reasonOf, sentence } from "../../lib/errors";
 import { useAuthError } from "../auth/messages";
 import { Page } from "../shell/Page";
 import "./Settings.css";
 import "./GitHub.css";
 
 /** A step of connecting GitHub, under way or refused, with the way back to Integrations. */
-function Step({ title, working, problem }: { title: string; working: ReactNode; problem: string | undefined }) {
+function Step({
+  title,
+  working,
+  problem,
+  onRetry,
+}: {
+  title: string;
+  working: ReactNode;
+  problem: string | undefined;
+  /** Tries the step again, where it can be: GitHub was out of reach, and what it sent still works. */
+  onRetry?: (() => void) | undefined;
+}) {
   const { t } = useLingui();
   return (
     <Page width="narrow" title={title} back="/settings">
@@ -24,11 +35,18 @@ function Step({ title, working, problem }: { title: string; working: ReactNode; 
           tone="critical"
           title={t`GitHub isn't connected`}
           actions={
-            <Link to="/settings/integrations" className="dw-btn dw-btn-secondary dw-btn-sm">
-              <span>
-                <Trans>Back to Integrations</Trans>
-              </span>
-            </Link>
+            <>
+              {onRetry ? (
+                <Button size="sm" variant="primary" icon="refresh" onClick={onRetry}>
+                  <Trans>Try again</Trans>
+                </Button>
+              ) : null}
+              <Link to="/settings/integrations" className="dw-btn dw-btn-secondary dw-btn-sm">
+                <span>
+                  <Trans>Back to Integrations</Trans>
+                </span>
+              </Link>
+            </>
           }
         >
           {problem}
@@ -53,20 +71,35 @@ export function GitHubCreated({ code, state }: { code: string; state: string }) 
   const transport = useTransport();
   const explain = useAuthError();
   const [problem, setProblem] = useState<string>();
-  const sent = useRef(false);
+  // GitHub out of reach leaves its code good, and the state kept: the same page
+  // tries again, rather than connect anew and make a second App there.
+  const [retryable, setRetryable] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  const sent = useRef(-1);
   useEffect(() => {
-    if (sent.current) return;
-    sent.current = true;
+    if (sent.current === attempt) return;
+    sent.current = attempt;
     if (!code || !state) {
       setProblem(t`GitHub sent the browser back without the App it made. Connect GitHub again from Integrations.`);
       return;
     }
+    setProblem(undefined);
     createClient(GitProviderService, transport)
       .finishGitHubApp({ code, state })
       .then((res) => window.location.assign(res.installUrl))
-      .catch((err: unknown) => setProblem(explain(err) || sentence(err)));
-  }, [code, state, transport, explain, t]);
-  return <Step title={t`Connecting GitHub`} working={t`Keeping the App GitHub made`} problem={problem} />;
+      .catch((err: unknown) => {
+        setRetryable(reasonOf(err) === "github_unreachable");
+        setProblem(explain(err) || sentence(err));
+      });
+  }, [code, state, attempt, transport, explain, t]);
+  return (
+    <Step
+      title={t`Connecting GitHub`}
+      working={t`Keeping the App GitHub made`}
+      problem={problem}
+      onRetry={retryable ? () => setAttempt((a) => a + 1) : undefined}
+    />
+  );
 }
 
 /**

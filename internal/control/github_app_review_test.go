@@ -10,7 +10,9 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -20,6 +22,8 @@ import (
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
+	logapi "github.com/dockwell/dockwell/internal/control/logs"
 	"github.com/dockwell/dockwell/internal/store"
 )
 
@@ -235,5 +239,43 @@ func TestReviewGitHubFailingBacksPollingOff(t *testing.T) {
 	apps.Poll(ctx)
 	if d := a.delivery(t); d.GetState() != dockwellv1.GitHubDelivery_STATE_BACKING_OFF {
 		t.Errorf("GitHub answered 502, and polling is %v", d.GetState())
+	}
+}
+
+// Review L6: GitHub out of reach as the browser comes back spends neither the code
+// nor the state: the same page tries again, rather than connect anew and make a
+// second App on GitHub, which no API can delete.
+func TestReviewFinishingTriesAgainWhenGitHubWasOutOfReach(t *testing.T) {
+	t.Parallel()
+	gh := newFakeGitHub(t)
+	f := startFullConfig(t, store.SQLite, nil, slog.New(slog.DiscardHandler), nil, logapi.Options{}, func(c *Config) {
+		c.GitHub = GitHubConfig{API: gh.srv.URL, Client: gh.srv.Client()}
+	})
+	b := signedIn(t, f)
+	ctx := t.Context()
+	gp := dockwellv1connect.NewGitProviderServiceClient(b, b.origin, connect.WithProtoJSON())
+	inner := gh.srv.Config.Handler
+	var failed atomic.Bool
+	gh.srv.Config.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/app-manifests/") && failed.CompareAndSwap(false, true) {
+			w.WriteHeader(http.StatusBadGateway)
+			_, _ = w.Write([]byte(`{"message":"Bad Gateway"}`))
+			return
+		}
+		inner.ServeHTTP(w, r)
+	})
+	started, err := gp.StartGitHubApp(ctx, connect.NewRequest(&dockwellv1.StartGitHubAppRequest{
+		Organization: "acme", Proof: stepUpFor(t, b, dockwellv1.StepUpAction_STEP_UP_ACTION_CONNECT_GITHUB_APP, ""),
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	action, _ := url.Parse(started.Msg.GetActionUrl())
+	finish := &dockwellv1.FinishGitHubAppRequest{Code: "code-1", State: action.Query().Get("state")}
+	if _, err := gp.FinishGitHubApp(ctx, connect.NewRequest(finish)); reasonOf(err) != "github_unreachable" {
+		t.Fatalf("finishing while GitHub fails: %v", err)
+	}
+	if res, err := gp.FinishGitHubApp(ctx, connect.NewRequest(finish)); err != nil || res.Msg.GetApp().GetName() != "dockwell-deploy" {
+		t.Errorf("finishing again, with the same code and state: %v, %v", res, err)
 	}
 }
