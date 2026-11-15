@@ -1431,15 +1431,18 @@ func TestALinksNameHoldsOnItsNetworkAlone(t *testing.T) {
 	imports := dockwellv1connect.NewComposeServiceClient(b, b.origin, connect.WithProtoJSON())
 	links := func(name string, links ...string) { e.Reports(name, "HostConfig", map[string]any{"Links": links}) }
 
-	e.AddNetwork(docker.Network{ID: "duofront", Name: "duo_front", Driver: "bridge"})
-	e.AddNetwork(docker.Network{ID: "duoback", Name: "duo_back", Driver: "bridge"})
+	// A panel's network every app joins sorts first, and the name goes on the
+	// project's own one all the same (the narrow check of ADR 0097, N1).
+	e.AddNetwork(docker.Network{ID: "panelnet", Name: "dokploy-network", Driver: "bridge"})
+	e.AddNetwork(docker.Network{ID: "duofront", Name: "duo_front", Driver: "bridge", Labels: map[string]string{docker.LabelProject: "duo"}})
+	e.AddNetwork(docker.Network{ID: "duoback", Name: "duo_back", Driver: "bridge", Labels: map[string]string{docker.LabelProject: "duo"}})
 	composeContainer(t, e, "duo", "db", "duo-db-1", func(r *docker.CreateRequest) {
 		r.HostConfig.NetworkMode = "duo_back"
-		r.NetworkingConfig.EndpointsConfig = map[string]*docker.EndpointSettings{"duo_back": {Aliases: []string{"db", "duo-db-1"}}, "duo_front": {Aliases: []string{"db", "duo-db-1"}}}
+		r.NetworkingConfig.EndpointsConfig = map[string]*docker.EndpointSettings{"duo_back": {Aliases: []string{"db", "duo-db-1"}}, "duo_front": {Aliases: []string{"db", "duo-db-1"}}, "dokploy-network": {}}
 	})
 	composeContainer(t, e, "duo", "app", "duo-app-1", func(r *docker.CreateRequest) {
-		r.HostConfig.NetworkMode = "duo_back"
-		r.NetworkingConfig.EndpointsConfig = map[string]*docker.EndpointSettings{"duo_back": {Aliases: []string{"app", "duo-app-1"}}}
+		r.HostConfig.NetworkMode = "dokploy-network"
+		r.NetworkingConfig.EndpointsConfig = map[string]*docker.EndpointSettings{"duo_back": {Aliases: []string{"app", "duo-app-1"}}, "dokploy-network": {}}
 	})
 	links("duo-app-1", "/duo-db-1:/duo-app-1/storage")
 

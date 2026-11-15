@@ -197,7 +197,7 @@ func leans(o *docker.Options, c *docker.Container) []string {
 	// name it answers to already, or by one it takes on as an alias of its own
 	// (linkedNames). One on Docker's default bridge doesn't.
 	for _, l := range linksOf(o) {
-		if is(l.target) && sharedOf(o, c) == "" {
+		if is(l.target) && len(sharedNetworks(o.NetworkSettings.Networks, c)) == 0 {
 			out = append(out, name+" links to it")
 		}
 	}

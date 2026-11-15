@@ -875,7 +875,9 @@ func remade(app *resourcev1.Container, m Remake) {
 	app.ExternalNetworks = slices.DeleteFunc(app.ExternalNetworks, func(n string) bool {
 		return n == swarmIngress || m.Stack != "" && strings.HasPrefix(n, m.Stack+"_")
 	})
-	app.Aliases = nil
+	// Names on one network alone go as its aliases do, so none is left on a
+	// network of the stack's the copy doesn't join (the narrow check of ADR 0097).
+	app.Aliases, app.NetworkAliases = nil, nil
 	if m.Stack != "" && len(app.ExternalNetworks) > 0 {
 		app.Aliases = []string{m.Stack + "_" + m.Service}
 	}

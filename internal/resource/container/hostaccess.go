@@ -6,6 +6,7 @@ import (
 	"cmp"
 	"errors"
 	"fmt"
+	"io/fs"
 	"maps"
 	"os"
 	"path"
@@ -211,6 +212,22 @@ func projectHostAccess(c *docker.Container, out *resourcev1.Container) {
 // DisableSecOpt), whether SELinux is on or not.
 const labelDisable = "label=disable"
 
+// ConfinedAgain says, in words that follow the app's name, that SELinux confines
+// it again once it's neither privileged nor sees the server's processes: Docker
+// turned its labels off only for those, and a spec doesn't hold that label beside
+// them (withoutDaemonsLabel). It's "" for any other change (the narrow check of
+// ADR 0097, L-a).
+func ConfinedAgain(current, desired *resourcev1.Container) string {
+	shared := func(c *resourcev1.Container) bool { return c.GetPrivileged() || c.GetHostPid() }
+	labelled := func(c *resourcev1.Container) bool {
+		return slices.ContainsFunc(c.GetSecurityOpt(), func(o string) bool { return strings.HasPrefix(o, "label=") })
+	}
+	if current == nil || desired == nil || !shared(current) || labelled(current) || shared(desired) || labelled(desired) {
+		return ""
+	}
+	return "runs under SELinux's labels again, on a server that has them, as Docker turned them off only while it was privileged or saw the server's processes. To keep them off, add label=disable to its security_opt"
+}
+
 // withoutDaemonsLabel is opts without the label=disable Docker's daemon adds by
 // itself to a container that runs as shared asks, so nothing reads it as asked for:
 // opts in the form a spec keeps them.
@@ -248,13 +265,19 @@ func securityOptForm(o string) string {
 var rootDevices = []string{"/dev/mem", "/dev/kmem", "/dev/port"}
 
 // rootDevicePrefixes are names of devices that write a disk or firmware directly:
-// SCSI generic, NVMe generic and block SCSI generic devices pass a write command
-// straight to a disk, and MTD devices are flash.
-var rootDevicePrefixes = []string{"/dev/mapper/", "/dev/sg", "/dev/ng", "/dev/bsg/", "/dev/mtd", "/dev/raw/"}
+// block SCSI generic devices pass a write command straight to a disk, and MTD
+// devices are flash.
+var rootDevicePrefixes = []string{"/dev/mapper/", "/dev/bsg/", "/dev/mtd", "/dev/raw/"}
+
+// genericDevice is a SCSI or NVMe generic device's name, as /dev/sg0 or /dev/ng0n1,
+// which passes a write command straight to a disk; a digit follows, so Intel SGX's
+// /dev/sgx_enclave isn't one (the narrow check of ADR 0097, L-c).
+var genericDevice = lazyre.Regexp(`^/dev/(sg|ng)[0-9]`)
 
 // RootDevice reports a device path that is the same as root by its name.
 func RootDevice(p string) bool {
-	return slices.Contains(rootDevices, p) || slices.ContainsFunc(rootDevicePrefixes, func(prefix string) bool { return strings.HasPrefix(p, prefix) })
+	return slices.Contains(rootDevices, p) || genericDevice().MatchString(p) ||
+		slices.ContainsFunc(rootDevicePrefixes, func(prefix string) bool { return strings.HasPrefix(p, prefix) })
 }
 
 // rootSubsystems are the kernel subsystems of character devices that are the same
@@ -274,13 +297,14 @@ var confinedTypes = []string{"container_t", "container_init_t", "container_kvm_t
 
 // rootSecurityOption reports a security option that is the same as root: the
 // kernel's system paths writable, an SELinux type that isn't a confined
-// container's, or another SELinux user or role, which can reach what the type
-// can't.
+// container's, another SELinux user or role, which can reach what the type can't,
+// or SELinux's labels off, which runs it as spc_t, unconfined, on a server that
+// has SELinux (the narrow check of ADR 0097, L-d).
 func rootSecurityOption(o string) bool {
 	if t, ok := strings.CutPrefix(o, "label=type:"); ok {
 		return !slices.Contains(confinedTypes, t)
 	}
-	return o == "systempaths=unconfined" || strings.HasPrefix(o, "label=user:") || strings.HasPrefix(o, "label=role:")
+	return o == "systempaths=unconfined" || o == labelDisable || strings.HasPrefix(o, "label=user:") || strings.HasPrefix(o, "label=role:")
 }
 
 // hostAccess is what a container's devices, GPUs, security options and the
@@ -369,22 +393,38 @@ func HostDevices(p string) (bool, error) {
 	}
 	// A character device is what its kernel subsystem says it is, whatever it's
 	// called, which /sys says by its numbers.
-	if st, ok := fi.Sys().(*syscall.Stat_t); ok {
-		return rootSubsystem(sysDevChar, uint64(st.Rdev)), nil //nolint:unconvert // Rdev is uint32 on some platforms
+	st, ok := fi.Sys().(*syscall.Stat_t)
+	if !ok {
+		return false, fmt.Errorf("can't read the numbers of the device %s on this server, so Dockwell can't tell whether it's the same as root. Plan again, and if it goes on, take the device out", p)
 	}
-	return false, nil
+	return rootSubsystem(sysDevChar, p, uint64(st.Rdev)) //nolint:unconvert // Rdev is uint32 on some platforms
 }
 
 // sysDevChar is where Linux names each character device by its numbers.
 const sysDevChar = "/sys/dev/char"
 
-// rootSubsystem reports a character device, by its numbers, whose kernel subsystem
-// under root is one of rootSubsystems. One /sys doesn't name is taken as it is.
-func rootSubsystem(root string, rdev uint64) bool {
-	link, err := os.Readlink(filepath.Join(root, fmt.Sprintf("%d:%d", unix.Major(rdev), unix.Minor(rdev)), "subsystem"))
+// rootSubsystem reports a character device p, by its numbers, whose kernel
+// subsystem under root is one of rootSubsystems. Only a device /sys has no entry
+// for is taken as it is; a /sys it can't read fails, as calling the device plain
+// would be the quiet way to be wrong (the narrow check of ADR 0097, L-b).
+func rootSubsystem(root, p string, rdev uint64) (bool, error) {
+	cantRead := func(err error) error {
+		return fmt.Errorf("can't read what kind of device %s is from %s on this server, so Dockwell can't tell whether it's the same as root: %w. Let the agent read %s, then plan again", p, root, err, root)
+	}
+	if _, err := os.Stat(root); err != nil {
+		return false, cantRead(err)
+	}
+	entry := filepath.Join(root, fmt.Sprintf("%d:%d", unix.Major(rdev), unix.Minor(rdev)))
+	switch _, err := os.Lstat(entry); {
+	case errors.Is(err, fs.ErrNotExist):
+		return false, nil
+	case err != nil:
+		return false, cantRead(err)
+	}
+	link, err := os.Readlink(filepath.Join(entry, "subsystem"))
 	if err != nil {
-		return false
+		return false, cantRead(err)
 	}
 	sub := filepath.Base(link)
-	return slices.Contains(rootSubsystems, sub) || sub == "mem" && slices.Contains(rootMem, unix.Minor(rdev))
+	return slices.Contains(rootSubsystems, sub) || sub == "mem" && slices.Contains(rootMem, unix.Minor(rdev)), nil
 }

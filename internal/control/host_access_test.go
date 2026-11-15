@@ -254,3 +254,43 @@ func TestA1PanelAppWithHostAccessIsLeftWithTheFix(t *testing.T) {
 	}
 	t.Error("no step for mysql")
 }
+
+// Docker turns SELinux's labels off for a privileged app by itself, and a spec
+// doesn't hold that beside privileged, so a plan that turns privileged off says the
+// app runs under the labels again, in one line (the narrow check of ADR 0097, L-a).
+func TestTurningPrivilegedOffSaysTheLabelsComeBack(t *testing.T) {
+	s := newReachStand(t, store.SQLite)
+	edit := func(privileged bool, image string) *dockwellv1.Edit {
+		e := deviceEdit(s.staging, image)
+		e.GetSpec().GetService().GetApp().Privileged = privileged
+		return e
+	}
+	confined := func(c *dockwellv1.Change) []string {
+		var out []string
+		for _, n := range c.GetPlan().GetNotes() {
+			if n.GetReason() == "confined_again" {
+				out = append(out, n.GetMessage())
+			}
+		}
+		return out
+	}
+	on := propose(t, s.c, "Run api privileged", edit(true, "ghcr.io/acme/shop:1.4"))
+	if got := confined(on); len(got) != 0 {
+		t.Errorf("turning privileged on says %v", got)
+	}
+	w := watch(t, s.c, on.GetId())
+	proof := stepUpFor(t, s.b, dockwellv1.StepUpAction_STEP_UP_ACTION_APPLY_ROOT_CHANGE, on.GetId())
+	if _, err := s.c.ApplyChange(t.Context(), connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: on.GetId(), Fingerprint: on.GetPlan().GetFingerprint(), Proof: proof})); err != nil {
+		t.Fatal(err)
+	}
+	if got := waitWatch(t, w).last(); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("the change ended %v: %s", got.GetState(), got.GetError())
+	}
+	if got := confined(propose(t, s.c, "Deploy api", edit(true, "ghcr.io/acme/shop:1.5"))); len(got) != 0 {
+		t.Errorf("a deploy that keeps privileged says %v", got)
+	}
+	off := confined(propose(t, s.c, "Run api unprivileged", edit(false, "ghcr.io/acme/shop:1.4")))
+	if len(off) != 1 || !strings.Contains(off[0], "api runs under SELinux's labels again") || !strings.Contains(off[0], "add label=disable to its security_opt") {
+		t.Errorf("turning privileged off says %v", off)
+	}
+}

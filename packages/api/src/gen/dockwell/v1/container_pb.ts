@@ -63,7 +63,9 @@ export type AdoptContainerRequest = Message<"dockwell.v1.AdoptContainerRequest">
   environment: string;
 
   /**
-   * Takes it on with the host access it needs, as AdoptComposeRequest has it.
+   * Takes it on with the host access it needs: devices, GPUs, security options
+   * or the server's processes (ADR 0097). Without it, a container that needs
+   * some is refused, saying what.
    *
    * @generated from field: bool host_access = 6;
    */

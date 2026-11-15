@@ -460,8 +460,9 @@ export type ImportDokployRequest = Message<"dockwell.v1.ImportDokployRequest"> &
   skipPlan: boolean;
 
   /**
-   * The apps taken on with the host access each needs, as ImportCoolifyRequest
-   * has them.
+   * The apps, by their IDs as ImportStep.app_id has them, taken on with the host
+   * access each needs: devices, GPUs, security options or the server's processes
+   * (ADR 0097). Any other that needs some is left behind, saying what.
    *
    * @generated from field: repeated string host_access = 3;
    */

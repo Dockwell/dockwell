@@ -105,7 +105,10 @@ func (d *Docker) readLinks(ctx context.Context, c *docker.Container, o *docker.O
 		case err != nil:
 			return nil, nil, fmt.Errorf("can't read %s, which it links to: %w", l.target, err)
 		}
-		network := sharedNetwork(c, t)
+		network, err := d.linkNetwork(ctx, sharedNetworks(c.NetworkSettings.Networks, t), t.Config.Labels[docker.LabelProject], c.HostConfig.NetworkMode)
+		if err != nil {
+			return nil, nil, err
+		}
 		if network == "" {
 			refused = append(refused, fmt.Sprintf("a link to %s on no network of a project's own, where a name of its doesn't reach it otherwise", l.target))
 			continue
@@ -125,11 +128,12 @@ func (d *Docker) readLinks(ctx context.Context, c *docker.Container, o *docker.O
 	return refused, aliases, nil
 }
 
-// sharedNetwork is a network of a project's own c and t are both on, or "": not
-// Docker's default bridge, the host's or none, where names don't reach a container.
-func sharedNetwork(c, t *docker.Container) string {
+// sharedNetworks are the networks of a project's own that a container on networks
+// and t are both on, by name: not Docker's default bridge, the host's or none,
+// where names don't reach a container.
+func sharedNetworks[V any](networks map[string]V, t *docker.Container) []string {
 	var shared []string
-	for name := range c.NetworkSettings.Networks {
+	for name := range networks {
 		if name == "bridge" || name == "host" || name == "none" {
 			continue
 		}
@@ -138,10 +142,37 @@ func sharedNetwork(c, t *docker.Container) string {
 		}
 	}
 	slices.Sort(shared)
+	return shared
+}
+
+// linkNetwork is the one of shared a link's name goes on: one the linked
+// container's own Compose project has, then the linking container's main
+// network, mode, and only then the first by name, as a panel's network shared by
+// every app, such as dokploy-network, sorts early, and a name there could reach
+// another project's container (the narrow check of ADR 0097, N1). It's "" where
+// none is shared.
+func (d *Docker) linkNetwork(ctx context.Context, shared []string, project, mode string) (string, error) {
 	if len(shared) == 0 {
-		return ""
+		return "", nil
 	}
-	return shared[0]
+	if project != "" {
+		for _, name := range shared {
+			n, err := d.Client.NetworkNamed(ctx, name)
+			switch {
+			case docker.IsNotFound(err):
+				continue
+			case err != nil:
+				return "", fmt.Errorf("can't read the network %s, which a link is on: %w", name, err)
+			}
+			if n.Labels[docker.LabelProject] == project {
+				return name, nil
+			}
+		}
+	}
+	if slices.Contains(shared, mode) {
+		return mode, nil
+	}
+	return shared[0], nil
 }
 
 // linkedNames are the names other containers link to c by, on a network both are
@@ -170,22 +201,17 @@ func (d *Docker) linkedNames(ctx context.Context, c *docker.Container) ([]string
 			if l.target != self && (len(l.target) < 12 || !strings.HasPrefix(c.ID, l.target)) {
 				continue
 			}
-			if network := sharedOf(o, c); network != "" && !linkedAs(c, network, l.alias) && !slices.Contains(out, network+"="+l.alias) {
+			var mode string
+			_ = json.Unmarshal(o.HostConfig["NetworkMode"], &mode)
+			network, err := d.linkNetwork(ctx, sharedNetworks(o.NetworkSettings.Networks, c), c.Config.Labels[docker.LabelProject], mode)
+			if err != nil {
+				return nil, err
+			}
+			if network != "" && !linkedAs(c, network, l.alias) && !slices.Contains(out, network+"="+l.alias) {
 				out = append(out, network+"="+l.alias)
 			}
 		}
 	}
 	slices.Sort(out)
 	return out, nil
-}
-
-// sharedOf is a network of a project's own that o and c are both on, or "".
-func sharedOf(o *docker.Options, c *docker.Container) string {
-	network := ""
-	for n := range o.NetworkSettings.Networks {
-		if _, ok := c.NetworkSettings.Networks[n]; ok && n != "bridge" && n != "host" && n != "none" && (network == "" || n < network) {
-			network = n
-		}
-	}
-	return network
 }

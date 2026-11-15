@@ -2434,6 +2434,26 @@ type TextNamer interface {
 	NamedAsText(spec proto.Message) map[string][]string
 }
 
+// Confiner is a kind whose spec can lose, with one field, what Docker gave it only
+// beside that field, which a plan says (ADR 0097).
+type Confiner interface {
+	// ConfinedAgain says, in words that follow the resource's name, what going from
+	// current to desired takes away that neither spec says, or "".
+	ConfinedAgain(current, desired proto.Message) string
+}
+
+// ConfinedAgain says what going from current to desired takes away unsaid, if
+// kind is a Confiner and both are there.
+func (r *Registry) ConfinedAgain(kind Kind, current, desired proto.Message) string {
+	if current == nil || desired == nil {
+		return ""
+	}
+	if c, ok := r.types[kind].(Confiner); ok {
+		return c.ConfinedAgain(current, desired)
+	}
+	return ""
+}
+
 // NamedAsText says what spec writes as ${NAME} as text, if its kind is a TextNamer.
 func (r *Registry) NamedAsText(kind Kind, spec proto.Message) map[string][]string {
 	if spec == nil {

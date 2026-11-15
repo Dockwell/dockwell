@@ -111,7 +111,9 @@ type AdoptContainerRequest struct {
 	Project string `protobuf:"bytes,4,opt,name=project,proto3" json:"project,omitempty"`
 	// The environment the service goes in, by name or ID.
 	Environment string `protobuf:"bytes,5,opt,name=environment,proto3" json:"environment,omitempty"`
-	// Takes it on with the host access it needs, as AdoptComposeRequest has it.
+	// Takes it on with the host access it needs: devices, GPUs, security options
+	// or the server's processes (ADR 0097). Without it, a container that needs
+	// some is refused, saying what.
 	HostAccess    bool `protobuf:"varint,6,opt,name=host_access,json=hostAccess,proto3" json:"host_access,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

@@ -1060,8 +1060,9 @@ type ImportDokployRequest struct {
 	ServerId string `protobuf:"bytes,1,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
 	// Read and say what an import would do, and plan nothing.
 	SkipPlan bool `protobuf:"varint,2,opt,name=skip_plan,json=skipPlan,proto3" json:"skip_plan,omitempty"`
-	// The apps taken on with the host access each needs, as ImportCoolifyRequest
-	// has them.
+	// The apps, by their IDs as ImportStep.app_id has them, taken on with the host
+	// access each needs: devices, GPUs, security options or the server's processes
+	// (ADR 0097). Any other that needs some is left behind, saying what.
 	HostAccess    []string `protobuf:"bytes,3,rep,name=host_access,json=hostAccess,proto3" json:"host_access,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

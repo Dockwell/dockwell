@@ -7500,7 +7500,10 @@ components:
                     description: The environment the service goes in, by name or ID.
                 hostAccess:
                     type: boolean
-                    description: Takes it on with the host access it needs, as AdoptComposeRequest has it.
+                    description: |-
+                        Takes it on with the host access it needs: devices, GPUs, security options
+                         or the server's processes (ADR 0097). Without it, a container that needs
+                         some is refused, saying what.
             description: AdoptContainerRequest names a container, and what to make of it.
         AdoptContainerResponse:
             type: object
@@ -15290,8 +15293,9 @@ components:
                     items:
                         type: string
                     description: |-
-                        The apps taken on with the host access each needs, as ImportCoolifyRequest
-                         has them.
+                        The apps, by their IDs as ImportStep.app_id has them, taken on with the host
+                         access each needs: devices, GPUs, security options or the server's processes
+                         (ADR 0097). Any other that needs some is left behind, saying what.
             description: ImportDokployRequest names the server to import from.
         ImportDokployResponse:
             type: object

@@ -1108,7 +1108,7 @@ func Methods() []*apicli.Method {
 				{Path: "service", Help: "What to call the service. Unset takes the container's Compose service, or its own name, written as a service's name."},
 				{Path: "project", Help: "The project the service goes in, by name or ID."},
 				{Path: "environment", Help: "The environment the service goes in, by name or ID."},
-				{Path: "host_access", Help: "Takes it on with the host access it needs, as dockwell compose adoptRequest has it."},
+				{Path: "host_access", Help: "Takes it on with the host access it needs: devices, GPUs, security options or the server's processes (ADR 0097). Without it, a container that needs some is refused, saying what."},
 			},
 			Call: apicli.Unary[v1.AdoptContainerRequest, v1.AdoptContainerResponse](dockwellv1connect.ContainerServiceAdoptContainerProcedure),
 		},
@@ -1745,7 +1745,7 @@ func Methods() []*apicli.Method {
 			Fields: []apicli.Field{
 				{Path: "server_id", Help: "The server running Dokploy, such as \"srv_01JD6Z3R8M9QF2K7T4XW5BNC0V\"."},
 				{Path: "skip_plan", Help: "Read and say what an import would do, and plan nothing."},
-				{Path: "host_access", Help: "The apps taken on with the host access each needs, as dockwell import coolifyRequest has them."},
+				{Path: "host_access", Help: "The apps, by their IDs as ImportStep.app_id has them, taken on with the host access each needs: devices, GPUs, security options or the server's processes (ADR 0097). Any other that needs some is left behind, saying what."},
 			},
 			Call: apicli.Unary[v1.ImportDokployRequest, v1.ImportDokployResponse](dockwellv1connect.ImportServiceImportDokployProcedure),
 		},

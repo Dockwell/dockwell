@@ -112,7 +112,7 @@ func TestWhatHostAccessGives(t *testing.T) {
 		{Kind: resource.AccessDevice, Path: "/dev/mapper/vg-root", SameAsRoot: true},
 		{Kind: resource.AccessGPUs, Path: "2"},
 		{Kind: resource.AccessSecurityOption, Path: "apparmor=unconfined"},
-		{Kind: resource.AccessSecurityOption, Path: "label=disable"},
+		{Kind: resource.AccessSecurityOption, Path: "label=disable", SameAsRoot: true},
 		{Kind: resource.AccessSecurityOption, Path: "label=type:spc_t", SameAsRoot: true},
 		{Kind: resource.AccessSecurityOption, Path: "label=type:container_unconfined_t", SameAsRoot: true},
 		{Kind: resource.AccessSecurityOption, Path: "systempaths=unconfined", SameAsRoot: true},
@@ -224,11 +224,26 @@ func TestACharacterDeviceIsWhatItsSubsystemSays(t *testing.T) {
 		}
 	}
 	for at, want := range map[[2]uint32]bool{{21, 0}: true, {240, 1}: true, {90, 0}: true, {1, 1}: true, {1, 3}: false, {226, 128}: false, {4, 64}: false} {
-		if got := rootSubsystem(root, unix.Mkdev(at[0], at[1])); got != want {
-			t.Errorf("%d:%d reads root %v", at[0], at[1], got)
+		if got, err := rootSubsystem(root, "/dev/x", unix.Mkdev(at[0], at[1])); err != nil || got != want {
+			t.Errorf("%d:%d reads root %v, %v", at[0], at[1], got, err)
 		}
 	}
-	for p, want := range map[string]bool{"/dev/sg0": true, "/dev/ng0n1": true, "/dev/bsg/0:0:0:0": true, "/dev/mtd0": true, "/dev/mapper/vg-root": true, "/dev/dri/renderD128": false, "/dev/net/tun": false} {
+	// Only a device /sys has no entry for reads as plain; a /sys that can't be read
+	// fails, naming the device (the narrow check of ADR 0097, L-b).
+	if _, err := rootSubsystem(filepath.Join(root, "missing"), "/dev/backup0", unix.Mkdev(21, 0)); err == nil || !strings.Contains(err.Error(), "can't read what kind of device /dev/backup0 is") {
+		t.Errorf("no /sys/dev/char = %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "21:5"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rootSubsystem(root, "/dev/backup0", unix.Mkdev(21, 5)); err == nil || !strings.Contains(err.Error(), "Let the agent read") {
+		t.Errorf("an entry with no subsystem = %v", err)
+	}
+	// SGX's devices aren't SCSI generic ones (L-c).
+	for p, want := range map[string]bool{
+		"/dev/sg0": true, "/dev/sg12": true, "/dev/ng0n1": true, "/dev/bsg/0:0:0:0": true, "/dev/mtd0": true, "/dev/mapper/vg-root": true,
+		"/dev/sgx_enclave": false, "/dev/sgx_provision": false, "/dev/sgx_vepc": false, "/dev/ngx": false, "/dev/dri/renderD128": false, "/dev/net/tun": false,
+	} {
 		if RootDevice(p) != want {
 			t.Errorf("%s reads root %v", p, !want)
 		}
@@ -237,12 +252,13 @@ func TestACharacterDeviceIsWhatItsSubsystemSays(t *testing.T) {
 
 // SELinux types are judged by what's known to confine a container: those are
 // amber, and any other, as container_runtime_t or a server's own domain, is the same
-// as root, as another SELinux user or role is.
+// as root, as another SELinux user or role is, and labels off, which runs it as
+// spc_t (the narrow check of ADR 0097, L-d).
 func TestAnSELinuxTypeIsRootUnlessItConfines(t *testing.T) {
 	for o, root := range map[string]bool{
 		"label=type:container_t": false, "label=type:container_init_t": false, "label=type:container_kvm_t": false, "label=type:svirt_lxc_net_t": false,
 		"label=type:spc_t": true, "label=type:container_runtime_t": true, "label=type:kernel_t": true, "label=type:init_t": true, "label=type:sysadm_t": true,
-		"label=user:system_u": true, "label=role:system_r": true, "label=level:s0:c100,c200": false, "label=disable": false,
+		"label=user:system_u": true, "label=role:system_r": true, "label=level:s0:c100,c200": false, "label=disable": true,
 		"apparmor=unconfined": false, "seccomp=unconfined": false, "systempaths=unconfined": true,
 	} {
 		if got := rootSecurityOption(o); got != root {

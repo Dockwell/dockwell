@@ -1104,7 +1104,7 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 	if plan.Empty() {
 		p.Notes = slices.DeleteFunc(slices.Clone(p.Notes), func(n Note) bool { return n.IfItChanges })
 	}
-	p.Notes = unmeasuredNotes(plan, sharedNameNotes(plan, elsewhereNotes(plan, e.keptRootNotes(plan, items, keptNotes(items, e.textNotes(items, e.dataNotes(plan, items, startingNotes(plan, p.Notes))))))))
+	p.Notes = unmeasuredNotes(plan, sharedNameNotes(plan, elsewhereNotes(plan, e.keptRootNotes(plan, items, keptNotes(items, e.confinedNotes(items, e.textNotes(items, e.dataNotes(plan, items, startingNotes(plan, p.Notes)))))))))
 	if p.Notes, err = e.taskNotes(ctx, plan, items, p.Notes); err != nil {
 		return nil, err
 	}
@@ -1350,6 +1350,19 @@ func (e *Engine) keeper(kind resource.Kind) (resource.Keeper, bool) {
 	}
 	k, ok := t.(resource.Keeper)
 	return k, ok
+}
+
+// confinedNotes are a plan's notes, saying what a change takes away that neither
+// spec says (resource.Confiner), as SELinux confining an app again once it's no
+// longer privileged.
+func (e *Engine) confinedNotes(items []item, notes []Note) []Note {
+	out := slices.Clone(notes)
+	for i := range items {
+		if words := e.kinds.ConfinedAgain(items[i].ref.Kind, items[i].current, items[i].spec); words != "" {
+			out = append(out, Note{Reason: "confined_again", Ref: items[i].ref, Message: items[i].ref.Name + " " + words})
+		}
+	}
+	return out
 }
 
 // keptNotes are a plan's notes, saying what an edit's resource kept of what it
