@@ -90,7 +90,7 @@ func TestAPushThroughTheGitHubAppDeploysWhatItReaches(t *testing.T) {
 	if login := buildStep(first).GetGitLogin(); login != "dockwell-deploy/7" {
 		t.Errorf("the plan builds through %q, not the installation that reaches it", login)
 	}
-	g.done(t, first)
+	g.openWhere(t, g.done(t, first))
 	web := g.service(t, "", "web")
 	// The plan named the installation that reaches acme/web, as the edit didn't.
 	if login := web.GetSpec().GetBuild().GetGitLogin(); login != "dockwell-deploy/7" {

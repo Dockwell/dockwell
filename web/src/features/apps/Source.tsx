@@ -194,7 +194,8 @@ function DeployOnPush({ source, host }: { source: GitSource; host: GitHost | und
         if (!res.hook?.githubApp) setOpen({ secret: res.secret });
       } else {
         await hooks.deleteGitHook({ id: service.id });
-        setTurnedOff(true);
+        // A hook through a GitHub App has nothing on the repository to remove.
+        setTurnedOff(!hook?.githubApp);
       }
     } catch (err) {
       setProblem(explain(err) || sentence(err));
@@ -213,9 +214,12 @@ function DeployOnPush({ source, host }: { source: GitSource; host: GitHost | und
         label={t`Deploy on push`}
         description={offer.reason || (on ? pushes : t`Pushes to ${branch} don't deploy ${name}.`)}
       />
-      {hook ? (
-        <HookLine hook={hook} source={source} host={host} onOpen={() => setOpen({})} />
-      ) : turnedOff && host ? (
+      {hook ? <HookLine hook={hook} source={source} host={host} onOpen={() => setOpen({})} /> : null}
+      {hook?.githubApp ? (
+        // Pushes through a GitHub App have no sheet: whether they wait is chosen here.
+        <WithoutWaiting hook={hook} guarded={guarded} onChanged={() => void query.refetch()} />
+      ) : null}
+      {!hook && turnedOff && host ? (
         <p className="app-source-line">
           <span className="app-muted">{t`The hook now refuses pushes. Remove it from the repository too.`}</span>
           <a className="app-panel-link" href={host.hooksPage.replace(/\/new$/, "")} target="_blank" rel="noreferrer">
@@ -396,36 +400,8 @@ function HookSheet({
   const may = useMay();
   const where = { environment: environmentOf(service) };
   const mayRotate = may(GitHookService.method.rotateGitHookSecret, where);
-  // Where it's protected, only an admin may set it, and it's its maker's choice.
-  const me = useSignedInUser();
-  const chooses =
-    guarded && may(GitHookService.method.setGitHookRole, where).allowed && hook.createdBy?.id === me?.id && !!me;
-  const place = usePlaces().label(where.environment) || t`this environment`;
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string>();
-  const [choosing, setChoosing] = useState(false);
-  const [unchosen, setUnchosen] = useState<string>();
-
-  const choose = async (withoutWaiting: boolean) => {
-    setChoosing(true);
-    setUnchosen(undefined);
-    const hooks = createClient(GitHookService, transport);
-    try {
-      if (withoutWaiting) {
-        // Your browser asks for your passkey, to confirm it's you, once nothing else stops it.
-        await withStepUpIfAsked(transport, StepUpAction.WIDEN_GIT_HOOK, service.id, (proof) =>
-          hooks.setGitHookRole({ id: service.id, role: Role.ADMIN, proof }),
-        );
-      } else {
-        await hooks.setGitHookRole({ id: service.id, role: Role.DEVELOPER });
-      }
-    } catch (err) {
-      setUnchosen(explain(err) || sentence(err));
-    } finally {
-      setChoosing(false);
-      onChanged();
-    }
-  };
   const name = nameOf(service);
   const hostName = host?.name ?? "";
   const urlLabel =
@@ -515,21 +491,67 @@ function HookSheet({
             {problem}
           </Callout>
         ) : null}
-        {chooses ? (
-          <Switch
-            checked={hook.role === Role.ADMIN}
-            disabled={choosing}
-            onChange={(next) => void choose(next)}
-            label={t`Deploy without waiting`}
-            description={t`Each push into ${place} applies with no person's approval.`}
-          />
-        ) : null}
-        {unchosen ? (
-          <Callout tone="critical" title={t`Deploy without waiting didn't change`}>
-            {unchosen}
-          </Callout>
-        ) : null}
+        <WithoutWaiting hook={hook} guarded={guarded} onChanged={onChanged} />
       </div>
     </Sheet>
+  );
+}
+
+/**
+ * Deploy without waiting (ADR 0071): where the app's environment is protected, a
+ * hook's push plans its deploy for a person to apply, unless the hook's maker, an
+ * admin there, lets it deploy without waiting, which takes their passkey. It's
+ * theirs alone to choose; anyone else sees nothing here.
+ */
+function WithoutWaiting({ hook, guarded, onChanged }: { hook: GitHook; guarded: boolean; onChanged: () => void }) {
+  const { t } = useLingui();
+  const { service } = useApp();
+  const transport = useTransport();
+  const explain = useAuthError();
+  const may = useMay();
+  const where = { environment: environmentOf(service) };
+  const me = useSignedInUser();
+  const chooses =
+    guarded && may(GitHookService.method.setGitHookRole, where).allowed && hook.createdBy?.id === me?.id && !!me;
+  const place = usePlaces().label(where.environment) || t`this environment`;
+  const [choosing, setChoosing] = useState(false);
+  const [unchosen, setUnchosen] = useState<string>();
+
+  const choose = async (withoutWaiting: boolean) => {
+    setChoosing(true);
+    setUnchosen(undefined);
+    const hooks = createClient(GitHookService, transport);
+    try {
+      if (withoutWaiting) {
+        // Your browser asks for your passkey, to confirm it's you, once nothing else stops it.
+        await withStepUpIfAsked(transport, StepUpAction.WIDEN_GIT_HOOK, service.id, (proof) =>
+          hooks.setGitHookRole({ id: service.id, role: Role.ADMIN, proof }),
+        );
+      } else {
+        await hooks.setGitHookRole({ id: service.id, role: Role.DEVELOPER });
+      }
+    } catch (err) {
+      setUnchosen(explain(err) || sentence(err));
+    } finally {
+      setChoosing(false);
+      onChanged();
+    }
+  };
+  if (!chooses) return null;
+  return (
+    <>
+      <Switch
+        checked={hook.role === Role.ADMIN}
+        disabled={choosing}
+        onChange={(next) => void choose(next)}
+        label={t`Deploy without waiting`}
+        description={t`Each push into ${place} applies with no person's approval.`}
+      />
+      {unchosen ? (
+        <Callout tone="critical" title={t`Deploy without waiting didn't change`}>
+          {unchosen}
+        </Callout>
+      ) : null}
+    </>
   );
 }

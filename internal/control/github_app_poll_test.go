@@ -102,7 +102,9 @@ func newAppBenchWith(t *testing.T, more func(*GitHubConfig)) *appBench {
 		t.Fatal(err)
 	}
 	a.commit("First")
-	a.done(t, a.propose(t, a.buildEdit("main", nil)))
+	// Production is protected by its name, where a hook's push waits for a person
+	// (ADR 0071): web's environment is open, so its pushes deploy.
+	a.openWhere(t, a.done(t, a.propose(t, a.buildEdit("main", nil))))
 	a.web = a.service(t, "", "web")
 	if _, err := a.hooks().CreateGitHook(ctx, connect.NewRequest(&dockwellv1.CreateGitHookRequest{
 		Id: a.web.GetId(), Proof: stepUpFor(t, b, dockwellv1.StepUpAction_STEP_UP_ACTION_CREATE_GIT_HOOK, a.web.GetId()),

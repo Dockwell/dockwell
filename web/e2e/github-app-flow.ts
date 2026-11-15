@@ -97,7 +97,7 @@ async function githubAppFlow(page: Page, { origin, step, shoot }: FlowRun, stand
   await page.goto(page.url().replace(/\/(deployments|logs|environment|settings)([/?].*)?$/, ""));
   await page.getByRole("heading", { level: 1, name: "private-web" }).waitFor();
 
-  step("GitHub App: deploy on push is a switch with nothing to set, and a push through the App deploys");
+  step("GitHub App: deploy on push is a switch with nothing to set, and a push into production waits for a person");
   const source = page.locator("section").filter({ has: page.getByRole("heading", { name: "Source", exact: true }) });
   await source.getByText("through the GitHub App on acme").waitFor({ timeout: 20_000 });
   const onPush = source.getByRole("switch", { name: "Deploy on push" });
@@ -110,20 +110,35 @@ async function githubAppFlow(page: Page, { origin, step, shoot }: FlowRun, stand
   const moved = await fetch(`${git}/_move?branch=main&to=giftcards`, { method: "POST" });
   if (!moved.ok) fail(`the Git server didn't move main: ${moved.status}`);
   // The payload names a commit the branch doesn't: Dockwell reads the branch itself.
-  const pushed = await fetch(`${stand}/_push?repo=acme/web&ref=refs/heads/main&after=${"1".repeat(40)}`, {
-    method: "POST",
-  });
-  if (pushed.status !== 202) fail(`the App's webhook answered a signed push with ${pushed.status}`);
-  for (let i = 0; ; i++) {
-    await page.reload();
-    await source
-      .getByText(/^Last push|Pushes come through the GitHub App\.$/)
-      .first()
-      .waitFor();
-    if ((await source.getByText(/started a deploy of [0-9a-f]{7}/).count()) > 0) break;
-    if (i > 60) fail("the Source panel never said the push through the App started a deploy");
-    await page.waitForTimeout(1000);
-  }
+  const push = async () => {
+    const pushed = await fetch(`${stand}/_push?repo=acme/web&ref=refs/heads/main&after=${"1".repeat(40)}`, {
+      method: "POST",
+    });
+    if (pushed.status !== 202) fail(`the App's webhook answered a signed push with ${pushed.status}`);
+  };
+  const lineSays = async (said: RegExp, what: string) => {
+    for (let i = 0; ; i++) {
+      await page.reload();
+      await source
+        .getByText(/^Last push|Pushes come through the GitHub App\.$/)
+        .first()
+        .waitFor();
+      if ((await source.getByText(said).count()) > 0) return;
+      if (i > 60) fail(`the Source panel never said ${what}`);
+      await page.waitForTimeout(1000);
+    }
+  };
+  // Production is protected by its name, and a hook acts as a developer at most, so
+  // a push through the App plans its deploy for a person to apply (ADR 0071).
+  await push();
+  await lineSays(/planned [0-9a-f]{7}, which waits for a person/, "the push through the App waits for a person");
+  await shoot(page, "github-push-waits");
+
+  step("GitHub App: its maker lets it deploy without waiting with a passkey, and the next push deploys");
+  await source.getByRole("switch", { name: "Deploy without waiting" }).click();
+  await source.getByText("Each push to main deploys private-web.").waitFor({ timeout: 20_000 });
+  await push();
+  await lineSays(/started a deploy of [0-9a-f]{7}/, "the push through the App started a deploy");
   await page.getByRole("link", { name: /Deployments/ }).click();
   await page
     .getByRole("table", { name: "Revisions of private-web" })
