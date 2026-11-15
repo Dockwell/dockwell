@@ -13,6 +13,7 @@ import (
 	"net/netip"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/dockwell/dockwell/internal/backup/s3"
@@ -58,6 +59,20 @@ type Runner struct {
 	// its interfaces' unless set.
 	Own    func() ([]netip.Prefix, error)
 	Logger *slog.Logger
+	// Start is what this agent's checks are labelled with, and their names begin
+	// with, so Clean takes only what an earlier start left: random unless set.
+	Start string
+	start sync.Once
+}
+
+// started is what this agent's checks are labelled with.
+func (r *Runner) started() string {
+	r.start.Do(func() {
+		if r.Start == "" {
+			r.Start = randomHex()
+		}
+	})
+	return r.Start
 }
 
 // Run checks req from a container on networks, the app's, as the app would reach
@@ -68,7 +83,8 @@ func (r *Runner) Run(ctx context.Context, req Request, networks []string) (Resul
 	if req.S3 != nil && s3.CheckPrefix(req.S3.Prefix) != nil {
 		return Result{}, fmt.Errorf("the check's prefix isn't folders in a bucket, so nothing ran: %w", s3.ErrPrefix)
 	}
-	run := randomHex()
+	start := r.started()
+	run := start + "-" + randomHex()
 	name := docker.ProbeRepository + "-" + run
 	image := docker.ProbeRepository + ":" + run
 	own, err := r.own()
@@ -78,7 +94,7 @@ func (r *Runner) Run(ctx context.Context, req Request, networks []string) (Resul
 	req.Refuse = append(req.Refuse, own...)
 	if len(networks) == 0 {
 		if _, err := r.Client.CreateNetwork(ctx, &docker.NetworkCreate{
-			Name: name, CheckDuplicate: true, Labels: map[string]string{docker.LabelProbe: run},
+			Name: name, CheckDuplicate: true, Labels: map[string]string{docker.LabelProbe: start},
 		}); err != nil {
 			return Result{}, fmt.Errorf("docker can't make the network the check runs on: %w", err)
 		}
@@ -109,7 +125,7 @@ func (r *Runner) Run(ctx context.Context, req Request, networks []string) (Resul
 	id, err := r.Client.CreateContainer(ctx, name, &docker.CreateRequest{
 		Config: docker.Config{
 			Image: image, Entrypoint: []string{binaryIn}, Cmd: []string{Command},
-			User: "65534:65534", Labels: map[string]string{docker.LabelProbe: run},
+			User: "65534:65534", Labels: map[string]string{docker.LabelProbe: start},
 			OpenStdin: true, StdinOnce: true,
 		},
 		HostConfig: docker.HostConfig{
@@ -221,18 +237,30 @@ func (r *Runner) cleanup(ctx context.Context, what, name string, remove func(con
 }
 
 // Clean removes what a check an agent's crash cut short left: its containers, its
-// networks and its images. Nothing checks while the agent starts.
+// networks and its images. It takes only what an earlier start of the agent made,
+// by their label and name, so a check this start runs, which may begin while Clean
+// does, is never cut short.
 func (r *Runner) Clean(ctx context.Context) error {
-	if _, err := r.Client.RemoveContainersLabelled(ctx, docker.LabelProbe); err != nil {
-		return err
-	}
-	nets, err := r.Client.ListNetworks(ctx)
+	start := r.started()
+	list, err := r.Client.ListContainers(ctx, map[string][]string{"label": {docker.LabelProbe}})
 	if err != nil {
 		return err
 	}
 	var errs []error
+	for i := range list {
+		if list[i].Labels[docker.LabelProbe] == start {
+			continue
+		}
+		if err := r.Client.RemoveContainer(ctx, list[i].ID, true); err != nil && !docker.IsNotFound(err) {
+			errs = append(errs, err)
+		}
+	}
+	nets, err := r.Client.ListNetworks(ctx)
+	if err != nil {
+		return errors.Join(append(errs, err)...)
+	}
 	for i := range nets {
-		if _, ok := nets[i].Labels[docker.LabelProbe]; ok {
+		if was, ok := nets[i].Labels[docker.LabelProbe]; ok && was != start {
 			errs = append(errs, r.Client.RemoveNetwork(ctx, nets[i].Name))
 		}
 	}
@@ -241,7 +269,9 @@ func (r *Runner) Clean(ctx context.Context) error {
 		return errors.Join(append(errs, err)...)
 	}
 	for _, tag := range tags {
-		errs = append(errs, r.Client.RemoveImage(ctx, tag))
+		if !strings.HasPrefix(tag, docker.ProbeRepository+":"+start+"-") {
+			errs = append(errs, r.Client.RemoveImage(ctx, tag))
+		}
 	}
 	return errors.Join(errs...)
 }

@@ -124,34 +124,44 @@ func TestTheServersOwnAddressesAreRefusedOnAnAppsNetwork(t *testing.T) {
 }
 
 // What a crash cut short is removed as the agent starts: the check's container,
-// its network and its image.
+// its network and its image. A check of this start, which may run while Clean
+// does, keeps all three.
 func TestCleanRemovesWhatACrashLeft(t *testing.T) {
 	t.Parallel()
 	e := dockertest.New(t)
 	c := e.Client()
 	r := runner(e)
-	if err := c.ImportFiles(t.Context(), docker.ProbeRepository+":left", []docker.ImageFile{{Name: "/dockwell", Path: "/proc/self/exe", Mode: 0o755}}); err != nil {
-		t.Fatal(err)
+	r.Start = "now"
+	made := func(run, start string) {
+		t.Helper()
+		if err := c.ImportFiles(t.Context(), docker.ProbeRepository+":"+run, []docker.ImageFile{{Name: "/dockwell", Path: "/proc/self/exe", Mode: 0o755}}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := c.CreateNetwork(t.Context(), &docker.NetworkCreate{Name: docker.ProbeRepository + "-" + run, Labels: map[string]string{docker.LabelProbe: start}}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := c.CreateContainer(t.Context(), docker.ProbeRepository+"-"+run, &docker.CreateRequest{Config: docker.Config{
+			Image: docker.ProbeRepository + ":" + run, Labels: map[string]string{docker.LabelProbe: start},
+		}}); err != nil {
+			t.Fatal(err)
+		}
 	}
-	if _, err := c.CreateNetwork(t.Context(), &docker.NetworkCreate{Name: docker.ProbeRepository + "-left", Labels: map[string]string{docker.LabelProbe: "left"}}); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := c.CreateContainer(t.Context(), docker.ProbeRepository+"-left", &docker.CreateRequest{Config: docker.Config{
-		Image: docker.ProbeRepository + ":left", Labels: map[string]string{docker.LabelProbe: "left"},
-	}}); err != nil {
-		t.Fatal(err)
-	}
+	made("before-1", "before")
+	made("now-1", "now")
 	if err := r.Clean(t.Context()); err != nil {
 		t.Fatal(err)
 	}
-	if left := e.Containers(); len(left) != 0 {
-		t.Errorf("Clean left containers %v", left)
+	if left := e.Containers(); !slices.Equal(left, []string{docker.ProbeRepository + "-now-1"}) {
+		t.Errorf("Clean left containers %v, want this start's alone", left)
 	}
-	if left := e.Images(docker.ProbeRepository); len(left) != 0 {
-		t.Errorf("Clean left images %v", left)
+	if left := e.Images(docker.ProbeRepository); !slices.Equal(left, []string{docker.ProbeRepository + ":now-1"}) {
+		t.Errorf("Clean left images %v, want this start's alone", left)
 	}
-	if n := e.Network(docker.ProbeRepository + "-left"); n != nil {
+	if n := e.Network(docker.ProbeRepository + "-before-1"); n != nil {
 		t.Errorf("Clean left the network %s", n.Name)
+	}
+	if n := e.Network(docker.ProbeRepository + "-now-1"); n == nil {
+		t.Error("Clean removed the network of a check this start runs")
 	}
 }
 
