@@ -47,9 +47,9 @@ var onePanelAdmin = []string{"PANEL_DB_ROOT_USER", "PANEL_DB_ROOT_PASSWORD"}
 // which offers database servers by engine and opens a child field for the host, or a
 // service field, whose key names the engine. Each is a need (ADR 0084), and the
 // fields 1Panel fills from that server are the need's, which filled says. An app
-// whose Compose file reads the engine's word, as Gitea's DB_TYPE does, takes 1Panel's
-// default engine alone, its word written in, as a need sets no engine's word: the
-// app's own word for it where its init.sh turns 1Panel's into one (typeWords).
+// whose Compose file reads the engine's word, as Gitea's DB_TYPE does, has it as an
+// engine part, with 1Panel's word for each engine the field offers, or the app's own
+// where its init.sh turns 1Panel's into one (typeWords).
 //
 // An app is left out where it uses an app Dockwell has no engine for, as Kafka or
 // MinIO, or signs in to another app's server as its administrator, which Dockwell
@@ -63,25 +63,23 @@ func onePanelNeeds(fields []onePanelField, compose []byte, typeWords map[string]
 		if f.Disabled || f.Type != "service" && f.Type != "apps" {
 			continue
 		}
-		host, engines, typed, word := f.EnvKey, []catalogv1.Engine(nil), "", ""
+		host, engines, typed := f.EnvKey, []catalogv1.Engine(nil), ""
+		words := map[catalogv1.Engine]string{}
 		switch {
 		case f.Type == "apps" && f.Child != nil && f.Child.EnvKey != "":
 			host = f.Child.EnvKey
 			for _, v := range f.Values {
-				if e, ok := onePanelEngines[fmt.Sprint(v.Value)]; ok && !slices.Contains(engines, e) {
+				value := fmt.Sprint(v.Value)
+				if e, ok := onePanelEngines[value]; ok && !slices.Contains(engines, e) {
 					engines = append(engines, e)
+					words[e] = cmp.Or(typeWords[value], value)
 				}
 			}
-			word = fmt.Sprint(f.Default)
 			if f.EnvKey != "" && bytes.Contains(compose, []byte(f.EnvKey)) {
-				// The app reads the engine's word: it takes 1Panel's default alone.
-				e, ok := onePanelEngines[word]
-				if !ok {
-					return nil, nil, leave(ClassAnotherApp, "it reads which database it uses from %s, whose default %q isn't an engine Dockwell meets", f.EnvKey, word)
-				}
-				engines, typed = []catalogv1.Engine{e}, f.EnvKey
+				// The app reads the engine's word, as an engine part.
+				typed = f.EnvKey
 			}
-			if e, ok := onePanelEngines[word]; ok && typed == "" {
+			if e, ok := onePanelEngines[fmt.Sprint(f.Default)]; ok && slices.Contains(engines, e) {
 				// 1Panel's default first, as a new one beside the app is of it.
 				engines = append([]catalogv1.Engine{e}, slices.DeleteFunc(engines, func(x catalogv1.Engine) bool { return x == e })...)
 			}
@@ -122,7 +120,7 @@ func onePanelNeeds(fields []onePanelField, compose []byte, typeWords map[string]
 		db = len(needs)
 		d := NeedDraft{Name: "db", Label: "Database", Engines: engines, Parts: map[string]catalogv1.Part{host: catalogv1.Part_PART_HOST}}
 		if typed != "" {
-			d.Fixed = map[string]string{typed: cmp.Or(typeWords[word], word)}
+			d.Parts[typed], d.Words = catalogv1.Part_PART_ENGINE, words
 		}
 		needs = append(needs, d)
 	}

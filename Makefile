@@ -248,11 +248,11 @@ store-rates: ## Convert every store Dockwell reads at the commits the repository
 # config file its store ships, and one that runs as a user its store's script gives its
 # data folder to (ADR 0085). Then 1Panel's apps that use another app's database, each
 # met by a new one beside it (ADR 0084): its two most recommended a server installs from
-# it, Umami on PostgreSQL by a URL and WordPress on MySQL by an address, and Roundcube on
-# MySQL, with the engine's word written in. 1Panel's Gitea, recommended between them,
-# runs Gitea's Enterprise image, so a server leaves it out as another app under an ID
-# Dockwell's own catalog has.
-STORE_APPS ?= 1panel/linux-command dokploy/excalidraw dokploy/mazanoke coolify/privatebin dokploy/keydb 1panel/rabbitmq 1panel/glance 1panel/navidrome 1panel/umami 1panel/wordpress 1panel/roundcube
+# it, Umami on PostgreSQL by a URL and WordPress on MySQL by an address, and Roundcube,
+# which reads which engine it's on, on MySQL and on PostgreSQL, each with its word for it.
+# 1Panel's Gitea, recommended between them, runs Gitea's Enterprise image, so a server
+# leaves it out as another app under an ID Dockwell's own catalog has.
+STORE_APPS ?= 1panel/linux-command dokploy/excalidraw dokploy/mazanoke coolify/privatebin dokploy/keydb 1panel/rabbitmq 1panel/glance 1panel/navidrome 1panel/umami 1panel/wordpress 1panel/roundcube 1panel/roundcube@db=new:postgresql
 
 .PHONY: store-e2e
 store-e2e: build-go ## Install a sample of 1Panel's, Dokploy's and Coolify's apps, converted on the server at the pinned commits, on this machine's Docker (STORE_APPS names them)

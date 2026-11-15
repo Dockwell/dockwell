@@ -736,7 +736,7 @@ func (s *Sources) readSource(ctx context.Context, name string, spec *resourcev1.
 	h := sha256.New()
 	fmt.Fprintf(h, "%s\x00%s\x00%s\x00%s%s", name, spec.GetRepository(), spec.GetPath(), spec.GetCommit(), formatKey(spec))
 	for _, id := range slices.Sorted(maps.Keys(taken)) {
-		fmt.Fprintf(h, "\x00%s=%s=%s", id, taken[id].By, appKey(taken[id].Entry))
+		fmt.Fprintf(h, "\x00%s=%s=%s", id, taken[id].By, folder.AppKey(taken[id].Entry))
 	}
 	key := hex.EncodeToString(h.Sum(nil))
 	s.mu.Lock()
@@ -854,7 +854,7 @@ func checkFiles(ctx context.Context, name string, spec *resourcev1.CatalogSource
 			out.refused = append(out.refused, &dockwellv1.CatalogSourceRefusal{File: folder.Media + "/" + image, Reason: err.Error()})
 		}
 	}
-	got := folder.Check(ctx, name, files.entries, files.images(), taken, folder.Options{Tagged: byTag, Same: sameApp, Proved: proved})
+	got := folder.Check(ctx, name, files.entries, files.images(), taken, folder.Options{Tagged: byTag, Same: folder.SameApp, Proved: proved})
 	for _, r := range got.Refused {
 		refusal := &dockwellv1.CatalogSourceRefusal{File: r.File, Reason: r.Reason}
 		// A converted entry's refusal names its app and kind, as the converter's do.

@@ -4,6 +4,7 @@ package convert
 
 import (
 	"fmt"
+	"maps"
 	"regexp"
 	"slices"
 	"strings"
@@ -25,10 +26,10 @@ type NeedDraft struct {
 	Engines []catalogv1.Engine
 	// Parts are the variables the source fills from it, by what each holds.
 	Parts map[string]catalogv1.Part
-	// Fixed are variables the source fills with the engine's word, such as
-	// PANEL_DB_TYPE=mysql, written into the file as the default engine's, as the need
-	// then accepts that engine alone.
-	Fixed map[string]string
+	// Words are the app's word for each engine, for a variable the source fills with
+	// it (an engine part), such as PANEL_DB_TYPE: "mysql" for MySQL, "postgres" for
+	// PostgreSQL.
+	Words map[catalogv1.Engine]string
 }
 
 // partWords are the words a need's template writes each part as.
@@ -62,16 +63,17 @@ func applyNeeds(root *yaml.Node, services []string, app App, taken map[string]bo
 		draft int
 		part  catalogv1.Part
 	}
+	drafts := slices.Clone(app.Needs)
+	for i := range drafts {
+		drafts[i] = engineWritten(root, services, drafts[i])
+	}
 	of := map[string]part{}
-	for i, d := range app.Needs {
+	for i, d := range drafts {
 		for v, p := range d.Parts {
 			of[v] = part{i, p}
 		}
-		for v, word := range d.Fixed {
-			walkScalars(root, func(n *yaml.Node) { n.Value = replaceVar(n.Value, v, word) })
-		}
 	}
-	sets := make([][]*catalogv1.NeedSet, len(app.Needs))
+	sets := make([][]*catalogv1.NeedSet, len(drafts))
 	named := map[string]string{} // a variable used whole, by the name it's set as
 	claim := func(want string) string {
 		name := strings.ToUpper(want)
@@ -186,9 +188,19 @@ func applyNeeds(root *yaml.Node, services []string, app App, taken map[string]bo
 	}
 	var needs []*catalogv1.Need
 	var setNames []string
-	for i, d := range app.Needs {
+	for i, d := range drafts {
 		if len(sets[i]) == 0 {
 			continue // the file doesn't use it
+		}
+		// A URL that names its engine, as postgres:// does, takes that engine alone.
+		d.Engines = slices.DeleteFunc(slices.Clone(d.Engines), func(e catalogv1.Engine) bool { return !urlsTake(sets[i], e) })
+		if len(d.Engines) == 0 {
+			return nil, nil, leave(ClassAnotherApp, "its URL for %s names an engine its form doesn't offer", d.Label)
+		}
+		for _, s := range sets[i] {
+			if s.GetPart() == catalogv1.Part_PART_ENGINE {
+				s.Words = wordsOf(d)
+			}
 		}
 		if err := reaches(d, sets[i]); err != nil {
 			return nil, nil, err
@@ -211,6 +223,106 @@ func applyNeeds(root *yaml.Node, services []string, app App, taken map[string]bo
 		needs = append(needs, n)
 	}
 	return needs, setNames, nil
+}
+
+// engineWritten is a draft whose engine's word the file uses only as whole values of
+// its services' environment, which an engine part sets, as it is; or else, where the
+// word is part of a longer value, such as a URL's scheme (${PANEL_DB_TYPE}://...), or
+// is used outside the environment, the draft of its first engine alone, that engine's
+// word written into the file, as a need writes no part inside another value.
+func engineWritten(root *yaml.Node, services []string, d NeedDraft) NeedDraft {
+	for v, p := range d.Parts {
+		if p != catalogv1.Part_PART_ENGINE || wholeInEnvironment(root, services, v) {
+			continue
+		}
+		word := d.Words[d.Engines[0]]
+		walkScalars(root, func(n *yaml.Node) { n.Value = replaceVar(n.Value, v, word) })
+		d.Parts = maps.Clone(d.Parts)
+		delete(d.Parts, v)
+		d.Engines, d.Words = d.Engines[:1], nil
+	}
+	return d
+}
+
+// wholeInEnvironment says the file uses variable v only as whole values of its
+// services' environment.
+func wholeInEnvironment(root *yaml.Node, services []string, v string) bool {
+	all, whole := 0, 0
+	walkScalars(root, func(n *yaml.Node) {
+		for _, u := range usesOf(n.Value) {
+			if u.name == v {
+				all++
+			}
+		}
+	})
+	for _, svc := range services {
+		env := mapGet(serviceNode(root, svc), "environment")
+		if env == nil {
+			continue
+		}
+		var values []string
+		switch env.Kind {
+		case yaml.MappingNode:
+			for i := 1; i < len(env.Content); i += 2 {
+				values = append(values, env.Content[i].Value)
+			}
+		case yaml.SequenceNode:
+			for _, item := range env.Content {
+				if _, value, ok := strings.Cut(item.Value, "="); ok {
+					values = append(values, value)
+				}
+			}
+		case yaml.DocumentNode, yaml.ScalarNode, yaml.AliasNode, yaml.StreamNode:
+		}
+		for _, value := range values {
+			if value == "${"+v+"}" {
+				whole++
+			}
+		}
+	}
+	return all == whole
+}
+
+// schemes are the engines a URL's scheme names, by the scheme.
+var schemes = map[string][]catalogv1.Engine{
+	"postgres":    {catalogv1.Engine_ENGINE_POSTGRESQL},
+	"postgresql":  {catalogv1.Engine_ENGINE_POSTGRESQL},
+	"mysql":       {catalogv1.Engine_ENGINE_MYSQL, catalogv1.Engine_ENGINE_MARIADB},
+	"mariadb":     {catalogv1.Engine_ENGINE_MYSQL, catalogv1.Engine_ENGINE_MARIADB},
+	"redis":       {catalogv1.Engine_ENGINE_REDIS, catalogv1.Engine_ENGINE_VALKEY},
+	"rediss":      {catalogv1.Engine_ENGINE_REDIS, catalogv1.Engine_ENGINE_VALKEY},
+	"mongodb":     {catalogv1.Engine_ENGINE_MONGODB},
+	"mongodb+srv": {catalogv1.Engine_ENGINE_MONGODB},
+}
+
+// urlsTake says each URL a need writes can be of engine e: one whose scheme names an
+// engine, as postgres:// or jdbc:mysql:// does, is of that engine alone.
+func urlsTake(sets []*catalogv1.NeedSet, e catalogv1.Engine) bool {
+	for _, s := range sets {
+		scheme, _, ok := strings.Cut(s.GetTemplate(), "://")
+		if s.GetPart() != catalogv1.Part_PART_URL || !ok {
+			continue
+		}
+		named, takes := false, false
+		for word := range strings.SplitSeq(strings.ToLower(scheme), ":") {
+			if of, ok := schemes[word]; ok {
+				named, takes = true, takes || slices.Contains(of, e)
+			}
+		}
+		if named && !takes {
+			return false
+		}
+	}
+	return true
+}
+
+// wordsOf are a draft's words for its engines, in the order it accepts them.
+func wordsOf(d NeedDraft) []*catalogv1.NeedWord {
+	out := make([]*catalogv1.NeedWord, 0, len(d.Engines))
+	for _, e := range d.Engines {
+		out = append(out, &catalogv1.NeedWord{Engine: e, Word: d.Words[e]})
+	}
+	return out
 }
 
 // reaches refuses a need its app couldn't use: one that gives no host, or, for a

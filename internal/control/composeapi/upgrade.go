@@ -73,6 +73,9 @@ type Upgrade struct {
 	// routes Needs.Extra holds. It's refused with cant_hold where nothing can be
 	// held, or a service runs on the server's own network.
 	Hold bool
+	// Empties is the app it starts on an empty database of another engine, its data
+	// left on the one before, which makes the plan destructive (ADR 0084).
+	Empties string
 }
 
 // PlanUpgrade plans an install's newer release into the environment it runs in, with
@@ -154,7 +157,7 @@ func (h *Handler) PlanUpgrade(ctx context.Context, in Upgrade) (*dockwellv1.Chan
 	}
 	switch {
 	case in.Companion:
-		return h.plan(ctx, req, next, place, planning{needs: in.Needs, secrets: in.Secrets, upgrade: true, deletes: deletes, notes: notes})
+		return h.plan(ctx, req, next, place, planning{needs: in.Needs, secrets: in.Secrets, upgrade: true, deletes: deletes, notes: notes, empties: in.Empties})
 	case in.SkipBackup:
 		backUp = nil
 		say = revision.Note{
@@ -163,9 +166,9 @@ func (h *Handler) PlanUpgrade(ctx context.Context, in Upgrade) (*dockwellv1.Chan
 			Ref:     project,
 		}
 	case len(backUp) == 0 && len(ones) == 0:
-		return h.plan(ctx, req, next, place, planning{needs: in.Needs, secrets: in.Secrets, upgrade: true, deletes: deletes, notes: notes, intent: intent})
+		return h.plan(ctx, req, next, place, planning{needs: in.Needs, secrets: in.Secrets, upgrade: true, deletes: deletes, notes: notes, intent: intent, empties: in.Empties})
 	}
-	return h.plan(ctx, req, next, place, planning{needs: in.Needs, secrets: in.Secrets, upgrade: true, deletes: deletes, backUp: backUp, backUpOne: ones, skipBackup: in.SkipBackup, notes: append([]revision.Note{say}, notes...), intent: intent})
+	return h.plan(ctx, req, next, place, planning{needs: in.Needs, secrets: in.Secrets, upgrade: true, deletes: deletes, backUp: backUp, backUpOne: ones, skipBackup: in.SkipBackup, notes: append([]revision.Note{say}, notes...), intent: intent, empties: in.Empties})
 }
 
 // linkedDatabases are the databases an app in env has alone on servers other

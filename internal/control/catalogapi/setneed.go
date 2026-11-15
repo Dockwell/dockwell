@@ -173,6 +173,7 @@ func (h *Handler) SetCatalogNeed(ctx context.Context, req *connect.Request[dockw
 		OldStands:    oldStands,
 		Notes:        notes,
 		Hold:         moved.hold,
+		Empties:      moved.empties,
 		Needs:        composeapi.Needs{Variables: filled.Linked, Stands: filled.LinkStands, OldStands: oldLinked, Links: needed.Links, Extra: slices.Concat(shared.Extra, written, moved.holds), Joins: shared.Joins},
 	})
 	if err != nil {
@@ -188,6 +189,9 @@ type moving struct {
 	notes []revision.Note
 	holds []*dockwellv1.Edit
 	hold  bool
+	// empties is the app, where it starts empty on another engine, which leaves its
+	// data on the one before (revision.Proposal.Empties).
+	empties string
 }
 
 // moveData has the user the move makes on the new server start as a copy of the
@@ -241,6 +245,18 @@ func (h *Handler) moveData(ctx context.Context, m *dockwellv1.SetCatalogNeedRequ
 					app, size, was.GetService(), from, app, was.GetService(), was.GetService()),
 			})
 		default:
+			if int32(was.GetEngine()) != int32(w.Engine) {
+				// No dump reads across engines, so the app's data stays where it is, out of
+				// its reach: the plan says so first, and applying it takes the typed
+				// fingerprint, as a deletion does (ADR 0084).
+				before, after := catalog.EngineName(catalogv1.Engine(was.GetEngine())), catalog.EngineName(w.Engine)
+				out.notes = append([]revision.Note{{
+					Reason:  "catalog_need_other_engine",
+					Message: fmt.Sprintf("%s's data stays in %s; %s starts empty", app, before, after),
+					Names:   []string{app, before, after},
+				}}, out.notes...)
+				out.empties = app
+			}
 			msg := fmt.Sprintf("%s starts on an empty database on %s", app, from)
 			if entry.GetFirstVisitorOwns() {
 				held, err := holdRoutes(ctx, tx, env, services)

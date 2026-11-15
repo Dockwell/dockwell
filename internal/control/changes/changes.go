@@ -162,6 +162,9 @@ type Also struct {
 	// databases to dump alone first (revision.Proposal).
 	BackUp    []resource.Ref
 	BackUpOne []revision.OneBackup
+	// Empties is the app the change starts on an empty database of another engine
+	// (revision.Proposal.Empties).
+	Empties string
 	// SkipBackup leaves out the backup a database's move takes first
 	// (revision.Proposal).
 	SkipBackup bool
@@ -214,7 +217,7 @@ func (h *Handler) proposeAlso(ctx context.Context, who revision.By, summary stri
 	}
 	plan, err := h.engine.Propose(ctx, revision.Proposal{
 		Summary: summary, Actor: who.Actor, Via: who.Via, Edits: slices.Concat(also.Edits, edits), Notes: also.Notes, IfNothing: also.IfNothing, Intent: also.Intent,
-		SkipBackup: also.SkipBackup, BackUp: also.BackUp, BackUpOne: also.BackUpOne,
+		SkipBackup: also.SkipBackup, BackUp: also.BackUp, BackUpOne: also.BackUpOne, Empties: also.Empties,
 	})
 	if err != nil {
 		return nil, fail(err)
