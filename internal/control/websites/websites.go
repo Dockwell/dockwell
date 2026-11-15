@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
+	"net/url"
 	"slices"
 	"strconv"
 	"strings"
@@ -641,6 +642,12 @@ func (h *Handler) holder(ctx context.Context, tx *store.Tx, tree scope.Tree, dom
 				case !readsProject(ctx, p.ID):
 					// Words that name nothing of what's out of reach, as the claims check's (ADR 0048).
 					return domain + " is in use by a project you can't see. Use another domain, or ask an admin", nil
+				case rt.GetRedirect() != nil:
+					to := rt.GetRedirect().GetTo()
+					if u, err := url.Parse(to); err == nil && u.Host != "" {
+						to = u.Host + strings.TrimSuffix(u.EscapedPath(), "/")
+					}
+					return fmt.Sprintf("%s redirects to %s already. Stop sending it there first, or use another domain", domain, to), nil
 				case project.GetWebsite() != nil:
 					return domain + " is a website already. Open it in Websites, or use another domain", nil
 				case rt.GetService() != "":

@@ -88,6 +88,19 @@ func TestAWebsitesOtherDomains(t *testing.T) {
 	if reasonOf(err) != "domain_taken" || !strings.Contains(err.Error(), "shop.example.com is a website already") {
 		t.Errorf("another website's domain = %v", err)
 	}
+	// One that redirects to another website says so, and not that it's a website.
+	shopsOld := toURL("https://backend.example.com")
+	shopsOld.RedirectFrom = []string{"old-shop.example.com"}
+	moving, err := sites.UpdateWebsite(t.Context(), connect.NewRequest(&dockwellv1.UpdateWebsiteRequest{Id: "shop.example.com", Website: shopsOld}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	applyReviewed(t, c, moving.Msg.GetChange())
+	_, err = sites.UpdateWebsite(t.Context(), connect.NewRequest(&dockwellv1.UpdateWebsiteRequest{Id: "example.com", Website: shopsOld}))
+	if reasonOf(err) != "domain_taken" || !strings.Contains(err.Error(), "old-shop.example.com redirects to shop.example.com already. Stop sending it there first, or use another domain") {
+		t.Errorf("another website's other domain = %v", err)
+	}
+
 	// Making www the main domain moves the site's route to it, and sends the bare
 	// domain there, in one change.
 	swapped := toURL("https://backend.example.com")
