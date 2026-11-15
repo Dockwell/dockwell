@@ -23,7 +23,10 @@ import (
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/control/alerts"
 	"github.com/dockwell/dockwell/internal/control/checks"
+	"github.com/dockwell/dockwell/internal/id"
+	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/alert"
+	"github.com/dockwell/dockwell/internal/revision"
 	"github.com/dockwell/dockwell/internal/store"
 )
 
@@ -377,7 +380,11 @@ func TestACheckThatBecomesUnreadableAsItClearsKeepsItsAlert(t *testing.T) {
 	}
 }
 
-// An install keeps 200 checks at most, as each is a request every interval.
+// An install keeps 200 checks at most, as each is a request every interval: a
+// plan past that is refused, and of plans made side by side at 199, the first to
+// apply takes the last place. The 199 are written as applying them would leave
+// them, as applying 199 checks through the engine takes minutes on a busy
+// machine, which is no part of what this proves (#681).
 func TestAnInstallKeepsAtMost200Checks(t *testing.T) {
 	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
@@ -394,19 +401,14 @@ func TestAnInstallKeepsAtMost200Checks(t *testing.T) {
 	if connect.CodeOf(err) != connect.CodeInvalidArgument || !strings.Contains(err.Error(), "keeps 200 at most") {
 		t.Fatalf("a plan for 201 checks = %v", err)
 	}
-	if _, err := c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Watch the sites", Edits: edits[:alert.MaxChecks]})); err != nil {
-		t.Errorf("a plan for 200 checks = %v", err)
+	all, err := c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Watch the sites", Edits: edits[:alert.MaxChecks]}))
+	if err != nil {
+		t.Fatalf("a plan for 200 checks = %v", err)
 	}
 
 	// Plans made side by side at 199 each count 199 and add one; as they apply,
 	// the first takes the last place, and the rest are refused.
-	first, err := c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Watch 199 sites", Edits: edits[:alert.MaxChecks-1]}))
-	if err != nil {
-		t.Fatal(err)
-	}
-	// 199 items take longer to apply than most changes, the more so on a busy
-	// machine, so this one waits as long as CI's slowest runner needs (#585).
-	applyWithin(t, c, first.Msg.GetChange(), 3*time.Minute)
+	seedChecks(t, f, all.Msg.GetChange().GetPlan().GetResources()[0].GetResource().GetScope(), alert.MaxChecks-1)
 	var plans []*dockwellv1.Change
 	for i := range 5 {
 		p, err := c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Watch one more", Edits: []*dockwellv1.Edit{{
@@ -434,6 +436,37 @@ func TestAnInstallKeepsAtMost200Checks(t *testing.T) {
 		}
 		return err
 	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// seedChecks writes n checks, named site-0 and on, in scope, as a change applying
+// them would leave them, without the engine applying them one by one.
+func seedChecks(t *testing.T, f *fullServer, scope string, n int) {
+	t.Helper()
+	now := time.Now()
+	change := id.New(id.Change)
+	err := f.store.Revise(t.Context(), func(tx *store.RevisionTx) error {
+		if err := tx.CreateChange(t.Context(), store.Change{
+			ID: change, Summary: fmt.Sprintf("Watch %d sites", n), Actor: revision.SystemActor, State: store.ChangeApplied, Fingerprint: "seeded", Plan: []byte("{}"), CreatedAt: now,
+		}); err != nil {
+			return err
+		}
+		for i := range n {
+			spec, err := resource.Encode(&resourcev1.AlertCheck{Address: fmt.Sprintf("https://site-%d.example.com/", i)})
+			if err != nil {
+				return err
+			}
+			if _, err := tx.AddRevision(t.Context(), store.NewRevision{
+				Kind: string(alert.CheckKind), Scope: scope, Name: fmt.Sprintf("site-%d", i), ID: id.New(id.AlertCheck),
+				Spec: spec, Change: change, Position: i, At: now,
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
 		t.Fatal(err)
 	}
 }

@@ -25,6 +25,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"google.golang.org/protobuf/proto"
@@ -153,6 +154,8 @@ type Engine struct {
 	sealer   Sealer
 	logger   *slog.Logger
 	now      func() time.Time
+	// clock is SetClock's, which now reads, or nil for the system's.
+	clock atomic.Pointer[func() time.Time]
 	// fills holds, for each server, a *sync.Mutex its fills take turns on, so
 	// one never reads what an agent holds while another is changing it.
 	fills sync.Map
@@ -208,12 +211,33 @@ func New(db *store.DB, kinds *resource.Registry, agents Agents, sealer Sealer, l
 	idle := make(chan struct{})
 	close(idle)
 	halted, halt := context.WithCancel(context.Background())
-	return &Engine{
-		db: db, kinds: kinds.With(scope.Types()...), agents: agents, sealer: sealer, logger: logger, now: time.Now,
+	e := &Engine{
+		db: db, kinds: kinds.With(scope.Types()...), agents: agents, sealer: sealer, logger: logger,
 		idle: idle, halted: halted, halt: halt,
 		live: map[string]*Progress{}, watchers: map[string]map[chan Update]chan struct{}{}, owned: map[string]bool{}, busy: map[string]string{},
 		waiters: map[string]bool{},
 	}
+	e.now = e.clockNow
+	return e
+}
+
+// SetClock has the engine read the time from now, as a test moves it past a
+// limit rather than wait for one; nil goes back to the system's clock. It may be
+// called while the engine runs.
+func (e *Engine) SetClock(now func() time.Time) {
+	if now == nil {
+		e.clock.Store(nil)
+		return
+	}
+	e.clock.Store(&now)
+}
+
+// clockNow is the time by SetClock's clock, or the system's.
+func (e *Engine) clockNow() time.Time {
+	if c := e.clock.Load(); c != nil {
+		return (*c)()
+	}
+	return time.Now()
 }
 
 // Kinds is the registry the engine reads and checks specs with.

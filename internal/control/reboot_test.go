@@ -5,6 +5,7 @@ package control
 import (
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -124,12 +125,12 @@ func TestTheControlServersRebootSaysThePanelStops(t *testing.T) {
 }
 
 // A server that doesn't come back fails its reboot's change at RebootLimit, by the
-// step's recorded start, and nothing else waits for it.
+// step's recorded start, and nothing else waits for it. The engine's clock moves
+// past the limit, so the test waits for no real time.
 func TestARebootWhoseServerDoesntComeBackFails(t *testing.T) {
-	was := revision.RebootLimit
-	revision.RebootLimit = 300 * time.Millisecond
-	t.Cleanup(func() { revision.RebootLimit = was })
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
+	later := clockFor(f.engine)
 	b := signedIn(t, f)
 	p := &packages{installed: map[string]string{}, boot: "boot-1"}
 	s := f.addHostServer(t, p)
@@ -145,14 +146,17 @@ func TestARebootWhoseServerDoesntComeBackFails(t *testing.T) {
 		})
 	})
 	s.stop()
-	// Before the limit, nothing fails it.
+	// The run lets the change go once it's waiting, as the API shows it waiting a
+	// moment before. Before the limit, nothing fails it, however long the test
+	// took to get here.
+	f.engine.Wait()
 	if err := f.engine.FailLostReboots(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 	if got := getChange(t, c, change.GetId()); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLYING {
 		t.Fatalf("before the limit the change is %v", got.GetState())
 	}
-	time.Sleep(revision.RebootLimit)
+	later(revision.RebootLimit)
 	if err := f.engine.FailLostReboots(t.Context()); err != nil {
 		t.Fatal(err)
 	}
@@ -242,4 +246,12 @@ func TestARebootThatFailsIsSaidAtTheNextLook(t *testing.T) {
 	if p.reboots != 1 {
 		t.Errorf("the server was asked to reboot %d times, want once", p.reboots)
 	}
+}
+
+// clockFor gives an engine a clock that runs with the system's, and the way to move
+// it on, as a test moves past a limit such as RebootLimit rather than wait for it.
+func clockFor(e *revision.Engine) (later func(time.Duration)) {
+	var ahead atomic.Int64
+	e.SetClock(func() time.Time { return time.Now().Add(time.Duration(ahead.Load())) })
+	return func(d time.Duration) { ahead.Add(int64(d)) }
 }
