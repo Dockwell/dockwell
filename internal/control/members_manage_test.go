@@ -37,6 +37,7 @@ func (s *inviteStand) joins(t *testing.T, email, name string, role dockwellv1.Ro
 // The first invite waits for the protections to be confirmed, over the API as
 // in the service, and Members says when they were and by whom.
 func TestTheAPIHoldsTheFirstInviteToTheProtections(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		cert, roots := selfSigned(t, "panel.example.com")
 		srv := startFull(t, backend, &https.Static{Name: "panel.example.com", Cert: cert})
@@ -94,6 +95,7 @@ func TestTheAPIHoldsTheFirstInviteToTheProtections(t *testing.T) {
 // Managing members over the API: who may, what each ends, and what Members
 // then says. A removed person's planned changes are discarded by Dockwell.
 func TestMembersAreManagedOverTheAPI(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		s := newInviteStand(t, backend)
 		ctx := t.Context()
