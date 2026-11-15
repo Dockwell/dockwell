@@ -105,3 +105,40 @@ func TestReviewADeliverySignedWithTheNewSecretMidRotationIsTaken(t *testing.T) {
 		t.Errorf("a delivery GitHub signed with the new secret before Dockwell kept it was answered %d", code)
 	}
 }
+
+// Review M4: undoing a new webhook secret puts the old one back in Dockwell alone:
+// GitHub keeps signing with the new one, so every delivery is refused from then on.
+func TestReviewUndoingANewWebhookSecretKeepsDeliveriesWorking(t *testing.T) {
+	t.Parallel()
+	a := newAppBench(t)
+	ctx := t.Context()
+	rotated, err := a.gp.RotateGitHubWebhookSecret(ctx, connect.NewRequest(&dockwellv1.RotateGitHubWebhookSecretRequest{
+		Id: a.app.GetId(), Proof: stepUpFor(t, a.b, dockwellv1.StepUpAction_STEP_UP_ACTION_ROTATE_GITHUB_APP, a.app.GetId()),
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.gh.mu.Lock()
+	onGitHub := a.gh.secrets[len(a.gh.secrets)-1]
+	a.gh.mu.Unlock()
+	undo, err := a.c.UndoChange(ctx, connect.NewRequest(&dockwellv1.UndoChangeRequest{Id: rotated.Msg.GetChangeId()}))
+	if err != nil {
+		t.Logf("undo refused: %v", err)
+		return
+	}
+	a.done(t, undo.Msg.GetChange())
+	a.gh.mu.Lock()
+	after := a.gh.secrets[len(a.gh.secrets)-1]
+	a.gh.mu.Unlock()
+	ping, _ := json.Marshal(map[string]any{"zen": "Approachable is better than simple.", "hook_id": 1})
+	if code, _, _ := send(t, a.webhook, delivery{id: "after-undo", event: "ping", secret: after, body: ping}); code != http.StatusAccepted {
+		t.Errorf("after the undo, GitHub signs with %s (rotated to %s), and Dockwell answers %d", short(after), short(onGitHub), code)
+	}
+}
+
+func short(s string) string {
+	if len(s) > 6 {
+		return s[:6] + "…"
+	}
+	return s
+}

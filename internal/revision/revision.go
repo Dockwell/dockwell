@@ -553,6 +553,10 @@ type ResourcePlan struct {
 	// server's host, which makes no revision (ADR 0089). Undoing a stop plans
 	// starting each part again as it stood.
 	Panel *resource.Panel `json:",omitempty"`
+	// NoUndo says why undoing the change can't put this back, and what to do
+	// instead, for a kind whose changes act beside the servers, as a GitHub App's
+	// on GitHub (ADR 0098). Such a change offers no undo.
+	NoUndo string `json:",omitempty"`
 	// MovesFrom is the volume whose data the change moves into it, or the link it
 	// is, moved (Edit.MoveFrom).
 	MovesFrom *resource.Ref `json:",omitempty"`
@@ -3100,6 +3104,9 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 		}
 		rp.AgentUpgrade = upgrades[items[i].id]
 		rp.Forget = items[i].forget
+		if rp.Action != resource.ActionNone {
+			rp.NoUndo = e.kinds.ActsElsewhere(items[i].ref.Kind, items[i].current, items[i].spec)
+		}
 		if masked[items[i].ref] {
 			for j := range rp.Changes {
 				rp.Changes[j].Sensitive, rp.Changes[j].From, rp.Changes[j].To = true, "", ""
@@ -6362,6 +6369,10 @@ func (e *Engine) Undo(ctx context.Context, changeID string, by By) (*Plan, error
 	// and its plan said so (ADR 0064).
 	if took.any(func(r *ResourcePlan) bool { return r.Install != nil }) {
 		return nil, fault.New(ErrCantUndo, "installing updates can't be undone: what %s installed stays installed. Install an older version over SSH if one is needed", changeID)
+	}
+	// What a change did beside the servers, as on GitHub, stays done (ADR 0098).
+	if why := noUndo(took); why != "" {
+		return nil, fault.New(ErrCantUndo, "%s", why)
 	}
 	if took.any(func(r *ResourcePlan) bool { return r.Reboot != nil }) {
 		return nil, fault.New(ErrCantUndo, "a reboot can't be undone: %s rebooted its server, and nothing it changed is to put back", changeID)

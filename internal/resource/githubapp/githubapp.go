@@ -61,6 +61,30 @@ func (Type) New() proto.Message { return &resourcev1.GitHubApp{} }
 // (ADR 0022).
 func (Type) RotatesSensitive() {}
 
+var _ resource.ElsewhereActor = Type{}
+
+// ActsElsewhere says why undoing a change to an App can't put back what it did on
+// GitHub (ADR 0098): connecting made the App there, removing it uninstalled it,
+// GitHub has a new webhook secret, and an old key may be deleted there. Which
+// projects an installation reaches is Dockwell's alone, and undoes.
+func (Type) ActsElsewhere(current, desired proto.Message) string {
+	cur, _ := current.(*resourcev1.GitHubApp)
+	des, _ := desired.(*resourcev1.GitHubApp)
+	switch {
+	case des == nil && cur == nil:
+		return ""
+	case cur == nil:
+		return "connecting GitHub made the App on GitHub, which an undo can't take back. Remove it in Settings, Integrations, then delete it on GitHub"
+	case des == nil:
+		return "removing the GitHub App uninstalled it on GitHub, which an undo can't put back. Connect GitHub again from Settings, Integrations"
+	case cur.GetPrivateKey() != des.GetPrivateKey():
+		return "the GitHub App's old key may be deleted on GitHub already, so an undo can't put it back. Give it a new key from Settings, Integrations"
+	case cur.GetWebhookSecret() != des.GetWebhookSecret():
+		return "GitHub has the App's new webhook secret, which an undo can't take back. Give it a new one from Settings, Integrations"
+	}
+	return ""
+}
+
 // CheckName takes the App's slug, as GitHub made it.
 func (Type) CheckName(name string) error {
 	return resource.CheckLabel("GitHub App", name, "dockwell-deploy")

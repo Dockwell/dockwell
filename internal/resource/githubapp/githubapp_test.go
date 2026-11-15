@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"google.golang.org/protobuf/proto"
+
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/resource/githubapp"
 )
@@ -106,5 +108,40 @@ func TestAnInstallationReachesEveryProjectUntilNarrowed(t *testing.T) {
 	a.Reaches = []*resourcev1.GitHubInstallationReach{{InstallationId: 3, Projects: []string{"prj_a"}}, {InstallationId: 4}}
 	if !githubapp.Reaches(a, 3, "prj_a") || githubapp.Reaches(a, 3, "prj_b") || githubapp.Reaches(a, 4, "prj_a") {
 		t.Error("a narrowed installation reaches what it wasn't given")
+	}
+}
+
+// A change that acts on GitHub says why an undo can't put it back; one to which
+// projects an installation reaches says nothing, and undoes.
+func TestWhatActsOnGitHubOffersNoUndo(t *testing.T) {
+	t.Parallel()
+	app := &resourcev1.GitHubApp{AppId: 42, PrivateKey: "key-1", WebhookSecret: "secret-1"}
+	withReach := &resourcev1.GitHubApp{
+		AppId: 42, PrivateKey: "key-1", WebhookSecret: "secret-1",
+		Reaches: []*resourcev1.GitHubInstallationReach{{InstallationId: 7, Projects: []string{"prj_1"}}},
+	}
+	newSecret := &resourcev1.GitHubApp{AppId: 42, PrivateKey: "key-1", WebhookSecret: "secret-2"}
+	newKey := &resourcev1.GitHubApp{AppId: 42, PrivateKey: "key-2", WebhookSecret: "secret-1"}
+	for _, c := range []struct {
+		name             string
+		current, desired *resourcev1.GitHubApp
+		undoes           bool
+	}{
+		{"connecting", nil, app, false},
+		{"removing", app, nil, false},
+		{"a new webhook secret", app, newSecret, false},
+		{"a new key", app, newKey, false},
+		{"narrowing an installation", app, withReach, true},
+	} {
+		var cur, des proto.Message
+		if c.current != nil {
+			cur = c.current
+		}
+		if c.desired != nil {
+			des = c.desired
+		}
+		if why := (githubapp.Type{}).ActsElsewhere(cur, des); (why == "") != c.undoes {
+			t.Errorf("%s: %q, want an undo %v", c.name, why, c.undoes)
+		}
 	}
 }

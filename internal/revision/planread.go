@@ -82,3 +82,17 @@ func (r *planRead) any(match func(*ResourcePlan) bool) bool {
 	}
 	return false
 }
+
+// noUndo is why the change can't be undone, as the first of its resources that
+// acts beside the servers says; "" where none does (ADR 0098).
+func noUndo(r *planRead) string {
+	if r == nil || r.plan == nil {
+		return ""
+	}
+	for i := range r.plan.Resources {
+		if why := r.plan.Resources[i].NoUndo; why != "" {
+			return why
+		}
+	}
+	return ""
+}

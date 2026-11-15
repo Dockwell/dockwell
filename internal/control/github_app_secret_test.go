@@ -6,12 +6,14 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"connectrpc.com/connect"
 
+	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 )
 
@@ -129,5 +131,48 @@ func TestTwoNewWebhookSecretsAtOnceLeaveDockwellWithGitHubs(t *testing.T) {
 	ping, _ := json.Marshal(map[string]any{"zen": "Half measures are as bad as nothing at all.", "hook_id": 1})
 	if code, _, _ := send(t, a.webhook, delivery{id: "c-1", event: "ping", secret: onGitHub, body: ping}); code != http.StatusAccepted {
 		t.Errorf("a push signed with the secret GitHub has after two new ones at once: %d", code)
+	}
+}
+
+// A change that acts on GitHub offers no undo, as GitHub keeps what it did: a new
+// webhook secret, connecting the App. Undoing one is refused with what to do
+// instead. Which projects an installation reaches is Dockwell's alone, and undoes.
+func TestAChangeThatActsOnGitHubOffersNoUndo(t *testing.T) {
+	t.Parallel()
+	a := newAppBench(t)
+	ctx := t.Context()
+	rotated, err := a.gp.RotateGitHubWebhookSecret(ctx, connect.NewRequest(&dockwellv1.RotateGitHubWebhookSecretRequest{
+		Id: a.app.GetId(), Proof: stepUpFor(t, a.b, dockwellv1.StepUpAction_STEP_UP_ACTION_ROTATE_GITHUB_APP, a.app.GetId()),
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := a.c.GetChange(ctx, connect.NewRequest(&dockwellv1.GetChangeRequest{Id: rotated.Msg.GetChangeId()}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Msg.GetChange().GetUndoDeadline() != nil {
+		t.Errorf("a new webhook secret offers an undo until %v", got.Msg.GetChange().GetUndoDeadline().AsTime())
+	}
+	if _, err := a.c.UndoChange(ctx, connect.NewRequest(&dockwellv1.UndoChangeRequest{Id: rotated.Msg.GetChangeId()})); err == nil ||
+		!strings.Contains(err.Error(), "GitHub has the App's new webhook secret, which an undo can't take back") {
+		t.Errorf("undoing a new webhook secret: %v", err)
+	}
+
+	narrow, err := a.c.ProposeChange(ctx, connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Narrow acme", Edits: []*dockwellv1.Edit{{
+		Resource: &dockwellv1.ResourceRef{Kind: "github.app", Name: a.app.GetName()},
+		Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_GithubApp{GithubApp: &resourcev1.GitHubApp{
+			Reaches: []*resourcev1.GitHubInstallationReach{{InstallationId: 7, Projects: []string{"prj_01JD6Z3R8M9QF2K7T4XW5BNCZZ"}}},
+		}}},
+	}}}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	applied := a.done(t, narrow.Msg.GetChange())
+	if applied.GetUndoDeadline() == nil {
+		t.Errorf("narrowing an installation offers no undo")
+	}
+	if _, err := a.c.UndoChange(ctx, connect.NewRequest(&dockwellv1.UndoChangeRequest{Id: applied.GetId()})); err != nil {
+		t.Errorf("undoing a narrowing: %v", err)
 	}
 }

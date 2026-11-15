@@ -2535,6 +2535,25 @@ func (r *Registry) ConfinedAgain(kind Kind, current, desired proto.Message) stri
 	return ""
 }
 
+// ElsewhereActor is a kind whose changes act on a system beside the servers and
+// the store, which an undo can't put back, as a GitHub App's do on GitHub (ADR
+// 0098).
+type ElsewhereActor interface {
+	// ActsElsewhere says, as a sentence, why undoing going from current to desired
+	// can't put back what it did, and what to do instead; "" where it can. Either
+	// may be nil, for a resource made or deleted.
+	ActsElsewhere(current, desired proto.Message) string
+}
+
+// ActsElsewhere says why undoing kind's change from current to desired can't put
+// it back, if kind is an ElsewhereActor; "" otherwise.
+func (r *Registry) ActsElsewhere(kind Kind, current, desired proto.Message) string {
+	if a, ok := r.types[kind].(ElsewhereActor); ok {
+		return a.ActsElsewhere(current, desired)
+	}
+	return ""
+}
+
 // NamedAsText says what spec writes as ${NAME} as text, if its kind is a TextNamer.
 func (r *Registry) NamedAsText(kind Kind, spec proto.Message) map[string][]string {
 	if spec == nil {
