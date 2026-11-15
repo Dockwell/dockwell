@@ -3189,3 +3189,36 @@
   line-height: 18px;
   color: var(--ink-muted);
 }
+
+/* Connect a database: which of the app's names the link sets, one select a name (ADR 0084). */
+.app-connect-sets {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--space-3);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.app-connect-sets > legend {
+  grid-column: 1 / -1;
+  margin-bottom: var(--space-2);
+  padding: 0;
+}
+
+.app-connect-sets > p {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.app-connect-ok {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--healthy);
+}
+
+.app-connect-fix {
+  align-self: flex-start;
+}

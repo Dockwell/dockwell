@@ -1189,12 +1189,26 @@ func (e *Engine) list(w http.ResponseWriter, r *http.Request) {
 		if c.matches(f) {
 			out = append(out, docker.ContainerSummary{
 				ID: c.ID, Names: []string{c.Name}, Labels: c.Config.Labels, Created: c.created, Image: e.listedImage(c), Ports: summaryPorts(c), Mounts: c.Mounts,
-				State: c.State.Status, Status: statusLine(c), NetworkSettings: docker.SummaryNetworks{Networks: c.NetworkSettings.Networks},
+				State: c.State.Status, Status: statusLine(c), NetworkSettings: docker.SummaryNetworks{Networks: listedNetworks(c)},
 			})
 		}
 	}
 	slices.SortFunc(out, func(a, b docker.ContainerSummary) int { return int(b.Created - a.Created) })
 	writeJSON(w, http.StatusOK, out)
+}
+
+// listedNetworks are a container's networks as a list has them: each endpoint's
+// network, address and IPAM config alone, as Moby v28.5.2's daemon/container/view.go
+// copies them into a list's snapshot. Its aliases are inspect's alone.
+func listedNetworks(c *container) map[string]*docker.EndpointSettings {
+	out := map[string]*docker.EndpointSettings{}
+	for name, ep := range c.NetworkSettings.Networks {
+		if ep == nil {
+			continue
+		}
+		out[name] = &docker.EndpointSettings{NetworkID: ep.NetworkID, IPAMConfig: ep.IPAMConfig, IPAddress: ep.IPAddress}
+	}
+	return out
 }
 
 // listedImage is what a list says a container runs: the name it was made from

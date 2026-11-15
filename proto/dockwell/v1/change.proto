@@ -1921,6 +1921,11 @@ message PlanStep {
   // nothing tells apart. Taking the user away deletes no key (ADR 0084). Numbered in
   // the block connectable apps hold in other messages, 80 to 89.
   string keys_left = 81;
+  // The database a step that lets go of a database user taken on leaves on its
+  // server, with the user the step names, which Dockwell never made and doesn't drop
+  // (ADR 0084, Connect a database). Numbered in the block connectable apps hold in
+  // other messages, 80 to 89.
+  string leaves_database = 82;
   // What upgrading its server's agent does, for a step that upgrades it (ADR
   // 0094). Numbered in the block fleet actions hold, 150 to 159.
   HostAgentUpgrade agent_upgrade = 150;

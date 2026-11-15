@@ -4130,6 +4130,52 @@ page=$(adminer_sign_in "$password")
 [[ "$page" == *"id='logout'"* ]] || fail "Adminer can't sign in with the new password: $(sign_in_says "$page" "$password")"
 nothing_shows "$password"
 
+step "Databases: an app from no entry connects to a user and database made by hand on another project's PostgreSQL, checked as they're chosen, and reads them through its link"
+# A user and its database made by hand, as an app imported from another panel signs in.
+pg postgres "CREATE ROLE handmade LOGIN PASSWORD 'e2e-handmade-4Wq7'" || fail "can't make the role handmade"
+pg postgres 'CREATE DATABASE handmade OWNER handmade' || fail "can't make the database handmade"
+verifier=$(pg postgres "SELECT rolpassword FROM pg_authid WHERE rolname = 'handmade'")
+dw changes propose --summary "Add the connector project" --edits '{"resource":{"name":"connector"},"spec":{"project":{"displayName":"Connector"}}}' --yes >/dev/null ||
+  fail "making the connector project failed"
+connector_project=$(dw resources list --kind project --json | jq -r '.resources[] | select(.resource.name == "connector") | .id')
+connector_env=$(dw resources list --kind environment --json | jq -r --arg p "$connector_project" '[.resources[] | select(.resource.scope == $p)][0].id // empty')
+[[ "$connector_env" == env_* ]] || fail "the connector project has no environment"
+printf 'e2e-handmade-4Wq7' >"$data/handmade-password"
+printf 'not-the-handmade-one' >"$data/handmade-old"
+printf 'postgres://nobody@old-host/none' >"$data/handmade-url"
+dw secrets create HANDMADE_PASSWORD --environment "$connector_env" --value-file "$data/handmade-password" --yes >/dev/null || fail "making HANDMADE_PASSWORD failed"
+dw secrets create HANDMADE_OLD --environment "$connector_env" --value-file "$data/handmade-old" --yes >/dev/null || fail "making HANDMADE_OLD failed"
+dw secrets create HANDMADE_URL --environment "$connector_env" --value-file "$data/handmade-url" --yes >/dev/null || fail "making HANDMADE_URL failed"
+dw variables create HANDMADE_HOST --environment "$connector_env" --value old-host --yes >/dev/null || fail "making HANDMADE_HOST failed"
+dw services create reader --environment "$connector_env" --app-image postgres:17-alpine --app-command sleep --app-command infinity \
+  --variables DB_HOST=HANDMADE_HOST --secrets DB_PASSWORD=HANDMADE_PASSWORD --secrets DATABASE_URL=HANDMADE_URL --yes >/dev/null ||
+  fail "making the reader failed"
+# Signing in is checked as it's chosen, from another host, with the app's own secret.
+said=$(dw databases check-sign-in "$db_id" --user handmade --database-name handmade --app-project connector --password-secret HANDMADE_OLD --json) ||
+  fail "checking a wrong password failed: $said"
+jq -e '(.signsIn // false) == false and (.said // "") != ""' <<<"$said" >/dev/null || fail "a wrong password checks as: $said"
+[[ "$said" != *not-the-handmade-one* ]] || fail "the check says the password it tried"
+said=$(dw databases check-sign-in "$db_id" --user handmade --database-name handmade --app-project connector --password-secret HANDMADE_PASSWORD --json) ||
+  fail "checking the password failed: $said"
+jq -e '.signsIn and (.administrator // false) == false' <<<"$said" >/dev/null || fail "handmade with its password checks as: $said"
+said=$(dw databases check-sign-in "$db_id" --user postgres --database-name postgres --app-project connector --password-secret HANDMADE_PASSWORD --json) ||
+  fail "checking the administrator failed: $said"
+jq -e '.administrator' <<<"$said" >/dev/null || fail "the administrator checks as: $said"
+# One plan takes the user on, links the reader, sets what it reads and joins the server in place.
+planned=$(dw databases connect "$db_id" --app reader --app-project connector --database-name handmade --user handmade --password-secret HANDMADE_PASSWORD \
+  --sets HANDMADE_HOST=host --sets HANDMADE_PASSWORD=password --sets HANDMADE_URL=url --plan-only --json) || fail "planning the connection failed: $planned"
+jq -e '[.change.plan.resources[].resource | .kind + " " + .name] | (index("database.user handmade") and index("link db") and index("network db-link") and index("service reader"))' <<<"$planned" >/dev/null ||
+  fail "connecting the reader plans: $(jq -c '[.change.plan.resources[].resource]' <<<"$planned")"
+dw changes apply "$(jq -r '.change.id' <<<"$planned")" --yes >/dev/null ||
+  fail "connecting the reader failed: $(dw changes get "$(jq -r '.change.id' <<<"$planned")" --json)"
+[[ "$(pg postgres "SELECT rolpassword FROM pg_authid WHERE rolname = 'handmade'")" == "$verifier" ]] || fail "taking handmade on changed its password"
+reader=$(docker ps --filter label=com.docker.compose.service=reader --format '{{.Names}}' | head -1)
+[[ -n "$reader" ]] || fail "the reader doesn't run"
+# shellcheck disable=SC2016 # the reader's own shell reads its environment.
+reads=$(docker exec "$reader" sh -c 'PGPASSWORD="$DB_PASSWORD" psql -X -h "$DB_HOST" -U handmade -d handmade -tAc "SELECT 40 + 2"; psql -X "$DATABASE_URL" -tAc "SELECT 40 + 3"' 2>&1)
+[[ "$reads" == $'42\n43' ]] || fail "the reader, through its link, says: $reads"
+nothing_shows e2e-handmade-4Wq7
+
 step "Scheduled tasks: a shell command, a command in an app and a request each run on their server, keep what they printed, and a failure is on Activity"
 pg_env=$(dw services list --json | jq -r --arg p "$catalog_project" '.services[] | select((.resource.scope | ascii_downcase) == $p and .resource.name == "db") | .resource.scope' | head -1)
 [[ "$pg_env" == env_* ]] || fail "can't find the environment PostgreSQL runs in"

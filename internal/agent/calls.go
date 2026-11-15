@@ -995,6 +995,25 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 		}
 		return &agentv1.CallResult{Result: &agentv1.CallResult_ImageUpdates{ImageUpdates: found}}
 	}
+	if check := call.GetCheckDatabaseSignIn(); check != nil {
+		if c.cfg.Databases == nil {
+			return fail(errors.New("this agent can't check a sign-in, as it has no Docker driver"))
+		}
+		if c.delivery == nil {
+			return fail(errors.New("this agent has no delivery key to open the password sent with this call"))
+		}
+		values, err := c.delivery.Open(c.server, resource.DatabaseSignInRef(check.GetEnvironment(), check.GetUser()), check.GetPassword())
+		if err != nil {
+			return fail(err)
+		}
+		password := values["password"]
+		clear(values)
+		said, err := c.cfg.Databases.CheckSignIn(ctx, check, password)
+		if err != nil {
+			return fail(err)
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_CheckDatabaseSignIn{CheckDatabaseSignIn: said}}
+	}
 	if check := call.GetCheckRegistryLogin(); check != nil {
 		if host := check.GetProbe(); host != "" {
 			return &agentv1.CallResult{Result: &agentv1.CallResult_CheckRegistryLogin{CheckRegistryLogin: c.cfg.images.probeRegistry(ctx, host)}}

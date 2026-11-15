@@ -84,6 +84,9 @@ func postgres(x dockertest.Exec) int {
 		// A question a restore drill asks, psql itself with -c, which comes with nothing
 		// on stdin (ADR 0068). A reading runs psql under sh -c, with its SQL on stdin.
 		return postgresAnswer(x, file)
+	case strings.Contains(script, "psql") && strings.Contains(script, " -w ") && strings.Contains(script, "SELECT 1"):
+		// A sign-in from another host, as taking a user on checks (ADR 0084).
+		return postgresSignsIn(x, filepath.Dir(file))
 	case strings.Contains(script, "psql"):
 		data, err := io.ReadAll(x.Stdin)
 		if err != nil {
@@ -92,6 +95,17 @@ func postgres(x dockertest.Exec) int {
 		switch sql := string(data); {
 		case askedRole.MatchString(sql):
 			return postgresUserThere(x, filepath.Dir(file), sql)
+		case strings.Contains(sql, "pg_has_role("):
+			// What one user reaches: postgres past every database, and app its own,
+			// as postgresReading lists them.
+			past, own := "0", "0"
+			if strings.Contains(sql, "pg_has_role('postgres'") {
+				past = "1"
+			}
+			if strings.Contains(sql, "pg_has_role('app'") && strings.Contains(sql, "datname = 'app'") {
+				own = "1"
+			}
+			_, _ = io.WriteString(x.Stdout, past+" "+own+"\n")
 		case strings.Contains(sql, "json_build_object"):
 			return postgresReading(x, file)
 		case strings.Contains(sql, "CREATE ROLE") || strings.Contains(sql, "ALTER ROLE") || strings.Contains(sql, "DROP ROLE"):
@@ -157,6 +171,28 @@ var (
 	askedRole   = regexp.MustCompile(`rolname = '([a-z0-9_]+)'\), 'owner', coalesce\(\(SELECT pg_get_userbyid\(datdba\) FROM pg_database WHERE datname = '([a-z0-9_]+)'`)
 )
 
+// postgresSignsIn signs a user in from another host: a user this fake made with the
+// password it was given, or one its reading lists by hand, as app, with any password
+// but an empty one or "wrong", so a stand can show both answers.
+func postgresSignsIn(x dockertest.Exec, dir string) int {
+	user := ""
+	if len(x.Cmd) >= 4 {
+		user = x.Cmd[len(x.Cmd)-4]
+	}
+	password := ""
+	for _, kv := range x.Env {
+		if v, ok := strings.CutPrefix(kv, "PGPASSWORD="); ok {
+			password = v
+		}
+	}
+	made, ok := readRoles(dir).Passwords[user]
+	if ok && password != "" && password == made || !ok && password != "" && !strings.Contains(password, "wrong") {
+		return 0
+	}
+	_, _ = fmt.Fprintf(x.Stderr, "psql: error: connection to server failed: FATAL:  password authentication failed for user %q\n", user)
+	return 2
+}
+
 // postgresUsers makes, changes and drops users as psql would, making with \gexec
 // only what isn't there yet.
 func postgresUsers(_ dockertest.Exec, dir, sql string) int {
@@ -192,7 +228,13 @@ func postgresUserThere(x dockertest.Exec, dir, sql string) int {
 	}
 	r := readRoles(dir)
 	_, has := r.Passwords[m[1]]
-	_, _ = fmt.Fprintf(x.Stdout, "{\"user\":%t,\"owner\":%q}\n", has, r.Owns[m[2]])
+	owner := r.Owns[m[2]]
+	// The user and database its reading lists by hand, as postgresReading has them.
+	has = has || m[1] == "app" || m[1] == "postgres"
+	if m[2] == "app" || m[2] == "postgres" {
+		owner = m[2]
+	}
+	_, _ = fmt.Fprintf(x.Stdout, "{\"user\":%t,\"owner\":%q}\n", has, owner)
 	return 0
 }
 

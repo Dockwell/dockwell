@@ -188,7 +188,10 @@ func (e *Engine) checkReaches(ctx context.Context, tx *store.Tx, items []item, i
 	}
 	switch s := it.spec.(type) {
 	case *resourcev1.Link:
-		return e.checkLinkUser(ctx, tx, items, it, s)
+		if err := e.checkLinkUser(ctx, tx, items, it, s); err != nil {
+			return err
+		}
+		return e.checkLinkServer(ctx, tx, items, it, s)
 	case *resourcev1.Variable, *resourcev1.Secret:
 		return e.checkValueFrom(ctx, tx, items, it)
 	case *resourcev1.Network:
@@ -213,7 +216,12 @@ func (e *Engine) checkReaches(ctx context.Context, tx *store.Tx, items []item, i
 			}
 		}
 	case *resourcev1.DatabaseUser:
-		return checkCopyFrom(items, it, s)
+		if err := checkCopyFrom(items, it, s); err != nil {
+			return err
+		}
+		return e.checkTakenOn(ctx, tx, items, it, s)
+	case *resourcev1.Service:
+		return e.checkServiceSecrets(ctx, tx, items, it, s)
 	}
 	return nil
 }
@@ -228,9 +236,32 @@ func (e *Engine) checkLinkUser(ctx context.Context, tx *store.Tx, items []item, 
 		return nil
 	}
 	env := cmp.Or(l.GetMeetsEnvironment(), it.ref.Scope)
-	stored, err := tx.ListKind(ctx, string(linkKind))
+	links, err := e.allLinks(ctx, tx, items)
 	if err != nil {
 		return err
+	}
+	for _, o := range links {
+		if o.ref != it.ref && o.GetUser() == l.GetUser() && o.GetService() == l.GetService() && o.meets() == env {
+			return fault.New(ErrInvalid, "link %s names %s's user %s, which another link reads already. A link reads only the user made for it", it.ref.Name, l.GetService(), l.GetUser())
+		}
+	}
+	return nil
+}
+
+// aLink is a link as it is once the change applies, with its ref.
+type aLink struct {
+	*resourcev1.Link
+	ref resource.Ref
+}
+
+// meets is the environment of the service the link meets.
+func (l aLink) meets() string { return cmp.Or(l.GetMeetsEnvironment(), l.ref.Scope) }
+
+// allLinks is every link of every environment as it is once the change applies.
+func (e *Engine) allLinks(ctx context.Context, tx *store.Tx, items []item) ([]aLink, error) {
+	stored, err := tx.ListKind(ctx, string(linkKind))
+	if err != nil {
+		return nil, err
 	}
 	refs := make([]resource.Ref, 0, len(stored)+len(items))
 	for _, r := range stored {
@@ -241,20 +272,173 @@ func (e *Engine) checkLinkUser(ctx context.Context, tx *store.Tx, items []item, 
 			refs = append(refs, items[i].ref)
 		}
 	}
+	out := make([]aLink, 0, len(refs))
 	for _, ref := range refs {
-		if ref == it.ref {
-			continue
-		}
 		spec, err := e.specAfter(ctx, tx, items, ref)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		o, ok := spec.(*resourcev1.Link)
-		if ok && o.GetUser() == l.GetUser() && o.GetService() == l.GetService() && cmp.Or(o.GetMeetsEnvironment(), ref.Scope) == env {
-			return fault.New(ErrInvalid, "link %s names %s's user %s, which another link reads already. A link reads only the user made for it", it.ref.Name, l.GetService(), l.GetUser())
+		if l, ok := spec.(*resourcev1.Link); ok {
+			out = append(out, aLink{Link: l, ref: ref})
+		}
+	}
+	return out, nil
+}
+
+// checkTakenOn refuses taking on a user for a database a link to its server names
+// for another user, as a catalog install's link does for the user its image made,
+// which no database.user records: the agent knows only its records, so the database
+// is kept here for whatever plans it (ADR 0084).
+func (e *Engine) checkTakenOn(ctx context.Context, tx *store.Tx, items []item, it *item, u *resourcev1.DatabaseUser) error {
+	if !u.GetTakenOn() || it.current != nil {
+		return nil
+	}
+	db := database.Owned(it.ref.Name, u)
+	links, err := e.allLinks(ctx, tx, items)
+	if err != nil {
+		return err
+	}
+	for _, l := range links {
+		if l.meets() == it.ref.Scope && l.GetService() == u.GetService() && l.GetDatabaseName() == db && l.GetUser() != it.ref.Name {
+			return fault.New(ErrInvalid, "the database %s on %s is kept for another app, through link %s. Pick the app's own database, or connect a new one", db, u.GetService(), l.ref.Name)
 		}
 	}
 	return nil
+}
+
+// checkServiceSecrets refuses a service that starts signing in with a database
+// server's administrator password while a link of another environment meets that
+// server, as checkLinkServer refuses the link made after it: the app's user there
+// would be reachable through the service (ADR 0084).
+func (e *Engine) checkServiceSecrets(ctx context.Context, tx *store.Tx, items []item, it *item, svc *resourcev1.Service) error {
+	had, _ := it.current.(*resourcev1.Service)
+	env := it.ref.Scope
+	var links []aLink
+	for as, name := range svc.GetSecrets() {
+		name = cmp.Or(name, as)
+		if had != nil && usesSecret(had, name) {
+			continue
+		}
+		servers, err := e.serversWith(ctx, tx, items, env, name)
+		if err != nil {
+			return err
+		}
+		for _, server := range servers {
+			if server == it.ref.Name {
+				continue
+			}
+			if links == nil {
+				if links, err = e.allLinks(ctx, tx, items); err != nil {
+					return err
+				}
+			}
+			for _, l := range links {
+				if l.ref.Scope != env && l.meets() == env && l.GetService() == server {
+					return fault.New(ErrInvalid, "%s would sign in with %s's administrator password, and link %s of another environment meets %s, so another app's user there could be reached through %s. Give %s a password of its own",
+						it.ref.Name, server, l.ref.Name, server, it.ref.Name, it.ref.Name)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// serversWith is the database servers of an environment whose administrator's
+// password is the secret name, once the change applies.
+func (e *Engine) serversWith(ctx context.Context, tx *store.Tx, items []item, env, name string) ([]string, error) {
+	var names []string
+	for i := range items {
+		if svc, ok := items[i].spec.(*resourcev1.Service); ok && items[i].ref.Scope == env && usesSecret(svc, name) {
+			names = append(names, items[i].ref.Name)
+		}
+	}
+	users, err := tx.UsersOf(ctx, env, "secret", name)
+	if err != nil {
+		return nil, err
+	}
+	for i := range users {
+		if users[i].Kind == string(serviceKind) && users[i].Scope == env && !slices.Contains(names, users[i].Name) {
+			names = append(names, users[i].Name)
+		}
+	}
+	var out []string
+	for _, n := range names {
+		spec, err := e.specAfter(ctx, tx, items, resource.Ref{Kind: serviceKind, Scope: env, Name: n})
+		if err != nil {
+			return nil, err
+		}
+		if svc, ok := spec.(*resourcev1.Service); ok {
+			if found, ok := database.FromSpec(svc); ok && found.PasswordSecret == name {
+				out = append(out, n)
+			}
+		}
+	}
+	return out, nil
+}
+
+// checkLinkServer refuses a link across environments to a server whose
+// administrator's password another service signs in with, as an app's user there
+// would then be reachable through that service, whoever plans it: ConnectDatabase and
+// an install's choice refuse it before this, and a change made by hand meets it here
+// (ADR 0084). A link that meets what it met before is left as it is.
+func (e *Engine) checkLinkServer(ctx context.Context, tx *store.Tx, items []item, it *item, l *resourcev1.Link) error {
+	env := l.GetMeetsEnvironment()
+	if env == "" || env == it.ref.Scope {
+		return nil
+	}
+	if had, ok := it.current.(*resourcev1.Link); ok && had.GetMeetsEnvironment() == env && had.GetService() == l.GetService() {
+		return nil
+	}
+	spec, err := e.specAfter(ctx, tx, items, resource.Ref{Kind: serviceKind, Scope: env, Name: l.GetService()})
+	if err != nil {
+		return err
+	}
+	svc, ok := spec.(*resourcev1.Service)
+	if !ok {
+		return nil
+	}
+	found, ok := database.FromSpec(svc)
+	if !ok || found.PasswordSecret == "" {
+		return nil
+	}
+	refuse := func(by string) error {
+		return fault.New(ErrInvalid, "link %s meets %s, whose administrator's password %s signs in with too, so another app's user there could be reached through %s. Give %s a user of its own first",
+			it.ref.Name, l.GetService(), by, by, by)
+	}
+	for i := range items {
+		other, ok := items[i].spec.(*resourcev1.Service)
+		if ok && items[i].ref.Scope == env && items[i].ref.Name != l.GetService() && usesSecret(other, found.PasswordSecret) {
+			return refuse(items[i].ref.Name)
+		}
+	}
+	users, err := tx.UsersOf(ctx, env, "secret", found.PasswordSecret)
+	if err != nil {
+		return err
+	}
+	for i := range users {
+		u := &users[i]
+		if u.Kind != string(serviceKind) || u.Scope == env && u.Name == l.GetService() {
+			continue
+		}
+		// One this change takes the secret away from no longer signs in with it.
+		if spec, err := e.specAfter(ctx, tx, items, resource.Ref{Kind: serviceKind, Scope: u.Scope, Name: u.Name}); err != nil {
+			return err
+		} else if other, ok := spec.(*resourcev1.Service); ok && !usesSecret(other, found.PasswordSecret) {
+			continue
+		}
+		return refuse(u.Name)
+	}
+	return nil
+}
+
+// usesSecret reports a service that uses the secret name of its environment.
+func usesSecret(svc *resourcev1.Service, name string) bool {
+	for as, n := range svc.GetSecrets() {
+		if cmp.Or(n, as) == name {
+			return true
+		}
+	}
+	return false
 }
 
 // checkValueFrom refuses a value from another environment that isn't the password of

@@ -7021,6 +7021,11 @@ type PlanStep struct {
 	// nothing tells apart. Taking the user away deletes no key (ADR 0084). Numbered in
 	// the block connectable apps hold in other messages, 80 to 89.
 	KeysLeft string `protobuf:"bytes,81,opt,name=keys_left,json=keysLeft,proto3" json:"keys_left,omitempty"`
+	// The database a step that lets go of a database user taken on leaves on its
+	// server, with the user the step names, which Dockwell never made and doesn't drop
+	// (ADR 0084, Connect a database). Numbered in the block connectable apps hold in
+	// other messages, 80 to 89.
+	LeavesDatabase string `protobuf:"bytes,82,opt,name=leaves_database,json=leavesDatabase,proto3" json:"leaves_database,omitempty"`
 	// What upgrading its server's agent does, for a step that upgrades it (ADR
 	// 0094). Numbered in the block fleet actions hold, 150 to 159.
 	AgentUpgrade *HostAgentUpgrade `protobuf:"bytes,150,opt,name=agent_upgrade,json=agentUpgrade,proto3" json:"agent_upgrade,omitempty"`
@@ -7385,6 +7390,13 @@ func (x *PlanStep) GetDatabaseMove() *DatabaseMove {
 func (x *PlanStep) GetKeysLeft() string {
 	if x != nil {
 		return x.KeysLeft
+	}
+	return ""
+}
+
+func (x *PlanStep) GetLeavesDatabase() string {
+	if x != nil {
+		return x.LeavesDatabase
 	}
 	return ""
 }
@@ -10279,7 +10291,7 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\aremoved\x18\x04 \x01(\bR\aremoved\x125\n" +
 	"\bdowntime\x18\x05 \x01(\v2\x19.google.protobuf.DurationR\bdowntime\x12+\n" +
 	"\x05steps\x18\x06 \x03(\v2\x15.dockwell.v1.PlanStepR\x05steps\x12>\n" +
-	"\runtil_healthy\x18\a \x01(\v2\x19.google.protobuf.DurationR\funtilHealthy\"\xef\x11\n" +
+	"\runtil_healthy\x18\a \x01(\v2\x19.google.protobuf.DurationR\funtilHealthy\"\x98\x12\n" +
 	"\bPlanStep\x12\x1f\n" +
 	"\vresource_id\x18\x01 \x01(\tR\n" +
 	"resourceId\x124\n" +
@@ -10333,7 +10345,8 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\fbuild_logins\x18e \x03(\tR\vbuildLogins\x120\n" +
 	"\x14build_login_versions\x18f \x03(\tR\x12buildLoginVersions\x12?\n" +
 	"\rdatabase_move\x18\x84\x02 \x01(\v2\x19.dockwell.v1.DatabaseMoveR\fdatabaseMove\x12\x1b\n" +
-	"\tkeys_left\x18Q \x01(\tR\bkeysLeft\x12C\n" +
+	"\tkeys_left\x18Q \x01(\tR\bkeysLeft\x12'\n" +
+	"\x0fleaves_database\x18R \x01(\tR\x0eleavesDatabase\x12C\n" +
 	"\ragent_upgrade\x18\x96\x01 \x01(\v2\x1d.dockwell.v1.HostAgentUpgradeR\fagentUpgrade\x128\n" +
 	"\vvolume_move\x18P \x01(\v2\x17.dockwell.v1.VolumeMoveR\n" +
 	"volumeMove\x12,\n" +

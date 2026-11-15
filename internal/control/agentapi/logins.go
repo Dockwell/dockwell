@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
 	"google.golang.org/protobuf/proto"
 
@@ -215,4 +216,28 @@ func (s *Session) sealBuildLogins(ref resource.Ref, auths []registry.Auth) ([]by
 	values := registry.AuthsValues(auths)
 	defer clear(values)
 	return s.seal(resource.BuildLoginRef(ref), values)
+}
+
+// SignInTimeout is how long a sign-in check takes at most, as the agent bounds it,
+// with room for the stream.
+const SignInTimeout = 75 * time.Second
+
+// CheckDatabaseSignIn asks the agent whether a user signs in to a database server it
+// runs, with a password, from another host, sealed to the stream the call goes out
+// on, and saves nothing (ADR 0084, Connect a database).
+func (s *Session) CheckDatabaseSignIn(ctx context.Context, environment, service, user, database, password string) (*agentv1.CheckDatabaseSignInResult, error) {
+	call := &agentv1.CheckDatabaseSignInCall{Environment: environment, Service: service, User: user, Database: database}
+	seal := func(on *Session) error {
+		sealed, err := on.seal(resource.DatabaseSignInRef(environment, user), map[string]string{"password": password})
+		call.Password = sealed
+		return err
+	}
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_CheckDatabaseSignIn{CheckDatabaseSignIn: call}}, SignInTimeout, seal)
+	if err != nil {
+		return nil, err
+	}
+	if r.GetCheckDatabaseSignIn() == nil {
+		return nil, ErrOlderAgent
+	}
+	return r.GetCheckDatabaseSignIn(), nil
 }

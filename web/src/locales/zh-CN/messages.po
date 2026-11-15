@@ -2450,6 +2450,9 @@ msgstr "更改 {name}"
 msgid "Change {target}"
 msgstr "更改 {target}"
 
+msgid "Connect a database"
+msgstr "连接数据库"
+
 msgid "Discard"
 msgstr "丢弃"
 
@@ -3747,6 +3750,98 @@ msgstr "{0} 在构建期间离线，因此无法得知构建结果。"
 msgid "{count} lines left out"
 msgstr "省略了 {count} 行"
 
+msgid "A new one for {name}"
+msgstr "为 {name} 新建一个"
+
+msgid "Checked as the plan applies"
+msgstr "应用计划时检查"
+
+msgid "Checking it signs in"
+msgstr "正在检查能否登录"
+
+msgid "Choose again"
+msgstr "重新选择"
+
+msgid "Connect {name} to a database"
+msgstr "将 {name} 连接到数据库"
+
+msgid "Connection URL"
+msgstr "连接 URL"
+
+msgid "Couldn't check now. The plan checks it as it applies."
+msgstr "现在无法检查。应用计划时会再检查。"
+
+msgid "Database"
+msgstr "数据库"
+
+msgctxt "what a variable holds"
+msgid "Database name"
+msgstr "数据库名"
+
+msgid "Database server"
+msgstr "数据库服务器"
+
+msgid "Host"
+msgstr "主机"
+
+msgid "Host and port"
+msgstr "主机和端口"
+
+msgid "It connects to a PostgreSQL, MySQL or MariaDB that runs where it does."
+msgstr "它连接到与它运行在同一服务器上的 PostgreSQL、MySQL 或 MariaDB。"
+
+msgid "Its data stays where it is"
+msgstr "其数据保留在原处"
+
+msgid "Its password is in"
+msgstr "其密码所在"
+
+msgid "Its values come from the link, and follow the database"
+msgstr "其值来自链接，并随数据库变化"
+
+msgid "Never its administrator"
+msgstr "绝不是其管理员"
+
+#. placeholder {0}: serversOf(service).length > 1 ? t`its servers` : (service.deployments[0]?.serverName ?? t`its server`)
+msgid "No database on {0}"
+msgstr "{0} 上没有数据库"
+
+msgid "Not set"
+msgstr "未设置"
+
+msgid "Open Databases"
+msgstr "打开数据库"
+
+msgid "Pick a secret"
+msgstr "选择一个密钥"
+
+msgid "Signs in"
+msgstr "可登录"
+
+msgid "Signs in as"
+msgstr "登录身份"
+
+msgid "Use a new database"
+msgstr "使用新数据库"
+
+msgid "What {name} reads"
+msgstr "{name} 读取的内容"
+
+msgid "its servers"
+msgstr "其服务器"
+
+msgid "{name} reads no variable or secret of its environment."
+msgstr "{name} 没有读取其环境中的任何变量或密钥。"
+
+msgid "{signsInAs} doesn't sign in with {passwordIn}, so {name} couldn't reach its data. Pick the secret that holds its password."
+msgstr "{signsInAs} 无法用 {passwordIn} 登录，因此 {name} 无法访问其数据。请选择保存其密码的密钥。"
+
+msgid "{signsInAs} has no rights in {database}, so {name} couldn't use it. Pick the user that owns it."
+msgstr "{signsInAs} 在 {database} 中没有权限，因此 {name} 无法使用它。请选择拥有它的用户。"
+
+msgid "{signsInAs} reaches past {database}, as the server's administrator does, so it reaches every app's data. Give {name} a new database of its own."
+msgstr "{signsInAs} 能访问 {database} 以外的内容，如同服务器管理员，因此能访问每个应用的数据。请为 {name} 新建一个自己的数据库。"
+
 msgid "Delete the project"
 msgstr "删除项目"
 
@@ -4285,9 +4380,6 @@ msgstr "新项目"
 
 msgid "Ask an admin for a role in the project it goes to."
 msgstr "请管理员为你分配目标项目中的角色。"
-
-msgid "Choose again"
-msgstr "重新选择"
 
 msgid "Move {name}"
 msgstr "移动 {name}"
@@ -7453,9 +7545,6 @@ msgstr "选择它的 {unmetWord} 后即可审查计划"
 msgid "Copy {label}"
 msgstr "复制 {label}"
 
-msgid "Database"
-msgstr "数据库"
-
 msgid "Each app has a user of its own"
 msgstr "每个应用都有自己的用户"
 
@@ -8815,6 +8904,9 @@ msgstr "它写入的键会留在服务器上"
 
 msgid "Leaves the keys under {keysUnder} on the server"
 msgstr "{keysUnder} 下的键会留在服务器上"
+
+msgid "Leaves {name} and its database {leftDatabase} on the server, which Dockwell didn't make"
+msgstr "{name} 及其数据库 {leftDatabase} 会留在服务器上，它们不是 Dockwell 创建的"
 
 msgid "May cut off access to {server}"
 msgstr "可能切断对 {server} 的访问"
@@ -11016,9 +11108,6 @@ msgstr "请先为它配置 {set} 所有成员共用的 <0>--keyFile</0>，创建
 msgid "Give it a volume"
 msgstr "为它添加卷"
 
-msgid "Host"
-msgstr "主机"
-
 msgid "It sets no most"
 msgstr "未设置上限"
 
@@ -11191,9 +11280,6 @@ msgstr "密码所在"
 
 msgid "Role"
 msgstr "角色"
-
-msgid "Signs in"
-msgstr "可登录"
 
 msgid "Signs in to"
 msgstr "登录到"
@@ -12252,9 +12338,6 @@ msgstr "无法读取 1Panel 保存的内容"
 
 msgid "Cron job"
 msgstr "计划任务"
-
-msgid "Database server"
-msgstr "数据库服务器"
 
 msgid "Dockwell can take on what 1Panel runs as it is, with no restart, and say what it would make again and what it would leave."
 msgstr "Dockwell 可以原样接管 1Panel 运行的内容，无需重启，并说明哪些会重新创建、哪些会保留。"

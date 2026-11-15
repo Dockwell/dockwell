@@ -1058,6 +1058,12 @@ message DatabaseUser {
   // server whose apps keep apart where its plan didn't say so, as one planned before
   // another app joined with a prefix (ADR 0084).
   bool ends_apart = 84;
+  // The user, and its database, were the server's already, and Dockwell took them on
+  // for an app, as Connect a database does with one an imported app signs in as: it
+  // checks the user signs in with the password, and keeps it, but never makes the
+  // user or its database, changes its rights, or drops either. See
+  // docs/adr/0084-what-an-app-needs-met-by-a-new-service-one-you-run-or-a-connection.md.
+  bool taken_on = 85;
 }
 
 // DatabaseCopy names a database to copy from: the service that runs its server, in

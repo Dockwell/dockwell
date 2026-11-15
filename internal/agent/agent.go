@@ -291,6 +291,9 @@ type BackupTaker interface {
 type DatabaseReader interface {
 	// Read says what each database asked about says of itself, in order.
 	Read(ctx context.Context, call *agentv1.DatabaseCall) (*agentv1.DatabaseResult, error)
+	// CheckSignIn says whether a user signs in with a password from another host, as
+	// taking it on checks, and whether it's the server's administrator (ADR 0084).
+	CheckSignIn(ctx context.Context, call *agentv1.CheckDatabaseSignInCall, password string) (*agentv1.CheckDatabaseSignInResult, error)
 }
 
 // ContainerLister tells the agent each list of the server's containers it reads,

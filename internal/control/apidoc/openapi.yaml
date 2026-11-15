@@ -2321,6 +2321,121 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/databases/{id}:checkSignIn:
+        get:
+            tags:
+                - DatabaseService
+            description: |-
+                CheckDatabaseSignIn asks whether a user of a PostgreSQL, MySQL or MariaDB server
+                 Dockwell runs signs in to one of its databases with the password an app's secret
+                 holds, from another host, as connecting the app takes that user on (ADR 0084,
+                 Connect a database). It changes nothing. The password stays on the control plane
+                 and the server's agent, and nothing it answers holds it. It takes a developer's
+                 role in the app's environment and in the server's, and an admin's where the
+                 server's is protected, as revealing its secrets does. One check runs at a time on
+                 a server, and an answer is given again for 30 seconds.
+            operationId: DatabaseService_CheckDatabaseSignIn
+            parameters:
+                - name: id
+                  in: path
+                  description: The service that runs the database, by ID or by name.
+                  required: true
+                  schema:
+                    type: string
+                - name: project
+                  in: query
+                  description: The project of a database named by name, by name or ID.
+                  schema:
+                    type: string
+                - name: environment
+                  in: query
+                  description: The environment of a database named by name, by name or ID.
+                  schema:
+                    type: string
+                - name: user
+                  in: query
+                  description: The user who signs in, one the server has.
+                  schema:
+                    type: string
+                - name: database
+                  in: query
+                  description: The database they sign in to, one the server has.
+                  schema:
+                    type: string
+                - name: appProject
+                  in: query
+                  description: The app's project, by name or ID. Empty is the database's.
+                  schema:
+                    type: string
+                - name: appEnvironment
+                  in: query
+                  description: The app's environment, by name or ID. Empty is the only one its project has.
+                  schema:
+                    type: string
+                - name: passwordSecret
+                  in: query
+                  description: |-
+                    The secret of the app's environment that holds the user's password, as the app
+                     signs in with it now.
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CheckDatabaseSignInResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/databases/{id}:connect:
+        post:
+            tags:
+                - DatabaseService
+            description: |-
+                ConnectDatabase plans an app's link to a PostgreSQL, MySQL or MariaDB server
+                 Dockwell runs, for an app from no catalog entry, such as one a Compose file or
+                 an import brought (ADR 0084, Connect a database). The link is a resource in the
+                 app's environment, and what meets it is a new database with a user of the app's
+                 own, made in the plan with a generated password, or a database and user the
+                 server has already, taken on with the password the app signs in with now. That
+                 user stays the server's: Dockwell checks it signs in from another host, and
+                 never changes its rights or its password, nor drops it. Each name of the app's
+                 environment the request names is set from the link, the password as a value
+                 read from the user's own secret, and a URL written from the parts. A server in
+                 another project is reached on a link network of the app's own, which it joins
+                 in place. The app runs on the server the database runs on.
+            operationId: DatabaseService_ConnectDatabase
+            parameters:
+                - name: id
+                  in: path
+                  description: The service that runs the database, by ID or by name.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/ConnectDatabaseRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ConnectDatabaseResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/dnsProviders:
         get:
             tags:
@@ -10686,6 +10801,26 @@ components:
                          people, such as a log rotation of its own in place of the file's. A plan's
                          notes say the same.
             description: CheckComposeResponse says what a Compose file would make, or why it can't.
+        CheckDatabaseSignInResponse:
+            type: object
+            properties:
+                signsIn:
+                    type: boolean
+                    description: True where the user signs in with the password.
+                said:
+                    type: string
+                    description: What the server's client said where it didn't, with nothing of the password.
+                administrator:
+                    type: boolean
+                    description: |-
+                        True where the user reaches past its database, as an administrator does, and so
+                         every other app's data, which no app is connected as.
+                noRights:
+                    type: boolean
+                    description: |-
+                        True where the user has no rights in the database: it neither owns it nor may
+                         make things in it.
+            description: CheckDatabaseSignInResponse says how the server answered.
         CheckDnsProviderRequest:
             type: object
             properties:
@@ -11137,6 +11272,91 @@ components:
                         type: string
                     description: Ten one-time recovery codes. They are shown only now; store them safely.
             description: ConfirmTotpSetupResponse carries the recovery codes.
+        ConnectDatabaseRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The service that runs the database, by ID or by name.
+                project:
+                    type: string
+                    description: |-
+                        The project of a database named by name, by name or ID, when more than one has
+                         a service of that name.
+                environment:
+                    type: string
+                    description: |-
+                        The environment of a database named by name, by name or ID, when its project
+                         has more than one.
+                app:
+                    type: string
+                    description: The app, by its service's name in its environment.
+                appProject:
+                    type: string
+                    description: The app's project, by name or ID. Empty is the database's.
+                appEnvironment:
+                    type: string
+                    description: The app's environment, by name or ID. Empty is the only one its project has.
+                link:
+                    type: string
+                    description: The link's name in the app's environment, such as "db". Empty is "db".
+                database:
+                    type: string
+                    description: |-
+                        The database the app uses there: one the server has, which keeps the app's
+                         data where it is, or a new one. Empty makes a new one, named for the app.
+                user:
+                    type: string
+                    description: |-
+                        The user the app signs in as. With a new database, a new user who owns it,
+                         named as the database unless set. With one the server has, a user there that
+                         isn't its administrator, which is taken on.
+                passwordSecret:
+                    type: string
+                    description: |-
+                        With a database the server has: the secret of the app's environment that holds
+                         the user's password, as the app signs in with it now.
+                sets:
+                    type: object
+                    additionalProperties:
+                        enum:
+                            - LINK_PART_UNSPECIFIED
+                            - LINK_PART_HOST
+                            - LINK_PART_PORT
+                            - LINK_PART_ADDRESS
+                            - LINK_PART_DATABASE
+                            - LINK_PART_USER
+                            - LINK_PART_PASSWORD
+                            - LINK_PART_URL
+                            - LINK_PART_TLS
+                            - LINK_PART_KEY_PREFIX
+                            - LINK_PART_ENGINE
+                        type: string
+                        format: enum
+                    description: |-
+                        The names of the app's environment the link sets, each with what it holds,
+                         such as DB_HOST=host or DATABASE_URL=url. Each is a variable or secret the app
+                         has, and a password or a URL is a secret.
+                templates:
+                    type: object
+                    additionalProperties:
+                        type: string
+                    description: |-
+                        How a URL the link sets is written, by its name, with {host}, {port},
+                         {address}, {database}, {user} and {password}, such as
+                         "postgres://{user}:{password}@{host}:{port}/{database}?sslmode=disable". Empty is
+                         the engine's own form.
+            description: |-
+                ConnectDatabaseRequest names a database server, the app to connect to it, and
+                 what the app reads of it.
+        ConnectDatabaseResponse:
+            type: object
+            properties:
+                change:
+                    allOf:
+                        - $ref: '#/components/schemas/Change'
+                    description: The change, planned, with its plan.
+            description: ConnectDatabaseResponse carries the planned change.
         Container:
             type: object
             properties:
@@ -12201,6 +12421,14 @@ components:
                          ends what keeps the apps on its server apart, naming whose: making it refuses a
                          server whose apps keep apart where its plan didn't say so, as one planned before
                          another app joined with a prefix (ADR 0084).
+                takenOn:
+                    type: boolean
+                    description: |-
+                        The user, and its database, were the server's already, and Dockwell took them on
+                         for an app, as Connect a database does with one an imported app signs in as: it
+                         checks the user signs in with the password, and keeps it, but never makes the
+                         user or its database, changes its rights, or drops either. See
+                         docs/adr/0084-what-an-app-needs-met-by-a-new-service-one-you-run-or-a-connection.md.
             description: |-
                 DatabaseUser is a database inside a database server that a service of its
                  environment runs, with the user who owns it, who signs in with a secret of the
@@ -19887,6 +20115,13 @@ components:
                          keys under its prefix, such as "shop:*", or "*" for every key it wrote, which
                          nothing tells apart. Taking the user away deletes no key (ADR 0084). Numbered in
                          the block connectable apps hold in other messages, 80 to 89.
+                leavesDatabase:
+                    type: string
+                    description: |-
+                        The database a step that lets go of a database user taken on leaves on its
+                         server, with the user the step names, which Dockwell never made and doesn't drop
+                         (ADR 0084, Connect a database). Numbered in the block connectable apps hold in
+                         other messages, 80 to 89.
                 agentUpgrade:
                     allOf:
                         - $ref: '#/components/schemas/HostAgentUpgrade'

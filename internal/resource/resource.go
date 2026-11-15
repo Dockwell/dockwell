@@ -355,6 +355,10 @@ type Decision struct {
 	// leaves there: the keys under its prefix, such as "shop:*", or "*" for every key
 	// it wrote, which nothing tells apart (ADR 0084). It never stops a plan.
 	KeysLeft string `json:",omitempty"`
+	// Leaves is the database a step that lets go of a database user taken on leaves
+	// on its server, with the user, which Dockwell never made and doesn't drop (ADR
+	// 0084). It never stops a plan.
+	Leaves string `json:",omitempty"`
 	// Closes is what a step that turns deny everything else on closes: each port
 	// that listens or that Docker publishes, that no rule lets in from anywhere,
 	// such as "8080/tcp (shop-web-1)" (ADR 0052). It never stops a plan.

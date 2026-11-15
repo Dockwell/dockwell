@@ -92,7 +92,7 @@ func testOneProjectCantReachIntoAnother(t *testing.T, backend store.Backend) {
 		in(data, secretSpec("ADMIN_PASSWORD", "the-administrators")),
 		in(data, secretSpec("SHOP_DB_PASSWORD", "shops-own")),
 		in(data, secretSpec("BLOG_DB_PASSWORD", "blogs-own")),
-		in(data, serviceSpec("db", map[string]string{"POSTGRES_PASSWORD": "ADMIN_PASSWORD"}, hz1.id.ServerID)),
+		in(data, postgres(serviceSpec("db", map[string]string{"POSTGRES_PASSWORD": "ADMIN_PASSWORD"}, hz1.id.ServerID))),
 		in(data, user("shop", "SHOP_DB_PASSWORD", nil)),
 		in(data, user("blog", "BLOG_DB_PASSWORD", nil)),
 	))
@@ -120,6 +120,40 @@ func testOneProjectCantReachIntoAnother(t *testing.T, backend store.Backend) {
 	refused(connect.CodeInvalidArgument, "postgres is a database its server keeps for itself",
 		in(blog, secretSpec("MINE_PASSWORD", "mine")), in(blog, appEdit(blog, "db", nil)), in(blog, user("mine", "MINE_PASSWORD", &resourcev1.DatabaseCopy{Environment: data, Service: "db", Database: "postgres"})))
 
+	// A server whose administrator's password another of its services signs in with
+	// takes no new link from another environment, made by hand as much as by
+	// ConnectDatabase, and a server another environment's link meets takes no new
+	// service signing in with it: shop's user would be reachable through that
+	// service, in either order. One that stops using the password lets it through.
+	tool := func(password string) *dockwellv1.Edit {
+		return in(data, serviceSpec("tool", map[string]string{"P": password}, hz1.id.ServerID))
+	}
+	meets := func(name, server string) *dockwellv1.Edit {
+		e := link(name, data, "shop")
+		e.GetSpec().GetLink().Service = server
+		return e
+	}
+	reached := "user there could be reached through tool"
+	refused(connect.CodeInvalidArgument, reached, link("mine", data, "shop"), from("MINE_PASSWORD", "SHOP_DB_PASSWORD", "mine"), tool("ADMIN_PASSWORD"))
+	refused(connect.CodeInvalidArgument, "tool would sign in with db's administrator password, and link db of another environment meets db", tool("ADMIN_PASSWORD"))
+	apply(t, c, propose(t, c, "Run a second database, with a tool that signs in as its administrator",
+		in(data, secretSpec("SECOND_PASSWORD", "the-seconds")),
+		in(data, postgres(serviceSpec("second", map[string]string{"POSTGRES_PASSWORD": "SECOND_PASSWORD"}, hz1.id.ServerID))),
+		tool("SECOND_PASSWORD")))
+	refused(connect.CodeInvalidArgument, "link mine meets second, whose administrator's password tool signs in with too", meets("mine", "second"))
+	propose(t, c, "Give the tool its own", meets("mine", "second"),
+		in(data, secretSpec("TOOL_PASSWORD", "tools-own")), tool("TOOL_PASSWORD"))
+
+	// A user taken on in data can't take the blog's database, which the blog's link
+	// names for the user it reads, though no database.user of data's records it so.
+	refused(connect.CodeInvalidArgument, "the database blog on db is kept for another app, through link db",
+		in(data, &dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Kind: "database.user", Name: "legacy"},
+			Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_DatabaseUser{DatabaseUser: &resourcev1.DatabaseUser{
+				Service: "db", DatabaseName: "blog", Password: "SHOP_DB_PASSWORD", TakenOn: true,
+			}}},
+		}))
+
 	// A developer of the blog's project alone reaches nothing in data, even as its
 	// links would have it: the environment reads as not there.
 	hold := aMember(t, f)
@@ -139,6 +173,13 @@ func testOneProjectCantReachIntoAnother(t *testing.T, backend store.Backend) {
 	// The blog's own edits need nothing in data, its link's value among them.
 	propose(t, c, "Restart the blog", in(blog, serviceSpec("web", map[string]string{"WORDPRESS_DB_PASSWORD": "DB_PASSWORD", "X": "DB_PASSWORD"}, hz1.id.ServerID)),
 		from("DB_PASSWORD", "BLOG_DB_PASSWORD", "db"))
+}
+
+// postgres runs a service as PostgreSQL 17, so the engine knows it for a database
+// server and its administrator's password.
+func postgres(e *dockwellv1.Edit) *dockwellv1.Edit {
+	e.GetSpec().GetService().GetApp().Image = "postgres:17"
+	return e
 }
 
 // networksInMemory makes networks as a record alone, for a test server whose fake

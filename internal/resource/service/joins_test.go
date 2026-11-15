@@ -59,7 +59,12 @@ func TestAServiceJoinsTheLinkNetworksThatNameItAsItsMade(t *testing.T) {
 		if err != nil || len(list) != 1 {
 			t.Fatalf("the database's containers: %v, %v", list, err)
 		}
-		if ep := list[0].NetworkSettings.Networks[link]; ep != nil {
+		// A list has no aliases, as Docker's has none: inspect has them.
+		c, err := e.Client().InspectContainer(t.Context(), list[0].ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if ep := c.NetworkSettings.Networks[link]; ep != nil {
 			return ep.Aliases
 		}
 		return nil
