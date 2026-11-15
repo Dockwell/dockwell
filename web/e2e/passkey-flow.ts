@@ -42,7 +42,9 @@ export async function passkeyFlow(page: Page, { origin, step, shoot }: Pick<Flow
     // What applies is read from the control plane: each time, until someone chooses.
     await settled(page, "EACH_TIME");
     await choice
-      .getByText("Changing how you sign in, this choice, and approving someone else's change always ask.")
+      .getByText(
+        "Changing how you sign in, this choice, approving someone else's change and transferring ownership always ask.",
+      )
       .waitFor();
     await shoot(page, "passkey-each-time");
 

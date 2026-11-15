@@ -6075,8 +6075,8 @@ msgstr "一次通行密钥验证在接下来一小时内对本会话有效。"
 msgid "Ask for my passkey"
 msgstr "何时要求验证通行密钥"
 
-msgid "Changing how you sign in, this choice, and approving someone else's change always ask."
-msgstr "更改登录方式、更改此选项以及批准他人的变更时，始终需要验证。"
+msgid "Changing how you sign in, this choice, approving someone else's change and transferring ownership always ask."
+msgstr "更改登录方式、更改此选项、批准他人的变更以及转让所有权时，始终需要验证。"
 
 msgid "Confirmed at {since} · asks again at {until}"
 msgstr "已于 {since} 确认 · {until} 再次验证"

@@ -6075,8 +6075,8 @@ msgstr "A passkey covers this session for the next hour."
 msgid "Ask for my passkey"
 msgstr "Ask for my passkey"
 
-msgid "Changing how you sign in, this choice, and approving someone else's change always ask."
-msgstr "Changing how you sign in, this choice, and approving someone else's change always ask."
+msgid "Changing how you sign in, this choice, approving someone else's change and transferring ownership always ask."
+msgstr "Changing how you sign in, this choice, approving someone else's change and transferring ownership always ask."
 
 msgid "Confirmed at {since} · asks again at {until}"
 msgstr "Confirmed at {since} · asks again at {until}"
