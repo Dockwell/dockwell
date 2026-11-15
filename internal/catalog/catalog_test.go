@@ -52,7 +52,7 @@ func TestTheBuiltInEntries(t *testing.T) {
 					}
 				}
 			}
-			filled, err := catalog.Fill(e, given, catalog.Suggest(e, nil))
+			filled, err := catalog.Fill(e, given, catalog.Suggest(e, nil, nil))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -339,7 +339,7 @@ func TestAnAppsOwnAddressFollowsItsPort(t *testing.T) {
 			t.Fatalf("the catalog has no %s", id)
 		}
 		e = installed(t, e)
-		filled, err := catalog.Fill(e, map[string]string{"PORT": "7444"}, catalog.Suggest(e, nil))
+		filled, err := catalog.Fill(e, map[string]string{"PORT": "7444"}, catalog.Suggest(e, nil, nil))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -355,7 +355,7 @@ func TestAnAppsOwnAddressFollowsItsPort(t *testing.T) {
 	// Ghost takes its address at install too, in place of its port's.
 	e, _ := c.Entry("ghost")
 	e = installed(t, e)
-	filled, err := catalog.Fill(e, map[string]string{"PORT": "7444", "URL": "https://blog.example.com"}, catalog.Suggest(e, nil))
+	filled, err := catalog.Fill(e, map[string]string{"PORT": "7444", "URL": "https://blog.example.com"}, catalog.Suggest(e, nil, nil))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -434,7 +434,7 @@ func TestT3CodeStaysOnThisServer(t *testing.T) {
 	if !ok {
 		t.Fatal("the catalog has no t3code")
 	}
-	filled, err := catalog.Fill(e, nil, catalog.Suggest(e, nil))
+	filled, err := catalog.Fill(e, nil, catalog.Suggest(e, nil, nil))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -506,7 +506,7 @@ func TestCoderStaysOnThisServer(t *testing.T) {
 		t.Fatal("the catalog has no coder")
 	}
 	given := map[string]string{"PORT": "7444"}
-	filled, err := catalog.Fill(e, given, catalog.Suggest(e, nil))
+	filled, err := catalog.Fill(e, given, catalog.Suggest(e, nil, nil))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -733,7 +733,7 @@ func read(t *testing.T, e *catalogv1.Entry) (*compose.Stack, *catalog.Filled) {
 			given[in.GetName()] = "someone@example.com"
 		}
 	}
-	filled, err := catalog.Fill(e, given, catalog.Suggest(e, nil))
+	filled, err := catalog.Fill(e, given, catalog.Suggest(e, nil, nil))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -861,12 +861,27 @@ func TestSuggestMovesPastWhatsTaken(t *testing.T) {
 		{Name: "C", DefaultValue: "plain"},
 		{Name: "D", Type: catalogv1.InputType_INPUT_TYPE_SECRET},
 	}}
-	got := catalog.Suggest(e, map[uint32]bool{8080: true, 8082: true})
+	got := catalog.Suggest(e, map[uint32]bool{8080: true, 8082: true}, nil)
 	if got["A"] != "8081" || got["B"] != "8083" || got["C"] != "plain" {
 		t.Errorf("Suggest = %v", got)
 	}
 	if _, ok := got["D"]; ok {
 		t.Error("it suggests a secret")
+	}
+}
+
+// A default port in the range a server lends to outgoing connections is looked for from
+// 8080 instead, past what's taken; one outside it stays (#688).
+func TestSuggestKeepsADefaultPortOutOfTheEphemeralRange(t *testing.T) {
+	e := &catalogv1.Entry{Inputs: []*catalogv1.Input{
+		{Name: "WEB", Type: catalogv1.InputType_INPUT_TYPE_PORT, DefaultValue: "40108"},
+		{Name: "API", Type: catalogv1.InputType_INPUT_TYPE_PORT, DefaultValue: "40109"},
+		{Name: "ADMIN", Type: catalogv1.InputType_INPUT_TYPE_PORT, DefaultValue: "9000"},
+	}}
+	lent := func(p uint32) bool { return p >= 32768 && p <= 60999 }
+	got := catalog.Suggest(e, map[uint32]bool{8080: true}, lent)
+	if got["WEB"] != "8081" || got["API"] != "8082" || got["ADMIN"] != "9000" {
+		t.Errorf("Suggest = %v", got)
 	}
 }
 
@@ -949,11 +964,11 @@ func TestFill(t *testing.T) {
 		}
 		return out
 	}
-	one, err := catalog.Fill(e, given(nil), catalog.Suggest(e, nil))
+	one, err := catalog.Fill(e, given(nil), catalog.Suggest(e, nil, nil))
 	if err != nil {
 		t.Fatal(err)
 	}
-	two, err := catalog.Fill(e, given(nil), catalog.Suggest(e, nil))
+	two, err := catalog.Fill(e, given(nil), catalog.Suggest(e, nil, nil))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -975,7 +990,7 @@ func TestFill(t *testing.T) {
 	}
 	// A person may give their own value for a secret Dockwell would generate, which is
 	// kept as it is, and sealed as a generated one is.
-	mine, err := catalog.Fill(e, given(map[string]string{"KEY": "my own key"}), catalog.Suggest(e, nil))
+	mine, err := catalog.Fill(e, given(map[string]string{"KEY": "my own key"}), catalog.Suggest(e, nil, nil))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -996,7 +1011,7 @@ func TestFill(t *testing.T) {
 		"control":    {map[string]string{"KEY": "my\x00own key"}, "Key takes printable characters alone"},
 	} {
 		t.Run(name, func(t *testing.T) {
-			_, err := catalog.Fill(e, given(tc.over), catalog.Suggest(e, nil))
+			_, err := catalog.Fill(e, given(tc.over), catalog.Suggest(e, nil, nil))
 			if err == nil || !strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("Fill = %v, want %q", err, tc.want)
 			}
@@ -1018,7 +1033,7 @@ func TestCarry(t *testing.T) {
 		{Name: "TYPED", Label: "Typed", Type: catalogv1.InputType_INPUT_TYPE_SECRET},
 	}}
 	pin := &resourcev1.CatalogPin{Values: map[string]string{"PORT": "8090", "GONE": "x"}}
-	filled, err := catalog.Carry(e, pin, nil, catalog.Suggest(e, nil), map[string]bool{"KEPT": true, "TYPED": true})
+	filled, err := catalog.Carry(e, pin, nil, catalog.Suggest(e, nil, nil), map[string]bool{"KEPT": true, "TYPED": true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1037,16 +1052,16 @@ func TestCarry(t *testing.T) {
 	if got := filled.Stands(); len(got) != 3 || got["NEW"] == "" || got["KEPT"] != filled.Held["KEPT"] {
 		t.Errorf("Stands = %v", got)
 	}
-	if _, err := catalog.Carry(e, pin, nil, catalog.Suggest(e, nil), map[string]bool{"KEPT": true}); err == nil || !strings.Contains(err.Error(), "Typed needs a value") {
+	if _, err := catalog.Carry(e, pin, nil, catalog.Suggest(e, nil, nil), map[string]bool{"KEPT": true}); err == nil || !strings.Contains(err.Error(), "Typed needs a value") {
 		t.Errorf("a secret this release adds with no value = %v", err)
 	}
 	// What Dockwell generated an upgrade keeps, and a secret the release adds may take
 	// a person's own value, as an install's may.
 	held := map[string]bool{"KEPT": true, "TYPED": true}
-	if _, err := catalog.Carry(e, pin, map[string]string{"KEPT": "a new value"}, catalog.Suggest(e, nil), held); err == nil || !strings.Contains(err.Error(), "an upgrade keeps the KEPT") {
+	if _, err := catalog.Carry(e, pin, map[string]string{"KEPT": "a new value"}, catalog.Suggest(e, nil, nil), held); err == nil || !strings.Contains(err.Error(), "an upgrade keeps the KEPT") {
 		t.Errorf("a new value for a generated secret it has = %v", err)
 	}
-	if filled, err := catalog.Carry(e, pin, map[string]string{"NEW": "my own value"}, catalog.Suggest(e, nil), held); err != nil || filled.Secrets["NEW"] != "my own value" {
+	if filled, err := catalog.Carry(e, pin, map[string]string{"NEW": "my own value"}, catalog.Suggest(e, nil, nil), held); err != nil || filled.Secrets["NEW"] != "my own value" {
 		t.Errorf("an own value for a secret the release adds = %v, %v", filled, err)
 	}
 }

@@ -33,6 +33,7 @@ import (
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
 	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/resource/variable"
+	"github.com/dockwell/dockwell/internal/revision"
 	"github.com/dockwell/dockwell/internal/scope"
 	"github.com/dockwell/dockwell/internal/secrets"
 	"github.com/dockwell/dockwell/internal/store"
@@ -355,6 +356,7 @@ func (h *Handler) InstallCatalogEntry(ctx context.Context, req *connect.Request[
 	if err != nil {
 		return nil, authapi.ReasonError(connect.CodeInvalidArgument, err, "invalid")
 	}
+	pinNotes = append(pinNotes, lentNotes(chosen, filled.Plain, free.lent)...)
 	written := writtenEdits(needed, filled)
 	pin := pinTo(entry, from, filled, choice)
 	pin.Needs = needed.Pinned
@@ -977,6 +979,77 @@ func environmentIn(tree scope.Tree, id string) bool {
 type free struct {
 	project string
 	values  map[string]string
+	// lent are the ports the servers lend to outgoing connections, which a default
+	// port isn't taken from (#688).
+	lent lentPorts
+}
+
+// lentPorts are the ranges of ports servers lend to outgoing connections as their
+// source ports (ServerInventory.ephemeral_ports_low and _high): each server's own,
+// or Linux's default where no server has said, as an agent from before says nothing.
+type lentPorts []lentRange
+
+type lentRange struct{ low, high uint32 }
+
+// linuxLent is the range Linux lends unless a server is set otherwise.
+var linuxLent = lentRange{32768, 60999}
+
+// has says a port is in any of the ranges.
+func (l lentPorts) has(port uint32) bool {
+	return slices.ContainsFunc(l, func(r lentRange) bool { return port >= r.low && port <= r.high })
+}
+
+// of is the range port is in, for saying so.
+func (l lentPorts) of(port uint32) lentRange {
+	i := slices.IndexFunc(l, func(r lentRange) bool { return port >= r.low && port <= r.high })
+	if i < 0 {
+		return lentRange{}
+	}
+	return l[i]
+}
+
+// lentOn reads the ranges the servers said they lend, as they last reported.
+func lentOn(ctx context.Context, tx *store.Tx) (lentPorts, error) {
+	reports, err := tx.ServerReports(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var out lentPorts
+	for _, id := range slices.Sorted(maps.Keys(reports)) {
+		var inv dockwellv1.ServerInventory
+		if proto.Unmarshal(reports[id].Inventory, &inv) != nil || inv.GetEphemeralPortsLow() == 0 {
+			continue
+		}
+		if r := (lentRange{inv.GetEphemeralPortsLow(), inv.GetEphemeralPortsHigh()}); !slices.Contains(out, r) {
+			out = append(out, r)
+		}
+	}
+	if len(out) == 0 {
+		out = lentPorts{linuxLent}
+	}
+	return out, nil
+}
+
+// lentNotes say which port an install takes in place of each default port in a range
+// the servers lend to outgoing connections, and why (#688).
+func lentNotes(e *catalogv1.Entry, plain map[string]string, lent lentPorts) []revision.Note {
+	var out []revision.Note
+	for _, in := range e.GetInputs() {
+		if in.GetType() != catalogv1.InputType_INPUT_TYPE_PORT {
+			continue
+		}
+		def, err := strconv.ParseUint(in.GetDefaultValue(), 10, 16)
+		if err != nil || !lent.has(uint32(def)) || plain[in.GetName()] == "" || plain[in.GetName()] == in.GetDefaultValue() {
+			continue
+		}
+		r := lent.of(uint32(def))
+		out = append(out, revision.Note{
+			Reason: "ephemeral_port", Names: []string{in.GetDefaultValue(), plain[in.GetName()]}, Named: true,
+			Message: fmt.Sprintf("It publishes on %s in place of its default %s, which is in the range the server lends to outgoing connections (%d to %d), where one may hold it as the app starts.",
+				plain[in.GetName()], in.GetDefaultValue(), r.low, r.high),
+		})
+	}
+	return out
 }
 
 // whatsFree finds a name for an entry's project, from the one asked for or else the
@@ -989,6 +1062,9 @@ func (h *Handler) whatsFree(ctx context.Context, e *catalogv1.Entry, asked strin
 	err := h.db.View(ctx, func(tx *store.Tx) error {
 		tree, err := scope.Load(ctx, tx)
 		if err != nil {
+			return err
+		}
+		if out.lent, err = lentOn(ctx, tx); err != nil {
 			return err
 		}
 		for _, p := range tree.Projects {
@@ -1014,7 +1090,7 @@ func (h *Handler) whatsFree(ctx context.Context, e *catalogv1.Entry, asked strin
 			out.project = stem + "-" + strconv.Itoa(n)
 		}
 	})
-	out.values = catalog.Suggest(e, taken)
+	out.values = catalog.Suggest(e, taken, out.lent.has)
 	return out, err
 }
 

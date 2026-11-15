@@ -72,7 +72,7 @@ func TestChoosingCompanions(t *testing.T) {
 	if !strings.Contains(e.GetCompose(), "adminer") {
 		t.Error("choosing changed the catalog's own entry")
 	}
-	filled, err := catalog.Fill(chosen, nil, catalog.Suggest(chosen, nil))
+	filled, err := catalog.Fill(chosen, nil, catalog.Suggest(chosen, nil, nil))
 	if err != nil {
 		t.Fatal(err)
 	}

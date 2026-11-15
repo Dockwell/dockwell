@@ -104,6 +104,8 @@ export interface ServerSummary {
   dockerUnreadableSince?: number;
   /** True for one that's connected with memory or CPU past HIGH_USE. */
   strained?: boolean;
+  /** The ports it lends to outgoing connections, low and high, where its agent says (#688). */
+  lent?: readonly [number, number];
 }
 
 /**
@@ -171,6 +173,9 @@ function summaries(servers: readonly Server[], prev: readonly ServerSummary[] | 
         ? { dockerUnreadableSince: timestampMs(server.dockerUnreadableSince) }
         : {}),
       ...(server.connection === Connection.CONNECTED && server.strainedSince ? { strained: true } : {}),
+      ...(server.inventory?.ephemeralPortsLow
+        ? { lent: [server.inventory.ephemeralPortsLow, server.inventory.ephemeralPortsHigh] as const }
+        : {}),
     };
     const old = prev?.[i];
     return old && sameSummary(old, summary) ? old : summary;
@@ -187,7 +192,9 @@ function sameSummary(a: ServerSummary, b: ServerSummary): boolean {
     a.lastSeen === b.lastSeen &&
     a.connectedAt === b.connectedAt &&
     a.dockerUnreadableSince === b.dockerUnreadableSince &&
-    a.strained === b.strained
+    a.strained === b.strained &&
+    a.lent?.[0] === b.lent?.[0] &&
+    a.lent?.[1] === b.lent?.[1]
   );
 }
 

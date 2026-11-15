@@ -59,7 +59,7 @@ import { useMay } from "../auth/may";
 import { useSignedInUser } from "../auth/useAuthState";
 import { type Opening, PlanView } from "../changes/ChangeSheet";
 import { asGoodAsRoot } from "../changes/plan";
-import { type PortHolder, useServerPorts } from "../servers/ports";
+import { lentRangeOf, type PortHolder, useServerPorts } from "../servers/ports";
 import { useFleetView } from "../servers/useFleet";
 import { CopyAsCommand } from "../system/CopyCommand";
 import { Facts, useEntryFacts } from "./access";
@@ -233,6 +233,17 @@ export function InstallSheet({
       .filter((other) => other.name !== input.name && validPortNumber(value(other)))
       .map((other) => Number(value(other)));
   const portCheck = (input: Input): PortCheck => ports.check(value(input), false, holderName, othersOf(input));
+  // A port typed in the range the servers lend to outgoing connections is theirs to
+  // keep, with a line that says so (#688).
+  const targets = (servers ?? []).filter((s) => serverIds.includes(s.id));
+  const lentWarning = (input: Input): string | undefined => {
+    const typedPort = typed[input.name];
+    if (typedPort === undefined || !validPortNumber(typedPort)) return undefined;
+    const range = lentRangeOf(Number(typedPort), targets);
+    if (!range) return undefined;
+    const [low, high] = range;
+    return t`In ${low} to ${high}, which the server lends to outgoing connections, so one may hold it as the app starts`;
+  };
 
   // The folders on the server its parts read, by the input that names each, such as for media.
   const folders = new Set((got.data?.parts ?? []).flatMap((part) => Object.values(part.pathInputs)));
@@ -520,6 +531,7 @@ export function InstallSheet({
         input={input}
         value={value(input)}
         check={port ? portCheck(input) : undefined}
+        warning={port ? lentWarning(input) : undefined}
         free={port ? ports.free(validPortNumber(value(input)) ? from : undefined, false, othersOf(input)) : undefined}
         autoFocus={changing.has(input.name)}
         onChange={(next) => setTyped((was) => ({ ...was, [input.name]: next }))}
@@ -1301,6 +1313,7 @@ function InputField({
   input,
   value,
   check,
+  warning,
   free,
   autoFocus,
   onChange,
@@ -1308,6 +1321,8 @@ function InputField({
   input: Input;
   value: string;
   check: PortCheck | undefined;
+  /** A line under a port that may not hold, in place of its help. */
+  warning?: string | undefined;
   free: number | undefined;
   autoFocus: boolean;
   onChange: (next: string) => void;
@@ -1316,7 +1331,7 @@ function InputField({
     return (
       <PortField
         label={input.label}
-        hint={input.hint || undefined}
+        hint={warning ?? (input.hint || undefined)}
         autoFocus={autoFocus}
         value={value}
         check={check}
