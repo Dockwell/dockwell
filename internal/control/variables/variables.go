@@ -25,6 +25,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/events"
 	"github.com/dockwell/dockwell/internal/control/paging"
+	"github.com/dockwell/dockwell/internal/control/place"
 	"github.com/dockwell/dockwell/internal/fault"
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
@@ -180,7 +181,7 @@ func (h *Handler) RevealSecret(ctx context.Context, req *connect.Request[dockwel
 	proof := req.Msg.GetProof()
 	// What confirms it, a proof or the session's cover (ADR 0075), goes on record
 	// with the reveal, in its transaction.
-	got, err := h.keeper.Reveal(ctx, req.Msg.GetId(), p.Actor(), client.Surface(p), func(tx *store.Tx) error {
+	got, err := h.keeper.Reveal(ctx, req.Msg.GetId(), p.Actor(), client.Surface(p), installAdmin(ctx), func(tx *store.Tx) error {
 		return h.auth.UseStepUpIn(ctx, tx, client, p, proof, auth.StepUpRevealSecret, req.Msg.GetId())
 	})
 	if errors.Is(err, auth.ErrNeedsStepUp) && proof != "" {
@@ -246,6 +247,13 @@ func (h *Handler) RevealServiceValue(ctx context.Context, req *connect.Request[d
 	return connect.NewResponse(out), nil
 }
 
+// installAdmin says whether the caller holds the whole install as an admin or the
+// owner, who may reveal a connection's value through a secret that reads it.
+func installAdmin(ctx context.Context) bool {
+	c, ok := place.CallerFrom(ctx)
+	return ok && store.RoleRank(place.Holds(c.Grants, place.Install)) >= store.RoleRank(store.RoleAdmin)
+}
+
 // errNoValue is a service, or one of its values, that isn't there to reveal.
 var errNoValue = errors.New("no such value")
 
@@ -271,6 +279,8 @@ func (h *Handler) rpcError(ctx context.Context, err error) error {
 		return authapi.ReasonError(connect.CodeNotFound, err, "not_found")
 	case errors.Is(err, secrets.ErrNotSecret), errors.Is(err, errNoValue):
 		return authapi.ReasonError(connect.CodeNotFound, err, "not_found")
+	case errors.Is(err, secrets.ErrConnectionKey):
+		return authapi.ReasonError(connect.CodePermissionDenied, err, authapi.ReasonNeedsRole)
 	case errors.Is(err, auth.ErrNeedsStepUp):
 		return authapi.ReasonError(connect.CodePermissionDenied, err, authapi.ReasonNeedsStepUp)
 	case errors.Is(err, auth.ErrNeedsSession):

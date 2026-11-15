@@ -18,7 +18,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/catalog/v1alpha1/entry.proto.
  */
 export const file_dockwell_catalog_v1alpha1_entry: GenFile = /*@__PURE__*/
-  fileDesc("CiVkb2Nrd2VsbC9jYXRhbG9nL3YxYWxwaGExL2VudHJ5LnByb3RvEhlkb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExIpYICgVFbnRyeRIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEg8KB3N1bW1hcnkYAyABKAkSEAoIY2F0ZWdvcnkYBCABKAkSDwoHdmVyc2lvbhgFIAEoCRIPCgdyZWxlYXNlGAYgASgNEhAKCGhvbWVwYWdlGAcgASgJEg8KB2xpY2Vuc2UYCCABKAkSEwoLYXBwX2xpY2Vuc2UYCSABKAkSMQoGc291cmNlGAogASgLMiEuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5Tb3VyY2USDwoHY29tcG9zZRgLIAEoCRIwCgZpbnB1dHMYDCADKAsyIC5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLklucHV0EisKA3dlYhgNIAEoCzIeLmRvY2t3ZWxsLmNhdGFsb2cudjFhbHBoYTEuV2ViEhMKC2ZpcnN0X3N0ZXBzGA4gASgJEhMKC2hvc3RfYWNjZXNzGA8gASgJEhEKCWRhdGFiYXNlcxgQIAMoCRITCgtkZXNjcmlwdGlvbhgRIAEoCRIMCgRpY29uGBIgASgJEjoKC3NjcmVlbnNob3RzGBMgAygLMiUuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5TY3JlZW5zaG90EhUKDWRvY3VtZW50YXRpb24YFCABKAkSEgoKYXBwX3NvdXJjZRgVIAEoCRIQCghmZWF0dXJlcxgWIAMoCRIyCgdzaWduX2luGBcgASgLMiEuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5TaWduSW4SGgoSZmlyc3RfdmlzaXRvcl9vd25zGBggASgIEjMKB3NpZ251cHMYGSABKAsyIi5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLlNpZ251cHMSRQoRYWRkcmVzc192YXJpYWJsZXMYGiADKAsyKi5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLkFkZHJlc3NWYXJpYWJsZRINCgVub3RlcxgbIAMoCRI4Cgpjb21wYW5pb25zGBwgAygLMiQuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5Db21wYW5pb24SDgoGcmVhZG1lGB4gASgJEkgKDHRyYW5zbGF0aW9ucxgfIAMoCzIyLmRvY2t3ZWxsLmNhdGFsb2cudjFhbHBoYTEuRW50cnkuVHJhbnNsYXRpb25zRW50cnkSLgoFbmVlZHMYKCADKAsyHy5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLk5lZWQaWwoRVHJhbnNsYXRpb25zRW50cnkSCwoDa2V5GAEgASgJEjUKBXZhbHVlGAIgASgLMiYuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5UcmFuc2xhdGlvbjoCOAEi0AEKBE5lZWQSDAoEbmFtZRgBIAEoCRINCgVsYWJlbBgCIAEoCRI2CgdhY2NlcHRzGAMgAygLMiUuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5OZWVkQWNjZXB0Eg8KB3NlcnZpY2UYBCABKAkSEAoIZGF0YWJhc2UYBSABKAkSDAoEdXNlchgGIAEoCRIwCgRzZXRzGAcgAygLMiIuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5OZWVkU2V0EhAKCHNldF9vbmNlGAggASgIIlEKCk5lZWRBY2NlcHQSMQoGZW5naW5lGAEgASgOMiEuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5FbmdpbmUSEAoIdmVyc2lvbnMYAiABKAkivQEKB05lZWRTZXQSDAoEbmFtZRgBIAEoCRItCgRwYXJ0GAIgASgOMh8uZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5QYXJ0EhAKCHRlbXBsYXRlGAMgASgJEi8KA3RscxgEIAEoCzIiLmRvY2t3ZWxsLmNhdGFsb2cudjFhbHBoYTEuTmVlZFRscxIyCgV3b3JkcxgFIAMoCzIjLmRvY2t3ZWxsLmNhdGFsb2cudjFhbHBoYTEuTmVlZFdvcmQiSwoITmVlZFdvcmQSMQoGZW5naW5lGAEgASgOMiEuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5FbmdpbmUSDAoEd29yZBgCIAEoCSIiCgdOZWVkVGxzEgoKAm9uGAEgASgJEgsKA29mZhgCIAEoCSJDCgtUcmFuc2xhdGlvbhIPCgdzdW1tYXJ5GAEgASgJEhMKC2Rlc2NyaXB0aW9uGAIgASgJEg4KBnJlYWRtZRgDIAEoCSJnCglDb21wYW5pb24SDwoHc2VydmljZRgBIAEoCRINCgVsYWJlbBgCIAEoCRIPCgdwdXJwb3NlGAMgASgJEgoKAm9uGAQgASgIEg4KBmlucHV0cxgFIAMoCRINCgVub3RlcxgGIAMoCSJmCgZTaWduSW4SDAoEdXNlchgBIAEoCRISCgp1c2VyX2lucHV0GAIgASgJEhYKDnBhc3N3b3JkX2lucHV0GAMgASgJEg4KBnNlcnZlchgEIAEoCRISCgpjaGFuZ2VkX2luGAUgASgJIjwKB1NpZ251cHMSDwoHc2VydmljZRgBIAEoCRIQCgh2YXJpYWJsZRgCIAEoCRIOCgZjbG9zZWQYAyABKAkiQwoPQWRkcmVzc1ZhcmlhYmxlEg8KB3NlcnZpY2UYASABKAkSEAoIdmFyaWFibGUYAiABKAkSDQoFdmFsdWUYAyABKAkiOwoKU2NyZWVuc2hvdBIMCgRwYXRoGAEgASgJEg8KB2NhcHRpb24YAiABKAkSDgoGc291cmNlGAMgASgJIjoKBlNvdXJjZRISCgpyZXBvc2l0b3J5GAEgASgJEgwKBHBhdGgYAiABKAkSDgoGY29tbWl0GAMgASgJIs4CCgVJbnB1dBIMCgRuYW1lGAEgASgJEg0KBWxhYmVsGAIgASgJEgwKBGhpbnQYAyABKAkSMgoEdHlwZRgEIAEoDjIkLmRvY2t3ZWxsLmNhdGFsb2cudjFhbHBoYTEuSW5wdXRUeXBlEhUKDWRlZmF1bHRfdmFsdWUYBSABKAkSEAoIb3B0aW9uYWwYBiABKAgSEAoIZ2VuZXJhdGUYByABKA0SDgoGbG9nZ2VkGAggASgIEjoKC2dlbmVyYXRlX2FzGFAgASgOMiUuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5HZW5lcmF0ZUFzEhIKCm1pbl9sZW5ndGgYUSABKA0SOQoKY2hhcmFjdGVycxhSIAEoDjIlLmRvY2t3ZWxsLmNhdGFsb2cudjFhbHBoYTEuQ2hhcmFjdGVycxIQCghzZXRfb25jZRgJIAEoCCIWCgNXZWISDwoHc2VydmljZRgBIAEoCSqtAQoGRW5naW5lEhYKEkVOR0lORV9VTlNQRUNJRklFRBAAEhUKEUVOR0lORV9QT1NUR1JFU1FMEAESEAoMRU5HSU5FX01ZU1FMEAISEgoORU5HSU5FX01BUklBREIQAxIQCgxFTkdJTkVfUkVESVMQBBIRCg1FTkdJTkVfVkFMS0VZEAUSEgoORU5HSU5FX01PTkdPREIQBhIVChFFTkdJTkVfQ0xJQ0tIT1VTRRAHKsMBCgRQYXJ0EhQKEFBBUlRfVU5TUEVDSUZJRUQQABINCglQQVJUX0hPU1QQARINCglQQVJUX1BPUlQQAhIQCgxQQVJUX0FERFJFU1MQAxIRCg1QQVJUX0RBVEFCQVNFEAQSDQoJUEFSVF9VU0VSEAUSEQoNUEFSVF9QQVNTV09SRBAGEgwKCFBBUlRfVVJMEAcSDAoIUEFSVF9UTFMQCBITCg9QQVJUX0tFWV9QUkVGSVgQKBIPCgtQQVJUX0VOR0lORRApKkEKCkNoYXJhY3RlcnMSGgoWQ0hBUkFDVEVSU19VTlNQRUNJRklFRBAAEhcKE0NIQVJBQ1RFUlNfVVJMX1NBRkUQASpWCgpHZW5lcmF0ZUFzEhsKF0dFTkVSQVRFX0FTX1VOU1BFQ0lGSUVEEAASEwoPR0VORVJBVEVfQVNfSEVYEAESFgoSR0VORVJBVEVfQVNfQkFTRTY0EAIqfgoJSW5wdXRUeXBlEhoKFklOUFVUX1RZUEVfVU5TUEVDSUZJRUQQABITCg9JTlBVVF9UWVBFX1RFWFQQARIUChBJTlBVVF9UWVBFX0VNQUlMEAISEwoPSU5QVVRfVFlQRV9QT1JUEAMSFQoRSU5QVVRfVFlQRV9TRUNSRVQQBEL9AQodY29tLmRvY2t3ZWxsLmNhdGFsb2cudjFhbHBoYTFCCkVudHJ5UHJvdG9QAVpKZ2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvY2F0YWxvZy92MWFscGhhMTtjYXRhbG9ndjFhbHBoYTGiAgNEQ1iqAhlEb2Nrd2VsbC5DYXRhbG9nLlYxYWxwaGExygIZRG9ja3dlbGxcQ2F0YWxvZ1xWMWFscGhhMeICJURvY2t3ZWxsXENhdGFsb2dcVjFhbHBoYTFcR1BCTWV0YWRhdGHqAhtEb2Nrd2VsbDo6Q2F0YWxvZzo6VjFhbHBoYTFiBnByb3RvMw");
+  fileDesc("CiVkb2Nrd2VsbC9jYXRhbG9nL3YxYWxwaGExL2VudHJ5LnByb3RvEhlkb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExIpYICgVFbnRyeRIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEg8KB3N1bW1hcnkYAyABKAkSEAoIY2F0ZWdvcnkYBCABKAkSDwoHdmVyc2lvbhgFIAEoCRIPCgdyZWxlYXNlGAYgASgNEhAKCGhvbWVwYWdlGAcgASgJEg8KB2xpY2Vuc2UYCCABKAkSEwoLYXBwX2xpY2Vuc2UYCSABKAkSMQoGc291cmNlGAogASgLMiEuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5Tb3VyY2USDwoHY29tcG9zZRgLIAEoCRIwCgZpbnB1dHMYDCADKAsyIC5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLklucHV0EisKA3dlYhgNIAEoCzIeLmRvY2t3ZWxsLmNhdGFsb2cudjFhbHBoYTEuV2ViEhMKC2ZpcnN0X3N0ZXBzGA4gASgJEhMKC2hvc3RfYWNjZXNzGA8gASgJEhEKCWRhdGFiYXNlcxgQIAMoCRITCgtkZXNjcmlwdGlvbhgRIAEoCRIMCgRpY29uGBIgASgJEjoKC3NjcmVlbnNob3RzGBMgAygLMiUuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5TY3JlZW5zaG90EhUKDWRvY3VtZW50YXRpb24YFCABKAkSEgoKYXBwX3NvdXJjZRgVIAEoCRIQCghmZWF0dXJlcxgWIAMoCRIyCgdzaWduX2luGBcgASgLMiEuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5TaWduSW4SGgoSZmlyc3RfdmlzaXRvcl9vd25zGBggASgIEjMKB3NpZ251cHMYGSABKAsyIi5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLlNpZ251cHMSRQoRYWRkcmVzc192YXJpYWJsZXMYGiADKAsyKi5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLkFkZHJlc3NWYXJpYWJsZRINCgVub3RlcxgbIAMoCRI4Cgpjb21wYW5pb25zGBwgAygLMiQuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5Db21wYW5pb24SDgoGcmVhZG1lGB4gASgJEkgKDHRyYW5zbGF0aW9ucxgfIAMoCzIyLmRvY2t3ZWxsLmNhdGFsb2cudjFhbHBoYTEuRW50cnkuVHJhbnNsYXRpb25zRW50cnkSLgoFbmVlZHMYKCADKAsyHy5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLk5lZWQaWwoRVHJhbnNsYXRpb25zRW50cnkSCwoDa2V5GAEgASgJEjUKBXZhbHVlGAIgASgLMiYuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5UcmFuc2xhdGlvbjoCOAEiuwIKBE5lZWQSDAoEbmFtZRgBIAEoCRINCgVsYWJlbBgCIAEoCRI2CgdhY2NlcHRzGAMgAygLMiUuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5OZWVkQWNjZXB0Eg8KB3NlcnZpY2UYBCABKAkSEAoIZGF0YWJhc2UYBSABKAkSDAoEdXNlchgGIAEoCRIwCgRzZXRzGAcgAygLMiIuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5OZWVkU2V0EhAKCHNldF9vbmNlGAggASgIEi0KBGtpbmQYMiABKA4yHy5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLktpbmQSEAoIb3B0aW9uYWwYMyABKAgSDgoGYnVja2V0GDQgASgJEhgKEHByZXNpZ25fbGlmZXRpbWUYNSABKAkitgEKCk5lZWRBY2NlcHQSMQoGZW5naW5lGAEgASgOMiEuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5FbmdpbmUSEAoIdmVyc2lvbnMYAiABKAkSLQoEa2luZBgyIAEoDjIfLmRvY2t3ZWxsLmNhdGFsb2cudjFhbHBoYTEuS2luZBI0CghmZWF0dXJlcxgzIAMoDjIiLmRvY2t3ZWxsLmNhdGFsb2cudjFhbHBoYTEuRmVhdHVyZSLXAQoHTmVlZFNldBIMCgRuYW1lGAEgASgJEi0KBHBhcnQYAiABKA4yHy5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLlBhcnQSEAoIdGVtcGxhdGUYAyABKAkSLwoDdGxzGAQgASgLMiIuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5OZWVkVGxzEjIKBXdvcmRzGAUgAygLMiMuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5OZWVkV29yZBIYChBlbXB0eV93aGVuX3VubWV0GDIgASgIIloKCE5lZWRXb3JkEjEKBmVuZ2luZRgBIAEoDjIhLmRvY2t3ZWxsLmNhdGFsb2cudjFhbHBoYTEuRW5naW5lEgwKBHdvcmQYAiABKAkSDQoFdmFsdWUYAyABKAkiIgoHTmVlZFRscxIKCgJvbhgBIAEoCRILCgNvZmYYAiABKAkiQwoLVHJhbnNsYXRpb24SDwoHc3VtbWFyeRgBIAEoCRITCgtkZXNjcmlwdGlvbhgCIAEoCRIOCgZyZWFkbWUYAyABKAkiZwoJQ29tcGFuaW9uEg8KB3NlcnZpY2UYASABKAkSDQoFbGFiZWwYAiABKAkSDwoHcHVycG9zZRgDIAEoCRIKCgJvbhgEIAEoCBIOCgZpbnB1dHMYBSADKAkSDQoFbm90ZXMYBiADKAkiZgoGU2lnbkluEgwKBHVzZXIYASABKAkSEgoKdXNlcl9pbnB1dBgCIAEoCRIWCg5wYXNzd29yZF9pbnB1dBgDIAEoCRIOCgZzZXJ2ZXIYBCABKAkSEgoKY2hhbmdlZF9pbhgFIAEoCSI8CgdTaWdudXBzEg8KB3NlcnZpY2UYASABKAkSEAoIdmFyaWFibGUYAiABKAkSDgoGY2xvc2VkGAMgASgJIkMKD0FkZHJlc3NWYXJpYWJsZRIPCgdzZXJ2aWNlGAEgASgJEhAKCHZhcmlhYmxlGAIgASgJEg0KBXZhbHVlGAMgASgJIjsKClNjcmVlbnNob3QSDAoEcGF0aBgBIAEoCRIPCgdjYXB0aW9uGAIgASgJEg4KBnNvdXJjZRgDIAEoCSI6CgZTb3VyY2USEgoKcmVwb3NpdG9yeRgBIAEoCRIMCgRwYXRoGAIgASgJEg4KBmNvbW1pdBgDIAEoCSLOAgoFSW5wdXQSDAoEbmFtZRgBIAEoCRINCgVsYWJlbBgCIAEoCRIMCgRoaW50GAMgASgJEjIKBHR5cGUYBCABKA4yJC5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLklucHV0VHlwZRIVCg1kZWZhdWx0X3ZhbHVlGAUgASgJEhAKCG9wdGlvbmFsGAYgASgIEhAKCGdlbmVyYXRlGAcgASgNEg4KBmxvZ2dlZBgIIAEoCBI6CgtnZW5lcmF0ZV9hcxhQIAEoDjIlLmRvY2t3ZWxsLmNhdGFsb2cudjFhbHBoYTEuR2VuZXJhdGVBcxISCgptaW5fbGVuZ3RoGFEgASgNEjkKCmNoYXJhY3RlcnMYUiABKA4yJS5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLkNoYXJhY3RlcnMSEAoIc2V0X29uY2UYCSABKAgiFgoDV2ViEg8KB3NlcnZpY2UYASABKAkqOAoES2luZBIUChBLSU5EX1VOU1BFQ0lGSUVEEAASCwoHS0lORF9TMxABEg0KCUtJTkRfU01UUBACKpsCCgdGZWF0dXJlEhcKE0ZFQVRVUkVfVU5TUEVDSUZJRUQQABIaChZGRUFUVVJFX1BSRVNJR05FRF9VUkxTEAESGAoURkVBVFVSRV9WSVJUVUFMX0hPU1QQAhIWChJGRUFUVVJFX1BBVEhfU1RZTEUQAxIVChFGRUFUVVJFX01VTFRJUEFSVBAEEhgKFEZFQVRVUkVfQkFUQ0hfREVMRVRFEAUSEAoMRkVBVFVSRV9DT1JTEAYSFwoTRkVBVFVSRV9QVUJMSUNfUkVBRBAHEhYKEkZFQVRVUkVfT0JKRUNUX0FDTBAIEhoKFkZFQVRVUkVfUFJFU0lHTkVEX1BPU1QQCRIZChVGRUFUVVJFX1NES19DSEVDS1NVTVMQCiqtAQoGRW5naW5lEhYKEkVOR0lORV9VTlNQRUNJRklFRBAAEhUKEUVOR0lORV9QT1NUR1JFU1FMEAESEAoMRU5HSU5FX01ZU1FMEAISEgoORU5HSU5FX01BUklBREIQAxIQCgxFTkdJTkVfUkVESVMQBBIRCg1FTkdJTkVfVkFMS0VZEAUSEgoORU5HSU5FX01PTkdPREIQBhIVChFFTkdJTkVfQ0xJQ0tIT1VTRRAHKt0CCgRQYXJ0EhQKEFBBUlRfVU5TUEVDSUZJRUQQABINCglQQVJUX0hPU1QQARINCglQQVJUX1BPUlQQAhIQCgxQQVJUX0FERFJFU1MQAxIRCg1QQVJUX0RBVEFCQVNFEAQSDQoJUEFSVF9VU0VSEAUSEQoNUEFSVF9QQVNTV09SRBAGEgwKCFBBUlRfVVJMEAcSDAoIUEFSVF9UTFMQCBITCg9QQVJUX0tFWV9QUkVGSVgQKBIPCgtQQVJUX0VOR0lORRApEhEKDVBBUlRfRU5EUE9JTlQQMhIPCgtQQVJUX1JFR0lPThAzEg8KC1BBUlRfQlVDS0VUEDQSFgoSUEFSVF9BQ0NFU1NfS0VZX0lEEDUSEwoPUEFSVF9TRUNSRVRfS0VZEDYSEwoPUEFSVF9QQVRIX1NUWUxFEDcSEwoPUEFSVF9QVUJMSUNfVVJMEDgSDAoIUEFSVF9NRVQQRipBCgpDaGFyYWN0ZXJzEhoKFkNIQVJBQ1RFUlNfVU5TUEVDSUZJRUQQABIXChNDSEFSQUNURVJTX1VSTF9TQUZFEAEqVgoKR2VuZXJhdGVBcxIbChdHRU5FUkFURV9BU19VTlNQRUNJRklFRBAAEhMKD0dFTkVSQVRFX0FTX0hFWBABEhYKEkdFTkVSQVRFX0FTX0JBU0U2NBACKn4KCUlucHV0VHlwZRIaChZJTlBVVF9UWVBFX1VOU1BFQ0lGSUVEEAASEwoPSU5QVVRfVFlQRV9URVhUEAESFAoQSU5QVVRfVFlQRV9FTUFJTBACEhMKD0lOUFVUX1RZUEVfUE9SVBADEhUKEUlOUFVUX1RZUEVfU0VDUkVUEARC/QEKHWNvbS5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExQgpFbnRyeVByb3RvUAFaSmdpdGh1Yi5jb20vZG9ja3dlbGwvZG9ja3dlbGwvZ2VuL2RvY2t3ZWxsL2NhdGFsb2cvdjFhbHBoYTE7Y2F0YWxvZ3YxYWxwaGExogIDRENYqgIZRG9ja3dlbGwuQ2F0YWxvZy5WMWFscGhhMcoCGURvY2t3ZWxsXENhdGFsb2dcVjFhbHBoYTHiAiVEb2Nrd2VsbFxDYXRhbG9nXFYxYWxwaGExXEdQQk1ldGFkYXRh6gIbRG9ja3dlbGw6OkNhdGFsb2c6OlYxYWxwaGExYgZwcm90bzM");
 
 /**
  * Entry is one app a catalog offers, at one version. It installs through the
@@ -369,6 +369,42 @@ export type Need = Message<"dockwell.catalog.v1alpha1.Need"> & {
    * @generated from field: bool set_once = 8;
    */
   setOnce: boolean;
+
+  /**
+   * What kind of thing it is, such as S3 storage. Unset, it's a database, of the
+   * engines it accepts. Numbered, with what follows, in the block every kind holds,
+   * 50 to 59. See
+   * docs/adr/0099-every-kind-of-thing-an-app-needs-met-the-same-three-ways.md.
+   *
+   * @generated from field: dockwell.catalog.v1alpha1.Kind kind = 50;
+   */
+  kind: Kind;
+
+  /**
+   * The app runs without it, as many keep files on their own disk unless given a
+   * bucket: it installs unset, and is never met new by default. Its names are left
+   * out while it's unmet, but a PART_MET set's and those empty_when_unmet.
+   *
+   * @generated from field: bool optional = 51;
+   */
+  optional: boolean;
+
+  /**
+   * The bucket to start from, for S3 storage, such as "notes". Empty takes the
+   * need's name.
+   *
+   * @generated from field: string bucket = 52;
+   */
+  bucket: string;
+
+  /**
+   * How long the app's signed URLs last, for S3 storage, as a Go duration such as
+   * "1h": a bucket's move waits it out where it can't stop the old key. Empty is
+   * seven days, AWS's longest.
+   *
+   * @generated from field: string presign_lifetime = 53;
+   */
+  presignLifetime: string;
 };
 
 /**
@@ -398,6 +434,21 @@ export type NeedAccept = Message<"dockwell.catalog.v1alpha1.NeedAccept"> & {
    * @generated from field: string versions = 2;
    */
   versions: string;
+
+  /**
+   * A kind, in place of an engine, where the app doesn't care which product
+   * speaks it: any that has the features. The need's own kind.
+   *
+   * @generated from field: dockwell.catalog.v1alpha1.Kind kind = 50;
+   */
+  kind: Kind;
+
+  /**
+   * What the app needs of whatever meets it, such as presigned URLs.
+   *
+   * @generated from field: repeated dockwell.catalog.v1alpha1.Feature features = 51;
+   */
+  features: Feature[];
 };
 
 /**
@@ -453,10 +504,20 @@ export type NeedSet = Message<"dockwell.catalog.v1alpha1.NeedSet"> & {
    * "mysql" for MySQL and MariaDB. One for each engine the need accepts, and
    * only for an engine part. See
    * docs/adr/0084-what-an-app-needs-met-by-a-new-service-one-you-run-or-a-connection.md.
+   * For a part with a fixed set of values, as PART_MET's met and unmet or
+   * PART_PATH_STYLE's on and off, the app's word for each value instead.
    *
    * @generated from field: repeated dockwell.catalog.v1alpha1.NeedWord words = 5;
    */
   words: NeedWord[];
+
+  /**
+   * Set, empty, while an optional need is unmet, for an app that needs the name
+   * there and reads it empty as unset. Elsewhere it's left out.
+   *
+   * @generated from field: bool empty_when_unmet = 50;
+   */
+  emptyWhenUnmet: boolean;
 };
 
 /**
@@ -485,6 +546,15 @@ export type NeedWord = Message<"dockwell.catalog.v1alpha1.NeedWord"> & {
    * @generated from field: string word = 2;
    */
   word: string;
+
+  /**
+   * The value it's the app's word for, in place of an engine: met or unmet for
+   * PART_MET, on or off for PART_PATH_STYLE. An unmet word may be empty, which
+   * leaves the name out while unmet.
+   *
+   * @generated from field: string value = 3;
+   */
+  value: string;
 };
 
 /**
@@ -954,6 +1024,133 @@ export const WebSchema: GenMessage<Web> = /*@__PURE__*/
   messageDesc(file_dockwell_catalog_v1alpha1_entry, 14);
 
 /**
+ * Kind is what an app speaks to, whatever product speaks it, beyond the databases
+ * Engine names. See
+ * docs/adr/0099-every-kind-of-thing-an-app-needs-met-the-same-three-ways.md.
+ *
+ * @generated from enum dockwell.catalog.v1alpha1.Kind
+ */
+export enum Kind {
+  /**
+   * A database, of the engines it accepts.
+   *
+   * @generated from enum value: KIND_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * S3-compatible object storage, as Amazon S3, Cloudflare R2, Backblaze B2,
+   * Google Cloud Storage, Garage and RustFS speak it.
+   *
+   * @generated from enum value: KIND_S3 = 1;
+   */
+  S3 = 1,
+
+  /**
+   * Mail by SMTP.
+   *
+   * @generated from enum value: KIND_SMTP = 2;
+   */
+  SMTP = 2,
+}
+
+/**
+ * Describes the enum dockwell.catalog.v1alpha1.Kind.
+ */
+export const KindSchema: GenEnum<Kind> = /*@__PURE__*/
+  enumDesc(file_dockwell_catalog_v1alpha1_entry, 0);
+
+/**
+ * Feature is something an app needs of what meets its need, beyond speaking its
+ * kind. What a server can do is proven by the check; what happens in a browser is
+ * set up and stated.
+ *
+ * @generated from enum dockwell.catalog.v1alpha1.Feature
+ */
+export enum Feature {
+  /**
+   * @generated from enum value: FEATURE_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * The app hands browsers a signed URL to read or write an object.
+   *
+   * @generated from enum value: FEATURE_PRESIGNED_URLS = 1;
+   */
+  PRESIGNED_URLS = 1,
+
+  /**
+   * The bucket in the host name.
+   *
+   * @generated from enum value: FEATURE_VIRTUAL_HOST = 2;
+   */
+  VIRTUAL_HOST = 2,
+
+  /**
+   * The bucket in the path.
+   *
+   * @generated from enum value: FEATURE_PATH_STYLE = 3;
+   */
+  PATH_STYLE = 3,
+
+  /**
+   * Large uploads in parts.
+   *
+   * @generated from enum value: FEATURE_MULTIPART = 4;
+   */
+  MULTIPART = 4,
+
+  /**
+   * Deleting many objects in one request.
+   *
+   * @generated from enum value: FEATURE_BATCH_DELETE = 5;
+   */
+  BATCH_DELETE = 5,
+
+  /**
+   * Browsers upload straight to the bucket.
+   *
+   * @generated from enum value: FEATURE_CORS = 6;
+   */
+  CORS = 6,
+
+  /**
+   * Objects served to anyone at the public URL.
+   *
+   * @generated from enum value: FEATURE_PUBLIC_READ = 7;
+   */
+  PUBLIC_READ = 7,
+
+  /**
+   * An ACL per object, as apps that set public-read on each.
+   *
+   * @generated from enum value: FEATURE_OBJECT_ACL = 8;
+   */
+  OBJECT_ACL = 8,
+
+  /**
+   * A browser's form upload.
+   *
+   * @generated from enum value: FEATURE_PRESIGNED_POST = 9;
+   */
+  PRESIGNED_POST = 9,
+
+  /**
+   * The checksums and streaming trailers AWS's SDKs send by default.
+   *
+   * @generated from enum value: FEATURE_SDK_CHECKSUMS = 10;
+   */
+  SDK_CHECKSUMS = 10,
+}
+
+/**
+ * Describes the enum dockwell.catalog.v1alpha1.Feature.
+ */
+export const FeatureSchema: GenEnum<Feature> = /*@__PURE__*/
+  enumDesc(file_dockwell_catalog_v1alpha1_entry, 1);
+
+/**
  * Engine is what runs a database, as Dockwell knows it (ADR 0038).
  *
  * @generated from enum dockwell.catalog.v1alpha1.Engine
@@ -1018,7 +1215,7 @@ export enum Engine {
  * Describes the enum dockwell.catalog.v1alpha1.Engine.
  */
 export const EngineSchema: GenEnum<Engine> = /*@__PURE__*/
-  enumDesc(file_dockwell_catalog_v1alpha1_entry, 0);
+  enumDesc(file_dockwell_catalog_v1alpha1_entry, 2);
 
 /**
  * Part is what a name a need sets holds.
@@ -1106,13 +1303,72 @@ export enum Part {
    * @generated from enum value: PART_ENGINE = 41;
    */
   ENGINE = 41,
+
+  /**
+   * S3 storage's parts, numbered from 50. Its endpoint, a URL, such as
+   * "https://<account>.r2.cloudflarestorage.com".
+   *
+   * @generated from enum value: PART_ENDPOINT = 50;
+   */
+  ENDPOINT = 50,
+
+  /**
+   * Its region, such as "auto" or "eu-central-1".
+   *
+   * @generated from enum value: PART_REGION = 51;
+   */
+  REGION = 51,
+
+  /**
+   * The bucket's name.
+   *
+   * @generated from enum value: PART_BUCKET = 52;
+   */
+  BUCKET = 52,
+
+  /**
+   * The access key's ID.
+   *
+   * @generated from enum value: PART_ACCESS_KEY_ID = 53;
+   */
+  ACCESS_KEY_ID = 53,
+
+  /**
+   * The secret key, kept as a secret.
+   *
+   * @generated from enum value: PART_SECRET_KEY = 54;
+   */
+  SECRET_KEY = 54,
+
+  /**
+   * Whether the bucket goes in the path, in the app's words, as words give them
+   * for on and off.
+   *
+   * @generated from enum value: PART_PATH_STYLE = 55;
+   */
+  PATH_STYLE = 55,
+
+  /**
+   * Where objects are read from publicly, as a custom domain.
+   *
+   * @generated from enum value: PART_PUBLIC_URL = 56;
+   */
+  PUBLIC_URL = 56,
+
+  /**
+   * Whether an optional need is met, in the app's words, as words give them for
+   * met and unmet, such as STORAGE_DRIVER's s3 and local. Set while unmet too.
+   *
+   * @generated from enum value: PART_MET = 70;
+   */
+  MET = 70,
 }
 
 /**
  * Describes the enum dockwell.catalog.v1alpha1.Part.
  */
 export const PartSchema: GenEnum<Part> = /*@__PURE__*/
-  enumDesc(file_dockwell_catalog_v1alpha1_entry, 1);
+  enumDesc(file_dockwell_catalog_v1alpha1_entry, 3);
 
 /**
  * Characters are what a value a person gives may hold.
@@ -1141,7 +1397,7 @@ export enum Characters {
  * Describes the enum dockwell.catalog.v1alpha1.Characters.
  */
 export const CharactersSchema: GenEnum<Characters> = /*@__PURE__*/
-  enumDesc(file_dockwell_catalog_v1alpha1_entry, 2);
+  enumDesc(file_dockwell_catalog_v1alpha1_entry, 4);
 
 /**
  * GenerateAs is how a generated secret is written.
@@ -1177,7 +1433,7 @@ export enum GenerateAs {
  * Describes the enum dockwell.catalog.v1alpha1.GenerateAs.
  */
 export const GenerateAsSchema: GenEnum<GenerateAs> = /*@__PURE__*/
-  enumDesc(file_dockwell_catalog_v1alpha1_entry, 3);
+  enumDesc(file_dockwell_catalog_v1alpha1_entry, 5);
 
 /**
  * InputType is what an input takes.
@@ -1230,5 +1486,5 @@ export enum InputType {
  * Describes the enum dockwell.catalog.v1alpha1.InputType.
  */
 export const InputTypeSchema: GenEnum<InputType> = /*@__PURE__*/
-  enumDesc(file_dockwell_catalog_v1alpha1_entry, 4);
+  enumDesc(file_dockwell_catalog_v1alpha1_entry, 6);
 

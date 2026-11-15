@@ -171,7 +171,7 @@ func TestCheckRefusesANeed(t *testing.T) {
 			withEngineWord(e)
 			e.Needs[0].Sets[4].Words[0].Word = "my sql"
 		},
-		"only an engine part reads": func(e *catalogv1.Entry) {
+		"only an engine part, PART_MET and PART_PATH_STYLE read": func(e *catalogv1.Entry) {
 			e.Needs[0].Sets[0].Words = []*catalogv1.NeedWord{{Engine: catalogv1.Engine_ENGINE_MYSQL, Word: "mysql"}}
 		},
 		"user would be root":       func(e *catalogv1.Entry) { e.Needs[0].User = "root" },

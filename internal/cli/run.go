@@ -49,6 +49,7 @@ import (
 	"github.com/dockwell/dockwell/internal/ingress"
 	"github.com/dockwell/dockwell/internal/ingress/caddy"
 	"github.com/dockwell/dockwell/internal/netguard"
+	"github.com/dockwell/dockwell/internal/probe"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/fail2ban"
@@ -474,6 +475,12 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 	go tasks.Keep(ctx)
 	users := &database.UserDriver{Client: client, Dir: filepath.Join(dir.Agent(), "databases")}
 	go users.Clean(ctx)
+	probes := &probe.Runner{Client: client, Logger: logger}
+	go func() {
+		if err := probes.Clean(ctx); err != nil {
+			logger.Warn("can't remove what a connection's check left when the agent stopped; it's tried again at the next start", "error", err.Error())
+		}
+	}()
 	go users.KeepRedisUsers(ctx)
 	var reserved string
 	if panel != nil {
@@ -514,7 +521,7 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 			&fail2ban.Driver{Backend: jailed}, &host.Driver{Backend: updates.Host{Installer: installs}, Units: units, Panels: panels.Stopper{Docker: client, BeforeProxy: proxy.Pull, Check: panelReader(stdio, client).Check}, Upgrader: upgrades}),
 		Updates:        packages,
 		UpgradesItself: true,
-		Collector:      collector, Domains: routes, Public: routes, Certificates: routes, Logs: &logs.Reader{Client: client, Archive: archive, Logger: logger, Journal: units}, Docker: client, Health: monitor,
+		Collector:      collector, Domains: routes, Public: routes, Certificates: routes, Logs: &logs.Reader{Client: client, Archive: archive, Logger: logger, Journal: units}, Docker: client, Probes: probes, Health: monitor,
 		Backups: backup.Calls{Runner: backups}, Databases: database.Reader{Client: client}, Builds: builder, Tasks: tasks, Tools: tools, Access: firewalls,
 		Jails: jailed.Stored, SSHSessions: sessions,
 		System: units,

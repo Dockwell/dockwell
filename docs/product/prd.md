@@ -107,7 +107,7 @@ Every surface writes to the same revision store; the scheduler places revisions 
 | Deployment | A revision placed on nodes, with health and rollout state |
 | Node, Pool | A machine running the agent; a label-defined group of nodes |
 | Domain, Certificate, Secret, Volume, Backup policy | Resources that services reference rather than copy |
-| Connection | An external service (Supabase, R2, Stripe) with named fields and per-environment values; apps bind to it through a variable mapping |
+| Connection | An external service (Supabase, R2, Stripe) with named fields, holding one environment's values; apps bind to it through a variable mapping |
 | Route, Ingress | Domain + path to a service in an environment; the servers that accept public traffic and forward it over the private network |
 
 ### Scaling modes
@@ -269,9 +269,9 @@ Every feature is operable from a phone browser at 360 px wide, with no reduced c
 
 ## Connections
 
-Apps reach outside services through Connections: one saved credential set per service, mapped into each app under the variable names that app expects, so one change updates every app that uses it.
+Apps reach outside services through Connections: a saved credential set, mapped into each app under the variable names that app expects. A connection serves one app unless an admin shares it, which it then shows as a state, and one change updates every app that uses it.
 
-A connection is an external service with named fields: a Supabase project has host, port, user, password, pooled URL, anon key and service key; an R2 bucket has endpoint, bucket, access key ID and secret. Apps bind to a connection, and the binding maps fields to the container's own names. One Supabase project and one R2 bucket feed four apps:
+A connection is an external service with named fields: a Supabase project has host, port, user, password, pooled URL, anon key and service key; an R2 bucket has endpoint, bucket, access key ID and secret. Apps bind to a connection, and the binding maps fields to the container's own names. Shared by an admin, one Supabase project and one R2 bucket feed four apps:
 
 | App | Variables the container expects | From |
 | --- | --- | --- |
@@ -283,12 +283,12 @@ A connection is an external service with named fields: a Supabase project has ho
 - **Templates.** Supabase, Neon, Cloudflare R2, Amazon S3, Backblaze B2, Stripe, Resend, Postmark, SMTP, OpenAI, Anthropic and Sentry at launch, plus Custom for anything else. A template declares its fields, which ones are secret, and a connection test.
 - **Mapping is suggested, not typed.** Catalog apps ship a manifest of the names they expect, so binding is one click. For repos, names come from `.env.example`, Compose files and a source scan, matched to fields. Transforms cover the rest: join parts into a URL, split a URL into parts, append, base64, or write to a file.
 - **Injection.** Values reach containers as environment variables at start, as files under `/run/secrets/` for images that read `*_FILE` variables, or rendered into a config template. They are never written into Compose files, image layers or logs. A server receives only the secrets of apps placed on it; the agent decrypts them in memory.
-- **Environments.** One connection holds a value set per environment, so production and staging can point at different Supabase projects under the same binding. Previews inherit staging unless the connection can create its own.
+- **Environments.** A connection holds one environment's values, so production and staging point at different Supabase projects. Adding one is one form with a column per environment, which makes a connection for each, and an app's link in each environment picks the one for it by default. Previews link staging's connections, or get a bucket of their own made through an integration and deleted with the preview (ADR 0099).
 - **Credentials Dockwell creates.** With the matching integration connected, Dockwell creates the credential instead of storing a pasted one: an R2 bucket and a token scoped to it for each app, or a Supabase branch per pull-request preview. It revokes them when the app or preview is deleted.
-- **Rotation is a plan.** Editing a value opens a plan listing every app and environment that will restart, rolled one replica at a time; the old value stays valid until every replica is healthy. Each connection has a Used by view and expiry reminders.
-- **Bind is not read.** Developers can bind a production connection without seeing its values. Revealing a value needs a passkey and lands in the audit log; API tokens cannot read values unless given `connections:read`.
+- **Rotation is a plan.** Editing a value opens a plan listing every app that will restart, in the connection's environment, rolled one replica at a time; the old value stays valid until every replica is healthy. Each connection has a Used by view and expiry reminders.
+- **Bind is not read.** Developers can bind a production connection without seeing its values in the panel. Revealing a value needs a passkey and lands in the audit log; API tokens never reveal values. Whoever may change an app can read what it's given through the app, so a connection shows who could, and a key made per app through an integration is preferred to one pasted key shared by many.
 - **Test from the server that runs the app.** The connection test runs through the agent on the chosen server, which catches firewall and IP allow-list problems, and shows the outgoing IPs to add at the provider.
-- **Boundary with Integrations.** Integrations let Dockwell act on your accounts (Git, DNS, cloud providers, backup storage); Connections are credentials your apps use. An integration can create connections, which is how per-app R2 tokens work.
+- **Boundary with Integrations.** Integrations let Dockwell act on your accounts (Git, DNS, cloud providers, storage providers); Connections are credentials something uses: an app, or Dockwell itself, as a backup destination uses a bucket. An integration's account can create connections, which is how per-app R2 tokens, and a backup destination's bucket, work.
 
 On one server, Connections works the same with no environment column, and catalog installs offer Connect next to Create for databases and storage.
 

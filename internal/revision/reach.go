@@ -15,6 +15,7 @@ import (
 	"github.com/dockwell/dockwell/internal/database"
 	"github.com/dockwell/dockwell/internal/fault"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/connection"
 	"github.com/dockwell/dockwell/internal/resource/variable"
 	"github.com/dockwell/dockwell/internal/scope"
 	"github.com/dockwell/dockwell/internal/store"
@@ -188,11 +189,17 @@ func (e *Engine) checkReaches(ctx context.Context, tx *store.Tx, items []item, i
 	}
 	switch s := it.spec.(type) {
 	case *resourcev1.Link:
+		if s.GetConnection() != "" {
+			return e.checkConnectionReached(ctx, tx, items, it, s.GetConnection())
+		}
 		if err := e.checkLinkUser(ctx, tx, items, it, s); err != nil {
 			return err
 		}
 		return e.checkLinkServer(ctx, tx, items, it, s)
 	case *resourcev1.Variable, *resourcev1.Secret:
+		if c := variable.FromOf(s).GetConnection(); c != nil {
+			return e.checkConnectionValue(ctx, tx, items, it, c)
+		}
 		return e.checkValueFrom(ctx, tx, items, it)
 	case *resourcev1.Network:
 		var links map[string]*resourcev1.Link
@@ -224,6 +231,59 @@ func (e *Engine) checkReaches(ctx context.Context, tx *store.Tx, items []item, i
 		return e.checkServiceSecrets(ctx, tx, items, it, s)
 	}
 	return nil
+}
+
+// checkConnectionReached refuses a link to a connection that isn't there, or doesn't
+// reach the link's project: reaching a connection is reading it, as whoever may
+// change an app that links to it can read what it's given, so only the projects it
+// names, or every one where it says so, may (ADR 0099). Both are refused in the
+// same words, as a project a connection doesn't reach sees it as not there: a
+// developer can't learn other projects' connections by trying names.
+func (e *Engine) checkConnectionReached(ctx context.Context, tx *store.Tx, items []item, it *item, name string) error {
+	org, err := tx.Organization(ctx)
+	if err != nil {
+		return err
+	}
+	spec, err := e.specAfter(ctx, tx, items, resource.Ref{Kind: variable.ConnectionKind, Scope: org.ID, Name: name})
+	if err != nil {
+		return err
+	}
+	if c, ok := spec.(*resourcev1.ConnectionSpec); !ok || !connection.Reaches(c, projectOfScope(ctx, tx, items, it.ref.Scope)) {
+		return connectionUnusable(it, name)
+	}
+	return nil
+}
+
+// connectionUnusable is the one refusal of a connection that isn't there and of one
+// that doesn't reach the item's project, wherever it's looked up: a link naming it,
+// or a value read from it, pinned or checked.
+func connectionUnusable(it *item, name string) error {
+	return fault.New(ErrInvalid, "%s %s names the connection %s, which isn't one this project can use. Pick one on Connections, or ask an admin", it.ref.Kind, it.ref.Name, name)
+}
+
+// checkConnectionValue refuses a value from a connection that no link in its
+// environment writes, as a link alone may say what reaches a connection, and so
+// only as it says: the link names the connection, of the organization, and reaches
+// it from this project (ADR 0099).
+func (e *Engine) checkConnectionValue(ctx context.Context, tx *store.Tx, items []item, it *item, ref *resourcev1.ConnectionRef) error {
+	org, err := tx.Organization(ctx)
+	if err != nil {
+		return err
+	}
+	spec, err := e.specAfter(ctx, tx, items, resource.Ref{Kind: linkKind, Scope: it.ref.Scope, Name: ref.GetLink()})
+	if err != nil {
+		return err
+	}
+	l, ok := spec.(*resourcev1.Link)
+	switch {
+	case ref.GetScope() != org.ID:
+		return fault.New(ErrInvalid, "%s %s reads a connection of another organization, which isn't this install's", it.ref.Kind, it.ref.Name)
+	case !ok:
+		return fault.New(ErrInvalid, "%s %s takes its value from a connection, which only a link writes, and its environment has no link %s", it.ref.Kind, it.ref.Name, ref.GetLink())
+	case l.GetConnection() != ref.GetName():
+		return fault.New(ErrInvalid, "%s %s reads the connection %s through link %s, which names %s", it.ref.Kind, it.ref.Name, ref.GetName(), ref.GetLink(), cmp.Or(l.GetConnection(), "none"))
+	}
+	return e.checkConnectionReached(ctx, tx, items, it, ref.GetName())
 }
 
 // checkLinkUser refuses a link that names a database user another link names, so

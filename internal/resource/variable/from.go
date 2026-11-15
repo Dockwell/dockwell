@@ -61,10 +61,42 @@ func checkFrom(what string, from *resourcev1.ValueFrom, value string, secret boo
 			return errors.New("a variable can't take its value from a secret, as plans show a variable. Make it a secret")
 		}
 		return CheckName(what, ref.GetName())
+	case *resourcev1.ValueFrom_Connection:
+		ref := src.Connection
+		switch {
+		case !strings.HasPrefix(ref.GetScope(), "org_"):
+			return fmt.Errorf("a %s's value from a connection names the organization it's in by its ID, such as org_…", what)
+		case ref.GetLink() == "":
+			return fmt.Errorf("only a link writes a %s's value from a connection, and this one names none", what)
+		case ref.GetName() == "":
+			return fmt.Errorf("a %s's value from a connection names none", what)
+		}
+		key, ok := connectionParts[ref.GetPart()]
+		switch {
+		case !ok:
+			return fmt.Errorf("a %s's value from a connection is %s, which a connection doesn't hold", what, ref.GetPart())
+		case key && !secret:
+			return errors.New("a variable can't take a connection's key, as plans show a variable. Make it a secret")
+		}
+		return nil
 	default:
 		return fmt.Errorf("a %s's from says neither a template nor a value", what)
 	}
 }
+
+// connectionParts are the parts a value may take from a connection, each with
+// whether it's one of its keys, which only a secret holds (ADR 0099).
+var connectionParts = map[resourcev1.LinkPart]bool{
+	resourcev1.LinkPart_LINK_PART_ENDPOINT:      false,
+	resourcev1.LinkPart_LINK_PART_REGION:        false,
+	resourcev1.LinkPart_LINK_PART_BUCKET:        false,
+	resourcev1.LinkPart_LINK_PART_PUBLIC_URL:    false,
+	resourcev1.LinkPart_LINK_PART_ACCESS_KEY_ID: true,
+	resourcev1.LinkPart_LINK_PART_SECRET_KEY:    true,
+}
+
+// ConnectionKind is the kind a value from a connection uses.
+const ConnectionKind resource.Kind = "connection"
 
 // checkTemplate refuses a template that names what it doesn't list, lists what it
 // doesn't name, or names a secret from a variable.
@@ -149,6 +181,10 @@ func fromUses(from *resourcev1.ValueFrom, revisions map[string]int64) []resource
 			kind = SecretKind
 		}
 		return []resource.Use{{As: FromUse, Kind: kind, Name: src.Value.GetName(), Scope: src.Value.GetEnvironment(), Revision: int(revisions[FromUse])}}
+	case *resourcev1.ValueFrom_Connection:
+		// The connection, pinned as a value it's read from is, so a change to it
+		// reaches every app that uses it in the same plan.
+		return []resource.Use{{As: FromUse, Kind: ConnectionKind, Name: src.Connection.GetName(), Scope: src.Connection.GetScope(), Revision: int(revisions[FromUse])}}
 	}
 	return nil
 }

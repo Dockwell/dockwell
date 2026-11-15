@@ -43,6 +43,9 @@ type Server struct {
 	FinishFails bool
 	// Authorizations are the Authorization headers it was sent.
 	Authorizations []string
+	// Expires are how long each presigned URL it was sent lasts, in seconds, as
+	// X-Amz-Expires says.
+	Expires []string
 	// Hold keeps every request waiting until it closes, or with HoldOnly, those whose
 	// path ends with that. Nil holds none.
 	Hold     chan struct{}
@@ -91,10 +94,16 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer s.mu.Unlock()
 	auth := r.Header.Get("Authorization")
 	s.Authorizations = append(s.Authorizations, auth)
-	if !strings.HasPrefix(auth, "AWS4-HMAC-SHA256 Credential=") {
+	// Signed in its header, or presigned in its query.
+	credential, presigned := strings.TrimPrefix(auth, "AWS4-HMAC-SHA256 Credential="), r.URL.Query().Get("X-Amz-Signature") != ""
+	if presigned {
+		credential = r.URL.Query().Get("X-Amz-Credential")
+		s.Expires = append(s.Expires, r.URL.Query().Get("X-Amz-Expires"))
+	} else if credential == auth {
 		s.t.Errorf("%s %s isn't signed: %q", r.Method, r.URL, auth)
 	}
-	if s.MovedTo != "" && r.URL.Path != "/" {
+	// A request signed for the region the bucket moved to is served there.
+	if s.MovedTo != "" && r.URL.Path != "/" && !strings.Contains(credential, "/"+s.MovedTo+"/") {
 		w.Header().Set("x-amz-bucket-region", s.MovedTo)
 		w.WriteHeader(http.StatusMovedPermanently)
 		fmt.Fprint(w, "<Error><Code>PermanentRedirect</Code><Message>The bucket you are attempting to access must be addressed using the specified endpoint.</Message></Error>")

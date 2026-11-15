@@ -17,6 +17,8 @@ import (
 	"github.com/dockwell/dockwell/internal/fault"
 	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/connection"
+	"github.com/dockwell/dockwell/internal/resource/variable"
 	"github.com/dockwell/dockwell/internal/scope"
 	"github.com/dockwell/dockwell/internal/store"
 )
@@ -54,6 +56,16 @@ func (e *Engine) valuer(kind resource.Kind) bool {
 		return false
 	}
 	_, ok := t.(resource.Valuer)
+	return ok
+}
+
+// readThrough reports a kind whose values others read through a value's from.
+func (e *Engine) readThrough(kind resource.Kind) bool {
+	t, err := e.kinds.Type(kind)
+	if err != nil {
+		return false
+	}
+	_, ok := t.(resource.ReadThrough)
 	return ok
 }
 
@@ -169,7 +181,7 @@ func (e *Engine) users(ctx context.Context, tx *store.Tx, items []item) ([]resou
 	for i := range items {
 		it := &items[i]
 		in[it.ref] = true
-		if e.valuer(it.ref.Kind) && it.changes() {
+		if (e.valuer(it.ref.Kind) || e.readThrough(it.ref.Kind)) && it.changes() {
 			if changed[it.ref.Scope] == nil {
 				changed[it.ref.Scope] = map[resource.Kind][]string{}
 			}
@@ -232,6 +244,17 @@ func (e *Engine) revisions(ctx context.Context, tx *store.Tx, items []item, it *
 				revs[u.As] = other.base + 1
 			}
 			continue
+		}
+		if u.Kind == variable.ConnectionKind {
+			// A connection another project uses reads as one that isn't there, as it
+			// does to a link, so a value can't tell them apart either (ADR 0099).
+			spec, err := e.specAfter(ctx, tx, items, ref)
+			if err != nil {
+				return nil, err
+			}
+			if c, ok := spec.(*resourcev1.ConnectionSpec); !ok || !connection.Reaches(c, projectOfScope(ctx, tx, items, it.ref.Scope)) {
+				return nil, connectionUnusable(it, u.Name)
+			}
 		}
 		r, err := tx.GetResource(ctx, string(u.Kind), scopeID, u.Name)
 		if errors.Is(err, store.ErrNotFound) || err == nil && r.Spec == nil {

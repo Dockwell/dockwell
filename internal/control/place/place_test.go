@@ -12,6 +12,7 @@ import (
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/alert"
 	"github.com/dockwell/dockwell/internal/resource/backuppolicy"
+	"github.com/dockwell/dockwell/internal/resource/connection"
 	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/firewall"
 	"github.com/dockwell/dockwell/internal/resource/network"
@@ -40,6 +41,7 @@ func TestEveryKindOfResourceCanBePlaced(t *testing.T) {
 		backuppolicy.Type{},
 		backuppolicy.Destination{},
 		registrylogin.Type{},
+		connection.Type{},
 		signinprovider.Type{},
 		scope.ProjectType{},
 		scope.EnvironmentType{},

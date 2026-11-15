@@ -18,6 +18,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	"github.com/dockwell/dockwell/internal/backup/s3"
 	"github.com/dockwell/dockwell/internal/resource"
 )
 
@@ -64,9 +65,14 @@ var (
 // Validate refuses a link that can't say what it sets.
 func (Type) Validate(spec proto.Message) error {
 	l := spec.(*resourcev1.Link)
+	if l.GetConnection() != "" || l.GetKind() != resourcev1.LinkKind_LINK_KIND_UNSPECIFIED {
+		return validateToConnection(l)
+	}
 	switch {
 	case strings.TrimSpace(l.GetLabel()) == "" || strings.ContainsAny(l.GetLabel(), "\r\n"):
 		return errors.New("a link needs a label on one line, such as Database")
+	case l.GetPrefix() != "" || len(l.GetFeatures()) > 0:
+		return errors.New("a link to a database takes no prefix or features, which a link to storage does")
 	case l.GetService() == "":
 		return errors.New("a link needs the service that meets it, by name")
 	case l.GetMeetsEnvironment() != "" && !strings.HasPrefix(l.GetMeetsEnvironment(), "env_"):
@@ -108,12 +114,71 @@ func (Type) Validate(spec proto.Message) error {
 	return nil
 }
 
+// connectionParts are the parts a link to a connection sets, beside PART_MET and
+// PART_PATH_STYLE, which it writes in the app's own words.
+var connectionParts = map[resourcev1.LinkPart]bool{
+	resourcev1.LinkPart_LINK_PART_ENDPOINT: true, resourcev1.LinkPart_LINK_PART_REGION: true, resourcev1.LinkPart_LINK_PART_BUCKET: true,
+	resourcev1.LinkPart_LINK_PART_ACCESS_KEY_ID: true, resourcev1.LinkPart_LINK_PART_SECRET_KEY: true, resourcev1.LinkPart_LINK_PART_PUBLIC_URL: true,
+	resourcev1.LinkPart_LINK_PART_PATH_STYLE: true, resourcev1.LinkPart_LINK_PART_MET: true,
+}
+
+// CheckPrefix refuses a prefix that isn't folders in a bucket, for the link and for
+// what checks a connection before a link is planned, so a check never writes
+// outside where the link will.
+func CheckPrefix(prefix string) error {
+	if s3.CheckPrefix(prefix) != nil {
+		return fmt.Errorf("%q isn't a prefix in a bucket. Write it as folders, each ending with a slash, such as outline/", prefix)
+	}
+	return nil
+}
+
+// validateToConnection refuses a link to a connection that says what only a link to
+// a database does, or sets what a connection doesn't hold (ADR 0099).
+func validateToConnection(l *resourcev1.Link) error {
+	switch {
+	case strings.TrimSpace(l.GetLabel()) == "" || strings.ContainsAny(l.GetLabel(), "\r\n"):
+		return errors.New("a link needs a label on one line, such as Storage")
+	case l.GetConnection() == "":
+		return errors.New("a link to storage names the connection that meets it")
+	case l.GetKind() != resourcev1.LinkKind_LINK_KIND_S3:
+		return errors.New("a link to a connection reaches S3 storage for now. Set its kind to LINK_KIND_S3")
+	case l.GetService() != "" || l.GetMeetsEnvironment() != "" || l.GetEngine() != resourcev1.LinkEngine_LINK_ENGINE_UNSPECIFIED ||
+		len(l.GetAccepts()) > 0 || l.GetDatabaseName() != "" || l.GetUser() != "" || l.GetSetOnce():
+		return errors.New("a link to a connection names no service, environment, engine, database or user, which only a link to a database does")
+	case len(l.GetSets()) == 0:
+		return errors.New("a link needs the names it sets, such as S3_BUCKET")
+	case CheckPrefix(l.GetPrefix()) != nil:
+		return CheckPrefix(l.GetPrefix())
+	}
+	for _, f := range l.GetFeatures() {
+		if f == resourcev1.LinkFeature_LINK_FEATURE_UNSPECIFIED || resourcev1.LinkFeature_name[int32(f)] == "" {
+			return errors.New("each feature a link's app needs needs naming")
+		}
+	}
+	seen := map[string]bool{}
+	for _, s := range l.GetSets() {
+		switch {
+		case !envName.MatchString(s.GetName()):
+			return fmt.Errorf("%q isn't a name a service can read, such as S3_BUCKET", s.GetName())
+		case seen[s.GetName()]:
+			return fmt.Errorf("a link sets %s twice", s.GetName())
+		case !connectionParts[s.GetPart()]:
+			return fmt.Errorf("a link to storage sets %s as %s, which storage doesn't have", s.GetName(), s.GetPart())
+		case s.GetTemplate() != "" || s.GetTlsOn() != "" || s.GetTlsOff() != "":
+			return fmt.Errorf("a link to storage writes %s as the connection holds it, with no template or TLS words", s.GetName())
+		}
+		seen[s.GetName()] = true
+	}
+	return nil
+}
+
 // References names the service that meets it, in this environment, so it can't go
 // while the link reads it. One in another environment is the link's to check as it's
 // planned (ADR 0084).
 func (Type) References(spec proto.Message) []resource.Reference {
 	l := spec.(*resourcev1.Link)
-	if l.GetMeetsEnvironment() != "" {
+	if l.GetMeetsEnvironment() != "" || l.GetConnection() != "" {
+		// A connection is the organization's, which its values pin (ADR 0099).
 		return nil
 	}
 	return []resource.Reference{{Kind: "service", Name: l.GetService(), Verb: "read", Apart: true}}
@@ -144,10 +209,11 @@ func (Type) Ties(name string, spec proto.Message) []resource.Ref {
 // ReferenceKinds is services.
 func (Type) ReferenceKinds() []resource.Kind { return []resource.Kind{"service"} }
 
-// Secret reports a part that holds the password, and so is kept as a secret.
+// Secret reports a part that holds the password, or a connection's key, and so is
+// kept as a secret.
 func Secret(s *resourcev1.LinkSet) bool {
 	switch s.GetPart() {
-	case resourcev1.LinkPart_LINK_PART_PASSWORD:
+	case resourcev1.LinkPart_LINK_PART_PASSWORD, resourcev1.LinkPart_LINK_PART_ACCESS_KEY_ID, resourcev1.LinkPart_LINK_PART_SECRET_KEY:
 		return true
 	case resourcev1.LinkPart_LINK_PART_URL:
 		return s.GetTemplate() == "" || strings.Contains(s.GetTemplate(), "{password}")

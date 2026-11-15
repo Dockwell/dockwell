@@ -75,6 +75,7 @@ var agentPackages = []string{
 	"internal/netif",    // which network interfaces are physical, as sysfs says
 	"internal/oidc",     // a route's provider: its keys, codes and ID tokens, moved from internal/agent/signin (ADR 0095)
 	"internal/pki",
+	"internal/probe",    // checking a connection from an app's networks, in a throwaway container of the agent's own binary (ADR 0099)
 	"internal/registry", // reading an image from its registry, for a form (ADR 0062)
 	"internal/resource",
 	"internal/resource/binding",   // a service's environment and label, from what it uses

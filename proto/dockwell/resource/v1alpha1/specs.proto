@@ -674,6 +674,13 @@ message PinnedNeed {
   // services use as the environment's variables, so a change that reads the file it
   // ran uses them as it did, whatever a newer release names.
   repeated string plain = 13;
+  // The need is optional and left unset, as the app runs without it: its own
+  // service is out of the file, with the names it sets, but those in plain. Numbered
+  // in the block every kind holds in shared messages, 90 to 99. See
+  // docs/adr/0099-every-kind-of-thing-an-app-needs-met-the-same-three-ways.md.
+  bool unset = 90;
+  // The names an unset need leaves out of the app's environment, as the install ran.
+  repeated string left_out = 91;
 }
 
 // Environment is a stage of a project, such as production or staging, with
@@ -953,7 +960,22 @@ message ValueFrom {
     // otherwise read that environment's secrets with none of what revealing them
     // asks for (ADR 0084).
     ValueRef value = 2;
+    // A part of a connection's values, which only a link to it writes (ADR 0099).
+    // Numbered in the block every kind holds in shared messages, 90 to 99.
+    ConnectionRef connection = 90;
   }
+}
+
+// ConnectionRef is a part of a connection's values, read through the link in this
+// environment that names the connection.
+message ConnectionRef {
+  // The connection's scope, the organization, by ID, and its name there.
+  string scope = 1;
+  string name = 2;
+  // Which of its values, such as its secret key.
+  LinkPart part = 3;
+  // The link in this environment that writes it, by name.
+  string link = 4;
 }
 
 // ValueTemplate is a value written from the environment's other values, such as
@@ -1484,6 +1506,8 @@ message Spec {
     // What signs in to a container registry, kind "registry.login". Numbered in
     // the block registry logins hold, 100 to 109.
     RegistryLogin registry_login = 100;
+    // Numbered in the block every kind holds in shared messages, 90 to 99.
+    ConnectionSpec connection = 90;
     // What writes a DNS zone's records, so the control plane can prove a name by
     // DNS-01, kind "dns.provider" (ADR 0088). Numbered in the block DNS-01 holds,
     // 120 to 129.
@@ -1535,6 +1559,55 @@ message DnsProvider {
   // The projects whose routes' names it proves, by ID. Empty is none: proving a
   // name by DNS works wherever it points, so an admin says which projects may.
   repeated string projects = 4;
+}
+
+// ConnectionSpec is one set of values of one kind that something uses, kind
+// "connection": an app through a link, or Dockwell itself (ADR 0099). It lives in the
+// organization, and says which projects may use it, as reaching it is reading it:
+// whoever may change an app that links to it can read what it's given. A pasted one
+// is checked from where an app is, by the agent's own code in a container of its own.
+// Dockwell keeps its secrets encrypted, and sends them only to the servers that run
+// an app linked to it. See
+// docs/adr/0099-every-kind-of-thing-an-app-needs-met-the-same-three-ways.md.
+message ConnectionSpec {
+  // What the panel calls it, such as "Outline's uploads".
+  string display_name = 1;
+  // What kind of thing it reaches.
+  LinkKind kind = 2;
+  // S3-compatible storage, for KIND_S3.
+  ConnectionS3 s3 = 3;
+  // Which projects may use it. Unset reaches none.
+  ConnectionReach reach = 4;
+  // The projects it reaches, by ID, for REACH_PROJECTS.
+  repeated string projects = 5;
+}
+
+// ConnectionReach says which projects may use a connection, said, never implied.
+enum ConnectionReach {
+  // None.
+  CONNECTION_REACH_UNSPECIFIED = 0;
+  // The projects it names.
+  CONNECTION_REACH_PROJECTS = 1;
+  // Every project, new ones too.
+  CONNECTION_REACH_EVERY = 2;
+}
+
+// ConnectionS3 is a bucket of S3-compatible storage and the keys that reach it.
+message ConnectionS3 {
+  // The service's address, a URL, such as "https://<account>.r2.cloudflarestorage.com".
+  string endpoint = 1;
+  // The bucket's region, such as "auto" or "eu-central-1". Empty is "auto".
+  string region = 2;
+  // The bucket's name.
+  string bucket = 3;
+  // The access key's ID, and its secret. Leave the secret out of an update to keep
+  // it, while the endpoint, the bucket and the key's ID stay.
+  string access_key_id = 4 [(sensitive) = true];
+  string secret_key = 5 [(sensitive) = true];
+  // The bucket goes in the path, not the host, as most S3-compatible stores take.
+  bool path_style = 6;
+  // Where objects are read from publicly, such as a custom domain. Empty is none.
+  string public_url = 7;
 }
 
 // RegistryLogin is what signs in to a container registry, so an app can pull an
@@ -1933,6 +2006,43 @@ message Link {
   // Dockwell made the app a database and a user of its own. Named apart from the
   // CLI's own --environment, which says where the link is.
   string meets_environment = 10;
+  // The connection that meets it, by name, for a link to one (ADR 0099): its values
+  // are the connection's, read at the revision the link's values pin. Numbered, with
+  // what follows, in the block every kind holds in shared messages, 90 to 99.
+  string connection = 90;
+  // What kind of thing it reaches. Unset is a database, of its engine.
+  LinkKind kind = 91;
+  // Where the app's objects go in an S3 connection's bucket, such as "outline/",
+  // which the check writes under too. Empty is the bucket's root.
+  string prefix = 92;
+  // What the app needs of what it reaches, which the check tries, such as presigned
+  // URLs.
+  repeated LinkFeature features = 93;
+}
+
+// LinkKind is what a link reaches beyond a database, numbered as the catalog
+// format's Kind.
+enum LinkKind {
+  // A database, of the link's engine.
+  LINK_KIND_UNSPECIFIED = 0;
+  LINK_KIND_S3 = 1;
+  LINK_KIND_SMTP = 2;
+}
+
+// LinkFeature is what an app needs of what a link reaches, numbered as the catalog
+// format's Feature.
+enum LinkFeature {
+  LINK_FEATURE_UNSPECIFIED = 0;
+  LINK_FEATURE_PRESIGNED_URLS = 1;
+  LINK_FEATURE_VIRTUAL_HOST = 2;
+  LINK_FEATURE_PATH_STYLE = 3;
+  LINK_FEATURE_MULTIPART = 4;
+  LINK_FEATURE_BATCH_DELETE = 5;
+  LINK_FEATURE_CORS = 6;
+  LINK_FEATURE_PUBLIC_READ = 7;
+  LINK_FEATURE_OBJECT_ACL = 8;
+  LINK_FEATURE_PRESIGNED_POST = 9;
+  LINK_FEATURE_SDK_CHECKSUMS = 10;
 }
 
 // LinkAccept is an engine a link's app takes, at the versions it takes.
@@ -1984,4 +2094,13 @@ enum LinkPart {
   LINK_PART_TLS = 8;
   LINK_PART_KEY_PREFIX = 40;
   LINK_PART_ENGINE = 41;
+  // S3 storage's parts, numbered as the catalog format's Part (ADR 0099).
+  LINK_PART_ENDPOINT = 50;
+  LINK_PART_REGION = 51;
+  LINK_PART_BUCKET = 52;
+  LINK_PART_ACCESS_KEY_ID = 53;
+  LINK_PART_SECRET_KEY = 54;
+  LINK_PART_PATH_STYLE = 55;
+  LINK_PART_PUBLIC_URL = 56;
+  LINK_PART_MET = 70;
 }

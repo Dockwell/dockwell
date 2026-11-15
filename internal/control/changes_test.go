@@ -42,6 +42,7 @@ import (
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
 	"github.com/dockwell/dockwell/internal/pki"
+	"github.com/dockwell/dockwell/internal/probe"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/container/containertest"
@@ -115,6 +116,8 @@ type testServer struct {
 	builds *build.Builder
 	// onePanel reads what 1Panel keeps on it, when set.
 	onePanel func(context.Context) (*agentv1.ReadOnePanelResult, error)
+	// probes checks connections from where an app is (ADR 0099).
+	probes *probe.Runner
 	// panels reads what Coolify or Dokploy runs on it, when set.
 	panels func(context.Context, dockwellv1.PanelKind, bool) (*agentv1.ReadPanelResult, error)
 	// certs loads the certificates by DNS it's given, when set.
@@ -223,7 +226,7 @@ func (s *testServer) run(t *testing.T) {
 	cfg := agent.Config{
 		Collector: collector,
 		Logger:    slog.New(slog.DiscardHandler), Dir: t.TempDir(), Identity: s.id, Build: buildinfo.Read(), Drivers: s.drivers, Logs: s.logs,
-		Docker: s.client, Hello: s.hello, Health: s.health, Files: s.disk, Updates: s.updates, Probe: s.probe, OnePanel: s.onePanel, Panels: s.panels, Terminals: s.terms, Access: s.access,
+		Docker: s.client, Hello: s.hello, Health: s.health, Files: s.disk, Updates: s.updates, Probe: s.probe, Probes: s.probes, OnePanel: s.onePanel, Panels: s.panels, Terminals: s.terms, Access: s.access,
 		System: s.system, Certificates: s.certs,
 	}
 	if cfg.Probe == nil {

@@ -1,0 +1,175 @@
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package dockwell.v1;
+
+import "dockwell/resource/v1alpha1/specs.proto";
+import "dockwell/v1/change.proto";
+import "dockwell/v1/options.proto";
+import "google/api/annotations.proto";
+
+// ConnectionService reads the connections apps use, and checks one from where an
+// app is. A connection is one set of values of one kind, such as a bucket of
+// S3-compatible storage and the keys that reach it, kind "connection": it's
+// install-wide, an admin saves it as a change, with a plan, and says which projects
+// may use it. Its keys are sealed, and go to a server only with the values of an app
+// linked to it, or for a check. See
+// docs/adr/0099-every-kind-of-thing-an-app-needs-met-the-same-three-ways.md.
+service ConnectionService {
+  option (dockwell.v1.nouns) = {
+    name: "connections"
+    help: "Connections apps use, such as a bucket of S3-compatible storage and the keys that reach it. A connection is install-wide: an admin saves it as a change, with a plan, and says which projects may use it. CheckConnection checks one from a server, in a container of the agent's own binary, without saving anything. See docs/adr/0099-every-kind-of-thing-an-app-needs-met-the-same-three-ways.md."
+  };
+  // ListConnections lists the connections the caller may see: an admin's, every
+  // one, with everything but its keys; below an admin, those the caller's projects
+  // may use, by name, kind and state alone.
+  rpc ListConnections(ListConnectionsRequest) returns (ListConnectionsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_NAMED;
+    option (google.api.http) = {get: "/v1/connections"};
+  }
+  // CheckConnection checks a connection from a server, as an app there would reach
+  // it: in a container of the agent's own binary, on the app's networks where it
+  // names one, or on a network of the check's own, with the server's own addresses,
+  // the metadata service and link-local addresses refused whatever the connection
+  // says. It writes a small object, reads it back and deletes it, and saves
+  // nothing: with a connection as typed, or a saved one again. An admin's, signed
+  // in, as a connection is install-wide.
+  rpc CheckConnection(CheckConnectionRequest) returns (CheckConnectionResponse) {
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
+    option (google.api.http) = {
+      post: "/v1/connections:check"
+      body: "*"
+    };
+  }
+  // ConnectStorage connects an app to a connection's bucket: it checks the bucket
+  // from the app's network on its server, as the app will reach it, and plans one
+  // change, a link to the connection and the app's names reading it through the link,
+  // each a variable, or a secret for a key. A connection the app's project may not
+  // use, or a check that fails, plans nothing.
+  rpc ConnectStorage(ConnectStorageRequest) returns (ConnectStorageResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.command) = {verb: "connect-storage"};
+    option (google.api.http) = {
+      post: "/v1/connections:connectStorage"
+      body: "*"
+    };
+  }
+}
+
+// ConnectStorageRequest names an app, and the connection it reads its storage from.
+message ConnectStorageRequest {
+  // The app's project, by name or ID, and its environment, by name or ID: empty
+  // is the only one its project has.
+  string project = 1;
+  string environment = 2;
+  // The app, by its service's name in its environment.
+  string app = 3;
+  // The connection, by name, one the project may use.
+  string connection = 4;
+  // The link's name in the app's environment. Empty is "storage".
+  string link = 5;
+  // Where the app's objects go in the bucket, such as "outline/". Empty is the
+  // app's name and a slash.
+  string prefix = 6;
+  // The names of the app's environment the link sets, each with what it holds, such
+  // as S3_BUCKET=bucket or S3_SECRET_ACCESS_KEY=secret_key. Each is a variable or
+  // secret the app reads, and a key is a secret.
+  map<string, dockwell.resource.v1alpha1.LinkPart> sets = 7;
+  // The app hands browsers a presigned URL, which the check fetches too.
+  bool presigned_urls = 8;
+}
+
+// ConnectStorageResponse is the change, planned, and the check it was planned on.
+message ConnectStorageResponse {
+  Change change = 1;
+  CheckConnectionResponse check = 2;
+}
+
+// ListConnectionsRequest asks for the connections the caller may see.
+message ListConnectionsRequest {
+  // Only those this project may use, by name or ID. Empty lists every connection the
+  // caller may see.
+  string project = 1;
+  // Only those this environment's project may use, by ID, in place of project.
+  string environment = 2;
+}
+
+// ListConnectionsResponse lists connections.
+message ListConnectionsResponse {
+  repeated ConnectionInfo connections = 1;
+}
+
+// ConnectionInfo is a connection as a caller may see it: never its keys. Below an
+// admin, its name, kind and what it reaches alone.
+message ConnectionInfo {
+  // Its resource's ID, and its name, such as "outline-uploads".
+  string id = 1;
+  string name = 2;
+  // What the panel calls it.
+  string display_name = 3;
+  // What kind of thing it reaches.
+  dockwell.resource.v1alpha1.LinkKind kind = 4;
+  // Where its bucket is, for an admin: its endpoint, region and bucket, whether the
+  // bucket goes in the path, and its public address.
+  string endpoint = 5;
+  string region = 6;
+  string bucket = 7;
+  bool path_style = 8;
+  string public_url = 9;
+  // Which projects may use it, for an admin, and those by ID.
+  dockwell.resource.v1alpha1.ConnectionReach reach = 10;
+  repeated string projects = 11;
+}
+
+// CheckConnectionRequest is a connection to check, as typed, or a saved one again.
+message CheckConnectionRequest {
+  // A saved connection to check again, by name, with what's typed here in place of
+  // what it saved.
+  string name = 1;
+  // S3 storage as typed. A saved connection's keys are kept where this leaves them
+  // out, while its endpoint, region and bucket stay.
+  dockwell.resource.v1alpha1.ConnectionS3 s3 = 2 [(dockwell.resource.v1alpha1.sensitive) = true];
+  // The server that checks it, by ID. It can be left out while there is one.
+  string server = 3;
+  // An app to check it from, on that app's networks: its environment, by ID, and its
+  // service's name. Empty checks from a network of the check's own.
+  string environment = 4;
+  string app = 5;
+  // Fetch the check's object by a presigned URL too, as an app that hands browsers
+  // one does.
+  bool presign = 6;
+  // Where the check's object goes in the bucket, such as "outline/".
+  string prefix = 7;
+}
+
+// CheckConnectionResponse is what a check found: codes, never a body.
+message CheckConnectionResponse {
+  // It did everything asked of it.
+  bool passed = 1;
+  // Where it stopped: write, read, presign or delete.
+  string step = 2;
+  // What the storage said, such as an S3 error's code, or what kept it from
+  // answering: refused, timeout, unreachable or tls. Status is its HTTP status.
+  string code = 3;
+  int32 status = 4;
+  // The storage's own message, where it holds nothing of the request.
+  string message = 5;
+  // Why it couldn't connect, in a few words.
+  string words = 6;
+  // The bucket's region, where the storage said another than asked.
+  string region = 7;
+  // The server that checked it, by name.
+  string server = 8;
+}

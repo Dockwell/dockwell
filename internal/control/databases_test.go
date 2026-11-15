@@ -519,7 +519,7 @@ func revealSecret(t *testing.T, f *fullServer, env, name string) string {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	got, err := f.keeper.Reveal(t.Context(), id, "usr_test", "test", func(*store.Tx) error { return nil })
+	got, err := f.keeper.Reveal(t.Context(), id, "usr_test", "test", true, func(*store.Tx) error { return nil })
 	if err != nil {
 		t.Fatal(err)
 	}

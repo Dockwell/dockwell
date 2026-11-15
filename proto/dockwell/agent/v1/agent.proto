@@ -588,6 +588,9 @@ message Hello {
   // script the change carries (ADR 0094). Numbered in the block fleet actions
   // hold, 350 to 359.
   bool upgrades_itself = 350;
+  // The agent checks a connection from where an app is, in a container of its own
+  // binary (ADR 0099). Numbered in the block every kind holds, 370 to 379.
+  bool probes_connections = 371;
 }
 
 // DesiredHeld is what an agent keeps of what its server should run.
@@ -887,7 +890,44 @@ message Call {
     // Say what's newer than an image the server runs (ADR 0079). Knowing an
     // app's updates takes 250 to 259.
     ImageUpdatesCall image_updates = 250;
+    // Check a connection from where an app is (ADR 0099). Every kind of need takes
+    // 370 to 379.
+    ProbeConnectionCall probe_connection = 370;
   }
+}
+
+// ProbeConnectionCall asks the agent to check a connection from where an app is: in
+// a container of its own binary, on the app's networks, with every capability
+// dropped, the server's own addresses refused and its secrets on the container's
+// input alone. See
+// docs/adr/0099-every-kind-of-thing-an-app-needs-met-the-same-three-ways.md.
+message ProbeConnectionCall {
+  // The app's environment and service, whose networks the check runs on. With no
+  // service, or one on the host's network, it runs on a network made for it.
+  string environment = 1;
+  string service = 2;
+  // What to check, as the probe takes it in JSON, its keys among it, sealed to this
+  // stream's delivery key as a step's values are. The agent says itself what the
+  // check may reach.
+  bytes request = 3;
+}
+
+// ProbeConnectionResult is what the check found: codes, never a body.
+message ProbeConnectionResult {
+  // It did everything asked of it.
+  bool passed = 1;
+  // Where it stopped, such as write, read, presign or delete.
+  string step = 2;
+  // What the service said, such as an S3 error's code, or what kept it from
+  // answering: refused, timeout, unreachable or tls. Status is its HTTP status.
+  string code = 3;
+  int32 status = 4;
+  // The service's own message, where it holds nothing of the request.
+  string message = 5;
+  // Why it couldn't connect, in a few words.
+  string words = 6;
+  // The bucket's region, where the service said another than asked.
+  string region = 7;
 }
 
 // ProbeCall asks whether something answers, from the server, as a website's
@@ -2479,6 +2519,7 @@ message CallResult {
     ReadPanelResult read_panel = 331;
     // What image_updates found.
     ImageUpdatesResult image_updates = 250;
+    ProbeConnectionResult probe_connection = 370;
   }
 }
 

@@ -150,9 +150,10 @@ func (e *Engine) checkRolesOf(ctx context.Context, tx *store.Tx, actor string, c
 			}
 			continue
 		}
-		if held == "" && it.current == nil && at.admins != "" {
-			// Something new that only an admin makes, such as a project: nothing
-			// to find, so the role is what's missing.
+		if held == "" && at.admins != "" {
+			// What only an admin makes, changes or deletes, such as a project or a
+			// connection: the role is what's missing, whether it's there or not, so
+			// the answer never says which names are taken (ADR 0099).
 			return &Refusal{act: a, Held: place.Holds(caller.Grants, place.Install), Needs: store.RoleAdmin, Why: at.admins}
 		}
 		if held == "" {

@@ -101,7 +101,8 @@ func (h *Handler) meetNeeds(ctx context.Context, s sourced, e *catalogv1.Entry, 
 			met[name] = w
 			notes = append(notes, pins...)
 		}
-		if _, had := pinned[name]; pinned != nil && !had {
+		// An optional need a release adds is left unset: the app runs as it did.
+		if _, had := pinned[name]; pinned != nil && !had && !w.Unset {
 			notes = append(notes, revision.Note{Reason: NewNeedNote, Message: newNeedWords(e, name, w)})
 		}
 	}
