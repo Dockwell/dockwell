@@ -15,6 +15,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"hash/maphash"
 	"maps"
 	"net/netip"
 	"net/url"
@@ -1312,33 +1313,56 @@ const (
 // same read-only or not, as a socket mounted read-only still takes
 // connections.
 func NewAccess(from, to []Access) []Access {
-	// had is each way from has what a key says, once each, so a list of the same
-	// access over and over costs no more than it once.
-	had := make(map[Access]map[Access]bool, len(from))
+	// An Access is some 300 bytes, and a map keyed by one keeps each key on the
+	// heap, so both maps here are keyed by a hash, and a match is checked by
+	// comparing what's at the places it holds.
+	seed := maphash.MakeSeed()
+	// had is each way from has what a key says, by its place in from, once each,
+	// so a list of the same access over and over costs no more than it once.
+	had := make(map[uint64]places, len(from))
 	for i := range from {
-		k := from[i].key()
-		if had[k] == nil {
-			had[k] = map[Access]bool{}
+		h := maphash.Comparable(seed, from[i].key())
+		if !had[h].holds(func(j int32) bool { return from[j] == from[i] }) {
+			had[h] = had[h].with(int32(i))
 		}
-		had[k][from[i]] = true
 	}
 	var out []Access
-	seen := make(map[Access]bool)
-next:
+	seen := make(map[uint64]places, len(to))
 	for i := range to {
-		a := to[i]
-		if seen[a] {
+		a := &to[i]
+		h := maphash.Comparable(seed, *a)
+		if seen[h].holds(func(j int32) bool { return to[j] == *a }) {
 			continue
 		}
-		for b := range had[a.key()] {
-			if b.covers(a) {
-				continue next
-			}
+		k := a.key()
+		if had[maphash.Comparable(seed, k)].holds(func(j int32) bool { return from[j].key() == k && from[j].covers(*a) }) {
+			continue
 		}
-		seen[a] = true
-		out = append(out, a)
+		seen[h] = seen[h].with(int32(i))
+		out = append(out, *a)
 	}
 	return out
+}
+
+// places are where in a list what a hash is of is: almost always one place,
+// which the value holds itself, and a list for the rest, as two hash the same.
+type places struct {
+	n     int32 // how many, as the first is 0 too
+	first int32
+	more  []int32
+}
+
+func (p places) holds(match func(int32) bool) bool {
+	return p.n > 0 && (match(p.first) || slices.ContainsFunc(p.more, match))
+}
+
+func (p places) with(i int32) places {
+	if p.n == 0 {
+		return places{n: 1, first: i}
+	}
+	p.n++
+	p.more = append(p.more, i)
+	return p
 }
 
 // Written reports a kind of access that something writes to, when it's

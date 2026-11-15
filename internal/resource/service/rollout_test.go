@@ -1624,25 +1624,53 @@ func TestAFailureStartsASoakAgain(t *testing.T) {
 		s := newStack(t)
 		s.rt.HealthWait = 5 * time.Second
 		s.engine.Registry["checked:1"] = dockertest.Image{Config: docker.Config{Cmd: []string{"app"}, Healthcheck: &docker.Healthcheck{Test: []string{"CMD", "true"}}}}
-		s.engine.Registry["checked:2"] = s.engine.Registry["checked:1"]
+		// The new one starts with its check under way, and is as the test says, at
+		// each look the rollout takes, after it starts.
+		s.engine.Registry["checked:2"] = dockertest.Image{Config: s.engine.Registry["checked:1"].Config, Starting: true}
 		s.deploy(t, webRef, app("checked:1"))
 		s.rt.Soak = soak
 		project := docker.Project(webRef.Scope)
 		first := s.engine.Newest(project, "web").ID
-		var back atomic.Int64
-		timer := time.AfterFunc(partway, func() {
-			name := strings.TrimPrefix(s.engine.Newest(project, "web").Name, "/")
-			if s.engine.Newest(project, "web").ID == first {
-				return
+		// Healthy at its first look, so the soak begins; failing at its first look
+		// from partway on; back at the look after, when the soak must begin again.
+		// Each comes as the rollout looks, so however loaded the machine, the soak
+		// can't end between them.
+		var started atomic.Bool
+		var phase atomic.Int32
+		var soaking, back atomic.Int64
+		s.engine.Intercept(func(r *http.Request) error {
+			now := s.engine.Newest(project, "web")
+			if now == nil || now.ID == first || !strings.Contains(r.URL.Path, "/containers/"+now.ID+"/") {
+				return nil
 			}
-			s.engine.SetHealth(name, "starting", "")
-			time.Sleep(50 * time.Millisecond)
-			s.engine.SetHealth(name, "healthy", "ok")
-			back.Store(time.Now().UnixNano())
+			if r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/start") {
+				started.Store(true)
+				return nil
+			}
+			if r.Method != http.MethodGet || !started.Load() {
+				return nil
+			}
+			name := strings.TrimPrefix(now.Name, "/")
+			switch phase.Load() {
+			case 0:
+				s.engine.SetHealth(name, "healthy", "ok")
+				soaking.Store(time.Now().UnixNano())
+				phase.Store(1)
+			case 1:
+				if time.Since(time.Unix(0, soaking.Load())) >= partway {
+					s.engine.SetHealth(name, "starting", "")
+					phase.Store(2)
+				}
+			case 2:
+				s.engine.SetHealth(name, "healthy", "ok")
+				back.Store(time.Now().UnixNano())
+				phase.Store(3)
+			}
+			return nil
 		})
-		defer timer.Stop()
+		defer s.engine.Intercept(nil)
 		s.deploy(t, webRef, app("checked:2"))
-		if at := back.Load(); at == 0 || time.Since(time.Unix(0, at)) < soak-20*time.Millisecond {
+		if at := back.Load(); at == 0 || time.Since(time.Unix(0, at)) < soak {
 			t.Errorf("it moved on %s after Docker's check came back, within a soak of %s", time.Since(time.Unix(0, at)), soak)
 		}
 	})

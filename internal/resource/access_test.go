@@ -93,6 +93,12 @@ func TestNewAccessTakesTimeInProportion(t *testing.T) {
 	if took := time.Since(start); took > 10*time.Second {
 		t.Errorf("NewAccess took %v for %d", took, n)
 	}
+	// What it costs doesn't grow with each access it reads: a map of its own for
+	// each key, or each key on the heap, as a map keyed by an Access keeps it,
+	// would be an allocation an access or more (#684).
+	if allocs := testing.AllocsPerRun(1, func() { resource.NewAccess(from, to) }); allocs > n/100 {
+		t.Errorf("NewAccess made %.0f allocations for %d accesses, want far fewer than one each", allocs, n)
+	}
 }
 
 // What a person approves says what it is, and that it is the same as root where it
