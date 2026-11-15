@@ -117,7 +117,12 @@ export function FleetActionPage({
   const acting = targets.filter((s) => !out.has(s.id));
   const batchSize = Number.parseInt(batch, 10) > 0 ? Number.parseInt(batch, 10) : 0;
   const pauseMinutes = Number.parseFloat(pause) > 0 ? Number.parseFloat(pause) : 0;
-  const waves = waveSizes(acting.length, canary, batchSize);
+  const waves = waveSizes(
+    acting.length,
+    canary,
+    batchSize,
+    acting.some((s) => s.controlServer),
+  );
   const unitOk = action !== "unit" || SERVICE_NAME.test(unitName.trim());
   const pickedText = picked ? targets.map((s) => s.name).join(", ") : "";
 
@@ -451,7 +456,11 @@ function Actions({
       sub: t`Restart, reload, start or stop one service on each server`,
     },
     { kind: "upgrade", title: t`Upgrade the agent`, sub: upgradeSub, disabled: !release },
-    { kind: "reboot", title: t`Reboot servers`, sub: t`Each passes once its server is back, before the next goes` },
+    {
+      kind: "reboot",
+      title: t`Reboot servers`,
+      sub: t`Each wave's servers reboot together, and the next wave goes once they're back`,
+    },
   ];
   return (
     <fieldset className="fleet-actions-cards">

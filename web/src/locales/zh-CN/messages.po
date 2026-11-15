@@ -7894,6 +7894,9 @@ msgstr "重启无法撤销，因为它不会改变任何可恢复的内容。"
 msgid "A step failed, so the change stopped there."
 msgstr "有一个步骤失败，更改就此停止。"
 
+msgid "A wave's servers go side by side, and each wave once the one before has passed."
+msgstr "每一批的服务器同时进行，上一批通过后才开始下一批。"
+
 msgid "Acted on {name} on {server}"
 msgstr "已在 {server} 上处理 {name}"
 
@@ -8081,9 +8084,6 @@ msgstr "如果失败，将回滚到 <0>{back}</0>"
 
 msgid "See the guide"
 msgstr "查看指南"
-
-msgid "Servers go one at a time, wave by wave, each wave once the one before has passed."
-msgstr "服务器逐台进行，按批次推进，上一批通过后才开始下一批。"
 
 msgid "Started {name} on {server}"
 msgstr "已在 {server} 上启动 {name}"
@@ -11671,11 +11671,11 @@ msgstr "金丝雀"
 msgid "Draft"
 msgstr "草稿"
 
-msgid "Each passes once its server is back, before the next goes"
-msgstr "每台服务器恢复后才算完成，然后才轮到下一台"
-
 msgid "Each server has its turn, and the change fails at the end"
 msgstr "每台服务器都会轮到，变更会在最后标记为失败"
+
+msgid "Each wave's servers reboot together, and the next wave goes once they're back"
+msgstr "每一批的服务器一起重启，它们恢复后才开始下一批"
 
 msgid "Every server"
 msgstr "所有服务器"

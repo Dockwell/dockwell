@@ -7894,6 +7894,9 @@ msgstr "A restart has no undo, as it changes nothing to go back to."
 msgid "A step failed, so the change stopped there."
 msgstr "A step failed, so the change stopped there."
 
+msgid "A wave's servers go side by side, and each wave once the one before has passed."
+msgstr "A wave's servers go side by side, and each wave once the one before has passed."
+
 msgid "Acted on {name} on {server}"
 msgstr "Acted on {name} on {server}"
 
@@ -8081,9 +8084,6 @@ msgstr "Rolls back to <0>{back}</0> if it fails"
 
 msgid "See the guide"
 msgstr "See the guide"
-
-msgid "Servers go one at a time, wave by wave, each wave once the one before has passed."
-msgstr "Servers go one at a time, wave by wave, each wave once the one before has passed."
 
 msgid "Started {name} on {server}"
 msgstr "Started {name} on {server}"
@@ -11671,11 +11671,11 @@ msgstr "Canary"
 msgid "Draft"
 msgstr "Draft"
 
-msgid "Each passes once its server is back, before the next goes"
-msgstr "Each passes once its server is back, before the next goes"
-
 msgid "Each server has its turn, and the change fails at the end"
 msgstr "Each server has its turn, and the change fails at the end"
+
+msgid "Each wave's servers reboot together, and the next wave goes once they're back"
+msgstr "Each wave's servers reboot together, and the next wave goes once they're back"
 
 msgid "Every server"
 msgstr "Every server"

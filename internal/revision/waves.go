@@ -18,7 +18,7 @@ import (
 // Waves is how a change runs over its servers, wave by wave (ADR 0094): each wave
 // starts once every step of the one before has passed and the pause after it is
 // over, and a step that fails stops the change there unless KeepGoing. Within a
-// wave, servers go one after another, as every change's steps do.
+// wave, servers go side by side, each server's own steps in their order.
 type Waves struct {
 	// Order is each wave's servers, by ID, in the order they go.
 	Order [][]string `json:",omitempty"`
@@ -52,9 +52,10 @@ type planWith struct {
 
 // wavesOf is how plan runs over the servers that take a step, in the order the
 // rollout gives them: as with.waves says for a change planned before, or as
-// with.rollout asks, with the servers it asked of that take none. Fewer than two
-// servers have no waves.
-func (with planWith) wavesOf(plan *Plan) (waves *Waves, idle []string) {
+// with.rollout asks, with the servers it asked of that take none. The control
+// server, control, takes a wave of its own, last. Fewer than two servers have no
+// waves.
+func (with planWith) wavesOf(plan *Plan, control string) (waves *Waves, idle []string) {
 	if with.rollout == nil {
 		return with.waves, nil
 	}
@@ -67,17 +68,21 @@ func (with planWith) wavesOf(plan *Plan) (waves *Waves, idle []string) {
 			idle = append(idle, s)
 		}
 	}
-	return wavesOf(acting, r.Canary, r.Batch, r.Pause, r.KeepGoing), idle
+	return wavesOf(acting, control, r.Canary, r.Batch, r.Pause, r.KeepGoing), idle
 }
 
 // wavesOf splits servers, in the order given, into waves: one server on its own
 // first when canary, then waves of batch servers, or of a quarter of them rounded
-// up when batch is 0. Fewer than two servers have no waves.
-func wavesOf(servers []string, canary bool, batch int, pause time.Duration, keepGoing bool) *Waves {
+// up when batch is 0. The control server, control, if it's among them, takes a
+// wave of its own, last: its reboot or a restart of what runs it takes the control
+// plane down, so no step runs beside it, nor after it (ADR 0094). Fewer than two
+// servers have no waves.
+func wavesOf(servers []string, control string, canary bool, batch int, pause time.Duration, keepGoing bool) *Waves {
 	if len(servers) < 2 {
 		return nil
 	}
-	rest := slices.Clone(servers)
+	rest := slices.DeleteFunc(slices.Clone(servers), func(s string) bool { return s == control })
+	alone := len(rest) < len(servers)
 	w := &Waves{Pause: pause, KeepGoing: keepGoing}
 	if canary {
 		w.Order = append(w.Order, rest[:1])
@@ -90,6 +95,9 @@ func wavesOf(servers []string, canary bool, batch int, pause time.Duration, keep
 		n := min(batch, len(rest))
 		w.Order = append(w.Order, rest[:n])
 		rest = rest[n:]
+	}
+	if alone {
+		w.Order = append(w.Order, []string{control})
 	}
 	return w
 }
@@ -170,9 +178,9 @@ type wentOn struct {
 }
 
 // failGoneOn fails change c if any of its steps failed, as its progress records them
-// across every run of it, naming each server that did: a change that went on past a
-// failure (ADR 0094). It returns nil when none did. A failure of this run keeps its
-// own error; one from a run before has what its step recorded.
+// across every run of it, naming each server that did, even one alone: a change
+// that went on past a failure (ADR 0094). It returns nil when none did. A failure
+// of this run keeps its own error; one from a run before has what its step recorded.
 func (e *Engine) failGoneOn(ctx context.Context, c store.Change, now []wentOn) error {
 	progress := e.progress(c.ID)
 	if progress == nil {
@@ -207,9 +215,14 @@ func (e *Engine) failGoneOn(ctx context.Context, c store.Change, now []wentOn) e
 	if j := slices.IndexFunc(now, func(f wentOn) bool { return f.index == first }); j >= 0 {
 		cause = now[j].err
 	}
-	plain, _ := resource.Explain(stepFailure(name, cause))
-	if len(servers) > 1 {
+	plain, detail := resource.Explain(stepFailure(name, cause))
+	switch {
+	case len(servers) > 1:
 		plain = fmt.Sprintf("%d servers failed: %s. The first: %s", len(servers), human.List(servers), plain)
+	case detail != "" && len(names) > 1:
+		// A change's error stands on its own, so it says which server failed, as
+		// one that stopped at a failure does, unless its words have already.
+		plain = name + ": " + plain
 	}
 	return e.fail(ctx, c, s.Ref, cause, plain)
 }

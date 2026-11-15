@@ -8,14 +8,15 @@ import { shortVersion } from "../shell/version";
  * A fleet action's rollout as the panel previews it (ADR 0094), by the rule the
  * control plane plans with (internal/revision/waves.go): one server on its own
  * first when there's a canary, then waves of the batch, or of a quarter of the
- * servers rounded up when the batch is left to it. Fewer than two servers have no
- * waves. The plan has the last word: it leaves out what's offline and what needs
- * nothing, so its waves can be fewer.
+ * servers rounded up when the batch is left to it. The control server, last when
+ * withControl, takes a wave of its own. Fewer than two servers have no waves. The
+ * plan has the last word: it leaves out what's offline and what needs nothing, so
+ * its waves can be fewer.
  */
-export function waveSizes(servers: number, canary: boolean, batch: number): number[] {
+export function waveSizes(servers: number, canary: boolean, batch: number, withControl = false): number[] {
   if (servers < 2) return [];
   const out: number[] = [];
-  let rest = servers;
+  let rest = withControl ? servers - 1 : servers;
   if (canary) {
     out.push(1);
     rest--;
@@ -26,6 +27,7 @@ export function waveSizes(servers: number, canary: boolean, batch: number): numb
     out.push(n);
     rest -= n;
   }
+  if (withControl) out.push(1);
   return out;
 }
 

@@ -25,19 +25,19 @@ func TestWavesAreACanaryThenBatches(t *testing.T) {
 		{false, 10, [][]string{servers}},
 	}
 	for _, c := range cases {
-		w := wavesOf(servers, c.canary, c.batch, time.Minute, true)
+		w := wavesOf(servers, "", c.canary, c.batch, time.Minute, true)
 		if !slices.EqualFunc(w.Order, c.want, slices.Equal) || w.Pause != time.Minute || !w.KeepGoing {
 			t.Errorf("canary %t, batch %d: %+v, want %v", c.canary, c.batch, w, c.want)
 		}
 	}
-	if w := wavesOf([]string{"a"}, true, 0, 0, false); w != nil {
+	if w := wavesOf([]string{"a"}, "", true, 0, 0, false); w != nil {
 		t.Errorf("one server has the waves %+v", w)
 	}
-	w := wavesOf(servers, true, 0, 0, false)
+	w := wavesOf(servers, "", true, 0, 0, false)
 	if w.waveOf("a") != 1 || w.waveOf("g") != 4 || w.waveOf("z") != 0 || (*Waves)(nil).waveOf("a") != 0 {
 		t.Error("waveOf says the wrong wave")
 	}
-	if (*Waves)(nil).fingerprint() != "" || w.fingerprint() == wavesOf(servers, false, 0, 0, false).fingerprint() {
+	if (*Waves)(nil).fingerprint() != "" || w.fingerprint() == wavesOf(servers, "", false, 0, 0, false).fingerprint() {
 		t.Error("the fingerprint doesn't follow the waves")
 	}
 }
@@ -47,12 +47,12 @@ func TestWavesAreACanaryThenBatches(t *testing.T) {
 func TestAPlansWavesAreOfTheServersThatAct(t *testing.T) {
 	step := []resource.Step{{Ref: resource.Ref{Kind: "server.host", Name: "host"}}}
 	plan := &Plan{Servers: []ServerPlan{{Server: "b", Steps: step}, {Server: "c", Steps: step}, {Server: "d", Steps: step}}}
-	waves, idle := planWith{rollout: &Rollout{Servers: []string{"a", "b", "c", "d"}, Canary: true}}.wavesOf(plan)
+	waves, idle := planWith{rollout: &Rollout{Servers: []string{"a", "b", "c", "d"}, Canary: true}}.wavesOf(plan, "")
 	if !slices.EqualFunc(waves.Order, [][]string{{"b"}, {"c"}, {"d"}}, slices.Equal) || !slices.Equal(idle, []string{"a"}) {
 		t.Errorf("the waves are %v, and %v need nothing", waves.Order, idle)
 	}
 	planned := &Waves{Order: [][]string{{"x"}}}
-	if got, idle := (planWith{waves: planned}).wavesOf(plan); got != planned || idle != nil {
+	if got, idle := (planWith{waves: planned}).wavesOf(plan, ""); got != planned || idle != nil {
 		t.Errorf("a change planned before keeps its waves: %v, %v", got, idle)
 	}
 }

@@ -27,6 +27,10 @@ var RebootLimit = 15 * time.Minute
 // ErrRebootLost is a server that hasn't come back after its reboot.
 var ErrRebootLost = errors.New("the server hasn't come back after its reboot")
 
+// ErrLeftAway is a step that asked its server to go, and came to no end, as the
+// change failed beside it before the server came back.
+var ErrLeftAway = errors.New("the change failed while the server was away")
+
 // rebootsScanned is how many of the newest changes a plan reads for the server's
 // last reboot.
 const rebootsScanned = 200
