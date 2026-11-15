@@ -227,10 +227,15 @@ func TestMembersAreManagedOverTheAPI(t *testing.T) {
 			t.Fatal(err)
 		}
 		seen := map[string]*dockwellv1.EventMember{}
+		transferred := false
 		for _, e := range events.Msg.GetEvents() {
 			if e.GetAction() == "member.remove" || e.GetAction() == "member.role" && seen["member.role"] == nil {
 				seen[e.GetAction()] = e.GetMember()
 			}
+			transferred = transferred || e.GetAction() == "owner.transfer"
+		}
+		if !transferred {
+			t.Error("Activity doesn't say ownership moved")
 		}
 		if r := seen["member.remove"]; r.GetEmail() != "ada@example.com" || r.GetSessions() != 1 || r.GetChanges() != 1 {
 			t.Errorf("Activity's member.remove reads %v", r)

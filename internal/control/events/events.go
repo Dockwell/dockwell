@@ -136,7 +136,10 @@ var (
 		ActionRevealServiceValue,
 		fileRead, fileRefuse, fileDownload, changeApplyUnconfirmed,
 		"member.invite", "member.invite_revoke", "member.join",
-		"member.role", "member.remove", "member.protections_confirm",
+		"member.role", "member.remove", "member.protections_confirm", "owner.transfer",
+		// An account at a sign-in provider linked or unlinked, as a passkey added or
+		// removed is, and the sessions a stopped provider's link began, ended (ADR 0095).
+		"provider_link.create", "provider_link.delete", "auth.sessions_ended",
 	}
 )
 
