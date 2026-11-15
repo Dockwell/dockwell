@@ -451,13 +451,19 @@ func check(e *catalogv1.Entry, byTag bool) error {
 	if images == 0 {
 		return errors.New("its Compose file names no image")
 	}
-	if err := checkDatabases(e); err != nil {
+	// Read once, for every check that follows: an entry with many secrets and needs
+	// would otherwise parse its file again for each.
+	cf, err := readCompose(e.GetCompose())
+	if err != nil {
 		return err
 	}
-	if err := checkOwners(e); err != nil {
+	if err := checkDatabases(e, cf); err != nil {
 		return err
 	}
-	if err := checkAccess(e); err != nil {
+	if err := checkOwners(cf); err != nil {
+		return err
+	}
+	if err := checkAccess(e, cf); err != nil {
 		return err
 	}
 	seen := map[string]bool{}
@@ -493,26 +499,23 @@ func check(e *catalogv1.Entry, byTag bool) error {
 		}
 		seen[name] = true
 		if Secret(in) {
-			if err := standsAlone(e.GetCompose(), name); err != nil {
+			if err := standsAlone(cf, name); err != nil {
 				return err
 			}
 		}
 	}
-	if err := checkCompanions(e); err != nil {
+	if err := checkCompanions(e, cf); err != nil {
 		return err
 	}
-	return checkNeeds(e)
+	return checkNeeds(e, cf)
 }
 
 // checkOwners refuses an owner a service's x-dockwell gives a server path, as only
 // a volume the install makes is one an entry gives an owner (ADR 0085): making a
 // folder of the server's, owned by a user, is a write to the server, whatever the
 // mount says of reading.
-func checkOwners(e *catalogv1.Entry) error {
-	services, err := composeServices(e.GetCompose())
-	if err != nil {
-		return err
-	}
+func checkOwners(cf *composeFile) error {
+	services := cf.services
 	for _, name := range slices.Sorted(maps.Keys(services)) {
 		owners, _ := mapGet(mapGet(services[name], "x-dockwell"), "make_owner").(map[string]any)
 		if len(owners) == 0 {
@@ -545,18 +548,9 @@ func checkOwners(e *catalogv1.Entry) error {
 }
 
 // checkDatabases refuses a database the entry marks that its Compose file doesn't run.
-func checkDatabases(e *catalogv1.Entry) error {
-	if len(e.GetDatabases()) == 0 {
-		return nil
-	}
-	var file struct {
-		Services map[string]any `yaml:"services"`
-	}
-	if err := yaml.Unmarshal([]byte(e.GetCompose()), &file); err != nil {
-		return fmt.Errorf("its Compose file isn't YAML: %w", err)
-	}
+func checkDatabases(e *catalogv1.Entry, cf *composeFile) error {
 	for _, name := range e.GetDatabases() {
-		if _, ok := file.Services[name]; !ok {
+		if _, ok := cf.services[name]; !ok {
 			return fmt.Errorf("it marks %s as a database, which its Compose file doesn't run. Name one of its services", name)
 		}
 	}
@@ -565,7 +559,7 @@ func checkDatabases(e *catalogv1.Entry) error {
 
 // checkAccess refuses what an entry says of signing in, sign-ups and its address
 // that names no input or service of its own, and a note that isn't one short line.
-func checkAccess(e *catalogv1.Entry) error {
+func checkAccess(e *catalogv1.Entry, cf *composeFile) error {
 	inputs := map[string]*catalogv1.Input{}
 	for _, in := range e.GetInputs() {
 		inputs[in.GetName()] = in
@@ -585,10 +579,7 @@ func checkAccess(e *catalogv1.Entry) error {
 			return errors.New("it says how to sign in, and has no web service to sign in to. Set web")
 		}
 	}
-	services, err := composeServices(e.GetCompose())
-	if err != nil {
-		return err
-	}
+	services := cf.services
 	if s := e.GetSignups(); s != nil {
 		if _, ok := services[s.GetService()]; !ok || !envName.MatchString(s.GetVariable()) || s.GetClosed() == "" {
 			return fmt.Errorf("its sign-ups close with %s=%s on %s, which needs a service it runs, a variable's name and a value", s.GetVariable(), s.GetClosed(), s.GetService())
@@ -616,6 +607,36 @@ const maxNote = 120
 // envName is a variable a service's environment takes, in any case, as Ghost's url is.
 var envName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_.]*$`)
 
+// composeFile is an entry's Compose file as its check reads it, once: the whole of
+// it as YAML values, and its services by name.
+type composeFile struct {
+	tree     any
+	services map[string]any
+}
+
+// readCompose reads a Compose file for the check, refusing one that isn't a mapping
+// of YAML, or whose services aren't one, as composeServices does.
+func readCompose(file string) (*composeFile, error) {
+	var tree any
+	if err := yaml.Unmarshal([]byte(file), &tree); err != nil {
+		return nil, fmt.Errorf("its Compose file isn't YAML: %w", err)
+	}
+	out := &composeFile{tree: tree}
+	if tree == nil {
+		return out, nil
+	}
+	top, ok := tree.(map[string]any)
+	if !ok {
+		return nil, errors.New("its Compose file isn't YAML of a Compose file: it's no mapping")
+	}
+	if s, ok := top["services"]; ok && s != nil {
+		if out.services, ok = s.(map[string]any); !ok {
+			return nil, errors.New("its Compose file isn't YAML of a Compose file: its services aren't a mapping")
+		}
+	}
+	return out, nil
+}
+
 // composeServices is a Compose file's services, by name.
 func composeServices(compose string) (map[string]any, error) {
 	var file struct {
@@ -637,11 +658,8 @@ func composeServices(compose string) (map[string]any, error) {
 // words use, and each word is written with the values it names as the container is
 // made (ADR 0022), so a secret may stand anywhere in one of their words, as in
 // redis-server --requirepass ${PASSWORD} or --api-key=${KEY} (ADR 0085).
-func standsAlone(file, name string) error {
-	var tree any
-	if err := yaml.Unmarshal([]byte(file), &tree); err != nil {
-		return fmt.Errorf("its Compose file isn't YAML: %w", err)
-	}
+func standsAlone(cf *composeFile, name string) error {
+	tree := cf.tree
 	whole := regexp.MustCompile(`^([A-Za-z_][A-Za-z0-9_]*=)?\$\{` + regexp.QuoteMeta(name) + `\}$`)
 	// The name whole, so KEY isn't found in ${KEY2}.
 	uses := regexp.MustCompile(`\$\{` + regexp.QuoteMeta(name) + `(\}|:?[-?+])`)

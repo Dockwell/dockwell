@@ -686,11 +686,13 @@ var readSnapshot = sync.OnceValues(func() (commitFiles, bool) {
 // checkedSnapshot is the check of the snapshot, made once a process and shared by
 // every control plane that starts and every read of Dockwell's own catalog. What the
 // build holds never changes, and the build proved it passes the whole check
-// (TestTheSnapshotPassesTheWholeCheck), so its entries are parsed and its images
-// checked, but no Compose file is read again: an install reads each in a process of
-// its own, which took a first start a second. A source at the snapshot names the
-// same repository, folder and commit, so the paths of its images are the same too,
-// and what the check says of a file never names the source.
+// (TestTheSnapshotPassesTheWholeCheck), so its entries are decoded, not checked
+// again, and its images checked, but no Compose file is read: an install reads each
+// in a process of its own, which took a first start a second, and checking every
+// entry again made garbage that a control plane's idle memory still held. A source
+// at the snapshot names the same repository, folder and commit, so the paths of its
+// images are the same too, and what the check says of a file never names the
+// source.
 var checkedSnapshot = sync.OnceValue(func() sourceRead {
 	files, _ := readSnapshot()
 	return checkFiles(context.Background(), DefaultName, snapshotSpec(), files, claims{}, true)
