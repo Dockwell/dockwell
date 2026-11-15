@@ -18,10 +18,20 @@ export function UpgradeLine({ intent }: { intent: Intent }) {
   const from = upgradeFrom(intent);
   const to = upgradeTo(intent);
   const catalog = intent.release !== "";
+  // A catalog release that keeps the app's version changes how it runs, never the version.
+  const fromRelease = intent.fromCatalogRelease;
+  const toRelease = intent.catalogRelease;
+  const sameVersion = catalog && toRelease > 0 && intent.fromRelease === intent.release;
   return (
     <p className="upgrade-line">
       <Icon name="deploy" size={16} />
-      {catalog ? (
+      {sameVersion ? (
+        <span>
+          <Trans>
+            From release <strong>{fromRelease}</strong> to release <strong>{toRelease}</strong>, the same {to}
+          </Trans>
+        </span>
+      ) : catalog ? (
         <span>
           <Trans>
             From <strong>{from}</strong> to <strong>{to}</strong>

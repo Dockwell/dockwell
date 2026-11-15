@@ -51,6 +51,55 @@ export function withUpdates(services: readonly ServiceInfo[], now: number): Serv
   return services.filter((s) => counts(s.update, now));
 }
 
+/**
+ * Whether an app's update is its catalog install's: a newer release of the install,
+ * or a new build it upgrades through, which each of the install's apps carries and
+ * which is one update, of the install, never one per app.
+ */
+export function ofInstall(service: ServiceInfo): boolean {
+  return service.update?.source === UpdateSource.CATALOG;
+}
+
+/** What an update is one of: a catalog install, by its environment, or the app itself. */
+export function updateKey(service: ServiceInfo): string {
+  return ofInstall(service) ? `install:${environmentOf(service)}` : `app:${service.id}`;
+}
+
+/** The apps whose updates count, one for each update: a catalog install's first app stands for it. */
+export function oneForEachUpdate(services: readonly ServiceInfo[], now: number): ServiceInfo[] {
+  const seen = new Set<string>();
+  return withUpdates(services, now).filter((s) => {
+    const key = updateKey(s);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+/** How many updates count among apps: a catalog install's once, however many of its apps carry it. */
+export function updateCount(services: readonly ServiceInfo[], now: number): number {
+  return new Set(withUpdates(services, now).map(updateKey)).size;
+}
+
+/**
+ * What a catalog install offers, of the apps of it that carry an update: its newer
+ * release where it has one, as that's what upgrading the install takes, or else a
+ * new build of an image one of its apps runs by a tag that moves.
+ */
+export function installOffer(
+  services: readonly ServiceInfo[],
+  now: number,
+): { service: ServiceInfo; offer: AvailableUpdate } | undefined {
+  const carrying = withUpdates(services, now).filter(ofInstall);
+  for (const service of carrying) {
+    const offer = offered(service.update);
+    if (offer && offer.kind !== UpdateKind.DIGEST) return { service, offer };
+  }
+  const [service] = carrying;
+  const offer = service ? offered(service.update) : undefined;
+  return service && offer ? { service, offer } : undefined;
+}
+
 /** The words for a kind of update, as the API says them. */
 export function useKindWord(): (kind: UpdateKind) => string {
   const { t } = useLingui();
@@ -81,20 +130,42 @@ export function stepOf(a: AvailableUpdate): string {
 }
 
 /**
+ * The step an update takes, in words: a catalog release that keeps the app's version
+ * is a new release of it, "Release 5 · same 6.72.0", never a step from a version to
+ * itself; anything else is as stepOf says.
+ */
+export function useStep(): (a: AvailableUpdate) => string {
+  const { t } = useLingui();
+  return (a) => {
+    if (a.kind !== UpdateKind.RELEASE) return stepOf(a);
+    const release = a.catalogRelease;
+    const version = a.toVersion;
+    if (release > 0) return version ? t`Release ${release} · same ${version}` : t`Release ${release}`;
+    return version ? t`New release · same ${version}` : t`New release`;
+  };
+}
+
+/**
  * On a row of Apps: a quiet mark that an update is out, with its step in the
  * tooltip. Nothing while there's none that counts.
  */
 export function UpdateMark({ service, now, className }: { service: ServiceInfo; now: number; className?: string }) {
-  const { t } = useLingui();
-  const kindWord = useKindWord();
   const a = offered(service.update);
   if (!a || !counts(service.update, now)) return null;
-  const label = a.kind === UpdateKind.DIGEST ? t`New build` : a.toVersion;
+  return <OfferMark offer={a} className={className} />;
+}
+
+/** The mark of one update: where it goes, with its step and kind in the tooltip. */
+function OfferMark({ offer: a, className }: { offer: AvailableUpdate; className?: string | undefined }) {
+  const { t } = useLingui();
+  const kindWord = useKindWord();
+  const step = useStep();
+  const label = a.kind === UpdateKind.DIGEST ? t`New build` : a.kind === UpdateKind.RELEASE ? step(a) : a.toVersion;
   const kind = kindWord(a.kind);
   return (
     <span
       className={cx("update-mark", a.kind === UpdateKind.MAJOR && "is-major", className)}
-      title={t`Update available: ${stepOf(a)}, ${kind}`}
+      title={t`Update available: ${step(a)}, ${kind}`}
     >
       <Icon name="arrow-up" size={12} />
       <span className="update-mark-to">{label}</span>
@@ -102,9 +173,16 @@ export function UpdateMark({ service, now, className }: { service: ServiceInfo; 
   );
 }
 
-/** On a stack's row: how many of its apps have an update. */
+/**
+ * On a stack's row: a catalog install's one update, as its own mark, or how many of
+ * a project's apps have one.
+ */
 export function StackUpdates({ services, now }: { services: readonly ServiceInfo[]; now: number }) {
-  const count = withUpdates(services, now).length;
+  if (services.some(ofInstall)) {
+    const install = installOffer(services, now);
+    return install ? <OfferMark offer={install.offer} /> : null;
+  }
+  const count = updateCount(services, now);
   if (count === 0) return null;
   return (
     <span className="update-mark is-count">
@@ -161,6 +239,7 @@ export function UpdateCard({ service }: { service: ServiceInfo }) {
   const update = service.update;
   const time = useTimeWords();
   const kindWord = useKindWord();
+  const step = useStep();
   const checked = update?.checkTime ? timestampDate(update.checkTime) : undefined;
   const now = useAgoNow(checked);
   const calls = useUpdateCalls(service);
@@ -228,7 +307,7 @@ export function UpdateCard({ service }: { service: ServiceInfo }) {
     >
       <div className="update-offer">
         <div className="update-offer-line">
-          <code className="update-step">{stepOf(first)}</code>
+          <code className="update-step">{step(first)}</code>
           <Tag className={cx("update-kind", first.kind === UpdateKind.MAJOR && "is-major")}>{kindWord(first.kind)}</Tag>
           {when ? <span className="update-when">{when}</span> : null}
           {first.notesUrl ? (

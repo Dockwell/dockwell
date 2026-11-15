@@ -16,7 +16,7 @@ import { HealthBadge, phoneWordClass, useHealthWords } from "../apps/Health";
 import { type AppHealth, type HealthView, useHealth, worstHealth } from "../apps/health";
 import { WhatRuns } from "../apps/ImageName";
 import { runtimeOf, runtimeWords } from "../apps/runtime";
-import { withUpdates } from "../apps/updates";
+import { updateCount } from "../apps/updates";
 import { useApps, usePlaces } from "../apps/useServices";
 import { useAgoNow, useFleetView } from "../servers/useFleet";
 import { useRuntimes } from "../websites/website";
@@ -65,7 +65,7 @@ export function OverviewApps({ fleet = false }: { fleet?: boolean }) {
   const { lead } = useAppsLead(all ?? [], "", health);
   // What's newer than what runs, with the way to them (ADR 0079).
   const now = useNow(60_000);
-  const updates = useMemo(() => withUpdates(all ?? [], now).length, [all, now]);
+  const updates = useMemo(() => updateCount(all ?? [], now), [all, now]);
 
   let body: ReactNode;
   if (services.isPending || places.isPending) {

@@ -251,6 +251,32 @@ describe("an update's phases", () => {
 });
 
 describe("the plan sheet, for an update", () => {
+  it("says a catalog release that keeps the app's version as a release, never a step to the same version", async () => {
+    const planned = updatePlanned();
+    if (planned.plan) {
+      planned.plan.intent = create(IntentSchema, {
+        kind: IntentKind.UPGRADE,
+        resourceId: "prj_site",
+        fromRelease: "6.72.0",
+        release: "6.72.0",
+        fromCatalogRelease: 4,
+        catalogRelease: 5,
+      });
+    }
+    renderSheet(
+      { kind: "plan", make: () => Promise.resolve({ change: planned }) },
+      { changes: { watchChange: feed<WatchChangeResponse>().stream, discardChange: () => ({}) } },
+    );
+    const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+    const line = await waitFor(() => {
+      const found = sheet.querySelector<HTMLElement>(".upgrade-line");
+      if (!found) throw new Error("no line says what the update goes from and to");
+      return found;
+    });
+    expect(line).toHaveTextContent("From release 4 to release 5, the same 6.72.0");
+    expect(line).not.toHaveTextContent("From 6.72.0 to 6.72.0");
+  });
+
   it("says what it goes from and to, backs up first unless you switch it off, and follows each phase", async () => {
     const user = userEvent.setup();
     const watch = feed<WatchChangeResponse>();

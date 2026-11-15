@@ -105,7 +105,45 @@ export const flow: Flow = {
       fail("the update card still offers 7.4 beside the update that applied it");
     await shoot(page, "app-updates-updated");
 
+    // A project's app keeps its box in the column it picks by, never cut off at its edge, as
+    // the project's row and the app's name step in instead, on every width and in both themes.
+    step(
+      "app updates: in a project, each app's box to pick its update by sits whole in its column, wide and on a phone",
+    );
+    cli("projects", "create", "updates-pair", "-y");
+    for (const [name, image] of [
+      ["cache", "redis:7.2"],
+      ["web", "nginx:1.27-alpine"],
+    ] as const) {
+      cli("services", "create", name, "--project", "updates-pair", "--on", control, "--app-image", image, "-y");
+    }
+    cli("app-updates", "check", "cache", "--project", "updates-pair");
+    for (const scheme of ["light", "dark"] as const) {
+      await page.emulateMedia({ colorScheme: scheme });
+      for (const width of [1440, 390]) {
+        await page.setViewportSize({ width, height: 900 });
+        await page.goto(`${origin}/apps`);
+        const pick = page.getByRole("checkbox", { name: "Select cache's update" });
+        await pick.waitFor({ timeout: 20_000 });
+        // The box, and what holds it: its table cell wide, its row on a phone.
+        const fits = await pick.evaluate((box) => {
+          const holder = box.closest("td") ?? box.closest(".apps-phone-pickrow");
+          if (!holder) return "no cell or row holds it";
+          const b = box.getBoundingClientRect();
+          const h = holder.getBoundingClientRect();
+          return b.left >= h.left && b.right <= h.right && b.top >= h.top && b.bottom <= h.bottom
+            ? ""
+            : `its box spans ${Math.round(b.left)} to ${Math.round(b.right)} px, its holder ${Math.round(h.left)} to ${Math.round(h.right)} px`;
+        });
+        if (fits) fail(`at ${width} px, ${scheme}, cache's update box is cut off: ${fits}`);
+        await shoot(page, `app-updates-project-${width}-${scheme}`);
+      }
+    }
+    await page.emulateMedia({ colorScheme: null });
+    await page.setViewportSize({ width: 1440, height: 900 });
+
     step("app updates: the app goes again");
     cli("services", "delete", "updates-cache", "--project", "default", "-y");
+    cli("projects", "delete", "updates-pair", "--with-contents", "-y");
   },
 };

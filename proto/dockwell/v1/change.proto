@@ -1508,6 +1508,12 @@ message Intent {
   // project's ID then.
   string from_release = 262;
   string release = 263;
+  // The catalog entry's releases it leaves and goes to, such as 4 and 5, for
+  // INTENT_KIND_UPGRADE of an install: a release can keep the app's version, as
+  // one that changes only how Dockwell runs it does, where from_release and
+  // release are the same.
+  uint32 from_catalog_release = 264;
+  uint32 catalog_release = 265;
 }
 
 // IntentKind is what a change is for.

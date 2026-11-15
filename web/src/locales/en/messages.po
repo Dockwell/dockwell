@@ -5692,6 +5692,12 @@ msgstr "Its server's agent is too old to check; update the agent"
 msgid "New build"
 msgstr "New build"
 
+msgid "New release"
+msgstr "New release"
+
+msgid "New release · same {version}"
+msgstr "New release · same {version}"
+
 msgid "Not checked yet"
 msgstr "Not checked yet"
 
@@ -5710,6 +5716,12 @@ msgstr "Notes"
 
 msgid "Pull the new build"
 msgstr "Pull the new build"
+
+msgid "Release {release}"
+msgstr "Release {release}"
+
+msgid "Release {release} · same {version}"
+msgstr "Release {release} · same {version}"
 
 msgid "Review the change"
 msgstr "Review the change"
@@ -5747,7 +5759,7 @@ msgstr "Up to date"
 msgid "Update available"
 msgstr "Update available"
 
-#. placeholder {0}: stepOf(a)
+#. placeholder {0}: step(a)
 msgid "Update available: {0}, {kind}"
 msgstr "Update available: {0}, {kind}"
 
@@ -9215,6 +9227,9 @@ msgstr "{triggers} starts it again when it's asked for"
 
 msgid "From <0>{from}</0> to <1>{to}</1>"
 msgstr "From <0>{from}</0> to <1>{to}</1>"
+
+msgid "From release <0>{fromRelease}</0> to release <1>{toRelease}</1>, the same {to}"
+msgstr "From release <0>{fromRelease}</0> to release <1>{toRelease}</1>, the same {to}"
 
 msgid "How the update is going"
 msgstr "How the update is going"

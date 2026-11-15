@@ -6,9 +6,10 @@ import { plural } from "@lingui/core/macro";
 import { useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
 
-import { nameOf } from "../apps/app";
+import { environmentOf, nameOf } from "../apps/app";
 import { PickBox, SelectPatches, UpdatePicksBar, useUpdatePicks } from "../apps/UpdateSeveral";
-import { offered, stepOf, useKindWord, withUpdates } from "../apps/updates";
+import { installOffer, offered, ofInstall, oneForEachUpdate, useKindWord, useStep } from "../apps/updates";
+import { usePlaces } from "../apps/useServices";
 
 /** How many apps with an update the Overview lists; the rest are a link away, on Apps. */
 const SHOWN = 6;
@@ -21,8 +22,11 @@ const SHOWN = 6;
 export function OverviewUpdates({ services, now }: { services: readonly ServiceInfo[]; now: number }) {
   const { t } = useLingui();
   const kindWord = useKindWord();
+  const step = useStep();
+  const places = usePlaces();
   const picks = useUpdatePicks(services, now);
-  const list = withUpdates(services, now);
+  // A catalog install's update is one, the install's, listed once under its name.
+  const list = oneForEachUpdate(services, now);
   if (list.length === 0) return null;
   const shown = list.slice(0, SHOWN);
   const order = shown.filter((s) => picks.can(s.id)).map((s) => s.id);
@@ -35,16 +39,19 @@ export function OverviewUpdates({ services, now }: { services: readonly ServiceI
     >
       <ul className="overview-update-rows" aria-label={t`Apps with an update`}>
         {shown.map((service) => {
-          const a = offered(service.update);
+          const install = ofInstall(service);
+          const its = install ? services.filter((s) => environmentOf(s) === environmentOf(service)) : [service];
+          const a = install ? installOffer(its, now)?.offer : offered(service.update);
           if (!a) return null;
-          const name = nameOf(service);
+          const name = install ? places.place(environmentOf(service))?.label || nameOf(service) : nameOf(service);
+          const ids = its.filter((s) => picks.can(s.id)).map((s) => s.id);
           return (
             <li key={service.id} className="overview-update-row">
               {picks.can(service.id) ? (
                 <PickBox
-                  checked={picks.has(service.id)}
+                  checked={ids.every((id) => picks.has(id))}
                   label={t`Select ${name}'s update`}
-                  onPick={(on, range) => picks.toggle(order, service.id, on, range)}
+                  onPick={(on, range) => (install ? picks.setAll(ids, on) : picks.toggle(order, service.id, on, range))}
                 />
               ) : (
                 <span className="overview-update-nopick" aria-hidden="true" />
@@ -52,7 +59,7 @@ export function OverviewUpdates({ services, now }: { services: readonly ServiceI
               <Link to="/apps/$serviceId" params={{ serviceId: service.id }} className="overview-update-name">
                 {name}
               </Link>
-              <code className="update-step">{stepOf(a)}</code>
+              <code className="update-step">{step(a)}</code>
               <Tag className={cx("update-kind", a.kind === UpdateKind.MAJOR && "is-major")}>{kindWord(a.kind)}</Tag>
             </li>
           );

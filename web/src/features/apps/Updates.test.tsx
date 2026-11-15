@@ -19,7 +19,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { activateLocale } from "../../app/i18n";
-import { anApp, places, SERVER } from "../../test/apps";
+import { anApp, places, projectPlaces, SERVER } from "../../test/apps";
 import { watched } from "../../test/changes";
 import { type Api, feed, renderAt } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
@@ -114,6 +114,117 @@ describe("updates on the apps list", () => {
     await screen.findByRole("table", { name: "Apps" });
     expect(screen.queryByRole("button", { name: /update available/ })).toBeNull();
     expect(screen.queryByTitle(/Update available/)).toBeNull();
+  });
+});
+
+/**
+ * A catalog install of two apps, a site and its database, in its own project, as the
+ * catalog's update gives each of them: a new release of the entry, which keeps the
+ * site's version where the release only changes how it runs.
+ */
+function siteInstall({ version = "6.72.0", release = 5 } = {}) {
+  const update = () =>
+    create(ServiceUpdateSchema, {
+      check: UpdateCheck.AVAILABLE,
+      source: UpdateSource.CATALOG,
+      checkTime: timestampFromDate(new Date(Date.now() - hour)),
+      available: [
+        {
+          kind: version === "6.72.0" ? UpdateKind.RELEASE : UpdateKind.MINOR,
+          fromVersion: "6.72.0",
+          toVersion: version,
+          catalogRelease: release,
+        },
+      ],
+    });
+  const place = (name: string) => ({ kind: "service", scope: "env_site", name });
+  return [
+    anApp("db", "mysql:8.4.11", {}, { id: "svc_site_db", resource: place("db"), update: update() }),
+    anApp("site", "example/site:6.72.0", {}, { id: "svc_site_site", resource: place("site"), update: update() }),
+  ];
+}
+
+/** A project of two apps from a Compose file, one with a newer image. */
+function shopStack() {
+  const place = (name: string) => ({ kind: "service", scope: "env_shop", name });
+  return [
+    anApp(
+      "web",
+      "nginx:1.27.3",
+      {},
+      {
+        id: "svc_shop_web",
+        resource: place("web"),
+        update: create(ServiceUpdateSchema, {
+          check: UpdateCheck.AVAILABLE,
+          source: UpdateSource.IMAGE,
+          checkTime: timestampFromDate(new Date(Date.now() - hour)),
+          available: [
+            {
+              kind: UpdateKind.PATCH,
+              fromVersion: "1.27.3",
+              toVersion: "1.27.4",
+              fromImage: "nginx:1.27.3",
+              toImage: "nginx:1.27.4",
+            },
+          ],
+        }),
+      },
+    ),
+    anApp("worker", "example/worker:2", {}, { id: "svc_shop_worker", resource: place("worker") }),
+  ];
+}
+
+describe("a catalog install's update on the apps list", () => {
+  /** The rows of a project, its own then its apps', unfolded. */
+  const rowOf = (name: RegExp) => within(screen.getByRole("table", { name: "Apps" })).getByRole("row", { name });
+
+  it("counts a release that keeps the app's version as one update, of the install, said as a release", async () => {
+    renderAt("/apps", { ...api(siteInstall()), resources: projectPlaces("site") });
+    await screen.findByRole("table", { name: "Apps" });
+    expect(screen.getByRole("button", { name: "1 update available" })).toBeVisible();
+    const install = rowOf(/site2 apps/);
+    expect(install).toHaveTextContent("Release 5 · same 6.72.0");
+    expect(install).not.toHaveTextContent(/\d+ updates?/);
+    // Its apps carry the install's update, and say none of their own: no version for the database.
+    for (const name of [/dbmysql/, /siteexample\/site/]) {
+      const row = rowOf(name);
+      expect(within(row).queryByTitle(/Update available/)).toBeNull();
+      expect(row).not.toHaveTextContent("6.72.0 ↑");
+      expect(within(row).queryByRole("checkbox")).toBeNull();
+    }
+    expect(within(rowOf(/dbmysql/)).queryByText("6.72.0")).toBeNull();
+    // The install's row picks the one update.
+    expect(within(install).getByRole("checkbox", { name: "Select the updates in site" })).toBeVisible();
+  });
+
+  it("counts an image update on one app of a project as one, on that app", async () => {
+    renderAt("/apps", { ...api(shopStack()), resources: projectPlaces("shop") });
+    await screen.findByRole("table", { name: "Apps" });
+    expect(screen.getByRole("button", { name: "1 update available" })).toBeVisible();
+    expect(rowOf(/shop2 apps/)).toHaveTextContent("1 update");
+    expect(within(rowOf(/webnginx/)).getByTitle("Update available: 1.27.3 → 1.27.4, patch")).toHaveTextContent(
+      "1.27.4",
+    );
+    expect(within(rowOf(/workerexample/)).queryByTitle(/Update available/)).toBeNull();
+  });
+
+  it("counts an install's release and a project's image update as two, each where it belongs", async () => {
+    const user = userEvent.setup();
+    renderAt("/apps", {
+      ...api([...siteInstall({ version: "6.73.0" }), ...shopStack()]),
+      resources: projectPlaces("site", "shop"),
+    });
+    await screen.findByRole("table", { name: "Apps" });
+    expect(screen.getByRole("button", { name: "2 updates available" })).toBeVisible();
+    // A release that moves the version says where it goes, once, on the install.
+    const install = rowOf(/site2 apps/);
+    expect(within(install).getByTitle("Update available: 6.72.0 → 6.73.0, minor")).toHaveTextContent("6.73.0");
+    expect(within(rowOf(/dbmysql/)).queryByTitle(/Update available/)).toBeNull();
+    expect(within(rowOf(/webnginx/)).getByTitle(/Update available: 1.27.3 → 1.27.4/)).toBeVisible();
+    // Picking both is two updates, the install's once.
+    await user.click(screen.getByRole("checkbox", { name: "Select every update shown" }));
+    expect(screen.getByRole("region", { name: "Selected updates" })).toHaveTextContent("2 selected");
   });
 });
 

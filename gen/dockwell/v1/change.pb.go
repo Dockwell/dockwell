@@ -6258,10 +6258,16 @@ type Intent struct {
 	// The releases a catalog install's upgrade leaves and goes to, such as "29.0.4"
 	// and "30.0.1", for INTENT_KIND_UPGRADE of an install. resource_id is its
 	// project's ID then.
-	FromRelease   string `protobuf:"bytes,262,opt,name=from_release,json=fromRelease,proto3" json:"from_release,omitempty"`
-	Release       string `protobuf:"bytes,263,opt,name=release,proto3" json:"release,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	FromRelease string `protobuf:"bytes,262,opt,name=from_release,json=fromRelease,proto3" json:"from_release,omitempty"`
+	Release     string `protobuf:"bytes,263,opt,name=release,proto3" json:"release,omitempty"`
+	// The catalog entry's releases it leaves and goes to, such as 4 and 5, for
+	// INTENT_KIND_UPGRADE of an install: a release can keep the app's version, as
+	// one that changes only how Dockwell runs it does, where from_release and
+	// release are the same.
+	FromCatalogRelease uint32 `protobuf:"varint,264,opt,name=from_catalog_release,json=fromCatalogRelease,proto3" json:"from_catalog_release,omitempty"`
+	CatalogRelease     uint32 `protobuf:"varint,265,opt,name=catalog_release,json=catalogRelease,proto3" json:"catalog_release,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *Intent) Reset() {
@@ -6369,6 +6375,20 @@ func (x *Intent) GetRelease() string {
 		return x.Release
 	}
 	return ""
+}
+
+func (x *Intent) GetFromCatalogRelease() uint32 {
+	if x != nil {
+		return x.FromCatalogRelease
+	}
+	return 0
+}
+
+func (x *Intent) GetCatalogRelease() uint32 {
+	if x != nil {
+		return x.CatalogRelease
+	}
+	return 0
 }
 
 // PlannedResource is what a plan does to one resource as a whole.
@@ -10227,7 +10247,7 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\x06create\x18\x01 \x01(\x05R\x06create\x12\x16\n" +
 	"\x06change\x18\x02 \x01(\x05R\x06change\x12\x18\n" +
 	"\areplace\x18\x03 \x01(\x05R\areplace\x12\x18\n" +
-	"\adestroy\x18\x04 \x01(\x05R\adestroy\"\xc9\x02\n" +
+	"\adestroy\x18\x04 \x01(\x05R\adestroy\"\xa6\x03\n" +
 	"\x06Intent\x12+\n" +
 	"\x04kind\x18\x01 \x01(\x0e2\x17.dockwell.v1.IntentKindR\x04kind\x12\x1f\n" +
 	"\vresource_id\x18\x02 \x01(\tR\n" +
@@ -10242,7 +10262,9 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\vfrom_digest\x18\x85\x02 \x01(\tR\n" +
 	"fromDigest\x12\"\n" +
 	"\ffrom_release\x18\x86\x02 \x01(\tR\vfromRelease\x12\x19\n" +
-	"\arelease\x18\x87\x02 \x01(\tR\arelease\"\x81\x05\n" +
+	"\arelease\x18\x87\x02 \x01(\tR\arelease\x121\n" +
+	"\x14from_catalog_release\x18\x88\x02 \x01(\rR\x12fromCatalogRelease\x12(\n" +
+	"\x0fcatalog_release\x18\x89\x02 \x01(\rR\x0ecatalogRelease\"\x81\x05\n" +
 	"\x0fPlannedResource\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x124\n" +
 	"\bresource\x18\x02 \x01(\v2\x18.dockwell.v1.ResourceRefR\bresource\x12/\n" +

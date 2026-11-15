@@ -102,14 +102,7 @@ func (h *Handler) meetNeeds(ctx context.Context, s sourced, e *catalogv1.Entry, 
 			notes = append(notes, pins...)
 		}
 		if _, had := pinned[name]; pinned != nil && !had {
-			what := "its own"
-			if w.From != nil {
-				what = "a new " + strings.TrimSpace(catalog.EngineName(w.Engine)+" "+w.Version)
-			}
-			notes = append(notes, revision.Note{
-				Reason:  NewNeedNote,
-				Message: fmt.Sprintf("%s %s needs %s, which it didn't before, so %s runs beside it", e.GetName(), e.GetVersion(), needWord(e, name), what),
-			})
+			notes = append(notes, revision.Note{Reason: NewNeedNote, Message: newNeedWords(e, name, w)})
 		}
 	}
 	for _, name := range slices.Sorted(maps.Keys(met)) {
@@ -152,6 +145,25 @@ func restartsForNeeds(e *catalogv1.Entry, pin *resourcev1.CatalogPin, needed *ca
 		})
 	}
 	return out
+}
+
+// newNeedWords say what meeting a need a release adds does. Met by the entry's own
+// server, as a release that moves the database an app ran beside it onto a need does,
+// it's that server: one whose image makes the app a user of its own, as MySQL's and
+// MariaDB's do, is then one other apps can share (ADR 0084).
+func newNeedWords(e *catalogv1.Entry, name string, w catalog.Way) string {
+	if w.From == nil && w.Existing == nil {
+		engine := cmp.Or(catalog.EngineName(w.Engine), "database")
+		if w.Engine == catalogv1.Engine_ENGINE_MYSQL || w.Engine == catalogv1.Engine_ENGINE_MARIADB {
+			return fmt.Sprintf("%s %s takes %s as a need from this release, met by its own %s, which you can then share with other apps, each with a user of its own", e.GetName(), e.GetVersion(), needWord(e, name), engine)
+		}
+		return fmt.Sprintf("%s %s takes %s as a need from this release, met by its own %s", e.GetName(), e.GetVersion(), needWord(e, name), engine)
+	}
+	what := "its own"
+	if w.From != nil {
+		what = "a new " + strings.TrimSpace(catalog.EngineName(w.Engine)+" "+w.Version)
+	}
+	return fmt.Sprintf("%s %s needs %s, which it didn't before, so %s runs beside it", e.GetName(), e.GetVersion(), needWord(e, name), what)
 }
 
 // NewNeedNote is a plan note's reason for a release that needs what the install didn't,
