@@ -150,6 +150,22 @@ message Need {
   // config.php, so setting it anew would leave the app with the old one: a
   // rotation of it is refused.
   bool set_once = 8;
+  // What kind of thing it is, such as S3 storage. Unset, it's a database, of the
+  // engines it accepts. Numbered, with what follows, in the block every kind holds,
+  // 50 to 59. See
+  // docs/adr/0099-every-kind-of-thing-an-app-needs-met-the-same-three-ways.md.
+  Kind kind = 50;
+  // The app runs without it, as many keep files on their own disk unless given a
+  // bucket: it installs unset, and is never met new by default. Its names are left
+  // out while it's unmet, but a PART_MET set's and those empty_when_unmet.
+  bool optional = 51;
+  // The bucket to start from, for S3 storage, such as "notes". Empty takes the
+  // need's name.
+  string bucket = 52;
+  // How long the app's signed URLs last, for S3 storage, as a Go duration such as
+  // "1h": a bucket's move waits it out where it can't stop the old key. Empty is
+  // seven days, AWS's longest.
+  string presign_lifetime = 53;
 }
 
 // NeedAccept is an engine that meets a need, at the versions the app takes.
@@ -159,6 +175,11 @@ message NeedAccept {
   // The versions, as comparators on dotted numbers separated by spaces, such as
   // ">=8.0" or ">=10.6 <12". Empty takes any.
   string versions = 2;
+  // A kind, in place of an engine, where the app doesn't care which product
+  // speaks it: any that has the features. The need's own kind.
+  Kind kind = 50;
+  // What the app needs of whatever meets it, such as presigned URLs.
+  repeated Feature features = 51;
 }
 
 // NeedSet is a name a need sets in the app's environment, and what it holds.
@@ -182,7 +203,12 @@ message NeedSet {
   // "mysql" for MySQL and MariaDB. One for each engine the need accepts, and
   // only for an engine part. See
   // docs/adr/0084-what-an-app-needs-met-by-a-new-service-one-you-run-or-a-connection.md.
+  // For a part with a fixed set of values, as PART_MET's met and unmet or
+  // PART_PATH_STYLE's on and off, the app's word for each value instead.
   repeated NeedWord words = 5;
+  // Set, empty, while an optional need is unmet, for an app that needs the name
+  // there and reads it empty as unset. Elsewhere it's left out.
+  bool empty_when_unmet = 50;
 }
 
 // NeedWord is an app's word for an engine, as an engine part writes it.
@@ -191,6 +217,50 @@ message NeedWord {
   Engine engine = 1;
   // The app's word for it, such as "postgres".
   string word = 2;
+  // The value it's the app's word for, in place of an engine: met or unmet for
+  // PART_MET, on or off for PART_PATH_STYLE. An unmet word may be empty, which
+  // leaves the name out while unmet.
+  string value = 3;
+}
+
+// Kind is what an app speaks to, whatever product speaks it, beyond the databases
+// Engine names. See
+// docs/adr/0099-every-kind-of-thing-an-app-needs-met-the-same-three-ways.md.
+enum Kind {
+  // A database, of the engines it accepts.
+  KIND_UNSPECIFIED = 0;
+  // S3-compatible object storage, as Amazon S3, Cloudflare R2, Backblaze B2,
+  // Google Cloud Storage, Garage and RustFS speak it.
+  KIND_S3 = 1;
+  // Mail by SMTP.
+  KIND_SMTP = 2;
+}
+
+// Feature is something an app needs of what meets its need, beyond speaking its
+// kind. What a server can do is proven by the check; what happens in a browser is
+// set up and stated.
+enum Feature {
+  FEATURE_UNSPECIFIED = 0;
+  // The app hands browsers a signed URL to read or write an object.
+  FEATURE_PRESIGNED_URLS = 1;
+  // The bucket in the host name.
+  FEATURE_VIRTUAL_HOST = 2;
+  // The bucket in the path.
+  FEATURE_PATH_STYLE = 3;
+  // Large uploads in parts.
+  FEATURE_MULTIPART = 4;
+  // Deleting many objects in one request.
+  FEATURE_BATCH_DELETE = 5;
+  // Browsers upload straight to the bucket.
+  FEATURE_CORS = 6;
+  // Objects served to anyone at the public URL.
+  FEATURE_PUBLIC_READ = 7;
+  // An ACL per object, as apps that set public-read on each.
+  FEATURE_OBJECT_ACL = 8;
+  // A browser's form upload.
+  FEATURE_PRESIGNED_POST = 9;
+  // The checksums and streaming trailers AWS's SDKs send by default.
+  FEATURE_SDK_CHECKSUMS = 10;
 }
 
 // NeedTls is how an app reads whether to use TLS.
@@ -249,6 +319,25 @@ enum Part {
   // give them, such as "postgres" for PostgreSQL, for an app that reads which
   // engine it's on, as Gitea's DB_TYPE.
   PART_ENGINE = 41;
+  // S3 storage's parts, numbered from 50. Its endpoint, a URL, such as
+  // "https://<account>.r2.cloudflarestorage.com".
+  PART_ENDPOINT = 50;
+  // Its region, such as "auto" or "eu-central-1".
+  PART_REGION = 51;
+  // The bucket's name.
+  PART_BUCKET = 52;
+  // The access key's ID.
+  PART_ACCESS_KEY_ID = 53;
+  // The secret key, kept as a secret.
+  PART_SECRET_KEY = 54;
+  // Whether the bucket goes in the path, in the app's words, as words give them
+  // for on and off.
+  PART_PATH_STYLE = 55;
+  // Where objects are read from publicly, as a custom domain.
+  PART_PUBLIC_URL = 56;
+  // Whether an optional need is met, in the app's words, as words give them for
+  // met and unmet, such as STORAGE_DRIVER's s3 and local. Set while unmet too.
+  PART_MET = 70;
 }
 
 // Translation is what an entry says in another language than its own, as its

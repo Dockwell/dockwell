@@ -224,10 +224,10 @@ func (e *Engine) attachTo(w http.ResponseWriter, r *http.Request, id string) {
 	code := -1
 	var args []string
 	probing := len(c.Config.Cmd) == 1 && c.Config.Cmd[0] == probe.Command
-	if probing {
+	switch {
+	case probing:
 		// The probe runs here, on this machine, as its container would.
-		args = nil
-	} else if len(c.Config.Cmd) > 2 && c.Config.Cmd[0] == volumetool.Command {
+	case len(c.Config.Cmd) > 2 && c.Config.Cmd[0] == volumetool.Command:
 		args = c.Config.Cmd[1:]
 		mounts := e.mountsOf(c)
 		dir, mounted := mounts[args[1]]
@@ -242,7 +242,7 @@ func (e *Engine) attachTo(w http.ResponseWriter, r *http.Request, id string) {
 		default:
 			args = []string{args[0], dir}
 		}
-	} else {
+	default:
 		code = 127
 		_, _ = stderr.Write([]byte("exec: not found\n"))
 	}

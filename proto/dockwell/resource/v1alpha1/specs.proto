@@ -1984,4 +1984,13 @@ enum LinkPart {
   LINK_PART_TLS = 8;
   LINK_PART_KEY_PREFIX = 40;
   LINK_PART_ENGINE = 41;
+  // S3 storage's parts, numbered as the catalog format's Part (ADR 0099).
+  LINK_PART_ENDPOINT = 50;
+  LINK_PART_REGION = 51;
+  LINK_PART_BUCKET = 52;
+  LINK_PART_ACCESS_KEY_ID = 53;
+  LINK_PART_SECRET_KEY = 54;
+  LINK_PART_PATH_STYLE = 55;
+  LINK_PART_PUBLIC_URL = 56;
+  LINK_PART_MET = 70;
 }

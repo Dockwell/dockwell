@@ -29,6 +29,148 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// Kind is what an app speaks to, whatever product speaks it, beyond the databases
+// Engine names. See
+// docs/adr/0099-every-kind-of-thing-an-app-needs-met-the-same-three-ways.md.
+type Kind int32
+
+const (
+	// A database, of the engines it accepts.
+	Kind_KIND_UNSPECIFIED Kind = 0
+	// S3-compatible object storage, as Amazon S3, Cloudflare R2, Backblaze B2,
+	// Google Cloud Storage, Garage and RustFS speak it.
+	Kind_KIND_S3 Kind = 1
+	// Mail by SMTP.
+	Kind_KIND_SMTP Kind = 2
+)
+
+// Enum value maps for Kind.
+var (
+	Kind_name = map[int32]string{
+		0: "KIND_UNSPECIFIED",
+		1: "KIND_S3",
+		2: "KIND_SMTP",
+	}
+	Kind_value = map[string]int32{
+		"KIND_UNSPECIFIED": 0,
+		"KIND_S3":          1,
+		"KIND_SMTP":        2,
+	}
+)
+
+func (x Kind) Enum() *Kind {
+	p := new(Kind)
+	*p = x
+	return p
+}
+
+func (x Kind) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (Kind) Descriptor() protoreflect.EnumDescriptor {
+	return file_dockwell_catalog_v1alpha1_entry_proto_enumTypes[0].Descriptor()
+}
+
+func (Kind) Type() protoreflect.EnumType {
+	return &file_dockwell_catalog_v1alpha1_entry_proto_enumTypes[0]
+}
+
+func (x Kind) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use Kind.Descriptor instead.
+func (Kind) EnumDescriptor() ([]byte, []int) {
+	return file_dockwell_catalog_v1alpha1_entry_proto_rawDescGZIP(), []int{0}
+}
+
+// Feature is something an app needs of what meets its need, beyond speaking its
+// kind. What a server can do is proven by the check; what happens in a browser is
+// set up and stated.
+type Feature int32
+
+const (
+	Feature_FEATURE_UNSPECIFIED Feature = 0
+	// The app hands browsers a signed URL to read or write an object.
+	Feature_FEATURE_PRESIGNED_URLS Feature = 1
+	// The bucket in the host name.
+	Feature_FEATURE_VIRTUAL_HOST Feature = 2
+	// The bucket in the path.
+	Feature_FEATURE_PATH_STYLE Feature = 3
+	// Large uploads in parts.
+	Feature_FEATURE_MULTIPART Feature = 4
+	// Deleting many objects in one request.
+	Feature_FEATURE_BATCH_DELETE Feature = 5
+	// Browsers upload straight to the bucket.
+	Feature_FEATURE_CORS Feature = 6
+	// Objects served to anyone at the public URL.
+	Feature_FEATURE_PUBLIC_READ Feature = 7
+	// An ACL per object, as apps that set public-read on each.
+	Feature_FEATURE_OBJECT_ACL Feature = 8
+	// A browser's form upload.
+	Feature_FEATURE_PRESIGNED_POST Feature = 9
+	// The checksums and streaming trailers AWS's SDKs send by default.
+	Feature_FEATURE_SDK_CHECKSUMS Feature = 10
+)
+
+// Enum value maps for Feature.
+var (
+	Feature_name = map[int32]string{
+		0:  "FEATURE_UNSPECIFIED",
+		1:  "FEATURE_PRESIGNED_URLS",
+		2:  "FEATURE_VIRTUAL_HOST",
+		3:  "FEATURE_PATH_STYLE",
+		4:  "FEATURE_MULTIPART",
+		5:  "FEATURE_BATCH_DELETE",
+		6:  "FEATURE_CORS",
+		7:  "FEATURE_PUBLIC_READ",
+		8:  "FEATURE_OBJECT_ACL",
+		9:  "FEATURE_PRESIGNED_POST",
+		10: "FEATURE_SDK_CHECKSUMS",
+	}
+	Feature_value = map[string]int32{
+		"FEATURE_UNSPECIFIED":    0,
+		"FEATURE_PRESIGNED_URLS": 1,
+		"FEATURE_VIRTUAL_HOST":   2,
+		"FEATURE_PATH_STYLE":     3,
+		"FEATURE_MULTIPART":      4,
+		"FEATURE_BATCH_DELETE":   5,
+		"FEATURE_CORS":           6,
+		"FEATURE_PUBLIC_READ":    7,
+		"FEATURE_OBJECT_ACL":     8,
+		"FEATURE_PRESIGNED_POST": 9,
+		"FEATURE_SDK_CHECKSUMS":  10,
+	}
+)
+
+func (x Feature) Enum() *Feature {
+	p := new(Feature)
+	*p = x
+	return p
+}
+
+func (x Feature) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (Feature) Descriptor() protoreflect.EnumDescriptor {
+	return file_dockwell_catalog_v1alpha1_entry_proto_enumTypes[1].Descriptor()
+}
+
+func (Feature) Type() protoreflect.EnumType {
+	return &file_dockwell_catalog_v1alpha1_entry_proto_enumTypes[1]
+}
+
+func (x Feature) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use Feature.Descriptor instead.
+func (Feature) EnumDescriptor() ([]byte, []int) {
+	return file_dockwell_catalog_v1alpha1_entry_proto_rawDescGZIP(), []int{1}
+}
+
 // Engine is what runs a database, as Dockwell knows it (ADR 0038).
 type Engine int32
 
@@ -85,11 +227,11 @@ func (x Engine) String() string {
 }
 
 func (Engine) Descriptor() protoreflect.EnumDescriptor {
-	return file_dockwell_catalog_v1alpha1_entry_proto_enumTypes[0].Descriptor()
+	return file_dockwell_catalog_v1alpha1_entry_proto_enumTypes[2].Descriptor()
 }
 
 func (Engine) Type() protoreflect.EnumType {
-	return &file_dockwell_catalog_v1alpha1_entry_proto_enumTypes[0]
+	return &file_dockwell_catalog_v1alpha1_entry_proto_enumTypes[2]
 }
 
 func (x Engine) Number() protoreflect.EnumNumber {
@@ -98,7 +240,7 @@ func (x Engine) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use Engine.Descriptor instead.
 func (Engine) EnumDescriptor() ([]byte, []int) {
-	return file_dockwell_catalog_v1alpha1_entry_proto_rawDescGZIP(), []int{0}
+	return file_dockwell_catalog_v1alpha1_entry_proto_rawDescGZIP(), []int{2}
 }
 
 // Part is what a name a need sets holds.
@@ -132,6 +274,25 @@ const (
 	// give them, such as "postgres" for PostgreSQL, for an app that reads which
 	// engine it's on, as Gitea's DB_TYPE.
 	Part_PART_ENGINE Part = 41
+	// S3 storage's parts, numbered from 50. Its endpoint, a URL, such as
+	// "https://<account>.r2.cloudflarestorage.com".
+	Part_PART_ENDPOINT Part = 50
+	// Its region, such as "auto" or "eu-central-1".
+	Part_PART_REGION Part = 51
+	// The bucket's name.
+	Part_PART_BUCKET Part = 52
+	// The access key's ID.
+	Part_PART_ACCESS_KEY_ID Part = 53
+	// The secret key, kept as a secret.
+	Part_PART_SECRET_KEY Part = 54
+	// Whether the bucket goes in the path, in the app's words, as words give them
+	// for on and off.
+	Part_PART_PATH_STYLE Part = 55
+	// Where objects are read from publicly, as a custom domain.
+	Part_PART_PUBLIC_URL Part = 56
+	// Whether an optional need is met, in the app's words, as words give them for
+	// met and unmet, such as STORAGE_DRIVER's s3 and local. Set while unmet too.
+	Part_PART_MET Part = 70
 )
 
 // Enum value maps for Part.
@@ -148,19 +309,35 @@ var (
 		8:  "PART_TLS",
 		40: "PART_KEY_PREFIX",
 		41: "PART_ENGINE",
+		50: "PART_ENDPOINT",
+		51: "PART_REGION",
+		52: "PART_BUCKET",
+		53: "PART_ACCESS_KEY_ID",
+		54: "PART_SECRET_KEY",
+		55: "PART_PATH_STYLE",
+		56: "PART_PUBLIC_URL",
+		70: "PART_MET",
 	}
 	Part_value = map[string]int32{
-		"PART_UNSPECIFIED": 0,
-		"PART_HOST":        1,
-		"PART_PORT":        2,
-		"PART_ADDRESS":     3,
-		"PART_DATABASE":    4,
-		"PART_USER":        5,
-		"PART_PASSWORD":    6,
-		"PART_URL":         7,
-		"PART_TLS":         8,
-		"PART_KEY_PREFIX":  40,
-		"PART_ENGINE":      41,
+		"PART_UNSPECIFIED":   0,
+		"PART_HOST":          1,
+		"PART_PORT":          2,
+		"PART_ADDRESS":       3,
+		"PART_DATABASE":      4,
+		"PART_USER":          5,
+		"PART_PASSWORD":      6,
+		"PART_URL":           7,
+		"PART_TLS":           8,
+		"PART_KEY_PREFIX":    40,
+		"PART_ENGINE":        41,
+		"PART_ENDPOINT":      50,
+		"PART_REGION":        51,
+		"PART_BUCKET":        52,
+		"PART_ACCESS_KEY_ID": 53,
+		"PART_SECRET_KEY":    54,
+		"PART_PATH_STYLE":    55,
+		"PART_PUBLIC_URL":    56,
+		"PART_MET":           70,
 	}
 )
 
@@ -175,11 +352,11 @@ func (x Part) String() string {
 }
 
 func (Part) Descriptor() protoreflect.EnumDescriptor {
-	return file_dockwell_catalog_v1alpha1_entry_proto_enumTypes[1].Descriptor()
+	return file_dockwell_catalog_v1alpha1_entry_proto_enumTypes[3].Descriptor()
 }
 
 func (Part) Type() protoreflect.EnumType {
-	return &file_dockwell_catalog_v1alpha1_entry_proto_enumTypes[1]
+	return &file_dockwell_catalog_v1alpha1_entry_proto_enumTypes[3]
 }
 
 func (x Part) Number() protoreflect.EnumNumber {
@@ -188,7 +365,7 @@ func (x Part) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use Part.Descriptor instead.
 func (Part) EnumDescriptor() ([]byte, []int) {
-	return file_dockwell_catalog_v1alpha1_entry_proto_rawDescGZIP(), []int{1}
+	return file_dockwell_catalog_v1alpha1_entry_proto_rawDescGZIP(), []int{3}
 }
 
 // Characters are what a value a person gives may hold.
@@ -226,11 +403,11 @@ func (x Characters) String() string {
 }
 
 func (Characters) Descriptor() protoreflect.EnumDescriptor {
-	return file_dockwell_catalog_v1alpha1_entry_proto_enumTypes[2].Descriptor()
+	return file_dockwell_catalog_v1alpha1_entry_proto_enumTypes[4].Descriptor()
 }
 
 func (Characters) Type() protoreflect.EnumType {
-	return &file_dockwell_catalog_v1alpha1_entry_proto_enumTypes[2]
+	return &file_dockwell_catalog_v1alpha1_entry_proto_enumTypes[4]
 }
 
 func (x Characters) Number() protoreflect.EnumNumber {
@@ -239,7 +416,7 @@ func (x Characters) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use Characters.Descriptor instead.
 func (Characters) EnumDescriptor() ([]byte, []int) {
-	return file_dockwell_catalog_v1alpha1_entry_proto_rawDescGZIP(), []int{2}
+	return file_dockwell_catalog_v1alpha1_entry_proto_rawDescGZIP(), []int{4}
 }
 
 // GenerateAs is how a generated secret is written.
@@ -281,11 +458,11 @@ func (x GenerateAs) String() string {
 }
 
 func (GenerateAs) Descriptor() protoreflect.EnumDescriptor {
-	return file_dockwell_catalog_v1alpha1_entry_proto_enumTypes[3].Descriptor()
+	return file_dockwell_catalog_v1alpha1_entry_proto_enumTypes[5].Descriptor()
 }
 
 func (GenerateAs) Type() protoreflect.EnumType {
-	return &file_dockwell_catalog_v1alpha1_entry_proto_enumTypes[3]
+	return &file_dockwell_catalog_v1alpha1_entry_proto_enumTypes[5]
 }
 
 func (x GenerateAs) Number() protoreflect.EnumNumber {
@@ -294,7 +471,7 @@ func (x GenerateAs) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use GenerateAs.Descriptor instead.
 func (GenerateAs) EnumDescriptor() ([]byte, []int) {
-	return file_dockwell_catalog_v1alpha1_entry_proto_rawDescGZIP(), []int{3}
+	return file_dockwell_catalog_v1alpha1_entry_proto_rawDescGZIP(), []int{5}
 }
 
 // InputType is what an input takes.
@@ -347,11 +524,11 @@ func (x InputType) String() string {
 }
 
 func (InputType) Descriptor() protoreflect.EnumDescriptor {
-	return file_dockwell_catalog_v1alpha1_entry_proto_enumTypes[4].Descriptor()
+	return file_dockwell_catalog_v1alpha1_entry_proto_enumTypes[6].Descriptor()
 }
 
 func (InputType) Type() protoreflect.EnumType {
-	return &file_dockwell_catalog_v1alpha1_entry_proto_enumTypes[4]
+	return &file_dockwell_catalog_v1alpha1_entry_proto_enumTypes[6]
 }
 
 func (x InputType) Number() protoreflect.EnumNumber {
@@ -360,7 +537,7 @@ func (x InputType) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use InputType.Descriptor instead.
 func (InputType) EnumDescriptor() ([]byte, []int) {
-	return file_dockwell_catalog_v1alpha1_entry_proto_rawDescGZIP(), []int{4}
+	return file_dockwell_catalog_v1alpha1_entry_proto_rawDescGZIP(), []int{6}
 }
 
 // Entry is one app a catalog offers, at one version. It installs through the
@@ -754,9 +931,25 @@ type Need struct {
 	// The app keeps the password it installed with, as Nextcloud does in its
 	// config.php, so setting it anew would leave the app with the old one: a
 	// rotation of it is refused.
-	SetOnce       bool `protobuf:"varint,8,opt,name=set_once,json=setOnce,proto3" json:"set_once,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	SetOnce bool `protobuf:"varint,8,opt,name=set_once,json=setOnce,proto3" json:"set_once,omitempty"`
+	// What kind of thing it is, such as S3 storage. Unset, it's a database, of the
+	// engines it accepts. Numbered, with what follows, in the block every kind holds,
+	// 50 to 59. See
+	// docs/adr/0099-every-kind-of-thing-an-app-needs-met-the-same-three-ways.md.
+	Kind Kind `protobuf:"varint,50,opt,name=kind,proto3,enum=dockwell.catalog.v1alpha1.Kind" json:"kind,omitempty"`
+	// The app runs without it, as many keep files on their own disk unless given a
+	// bucket: it installs unset, and is never met new by default. Its names are left
+	// out while it's unmet, but a PART_MET set's and those empty_when_unmet.
+	Optional bool `protobuf:"varint,51,opt,name=optional,proto3" json:"optional,omitempty"`
+	// The bucket to start from, for S3 storage, such as "notes". Empty takes the
+	// need's name.
+	Bucket string `protobuf:"bytes,52,opt,name=bucket,proto3" json:"bucket,omitempty"`
+	// How long the app's signed URLs last, for S3 storage, as a Go duration such as
+	// "1h": a bucket's move waits it out where it can't stop the old key. Empty is
+	// seven days, AWS's longest.
+	PresignLifetime string `protobuf:"bytes,53,opt,name=presign_lifetime,json=presignLifetime,proto3" json:"presign_lifetime,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *Need) Reset() {
@@ -845,6 +1038,34 @@ func (x *Need) GetSetOnce() bool {
 	return false
 }
 
+func (x *Need) GetKind() Kind {
+	if x != nil {
+		return x.Kind
+	}
+	return Kind_KIND_UNSPECIFIED
+}
+
+func (x *Need) GetOptional() bool {
+	if x != nil {
+		return x.Optional
+	}
+	return false
+}
+
+func (x *Need) GetBucket() string {
+	if x != nil {
+		return x.Bucket
+	}
+	return ""
+}
+
+func (x *Need) GetPresignLifetime() string {
+	if x != nil {
+		return x.PresignLifetime
+	}
+	return ""
+}
+
 // NeedAccept is an engine that meets a need, at the versions the app takes.
 type NeedAccept struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -852,7 +1073,12 @@ type NeedAccept struct {
 	Engine Engine `protobuf:"varint,1,opt,name=engine,proto3,enum=dockwell.catalog.v1alpha1.Engine" json:"engine,omitempty"`
 	// The versions, as comparators on dotted numbers separated by spaces, such as
 	// ">=8.0" or ">=10.6 <12". Empty takes any.
-	Versions      string `protobuf:"bytes,2,opt,name=versions,proto3" json:"versions,omitempty"`
+	Versions string `protobuf:"bytes,2,opt,name=versions,proto3" json:"versions,omitempty"`
+	// A kind, in place of an engine, where the app doesn't care which product
+	// speaks it: any that has the features. The need's own kind.
+	Kind Kind `protobuf:"varint,50,opt,name=kind,proto3,enum=dockwell.catalog.v1alpha1.Kind" json:"kind,omitempty"`
+	// What the app needs of whatever meets it, such as presigned URLs.
+	Features      []Feature `protobuf:"varint,51,rep,packed,name=features,proto3,enum=dockwell.catalog.v1alpha1.Feature" json:"features,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -901,6 +1127,20 @@ func (x *NeedAccept) GetVersions() string {
 	return ""
 }
 
+func (x *NeedAccept) GetKind() Kind {
+	if x != nil {
+		return x.Kind
+	}
+	return Kind_KIND_UNSPECIFIED
+}
+
+func (x *NeedAccept) GetFeatures() []Feature {
+	if x != nil {
+		return x.Features
+	}
+	return nil
+}
+
 // NeedSet is a name a need sets in the app's environment, and what it holds.
 type NeedSet struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -923,9 +1163,14 @@ type NeedSet struct {
 	// "mysql" for MySQL and MariaDB. One for each engine the need accepts, and
 	// only for an engine part. See
 	// docs/adr/0084-what-an-app-needs-met-by-a-new-service-one-you-run-or-a-connection.md.
-	Words         []*NeedWord `protobuf:"bytes,5,rep,name=words,proto3" json:"words,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	// For a part with a fixed set of values, as PART_MET's met and unmet or
+	// PART_PATH_STYLE's on and off, the app's word for each value instead.
+	Words []*NeedWord `protobuf:"bytes,5,rep,name=words,proto3" json:"words,omitempty"`
+	// Set, empty, while an optional need is unmet, for an app that needs the name
+	// there and reads it empty as unset. Elsewhere it's left out.
+	EmptyWhenUnmet bool `protobuf:"varint,50,opt,name=empty_when_unmet,json=emptyWhenUnmet,proto3" json:"empty_when_unmet,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *NeedSet) Reset() {
@@ -993,13 +1238,24 @@ func (x *NeedSet) GetWords() []*NeedWord {
 	return nil
 }
 
+func (x *NeedSet) GetEmptyWhenUnmet() bool {
+	if x != nil {
+		return x.EmptyWhenUnmet
+	}
+	return false
+}
+
 // NeedWord is an app's word for an engine, as an engine part writes it.
 type NeedWord struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The engine.
 	Engine Engine `protobuf:"varint,1,opt,name=engine,proto3,enum=dockwell.catalog.v1alpha1.Engine" json:"engine,omitempty"`
 	// The app's word for it, such as "postgres".
-	Word          string `protobuf:"bytes,2,opt,name=word,proto3" json:"word,omitempty"`
+	Word string `protobuf:"bytes,2,opt,name=word,proto3" json:"word,omitempty"`
+	// The value it's the app's word for, in place of an engine: met or unmet for
+	// PART_MET, on or off for PART_PATH_STYLE. An unmet word may be empty, which
+	// leaves the name out while unmet.
+	Value         string `protobuf:"bytes,3,opt,name=value,proto3" json:"value,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1044,6 +1300,13 @@ func (x *NeedWord) GetEngine() Engine {
 func (x *NeedWord) GetWord() string {
 	if x != nil {
 		return x.Word
+	}
+	return ""
+}
+
+func (x *NeedWord) GetValue() string {
+	if x != nil {
+		return x.Value
 	}
 	return ""
 }
@@ -1866,7 +2129,7 @@ const file_dockwell_catalog_v1alpha1_entry_proto_rawDesc = "" +
 	"\x05needs\x18( \x03(\v2\x1f.dockwell.catalog.v1alpha1.NeedR\x05needs\x1ag\n" +
 	"\x11TranslationsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12<\n" +
-	"\x05value\x18\x02 \x01(\v2&.dockwell.catalog.v1alpha1.TranslationR\x05value:\x028\x01\"\x8e\x02\n" +
+	"\x05value\x18\x02 \x01(\v2&.dockwell.catalog.v1alpha1.TranslationR\x05value:\x028\x01\"\xa2\x03\n" +
 	"\x04Need\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
 	"\x05label\x18\x02 \x01(\tR\x05label\x12?\n" +
@@ -1875,20 +2138,28 @@ const file_dockwell_catalog_v1alpha1_entry_proto_rawDesc = "" +
 	"\bdatabase\x18\x05 \x01(\tR\bdatabase\x12\x12\n" +
 	"\x04user\x18\x06 \x01(\tR\x04user\x126\n" +
 	"\x04sets\x18\a \x03(\v2\".dockwell.catalog.v1alpha1.NeedSetR\x04sets\x12\x19\n" +
-	"\bset_once\x18\b \x01(\bR\asetOnce\"c\n" +
+	"\bset_once\x18\b \x01(\bR\asetOnce\x123\n" +
+	"\x04kind\x182 \x01(\x0e2\x1f.dockwell.catalog.v1alpha1.KindR\x04kind\x12\x1a\n" +
+	"\boptional\x183 \x01(\bR\boptional\x12\x16\n" +
+	"\x06bucket\x184 \x01(\tR\x06bucket\x12)\n" +
+	"\x10presign_lifetime\x185 \x01(\tR\x0fpresignLifetime\"\xd8\x01\n" +
 	"\n" +
 	"NeedAccept\x129\n" +
 	"\x06engine\x18\x01 \x01(\x0e2!.dockwell.catalog.v1alpha1.EngineR\x06engine\x12\x1a\n" +
-	"\bversions\x18\x02 \x01(\tR\bversions\"\xdf\x01\n" +
+	"\bversions\x18\x02 \x01(\tR\bversions\x123\n" +
+	"\x04kind\x182 \x01(\x0e2\x1f.dockwell.catalog.v1alpha1.KindR\x04kind\x12>\n" +
+	"\bfeatures\x183 \x03(\x0e2\".dockwell.catalog.v1alpha1.FeatureR\bfeatures\"\x89\x02\n" +
 	"\aNeedSet\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x123\n" +
 	"\x04part\x18\x02 \x01(\x0e2\x1f.dockwell.catalog.v1alpha1.PartR\x04part\x12\x1a\n" +
 	"\btemplate\x18\x03 \x01(\tR\btemplate\x124\n" +
 	"\x03tls\x18\x04 \x01(\v2\".dockwell.catalog.v1alpha1.NeedTlsR\x03tls\x129\n" +
-	"\x05words\x18\x05 \x03(\v2#.dockwell.catalog.v1alpha1.NeedWordR\x05words\"Y\n" +
+	"\x05words\x18\x05 \x03(\v2#.dockwell.catalog.v1alpha1.NeedWordR\x05words\x12(\n" +
+	"\x10empty_when_unmet\x182 \x01(\bR\x0eemptyWhenUnmet\"o\n" +
 	"\bNeedWord\x129\n" +
 	"\x06engine\x18\x01 \x01(\x0e2!.dockwell.catalog.v1alpha1.EngineR\x06engine\x12\x12\n" +
-	"\x04word\x18\x02 \x01(\tR\x04word\"+\n" +
+	"\x04word\x18\x02 \x01(\tR\x04word\x12\x14\n" +
+	"\x05value\x18\x03 \x01(\tR\x05value\"+\n" +
 	"\aNeedTls\x12\x0e\n" +
 	"\x02on\x18\x01 \x01(\tR\x02on\x12\x10\n" +
 	"\x03off\x18\x02 \x01(\tR\x03off\"a\n" +
@@ -1948,7 +2219,24 @@ const file_dockwell_catalog_v1alpha1_entry_proto_rawDesc = "" +
 	"characters\x12\x19\n" +
 	"\bset_once\x18\t \x01(\bR\asetOnce\"\x1f\n" +
 	"\x03Web\x12\x18\n" +
-	"\aservice\x18\x01 \x01(\tR\aservice*\xad\x01\n" +
+	"\aservice\x18\x01 \x01(\tR\aservice*8\n" +
+	"\x04Kind\x12\x14\n" +
+	"\x10KIND_UNSPECIFIED\x10\x00\x12\v\n" +
+	"\aKIND_S3\x10\x01\x12\r\n" +
+	"\tKIND_SMTP\x10\x02*\x9b\x02\n" +
+	"\aFeature\x12\x17\n" +
+	"\x13FEATURE_UNSPECIFIED\x10\x00\x12\x1a\n" +
+	"\x16FEATURE_PRESIGNED_URLS\x10\x01\x12\x18\n" +
+	"\x14FEATURE_VIRTUAL_HOST\x10\x02\x12\x16\n" +
+	"\x12FEATURE_PATH_STYLE\x10\x03\x12\x15\n" +
+	"\x11FEATURE_MULTIPART\x10\x04\x12\x18\n" +
+	"\x14FEATURE_BATCH_DELETE\x10\x05\x12\x10\n" +
+	"\fFEATURE_CORS\x10\x06\x12\x17\n" +
+	"\x13FEATURE_PUBLIC_READ\x10\a\x12\x16\n" +
+	"\x12FEATURE_OBJECT_ACL\x10\b\x12\x1a\n" +
+	"\x16FEATURE_PRESIGNED_POST\x10\t\x12\x19\n" +
+	"\x15FEATURE_SDK_CHECKSUMS\x10\n" +
+	"*\xad\x01\n" +
 	"\x06Engine\x12\x16\n" +
 	"\x12ENGINE_UNSPECIFIED\x10\x00\x12\x15\n" +
 	"\x11ENGINE_POSTGRESQL\x10\x01\x12\x10\n" +
@@ -1957,7 +2245,7 @@ const file_dockwell_catalog_v1alpha1_entry_proto_rawDesc = "" +
 	"\fENGINE_REDIS\x10\x04\x12\x11\n" +
 	"\rENGINE_VALKEY\x10\x05\x12\x12\n" +
 	"\x0eENGINE_MONGODB\x10\x06\x12\x15\n" +
-	"\x11ENGINE_CLICKHOUSE\x10\a*\xc3\x01\n" +
+	"\x11ENGINE_CLICKHOUSE\x10\a*\xdd\x02\n" +
 	"\x04Part\x12\x14\n" +
 	"\x10PART_UNSPECIFIED\x10\x00\x12\r\n" +
 	"\tPART_HOST\x10\x01\x12\r\n" +
@@ -1969,7 +2257,15 @@ const file_dockwell_catalog_v1alpha1_entry_proto_rawDesc = "" +
 	"\bPART_URL\x10\a\x12\f\n" +
 	"\bPART_TLS\x10\b\x12\x13\n" +
 	"\x0fPART_KEY_PREFIX\x10(\x12\x0f\n" +
-	"\vPART_ENGINE\x10)*A\n" +
+	"\vPART_ENGINE\x10)\x12\x11\n" +
+	"\rPART_ENDPOINT\x102\x12\x0f\n" +
+	"\vPART_REGION\x103\x12\x0f\n" +
+	"\vPART_BUCKET\x104\x12\x16\n" +
+	"\x12PART_ACCESS_KEY_ID\x105\x12\x13\n" +
+	"\x0fPART_SECRET_KEY\x106\x12\x13\n" +
+	"\x0fPART_PATH_STYLE\x107\x12\x13\n" +
+	"\x0fPART_PUBLIC_URL\x108\x12\f\n" +
+	"\bPART_MET\x10F*A\n" +
 	"\n" +
 	"Characters\x12\x1a\n" +
 	"\x16CHARACTERS_UNSPECIFIED\x10\x00\x12\x17\n" +
@@ -2000,58 +2296,63 @@ func file_dockwell_catalog_v1alpha1_entry_proto_rawDescGZIP() []byte {
 	return file_dockwell_catalog_v1alpha1_entry_proto_rawDescData
 }
 
-var file_dockwell_catalog_v1alpha1_entry_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
+var file_dockwell_catalog_v1alpha1_entry_proto_enumTypes = make([]protoimpl.EnumInfo, 7)
 var file_dockwell_catalog_v1alpha1_entry_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
 var file_dockwell_catalog_v1alpha1_entry_proto_goTypes = []any{
-	(Engine)(0),             // 0: dockwell.catalog.v1alpha1.Engine
-	(Part)(0),               // 1: dockwell.catalog.v1alpha1.Part
-	(Characters)(0),         // 2: dockwell.catalog.v1alpha1.Characters
-	(GenerateAs)(0),         // 3: dockwell.catalog.v1alpha1.GenerateAs
-	(InputType)(0),          // 4: dockwell.catalog.v1alpha1.InputType
-	(*Entry)(nil),           // 5: dockwell.catalog.v1alpha1.Entry
-	(*Need)(nil),            // 6: dockwell.catalog.v1alpha1.Need
-	(*NeedAccept)(nil),      // 7: dockwell.catalog.v1alpha1.NeedAccept
-	(*NeedSet)(nil),         // 8: dockwell.catalog.v1alpha1.NeedSet
-	(*NeedWord)(nil),        // 9: dockwell.catalog.v1alpha1.NeedWord
-	(*NeedTls)(nil),         // 10: dockwell.catalog.v1alpha1.NeedTls
-	(*Translation)(nil),     // 11: dockwell.catalog.v1alpha1.Translation
-	(*Companion)(nil),       // 12: dockwell.catalog.v1alpha1.Companion
-	(*SignIn)(nil),          // 13: dockwell.catalog.v1alpha1.SignIn
-	(*Signups)(nil),         // 14: dockwell.catalog.v1alpha1.Signups
-	(*AddressVariable)(nil), // 15: dockwell.catalog.v1alpha1.AddressVariable
-	(*Screenshot)(nil),      // 16: dockwell.catalog.v1alpha1.Screenshot
-	(*Source)(nil),          // 17: dockwell.catalog.v1alpha1.Source
-	(*Input)(nil),           // 18: dockwell.catalog.v1alpha1.Input
-	(*Web)(nil),             // 19: dockwell.catalog.v1alpha1.Web
-	nil,                     // 20: dockwell.catalog.v1alpha1.Entry.TranslationsEntry
+	(Kind)(0),               // 0: dockwell.catalog.v1alpha1.Kind
+	(Feature)(0),            // 1: dockwell.catalog.v1alpha1.Feature
+	(Engine)(0),             // 2: dockwell.catalog.v1alpha1.Engine
+	(Part)(0),               // 3: dockwell.catalog.v1alpha1.Part
+	(Characters)(0),         // 4: dockwell.catalog.v1alpha1.Characters
+	(GenerateAs)(0),         // 5: dockwell.catalog.v1alpha1.GenerateAs
+	(InputType)(0),          // 6: dockwell.catalog.v1alpha1.InputType
+	(*Entry)(nil),           // 7: dockwell.catalog.v1alpha1.Entry
+	(*Need)(nil),            // 8: dockwell.catalog.v1alpha1.Need
+	(*NeedAccept)(nil),      // 9: dockwell.catalog.v1alpha1.NeedAccept
+	(*NeedSet)(nil),         // 10: dockwell.catalog.v1alpha1.NeedSet
+	(*NeedWord)(nil),        // 11: dockwell.catalog.v1alpha1.NeedWord
+	(*NeedTls)(nil),         // 12: dockwell.catalog.v1alpha1.NeedTls
+	(*Translation)(nil),     // 13: dockwell.catalog.v1alpha1.Translation
+	(*Companion)(nil),       // 14: dockwell.catalog.v1alpha1.Companion
+	(*SignIn)(nil),          // 15: dockwell.catalog.v1alpha1.SignIn
+	(*Signups)(nil),         // 16: dockwell.catalog.v1alpha1.Signups
+	(*AddressVariable)(nil), // 17: dockwell.catalog.v1alpha1.AddressVariable
+	(*Screenshot)(nil),      // 18: dockwell.catalog.v1alpha1.Screenshot
+	(*Source)(nil),          // 19: dockwell.catalog.v1alpha1.Source
+	(*Input)(nil),           // 20: dockwell.catalog.v1alpha1.Input
+	(*Web)(nil),             // 21: dockwell.catalog.v1alpha1.Web
+	nil,                     // 22: dockwell.catalog.v1alpha1.Entry.TranslationsEntry
 }
 var file_dockwell_catalog_v1alpha1_entry_proto_depIdxs = []int32{
-	17, // 0: dockwell.catalog.v1alpha1.Entry.source:type_name -> dockwell.catalog.v1alpha1.Source
-	18, // 1: dockwell.catalog.v1alpha1.Entry.inputs:type_name -> dockwell.catalog.v1alpha1.Input
-	19, // 2: dockwell.catalog.v1alpha1.Entry.web:type_name -> dockwell.catalog.v1alpha1.Web
-	16, // 3: dockwell.catalog.v1alpha1.Entry.screenshots:type_name -> dockwell.catalog.v1alpha1.Screenshot
-	13, // 4: dockwell.catalog.v1alpha1.Entry.sign_in:type_name -> dockwell.catalog.v1alpha1.SignIn
-	14, // 5: dockwell.catalog.v1alpha1.Entry.signups:type_name -> dockwell.catalog.v1alpha1.Signups
-	15, // 6: dockwell.catalog.v1alpha1.Entry.address_variables:type_name -> dockwell.catalog.v1alpha1.AddressVariable
-	12, // 7: dockwell.catalog.v1alpha1.Entry.companions:type_name -> dockwell.catalog.v1alpha1.Companion
-	20, // 8: dockwell.catalog.v1alpha1.Entry.translations:type_name -> dockwell.catalog.v1alpha1.Entry.TranslationsEntry
-	6,  // 9: dockwell.catalog.v1alpha1.Entry.needs:type_name -> dockwell.catalog.v1alpha1.Need
-	7,  // 10: dockwell.catalog.v1alpha1.Need.accepts:type_name -> dockwell.catalog.v1alpha1.NeedAccept
-	8,  // 11: dockwell.catalog.v1alpha1.Need.sets:type_name -> dockwell.catalog.v1alpha1.NeedSet
-	0,  // 12: dockwell.catalog.v1alpha1.NeedAccept.engine:type_name -> dockwell.catalog.v1alpha1.Engine
-	1,  // 13: dockwell.catalog.v1alpha1.NeedSet.part:type_name -> dockwell.catalog.v1alpha1.Part
-	10, // 14: dockwell.catalog.v1alpha1.NeedSet.tls:type_name -> dockwell.catalog.v1alpha1.NeedTls
-	9,  // 15: dockwell.catalog.v1alpha1.NeedSet.words:type_name -> dockwell.catalog.v1alpha1.NeedWord
-	0,  // 16: dockwell.catalog.v1alpha1.NeedWord.engine:type_name -> dockwell.catalog.v1alpha1.Engine
-	4,  // 17: dockwell.catalog.v1alpha1.Input.type:type_name -> dockwell.catalog.v1alpha1.InputType
-	3,  // 18: dockwell.catalog.v1alpha1.Input.generate_as:type_name -> dockwell.catalog.v1alpha1.GenerateAs
-	2,  // 19: dockwell.catalog.v1alpha1.Input.characters:type_name -> dockwell.catalog.v1alpha1.Characters
-	11, // 20: dockwell.catalog.v1alpha1.Entry.TranslationsEntry.value:type_name -> dockwell.catalog.v1alpha1.Translation
-	21, // [21:21] is the sub-list for method output_type
-	21, // [21:21] is the sub-list for method input_type
-	21, // [21:21] is the sub-list for extension type_name
-	21, // [21:21] is the sub-list for extension extendee
-	0,  // [0:21] is the sub-list for field type_name
+	19, // 0: dockwell.catalog.v1alpha1.Entry.source:type_name -> dockwell.catalog.v1alpha1.Source
+	20, // 1: dockwell.catalog.v1alpha1.Entry.inputs:type_name -> dockwell.catalog.v1alpha1.Input
+	21, // 2: dockwell.catalog.v1alpha1.Entry.web:type_name -> dockwell.catalog.v1alpha1.Web
+	18, // 3: dockwell.catalog.v1alpha1.Entry.screenshots:type_name -> dockwell.catalog.v1alpha1.Screenshot
+	15, // 4: dockwell.catalog.v1alpha1.Entry.sign_in:type_name -> dockwell.catalog.v1alpha1.SignIn
+	16, // 5: dockwell.catalog.v1alpha1.Entry.signups:type_name -> dockwell.catalog.v1alpha1.Signups
+	17, // 6: dockwell.catalog.v1alpha1.Entry.address_variables:type_name -> dockwell.catalog.v1alpha1.AddressVariable
+	14, // 7: dockwell.catalog.v1alpha1.Entry.companions:type_name -> dockwell.catalog.v1alpha1.Companion
+	22, // 8: dockwell.catalog.v1alpha1.Entry.translations:type_name -> dockwell.catalog.v1alpha1.Entry.TranslationsEntry
+	8,  // 9: dockwell.catalog.v1alpha1.Entry.needs:type_name -> dockwell.catalog.v1alpha1.Need
+	9,  // 10: dockwell.catalog.v1alpha1.Need.accepts:type_name -> dockwell.catalog.v1alpha1.NeedAccept
+	10, // 11: dockwell.catalog.v1alpha1.Need.sets:type_name -> dockwell.catalog.v1alpha1.NeedSet
+	0,  // 12: dockwell.catalog.v1alpha1.Need.kind:type_name -> dockwell.catalog.v1alpha1.Kind
+	2,  // 13: dockwell.catalog.v1alpha1.NeedAccept.engine:type_name -> dockwell.catalog.v1alpha1.Engine
+	0,  // 14: dockwell.catalog.v1alpha1.NeedAccept.kind:type_name -> dockwell.catalog.v1alpha1.Kind
+	1,  // 15: dockwell.catalog.v1alpha1.NeedAccept.features:type_name -> dockwell.catalog.v1alpha1.Feature
+	3,  // 16: dockwell.catalog.v1alpha1.NeedSet.part:type_name -> dockwell.catalog.v1alpha1.Part
+	12, // 17: dockwell.catalog.v1alpha1.NeedSet.tls:type_name -> dockwell.catalog.v1alpha1.NeedTls
+	11, // 18: dockwell.catalog.v1alpha1.NeedSet.words:type_name -> dockwell.catalog.v1alpha1.NeedWord
+	2,  // 19: dockwell.catalog.v1alpha1.NeedWord.engine:type_name -> dockwell.catalog.v1alpha1.Engine
+	6,  // 20: dockwell.catalog.v1alpha1.Input.type:type_name -> dockwell.catalog.v1alpha1.InputType
+	5,  // 21: dockwell.catalog.v1alpha1.Input.generate_as:type_name -> dockwell.catalog.v1alpha1.GenerateAs
+	4,  // 22: dockwell.catalog.v1alpha1.Input.characters:type_name -> dockwell.catalog.v1alpha1.Characters
+	13, // 23: dockwell.catalog.v1alpha1.Entry.TranslationsEntry.value:type_name -> dockwell.catalog.v1alpha1.Translation
+	24, // [24:24] is the sub-list for method output_type
+	24, // [24:24] is the sub-list for method input_type
+	24, // [24:24] is the sub-list for extension type_name
+	24, // [24:24] is the sub-list for extension extendee
+	0,  // [0:24] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_catalog_v1alpha1_entry_proto_init() }
@@ -2064,7 +2365,7 @@ func file_dockwell_catalog_v1alpha1_entry_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_catalog_v1alpha1_entry_proto_rawDesc), len(file_dockwell_catalog_v1alpha1_entry_proto_rawDesc)),
-			NumEnums:      5,
+			NumEnums:      7,
 			NumMessages:   16,
 			NumExtensions: 0,
 			NumServices:   0,

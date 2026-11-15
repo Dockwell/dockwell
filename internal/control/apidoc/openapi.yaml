@@ -11386,6 +11386,14 @@ components:
                             - LINK_PART_TLS
                             - LINK_PART_KEY_PREFIX
                             - LINK_PART_ENGINE
+                            - LINK_PART_ENDPOINT
+                            - LINK_PART_REGION
+                            - LINK_PART_BUCKET
+                            - LINK_PART_ACCESS_KEY_ID
+                            - LINK_PART_SECRET_KEY
+                            - LINK_PART_PATH_STYLE
+                            - LINK_PART_PUBLIC_URL
+                            - LINK_PART_MET
                         type: string
                         format: enum
                     description: |-
@@ -16982,6 +16990,14 @@ components:
                         - LINK_PART_TLS
                         - LINK_PART_KEY_PREFIX
                         - LINK_PART_ENGINE
+                        - LINK_PART_ENDPOINT
+                        - LINK_PART_REGION
+                        - LINK_PART_BUCKET
+                        - LINK_PART_ACCESS_KEY_ID
+                        - LINK_PART_SECRET_KEY
+                        - LINK_PART_PATH_STYLE
+                        - LINK_PART_PUBLIC_URL
+                        - LINK_PART_MET
                     type: string
                     description: What it holds.
                     format: enum
@@ -18277,6 +18293,35 @@ components:
                         The app keeps the password it installed with, as Nextcloud does in its
                          config.php, so setting it anew would leave the app with the old one: a
                          rotation of it is refused.
+                kind:
+                    enum:
+                        - KIND_UNSPECIFIED
+                        - KIND_S3
+                        - KIND_SMTP
+                    type: string
+                    description: |-
+                        What kind of thing it is, such as S3 storage. Unset, it's a database, of the
+                         engines it accepts. Numbered, with what follows, in the block every kind holds,
+                         50 to 59. See
+                         docs/adr/0099-every-kind-of-thing-an-app-needs-met-the-same-three-ways.md.
+                    format: enum
+                optional:
+                    type: boolean
+                    description: |-
+                        The app runs without it, as many keep files on their own disk unless given a
+                         bucket: it installs unset, and is never met new by default. Its names are left
+                         out while it's unmet, but a PART_MET set's and those empty_when_unmet.
+                bucket:
+                    type: string
+                    description: |-
+                        The bucket to start from, for S3 storage, such as "notes". Empty takes the
+                         need's name.
+                presignLifetime:
+                    type: string
+                    description: |-
+                        How long the app's signed URLs last, for S3 storage, as a Go duration such as
+                         "1h": a bucket's move waits it out where it can't stop the old key. Empty is
+                         seven days, AWS's longest.
             description: |-
                 Need is something an app reads from outside its own containers, such as a
                  database, by the names it sets in the app's environment.
@@ -18301,6 +18346,34 @@ components:
                     description: |-
                         The versions, as comparators on dotted numbers separated by spaces, such as
                          ">=8.0" or ">=10.6 <12". Empty takes any.
+                kind:
+                    enum:
+                        - KIND_UNSPECIFIED
+                        - KIND_S3
+                        - KIND_SMTP
+                    type: string
+                    description: |-
+                        A kind, in place of an engine, where the app doesn't care which product
+                         speaks it: any that has the features. The need's own kind.
+                    format: enum
+                features:
+                    type: array
+                    items:
+                        enum:
+                            - FEATURE_UNSPECIFIED
+                            - FEATURE_PRESIGNED_URLS
+                            - FEATURE_VIRTUAL_HOST
+                            - FEATURE_PATH_STYLE
+                            - FEATURE_MULTIPART
+                            - FEATURE_BATCH_DELETE
+                            - FEATURE_CORS
+                            - FEATURE_PUBLIC_READ
+                            - FEATURE_OBJECT_ACL
+                            - FEATURE_PRESIGNED_POST
+                            - FEATURE_SDK_CHECKSUMS
+                        type: string
+                        format: enum
+                    description: What the app needs of whatever meets it, such as presigned URLs.
             description: NeedAccept is an engine that meets a need, at the versions the app takes.
         NeedSet:
             type: object
@@ -18321,6 +18394,14 @@ components:
                         - PART_TLS
                         - PART_KEY_PREFIX
                         - PART_ENGINE
+                        - PART_ENDPOINT
+                        - PART_REGION
+                        - PART_BUCKET
+                        - PART_ACCESS_KEY_ID
+                        - PART_SECRET_KEY
+                        - PART_PATH_STYLE
+                        - PART_PUBLIC_URL
+                        - PART_MET
                     type: string
                     description: What it holds.
                     format: enum
@@ -18349,6 +18430,13 @@ components:
                          "mysql" for MySQL and MariaDB. One for each engine the need accepts, and
                          only for an engine part. See
                          docs/adr/0084-what-an-app-needs-met-by-a-new-service-one-you-run-or-a-connection.md.
+                         For a part with a fixed set of values, as PART_MET's met and unmet or
+                         PART_PATH_STYLE's on and off, the app's word for each value instead.
+                emptyWhenUnmet:
+                    type: boolean
+                    description: |-
+                        Set, empty, while an optional need is unmet, for an app that needs the name
+                         there and reads it empty as unset. Elsewhere it's left out.
             description: NeedSet is a name a need sets in the app's environment, and what it holds.
         NeedTls:
             type: object
@@ -18379,6 +18467,12 @@ components:
                 word:
                     type: string
                     description: The app's word for it, such as "postgres".
+                value:
+                    type: string
+                    description: |-
+                        The value it's the app's word for, in place of an engine: met or unmet for
+                         PART_MET, on or off for PART_PATH_STYLE. An unmet word may be empty, which
+                         leaves the name out while unmet.
             description: NeedWord is an app's word for an engine, as an engine part writes it.
         Network:
             type: object

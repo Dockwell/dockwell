@@ -236,13 +236,13 @@ needs:
     service: garage          # its own, where it brings one
     bucket: notes            # a name to start from
     sets:
-      - { name: STORAGE_DRIVER, part: PART_MET, words: { met: "s3", unmet: "local" } }
+      - { name: STORAGE_DRIVER, part: PART_MET, words: [{ value: met, word: s3 }, { value: unmet, word: local }] }
       - { name: S3_ENDPOINT, part: PART_ENDPOINT }
       - { name: S3_REGION, part: PART_REGION }
       - { name: S3_BUCKET, part: PART_BUCKET }
       - { name: S3_ACCESS_KEY_ID, part: PART_ACCESS_KEY_ID }
       - { name: S3_SECRET_ACCESS_KEY, part: PART_SECRET_KEY }
-      - { name: S3_FORCE_PATH_STYLE, part: PART_PATH_STYLE, words: { on: "true", off: "false" } }
+      - { name: S3_FORCE_PATH_STYLE, part: PART_PATH_STYLE, words: [{ value: "on", word: "true" }, { value: "off", word: "false" }] }
   - name: mail
     label: Mail
     kind: KIND_SMTP
@@ -250,8 +250,8 @@ needs:
     sets:
       - { name: SMTP_HOST, part: PART_HOST }
       - { name: SMTP_PORT, part: PART_PORT }
-      - { name: SMTP_SECURE, part: PART_SECURITY, words: { tls: "true", starttls: "false", none: "false" } }
-      - { name: SMTP_REQUIRE_TLS, part: PART_SECURITY, words: { tls: "false", starttls: "true", none: "false" } }
+      - { name: SMTP_SECURE, part: PART_SECURITY, words: [{ value: tls, word: "true" }, { value: starttls, word: "false" }, { value: none, word: "false" }] }
+      - { name: SMTP_REQUIRE_TLS, part: PART_SECURITY, words: [{ value: tls, word: "false" }, { value: starttls, word: "true" }, { value: none, word: "false" }] }
       - { name: SMTP_USER, part: PART_USER }
       - { name: SMTP_PASSWORD, part: PART_PASSWORD }
       - { name: MAIL_FROM, part: PART_SENDER }
@@ -259,7 +259,7 @@ needs:
 
 - **`kind`** is new, and a need without one is a database need, read from its engines as today.
 - **`accepts`** takes implementations with versions, as now, or the kind with features.
-- **Parts** are each kind's, and `catalog.Check` refuses a part the need's kind doesn't have. **`words`** generalizes ADR 0084's TLS words and `PART_ENGINE`'s: any part with a fixed set of values says the app's word for each. A part may be set under more than one name, as STARTTLS here: Nodemailer-style apps read `secure` for TLS from the start and `requireTLS` for STARTTLS, and an app given only the first upgrades only if the server offers it, so a stripped STARTTLS would send its password in the clear.
+- **Parts** are each kind's, and `catalog.Check` refuses a part the need's kind doesn't have. **`words`** generalizes ADR 0084's TLS words and `PART_ENGINE`'s: any part with a fixed set of values says the app's word for each, as a list of a `value` and its `word`, which keeps the form `PART_ENGINE`'s words have, each with an `engine` in place of a value. A part may be set under more than one name, as STARTTLS here: Nodemailer-style apps read `secure` for TLS from the start and `requireTLS` for STARTTLS, and an app given only the first upgrades only if the server offers it, so a stripped STARTTLS would send its password in the clear.
 - **`presign_lifetime`,** on an `s3` need: how long the app's signed URLs last, such as `1h`, which a bucket's move waits out where it can't stop the old key; 7 days, AWS's longest, unless set. Connect storage takes it too, with 7 days as its default and the app's own value one step away.
 - **`optional`**, `PART_MET`, `empty_when_unmet`, and the kind's own names to start from (`bucket`, as `database` and `user`).
 - **The check** is ADR 0084's, for every kind: each set is used as a whole value, the need's `service` runs an implementation it accepts, and a secret part is never an input.
