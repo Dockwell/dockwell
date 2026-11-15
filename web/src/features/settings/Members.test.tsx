@@ -46,7 +46,10 @@ afterEach(async () => {
 
 describe("Members", () => {
   it("says who signs in, their role and how, and keeps the invite form behind a button for one person", async () => {
-    const { container } = renderAt("/settings/members", { members: { listMembers: () => ({ members: [owner] }) } });
+    const { container } = renderAt("/settings/members", {
+      members: { listMembers: () => ({ members: [owner] }) },
+      auth: { listProviderLinks: () => ({ links: [{ id: "plk_1", providerName: "Our Authentik" }] }) },
+    });
     expect(await screen.findByRole("heading", { level: 1, name: "Members" })).toBeVisible();
     expect(
       within(screen.getByRole("navigation", { name: "Settings" })).getByRole("link", { name: "Members" }),
@@ -75,6 +78,8 @@ describe("Members", () => {
     expect(signIn).toHaveTextContent("2 · localhost · panel.example.com");
     expect(signIn).toHaveTextContent("On, 7 recovery codes left");
     expect(signIn).toHaveTextContent("2 browsers");
+    // The accounts you link at sign-in providers, as Profile and security lists them (ADR 0095).
+    expect(await within(signIn).findByText("Our Authentik")).toBeVisible();
     await expectAccessible(container);
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Invite someone" }));

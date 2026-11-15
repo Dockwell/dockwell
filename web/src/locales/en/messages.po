@@ -15884,14 +15884,14 @@ msgstr "No way in that works now"
 msgid "Nobody was invited"
 msgstr "Nobody was invited"
 
+msgid "None linked"
+msgstr "None linked"
+
 msgid "Not accepted yet"
 msgstr "Not accepted yet"
 
 msgid "Now"
 msgstr "Now"
-
-msgid "OIDC comes in a later release"
-msgstr "OIDC comes in a later release"
 
 msgid "On, 1 recovery code left"
 msgstr "On, 1 recovery code left"
@@ -15960,9 +15960,6 @@ msgstr "Set the panel's domain"
 
 msgid "Signed in on"
 msgstr "Signed in on"
-
-msgid "Single sign-on"
-msgstr "Single sign-on"
 
 msgid "Stop protecting {where}"
 msgstr "Stop protecting {where}"

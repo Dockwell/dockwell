@@ -15884,14 +15884,14 @@ msgstr "当前没有可用的登录方式"
 msgid "Nobody was invited"
 msgstr "未邀请任何人"
 
+msgid "None linked"
+msgstr "未关联"
+
 msgid "Not accepted yet"
 msgstr "尚未接受"
 
 msgid "Now"
 msgstr "现在"
-
-msgid "OIDC comes in a later release"
-msgstr "OIDC 将在之后的版本中推出"
 
 msgid "On, 1 recovery code left"
 msgstr "已开启，剩余 1 个恢复码"
@@ -15960,9 +15960,6 @@ msgstr "设置面板域名"
 
 msgid "Signed in on"
 msgstr "已登录于"
-
-msgid "Single sign-on"
-msgstr "单点登录"
 
 msgid "Stop protecting {where}"
 msgstr "停止保护 {where}"

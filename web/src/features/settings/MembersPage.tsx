@@ -4,6 +4,7 @@ import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
 import { createConnectQueryKey, useQuery, useTransport } from "@connectrpc/connect-query";
 import {
+  AuthService,
   type Invite,
   type Member,
   MemberService,
@@ -902,6 +903,8 @@ function RolesCan() {
 function SignIn({ member }: { member: Member | undefined }) {
   const { t } = useLingui();
   const addresses = member?.passkeyAddresses ?? [];
+  // Your accounts at sign-in providers, as Profile and security lists them (ADR 0095).
+  const links = useQuery(AuthService.method.listProviderLinks, {});
   return (
     <Panel
       title={t`How you sign in`}
@@ -937,8 +940,14 @@ function SignIn({ member }: { member: Member | undefined }) {
         </dd>
         <dt>{t`Signed in on`}</dt>
         <dd>{member ? (member.sessions === 1 ? t`1 browser` : t`${member.sessions} browsers`) : "–"}</dd>
-        <dt>{t`Single sign-on`}</dt>
-        <dd>{t`OIDC comes in a later release`}</dd>
+        <dt>{t`Sign-in providers`}</dt>
+        <dd>
+          {links.data
+            ? links.data.links.length === 0
+              ? t`None linked`
+              : links.data.links.map((l) => l.providerName).join(", ")
+            : "–"}
+        </dd>
         <dt>{t`Last resort`}</dt>
         <dd>
           <Trans>
