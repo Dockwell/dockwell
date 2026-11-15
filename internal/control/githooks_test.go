@@ -1212,8 +1212,9 @@ func TestAHookTurnedOffOrGivenANewSecretDeploysNothingMore(t *testing.T) {
 	}
 }
 
-// A deleted app's hook is deleted after it, on record; until then a push to it
-// deploys nothing, as there's nothing to deploy (from #253's review, L2).
+// A deleted app's hook goes with it, as the change that deletes it commits, on
+// record, so no undo brings its secret back: the app comes back without it, and
+// the old secret is refused (from #253's review, L2).
 func TestADeletedAppsHookGoesWithIt(t *testing.T) {
 	t.Parallel()
 	g := newGitBench(t, store.SQLite)
@@ -1221,29 +1222,52 @@ func TestADeletedAppsHookGoesWithIt(t *testing.T) {
 	g.done(t, g.propose(t, g.buildEdit("main", nil)))
 	web := g.service(t, "", "web")
 	url, secret := g.hook(t, web.GetId())
-	g.done(t, g.propose(t, &dockwellv1.Edit{Resource: &dockwellv1.ResourceRef{Kind: "service", Name: "web"}, Delete: true}))
-
-	send(t, url, delivery{id: "after", event: "push", secret: secret, body: pushBody(g.repo.URL, "refs/heads/main", head)})
-	if d := g.stored(t, url, "after", store.HookIgnored); !strings.Contains(d.Detail, "gone") {
-		t.Errorf("a push to a deleted app's hook: %+v", d)
-	}
-	if err := g.f.server.hooks.ForgetOrphans(t.Context()); err != nil {
-		t.Fatal(err)
-	}
 	hookID := url[strings.LastIndex(url, "/")+1:]
-	if err := g.f.store.View(t.Context(), func(tx *store.Tx) error {
-		if _, err := tx.GetGitHook(t.Context(), hookID); !errors.Is(err, store.ErrNotFound) {
-			t.Errorf("a deleted app's hook after the sweep: %v", err)
+	_, wrong, _ := send(t, url, delivery{id: "wrong", event: "push", secret: "not-the-secret", body: pushBody(g.repo.URL, "refs/heads/main", head)})
+	deleted := g.done(t, g.propose(t, &dockwellv1.Edit{Resource: &dockwellv1.ResourceRef{Kind: "service", Name: "web"}, Delete: true}))
+
+	gone := func(id, when string) {
+		t.Helper()
+		if err := g.f.store.View(t.Context(), func(tx *store.Tx) error {
+			if _, err := tx.GetGitHook(t.Context(), hookID); !errors.Is(err, store.ErrNotFound) {
+				t.Errorf("a deleted app's hook %s: %v", when, err)
+			}
+			return nil
+		}); err != nil {
+			t.Fatal(err)
 		}
+		if code, text, _ := send(t, url, delivery{id: id, event: "push", secret: secret, body: pushBody(g.repo.URL, "refs/heads/main", head)}); code != http.StatusUnauthorized || text != wrong {
+			t.Errorf("a push with the old secret %s: %d %q, want what a hook there isn't gets", when, code, text)
+		}
+	}
+	gone("deleted", "once its app was deleted")
+	if err := g.f.store.View(t.Context(), func(tx *store.Tx) error {
 		events, err := tx.ListEvents(t.Context(), 100)
 		for _, e := range events {
-			if e.Action == "git_hook.delete" && e.Target == web.GetId() && strings.Contains(e.Detail, "as its app was deleted") {
+			if e.Action == "git_hook.delete" && e.Target == web.GetId() && strings.Contains(e.Detail, "deleted with its app, in "+deleted.GetId()) {
 				return err
 			}
 		}
-		t.Error("the sweep left no word of the hook it deleted")
+		t.Error("deleting the app left no word of its hook")
 		return err
 	}); err != nil {
 		t.Fatal(err)
+	}
+
+	// Undoing the deletion brings web back, and not its hook.
+	undone, err := g.c.UndoChange(t.Context(), connect.NewRequest(&dockwellv1.UndoChangeRequest{Id: deleted.GetId()}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c := g.done(t, undone.Msg.GetChange()); c.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("undoing the deletion ended %v: %s", c.GetState(), c.GetError())
+	}
+	if back := g.service(t, "", "web"); back.GetId() != web.GetId() {
+		t.Fatalf("the undo brought back %s, not %s", back.GetId(), web.GetId())
+	}
+	gone("undone", "once its app was brought back")
+	got, err := g.hooks().GetGitHook(t.Context(), connect.NewRequest(&dockwellv1.GetGitHookRequest{Id: web.GetId()}))
+	if err != nil || got.Msg.GetHook() != nil {
+		t.Errorf("web brought back has the hook %v, %v", got.Msg.GetHook(), err)
 	}
 }

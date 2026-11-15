@@ -4094,6 +4094,13 @@ func (e *Engine) commitOwned(ctx context.Context, c store.Change, items []item, 
 			if err := tx.PlaceRevision(ctx, rev.ID, rev.Revision, it.servers, now); err != nil {
 				return err
 			}
+			// A deleted service's deploy-on-push hook goes with it, on record, so
+			// no undo brings its secret back (ADR 0046).
+			if spec == nil {
+				if err := forgetHooks(ctx, tx.Tx, rev.ID, c.ID, by, now); err != nil {
+					return err
+				}
+			}
 		}
 		// How the routes it leaves automatic prove their domains, as it decided,
 		// with the revisions that make them (ADR 0088).

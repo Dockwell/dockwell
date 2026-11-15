@@ -12,10 +12,12 @@ import (
 	"errors"
 	"slices"
 	"strings"
+	"time"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/control/place"
 	"github.com/dockwell/dockwell/internal/fault"
+	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/scope"
@@ -574,6 +576,24 @@ func protectionWords(name string, e *resourcev1.Environment) string {
 }
 
 // aPerson reports an actor that's a person, as themselves or with an API token.
+// forgetHooks deletes the deploy-on-push hook of a resource change deletes, with
+// a line in the audit log for each, as turning one off has.
+func forgetHooks(ctx context.Context, tx *store.Tx, resourceID, changeID string, by By, at time.Time) error {
+	gone, err := tx.DeleteGitHooksFor(ctx, resourceID)
+	if err != nil {
+		return err
+	}
+	for i := range gone {
+		if err := tx.RecordEvent(ctx, store.Event{
+			ID: id.New(id.Event), At: at, Actor: by.Actor, Surface: by.Via, Action: "git_hook.delete",
+			Subject: gone[i].UserID, Target: resourceID, Detail: "hook " + gone[i].ID + " deleted with its app, in " + changeID,
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // actsFor is who a change by actor acts for, to record on it: a deploy-on-push
 // hook's maker, who is the caller its steps carry, or nobody for any other actor.
 func actsFor(ctx context.Context, actor string) string {

@@ -141,7 +141,7 @@ What this costs: pulling BuildKit's image once, 111 MB for amd64; starting `buil
   - It ends with their access: when their role is lowered, and when they're removed (ADR 0049), each on record. A removed person's hook acts for nobody, even before that.
   - A plan it left is theirs: among what they planned, and, to anyone else, someone else's, which an admin approves in a protected environment with the plan's fingerprint and a passkey, and no token approves. A hook that's gone is nobody's, so its plans need approving.
   - Turning it off, or giving it a new secret, ends what its pushes would still deploy, with the plan one left.
-  - A deleted app's hook is deleted within the hour, on record. Until then, a push to it deploys nothing, as there's nothing to deploy. An undo that brings the app back within that hour brings its hook back, as it was.
+  - A deleted app's hook goes with it, as the change that deletes the app commits, on record, so no undo brings its secret back: the app comes back without it. Hooks left by apps deleted before that are deleted within the hour.
 - **The receiver is `POST /hooks/git/<id>` on the panel's address.** It faces the internet as sign-in does:
   - a body of at most 1 MiB, refused by its length before it's read and cut off past it;
   - JSON, or for GitHub, which sends a form unless its hook says JSON, a form whose `payload` field is read only after the form's signature matched;

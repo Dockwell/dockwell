@@ -120,21 +120,32 @@ func (t *Tx) ForgetOrphanGitHooks(ctx context.Context) ([]GitHook, error) {
 // DeleteGitHooksOf deletes the hooks a person made, with their deliveries, as
 // their access ends, and returns what it deleted.
 func (t *Tx) DeleteGitHooksOf(ctx context.Context, userID string) ([]GitHook, error) {
-	rows, err := t.query(ctx, `SELECT `+gitHookColumns+` FROM git_hooks WHERE user_id = ? ORDER BY id`, userID)
+	return t.deleteGitHooks(ctx, "user_id", userID)
+}
+
+// DeleteGitHooksFor deletes a resource's hook, with its deliveries, as a change
+// deletes the resource, and returns what it deleted: none, or the one.
+func (t *Tx) DeleteGitHooksFor(ctx context.Context, resourceID string) ([]GitHook, error) {
+	return t.deleteGitHooks(ctx, "resource_id", resourceID)
+}
+
+// deleteGitHooks deletes the hooks whose column is value, with their deliveries.
+func (t *Tx) deleteGitHooks(ctx context.Context, column, value string) ([]GitHook, error) {
+	rows, err := t.query(ctx, `SELECT `+gitHookColumns+` FROM git_hooks WHERE `+column+` = ? ORDER BY id`, value)
 	if err != nil {
-		return nil, fmt.Errorf("can't list the hooks of %s: %w", userID, err)
+		return nil, fmt.Errorf("can't list the hooks of %s: %w", value, err)
 	}
 	var hooks []GitHook
 	for rows.Next() {
 		h, err := scanGitHook(rows)
 		if err != nil {
 			_ = rows.Close()
-			return nil, fmt.Errorf("can't read a hook of %s: %w", userID, err)
+			return nil, fmt.Errorf("can't read a hook of %s: %w", value, err)
 		}
 		hooks = append(hooks, h)
 	}
 	if err := errors.Join(rows.Err(), rows.Close()); err != nil {
-		return nil, fmt.Errorf("can't list the hooks of %s: %w", userID, err)
+		return nil, fmt.Errorf("can't list the hooks of %s: %w", value, err)
 	}
 	for i := range hooks {
 		if err := t.DeleteGitHook(ctx, hooks[i].ID); err != nil {
