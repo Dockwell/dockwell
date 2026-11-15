@@ -865,14 +865,14 @@ func TestADeliveryThatTricklesInHoldsNothingForLong(t *testing.T) {
 
 // devHookInProduction is web, with a hook that acts for a developer, usr_dev,
 // in a protected environment, and the bench signed in as an admin.
-func devHookInProduction(t *testing.T) (g *gitBench, url, secret string, push func(id, n string) store.GitHookDelivery) {
+func devHookInProduction(t *testing.T) (g *gitBench, push func(id, n string) store.GitHookDelivery) {
 	t.Helper()
 	g = newGitBench(t, store.SQLite)
 	g.repo.Commit("main", "First", map[string]string{"Dockerfile": webDockerfile})
 	made := g.done(t, g.propose(t, g.buildEdit("main", nil)))
 	production := made.GetPlan().GetResources()[0].GetResource().GetScope()
 	web := g.service(t, "", "web")
-	url, secret = g.hook(t, web.GetId())
+	url, secret := g.hook(t, web.GetId())
 	hold := aMember(t, g.f)
 	hold(onInstall(store.RoleAdmin))
 	err := g.f.store.Update(t.Context(), func(tx *store.Tx) error {
@@ -904,7 +904,7 @@ func devHookInProduction(t *testing.T) (g *gitBench, url, secret string, push fu
 		}
 		return g.stored(t, url, id, store.HookNeedsPerson)
 	}
-	return g, url, secret, push
+	return g, push
 }
 
 // A developer's push to a protected environment leaves a plan that is someone
@@ -912,7 +912,7 @@ func devHookInProduction(t *testing.T) (g *gitBench, url, secret string, push fu
 // (from #253's review, H1).
 func TestADevelopersPushPlanIsTheirsToAnAdmin(t *testing.T) {
 	t.Parallel()
-	g, _, _, push := devHookInProduction(t)
+	g, push := devHookInProduction(t)
 	d := push("d-1", "2")
 	got, err := g.c.GetChange(t.Context(), connect.NewRequest(&dockwellv1.GetChangeRequest{Id: d.ChangeID}))
 	if err != nil {
@@ -940,7 +940,7 @@ func TestADevelopersPushPlanIsTheirsToAnAdmin(t *testing.T) {
 // #253's review, H1).
 func TestANewerPushDiscardsThePlanTheLastOneLeft(t *testing.T) {
 	t.Parallel()
-	g, _, _, push := devHookInProduction(t)
+	g, push := devHookInProduction(t)
 	d1 := push("d-1", "2")
 	d2 := push("d-2", "3")
 	if d1.ChangeID == d2.ChangeID {
