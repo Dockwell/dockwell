@@ -100,6 +100,7 @@
   "server.revoke",
   "service.health",
   "service.open",
+  "service.take_on_guessable_password",
   "service.update_skip",
   "service.update_snooze",
   "service.update_unskip",
