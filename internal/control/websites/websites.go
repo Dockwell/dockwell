@@ -96,11 +96,14 @@ type site struct {
 	spec    *resourcev1.Project
 	env     string
 	// route is the one that gives it its domain, and routes all of its own.
-	route    *store.Resource
-	rt       *resourcev1.Route
-	routes   []store.Resource
-	services []store.Resource
-	networks []store.Resource
+	route  *store.Resource
+	rt     *resourcev1.Route
+	routes []store.Resource
+	// redirects are the routes its redirect_from wrote, by domain to the route's
+	// name: a whole domain's redirect, never one a person added for a path.
+	redirects map[string]string
+	services  []store.Resource
+	networks  []store.Resource
 	// placed is where its route runs, by server ID.
 	placed []string
 	// web is what its web server runs, when it has one, and php what its PHP runs.
@@ -208,15 +211,21 @@ func (h *Handler) sites(ctx context.Context, tx *store.Tx) ([]site, error) {
 				s.php = spec.(*resourcev1.Service).GetApp()
 			}
 		}
+		s.redirects = map[string]string{}
 		for i := range s.routes {
-			if s.routes[i].Name != website.RouteName && s.route != nil {
-				continue
-			}
 			spec, err := h.decode(ctx, tx, s.routes[i])
 			if err != nil {
 				return nil, err
 			}
-			s.route, s.rt = &s.routes[i], spec.(*resourcev1.Route)
+			rt := spec.(*resourcev1.Route)
+			if rt.GetRedirect() != nil && rt.GetPath() == "" && slices.Contains(project.GetWebsite().GetRedirectFrom(), rt.GetDomain()) {
+				s.redirects[rt.GetDomain()] = s.routes[i].Name
+			}
+			// Its own route, or else the first that serves something, as it gives
+			// the site its domain.
+			if s.routes[i].Name == website.RouteName || s.route == nil && rt.GetRedirect() == nil {
+				s.route, s.rt = &s.routes[i], rt
+			}
 		}
 		if s.route != nil {
 			if s.placed, err = tx.Placement(ctx, s.route.ID, s.route.Revision); err != nil {
@@ -300,6 +309,9 @@ func (h *Handler) CreateWebsite(ctx context.Context, req *connect.Request[dockwe
 	if err := website.Check(spec); err != nil {
 		return nil, authapi.Invalid(err)
 	}
+	if err := website.CheckRedirects(spec, domain); err != nil {
+		return nil, authapi.Invalid(err)
+	}
 	var made []revision.Edit
 	var env, name, taken string
 	var refused error
@@ -308,8 +320,10 @@ func (h *Handler) CreateWebsite(ctx context.Context, req *connect.Request[dockwe
 		if err != nil {
 			return err
 		}
-		if taken, err = h.holder(ctx, tx, tree, domain); err != nil || taken != "" {
-			return err
+		for _, d := range append([]string{domain}, spec.GetRedirectFrom()...) {
+			if taken, err = h.holder(ctx, tx, tree, d, ""); err != nil || taken != "" {
+				return err
+			}
 		}
 		all, err := h.sites(ctx, tx)
 		if err != nil {
@@ -336,7 +350,7 @@ func (h *Handler) CreateWebsite(ctx context.Context, req *connect.Request[dockwe
 	}
 	made[0].Spec = &resourcev1.Project{DisplayName: domain, Website: spec}
 	serving := website.Resources(spec, domain, website.Front{TLS: m.GetTls(), TrustedProxies: m.GetTrustedProxies(), PlainForAnyone: m.GetPlainForAnyone()})
-	edits := puts(env, serving, m.GetServers())
+	edits := puts(env, serving, m.GetServers(), redirectNames(serving, nil, nil))
 	summary := cmp.Or(strings.TrimSpace(m.GetSummary()), "Add the website "+domain)
 	c, err := h.changes.Propose(ctx, summary, edits, serversField, changes.Also{Edits: made, Notes: folderNotes(env, spec)})
 	if err != nil {
@@ -376,25 +390,61 @@ func (h *Handler) UpdateWebsite(ctx context.Context, req *connect.Request[dockwe
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition,
 			fmt.Errorf("%s has no route left to give it a domain, so there's nowhere to serve it. Delete the website, and add it again", s.project.Name), "no_route")
 	}
+	was := s.rt.GetDomain()
+	domain := cmp.Or(strings.ToLower(strings.TrimSpace(m.GetDomain())), was)
+	if domain != was {
+		if err := route.CheckDomain(domain); err != nil {
+			return nil, authapi.Invalid(err)
+		}
+		// Moving to one of its other domains, as making www the main one does,
+		// takes it out of that list.
+		spec.RedirectFrom = slices.DeleteFunc(spec.RedirectFrom, func(d string) bool { return strings.EqualFold(strings.TrimSpace(d), domain) })
+	}
+	if err := website.CheckRedirects(spec, domain); err != nil {
+		return nil, authapi.Invalid(err)
+	}
 	var all []site
+	var taken string
 	if err := h.db.View(ctx, func(tx *store.Tx) error {
-		all, err = h.sites(ctx, tx)
-		return err
+		if all, err = h.sites(ctx, tx); err != nil {
+			return err
+		}
+		tree, err := scope.Load(ctx, tx)
+		if err != nil {
+			return err
+		}
+		// A domain it serves already is its own; another is claimed as any route's.
+		for _, d := range append([]string{domain}, spec.GetRedirectFrom()...) {
+			if _, had := s.redirects[d]; had || d == was {
+				continue
+			}
+			if taken, err = h.holder(ctx, tx, tree, d, s.env); err != nil || taken != "" {
+				return err
+			}
+		}
+		return nil
 	}); err != nil {
 		return nil, h.internal(ctx, err)
+	}
+	if taken != "" {
+		return nil, authapi.ReasonError(connect.CodeAlreadyExists, errors.New(taken), "domain_taken")
 	}
 	root, php := folderOf(spec)
 	if err := overlaps(all, s.project.ID, root, php, s.placed); err != nil {
 		return nil, authapi.Invalid(err)
 	}
-	domain := s.rt.GetDomain()
 	serving := website.Resources(spec, domain, website.FrontOf(s.rt))
+	// A website made at its domain is named for it, and follows it.
+	display := s.spec.GetDisplayName()
+	if display == was {
+		display = domain
+	}
 	edits := []*dockwellv1.Edit{{
 		Resource: &dockwellv1.ResourceRef{Kind: string(scope.ProjectKind), Scope: s.org, Name: s.project.Name},
-		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Project{Project: &resourcev1.Project{DisplayName: s.spec.GetDisplayName(), Catalog: s.spec.GetCatalog(), Website: spec}}},
+		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Project{Project: &resourcev1.Project{DisplayName: display, Catalog: s.spec.GetCatalog(), Website: spec}}},
 	}}
 	// What it makes runs where its route does, and what it has stays there.
-	edits = append(edits, puts(s.env, serving, s.placed)...)
+	edits = append(edits, puts(s.env, serving, s.placed, redirectNames(serving, s.redirects, s.routes))...)
 	// Deletions run last, in reverse: its services go before the networks they
 	// were on.
 	for _, r := range s.networks {
@@ -407,7 +457,13 @@ func (h *Handler) UpdateWebsite(ctx context.Context, req *connect.Request[dockwe
 			edits = append(edits, &dockwellv1.Edit{Resource: &dockwellv1.ResourceRef{Kind: string(service.Kind), Scope: s.env, Name: r.Name}, Delete: true})
 		}
 	}
-	summary := cmp.Or(strings.TrimSpace(m.GetSummary()), "Change what "+domain+" serves")
+	// Only the routes its list wrote, never one a person added.
+	for _, d := range slices.Sorted(maps.Keys(s.redirects)) {
+		if serving.Redirects[d] == nil {
+			edits = append(edits, &dockwellv1.Edit{Resource: &dockwellv1.ResourceRef{Kind: string(route.Kind), Scope: s.env, Name: s.redirects[d]}, Delete: true})
+		}
+	}
+	summary := cmp.Or(strings.TrimSpace(m.GetSummary()), updateSummary(s.spec.GetWebsite(), spec, was, domain))
 	c, err := h.changes.Propose(ctx, summary, edits, serversField, changes.Also{
 		IfNothing: fault.New(revision.ErrInvalid, "%s serves that already, so there's nothing to change", domain),
 		Notes:     append(folderNotes(s.env, spec), scriptsStop(s.env, s.spec.GetWebsite(), spec)...),
@@ -449,7 +505,7 @@ func (h *Handler) DeleteWebsite(ctx context.Context, req *connect.Request[dockwe
 // puts are the edits that make an environment hold what serves a website: its
 // networks, then its services, as they join them, then the route, as it sends to
 // them.
-func puts(env string, serving website.Serving, servers []string) []*dockwellv1.Edit {
+func puts(env string, serving website.Serving, servers []string, redirects map[string]string) []*dockwellv1.Edit {
 	var out []*dockwellv1.Edit
 	for _, name := range slices.Sorted(maps.Keys(serving.Networks)) {
 		out = append(out, &dockwellv1.Edit{
@@ -465,11 +521,58 @@ func puts(env string, serving website.Serving, servers []string) []*dockwellv1.E
 			Servers:  servers,
 		})
 	}
-	return append(out, &dockwellv1.Edit{
+	out = append(out, &dockwellv1.Edit{
 		Resource: &dockwellv1.ResourceRef{Kind: string(route.Kind), Scope: env, Name: website.RouteName},
 		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Route{Route: serving.Route}},
 		Servers:  servers,
 	})
+	// Its redirects after it, as each lands on its domain.
+	for _, d := range slices.Sorted(maps.Keys(serving.Redirects)) {
+		out = append(out, &dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Kind: string(route.Kind), Scope: env, Name: redirects[d]},
+			Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Route{Route: serving.Redirects[d]}},
+			Servers:  servers,
+		})
+	}
+	return out
+}
+
+// redirectNames names the routes serving's redirects take, by domain: one the
+// list wrote keeps its name, and a new one takes its domain's, with a number when
+// a route in the environment has that already.
+func redirectNames(serving website.Serving, had map[string]string, routes []store.Resource) map[string]string {
+	taken := map[string]bool{website.RouteName: true}
+	for i := range routes {
+		taken[routes[i].Name] = true
+	}
+	out := map[string]string{}
+	for _, d := range slices.Sorted(maps.Keys(serving.Redirects)) {
+		if name, ok := had[d]; ok {
+			out[d] = name
+			continue
+		}
+		want := website.RedirectName(d)
+		name := want
+		for n := 2; taken[name]; n++ {
+			name = want + "-" + strconv.Itoa(n)
+		}
+		taken[name] = true
+		out[d] = name
+	}
+	return out
+}
+
+// updateSummary says what an update changes, for the timeline.
+func updateSummary(was, is *resourcev1.Website, from, to string) string {
+	if from != to {
+		return "Move the website " + from + " to " + to
+	}
+	a, b := proto.CloneOf(was), proto.CloneOf(is)
+	a.RedirectFrom, b.RedirectFrom = nil, nil
+	if proto.Equal(a, b) {
+		return "Change the domains that redirect to " + to
+	}
+	return "Change what " + to + " serves"
 }
 
 // serversField is the request's field for a choice of server.
@@ -498,13 +601,16 @@ func (h *Handler) internal(ctx context.Context, err error) error {
 
 // holder says who serves a domain already, in words for whoever asked for it, or
 // nothing when it's free. A website takes the whole of its domain, so a route to
-// any path of it holds it.
-func (h *Handler) holder(ctx context.Context, tx *store.Tx, tree scope.Tree, domain string) (string, error) {
+// any path of it holds it. Routes in the environment except are the website's own.
+func (h *Handler) holder(ctx context.Context, tx *store.Tx, tree scope.Tree, domain, except string) (string, error) {
 	routes, err := tx.ListKind(ctx, string(route.Kind))
 	if err != nil {
 		return "", err
 	}
 	for i := range routes {
+		if routes[i].Scope == except {
+			continue
+		}
 		spec, err := h.decode(ctx, tx, routes[i])
 		if err != nil {
 			return "", err

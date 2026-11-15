@@ -839,9 +839,14 @@ type UpdateWebsiteRequest struct {
 	// The website, by its project's name or ID.
 	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	// What it serves, whole, as JSON, such as {"proxy":{"url":"https://backend.example.com"}}, or {"proxy":{"port":3000}} for a port on the server.
+	// Its redirect_from is whole too: a domain left out stops redirecting to it.
 	Website *v1alpha1.Website `protobuf:"bytes,2,opt,name=website,proto3" json:"website,omitempty"`
 	// What the change is for, for the timeline. Empty says what it changes.
-	Summary       string `protobuf:"bytes,3,opt,name=summary,proto3" json:"summary,omitempty"`
+	Summary string `protobuf:"bytes,3,opt,name=summary,proto3" json:"summary,omitempty"`
+	// The domain it answers at now, such as "example.org", as a route takes one.
+	// Empty keeps the one it has. Moving it to one of redirect_from, as making www
+	// the main domain does, takes it out of that list in the same change.
+	Domain        string `protobuf:"bytes,4,opt,name=domain,proto3" json:"domain,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -893,6 +898,13 @@ func (x *UpdateWebsiteRequest) GetWebsite() *v1alpha1.Website {
 func (x *UpdateWebsiteRequest) GetSummary() string {
 	if x != nil {
 		return x.Summary
+	}
+	return ""
+}
+
+func (x *UpdateWebsiteRequest) GetDomain() string {
+	if x != nil {
+		return x.Domain
 	}
 	return ""
 }
@@ -1109,11 +1121,12 @@ const file_dockwell_v1_website_proto_rawDesc = "" +
 	"\aservers\x18\x06 \x03(\tR\aservers\x12\x18\n" +
 	"\asummary\x18\a \x01(\tR\asummary\"D\n" +
 	"\x15CreateWebsiteResponse\x12+\n" +
-	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"\x7f\n" +
+	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"\x97\x01\n" +
 	"\x14UpdateWebsiteRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12=\n" +
 	"\awebsite\x18\x02 \x01(\v2#.dockwell.resource.v1alpha1.WebsiteR\awebsite\x12\x18\n" +
-	"\asummary\x18\x03 \x01(\tR\asummary\"D\n" +
+	"\asummary\x18\x03 \x01(\tR\asummary\x12\x16\n" +
+	"\x06domain\x18\x04 \x01(\tR\x06domain\"D\n" +
 	"\x15UpdateWebsiteResponse\x12+\n" +
 	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"@\n" +
 	"\x14DeleteWebsiteRequest\x12\x0e\n" +

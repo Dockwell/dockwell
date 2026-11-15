@@ -26,6 +26,7 @@ import { formRefusal, proxyList, refusedField } from "../apps/domains";
 import { FrontFields, frontOf, type InFront } from "../apps/FrontFields";
 import { type Opening, PlanView } from "../changes/ChangeSheet";
 import { type FleetState, useFleet } from "../servers/useFleet";
+import { CompanionChoice, useCompanion, useCompanionChoice } from "./Companion";
 import {
   BLANK,
   type Missing,
@@ -99,6 +100,9 @@ export function NewWebsiteSheet({
   const servesWords = useServesWords();
   const typed = domain.trim().toLowerCase();
   const several = servers.length > 1;
+  // www for a bare domain, or the bare domain for www, on by what DNS says of it.
+  const companion = useCompanion(serverOf(fleet, server)?.id ?? "", typed);
+  const [alsoCompanion, setAlsoCompanion] = useCompanionChoice(companion);
 
   /** Takes you to the first field that was refused, ready to change, as New app does. */
   const revealError = () =>
@@ -147,7 +151,7 @@ export function NewWebsiteSheet({
       return;
     }
     const front = frontOf(noCertificate, inFront, named);
-    const website = specOf(settings);
+    const website = { ...specOf(settings), redirectFrom: alsoCompanion ? [companion.companion] : [] };
     setBusy(true);
     let change: Change | undefined;
     try {
@@ -283,6 +287,14 @@ export function NewWebsiteSheet({
           domain={typed}
           tunnel={noCertificate}
           tunnelName={switchName}
+          onLeave={onClose}
+        />
+        <CompanionChoice
+          server={serverOf(fleet, server)}
+          read={companion}
+          on={alsoCompanion}
+          onChange={setAlsoCompanion}
+          tunnel={noCertificate}
           onLeave={onClose}
         />
         {several ? (

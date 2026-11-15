@@ -110,13 +110,37 @@ func (h *Handler) CheckDomain(ctx context.Context, req *connect.Request[dockwell
 		return public, nil
 	}}
 	dns.Know(h.servers.PublicAddress(srv.GetId()))
-	check := dns.Check(ctx, domain)
-	// What a name inside some network resolves to is no business of anyone who can only
-	// reach this API, so a private answer is shown only when it's the server's own.
-	check.Found = slices.DeleteFunc(check.Found, func(s string) bool {
-		return len(resource.PublicAddresses([]string{s})) == 0 && !slices.Contains(own, s)
-	})
-	return connect.NewResponse(&dockwellv1.CheckDomainResponse{Check: resourcepb.DomainCheck(check)}), nil
+	read := func(name string) *resource.DomainCheck {
+		check := dns.Check(ctx, name)
+		// What a name inside some network resolves to is no business of anyone who can
+		// only reach this API, so a private answer is shown only when it's the server's
+		// own.
+		check.Found = slices.DeleteFunc(check.Found, func(s string) bool {
+			return len(resource.PublicAddresses([]string{s})) == 0 && !slices.Contains(own, s)
+		})
+		return check
+	}
+	// Its companion is read in the same call, beside it, which counts once against
+	// the budget.
+	companion := Companion(domain)
+	var other *resource.DomainCheck
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		if companion != "" {
+			other = read(companion)
+		}
+	}()
+	check := read(domain)
+	<-done
+	out := &dockwellv1.CheckDomainResponse{Check: resourcepb.DomainCheck(check), Companion: companion}
+	if companion != "" {
+		if out.CompanionCheck, err = h.companionCheck(ctx, req.Msg.GetProjectId(), check, other); err != nil {
+			return nil, err
+		}
+		out.CompanionCheck.Check = resourcepb.DomainCheck(other)
+	}
+	return connect.NewResponse(out), nil
 }
 
 // ListDomains returns the domains of the routes that exist now.

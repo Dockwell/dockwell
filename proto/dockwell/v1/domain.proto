@@ -315,12 +315,42 @@ message CheckDomainRequest {
   string server_id = 1;
   // The domain, such as "app.example.com".
   string domain = 2;
+  // The project it's for, by ID, so a shared wildcard certificate that serves that
+  // project counts as covering the domain's companion. Empty for one not made yet.
+  string project_id = 3;
 }
 
 // CheckDomainResponse says what DNS says of it.
 message CheckDomainResponse {
   // What DNS says, as the control plane reads it.
   DomainCheck check = 1;
+  // The domain's other half, which a site is also expected to answer on: its
+  // www name for a registered domain, such as "www.example.co.uk" for
+  // "example.co.uk", or the registered domain for its www name. Empty for any
+  // other name, such as "blog.example.com" (ADR 0070).
+  string companion = 2;
+  // Where the companion stands. Unset when there's no companion.
+  CompanionCheck companion_check = 3;
+}
+
+// CompanionCheck is where a domain's companion stands: what DNS says of it, whether
+// another environment serves it already, and whether a wildcard covers it.
+message CompanionCheck {
+  // What DNS says of it, as the control plane reads it.
+  DomainCheck check = 1;
+  // It answers as the domain does: both point at the server, or both point at the
+  // same addresses elsewhere, as behind a tunnel or Cloudflare's proxy.
+  bool answers_alike = 2;
+  // The environment that serves it already, by ID. Empty when none does, or when
+  // it's in a project the caller can't read.
+  string held_by_environment_id = 3;
+  // The project that serves it already, by name, such as "shop", or "another
+  // project" for one the caller can't read. Empty when none does.
+  string held_by = 4;
+  // The shared wildcard certificate that covers it, by name, such as
+  // "example-com", so it needs no certificate of its own (ADR 0088). Empty when
+  // none does.
+  string wildcard = 5;
 }
 
 // ListDomainsRequest says which domains to return.

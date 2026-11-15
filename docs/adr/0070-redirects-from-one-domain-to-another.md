@@ -200,6 +200,17 @@ The slices are as above, with a fourth: the imports, 1Panel's website redirects 
 - **An older agent isn't asked to keep a redirect** in its desired state, as it isn't to plan or apply one. Refusing one as it's read back, and the row's "Not served on hz-2 · Update its agent", come with slice 3: only an agent downgraded after it served a redirect has one to read back, which the release notes cover.
 - **A request whose target is `*`** gets a `Location` with no `/` after the domain. Browsers never send one, so it stays.
 
+### Slice 2, as built
+
+*2026-11-15.*
+
+- **`website.Resources` writes one route for each of `redirect_from`,** named as its domain is, `www-example-com`, with a number when the environment has a route by that name. Each redirects permanently to the site's domain, keeping the path, with the site's `tls`, `trusted_proxies` and `plain_for_anyone`, and none of its access. The site owns a route its list wrote: a whole domain's redirect, in its environment, whose domain the list names. Taking a domain out deletes only that.
+- **`UpdateWebsite` takes the domain too** (`UpdateWebsiteRequest.domain`, field 4), so changing it, keeping the old one, and making www the main domain are each one change with undo. A move to one of its other domains takes it out of the list. A site whose display name was its domain follows it. Its `redirect_from` is whole, as the rest of its spec is: the configuration form sends the list it has.
+- **`CheckDomain` reads the companion beside the domain,** in the same call, by the public suffix list. Its `companion_check` (`CompanionCheck`) says what DNS says of it, whether it answers as the domain does (both here, the same addresses, or both behind Cloudflare's proxy), who serves it already, named only to a caller who can read that project ("another project" otherwise), and the shared wildcard certificate that covers it. A wildcard counts only where it serves the project, so `CheckDomainRequest.project_id` (field 3) names it; New website, whose project isn't made yet, has none.
+- **The panel:** New website's "Also answer on www.example.com" follows what DNS says until a person ticks or clears it, and is off, with who has it and Open, where another project serves it. The site's Domain panel lists what redirects here, each with Stop sending, and offers "Also answer on …", "Make … the main domain", "Send another domain here" and "Change domain", which offers "Send example.com here", ticked.
+- **Making www the main domain against real Caddy:** the site's route and the bare domain's redirect are written in either order, and the route the change deletes is gone by the end; each answers as it should.
+- **Left for later:** moving the site behind a tunnel from Domains edits its own route alone, so its redirects follow at its next `UpdateWebsite`; the plan's "Add www.example.com to your tunnel too" is said in the form, not yet in the plan.
+
 ## Considered
 
 - **A kind of its own, `redirect`:** it would need its own domain claims, certificate handling, Domains rows, DNS checks and alerts, each kept in step with routes. Or it would have none, and a redirect's certificate would fail with nothing to say so.

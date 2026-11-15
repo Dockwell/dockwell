@@ -18356,6 +18356,69 @@ msgstr "{mounts} · 驱动 {driver}"
 msgid "{users} mounts it. Take it off first, then delete it."
 msgstr "{users} 挂载了它。先移除挂载，再删除它。"
 
+msgid "Add {name} to your tunnel too."
+msgstr "也把 {name} 添加到你的隧道。"
+
+msgid "Also answer on <0>{companion}</0>"
+msgstr "同时响应 <0>{companion}</0>"
+
+msgid "Also answer on <0>{name}</0>"
+msgstr "同时响应 <0>{name}</0>"
+
+msgid "Change domain"
+msgstr "更改域名"
+
+msgid "Domains that redirect here"
+msgstr "重定向到这里的域名"
+
+msgid "It redirects to {main}, keeping the path"
+msgstr "它重定向到 {main}，保留路径"
+
+msgid "Make <0>{companion}</0> the main domain"
+msgstr "将 <0>{companion}</0> 设为主域名"
+
+msgid "Make {companion} the main domain of {main}"
+msgstr "将 {companion} 设为 {main} 的主域名"
+
+msgid "Move the website {main} to {typed}"
+msgstr "将网站 {main} 移到 {typed}"
+
+msgid "Name the domain, such as example.org."
+msgstr "请填写域名，例如 example.org。"
+
+msgid "New domain"
+msgstr "新域名"
+
+msgid "Redirects here"
+msgstr "重定向到这里"
+
+msgid "Send <0>{main}</0> here"
+msgstr "把 <0>{main}</0> 发送到这里"
+
+msgid "Send another domain here"
+msgstr "把另一个域名发送到这里"
+
+msgid "Send {companion} to {main}"
+msgstr "把 {companion} 发送到 {main}"
+
+msgid "Send {typed} to {main}"
+msgstr "把 {typed} 发送到 {main}"
+
+msgid "Stop sending {from} here"
+msgstr "不再把 {from} 发送到这里"
+
+msgid "Stop sending {from} to {main}"
+msgstr "不再把 {from} 发送到 {main}"
+
+msgid "The certificate for {covering} covers it."
+msgstr "{covering} 的证书已涵盖它。"
+
+msgid "{main} answers there instead"
+msgstr "{main} 改为在那里响应"
+
+msgid "{name} is served by {by}"
+msgstr "{name} 由 {by} 提供服务"
+
 msgid "A static site, sent as its files are."
 msgstr "静态网站，文件原样发送。"
 

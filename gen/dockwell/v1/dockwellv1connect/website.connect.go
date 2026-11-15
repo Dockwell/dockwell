@@ -73,9 +73,9 @@ type WebsiteServiceClient interface {
 	// ready to apply or discard. A website that sends to a port on the server
 	// reaches past containers, so a person applies it.
 	CreateWebsite(context.Context, *connect.Request[v1.CreateWebsiteRequest]) (*connect.Response[v1.CreateWebsiteResponse], error)
-	// UpdateWebsite plans changing what a website serves, ready to apply or
-	// discard. Its domain, and what's in front of it, stay as they are: change
-	// those as for any route.
+	// UpdateWebsite plans changing what a website serves, the domains that
+	// redirect to it, or its domain, ready to apply or discard. What's in front of
+	// it stays as it is: change that as for any route, and its redirects follow.
 	UpdateWebsite(context.Context, *connect.Request[v1.UpdateWebsiteRequest]) (*connect.Response[v1.UpdateWebsiteResponse], error)
 	// DeleteWebsite plans deleting a website: its route, what serves it, and its
 	// project. Undoing it brings it all back. Its folder on the server, if it has
@@ -193,9 +193,9 @@ type WebsiteServiceHandler interface {
 	// ready to apply or discard. A website that sends to a port on the server
 	// reaches past containers, so a person applies it.
 	CreateWebsite(context.Context, *connect.Request[v1.CreateWebsiteRequest]) (*connect.Response[v1.CreateWebsiteResponse], error)
-	// UpdateWebsite plans changing what a website serves, ready to apply or
-	// discard. Its domain, and what's in front of it, stay as they are: change
-	// those as for any route.
+	// UpdateWebsite plans changing what a website serves, the domains that
+	// redirect to it, or its domain, ready to apply or discard. What's in front of
+	// it stays as it is: change that as for any route, and its redirects follow.
 	UpdateWebsite(context.Context, *connect.Request[v1.UpdateWebsiteRequest]) (*connect.Response[v1.UpdateWebsiteResponse], error)
 	// DeleteWebsite plans deleting a website: its route, what serves it, and its
 	// project. Undoing it brings it all back. Its folder on the server, if it has

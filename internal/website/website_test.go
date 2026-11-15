@@ -347,3 +347,58 @@ func TestWhatServesAPHPWebsite(t *testing.T) {
 		}
 	}
 }
+
+// Each other domain is a permanent redirect to the site that keeps the path, reached
+// as the site's route is, but never behind its access, as a redirect has nothing to
+// protect.
+func TestAWebsitesOtherDomainsRedirect(t *testing.T) {
+	w := &resourcev1.Website{Serves: &resourcev1.Website_Proxy{Proxy: &resourcev1.WebsiteProxy{Port: 3000}}, RedirectFrom: []string{"www.example.com", "old.example.org"}}
+	front := Front{TLS: "off", TrustedProxies: []string{"cloudflare"}, Access: &resourcev1.RouteAccess{Allow: []string{"192.0.2.0/24"}}}
+	got := Resources(w, "example.com", front).Redirects
+	if len(got) != 2 {
+		t.Fatalf("redirects: %v", got)
+	}
+	www := got["www.example.com"]
+	if www.GetDomain() != "www.example.com" || www.GetRedirect().GetTo() != "https://example.com" || www.GetRedirect().GetTemporary() || www.GetRedirect().GetDropPath() {
+		t.Errorf("www redirects as %v", www)
+	}
+	if www.GetTls() != "off" || !slices.Equal(www.GetTrustedProxies(), []string{"cloudflare"}) || www.GetAccess() != nil {
+		t.Errorf("www is reached as %v", www)
+	}
+	front.PlainForAnyone = true
+	if got := Resources(w, "example.com", front).Redirects["old.example.org"]; got.GetRedirect().GetTo() != "http://example.com" || !got.GetPlainForAnyone() {
+		t.Errorf("a plain site's old domain redirects as %v", got)
+	}
+	if got := Resources(&resourcev1.Website{Serves: w.GetServes()}, "example.com", Front{}).Redirects; len(got) != 0 {
+		t.Errorf("a site with no other domains has %v", got)
+	}
+}
+
+func TestWhatOtherDomainsTake(t *testing.T) {
+	w := &resourcev1.Website{RedirectFrom: []string{" WWW.Example.com "}}
+	if err := CheckRedirects(w, "example.com"); err != nil || w.GetRedirectFrom()[0] != "www.example.com" {
+		t.Errorf("CheckRedirects = %v, with %v", err, w.GetRedirectFrom())
+	}
+	many := make([]string, MaxRedirects+1)
+	for i := range many {
+		many[i] = "old" + strings.Repeat("x", i+1) + ".example.com"
+	}
+	for _, c := range []struct {
+		from []string
+		says string
+	}{
+		{[]string{"example.com"}, "own domain"},
+		{[]string{"www.example.com", "WWW.example.com"}, "named twice"},
+		{[]string{"*.example.com"}, "wildcard"},
+		{[]string{"example.com/blog"}, "example.com/blog"},
+		{many, "up to 20"},
+	} {
+		err := CheckRedirects(&resourcev1.Website{RedirectFrom: c.from}, "example.com")
+		if err == nil || !strings.Contains(err.Error(), c.says) {
+			t.Errorf("%v = %v, want it to say %q", c.from, err, c.says)
+		}
+	}
+	if got := RedirectName("www.example.com"); got != "www-example-com" {
+		t.Errorf("RedirectName = %q", got)
+	}
+}

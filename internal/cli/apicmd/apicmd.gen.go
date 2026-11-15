@@ -1288,6 +1288,7 @@ func Methods() []*apicli.Method {
 			Fields: []apicli.Field{
 				{Path: "server_id", Help: "The server, by ID."},
 				{Path: "domain", Help: "The domain, such as \"app.example.com\"."},
+				{Path: "project_id", Help: "The project it's for, by ID, so a shared wildcard certificate that serves that project counts as covering the domain's companion. Empty for one not made yet."},
 			},
 			Call: apicli.Unary[v1.CheckDomainRequest, v1.CheckDomainResponse](dockwellv1connect.DomainServiceCheckDomainProcedure),
 		},
@@ -3517,12 +3518,13 @@ func Methods() []*apicli.Method {
 			Noun:      "websites",
 			Verb:      "update",
 			Short:     "Plan changing what a website serves",
-			Long:      "Plan changing what a website serves, ready to apply or discard. Its domain, and\nwhat's in front of it, stay as they are: change those as for any route.",
+			Long:      "Plan changing what a website serves, the domains that redirect to it, or its\ndomain, ready to apply or discard. What's in front of it stays as it is: change\nthat as for any route, and its redirects follow.",
 			Effect:    v1.Effect_EFFECT_PLAN,
 			Fields: []apicli.Field{
 				{Path: "id", Help: "The website, by its project's name or ID.", Arg: true},
-				{Path: "website", Help: "What it serves, whole, as JSON, such as {\"proxy\":{\"url\":\"https://backend.example.com\"}}, or {\"proxy\":{\"port\":3000}} for a port on the server."},
+				{Path: "website", Help: "What it serves, whole, as JSON, such as {\"proxy\":{\"url\":\"https://backend.example.com\"}}, or {\"proxy\":{\"port\":3000}} for a port on the server. Its redirect_from is whole too: a domain left out stops redirecting to it."},
 				{Path: "summary", Help: "What the change is for, for the timeline. Empty says what it changes."},
+				{Path: "domain", Help: "The domain it answers at now, such as \"example.org\", as a route takes one. Empty keeps the one it has. Moving it to one of redirect_from, as making www the main domain does, takes it out of that list in the same change."},
 			},
 			Call: apicli.Unary[v1.UpdateWebsiteRequest, v1.UpdateWebsiteResponse](dockwellv1connect.WebsiteServiceUpdateWebsiteProcedure),
 		},
@@ -3630,6 +3632,7 @@ func Kinds() []*apicli.Kind {
 				{Path: "website.php.files_only", Help: "Answers a path with no file of its own with a 404, rather than sending it to the folder's index.php, as WordPress, Laravel and most PHP apps want."},
 				{Path: "website.php.upload_limit_mb", Help: "The most a request may send, in MiB, as PHP's M counts, such as an upload: what PHP takes and what the web server lets through. 0 takes 64."},
 				{Path: "website.php.user", Help: "Who PHP runs as, as \"uid:gid\", such as \"1000:1000\": the folder's owner, so PHP can write in it, and what it writes, such as uploads, keeps its owner. A number alone is taken for both. Empty is www-data, \"82:82\". Never root's, nor root's group. PHP-FPM's master runs as it too. A folder that isn't there is made as its."},
+				{Path: "website.redirect_from", Help: "Other domains that redirect to it, such as \"www.example.com\" for a site at \"example.com\": each a route in its environment that redirects permanently to its domain, keeping the path, reached as its own route is (ADR 0070). Removing one deletes only the route this list wrote for it."},
 			},
 		},
 		{
