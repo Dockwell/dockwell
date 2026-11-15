@@ -4,14 +4,18 @@ package probe
 
 import (
 	"bytes"
+	"cmp"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net"
 	"net/netip"
+	"net/url"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -289,15 +293,44 @@ func (c *capped) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-// withoutKeys is what the probe printed with its request's keys taken out.
+// withoutKeys is what the probe printed with its request's keys taken out: as they
+// are, and as a URL, base64 or JSON would write them. What's left of one where
+// the cap cut it short goes too.
 func withoutKeys(said string, req Request) string {
 	if req.S3 == nil {
 		return said
 	}
 	for _, key := range []string{req.S3.SecretKey, req.S3.AccessKey} {
-		if key != "" {
-			said = strings.ReplaceAll(said, key, "[key]")
+		if key == "" {
+			continue
+		}
+		for _, form := range keyForms(key) {
+			said = strings.ReplaceAll(said, form, "[key]")
+			for n := len(form) - 1; n >= minKeyCut; n-- {
+				if strings.HasSuffix(said, form[:n]) {
+					said = strings.TrimSuffix(said, form[:n]) + "[key]"
+					break
+				}
+			}
 		}
 	}
 	return said
+}
+
+// minKeyCut is the shortest start of a key, at the end of what the probe printed,
+// that's taken for one the cap cut short.
+const minKeyCut = 4
+
+// keyForms are the ways a key may be written out.
+func keyForms(key string) []string {
+	escaped, _ := json.Marshal(key)
+	forms := []string{
+		key, url.QueryEscape(key), url.PathEscape(key), strings.Trim(string(escaped), `"`),
+		base64.StdEncoding.EncodeToString([]byte(key)), base64.RawStdEncoding.EncodeToString([]byte(key)),
+		base64.URLEncoding.EncodeToString([]byte(key)), base64.RawURLEncoding.EncodeToString([]byte(key)),
+	}
+	// The longest first, so a form that holds another goes whole, and the same
+	// form once.
+	slices.SortFunc(forms, func(a, b string) int { return cmp.Or(len(b)-len(a), strings.Compare(a, b)) })
+	return slices.Compact(forms)
 }

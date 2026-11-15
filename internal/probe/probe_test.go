@@ -4,8 +4,10 @@ package probe
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"net/netip"
+	"net/url"
 	"slices"
 	"strings"
 	"testing"
@@ -146,5 +148,40 @@ func TestMainSaysOnlyItsResult(t *testing.T) {
 	}
 	if code := Main(strings.NewReader("{"), &out, &errs); code != 1 {
 		t.Errorf("Main of a broken request = %d", code)
+	}
+}
+
+// What the probe printed reaches the agent's log without a key in any form it may
+// be written in: as it is, in a URL, in base64, escaped in JSON, or the start of
+// one the cap cut short.
+func TestTheLogHoldsNoFormOfAKey(t *testing.T) {
+	t.Parallel()
+	secret := `wJalr/XUtnFEMI+K7MDENG/bPx"RfiCYEXAMPLEKEY`
+	req := Request{Kind: KindS3, S3: &S3{AccessKey: "AKIDEXAMPLE", SecretKey: secret}}
+	escaped, err := json.Marshal(secret)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for what, form := range map[string]string{
+		"as it is":         secret,
+		"in a query":       url.QueryEscape(secret),
+		"in a path":        url.PathEscape(secret),
+		"in JSON":          strings.Trim(string(escaped), `"`),
+		"in base64":        base64.StdEncoding.EncodeToString([]byte(secret)),
+		"in raw base64":    base64.RawStdEncoding.EncodeToString([]byte(secret)),
+		"in URL base64":    base64.URLEncoding.EncodeToString([]byte(secret)),
+		"cut short":        secret[:len(secret)-9],
+		"cut in its query": url.QueryEscape(secret)[:20],
+	} {
+		got := withoutKeys("the check signed with "+form, req)
+		if strings.Contains(got, secret[:minKeyCut]) || !strings.Contains(got, "[key]") {
+			t.Errorf("%s, the log says %q", what, got)
+		}
+	}
+	if got := withoutKeys("the probe doesn't check AKIDEXAMPLE", req); got != "the probe doesn't check [key]" {
+		t.Errorf("the access key, the log says %q", got)
+	}
+	if got := withoutKeys("a request it can't read", req); got != "a request it can't read" {
+		t.Errorf("with no key in it, the log says %q", got)
 	}
 }
