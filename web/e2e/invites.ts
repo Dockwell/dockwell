@@ -2,12 +2,16 @@
 
 // Invites someone from Members in headless Chromium, against a real `dockwell
 // run` that has a panel domain, as invites need one: the first invite's
-// reminder to check each environment's protection, the passkey that confirms
+// confirmation of each environment's protection, on record, the passkey that confirms
 // it, the link shown once at the domain, the open invite in the list, a newer
 // invite replacing it, and revoking. The owner signs in on localhost, as the
 // stand has no DNS; accepting works only at the domain, which Go covers at the
-// HTTPS listener (internal/control/invites_test.go). With --shots <dir> it
-// saves screenshots at 1440 and 390 px.
+// HTTPS listener (internal/control/invites_test.go), and here in a second
+// browser that is told the domain is this machine and given a certificate
+// made for the run. Then the owner manages who joined: the sheets that change
+// a role, remove someone and transfer ownership say what they do as rows, and
+// removing them takes a passkey. With --shots <dir> it saves screenshots at
+// 1440 and 390 px, the sheets' in light and dark.
 //
 //   make e2e
 //   node web/e2e/invites.ts bin/dockwell --shots /tmp/shots
@@ -15,12 +19,13 @@
 // Chromium is the system's: CHROMIUM_PATH, or /usr/bin/chromium.
 
 import { type ChildProcess, execFileSync, spawn } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 
-import { type Browser, chromium, type Page } from "playwright-core";
+import { type Browser, chromium, type Locator, type Page } from "playwright-core";
 
 import { describePages, watchBrowser } from "./report.ts";
 
@@ -31,6 +36,7 @@ const { values, positionals } = parseArgs({ allowPositionals: true, options: { s
 const bin = resolve(positionals[0] ?? "bin/dockwell");
 const shots = values.shots ? resolve(values.shots) : undefined;
 const port = 7050 + Math.floor(Math.random() * 300);
+const httpsPort = port + 400;
 const origin = `http://localhost:${port}`;
 const domain = "panel.example.com";
 const data = mkdtempSync(join(tmpdir(), "dockwell-invites-"));
@@ -65,7 +71,51 @@ function env(): NodeJS.ProcessEnv {
   return { ...process.env, DOCKWELL_DATA_DIR: data, USER: "mira" };
 }
 
+// A certificate for the panel's domain, made for this run and put where the
+// control plane keeps the one it gets from its CA, so it asks no CA for one:
+// the key and then the certificate, as it caches them. It lasts ten years, so
+// nothing tries to renew it.
+function seedCertificate(): string {
+  const dir = join(data, "control", "acme");
+  mkdirSync(dir, { recursive: true, mode: 0o700 });
+  const key = join(data, "panel.key");
+  const cert = join(data, "panel.crt");
+  execFileSync(
+    "openssl",
+    [
+      "req",
+      "-x509",
+      "-newkey",
+      "ec",
+      "-pkeyopt",
+      "ec_paramgen_curve:prime256v1",
+      "-nodes",
+      "-keyout",
+      key,
+      "-out",
+      cert,
+      "-days",
+      "3650",
+      "-subj",
+      `/CN=${domain}`,
+      "-addext",
+      `subjectAltName=DNS:${domain}`,
+    ],
+    { stdio: "ignore" },
+  );
+  writeFileSync(join(dir, domain), readFileSync(key, "utf8") + readFileSync(cert, "utf8"), { mode: 0o600 });
+  // Its key's SHA-256, as Chromium takes it to trust this one certificate and no other.
+  const spki = execFileSync("openssl", ["x509", "-in", cert, "-pubkey", "-noout"]);
+  const der = execFileSync("openssl", ["pkey", "-pubin", "-outform", "der"], { input: spki });
+  rmSync(key);
+  rmSync(cert);
+  return createHash("sha256").update(der).digest("base64");
+}
+
+let trusted = "";
+
 async function start(): Promise<void> {
+  trusted = seedCertificate();
   // The panel's domain, with its HTTPS and HTTP listeners on ports of their own: nothing asks for a certificate here.
   server = spawn(
     bin,
@@ -78,7 +128,7 @@ async function start(): Promise<void> {
       "--domain",
       domain,
       "--https-listen",
-      "127.0.0.1:0",
+      `127.0.0.1:${httpsPort}`,
       "--http-listen",
       "127.0.0.1:0",
       "--log-format",
@@ -110,6 +160,35 @@ async function shoot(page: Page, name: string) {
   await sleep(100);
 }
 
+/** Waits until what a sheet's rows say holds each of these, a row being its term and then what becomes of it. */
+async function rowsSay(rows: Locator, what: string, want: readonly string[]) {
+  await rows.waitFor();
+  await until(`${what} to say ${want.join(", ")}`, async () => {
+    const text = (await rows.textContent()) ?? "";
+    return want.every((w) => text.includes(w));
+  });
+}
+
+/** A sheet at both widths, in light and dark. A phone draws Members as a list, so each width opens it afresh. */
+async function shootSheet(page: Page, name: string, open: () => Promise<Locator>) {
+  if (!shots) return;
+  mkdirSync(shots, { recursive: true });
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: width >= 800 ? 970 : 844 });
+    const sheet = await open();
+    for (const scheme of ["light", "dark"] as const) {
+      await page.emulateMedia({ colorScheme: scheme });
+      await sleep(250);
+      await page.screenshot({ path: join(shots, `${name}-${width}-${scheme}.png`) });
+    }
+    await page.emulateMedia({ colorScheme: "light" });
+    await sheet.getByRole("button", { name: "Cancel" }).click();
+    await sheet.waitFor({ state: "detached" });
+  }
+  await page.setViewportSize({ width: 1440, height: 970 });
+  await sleep(100);
+}
+
 async function main() {
   await start();
   step("claim the install on localhost, with a passkey");
@@ -124,7 +203,13 @@ async function main() {
   browser = await chromium.launch({
     executablePath: process.env["CHROMIUM_PATH"] ?? "/usr/bin/chromium",
     // /dev/shm is small in a container and shared by every browser on the machine; Chromium crashes when it fills.
-    args: ["--disable-dev-shm-usage"],
+    // The panel's domain is this machine, at the HTTPS listener, and Chromium trusts the run's certificate
+    // by its key: a page with a certificate error may not make a passkey, so ignoring errors isn't enough.
+    args: [
+      "--disable-dev-shm-usage",
+      `--host-resolver-rules=MAP ${domain}:443 127.0.0.1:${httpsPort}`,
+      `--ignore-certificate-errors-spki-list=${trusted}`,
+    ],
   });
   watchBrowser(browser);
   const context = await browser.newContext({ viewport: { width: 1440, height: 970 }, colorScheme: "light" });
@@ -161,18 +246,16 @@ async function main() {
   await form.waitFor();
   await page.getByRole("region", { name: "What each role can do" }).waitFor();
 
-  step("the first invite reminds its maker to look at each environment's protection");
+  step("the first invite waits until its maker confirms each environment's protection, on record");
   await form.getByRole("textbox", { name: "Invite by email" }).fill(" Ada@Example.com ");
   await form.getByText("Before anyone else signs in", { exact: true }).waitFor();
   await form.getByRole("list", { name: "Environments" }).getByText("production").first().waitFor();
   await shoot(page, "invites-first");
   await form.getByRole("button", { name: "Invite", exact: true }).click();
-  await form
-    .getByText("Check each environment's protection first, then tick the box: it decides whose changes wait.", {
-      exact: true,
-    })
-    .waitFor();
-  await form.getByRole("checkbox", { name: "I've checked which environments are protected" }).check();
+  await form.getByText("Confirm the environments first.", { exact: true }).waitFor();
+  // Confirming is on record: the page reads it back from the control plane, and it stays after reading again.
+  await form.getByRole("button", { name: /^Confirm: \d+ protected, \d+ open$/ }).click();
+  await form.getByText(/^Mira Chen confirmed these on /).waitFor();
 
   step("a passkey confirms the invite, and its link shows once, at the panel's domain");
   await form.getByRole("button", { name: "Invite", exact: true }).click();
@@ -205,7 +288,11 @@ async function main() {
   step("a newer invite to the same person replaces the open one");
   const again = page.getByRole("region", { name: "Invite people" });
   await again.getByRole("textbox", { name: "Invite by email" }).fill("ada@example.com");
-  await again.getByRole("checkbox", { name: "I've checked which environments are protected" }).check();
+  // Nothing is asked again: the confirmation was recorded, and the page says by whom.
+  await again.getByText(/^Mira Chen confirmed these on /).waitFor();
+  if ((await again.getByRole("button", { name: /^Confirm: \d+ protected, \d+ open$/ }).count()) !== 0) {
+    fail("the protections are asked for again after they were confirmed");
+  }
   await again.getByRole("button", { name: "Invite", exact: true }).click();
   await page.getByText("Send this link to ada@example.com", { exact: true }).waitFor({ timeout: 20_000 });
   const newer = await page.getByText(/\/invite#[A-Za-z0-9_-]{40,}$/).innerText();
@@ -228,10 +315,127 @@ async function main() {
   await page.getByRole("heading", { level: 1, name: "Audit log" }).waitFor();
   await page.getByText("Invited ada@example.com as a developer of every project").first().waitFor();
   // Two revokes: the one a newer invite replaced, and the one by hand.
+  await page.getByText("Confirmed which environments are protected").first().waitFor();
   await until(
     "both revokes on record",
     async () => (await page.getByText("Revoked the invite for ada@example.com").count()) >= 2,
   );
+
+  step("the person invited accepts at the panel's domain with a passkey of their own, and is on Members");
+  await page.goto(`${origin}/settings/members`);
+  // With both invites revoked it's one person again, so the form waits behind its button.
+  await page.getByRole("button", { name: "Invite someone" }).click();
+  const invite = page.getByRole("region", { name: "Invite people" });
+  await invite.getByRole("textbox", { name: "Invite by email" }).fill("ada@example.com");
+  await invite.getByRole("button", { name: "Invite", exact: true }).click();
+  await page.getByText("Send this link to ada@example.com", { exact: true }).waitFor({ timeout: 20_000 });
+  const theirs = await page.getByText(/\/invite#[A-Za-z0-9_-]{40,}$/).innerText();
+  const elsewhere = await browser.newContext({ viewport: { width: 1440, height: 970 } });
+  const joining = await elsewhere.newPage();
+  const theirKeys = await elsewhere.newCDPSession(joining);
+  await theirKeys.send("WebAuthn.enable", { enableUI: false });
+  await theirKeys.send("WebAuthn.addVirtualAuthenticator", {
+    options: {
+      protocol: "ctap2",
+      transport: "internal",
+      hasResidentKey: true,
+      hasUserVerification: true,
+      isUserVerified: true,
+      automaticPresenceSimulation: true,
+    },
+  });
+  await joining.goto(theirs);
+  await joining.getByLabel("Your name").fill("Ada Park");
+  await joining.getByRole("button", { name: "Create passkey and join" }).click();
+  await joining.getByRole("heading", { level: 1, name: "Overview" }).waitFor({ timeout: 20_000 });
+  await page.reload();
+  await page.getByText("2 people sign in to this install", { exact: true }).waitFor();
+  const ada = people.getByRole("row").filter({ hasText: "ada@example.com" });
+  await ada.getByText("Invited by Mira Chen").waitFor();
+
+  // Each sheet opens from the menu on their row, or on a phone, on their card.
+  const manage = async (item: string, title: string) => {
+    await page.getByRole("button", { name: "Manage Ada Park" }).click();
+    await page.getByRole("menuitem", { name: item, exact: true }).click();
+    const sheet = page.getByRole("dialog", { name: title });
+    await sheet.waitFor();
+    return sheet;
+  };
+  const roleSheet = async (role: string) => {
+    const sheet = await manage("Change role", "Change what Ada Park holds");
+    await sheet.getByLabel("Role").selectOption({ label: role });
+    return sheet;
+  };
+
+  step("changing a role says what it does as rows: a raise keeps their sessions and tokens, a lowering ends them");
+  let sheet = await manage("Change role", "Change what Ada Park holds");
+  // What they hold now changes nothing, so there's nothing to press and nothing to say.
+  if (!(await sheet.getByRole("button", { name: "Change role" }).isDisabled())) {
+    fail("Change role can be pressed before anything is changed");
+  }
+  const effects = sheet.getByLabel("What this changes for Ada Park");
+  if ((await effects.count()) !== 0) fail("the role sheet says what changes before anything is chosen");
+  await sheet.getByLabel("Role").selectOption({ label: "Admin" });
+  await rowsSay(effects, "raising to admin", ["SessionsKept", "API tokensKept"]);
+  await sheet.getByLabel("Role").selectOption({ label: "Viewer" });
+  await rowsSay(effects, "lowering to viewer", ["SessionsSigned out everywhere", "API tokensRevoked"]);
+
+  step("taking back the last thing someone holds offers Remove as a button, which opens it");
+  await sheet.getByLabel("Role").selectOption({ label: "No role there" });
+  await sheet.getByText("That's the last thing Ada Park holds", { exact: true }).waitFor();
+  if (!(await sheet.getByRole("button", { name: "Change role" }).isDisabled())) {
+    fail("Change role can be pressed for the last thing someone holds");
+  }
+  await sheet.getByRole("button", { name: "Remove Ada Park instead" }).click();
+  sheet = page.getByRole("dialog", { name: "Remove Ada Park" });
+
+  step("removing says what it ends, read from the control plane, before it asks");
+  await rowsSay(sheet.getByLabel("What removing Ada Park ends"), "the removal", [
+    "Sign-inPasskeys and codes deleted",
+    "Sessions1 browser is signed out",
+    "API tokens revokedNone",
+    "Invites revokedNone",
+    "Planned changes discardedNone",
+    "Apps and tasks they set upKeep running",
+    "Their name on ActivityStays",
+  ]);
+  await sheet.getByRole("button", { name: "Cancel" }).click();
+  await sheet.waitFor({ state: "detached" });
+
+  step("transferring ownership says what changes for both, and only the owner is offered it");
+  sheet = await manage("Transfer ownership", "Make Ada Park the owner");
+  await rowsSay(sheet.getByLabel("What this changes", { exact: true }), "the transfer", [
+    "Ada ParkBecomes the owner",
+    "YouBecome an admin, and stay signed in",
+    "Your CLI access on the control serverRevoked",
+    "Undoing thisOnly Ada Park can",
+  ]);
+  await sheet.getByRole("button", { name: "Cancel" }).click();
+  await sheet.waitFor({ state: "detached" });
+
+  await shootSheet(page, "members-role-raise", () => roleSheet("Admin"));
+  await shootSheet(page, "members-role-lower", () => roleSheet("Viewer"));
+  await shootSheet(page, "members-role-last", () => roleSheet("No role there"));
+  await shootSheet(page, "members-remove", async () => {
+    const s = await manage("Remove", "Remove Ada Park");
+    await s.getByLabel("What removing Ada Park ends").waitFor();
+    return s;
+  });
+  await shootSheet(page, "members-transfer", () => manage("Transfer ownership", "Make Ada Park the owner"));
+
+  step("removing them takes a passkey, signs them out and takes them off Members");
+  sheet = await manage("Remove", "Remove Ada Park");
+  await sheet.getByLabel("What removing Ada Park ends").waitFor();
+  await sheet.getByRole("button", { name: "Remove Ada Park" }).click();
+  await sheet.waitFor({ state: "detached", timeout: 20_000 });
+  await until(
+    "ada to go from Members",
+    async () => (await people.getByRole("row").filter({ hasText: "ada@example.com" }).count()) === 0,
+  );
+  await joining.reload();
+  await joining.getByRole("heading", { level: 1, name: "Overview" }).waitFor({ state: "detached" });
+  if ((await joining.getByText("Ada Park").count()) !== 0) fail("someone removed is still signed in at the domain");
+  await elsewhere.close();
 }
 
 main()

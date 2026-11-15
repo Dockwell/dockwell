@@ -1038,6 +1038,15 @@ enum StepUpAction {
   // email, lowercased, the role's name and the place, apart by spaces, as
   // "ada@example.com developer prj_…", or "install" for the whole install.
   STEP_UP_ACTION_INVITE = 110;
+  // Changing what someone holds, with MemberService.SetMemberRole. The target
+  // is the person's ID, the role's name ("none" to take it back) and the place,
+  // apart by spaces, as "usr_… viewer prj_…", or "install" for the whole install.
+  STEP_UP_ACTION_CHANGE_ROLE = 111;
+  // Removing someone, with MemberService.RemoveMember. The target is their ID.
+  STEP_UP_ACTION_REMOVE_MEMBER = 112;
+  // Making someone else the owner, with MemberService.TransferOwnership. The
+  // target is their ID.
+  STEP_UP_ACTION_TRANSFER_OWNERSHIP = 113;
   // Making a ticket that adds a server, with ServerService.CreateJoinTicket. It
   // has no target of its own: the person's ID, which BeginStepUp fills in.
   STEP_UP_ACTION_ADD_SERVER = 130;

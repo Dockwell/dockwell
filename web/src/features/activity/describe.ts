@@ -311,6 +311,46 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
           const from = m?.address ?? "";
           return { title: from ? t`${who} joined as ${as}, from ${from}` : t`${who} joined as ${as}`, icon: "users" };
         }
+        case "member.role": {
+          const m = event.member;
+          const who = m?.name || m?.email || "";
+          const where = { projectId: m?.projectId ?? "", projectName: m?.projectName ?? "" };
+          const role = m?.role ?? Role.UNSPECIFIED;
+          const was = m?.previousRole ?? Role.UNSPECIFIED;
+          // What a lowering ended goes with it, as that's what whoever reads this wants to know.
+          const ended =
+            (m?.sessions ?? 0) + (m?.tokens ?? 0) + (m?.invites ?? 0) > 0
+              ? t`, which signed them out and revoked their tokens`
+              : "";
+          if (role === Role.UNSPECIFIED) {
+            return { title: t`Took back ${who}'s role as ${rolePhrase(was, where)}${ended}`, icon: "users" };
+          }
+          return was === Role.UNSPECIFIED
+            ? { title: t`Made ${who} ${rolePhrase(role, where)}`, icon: "users" }
+            : {
+                title: t`Made ${who} ${rolePhrase(role, where)}, from ${rolePhrase(was, where)}${ended}`,
+                icon: "users",
+              };
+        }
+        case "member.remove": {
+          const m = event.member;
+          const who = m?.name || m?.email || "";
+          const changes = m?.changes ?? 0;
+          return {
+            title:
+              changes > 0
+                ? t`Removed ${who}, with their sessions, tokens and invites, and ${plural(changes, { one: "# change they'd planned", other: "# changes they'd planned" })}`
+                : t`Removed ${who}, with their sessions, tokens and invites`,
+            icon: "users",
+            tone: "warning",
+          };
+        }
+        case "member.protections_confirm":
+          return { title: t`Confirmed which environments are protected`, icon: "shield" };
+        case "owner.transfer": {
+          const who = event.subject?.name ?? "";
+          return { title: who ? t`Made ${who} the owner` : t`Moved ownership of this install`, icon: "users" };
+        }
         // Each says what it replaced, as that's the way back to it.
         case "settings.name": {
           const value = event.setting?.value ?? "";

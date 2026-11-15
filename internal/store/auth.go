@@ -37,6 +37,9 @@ type User struct {
 	// StepUpPolicy is how often they're asked for their passkey again, as
 	// they chose it: StepUpEachTime until they do (ADR 0075).
 	StepUpPolicy string
+	// RemovedAt is when they were removed: they sign in no more, and the row
+	// stays so what they did keeps their name (ADR 0049).
+	RemovedAt *time.Time
 }
 
 // How often a person is asked for their passkey again (ADR 0075).
@@ -54,18 +57,19 @@ const userColumns = `id, email, name,
 	COALESCE((SELECT g.role FROM grants g WHERE g.user_id = users.id AND g.project_id = ''), ''),
 	webauthn_handle, created_at, totp_secret, totp_pending, totp_last_step,
 	codes_refused, codes_refused_reported_at, totp_pending_session, totp_pending_expires_at, totp_pending_failures,
-	step_up_policy`
+	step_up_policy, removed_at`
 
 func scanUser(row interface{ Scan(...any) error }) (User, error) {
 	var u User
 	var created int64
-	var reported, pendingExpires sql.NullInt64
+	var reported, pendingExpires, removed sql.NullInt64
 	var pendingSession sql.NullString
 	if err := row.Scan(&u.ID, &u.Email, &u.Name, &u.Role, &u.WebAuthnHandle, &created, &u.TOTPSecret, &u.TOTPPending,
-		&u.TOTPLastStep, &u.CodesRefused, &reported, &pendingSession, &pendingExpires, &u.TOTPPendingFailures, &u.StepUpPolicy); err != nil {
+		&u.TOTPLastStep, &u.CodesRefused, &reported, &pendingSession, &pendingExpires, &u.TOTPPendingFailures, &u.StepUpPolicy, &removed); err != nil {
 		return User{}, err
 	}
 	u.CreatedAt, u.CodesRefusedReportedAt, u.TOTPPendingSession = fromMillis(created), timePtr(reported), pendingSession.String
+	u.RemovedAt = timePtr(removed)
 	if pendingExpires.Valid {
 		u.TOTPPendingExpires = fromMillis(pendingExpires.Int64)
 	}
@@ -75,7 +79,7 @@ func scanUser(row interface{ Scan(...any) error }) (User, error) {
 // CountUsers returns how many people have accounts.
 func (t *Tx) CountUsers(ctx context.Context) (int, error) {
 	var n int
-	if err := t.queryRow(ctx, `SELECT COUNT(*) FROM users`).Scan(&n); err != nil {
+	if err := t.queryRow(ctx, `SELECT COUNT(*) FROM users WHERE removed_at IS NULL`).Scan(&n); err != nil {
 		return 0, fmt.Errorf("can't count users: %w", err)
 	}
 	return n, nil
@@ -113,7 +117,7 @@ func (t *Tx) getUser(ctx context.Context, where string, arg any) (User, error) {
 // ListUsers returns everyone who can sign in, oldest first: today, the owner
 // alone (ADR 0048).
 func (t *Tx) ListUsers(ctx context.Context) ([]User, error) {
-	rows, err := t.query(ctx, `SELECT `+userColumns+` FROM users ORDER BY created_at, id`)
+	rows, err := t.query(ctx, `SELECT `+userColumns+` FROM users WHERE removed_at IS NULL ORDER BY created_at, id`)
 	if err != nil {
 		return nil, fmt.Errorf("can't list who signs in: %w", err)
 	}
@@ -129,17 +133,18 @@ func (t *Tx) ListUsers(ctx context.Context) ([]User, error) {
 	return out, rows.Err()
 }
 
-// GetUser returns a user by ID, or ErrNotFound.
+// GetUser returns a user by ID, or ErrNotFound. Someone removed is found too,
+// with RemovedAt set, as their name is what Activity says.
 func (t *Tx) GetUser(ctx context.Context, id string) (User, error) { return t.getUser(ctx, "id", id) }
 
 // GetUserByEmail returns a user by lowercase email, or ErrNotFound.
 func (t *Tx) GetUserByEmail(ctx context.Context, email string) (User, error) {
-	return t.getUser(ctx, "email", email)
+	return t.getUser(ctx, "removed_at IS NULL AND email", email)
 }
 
 // GetUserByHandle returns a user by WebAuthn user handle, or ErrNotFound.
 func (t *Tx) GetUserByHandle(ctx context.Context, handle []byte) (User, error) {
-	return t.getUser(ctx, "webauthn_handle", handle)
+	return t.getUser(ctx, "removed_at IS NULL AND webauthn_handle", handle)
 }
 
 // Owner returns the install's owner, by their grant, or ErrNotFound before

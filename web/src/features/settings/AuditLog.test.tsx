@@ -368,6 +368,34 @@ describe("Audit log", () => {
               role: Role.VIEWER,
               address: "203.0.113.7",
             }),
+            member("evt_up", "member.role", {
+              email: "ada@example.com",
+              name: "Ada Lovelace",
+              role: Role.ADMIN,
+              previousRole: Role.VIEWER,
+            }),
+            member("evt_down", "member.role", {
+              email: "ada@example.com",
+              name: "Ada Lovelace",
+              role: Role.VIEWER,
+              previousRole: Role.ADMIN,
+              sessions: 1,
+              tokens: 2,
+            }),
+            member("evt_back", "member.role", {
+              email: "lin@example.com",
+              name: "Lin",
+              previousRole: Role.DEVELOPER,
+              projectId: "prj_1",
+              projectName: "shop",
+              sessions: 1,
+            }),
+            member("evt_gone", "member.remove", {
+              email: "sam@example.com",
+              name: "Sam Lee",
+              role: Role.ADMIN,
+              changes: 2,
+            }),
             // A project deleted since has an ID and no name: it's never read as every project.
             member("evt_g", "member.join", {
               email: "bo@example.com",
@@ -384,6 +412,18 @@ describe("Audit log", () => {
     expect(screen.getByText("Revoked the invite for lin@example.com")).toBeVisible();
     expect(screen.getByText("Ada Lovelace joined as a viewer of every project, from 203.0.113.7")).toBeVisible();
     expect(screen.getByText("Bo joined as a viewer of a project that's gone")).toBeVisible();
+    expect(screen.getByText("Made Ada Lovelace an admin, from a viewer of every project")).toBeVisible();
+    expect(
+      screen.getByText(
+        "Made Ada Lovelace a viewer of every project, from an admin, which signed them out and revoked their tokens",
+      ),
+    ).toBeVisible();
+    expect(
+      screen.getByText("Took back Lin's role as a developer of shop, which signed them out and revoked their tokens"),
+    ).toBeVisible();
+    expect(
+      screen.getByText("Removed Sam Lee, with their sessions, tokens and invites, and 2 changes they'd planned"),
+    ).toBeVisible();
   });
 
   it("writes CSV that a spreadsheet reads back", () => {

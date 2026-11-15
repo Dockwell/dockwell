@@ -20,14 +20,22 @@ import (
 type invited struct {
 	*fixture
 	owner Principal
-	keys  *authtest.Authenticator
+	// ownerSecret is the owner's session's secret.
+	ownerSecret string
+	keys        *authtest.Authenticator
 }
 
 func newInvited(t *testing.T, backend store.Backend) *invited {
 	t.Helper()
 	f := newFixture(t, backend, onDomain.Site.RPID)
 	a := &authtest.Authenticator{Counter: true}
-	return &invited{fixture: f, owner: ownerPrincipal(f.claim(t, onDomain, a)), keys: a}
+	claimed := f.claim(t, onDomain, a)
+	in := &invited{fixture: f, owner: ownerPrincipal(claimed), ownerSecret: claimed.Token, keys: a}
+	// The first invite waits for someone to confirm which environments are protected.
+	if _, err := f.svc.ConfirmProtections(t.Context(), onDomain, in.owner, "default/production protected"); err != nil {
+		t.Fatal(err)
+	}
+	return in
 }
 
 // invite invites email to the whole install as role, and returns the invite and its secret.

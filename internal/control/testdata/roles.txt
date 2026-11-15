@@ -151,9 +151,14 @@ ImportService.PlanStopPanel                    plan         admin      admin    
 LogService.ListLogSources                      read         viewer     viewer     project
 LogService.ReadLogs                            read         viewer     viewer     project
 LogService.WatchLogs                           read         viewer     viewer     project
+MemberService.ConfirmProtections               apply        admin      admin      install  session
 MemberService.CreateInvite                     apply        admin      admin      install  session
 MemberService.ListMembers                      read         admin      admin      install  session
+MemberService.PlanMemberRemoval                read         admin      admin      install  session
+MemberService.RemoveMember                     destructive  admin      admin      install  session
 MemberService.RevokeInvite                     apply        admin      admin      install  session
+MemberService.SetMemberRole                    apply        admin      admin      install  session
+MemberService.TransferOwnership                apply        owner      owner      install  session
 ProcessService.EndProcess                      destructive  admin      admin      install  session
 ProcessService.WatchProcesses                  read         admin      admin      install  session
 ResourceService.ListResources                  read         viewer     viewer     project

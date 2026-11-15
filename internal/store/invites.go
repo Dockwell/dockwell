@@ -28,6 +28,8 @@ type Invite struct {
 	AcceptedBy string
 	RevokedAt  *time.Time
 	RevokedBy  string
+	// AcceptedFrom is the address it was accepted from.
+	AcceptedFrom string
 }
 
 // Open reports an invite that still works at now: not accepted, revoked or expired.
@@ -55,7 +57,7 @@ func (t *Tx) CreateInvite(ctx context.Context, i Invite) error {
 	return nil
 }
 
-const inviteColumns = `id, token_hash, email, role, project_id, created_at, created_by, expires_at, accepted_at, accepted_by, revoked_at, revoked_by`
+const inviteColumns = `id, token_hash, email, role, project_id, created_at, created_by, expires_at, accepted_at, accepted_by, revoked_at, revoked_by, accepted_from`
 
 func scanInvite(row interface{ Scan(...any) error }) (Invite, error) {
 	var i Invite
@@ -63,7 +65,7 @@ func scanInvite(row interface{ Scan(...any) error }) (Invite, error) {
 	var accepted, revoked sql.NullInt64
 	var acceptedBy sql.NullString
 	if err := row.Scan(&i.ID, &i.TokenHash, &i.Email, &i.Role, &i.ProjectID, &created, &i.CreatedBy, &expires,
-		&accepted, &acceptedBy, &revoked, &i.RevokedBy); err != nil {
+		&accepted, &acceptedBy, &revoked, &i.RevokedBy, &i.AcceptedFrom); err != nil {
 		return Invite{}, err
 	}
 	i.CreatedAt, i.ExpiresAt = fromMillis(created), fromMillis(expires)
@@ -121,9 +123,9 @@ func (t *Tx) ListOpenInvites(ctx context.Context, now time.Time) ([]Invite, erro
 
 // AcceptInvite spends an invite for the person it made, if it still works at
 // at, or reports ErrNotFound: two acceptances racing can't both succeed.
-func (t *Tx) AcceptInvite(ctx context.Context, id, userID string, at time.Time) error {
-	res, err := t.exec(ctx, `UPDATE invites SET accepted_at = ?, accepted_by = ?
-		WHERE id = ? AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at > ?`, millis(at), userID, id, millis(at))
+func (t *Tx) AcceptInvite(ctx context.Context, id, userID, from string, at time.Time) error {
+	res, err := t.exec(ctx, `UPDATE invites SET accepted_at = ?, accepted_by = ?, accepted_from = ?
+		WHERE id = ? AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at > ?`, millis(at), userID, from, id, millis(at))
 	if err != nil {
 		return fmt.Errorf("can't accept invite %s: %w", id, err)
 	}

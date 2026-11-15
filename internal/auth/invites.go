@@ -90,6 +90,13 @@ type memberDetail struct {
 	Role    string `json:"role"`
 	Project string `json:"project,omitempty"`
 	From    string `json:"from,omitempty"`
+	// Previous is the role they held in that place before, on member.role.
+	Previous string `json:"previous,omitempty"`
+	// What went with them, on member.remove and on a role lowered.
+	Sessions int `json:"sessions,omitempty"`
+	Tokens   int `json:"tokens,omitempty"`
+	Invites  int `json:"invites,omitempty"`
+	Changes  int `json:"changes,omitempty"`
 }
 
 func (d memberDetail) String() string {
@@ -101,6 +108,10 @@ func (d memberDetail) String() string {
 // and for someone who joined, the address they joined from.
 type MemberDetail struct {
 	Email, Name, Role, Project, From string
+	// Previous is the role held in that place before a role change.
+	Previous string
+	// What ended with a removal or a lowered role.
+	Sessions, Tokens, Invites, Changes int
 }
 
 // ReadMemberDetail reads what a member's audit event recorded.
@@ -134,8 +145,15 @@ func (s *Service) CreateInvite(ctx context.Context, client Client, p Principal, 
 	if s.sites.Domain == "" {
 		return MadeInvite{}, ErrInviteNeedsDomain
 	}
-	// Someone who signs in already is told so before the passkey's proof is spent on them.
-	if err := s.db.View(ctx, func(tx *store.Tx) error { return s.memberAlready(ctx, tx, email) }); err != nil {
+	// Someone who signs in already is told so before the passkey's proof is spent on them,
+	// and so is whoever invites before the protections were confirmed.
+	err = s.db.View(ctx, func(tx *store.Tx) error {
+		if err := s.protectionsFirst(ctx, tx); err != nil {
+			return err
+		}
+		return s.memberAlready(ctx, tx, email)
+	})
+	if err != nil {
 		return MadeInvite{}, err
 	}
 	if err := s.UseStepUp(ctx, client, p, proof, StepUpInvite, InviteTarget(email, role, projectID)); err != nil {
@@ -154,6 +172,9 @@ func (s *Service) CreateInvite(ctx context.Context, client Client, p Principal, 
 	}
 	err = s.db.Update(ctx, func(tx *store.Tx) error {
 		// Again, with the write: they may have joined since.
+		if err := s.protectionsFirst(ctx, tx); err != nil {
+			return err
+		}
 		if err := s.memberAlready(ctx, tx, email); err != nil {
 			return err
 		}
@@ -395,7 +416,7 @@ func (s *Service) FinishAcceptInvite(ctx context.Context, client Client, ceremon
 		if err := tx.SetGrant(ctx, store.Grant{UserID: person.ID, ProjectID: inv.ProjectID, Role: inv.Role, CreatedAt: now, CreatedBy: inv.CreatedBy}); err != nil {
 			return err
 		}
-		if err := tx.AcceptInvite(ctx, inv.ID, person.ID, now); errors.Is(err, store.ErrNotFound) {
+		if err := tx.AcceptInvite(ctx, inv.ID, person.ID, client.remoteIP(), now); errors.Is(err, store.ErrNotFound) {
 			return ErrInviteRejected
 		} else if err != nil {
 			return err

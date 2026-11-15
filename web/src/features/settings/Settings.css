@@ -1093,8 +1093,23 @@
 }
 
 .members-can .members-col {
-  width: 72px;
+  width: 84px;
   text-align: center;
+  white-space: normal;
+}
+
+/* Where a developer and a viewer hold their role, once, under the column's name. */
+.members-col-sub {
+  display: block;
+  color: var(--ink-muted);
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* The comparison stays inside its panel: on a narrow one it scrolls sideways. */
+.members-can-scroll {
+  overflow-x: auto;
 }
 
 .members-can td.members-col .dw-icon {
@@ -1102,16 +1117,7 @@
   vertical-align: middle;
 }
 
-.members-note {
-  margin: 0;
-  padding: var(--space-3) var(--space-4);
-  border-top: 1px solid var(--line);
-  color: var(--ink-muted);
-  font-size: 12.5px;
-  line-height: 18px;
-}
-
-/* The note below draws the last line. */
+/* The panel draws the last line. */
 .members-can tbody tr:last-child > * {
   border-bottom: 0;
 }
@@ -1382,4 +1388,74 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
+}
+
+/* A person's menu on their row: what an admin or the owner may do about them. */
+.members-menu-anchor {
+  position: relative;
+  display: inline-flex;
+}
+.members-menu {
+  position: absolute;
+  top: calc(100% + var(--space-1));
+  right: 0;
+  z-index: var(--z-sticky);
+  display: grid;
+  min-width: 180px;
+  padding: var(--space-1);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-float);
+}
+.members-menu-item {
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.members-menu-item:hover,
+.members-menu-item:focus-visible {
+  background: var(--surface-sunken);
+  outline: none;
+}
+.members-menu-item.members-menu-danger {
+  color: var(--critical);
+}
+.members-sheet-fields {
+  display: grid;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+.members-removal {
+  /* A long term wraps rather than squeezing what becomes of it, as on a phone. */
+  grid-template-columns: fit-content(45%) minmax(0, 1fr);
+  margin: var(--space-3) 0;
+}
+/* One row of what a change does: its term and what becomes of it sit in the list's two columns. */
+.members-effect {
+  display: contents;
+}
+.members-removal-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.members-joined {
+  color: var(--ink-muted);
+}
+
+/* On a phone the comparison's four columns narrow, so it fits without scrolling. */
+@media (max-width: 639.98px) {
+  .members-can .members-col {
+    width: 58px;
+    padding-inline: 4px;
+  }
+  .members-can th[scope="row"] {
+    padding-right: 4px;
+  }
 }

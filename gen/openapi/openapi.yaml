@@ -3110,6 +3110,181 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/members/{userId}/removal:
+        get:
+            tags:
+                - MemberService
+            description: |-
+                PlanMemberRemoval reads what removing someone would end, to see before
+                 removing them: their sessions, their API tokens with when each was last
+                 used, the open invites they made, and the changes they planned and didn't
+                 apply. It changes nothing.
+            operationId: MemberService_PlanMemberRemoval
+            parameters:
+                - name: userId
+                  in: path
+                  description: The person, by ID.
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/PlanMemberRemovalResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/members/{userId}:remove:
+        post:
+            tags:
+                - MemberService
+            description: |-
+                RemoveMember removes someone, with a passkey step-up bound to them
+                 (STEP_UP_ACTION_REMOVE_MEMBER). Their sign-in goes, with their passkeys and
+                 codes; their sessions end; every API token they made and every open invite
+                 they made is revoked; they hold nothing; and the changes they planned and
+                 didn't apply are discarded. Their name stays on what they did, and their
+                 email is free to invite again. Nobody removes themselves or the owner.
+            operationId: MemberService_RemoveMember
+            parameters:
+                - name: userId
+                  in: path
+                  description: The person, by ID.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/RemoveMemberRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/RemoveMemberResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/members/{userId}:setRole:
+        post:
+            tags:
+                - MemberService
+            description: |-
+                SetMemberRole gives someone a role in a place, the whole install or one
+                 project, in place of what they held there; no role takes it back. It takes
+                 a passkey step-up bound to the person, the role and the place
+                 (STEP_UP_ACTION_CHANGE_ROLE). An admin holds the install, so making someone
+                 one takes back their project grants. Nobody changes their own role or the
+                 owner's, and taking back the last thing someone holds is refused: remove
+                 them instead. Lowering what someone holds ends their sessions and revokes
+                 their API tokens, and the open invites they made when they're no longer an
+                 admin (docs/adr/0049-roles-and-invites-by-project.md).
+            operationId: MemberService_SetMemberRole
+            parameters:
+                - name: userId
+                  in: path
+                  description: The person, by ID.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/SetMemberRoleRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SetMemberRoleResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/members/{userId}:transferOwnership:
+        post:
+            tags:
+                - MemberService
+            description: |-
+                TransferOwnership makes someone who signs in here already the owner, with a
+                 passkey step-up bound to them (STEP_UP_ACTION_TRANSFER_OWNERSHIP). Only the
+                 owner calls it. The new owner holds the install at once, and whoever was
+                 the owner is an admin from then; or nothing changes.
+            operationId: MemberService_TransferOwnership
+            parameters:
+                - name: userId
+                  in: path
+                  description: 'The person, by ID: someone who signs in here already.'
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/TransferOwnershipRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/TransferOwnershipResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/members:confirmProtections:
+        post:
+            tags:
+                - MemberService
+            description: |-
+                ConfirmProtections records that the caller looked at which environments
+                 are protected, which decides whose changes wait once someone else signs
+                 in. It goes in the audit log with how each environment stood. Until it's
+                 recorded, CreateInvite is refused on an install where one person signs in,
+                 with the reason "protections_unconfirmed".
+            operationId: MemberService_ConfirmProtections
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/ConfirmProtectionsRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ConfirmProtectionsResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/passkeys:
         get:
             tags:
@@ -8859,6 +9034,9 @@ components:
                         - STEP_UP_ACTION_RESTORE_WAY_BACK_IN
                         - STEP_UP_ACTION_APPROVE_CHANGE
                         - STEP_UP_ACTION_INVITE
+                        - STEP_UP_ACTION_CHANGE_ROLE
+                        - STEP_UP_ACTION_REMOVE_MEMBER
+                        - STEP_UP_ACTION_TRANSFER_OWNERSHIP
                         - STEP_UP_ACTION_ADD_SERVER
                         - STEP_UP_ACTION_OPEN_SERVICE
                         - STEP_UP_ACTION_SET_PANEL_DOMAIN
@@ -10741,6 +10919,17 @@ components:
             description: |-
                 ConfirmChangeResponse carries the change, which goes on applying, or ends
                  applied, once the server has kept what it waited for.
+        ConfirmProtectionsRequest:
+            type: object
+            properties: {}
+            description: ConfirmProtectionsRequest takes no parameters.
+        ConfirmProtectionsResponse:
+            type: object
+            properties:
+                confirmTime:
+                    type: string
+                    format: date-time
+            description: ConfirmProtectionsResponse says when it was recorded.
         ConfirmTotpSetupRequest:
             type: object
             properties:
@@ -13233,6 +13422,32 @@ components:
                 address:
                     type: string
                     description: The address someone joined from, on member.join. Empty otherwise.
+                previousRole:
+                    enum:
+                        - ROLE_UNSPECIFIED
+                        - ROLE_OWNER
+                        - ROLE_ADMIN
+                        - ROLE_DEVELOPER
+                        - ROLE_VIEWER
+                    type: string
+                    description: The role they held in that place before, on member.role.
+                    format: enum
+                sessions:
+                    type: integer
+                    description: |-
+                        What went with them, on member.remove, and on member.role when it took
+                         something from them: sessions ended, API tokens and open invites revoked,
+                         and planned changes discarded.
+                    format: int32
+                tokens:
+                    type: integer
+                    format: int32
+                invites:
+                    type: integer
+                    format: int32
+                changes:
+                    type: integer
+                    format: int32
             description: EventMember is who a member's event is about, with what role, where.
         EventProcess:
             type: object
@@ -16402,6 +16617,14 @@ components:
                     items:
                         $ref: '#/components/schemas/Member'
                     description: Everyone who can sign in, oldest first.
+                protectionsConfirmTime:
+                    type: string
+                    description: |-
+                        When someone confirmed which environments are protected, and who, by
+                         name. Unset until someone has: the first invite waits for it.
+                    format: date-time
+                protectionsConfirmedBy:
+                    type: string
                 invites:
                     type: array
                     items:
@@ -16949,6 +17172,16 @@ components:
                     description: |-
                         The roles they hold in projects, by project name. Their role on the
                          whole install, which covers every project, is user.role.
+                invitedBy:
+                    type: string
+                    description: |-
+                        For someone who joined with an invite: who invited them, by name, when
+                         they joined, and the address they joined from.
+                joinTime:
+                    type: string
+                    format: date-time
+                joinedFrom:
+                    type: string
             description: |-
                 Member is a person who can sign in, and how. The details of how are the
                  person asking's alone: for anyone else, only the kinds of sign-in they have
@@ -18499,6 +18732,33 @@ components:
                         - $ref: '#/components/schemas/Change'
                     description: The change, planned, with its plan.
             description: PlanInstallUpdatesResponse carries the planned install.
+        PlanMemberRemovalResponse:
+            type: object
+            properties:
+                member:
+                    allOf:
+                        - $ref: '#/components/schemas/Member'
+                    description: Who, with what they hold.
+                sessions:
+                    type: integer
+                    description: How many browsers they're signed in on.
+                    format: int32
+                tokens:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/RemovalToken'
+                    description: The API tokens they made, which would be revoked.
+                invites:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Invite'
+                    description: The open invites they made, which would be revoked.
+                changes:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/RemovalChange'
+                    description: The changes they planned and didn't apply, which would be discarded.
+            description: PlanMemberRemovalResponse is what removing them would end.
         PlanNote:
             type: object
             properties:
@@ -19782,6 +20042,29 @@ components:
             description: |-
                 RegistryLoginInfo is a registry login as a caller may see it: never what signs
                  in. Below an admin, its name and registry alone.
+        RemovalChange:
+            type: object
+            properties:
+                id:
+                    type: string
+                summary:
+                    type: string
+                createTime:
+                    type: string
+                    format: date-time
+            description: RemovalChange is a planned change a removal would discard.
+        RemovalToken:
+            type: object
+            properties:
+                id:
+                    type: string
+                name:
+                    type: string
+                lastUsedTime:
+                    type: string
+                    description: When it was last used. Unset when it never was.
+                    format: date-time
+            description: RemovalToken is an API token a removal would revoke.
         RemoveCatalogSourceRequest:
             type: object
             properties:
@@ -19797,6 +20080,41 @@ components:
                         - $ref: '#/components/schemas/Change'
                     description: The change, planned, with its plan.
             description: RemoveCatalogSourceResponse is the change that removes it.
+        RemoveMemberRequest:
+            type: object
+            properties:
+                userId:
+                    type: string
+                    description: The person, by ID.
+                proof:
+                    type: string
+                    description: |-
+                        The proof from AuthService.FinishStepUp, for STEP_UP_ACTION_REMOVE_MEMBER
+                         with the person's ID.
+            description: RemoveMemberRequest names someone to remove.
+        RemoveMemberResponse:
+            type: object
+            properties:
+                sessionsEnded:
+                    type: integer
+                    format: int32
+                tokensRevoked:
+                    type: integer
+                    format: int32
+                invitesRevoked:
+                    type: integer
+                    format: int32
+                changesDiscarded:
+                    type: integer
+                    description: |-
+                        The changes of theirs that were discarded, and any that couldn't be,
+                         which stay planned for whoever may apply them.
+                    format: int32
+                changesLeft:
+                    type: array
+                    items:
+                        type: string
+            description: RemoveMemberResponse says what went with them.
         RemovePasskeyRequest:
             type: object
             properties:
@@ -22427,6 +22745,57 @@ components:
                         - $ref: '#/components/schemas/Settings'
                     description: The settings.
             description: SetInstallNameResponse carries the settings as they now are.
+        SetMemberRoleRequest:
+            type: object
+            properties:
+                userId:
+                    type: string
+                    description: The person, by ID.
+                role:
+                    enum:
+                        - ROLE_UNSPECIFIED
+                        - ROLE_OWNER
+                        - ROLE_ADMIN
+                        - ROLE_DEVELOPER
+                        - ROLE_VIEWER
+                    type: string
+                    description: |-
+                        The role: admin, developer or viewer. Leave it unset to take back what
+                         they hold in the place.
+                    format: enum
+                project:
+                    type: string
+                    description: |-
+                        The project, by name or ID, for a developer or a viewer of one. Leave it
+                         out for the whole install.
+                proof:
+                    type: string
+                    description: |-
+                        The proof from AuthService.FinishStepUp, for STEP_UP_ACTION_CHANGE_ROLE
+                         with the person's ID, the role's name ("none" for no role) and the place
+                         ("install", or the project's ID), apart by spaces.
+            description: SetMemberRoleRequest says whose role to set, to what, and where.
+        SetMemberRoleResponse:
+            type: object
+            properties:
+                member:
+                    $ref: '#/components/schemas/Member'
+                lowered:
+                    type: boolean
+                    description: True when the change took something from them, which ended what follows.
+                sessionsEnded:
+                    type: integer
+                    description: |-
+                        How many of their sessions ended, API tokens were revoked and open invites
+                         were revoked.
+                    format: int32
+                tokensRevoked:
+                    type: integer
+                    format: int32
+                invitesRevoked:
+                    type: integer
+                    format: int32
+            description: SetMemberRoleResponse is the person as they now stand, and what the change ended.
         SetPanelDomainRequest:
             type: object
             properties:
@@ -23861,6 +24230,24 @@ components:
                          Recovery codes still work while it is locked.
                     format: date-time
             description: Totp is the state of signing in with an authenticator app.
+        TransferOwnershipRequest:
+            type: object
+            properties:
+                userId:
+                    type: string
+                    description: 'The person, by ID: someone who signs in here already.'
+                proof:
+                    type: string
+                    description: |-
+                        The proof from AuthService.FinishStepUp, for
+                         STEP_UP_ACTION_TRANSFER_OWNERSHIP with the person's ID.
+            description: TransferOwnershipRequest names the new owner.
+        TransferOwnershipResponse:
+            type: object
+            properties:
+                member:
+                    $ref: '#/components/schemas/Member'
+            description: TransferOwnershipResponse is the new owner.
         Translation:
             type: object
             properties:

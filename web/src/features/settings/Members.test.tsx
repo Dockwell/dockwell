@@ -204,6 +204,11 @@ describe("Members", () => {
     const user = userEvent.setup();
     stubPasskeys();
     const beginStepUp = vi.fn(() => ({ ceremonyId: "cer_1", optionsJson: requestOptions }));
+    let confirmed = false;
+    const confirmProtections = vi.fn(() => {
+      confirmed = true;
+      return { confirmTime: timestampFromDate(new Date(2026, 10, 10, 9, 0)) };
+    });
     const createInvite = vi.fn((req: CreateInviteRequest) => {
       if (!req.proof) throw authError(Code.PermissionDenied, "needs_step_up");
       return {
@@ -223,20 +228,32 @@ describe("Members", () => {
         beginStepUp,
         finishStepUp: () => ({ proof: "proof_1" }),
       },
-      members: { listMembers: () => ({ members: [owner] }), createInvite },
+      members: {
+        // The control plane's record of the confirmation, which the page reads back.
+        listMembers: () => ({
+          members: [owner],
+          ...(confirmed
+            ? {
+                protectionsConfirmTime: timestampFromDate(new Date(2026, 10, 10, 9, 0)),
+                protectionsConfirmedBy: "Mira Chen",
+              }
+            : {}),
+        }),
+        createInvite,
+        confirmProtections,
+      },
       resources: { listResources: () => ({ resources: [] }) },
     });
     await user.click(await screen.findByRole("button", { name: "Invite someone" }));
     await user.type(screen.getByRole("textbox", { name: "Invite by email" }), " Ada@Example.com ");
-    // The first invite waits for the owner to check each environment's protection.
+    // The first invite waits until someone confirmed each environment's protection, on record.
     await user.click(screen.getByRole("button", { name: "Invite" }));
-    expect(
-      await screen.findByText(
-        "Check each environment's protection first, then tick the box: it decides whose changes wait.",
-      ),
-    ).toBeVisible();
+    expect(await screen.findByText("Confirm the environments first.")).toBeVisible();
     expect(createInvite).not.toHaveBeenCalled();
-    await user.click(screen.getByRole("checkbox", { name: "I've checked which environments are protected" }));
+    await user.click(screen.getByRole("button", { name: /^Confirm: / }));
+    expect(await screen.findByText(/^Mira Chen confirmed these on /)).toBeVisible();
+    expect(confirmProtections).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("button", { name: /^Confirm: / })).toBeNull();
     await user.click(screen.getByRole("button", { name: "Invite" }));
     expect(await screen.findByText("Send this link to ada@example.com")).toBeVisible();
     expect(screen.getByText("https://panel.example.com/invite#s3cr3t")).toBeVisible();
@@ -288,9 +305,11 @@ describe("Members", () => {
     const items = within(list).getAllByRole("listitem");
     expect(items.map((i) => i.textContent)).toEqual([
       "production in shopProtected",
-      "Staging in shopNot protected",
+      "Staging in shopOpen",
       "production in blogProtected",
     ]);
+    // The button says what it puts on record.
+    expect(screen.getByRole("button", { name: "Confirm: 2 protected, 1 open" })).toBeVisible();
     expect(within(list).getByRole("switch", { name: "Protect production in shop" })).toBeChecked();
     const staging = within(list).getByRole("switch", { name: "Protect Staging in shop" });
     expect(staging).not.toBeChecked();
@@ -317,7 +336,7 @@ describe("Members", () => {
     });
     expect(await screen.findByRole("textbox", { name: "Invite by email" })).toBeVisible();
     await user.type(screen.getByRole("textbox", { name: "Invite by email" }), "sam@example.com");
-    expect(screen.queryByRole("checkbox", { name: "I've checked which environments are protected" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Confirm: / })).toBeNull();
     expect(screen.queryByRole("list", { name: "Environments" })).toBeNull();
   });
 
@@ -392,5 +411,203 @@ describe("Members", () => {
     await waitFor(() =>
       expect(revokeInvite).toHaveBeenCalledWith(expect.objectContaining({ id: "inv_1" }), expect.anything()),
     );
+  });
+
+  describe("managing someone", () => {
+    const ada = create(MemberSchema, {
+      user: { id: "usr_2", name: "Ada Park", email: "ada@example.com", role: Role.DEVELOPER },
+      signIn: [SignInKind.PASSKEY],
+      grants: [{ projectId: "prj_1", projectName: "shop", role: Role.DEVELOPER }],
+      invitedBy: "Mira Chen",
+      joinedFrom: "203.0.113.7",
+    });
+    const projects = {
+      listResources: () => ({ resources: [{ id: "prj_1", resource: { kind: "project", name: "shop" } }] }),
+    };
+    const stepUp = () => ({
+      beginStepUp: vi.fn(() => ({ ceremonyId: "cer_1", optionsJson: requestOptions })),
+      finishStepUp: () => ({ proof: "proof_1" }),
+    });
+
+    it("says on whose word someone joined and from where, and gives everyone but you a menu", async () => {
+      renderAt("/settings/members", {
+        auth: { getAuthState: () => authState({ domain: "panel.example.com" }) },
+        members: { listMembers: () => ({ members: [owner, ada] }) },
+      });
+      const table = await screen.findByRole("table", { name: "Who signs in to this install" });
+      const row = within(table).getByRole("row", { name: /Ada Park/ });
+      expect(row).toHaveTextContent("Invited by Mira Chen · joined from 203.0.113.7");
+      expect(within(row).getByRole("button", { name: "Manage Ada Park" })).toBeVisible();
+      // Nobody manages themselves: your own row leads to your profile.
+      const mine = within(table).getByRole("row", { name: /mira@example\.com/ });
+      expect(within(mine).queryByRole("button", { name: /^Manage/ })).toBeNull();
+    });
+
+    it("gives an admin no way to transfer ownership, and nobody a menu on the owner", async () => {
+      const admin = create(MemberSchema, {
+        user: { id: "usr_1", name: "Mira Chen", email: "mira@example.com", role: Role.ADMIN },
+        you: true,
+        signIn: [SignInKind.PASSKEY],
+      });
+      const theOwner = create(MemberSchema, {
+        user: { id: "usr_3", name: "Sam Lee", email: "sam@example.com", role: Role.OWNER },
+        signIn: [SignInKind.PASSKEY],
+      });
+      const user = userEvent.setup();
+      renderAt("/settings/members", {
+        auth: {
+          getAuthState: () =>
+            authState({
+              domain: "panel.example.com",
+              user: { id: "usr_1", name: "Mira Chen", email: "mira@example.com", role: Role.ADMIN },
+              grants: [{ role: Role.ADMIN }],
+            }),
+        },
+        members: { listMembers: () => ({ members: [admin, ada, theOwner] }) },
+      });
+      const table = await screen.findByRole("table", { name: "Who signs in to this install" });
+      expect(
+        within(within(table).getByRole("row", { name: /Sam Lee/ })).queryByRole("button", { name: /^Manage/ }),
+      ).toBeNull();
+      await user.click(within(table).getByRole("button", { name: "Manage Ada Park" }));
+      const menu = screen.getByRole("menu", { name: "Manage Ada Park" });
+      expect(within(menu).getByRole("menuitem", { name: "Change role" })).toBeVisible();
+      expect(within(menu).getByRole("menuitem", { name: "Remove" })).toBeVisible();
+      expect(within(menu).queryByRole("menuitem", { name: "Transfer ownership" })).toBeNull();
+    });
+
+    it("changes a role in a place with a passkey for exactly that, and says what a lowering ends", async () => {
+      const user = userEvent.setup();
+      stubPasskeys();
+      const auth = stepUp();
+      const setMemberRole = vi.fn((req: { proof: string }) => {
+        if (!req.proof) throw authError(Code.PermissionDenied, "needs_step_up");
+        return { member: ada, lowered: true, sessionsEnded: 1 };
+      });
+      renderAt("/settings/members", {
+        auth: { getAuthState: () => authState({ domain: "panel.example.com" }), ...auth },
+        members: { listMembers: () => ({ members: [owner, ada] }), setMemberRole },
+        resources: projects,
+      });
+      await user.click(await screen.findByRole("button", { name: "Manage Ada Park" }));
+      await user.click(screen.getByRole("menuitem", { name: "Change role" }));
+      const sheet = await screen.findByRole("dialog", { name: "Change what Ada Park holds" });
+      // What they hold now changes nothing, so there's nothing to press yet.
+      expect(within(sheet).getByRole("button", { name: "Change role" })).toBeDisabled();
+      await user.selectOptions(within(sheet).getByLabelText("Role"), "Viewer");
+      // What a lowering ends, as rows, before the passkey.
+      const effects = within(sheet).getByLabelText("What this changes for Ada Park");
+      expect(effects).toHaveTextContent("SessionsSigned out everywhere");
+      expect(effects).toHaveTextContent("API tokensRevoked");
+      await user.click(within(sheet).getByRole("button", { name: "Change role" }));
+      await waitFor(() =>
+        expect(setMemberRole).toHaveBeenLastCalledWith(
+          expect.objectContaining({ userId: "usr_2", role: Role.VIEWER, project: "", proof: "proof_1" }),
+          expect.anything(),
+        ),
+      );
+      expect(auth.beginStepUp).toHaveBeenCalledWith(
+        expect.objectContaining({ action: StepUpAction.CHANGE_ROLE, target: "usr_2 viewer install" }),
+        expect.anything(),
+      );
+    });
+
+    it("sends taking back the last thing someone holds to Remove", async () => {
+      const user = userEvent.setup();
+      const sam = create(MemberSchema, {
+        user: { id: "usr_4", name: "Sam Lee", email: "sam@example.com", role: Role.VIEWER },
+      });
+      renderAt("/settings/members", {
+        auth: { getAuthState: () => authState({ domain: "panel.example.com" }) },
+        members: { listMembers: () => ({ members: [owner, sam] }) },
+        resources: projects,
+      });
+      await user.click(await screen.findByRole("button", { name: "Manage Sam Lee" }));
+      await user.click(screen.getByRole("menuitem", { name: "Change role" }));
+      const sheet = await screen.findByRole("dialog", { name: "Change what Sam Lee holds" });
+      await user.selectOptions(within(sheet).getByLabelText("Role"), "No role there");
+      expect(within(sheet).getByText("That's the last thing Sam Lee holds")).toBeVisible();
+      expect(within(sheet).getByRole("button", { name: "Change role" })).toBeDisabled();
+      // The way to do it is a button, which opens Remove in this sheet's place.
+      await user.click(within(sheet).getByRole("button", { name: "Remove Sam Lee instead" }));
+      expect(await screen.findByRole("dialog", { name: "Remove Sam Lee" })).toBeVisible();
+    });
+
+    it("says what removing someone ends before it asks, and removes them with a passkey for them", async () => {
+      const user = userEvent.setup();
+      stubPasskeys();
+      const auth = stepUp();
+      const removeMember = vi.fn((req: { proof: string }) => {
+        if (!req.proof) throw authError(Code.PermissionDenied, "needs_step_up");
+        return { sessionsEnded: 2, tokensRevoked: 1, invitesRevoked: 1, changesDiscarded: 1 };
+      });
+      renderAt("/settings/members", {
+        auth: { getAuthState: () => authState({ domain: "panel.example.com" }), ...auth },
+        members: {
+          listMembers: () => ({ members: [owner, ada] }),
+          planMemberRemoval: () => ({
+            member: ada,
+            sessions: 2,
+            tokens: [{ id: "tok_1", name: "GitHub Actions deploy" }],
+            invites: [{ id: "inv_1", email: "lin@example.com", role: Role.VIEWER }],
+            changes: [{ id: "chg_1", summary: "Deploy web 1.5" }],
+          }),
+          removeMember,
+        },
+      });
+      await user.click(await screen.findByRole("button", { name: "Manage Ada Park" }));
+      await user.click(screen.getByRole("menuitem", { name: "Remove" }));
+      const sheet = await screen.findByRole("dialog", { name: "Remove Ada Park" });
+      expect(await within(sheet).findByText("2 browsers are signed out")).toBeVisible();
+      expect(sheet).toHaveTextContent("GitHub Actions deploy · never used");
+      expect(sheet).toHaveTextContent("lin@example.com");
+      expect(sheet).toHaveTextContent("Deploy web 1.5");
+      expect(sheet).toHaveTextContent("Sign-inPasskeys and codes deleted");
+      expect(sheet).toHaveTextContent("Apps and tasks they set upKeep running");
+      expect(removeMember).not.toHaveBeenCalled();
+      await user.click(within(sheet).getByRole("button", { name: "Remove Ada Park" }));
+      await waitFor(() =>
+        expect(removeMember).toHaveBeenLastCalledWith(
+          expect.objectContaining({ userId: "usr_2", proof: "proof_1" }),
+          expect.anything(),
+        ),
+      );
+      expect(auth.beginStepUp).toHaveBeenCalledWith(
+        expect.objectContaining({ action: StepUpAction.REMOVE_MEMBER, target: "usr_2" }),
+        expect.anything(),
+      );
+    });
+
+    it("lets the owner make someone else the owner, saying what changes for both", async () => {
+      const user = userEvent.setup();
+      stubPasskeys();
+      const auth = stepUp();
+      const transferOwnership = vi.fn((req: { proof: string }) => {
+        if (!req.proof) throw authError(Code.PermissionDenied, "needs_step_up");
+        return { member: ada };
+      });
+      renderAt("/settings/members", {
+        auth: { getAuthState: () => authState({ domain: "panel.example.com" }), ...auth },
+        members: { listMembers: () => ({ members: [owner, ada] }), transferOwnership },
+      });
+      await user.click(await screen.findByRole("button", { name: "Manage Ada Park" }));
+      await user.click(screen.getByRole("menuitem", { name: "Transfer ownership" }));
+      const sheet = await screen.findByRole("dialog", { name: "Make Ada Park the owner" });
+      const effects = within(sheet).getByLabelText("What this changes");
+      expect(effects).toHaveTextContent("Ada ParkBecomes the owner");
+      expect(effects).toHaveTextContent("YouBecome an admin, and stay signed in");
+      expect(effects).toHaveTextContent("Undoing thisOnly Ada Park can");
+      await user.click(within(sheet).getByRole("button", { name: "Transfer ownership" }));
+      await waitFor(() =>
+        expect(transferOwnership).toHaveBeenLastCalledWith(
+          expect.objectContaining({ userId: "usr_2", proof: "proof_1" }),
+          expect.anything(),
+        ),
+      );
+      expect(auth.beginStepUp).toHaveBeenCalledWith(
+        expect.objectContaining({ action: StepUpAction.TRANSFER_OWNERSHIP, target: "usr_2" }),
+        expect.anything(),
+      );
+    });
   });
 });

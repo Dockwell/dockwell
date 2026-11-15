@@ -100,6 +100,14 @@ const (
 	// StepUpInvite invites someone. Its target is the email, the role and the
 	// place, as InviteTarget writes them.
 	StepUpInvite StepUpAction = "member.invite"
+	// StepUpChangeRole changes what someone holds. Its target is the person, the
+	// role and the place, as RoleTarget writes them.
+	StepUpChangeRole StepUpAction = "member.role"
+	// StepUpRemoveMember removes someone. Its target is the person's ID.
+	StepUpRemoveMember StepUpAction = "member.remove"
+	// StepUpTransferOwnership makes someone else the owner. Its target is the
+	// new owner's ID.
+	StepUpTransferOwnership StepUpAction = "owner.transfer"
 	// StepUpAddServer makes a ticket that adds a server to the fleet.
 	StepUpAddServer StepUpAction = "server.add"
 	// StepUpOpenService opens a service's web UI through the panel, which may sign
@@ -150,14 +158,17 @@ var stepUpActions = map[StepUpAction]struct {
 	StepUpOpenTerminal:    {"opening a terminal on", true},
 	StepUpApproveChange:   {"approving", true},
 	// A move's target has its two paths on two lines, which doing puts in words.
-	StepUpMakeWayBackIn:    {"making", true},
-	StepUpMoveWayBackIn:    {"moving", true},
-	StepUpDeleteWayBackIn:  {"deleting", true},
-	StepUpRestoreWayBackIn: {"putting back", true},
-	StepUpInvite:           {"inviting", true},
-	StepUpAddServer:        {"adding a server", false},
-	StepUpOpenService:      {"opening", true},
-	StepUpSetPanelDomain:   {"setting the panel's domain to", true},
+	StepUpMakeWayBackIn:     {"making", true},
+	StepUpMoveWayBackIn:     {"moving", true},
+	StepUpDeleteWayBackIn:   {"deleting", true},
+	StepUpRestoreWayBackIn:  {"putting back", true},
+	StepUpInvite:            {"inviting", true},
+	StepUpChangeRole:        {"changing the role of", true},
+	StepUpRemoveMember:      {"removing", true},
+	StepUpTransferOwnership: {"transferring ownership to", true},
+	StepUpAddServer:         {"adding a server", false},
+	StepUpOpenService:       {"opening", true},
+	StepUpSetPanelDomain:    {"setting the panel's domain to", true},
 	// A sign-in link to the domain, for the person asking.
 	StepUpSignInOnPanelDomain: {"signing in on", true},
 	StepUpSetPolicy:           {"choosing how often to be asked for a passkey", false},

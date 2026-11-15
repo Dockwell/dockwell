@@ -27,16 +27,18 @@ import (
 type Handler struct {
 	db     *store.DB
 	people *auth.Service
-	logger *slog.Logger
-	now    func() time.Time
+	// changes discards what someone removed had planned. Nil leaves them planned.
+	changes Changes
+	logger  *slog.Logger
+	now     func() time.Time
 }
 
 var _ dockwellv1connect.MemberServiceHandler = (*Handler)(nil)
 
 // New returns a handler that reads who can sign in from db, and how each can
 // as people decides it.
-func New(db *store.DB, people *auth.Service, logger *slog.Logger) *Handler {
-	return &Handler{db: db, people: people, logger: logger, now: time.Now}
+func New(db *store.DB, people *auth.Service, changes Changes, logger *slog.Logger) *Handler {
+	return &Handler{db: db, people: people, changes: changes, logger: logger, now: time.Now}
 }
 
 // ListMembers returns everyone who can sign in, oldest first.
@@ -63,6 +65,7 @@ func (h *Handler) ListMembers(ctx context.Context, _ *connect.Request[dockwellv1
 			if m.Grants, err = projectGrants(ctx, tx, u.ID); err != nil {
 				return err
 			}
+			h.joined(ctx, tx, m)
 			out.Members = append(out.Members, m)
 		}
 		invites, err := tx.ListOpenInvites(ctx, now)
@@ -71,6 +74,13 @@ func (h *Handler) ListMembers(ctx context.Context, _ *connect.Request[dockwellv1
 		}
 		for i := range invites {
 			out.Invites = append(out.Invites, h.inviteProto(ctx, tx, &invites[i]))
+		}
+		done, ok, err := h.people.ProtectionsConfirmed(ctx, tx)
+		if err != nil {
+			return err
+		}
+		if ok {
+			out.ProtectionsConfirmTime, out.ProtectionsConfirmedBy = timestamppb.New(done.At), h.people.ActorName(ctx, tx, done.By)
 		}
 		return nil
 	})

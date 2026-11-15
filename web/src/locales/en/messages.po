@@ -661,6 +661,9 @@ msgstr "Local access token, read-write, {id}, made by {account}"
 msgid "Someone"
 msgstr "Someone"
 
+msgid ", which signed them out and revoked their tokens"
+msgstr ", which signed them out and revoked their tokens"
+
 msgid "A backup of {volume} couldn't be fetched from {destination}"
 msgstr "A backup of {volume} couldn't be fetched from {destination}"
 
@@ -790,6 +793,9 @@ msgstr "Closed a terminal on {server}"
 msgid "Closed a terminal on {server}, open {open}"
 msgstr "Closed a terminal on {server}, open {open}"
 
+msgid "Confirmed which environments are protected"
+msgstr "Confirmed which environments are protected"
+
 msgid "Couldn't delete {path} on {server}"
 msgstr "Couldn't delete {path} on {server}"
 
@@ -894,11 +900,26 @@ msgstr "Made {path} on {server}"
 msgid "Made {path} on {server}, which can let someone back in"
 msgstr "Made {path} on {server}, which can let someone back in"
 
+msgid "Made {who} the owner"
+msgstr "Made {who} the owner"
+
+#. placeholder {0}: rolePhrase(role, where)
+msgid "Made {who} {0}"
+msgstr "Made {who} {0}"
+
+#. placeholder {0}: rolePhrase(role, where)
+#. placeholder {1}: rolePhrase(was, where)
+msgid "Made {who} {0}, from {1}{ended}"
+msgstr "Made {who} {0}, from {1}{ended}"
+
 msgid "May have changed {path} on {server}"
 msgstr "May have changed {path} on {server}"
 
 msgid "May have saved {path} on {server}"
 msgstr "May have saved {path} on {server}"
+
+msgid "Moved ownership of this install"
+msgstr "Moved ownership of this install"
 
 msgid "Moved {path} to {to} on {server}"
 msgstr "Moved {path} to {to} on {server}"
@@ -959,6 +980,12 @@ msgstr "Removed the passkey {name}"
 
 msgid "Removed {server} from the fleet"
 msgstr "Removed {server} from the fleet"
+
+msgid "Removed {who}, with their sessions, tokens and invites"
+msgstr "Removed {who}, with their sessions, tokens and invites"
+
+msgid "Removed {who}, with their sessions, tokens and invites, and {changes, plural, one {# change they'd planned} other {# changes they'd planned}}"
+msgstr "Removed {who}, with their sessions, tokens and invites, and {changes, plural, one {# change they'd planned} other {# changes they'd planned}}"
 
 msgid "Resolved: {title}"
 msgstr "Resolved: {title}"
@@ -1104,6 +1131,10 @@ msgstr "The newest checked backup of {subject} doesn't restore"
 
 msgid "Took back the acknowledgement of the alert: {title}"
 msgstr "Took back the acknowledgement of the alert: {title}"
+
+#. placeholder {0}: rolePhrase(was, where)
+msgid "Took back {who}'s role as {0}{ended}"
+msgstr "Took back {who}'s role as {0}{ended}"
 
 msgid "Took over the alert from {from}: {title}"
 msgstr "Took over the alert from {from}: {title}"
@@ -6214,6 +6245,12 @@ msgstr "Code sign-in is locked after 10 wrong codes in a row. Sign in with a pas
 msgid "Invites need the panel's domain, as the link uses it and the invited person's passkey is made there. Set DOCKWELL_DOMAIN for the service, then invite."
 msgstr "Invites need the panel's domain, as the link uses it and the invited person's passkey is made there. Set DOCKWELL_DOMAIN for the service, then invite."
 
+msgid "Nobody changes or removes themselves, so a slip can't take your own access. Ask another admin or the owner."
+msgstr "Nobody changes or removes themselves, so a slip can't take your own access. Ask another admin or the owner."
+
+msgid "Nobody has confirmed which environments are protected yet, and the first invite waits for that. Confirm them above, then invite."
+msgstr "Nobody has confirmed which environments are protected yet, and the first invite waits for that. Confirm them above, then invite."
+
 msgid "Passkeys need a hostname, not an IP address. Open the panel at http://localhost on the same port."
 msgstr "Passkeys need a hostname, not an IP address. Open the panel at http://localhost on the same port."
 
@@ -6258,6 +6295,12 @@ msgstr "That was the last try. 5 wrong codes ended this setup, and its key no lo
 
 msgid "That would leave you no way to sign in. Add another passkey or an authenticator app first."
 msgstr "That would leave you no way to sign in. Add another passkey or an authenticator app first."
+
+msgid "That's the last thing they hold, and someone who holds nothing can only sign out. Remove them instead."
+msgstr "That's the last thing they hold, and someone who holds nothing can only sign out. Remove them instead."
+
+msgid "That's the owner, whose role moves only by a transfer, which only the owner makes."
+msgstr "That's the owner, whose role moves only by a transfer, which only the owner makes."
 
 msgid "The browser couldn't finish with the passkey. Try again, or use another device."
 msgstr "The browser couldn't finish with the passkey. Try again, or use another device."
@@ -15582,6 +15625,145 @@ msgstr "{connected} connected · the services Dockwell sends backups to and rout
 msgid "{signinCount} providers · for private routes"
 msgstr "{signinCount} providers · for private routes"
 
+msgid "API tokens revoked"
+msgstr "API tokens revoked"
+
+msgid "Apps and tasks they set up"
+msgstr "Apps and tasks they set up"
+
+msgid "Become an admin, and stay signed in"
+msgstr "Become an admin, and stay signed in"
+
+msgid "Becomes the owner"
+msgstr "Becomes the owner"
+
+msgid "Change role"
+msgstr "Change role"
+
+msgid "Change what {name} holds"
+msgstr "Change what {name} holds"
+
+msgid "Dockwell can't say what removing {name} would end"
+msgstr "Dockwell can't say what removing {name} would end"
+
+msgid "Invites revoked"
+msgstr "Invites revoked"
+
+msgid "Invites they made"
+msgstr "Invites they made"
+
+msgid "Keep running"
+msgstr "Keep running"
+
+msgctxt "sessions and tokens a change leaves alone"
+msgid "Kept"
+msgstr "Kept"
+
+msgid "Make {name} the owner"
+msgstr "Make {name} the owner"
+
+msgid "Manage {name}"
+msgstr "Manage {name}"
+
+msgid "No role there"
+msgstr "No role there"
+
+msgid "Nobody was removed"
+msgstr "Nobody was removed"
+
+msgid "None open"
+msgstr "None open"
+
+msgid "Only {name} can"
+msgstr "Only {name} can"
+
+msgid "Open Activity"
+msgstr "Open Activity"
+
+msgid "Ownership didn't move"
+msgstr "Ownership didn't move"
+
+msgid "Passkeys and codes deleted"
+msgstr "Passkeys and codes deleted"
+
+msgid "Planned changes discarded"
+msgstr "Planned changes discarded"
+
+msgid "Reading what this would end"
+msgstr "Reading what this would end"
+
+msgid "Remove {name} instead"
+msgstr "Remove {name} instead"
+
+msgid "Replaced by admin"
+msgstr "Replaced by admin"
+
+msgid "Revoked"
+msgstr "Revoked"
+
+msgid "Roles in single projects"
+msgstr "Roles in single projects"
+
+msgid "Signed out everywhere"
+msgstr "Signed out everywhere"
+
+msgid "Stays"
+msgstr "Stays"
+
+msgid "Stop working"
+msgstr "Stop working"
+
+msgid "That's the last thing {name} holds"
+msgstr "That's the last thing {name} holds"
+
+msgid "The whole install"
+msgstr "The whole install"
+
+msgid "Their name on Activity"
+msgstr "Their name on Activity"
+
+msgid "This asks for your passkey, and goes on Activity"
+msgstr "This asks for your passkey, and goes on Activity"
+
+msgid "Transfer ownership"
+msgstr "Transfer ownership"
+
+msgid "Undoing this"
+msgstr "Undoing this"
+
+msgid "What removing {name} ends"
+msgstr "What removing {name} ends"
+
+msgid "What this changes"
+msgstr "What this changes"
+
+msgid "What this changes for {name}"
+msgstr "What this changes for {name}"
+
+msgid "Where"
+msgstr "Where"
+
+msgid "You"
+msgstr "You"
+
+msgid "Your CLI access on the control server"
+msgstr "Your CLI access on the control server"
+
+#. placeholder {0}: time.ago(timestampDate(token.lastUsedTime), now)
+msgid "last used {0}"
+msgstr "last used {0}"
+
+#. placeholder {0}: p.sessions
+msgid "{0, plural, one {# browser is signed out} other {# browsers are signed out}}"
+msgstr "{0, plural, one {# browser is signed out} other {# browsers are signed out}}"
+
+#. placeholder {0}: left.length
+msgid "{0, plural, one {# change they planned couldn't be discarded and stays planned.} other {# changes they planned couldn't be discarded and stay planned.}}"
+msgstr "{0, plural, one {# change they planned couldn't be discarded and stays planned.} other {# changes they planned couldn't be discarded and stay planned.}}"
+
+msgid "{name} is removed"
+msgstr "{name} is removed"
+
 msgid "1 browser"
 msgstr "1 browser"
 
@@ -15600,8 +15782,8 @@ msgstr "1 person signs in to this install, its owner"
 msgid "<0>dockwell recover</0> on the control server"
 msgstr "<0>dockwell recover</0> on the control server"
 
-msgid "A developer's change in a protected environment waits for an admin or the owner, who applies it with a passkey. Check that each environment is as you want it. This is a reminder, shown until someone else signs in: Dockwell keeps no record of the tick."
-msgstr "A developer's change in a protected environment waits for an admin or the owner, who applies it with a passkey. Check that each environment is as you want it. This is a reminder, shown until someone else signs in: Dockwell keeps no record of the tick."
+msgid "A developer's change in a protected environment waits for an admin."
+msgstr "A developer's change in a protected environment waits for an admin."
 
 msgid "A project that's gone"
 msgstr "A project that's gone"
@@ -15609,14 +15791,23 @@ msgstr "A project that's gone"
 msgid "All projects"
 msgstr "All projects"
 
-msgid "Apply in protected environments"
-msgstr "Apply in protected environments"
-
 msgid "Before anyone else signs in"
 msgstr "Before anyone else signs in"
 
-msgid "Check each environment's protection first, then tick the box: it decides whose changes wait."
-msgstr "Check each environment's protection first, then tick the box: it decides whose changes wait."
+msgid "Change open environments"
+msgstr "Change open environments"
+
+msgid "Change protected environments"
+msgstr "Change protected environments"
+
+msgid "Confirm the environments first."
+msgstr "Confirm the environments first."
+
+msgid "Confirm: no environments yet"
+msgstr "Confirm: no environments yet"
+
+msgid "Confirm: {shielded} protected, {open} open"
+msgstr "Confirm: {shielded} protected, {open} open"
 
 msgid "Copy link"
 msgstr "Copy link"
@@ -15631,9 +15822,6 @@ msgstr "Dockwell can't say who signs in"
 msgid "Enter an email address, such as ada@example.com."
 msgstr "Enter an email address, such as ada@example.com."
 
-msgid "Everyone with a role reads apps, logs and activity in their projects. A developer's plan in a protected environment waits for an admin or the owner."
-msgstr "Everyone with a role reads apps, logs and activity in their projects. A developer's plan in a protected environment waits for an admin or the owner."
-
 msgid "Expires"
 msgstr "Expires"
 
@@ -15644,14 +15832,11 @@ msgstr "Expires in {0}"
 msgid "How you sign in"
 msgstr "How you sign in"
 
-msgid "I've checked which environments are protected"
-msgstr "I've checked which environments are protected"
-
-msgid "In open environments"
-msgstr "In open environments"
-
 msgid "Invite"
 msgstr "Invite"
+
+msgid "Invite and change roles"
+msgstr "Invite and change roles"
 
 msgid "Invite by email"
 msgstr "Invite by email"
@@ -15659,22 +15844,24 @@ msgstr "Invite by email"
 msgid "Invite people"
 msgstr "Invite people"
 
-msgid "Invite people and change roles"
-msgstr "Invite people and change roles"
-
 msgid "Invite someone"
 msgstr "Invite someone"
+
+#. placeholder {0}: member.invitedBy
+msgid "Invited by {0}"
+msgstr "Invited by {0}"
 
 #. placeholder {0}: invite.invitedBy
 msgid "Invited by {0} {when}"
 msgstr "Invited by {0} {when}"
 
+#. placeholder {0}: member.invitedBy
+#. placeholder {1}: member.joinedFrom
+msgid "Invited by {0} · joined from {1}"
+msgstr "Invited by {0} · joined from {1}"
+
 msgid "Invites need the panel's domain"
 msgstr "Invites need the panel's domain"
-
-#. placeholder {0}: formatDateTime(sent.until, i18n.locale)
-msgid "It works once, until {0}, for whoever has it. Dockwell can't show it again."
-msgstr "It works once, until {0}, for whoever has it. Dockwell can't show it again."
 
 msgid "Last active"
 msgstr "Last active"
@@ -15693,9 +15880,6 @@ msgstr "Loading who signs in"
 
 msgid "Locked after too many wrong codes, until you lift it in Profile and security"
 msgstr "Locked after too many wrong codes, until you lift it in Profile and security"
-
-msgid "Make projects, manage servers and settings"
-msgstr "Make projects, manage servers and settings"
 
 msgid "Member"
 msgstr "Member"
@@ -15722,14 +15906,18 @@ msgstr "On, 1 recovery code left"
 msgid "On, {0} recovery codes left"
 msgstr "On, {0} recovery codes left"
 
+msgctxt "an environment that isn't protected"
+msgid "Open"
+msgstr "Open"
+
+msgid "Open only"
+msgstr "Open only"
+
 msgid "Passkey and authenticator app"
 msgstr "Passkey and authenticator app"
 
 msgid "Permission"
 msgstr "Permission"
-
-msgid "Plan and apply in open environments"
-msgstr "Plan and apply in open environments"
 
 #. placeholder {0}: named(env)
 msgid "Protect {0}"
@@ -15738,11 +15926,11 @@ msgstr "Protect {0}"
 msgid "Protect {where}"
 msgstr "Protect {where}"
 
-msgid "Read apps, plans, activity and logs"
-msgstr "Read apps, plans, activity and logs"
+msgid "Read apps, activity and logs"
+msgstr "Read apps, activity and logs"
 
-msgid "Reveal a secret's value"
-msgstr "Reveal a secret's value"
+msgid "Reveal secrets"
+msgstr "Reveal secrets"
 
 msgid "Revoke"
 msgstr "Revoke"
@@ -15759,6 +15947,12 @@ msgstr "Revoke the invite for {0}: its link stops working"
 msgid "Send this link to {0}"
 msgstr "Send this link to {0}"
 
+msgid "Servers, projects and settings"
+msgstr "Servers, projects and settings"
+
+msgid "Set <0>DOCKWELL_DOMAIN</0> for the service, then invite."
+msgstr "Set <0>DOCKWELL_DOMAIN</0> for the service, then invite."
+
 msgid "Signed in on"
 msgstr "Signed in on"
 
@@ -15767,18 +15961,6 @@ msgstr "Single sign-on"
 
 msgid "Stop protecting {where}"
 msgstr "Stop protecting {where}"
-
-msgid "The person you invite accepts at it, and their passkey is made there, as an SSH tunnel is yours alone. Set <0>DOCKWELL_DOMAIN</0> for the service to invite someone."
-msgstr "The person you invite accepts at it, and their passkey is made there, as an SSH tunnel is yours alone. Set <0>DOCKWELL_DOMAIN</0> for the service to invite someone."
-
-msgid "Their projects"
-msgstr "Their projects"
-
-msgid "They accept at <0>{domain}</0> with a passkey. Dockwell sends no mail: send them the link it shows. Inviting asks for your passkey."
-msgstr "They accept at <0>{domain}</0> with a passkey. Dockwell sends no mail: send them the link it shows. Inviting asks for your passkey."
-
-msgid "Transfer ownership"
-msgstr "Transfer ownership"
 
 msgid "Up to admin"
 msgstr "Up to admin"
@@ -15792,15 +15974,27 @@ msgstr "Who signs in"
 msgid "Who signs in to this install"
 msgstr "Who signs in to this install"
 
-msgid "You"
-msgstr "You"
+#. placeholder {0}: formatDateTime(sent.until, i18n.locale)
+msgid "Works once, until {0}. It isn't shown again."
+msgstr "Works once, until {0}. It isn't shown again."
+
+msgid "You get a link to send them. They accept at <0>{domain}</0> with a passkey."
+msgstr "You get a link to send them. They accept at <0>{domain}</0> with a passkey."
 
 msgid "all sign in with a passkey"
 msgstr "all sign in with a passkey"
 
+msgid "their projects"
+msgstr "their projects"
+
 #. placeholder {0}: member.sessions
 msgid "{0} browsers"
 msgstr "{0} browsers"
+
+#. placeholder {0}: confirmed.by
+#. placeholder {1}: formatDateTime(confirmed.at, i18n.locale)
+msgid "{0} confirmed these on {1}"
+msgstr "{0} confirmed these on {1}"
 
 #. placeholder {0}: invites.length
 msgid "{0} open invites"
@@ -15809,9 +16003,6 @@ msgstr "{0} open invites"
 #. placeholder {0}: m.passkeys
 msgid "{0} passkeys"
 msgstr "{0} passkeys"
-
-msgid "{address} signs in here already."
-msgstr "{address} signs in here already."
 
 msgid "{count} people sign in to this install"
 msgstr "{count} people sign in to this install"
@@ -15828,6 +16019,9 @@ msgstr "{keys}, with codes locked"
 #. placeholder {0}: projectName(env.resource?.scope ?? "")
 msgid "{name} in {0}"
 msgstr "{name} in {0}"
+
+msgid "{typed} signs in here already."
+msgstr "{typed} signs in here already."
 
 msgid "{withPasskeys} of {count} sign in with a passkey"
 msgstr "{withPasskeys} of {count} sign in with a passkey"
@@ -16138,9 +16332,6 @@ msgstr "Ended the snooze of the updates of {app}"
 
 msgid "Made {name} the owner"
 msgstr "Made {name} the owner"
-
-msgid "Moved ownership of this install"
-msgstr "Moved ownership of this install"
 
 msgid "Planned a change"
 msgstr "Planned a change"

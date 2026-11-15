@@ -102,6 +102,10 @@ func (s *Service) startSession(ctx context.Context, tx *store.Tx, user store.Use
 // startLinkedSession is startSession for a sign-in with a provider, which keeps
 // the link it began from, and says the provider in the audit log (ADR 0095).
 func (s *Service) startLinkedSession(ctx context.Context, tx *store.Tx, user store.User, client Client, method string, link store.ProviderLink, via string) (SignedIn, error) {
+	// Someone removed signs in no way at all, whatever led here (ADR 0049).
+	if user.RemovedAt != nil {
+		return SignedIn{}, ErrUnauthenticated
+	}
 	now := s.now()
 	token, hash := newToken()
 	ip := client.remoteIP()

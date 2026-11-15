@@ -98,6 +98,14 @@ export function useAuthError({ claimCommand = "dockwell claim" }: { claimCommand
           return t`This invite works only at the panel's domain, where the install keeps serving. Open the link exactly as you were sent it.`;
         case "signed_in":
           return t`This browser is already signed in, and an invite makes someone new. Sign out, or open the link in a private window.`;
+        case "protections_unconfirmed":
+          return t`Nobody has confirmed which environments are protected yet, and the first invite waits for that. Confirm them above, then invite.`;
+        case "on_yourself":
+          return t`Nobody changes or removes themselves, so a slip can't take your own access. Ask another admin or the owner.`;
+        case "the_owner":
+          return t`That's the owner, whose role moves only by a transfer, which only the owner makes.`;
+        case "last_grant":
+          return t`That's the last thing they hold, and someone who holds nothing can only sign out. Remove them instead.`;
         case "member_exists":
           return t`That person signs in here already. Change what they hold in Members instead.`;
         case "needs_domain":

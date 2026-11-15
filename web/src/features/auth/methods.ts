@@ -194,9 +194,14 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "LogService.readLogs": "read",
   "LogService.watchLogs": "read",
 
+  "MemberService.confirmProtections": { within: "MemberService.listMembers" },
   "MemberService.createInvite": { within: "MemberService.listMembers" },
   "MemberService.listMembers": "may",
+  "MemberService.planMemberRemoval": { within: "MemberService.listMembers" },
+  "MemberService.removeMember": "may",
   "MemberService.revokeInvite": { within: "MemberService.listMembers" },
+  "MemberService.setMemberRole": "may",
+  "MemberService.transferOwnership": "may",
 
   "ProcessService.endProcess": { within: "ProcessService.watchProcesses" },
   "ProcessService.watchProcesses": "may",

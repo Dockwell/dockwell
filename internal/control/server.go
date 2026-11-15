@@ -485,7 +485,12 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		// For a person signed in alone, as its events name where people signed in from.
 		if cfg.Auth != nil {
 			handle(dockwellv1connect.NewAuditServiceHandler(audit.New(cfg.Store, cfg.Changes, cfg.Logger), opts...))
-			handle(dockwellv1connect.NewMemberServiceHandler(members.New(cfg.Store, cfg.Auth, cfg.Logger), opts...))
+			// What someone removed had planned is discarded through the engine, where there is one.
+			var planned members.Changes
+			if cfg.Changes != nil {
+				planned = cfg.Changes
+			}
+			handle(dockwellv1connect.NewMemberServiceHandler(members.New(cfg.Store, cfg.Auth, planned, cfg.Logger), opts...))
 		}
 	}
 	if cfg.Auth != nil {
