@@ -310,6 +310,15 @@ func TestAHookTakesOnlyWhatItsSecretSigned(t *testing.T) {
 		if onTimeline != 1 {
 			t.Errorf("the timeline has %d refused deliveries, want 1", onTimeline)
 		}
+		// In the audit log, a hook is among the tokens, as it acts as one does
+		// (from #253's re-check, N4).
+		byTokens, err := dockwellv1connect.NewAuditServiceClient(g.b, g.b.origin).ListAuditEvents(t.Context(), connect.NewRequest(&dockwellv1.ListAuditEventsRequest{Actor: dockwellv1.AuditActor_AUDIT_ACTOR_TOKEN}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !slices.ContainsFunc(byTokens.Msg.GetEvents(), func(e *dockwellv1.AuditEvent) bool { return e.GetAction() == "git_hook.refused" }) {
+			t.Errorf("the audit log by tokens leaves out the hook's refused delivery: %v", byTokens.Msg.GetEvents())
+		}
 
 		if _, err := g.hooks().DeleteGitHook(t.Context(), connect.NewRequest(&dockwellv1.DeleteGitHookRequest{Id: web.GetId()})); err != nil {
 			t.Fatal(err)
@@ -668,6 +677,21 @@ func TestAHookDeploysOnlyWhatItsMakerMayNow(t *testing.T) {
 		push("v-1")
 		if v := g.stored(t, url, "v-1", store.HookFailed); !strings.Contains(v.Detail, "may not deploy it now") || v.ChangeID != "" {
 			t.Errorf("a viewer's push came to %+v", v)
+		}
+		// The audit log says it was the hook's maker who may not, by the hook
+		// (from #253's re-check, N4).
+		hookID := url[strings.LastIndex(url, "/")+1:]
+		if err := g.f.store.View(t.Context(), func(tx *store.Tx) error {
+			events, err := tx.ListEvents(t.Context(), 200)
+			for _, e := range events {
+				if e.Action == "role.refuse" && strings.Contains(e.Detail, "hook "+hookID+"'s maker") {
+					return err
+				}
+			}
+			t.Error("the audit log has no refusal of the hook's maker, by the hook")
+			return err
+		}); err != nil {
+			t.Fatal(err)
 		}
 		// Nor does the hook of someone with no role left.
 		hold()

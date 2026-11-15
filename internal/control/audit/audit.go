@@ -39,8 +39,9 @@ const stranger = "anonymous:"
 
 // The store's names for each kind of actor, by the prefix or the whole name.
 var actorPrefixes = map[dockwellv1.AuditActor][]string{
-	dockwellv1.AuditActor_AUDIT_ACTOR_PERSON:   {"user:"},
-	dockwellv1.AuditActor_AUDIT_ACTOR_TOKEN:    {"token:"},
+	dockwellv1.AuditActor_AUDIT_ACTOR_PERSON: {"user:"},
+	// A deploy-on-push hook acts as a token does, for its maker (ADR 0046).
+	dockwellv1.AuditActor_AUDIT_ACTOR_TOKEN:    {"token:", "hook:"},
 	dockwellv1.AuditActor_AUDIT_ACTOR_DOCKWELL: {"dockwell", "system"},
 	dockwellv1.AuditActor_AUDIT_ACTOR_SERVER:   {"server:"},
 	dockwellv1.AuditActor_AUDIT_ACTOR_SHELL:    {"cli:"},

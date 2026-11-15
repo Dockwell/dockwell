@@ -359,7 +359,8 @@ func (h *Handler) read(ctx context.Context, client auth.Client, p auth.Principal
 	case isCommit(g.GetRef()):
 		return nil, name + " builds commit " + short(g.GetRef()) + ", which no push moves"
 	case !sameRepository(g.GetUrl(), in.repos...):
-		return nil, "it's a push to " + shownRepository(in.repos...) + ", and " + name + " builds from " + shownRepository(g.GetUrl())
+		// What the payload names is the sender's to say, so only so much of it is kept.
+		return nil, "it's a push to " + clip(shownRepository(in.repos...), maxRef) + ", and " + name + " builds from " + shownRepository(g.GetUrl())
 	}
 	// A push may move several refs, as Bitbucket's may: it's the build's if it
 	// moved the one the build follows, which a plan names in full.
@@ -370,6 +371,18 @@ func (h *Handler) read(ctx context.Context, client auth.Client, p auth.Principal
 		}
 	}
 	return nil, "it's a push to " + refName(d.Ref) + ", and " + name + " builds " + refName(builtRef(g.GetRef()))
+}
+
+// clip is s cut to at most n bytes, at a rune's start, with an ellipsis where it's
+// cut.
+func clip(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	for n > 0 && !utf8.RuneStart(s[n]) {
+		n--
+	}
+	return s[:n] + "…"
 }
 
 // capital is words with their first letter a capital, as a sentence starts.

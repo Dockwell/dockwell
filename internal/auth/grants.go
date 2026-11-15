@@ -102,7 +102,10 @@ func (s *Service) MakeOwner(ctx context.Context, email, actor string) (store.Use
 // script calling in a loop doesn't write on every call (ADR 0049).
 func (s *Service) RefuseRole(ctx context.Context, client Client, p Principal, call, held, needs string) {
 	who, key := "the caller", "user:"+p.User.ID
-	if p.Token != nil {
+	switch {
+	case p.Hook != nil:
+		who, key = "hook "+p.Hook.ID+"'s maker", "hook:"+p.Hook.ID
+	case p.Token != nil:
 		who, key = "token "+p.Token.ID+"'s maker", "token:"+p.Token.ID
 	}
 	now := s.now()

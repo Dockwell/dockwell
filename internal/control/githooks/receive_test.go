@@ -195,3 +195,21 @@ func TestASourceAndItsTimeToSend(t *testing.T) {
 		}
 	}
 }
+
+// What a payload names is kept only so far, cut where a letter starts.
+func TestClipKeepsSoMuch(t *testing.T) {
+	for _, c := range []struct {
+		s    string
+		n    int
+		want string
+	}{
+		{"github.com/acme/web", 256, "github.com/acme/web"},
+		{"abcdef", 3, "abc…"},
+		{"ab€cd", 3, "ab…"},
+		{"ab€cd", 5, "ab€…"},
+	} {
+		if got := clip(c.s, c.n); got != c.want {
+			t.Errorf("clip(%q, %d) = %q, want %q", c.s, c.n, got, c.want)
+		}
+	}
+}
