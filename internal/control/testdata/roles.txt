@@ -103,6 +103,7 @@ ComposeService.CheckCompose                    plan         developer  developer
 ComposeService.ExportCompose                   read         viewer     viewer     project
 ComposeService.ImportCompose                   plan         developer  developer  project
 ConnectionService.CheckConnection              read         admin      admin      install  session
+ConnectionService.ConnectStorage               plan         developer  developer  project
 ConnectionService.ListConnections              read         viewer     viewer     named
 ContainerService.AdoptContainer                plan         admin      admin      install  session
 ContainerService.ListContainers                read         admin      admin      install

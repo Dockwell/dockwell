@@ -28,10 +28,11 @@ const Kind resource.Kind = "connection"
 type Type struct{}
 
 var (
-	_ resource.Type       = Type{}
-	_ resource.Rotates    = Type{}
-	_ resource.Keeper     = Type{}
-	_ resource.NewChecker = Type{}
+	_ resource.Type        = Type{}
+	_ resource.Rotates     = Type{}
+	_ resource.Keeper      = Type{}
+	_ resource.NewChecker  = Type{}
+	_ resource.ReadThrough = Type{}
 )
 
 // Kind returns "connection".
@@ -45,6 +46,10 @@ func (Type) IDPrefix() string { return "cnx" }
 
 // New returns an empty Connection.
 func (Type) New() proto.Message { return &resourcev1.ConnectionSpec{} }
+
+// ReadThrough says a variable or a secret reads a connection's part through a link,
+// so a new key takes in every app that reads it, in the same plan.
+func (Type) ReadThrough() {}
 
 // RotatesSensitive says setting a key always plans as a change, never compared with
 // what's there, so a plan can't confirm a guess at it (ADR 0022).

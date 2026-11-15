@@ -41,6 +41,9 @@ const (
 	// ConnectionServiceCheckConnectionProcedure is the fully-qualified name of the ConnectionService's
 	// CheckConnection RPC.
 	ConnectionServiceCheckConnectionProcedure = "/dockwell.v1.ConnectionService/CheckConnection"
+	// ConnectionServiceConnectStorageProcedure is the fully-qualified name of the ConnectionService's
+	// ConnectStorage RPC.
+	ConnectionServiceConnectStorageProcedure = "/dockwell.v1.ConnectionService/ConnectStorage"
 )
 
 // ConnectionServiceClient is a client for the dockwell.v1.ConnectionService service.
@@ -57,6 +60,12 @@ type ConnectionServiceClient interface {
 	// nothing: with a connection as typed, or a saved one again. An admin's, signed
 	// in, as a connection is install-wide.
 	CheckConnection(context.Context, *connect.Request[v1.CheckConnectionRequest]) (*connect.Response[v1.CheckConnectionResponse], error)
+	// ConnectStorage connects an app to a connection's bucket: it checks the bucket
+	// from the app's network on its server, as the app will reach it, and plans one
+	// change, a link to the connection and the app's names reading it through the link,
+	// each a variable, or a secret for a key. A connection the app's project may not
+	// use, or a check that fails, plans nothing.
+	ConnectStorage(context.Context, *connect.Request[v1.ConnectStorageRequest]) (*connect.Response[v1.ConnectStorageResponse], error)
 }
 
 // NewConnectionServiceClient constructs a client for the dockwell.v1.ConnectionService service. By
@@ -83,6 +92,12 @@ func NewConnectionServiceClient(httpClient connect.HTTPClient, baseURL string, o
 			connect.WithSchema(connectionServiceMethods.ByName("CheckConnection")),
 			connect.WithClientOptions(opts...),
 		),
+		connectStorage: connect.NewClient[v1.ConnectStorageRequest, v1.ConnectStorageResponse](
+			httpClient,
+			baseURL+ConnectionServiceConnectStorageProcedure,
+			connect.WithSchema(connectionServiceMethods.ByName("ConnectStorage")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -90,6 +105,7 @@ func NewConnectionServiceClient(httpClient connect.HTTPClient, baseURL string, o
 type connectionServiceClient struct {
 	listConnections *connect.Client[v1.ListConnectionsRequest, v1.ListConnectionsResponse]
 	checkConnection *connect.Client[v1.CheckConnectionRequest, v1.CheckConnectionResponse]
+	connectStorage  *connect.Client[v1.ConnectStorageRequest, v1.ConnectStorageResponse]
 }
 
 // ListConnections calls dockwell.v1.ConnectionService.ListConnections.
@@ -100,6 +116,11 @@ func (c *connectionServiceClient) ListConnections(ctx context.Context, req *conn
 // CheckConnection calls dockwell.v1.ConnectionService.CheckConnection.
 func (c *connectionServiceClient) CheckConnection(ctx context.Context, req *connect.Request[v1.CheckConnectionRequest]) (*connect.Response[v1.CheckConnectionResponse], error) {
 	return c.checkConnection.CallUnary(ctx, req)
+}
+
+// ConnectStorage calls dockwell.v1.ConnectionService.ConnectStorage.
+func (c *connectionServiceClient) ConnectStorage(ctx context.Context, req *connect.Request[v1.ConnectStorageRequest]) (*connect.Response[v1.ConnectStorageResponse], error) {
+	return c.connectStorage.CallUnary(ctx, req)
 }
 
 // ConnectionServiceHandler is an implementation of the dockwell.v1.ConnectionService service.
@@ -116,6 +137,12 @@ type ConnectionServiceHandler interface {
 	// nothing: with a connection as typed, or a saved one again. An admin's, signed
 	// in, as a connection is install-wide.
 	CheckConnection(context.Context, *connect.Request[v1.CheckConnectionRequest]) (*connect.Response[v1.CheckConnectionResponse], error)
+	// ConnectStorage connects an app to a connection's bucket: it checks the bucket
+	// from the app's network on its server, as the app will reach it, and plans one
+	// change, a link to the connection and the app's names reading it through the link,
+	// each a variable, or a secret for a key. A connection the app's project may not
+	// use, or a check that fails, plans nothing.
+	ConnectStorage(context.Context, *connect.Request[v1.ConnectStorageRequest]) (*connect.Response[v1.ConnectStorageResponse], error)
 }
 
 // NewConnectionServiceHandler builds an HTTP handler from the service implementation. It returns
@@ -138,12 +165,20 @@ func NewConnectionServiceHandler(svc ConnectionServiceHandler, opts ...connect.H
 		connect.WithSchema(connectionServiceMethods.ByName("CheckConnection")),
 		connect.WithHandlerOptions(opts...),
 	)
+	connectionServiceConnectStorageHandler := connect.NewUnaryHandler(
+		ConnectionServiceConnectStorageProcedure,
+		svc.ConnectStorage,
+		connect.WithSchema(connectionServiceMethods.ByName("ConnectStorage")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/dockwell.v1.ConnectionService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case ConnectionServiceListConnectionsProcedure:
 			connectionServiceListConnectionsHandler.ServeHTTP(w, r)
 		case ConnectionServiceCheckConnectionProcedure:
 			connectionServiceCheckConnectionHandler.ServeHTTP(w, r)
+		case ConnectionServiceConnectStorageProcedure:
+			connectionServiceConnectStorageHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -159,4 +194,8 @@ func (UnimplementedConnectionServiceHandler) ListConnections(context.Context, *c
 
 func (UnimplementedConnectionServiceHandler) CheckConnection(context.Context, *connect.Request[v1.CheckConnectionRequest]) (*connect.Response[v1.CheckConnectionResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ConnectionService.CheckConnection is not implemented"))
+}
+
+func (UnimplementedConnectionServiceHandler) ConnectStorage(context.Context, *connect.Request[v1.ConnectStorageRequest]) (*connect.Response[v1.ConnectStorageResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ConnectionService.ConnectStorage is not implemented"))
 }

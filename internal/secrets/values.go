@@ -15,6 +15,7 @@ import (
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/binding"
+	"github.com/dockwell/dockwell/internal/resource/connection"
 	"github.com/dockwell/dockwell/internal/resource/variable"
 	"github.com/dockwell/dockwell/internal/store"
 )
@@ -262,8 +263,48 @@ func (k *Keeper) written(ctx context.Context, tx *store.Tx, scopeID string, kind
 			return "", errors.New("a value from another environment names none")
 		}
 		return k.valueFrom(ctx, tx, scopeID, uses[0], depth+1)
+	case *resourcev1.ValueFrom_Connection:
+		if len(uses) != 1 {
+			return "", errors.New("a value from a connection names none")
+		}
+		return k.connectionPart(ctx, tx, uses[0], src.Connection.GetPart())
 	}
 	return "", errors.New("a value says it comes from somewhere, and not where")
+}
+
+// connectionPart is one part of a connection's values, read at the revision a value
+// pins, opened as every sealed spec is (ADR 0099).
+func (k *Keeper) connectionPart(ctx context.Context, tx *store.Tx, u resource.Use, part resourcev1.LinkPart) (string, error) {
+	r, err := tx.GetResource(ctx, string(u.Kind), u.Scope, u.Name)
+	if errors.Is(err, store.ErrNotFound) {
+		return "", fmt.Errorf("there's no connection %s for %s", u.Name, u.As)
+	}
+	if err != nil {
+		return "", err
+	}
+	if u.Revision <= 0 {
+		return "", fmt.Errorf("%s uses the connection %s at no revision; plan the change again", u.As, u.Name)
+	}
+	rev, err := tx.GetRevision(ctx, r.ID, u.Revision)
+	if err != nil {
+		return "", err
+	}
+	if rev.Spec == nil {
+		return "", fmt.Errorf("%s uses the connection %s at revision %d, which deleted it", u.As, u.Name, u.Revision)
+	}
+	spec, err := k.Decode(ctx, tx, store.InRevision(r.ID, string(u.Kind), rev.Revision), rev.Spec)
+	if err != nil {
+		return "", err
+	}
+	c, ok := spec.(*resourcev1.ConnectionSpec)
+	if !ok {
+		return "", fmt.Errorf("%s isn't a connection", u.Name)
+	}
+	value, _, ok := connection.Part(c, part)
+	if !ok {
+		return "", fmt.Errorf("the connection %s holds no %s", u.Name, part)
+	}
+	return value, nil
 }
 
 // Revealed is a secret's value, as RevealSecret returns it.

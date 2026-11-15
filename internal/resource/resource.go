@@ -2052,6 +2052,14 @@ type Valuer interface {
 	Value(spec proto.Message) string
 }
 
+// ReadThrough is a kind whose values others read through a value's from, as a
+// variable or a secret reads a connection's part through a link (ADR 0099): a change
+// to it takes in what reads it, as a change to a valuer does, though it isn't one
+// value.
+type ReadThrough interface {
+	ReadThrough()
+}
+
 // ValueMaker is a kind whose spec is a value of its own, which another resource's
 // value can be moved into (ValueMover).
 type ValueMaker interface {

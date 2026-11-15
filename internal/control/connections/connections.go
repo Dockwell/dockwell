@@ -106,13 +106,17 @@ type Service struct {
 	connections *Connections
 	fleet       *fleet.Hub
 	agents      *agentapi.Agents
+	// changes plans ConnectStorage's change, and db reads the app it connects.
+	changes Changes
+	db      *store.DB
 }
 
 var _ dockwellv1connect.ConnectionServiceHandler = (*Service)(nil)
 
-// New returns a Service that checks through the agents of hub's servers.
-func New(connections *Connections, hub *fleet.Hub, agents *agentapi.Agents) *Service {
-	return &Service{connections: connections, fleet: hub, agents: agents}
+// New returns a Service that checks through the agents of hub's servers, and plans
+// through changes.
+func New(connections *Connections, hub *fleet.Hub, agents *agentapi.Agents, changes Changes, db *store.DB) *Service {
+	return &Service{connections: connections, fleet: hub, agents: agents, changes: changes, db: db}
 }
 
 // ListConnections lists the connections: every one for an admin, with all but its

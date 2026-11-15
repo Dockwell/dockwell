@@ -6,8 +6,10 @@
 
 import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
 import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
-import type { ConnectionReach, ConnectionS3, LinkKind } from "../resource/v1alpha1/specs_pb";
+import type { ConnectionReach, ConnectionS3, LinkKind, LinkPart } from "../resource/v1alpha1/specs_pb";
 import { file_dockwell_resource_v1alpha1_specs } from "../resource/v1alpha1/specs_pb";
+import type { Change } from "./change_pb";
+import { file_dockwell_v1_change } from "./change_pb";
 import { file_dockwell_v1_options } from "./options_pb";
 import { file_google_api_annotations } from "../../google/api/annotations_pb";
 import type { Message } from "@bufbuild/protobuf";
@@ -16,7 +18,103 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/connection.proto.
  */
 export const file_dockwell_v1_connection: GenFile = /*@__PURE__*/
-  fileDesc("Chxkb2Nrd2VsbC92MS9jb25uZWN0aW9uLnByb3RvEgtkb2Nrd2VsbC52MSI+ChZMaXN0Q29ubmVjdGlvbnNSZXF1ZXN0Eg8KB3Byb2plY3QYASABKAkSEwoLZW52aXJvbm1lbnQYAiABKAkiSwoXTGlzdENvbm5lY3Rpb25zUmVzcG9uc2USMAoLY29ubmVjdGlvbnMYASADKAsyGy5kb2Nrd2VsbC52MS5Db25uZWN0aW9uSW5mbyKcAgoOQ29ubmVjdGlvbkluZm8SCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCRIUCgxkaXNwbGF5X25hbWUYAyABKAkSMgoEa2luZBgEIAEoDjIkLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkxpbmtLaW5kEhAKCGVuZHBvaW50GAUgASgJEg4KBnJlZ2lvbhgGIAEoCRIOCgZidWNrZXQYByABKAkSEgoKcGF0aF9zdHlsZRgIIAEoCBISCgpwdWJsaWNfdXJsGAkgASgJEjoKBXJlYWNoGAogASgOMisuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuQ29ubmVjdGlvblJlYWNoEhAKCHByb2plY3RzGAsgAygJIrUBChZDaGVja0Nvbm5lY3Rpb25SZXF1ZXN0EgwKBG5hbWUYASABKAkSOgoCczMYAiABKAsyKC5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5Db25uZWN0aW9uUzNCBMjzGAESDgoGc2VydmVyGAMgASgJEhMKC2Vudmlyb25tZW50GAQgASgJEgsKA2FwcBgFIAEoCRIPCgdwcmVzaWduGAYgASgIEg4KBnByZWZpeBgHIAEoCSKVAQoXQ2hlY2tDb25uZWN0aW9uUmVzcG9uc2USDgoGcGFzc2VkGAEgASgIEgwKBHN0ZXAYAiABKAkSDAoEY29kZRgDIAEoCRIOCgZzdGF0dXMYBCABKAUSDwoHbWVzc2FnZRgFIAEoCRINCgV3b3JkcxgGIAEoCRIOCgZyZWdpb24YByABKAkSDgoGc2VydmVyGAggASgJMtAFChFDb25uZWN0aW9uU2VydmljZRKIAQoPTGlzdENvbm5lY3Rpb25zEiMuZG9ja3dlbGwudjEuTGlzdENvbm5lY3Rpb25zUmVxdWVzdBokLmRvY2t3ZWxsLnYxLkxpc3RDb25uZWN0aW9uc1Jlc3BvbnNlIiqQAgGguxgBwLsYAsi7GALQuxgFgtPkkwIREg8vdjEvY29ubmVjdGlvbnMSkgEKD0NoZWNrQ29ubmVjdGlvbhIjLmRvY2t3ZWxsLnYxLkNoZWNrQ29ubmVjdGlvblJlcXVlc3QaJC5kb2Nrd2VsbC52MS5DaGVja0Nvbm5lY3Rpb25SZXNwb25zZSI0oLsYAbC7GAHAuxgEyLsYBNC7GAaC0+STAho6ASoiFS92MS9jb25uZWN0aW9uczpjaGVjaxqaA6K7GJUDCgtjb25uZWN0aW9ucxKFA0Nvbm5lY3Rpb25zIGFwcHMgdXNlLCBzdWNoIGFzIGEgYnVja2V0IG9mIFMzLWNvbXBhdGlibGUgc3RvcmFnZSBhbmQgdGhlIGtleXMgdGhhdCByZWFjaCBpdC4gQSBjb25uZWN0aW9uIGlzIGluc3RhbGwtd2lkZTogYW4gYWRtaW4gc2F2ZXMgaXQgYXMgYSBjaGFuZ2UsIHdpdGggYSBwbGFuLCBhbmQgc2F5cyB3aGljaCBwcm9qZWN0cyBtYXkgdXNlIGl0LiBDaGVja0Nvbm5lY3Rpb24gY2hlY2tzIG9uZSBmcm9tIGEgc2VydmVyLCBpbiBhIGNvbnRhaW5lciBvZiB0aGUgYWdlbnQncyBvd24gYmluYXJ5LCB3aXRob3V0IHNhdmluZyBhbnl0aGluZy4gU2VlIGRvY3MvYWRyLzAwOTktZXZlcnkta2luZC1vZi10aGluZy1hbi1hcHAtbmVlZHMtbWV0LXRoZS1zYW1lLXRocmVlLXdheXMubWQuQqgBCg9jb20uZG9ja3dlbGwudjFCD0Nvbm5lY3Rpb25Qcm90b1ABWjdnaXRodWIuY29tL2RvY2t3ZWxsL2RvY2t3ZWxsL2dlbi9kb2Nrd2VsbC92MTtkb2Nrd2VsbHYxogIDRFhYqgILRG9ja3dlbGwuVjHKAgtEb2Nrd2VsbFxWMeICF0RvY2t3ZWxsXFYxXEdQQk1ldGFkYXRh6gIMRG9ja3dlbGw6OlYxYgZwcm90bzM", [file_dockwell_resource_v1alpha1_specs, file_dockwell_v1_options, file_google_api_annotations]);
+  fileDesc("Chxkb2Nrd2VsbC92MS9jb25uZWN0aW9uLnByb3RvEgtkb2Nrd2VsbC52MSKjAgoVQ29ubmVjdFN0b3JhZ2VSZXF1ZXN0Eg8KB3Byb2plY3QYASABKAkSEwoLZW52aXJvbm1lbnQYAiABKAkSCwoDYXBwGAMgASgJEhIKCmNvbm5lY3Rpb24YBCABKAkSDAoEbGluaxgFIAEoCRIOCgZwcmVmaXgYBiABKAkSOgoEc2V0cxgHIAMoCzIsLmRvY2t3ZWxsLnYxLkNvbm5lY3RTdG9yYWdlUmVxdWVzdC5TZXRzRW50cnkSFgoOcHJlc2lnbmVkX3VybHMYCCABKAgaUQoJU2V0c0VudHJ5EgsKA2tleRgBIAEoCRIzCgV2YWx1ZRgCIAEoDjIkLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkxpbmtQYXJ0OgI4ASJyChZDb25uZWN0U3RvcmFnZVJlc3BvbnNlEiMKBmNoYW5nZRgBIAEoCzITLmRvY2t3ZWxsLnYxLkNoYW5nZRIzCgVjaGVjaxgCIAEoCzIkLmRvY2t3ZWxsLnYxLkNoZWNrQ29ubmVjdGlvblJlc3BvbnNlIj4KFkxpc3RDb25uZWN0aW9uc1JlcXVlc3QSDwoHcHJvamVjdBgBIAEoCRITCgtlbnZpcm9ubWVudBgCIAEoCSJLChdMaXN0Q29ubmVjdGlvbnNSZXNwb25zZRIwCgtjb25uZWN0aW9ucxgBIAMoCzIbLmRvY2t3ZWxsLnYxLkNvbm5lY3Rpb25JbmZvIpwCCg5Db25uZWN0aW9uSW5mbxIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEhQKDGRpc3BsYXlfbmFtZRgDIAEoCRIyCgRraW5kGAQgASgOMiQuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuTGlua0tpbmQSEAoIZW5kcG9pbnQYBSABKAkSDgoGcmVnaW9uGAYgASgJEg4KBmJ1Y2tldBgHIAEoCRISCgpwYXRoX3N0eWxlGAggASgIEhIKCnB1YmxpY191cmwYCSABKAkSOgoFcmVhY2gYCiABKA4yKy5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5Db25uZWN0aW9uUmVhY2gSEAoIcHJvamVjdHMYCyADKAkitQEKFkNoZWNrQ29ubmVjdGlvblJlcXVlc3QSDAoEbmFtZRgBIAEoCRI6CgJzMxgCIAEoCzIoLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkNvbm5lY3Rpb25TM0IEyPMYARIOCgZzZXJ2ZXIYAyABKAkSEwoLZW52aXJvbm1lbnQYBCABKAkSCwoDYXBwGAUgASgJEg8KB3ByZXNpZ24YBiABKAgSDgoGcHJlZml4GAcgASgJIpUBChdDaGVja0Nvbm5lY3Rpb25SZXNwb25zZRIOCgZwYXNzZWQYASABKAgSDAoEc3RlcBgCIAEoCRIMCgRjb2RlGAMgASgJEg4KBnN0YXR1cxgEIAEoBRIPCgdtZXNzYWdlGAUgASgJEg0KBXdvcmRzGAYgASgJEg4KBnJlZ2lvbhgHIAEoCRIOCgZzZXJ2ZXIYCCABKAky/AYKEUNvbm5lY3Rpb25TZXJ2aWNlEogBCg9MaXN0Q29ubmVjdGlvbnMSIy5kb2Nrd2VsbC52MS5MaXN0Q29ubmVjdGlvbnNSZXF1ZXN0GiQuZG9ja3dlbGwudjEuTGlzdENvbm5lY3Rpb25zUmVzcG9uc2UiKpACAaC7GAHAuxgCyLsYAtC7GAWC0+STAhESDy92MS9jb25uZWN0aW9ucxKSAQoPQ2hlY2tDb25uZWN0aW9uEiMuZG9ja3dlbGwudjEuQ2hlY2tDb25uZWN0aW9uUmVxdWVzdBokLmRvY2t3ZWxsLnYxLkNoZWNrQ29ubmVjdGlvblJlc3BvbnNlIjSguxgBsLsYAcC7GATIuxgE0LsYBoLT5JMCGjoBKiIVL3YxL2Nvbm5lY3Rpb25zOmNoZWNrEqkBCg5Db25uZWN0U3RvcmFnZRIiLmRvY2t3ZWxsLnYxLkNvbm5lY3RTdG9yYWdlUmVxdWVzdBojLmRvY2t3ZWxsLnYxLkNvbm5lY3RTdG9yYWdlUmVzcG9uc2UiTqC7GAKquxgREg9jb25uZWN0LXN0b3JhZ2XAuxgDyLsYA9C7GASC0+STAiM6ASoiHi92MS9jb25uZWN0aW9uczpjb25uZWN0U3RvcmFnZRqaA6K7GJUDCgtjb25uZWN0aW9ucxKFA0Nvbm5lY3Rpb25zIGFwcHMgdXNlLCBzdWNoIGFzIGEgYnVja2V0IG9mIFMzLWNvbXBhdGlibGUgc3RvcmFnZSBhbmQgdGhlIGtleXMgdGhhdCByZWFjaCBpdC4gQSBjb25uZWN0aW9uIGlzIGluc3RhbGwtd2lkZTogYW4gYWRtaW4gc2F2ZXMgaXQgYXMgYSBjaGFuZ2UsIHdpdGggYSBwbGFuLCBhbmQgc2F5cyB3aGljaCBwcm9qZWN0cyBtYXkgdXNlIGl0LiBDaGVja0Nvbm5lY3Rpb24gY2hlY2tzIG9uZSBmcm9tIGEgc2VydmVyLCBpbiBhIGNvbnRhaW5lciBvZiB0aGUgYWdlbnQncyBvd24gYmluYXJ5LCB3aXRob3V0IHNhdmluZyBhbnl0aGluZy4gU2VlIGRvY3MvYWRyLzAwOTktZXZlcnkta2luZC1vZi10aGluZy1hbi1hcHAtbmVlZHMtbWV0LXRoZS1zYW1lLXRocmVlLXdheXMubWQuQqgBCg9jb20uZG9ja3dlbGwudjFCD0Nvbm5lY3Rpb25Qcm90b1ABWjdnaXRodWIuY29tL2RvY2t3ZWxsL2RvY2t3ZWxsL2dlbi9kb2Nrd2VsbC92MTtkb2Nrd2VsbHYxogIDRFhYqgILRG9ja3dlbGwuVjHKAgtEb2Nrd2VsbFxWMeICF0RvY2t3ZWxsXFYxXEdQQk1ldGFkYXRh6gIMRG9ja3dlbGw6OlYxYgZwcm90bzM", [file_dockwell_resource_v1alpha1_specs, file_dockwell_v1_change, file_dockwell_v1_options, file_google_api_annotations]);
+
+/**
+ * ConnectStorageRequest names an app, and the connection it reads its storage from.
+ *
+ * @generated from message dockwell.v1.ConnectStorageRequest
+ */
+export type ConnectStorageRequest = Message<"dockwell.v1.ConnectStorageRequest"> & {
+  /**
+   * The app's project, by name or ID, and its environment, by name or ID: empty
+   * is the only one its project has.
+   *
+   * @generated from field: string project = 1;
+   */
+  project: string;
+
+  /**
+   * @generated from field: string environment = 2;
+   */
+  environment: string;
+
+  /**
+   * The app, by its service's name in its environment.
+   *
+   * @generated from field: string app = 3;
+   */
+  app: string;
+
+  /**
+   * The connection, by name, one the project may use.
+   *
+   * @generated from field: string connection = 4;
+   */
+  connection: string;
+
+  /**
+   * The link's name in the app's environment. Empty is "storage".
+   *
+   * @generated from field: string link = 5;
+   */
+  link: string;
+
+  /**
+   * Where the app's objects go in the bucket, such as "outline/". Empty is the
+   * app's name and a slash.
+   *
+   * @generated from field: string prefix = 6;
+   */
+  prefix: string;
+
+  /**
+   * The names of the app's environment the link sets, each with what it holds, such
+   * as S3_BUCKET=bucket or S3_SECRET_ACCESS_KEY=secret_key. Each is a variable or
+   * secret the app reads, and a key is a secret.
+   *
+   * @generated from field: map<string, dockwell.resource.v1alpha1.LinkPart> sets = 7;
+   */
+  sets: { [key: string]: LinkPart };
+
+  /**
+   * The app hands browsers a presigned URL, which the check fetches too.
+   *
+   * @generated from field: bool presigned_urls = 8;
+   */
+  presignedUrls: boolean;
+};
+
+/**
+ * Describes the message dockwell.v1.ConnectStorageRequest.
+ * Use `create(ConnectStorageRequestSchema)` to create a new message.
+ */
+export const ConnectStorageRequestSchema: GenMessage<ConnectStorageRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_connection, 0);
+
+/**
+ * ConnectStorageResponse is the change, planned, and the check it was planned on.
+ *
+ * @generated from message dockwell.v1.ConnectStorageResponse
+ */
+export type ConnectStorageResponse = Message<"dockwell.v1.ConnectStorageResponse"> & {
+  /**
+   * @generated from field: dockwell.v1.Change change = 1;
+   */
+  change?: Change | undefined;
+
+  /**
+   * @generated from field: dockwell.v1.CheckConnectionResponse check = 2;
+   */
+  check?: CheckConnectionResponse | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.ConnectStorageResponse.
+ * Use `create(ConnectStorageResponseSchema)` to create a new message.
+ */
+export const ConnectStorageResponseSchema: GenMessage<ConnectStorageResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_connection, 1);
 
 /**
  * ListConnectionsRequest asks for the connections the caller may see.
@@ -45,7 +143,7 @@ export type ListConnectionsRequest = Message<"dockwell.v1.ListConnectionsRequest
  * Use `create(ListConnectionsRequestSchema)` to create a new message.
  */
 export const ListConnectionsRequestSchema: GenMessage<ListConnectionsRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_connection, 0);
+  messageDesc(file_dockwell_v1_connection, 2);
 
 /**
  * ListConnectionsResponse lists connections.
@@ -64,7 +162,7 @@ export type ListConnectionsResponse = Message<"dockwell.v1.ListConnectionsRespon
  * Use `create(ListConnectionsResponseSchema)` to create a new message.
  */
 export const ListConnectionsResponseSchema: GenMessage<ListConnectionsResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_connection, 1);
+  messageDesc(file_dockwell_v1_connection, 3);
 
 /**
  * ConnectionInfo is a connection as a caller may see it: never its keys. Below an
@@ -145,7 +243,7 @@ export type ConnectionInfo = Message<"dockwell.v1.ConnectionInfo"> & {
  * Use `create(ConnectionInfoSchema)` to create a new message.
  */
 export const ConnectionInfoSchema: GenMessage<ConnectionInfo> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_connection, 2);
+  messageDesc(file_dockwell_v1_connection, 4);
 
 /**
  * CheckConnectionRequest is a connection to check, as typed, or a saved one again.
@@ -210,7 +308,7 @@ export type CheckConnectionRequest = Message<"dockwell.v1.CheckConnectionRequest
  * Use `create(CheckConnectionRequestSchema)` to create a new message.
  */
 export const CheckConnectionRequestSchema: GenMessage<CheckConnectionRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_connection, 3);
+  messageDesc(file_dockwell_v1_connection, 5);
 
 /**
  * CheckConnectionResponse is what a check found: codes, never a body.
@@ -279,7 +377,7 @@ export type CheckConnectionResponse = Message<"dockwell.v1.CheckConnectionRespon
  * Use `create(CheckConnectionResponseSchema)` to create a new message.
  */
 export const CheckConnectionResponseSchema: GenMessage<CheckConnectionResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_connection, 4);
+  messageDesc(file_dockwell_v1_connection, 6);
 
 /**
  * ConnectionService reads the connections apps use, and checks one from where an
@@ -320,6 +418,20 @@ export const ConnectionService: GenService<{
     methodKind: "unary";
     input: typeof CheckConnectionRequestSchema;
     output: typeof CheckConnectionResponseSchema;
+  },
+  /**
+   * ConnectStorage connects an app to a connection's bucket: it checks the bucket
+   * from the app's network on its server, as the app will reach it, and plans one
+   * change, a link to the connection and the app's names reading it through the link,
+   * each a variable, or a secret for a key. A connection the app's project may not
+   * use, or a check that fails, plans nothing.
+   *
+   * @generated from rpc dockwell.v1.ConnectionService.ConnectStorage
+   */
+  connectStorage: {
+    methodKind: "unary";
+    input: typeof ConnectStorageRequestSchema;
+    output: typeof ConnectStorageResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_dockwell_v1_connection, 0);

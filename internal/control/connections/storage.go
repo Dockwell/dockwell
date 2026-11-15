@@ -1,0 +1,313 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package connections
+
+import (
+	"cmp"
+	"context"
+	"errors"
+	"fmt"
+	"maps"
+	"slices"
+	"strconv"
+	"strings"
+
+	"connectrpc.com/connect"
+
+	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/internal/control/agentapi"
+	"github.com/dockwell/dockwell/internal/control/authapi"
+	"github.com/dockwell/dockwell/internal/control/changes"
+	"github.com/dockwell/dockwell/internal/control/place"
+	"github.com/dockwell/dockwell/internal/probe"
+	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/connection"
+	"github.com/dockwell/dockwell/internal/resource/variable"
+	"github.com/dockwell/dockwell/internal/scope"
+	"github.com/dockwell/dockwell/internal/store"
+)
+
+// Changes plans what a call changes, as a change with a plan.
+type Changes interface {
+	Propose(ctx context.Context, summary string, edits []*dockwellv1.Edit, field func(*scope.ChoiceError, string) string, also changes.Also) (*dockwellv1.Change, error)
+}
+
+// storageParts are the parts ConnectStorage sets: each a value read from the
+// connection, but path style, which it writes in the app's words.
+var storageParts = map[resourcev1.LinkPart]bool{
+	resourcev1.LinkPart_LINK_PART_ENDPOINT: true, resourcev1.LinkPart_LINK_PART_REGION: true, resourcev1.LinkPart_LINK_PART_BUCKET: true,
+	resourcev1.LinkPart_LINK_PART_ACCESS_KEY_ID: true, resourcev1.LinkPart_LINK_PART_SECRET_KEY: true, resourcev1.LinkPart_LINK_PART_PUBLIC_URL: true,
+	resourcev1.LinkPart_LINK_PART_PATH_STYLE: true,
+}
+
+// app is an app's environment and what its service reads, as ConnectStorage needs.
+type app struct {
+	project, env, envName, orgID string
+	service, serviceID           string
+	revision                     int
+	// reads are the names of its environment the app's service reads, each with
+	// whether it's a secret's.
+	reads map[string]bool
+	// has are the names its environment holds, each with whether it's a secret.
+	has map[string]bool
+}
+
+// ConnectStorage checks a connection's bucket from an app's network on its server,
+// then plans the link and the app's names reading it, in one change (ADR 0099).
+func (s *Service) ConnectStorage(ctx context.Context, req *connect.Request[dockwellv1.ConnectStorageRequest]) (*connect.Response[dockwellv1.ConnectStorageResponse], error) {
+	m := req.Msg
+	if s.changes == nil || s.db == nil {
+		return nil, connect.NewError(connect.CodeUnimplemented, errors.New("this control plane plans no changes"))
+	}
+	a, err := s.appOf(ctx, m.GetProject(), m.GetEnvironment(), m.GetApp())
+	if err != nil {
+		return nil, err
+	}
+	all, err := s.connections.All(ctx)
+	if err != nil {
+		return nil, err
+	}
+	i := slices.IndexFunc(all, func(c Saved) bool { return c.Name == m.GetConnection() })
+	if i < 0 || !connection.Reaches(all[i].Spec, a.project) {
+		// One the project may not use reads as not there, as it can't be named.
+		return nil, authapi.ReasonError(connect.CodeNotFound, fmt.Errorf("there's no connection %s this project may use. Ask an admin to add one, or let this project use it", m.GetConnection()), "not_found")
+	}
+	conn := all[i]
+	linkName := cmp.Or(m.GetLink(), "storage")
+	if err := resource.CheckLabel("link", linkName, "storage"); err != nil {
+		return nil, authapi.Invalid(err)
+	}
+	prefix := m.GetPrefix()
+	if prefix == "" {
+		prefix = m.GetApp() + "/"
+	}
+	if len(m.GetSets()) == 0 {
+		return nil, authapi.Invalid(errors.New("say which of the app's names hold what, such as S3_BUCKET=bucket"))
+	}
+	for _, name := range slices.Sorted(maps.Keys(m.GetSets())) {
+		part := m.GetSets()[name]
+		_, read := a.reads[name]
+		secret, has := a.has[name]
+		_, key, ok := connection.Part(conn.Spec, part)
+		switch {
+		case !storageParts[part]:
+			return nil, authapi.Invalid(fmt.Errorf("%s is set as %s, which storage doesn't have. Pick its endpoint, region, bucket, keys, public address or path style", name, part))
+		case !read:
+			return nil, authapi.Invalid(fmt.Errorf("%s doesn't read %s, so setting it changes nothing. Pick a name it reads", m.GetApp(), name))
+		case ok && key && has && !secret:
+			return nil, authapi.Invalid(fmt.Errorf("%s is a variable, and would hold a key, which plans show. Keep it as a secret first", name))
+		}
+	}
+
+	// From where the app is, as it will reach the bucket, before anything's planned.
+	check, err := s.checkFrom(ctx, a, conn.Spec, prefix, m.GetPresignedUrls())
+	if err != nil {
+		return nil, err
+	}
+	if !check.GetPassed() {
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s, so nothing was planned. %s", checkWords(check), checkFix(check)), "check_failed")
+	}
+
+	link := &resourcev1.Link{Label: "Storage", Connection: conn.Name, Kind: resourcev1.LinkKind_LINK_KIND_S3, Prefix: prefix}
+	if m.GetPresignedUrls() {
+		link.Features = []resourcev1.LinkFeature{resourcev1.LinkFeature_LINK_FEATURE_PRESIGNED_URLS}
+	}
+	edits := []*dockwellv1.Edit{{
+		Resource: &dockwellv1.ResourceRef{Kind: "link", Scope: a.env, Name: linkName},
+		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Link{Link: link}},
+	}}
+	for _, name := range slices.Sorted(maps.Keys(m.GetSets())) {
+		part := m.GetSets()[name]
+		link.Sets = append(link.Sets, &resourcev1.LinkSet{Name: name, Part: part})
+		edits = append(edits, valueEdit(a, conn, linkName, name, part))
+	}
+	summary := fmt.Sprintf("Connect %s to %s", m.GetApp(), cmp.Or(conn.Spec.GetDisplayName(), conn.Name))
+	change, err := s.changes.Propose(ctx, summary, edits, nil, changes.Also{})
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&dockwellv1.ConnectStorageResponse{Change: change, Check: check}), nil
+}
+
+// valueEdit is the edit of one name the link sets: a value read from the connection
+// through the link, a secret for a key or for a name that's one already, or for path
+// style, the app's word for it.
+func valueEdit(a *app, conn Saved, linkName, name string, part resourcev1.LinkPart) *dockwellv1.Edit {
+	if part == resourcev1.LinkPart_LINK_PART_PATH_STYLE {
+		word := "false"
+		if conn.Spec.GetS3().GetPathStyle() {
+			word = "true"
+		}
+		return &dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Kind: string(variable.VariableKind), Scope: a.env, Name: name},
+			Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Variable{Variable: &resourcev1.Variable{Value: word}}},
+		}
+	}
+	from := &resourcev1.ValueFrom{Source: &resourcev1.ValueFrom_Connection{Connection: &resourcev1.ConnectionRef{
+		Scope: a.orgID, Name: conn.Name, Part: part, Link: linkName,
+	}}}
+	_, key, _ := connection.Part(conn.Spec, part)
+	if secret, has := a.has[name]; key || has && secret {
+		return &dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Kind: string(variable.SecretKind), Scope: a.env, Name: name},
+			Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Secret{Secret: &resourcev1.Secret{From: from}}},
+		}
+	}
+	return &dockwellv1.Edit{
+		Resource: &dockwellv1.ResourceRef{Kind: string(variable.VariableKind), Scope: a.env, Name: name},
+		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Variable{Variable: &resourcev1.Variable{From: from}}},
+	}
+}
+
+// appOf reads an app's environment, by its project and its own name or ID, which the
+// caller holds a role in, and what its service reads: one they don't reads as not
+// there.
+func (s *Service) appOf(ctx context.Context, projectRef, envRef, name string) (*app, error) {
+	out := &app{reads: map[string]bool{}, has: map[string]bool{}}
+	err := s.db.View(ctx, func(tx *store.Tx) error {
+		tree, err := scope.Load(ctx, tx)
+		if err != nil {
+			return err
+		}
+		out.orgID = tree.Organization.ID
+		caller, hasCaller := place.CallerFrom(ctx)
+		var envs []scope.Environment
+		for _, p := range tree.Projects {
+			if projectRef != p.ID && projectRef != p.Name {
+				continue
+			}
+			if hasCaller && place.Holds(caller.Grants, place.Place{Project: p.ID}) == "" {
+				continue
+			}
+			out.project = p.ID
+			for _, e := range p.Environments {
+				if envRef == "" || envRef == e.ID || envRef == e.Name {
+					envs = append(envs, e)
+				}
+			}
+		}
+		switch {
+		case out.project == "":
+			return authapi.ReasonError(connect.CodeNotFound, fmt.Errorf("there's no project %s", projectRef), "not_found")
+		case len(envs) == 0:
+			return authapi.Invalid(fmt.Errorf("the project has no environment %s", envRef))
+		case len(envs) > 1:
+			return authapi.Invalid(errors.New("the project has more than one environment. Say which the app is in"))
+		}
+		out.env, out.envName = envs[0].ID, envs[0].Name
+		r, err := tx.GetResource(ctx, "service", out.env, name)
+		if errors.Is(err, store.ErrNotFound) || err == nil && r.Spec == nil {
+			return authapi.ReasonError(connect.CodeNotFound, fmt.Errorf("there's no app %s in %s", name, out.envName), "not_found")
+		}
+		if err != nil {
+			return err
+		}
+		out.service, out.serviceID, out.revision = name, r.ID, r.Revision
+		spec, err := s.connections.keeper.Decode(ctx, tx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec)
+		if err != nil {
+			return err
+		}
+		svc, ok := spec.(*resourcev1.Service)
+		if !ok {
+			return fmt.Errorf("%s isn't an app", name)
+		}
+		for _, n := range svc.GetVariables() {
+			out.reads[n] = false
+		}
+		for _, n := range svc.GetSecrets() {
+			out.reads[n] = true
+		}
+		for kind, secret := range map[string]bool{string(variable.VariableKind): false, string(variable.SecretKind): true} {
+			rs, err := tx.ListResources(ctx, out.env, kind)
+			if err != nil {
+				return err
+			}
+			for i := range rs {
+				if rs[i].Spec != nil {
+					out.has[rs[i].Name] = secret
+				}
+			}
+		}
+		return nil
+	})
+	return out, err
+}
+
+// checkFrom checks a connection's bucket from the app's network, on the server the
+// app runs on.
+func (s *Service) checkFrom(ctx context.Context, a *app, c *resourcev1.ConnectionSpec, prefix string, presign bool) (*dockwellv1.CheckConnectionResponse, error) {
+	var placed []string
+	if err := s.db.View(ctx, func(tx *store.Tx) error {
+		var err error
+		placed, err = tx.Placement(ctx, a.serviceID, a.revision)
+		return err
+	}); err != nil {
+		return nil, err
+	}
+	if len(placed) == 0 {
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, errors.New("the app runs on no server yet, so its storage can't be checked from where it is. Deploy it first"), "not_deployed")
+	}
+	session, srv, err := s.session(ctx, placed[0])
+	if err != nil {
+		return nil, err
+	}
+	s3 := c.GetS3()
+	got, err := session.ProbeConnection(ctx, a.env, a.service, probe.Request{
+		Kind: probe.KindS3, Private: true,
+		S3: &probe.S3{
+			Endpoint: s3.GetEndpoint(), Region: s3.GetRegion(), Bucket: s3.GetBucket(), VirtualHost: !s3.GetPathStyle(),
+			Prefix: prefix, AccessKey: s3.GetAccessKeyId(), SecretKey: s3.GetSecretKey(), Presign: presign,
+		},
+	})
+	switch {
+	case errors.Is(err, agentapi.ErrOlderAgent):
+		return nil, connect.NewError(connect.CodeFailedPrecondition, fmt.Errorf("%s can't check a connection: %w", srv.GetName(), err))
+	case err != nil:
+		var se *resource.ServerError
+		if errors.As(err, &se) {
+			err = se.Err
+		}
+		return nil, authapi.ReasonError(connect.CodeUnavailable, fmt.Errorf("%s can't check the app's storage now: %w", srv.GetName(), err), authapi.ReasonUnavailable)
+	}
+	return &dockwellv1.CheckConnectionResponse{
+		Passed: got.GetPassed(), Step: got.GetStep(), Code: got.GetCode(), Status: got.GetStatus(),
+		Message: got.GetMessage(), Words: got.GetWords(), Region: got.GetRegion(), Server: srv.GetName(),
+	}, nil
+}
+
+// checkWords says what a failed check found, as a fact.
+func checkWords(c *dockwellv1.CheckConnectionResponse) string {
+	switch c.GetCode() {
+	case probe.CodeRefused:
+		return "The app's server sends nothing to that address: " + cmp.Or(c.GetWords(), "it's one Dockwell keeps the app from")
+	case probe.CodeTimeout:
+		return "The bucket didn't answer from the app's server in time"
+	case probe.CodeTLS:
+		return "The bucket's address has a certificate the app's server doesn't trust"
+	case probe.CodeUnreachable:
+		return "The app's server can't reach the bucket: " + cmp.Or(c.GetWords(), "nothing answered")
+	case probe.CodeMismatch:
+		return "The bucket gave back something other than what the check wrote"
+	}
+	what := "The bucket refused the check at its " + cmp.Or(c.GetStep(), "first") + " step, with " + cmp.Or(c.GetCode(), strconv.Itoa(int(c.GetStatus())))
+	if m := strings.TrimSpace(c.GetMessage()); m != "" {
+		what += ": " + strings.TrimSuffix(m, ".")
+	}
+	return what
+}
+
+// checkFix says what to do about a failed check, in a line.
+func checkFix(c *dockwellv1.CheckConnectionResponse) string {
+	switch c.GetCode() {
+	case "SignatureDoesNotMatch", "InvalidAccessKeyId", "AccessDenied":
+		return "Check the connection's keys, and that they may write in its bucket"
+	case "NoSuchBucket":
+		return "Check the connection's bucket"
+	case probe.CodeRefused, probe.CodeUnreachable, probe.CodeTimeout:
+		return "Check the connection's endpoint, and that the app's server can reach it"
+	case probe.CodeTLS:
+		return "Check the connection's endpoint"
+	}
+	return "Check the connection on Connections"
+}

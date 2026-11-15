@@ -526,10 +526,6 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		}
 		handle(dockwellv1connect.NewServerServiceHandler(serverHandler, opts...))
 		handle(dockwellv1connect.NewImageServiceHandler(images.New(cfg.Fleet, cfg.Agents, cfg.logins), opts...))
-		if cfg.connections != nil {
-			// The connections apps use, and their check from where an app is (ADR 0099).
-			handle(dockwellv1connect.NewConnectionServiceHandler(connections.New(cfg.connections, cfg.Fleet, cfg.Agents), opts...))
-		}
 		handle(dockwellv1connect.NewFirewallServiceHandler(firewall.New(cfg.Fleet, cfg.Agents), opts...))
 	}
 	if cfg.Changes != nil {
@@ -738,6 +734,11 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		// An app's database, alone, backs up and restores from the app's page.
 		catalogHandler.BackUpWith(*backupsOut)
 		handle(dockwellv1connect.NewDatabaseServiceHandler(dbs, opts...))
+		if cfg.connections != nil && cfg.Fleet != nil {
+			// The connections apps use, their check from where an app is, and an app
+			// connected to one (ADR 0099).
+			handle(dockwellv1connect.NewConnectionServiceHandler(connections.New(cfg.connections, cfg.Fleet, cfg.Agents, ch, cfg.Store), opts...))
+		}
 		*tasksOut = tasks.New(cfg.Changes, cfg.Agents, cfg.Store, cfg.Logger)
 		handle(dockwellv1connect.NewTaskServiceHandler(*tasksOut, opts...))
 	}

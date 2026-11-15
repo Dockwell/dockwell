@@ -57,6 +57,16 @@ func (e *Engine) valuer(kind resource.Kind) bool {
 	return ok
 }
 
+// readThrough reports a kind whose values others read through a value's from.
+func (e *Engine) readThrough(kind resource.Kind) bool {
+	t, err := e.kinds.Type(kind)
+	if err != nil {
+		return false
+	}
+	_, ok := t.(resource.ReadThrough)
+	return ok
+}
+
 // rotating reports a kind whose sensitive fields are never compared with what's there.
 func (e *Engine) rotating(kind resource.Kind) bool {
 	t, err := e.kinds.Type(kind)
@@ -169,7 +179,7 @@ func (e *Engine) users(ctx context.Context, tx *store.Tx, items []item) ([]resou
 	for i := range items {
 		it := &items[i]
 		in[it.ref] = true
-		if e.valuer(it.ref.Kind) && it.changes() {
+		if (e.valuer(it.ref.Kind) || e.readThrough(it.ref.Kind)) && it.changes() {
 			if changed[it.ref.Scope] == nil {
 				changed[it.ref.Scope] = map[resource.Kind][]string{}
 			}

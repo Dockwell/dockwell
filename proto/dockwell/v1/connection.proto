@@ -5,6 +5,7 @@ syntax = "proto3";
 package dockwell.v1;
 
 import "dockwell/resource/v1alpha1/specs.proto";
+import "dockwell/v1/change.proto";
 import "dockwell/v1/options.proto";
 import "google/api/annotations.proto";
 
@@ -49,6 +50,51 @@ service ConnectionService {
       body: "*"
     };
   }
+  // ConnectStorage connects an app to a connection's bucket: it checks the bucket
+  // from the app's network on its server, as the app will reach it, and plans one
+  // change, a link to the connection and the app's names reading it through the link,
+  // each a variable, or a secret for a key. A connection the app's project may not
+  // use, or a check that fails, plans nothing.
+  rpc ConnectStorage(ConnectStorageRequest) returns (ConnectStorageResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.command) = {verb: "connect-storage"};
+    option (google.api.http) = {
+      post: "/v1/connections:connectStorage"
+      body: "*"
+    };
+  }
+}
+
+// ConnectStorageRequest names an app, and the connection it reads its storage from.
+message ConnectStorageRequest {
+  // The app's project, by name or ID, and its environment, by name or ID: empty
+  // is the only one its project has.
+  string project = 1;
+  string environment = 2;
+  // The app, by its service's name in its environment.
+  string app = 3;
+  // The connection, by name, one the project may use.
+  string connection = 4;
+  // The link's name in the app's environment. Empty is "storage".
+  string link = 5;
+  // Where the app's objects go in the bucket, such as "outline/". Empty is the
+  // app's name and a slash.
+  string prefix = 6;
+  // The names of the app's environment the link sets, each with what it holds, such
+  // as S3_BUCKET=bucket or S3_SECRET_ACCESS_KEY=secret_key. Each is a variable or
+  // secret the app reads, and a key is a secret.
+  map<string, dockwell.resource.v1alpha1.LinkPart> sets = 7;
+  // The app hands browsers a presigned URL, which the check fetches too.
+  bool presigned_urls = 8;
+}
+
+// ConnectStorageResponse is the change, planned, and the check it was planned on.
+message ConnectStorageResponse {
+  Change change = 1;
+  CheckConnectionResponse check = 2;
 }
 
 // ListConnectionsRequest asks for the connections the caller may see.
