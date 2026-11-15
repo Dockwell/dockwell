@@ -2032,8 +2032,12 @@ describe("an app's overview", () => {
         ],
         servers: [{ serverId: SERVER, serverName: "hz-1" }],
       };
+      // As the server does, the app's list holds only domains with a route to it.
+      const all = [aDomain({ certificate: certificate(CertificateState.ISSUED) }), www];
       const running = await atPage(
-        () => ({ domains: [aDomain({ certificate: certificate(CertificateState.ISSUED) }), www] }),
+        ((req: { service?: string }) => ({
+          domains: all.filter((d) => !req.service || d.routes.some((r) => "service" in r && r.service === req.service)),
+        })) as never,
         {
           changes: {
             watchChange: feed<WatchChangeResponse>().stream,

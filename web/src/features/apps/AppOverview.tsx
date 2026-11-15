@@ -10,6 +10,7 @@ import {
   type Container,
   type Domain,
   type DomainRoute,
+  DomainService,
   EventKind,
   EventService,
   GuessableSecret,
@@ -743,6 +744,11 @@ function ReachedAt({
   const mayAdd = may(ServiceService.method.addServicePort, { environment: environmentOf(service) });
   const mayPlan = may(ChangeService.method.proposeChange, { environment: environmentOf(service) });
   const { domains, read, isPending, failed, retrying, retry } = useAppDomains(service);
+  const around = useQuery(
+    DomainService.method.listDomains,
+    { environment: environmentOf(service) },
+    { enabled: domains.length > 0 },
+  ).data?.domains;
   const sheet = useChangeSheet();
   // Who gets in to one of its routes (ADR 0087), read fresh from its domains while open.
   const [privateId, setPrivateId] = useState<string>();
@@ -804,9 +810,10 @@ function ReachedAt({
     domain.routes.filter((route) => route.service === name).map((route) => ({ domain, route })),
   );
   const privateAt = routes.find((at) => at.route.id === privateId);
-  // A whole domain of its environment that redirects to one of its own (ADR 0070).
+  // A whole domain of its environment that redirects to one of its own (ADR 0070). The
+  // app's own list holds only domains with a route to it, so its environment's is read.
   const redirectsTo = (target: Domain) =>
-    domains.flatMap((domain) =>
+    (around ?? []).flatMap((domain) =>
       domain.routes
         .filter((route) => {
           if (route.path !== "" || !route.redirect) return false;
