@@ -3,7 +3,9 @@
 package database
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -43,12 +45,22 @@ func TestAMongoDBsFirstStartIsSeenOnRealDocker(t *testing.T) {
 	type state struct {
 		Root, Answering, Open, Initializing bool
 	}
+	// What each read found, in order, each new state once, and each error a read
+	// skipped, with how often, so a failure says what it saw (#716).
 	var seen []state
+	var saw []string
+	skipped := map[string]int{}
+	began := time.Now()
 	ready := false
 	for until := time.Now().Add(2 * time.Minute); time.Now().Before(until) && !ready; time.Sleep(200 * time.Millisecond) {
 		said, err := Reader{Client: client}.ask(t.Context(), id, e, cmd, mongoOpen)
 		if err != nil {
-			continue // as while mongosh can't run yet
+			// As while mongosh can't run yet.
+			if skipped[err.Error()] == 0 {
+				saw = append(saw, fmt.Sprintf("%s: skipped %v", time.Since(began).Round(time.Millisecond), err))
+			}
+			skipped[err.Error()]++
+			continue
 		}
 		lines := strings.Split(strings.TrimSpace(string(said)), "\n")
 		var s state
@@ -57,11 +69,13 @@ func TestAMongoDBsFirstStartIsSeenOnRealDocker(t *testing.T) {
 		}
 		if len(seen) == 0 || seen[len(seen)-1] != s {
 			seen = append(seen, s)
+			saw = append(saw, fmt.Sprintf("%s: %+v", time.Since(began).Round(time.Millisecond), s))
 		}
 		ready = s.Root && s.Answering && !s.Open && !s.Initializing
 	}
 	if !ready {
-		t.Fatalf("the server never answered as ready: %+v", seen)
+		t.Fatalf("the server never answered as ready: %+v\nwhat each read saw, in order:\n  %s\nerrors skipped, by how often: %v\n%s",
+			seen, strings.Join(saw, "\n  "), skipped, firstStartWhy(t, client, id))
 	}
 	sawFirst := false
 	for _, s := range seen {
@@ -77,4 +91,38 @@ func TestAMongoDBsFirstStartIsSeenOnRealDocker(t *testing.T) {
 	if err := d.Apply(ctx, step, &resourcev1.DatabaseUser{Service: "db", Password: "SHOP_DATABASE_PASSWORD"}); err != nil {
 		t.Errorf("making a user once the server reads as ready: %v (seen %+v)", err, seen)
 	}
+}
+
+// firstStartWhy is how a MongoDB container stands, for a first start that never
+// read as ready: its state, the end of its log, and, while it runs, each of its
+// processes with its state and command line, which says what read as the image's
+// first server still running.
+func firstStartWhy(t *testing.T, client *docker.Client, id string) string {
+	t.Helper()
+	var b strings.Builder
+	c, err := client.InspectContainer(t.Context(), id)
+	if err != nil {
+		return fmt.Sprintf("can't inspect the container: %v", err)
+	}
+	fmt.Fprintf(&b, "the container: state %s, running %t, exit code %d, out of memory %t, error %q, restarts %d, started %s, finished %s",
+		c.State.Status, c.State.Running, c.State.ExitCode, c.State.OOMKilled, c.State.Error, c.RestartCount, c.State.StartedAt, c.State.FinishedAt)
+	if r, err := client.ContainerLogs(t.Context(), id, false, docker.LogOptions{Tail: 60}); err == nil {
+		for {
+			entry, err := r.Next()
+			if err != nil {
+				break
+			}
+			fmt.Fprintf(&b, "\n  log: %s", entry.Text)
+		}
+		_ = r.Close()
+	}
+	if c.State.Running {
+		// Each process: its ID, its state (Z for one that ended and wasn't reaped),
+		// and its command line, which a zombie's is empty.
+		const list = `for p in /proc/[0-9]*; do n=${p#/proc/}; s=$(sed -n 's/^State:[[:space:]]*//p' "$p/status" 2>/dev/null); c=$(tr '\0' ' ' < "$p/cmdline" 2>/dev/null); echo "$n [$s] $c"; done`
+		var out bytes.Buffer
+		code, err := client.Exec(t.Context(), id, []string{"sh", "-c", list}, docker.Streams{Stdout: &out, Stderr: &out})
+		fmt.Fprintf(&b, "\n  its processes (code %d, %v):\n%s", code, err, out.String())
+	}
+	return b.String()
 }

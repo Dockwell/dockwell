@@ -35,6 +35,38 @@ const LetsEncrypt = "https://acme-v02.api.letsencrypt.org/directory"
 // x/crypto/acme retries a CA that answers 5xx with no end of its own.
 var clientTimeout = time.Minute
 
+// caRetries is how many times one call tries a request again that the CA answered
+// 5xx or 429, and caMaxWait the longest it waits before one. Past either, or where
+// a retry can't end before the call's deadline, the call ends with what the CA said
+// last, and the manager's own schedule tries again later (#716).
+var (
+	caRetries = 4
+	caMaxWait = 10 * time.Second
+)
+
+// caBackoff is when to try a request the CA turned away again: after the CA's
+// Retry-After in seconds, or after 1, 2, 4 seconds and on, at most caMaxWait. It
+// starts no retry past caRetries, or one that can't end before the call's deadline,
+// so a CA that's down is said in its own words, not as a deadline that ran out in
+// the middle of a request.
+func caBackoff(n int, r *http.Request, res *http.Response) time.Duration {
+	if n > caRetries {
+		return 0
+	}
+	wait := time.Duration(1<<min(max(n-1, 0), 10)) * time.Second
+	if secs, err := strconv.Atoi(strings.TrimSpace(res.Header.Get("Retry-After"))); err == nil && secs > 0 {
+		wait = time.Duration(secs) * time.Second
+	}
+	if wait > caMaxWait {
+		return 0
+	}
+	if deadline, ok := r.Context().Deadline(); ok && time.Until(deadline) < 2*wait {
+		// Room for the wait and as long again for the request.
+		return 0
+	}
+	return wait
+}
+
 // client is an ACME client on the install's own account, made and registered on
 // its first use, its key sealed in the store (ADR 0088). It's apart from the panel's
 // autocert account and from Caddy's.
@@ -74,7 +106,7 @@ func (m *Manager) client(ctx context.Context) (*acme.Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	c := &acme.Client{Key: key, DirectoryURL: m.directory(), HTTPClient: m.HTTP, UserAgent: "dockwell"}
+	c := &acme.Client{Key: key, DirectoryURL: m.directory(), HTTPClient: m.HTTP, UserAgent: "dockwell", RetryBackoff: caBackoff}
 	reach, cancel := context.WithTimeout(ctx, clientTimeout)
 	defer cancel()
 	if _, err := c.Discover(reach); err != nil {
