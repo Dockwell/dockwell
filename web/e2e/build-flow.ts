@@ -223,15 +223,15 @@ export async function buildFlow(page: Page, { origin, step, shoot, git }: BuildF
 
   step("a push deploys what the branch names: turning it on takes a passkey and shows the hook's secret once");
   await page.goto(`${origin}/apps`);
-  await page.getByRole("row", { name: /storefront/ }).click();
-  await page.getByRole("heading", { level: 1, name: "storefront" }).waitFor();
+  await page.getByRole("row", { name: /order-api/ }).click();
+  await page.getByRole("heading", { level: 1, name: "order-api" }).waitFor();
   const overview = page.url();
   const source = page.locator("section").filter({ has: page.getByRole("heading", { name: "Source", exact: true }) });
   const onPush = source.getByRole("switch", { name: "Deploy on push" });
   if ((await onPush.getAttribute("aria-checked")) !== "false") fail("deploy on push is on before anyone turned it on");
   // This browser's authenticator gives the passkey it asks for.
   await onPush.click();
-  const hook = page.getByRole("dialog", { name: "Deploy storefront on push" });
+  const hook = page.getByRole("dialog", { name: "Deploy order-api on push" });
   await hook.waitFor({ timeout: 20_000 });
   const field = (name: string) =>
     hook
@@ -266,7 +266,7 @@ export async function buildFlow(page: Page, { origin, step, shoot, git }: BuildF
   }
   await page.getByRole("link", { name: /Deployments/ }).click();
   const giftcards = page
-    .getByRole("table", { name: "Revisions of storefront" })
+    .getByRole("table", { name: "Revisions of order-api" })
     .getByRole("row")
     .filter({ hasText: "Add gift cards" });
   await giftcards.first().waitFor({ timeout: 60_000 });
@@ -276,7 +276,7 @@ export async function buildFlow(page: Page, { origin, step, shoot, git }: BuildF
 
   step("the timeline says what the push came to, and turning deploy on push off needs no passkey");
   await page.goto(`${origin}/activity`);
-  await page.getByRole("row", { name: /A push to main started a deploy of [0-9a-f]{7} to storefront/ }).waitFor();
+  await page.getByRole("row", { name: /A push to main started a deploy of [0-9a-f]{7} to order-api/ }).waitFor();
   await shoot(page, "push-activity");
   await page.goto(overview);
   await onPush.click();

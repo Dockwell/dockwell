@@ -5264,9 +5264,6 @@ msgstr "The secret didn't change"
 msgid "URL copied"
 msgstr "URL copied"
 
-msgid "You see the secret once, now."
-msgstr "You see the secret once, now."
-
 msgid "the default branch"
 msgstr "the default branch"
 

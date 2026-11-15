@@ -326,11 +326,6 @@ function HookSheet({
       subtitle={hostName ? t`A webhook on ${hostName}` : t`A webhook on the repository's host`}
       footer={
         <>
-          {open.secret ? (
-            <span className="dw-sheet-note">
-              <Trans>You see the secret once, now.</Trans>
-            </span>
-          ) : null}
           <Button variant={host ? "secondary" : "primary"} onClick={onClose}>
             <Trans>Done</Trans>
           </Button>

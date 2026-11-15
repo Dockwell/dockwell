@@ -303,6 +303,23 @@ func TestAHookTakesOnlyWhatItsSecretSigned(t *testing.T) {
 		if err != nil || got.Msg.GetHook() != nil {
 			t.Errorf("a service with deploy on push off has %v, %v", got.Msg.GetHook(), err)
 		}
+		// What was done to the hook is the app's, by its name, once the hook is
+		// gone too; and what its pushes did is by "Deploy on push".
+		eventsAPI := dockwellv1connect.NewEventServiceClient(g.b, g.b.origin)
+		var done []string
+		for _, e := range listEvents(t, eventsAPI, &dockwellv1.ListEventsRequest{Kinds: []dockwellv1.EventKind{dockwellv1.EventKind_EVENT_KIND_ACCESS}}) {
+			if strings.HasPrefix(e.GetAction(), "git_hook.") && e.GetSubject().GetId() == web.GetId() {
+				done = append(done, e.GetAction()+" "+e.GetSubject().GetName())
+			}
+		}
+		if want := "git_hook.delete web, git_hook.create web"; strings.Join(done, ", ") != want {
+			t.Errorf("the app's access events are %q, want %q", done, want)
+		}
+		for _, e := range listEvents(t, eventsAPI, &dockwellv1.ListEventsRequest{Kinds: []dockwellv1.EventKind{dockwellv1.EventKind_EVENT_KIND_PUSH}, ResourceId: web.GetId()}) {
+			if e.GetActor().GetName() != "Deploy on push" {
+				t.Errorf("a push by a hook that's gone is by %q", e.GetActor().GetName())
+			}
+		}
 
 		// One address sends 30 a minute, at once at most.
 		var limited http.Header

@@ -145,6 +145,10 @@ func (l Lookup) Actor(actor string) *dockwellv1.Actor {
 	switch kind + ":" {
 	case user, token, server, hook:
 		a.Kind, a.Id, a.Name = named[kind+":"], rest, rest
+		if kind+":" == hook {
+			// A hook turned off is gone from the store, but not from what it did.
+			a.Name = "Deploy on push"
+		}
 		r := l.read(rest)
 		if r.name != "" {
 			a.Name = r.name

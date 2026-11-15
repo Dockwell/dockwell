@@ -5264,9 +5264,6 @@ msgstr "密钥没有改变"
 msgid "URL copied"
 msgstr "已复制 URL"
 
-msgid "You see the secret once, now."
-msgstr "密钥只在此刻显示一次。"
-
 msgid "the default branch"
 msgstr "默认分支"
 

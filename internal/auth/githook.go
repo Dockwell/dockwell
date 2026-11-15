@@ -68,7 +68,9 @@ func (s *Service) CreateGitHook(ctx context.Context, client Client, p Principal,
 			}
 			return err
 		}
-		return s.auditOn(ctx, tx, p.Actor(), "git_hook.create", p.User.ID, h.ID, "deploy on push for "+serviceID+", acting for "+p.User.ID)
+		// Each hook's row names its service, where it's placed and read, and
+		// which outlives the hook; the detail names the hook.
+		return s.auditOn(ctx, tx, p.Actor(), "git_hook.create", p.User.ID, serviceID, "hook "+h.ID+", acting for "+p.User.ID)
 	})
 	if err != nil {
 		giveBack()
@@ -101,7 +103,7 @@ func (s *Service) RotateGitHookSecret(ctx context.Context, client Client, p Prin
 		if err := tx.SetGitHookSecret(ctx, h.ID, h.Secret, h.SecretAt); err != nil {
 			return err
 		}
-		return s.auditOn(ctx, tx, p.Actor(), "git_hook.rotate", p.User.ID, h.ID, "a new secret for the hook of "+serviceID)
+		return s.auditOn(ctx, tx, p.Actor(), "git_hook.rotate", p.User.ID, serviceID, "a new secret for hook "+h.ID)
 	})
 	if err != nil {
 		giveBack()
@@ -123,7 +125,7 @@ func (s *Service) DeleteGitHook(ctx context.Context, p Principal, serviceID stri
 		if err := tx.DeleteGitHook(ctx, h.ID); err != nil {
 			return err
 		}
-		return s.auditOn(ctx, tx, p.Actor(), "git_hook.delete", p.User.ID, h.ID, "deploy on push off for "+serviceID)
+		return s.auditOn(ctx, tx, p.Actor(), "git_hook.delete", p.User.ID, serviceID, "hook "+h.ID+" deleted")
 	})
 }
 
@@ -188,7 +190,7 @@ func (s *Service) GitHookPrincipal(ctx context.Context, hookID string, body []by
 		if found {
 			if _, report := s.refusals.count(h.ID, now); report {
 				if err := s.db.Update(ctx, func(tx *store.Tx) error {
-					return s.auditOn(ctx, tx, "hook:"+h.ID, "git_hook.refused", h.UserID, h.ID, "a delivery whose signature or token doesn't match the hook's secret")
+					return s.auditOn(ctx, tx, "hook:"+h.ID, "git_hook.refused", h.UserID, h.ResourceID, "a delivery to hook "+h.ID+" whose signature or token doesn't match its secret")
 				}); err != nil {
 					s.logger.WarnContext(ctx, "can't record a refused delivery", slog.String("hook", h.ID), slog.String("error", err.Error()))
 				}
