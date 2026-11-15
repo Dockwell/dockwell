@@ -591,7 +591,7 @@ describe("the list of domains", () => {
         redirectFrom: ["www.example.com"],
       },
     });
-    const domains = (route: object) => [
+    const domains = (route: object, wwwTo: string) => [
       aDomain({ name: "example.com", certificate: certificate(CertificateState.FAILED, refused), route }),
       aDomain({
         name: "www.example.com",
@@ -599,7 +599,7 @@ describe("the list of domains", () => {
           name: "www-example-com",
           service: "",
           port: 0,
-          redirect: { to: "https://example.com", temporary: false, dropPath: false },
+          redirect: { to: wwwTo, temporary: false, dropPath: false },
           ...route,
         },
       }),
@@ -613,12 +613,12 @@ describe("the list of domains", () => {
         },
       }),
     ];
-    const move = async (route: object, out: boolean) => {
+    const move = async (route: object, out: boolean, wwwTo = "https://example.com") => {
       const user = userEvent.setup();
       const edits: ProposeChangeRequest["edits"] = [];
       renderAt(
         "/domains",
-        api(domains(route), {
+        api(domains(route, wwwTo), {
           more: {
             websites: { listWebsites: () => ({ websites: [site()] }) },
             changes: {
@@ -640,6 +640,11 @@ describe("the list of domains", () => {
       await screen.findByRole("dialog", { name: "Review plan" });
       return edits;
     };
+
+    it("leaves a listed domain a person pointed elsewhere as it is", async () => {
+      const edits = await move({}, false, "https://example.org");
+      expect(edits.map((e) => e.resource?.name)).toEqual(["example-com"]);
+    });
 
     it("moves www behind the tunnel with it, and not a redirect a person made", async () => {
       const edits = await move({}, false);

@@ -64,6 +64,16 @@ export function moveBehindOf(domain: Domain, route: DomainRoute): MoveBehind {
   };
 }
 
+/** Whether a redirect sends to a domain, as one a website's list wrote does: one a person pointed elsewhere is theirs. */
+function sendsTo(to: string | undefined, domain: string): boolean {
+  if (!to) return false;
+  try {
+    return new URL(to).hostname === domain;
+  } catch {
+    return false;
+  }
+}
+
 /** An app the form can send a domain to, and what to call it where there's a choice. */
 export interface AppChoice {
   service: ServiceInfo;
@@ -128,7 +138,9 @@ export function AddDomainSheet({
     site && site.domain === start?.domain
       ? (known.data?.domains ?? []).flatMap((d) =>
           site.spec?.redirectFrom.includes(d.name)
-            ? d.routes.filter((r) => r.path === "" && r.redirect).map((route) => ({ domain: d.name, route }))
+            ? d.routes
+                .filter((r) => r.path === "" && sendsTo(r.redirect?.to, site.domain))
+                .map((route) => ({ domain: d.name, route }))
             : [],
         )
       : [];
