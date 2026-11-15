@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"net/netip"
+	"slices"
 	"strings"
 	"testing"
 
@@ -50,6 +51,9 @@ func TestABucketThatWorksPasses(t *testing.T) {
 	}
 	if presigned != 1 {
 		t.Errorf("the check fetched %d times by a presigned URL, want once", presigned)
+	}
+	if !slices.Equal(srv.Expires, []string{"60"}) {
+		t.Errorf("the check's presigned URLs last %v seconds, want a minute", srv.Expires)
 	}
 }
 

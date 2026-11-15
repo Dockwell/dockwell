@@ -43,6 +43,9 @@ type Server struct {
 	FinishFails bool
 	// Authorizations are the Authorization headers it was sent.
 	Authorizations []string
+	// Expires are how long each presigned URL it was sent lasts, in seconds, as
+	// X-Amz-Expires says.
+	Expires []string
 	// Hold keeps every request waiting until it closes, or with HoldOnly, those whose
 	// path ends with that. Nil holds none.
 	Hold     chan struct{}
@@ -95,6 +98,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	credential, presigned := strings.TrimPrefix(auth, "AWS4-HMAC-SHA256 Credential="), r.URL.Query().Get("X-Amz-Signature") != ""
 	if presigned {
 		credential = r.URL.Query().Get("X-Amz-Credential")
+		s.Expires = append(s.Expires, r.URL.Query().Get("X-Amz-Expires"))
 	} else if credential == auth {
 		s.t.Errorf("%s %s isn't signed: %q", r.Method, r.URL, auth)
 	}

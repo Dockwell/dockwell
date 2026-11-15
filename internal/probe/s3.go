@@ -58,8 +58,10 @@ const (
 // checkBody is what the check writes and reads back.
 var checkBody = []byte("Dockwell checks this connection, and deletes this object once it has.\n")
 
-// presignWait is how long the check's presigned URL lasts.
-const presignWait = 5 * time.Minute
+// presignWait is how long the check's presigned URL lasts: a minute, as ADR 0099
+// says, which is ample for a URL fetched at once, and short for one that leaked
+// through a far end's log.
+const presignWait = time.Minute
 
 // checkS3 signs in, puts a small object under the link's prefix and a random name,
 // reads it back, fetches it by a presigned URL where asked, and deletes it. A
