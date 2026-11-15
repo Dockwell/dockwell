@@ -1128,6 +1128,15 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 	}
 	// What planning noted itself, such as a route proven by DNS that gets no key.
 	p.Notes = append(slices.Clone(p.Notes), plan.Notes...)
+	// What the change leaves behind it, such as a redirect left landing on nothing.
+	var across []Note
+	if err := e.db.View(ctx, func(tx *store.Tx) (err error) {
+		across, err = e.noteAcross(ctx, tx, items)
+		return err
+	}); err != nil {
+		return nil, err
+	}
+	p.Notes = append(p.Notes, across...)
 	// A caller that backs up first, or was asked not to, says so once for the plan.
 	moves = slices.DeleteFunc(moves, func(n Note) bool {
 		return (n.Reason == "backup_first" || n.Reason == "no_backup") && slices.ContainsFunc(p.Notes, func(m Note) bool { return m.Reason == n.Reason })

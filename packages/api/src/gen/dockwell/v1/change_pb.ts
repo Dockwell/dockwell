@@ -2622,10 +2622,15 @@ export type PlanNote = Message<"dockwell.v1.PlanNote"> & {
    * change of servers' labels alone, which takes no step on them, and
    * "provider_links_stop" for a sign-in provider this deletes, turns off for the
    * panel or moves to another issuer, whose names hold how many people sign in to
-   * Dockwell with it (ADR 0095), and "add_to_front" for a website's other domain
+   * Dockwell with it (ADR 0095), "add_to_front" for a website's other domain
    * behind a tunnel or a proxy, which answers only once that sends it here too,
-   * with the domain as its name (ADR 0070). Another reason may come: its message
-   * says what it means.
+   * with the domain as its name, "redirect_stranded" for a redirect this leaves as
+   * it is, whose route it lands on this deletes or moves, so its visitors would
+   * land on nothing, with that redirect as its resource, and "redirect_reversed"
+   * for a redirect this makes that sends back to where another one sent from,
+   * which browsers keep for up to a day, so visitors who loaded it go round in a
+   * circle until it expires, with this redirect as its resource (ADR 0070).
+   * Another reason may come: its message says what it means.
    *
    * @generated from field: string reason = 1;
    */

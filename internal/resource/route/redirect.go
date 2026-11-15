@@ -216,6 +216,23 @@ func (*Driver) CheckAcross(ref resource.Ref, desired proto.Message, all map[reso
 	return nil
 }
 
+// NoteAcross says a redirect the change leaves as it is lands on nothing once the
+// change applies, where a route answered where it lands before (ADR 0070).
+func (*Driver) NoteAcross(ref resource.Ref, before, after map[resource.Ref]proto.Message) (reason, words string) {
+	r, ok := after[ref].(*resourcev1.Route)
+	if !ok || r.GetRedirect() == nil {
+		return "", ""
+	}
+	host, landed := follow(r, r.GetPath())
+	if _, _, found := answering(after, host, landed); found {
+		return "", ""
+	}
+	if _, _, found := answering(before, host, landed); !found {
+		return "", ""
+	}
+	return "redirect_stranded", fmt.Sprintf("%s still redirects to %s, so its visitors would land on nothing. Delete it too, or keep what it lands on", Where(r), host+landed)
+}
+
 // keepRedirect keeps a redirect through an edit that names nothing to send to, as
 // whoever writes a whole route without knowing the field, the panel's "Move behind
 // what's in front" or an older CLI, would otherwise lose it, or be refused (ADR

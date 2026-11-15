@@ -1773,6 +1773,15 @@ type AcrossChecker interface {
 	CheckAcross(ref Ref, desired proto.Message, all map[Ref]proto.Message, seen func(Ref) bool) error
 }
 
+// AcrossNoter is a kind that says what a change leaves one of its resources the
+// change doesn't name, as a redirect that lands on nothing once the route it landed on
+// goes (ADR 0070): a plan note's reason and words, or empty words for nothing to say.
+// before and after hold every resource of the kind, as stored and as the change
+// leaves them.
+type AcrossNoter interface {
+	NoteAcross(ref Ref, before, after map[Ref]proto.Message) (reason, words string)
+}
+
 // ChangeChecker is a kind that checks an edit against the rest of its change, as a
 // website's project changes what it serves only with the route that serves it.
 // current is nil for a resource the change makes, and others are what the change's
