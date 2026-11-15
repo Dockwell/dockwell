@@ -71,9 +71,10 @@ type RoleChange struct {
 }
 
 // manager checks p may manage members: an admin or the owner, as their grants
-// stand in tx. The API's gate checks it first; this holds whatever calls.
+// stand in tx, narrowed for a token as every call's are (ADR 0071). The API's gate
+// checks it first; this holds whatever calls.
 func (s *Service) manager(ctx context.Context, tx *store.Tx, p Principal) error {
-	grants, err := tx.Grants(ctx, p.User.ID)
+	grants, err := grantsIn(ctx, tx, p)
 	if err != nil {
 		return err
 	}

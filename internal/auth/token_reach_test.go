@@ -152,3 +152,31 @@ func testCreateTokenWithinChecksItsReach(t *testing.T, b store.Backend) {
 		t.Fatal(err)
 	}
 }
+
+// Managing members is an admin's of the whole install, as the caller's grants
+// stand narrowed for a token, as every call's are: an admin's token capped below
+// an admin, or narrowed to projects, holds no admin of the install, so it's
+// refused past the API's gate too (ADR 0071, the review's L5).
+func TestAnAdminsNarrowedTokenManagesNoMembers(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		ctx := t.Context()
+		f := newInvited(t, backend)
+		ada := f.join(t, "ada@example.com", store.RoleAdmin, "203.0.113.5:1")
+		sam := f.join(t, "sam@example.com", store.RoleViewer, "203.0.113.6:1")
+		for name, tok := range map[string]*store.APIToken{
+			"capped at developer":   {ID: "tok_capped", UserID: ada.p.User.ID, Role: store.RoleDeveloper},
+			"narrowed to a project": {ID: "tok_narrowed", UserID: ada.p.User.ID, Projects: []string{"prj_shop"}},
+		} {
+			p := Principal{User: ada.p.User, Token: tok}
+			if _, err := f.svc.ConfirmProtections(ctx, onDomain, p, standingOf("default/production protected")); !errors.Is(err, ErrAdminOnly) {
+				t.Errorf("ada's token %s confirming the protections: %v, want ErrAdminOnly", name, err)
+			}
+			if _, err := f.svc.PlanMemberRemoval(ctx, p, sam.p.User.ID); !errors.Is(err, ErrAdminOnly) {
+				t.Errorf("ada's token %s planning sam's removal: %v, want ErrAdminOnly", name, err)
+			}
+		}
+		if _, err := f.svc.PlanMemberRemoval(ctx, ada.p, sam.p.User.ID); err != nil {
+			t.Errorf("ada, an admin, planning sam's removal: %v", err)
+		}
+	})
+}
