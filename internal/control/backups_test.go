@@ -4,6 +4,7 @@ package control
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -996,11 +997,11 @@ func TestAStartEndsWhatWasRunningAndAStopThenLetsGoOfItsAddresses(t *testing.T) 
 	if err := f.server.Run(stopped, Listeners{API: api, Agents: agents}); err != nil {
 		t.Error(err)
 	}
-	for _, ln := range []net.Listener{api, agents} {
-		again, err := lc.Listen(t.Context(), "tcp", ln.Addr().String())
-		if err != nil {
-			t.Fatalf("a stop as it starts kept its address: %v", err)
+	// Each is closed: closing one again says so at once. Binding its port again
+	// would ask the machine, where anything else may have taken it since (#707).
+	for name, ln := range map[string]net.Listener{"API": api, "agents'": agents} {
+		if err := ln.Close(); !errors.Is(err, net.ErrClosed) {
+			t.Errorf("a stop as it starts kept the %s address open: closing it again = %v", name, err)
 		}
-		_ = again.Close()
 	}
 }
