@@ -15925,6 +15925,9 @@ msgstr "更改角色"
 msgid "Change what {name} holds"
 msgstr "更改 {name} 持有的角色"
 
+msgid "Deploy on push turned off"
+msgstr "关闭的推送时部署"
+
 msgid "Dockwell can't say what removing {name} would end"
 msgstr "Dockwell 无法说明移除 {name} 会终止什么"
 
@@ -15955,6 +15958,9 @@ msgstr "没有移除任何人"
 
 msgid "None open"
 msgstr "没有"
+
+msgid "Off where they turned it on"
+msgstr "在他们开启的地方关闭"
 
 msgid "Only {name} can"
 msgstr "只有 {name} 可以"

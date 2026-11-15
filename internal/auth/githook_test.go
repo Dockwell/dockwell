@@ -77,6 +77,11 @@ func TestAHookEndsWithItsMakersAccess(t *testing.T) {
 		if err != nil || len(lowered.Ended.Hooks) != 1 || !gone("ghk_ada") {
 			t.Fatalf("lowering ada: %+v, %v; want her hook ended", lowered.Ended, err)
 		}
+		// The plan to remove sam says his hook goes, as his tokens do (#253's re-check, N3).
+		plan, err := f.svc.PlanMemberRemoval(t.Context(), f.owner, sam.p.User.ID)
+		if err != nil || len(plan.Hooks) != 1 || plan.Hooks[0].ID != "ghk_sam" || plan.Hooks[0].ResourceID != "svc_api" {
+			t.Fatalf("the plan to remove sam lists hooks %+v, %v; want his", plan.Hooks, err)
+		}
 		proof := f.stepUpAt(t, onDomain, f.owner, f.keys, StepUpRemoveMember, sam.p.User.ID).Proof
 		removed, err := f.svc.RemoveMember(t.Context(), onDomain, f.owner, sam.p.User.ID, proof)
 		if err != nil || len(removed.Ended.Hooks) != 1 || !gone("ghk_sam") {

@@ -19297,6 +19297,11 @@ components:
                     items:
                         $ref: '#/components/schemas/RemovalLink'
                     description: Their accounts at sign-in providers, which would be deleted (ADR 0095).
+                hooks:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/RemovalHook'
+                    description: The deploy-on-push hooks they made, which would be deleted (ADR 0046).
             description: PlanMemberRemovalResponse is what removing them would end.
         PlanNote:
             type: object
@@ -20592,6 +20597,17 @@ components:
                     type: string
                     format: date-time
             description: RemovalChange is a planned change a removal would discard.
+        RemovalHook:
+            type: object
+            properties:
+                serviceId:
+                    type: string
+                serviceName:
+                    type: string
+                    description: The app's name, or its ID once it can't be read.
+            description: |-
+                RemovalHook is a deploy-on-push hook a removal would delete, by the app it
+                 deploys.
         RemovalLink:
             type: object
             properties:
@@ -20666,6 +20682,10 @@ components:
                 linksDeleted:
                     type: integer
                     description: How many of their accounts at sign-in providers were deleted.
+                    format: int32
+                hooksDeleted:
+                    type: integer
+                    description: How many of the deploy-on-push hooks they made were deleted (ADR 0046).
                     format: int32
             description: RemoveMemberResponse says what went with them.
         RemovePasskeyRequest:
@@ -23392,6 +23412,12 @@ components:
                     format: int32
                 invitesRevoked:
                     type: integer
+                    format: int32
+                hooksDeleted:
+                    type: integer
+                    description: |-
+                        How many of the deploy-on-push hooks they made were deleted, as a lowering
+                         ends them as it does their tokens (ADR 0046).
                     format: int32
             description: SetMemberRoleResponse is the person as they now stand, and what the change ended.
         SetPanelDomainRequest:

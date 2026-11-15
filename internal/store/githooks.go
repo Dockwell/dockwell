@@ -117,6 +117,24 @@ func (t *Tx) ForgetOrphanGitHooks(ctx context.Context) ([]GitHook, error) {
 	return hooks, nil
 }
 
+// GitHooksOf lists the hooks a person made, as a plan to remove them says.
+func (t *Tx) GitHooksOf(ctx context.Context, userID string) ([]GitHook, error) {
+	rows, err := t.query(ctx, `SELECT `+gitHookColumns+` FROM git_hooks WHERE user_id = ? ORDER BY id`, userID)
+	if err != nil {
+		return nil, fmt.Errorf("can't list the hooks of %s: %w", userID, err)
+	}
+	defer rows.Close()
+	var hooks []GitHook
+	for rows.Next() {
+		h, err := scanGitHook(rows)
+		if err != nil {
+			return nil, fmt.Errorf("can't read a hook of %s: %w", userID, err)
+		}
+		hooks = append(hooks, h)
+	}
+	return hooks, rows.Err()
+}
+
 // DeleteGitHooksOf deletes the hooks a person made, with their deliveries, as
 // their access ends, and returns what it deleted.
 func (t *Tx) DeleteGitHooksOf(ctx context.Context, userID string) ([]GitHook, error) {

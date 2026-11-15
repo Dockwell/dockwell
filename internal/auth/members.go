@@ -253,6 +253,8 @@ type RemovalPlan struct {
 	// Links are their accounts at sign-in providers, which are deleted, with the
 	// provider's name where it could be read before the transaction (ADR 0095).
 	Links []LinkView
+	// Hooks are the deploy-on-push hooks they made, which are deleted (ADR 0046).
+	Hooks []store.GitHook
 	// Ended and InvitesRevoked are what the removal's transaction ended, as its
 	// audit event says, set once they're removed.
 	Ended          store.Ended
@@ -297,6 +299,9 @@ func (s *Service) plan(ctx context.Context, tx *store.Tx, p Principal, userID st
 		}
 	}
 	if out.Changes, err = tx.PlannedChangesOf(ctx, userID); err != nil {
+		return RemovalPlan{}, err
+	}
+	if out.Hooks, err = tx.GitHooksOf(ctx, userID); err != nil {
 		return RemovalPlan{}, err
 	}
 	return out, nil

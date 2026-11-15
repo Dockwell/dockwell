@@ -15925,6 +15925,9 @@ msgstr "Change role"
 msgid "Change what {name} holds"
 msgstr "Change what {name} holds"
 
+msgid "Deploy on push turned off"
+msgstr "Deploy on push turned off"
+
 msgid "Dockwell can't say what removing {name} would end"
 msgstr "Dockwell can't say what removing {name} would end"
 
@@ -15955,6 +15958,9 @@ msgstr "Nobody was removed"
 
 msgid "None open"
 msgstr "None open"
+
+msgid "Off where they turned it on"
+msgstr "Off where they turned it on"
 
 msgid "Only {name} can"
 msgstr "Only {name} can"
