@@ -347,12 +347,37 @@ func (h *Handler) DeleteGitHook(ctx context.Context, req *connect.Request[dockwe
 	return connect.NewResponse(&dockwellv1.DeleteGitHookResponse{}), nil
 }
 
+// SetGitHookRole sets the role a service's hook acts as at most (ADR 0071):
+// whether a push into a protected environment waits for a person.
+func (h *Handler) SetGitHookRole(ctx context.Context, req *connect.Request[dockwellv1.SetGitHookRoleRequest]) (*connect.Response[dockwellv1.SetGitHookRoleResponse], error) {
+	p, ok := authapi.PrincipalFrom(ctx)
+	if !ok {
+		return nil, authapi.ReasonError(connect.CodeUnauthenticated, auth.ErrUnauthenticated, authapi.ReasonUnauthenticated)
+	}
+	m := req.Msg
+	r, err := h.cfg.Services.Find(ctx, m.GetId(), m.GetProject(), m.GetEnvironment())
+	if err != nil {
+		return nil, err
+	}
+	client, _ := authapi.ClientFrom(ctx)
+	set, err := h.cfg.Auth.SetGitHookRole(ctx, client, p, r.ID, authapi.RoleName(m.GetRole()), m.GetProof())
+	if err != nil {
+		return nil, authapi.AuthError(ctx, h.cfg.Logger, err)
+	}
+	hook, err := h.proto(ctx, set, nil)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&dockwellv1.SetGitHookRoleResponse{Hook: hook}), nil
+}
+
 // proto is a hook for the schema, its URL on the panel's address as the caller
 // reached it, or on its domain when it has one.
 func (h *Handler) proto(ctx context.Context, hook store.GitHook, deliveries []store.GitHookDelivery) (*dockwellv1.GitHook, error) {
 	out := &dockwellv1.GitHook{
 		Id: hook.ID, ServiceId: hook.ResourceID, Url: h.url(ctx, hook.ID),
 		CreateTime: timestamppb.New(hook.CreatedAt), SecretTime: timestamppb.New(hook.SecretAt),
+		Role: authapi.RoleProto(hook.Role),
 	}
 	for i := range deliveries {
 		out.Deliveries = append(out.Deliveries, deliveryProto(&deliveries[i]))

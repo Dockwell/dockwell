@@ -4,6 +4,7 @@ syntax = "proto3";
 
 package dockwell.v1;
 
+import "dockwell/v1/auth.proto";
 import "dockwell/v1/change.proto";
 import "dockwell/v1/options.proto";
 import "google/api/annotations.proto";
@@ -15,8 +16,11 @@ import "google/protobuf/timestamp.proto";
 // the branch names then, and applies it with an API token's rights: one that
 // needs a person stays planned. See docs/adr/0046-builds-from-git.md.
 //
-// A hook acts for the person who made it. Making one, and a new secret for one,
-// takes a signed-in person and a passkey; a write token may delete one.
+// A hook acts for the person who made it, narrowed as an API token is to its
+// service's project, as a developer at most, so a push into a protected
+// environment plans and waits for a person (ADR 0071). Making one, a new secret
+// for one, and letting one deploy without waiting take a signed-in person and a
+// passkey; a write token may delete one.
 service GitHookService {
   // CreateGitHook turns deploy on push on for a service: it makes its hook, and
   // gives its URL and secret, the secret only here. It needs a proof from
@@ -64,6 +68,25 @@ service GitHookService {
     };
   }
 
+  // SetGitHookRole sets the role a service's hook acts as at most in its project:
+  // ROLE_DEVELOPER, as it's made, so a push into a protected environment plans
+  // and waits for a person, or ROLE_ADMIN, so it deploys there without waiting.
+  // It's the hook's maker's choice. ROLE_ADMIN takes their being an admin where
+  // the service is, and a proof from AuthService.FinishStepUp for widening a
+  // hook, with the service's ID as its target; ROLE_DEVELOPER takes neither.
+  rpc SetGitHookRole(SetGitHookRoleRequest) returns (SetGitHookRoleResponse) {
+    option (dockwell.v1.command) = {noun: "git-hooks"};
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.needs_session) = true;
+    option (google.api.http) = {
+      post: "/v1/services/{id}/git-hook:set-role"
+      body: "*"
+    };
+  }
+
   // DeleteGitHook turns deploy on push off for a service: pushes stop
   // deploying, and its hook's URL answers as if it never was.
   rpc DeleteGitHook(DeleteGitHookRequest) returns (DeleteGitHookResponse) {
@@ -96,6 +119,10 @@ message GitHook {
   google.protobuf.Timestamp secret_time = 6;
   // Its newest deliveries, newest first, at most 20.
   repeated GitHookDelivery deliveries = 7;
+  // The role it acts as at most in its service's project: ROLE_DEVELOPER, so a
+  // push into a protected environment waits for a person, or ROLE_ADMIN, so it
+  // deploys there too. ROLE_UNSPECIFIED is its maker's role.
+  Role role = 9;
 }
 
 // GitHookDelivery is one push a provider sent, and what came of it.
@@ -194,6 +221,28 @@ message RotateGitHookSecretResponse {
   GitHook hook = 1;
   // The new secret, only here.
   string secret = 2;
+}
+
+// SetGitHookRoleRequest names a service, the role its hook acts as at most, and
+// for ROLE_ADMIN, proves a passkey.
+message SetGitHookRoleRequest {
+  // The service, by ID or by name.
+  string id = 1;
+  // The project of a service named by name, by name or ID.
+  string project = 2;
+  // The environment of a service named by name, by name or ID.
+  string environment = 3;
+  // ROLE_DEVELOPER or ROLE_ADMIN.
+  Role role = 4;
+  // The proof from AuthService.FinishStepUp, for widening a hook. Only
+  // ROLE_ADMIN needs one.
+  string proof = 5;
+}
+
+// SetGitHookRoleResponse is the hook as it is now.
+message SetGitHookRoleResponse {
+  // The hook.
+  GitHook hook = 1;
 }
 
 // DeleteGitHookRequest names a service.

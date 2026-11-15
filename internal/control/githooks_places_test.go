@@ -7,11 +7,13 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"connectrpc.com/connect"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
 )
@@ -128,3 +130,101 @@ func TestAPushPastItsHooksProjectIsRefused(t *testing.T) {
 	})
 }
 
+// An admin lets their hook deploy without waiting where its app's environment is
+// protected: one step away, with a passkey, so a push there applies with no
+// person, and narrowed back with none, so it waits again. It's the maker's
+// choice: a hook acting for someone else isn't widened, a new secret from
+// someone else makes it wait again, and a developer, though it acts for them,
+// can't widen it, where the environment is open or protected (ADR 0071).
+func TestAnAdminLetsTheirHookDeployWithoutWaiting(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		g := newGitBench(t, backend)
+		g.repo.Commit("main", "First", map[string]string{"Dockerfile": webDockerfile})
+		made := g.done(t, g.propose(t, g.buildEdit("main", nil)))
+		production := made.GetPlan().GetResources()[0].GetResource().GetScope()
+		protectEnv(t, g.c, g.f, production, resourcev1.Protection_PROTECTION_PROTECTED)
+		web := g.service(t, "", "web")
+		url, secret := g.hook(t, web.GetId())
+		setRole := func(role dockwellv1.Role, proof string) (*dockwellv1.GitHook, error) {
+			t.Helper()
+			res, err := g.hooks().SetGitHookRole(t.Context(), connect.NewRequest(&dockwellv1.SetGitHookRoleRequest{Id: web.GetId(), Role: role, Proof: proof}))
+			if err != nil {
+				return nil, err
+			}
+			return res.Msg.GetHook(), nil
+		}
+		widen := func() string {
+			t.Helper()
+			return stepUpFor(t, g.b, dockwellv1.StepUpAction_STEP_UP_ACTION_WIDEN_GIT_HOOK, web.GetId())
+		}
+
+		// Without a passkey, or with one for another service, widening asks for one.
+		_, err := setRole(dockwellv1.Role_ROLE_ADMIN, "")
+		if reasonOf(err) != authapi.ReasonNeedsStepUp {
+			t.Fatalf("widening a hook with no passkey: %v, want %s", err, authapi.ReasonNeedsStepUp)
+		}
+		elsewhere := stepUpFor(t, g.b, dockwellv1.StepUpAction_STEP_UP_ACTION_WIDEN_GIT_HOOK, "svc_elsewhere")
+		if _, err := setRole(dockwellv1.Role_ROLE_ADMIN, elsewhere); reasonOf(err) != authapi.ReasonNeedsStepUp {
+			t.Fatalf("widening a hook with a passkey for another service: %v, want %s", err, authapi.ReasonNeedsStepUp)
+		}
+		// With one, a push into protected production applies with no person.
+		if hook, err := setRole(dockwellv1.Role_ROLE_ADMIN, widen()); err != nil || hook.GetRole() != dockwellv1.Role_ROLE_ADMIN {
+			t.Fatalf("widening the owner's hook: %v, %v", hook, err)
+		}
+		d := g.pushTo(t, url, secret, "w-1", store.HookDeploying)
+		if c := g.ended(t, d.ChangeID); c.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+			t.Fatalf("a widened hook's push into protected production ended %v: %s", c.GetState(), c.GetError())
+		}
+		// Narrowed back, with no passkey, its push waits again.
+		if hook, err := setRole(dockwellv1.Role_ROLE_DEVELOPER, ""); err != nil || hook.GetRole() != dockwellv1.Role_ROLE_DEVELOPER {
+			t.Fatalf("narrowing the hook back: %v, %v", hook, err)
+		}
+		g.pushTo(t, url, secret, "w-2", store.HookNeedsPerson)
+
+		// A hook acting for someone else is theirs to widen, and a new secret from
+		// someone else makes a widened one wait again.
+		if err := g.f.store.Update(t.Context(), func(tx *store.Tx) error {
+			if err := tx.CreateUser(t.Context(), store.User{ID: "usr_dev", Email: "dev@example.com", Name: "Dev", WebAuthnHandle: []byte("dev"), CreatedAt: time.Now()}); err != nil {
+				return err
+			}
+			h, err := tx.GitHookOf(t.Context(), web.GetId())
+			if err != nil {
+				return err
+			}
+			if err := tx.DeleteGitHook(t.Context(), h.ID); err != nil {
+				return err
+			}
+			h.UserID, h.Role = "usr_dev", store.RoleAdmin
+			return tx.CreateGitHook(t.Context(), h)
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := setRole(dockwellv1.Role_ROLE_ADMIN, widen()); connect.CodeOf(err) != connect.CodePermissionDenied || reasonOf(err) != "hook_not_yours" {
+			t.Errorf("widening a hook that acts for someone else: %v, want hook_not_yours", err)
+		}
+		rotated, err := g.hooks().RotateGitHookSecret(t.Context(), connect.NewRequest(&dockwellv1.RotateGitHookSecretRequest{
+			Id: web.GetId(), Proof: stepUpFor(t, g.b, dockwellv1.StepUpAction_STEP_UP_ACTION_ROTATE_GIT_HOOK, web.GetId()),
+		}))
+		if err != nil || rotated.Msg.GetHook().GetRole() != dockwellv1.Role_ROLE_DEVELOPER {
+			t.Errorf("a new secret from someone the widened hook didn't act for: %v, %v; want it waiting again", rotated, err)
+		}
+		url, secret = rotated.Msg.GetHook().GetUrl(), rotated.Msg.GetSecret()
+
+		// A developer can't widen their own hook, where it's open or protected.
+		hold := aMember(t, g.f)
+		hold(onInstall(store.RoleDeveloper))
+		_, err = setRole(dockwellv1.Role_ROLE_ADMIN, widen())
+		needsRole(t, "a developer widening their hook where it's protected", err)
+		hold(onInstall(store.RoleAdmin))
+		protectEnv(t, g.c, g.f, production, resourcev1.Protection_PROTECTION_OPEN)
+		hold(onInstall(store.RoleDeveloper))
+		_, err = setRole(dockwellv1.Role_ROLE_ADMIN, widen())
+		if reasonOf(err) != "needs_role" || !strings.Contains(err.Error(), "only an admin where the app is lets its pushes deploy without waiting") {
+			t.Errorf("a developer widening their hook where it's open: %v, want it refused, saying why", err)
+		}
+		if url == "" || secret == "" {
+			t.Error("the new secret's hook has no URL or secret")
+		}
+	})
+}

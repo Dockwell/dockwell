@@ -22,7 +22,8 @@ type GitHook struct {
 	// Projects and Role narrow it as an API token's do (ADR 0071): the projects it
 	// acts in, nil for every one its maker holds, and the role it acts as at most,
 	// empty for its maker's. A hook is made for its service's project, as a
-	// developer at most.
+	// developer at most, so a push into a protected environment waits for a
+	// person; its maker, an admin there, may let it act as an admin.
 	Projects []string
 	Role     string
 }
@@ -190,6 +191,18 @@ func (t *Tx) GitHookOf(ctx context.Context, resourceID string) (GitHook, error) 
 		return GitHook{}, fmt.Errorf("can't read the hook of %s: %w", resourceID, err)
 	}
 	return h, nil
+}
+
+// SetGitHookRole sets the role a hook acts as at most (ADR 0071).
+func (t *Tx) SetGitHookRole(ctx context.Context, id, role string) error {
+	res, err := t.exec(ctx, `UPDATE git_hooks SET role = ? WHERE id = ?`, role, id)
+	if err != nil {
+		return fmt.Errorf("can't set the role of hook %s: %w", id, err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return fmt.Errorf("hook %s: %w", id, ErrNotFound)
+	}
+	return nil
 }
 
 // SetGitHookSecret gives a hook a new sealed secret.

@@ -1012,6 +1012,10 @@ enum StepUpAction {
   // Giving a service's hook a new secret, with
   // GitHookService.RotateGitHookSecret. The target is the service's ID.
   STEP_UP_ACTION_ROTATE_GIT_HOOK = 101;
+  // Letting a service's hook deploy without waiting where its environment is
+  // protected, with GitHookService.SetGitHookRole and the role admin. The
+  // target is the service's ID.
+  STEP_UP_ACTION_WIDEN_GIT_HOOK = 109;
   // End a process on a server (ProcessService.EndProcess), whose target is
   // "<server ID>:<PID>:<start ticks>", so a proof ends no other process that
   // gets the PID once it has gone. Numbered apart, as open work adds to this enum.

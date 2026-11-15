@@ -27,6 +27,13 @@ var (
 	ErrHookExists = errors.New("this service deploys on push already. Give its hook a new secret, or turn deploy on push off first")
 	// ErrNoHook says a service doesn't deploy on push.
 	ErrNoHook = errors.New("this service doesn't deploy on push. Turn it on first")
+	// ErrHookNotYours says someone a hook doesn't act for chose whether its pushes
+	// wait, which is its maker's alone, as nobody widens a credential for someone
+	// else (ADR 0071).
+	ErrHookNotYours = errors.New("this hook acts for someone else, and only they choose whether its pushes wait, so nothing changed. Give it a new secret to make it yours")
+	// ErrHookAdminOnly says a hook's maker who isn't an admin where its app is let
+	// it deploy without waiting.
+	ErrHookAdminOnly = errors.New("only an admin where the app is lets its pushes deploy without waiting, and you're not one, so each still waits for a person. An admin applies them from the panel")
 	// ErrHookRejected is the one answer to a delivery whose signature doesn't
 	// match, and to one for a hook there isn't, so it says nothing of which hooks
 	// there are.
@@ -89,6 +96,77 @@ func (s *Service) CreateGitHook(ctx context.Context, client Client, p Principal,
 	return NewGitHook{Hook: h, Secret: secret}, nil
 }
 
+// SetGitHookRole sets the role a service's hook acts as at most in its app's
+// project (ADR 0071): developer, as it's made, so a push into a protected
+// environment plans and waits for a person, or admin, so it deploys there
+// without waiting. It's the hook's maker's choice: letting it deploy without
+// waiting takes their being an admin where the app is, and a passkey that
+// confirmed it for the service; making it wait again takes neither.
+func (s *Service) SetGitHookRole(ctx context.Context, client Client, p Principal, serviceID, role, proof string) (store.GitHook, error) {
+	if p.Token != nil || p.Session.ID == "" {
+		return store.GitHook{}, ErrNeedsSession
+	}
+	if role != store.RoleDeveloper && role != store.RoleAdmin {
+		return store.GitHook{}, fmt.Errorf("%w: a hook acts as a developer, so a push into a protected environment waits for a person, or as an admin, so it deploys there without waiting", ErrInvalid)
+	}
+	giveBack := func() {}
+	if role == store.RoleAdmin {
+		var err error
+		if giveBack, err = s.HoldStepUp(ctx, client, p, proof, StepUpWidenGitHook, serviceID); err != nil {
+			return store.GitHook{}, err
+		}
+	}
+	var h store.GitHook
+	err := s.db.Update(ctx, func(tx *store.Tx) error {
+		var err error
+		if h, err = tx.GitHookOf(ctx, serviceID); errors.Is(err, store.ErrNotFound) {
+			return ErrNoHook
+		} else if err != nil {
+			return err
+		}
+		if h.UserID != p.User.ID {
+			return ErrHookNotYours
+		}
+		if role == store.RoleAdmin {
+			project, perr := serviceProject(ctx, tx, serviceID)
+			if perr != nil {
+				return perr
+			}
+			grants, gerr := tx.Grants(ctx, p.User.ID)
+			if gerr != nil {
+				return gerr
+			}
+			if store.RoleRank(heldIn(grants, project)) < store.RoleRank(store.RoleAdmin) {
+				return ErrHookAdminOnly
+			}
+		}
+		h.Role = role
+		if err := tx.SetGitHookRole(ctx, h.ID, role); err != nil {
+			return err
+		}
+		detail := "hook " + h.ID + " deploys as a developer at most now, so a push into a protected environment waits for a person"
+		if role == store.RoleAdmin {
+			detail = "hook " + h.ID + " deploys as an admin at most now, so a push into a protected environment deploys without waiting"
+		}
+		return s.auditOn(ctx, tx, p.Actor(), "git_hook.role", p.User.ID, serviceID, detail)
+	})
+	if err != nil {
+		giveBack()
+		return store.GitHook{}, err
+	}
+	return h, nil
+}
+
+// heldIn is the role grants hold in a project: the higher of the install's and
+// the project's own.
+func heldIn(grants []store.Grant, projectID string) string {
+	held := roleAt(grants, store.Install)
+	if r := roleAt(grants, projectID); store.RoleRank(r) > store.RoleRank(held) {
+		held = r
+	}
+	return held
+}
+
 // serviceProject is the project a service is in: its environment's.
 func serviceProject(ctx context.Context, tx *store.Tx, serviceID string) (string, error) {
 	service, err := tx.GetResourceByID(ctx, serviceID)
@@ -122,7 +200,14 @@ func (s *Service) RotateGitHookSecret(ctx context.Context, client Client, p Prin
 			return err
 		}
 		// The hook acts for whoever holds its secret now, as nobody makes a
-		// credential for someone else (ADR 0049).
+		// credential for someone else (ADR 0049). Whether its pushes wait is its
+		// maker's choice, so a new maker chooses again (ADR 0071).
+		if h.UserID != p.User.ID && h.Role == store.RoleAdmin {
+			h.Role = store.RoleDeveloper
+			if err := tx.SetGitHookRole(ctx, h.ID, h.Role); err != nil {
+				return err
+			}
+		}
 		h.SecretAt, h.UserID = s.now(), p.User.ID
 		h.Secret = s.key.Seal(purposeHook(h.ID), []byte(secret))
 		if err := tx.SetGitHookSecret(ctx, h.ID, h.UserID, h.Secret, h.SecretAt); err != nil {

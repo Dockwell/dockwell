@@ -9,10 +9,12 @@ ALTER TABLE api_tokens ADD COLUMN projects TEXT;
 ALTER TABLE api_tokens ADD COLUMN role TEXT NOT NULL DEFAULT '' CHECK (role IN ('', 'developer', 'viewer'));
 
 -- A deploy-on-push hook is narrowed as a token is, to its service's project, as a
--- developer at most. A hook made before this takes the project its service is in
--- now, or none if its service is gone.
+-- developer at most, so a push into a protected environment waits for a person,
+-- or as an admin, which its maker may let it be, so it deploys there too. A hook
+-- made before this takes the project its service is in now, or none if its
+-- service is gone, as a developer.
 ALTER TABLE git_hooks ADD COLUMN projects TEXT;
-ALTER TABLE git_hooks ADD COLUMN role TEXT NOT NULL DEFAULT 'developer' CHECK (role IN ('', 'developer', 'viewer'));
+ALTER TABLE git_hooks ADD COLUMN role TEXT NOT NULL DEFAULT 'developer' CHECK (role IN ('', 'developer', 'admin'));
 UPDATE git_hooks SET projects = COALESCE((
   SELECT environment.scope FROM resources service
   JOIN resources environment ON environment.id = service.scope

@@ -5690,6 +5690,44 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/services/{id}/git-hook:set-role:
+        post:
+            tags:
+                - GitHookService
+            description: |-
+                SetGitHookRole sets the role a service's hook acts as at most in its project:
+                 ROLE_DEVELOPER, as it's made, so a push into a protected environment plans
+                 and waits for a person, or ROLE_ADMIN, so it deploys there without waiting.
+                 It's the hook's maker's choice. ROLE_ADMIN takes their being an admin where
+                 the service is, and a proof from AuthService.FinishStepUp for widening a
+                 hook, with the service's ID as its target; ROLE_DEVELOPER takes neither.
+            operationId: GitHookService_SetGitHookRole
+            parameters:
+                - name: id
+                  in: path
+                  description: The service, by ID or by name.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/SetGitHookRoleRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SetGitHookRoleResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/services/{id}/logSources:
         get:
             tags:
@@ -9316,6 +9354,7 @@ components:
                         - STEP_UP_ACTION_SAVE_WAY_BACK_IN
                         - STEP_UP_ACTION_CREATE_GIT_HOOK
                         - STEP_UP_ACTION_ROTATE_GIT_HOOK
+                        - STEP_UP_ACTION_WIDEN_GIT_HOOK
                         - STEP_UP_ACTION_END_PROCESS
                         - STEP_UP_ACTION_OPEN_TERMINAL
                         - STEP_UP_ACTION_MAKE_WAY_BACK_IN
@@ -15177,6 +15216,19 @@ components:
                     items:
                         $ref: '#/components/schemas/GitHookDelivery'
                     description: Its newest deliveries, newest first, at most 20.
+                role:
+                    enum:
+                        - ROLE_UNSPECIFIED
+                        - ROLE_OWNER
+                        - ROLE_ADMIN
+                        - ROLE_DEVELOPER
+                        - ROLE_VIEWER
+                    type: string
+                    description: |-
+                        The role it acts as at most in its service's project: ROLE_DEVELOPER, so a
+                         push into a protected environment waits for a person, or ROLE_ADMIN, so it
+                         deploys there too. ROLE_UNSPECIFIED is its maker's role.
+                    format: enum
             description: GitHook is a service's hook, which deploys it on a push.
         GitHookDelivery:
             type: object
@@ -23709,6 +23761,44 @@ components:
                         - $ref: '#/components/schemas/Change'
                     description: The change, planned, with its plan.
             description: SetCatalogSourceResponse is the change that sets it.
+        SetGitHookRoleRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The service, by ID or by name.
+                project:
+                    type: string
+                    description: The project of a service named by name, by name or ID.
+                environment:
+                    type: string
+                    description: The environment of a service named by name, by name or ID.
+                role:
+                    enum:
+                        - ROLE_UNSPECIFIED
+                        - ROLE_OWNER
+                        - ROLE_ADMIN
+                        - ROLE_DEVELOPER
+                        - ROLE_VIEWER
+                    type: string
+                    description: ROLE_DEVELOPER or ROLE_ADMIN.
+                    format: enum
+                proof:
+                    type: string
+                    description: |-
+                        The proof from AuthService.FinishStepUp, for widening a hook. Only
+                         ROLE_ADMIN needs one.
+            description: |-
+                SetGitHookRoleRequest names a service, the role its hook acts as at most, and
+                 for ROLE_ADMIN, proves a passkey.
+        SetGitHookRoleResponse:
+            type: object
+            properties:
+                hook:
+                    allOf:
+                        - $ref: '#/components/schemas/GitHook'
+                    description: The hook.
+            description: SetGitHookRoleResponse is the hook as it is now.
         SetInstallNameRequest:
             type: object
             properties:
@@ -26232,8 +26322,11 @@ tags:
          the branch names then, and applies it with an API token's rights: one that
          needs a person stays planned. See docs/adr/0046-builds-from-git.md.
 
-         A hook acts for the person who made it. Making one, and a new secret for one,
-         takes a signed-in person and a passkey; a write token may delete one.
+         A hook acts for the person who made it, narrowed as an API token is to its
+         service's project, as a developer at most, so a push into a protected
+         environment plans and waits for a person (ADR 0071). Making one, a new secret
+         for one, and letting one deploy without waiting take a signed-in person and a
+         passkey; a write token may delete one.
     - name: HealthService
       description: |-
         HealthService says how services are, as far as anything checked, from what

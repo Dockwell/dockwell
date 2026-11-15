@@ -117,7 +117,11 @@ type GitHook struct {
 	// When its secret was last made, the first time included.
 	SecretTime *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=secret_time,json=secretTime,proto3" json:"secret_time,omitempty"`
 	// Its newest deliveries, newest first, at most 20.
-	Deliveries    []*GitHookDelivery `protobuf:"bytes,7,rep,name=deliveries,proto3" json:"deliveries,omitempty"`
+	Deliveries []*GitHookDelivery `protobuf:"bytes,7,rep,name=deliveries,proto3" json:"deliveries,omitempty"`
+	// The role it acts as at most in its service's project: ROLE_DEVELOPER, so a
+	// push into a protected environment waits for a person, or ROLE_ADMIN, so it
+	// deploys there too. ROLE_UNSPECIFIED is its maker's role.
+	Role          Role `protobuf:"varint,9,opt,name=role,proto3,enum=dockwell.v1.Role" json:"role,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -199,6 +203,13 @@ func (x *GitHook) GetDeliveries() []*GitHookDelivery {
 		return x.Deliveries
 	}
 	return nil
+}
+
+func (x *GitHook) GetRole() Role {
+	if x != nil {
+		return x.Role
+	}
+	return Role_ROLE_UNSPECIFIED
 }
 
 // GitHookDelivery is one push a provider sent, and what came of it.
@@ -678,6 +689,136 @@ func (x *RotateGitHookSecretResponse) GetSecret() string {
 	return ""
 }
 
+// SetGitHookRoleRequest names a service, the role its hook acts as at most, and
+// for ROLE_ADMIN, proves a passkey.
+type SetGitHookRoleRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The service, by ID or by name.
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// The project of a service named by name, by name or ID.
+	Project string `protobuf:"bytes,2,opt,name=project,proto3" json:"project,omitempty"`
+	// The environment of a service named by name, by name or ID.
+	Environment string `protobuf:"bytes,3,opt,name=environment,proto3" json:"environment,omitempty"`
+	// ROLE_DEVELOPER or ROLE_ADMIN.
+	Role Role `protobuf:"varint,4,opt,name=role,proto3,enum=dockwell.v1.Role" json:"role,omitempty"`
+	// The proof from AuthService.FinishStepUp, for widening a hook. Only
+	// ROLE_ADMIN needs one.
+	Proof         string `protobuf:"bytes,5,opt,name=proof,proto3" json:"proof,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetGitHookRoleRequest) Reset() {
+	*x = SetGitHookRoleRequest{}
+	mi := &file_dockwell_v1_githook_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetGitHookRoleRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetGitHookRoleRequest) ProtoMessage() {}
+
+func (x *SetGitHookRoleRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_githook_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetGitHookRoleRequest.ProtoReflect.Descriptor instead.
+func (*SetGitHookRoleRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_githook_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *SetGitHookRoleRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *SetGitHookRoleRequest) GetProject() string {
+	if x != nil {
+		return x.Project
+	}
+	return ""
+}
+
+func (x *SetGitHookRoleRequest) GetEnvironment() string {
+	if x != nil {
+		return x.Environment
+	}
+	return ""
+}
+
+func (x *SetGitHookRoleRequest) GetRole() Role {
+	if x != nil {
+		return x.Role
+	}
+	return Role_ROLE_UNSPECIFIED
+}
+
+func (x *SetGitHookRoleRequest) GetProof() string {
+	if x != nil {
+		return x.Proof
+	}
+	return ""
+}
+
+// SetGitHookRoleResponse is the hook as it is now.
+type SetGitHookRoleResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The hook.
+	Hook          *GitHook `protobuf:"bytes,1,opt,name=hook,proto3" json:"hook,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetGitHookRoleResponse) Reset() {
+	*x = SetGitHookRoleResponse{}
+	mi := &file_dockwell_v1_githook_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetGitHookRoleResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetGitHookRoleResponse) ProtoMessage() {}
+
+func (x *SetGitHookRoleResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_githook_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetGitHookRoleResponse.ProtoReflect.Descriptor instead.
+func (*SetGitHookRoleResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_githook_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *SetGitHookRoleResponse) GetHook() *GitHook {
+	if x != nil {
+		return x.Hook
+	}
+	return nil
+}
+
 // DeleteGitHookRequest names a service.
 type DeleteGitHookRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -693,7 +834,7 @@ type DeleteGitHookRequest struct {
 
 func (x *DeleteGitHookRequest) Reset() {
 	*x = DeleteGitHookRequest{}
-	mi := &file_dockwell_v1_githook_proto_msgTypes[8]
+	mi := &file_dockwell_v1_githook_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -705,7 +846,7 @@ func (x *DeleteGitHookRequest) String() string {
 func (*DeleteGitHookRequest) ProtoMessage() {}
 
 func (x *DeleteGitHookRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_githook_proto_msgTypes[8]
+	mi := &file_dockwell_v1_githook_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -718,7 +859,7 @@ func (x *DeleteGitHookRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteGitHookRequest.ProtoReflect.Descriptor instead.
 func (*DeleteGitHookRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_githook_proto_rawDescGZIP(), []int{8}
+	return file_dockwell_v1_githook_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *DeleteGitHookRequest) GetId() string {
@@ -751,7 +892,7 @@ type DeleteGitHookResponse struct {
 
 func (x *DeleteGitHookResponse) Reset() {
 	*x = DeleteGitHookResponse{}
-	mi := &file_dockwell_v1_githook_proto_msgTypes[9]
+	mi := &file_dockwell_v1_githook_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -763,7 +904,7 @@ func (x *DeleteGitHookResponse) String() string {
 func (*DeleteGitHookResponse) ProtoMessage() {}
 
 func (x *DeleteGitHookResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_githook_proto_msgTypes[9]
+	mi := &file_dockwell_v1_githook_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -776,14 +917,14 @@ func (x *DeleteGitHookResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteGitHookResponse.ProtoReflect.Descriptor instead.
 func (*DeleteGitHookResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_githook_proto_rawDescGZIP(), []int{9}
+	return file_dockwell_v1_githook_proto_rawDescGZIP(), []int{11}
 }
 
 var File_dockwell_v1_githook_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_githook_proto_rawDesc = "" +
 	"\n" +
-	"\x19dockwell/v1/githook.proto\x12\vdockwell.v1\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xb5\x02\n" +
+	"\x19dockwell/v1/githook.proto\x12\vdockwell.v1\x1a\x16dockwell/v1/auth.proto\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xdc\x02\n" +
 	"\aGitHook\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1d\n" +
 	"\n" +
@@ -797,7 +938,8 @@ const file_dockwell_v1_githook_proto_rawDesc = "" +
 	"secretTime\x12<\n" +
 	"\n" +
 	"deliveries\x18\a \x03(\v2\x1c.dockwell.v1.GitHookDeliveryR\n" +
-	"deliveries\"\x94\x02\n" +
+	"deliveries\x12%\n" +
+	"\x04role\x18\t \x01(\x0e2\x11.dockwell.v1.RoleR\x04role\"\x94\x02\n" +
 	"\x0fGitHookDelivery\x12\x1f\n" +
 	"\vdelivery_id\x18\x01 \x01(\tR\n" +
 	"deliveryId\x12.\n" +
@@ -829,7 +971,15 @@ const file_dockwell_v1_githook_proto_rawDesc = "" +
 	"\x05proof\x18\x04 \x01(\tR\x05proof\"_\n" +
 	"\x1bRotateGitHookSecretResponse\x12(\n" +
 	"\x04hook\x18\x01 \x01(\v2\x14.dockwell.v1.GitHookR\x04hook\x12\x16\n" +
-	"\x06secret\x18\x02 \x01(\tR\x06secret\"b\n" +
+	"\x06secret\x18\x02 \x01(\tR\x06secret\"\xa0\x01\n" +
+	"\x15SetGitHookRoleRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
+	"\aproject\x18\x02 \x01(\tR\aproject\x12 \n" +
+	"\venvironment\x18\x03 \x01(\tR\venvironment\x12%\n" +
+	"\x04role\x18\x04 \x01(\x0e2\x11.dockwell.v1.RoleR\x04role\x12\x14\n" +
+	"\x05proof\x18\x05 \x01(\tR\x05proof\"B\n" +
+	"\x16SetGitHookRoleResponse\x12(\n" +
+	"\x04hook\x18\x01 \x01(\v2\x14.dockwell.v1.GitHookR\x04hook\"b\n" +
 	"\x14DeleteGitHookRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
 	"\aproject\x18\x02 \x01(\tR\aproject\x12 \n" +
@@ -843,7 +993,7 @@ const file_dockwell_v1_githook_proto_rawDesc = "" +
 	"\x1cGIT_HOOK_OUTCOME_NOTHING_NEW\x10\x04\x12\x1c\n" +
 	"\x18GIT_HOOK_OUTCOME_IGNORED\x10\x05\x12\x1b\n" +
 	"\x17GIT_HOOK_OUTCOME_FAILED\x10\x06\x12\x1f\n" +
-	"\x1bGIT_HOOK_OUTCOME_SUPERSEDED\x10\a2\xab\x05\n" +
+	"\x1bGIT_HOOK_OUTCOME_SUPERSEDED\x10\a2\xda\x06\n" +
 	"\x0eGitHookService\x12\xa0\x01\n" +
 	"\rCreateGitHook\x12!.dockwell.v1.CreateGitHookRequest\x1a\".dockwell.v1.CreateGitHookResponse\"H\xa0\xbb\x18\x03\xaa\xbb\x18\v\n" +
 	"\tgit-hooks\xb0\xbb\x18\x01\xc0\xbb\x18\x03Ȼ\x18\x04л\x18\x04\x82\xd3\xe4\x93\x02\x1f:\x01*\"\x1a/v1/services/{id}/git-hook\x12\x93\x01\n" +
@@ -851,7 +1001,9 @@ const file_dockwell_v1_githook_proto_rawDesc = "" +
 	"GetGitHook\x12\x1e.dockwell.v1.GetGitHookRequest\x1a\x1f.dockwell.v1.GetGitHookResponse\"D\xa0\xbb\x18\x01\xaa\xbb\x18\v\n" +
 	"\tgit-hooks\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x04\x82\xd3\xe4\x93\x02\x1c\x12\x1a/v1/services/{id}/git-hook\x90\x02\x01\x12\xb9\x01\n" +
 	"\x13RotateGitHookSecret\x12'.dockwell.v1.RotateGitHookSecretRequest\x1a(.dockwell.v1.RotateGitHookSecretResponse\"O\xa0\xbb\x18\x03\xaa\xbb\x18\v\n" +
-	"\tgit-hooks\xb0\xbb\x18\x01\xc0\xbb\x18\x03Ȼ\x18\x04л\x18\x04\x82\xd3\xe4\x93\x02&:\x01*\"!/v1/services/{id}/git-hook:rotate\x12\xa3\x01\n" +
+	"\tgit-hooks\xb0\xbb\x18\x01\xc0\xbb\x18\x03Ȼ\x18\x04л\x18\x04\x82\xd3\xe4\x93\x02&:\x01*\"!/v1/services/{id}/git-hook:rotate\x12\xac\x01\n" +
+	"\x0eSetGitHookRole\x12\".dockwell.v1.SetGitHookRoleRequest\x1a#.dockwell.v1.SetGitHookRoleResponse\"Q\xa0\xbb\x18\x03\xaa\xbb\x18\v\n" +
+	"\tgit-hooks\xb0\xbb\x18\x01\xc0\xbb\x18\x03Ȼ\x18\x04л\x18\x04\x82\xd3\xe4\x93\x02(:\x01*\"#/v1/services/{id}/git-hook:set-role\x12\xa3\x01\n" +
 	"\rDeleteGitHook\x12!.dockwell.v1.DeleteGitHookRequest\x1a\".dockwell.v1.DeleteGitHookResponse\"K\xa0\xbb\x18\x03\xaa\xbb\x18\v\n" +
 	"\tgit-hooks\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02&:\x01*\"!/v1/services/{id}/git-hook:deleteB\xa5\x01\n" +
 	"\x0fcom.dockwell.v1B\fGithookProtoP\x01Z7github.com/dockwell/dockwell/gen/dockwell/v1;dockwellv1\xa2\x02\x03DXX\xaa\x02\vDockwell.V1\xca\x02\vDockwell\\V1\xe2\x02\x17Dockwell\\V1\\GPBMetadata\xea\x02\fDockwell::V1b\x06proto3"
@@ -869,7 +1021,7 @@ func file_dockwell_v1_githook_proto_rawDescGZIP() []byte {
 }
 
 var file_dockwell_v1_githook_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_dockwell_v1_githook_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
+var file_dockwell_v1_githook_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
 var file_dockwell_v1_githook_proto_goTypes = []any{
 	(GitHookOutcome)(0),                 // 0: dockwell.v1.GitHookOutcome
 	(*GitHook)(nil),                     // 1: dockwell.v1.GitHook
@@ -880,34 +1032,42 @@ var file_dockwell_v1_githook_proto_goTypes = []any{
 	(*GetGitHookResponse)(nil),          // 6: dockwell.v1.GetGitHookResponse
 	(*RotateGitHookSecretRequest)(nil),  // 7: dockwell.v1.RotateGitHookSecretRequest
 	(*RotateGitHookSecretResponse)(nil), // 8: dockwell.v1.RotateGitHookSecretResponse
-	(*DeleteGitHookRequest)(nil),        // 9: dockwell.v1.DeleteGitHookRequest
-	(*DeleteGitHookResponse)(nil),       // 10: dockwell.v1.DeleteGitHookResponse
-	(*Actor)(nil),                       // 11: dockwell.v1.Actor
-	(*timestamppb.Timestamp)(nil),       // 12: google.protobuf.Timestamp
+	(*SetGitHookRoleRequest)(nil),       // 9: dockwell.v1.SetGitHookRoleRequest
+	(*SetGitHookRoleResponse)(nil),      // 10: dockwell.v1.SetGitHookRoleResponse
+	(*DeleteGitHookRequest)(nil),        // 11: dockwell.v1.DeleteGitHookRequest
+	(*DeleteGitHookResponse)(nil),       // 12: dockwell.v1.DeleteGitHookResponse
+	(*Actor)(nil),                       // 13: dockwell.v1.Actor
+	(*timestamppb.Timestamp)(nil),       // 14: google.protobuf.Timestamp
+	(Role)(0),                           // 15: dockwell.v1.Role
 }
 var file_dockwell_v1_githook_proto_depIdxs = []int32{
-	11, // 0: dockwell.v1.GitHook.created_by:type_name -> dockwell.v1.Actor
-	12, // 1: dockwell.v1.GitHook.create_time:type_name -> google.protobuf.Timestamp
-	12, // 2: dockwell.v1.GitHook.secret_time:type_name -> google.protobuf.Timestamp
+	13, // 0: dockwell.v1.GitHook.created_by:type_name -> dockwell.v1.Actor
+	14, // 1: dockwell.v1.GitHook.create_time:type_name -> google.protobuf.Timestamp
+	14, // 2: dockwell.v1.GitHook.secret_time:type_name -> google.protobuf.Timestamp
 	2,  // 3: dockwell.v1.GitHook.deliveries:type_name -> dockwell.v1.GitHookDelivery
-	12, // 4: dockwell.v1.GitHookDelivery.time:type_name -> google.protobuf.Timestamp
-	0,  // 5: dockwell.v1.GitHookDelivery.outcome:type_name -> dockwell.v1.GitHookOutcome
-	1,  // 6: dockwell.v1.CreateGitHookResponse.hook:type_name -> dockwell.v1.GitHook
-	1,  // 7: dockwell.v1.GetGitHookResponse.hook:type_name -> dockwell.v1.GitHook
-	1,  // 8: dockwell.v1.RotateGitHookSecretResponse.hook:type_name -> dockwell.v1.GitHook
-	3,  // 9: dockwell.v1.GitHookService.CreateGitHook:input_type -> dockwell.v1.CreateGitHookRequest
-	5,  // 10: dockwell.v1.GitHookService.GetGitHook:input_type -> dockwell.v1.GetGitHookRequest
-	7,  // 11: dockwell.v1.GitHookService.RotateGitHookSecret:input_type -> dockwell.v1.RotateGitHookSecretRequest
-	9,  // 12: dockwell.v1.GitHookService.DeleteGitHook:input_type -> dockwell.v1.DeleteGitHookRequest
-	4,  // 13: dockwell.v1.GitHookService.CreateGitHook:output_type -> dockwell.v1.CreateGitHookResponse
-	6,  // 14: dockwell.v1.GitHookService.GetGitHook:output_type -> dockwell.v1.GetGitHookResponse
-	8,  // 15: dockwell.v1.GitHookService.RotateGitHookSecret:output_type -> dockwell.v1.RotateGitHookSecretResponse
-	10, // 16: dockwell.v1.GitHookService.DeleteGitHook:output_type -> dockwell.v1.DeleteGitHookResponse
-	13, // [13:17] is the sub-list for method output_type
-	9,  // [9:13] is the sub-list for method input_type
-	9,  // [9:9] is the sub-list for extension type_name
-	9,  // [9:9] is the sub-list for extension extendee
-	0,  // [0:9] is the sub-list for field type_name
+	15, // 4: dockwell.v1.GitHook.role:type_name -> dockwell.v1.Role
+	14, // 5: dockwell.v1.GitHookDelivery.time:type_name -> google.protobuf.Timestamp
+	0,  // 6: dockwell.v1.GitHookDelivery.outcome:type_name -> dockwell.v1.GitHookOutcome
+	1,  // 7: dockwell.v1.CreateGitHookResponse.hook:type_name -> dockwell.v1.GitHook
+	1,  // 8: dockwell.v1.GetGitHookResponse.hook:type_name -> dockwell.v1.GitHook
+	1,  // 9: dockwell.v1.RotateGitHookSecretResponse.hook:type_name -> dockwell.v1.GitHook
+	15, // 10: dockwell.v1.SetGitHookRoleRequest.role:type_name -> dockwell.v1.Role
+	1,  // 11: dockwell.v1.SetGitHookRoleResponse.hook:type_name -> dockwell.v1.GitHook
+	3,  // 12: dockwell.v1.GitHookService.CreateGitHook:input_type -> dockwell.v1.CreateGitHookRequest
+	5,  // 13: dockwell.v1.GitHookService.GetGitHook:input_type -> dockwell.v1.GetGitHookRequest
+	7,  // 14: dockwell.v1.GitHookService.RotateGitHookSecret:input_type -> dockwell.v1.RotateGitHookSecretRequest
+	9,  // 15: dockwell.v1.GitHookService.SetGitHookRole:input_type -> dockwell.v1.SetGitHookRoleRequest
+	11, // 16: dockwell.v1.GitHookService.DeleteGitHook:input_type -> dockwell.v1.DeleteGitHookRequest
+	4,  // 17: dockwell.v1.GitHookService.CreateGitHook:output_type -> dockwell.v1.CreateGitHookResponse
+	6,  // 18: dockwell.v1.GitHookService.GetGitHook:output_type -> dockwell.v1.GetGitHookResponse
+	8,  // 19: dockwell.v1.GitHookService.RotateGitHookSecret:output_type -> dockwell.v1.RotateGitHookSecretResponse
+	10, // 20: dockwell.v1.GitHookService.SetGitHookRole:output_type -> dockwell.v1.SetGitHookRoleResponse
+	12, // 21: dockwell.v1.GitHookService.DeleteGitHook:output_type -> dockwell.v1.DeleteGitHookResponse
+	17, // [17:22] is the sub-list for method output_type
+	12, // [12:17] is the sub-list for method input_type
+	12, // [12:12] is the sub-list for extension type_name
+	12, // [12:12] is the sub-list for extension extendee
+	0,  // [0:12] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_githook_proto_init() }
@@ -915,6 +1075,7 @@ func file_dockwell_v1_githook_proto_init() {
 	if File_dockwell_v1_githook_proto != nil {
 		return
 	}
+	file_dockwell_v1_auth_proto_init()
 	file_dockwell_v1_change_proto_init()
 	file_dockwell_v1_options_proto_init()
 	type x struct{}
@@ -923,7 +1084,7 @@ func file_dockwell_v1_githook_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_githook_proto_rawDesc), len(file_dockwell_v1_githook_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   10,
+			NumMessages:   12,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

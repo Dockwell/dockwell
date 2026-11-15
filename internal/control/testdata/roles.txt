@@ -141,6 +141,7 @@ GitHookService.CreateGitHook                   apply        developer  admin    
 GitHookService.DeleteGitHook                   apply        developer  developer  project
 GitHookService.GetGitHook                      read         viewer     viewer     project
 GitHookService.RotateGitHookSecret             apply        developer  admin      project  session
+GitHookService.SetGitHookRole                  apply        developer  admin      project  session
 HealthService.ListHealth                       read         viewer     viewer     project
 ImageService.CheckRegistryLogin                read         admin      admin      install  session
 ImageService.GetImage                          read         developer  developer  project

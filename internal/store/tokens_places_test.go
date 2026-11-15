@@ -3,6 +3,7 @@
 package store_test
 
 import (
+	"errors"
 	"reflect"
 	"testing"
 	"time"
@@ -114,7 +115,7 @@ func TestAHookIsNarrowedToItsServicesProject(t *testing.T) {
 			// One made now keeps what it's given, every project and its maker's role included.
 			now := time.Date(2026, 11, 15, 12, 0, 0, 0, time.UTC)
 			for id, h := range map[string]store.GitHook{
-				"ghk_narrowed": {Projects: []string{"prj_shop", "prj_blog"}, Role: store.RoleViewer},
+				"ghk_narrowed": {Projects: []string{"prj_shop", "prj_blog"}, Role: store.RoleAdmin},
 				"ghk_wide":     {},
 			} {
 				h.ID, h.ResourceID, h.UserID, h.Secret, h.CreatedAt, h.SecretAt = id, "svc_"+id, "usr_ada", []byte("x"), now, now
@@ -128,6 +129,18 @@ func TestAHookIsNarrowedToItsServicesProject(t *testing.T) {
 				if !reflect.DeepEqual(got.Projects, h.Projects) || got.Role != h.Role {
 					t.Errorf("hook %s reads back in %#v as %q, want %#v as %q", id, got.Projects, got.Role, h.Projects, h.Role)
 				}
+			}
+			// Its maker lets it act as an admin, and narrows it back.
+			for _, role := range []string{store.RoleAdmin, store.RoleDeveloper} {
+				if err := tx.SetGitHookRole(ctx, "ghk_web", role); err != nil {
+					return err
+				}
+				if h, err := tx.GetGitHook(ctx, "ghk_web"); err != nil || h.Role != role || !reflect.DeepEqual(h.Projects, []string{"prj_shop"}) {
+					t.Errorf("hook ghk_web set to %s reads back as %+v, %v", role, h, err)
+				}
+			}
+			if err := tx.SetGitHookRole(ctx, "ghk_none", store.RoleAdmin); !errors.Is(err, store.ErrNotFound) {
+				t.Errorf("setting the role of a hook there isn't: %v", err)
 			}
 			return nil
 		})
