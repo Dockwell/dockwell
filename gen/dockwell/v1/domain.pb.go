@@ -1497,7 +1497,11 @@ type CompanionCheck struct {
 	// The shared wildcard certificate that covers it, by name, such as
 	// "example-com", so it needs no certificate of its own (ADR 0088). Empty when
 	// none does.
-	Wildcard      string `protobuf:"bytes,5,opt,name=wildcard,proto3" json:"wildcard,omitempty"`
+	Wildcard string `protobuf:"bytes,5,opt,name=wildcard,proto3" json:"wildcard,omitempty"`
+	// What serves it there, in words, such as "the app web", "a redirect to
+	// example.org" or "port 3000 on the server". Empty when none does, or when it's
+	// in a project the caller can't read.
+	HeldFor       string `protobuf:"bytes,6,opt,name=held_for,json=heldFor,proto3" json:"held_for,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1563,6 +1567,13 @@ func (x *CompanionCheck) GetHeldBy() string {
 func (x *CompanionCheck) GetWildcard() string {
 	if x != nil {
 		return x.Wildcard
+	}
+	return ""
+}
+
+func (x *CompanionCheck) GetHeldFor() string {
+	if x != nil {
+		return x.HeldFor
 	}
 	return ""
 }
@@ -2448,13 +2459,14 @@ const file_dockwell_v1_domain_proto_rawDesc = "" +
 	"\x13CheckDomainResponse\x12.\n" +
 	"\x05check\x18\x01 \x01(\v2\x18.dockwell.v1.DomainCheckR\x05check\x12\x1c\n" +
 	"\tcompanion\x18\x02 \x01(\tR\tcompanion\x12D\n" +
-	"\x0fcompanion_check\x18\x03 \x01(\v2\x1b.dockwell.v1.CompanionCheckR\x0ecompanionCheck\"\xcf\x01\n" +
+	"\x0fcompanion_check\x18\x03 \x01(\v2\x1b.dockwell.v1.CompanionCheckR\x0ecompanionCheck\"\xea\x01\n" +
 	"\x0eCompanionCheck\x12.\n" +
 	"\x05check\x18\x01 \x01(\v2\x18.dockwell.v1.DomainCheckR\x05check\x12#\n" +
 	"\ranswers_alike\x18\x02 \x01(\bR\fanswersAlike\x123\n" +
 	"\x16held_by_environment_id\x18\x03 \x01(\tR\x13heldByEnvironmentId\x12\x17\n" +
 	"\aheld_by\x18\x04 \x01(\tR\x06heldBy\x12\x1a\n" +
-	"\bwildcard\x18\x05 \x01(\tR\bwildcard\"P\n" +
+	"\bwildcard\x18\x05 \x01(\tR\bwildcard\x12\x19\n" +
+	"\bheld_for\x18\x06 \x01(\tR\aheldFor\"P\n" +
 	"\x12ListDomainsRequest\x12 \n" +
 	"\venvironment\x18\x01 \x01(\tR\venvironment\x12\x18\n" +
 	"\aservice\x18\x02 \x01(\tR\aservice\"D\n" +

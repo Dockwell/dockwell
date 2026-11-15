@@ -11230,6 +11230,12 @@ components:
                         The shared wildcard certificate that covers it, by name, such as
                          "example-com", so it needs no certificate of its own (ADR 0088). Empty when
                          none does.
+                heldFor:
+                    type: string
+                    description: |-
+                        What serves it there, in words, such as "the app web", "a redirect to
+                         example.org" or "port 3000 on the server". Empty when none does, or when it's
+                         in a project the caller can't read.
             description: |-
                 CompanionCheck is where a domain's companion stands: what DNS says of it, whether
                  another environment serves it already, and whether a wildcard covers it.

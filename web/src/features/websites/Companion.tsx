@@ -56,6 +56,11 @@ export function useCompanion(server: string, domain: string, project = ""): Comp
   };
 }
 
+/** Whether a route of env itself serves the companion already. */
+function besideHeld(check: CompanionCheck | undefined, env: string): boolean {
+  return !!check && check.heldBy !== "" && check.heldByEnvironmentId === env;
+}
+
 /** Whether another environment than env serves the companion already. */
 export function heldElsewhere(check: CompanionCheck | undefined, env = ""): boolean {
   return !!check && check.heldBy !== "" && (env === "" || check.heldByEnvironmentId !== env);
@@ -204,6 +209,7 @@ export function OtherDomains({
   const read = useCompanion(server?.id ?? "", site.domain, site.id);
   const list = site.spec?.redirectFrom ?? [];
   const companion = read.companion;
+  const heldFor = read.check?.heldFor ?? "";
   const plan = (redirectFrom: string[], summary: string, domain = "") =>
     sheet.open({
       kind: "plan",
@@ -244,7 +250,24 @@ export function OtherDomains({
           ))}
         </ul>
       ) : null}
-      {companion !== "" && !list.includes(companion) && server ? (
+      {/* Served beside the site by a route its list didn't write: who has it, and the way there. */}
+      {companion !== "" && !list.includes(companion) && besideHeld(read.check, site.environmentId) ? (
+        <p className="website-companion-said">
+          <span>
+            {heldFor ? (
+              <Trans>
+                {companion} is served by {heldFor} here
+              </Trans>
+            ) : (
+              <Trans>{companion} is served here already</Trans>
+            )}
+          </span>
+          {" · "}
+          <Link to="/domains" search={{ q: companion }}>
+            <Trans>Open</Trans>
+          </Link>
+        </p>
+      ) : companion !== "" && !list.includes(companion) && server ? (
         <div className="website-companion">
           <Button
             size="sm"

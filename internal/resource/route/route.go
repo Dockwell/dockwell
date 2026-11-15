@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/url"
 	"slices"
 	"strconv"
 	"strings"
@@ -610,4 +611,23 @@ func (d *Driver) ReadyKey() any {
 		return d
 	}
 	return d.Ingress.ReadyKey()
+}
+
+// ServedFor says what a route serves, in words a person reads of a domain held
+// already: the app, a redirect and where to, or a port on the server. Never the
+// route's own name, which stays out of sight (ADR 0070).
+func ServedFor(rt *resourcev1.Route) string {
+	switch {
+	case rt.GetRedirect() != nil:
+		to := rt.GetRedirect().GetTo()
+		if u, err := url.Parse(to); err == nil && u.Host != "" {
+			to = u.Host + strings.TrimSuffix(u.EscapedPath(), "/")
+		}
+		return "a redirect to " + to
+	case rt.GetService() != "":
+		return "the app " + rt.GetService()
+	case rt.GetHostPort() != 0:
+		return fmt.Sprintf("port %d on the server", rt.GetHostPort())
+	}
+	return ""
 }

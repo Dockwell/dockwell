@@ -142,13 +142,13 @@ func TestACompanionSaysWhereItStands(t *testing.T) {
 	if got.GetCompanion() != "www.example.com" || cc.GetCheck().GetState() != dockwellv1.DomainCheckState_DOMAIN_CHECK_STATE_POINTS_HERE || !cc.GetAnswersAlike() {
 		t.Errorf("example.com's companion reads %q, %v", got.GetCompanion(), cc)
 	}
-	if want := cmp.Or(project.DisplayName, project.Name); cc.GetHeldBy() != want || cc.GetHeldByEnvironmentId() != env {
+	if want := cmp.Or(project.DisplayName, project.Name); cc.GetHeldBy() != want || cc.GetHeldByEnvironmentId() != env || cc.GetHeldFor() != "port 8080 on the server" {
 		t.Errorf("www.example.com is held by %q in %q, want %q in %q", cc.GetHeldBy(), cc.GetHeldByEnvironmentId(), want, env)
 	}
 
 	// A developer of another project learns only that another project holds it.
 	other := place.WithCaller(t.Context(), place.Caller{UserID: "usr_dev", Grants: []store.Grant{{UserID: "usr_dev", ProjectID: "prj_other", Role: store.RoleDeveloper}}})
-	if cc := ask(other, "example.com").GetCompanionCheck(); cc.GetHeldBy() != "another project" || cc.GetHeldByEnvironmentId() != "" {
+	if cc := ask(other, "example.com").GetCompanionCheck(); cc.GetHeldBy() != "another project" || cc.GetHeldByEnvironmentId() != "" || cc.GetHeldFor() != "" {
 		t.Errorf("to a developer of another project, it's held by %q in %q", cc.GetHeldBy(), cc.GetHeldByEnvironmentId())
 	}
 

@@ -248,3 +248,41 @@ func TestATunnelledWebsitesOtherDomainSaysToAddIt(t *testing.T) {
 		t.Errorf("adding old.example.com notes %q", got)
 	}
 }
+
+// A domain a route beside the website serves, made by a person, is refused as one
+// of its other domains in words that say what serves it, never the route's name
+// (ADR 0070).
+func TestARouteBesideAWebsiteIsSaidInWords(t *testing.T) {
+	t.Parallel()
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	ing := &routesInMemory{routes: map[resource.Ref]*resourcev1.Route{}}
+	f.probe = connects
+	e := f.addServerWith(t, func() []resource.Type { return []resource.Type{&route.Driver{Ingress: ing}} })
+	pullsAnything(e)
+	c := changeClient(b, b.origin)
+	sites := websiteClient(b, b.origin)
+	res, err := sites.CreateWebsite(t.Context(), connect.NewRequest(&dockwellv1.CreateWebsiteRequest{Domain: "example.com", Website: toURL("https://backend.example.com")}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	applyReviewed(t, c, res.Msg.GetChange())
+	env := listWebsites(t, sites)[0].GetEnvironmentId()
+	mine := &dockwellv1.Edit{
+		Resource: &dockwellv1.ResourceRef{Kind: string(route.Kind), Scope: env, Name: "mine"},
+		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Route{Route: &resourcev1.Route{Domain: "www.example.com", Redirect: &resourcev1.RouteRedirect{To: "https://example.org"}}}},
+	}
+	if got := apply(t, c, propose(t, c, "A redirect of my own", mine)); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("the hand-made redirect: %v", got)
+	}
+	w := toURL("https://backend.example.com")
+	w.RedirectFrom = []string{"www.example.com"}
+	_, err = sites.UpdateWebsite(t.Context(), connect.NewRequest(&dockwellv1.UpdateWebsiteRequest{Id: "example.com", Website: w}))
+	if reasonOf(err) != "domain_taken" || !strings.Contains(err.Error(), "www.example.com is served by a redirect to example.org beside this website already. Remove it in Domains first, or use another domain") || strings.Contains(err.Error(), "mine") {
+		t.Errorf("www beside the site = %v", err)
+	}
+	_, err = sites.UpdateWebsite(t.Context(), connect.NewRequest(&dockwellv1.UpdateWebsiteRequest{Id: "example.com", Domain: "www.example.com", Website: toURL("https://backend.example.com")}))
+	if reasonOf(err) != "domain_taken" || strings.Contains(err.Error(), "mine") {
+		t.Errorf("moving the site to www beside it = %v", err)
+	}
+}

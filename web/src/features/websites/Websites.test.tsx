@@ -1614,7 +1614,7 @@ describe("Marking what a config's edit changes", () => {
 /** What CheckDomain says of a domain and its companion: both point here unless told. */
 function companionOf(
   companion: string,
-  said: { alike?: boolean; heldBy?: string; heldByEnvironmentId?: string; wildcard?: string } = {},
+  said: { alike?: boolean; heldBy?: string; heldByEnvironmentId?: string; heldFor?: string; wildcard?: string } = {},
 ) {
   return (req: CheckDomainRequest) => ({
     check: { domain: req.domain, state: DomainCheckState.POINTS_HERE, found: ["203.0.113.50"] },
@@ -1628,6 +1628,7 @@ function companionOf(
       answersAlike: said.alike ?? true,
       heldBy: said.heldBy ?? "",
       heldByEnvironmentId: said.heldByEnvironmentId ?? "",
+      heldFor: said.heldFor ?? "",
       wildcard: said.wildcard ?? "",
     },
   });
@@ -1760,6 +1761,36 @@ describe("A website's other domains", () => {
     expect(asked[0]?.domain).toBe("www.example.com");
     expect(asked[0]?.website?.redirectFrom).toEqual(["example.com"]);
     expect(asked[0]?.website?.serves.case).toBe("proxy");
+  });
+
+  it("says who serves www beside the site, with the way there, and offers nothing that would be refused", async () => {
+    const bare = create(WebsiteInfoSchema, {
+      id: "prj_apex",
+      name: "example-com",
+      domain: "example.com",
+      spec: { serves: { case: "proxy", value: { url: "https://backend.example.com" } } },
+      environmentId: "env_apex",
+      serviceId: "svc_apexweb",
+      routeId: "rte_apex",
+      serverId: SERVER,
+      serverName: "hz-1",
+    });
+    renderAt(
+      "/websites/prj_apex",
+      api([bare], {
+        domains: {
+          listDomains: () => ({ domains }),
+          checkDomain: companionOf("www.example.com", {
+            heldBy: "example.com",
+            heldByEnvironmentId: "env_apex",
+            heldFor: "the app web",
+          }),
+        },
+      }),
+    );
+    expect(await screen.findByText("www.example.com is served by the app web here")).toBeVisible();
+    expect(screen.getByRole("link", { name: "Open" })).toHaveAttribute("href", "/domains?q=www.example.com");
+    expect(screen.queryByRole("button", { name: /Also answer on/ })).toBeNull();
   });
 
   it("stops sending a domain here", async () => {

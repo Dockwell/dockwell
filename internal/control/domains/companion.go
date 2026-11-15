@@ -45,7 +45,7 @@ func (h *Handler) companionCheck(ctx context.Context, project string, of, check 
 	admin, mine := callerProjects(ctx)
 	reads := func(p string) bool { return admin || mine == nil || mine[p] }
 	err := h.db.View(ctx, func(tx *store.Tx) error {
-		env, err := h.servedIn(ctx, tx, check.Domain)
+		env, rt, err := h.servedIn(ctx, tx, check.Domain)
 		if err != nil || env == "" {
 			return err
 		}
@@ -58,7 +58,7 @@ func (h *Handler) companionCheck(ctx context.Context, project string, of, check 
 			if !slices.ContainsFunc(p.Environments, func(e scope.Environment) bool { return e.ID == env }) || !reads(p.ID) {
 				continue
 			}
-			out.HeldByEnvironmentId, out.HeldBy = env, cmp.Or(p.DisplayName, p.Name)
+			out.HeldByEnvironmentId, out.HeldBy, out.HeldFor = env, cmp.Or(p.DisplayName, p.Name), route.ServedFor(rt)
 		}
 		return nil
 	})
@@ -94,28 +94,28 @@ func wildcardFor(list []certificates.Standing, project, host string) string {
 	return ""
 }
 
-// servedIn is the environment a route of domain is in, by ID, or empty when no
-// route serves it.
-func (h *Handler) servedIn(ctx context.Context, tx *store.Tx, domain string) (string, error) {
+// servedIn is the environment a route of domain is in, by ID, with the route, or
+// empty when no route serves it.
+func (h *Handler) servedIn(ctx context.Context, tx *store.Tx, domain string) (string, *resourcev1.Route, error) {
 	stored, err := tx.ListKind(ctx, string(route.Kind))
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	for i := range stored {
 		r := &stored[i]
 		plain, err := tx.Open(ctx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec)
 		if err != nil {
-			return "", err
+			return "", nil, err
 		}
 		spec, err := h.kinds.Decode(route.Kind, plain)
 		if err != nil {
-			return "", err
+			return "", nil, err
 		}
-		if spec.(*resourcev1.Route).GetDomain() == domain {
-			return r.Scope, nil
+		if rt := spec.(*resourcev1.Route); rt.GetDomain() == domain {
+			return r.Scope, rt, nil
 		}
 	}
-	return "", nil
+	return "", nil, nil
 }
 
 // answersAlike says whether two names reach the same place: both point at the

@@ -18416,6 +18416,12 @@ msgstr "Stop sending {from} to {main}"
 msgid "The certificate for {covering} covers it."
 msgstr "The certificate for {covering} covers it."
 
+msgid "{companion} is served by {heldFor} here"
+msgstr "{companion} is served by {heldFor} here"
+
+msgid "{companion} is served here already"
+msgstr "{companion} is served here already"
+
 msgid "{main} answers there instead"
 msgstr "{main} answers there instead"
 

@@ -105,13 +105,32 @@ type site struct {
 	// redirects are the routes its redirect_from wrote, by domain to the route's
 	// name: a whole domain's redirect, never one a person added for a path.
 	redirects map[string]string
-	services  []store.Resource
-	networks  []store.Resource
+	// specs are its routes' specs, by name.
+	specs    map[string]*resourcev1.Route
+	services []store.Resource
+	networks []store.Resource
 	// placed is where its route runs, by server ID.
 	placed []string
 	// web is what its web server runs, when it has one, and php what its PHP runs.
 	web, php *resourcev1.Container
 	updated  time.Time
+}
+
+// besideHolds says what serves a domain beside the website, in its environment, from a
+// route its list didn't write, in words for a person, or nothing (ADR 0070).
+func (s *site) besideHolds(domain string) string {
+	for _, name := range slices.Sorted(maps.Keys(s.specs)) {
+		rt := s.specs[name]
+		if rt.GetDomain() != domain || name == website.RouteName || s.redirects[domain] == name {
+			continue
+		}
+		what := route.ServedFor(rt)
+		if what == "" {
+			what = "another route"
+		}
+		return fmt.Sprintf("%s is served by %s beside this website already. Remove it in Domains first, or use another domain", domain, what)
+	}
+	return ""
 }
 
 func (s *site) info() *dockwellv1.WebsiteInfo {
@@ -214,13 +233,14 @@ func (h *Handler) sites(ctx context.Context, tx *store.Tx) ([]site, error) {
 				s.php = spec.(*resourcev1.Service).GetApp()
 			}
 		}
-		s.redirects = map[string]string{}
+		s.redirects, s.specs = map[string]string{}, map[string]*resourcev1.Route{}
 		for i := range s.routes {
 			spec, err := h.decode(ctx, tx, s.routes[i])
 			if err != nil {
 				return nil, err
 			}
 			rt := spec.(*resourcev1.Route)
+			s.specs[s.routes[i].Name] = rt
 			if rt.GetRedirect() != nil && rt.GetPath() == "" && slices.Contains(project.GetWebsite().GetRedirectFrom(), rt.GetDomain()) {
 				s.redirects[rt.GetDomain()] = s.routes[i].Name
 			}
@@ -417,10 +437,14 @@ func (h *Handler) UpdateWebsite(ctx context.Context, req *connect.Request[dockwe
 		if err != nil {
 			return err
 		}
-		// A domain it serves already is its own; another is claimed as any route's.
+		// A domain it serves already is its own; another is claimed as any route's,
+		// and one a route beside it serves, as a person made it, is said in words.
 		for _, d := range append([]string{domain}, spec.GetRedirectFrom()...) {
 			if _, had := s.redirects[d]; had || d == was {
 				continue
+			}
+			if taken = s.besideHolds(d); taken != "" {
+				return nil
 			}
 			if taken, err = h.holder(ctx, tx, tree, d, s.env); err != nil || taken != "" {
 				return err

@@ -18416,6 +18416,12 @@ msgstr "不再把 {from} 发送到 {main}"
 msgid "The certificate for {covering} covers it."
 msgstr "{covering} 的证书已涵盖它。"
 
+msgid "{companion} is served by {heldFor} here"
+msgstr "{companion} 已由这里的 {heldFor} 提供服务"
+
+msgid "{companion} is served here already"
+msgstr "{companion} 已在这里提供服务"
+
 msgid "{main} answers there instead"
 msgstr "{main} 改为在那里响应"
 
