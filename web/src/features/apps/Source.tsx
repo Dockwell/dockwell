@@ -27,6 +27,7 @@ import { useApp, useRevisions } from "./AppContext";
 import { environmentOf, nameOf } from "./app";
 import { shortCommit, shownRepository } from "./Build";
 import { type GitHost, gitHost, hookOutOfReach } from "./gitHost";
+import { usePlaces } from "./useServices";
 
 import "./Source.css";
 
@@ -117,6 +118,12 @@ function DeployOnPush({ source, host }: { source: GitSource; host: GitHost | und
   const branch = shownRef(source.ref) || t`the default branch`;
   const on = hook !== undefined;
   const where = { environment: environmentOf(service) };
+  // A hook acts as a developer at most, so where the environment is protected a
+  // push plans its deploy for a person to apply (ADR 0071).
+  const guarded = usePlaces().place(where.environment)?.protected ?? false;
+  const pushes = guarded
+    ? t`Each push to ${branch} plans a deploy of ${name}, which waits for a person here.`
+    : t`Each push to ${branch} deploys ${name}.`;
   const mayTurnOn = may(GitHookService.method.createGitHook, where);
   const mayTurnOff = may(GitHookService.method.deleteGitHook, where);
   const offer = on ? mayTurnOff : mayTurnOn;
@@ -152,10 +159,7 @@ function DeployOnPush({ source, host }: { source: GitSource; host: GitHost | und
         disabled={busy || query.isPending || !offer.allowed}
         onChange={(next) => void turn(next)}
         label={t`Deploy on push`}
-        description={
-          offer.reason ||
-          (on ? t`Each push to ${branch} deploys ${name}.` : t`Pushes to ${branch} don't deploy ${name}.`)
-        }
+        description={offer.reason || (on ? pushes : t`Pushes to ${branch} don't deploy ${name}.`)}
       />
       {hook ? (
         <HookLine hook={hook} source={source} host={host} onOpen={() => setOpen({})} />

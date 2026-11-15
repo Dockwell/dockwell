@@ -4101,6 +4101,34 @@ describe("an app's deployments, for an app that builds from Git", () => {
     );
   });
 
+  it("says a push plans a deploy for a person where the environment is protected", async () => {
+    const app = builtApp();
+    const hook = { id: "ghk_1", serviceId: "svc_web", url: "https://panel.example.com/hooks/git/ghk_1" };
+    const plain = places();
+    renderAt(
+      "/apps/svc_web",
+      api([app], {
+        resources: {
+          listResources: (req: { kind: string }) => {
+            const res = plain.listResources(req);
+            for (const r of res.resources) if (r.id === ENV) r.protected = true;
+            return res;
+          },
+        },
+        services: { listServices: () => ({ services: [app] }), listServiceRevisions: () => ({ revisions: [] }) },
+        hooks: { getGitHook: () => ({ hook }) },
+      }),
+    );
+    const source = (await screen.findByRole("heading", { name: "Source" })).closest("section") as HTMLElement;
+    const push = await within(source).findByRole("switch", { name: "Deploy on push" });
+    // A hook acts as a developer at most, so here its push waits for a person (ADR 0071).
+    await waitFor(() =>
+      expect(push).toHaveAccessibleDescription(
+        "Each push to main plans a deploy of web, which waits for a person here.",
+      ),
+    );
+  });
+
   it("says what the last push came to in a line, and gives the hook a new secret", async () => {
     const app = builtApp();
     const rotated: string[] = [];

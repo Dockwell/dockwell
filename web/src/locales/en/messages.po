@@ -5278,6 +5278,9 @@ msgstr "Deploy {name} on push"
 msgid "Each push to {branch} deploys {name}."
 msgstr "Each push to {branch} deploys {name}."
 
+msgid "Each push to {branch} plans a deploy of {name}, which waits for a person here."
+msgstr "Each push to {branch} plans a deploy of {name}, which waits for a person here."
+
 msgid "Give the panel a domain"
 msgstr "Give the panel a domain"
 
