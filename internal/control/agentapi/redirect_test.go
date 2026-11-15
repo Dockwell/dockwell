@@ -41,6 +41,10 @@ func TestAnOlderAgentIsRefusedARedirect(t *testing.T) {
 			_, err := s.Remember(t.Context(), www, spec, 1, "chg_1", "")
 			return err
 		},
+		// Read back, its redirect's handlers would read as a hand edit.
+		"reading back": func(s *Session, spec *resourcev1.Route) error {
+			return s.CheckRead([]resource.Desired{{Ref: www, Spec: spec}})
+		},
 	}
 	for name, entry := range entries {
 		t.Run(name, func(t *testing.T) {

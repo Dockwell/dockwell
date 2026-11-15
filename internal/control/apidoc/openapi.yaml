@@ -13573,6 +13573,12 @@ components:
                     description: |-
                         Where the server's ingress stands, as it last said. A domain with an issued
                          certificate still doesn't answer while problem is set here.
+                redirectUnserved:
+                    type: boolean
+                    description: |-
+                        True when a route of the domain redirects, and the server's agent, as it
+                         last connected, is too old to serve a redirect, as after a downgrade: the
+                         redirect isn't served there until its agent is updated (ADR 0070).
             description: DomainServer is where a domain stands on one server.
         DomainStatus:
             type: object

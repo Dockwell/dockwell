@@ -3,13 +3,17 @@
 package revision
 
 import (
+	"errors"
+	"log/slog"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/route"
+	"github.com/dockwell/dockwell/internal/secrets/secretstest"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
 )
@@ -74,4 +78,50 @@ func TestAChangeSaysARedirectWouldLandOnNothing(t *testing.T) {
 			t.Errorf("another site's change notes %+v", other.Notes)
 		}
 	})
+}
+
+// refusesRedirects is an agent too old to serve a redirect: it refuses to read one
+// back, as the agent API's session does (ADR 0070).
+type refusesRedirects struct{ resource.Local }
+
+func (refusesRedirects) CheckRead(desired []resource.Desired) error {
+	for i := range desired {
+		if r, ok := desired[i].Spec.(*resourcev1.Route); ok && r.GetRedirect() != nil {
+			return errors.New("srv_A's agent is older than this release, so it can't serve www.example.com's redirect. Update its agent, then plan again")
+		}
+	}
+	return nil
+}
+
+// Drift is never read back from an agent that can't serve what a server should run:
+// the engine asks it first, and says why it can't check (ADR 0070).
+func TestDriftIsntReadFromAnAgentThatCantServeARedirect(t *testing.T) {
+	db, _ := storetest.Open(t, store.SQLite)
+	logger := slog.New(slog.DiscardHandler)
+	if _, err := Setup(t.Context(), db, logger); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now()
+	if err := db.Update(t.Context(), func(tx *store.Tx) error {
+		return tx.CreateServer(t.Context(), store.Server{ID: "srv_A", Name: "srv_A", CreatedAt: now, CertSerial: "srv_A", CertNotAfter: now})
+	}); err != nil {
+		t.Fatal(err)
+	}
+	ing := &memIngress{routes: map[resource.Ref]*resourcev1.Route{}}
+	local := resource.Local{Drivers: resource.NewRegistry(&route.Driver{Ingress: ing, Reserved: panelDomain})}
+	agents := onDocker{"srv_A": local}
+	kinds := resource.NewRegistry(&route.Driver{Reserved: panelDomain})
+	e := New(db, kinds, agents, secretstest.Keeper(db, kinds), logger)
+	prod := production(t, db)
+	apply(t, e, propose(t, e, "www", redirectIn(prod, "www", "www.example.com", "", "https://example.com", false, "srv_A")))
+
+	agents["srv_A"] = refusesRedirects{local}
+	_, err := e.Drift(t.Context(), "srv_A")
+	if err == nil || !strings.Contains(err.Error(), "can't serve www.example.com's redirect. Update its agent") {
+		t.Errorf("drift from an agent that can't serve a redirect = %v", err)
+	}
+	agents["srv_A"] = local
+	if _, err := e.Drift(t.Context(), "srv_A"); err != nil {
+		t.Errorf("drift from an agent that serves it = %v", err)
+	}
 }

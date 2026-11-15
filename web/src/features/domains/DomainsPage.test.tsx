@@ -549,6 +549,23 @@ describe("the list of domains", () => {
     expect(screen.queryByRole("row", { name: /^www\.example\.com/ })).toBeNull();
   });
 
+  it("says where a redirect isn't served, as its server's agent is too old, with the way to update it", async () => {
+    renderAt(
+      "/domains",
+      api([
+        aDomain({
+          name: "www.example.com",
+          certificate: issued,
+          route: { service: "", port: 0, redirect: { to: "https://example.org", temporary: false, dropPath: false } },
+          server: { redirectUnserved: true },
+        }),
+      ]),
+    );
+    const row = await rowOf(/^www\.example\.com/);
+    expect(row).toHaveTextContent("Not served on hz-1");
+    expect(within(row).getByRole("link", { name: "Update its agent" })).toHaveAttribute("href", `/servers/${SERVER}`);
+  });
+
   it("keeps www's own row where its bare domain isn't listed", async () => {
     renderAt(
       "/domains",

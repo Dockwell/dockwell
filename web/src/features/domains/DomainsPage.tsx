@@ -856,6 +856,7 @@ function DomainsTable({
             </span>
             <PrivateFact domain={row.domain} route={row.route} open={row.open} />
             <Folded row={row} />
+            <Unserved row={row} />
             <RowNote row={row} read={read} onMoveBehind={onMoveBehind} />
           </div>
         ),
@@ -991,6 +992,7 @@ function PhoneRow({
       </div>
       <PrivateFact domain={row.domain} route={row.route} open={row.open} />
       <Folded row={row} />
+      <Unserved row={row} />
       <RowNote row={row} read={read} onMoveBehind={onMoveBehind} />
     </div>
   );
@@ -1021,6 +1023,34 @@ function Folded({ row }: { row: Row }) {
           </span>
         );
       })}
+    </>
+  );
+}
+
+/**
+ * A redirect on a server whose agent is too old to serve one, as after a downgrade:
+ * where it isn't served, and the way to the server to update its agent (ADR 0070).
+ */
+function Unserved({ row }: { row: Row }) {
+  if (!row.route.redirect || !row.first) return null;
+  return (
+    <>
+      {row.domain.servers
+        .filter((s) => s.redirectUnserved)
+        .map((s) => {
+          const server = s.serverName;
+          return (
+            <span key={s.serverId} className="domains-folded domains-folded-trouble">
+              <span>
+                <Trans>Not served on {server}</Trans>
+              </span>
+              {" · "}
+              <Link to="/servers/$serverId" params={{ serverId: s.serverId }}>
+                <Trans>Update its agent</Trans>
+              </Link>
+            </span>
+          );
+        })}
     </>
   );
 }

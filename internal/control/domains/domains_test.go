@@ -52,6 +52,11 @@ func (r reports) Domain(server, domain string) (*dockwellv1.DomainStatus, bool) 
 	return r[server+"/"+domain], server != "srv_off"
 }
 
+// ServesRedirects says srv_old's agent is too old to serve a redirect.
+func (reports) ServesRedirects(server string) (serves, known bool) {
+	return server != "srv_old", server != "srv_off"
+}
+
 func (reports) Ingress(server string) *dockwellv1.IngressStatus {
 	if server != "srv_on" {
 		return nil
@@ -365,4 +370,59 @@ func TestAServiceFindsARouteThatDialsAPortOnTheServer(t *testing.T) {
 			}
 		}
 	})
+}
+
+// A redirect placed on a server whose agent is too old to serve one, as after a
+// downgrade, says so on that server, and not on one that serves it (ADR 0070).
+func TestARedirectSaysWhereItIsntServed(t *testing.T) {
+	db, _ := storetest.Open(t, store.SQLite)
+	logger := slog.New(slog.DiscardHandler)
+	if _, err := revision.Setup(t.Context(), db, logger); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now()
+	if err := db.Update(t.Context(), func(tx *store.Tx) error {
+		for _, id := range []string{"srv_on", "srv_old"} {
+			if err := tx.CreateServer(t.Context(), store.Server{ID: id, Name: id, CreatedAt: now, CertSerial: id, CertNotAfter: now}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	kinds := resource.NewRegistry(&service.Driver{}, &route.Driver{})
+	e := revision.New(db, kinds, agents{}, secretstest.Keeper(db, kinds), logger)
+	var tr scope.Tree
+	if err := db.View(t.Context(), func(tx *store.Tx) (err error) {
+		tr, err = scope.Load(t.Context(), tx)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	env := tr.Projects[0].Environments[0].ID
+	to := &resourcev1.RouteRedirect{To: "https://example.com"}
+	p, err := e.Propose(t.Context(), revision.Proposal{Summary: "www and old", Actor: "usr_test", Edits: []revision.Edit{
+		{Ref: resource.Ref{Kind: route.Kind, Scope: env, Name: "www"}, Spec: &resourcev1.Route{Domain: "www.example.com", Redirect: to}, Servers: []string{"srv_on"}},
+		{Ref: resource.Ref{Kind: route.Kind, Scope: env, Name: "old"}, Spec: &resourcev1.Route{Domain: "old.example.com", Redirect: to}, Servers: []string{"srv_old"}},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := e.Apply(t.Context(), p.Change); err != nil {
+		t.Fatal(err)
+	}
+	res, err := New(kinds, db, reports{}, nil, logger).ListDomains(t.Context(), connect.NewRequest(&dockwellv1.ListDomainsRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	unserved := map[string]bool{}
+	for _, d := range res.Msg.GetDomains() {
+		for _, s := range d.GetServers() {
+			unserved[d.GetName()+" on "+s.GetServerName()] = s.GetRedirectUnserved()
+		}
+	}
+	if len(unserved) != 2 || unserved["www.example.com on srv_on"] || !unserved["old.example.com on srv_old"] {
+		t.Errorf("unserved: %v", unserved)
+	}
 }

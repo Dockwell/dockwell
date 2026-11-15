@@ -445,6 +445,10 @@ message DomainServer {
   // Where the server's ingress stands, as it last said. A domain with an issued
   // certificate still doesn't answer while problem is set here.
   IngressStatus ingress = 5;
+  // True when a route of the domain redirects, and the server's agent, as it
+  // last connected, is too old to serve a redirect, as after a downgrade: the
+  // redirect isn't served there until its agent is updated (ADR 0070).
+  bool redirect_unserved = 10;
 }
 
 // IngressStatus is where a server's ingress stands, on a server with routes.
