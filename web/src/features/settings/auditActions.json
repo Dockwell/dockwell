@@ -64,6 +64,7 @@
   "git_hook.delete",
   "git_hook.push",
   "git_hook.refused",
+  "git_hook.role",
   "git_hook.rotate",
   "install.create",
   "join_token.create",

@@ -775,6 +775,12 @@ msgstr "Asked to run {task}"
 msgid "Backed up {volume}"
 msgstr "Backed up {volume}"
 
+msgid "Changed whether deploy on push waits for a person"
+msgstr "Changed whether deploy on push waits for a person"
+
+msgid "Changed whether {name}'s deploy on push waits for a person"
+msgstr "Changed whether {name}'s deploy on push waits for a person"
+
 msgid "Checked a DNS provider"
 msgstr "Checked a DNS provider"
 

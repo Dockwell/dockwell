@@ -659,6 +659,13 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
             title: name ? t`Turned off deploy on push for ${name}` : t`Turned off deploy on push`,
             icon: "commit",
           };
+        case "git_hook.role":
+          return {
+            title: name
+              ? t`Changed whether ${name}'s deploy on push waits for a person`
+              : t`Changed whether deploy on push waits for a person`,
+            icon: "shield",
+          };
         case "git_hook.refused":
           return {
             title: name

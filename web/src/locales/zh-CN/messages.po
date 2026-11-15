@@ -775,6 +775,12 @@ msgstr "请求运行 {task}"
 msgid "Backed up {volume}"
 msgstr "已备份 {volume}"
 
+msgid "Changed whether deploy on push waits for a person"
+msgstr "更改了推送时部署是否等人确认"
+
+msgid "Changed whether {name}'s deploy on push waits for a person"
+msgstr "更改了 {name} 的推送时部署是否等人确认"
+
 msgid "Checked a DNS provider"
 msgstr "检查了一个 DNS 服务商"
 
