@@ -37,6 +37,7 @@ import {
 } from "@dockwell/api";
 import {
   Button,
+  ButtonLink,
   Callout,
   cx,
   Glyph,
@@ -146,6 +147,11 @@ interface Then {
   onClose?: (change: Change | undefined) => void;
   /** What the button at the end of a change that applied says, in place of "Done", such as "Open web". */
   doneLabel?: string;
+  /**
+   * A link beside Done once the change has applied, to try what it did where a visitor
+   * would, such as a private route in a new tab (ADR 0087).
+   */
+  tryIt?: { href: string; label: string };
   /** What the button at the end of a change that failed says, when closing goes back to where it can be fixed. */
   retryLabel?: string;
   /** Leaves altogether from a change that failed, when closing goes back to where it can be fixed: Done and × do this. */
@@ -306,7 +312,7 @@ function PlanViews({
     const current = shown.opening;
     // Cancelling an undo goes back to what it would have undone, not out of the sheet.
     if (current.kind === "undo" && shown.key > 0 && (!change || change.state === ChangeState.PLANNED)) {
-      const { doneLabel, retryLabel } = opening;
+      const { doneLabel, retryLabel, tryIt } = opening;
       setShown({
         opening: {
           kind: "change",
@@ -314,6 +320,7 @@ function PlanViews({
           witnessed: true,
           ...(doneLabel ? { doneLabel } : {}),
           ...(retryLabel ? { retryLabel } : {}),
+          ...(tryIt ? { tryIt } : {}),
         },
         key: shown.key + 1,
       });
@@ -909,6 +916,18 @@ function ChangeSheet({
           <Button variant="ghost" size={size} onClick={leave}>
             <Trans>Done</Trans>
           </Button>
+        ) : null}
+        {phase === "arrived" && opening.tryIt ? (
+          <ButtonLink
+            variant="secondary"
+            size={size}
+            href={opening.tryIt.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            iconAfter="external"
+          >
+            {opening.tryIt.label}
+          </ButtonLink>
         ) : null}
         <Button
           ref={primary}

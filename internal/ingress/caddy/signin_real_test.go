@@ -12,6 +12,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -162,6 +163,8 @@ type visited struct {
 	to     *url.URL
 	seen   map[string]string
 	set    []string
+	// page is what came back that isn't the app's, read whole.
+	page string
 }
 
 // visit sends a request as a browser does, a navigation unless method says otherwise.
@@ -184,6 +187,9 @@ func visit(t *testing.T, b *http.Client, method, target string, header map[strin
 	out.to, _ = res.Location()
 	if res.StatusCode == http.StatusOK {
 		_ = json.NewDecoder(res.Body).Decode(&out.seen)
+	} else {
+		page, _ := io.ReadAll(io.LimitReader(res.Body, 64<<10))
+		out.page = string(page)
 	}
 	return out
 }
@@ -344,6 +350,16 @@ func TestSigningInGoesThroughTheAgentOnRealCaddy(t *testing.T) {
 	got = visit(t, b, http.MethodGet, "https://"+domain+"/pub/who?set=1", nil)
 	if joined := strings.Join(got.set, " | "); strings.Contains(strings.ToLower(joined), "__host-dw_") || !strings.Contains(joined, "theme=dark") {
 		t.Errorf("the public route's app sets %q, want its own cookie alone", joined)
+	}
+
+	// Signing out says so from the agent, through Caddy, with a status that lets
+	// nothing through to the app, and then a navigation goes to sign in again (ADR 0087).
+	got = visit(t, b, http.MethodGet, "https://"+domain+signin.Prefix+"out", nil)
+	if got.status != http.StatusUnauthorized || !strings.Contains(got.page, "signed out of "+domain) || got.seen != nil {
+		t.Errorf("signing out gets %d, the app seeing %v: %s", got.status, got.seen, got.page)
+	}
+	if got = visit(t, b, http.MethodGet, home, nil); got.status != http.StatusFound || got.to == nil || !strings.HasPrefix(got.to.String(), p.srv.URL+"/authorize?") {
+		t.Errorf("signed out, a navigation gets %d to %v, want a redirect to the provider", got.status, got.to)
 	}
 
 	// The agent gone: its socket closed, and the connections Caddy kept with it.

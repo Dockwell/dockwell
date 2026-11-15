@@ -22,6 +22,7 @@ import { type Opening, PlanView } from "../changes/ChangeSheet";
 import { appOf } from "./app";
 import { routeWhere } from "./domains";
 import { PrivateSignIn, type SignInChoice, signInChoiceOf, signInSpec } from "./PrivateSignIn";
+import { usePlaces } from "./useServices";
 import "./Apps.css";
 import "./Private.css";
 
@@ -238,6 +239,9 @@ export function PrivateSheet({
   const own = ownEntries(address);
   const wasPrivate = isPrivate(route);
   const ownEmail = useSignedInUser()?.email ?? "";
+  // The providers offered are those the route's project may use, once it's known which.
+  const places = usePlaces();
+  const project = places.isPending ? undefined : (places.place(domain.environmentId)?.scope ?? "");
   const [signIn, setSignIn] = useState<SignInChoice>(() => signInChoiceOf(route.signIn));
   const [listOn, setListOn] = useState(route.allow.length > 0 || (!wasPrivate && !blocked));
   const [entries, setEntries] = useState<string[]>(route.allow);
@@ -387,6 +391,11 @@ export function PrivateSheet({
         },
       ],
       retryLabel: t`Edit and try again`,
+      // Once it applies, you see what a stranger gets, as one, in a tab of its own (ADR 0087).
+      tryIt: {
+        href: route.url || `https://${domain.name}${route.path}`,
+        label: t({ message: "Try it", context: "open a route whose access just changed, as a visitor would" }),
+      },
       onDone: onClose,
       onClose: (after) => {
         // Applied, the form's work is done; anything else comes back to it, with what you chose.
@@ -696,6 +705,7 @@ export function PrivateSheet({
           choice={signIn}
           onChange={changeSignIn}
           ownEmail={ownEmail}
+          project={project}
           domain={domain.name}
           path={route.path}
           plainHere={plainHere}

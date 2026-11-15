@@ -349,7 +349,17 @@ The stranger check asks as a navigation, and a redirect to the provider's own or
 - **What it costs every server:** `internal/agent/signin` joins the agent build. The agent answers the socket with a small HTTP/1.1 loop, `signin.Serve`, not net/http's server: with HTTP/2, that server would be linked for this alone ([ADR 0093](0093-what-the-agent-build-leaves-out-of-its-code.md)).
   - The agent build's code and tables grow 0.33 MB over #628's, where they'd grow 0.67 MB with net/http's server.
   - Measured with `scripts/budgets.sh` beside #628's build, an idle agent reads 29.3 against 28.7 MB, and 29.4 against 28.3 MB with the builds' places swapped. That's 0.6 to 1.1 MB, nearly all of it the binary's pages, and under the 30 MB warning line.
-- **Not yet:** Try it after applying, a provider's own sign-out, and listing only the providers the route's project may use. The plan refuses another one by name.
+
+#### As built: what was left for later
+
+- **Sign in with offers the providers the route's project may use,** asked by the project its environment is in, once that's known. With none, an admin is led to Integrations, and anyone else told an admin adds one for this project. The plan still refuses another by name.
+- **Try it** follows a change to who gets in that applied: a link beside Done that opens the route in a tab of its own, where a visitor would see it. The live reading on the domain says what a stranger gets.
+- **Signing out signs out at the provider too,** where its discovery document names an HTTPS `end_session_endpoint`. Otherwise the provider would sign the same account in again at once, and "Sign in as someone else" couldn't work.
+  - The agent clears the route's cookies and sends the visitor there with `client_id`, and with the route's redirect address as `post_logout_redirect_uri`, so there's one address to register. Some providers, such as Keycloak and Zitadel, keep the addresses they send people back to after signing out in a list of their own. So the sheet beside the address says to add it to both, or such a provider shows its own error page at sign-out, with the route's cookies cleared all the same.
+  - Back at the callback with no code and no error, or at a provider that names nowhere to sign out, or one that can't be read, the agent says "You're signed out of app.example.com", with Sign in again. The status is 401, as a 2xx would let the request through to the app.
+  - There's no `id_token_hint`, as the session cookie doesn't keep the ID token, which would take it past 4 KB. A provider may ask whether to sign out.
+  - Checked on real Caddy: the page reaches the visitor, nothing reaches the app, and a navigation then goes to sign in.
+- **Still not here:** refresh tokens, the userinfo endpoint, GitHub's OAuth, and a page to choose among several providers.
 
 ## Consequences
 

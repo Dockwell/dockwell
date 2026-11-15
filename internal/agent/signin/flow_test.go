@@ -150,13 +150,46 @@ func TestASignInLetsSomeoneIn(t *testing.T) {
 		t.Errorf("signed out by a new generation, they're let in: %d", w.Code)
 	}
 	route.Generation--
-	// Signing out goes to the route's own path, whatever a link says, as anyone can
-	// make one (#598's review, M1).
+	// Signing out, at a provider that names nowhere to sign out, says so here, and signs
+	// in again at the route's own path, whatever a link says, as anyone can make one
+	// (#598's review, M1).
 	for _, next := range []string{"%2Fadmin%2Fx", "%2F%09%2Fevil.example%2Fx", "https%3A%2F%2Fevil.example%2F"} {
 		out := ask(s, http.MethodGet, "/admin"+Prefix+"out?next="+next, html, session)
-		if out.Code != http.StatusFound || out.Header().Get("Location") != "/admin" || cookie(t, out, sessionName).MaxAge >= 0 {
-			t.Errorf("signing out with next=%s answers %d, %q, %v", next, out.Code, out.Header().Get("Location"), out.Result().Cookies())
+		if out.Code != http.StatusUnauthorized || !strings.Contains(out.Body.String(), `href="/admin">Sign in again`) || cookie(t, out, sessionName).MaxAge >= 0 {
+			t.Errorf("signing out with next=%s answers %d, %v: %s", next, out.Code, out.Result().Cookies(), out.Body)
 		}
+	}
+}
+
+// Signing out goes on to sign out at the provider, where its discovery document names
+// where, which brings them back to the redirect address it knows already, and that
+// says they're signed out. One that isn't HTTPS is left out (ADR 0087).
+func TestSigningOutSignsOutAtTheProvider(t *testing.T) {
+	p := newProvider(t)
+	p.EndSession = p.Srv.URL + "/logout?realm=team"
+	s, route := stand(t, p)
+	sessionName, _ := Names(route.ID)
+	session := cookie(t, signIn(t, s, route, p, nil), sessionName)
+	out := ask(s, http.MethodGet, "/admin"+Prefix+"out", html, session)
+	to, err := url.Parse(out.Header().Get("Location"))
+	if out.Code != http.StatusFound || err != nil || cookie(t, out, sessionName).MaxAge >= 0 {
+		t.Fatalf("signing out answers %d, %q, %v", out.Code, out.Header().Get("Location"), out.Result().Cookies())
+	}
+	if got := to.Scheme + "://" + to.Host + to.Path; got != p.Srv.URL+"/logout" || to.Query().Get("realm") != "team" ||
+		to.Query().Get("client_id") != client || to.Query().Get("post_logout_redirect_uri") != "https://app.example.net/admin"+Prefix+"callback" {
+		t.Errorf("signing out goes to %s", to)
+	}
+	back := ask(s, http.MethodGet, "/admin"+Prefix+"callback", html)
+	if back.Code != http.StatusUnauthorized || !strings.Contains(back.Body.String(), "You&#39;re signed out of app.example.net/admin") ||
+		!strings.Contains(back.Body.String(), `href="/admin">Sign in again`) {
+		t.Errorf("back from the provider, it answers %d: %s", back.Code, back.Body)
+	}
+
+	plain := newProvider(t)
+	plain.EndSession = "http://" + strings.TrimPrefix(plain.Srv.URL, "https://") + "/logout"
+	s, _ = stand(t, plain)
+	if out := ask(s, http.MethodGet, "/admin"+Prefix+"out", html); out.Code != http.StatusUnauthorized {
+		t.Errorf("at a provider whose sign-out isn't HTTPS, signing out answers %d, %q", out.Code, out.Header().Get("Location"))
 	}
 }
 

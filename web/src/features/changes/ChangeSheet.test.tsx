@@ -1563,6 +1563,30 @@ describe("the plan sheet, once it runs", () => {
     expect(link.closest(".plan-reach-row")).toHaveTextContent("Private");
   });
 
+  it("arrives with a way to try what it did, in a tab of its own, and not before (ADR 0087)", async () => {
+    const tryIt = { href: "https://app.example.com/admin", label: "Try it" };
+    const { unmount } = renderSheet(
+      { kind: "plan", make: () => Promise.resolve({ change: webPlanned() }), tryIt },
+      { changes: { watchChange: feed<WatchChangeResponse>().stream, discardChange: () => ({}) } },
+    );
+    await screen.findByRole("button", { name: /Apply/ });
+    expect(screen.queryByRole("link", { name: "Try it" })).toBeNull();
+    unmount();
+    renderSheet(
+      { kind: "plan", make: () => Promise.resolve({ change: applied(aServicePlan()) }), tryIt },
+      {
+        services: { listServices: () => ({ services: [aService([{ hostPort: 8080, containerPort: 3000 }])] }) },
+        servers: { watchServers: serversWatch },
+        changes: { watchChange: feed<WatchChangeResponse>().stream },
+      },
+    );
+    const done = await screen.findByRole("dialog", { name: "web is deployed" });
+    const link = within(done).getByRole("link", { name: "Try it" });
+    expect(link).toHaveAttribute("href", "https://app.example.com/admin");
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+  });
+
   it("arrives: the title says it is deployed, and its address is the first line", async () => {
     const change = applied(aServicePlan());
     change.steps = [

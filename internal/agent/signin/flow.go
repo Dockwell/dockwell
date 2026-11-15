@@ -111,7 +111,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.callback(w, r, route, query)
 		return
 	case base + Prefix + "out":
-		s.signOut(w, route)
+		s.signOut(r.Context(), w, route)
 		return
 	}
 	sessionName, _ := Names(route.ID)
@@ -233,6 +233,12 @@ func (s *Server) begin(ctx context.Context, w http.ResponseWriter, route Route, 
 func (s *Server) callback(w http.ResponseWriter, r *http.Request, route Route, rawQuery string) {
 	_, flowName := Names(route.ID)
 	q, _ := url.ParseQuery(rawQuery)
+	// The provider brings someone it signed out back here, to the address it knows
+	// already, with no code and no error (ADR 0087).
+	if q.Get("code") == "" && q.Get("error") == "" {
+		signedOut(w, route)
+		return
+	}
 	c, err := r.Cookie(flowName)
 	if err != nil {
 		failed(route, "", "It took longer than 10 minutes, or began in another browser.").write(w)
@@ -305,15 +311,42 @@ func (s *Server) callback(w http.ResponseWriter, r *http.Request, route Route, r
 	w.WriteHeader(http.StatusFound)
 }
 
-// signOut clears the route's cookies, here alone, and goes to the route's own path,
-// whatever the link says, as anyone can make a link to it (#598's review, M1).
-func (s *Server) signOut(w http.ResponseWriter, route Route) {
+// signOut clears the route's cookies, and signs out at the provider too, where its
+// discovery document names an end_session_endpoint: otherwise the provider would sign
+// the same account in again at once, and "Sign in as someone else" couldn't. The
+// provider brings them back to the redirect address, which is registered there
+// already, and that says they're signed out. Where the provider names none, or can't
+// be read, it says so here. Whatever a link says, nothing else is where it goes, as
+// anyone can make a link to it (#598's review, M1).
+func (s *Server) signOut(ctx context.Context, w http.ResponseWriter, route Route) {
 	sessionName, flowName := Names(route.ID)
 	setCookie(w, sessionName, "", -1)
 	setCookie(w, flowName, "", -1)
+	doc, err := s.oidc().Discover(ctx, route.Issuer)
+	if err != nil || doc.EndSessionEndpoint == "" {
+		signedOut(w, route)
+		return
+	}
+	// No id_token_hint, as the session cookie doesn't keep the ID token, which would
+	// take it past 4 KB: a provider may ask whether to sign out.
+	q := url.Values{"client_id": {route.ClientID}, "post_logout_redirect_uri": {route.redirectURI()}}
 	w.Header().Set("Cache-Control", "no-store")
-	w.Header().Set("Location", route.back(""))
+	w.Header().Set("Location", oidc.WithQuery(doc.EndSessionEndpoint, q))
 	w.WriteHeader(http.StatusFound)
+}
+
+// signedOut clears the route's cookies and says they're signed out, with a way to
+// sign in again, rather than going to the route, which would sign them in again at
+// once where the provider still knows them. Its status isn't 2xx, which would let
+// the request through to the app.
+func signedOut(w http.ResponseWriter, route Route) {
+	sessionName, flowName := Names(route.ID)
+	setCookie(w, sessionName, "", -1)
+	setCookie(w, flowName, "", -1)
+	end{
+		Status: http.StatusUnauthorized, Title: "You're signed out of " + route.Domain + strings.TrimSuffix(route.Path, "/"),
+		Action: "Sign in again", Href: route.back(""), Tone: "out",
+	}.write(w)
 }
 
 // setCookie sets a __Host- cookie, which only this host may set, sent over HTTPS

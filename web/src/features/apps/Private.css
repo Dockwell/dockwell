@@ -124,7 +124,8 @@
   align-items: center;
 }
 
-.private-redirect > .dw-field-label {
+.private-redirect > .dw-field-label,
+.private-redirect > .dw-field-hint {
   grid-column: 1 / -1;
 }
 

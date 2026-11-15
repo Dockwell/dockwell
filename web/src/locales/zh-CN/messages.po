@@ -4893,6 +4893,10 @@ msgstr "删除 {who}"
 msgid "Take {entry} off the list"
 msgstr "将 {entry} 移出列表"
 
+msgctxt "open a route whose access just changed, as a visitor would"
+msgid "Try it"
+msgstr "试一试"
+
 msgid "Turn on HTTPS for this domain"
 msgstr "为此域名开启 HTTPS"
 
@@ -4946,14 +4950,17 @@ msgstr "添加邮箱、域名或组"
 msgid "Add anyone at {ownDomain}"
 msgstr "添加 {ownDomain} 的任何人"
 
+msgid "Add it to the provider's sign-in and sign-out redirect addresses."
+msgstr "在提供方处，把它同时加入登录和退出登录的重定向地址。"
+
 msgid "Add someone who may sign in."
 msgstr "添加可以登录的人。"
 
 msgid "Copy the redirect address"
 msgstr "复制重定向地址"
 
-msgid "No sign-in provider is here yet. An admin adds one in Settings."
-msgstr "这里还没有登录提供方。管理员可在设置中添加。"
+msgid "No sign-in provider is here for this project yet. An admin adds one in Settings."
+msgstr "这个项目还没有可用的登录提供方。管理员可在设置中添加。"
 
 msgid "Redirect address at the provider"
 msgstr "提供方处的重定向地址"
@@ -4994,6 +5001,9 @@ msgstr "组"
 msgctxt "an email on who may sign in, that is yours"
 msgid "you"
 msgstr "你"
+
+msgid "{kept}, not available to this project"
+msgstr "{kept}，这个项目不可用"
 
 msgid "Change {name}'s version"
 msgstr "更改 {name} 的版本"
