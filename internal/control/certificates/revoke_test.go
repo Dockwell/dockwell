@@ -218,10 +218,12 @@ func TestAKeyInUseIsReplacedBeforeItsRevoked(t *testing.T) {
 	m := newManager(t)
 	now := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
 	m.Now = func() time.Time { return now }
-	// A CA that's down holds the manager no longer than this.
-	was := clientTimeout
-	clientTimeout = 2 * time.Second
-	t.Cleanup(func() { clientTimeout = was })
+	// The CA is asked once, so the call ends on its answer, not on a deadline that
+	// may land in the middle of a request on a slow runner; the timeout only bounds
+	// one that never answers (#716).
+	wasTimeout, wasRetries := clientTimeout, caRetries
+	clientTimeout, caRetries = 30*time.Second, 0
+	t.Cleanup(func() { clientTimeout, caRetries = wasTimeout, wasRetries })
 	var asked atomic.Int32
 	ca := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		asked.Add(1)
@@ -279,9 +281,10 @@ func TestACompromisedServersKeyIsRevokedAtOnce(t *testing.T) {
 	m := newManager(t)
 	now := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
 	m.Now = func() time.Time { return now }
-	was := clientTimeout
-	clientTimeout = 2 * time.Second
-	t.Cleanup(func() { clientTimeout = was })
+	// The CA is asked once a request, so each call ends on its answer (#716).
+	wasTimeout, wasRetries := clientTimeout, caRetries
+	clientTimeout, caRetries = 30*time.Second, 0
+	t.Cleanup(func() { clientTimeout, caRetries = wasTimeout, wasRetries })
 	var asked atomic.Int32
 	ca := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		asked.Add(1)
@@ -343,9 +346,10 @@ func TestACompromisedServersKeysGoFirstInATick(t *testing.T) {
 	m := newManager(t)
 	now := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
 	m.Now = func() time.Time { return now }
-	was := clientTimeout
-	clientTimeout = 2 * time.Second
-	t.Cleanup(func() { clientTimeout = was })
+	// The CA is asked once a request, so each call ends on its answer (#716).
+	wasTimeout, wasRetries := clientTimeout, caRetries
+	clientTimeout, caRetries = 30*time.Second, 0
+	t.Cleanup(func() { clientTimeout, caRetries = wasTimeout, wasRetries })
 	var asked atomic.Int32
 	ca := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		asked.Add(1)
