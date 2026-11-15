@@ -31,6 +31,9 @@ var (
 	// wait, which is its maker's alone, as nobody widens a credential for someone
 	// else (ADR 0071).
 	ErrHookNotYours = errors.New("this hook acts for someone else, and only they choose whether its pushes wait, so nothing changed. Give it a new secret to make it yours")
+	// ErrHookThroughApp says a hook whose pushes come through a GitHub App was given
+	// a secret of its own, which it has no use for: its own URL takes no pushes.
+	ErrHookThroughApp = errors.New("this app's pushes come through the GitHub App, which needs no secret of its own, so nothing changed")
 	// ErrHookAdminOnly says a hook's maker who isn't an admin where its app is let
 	// it deploy without waiting.
 	ErrHookAdminOnly = errors.New("only an admin where the app is lets its pushes deploy without waiting, and you're not one, so each still waits for a person. An admin applies them from the panel")
@@ -199,6 +202,11 @@ func (s *Service) RotateGitHookSecret(ctx context.Context, client Client, p Prin
 		} else if err != nil {
 			return err
 		}
+		// Pushes through a GitHub App are proved by the App's secret: a secret of
+		// the hook's own would let its own URL take pushes too (re-check N3).
+		if h.Via != "" {
+			return ErrHookThroughApp
+		}
 		// The hook acts for whoever holds its secret now, as nobody makes a
 		// credential for someone else (ADR 0049). Whether its pushes wait is its
 		// maker's choice, so a new maker chooses again (ADR 0071).
@@ -308,7 +316,9 @@ func (s *Service) GitHookPrincipal(ctx context.Context, hookID string, body []by
 		} else if err != nil {
 			return err
 		}
-		found = h.ID != "" && u.RemovedAt == nil
+		// A hook through a GitHub App takes pushes through the App alone: at its own
+		// URL it's a hook there isn't, whatever the proof (re-check N3).
+		found = h.ID != "" && h.Via == "" && u.RemovedAt == nil
 		return nil
 	})
 	if err != nil {

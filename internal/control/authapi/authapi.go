@@ -864,6 +864,7 @@ var codes = []struct {
 	{auth.ErrHookExists, connect.CodeAlreadyExists, "hook_exists"},
 	{auth.ErrNoHook, connect.CodeNotFound, "no_hook"},
 	{auth.ErrHookNotYours, connect.CodePermissionDenied, "hook_not_yours"},
+	{auth.ErrHookThroughApp, connect.CodeFailedPrecondition, "hook_through_app"},
 	{auth.ErrHookAdminOnly, connect.CodePermissionDenied, ReasonNeedsRole},
 }
 

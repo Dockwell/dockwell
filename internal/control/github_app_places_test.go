@@ -68,3 +68,16 @@ func TestAnAdminsAppHookPushIntoProtectedProductionWaits(t *testing.T) {
 		t.Errorf("the push after Deploy without waiting ended %v: %s", c.GetState(), c.GetError())
 	}
 }
+
+// A hook through the GitHub App gets no secret of its own, so its own URL never
+// takes pushes: asking for a new one is refused (re-check N3).
+func TestAnAppHookGetsNoSecretOfItsOwn(t *testing.T) {
+	t.Parallel()
+	a := newAppBench(t)
+	_, err := a.hooks().RotateGitHookSecret(t.Context(), connect.NewRequest(&dockwellv1.RotateGitHookSecretRequest{
+		Id: a.web.GetId(), Proof: stepUpFor(t, a.b, dockwellv1.StepUpAction_STEP_UP_ACTION_ROTATE_GIT_HOOK, a.web.GetId()),
+	}))
+	if reasonOf(err) != "hook_through_app" {
+		t.Errorf("a new secret for a hook through the App: %v", err)
+	}
+}

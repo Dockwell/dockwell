@@ -216,3 +216,27 @@ func TestARefusalIsRecordedOnceItsAnswered(t *testing.T) {
 		t.Errorf("two refusals in an hour are recorded %d times, want once", len(got))
 	}
 }
+
+// A hook whose pushes come through a GitHub App takes none at its own URL, even
+// signed with the secret it was made with, and gets no secret of its own: its
+// pushes are proved by the App's secret alone (re-check N3).
+func TestAHookThroughTheAppTakesNoPushAtItsOwnURL(t *testing.T) {
+	f := newFixture(t, store.SQLite, "")
+	secret := []byte("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
+	h := store.GitHook{ID: "ghk_01RECHECKAPP000000000000", ResourceID: "res_web", UserID: "usr_maker", CreatedAt: time.Now(), SecretAt: time.Now(), Via: store.ViaGitHub}
+	h.Secret = f.key.Seal(purposeHook(h.ID), secret)
+	if err := f.db.Update(t.Context(), func(tx *store.Tx) error {
+		if err := tx.CreateUser(t.Context(), store.User{ID: "usr_maker", Email: "maker@example.com", Name: "Maker", WebAuthnHandle: []byte("m"), CreatedAt: time.Now()}); err != nil {
+			return err
+		}
+		return tx.CreateGitHook(t.Context(), h)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	body := []byte(`{"ref":"refs/heads/main"}`)
+	mac := hmac.New(sha256.New, secret)
+	mac.Write(body)
+	if _, err := f.svc.GitHookPrincipal(t.Context(), h.ID, body, HookProof{Signature: mac.Sum(nil)}); !errors.Is(err, ErrHookRejected) {
+		t.Errorf("a push signed with an App hook's own secret, at its own URL: %v, want it refused", err)
+	}
+}
