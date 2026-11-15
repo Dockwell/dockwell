@@ -301,3 +301,94 @@ func TestReviewAReplayedDeliveryDoesntEndPolling(t *testing.T) {
 		t.Errorf("a replayed delivery left polling %v", d.GetState())
 	}
 }
+
+// The review, which held: a move doesn't carry a build's installation into a
+// project it doesn't reach; the move is refused, or plans no build through it.
+func TestReviewAMoveHoldsTheBuildToTheInstallationsProjects(t *testing.T) {
+	t.Parallel()
+	a := newAppBench(t)
+	ctx := t.Context()
+	// An admin narrows the installation to one other project.
+	p, err := a.c.ProposeChange(ctx, connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Narrow acme", Edits: []*dockwellv1.Edit{{
+		Resource: &dockwellv1.ResourceRef{Kind: "github.app", Name: a.app.GetName()},
+		Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_GithubApp{GithubApp: &resourcev1.GitHubApp{Reaches: []*resourcev1.GitHubInstallationReach{
+			{InstallationId: 7, Projects: []string{"prj_01JD6Z3R8M9QF2K7T4XW5BNCZZ"}},
+		}}}},
+	}}}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.done(t, p.Msg.GetChange())
+
+	// Through ChangeService, web's build is refused: the installation doesn't reach it.
+	web := a.service(t, "", "web")
+	edit := &dockwellv1.Edit{Resource: web.GetResource(), Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: web.GetSpec()}}}
+	if _, err := a.c.ProposeChange(ctx, connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Again", Edits: []*dockwellv1.Edit{edit}})); err == nil {
+		t.Fatal("a plan of web's build through an installation that doesn't reach its project was taken")
+	}
+
+	// A move to a new project, which the installation doesn't reach either.
+	moved, err := a.s.MoveService(ctx, connect.NewRequest(&dockwellv1.MoveServiceRequest{Id: web.GetId(), NewProject: "elsewhere"}))
+	if err != nil {
+		t.Logf("move refused: %v", err)
+		return
+	}
+	if c := moved.Msg.GetChange(); c != nil {
+		for _, sp := range c.GetPlan().GetServers() {
+			for _, s := range sp.GetSteps() {
+				if s.GetBuild().GetGitLogin() != "" {
+					t.Errorf("the move's plan builds %s through %s, which doesn't reach the project it goes to", s.GetBuild().GetUrl(), s.GetBuild().GetGitLogin())
+				}
+			}
+		}
+		a.done(t, c)
+		after := a.service(t, "elsewhere", "web")
+		if l := after.GetSpec().GetBuild().GetGitLogin(); l != "" {
+			t.Errorf("web moved to a project its installation doesn't reach, still building through %s", l)
+		}
+	}
+}
+
+// The review, which held: a rollback after the installation was narrowed away from
+// the project fetches nothing through it, as it puts back the image it built.
+func TestReviewARollbackHoldsTheBuildToTheInstallationsProjects(t *testing.T) {
+	t.Parallel()
+	a := newAppBench(t)
+	ctx := t.Context()
+	second := a.commit("Second")
+	a.done(t, a.propose(t, a.buildEdit("main", nil)))
+	if got := a.service(t, "", "web").GetSpec().GetBuild().GetGit().GetCommit(); got != second {
+		t.Fatalf("web builds %s", got)
+	}
+	revs, err := a.s.ListServiceRevisions(ctx, connect.NewRequest(&dockwellv1.ListServiceRevisionsRequest{Id: a.web.GetId()}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("%d revisions", len(revs.Msg.GetRevisions()))
+	p, err := a.c.ProposeChange(ctx, connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Narrow acme", Edits: []*dockwellv1.Edit{{
+		Resource: &dockwellv1.ResourceRef{Kind: "github.app", Name: a.app.GetName()},
+		Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_GithubApp{GithubApp: &resourcev1.GitHubApp{Reaches: []*resourcev1.GitHubInstallationReach{
+			{InstallationId: 7, Projects: []string{"prj_01JD6Z3R8M9QF2K7T4XW5BNCZZ"}},
+		}}}},
+	}}}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.done(t, p.Msg.GetChange())
+	back, err := a.s.RollBackService(ctx, connect.NewRequest(&dockwellv1.RollBackServiceRequest{Id: a.web.GetId(), Revision: 1}))
+	if err != nil {
+		t.Logf("rollback refused: %v", err)
+		return
+	}
+	builds := 0
+	for _, sp := range back.Msg.GetChange().GetPlan().GetServers() {
+		for _, s := range sp.GetSteps() {
+			if s.GetBuild().GetGitLogin() != "" {
+				builds++
+				t.Errorf("the rollback's plan builds %s at %s through %s, which no longer reaches web's project", s.GetBuild().GetUrl(), s.GetBuild().GetCommit(), s.GetBuild().GetGitLogin())
+			}
+		}
+	}
+	c := a.done(t, back.Msg.GetChange())
+	t.Logf("rollback %v, %d builds through the installation", c.GetState(), builds)
+}
