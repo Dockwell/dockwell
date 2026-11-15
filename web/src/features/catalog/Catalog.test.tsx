@@ -32,9 +32,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
-import { anApp, ENV, places, projectPlaces, SERVER } from "../../test/apps";
+import { anApp, aProject, ENV, places, projectPlaces, SERVER } from "../../test/apps";
 import { authState, mira } from "../../test/auth";
-import { catalogPages } from "../../test/catalog";
+import { catalogPages, rowLabelled } from "../../test/catalog";
 import { type Api, feed, onPhone, renderAt } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
 
@@ -562,9 +562,10 @@ describe("A newer release", () => {
       services: { listServices: () => ({ services: [anApp("adminer", "adminer:6.2.0")] }) },
     });
     const panel = await screen.findByRole("region", { name: "From the catalog" });
-    expect(await within(panel).findByText("A change to how 17.11 runs is out.")).toBeVisible();
-    expect(within(panel).getByRole("button", { name: "Review the change" })).toBeVisible();
-    expect(within(panel).queryByText(/Version 17.11 is out/)).not.toBeInTheDocument();
+    const installed = await waitFor(() => rowLabelled(panel, "Installed"));
+    await waitFor(() => expect(installed).toHaveTextContent("a change to how it runs is out"));
+    expect(within(installed).getByRole("button", { name: "Review the change" })).toBeVisible();
+    expect(installed).not.toHaveTextContent(/17.11 is out/);
   });
 
   it("offers its plan on the app's page, as an update of the app, with its backup first", async () => {
@@ -582,8 +583,9 @@ describe("A newer release", () => {
       },
     });
     const panel = await screen.findByRole("region", { name: "From the catalog" });
-    expect(await within(panel).findByText("Version 17.13 is out.")).toBeVisible();
-    await user.click(within(panel).getByRole("button", { name: "Upgrade to 17.13" }));
+    const installed = await waitFor(() => rowLabelled(panel, "Installed"));
+    await waitFor(() => expect(installed).toHaveTextContent("17.13 is out"));
+    await user.click(within(installed).getByRole("button", { name: "Upgrade to 17.13" }));
     await waitFor(() => expect(asked?.id).toBe("svc_adminer"));
     expect(asked?.skipBackup).toBe(false);
     expect(asked?.image).toBe("");
@@ -719,8 +721,7 @@ describe("A database's admin tool", () => {
       services: { listServices: () => ({ services: [anApp("db", "postgres:17.11")] }) },
     });
     const panel = await screen.findByRole("region", { name: "From the catalog" });
-    const tool = await within(panel).findByRole("list", { name: "Tools" });
-    expect(within(tool).getByText("Adminer")).toBeVisible();
+    const tool = await waitFor(() => rowLabelled(panel, "Adminer"));
     expect(within(tool).getByText("Not installed")).toBeVisible();
     // With the tool left out, there's no sign-in to it to show.
     expect(screen.queryByRole("region", { name: "Sign in" })).not.toBeInTheDocument();
@@ -782,14 +783,64 @@ describe("A database's admin tool", () => {
       services: { listServices: () => ({ services: [anApp("db", "postgres:17.11")] }) },
     });
     const panel = await screen.findByRole("region", { name: "From the catalog" });
-    const needs = await within(panel).findByRole("list", { name: "What it needs" });
-    expect(needs).toHaveTextContent("New PostgreSQL 17.11 beside PostgreSQL");
+    const needs = await waitFor(() => rowLabelled(panel, "Database"));
+    expect(needs).toHaveTextContent("Its own PostgreSQL 17.11, beside PostgreSQL");
     await user.click(within(needs).getByRole("button", { name: "Use another database" }));
     expect(needs).toHaveTextContent("pg in data");
     expect(needs).toHaveTextContent("Copies its data");
     await user.click(within(needs).getByRole("button", { name: "Use it" }));
     await waitFor(() =>
       expect(asked).toEqual({ id: "prj_1", need: "db", choice: "service:data/production/pg", startEmpty: false }),
+    );
+  });
+
+  it("names the server an app shares where it is now, with the way to it, and none of a project you can't see", async () => {
+    const withNeed = create(EntrySchema, {
+      ...withTools,
+      companions: [],
+      needs: [create(NeedSchema, { name: "db", label: "Database", accepts: [{ engine: Engine.POSTGRESQL }] })],
+    });
+    const shared = (environment: string) => ({
+      ...api({
+        getCatalogEntry: () => ({ entry: withNeed, project: "postgres", needs: [] }),
+        listCatalogInstalls: () => ({
+          installs: [
+            {
+              project: "reader",
+              projectId: "prj_reader",
+              environmentId: ENV,
+              pin: {
+                entry: "postgres",
+                version: "17.11",
+                release: 5,
+                needs: { db: { engine: 1, version: "17.11", environment, meets: "db" } },
+              },
+              webServiceId: "svc_db",
+              name: "Reader",
+              companions: {},
+            },
+          ],
+        }),
+      }),
+      // The server it shares moved to a project of its own, named for it, as a deletion keeps it (#722).
+      resources: projectPlaces("data"),
+      services: {
+        listServices: () => ({
+          services: [anApp("db", "postgres:17.11"), ...aProject("data", "db")],
+        }),
+      },
+    });
+    const { unmount } = renderAt("/apps/svc_db", shared("env_data"));
+    let panel = await screen.findByRole("region", { name: "From the catalog" });
+    const row = await waitFor(() => rowLabelled(panel, "Database"));
+    await waitFor(() => expect(row).toHaveTextContent("Shares db in the project data · PostgreSQL 17.11"));
+    expect(within(row).getByRole("link", { name: "db" })).toHaveAttribute("href", "/apps/svc_data_db");
+    unmount();
+    // Where it is isn't the reader's to see: no name, no blank.
+    renderAt("/apps/svc_db", shared("env_elsewhere"));
+    panel = await screen.findByRole("region", { name: "From the catalog" });
+    await waitFor(() =>
+      expect(rowLabelled(panel, "Database")).toHaveTextContent("Shares PostgreSQL 17.11 in a project you can't see"),
     );
   });
 
@@ -850,8 +901,9 @@ describe("A database's admin tool", () => {
         },
       },
     });
-    const needs = await screen.findByRole("list", { name: "What it needs" });
-    await user.click(within(needs).getByRole("button", { name: "Its backups" }));
+    const backups = await waitFor(() => rowLabelled(document.body, "Backups"));
+    expect(backups).toHaveTextContent("Of its database alone");
+    await user.click(within(backups).getByRole("button", { name: "Its backups" }));
     expect(await screen.findByText("Only by hand")).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Back up daily" }));
     await waitFor(() => expect(asked).toContain("schedule db-daily db"));
@@ -916,7 +968,7 @@ describe("A database's admin tool", () => {
       resources: places(),
       services: { listServices: () => ({ services: [anApp("db", "postgres:17.11")] }) },
     });
-    const needs = await screen.findByRole("list", { name: "What it needs" });
+    const needs = await waitFor(() => rowLabelled(document.body, "Database"));
     await user.click(within(needs).getByRole("button", { name: "Use another database" }));
     expect(needs).toHaveTextContent("Its data can't be copied there");
     expect(within(needs).queryByRole("button", { name: "Use it" })).toBeNull();
@@ -974,8 +1026,10 @@ describe("A database's admin tool", () => {
       services: { listServices: () => ({ services: [anApp("adminer", "adminer:6.2.0")] }) },
     });
     const panel = await screen.findByRole("region", { name: "From the catalog" });
-    const tool = await within(panel).findByRole("list", { name: "Tools" });
+    const tool = await waitFor(() => rowLabelled(panel, "Adminer"));
     expect(within(tool).getByText("Installed")).toBeVisible();
+    // Its notes are one step away, a row of their own.
+    await user.click(within(rowLabelled(panel, "Its notes")).getByRole("button", { name: "Read" }));
     expect(within(panel).getByText("Choose PostgreSQL as Adminer's system.")).toBeVisible();
     await user.click(within(tool).getByRole("button", { name: "Remove Adminer" }));
     await waitFor(() => expect(asked).toEqual({ service: "adminer", on: false }));

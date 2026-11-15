@@ -334,7 +334,7 @@ export async function catalogFlow(page: Page, { origin, step, shoot, docker, cat
   await page.reload();
   const upgrade = panel.getByRole("button", { name: "Upgrade to 2.0" });
   await upgrade.waitFor();
-  await panel.getByText("Version 2.0 is out.").waitFor();
+  await panel.getByText("· 2.0 is out").waitFor();
   await page
     .getByRole("navigation", { name: "Main" })
     .getByRole("link", { name: /Catalog/ })

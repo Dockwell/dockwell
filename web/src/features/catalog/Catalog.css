@@ -331,28 +331,6 @@
   font-size: 12.5px;
 }
 
-.catalog-installed-line {
-  margin: 0;
-  font: 400 13px / 18px var(--font-mono);
-}
-
-.catalog-upgrade {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2) var(--space-3);
-  margin-top: var(--space-3);
-  padding-top: var(--space-3);
-  border-top: 1px solid var(--line);
-}
-
-.catalog-upgrade-line {
-  margin: 0;
-  font-size: 13px;
-  line-height: 20px;
-}
-
 /* Under a rule, as the mock's plan is. */
 .catalog-parts {
   display: flex;
@@ -1182,44 +1160,10 @@
   min-width: 0;
 }
 
-/* The tools beside an installed app, on its page: a line each, with its state and action. */
-.catalog-companion-lines {
-  display: flex;
-  flex-direction: column;
-  margin: var(--space-3) 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.catalog-companion-lines li {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  align-items: center;
-  gap: var(--space-2) var(--space-4);
-  padding: var(--space-2) 0;
-  border-top: 1px solid var(--line);
-}
-
-.catalog-companions-panel .catalog-companion-lines {
-  margin-top: 0;
-}
-
-.catalog-companions-panel .catalog-companion-lines li:first-child {
-  border-top: 0;
-  padding-top: 0;
-}
-
 .catalog-companion-text {
   display: flex;
   flex-direction: column;
   min-width: 0;
-}
-
-.catalog-companion-name {
-  font-size: 14px;
-  line-height: 20px;
-  font-weight: 500;
-  color: var(--ink);
 }
 
 .catalog-companion-purpose {
@@ -1238,22 +1182,6 @@
 
 .catalog-companion-state.is-on {
   color: var(--healthy);
-}
-
-@media (max-width: 560px) {
-  .catalog-companion-lines li {
-    grid-template-columns: minmax(0, 1fr) auto;
-  }
-
-  .catalog-companion-lines li .catalog-companion-state {
-    grid-column: 1;
-    grid-row: 2;
-  }
-
-  .catalog-companion-lines li > .dw-btn {
-    grid-column: 2;
-    grid-row: 1 / span 2;
-  }
 }
 
 /* On a phone the label sits over its value, as a phone's form does. */
@@ -1483,34 +1411,6 @@
 
 .catalog-need-server.is-off .catalog-need-upgrade .dw-btn {
   cursor: pointer;
-}
-
-/* What meets each of an install's needs, with Use another database (ADR 0084). */
-.catalog-need-lines {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  margin: var(--space-3) 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.catalog-need-line {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: var(--space-1) var(--space-3);
-}
-
-.catalog-need-line-text {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.catalog-need-line-name {
-  font-size: 13px;
-  line-height: 18px;
 }
 
 .catalog-need-line-now {

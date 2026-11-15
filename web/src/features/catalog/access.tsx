@@ -40,6 +40,8 @@ export interface Fact {
   icon: IconName;
   text: ReactNode;
   action?: ReactNode;
+  /** What it's about, as an installed app's card labels its row; a note has none. */
+  label?: string;
 }
 
 /** The facts as a list, each a line with its icon and, where there is one, its action. */
@@ -225,10 +227,8 @@ export function useInstallFacts(
     out.push({
       key: "owns",
       icon: "user",
-      text:
-        domains.length > 0
-          ? t`Its first account is its owner`
-          : t`Its first account is its owner: make yours before it has a domain`,
+      label: t`Owner`,
+      text: domains.length > 0 ? t`Its first account` : t`Its first account: make yours before it has a domain`,
     });
   }
   const signups = entry.signups;
@@ -239,7 +239,8 @@ export function useInstallFacts(
     out.push({
       key: "signups",
       icon: "users",
-      text: t`Anyone who reaches it can make an account until sign-ups close`,
+      label: t`Sign-ups`,
+      text: t`Open to anyone who reaches it`,
       action: (
         <Button
           size="sm"
@@ -262,13 +263,14 @@ export function useInstallFacts(
     const names = entry.addressVariables.map((a) => a.variable).join(", ");
     const domain = domains[0]?.name ?? "";
     if (!domain) {
-      out.push({ key: "address", icon: "globe", text: t`Its links follow the domain you add: ${names}` });
+      out.push({ key: "address", icon: "globe", label: t`Its links`, text: t`Follow the domain you add: ${names}` });
     } else {
       const edits = addressEdits(entry, domain, inEnvironment);
       out.push({
         key: "address",
         icon: "globe",
-        text: t`Its links follow its domain, ${domain}: ${names}`,
+        label: t`Its links`,
+        text: t`Follow ${domain}: ${names}`,
         action: (
           <Button
             size="sm"
@@ -291,28 +293,34 @@ export function useInstallFacts(
   const address = server?.address;
   if (local && web && (onLocalhost || address)) {
     const port = String(local.hostPort);
-    // The tunnel needs the server's address, which a server doesn't always know.
-    const tunnel = address ? (
-      <CopyButton
-        text={`ssh -N -L ${port}:127.0.0.1:${port} ${address}`}
-        label={t`Copy the SSH tunnel command`}
-        copiedLabel={t`SSH tunnel command copied`}
-        variant="ghost"
-      />
-    ) : null;
     out.push({
       key: "local",
       icon: "lock",
-      text: t`Answers on this server alone, on port ${port}, until it has a domain`,
+      label: t({ message: "Reach", context: "catalog card" }),
+      text: t`Port ${port}, on this server alone until it has a domain`,
       action: onLocalhost ? (
-        <>
-          <OpenAppButton serviceId={web.id} environment={install.environmentId} port={local.containerPort} app={tool} />
-          {tunnel}
-        </>
-      ) : (
-        tunnel
-      ),
+        <OpenAppButton serviceId={web.id} environment={install.environmentId} port={local.containerPort} app={tool} />
+      ) : undefined,
     });
+    // The tunnel needs the server's address, which a server doesn't always know: a
+    // row of its own, the command as it runs, and Copy.
+    if (address) {
+      const command = `ssh -N -L ${port}:127.0.0.1:${port} ${address}`;
+      out.push({
+        key: "tunnel",
+        icon: "terminal",
+        label: t`SSH tunnel`,
+        text: <code>{command}</code>,
+        action: (
+          <CopyButton
+            text={command}
+            label={t`Copy the SSH tunnel command`}
+            copiedLabel={t`SSH tunnel command copied`}
+            variant="ghost"
+          />
+        ),
+      });
+    }
   } else if (web && onLocalhost) {
     // On localhost, any port it publishes over TCP opens through the panel, with a
     // domain or without: for an admin tool, that's still the safer way in.
@@ -322,6 +330,7 @@ export function useInstallFacts(
       out.push({
         key: "open",
         icon: "external",
+        label: t({ message: "Reach", context: "catalog card" }),
         text: t`Published on port ${port}`,
         action: (
           <OpenAppButton
