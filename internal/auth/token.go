@@ -154,7 +154,16 @@ func (s *Service) CreateToken(ctx context.Context, client Client, p Principal, n
 	if p.Token != nil || p.Session.ID == "" {
 		return NewToken{}, ErrNeedsSession
 	}
-	return s.createToken(ctx, func(*store.Tx) (store.User, error) { return p.User, nil }, p.Actor(), "", name, scope, grants, expires,
+	// Its maker as they stand with the write: someone removed since the request began
+	// makes nothing, as their tokens were revoked by then (ADR 0049).
+	maker := func(tx *store.Tx) (store.User, error) {
+		u, err := tx.GetUser(ctx, p.User.ID)
+		if errors.Is(err, store.ErrNotFound) || err == nil && u.RemovedAt != nil {
+			return store.User{}, ErrUnauthenticated
+		}
+		return u, err
+	}
+	return s.createToken(ctx, maker, p.Actor(), "", name, scope, grants, expires,
 		func(tx *store.Tx) error { return s.confirmedIn(ctx, tx, client, p, proof, StepUpCreateToken) })
 }
 
@@ -365,6 +374,10 @@ func (s *Service) AuthenticateToken(ctx context.Context, client Client, secret s
 		if err != nil {
 			return err
 		}
+		// A token acts for its maker, and nobody acts for someone removed (ADR 0049).
+		if user.RemovedAt != nil {
+			return ErrTokenRejected
+		}
 		p = Principal{User: user, Token: &tok}
 		return nil
 	})
@@ -462,7 +475,7 @@ func (s *Service) tokenStillLive(ctx context.Context, client Client, tokenID str
 		return true // a failed read isn't a reason to close; the next check decides
 	}
 	now := s.now()
-	if !liveToken(&tok, now) {
+	if !liveToken(&tok, now) || user.RemovedAt != nil {
 		return false
 	}
 	s.touchToken(ctx, &Principal{User: user, Token: &tok}, client, now)

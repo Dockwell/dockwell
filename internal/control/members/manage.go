@@ -164,11 +164,12 @@ func (h *Handler) RemoveMember(ctx context.Context, req *connect.Request[dockwel
 	if err != nil {
 		return nil, authapi.AuthError(ctx, h.logger, err)
 	}
+	// What the removal's transaction ended, as its audit event says.
 	res := &dockwellv1.RemoveMemberResponse{
-		SessionsEnded:  int32(gone.Sessions),     //nolint:gosec // a person's sessions
-		TokensRevoked:  int32(len(gone.Tokens)),  //nolint:gosec // a person's tokens
-		InvitesRevoked: int32(len(gone.Invites)), //nolint:gosec // a person's invites
-		LinksDeleted:   int32(len(gone.Links)),   //nolint:gosec // a person's provider links
+		SessionsEnded:  int32(gone.Ended.Sessions), //nolint:gosec // a person's sessions
+		TokensRevoked:  int32(gone.Ended.Tokens),   //nolint:gosec // a person's tokens
+		InvitesRevoked: int32(gone.InvitesRevoked), //nolint:gosec // a person's invites
+		LinksDeleted:   int32(gone.Ended.Links),    //nolint:gosec // a person's provider links
 	}
 	// They're gone already, whatever becomes of these: a change left planned is
 	// checked against whoever applies it, never against who planned it.
@@ -210,16 +211,17 @@ func (h *Handler) TransferOwnership(ctx context.Context, req *connect.Request[do
 }
 
 // ConfirmProtections records that the caller looked at which environments are
-// protected, with how each stood.
+// protected, with how each stood when it's recorded, read in the same
+// transaction. A second confirmation returns the first.
 func (h *Handler) ConfirmProtections(ctx context.Context, _ *connect.Request[dockwellv1.ConfirmProtectionsRequest]) (*connect.Response[dockwellv1.ConfirmProtectionsResponse], error) {
 	p, _ := authapi.PrincipalFrom(ctx)
 	client, _ := authapi.ClientFrom(ctx)
-	var standing []string
-	err := h.db.View(ctx, func(tx *store.Tx) error {
+	done, err := h.people.ConfirmProtections(ctx, client, p, func(tx *store.Tx) (string, error) {
 		tree, err := scope.Load(ctx, tx)
 		if err != nil {
-			return err
+			return "", err
 		}
+		var standing []string
 		for _, project := range tree.Projects {
 			for _, env := range project.Environments {
 				word := "open"
@@ -229,13 +231,9 @@ func (h *Handler) ConfirmProtections(ctx context.Context, _ *connect.Request[doc
 				standing = append(standing, project.Name+"/"+env.Name+" "+word)
 			}
 		}
-		return nil
+		slices.Sort(standing)
+		return strings.Join(standing, ", "), nil
 	})
-	if err != nil {
-		return nil, authapi.AuthError(ctx, h.logger, err)
-	}
-	slices.Sort(standing)
-	done, err := h.people.ConfirmProtections(ctx, client, p, strings.Join(standing, ", "))
 	if err != nil {
 		return nil, authapi.AuthError(ctx, h.logger, err)
 	}

@@ -196,6 +196,10 @@ func (s *Service) Authenticate(ctx context.Context, client Client, token string)
 		if err != nil {
 			return err
 		}
+		// Someone removed signs in no way at all, whatever was left behind (ADR 0049).
+		if user.RemovedAt != nil {
+			return ErrUnauthenticated
+		}
 		p = Principal{User: user, Session: sess}
 		return nil
 	})
@@ -364,7 +368,9 @@ func (s *Service) Follow(ctx context.Context, client Client, p Principal, still 
 func (s *Service) track(ctx context.Context, client Client, p Principal, use bool, still ...func(context.Context) error) (context.Context, func()) {
 	ctx, cancel := context.WithCancel(ctx)
 	credential := p.credential()
-	entry := s.streams.add(credential, p.User.ID, use, cancel)
+	// A page is a session's: what a token follows, such as a CLI's log, has no page
+	// to open it again.
+	entry := s.streams.add(credential, p.User.ID, use && p.Token == nil, cancel)
 	may := func() bool {
 		for _, check := range still {
 			if check != nil && check(ctx) != nil {
@@ -425,6 +431,14 @@ func (s *Service) stillLive(ctx context.Context, client Client, p Principal, use
 	err := s.db.View(ctx, func(tx *store.Tx) (err error) {
 		if sess, err = tx.GetSession(ctx, sessionID); err != nil {
 			return err
+		}
+		// A removed person's stream ends, whatever was left behind (ADR 0049).
+		user, err := tx.GetUser(ctx, sess.UserID)
+		if err != nil {
+			return err
+		}
+		if user.RemovedAt != nil {
+			return ErrUnauthenticated
 		}
 		link, err = sessionLink(ctx, tx, sess)
 		return err

@@ -115,13 +115,14 @@ func (t *Tx) AcceptedInvite(ctx context.Context, userID string) (Invite, error) 
 	return i, nil
 }
 
-// PlannedChangesBy lists the changes an actor planned that are still planned,
-// newest first, without their items.
-func (t *Tx) PlannedChangesBy(ctx context.Context, actor string) ([]Change, error) {
-	rows, err := t.query(ctx, `SELECT `+changeColumns+` FROM changes WHERE state = ? AND actor = ? ORDER BY created_at DESC, id DESC`,
-		ChangePlanned, actor)
+// PlannedChangesOf lists the changes a person planned that are still planned,
+// themselves or with any API token they made, whatever its state now, newest
+// first, without their items.
+func (t *Tx) PlannedChangesOf(ctx context.Context, userID string) ([]Change, error) {
+	rows, err := t.query(ctx, `SELECT `+changeColumns+` FROM changes WHERE state = ? AND (actor = ? OR actor IN (SELECT 'token:' || id FROM api_tokens WHERE user_id = ?)) ORDER BY created_at DESC, id DESC`,
+		ChangePlanned, "user:"+userID, userID)
 	if err != nil {
-		return nil, fmt.Errorf("can't list the changes %s planned: %w", actor, err)
+		return nil, fmt.Errorf("can't list the changes %s planned: %w", userID, err)
 	}
 	defer rows.Close()
 	var out []Change

@@ -141,10 +141,11 @@ func (s *Service) revokeInvitesBy(ctx context.Context, tx *store.Tx, client Clie
 // SetMemberRole gives a person role in the place projectID names, an existing
 // project the caller checked, or store.Install, in place of what they held
 // there; an empty role takes it back. It takes a step-up bound to the person,
-// the role and the place. Lowering what they hold ends their sessions and
-// revokes their tokens, and their open invites when they're no longer an admin.
-// Any change ends their pages' streams once it commits, and a lowering every
-// stream they have.
+// the role and the place, spent in the write once everything else holds, so a
+// refusal leaves the proof for another try. Lowering what they hold ends their
+// sessions and revokes their tokens, and their open invites when they're no
+// longer an admin. Any change ends their pages' streams once it commits, and a
+// lowering every stream they have.
 func (s *Service) SetMemberRole(ctx context.Context, client Client, p Principal, userID, role, projectID, proof string) (RoleChange, error) {
 	switch role {
 	case store.RoleOwner:
@@ -156,48 +157,38 @@ func (s *Service) SetMemberRole(ctx context.Context, client Client, p Principal,
 	if role == store.RoleAdmin && projectID != store.Install {
 		return RoleChange{}, fmt.Errorf("%w: an admin holds the whole install, so make them one there rather than in a project", ErrInvalid)
 	}
-	// What can be refused without the passkey is refused before its proof is spent.
-	check := func(tx *store.Tx) (store.User, []store.Grant, error) {
+	now := s.now()
+	var out RoleChange
+	err := s.db.Update(ctx, func(tx *store.Tx) error {
 		if err := s.manager(ctx, tx, p); err != nil {
-			return store.User{}, nil, err
+			return err
 		}
 		u, err := s.managed(ctx, tx, p, userID, "given another role")
 		if err != nil {
-			return store.User{}, nil, err
+			return err
 		}
-		grants, err := tx.Grants(ctx, userID)
-		if err != nil {
-			return store.User{}, nil, err
-		}
-		if role == "" {
-			if roleAt(grants, projectID) == "" {
-				return store.User{}, nil, fmt.Errorf("%w: %s holds nothing there to take back. Read Members again", ErrNotFound, u.Name)
-			}
-			if len(grants) == 1 {
-				return store.User{}, nil, fault.New(ErrLastGrant, "that's the last thing %s holds, and someone who holds nothing can only sign out. Remove them instead", u.Name)
-			}
-		}
-		return u, grants, nil
-	}
-	err := s.db.View(ctx, func(tx *store.Tx) error {
-		_, _, err := check(tx)
-		return err
-	})
-	if err != nil {
-		return RoleChange{}, err
-	}
-	if err := s.UseStepUp(ctx, client, p, proof, StepUpChangeRole, RoleTarget(userID, role, projectID)); err != nil {
-		return RoleChange{}, err
-	}
-	now := s.now()
-	var out RoleChange
-	err = s.db.Update(ctx, func(tx *store.Tx) error {
-		u, before, err := check(tx)
+		before, err := tx.Grants(ctx, userID)
 		if err != nil {
 			return err
 		}
-		out = RoleChange{User: u, Previous: roleAt(before, projectID)}
 		wasAdmin := store.RoleRank(roleAt(before, store.Install)) >= store.RoleRank(store.RoleAdmin)
+		// An admin holds the whole install, which covers every project; a project's
+		// role beside it would outlast a later lowering nobody chose it for.
+		if wasAdmin && projectID != store.Install {
+			return fmt.Errorf("%w: %s is an admin, who holds every project already. Change what they hold on the whole install instead", ErrInvalid, u.Name)
+		}
+		if role == "" {
+			if roleAt(before, projectID) == "" {
+				return fmt.Errorf("%w: %s holds nothing there to take back. Read Members again", ErrNotFound, u.Name)
+			}
+			if len(before) == 1 {
+				return fault.New(ErrLastGrant, "that's the last thing %s holds, and someone who holds nothing can only sign out. Remove them instead", u.Name)
+			}
+		}
+		if err := s.UseStepUpIn(ctx, tx, client, p, proof, StepUpChangeRole, RoleTarget(userID, role, projectID)); err != nil {
+			return err
+		}
+		out = RoleChange{User: u, Previous: roleAt(before, projectID)}
 		switch role {
 		case "":
 			if err := tx.RemoveGrant(ctx, userID, projectID); err != nil {
@@ -245,18 +236,24 @@ func (s *Service) SetMemberRole(ctx context.Context, client Client, p Principal,
 	return out, nil
 }
 
-// RemovalPlan is what removing someone would end.
+// RemovalPlan is what removing someone would end, and once they're removed,
+// what it did end.
 type RemovalPlan struct {
 	User     store.User
 	Grants   []store.Grant
 	Sessions int
 	Tokens   []store.APIToken
 	Invites  []store.Invite
-	// Changes are what they planned and didn't apply, themselves or with a token.
+	// Changes are what they planned and didn't apply, themselves or with any
+	// token they made, whatever its state now.
 	Changes []store.Change
 	// Links are their accounts at sign-in providers, which are deleted, with the
-	// provider's name where PlanMemberRemoval read it (ADR 0095).
+	// provider's name where it could be read before the transaction (ADR 0095).
 	Links []LinkView
+	// Ended and InvitesRevoked are what the removal's transaction ended, as its
+	// audit event says, set once they're removed.
+	Ended          store.Ended
+	InvitesRevoked int
 }
 
 // plan reads what removing userID would end, as things stand in tx.
@@ -296,61 +293,59 @@ func (s *Service) plan(ctx context.Context, tx *store.Tx, p Principal, userID st
 			out.Invites = append(out.Invites, open[i])
 		}
 	}
-	actors := []string{"user:" + userID}
-	for i := range out.Tokens {
-		actors = append(actors, "token:"+out.Tokens[i].ID)
-	}
-	for _, actor := range actors {
-		planned, err := tx.PlannedChangesBy(ctx, actor)
-		if err != nil {
-			return RemovalPlan{}, err
-		}
-		out.Changes = append(out.Changes, planned...)
+	if out.Changes, err = tx.PlannedChangesOf(ctx, userID); err != nil {
+		return RemovalPlan{}, err
 	}
 	return out, nil
 }
 
-// PlanMemberRemoval reads what removing someone would end, for whoever
-// removes them to see first. It changes nothing. Their links say their
-// providers' names, read before the plan, as nothing reads the providers
-// inside a transaction (#646's review, H1); a provider that's gone is named by
-// its issuer's host.
-func (s *Service) PlanMemberRemoval(ctx context.Context, p Principal, userID string) (RemovalPlan, error) {
-	providers, err := s.allProviders(ctx, false)
-	if err != nil {
-		// The names are for reading; the plan stands without them.
-		s.logger.WarnContext(ctx, "can't read the sign-in providers to name a removal's links", slog.Any("error", err))
-	}
-	var out RemovalPlan
-	err = s.db.View(ctx, func(tx *store.Tx) (err error) {
-		out, err = s.plan(ctx, tx, p, userID, s.now())
-		return err
-	})
-	for i := range out.Links {
-		l := &out.Links[i]
+// nameLinks names each of a plan's links by its provider, from providers read
+// before the plan's transaction, as nothing reads the providers inside one
+// (#646's review, H1); a provider that's gone is named by its issuer's host.
+func nameLinks(links []LinkView, providers []Provider) {
+	for i := range links {
+		l := &links[i]
 		if j := slices.IndexFunc(providers, func(pr Provider) bool { return pr.ID == l.ProviderID }); j >= 0 {
 			l.Provider = providers[j].Label()
 		} else {
 			l.Provider = oidc.HostOf(l.Issuer)
 		}
 	}
+}
+
+// providersToName reads the providers for naming links, and does without them
+// where they can't be read: the names are for reading.
+func (s *Service) providersToName(ctx context.Context) []Provider {
+	providers, err := s.allProviders(ctx, false)
+	if err != nil {
+		s.logger.WarnContext(ctx, "can't read the sign-in providers to name someone's links", slog.Any("error", err))
+	}
+	return providers
+}
+
+// PlanMemberRemoval reads what removing someone would end, for whoever
+// removes them to see first. It changes nothing.
+func (s *Service) PlanMemberRemoval(ctx context.Context, p Principal, userID string) (RemovalPlan, error) {
+	providers := s.providersToName(ctx)
+	var out RemovalPlan
+	err := s.db.View(ctx, func(tx *store.Tx) (err error) {
+		out, err = s.plan(ctx, tx, p, userID, s.now())
+		return err
+	})
+	nameLinks(out.Links, providers)
 	return out, err
 }
 
-// RemoveMember removes a person, with a step-up bound to them: in one
-// transaction their sign-in goes, with their links at sign-in providers, their
-// sessions end, their API tokens and the open invites they made are revoked,
-// and they hold nothing. Their open streams end once it commits. It returns what
-// went, the changes they'd planned among it, for the caller to discard: the
-// engine owns changes, and a change left planned is checked against whoever
-// applies it, never against who planned it.
+// RemoveMember removes a person, with a step-up bound to them, spent in the
+// write once everything else holds: in one transaction their sign-in goes, with
+// their links at sign-in providers, each audited, their sessions end, their API
+// tokens and the open invites they made are revoked, and they hold nothing.
+// Their open streams end once it commits. It returns what went, the changes
+// they'd planned among it, for the caller to discard: the engine owns changes,
+// and a change left planned is checked against whoever applies it, never
+// against who planned it.
 func (s *Service) RemoveMember(ctx context.Context, client Client, p Principal, userID, proof string) (RemovalPlan, error) {
-	if _, err := s.PlanMemberRemoval(ctx, p, userID); err != nil {
-		return RemovalPlan{}, err
-	}
-	if err := s.UseStepUp(ctx, client, p, proof, StepUpRemoveMember, userID); err != nil {
-		return RemovalPlan{}, err
-	}
+	providers := s.providersToName(ctx)
 	now := s.now()
 	var out RemovalPlan
 	err := s.db.Update(ctx, func(tx *store.Tx) error {
@@ -358,11 +353,22 @@ func (s *Service) RemoveMember(ctx context.Context, client Client, p Principal, 
 		if out, err = s.plan(ctx, tx, p, userID, now); err != nil {
 			return err
 		}
-		invites, err := s.revokeInvitesBy(ctx, tx, client, p, userID, now)
-		if err != nil {
+		if err := s.UseStepUpIn(ctx, tx, client, p, proof, StepUpRemoveMember, userID); err != nil {
 			return err
 		}
-		ended, err := tx.RemoveUser(ctx, userID, p.Actor(), now)
+		if out.InvitesRevoked, err = s.revokeInvitesBy(ctx, tx, client, p, userID, now); err != nil {
+			return err
+		}
+		// Each link deleted is on record as an unlink is (ADR 0095).
+		nameLinks(out.Links, providers)
+		for i := range out.Links {
+			l := &out.Links[i]
+			if err := s.audit(ctx, tx, p.Actor(), "provider_link.delete", userID,
+				fmt.Sprintf("%s at %s, link %s, with its person removed", l.Account, l.Provider, l.ID)); err != nil {
+				return err
+			}
+		}
+		out.Ended, err = tx.RemoveUser(ctx, userID, p.Actor(), now)
 		if errors.Is(err, store.ErrOwner) {
 			return fault.New(ErrTheOwner, "%s is the owner, who isn't removed: ownership moves by a transfer first", out.User.Name)
 		}
@@ -371,7 +377,7 @@ func (s *Service) RemoveMember(ctx context.Context, client Client, p Principal, 
 		}
 		detail := memberDetail{
 			Email: out.User.Email, Name: out.User.Name, Role: Highest(out.Grants),
-			Sessions: ended.Sessions, Tokens: ended.Tokens, Invites: invites, Changes: len(out.Changes), Links: ended.Links,
+			Sessions: out.Ended.Sessions, Tokens: out.Ended.Tokens, Invites: out.InvitesRevoked, Changes: len(out.Changes), Links: out.Ended.Links,
 		}
 		return s.auditFrom(ctx, tx, p.Actor(), client.Surface(p), "member.remove", userID, detail.String())
 	})
@@ -384,42 +390,32 @@ func (s *Service) RemoveMember(ctx context.Context, client Client, p Principal, 
 }
 
 // TransferOwnership makes someone who signs in here already the owner, with a
-// step-up bound to them, which only the owner makes. In one transaction the
-// new owner gets the grant, the old one becomes an admin, and the CLI's local
-// token that acted for the old owner is revoked; or nothing changes.
+// step-up bound to them, which only the owner makes, spent in the write once
+// everything else holds. In one transaction the new owner gets the grant, the
+// old one becomes an admin, and the CLI's local token that acted for the old
+// owner is revoked; or nothing changes.
 func (s *Service) TransferOwnership(ctx context.Context, client Client, p Principal, toUserID, proof string) (store.User, error) {
-	check := func(tx *store.Tx) (store.User, error) {
-		owner, err := tx.Owner(ctx)
-		if err != nil && !errors.Is(err, store.ErrNotFound) {
-			return store.User{}, err
-		}
-		if owner.ID != p.User.ID {
-			return store.User{}, ErrOwnerOnly
-		}
-		if toUserID == p.User.ID {
-			return store.User{}, fmt.Errorf("%w: you're the owner already. Choose someone else who signs in here", ErrInvalid)
-		}
-		to, err := tx.GetUser(ctx, toUserID)
-		if errors.Is(err, store.ErrNotFound) || err == nil && to.RemovedAt != nil {
-			return store.User{}, fmt.Errorf("%w: nobody signs in here as %s, and the owner is someone who does. Read Members again", ErrNotFound, toUserID)
-		}
-		return to, err
-	}
-	err := s.db.View(ctx, func(tx *store.Tx) error {
-		_, err := check(tx)
-		return err
-	})
-	if err != nil {
-		return store.User{}, err
-	}
-	if err := s.UseStepUp(ctx, client, p, proof, StepUpTransferOwnership, toUserID); err != nil {
-		return store.User{}, err
-	}
 	now := s.now()
 	var to store.User
-	err = s.db.Update(ctx, func(tx *store.Tx) error {
-		var err error
-		if to, err = check(tx); err != nil {
+	err := s.db.Update(ctx, func(tx *store.Tx) error {
+		owner, err := tx.Owner(ctx)
+		if err != nil && !errors.Is(err, store.ErrNotFound) {
+			return err
+		}
+		if owner.ID != p.User.ID {
+			return ErrOwnerOnly
+		}
+		if toUserID == p.User.ID {
+			return fmt.Errorf("%w: you're the owner already. Choose someone else who signs in here", ErrInvalid)
+		}
+		to, err = tx.GetUser(ctx, toUserID)
+		if errors.Is(err, store.ErrNotFound) || err == nil && to.RemovedAt != nil {
+			return fmt.Errorf("%w: nobody signs in here as %s, and the owner is someone who does. Read Members again", ErrNotFound, toUserID)
+		}
+		if err != nil {
+			return err
+		}
+		if err := s.UseStepUpIn(ctx, tx, client, p, proof, StepUpTransferOwnership, toUserID); err != nil {
 			return err
 		}
 		if err := tx.RevokeLocalTokens(ctx, p.User.ID, now); err != nil {
@@ -491,22 +487,33 @@ func (s *Service) protectionsFirst(ctx context.Context, tx *store.Tx) error {
 }
 
 // ConfirmProtections records that p looked at which environments are protected,
-// with how each stood, as the caller read them, in the audit log. It's recorded
-// once and kept; confirming again records it again.
-func (s *Service) ConfirmProtections(ctx context.Context, client Client, p Principal, standing string) (Confirmed, error) {
-	c := Confirmed{At: s.now(), By: p.Actor()}
-	raw, err := json.Marshal(c)
-	if err != nil {
-		return Confirmed{}, err
-	}
-	err = s.db.Update(ctx, func(tx *store.Tx) error {
+// with how each stood when it's recorded, as standing reads them in the same
+// transaction, in the audit log. It's recorded once and kept: confirming again
+// changes nothing and returns the record there is (ADR 0049).
+func (s *Service) ConfirmProtections(ctx context.Context, client Client, p Principal, standing func(*store.Tx) (string, error)) (Confirmed, error) {
+	var c Confirmed
+	err := s.db.Update(ctx, func(tx *store.Tx) error {
 		if err := s.manager(ctx, tx, p); err != nil {
+			return err
+		}
+		kept, ok, err := s.ProtectionsConfirmed(ctx, tx)
+		if err != nil || ok {
+			c = kept
+			return err
+		}
+		stood, err := standing(tx)
+		if err != nil {
+			return err
+		}
+		c = Confirmed{At: s.now(), By: p.Actor()}
+		raw, err := json.Marshal(c)
+		if err != nil {
 			return err
 		}
 		if err := tx.PutSetting(ctx, protectionsKey, raw); err != nil {
 			return err
 		}
-		return s.auditFrom(ctx, tx, p.Actor(), client.Surface(p), "member.protections_confirm", "", standing)
+		return s.auditFrom(ctx, tx, p.Actor(), client.Surface(p), "member.protections_confirm", "", stood)
 	})
 	return c, err
 }

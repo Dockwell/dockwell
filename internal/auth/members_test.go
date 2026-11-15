@@ -235,7 +235,7 @@ func TestWhoMayManageWhom(t *testing.T) {
 		if _, err := f.svc.PlanMemberRemoval(t.Context(), sam.p, ada.p.User.ID); !errors.Is(err, ErrAdminOnly) {
 			t.Errorf("a developer planning a removal: %v", err)
 		}
-		if _, err := f.svc.ConfirmProtections(t.Context(), onDomain, sam.p, "x"); !errors.Is(err, ErrAdminOnly) {
+		if _, err := f.svc.ConfirmProtections(t.Context(), onDomain, sam.p, standingOf("x")); !errors.Is(err, ErrAdminOnly) {
 			t.Errorf("a developer confirming the protections: %v", err)
 		}
 		if _, err := f.svc.TransferOwnership(t.Context(), onDomain, ada.p, sam.p.User.ID, adaOn(StepUpTransferOwnership, sam.p.User.ID)); !errors.Is(err, ErrOwnerOnly) {
@@ -464,7 +464,7 @@ func TestTheFirstInviteWaitsForTheProtections(t *testing.T) {
 		if err := f.svc.UseStepUp(t.Context(), onDomain, owner, proof, StepUpInvite, target); err != nil {
 			t.Errorf("the proof was spent on an invite that was refused: %v", err)
 		}
-		done, err := f.svc.ConfirmProtections(t.Context(), onDomain, owner, "default/production protected, default/staging open")
+		done, err := f.svc.ConfirmProtections(t.Context(), onDomain, owner, standingOf("default/production protected, default/staging open"))
 		if err != nil || done.By != owner.Actor() {
 			t.Fatalf("confirming: %+v, %v", done, err)
 		}

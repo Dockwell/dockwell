@@ -143,11 +143,12 @@ func TestRemovingSomeoneEndsTheirLinksAndStreams(t *testing.T) {
 }
 
 // Any change to what someone holds ends their pages' streams at once, on every
-// session and token, as each was narrowed to what they held when it opened: a
-// raise as much as a lowering, in a project as on the install. A raise leaves
-// them signed in, so a page opens its streams again as they now may, and what
-// they left running, such as a terminal, goes on, as it never had more than
-// they hold now. A lowering ends that too. Nobody else's stream ends (ADR 0049).
+// session, as each was narrowed to what they held when it opened: a raise as
+// much as a lowering, in a project as on the install. A raise leaves them signed
+// in, so a page opens its streams again as they now may; what they left running,
+// such as a terminal, and what a token follows, such as a CLI's log, which no
+// page would open again, go on, as neither had more than they hold now. A
+// lowering ends everything. Nobody else's stream ends (ADR 0049).
 func TestChangingARoleEndsTheirStreams(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		f := newInvited(t, backend)
@@ -171,8 +172,11 @@ func TestChangingARoleEndsTheirStreams(t *testing.T) {
 		if _, err := f.setRole(t, ada.p.User.ID, store.RoleAdmin); err != nil {
 			t.Fatal(err)
 		}
-		if !endsAtOnce(adas) || !endsAtOnce(adasToken) {
-			t.Error("raising ada leaves a stream of hers open, narrowed to what she held")
+		if !endsAtOnce(adas) {
+			t.Error("raising ada leaves her page's stream open, narrowed to what she held")
+		}
+		if adasToken.Err() != nil {
+			t.Error("raising ada ended what her token follows, which no page opens again (members review, L8)")
 		}
 		if sams.Err() != nil || owners.Err() != nil {
 			t.Error("raising ada ended someone else's stream")
@@ -209,6 +213,9 @@ func TestChangingARoleEndsTheirStreams(t *testing.T) {
 		}
 		if !endsAtOnce(running) {
 			t.Error("lowering ada leaves the terminal she left running open")
+		}
+		if !endsAtOnce(adasToken) {
+			t.Error("lowering ada leaves what her revoked token follows open")
 		}
 		if owners.Err() != nil {
 			t.Error("lowering ada ended the owner's stream")

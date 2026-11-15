@@ -25,6 +25,11 @@ type invited struct {
 	keys        *authtest.Authenticator
 }
 
+// standingOf is how the environments stood, as a confirmation reads it in its transaction.
+func standingOf(standing string) func(*store.Tx) (string, error) {
+	return func(*store.Tx) (string, error) { return standing, nil }
+}
+
 func newInvited(t *testing.T, backend store.Backend) *invited {
 	t.Helper()
 	f := newFixture(t, backend, onDomain.Site.RPID)
@@ -32,7 +37,7 @@ func newInvited(t *testing.T, backend store.Backend) *invited {
 	claimed := f.claim(t, onDomain, a)
 	in := &invited{fixture: f, owner: ownerPrincipal(claimed), ownerSecret: claimed.Token, keys: a}
 	// The first invite waits for someone to confirm which environments are protected.
-	if _, err := f.svc.ConfirmProtections(t.Context(), onDomain, in.owner, "default/production protected"); err != nil {
+	if _, err := f.svc.ConfirmProtections(t.Context(), onDomain, in.owner, standingOf("default/production protected")); err != nil {
 		t.Fatal(err)
 	}
 	return in
