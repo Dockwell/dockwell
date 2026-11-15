@@ -33,6 +33,8 @@ type rewritten struct {
 	reaches []string
 	// web is the input that names the port a person opens, empty for none.
 	web string
+	// needs are what the app takes from another app, each a need (ADR 0084).
+	needs []*catalogv1.Need
 	// typed are the volumes and networks whose driver or options a person types, as
 	// "volume data", which a reading of the file with stand-ins can't speak for.
 	typed map[string]bool
@@ -228,6 +230,22 @@ func rewrite(app App) (rewritten, error) {
 	for i := range out.reaches {
 		out.reaches[i] = renameVars(out.reaches[i], renames)
 	}
+	// What the app takes from another app, each set by a need as a whole value of its
+	// environment (ADR 0084), under names no field or other variable has.
+	taken := map[string]bool{}
+	walkScalars(root, func(n *yaml.Node) {
+		for _, u := range usesOf(n.Value) {
+			taken[u.name] = true
+		}
+	})
+	for _, f := range app.Fields {
+		taken[cmp.Or(renames[f.Name], f.Name)] = true
+	}
+	needs, needSets, err := applyNeeds(root, serviceNames(doc), app, taken)
+	if err != nil {
+		return out, err
+	}
+	out.needs = needs
 	fields := slices.Clone(app.Fields)
 	for i := range fields {
 		if to, ok := renames[fields[i].Name]; ok {
@@ -240,6 +258,9 @@ func rewrite(app App) (rewritten, error) {
 	}
 	out.inputs = inputsOf(append(fields, made...), nil, root)
 	asked := map[string]bool{}
+	for _, name := range needSets {
+		asked[name] = true
+	}
 	for _, in := range out.inputs {
 		asked[in.GetName()] = true
 		if in.GetType() == catalogv1.InputType_INPUT_TYPE_SECRET {

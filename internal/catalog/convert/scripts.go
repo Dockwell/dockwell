@@ -28,6 +28,10 @@ type scriptSteps struct {
 	// owners is whom each folder the app binds is given to, by its path in the
 	// app's folder, such as data.
 	owners map[string]string
+	// typeWords are what init.sh turns 1Panel's word for a database engine into in
+	// .env, as the app's own word for it, such as mariadb to mysql for Gitea, by
+	// 1Panel's word.
+	typeWords map[string]string
 }
 
 var (
@@ -39,6 +43,8 @@ var (
 		regexp.MustCompile(`^set -[euxo]+(?: pipefail)?$`),
 		regexp.MustCompile(`^(?:else|fi)$`),
 		regexp.MustCompile(`^if \[ -d "?\$\{?[A-Z_]+\}?"? \]; then$`),
+		// The same, for a folder the app binds named as it is, whose lines are read too.
+		regexp.MustCompile(`^if \[ -d "?[A-Za-z0-9_][A-Za-z0-9_./-]*"? \]; then$`),
 		regexp.MustCompile(`^if \[ \$\? -eq 0 \]; then$`),
 		// upgrade.sh running init.sh again, whose own lines are read as its own.
 		regexp.MustCompile(`^if \[ -f \./scripts/init\.sh \]; then$`),
@@ -46,6 +52,8 @@ var (
 		// A variable added to .env with its value, which an upgrade does for a new
 		// input with its default, and a Compose file's own default stands for.
 		regexp.MustCompile(`^if \[\[? -f \./\.env \]?\]; then$`),
+		// The same, with .env named by a variable the script sets to it.
+		regexp.MustCompile(`^if \[\[? -f "?\$\{?ENV_FILE\}?"? \]?\]; then$`),
 		regexp.MustCompile(`^if grep -q ['"]?[A-Z_][A-Z0-9_]*['"]? \./\.env; then$`),
 		regexp.MustCompile(`^echo (?:'[A-Z_][A-Z0-9_]*=[^'$` + "`" + `\\]*'|"[A-Z_][A-Z0-9_]*=[^"$` + "`" + `\\]*") >> \./\.env$`),
 		// uninstall.sh removing the app with its volumes, which Dockwell's own
@@ -58,18 +66,76 @@ var (
 	scriptMkdir   = regexp.MustCompile(`^mkdir (?:-p )?([^;&|<>` + "`" + `]+)$`)
 	scriptAssign  = regexp.MustCompile(`^([A-Z_][A-Z0-9_]*)=("?)([A-Za-z0-9_./-]+)("?)$`)
 	scriptCommand = regexp.MustCompile(`^[a-z][a-z0-9_.-]{0,20}$`)
+	// .env, as a script names it: itself, or by the variable it's set to.
+	scriptEnv = `(?:\./\.env|\.env|"?\$\{?ENV_FILE\}?"?)`
+	// init.sh turning 1Panel's word for a database engine into the app's own in
+	// .env, as sed -i -E "s/^PANEL_DB_TYPE=['\"]?mariadb['\"]?/PANEL_DB_TYPE='mysql'/" .env,
+	// and the if that asks first whether .env holds that word.
+	scriptTypeWord = regexp.MustCompile(`^sed -i(?:\.bak)? (?:-E )?"s/\^PANEL_DB_TYPE=\['\\"\]\??([a-z]+)\['\\"\]\??\$?/PANEL_DB_TYPE='([A-Za-z0-9_]+)'/" ` + scriptEnv + `$`)
+	scriptTypeAsk  = regexp.MustCompile(`^if (?:\[\[ -f ` + scriptEnv + ` \]\] && )?grep -E?q "\^PANEL_DB_TYPE=\['\\"\]\??[a-z]+\['\\"\]\??\$?" ` + scriptEnv + `; then$`)
+	scriptEnvBak   = regexp.MustCompile(`^rm -f "?\$\{?ENV_FILE\}?\.bak"?$`)
 )
+
+// envOnly reports a script whose every line reads or changes 1Panel's own record of
+// the app's values, .env, and nothing else: an upgrade.sh renaming a variable an older
+// version used, or rewriting a value's form. Dockwell keeps its own record of an
+// install's values, which an upgrade carries as they are, so it has nothing to do.
+func envOnly(text string) bool {
+	env := regexp.MustCompile(scriptEnv)
+	control := regexp.MustCompile(`^(?:if|elif) .*; then$|^(?:else|fi|then)$`)
+	assign := regexp.MustCompile(`^[A-Z_][A-Z0-9_]*=`)
+	seen := false
+	for raw := range strings.SplitSeq(text, "\n") {
+		line := strings.TrimSpace(raw)
+		switch {
+		case line == "" || strings.HasPrefix(line, "#"):
+			continue
+		case slices.ContainsFunc(scriptNoise, func(re *regexp.Regexp) bool { return re.MatchString(line) }):
+			continue
+		case strings.ContainsAny(line, "`;&|") && !control.MatchString(line) && !strings.Contains(line, "| cut ") && !strings.Contains(line, "|| [ "):
+			return false
+		case control.MatchString(line), assign.MatchString(line) && (!strings.Contains(line, "$(") || env.MatchString(line)):
+			if strings.Contains(line, "$(") && !env.MatchString(line) {
+				return false
+			}
+			continue
+		}
+		command, _, _ := strings.Cut(line, " ")
+		switch command {
+		case "grep", "sed", "source", "echo":
+			if !env.MatchString(line) {
+				return false
+			}
+			seen = true
+		default:
+			return false
+		}
+	}
+	return seen
+}
 
 // readScripts reads what an app's scripts do, by their names, such as init.sh, or
 // says why they can't be read as steps.
 func readScripts(scripts map[string]string) (scriptSteps, error) {
-	steps := scriptSteps{owners: map[string]string{}}
+	steps := scriptSteps{owners: map[string]string{}, typeWords: map[string]string{}}
 	for _, name := range slices.Sorted(maps.Keys(scripts)) {
+		if name == "upgrade.sh" && envOnly(scripts[name]) {
+			continue
+		}
 		paths := map[string]string{}
 		for raw := range strings.SplitSeq(scripts[name], "\n") {
 			line := strings.TrimSpace(raw)
 			if line == "" || strings.HasPrefix(line, "#") || slices.ContainsFunc(scriptNoise, func(re *regexp.Regexp) bool { return re.MatchString(line) }) {
 				continue
+			}
+			if name == "init.sh" {
+				if m := scriptTypeWord.FindStringSubmatch(line); m != nil {
+					steps.typeWords[m[1]] = m[2]
+					continue
+				}
+				if scriptTypeAsk.MatchString(line) || scriptEnvBak.MatchString(line) {
+					continue
+				}
 			}
 			if m := scriptAssign.FindStringSubmatch(line); len(m) == 5 && m[2] == m[4] {
 				paths[m[1]] = m[3]

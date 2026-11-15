@@ -246,8 +246,10 @@ store-rates: ## Convert every store Dockwell reads at the commits the repository
 # that moves, one named with no tag, one by a version, one with a generated secret
 # inside its command, one with a hostname of its own, one that won't start without the
 # config file its store ships, and one that runs as a user its store's script gives its
-# data folder to (ADR 0085).
-STORE_APPS ?= 1panel/linux-command dokploy/excalidraw dokploy/mazanoke coolify/privatebin dokploy/keydb 1panel/rabbitmq 1panel/glance 1panel/navidrome
+# data folder to (ADR 0085). Then 1Panel's three most recommended apps that use another
+# app's database, each met by a new one beside it (ADR 0084): Umami on PostgreSQL by a
+# URL, Gitea on MySQL with its own word for it, and WordPress on MySQL by an address.
+STORE_APPS ?= 1panel/linux-command dokploy/excalidraw dokploy/mazanoke coolify/privatebin dokploy/keydb 1panel/rabbitmq 1panel/glance 1panel/navidrome 1panel/umami 1panel/gitea 1panel/wordpress
 
 .PHONY: store-e2e
 store-e2e: build-go ## Install a sample of 1Panel's, Dokploy's and Coolify's apps, converted on the server at the pinned commits, on this machine's Docker (STORE_APPS names them)

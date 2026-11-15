@@ -116,7 +116,6 @@ func TestOnePanelReadsEachAppAtItsNewestVersion(t *testing.T) {
 	}
 	for id, want := range map[string]string{
 		"scripted": "its init.sh runs sed on the server",
-		"withdb":   "uses postgresql from another app",
 	} {
 		if got := apps[id].LeftOut; !strings.Contains(got, want) {
 			t.Errorf("%s is left out as %q, want %q", id, got, want)
@@ -243,7 +242,6 @@ func TestWhatItWritesTheCatalogReads(t *testing.T) {
 func TestAnAppIsLeftOutWithItsReason(t *testing.T) {
 	for id, want := range map[string]string{
 		"scripted": "its init.sh runs sed on the server",
-		"withdb":   "uses postgresql from another app",
 	} {
 		r := convertFixture(t, converter(), id)
 		if r.Entry != nil || !strings.Contains(r.LeftOut, want) {
@@ -531,8 +529,36 @@ func TestWhatAScriptDoes(t *testing.T) {
 	for name, tc := range map[string]struct {
 		scripts map[string]string
 		owners  map[string]string
+		words   map[string]string
 		why     string
 	}{
+		"the .env check by a variable": {
+			scripts: map[string]string{"init.sh": "ENV_FILE=\"./.env\"\nif [[ -f \"$ENV_FILE\" ]]; then\n  echo \"there\"\nfi\n"},
+			owners:  map[string]string{},
+		},
+		// Gitea's, which turns 1Panel's word for MariaDB into its own.
+		"the app's word for an engine": {
+			scripts: map[string]string{"init.sh": "ENV_FILE=\"./.env\"\nif [[ -f \"$ENV_FILE\" ]]; then\n  if grep -q \"^PANEL_DB_TYPE=['\\\"]mariadb['\\\"]\" \"$ENV_FILE\"; then\n    sed -i -E \"s/^PANEL_DB_TYPE=['\\\"]?mariadb['\\\"]?/PANEL_DB_TYPE='mysql'/\" \"$ENV_FILE\"\n    echo \"done\"\n  fi\nfi\n"},
+			owners:  map[string]string{},
+			words:   map[string]string{"mariadb": "mysql"},
+		},
+		// Teable's, which renames a variable an older version wrote.
+		"an upgrade that only changes .env": {
+			scripts: map[string]string{"upgrade.sh": "if [[ -f ./.env ]]; then\n  if grep -q \"^REDIS_HOST=\" ./.env; then\n    REDIS_VALUE=$(grep \"^REDIS_HOST=\" ./.env | cut -d'=' -f2-)\n    sed -i '/^REDIS_HOST=/d' ./.env\n    echo \"PANEL_REDIS_HOST=${REDIS_VALUE}\" >> ./.env\n  fi\nfi\n"},
+			owners:  map[string]string{},
+		},
+		"an upgrade that changes another file": {
+			scripts: map[string]string{"upgrade.sh": "CONFIG_FILE=\"./conf/my.cnf\"\nif grep -q \"skip-host-cache\" \"$CONFIG_FILE\"; then\n  sed -i '/skip-host-cache/d' \"$CONFIG_FILE\"\nfi\n"},
+			why:     "its upgrade.sh runs if",
+		},
+		"an init that changes .env": {
+			scripts: map[string]string{"init.sh": "if [[ -f ./.env ]]; then\n  sed -i '/^REDIS_HOST=/d' ./.env\nfi\n"},
+			why:     "its init.sh runs sed",
+		},
+		"a folder by its own name": {
+			scripts: map[string]string{"init.sh": "if [ -d config ]; then\n    chown -R 65532:65532 config\nfi\n"},
+			owners:  map[string]string{"config": "65532:65532"},
+		},
 		"a folder given away": {scripts: map[string]string{"init.sh": "#!/bin/bash\n\nchown -R 1000:1000 data\n"}, owners: map[string]string{"data": "1000:1000"}},
 		"folders made and given away": {
 			scripts: map[string]string{"init.sh": "mkdir config\nchown -R 1000:1000 config\nmkdir database\nchown -R 1001:1001 ./database\n"},
@@ -567,6 +593,8 @@ func TestWhatAScriptDoes(t *testing.T) {
 			t.Errorf("%s: %v", name, err)
 		case tc.why == "" && !maps.Equal(steps.owners, tc.owners):
 			t.Errorf("%s: owners %v, want %v", name, steps.owners, tc.owners)
+		case tc.why == "" && tc.words != nil && !maps.Equal(steps.typeWords, tc.words):
+			t.Errorf("%s: words %v, want %v", name, steps.typeWords, tc.words)
 		}
 	}
 	steps := scriptSteps{owners: map[string]string{"data": "1000:1000"}}

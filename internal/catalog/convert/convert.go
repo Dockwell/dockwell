@@ -103,6 +103,9 @@ type App struct {
 	Compose []byte
 	// Fields are what the source's form asks for, by the variable each fills.
 	Fields []Field
+	// Needs are what it takes from another app, such as a database server, which the
+	// entry asks of a need rather than of a field (ADR 0084).
+	Needs []NeedDraft
 	// Shipped says whether a path relative to the Compose file is a file or folder
 	// the source ships beside it, as opposed to one the app makes as it runs.
 	Shipped func(rel string) bool
@@ -369,6 +372,7 @@ func (c *Converter) convert(ctx context.Context, app App) Result {
 		Source:   &catalogv1.Source{Repository: c.Source.Repository, Path: app.Path, Commit: c.Source.Commit},
 		Compose:  string(file),
 		Inputs:   rw.inputs,
+		Needs:    rw.needs,
 	}
 	if svc := serviceOf(file, rw.web); svc != "" {
 		e.Web = &catalogv1.Web{Service: svc}

@@ -6,9 +6,36 @@ additionalProperties:
       required: true
       rule: paramPort
       type: number
-    - default: ""
-      envKey: PANEL_DB_HOST
-      key: postgresql
-      labelEn: Database
+    - child:
+        default: ""
+        envKey: PANEL_DB_HOST
+        required: true
+        type: service
+      default: postgresql
+      envKey: PANEL_DB_TYPE
+      labelEn: Database Service
       required: true
-      type: service
+      type: apps
+      values:
+        - label: PostgreSQL
+          value: postgresql
+        - label: MySQL
+          value: mysql
+    - default: withdb
+      envKey: PANEL_DB_NAME
+      labelEn: Database
+      random: true
+      required: true
+      type: text
+    - default: withdb
+      envKey: PANEL_DB_USER
+      labelEn: Database User
+      random: true
+      required: true
+      type: text
+    - default: withdb
+      envKey: PANEL_DB_USER_PASSWORD
+      labelEn: Database Password
+      random: true
+      required: true
+      type: password
