@@ -49,29 +49,11 @@ func lookupBuiltIn(t *testing.T) catalog.Lookup {
 // database a need its own MariaDB meets, or a MySQL, by the names it sets.
 func wordpressNeeds(t *testing.T) *catalogv1.Entry {
 	t.Helper()
+	// The built-in one is, since its release 5.
 	e := proto.CloneOf(builtIn(t, "wordpress"))
-	r := strings.NewReplacer(
-		"WORDPRESS_DB_HOST: db", "WORDPRESS_DB_HOST: ${DB_ADDRESS}",
-		"WORDPRESS_DB_USER: wordpress", "WORDPRESS_DB_USER: ${DB_USER}",
-		"WORDPRESS_DB_NAME: wordpress", "WORDPRESS_DB_NAME: ${DB_NAME}",
-		"MARIADB_DATABASE: wordpress", "MARIADB_DATABASE: ${DB_NAME}",
-		"MARIADB_USER: wordpress", "MARIADB_USER: ${DB_USER}",
-	)
-	e.Compose = r.Replace(e.GetCompose())
-	e.Inputs = slices.DeleteFunc(e.Inputs, func(in *catalogv1.Input) bool { return in.GetName() == "MARIADB_PASSWORD" })
-	e.Needs = []*catalogv1.Need{{
-		Name: "db", Label: "Database", Service: "db", Database: "wordpress", User: "wordpress",
-		Accepts: []*catalogv1.NeedAccept{
-			{Engine: catalogv1.Engine_ENGINE_MYSQL, Versions: ">=8.0"},
-			{Engine: catalogv1.Engine_ENGINE_MARIADB, Versions: ">=10.6"},
-		},
-		Sets: []*catalogv1.NeedSet{
-			{Name: "DB_ADDRESS", Part: catalogv1.Part_PART_ADDRESS},
-			{Name: "DB_NAME", Part: catalogv1.Part_PART_DATABASE},
-			{Name: "DB_USER", Part: catalogv1.Part_PART_USER},
-			{Name: "MARIADB_PASSWORD", Part: catalogv1.Part_PART_PASSWORD},
-		},
-	}}
+	if len(e.GetNeeds()) != 1 || e.GetNeeds()[0].GetService() != "db" {
+		t.Fatalf("the built-in WordPress has needs %v, not one its own MariaDB meets", e.GetNeeds())
+	}
 	return e
 }
 
@@ -86,9 +68,9 @@ func fromAnotherStore(t *testing.T) *catalogv1.Entry {
 		t.Fatal(err)
 	}
 	e.Compose = strings.NewReplacer(
-		"WORDPRESS_DB_HOST: db", "WORDPRESS_DB_HOST: ${PANEL_DB_HOST}",
-		"WORDPRESS_DB_USER: wordpress", "WORDPRESS_DB_USER: ${PANEL_DB_USER}",
-		"WORDPRESS_DB_NAME: wordpress", "WORDPRESS_DB_NAME: ${PANEL_DB_NAME}",
+		"WORDPRESS_DB_HOST: ${DB_ADDRESS}", "WORDPRESS_DB_HOST: ${PANEL_DB_HOST}",
+		"WORDPRESS_DB_USER: ${DB_USER}", "WORDPRESS_DB_USER: ${PANEL_DB_USER}",
+		"WORDPRESS_DB_NAME: ${DB_NAME}", "WORDPRESS_DB_NAME: ${PANEL_DB_NAME}",
 		"WORDPRESS_DB_PASSWORD: ${MARIADB_PASSWORD}", "WORDPRESS_DB_PASSWORD: ${PANEL_DB_USER_PASSWORD}",
 	).Replace(file)
 	e.Compose = removeDependsOn(e.GetCompose())

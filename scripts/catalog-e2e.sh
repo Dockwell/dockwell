@@ -1253,8 +1253,17 @@ for id in "$@"; do
   for v in "${values[@]}"; do flags+=(--values "$v"); done
   for c in ${companions[$id]:-}; do flags+=(--companions "$c=true"); done
   before=${previous[$id]:-}
+  # An entry whose release before changed how it's put together, as one whose
+  # database became a need, upgrades from that release itself, kept beside this
+  # script, so an install from then is what's proven to keep its data.
+  bundled="$(dirname "${BASH_SOURCE[0]}")/catalog-e2e-before/$id.yaml"
 
-  if [[ -n "$before" ]]; then
+  if [[ -f "$bundled" ]]; then
+    was=("$(sed -n 's/^version: "\(.*\)"$/\1/p' "$bundled")")
+    before=bundled
+    step "$id: ${was[0]}, its release before its database was a need, installs, answers and signs in"
+    sed 's/^release: .*/release: 1/' "$bundled" >"$catalog_dir/$id.yaml"
+  elif [[ -n "$before" ]]; then
     read -r -a was <<<"$before"
     step "$id: ${was[0]} installs, answers and signs in"
     release "$entry" 1 "${was[@]}"

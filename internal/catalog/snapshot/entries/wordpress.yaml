@@ -20,7 +20,7 @@ screenshots:
     source: https://wordpress.org/documentation/files/2019/03/block-editor-overview-6.7-1536x869.jpg
 category: cms
 version: "7.1.3"
-release: 4
+release: 5
 homepage: https://wordpress.org
 license: AGPL-3.0-only
 appLicense: GPL-2.0-or-later
@@ -42,11 +42,27 @@ inputs:
     label: Database root password
     type: INPUT_TYPE_SECRET
     generate: 32
-  - name: MARIADB_PASSWORD
-    label: Database password
-    type: INPUT_TYPE_SECRET
-    generate: 32
 databases: [db]
+needs:
+  - name: db
+    label: Database
+    service: db
+    database: wordpress
+    user: wordpress
+    accepts:
+      - engine: ENGINE_MYSQL
+        versions: ">=8.0"
+      - engine: ENGINE_MARIADB
+        versions: ">=10.6"
+    sets:
+      - name: DB_ADDRESS
+        part: PART_ADDRESS
+      - name: DB_NAME
+        part: PART_DATABASE
+      - name: DB_USER
+        part: PART_USER
+      - name: MARIADB_PASSWORD
+        part: PART_PASSWORD
 compose: |
   services:
     wordpress:
@@ -56,10 +72,10 @@ compose: |
         db:
           condition: service_healthy
       environment:
-        WORDPRESS_DB_HOST: db
-        WORDPRESS_DB_USER: wordpress
+        WORDPRESS_DB_HOST: ${DB_ADDRESS}
+        WORDPRESS_DB_USER: ${DB_USER}
         WORDPRESS_DB_PASSWORD: ${MARIADB_PASSWORD}
-        WORDPRESS_DB_NAME: wordpress
+        WORDPRESS_DB_NAME: ${DB_NAME}
       ports:
         - "127.0.0.1:${PORT}:80"
       volumes:
@@ -75,8 +91,8 @@ compose: |
       restart: unless-stopped
       environment:
         MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD}
-        MARIADB_DATABASE: wordpress
-        MARIADB_USER: wordpress
+        MARIADB_DATABASE: ${DB_NAME}
+        MARIADB_USER: ${DB_USER}
         MARIADB_PASSWORD: ${MARIADB_PASSWORD}
         MARIADB_AUTO_UPGRADE: "1"
       volumes:

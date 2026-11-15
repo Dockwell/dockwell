@@ -34,23 +34,38 @@ import (
 	"github.com/dockwell/dockwell/internal/store"
 )
 
+// bundled serves the catalog's entry id as it was before its database became a need,
+// release 4, which bundled its server with no need, as an install from then has it:
+// from testdata/<id>-bundled.yaml, through the catalog's own folder.
+func bundled(t *testing.T, ids ...string) string {
+	t.Helper()
+	dir := t.TempDir()
+	for _, id := range ids {
+		raw, err := os.ReadFile(filepath.Join("testdata", id+"-bundled.yaml"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, id+".yaml"), raw, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	useCatalogDir(t, dir)
+	return dir
+}
+
 // wordpressWithNeeds is the built-in WordPress as ADR 0084 rewrites it, at release:
 // its database a need its own MariaDB meets, or the catalog's MySQL.
 func wordpressWithNeeds(t *testing.T, release int, image string) string {
 	t.Helper()
+	// The built-in one has its database as a need since its release 5.
 	raw, err := os.ReadFile(filepath.Join("..", "catalog", "snapshot", "entries", "wordpress.yaml"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	s := string(raw)
-	s = strings.NewReplacer(
-		"WORDPRESS_DB_HOST: db", "WORDPRESS_DB_HOST: ${DB_ADDRESS}",
-		"WORDPRESS_DB_USER: wordpress", "WORDPRESS_DB_USER: ${DB_USER}",
-		"WORDPRESS_DB_NAME: wordpress", "WORDPRESS_DB_NAME: ${DB_NAME}",
-		"MARIADB_DATABASE: wordpress", "MARIADB_DATABASE: ${DB_NAME}",
-		"MARIADB_USER: wordpress", "MARIADB_USER: ${DB_USER}",
-		"  - name: MARIADB_PASSWORD\n    label: Database password\n    type: INPUT_TYPE_SECRET\n    generate: 32\n", "",
-	).Replace(s)
+	if !strings.Contains(s, "\nneeds:\n  - name: db\n") {
+		t.Fatal("the built-in WordPress has no need db")
+	}
 	i := strings.Index(s, "release: ")
 	end := strings.Index(s[i:], "\n")
 	s = s[:i] + "release: " + strconv.Itoa(release) + s[i+end:]
@@ -59,28 +74,6 @@ func wordpressWithNeeds(t *testing.T, release int, image string) string {
 		stop := strings.Index(s[start:], "\n")
 		s = s[:start] + "image: " + image + s[start+stop:]
 	}
-	s = strings.Replace(s, "databases: [db]\n", `databases: [db]
-needs:
-  - name: db
-    label: Database
-    service: db
-    database: wordpress
-    user: wordpress
-    accepts:
-      - engine: ENGINE_MYSQL
-        versions: ">=8.0"
-      - engine: ENGINE_MARIADB
-        versions: ">=10.6"
-    sets:
-      - name: DB_ADDRESS
-        part: PART_ADDRESS
-      - name: DB_NAME
-        part: PART_DATABASE
-      - name: DB_USER
-        part: PART_USER
-      - name: MARIADB_PASSWORD
-        part: PART_PASSWORD
-`, 1)
 	return s
 }
 
@@ -1871,5 +1864,157 @@ func TestEndingWhatKeepsAppsApartTakesARoleInEach(t *testing.T) {
 		store.Grant{ProjectID: envProject(t, f, userEnv), Role: store.RoleDeveloper})
 	if _, err := cat.SetCatalogNeed(t.Context(), connect.NewRequest(&dockwellv1.SetCatalogNeedRequest{Id: "board-plain", Need: "cache", Choice: choice, StartEmpty: true})); err != nil && strings.Contains(err.Error(), "takes a developer's role there") {
 		t.Errorf("with a role in board-user's project too = %v", err)
+	}
+}
+
+// An install from before an entry's database became a need, release 4, upgrades onto
+// the need in place: the same server, under the same name, on the same volume, with
+// the same password, reading the same database as the same user, and its pin then
+// says its own server meets the need. Ghost's MySQL is offered to WordPress's install
+// then, as one the person runs, and sharing it pins it apart and makes WordPress a
+// user of its own there (ADR 0084). The server's container is made again, as its
+// values come from the need now, on its own volume.
+func TestABundledInstallUpgradesOntoItsNeedInPlace(t *testing.T) {
+	t.Parallel()
+	dir := bundled(t, "ghost", "wordpress")
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	pullsAnything(e)
+	// A MySQL or MariaDB with the user its image made, whose client finds another
+	// once it's told to make it.
+	for _, id := range []string{"ghost", "wordpress"} {
+		raw, err := os.ReadFile(filepath.Join("testdata", id+"-bundled.yaml"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var mu sync.Mutex
+		made := map[string]bool{id: true}
+		e.Registry[regexp.MustCompile(`image: ((?:mysql|mariadb):\S+)`).FindStringSubmatch(string(raw))[1]] = dockertest.Image{Config: docker.Config{Cmd: []string{"mysqld"}}, Exec: func(x dockertest.Exec) int {
+			sql, _ := io.ReadAll(x.Stdin)
+			mu.Lock()
+			defer mu.Unlock()
+			for _, m := range regexp.MustCompile("CREATE USER IF NOT EXISTS '([a-z0-9_]+)'").FindAllSubmatch(sql, -1) {
+				made[string(m[1])] = true
+			}
+			if m := regexp.MustCompile("User = '([a-z0-9_]+)'").FindSubmatch(sql); len(m) == 2 && made[string(m[1])] {
+				_, _ = io.WriteString(x.Stdout, "u\t1\nd\t1\n")
+			}
+			return 0
+		}}
+	}
+	c := changeClient(b, b.origin)
+	cat := catalogClient(b)
+	env := func(project, service string) map[string]string {
+		t.Helper()
+		c := e.Newest(project, service)
+		if c == nil {
+			t.Fatalf("%s doesn't run in %s: %v", service, project, e.Containers())
+		}
+		out := map[string]string{}
+		for _, kv := range c.Config.Env {
+			k, v, _ := strings.Cut(kv, "=")
+			out[k] = v
+		}
+		return out
+	}
+	projectOf := func(ch *dockwellv1.Change) string {
+		for _, r := range ch.GetPlan().GetResources() {
+			if r.GetResource().GetKind() == "service" {
+				return docker.Project(r.GetResource().GetScope())
+			}
+		}
+		t.Fatalf("no service in %v", ch.GetPlan().GetResources())
+		return ""
+	}
+	for _, app := range []struct{ id, project, service, password, user, dbUser, dbName, engine string }{
+		{"ghost", "site", "ghost", "MYSQL_PASSWORD", "database__connection__user", "MYSQL_USER", "MYSQL_DATABASE", "MySQL"},
+		{"wordpress", "press", "wordpress", "MARIADB_PASSWORD", "WORDPRESS_DB_USER", "MARIADB_USER", "MARIADB_DATABASE", "MariaDB"},
+	} {
+		installed := installApp(t, cat, &dockwellv1.InstallCatalogEntryRequest{Id: app.id, Project: app.project})
+		if got := apply(t, c, installed); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+			t.Fatalf("installing %s's release 4 ended %v: %s", app.id, got.GetState(), got.GetError())
+		}
+		project := projectOf(installed)
+		before, server := env(project, app.service), env(project, "db")
+		volumes := e.Newest(project, "db").Mounts
+
+		// The built-in release 5 takes over from the bundled one.
+		if err := os.Remove(filepath.Join(dir, app.id+".yaml")); err != nil {
+			t.Fatal(err)
+		}
+		res, err := cat.UpgradeCatalogInstall(t.Context(), connect.NewRequest(&dockwellv1.UpgradeCatalogInstallRequest{Id: app.project, SkipBackup: true}))
+		if err != nil {
+			t.Fatalf("upgrading %s onto its need: %v", app.id, err)
+		}
+		for _, r := range res.Msg.GetChange().GetPlan().GetResources() {
+			k := r.GetResource().GetKind() + " " + r.GetResource().GetName()
+			// The server is made again, as its values come from the need now: on its
+			// volume, as it was. Nothing is made anew or deleted.
+			if (k == "service db" || r.GetResource().GetKind() == "volume") && (r.GetAction() == dockwellv1.PlanAction_PLAN_ACTION_CREATE || r.GetAction() == dockwellv1.PlanAction_PLAN_ACTION_DELETE) {
+				t.Errorf("upgrading %s onto its need plans %v for %s", app.id, r.GetAction(), k)
+			}
+		}
+		// The plan says the server restarts once, so it surprises no one.
+		if notes := notesOf(res.Msg.GetChange(), catalogapi.NeedRestartNote); len(notes) != 1 || notes[0] != app.engine+" restarts once to read its settings from the need" {
+			t.Errorf("upgrading %s onto its need says %q", app.id, notes)
+		}
+		if got := apply(t, c, res.Msg.GetChange()); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+			t.Fatalf("upgrading %s ended %v: %s", app.id, got.GetState(), got.GetError())
+		}
+		after, serverAfter := env(project, app.service), env(project, "db")
+		for _, k := range []string{app.password, app.dbUser, app.dbName} {
+			if serverAfter[k] != server[k] {
+				t.Errorf("%s's server reads %s %q after the upgrade, %q before", app.id, k, serverAfter[k], server[k])
+			}
+		}
+		if after[app.user] != before[app.user] || after[app.user] == "" {
+			t.Errorf("%s signs in as %q after the upgrade, %q before", app.id, after[app.user], before[app.user])
+		}
+		if got := e.Newest(project, "db").Mounts; !slices.EqualFunc(got, volumes, func(a, b docker.MountPoint) bool { return a.Name == b.Name && a.Destination == b.Destination }) {
+			t.Errorf("%s's server mounts %v after the upgrade, %v before", app.id, got, volumes)
+		}
+	}
+
+	installs, err := cat.ListCatalogInstalls(t.Context(), connect.NewRequest(&dockwellv1.ListCatalogInstallsRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, in := range installs.Msg.GetInstalls() {
+		if p := in.GetPin(); p.GetRelease() != 5 || p.GetNeeds()["db"] == nil {
+			t.Errorf("%s's pin is at release %d, with its need %v", in.GetProject(), p.GetRelease(), p.GetNeeds()["db"])
+		}
+	}
+
+	// WordPress's install offers Ghost's MySQL, as one the person runs.
+	got, err := cat.GetCatalogEntry(t.Context(), connect.NewRequest(&dockwellv1.GetCatalogEntryRequest{Id: "wordpress"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var choice string
+	for _, o := range got.Msg.GetNeeds() {
+		if o.GetProject() == "site" && o.GetService() == "db" {
+			if o.GetWhy() != "" {
+				t.Errorf("Ghost's MySQL can't be shared: %s", o.GetWhy())
+			}
+			choice = o.GetChoice()
+		}
+	}
+	if choice == "" {
+		t.Fatalf("Ghost's MySQL isn't offered to WordPress: %v", got.Msg.GetNeeds())
+	}
+	planned := installApp(t, cat, &dockwellv1.InstallCatalogEntryRequest{Id: "wordpress", Project: "blog", Needs: map[string]string{"db": choice}})
+	pins, user := false, ""
+	for _, r := range planned.GetPlan().GetResources() {
+		pins = pins || r.GetResource().GetKind() == "project" && r.GetResource().GetName() == "site" && r.GetAction() == dockwellv1.PlanAction_PLAN_ACTION_UPDATE
+		if r.GetResource().GetKind() == "database.user" {
+			user = r.GetResource().GetName()
+		}
+	}
+	if !pins || user != "wordpress" {
+		t.Errorf("sharing Ghost's MySQL pins it apart %t, with WordPress's user %q", pins, user)
+	}
+	if got := apply(t, c, planned); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("sharing Ghost's MySQL ended %v: %s", got.GetState(), got.GetError())
 	}
 }

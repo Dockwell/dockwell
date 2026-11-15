@@ -125,6 +125,32 @@ func (h *Handler) meetNeeds(ctx context.Context, s sourced, e *catalogv1.Entry, 
 	return needed, notes, nil
 }
 
+// NeedRestartNote is a plan note's reason for a server the install runs already that
+// a release makes a need of, met by it, as it was: its container is made again, on its
+// own volume, as its settings come from the need from then on (ADR 0084).
+const NeedRestartNote = "catalog_need_restart"
+
+// restartsForNeeds says, of each need of the release the install's own server meets
+// for the first time, that the server restarts once, so it surprises no one.
+func restartsForNeeds(e *catalogv1.Entry, pin *resourcev1.CatalogPin, needed *catalog.Needed) []revision.Note {
+	var out []revision.Note
+	for _, n := range e.GetNeeds() {
+		own := n.GetService()
+		if own == "" || pin.GetNeeds()[n.GetName()] != nil || !strings.Contains(string(pin.GetFile()), "\n  "+own+":\n") {
+			continue
+		}
+		p := needed.Pinned[n.GetName()]
+		if p == nil || p.GetEntry() != "" || p.GetEnvironment() != "" {
+			continue
+		}
+		out = append(out, revision.Note{
+			Reason:  NeedRestartNote,
+			Message: cmp.Or(catalog.EngineName(catalogv1.Engine(p.GetEngine())), own) + " restarts once to read its settings from the need",
+		})
+	}
+	return out
+}
+
 // NewNeedNote is a plan note's reason for a release that needs what the install didn't,
 // which an automatic update leaves for a person.
 const NewNeedNote = "catalog_new_need"
