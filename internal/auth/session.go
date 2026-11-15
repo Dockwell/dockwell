@@ -26,6 +26,9 @@ const (
 	MethodRecoveryCode  = "recovery_code"
 	MethodLink          = "link"
 	MethodInvite        = "invite"
+	// MethodProvider is an account at a sign-in provider, linked to the person
+	// (ADR 0095). It confirms nothing a passkey does.
+	MethodProvider = "provider"
 )
 
 // Principal is who a call acts for: a signed-in user and the session they
@@ -93,6 +96,12 @@ func (c Client) anonymous() string { return "anonymous:" + c.remoteIP() }
 
 // startSession records a new session for user in tx and audits the sign-in.
 func (s *Service) startSession(ctx context.Context, tx *store.Tx, user store.User, client Client, method string) (SignedIn, error) {
+	return s.startLinkedSession(ctx, tx, user, client, method, store.ProviderLink{}, "")
+}
+
+// startLinkedSession is startSession for a sign-in with a provider, which keeps
+// the link it began from, and says the provider in the audit log (ADR 0095).
+func (s *Service) startLinkedSession(ctx context.Context, tx *store.Tx, user store.User, client Client, method string, link store.ProviderLink, via string) (SignedIn, error) {
 	now := s.now()
 	token, hash := newToken()
 	ip := client.remoteIP()
@@ -108,6 +117,8 @@ func (s *Service) startSession(ctx context.Context, tx *store.Tx, user store.Use
 		CreatedAt:  now,
 		LastSeenAt: now,
 		ExpiresAt:  now.Add(SessionMax),
+		// A sign-in with a provider keeps the link, so unlinking ends it.
+		ProviderLinkID: link.ID,
 	}
 	// A sign-in with a passkey, as claiming and accepting an invite make one,
 	// opens the session's hour, for someone who asks once an hour (ADR 0075).
@@ -124,8 +135,12 @@ func (s *Service) startSession(ctx context.Context, tx *store.Tx, user store.Use
 	if err := tx.CreateSession(ctx, sess); err != nil {
 		return SignedIn{}, err
 	}
+	how := method
+	if via != "" {
+		how = method + " " + via
+	}
 	if err := s.audit(ctx, tx, "user:"+user.ID, "auth.sign_in", user.ID,
-		fmt.Sprintf("%s on %s from %s, session %s", method, client.Site.RPID, ip, sess.ID)); err != nil {
+		fmt.Sprintf("%s on %s from %s, session %s", how, client.Site.RPID, ip, sess.ID)); err != nil {
 		return SignedIn{}, err
 	}
 	return SignedIn{User: user, Session: sess, Token: token}, nil
@@ -155,6 +170,7 @@ func (s *Service) Authenticate(ctx context.Context, client Client, token string)
 	}
 	now := s.now()
 	var p Principal
+	var link *store.ProviderLink
 	err := s.db.View(ctx, func(tx *store.Tx) error {
 		sess, err := tx.GetSessionByTokenHash(ctx, hashToken(token))
 		if errors.Is(err, store.ErrNotFound) {
@@ -165,6 +181,9 @@ func (s *Service) Authenticate(ctx context.Context, client Client, token string)
 		}
 		if !live(sess, client.Site, now) {
 			return ErrUnauthenticated
+		}
+		if link, err = sessionLink(ctx, tx, sess); err != nil {
+			return err
 		}
 		user, err := tx.GetUser(ctx, sess.UserID)
 		if errors.Is(err, store.ErrNotFound) {
@@ -178,6 +197,19 @@ func (s *Service) Authenticate(ctx context.Context, client Client, token string)
 	})
 	if err != nil {
 		return Principal{}, err
+	}
+	// A session begun with a provider lasts while its link signs anyone in (ADR 0095).
+	// The providers are read once the session's transaction is over: a read inside it
+	// would wait on a second connection from the same pool (#646's review, H1).
+	if link != nil {
+		stopped, err := s.sessionLinkStops(ctx, link)
+		if err != nil {
+			return Principal{}, err
+		}
+		if stopped != nil {
+			s.endStoppedLink(ctx, stopped)
+			return Principal{}, ErrUnauthenticated
+		}
 	}
 	ip := client.remoteIP()
 	if now.Sub(p.Session.LastSeenAt) >= touchEvery || ip != p.Session.LastIP {
@@ -341,8 +373,14 @@ func (s *Service) track(ctx context.Context, client Client, p Principal, use boo
 		cancel()
 	}
 	done := make(chan struct{})
+	// A stream from a session begun with a provider checks every providersFor, so it
+	// ends within twice that of a change to the provider (#646's review, M1).
+	every := s.recheck
+	if p.Session.ProviderLinkID != "" {
+		every = min(every, providersFor)
+	}
 	go func() {
-		t := time.NewTicker(s.recheck)
+		t := time.NewTicker(every)
 		defer t.Stop()
 		for {
 			select {
@@ -379,15 +417,29 @@ func (s *Service) stillLive(ctx context.Context, client Client, p Principal, use
 	}
 	sessionID := p.Session.ID
 	var sess store.Session
+	var link *store.ProviderLink
 	err := s.db.View(ctx, func(tx *store.Tx) (err error) {
-		sess, err = tx.GetSession(ctx, sessionID)
+		if sess, err = tx.GetSession(ctx, sessionID); err != nil {
+			return err
+		}
+		link, err = sessionLink(ctx, tx, sess)
 		return err
 	})
 	switch {
-	case errors.Is(err, store.ErrNotFound):
+	case errors.Is(err, store.ErrNotFound), errors.Is(err, ErrUnauthenticated):
 		return false
 	case err != nil:
 		return true // a failed read isn't a reason to close; the next check decides
+	}
+	if link != nil {
+		stopped, err := s.sessionLinkStops(ctx, link)
+		if err != nil {
+			return true // as a failed read above
+		}
+		if stopped != nil {
+			s.endStoppedLink(ctx, stopped)
+			return false
+		}
 	}
 	now := s.now()
 	if !live(sess, client.Site, now) {
@@ -472,4 +524,20 @@ func (s *streams) end(sessionID string) {
 	for _, cancel := range cancels {
 		cancel()
 	}
+}
+
+// sessionLink reads the link a session began from, in tx, or nil for a session that
+// didn't begin with a provider. A link that's gone has ended the session.
+func sessionLink(ctx context.Context, tx *store.Tx, sess store.Session) (*store.ProviderLink, error) {
+	if sess.ProviderLinkID == "" {
+		return nil, nil
+	}
+	link, err := tx.GetProviderLink(ctx, sess.ProviderLinkID)
+	if errors.Is(err, store.ErrNotFound) {
+		return nil, ErrUnauthenticated
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &link, nil
 }

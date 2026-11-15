@@ -64,6 +64,9 @@ const (
 	// AuthServiceSignInWithLinkProcedure is the fully-qualified name of the AuthService's
 	// SignInWithLink RPC.
 	AuthServiceSignInWithLinkProcedure = "/dockwell.v1.AuthService/SignInWithLink"
+	// AuthServiceBeginProviderSignInProcedure is the fully-qualified name of the AuthService's
+	// BeginProviderSignIn RPC.
+	AuthServiceBeginProviderSignInProcedure = "/dockwell.v1.AuthService/BeginProviderSignIn"
 	// AuthServiceSignOutProcedure is the fully-qualified name of the AuthService's SignOut RPC.
 	AuthServiceSignOutProcedure = "/dockwell.v1.AuthService/SignOut"
 	// AuthServiceListSessionsProcedure is the fully-qualified name of the AuthService's ListSessions
@@ -98,6 +101,15 @@ const (
 	// AuthServiceRemovePasskeyProcedure is the fully-qualified name of the AuthService's RemovePasskey
 	// RPC.
 	AuthServiceRemovePasskeyProcedure = "/dockwell.v1.AuthService/RemovePasskey"
+	// AuthServiceListProviderLinksProcedure is the fully-qualified name of the AuthService's
+	// ListProviderLinks RPC.
+	AuthServiceListProviderLinksProcedure = "/dockwell.v1.AuthService/ListProviderLinks"
+	// AuthServiceBeginLinkProviderProcedure is the fully-qualified name of the AuthService's
+	// BeginLinkProvider RPC.
+	AuthServiceBeginLinkProviderProcedure = "/dockwell.v1.AuthService/BeginLinkProvider"
+	// AuthServiceDeleteProviderLinkProcedure is the fully-qualified name of the AuthService's
+	// DeleteProviderLink RPC.
+	AuthServiceDeleteProviderLinkProcedure = "/dockwell.v1.AuthService/DeleteProviderLink"
 	// AuthServiceGetTotpProcedure is the fully-qualified name of the AuthService's GetTotp RPC.
 	AuthServiceGetTotpProcedure = "/dockwell.v1.AuthService/GetTotp"
 	// AuthServiceBeginTotpSetupProcedure is the fully-qualified name of the AuthService's
@@ -161,6 +173,12 @@ type AuthServiceClient interface {
 	SignInWithCode(context.Context, *connect.Request[v1.SignInWithCodeRequest]) (*connect.Response[v1.SignInWithCodeResponse], error)
 	// SignInWithLink spends a one-time sign-in link from dockwell recover.
 	SignInWithLink(context.Context, *connect.Request[v1.SignInWithLinkRequest]) (*connect.Response[v1.SignInWithLinkResponse], error)
+	// BeginProviderSignIn starts signing in with a sign-in provider that signs
+	// people in to Dockwell, on the panel's own domain, for someone who linked an
+	// account there (ADR 0095). It answers the address to go to, and sets a cookie
+	// the provider's way back is checked against. Starting one spends from the same
+	// allowance for your address as starting a passkey sign-in.
+	BeginProviderSignIn(context.Context, *connect.Request[v1.BeginProviderSignInRequest]) (*connect.Response[v1.BeginProviderSignInResponse], error)
 	// SignOut ends this session.
 	SignOut(context.Context, *connect.Request[v1.SignOutRequest]) (*connect.Response[v1.SignOutResponse], error)
 	// ListSessions returns your sessions that haven't ended, newest first.
@@ -213,6 +231,17 @@ type AuthServiceClient interface {
 	// FinishStepUp for removing it. It refuses to remove your last way to sign
 	// in.
 	RemovePasskey(context.Context, *connect.Request[v1.RemovePasskeyRequest]) (*connect.Response[v1.RemovePasskeyResponse], error)
+	// ListProviderLinks lists the accounts at sign-in providers you sign in to
+	// Dockwell with, and whether each still works (ADR 0095).
+	ListProviderLinks(context.Context, *connect.Request[v1.ListProviderLinksRequest]) (*connect.Response[v1.ListProviderLinksResponse], error)
+	// BeginLinkProvider starts linking an account at a sign-in provider to you,
+	// on the panel's own domain. It needs a proof from FinishStepUp for linking
+	// that provider, as a way to sign in outlives the session that made it. It
+	// answers the address to go to; the provider's way back links the account.
+	BeginLinkProvider(context.Context, *connect.Request[v1.BeginLinkProviderRequest]) (*connect.Response[v1.BeginLinkProviderResponse], error)
+	// DeleteProviderLink unlinks an account at a sign-in provider from you, and
+	// ends every session it began.
+	DeleteProviderLink(context.Context, *connect.Request[v1.DeleteProviderLinkRequest]) (*connect.Response[v1.DeleteProviderLinkResponse], error)
 	// GetTotp says whether you sign in with an authenticator app, and how many
 	// recovery codes are left.
 	GetTotp(context.Context, *connect.Request[v1.GetTotpRequest]) (*connect.Response[v1.GetTotpResponse], error)
@@ -319,6 +348,12 @@ func NewAuthServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 			connect.WithSchema(authServiceMethods.ByName("SignInWithLink")),
 			connect.WithClientOptions(opts...),
 		),
+		beginProviderSignIn: connect.NewClient[v1.BeginProviderSignInRequest, v1.BeginProviderSignInResponse](
+			httpClient,
+			baseURL+AuthServiceBeginProviderSignInProcedure,
+			connect.WithSchema(authServiceMethods.ByName("BeginProviderSignIn")),
+			connect.WithClientOptions(opts...),
+		),
 		signOut: connect.NewClient[v1.SignOutRequest, v1.SignOutResponse](
 			httpClient,
 			baseURL+AuthServiceSignOutProcedure,
@@ -394,6 +429,25 @@ func NewAuthServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 			connect.WithSchema(authServiceMethods.ByName("RemovePasskey")),
 			connect.WithClientOptions(opts...),
 		),
+		listProviderLinks: connect.NewClient[v1.ListProviderLinksRequest, v1.ListProviderLinksResponse](
+			httpClient,
+			baseURL+AuthServiceListProviderLinksProcedure,
+			connect.WithSchema(authServiceMethods.ByName("ListProviderLinks")),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
+		beginLinkProvider: connect.NewClient[v1.BeginLinkProviderRequest, v1.BeginLinkProviderResponse](
+			httpClient,
+			baseURL+AuthServiceBeginLinkProviderProcedure,
+			connect.WithSchema(authServiceMethods.ByName("BeginLinkProvider")),
+			connect.WithClientOptions(opts...),
+		),
+		deleteProviderLink: connect.NewClient[v1.DeleteProviderLinkRequest, v1.DeleteProviderLinkResponse](
+			httpClient,
+			baseURL+AuthServiceDeleteProviderLinkProcedure,
+			connect.WithSchema(authServiceMethods.ByName("DeleteProviderLink")),
+			connect.WithClientOptions(opts...),
+		),
 		getTotp: connect.NewClient[v1.GetTotpRequest, v1.GetTotpResponse](
 			httpClient,
 			baseURL+AuthServiceGetTotpProcedure,
@@ -453,6 +507,7 @@ type authServiceClient struct {
 	finishPasskeySignIn     *connect.Client[v1.FinishPasskeySignInRequest, v1.FinishPasskeySignInResponse]
 	signInWithCode          *connect.Client[v1.SignInWithCodeRequest, v1.SignInWithCodeResponse]
 	signInWithLink          *connect.Client[v1.SignInWithLinkRequest, v1.SignInWithLinkResponse]
+	beginProviderSignIn     *connect.Client[v1.BeginProviderSignInRequest, v1.BeginProviderSignInResponse]
 	signOut                 *connect.Client[v1.SignOutRequest, v1.SignOutResponse]
 	listSessions            *connect.Client[v1.ListSessionsRequest, v1.ListSessionsResponse]
 	revokeSession           *connect.Client[v1.RevokeSessionRequest, v1.RevokeSessionResponse]
@@ -465,6 +520,9 @@ type authServiceClient struct {
 	beginAddPasskey         *connect.Client[v1.BeginAddPasskeyRequest, v1.BeginAddPasskeyResponse]
 	finishAddPasskey        *connect.Client[v1.FinishAddPasskeyRequest, v1.FinishAddPasskeyResponse]
 	removePasskey           *connect.Client[v1.RemovePasskeyRequest, v1.RemovePasskeyResponse]
+	listProviderLinks       *connect.Client[v1.ListProviderLinksRequest, v1.ListProviderLinksResponse]
+	beginLinkProvider       *connect.Client[v1.BeginLinkProviderRequest, v1.BeginLinkProviderResponse]
+	deleteProviderLink      *connect.Client[v1.DeleteProviderLinkRequest, v1.DeleteProviderLinkResponse]
 	getTotp                 *connect.Client[v1.GetTotpRequest, v1.GetTotpResponse]
 	beginTotpSetup          *connect.Client[v1.BeginTotpSetupRequest, v1.BeginTotpSetupResponse]
 	confirmTotpSetup        *connect.Client[v1.ConfirmTotpSetupRequest, v1.ConfirmTotpSetupResponse]
@@ -529,6 +587,11 @@ func (c *authServiceClient) SignInWithLink(ctx context.Context, req *connect.Req
 	return c.signInWithLink.CallUnary(ctx, req)
 }
 
+// BeginProviderSignIn calls dockwell.v1.AuthService.BeginProviderSignIn.
+func (c *authServiceClient) BeginProviderSignIn(ctx context.Context, req *connect.Request[v1.BeginProviderSignInRequest]) (*connect.Response[v1.BeginProviderSignInResponse], error) {
+	return c.beginProviderSignIn.CallUnary(ctx, req)
+}
+
 // SignOut calls dockwell.v1.AuthService.SignOut.
 func (c *authServiceClient) SignOut(ctx context.Context, req *connect.Request[v1.SignOutRequest]) (*connect.Response[v1.SignOutResponse], error) {
 	return c.signOut.CallUnary(ctx, req)
@@ -587,6 +650,21 @@ func (c *authServiceClient) FinishAddPasskey(ctx context.Context, req *connect.R
 // RemovePasskey calls dockwell.v1.AuthService.RemovePasskey.
 func (c *authServiceClient) RemovePasskey(ctx context.Context, req *connect.Request[v1.RemovePasskeyRequest]) (*connect.Response[v1.RemovePasskeyResponse], error) {
 	return c.removePasskey.CallUnary(ctx, req)
+}
+
+// ListProviderLinks calls dockwell.v1.AuthService.ListProviderLinks.
+func (c *authServiceClient) ListProviderLinks(ctx context.Context, req *connect.Request[v1.ListProviderLinksRequest]) (*connect.Response[v1.ListProviderLinksResponse], error) {
+	return c.listProviderLinks.CallUnary(ctx, req)
+}
+
+// BeginLinkProvider calls dockwell.v1.AuthService.BeginLinkProvider.
+func (c *authServiceClient) BeginLinkProvider(ctx context.Context, req *connect.Request[v1.BeginLinkProviderRequest]) (*connect.Response[v1.BeginLinkProviderResponse], error) {
+	return c.beginLinkProvider.CallUnary(ctx, req)
+}
+
+// DeleteProviderLink calls dockwell.v1.AuthService.DeleteProviderLink.
+func (c *authServiceClient) DeleteProviderLink(ctx context.Context, req *connect.Request[v1.DeleteProviderLinkRequest]) (*connect.Response[v1.DeleteProviderLinkResponse], error) {
+	return c.deleteProviderLink.CallUnary(ctx, req)
 }
 
 // GetTotp calls dockwell.v1.AuthService.GetTotp.
@@ -666,6 +744,12 @@ type AuthServiceHandler interface {
 	SignInWithCode(context.Context, *connect.Request[v1.SignInWithCodeRequest]) (*connect.Response[v1.SignInWithCodeResponse], error)
 	// SignInWithLink spends a one-time sign-in link from dockwell recover.
 	SignInWithLink(context.Context, *connect.Request[v1.SignInWithLinkRequest]) (*connect.Response[v1.SignInWithLinkResponse], error)
+	// BeginProviderSignIn starts signing in with a sign-in provider that signs
+	// people in to Dockwell, on the panel's own domain, for someone who linked an
+	// account there (ADR 0095). It answers the address to go to, and sets a cookie
+	// the provider's way back is checked against. Starting one spends from the same
+	// allowance for your address as starting a passkey sign-in.
+	BeginProviderSignIn(context.Context, *connect.Request[v1.BeginProviderSignInRequest]) (*connect.Response[v1.BeginProviderSignInResponse], error)
 	// SignOut ends this session.
 	SignOut(context.Context, *connect.Request[v1.SignOutRequest]) (*connect.Response[v1.SignOutResponse], error)
 	// ListSessions returns your sessions that haven't ended, newest first.
@@ -718,6 +802,17 @@ type AuthServiceHandler interface {
 	// FinishStepUp for removing it. It refuses to remove your last way to sign
 	// in.
 	RemovePasskey(context.Context, *connect.Request[v1.RemovePasskeyRequest]) (*connect.Response[v1.RemovePasskeyResponse], error)
+	// ListProviderLinks lists the accounts at sign-in providers you sign in to
+	// Dockwell with, and whether each still works (ADR 0095).
+	ListProviderLinks(context.Context, *connect.Request[v1.ListProviderLinksRequest]) (*connect.Response[v1.ListProviderLinksResponse], error)
+	// BeginLinkProvider starts linking an account at a sign-in provider to you,
+	// on the panel's own domain. It needs a proof from FinishStepUp for linking
+	// that provider, as a way to sign in outlives the session that made it. It
+	// answers the address to go to; the provider's way back links the account.
+	BeginLinkProvider(context.Context, *connect.Request[v1.BeginLinkProviderRequest]) (*connect.Response[v1.BeginLinkProviderResponse], error)
+	// DeleteProviderLink unlinks an account at a sign-in provider from you, and
+	// ends every session it began.
+	DeleteProviderLink(context.Context, *connect.Request[v1.DeleteProviderLinkRequest]) (*connect.Response[v1.DeleteProviderLinkResponse], error)
 	// GetTotp says whether you sign in with an authenticator app, and how many
 	// recovery codes are left.
 	GetTotp(context.Context, *connect.Request[v1.GetTotpRequest]) (*connect.Response[v1.GetTotpResponse], error)
@@ -820,6 +915,12 @@ func NewAuthServiceHandler(svc AuthServiceHandler, opts ...connect.HandlerOption
 		connect.WithSchema(authServiceMethods.ByName("SignInWithLink")),
 		connect.WithHandlerOptions(opts...),
 	)
+	authServiceBeginProviderSignInHandler := connect.NewUnaryHandler(
+		AuthServiceBeginProviderSignInProcedure,
+		svc.BeginProviderSignIn,
+		connect.WithSchema(authServiceMethods.ByName("BeginProviderSignIn")),
+		connect.WithHandlerOptions(opts...),
+	)
 	authServiceSignOutHandler := connect.NewUnaryHandler(
 		AuthServiceSignOutProcedure,
 		svc.SignOut,
@@ -895,6 +996,25 @@ func NewAuthServiceHandler(svc AuthServiceHandler, opts ...connect.HandlerOption
 		connect.WithSchema(authServiceMethods.ByName("RemovePasskey")),
 		connect.WithHandlerOptions(opts...),
 	)
+	authServiceListProviderLinksHandler := connect.NewUnaryHandler(
+		AuthServiceListProviderLinksProcedure,
+		svc.ListProviderLinks,
+		connect.WithSchema(authServiceMethods.ByName("ListProviderLinks")),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
+	authServiceBeginLinkProviderHandler := connect.NewUnaryHandler(
+		AuthServiceBeginLinkProviderProcedure,
+		svc.BeginLinkProvider,
+		connect.WithSchema(authServiceMethods.ByName("BeginLinkProvider")),
+		connect.WithHandlerOptions(opts...),
+	)
+	authServiceDeleteProviderLinkHandler := connect.NewUnaryHandler(
+		AuthServiceDeleteProviderLinkProcedure,
+		svc.DeleteProviderLink,
+		connect.WithSchema(authServiceMethods.ByName("DeleteProviderLink")),
+		connect.WithHandlerOptions(opts...),
+	)
 	authServiceGetTotpHandler := connect.NewUnaryHandler(
 		AuthServiceGetTotpProcedure,
 		svc.GetTotp,
@@ -962,6 +1082,8 @@ func NewAuthServiceHandler(svc AuthServiceHandler, opts ...connect.HandlerOption
 			authServiceSignInWithCodeHandler.ServeHTTP(w, r)
 		case AuthServiceSignInWithLinkProcedure:
 			authServiceSignInWithLinkHandler.ServeHTTP(w, r)
+		case AuthServiceBeginProviderSignInProcedure:
+			authServiceBeginProviderSignInHandler.ServeHTTP(w, r)
 		case AuthServiceSignOutProcedure:
 			authServiceSignOutHandler.ServeHTTP(w, r)
 		case AuthServiceListSessionsProcedure:
@@ -986,6 +1108,12 @@ func NewAuthServiceHandler(svc AuthServiceHandler, opts ...connect.HandlerOption
 			authServiceFinishAddPasskeyHandler.ServeHTTP(w, r)
 		case AuthServiceRemovePasskeyProcedure:
 			authServiceRemovePasskeyHandler.ServeHTTP(w, r)
+		case AuthServiceListProviderLinksProcedure:
+			authServiceListProviderLinksHandler.ServeHTTP(w, r)
+		case AuthServiceBeginLinkProviderProcedure:
+			authServiceBeginLinkProviderHandler.ServeHTTP(w, r)
+		case AuthServiceDeleteProviderLinkProcedure:
+			authServiceDeleteProviderLinkHandler.ServeHTTP(w, r)
 		case AuthServiceGetTotpProcedure:
 			authServiceGetTotpHandler.ServeHTTP(w, r)
 		case AuthServiceBeginTotpSetupProcedure:
@@ -1053,6 +1181,10 @@ func (UnimplementedAuthServiceHandler) SignInWithLink(context.Context, *connect.
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.AuthService.SignInWithLink is not implemented"))
 }
 
+func (UnimplementedAuthServiceHandler) BeginProviderSignIn(context.Context, *connect.Request[v1.BeginProviderSignInRequest]) (*connect.Response[v1.BeginProviderSignInResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.AuthService.BeginProviderSignIn is not implemented"))
+}
+
 func (UnimplementedAuthServiceHandler) SignOut(context.Context, *connect.Request[v1.SignOutRequest]) (*connect.Response[v1.SignOutResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.AuthService.SignOut is not implemented"))
 }
@@ -1099,6 +1231,18 @@ func (UnimplementedAuthServiceHandler) FinishAddPasskey(context.Context, *connec
 
 func (UnimplementedAuthServiceHandler) RemovePasskey(context.Context, *connect.Request[v1.RemovePasskeyRequest]) (*connect.Response[v1.RemovePasskeyResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.AuthService.RemovePasskey is not implemented"))
+}
+
+func (UnimplementedAuthServiceHandler) ListProviderLinks(context.Context, *connect.Request[v1.ListProviderLinksRequest]) (*connect.Response[v1.ListProviderLinksResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.AuthService.ListProviderLinks is not implemented"))
+}
+
+func (UnimplementedAuthServiceHandler) BeginLinkProvider(context.Context, *connect.Request[v1.BeginLinkProviderRequest]) (*connect.Response[v1.BeginLinkProviderResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.AuthService.BeginLinkProvider is not implemented"))
+}
+
+func (UnimplementedAuthServiceHandler) DeleteProviderLink(context.Context, *connect.Request[v1.DeleteProviderLinkRequest]) (*connect.Response[v1.DeleteProviderLinkResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.AuthService.DeleteProviderLink is not implemented"))
 }
 
 func (UnimplementedAuthServiceHandler) GetTotp(context.Context, *connect.Request[v1.GetTotpRequest]) (*connect.Response[v1.GetTotpResponse], error) {

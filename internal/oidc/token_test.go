@@ -1,12 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-package signin
+package oidc
 
 import (
-	"crypto"
-	"crypto/ecdsa"
-	"crypto/ed25519"
-	"crypto/elliptic"
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/rsa"
@@ -15,110 +11,39 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"math/big"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/dockwell/dockwell/internal/oidc/oidctest"
 )
 
 const (
-	issuer = "https://auth.example.com/"
-	client = "dockwell"
-	nonce  = "n-0S6_WzA2Mj"
+	issuer = oidctest.Issuer
+	client = oidctest.Client
+	nonce  = oidctest.Nonce
 )
 
-var now = time.Date(2026, 11, 13, 12, 0, 0, 0, time.UTC)
+var now = oidctest.Now
 
-// signer is a provider's key: its JWK, and how it signs.
-type signer struct {
-	alg, kid string
-	jwk      map[string]string
-	sign     func(signed []byte) []byte
-}
+type signer = oidctest.Signer
 
 func b64(b []byte) string { return base64.RawURLEncoding.EncodeToString(b) }
 
-func newSigner(t *testing.T, alg, kid string) signer {
-	t.Helper()
-	s := signer{alg: alg, kid: kid}
-	switch alg {
-	case "RS256", "PS256":
-		key, err := rsa.GenerateKey(rand.Reader, 2048)
-		if err != nil {
-			t.Fatal(err)
-		}
-		s.jwk = map[string]string{"kty": "RSA", "kid": kid, "n": b64(key.N.Bytes()), "e": b64(big.NewInt(int64(key.E)).Bytes())}
-		s.sign = func(signed []byte) []byte {
-			sum := sha256.Sum256(signed)
-			var sig []byte
-			if alg == "PS256" {
-				sig, err = rsa.SignPSS(rand.Reader, key, crypto.SHA256, sum[:], nil)
-			} else {
-				sig, err = rsa.SignPKCS1v15(rand.Reader, key, crypto.SHA256, sum[:])
-			}
-			if err != nil {
-				t.Fatal(err)
-			}
-			return sig
-		}
-	case "ES256":
-		key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-		if err != nil {
-			t.Fatal(err)
-		}
-		raw, err := key.PublicKey.Bytes()
-		if err != nil {
-			t.Fatal(err)
-		}
-		s.jwk = map[string]string{"kty": "EC", "kid": kid, "crv": "P-256", "x": b64(raw[1:33]), "y": b64(raw[33:])}
-		s.sign = func(signed []byte) []byte {
-			sum := sha256.Sum256(signed)
-			r, ss, err := ecdsa.Sign(rand.Reader, key, sum[:])
-			if err != nil {
-				t.Fatal(err)
-			}
-			return append(r.FillBytes(make([]byte, 32)), ss.FillBytes(make([]byte, 32))...)
-		}
-	case "EdDSA":
-		pub, key, err := ed25519.GenerateKey(rand.Reader)
-		if err != nil {
-			t.Fatal(err)
-		}
-		s.jwk = map[string]string{"kty": "OKP", "kid": kid, "crv": "Ed25519", "x": b64(pub)}
-		s.sign = func(signed []byte) []byte { return ed25519.Sign(key, signed) }
-	}
-	return s
-}
+func newSigner(t *testing.T, alg, kid string) signer { return oidctest.NewSigner(t, alg, kid) }
 
 func keySet(t *testing.T, signers ...signer) []Key {
 	t.Helper()
-	var set struct {
-		Keys []map[string]string `json:"keys"`
-	}
-	for _, s := range signers {
-		set.Keys = append(set.Keys, s.jwk)
-	}
-	b, _ := json.Marshal(set)
-	keys, err := ParseKeys(b)
+	keys, err := ParseKeys(oidctest.KeySet(signers...))
 	if err != nil {
 		t.Fatal(err)
 	}
 	return keys
 }
 
-func goodClaims() map[string]any {
-	return map[string]any{
-		"iss": issuer, "aud": client, "sub": "248289761001", "email": "Mira@Example.com", "email_verified": true,
-		"nonce": nonce, "iat": now.Unix(), "exp": now.Add(time.Hour).Unix(), "groups": []string{"ops", "admins"},
-	}
-}
+func goodClaims() map[string]any { return oidctest.GoodClaims() }
 
-func token(s signer, claims map[string]any) string {
-	hb, _ := json.Marshal(map[string]any{"alg": s.alg, "kid": s.kid, "typ": "JWT"})
-	cb, _ := json.Marshal(claims)
-	signed := b64(hb) + "." + b64(cb)
-	return signed + "." + b64(s.sign([]byte(signed)))
-}
+func token(s signer, claims map[string]any) string { return s.Token(claims) }
 
 var want = Want{Issuer: issuer, ClientID: client, Nonce: nonce}
 
@@ -218,8 +143,8 @@ func TestAKeySetKeepsWhatSigns(t *testing.T) {
 	body, _ := json.Marshal(map[string]any{"keys": []map[string]string{
 		{"kty": "RSA", "kid": "small", "n": b64(small.N.Bytes()), "e": "AQAB"},
 		{"kty": "EC", "kid": "p384", "crv": "P-384", "x": b64(make([]byte, 48)), "y": b64(make([]byte, 48))},
-		{"kty": "RSA", "kid": "enc", "use": "enc", "n": es.jwk["x"], "e": "AQAB"},
-		es.jwk,
+		{"kty": "RSA", "kid": "enc", "use": "enc", "n": es.JWK["x"], "e": "AQAB"},
+		es.JWK,
 	}})
 	keys, err := ParseKeys(body)
 	if err != nil || len(keys) != 1 || keys[0].ID != "ok" {
@@ -227,5 +152,19 @@ func TestAKeySetKeepsWhatSigns(t *testing.T) {
 	}
 	if _, err := ParseKeys([]byte(`{"keys":[]}`)); err == nil {
 		t.Error("an empty key set is taken")
+	}
+}
+
+// An address in letters outside ASCII names no one: the dotted capital I lowers to
+// another letter, so it would read as another address (#598's review, L1).
+func TestAnAddressOutsideASCIIIsNoOnesAddress(t *testing.T) {
+	raw := map[string]json.RawMessage{}
+	for k, v := range goodClaims() {
+		raw[k], _ = json.Marshal(v)
+	}
+	raw["email"], _ = json.Marshal("\u0130nfo@example.com")
+	c, err := checkClaims(raw, want, now)
+	if err != nil || c.Email != "" || c.EmailVerified {
+		t.Errorf("an address with a dotted capital I reads as %+v, %v", c, err)
 	}
 }

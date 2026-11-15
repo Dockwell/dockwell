@@ -547,6 +547,10 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 			if cfg.SigninClient != nil {
 				domainHandler.Providers.Client = cfg.SigninClient
 			}
+			// The same providers sign people in to the panel, where one says to (ADR 0095).
+			if cfg.Auth != nil {
+				cfg.Auth.UseProviders(panelProviders(domainHandler.Providers), domainHandler.Providers.Client)
+			}
 		}
 		handle(dockwellv1connect.NewDomainServiceHandler(domainHandler, opts...))
 		if cfg.Fleet != nil {
@@ -713,6 +717,10 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 	reflector := grpcreflect.NewStaticReflector(services...)
 	mux.Handle(grpcreflect.NewHandlerV1(reflector, opts...))
 	mux.Handle(grpcreflect.NewHandlerV1Alpha(reflector, opts...))
+
+	if cfg.Auth != nil {
+		mux.Handle("GET "+auth.ProviderCallbackPath, authapi.ProviderCallback(cfg.Auth, cfg.Logger))
+	}
 
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
@@ -1199,4 +1207,24 @@ func (c certificateAgents) Loader(server string) (certificates.Loader, bool) {
 		return nil, false
 	}
 	return s, true
+}
+
+// panelProviders reads the saved sign-in providers as the panel's sign-in takes
+// them, secrets and all, which go no further than the control plane (ADR 0095).
+func panelProviders(p *signinproviders.Providers) func(context.Context) ([]auth.Provider, error) {
+	return func(ctx context.Context) ([]auth.Provider, error) {
+		saved, err := p.All(ctx)
+		if err != nil {
+			return nil, err
+		}
+		out := make([]auth.Provider, 0, len(saved))
+		for _, s := range saved {
+			out = append(out, auth.Provider{
+				ID: s.ID, Name: s.Name, DisplayName: s.Spec.GetDisplayName(),
+				Issuer: s.Spec.GetIssuer(), ClientID: s.Spec.GetClientId(), ClientSecret: s.Spec.GetClientSecret(),
+				Scopes: s.Spec.GetScopes(), GroupsClaim: s.Spec.GetGroupsClaim(), Panel: s.Spec.GetPanel(),
+			})
+		}
+		return out, nil
+	}
 }

@@ -9,6 +9,8 @@ import {
   type BeginTotpSetupRequest,
   type FinishStepUpRequest,
   PasskeySchema,
+  ProviderLinkSchema,
+  ProviderLinkState,
   SessionSchema,
   SignInMethod,
   StepUpAction,
@@ -265,6 +267,70 @@ describe("ProfilePage", () => {
     expect(removePasskey).toHaveBeenCalledWith(expect.objectContaining({ id: "pky_2", proof: "" }), expect.anything());
     expect(calls.auth.beginStepUp).not.toHaveBeenCalled();
     expect(passkeys.get).not.toHaveBeenCalled();
+  });
+
+  it("links an account at a provider with a passkey, says one that stopped working, and unlinks one (ADR 0095)", async () => {
+    stubPasskeys();
+    const assign = vi.fn();
+    vi.stubGlobal("location", { ...window.location, assign });
+    const beginLinkProvider = confirmed(() => ({ url: "https://auth.example.com/authorize?state=s" }));
+    const deleteProviderLink = vi.fn(() => ({}));
+    const calls = api({
+      getAuthState: () =>
+        authState({
+          rpId: "panel.example.com",
+          domain: "panel.example.com",
+          providers: [
+            { id: "sip_ours", displayName: "Our Authentik" },
+            { id: "sip_okta", displayName: "Okta" },
+          ],
+        }),
+      listProviderLinks: () => ({
+        links: [
+          create(ProviderLinkSchema, {
+            id: "plk_1",
+            providerId: "sip_okta",
+            providerName: "Okta",
+            account: "mira@example.com",
+            createTime: minutesAgo(60),
+            state: ProviderLinkState.ISSUER_MOVED,
+            here: true,
+          }),
+        ],
+      }),
+      beginLinkProvider,
+      deleteProviderLink,
+    });
+    renderAt("/profile", calls);
+    const panel = await screen.findByRole("region", { name: "Sign-in providers" });
+    expect(await within(panel).findByText("Stopped working: Okta moved to another issuer")).toBeInTheDocument();
+    // One account at each provider: Okta has one, so only Our Authentik offers Link.
+    expect(within(panel).queryByRole("button", { name: "Link Okta" })).toBeNull();
+    await userEvent.click(within(panel).getByRole("button", { name: "Link Our Authentik" }));
+    await waitFor(() => expect(assign).toHaveBeenCalledWith("https://auth.example.com/authorize?state=s"));
+    expect(calls.auth.beginStepUp).toHaveBeenCalledWith(
+      expect.objectContaining({ action: StepUpAction.LINK_PROVIDER, target: "sip_ours" }),
+      expect.anything(),
+    );
+    expect(beginLinkProvider).toHaveBeenLastCalledWith(
+      expect.objectContaining({ provider: "sip_ours", proof: proofFor(StepUpAction.LINK_PROVIDER) }),
+      expect.anything(),
+    );
+    await userEvent.click(within(panel).getByRole("button", { name: "Unlink mira@example.com" }));
+    expect(deleteProviderLink).not.toHaveBeenCalled();
+    // It began this session, so unlinking signs you out here, which the confirm says.
+    expect(panel).toHaveTextContent("This signs you out here");
+    await userEvent.click(within(panel).getByRole("button", { name: "Unlink" }));
+    await waitFor(() =>
+      expect(deleteProviderLink).toHaveBeenCalledWith(expect.objectContaining({ id: "plk_1" }), expect.anything()),
+    );
+    vi.unstubAllGlobals();
+  });
+
+  it("shows no sign-in providers where none signs in and nothing is linked", async () => {
+    renderAt("/profile", api({ listProviderLinks: () => ({ links: [] }) }));
+    await screen.findByRole("button", { name: "Remove YubiKey 5C" });
+    expect(screen.queryByRole("region", { name: "Sign-in providers" })).toBeNull();
   });
 
   it("adds a passkey for this address", async () => {

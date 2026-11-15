@@ -853,6 +853,9 @@ msgstr "Ended the mute of the alert rule {rule}"
 msgid "Ended the mute of {server}'s alerts"
 msgstr "Ended the mute of {server}'s alerts"
 
+msgid "Ended the sessions of a sign-in provider that stopped"
+msgstr "Ended the sessions of a sign-in provider that stopped"
+
 msgid "Fetched a backup of {volume} from {destination}"
 msgstr "Fetched a backup of {volume} from {destination}"
 
@@ -866,6 +869,9 @@ msgstr "Killed {what} (PID {pid}) on {server}, as it didn't stop within 10 s"
 
 msgid "Let everyone choose how often their passkey is asked for"
 msgstr "Let everyone choose how often their passkey is asked for"
+
+msgid "Linked an account at a sign-in provider"
+msgstr "Linked an account at a sign-in provider"
 
 msgid "Made a join ticket for a new server"
 msgstr "Made a join ticket for a new server"
@@ -1113,6 +1119,9 @@ msgstr "Undo: {reverted}"
 
 msgid "Unhealthy"
 msgstr "Unhealthy"
+
+msgid "Unlinked an account at a sign-in provider"
+msgstr "Unlinked an account at a sign-in provider"
 
 msgid "Unlocked codes for {name}"
 msgstr "Unlocked codes for {name}"
@@ -5780,6 +5789,7 @@ msgstr "Works on {where}"
 msgid "never used"
 msgstr "never used"
 
+#. placeholder {0}: words.ago(timestampDate(link.lastUsedTime), now)
 #. placeholder {0}: words.ago(timestampDate(passkey.lastUsedTime), now)
 msgid "used {0}"
 msgstr "used {0}"
@@ -5866,11 +5876,44 @@ msgstr "signed in with a passkey"
 msgid "signed in with a recovery code"
 msgstr "signed in with a recovery code"
 
+msgid "signed in with a sign-in provider"
+msgstr "signed in with a sign-in provider"
+
 msgid "signed in with an authenticator code"
 msgstr "signed in with an authenticator code"
 
 msgid "{left} of 10 are left, and each works once. If you lost your authenticator app, set it up again below, which also makes new recovery codes."
 msgstr "{left} of 10 are left, and each works once. If you lost your authenticator app, set it up again below, which also makes new recovery codes."
+
+msgid "Link an account to sign in with it here. Your passkey still confirms what's risky."
+msgstr "Link an account to sign in with it here. Your passkey still confirms what's risky."
+
+msgid "Link {name}"
+msgstr "Link {name}"
+
+msgid "Linked {linked}"
+msgstr "Linked {linked}"
+
+msgid "Loading sign-in providers"
+msgstr "Loading sign-in providers"
+
+msgid "Sign-in providers"
+msgstr "Sign-in providers"
+
+msgid "Stopped working: {provider} moved to another issuer"
+msgstr "Stopped working: {provider} moved to another issuer"
+
+msgid "Stopped working: {provider} no longer signs people in to Dockwell"
+msgstr "Stopped working: {provider} no longer signs people in to Dockwell"
+
+msgid "This signs you out here"
+msgstr "This signs you out here"
+
+msgid "Unlink"
+msgstr "Unlink"
+
+msgid "Unlink {account}"
+msgstr "Unlink {account}"
 
 msgid "Run this on the server over SSH for a new link. It works once, for 15 min."
 msgstr "Run this on the server over SSH for a new link. It works once, for 15 min."
@@ -5959,6 +6002,9 @@ msgstr "Sign in to Dockwell"
 
 msgid "Sign in with a passkey"
 msgstr "Sign in with a passkey"
+
+msgid "Sign in with {label}"
+msgstr "Sign in with {label}"
 
 msgid "Use a code"
 msgstr "Use a code"
@@ -9504,6 +9550,9 @@ msgstr "They are {list}."
 msgid "They run in what {name} runs, so they reach what it reaches on its server too."
 msgstr "They run in what {name} runs, so they reach what it reaches on its server too."
 
+msgid "They'd sign in with their passkeys instead, and the sessions it began end."
+msgstr "They'd sign in with their passkeys instead, and the sessions it began end."
+
 msgid "This backup was taken when the volume reached <0>{path}</0>, so whatever mounts it can read what comes back."
 msgstr "This backup was taken when the volume reached <0>{path}</0>, so whatever mounts it can read what comes back."
 
@@ -9678,6 +9727,9 @@ msgstr "{by} writes there as root, so it can change any file there, whoever owns
 
 msgid "{by} writes there. Code from another image asks again, as a program in any image can run as root."
 msgstr "{by} writes there. Code from another image asks again, as a program in any image can run as root."
+
+msgid "{count, plural, one {# person signs in to Dockwell with {name}} other {# people sign in to Dockwell with {name}}}"
+msgstr "{count, plural, one {# person signs in to Dockwell with {name}} other {# people sign in to Dockwell with {name}}}"
 
 msgid "{count, plural, one {The catalog shows # app from this commit: {names}.} other {The catalog shows # apps from this commit: {names}.}}"
 msgstr "{count, plural, one {The catalog shows # app from this commit: {names}.} other {The catalog shows # apps from this commit: {names}.}}"
@@ -15450,9 +15502,6 @@ msgstr "Integrations"
 msgid "Loading registry logins"
 msgstr "Loading registry logins"
 
-msgid "Loading sign-in providers"
-msgstr "Loading sign-in providers"
-
 msgid "Loading where backups go"
 msgstr "Loading where backups go"
 
@@ -16338,8 +16387,17 @@ msgstr "Client ID"
 msgid "Client secret"
 msgstr "Client secret"
 
+msgid "Copy Dockwell's redirect address"
+msgstr "Copy Dockwell's redirect address"
+
+msgid "Each links their account in Profile and security. Their passkey still confirms what's risky."
+msgstr "Each links their account in Profile and security. Their passkey still confirms what's risky."
+
 msgid "Found {answerHost} · signs with {strongest}"
 msgstr "Found {answerHost} · signs with {strongest}"
+
+msgid "Give the panel a domain"
+msgstr "Give the panel a domain"
 
 msgid "Groups claim"
 msgstr "Groups claim"
@@ -16347,11 +16405,20 @@ msgstr "Groups claim"
 msgid "Issuer"
 msgstr "Issuer"
 
+msgid "It needs the panel on a domain of its own."
+msgstr "It needs the panel on a domain of its own."
+
 msgid "More scopes"
 msgstr "More scopes"
 
 msgid "None, for a public client"
 msgstr "None, for a public client"
+
+msgid "People sign in to Dockwell with it"
+msgstr "People sign in to Dockwell with it"
+
+msgid "Redirect address for Dockwell at the provider"
+msgstr "Redirect address for Dockwell at the provider"
 
 msgid "Remove the sign-in provider {name}"
 msgstr "Remove the sign-in provider {name}"

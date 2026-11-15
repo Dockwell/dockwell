@@ -50,3 +50,20 @@
   margin-inline-end: auto;
   color: var(--critical);
 }
+
+/* Dockwell's own redirect address at the provider, whole on a phone, with Copy beside it (ADR 0095). */
+.signin-sheet-redirect {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-1) var(--space-2);
+  align-items: center;
+}
+
+.signin-sheet-redirect > .dw-field-label {
+  grid-column: 1 / -1;
+}
+
+.signin-sheet-redirect > code {
+  overflow-wrap: anywhere;
+  font-size: 13px;
+}

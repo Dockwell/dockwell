@@ -5945,9 +5945,12 @@ type PlanNote struct {
 	// first, "unbacked_move" for one whose data isn't in a volume Dockwell can back up
 	// first, "lowers_release" for one this moves back, which goes only while its
 	// data uses nothing newer, and "unbacked_paths" for an update of a service that
-	// mounts server paths, which no backup takes first, and "labels_only" for a
-	// change of servers' labels alone, which takes no step on them. Another reason
-	// may come: its message says what it means.
+	// mounts server paths, which no backup takes first, "labels_only" for a
+	// change of servers' labels alone, which takes no step on them, and
+	// "provider_links_stop" for a sign-in provider this deletes, turns off for the
+	// panel or moves to another issuer, whose names hold how many people sign in to
+	// Dockwell with it (ADR 0095). Another reason may come: its message says what
+	// it means.
 	Reason string `protobuf:"bytes,1,opt,name=reason,proto3" json:"reason,omitempty"`
 	// What it says, for people: the fact, what it means, and what to do.
 	Message string `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`

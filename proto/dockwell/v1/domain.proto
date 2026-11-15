@@ -166,6 +166,8 @@ message SigninProviderInfo {
   bool any_account = 9;
   // The projects whose routes may use it, by ID. Empty for every project.
   repeated string projects = 10;
+  // Whether people sign in to Dockwell with it too (ADR 0095).
+  bool panel = 11;
 }
 
 // CheckSigninProviderRequest is an issuer to read.

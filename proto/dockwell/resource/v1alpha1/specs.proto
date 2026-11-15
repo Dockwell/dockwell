@@ -1515,6 +1515,9 @@ message SigninProvider {
   bool any_account = 7;
   // The projects whose routes may use it, by ID. Empty for every project.
   repeated string projects = 8;
+  // Whether people sign in to Dockwell with it too, each with an account they
+  // linked while signed in, on the panel's own domain (ADR 0095). Off by default.
+  bool panel = 9;
 }
 
 // Task is work that runs on a schedule, on each server it's placed on, kind "task"

@@ -17,6 +17,7 @@ import { AddPasskeyHere } from "./AddPasskeyHere";
 import { useAuthError } from "./messages";
 import { PasskeysPanel, useAddPasskey } from "./PasskeysPanel";
 import { PreferencesPanel } from "./PreferencesPanel";
+import { ProviderLinksPanel } from "./ProviderLinksPanel";
 import { SessionsPanel } from "./SessionsPanel";
 import { StepUpPanel } from "./StepUpPanel";
 import { TotpPanel } from "./TotpPanel";
@@ -65,6 +66,7 @@ export function ProfilePage({ via }: { via?: ProfileVia }) {
         <div className="profile-stack">
           <PreferencesPanel />
           <PasskeysPanel rpId={auth?.rpId ?? ""} />
+          <ProviderLinksPanel providers={auth?.providers ?? []} />
           <StepUpPanel />
         </div>
         <div className="profile-stack">
@@ -91,6 +93,8 @@ function useSignedInWith(method: SignInMethod): string {
       return t`signed in with a recovery code`;
     case SignInMethod.LINK:
       return t`signed in with a one-time link`;
+    case SignInMethod.PROVIDER:
+      return t`signed in with a sign-in provider`;
     default:
       return "";
   }

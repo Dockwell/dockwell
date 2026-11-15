@@ -9,13 +9,15 @@ import {
   type SigninProviderInfo,
   SigninProviderState,
 } from "@dockwell/api";
-import { Advanced, Button, Callout, Sheet, StatusBadge, Switch, TextField } from "@dockwell/ui";
+import { Advanced, Button, Callout, CopyButton, Sheet, StatusBadge, Switch, TextField } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
+import { Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { sentence } from "../../lib/errors";
 import { useMay } from "../auth/may";
+import { useAuthState } from "../auth/useAuthState";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { useAllResources } from "../projects/useProjects";
 import { freeProviderName, issuerHost, scopesOf } from "./providers";
@@ -62,6 +64,12 @@ export function SigninProviderSheet({
   const [scopes, setScopes] = useState((editing?.scopes ?? []).join(" "));
   const [claim, setClaim] = useState(editing?.groupsClaim ?? "");
   const [anyAccount, setAnyAccount] = useState(editing?.anyAccount ?? false);
+  const [panel, setPanel] = useState(editing?.panel ?? false);
+  // People sign in to Dockwell with it only on the panel's own domain (ADR 0095), and
+  // the provider brings them back to the address the server answers there.
+  const auth = useAuthState().data;
+  const panelDomain = auth?.domain ?? "";
+  const panelRedirect = auth?.providerRedirect ?? "";
   const [some, setSome] = useState((editing?.projects.length ?? 0) > 0);
   const [picked, setPicked] = useState<string[]>(editing?.projects ?? []);
   const [answer, setAnswer] = useState<CheckSigninProviderResponse>();
@@ -111,6 +119,7 @@ export function SigninProviderSheet({
     groupsClaim: claim.trim(),
     anyAccount: open,
     projects: some ? picked : [],
+    panel,
   });
   const review = () =>
     sheet.open({
@@ -215,6 +224,34 @@ export function SigninProviderSheet({
             onChange={(event) => setSecret(event.target.value.trim())}
           />
         </div>
+
+        <Switch
+          checked={panel}
+          onChange={setPanel}
+          disabled={!panelDomain && !panel}
+          label={t`People sign in to Dockwell with it`}
+          description={
+            panelDomain
+              ? t`Each links their account in Profile and security. Their passkey still confirms what's risky.`
+              : t`It needs the panel on a domain of its own.`
+          }
+        />
+        {panel && panelRedirect ? (
+          <div className="signin-sheet-redirect">
+            <span className="dw-field-label">{t`Redirect address for Dockwell at the provider`}</span>
+            <code>{panelRedirect}</code>
+            <CopyButton
+              size="sm"
+              text={panelRedirect}
+              label={t`Copy Dockwell's redirect address`}
+              copiedLabel={t`Redirect address copied`}
+            />
+          </div>
+        ) : !panelDomain ? (
+          <Link to="/settings/general" className="app-panel-link">
+            {t`Give the panel a domain`}
+          </Link>
+        ) : null}
 
         <Advanced summary={summary}>
           {editing ? null : (

@@ -40,6 +40,8 @@ var publicProcedures = map[string]bool{
 	dockwellv1connect.AuthServiceFinishPasskeySignInProcedure: true,
 	dockwellv1connect.AuthServiceSignInWithCodeProcedure:      true,
 	dockwellv1connect.AuthServiceSignInWithLinkProcedure:      true,
+	// Signing in with a provider starts before anyone is signed in (ADR 0095).
+	dockwellv1connect.AuthServiceBeginProviderSignInProcedure: true,
 	// Someone invited accepts before they sign in.
 	dockwellv1connect.AuthServiceCheckInviteProcedure:        true,
 	dockwellv1connect.AuthServiceBeginAcceptInviteProcedure:  true,

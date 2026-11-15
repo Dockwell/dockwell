@@ -267,3 +267,18 @@
     font-size: 12.5px;
   }
 }
+
+/* A Link button for each provider not linked yet, wrapping on a phone (ADR 0095). */
+.profile-panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  justify-content: flex-end;
+}
+
+/* Unlinking the account behind this session signs you out here, said beside the confirm (ADR 0095). */
+.profile-row-warn {
+  color: var(--warning);
+  font-size: 13px;
+  align-self: center;
+}

@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// Package signin is a private route's sign-in with an OpenID Connect provider, on
-// the route's agent (ADR 0087): it answers Caddy's forward_auth before each request,
-// from a cookie it signed, and talks to the provider only as someone signs in. It
-// checks ID tokens with Go's standard library alone, so the agent build links no
-// new module.
-package signin
+// Package oidc signs someone in with an OpenID Connect provider: it reads the
+// provider's discovery document and keys, exchanges a code for tokens, and checks the
+// ID token. A private route's agent uses it (ADR 0087), and so does the control
+// plane, for the panel (ADR 0095). It checks ID tokens with Go's standard library
+// alone, so the agent build links no new module.
+package oidc
 
 import (
 	"crypto"

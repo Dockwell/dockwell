@@ -533,7 +533,9 @@ type SigninProviderInfo struct {
 	// Whether every account at the provider is your team's.
 	AnyAccount bool `protobuf:"varint,9,opt,name=any_account,json=anyAccount,proto3" json:"any_account,omitempty"`
 	// The projects whose routes may use it, by ID. Empty for every project.
-	Projects      []string `protobuf:"bytes,10,rep,name=projects,proto3" json:"projects,omitempty"`
+	Projects []string `protobuf:"bytes,10,rep,name=projects,proto3" json:"projects,omitempty"`
+	// Whether people sign in to Dockwell with it too (ADR 0095).
+	Panel         bool `protobuf:"varint,11,opt,name=panel,proto3" json:"panel,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -636,6 +638,13 @@ func (x *SigninProviderInfo) GetProjects() []string {
 		return x.Projects
 	}
 	return nil
+}
+
+func (x *SigninProviderInfo) GetPanel() bool {
+	if x != nil {
+		return x.Panel
+	}
+	return false
 }
 
 // CheckSigninProviderRequest is an issuer to read.
@@ -2240,7 +2249,7 @@ const file_dockwell_v1_domain_proto_rawDesc = "" +
 	"\x1aListSigninProvidersRequest\x12\x18\n" +
 	"\aproject\x18\x01 \x01(\tR\aproject\"\\\n" +
 	"\x1bListSigninProvidersResponse\x12=\n" +
-	"\tproviders\x18\x01 \x03(\v2\x1f.dockwell.v1.SigninProviderInfoR\tproviders\"\xa7\x02\n" +
+	"\tproviders\x18\x01 \x03(\v2\x1f.dockwell.v1.SigninProviderInfoR\tproviders\"\xbd\x02\n" +
 	"\x12SigninProviderInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12!\n" +
@@ -2254,7 +2263,8 @@ const file_dockwell_v1_domain_proto_rawDesc = "" +
 	"\vany_account\x18\t \x01(\bR\n" +
 	"anyAccount\x12\x1a\n" +
 	"\bprojects\x18\n" +
-	" \x03(\tR\bprojects\"4\n" +
+	" \x03(\tR\bprojects\x12\x14\n" +
+	"\x05panel\x18\v \x01(\bR\x05panel\"4\n" +
 	"\x1aCheckSigninProviderRequest\x12\x16\n" +
 	"\x06issuer\x18\x01 \x01(\tR\x06issuer\"\xd1\x01\n" +
 	"\x1bCheckSigninProviderResponse\x126\n" +

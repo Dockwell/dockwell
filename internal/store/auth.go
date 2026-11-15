@@ -460,17 +460,20 @@ type Session struct {
 	// PasskeyAt is when a passkey last confirmed it: signing in with one, or
 	// a step-up (ADR 0075). Nil when none has.
 	PasskeyAt *time.Time
+	// ProviderLinkID is the account at a sign-in provider it began from, if it
+	// did (ADR 0095). Empty for any other sign-in.
+	ProviderLinkID string
 }
 
 const sessionColumns = `id, token_hash, user_id, rp_id, method, user_agent, created_ip, last_ip, created_at, last_seen_at, expires_at, revoked_at,
-	added_passkey_at, passkey_at`
+	added_passkey_at, passkey_at, provider_link_id`
 
 func scanSession(row interface{ Scan(...any) error }) (Session, error) {
 	var s Session
 	var created, seen, expires int64
 	var revoked, added, passkey sql.NullInt64
 	if err := row.Scan(&s.ID, &s.TokenHash, &s.UserID, &s.RPID, &s.Method, &s.UserAgent, &s.CreatedIP, &s.LastIP,
-		&created, &seen, &expires, &revoked, &added, &passkey); err != nil {
+		&created, &seen, &expires, &revoked, &added, &passkey, &s.ProviderLinkID); err != nil {
 		return Session{}, err
 	}
 	s.CreatedAt, s.LastSeenAt, s.ExpiresAt, s.RevokedAt = fromMillis(created), fromMillis(seen), fromMillis(expires), timePtr(revoked)
@@ -480,9 +483,10 @@ func scanSession(row interface{ Scan(...any) error }) (Session, error) {
 
 // CreateSession records a new session.
 func (t *Tx) CreateSession(ctx context.Context, s Session) error {
-	_, err := t.exec(ctx, `INSERT INTO sessions (`+sessionColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+	_, err := t.exec(ctx, `INSERT INTO sessions (`+sessionColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		s.ID, s.TokenHash, s.UserID, s.RPID, s.Method, s.UserAgent, s.CreatedIP, s.LastIP,
-		millis(s.CreatedAt), millis(s.LastSeenAt), millis(s.ExpiresAt), nullMillis(s.RevokedAt), nullMillis(s.AddedPasskeyAt), nullMillis(s.PasskeyAt))
+		millis(s.CreatedAt), millis(s.LastSeenAt), millis(s.ExpiresAt), nullMillis(s.RevokedAt), nullMillis(s.AddedPasskeyAt), nullMillis(s.PasskeyAt),
+		s.ProviderLinkID)
 	if err != nil {
 		return fmt.Errorf("can't record session: %w", err)
 	}

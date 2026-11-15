@@ -74,6 +74,38 @@ describe("SignInPage", () => {
     );
   });
 
+  it("offers each provider that signs people in here, and goes to it (ADR 0095)", async () => {
+    const assign = vi.fn();
+    vi.stubGlobal("location", { ...window.location, assign });
+    const beginProviderSignIn = vi.fn(() => ({ url: "https://auth.example.com/authorize?state=s" }));
+    renderAt(
+      "/sign-in",
+      api({
+        getAuthState: () =>
+          authState({
+            user: undefined,
+            rpId: "panel.example.com",
+            domain: "panel.example.com",
+            providers: [{ id: "sip_ours", displayName: "Our Authentik" }],
+          }),
+        beginProviderSignIn,
+      }),
+    );
+    await userEvent.click(await screen.findByRole("button", { name: "Sign in with Our Authentik" }));
+    await waitFor(() => expect(assign).toHaveBeenCalledWith("https://auth.example.com/authorize?state=s"));
+    expect(beginProviderSignIn).toHaveBeenCalledWith(
+      expect.objectContaining({ provider: "sip_ours" }),
+      expect.anything(),
+    );
+    vi.unstubAllGlobals();
+  });
+
+  it("offers no provider where none signs people in", async () => {
+    renderAt("/sign-in", api());
+    await screen.findByRole("button", { name: "Sign in with a passkey" });
+    expect(screen.queryByRole("button", { name: /^Sign in with (?!a passkey)/ })).toBeNull();
+  });
+
   it("offers a security key or a phone on the second button", async () => {
     const passkeys = stubPasskeys();
     renderAt("/sign-in", api());
