@@ -8,13 +8,13 @@ import (
 	"github.com/dockwell/dockwell/internal/docker"
 )
 
-// A member's alias reads back as what's left of Docker's list once the container's
-// own name and short ID are gone, even an alias that begins the container's ID, as
+// A member's alias reads back as what's left of its inspect's aliases once the
+// container's own name and short ID are gone, even an alias that begins the container's ID, as
 // "db" begins one in 256 (ADR 0084).
 func TestAnAliasReadsBackWhateverTheContainersID(t *testing.T) {
 	const id = "db0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcd"
-	summary := func(aliases ...string) *docker.ContainerSummary {
-		c := &docker.ContainerSummary{ID: id, Names: []string{"/dockwell-shared-db-1"}}
+	summary := func(aliases ...string) *docker.Container {
+		c := &docker.Container{ID: id, Name: "/dockwell-shared-db-1"}
 		c.NetworkSettings.Networks = map[string]*docker.EndpointSettings{"dockwell-app_db-link": {Aliases: aliases}}
 		return c
 	}
