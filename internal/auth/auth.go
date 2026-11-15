@@ -211,11 +211,11 @@ func New(cfg Config) (*Service, error) {
 		roleRefusals: newRefusals(maxRefusalIDs),
 		// 30 deliveries a minute from one address, and 60 for one hook, with as
 		// many at once (ADR 0046).
-		hookSources:  newBuckets(30, 2*time.Second, 10_000),
-		hookBuckets:  newBuckets(60, time.Second, 10_000),
-		hookDecoy:    decoyKey(),
-		stepUps:      newStepUps(1024, cfg.AfterFunc),
-		recheck:      cmp.Or(cfg.Recheck, streamRecheck),
+		hookSources: newBuckets(30, 2*time.Second, 10_000),
+		hookBuckets: newBuckets(60, time.Second, 10_000),
+		hookDecoy:   decoyKey(),
+		stepUps:     newStepUps(1024, cfg.AfterFunc),
+		recheck:     cmp.Or(cfg.Recheck, streamRecheck),
 	}, nil
 }
 

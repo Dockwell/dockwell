@@ -130,6 +130,7 @@ func (g *gitBench) ended(t *testing.T, changeID string) *dockwellv1.Change {
 // the branch itself. Pushes to another branch and GitHub's ping are taken and do
 // nothing.
 func TestAPushDeploysWhatTheBranchNames(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		g := newGitBench(t, backend)
 		g.repo.Commit("main", "First", map[string]string{"Dockerfile": webDockerfile, "app.js": "1"})
@@ -219,6 +220,7 @@ func TestAPushDeploysWhatTheBranchNames(t *testing.T) {
 // and one address may send only so many. A hook turned off answers as one there
 // never was.
 func TestAHookTakesOnlyWhatItsSecretSigned(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		g := newGitBench(t, backend)
 		head := g.repo.Commit("main", "First", map[string]string{"Dockerfile": webDockerfile})
@@ -332,6 +334,7 @@ func (g *gitBench) twoWriters() *dockwellv1.Edit {
 // A push has an API token's rights: a plan no token may apply waits for a person,
 // and a newer push's plan takes its place.
 func TestAPushLeavesWhatNeedsAPersonForOne(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		g := newGitBench(t, backend)
 		g.repo.Commit("main", "First", map[string]string{"Dockerfile": webDockerfile})
@@ -378,6 +381,7 @@ func TestAPushLeavesWhatNeedsAPersonForOne(t *testing.T) {
 // waits, a newer push takes the place of one waiting, and a deploy whose build
 // still waits for its server is cancelled for the newer push.
 func TestPushesToOneAppDeployOneAtATime(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		g := newGitBench(t, backend)
 		g.repo.Commit("main", "First", map[string]string{"Dockerfile": webDockerfile})
@@ -515,6 +519,7 @@ func (g *gitBench) stored(t *testing.T, hookURL, deliveryID, want string) store.
 // person where the environment is protected. A maker who can't deploy the app
 // any more, or who has left, deploys nothing.
 func TestAHookDeploysOnlyWhatItsMakerMayNow(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		g := newGitBench(t, backend)
 		g.repo.Commit("main", "First", map[string]string{"Dockerfile": webDockerfile})
@@ -658,6 +663,7 @@ func raw(t *testing.T, url string, headers map[string]string, body []byte) (int,
 // move several branches: it deploys the app if one is the branch it builds, which
 // its plan named in full though the app was made to build the default branch.
 func TestGitLabAndBitbucketPushesDeploy(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		g := newGitBench(t, backend)
 		g.repo.Commit("main", "First", map[string]string{"Dockerfile": webDockerfile})
