@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -105,6 +106,9 @@ func (r *Runner) importHelper(ctx context.Context, image string) error {
 	path := r.Binary
 	if path == "" {
 		path = "/proc/self/exe"
+	}
+	if _, err := os.Stat(path); err != nil {
+		return fmt.Errorf("can't read the agent's own binary: %w", err)
 	}
 	if err := r.Client.ImportFiles(ctx, image, []docker.ImageFile{{Name: helperBinary, Path: path, Mode: 0o755}}); err != nil {
 		return fmt.Errorf("docker can't import the helper that reads the volume: %w", err)

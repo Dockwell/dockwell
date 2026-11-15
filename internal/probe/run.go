@@ -94,7 +94,11 @@ func (r *Runner) Run(ctx context.Context, req Request, networks []string) (Resul
 			}
 		}
 	}
-	if err := r.Client.ImportFiles(ctx, image, r.files()); err != nil {
+	files := r.files()
+	if _, err := os.Stat(files[0].Path); err != nil {
+		return Result{}, fmt.Errorf("can't read the agent's own binary: %w", err)
+	}
+	if err := r.Client.ImportFiles(ctx, image, files); err != nil {
 		return Result{}, fmt.Errorf("docker can't import the check's container: %w", err)
 	}
 	defer r.cleanup(ctx, "image", image, func(ctx context.Context) error { return r.Client.RemoveImage(ctx, image) })
