@@ -81,6 +81,10 @@ var idNames = map[string]string{
 	dockwellv1connect.ServiceUpdateServiceCheckServiceUpdatesProcedure:  "service",
 	dockwellv1connect.ServiceUpdateServiceSkipServiceUpdateProcedure:    "service",
 	dockwellv1connect.ServiceUpdateServiceSnoozeServiceUpdatesProcedure: "service",
+	dockwellv1connect.GitHookServiceCreateGitHookProcedure:              "service",
+	dockwellv1connect.GitHookServiceGetGitHookProcedure:                 "service",
+	dockwellv1connect.GitHookServiceRotateGitHookSecretProcedure:        "service",
+	dockwellv1connect.GitHookServiceDeleteGitHookProcedure:              "service",
 }
 
 // serviceFields are the calls whose service field names a service to read, by

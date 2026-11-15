@@ -608,8 +608,13 @@ func TestAHookDeploysOnlyWhatItsMakerMayNow(t *testing.T) {
 		g.ended(t, c2.ChangeID)
 
 		// A developer's push to a protected environment plans, and waits for a
-		// person who may apply it.
+		// person who may apply it. Giving its hook a new secret there is an
+		// admin's, whether the app is named by its ID or its name.
 		hold(onInstall(store.RoleDeveloper))
+		for _, id := range []string{web.GetId(), "web"} {
+			_, err := g.hooks().RotateGitHookSecret(t.Context(), connect.NewRequest(&dockwellv1.RotateGitHookSecretRequest{Id: id}))
+			needsRole(t, "a developer giving a protected app's hook a new secret, by "+id, err)
+		}
 		push("p-1")
 		p1 := g.stored(t, url, "p-1", store.HookNeedsPerson)
 		if !strings.Contains(p1.Detail, "may apply it there") {
