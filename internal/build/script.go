@@ -53,6 +53,11 @@ const gitAuthScript = `if [ -r ` + gitAuthMount + `/authorization ]; then
 fi
 `
 
+// gitAuthDone takes the Authorization out of the environment once the checkout is
+// done, the last step that fetches, so nothing that runs after it, as Railpack or
+// BuildKit, has the repository's token (review L5).
+const gitAuthDone = "unset GIT_CONFIG_COUNT GIT_CONFIG_KEY_0 GIT_CONFIG_VALUE_0\n"
+
 const fetchScript = gitAuthScript + `say phase fetch
 mkdir -p ` + sourceDir + ` && cd ` + sourceDir + `
 git init -q
@@ -67,7 +72,7 @@ elif git cat-file -e "FETCH_HEAD^{commit}" 2>/dev/null; then say fail notonref; 
 else tail -n 5 /tmp/fetch.log >&2; say fail fetch; exit 3
 fi
 git -c advice.detachedHead=false checkout -q "$DW_COMMIT"
-say commit "$(git log -1 --format=%an | base64 | tr -d '\n')" "$(git log -1 --format=%s | base64 | tr -d '\n')"
+` + gitAuthDone + `say commit "$(git log -1 --format=%an | base64 | tr -d '\n')" "$(git log -1 --format=%s | base64 | tr -d '\n')"
 ctx="` + sourceDir + `/$DW_CONTEXT"
 if [ ! -d "$ctx" ]; then say fail context; exit 3; fi
 ctx=$(cd "$ctx" && pwd -P)

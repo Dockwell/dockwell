@@ -318,7 +318,7 @@ if [ ! -x "` + detectBin + `" ]; then say fail need-railpack; exit 4; fi
 # of the end, as a full folder lets it, so what's left is checked too.
 say phase checkout
 git -c advice.detachedHead=false checkout -q "$DW_COMMIT" 3>&-
-avail=$(df -k ` + sourceDir + ` | awk 'NR == 2 { print $4 }')
+` + gitAuthDone + `avail=$(df -k ` + sourceDir + ` | awk 'NR == 2 { print $4 }')
 if [ "${avail:-0}" -lt 1024 ]; then say fail toolarge; exit 3; fi
 ctx=$(cd "` + sourceDir + `/$DW_CONTEXT" && pwd -P)
 case "$ctx" in ` + sourceDir + `|` + sourceDir + `/*) ;; *) say fail context; exit 3;; esac

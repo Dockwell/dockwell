@@ -77,3 +77,22 @@ echo ---
 		t.Errorf("git sends %q", got)
 	}
 }
+
+// The token leaves the environment once the checkout, the last fetch, is done, so
+// nothing that runs after, as Railpack reading the commit or BuildKit building it,
+// has it: the builder's script and the reading's both unset it right there.
+func TestTheTokenIsGoneOnceTheCheckoutIs(t *testing.T) {
+	t.Parallel()
+	for name, script := range map[string]string{"build": fetchScript, "reading": detectScript} {
+		checkout := strings.Index(script, `checkout -q "$DW_COMMIT"`)
+		unset := strings.Index(script, gitAuthDone)
+		if checkout < 0 || unset < checkout {
+			t.Errorf("the %s's script doesn't unset the token after its checkout", name)
+		}
+		for _, after := range []string{`"` + detectBin + `" "$@"`, "say commit"} {
+			if i := strings.Index(script, after); i >= 0 && i < unset {
+				t.Errorf("the %s's script runs %q before it unsets the token", name, after)
+			}
+		}
+	}
+}
