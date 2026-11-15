@@ -9426,6 +9426,9 @@ msgstr "请先备份不能丢失的内容。"
 msgid "Before it moves, Dockwell asks what features its data uses, and stops with nothing changed if {to} can't run them."
 msgstr "迁移前，Dockwell 会询问它的数据用到了哪些功能；如果 {to} 无法运行，就停止，不做任何更改。"
 
+msgid "Browsers keep a permanent redirect for up to a day, through an undo too."
+msgstr "浏览器会将永久重定向保留至多一天，撤销后也是如此。"
+
 #. placeholder {0}: server.serverName
 msgid "Builds {repository} at {commit} ({ref}) on {0} first. If the build fails, what runs stays as it is."
 msgstr "先在 {0} 上构建 {repository} 的 {commit}（{ref}）。如果构建失败，正在运行的内容保持不变。"
@@ -10638,6 +10641,12 @@ msgstr "环境 {environment}"
 msgid "firewall rule"
 msgstr "防火墙规则"
 
+msgid "keeping the path"
+msgstr "保留路径"
+
+msgid "keeping the whole path"
+msgstr "保留完整路径"
+
 msgid "lets in anyone at {named}"
 msgstr "放行 {named} 的任何人"
 
@@ -10649,6 +10658,9 @@ msgstr "放行其提供方的所有账号"
 
 msgid "lets in {named}"
 msgstr "放行 {named}"
+
+msgid "permanently"
+msgstr "永久"
 
 msgid "plain HTTP on {path} for anyone who can reach this server, around whatever is in front of it"
 msgstr "{path} 上面向任何能访问此服务器的人的纯 HTTP，绕过它前面的任何东西"
@@ -10685,6 +10697,9 @@ msgstr "取消其密码"
 
 msgid "takes off signing in"
 msgstr "取消登录"
+
+msgid "temporarily"
+msgstr "临时"
 
 msgid "the Linux capability {path}"
 msgstr "Linux 能力 {path}"
@@ -10764,6 +10779,9 @@ msgstr "{type} 挂载 {at}（{reads}）"
 msgid "what runs on {server} itself"
 msgstr "在 {server} 本机上运行的程序"
 
+msgid "whatever the path"
+msgstr "不论路径"
+
 msgid "whoever comes through {list}"
 msgstr "经由 {list} 而来的任何人"
 
@@ -10832,6 +10850,18 @@ msgstr "{where} 离开 {from}，转到服务器上的 {toPort} 端口。"
 
 msgid "{where} leaves {from}, and goes to {to}."
 msgstr "{where} 离开 {from}，转到 {to}。"
+
+msgid "{where} redirects to {to}, {how}, {path}."
+msgstr "{where} {how}重定向到 {to}，{path}。"
+
+msgid "{where} stops redirecting to {to}, and sends to port {sendsToPort} on the server."
+msgstr "{where} 不再重定向到 {to}，改为发送到服务器上的端口 {sendsToPort}。"
+
+msgid "{where} stops redirecting to {to}, and sends to {sendsTo}."
+msgstr "{where} 不再重定向到 {to}，改为发送到 {sendsTo}。"
+
+msgid "{where} stops sending to {leaves}, and redirects to {to}, {how}, {path}."
+msgstr "{where} 不再发送到 {leaves}，改为{how}重定向到 {to}，{path}。"
 
 msgid "Add a user to {name}"
 msgstr "为 {name} 添加用户"
@@ -11392,6 +11422,9 @@ msgstr "这里没有符合所选条件的域名。请试试名称的一部分，
 
 msgid "No domains yet"
 msgstr "还没有域名"
+
+msgid "Redirects to {where}"
+msgstr "重定向到 {where}"
 
 msgid "Renewed automatically"
 msgstr "自动续期"

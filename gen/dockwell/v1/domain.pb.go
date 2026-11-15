@@ -1672,7 +1672,10 @@ type DomainRoute struct {
 	// How people sign in to it with a provider, if they do: the provider by name and
 	// who may, with nothing of the provider's own, which the control plane fills in as
 	// it plans (ADR 0087).
-	SignIn        *v1alpha1.RouteSignIn `protobuf:"bytes,112,opt,name=sign_in,json=signIn,proto3" json:"sign_in,omitempty"`
+	SignIn *v1alpha1.RouteSignIn `protobuf:"bytes,112,opt,name=sign_in,json=signIn,proto3" json:"sign_in,omitempty"`
+	// Where it redirects, for a route that answers with a redirect in place of a
+	// service (ADR 0070). Unset for any other route.
+	Redirect      *v1alpha1.RouteRedirect `protobuf:"bytes,10,opt,name=redirect,proto3" json:"redirect,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1801,6 +1804,13 @@ func (x *DomainRoute) GetUsers() []string {
 func (x *DomainRoute) GetSignIn() *v1alpha1.RouteSignIn {
 	if x != nil {
 		return x.SignIn
+	}
+	return nil
+}
+
+func (x *DomainRoute) GetRedirect() *v1alpha1.RouteRedirect {
+	if x != nil {
+		return x.Redirect
 	}
 	return nil
 }
@@ -2326,7 +2336,7 @@ const file_dockwell_v1_domain_proto_rawDesc = "" +
 	"\x0eenvironment_id\x18\x02 \x01(\tR\renvironmentId\x12\x10\n" +
 	"\x03url\x18\x03 \x01(\tR\x03url\x120\n" +
 	"\x06routes\x18\x04 \x03(\v2\x18.dockwell.v1.DomainRouteR\x06routes\x123\n" +
-	"\aservers\x18\x05 \x03(\v2\x19.dockwell.v1.DomainServerR\aservers\"\x89\x03\n" +
+	"\aservers\x18\x05 \x03(\v2\x19.dockwell.v1.DomainServerR\aservers\"\xd0\x03\n" +
 	"\vDomainRoute\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x12\n" +
@@ -2341,7 +2351,9 @@ const file_dockwell_v1_domain_proto_rawDesc = "" +
 	"\x0ftrusted_proxies\x18Q \x03(\tR\x0etrustedProxies\x12\x14\n" +
 	"\x05allow\x18n \x03(\tR\x05allow\x12\x14\n" +
 	"\x05users\x18o \x03(\tR\x05users\x12@\n" +
-	"\asign_in\x18p \x01(\v2'.dockwell.resource.v1alpha1.RouteSignInR\x06signIn\"\xcb\x01\n" +
+	"\asign_in\x18p \x01(\v2'.dockwell.resource.v1alpha1.RouteSignInR\x06signIn\x12E\n" +
+	"\bredirect\x18\n" +
+	" \x01(\v2).dockwell.resource.v1alpha1.RouteRedirectR\bredirect\"\xcb\x01\n" +
 	"\fDomainServer\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x1f\n" +
 	"\vserver_name\x18\x02 \x01(\tR\n" +
@@ -2479,6 +2491,7 @@ var file_dockwell_v1_domain_proto_goTypes = []any{
 	(*timestamppb.Timestamp)(nil),       // 31: google.protobuf.Timestamp
 	(*DomainCheck)(nil),                 // 32: dockwell.v1.DomainCheck
 	(*v1alpha1.RouteSignIn)(nil),        // 33: dockwell.resource.v1alpha1.RouteSignIn
+	(*v1alpha1.RouteRedirect)(nil),      // 34: dockwell.resource.v1alpha1.RouteRedirect
 }
 var file_dockwell_v1_domain_proto_depIdxs = []int32{
 	8,  // 0: dockwell.v1.ListSigninProvidersResponse.providers:type_name -> dockwell.v1.SigninProviderInfo
@@ -2495,35 +2508,36 @@ var file_dockwell_v1_domain_proto_depIdxs = []int32{
 	25, // 11: dockwell.v1.Domain.routes:type_name -> dockwell.v1.DomainRoute
 	26, // 12: dockwell.v1.Domain.servers:type_name -> dockwell.v1.DomainServer
 	33, // 13: dockwell.v1.DomainRoute.sign_in:type_name -> dockwell.resource.v1alpha1.RouteSignIn
-	28, // 14: dockwell.v1.DomainServer.status:type_name -> dockwell.v1.DomainStatus
-	27, // 15: dockwell.v1.DomainServer.ingress:type_name -> dockwell.v1.IngressStatus
-	2,  // 16: dockwell.v1.IngressStatus.problem:type_name -> dockwell.v1.IngressProblem
-	30, // 17: dockwell.v1.DomainStatus.certificate:type_name -> dockwell.v1.Certificate
-	32, // 18: dockwell.v1.DomainStatus.dns:type_name -> dockwell.v1.DomainCheck
-	29, // 19: dockwell.v1.DomainStatus.strangers:type_name -> dockwell.v1.StrangerCheck
-	3,  // 20: dockwell.v1.StrangerCheck.outcome:type_name -> dockwell.v1.StrangerOutcome
-	4,  // 21: dockwell.v1.Certificate.state:type_name -> dockwell.v1.CertificateState
-	5,  // 22: dockwell.v1.Certificate.problem:type_name -> dockwell.v1.CertificateProblem
-	31, // 23: dockwell.v1.Certificate.expire_time:type_name -> google.protobuf.Timestamp
-	22, // 24: dockwell.v1.DomainService.ListDomains:input_type -> dockwell.v1.ListDomainsRequest
-	20, // 25: dockwell.v1.DomainService.CheckDomain:input_type -> dockwell.v1.CheckDomainRequest
-	11, // 26: dockwell.v1.DomainService.ListCertificates:input_type -> dockwell.v1.ListCertificatesRequest
-	14, // 27: dockwell.v1.DomainService.ListDnsProviders:input_type -> dockwell.v1.ListDnsProvidersRequest
-	17, // 28: dockwell.v1.DomainService.CheckDnsProvider:input_type -> dockwell.v1.CheckDnsProviderRequest
-	6,  // 29: dockwell.v1.DomainService.ListSigninProviders:input_type -> dockwell.v1.ListSigninProvidersRequest
-	9,  // 30: dockwell.v1.DomainService.CheckSigninProvider:input_type -> dockwell.v1.CheckSigninProviderRequest
-	23, // 31: dockwell.v1.DomainService.ListDomains:output_type -> dockwell.v1.ListDomainsResponse
-	21, // 32: dockwell.v1.DomainService.CheckDomain:output_type -> dockwell.v1.CheckDomainResponse
-	12, // 33: dockwell.v1.DomainService.ListCertificates:output_type -> dockwell.v1.ListCertificatesResponse
-	15, // 34: dockwell.v1.DomainService.ListDnsProviders:output_type -> dockwell.v1.ListDnsProvidersResponse
-	18, // 35: dockwell.v1.DomainService.CheckDnsProvider:output_type -> dockwell.v1.CheckDnsProviderResponse
-	7,  // 36: dockwell.v1.DomainService.ListSigninProviders:output_type -> dockwell.v1.ListSigninProvidersResponse
-	10, // 37: dockwell.v1.DomainService.CheckSigninProvider:output_type -> dockwell.v1.CheckSigninProviderResponse
-	31, // [31:38] is the sub-list for method output_type
-	24, // [24:31] is the sub-list for method input_type
-	24, // [24:24] is the sub-list for extension type_name
-	24, // [24:24] is the sub-list for extension extendee
-	0,  // [0:24] is the sub-list for field type_name
+	34, // 14: dockwell.v1.DomainRoute.redirect:type_name -> dockwell.resource.v1alpha1.RouteRedirect
+	28, // 15: dockwell.v1.DomainServer.status:type_name -> dockwell.v1.DomainStatus
+	27, // 16: dockwell.v1.DomainServer.ingress:type_name -> dockwell.v1.IngressStatus
+	2,  // 17: dockwell.v1.IngressStatus.problem:type_name -> dockwell.v1.IngressProblem
+	30, // 18: dockwell.v1.DomainStatus.certificate:type_name -> dockwell.v1.Certificate
+	32, // 19: dockwell.v1.DomainStatus.dns:type_name -> dockwell.v1.DomainCheck
+	29, // 20: dockwell.v1.DomainStatus.strangers:type_name -> dockwell.v1.StrangerCheck
+	3,  // 21: dockwell.v1.StrangerCheck.outcome:type_name -> dockwell.v1.StrangerOutcome
+	4,  // 22: dockwell.v1.Certificate.state:type_name -> dockwell.v1.CertificateState
+	5,  // 23: dockwell.v1.Certificate.problem:type_name -> dockwell.v1.CertificateProblem
+	31, // 24: dockwell.v1.Certificate.expire_time:type_name -> google.protobuf.Timestamp
+	22, // 25: dockwell.v1.DomainService.ListDomains:input_type -> dockwell.v1.ListDomainsRequest
+	20, // 26: dockwell.v1.DomainService.CheckDomain:input_type -> dockwell.v1.CheckDomainRequest
+	11, // 27: dockwell.v1.DomainService.ListCertificates:input_type -> dockwell.v1.ListCertificatesRequest
+	14, // 28: dockwell.v1.DomainService.ListDnsProviders:input_type -> dockwell.v1.ListDnsProvidersRequest
+	17, // 29: dockwell.v1.DomainService.CheckDnsProvider:input_type -> dockwell.v1.CheckDnsProviderRequest
+	6,  // 30: dockwell.v1.DomainService.ListSigninProviders:input_type -> dockwell.v1.ListSigninProvidersRequest
+	9,  // 31: dockwell.v1.DomainService.CheckSigninProvider:input_type -> dockwell.v1.CheckSigninProviderRequest
+	23, // 32: dockwell.v1.DomainService.ListDomains:output_type -> dockwell.v1.ListDomainsResponse
+	21, // 33: dockwell.v1.DomainService.CheckDomain:output_type -> dockwell.v1.CheckDomainResponse
+	12, // 34: dockwell.v1.DomainService.ListCertificates:output_type -> dockwell.v1.ListCertificatesResponse
+	15, // 35: dockwell.v1.DomainService.ListDnsProviders:output_type -> dockwell.v1.ListDnsProvidersResponse
+	18, // 36: dockwell.v1.DomainService.CheckDnsProvider:output_type -> dockwell.v1.CheckDnsProviderResponse
+	7,  // 37: dockwell.v1.DomainService.ListSigninProviders:output_type -> dockwell.v1.ListSigninProvidersResponse
+	10, // 38: dockwell.v1.DomainService.CheckSigninProvider:output_type -> dockwell.v1.CheckSigninProviderResponse
+	32, // [32:39] is the sub-list for method output_type
+	25, // [25:32] is the sub-list for method input_type
+	25, // [25:25] is the sub-list for extension type_name
+	25, // [25:25] is the sub-list for extension extendee
+	0,  // [0:25] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_domain_proto_init() }

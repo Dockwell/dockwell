@@ -175,6 +175,12 @@ func Step(s resource.Step, resourceID string) *dockwellv1.PlanStep {
 	if m := s.Moves; m != nil {
 		p.Moves = &dockwellv1.RouteMove{Where: m.Where, From: m.From, To: m.To, ToPort: m.ToPort}
 	}
+	if d := s.Redirects; d != nil {
+		p.Redirects = &dockwellv1.RouteRedirects{
+			Where: d.Where, To: d.To, Temporary: d.Temporary, DropPath: d.DropPath, Leaves: d.Leaves,
+			KeepPrefix: d.KeepPrefix, Stops: d.Stops, SendsTo: d.SendsTo, SendsToPort: d.SendsToPort,
+		}
+	}
 	if r := s.Restore; r != nil {
 		p.Restore = &dockwellv1.RestorePlan{
 			BackupId: r.Backup, Undoes: r.Undoes, Method: BackupMethod(r.Method), Database: r.Database,
@@ -548,6 +554,12 @@ func FromStep(p *dockwellv1.PlanStep) (resource.Step, error) {
 	s.Rollout, s.Restart = fromRollout(p.GetRollout()), p.GetRestart()
 	if m := p.GetMoves(); m != nil {
 		s.Moves = &resource.RouteMove{Where: m.GetWhere(), From: m.GetFrom(), To: m.GetTo(), ToPort: m.GetToPort()}
+	}
+	if d := p.GetRedirects(); d != nil {
+		s.Redirects = &resource.RouteRedirects{
+			Where: d.GetWhere(), To: d.GetTo(), Temporary: d.GetTemporary(), DropPath: d.GetDropPath(), Leaves: d.GetLeaves(),
+			KeepPrefix: d.GetKeepPrefix(), Stops: d.GetStops(), SendsTo: d.GetSendsTo(), SendsToPort: d.GetSendsToPort(),
+		}
 	}
 	if r := p.GetRestore(); r != nil {
 		s.Restore = &resource.RestorePlan{

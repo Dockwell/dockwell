@@ -501,6 +501,22 @@ export function DomainsPage({
   );
 }
 
+/** Where a redirect sends, as a row says it: its address without the scheme, such as example.com/blog. */
+function redirectWhere(to: string): string {
+  return to.replace(/^https?:\/\//i, "").replace(/\/$/, "");
+}
+
+/** What a route reaches, as a row says it: where it redirects, or the app or the port on the server it sends to (ADR 0070). */
+function useTargetWords(): (route: DomainRoute) => string {
+  const { t } = useLingui();
+  const target = useRouteTarget();
+  return (route) => {
+    if (!route.redirect) return target(route);
+    const where = redirectWhere(route.redirect.to);
+    return t`Redirects to ${where}`;
+  };
+}
+
 /** Why nothing here says where domains stand, said once above them rather than on each row. */
 function UnreadWords({ why, heard }: { why: Unread; heard: Date | undefined }) {
   const { t } = useLingui();
@@ -608,6 +624,8 @@ function Visit({ row, read }: { row: Row; read: DomainRead }) {
 /** The way to who gets in to a row's route, off with why where your role can't plan there. */
 function Private({ row, onPrivate }: { row: Row; onPrivate: (row: Row) => void }) {
   const may = useMay()(ChangeService.method.proposeChange, { environment: row.domain.environmentId });
+  // A redirect has nothing behind it to protect, so it lets everyone through (ADR 0070).
+  if (row.route?.redirect) return null;
   return <PrivateButton domain={row.domain} route={row.route} onOpen={() => onPrivate(row)} off={may.off} />;
 }
 
@@ -642,15 +660,16 @@ function Reaches({
   fleet: boolean;
   environment: ((id: string) => string) | undefined;
 }) {
-  const target = useRouteTarget()(row.route);
+  const target = useTargetWords()(row.route);
   const says = fleet || environment?.(row.domain.environmentId);
+  const redirects = row.route.redirect !== undefined;
   return (
     <span className="domains-reaches">
       {/* What it reaches, as Domains-List marks it: an app, or a port on the server itself, by the route, whether or not the app has loaded. */}
       <Icon
-        name={row.route.service ? "service" : "server"}
+        name={redirects ? "arrow-right" : row.route.service ? "service" : "server"}
         size={16}
-        className={cx("domains-reaches-mark", row.route.service ? "is-app" : "is-server")}
+        className={cx("domains-reaches-mark", redirects ? "is-redirect" : row.route.service ? "is-app" : "is-server")}
       />
       <span className="dw-cell">
         {row.website ? (
@@ -875,7 +894,7 @@ function PhoneRow({
   onPrivate: (row: Row) => void;
 }) {
   const [status, word] = useDomainState(row.domain, row.look, row.silent, read);
-  const target = useRouteTarget()(row.route);
+  const target = useTargetWords()(row.route);
   // Where its DNS leads, as the wide list's column says it, once a server has read it and the list can be believed.
   const check = dnsOf(row.domain);
   const dns = useDnsWord()(check);

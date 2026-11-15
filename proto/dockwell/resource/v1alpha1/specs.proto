@@ -1263,6 +1263,29 @@ message Route {
   // approves any change that lets in someone it kept out. Numbered apart, as open
   // work adds to this message. See docs/adr/0087-private-routes.md.
   RouteAccess access = 110;
+  // Answers every request with a redirect to another address, in place of sending
+  // it to a service: such a route names no service, port or host_port, and no
+  // access, as nothing is behind it to protect. Its domain gets a certificate as
+  // any route's does. See docs/adr/0070-redirects-from-one-domain-to-another.md.
+  RouteRedirect redirect = 10;
+}
+
+// Where a route's redirect sends, and how.
+message RouteRedirect {
+  // Where it sends: an absolute https:// or http:// URL, such as
+  // "https://example.com" or "https://example.com/blog". No other scheme, no user,
+  // fragment, { or }, and a query only with drop_path.
+  string to = 1;
+  // True answers 302 Found, for a while. False, the default, answers 301 Moved
+  // Permanently, which browsers keep and search engines follow.
+  bool temporary = 2;
+  // True sends every request to to as it is. False, the default, keeps what follows
+  // the route's own path, and the query, after to's own path.
+  bool drop_path = 3;
+  // For a route with a path that keeps what follows it: true keeps the route's own
+  // path too, so /old-blog/post goes to https://blog.example.com/old-blog/post. False,
+  // the default, strips it, so /old-blog/post goes to https://blog.example.com/post.
+  bool keep_prefix = 4;
 }
 
 // RouteAccess is who a route lets in. With a list and users, a visitor must be on

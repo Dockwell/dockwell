@@ -359,6 +359,7 @@ function StepRow({
           {step.unencrypted ? <span className="plan-step-notice">{words.unencrypted(server)}</span> : null}
           {step.goes ? <span className="plan-step-notice">{words.goes(step.goes)}</span> : null}
           {step.moves ? <span className="plan-step-notice">{words.moves(step.moves)}</span> : null}
+          {step.redirects ? <span className="plan-step-notice">{words.redirects(step.redirects)}</span> : null}
           {words.answers(step.answers, step.serverPort, server).map((line) => (
             <span key={line} className="plan-step-notice">
               {line}

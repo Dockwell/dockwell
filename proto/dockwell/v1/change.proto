@@ -1853,6 +1853,10 @@ message PlanStep {
   // reaches changing is easy to miss among a plan's fields. It never stops a plan.
   // Numbered apart, as open work adds to this message.
   RouteMove moves = 32;
+  // Set when a route answers with a redirect, as where a domain sends its visitors
+  // is easy to miss among a plan's fields (ADR 0070). It never stops a plan. In the
+  // websites area's block of numbers, as open work adds to this message.
+  RouteRedirects redirects = 240;
   // The full ID of the container this step takes on, which goes on running as it
   // is, with no restart, as what the step's service runs.
   string adopts = 33;
@@ -2231,6 +2235,28 @@ message RestorePlan {
   // server stays as it is (ADR 0084). Empty for the whole volume. Numbered apart,
   // as open work adds to this message.
   string database_name = 80;
+}
+
+// RouteRedirects is a route that answers every request with a redirect.
+message RouteRedirects {
+  // Its domain and path, as people read them, such as "www.example.com".
+  string where = 1;
+  // Where it sends, such as "https://example.com".
+  string to = 2;
+  // True for a 302, for a while; false for a 301, for good.
+  bool temporary = 3;
+  // True when every request goes to to as it is; false when its path and query go
+  // after it.
+  bool drop_path = 4;
+  // The service it sent to before, for a route that sent to one.
+  string leaves = 5;
+  // True when a path route keeps its own path in what it sends on.
+  bool keep_prefix = 6;
+  // True for a route that stops redirecting, and sends to sends_to, or to
+  // sends_to_port on the server, in place of where it redirected, to.
+  bool stops = 7;
+  string sends_to = 8;
+  uint32 sends_to_port = 9;
 }
 
 // RouteMove is a route leaving one service for another.

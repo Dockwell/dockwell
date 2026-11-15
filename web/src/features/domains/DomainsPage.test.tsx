@@ -513,6 +513,29 @@ describe("the list of domains", () => {
     }
   });
 
+  it("says where a domain that redirects sends, in place of an app", async () => {
+    renderAt(
+      "/domains",
+      api([
+        aDomain({
+          name: "www.example.com",
+          certificate: issued,
+          route: {
+            service: "",
+            port: 0,
+            redirect: { to: "https://example.com/blog", temporary: false, dropPath: false },
+          },
+        }),
+      ]),
+    );
+    const row = await rowOf(/www\.example\.com/);
+    expect(row).toHaveTextContent("Redirects to example.com/blog");
+    expect(row.querySelector(".domains-reaches-mark")).toHaveClass("is-redirect");
+    expect(within(row).queryByRole("link", { name: /^web/ })).toBeNull();
+    // A redirect has nothing behind it to protect, so it's never made private.
+    expect(within(row).queryByRole("button", { name: /private|Who gets in/ })).toBeNull();
+  });
+
   it("says what an ingress that's down does to a domain with a good certificate", async () => {
     const held = "1Panel-openresty holds port 80, so Caddy can't start. Stop it, or move it to another port.";
     renderAt(

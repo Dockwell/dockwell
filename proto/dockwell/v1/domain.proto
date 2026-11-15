@@ -392,6 +392,9 @@ message DomainRoute {
   // who may, with nothing of the provider's own, which the control plane fills in as
   // it plans (ADR 0087).
   dockwell.resource.v1alpha1.RouteSignIn sign_in = 112;
+  // Where it redirects, for a route that answers with a redirect in place of a
+  // service (ADR 0070). Unset for any other route.
+  dockwell.resource.v1alpha1.RouteRedirect redirect = 10;
 }
 
 // DomainServer is where a domain stands on one server.

@@ -144,12 +144,36 @@ type Route struct {
 	// route that doesn't sign people in. Who may, and with what, is the agent's to
 	// keep (SignIns), as the proxy holds none of it (ADR 0087).
 	SignIn string
+	// Redirect, when set, is what the route answers every request with, in place
+	// of sending it to Upstreams, which it has none of (ADR 0070).
+	Redirect *Redirect
 	// Edited is true when it holds something Dockwell doesn't put there, as
 	// after a hand edit, so what it reads as isn't the whole of it.
 	Edited bool
 	// Held is true when it answers that the app isn't open yet and sends nothing
 	// on, until a person opens it (ADR 0084).
 	Held bool
+}
+
+// Redirect is where a route sends each request instead of an upstream: To, with
+// the request's path and query after it unless DropPath, as a 301, or a 302 when
+// Temporary.
+type Redirect struct {
+	To                  string
+	Temporary, DropPath bool
+	// KeepPrefix keeps a path route's own path in what follows To; without it, the
+	// route's path is stripped first.
+	KeepPrefix bool
+}
+
+// RedirectOf is a route spec's redirect as the proxy takes it, or nil for a route
+// that sends to a service.
+func RedirectOf(spec *resourcev1.Route) *Redirect {
+	r := spec.GetRedirect()
+	if r == nil {
+		return nil
+	}
+	return &Redirect{To: r.GetTo(), Temporary: r.GetTemporary(), DropPath: r.GetDropPath(), KeepPrefix: r.GetKeepPrefix()}
 }
 
 // PanelSite is the panel's site on the proxy: its domain, sent to its socket,
@@ -413,6 +437,10 @@ func (m *Manager) Observe(ctx context.Context, ref resource.Ref) (*resourcev1.Ro
 	}
 	if r.Edited {
 		out.Service = editedByHand
+		return out, nil
+	}
+	if d := r.Redirect; d != nil {
+		out.Redirect = &resourcev1.RouteRedirect{To: d.To, Temporary: d.Temporary, DropPath: d.DropPath, KeepPrefix: d.KeepPrefix}
 		return out, nil
 	}
 	if err := m.table.load(m.Dir); err != nil {
@@ -1015,7 +1043,7 @@ func (m *Manager) put(ctx context.Context, ref resource.Ref, spec *resourcev1.Ro
 	var dials []string
 	if port := spec.GetHostPort(); port != 0 {
 		dials = []string{ServerHost + ":" + strconv.Itoa(int(port))}
-	} else {
+	} else if spec.GetRedirect() == nil {
 		if err := m.ensureNetwork(ctx); err != nil {
 			return err
 		}
@@ -1037,7 +1065,7 @@ func (m *Manager) put(ctx context.Context, ref resource.Ref, spec *resourcev1.Ro
 	r := Route{
 		ID: RouteID(ref), Domain: spec.GetDomain(), Path: spec.GetPath(), Upstreams: dials,
 		Plain: spec.GetTls() == TLSOff, TrustedProxies: named, EdgeProxies: edge, PlainForAnyone: spec.GetPlainForAnyone(), Held: spec.GetHeld(),
-		Allow: allow, Users: users,
+		Allow: allow, Users: users, Redirect: RedirectOf(spec),
 	}
 	// What a route that signs people in needs is the agent's before the proxy asks
 	// for it, and goes once the proxy no longer does.

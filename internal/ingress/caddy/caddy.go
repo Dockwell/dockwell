@@ -410,6 +410,9 @@ type handler struct {
 	LoadBalancing    *loadBalancing `json:"load_balancing,omitempty"`
 	Transport        *transport     `json:"transport,omitempty"`
 	Headers          *headers       `json:"headers,omitempty"`
+	// StripPathPrefix is a rewrite's, as a path route's redirect strips its own path
+	// before what follows it goes after where it sends.
+	StripPathPrefix string `json:"strip_path_prefix,omitempty"`
 	// Routes are a subroute's: what a route believes of its request, or whom a
 	// private route keeps out.
 	Routes []beliefRoute `json:"routes,omitempty"`
@@ -472,10 +475,14 @@ type beliefRoute struct {
 	Handle []map[string]any `json:"handle"`
 }
 
-// headers changes what a handler sends upstream, and what goes back.
+// headers changes what a handler sends upstream, and what goes back, or, for a
+// static_response, is the headers it answers with: a redirect's Location, and how
+// long a permanent one is kept (ADR 0070).
 type headers struct {
-	Request  *headerOps `json:"request,omitempty"`
-	Response *headerOps `json:"response,omitempty"`
+	Request      *headerOps `json:"request,omitempty"`
+	Response     *headerOps `json:"response,omitempty"`
+	Location     []string   `json:"Location,omitempty"`
+	CacheControl []string   `json:"Cache-Control,omitempty"`
 }
 
 type headerOps struct {
@@ -709,6 +716,18 @@ func routeJSON(r ingress.Route) route {
 	if r.Plain {
 		m.Protocol = plainProtocol
 		m.RemoteIP = reachOf(r)
+	}
+	if r.Redirect != nil {
+		var handle []handler
+		if len(r.TrustedProxies)+len(r.EdgeProxies) > 0 {
+			handle = append(handle, beliefOf(r.TrustedProxies, r.EdgeProxies))
+		}
+		// A path route strips its own path, so what follows it goes after where it sends.
+		if r.Path != "" && !r.Redirect.DropPath && !r.Redirect.KeepPrefix {
+			handle = append(handle, handler{Handler: "rewrite", StripPathPrefix: r.Path})
+		}
+		handle = append(handle, redirectHandler(r.Redirect))
+		return route{ID: r.ID, Match: []matcher{m}, Terminal: true, Handle: handle}
 	}
 	ups := make([]upstream, len(r.Upstreams))
 	for i, u := range r.Upstreams {
@@ -1061,6 +1080,93 @@ func unheld(raw json.RawMessage) (json.RawMessage, bool) {
 		return raw, false
 	}
 	return out, true
+}
+
+// requestURI is Caddy's placeholder for a request's path and query, which a
+// redirect that keeps them puts after where it sends.
+const requestURI = "{http.request.uri}"
+
+// redirectHandler answers with a redirect: a 301, or a 302 for a temporary one,
+// to where it sends, with the request's path and query after it unless it drops
+// them (ADR 0070). The route kind keeps braces out of To, so the placeholder is
+// the only one.
+func redirectHandler(d *ingress.Redirect) handler {
+	h := handler{Handler: "static_response", StatusCode: http.StatusMovedPermanently, Headers: &headers{Location: []string{d.To}}}
+	if d.Temporary {
+		h.StatusCode = http.StatusFound
+	} else {
+		// A browser keeps a 301 for as long as it likes, so an undo would never reach
+		// someone who followed one: a day, then it asks again (ADR 0070).
+		h.Headers.CacheControl = []string{keepRedirect}
+	}
+	if !d.DropPath {
+		h.Headers.Location[0] = strings.TrimSuffix(d.To, "/") + requestURI
+	}
+	return h
+}
+
+// keepRedirect is how long a browser keeps a permanent redirect.
+const keepRedirect = "max-age=86400"
+
+// readRedirect is the redirect a static_response in Dockwell's shape answers with,
+// or false for anything else in one.
+func readRedirect(h handler) (*ingress.Redirect, bool) {
+	if h.Headers == nil || h.Headers.Request != nil || len(h.Headers.Location) != 1 || len(h.Upstreams) > 0 || h.Transport != nil || h.LoadBalancing != nil {
+		return nil, false
+	}
+	d := &ingress.Redirect{}
+	switch {
+	case h.StatusCode == http.StatusMovedPermanently && len(h.Headers.CacheControl) == 1 && h.Headers.CacheControl[0] == keepRedirect:
+	case h.StatusCode == http.StatusFound && len(h.Headers.CacheControl) == 0:
+		d.Temporary = true
+	default:
+		return nil, false
+	}
+	location := h.Headers.Location[0]
+	if to, ok := strings.CutSuffix(location, requestURI); ok {
+		d.To = to
+	} else {
+		d.To, d.DropPath = location, true
+	}
+	if d.To == "" || strings.ContainsAny(d.To, "{}") {
+		return nil, false
+	}
+	return d, true
+}
+
+// onlyLocation reports a redirect whose answer sets no header but its Location, and
+// for a permanent one how long it's kept, which readRedirect read: one added by hand
+// is a hand edit.
+func onlyLocation(raw json.RawMessage, temporary bool) bool {
+	var r struct {
+		Handle []struct {
+			Headers map[string]json.RawMessage `json:"headers"`
+		} `json:"handle"`
+	}
+	if json.Unmarshal(raw, &r) != nil || len(r.Handle) == 0 {
+		return false
+	}
+	have := r.Handle[len(r.Handle)-1].Headers
+	_, ok := have["Location"]
+	if temporary {
+		return ok && len(have) == 1
+	}
+	_, kept := have["Cache-Control"]
+	return ok && kept && len(have) == 2
+}
+
+// onlyStrip reports a redirect's rewrite that does nothing but strip the route's own
+// path: anything else in it by hand is a hand edit.
+func onlyStrip(raw json.RawMessage, at int) bool {
+	var r struct {
+		Handle []map[string]json.RawMessage `json:"handle"`
+	}
+	if json.Unmarshal(raw, &r) != nil || at >= len(r.Handle) {
+		return false
+	}
+	_, named := r.Handle[at]["handler"]
+	_, strips := r.Handle[at]["strip_path_prefix"]
+	return named && strips && len(r.Handle[at]) == 2
 }
 
 // plainProtocol is what Caddy's protocol matcher takes for a request not over TLS.
@@ -1616,7 +1722,7 @@ var (
 	knownRouteKeys   = []string{"@id", "match", "handle", "terminal"}
 	knownMatchKeys   = []string{"host", "path", "protocol", "remote_ip"}
 	knownVariantKeys = []string{"host", "path_regexp", "protocol", "remote_ip"}
-	knownHandlerKeys = []string{"handler", "upstreams", "flush_interval", "stream_close_delay", "load_balancing", "headers", "transport"}
+	knownHandlerKeys = []string{"handler", "upstreams", "flush_interval", "stream_close_delay", "load_balancing", "headers", "transport", "status_code"}
 )
 
 // servesARoute reports the ID of one of Dockwell's routes, rather than another's, or
@@ -1635,11 +1741,24 @@ func readRoute(raw json.RawMessage) (ingress.Route, bool) {
 	out := ingress.Route{ID: id}
 	raw, out.Held = unheld(raw)
 	var r route
-	if err := json.Unmarshal(raw, &r); err != nil || len(r.Match) == 0 || len(r.Match) > 2 || len(r.Match[0].Host) != 1 || len(r.Handle) == 0 || len(r.Handle) > 5 || r.Handle[len(r.Handle)-1].Handler != "reverse_proxy" {
+	if err := json.Unmarshal(raw, &r); err != nil || len(r.Match) == 0 || len(r.Match) > 2 || len(r.Match[0].Host) != 1 || len(r.Handle) == 0 || len(r.Handle) > 5 {
 		out.Edited = true
 		return out, true
 	}
 	proxy := r.Handle[len(r.Handle)-1]
+	switch proxy.Handler {
+	case "reverse_proxy":
+	case "static_response":
+		d, ok := readRedirect(proxy)
+		if !ok {
+			out.Edited = true
+			return out, true
+		}
+		out.Redirect = d
+	default:
+		out.Edited = true
+		return out, true
+	}
 	out.Domain = r.Match[0].Host[0]
 	switch p := r.Match[0].Path; {
 	case len(p) == 0:
@@ -1658,8 +1777,20 @@ func readRoute(raw json.RawMessage) (ingress.Route, bool) {
 	for _, u := range proxy.Upstreams {
 		out.Upstreams = append(out.Upstreams, u.Dial)
 	}
-	for i := range len(r.Handle) - 1 {
-		h := &r.Handle[i]
+	// What comes before the last step: what a route believes and whom it keeps out,
+	// and for a redirect that strips a path route's own path, the rewrite that does it.
+	steps := r.Handle[:len(r.Handle)-1]
+	stripsOK := true
+	if out.Redirect != nil {
+		if n := len(steps); n > 0 && steps[n-1].Handler == "rewrite" {
+			stripsOK = out.Path != "" && !out.Redirect.DropPath && steps[n-1].StripPathPrefix == out.Path && onlyStrip(raw, n-1)
+			steps = steps[:n-1]
+		} else {
+			out.Redirect.KeepPrefix = out.Path != "" && !out.Redirect.DropPath
+		}
+	}
+	for i := range steps {
+		h := &steps[i]
 		users, dial, choice := readPasswordOrSignIn(*h)
 		switch status := gateStatus(*h); {
 		case choice:
@@ -1684,7 +1815,14 @@ func readRoute(raw json.RawMessage) (ingress.Route, bool) {
 		}
 	}
 	out.PlainForAnyone = out.Plain && r.Match[0].RemoteIP == nil
-	out.Edited = out.Edited || !onlyKnownKeys(raw) || !headersAreOurs(raw, out) || !beliefAndReachAreOurs(raw, r, out) || !transportIsOurs(raw)
+	headersOurs := headersAreOurs(raw, out)
+	if out.Redirect != nil {
+		// A redirect answers with what readRedirect read alone, and keeps no one out,
+		// as nothing is behind it to protect: anything else in front of it is a hand
+		// edit (ADR 0070).
+		headersOurs = stripsOK && onlyLocation(raw, out.Redirect.Temporary) && len(out.Allow) == 0 && len(out.Users) == 0 && out.SignIn == ""
+	}
+	out.Edited = out.Edited || !onlyKnownKeys(raw) || !headersOurs || !beliefAndReachAreOurs(raw, r, out) || !transportIsOurs(raw)
 	return out, true
 }
 
@@ -2107,7 +2245,9 @@ func trustedRanges(routes []json.RawMessage) []string {
 func withTrust(routes []json.RawMessage, serverTrusts bool) []json.RawMessage {
 	for i, raw := range routes {
 		read, ok := readRoute(raw)
-		if !ok || read.Edited {
+		// A redirect sends nothing on, so what it believes reaches nobody, and its
+		// headers are what it answers with.
+		if !ok || read.Edited || read.Redirect != nil {
 			continue
 		}
 		var r route

@@ -12817,6 +12817,12 @@ components:
                         How people sign in to it with a provider, if they do: the provider by name and
                          who may, with nothing of the provider's own, which the control plane fills in as
                          it plans (ADR 0087).
+                redirect:
+                    allOf:
+                        - $ref: '#/components/schemas/RouteRedirect'
+                    description: |-
+                        Where it redirects, for a route that answers with a redirect in place of a
+                         service (ADR 0070). Unset for any other route.
             description: DomainRoute is one route of a domain.
         DomainServer:
             type: object
@@ -19756,6 +19762,13 @@ components:
                         Set when a route leaves the service it sent to for another, as what a domain
                          reaches changing is easy to miss among a plan's fields. It never stops a plan.
                          Numbered apart, as open work adds to this message.
+                redirects:
+                    allOf:
+                        - $ref: '#/components/schemas/RouteRedirects'
+                    description: |-
+                        Set when a route answers with a redirect, as where a domain sends its visitors
+                         is easy to miss among a plan's fields (ADR 0070). It never stops a plan. In the
+                         websites area's block of numbers, as open work adds to this message.
                 adopts:
                     type: string
                     description: |-
@@ -21430,6 +21443,14 @@ components:
                          password, or both. Unset, the route answers whoever reaches it. A person
                          approves any change that lets in someone it kept out. Numbered apart, as open
                          work adds to this message. See docs/adr/0087-private-routes.md.
+                redirect:
+                    allOf:
+                        - $ref: '#/components/schemas/RouteRedirect'
+                    description: |-
+                        Answers every request with a redirect to another address, in place of sending
+                         it to a service: such a route names no service, port or host_port, and no
+                         access, as nothing is behind it to protect. Its domain gets a certificate as
+                         any route's does. See docs/adr/0070-redirects-from-one-domain-to-another.md.
             description: |-
                 Route sends a domain's traffic, or a path under it, to a port of a service
                  in the route's environment, or to a port on the server itself. It comes over
@@ -21531,6 +21552,66 @@ components:
                     description: The port on the server it goes to, when it goes to no service.
                     format: uint32
             description: RouteMove is a route leaving one service for another.
+        RouteRedirect:
+            type: object
+            properties:
+                to:
+                    type: string
+                    description: |-
+                        Where it sends: an absolute https:// or http:// URL, such as
+                         "https://example.com" or "https://example.com/blog". No other scheme, no user,
+                         fragment, { or }, and a query only with drop_path.
+                temporary:
+                    type: boolean
+                    description: |-
+                        True answers 302 Found, for a while. False, the default, answers 301 Moved
+                         Permanently, which browsers keep and search engines follow.
+                dropPath:
+                    type: boolean
+                    description: |-
+                        True sends every request to to as it is. False, the default, keeps what follows
+                         the route's own path, and the query, after to's own path.
+                keepPrefix:
+                    type: boolean
+                    description: |-
+                        For a route with a path that keeps what follows it: true keeps the route's own
+                         path too, so /old-blog/post goes to https://blog.example.com/old-blog/post. False,
+                         the default, strips it, so /old-blog/post goes to https://blog.example.com/post.
+            description: Where a route's redirect sends, and how.
+        RouteRedirects:
+            type: object
+            properties:
+                where:
+                    type: string
+                    description: Its domain and path, as people read them, such as "www.example.com".
+                to:
+                    type: string
+                    description: Where it sends, such as "https://example.com".
+                temporary:
+                    type: boolean
+                    description: True for a 302, for a while; false for a 301, for good.
+                dropPath:
+                    type: boolean
+                    description: |-
+                        True when every request goes to to as it is; false when its path and query go
+                         after it.
+                leaves:
+                    type: string
+                    description: The service it sent to before, for a route that sent to one.
+                keepPrefix:
+                    type: boolean
+                    description: True when a path route keeps its own path in what it sends on.
+                stops:
+                    type: boolean
+                    description: |-
+                        True for a route that stops redirecting, and sends to sends_to, or to
+                         sends_to_port on the server, in place of where it redirected, to.
+                sendsTo:
+                    type: string
+                sendsToPort:
+                    type: integer
+                    format: uint32
+            description: RouteRedirects is a route that answers every request with a redirect.
         RouteSignIn:
             type: object
             properties:

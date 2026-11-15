@@ -295,12 +295,20 @@ func (d *Driver) Validate(spec proto.Message) error {
 	if err := d.checkAccess(r); err != nil {
 		return err
 	}
+	if r.GetRedirect() != nil {
+		return checkRedirect(r)
+	}
 	if r.GetHostPort() != 0 {
 		return checkHostPort(r)
 	}
+	// A route that names nothing to send to keeps the redirect it has: whoever wrote
+	// it whole didn't know the field (Keep). A new one is refused (CheckNew).
+	if r.GetService() == "" && r.GetPort() == 0 {
+		return nil
+	}
 	if err := resource.CheckLabel("service", r.GetService(), "web"); err != nil {
 		if r.GetService() == "" {
-			return errors.New("a route needs a service to send to, in its environment, such as web, or a port on the server itself in host_port")
+			return errNoTarget
 		}
 		return err
 	}
@@ -309,6 +317,9 @@ func (d *Driver) Validate(spec proto.Message) error {
 	}
 	return nil
 }
+
+// errNoTarget is a route that sends nowhere, and has no redirect to keep.
+var errNoTarget = errors.New("a route needs a service to send to, in its environment, such as web, or a port on the server itself in host_port")
 
 // dockerAPIPorts are Docker's own ports for its API over TCP. Nothing else has a
 // claim on them, and a route to one is root for whoever finds it.
@@ -454,17 +465,43 @@ func (*Driver) Plan(actual, desired proto.Message, _ []resource.Change) (resourc
 		}
 		return dec, nil
 	case actual == nil:
-		return withAnswers(resource.Decision{Action: resource.ActionCreate, Unencrypted: plain(desired)}, desired), nil
+		dec := withAnswers(resource.Decision{Action: resource.ActionCreate, Unencrypted: plain(desired)}, desired)
+		dec.Redirects = redirectsOf(nil, desired)
+		return dec, nil
 	}
 	dec := withAnswers(resource.Decision{Action: resource.ActionUpdate, Unencrypted: plain(desired) && !plain(actual)}, desired)
 	dec.Moves = moveOf(actual, desired)
+	if !proto.Equal(actual.(*resourcev1.Route).GetRedirect(), desired.(*resourcev1.Route).GetRedirect()) {
+		dec.Redirects = redirectsOf(actual, desired)
+	}
 	return dec, nil
+}
+
+// redirectsOf says what a route that redirects answers with, and the service it
+// leaves to do so, or nil for a route that doesn't redirect.
+func redirectsOf(actual, desired proto.Message) *resource.RouteRedirects {
+	now := desired.(*resourcev1.Route)
+	d := now.GetRedirect()
+	was, _ := actual.(*resourcev1.Route)
+	if d == nil {
+		// One that stops redirecting says where it sends now, in place of where it sent.
+		if was.GetRedirect() == nil {
+			return nil
+		}
+		return &resource.RouteRedirects{Where: Where(now), To: was.GetRedirect().GetTo(), Stops: true, SendsTo: now.GetService(), SendsToPort: now.GetHostPort()}
+	}
+	out := &resource.RouteRedirects{Where: Where(now), To: d.GetTo(), Temporary: d.GetTemporary(), DropPath: d.GetDropPath(), KeepPrefix: d.GetKeepPrefix()}
+	if was != nil {
+		out.Leaves = was.GetService()
+	}
+	return out
 }
 
 // moveOf says a route leaves the service it sent to, or nil if it doesn't.
 func moveOf(actual, desired proto.Message) *resource.RouteMove {
 	was, now := actual.(*resourcev1.Route), desired.(*resourcev1.Route)
-	if was.GetService() == "" || was.GetService() == now.GetService() {
+	// One that starts redirecting says so, and the service it leaves, itself.
+	if was.GetService() == "" || was.GetService() == now.GetService() || now.GetRedirect() != nil {
 		return nil
 	}
 	return &resource.RouteMove{Where: Where(now), From: was.GetService(), To: now.GetService(), ToPort: now.GetHostPort()}

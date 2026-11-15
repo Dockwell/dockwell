@@ -351,7 +351,6 @@ func TestValidateRefusesWhatARouteCantSayOfWhereItSends(t *testing.T) {
 		{"a provider's name for tls", &resourcev1.Route{Domain: "a.example.com", Service: "web", Port: 80, Tls: "cloudflare"}, `takes only "off"`},
 		{"the panel's domain, plain", &resourcev1.Route{Domain: "panel.example.com", Service: "web", Port: 80, Tls: "off"}, "passkeys and cookies need HTTPS"},
 		{"under the panel's domain, plain", &resourcev1.Route{Domain: "a.panel.example.com", Service: "web", Port: 80, Tls: "off"}, "passkeys and cookies need HTTPS"},
-		{"neither service nor port on the server", &resourcev1.Route{Domain: "a.example.com"}, "host_port"},
 		{"a port on the server past 65535", &resourcev1.Route{Domain: "a.example.com", HostPort: 70000}, "from 1 to 65535"},
 		{"a port on the server and a service's port", &resourcev1.Route{Domain: "a.example.com", HostPort: 8080, Port: 80}, "dial only one"},
 		{"a port on the server, and a service and its port", &resourcev1.Route{Domain: "a.example.com", HostPort: 8080, Service: "web", Port: 80}, "dial only one"},
@@ -507,5 +506,21 @@ func TestAPlanSaysWhenARouteGoesUnencrypted(t *testing.T) {
 				t.Errorf("it needs a person: %+v", dec)
 			}
 		})
+	}
+}
+
+// A route that names nothing to send to is one an edit of a redirect leaves whole
+// (Keep keeps the redirect), so Validate takes it; a new one, with no redirect to
+// keep, is refused as it's made (ADR 0070).
+func TestARouteToNothingIsRefusedAsItsMade(t *testing.T) {
+	r := &resourcev1.Route{Domain: "a.example.com"}
+	if err := (&Driver{}).Validate(r); err != nil {
+		t.Fatalf("Validate = %v", err)
+	}
+	if err := (&Driver{}).CheckNew(r); err == nil || !strings.Contains(err.Error(), "host_port") {
+		t.Errorf("CheckNew = %v, want it refused, saying host_port", err)
+	}
+	if _, err := (&Driver{}).Keep(&resourcev1.Route{Domain: "a.example.com", Service: "web", Port: 80}, proto.Clone(r)); err == nil || !strings.Contains(err.Error(), "host_port") {
+		t.Errorf("Keep, with no redirect to keep = %v", err)
 	}
 }

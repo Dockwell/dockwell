@@ -740,6 +740,14 @@ func PlanView(w io.Writer, p *dockwellv1.Plan) {
 		wrote = true
 	}
 	_ = tw.Flush()
+	// Once for the plan, as a browser keeps each permanent redirect alike (ADR 0070).
+	if keepsRedirect(p) {
+		if wrote {
+			fmt.Fprintln(w)
+		}
+		fmt.Fprintln(w, "Browsers keep a permanent redirect for up to a day, through an undo too.")
+		wrote = true
+	}
 	for _, s := range p.GetServers() {
 		if wrote {
 			fmt.Fprintln(w)
@@ -854,6 +862,9 @@ func PlanView(w io.Writer, p *dockwellv1.Plan) {
 				fmt.Fprintln(tw, "      "+line)
 			}
 			if line := movesWords(st.GetMoves()); line != "" {
+				fmt.Fprintln(tw, "      "+line)
+			}
+			if line := redirectsWords(st.GetRedirects()); line != "" {
 				fmt.Fprintln(tw, "      "+line)
 			}
 			for _, warning := range st.GetWarnings() {
@@ -1160,6 +1171,48 @@ func movesWords(m *dockwellv1.RouteMove) string {
 		return fmt.Sprintf("%s leaves %s, and goes to port %d on the server.", m.GetWhere(), m.GetFrom(), m.GetToPort())
 	}
 	return fmt.Sprintf("%s leaves %s, and goes to %s.", m.GetWhere(), m.GetFrom(), m.GetTo())
+}
+
+// keepsRedirect says a plan makes or keeps a permanent redirect, which browsers keep.
+func keepsRedirect(p *dockwellv1.Plan) bool {
+	for _, s := range p.GetServers() {
+		for _, st := range s.GetSteps() {
+			if d := st.GetRedirects(); d != nil && !d.GetTemporary() && !d.GetStops() {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// redirectsWords says where a route that redirects sends its visitors, and how, as
+// where a domain sends them is easy to miss among a plan's fields (ADR 0070).
+func redirectsWords(d *dockwellv1.RouteRedirects) string {
+	if d == nil {
+		return ""
+	}
+	if d.GetStops() {
+		if d.GetSendsTo() == "" {
+			return fmt.Sprintf("%s stops redirecting to %s, and sends to port %d on the server.", d.GetWhere(), d.GetTo(), d.GetSendsToPort())
+		}
+		return fmt.Sprintf("%s stops redirecting to %s, and sends to %s.", d.GetWhere(), d.GetTo(), d.GetSendsTo())
+	}
+	how := "permanently"
+	if d.GetTemporary() {
+		how = "temporarily"
+	}
+	path := "keeping the path"
+	switch {
+	case d.GetDropPath():
+		path = "whatever the path"
+	case d.GetKeepPrefix():
+		// A path route that keeps its prefix sends its own path on too.
+		path = "keeping the whole path"
+	}
+	if d.GetLeaves() != "" {
+		return fmt.Sprintf("%s stops sending to %s, and redirects to %s, %s, %s.", d.GetWhere(), d.GetLeaves(), d.GetTo(), how, path)
+	}
+	return fmt.Sprintf("%s redirects to %s, %s, %s.", d.GetWhere(), d.GetTo(), how, path)
 }
 
 // goesWords says what someone visiting a route finds once a step takes it away, as a

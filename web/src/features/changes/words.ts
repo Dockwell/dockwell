@@ -17,6 +17,7 @@ import {
   type RouteGoes,
   type RouteMove,
   RouteReach,
+  type RouteRedirects,
   type ServerPortCheck,
   StepEffect,
   StepState,
@@ -90,6 +91,8 @@ export interface ChangeWords {
   goes(goes: RouteGoes): string;
   /** A route leaving the app it sent to, which is easy to miss among a plan's fields. */
   moves(moves: RouteMove): string;
+  /** Where a route that redirects sends its visitors, and how (ADR 0070). */
+  redirects(redirects: RouteRedirects): string;
   /** Who a route answers, when it isn't anyone over HTTPS sent to a service, a sentence each. */
   answers(answers: RouteAnswers | undefined, port: ServerPortCheck | undefined, server: string): string[];
   /** How a step replaces what runs, and what that means, a sentence each. `span` words a duration in milliseconds. */
@@ -639,6 +642,19 @@ export function useChangeWords(): ChangeWords {
         return to
           ? t`${where} leaves ${from}, and goes to ${to}.`
           : t`${where} leaves ${from}, and goes to port ${toPort} on the server.`;
+      },
+      redirects({ where, to, temporary, dropPath, keepPrefix, leaves, stops, sendsTo, sendsToPort }) {
+        if (stops) {
+          return sendsTo
+            ? t`${where} stops redirecting to ${to}, and sends to ${sendsTo}.`
+            : t`${where} stops redirecting to ${to}, and sends to port ${sendsToPort} on the server.`;
+        }
+        const how = temporary ? t`temporarily` : t`permanently`;
+        // A path route that keeps its prefix sends its own path on too.
+        const path = dropPath ? t`whatever the path` : keepPrefix ? t`keeping the whole path` : t`keeping the path`;
+        return leaves
+          ? t`${where} stops sending to ${leaves}, and redirects to ${to}, ${how}, ${path}.`
+          : t`${where} redirects to ${to}, ${how}, ${path}.`;
       },
       answers(answers, port, server) {
         if (!answers) return [];

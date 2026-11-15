@@ -9426,6 +9426,9 @@ msgstr "Back up what you can't lose first."
 msgid "Before it moves, Dockwell asks what features its data uses, and stops with nothing changed if {to} can't run them."
 msgstr "Before it moves, Dockwell asks what features its data uses, and stops with nothing changed if {to} can't run them."
 
+msgid "Browsers keep a permanent redirect for up to a day, through an undo too."
+msgstr "Browsers keep a permanent redirect for up to a day, through an undo too."
+
 #. placeholder {0}: server.serverName
 msgid "Builds {repository} at {commit} ({ref}) on {0} first. If the build fails, what runs stays as it is."
 msgstr "Builds {repository} at {commit} ({ref}) on {0} first. If the build fails, what runs stays as it is."
@@ -10638,6 +10641,12 @@ msgstr "environment {environment}"
 msgid "firewall rule"
 msgstr "firewall rule"
 
+msgid "keeping the path"
+msgstr "keeping the path"
+
+msgid "keeping the whole path"
+msgstr "keeping the whole path"
+
 msgid "lets in anyone at {named}"
 msgstr "lets in anyone at {named}"
 
@@ -10649,6 +10658,9 @@ msgstr "lets in every account at its provider"
 
 msgid "lets in {named}"
 msgstr "lets in {named}"
+
+msgid "permanently"
+msgstr "permanently"
 
 msgid "plain HTTP on {path} for anyone who can reach this server, around whatever is in front of it"
 msgstr "plain HTTP on {path} for anyone who can reach this server, around whatever is in front of it"
@@ -10685,6 +10697,9 @@ msgstr "takes off its passwords"
 
 msgid "takes off signing in"
 msgstr "takes off signing in"
+
+msgid "temporarily"
+msgstr "temporarily"
 
 msgid "the Linux capability {path}"
 msgstr "the Linux capability {path}"
@@ -10764,6 +10779,9 @@ msgstr "the {type} mount {at} ({reads})"
 msgid "what runs on {server} itself"
 msgstr "what runs on {server} itself"
 
+msgid "whatever the path"
+msgstr "whatever the path"
+
 msgid "whoever comes through {list}"
 msgstr "whoever comes through {list}"
 
@@ -10832,6 +10850,18 @@ msgstr "{where} leaves {from}, and goes to port {toPort} on the server."
 
 msgid "{where} leaves {from}, and goes to {to}."
 msgstr "{where} leaves {from}, and goes to {to}."
+
+msgid "{where} redirects to {to}, {how}, {path}."
+msgstr "{where} redirects to {to}, {how}, {path}."
+
+msgid "{where} stops redirecting to {to}, and sends to port {sendsToPort} on the server."
+msgstr "{where} stops redirecting to {to}, and sends to port {sendsToPort} on the server."
+
+msgid "{where} stops redirecting to {to}, and sends to {sendsTo}."
+msgstr "{where} stops redirecting to {to}, and sends to {sendsTo}."
+
+msgid "{where} stops sending to {leaves}, and redirects to {to}, {how}, {path}."
+msgstr "{where} stops sending to {leaves}, and redirects to {to}, {how}, {path}."
 
 msgid "Add a user to {name}"
 msgstr "Add a user to {name}"
@@ -11392,6 +11422,9 @@ msgstr "No domain here matches what you've chosen. Try part of a name, or anothe
 
 msgid "No domains yet"
 msgstr "No domains yet"
+
+msgid "Redirects to {where}"
+msgstr "Redirects to {where}"
 
 msgid "Renewed automatically"
 msgstr "Renewed automatically"

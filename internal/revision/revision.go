@@ -2121,6 +2121,9 @@ func (e *Engine) check(ctx context.Context, tx *store.Tx, items []item) error {
 	if err := e.checkClaims(ctx, tx, items); err != nil {
 		return err
 	}
+	if err := e.checkAcross(ctx, tx, items); err != nil {
+		return err
+	}
 	if err := e.checkReferences(ctx, tx, items); err != nil {
 		return err
 	}

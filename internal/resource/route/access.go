@@ -178,6 +178,9 @@ func (*Driver) Keep(current, desired proto.Message) (resource.Kept, error) {
 	if !ok || !same {
 		return resource.Kept{}, nil
 	}
+	if err := keepRedirect(was, is); err != nil {
+		return resource.Kept{}, err
+	}
 	var kept []string
 	for _, u := range is.GetAccess().GetUsers() {
 		if u.GetPasswordHash() != "" {
@@ -201,9 +204,13 @@ func (*Driver) Keep(current, desired proto.Message) (resource.Kept, error) {
 	}, nil
 }
 
-// CheckNew asks a new route's users for a password, which Keep can't fill in.
+// CheckNew asks a new route's users for a password, which Keep can't fill in, and
+// refuses one that sends nowhere, as it has no redirect to keep (ADR 0070).
 func (*Driver) CheckNew(spec proto.Message) error {
 	r := spec.(*resourcev1.Route) //nolint:forcetypeassert // Validate saw it
+	if err := checkNewTarget(r); err != nil {
+		return err
+	}
 	for _, u := range r.GetAccess().GetUsers() {
 		if u.GetPasswordHash() == "" {
 			return fmt.Errorf("the user %s needs a password", u.GetName())
