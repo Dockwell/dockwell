@@ -6,7 +6,17 @@ import { resolve } from "node:path";
 import { CertificateState, type Domain } from "@dockwell/api";
 import { describe, expect, it } from "vitest";
 
-import { groupConcern, groupNeedsALook, groupOf, lookOf, refusedField } from "./domains";
+import {
+  freshRouteName,
+  groupConcern,
+  groupNeedsALook,
+  groupOf,
+  lookOf,
+  redirectTarget,
+  refusedField,
+  refusesTarget,
+  routeName,
+} from "./domains";
 
 /**
  * What the server says, from its source, with values in place of its verbs, so this
@@ -191,5 +201,62 @@ describe("how a domain sorts in the list of them", () => {
 
   it("leaves a certificate that says no end alone", () => {
     expect(lookOf(onServer(certificate(CertificateState.ISSUED))).state).toBe("serving");
+  });
+});
+
+describe("where a redirect sends, as typed", () => {
+  it("adds https:// and a domain's xn-- form, and leaves the rest for the form to refuse", () => {
+    for (const [typed, sent] of [
+      ["example.org", "https://example.org"],
+      ["  example.org/shop ", "https://example.org/shop"],
+      ["example.org:8443", "https://example.org:8443"],
+      ["localhost:3000/x", "https://localhost:3000/x"],
+      ["http://example.org", "http://example.org"],
+      ["https://Bücher.example/Straße?a=1", "https://xn--bcher-kva.example/Straße?a=1"],
+      ["bücher.example", "https://xn--bcher-kva.example"],
+      ["https://me@bücher.example", "https://me@bücher.example"],
+      ["javascript:alert(1)", "javascript:alert(1)"],
+      ["mailto:me@example.org", "mailto:me@example.org"],
+      ["//evil.example", "//evil.example"],
+      ["/blog", "/blog"],
+      ["", ""],
+    ]) {
+      expect(redirectTarget(typed as string), typed).toBe(sent);
+    }
+  });
+
+  it("tells a refusal of where it sends from one of its domain", () => {
+    const at = "old.example.net";
+    expect(refusesTarget(`${at} redirects to https://a.example/?q, which has a query`, at)).toBe(true);
+    expect(refusesTarget(`${at} redirects, and needs where to: an address such as https://example.com`, at)).toBe(true);
+    expect(refusesTarget(`${at} would send visitors round in a circle, back to itself`, at)).toBe(true);
+    expect(refusesTarget(`${at} redirects to shop.example.com already. Stop sending it there first`, at)).toBe(false);
+    expect(refusesTarget(`${at} is in use by a project you can't see`, at)).toBe(false);
+    expect(refusesTarget("shop.example.net redirects to https://a.example, which has a query", at)).toBe(false);
+  });
+});
+
+describe("a fresh route name", () => {
+  const holding = (name: string, routes: string[]) =>
+    ({ name, routes: routes.map((r) => ({ name: r, path: "" })) }) as unknown as Domain;
+
+  it("never names a route that's there, a domain's own root's included", () => {
+    expect(freshRouteName("www.example.org", [])).toBe("www-example-org");
+    // routeName would update www's own root; a fresh name adds one, for the server to refuse.
+    expect(routeName("www.example.org", [holding("www.example.org", ["www-example-org"])])).toBe("www-example-org");
+    expect(freshRouteName("www.example.org", [holding("www.example.org", ["www-example-org"])])).toBe(
+      "www-example-org-2",
+    );
+    expect(
+      freshRouteName("www.example.org", [holding("www.example.org", ["www-example-org", "www-example-org-2"])]),
+    ).toBe("www-example-org-3");
+  });
+
+  it("stays within a label's 63 characters when it's numbered", () => {
+    const long = `www.${"a".repeat(70)}.example.org`;
+    const base = routeName(long);
+    expect(base).toHaveLength(63);
+    const fresh = freshRouteName(long, [holding(long, [base])]);
+    expect(fresh).toBe(`${base.slice(0, 61)}-2`);
   });
 });

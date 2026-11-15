@@ -43,19 +43,34 @@ export const TUNNEL_GUIDE =
  * it under that name would move that route instead.
  */
 export function routeName(domain: string, existing: readonly Domain[] = []): string {
+  // Whatever holds the name but this domain's own root, proposing it would move.
+  return nameFor(domain, (name) =>
+    existing.some((d) => d.routes.some((route) => route.name === name && (d.name !== domain || route.path !== ""))),
+  );
+}
+
+/**
+ * A route name for domain that no route of existing has, its own root's included, so
+ * proposing it adds a route and never updates one: where something serves domain
+ * already, the server refuses it rather than taking that over (ADR 0070).
+ */
+export function freshRouteName(domain: string, existing: readonly Domain[] = []): string {
+  const taken = new Set(existing.flatMap((d) => d.routes.map((r) => r.name)));
+  return nameFor(domain, (name) => taken.has(name));
+}
+
+/** A route name for domain, as a label the server takes, numbered past the ones taken. */
+function nameFor(domain: string, taken: (name: string) => boolean): string {
   const label = domain.toLowerCase().replace(/[^a-z0-9-]+/g, "-");
   // A label starts with a letter, and an address has none: it still needs a name, so
   // what's refused is the address, in the server's words, and not a name nobody typed.
   const lettered = label.replace(/^[^a-z]+/, "") || `route-${label.replace(/^-+/, "")}`;
   const base = lettered.slice(0, MAX_LABEL).replace(/-+$/, "");
-  // Whatever holds the name but this domain's own root, proposing it would move.
-  const takenByAnother = (name: string) =>
-    existing.some((d) => d.routes.some((route) => route.name === name && (d.name !== domain || route.path !== "")));
-  if (!takenByAnother(base)) return base;
+  if (!taken(base)) return base;
   for (let i = 2; ; i++) {
     const suffix = `-${i}`;
     const name = `${base.slice(0, MAX_LABEL - suffix.length).replace(/-+$/, "")}${suffix}`;
-    if (!takenByAnother(name)) return name;
+    if (!taken(name)) return name;
   }
 }
 
@@ -105,7 +120,9 @@ export type DomainGroup = (typeof DOMAIN_GROUPS)[number];
 export function groupOf(domain: Domain, look: DomainLook, silent: boolean): DomainGroup {
   if (look.stale) return "not-connected";
   if (silent && look.unreported) return "no-report";
+  // A redirect a server's agent is too old to serve isn't answered there (ADR 0070).
   if (look.state === "failed" || look.warning || look.orphaned) return "failing";
+  if (domain.servers.some((s) => s.redirectUnserved)) return "failing";
   if (look.state === "pending") return "waiting";
   return look.noCertificate && !plainForAnyone(domain) ? "tunnel" : "serving";
 }
@@ -178,6 +195,42 @@ export function refusedField(
   // limit or the panel's domain says "domain" of something else. These two can't name it.
   if (/^(a route needs a domain|the domain )/.test(text)) return "domain";
   return "";
+}
+
+/**
+ * Where a redirect sends, written as the server takes it (ADR 0070): https:// before
+ * a domain typed without a scheme, and a domain not in ASCII in its xn-- form. What
+ * can't be read as an address is left as typed, for the form to refuse.
+ */
+export function redirectTarget(typed: string): string {
+  let to = typed.trim();
+  if (to === "") return to;
+  // A scheme, but not a domain and its port such as example.org:8080.
+  if (!/^[a-z][a-z0-9+.-]*:(?!\d)/i.test(to) && !to.startsWith("/")) to = `https://${to}`;
+  const at = /^(https?:\/\/)([^/?#\\]*)(.*)$/is.exec(to);
+  if (!at?.[1] || !at[2] || at[2].includes("@") || ![...at[2]].some((c) => c.charCodeAt(0) > 127)) return to;
+  try {
+    return `${at[1]}${new URL(to).host}${at[3] ?? ""}`;
+  } catch {
+    return to;
+  }
+}
+
+/**
+ * Whether a server's refusal of a redirect route is about where it sends, rather than
+ * its domain: each such starts with the domain, then "redirects to", "redirects, and
+ * needs where to", or "would send visitors round in a circle".
+ */
+export function refusesTarget(said: string, domain: string): boolean {
+  const text = said.toLowerCase();
+  if (!text.startsWith(`${domain.toLowerCase()} `)) return false;
+  const rest = text.slice(domain.length + 1);
+  // "… redirects to shop.example.com already" is about the domain, which one holds.
+  return (
+    (rest.startsWith("redirects to ") && !/ already\b/.test(rest)) ||
+    rest.startsWith("redirects, and needs where to") ||
+    rest.startsWith("would send visitors round in a circle")
+  );
 }
 
 /**

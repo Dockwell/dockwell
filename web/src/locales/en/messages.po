@@ -2221,6 +2221,9 @@ msgstr "Webhook"
 msgid "ntfy"
 msgstr "ntfy"
 
+msgid "A URL"
+msgstr "A URL"
+
 msgid "A route runs on the one server its DNS points at."
 msgstr "A route runs on the one server its DNS points at."
 
@@ -2229,6 +2232,9 @@ msgstr "Add a domain"
 
 msgid "Add a domain to {name}"
 msgstr "Add a domain to {name}"
+
+msgid "An app"
+msgstr "An app"
 
 msgctxt "a port typed in"
 msgid "Another port"
@@ -2249,11 +2255,29 @@ msgstr "Domain"
 msgid "Edit and try again"
 msgstr "Edit and try again"
 
+msgid "Environment"
+msgstr "Environment"
+
+msgid "For a while (302), so browsers ask again each time"
+msgstr "For a while (302), so browsers ask again each time"
+
+msgid "For a while, keeping the path"
+msgstr "For a while, keeping the path"
+
+msgid "For a while, to the address as it is"
+msgstr "For a while, to the address as it is"
+
+msgid "Give the address it sends to, such as https://example.org."
+msgstr "Give the address it sends to, such as https://example.org."
+
 msgid "HTTPS"
 msgstr "HTTPS"
 
 msgid "Handled in front of this server"
 msgstr "Handled in front of this server"
+
+msgid "It goes to"
+msgstr "It goes to"
 
 msgid "Its certificate comes by itself once its DNS points here."
 msgstr "Its certificate comes by itself once its DNS points here."
@@ -2285,6 +2309,12 @@ msgstr "People reach the app at this name, over plain HTTP"
 msgid "People reach the app at this name, through what's in front of this server"
 msgstr "People reach the app at this name, through what's in front of this server"
 
+msgid "Permanently, keeping the path"
+msgstr "Permanently, keeping the path"
+
+msgid "Permanently, to the address as it is"
+msgstr "Permanently, to the address as it is"
+
 msgid "Point its DNS at this server."
 msgstr "Point its DNS at this server."
 
@@ -2300,11 +2330,32 @@ msgstr "Port in the app"
 msgid "Port on the server"
 msgstr "Port on the server"
 
+msgid "Redirect"
+msgstr "Redirect"
+
+msgid "Redirect to"
+msgstr "Redirect to"
+
+msgid "Redirect {wanted} to {goesTo}"
+msgstr "Redirect {wanted} to {goesTo}"
+
+msgid "Send every request to the address as it is, without its path"
+msgstr "Send every request to the address as it is, without its path"
+
 msgid "Send {wanted} to {name}"
 msgstr "Send {wanted} to {name}"
 
 msgid "Send {wanted} to {name}, and point {followsApp} at it"
 msgstr "Send {wanted} to {name}, and point {followsApp} at it"
+
+msgid "Visitors are sent on, such as from an old domain."
+msgstr "Visitors are sent on, such as from an old domain."
+
+msgid "Visitors reach an app here."
+msgstr "Visitors reach an app here."
+
+msgid "Visitors to this name are sent on to the address you give"
+msgstr "Visitors to this name are sent on to the address you give"
 
 msgid "What it listens on on the server, such as 8080; 80 is the proxy's."
 msgstr "What it listens on on the server, such as 8080; 80 is the proxy's."
@@ -2778,9 +2829,6 @@ msgstr "Dockwell is putting <0>{image}</0> back, started {ago}"
 msgid "Dockwell puts <0>{image}</0> back once {0} reconnects"
 msgstr "Dockwell puts <0>{image}</0> back once {0} reconnects"
 
-msgid "Environment"
-msgstr "Environment"
-
 msgid "Go to the apps"
 msgstr "Go to the apps"
 
@@ -2823,6 +2871,9 @@ msgstr "{name} logs"
 #. placeholder {0}: runtime.folder
 msgid "{runsOn} from <0>{0}</0>"
 msgstr "{runsOn} from <0>{0}</0>"
+
+msgid "<0>{from}</0> redirects here"
+msgstr "<0>{from}</0> redirects here"
 
 #. placeholder {0}: check.tcp.port
 #. placeholder {0}: check?.tcp?.port
@@ -3055,6 +3106,12 @@ msgstr "Something of {name} runs, and Dockwell can't say which version. Check it
 
 msgid "Starts with"
 msgstr "Starts with"
+
+msgid "Stop sending {from} here"
+msgstr "Stop sending {from} here"
+
+msgid "Stop sending {from} to {to}"
+msgstr "Stop sending {from} to {to}"
 
 msgid "The agent on {server} hasn't said how it runs lately. It may well be running."
 msgstr "The agent on {server} hasn't said how it runs lately. It may well be running."
@@ -11632,8 +11689,14 @@ msgstr "No domain here matches what you've chosen. Try part of a name, or anothe
 msgid "No domains yet"
 msgstr "No domains yet"
 
+msgid "Not served on {server}"
+msgstr "Not served on {server}"
+
 msgid "Redirects to {where}"
 msgstr "Redirects to {where}"
+
+msgid "Redirects: <0>{from}</0> → {into}"
+msgstr "Redirects: <0>{from}</0> → {into}"
 
 msgid "Renewed automatically"
 msgstr "Renewed automatically"
@@ -11658,6 +11721,9 @@ msgstr "This browser is offline, so your domains read Unknown. Last heard {ago}.
 
 msgid "Until then, a domain doesn't lead to its app, and you can't add one here."
 msgstr "Until then, a domain doesn't lead to its app, and you can't add one here."
+
+msgid "Update its agent"
+msgstr "Update its agent"
 
 msgid "What your domains serve isn't affected."
 msgstr "What your domains serve isn't affected."
@@ -13672,9 +13738,6 @@ msgstr "{joinedName} joined, starting its agent"
 
 msgid "{minutes} min"
 msgstr "{minutes} min"
-
-msgid "Update its agent"
-msgstr "Update its agent"
 
 #. placeholder {0}: server.name
 msgid "{0}'s agent is outdated"
@@ -18782,9 +18845,6 @@ msgstr "Send {companion} to {main}"
 msgid "Send {typed} to {main}"
 msgstr "Send {typed} to {main}"
 
-msgid "Stop sending {from} here"
-msgstr "Stop sending {from} here"
-
 msgid "Stop sending {from} to {main}"
 msgstr "Stop sending {from} to {main}"
 
@@ -18802,6 +18862,15 @@ msgstr "{main} answers there instead"
 
 msgid "{name} is served by {by}"
 msgstr "{name} is served by {by}"
+
+msgid "{name} is served by {what} here"
+msgstr "{name} is served by {what} here"
+
+msgid "{name} is served here already"
+msgstr "{name} is served here already"
+
+msgid "{name} redirects here already"
+msgstr "{name} redirects here already"
 
 msgid "A static site, sent as its files are."
 msgstr "A static site, sent as its files are."
@@ -19047,9 +19116,6 @@ msgstr "written by Dockwell from these settings"
 
 msgid "{changes, plural, one {# change} other {# changes}}"
 msgstr "{changes, plural, one {# change} other {# changes}}"
-
-msgid "A URL"
-msgstr "A URL"
 
 msgid "A path with no file gets the index, for an app that routes in the browser."
 msgstr "A path with no file gets the index, for an app that routes in the browser."

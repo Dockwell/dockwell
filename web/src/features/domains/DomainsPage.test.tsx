@@ -107,6 +107,8 @@ function withRoutes(...pages: { id: string; updateTime?: typeof longAgo }[][]): 
 }
 
 const issued = certificate(CertificateState.ISSUED, "", 47);
+const wwwNoRecord =
+  "No DNS record answers for www.example.com, so the certificate can't come. Add an A record for it pointing at 203.0.113.7. Dockwell tries again by itself.";
 const noRecord =
   "No DNS record answers for app.example.com, so the certificate can't come. Add an A record for it pointing at 49.12.33.7. Dockwell tries again by itself.";
 
@@ -534,6 +536,89 @@ describe("the list of domains", () => {
     expect(within(row).queryByRole("link", { name: /^web/ })).toBeNull();
     // A redirect has nothing behind it to protect, so it's never made private.
     expect(within(row).queryByRole("button", { name: /private|Who gets in/ })).toBeNull();
+  });
+
+  it("folds www that only redirects to its bare domain into that domain's row", async () => {
+    const www = aDomain({
+      name: "www.example.com",
+      certificate: issued,
+      route: { service: "", port: 0, redirect: { to: "https://example.com", temporary: false, dropPath: false } },
+    });
+    renderAt("/domains", api([aDomain({ name: "example.com", certificate: issued }), www]));
+    expect(await rowOf(/^example\.com/)).toHaveTextContent("Redirects: www → example.com");
+    expect(screen.queryByRole("row", { name: /^www\.example\.com/ })).toBeNull();
+  });
+
+  it("never folds www that needs a look: its own row says why, with what to do", async () => {
+    const www = aDomain({
+      name: "www.example.com",
+      certificate: certificate(CertificateState.FAILED, wwwNoRecord),
+      route: { service: "", port: 0, redirect: { to: "https://example.com", temporary: false, dropPath: false } },
+    });
+    const { container } = renderAt("/domains", api([aDomain({ name: "example.com", certificate: issued }), www]));
+    expect(await rowOf(/^example\.com/)).not.toHaveTextContent("Redirects: www → example.com");
+    expect(container.querySelector(".page-lead")).toHaveTextContent("2 domains · 1 needs a look");
+    const own = await rowOf(/^www\.example\.com/);
+    // The certificate's own words, with the record to add.
+    expect(own).toHaveTextContent("Add an A record for it pointing at 203.0.113.7.");
+  });
+
+  it("says where a redirect isn't served, as its server's agent is too old, with the way to update it", async () => {
+    renderAt(
+      "/domains",
+      api([
+        aDomain({
+          name: "www.example.com",
+          certificate: issued,
+          route: { service: "", port: 0, redirect: { to: "https://example.org", temporary: false, dropPath: false } },
+          server: { redirectUnserved: true },
+        }),
+      ]),
+    );
+    const row = await rowOf(/^www\.example\.com/);
+    expect(row).toHaveTextContent("Not served on hz-1");
+    expect(within(row).getByRole("link", { name: "Update its agent" })).toHaveAttribute("href", `/servers/${SERVER}`);
+  });
+
+  it("never folds www that isn't served somewhere: its row says where, with the fix", async () => {
+    const www = aDomain({
+      name: "www.example.com",
+      certificate: issued,
+      route: { service: "", port: 0, redirect: { to: "https://example.com", temporary: false, dropPath: false } },
+      server: { redirectUnserved: true },
+    });
+    const { container } = renderAt("/domains", api([aDomain({ name: "example.com", certificate: issued }), www]));
+    expect(await rowOf(/^example\.com/)).not.toHaveTextContent("Redirects: www → example.com");
+    expect(container.querySelector(".page-lead")).toHaveTextContent("2 domains · 1 needs a look");
+    const own = await rowOf(/^www\.example\.com/);
+    expect(own).toHaveTextContent("Not served on hz-1");
+    expect(within(own).getByRole("link", { name: "Update its agent" })).toBeVisible();
+  });
+
+  it("keeps www's own row where its bare domain is in another environment", async () => {
+    const www = aDomain({
+      name: "www.example.com",
+      environment: "env_other",
+      certificate: issued,
+      route: { service: "", port: 0, redirect: { to: "https://example.com", temporary: false, dropPath: false } },
+    });
+    renderAt("/domains", api([aDomain({ name: "example.com", certificate: issued }), www]));
+    expect(await rowOf(/^example\.com/)).not.toHaveTextContent("Redirects: www → example.com");
+    expect(await rowOf(/^www\.example\.com/)).toBeVisible();
+  });
+
+  it("keeps www's own row where its bare domain isn't listed", async () => {
+    renderAt(
+      "/domains",
+      api([
+        aDomain({
+          name: "www.example.com",
+          certificate: issued,
+          route: { service: "", port: 0, redirect: { to: "https://example.com", temporary: false, dropPath: false } },
+        }),
+      ]),
+    );
+    expect(await rowOf(/^www\.example\.com/)).toHaveTextContent("Redirects to example.com");
   });
 
   it("says what an ingress that's down does to a domain with a good certificate", async () => {
@@ -1420,6 +1505,266 @@ describe("adding a domain from the list", () => {
     act(() => watch.push(watched(moved(webPlanned(), { state: ChangeState.APPLIED }))));
     await user.click(await screen.findByRole("button", { name: /^Done/ }));
     await waitFor(() => expect(router.state.location.pathname).toBe(`/apps/${api_.id}`));
+  });
+
+  it("redirects a domain that belongs to no app to a URL, permanently and keeping the path unless asked", async () => {
+    const user = userEvent.setup();
+    const edits: ProposeChangeRequest["edits"] = [];
+    renderAt("/domains", api(some, { services: [web, api_], more: { changes: changes(edits) } }));
+    await screen.findByRole("row", { name: /shop\.example\.com/ });
+    await user.click(await screen.findByRole("button", { name: "Add a domain" }));
+    const sheet = await screen.findByRole("dialog", { name: "Add a domain" });
+    await user.click(within(sheet).getByRole("radio", { name: /^A URL/ }));
+    // Still "Add a domain": it's for no app now.
+    expect(screen.getByRole("dialog", { name: "Add a domain" })).toBe(sheet);
+    expect(within(sheet).queryByRole("combobox", { name: "App" })).toBeNull();
+    expect(within(sheet).queryByLabelText("Port in the app")).toBeNull();
+    await user.type(within(sheet).getByLabelText("Domain"), "old-shop.example.net");
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    expect(within(sheet).getByLabelText("Redirect to")).toHaveAccessibleDescription(
+      "Give the address it sends to, such as https://example.org.",
+    );
+    expect(edits).toHaveLength(0);
+    await user.type(within(sheet).getByLabelText("Redirect to"), "https://shop.example.com");
+    await user.click(within(sheet).getByRole("button", { name: /^Redirect/ }));
+    await user.click(within(sheet).getByRole("checkbox", { name: /For a while/ }));
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    await screen.findByRole("dialog", { name: "Review plan" });
+    expect(edits[0]?.resource).toMatchObject({ kind: "route", scope: ENV, name: "old-shop-example-net" });
+    expect(edits[0]?.spec?.kind.value).toMatchObject({
+      domain: "old-shop.example.net",
+      redirect: { to: "https://shop.example.com", temporary: true, dropPath: false },
+    });
+    expect(edits[0]?.spec?.kind.value).not.toHaveProperty("service", "api");
+  });
+
+  it("writes the address a redirect sends to as the server takes it, and puts a refusal of it at its field", async () => {
+    const user = userEvent.setup();
+    const edits: ProposeChangeRequest["edits"] = [];
+    let refuse = "";
+    renderAt(
+      "/domains",
+      api(some, {
+        services: [web, api_],
+        more: {
+          changes: {
+            ...changes(edits),
+            proposeChange: (req) => {
+              edits.push(...req.edits);
+              if (refuse) {
+                const err = new ConnectError(refuse, Code.InvalidArgument);
+                err.metadata.set("Dockwell-Error", "invalid");
+                throw err;
+              }
+              return { change: webPlanned() };
+            },
+          },
+        },
+      }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Add a domain" }));
+    const sheet = await screen.findByRole("dialog", { name: "Add a domain" });
+    await user.click(within(sheet).getByRole("radio", { name: /^A URL/ }));
+    await user.type(within(sheet).getByRole("textbox", { name: "Domain" }), "old-shop.example.net");
+    refuse =
+      "old-shop.example.net redirects to https://xn--bcher-kva.example/shop?a=1, which has a query, and keeps each request's path and query after it, which can't follow a query. Leave the query out, or send every request to it as it is with drop_path";
+    const to = within(sheet).getByLabelText("Redirect to");
+    await user.type(to, "Bücher.example/shop?a=1");
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    // https:// and the xn-- form are the form's to add, and what's sent is what the field shows.
+    await waitFor(() => expect(to).toHaveValue("https://xn--bcher-kva.example/shop?a=1"));
+    expect(edits[0]?.spec?.kind.value).toMatchObject({ redirect: { to: "https://xn--bcher-kva.example/shop?a=1" } });
+    await waitFor(() => expect(to).toHaveAccessibleDescription(/which has a query/));
+    expect(within(sheet).getByRole("textbox", { name: "Domain" })).not.toHaveAccessibleDescription(/which has a query/);
+    // A domain and its port is no scheme.
+    refuse = "";
+    await user.clear(to);
+    await user.type(to, "example.org:8443");
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    await screen.findByRole("dialog", { name: "Review plan" });
+    expect(edits.at(-1)?.spec?.kind.value).toMatchObject({ redirect: { to: "https://example.org:8443" } });
+  });
+
+  it("leaves what isn't an address a browser goes to for the form to refuse", async () => {
+    const user = userEvent.setup();
+    const edits: ProposeChangeRequest["edits"] = [];
+    renderAt("/domains", api(some, { services: [web, api_], more: { changes: changes(edits) } }));
+    await user.click(await screen.findByRole("button", { name: "Add a domain" }));
+    const sheet = await screen.findByRole("dialog", { name: "Add a domain" });
+    await user.click(within(sheet).getByRole("radio", { name: /^A URL/ }));
+    await user.type(within(sheet).getByRole("textbox", { name: "Domain" }), "old-shop.example.net");
+    for (const typed of ["javascript:alert(1)", "//evil.example", "https:/evil.example", "ftp://example.org"]) {
+      const to = within(sheet).getByLabelText("Redirect to");
+      await user.clear(to);
+      await user.type(to, typed);
+      await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+      expect(to).toHaveAccessibleDescription("Give the address it sends to, such as https://example.org.");
+    }
+    expect(edits).toHaveLength(0);
+  });
+
+  it("also answers on www, redirecting it to the domain, when its DNS answers alike", async () => {
+    const user = userEvent.setup();
+    const edits: ProposeChangeRequest["edits"] = [];
+    renderAt(
+      "/domains",
+      api(some, {
+        services: [web, api_],
+        more: {
+          changes: changes(edits),
+          domains: {
+            listDomains: () => ({ domains: some }),
+            checkDomain: (req) => ({
+              check: { domain: req.domain, state: DomainCheckState.POINTS_HERE, found: ["203.0.113.50"] },
+              companion: "www.example.org",
+              companionCheck: {
+                check: { domain: "www.example.org", state: DomainCheckState.POINTS_HERE, found: ["203.0.113.50"] },
+                answersAlike: true,
+              },
+            }),
+          },
+        },
+      }),
+    );
+    await screen.findByRole("row", { name: /shop\.example\.com/ });
+    await user.click(await screen.findByRole("button", { name: "Add a domain" }));
+    const sheet = await screen.findByRole("dialog", { name: "Add a domain" });
+    await user.selectOptions(within(sheet).getByRole("combobox", { name: "App" }), "api");
+    await user.type(within(sheet).getByLabelText("Domain"), "example.org");
+    const www = await within(sheet).findByRole("checkbox", { name: "Also answer on www.example.org" });
+    await waitFor(() => expect(www).toBeChecked());
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    await screen.findByRole("dialog", { name: "Review plan" });
+    expect(edits).toHaveLength(2);
+    expect(edits[1]?.resource).toMatchObject({ kind: "route", scope: ENV, name: "www-example-org" });
+    expect(edits[1]?.spec?.kind.value).toMatchObject({
+      domain: "www.example.org",
+      redirect: { to: "https://example.org" },
+    });
+  });
+
+  it("names www's redirect afresh, so a route that took www since the check is refused rather than taken over", async () => {
+    const user = userEvent.setup();
+    const edits: ProposeChangeRequest["edits"] = [];
+    // The list has a route for www.example.org that CheckDomain's answer is too old to know of.
+    const since = [...some, aDomain({ name: "www.example.org", certificate: issued })];
+    renderAt(
+      "/domains",
+      api(since, {
+        services: [web, api_],
+        more: {
+          changes: changes(edits),
+          domains: {
+            listDomains: () => ({ domains: since }),
+            checkDomain: (req) => ({
+              check: { domain: req.domain, state: DomainCheckState.POINTS_HERE, found: ["203.0.113.50"] },
+              companion: "www.example.org",
+              companionCheck: {
+                check: { domain: "www.example.org", state: DomainCheckState.POINTS_HERE, found: ["203.0.113.50"] },
+                answersAlike: true,
+              },
+            }),
+          },
+        },
+      }),
+    );
+    await screen.findByRole("row", { name: /shop\.example\.com/ });
+    await user.click(await screen.findByRole("button", { name: "Add a domain" }));
+    const sheet = await screen.findByRole("dialog", { name: "Add a domain" });
+    await user.selectOptions(within(sheet).getByRole("combobox", { name: "App" }), "api");
+    await user.type(within(sheet).getByRole("textbox", { name: "Domain" }), "example.org");
+    const www = await within(sheet).findByRole("checkbox", { name: "Also answer on www.example.org" });
+    await waitFor(() => expect(www).toBeChecked());
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    await screen.findByRole("dialog", { name: "Review plan" });
+    // A name of its own: proposing it adds a route, which the server's check of who holds www refuses.
+    expect(edits[1]?.resource).toMatchObject({ kind: "route", scope: ENV, name: "www-example-org-2" });
+    expect(edits[1]?.spec?.kind.value).toMatchObject({
+      domain: "www.example.org",
+      redirect: { to: "https://example.org" },
+    });
+  });
+
+  it("redirects to a URL from the server its field shows, on a fleet of two", async () => {
+    const user = userEvent.setup();
+    const edits: ProposeChangeRequest["edits"] = [];
+    const hz2 = { ...hz1, id: "srv_2", name: "hz-2" };
+    renderAt("/domains", api(some, { services: [web, api_], servers: [hz1, hz2], more: { changes: changes(edits) } }));
+    await screen.findByRole("row", { name: /shop\.example\.com/ });
+    await user.click(await screen.findByRole("button", { name: "Add a domain" }));
+    const sheet = await screen.findByRole("dialog", { name: "Add a domain" });
+    await user.click(within(sheet).getByRole("radio", { name: /^A URL/ }));
+    await user.type(within(sheet).getByRole("textbox", { name: "Domain" }), "old-shop.example.net");
+    await user.type(within(sheet).getByRole("textbox", { name: "Redirect to" }), "https://shop.example.com");
+    const pick = within(sheet).getByRole("combobox", { name: "Server" });
+    await waitFor(() => expect(pick).toHaveValue(hz1.id));
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    await screen.findByRole("dialog", { name: "Review plan" });
+    expect(edits[0]?.servers).toEqual([hz1.id]);
+  });
+
+  describe("where www is served already", () => {
+    const heldWww = (held: ReturnType<typeof aDomain>, heldFor: string) =>
+      api([...some, held], {
+        services: [web, api_],
+        more: {
+          domains: {
+            listDomains: () => ({ domains: [...some, held] }),
+            checkDomain: (req) => ({
+              check: { domain: req.domain, state: DomainCheckState.POINTS_HERE, found: ["203.0.113.50"] },
+              companion: "www.example.org",
+              companionCheck: {
+                check: { domain: "www.example.org", state: DomainCheckState.POINTS_HERE, found: ["203.0.113.50"] },
+                answersAlike: true,
+                heldBy: "default",
+                heldByEnvironmentId: ENV,
+                heldFor,
+              },
+            }),
+          },
+        },
+      });
+    const open = async (user: ReturnType<typeof userEvent.setup>) => {
+      await screen.findByRole("row", { name: /shop\.example\.com/ });
+      await user.click(await screen.findByRole("button", { name: "Add a domain" }));
+      const sheet = await screen.findByRole("dialog", { name: "Add a domain" });
+      await user.selectOptions(within(sheet).getByRole("combobox", { name: "App" }), "api");
+      await user.type(within(sheet).getByRole("textbox", { name: "Domain" }), "example.org");
+      return sheet;
+    };
+
+    it("never takes over www another app of the environment serves: the box is off, with who serves it", async () => {
+      const user = userEvent.setup();
+      const edits: ProposeChangeRequest["edits"] = [];
+      renderAt("/domains", {
+        ...heldWww(aDomain({ name: "www.example.org", service: "web", certificate: issued }), "the app web"),
+        changes: changes(edits),
+      });
+      const sheet = await open(user);
+      expect(await within(sheet).findByText("www.example.org is served by the app web here")).toBeVisible();
+      const www = within(sheet).getByRole("checkbox", { name: "Also answer on www.example.org" });
+      expect(www).toBeDisabled();
+      expect(www).not.toBeChecked();
+      await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+      await screen.findByRole("dialog", { name: "Review plan" });
+      expect(edits).toHaveLength(1);
+    });
+
+    it("says www redirects here already, and adds nothing", async () => {
+      const user = userEvent.setup();
+      const edits: ProposeChangeRequest["edits"] = [];
+      const redirecting = aDomain({
+        name: "www.example.org",
+        route: { service: "", port: 0, redirect: { to: "https://example.org", temporary: false, dropPath: false } },
+      });
+      renderAt("/domains", { ...heldWww(redirecting, "a redirect to example.org"), changes: changes(edits) });
+      const sheet = await open(user);
+      expect(await within(sheet).findByText("www.example.org redirects here already")).toBeVisible();
+      expect(within(sheet).getByRole("checkbox", { name: "Also answer on www.example.org" })).not.toBeChecked();
+      await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+      await screen.findByRole("dialog", { name: "Review plan" });
+      expect(edits).toHaveLength(1);
+    });
   });
 
   it("asks for the app, once there's a choice, and refuses to guess", async () => {

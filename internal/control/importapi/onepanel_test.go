@@ -120,3 +120,43 @@ func TestEveryStepSaysWhatItIs(t *testing.T) {
 		}
 	}
 }
+
+// A site's redirects come across (ADR 0070): its www sent to it for good, keeping the
+// path, as one of its other domains; one sent elsewhere, or for a while, and a path's,
+// as routes beside it. One of pages it doesn't have is said to stay, and one that's off
+// says nothing.
+func TestASitesRedirectsComeAcross(t *testing.T) {
+	steps := Steps(&dockwellv1.OnePanel{
+		Version: "v2.6.0", BaseDir: "/opt",
+		Websites: []*dockwellv1.OnePanelWebsite{{
+			PrimaryDomain: "blog.example.com", Type: "static", Folder: "/opt/1panel/www/sites/blog/index",
+			// 1Panel picks a domain redirect's domains from the site's own.
+			Domains: []*dockwellv1.OnePanelDomain{
+				{Domain: "blog.example.com"},
+				{Domain: "www.blog.example.com"},
+				{Domain: "sale.example.com"},
+				{Domain: "off.example.com"},
+				{Domain: "*.blog.example.com"},
+			},
+			Redirects: []*dockwellv1.OnePanelRedirect{
+				{Name: "www", Type: "domain", Domains: []string{"www.blog.example.com"}, Target: "https://blog.example.com", KeepPath: true, Enabled: true},
+				{Name: "any", Type: "domain", Domains: []string{"*.blog.example.com"}, Target: "https://blog.example.com", KeepPath: true, Enabled: true},
+				{Name: "sale", Type: "domain", Domains: []string{"sale.example.com"}, Target: "https://shop.example.com", KeepPath: true, Enabled: true},
+				{Name: "moved", Type: "path", Path: "/old-blog", Target: "https://news.example.com", KeepPath: true, Enabled: true},
+				{Name: "lost", Type: "404", Enabled: true},
+				{Name: "off", Type: "domain", Domains: []string{"off.example.com"}, Target: "https://blog.example.com", KeepPath: true},
+			},
+		}},
+	})
+	s := stepFor(t, steps, dockwellv1.ImportKind_IMPORT_KIND_WEBSITE, "blog.example.com")
+	if !strings.Contains(s.GetBecomes(), "answering on www.blog.example.com too, redirecting to it") ||
+		!strings.Contains(s.GetBecomes(), "with its redirects of *.blog.example.com, sale.example.com, /old-blog as routes beside it") {
+		t.Errorf("becomes %q", s.GetBecomes())
+	}
+	// What a redirect that's on carries isn't said to stay too; a domain whose redirect is off does.
+	if !strings.Contains(s.GetReason(), "its redirect of pages it doesn't have") || strings.Contains(s.GetReason(), "www.blog.example.com") ||
+		strings.Contains(s.GetReason(), "sale.example.com") || !strings.Contains(s.GetReason(), "its other domain, off.example.com") ||
+		strings.Contains(s.GetBecomes(), "off.example.com") {
+		t.Errorf("reason %q", s.GetReason())
+	}
+}

@@ -715,6 +715,31 @@ message OnePanelWebsite {
   string status = 12;
   // The site it's under, for a subsite.
   string parent = 13;
+  // Its redirects, as 1Panel keeps each in a file of the site's redirect folder
+  // (ADR 0070).
+  repeated OnePanelRedirect redirects = 14;
+}
+
+// OnePanelRedirect is one of a 1Panel website's redirects.
+message OnePanelRedirect {
+  // Its name, which names its file.
+  string name = 1;
+  // What it redirects: "domain" for whole domains, "path" for a path of the site,
+  // or "404" for what the site has no page for. Empty for a file 1Panel didn't
+  // write, which isn't read.
+  string type = 2;
+  // The domains it redirects, for "domain".
+  repeated string domains = 3;
+  // The path it redirects, for "path", such as "/old-blog".
+  string path = 4;
+  // Where it sends, such as "https://example.com".
+  string target = 5;
+  // True for a 302, for a while; false for a 301, for good.
+  bool temporary = 6;
+  // True when what follows the domain or the path goes after target.
+  bool keep_path = 7;
+  // False for one turned off in 1Panel.
+  bool enabled = 8;
 }
 
 // OnePanelDomain is a domain a website answers, on a port.

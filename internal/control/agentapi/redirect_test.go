@@ -41,11 +41,20 @@ func TestAnOlderAgentIsRefusedARedirect(t *testing.T) {
 			_, err := s.Remember(t.Context(), www, spec, 1, "chg_1", "")
 			return err
 		},
+		// Read back, its redirect's handlers would read as a hand edit.
+		"reading back": func(s *Session, spec *resourcev1.Route) error {
+			return s.CheckRead([]resource.Desired{{Ref: www, Spec: spec}})
+		},
 	}
 	for name, entry := range entries {
 		t.Run(name, func(t *testing.T) {
 			err := entry(open(false), redirect)
-			if !errors.Is(err, resource.ErrAgentTooOld) || !strings.Contains(err.Error(), "hz-2's agent is older than this release, so it can't serve www.example.com's redirect. Update its agent") {
+			said := "hz-2's agent is older than this release, so it can't serve www.example.com's redirect. Update its agent, then plan again"
+			if name == "reading back" {
+				// Drift is listed to anyone who reads any project: it names no route, and says what to do next there.
+				said = "hz-2's agent is older than this release, so it can't serve a redirect that runs there. Update its agent, then check drift again"
+			}
+			if !errors.Is(err, resource.ErrAgentTooOld) || !strings.Contains(err.Error(), said) {
 				t.Errorf("an older agent, with a redirect = %v", err)
 			}
 			if err := entry(open(false), toWeb); errors.Is(err, resource.ErrAgentTooOld) {

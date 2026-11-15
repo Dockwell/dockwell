@@ -1837,6 +1837,32 @@ func (s *Session) checkTakenWrites(ref resource.Ref, adopts string, spec proto.M
 	return fmt.Errorf("the agent on %s can't keep a taken-on container's values by name, and taking %s on names one. Update the agent on %s", s.name, ref.Name, s.name)
 }
 
+// CheckRead refuses to read back a route that answers with a redirect from an agent
+// that doesn't serve them, as it would read the redirect's handlers as a hand edit,
+// and taking that would lose the redirect (ADR 0070).
+// Its words name no route, as drift is listed to anyone who can read any project.
+func (s *Session) CheckRead(desired []resource.Desired) error {
+	for i := range desired {
+		if s.checkRedirect(desired[i].Spec) != nil {
+			return fmt.Errorf("%w: %s's agent is older than this release, so it can't serve a redirect that runs there. Update its agent, then check drift again",
+				resource.ErrAgentTooOld, s.name)
+		}
+	}
+	return nil
+}
+
+// ServesRedirects says whether a server's agent serves a route's redirect, and whether
+// that's known, as it is only while the server is connected (ADR 0070).
+func (a *Agents) ServesRedirects(server string) (serves, known bool) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	s, ok := a.sessions[server]
+	if !ok {
+		return false, false
+	}
+	return s.servesRedirects, true
+}
+
 // checkRedirect refuses a route that answers with a redirect for an agent that
 // doesn't say it serves one, which would write a route that sends to nothing (ADR
 // 0070).

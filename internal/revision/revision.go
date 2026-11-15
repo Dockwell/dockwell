@@ -6533,6 +6533,15 @@ func (e *Engine) Drift(ctx context.Context, server string) ([]Drift, error) {
 	if len(refs) == 0 {
 		return nil, nil
 	}
+	if c, ok := agent.(resource.ReadChecker); ok {
+		want := make([]resource.Desired, len(refs))
+		for i := range refs {
+			want[i] = resource.Desired{Ref: refs[i], Spec: desired[i]}
+		}
+		if err := c.CheckRead(want); err != nil {
+			return nil, &AgentError{Server: name, Doing: "check drift", Err: err}
+		}
+	}
 	observed, err := agent.Observe(ctx, refs)
 	if err != nil {
 		return nil, &AgentError{Server: name, Doing: "check drift", Err: err}

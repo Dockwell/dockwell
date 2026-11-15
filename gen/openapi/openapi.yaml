@@ -13851,6 +13851,12 @@ components:
                     description: |-
                         Where the server's ingress stands, as it last said. A domain with an issued
                          certificate still doesn't answer while problem is set here.
+                redirectUnserved:
+                    type: boolean
+                    description: |-
+                        True when a route of the domain redirects, and the server's agent, as it
+                         last connected, is too old to serve a redirect, as after a downgrade: the
+                         redirect isn't served there until its agent is updated (ADR 0070).
             description: DomainServer is where a domain stands on one server.
         DomainStatus:
             type: object
@@ -19843,6 +19849,39 @@ components:
                     type: boolean
                     description: True when it's served over HTTPS.
             description: OnePanelDomain is a domain a website answers, on a port.
+        OnePanelRedirect:
+            type: object
+            properties:
+                name:
+                    type: string
+                    description: Its name, which names its file.
+                type:
+                    type: string
+                    description: |-
+                        What it redirects: "domain" for whole domains, "path" for a path of the site,
+                         or "404" for what the site has no page for. Empty for a file 1Panel didn't
+                         write, which isn't read.
+                domains:
+                    type: array
+                    items:
+                        type: string
+                    description: The domains it redirects, for "domain".
+                path:
+                    type: string
+                    description: The path it redirects, for "path", such as "/old-blog".
+                target:
+                    type: string
+                    description: Where it sends, such as "https://example.com".
+                temporary:
+                    type: boolean
+                    description: True for a 302, for a while; false for a 301, for good.
+                keepPath:
+                    type: boolean
+                    description: True when what follows the domain or the path goes after target.
+                enabled:
+                    type: boolean
+                    description: False for one turned off in 1Panel.
+            description: OnePanelRedirect is one of a 1Panel website's redirects.
         OnePanelRuntime:
             type: object
             properties:
@@ -19919,6 +19958,13 @@ components:
                 parent:
                     type: string
                     description: The site it's under, for a subsite.
+                redirects:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/OnePanelRedirect'
+                    description: |-
+                        Its redirects, as 1Panel keeps each in a file of the site's redirect folder
+                         (ADR 0070).
             description: OnePanelWebsite is a website 1Panel's OpenResty serves.
         OpenCatalogInstallRequest:
             type: object

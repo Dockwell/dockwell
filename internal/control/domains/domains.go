@@ -38,6 +38,9 @@ import (
 type Reports interface {
 	Domain(server, domain string) (status *dockwellv1.DomainStatus, connected bool)
 	Ingress(server string) *dockwellv1.IngressStatus
+	// ServesRedirects says whether a server's agent serves a route's redirect, and
+	// whether that's known, as it is while the server is connected (ADR 0070).
+	ServesRedirects(server string) (serves, known bool)
 }
 
 // Servers is what's known of each server.
@@ -219,18 +222,25 @@ func (h *Handler) add(ctx context.Context, tx *store.Tx, r *store.Resource, byNa
 		return err
 	}
 	for _, id := range placed {
-		if slices.ContainsFunc(d.Servers, func(s *dockwellv1.DomainServer) bool { return s.GetServerId() == id }) {
-			continue
+		i := slices.IndexFunc(d.Servers, func(s *dockwellv1.DomainServer) bool { return s.GetServerId() == id })
+		if i < 0 {
+			srv, err := tx.GetServer(ctx, id)
+			if err != nil {
+				return err
+			}
+			if srv.RevokedAt != nil {
+				continue
+			}
+			status, connected := h.reports.Domain(id, name)
+			d.Servers = append(d.Servers, &dockwellv1.DomainServer{ServerId: id, ServerName: srv.Name, Status: status, Stale: !connected, Ingress: h.reports.Ingress(id)})
+			i = len(d.Servers) - 1
 		}
-		srv, err := tx.GetServer(ctx, id)
-		if err != nil {
-			return err
+		// A redirect on a server whose agent doesn't serve one, as after a downgrade.
+		if rt.GetRedirect() != nil {
+			if serves, known := h.reports.ServesRedirects(id); known && !serves {
+				d.Servers[i].RedirectUnserved = true
+			}
 		}
-		if srv.RevokedAt != nil {
-			continue
-		}
-		status, connected := h.reports.Domain(id, name)
-		d.Servers = append(d.Servers, &dockwellv1.DomainServer{ServerId: id, ServerName: srv.Name, Status: status, Stale: !connected, Ingress: h.reports.Ingress(id)})
 	}
 	return nil
 }

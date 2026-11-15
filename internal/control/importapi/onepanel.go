@@ -251,11 +251,27 @@ func websiteStep(w *dockwellv1.OnePanelWebsite, runtimes map[string]*dockwellv1.
 		s.Reason = "Dockwell doesn't know what that kind of site is. Make it again from Dockwell's Websites."
 		return s
 	}
-	switch n := len(w.GetDomains()); {
-	case n == 2:
-		lost = append(lost, "its other domain, "+w.GetDomains()[1].GetDomain())
-	case n > 2:
-		lost = append(lost, fmt.Sprintf("its %d other domains", n-1))
+	others, routes, gone, redirected := redirectsOf(w)
+	if len(others) > 0 {
+		s.Becomes += fmt.Sprintf(", answering on %s too, redirecting to it", strings.Join(others, ", "))
+	}
+	if len(routes) > 0 {
+		s.Becomes += fmt.Sprintf(", with its redirects of %s as routes beside it", strings.Join(routes, ", "))
+	}
+	lost = append(lost, gone...)
+	// 1Panel picks a domain redirect's domains from the site's own, so one a redirect
+	// that's on accounts for comes across as that redirect, not as a domain that stays.
+	var rest []string
+	for _, d := range w.GetDomains() {
+		if name := strings.ToLower(d.GetDomain()); name != strings.ToLower(w.GetPrimaryDomain()) && !redirected[name] {
+			rest = append(rest, d.GetDomain())
+		}
+	}
+	switch n := len(rest); {
+	case n == 1:
+		lost = append(lost, "its other domain, "+rest[0])
+	case n > 1:
+		lost = append(lost, fmt.Sprintf("its %d other domains", n))
 	}
 	if w.GetRewrite() {
 		lost = append(lost, "its rewrite rules")
@@ -267,6 +283,45 @@ func websiteStep(w *dockwellv1.OnePanelWebsite, runtimes map[string]*dockwellv1.
 		s.Reason = strings.TrimSpace(s.Reason + " It's stopped in 1Panel, and a Dockwell website serves it once it's made, so leave it out if it should stay down.")
 	}
 	return s
+}
+
+// redirectsOf says what becomes of a site's redirects that are on (ADR 0070): a whole
+// domain sent to the site itself, for good and keeping the path, is one of its other
+// domains (Website.redirect_from); a domain or a path sent elsewhere, or for a while,
+// or a wildcard, is a redirect route beside it; one of pages it doesn't have has no
+// place yet. redirected holds the domains the domain redirects account for.
+func redirectsOf(w *dockwellv1.OnePanelWebsite) (others, routes, lost []string, redirected map[string]bool) {
+	redirected = map[string]bool{}
+	own := map[string]bool{strings.ToLower(w.GetPrimaryDomain()): true}
+	for _, d := range w.GetDomains() {
+		own[strings.ToLower(d.GetDomain())] = true
+	}
+	for _, r := range w.GetRedirects() {
+		if !r.GetEnabled() {
+			continue
+		}
+		switch r.GetType() {
+		case "domain":
+			wildcard := false
+			for _, d := range r.GetDomains() {
+				redirected[strings.ToLower(d)] = true
+				wildcard = wildcard || strings.HasPrefix(d, "*.")
+			}
+			u, err := url.Parse(r.GetTarget())
+			if err == nil && !wildcard && own[strings.ToLower(u.Hostname())] && strings.Trim(u.EscapedPath(), "/") == "" && r.GetKeepPath() && !r.GetTemporary() {
+				others = append(others, r.GetDomains()...)
+			} else {
+				routes = append(routes, r.GetDomains()...)
+			}
+		case "path":
+			routes = append(routes, r.GetPath())
+		case "404":
+			lost = append(lost, "its redirect of pages it doesn't have")
+		default:
+			lost = append(lost, "its redirect "+r.GetName())
+		}
+	}
+	return others, routes, lost, redirected
 }
 
 // proxyTarget says where a proxy sends, in Dockwell's words: a port on the

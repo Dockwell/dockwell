@@ -1959,9 +1959,13 @@ type DomainServer struct {
 	Stale bool `protobuf:"varint,4,opt,name=stale,proto3" json:"stale,omitempty"`
 	// Where the server's ingress stands, as it last said. A domain with an issued
 	// certificate still doesn't answer while problem is set here.
-	Ingress       *IngressStatus `protobuf:"bytes,5,opt,name=ingress,proto3" json:"ingress,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Ingress *IngressStatus `protobuf:"bytes,5,opt,name=ingress,proto3" json:"ingress,omitempty"`
+	// True when a route of the domain redirects, and the server's agent, as it
+	// last connected, is too old to serve a redirect, as after a downgrade: the
+	// redirect isn't served there until its agent is updated (ADR 0070).
+	RedirectUnserved bool `protobuf:"varint,10,opt,name=redirect_unserved,json=redirectUnserved,proto3" json:"redirect_unserved,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *DomainServer) Reset() {
@@ -2027,6 +2031,13 @@ func (x *DomainServer) GetIngress() *IngressStatus {
 		return x.Ingress
 	}
 	return nil
+}
+
+func (x *DomainServer) GetRedirectUnserved() bool {
+	if x != nil {
+		return x.RedirectUnserved
+	}
+	return false
 }
 
 // IngressStatus is where a server's ingress stands, on a server with routes.
@@ -2494,14 +2505,16 @@ const file_dockwell_v1_domain_proto_rawDesc = "" +
 	"\x05users\x18o \x03(\tR\x05users\x12@\n" +
 	"\asign_in\x18p \x01(\v2'.dockwell.resource.v1alpha1.RouteSignInR\x06signIn\x12E\n" +
 	"\bredirect\x18\n" +
-	" \x01(\v2).dockwell.resource.v1alpha1.RouteRedirectR\bredirect\"\xcb\x01\n" +
+	" \x01(\v2).dockwell.resource.v1alpha1.RouteRedirectR\bredirect\"\xf8\x01\n" +
 	"\fDomainServer\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x1f\n" +
 	"\vserver_name\x18\x02 \x01(\tR\n" +
 	"serverName\x121\n" +
 	"\x06status\x18\x03 \x01(\v2\x19.dockwell.v1.DomainStatusR\x06status\x12\x14\n" +
 	"\x05stale\x18\x04 \x01(\bR\x05stale\x124\n" +
-	"\aingress\x18\x05 \x01(\v2\x1a.dockwell.v1.IngressStatusR\aingress\"\x87\x02\n" +
+	"\aingress\x18\x05 \x01(\v2\x1a.dockwell.v1.IngressStatusR\aingress\x12+\n" +
+	"\x11redirect_unserved\x18\n" +
+	" \x01(\bR\x10redirectUnserved\"\x87\x02\n" +
 	"\rIngressStatus\x12\x14\n" +
 	"\x05proxy\x18\x01 \x01(\tR\x05proxy\x12\x18\n" +
 	"\arunning\x18\x02 \x01(\bR\arunning\x125\n" +

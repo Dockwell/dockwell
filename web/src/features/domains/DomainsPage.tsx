@@ -109,6 +109,28 @@ interface Row {
   first: boolean;
   /** The ways into its app around it, when it keeps strangers out. */
   open: readonly OpenWay[];
+  /** Its domain's other half, www or the bare domain, folded in as it only redirects here (ADR 0070). */
+  folded: readonly Standing[];
+}
+
+/** A domain's other half: www's name for a bare domain, or the bare domain for www. */
+function companionName(name: string): string {
+  return name.startsWith("www.") ? name.slice(4) : `www.${name}`;
+}
+
+/** The domain a domain only redirects to, whole, when that's its other half, or empty. */
+function foldsInto(domain: Domain): string {
+  if (domain.routes.length === 0) return "";
+  const target = companionName(domain.name);
+  const into = domain.routes.every((route) => {
+    if (route.path !== "" || !route.redirect) return false;
+    try {
+      return new URL(route.redirect.to).hostname === target;
+    } catch {
+      return false;
+    }
+  });
+  return into ? target : "";
 }
 
 /** An app's key among the routes that reach it. */
@@ -205,11 +227,29 @@ export function DomainsPage({
   const byName = new Map((services.data ?? []).map((s) => [appKey(environmentOf(s), nameOf(s)), s]));
   const wanted = query.trim().toLowerCase();
   const rows: Row[] = [];
-  for (const { domain, look, silent, group } of ordered) {
-    // Where nobody can say how it stands, nobody can say it's in the state you asked for.
-    // The moment a read back takes is no reason to move the list.
-    if (read !== "failed" && search.state && group !== search.state) continue;
-    if (search.server && !domain.servers.some((s) => s.serverId === search.server)) continue;
+  // Where nobody can say how it stands, nobody can say it's in the state you asked for.
+  // The moment a read back takes is no reason to move the list.
+  const shown = ordered.filter(
+    ({ domain, group }) =>
+      !(read !== "failed" && search.state && group !== search.state) &&
+      !(search.server && !domain.servers.some((s) => s.serverId === search.server)),
+  );
+  // www that only redirects to its bare domain, or the other way round, folds into that
+  // domain's row, as the mock has it, where both are listed in the same environment:
+  // one of another keeps its own row, which says where it is and what it offers. So
+  // does one that needs a look, such as a certificate that failed or a server that
+  // can't serve it, as its row says why with the way to fix it.
+  const folds = new Map<string, Standing[]>();
+  for (const one of shown) {
+    if (groupNeedsALook(one.group)) continue;
+    const into = foldsInto(one.domain);
+    const host = shown.find((o) => o.domain.name === into && o.domain.environmentId === one.domain.environmentId);
+    if (into && host && !foldsInto(host.domain)) folds.set(into, [...(folds.get(into) ?? []), one]);
+  }
+  const foldedAway = new Set([...folds.values()].flat().map((one) => one.domain.name));
+  for (const { domain, look, silent } of shown) {
+    if (foldedAway.has(domain.name)) continue;
+    const folded = folds.get(domain.name) ?? [];
     let first = true;
     for (const route of domain.routes) {
       const said = [
@@ -217,6 +257,7 @@ export function DomainsPage({
         route.service,
         ...domain.servers.map((s) => s.serverName),
         places.label(domain.environmentId),
+        ...folded.map((one) => one.domain.name),
       ];
       if (!said.join(" ").toLowerCase().includes(wanted)) continue;
       const service = byName.get(appKey(domain.environmentId, route.service));
@@ -231,6 +272,7 @@ export function DomainsPage({
         website,
         first,
         open: openWaysOf(domain, route, service, all ?? []),
+        folded: first && route.path === "" ? folded : [],
       });
       first = false;
     }
@@ -815,6 +857,8 @@ function DomainsTable({
               <Private row={row} onPrivate={onPrivate} />
             </span>
             <PrivateFact domain={row.domain} route={row.route} open={row.open} />
+            <Folded row={row} />
+            <Unserved row={row} />
             <RowNote row={row} read={read} onMoveBehind={onMoveBehind} />
           </div>
         ),
@@ -949,7 +993,65 @@ function PhoneRow({
         <Private row={row} onPrivate={onPrivate} />
       </div>
       <PrivateFact domain={row.domain} route={row.route} open={row.open} />
+      <Folded row={row} />
+      <Unserved row={row} />
       <RowNote row={row} read={read} onMoveBehind={onMoveBehind} />
     </div>
+  );
+}
+
+/**
+ * The other half folded into a domain's row: "Redirects: www → example.com", and what's
+ * wrong with it, as its own row, where that would show, is folded away (ADR 0070).
+ */
+function Folded({ row }: { row: Row }) {
+  if (row.folded.length === 0) return null;
+  return (
+    <>
+      {row.folded.map((one) => {
+        const from = one.domain.name.endsWith(`.${row.domain.name}`)
+          ? one.domain.name.slice(0, -row.domain.name.length - 1)
+          : one.domain.name;
+        const into = row.domain.name;
+        return (
+          <span key={one.domain.name} className="domains-folded">
+            <Icon name="arrow-right" size={12} />
+            <span>
+              <Trans>
+                Redirects: <code>{from}</code> → {into}
+              </Trans>
+            </span>
+          </span>
+        );
+      })}
+    </>
+  );
+}
+
+/**
+ * A redirect on a server whose agent is too old to serve one, as after a downgrade:
+ * where it isn't served, and the way to the server to update its agent (ADR 0070).
+ */
+function Unserved({ row }: { row: Row }) {
+  if (!row.route.redirect || !row.first) return null;
+  return (
+    <>
+      {row.domain.servers
+        .filter((s) => s.redirectUnserved)
+        .map((s) => {
+          const server = s.serverName;
+          return (
+            <span key={s.serverId} className="domains-folded domains-folded-trouble">
+              <span>
+                <Trans>Not served on {server}</Trans>
+              </span>
+              {" · "}
+              <Link to="/servers/$serverId" params={{ serverId: s.serverId }}>
+                <Trans>Update its agent</Trans>
+              </Link>
+            </span>
+          );
+        })}
+    </>
   );
 }

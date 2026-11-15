@@ -3,21 +3,27 @@
 package revision
 
 import (
+	"errors"
+	"log/slog"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	"github.com/dockwell/dockwell/internal/control/place"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/route"
+	"github.com/dockwell/dockwell/internal/scope"
+	"github.com/dockwell/dockwell/internal/secrets/secretstest"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
 )
 
-func redirectIn(env, name, domain, path, to string, dropPath bool, servers ...string) Edit {
+func redirectIn(env, name, domain, to string, dropPath bool, servers ...string) Edit {
 	return Edit{
 		Ref:     resource.Ref{Kind: route.Kind, Scope: env, Name: name},
-		Spec:    &resourcev1.Route{Domain: domain, Path: path, Redirect: &resourcev1.RouteRedirect{To: to, DropPath: dropPath}},
+		Spec:    &resourcev1.Route{Domain: domain, Redirect: &resourcev1.RouteRedirect{To: to, DropPath: dropPath}},
 		Servers: servers,
 	}
 }
@@ -30,7 +36,7 @@ func TestAChangeThatLeavesARedirectInALoopIsRefused(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, b store.Backend) {
 		e, prod, _, _ := setupRoutes(t, b, "srv_A")
 		apply(t, e, propose(t, e, "Blog", routeIn(prod, "blog", "example.com", "/blog", "srv_A")))
-		apply(t, e, propose(t, e, "Root to the blog", redirectIn(prod, "root", "example.com", "", "https://example.com/blog", true, "srv_A")))
+		apply(t, e, propose(t, e, "Root to the blog", redirectIn(prod, "root", "example.com", "https://example.com/blog", true, "srv_A")))
 
 		_, err := e.Propose(t.Context(), Proposal{Summary: "Drop the blog", Actor: "usr_test", Edits: []Edit{del(route.Kind, prod, "blog")}})
 		if err == nil || !strings.Contains(err.Error(), "route root, which this change leaves as it is, would then send visitors round in a circle") {
@@ -54,7 +60,7 @@ func TestAChangeSaysARedirectWouldLandOnNothing(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, b store.Backend) {
 		e, prod, _, _ := setupRoutes(t, b, "srv_A")
 		apply(t, e, propose(t, e, "The site", routeIn(prod, "site", "example.com", "", "srv_A")))
-		apply(t, e, propose(t, e, "www to the site", redirectIn(prod, "www", "www.example.com", "", "https://example.com", false, "srv_A")))
+		apply(t, e, propose(t, e, "www to the site", redirectIn(prod, "www", "www.example.com", "https://example.com", false, "srv_A")))
 
 		p := propose(t, e, "Drop the site", del(route.Kind, prod, "site"))
 		i := slices.IndexFunc(p.Notes, func(n Note) bool { return n.Reason == "redirect_stranded" })
@@ -72,6 +78,83 @@ func TestAChangeSaysARedirectWouldLandOnNothing(t *testing.T) {
 		other := propose(t, e, "Another site", routeIn(prod, "shop", "shop.example.com", "", "srv_A"))
 		if slices.ContainsFunc(other.Notes, func(n Note) bool { return n.Reason == "redirect_stranded" }) {
 			t.Errorf("another site's change notes %+v", other.Notes)
+		}
+	})
+}
+
+// refusesRedirects is an agent too old to serve a redirect: it refuses to read one
+// back, as the agent API's session does (ADR 0070).
+type refusesRedirects struct{ resource.Local }
+
+func (refusesRedirects) CheckRead(desired []resource.Desired) error {
+	for i := range desired {
+		if r, ok := desired[i].Spec.(*resourcev1.Route); ok && r.GetRedirect() != nil {
+			return errors.New("srv_A's agent is older than this release, so it can't serve a redirect that runs there. Update its agent, then check drift again")
+		}
+	}
+	return nil
+}
+
+// Drift is never read back from an agent that can't serve what a server should run:
+// the engine asks it first, and says why it can't check (ADR 0070).
+func TestDriftIsntReadFromAnAgentThatCantServeARedirect(t *testing.T) {
+	db, _ := storetest.Open(t, store.SQLite)
+	logger := slog.New(slog.DiscardHandler)
+	if _, err := Setup(t.Context(), db, logger); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now()
+	if err := db.Update(t.Context(), func(tx *store.Tx) error {
+		return tx.CreateServer(t.Context(), store.Server{ID: "srv_A", Name: "srv_A", CreatedAt: now, CertSerial: "srv_A", CertNotAfter: now})
+	}); err != nil {
+		t.Fatal(err)
+	}
+	ing := &memIngress{routes: map[resource.Ref]*resourcev1.Route{}}
+	local := resource.Local{Drivers: resource.NewRegistry(&route.Driver{Ingress: ing, Reserved: panelDomain})}
+	agents := onDocker{"srv_A": local}
+	kinds := resource.NewRegistry(&route.Driver{Reserved: panelDomain})
+	e := New(db, kinds, agents, secretstest.Keeper(db, kinds), logger)
+	prod := production(t, db)
+	apply(t, e, propose(t, e, "www", redirectIn(prod, "www", "www.example.com", "https://example.com", false, "srv_A")))
+
+	agents["srv_A"] = refusesRedirects{local}
+	_, err := e.Drift(t.Context(), "srv_A")
+	if err == nil || !strings.Contains(err.Error(), "can't serve a redirect that runs there. Update its agent") {
+		t.Errorf("drift from an agent that can't serve a redirect = %v", err)
+	}
+	agents["srv_A"] = local
+	if _, err := e.Drift(t.Context(), "srv_A"); err != nil {
+		t.Errorf("drift from an agent that serves it = %v", err)
+	}
+}
+
+// A redirect for www under a name of its own, as Add a domain's companion is, is
+// refused where another route of the install serves www, never taken as an update
+// of that route; to a caller who can't see that route's project, in words that
+// name nothing of it (ADR 0070).
+func TestAWwwRedirectNeverTakesOverAServedWww(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		e, prod, _, ingresses := setupRoutes(t, b, "srv_A")
+		db := e.db
+		apply(t, e, propose(t, e, "www to web", routeIn(prod, "www-example-org", "www.example.org", "", "srv_A")))
+		apply(t, e, propose(t, e, "Add shop", Edit{Ref: resource.Ref{Kind: scope.ProjectKind, Scope: tree(t, db).Organization.ID, Name: "shop"}, Spec: &resourcev1.Project{}}))
+		project, shop, err := tree(t, db).Resolve("shop", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		companion := redirectIn(shop.ID, "www-example-org-2", "www.example.org", "https://example.org", false, "srv_A")
+		_, err = e.Propose(t.Context(), Proposal{Summary: "Send example.org to api", Actor: "usr_test", Edits: []Edit{companion}})
+		if !errors.Is(err, ErrInvalid) || !strings.Contains(err.Error(), "www.example.org is already served by route www-example-org in default's production") {
+			t.Errorf("a second route for www, by an admin = %v", err)
+		}
+		ada := place.WithCaller(t.Context(), place.Caller{UserID: "usr_ada", Grants: []store.Grant{{UserID: "usr_ada", ProjectID: project.ID, Role: store.RoleDeveloper}}})
+		_, err = e.Propose(ada, Proposal{Summary: "Send example.org to api", Actor: "user:usr_ada", Edits: []Edit{companion}})
+		if !errors.Is(err, ErrInvalid) || !strings.Contains(err.Error(), "www.example.org is in use by a project you can't see") ||
+			strings.Contains(err.Error(), "www-example-org ") || strings.Contains(err.Error(), "default") {
+			t.Errorf("a second route for www, by a developer of shop alone = %v", err)
+		}
+		if got := ingresses["srv_A"].routes[resource.Ref{Kind: route.Kind, Scope: prod, Name: "www-example-org"}]; got.GetService() != "web" {
+			t.Errorf("www now %v", got)
 		}
 	})
 }

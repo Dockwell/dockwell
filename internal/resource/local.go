@@ -116,6 +116,13 @@ type Agent interface {
 	Observe(ctx context.Context, refs []Ref) ([]proto.Message, error)
 }
 
+// ReadChecker is an Agent that refuses to read back what it can't run, as an older
+// agent can't serve a route's redirect, so reading one back would take it for a hand
+// edit (ADR 0070). The engine asks it before Observe, with what each resource should be.
+type ReadChecker interface {
+	CheckRead(desired []Desired) error
+}
+
 // What an Agent's call returns when it didn't run to an end on the server.
 // The engine tells them apart: a call that didn't run can wait for the
 // agent, and one that may have run is checked again.

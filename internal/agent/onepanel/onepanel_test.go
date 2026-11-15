@@ -5,7 +5,10 @@ package onepanel
 import (
 	"database/sql"
 	"errors"
+	"fmt"
+	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -14,6 +17,7 @@ import (
 
 	"google.golang.org/protobuf/encoding/prototext"
 
+	"golang.org/x/sys/unix"
 	_ "modernc.org/sqlite" // SQLite changes the records a test reads
 
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
@@ -282,5 +286,141 @@ func TestAFailedReadGoesAgain(t *testing.T) {
 	}
 	if _, err := retried(t.Context(), "agent.db", func() (*dockwellv1.OnePanel, bool, error) { return nil, true, nil }, still); err == nil || !strings.Contains(err.Error(), "1Panel changed") {
 		t.Errorf("a file that changes every time = %v", err)
+	}
+}
+
+// A file swapped for a link or a pipe after the folder was listed is refused, not
+// followed or waited on, and a folder swapped for a link isn't followed either.
+func TestARedirectFileIsReadOnlyIfRegular(t *testing.T) {
+	dir := t.TempDir()
+	onepaneltest.WriteFile(t, filepath.Join(dir, "www.conf"), "return 301 https://example.com;")
+	folder, err := os.Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer folder.Close()
+	if text, err := readSome(folder, "www.conf", 8); err != nil || text != "return 3" {
+		t.Errorf("a regular file reads %q, %v", text, err)
+	}
+	if err := os.Symlink(filepath.Join(dir, "www.conf"), filepath.Join(dir, "linked.conf")); err != nil {
+		t.Fatal(err)
+	}
+	if err := unix.Mkfifo(filepath.Join(dir, "pipe.conf"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"linked.conf", "pipe.conf"} {
+		done := make(chan error, 1)
+		go func() {
+			_, err := readSome(folder, name, 8)
+			done <- err
+		}()
+		select {
+		case err := <-done:
+			if err == nil {
+				t.Errorf("%s was read", name)
+			}
+		case <-time.After(10 * time.Second):
+			t.Fatalf("reading %s waits", name)
+		}
+	}
+
+	// The folder, listed, is swapped for a link to another holding the same names:
+	// what's read is still the listed folder's.
+	parent := t.TempDir()
+	listed, elsewhere := filepath.Join(parent, "redirect"), filepath.Join(parent, "elsewhere")
+	onepaneltest.WriteFile(t, filepath.Join(listed, "www.conf"), "listed")
+	onepaneltest.WriteFile(t, filepath.Join(elsewhere, "www.conf"), "elsewhere")
+	opened, err := os.Open(listed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer opened.Close()
+	if err := os.Rename(listed, filepath.Join(parent, "moved")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(elsewhere, listed); err != nil {
+		t.Fatal(err)
+	}
+	if text, err := readSome(opened, "www.conf", 64); err != nil || text != "listed" {
+		t.Errorf("a folder swapped for a link after it was listed reads %q, %v", text, err)
+	}
+	if got := readRedirects(listed, maxRedirects, maxRedirectEntries); got != nil {
+		t.Errorf("a redirect folder that's a link reads %v", got)
+	}
+}
+
+// However many names the folder holds, only so many are looked at, and only so many
+// redirects read, a batch at a time; what's read is said by name.
+func TestASitesRedirectsAreBounded(t *testing.T) {
+	dir := t.TempDir()
+	for i := range 150 {
+		onepaneltest.WriteFile(t, filepath.Join(dir, fmt.Sprintf("r%03d.conf", i)), "rewrite ^/a(.*) https://example.com$1 permanent;\n")
+	}
+	for _, tc := range []struct{ files, entries, want int }{
+		{files: 100, entries: 1000, want: 100},
+		// Fewer names looked at than there are redirects: no more are read.
+		{files: 100, entries: 30, want: 30},
+		{files: 100, entries: 1, want: 1},
+	} {
+		got := readRedirects(dir, tc.files, tc.entries)
+		names := make([]string, 0, len(got))
+		for _, r := range got {
+			names = append(names, r.GetName())
+		}
+		if len(names) != tc.want || !slices.IsSorted(names) {
+			t.Errorf("%d files from %d names: read %d, sorted %v", tc.files, tc.entries, len(names), slices.IsSorted(names))
+		}
+	}
+}
+
+// A site's redirects are read from its redirect folder, in the shapes 1Panel writes
+// them, each with whether it's on, and nothing else there is (ADR 0070).
+func TestASitesRedirectsAreRead(t *testing.T) {
+	root := onepaneltest.Make(t, "/opt", false)
+	dir := filepath.Join(root, "data", "www", "sites", "blog", "redirect")
+	onepaneltest.WriteFile(t, filepath.Join(dir, "www.conf"), "if ($host ~ '^www.blog.example.com') {\n    return 301 https://blog.example.com$request_uri;\n}\nif ($host ~ '^old.example.com') {\n    return 301 https://blog.example.com$request_uri;\n}\n")
+	// From 1Panel 2.2.5, a host is escaped and anchored, and a wildcard's label is [^.]+.
+	onepaneltest.WriteFile(t, filepath.Join(dir, "shop.conf"), "if ($host ~ '^shop\\.example\\.com$') {\n    return 302 https://blog.example.com/shop;\n}\nif ($host ~ '^[^.]+\\.blog\\.example\\.com$') {\n    return 302 https://blog.example.com/shop;\n}\n")
+	onepaneltest.WriteFile(t, filepath.Join(dir, "odd.conf"), "if ($host ~ '^(www|m)\\.example\\.com$') {\n    return 301 https://blog.example.com;\n}\n")
+	onepaneltest.WriteFile(t, filepath.Join(dir, "moved.conf"), "rewrite ^/old-blog(.*) https://blog.example.com$1 permanent;\n")
+	onepaneltest.WriteFile(t, filepath.Join(dir, "promo.bak"), "rewrite ^/promo(.*) https://example.com/sale? redirect;\n")
+	onepaneltest.WriteFile(t, filepath.Join(dir, "lost.conf"), "error_page 404 = @notfound;\nlocation @notfound {\n    return 301 /;\n}\n")
+	onepaneltest.WriteFile(t, filepath.Join(dir, "notes.txt"), "not a redirect")
+	onepaneltest.WriteFile(t, filepath.Join(root, "elsewhere.conf"), "rewrite ^/x(.*) https://evil.example$1 permanent;\n")
+	if err := os.Symlink(filepath.Join(root, "elsewhere.conf"), filepath.Join(dir, "linked.conf")); err != nil {
+		t.Fatal(err)
+	}
+	var blog *dockwellv1.OnePanelWebsite
+	for _, w := range readOK(t, root).GetWebsites() {
+		if w.GetAlias() == "blog" {
+			blog = w
+		}
+	}
+	got := map[string]*dockwellv1.OnePanelRedirect{}
+	for _, r := range blog.GetRedirects() {
+		got[r.GetName()] = r
+	}
+	if len(got) != 6 {
+		t.Fatalf("read %v", blog.GetRedirects())
+	}
+	if www := got["www"]; www.GetType() != "domain" || !slices.Equal(www.GetDomains(), []string{"www.blog.example.com", "old.example.com"}) ||
+		www.GetTarget() != "https://blog.example.com" || !www.GetKeepPath() || www.GetTemporary() || !www.GetEnabled() {
+		t.Errorf("www reads %v", www)
+	}
+	if shop := got["shop"]; shop.GetType() != "domain" || !slices.Equal(shop.GetDomains(), []string{"shop.example.com", "*.blog.example.com"}) ||
+		shop.GetTarget() != "https://blog.example.com/shop" || shop.GetKeepPath() || !shop.GetTemporary() {
+		t.Errorf("shop reads %v", shop)
+	}
+	if odd := got["odd"]; odd.GetType() != "" || len(odd.GetDomains()) != 0 {
+		t.Errorf("a host 1Panel doesn't write reads %v", odd)
+	}
+	if moved := got["moved"]; moved.GetType() != "path" || moved.GetPath() != "/old-blog" || moved.GetTarget() != "https://blog.example.com" || !moved.GetKeepPath() || moved.GetTemporary() {
+		t.Errorf("moved reads %v", moved)
+	}
+	if promo := got["promo"]; promo.GetType() != "path" || promo.GetTarget() != "https://example.com/sale" || promo.GetKeepPath() || !promo.GetTemporary() || promo.GetEnabled() {
+		t.Errorf("promo reads %v", promo)
+	}
+	if lost := got["lost"]; lost.GetType() != "404" {
+		t.Errorf("lost reads %v", lost)
 	}
 }

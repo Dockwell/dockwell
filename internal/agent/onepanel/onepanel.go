@@ -160,7 +160,7 @@ func read(ctx context.Context, root, base, records string, v1 bool) (*dockwellv1
 		return nil, false, fmt.Errorf("the agent can't read 1Panel's records, %s: %w", records, err)
 	}
 	defer db.Close()
-	r := &reader{ctx: ctx, db: db, base: base}
+	r := &reader{ctx: ctx, db: db, base: base, root: root}
 	found := &dockwellv1.OnePanel{BaseDir: base, Records: records}
 	// What every version has, a version this doesn't know has too, or it isn't
 	// read: a table missing reads as empty otherwise, and says nothing of why.
@@ -185,6 +185,8 @@ type reader struct {
 	ctx  context.Context //nolint:containedctx // it lives as long as one read
 	db   *sqlitefile.DB
 	base string
+	// root is where the server's file system is, "/" but in tests.
+	root string
 }
 
 // rows calls each with each row of table, or with none where there's no such table.
@@ -336,6 +338,7 @@ func (r *reader) websites(found *dockwellv1.OnePanel, settings map[string]string
 			Https: strings.EqualFold(row.Text("protocol"), "HTTPS"), Status: row.Text("status"),
 		}
 		parents[w] = row.Int("parent_website_id")
+		w.Redirects = r.redirects(path.Join(sites, "sites", alias, "redirect"))
 		found.Websites = append(found.Websites, w)
 	}); err != nil {
 		return err
@@ -344,6 +347,139 @@ func (r *reader) websites(found *dockwellv1.OnePanel, settings map[string]string
 		w.Parent = aliases[id]
 	}
 	return nil
+}
+
+// Bounds on reading a site's redirects: how many files, how much of each, and how
+// many names in the folder to look through for them.
+const (
+	maxRedirects       = 100
+	maxRedirectFile    = 64 << 10
+	maxRedirectEntries = 10 * maxRedirects
+)
+
+var (
+	// domainRedirect is 1Panel's redirect of a domain: an if on the host, which
+	// returns a status and where to.
+	domainRedirect = lazyre.Regexp(`if\s*\(\$host\s*~\s*'\^([^']+)'\)\s*\{\s*return\s+(30[12])\s+([^;\s]+)\s*;`)
+	// pathRedirect is 1Panel's redirect of a path: a rewrite of everything under it.
+	pathRedirect = lazyre.Regexp(`rewrite\s+\^(\S*?)\(\.\*\)\s+(\S+)\s+(permanent|redirect)\s*;`)
+	// hostName is a domain, or a wildcard of one, as a redirect's host reads once
+	// 1Panel's pattern is undone.
+	hostName = lazyre.Regexp(`^(\*\.)?([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)*[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
+)
+
+// hostOf undoes the pattern 1Panel matches a redirect's host with, as its own
+// parseRedirectHostPattern does: '^www.example.com' up to 2.2.0, and from 2.2.5
+// '^www\.example\.com$', with '[^.]+' for a wildcard's label. It's empty for a
+// pattern that doesn't read back as a domain.
+func hostOf(pattern string) string {
+	host := strings.TrimSuffix(strings.TrimPrefix(pattern, "^"), "$")
+	host = strings.ReplaceAll(host, `[^.]+`, "*")
+	host = strings.ToLower(strings.ReplaceAll(host, `\.`, "."))
+	if !hostName().MatchString(host) {
+		return ""
+	}
+	return host
+}
+
+// redirects reads a site's redirects as 1Panel writes them (ADR 0070): each a file in
+// its redirect folder, name.conf while it's on and name.bak once it's off, holding one
+// of three shapes 1Panel writes. A file in another shape reads as one with no type, and
+// a folder that isn't there as none.
+func (r *reader) redirects(dir string) []*dockwellv1.OnePanelRedirect {
+	return readRedirects(filepath.Join(r.root, dir), maxRedirects, maxRedirectEntries)
+}
+
+// readRedirects reads up to files redirects from the folder dir, looking at no more than
+// entries of its names, a batch at a time, so a folder of a great many names costs no
+// more than that. Which are read when there are more is the folder's own order; what's
+// read is said by name.
+func readRedirects(dir string, files, entries int) []*dockwellv1.OnePanelRedirect {
+	// The folder itself is no link, and each file is opened from it, so every file
+	// read is one of the folder listed, whatever is swapped in by name after.
+	folder, err := os.OpenFile(dir, os.O_RDONLY|unix.O_DIRECTORY|unix.O_NOFOLLOW, 0) //nolint:gosec // 1Panel's own folder of a site's redirects
+	if err != nil {
+		return nil
+	}
+	defer folder.Close()
+	var out []*dockwellv1.OnePanelRedirect
+	for seen := 0; len(out) < files && seen < entries; {
+		batch, err := folder.ReadDir(min(files, entries-seen))
+		seen += len(batch)
+		for _, e := range batch {
+			name, on := strings.CutSuffix(e.Name(), ".conf")
+			if !on {
+				var off bool
+				if name, off = strings.CutSuffix(e.Name(), ".bak"); !off {
+					continue
+				}
+			}
+			if !e.Type().IsRegular() || len(out) == files {
+				continue
+			}
+			text, err := readSome(folder, e.Name(), maxRedirectFile)
+			if err != nil {
+				continue
+			}
+			out = append(out, parseRedirect(name, on, text))
+		}
+		if err != nil {
+			break
+		}
+	}
+	slices.SortFunc(out, func(a, b *dockwellv1.OnePanelRedirect) int { return cmp.Compare(a.GetName(), b.GetName()) })
+	return out
+}
+
+// parseRedirect reads one redirect file's text in the shapes 1Panel writes it.
+func parseRedirect(name string, on bool, text string) *dockwellv1.OnePanelRedirect {
+	out := &dockwellv1.OnePanelRedirect{Name: name, Enabled: on}
+	if found := domainRedirect().FindAllStringSubmatch(text, -1); len(found) > 0 {
+		var domains []string
+		for _, f := range found {
+			host := hostOf(f[1])
+			if host == "" {
+				// A host in a shape 1Panel doesn't write: what it is can't be said.
+				return out
+			}
+			domains = append(domains, host)
+		}
+		out.Type, out.Temporary, out.Domains = "domain", found[0][2] == "302", domains
+		out.Target, out.KeepPath = strings.CutSuffix(found[0][3], "$request_uri")
+		return out
+	}
+	if found := pathRedirect().FindStringSubmatch(text); found != nil {
+		out.Type, out.Path, out.Temporary = "path", found[1], found[3] == "redirect"
+		if target, kept := strings.CutSuffix(found[2], "$1"); kept {
+			out.Target, out.KeepPath = target, true
+		} else {
+			out.Target = strings.TrimSuffix(found[2], "?")
+		}
+		return out
+	}
+	if strings.Contains(text, "error_page 404") {
+		out.Type = "404"
+	}
+	return out
+}
+
+// readSome reads up to limit bytes of the regular file name in folder. It opens it
+// from the folder itself, follows no link and never waits on a pipe, as the file may
+// have been swapped for one since the folder was listed.
+func readSome(folder *os.File, name string, limit int64) (string, error) {
+	fd, err := unix.Openat(int(folder.Fd()), name, unix.O_RDONLY|unix.O_NOFOLLOW|unix.O_NONBLOCK|unix.O_CLOEXEC, 0)
+	if err != nil {
+		return "", fmt.Errorf("open %s: %w", name, err)
+	}
+	f := os.NewFile(uintptr(fd), name)
+	defer f.Close()
+	if st, err := f.Stat(); err != nil {
+		return "", err
+	} else if !st.Mode().IsRegular() {
+		return "", fmt.Errorf("%s isn't a regular file", name)
+	}
+	b, err := io.ReadAll(io.LimitReader(f, limit))
+	return string(b), err
 }
 
 func (r *reader) databases(found *dockwellv1.OnePanel, installs map[int64]string) error {

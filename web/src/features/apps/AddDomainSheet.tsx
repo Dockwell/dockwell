@@ -34,15 +34,24 @@ import { onApple } from "../../lib/platform";
 import { addressEdits } from "../catalog/access";
 import { type Opening, PlanView } from "../changes/ChangeSheet";
 import { type FleetState, useFleet } from "../servers/useFleet";
+import { CompanionChoice, useCompanion, useCompanionChoice } from "../websites/Companion";
 import { useWebsiteOfEnvironment } from "../websites/website";
 import { appOf, environmentOf, nameOf } from "./app";
 import { useRouteTarget, useTunnelSwitchName } from "./DomainNote";
 import { DomainRecord } from "./DomainRecord";
-import { formRefusal, proxyList, refusedField, routeName } from "./domains";
+import {
+  formRefusal,
+  freshRouteName,
+  proxyList,
+  redirectTarget,
+  refusedField,
+  refusesTarget,
+  routeName,
+} from "./domains";
 import { FrontFields, frontOf, type InFront } from "./FrontFields";
 import { validPort } from "./form";
 import { routeAsItIs } from "./PrivateSheet";
-import { useServices } from "./useServices";
+import { usePlaces, useServices } from "./useServices";
 
 /** A domain that's refused a certificate, moved behind what's in front by editing the routes it has. */
 export interface MoveBehind {
@@ -124,12 +133,28 @@ export function AddDomainSheet({
   const transport = useTransport();
   const phone = useMediaQuery(PHONE_QUERY);
   const client = useMemo(() => createClient(ChangeService, transport), [transport]);
+  const places = usePlaces();
+  // From Domains, a domain that belongs to no app, such as a vanity one, can redirect
+  // to a URL instead (ADR 0070).
+  const [redirecting, setRedirecting] = useState(false);
+  const [to, setTo] = useState("");
+  const [toError, setToError] = useState<string>();
+  const [temporary, setTemporary] = useState(false);
+  const [dropPath, setDropPath] = useState(false);
+  const [placeChosen, setPlaceChosen] = useState("");
   const [chosen, setChosen] = useState("");
-  const choosing = given === undefined && (apps?.length ?? 0) > 1;
-  const service = given ?? (choosing ? apps?.find((a) => a.service.id === chosen) : apps?.[0])?.service;
+  const choosing = given === undefined && (apps?.length ?? 0) > 1 && !redirecting;
+  const offersRedirect = given === undefined && start === undefined;
+  const service = redirecting
+    ? undefined
+    : (given ?? (choosing ? apps?.find((a) => a.service.id === chosen) : apps?.[0])?.service);
   const name = service ? nameOf(service) : "";
-  const environment = service ? environmentOf(service) : "";
-  const known = useQuery(DomainService.method.listDomains, { environment }, { enabled: service !== undefined });
+  const environment = redirecting
+    ? placeChosen || places.defaultEnvironment?.id || ""
+    : service
+      ? environmentOf(service)
+      : "";
+  const known = useQuery(DomainService.method.listDomains, { environment }, { enabled: environment !== "" });
   // A website's other domains are reached as its own is (ADR 0070): moving the site's
   // domain behind what's in front, or out, moves the redirects its list wrote with it.
   const websiteOf = useWebsiteOfEnvironment(start !== undefined);
@@ -145,8 +170,16 @@ export function AddDomainSheet({
         )
       : [];
   const onServer = (service && appOf(service)?.hostNetwork) ?? false;
-  const servers = service?.deployments ?? [];
-  const [server, setServer] = useState(servers[0]?.serverId ?? "");
+  const fleetServers = useFleet();
+  const servers = redirecting
+    ? fleetServers.status === "connecting"
+      ? []
+      : fleetServers.servers.map((s) => ({ serverId: s.id, serverName: s.name }))
+    : (service?.deployments ?? []);
+  const [serverPicked, setServer] = useState(servers[0]?.serverId ?? "");
+  // What the Server field shows is what the plan sends: the one picked while it's a
+  // choice there, or else the first, as the field shows it.
+  const server = servers.some((s) => s.serverId === serverPicked) ? serverPicked : (servers[0]?.serverId ?? "");
   const [domain, setDomain] = useState(start?.domain ?? "");
   const [port, setPort] = useState(start?.port ?? portOf(service));
   // What you typed stays as you choose another app. What it started from follows.
@@ -164,7 +197,7 @@ export function AddDomainSheet({
   const field = useRef<HTMLInputElement>(null);
   const form = useRef<HTMLFormElement>(null);
   const switchName = useTunnelSwitchName();
-  const fleet = useFleet();
+  const fleet = fleetServers;
   const navigate = useNavigate();
   // Once it's on its way, the app's page is where the domain's state shows as it's served.
   const landOnApp = () => {
@@ -180,7 +213,20 @@ export function AddDomainSheet({
   // Going on moves it, the same either way, so this says that before it does.
   const typed = domain.trim().toLowerCase();
   const held = known.data?.domains.find((d) => d.name === typed)?.routes.find((route) => route.path === "");
-  const leaves = !start && held && held.service !== name ? held : undefined;
+  const leaves = !start && !redirecting && held && held.service !== name ? held : undefined;
+  // www for a bare domain, or the bare domain for www, redirecting to it, on by what DNS
+  // says (ADR 0070). Not for a domain that redirects, or one moving behind what's in front.
+  const companion = useCompanion(
+    start || redirecting ? "" : (serverOf(fleet, server)?.id ?? ""),
+    typed,
+    places.place(environment)?.scope ?? "",
+  );
+  const [chosenCompanion, setAlsoCompanion] = useCompanionChoice(companion, environment, true);
+  // www that redirects to this domain already needs nothing added.
+  const companionAlready = (known.data?.domains ?? []).some(
+    (d) => d.name === companion.companion && d.routes.some((r) => r.path === "" && sendsTo(r.redirect?.to, typed)),
+  );
+  const alsoCompanion = chosenCompanion && !companionAlready;
   const target = useRouteTarget();
   const leavesApp = leaves ? target(leaves) : "";
   // A catalog app builds its links from variables that follow its domain (Entry.address_variables):
@@ -228,6 +274,10 @@ export function AddDomainSheet({
   /** Puts what the server refused at the field it's about, or above them all if it's about none of them. */
   const land = (raw: string, wanted: string) => {
     const said = formRefusal(raw, wanted);
+    if (redirecting && refusesTarget(said, wanted)) {
+      setToError(said);
+      return;
+    }
     switch (refusedField(said, { domain: wanted, port, onServer })) {
       case "proxies":
         if (noCertificate && inFront === "proxy") setProxiesError(said);
@@ -248,16 +298,21 @@ export function AddDomainSheet({
     event?.preventDefault();
     if (busy) return;
     const wanted = domain.trim().toLowerCase();
+    // What's sent is what the field shows: https:// and a domain's xn-- form are added there.
+    const goesTo = redirecting ? redirectTarget(to) : to.trim();
+    if (redirecting && goesTo !== to) setTo(goesTo);
     const domainOk = wanted !== "" && !/\s/.test(wanted);
-    const portOk = validPort(port);
+    const portOk = redirecting || validPort(port);
+    const toOk = !redirecting || /^https?:\/\/\S+$/i.test(goesTo);
     const named = proxyList(proxies);
     const proxiesOk = !noCertificate || inFront !== "proxy" || named.length > 0;
-    setAppError(service ? undefined : t`Choose the app this domain reaches.`);
+    setAppError(service || redirecting ? undefined : t`Choose the app this domain reaches.`);
+    setToError(toOk ? undefined : t`Give the address it sends to, such as https://example.org.`);
     setDomainError(domainOk ? undefined : t`Name the domain, such as app.example.com.`);
     setPortError(portOk ? undefined : t`Use a port from 1 to 65535.`);
     setProxiesError(proxiesOk ? undefined : t`Name what connects to this server, as an address or a range.`);
     setFailure(undefined);
-    if (!service || !domainOk || !portOk || !proxiesOk) {
+    if ((!service && !redirecting) || !domainOk || !portOk || !proxiesOk || !toOk || environment === "") {
       revealError();
       return;
     }
@@ -269,9 +324,11 @@ export function AddDomainSheet({
         await client.proposeChange({
           summary: start
             ? t`Move ${typed} behind what's in front`
-            : follows
-              ? t`Send ${wanted} to ${name}, and point ${followsApp} at it`
-              : t`Send ${wanted} to ${name}`,
+            : redirecting
+              ? t`Redirect ${wanted} to ${goesTo}`
+              : follows
+                ? t`Send ${wanted} to ${name}, and point ${followsApp} at it`
+                : t`Send ${wanted} to ${name}`,
           edits: start
             ? [
                 ...start.routes.map((route) => ({
@@ -333,16 +390,48 @@ export function AddDomainSheet({
                   spec: {
                     kind: {
                       case: "route",
-                      value: {
-                        domain: wanted,
-                        service: name,
-                        ...(onServer ? { hostPort: Number(port) } : { port: Number(port) }),
-                        ...(noCertificate ? front() : {}),
-                      },
+                      value: redirecting
+                        ? {
+                            domain: wanted,
+                            redirect: { to: goesTo, temporary, dropPath },
+                            ...(noCertificate ? front() : {}),
+                          }
+                        : {
+                            domain: wanted,
+                            service: name,
+                            ...(onServer ? { hostPort: Number(port) } : { port: Number(port) }),
+                            ...(noCertificate ? front() : {}),
+                          },
                     },
                   },
                   ...(server ? { servers: [server] } : {}),
                 },
+                // Its other half redirects to it, reached as it is, permanently, keeping the path.
+                ...(alsoCompanion && !redirecting && companion.companion !== ""
+                  ? [
+                      {
+                        resource: {
+                          kind: "route",
+                          scope: environment,
+                          // A name no route has, so a claim the engine refuses is never an update of another's route.
+                          name: freshRouteName(companion.companion, known.data?.domains),
+                        },
+                        spec: {
+                          kind: {
+                            case: "route" as const,
+                            value: {
+                              domain: companion.companion,
+                              redirect: {
+                                to: `${noCertificate && inFront === "anyone" ? "http" : "https"}://${wanted}`,
+                              },
+                              ...(noCertificate ? front() : {}),
+                            },
+                          },
+                        },
+                        ...(server ? { servers: [server] } : {}),
+                      },
+                    ]
+                  : []),
                 ...(follows
                   ? addressEdits(follows, wanted, (n) =>
                       services.find((s) => environmentOf(s) === environment && nameOf(s) === n),
@@ -390,13 +479,21 @@ export function AddDomainSheet({
       open
       over={plan ? <PlanView opening={plan} /> : undefined}
       initialFocusRef={field}
-      title={start ? t`Move ${typed} behind what's in front` : choosing ? t`Add a domain` : t`Add a domain to ${name}`}
+      title={
+        start
+          ? t`Move ${typed} behind what's in front`
+          : choosing || redirecting || (offersRedirect && !service)
+            ? t`Add a domain`
+            : t`Add a domain to ${name}`
+      }
       subtitle={
-        !noCertificate
-          ? t`People reach the app at this name, over HTTPS`
-          : inFront === "anyone"
-            ? t`People reach the app at this name, over plain HTTP`
-            : t`People reach the app at this name, through what's in front of this server`
+        redirecting
+          ? t`Visitors to this name are sent on to the address you give`
+          : !noCertificate
+            ? t`People reach the app at this name, over HTTPS`
+            : inFront === "anyone"
+              ? t`People reach the app at this name, over plain HTTP`
+              : t`People reach the app at this name, through what's in front of this server`
       }
       onClose={onClose}
       className={cx("app-sheet", phone && "is-phone")}
@@ -454,6 +551,62 @@ export function AddDomainSheet({
             setDomainError(undefined);
           }}
         />
+        {offersRedirect ? (
+          <fieldset className="app-front">
+            <legend className="dw-field-label">
+              <Trans>It goes to</Trans>
+            </legend>
+            {[
+              { value: false, label: t`An app`, hint: t`Visitors reach an app here.` },
+              { value: true, label: t`A URL`, hint: t`Visitors are sent on, such as from an old domain.` },
+            ].map((choice) => (
+              <label
+                key={String(choice.value)}
+                className={cx("app-front-choice", redirecting === choice.value && "is-on")}
+              >
+                <input
+                  type="radio"
+                  name="add-domain-goes-to"
+                  checked={redirecting === choice.value}
+                  onChange={() => {
+                    setRedirecting(choice.value);
+                    setAppError(undefined);
+                    setToError(undefined);
+                    setPortError(undefined);
+                  }}
+                />
+                <span className="app-front-text">
+                  <span className="app-front-name">{choice.label}</span>
+                  <span className="app-front-hint">{choice.hint}</span>
+                </span>
+              </label>
+            ))}
+          </fieldset>
+        ) : null}
+        {redirecting ? (
+          <TextField
+            label={t`Redirect to`}
+            mono
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            placeholder="https://example.org"
+            value={to}
+            error={toError}
+            onChange={(event) => {
+              setTo(event.target.value);
+              setToError(undefined);
+            }}
+          />
+        ) : null}
+        {redirecting && places.environments.length > 1 ? (
+          <SelectField
+            label={t`Environment`}
+            value={environment}
+            options={places.environments.map((e) => ({ value: e.id, label: e.label }))}
+            onChange={(event) => setPlaceChosen(event.target.value)}
+          />
+        ) : null}
         {choosing ? (
           <SelectField
             label={t`App`}
@@ -479,6 +632,17 @@ export function AddDomainSheet({
           tunnelName={switchName}
           onLeave={onClose}
         />
+        <CompanionChoice
+          server={serverOf(fleet, server)}
+          read={companion}
+          on={alsoCompanion}
+          onChange={setAlsoCompanion}
+          tunnel={noCertificate}
+          env={environment}
+          strict
+          already={companionAlready}
+          onLeave={onClose}
+        />
         {leaves ? (
           <Callout tone="warning">
             <Trans>
@@ -486,7 +650,7 @@ export function AddDomainSheet({
             </Trans>
           </Callout>
         ) : null}
-        {picksPort ? (
+        {redirecting ? null : picksPort ? (
           <SelectField
             label={t`Port in the app`}
             value={port}
@@ -531,6 +695,34 @@ export function AddDomainSheet({
             options={servers.map((d) => ({ value: d.serverId, label: d.serverName }))}
             onChange={(event) => setServer(event.target.value)}
           />
+        ) : null}
+        {/* A permanent redirect that keeps the path is what most want: the rest is one step away. */}
+        {redirecting ? (
+          <Advanced
+            label={t`Redirect`}
+            summary={
+              temporary
+                ? dropPath
+                  ? t`For a while, to the address as it is`
+                  : t`For a while, keeping the path`
+                : dropPath
+                  ? t`Permanently, to the address as it is`
+                  : t`Permanently, keeping the path`
+            }
+          >
+            <label className="app-check">
+              <input type="checkbox" checked={temporary} onChange={(event) => setTemporary(event.target.checked)} />
+              <span>
+                <Trans>For a while (302), so browsers ask again each time</Trans>
+              </span>
+            </label>
+            <label className="app-check">
+              <input type="checkbox" checked={dropPath} onChange={(event) => setDropPath(event.target.checked)} />
+              <span>
+                <Trans>Send every request to the address as it is, without its path</Trans>
+              </span>
+            </label>
+          </Advanced>
         ) : null}
         {/* HTTPS is on, with its certificate coming by itself: what's in front is one step away. */}
         <Advanced
