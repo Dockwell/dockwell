@@ -64,6 +64,7 @@
   --surface-sunken: #ebede9; /* Wells inside a surface: log bodies, code, the segmented-control track, key caps, idle badges. */
   --surface-raised: #ffffff; /* Anything floating: menus, the command bar, sheets, toasts. Always paired with a shadow token. */
   --art-ground: #ffffff; /* The tile under a project's own logo, light in both themes, as logos are drawn for a light ground. Never under text. */
+  --art-ground-dark: #262b28; /* The tile under a project's own logo that is mostly light, as a white mark is, dark in both themes. Never under text. */
   --line: #dfe2dd; /* Hairline dividers and panel borders. Decorative only: never the sole boundary of a control. */
   --line-strong: #878d86; /* Input and checkbox borders, off-switch tracks. Holds 3:1 on canvas, surface and surface-raised in both themes. */
   --ink: #191c1a; /* Primary text on every surface token. Also the selected-tab rule and selection outlines. */
@@ -108,6 +109,7 @@
     --surface-sunken: #0b0d0c;
     --surface-raised: #1d211f;
     --art-ground: #e9ece7;
+    --art-ground-dark: #262b28;
     --line: #272c29;
     --line-strong: #68716b;
     --ink: #e8ece8;
@@ -150,6 +152,7 @@
   --surface-sunken: #0b0d0c;
   --surface-raised: #1d211f;
   --art-ground: #e9ece7;
+  --art-ground-dark: #262b28;
   --line: #272c29;
   --line-strong: #68716b;
   --ink: #e8ece8;

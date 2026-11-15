@@ -208,11 +208,6 @@ a.databases-engine:focus-visible {
   font-size: 13px;
 }
 
-.databases-engine .catalog-icon img {
-  width: 32px;
-  height: 32px;
-}
-
 .databases-engine-text {
   display: flex;
   flex: 1 1 auto;
