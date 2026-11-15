@@ -11653,9 +11653,6 @@ msgstr "{count, plural, other {# 个域名}}"
 msgid "{days, plural, one {in # day} other {in # days}}"
 msgstr "{days, plural, other {# 天后}}"
 
-msgid "{name} needs a look"
-msgstr "{name} 需要查看"
-
 msgid "Can't tell where it points"
 msgstr "无法判断指向哪里"
 

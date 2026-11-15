@@ -107,6 +107,8 @@ function withRoutes(...pages: { id: string; updateTime?: typeof longAgo }[][]): 
 }
 
 const issued = certificate(CertificateState.ISSUED, "", 47);
+const wwwNoRecord =
+  "No DNS record answers for www.example.com, so the certificate can't come. Add an A record for it pointing at 203.0.113.7. Dockwell tries again by itself.";
 const noRecord =
   "No DNS record answers for app.example.com, so the certificate can't come. Add an A record for it pointing at 49.12.33.7. Dockwell tries again by itself.";
 
@@ -536,17 +538,29 @@ describe("the list of domains", () => {
     expect(within(row).queryByRole("button", { name: /private|Who gets in/ })).toBeNull();
   });
 
-  it("folds www that only redirects to its bare domain into that domain's row, and says when it needs a look", async () => {
+  it("folds www that only redirects to its bare domain into that domain's row", async () => {
     const www = aDomain({
       name: "www.example.com",
-      certificate: certificate(CertificateState.FAILED, "the CA couldn't reach it"),
+      certificate: issued,
       route: { service: "", port: 0, redirect: { to: "https://example.com", temporary: false, dropPath: false } },
     });
     renderAt("/domains", api([aDomain({ name: "example.com", certificate: issued }), www]));
-    const row = await rowOf(/^example\.com/);
-    expect(row).toHaveTextContent("Redirects: www → example.com");
-    expect(row).toHaveTextContent("www.example.com needs a look");
+    expect(await rowOf(/^example\.com/)).toHaveTextContent("Redirects: www → example.com");
     expect(screen.queryByRole("row", { name: /^www\.example\.com/ })).toBeNull();
+  });
+
+  it("never folds www that needs a look: its own row says why, with what to do", async () => {
+    const www = aDomain({
+      name: "www.example.com",
+      certificate: certificate(CertificateState.FAILED, wwwNoRecord),
+      route: { service: "", port: 0, redirect: { to: "https://example.com", temporary: false, dropPath: false } },
+    });
+    const { container } = renderAt("/domains", api([aDomain({ name: "example.com", certificate: issued }), www]));
+    expect(await rowOf(/^example\.com/)).not.toHaveTextContent("Redirects: www → example.com");
+    expect(container.querySelector(".page-lead")).toHaveTextContent("2 domains · 1 needs a look");
+    const own = await rowOf(/^www\.example\.com/);
+    // The certificate's own words, with the record to add.
+    expect(own).toHaveTextContent("Add an A record for it pointing at 203.0.113.7.");
   });
 
   it("says where a redirect isn't served, as its server's agent is too old, with the way to update it", async () => {

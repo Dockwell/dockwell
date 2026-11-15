@@ -120,8 +120,7 @@ function companionName(name: string): string {
 
 /** The domain a domain only redirects to, whole, when that's its other half, or empty. */
 function foldsInto(domain: Domain): string {
-  // One not served somewhere keeps its own row, which says where and the way to fix it.
-  if (domain.routes.length === 0 || domain.servers.some((s) => s.redirectUnserved)) return "";
+  if (domain.routes.length === 0) return "";
   const target = companionName(domain.name);
   const into = domain.routes.every((route) => {
     if (route.path !== "" || !route.redirect) return false;
@@ -237,9 +236,12 @@ export function DomainsPage({
   );
   // www that only redirects to its bare domain, or the other way round, folds into that
   // domain's row, as the mock has it, where both are listed in the same environment:
-  // one of another keeps its own row, which says where it is and what it offers.
+  // one of another keeps its own row, which says where it is and what it offers. So
+  // does one that needs a look, such as a certificate that failed or a server that
+  // can't serve it, as its row says why with the way to fix it.
   const folds = new Map<string, Standing[]>();
   for (const one of shown) {
+    if (groupNeedsALook(one.group)) continue;
     const into = foldsInto(one.domain);
     const host = shown.find((o) => o.domain.name === into && o.domain.environmentId === one.domain.environmentId);
     if (into && host && !foldsInto(host.domain)) folds.set(into, [...(folds.get(into) ?? []), one]);
@@ -1019,7 +1021,6 @@ function Folded({ row }: { row: Row }) {
                 Redirects: <code>{from}</code> → {into}
               </Trans>
             </span>
-            {groupNeedsALook(one.group) ? <FoldedTrouble name={one.domain.name} /> : null}
           </span>
         );
       })}
@@ -1052,13 +1053,5 @@ function Unserved({ row }: { row: Row }) {
           );
         })}
     </>
-  );
-}
-
-function FoldedTrouble({ name }: { name: string }) {
-  return (
-    <span className="domains-folded-trouble">
-      <Trans>{name} needs a look</Trans>
-    </span>
   );
 }

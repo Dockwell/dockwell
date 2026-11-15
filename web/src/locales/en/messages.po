@@ -11653,9 +11653,6 @@ msgstr "{count, plural, one {# domain} other {# domains}}"
 msgid "{days, plural, one {in # day} other {in # days}}"
 msgstr "{days, plural, one {in # day} other {in # days}}"
 
-msgid "{name} needs a look"
-msgstr "{name} needs a look"
-
 msgid "Can't tell where it points"
 msgstr "Can't tell where it points"
 
