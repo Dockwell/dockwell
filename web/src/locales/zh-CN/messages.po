@@ -763,6 +763,12 @@ msgstr "已检查 {volume} 的一个备份可以恢复"
 msgid "Checked the DNS provider {name}, writing in its zones"
 msgstr "检查了 DNS 服务商 {name}，在其区域中写入"
 
+msgid "Chose to take on an app with a guessable database password"
+msgstr "选择接管一个数据库密码可被猜到的应用"
+
+msgid "Chose to take on {name} with a guessable database password"
+msgstr "选择接管数据库密码可被猜到的 {name}"
+
 msgid "Claimed this install"
 msgstr "认领了这个安装"
 
@@ -2851,6 +2857,9 @@ msgstr "在有人做出更改之前，它会一直保持运行。请修复检查
 
 msgid "It's behind a tunnel or a proxy"
 msgstr "它位于隧道或代理之后"
+
+msgid "Its database password is guessable"
+msgstr "它的数据库密码可被猜到"
 
 msgid "Loading deployments"
 msgstr "正在加载部署"
@@ -12029,6 +12038,9 @@ msgstr "Dockwell 以只读方式从 1Panel 自己的记录中读取它在 {0} �
 msgid "Each thing below says whether it's in Dockwell already, what it waits for, or why it stays."
 msgstr "下面每一项都说明了它是否已在 Dockwell 中、它在等待什么，或它为何保留。"
 
+msgid "Guessable password"
+msgstr "密码可被猜到"
+
 msgid "Hide them"
 msgstr "收起"
 
@@ -12114,6 +12126,9 @@ msgstr "重新启动 {proxy}"
 
 msgid "Stop {name}"
 msgstr "停止 {name}"
+
+msgid "Take it on as it is: its password is one of its own names, which anyone can guess."
+msgstr "按原样接管：它的密码是它自己的名称之一，任何人都能猜到。"
 
 #. placeholder {0}: step.needsHostAccess.join(", ")
 msgid "Take it on with {0}"

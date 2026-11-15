@@ -38,6 +38,13 @@ import "./OnePanelImport.css";
  */
 
 /** A server's Move in page: each panel that runs there, 1Panel's as before. */
+
+/** The apps, by their IDs, a person chose to take on with what each asks first. */
+interface Chosen {
+  hostAccess: readonly string[];
+  guessablePassword: readonly string[];
+}
+
 export function MoveInPage({ serverId }: { serverId: string }) {
   return <ServerFrame id={serverId}>{(server) => <MoveIn server={server} />}</ServerFrame>;
 }
@@ -76,20 +83,26 @@ function PanelImport({
   const [failure, setFailure] = useState<unknown>();
   const [found, setFound] = useState<{ found?: PanelFound; steps: ImportStep[] }>();
   const [handingOver, setHandingOver] = useState(false);
-  // The apps a person chose to take on with the host access each needs (ADR 0097).
-  const [hostAccess, setHostAccess] = useState<readonly string[]>([]);
+  // The apps a person chose to take on with the host access each needs (ADR 0097),
+  // and those taken on as they are with a guessable database password (ADR 0096).
+  const [chosen, setChosen] = useState<Chosen>({ hostAccess: [], guessablePassword: [] });
 
-  const importIt = (skipPlan: boolean, chosen: readonly string[] = hostAccess) =>
-    kind === PanelKind.COOLIFY
-      ? imports.importCoolify({ serverId: server.id, skipPlan, hostAccess: [...chosen] })
-      : imports.importDokploy({ serverId: server.id, skipPlan, hostAccess: [...chosen] });
+  const importIt = (skipPlan: boolean, picked: Chosen = chosen) => {
+    const asked = {
+      serverId: server.id,
+      skipPlan,
+      hostAccess: [...picked.hostAccess],
+      guessablePassword: [...picked.guessablePassword],
+    };
+    return kind === PanelKind.COOLIFY ? imports.importCoolify(asked) : imports.importDokploy(asked);
+  };
 
   // A read plans nothing: what's found, and what an import would do with it.
-  const read = async (chosen: readonly string[] = hostAccess) => {
+  const read = async (picked: Chosen = chosen) => {
     setReading(true);
     setFailure(undefined);
     try {
-      setFound(await importIt(true, chosen));
+      setFound(await importIt(true, picked));
     } catch (err) {
       setFound(undefined);
       setFailure(err);
@@ -102,10 +115,11 @@ function PanelImport({
   // once it closes, as the steps it brought over are done.
   const again = () => void read();
   // Choosing reads again, as what's taken on, and what's left, follow from it.
-  const choose = (app: string, on: boolean) => {
-    const chosen = on ? [...hostAccess, app] : hostAccess.filter((a) => a !== app);
-    setHostAccess(chosen);
-    void read(chosen);
+  const choose = (what: keyof Chosen, app: string, on: boolean) => {
+    const apps = on ? [...chosen[what], app] : chosen[what].filter((a) => a !== app);
+    const picked = { ...chosen, [what]: apps };
+    setChosen(picked);
+    void read(picked);
   };
   const review = () => {
     sheet.open({
@@ -232,16 +246,31 @@ function PanelImport({
             ) : undefined
           }
           extra={(step) =>
-            step.needsHostAccess.length > 0 ? (
-              <label className="onepanel-host-access">
-                <input
-                  type="checkbox"
-                  checked={hostAccess.includes(step.appId)}
-                  disabled={reading}
-                  onChange={(e) => choose(step.appId, e.currentTarget.checked)}
-                />
-                <Trans>Take it on with {step.needsHostAccess.join(", ")}</Trans>
-              </label>
+            step.needsHostAccess.length > 0 || step.guessablePassword ? (
+              <>
+                {step.needsHostAccess.length > 0 ? (
+                  <label className="onepanel-host-access">
+                    <input
+                      type="checkbox"
+                      checked={chosen.hostAccess.includes(step.appId)}
+                      disabled={reading}
+                      onChange={(e) => choose("hostAccess", step.appId, e.currentTarget.checked)}
+                    />
+                    <Trans>Take it on with {step.needsHostAccess.join(", ")}</Trans>
+                  </label>
+                ) : null}
+                {step.guessablePassword ? (
+                  <label className="onepanel-host-access">
+                    <input
+                      type="checkbox"
+                      checked={chosen.guessablePassword.includes(step.appId)}
+                      disabled={reading}
+                      onChange={(e) => choose("guessablePassword", step.appId, e.currentTarget.checked)}
+                    />
+                    <Trans>Take it on as it is: its password is one of its own names, which anyone can guess.</Trans>
+                  </label>
+                ) : null}
+              </>
             ) : step.kind !== ImportKind.PANEL ? null : (
               <>
                 {running ? (

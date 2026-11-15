@@ -1277,6 +1277,13 @@ function ConfigurationPanel() {
           ) : (
             <span className="app-muted">{t`None set`}</span>
           )}
+          {/* A database password that's one of its own names, as a template's can be: a state,
+              with no action until changing a database's password is Dockwell's (ADR 0096). */}
+          {service.guessablePassword ? (
+            <div className="app-guessable">
+              <StatusBadge status="degraded" label={t`Its database password is guessable`} labelIsState />
+            </div>
+          ) : null}
         </dd>
         {networks.length > 0 ? (
           <>

@@ -263,4 +263,44 @@ describe("moving in from Coolify", () => {
     ).toBe(true);
     await expectAccessible(document.body);
   });
+
+  it("leaves an app whose database password is one of its own names as a state, and takes it on as it is once chosen", async () => {
+    const user = userEvent.setup();
+    const choiceName = "Take it on as it is: its password is one of its own names, which anyone can guess.";
+    const newsletter = (chosen: boolean) =>
+      create(ImportCoolifyResponseSchema, {
+        found: { kind: PanelKind.COOLIFY, version: "4.7.5", knownVersion: true, folder: "/data/coolify" },
+        steps: [
+          {
+            kind: ImportKind.APP,
+            name: "newsletter",
+            summary: "a service from Coolify's templates, in personal / production",
+            action: chosen ? ImportAction.TAKE_ON : ImportAction.LEAVE,
+            becomes: chosen ? "the project newsletter, taken on as it runs, with no restart" : "",
+            appId: "k8q4",
+            guessablePassword: true,
+          },
+        ],
+      });
+    const importCoolify = vi.fn((req: { guessablePassword: string[] }) =>
+      newsletter(req.guessablePassword.includes("k8q4")),
+    );
+    renderAt("/servers/srv_1/import", api({ imports: { importCoolify } }));
+    await user.click(await screen.findByRole("button", { name: "Read what Coolify runs" }));
+    const choice = await screen.findByRole("checkbox", { name: choiceName });
+    expect(screen.getByText("Guessable password")).toBeTruthy();
+    expect(screen.queryByText("Needs host access")).toBeNull();
+    expect((choice as HTMLInputElement).checked).toBe(false);
+    expect(screen.queryByRole("button", { name: "Review the plan" })).toBeNull();
+    await user.click(choice);
+    await waitFor(() =>
+      expect(importCoolify).toHaveBeenLastCalledWith(
+        expect.objectContaining({ guessablePassword: ["k8q4"], hostAccess: [] }),
+        expect.anything(),
+      ),
+    );
+    expect(await screen.findAllByRole("button", { name: "Review the plan" })).not.toHaveLength(0);
+    expect((screen.getByRole("checkbox", { name: choiceName }) as HTMLInputElement).checked).toBe(true);
+    await expectAccessible(document.body);
+  });
 });

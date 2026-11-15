@@ -275,6 +275,11 @@ message ServiceInfo {
   // it plans; one that takes it away asks for none. Empty when it reaches
   // nothing, or its spec can't be read.
   repeated HostAccess host_access = 11;
+  // True when the app's database password is one of its own names, its aliases,
+  // networks, image or hostname, which anyone can guess, as a taken-on template's
+  // can be (ADR 0096). It says no more than that: not which password, nor which
+  // name.
+  bool guessable_password = 12;
   // What Dockwell last found newer than what it runs, and how its check stands.
   // Unset before its first check. See
   // docs/adr/0079-knowing-a-newer-version-of-an-app-is-out.md. Numbered apart,

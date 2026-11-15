@@ -416,6 +416,11 @@ type ServiceInfo struct {
 	// it plans; one that takes it away asks for none. Empty when it reaches
 	// nothing, or its spec can't be read.
 	HostAccess []*HostAccess `protobuf:"bytes,11,rep,name=host_access,json=hostAccess,proto3" json:"host_access,omitempty"`
+	// True when the app's database password is one of its own names, its aliases,
+	// networks, image or hostname, which anyone can guess, as a taken-on template's
+	// can be (ADR 0096). It says no more than that: not which password, nor which
+	// name.
+	GuessablePassword bool `protobuf:"varint,12,opt,name=guessable_password,json=guessablePassword,proto3" json:"guessable_password,omitempty"`
 	// What Dockwell last found newer than what it runs, and how its check stands.
 	// Unset before its first check. See
 	// docs/adr/0079-knowing-a-newer-version-of-an-app-is-out.md. Numbered apart,
@@ -530,6 +535,13 @@ func (x *ServiceInfo) GetHostAccess() []*HostAccess {
 		return x.HostAccess
 	}
 	return nil
+}
+
+func (x *ServiceInfo) GetGuessablePassword() bool {
+	if x != nil {
+		return x.GuessablePassword
+	}
+	return false
 }
 
 func (x *ServiceInfo) GetUpdate() *ServiceUpdate {
@@ -1926,7 +1938,7 @@ const file_dockwell_v1_service_proto_rawDesc = "" +
 	"page_token\x18\x04 \x01(\tR\tpageToken\"t\n" +
 	"\x14ListServicesResponse\x124\n" +
 	"\bservices\x18\x01 \x03(\v2\x18.dockwell.v1.ServiceInfoR\bservices\x12&\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\xcb\x04\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\xfa\x04\n" +
 	"\vServiceInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x124\n" +
 	"\bresource\x18\x02 \x01(\v2\x18.dockwell.v1.ResourceRefR\bresource\x12\x1a\n" +
@@ -1941,7 +1953,8 @@ const file_dockwell_v1_service_proto_rawDesc = "" +
 	"\x0fspec_unreadable\x18\n" +
 	" \x01(\tR\x0especUnreadable\x128\n" +
 	"\vhost_access\x18\v \x03(\v2\x17.dockwell.v1.HostAccessR\n" +
-	"hostAccess\x122\n" +
+	"hostAccess\x12-\n" +
+	"\x12guessable_password\x18\f \x01(\bR\x11guessablePassword\x122\n" +
 	"\x06update\x18\x14 \x01(\v2\x1a.dockwell.v1.ServiceUpdateR\x06update\"\xf0\x01\n" +
 	"\x11ServiceDeployment\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x1f\n" +

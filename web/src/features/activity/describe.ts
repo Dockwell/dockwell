@@ -55,6 +55,17 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
         return { title: t`The backup of ${volume} failed`, icon: "archive", tone: "critical" };
       }
       if (event.action === "backup.deleted") return { title: t`Deleted a backup of ${volume}`, icon: "archive" };
+      // An app taken on as it is, its database password one of its own names, by the
+      // person who chose that (ADR 0096). It names the app, and never the password.
+      if (event.action === "service.take_on_guessable_password") {
+        return {
+          title: name
+            ? t`Chose to take on ${name} with a guessable database password`
+            : t`Chose to take on an app with a guessable database password`,
+          icon: "key",
+          tone: "warning",
+        };
+      }
       // An app opened through the panel, on an origin of its own (ADR 0061).
       if (event.action === "service.open") {
         return {

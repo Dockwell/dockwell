@@ -43,9 +43,13 @@ type AdoptComposeRequest struct {
 	// Takes it on with the host access its containers need: devices, GPUs,
 	// security options or the server's processes (ADR 0097). Without it, a
 	// project that needs some is refused, saying what.
-	HostAccess    bool `protobuf:"varint,5,opt,name=host_access,json=hostAccess,proto3" json:"host_access,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	HostAccess bool `protobuf:"varint,5,opt,name=host_access,json=hostAccess,proto3" json:"host_access,omitempty"`
+	// Takes it on as it is where a database's password is one of its own names,
+	// which anyone can guess (ADR 0096). Without it, such a project is refused,
+	// saying so.
+	GuessablePassword bool `protobuf:"varint,6,opt,name=guessable_password,json=guessablePassword,proto3" json:"guessable_password,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *AdoptComposeRequest) Reset() {
@@ -109,6 +113,13 @@ func (x *AdoptComposeRequest) GetEnvironment() string {
 func (x *AdoptComposeRequest) GetHostAccess() bool {
 	if x != nil {
 		return x.HostAccess
+	}
+	return false
+}
+
+func (x *AdoptComposeRequest) GetGuessablePassword() bool {
+	if x != nil {
+		return x.GuessablePassword
 	}
 	return false
 }
@@ -906,14 +917,15 @@ var File_dockwell_v1_compose_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_compose_proto_rawDesc = "" +
 	"\n" +
-	"\x19dockwell/v1/compose.proto\x12\vdockwell.v1\x1a&dockwell/resource/v1alpha1/specs.proto\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x19dockwell/v1/service.proto\x1a\x1cgoogle/api/annotations.proto\"\x9e\x01\n" +
+	"\x19dockwell/v1/compose.proto\x12\vdockwell.v1\x1a&dockwell/resource/v1alpha1/specs.proto\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x19dockwell/v1/service.proto\x1a\x1cgoogle/api/annotations.proto\"\xcd\x01\n" +
 	"\x13AdoptComposeRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x16\n" +
 	"\x06server\x18\x02 \x01(\tR\x06server\x12\x18\n" +
 	"\aproject\x18\x03 \x01(\tR\aproject\x12 \n" +
 	"\venvironment\x18\x04 \x01(\tR\venvironment\x12\x1f\n" +
 	"\vhost_access\x18\x05 \x01(\bR\n" +
-	"hostAccess\"C\n" +
+	"hostAccess\x12-\n" +
+	"\x12guessable_password\x18\x06 \x01(\bR\x11guessablePassword\"C\n" +
 	"\x14AdoptComposeResponse\x12+\n" +
 	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"\xb2\x03\n" +
 	"\x14ImportComposeRequest\x12\x18\n" +

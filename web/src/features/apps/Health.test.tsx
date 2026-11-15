@@ -1421,3 +1421,22 @@ describe("how it has run lately, on its page", () => {
     expect(screen.queryByRole("region", { name: "Recent health" })).not.toBeInTheDocument();
   });
 });
+
+describe("a guessable database password on the overview", () => {
+  it("is one short state in Configuration, with no action until Dockwell can change it, and none otherwise", async () => {
+    const { unmount } = renderAt(
+      "/apps/svc_web",
+      api([anApp("web", "postgres:17", { env: { POSTGRES_PASSWORD: "" } }, { guessablePassword: true })]),
+    );
+    const configuration = await screen.findByRole("region", { name: "Configuration" });
+    const state = await within(configuration).findByText("Its database password is guessable");
+    expect(state).toBeVisible();
+    expect(state.closest("dd")?.querySelector("button")).toBeNull();
+    await expectAccessible(document.body);
+    unmount();
+
+    renderAt("/apps/svc_web", api([anApp("web", "postgres:17")]));
+    const plain = await screen.findByRole("region", { name: "Configuration" });
+    expect(within(plain).queryByText("Its database password is guessable")).toBeNull();
+  });
+});

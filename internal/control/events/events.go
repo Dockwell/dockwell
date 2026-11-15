@@ -31,6 +31,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/backups"
 	"github.com/dockwell/dockwell/internal/control/certificates"
 	"github.com/dockwell/dockwell/internal/control/changes"
+	"github.com/dockwell/dockwell/internal/control/containers"
 	"github.com/dockwell/dockwell/internal/control/dnsproviders"
 	controlfiles "github.com/dockwell/dockwell/internal/control/files"
 	"github.com/dockwell/dockwell/internal/control/fleet"
@@ -134,6 +135,9 @@ var (
 		"service.open",
 		// One of an app's own values that reads hidden, revealed (ADR 0081).
 		ActionRevealServiceValue,
+		// An app taken on as it is, its database password one of its own names,
+		// by the person who chose it (ADR 0096).
+		containers.ActionGuessablePassword,
 		fileRead, fileRefuse, fileDownload, changeApplyUnconfirmed,
 		"member.invite", "member.invite_revoke", "member.join",
 		"member.role", "member.remove", "member.protections_confirm", "owner.transfer",

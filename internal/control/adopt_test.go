@@ -1513,7 +1513,7 @@ func TestALinksNameHoldsOnItsNetworkAlone(t *testing.T) {
 
 // A Compose project whose database is named as the project comes over: the value
 // is a whole part of its network's name, which the plan shows anyway. A password
-// with that value still refuses (the gaps survey of #604).
+// with that value still isn't taken on unasked (the gaps survey of #604).
 func TestAValueNamedAsTheProjectComesOver(t *testing.T) {
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
@@ -1532,7 +1532,9 @@ func TestAValueNamedAsTheProjectComesOver(t *testing.T) {
 		r.Env = append(r.Env, "POSTGRES_PASSWORD=forgejo")
 	})
 	_, err := imports.AdoptCompose(t.Context(), connect.NewRequest(&dockwellv1.AdoptComposeRequest{Name: "forgejo"}))
-	if err == nil || !strings.Contains(err.Error(), "the value of POSTGRES_PASSWORD in its external networks") {
+	// A password that's one of its own names is a person's choice, not a value a plan
+	// shows (ADR 0096, "A database password that's one of its own names").
+	if err == nil || !strings.Contains(err.Error(), "the container forgejo-db-1's database password is one of its own names") {
 		t.Errorf("a password named as the project = %v", err)
 	}
 }

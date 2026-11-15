@@ -402,6 +402,11 @@ function StepRow({ step, extra, panel }: { step: ImportStep; extra?: ReactNode; 
               <Trans>Needs host access</Trans>
             </Tag>
           ) : null}
+          {step.guessablePassword ? (
+            <Tag words icon="key">
+              <Trans>Guessable password</Trans>
+            </Tag>
+          ) : null}
         </div>
         <p className="onepanel-step-line" lang="en">
           {step.summary}

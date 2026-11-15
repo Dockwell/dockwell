@@ -57,13 +57,25 @@ What was settled already:
 - **Keeping what a server has refuses a value in what runs.** Should an agent ever report a command, an entrypoint or a health check with a value of the container's environment in it, keeping it (Keep, from drift) refuses, by the field, as it would write the value into a plan.
 - **A value never reaches a plan, a log or the panel.** The spec that leaves the agent holds names in those fields, and the value only in the sealed `env`. A refusal names the variable and the field. Docker's answers are masked by the values a field names, which now takes in a taken-on container's. Drift reads names on both sides. A test takes on a container from each kind of word above, with a secret whose value shares text with an ordinary variable's, and checks that no value is in the spec's other fields, the plan, the record's references, the agent's log or an error.
 
+### A database password that's one of its own names
+
+*Added 2026-11-14, from the gaps survey of #604.*
+
+About 33 of the panels' templates (9 of Coolify's, 24 of Dokploy's) set a database's password to one of the app's own names, as `POSTGRES_PASSWORD: forgejo` beside the network `forgejo_default`. A plan shows that name anyway, and the template that wrote it is public, so refusing protects nothing a reader couldn't guess. Changing it as it's taken on isn't safe: postgres, mysql and mariadb read the password only on their first start, so the app and its database would no longer agree.
+
+- **What counts:** a variable whose name says it's a secret, and says it's a database's (a part such as `DB`, `DATABASE`, `POSTGRES`, `PG`, `MYSQL`, `MARIADB`, `MONGO` or `REDIS`), or any secret of a container whose image is a database's, whose value shows only as a whole part of its aliases, networks, image or hostname (`container.GuessableShows`). A password shown anywhere else as well, any other secret, and a value that's only part of a word still refuse as before.
+- **The default is no.** Such an app is left behind until a person chooses it, app by app: `guessable_password` on `ImportCoolify` and `ImportDokploy` (the apps' IDs), on `AdoptCompose` and `AdoptContainer`, and the CLI's `--guessable-password` from those. Swarm-run apps made again ask the same. On Move in, the step carries the state "Guessable password" (`ImportStep.guessable_password`) and one checkbox: "Take it on as it is: its password is one of its own names, which anyone can guess." No prose under it. 1Panel's import has no choice to make, so it leaves such an app with the take-on that chooses it.
+- **The plan names no value, and links no password to a name.** The control plane decides this from the spec it reads, with no change to the agent. The plan has no note of it, and the refusal and the step say only that the password is one of its own names, never which.
+- **Activity records the choice and who made it:** `service.take_on_guessable_password`, by the person or token that asked, one event for each service the plan takes on so, with the change in its detail.
+- **After, the app's page keeps one short state:** "Its database password is guessable", in its Configuration panel (`ServiceInfo.guessable_password`). It's read from the values each time, so it goes once the password does. It carries no action yet: changing a database's password, its user's and the app's together, is Track M's "Update the password", and a link to a page that isn't there would be a dead end. The state gains that action once it lands.
+
 ### Where it applies
 
 Every take-on reads a container through the same agent call (`ReadAdoption`, then `Adoption` as it applies), so each gets it: a container from the list, a Compose project, 1Panel's apps, and Coolify's and Dokploy's, Swarm-run ones made again included. Both calls write the names the same way, so what a person approved is what the agent checks again.
 
 ### Numbers
 
-`Hello.reads_taken_references` is 336, in the 330 to 339 the import from Coolify and Dokploy holds in the agent protocol.
+`Hello.reads_taken_references` is 336, in the 330 to 339 the import from Coolify and Dokploy holds in the agent protocol. A guessable database password takes `ImportCoolifyRequest.guessable_password` and `ImportDokployRequest.guessable_password` 4, `AdoptComposeRequest.guessable_password` 6, `AdoptContainerRequest.guessable_password` 7, `ImportStep.guessable_password` 10 and `ServiceInfo.guessable_password` 12.
 
 ## Consequences
 
