@@ -431,6 +431,7 @@ func TestAnOlderAgentMakesNoSwarmAppAgain(t *testing.T) {
 // Traefik file names, the proxy stopped first; the undo deletes the route and
 // starts the proxy again.
 func TestHandingOverADokploySwarmAppsDomain(t *testing.T) {
+	t.Parallel()
 	d := dokployShop(t)
 	res, err := d.ic.ImportDokploy(t.Context(), connect.NewRequest(&dockwellv1.ImportDokployRequest{ServerId: d.id}))
 	if err != nil {

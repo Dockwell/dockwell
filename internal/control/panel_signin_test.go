@@ -32,6 +32,7 @@ import (
 // answers a page that goes on to the panel, with the session cookie, and clears the
 // flow's cookie; a second use of it signs no one in (ADR 0095).
 func TestThePanelSignsInWithAProvider(t *testing.T) {
+	t.Parallel()
 	cert, roots := selfSigned(t, "panel.example.com")
 	idp := oidctest.NewProvider(t)
 	srv := startFullConfig(t, store.SQLite, &https.Static{Name: "panel.example.com", Cert: cert}, slog.New(slog.DiscardHandler), nil, logapi.Options{},

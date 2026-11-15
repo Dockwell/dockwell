@@ -189,6 +189,7 @@ func redisID(t *testing.T, b *browser) string {
 // and says to update it, and a plan of it refuses. What Dockwell made that names a
 // value plans on it as ever, and updating the agent brings it all back.
 func TestAnAgentThatDoesntKeepTakenReferencesReadsNothingTakenOnSo(t *testing.T) {
+	t.Parallel()
 	storetest.Each(t, testAnAgentThatDoesntKeepTakenReferences)
 }
 

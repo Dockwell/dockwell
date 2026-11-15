@@ -195,6 +195,7 @@ func (s *handoverStand) takeOn(t *testing.T) {
 // change stops the proxy first, then makes a route for each chosen, as the proxy's
 // labels send it. Its undo deletes the routes before it starts the proxy again.
 func TestHandingOverAPanelsDomains(t *testing.T) {
+	t.Parallel()
 	s := coolifyHandover(t)
 	// One behind a login stays behind: a plain route would let anyone in.
 	s.e.AddNetwork(docker.Network{ID: "p2q7net", Name: "p2q7_default", Driver: "bridge"})
@@ -312,6 +313,7 @@ func TestHandingOverAPanelsDomains(t *testing.T) {
 // What the probe hears holds a domain back: a login's 401, a redirect to a
 // sign-in, another host, or a TLS handshake the proxy refuses.
 func TestTheProbeHoldsWhatALoginAnswers(t *testing.T) {
+	t.Parallel()
 	s := coolifyHandover(t)
 	s.takeOn(t)
 	for _, c := range []struct {
@@ -364,6 +366,7 @@ func TestTheProbeHoldsWhatALoginAnswers(t *testing.T) {
 // pattern, a TCP router's, or a matcher written with a space would: each could
 // guard a path with a login no route would keep.
 func TestTheAppsOwnRulesPassOnlyWhereARouteCameFromThem(t *testing.T) {
+	t.Parallel()
 	s := coolifyHandover(t)
 	for _, c := range []struct{ id, rule, router string }{
 		{"rx", "HostRegexp(`^rx\\.example\\.com$`) && PathPrefix(`/admin`)", "traefik.http.routers.admin"},
@@ -400,6 +403,7 @@ func TestTheAppsOwnRulesPassOnlyWhereARouteCameFromThem(t *testing.T) {
 // on a container the panel didn't make, a HostRegexp that matches it, a file in
 // the proxy's mounts. What can't be read in full holds every domain back.
 func TestTheScanHoldsWhatElseRoutesADomain(t *testing.T) {
+	t.Parallel()
 	s := coolifyHandover(t)
 	s.takeOn(t)
 	blog := func() string { return s.check(t)["blog.example.com"].GetHeld() }
@@ -448,6 +452,7 @@ func TestTheScanHoldsWhatElseRoutesADomain(t *testing.T) {
 // leaves it running where anything changed since the plan: a rule that names the
 // domain now, or what the proxy answers.
 func TestAHandoverChecksAgainBeforeTheProxyStops(t *testing.T) {
+	t.Parallel()
 	s := coolifyHandover(t)
 	s.takeOn(t)
 	refused := func(change *dockwellv1.Change, says string) {
@@ -492,6 +497,7 @@ func TestAHandoverChecksAgainBeforeTheProxyStops(t *testing.T) {
 // A handover whose route fails after the proxy stopped rolls back, and the rollback
 // starts the proxy again as it stood, so the server's domains aren't left down.
 func TestAFailedHandoverStartsTheProxyAgain(t *testing.T) {
+	t.Parallel()
 	s := coolifyHandover(t)
 	s.takeOn(t)
 	change, err := s.plan(t, "blog.example.com")
@@ -520,6 +526,7 @@ func TestAFailedHandoverStartsTheProxyAgain(t *testing.T) {
 // whole: a route for its root would serve /admin with no login (N1). An agent that
 // doesn't check domains hands over none.
 func TestAGuardedPathKeepsItsDomainBehind(t *testing.T) {
+	t.Parallel()
 	s := coolifyHandover(t)
 	s.e.AddNetwork(docker.Network{ID: "m3n8net", Name: "m3n8_default", Driver: "bridge"})
 	composeContainer(t, s.e, "m3n8", "app", "app-m3n8", func(r *docker.CreateRequest) {

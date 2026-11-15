@@ -526,6 +526,7 @@ func TestAnExposedPortComesAlong(t *testing.T) {
 // agent reads the container back as its names. Made again, its script reads the
 // value from its environment, and its command line has none.
 func TestATakenOnContainersValuesAreKeptByName(t *testing.T) {
+	t.Parallel()
 	logs := &syncBuffer{}
 	f := startFullLogging(t, store.SQLite, nil, slog.New(slog.NewJSONHandler(logs, &slog.HandlerOptions{Level: slog.LevelDebug})))
 	b := signedIn(t, f)
