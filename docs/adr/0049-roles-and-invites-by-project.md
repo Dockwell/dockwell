@@ -217,7 +217,10 @@ Then, outside that transaction, **the changes they planned and hadn't applied ar
 
 Raising someone's role ends no session or token.
 
-**Any change to what someone holds ends their open streams at once,** once it commits: a raise, a lowering, a project's role, and both people in a transfer. Each stream was narrowed to what they held when it opened, and a recheck within 30 seconds would end one only once they may no longer make it, so a stream could show a lowered person more than they now hold for that long. Ending them all is the plainer rule: a page opens its streams again as the person now may, or, signed out, not at all. Open streams are kept by whose they are as well as by session or token, for this.
+**Any change to what someone holds ends their open streams at once,** once it commits. Each stream was narrowed to what they held when it opened, and a recheck within 30 seconds ends one only once they may no longer make it, so a stream could show a lowered person more than they now hold for that long. Open streams are kept by whose they are as well as by session or token, for this.
+
+- **A lowering or a removal ends every stream they have,** a terminal left running too.
+- **A change that takes nothing away,** a raise, a project's role, and both people in a transfer, ends their pages' streams, which a page opens again at once as the person now may. What outlives its request, such as a terminal left running, goes on: it never had more than they hold now, and ending it would close a shell for nothing.
 
 **Nothing that acts on a server keeps running on a removed person's authority.** Checked against what acts:
 

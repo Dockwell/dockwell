@@ -142,11 +142,12 @@ func TestRemovingSomeoneEndsTheirLinksAndStreams(t *testing.T) {
 	})
 }
 
-// Any change to what someone holds ends their open streams at once, on every
+// Any change to what someone holds ends their pages' streams at once, on every
 // session and token, as each was narrowed to what they held when it opened: a
 // raise as much as a lowering, in a project as on the install. A raise leaves
-// them signed in, so a page opens its streams again as they now may. Nobody
-// else's stream ends (ADR 0049).
+// them signed in, so a page opens its streams again as they now may, and what
+// they left running, such as a terminal, goes on, as it never had more than
+// they hold now. A lowering ends that too. Nobody else's stream ends (ADR 0049).
 func TestChangingARoleEndsTheirStreams(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		f := newInvited(t, backend)
@@ -163,6 +164,9 @@ func TestChangingARoleEndsTheirStreams(t *testing.T) {
 			return stream
 		}
 		adas, adasToken, sams, owners := track(ada.p), track(viaToken), track(sam.p), track(f.owner)
+		// A terminal she left running follows her session without being a page in use.
+		running, stopRunning := f.svc.Follow(t.Context(), onDomain, ada.p)
+		t.Cleanup(stopRunning)
 
 		if _, err := f.setRole(t, ada.p.User.ID, store.RoleAdmin); err != nil {
 			t.Fatal(err)
@@ -175,6 +179,9 @@ func TestChangingARoleEndsTheirStreams(t *testing.T) {
 		}
 		if !f.signedIn(t, ada.secret) {
 			t.Error("a raise signed ada out")
+		}
+		if running.Err() != nil {
+			t.Error("raising ada ended the terminal she left running")
 		}
 
 		// A project's role, for sam, who holds the install as a viewer.
@@ -200,6 +207,9 @@ func TestChangingARoleEndsTheirStreams(t *testing.T) {
 		if !endsAtOnce(adas) {
 			t.Error("lowering ada leaves her stream open")
 		}
+		if !endsAtOnce(running) {
+			t.Error("lowering ada leaves the terminal she left running open")
+		}
 		if owners.Err() != nil {
 			t.Error("lowering ada ended the owner's stream")
 		}
@@ -211,8 +221,8 @@ func TestChangingARoleEndsTheirStreams(t *testing.T) {
 // pending across the transfer holds: whoever was the owner made it and still
 // may, as an admin, so it stays open and joins its person with the role it
 // names, never the owner's. The new owner is then the last owner, whom whoever
-// was the owner neither lowers nor removes. Both people's streams end with the
-// transfer (ADR 0049).
+// was the owner neither lowers nor removes. Both people's pages' streams end
+// with the transfer, and what the old owner left running goes on (ADR 0049).
 func TestATransferWithTheLastOwnerAndAPendingInvite(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		f := newInvited(t, backend)
@@ -252,6 +262,9 @@ func TestATransferWithTheLastOwnerAndAPendingInvite(t *testing.T) {
 
 		mine, stop := f.svc.Track(t.Context(), onDomain, f.owner)
 		defer stop()
+		// A terminal the owner left running: an admin may keep it, which they become.
+		running, stopRunning := f.svc.Follow(t.Context(), onDomain, f.owner)
+		defer stopRunning()
 		adas, stop := f.svc.Track(t.Context(), onDomain, ada.p)
 		defer stop()
 		proof := f.stepUpAt(t, onDomain, f.owner, f.keys, StepUpTransferOwnership, ada.p.User.ID).Proof
@@ -260,6 +273,9 @@ func TestATransferWithTheLastOwnerAndAPendingInvite(t *testing.T) {
 		}
 		if !endsAtOnce(mine) || !endsAtOnce(adas) {
 			t.Error("a stream of the old or the new owner stays open after the transfer")
+		}
+		if running.Err() != nil {
+			t.Error("the transfer ended the terminal the old owner left running, which an admin may keep")
 		}
 		if got := owners(); len(got) != 1 || got[0] != ada.p.User.ID {
 			t.Fatalf("after the transfer the owners are %v, want ada alone", got)

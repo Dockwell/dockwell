@@ -364,7 +364,7 @@ func (s *Service) Follow(ctx context.Context, client Client, p Principal, still 
 func (s *Service) track(ctx context.Context, client Client, p Principal, use bool, still ...func(context.Context) error) (context.Context, func()) {
 	ctx, cancel := context.WithCancel(ctx)
 	credential := p.credential()
-	entry := s.streams.add(credential, p.User.ID, cancel)
+	entry := s.streams.add(credential, p.User.ID, use, cancel)
 	may := func() bool {
 		for _, check := range still {
 			if check != nil && check(ctx) != nil {
@@ -499,22 +499,24 @@ type streams struct {
 	m    map[string]map[int]stream
 }
 
-// stream is an open stream: whose it is, and how it ends.
+// stream is an open stream: whose it is, whether it's a page in use rather
+// than something that outlives its request, and how it ends.
 type stream struct {
 	user   string
+	page   bool
 	cancel context.CancelFunc
 }
 
 func newStreams() *streams { return &streams{m: map[string]map[int]stream{}} }
 
-func (s *streams) add(sessionID, userID string, cancel context.CancelFunc) int {
+func (s *streams) add(sessionID, userID string, page bool, cancel context.CancelFunc) int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.next++
 	if s.m[sessionID] == nil {
 		s.m[sessionID] = map[int]stream{}
 	}
-	s.m[sessionID][s.next] = stream{user: userID, cancel: cancel}
+	s.m[sessionID][s.next] = stream{user: userID, page: page, cancel: cancel}
 	return s.next
 }
 
@@ -537,14 +539,14 @@ func (s *streams) end(sessionID string) {
 	}
 }
 
-// endUser ends every open stream of userID's, whatever session or token it
-// rides on, and says how many.
-func (s *streams) endUser(userID string) int {
+// endUser ends the open streams of userID's, whatever session or token each
+// rides on, the pages alone or everything, and says how many.
+func (s *streams) endUser(userID string, pagesOnly bool) int {
 	s.mu.Lock()
 	var ending []context.CancelFunc
 	for credential, open := range s.m {
 		for entry, st := range open {
-			if st.user == userID {
+			if st.user == userID && (st.page || !pagesOnly) {
 				ending = append(ending, st.cancel)
 				delete(open, entry)
 			}
@@ -560,13 +562,16 @@ func (s *streams) endUser(userID string) int {
 	return len(ending)
 }
 
-// endStreamsOf ends every open stream someone has, once a change to what they
-// hold, or their removal, commits: a stream was narrowed to what they held when
-// it opened, and none outlives that. A page opens its streams again, as what
-// they hold now allows, or not at all once they're signed out (ADR 0049).
-func (s *Service) endStreamsOf(userIDs ...string) {
+// endStreamsOf ends the open streams of the people a change to what they hold
+// changed, once it commits (ADR 0049). A stream was narrowed to what its person
+// held when it opened. After a lowering or a removal every one ends, as none
+// outlives a grant taken away. After a change that takes nothing away, the
+// pages' streams end, and a page opens them again as its person now may; what
+// outlives its request, such as a terminal left running, goes on, as it never
+// had more than they hold now.
+func (s *Service) endStreamsOf(tookAway bool, userIDs ...string) {
 	for _, id := range userIDs {
-		if n := s.streams.endUser(id); n > 0 {
+		if n := s.streams.endUser(id, !tookAway); n > 0 {
 			s.logger.Debug("closed the streams of someone whose access changed", slog.String("user", id), slog.Int("streams", n))
 		}
 	}

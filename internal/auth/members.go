@@ -143,7 +143,8 @@ func (s *Service) revokeInvitesBy(ctx context.Context, tx *store.Tx, client Clie
 // there; an empty role takes it back. It takes a step-up bound to the person,
 // the role and the place. Lowering what they hold ends their sessions and
 // revokes their tokens, and their open invites when they're no longer an admin.
-// Any change ends their open streams once it commits.
+// Any change ends their pages' streams once it commits, and a lowering every
+// stream they have.
 func (s *Service) SetMemberRole(ctx context.Context, client Client, p Principal, userID, role, projectID, proof string) (RoleChange, error) {
 	switch role {
 	case store.RoleOwner:
@@ -238,8 +239,8 @@ func (s *Service) SetMemberRole(ctx context.Context, client Client, p Principal,
 		return RoleChange{}, err
 	}
 	// Their streams were narrowed to what they held, so none outlives the change,
-	// whichever way it went.
-	s.endStreamsOf(userID)
+	// whichever way it went; what they left running goes on unless it took something.
+	s.endStreamsOf(out.Lowered, userID)
 	s.logger.InfoContext(ctx, "someone's role changed", slog.String("user", userID), slog.String("role", role), slog.String("was", out.Previous), slog.String("by", p.Actor()))
 	return out, nil
 }
@@ -377,7 +378,7 @@ func (s *Service) RemoveMember(ctx context.Context, client Client, p Principal, 
 	if err != nil {
 		return RemovalPlan{}, err
 	}
-	s.endStreamsOf(userID)
+	s.endStreamsOf(true, userID)
 	s.logger.InfoContext(ctx, "someone was removed", slog.String("user", userID), slog.String("email", out.User.Email), slog.String("by", p.Actor()))
 	return out, nil
 }
@@ -446,8 +447,8 @@ func (s *Service) TransferOwnership(ctx context.Context, client Client, p Princi
 		return store.User{}, err
 	}
 	// Both hold something else now: the new owner the whole install, and the old
-	// one an admin's role.
-	s.endStreamsOf(toUserID, p.User.ID)
+	// one an admin's role, which still covers what either left running.
+	s.endStreamsOf(false, toUserID, p.User.ID)
 	s.logger.InfoContext(ctx, "ownership was transferred", slog.String("to", toUserID), slog.String("from", p.User.ID))
 	to.Role = store.RoleOwner
 	return to, nil
