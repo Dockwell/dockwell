@@ -28,6 +28,16 @@ type fakeMongo struct {
 	// open answers one who never signs in, as a server without access control does,
 	// and away answers no one, as one not up yet.
 	open, away bool
+	// firstStart is the image's first start, as it runs: its own server answers once,
+	// closed, with its root user made, then goes away, and the gap's next commands
+	// are refused before the real one answers. refused counts what the gap refused
+	// that wasn't asking whether the server answers.
+	firstStart bool
+	gap        int
+	refused    int
+	// refuseMakes refuses that many commands that make a user, as a server starting
+	// again does.
+	refuseMakes int
 }
 
 var (
@@ -50,8 +60,31 @@ func (f *fakeMongo) exec(x dockertest.Exec) int {
 		return s
 	}
 	name, db := unquote(mongoName), unquote(mongoDB)
+	asking := strings.Contains(script, "listDatabases")
 	switch {
-	case strings.Contains(script, "listDatabases"):
+	case f.firstStart && asking:
+		// The image's own server: closed, its root user made, and stopped right after.
+		// Only a script that looks for it in the container's processes sees it run.
+		f.firstStart = false
+		out, _ := json.Marshal(map[string]bool{"root": true, "answering": true, "open": false, "initializing": strings.Contains(script, "docker-entrypoint-temp-mongod")})
+		_, _ = io.WriteString(x.Stdout, string(out)+"\n")
+		return 0
+	case f.gap > 0:
+		f.gap--
+		if asking {
+			// mongoOpen reads a refused connection as not answering.
+			_, _ = io.WriteString(x.Stdout, `{"root":true,"answering":false,"open":false,"initializing":false}`+"\n")
+			return 0
+		}
+		f.refused++
+		_, _ = io.WriteString(x.Stderr, "MongoNetworkError: connect ECONNREFUSED 127.0.0.1:27017\n")
+		return 1
+	case f.refuseMakes > 0 && strings.Contains(script, "createUser("):
+		f.refuseMakes--
+		f.refused++
+		_, _ = io.WriteString(x.Stderr, "MongoServerSelectionError: connect ECONNREFUSED 127.0.0.1:27017\n")
+		return 1
+	case asking:
 		root := slices.ContainsFunc(x.Env, func(kv string) bool {
 			return strings.HasPrefix(kv, "MONGO_INITDB_ROOT_USERNAME=") && len(kv) > len("MONGO_INITDB_ROOT_USERNAME=")
 		})
@@ -225,5 +258,60 @@ func TestAMongoDBNotAnsweringYetIsWaitedFor(t *testing.T) {
 	ref := resource.Ref{Kind: UserKind, Scope: "env_1", Name: "shop"}
 	if err := d.Apply(ctx, resource.Step{Ref: ref, Action: resource.ActionCreate}, &resourcev1.DatabaseUser{Service: "db", Password: "P"}); err != nil {
 		t.Fatalf("making a user on a MongoDB not answering yet = %v", err)
+	}
+}
+
+// mongoStarting runs a MongoDB whose image is on its first start, in a fake engine.
+func mongoStarting(t *testing.T, mg *fakeMongo) *UserDriver {
+	t.Helper()
+	e := dockertest.New(t)
+	e.AddLocalImage("mongo:8.0", dockertest.Image{Config: docker.Config{Cmd: []string{"mongod"}}, Exec: mg.exec})
+	client := e.Client()
+	id, err := client.CreateContainer(t.Context(), "env_1-db-1", &docker.CreateRequest{Config: docker.Config{
+		Image: "mongo:8.0", Labels: map[string]string{docker.LabelProject: "env_1", docker.LabelService: "db", docker.LabelNumber: "1"},
+		Env: []string{"MONGO_INITDB_ROOT_USERNAME=root", "MONGO_INITDB_ROOT_PASSWORD=x"},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := client.StartContainer(t.Context(), id); err != nil {
+		t.Fatal(err)
+	}
+	return &UserDriver{Client: client, Dir: t.TempDir(), Wait: 5 * time.Second, Every: 10 * time.Millisecond}
+}
+
+// On its image's first start, a MongoDB answers from a server of the image's own,
+// closed once its root user is made, which then stops before the real one starts: a
+// user is made once the real one answers, and nothing is asked of the server in the
+// gap between them (#701).
+func TestAMongoDBsFirstStartIsWaitedOutWhole(t *testing.T) {
+	mg := &fakeMongo{users: map[string]string{}, passwords: map[string]string{}, firstStart: true, gap: 3}
+	d := mongoStarting(t, mg)
+	ref := resource.Ref{Kind: UserKind, Scope: "env_1", Name: "shop"}
+	ctx := resource.WithValues(t.Context(), map[string]string{passwordUse: "a-password"})
+	if err := d.Apply(ctx, resource.Step{Ref: ref, Action: resource.ActionCreate}, &resourcev1.DatabaseUser{Service: "db", Password: "P"}); err != nil {
+		t.Fatalf("making a user on a MongoDB's first start = %v", err)
+	}
+	if mg.users["shop"] != "shop" || mg.refused != 0 {
+		t.Errorf("made %v, with %d commands sent into the gap", mg.users, mg.refused)
+	}
+}
+
+// A command mongosh couldn't connect for, as while the server starts again, is
+// tried again until it answers, not taken as the server's refusal (#701).
+func TestAMongoDBThatDropsAConnectionIsTriedAgain(t *testing.T) {
+	mg := &fakeMongo{users: map[string]string{}, passwords: map[string]string{}, refuseMakes: 2}
+	d := mongoStarting(t, mg)
+	ref := resource.Ref{Kind: UserKind, Scope: "env_1", Name: "shop"}
+	ctx := resource.WithValues(t.Context(), map[string]string{passwordUse: "a-password"})
+	if err := d.Apply(ctx, resource.Step{Ref: ref, Action: resource.ActionCreate}, &resourcev1.DatabaseUser{Service: "db", Password: "P"}); err != nil {
+		t.Fatalf("making a user whose command was refused while the server started again = %v", err)
+	}
+	if mg.users["shop"] != "shop" || mg.refused != 2 {
+		t.Errorf("made %v after %d refusals", mg.users, mg.refused)
+	}
+	// What a server that answered refuses is said as it is.
+	if mongoNotListening("MongoServerError: not authorized on admin to execute command") {
+		t.Error("an answer that refuses reads as no answer")
 	}
 }

@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -129,6 +130,10 @@ func (r Reader) ask(ctx context.Context, container string, e *Engine, cmd []stri
 		return nil, fmt.Errorf("its image has no %s, so Dockwell can't ask it", e.tool())
 	case code != 0 && e.SQL() && startingUp(said):
 		return nil, fmt.Errorf("%s %w", e.Name, ErrStarting)
+	case code != 0 && e.Kind == dockwellv1.DatabaseEngine_DATABASE_ENGINE_MONGODB && mongoNotListening(said):
+		// mongosh says so when nothing takes its connection, as between the image's
+		// first server and its real one, or while the server starts again.
+		return nil, fmt.Errorf("%s %w", e.Name, ErrStarting)
 	case e.KeyValue() && redisNotListening(said):
 		// redis-cli says so on its error stream, and may still exit 0, as it does
 		// while a Redis loads its modules after it starts.
@@ -188,6 +193,13 @@ func (e *Engine) tool() string {
 	case dockwellv1.DatabaseEngine_DATABASE_ENGINE_UNSPECIFIED, dockwellv1.DatabaseEngine_DATABASE_ENGINE_REDIS:
 	}
 	return "redis-cli"
+}
+
+// mongoNotListening says what mongosh said is that nothing took its connection, or
+// that it dropped: a server that isn't up, not one that refused what it was asked.
+func mongoNotListening(said string) bool {
+	return regexp.MustCompile(`\b(MongoNetworkError|MongoServerSelectionError)\b`).MatchString(said) &&
+		regexp.MustCompile(`\b(ECONNREFUSED|ECONNRESET)\b`).MatchString(said)
 }
 
 // redisNotListening says what redis-cli or valkey-cli said is that nothing takes
