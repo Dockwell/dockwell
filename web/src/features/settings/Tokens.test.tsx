@@ -307,7 +307,9 @@ describe("API tokens", () => {
     const table = await screen.findByRole("table", { name: "Your API tokens" });
     const [, first, second] = within(table).getAllByRole("row");
     expect(first).toHaveTextContent("in:shop, a project that's goneas:viewer");
-    expect(second).not.toHaveTextContent("in:");
+    // One for every project says so too.
+    expect(second).toHaveTextContent("in:every project you hold");
+    expect(second).not.toHaveTextContent("as:");
   });
 
   it("asks for a name before making a token, and says why one wasn't made", async () => {

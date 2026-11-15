@@ -183,13 +183,17 @@ export function expiresWithin(token: Token, now: number, ms: number): boolean {
  */
 function Scopes({ token }: { token: Token }) {
   const { t } = useLingui();
-  const where = token.projects.map((p) => p.name || t`a project that's gone`).join(", ");
+  // Every row says where it acts, a token for every project too (ADR 0071).
+  const where =
+    token.projects.length === 0
+      ? t`every project you hold`
+      : token.projects.map((p) => p.name || t`a project that's gone`).join(", ");
   return (
     <span className="tokens-tags">
       <Tag label="read" value="*" />
       {token.scope === TokenScope.READ_WRITE ? <Tag label="write" value="undoable" /> : null}
       {token.grants.includes(TokenGrant.LOGS) ? <Tag label="logs" value="read" /> : null}
-      {where ? <Tag label="in" value={where} /> : null}
+      <Tag label="in" value={where} />
       {token.role === TokenRole.DEVELOPER ? <Tag label="as" value="developer" /> : null}
       {token.role === TokenRole.VIEWER ? <Tag label="as" value="viewer" /> : null}
     </span>

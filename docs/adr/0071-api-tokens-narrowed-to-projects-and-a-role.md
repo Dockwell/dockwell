@@ -54,7 +54,7 @@ By each method's reach:
 - **Running a task is refused** with `token_places`. A shell task runs as root on its servers (ADR 0053), which reaches every project there.
 - **Lists and named objects** are narrowed and trimmed as for anyone below an admin, as both key on grants on the install, and `token_places` covers the first gate, which checks the highest grant anywhere.
 
-So an admin's token narrowed to `shop` deploys, plans and reads in `shop`, and applies in `shop`'s production. It sees the servers by name and state only, can't read or change anything of another project or of the install's own, and what it plans that reaches past `shop` waits for a person.
+So an admin's token narrowed to `shop` deploys, plans and reads in `shop`, and applies in `shop`'s production. It sees the servers by name and state only, and can't read or change anything of another project or of the install's own. One thing reaches past `shop`, as it does for a developer of `shop` alone: an app of another project that uses a value in `shop` restarts when the token changes that value, and where that app's environment is protected, the change waits for a person ([ADR 0084](0084-what-an-app-needs-met-by-a-new-service-one-you-run-or-a-connection.md), what a change takes in). Anything else it plans that reaches past `shop` waits for a person.
 
 ### What a token capped at a role does
 
@@ -87,7 +87,7 @@ So an admin's token narrowed to `shop` deploys, plans and reads in `shop`, and a
 
 - **Lowering its maker, anywhere, or removing them revokes it,** as it revokes every token they made ([ADR 0049](0049-roles-and-invites-by-project.md), "Managing members"). So a narrowed token never goes on below what it was made with.
 - **A project created later** is reached by a token that isn't narrowed, if its maker reaches it, and never by a narrowed one.
-- **A project deleted** stays on the token by ID and reaches nothing. A token whose projects are all gone reaches only what anyone may call, as it holds no grant.
+- **A project deleted** stays on the token by ID and reaches nothing. It shows as gone, and no new token can name it. A token whose projects are all gone reaches only what anyone may call, as it holds no grant. Undoing the deletion brings back the same project, by the same ID, and with it the token's reach there. The token can't undo it itself, as a project is an admin's of the install.
 - **The maker's role rising** raises an uncapped token with it, within what a narrowed token holds above: a developer made an admin gives their narrowed token an admin's say in its projects' protected environments. A capped token stays at its cap. In the panel, "Your role" reads as the maker's role as it changes, not as it is now. A raise widens every token that isn't capped (ADR 0049), so a cap is how a CI token stays what it was made for when its maker is made an admin.
 
 ### Not decided here
