@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
+	"github.com/dockwell/dockwell/internal/testport"
 )
 
 func TestAProbeSaysWhatAnswers(t *testing.T) {
@@ -28,13 +29,8 @@ func TestAProbeSaysWhatAnswers(t *testing.T) {
 	_, port, _ := net.SplitHostPort(up.Listener.Addr().String())
 	n, _ := strconv.Atoi(port)
 
-	// A port that's closed: one that was listening a moment ago.
-	l, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	closed := l.Addr().(*net.TCPAddr).Port
-	_ = l.Close()
+	// A port that's closed, and that nothing else is given while the test runs.
+	closed := testport.Free(t)
 
 	for name, tc := range map[string]struct {
 		call     *agentv1.ProbeCall

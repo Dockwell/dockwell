@@ -75,6 +75,7 @@ import (
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
 	"github.com/dockwell/dockwell/internal/task"
+	"github.com/dockwell/dockwell/internal/testport"
 )
 
 // fullServer is a control plane with sign-in, as dockwell run starts it.
@@ -285,14 +286,10 @@ func startFullConfig(t *testing.T, backend store.Backend, public https.Source, l
 	t.Cleanup(engine.Wait)
 	// No test resolves a real name: what each says is a name's is set on f.names.
 	names := &fakeNames{m: map[string][]netip.Addr{}}
-	listen := func() net.Listener {
-		var lc net.ListenConfig
-		ln, err := lc.Listen(t.Context(), "tcp", "127.0.0.1:0")
-		if err != nil {
-			t.Fatal(err)
-		}
-		return ln
-	}
+	// Each at a port of the test's own, as a test may stop and start the server
+	// again on the same addresses, or hand its public ports to the ingress and take
+	// them back.
+	listen := func() net.Listener { return testport.Listen(t, "127.0.0.1") }
 	ls := Listeners{API: listen(), Agents: listen(), Ingress: ingress}
 	config := Config{
 		DNSLookup: names.lookup,

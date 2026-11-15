@@ -19,6 +19,7 @@ import (
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/ingress/caddy"
+	"github.com/dockwell/dockwell/internal/testport"
 )
 
 // needCaddy is the Caddy binary DOCKWELL_TEST_CADDY names, of the pinned version,
@@ -37,12 +38,7 @@ func needCaddy(t *testing.T) string {
 // to a free one. It returns where it listens.
 func runs(t *testing.T, bin, config string) string {
 	t.Helper()
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	addr := ln.Addr().String()
-	ln.Close()
+	addr := testport.Addr(t, "127.0.0.1")
 	_, port, _ := net.SplitHostPort(addr)
 	dir := t.TempDir()
 	config = strings.Replace(config, fmt.Sprintf("\n:%d {", Port), "\n:"+port+" {", 1)
