@@ -311,6 +311,62 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
           const from = m?.address ?? "";
           return { title: from ? t`${who} joined as ${as}, from ${from}` : t`${who} joined as ${as}`, icon: "users" };
         }
+        case "member.role": {
+          const m = event.member;
+          const who = m?.name || m?.email || "";
+          const where = { projectId: m?.projectId ?? "", projectName: m?.projectName ?? "" };
+          const role = m?.role ?? Role.UNSPECIFIED;
+          const was = m?.previousRole ?? Role.UNSPECIFIED;
+          const before = rolePhrase(was, where);
+          // What a lowering ended goes with it, as that's what whoever reads this wants to know,
+          // each as one whole sentence, so a translation can put it where its language does.
+          const signedOut = (m?.sessions ?? 0) + (m?.tokens ?? 0) > 0;
+          const invites = (m?.invites ?? 0) > 0;
+          if (role === Role.UNSPECIFIED) {
+            const title =
+              signedOut && invites
+                ? t`Took back ${who}'s role as ${before}, which signed them out and revoked their tokens and invites`
+                : signedOut
+                  ? t`Took back ${who}'s role as ${before}, which signed them out and revoked their tokens`
+                  : invites
+                    ? t`Took back ${who}'s role as ${before}, which revoked their invites`
+                    : t`Took back ${who}'s role as ${before}`;
+            return { title, icon: "users" };
+          }
+          const now = rolePhrase(role, where);
+          if (was === Role.UNSPECIFIED) return { title: t`Made ${who} ${now}`, icon: "users" };
+          const title =
+            signedOut && invites
+              ? t`Made ${who} ${now}, from ${before}, which signed them out and revoked their tokens and invites`
+              : signedOut
+                ? t`Made ${who} ${now}, from ${before}, which signed them out and revoked their tokens`
+                : invites
+                  ? t`Made ${who} ${now}, from ${before}, which revoked their invites`
+                  : t`Made ${who} ${now}, from ${before}`;
+          return { title, icon: "users" };
+        }
+        case "member.remove": {
+          const m = event.member;
+          const who = m?.name || m?.email || "";
+          const changes = m?.changes ?? 0;
+          // Their accounts at sign-in providers went too, where they had any (ADR 0095).
+          const links = (m?.links ?? 0) > 0;
+          const title =
+            changes > 0 && links
+              ? t`Removed ${who}, with their sessions, tokens, invites and provider accounts, and ${plural(changes, { one: "# change they'd planned", other: "# changes they'd planned" })}`
+              : changes > 0
+                ? t`Removed ${who}, with their sessions, tokens and invites, and ${plural(changes, { one: "# change they'd planned", other: "# changes they'd planned" })}`
+                : links
+                  ? t`Removed ${who}, with their sessions, tokens, invites and provider accounts`
+                  : t`Removed ${who}, with their sessions, tokens and invites`;
+          return { title, icon: "users", tone: "warning" };
+        }
+        case "member.protections_confirm":
+          return { title: t`Confirmed which environments are protected`, icon: "shield" };
+        case "owner.transfer": {
+          const who = event.subject?.name ?? "";
+          return { title: who ? t`Made ${who} the owner` : t`Moved ownership of this install`, icon: "users" };
+        }
         // Each says what it replaced, as that's the way back to it.
         case "settings.name": {
           const value = event.setting?.value ?? "";

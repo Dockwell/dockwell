@@ -18,7 +18,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/member.proto.
  */
 export const file_dockwell_v1_member: GenFile = /*@__PURE__*/
-  fileDesc("Chhkb2Nrd2VsbC92MS9tZW1iZXIucHJvdG8SC2RvY2t3ZWxsLnYxImUKE0NyZWF0ZUludml0ZVJlcXVlc3QSDQoFZW1haWwYASABKAkSHwoEcm9sZRgCIAEoDjIRLmRvY2t3ZWxsLnYxLlJvbGUSDwoHcHJvamVjdBgDIAEoCRINCgVwcm9vZhgEIAEoCSJJChRDcmVhdGVJbnZpdGVSZXNwb25zZRIjCgZpbnZpdGUYASABKAsyEy5kb2Nrd2VsbC52MS5JbnZpdGUSDAoEbGluaxgCIAEoCSIhChNSZXZva2VJbnZpdGVSZXF1ZXN0EgoKAmlkGAEgASgJIhYKFFJldm9rZUludml0ZVJlc3BvbnNlIuQBCgZJbnZpdGUSCgoCaWQYASABKAkSDQoFZW1haWwYAiABKAkSHwoEcm9sZRgDIAEoDjIRLmRvY2t3ZWxsLnYxLlJvbGUSEgoKcHJvamVjdF9pZBgEIAEoCRIUCgxwcm9qZWN0X25hbWUYBSABKAkSEgoKaW52aXRlZF9ieRgGIAEoCRIvCgtjcmVhdGVfdGltZRgHIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLwoLZXhwaXJlX3RpbWUYCCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIlgKC01lbWJlckdyYW50EhIKCnByb2plY3RfaWQYASABKAkSFAoMcHJvamVjdF9uYW1lGAIgASgJEh8KBHJvbGUYAyABKA4yES5kb2Nrd2VsbC52MS5Sb2xlIhQKEkxpc3RNZW1iZXJzUmVxdWVzdCJhChNMaXN0TWVtYmVyc1Jlc3BvbnNlEiQKB21lbWJlcnMYASADKAsyEy5kb2Nrd2VsbC52MS5NZW1iZXISJAoHaW52aXRlcxgCIAMoCzITLmRvY2t3ZWxsLnYxLkludml0ZSLJAgoGTWVtYmVyEh8KBHVzZXIYASABKAsyES5kb2Nrd2VsbC52MS5Vc2VyEgsKA3lvdRgCIAEoCBIQCghwYXNza2V5cxgDIAEoBRIZChFwYXNza2V5X2FkZHJlc3NlcxgEIAMoCRIVCg1hdXRoZW50aWNhdG9yGAUgASgIEhsKE3JlY292ZXJ5X2NvZGVzX2xlZnQYBiABKAUSEAoIc2Vzc2lvbnMYByABKAUSNAoQbGFzdF9hY3RpdmVfdGltZRgIIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASKAoHc2lnbl9pbhgJIAMoDjIXLmRvY2t3ZWxsLnYxLlNpZ25JbktpbmQSFAoMY29kZXNfbG9ja2VkGAogASgIEigKBmdyYW50cxgLIAMoCzIYLmRvY2t3ZWxsLnYxLk1lbWJlckdyYW50KmgKClNpZ25JbktpbmQSHAoYU0lHTl9JTl9LSU5EX1VOU1BFQ0lGSUVEEAASGAoUU0lHTl9JTl9LSU5EX1BBU1NLRVkQARIiCh5TSUdOX0lOX0tJTkRfQVVUSEVOVElDQVRPUl9BUFAQAjLNBwoNTWVtYmVyU2VydmljZRJ8CgtMaXN0TWVtYmVycxIfLmRvY2t3ZWxsLnYxLkxpc3RNZW1iZXJzUmVxdWVzdBogLmRvY2t3ZWxsLnYxLkxpc3RNZW1iZXJzUmVzcG9uc2UiKpACAaC7GAGwuxgBwLsYBMi7GATQuxgGgtPkkwINEgsvdjEvbWVtYmVycxJ/CgxDcmVhdGVJbnZpdGUSIC5kb2Nrd2VsbC52MS5DcmVhdGVJbnZpdGVSZXF1ZXN0GiEuZG9ja3dlbGwudjEuQ3JlYXRlSW52aXRlUmVzcG9uc2UiKqC7GAOwuxgBwLsYBMi7GATQuxgGgtPkkwIQOgEqIgsvdjEvaW52aXRlcxKLAQoMUmV2b2tlSW52aXRlEiAuZG9ja3dlbGwudjEuUmV2b2tlSW52aXRlUmVxdWVzdBohLmRvY2t3ZWxsLnYxLlJldm9rZUludml0ZVJlc3BvbnNlIjaguxgDsLsYAcC7GATIuxgE0LsYBoLT5JMCHDoBKiIXL3YxL2ludml0ZXMve2lkfTpyZXZva2UargSiuxj2AQoHbWVtYmVycxLqAU1lbWJlcnMgYXJlIHRoZSBwZW9wbGUgd2hvIHNpZ24gaW4gdG8gdGhlIGluc3RhbGwsIHdpdGggdGhlaXIgcm9sZXM6IG9uIHRoZSB3aG9sZSBpbnN0YWxsLCBvciBpbiBwcm9qZWN0cy4gTGlzdGluZyB0aGVtIG5hbWVzIHBlb3BsZSBhbmQgdGhlaXIgZW1haWxzLCBzbyBpdCBuZWVkcyBhIHNpZ25lZC1pbiBzZXNzaW9uIGFzIGFuIGFkbWluIG9yIHRoZSBvd25lciwgd2hpY2ggbm8gQVBJIHRva2VuIGdpdmVzLqK7GK4CCgdpbnZpdGVzEqICQW4gaW52aXRlIGFza3Mgc29tZW9uZSwgYnkgZW1haWwsIHRvIHNpZ24gaW4gd2l0aCBhIHJvbGUgaW4gYSBwbGFjZSwgdGhlIGluc3RhbGwgb3IgYSBwcm9qZWN0LiBBbiBhZG1pbiBvciB0aGUgb3duZXIgbWFrZXMgaXQgaW4gdGhlIHBhbmVsLCB3aXRoIGEgcGFzc2tleSwgYW5kIHNlbmRzIHRoZSBsaW5rIGl0IHNob3dzIG9uY2U6IERvY2t3ZWxsIHNlbmRzIG5vIG1haWwuIE1ha2luZyBhbmQgcmV2b2tpbmcgb25lIG5lZWRzIGEgc2lnbmVkLWluIHNlc3Npb24sIHdoaWNoIG5vIEFQSSB0b2tlbiBnaXZlcy5CpAEKD2NvbS5kb2Nrd2VsbC52MUILTWVtYmVyUHJvdG9QAVo3Z2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvdjE7ZG9ja3dlbGx2MaICA0RYWKoCC0RvY2t3ZWxsLlYxygILRG9ja3dlbGxcVjHiAhdEb2Nrd2VsbFxWMVxHUEJNZXRhZGF0YeoCDERvY2t3ZWxsOjpWMWIGcHJvdG8z", [file_dockwell_v1_auth, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
+  fileDesc("Chhkb2Nrd2VsbC92MS9tZW1iZXIucHJvdG8SC2RvY2t3ZWxsLnYxImUKE0NyZWF0ZUludml0ZVJlcXVlc3QSDQoFZW1haWwYASABKAkSHwoEcm9sZRgCIAEoDjIRLmRvY2t3ZWxsLnYxLlJvbGUSDwoHcHJvamVjdBgDIAEoCRINCgVwcm9vZhgEIAEoCSJJChRDcmVhdGVJbnZpdGVSZXNwb25zZRIjCgZpbnZpdGUYASABKAsyEy5kb2Nrd2VsbC52MS5JbnZpdGUSDAoEbGluaxgCIAEoCSIhChNSZXZva2VJbnZpdGVSZXF1ZXN0EgoKAmlkGAEgASgJIhYKFFJldm9rZUludml0ZVJlc3BvbnNlIuQBCgZJbnZpdGUSCgoCaWQYASABKAkSDQoFZW1haWwYAiABKAkSHwoEcm9sZRgDIAEoDjIRLmRvY2t3ZWxsLnYxLlJvbGUSEgoKcHJvamVjdF9pZBgEIAEoCRIUCgxwcm9qZWN0X25hbWUYBSABKAkSEgoKaW52aXRlZF9ieRgGIAEoCRIvCgtjcmVhdGVfdGltZRgHIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLwoLZXhwaXJlX3RpbWUYCCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIlgKC01lbWJlckdyYW50EhIKCnByb2plY3RfaWQYASABKAkSFAoMcHJvamVjdF9uYW1lGAIgASgJEh8KBHJvbGUYAyABKA4yES5kb2Nrd2VsbC52MS5Sb2xlIhQKEkxpc3RNZW1iZXJzUmVxdWVzdCLBAQoTTGlzdE1lbWJlcnNSZXNwb25zZRIkCgdtZW1iZXJzGAEgAygLMhMuZG9ja3dlbGwudjEuTWVtYmVyEjwKGHByb3RlY3Rpb25zX2NvbmZpcm1fdGltZRgDIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASIAoYcHJvdGVjdGlvbnNfY29uZmlybWVkX2J5GAQgASgJEiQKB2ludml0ZXMYAiADKAsyEy5kb2Nrd2VsbC52MS5JbnZpdGUioQMKBk1lbWJlchIfCgR1c2VyGAEgASgLMhEuZG9ja3dlbGwudjEuVXNlchILCgN5b3UYAiABKAgSEAoIcGFzc2tleXMYAyABKAUSGQoRcGFzc2tleV9hZGRyZXNzZXMYBCADKAkSFQoNYXV0aGVudGljYXRvchgFIAEoCBIbChNyZWNvdmVyeV9jb2Rlc19sZWZ0GAYgASgFEhAKCHNlc3Npb25zGAcgASgFEjQKEGxhc3RfYWN0aXZlX3RpbWUYCCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEigKB3NpZ25faW4YCSADKA4yFy5kb2Nrd2VsbC52MS5TaWduSW5LaW5kEhQKDGNvZGVzX2xvY2tlZBgKIAEoCBIoCgZncmFudHMYCyADKAsyGC5kb2Nrd2VsbC52MS5NZW1iZXJHcmFudBISCgppbnZpdGVkX2J5GAwgASgJEi0KCWpvaW5fdGltZRgNIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASEwoLam9pbmVkX2Zyb20YDiABKAkiaAoUU2V0TWVtYmVyUm9sZVJlcXVlc3QSDwoHdXNlcl9pZBgBIAEoCRIfCgRyb2xlGAIgASgOMhEuZG9ja3dlbGwudjEuUm9sZRIPCgdwcm9qZWN0GAMgASgJEg0KBXByb29mGAQgASgJIpYBChVTZXRNZW1iZXJSb2xlUmVzcG9uc2USIwoGbWVtYmVyGAEgASgLMhMuZG9ja3dlbGwudjEuTWVtYmVyEg8KB2xvd2VyZWQYAiABKAgSFgoOc2Vzc2lvbnNfZW5kZWQYAyABKAUSFgoOdG9rZW5zX3Jldm9rZWQYBCABKAUSFwoPaW52aXRlc19yZXZva2VkGAUgASgFIisKGFBsYW5NZW1iZXJSZW1vdmFsUmVxdWVzdBIPCgd1c2VyX2lkGAEgASgJIvkBChlQbGFuTWVtYmVyUmVtb3ZhbFJlc3BvbnNlEiMKBm1lbWJlchgBIAEoCzITLmRvY2t3ZWxsLnYxLk1lbWJlchIQCghzZXNzaW9ucxgCIAEoBRIpCgZ0b2tlbnMYAyADKAsyGS5kb2Nrd2VsbC52MS5SZW1vdmFsVG9rZW4SJAoHaW52aXRlcxgEIAMoCzITLmRvY2t3ZWxsLnYxLkludml0ZRIrCgdjaGFuZ2VzGAUgAygLMhouZG9ja3dlbGwudjEuUmVtb3ZhbENoYW5nZRInCgVsaW5rcxgGIAMoCzIYLmRvY2t3ZWxsLnYxLlJlbW92YWxMaW5rIlwKDFJlbW92YWxUb2tlbhIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEjIKDmxhc3RfdXNlZF90aW1lGAMgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCIwCgtSZW1vdmFsTGluaxIQCghwcm92aWRlchgBIAEoCRIPCgdhY2NvdW50GAIgASgJIl0KDVJlbW92YWxDaGFuZ2USCgoCaWQYASABKAkSDwoHc3VtbWFyeRgCIAEoCRIvCgtjcmVhdGVfdGltZRgDIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiNQoTUmVtb3ZlTWVtYmVyUmVxdWVzdBIPCgd1c2VyX2lkGAEgASgJEg0KBXByb29mGAIgASgJIqcBChRSZW1vdmVNZW1iZXJSZXNwb25zZRIWCg5zZXNzaW9uc19lbmRlZBgBIAEoBRIWCg50b2tlbnNfcmV2b2tlZBgCIAEoBRIXCg9pbnZpdGVzX3Jldm9rZWQYAyABKAUSGQoRY2hhbmdlc19kaXNjYXJkZWQYBCABKAUSFAoMY2hhbmdlc19sZWZ0GAUgAygJEhUKDWxpbmtzX2RlbGV0ZWQYBiABKAUiOgoYVHJhbnNmZXJPd25lcnNoaXBSZXF1ZXN0Eg8KB3VzZXJfaWQYASABKAkSDQoFcHJvb2YYAiABKAkiQAoZVHJhbnNmZXJPd25lcnNoaXBSZXNwb25zZRIjCgZtZW1iZXIYASABKAsyEy5kb2Nrd2VsbC52MS5NZW1iZXIiGwoZQ29uZmlybVByb3RlY3Rpb25zUmVxdWVzdCJOChpDb25maXJtUHJvdGVjdGlvbnNSZXNwb25zZRIwCgxjb25maXJtX3RpbWUYASABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wKmgKClNpZ25JbktpbmQSHAoYU0lHTl9JTl9LSU5EX1VOU1BFQ0lGSUVEEAASGAoUU0lHTl9JTl9LSU5EX1BBU1NLRVkQARIiCh5TSUdOX0lOX0tJTkRfQVVUSEVOVElDQVRPUl9BUFAQAjL4DgoNTWVtYmVyU2VydmljZRJ8CgtMaXN0TWVtYmVycxIfLmRvY2t3ZWxsLnYxLkxpc3RNZW1iZXJzUmVxdWVzdBogLmRvY2t3ZWxsLnYxLkxpc3RNZW1iZXJzUmVzcG9uc2UiKpACAaC7GAGwuxgBwLsYBMi7GATQuxgGgtPkkwINEgsvdjEvbWVtYmVycxJ/CgxDcmVhdGVJbnZpdGUSIC5kb2Nrd2VsbC52MS5DcmVhdGVJbnZpdGVSZXF1ZXN0GiEuZG9ja3dlbGwudjEuQ3JlYXRlSW52aXRlUmVzcG9uc2UiKqC7GAOwuxgBwLsYBMi7GATQuxgGgtPkkwIQOgEqIgsvdjEvaW52aXRlcxKLAQoMUmV2b2tlSW52aXRlEiAuZG9ja3dlbGwudjEuUmV2b2tlSW52aXRlUmVxdWVzdBohLmRvY2t3ZWxsLnYxLlJldm9rZUludml0ZVJlc3BvbnNlIjaguxgDsLsYAcC7GATIuxgE0LsYBoLT5JMCHDoBKiIXL3YxL2ludml0ZXMve2lkfTpyZXZva2USqwEKDVNldE1lbWJlclJvbGUSIS5kb2Nrd2VsbC52MS5TZXRNZW1iZXJSb2xlUmVxdWVzdBoiLmRvY2t3ZWxsLnYxLlNldE1lbWJlclJvbGVSZXNwb25zZSJToLsYA6q7GBMKB21lbWJlcnMSCHNldC1yb2xlsLsYAcC7GATIuxgE0LsYBoLT5JMCIjoBKiIdL3YxL21lbWJlcnMve3VzZXJfaWR9OnNldFJvbGUSuwEKEVBsYW5NZW1iZXJSZW1vdmFsEiUuZG9ja3dlbGwudjEuUGxhbk1lbWJlclJlbW92YWxSZXF1ZXN0GiYuZG9ja3dlbGwudjEuUGxhbk1lbWJlclJlbW92YWxSZXNwb25zZSJXkAIBoLsYAaq7GBcKB21lbWJlcnMSDHBsYW4tcmVtb3ZhbLC7GAHAuxgEyLsYBNC7GAaC0+STAh8SHS92MS9tZW1iZXJzL3t1c2VyX2lkfS9yZW1vdmFsEqUBCgxSZW1vdmVNZW1iZXISIC5kb2Nrd2VsbC52MS5SZW1vdmVNZW1iZXJSZXF1ZXN0GiEuZG9ja3dlbGwudjEuUmVtb3ZlTWVtYmVyUmVzcG9uc2UiUKC7GASquxgRCgdtZW1iZXJzEgZyZW1vdmWwuxgBwLsYBMi7GATQuxgGgtPkkwIhOgEqIhwvdjEvbWVtYmVycy97dXNlcl9pZH06cmVtb3ZlEssBChFUcmFuc2Zlck93bmVyc2hpcBIlLmRvY2t3ZWxsLnYxLlRyYW5zZmVyT3duZXJzaGlwUmVxdWVzdBomLmRvY2t3ZWxsLnYxLlRyYW5zZmVyT3duZXJzaGlwUmVzcG9uc2UiZ6C7GAOquxgdCgdtZW1iZXJzEhJ0cmFuc2Zlci1vd25lcnNoaXCwuxgBwLsYBci7GAXQuxgGgtPkkwIsOgEqIicvdjEvbWVtYmVycy97dXNlcl9pZH06dHJhbnNmZXJPd25lcnNoaXASxgEKEkNvbmZpcm1Qcm90ZWN0aW9ucxImLmRvY2t3ZWxsLnYxLkNvbmZpcm1Qcm90ZWN0aW9uc1JlcXVlc3QaJy5kb2Nrd2VsbC52MS5Db25maXJtUHJvdGVjdGlvbnNSZXNwb25zZSJfoLsYA6q7GB4KB21lbWJlcnMSE2NvbmZpcm0tcHJvdGVjdGlvbnOwuxgBwLsYBMi7GATQuxgGgtPkkwIjOgEqIh4vdjEvbWVtYmVyczpjb25maXJtUHJvdGVjdGlvbnMargSiuxj2AQoHbWVtYmVycxLqAU1lbWJlcnMgYXJlIHRoZSBwZW9wbGUgd2hvIHNpZ24gaW4gdG8gdGhlIGluc3RhbGwsIHdpdGggdGhlaXIgcm9sZXM6IG9uIHRoZSB3aG9sZSBpbnN0YWxsLCBvciBpbiBwcm9qZWN0cy4gTGlzdGluZyB0aGVtIG5hbWVzIHBlb3BsZSBhbmQgdGhlaXIgZW1haWxzLCBzbyBpdCBuZWVkcyBhIHNpZ25lZC1pbiBzZXNzaW9uIGFzIGFuIGFkbWluIG9yIHRoZSBvd25lciwgd2hpY2ggbm8gQVBJIHRva2VuIGdpdmVzLqK7GK4CCgdpbnZpdGVzEqICQW4gaW52aXRlIGFza3Mgc29tZW9uZSwgYnkgZW1haWwsIHRvIHNpZ24gaW4gd2l0aCBhIHJvbGUgaW4gYSBwbGFjZSwgdGhlIGluc3RhbGwgb3IgYSBwcm9qZWN0LiBBbiBhZG1pbiBvciB0aGUgb3duZXIgbWFrZXMgaXQgaW4gdGhlIHBhbmVsLCB3aXRoIGEgcGFzc2tleSwgYW5kIHNlbmRzIHRoZSBsaW5rIGl0IHNob3dzIG9uY2U6IERvY2t3ZWxsIHNlbmRzIG5vIG1haWwuIE1ha2luZyBhbmQgcmV2b2tpbmcgb25lIG5lZWRzIGEgc2lnbmVkLWluIHNlc3Npb24sIHdoaWNoIG5vIEFQSSB0b2tlbiBnaXZlcy5CpAEKD2NvbS5kb2Nrd2VsbC52MUILTWVtYmVyUHJvdG9QAVo3Z2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvdjE7ZG9ja3dlbGx2MaICA0RYWKoCC0RvY2t3ZWxsLlYxygILRG9ja3dlbGxcVjHiAhdEb2Nrd2VsbFxWMVxHUEJNZXRhZGF0YeoCDERvY2t3ZWxsOjpWMWIGcHJvdG8z", [file_dockwell_v1_auth, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
 
 /**
  * CreateInviteRequest says whom to invite, as what, and where.
@@ -251,6 +251,19 @@ export type ListMembersResponse = Message<"dockwell.v1.ListMembersResponse"> & {
   members: Member[];
 
   /**
+   * When someone confirmed which environments are protected, and who, by
+   * name. Unset until someone has: the first invite waits for it.
+   *
+   * @generated from field: google.protobuf.Timestamp protections_confirm_time = 3;
+   */
+  protectionsConfirmTime?: Timestamp | undefined;
+
+  /**
+   * @generated from field: string protections_confirmed_by = 4;
+   */
+  protectionsConfirmedBy: string;
+
+  /**
    * The invites that still work, newest first.
    *
    * @generated from field: repeated dockwell.v1.Invite invites = 2;
@@ -357,6 +370,24 @@ export type Member = Message<"dockwell.v1.Member"> & {
    * @generated from field: repeated dockwell.v1.MemberGrant grants = 11;
    */
   grants: MemberGrant[];
+
+  /**
+   * For someone who joined with an invite: who invited them, by name, when
+   * they joined, and the address they joined from.
+   *
+   * @generated from field: string invited_by = 12;
+   */
+  invitedBy: string;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp join_time = 13;
+   */
+  joinTime?: Timestamp | undefined;
+
+  /**
+   * @generated from field: string joined_from = 14;
+   */
+  joinedFrom: string;
 };
 
 /**
@@ -365,6 +396,421 @@ export type Member = Message<"dockwell.v1.Member"> & {
  */
 export const MemberSchema: GenMessage<Member> = /*@__PURE__*/
   messageDesc(file_dockwell_v1_member, 8);
+
+/**
+ * SetMemberRoleRequest says whose role to set, to what, and where.
+ *
+ * @generated from message dockwell.v1.SetMemberRoleRequest
+ */
+export type SetMemberRoleRequest = Message<"dockwell.v1.SetMemberRoleRequest"> & {
+  /**
+   * The person, by ID.
+   *
+   * @generated from field: string user_id = 1;
+   */
+  userId: string;
+
+  /**
+   * The role: admin, developer or viewer. Leave it unset to take back what
+   * they hold in the place.
+   *
+   * @generated from field: dockwell.v1.Role role = 2;
+   */
+  role: Role;
+
+  /**
+   * The project, by name or ID, for a developer or a viewer of one. Leave it
+   * out for the whole install.
+   *
+   * @generated from field: string project = 3;
+   */
+  project: string;
+
+  /**
+   * The proof from AuthService.FinishStepUp, for STEP_UP_ACTION_CHANGE_ROLE
+   * with the person's ID, the role's name ("none" for no role) and the place
+   * ("install", or the project's ID), apart by spaces.
+   *
+   * @generated from field: string proof = 4;
+   */
+  proof: string;
+};
+
+/**
+ * Describes the message dockwell.v1.SetMemberRoleRequest.
+ * Use `create(SetMemberRoleRequestSchema)` to create a new message.
+ */
+export const SetMemberRoleRequestSchema: GenMessage<SetMemberRoleRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_member, 9);
+
+/**
+ * SetMemberRoleResponse is the person as they now stand, and what the change ended.
+ *
+ * @generated from message dockwell.v1.SetMemberRoleResponse
+ */
+export type SetMemberRoleResponse = Message<"dockwell.v1.SetMemberRoleResponse"> & {
+  /**
+   * @generated from field: dockwell.v1.Member member = 1;
+   */
+  member?: Member | undefined;
+
+  /**
+   * True when the change took something from them, which ended what follows.
+   *
+   * @generated from field: bool lowered = 2;
+   */
+  lowered: boolean;
+
+  /**
+   * How many of their sessions ended, API tokens were revoked and open invites
+   * were revoked.
+   *
+   * @generated from field: int32 sessions_ended = 3;
+   */
+  sessionsEnded: number;
+
+  /**
+   * @generated from field: int32 tokens_revoked = 4;
+   */
+  tokensRevoked: number;
+
+  /**
+   * @generated from field: int32 invites_revoked = 5;
+   */
+  invitesRevoked: number;
+};
+
+/**
+ * Describes the message dockwell.v1.SetMemberRoleResponse.
+ * Use `create(SetMemberRoleResponseSchema)` to create a new message.
+ */
+export const SetMemberRoleResponseSchema: GenMessage<SetMemberRoleResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_member, 10);
+
+/**
+ * PlanMemberRemovalRequest names someone.
+ *
+ * @generated from message dockwell.v1.PlanMemberRemovalRequest
+ */
+export type PlanMemberRemovalRequest = Message<"dockwell.v1.PlanMemberRemovalRequest"> & {
+  /**
+   * The person, by ID.
+   *
+   * @generated from field: string user_id = 1;
+   */
+  userId: string;
+};
+
+/**
+ * Describes the message dockwell.v1.PlanMemberRemovalRequest.
+ * Use `create(PlanMemberRemovalRequestSchema)` to create a new message.
+ */
+export const PlanMemberRemovalRequestSchema: GenMessage<PlanMemberRemovalRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_member, 11);
+
+/**
+ * PlanMemberRemovalResponse is what removing them would end.
+ *
+ * @generated from message dockwell.v1.PlanMemberRemovalResponse
+ */
+export type PlanMemberRemovalResponse = Message<"dockwell.v1.PlanMemberRemovalResponse"> & {
+  /**
+   * Who, with what they hold.
+   *
+   * @generated from field: dockwell.v1.Member member = 1;
+   */
+  member?: Member | undefined;
+
+  /**
+   * How many browsers they're signed in on.
+   *
+   * @generated from field: int32 sessions = 2;
+   */
+  sessions: number;
+
+  /**
+   * The API tokens they made, which would be revoked.
+   *
+   * @generated from field: repeated dockwell.v1.RemovalToken tokens = 3;
+   */
+  tokens: RemovalToken[];
+
+  /**
+   * The open invites they made, which would be revoked.
+   *
+   * @generated from field: repeated dockwell.v1.Invite invites = 4;
+   */
+  invites: Invite[];
+
+  /**
+   * The changes they planned and didn't apply, which would be discarded.
+   *
+   * @generated from field: repeated dockwell.v1.RemovalChange changes = 5;
+   */
+  changes: RemovalChange[];
+
+  /**
+   * Their accounts at sign-in providers, which would be deleted (ADR 0095).
+   *
+   * @generated from field: repeated dockwell.v1.RemovalLink links = 6;
+   */
+  links: RemovalLink[];
+};
+
+/**
+ * Describes the message dockwell.v1.PlanMemberRemovalResponse.
+ * Use `create(PlanMemberRemovalResponseSchema)` to create a new message.
+ */
+export const PlanMemberRemovalResponseSchema: GenMessage<PlanMemberRemovalResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_member, 12);
+
+/**
+ * RemovalToken is an API token a removal would revoke.
+ *
+ * @generated from message dockwell.v1.RemovalToken
+ */
+export type RemovalToken = Message<"dockwell.v1.RemovalToken"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: string name = 2;
+   */
+  name: string;
+
+  /**
+   * When it was last used. Unset when it never was.
+   *
+   * @generated from field: google.protobuf.Timestamp last_used_time = 3;
+   */
+  lastUsedTime?: Timestamp | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.RemovalToken.
+ * Use `create(RemovalTokenSchema)` to create a new message.
+ */
+export const RemovalTokenSchema: GenMessage<RemovalToken> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_member, 13);
+
+/**
+ * RemovalLink is an account at a sign-in provider a removal would delete.
+ *
+ * @generated from message dockwell.v1.RemovalLink
+ */
+export type RemovalLink = Message<"dockwell.v1.RemovalLink"> & {
+  /**
+   * The provider's name, or its issuer's host once the provider is gone.
+   *
+   * @generated from field: string provider = 1;
+   */
+  provider: string;
+
+  /**
+   * What the provider calls the account, such as its email address.
+   *
+   * @generated from field: string account = 2;
+   */
+  account: string;
+};
+
+/**
+ * Describes the message dockwell.v1.RemovalLink.
+ * Use `create(RemovalLinkSchema)` to create a new message.
+ */
+export const RemovalLinkSchema: GenMessage<RemovalLink> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_member, 14);
+
+/**
+ * RemovalChange is a planned change a removal would discard.
+ *
+ * @generated from message dockwell.v1.RemovalChange
+ */
+export type RemovalChange = Message<"dockwell.v1.RemovalChange"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: string summary = 2;
+   */
+  summary: string;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp create_time = 3;
+   */
+  createTime?: Timestamp | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.RemovalChange.
+ * Use `create(RemovalChangeSchema)` to create a new message.
+ */
+export const RemovalChangeSchema: GenMessage<RemovalChange> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_member, 15);
+
+/**
+ * RemoveMemberRequest names someone to remove.
+ *
+ * @generated from message dockwell.v1.RemoveMemberRequest
+ */
+export type RemoveMemberRequest = Message<"dockwell.v1.RemoveMemberRequest"> & {
+  /**
+   * The person, by ID.
+   *
+   * @generated from field: string user_id = 1;
+   */
+  userId: string;
+
+  /**
+   * The proof from AuthService.FinishStepUp, for STEP_UP_ACTION_REMOVE_MEMBER
+   * with the person's ID.
+   *
+   * @generated from field: string proof = 2;
+   */
+  proof: string;
+};
+
+/**
+ * Describes the message dockwell.v1.RemoveMemberRequest.
+ * Use `create(RemoveMemberRequestSchema)` to create a new message.
+ */
+export const RemoveMemberRequestSchema: GenMessage<RemoveMemberRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_member, 16);
+
+/**
+ * RemoveMemberResponse says what went with them.
+ *
+ * @generated from message dockwell.v1.RemoveMemberResponse
+ */
+export type RemoveMemberResponse = Message<"dockwell.v1.RemoveMemberResponse"> & {
+  /**
+   * @generated from field: int32 sessions_ended = 1;
+   */
+  sessionsEnded: number;
+
+  /**
+   * @generated from field: int32 tokens_revoked = 2;
+   */
+  tokensRevoked: number;
+
+  /**
+   * @generated from field: int32 invites_revoked = 3;
+   */
+  invitesRevoked: number;
+
+  /**
+   * The changes of theirs that were discarded, and any that couldn't be,
+   * which stay planned for whoever may apply them.
+   *
+   * @generated from field: int32 changes_discarded = 4;
+   */
+  changesDiscarded: number;
+
+  /**
+   * @generated from field: repeated string changes_left = 5;
+   */
+  changesLeft: string[];
+
+  /**
+   * How many of their accounts at sign-in providers were deleted.
+   *
+   * @generated from field: int32 links_deleted = 6;
+   */
+  linksDeleted: number;
+};
+
+/**
+ * Describes the message dockwell.v1.RemoveMemberResponse.
+ * Use `create(RemoveMemberResponseSchema)` to create a new message.
+ */
+export const RemoveMemberResponseSchema: GenMessage<RemoveMemberResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_member, 17);
+
+/**
+ * TransferOwnershipRequest names the new owner.
+ *
+ * @generated from message dockwell.v1.TransferOwnershipRequest
+ */
+export type TransferOwnershipRequest = Message<"dockwell.v1.TransferOwnershipRequest"> & {
+  /**
+   * The person, by ID: someone who signs in here already.
+   *
+   * @generated from field: string user_id = 1;
+   */
+  userId: string;
+
+  /**
+   * The proof from AuthService.FinishStepUp, for
+   * STEP_UP_ACTION_TRANSFER_OWNERSHIP with the person's ID.
+   *
+   * @generated from field: string proof = 2;
+   */
+  proof: string;
+};
+
+/**
+ * Describes the message dockwell.v1.TransferOwnershipRequest.
+ * Use `create(TransferOwnershipRequestSchema)` to create a new message.
+ */
+export const TransferOwnershipRequestSchema: GenMessage<TransferOwnershipRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_member, 18);
+
+/**
+ * TransferOwnershipResponse is the new owner.
+ *
+ * @generated from message dockwell.v1.TransferOwnershipResponse
+ */
+export type TransferOwnershipResponse = Message<"dockwell.v1.TransferOwnershipResponse"> & {
+  /**
+   * @generated from field: dockwell.v1.Member member = 1;
+   */
+  member?: Member | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.TransferOwnershipResponse.
+ * Use `create(TransferOwnershipResponseSchema)` to create a new message.
+ */
+export const TransferOwnershipResponseSchema: GenMessage<TransferOwnershipResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_member, 19);
+
+/**
+ * ConfirmProtectionsRequest takes no parameters.
+ *
+ * @generated from message dockwell.v1.ConfirmProtectionsRequest
+ */
+export type ConfirmProtectionsRequest = Message<"dockwell.v1.ConfirmProtectionsRequest"> & {
+};
+
+/**
+ * Describes the message dockwell.v1.ConfirmProtectionsRequest.
+ * Use `create(ConfirmProtectionsRequestSchema)` to create a new message.
+ */
+export const ConfirmProtectionsRequestSchema: GenMessage<ConfirmProtectionsRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_member, 20);
+
+/**
+ * ConfirmProtectionsResponse says when it was recorded.
+ *
+ * @generated from message dockwell.v1.ConfirmProtectionsResponse
+ */
+export type ConfirmProtectionsResponse = Message<"dockwell.v1.ConfirmProtectionsResponse"> & {
+  /**
+   * @generated from field: google.protobuf.Timestamp confirm_time = 1;
+   */
+  confirmTime?: Timestamp | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.ConfirmProtectionsResponse.
+ * Use `create(ConfirmProtectionsResponseSchema)` to create a new message.
+ */
+export const ConfirmProtectionsResponseSchema: GenMessage<ConfirmProtectionsResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_member, 21);
 
 /**
  * SignInKind is a kind of sign-in a member has.
@@ -449,6 +895,79 @@ export const MemberService: GenService<{
     methodKind: "unary";
     input: typeof RevokeInviteRequestSchema;
     output: typeof RevokeInviteResponseSchema;
+  },
+  /**
+   * SetMemberRole gives someone a role in a place, the whole install or one
+   * project, in place of what they held there; no role takes it back. It takes
+   * a passkey step-up bound to the person, the role and the place
+   * (STEP_UP_ACTION_CHANGE_ROLE). An admin holds the install, so making someone
+   * one takes back their project grants. Nobody changes their own role or the
+   * owner's, and taking back the last thing someone holds is refused: remove
+   * them instead. Lowering what someone holds ends their sessions and revokes
+   * their API tokens, and the open invites they made when they're no longer an
+   * admin (docs/adr/0049-roles-and-invites-by-project.md).
+   *
+   * @generated from rpc dockwell.v1.MemberService.SetMemberRole
+   */
+  setMemberRole: {
+    methodKind: "unary";
+    input: typeof SetMemberRoleRequestSchema;
+    output: typeof SetMemberRoleResponseSchema;
+  },
+  /**
+   * PlanMemberRemoval reads what removing someone would end, to see before
+   * removing them: their sessions, their API tokens with when each was last
+   * used, the open invites they made, and the changes they planned and didn't
+   * apply. It changes nothing.
+   *
+   * @generated from rpc dockwell.v1.MemberService.PlanMemberRemoval
+   */
+  planMemberRemoval: {
+    methodKind: "unary";
+    input: typeof PlanMemberRemovalRequestSchema;
+    output: typeof PlanMemberRemovalResponseSchema;
+  },
+  /**
+   * RemoveMember removes someone, with a passkey step-up bound to them
+   * (STEP_UP_ACTION_REMOVE_MEMBER). Their sign-in goes, with their passkeys and
+   * codes; their sessions end; every API token they made and every open invite
+   * they made is revoked; they hold nothing; and the changes they planned and
+   * didn't apply are discarded. Their name stays on what they did, and their
+   * email is free to invite again. Nobody removes themselves or the owner.
+   *
+   * @generated from rpc dockwell.v1.MemberService.RemoveMember
+   */
+  removeMember: {
+    methodKind: "unary";
+    input: typeof RemoveMemberRequestSchema;
+    output: typeof RemoveMemberResponseSchema;
+  },
+  /**
+   * TransferOwnership makes someone who signs in here already the owner, with a
+   * passkey step-up bound to them (STEP_UP_ACTION_TRANSFER_OWNERSHIP). Only the
+   * owner calls it. The new owner holds the install at once, and whoever was
+   * the owner is an admin from then; or nothing changes.
+   *
+   * @generated from rpc dockwell.v1.MemberService.TransferOwnership
+   */
+  transferOwnership: {
+    methodKind: "unary";
+    input: typeof TransferOwnershipRequestSchema;
+    output: typeof TransferOwnershipResponseSchema;
+  },
+  /**
+   * ConfirmProtections records that the caller looked at which environments
+   * are protected, which decides whose changes wait once someone else signs
+   * in. It goes in the audit log with how each environment stood. Until it's
+   * recorded, CreateInvite is refused on an install where one person signs in,
+   * with the reason "protections_unconfirmed".
+   *
+   * @generated from rpc dockwell.v1.MemberService.ConfirmProtections
+   */
+  confirmProtections: {
+    methodKind: "unary";
+    input: typeof ConfirmProtectionsRequestSchema;
+    output: typeof ConfirmProtectionsResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_dockwell_v1_member, 0);

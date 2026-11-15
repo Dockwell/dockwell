@@ -40,6 +40,10 @@ func newInviteStand(t *testing.T, backend store.Backend) *inviteStand {
 	s.owner.claim(t, link.Token)
 	s.members = dockwellv1connect.NewMemberServiceClient(s.owner, s.origin, connect.WithProtoJSON())
 	s.newcomer = func() *browser { return newBrowser(t, s.origin, srv.https, roots) }
+	// The first invite waits for someone to confirm which environments are protected.
+	if _, err := s.members.ConfirmProtections(t.Context(), connect.NewRequest(&dockwellv1.ConfirmProtectionsRequest{})); err != nil {
+		t.Fatal(err)
+	}
 	c := changeClient(s.owner, s.origin)
 	apply(t, c, propose(t, c, "Make shop", &dockwellv1.Edit{
 		Resource: &dockwellv1.ResourceRef{Kind: "project", Name: "shop"},
@@ -343,4 +347,23 @@ func TestAnInviteToAProjectThatsGoneIsRefused(t *testing.T) {
 			t.Errorf("Members lists %v, %v; want the owner alone", list.Msg.GetMembers(), err)
 		}
 	})
+}
+
+// shopID is the project shop's ID.
+func (s *inviteStand) shopID(t *testing.T) string {
+	t.Helper()
+	var out string
+	err := s.srv.store.View(t.Context(), func(tx *store.Tx) error {
+		all, err := tx.ListKind(t.Context(), "project")
+		for _, p := range all {
+			if p.Name == "shop" {
+				out = p.ID
+			}
+		}
+		return err
+	})
+	if err != nil || out == "" {
+		t.Fatalf("no project shop: %v", err)
+	}
+	return out
 }

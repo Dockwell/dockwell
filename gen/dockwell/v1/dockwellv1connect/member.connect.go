@@ -44,6 +44,21 @@ const (
 	// MemberServiceRevokeInviteProcedure is the fully-qualified name of the MemberService's
 	// RevokeInvite RPC.
 	MemberServiceRevokeInviteProcedure = "/dockwell.v1.MemberService/RevokeInvite"
+	// MemberServiceSetMemberRoleProcedure is the fully-qualified name of the MemberService's
+	// SetMemberRole RPC.
+	MemberServiceSetMemberRoleProcedure = "/dockwell.v1.MemberService/SetMemberRole"
+	// MemberServicePlanMemberRemovalProcedure is the fully-qualified name of the MemberService's
+	// PlanMemberRemoval RPC.
+	MemberServicePlanMemberRemovalProcedure = "/dockwell.v1.MemberService/PlanMemberRemoval"
+	// MemberServiceRemoveMemberProcedure is the fully-qualified name of the MemberService's
+	// RemoveMember RPC.
+	MemberServiceRemoveMemberProcedure = "/dockwell.v1.MemberService/RemoveMember"
+	// MemberServiceTransferOwnershipProcedure is the fully-qualified name of the MemberService's
+	// TransferOwnership RPC.
+	MemberServiceTransferOwnershipProcedure = "/dockwell.v1.MemberService/TransferOwnership"
+	// MemberServiceConfirmProtectionsProcedure is the fully-qualified name of the MemberService's
+	// ConfirmProtections RPC.
+	MemberServiceConfirmProtectionsProcedure = "/dockwell.v1.MemberService/ConfirmProtections"
 )
 
 // MemberServiceClient is a client for the dockwell.v1.MemberService service.
@@ -60,6 +75,39 @@ type MemberServiceClient interface {
 	CreateInvite(context.Context, *connect.Request[v1.CreateInviteRequest]) (*connect.Response[v1.CreateInviteResponse], error)
 	// RevokeInvite stops an open invite working.
 	RevokeInvite(context.Context, *connect.Request[v1.RevokeInviteRequest]) (*connect.Response[v1.RevokeInviteResponse], error)
+	// SetMemberRole gives someone a role in a place, the whole install or one
+	// project, in place of what they held there; no role takes it back. It takes
+	// a passkey step-up bound to the person, the role and the place
+	// (STEP_UP_ACTION_CHANGE_ROLE). An admin holds the install, so making someone
+	// one takes back their project grants. Nobody changes their own role or the
+	// owner's, and taking back the last thing someone holds is refused: remove
+	// them instead. Lowering what someone holds ends their sessions and revokes
+	// their API tokens, and the open invites they made when they're no longer an
+	// admin (docs/adr/0049-roles-and-invites-by-project.md).
+	SetMemberRole(context.Context, *connect.Request[v1.SetMemberRoleRequest]) (*connect.Response[v1.SetMemberRoleResponse], error)
+	// PlanMemberRemoval reads what removing someone would end, to see before
+	// removing them: their sessions, their API tokens with when each was last
+	// used, the open invites they made, and the changes they planned and didn't
+	// apply. It changes nothing.
+	PlanMemberRemoval(context.Context, *connect.Request[v1.PlanMemberRemovalRequest]) (*connect.Response[v1.PlanMemberRemovalResponse], error)
+	// RemoveMember removes someone, with a passkey step-up bound to them
+	// (STEP_UP_ACTION_REMOVE_MEMBER). Their sign-in goes, with their passkeys and
+	// codes; their sessions end; every API token they made and every open invite
+	// they made is revoked; they hold nothing; and the changes they planned and
+	// didn't apply are discarded. Their name stays on what they did, and their
+	// email is free to invite again. Nobody removes themselves or the owner.
+	RemoveMember(context.Context, *connect.Request[v1.RemoveMemberRequest]) (*connect.Response[v1.RemoveMemberResponse], error)
+	// TransferOwnership makes someone who signs in here already the owner, with a
+	// passkey step-up bound to them (STEP_UP_ACTION_TRANSFER_OWNERSHIP). Only the
+	// owner calls it. The new owner holds the install at once, and whoever was
+	// the owner is an admin from then; or nothing changes.
+	TransferOwnership(context.Context, *connect.Request[v1.TransferOwnershipRequest]) (*connect.Response[v1.TransferOwnershipResponse], error)
+	// ConfirmProtections records that the caller looked at which environments
+	// are protected, which decides whose changes wait once someone else signs
+	// in. It goes in the audit log with how each environment stood. Until it's
+	// recorded, CreateInvite is refused on an install where one person signs in,
+	// with the reason "protections_unconfirmed".
+	ConfirmProtections(context.Context, *connect.Request[v1.ConfirmProtectionsRequest]) (*connect.Response[v1.ConfirmProtectionsResponse], error)
 }
 
 // NewMemberServiceClient constructs a client for the dockwell.v1.MemberService service. By default,
@@ -92,14 +140,50 @@ func NewMemberServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(memberServiceMethods.ByName("RevokeInvite")),
 			connect.WithClientOptions(opts...),
 		),
+		setMemberRole: connect.NewClient[v1.SetMemberRoleRequest, v1.SetMemberRoleResponse](
+			httpClient,
+			baseURL+MemberServiceSetMemberRoleProcedure,
+			connect.WithSchema(memberServiceMethods.ByName("SetMemberRole")),
+			connect.WithClientOptions(opts...),
+		),
+		planMemberRemoval: connect.NewClient[v1.PlanMemberRemovalRequest, v1.PlanMemberRemovalResponse](
+			httpClient,
+			baseURL+MemberServicePlanMemberRemovalProcedure,
+			connect.WithSchema(memberServiceMethods.ByName("PlanMemberRemoval")),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
+		removeMember: connect.NewClient[v1.RemoveMemberRequest, v1.RemoveMemberResponse](
+			httpClient,
+			baseURL+MemberServiceRemoveMemberProcedure,
+			connect.WithSchema(memberServiceMethods.ByName("RemoveMember")),
+			connect.WithClientOptions(opts...),
+		),
+		transferOwnership: connect.NewClient[v1.TransferOwnershipRequest, v1.TransferOwnershipResponse](
+			httpClient,
+			baseURL+MemberServiceTransferOwnershipProcedure,
+			connect.WithSchema(memberServiceMethods.ByName("TransferOwnership")),
+			connect.WithClientOptions(opts...),
+		),
+		confirmProtections: connect.NewClient[v1.ConfirmProtectionsRequest, v1.ConfirmProtectionsResponse](
+			httpClient,
+			baseURL+MemberServiceConfirmProtectionsProcedure,
+			connect.WithSchema(memberServiceMethods.ByName("ConfirmProtections")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // memberServiceClient implements MemberServiceClient.
 type memberServiceClient struct {
-	listMembers  *connect.Client[v1.ListMembersRequest, v1.ListMembersResponse]
-	createInvite *connect.Client[v1.CreateInviteRequest, v1.CreateInviteResponse]
-	revokeInvite *connect.Client[v1.RevokeInviteRequest, v1.RevokeInviteResponse]
+	listMembers        *connect.Client[v1.ListMembersRequest, v1.ListMembersResponse]
+	createInvite       *connect.Client[v1.CreateInviteRequest, v1.CreateInviteResponse]
+	revokeInvite       *connect.Client[v1.RevokeInviteRequest, v1.RevokeInviteResponse]
+	setMemberRole      *connect.Client[v1.SetMemberRoleRequest, v1.SetMemberRoleResponse]
+	planMemberRemoval  *connect.Client[v1.PlanMemberRemovalRequest, v1.PlanMemberRemovalResponse]
+	removeMember       *connect.Client[v1.RemoveMemberRequest, v1.RemoveMemberResponse]
+	transferOwnership  *connect.Client[v1.TransferOwnershipRequest, v1.TransferOwnershipResponse]
+	confirmProtections *connect.Client[v1.ConfirmProtectionsRequest, v1.ConfirmProtectionsResponse]
 }
 
 // ListMembers calls dockwell.v1.MemberService.ListMembers.
@@ -117,6 +201,31 @@ func (c *memberServiceClient) RevokeInvite(ctx context.Context, req *connect.Req
 	return c.revokeInvite.CallUnary(ctx, req)
 }
 
+// SetMemberRole calls dockwell.v1.MemberService.SetMemberRole.
+func (c *memberServiceClient) SetMemberRole(ctx context.Context, req *connect.Request[v1.SetMemberRoleRequest]) (*connect.Response[v1.SetMemberRoleResponse], error) {
+	return c.setMemberRole.CallUnary(ctx, req)
+}
+
+// PlanMemberRemoval calls dockwell.v1.MemberService.PlanMemberRemoval.
+func (c *memberServiceClient) PlanMemberRemoval(ctx context.Context, req *connect.Request[v1.PlanMemberRemovalRequest]) (*connect.Response[v1.PlanMemberRemovalResponse], error) {
+	return c.planMemberRemoval.CallUnary(ctx, req)
+}
+
+// RemoveMember calls dockwell.v1.MemberService.RemoveMember.
+func (c *memberServiceClient) RemoveMember(ctx context.Context, req *connect.Request[v1.RemoveMemberRequest]) (*connect.Response[v1.RemoveMemberResponse], error) {
+	return c.removeMember.CallUnary(ctx, req)
+}
+
+// TransferOwnership calls dockwell.v1.MemberService.TransferOwnership.
+func (c *memberServiceClient) TransferOwnership(ctx context.Context, req *connect.Request[v1.TransferOwnershipRequest]) (*connect.Response[v1.TransferOwnershipResponse], error) {
+	return c.transferOwnership.CallUnary(ctx, req)
+}
+
+// ConfirmProtections calls dockwell.v1.MemberService.ConfirmProtections.
+func (c *memberServiceClient) ConfirmProtections(ctx context.Context, req *connect.Request[v1.ConfirmProtectionsRequest]) (*connect.Response[v1.ConfirmProtectionsResponse], error) {
+	return c.confirmProtections.CallUnary(ctx, req)
+}
+
 // MemberServiceHandler is an implementation of the dockwell.v1.MemberService service.
 type MemberServiceHandler interface {
 	// ListMembers returns everyone who can sign in, oldest first.
@@ -131,6 +240,39 @@ type MemberServiceHandler interface {
 	CreateInvite(context.Context, *connect.Request[v1.CreateInviteRequest]) (*connect.Response[v1.CreateInviteResponse], error)
 	// RevokeInvite stops an open invite working.
 	RevokeInvite(context.Context, *connect.Request[v1.RevokeInviteRequest]) (*connect.Response[v1.RevokeInviteResponse], error)
+	// SetMemberRole gives someone a role in a place, the whole install or one
+	// project, in place of what they held there; no role takes it back. It takes
+	// a passkey step-up bound to the person, the role and the place
+	// (STEP_UP_ACTION_CHANGE_ROLE). An admin holds the install, so making someone
+	// one takes back their project grants. Nobody changes their own role or the
+	// owner's, and taking back the last thing someone holds is refused: remove
+	// them instead. Lowering what someone holds ends their sessions and revokes
+	// their API tokens, and the open invites they made when they're no longer an
+	// admin (docs/adr/0049-roles-and-invites-by-project.md).
+	SetMemberRole(context.Context, *connect.Request[v1.SetMemberRoleRequest]) (*connect.Response[v1.SetMemberRoleResponse], error)
+	// PlanMemberRemoval reads what removing someone would end, to see before
+	// removing them: their sessions, their API tokens with when each was last
+	// used, the open invites they made, and the changes they planned and didn't
+	// apply. It changes nothing.
+	PlanMemberRemoval(context.Context, *connect.Request[v1.PlanMemberRemovalRequest]) (*connect.Response[v1.PlanMemberRemovalResponse], error)
+	// RemoveMember removes someone, with a passkey step-up bound to them
+	// (STEP_UP_ACTION_REMOVE_MEMBER). Their sign-in goes, with their passkeys and
+	// codes; their sessions end; every API token they made and every open invite
+	// they made is revoked; they hold nothing; and the changes they planned and
+	// didn't apply are discarded. Their name stays on what they did, and their
+	// email is free to invite again. Nobody removes themselves or the owner.
+	RemoveMember(context.Context, *connect.Request[v1.RemoveMemberRequest]) (*connect.Response[v1.RemoveMemberResponse], error)
+	// TransferOwnership makes someone who signs in here already the owner, with a
+	// passkey step-up bound to them (STEP_UP_ACTION_TRANSFER_OWNERSHIP). Only the
+	// owner calls it. The new owner holds the install at once, and whoever was
+	// the owner is an admin from then; or nothing changes.
+	TransferOwnership(context.Context, *connect.Request[v1.TransferOwnershipRequest]) (*connect.Response[v1.TransferOwnershipResponse], error)
+	// ConfirmProtections records that the caller looked at which environments
+	// are protected, which decides whose changes wait once someone else signs
+	// in. It goes in the audit log with how each environment stood. Until it's
+	// recorded, CreateInvite is refused on an install where one person signs in,
+	// with the reason "protections_unconfirmed".
+	ConfirmProtections(context.Context, *connect.Request[v1.ConfirmProtectionsRequest]) (*connect.Response[v1.ConfirmProtectionsResponse], error)
 }
 
 // NewMemberServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -159,6 +301,37 @@ func NewMemberServiceHandler(svc MemberServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(memberServiceMethods.ByName("RevokeInvite")),
 		connect.WithHandlerOptions(opts...),
 	)
+	memberServiceSetMemberRoleHandler := connect.NewUnaryHandler(
+		MemberServiceSetMemberRoleProcedure,
+		svc.SetMemberRole,
+		connect.WithSchema(memberServiceMethods.ByName("SetMemberRole")),
+		connect.WithHandlerOptions(opts...),
+	)
+	memberServicePlanMemberRemovalHandler := connect.NewUnaryHandler(
+		MemberServicePlanMemberRemovalProcedure,
+		svc.PlanMemberRemoval,
+		connect.WithSchema(memberServiceMethods.ByName("PlanMemberRemoval")),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
+	memberServiceRemoveMemberHandler := connect.NewUnaryHandler(
+		MemberServiceRemoveMemberProcedure,
+		svc.RemoveMember,
+		connect.WithSchema(memberServiceMethods.ByName("RemoveMember")),
+		connect.WithHandlerOptions(opts...),
+	)
+	memberServiceTransferOwnershipHandler := connect.NewUnaryHandler(
+		MemberServiceTransferOwnershipProcedure,
+		svc.TransferOwnership,
+		connect.WithSchema(memberServiceMethods.ByName("TransferOwnership")),
+		connect.WithHandlerOptions(opts...),
+	)
+	memberServiceConfirmProtectionsHandler := connect.NewUnaryHandler(
+		MemberServiceConfirmProtectionsProcedure,
+		svc.ConfirmProtections,
+		connect.WithSchema(memberServiceMethods.ByName("ConfirmProtections")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/dockwell.v1.MemberService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case MemberServiceListMembersProcedure:
@@ -167,6 +340,16 @@ func NewMemberServiceHandler(svc MemberServiceHandler, opts ...connect.HandlerOp
 			memberServiceCreateInviteHandler.ServeHTTP(w, r)
 		case MemberServiceRevokeInviteProcedure:
 			memberServiceRevokeInviteHandler.ServeHTTP(w, r)
+		case MemberServiceSetMemberRoleProcedure:
+			memberServiceSetMemberRoleHandler.ServeHTTP(w, r)
+		case MemberServicePlanMemberRemovalProcedure:
+			memberServicePlanMemberRemovalHandler.ServeHTTP(w, r)
+		case MemberServiceRemoveMemberProcedure:
+			memberServiceRemoveMemberHandler.ServeHTTP(w, r)
+		case MemberServiceTransferOwnershipProcedure:
+			memberServiceTransferOwnershipHandler.ServeHTTP(w, r)
+		case MemberServiceConfirmProtectionsProcedure:
+			memberServiceConfirmProtectionsHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -186,4 +369,24 @@ func (UnimplementedMemberServiceHandler) CreateInvite(context.Context, *connect.
 
 func (UnimplementedMemberServiceHandler) RevokeInvite(context.Context, *connect.Request[v1.RevokeInviteRequest]) (*connect.Response[v1.RevokeInviteResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.MemberService.RevokeInvite is not implemented"))
+}
+
+func (UnimplementedMemberServiceHandler) SetMemberRole(context.Context, *connect.Request[v1.SetMemberRoleRequest]) (*connect.Response[v1.SetMemberRoleResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.MemberService.SetMemberRole is not implemented"))
+}
+
+func (UnimplementedMemberServiceHandler) PlanMemberRemoval(context.Context, *connect.Request[v1.PlanMemberRemovalRequest]) (*connect.Response[v1.PlanMemberRemovalResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.MemberService.PlanMemberRemoval is not implemented"))
+}
+
+func (UnimplementedMemberServiceHandler) RemoveMember(context.Context, *connect.Request[v1.RemoveMemberRequest]) (*connect.Response[v1.RemoveMemberResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.MemberService.RemoveMember is not implemented"))
+}
+
+func (UnimplementedMemberServiceHandler) TransferOwnership(context.Context, *connect.Request[v1.TransferOwnershipRequest]) (*connect.Response[v1.TransferOwnershipResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.MemberService.TransferOwnership is not implemented"))
+}
+
+func (UnimplementedMemberServiceHandler) ConfirmProtections(context.Context, *connect.Request[v1.ConfirmProtectionsRequest]) (*connect.Response[v1.ConfirmProtectionsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.MemberService.ConfirmProtections is not implemented"))
 }

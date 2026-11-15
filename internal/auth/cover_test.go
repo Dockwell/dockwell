@@ -226,14 +226,15 @@ func testOnlyWhenISignInCoversTheSession(t *testing.T, backend store.Backend) {
 	}
 }
 
-// Whatever anyone chose, how someone signs in, the choice and the floor, and
-// approving someone else's change ask for a proof each time.
+// Whatever anyone chose, how someone signs in, the choice and the floor,
+// approving someone else's change and transferring ownership ask for a proof
+// each time.
 func TestSomeActionsAlwaysAsk(t *testing.T) { storetest.Each(t, testSomeActionsAlwaysAsk) }
 
 func testSomeActionsAlwaysAsk(t *testing.T, backend store.Backend) {
 	always := []StepUpAction{
 		StepUpAddPasskey, StepUpRemovePasskey, StepUpSetUpCodes, StepUpDisableCodes, StepUpRecoveryCodes,
-		StepUpSetPolicy, StepUpSetFloor, StepUpApproveChange, StepUpLinkProvider,
+		StepUpSetPolicy, StepUpSetFloor, StepUpApproveChange, StepUpLinkProvider, StepUpTransferOwnership,
 	}
 	if got := slices.Sorted(maps.Keys(alwaysAsks)); !slices.Equal(got, slices.Sorted(slices.Values(always))) {
 		t.Fatalf("what always asks = %v, want %v", got, always)

@@ -2053,7 +2053,18 @@ type EventMember struct {
 	ProjectId   string `protobuf:"bytes,4,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
 	ProjectName string `protobuf:"bytes,5,opt,name=project_name,json=projectName,proto3" json:"project_name,omitempty"`
 	// The address someone joined from, on member.join. Empty otherwise.
-	Address       string `protobuf:"bytes,6,opt,name=address,proto3" json:"address,omitempty"`
+	Address string `protobuf:"bytes,6,opt,name=address,proto3" json:"address,omitempty"`
+	// The role they held in that place before, on member.role.
+	PreviousRole Role `protobuf:"varint,7,opt,name=previous_role,json=previousRole,proto3,enum=dockwell.v1.Role" json:"previous_role,omitempty"`
+	// What went with them, on member.remove, and on member.role when it took
+	// something from them: sessions ended, API tokens and open invites revoked,
+	// and planned changes discarded.
+	Sessions int32 `protobuf:"varint,8,opt,name=sessions,proto3" json:"sessions,omitempty"`
+	Tokens   int32 `protobuf:"varint,9,opt,name=tokens,proto3" json:"tokens,omitempty"`
+	Invites  int32 `protobuf:"varint,10,opt,name=invites,proto3" json:"invites,omitempty"`
+	Changes  int32 `protobuf:"varint,11,opt,name=changes,proto3" json:"changes,omitempty"`
+	// The accounts at sign-in providers a removal deleted (ADR 0095).
+	Links         int32 `protobuf:"varint,12,opt,name=links,proto3" json:"links,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2128,6 +2139,48 @@ func (x *EventMember) GetAddress() string {
 		return x.Address
 	}
 	return ""
+}
+
+func (x *EventMember) GetPreviousRole() Role {
+	if x != nil {
+		return x.PreviousRole
+	}
+	return Role_ROLE_UNSPECIFIED
+}
+
+func (x *EventMember) GetSessions() int32 {
+	if x != nil {
+		return x.Sessions
+	}
+	return 0
+}
+
+func (x *EventMember) GetTokens() int32 {
+	if x != nil {
+		return x.Tokens
+	}
+	return 0
+}
+
+func (x *EventMember) GetInvites() int32 {
+	if x != nil {
+		return x.Invites
+	}
+	return 0
+}
+
+func (x *EventMember) GetChanges() int32 {
+	if x != nil {
+		return x.Changes
+	}
+	return 0
+}
+
+func (x *EventMember) GetLinks() int32 {
+	if x != nil {
+		return x.Links
+	}
+	return 0
 }
 
 var File_dockwell_v1_event_proto protoreflect.FileDescriptor
@@ -2305,7 +2358,7 @@ const file_dockwell_v1_event_proto_rawDesc = "" +
 	"\n" +
 	"size_bytes\x18g \x01(\x04R\tsizeBytes\x12\x1d\n" +
 	"\n" +
-	"value_name\x18< \x01(\tR\tvalueName\"\xba\x01\n" +
+	"value_name\x18< \x01(\tR\tvalueName\"\xf0\x02\n" +
 	"\vEventMember\x12\x14\n" +
 	"\x05email\x18\x01 \x01(\tR\x05email\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12%\n" +
@@ -2313,7 +2366,14 @@ const file_dockwell_v1_event_proto_rawDesc = "" +
 	"\n" +
 	"project_id\x18\x04 \x01(\tR\tprojectId\x12!\n" +
 	"\fproject_name\x18\x05 \x01(\tR\vprojectName\x12\x18\n" +
-	"\aaddress\x18\x06 \x01(\tR\aaddress*\xdf\x01\n" +
+	"\aaddress\x18\x06 \x01(\tR\aaddress\x126\n" +
+	"\rprevious_role\x18\a \x01(\x0e2\x11.dockwell.v1.RoleR\fpreviousRole\x12\x1a\n" +
+	"\bsessions\x18\b \x01(\x05R\bsessions\x12\x16\n" +
+	"\x06tokens\x18\t \x01(\x05R\x06tokens\x12\x18\n" +
+	"\ainvites\x18\n" +
+	" \x01(\x05R\ainvites\x12\x18\n" +
+	"\achanges\x18\v \x01(\x05R\achanges\x12\x14\n" +
+	"\x05links\x18\f \x01(\x05R\x05links*\xdf\x01\n" +
 	"\tEventKind\x12\x1a\n" +
 	"\x16EVENT_KIND_UNSPECIFIED\x10\x00\x12\x15\n" +
 	"\x11EVENT_KIND_CHANGE\x10\x01\x12\x15\n" +
@@ -2427,17 +2487,18 @@ var file_dockwell_v1_event_proto_depIdxs = []int32{
 	33, // 38: dockwell.v1.EventHealth.previous:type_name -> dockwell.v1.HealthState
 	22, // 39: dockwell.v1.EventHealth.since:type_name -> google.protobuf.Timestamp
 	34, // 40: dockwell.v1.EventMember.role:type_name -> dockwell.v1.Role
-	1,  // 41: dockwell.v1.EventService.ListEvents:input_type -> dockwell.v1.ListEventsRequest
-	3,  // 42: dockwell.v1.EventService.CountEvents:input_type -> dockwell.v1.CountEventsRequest
-	6,  // 43: dockwell.v1.EventService.WatchEvents:input_type -> dockwell.v1.WatchEventsRequest
-	2,  // 44: dockwell.v1.EventService.ListEvents:output_type -> dockwell.v1.ListEventsResponse
-	4,  // 45: dockwell.v1.EventService.CountEvents:output_type -> dockwell.v1.CountEventsResponse
-	7,  // 46: dockwell.v1.EventService.WatchEvents:output_type -> dockwell.v1.WatchEventsResponse
-	44, // [44:47] is the sub-list for method output_type
-	41, // [41:44] is the sub-list for method input_type
-	41, // [41:41] is the sub-list for extension type_name
-	41, // [41:41] is the sub-list for extension extendee
-	0,  // [0:41] is the sub-list for field type_name
+	34, // 41: dockwell.v1.EventMember.previous_role:type_name -> dockwell.v1.Role
+	1,  // 42: dockwell.v1.EventService.ListEvents:input_type -> dockwell.v1.ListEventsRequest
+	3,  // 43: dockwell.v1.EventService.CountEvents:input_type -> dockwell.v1.CountEventsRequest
+	6,  // 44: dockwell.v1.EventService.WatchEvents:input_type -> dockwell.v1.WatchEventsRequest
+	2,  // 45: dockwell.v1.EventService.ListEvents:output_type -> dockwell.v1.ListEventsResponse
+	4,  // 46: dockwell.v1.EventService.CountEvents:output_type -> dockwell.v1.CountEventsResponse
+	7,  // 47: dockwell.v1.EventService.WatchEvents:output_type -> dockwell.v1.WatchEventsResponse
+	45, // [45:48] is the sub-list for method output_type
+	42, // [42:45] is the sub-list for method input_type
+	42, // [42:42] is the sub-list for extension type_name
+	42, // [42:42] is the sub-list for extension extendee
+	0,  // [0:42] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_event_proto_init() }

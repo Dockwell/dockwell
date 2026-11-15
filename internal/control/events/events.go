@@ -136,6 +136,10 @@ var (
 		ActionRevealServiceValue,
 		fileRead, fileRefuse, fileDownload, changeApplyUnconfirmed,
 		"member.invite", "member.invite_revoke", "member.join",
+		"member.role", "member.remove", "member.protections_confirm", "owner.transfer",
+		// An account at a sign-in provider linked or unlinked, as a passkey added or
+		// removed is, and the sessions a stopped provider's link began, ended (ADR 0095).
+		"provider_link.create", "provider_link.delete", "auth.sessions_ended",
 	}
 )
 
@@ -782,7 +786,11 @@ func FromAudit(a *store.Event, look actors.Lookup) *dockwellv1.Event {
 	if strings.HasPrefix(a.Action, "member.") {
 		// Who, with what role, where (ADR 0049): only internal/auth writes these.
 		if m, ok := auth.ReadMemberDetail(a.Detail); ok {
-			e.Member = &dockwellv1.EventMember{Email: m.Email, Name: m.Name, Role: authapi.RoleProto(m.Role), ProjectId: m.Project, Address: m.From}
+			e.Member = &dockwellv1.EventMember{
+				Email: m.Email, Name: m.Name, Role: authapi.RoleProto(m.Role), ProjectId: m.Project, Address: m.From,
+				PreviousRole: authapi.RoleProto(m.Previous),
+				Sessions:     int32(m.Sessions), Tokens: int32(m.Tokens), Invites: int32(m.Invites), Changes: int32(m.Changes), Links: int32(m.Links), //nolint:gosec // counts of a person's own
+			}
 			if m.Project != store.Install {
 				e.Member.ProjectName = look.Name(m.Project)
 			}

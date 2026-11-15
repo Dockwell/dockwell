@@ -114,7 +114,7 @@ The interceptor checks `min_role` against the caller's highest grant anywhere, a
 - **Unset reads as protected for an environment named `production`,** and open for any other. That rule is only for environments that exist today, so no revision is rewritten.
 - **From now on, every environment is created with its protection written,** protected for `production`, open otherwise. So an import's `prod`, `live` or `main` doesn't fall to a rule by name. Creating one with other than that default is an admin's, as is changing it later. A rename, if one comes, writes the old protection explicitly.
 - **A name isn't protection.** `display_name` can make `staging` read "Production", so the panel marks protection on its own, beside the name.
-- **The first invite lists each environment's protection,** as a reminder to look before anyone else signs in, since it decides whose changes wait. The panel asks whoever invites to tick that they looked, and a switch beside each environment plans a change to it. It is a prompt, not a gate: the control plane keeps no record of the tick and the API asks for none, so it is asked again until a second person signs in, and an invite made with the CLI or a script meets no such question. What holds is the protection itself, which is written on every environment and checked on every change.
+- **The first invite lists each environment's protection,** for whoever invites to confirm before anyone else signs in, since it decides whose changes wait, with a switch beside each environment that plans a change to it. The confirmation is recorded and audited, and the first invite is refused without it (see Managing members).
 
 **Enforcement is where every other check is:**
 
@@ -178,6 +178,69 @@ A step-up proves who is there; a role says what they may do. Both are checked, a
 - **A project's grants go with it** when it's deleted ([ADR 0036](0036-deleting-a-project-takes-its-environments.md)). Its plan names who loses their last grant.
 - **Someone with no grant left can only sign out.**
 
+### Managing members
+
+Decided when changing a role, removing someone and transferring ownership were built (#263), where the lines above left a choice.
+
+**Who may, and on whom.**
+
+- An admin or the owner changes what someone holds and removes people, in a session, with a passkey. An admin acts on anyone but the owner. Nobody acts on themselves: an admin who wants less, or out, asks another admin or the owner, so nobody drops their own access by a slip, and an install is never left with nobody who can manage it.
+- Only the owner transfers ownership, to someone who signs in here already.
+- **The install always has exactly one owner.** No call removes the owner, takes their grant or gives it a second holder: the store refuses each (`ErrOwner`, and the one-owner index), whatever the API asks. Ownership moves in one transaction, in which the new owner gets the grant and the old one becomes an admin, or nothing changes.
+
+**The calls,** each `needs_session`, admin on the install (the owner alone for a transfer), each with its own step-up bound to what it's for:
+
+- `SetMemberRole` (111, bound to the person, the role and the place): gives a role in a place, the install or one project, in place of what they held there. An admin holds the install, so making someone an admin takes back their project grants, which it covers. A role of none takes back what they hold in that place; taking back the last thing someone holds is refused, as that is removing them, which says so.
+- `PlanMemberRemoval`: reads what removing someone would end, so whoever removes them sees it first: their sessions, their API tokens with when each was last used, their accounts at sign-in providers by the provider's name, the open invites they made, and the changes they planned and didn't apply.
+- `RemoveMember` (112, bound to the person): does it.
+- `TransferOwnership` (113, bound to the person). It asks for the passkey each time, whatever the owner chose for how often ([ADR 0075](0075-how-often-a-passkey-is-asked-for-again.md)), as a stolen session within its hour would otherwise give the install away for good. Changing a role and removing someone follow that choice, as inviting does.
+
+**What removing someone does,** in one transaction:
+
+- Their sign-in is off: passkeys, authenticator codes and recovery codes are deleted, and their sessions end.
+- **Their accounts at sign-in providers are deleted** ([ADR 0095](0095-signing-in-to-the-panel-with-a-provider.md)), as each is another way they signed in, each on record as `provider_link.delete`.
+- **Every API token they made is revoked,** the CLI's local one too. A token acts for its maker (ADR 0016), so none outlives them under anyone's name: whoever needs what a token did makes their own.
+- **The open invites they made are revoked,** each audited, so nobody joins on the word of someone who's gone. An invite in flight is refused in its own write, which checks its maker still manages who signs in, and accepting one checks its maker is still an admin or the owner, not removed, so none outlives them by a race.
+- Their grants go.
+- Their name stays: the person's row is kept, marked removed, so Activity and the audit log still say who did what. Their email is free again, and inviting it later makes a new person.
+
+Once it commits, **every stream they have open ends at once,** on any session or token. Whatever a race could leave behind, signing in, a token and a stream's recheck each refuse someone removed, and a token they asked for before the removal isn't made after it.
+
+**Each refuses in its write, before the passkey is spent.** A role change, a removal, a transfer and an invite check everything inside their write transaction and spend the step-up's proof there last, so one refused by what changed meanwhile leaves the proof for another try.
+
+Then, outside that transaction, **the changes they planned and hadn't applied are discarded,** by Dockwell, each on Activity. If one can't be discarded it stays planned, and applying it is checked against whoever applies it, never against who planned it.
+
+**What lowering someone's role does.** Lowering is giving a lower role in a place, or taking a place back. An owner who becomes an admin in a transfer isn't lowered in this sense: they keep managing, and only the CLI's local token that acted for them as owner is revoked. In the same transaction as the change:
+
+- Their sessions end, so they sign in again as who they now are, and nothing they had open, a terminal, a file, a passkey's proof, a stream, goes on as who they were.
+- **Their API tokens are revoked,** as on removal. Each call already checks a token against its maker's grants as they stand, so a token could do no more than its maker now can; revoking is the plainer rule, and whoever still needs one makes it again with what they hold now.
+- **The open invites they made are revoked** when they are no longer an admin, as only an admin invites.
+- The changes they planned stay planned: applying is checked against whoever applies.
+
+Raising someone's role ends no session or token. **A raise widens every token they made,** as a token's reach is its maker's grants when it's used (ADR 0048): a viewer's read-write CI token is an admin's read-write token once they're made an admin. That is by design, and kept: revoking on a raise would break what their tokens run for nothing taken away.
+
+**An admin holds no project's role.** An admin holds the whole install, so giving them a role in one project is refused: it would outlast a later lowering nobody chose it for.
+
+**Any change to what someone holds ends their open streams at once,** once it commits. Each stream was narrowed to what they held when it opened, and a recheck within 30 seconds ends one only once they may no longer make it, so a stream could show a lowered person more than they now hold for that long. Open streams are kept by whose they are as well as by session or token, for this.
+
+- **A lowering or a removal ends every stream they have,** a terminal left running and a token's too.
+- **A change that takes nothing away,** a raise, a project's role, and both people in a transfer, ends their pages' streams, the ones a session opened, which a page opens again at once as the person now may. What outlives its request, such as a terminal left running, and what a token follows, such as a CLI's log, which no page would open again, go on: neither had more than they hold now.
+- This replaces ADR 0048's "Any change to a person's grants closes all their streams and terminals at once" for a change that takes nothing away.
+
+**Nothing that acts on a server keeps running on a removed person's authority.** Checked against what acts:
+
+- API tokens: revoked, as above.
+- Scheduled tasks: a task runs because its change was applied by someone who could apply it then, with a passkey for a shell command, and it runs as Dockwell, not as whoever made it (ADR 0053). It's managed state, as an app they deployed is, and stays. Running one by hand is checked against whoever presses Run.
+- Planned changes: discarded on removal, as above.
+- Alert mutes: a mute holds messages for a while and acts on nothing; it stays until it ends, with their name beside it.
+- Sessions, terminals, uploads and passkey proofs: ended with their sessions.
+
+**On record.** `member.role` says who, the role and place, and the role before. `member.remove` says who, and how many sessions, tokens, provider links, invites and changes went with them, counted as its transaction ended them, which is what the call returns too. `owner.transfer` says who is the owner now, and who was. Each is an access event, on Activity and in the audit log.
+
+**The protection confirmation is a recorded step.** This replaces "a prompt, not a gate" above. Before anyone else can sign in, an admin or the owner confirms they've looked at which environments are protected: `ConfirmProtections`, audited as `member.protections_confirm` with each environment's protection as it stood, read in the same transaction. Until it's recorded, `CreateInvite` is refused on an install where only one person signs in, whoever calls it, with the reason `protections_unconfirmed`. It's recorded once and kept, and confirming again returns the first record: changing an environment's protection later is a change with a plan of its own, and asks nothing again. An install that already has a second person needs none.
+
+**Members says where someone joined from:** the address their invite was accepted at, kept on the invite, beside who invited them.
+
 ### Invites
 
 As ADR 0048 says, with these specifics:
@@ -192,7 +255,7 @@ As ADR 0048 says, with these specifics:
 - **The page says who invited them, with what role, where,** and asks for their name and a passkey. That's the claim flow (ADR 0011) for someone else.
 - **Accepting only ever makes a new person.** The page refuses while someone is signed in: "You're signed in as Mira. Sign out, or open the link in a private window". An invite to an existing member's email is refused, pointing to Members.
 - **The email is kept as unverified,** and Dockwell never links an OIDC identity to an account by an unverified email.
-- **Members lists pending invites,** with who made them and when they expire, and each can be revoked. A `member.join` shows the address it came from, on Activity and in the audit log (`EventMember.address`). Remove beside it comes with managing members.
+- **Members lists pending invites,** with who made them and when they expire, and each can be revoked. A `member.join` shows the address it came from, on Activity and in the audit log (`EventMember.address`). Members shows it beside the person too, with Remove in their row's menu.
 - **Nobody is invited as owner,** though the mock's invite form offers Owner: ownership moves by transfer (ADR 0048).
 
 ### Who did what

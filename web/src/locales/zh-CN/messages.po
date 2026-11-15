@@ -790,6 +790,9 @@ msgstr "关闭了 {server} 上的终端"
 msgid "Closed a terminal on {server}, open {open}"
 msgstr "关闭了 {server} 上的终端，共打开 {open}"
 
+msgid "Confirmed which environments are protected"
+msgstr "确认了哪些环境受保护"
+
 msgid "Couldn't delete {path} on {server}"
 msgstr "无法删除 {server} 上的 {path}"
 
@@ -894,11 +897,32 @@ msgstr "已创建 {server} 上的 {path}"
 msgid "Made {path} on {server}, which can let someone back in"
 msgstr "已创建 {server} 上的 {path}，这里可能让他人重新进入服务器"
 
+msgid "Made {who} the owner"
+msgstr "已将 {who} 设为所有者"
+
+msgid "Made {who} {now}"
+msgstr "已将 {who} 设为{now}"
+
+msgid "Made {who} {now}, from {before}"
+msgstr "已将 {who} 从{before}改为{now}"
+
+msgid "Made {who} {now}, from {before}, which revoked their invites"
+msgstr "已将 {who} 从{before}改为{now}，并撤销了其邀请"
+
+msgid "Made {who} {now}, from {before}, which signed them out and revoked their tokens"
+msgstr "已将 {who} 从{before}改为{now}，这使其退出登录并撤销了其令牌"
+
+msgid "Made {who} {now}, from {before}, which signed them out and revoked their tokens and invites"
+msgstr "已将 {who} 从{before}改为{now}，这使其退出登录并撤销了其令牌和邀请"
+
 msgid "May have changed {path} on {server}"
 msgstr "可能已更改 {server} 上的 {path}"
 
 msgid "May have saved {path} on {server}"
 msgstr "可能已保存 {server} 上的 {path}"
+
+msgid "Moved ownership of this install"
+msgstr "转移了此安装的所有权"
 
 msgid "Moved {path} to {to} on {server}"
 msgstr "已将 {server} 上的 {path} 移到 {to}"
@@ -959,6 +983,18 @@ msgstr "移除了通行密钥 {name}"
 
 msgid "Removed {server} from the fleet"
 msgstr "从集群中移除了 {server}"
+
+msgid "Removed {who}, with their sessions, tokens and invites"
+msgstr "已移除 {who}，连同其会话、令牌和邀请"
+
+msgid "Removed {who}, with their sessions, tokens and invites, and {changes, plural, one {# change they'd planned} other {# changes they'd planned}}"
+msgstr "已移除 {who}，连同其会话、令牌和邀请，以及其计划的 {changes, plural, other {# 项更改}}"
+
+msgid "Removed {who}, with their sessions, tokens, invites and provider accounts"
+msgstr "已移除 {who}，连同其会话、令牌、邀请和登录提供方账户"
+
+msgid "Removed {who}, with their sessions, tokens, invites and provider accounts, and {changes, plural, one {# change they'd planned} other {# changes they'd planned}}"
+msgstr "已移除 {who}，连同其会话、令牌、邀请和登录提供方账户，以及其计划的 {changes, plural, other {# 项更改}}"
 
 msgid "Resolved: {title}"
 msgstr "已恢复：{title}"
@@ -1104,6 +1140,18 @@ msgstr "{subject} 最新检查过的备份无法恢复"
 
 msgid "Took back the acknowledgement of the alert: {title}"
 msgstr "已撤回对告警的确认：{title}"
+
+msgid "Took back {who}'s role as {before}"
+msgstr "已收回 {who} 作为{before}的角色"
+
+msgid "Took back {who}'s role as {before}, which revoked their invites"
+msgstr "已收回 {who} 作为{before}的角色，并撤销了其邀请"
+
+msgid "Took back {who}'s role as {before}, which signed them out and revoked their tokens"
+msgstr "已收回 {who} 作为{before}的角色，这使其退出登录并撤销了其令牌"
+
+msgid "Took back {who}'s role as {before}, which signed them out and revoked their tokens and invites"
+msgstr "已收回 {who} 作为{before}的角色，这使其退出登录并撤销了其令牌和邀请"
 
 msgid "Took over the alert from {from}: {title}"
 msgstr "已从 {from} 接手告警：{title}"
@@ -6044,8 +6092,8 @@ msgstr "一次通行密钥验证在接下来一小时内对本会话有效。"
 msgid "Ask for my passkey"
 msgstr "何时要求验证通行密钥"
 
-msgid "Changing how you sign in, this choice, and approving someone else's change always ask."
-msgstr "更改登录方式、更改此选项以及批准他人的变更时，始终需要验证。"
+msgid "Changing how you sign in, this choice, approving someone else's change and transferring ownership always ask."
+msgstr "更改登录方式、更改此选项、批准他人的变更以及转让所有权时，始终需要验证。"
 
 msgid "Confirmed at {since} · asks again at {until}"
 msgstr "已于 {since} 确认 · {until} 再次验证"
@@ -6214,6 +6262,12 @@ msgstr "连续输错 10 次验证码后，验证码登录已锁定。请用通�
 msgid "Invites need the panel's domain, as the link uses it and the invited person's passkey is made there. Set DOCKWELL_DOMAIN for the service, then invite."
 msgstr "邀请需要面板的域名，因为链接使用该域名，受邀者的通行密钥也在那里创建。请为服务设置 DOCKWELL_DOMAIN，然后再邀请。"
 
+msgid "Nobody changes or removes themselves, so a slip can't take your own access. Ask another admin or the owner."
+msgstr "没有人能更改或移除自己，以免一次失误让你失去访问权限。请联系另一位管理员或所有者。"
+
+msgid "Nobody has confirmed which environments are protected yet, and the first invite waits for that. Confirm them above, then invite."
+msgstr "尚无人确认哪些环境受保护，而第一次邀请需要先确认。请在上方确认，然后再邀请。"
+
 msgid "Passkeys need a hostname, not an IP address. Open the panel at http://localhost on the same port."
 msgstr "通行密钥需要主机名，不能用 IP 地址。请在同一端口上打开 http://localhost 访问面板。"
 
@@ -6258,6 +6312,12 @@ msgstr "这是最后一次尝试。输错 5 次验证码已结束此次设置，
 
 msgid "That would leave you no way to sign in. Add another passkey or an authenticator app first."
 msgstr "这样你将无法登录。请先添加另一个通行密钥或身份验证器应用。"
+
+msgid "That's the last thing they hold, and someone who holds nothing can only sign out. Remove them instead."
+msgstr "这是对方持有的最后一项角色，而没有任何角色的人只能退出登录。请改为移除对方。"
+
+msgid "That's the owner, whose role moves only by a transfer, which only the owner makes."
+msgstr "对方是所有者，其角色只能通过转让变更，而转让只能由所有者发起。"
 
 msgid "The browser couldn't finish with the passkey. Try again, or use another device."
 msgstr "浏览器未能完成通行密钥操作。请重试，或换一台设备。"
@@ -15631,6 +15691,148 @@ msgstr "已连接 {connected} 个 · Dockwell 发送备份的服务，以及路�
 msgid "{signinCount} providers · for private routes"
 msgstr "{signinCount} 个提供方 · 用于私有路由"
 
+msgid "API tokens revoked"
+msgstr "吊销的 API 令牌"
+
+msgid "Apps and tasks they set up"
+msgstr "其设置的应用和任务"
+
+msgid "Become an admin, and stay signed in"
+msgstr "成为管理员，并保持登录"
+
+msgid "Becomes the owner"
+msgstr "成为所有者"
+
+msgid "Change role"
+msgstr "更改角色"
+
+msgid "Change what {name} holds"
+msgstr "更改 {name} 持有的角色"
+
+msgid "Dockwell can't say what removing {name} would end"
+msgstr "Dockwell 无法说明移除 {name} 会终止什么"
+
+msgid "Invites revoked"
+msgstr "撤销的邀请"
+
+msgid "Invites they made"
+msgstr "对方发出的邀请"
+
+msgid "Keep running"
+msgstr "继续运行"
+
+msgctxt "sessions and tokens a change leaves alone"
+msgid "Kept"
+msgstr "保留"
+
+msgid "Make {name} the owner"
+msgstr "将 {name} 设为所有者"
+
+msgid "Manage {name}"
+msgstr "管理 {name}"
+
+msgid "No role there"
+msgstr "在那里没有角色"
+
+msgid "Nobody was removed"
+msgstr "没有移除任何人"
+
+msgid "None open"
+msgstr "没有"
+
+msgid "Only {name} can"
+msgstr "只有 {name} 可以"
+
+msgid "Open Activity"
+msgstr "打开动态"
+
+msgid "Ownership didn't move"
+msgstr "所有权没有转让"
+
+msgid "Passkeys and codes deleted"
+msgstr "通行密钥和验证码已删除"
+
+msgid "Planned changes discarded"
+msgstr "丢弃的计划变更"
+
+msgid "Provider accounts unlinked"
+msgstr "取消关联的登录提供方账户"
+
+msgid "Reading what this would end"
+msgstr "正在读取这会终止什么"
+
+msgid "Remove {name} instead"
+msgstr "改为移除 {name}"
+
+msgid "Replaced by admin"
+msgstr "由管理员角色取代"
+
+msgid "Revoked"
+msgstr "已吊销"
+
+msgid "Roles in single projects"
+msgstr "单个项目中的角色"
+
+msgid "Signed out everywhere"
+msgstr "在所有设备上退出登录"
+
+msgid "Stays"
+msgstr "保留"
+
+msgid "Stop working"
+msgstr "失效"
+
+msgid "That's the last thing {name} holds"
+msgstr "这是 {name} 持有的最后一项角色"
+
+msgid "The whole install"
+msgstr "整个安装"
+
+msgid "Their name on Activity"
+msgstr "其在动态中的名字"
+
+msgid "This asks for your passkey, and goes on Activity"
+msgstr "这需要你的通行密钥，并会记入活动"
+
+msgid "Transfer ownership"
+msgstr "转移所有权"
+
+msgid "Undoing this"
+msgstr "撤销此操作"
+
+msgid "What removing {name} ends"
+msgstr "移除 {name} 会结束什么"
+
+msgid "What this changes"
+msgstr "此操作改变什么"
+
+msgid "What this changes for {name}"
+msgstr "此操作对 {name} 的改变"
+
+msgid "Where"
+msgstr "范围"
+
+msgid "You"
+msgstr "你"
+
+msgid "Your CLI access on the control server"
+msgstr "你在控制服务器上的 CLI 访问"
+
+#. placeholder {0}: time.ago(timestampDate(token.lastUsedTime), now)
+msgid "last used {0}"
+msgstr "上次使用于{0}"
+
+#. placeholder {0}: p.sessions
+msgid "{0, plural, one {# browser is signed out} other {# browsers are signed out}}"
+msgstr "{0, plural, other {# 个浏览器将退出登录}}"
+
+#. placeholder {0}: left.length
+msgid "{0, plural, one {# change they planned couldn't be discarded and stays planned.} other {# changes they planned couldn't be discarded and stay planned.}}"
+msgstr "{0, plural, other {其计划的 # 项变更无法丢弃，仍处于已计划状态。}}"
+
+msgid "{name} is removed"
+msgstr "已移除 {name}"
+
 msgid "1 browser"
 msgstr "1 个浏览器"
 
@@ -15649,23 +15851,23 @@ msgstr "1 人可以登录这个安装，即其所有者"
 msgid "<0>dockwell recover</0> on the control server"
 msgstr "在控制服务器上运行 <0>dockwell recover</0>"
 
-msgid "A developer's change in a protected environment waits for an admin or the owner, who applies it with a passkey. Check that each environment is as you want it. This is a reminder, shown until someone else signs in: Dockwell keeps no record of the tick."
-msgstr "开发者在受保护环境中的更改会等待管理员或所有者，由其使用通行密钥应用。请检查每个环境是否符合你的预期。这是一条提醒，在有其他人登录之前会一直显示：Dockwell 不会记录这个勾选。"
-
 msgid "A project that's gone"
 msgstr "已不存在的项目"
 
 msgid "All projects"
 msgstr "所有项目"
 
-msgid "Apply in protected environments"
-msgstr "在受保护的环境中应用"
+msgid "Change open environments"
+msgstr "变更开放环境"
 
-msgid "Before anyone else signs in"
-msgstr "在其他人登录之前"
+msgid "Change protected environments"
+msgstr "变更受保护环境"
 
-msgid "Check each environment's protection first, then tick the box: it decides whose changes wait."
-msgstr "请先检查每个环境的保护设置，再勾选此框：它决定谁的更改需要等待。"
+msgid "Confirm: no environments yet"
+msgstr "确认：还没有环境"
+
+msgid "Confirm: {shielded} protected, {open} open"
+msgstr "确认：{shielded} 个受保护，{open} 个开放"
 
 msgid "Copy link"
 msgstr "复制链接"
@@ -15680,9 +15882,6 @@ msgstr "Dockwell 无法得知谁可以登录"
 msgid "Enter an email address, such as ada@example.com."
 msgstr "请输入电子邮件地址，例如 ada@example.com。"
 
-msgid "Everyone with a role reads apps, logs and activity in their projects. A developer's plan in a protected environment waits for an admin or the owner."
-msgstr "有角色的人都能在自己的项目中查看应用、日志和活动。开发者在受保护环境中的计划需要等待管理员或所有者。"
-
 msgid "Expires"
 msgstr "过期时间"
 
@@ -15693,14 +15892,11 @@ msgstr "{0}后过期"
 msgid "How you sign in"
 msgstr "你的登录方式"
 
-msgid "I've checked which environments are protected"
-msgstr "我已检查哪些环境受保护"
-
-msgid "In open environments"
-msgstr "在开放的环境中"
-
 msgid "Invite"
 msgstr "邀请"
+
+msgid "Invite and change roles"
+msgstr "邀请和更改角色"
 
 msgid "Invite by email"
 msgstr "通过电子邮件邀请"
@@ -15708,22 +15904,24 @@ msgstr "通过电子邮件邀请"
 msgid "Invite people"
 msgstr "邀请他人"
 
-msgid "Invite people and change roles"
-msgstr "邀请他人并更改角色"
-
 msgid "Invite someone"
 msgstr "邀请他人"
+
+#. placeholder {0}: member.invitedBy
+msgid "Invited by {0}"
+msgstr "由 {0} 邀请"
 
 #. placeholder {0}: invite.invitedBy
 msgid "Invited by {0} {when}"
 msgstr "由 {0} 于{when}邀请"
 
+#. placeholder {0}: member.invitedBy
+#. placeholder {1}: member.joinedFrom
+msgid "Invited by {0} · joined from {1}"
+msgstr "由 {0} 邀请 · 从 {1} 加入"
+
 msgid "Invites need the panel's domain"
 msgstr "邀请需要面板的域名"
-
-#. placeholder {0}: formatDateTime(sent.until, i18n.locale)
-msgid "It works once, until {0}, for whoever has it. Dockwell can't show it again."
-msgstr "它只能使用一次，有效期至 {0}，任何拿到链接的人都可以使用。Dockwell 无法再次显示它。"
 
 msgid "Last active"
 msgstr "上次活动"
@@ -15743,9 +15941,6 @@ msgstr "正在加载可以登录的人"
 msgid "Locked after too many wrong codes, until you lift it in Profile and security"
 msgstr "错误验证码过多，已锁定，可在“个人资料与安全”中解除"
 
-msgid "Make projects, manage servers and settings"
-msgstr "创建项目、管理服务器和设置"
-
 msgid "Member"
 msgstr "成员"
 
@@ -15755,14 +15950,14 @@ msgstr "当前没有可用的登录方式"
 msgid "Nobody was invited"
 msgstr "未邀请任何人"
 
+msgid "None linked"
+msgstr "未关联"
+
 msgid "Not accepted yet"
 msgstr "尚未接受"
 
 msgid "Now"
 msgstr "现在"
-
-msgid "OIDC comes in a later release"
-msgstr "OIDC 将在之后的版本中推出"
 
 msgid "On, 1 recovery code left"
 msgstr "已开启，剩余 1 个恢复码"
@@ -15771,14 +15966,18 @@ msgstr "已开启，剩余 1 个恢复码"
 msgid "On, {0} recovery codes left"
 msgstr "已开启，剩余 {0} 个恢复码"
 
+msgctxt "an environment that isn't protected"
+msgid "Open"
+msgstr "开放"
+
+msgid "Open only"
+msgstr "仅开放环境"
+
 msgid "Passkey and authenticator app"
 msgstr "通行密钥和身份验证器应用"
 
 msgid "Permission"
 msgstr "权限"
-
-msgid "Plan and apply in open environments"
-msgstr "在开放的环境中计划并应用"
 
 #. placeholder {0}: named(env)
 msgid "Protect {0}"
@@ -15787,11 +15986,22 @@ msgstr "保护 {0}"
 msgid "Protect {where}"
 msgstr "保护 {where}"
 
-msgid "Read apps, plans, activity and logs"
-msgstr "查看应用、计划、活动和日志"
+msgid "Protected environments aren't confirmed"
+msgstr "受保护的环境尚未确认"
 
-msgid "Reveal a secret's value"
+#. placeholder {0}: confirmed.by
+#. placeholder {1}: formatDateTime(confirmed.at, i18n.locale)
+msgid "Protection confirmed by {0}, {1}"
+msgstr "{0} 已于 {1} 确认保护设置"
+
+msgid "Read apps, activity and logs"
+msgstr "查看应用、动态和日志"
+
+msgid "Reveal secrets"
 msgstr "查看密钥的值"
+
+msgid "Review"
+msgstr "查看"
 
 msgid "Revoke"
 msgstr "撤销"
@@ -15808,26 +16018,17 @@ msgstr "撤销给 {0} 的邀请：其链接将失效"
 msgid "Send this link to {0}"
 msgstr "把此链接发给 {0}"
 
+msgid "Servers, projects and settings"
+msgstr "服务器、项目和设置"
+
+msgid "Set the panel's domain"
+msgstr "设置面板域名"
+
 msgid "Signed in on"
 msgstr "已登录于"
 
-msgid "Single sign-on"
-msgstr "单点登录"
-
 msgid "Stop protecting {where}"
 msgstr "停止保护 {where}"
-
-msgid "The person you invite accepts at it, and their passkey is made there, as an SSH tunnel is yours alone. Set <0>DOCKWELL_DOMAIN</0> for the service to invite someone."
-msgstr "受邀者要在该域名上接受邀请，并在那里创建通行密钥，因为 SSH 隧道只属于你自己。请为服务设置 <0>DOCKWELL_DOMAIN</0> 后再邀请他人。"
-
-msgid "Their projects"
-msgstr "其项目"
-
-msgid "They accept at <0>{domain}</0> with a passkey. Dockwell sends no mail: send them the link it shows. Inviting asks for your passkey."
-msgstr "对方在 <0>{domain}</0> 上用通行密钥接受邀请。Dockwell 不会发送邮件：请把生成的链接发给对方。邀请时需要验证你的通行密钥。"
-
-msgid "Transfer ownership"
-msgstr "转移所有权"
 
 msgid "Up to admin"
 msgstr "最高到管理员"
@@ -15841,11 +16042,18 @@ msgstr "谁可以登录"
 msgid "Who signs in to this install"
 msgstr "谁可以登录这个安装"
 
-msgid "You"
-msgstr "你"
+#. placeholder {0}: formatDateTime(sent.until, i18n.locale)
+msgid "Works once, until {0}. It isn't shown again."
+msgstr "只能使用一次，有效期至 {0}。之后不再显示。"
+
+msgid "You get a link to send them. They accept at <0>{domain}</0> with a passkey."
+msgstr "你会得到一个链接，发给对方即可。对方在 <0>{domain}</0> 用通行密钥接受。"
 
 msgid "all sign in with a passkey"
 msgstr "全部使用通行密钥登录"
+
+msgid "their projects"
+msgstr "其项目内"
 
 #. placeholder {0}: member.sessions
 msgid "{0} browsers"
@@ -15858,9 +16066,6 @@ msgstr "{0} 个待接受的邀请"
 #. placeholder {0}: m.passkeys
 msgid "{0} passkeys"
 msgstr "{0} 个通行密钥"
-
-msgid "{address} signs in here already."
-msgstr "{address} 已经可以登录这里。"
 
 msgid "{count} people sign in to this install"
 msgstr "{count} 人可以登录这个安装"
@@ -15877,6 +16082,9 @@ msgstr "{keys}，验证码登录已锁定"
 #. placeholder {0}: projectName(env.resource?.scope ?? "")
 msgid "{name} in {0}"
 msgstr "{0} 中的 {name}"
+
+msgid "{typed} signs in here already."
+msgstr "{typed} 已经在这里登录。"
 
 msgid "{withPasskeys} of {count} sign in with a passkey"
 msgstr "{count} 人中有 {withPasskeys} 人使用通行密钥登录"
@@ -16187,9 +16395,6 @@ msgstr "结束了 {app} 更新的推迟"
 
 msgid "Made {name} the owner"
 msgstr "已将 {name} 设为所有者"
-
-msgid "Moved ownership of this install"
-msgstr "转移了此安装的所有权"
 
 msgid "Planned a change"
 msgstr "规划了一项变更"
@@ -17216,9 +17421,6 @@ msgstr "已安装的更新需重启后生效"
 
 msgid "Nothing waits in its package lists"
 msgstr "软件包列表中没有待装更新"
-
-msgid "Review"
-msgstr "查看"
 
 msgid "Review updates"
 msgstr "查看更新"

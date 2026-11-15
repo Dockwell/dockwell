@@ -74,7 +74,7 @@ The sign-in page shows "Sign in with <display name>" for each provider with `pan
 
 - **A member unlinks from Profile and security.** It needs a signed-in session and no passkey, as it only takes a way in away. It ends every session that link began, so a member whose account at the provider was taken over ends what it opened in one step.
 - **An admin or the owner unlinks a member's link from Members,** for a member who keeps their role but loses that account. It's audited, and it ends the link's sessions too.
-- **Removing a member removes their links and ends their sessions,** as it does now.
+- **Removing a member deletes their links and ends their sessions,** in the removal's own transaction, and their open streams end at once ([ADR 0049](0049-roles-and-invites-by-project.md), "Managing members"). The removal's plan lists the links by provider.
 - Each is audited as `provider_link.delete`. Linking is audited as `provider_link.create`.
 
 ### A provider deleted, turned off for the panel, or moved to another issuer

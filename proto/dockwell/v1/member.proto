@@ -72,6 +72,111 @@ service MemberService {
       body: "*"
     };
   }
+  // SetMemberRole gives someone a role in a place, the whole install or one
+  // project, in place of what they held there; no role takes it back. It takes
+  // a passkey step-up bound to the person, the role and the place
+  // (STEP_UP_ACTION_CHANGE_ROLE). An admin holds the install, so making someone
+  // one takes back their project grants. Nobody changes their own role or the
+  // owner's, and taking back the last thing someone holds is refused: remove
+  // them instead. Lowering what someone holds ends their sessions and revokes
+  // their API tokens, and the open invites they made when they're no longer an
+  // admin (docs/adr/0049-roles-and-invites-by-project.md).
+  rpc SetMemberRole(SetMemberRoleRequest) returns (SetMemberRoleResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "members"
+      verb: "set-role"
+    };
+    option (google.api.http) = {
+      post: "/v1/members/{user_id}:setRole"
+      body: "*"
+    };
+  }
+
+  // PlanMemberRemoval reads what removing someone would end, to see before
+  // removing them: their sessions, their API tokens with when each was last
+  // used, the open invites they made, and the changes they planned and didn't
+  // apply. It changes nothing.
+  rpc PlanMemberRemoval(PlanMemberRemovalRequest) returns (PlanMemberRemovalResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "members"
+      verb: "plan-removal"
+    };
+    option (google.api.http) = {get: "/v1/members/{user_id}/removal"};
+  }
+
+  // RemoveMember removes someone, with a passkey step-up bound to them
+  // (STEP_UP_ACTION_REMOVE_MEMBER). Their sign-in goes, with their passkeys and
+  // codes; their sessions end; every API token they made and every open invite
+  // they made is revoked; they hold nothing; and the changes they planned and
+  // didn't apply are discarded. Their name stays on what they did, and their
+  // email is free to invite again. Nobody removes themselves or the owner.
+  rpc RemoveMember(RemoveMemberRequest) returns (RemoveMemberResponse) {
+    option (dockwell.v1.effect) = EFFECT_DESTRUCTIVE;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "members"
+      verb: "remove"
+    };
+    option (google.api.http) = {
+      post: "/v1/members/{user_id}:remove"
+      body: "*"
+    };
+  }
+
+  // TransferOwnership makes someone who signs in here already the owner, with a
+  // passkey step-up bound to them (STEP_UP_ACTION_TRANSFER_OWNERSHIP). Only the
+  // owner calls it. The new owner holds the install at once, and whoever was
+  // the owner is an admin from then; or nothing changes.
+  rpc TransferOwnership(TransferOwnershipRequest) returns (TransferOwnershipResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_OWNER;
+    option (dockwell.v1.min_role_protected) = NEEDS_OWNER;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "members"
+      verb: "transfer-ownership"
+    };
+    option (google.api.http) = {
+      post: "/v1/members/{user_id}:transferOwnership"
+      body: "*"
+    };
+  }
+
+  // ConfirmProtections records that the caller looked at which environments
+  // are protected, which decides whose changes wait once someone else signs
+  // in. It goes in the audit log with how each environment stood. Until it's
+  // recorded, CreateInvite is refused on an install where one person signs in,
+  // with the reason "protections_unconfirmed".
+  rpc ConfirmProtections(ConfirmProtectionsRequest) returns (ConfirmProtectionsResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "members"
+      verb: "confirm-protections"
+    };
+    option (google.api.http) = {
+      post: "/v1/members:confirmProtections"
+      body: "*"
+    };
+  }
 }
 
 // CreateInviteRequest says whom to invite, as what, and where.
@@ -139,6 +244,10 @@ message ListMembersRequest {}
 message ListMembersResponse {
   // Everyone who can sign in, oldest first.
   repeated Member members = 1;
+  // When someone confirmed which environments are protected, and who, by
+  // name. Unset until someone has: the first invite waits for it.
+  google.protobuf.Timestamp protections_confirm_time = 3;
+  string protections_confirmed_by = 4;
   // The invites that still work, newest first.
   repeated Invite invites = 2;
 }
@@ -177,6 +286,11 @@ message Member {
   // The roles they hold in projects, by project name. Their role on the
   // whole install, which covers every project, is user.role.
   repeated MemberGrant grants = 11;
+  // For someone who joined with an invite: who invited them, by name, when
+  // they joined, and the address they joined from.
+  string invited_by = 12;
+  google.protobuf.Timestamp join_time = 13;
+  string joined_from = 14;
 }
 
 // SignInKind is a kind of sign-in a member has.
@@ -186,4 +300,121 @@ enum SignInKind {
   SIGN_IN_KIND_PASSKEY = 1;
   // Codes from an authenticator app, on and not locked.
   SIGN_IN_KIND_AUTHENTICATOR_APP = 2;
+}
+
+// SetMemberRoleRequest says whose role to set, to what, and where.
+message SetMemberRoleRequest {
+  // The person, by ID.
+  string user_id = 1;
+  // The role: admin, developer or viewer. Leave it unset to take back what
+  // they hold in the place.
+  Role role = 2;
+  // The project, by name or ID, for a developer or a viewer of one. Leave it
+  // out for the whole install.
+  string project = 3;
+  // The proof from AuthService.FinishStepUp, for STEP_UP_ACTION_CHANGE_ROLE
+  // with the person's ID, the role's name ("none" for no role) and the place
+  // ("install", or the project's ID), apart by spaces.
+  string proof = 4;
+}
+
+// SetMemberRoleResponse is the person as they now stand, and what the change ended.
+message SetMemberRoleResponse {
+  Member member = 1;
+  // True when the change took something from them, which ended what follows.
+  bool lowered = 2;
+  // How many of their sessions ended, API tokens were revoked and open invites
+  // were revoked.
+  int32 sessions_ended = 3;
+  int32 tokens_revoked = 4;
+  int32 invites_revoked = 5;
+}
+
+// PlanMemberRemovalRequest names someone.
+message PlanMemberRemovalRequest {
+  // The person, by ID.
+  string user_id = 1;
+}
+
+// PlanMemberRemovalResponse is what removing them would end.
+message PlanMemberRemovalResponse {
+  // Who, with what they hold.
+  Member member = 1;
+  // How many browsers they're signed in on.
+  int32 sessions = 2;
+  // The API tokens they made, which would be revoked.
+  repeated RemovalToken tokens = 3;
+  // The open invites they made, which would be revoked.
+  repeated Invite invites = 4;
+  // The changes they planned and didn't apply, which would be discarded.
+  repeated RemovalChange changes = 5;
+  // Their accounts at sign-in providers, which would be deleted (ADR 0095).
+  repeated RemovalLink links = 6;
+}
+
+// RemovalToken is an API token a removal would revoke.
+message RemovalToken {
+  string id = 1;
+  string name = 2;
+  // When it was last used. Unset when it never was.
+  google.protobuf.Timestamp last_used_time = 3;
+}
+
+// RemovalLink is an account at a sign-in provider a removal would delete.
+message RemovalLink {
+  // The provider's name, or its issuer's host once the provider is gone.
+  string provider = 1;
+  // What the provider calls the account, such as its email address.
+  string account = 2;
+}
+
+// RemovalChange is a planned change a removal would discard.
+message RemovalChange {
+  string id = 1;
+  string summary = 2;
+  google.protobuf.Timestamp create_time = 3;
+}
+
+// RemoveMemberRequest names someone to remove.
+message RemoveMemberRequest {
+  // The person, by ID.
+  string user_id = 1;
+  // The proof from AuthService.FinishStepUp, for STEP_UP_ACTION_REMOVE_MEMBER
+  // with the person's ID.
+  string proof = 2;
+}
+
+// RemoveMemberResponse says what went with them.
+message RemoveMemberResponse {
+  int32 sessions_ended = 1;
+  int32 tokens_revoked = 2;
+  int32 invites_revoked = 3;
+  // The changes of theirs that were discarded, and any that couldn't be,
+  // which stay planned for whoever may apply them.
+  int32 changes_discarded = 4;
+  repeated string changes_left = 5;
+  // How many of their accounts at sign-in providers were deleted.
+  int32 links_deleted = 6;
+}
+
+// TransferOwnershipRequest names the new owner.
+message TransferOwnershipRequest {
+  // The person, by ID: someone who signs in here already.
+  string user_id = 1;
+  // The proof from AuthService.FinishStepUp, for
+  // STEP_UP_ACTION_TRANSFER_OWNERSHIP with the person's ID.
+  string proof = 2;
+}
+
+// TransferOwnershipResponse is the new owner.
+message TransferOwnershipResponse {
+  Member member = 1;
+}
+
+// ConfirmProtectionsRequest takes no parameters.
+message ConfirmProtectionsRequest {}
+
+// ConfirmProtectionsResponse says when it was recorded.
+message ConfirmProtectionsResponse {
+  google.protobuf.Timestamp confirm_time = 1;
 }

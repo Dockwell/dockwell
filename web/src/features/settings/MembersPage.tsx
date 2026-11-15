@@ -4,6 +4,7 @@ import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
 import { createConnectQueryKey, useQuery, useTransport } from "@connectrpc/connect-query";
 import {
+  AuthService,
   type Invite,
   type Member,
   MemberService,
@@ -11,6 +12,7 @@ import {
   type Resource,
   ResourceService,
   Role,
+  SettingsService,
   SignInKind,
   StepUpAction,
 } from "@dockwell/api";
@@ -30,11 +32,12 @@ import {
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { type FormEvent, type ReactNode, useState } from "react";
+import { type FormEvent, type ReactNode, useEffect, useId, useRef, useState } from "react";
 
 import { formatDateTime } from "../../lib/format";
 import { useTimeWords } from "../../lib/time";
 import { PasskeyError } from "../../lib/webauthn";
+import { useMay } from "../auth/may";
 import { useAuthError } from "../auth/messages";
 import { withStepUpIfAsked } from "../auth/stepUp";
 import { useSignedIn } from "../auth/useAuthState";
@@ -44,6 +47,7 @@ import { useControlPlaneNow } from "../servers/useFleet";
 import { Page } from "../shell/Page";
 import { ReadFailed } from "../shell/ReadFailed";
 import { CopyButton } from "../system/CopyCommand";
+import { MemberMenu } from "./MemberActions";
 import "./Settings.css";
 
 /**
@@ -127,7 +131,16 @@ export function MembersPage() {
         ) : undefined
       }
     >
-      {list.data && (!solo || inviting) ? <InvitePanel members={members} /> : null}
+      {list.data && (!solo || inviting) ? (
+        <InvitePanel
+          members={members}
+          confirmed={
+            list.data.protectionsConfirmTime
+              ? { at: timestampDate(list.data.protectionsConfirmTime), by: list.data.protectionsConfirmedBy }
+              : undefined
+          }
+        />
+      ) : null}
       <section className="tokens-section" aria-labelledby="members-people">
         <div className="cp-section-head">
           <h2 id="members-people" className="dw-text-heading">
@@ -166,7 +179,14 @@ const roleNames: Record<number, string> = {
  * The link is at the panel's domain, so without one this says how to give it
  * one instead.
  */
-function InvitePanel({ members }: { members: readonly Member[] }) {
+function InvitePanel({
+  members,
+  confirmed,
+}: {
+  members: readonly Member[];
+  /** When someone confirmed which environments are protected, and who: the first invite waits for it. */
+  confirmed: { at: Date; by: string } | undefined;
+}) {
   const { t, i18n } = useLingui();
   const transport = useTransport();
   const queryClient = useQueryClient();
@@ -186,21 +206,33 @@ function InvitePanel({ members }: { members: readonly Member[] }) {
   // Before anyone else signs in, the owner checks which environments are
   // protected, as that decides whose changes wait (ADR 0049).
   const first = members.length <= 1;
-  const [protectionChecked, setProtectionChecked] = useState(false);
+  const protectionChecked = confirmed !== undefined;
   const [protectionUnchecked, setProtectionUnchecked] = useState(false);
+  const may = useMay();
 
   if (!domain) {
+    // Set from the panel (ADR 0063), by whoever may; for anyone else, the state alone.
     return (
-      <Callout tone="info" title={t`Invites need the panel's domain`}>
-        <Trans>
-          The person you invite accepts at it, and their passkey is made there, as an SSH tunnel is yours alone. Set{" "}
-          <code>DOCKWELL_DOMAIN</code> for the service to invite someone.
-        </Trans>
-      </Callout>
+      <Callout
+        tone="info"
+        title={t`Invites need the panel's domain`}
+        actions={
+          may(SettingsService.method.setPanelDomain, { install: true }).allowed ? (
+            <Link to="/settings/general" className="dw-btn dw-btn-sm">
+              <span>
+                <Trans>Set the panel's domain</Trans>
+              </span>
+            </Link>
+          ) : undefined
+        }
+      />
     );
   }
 
   const list = projects.data?.resources ?? [];
+  // Checked as it's typed: someone who signs in already isn't invited again.
+  const typed = email.trim();
+  const taken = members.some((m) => m.user?.email.toLowerCase() === typed.toLowerCase());
   // A place to choose shows once there's more than one project, and an admin
   // holds the whole install (ADR 0049).
   const choosePlace = list.length > 1 && role !== Role.ADMIN;
@@ -214,10 +246,7 @@ function InvitePanel({ members }: { members: readonly Member[] }) {
       setInvalid(t`Enter an email address, such as ada@example.com.`);
       return;
     }
-    if (members.some((m) => m.user?.email.toLowerCase() === address.toLowerCase())) {
-      setInvalid(t`${address} signs in here already.`);
-      return;
-    }
+    if (taken) return;
     setInvalid(undefined);
     if (first && !protectionChecked) {
       setProtectionUnchecked(true);
@@ -251,15 +280,7 @@ function InvitePanel({ members }: { members: readonly Member[] }) {
   return (
     <section className="dw-panel members-invite" aria-label={t`Invite people`}>
       {first ? (
-        <ProtectionCheck
-          projects={list}
-          checked={protectionChecked}
-          unchecked={protectionUnchecked && !protectionChecked}
-          onCheck={(checked) => {
-            setProtectionChecked(checked);
-            setProtectionUnchecked(false);
-          }}
-        />
+        <ProtectionCheck projects={list} confirmed={confirmed} unchecked={protectionUnchecked && !protectionChecked} />
       ) : null}
       <form className="members-invite-form" onSubmit={(e) => void submit(e)} noValidate>
         <div className="members-invite-email">
@@ -269,9 +290,12 @@ function InvitePanel({ members }: { members: readonly Member[] }) {
             icon="mail"
             placeholder="name@example.com"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              setInvalid(undefined);
+            }}
             autoComplete="off"
-            error={invalid}
+            error={taken ? t`${typed} signs in here already.` : invalid}
           />
         </div>
         <SelectField
@@ -301,8 +325,7 @@ function InvitePanel({ members }: { members: readonly Member[] }) {
       </form>
       <p className="members-invite-note">
         <Trans>
-          They accept at <code>{domain}</code> with a passkey. Dockwell sends no mail: send them the link it shows.
-          Inviting asks for your passkey.
+          You get a link to send them. They accept at <code>{domain}</code> with a passkey.
         </Trans>
       </p>
       {problem ? (
@@ -318,10 +341,7 @@ function InvitePanel({ members }: { members: readonly Member[] }) {
         >
           <code className="members-link">{sent.link}</code>{" "}
           {sent.until ? (
-            <Trans>
-              It works once, until {formatDateTime(sent.until, i18n.locale)}, for whoever has it. Dockwell can't show it
-              again.
-            </Trans>
+            <Trans>Works once, until {formatDateTime(sent.until, i18n.locale)}. It isn't shown again.</Trans>
           ) : null}
         </Callout>
       ) : null}
@@ -337,19 +357,44 @@ function InvitePanel({ members }: { members: readonly Member[] }) {
  */
 function ProtectionCheck({
   projects,
-  checked,
+  confirmed,
   unchecked,
-  onCheck,
 }: {
   projects: readonly Resource[];
-  checked: boolean;
-  /** Inviting was asked for before the box was ticked. */
+  /** When someone confirmed them, and who, as the control plane has it on record. */
+  confirmed: { at: Date; by: string } | undefined;
+  /** Inviting was asked for before they were confirmed. */
   unchecked: boolean;
-  onCheck: (checked: boolean) => void;
 }) {
-  const { t } = useLingui();
+  const { t, i18n } = useLingui();
   const sheet = useChangeSheet();
   const explain = useAuthError();
+  const transport = useTransport();
+  const queryClient = useQueryClient();
+  const [confirming, setConfirming] = useState(false);
+  const [problem, setProblem] = useState<unknown>();
+  const [reviewing, setReviewing] = useState(false);
+  const listId = useId();
+  const confirmButton = useRef<HTMLButtonElement>(null);
+  // Inviting before this was confirmed brings you to the button that does it.
+  useEffect(() => {
+    if (unchecked) confirmButton.current?.focus();
+  }, [unchecked]);
+  // On record, in the audit log, with how each environment stood: the first invite is refused without it.
+  const confirm = async () => {
+    setConfirming(true);
+    setProblem(undefined);
+    try {
+      await createClient(MemberService, transport).confirmProtections({});
+      await queryClient.invalidateQueries({
+        queryKey: createConnectQueryKey({ schema: MemberService.method.listMembers, cardinality: "finite" }),
+      });
+    } catch (err) {
+      setProblem(err);
+    } finally {
+      setConfirming(false);
+    }
+  };
   const environments = useQuery(ResourceService.method.listResources, { kind: "environment" });
   const several = projects.length > 1;
   const projectName = (id: string) => {
@@ -384,6 +429,10 @@ function ProtectionCheck({
     });
   };
 
+  const all = environments.data?.resources ?? [];
+  const shielded = all.filter((env) => env.protected).length;
+  const open = all.length - shielded;
+
   let list: ReactNode;
   if (environments.error && !environments.data) {
     list = (
@@ -406,45 +455,64 @@ function ProtectionCheck({
         {environments.data.resources.map((env) => (
           <li key={env.id} className="members-protection-item">
             <span className="members-protection-name">{named(env)}</span>
+            <span className={env.protected ? "dw-tag dw-tag-words" : "members-muted"}>
+              {env.protected ? t`Protected` : t({ message: "Open", context: "an environment that isn't protected" })}
+            </span>
             {/* As Settings draws it: switching opens a plan, and it shows the change once applied. */}
-            <Switch
-              checked={env.protected}
-              onChange={() => change(env)}
-              aria-label={t`Protect ${named(env)}`}
-              label={env.protected ? t`Protected` : t`Not protected`}
-            />
+            <Switch checked={env.protected} onChange={() => change(env)} aria-label={t`Protect ${named(env)}`} />
           </li>
         ))}
       </ul>
     );
   }
 
-  return (
-    <fieldset className="members-protection">
-      <legend className="members-protection-head">{t`Before anyone else signs in`}</legend>
-      <p className="members-invite-note">
-        <Trans>
-          A developer's change in a protected environment waits for an admin or the owner, who applies it with a
-          passkey. Check that each environment is as you want it. This is a reminder, shown until someone else signs in:
-          Dockwell keeps no record of the tick.
-        </Trans>
+  const label = all.length === 0 ? t`Confirm: no environments yet` : t`Confirm: ${shielded} protected, ${open} open`;
+  if (confirmed) {
+    return (
+      <p className="members-protection-ok">
+        <Icon name="check" size={14} />
+        {t`Protection confirmed by ${confirmed.by}, ${formatDateTime(confirmed.at, i18n.locale)}`}
       </p>
-      {list}
-      <label className="members-protection-ok">
-        <input
-          type="checkbox"
-          checked={checked}
-          aria-invalid={unchecked || undefined}
-          onChange={(e) => onCheck(e.target.checked)}
-        />
-        <Trans>I've checked which environments are protected</Trans>
-      </label>
-      {unchecked ? (
+    );
+  }
+  return (
+    <div className="members-protection">
+      {/* One state with its action in it; the environments are one step away (the interaction principles). */}
+      <Callout
+        tone={unchecked ? "warning" : "info"}
+        title={t`Protected environments aren't confirmed`}
+        actions={
+          <>
+            <Button
+              size="sm"
+              variant="ghost"
+              aria-expanded={reviewing}
+              aria-controls={listId}
+              onClick={() => setReviewing(!reviewing)}
+            >
+              <Trans>Review</Trans>
+            </Button>
+            <Button
+              ref={confirmButton}
+              size="sm"
+              icon="check"
+              loading={confirming}
+              aria-invalid={unchecked || undefined}
+              disabled={!environments.data}
+              onClick={() => void confirm()}
+            >
+              {label}
+            </Button>
+          </>
+        }
+      />
+      {reviewing || (environments.error && !environments.data) ? <div id={listId}>{list}</div> : null}
+      {problem ? (
         <p className="members-problem" role="alert">
-          {t`Check each environment's protection first, then tick the box: it decides whose changes wait.`}
+          {explain(problem)}
         </p>
       ) : null}
-    </fieldset>
+    </div>
   );
 }
 
@@ -463,6 +531,14 @@ function Person({ member }: { member: Member }) {
           {member.you ? <span className="members-you">{t`You`}</span> : null}
         </span>
         <span className="dw-cell-sub">{member.user?.email}</span>
+        {/* For someone who joined with an invite: on whose word, and from where (ADR 0049). */}
+        {member.invitedBy ? (
+          <span className="dw-cell-sub members-joined">
+            {member.joinedFrom
+              ? t`Invited by ${member.invitedBy} · joined from ${member.joinedFrom}`
+              : t`Invited by ${member.invitedBy}`}
+          </span>
+        ) : null}
       </span>
     </span>
   );
@@ -703,7 +779,9 @@ function MembersTable({
               <Trans>Profile and security</Trans>
             </span>
           </Link>
-        ) : null,
+        ) : (
+          <MemberMenu member={r.member} />
+        ),
     },
   ];
   return <Table columns={columns} rows={rows} caption={t`Who signs in to this install`} />;
@@ -730,6 +808,7 @@ function MemberFacts({ member }: { member: Member }) {
         <dt>{t`Last active`}</dt>
         <dd>{lastActive(member)}</dd>
       </dl>
+      <MemberMenu member={member} />
     </div>
   );
 }
@@ -768,50 +847,54 @@ function RolesCan() {
   const developer = useRoleName(Role.DEVELOPER);
   const viewer = useRoleName(Role.VIEWER);
   const yes = <Icon name="check" size={16} label={t`Yes`} />;
-  const no = <span className="members-muted">{t`No`}</span>;
-  const theirs = <span>{t`Their projects`}</span>;
+  const no = (
+    <span className="members-muted">
+      <span aria-hidden="true">–</span>
+      <span className="dw-sr">{t`No`}</span>
+    </span>
+  );
+  // Short enough to compare at a glance: a developer and a viewer hold their
+  // projects, which their columns say once, so a cell is yes, no or two words.
   const rows: [string, ReactNode, ReactNode, ReactNode, ReactNode][] = [
-    [t`Read apps, plans, activity and logs`, yes, yes, theirs, theirs],
-    [t`Plan and apply in open environments`, yes, yes, theirs, no],
-    [t`Apply in protected environments`, yes, yes, <span key="w">{t`Waits for an admin`}</span>, no],
-    [t`Reveal a secret's value`, yes, yes, <span key="o">{t`In open environments`}</span>, no],
-    [t`Make projects, manage servers and settings`, yes, yes, no, no],
-    [t`Invite people and change roles`, yes, <span key="u">{t`Up to admin`}</span>, no, no],
+    [t`Read apps, activity and logs`, yes, yes, yes, yes],
+    [t`Change open environments`, yes, yes, yes, no],
+    [t`Change protected environments`, yes, yes, <span key="w">{t`Waits for an admin`}</span>, no],
+    [t`Reveal secrets`, yes, yes, <span key="o">{t`Open only`}</span>, no],
+    [t`Servers, projects and settings`, yes, yes, no, no],
+    [t`Invite and change roles`, yes, <span key="u">{t`Up to admin`}</span>, no, no],
     [t`Transfer ownership`, yes, no, no, no],
   ];
+  const theirs = t`their projects`;
   return (
     <Panel title={t`What each role can do`} flush className="settings-panel">
-      <table className="dw-table dw-table-compact members-can">
-        <caption className="dw-sr">{t`What each role can do`}</caption>
-        <thead>
-          <tr>
-            <th scope="col">{t`Permission`}</th>
-            {[owner, admin, developer, viewer].map((name) => (
-              <th key={name} scope="col" className="members-col">
-                {name}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map(([row, ...cells]) => (
-            <tr key={row}>
-              <th scope="row">{row}</th>
-              {cells.map((cell, i) => (
-                <td key={ROLE_COLUMNS[i]} className="members-col">
-                  {cell}
-                </td>
+      <div className="members-can-scroll">
+        <table className="dw-table dw-table-compact members-can">
+          <caption className="dw-sr">{t`What each role can do`}</caption>
+          <thead>
+            <tr>
+              <th scope="col">{t`Permission`}</th>
+              {[owner, admin, developer, viewer].map((name, i) => (
+                <th key={name} scope="col" className="members-col">
+                  {name}
+                  {i >= 2 ? <span className="members-col-sub">{theirs}</span> : null}
+                </th>
               ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
-      <p className="members-note">
-        <Trans>
-          Everyone with a role reads apps, logs and activity in their projects. A developer's plan in a protected
-          environment waits for an admin or the owner.
-        </Trans>
-      </p>
+          </thead>
+          <tbody>
+            {rows.map(([row, ...cells]) => (
+              <tr key={row}>
+                <th scope="row">{row}</th>
+                {cells.map((cell, i) => (
+                  <td key={ROLE_COLUMNS[i]} className="members-col">
+                    {cell}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </Panel>
   );
 }
@@ -820,6 +903,8 @@ function RolesCan() {
 function SignIn({ member }: { member: Member | undefined }) {
   const { t } = useLingui();
   const addresses = member?.passkeyAddresses ?? [];
+  // Your accounts at sign-in providers, as Profile and security lists them (ADR 0095).
+  const links = useQuery(AuthService.method.listProviderLinks, {});
   return (
     <Panel
       title={t`How you sign in`}
@@ -855,8 +940,14 @@ function SignIn({ member }: { member: Member | undefined }) {
         </dd>
         <dt>{t`Signed in on`}</dt>
         <dd>{member ? (member.sessions === 1 ? t`1 browser` : t`${member.sessions} browsers`) : "–"}</dd>
-        <dt>{t`Single sign-on`}</dt>
-        <dd>{t`OIDC comes in a later release`}</dd>
+        <dt>{t`Sign-in providers`}</dt>
+        <dd>
+          {links.data
+            ? links.data.links.length === 0
+              ? t`None linked`
+              : links.data.links.map((l) => l.providerName).join(", ")
+            : "–"}
+        </dd>
         <dt>{t`Last resort`}</dt>
         <dd>
           <Trans>

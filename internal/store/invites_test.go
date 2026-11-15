@@ -61,13 +61,13 @@ func TestAnInviteWorksOnce(t *testing.T) {
 			if err != nil || got.Email != "inv_ada@example.com" || got.Role != store.RoleDeveloper || got.ProjectID != "prj_shop" || !got.Open(now) {
 				t.Errorf("ada's invite reads %+v, %v", got, err)
 			}
-			if err := tx.AcceptInvite(ctx, "inv_ada", "usr_ada", now); err != nil {
+			if err := tx.AcceptInvite(ctx, "inv_ada", "usr_ada", "203.0.113.7", now); err != nil {
 				t.Fatal(err)
 			}
-			if err := tx.AcceptInvite(ctx, "inv_ada", "usr_ada", now); !errors.Is(err, store.ErrNotFound) {
+			if err := tx.AcceptInvite(ctx, "inv_ada", "usr_ada", "203.0.113.7", now); !errors.Is(err, store.ErrNotFound) {
 				t.Errorf("accepting it again: %v, want ErrNotFound", err)
 			}
-			if err := tx.AcceptInvite(ctx, "inv_old", "usr_ada", now); !errors.Is(err, store.ErrNotFound) {
+			if err := tx.AcceptInvite(ctx, "inv_old", "usr_ada", "203.0.113.7", now); !errors.Is(err, store.ErrNotFound) {
 				t.Errorf("accepting an expired invite: %v, want ErrNotFound", err)
 			}
 			if err := tx.RevokeInvite(ctx, "inv_sam", "user:usr_mira", now); err != nil {

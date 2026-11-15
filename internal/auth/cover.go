@@ -81,8 +81,10 @@ func policyOf(u store.User) StepUpPolicy {
 
 // alwaysAsks are what a passkey confirms each time, whatever anyone chose: how
 // someone signs in, as a stolen session would make itself a way back in; this
-// choice and the floor, as it would loosen its own checks first; and approving
-// someone else's change, which is the point of a protected environment.
+// choice and the floor, as it would loosen its own checks first; approving
+// someone else's change, which is the point of a protected environment; and
+// transferring ownership, which a stolen session would make for good, as only
+// the new owner can undo it (ADR 0049).
 var alwaysAsks = map[StepUpAction]bool{
 	StepUpAddPasskey:    true,
 	StepUpRemovePasskey: true,
@@ -93,6 +95,8 @@ var alwaysAsks = map[StepUpAction]bool{
 	StepUpSetFloor:      true,
 	StepUpApproveChange: true,
 	StepUpLinkProvider:  true,
+	// The owner's session within its hour would otherwise give the install away.
+	StepUpTransferOwnership: true,
 }
 
 // AlwaysAsks reports an action a passkey confirms each time, whatever anyone chose.

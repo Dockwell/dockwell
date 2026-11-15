@@ -525,4 +525,15 @@ message EventMember {
   string project_name = 5;
   // The address someone joined from, on member.join. Empty otherwise.
   string address = 6;
+  // The role they held in that place before, on member.role.
+  Role previous_role = 7;
+  // What went with them, on member.remove, and on member.role when it took
+  // something from them: sessions ended, API tokens and open invites revoked,
+  // and planned changes discarded.
+  int32 sessions = 8;
+  int32 tokens = 9;
+  int32 invites = 10;
+  int32 changes = 11;
+  // The accounts at sign-in providers a removal deleted (ADR 0095).
+  int32 links = 12;
 }

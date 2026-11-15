@@ -102,6 +102,10 @@ func (s *Service) startSession(ctx context.Context, tx *store.Tx, user store.Use
 // startLinkedSession is startSession for a sign-in with a provider, which keeps
 // the link it began from, and says the provider in the audit log (ADR 0095).
 func (s *Service) startLinkedSession(ctx context.Context, tx *store.Tx, user store.User, client Client, method string, link store.ProviderLink, via string) (SignedIn, error) {
+	// Someone removed signs in no way at all, whatever led here (ADR 0049).
+	if user.RemovedAt != nil {
+		return SignedIn{}, ErrUnauthenticated
+	}
 	now := s.now()
 	token, hash := newToken()
 	ip := client.remoteIP()
@@ -191,6 +195,10 @@ func (s *Service) Authenticate(ctx context.Context, client Client, token string)
 		}
 		if err != nil {
 			return err
+		}
+		// Someone removed signs in no way at all, whatever was left behind (ADR 0049).
+		if user.RemovedAt != nil {
+			return ErrUnauthenticated
 		}
 		p = Principal{User: user, Session: sess}
 		return nil
@@ -360,7 +368,9 @@ func (s *Service) Follow(ctx context.Context, client Client, p Principal, still 
 func (s *Service) track(ctx context.Context, client Client, p Principal, use bool, still ...func(context.Context) error) (context.Context, func()) {
 	ctx, cancel := context.WithCancel(ctx)
 	credential := p.credential()
-	entry := s.streams.add(credential, cancel)
+	// A page is a session's: what a token follows, such as a CLI's log, has no page
+	// to open it again.
+	entry := s.streams.add(credential, p.User.ID, use && p.Token == nil, cancel)
 	may := func() bool {
 		for _, check := range still {
 			if check != nil && check(ctx) != nil {
@@ -421,6 +431,14 @@ func (s *Service) stillLive(ctx context.Context, client Client, p Principal, use
 	err := s.db.View(ctx, func(tx *store.Tx) (err error) {
 		if sess, err = tx.GetSession(ctx, sessionID); err != nil {
 			return err
+		}
+		// A removed person's stream ends, whatever was left behind (ADR 0049).
+		user, err := tx.GetUser(ctx, sess.UserID)
+		if err != nil {
+			return err
+		}
+		if user.RemovedAt != nil {
+			return ErrUnauthenticated
 		}
 		link, err = sessionLink(ctx, tx, sess)
 		return err
@@ -487,23 +505,32 @@ func cleanText(text string) string {
 }
 
 // streams are the open streams of each session and API token, by ID, so
-// revoking one closes them.
+// revoking one closes them, and whose they are, so a change to what someone
+// holds closes theirs.
 type streams struct {
 	mu   sync.Mutex
 	next int
-	m    map[string]map[int]context.CancelFunc
+	m    map[string]map[int]stream
 }
 
-func newStreams() *streams { return &streams{m: map[string]map[int]context.CancelFunc{}} }
+// stream is an open stream: whose it is, whether it's a page in use rather
+// than something that outlives its request, and how it ends.
+type stream struct {
+	user   string
+	page   bool
+	cancel context.CancelFunc
+}
 
-func (s *streams) add(sessionID string, cancel context.CancelFunc) int {
+func newStreams() *streams { return &streams{m: map[string]map[int]stream{}} }
+
+func (s *streams) add(sessionID, userID string, page bool, cancel context.CancelFunc) int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.next++
 	if s.m[sessionID] == nil {
-		s.m[sessionID] = map[int]context.CancelFunc{}
+		s.m[sessionID] = map[int]stream{}
 	}
-	s.m[sessionID][s.next] = cancel
+	s.m[sessionID][s.next] = stream{user: userID, page: page, cancel: cancel}
 	return s.next
 }
 
@@ -518,11 +545,49 @@ func (s *streams) remove(sessionID string, entry int) {
 
 func (s *streams) end(sessionID string) {
 	s.mu.Lock()
-	cancels := s.m[sessionID]
+	open := s.m[sessionID]
 	delete(s.m, sessionID)
 	s.mu.Unlock()
-	for _, cancel := range cancels {
+	for _, st := range open {
+		st.cancel()
+	}
+}
+
+// endUser ends the open streams of userID's, whatever session or token each
+// rides on, the pages alone or everything, and says how many.
+func (s *streams) endUser(userID string, pagesOnly bool) int {
+	s.mu.Lock()
+	var ending []context.CancelFunc
+	for credential, open := range s.m {
+		for entry, st := range open {
+			if st.user == userID && (st.page || !pagesOnly) {
+				ending = append(ending, st.cancel)
+				delete(open, entry)
+			}
+		}
+		if len(open) == 0 {
+			delete(s.m, credential)
+		}
+	}
+	s.mu.Unlock()
+	for _, cancel := range ending {
 		cancel()
+	}
+	return len(ending)
+}
+
+// endStreamsOf ends the open streams of the people a change to what they hold
+// changed, once it commits (ADR 0049). A stream was narrowed to what its person
+// held when it opened. After a lowering or a removal every one ends, as none
+// outlives a grant taken away. After a change that takes nothing away, the
+// pages' streams end, and a page opens them again as its person now may; what
+// outlives its request, such as a terminal left running, goes on, as it never
+// had more than they hold now.
+func (s *Service) endStreamsOf(tookAway bool, userIDs ...string) {
+	for _, id := range userIDs {
+		if n := s.streams.endUser(id, !tookAway); n > 0 {
+			s.logger.Debug("closed the streams of someone whose access changed", slog.String("user", id), slog.Int("streams", n))
+		}
 	}
 }
 

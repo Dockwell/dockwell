@@ -90,6 +90,14 @@ type memberDetail struct {
 	Role    string `json:"role"`
 	Project string `json:"project,omitempty"`
 	From    string `json:"from,omitempty"`
+	// Previous is the role they held in that place before, on member.role.
+	Previous string `json:"previous,omitempty"`
+	// What went with them, on member.remove and on a role lowered.
+	Sessions int `json:"sessions,omitempty"`
+	Tokens   int `json:"tokens,omitempty"`
+	Invites  int `json:"invites,omitempty"`
+	Changes  int `json:"changes,omitempty"`
+	Links    int `json:"links,omitempty"`
 }
 
 func (d memberDetail) String() string {
@@ -101,6 +109,11 @@ func (d memberDetail) String() string {
 // and for someone who joined, the address they joined from.
 type MemberDetail struct {
 	Email, Name, Role, Project, From string
+	// Previous is the role held in that place before a role change.
+	Previous string
+	// What ended with a removal or a lowered role, and the provider links a
+	// removal deleted.
+	Sessions, Tokens, Invites, Changes, Links int
 }
 
 // ReadMemberDetail reads what a member's audit event recorded.
@@ -134,13 +147,6 @@ func (s *Service) CreateInvite(ctx context.Context, client Client, p Principal, 
 	if s.sites.Domain == "" {
 		return MadeInvite{}, ErrInviteNeedsDomain
 	}
-	// Someone who signs in already is told so before the passkey's proof is spent on them.
-	if err := s.db.View(ctx, func(tx *store.Tx) error { return s.memberAlready(ctx, tx, email) }); err != nil {
-		return MadeInvite{}, err
-	}
-	if err := s.UseStepUp(ctx, client, p, proof, StepUpInvite, InviteTarget(email, role, projectID)); err != nil {
-		return MadeInvite{}, err
-	}
 	now := s.now()
 	// 256 random bits, as a link's (ADR 0049).
 	secret, hash := newToken()
@@ -153,8 +159,21 @@ func (s *Service) CreateInvite(ctx context.Context, client Client, p Principal, 
 		CreatedAt: now, CreatedBy: p.Actor(), ExpiresAt: now.Add(lasts),
 	}
 	err = s.db.Update(ctx, func(tx *store.Tx) error {
-		// Again, with the write: they may have joined since.
+		// With the write: whoever invites is still an admin or the owner, as removing or
+		// lowering them may have committed since the request began, and revoked what
+		// they'd made by then (ADR 0049).
+		if err := s.manager(ctx, tx, p); err != nil {
+			return err
+		}
+		// Someone who signs in already is told so, and so is whoever invites before the
+		// protections were confirmed, before the passkey's proof is spent on them.
+		if err := s.protectionsFirst(ctx, tx); err != nil {
+			return err
+		}
 		if err := s.memberAlready(ctx, tx, email); err != nil {
+			return err
+		}
+		if err := s.UseStepUpIn(ctx, tx, client, p, proof, StepUpInvite, InviteTarget(email, role, projectID)); err != nil {
 			return err
 		}
 		open, err := tx.ListOpenInvites(ctx, now)
@@ -195,9 +214,12 @@ func (s *Service) memberAlready(ctx context.Context, tx *store.Tx, email string)
 	return nil
 }
 
-// RevokeInvite stops an open invite working.
+// RevokeInvite stops an open invite working, for whoever still manages who signs in.
 func (s *Service) RevokeInvite(ctx context.Context, client Client, p Principal, inviteID string) error {
 	return s.db.Update(ctx, func(tx *store.Tx) error {
+		if err := s.manager(ctx, tx, p); err != nil {
+			return err
+		}
 		inv, err := tx.GetInvite(ctx, inviteID)
 		if err != nil {
 			return err
@@ -268,6 +290,15 @@ func (s *Service) openInvite(ctx context.Context, tx *store.Tx, secret string) (
 	if !inv.Open(s.now()) {
 		return store.Invite{}, ErrInviteRejected
 	}
+	// Nobody joins on the word of someone who's gone, or who no longer invites:
+	// whatever let an invite outlive its maker's removal or lowering, it works no
+	// more (ADR 0049).
+	switch ok, err := s.stillInvites(ctx, tx, inv.CreatedBy); {
+	case err != nil:
+		return store.Invite{}, err
+	case !ok:
+		return store.Invite{}, ErrInviteRejected
+	}
 	// Its place is checked each time it's opened: an invite to a project that's gone
 	// since would make someone who holds nothing, so it's refused as any other is.
 	if inv.ProjectID != store.Install {
@@ -280,6 +311,27 @@ func (s *Service) openInvite(ctx context.Context, tx *store.Tx, secret string) (
 		}
 	}
 	return inv, nil
+}
+
+// stillInvites reports whether an invite's maker still may invite: someone who
+// signs in here, not removed, an admin or the owner of the whole install.
+func (s *Service) stillInvites(ctx context.Context, tx *store.Tx, createdBy string) (bool, error) {
+	userID, ok := strings.CutPrefix(createdBy, "user:")
+	if !ok {
+		return false, nil
+	}
+	u, err := tx.GetUser(ctx, userID)
+	if errors.Is(err, store.ErrNotFound) {
+		return false, nil
+	}
+	if err != nil || u.RemovedAt != nil {
+		return false, err
+	}
+	grants, err := tx.Grants(ctx, userID)
+	if err != nil {
+		return false, err
+	}
+	return store.RoleRank(roleAt(grants, store.Install)) >= store.RoleRank(store.RoleAdmin), nil
 }
 
 // projectKind is a project's kind, as internal/scope names it.
@@ -395,7 +447,7 @@ func (s *Service) FinishAcceptInvite(ctx context.Context, client Client, ceremon
 		if err := tx.SetGrant(ctx, store.Grant{UserID: person.ID, ProjectID: inv.ProjectID, Role: inv.Role, CreatedAt: now, CreatedBy: inv.CreatedBy}); err != nil {
 			return err
 		}
-		if err := tx.AcceptInvite(ctx, inv.ID, person.ID, now); errors.Is(err, store.ErrNotFound) {
+		if err := tx.AcceptInvite(ctx, inv.ID, person.ID, client.remoteIP(), now); errors.Is(err, store.ErrNotFound) {
 			return ErrInviteRejected
 		} else if err != nil {
 			return err
