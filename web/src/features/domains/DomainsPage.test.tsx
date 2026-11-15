@@ -1537,6 +1537,24 @@ describe("adding a domain from the list", () => {
     });
   });
 
+  it("redirects to a URL from the server its field shows, on a fleet of two", async () => {
+    const user = userEvent.setup();
+    const edits: ProposeChangeRequest["edits"] = [];
+    const hz2 = { ...hz1, id: "srv_2", name: "hz-2" };
+    renderAt("/domains", api(some, { services: [web, api_], servers: [hz1, hz2], more: { changes: changes(edits) } }));
+    await screen.findByRole("row", { name: /shop\.example\.com/ });
+    await user.click(await screen.findByRole("button", { name: "Add a domain" }));
+    const sheet = await screen.findByRole("dialog", { name: "Add a domain" });
+    await user.click(within(sheet).getByRole("radio", { name: /^A URL/ }));
+    await user.type(within(sheet).getByRole("textbox", { name: "Domain" }), "old-shop.example.net");
+    await user.type(within(sheet).getByRole("textbox", { name: "Redirect to" }), "https://shop.example.com");
+    const pick = within(sheet).getByRole("combobox", { name: "Server" });
+    await waitFor(() => expect(pick).toHaveValue(hz1.id));
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    await screen.findByRole("dialog", { name: "Review plan" });
+    expect(edits[0]?.servers).toEqual([hz1.id]);
+  });
+
   describe("where www is served already", () => {
     const heldWww = (held: ReturnType<typeof aDomain>, heldFor: string) =>
       api([...some, held], {

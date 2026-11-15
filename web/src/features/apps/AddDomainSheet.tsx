@@ -179,7 +179,10 @@ export function AddDomainSheet({
       ? []
       : fleetServers.servers.map((s) => ({ serverId: s.id, serverName: s.name }))
     : (service?.deployments ?? []);
-  const [server, setServer] = useState(servers[0]?.serverId ?? "");
+  const [serverPicked, setServer] = useState(servers[0]?.serverId ?? "");
+  // What the Server field shows is what the plan sends: the one picked while it's a
+  // choice there, or else the first, as the field shows it.
+  const server = servers.some((s) => s.serverId === serverPicked) ? serverPicked : (servers[0]?.serverId ?? "");
   const [domain, setDomain] = useState(start?.domain ?? "");
   const [port, setPort] = useState(start?.port ?? portOf(service));
   // What you typed stays as you choose another app. What it started from follows.
