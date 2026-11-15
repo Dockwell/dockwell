@@ -152,11 +152,16 @@ func TestReviewADumpRestoreOutOfTimeStartsTheAppOnHalfALoad(t *testing.T) {
 	b := newBench(t)
 	b.write("data.sql", "the database at backup time")
 	loading := make(chan struct{})
+	ctx, cancel := context.WithCancelCause(t.Context())
 	b.engine.AddLocalImage("postgres:17", dockertest.Image{Config: docker.Config{Cmd: []string{"postgres"}}, Exec: func(x dockertest.Exec) int {
 		if strings.Contains(strings.Join(x.Cmd, " "), "psql") {
 			file := filepath.Join(x.Volumes["/var/lib/postgresql/data"], "data.sql")
 			_ = os.WriteFile(file, []byte("half of the dump"), 0o600)
 			close(loading)
+			// It's still loading when the time runs out: the agent can stream a dump this
+			// small whole before the cancel lands, and a psql that read it all and left
+			// with 0 loaded it all, which isn't this test's case (#674).
+			<-ctx.Done()
 			_, _ = io.Copy(io.Discard, x.Stdin) // until the agent hangs up
 			return 0
 		}
@@ -171,7 +176,6 @@ func TestReviewADumpRestoreOutOfTimeStartsTheAppOnHalfALoad(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx, cancel := context.WithCancelCause(t.Context())
 	go func() {
 		<-loading
 		cancel(context.DeadlineExceeded)
@@ -179,6 +183,9 @@ func TestReviewADumpRestoreOutOfTimeStartsTheAppOnHalfALoad(t *testing.T) {
 	err = b.runner.ApplyRestore(ctx, resource.Step{Ref: ref, Decision: dec}, source)
 	t.Logf("restore: %v", err)
 	t.Logf("data.sql now: %q; db running %v, web running %v", b.read("data.sql"), b.running(db), b.running(web))
+	if err == nil {
+		t.Errorf("a restore cut short partway through its load says it restored")
+	}
 	if b.read("data.sql") == "half of the dump" && (b.running(db) || b.running(web)) {
 		t.Errorf("a restore cut short left half a load in the volume and started the app on it")
 	}

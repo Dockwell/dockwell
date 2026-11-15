@@ -135,6 +135,18 @@ func (a *attachment) ended() *dockwellv1.AttachTerminalResponse {
 	return a.end
 }
 
+// typing types what ends the shell. The shell can end the attachment before the
+// terminal says it took it, which the API says as not_attached, as it does to the
+// panel, which then reads the end from the next attachment; here the end comes on
+// this one (#672).
+func (a *attachment) typing(text string) {
+	a.t.Helper()
+	_, err := a.c.WriteTerminal(a.t.Context(), connect.NewRequest(&dockwellv1.WriteTerminalRequest{TerminalId: a.id, Offset: a.typed, Data: []byte(text)}))
+	if err != nil && reasonOf(err) != "not_attached" {
+		a.t.Fatalf("WriteTerminal %q: %v", text, err)
+	}
+}
+
 func (a *attachment) write(text string) uint64 {
 	a.t.Helper()
 	res, err := a.c.WriteTerminal(a.t.Context(), connect.NewRequest(&dockwellv1.WriteTerminalRequest{TerminalId: a.id, Offset: a.typed, Data: []byte(text)}))
@@ -448,7 +460,7 @@ func testAnAttachmentBeats(t *testing.T, backend store.Backend) {
 				beats++
 			}
 		}
-		a.write("exit\n")
+		a.typing("exit\n")
 		if end := a.ended(); end.GetEnd().GetReason() != dockwellv1.TerminalEndReason_TERMINAL_END_REASON_EXITED {
 			t.Fatalf("ended with %v", end)
 		}
