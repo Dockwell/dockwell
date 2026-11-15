@@ -341,15 +341,21 @@ func (d *UserDriver) guard(ctx context.Context, c *docker.Container, e *Engine) 
 		}
 		lines := strings.Split(strings.TrimSpace(string(said)), "\n")
 		var out struct {
-			Root      bool `json:"root"`
-			Answering bool `json:"answering"`
-			Open      bool `json:"open"`
+			Root         bool `json:"root"`
+			Answering    bool `json:"answering"`
+			Open         bool `json:"open"`
+			Initializing bool `json:"initializing"`
 		}
 		if err := json.Unmarshal([]byte(lines[len(lines)-1]), &out); err != nil {
 			return fmt.Errorf("can't read what %s said: %w", e.Name, err)
 		}
 		refused := fmt.Errorf("%s runs without access control, so every app on it reaches every other's data, and a user of its own keeps no one out. Give it a root user (MONGO_INITDB_ROOT_USERNAME and its password), then try again", e.Name)
 		switch {
+		case out.Initializing:
+			// The server answering is the image's own first one, which it stops once
+			// its root user is made: what's asked of it next could meet the gap before
+			// the real one starts.
+			return fmt.Errorf("%s is still making its root user: %w", e.Name, ErrStarting)
 		case !out.Answering:
 			return fmt.Errorf("%s isn't answering yet: %w", e.Name, ErrStarting)
 		case !out.Root:

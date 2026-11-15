@@ -54,12 +54,27 @@ print(JSON.stringify({ dropped: true }));
 }
 
 // mongoOpen says whether the image made a root user, whether the server answers at
-// all, and whether it answers one who never signs in, as one without access control
-// does. One that refuses the connection, or isn't found, isn't answering yet, as
-// while its image makes its root user; one that refuses the command answers, closed.
+// all, whether it answers one who never signs in, as one without access control
+// does, and whether the image's first start is still running. One that refuses the
+// connection, or isn't found, isn't answering yet; one that refuses the command
+// answers, closed. On its first start the image runs a server of its own first, to
+// make its root user, which answers closed once it has, then stops it and starts the
+// real one: that server, and the command that stops it, are the ones run with the
+// entrypoint's temporary pid file, docker-entrypoint-temp-mongod.pid. While one runs,
+// the server that answers is about to go away (#701).
 const mongoOpen = `const env = process.env;
 let answering = true;
 let open = false;
+let initializing = false;
+try {
+  const fs = require("fs");
+  for (const p of fs.readdirSync("/proc")) {
+    if (!/^[0-9]+$/.test(p)) continue;
+    let cmd = "";
+    try { cmd = fs.readFileSync("/proc/" + p + "/cmdline", "latin1"); } catch (e) { continue; }
+    if (cmd.includes("docker-entrypoint-temp-mongod")) { initializing = true; break; }
+  }
+} catch (e) {}
 try {
   const m = new Mongo("mongodb://127.0.0.1:" + (env.DW_PORT || "27017") + "/?directConnection=true&serverSelectionTimeoutMS=5000&connectTimeoutMS=5000");
   open = m.getDB("admin").runCommand({ listDatabases: 1, nameOnly: true }).ok === 1;
@@ -67,7 +82,7 @@ try {
   const name = String((e && e.name) || "");
   if (/Network|ServerSelection|Timeout/.test(name) || /ECONNREFUSED|ECONNRESET|connect/i.test(String((e && e.message) || ""))) answering = false;
 }
-print(JSON.stringify({ root: !!env.MONGO_INITDB_ROOT_USERNAME, answering, open }));
+print(JSON.stringify({ root: !!env.MONGO_INITDB_ROOT_USERNAME, answering, open, initializing }));
 `
 
 // jsString is s as a JavaScript string.

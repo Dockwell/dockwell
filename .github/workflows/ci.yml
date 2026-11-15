@@ -205,6 +205,18 @@ jobs:
               exit 1
             }
           done
+      # A real MongoDB's first start reads as running until the image's own server has
+      # stopped and the real one answers, and apps get their users on it (#701). Each
+      # has to pass, not skip.
+      - name: MongoDB is waited for through its first start
+        if: steps.pick.outputs.run == 'true'
+        run: |
+          for test in TestAMongoDBsFirstStartIsSeenOnRealDocker TestTwoAppsShareAMongoDBOnRealDocker TestTheCatalogsMongoDBMakesAnAppItsUserOnRealDocker; do
+            grep -q -- "--- PASS: $test" "$RUNNER_TEMP/docker.out" || {
+              echo "$test didn't pass, so making a user on a MongoDB that just started may meet the gap between the image's first server and its real one. Read its output in Tests against Docker above."
+              exit 1
+            }
+          done
       # Apps share a real Redis and Valkey of each release Dockwell makes users' rules
       # for, each rule loading, and each user kept to its keys (ADR 0084). It has to
       # pass on every one, not skip.
