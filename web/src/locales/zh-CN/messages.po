@@ -18563,6 +18563,15 @@ msgstr "{main} 改为在那里响应"
 msgid "{name} is served by {by}"
 msgstr "{name} 由 {by} 提供服务"
 
+msgid "{name} is served by {what} here"
+msgstr "{name} 已由这里的 {what} 提供服务"
+
+msgid "{name} is served here already"
+msgstr "{name} 已在这里提供服务"
+
+msgid "{name} redirects here already"
+msgstr "{name} 已经重定向到这里"
+
 msgid "A static site, sent as its files are."
 msgstr "静态网站，文件原样发送。"
 

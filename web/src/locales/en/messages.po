@@ -18563,6 +18563,15 @@ msgstr "{main} answers there instead"
 msgid "{name} is served by {by}"
 msgstr "{name} is served by {by}"
 
+msgid "{name} is served by {what} here"
+msgstr "{name} is served by {what} here"
+
+msgid "{name} is served here already"
+msgstr "{name} is served here already"
+
+msgid "{name} redirects here already"
+msgstr "{name} redirects here already"
+
 msgid "A static site, sent as its files are."
 msgstr "A static site, sent as its files are."
 

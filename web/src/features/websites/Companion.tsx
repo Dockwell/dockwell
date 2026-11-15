@@ -61,6 +61,11 @@ function besideHeld(check: CompanionCheck | undefined, env: string): boolean {
   return !!check && check.heldBy !== "" && check.heldByEnvironmentId === env;
 }
 
+/** Whether anything serves the companion already, in any environment. */
+export function heldAtAll(check: CompanionCheck | undefined): boolean {
+  return !!check && check.heldBy !== "";
+}
+
 /** Whether another environment than env serves the companion already. */
 export function heldElsewhere(check: CompanionCheck | undefined, env = ""): boolean {
   return !!check && check.heldBy !== "" && (env === "" || check.heldByEnvironmentId !== env);
@@ -70,9 +75,11 @@ export function heldElsewhere(check: CompanionCheck | undefined, env = ""): bool
  * Whether the companion is on: as a person chose it for that name, or else as DNS says,
  * on when it answers as the domain does. Another name starts again from DNS.
  */
-export function useCompanionChoice(read: CompanionRead, env = ""): [boolean, (on: boolean) => void] {
+export function useCompanionChoice(read: CompanionRead, env = "", strict = false): [boolean, (on: boolean) => void] {
   const [choice, setChoice] = useState<{ name: string; on: boolean }>();
-  const free = read.companion !== "" && !heldElsewhere(read.check, env);
+  // For an app, anything that serves it already, its own environment's routes too,
+  // keeps it: the box never turns a working domain into a redirect (ADR 0070).
+  const free = read.companion !== "" && !(strict ? heldAtAll(read.check) : heldElsewhere(read.check, env));
   const on = free && (choice?.name === read.companion ? choice.on : !!read.check?.answersAlike);
   return [on, (next) => setChoice({ name: read.companion, on: next })];
 }
@@ -87,17 +94,51 @@ function CompanionState({
   read,
   tunnel,
   env = "",
+  strict = false,
+  already = false,
   onLeave,
 }: {
   server: Server;
   read: CompanionRead;
   tunnel: boolean;
   env?: string;
+  strict?: boolean;
+  already?: boolean;
   onLeave: () => void;
 }) {
   const c = read.check;
   const name = read.companion;
   if (!c) return null;
+  if (strict && already) {
+    return (
+      <p className="website-companion-said">
+        <span>
+          <Trans>{name} redirects here already</Trans>
+        </span>
+      </p>
+    );
+  }
+  // Served beside it in its own environment: what serves it, in words, and the way there.
+  if (strict && heldAtAll(c) && !heldElsewhere(c, env)) {
+    const what = c.heldFor;
+    return (
+      <p className="website-companion-said">
+        <span>
+          {what ? (
+            <Trans>
+              {name} is served by {what} here
+            </Trans>
+          ) : (
+            <Trans>{name} is served here already</Trans>
+          )}
+        </span>
+        {" · "}
+        <Link to="/domains" search={{ q: name }} onClick={onLeave}>
+          <Trans>Open</Trans>
+        </Link>
+      </p>
+    );
+  }
   if (heldElsewhere(c, env)) {
     const by = c.heldBy;
     return (
@@ -161,6 +202,8 @@ export function CompanionChoice({
   onChange,
   tunnel,
   env = "",
+  strict = false,
+  already = false,
   onLeave,
 }: {
   server: Server | undefined;
@@ -170,6 +213,10 @@ export function CompanionChoice({
   tunnel: boolean;
   /** The environment it's for, by ID, whose own routes don't count as another's. */
   env?: string;
+  /** Anything that serves it already keeps it, its own environment's routes too, as for an app's domain. */
+  strict?: boolean;
+  /** It redirects to the domain already, so there's nothing to add. */
+  already?: boolean;
   onLeave: () => void;
 }) {
   if (!server || read.companion === "") return null;
@@ -180,7 +227,7 @@ export function CompanionChoice({
         <input
           type="checkbox"
           checked={on}
-          disabled={heldElsewhere(read.check, env)}
+          disabled={strict ? heldAtAll(read.check) || already : heldElsewhere(read.check, env)}
           onChange={(event) => onChange(event.target.checked)}
         />
         <span>
@@ -189,7 +236,15 @@ export function CompanionChoice({
           </Trans>
         </span>
       </label>
-      <CompanionState server={server} read={read} tunnel={tunnel} env={env} onLeave={onLeave} />
+      <CompanionState
+        server={server}
+        read={read}
+        tunnel={tunnel}
+        env={env}
+        strict={strict}
+        already={already}
+        onLeave={onLeave}
+      />
     </div>
   );
 }

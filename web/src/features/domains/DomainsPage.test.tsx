@@ -1537,6 +1537,70 @@ describe("adding a domain from the list", () => {
     });
   });
 
+  describe("where www is served already", () => {
+    const heldWww = (held: ReturnType<typeof aDomain>, heldFor: string) =>
+      api([...some, held], {
+        services: [web, api_],
+        more: {
+          domains: {
+            listDomains: () => ({ domains: [...some, held] }),
+            checkDomain: (req) => ({
+              check: { domain: req.domain, state: DomainCheckState.POINTS_HERE, found: ["203.0.113.50"] },
+              companion: "www.example.org",
+              companionCheck: {
+                check: { domain: "www.example.org", state: DomainCheckState.POINTS_HERE, found: ["203.0.113.50"] },
+                answersAlike: true,
+                heldBy: "default",
+                heldByEnvironmentId: ENV,
+                heldFor,
+              },
+            }),
+          },
+        },
+      });
+    const open = async (user: ReturnType<typeof userEvent.setup>) => {
+      await screen.findByRole("row", { name: /shop\.example\.com/ });
+      await user.click(await screen.findByRole("button", { name: "Add a domain" }));
+      const sheet = await screen.findByRole("dialog", { name: "Add a domain" });
+      await user.selectOptions(within(sheet).getByRole("combobox", { name: "App" }), "api");
+      await user.type(within(sheet).getByRole("textbox", { name: "Domain" }), "example.org");
+      return sheet;
+    };
+
+    it("never takes over www another app of the environment serves: the box is off, with who serves it", async () => {
+      const user = userEvent.setup();
+      const edits: ProposeChangeRequest["edits"] = [];
+      renderAt("/domains", {
+        ...heldWww(aDomain({ name: "www.example.org", service: "web", certificate: issued }), "the app web"),
+        changes: changes(edits),
+      });
+      const sheet = await open(user);
+      expect(await within(sheet).findByText("www.example.org is served by the app web here")).toBeVisible();
+      const www = within(sheet).getByRole("checkbox", { name: "Also answer on www.example.org" });
+      expect(www).toBeDisabled();
+      expect(www).not.toBeChecked();
+      await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+      await screen.findByRole("dialog", { name: "Review plan" });
+      expect(edits).toHaveLength(1);
+    });
+
+    it("says www redirects here already, and adds nothing", async () => {
+      const user = userEvent.setup();
+      const edits: ProposeChangeRequest["edits"] = [];
+      const redirecting = aDomain({
+        name: "www.example.org",
+        route: { service: "", port: 0, redirect: { to: "https://example.org", temporary: false, dropPath: false } },
+      });
+      renderAt("/domains", { ...heldWww(redirecting, "a redirect to example.org"), changes: changes(edits) });
+      const sheet = await open(user);
+      expect(await within(sheet).findByText("www.example.org redirects here already")).toBeVisible();
+      expect(within(sheet).getByRole("checkbox", { name: "Also answer on www.example.org" })).not.toBeChecked();
+      await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+      await screen.findByRole("dialog", { name: "Review plan" });
+      expect(edits).toHaveLength(1);
+    });
+  });
+
   it("asks for the app, once there's a choice, and refuses to guess", async () => {
     const user = userEvent.setup();
     const edits: ProposeChangeRequest["edits"] = [];

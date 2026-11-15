@@ -75,6 +75,17 @@ function sendsTo(to: string | undefined, domain: string): boolean {
   }
 }
 
+/** A route name for domain that no route of domains has, numbered past the ones taken. */
+function freshRouteName(domain: string, domains: readonly Domain[] = []): string {
+  const taken = new Set(domains.flatMap((d) => d.routes.map((r) => r.name)));
+  const base = routeName(domain, []);
+  if (!taken.has(base)) return base;
+  for (let i = 2; ; i++) {
+    const name = `${base}-${i}`;
+    if (!taken.has(name)) return name;
+  }
+}
+
 /** An app the form can send a domain to, and what to call it where there's a choice. */
 export interface AppChoice {
   service: ServiceInfo;
@@ -210,7 +221,12 @@ export function AddDomainSheet({
     typed,
     places.place(environment)?.scope ?? "",
   );
-  const [alsoCompanion, setAlsoCompanion] = useCompanionChoice(companion, environment);
+  const [chosenCompanion, setAlsoCompanion] = useCompanionChoice(companion, environment, true);
+  // www that redirects to this domain already needs nothing added.
+  const companionAlready = (known.data?.domains ?? []).some(
+    (d) => d.name === companion.companion && d.routes.some((r) => r.path === "" && sendsTo(r.redirect?.to, typed)),
+  );
+  const alsoCompanion = chosenCompanion && !companionAlready;
   const target = useRouteTarget();
   const leavesApp = leaves ? target(leaves) : "";
   // A catalog app builds its links from variables that follow its domain (Entry.address_variables):
@@ -391,7 +407,8 @@ export function AddDomainSheet({
                         resource: {
                           kind: "route",
                           scope: environment,
-                          name: routeName(companion.companion, known.data?.domains),
+                          // A name no route has, so a claim the engine refuses is never an update of another's route.
+                          name: freshRouteName(companion.companion, known.data?.domains),
                         },
                         spec: {
                           kind: {
@@ -616,6 +633,8 @@ export function AddDomainSheet({
           onChange={setAlsoCompanion}
           tunnel={noCertificate}
           env={environment}
+          strict
+          already={companionAlready}
           onLeave={onClose}
         />
         {leaves ? (
