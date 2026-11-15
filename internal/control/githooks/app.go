@@ -292,10 +292,16 @@ func (h *Handler) appPush(ctx context.Context, client auth.Client, app App, inst
 	return n
 }
 
+// pollLooksBack is how many of a hook's newest deliveries a polled push is held
+// against, to find the newest to its branch.
+const pollLooksBack = 20
+
 // Polled deploys a push Dockwell found by checking a branch itself, for a hook
 // whose pushes come through a GitHub App GitHub can't reach: as a delivery of it
-// would, in its lane, as its maker (ADR 0098). The same commit found again does
-// nothing more.
+// would, in its lane, as its maker (ADR 0098). The same move found again does
+// nothing: a commit the newest push to the branch named already. A branch moved
+// back to a commit it named before, as a force-push rolls it back, is a push
+// too, and deploys.
 func (h *Handler) Polled(ctx context.Context, hookID, ref, commit string) error {
 	p, err := h.cfg.Auth.AppHookPrincipal(ctx, hookID)
 	if err != nil {
@@ -305,10 +311,30 @@ func (h *Handler) Polled(ctx context.Context, hookID, ref, commit string) error 
 		HookID: hookID, DeliveryID: "poll-" + commit, At: h.now(), Provider: "github", Ref: ref, Commit: commit,
 		Outcome: store.HookQueued, Detail: "Dockwell found " + refName(ref) + " moved, and deploys what it names",
 	}
-	err = h.cfg.DB.Update(ctx, func(tx *store.Tx) error { return tx.RecordGitHookDelivery(ctx, d) })
-	if errors.Is(err, store.ErrConflict) {
-		return nil
-	} else if err != nil {
+	fresh := false
+	err = h.cfg.DB.Update(ctx, func(tx *store.Tx) error {
+		newest, err := tx.GitHookDeliveries(ctx, hookID, pollLooksBack)
+		if err != nil {
+			return err
+		}
+		for i := range newest {
+			if was := &newest[i]; refName(was.Ref) == refName(ref) {
+				if was.Commit == commit {
+					return nil // found again
+				}
+				break
+			}
+		}
+		err = tx.RecordGitHookDelivery(ctx, d)
+		if errors.Is(err, store.ErrConflict) {
+			// Named before, and moved past since: a push back to it.
+			d.DeliveryID = "poll-" + commit + "-" + strconv.FormatInt(d.At.UnixMilli(), 10)
+			err = tx.RecordGitHookDelivery(ctx, d)
+		}
+		fresh = err == nil
+		return err
+	})
+	if err != nil || !fresh {
 		return err
 	}
 	h.enqueue(&job{hook: *p.Hook, p: p, delivery: d})
