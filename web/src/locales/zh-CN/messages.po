@@ -661,9 +661,6 @@ msgstr "本地访问令牌，读写，{id}，由 {account} 创建"
 msgid "Someone"
 msgstr "某人"
 
-msgid ", which signed them out and revoked their tokens"
-msgstr "，这使其退出登录并撤销了其令牌"
-
 msgid "A backup of {volume} couldn't be fetched from {destination}"
 msgstr "无法从 {destination} 取回 {volume} 的备份"
 
@@ -903,14 +900,20 @@ msgstr "已创建 {server} 上的 {path}，这里可能让他人重新进入服�
 msgid "Made {who} the owner"
 msgstr "已将 {who} 设为所有者"
 
-#. placeholder {0}: rolePhrase(role, where)
-msgid "Made {who} {0}"
-msgstr "已将 {who} 设为{0}"
+msgid "Made {who} {now}"
+msgstr "已将 {who} 设为{now}"
 
-#. placeholder {0}: rolePhrase(role, where)
-#. placeholder {1}: rolePhrase(was, where)
-msgid "Made {who} {0}, from {1}{ended}"
-msgstr "已将 {who} 从{1}改为{0}{ended}"
+msgid "Made {who} {now}, from {before}"
+msgstr "已将 {who} 从{before}改为{now}"
+
+msgid "Made {who} {now}, from {before}, which revoked their invites"
+msgstr "已将 {who} 从{before}改为{now}，并撤销了其邀请"
+
+msgid "Made {who} {now}, from {before}, which signed them out and revoked their tokens"
+msgstr "已将 {who} 从{before}改为{now}，这使其退出登录并撤销了其令牌"
+
+msgid "Made {who} {now}, from {before}, which signed them out and revoked their tokens and invites"
+msgstr "已将 {who} 从{before}改为{now}，这使其退出登录并撤销了其令牌和邀请"
 
 msgid "May have changed {path} on {server}"
 msgstr "可能已更改 {server} 上的 {path}"
@@ -986,6 +989,12 @@ msgstr "已移除 {who}，连同其会话、令牌和邀请"
 
 msgid "Removed {who}, with their sessions, tokens and invites, and {changes, plural, one {# change they'd planned} other {# changes they'd planned}}"
 msgstr "已移除 {who}，连同其会话、令牌和邀请，以及其计划的 {changes, plural, other {# 项更改}}"
+
+msgid "Removed {who}, with their sessions, tokens, invites and provider accounts"
+msgstr "已移除 {who}，连同其会话、令牌、邀请和登录提供方账户"
+
+msgid "Removed {who}, with their sessions, tokens, invites and provider accounts, and {changes, plural, one {# change they'd planned} other {# changes they'd planned}}"
+msgstr "已移除 {who}，连同其会话、令牌、邀请和登录提供方账户，以及其计划的 {changes, plural, other {# 项更改}}"
 
 msgid "Resolved: {title}"
 msgstr "已恢复：{title}"
@@ -1132,9 +1141,17 @@ msgstr "{subject} 最新检查过的备份无法恢复"
 msgid "Took back the acknowledgement of the alert: {title}"
 msgstr "已撤回对告警的确认：{title}"
 
-#. placeholder {0}: rolePhrase(was, where)
-msgid "Took back {who}'s role as {0}{ended}"
-msgstr "已收回 {who} 作为{0}的角色{ended}"
+msgid "Took back {who}'s role as {before}"
+msgstr "已收回 {who} 作为{before}的角色"
+
+msgid "Took back {who}'s role as {before}, which revoked their invites"
+msgstr "已收回 {who} 作为{before}的角色，并撤销了其邀请"
+
+msgid "Took back {who}'s role as {before}, which signed them out and revoked their tokens"
+msgstr "已收回 {who} 作为{before}的角色，这使其退出登录并撤销了其令牌"
+
+msgid "Took back {who}'s role as {before}, which signed them out and revoked their tokens and invites"
+msgstr "已收回 {who} 作为{before}的角色，这使其退出登录并撤销了其令牌和邀请"
 
 msgid "Took over the alert from {from}: {title}"
 msgstr "已从 {from} 接手告警：{title}"

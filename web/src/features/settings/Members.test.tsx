@@ -492,6 +492,28 @@ describe("Members", () => {
       expect(within(menu).queryByRole("menuitem", { name: "Transfer ownership" })).toBeNull();
     });
 
+    it("offers an admin no project's role, as they hold every project already", async () => {
+      const user = userEvent.setup();
+      const lee = create(MemberSchema, {
+        user: { id: "usr_4", name: "Lee Admin", email: "lee@example.com", role: Role.ADMIN },
+        signIn: [SignInKind.PASSKEY],
+      });
+      renderAt("/settings/members", {
+        auth: { getAuthState: () => authState({ domain: "panel.example.com" }) },
+        members: { listMembers: () => ({ members: [owner, lee] }) },
+        resources: projects,
+      });
+      await user.click(await screen.findByRole("button", { name: "Manage Lee Admin" }));
+      await user.click(screen.getByRole("menuitem", { name: "Change role" }));
+      const sheet = await screen.findByRole("dialog", { name: "Change what Lee Admin holds" });
+      const where = within(sheet).getByRole("combobox", { name: "Where" });
+      expect(
+        within(where)
+          .getAllByRole("option")
+          .map((o) => o.textContent),
+      ).toEqual(["The whole install"]);
+    });
+
     it("changes a role in a place with a passkey for exactly that, and says what a lowering ends", async () => {
       const user = userEvent.setup();
       stubPasskeys();

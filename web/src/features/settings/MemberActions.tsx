@@ -272,7 +272,10 @@ function RoleSheet({
           }}
           options={[
             { value: "", label: t`The whole install` },
-            ...projects.map((p) => ({ value: p.id, label: p.displayName || p.resource?.name || p.id })),
+            // An admin holds every project already, so a project's role is no place for them (ADR 0049).
+            ...(installRole(member) === Role.ADMIN
+              ? []
+              : projects.map((p) => ({ value: p.id, label: p.displayName || p.resource?.name || p.id }))),
           ]}
         />
         <SelectField

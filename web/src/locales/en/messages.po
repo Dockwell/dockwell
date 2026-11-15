@@ -661,9 +661,6 @@ msgstr "Local access token, read-write, {id}, made by {account}"
 msgid "Someone"
 msgstr "Someone"
 
-msgid ", which signed them out and revoked their tokens"
-msgstr ", which signed them out and revoked their tokens"
-
 msgid "A backup of {volume} couldn't be fetched from {destination}"
 msgstr "A backup of {volume} couldn't be fetched from {destination}"
 
@@ -903,14 +900,20 @@ msgstr "Made {path} on {server}, which can let someone back in"
 msgid "Made {who} the owner"
 msgstr "Made {who} the owner"
 
-#. placeholder {0}: rolePhrase(role, where)
-msgid "Made {who} {0}"
-msgstr "Made {who} {0}"
+msgid "Made {who} {now}"
+msgstr "Made {who} {now}"
 
-#. placeholder {0}: rolePhrase(role, where)
-#. placeholder {1}: rolePhrase(was, where)
-msgid "Made {who} {0}, from {1}{ended}"
-msgstr "Made {who} {0}, from {1}{ended}"
+msgid "Made {who} {now}, from {before}"
+msgstr "Made {who} {now}, from {before}"
+
+msgid "Made {who} {now}, from {before}, which revoked their invites"
+msgstr "Made {who} {now}, from {before}, which revoked their invites"
+
+msgid "Made {who} {now}, from {before}, which signed them out and revoked their tokens"
+msgstr "Made {who} {now}, from {before}, which signed them out and revoked their tokens"
+
+msgid "Made {who} {now}, from {before}, which signed them out and revoked their tokens and invites"
+msgstr "Made {who} {now}, from {before}, which signed them out and revoked their tokens and invites"
 
 msgid "May have changed {path} on {server}"
 msgstr "May have changed {path} on {server}"
@@ -986,6 +989,12 @@ msgstr "Removed {who}, with their sessions, tokens and invites"
 
 msgid "Removed {who}, with their sessions, tokens and invites, and {changes, plural, one {# change they'd planned} other {# changes they'd planned}}"
 msgstr "Removed {who}, with their sessions, tokens and invites, and {changes, plural, one {# change they'd planned} other {# changes they'd planned}}"
+
+msgid "Removed {who}, with their sessions, tokens, invites and provider accounts"
+msgstr "Removed {who}, with their sessions, tokens, invites and provider accounts"
+
+msgid "Removed {who}, with their sessions, tokens, invites and provider accounts, and {changes, plural, one {# change they'd planned} other {# changes they'd planned}}"
+msgstr "Removed {who}, with their sessions, tokens, invites and provider accounts, and {changes, plural, one {# change they'd planned} other {# changes they'd planned}}"
 
 msgid "Resolved: {title}"
 msgstr "Resolved: {title}"
@@ -1132,9 +1141,17 @@ msgstr "The newest checked backup of {subject} doesn't restore"
 msgid "Took back the acknowledgement of the alert: {title}"
 msgstr "Took back the acknowledgement of the alert: {title}"
 
-#. placeholder {0}: rolePhrase(was, where)
-msgid "Took back {who}'s role as {0}{ended}"
-msgstr "Took back {who}'s role as {0}{ended}"
+msgid "Took back {who}'s role as {before}"
+msgstr "Took back {who}'s role as {before}"
+
+msgid "Took back {who}'s role as {before}, which revoked their invites"
+msgstr "Took back {who}'s role as {before}, which revoked their invites"
+
+msgid "Took back {who}'s role as {before}, which signed them out and revoked their tokens"
+msgstr "Took back {who}'s role as {before}, which signed them out and revoked their tokens"
+
+msgid "Took back {who}'s role as {before}, which signed them out and revoked their tokens and invites"
+msgstr "Took back {who}'s role as {before}, which signed them out and revoked their tokens and invites"
 
 msgid "Took over the alert from {from}: {title}"
 msgstr "Took over the alert from {from}: {title}"

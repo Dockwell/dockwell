@@ -396,6 +396,28 @@ describe("Audit log", () => {
               role: Role.ADMIN,
               changes: 2,
             }),
+            // What each ended is said in one whole sentence, provider accounts included.
+            member("evt_admin_down", "member.role", {
+              email: "kim@example.com",
+              name: "Kim",
+              role: Role.DEVELOPER,
+              previousRole: Role.ADMIN,
+              sessions: 1,
+              invites: 1,
+            }),
+            member("evt_invites", "member.role", {
+              email: "rob@example.com",
+              name: "Rob",
+              role: Role.VIEWER,
+              previousRole: Role.ADMIN,
+              invites: 2,
+            }),
+            member("evt_linked", "member.remove", {
+              email: "nia@example.com",
+              name: "Nia",
+              role: Role.VIEWER,
+              links: 1,
+            }),
             // A project deleted since has an ID and no name: it's never read as every project.
             member("evt_g", "member.join", {
               email: "bo@example.com",
@@ -424,6 +446,15 @@ describe("Audit log", () => {
     expect(
       screen.getByText("Removed Sam Lee, with their sessions, tokens and invites, and 2 changes they'd planned"),
     ).toBeVisible();
+    expect(
+      screen.getByText(
+        "Made Kim a developer of every project, from an admin, which signed them out and revoked their tokens and invites",
+      ),
+    ).toBeVisible();
+    expect(
+      screen.getByText("Made Rob a viewer of every project, from an admin, which revoked their invites"),
+    ).toBeVisible();
+    expect(screen.getByText("Removed Nia, with their sessions, tokens, invites and provider accounts")).toBeVisible();
   });
 
   it("writes CSV that a spreadsheet reads back", () => {
