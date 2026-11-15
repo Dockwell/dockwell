@@ -50,6 +50,8 @@ export interface DeliveryWords {
   text: string;
   /** True while GitHub's deliveries don't reach the panel: a domain would end it. */
   unreached: boolean;
+  /** True while the panel refuses them: a new webhook secret ends it. */
+  refused: boolean;
 }
 
 /**
@@ -60,6 +62,13 @@ export interface DeliveryWords {
 export function useDeliveryWords(): (delivery: GitHubDelivery | undefined) => DeliveryWords {
   const { t, i18n } = useLingui();
   return (delivery) => {
+    if (delivery?.secretRefused) {
+      return {
+        text: t`GitHub's webhook secret isn't Dockwell's, so Dockwell checks for pushes itself.`,
+        unreached: false,
+        refused: true,
+      };
+    }
     switch (delivery?.state) {
       case GitHubDelivery_State.POLLING: {
         const minutes = Math.max(1, Math.round((delivery.checkEverySeconds || 60) / 60));
@@ -69,6 +78,7 @@ export function useDeliveryWords(): (delivery: GitHubDelivery | undefined) => De
               ? t`GitHub can't reach this panel, so Dockwell checks for pushes every minute.`
               : t`GitHub can't reach this panel, so Dockwell checks for pushes every ${minutes} minutes.`,
           unreached: true,
+          refused: false,
         };
       }
       case GitHubDelivery_State.BACKING_OFF: {
@@ -80,10 +90,11 @@ export function useDeliveryWords(): (delivery: GitHubDelivery | undefined) => De
             ? t`GitHub asked Dockwell to slow down, so pushes aren't checked until ${until}.`
             : t`GitHub asked Dockwell to slow down, so pushes aren't checked for now.`,
           unreached: true,
+          refused: false,
         };
       }
       default:
-        return { text: t`Pushes come through the GitHub App.`, unreached: false };
+        return { text: t`Pushes come through the GitHub App.`, unreached: false, refused: false };
     }
   };
 }

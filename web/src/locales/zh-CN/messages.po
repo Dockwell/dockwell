@@ -5379,6 +5379,9 @@ msgstr "最近一次推送（{ago}）：{name} 已在运行 {commit}。"
 msgid "No push has come yet."
 msgstr "还没有收到推送。"
 
+msgid "Open Integrations"
+msgstr "打开集成"
+
 msgid "Open the repository's webhooks"
 msgstr "打开仓库的 Webhook"
 
@@ -16048,6 +16051,9 @@ msgstr "正在加载 GitHub 应用"
 msgid "Manage"
 msgstr "管理"
 
+msgid "New webhook secret"
+msgstr "新 Webhook 密钥"
+
 msgid "Organization"
 msgstr "组织"
 
@@ -16059,6 +16065,9 @@ msgstr "私有仓库，以及无需粘贴任何内容的推送时部署。"
 
 msgid "The GitHub App isn't installed on an account yet."
 msgstr "GitHub 应用尚未安装到任何账户。"
+
+msgid "The webhook secret didn't change."
+msgstr "Webhook 密钥未更改。"
 
 msgid "private repositories, and deploy on push"
 msgstr "私有仓库，以及推送时部署"
@@ -16108,9 +16117,6 @@ msgstr "仅让部分项目通过 {0} 构建"
 
 msgid "New private key"
 msgstr "新私钥"
-
-msgid "New webhook secret"
-msgstr "新 Webhook 密钥"
 
 msgid "No account yet."
 msgstr "尚无账户。"
@@ -17189,6 +17195,9 @@ msgstr "GitHub 无法访问此面板，因此 Dockwell 每分钟检查一次推�
 
 msgid "GitHub can't reach this panel, so Dockwell checks for pushes every {minutes} minutes."
 msgstr "GitHub 无法访问此面板，因此 Dockwell 每 {minutes} 分钟检查一次推送。"
+
+msgid "GitHub's webhook secret isn't Dockwell's, so Dockwell checks for pushes itself."
+msgstr "GitHub 的 Webhook 密钥与 Dockwell 的不一致，因此 Dockwell 自行检查推送。"
 
 msgid "Pushes come through the GitHub App."
 msgstr "推送通过 GitHub 应用送达。"

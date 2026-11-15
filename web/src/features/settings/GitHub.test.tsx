@@ -110,6 +110,43 @@ describe("GitHub in Integrations", () => {
     await expectAccessible(container);
   });
 
+  it("says when the panel refuses GitHub's pushes for their secret, and gives a new one beside it", async () => {
+    const user = userEvent.setup();
+    let refused = true;
+    const rotated = vi.fn(() => {
+      refused = false;
+      return { changeId: "chg_secret" };
+    });
+    renderAt(
+      "/settings/integrations",
+      api([], {
+        gitProviders: {
+          listGitProviders: () => ({
+            apps: [
+              acme({
+                delivery: { state: GitHubDelivery_State.POLLING, checkEverySeconds: 60, secretRefused: refused },
+              }),
+            ],
+          }),
+          rotateGitHubWebhookSecret: rotated,
+        },
+      }),
+    );
+    const card = await screen.findByRole("article", { name: "GitHub" });
+    await within(card).findByText("GitHub's webhook secret isn't Dockwell's, so Dockwell checks for pushes itself.");
+    // No domain fixes this: the action is the one that does.
+    expect(within(card).queryByRole("link", { name: "Give the panel a domain" })).not.toBeInTheDocument();
+    await user.click(within(card).getByRole("button", { name: "New webhook secret" }));
+    await waitFor(() =>
+      expect(rotated).toHaveBeenCalledWith(expect.objectContaining({ id: "gha_1" }), expect.anything()),
+    );
+    await waitFor(() =>
+      expect(
+        within(card).queryByText("GitHub's webhook secret isn't Dockwell's, so Dockwell checks for pushes itself."),
+      ).not.toBeInTheDocument(),
+    );
+  });
+
   it("says when GitHub asked Dockwell to slow down, until when, and when the App was deleted on GitHub", async () => {
     const until = new Date();
     until.setHours(21, 40, 0, 0);

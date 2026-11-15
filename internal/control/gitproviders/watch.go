@@ -58,6 +58,9 @@ type watching struct {
 	every time.Duration
 	// turns is where each installation's turns are, by its ID.
 	turns map[int64]int
+	// refused says the panel refused GitHub's newest delivery: the secret GitHub
+	// signs with isn't Dockwell's.
+	refused bool
 }
 
 // branch is what the last check of a hook's branch said.
@@ -80,7 +83,7 @@ func (h *Handler) Delivered(appID string) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	w := h.watchOf(appID)
-	w.state, w.checked = dockwellv1.GitHubDelivery_STATE_REACHED, h.now()
+	w.state, w.checked, w.refused = dockwellv1.GitHubDelivery_STATE_REACHED, h.now(), false
 }
 
 // deliveryProto is what the API says of an App's deliveries.
@@ -91,7 +94,7 @@ func (h *Handler) deliveryProto(appID string) *dockwellv1.GitHubDelivery {
 	if !ok {
 		return &dockwellv1.GitHubDelivery{State: dockwellv1.GitHubDelivery_STATE_UNKNOWN}
 	}
-	out := &dockwellv1.GitHubDelivery{State: w.state}
+	out := &dockwellv1.GitHubDelivery{State: w.state, SecretRefused: w.refused}
 	if !w.checked.IsZero() {
 		out.CheckedTime = timestamppb.New(w.checked)
 	}
@@ -105,8 +108,8 @@ func (h *Handler) deliveryProto(appID string) *dockwellv1.GitHubDelivery {
 }
 
 // CheckDeliveries reads each App's latest deliveries, as the App: GitHub says
-// whether the newest reached the panel. One that did stops polling, and one that
-// didn't starts it.
+// what the panel answered the newest. One it took stops polling; one it didn't
+// starts it, and one it refused for its signature says the secrets differ.
 func (h *Handler) CheckDeliveries(ctx context.Context) {
 	var apps []kept
 	if err := h.cfg.DB.View(ctx, func(tx *store.Tx) error {
@@ -135,9 +138,14 @@ func (h *Handler) CheckDeliveries(ctx context.Context) {
 		case len(deliveries) == 0:
 			// Nothing sent yet: as it was.
 		case deliveries[0].Reached():
-			w.state = dockwellv1.GitHubDelivery_STATE_REACHED
-		case w.state != dockwellv1.GitHubDelivery_STATE_BACKING_OFF:
-			w.state = dockwellv1.GitHubDelivery_STATE_POLLING
+			w.state, w.refused = dockwellv1.GitHubDelivery_STATE_REACHED, false
+		default:
+			// Refused, or answered for by something before the panel: it delivered
+			// nothing, so Dockwell checks for pushes itself.
+			w.refused = deliveries[0].Refused()
+			if w.state != dockwellv1.GitHubDelivery_STATE_BACKING_OFF {
+				w.state = dockwellv1.GitHubDelivery_STATE_POLLING
+			}
 		}
 		h.mu.Unlock()
 	}

@@ -298,6 +298,17 @@ function AppHookLine({ hook }: { hook: GitHook }) {
   const app = useGitHubApps().data?.apps.find((a) => a.name === hook.githubApp);
   const delivery = words(app?.delivery);
   const last = hook.deliveries[0];
+  if (delivery.refused) {
+    return (
+      <p className="app-source-line is-warning">
+        <Icon name="alert" size={14} />
+        <span>{delivery.text}</span>
+        <Link to="/settings/integrations" className="app-panel-link">
+          {t`Open Integrations`}
+        </Link>
+      </p>
+    );
+  }
   if (delivery.unreached) {
     return (
       <p className="app-source-line is-warning">

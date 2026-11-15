@@ -5379,6 +5379,9 @@ msgstr "Last push {ago}: {name} runs {commit} already."
 msgid "No push has come yet."
 msgstr "No push has come yet."
 
+msgid "Open Integrations"
+msgstr "Open Integrations"
+
 msgid "Open the repository's webhooks"
 msgstr "Open the repository's webhooks"
 
@@ -16048,6 +16051,9 @@ msgstr "Loading GitHub Apps"
 msgid "Manage"
 msgstr "Manage"
 
+msgid "New webhook secret"
+msgstr "New webhook secret"
+
 msgid "Organization"
 msgstr "Organization"
 
@@ -16059,6 +16065,9 @@ msgstr "Private repositories, and deploy on push with nothing to paste."
 
 msgid "The GitHub App isn't installed on an account yet."
 msgstr "The GitHub App isn't installed on an account yet."
+
+msgid "The webhook secret didn't change."
+msgstr "The webhook secret didn't change."
 
 msgid "private repositories, and deploy on push"
 msgstr "private repositories, and deploy on push"
@@ -16108,9 +16117,6 @@ msgstr "Let only some projects build through {0}"
 
 msgid "New private key"
 msgstr "New private key"
-
-msgid "New webhook secret"
-msgstr "New webhook secret"
 
 msgid "No account yet."
 msgstr "No account yet."
@@ -17189,6 +17195,9 @@ msgstr "GitHub can't reach this panel, so Dockwell checks for pushes every minut
 
 msgid "GitHub can't reach this panel, so Dockwell checks for pushes every {minutes} minutes."
 msgstr "GitHub can't reach this panel, so Dockwell checks for pushes every {minutes} minutes."
+
+msgid "GitHub's webhook secret isn't Dockwell's, so Dockwell checks for pushes itself."
+msgstr "GitHub's webhook secret isn't Dockwell's, so Dockwell checks for pushes itself."
 
 msgid "Pushes come through the GitHub App."
 msgstr "Pushes come through the GitHub App."

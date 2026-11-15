@@ -179,7 +179,7 @@ export function GitHubManageSheet({
           )}
         </section>
 
-        <p className={delivery.unreached ? "github-delivery is-unreached" : "github-delivery"}>
+        <p className={delivery.unreached || delivery.refused ? "github-delivery is-unreached" : "github-delivery"}>
           <span>{delivery.text}</span>
           {delivery.unreached ? (
             <Link to="/settings/general" className="cp-link">

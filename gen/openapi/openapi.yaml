@@ -16138,6 +16138,12 @@ components:
                     type: string
                     description: While backing off, when checks start again.
                     format: date-time
+                secretRefused:
+                    type: boolean
+                    description: |-
+                        The panel refused GitHub's newest delivery: the webhook secret GitHub signs
+                         with isn't the one Dockwell keeps, so pushes don't come through until the
+                         App has a new one. Dockwell checks for pushes meanwhile.
             description: |-
                 GitHubDelivery is whether GitHub's deliveries reach the panel, and so whether
                  Dockwell checks for pushes itself.

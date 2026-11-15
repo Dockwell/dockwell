@@ -645,7 +645,11 @@ type GitHubDelivery struct {
 	// While polling, how often each app's branch is checked.
 	CheckEverySeconds int32 `protobuf:"varint,3,opt,name=check_every_seconds,json=checkEverySeconds,proto3" json:"check_every_seconds,omitempty"`
 	// While backing off, when checks start again.
-	BackoffUntil  *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=backoff_until,json=backoffUntil,proto3" json:"backoff_until,omitempty"`
+	BackoffUntil *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=backoff_until,json=backoffUntil,proto3" json:"backoff_until,omitempty"`
+	// The panel refused GitHub's newest delivery: the webhook secret GitHub signs
+	// with isn't the one Dockwell keeps, so pushes don't come through until the
+	// App has a new one. Dockwell checks for pushes meanwhile.
+	SecretRefused bool `protobuf:"varint,5,opt,name=secret_refused,json=secretRefused,proto3" json:"secret_refused,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -706,6 +710,13 @@ func (x *GitHubDelivery) GetBackoffUntil() *timestamppb.Timestamp {
 		return x.BackoffUntil
 	}
 	return nil
+}
+
+func (x *GitHubDelivery) GetSecretRefused() bool {
+	if x != nil {
+		return x.SecretRefused
+	}
+	return false
 }
 
 // GitHubInstallation is where a GitHub App is installed.
@@ -1415,12 +1426,13 @@ const file_dockwell_v1_gitprovider_proto_rawDesc = "" +
 	"\rinstallations\x18\t \x03(\v2\x1f.dockwell.v1.GitHubInstallationR\rinstallations\x127\n" +
 	"\bdelivery\x18\n" +
 	" \x01(\v2\x1b.dockwell.v1.GitHubDeliveryR\bdelivery\x12\x12\n" +
-	"\x04gone\x18\v \x01(\bR\x04gone\"\xe9\x02\n" +
+	"\x04gone\x18\v \x01(\bR\x04gone\"\x90\x03\n" +
 	"\x0eGitHubDelivery\x127\n" +
 	"\x05state\x18\x01 \x01(\x0e2!.dockwell.v1.GitHubDelivery.StateR\x05state\x12=\n" +
 	"\fchecked_time\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\vcheckedTime\x12.\n" +
 	"\x13check_every_seconds\x18\x03 \x01(\x05R\x11checkEverySeconds\x12?\n" +
-	"\rbackoff_until\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\fbackoffUntil\"n\n" +
+	"\rbackoff_until\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\fbackoffUntil\x12%\n" +
+	"\x0esecret_refused\x18\x05 \x01(\bR\rsecretRefused\"n\n" +
 	"\x05State\x12\x15\n" +
 	"\x11STATE_UNSPECIFIED\x10\x00\x12\x11\n" +
 	"\rSTATE_UNKNOWN\x10\x01\x12\x11\n" +

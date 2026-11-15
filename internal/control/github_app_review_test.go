@@ -49,3 +49,17 @@ func TestReviewPollingDeploysABranchMovedBackToAnEarlierCommit(t *testing.T) {
 	}
 	t.Errorf("main names %s again, and web still builds %s: polling took the rollback for a commit it had deployed", second, third)
 }
+
+// Review M2: a delivery the panel refused (401, after a webhook secret GitHub and
+// Dockwell don't share) didn't deliver anything, so Dockwell should check for pushes.
+func TestReviewARefusedDeliveryIsntOneThatReachedThePanel(t *testing.T) {
+	t.Parallel()
+	a := newAppBench(t)
+	a.gh.mu.Lock()
+	a.gh.deliveries = `[{"id":2,"guid":"g2","event":"push","status_code":401}]`
+	a.gh.mu.Unlock()
+	a.f.server.apps.CheckDeliveries(t.Context())
+	if d := a.delivery(t); d.GetState() == dockwellv1.GitHubDelivery_STATE_REACHED {
+		t.Errorf("the panel refused GitHub's newest delivery, and Dockwell says %v, so nothing checks for pushes", d.GetState())
+	}
+}

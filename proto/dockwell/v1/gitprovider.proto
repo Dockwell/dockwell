@@ -261,6 +261,10 @@ message GitHubDelivery {
   int32 check_every_seconds = 3;
   // While backing off, when checks start again.
   google.protobuf.Timestamp backoff_until = 4;
+  // The panel refused GitHub's newest delivery: the webhook secret GitHub signs
+  // with isn't the one Dockwell keeps, so pushes don't come through until the
+  // App has a new one. Dockwell checks for pushes meanwhile.
+  bool secret_refused = 5;
 }
 
 // GitHubInstallation is where a GitHub App is installed.

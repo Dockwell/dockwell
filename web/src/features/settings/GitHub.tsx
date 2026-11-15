@@ -67,6 +67,7 @@ export function GitHubSection() {
               app={app}
               onManage={() => setManaging(app.id)}
               onConnect={() => setConnecting(true)}
+              onChanged={() => void apps.refetch()}
             />
           ))}
           {list.length > 0 ? null : (
@@ -134,7 +135,18 @@ export function GitHubSection() {
 }
 
 /** A connected App: where it's installed, how many repositories that reaches, and whether GitHub reaches the panel. */
-function GitHubCard({ app, onManage, onConnect }: { app: GitHubAppInfo; onManage: () => void; onConnect: () => void }) {
+function GitHubCard({
+  app,
+  onManage,
+  onConnect,
+  onChanged,
+}: {
+  app: GitHubAppInfo;
+  onManage: () => void;
+  onConnect: () => void;
+  /** Reads the Apps again, once something about this one changed. */
+  onChanged: () => void;
+}) {
   const { t } = useLingui();
   const may = useMay();
   const words = useDeliveryWords();
@@ -184,6 +196,9 @@ function GitHubCard({ app, onManage, onConnect }: { app: GitHubAppInfo; onManage
               </Link>
             </span>
           ) : null}
+          {!app.gone && delivery.refused ? (
+            <span className="integrations-sub github-unreached">{delivery.text}</span>
+          ) : null}
         </p>
       </div>
       <div className="integrations-actions">
@@ -196,6 +211,7 @@ function GitHubCard({ app, onManage, onConnect }: { app: GitHubAppInfo; onManage
             <Button size="sm" variant="secondary" icon="settings" onClick={onManage} {...mayManage.off}>
               <Trans>Manage</Trans>
             </Button>
+            {delivery.refused && mayManage.allowed ? <NewSecretButton app={app} onChanged={onChanged} /> : null}
             {installed.length === 0 && mayManage.allowed ? (
               <ButtonLink size="sm" variant="ghost" icon="external" href={installUrl(app)}>
                 {t`Install on GitHub`}
@@ -205,6 +221,45 @@ function GitHubCard({ app, onManage, onConnect }: { app: GitHubAppInfo; onManage
         )}
       </div>
     </article>
+  );
+}
+
+/**
+ * Gives the App a new webhook secret, with a passkey, where the panel refuses
+ * GitHub's pushes for theirs: the one action that ends it, beside the line that
+ * says so.
+ */
+function NewSecretButton({ app, onChanged }: { app: GitHubAppInfo; onChanged: () => void }) {
+  const { t } = useLingui();
+  const transport = useTransport();
+  const explain = useAuthError();
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<string>();
+  const give = async () => {
+    setBusy(true);
+    setProblem(undefined);
+    try {
+      await withStepUpIfAsked(transport, StepUpAction.ROTATE_GITHUB_APP, app.id, (proof) =>
+        createClient(GitProviderService, transport).rotateGitHubWebhookSecret({ id: app.id, proof }),
+      );
+      onChanged();
+    } catch (err) {
+      if (!(err instanceof StepUpDeclined)) setProblem(explain(err) || sentence(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <>
+      <Button size="sm" variant="ghost" icon="key" loading={busy} onClick={() => void give()}>
+        <Trans>New webhook secret</Trans>
+      </Button>
+      {problem ? (
+        <span className="integrations-error" role="alert">
+          {t`The webhook secret didn't change.`} {problem}
+        </span>
+      ) : null}
+    </>
   );
 }
 

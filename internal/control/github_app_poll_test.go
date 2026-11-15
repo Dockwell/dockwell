@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -238,5 +239,33 @@ func TestWhenGitHubCantReachThePanelDockwellChecksForPushes(t *testing.T) {
 	apps.Poll(ctx)
 	if a.heads() != asked {
 		t.Errorf("Dockwell checked for pushes once deliveries reached the panel")
+	}
+}
+
+// What the panel answered GitHub's newest delivery says whether it reached it: a
+// 2xx did; a 401 means the secret GitHub signs with isn't Dockwell's, which the
+// line says, while Dockwell checks for pushes itself; anything else, as a proxy's
+// 502, delivered nothing either.
+func TestOnlyADeliveryThePanelTookReachedIt(t *testing.T) {
+	t.Parallel()
+	a := newAppBench(t)
+	ctx := t.Context()
+	apps := a.f.server.apps
+	for _, c := range []struct {
+		status  int
+		state   dockwellv1.GitHubDelivery_State
+		refused bool
+	}{
+		{401, dockwellv1.GitHubDelivery_STATE_POLLING, true},
+		{502, dockwellv1.GitHubDelivery_STATE_POLLING, false},
+		{202, dockwellv1.GitHubDelivery_STATE_REACHED, false},
+	} {
+		a.gh.mu.Lock()
+		a.gh.deliveries = `[{"id":2,"guid":"g2","event":"push","status_code":` + strconv.Itoa(c.status) + `}]`
+		a.gh.mu.Unlock()
+		apps.CheckDeliveries(ctx)
+		if d := a.delivery(t); d.GetState() != c.state || d.GetSecretRefused() != c.refused {
+			t.Errorf("GitHub's newest delivery was answered %d, and Dockwell says %v, secret refused %v", c.status, d.GetState(), d.GetSecretRefused())
+		}
 	}
 }

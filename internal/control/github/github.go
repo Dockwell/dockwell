@@ -428,8 +428,13 @@ type Delivery struct {
 	StatusCode int `json:"status_code"`
 }
 
-// Reached says the panel answered the delivery at all.
-func (d Delivery) Reached() bool { return d.StatusCode != 0 }
+// Reached says the panel took the delivery: answered it with a 2xx. One it
+// refused, or a proxy before it answered for it, delivered nothing.
+func (d Delivery) Reached() bool { return d.StatusCode >= 200 && d.StatusCode < 300 }
+
+// Refused says the panel refused the delivery's signature: the webhook secret
+// GitHub signs with isn't the one Dockwell keeps.
+func (d Delivery) Refused() bool { return d.StatusCode == http.StatusUnauthorized }
 
 // Deliveries are the App's latest webhook deliveries, newest first.
 func (a *App) Deliveries(ctx context.Context) ([]Delivery, error) {
