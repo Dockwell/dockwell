@@ -9,7 +9,6 @@ import (
 
 	"github.com/dockwell/dockwell/internal/fault"
 	"github.com/dockwell/dockwell/internal/resource"
-	"github.com/dockwell/dockwell/internal/store"
 )
 
 // Moving a volume's data into another, as moving an app to another project does
@@ -58,44 +57,31 @@ func movesWhole(items []item) error {
 // #572, its N2).
 func movedRecord(kind resource.Kind) bool { return kind == linkKind || kind == policyKind }
 
-// moveFromIn is the volume whose data change c moves into ref, as its plan says.
-func moveFromIn(c store.Change, ref resource.Ref) resource.Ref {
-	for _, m := range movesIn(c) {
-		if m.to == ref {
-			return m.from
-		}
+// moveFromIn is the volume whose data change p moves into ref, as its plan says.
+func moveFromIn(p *planRead, ref resource.Ref) resource.Ref {
+	if r := p.first(ref, func(r *ResourcePlan) bool { return r.MovesFrom != nil }); r != nil {
+		return *r.MovesFrom
 	}
 	return resource.Ref{}
 }
 
-// deletesSharedIn reports a deletion of a scope that change c's plan says takes what
+// deletesSharedIn reports a deletion of a scope that change p's plan says takes what
 // other projects' apps use too.
-func deletesSharedIn(c store.Change, ref resource.Ref) bool {
-	if len(c.Plan) == 0 {
-		return false
-	}
-	p, err := DecodePlan(c.Plan)
-	if err != nil {
-		return false
-	}
-	return slices.ContainsFunc(p.Resources, func(r ResourcePlan) bool { return r.Ref == ref && r.DeleteShared })
+func deletesSharedIn(p *planRead, ref resource.Ref) bool {
+	return p.first(ref, func(r *ResourcePlan) bool { return r.DeleteShared }) != nil
 }
 
 // volumeMove is data a change moves from one volume into another.
 type volumeMove struct{ from, to resource.Ref }
 
-// movesIn is each volume's data change c moves, as its plan says.
-func movesIn(c store.Change) []volumeMove {
-	if len(c.Plan) == 0 {
-		return nil
-	}
-	p, err := DecodePlan(c.Plan)
-	if err != nil {
+// movesIn is each volume's data change p moves, as its plan says.
+func movesIn(p *planRead) []volumeMove {
+	if p == nil || p.plan == nil {
 		return nil
 	}
 	var out []volumeMove
-	for i := range p.Resources {
-		if r := &p.Resources[i]; r.MovesFrom != nil {
+	for i := range p.plan.Resources {
+		if r := &p.plan.Resources[i]; r.MovesFrom != nil {
 			out = append(out, volumeMove{from: *r.MovesFrom, to: r.Ref})
 		}
 	}

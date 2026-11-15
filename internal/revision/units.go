@@ -20,17 +20,11 @@ import (
 // or failed, by the server's ID, so whoever watches its services reads them again.
 func (e *Engine) OnUnit(fn func(server string)) { e.onUnit = fn }
 
-// unitIn is the action change c asks of ref's system service, as its plan says, or
+// unitIn is the action change p asks of ref's system service, as its plan says, or
 // nil: what a resume plans again.
-func unitIn(c store.Change, ref resource.Ref) *resource.UnitAsked {
-	p, err := DecodePlan(c.Plan)
-	if err != nil {
-		return nil
-	}
-	for i := range p.Resources {
-		if u := p.Resources[i].Unit; p.Resources[i].Ref == ref && u != nil {
-			return &resource.UnitAsked{Change: c.ID, Name: u.Name, Action: u.Action}
-		}
+func unitIn(p *planRead, ref resource.Ref) *resource.UnitAsked {
+	if r := p.first(ref, func(r *ResourcePlan) bool { return r.Unit != nil }); r != nil {
+		return &resource.UnitAsked{Change: p.id, Name: r.Unit.Name, Action: r.Unit.Action}
 	}
 	return nil
 }
@@ -64,18 +58,13 @@ func (e *Engine) undoUnits(ctx context.Context, c store.Change, took *Plan, by B
 // host that makes no revision, as an action on a unit is. Its plan keeps how each
 // of the panel's own containers stood, so undoing it plans starting each again.
 
-// panelIn is what change c asks of the panel on ref's server, as its plan says, or
+// panelIn is what change p asks of the panel on ref's server, as its plan says, or
 // nil: what a resume plans again, keeping how each part stood before the change
 // began, so a stop that resumes doesn't read what it stopped as how it was.
-func panelIn(c store.Change, ref resource.Ref) *resource.PanelAsked {
-	p, err := DecodePlan(c.Plan)
-	if err != nil {
-		return nil
-	}
-	for i := range p.Resources {
-		if q := p.Resources[i].Panel; p.Resources[i].Ref == ref && q != nil {
-			return &resource.PanelAsked{Change: c.ID, Kind: q.Kind, Start: q.Start, Proxy: q.Proxy, Apps: q.Apps, Parts: q.Parts, Domains: q.Domains, Evidence: q.Evidence}
-		}
+func panelIn(p *planRead, ref resource.Ref) *resource.PanelAsked {
+	if r := p.first(ref, func(r *ResourcePlan) bool { return r.Panel != nil }); r != nil {
+		q := r.Panel
+		return &resource.PanelAsked{Change: p.id, Kind: q.Kind, Start: q.Start, Proxy: q.Proxy, Apps: q.Apps, Parts: q.Parts, Domains: q.Domains, Evidence: q.Evidence}
 	}
 	return nil
 }

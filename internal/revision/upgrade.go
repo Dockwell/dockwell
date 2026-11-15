@@ -10,7 +10,6 @@ import (
 
 	"github.com/dockwell/dockwell/internal/fault"
 	"github.com/dockwell/dockwell/internal/resource"
-	"github.com/dockwell/dockwell/internal/store"
 )
 
 // Upgrading a server's agent (ADR 0094): the control plane's own install script
@@ -77,17 +76,11 @@ func (e *Engine) upgradeAsk(ask resource.AgentUpgradeAsked) (resource.AgentUpgra
 	return ask, nil
 }
 
-// upgradeIn is the upgrade of its agent change c asks of ref, as its plan fixed it,
+// upgradeIn is the upgrade of its agent change p asks of ref, as its plan fixed it,
 // or nil.
-func upgradeIn(c store.Change, ref resource.Ref) *resource.AgentUpgradeAsked {
-	p, err := DecodePlan(c.Plan)
-	if err != nil {
-		return nil
-	}
-	for i := range p.Resources {
-		if r := &p.Resources[i]; r.Ref == ref && r.AgentUpgrade != nil {
-			return &resource.AgentUpgradeAsked{Change: c.ID, Version: r.AgentUpgrade.To, ScriptSHA256: r.AgentUpgrade.ScriptSHA256}
-		}
+func upgradeIn(p *planRead, ref resource.Ref) *resource.AgentUpgradeAsked {
+	if r := p.first(ref, func(r *ResourcePlan) bool { return r.AgentUpgrade != nil }); r != nil {
+		return &resource.AgentUpgradeAsked{Change: p.id, Version: r.AgentUpgrade.To, ScriptSHA256: r.AgentUpgrade.ScriptSHA256}
 	}
 	return nil
 }
