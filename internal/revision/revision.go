@@ -1162,6 +1162,7 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 	c := store.Change{
 		ID: plan.Change, Summary: p.Summary, Actor: p.Actor, State: store.ChangePlanned, Reverts: reverts,
 		Fingerprint: plan.Fingerprint, Plan: record, CreatedAt: e.now(), ProposedVia: p.Via, Servers: serversOf(plan),
+		ActsFor: actsFor(ctx, p.Actor),
 	}
 	err = e.db.Revise(ctx, func(tx *store.RevisionTx) error { return e.recordPlanned(ctx, tx, c, items) })
 	if err != nil {

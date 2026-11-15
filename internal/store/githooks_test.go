@@ -105,6 +105,8 @@ func TestAHookGoesWithItsMakersAccess(t *testing.T) {
 			for _, c := range []store.Change{
 				{ID: "chg_push", Summary: "Deploy web, pushed to main", Actor: "hook:ghk_ada1", State: store.ChangePlanned, Fingerprint: "f", Plan: []byte("{}"), CreatedAt: at},
 				{ID: "chg_sams", Summary: "Deploy docs, pushed to main", Actor: "hook:ghk_sam", State: store.ChangePlanned, Fingerprint: "f", Plan: []byte("{}"), CreatedAt: at},
+				// A plan left by a hook ada turned off says it acts for her.
+				{ID: "chg_gone", Summary: "Deploy blog, pushed to main", Actor: "hook:ghk_gone", ActsFor: "usr_ada", State: store.ChangePlanned, Fingerprint: "f", Plan: []byte("{}"), CreatedAt: at.Add(-time.Minute)},
 			} {
 				if err := tx.CreateChange(ctx, c); err != nil {
 					return err
@@ -117,8 +119,8 @@ func TestAHookGoesWithItsMakersAccess(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			if len(planned) != 1 || planned[0].ID != "chg_push" {
-				t.Errorf("what ada planned: %v, want her hook's plan alone", planned)
+			if len(planned) != 2 || planned[0].ID != "chg_push" || planned[1].ID != "chg_gone" || planned[1].ActsFor != "usr_ada" {
+				t.Errorf("what ada planned: %v, want her hooks' plans, the one whose hook is gone too", planned)
 			}
 			ended, err := tx.EndAccess(ctx, "usr_ada", at)
 			if err != nil {

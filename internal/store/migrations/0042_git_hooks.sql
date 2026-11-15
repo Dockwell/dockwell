@@ -26,3 +26,7 @@ CREATE TABLE git_hook_deliveries (
 );
 
 CREATE INDEX git_hook_deliveries_at ON git_hook_deliveries (hook_id, at DESC);
+
+-- Who a change a hook planned acts for: its maker when it planned, so the change
+-- stays theirs once the hook is gone. Empty for every other change.
+ALTER TABLE changes ADD COLUMN acts_for TEXT NOT NULL DEFAULT '';

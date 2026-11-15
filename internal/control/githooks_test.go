@@ -918,6 +918,16 @@ func TestADevelopersPushPlanIsTheirsToAnAdmin(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// The plan says whom it acts for, so it stays theirs once the hook is gone.
+	if err := g.f.store.View(t.Context(), func(tx *store.Tx) error {
+		c, err := tx.GetChange(t.Context(), d.ChangeID)
+		if err == nil && c.ActsFor != "usr_dev" {
+			t.Errorf("a developer's push plan acts for %q, want usr_dev", c.ActsFor)
+		}
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
 	if !got.Msg.GetChange().GetApproves() {
 		t.Errorf("an admin reading a developer's push plan in production: approves false, want true")
 	}
