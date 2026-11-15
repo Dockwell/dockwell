@@ -37,7 +37,7 @@ func TestAnAdminsAppHookPushIntoProtectedProductionWaits(t *testing.T) {
 
 	push := func(id, commit string) {
 		t.Helper()
-		if code, _, _ := send(t, a.webhook, delivery{id: id, event: "push", secret: "first-webhook-secret", body: appPushBody(a.repo.URL, "refs/heads/main", commit, 7)}); code != http.StatusAccepted {
+		if code, _, _ := send(t, a.webhook, delivery{id: id, event: "push", secret: "first-webhook-secret", body: appPushBody(a.repo.URL, commit, 7)}); code != http.StatusAccepted {
 			t.Fatalf("a push through the App: %d", code)
 		}
 	}

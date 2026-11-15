@@ -23,11 +23,11 @@ import (
 	"github.com/dockwell/dockwell/internal/store"
 )
 
-// appPushBody is a push through a GitHub App: a push's payload, with the
+// appPushBody is a push to main through a GitHub App: a push's payload, with the
 // installation it came through.
-func appPushBody(repo, ref, after string, installation int64) []byte {
+func appPushBody(repo, after string, installation int64) []byte {
 	var m map[string]any
-	_ = json.Unmarshal(pushBody(repo, ref, after), &m)
+	_ = json.Unmarshal(pushBody(repo, "refs/heads/main", after), &m)
 	m["installation"] = map[string]any{"id": installation}
 	b, _ := json.Marshal(m)
 	return b
@@ -115,7 +115,7 @@ func TestAPushThroughTheGitHubAppDeploysWhatItReaches(t *testing.T) {
 	// A push through the App deploys web as its maker.
 	second := g.repo.Commit("main", "Second", map[string]string{"Dockerfile": webDockerfile, "app.js": "2"})
 	push := func(id string, installation int64) (int, string) {
-		code, text, _ := send(t, webhook, delivery{id: id, event: "push", secret: "first-webhook-secret", body: appPushBody(g.repo.URL, "refs/heads/main", second, installation)})
+		code, text, _ := send(t, webhook, delivery{id: id, event: "push", secret: "first-webhook-secret", body: appPushBody(g.repo.URL, second, installation)})
 		return code, text
 	}
 	if code, text := push("a-1", 7); code != http.StatusAccepted || !strings.Contains(text, "deploys 1 app") {
@@ -134,7 +134,7 @@ func TestAPushThroughTheGitHubAppDeploysWhatItReaches(t *testing.T) {
 	}
 
 	// A wrong signature and a webhook there isn't get the same answer.
-	body := appPushBody(g.repo.URL, "refs/heads/main", second, 7)
+	body := appPushBody(g.repo.URL, second, 7)
 	wrongCode, wrongText, _ := send(t, webhook, delivery{id: "a-2", event: "push", secret: "not-the-secret", body: body})
 	noneCode, noneText, _ := send(t, b.origin+githooks.AppPath+"ghw_0123456789abcdef0123", delivery{id: "a-3", event: "push", secret: "first-webhook-secret", body: body})
 	if wrongCode != http.StatusUnauthorized || noneCode != wrongCode || noneText != wrongText {
