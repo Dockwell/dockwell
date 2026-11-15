@@ -13448,6 +13448,10 @@ components:
                 changes:
                     type: integer
                     format: int32
+                links:
+                    type: integer
+                    description: The accounts at sign-in providers a removal deleted (ADR 0095).
+                    format: int32
             description: EventMember is who a member's event is about, with what role, where.
         EventProcess:
             type: object
@@ -18758,6 +18762,11 @@ components:
                     items:
                         $ref: '#/components/schemas/RemovalChange'
                     description: The changes they planned and didn't apply, which would be discarded.
+                links:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/RemovalLink'
+                    description: Their accounts at sign-in providers, which would be deleted (ADR 0095).
             description: PlanMemberRemovalResponse is what removing them would end.
         PlanNote:
             type: object
@@ -20053,6 +20062,16 @@ components:
                     type: string
                     format: date-time
             description: RemovalChange is a planned change a removal would discard.
+        RemovalLink:
+            type: object
+            properties:
+                provider:
+                    type: string
+                    description: The provider's name, or its issuer's host once the provider is gone.
+                account:
+                    type: string
+                    description: What the provider calls the account, such as its email address.
+            description: RemovalLink is an account at a sign-in provider a removal would delete.
         RemovalToken:
             type: object
             properties:
@@ -20114,6 +20133,10 @@ components:
                     type: array
                     items:
                         type: string
+                linksDeleted:
+                    type: integer
+                    description: How many of their accounts at sign-in providers were deleted.
+                    format: int32
             description: RemoveMemberResponse says what went with them.
         RemovePasskeyRequest:
             type: object

@@ -97,6 +97,7 @@ type memberDetail struct {
 	Tokens   int `json:"tokens,omitempty"`
 	Invites  int `json:"invites,omitempty"`
 	Changes  int `json:"changes,omitempty"`
+	Links    int `json:"links,omitempty"`
 }
 
 func (d memberDetail) String() string {
@@ -110,8 +111,9 @@ type MemberDetail struct {
 	Email, Name, Role, Project, From string
 	// Previous is the role held in that place before a role change.
 	Previous string
-	// What ended with a removal or a lowered role.
-	Sessions, Tokens, Invites, Changes int
+	// What ended with a removal or a lowered role, and the provider links a
+	// removal deleted.
+	Sessions, Tokens, Invites, Changes, Links int
 }
 
 // ReadMemberDetail reads what a member's audit event recorded.

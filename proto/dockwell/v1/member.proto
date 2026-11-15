@@ -348,6 +348,8 @@ message PlanMemberRemovalResponse {
   repeated Invite invites = 4;
   // The changes they planned and didn't apply, which would be discarded.
   repeated RemovalChange changes = 5;
+  // Their accounts at sign-in providers, which would be deleted (ADR 0095).
+  repeated RemovalLink links = 6;
 }
 
 // RemovalToken is an API token a removal would revoke.
@@ -356,6 +358,14 @@ message RemovalToken {
   string name = 2;
   // When it was last used. Unset when it never was.
   google.protobuf.Timestamp last_used_time = 3;
+}
+
+// RemovalLink is an account at a sign-in provider a removal would delete.
+message RemovalLink {
+  // The provider's name, or its issuer's host once the provider is gone.
+  string provider = 1;
+  // What the provider calls the account, such as its email address.
+  string account = 2;
 }
 
 // RemovalChange is a planned change a removal would discard.
@@ -383,6 +393,8 @@ message RemoveMemberResponse {
   // which stay planned for whoever may apply them.
   int32 changes_discarded = 4;
   repeated string changes_left = 5;
+  // How many of their accounts at sign-in providers were deleted.
+  int32 links_deleted = 6;
 }
 
 // TransferOwnershipRequest names the new owner.

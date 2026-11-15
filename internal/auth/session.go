@@ -364,7 +364,7 @@ func (s *Service) Follow(ctx context.Context, client Client, p Principal, still 
 func (s *Service) track(ctx context.Context, client Client, p Principal, use bool, still ...func(context.Context) error) (context.Context, func()) {
 	ctx, cancel := context.WithCancel(ctx)
 	credential := p.credential()
-	entry := s.streams.add(credential, cancel)
+	entry := s.streams.add(credential, p.User.ID, cancel)
 	may := func() bool {
 		for _, check := range still {
 			if check != nil && check(ctx) != nil {
@@ -491,23 +491,30 @@ func cleanText(text string) string {
 }
 
 // streams are the open streams of each session and API token, by ID, so
-// revoking one closes them.
+// revoking one closes them, and whose they are, so a change to what someone
+// holds closes theirs.
 type streams struct {
 	mu   sync.Mutex
 	next int
-	m    map[string]map[int]context.CancelFunc
+	m    map[string]map[int]stream
 }
 
-func newStreams() *streams { return &streams{m: map[string]map[int]context.CancelFunc{}} }
+// stream is an open stream: whose it is, and how it ends.
+type stream struct {
+	user   string
+	cancel context.CancelFunc
+}
 
-func (s *streams) add(sessionID string, cancel context.CancelFunc) int {
+func newStreams() *streams { return &streams{m: map[string]map[int]stream{}} }
+
+func (s *streams) add(sessionID, userID string, cancel context.CancelFunc) int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.next++
 	if s.m[sessionID] == nil {
-		s.m[sessionID] = map[int]context.CancelFunc{}
+		s.m[sessionID] = map[int]stream{}
 	}
-	s.m[sessionID][s.next] = cancel
+	s.m[sessionID][s.next] = stream{user: userID, cancel: cancel}
 	return s.next
 }
 
@@ -522,11 +529,46 @@ func (s *streams) remove(sessionID string, entry int) {
 
 func (s *streams) end(sessionID string) {
 	s.mu.Lock()
-	cancels := s.m[sessionID]
+	open := s.m[sessionID]
 	delete(s.m, sessionID)
 	s.mu.Unlock()
-	for _, cancel := range cancels {
+	for _, st := range open {
+		st.cancel()
+	}
+}
+
+// endUser ends every open stream of userID's, whatever session or token it
+// rides on, and says how many.
+func (s *streams) endUser(userID string) int {
+	s.mu.Lock()
+	var ending []context.CancelFunc
+	for credential, open := range s.m {
+		for entry, st := range open {
+			if st.user == userID {
+				ending = append(ending, st.cancel)
+				delete(open, entry)
+			}
+		}
+		if len(open) == 0 {
+			delete(s.m, credential)
+		}
+	}
+	s.mu.Unlock()
+	for _, cancel := range ending {
 		cancel()
+	}
+	return len(ending)
+}
+
+// endStreamsOf ends every open stream someone has, once a change to what they
+// hold, or their removal, commits: a stream was narrowed to what they held when
+// it opened, and none outlives that. A page opens its streams again, as what
+// they hold now allows, or not at all once they're signed out (ADR 0049).
+func (s *Service) endStreamsOf(userIDs ...string) {
+	for _, id := range userIDs {
+		if n := s.streams.endUser(id); n > 0 {
+			s.logger.Debug("closed the streams of someone whose access changed", slog.String("user", id), slog.Int("streams", n))
+		}
 	}
 }
 

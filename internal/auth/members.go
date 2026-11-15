@@ -13,9 +13,11 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"time"
 
 	"github.com/dockwell/dockwell/internal/fault"
+	"github.com/dockwell/dockwell/internal/oidc"
 	"github.com/dockwell/dockwell/internal/store"
 )
 
@@ -141,6 +143,7 @@ func (s *Service) revokeInvitesBy(ctx context.Context, tx *store.Tx, client Clie
 // there; an empty role takes it back. It takes a step-up bound to the person,
 // the role and the place. Lowering what they hold ends their sessions and
 // revokes their tokens, and their open invites when they're no longer an admin.
+// Any change ends their open streams once it commits.
 func (s *Service) SetMemberRole(ctx context.Context, client Client, p Principal, userID, role, projectID, proof string) (RoleChange, error) {
 	switch role {
 	case store.RoleOwner:
@@ -234,6 +237,9 @@ func (s *Service) SetMemberRole(ctx context.Context, client Client, p Principal,
 	if err != nil {
 		return RoleChange{}, err
 	}
+	// Their streams were narrowed to what they held, so none outlives the change,
+	// whichever way it went.
+	s.endStreamsOf(userID)
 	s.logger.InfoContext(ctx, "someone's role changed", slog.String("user", userID), slog.String("role", role), slog.String("was", out.Previous), slog.String("by", p.Actor()))
 	return out, nil
 }
@@ -247,6 +253,9 @@ type RemovalPlan struct {
 	Invites  []store.Invite
 	// Changes are what they planned and didn't apply, themselves or with a token.
 	Changes []store.Change
+	// Links are their accounts at sign-in providers, which are deleted, with the
+	// provider's name where PlanMemberRemoval read it (ADR 0095).
+	Links []LinkView
 }
 
 // plan reads what removing userID would end, as things stand in tx.
@@ -267,6 +276,13 @@ func (s *Service) plan(ctx context.Context, tx *store.Tx, p Principal, userID st
 		return RemovalPlan{}, err
 	}
 	out.Sessions = len(sessions)
+	links, err := tx.ListProviderLinks(ctx, userID)
+	if err != nil {
+		return RemovalPlan{}, err
+	}
+	for i := range links {
+		out.Links = append(out.Links, LinkView{ProviderLink: links[i]})
+	}
 	if out.Tokens, err = tx.ListLiveAPITokens(ctx, userID, now); err != nil {
 		return RemovalPlan{}, err
 	}
@@ -294,19 +310,36 @@ func (s *Service) plan(ctx context.Context, tx *store.Tx, p Principal, userID st
 }
 
 // PlanMemberRemoval reads what removing someone would end, for whoever
-// removes them to see first. It changes nothing.
+// removes them to see first. It changes nothing. Their links say their
+// providers' names, read before the plan, as nothing reads the providers
+// inside a transaction (#646's review, H1); a provider that's gone is named by
+// its issuer's host.
 func (s *Service) PlanMemberRemoval(ctx context.Context, p Principal, userID string) (RemovalPlan, error) {
+	providers, err := s.allProviders(ctx, false)
+	if err != nil {
+		// The names are for reading; the plan stands without them.
+		s.logger.WarnContext(ctx, "can't read the sign-in providers to name a removal's links", slog.Any("error", err))
+	}
 	var out RemovalPlan
-	err := s.db.View(ctx, func(tx *store.Tx) (err error) {
+	err = s.db.View(ctx, func(tx *store.Tx) (err error) {
 		out, err = s.plan(ctx, tx, p, userID, s.now())
 		return err
 	})
+	for i := range out.Links {
+		l := &out.Links[i]
+		if j := slices.IndexFunc(providers, func(pr Provider) bool { return pr.ID == l.ProviderID }); j >= 0 {
+			l.Provider = providers[j].Label()
+		} else {
+			l.Provider = oidc.HostOf(l.Issuer)
+		}
+	}
 	return out, err
 }
 
 // RemoveMember removes a person, with a step-up bound to them: in one
-// transaction their sign-in goes, their sessions end, their API tokens and the
-// open invites they made are revoked, and they hold nothing. It returns what
+// transaction their sign-in goes, with their links at sign-in providers, their
+// sessions end, their API tokens and the open invites they made are revoked,
+// and they hold nothing. Their open streams end once it commits. It returns what
 // went, the changes they'd planned among it, for the caller to discard: the
 // engine owns changes, and a change left planned is checked against whoever
 // applies it, never against who planned it.
@@ -337,13 +370,14 @@ func (s *Service) RemoveMember(ctx context.Context, client Client, p Principal, 
 		}
 		detail := memberDetail{
 			Email: out.User.Email, Name: out.User.Name, Role: Highest(out.Grants),
-			Sessions: ended.Sessions, Tokens: ended.Tokens, Invites: invites, Changes: len(out.Changes),
+			Sessions: ended.Sessions, Tokens: ended.Tokens, Invites: invites, Changes: len(out.Changes), Links: ended.Links,
 		}
 		return s.auditFrom(ctx, tx, p.Actor(), client.Surface(p), "member.remove", userID, detail.String())
 	})
 	if err != nil {
 		return RemovalPlan{}, err
 	}
+	s.endStreamsOf(userID)
 	s.logger.InfoContext(ctx, "someone was removed", slog.String("user", userID), slog.String("email", out.User.Email), slog.String("by", p.Actor()))
 	return out, nil
 }
@@ -411,6 +445,9 @@ func (s *Service) TransferOwnership(ctx context.Context, client Client, p Princi
 	if err != nil {
 		return store.User{}, err
 	}
+	// Both hold something else now: the new owner the whole install, and the old
+	// one an admin's role.
+	s.endStreamsOf(toUserID, p.User.ID)
 	s.logger.InfoContext(ctx, "ownership was transferred", slog.String("to", toUserID), slog.String("from", p.User.ID))
 	to.Role = store.RoleOwner
 	return to, nil

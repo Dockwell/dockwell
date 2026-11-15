@@ -139,6 +139,9 @@ func (h *Handler) PlanMemberRemoval(ctx context.Context, req *connect.Request[do
 		c := &plan.Changes[i]
 		res.Changes = append(res.Changes, &dockwellv1.RemovalChange{Id: c.ID, Summary: c.Summary, CreateTime: timestamppb.New(c.CreatedAt)})
 	}
+	for i := range plan.Links {
+		res.Links = append(res.Links, &dockwellv1.RemovalLink{Provider: plan.Links[i].Provider, Account: plan.Links[i].Account})
+	}
 	err = h.db.View(ctx, func(tx *store.Tx) error {
 		for i := range plan.Invites {
 			res.Invites = append(res.Invites, h.inviteProto(ctx, tx, &plan.Invites[i]))
@@ -165,6 +168,7 @@ func (h *Handler) RemoveMember(ctx context.Context, req *connect.Request[dockwel
 		SessionsEnded:  int32(gone.Sessions),     //nolint:gosec // a person's sessions
 		TokensRevoked:  int32(len(gone.Tokens)),  //nolint:gosec // a person's tokens
 		InvitesRevoked: int32(len(gone.Invites)), //nolint:gosec // a person's invites
+		LinksDeleted:   int32(len(gone.Links)),   //nolint:gosec // a person's provider links
 	}
 	// They're gone already, whatever becomes of these: a change left planned is
 	// checked against whoever applies it, never against who planned it.

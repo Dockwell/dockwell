@@ -786,7 +786,7 @@ func FromAudit(a *store.Event, look actors.Lookup) *dockwellv1.Event {
 			e.Member = &dockwellv1.EventMember{
 				Email: m.Email, Name: m.Name, Role: authapi.RoleProto(m.Role), ProjectId: m.Project, Address: m.From,
 				PreviousRole: authapi.RoleProto(m.Previous),
-				Sessions:     int32(m.Sessions), Tokens: int32(m.Tokens), Invites: int32(m.Invites), Changes: int32(m.Changes), //nolint:gosec // counts of a person's own
+				Sessions:     int32(m.Sessions), Tokens: int32(m.Tokens), Invites: int32(m.Invites), Changes: int32(m.Changes), Links: int32(m.Links), //nolint:gosec // counts of a person's own
 			}
 			if m.Project != store.Install {
 				e.Member.ProjectName = look.Name(m.Project)

@@ -959,7 +959,9 @@ type PlanMemberRemovalResponse struct {
 	// The open invites they made, which would be revoked.
 	Invites []*Invite `protobuf:"bytes,4,rep,name=invites,proto3" json:"invites,omitempty"`
 	// The changes they planned and didn't apply, which would be discarded.
-	Changes       []*RemovalChange `protobuf:"bytes,5,rep,name=changes,proto3" json:"changes,omitempty"`
+	Changes []*RemovalChange `protobuf:"bytes,5,rep,name=changes,proto3" json:"changes,omitempty"`
+	// Their accounts at sign-in providers, which would be deleted (ADR 0095).
+	Links         []*RemovalLink `protobuf:"bytes,6,rep,name=links,proto3" json:"links,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1029,6 +1031,13 @@ func (x *PlanMemberRemovalResponse) GetChanges() []*RemovalChange {
 	return nil
 }
 
+func (x *PlanMemberRemovalResponse) GetLinks() []*RemovalLink {
+	if x != nil {
+		return x.Links
+	}
+	return nil
+}
+
 // RemovalToken is an API token a removal would revoke.
 type RemovalToken struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -1091,6 +1100,61 @@ func (x *RemovalToken) GetLastUsedTime() *timestamppb.Timestamp {
 	return nil
 }
 
+// RemovalLink is an account at a sign-in provider a removal would delete.
+type RemovalLink struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The provider's name, or its issuer's host once the provider is gone.
+	Provider string `protobuf:"bytes,1,opt,name=provider,proto3" json:"provider,omitempty"`
+	// What the provider calls the account, such as its email address.
+	Account       string `protobuf:"bytes,2,opt,name=account,proto3" json:"account,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RemovalLink) Reset() {
+	*x = RemovalLink{}
+	mi := &file_dockwell_v1_member_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RemovalLink) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RemovalLink) ProtoMessage() {}
+
+func (x *RemovalLink) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_member_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RemovalLink.ProtoReflect.Descriptor instead.
+func (*RemovalLink) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_member_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *RemovalLink) GetProvider() string {
+	if x != nil {
+		return x.Provider
+	}
+	return ""
+}
+
+func (x *RemovalLink) GetAccount() string {
+	if x != nil {
+		return x.Account
+	}
+	return ""
+}
+
 // RemovalChange is a planned change a removal would discard.
 type RemovalChange struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -1103,7 +1167,7 @@ type RemovalChange struct {
 
 func (x *RemovalChange) Reset() {
 	*x = RemovalChange{}
-	mi := &file_dockwell_v1_member_proto_msgTypes[14]
+	mi := &file_dockwell_v1_member_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1115,7 +1179,7 @@ func (x *RemovalChange) String() string {
 func (*RemovalChange) ProtoMessage() {}
 
 func (x *RemovalChange) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_member_proto_msgTypes[14]
+	mi := &file_dockwell_v1_member_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1128,7 +1192,7 @@ func (x *RemovalChange) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemovalChange.ProtoReflect.Descriptor instead.
 func (*RemovalChange) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_member_proto_rawDescGZIP(), []int{14}
+	return file_dockwell_v1_member_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *RemovalChange) GetId() string {
@@ -1166,7 +1230,7 @@ type RemoveMemberRequest struct {
 
 func (x *RemoveMemberRequest) Reset() {
 	*x = RemoveMemberRequest{}
-	mi := &file_dockwell_v1_member_proto_msgTypes[15]
+	mi := &file_dockwell_v1_member_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1178,7 +1242,7 @@ func (x *RemoveMemberRequest) String() string {
 func (*RemoveMemberRequest) ProtoMessage() {}
 
 func (x *RemoveMemberRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_member_proto_msgTypes[15]
+	mi := &file_dockwell_v1_member_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1191,7 +1255,7 @@ func (x *RemoveMemberRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveMemberRequest.ProtoReflect.Descriptor instead.
 func (*RemoveMemberRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_member_proto_rawDescGZIP(), []int{15}
+	return file_dockwell_v1_member_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *RemoveMemberRequest) GetUserId() string {
@@ -1218,13 +1282,15 @@ type RemoveMemberResponse struct {
 	// which stay planned for whoever may apply them.
 	ChangesDiscarded int32    `protobuf:"varint,4,opt,name=changes_discarded,json=changesDiscarded,proto3" json:"changes_discarded,omitempty"`
 	ChangesLeft      []string `protobuf:"bytes,5,rep,name=changes_left,json=changesLeft,proto3" json:"changes_left,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// How many of their accounts at sign-in providers were deleted.
+	LinksDeleted  int32 `protobuf:"varint,6,opt,name=links_deleted,json=linksDeleted,proto3" json:"links_deleted,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *RemoveMemberResponse) Reset() {
 	*x = RemoveMemberResponse{}
-	mi := &file_dockwell_v1_member_proto_msgTypes[16]
+	mi := &file_dockwell_v1_member_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1236,7 +1302,7 @@ func (x *RemoveMemberResponse) String() string {
 func (*RemoveMemberResponse) ProtoMessage() {}
 
 func (x *RemoveMemberResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_member_proto_msgTypes[16]
+	mi := &file_dockwell_v1_member_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1249,7 +1315,7 @@ func (x *RemoveMemberResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveMemberResponse.ProtoReflect.Descriptor instead.
 func (*RemoveMemberResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_member_proto_rawDescGZIP(), []int{16}
+	return file_dockwell_v1_member_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *RemoveMemberResponse) GetSessionsEnded() int32 {
@@ -1287,6 +1353,13 @@ func (x *RemoveMemberResponse) GetChangesLeft() []string {
 	return nil
 }
 
+func (x *RemoveMemberResponse) GetLinksDeleted() int32 {
+	if x != nil {
+		return x.LinksDeleted
+	}
+	return 0
+}
+
 // TransferOwnershipRequest names the new owner.
 type TransferOwnershipRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -1301,7 +1374,7 @@ type TransferOwnershipRequest struct {
 
 func (x *TransferOwnershipRequest) Reset() {
 	*x = TransferOwnershipRequest{}
-	mi := &file_dockwell_v1_member_proto_msgTypes[17]
+	mi := &file_dockwell_v1_member_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1313,7 +1386,7 @@ func (x *TransferOwnershipRequest) String() string {
 func (*TransferOwnershipRequest) ProtoMessage() {}
 
 func (x *TransferOwnershipRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_member_proto_msgTypes[17]
+	mi := &file_dockwell_v1_member_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1326,7 +1399,7 @@ func (x *TransferOwnershipRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TransferOwnershipRequest.ProtoReflect.Descriptor instead.
 func (*TransferOwnershipRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_member_proto_rawDescGZIP(), []int{17}
+	return file_dockwell_v1_member_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *TransferOwnershipRequest) GetUserId() string {
@@ -1353,7 +1426,7 @@ type TransferOwnershipResponse struct {
 
 func (x *TransferOwnershipResponse) Reset() {
 	*x = TransferOwnershipResponse{}
-	mi := &file_dockwell_v1_member_proto_msgTypes[18]
+	mi := &file_dockwell_v1_member_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1365,7 +1438,7 @@ func (x *TransferOwnershipResponse) String() string {
 func (*TransferOwnershipResponse) ProtoMessage() {}
 
 func (x *TransferOwnershipResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_member_proto_msgTypes[18]
+	mi := &file_dockwell_v1_member_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1378,7 +1451,7 @@ func (x *TransferOwnershipResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TransferOwnershipResponse.ProtoReflect.Descriptor instead.
 func (*TransferOwnershipResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_member_proto_rawDescGZIP(), []int{18}
+	return file_dockwell_v1_member_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *TransferOwnershipResponse) GetMember() *Member {
@@ -1397,7 +1470,7 @@ type ConfirmProtectionsRequest struct {
 
 func (x *ConfirmProtectionsRequest) Reset() {
 	*x = ConfirmProtectionsRequest{}
-	mi := &file_dockwell_v1_member_proto_msgTypes[19]
+	mi := &file_dockwell_v1_member_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1409,7 +1482,7 @@ func (x *ConfirmProtectionsRequest) String() string {
 func (*ConfirmProtectionsRequest) ProtoMessage() {}
 
 func (x *ConfirmProtectionsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_member_proto_msgTypes[19]
+	mi := &file_dockwell_v1_member_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1422,7 +1495,7 @@ func (x *ConfirmProtectionsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConfirmProtectionsRequest.ProtoReflect.Descriptor instead.
 func (*ConfirmProtectionsRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_member_proto_rawDescGZIP(), []int{19}
+	return file_dockwell_v1_member_proto_rawDescGZIP(), []int{20}
 }
 
 // ConfirmProtectionsResponse says when it was recorded.
@@ -1435,7 +1508,7 @@ type ConfirmProtectionsResponse struct {
 
 func (x *ConfirmProtectionsResponse) Reset() {
 	*x = ConfirmProtectionsResponse{}
-	mi := &file_dockwell_v1_member_proto_msgTypes[20]
+	mi := &file_dockwell_v1_member_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1447,7 +1520,7 @@ func (x *ConfirmProtectionsResponse) String() string {
 func (*ConfirmProtectionsResponse) ProtoMessage() {}
 
 func (x *ConfirmProtectionsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_member_proto_msgTypes[20]
+	mi := &file_dockwell_v1_member_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1460,7 +1533,7 @@ func (x *ConfirmProtectionsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConfirmProtectionsResponse.ProtoReflect.Descriptor instead.
 func (*ConfirmProtectionsResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_member_proto_rawDescGZIP(), []int{20}
+	return file_dockwell_v1_member_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *ConfirmProtectionsResponse) GetConfirmTime() *timestamppb.Timestamp {
@@ -1540,17 +1613,21 @@ const file_dockwell_v1_member_proto_rawDesc = "" +
 	"\x0etokens_revoked\x18\x04 \x01(\x05R\rtokensRevoked\x12'\n" +
 	"\x0finvites_revoked\x18\x05 \x01(\x05R\x0einvitesRevoked\"3\n" +
 	"\x18PlanMemberRemovalRequest\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\tR\x06userId\"\xfc\x01\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\"\xac\x02\n" +
 	"\x19PlanMemberRemovalResponse\x12+\n" +
 	"\x06member\x18\x01 \x01(\v2\x13.dockwell.v1.MemberR\x06member\x12\x1a\n" +
 	"\bsessions\x18\x02 \x01(\x05R\bsessions\x121\n" +
 	"\x06tokens\x18\x03 \x03(\v2\x19.dockwell.v1.RemovalTokenR\x06tokens\x12-\n" +
 	"\ainvites\x18\x04 \x03(\v2\x13.dockwell.v1.InviteR\ainvites\x124\n" +
-	"\achanges\x18\x05 \x03(\v2\x1a.dockwell.v1.RemovalChangeR\achanges\"t\n" +
+	"\achanges\x18\x05 \x03(\v2\x1a.dockwell.v1.RemovalChangeR\achanges\x12.\n" +
+	"\x05links\x18\x06 \x03(\v2\x18.dockwell.v1.RemovalLinkR\x05links\"t\n" +
 	"\fRemovalToken\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12@\n" +
-	"\x0elast_used_time\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\flastUsedTime\"v\n" +
+	"\x0elast_used_time\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\flastUsedTime\"C\n" +
+	"\vRemovalLink\x12\x1a\n" +
+	"\bprovider\x18\x01 \x01(\tR\bprovider\x12\x18\n" +
+	"\aaccount\x18\x02 \x01(\tR\aaccount\"v\n" +
 	"\rRemovalChange\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
 	"\asummary\x18\x02 \x01(\tR\asummary\x12;\n" +
@@ -1558,13 +1635,14 @@ const file_dockwell_v1_member_proto_rawDesc = "" +
 	"createTime\"D\n" +
 	"\x13RemoveMemberRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x14\n" +
-	"\x05proof\x18\x02 \x01(\tR\x05proof\"\xdd\x01\n" +
+	"\x05proof\x18\x02 \x01(\tR\x05proof\"\x82\x02\n" +
 	"\x14RemoveMemberResponse\x12%\n" +
 	"\x0esessions_ended\x18\x01 \x01(\x05R\rsessionsEnded\x12%\n" +
 	"\x0etokens_revoked\x18\x02 \x01(\x05R\rtokensRevoked\x12'\n" +
 	"\x0finvites_revoked\x18\x03 \x01(\x05R\x0einvitesRevoked\x12+\n" +
 	"\x11changes_discarded\x18\x04 \x01(\x05R\x10changesDiscarded\x12!\n" +
-	"\fchanges_left\x18\x05 \x03(\tR\vchangesLeft\"I\n" +
+	"\fchanges_left\x18\x05 \x03(\tR\vchangesLeft\x12#\n" +
+	"\rlinks_deleted\x18\x06 \x01(\x05R\flinksDeleted\"I\n" +
 	"\x18TransferOwnershipRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x14\n" +
 	"\x05proof\x18\x02 \x01(\tR\x05proof\"H\n" +
@@ -1609,7 +1687,7 @@ func file_dockwell_v1_member_proto_rawDescGZIP() []byte {
 }
 
 var file_dockwell_v1_member_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_dockwell_v1_member_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
+var file_dockwell_v1_member_proto_msgTypes = make([]protoimpl.MessageInfo, 22)
 var file_dockwell_v1_member_proto_goTypes = []any{
 	(SignInKind)(0),                    // 0: dockwell.v1.SignInKind
 	(*CreateInviteRequest)(nil),        // 1: dockwell.v1.CreateInviteRequest
@@ -1626,63 +1704,65 @@ var file_dockwell_v1_member_proto_goTypes = []any{
 	(*PlanMemberRemovalRequest)(nil),   // 12: dockwell.v1.PlanMemberRemovalRequest
 	(*PlanMemberRemovalResponse)(nil),  // 13: dockwell.v1.PlanMemberRemovalResponse
 	(*RemovalToken)(nil),               // 14: dockwell.v1.RemovalToken
-	(*RemovalChange)(nil),              // 15: dockwell.v1.RemovalChange
-	(*RemoveMemberRequest)(nil),        // 16: dockwell.v1.RemoveMemberRequest
-	(*RemoveMemberResponse)(nil),       // 17: dockwell.v1.RemoveMemberResponse
-	(*TransferOwnershipRequest)(nil),   // 18: dockwell.v1.TransferOwnershipRequest
-	(*TransferOwnershipResponse)(nil),  // 19: dockwell.v1.TransferOwnershipResponse
-	(*ConfirmProtectionsRequest)(nil),  // 20: dockwell.v1.ConfirmProtectionsRequest
-	(*ConfirmProtectionsResponse)(nil), // 21: dockwell.v1.ConfirmProtectionsResponse
-	(Role)(0),                          // 22: dockwell.v1.Role
-	(*timestamppb.Timestamp)(nil),      // 23: google.protobuf.Timestamp
-	(*User)(nil),                       // 24: dockwell.v1.User
+	(*RemovalLink)(nil),                // 15: dockwell.v1.RemovalLink
+	(*RemovalChange)(nil),              // 16: dockwell.v1.RemovalChange
+	(*RemoveMemberRequest)(nil),        // 17: dockwell.v1.RemoveMemberRequest
+	(*RemoveMemberResponse)(nil),       // 18: dockwell.v1.RemoveMemberResponse
+	(*TransferOwnershipRequest)(nil),   // 19: dockwell.v1.TransferOwnershipRequest
+	(*TransferOwnershipResponse)(nil),  // 20: dockwell.v1.TransferOwnershipResponse
+	(*ConfirmProtectionsRequest)(nil),  // 21: dockwell.v1.ConfirmProtectionsRequest
+	(*ConfirmProtectionsResponse)(nil), // 22: dockwell.v1.ConfirmProtectionsResponse
+	(Role)(0),                          // 23: dockwell.v1.Role
+	(*timestamppb.Timestamp)(nil),      // 24: google.protobuf.Timestamp
+	(*User)(nil),                       // 25: dockwell.v1.User
 }
 var file_dockwell_v1_member_proto_depIdxs = []int32{
-	22, // 0: dockwell.v1.CreateInviteRequest.role:type_name -> dockwell.v1.Role
+	23, // 0: dockwell.v1.CreateInviteRequest.role:type_name -> dockwell.v1.Role
 	5,  // 1: dockwell.v1.CreateInviteResponse.invite:type_name -> dockwell.v1.Invite
-	22, // 2: dockwell.v1.Invite.role:type_name -> dockwell.v1.Role
-	23, // 3: dockwell.v1.Invite.create_time:type_name -> google.protobuf.Timestamp
-	23, // 4: dockwell.v1.Invite.expire_time:type_name -> google.protobuf.Timestamp
-	22, // 5: dockwell.v1.MemberGrant.role:type_name -> dockwell.v1.Role
+	23, // 2: dockwell.v1.Invite.role:type_name -> dockwell.v1.Role
+	24, // 3: dockwell.v1.Invite.create_time:type_name -> google.protobuf.Timestamp
+	24, // 4: dockwell.v1.Invite.expire_time:type_name -> google.protobuf.Timestamp
+	23, // 5: dockwell.v1.MemberGrant.role:type_name -> dockwell.v1.Role
 	9,  // 6: dockwell.v1.ListMembersResponse.members:type_name -> dockwell.v1.Member
-	23, // 7: dockwell.v1.ListMembersResponse.protections_confirm_time:type_name -> google.protobuf.Timestamp
+	24, // 7: dockwell.v1.ListMembersResponse.protections_confirm_time:type_name -> google.protobuf.Timestamp
 	5,  // 8: dockwell.v1.ListMembersResponse.invites:type_name -> dockwell.v1.Invite
-	24, // 9: dockwell.v1.Member.user:type_name -> dockwell.v1.User
-	23, // 10: dockwell.v1.Member.last_active_time:type_name -> google.protobuf.Timestamp
+	25, // 9: dockwell.v1.Member.user:type_name -> dockwell.v1.User
+	24, // 10: dockwell.v1.Member.last_active_time:type_name -> google.protobuf.Timestamp
 	0,  // 11: dockwell.v1.Member.sign_in:type_name -> dockwell.v1.SignInKind
 	6,  // 12: dockwell.v1.Member.grants:type_name -> dockwell.v1.MemberGrant
-	23, // 13: dockwell.v1.Member.join_time:type_name -> google.protobuf.Timestamp
-	22, // 14: dockwell.v1.SetMemberRoleRequest.role:type_name -> dockwell.v1.Role
+	24, // 13: dockwell.v1.Member.join_time:type_name -> google.protobuf.Timestamp
+	23, // 14: dockwell.v1.SetMemberRoleRequest.role:type_name -> dockwell.v1.Role
 	9,  // 15: dockwell.v1.SetMemberRoleResponse.member:type_name -> dockwell.v1.Member
 	9,  // 16: dockwell.v1.PlanMemberRemovalResponse.member:type_name -> dockwell.v1.Member
 	14, // 17: dockwell.v1.PlanMemberRemovalResponse.tokens:type_name -> dockwell.v1.RemovalToken
 	5,  // 18: dockwell.v1.PlanMemberRemovalResponse.invites:type_name -> dockwell.v1.Invite
-	15, // 19: dockwell.v1.PlanMemberRemovalResponse.changes:type_name -> dockwell.v1.RemovalChange
-	23, // 20: dockwell.v1.RemovalToken.last_used_time:type_name -> google.protobuf.Timestamp
-	23, // 21: dockwell.v1.RemovalChange.create_time:type_name -> google.protobuf.Timestamp
-	9,  // 22: dockwell.v1.TransferOwnershipResponse.member:type_name -> dockwell.v1.Member
-	23, // 23: dockwell.v1.ConfirmProtectionsResponse.confirm_time:type_name -> google.protobuf.Timestamp
-	7,  // 24: dockwell.v1.MemberService.ListMembers:input_type -> dockwell.v1.ListMembersRequest
-	1,  // 25: dockwell.v1.MemberService.CreateInvite:input_type -> dockwell.v1.CreateInviteRequest
-	3,  // 26: dockwell.v1.MemberService.RevokeInvite:input_type -> dockwell.v1.RevokeInviteRequest
-	10, // 27: dockwell.v1.MemberService.SetMemberRole:input_type -> dockwell.v1.SetMemberRoleRequest
-	12, // 28: dockwell.v1.MemberService.PlanMemberRemoval:input_type -> dockwell.v1.PlanMemberRemovalRequest
-	16, // 29: dockwell.v1.MemberService.RemoveMember:input_type -> dockwell.v1.RemoveMemberRequest
-	18, // 30: dockwell.v1.MemberService.TransferOwnership:input_type -> dockwell.v1.TransferOwnershipRequest
-	20, // 31: dockwell.v1.MemberService.ConfirmProtections:input_type -> dockwell.v1.ConfirmProtectionsRequest
-	8,  // 32: dockwell.v1.MemberService.ListMembers:output_type -> dockwell.v1.ListMembersResponse
-	2,  // 33: dockwell.v1.MemberService.CreateInvite:output_type -> dockwell.v1.CreateInviteResponse
-	4,  // 34: dockwell.v1.MemberService.RevokeInvite:output_type -> dockwell.v1.RevokeInviteResponse
-	11, // 35: dockwell.v1.MemberService.SetMemberRole:output_type -> dockwell.v1.SetMemberRoleResponse
-	13, // 36: dockwell.v1.MemberService.PlanMemberRemoval:output_type -> dockwell.v1.PlanMemberRemovalResponse
-	17, // 37: dockwell.v1.MemberService.RemoveMember:output_type -> dockwell.v1.RemoveMemberResponse
-	19, // 38: dockwell.v1.MemberService.TransferOwnership:output_type -> dockwell.v1.TransferOwnershipResponse
-	21, // 39: dockwell.v1.MemberService.ConfirmProtections:output_type -> dockwell.v1.ConfirmProtectionsResponse
-	32, // [32:40] is the sub-list for method output_type
-	24, // [24:32] is the sub-list for method input_type
-	24, // [24:24] is the sub-list for extension type_name
-	24, // [24:24] is the sub-list for extension extendee
-	0,  // [0:24] is the sub-list for field type_name
+	16, // 19: dockwell.v1.PlanMemberRemovalResponse.changes:type_name -> dockwell.v1.RemovalChange
+	15, // 20: dockwell.v1.PlanMemberRemovalResponse.links:type_name -> dockwell.v1.RemovalLink
+	24, // 21: dockwell.v1.RemovalToken.last_used_time:type_name -> google.protobuf.Timestamp
+	24, // 22: dockwell.v1.RemovalChange.create_time:type_name -> google.protobuf.Timestamp
+	9,  // 23: dockwell.v1.TransferOwnershipResponse.member:type_name -> dockwell.v1.Member
+	24, // 24: dockwell.v1.ConfirmProtectionsResponse.confirm_time:type_name -> google.protobuf.Timestamp
+	7,  // 25: dockwell.v1.MemberService.ListMembers:input_type -> dockwell.v1.ListMembersRequest
+	1,  // 26: dockwell.v1.MemberService.CreateInvite:input_type -> dockwell.v1.CreateInviteRequest
+	3,  // 27: dockwell.v1.MemberService.RevokeInvite:input_type -> dockwell.v1.RevokeInviteRequest
+	10, // 28: dockwell.v1.MemberService.SetMemberRole:input_type -> dockwell.v1.SetMemberRoleRequest
+	12, // 29: dockwell.v1.MemberService.PlanMemberRemoval:input_type -> dockwell.v1.PlanMemberRemovalRequest
+	17, // 30: dockwell.v1.MemberService.RemoveMember:input_type -> dockwell.v1.RemoveMemberRequest
+	19, // 31: dockwell.v1.MemberService.TransferOwnership:input_type -> dockwell.v1.TransferOwnershipRequest
+	21, // 32: dockwell.v1.MemberService.ConfirmProtections:input_type -> dockwell.v1.ConfirmProtectionsRequest
+	8,  // 33: dockwell.v1.MemberService.ListMembers:output_type -> dockwell.v1.ListMembersResponse
+	2,  // 34: dockwell.v1.MemberService.CreateInvite:output_type -> dockwell.v1.CreateInviteResponse
+	4,  // 35: dockwell.v1.MemberService.RevokeInvite:output_type -> dockwell.v1.RevokeInviteResponse
+	11, // 36: dockwell.v1.MemberService.SetMemberRole:output_type -> dockwell.v1.SetMemberRoleResponse
+	13, // 37: dockwell.v1.MemberService.PlanMemberRemoval:output_type -> dockwell.v1.PlanMemberRemovalResponse
+	18, // 38: dockwell.v1.MemberService.RemoveMember:output_type -> dockwell.v1.RemoveMemberResponse
+	20, // 39: dockwell.v1.MemberService.TransferOwnership:output_type -> dockwell.v1.TransferOwnershipResponse
+	22, // 40: dockwell.v1.MemberService.ConfirmProtections:output_type -> dockwell.v1.ConfirmProtectionsResponse
+	33, // [33:41] is the sub-list for method output_type
+	25, // [25:33] is the sub-list for method input_type
+	25, // [25:25] is the sub-list for extension type_name
+	25, // [25:25] is the sub-list for extension extendee
+	0,  // [0:25] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_member_proto_init() }
@@ -1698,7 +1778,7 @@ func file_dockwell_v1_member_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_member_proto_rawDesc), len(file_dockwell_v1_member_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   21,
+			NumMessages:   22,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

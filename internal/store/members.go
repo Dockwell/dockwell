@@ -16,6 +16,9 @@ import (
 // Ended counts what ending someone's access took with it.
 type Ended struct {
 	Sessions, Tokens int
+	// Links are the accounts at sign-in providers deleted with someone removed,
+	// another way they signed in (ADR 0095).
+	Links int
 }
 
 // RevokeSessions ends every session a person has open, and says how many.
@@ -51,8 +54,9 @@ func (t *Tx) EndAccess(ctx context.Context, userID string, at time.Time) (Ended,
 	return Ended{Sessions: sessions, Tokens: tokens}, err
 }
 
-// RemoveUser removes a person: their sign-in is off, with their passkeys, codes
-// and sessions gone and their API tokens revoked, and they hold nothing. Their
+// RemoveUser removes a person: their sign-in is off, with their passkeys, codes,
+// links at sign-in providers and sessions gone and their API tokens revoked, and
+// they hold nothing. Their
 // row stays, marked removed, so what they did keeps their name, and their email
 // is free again. It returns ErrOwner for the owner, who transfers ownership
 // first, and ErrNotFound for nobody, or someone removed already.
@@ -79,7 +83,15 @@ func (t *Tx) RemoveUser(ctx context.Context, userID, by string, at time.Time) (E
 			return Ended{}, fmt.Errorf("can't remove what %s signed in with and held: %w", userID, err)
 		}
 	}
-	return t.EndAccess(ctx, userID, at)
+	// An account linked at a provider would sign them in again (ADR 0095).
+	res, err = t.exec(ctx, `DELETE FROM provider_links WHERE user_id = ?`, userID)
+	if err != nil {
+		return Ended{}, fmt.Errorf("can't delete the provider links of %s: %w", userID, err)
+	}
+	links, _ := res.RowsAffected()
+	ended, err := t.EndAccess(ctx, userID, at)
+	ended.Links = int(links)
+	return ended, err
 }
 
 // ownerOr is ErrOwner when owner.

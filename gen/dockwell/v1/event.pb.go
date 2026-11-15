@@ -2059,10 +2059,12 @@ type EventMember struct {
 	// What went with them, on member.remove, and on member.role when it took
 	// something from them: sessions ended, API tokens and open invites revoked,
 	// and planned changes discarded.
-	Sessions      int32 `protobuf:"varint,8,opt,name=sessions,proto3" json:"sessions,omitempty"`
-	Tokens        int32 `protobuf:"varint,9,opt,name=tokens,proto3" json:"tokens,omitempty"`
-	Invites       int32 `protobuf:"varint,10,opt,name=invites,proto3" json:"invites,omitempty"`
-	Changes       int32 `protobuf:"varint,11,opt,name=changes,proto3" json:"changes,omitempty"`
+	Sessions int32 `protobuf:"varint,8,opt,name=sessions,proto3" json:"sessions,omitempty"`
+	Tokens   int32 `protobuf:"varint,9,opt,name=tokens,proto3" json:"tokens,omitempty"`
+	Invites  int32 `protobuf:"varint,10,opt,name=invites,proto3" json:"invites,omitempty"`
+	Changes  int32 `protobuf:"varint,11,opt,name=changes,proto3" json:"changes,omitempty"`
+	// The accounts at sign-in providers a removal deleted (ADR 0095).
+	Links         int32 `protobuf:"varint,12,opt,name=links,proto3" json:"links,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2170,6 +2172,13 @@ func (x *EventMember) GetInvites() int32 {
 func (x *EventMember) GetChanges() int32 {
 	if x != nil {
 		return x.Changes
+	}
+	return 0
+}
+
+func (x *EventMember) GetLinks() int32 {
+	if x != nil {
+		return x.Links
 	}
 	return 0
 }
@@ -2349,7 +2358,7 @@ const file_dockwell_v1_event_proto_rawDesc = "" +
 	"\n" +
 	"size_bytes\x18g \x01(\x04R\tsizeBytes\x12\x1d\n" +
 	"\n" +
-	"value_name\x18< \x01(\tR\tvalueName\"\xda\x02\n" +
+	"value_name\x18< \x01(\tR\tvalueName\"\xf0\x02\n" +
 	"\vEventMember\x12\x14\n" +
 	"\x05email\x18\x01 \x01(\tR\x05email\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12%\n" +
@@ -2363,7 +2372,8 @@ const file_dockwell_v1_event_proto_rawDesc = "" +
 	"\x06tokens\x18\t \x01(\x05R\x06tokens\x12\x18\n" +
 	"\ainvites\x18\n" +
 	" \x01(\x05R\ainvites\x12\x18\n" +
-	"\achanges\x18\v \x01(\x05R\achanges*\xdf\x01\n" +
+	"\achanges\x18\v \x01(\x05R\achanges\x12\x14\n" +
+	"\x05links\x18\f \x01(\x05R\x05links*\xdf\x01\n" +
 	"\tEventKind\x12\x1a\n" +
 	"\x16EVENT_KIND_UNSPECIFIED\x10\x00\x12\x15\n" +
 	"\x11EVENT_KIND_CHANGE\x10\x01\x12\x15\n" +

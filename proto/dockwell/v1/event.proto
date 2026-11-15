@@ -534,4 +534,6 @@ message EventMember {
   int32 tokens = 9;
   int32 invites = 10;
   int32 changes = 11;
+  // The accounts at sign-in providers a removal deleted (ADR 0095).
+  int32 links = 12;
 }
