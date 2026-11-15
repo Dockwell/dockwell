@@ -236,7 +236,9 @@ func (e *Engine) checkReaches(ctx context.Context, tx *store.Tx, items []item, i
 // checkConnectionReached refuses a link to a connection that isn't there, or doesn't
 // reach the link's project: reaching a connection is reading it, as whoever may
 // change an app that links to it can read what it's given, so only the projects it
-// names, or every one where it says so, may (ADR 0099).
+// names, or every one where it says so, may (ADR 0099). Both are refused in the
+// same words, as a project a connection doesn't reach sees it as not there: a
+// developer can't learn other projects' connections by trying names.
 func (e *Engine) checkConnectionReached(ctx context.Context, tx *store.Tx, items []item, it *item, name string) error {
 	org, err := tx.Organization(ctx)
 	if err != nil {
@@ -246,12 +248,8 @@ func (e *Engine) checkConnectionReached(ctx context.Context, tx *store.Tx, items
 	if err != nil {
 		return err
 	}
-	c, ok := spec.(*resourcev1.ConnectionSpec)
-	if !ok {
-		return fault.New(ErrInvalid, "%s %s names the connection %s, which isn't there. Add it on Connections, or pick one that is", it.ref.Kind, it.ref.Name, name)
-	}
-	if !connection.Reaches(c, projectOfScope(ctx, tx, items, it.ref.Scope)) {
-		return fault.New(ErrInvalid, "%s %s names the connection %s, which this project may not use. An admin adds the project to what it reaches, or the app takes another", it.ref.Kind, it.ref.Name, name)
+	if c, ok := spec.(*resourcev1.ConnectionSpec); !ok || !connection.Reaches(c, projectOfScope(ctx, tx, items, it.ref.Scope)) {
+		return fault.New(ErrInvalid, "%s %s names the connection %s, which isn't one this project can use. Pick one on Connections, or ask an admin", it.ref.Kind, it.ref.Name, name)
 	}
 	return nil
 }

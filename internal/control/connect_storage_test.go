@@ -208,7 +208,7 @@ func TestAnAppIsConnectedToStorage(t *testing.T) {
 			S3: &resourcev1.ConnectionS3{Endpoint: srv.URL(), Bucket: "uploads", PathStyle: true},
 		}),
 	}}))
-	if connect.CodeOf(err) != connect.CodeInvalidArgument || !strings.Contains(err.Error(), "which this project may not use") {
+	if connect.CodeOf(err) != connect.CodeInvalidArgument || !strings.Contains(err.Error(), "which isn't one this project can use") {
 		t.Errorf("narrowing a connection an app reads: %v", err)
 	}
 
