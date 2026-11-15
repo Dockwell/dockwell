@@ -1,6 +1,6 @@
 # 0071. API tokens narrowed to projects and to a role
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-10
 
 ## Context
@@ -69,24 +69,26 @@ So an admin's token narrowed to `shop` deploys, plans and reads in `shop`, and a
 
 - **`CreateToken`** takes `projects`, each an ID or a name, kept as IDs, up to 100, and `role`: developer, viewer, or unset for the maker's.
   - A project the maker holds nothing in is refused in the same words as one that isn't there, as out of reach answers as missing (ADR 0049). A cap at or above their highest role is refused too, as it would be no cap.
+  - Making a token in a session begun with a sign-in provider always takes a passkey tap, whatever the person chose for how often ([ADR 0075](0075-how-often-a-passkey-is-asked-for-again.md)), as such a session never has a passkey's hour ([ADR 0095](0095-signing-in-to-the-panel-with-a-provider.md)).
   - The step-up for making a token keeps no target. With the same proof, a person could make a token that isn't narrowed at all, so a narrowed one asks no more.
 - **`Token`** carries its projects, each with its ID and its name as it is now, and its role. `ListTokens` shows them. A project that has been deleted shows as gone, and one its maker no longer reaches shows as out of reach, not by its new name.
 - **The panel's API tokens page** asks both when a token is made, with the defaults first, under the design system's interaction principles:
   - Projects: "Every project you hold", or projects picked from a list of the maker's.
   - Acts as: "Your role", Developer or Viewer. Developer shows one line on what happens in a protected environment.
   - Each token's row says where it acts and as what, such as "shop, blog · developer" or "Every project you hold".
+  - Members' plan to remove someone says the same of each token it would revoke, so whoever removes them sees what each could reach.
+- **A token Dockwell makes for one project's CI,** such as push-to-deploy's ([#253](https://github.com/Dockwell/dockwell/issues/253)), is narrowed to that project and capped at developer by default, so the first token most people get is the narrow one. Whoever makes it may widen it.
 - **The CLI** gets `--project`, which repeats, and `--role` from the schema, like every other field, and the MCP server will when it comes.
 - **`token.create`'s detail** names the projects and the role. A call refused for a token's places is audited as `role.refuse` is, at most once an hour for each token and method with a count of the rest (ADR 0049), naming the token's projects.
-- **The store** gives `api_tokens` two columns, read in the query that already checks a token: `projects`, NULL for every project its maker holds and otherwise the IDs it names, so a list that's emptied, by a cleanup or a hand edit, reaches no project rather than every one; and `role`, empty for the maker's and held to developer or viewer. Tokens made before this have NULL and empty, so they act as they do today. A narrowed token whose projects are all deleted reaches none, which a test checks.
+- **The store** gives `api_tokens` two columns, in migration 0042, read in the query that already checks a token: `projects`, NULL for every project its maker holds and otherwise the IDs it names, so a list that's emptied, by a cleanup or a hand edit, reaches no project rather than every one; and `role`, empty for the maker's and held to developer or viewer. Tokens made before this have NULL and empty, so they act as they do today. A narrowed token whose projects are all deleted reaches none, which a test checks.
 - **An older control plane can't widen a narrowed token:** it refuses a store with a newer schema (`internal/store/migrate.go`), so it can't open it at all. ADR 0057's bundles carry the new columns.
 
 ### What changes a narrowed token's reach later
 
-- **A project its maker loses** is lost to the token too, as it acts as its maker does now.
+- **Lowering its maker, anywhere, or removing them revokes it,** as it revokes every token they made ([ADR 0049](0049-roles-and-invites-by-project.md), "Managing members"). So a narrowed token never goes on below what it was made with.
 - **A project created later** is reached by a token that isn't narrowed, if its maker reaches it, and never by a narrowed one.
 - **A project deleted** stays on the token by ID and reaches nothing. A token whose projects are all gone reaches only what anyone may call, as it holds no grant.
-- **The maker's role dropping below the cap** lowers the token with it: the lower of the two always applies.
-- **The maker's role rising** raises an uncapped token with it, within what a narrowed token holds above: a developer made an admin gives their narrowed token an admin's say in its projects' protected environments. A capped token stays at its cap. In the panel, "Your role" reads as the maker's role as it changes, not as it is now.
+- **The maker's role rising** raises an uncapped token with it, within what a narrowed token holds above: a developer made an admin gives their narrowed token an admin's say in its projects' protected environments. A capped token stays at its cap. In the panel, "Your role" reads as the maker's role as it changes, not as it is now. A raise widens every token that isn't capped (ADR 0049), so a cap is how a CI token stays what it was made for when its maker is made an admin.
 
 ### Not decided here
 
