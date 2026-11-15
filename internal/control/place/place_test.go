@@ -15,6 +15,7 @@ import (
 	"github.com/dockwell/dockwell/internal/resource/connection"
 	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/firewall"
+	"github.com/dockwell/dockwell/internal/resource/githubapp"
 	"github.com/dockwell/dockwell/internal/resource/network"
 	"github.com/dockwell/dockwell/internal/resource/registrylogin"
 	"github.com/dockwell/dockwell/internal/resource/route"
@@ -43,6 +44,7 @@ func TestEveryKindOfResourceCanBePlaced(t *testing.T) {
 		registrylogin.Type{},
 		connection.Type{},
 		signinprovider.Type{},
+		githubapp.Type{},
 		scope.ProjectType{},
 		scope.EnvironmentType{},
 		&task.Driver{},

@@ -1,0 +1,117 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package builds
+
+import (
+	"context"
+	"errors"
+	"fmt"
+
+	"connectrpc.com/connect"
+
+	"github.com/dockwell/dockwell/internal/control/authapi"
+	"github.com/dockwell/dockwell/internal/scope"
+	"github.com/dockwell/dockwell/internal/store"
+)
+
+// GitLogins checks the GitHub App installation a reading fetches a repository
+// through, as a plan does, and picks one where none is named: gitproviders
+// (ADR 0098).
+type GitLogins interface {
+	PinGitLogin(ctx context.Context, tx *store.Tx, project, repoURL, login string) (string, error)
+}
+
+// SetGitLogins has readings of a repository fetch it through the installation g
+// says reaches the project they're for.
+func (h *Handler) SetGitLogins(g GitLogins) { h.gitLogins = g }
+
+// loginFor is the git login a reading of the repository at url, for project, fetches
+// through: login, once it reaches project and lists the repository, or where login
+// is "", the first installation that does, or "" for none, which reads it as the
+// public do. A login named for no project is refused: an installation reaches only
+// the projects an admin lets it.
+func (h *Handler) loginFor(ctx context.Context, project, url, login string) (string, error) {
+	if h.gitLogins == nil {
+		if login != "" {
+			return "", connect.NewError(connect.CodeUnavailable, errors.New("this control plane has no GitHub App to read a private repository with"))
+		}
+		return "", nil
+	}
+	if project == "" {
+		if login != "" {
+			return "", authapi.Invalid(fmt.Errorf("%s reads through a GitHub App's installation, which reaches only the projects an admin lets it. Name the project the app builds in", login))
+		}
+		return "", nil
+	}
+	var pinned string
+	err := h.db.View(ctx, func(tx *store.Tx) error {
+		var err error
+		pinned, err = h.gitLogins.PinGitLogin(ctx, tx, project, url, login)
+		return err
+	})
+	if err != nil {
+		return "", authapi.ReasonError(connect.CodeFailedPrecondition, err, "unreadable")
+	}
+	return pinned, nil
+}
+
+// projectNamed is the project a request names by ID or name, or the one of the
+// environment it names, by ID, or by name in that project; "" where it names
+// neither.
+func (h *Handler) projectNamed(ctx context.Context, project, environment string) (string, error) {
+	if project == "" && environment == "" {
+		return "", nil
+	}
+	var found string
+	err := h.db.View(ctx, func(tx *store.Tx) error {
+		tree, err := scope.Load(ctx, tx)
+		if err != nil {
+			return err
+		}
+		for _, p := range tree.Projects {
+			if project != "" && p.ID != project && p.Name != project {
+				continue
+			}
+			if environment == "" {
+				found = p.ID
+				return nil
+			}
+			for _, e := range p.Environments {
+				if e.ID == environment || e.Name == environment {
+					found = p.ID
+					return nil
+				}
+			}
+		}
+		return nil
+	})
+	switch {
+	case err != nil:
+		return "", err
+	case found == "" && environment != "":
+		return "", connect.NewError(connect.CodeNotFound, fmt.Errorf("there's no environment %s", environment))
+	case found == "":
+		return "", connect.NewError(connect.CodeNotFound, fmt.Errorf("there's no project %s", project))
+	}
+	return found, nil
+}
+
+// projectOfScope is the project environment env is in, or "" for none.
+func (h *Handler) projectOfScope(ctx context.Context, env string) (string, error) {
+	found := ""
+	err := h.db.View(ctx, func(tx *store.Tx) error {
+		tree, err := scope.Load(ctx, tx)
+		if err != nil {
+			return err
+		}
+		for _, p := range tree.Projects {
+			for _, e := range p.Environments {
+				if e.ID == env {
+					found = p.ID
+				}
+			}
+		}
+		return nil
+	})
+	return found, err
+}

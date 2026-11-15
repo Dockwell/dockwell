@@ -510,6 +510,11 @@ message Hello {
   // (ADR 0086). The control plane sends a build none through one that doesn't.
   // Numbered in the block registry logins hold, 310 to 319.
   bool build_logins = 316;
+  // True when the agent hands a build's fetch the Authorization it's sent for its
+  // private repository (DesiredResource.build_git_auth), from a file in memory,
+  // and a reading's the same way (DetectBuildCall.git_auth) (ADR 0098). Numbered
+  // in the block GitHub Apps hold, 360 to 369.
+  bool build_git_auth = 361;
   // True when the agent reads what Coolify or Dokploy runs on the server, from
   // Docker and the panel's folders (ReadPanelCall). Importing from them takes 330
   // to 339 in agent messages (ADR 0089).
@@ -2279,6 +2284,11 @@ message DesiredResource {
   // each registry, sealed to this stream's delivery key as a step's values are
   // (ADR 0086). Numbered in the block registry logins hold, 310 to 319.
   bytes build_registry_auths = 315;
+  // The Authorization a step's build fetches its private repository with: a
+  // GitHub App's token for that repository alone, sealed to this stream's
+  // delivery key as a step's values are (ADR 0098). Numbered in the block GitHub
+  // Apps hold, 360 to 369.
+  bytes build_git_auth = 360;
   // Stops or starts the own containers and services of the panel an import came
   // from, for its host (ADR 0089). Numbered in the import's block, 330 to 339.
   PanelAction panel = 333;
@@ -2381,6 +2391,11 @@ message DetectBuildCall {
   // True when the service starts with a command of its own, so the commit
   // needn't say what starts it.
   bool own_command = 2;
+  // What fetches a private repository a GitHub App's installation reaches,
+  // where build names its git login: the Authorization, sealed to this stream's
+  // delivery key for resource.DetectGitRef, as a build's is (ADR 0098). An agent
+  // that says Hello.build_git_auth opens it.
+  bytes git_auth = 362;
 }
 
 // DetectBuildResult is what reading the commit found.

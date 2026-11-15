@@ -88,15 +88,16 @@ const (
 	certificateID     = "crt"
 	signinProvider    = "sip"
 	connectionPrefix  = "cnx"
+	githubApp         = "gha"
 )
 
 // Named reports an object seen by name on the install, as servers, backup
-// destinations, registry logins, sign-in providers and connections are, whichever
-// projects name it (ADR 0049, ADR 0099).
+// destinations, registry logins, sign-in providers, connections and GitHub Apps
+// are, whichever projects name it (ADR 0049, ADR 0098, ADR 0099).
 func Named(objectID string) bool {
 	prefix, _, _ := strings.Cut(objectID, "_")
 	return prefix == id.Server || prefix == destinationPrefix || prefix == registryLogin || prefix == dnsProvider || prefix == certificateID || prefix == signinProvider ||
-		prefix == connectionPrefix
+		prefix == connectionPrefix || prefix == githubApp
 }
 
 // Of says where the object with objectID belongs. A change is where each of its
@@ -163,7 +164,7 @@ func (pl *Placer) Of(ctx context.Context, objectID string) ([]Place, error) {
 		return []Place{p}, err
 	case id.Project, id.Environment, id.Service, id.Variable, id.Secret, id.Route, id.Resource,
 		volumePrefix, networkPrefix, policyPrefix, destinationPrefix, (task.Type{}).IDPrefix(),
-		databaseUser, catalogSource, registryLogin, dnsProvider, certificateID, signinProvider, connectionPrefix, id.AlertRule, id.AlertChannel, id.AlertCheck:
+		databaseUser, catalogSource, registryLogin, dnsProvider, certificateID, signinProvider, connectionPrefix, githubApp, id.AlertRule, id.AlertChannel, id.AlertCheck:
 		r, err := tx.GetResourceByID(ctx, objectID)
 		if err != nil {
 			return nil, err

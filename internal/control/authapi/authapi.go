@@ -410,6 +410,9 @@ var stepUpActions = map[dockwellv1.StepUpAction]auth.StepUpAction{
 	dockwellv1.StepUpAction_STEP_UP_ACTION_CREATE_GIT_HOOK:           auth.StepUpCreateGitHook,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_ROTATE_GIT_HOOK:           auth.StepUpRotateGitHook,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_WIDEN_GIT_HOOK:            auth.StepUpWidenGitHook,
+	dockwellv1.StepUpAction_STEP_UP_ACTION_CONNECT_GITHUB_APP:        auth.StepUpConnectGitHubApp,
+	dockwellv1.StepUpAction_STEP_UP_ACTION_ROTATE_GITHUB_APP:         auth.StepUpRotateGitHubApp,
+	dockwellv1.StepUpAction_STEP_UP_ACTION_REMOVE_GITHUB_APP:         auth.StepUpRemoveGitHubApp,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_END_PROCESS:               auth.StepUpEndProcess,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_OPEN_TERMINAL:             auth.StepUpOpenTerminal,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_APPROVE_CHANGE:            auth.StepUpApproveChange,
@@ -861,6 +864,7 @@ var codes = []struct {
 	{auth.ErrHookExists, connect.CodeAlreadyExists, "hook_exists"},
 	{auth.ErrNoHook, connect.CodeNotFound, "no_hook"},
 	{auth.ErrHookNotYours, connect.CodePermissionDenied, "hook_not_yours"},
+	{auth.ErrHookThroughApp, connect.CodeFailedPrecondition, "hook_through_app"},
 	{auth.ErrHookAdminOnly, connect.CodePermissionDenied, ReasonNeedsRole},
 }
 

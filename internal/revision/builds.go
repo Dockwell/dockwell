@@ -30,6 +30,25 @@ type Sources interface {
 	Resolve(ctx context.Context, url, ref string) (commit, full string, err error)
 }
 
+// gitLoginKey keys the git login a call's build names.
+type gitLoginKey struct{}
+
+// WithGitLogin has a Sources call under ctx read the repository as the build's
+// git_login says: through a GitHub App's installation (ADR 0098). Empty reads it as
+// the public do.
+func WithGitLogin(ctx context.Context, login string) context.Context {
+	if login == "" {
+		return ctx
+	}
+	return context.WithValue(ctx, gitLoginKey{}, login)
+}
+
+// GitLoginOf is the git login WithGitLogin gave ctx, or "".
+func GitLoginOf(ctx context.Context) string {
+	l, _ := ctx.Value(gitLoginKey{}).(string)
+	return l
+}
+
 // SetSources has the engine read what a build's branch names with s.
 func (e *Engine) SetSources(s Sources) { e.sources = s }
 
@@ -199,7 +218,7 @@ func (e *Engine) pinBuilds(ctx context.Context, items []item, changeID string) e
 			if e.sources == nil {
 				return fmt.Errorf("this control plane can't read what %s's branch names, so it can't plan its build", it.ref.Name)
 			}
-			commit, full, err := e.sources.Resolve(ctx, g.GetUrl(), g.GetRef())
+			commit, full, err := e.sources.Resolve(WithGitLogin(ctx, svc.GetBuild().GetGitLogin()), g.GetUrl(), g.GetRef())
 			if err != nil {
 				return fault.New(ErrInvalid, "%w", err)
 			}

@@ -104,6 +104,7 @@ func (e *Engine) fakeBuild(c *container, stdout, stderr io.Writer) (code int) {
 		_, _ = fmt.Fprintln(stderr, "dockertest: a builder mounts Railpack's volume, which only readings may")
 		return 99
 	}
+	envs[gitAuthEnv] = e.gitAuthOf(c)
 	co, code := checkout(envs, stderr)
 	if code != 0 {
 		return code
@@ -509,6 +510,24 @@ type checkedOut struct {
 
 // checkout does what the builder's script does first: it checks out the commit with
 // the real git, says what it is, and finds the build's folder and Dockerfile.
+// gitAuthEnv is where checkout finds the Authorization a builder was given for its
+// repository, in its environment's map, as no real container's environment has it.
+const gitAuthEnv = "dockertest:git-auth"
+
+// gitAuthOf is the Authorization a builder or a reading was given for its
+// repository, read from its mount as the script reads it (ADR 0098), or "".
+func (e *Engine) gitAuthOf(c *container) string {
+	path := e.hostPathOf(c, "/run/dockwell-git/authorization")
+	if path == "" {
+		return ""
+	}
+	b, err := os.ReadFile(path) //nolint:gosec // a test's own file
+	if err != nil {
+		return ""
+	}
+	return string(b)
+}
+
 func checkout(envs map[string]string, stderr io.Writer, says ...func(string)) (checkedOut, int) {
 	say := func(s string) { _, _ = fmt.Fprintf(stderr, "dockwell:%s\n", s) }
 	if len(says) > 0 {
@@ -524,6 +543,10 @@ func checkout(envs map[string]string, stderr io.Writer, says ...func(string)) (c
 		cmd := exec.CommandContext(context.Background(), "git", args...) //nolint:gosec // a test's own repository
 		cmd.Dir = src
 		cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
+		if auth := envs[gitAuthEnv]; auth != "" {
+			// As the script does: for the repository's URL alone.
+			cmd.Env = append(cmd.Env, "GIT_CONFIG_COUNT=1", "GIT_CONFIG_KEY_0=http."+envs["DW_URL"]+".extraHeader", "GIT_CONFIG_VALUE_0=Authorization: "+auth)
+		}
 		out, err := cmd.CombinedOutput()
 		if err != nil {
 			_, _ = stderr.Write(out)

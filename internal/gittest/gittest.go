@@ -30,6 +30,25 @@ type Server struct {
 	mu  sync.Mutex
 	// requests is what it was asked, by path, which more than one asks at once.
 	requests []string
+	// auth is the Authorization every request must carry, as a private
+	// repository's host wants; empty for none. unauthorized counts those refused.
+	auth         string
+	unauthorized int
+}
+
+// RequireAuth has every request carry header as its Authorization, as a private
+// repository's host does, and refuses the rest with 401.
+func (s *Server) RequireAuth(header string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.auth = header
+}
+
+// Unauthorized is how many requests it refused for their Authorization.
+func (s *Server) Unauthorized() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.unauthorized
 }
 
 // Requests is what it was asked, by path.
@@ -62,7 +81,16 @@ func Start(t testing.TB) *Server {
 	s.srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		s.mu.Lock()
 		s.requests = append(s.requests, r.URL.Path)
+		refused := s.auth != "" && r.Header.Get("Authorization") != s.auth
+		if refused {
+			s.unauthorized++
+		}
 		s.mu.Unlock()
+		if refused {
+			w.Header().Set("WWW-Authenticate", `Basic realm="git"`)
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
 		h.ServeHTTP(w, r)
 	}))
 	t.Cleanup(s.srv.Close)

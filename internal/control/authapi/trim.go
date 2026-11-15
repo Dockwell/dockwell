@@ -16,7 +16,9 @@ import (
 // the install (ADR 0049): a server's name, whether it's up, and its public
 // address; a backup destination's name and whether backups get there; a registry
 // login's name and registry (ADR 0086); a sign-in provider's name and what the
-// panel calls it (ADR 0087). Inventory,
+// panel calls it (ADR 0087); a GitHub App's name, owner, page and whether GitHub
+// reaches the panel, and its installations' accounts and states, with the link
+// that adds a repository on GitHub, which GitHub checks (ADR 0098). Inventory,
 // stats, history, builds, endpoints, buckets and the rest stay an admin's.
 var byNameAndState = map[protoreflect.FullName]map[protoreflect.Name]bool{
 	"dockwell.v1.Server":                {"id": true, "name": true, "connection": true, "last_seen_time": true, "control_server": true, "network": true},
@@ -27,6 +29,13 @@ var byNameAndState = map[protoreflect.FullName]map[protoreflect.Name]bool{
 	"dockwell.v1.DnsProviderInfo":       {"id": true, "name": true, "zones": true},
 	"dockwell.v1.CertificateInfo":       {"id": true, "name": true, "domains": true, "state": true, "expire_time": true},
 	"dockwell.v1.SigninProviderInfo":    {"id": true, "name": true, "display_name": true},
+	"dockwell.v1.GitHubAppInfo": {
+		"id": true, "name": true, "owner": true, "owner_is_organization": true, "html_url": true,
+		"installations": true, "delivery": true, "gone": true,
+	},
+	"dockwell.v1.GitHubInstallation": {
+		"id": true, "account": true, "organization": true, "suspended": true, "removed": true, "settings_url": true,
+	},
 }
 
 // trims reports a call whose response is trimmed to names and states: one that

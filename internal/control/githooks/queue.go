@@ -130,7 +130,7 @@ func (h *Handler) deploy(l *lane, j *job) {
 			h.end(ctx, &d, svc, store.HookIgnored, name+" doesn't build from Git now, so a push deploys nothing")
 			return
 		}
-		commit, _, err := h.cfg.Sources.Resolve(ctx, g.GetUrl(), g.GetRef())
+		commit, _, err := h.cfg.Sources.Resolve(revision.WithGitLogin(ctx, b.GetGitLogin()), g.GetUrl(), g.GetRef())
 		if err != nil {
 			h.end(ctx, &d, svc, store.HookFailed, fmt.Sprintf("Dockwell can't read %s: %s", refName(d.Ref), message(err)))
 			return

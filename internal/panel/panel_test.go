@@ -93,6 +93,20 @@ func TestIndexAndClientRoutes(t *testing.T) {
 	}
 }
 
+// The panel's forms post to the panel, and to an origin PostsTo names, as
+// connecting GitHub posts to GitHub; nothing else in the policy widens, and what
+// isn't an origin is dropped.
+func TestFormsPostToTheOriginsNamed(t *testing.T) {
+	h := newTestHandler(t)
+	h.PostsTo("https://github.com", "", "https://evil.example.com; script-src *")
+	res := get(t, h, http.MethodGet, "/", map[string]string{"Accept": "text/html"})
+	_ = body(t, res)
+	want := strings.Replace(contentSecurityPolicy, "form-action 'self'", "form-action 'self' https://github.com", 1)
+	if got := res.Header.Get("Content-Security-Policy"); got != want {
+		t.Errorf("CSP = %q, want %q", got, want)
+	}
+}
+
 func TestCSPAllowsNoInlineCode(t *testing.T) {
 	for _, directive := range []string{"script-src 'self';", "style-src 'self';", "frame-ancestors 'none'", "object-src 'none'"} {
 		if !strings.Contains(contentSecurityPolicy, directive) {

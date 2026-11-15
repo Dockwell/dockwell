@@ -675,6 +675,14 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			}
 			pullCtx = registry.WithBuildRecheck(registry.WithBuildAuths(pullCtx, auths), c.checkBuildLogins)
 		}
+		// What fetches a build's private repository, for this step alone (ADR 0098).
+		if sealed := call.GetApply().GetDesired().GetBuildGitAuth(); len(sealed) > 0 {
+			header, err := c.buildGitAuth(ref, sealed)
+			if err != nil {
+				return fail(err)
+			}
+			pullCtx = resource.WithBuildGitAuth(pullCtx, header)
+		}
 		if err := c.local.Apply(pullCtx, step, spec); err != nil {
 			if step.Action == resource.ActionDelete && c.cfg.Desired != nil {
 				// What's left of it is the control plane's to finish, not the agent's to
@@ -847,6 +855,14 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 		}
 		req := service.Request(&resourcev1.Service{Build: b})
 		req.OwnCommand = call.GetDetectBuild().GetOwnCommand()
+		// A private repository's reading fetches it as its build would (ADR 0098).
+		if sealed := call.GetDetectBuild().GetGitAuth(); len(sealed) > 0 {
+			header, err := c.openGitAuth(resource.DetectGitRef, sealed)
+			if err != nil {
+				return fail(fmt.Errorf("can't open what fetches the repository: %w", err))
+			}
+			req.GitAuth = header
+		}
 		d, err := c.cfg.Builds.Detect(ctx, req)
 		if err != nil {
 			plain, _ := resource.Explain(err)
@@ -1583,6 +1599,30 @@ func (c *calls) buildLogins(ctx context.Context, ref resource.Ref, sealed []byte
 		return nil, err
 	}
 	return c.checkBuildLogins(ctx, auths)
+}
+
+// buildGitAuth opens the Authorization sent for ref's build to fetch its private
+// repository with: a GitHub App's token for that repository alone (ADR 0098).
+func (c *calls) buildGitAuth(ref resource.Ref, sealed []byte) (string, error) {
+	return c.openGitAuth(resource.BuildGitRef(ref), sealed)
+}
+
+// openGitAuth opens the Authorization sealed for purpose that fetches a private
+// repository.
+func (c *calls) openGitAuth(purpose resource.Ref, sealed []byte) (string, error) {
+	if c.delivery == nil {
+		return "", errors.New("this agent has no delivery key to open what fetches this build's repository")
+	}
+	values, err := c.delivery.Open(c.server, purpose, sealed)
+	if err != nil {
+		return "", err
+	}
+	defer clear(values)
+	header := values["authorization"]
+	if header == "" {
+		return "", errors.New("what was sent to fetch this build's repository is empty")
+	}
+	return header, nil
 }
 
 // checkBuildLogins is images.forBuild, with this agent's log. It runs as the step

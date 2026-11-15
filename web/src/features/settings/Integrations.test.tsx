@@ -55,7 +55,9 @@ describe("Integrations", () => {
       within(screen.getByRole("navigation", { name: "Settings" })).getByRole("link", { name: "Integrations" }),
     ).toHaveAttribute("aria-current", "page");
     expect(
-      await screen.findByText("2 connected · the services Dockwell sends backups to and routes behind"),
+      await screen.findByText(
+        "2 connected · the services Dockwell builds from, deploys with, routes through and backs up to",
+      ),
     ).toBeVisible();
 
     const bucket = screen.getByRole("article", { name: "r2" });
@@ -76,7 +78,7 @@ describe("Integrations", () => {
     );
     // What doesn't connect yet is a line, never a card or a panel of its own.
     expect(screen.queryByRole("region", { name: "Coming later" })).toBeNull();
-    expect(screen.getByText("Git providers and cloud providers come later.")).toBeVisible();
+    expect(screen.getByText("Cloud providers come later.")).toBeVisible();
     await expectAccessible(container);
   });
 
@@ -110,7 +112,9 @@ describe("Integrations", () => {
     expect(screen.getByText("Loading where backups go")).toBeInTheDocument();
     answer({ destinations: [r2] });
     expect(
-      await screen.findByText("1 connected · the services Dockwell sends backups to and routes behind"),
+      await screen.findByText(
+        "1 connected · the services Dockwell builds from, deploys with, routes through and backs up to",
+      ),
     ).toBeVisible();
   });
 
@@ -118,7 +122,9 @@ describe("Integrations", () => {
     const user = userEvent.setup();
     renderAt("/settings/integrations", { backups: { listBackupDestinations: () => ({ destinations: [] }) } });
     expect(
-      await screen.findByText("0 connected · the services Dockwell sends backups to and routes behind"),
+      await screen.findByText(
+        "0 connected · the services Dockwell builds from, deploys with, routes through and backs up to",
+      ),
     ).toBeVisible();
     await user.click(
       within(screen.getByRole("article", { name: "S3-compatible storage" })).getByRole("button", { name: "Connect" }),
@@ -135,7 +141,9 @@ describe("Integrations", () => {
     expect(screen.getByRole("link", { name: "Back" })).toHaveAttribute("href", "/settings");
     expect(await screen.findByRole("article", { name: "r2" })).toBeVisible();
     // The phone's header says what the wide screen's lead and aside do.
-    expect(screen.getByText("1 connected · the services Dockwell sends backups to and routes behind")).toBeVisible();
+    expect(
+      screen.getByText("1 connected · the services Dockwell builds from, deploys with, routes through and backs up to"),
+    ).toBeVisible();
     expect(screen.getByRole("link", { name: "Variables and secrets" })).toHaveAttribute("href", "/variables");
   });
 
@@ -143,6 +151,6 @@ describe("Integrations", () => {
     await activateLocale("zh-CN");
     renderAt("/settings/integrations", { backups: { listBackupDestinations: () => ({ destinations: [r2] }) } });
     expect(await screen.findByRole("heading", { level: 1, name: "集成" })).toBeVisible();
-    expect(await screen.findByText("Git 服务商和云服务商将在之后推出。")).toBeVisible();
+    expect(await screen.findByText("云服务商将在之后推出。")).toBeVisible();
   });
 });

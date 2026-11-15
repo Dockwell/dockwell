@@ -255,6 +255,16 @@ const (
 	// Giving a service's hook a new secret, with
 	// GitHookService.RotateGitHookSecret. The target is the service's ID.
 	StepUpAction_STEP_UP_ACTION_ROTATE_GIT_HOOK StepUpAction = 101
+	// Connecting GitHub as an App, with GitProviderService.StartGitHubApp. It has
+	// no target.
+	StepUpAction_STEP_UP_ACTION_CONNECT_GITHUB_APP StepUpAction = 102
+	// A GitHub App's new webhook secret or private key, with
+	// GitProviderService.RotateGitHubWebhookSecret or ReplaceGitHubPrivateKey. The
+	// target is the App's ID.
+	StepUpAction_STEP_UP_ACTION_ROTATE_GITHUB_APP StepUpAction = 103
+	// Removing a GitHub App, with GitProviderService.RemoveGitHubApp. The target is
+	// the App's ID.
+	StepUpAction_STEP_UP_ACTION_REMOVE_GITHUB_APP StepUpAction = 104
 	// Letting a service's hook deploy without waiting where its environment is
 	// protected, with GitHookService.SetGitHookRole and the role admin. The
 	// target is the service's ID.
@@ -346,6 +356,9 @@ var (
 		9:   "STEP_UP_ACTION_SAVE_WAY_BACK_IN",
 		100: "STEP_UP_ACTION_CREATE_GIT_HOOK",
 		101: "STEP_UP_ACTION_ROTATE_GIT_HOOK",
+		102: "STEP_UP_ACTION_CONNECT_GITHUB_APP",
+		103: "STEP_UP_ACTION_ROTATE_GITHUB_APP",
+		104: "STEP_UP_ACTION_REMOVE_GITHUB_APP",
 		109: "STEP_UP_ACTION_WIDEN_GIT_HOOK",
 		20:  "STEP_UP_ACTION_END_PROCESS",
 		10:  "STEP_UP_ACTION_OPEN_TERMINAL",
@@ -380,6 +393,9 @@ var (
 		"STEP_UP_ACTION_SAVE_WAY_BACK_IN":          9,
 		"STEP_UP_ACTION_CREATE_GIT_HOOK":           100,
 		"STEP_UP_ACTION_ROTATE_GIT_HOOK":           101,
+		"STEP_UP_ACTION_CONNECT_GITHUB_APP":        102,
+		"STEP_UP_ACTION_ROTATE_GITHUB_APP":         103,
+		"STEP_UP_ACTION_REMOVE_GITHUB_APP":         104,
 		"STEP_UP_ACTION_WIDEN_GIT_HOOK":            109,
 		"STEP_UP_ACTION_END_PROCESS":               20,
 		"STEP_UP_ACTION_OPEN_TERMINAL":             10,
@@ -4908,7 +4924,8 @@ const file_dockwell_v1_auth_proto_rawDesc = "" +
 	"\x1fPROVIDER_LINK_STATE_UNSPECIFIED\x10\x00\x12\x1d\n" +
 	"\x19PROVIDER_LINK_STATE_WORKS\x10\x01\x12$\n" +
 	" PROVIDER_LINK_STATE_PROVIDER_OFF\x10\x02\x12$\n" +
-	" PROVIDER_LINK_STATE_ISSUER_MOVED\x10\x03*\x8d\t\n" +
+	" PROVIDER_LINK_STATE_ISSUER_MOVED\x10\x03*\x80\n" +
+	"\n" +
 	"\fStepUpAction\x12\x1e\n" +
 	"\x1aSTEP_UP_ACTION_UNSPECIFIED\x10\x00\x12 \n" +
 	"\x1cSTEP_UP_ACTION_REVEAL_SECRET\x10\x01\x12\x1e\n" +
@@ -4921,7 +4938,10 @@ const file_dockwell_v1_auth_proto_rawDesc = "" +
 	" STEP_UP_ACTION_APPLY_ROOT_CHANGE\x10\b\x12#\n" +
 	"\x1fSTEP_UP_ACTION_SAVE_WAY_BACK_IN\x10\t\x12\"\n" +
 	"\x1eSTEP_UP_ACTION_CREATE_GIT_HOOK\x10d\x12\"\n" +
-	"\x1eSTEP_UP_ACTION_ROTATE_GIT_HOOK\x10e\x12!\n" +
+	"\x1eSTEP_UP_ACTION_ROTATE_GIT_HOOK\x10e\x12%\n" +
+	"!STEP_UP_ACTION_CONNECT_GITHUB_APP\x10f\x12$\n" +
+	" STEP_UP_ACTION_ROTATE_GITHUB_APP\x10g\x12$\n" +
+	" STEP_UP_ACTION_REMOVE_GITHUB_APP\x10h\x12!\n" +
 	"\x1dSTEP_UP_ACTION_WIDEN_GIT_HOOK\x10m\x12\x1e\n" +
 	"\x1aSTEP_UP_ACTION_END_PROCESS\x10\x14\x12 \n" +
 	"\x1cSTEP_UP_ACTION_OPEN_TERMINAL\x10\n" +

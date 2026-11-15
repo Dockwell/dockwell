@@ -398,6 +398,127 @@ describe("New app, from Git", () => {
     );
   });
 
+  it("offers the repositories the project's GitHub App reaches, and reads a private one through it", async () => {
+    const user = userEvent.setup();
+    const branchesFor: string[] = [];
+    const detected: DetectBuildRequest[] = [];
+    const proposed: ProposeChangeRequest[] = [];
+    renderAt(
+      "/apps/new?source=git",
+      api({
+        gitProviders: {
+          listGitProviders: () => ({
+            apps: [{ id: "gha_1", name: "dockwell-deploy", installations: [{ id: 7n, account: "acme" }] }],
+          }),
+          listGitRepositories: (req) => {
+            expect(req.project).toBe("prj_1");
+            return {
+              repositories: [
+                { fullName: "acme/api", url: "https://github.com/acme/api", defaultBranch: "trunk", account: "acme" },
+                {
+                  fullName: "acme/web",
+                  url: "https://github.com/acme/web",
+                  private: true,
+                  defaultBranch: "main",
+                  account: "acme",
+                },
+              ],
+            };
+          },
+        },
+        builds: {
+          listRepositoryBranches: (req) => {
+            branchesFor.push(req.project);
+            return { branches: ["main", "next"], defaultBranch: "main", gitLogin: "dockwell-deploy/7" };
+          },
+          detectBuild: (req) => {
+            detected.push(req);
+            return {
+              commit: "8be41d2c3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c",
+              ref: "main",
+              serverName: "hz-1",
+              detection: { builder: ImageBuild_Builder.DOCKERFILE, dockerfile: "Dockerfile", exposedPorts: [8080] },
+            };
+          },
+        },
+        changes: {
+          proposeChange: (req) => {
+            proposed.push(req);
+            // The plan pins the installation, and its build line names the account.
+            return {
+              change: create(ChangeSchema, {
+                id: "chg_new",
+                summary: "Build acme/web as web",
+                state: ChangeState.PLANNED,
+                plan: {
+                  fingerprint: "feedfacefeedfacefeedfacefeedface",
+                  summary: { create: 1 },
+                  resources: [
+                    {
+                      id: "svc_web",
+                      resource: { kind: "service", scope: "env_prod", name: "web" },
+                      action: PlanAction.CREATE,
+                    },
+                  ],
+                  servers: [
+                    {
+                      serverId: SERVER,
+                      serverName: "hz-1",
+                      steps: [
+                        {
+                          resource: { kind: "service", scope: "env_prod", name: "web" },
+                          action: PlanAction.CREATE,
+                          build: {
+                            url: "https://github.com/acme/web",
+                            ref: "main",
+                            commit: "8be41d2c3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c",
+                            gitLogin: "dockwell-deploy/7",
+                          },
+                        },
+                      ],
+                    },
+                  ],
+                },
+              }),
+            };
+          },
+          discardChange: () => ({}),
+        },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "New app" });
+    // Focusing the field lists what the installation reaches: a pick, not a URL to type.
+    const field = await within(sheet).findByRole("combobox", { name: "Repository" });
+    await user.click(field);
+    const list = await within(sheet).findByRole("listbox", { name: "Repositories" });
+    expect(
+      within(list)
+        .getAllByRole("option")
+        .map((o) => o.textContent),
+    ).toEqual(["acme/api", "acme/webPrivate"]);
+    // Typing narrows them by name.
+    await user.type(field, "web");
+    expect(within(list).getAllByRole("option")).toHaveLength(1);
+    await user.click(within(list).getByRole("option", { name: /acme\/web/ }));
+    expect(field).toHaveValue("https://github.com/acme/web");
+    // Its branches, read for the project through its installation, and the state says so.
+    await within(sheet).findByText("Private, through acme · 2 branches", {}, { timeout: 3000 });
+    expect(branchesFor).toContain("prj_1");
+    await waitFor(() => expect(detected.length).toBeGreaterThan(0), { timeout: 3000 });
+    expect(detected.at(-1)?.project).toBe("prj_1");
+    await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
+    await waitFor(() => expect(proposed.length).toBe(1));
+    // The plan picks the installation, as the edit names none, and says which.
+    const spec = proposed[0]?.edits[0]?.spec?.kind;
+    expect(spec?.case === "service" ? spec.value.build?.gitLogin : "?").toBe("");
+    const review = await screen.findByRole("dialog", { name: "Review plan" });
+    await waitFor(() =>
+      expect(review).toHaveTextContent(
+        "Builds github.com/acme/web at 8be41d2 (main) on hz-1 first, through the GitHub App on acme. If the build fails, what runs stays as it is.",
+      ),
+    );
+  });
+
   it("takes a free port on the server when another app holds the one the build exposes", async () => {
     const user = userEvent.setup();
     renderAt(

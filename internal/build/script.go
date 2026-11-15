@@ -28,8 +28,11 @@ const (
 	// registriesMount holds the registry logins a build's base images pull with, as
 	// Docker's config.json, read-only (ADR 0086).
 	registriesMount = "/run/dockwell-registries"
-	sourceDir       = "/src"
-	buildkitSock    = "unix:///run/buildkit/buildkitd.sock"
+	// gitAuthMount holds the Authorization a private repository is fetched with,
+	// read-only, in memory (ADR 0098).
+	gitAuthMount = "/run/dockwell-git"
+	sourceDir    = "/src"
+	buildkitSock = "unix:///run/buildkit/buildkitd.sock"
 )
 
 // fetchScript fetches the branch or tag the build names, by its full name, and checks
@@ -38,7 +41,24 @@ const (
 // commit the build names as its ref is fetched as it is. It says what the commit is,
 // and finds the build's folder, as ctx, and its Dockerfile, as df, empty when the
 // commit hasn't one where the build says. Neither may lead out of the checkout.
-const fetchScript = `say phase fetch
+// gitAuthScript has git send the Authorization the build was given for its
+// repository, read from its file in memory, as a header git takes from its
+// environment for that repository's URL alone, so a redirect elsewhere doesn't
+// carry it: never in the URL, a command line, the log or BuildKit's cache (ADR
+// 0098).
+const gitAuthScript = `if [ -r ` + gitAuthMount + `/authorization ]; then
+  GIT_CONFIG_KEY_0="http.$DW_URL.extraHeader"
+  GIT_CONFIG_VALUE_0="Authorization: $(cat ` + gitAuthMount + `/authorization)"
+  export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0 GIT_CONFIG_VALUE_0
+fi
+`
+
+// gitAuthDone takes the Authorization out of the environment once the checkout is
+// done, the last step that fetches, so nothing that runs after it, as Railpack or
+// BuildKit, has the repository's token (review L5).
+const gitAuthDone = "unset GIT_CONFIG_COUNT GIT_CONFIG_KEY_0 GIT_CONFIG_VALUE_0\n"
+
+const fetchScript = gitAuthScript + `say phase fetch
 mkdir -p ` + sourceDir + ` && cd ` + sourceDir + `
 git init -q
 git remote add origin "$DW_URL"
@@ -52,7 +72,7 @@ elif git cat-file -e "FETCH_HEAD^{commit}" 2>/dev/null; then say fail notonref; 
 else tail -n 5 /tmp/fetch.log >&2; say fail fetch; exit 3
 fi
 git -c advice.detachedHead=false checkout -q "$DW_COMMIT"
-say commit "$(git log -1 --format=%an | base64 | tr -d '\n')" "$(git log -1 --format=%s | base64 | tr -d '\n')"
+` + gitAuthDone + `say commit "$(git log -1 --format=%an | base64 | tr -d '\n')" "$(git log -1 --format=%s | base64 | tr -d '\n')"
 ctx="` + sourceDir + `/$DW_CONTEXT"
 if [ ! -d "$ctx" ]; then say fail context; exit 3; fi
 ctx=$(cd "$ctx" && pwd -P)

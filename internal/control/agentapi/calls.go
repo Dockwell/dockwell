@@ -84,6 +84,8 @@ type Agents struct {
 	naming Naming
 	// logins picks the registry login a pull signs in with (ADR 0086).
 	logins Logins
+	// gitAuth asks for what fetches a build's private repository (ADR 0098).
+	gitAuth GitAuth
 	// scopes says what people call an environment, which its services'
 	// containers are named after.
 	scopes ScopeNamer
@@ -487,7 +489,7 @@ func (a *Agents) SessionPastMove(ctx context.Context, server string, within time
 func (a *Agents) open(server, name string, hello *agentv1.Hello, send func(*agentv1.ConnectResponse) error) *Session {
 	s := &Session{
 		agents: a, guardsWaysIn: hello.GetGuardsWaysIn(), readsUpdates: hello.GetUpdates(), managesFiles: hello.GetManagesFiles(), transfersFiles: hello.GetTransfersFiles(), pagesListings: hello.GetPagesListings(), firstPasswords: hello.GetFirstPasswords(), forwards: hello.GetForwards(), drills: hello.GetDrills(), readsOnePanel: hello.GetReadsOnepanel(), terminals: hello.GetTerminals(), containerTerminals: hello.GetContainerTerminals(), openTerminals: slices.Clone(hello.GetOpenTerminals()), opened: time.Now(), server: server, name: name, send: send, deliveryKey: slices.Clone(hello.GetDeliveryKey()), writesReferences: hello.GetWritesReferences(), makesFolders: hello.GetMakesFolders(), keepsRoutesPrivate: hello.GetKeepsRoutesPrivate(),
-		ownSettings: hello.GetOwnSettings(), writesFiles: hello.GetWritesFiles(), ownsVolumes: hello.GetOwnsVolumes(), followsPace: hello.GetFollowsPace(), bootID: hello.GetBootId(), actsOnUnits: hello.GetActsOnUnits(), upgradesItself: hello.GetUpgradesItself(), probesConnections: hello.GetProbesConnections(), signsIn: hello.GetSignsIn(), registryLogins: hello.GetRegistryLogins(), handsBuildLogins: hello.GetBuildLogins(), links: hello.GetLinks(), oneDatabaseBackups: hello.GetOneDatabaseBackups(),
+		ownSettings: hello.GetOwnSettings(), writesFiles: hello.GetWritesFiles(), ownsVolumes: hello.GetOwnsVolumes(), followsPace: hello.GetFollowsPace(), bootID: hello.GetBootId(), actsOnUnits: hello.GetActsOnUnits(), upgradesItself: hello.GetUpgradesItself(), probesConnections: hello.GetProbesConnections(), signsIn: hello.GetSignsIn(), registryLogins: hello.GetRegistryLogins(), handsBuildLogins: hello.GetBuildLogins(), handsGitAuth: hello.GetBuildGitAuth(), links: hello.GetLinks(), oneDatabaseBackups: hello.GetOneDatabaseBackups(),
 		loadsCertificates: hello.GetLoadsCertificates(), readsPanels: hello.GetReadsPanels(), stopsPanels: hello.GetStopsPanels(), remakesSwarmApps: hello.GetRemakesSwarmApps(), runsHostAccess: hello.GetRunsHostAccess(), servesRedirects: hello.GetServesRedirects(), checksPanelDomains: hello.GetChecksPanelDomains(), readsTakenReferences: hello.GetReadsTakenReferences(), volumeMoves: hello.GetVolumeMoves(),
 		pending: map[uint64]chan *agentv1.CallResult{}, progress: map[uint64]func(resource.Activity){}, outcomes: map[uint64]func(resource.Outcome){}, done: make(chan struct{}),
 		kicked: make(chan struct{}),
@@ -664,6 +666,9 @@ type Session struct {
 	registryLogins bool
 	// handsBuildLogins says the agent hands a build's registry logins to BuildKit (ADR 0086).
 	handsBuildLogins bool
+	// handsGitAuth says the agent hands a build's fetch what it's sent for its
+	// private repository (ADR 0098).
+	handsGitAuth bool
 	// loadsCertificates says the agent serves the certificates the control plane
 	// proves by DNS-01 (ADR 0088).
 	loadsCertificates bool
@@ -1530,6 +1535,10 @@ func (s *Session) Apply(ctx context.Context, step resource.Step, desired proto.M
 	if err != nil {
 		return err
 	}
+	gitAuth, err := s.buildGitAuth(ctx, step, desired)
+	if err != nil {
+		return err
+	}
 	// An upgrade of the agent carries the control plane's install script, over this
 	// stream alone (ADR 0094).
 	if step.AgentUpgrade != nil {
@@ -1548,7 +1557,7 @@ func (s *Session) Apply(ctx context.Context, step resource.Step, desired proto.M
 		call.Deploy = &agentv1.Deploy{Revision: int64(d.Revision), ChangeId: d.Change, Rollback: d.Rollback, LastAccessStep: d.LastAccess}
 	}
 	var seal func(*Session) error
-	if uses || login.Registry != "" || len(builds) > 0 {
+	if uses || login.Registry != "" || len(builds) > 0 || gitAuth != "" {
 		seal = func(on *Session) error {
 			if uses {
 				sealed, err := on.seal(step.Ref, values)
@@ -1570,6 +1579,13 @@ func (s *Session) Apply(ctx context.Context, step resource.Step, desired proto.M
 					return err
 				}
 				call.Desired.BuildRegistryAuths = sealed
+			}
+			if gitAuth != "" {
+				sealed, err := on.sealGitAuth(step.Ref, gitAuth)
+				if err != nil {
+					return err
+				}
+				call.Desired.BuildGitAuth = sealed
 			}
 			return nil
 		}
@@ -2461,7 +2477,11 @@ func (s *Session) CancelBuild(ctx context.Context, call *agentv1.CancelBuildCall
 // DetectBuild reads how a commit would build on the server, building nothing. The
 // first on a server fetches Railpack and mise, so it gets longer than a plan.
 func (s *Session) DetectBuild(ctx context.Context, call *agentv1.DetectBuildCall) (*dockwellv1.BuildDetection, error) {
-	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_DetectBuild{DetectBuild: call}}, DetectTimeout, nil)
+	prepare, err := s.detectGitAuth(ctx, call)
+	if err != nil {
+		return nil, err
+	}
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_DetectBuild{DetectBuild: call}}, DetectTimeout, prepare)
 	if err != nil {
 		return nil, err
 	}

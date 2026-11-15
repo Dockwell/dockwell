@@ -100,7 +100,11 @@ type ListRepositoryBranchesRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The repository's URL, such as "https://github.com/acme/web.git", which
 	// the CLI takes as --repository.
-	Url           string `protobuf:"bytes,1,opt,name=url,proto3" json:"url,omitempty"`
+	Url string `protobuf:"bytes,1,opt,name=url,proto3" json:"url,omitempty"`
+	// The project whose app builds from it, by ID or name. A repository one of
+	// its GitHub App installations reaches is read through that installation,
+	// private or not, as the project's builds fetch it (ADR 0098).
+	Project       string `protobuf:"bytes,2,opt,name=project,proto3" json:"project,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -142,6 +146,13 @@ func (x *ListRepositoryBranchesRequest) GetUrl() string {
 	return ""
 }
 
+func (x *ListRepositoryBranchesRequest) GetProject() string {
+	if x != nil {
+		return x.Project
+	}
+	return ""
+}
+
 // ListRepositoryBranchesResponse is a repository's branches, as it says them.
 type ListRepositoryBranchesResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -151,7 +162,10 @@ type ListRepositoryBranchesResponse struct {
 	// the repository doesn't say, as an empty one doesn't.
 	DefaultBranch string `protobuf:"bytes,2,opt,name=default_branch,json=defaultBranch,proto3" json:"default_branch,omitempty"`
 	// How many branches it has in all, when more than are listed.
-	Total         int32 `protobuf:"varint,3,opt,name=total,proto3" json:"total,omitempty"`
+	Total int32 `protobuf:"varint,3,opt,name=total,proto3" json:"total,omitempty"`
+	// The GitHub App installation it was read through, as a build names it,
+	// "<App name>/<installation ID>"; empty where it was read as the public do.
+	GitLogin      string `protobuf:"bytes,4,opt,name=git_login,json=gitLogin,proto3" json:"git_login,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -205,6 +219,13 @@ func (x *ListRepositoryBranchesResponse) GetTotal() int32 {
 		return x.Total
 	}
 	return 0
+}
+
+func (x *ListRepositoryBranchesResponse) GetGitLogin() string {
+	if x != nil {
+		return x.GitLogin
+	}
+	return ""
 }
 
 // Build is one build of a service's image, on one server, for one change.
@@ -1283,14 +1304,16 @@ var File_dockwell_v1_build_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_build_proto_rawDesc = "" +
 	"\n" +
-	"\x17dockwell/v1/build.proto\x12\vdockwell.v1\x1a&dockwell/resource/v1alpha1/specs.proto\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"A\n" +
+	"\x17dockwell/v1/build.proto\x12\vdockwell.v1\x1a&dockwell/resource/v1alpha1/specs.proto\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"[\n" +
 	"\x1dListRepositoryBranchesRequest\x12 \n" +
 	"\x03url\x18\x01 \x01(\tB\x0e\xa2\xbb\x18\n" +
-	"repositoryR\x03url\"y\n" +
+	"repositoryR\x03url\x12\x18\n" +
+	"\aproject\x18\x02 \x01(\tR\aproject\"\x96\x01\n" +
 	"\x1eListRepositoryBranchesResponse\x12\x1a\n" +
 	"\bbranches\x18\x01 \x03(\tR\bbranches\x12%\n" +
 	"\x0edefault_branch\x18\x02 \x01(\tR\rdefaultBranch\x12\x14\n" +
-	"\x05total\x18\x03 \x01(\x05R\x05total\"\xd4\a\n" +
+	"\x05total\x18\x03 \x01(\x05R\x05total\x12\x1b\n" +
+	"\tgit_login\x18\x04 \x01(\tR\bgitLogin\"\xd4\a\n" +
 	"\x05Build\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1d\n" +
 	"\n" +

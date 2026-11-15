@@ -902,6 +902,9 @@ type Brief struct {
 	// resource whose action isn't none. A list says a change by it, as the
 	// audit log does, without reading the plan in full.
 	Touched []resource.Ref
+	// NoUndo is why it can't be undone, where it acts beside the servers, as on
+	// GitHub (ADR 0098).
+	NoUndo string
 }
 
 // Brief sums up the plan.
@@ -910,8 +913,18 @@ func (p *Plan) Brief() Brief {
 		Fingerprint: p.Fingerprint, Counts: p.Counts(), Destructive: p.Destructive(), HostAccess: p.HostAccess(), Intent: p.Intent, Because: p.Because,
 		Restart: slices.ContainsFunc(p.Resources, func(r ResourcePlan) bool { return r.Restart }),
 		Restore: slices.ContainsFunc(p.Resources, func(r ResourcePlan) bool { return r.Restore != nil }),
-		Touched: touchedRefs(p.Resources),
+		Touched: touchedRefs(p.Resources), NoUndo: firstNoUndo(p.Resources),
 	}
+}
+
+// firstNoUndo is the first reason a plan's resources give that it can't be undone.
+func firstNoUndo(rs []ResourcePlan) string {
+	for i := range rs {
+		if rs[i].NoUndo != "" {
+			return rs[i].NoUndo
+		}
+	}
+	return ""
 }
 
 // touchedRefs is the references of what a plan's resources change, leaving out
@@ -939,6 +952,7 @@ func brief(b []byte) (Brief, error) {
 			HostAccess []resource.Access
 			Restart    bool
 			Restore    *resource.RestoreSource
+			NoUndo     string
 		}
 		Servers []struct {
 			Steps []struct {
@@ -954,7 +968,7 @@ func brief(b []byte) (Brief, error) {
 	p := Plan{Fingerprint: stored.Fingerprint, Intent: stored.Intent, Because: stored.Because, Resources: make([]ResourcePlan, len(stored.Resources)), Servers: make([]ServerPlan, len(stored.Servers))}
 	for i := range stored.Resources {
 		p.Resources[i].Action, p.Resources[i].HostAccess, p.Resources[i].Restart = stored.Resources[i].Action, stored.Resources[i].HostAccess, stored.Resources[i].Restart
-		p.Resources[i].Restore, p.Resources[i].Ref = stored.Resources[i].Restore, stored.Resources[i].Ref
+		p.Resources[i].Restore, p.Resources[i].Ref, p.Resources[i].NoUndo = stored.Resources[i].Restore, stored.Resources[i].Ref, stored.Resources[i].NoUndo
 	}
 	for i := range stored.Servers {
 		for _, st := range stored.Servers[i].Steps {
@@ -988,6 +1002,10 @@ func (r *Record) UndoDeadline() time.Time {
 	// nothing to undo, and offering to would only be refused. A restore makes none
 	// either, but what it replaced is there to put back.
 	if r.State != store.ChangeApplied || r.AppliedAt.IsZero() || !r.MadeRevisions && !r.Brief.Restore {
+		return time.Time{}
+	}
+	// What it did beside the servers stays done, so it offers no undo (ADR 0098).
+	if r.Brief.NoUndo != "" {
 		return time.Time{}
 	}
 	return r.AppliedAt.Add(UndoWindow)

@@ -68,7 +68,20 @@ type Handler struct {
 	// removalNotes say what a server's removal does beyond its resources, such as
 	// to certificates by DNS (ADR 0090). Nil says nothing.
 	removalNotes func(ctx context.Context, server, name string) ([]revision.Note, error)
+	// gitLogins checks and fills what fetches a build's private repository, for
+	// its project (ADR 0098). Nil leaves a build as it's sent.
+	gitLogins GitLogins
 }
+
+// GitLogins checks a build's git login, as a plan is made: one named must reach
+// the project and list the repository, and one left out is the installation of a
+// GitHub App that does, or "" where none does.
+type GitLogins interface {
+	PinGitLogin(ctx context.Context, tx *store.Tx, project, repoURL, login string) (string, error)
+}
+
+// SetGitLogins has plans check and fill builds' git logins with g (ADR 0098).
+func (h *Handler) SetGitLogins(g GitLogins) { h.gitLogins = g }
 
 // SetRemovalNotes says what a server's removal does beyond its resources, for its
 // plan (ADR 0090).
@@ -978,6 +991,9 @@ func (h *Handler) edits(ctx context.Context, in []*dockwellv1.Edit) ([]revision.
 			if spec, err = withInstallZone(ctx, tx, spec); err != nil {
 				return err
 			}
+			if spec, err = h.withGitLogin(ctx, tx, ref, spec); err != nil {
+				return err
+			}
 			var servers []string // none keeps a service where it runs
 			if len(e.GetServers()) > 0 {
 				servers = e.GetServers()
@@ -1025,6 +1041,47 @@ func withNewAppDefaults(ctx context.Context, tx *store.Tx, ref resource.Ref, spe
 	}
 	svc = proto.CloneOf(svc)
 	svc.AutoUpdate = a
+	return svc, nil
+}
+
+// withGitLogin checks the git login of a service's build from Git, for the
+// project of its environment, and gives one that names none the GitHub App's
+// installation that reaches its repository there, if one does (ADR 0098). A copy
+// is changed, never the request.
+func (h *Handler) withGitLogin(ctx context.Context, tx *store.Tx, ref resource.Ref, spec proto.Message) (proto.Message, error) {
+	svc, ok := spec.(*resourcev1.Service)
+	g := svc.GetBuild().GetGit()
+	if !ok || g == nil {
+		return spec, nil
+	}
+	login := svc.GetBuild().GetGitLogin()
+	if h.gitLogins == nil {
+		if login != "" {
+			return nil, fault.New(revision.ErrInvalid, "%s's build names the GitHub App installation %s, and this control plane has no GitHub App. Leave it out to fetch the repository as the public do", ref.Name, login)
+		}
+		return spec, nil
+	}
+	tree, err := scope.Load(ctx, tx)
+	if err != nil {
+		return nil, err
+	}
+	project := ""
+	for _, p := range tree.Projects {
+		for _, e := range p.Environments {
+			if e.ID == ref.Scope {
+				project = p.ID
+			}
+		}
+	}
+	pinned, err := h.gitLogins.PinGitLogin(ctx, tx, project, g.GetUrl(), login)
+	if err != nil {
+		return nil, fault.New(revision.ErrInvalid, "%s's build: %w", ref.Name, err)
+	}
+	if pinned == login {
+		return spec, nil
+	}
+	svc = proto.CloneOf(svc)
+	svc.Build.GitLogin = pinned
 	return svc, nil
 }
 

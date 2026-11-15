@@ -135,6 +135,10 @@ message ListRepositoryBranchesRequest {
   // The repository's URL, such as "https://github.com/acme/web.git", which
   // the CLI takes as --repository.
   string url = 1 [(dockwell.v1.flag) = "repository"];
+  // The project whose app builds from it, by ID or name. A repository one of
+  // its GitHub App installations reaches is read through that installation,
+  // private or not, as the project's builds fetch it (ADR 0098).
+  string project = 2;
 }
 
 // ListRepositoryBranchesResponse is a repository's branches, as it says them.
@@ -146,6 +150,9 @@ message ListRepositoryBranchesResponse {
   string default_branch = 2;
   // How many branches it has in all, when more than are listed.
   int32 total = 3;
+  // The GitHub App installation it was read through, as a build names it,
+  // "<App name>/<installation ID>"; empty where it was read as the public do.
+  string git_login = 4;
 }
 
 // Build is one build of a service's image, on one server, for one change.

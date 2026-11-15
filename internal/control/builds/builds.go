@@ -65,6 +65,8 @@ type Handler struct {
 	logger   *slog.Logger
 	now      func() time.Time
 	sources  revision.Sources
+	// gitLogins checks and picks the installation a reading fetches through.
+	gitLogins GitLogins
 
 	mu       sync.Mutex
 	watchers map[string]map[chan []store.BuildLine]struct{}

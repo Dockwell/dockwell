@@ -2003,6 +2003,10 @@ message BuildPlan {
   // installs and runs. Empty when the build names its Dockerfile, or the server
   // couldn't be asked; the build then reads it as it starts.
   BuildDetection detection = 8;
+  // The GitHub App installation a private repository is fetched through, as
+  // the build names it, "<App name>/<installation ID>"; empty for a public
+  // repository (ADR 0098).
+  string git_login = 9;
 }
 
 // BuildDetection is what reading a commit of a repository found, before

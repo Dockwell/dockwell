@@ -721,6 +721,12 @@ msgstr "用恢复码登录后添加了一个通行密钥"
 msgid "Added a passkey after signing in with an authenticator code"
 msgstr "用身份验证器验证码登录后添加了一个通行密钥"
 
+msgid "Added an installation of a GitHub App"
+msgstr "新增了一个 GitHub 应用的安装"
+
+msgid "Added an installation of the GitHub App {name}"
+msgstr "新增了 GitHub 应用 {name} 的一个安装"
+
 msgid "Added the passkey {name}"
 msgstr "添加了通行密钥 {name}"
 
@@ -895,11 +901,29 @@ msgstr "结束了已失效登录提供方的会话"
 msgid "Fetched a backup of {volume} from {destination}"
 msgstr "已从 {destination} 取回 {volume} 的一份备份"
 
+msgid "Gave a GitHub App a new private key"
+msgstr "为一个 GitHub 应用换了新私钥"
+
+msgid "Gave a GitHub App a new webhook secret"
+msgstr "为一个 GitHub 应用换了新的 Webhook 密钥"
+
 msgid "Gave deploy on push a new secret"
 msgstr "为推送时部署换了新密钥"
 
+msgid "Gave the GitHub App {name} a new private key"
+msgstr "为 GitHub 应用 {name} 换了新私钥"
+
+msgid "Gave the GitHub App {name} a new webhook secret"
+msgstr "为 GitHub 应用 {name} 换了新的 Webhook 密钥"
+
 msgid "Gave {name}'s deploy on push a new secret"
 msgstr "为 {name} 的推送时部署换了新密钥"
+
+msgid "GitHub removed an installation of a GitHub App"
+msgstr "GitHub 移除了一个 GitHub 应用的安装"
+
+msgid "GitHub removed an installation of the GitHub App {name}"
+msgstr "GitHub 移除了 GitHub 应用 {name} 的一个安装"
 
 #. placeholder {0}: m?.email ?? ""
 #. placeholder {1}: rolePhrase(m?.role ?? Role.UNSPECIFIED, { projectId: m?.projectId ?? "", projectName: m?.projectName ?? "" })
@@ -1017,11 +1041,17 @@ msgstr "拒绝了一次密钥不匹配的推送到 {name}"
 msgid "Refused a push whose secret didn't match"
 msgstr "拒绝了一次密钥不匹配的推送"
 
+msgid "Removed a GitHub App"
+msgstr "移除了一个 GitHub 应用"
+
 msgid "Removed a backup of {volume} from its server, and kept it on {destination}"
 msgstr "已从服务器移除 {volume} 的备份，并保留在 {destination} 上"
 
 msgid "Removed a passkey"
 msgstr "移除了通行密钥"
+
+msgid "Removed the GitHub App {name}"
+msgstr "移除了 GitHub 应用 {name}"
 
 msgid "Removed the passkey {name}"
 msgstr "移除了通行密钥 {name}"
@@ -3388,6 +3418,7 @@ msgctxt "a limit typed in"
 msgid "Other"
 msgstr "其他"
 
+#. placeholder {0}: app.owner
 #. placeholder {0}: m.makeOwner
 msgid "Owned by {0}"
 msgstr "所有者 {0}"
@@ -4738,9 +4769,6 @@ msgstr "移除此卷"
 msgid "Remove what isn't in this file"
 msgstr "移除不在此文件中的内容"
 
-msgid "Repository"
-msgstr "仓库"
-
 msgid "Required"
 msgstr "必填"
 
@@ -4922,11 +4950,17 @@ msgstr "{changed, plural, other {已更改 # 项}}"
 msgid "{count, plural, one {# other app is here. Otherwise it stays as it is.} other {# other apps are here. Otherwise they stay as they are.}}"
 msgstr "{count, plural, other {这里还有 # 个其他应用。否则它们保持不变。}}"
 
+msgid "{count, plural, one {Private, through {account} · # branch} other {Private, through {account} · # branches}}"
+msgstr "{count, plural, other {私有，通过 {account} · # 个分支}}"
+
 msgid "{count, plural, one {Public · # branch} other {Public · # branches}}"
 msgstr "{count, plural, other {公开 · # 个分支}}"
 
 msgid "{count, plural, one {Show it} other {Show them}}"
 msgstr "{count, plural, other {显示}}"
+
+msgid "{count, plural, one {Through the GitHub App · # branch} other {Through the GitHub App · # branches}}"
+msgstr "{count, plural, other {通过 GitHub 应用 · # 个分支}}"
 
 msgid "{name} (default)"
 msgstr "{name}（默认）"
@@ -5214,6 +5248,16 @@ msgstr "你"
 msgid "{kept}, not available to this project"
 msgstr "{kept}，这个项目不可用"
 
+msgctxt "a repository"
+msgid "Private"
+msgstr "私有"
+
+msgid "Repositories"
+msgstr "仓库"
+
+msgid "Repository"
+msgstr "仓库"
+
 msgid "Change {name}'s version"
 msgstr "更改 {name} 的版本"
 
@@ -5259,6 +5303,12 @@ msgstr "仓库托管平台上的 Webhook"
 
 msgid "A webhook on {hostName}"
 msgstr "{hostName} 上的 Webhook"
+
+msgid "Add it on GitHub"
+msgstr "在 GitHub 上添加"
+
+msgid "Connect again"
+msgstr "重新连接"
 
 msgid "Copy URL"
 msgstr "复制 URL"
@@ -5329,6 +5379,9 @@ msgstr "最近一次推送（{ago}）：{name} 已在运行 {commit}。"
 msgid "No push has come yet."
 msgstr "还没有收到推送。"
 
+msgid "Open Integrations"
+msgstr "打开集成"
+
 msgid "Open the repository's webhooks"
 msgstr "打开仓库的 Webhook"
 
@@ -5359,6 +5412,12 @@ msgstr "仅在创建时显示一次"
 msgid "Target URL"
 msgstr "目标 URL"
 
+msgid "The GitHub App can't reach {name} any more."
+msgstr "GitHub 应用已无法访问 {name}。"
+
+msgid "The GitHub App was deleted on GitHub."
+msgstr "GitHub 应用已在 GitHub 上删除。"
+
 msgid "The hook now refuses pushes. Remove it from the repository too."
 msgstr "这个 Webhook 现在会拒绝推送。也请把它从仓库中移除。"
 
@@ -5379,6 +5438,12 @@ msgstr "默认分支"
 
 msgid "this environment"
 msgstr "此环境"
+
+msgid "through the GitHub App"
+msgstr "通过 GitHub 应用"
+
+msgid "through the GitHub App on {account}"
+msgstr "通过 {account} 上的 GitHub 应用"
 
 msgid "{who} can't reach this panel's address."
 msgstr "{who} 无法访问这个面板的地址。"
@@ -9564,8 +9629,24 @@ msgid "Browsers keep {back}'s earlier redirect to {to} for up to a day. Anyone w
 msgstr "浏览器会将 {back} 之前到 {to} 的重定向保留至多一天。此后访问过 {back} 的人会一直循环，直到它过期：清除浏览器缓存可以更早结束。"
 
 #. placeholder {0}: server.serverName
+msgid "Builds {repository} at {commit} ({ref}) on {0} first, through the GitHub App on {account}. If the build fails, what runs stays as it is."
+msgstr "先通过 {account} 上的 GitHub 应用，在 {0} 上构建 {repository} 的 {commit}（{ref}）。如果构建失败，正在运行的内容保持不变。"
+
+#. placeholder {0}: server.serverName
+msgid "Builds {repository} at {commit} ({ref}) on {0} first, through the GitHub App. If the build fails, what runs stays as it is."
+msgstr "先通过 GitHub 应用，在 {0} 上构建 {repository} 的 {commit}（{ref}）。如果构建失败，正在运行的内容保持不变。"
+
+#. placeholder {0}: server.serverName
 msgid "Builds {repository} at {commit} ({ref}) on {0} first. If the build fails, what runs stays as it is."
 msgstr "先在 {0} 上构建 {repository} 的 {commit}（{ref}）。如果构建失败，正在运行的内容保持不变。"
+
+#. placeholder {0}: server.serverName
+msgid "Builds {repository} at {commit} on {0} first, through the GitHub App on {account}. If the build fails, what runs stays as it is."
+msgstr "先通过 {account} 上的 GitHub 应用，在 {0} 上构建 {repository} 的 {commit}。如果构建失败，正在运行的内容保持不变。"
+
+#. placeholder {0}: server.serverName
+msgid "Builds {repository} at {commit} on {0} first, through the GitHub App. If the build fails, what runs stays as it is."
+msgstr "先通过 GitHub 应用，在 {0} 上构建 {repository} 的 {commit}。如果构建失败，正在运行的内容保持不变。"
 
 #. placeholder {0}: server.serverName
 msgid "Builds {repository} at {commit} on {0} first. If the build fails, what runs stays as it is."
@@ -15915,6 +15996,221 @@ msgstr "此安装的名称、时区以及面板的访问方式"
 msgid "What this install is called, its time zone and how its panel is served · set up {since}"
 msgstr "此安装的名称、时区以及面板的访问方式 · 设置于 {since}"
 
+msgid "An organization"
+msgstr "某个组织"
+
+msgid "As a GitHub App Dockwell makes, which you install on the repositories you pick"
+msgstr "作为 Dockwell 创建的 GitHub 应用，由你安装到所选的仓库"
+
+msgid "Connect GitHub"
+msgstr "连接 GitHub"
+
+msgid "Create on GitHub"
+msgstr "在 GitHub 上创建"
+
+msgid "Delete it on GitHub"
+msgstr "在 GitHub 上删除"
+
+msgid "Deleted on GitHub"
+msgstr "已在 GitHub 上删除"
+
+msgid "Dockwell can't list its GitHub Apps"
+msgstr "Dockwell 无法列出 GitHub 应用"
+
+msgid "Dockwell uninstalled it from 1 account and forgot its key."
+msgstr "Dockwell 已从 1 个账户卸载它，并丢弃了它的私钥。"
+
+#. placeholder {0}: removed.uninstalled
+msgid "Dockwell uninstalled it from {0} accounts and forgot its key."
+msgstr "Dockwell 已从 {0} 个账户卸载它，并丢弃了它的私钥。"
+
+msgid "GitHub App on <0>{accounts}</0>"
+msgstr "<0>{accounts}</0> 上的 GitHub 应用"
+
+msgid "GitHub App on <0>{accounts}</0> · 1 repository"
+msgstr "<0>{accounts}</0> 上的 GitHub 应用 · 1 个仓库"
+
+msgid "GitHub App on <0>{accounts}</0> · {repositories} repositories"
+msgstr "<0>{accounts}</0> 上的 GitHub 应用 · {repositories} 个仓库"
+
+msgid "GitHub isn't connected"
+msgstr "GitHub 未连接"
+
+msgid "GitHub keeps the App until you delete it there"
+msgstr "在你于 GitHub 上删除之前，GitHub 会保留该应用"
+
+msgid "Install on GitHub"
+msgstr "在 GitHub 上安装"
+
+msgid "Its repositories need an App it owns."
+msgstr "它的仓库需要由它拥有的应用。"
+
+msgid "Loading GitHub Apps"
+msgstr "正在加载 GitHub 应用"
+
+msgid "Manage"
+msgstr "管理"
+
+msgid "New webhook secret"
+msgstr "新 Webhook 密钥"
+
+msgid "Organization"
+msgstr "组织"
+
+msgid "Owned by"
+msgstr "所有者"
+
+msgid "Private repositories, and deploy on push with nothing to paste."
+msgstr "私有仓库，以及无需粘贴任何内容的推送时部署。"
+
+msgid "The GitHub App isn't installed on an account yet."
+msgstr "GitHub 应用尚未安装到任何账户。"
+
+msgid "The webhook secret didn't change."
+msgstr "Webhook 密钥未更改。"
+
+msgid "private repositories, and deploy on push"
+msgstr "私有仓库，以及推送时部署"
+
+msgid "1 project"
+msgstr "1 个项目"
+
+msgid "1 repository"
+msgstr "1 个仓库"
+
+msgid "Apps that build through it can't fetch their private repository until it's connected again."
+msgstr "通过它构建的应用在重新连接之前无法获取其私有仓库。"
+
+#. placeholder {0}: newKey.oldFingerprint
+msgid "Delete the old one on GitHub: <0>{0}</0>"
+msgstr "请在 GitHub 上删除旧私钥：<0>{0}</0>"
+
+msgid "Dockwell signs with the new key"
+msgstr "Dockwell 现在用新私钥签名"
+
+msgid "Generate a key on GitHub"
+msgstr "在 GitHub 上生成私钥"
+
+#. placeholder {0}: app.name
+msgid "GitHub App {0}"
+msgstr "GitHub 应用 {0}"
+
+msgid "GitHub has the new webhook secret"
+msgstr "GitHub 已拿到新的 Webhook 密钥"
+
+msgid "Install on another account"
+msgstr "安装到其他账户"
+
+msgid "Installed on"
+msgstr "已安装到"
+
+msgid "Keep it"
+msgstr "保留"
+
+#. placeholder {0}: i.account
+msgid "Let every project build through {0}"
+msgstr "让所有项目通过 {0} 构建"
+
+#. placeholder {0}: i.account
+msgid "Let only some projects build through {0}"
+msgstr "仅让部分项目通过 {0} 构建"
+
+msgid "New private key"
+msgstr "新私钥"
+
+msgid "No account yet."
+msgstr "尚无账户。"
+
+msgid "Only Dockwell and GitHub have it"
+msgstr "只有 Dockwell 和 GitHub 持有"
+
+msgid "Open the App's keys"
+msgstr "打开应用的私钥"
+
+#. placeholder {0}: app.owner
+msgid "Owned by the organization {0}"
+msgstr "由组织 {0} 拥有"
+
+msgid "Private key"
+msgstr "私钥"
+
+msgid "Remove the GitHub App from Dockwell?"
+msgstr "要从 Dockwell 移除 GitHub 应用吗？"
+
+msgid "Repositories on GitHub"
+msgstr "GitHub 上的仓库"
+
+msgid "Secret and key"
+msgstr "密钥与私钥"
+
+msgid "Suspended on GitHub"
+msgstr "已在 GitHub 上暂停"
+
+msgid "The GitHub App wasn't removed"
+msgstr "GitHub 应用未被移除"
+
+msgid "The old one works for 10 more minutes, for pushes already sent."
+msgstr "旧密钥在接下来 10 分钟内仍然有效，用于已发出的推送。"
+
+msgid "The private key didn't change"
+msgstr "私钥未更改"
+
+msgid "The webhook secret didn't change"
+msgstr "Webhook 密钥未更改"
+
+#. placeholder {0}: i.account
+msgid "Their apps alone build through {0}."
+msgstr "只有它们的应用通过 {0} 构建。"
+
+msgid "Then drop the .pem file here."
+msgstr "然后把 .pem 文件拖到这里。"
+
+msgid "Webhook secret"
+msgstr "Webhook 密钥"
+
+msgid "every repository"
+msgstr "所有仓库"
+
+#. placeholder {0}: i.projects.length
+#. placeholder {0}: l.projects.length
+#. placeholder {0}: p.projects.length
+msgid "{0} projects"
+msgstr "{0} 个项目"
+
+#. placeholder {0}: i.repositoryCount
+msgid "{0} repositories"
+msgstr "{0} 个仓库"
+
+msgid "{reach} · for {who}"
+msgstr "{reach} · 供{who}使用"
+
+msgid "Back to Integrations"
+msgstr "返回集成"
+
+msgid "Checking the installation with GitHub"
+msgstr "正在向 GitHub 核实安装"
+
+msgid "Connecting GitHub"
+msgstr "正在连接 GitHub"
+
+msgid "GitHub asked them. Once they approve it, its repositories show here."
+msgstr "GitHub 已询问他们。批准后，其仓库会显示在这里。"
+
+msgid "GitHub sent the browser back without the App it made. Connect GitHub again from Integrations."
+msgstr "GitHub 返回时没有带上它创建的应用。请从集成页重新连接 GitHub。"
+
+msgid "GitHub sent the browser back without the installation. Install the App again from Integrations."
+msgstr "GitHub 返回时没有带上安装信息。请从集成页重新安装应用。"
+
+msgid "Installing the GitHub App"
+msgstr "正在安装 GitHub 应用"
+
+msgid "Keeping the App GitHub made"
+msgstr "正在保存 GitHub 创建的应用"
+
+msgid "The organization's owner approves it first"
+msgstr "需要组织所有者先批准"
+
 #. placeholder {0}: formatBytes(d.usedBytes, i18n.locale)
 msgid "1 backup, {0}"
 msgstr "1 份备份，{0}"
@@ -15922,14 +16218,11 @@ msgstr "1 份备份，{0}"
 msgid "1 bucket · where backups go beside each server's disk"
 msgstr "1 个存储桶 · 备份在各服务器磁盘之外存放的地方"
 
-msgid "1 connected · the services Dockwell sends backups to and routes behind"
-msgstr "已连接 1 个 · Dockwell 发送备份的服务，以及路由所在的服务"
+msgid "1 connected · the services Dockwell builds from, deploys with, routes through and backs up to"
+msgstr "已连接 1 个 · Dockwell 用来构建、部署、路由和备份的服务"
 
 msgid "1 login · for images a registry keeps private"
 msgstr "1 个登录 · 用于镜像仓库设为私有的镜像"
-
-msgid "1 project"
-msgstr "1 个项目"
 
 msgid "1 provider · for private routes"
 msgstr "1 个提供方 · 用于私有路由"
@@ -15962,6 +16255,9 @@ msgstr "通过 DNS 获取证书，适用于 NAT 之后或通配符域名。路�
 msgid "Client <0>{clientId}</0>"
 msgstr "客户端 <0>{clientId}</0>"
 
+msgid "Cloud providers come later."
+msgstr "云服务商将在之后推出。"
+
 msgid "Connect a registry"
 msgstr "连接镜像仓库"
 
@@ -15983,9 +16279,6 @@ msgstr "Dockwell 无法列出备份的去向"
 msgid "Dockwell says which record to make, then gets the certificate."
 msgstr "Dockwell 会说明要创建哪条记录，然后获取证书。"
 
-msgid "Git providers and cloud providers come later."
-msgstr "Git 服务商和云服务商将在之后推出。"
-
 msgid "How to route behind it"
 msgstr "如何在其后设置路由"
 
@@ -15997,9 +16290,6 @@ msgstr "正在加载镜像仓库登录"
 
 msgid "Loading where backups go"
 msgstr "正在加载备份去向"
-
-msgid "Manage"
-msgstr "管理"
 
 msgid "Manage in Backups"
 msgstr "在备份中管理"
@@ -16051,16 +16341,11 @@ msgstr "位于服务器路由之前"
 msgid "{0} logins · for images a registry keeps private"
 msgstr "{0} 个登录 · 用于镜像仓库设为私有的镜像"
 
-#. placeholder {0}: l.projects.length
-#. placeholder {0}: p.projects.length
-msgid "{0} projects"
-msgstr "{0} 个项目"
+msgid "{all} connected · the services Dockwell builds from, deploys with, routes through and backs up to"
+msgstr "已连接 {all} 个 · Dockwell 用来构建、部署、路由和备份的服务"
 
 msgid "{connected} buckets · where backups go beside each server's disk"
 msgstr "{connected} 个存储桶 · 备份在各服务器磁盘之外存放的地方"
-
-msgid "{connected} connected · the services Dockwell sends backups to and routes behind"
-msgstr "已连接 {connected} 个 · Dockwell 发送备份的服务，以及路由所在的服务"
 
 msgid "{signinCount} providers · for private routes"
 msgstr "{signinCount} 个提供方 · 用于私有路由"
@@ -16898,6 +17183,24 @@ msgstr "通行密钥 {name} 可能已被复制"
 
 msgid "Used from a new address"
 msgstr "从新地址使用"
+
+msgid "GitHub asked Dockwell to slow down, so pushes aren't checked for now."
+msgstr "GitHub 要求 Dockwell 放慢速度，因此暂时不检查推送。"
+
+msgid "GitHub asked Dockwell to slow down, so pushes aren't checked until {until}."
+msgstr "GitHub 要求 Dockwell 放慢速度，因此 {until} 之前不检查推送。"
+
+msgid "GitHub can't reach this panel, so Dockwell checks for pushes every minute."
+msgstr "GitHub 无法访问此面板，因此 Dockwell 每分钟检查一次推送。"
+
+msgid "GitHub can't reach this panel, so Dockwell checks for pushes every {minutes} minutes."
+msgstr "GitHub 无法访问此面板，因此 Dockwell 每 {minutes} 分钟检查一次推送。"
+
+msgid "GitHub's webhook secret isn't Dockwell's, so Dockwell checks for pushes itself."
+msgstr "GitHub 的 Webhook 密钥与 Dockwell 的不一致，因此 Dockwell 自行检查推送。"
+
+msgid "Pushes come through the GitHub App."
+msgstr "推送通过 GitHub 应用送达。"
 
 msgid "Check the control plane's status"
 msgstr "查看控制平面状态"

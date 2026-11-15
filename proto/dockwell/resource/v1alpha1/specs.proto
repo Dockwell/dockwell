@@ -865,6 +865,13 @@ message ImageBuild {
   // logins reads its Dockerfile with Docker's own frontend (ADR 0086). Numbered in
   // the block registry logins hold, 100 to 109.
   repeated string registry_logins = 100;
+  // What fetches a private repository: a GitHub App's installation, as
+  // "<App name>/<installation ID>", whose token for the repository alone the
+  // control plane asks for as each read and build needs one (ADR 0098). A plan
+  // names it where one installation of the project reaches the repository and
+  // the edit leaves it out. Empty fetches as the public. Numbered after the
+  // registry logins, as ADR 0098 has it.
+  string git_login = 101;
 }
 
 // GitSource is a Git repository Dockwell builds from.
@@ -1520,6 +1527,9 @@ message Spec {
     // (ADR 0087). Numbered in the block private routes hold, 110 to 119, past the
     // alerts' 110 to 113.
     SigninProvider signin_provider = 114;
+    // A GitHub App Dockwell made, kind "github.app" (ADR 0098). Numbered in the
+    // block Git providers hold, 130 to 139.
+    GitHubApp github_app = 130;
   }
 }
 
@@ -1679,6 +1689,54 @@ message SigninProvider {
   // Whether people sign in to Dockwell with it too, each with an account they
   // linked while signed in, on the panel's own domain (ADR 0095). Off by default.
   bool panel = 9;
+}
+
+// GitHubApp is a GitHub App Dockwell made through GitHub's manifest flow, kind
+// "github.app" (ADR 0098). It lives in the organization: an admin connects it, and
+// says which projects each of its installations reaches. Its private key and
+// webhook secret stay on the control plane, which alone opens them, to sign the
+// JWTs it asks GitHub for narrowed tokens with, and to check what GitHub sends: no
+// agent, plan, event or log holds them. Dockwell writes the App as GitHub's
+// answers have it; an edit changes which projects an installation reaches, and
+// leaves the rest out to keep it.
+message GitHubApp {
+  // The App's ID on GitHub.
+  int64 app_id = 1;
+  // Its slug, as its pages' addresses name it, such as "dockwell-deploy".
+  string slug = 2;
+  // The account that owns it, a person's or an organization's, such as "acme".
+  string owner = 3;
+  // Whether that account is an organization.
+  bool owner_is_organization = 4;
+  // Its client ID, which is public.
+  string client_id = 5;
+  // Its private key, PEM, which signs the App's JWTs.
+  string private_key = 6 [(sensitive) = true];
+  // The secret GitHub signs the App's deliveries with.
+  string webhook_secret = 7 [(sensitive) = true];
+  // The secret before the newest, which a delivery already sent may be signed
+  // with until previous_until.
+  string previous_webhook_secret = 8 [(sensitive) = true];
+  // When the secret before the newest stops counting, in Unix seconds.
+  int64 previous_until = 9;
+  // The private key's SHA-256 fingerprint, as GitHub shows it beside each of the
+  // App's keys.
+  string key_fingerprint = 10;
+  // Which projects each installation reaches. One that isn't here reaches every
+  // project, as a registry login does.
+  repeated GitHubInstallationReach reaches = 11;
+  // The ID in the App's webhook's address, /hooks/github/<hook_id>, made as
+  // connecting began, before the App was: what GitHub sends finds the App by it.
+  string hook_id = 12;
+}
+
+// GitHubInstallationReach is which projects one of a GitHub App's installations
+// reaches: their apps may build from its repositories.
+message GitHubInstallationReach {
+  // The installation's ID on GitHub.
+  int64 installation_id = 1;
+  // The projects, by ID. Empty is none.
+  repeated string projects = 2;
 }
 
 // Task is work that runs on a schedule, on each server it's placed on, kind "task"

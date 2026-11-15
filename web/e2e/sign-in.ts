@@ -120,6 +120,8 @@ async function fakeDocker(): Promise<NodeJS.ProcessEnv> {
   const registry = `127.0.0.1:${port + 1000}`;
   // And Cloudflare's API, for the control plane to write DNS through (ADR 0088).
   const cloudflare = `127.0.0.1:${port + 1001}`;
+  // And GitHub's pages and API, for the control plane to connect as an App (ADR 0098).
+  const github = `127.0.0.1:${port + 1002}`;
   docker = spawn(resolve(path), [join(data, "docker")], {
     stdio: ["ignore", "pipe", "inherit"],
     env: {
@@ -127,6 +129,7 @@ async function fakeDocker(): Promise<NodeJS.ProcessEnv> {
       FAKEDOCKER_ROOT: join(process.cwd(), "bin", "fakedocker-root"),
       FAKEDOCKER_REGISTRY: registry,
       FAKEDOCKER_CLOUDFLARE: cloudflare,
+      FAKEDOCKER_GITHUB: github,
     },
   });
   // A fake that dies, or says nothing, would otherwise hang until the job's timeout.
@@ -149,10 +152,12 @@ async function fakeDocker(): Promise<NodeJS.ProcessEnv> {
   // Flows see it too, as one that reads images runs only where there's a registry to read.
   process.env["DOCKWELL_TEST_REGISTRY"] = `http://${registry}`;
   process.env["DOCKWELL_TEST_CLOUDFLARE"] = `http://${cloudflare}/client/v4`;
+  process.env["DOCKWELL_TEST_GITHUB"] = `http://${github}`;
   return {
     DOCKER_HOST: `unix://${socket}`,
     DOCKWELL_TEST_REGISTRY: `http://${registry}`,
     DOCKWELL_TEST_CLOUDFLARE: `http://${cloudflare}/client/v4`,
+    DOCKWELL_TEST_GITHUB: `http://${github}`,
   };
 }
 

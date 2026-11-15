@@ -175,6 +175,9 @@ type builtFrom struct {
 	// Logins are the names of the registry logins its base images pulled with,
 	// never what they hold (ADR 0086).
 	Logins []string `json:"registry_logins,omitempty"`
+	// GitLogin names the GitHub App's installation its repository was fetched
+	// through, never its token (ADR 0098).
+	GitLogin string `json:"git_login,omitempty"`
 }
 
 // builders are what builds an image, as a label names them.
@@ -189,7 +192,7 @@ func buildLabel(b *resourcev1.ImageBuild) string {
 	out, _ := json.Marshal(builtFrom{
 		URL: g.GetUrl(), Ref: g.GetRef(), Commit: g.GetCommit(), Context: b.GetContext(), Dockerfile: b.GetDockerfile(), Args: b.GetArgs(), Target: b.GetTarget(),
 		Builder: builders[b.GetBuilder()], Build: b.GetBuildCommand(), Start: b.GetStartCommand(),
-		Logins: b.GetRegistryLogins(),
+		Logins: b.GetRegistryLogins(), GitLogin: b.GetGitLogin(),
 	})
 	return string(out)
 }
@@ -203,7 +206,7 @@ func readBuildLabel(label string) (*resourcev1.ImageBuild, error) {
 	b := &resourcev1.ImageBuild{
 		Source:  &resourcev1.ImageBuild_Git{Git: &resourcev1.GitSource{Url: f.URL, Ref: f.Ref, Commit: f.Commit}},
 		Context: f.Context, Dockerfile: f.Dockerfile, Args: f.Args, Target: f.Target,
-		BuildCommand: f.Build, StartCommand: f.Start, RegistryLogins: f.Logins,
+		BuildCommand: f.Build, StartCommand: f.Start, RegistryLogins: f.Logins, GitLogin: f.GitLogin,
 	}
 	for k, v := range builders {
 		if v == f.Builder {

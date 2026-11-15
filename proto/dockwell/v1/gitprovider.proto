@@ -1,0 +1,371 @@
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package dockwell.v1;
+
+import "dockwell/v1/options.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+// GitProviderService connects GitHub as an App Dockwell makes through GitHub's
+// manifest flow, so apps build from private repositories the App is installed on,
+// and deploy on push with nothing to paste. See
+// docs/adr/0098-connecting-github-as-an-app.md.
+//
+// The App's private key and webhook secret stay on the control plane: no answer
+// holds them, nor a token Dockwell asks GitHub for. Connecting it, a new secret
+// or key, and removing it take an admin, signed in, with a passkey. Which
+// projects an installation reaches is the github.app resource's, changed with
+// ChangeService as a plan.
+service GitProviderService {
+  option (dockwell.v1.nouns) = {
+    name: "git-providers"
+    help: "A GitHub App Dockwell makes through GitHub's manifest flow, in one click from the panel: its installations reach the repositories you pick on GitHub, so apps build from private ones and deploy on push with nothing to paste. Its private key and webhook secret stay on the control plane. Connecting it, a new secret or key, and removing it take an admin, signed in, with a passkey."
+  };
+  option (dockwell.v1.nouns) = {
+    name: "git-repositories"
+    help: "The repositories a project's apps may build from through a GitHub App: those its installations reach for the project, as GitHub last listed them. A new app picks one, then its branch."
+  };
+
+  // StartGitHubApp begins connecting GitHub: the manifest the browser posts to
+  // GitHub, and the page it posts it to, for the signed-in person's own account
+  // or an organization they name. Its state lasts 10 minutes, for this session
+  // alone, and is used once. It needs a proof from AuthService.FinishStepUp for
+  // connecting GitHub.
+  rpc StartGitHubApp(StartGitHubAppRequest) returns (StartGitHubAppResponse) {
+    option (dockwell.v1.command) = {noun: "git-providers"};
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.needs_session) = true;
+    option (google.api.http) = {
+      post: "/v1/git-providers/github:start"
+      body: "*"
+    };
+  }
+
+  // FinishGitHubApp finishes connecting GitHub, with the code and state GitHub
+  // sent the browser back with: it trades the code for the App GitHub made, keeps
+  // the App as a change, and gives the page that installs it on repositories.
+  rpc FinishGitHubApp(FinishGitHubAppRequest) returns (FinishGitHubAppResponse) {
+    option (dockwell.v1.command) = {noun: "git-providers"};
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.needs_session) = true;
+    option (google.api.http) = {
+      post: "/v1/git-providers/github:finish"
+      body: "*"
+    };
+  }
+
+  // AddGitHubInstallation records an installation GitHub sent the browser back
+  // with, once GitHub, asked as the App, says it's the App's. One made later on
+  // GitHub arrives by the App's webhook without it.
+  rpc AddGitHubInstallation(AddGitHubInstallationRequest) returns (AddGitHubInstallationResponse) {
+    option (dockwell.v1.command) = {noun: "git-providers"};
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.needs_session) = true;
+    option (google.api.http) = {
+      post: "/v1/git-providers/{id}/installations"
+      body: "*"
+    };
+  }
+
+  // ListGitProviders returns the connected GitHub Apps, with their installations
+  // and whether GitHub reaches the panel. Below an admin, an answer holds names
+  // and states only.
+  rpc ListGitProviders(ListGitProvidersRequest) returns (ListGitProvidersResponse) {
+    option (dockwell.v1.command) = {noun: "git-providers"};
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_NAMED;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (google.api.http) = {get: "/v1/git-providers"};
+  }
+
+  // ListGitRepositories returns the repositories a project's apps may build from
+  // through a GitHub App: those its installations reach for that project, as
+  // GitHub last listed them.
+  rpc ListGitRepositories(ListGitRepositoriesRequest) returns (ListGitRepositoriesResponse) {
+    option (dockwell.v1.command) = {noun: "git-repositories"};
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (google.api.http) = {get: "/v1/projects/{project}/git-repositories"};
+  }
+
+  // RotateGitHubWebhookSecret makes the App a new webhook secret and sets it on
+  // GitHub, as the App, keeping the old one 10 minutes for deliveries already
+  // sent. It needs a proof from AuthService.FinishStepUp for a GitHub App's new
+  // secret or key, with the App's ID as its target.
+  rpc RotateGitHubWebhookSecret(RotateGitHubWebhookSecretRequest) returns (RotateGitHubWebhookSecretResponse) {
+    option (dockwell.v1.command) = {noun: "git-providers"};
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.needs_session) = true;
+    option (google.api.http) = {
+      post: "/v1/git-providers/{id}:rotate-webhook-secret"
+      body: "*"
+    };
+  }
+
+  // ReplaceGitHubPrivateKey keeps a private key made on the App's page on GitHub
+  // in place of the one Dockwell has, once it signs a JWT GitHub takes as this
+  // App's. It says which key to delete on GitHub, by its fingerprint. It needs a
+  // proof from AuthService.FinishStepUp for a GitHub App's new secret or key,
+  // with the App's ID as its target.
+  rpc ReplaceGitHubPrivateKey(ReplaceGitHubPrivateKeyRequest) returns (ReplaceGitHubPrivateKeyResponse) {
+    option (dockwell.v1.command) = {noun: "git-providers"};
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.needs_session) = true;
+    option (google.api.http) = {
+      post: "/v1/git-providers/{id}:replace-private-key"
+      body: "*"
+    };
+  }
+
+  // RemoveGitHubApp uninstalls the App from each installation, as the App, then
+  // forgets its key and secret. GitHub has no way for an App to delete itself:
+  // the answer links to its settings, where you delete it. It needs a proof from
+  // AuthService.FinishStepUp for removing a GitHub App, with its ID as the target.
+  rpc RemoveGitHubApp(RemoveGitHubAppRequest) returns (RemoveGitHubAppResponse) {
+    option (dockwell.v1.command) = {noun: "git-providers"};
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.effect) = EFFECT_DESTRUCTIVE;
+    option (dockwell.v1.needs_session) = true;
+    option (google.api.http) = {
+      post: "/v1/git-providers/{id}:remove"
+      body: "*"
+    };
+  }
+}
+
+// StartGitHubAppRequest names the account the App is for, and proves a passkey.
+message StartGitHubAppRequest {
+  // The GitHub organization that owns the App and its repositories, by its
+  // name; empty for the signed-in person's own account on GitHub.
+  string organization = 1;
+  // The proof from AuthService.FinishStepUp, for connecting GitHub.
+  string proof = 2;
+}
+
+// StartGitHubAppResponse is the form the browser posts to GitHub.
+message StartGitHubAppResponse {
+  // Where the browser posts the manifest, with its state.
+  string action_url = 1;
+  // The manifest, as JSON, which the browser posts as the form's "manifest".
+  string manifest = 2;
+}
+
+// FinishGitHubAppRequest is what GitHub sent the browser back with.
+message FinishGitHubAppRequest {
+  // The code GitHub sent the browser back with.
+  string code = 1;
+  // The state it sent back with it.
+  string state = 2;
+}
+
+// FinishGitHubAppResponse is the App, kept, and where to install it.
+message FinishGitHubAppResponse {
+  // The App, as it's kept.
+  GitHubAppInfo app = 1;
+  // Where the browser goes to install it on repositories.
+  string install_url = 2;
+  // The change that keeps it.
+  string change_id = 3;
+}
+
+// AddGitHubInstallationRequest names an App and an installation of it.
+message AddGitHubInstallationRequest {
+  // The App, by ID, or by its webhook's ID, which GitHub's setup URL names.
+  string id = 1;
+  // The installation's ID, as GitHub sent the browser back with it.
+  int64 installation_id = 2;
+}
+
+// AddGitHubInstallationResponse is the installation, as GitHub says it.
+message AddGitHubInstallationResponse {
+  GitHubInstallation installation = 1;
+}
+
+// ListGitProvidersRequest asks for every connected App.
+message ListGitProvidersRequest {}
+
+// ListGitProvidersResponse is every connected App.
+message ListGitProvidersResponse {
+  repeated GitHubAppInfo apps = 1;
+}
+
+// GitHubAppInfo is a connected GitHub App, as anyone may see it: its key and webhook
+// secret are never in an answer.
+message GitHubAppInfo {
+  // Its ID, gha_….
+  string id = 1;
+  // Its slug, as its page's address names it.
+  string name = 2;
+  // Its ID on GitHub.
+  int64 app_id = 3;
+  // The account that owns it.
+  string owner = 4;
+  bool owner_is_organization = 5;
+  // Its page on GitHub, and its settings there.
+  string html_url = 6;
+  string settings_url = 7;
+  // The fingerprint of the key Dockwell signs with, as GitHub shows it.
+  string key_fingerprint = 8;
+  repeated GitHubInstallation installations = 9;
+  // Whether GitHub's deliveries reach the panel, as the App's own deliveries
+  // last said.
+  GitHubDelivery delivery = 10;
+  // GitHub refuses the App: deleted on GitHub, or its key removed there.
+  bool gone = 11;
+  // The App's revision, which an edit of which projects its installations reach
+  // names as its base_revision, so it can't put back what another made since.
+  // An admin's alone.
+  int64 revision = 12;
+}
+
+// GitHubDelivery is whether GitHub's deliveries reach the panel, and so whether
+// Dockwell checks for pushes itself.
+message GitHubDelivery {
+  // State is whether deliveries reach the panel, and what Dockwell does if not.
+  enum State {
+    STATE_UNSPECIFIED = 0;
+    // Not checked yet.
+    STATE_UNKNOWN = 1;
+    // GitHub's deliveries reach the panel.
+    STATE_REACHED = 2;
+    // They don't, so Dockwell checks for pushes itself.
+    STATE_POLLING = 3;
+    // They don't, and GitHub asked Dockwell to slow down: no check until
+    // backoff_until.
+    STATE_BACKING_OFF = 4;
+  }
+  State state = 1;
+  // When it was last checked.
+  google.protobuf.Timestamp checked_time = 2;
+  // While polling, how often each app's branch is checked.
+  int32 check_every_seconds = 3;
+  // While backing off, when checks start again.
+  google.protobuf.Timestamp backoff_until = 4;
+  // The panel refused GitHub's newest delivery: the webhook secret GitHub signs
+  // with isn't the one Dockwell keeps, so pushes don't come through until the
+  // App has a new one. Dockwell checks for pushes meanwhile.
+  bool secret_refused = 5;
+}
+
+// GitHubInstallation is where a GitHub App is installed.
+message GitHubInstallation {
+  // GitHub's ID for it.
+  int64 id = 1;
+  // The account it's installed on.
+  string account = 2;
+  bool organization = 3;
+  // Whether it reaches every repository the account has.
+  bool all_repositories = 4;
+  // How many repositories it reaches.
+  int32 repository_count = 5;
+  bool suspended = 6;
+  bool removed = 7;
+  // The projects it reaches, by ID; empty with every_project.
+  repeated string projects = 8;
+  // It reaches every project.
+  bool every_project = 9;
+  // Its settings on GitHub, where repositories are added.
+  string settings_url = 10;
+}
+
+// ListGitRepositoriesRequest names a project.
+message ListGitRepositoriesRequest {
+  // The project, by ID or name.
+  string project = 1;
+}
+
+// ListGitRepositoriesResponse is what the project's apps may build from.
+message ListGitRepositoriesResponse {
+  repeated GitRepository repositories = 1;
+}
+
+// GitRepository is a repository a project's apps may build from, through an App.
+message GitRepository {
+  // As GitHub names it, such as "acme/web".
+  string full_name = 1;
+  // Its address, as a build's source names it.
+  string url = 2;
+  bool private = 3;
+  string default_branch = 4;
+  // The App, by ID, and the installation that reaches it.
+  string app_id = 5;
+  int64 installation_id = 6;
+  string account = 7;
+}
+
+// RotateGitHubWebhookSecretRequest names an App and proves a passkey.
+message RotateGitHubWebhookSecretRequest {
+  // The App, by ID.
+  string id = 1;
+  // The proof from AuthService.FinishStepUp, for a GitHub App's new secret or key.
+  string proof = 2;
+}
+
+// RotateGitHubWebhookSecretResponse is the change that keeps the new secret.
+message RotateGitHubWebhookSecretResponse {
+  // The change that keeps the new secret.
+  string change_id = 1;
+}
+
+// ReplaceGitHubPrivateKeyRequest is an App's new key, and a passkey's proof.
+message ReplaceGitHubPrivateKeyRequest {
+  // The App, by ID.
+  string id = 1;
+  // The private key's file, as GitHub's page downloads it, PEM.
+  string private_key = 2 [(dockwell.v1.from_file) = true];
+  // The proof from AuthService.FinishStepUp, for a GitHub App's new secret or key.
+  string proof = 3;
+}
+
+// ReplaceGitHubPrivateKeyResponse says which key to delete on GitHub.
+message ReplaceGitHubPrivateKeyResponse {
+  // The new key's fingerprint, and the old one's, which to delete on GitHub.
+  string fingerprint = 1;
+  string old_fingerprint = 2;
+  // The App's page on GitHub where its keys are.
+  string keys_url = 3;
+  // The change that keeps the new key.
+  string change_id = 4;
+}
+
+// RemoveGitHubAppRequest names an App and proves a passkey.
+message RemoveGitHubAppRequest {
+  // The App, by ID.
+  string id = 1;
+  // The proof from AuthService.FinishStepUp, for removing a GitHub App.
+  string proof = 2;
+}
+
+// RemoveGitHubAppResponse says what was uninstalled, and where to delete the App.
+message RemoveGitHubAppResponse {
+  // How many installations it was uninstalled from.
+  int32 uninstalled = 1;
+  // Where it's deleted on GitHub.
+  string delete_url = 2;
+  // The change that removes it.
+  string change_id = 3;
+}

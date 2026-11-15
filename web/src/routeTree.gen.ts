@@ -54,7 +54,6 @@ import { Route as ShellSettingsSettingsApiTokensRouteImport } from './routes/_sh
 import { Route as ShellSettingsSettingsAuditLogRouteImport } from './routes/_shell/_settings/settings.audit-log'
 import { Route as ShellSettingsSettingsControlPlaneRouteImport } from './routes/_shell/_settings/settings.control-plane'
 import { Route as ShellSettingsSettingsGeneralRouteImport } from './routes/_shell/_settings/settings.general'
-import { Route as ShellSettingsSettingsIntegrationsRouteImport } from './routes/_shell/_settings/settings.integrations'
 import { Route as ShellSettingsSettingsMembersRouteImport } from './routes/_shell/_settings/settings.members'
 import { Route as ShellSettingsSettingsSecurityRouteImport } from './routes/_shell/_settings/settings.security'
 import { Route as ShellAppsServiceIdIndexRouteImport } from './routes/_shell/apps.$serviceId.index'
@@ -80,7 +79,10 @@ import { Route as ShellWebsitesWebsiteIdCertificateRouteImport } from './routes/
 import { Route as ShellWebsitesWebsiteIdConfigurationRouteImport } from './routes/_shell/websites.$websiteId.configuration'
 import { Route as ShellWebsitesWebsiteIdFilesRouteImport } from './routes/_shell/websites.$websiteId.files'
 import { Route as ShellWebsitesWebsiteIdLogsRouteImport } from './routes/_shell/websites.$websiteId.logs'
+import { Route as ShellSettingsSettingsIntegrationsIndexRouteImport } from './routes/_shell/_settings/settings.integrations.index'
 import { Route as ShellServersServerIdContainersNameRouteImport } from './routes/_shell/servers.$serverId.containers.$name'
+import { Route as ShellSettingsSettingsIntegrationsGithubCreatedRouteImport } from './routes/_shell/_settings/settings.integrations.github.created'
+import { Route as ShellSettingsSettingsIntegrationsGithubAppIdInstalledRouteImport } from './routes/_shell/_settings/settings.integrations.github.$appId.installed'
 
 const ShellRoute = ShellRouteImport.update({
   id: '/_shell',
@@ -310,12 +312,6 @@ const ShellSettingsSettingsGeneralRoute =
     path: '/settings/general',
     getParentRoute: () => ShellSettingsRoute,
   } as any)
-const ShellSettingsSettingsIntegrationsRoute =
-  ShellSettingsSettingsIntegrationsRouteImport.update({
-    id: '/settings/integrations',
-    path: '/settings/integrations',
-    getParentRoute: () => ShellSettingsRoute,
-  } as any)
 const ShellSettingsSettingsMembersRoute =
   ShellSettingsSettingsMembersRouteImport.update({
     id: '/settings/members',
@@ -463,11 +459,29 @@ const ShellWebsitesWebsiteIdLogsRoute =
     path: '/logs',
     getParentRoute: () => ShellWebsitesWebsiteIdRoute,
   } as any)
+const ShellSettingsSettingsIntegrationsIndexRoute =
+  ShellSettingsSettingsIntegrationsIndexRouteImport.update({
+    id: '/settings/integrations/',
+    path: '/settings/integrations/',
+    getParentRoute: () => ShellSettingsRoute,
+  } as any)
 const ShellServersServerIdContainersNameRoute =
   ShellServersServerIdContainersNameRouteImport.update({
     id: '/servers/$serverId/containers/$name',
     path: '/servers/$serverId/containers/$name',
     getParentRoute: () => ShellRoute,
+  } as any)
+const ShellSettingsSettingsIntegrationsGithubCreatedRoute =
+  ShellSettingsSettingsIntegrationsGithubCreatedRouteImport.update({
+    id: '/settings/integrations/github/created',
+    path: '/settings/integrations/github/created',
+    getParentRoute: () => ShellSettingsRoute,
+  } as any)
+const ShellSettingsSettingsIntegrationsGithubAppIdInstalledRoute =
+  ShellSettingsSettingsIntegrationsGithubAppIdInstalledRouteImport.update({
+    id: '/settings/integrations/github/$appId/installed',
+    path: '/settings/integrations/github/$appId/installed',
+    getParentRoute: () => ShellSettingsRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
@@ -513,7 +527,6 @@ export interface FileRoutesByFullPath {
   '/settings/audit-log': typeof ShellSettingsSettingsAuditLogRoute
   '/settings/control-plane': typeof ShellSettingsSettingsControlPlaneRoute
   '/settings/general': typeof ShellSettingsSettingsGeneralRoute
-  '/settings/integrations': typeof ShellSettingsSettingsIntegrationsRoute
   '/settings/members': typeof ShellSettingsSettingsMembersRoute
   '/settings/security': typeof ShellSettingsSettingsSecurityRoute
   '/apps/$serviceId/deployments': typeof ShellAppsServiceIdDeploymentsRoute
@@ -541,6 +554,9 @@ export interface FileRoutesByFullPath {
   '/servers/$serverId/': typeof ShellServersServerIdIndexRoute
   '/websites/$websiteId/': typeof ShellWebsitesWebsiteIdIndexRoute
   '/servers/$serverId/containers/$name': typeof ShellServersServerIdContainersNameRoute
+  '/settings/integrations/': typeof ShellSettingsSettingsIntegrationsIndexRoute
+  '/settings/integrations/github/created': typeof ShellSettingsSettingsIntegrationsGithubCreatedRoute
+  '/settings/integrations/github/$appId/installed': typeof ShellSettingsSettingsIntegrationsGithubAppIdInstalledRoute
 }
 export interface FileRoutesByTo {
   '/claim': typeof ClaimRoute
@@ -582,7 +598,6 @@ export interface FileRoutesByTo {
   '/settings/audit-log': typeof ShellSettingsSettingsAuditLogRoute
   '/settings/control-plane': typeof ShellSettingsSettingsControlPlaneRoute
   '/settings/general': typeof ShellSettingsSettingsGeneralRoute
-  '/settings/integrations': typeof ShellSettingsSettingsIntegrationsRoute
   '/settings/members': typeof ShellSettingsSettingsMembersRoute
   '/settings/security': typeof ShellSettingsSettingsSecurityRoute
   '/apps/$serviceId/deployments': typeof ShellAppsServiceIdDeploymentsRoute
@@ -610,6 +625,9 @@ export interface FileRoutesByTo {
   '/servers/$serverId': typeof ShellServersServerIdIndexRoute
   '/websites/$websiteId': typeof ShellWebsitesWebsiteIdIndexRoute
   '/servers/$serverId/containers/$name': typeof ShellServersServerIdContainersNameRoute
+  '/settings/integrations': typeof ShellSettingsSettingsIntegrationsIndexRoute
+  '/settings/integrations/github/created': typeof ShellSettingsSettingsIntegrationsGithubCreatedRoute
+  '/settings/integrations/github/$appId/installed': typeof ShellSettingsSettingsIntegrationsGithubAppIdInstalledRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -657,7 +675,6 @@ export interface FileRoutesById {
   '/_shell/_settings/settings/audit-log': typeof ShellSettingsSettingsAuditLogRoute
   '/_shell/_settings/settings/control-plane': typeof ShellSettingsSettingsControlPlaneRoute
   '/_shell/_settings/settings/general': typeof ShellSettingsSettingsGeneralRoute
-  '/_shell/_settings/settings/integrations': typeof ShellSettingsSettingsIntegrationsRoute
   '/_shell/_settings/settings/members': typeof ShellSettingsSettingsMembersRoute
   '/_shell/_settings/settings/security': typeof ShellSettingsSettingsSecurityRoute
   '/_shell/apps/$serviceId/deployments': typeof ShellAppsServiceIdDeploymentsRoute
@@ -685,6 +702,9 @@ export interface FileRoutesById {
   '/_shell/servers/$serverId/': typeof ShellServersServerIdIndexRoute
   '/_shell/websites/$websiteId/': typeof ShellWebsitesWebsiteIdIndexRoute
   '/_shell/servers/$serverId/containers/$name': typeof ShellServersServerIdContainersNameRoute
+  '/_shell/_settings/settings/integrations/': typeof ShellSettingsSettingsIntegrationsIndexRoute
+  '/_shell/_settings/settings/integrations/github/created': typeof ShellSettingsSettingsIntegrationsGithubCreatedRoute
+  '/_shell/_settings/settings/integrations/github/$appId/installed': typeof ShellSettingsSettingsIntegrationsGithubAppIdInstalledRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -731,7 +751,6 @@ export interface FileRouteTypes {
     | '/settings/audit-log'
     | '/settings/control-plane'
     | '/settings/general'
-    | '/settings/integrations'
     | '/settings/members'
     | '/settings/security'
     | '/apps/$serviceId/deployments'
@@ -759,6 +778,9 @@ export interface FileRouteTypes {
     | '/servers/$serverId/'
     | '/websites/$websiteId/'
     | '/servers/$serverId/containers/$name'
+    | '/settings/integrations/'
+    | '/settings/integrations/github/created'
+    | '/settings/integrations/github/$appId/installed'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/claim'
@@ -800,7 +822,6 @@ export interface FileRouteTypes {
     | '/settings/audit-log'
     | '/settings/control-plane'
     | '/settings/general'
-    | '/settings/integrations'
     | '/settings/members'
     | '/settings/security'
     | '/apps/$serviceId/deployments'
@@ -828,6 +849,9 @@ export interface FileRouteTypes {
     | '/servers/$serverId'
     | '/websites/$websiteId'
     | '/servers/$serverId/containers/$name'
+    | '/settings/integrations'
+    | '/settings/integrations/github/created'
+    | '/settings/integrations/github/$appId/installed'
   id:
     | '__root__'
     | '/_shell'
@@ -874,7 +898,6 @@ export interface FileRouteTypes {
     | '/_shell/_settings/settings/audit-log'
     | '/_shell/_settings/settings/control-plane'
     | '/_shell/_settings/settings/general'
-    | '/_shell/_settings/settings/integrations'
     | '/_shell/_settings/settings/members'
     | '/_shell/_settings/settings/security'
     | '/_shell/apps/$serviceId/deployments'
@@ -902,6 +925,9 @@ export interface FileRouteTypes {
     | '/_shell/servers/$serverId/'
     | '/_shell/websites/$websiteId/'
     | '/_shell/servers/$serverId/containers/$name'
+    | '/_shell/_settings/settings/integrations/'
+    | '/_shell/_settings/settings/integrations/github/created'
+    | '/_shell/_settings/settings/integrations/github/$appId/installed'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -1230,13 +1256,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShellSettingsSettingsGeneralRouteImport
       parentRoute: typeof ShellSettingsRoute
     }
-    '/_shell/_settings/settings/integrations': {
-      id: '/_shell/_settings/settings/integrations'
-      path: '/settings/integrations'
-      fullPath: '/settings/integrations'
-      preLoaderRoute: typeof ShellSettingsSettingsIntegrationsRouteImport
-      parentRoute: typeof ShellSettingsRoute
-    }
     '/_shell/_settings/settings/members': {
       id: '/_shell/_settings/settings/members'
       path: '/settings/members'
@@ -1412,12 +1431,33 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShellWebsitesWebsiteIdLogsRouteImport
       parentRoute: typeof ShellWebsitesWebsiteIdRoute
     }
+    '/_shell/_settings/settings/integrations/': {
+      id: '/_shell/_settings/settings/integrations/'
+      path: '/settings/integrations'
+      fullPath: '/settings/integrations/'
+      preLoaderRoute: typeof ShellSettingsSettingsIntegrationsIndexRouteImport
+      parentRoute: typeof ShellSettingsRoute
+    }
     '/_shell/servers/$serverId/containers/$name': {
       id: '/_shell/servers/$serverId/containers/$name'
       path: '/servers/$serverId/containers/$name'
       fullPath: '/servers/$serverId/containers/$name'
       preLoaderRoute: typeof ShellServersServerIdContainersNameRouteImport
       parentRoute: typeof ShellRoute
+    }
+    '/_shell/_settings/settings/integrations/github/created': {
+      id: '/_shell/_settings/settings/integrations/github/created'
+      path: '/settings/integrations/github/created'
+      fullPath: '/settings/integrations/github/created'
+      preLoaderRoute: typeof ShellSettingsSettingsIntegrationsGithubCreatedRouteImport
+      parentRoute: typeof ShellSettingsRoute
+    }
+    '/_shell/_settings/settings/integrations/github/$appId/installed': {
+      id: '/_shell/_settings/settings/integrations/github/$appId/installed'
+      path: '/settings/integrations/github/$appId/installed'
+      fullPath: '/settings/integrations/github/$appId/installed'
+      preLoaderRoute: typeof ShellSettingsSettingsIntegrationsGithubAppIdInstalledRouteImport
+      parentRoute: typeof ShellSettingsRoute
     }
   }
 }
@@ -1428,10 +1468,12 @@ interface ShellSettingsRouteChildren {
   ShellSettingsSettingsAuditLogRoute: typeof ShellSettingsSettingsAuditLogRoute
   ShellSettingsSettingsControlPlaneRoute: typeof ShellSettingsSettingsControlPlaneRoute
   ShellSettingsSettingsGeneralRoute: typeof ShellSettingsSettingsGeneralRoute
-  ShellSettingsSettingsIntegrationsRoute: typeof ShellSettingsSettingsIntegrationsRoute
   ShellSettingsSettingsMembersRoute: typeof ShellSettingsSettingsMembersRoute
   ShellSettingsSettingsSecurityRoute: typeof ShellSettingsSettingsSecurityRoute
   ShellSettingsSettingsIndexRoute: typeof ShellSettingsSettingsIndexRoute
+  ShellSettingsSettingsIntegrationsIndexRoute: typeof ShellSettingsSettingsIntegrationsIndexRoute
+  ShellSettingsSettingsIntegrationsGithubCreatedRoute: typeof ShellSettingsSettingsIntegrationsGithubCreatedRoute
+  ShellSettingsSettingsIntegrationsGithubAppIdInstalledRoute: typeof ShellSettingsSettingsIntegrationsGithubAppIdInstalledRoute
 }
 
 const ShellSettingsRouteChildren: ShellSettingsRouteChildren = {
@@ -1441,11 +1483,15 @@ const ShellSettingsRouteChildren: ShellSettingsRouteChildren = {
   ShellSettingsSettingsControlPlaneRoute:
     ShellSettingsSettingsControlPlaneRoute,
   ShellSettingsSettingsGeneralRoute: ShellSettingsSettingsGeneralRoute,
-  ShellSettingsSettingsIntegrationsRoute:
-    ShellSettingsSettingsIntegrationsRoute,
   ShellSettingsSettingsMembersRoute: ShellSettingsSettingsMembersRoute,
   ShellSettingsSettingsSecurityRoute: ShellSettingsSettingsSecurityRoute,
   ShellSettingsSettingsIndexRoute: ShellSettingsSettingsIndexRoute,
+  ShellSettingsSettingsIntegrationsIndexRoute:
+    ShellSettingsSettingsIntegrationsIndexRoute,
+  ShellSettingsSettingsIntegrationsGithubCreatedRoute:
+    ShellSettingsSettingsIntegrationsGithubCreatedRoute,
+  ShellSettingsSettingsIntegrationsGithubAppIdInstalledRoute:
+    ShellSettingsSettingsIntegrationsGithubAppIdInstalledRoute,
 }
 
 const ShellSettingsRouteWithChildren = ShellSettingsRoute._addFileChildren(

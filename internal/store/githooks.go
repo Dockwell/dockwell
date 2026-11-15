@@ -26,7 +26,14 @@ type GitHook struct {
 	// person; its maker, an admin there, may let it act as an admin.
 	Projects []string
 	Role     string
+	// Via is how its pushes come: "" through its own URL and secret, ViaGitHub
+	// through the GitHub App that reaches its repository (ADR 0098).
+	Via string
 }
+
+// ViaGitHub is a hook GitHub's App delivers pushes to, which has no secret of its
+// own to show.
+const ViaGitHub = "github"
 
 // What came of a push.
 const (
@@ -55,13 +62,13 @@ type GitHookDelivery struct {
 // KeepHookDeliveries is how long a delivery is kept, so one seen before does nothing.
 const KeepHookDeliveries = 7 * 24 * time.Hour
 
-const gitHookColumns = `id, resource_id, user_id, secret, created_at, secret_at, projects, role`
+const gitHookColumns = `id, resource_id, user_id, secret, created_at, secret_at, projects, role, via`
 
 func scanGitHook(row interface{ Scan(...any) error }) (GitHook, error) {
 	var h GitHook
 	var created, secretAt int64
 	var projects sql.NullString
-	if err := row.Scan(&h.ID, &h.ResourceID, &h.UserID, &h.Secret, &created, &secretAt, &projects, &h.Role); err != nil {
+	if err := row.Scan(&h.ID, &h.ResourceID, &h.UserID, &h.Secret, &created, &secretAt, &projects, &h.Role, &h.Via); err != nil {
 		return GitHook{}, err
 	}
 	h.CreatedAt, h.SecretAt, h.Projects = fromMillis(created), fromMillis(secretAt), projectsFrom(projects)
@@ -71,8 +78,8 @@ func scanGitHook(row interface{ Scan(...any) error }) (GitHook, error) {
 // CreateGitHook records a service's hook. A service has one at most, and a second
 // is ErrConflict.
 func (t *Tx) CreateGitHook(ctx context.Context, h GitHook) error {
-	_, err := t.exec(ctx, `INSERT INTO git_hooks (`+gitHookColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		h.ID, h.ResourceID, h.UserID, h.Secret, millis(h.CreatedAt), millis(h.SecretAt), projectsColumn(h.Projects), h.Role)
+	_, err := t.exec(ctx, `INSERT INTO git_hooks (`+gitHookColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		h.ID, h.ResourceID, h.UserID, h.Secret, millis(h.CreatedAt), millis(h.SecretAt), projectsColumn(h.Projects), h.Role, h.Via)
 	if t.unique(err) {
 		return fmt.Errorf("a hook for %s: %w", h.ResourceID, ErrConflict)
 	}
@@ -98,7 +105,7 @@ func (t *Tx) GetGitHook(ctx context.Context, id string) (GitHook, error) {
 // deliveries, and returns what it deleted: nothing deploys a service that isn't
 // there, and nobody could turn its hook off.
 func (t *Tx) ForgetOrphanGitHooks(ctx context.Context) ([]GitHook, error) {
-	rows, err := t.query(ctx, `SELECT h.id, h.resource_id, h.user_id, h.secret, h.created_at, h.secret_at, h.projects, h.role FROM git_hooks h
+	rows, err := t.query(ctx, `SELECT h.id, h.resource_id, h.user_id, h.secret, h.created_at, h.secret_at, h.projects, h.role, h.via FROM git_hooks h
 		LEFT JOIN resources r ON r.id = h.resource_id
 		LEFT JOIN revisions v ON v.resource_id = r.id AND v.number = r.revision
 		WHERE r.id IS NULL OR v.spec IS NULL ORDER BY h.id`)

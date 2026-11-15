@@ -67,6 +67,10 @@ type BuildRequest struct {
 	// still may hand BuildKit.
 	Logins  []registry.Auth
 	Recheck func(context.Context, []registry.Auth) ([]registry.Auth, error)
+	// GitAuth is the Authorization its repository is fetched with: a GitHub App's
+	// token for that repository alone, which goes no further than the fetch
+	// (ADR 0098). Empty fetches as the public do.
+	GitAuth string
 }
 
 // Request is what a build of svc asks its server to build, all but its secrets.
@@ -212,6 +216,9 @@ func checkBuild(svc *resourcev1.Service) error {
 	}
 	if err := checkBuildLogins(b.GetRegistryLogins()); err != nil {
 		return err
+	}
+	if l := b.GetGitLogin(); l != "" && !gitLogin().MatchString(l) {
+		return fmt.Errorf("%q isn't a GitHub App's installation, as <App name>/<installation ID> names it. Pick the repository from the App's list instead", l)
 	}
 	for id, name := range b.GetSecrets() {
 		if len(id) > maxArgName || !secretID().MatchString(id) {
@@ -404,7 +411,7 @@ func buildPlan(svc *resourcev1.Service) *resource.BuildPlan {
 	return &resource.BuildPlan{
 		URL: g.GetUrl(), Ref: g.GetRef(), Commit: g.GetCommit(),
 		Context: b.GetContext(), Dockerfile: b.GetDockerfile(), Image: svc.GetApp().GetImage(),
-		Builder: builderOf(b.GetBuilder()),
+		Builder: builderOf(b.GetBuilder()), GitLogin: b.GetGitLogin(),
 	}
 }
 
@@ -432,12 +439,17 @@ func (d *Driver) build(ctx context.Context, step resource.Step, svc *resourcev1.
 	req := Request(svc)
 	req.Service, req.Change, req.Secrets = step.Ref, resource.DeployOf(ctx).Change, secrets
 	req.Logins, req.Recheck = registry.BuildAuthsOf(ctx), registry.BuildRecheckOf(ctx)
+	req.GitAuth = resource.BuildGitAuthOf(ctx)
 	err = d.Builds.Build(ctx, req)
 	if err != nil {
 		resource.Report(ctx, resource.Outcome{Untouched: true})
 	}
 	return err
 }
+
+// gitLogin is a GitHub App's installation, as a build names it: the App's name, a
+// slash and the installation's ID (ADR 0098).
+var gitLogin = lazyre.Regexp(`^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?/[1-9][0-9]{0,18}$`)
 
 // maxBuildLogins is the most registry logins a build names.
 const maxBuildLogins = 8

@@ -282,7 +282,7 @@ const detectScript = `set -eu
 exec 3>&1 1>&2
 say() { printf '` + marker + `%s\n' "$*" >&3; }
 export GIT_TERMINAL_PROMPT=0 GIT_ASKPASS=/bin/false HOME=/tmp
-say phase fetch
+` + gitAuthScript + `say phase fetch
 mkdir -p ` + sourceDir + ` && cd ` + sourceDir + `
 git init -q 3>&-
 git remote add origin "$DW_URL"
@@ -318,7 +318,7 @@ if [ ! -x "` + detectBin + `" ]; then say fail need-railpack; exit 4; fi
 # of the end, as a full folder lets it, so what's left is checked too.
 say phase checkout
 git -c advice.detachedHead=false checkout -q "$DW_COMMIT" 3>&-
-avail=$(df -k ` + sourceDir + ` | awk 'NR == 2 { print $4 }')
+` + gitAuthDone + `avail=$(df -k ` + sourceDir + ` | awk 'NR == 2 { print $4 }')
 if [ "${avail:-0}" -lt 1024 ]; then say fail toolarge; exit 3; fi
 ctx=$(cd "` + sourceDir + `/$DW_CONTEXT" && pwd -P)
 case "$ctx" in ` + sourceDir + `|` + sourceDir + `/*) ;; *) say fail context; exit 3;; esac
@@ -447,6 +447,15 @@ func (b *Builder) detect(ctx context.Context, req service.BuildRequest) (*resour
 	if err := b.ensureNetwork(ctx); err != nil {
 		return nil, nil, false, err
 	}
+	gitDir, gitCleanup, err := b.gitAuth(req)
+	if err != nil {
+		return nil, nil, false, err
+	}
+	defer gitCleanup()
+	mounts := []docker.Mount{{Type: "volume", Source: RailpackVolume, Target: railpackRO, ReadOnly: true}}
+	if gitDir != "" {
+		mounts = append(mounts, docker.Mount{Type: "bind", Source: gitDir, Target: gitAuthMount, ReadOnly: true})
+	}
 	create := &docker.CreateRequest{
 		Config: docker.Config{
 			Image: b.image(), Entrypoint: []string{"/bin/sh"}, Cmd: append([]string{"-c", detectScript, "dockwell-detect"}, detectArgs(req)...),
@@ -458,7 +467,7 @@ func (b *Builder) detect(ctx context.Context, req service.BuildRequest) (*resour
 			Memory:      min(memory, detectMemory), MemorySwap: min(memory, detectMemory), NanoCPUs: cpus * 1e9,
 			CPUShares: cpuShares, OomScoreAdj: 1000, PidsLimit: detectPids,
 			LogConfig: &docker.LogConfig{Type: "none"},
-			Mounts:    []docker.Mount{{Type: "volume", Source: RailpackVolume, Target: railpackRO, ReadOnly: true}},
+			Mounts:    mounts,
 			// Nothing it writes reaches Docker's disk.
 			ReadonlyRootfs: true,
 			// All it writes is in memory, counted against its own. Docker makes a

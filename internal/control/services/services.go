@@ -429,7 +429,7 @@ func (h *Handler) deployBuild(ctx context.Context, name string, svc *resourcev1.
 	if h.Sources == nil {
 		return editing{}, h.internal(ctx, "deploying a build", errors.New("this control plane can't read what a branch names"))
 	}
-	commit, branch, err := h.Sources.Resolve(ctx, g.GetUrl(), g.GetRef())
+	commit, branch, err := h.Sources.Resolve(revision.WithGitLogin(ctx, svc.GetBuild().GetGitLogin()), g.GetUrl(), g.GetRef())
 	if err != nil {
 		return editing{}, authapi.Invalid(err)
 	}

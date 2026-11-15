@@ -145,6 +145,14 @@ GitHookService.DeleteGitHook                   apply        developer  developer
 GitHookService.GetGitHook                      read         viewer     viewer     project
 GitHookService.RotateGitHookSecret             apply        developer  admin      project  session
 GitHookService.SetGitHookRole                  apply        developer  admin      project  session
+GitProviderService.AddGitHubInstallation       apply        admin      admin      install  session
+GitProviderService.FinishGitHubApp             apply        admin      admin      install  session
+GitProviderService.ListGitProviders            read         viewer     viewer     named
+GitProviderService.ListGitRepositories         read         viewer     viewer     project
+GitProviderService.RemoveGitHubApp             destructive  admin      admin      install  session
+GitProviderService.ReplaceGitHubPrivateKey     apply        admin      admin      install  session
+GitProviderService.RotateGitHubWebhookSecret   apply        admin      admin      install  session
+GitProviderService.StartGitHubApp              apply        admin      admin      install  session
 HealthService.ListHealth                       read         viewer     viewer     project
 ImageService.CheckRegistryLogin                read         admin      admin      install  session
 ImageService.GetImage                          read         developer  developer  project

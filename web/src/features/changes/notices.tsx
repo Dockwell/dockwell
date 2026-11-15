@@ -22,6 +22,7 @@ import { shownRef } from "../../lib/built";
 import { formatBytes, formatDateTime } from "../../lib/format";
 import { useTimeWords } from "../../lib/time";
 import { useDetectionWords } from "../apps/detection";
+import { installationOf, useGitHubApps } from "../settings/github";
 import {
   asGoodAsRoot,
   changing,
@@ -1331,6 +1332,9 @@ export function useAsides(plan: Plan | undefined): Notice[] {
   const words = useChangeWords();
   const detected = useDetectionWords();
   const rollouts = useRolloutLines(plan);
+  // A build through a GitHub App's installation names its account (ADR 0098).
+  const throughApp = (plan?.servers ?? []).some((s) => s.steps.some((st) => st.build?.gitLogin));
+  const apps = useGitHubApps(throughApp).data?.apps;
   const out: Notice[] = [];
   // Nothing to warn of: it says only that this may come to nothing.
   const image = plan?.intent?.image ?? "";
@@ -1531,11 +1535,21 @@ export function useAsides(plan: Plan | undefined): Notice[] {
         // what Railpack makes of it, which is what it builds.
         const d = step.build.detection;
         const railpack = d?.builder === ImageBuild_Builder.RAILPACK;
+        const login = step.build.gitLogin;
+        const account = login ? (installationOf(apps, login)?.installation?.account ?? "") : "";
         out.push({
           key: `build-${key}`,
-          title: ref
-            ? t`Builds ${repository} at ${commit} (${ref}) on ${server.serverName} first. If the build fails, what runs stays as it is.`
-            : t`Builds ${repository} at ${commit} on ${server.serverName} first. If the build fails, what runs stays as it is.`,
+          title: !login
+            ? ref
+              ? t`Builds ${repository} at ${commit} (${ref}) on ${server.serverName} first. If the build fails, what runs stays as it is.`
+              : t`Builds ${repository} at ${commit} on ${server.serverName} first. If the build fails, what runs stays as it is.`
+            : account
+              ? ref
+                ? t`Builds ${repository} at ${commit} (${ref}) on ${server.serverName} first, through the GitHub App on ${account}. If the build fails, what runs stays as it is.`
+                : t`Builds ${repository} at ${commit} on ${server.serverName} first, through the GitHub App on ${account}. If the build fails, what runs stays as it is.`
+              : ref
+                ? t`Builds ${repository} at ${commit} (${ref}) on ${server.serverName} first, through the GitHub App. If the build fails, what runs stays as it is.`
+                : t`Builds ${repository} at ${commit} on ${server.serverName} first, through the GitHub App. If the build fails, what runs stays as it is.`,
         });
         // What it builds with, on a line of its own after the build.
         // One span, so its words and code flow as a sentence in the note's row.

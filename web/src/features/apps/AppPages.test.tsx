@@ -22,6 +22,7 @@ import {
   FieldOp,
   GitHookOutcome,
   type GitHookSchema,
+  GitHubDelivery_State,
   HealthState,
   ImageAnswer,
   ImageBuild_Builder,
@@ -4211,6 +4212,66 @@ describe("an app's deployments, for an app that builds from Git", () => {
     expect(steps).toHaveLength(1);
   });
 
+  it("lets the maker of a hook through the GitHub App choose, beside its switch, whether its pushes wait", async () => {
+    stubPasskeys();
+    const app = builtApp();
+    if (app.spec?.build) app.spec.build.gitLogin = "dockwell-deploy/7";
+    const set: SetGitHookRoleRequest[] = [];
+    let hook = {
+      id: "ghk_1",
+      serviceId: "svc_web",
+      githubApp: "dockwell-deploy",
+      createdBy: { kind: ActorKind.USER, id: mira.id, name: mira.name },
+      role: Role.DEVELOPER,
+    };
+    renderAt(
+      "/apps/svc_web",
+      api([app], {
+        resources: protectedPlaces(),
+        services: { listServices: () => ({ services: [app] }), listServiceRevisions: () => ({ revisions: [] }) },
+        gitProviders: {
+          listGitProviders: () => ({
+            apps: [{ id: "gha_1", name: "dockwell-deploy", installations: [{ id: 7n, account: "acme" }] }],
+          }),
+          listGitRepositories: () => ({
+            repositories: [{ fullName: "acme/web", url: "https://github.com/acme/web", account: "acme" }],
+          }),
+        },
+        hooks: {
+          getGitHook: () => ({ hook }),
+          setGitHookRole: (req) => {
+            set.push(req);
+            if (req.role === Role.ADMIN && req.proof === "") throw authError(Code.PermissionDenied, "needs_step_up");
+            hook = { ...hook, role: req.role };
+            return { hook };
+          },
+        },
+        auth: {
+          getAuthState: () => authState(),
+          beginStepUp: () => ({
+            ceremonyId: "cer_1",
+            optionsJson: JSON.stringify({ challenge: "q83v", rpId: "localhost" }),
+          }),
+          finishStepUp: () => ({ proof: "proof_1" }),
+        },
+      }),
+    );
+    const user = userEvent.setup();
+    const source = (await screen.findByRole("heading", { name: "Source" })).closest("section") as HTMLElement;
+    const push = await within(source).findByRole("switch", { name: "Deploy on push" });
+    await waitFor(() =>
+      expect(push).toHaveAccessibleDescription(
+        "Each push to main plans a deploy of web, which waits for a person here.",
+      ),
+    );
+    // No sheet to open: the choice sits under the switch.
+    expect(within(source).queryByRole("button", { name: "Set up" })).not.toBeInTheDocument();
+    const choice = await within(source).findByRole("switch", { name: "Deploy without waiting" });
+    await user.click(choice);
+    await waitFor(() => expect(push).toHaveAccessibleDescription("Each push to main deploys web."));
+    expect(set.at(-1)).toEqual(expect.objectContaining({ id: "svc_web", role: Role.ADMIN, proof: "proof_1" }));
+  });
+
   it("never offers deploying without waiting to a developer, nor to an admin the hook doesn't act for", async () => {
     const app = builtApp();
     for (const [who, maker] of [
@@ -4240,6 +4301,105 @@ describe("an app's deployments, for an app that builds from Git", () => {
       expect(within(sheet).queryByRole("switch", { name: "Deploy without waiting" })).not.toBeInTheDocument();
       unmount();
     }
+  });
+
+  it("builds a private repository through the GitHub App, and turns deploy on push on with nothing to set", async () => {
+    const app = builtApp();
+    if (app.spec?.build) app.spec.build.gitLogin = "dockwell-deploy/7";
+    let hook: MessageInitShape<typeof GitHookSchema> | undefined;
+    let reached = [{ fullName: "acme/web", url: "https://github.com/acme/web", private: true, account: "acme" }];
+    const { container, unmount } = renderAt(
+      "/apps/svc_web",
+      api([app], {
+        services: {
+          listServices: () => ({ services: [app] }),
+          listServiceRevisions: () => ({ revisions: [aRevision(2n, image, { build: aBuild({}) })] }),
+        },
+        gitProviders: {
+          listGitProviders: () => ({
+            apps: [
+              {
+                id: "gha_1",
+                name: "dockwell-deploy",
+                owner: "acme",
+                installations: [
+                  {
+                    id: 7n,
+                    account: "acme",
+                    settingsUrl: "https://github.com/organizations/acme/settings/installations/7",
+                  },
+                ],
+                delivery: { state: GitHubDelivery_State.POLLING, checkEverySeconds: 60 },
+              },
+            ],
+          }),
+          listGitRepositories: () => ({ repositories: reached }),
+        },
+        hooks: {
+          getGitHook: () => ({ hook }),
+          createGitHook: () => {
+            hook = { id: "ghk_1", serviceId: "svc_web", githubApp: "dockwell-deploy" };
+            return { hook, secret: "" };
+          },
+        },
+      }),
+    );
+    const user = userEvent.setup();
+    const source = (await screen.findByRole("heading", { name: "Source" })).closest("section") as HTMLElement;
+    expect(await within(source).findByText("through the GitHub App on acme")).toBeVisible();
+    const push = within(source).getByRole("switch", { name: "Deploy on push" });
+    await waitFor(() => expect(push).toBeEnabled());
+    await user.click(push);
+    // Pushes come through the App's one webhook: no sheet, no URL, no secret.
+    await waitFor(() => expect(push).toBeChecked());
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(within(source).queryByRole("button", { name: "Set up" })).not.toBeInTheDocument();
+    // GitHub can't reach the panel: the line says Dockwell checks itself, with the fix.
+    expect(
+      within(source).getByText("GitHub can't reach this panel, so Dockwell checks for pushes every minute."),
+    ).toBeVisible();
+    expect(within(source).getByRole("link", { name: "Give the panel a domain" })).toHaveAttribute(
+      "href",
+      "/settings/general",
+    );
+    await expectAccessible(container);
+    unmount();
+
+    // The installation no longer reaches the repository: the fact, and where to add it back.
+    reached = [];
+    renderAt(
+      "/apps/svc_web",
+      api([app], {
+        services: {
+          listServices: () => ({ services: [app] }),
+          listServiceRevisions: () => ({ revisions: [aRevision(2n, image, { build: aBuild({}) })] }),
+        },
+        gitProviders: {
+          listGitProviders: () => ({
+            apps: [
+              {
+                id: "gha_1",
+                name: "dockwell-deploy",
+                installations: [
+                  {
+                    id: 7n,
+                    account: "acme",
+                    settingsUrl: "https://github.com/organizations/acme/settings/installations/7",
+                  },
+                ],
+              },
+            ],
+          }),
+          listGitRepositories: () => ({ repositories: reached }),
+        },
+      }),
+    );
+    const again = (await screen.findByRole("heading", { name: "Source" })).closest("section") as HTMLElement;
+    expect(await within(again).findByText("The GitHub App can't reach acme/web any more.")).toBeVisible();
+    expect(within(again).getByRole("link", { name: "Add it on GitHub" })).toHaveAttribute(
+      "href",
+      "https://github.com/organizations/acme/settings/installations/7",
+    );
   });
 
   it("says what the last push came to in a line, and gives the hook a new secret", async () => {

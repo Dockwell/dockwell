@@ -2884,6 +2884,230 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/git-providers:
+        get:
+            tags:
+                - GitProviderService
+            description: |-
+                ListGitProviders returns the connected GitHub Apps, with their installations
+                 and whether GitHub reaches the panel. Below an admin, an answer holds names
+                 and states only.
+            operationId: GitProviderService_ListGitProviders
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListGitProvidersResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/git-providers/github:finish:
+        post:
+            tags:
+                - GitProviderService
+            description: |-
+                FinishGitHubApp finishes connecting GitHub, with the code and state GitHub
+                 sent the browser back with: it trades the code for the App GitHub made, keeps
+                 the App as a change, and gives the page that installs it on repositories.
+            operationId: GitProviderService_FinishGitHubApp
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/FinishGitHubAppRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/FinishGitHubAppResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/git-providers/github:start:
+        post:
+            tags:
+                - GitProviderService
+            description: |-
+                StartGitHubApp begins connecting GitHub: the manifest the browser posts to
+                 GitHub, and the page it posts it to, for the signed-in person's own account
+                 or an organization they name. Its state lasts 10 minutes, for this session
+                 alone, and is used once. It needs a proof from AuthService.FinishStepUp for
+                 connecting GitHub.
+            operationId: GitProviderService_StartGitHubApp
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/StartGitHubAppRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/StartGitHubAppResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/git-providers/{id}/installations:
+        post:
+            tags:
+                - GitProviderService
+            description: |-
+                AddGitHubInstallation records an installation GitHub sent the browser back
+                 with, once GitHub, asked as the App, says it's the App's. One made later on
+                 GitHub arrives by the App's webhook without it.
+            operationId: GitProviderService_AddGitHubInstallation
+            parameters:
+                - name: id
+                  in: path
+                  description: The App, by ID, or by its webhook's ID, which GitHub's setup URL names.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/AddGitHubInstallationRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/AddGitHubInstallationResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/git-providers/{id}:remove:
+        post:
+            tags:
+                - GitProviderService
+            description: |-
+                RemoveGitHubApp uninstalls the App from each installation, as the App, then
+                 forgets its key and secret. GitHub has no way for an App to delete itself:
+                 the answer links to its settings, where you delete it. It needs a proof from
+                 AuthService.FinishStepUp for removing a GitHub App, with its ID as the target.
+            operationId: GitProviderService_RemoveGitHubApp
+            parameters:
+                - name: id
+                  in: path
+                  description: The App, by ID.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/RemoveGitHubAppRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/RemoveGitHubAppResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/git-providers/{id}:replace-private-key:
+        post:
+            tags:
+                - GitProviderService
+            description: |-
+                ReplaceGitHubPrivateKey keeps a private key made on the App's page on GitHub
+                 in place of the one Dockwell has, once it signs a JWT GitHub takes as this
+                 App's. It says which key to delete on GitHub, by its fingerprint. It needs a
+                 proof from AuthService.FinishStepUp for a GitHub App's new secret or key,
+                 with the App's ID as its target.
+            operationId: GitProviderService_ReplaceGitHubPrivateKey
+            parameters:
+                - name: id
+                  in: path
+                  description: The App, by ID.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/ReplaceGitHubPrivateKeyRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ReplaceGitHubPrivateKeyResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/git-providers/{id}:rotate-webhook-secret:
+        post:
+            tags:
+                - GitProviderService
+            description: |-
+                RotateGitHubWebhookSecret makes the App a new webhook secret and sets it on
+                 GitHub, as the App, keeping the old one 10 minutes for deliveries already
+                 sent. It needs a proof from AuthService.FinishStepUp for a GitHub App's new
+                 secret or key, with the App's ID as its target.
+            operationId: GitProviderService_RotateGitHubWebhookSecret
+            parameters:
+                - name: id
+                  in: path
+                  description: The App, by ID.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/RotateGitHubWebhookSecretRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/RotateGitHubWebhookSecretResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/health:
         get:
             tags:
@@ -3608,6 +3832,35 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/FinishAddPasskeyResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/projects/{project}/git-repositories:
+        get:
+            tags:
+                - GitProviderService
+            description: |-
+                ListGitRepositories returns the repositories a project's apps may build from
+                 through a GitHub App: those its installations reach for that project, as
+                 GitHub last listed them.
+            operationId: GitProviderService_ListGitRepositories
+            parameters:
+                - name: project
+                  in: path
+                  description: The project, by ID or name.
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListGitRepositoriesResponse'
                 default:
                     description: Default error response
                     content:
@@ -7954,6 +8207,22 @@ components:
                          asked for it there. Unset for every other actor: a token's name is
                          whatever its maker typed, so only this says a token is local access's.
             description: Actor is who made a change, or applied it, or did what an event records.
+        AddGitHubInstallationRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The App, by ID, or by its webhook's ID, which GitHub's setup URL names.
+                installationId:
+                    type: string
+                    description: The installation's ID, as GitHub sent the browser back with it.
+            description: AddGitHubInstallationRequest names an App and an installation of it.
+        AddGitHubInstallationResponse:
+            type: object
+            properties:
+                installation:
+                    $ref: '#/components/schemas/GitHubInstallation'
+            description: AddGitHubInstallationResponse is the installation, as GitHub says it.
         AddServicePortRequest:
             type: object
             properties:
@@ -9453,6 +9722,9 @@ components:
                         - STEP_UP_ACTION_SAVE_WAY_BACK_IN
                         - STEP_UP_ACTION_CREATE_GIT_HOOK
                         - STEP_UP_ACTION_ROTATE_GIT_HOOK
+                        - STEP_UP_ACTION_CONNECT_GITHUB_APP
+                        - STEP_UP_ACTION_ROTATE_GITHUB_APP
+                        - STEP_UP_ACTION_REMOVE_GITHUB_APP
                         - STEP_UP_ACTION_WIDEN_GIT_HOOK
                         - STEP_UP_ACTION_END_PROCESS
                         - STEP_UP_ACTION_OPEN_TERMINAL
@@ -9839,6 +10111,12 @@ components:
                         What reading the commit found: what builds it, and with Railpack, what it
                          installs and runs. Empty when the build names its Dockerfile, or the server
                          couldn't be asked; the build then reads it as it starts.
+                gitLogin:
+                    type: string
+                    description: |-
+                        The GitHub App installation a private repository is fetched through, as
+                         the build names it, "<App name>/<installation ID>"; empty for a public
+                         repository (ADR 0098).
             description: |-
                 BuildPlan is what a step builds: a commit of a repository, with its Dockerfile or
                  with Railpack, into an image of its own. See docs/adr/0046-builds-from-git.md.
@@ -15021,6 +15299,30 @@ components:
             description: |-
                 FinishClaimResponse carries the new owner. The response sets the session
                  cookie.
+        FinishGitHubAppRequest:
+            type: object
+            properties:
+                code:
+                    type: string
+                    description: The code GitHub sent the browser back with.
+                state:
+                    type: string
+                    description: The state it sent back with it.
+            description: FinishGitHubAppRequest is what GitHub sent the browser back with.
+        FinishGitHubAppResponse:
+            type: object
+            properties:
+                app:
+                    allOf:
+                        - $ref: '#/components/schemas/GitHubAppInfo'
+                    description: The App, as it's kept.
+                installUrl:
+                    type: string
+                    description: Where the browser goes to install it on repositories.
+                changeId:
+                    type: string
+                    description: The change that keeps it.
+            description: FinishGitHubAppResponse is the App, kept, and where to install it.
         FinishPasskeySignInRequest:
             type: object
             properties:
@@ -15655,6 +15957,11 @@ components:
                     items:
                         $ref: '#/components/schemas/GitHookDelivery'
                     description: Its newest deliveries, newest first, at most 20.
+                githubApp:
+                    type: string
+                    description: |-
+                        The GitHub App its pushes come through, by name, for a hook with no URL or
+                         secret of its own: the App's one webhook carries them (ADR 0098).
                 role:
                     enum:
                         - ROLE_UNSPECIFIED
@@ -15708,6 +16015,213 @@ components:
                     type: string
                     description: What came of it, in a sentence, such as "web already runs 8be41d2".
             description: GitHookDelivery is one push a provider sent, and what came of it.
+        GitHubApp:
+            type: object
+            properties:
+                appId:
+                    type: string
+                    description: The App's ID on GitHub.
+                slug:
+                    type: string
+                    description: Its slug, as its pages' addresses name it, such as "dockwell-deploy".
+                owner:
+                    type: string
+                    description: The account that owns it, a person's or an organization's, such as "acme".
+                ownerIsOrganization:
+                    type: boolean
+                    description: Whether that account is an organization.
+                clientId:
+                    type: string
+                    description: Its client ID, which is public.
+                privateKey:
+                    type: string
+                    description: Its private key, PEM, which signs the App's JWTs.
+                webhookSecret:
+                    type: string
+                    description: The secret GitHub signs the App's deliveries with.
+                previousWebhookSecret:
+                    type: string
+                    description: |-
+                        The secret before the newest, which a delivery already sent may be signed
+                         with until previous_until.
+                previousUntil:
+                    type: string
+                    description: When the secret before the newest stops counting, in Unix seconds.
+                keyFingerprint:
+                    type: string
+                    description: |-
+                        The private key's SHA-256 fingerprint, as GitHub shows it beside each of the
+                         App's keys.
+                reaches:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/GitHubInstallationReach'
+                    description: |-
+                        Which projects each installation reaches. One that isn't here reaches every
+                         project, as a registry login does.
+                hookId:
+                    type: string
+                    description: |-
+                        The ID in the App's webhook's address, /hooks/github/<hook_id>, made as
+                         connecting began, before the App was: what GitHub sends finds the App by it.
+            description: |-
+                GitHubApp is a GitHub App Dockwell made through GitHub's manifest flow, kind
+                 "github.app" (ADR 0098). It lives in the organization: an admin connects it, and
+                 says which projects each of its installations reaches. Its private key and
+                 webhook secret stay on the control plane, which alone opens them, to sign the
+                 JWTs it asks GitHub for narrowed tokens with, and to check what GitHub sends: no
+                 agent, plan, event or log holds them. Dockwell writes the App as GitHub's
+                 answers have it; an edit changes which projects an installation reaches, and
+                 leaves the rest out to keep it.
+        GitHubAppInfo:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: Its ID, gha_….
+                name:
+                    type: string
+                    description: Its slug, as its page's address names it.
+                appId:
+                    type: string
+                    description: Its ID on GitHub.
+                owner:
+                    type: string
+                    description: The account that owns it.
+                ownerIsOrganization:
+                    type: boolean
+                htmlUrl:
+                    type: string
+                    description: Its page on GitHub, and its settings there.
+                settingsUrl:
+                    type: string
+                keyFingerprint:
+                    type: string
+                    description: The fingerprint of the key Dockwell signs with, as GitHub shows it.
+                installations:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/GitHubInstallation'
+                delivery:
+                    allOf:
+                        - $ref: '#/components/schemas/GitHubDelivery'
+                    description: |-
+                        Whether GitHub's deliveries reach the panel, as the App's own deliveries
+                         last said.
+                gone:
+                    type: boolean
+                    description: 'GitHub refuses the App: deleted on GitHub, or its key removed there.'
+                revision:
+                    type: string
+                    description: |-
+                        The App's revision, which an edit of which projects its installations reach
+                         names as its base_revision, so it can't put back what another made since.
+                         An admin's alone.
+            description: |-
+                GitHubAppInfo is a connected GitHub App, as anyone may see it: its key and webhook
+                 secret are never in an answer.
+        GitHubDelivery:
+            type: object
+            properties:
+                state:
+                    enum:
+                        - STATE_UNSPECIFIED
+                        - STATE_UNKNOWN
+                        - STATE_REACHED
+                        - STATE_POLLING
+                        - STATE_BACKING_OFF
+                    type: string
+                    format: enum
+                checkedTime:
+                    type: string
+                    description: When it was last checked.
+                    format: date-time
+                checkEverySeconds:
+                    type: integer
+                    description: While polling, how often each app's branch is checked.
+                    format: int32
+                backoffUntil:
+                    type: string
+                    description: While backing off, when checks start again.
+                    format: date-time
+                secretRefused:
+                    type: boolean
+                    description: |-
+                        The panel refused GitHub's newest delivery: the webhook secret GitHub signs
+                         with isn't the one Dockwell keeps, so pushes don't come through until the
+                         App has a new one. Dockwell checks for pushes meanwhile.
+            description: |-
+                GitHubDelivery is whether GitHub's deliveries reach the panel, and so whether
+                 Dockwell checks for pushes itself.
+        GitHubInstallation:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: GitHub's ID for it.
+                account:
+                    type: string
+                    description: The account it's installed on.
+                organization:
+                    type: boolean
+                allRepositories:
+                    type: boolean
+                    description: Whether it reaches every repository the account has.
+                repositoryCount:
+                    type: integer
+                    description: How many repositories it reaches.
+                    format: int32
+                suspended:
+                    type: boolean
+                removed:
+                    type: boolean
+                projects:
+                    type: array
+                    items:
+                        type: string
+                    description: The projects it reaches, by ID; empty with every_project.
+                everyProject:
+                    type: boolean
+                    description: It reaches every project.
+                settingsUrl:
+                    type: string
+                    description: Its settings on GitHub, where repositories are added.
+            description: GitHubInstallation is where a GitHub App is installed.
+        GitHubInstallationReach:
+            type: object
+            properties:
+                installationId:
+                    type: string
+                    description: The installation's ID on GitHub.
+                projects:
+                    type: array
+                    items:
+                        type: string
+                    description: The projects, by ID. Empty is none.
+            description: |-
+                GitHubInstallationReach is which projects one of a GitHub App's installations
+                 reaches: their apps may build from its repositories.
+        GitRepository:
+            type: object
+            properties:
+                fullName:
+                    type: string
+                    description: As GitHub names it, such as "acme/web".
+                url:
+                    type: string
+                    description: Its address, as a build's source names it.
+                private:
+                    type: boolean
+                defaultBranch:
+                    type: string
+                appId:
+                    type: string
+                    description: The App, by ID, and the installation that reaches it.
+                installationId:
+                    type: string
+                account:
+                    type: string
+            description: GitRepository is a repository a project's apps may build from, through an App.
         GitSource:
             type: object
             properties:
@@ -16327,6 +16841,15 @@ components:
                          login for a registry on the server's loopback can't be given, and a build with
                          logins reads its Dockerfile with Docker's own frontend (ADR 0086). Numbered in
                          the block registry logins hold, 100 to 109.
+                gitLogin:
+                    type: string
+                    description: |-
+                        What fetches a private repository: a GitHub App's installation, as
+                         "<App name>/<installation ID>", whose token for the repository alone the
+                         control plane asks for as each read and build needs one (ADR 0098). A plan
+                         names it where one installation of the project reaches the repository and
+                         the edit leaves it out. Empty fetches as the public. Numbered after the
+                         registry logins, as ADR 0098 has it.
             description: |-
                 ImageBuild says how Dockwell builds a service's image from source, with
                  BuildKit and a Dockerfile.
@@ -17869,6 +18392,22 @@ components:
                          open work adds to this message.
                     format: uint32
             description: ListFilesResponse is what a directory holds.
+        ListGitProvidersResponse:
+            type: object
+            properties:
+                apps:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/GitHubAppInfo'
+            description: ListGitProvidersResponse is every connected App.
+        ListGitRepositoriesResponse:
+            type: object
+            properties:
+                repositories:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/GitRepository'
+            description: ListGitRepositoriesResponse is what the project's apps may build from.
         ListHealthResponse:
             type: object
             properties:
@@ -17977,6 +18516,12 @@ components:
                     description: |-
                         The repository's URL, such as "https://github.com/acme/web.git", which
                          the CLI takes as --repository.
+                project:
+                    type: string
+                    description: |-
+                        The project whose app builds from it, by ID or name. A repository one of
+                         its GitHub App installations reaches is read through that installation,
+                         private or not, as the project's builds fetch it (ADR 0098).
             description: ListRepositoryBranchesRequest names a repository to ask for its branches.
         ListRepositoryBranchesResponse:
             type: object
@@ -17995,6 +18540,11 @@ components:
                     type: integer
                     description: How many branches it has in all, when more than are listed.
                     format: int32
+                gitLogin:
+                    type: string
+                    description: |-
+                        The GitHub App installation it was read through, as a build names it,
+                         "<App name>/<installation ID>"; empty where it was read as the public do.
             description: ListRepositoryBranchesResponse is a repository's branches, as it says them.
         ListResourcesResponse:
             type: object
@@ -21584,6 +22134,30 @@ components:
                         - $ref: '#/components/schemas/Change'
                     description: The change, planned, with its plan.
             description: RemoveCatalogSourceResponse is the change that removes it.
+        RemoveGitHubAppRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The App, by ID.
+                proof:
+                    type: string
+                    description: The proof from AuthService.FinishStepUp, for removing a GitHub App.
+            description: RemoveGitHubAppRequest names an App and proves a passkey.
+        RemoveGitHubAppResponse:
+            type: object
+            properties:
+                uninstalled:
+                    type: integer
+                    description: How many installations it was uninstalled from.
+                    format: int32
+                deleteUrl:
+                    type: string
+                    description: Where it's deleted on GitHub.
+                changeId:
+                    type: string
+                    description: The change that removes it.
+            description: RemoveGitHubAppResponse says what was uninstalled, and where to delete the App.
         RemoveMemberRequest:
             type: object
             properties:
@@ -21641,6 +22215,34 @@ components:
             type: object
             properties: {}
             description: RemovePasskeyResponse is empty.
+        ReplaceGitHubPrivateKeyRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The App, by ID.
+                privateKey:
+                    type: string
+                    description: The private key's file, as GitHub's page downloads it, PEM.
+                proof:
+                    type: string
+                    description: The proof from AuthService.FinishStepUp, for a GitHub App's new secret or key.
+            description: ReplaceGitHubPrivateKeyRequest is an App's new key, and a passkey's proof.
+        ReplaceGitHubPrivateKeyResponse:
+            type: object
+            properties:
+                fingerprint:
+                    type: string
+                    description: The new key's fingerprint, and the old one's, which to delete on GitHub.
+                oldFingerprint:
+                    type: string
+                keysUrl:
+                    type: string
+                    description: The App's page on GitHub where its keys are.
+                changeId:
+                    type: string
+                    description: The change that keeps the new key.
+            description: ReplaceGitHubPrivateKeyResponse says which key to delete on GitHub.
         Resource:
             type: object
             properties:
@@ -22276,6 +22878,23 @@ components:
                     type: string
                     description: The new secret, only here.
             description: RotateGitHookSecretResponse is the hook, and its new secret.
+        RotateGitHubWebhookSecretRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The App, by ID.
+                proof:
+                    type: string
+                    description: The proof from AuthService.FinishStepUp, for a GitHub App's new secret or key.
+            description: RotateGitHubWebhookSecretRequest names an App and proves a passkey.
+        RotateGitHubWebhookSecretResponse:
+            type: object
+            properties:
+                changeId:
+                    type: string
+                    description: The change that keeps the new secret.
+            description: RotateGitHubWebhookSecretResponse is the change that keeps the new secret.
         Route:
             type: object
             properties:
@@ -25026,6 +25645,12 @@ components:
                         A provider people sign in to private routes with, kind "signin.provider"
                          (ADR 0087). Numbered in the block private routes hold, 110 to 119, past the
                          alerts' 110 to 113.
+                githubApp:
+                    allOf:
+                        - $ref: '#/components/schemas/GitHubApp'
+                    description: |-
+                        A GitHub App Dockwell made, kind "github.app" (ADR 0098). Numbered in the
+                         block Git providers hold, 130 to 139.
             description: |-
                 Spec is the desired state of one resource, of any kind: the field that is
                  set says which. Edits in the API carry specs in it, so one message takes
@@ -25076,6 +25701,28 @@ components:
                         True when the file changed after the sshd that listens last read it, so
                          this value isn't what runs yet.
             description: SshSource is a line that sets one of sshd's values.
+        StartGitHubAppRequest:
+            type: object
+            properties:
+                organization:
+                    type: string
+                    description: |-
+                        The GitHub organization that owns the App and its repositories, by its
+                         name; empty for the signed-in person's own account on GitHub.
+                proof:
+                    type: string
+                    description: The proof from AuthService.FinishStepUp, for connecting GitHub.
+            description: StartGitHubAppRequest names the account the App is for, and proves a passkey.
+        StartGitHubAppResponse:
+            type: object
+            properties:
+                actionUrl:
+                    type: string
+                    description: Where the browser posts the manifest, with its state.
+                manifest:
+                    type: string
+                    description: The manifest, as JSON, which the browser posts as the form's "manifest".
+            description: StartGitHubAppResponse is the form the browser posts to GitHub.
         StateStore:
             type: object
             properties:
@@ -26957,6 +27604,18 @@ tags:
          environment plans and waits for a person (ADR 0071). Making one, a new secret
          for one, and letting one deploy without waiting take a signed-in person and a
          passkey; a write token may delete one.
+    - name: GitProviderService
+      description: |-
+        GitProviderService connects GitHub as an App Dockwell makes through GitHub's
+         manifest flow, so apps build from private repositories the App is installed on,
+         and deploy on push with nothing to paste. See
+         docs/adr/0098-connecting-github-as-an-app.md.
+
+         The App's private key and webhook secret stay on the control plane: no answer
+         holds them, nor a token Dockwell asks GitHub for. Connecting it, a new secret
+         or key, and removing it take an admin, signed in, with a passkey. Which
+         projects an installation reaches is the github.app resource's, changed with
+         ChangeService as a plan.
     - name: HealthService
       description: |-
         HealthService says how services are, as far as anything checked, from what

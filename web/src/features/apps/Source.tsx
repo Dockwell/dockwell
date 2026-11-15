@@ -24,11 +24,13 @@ import { useAuthError } from "../auth/messages";
 import { withStepUpIfAsked } from "../auth/stepUp";
 import { useSignedInUser } from "../auth/useAuthState";
 import { useAgoNow } from "../servers/useFleet";
+import { installationOf, useDeliveryWords, useGitHubApps, useGitRepositories } from "../settings/github";
 import { CopyButton } from "../system/CopyCommand";
 import { useApp, useRevisions } from "./AppContext";
 import { environmentOf, nameOf } from "./app";
 import { shortCommit, shownRepository } from "./Build";
 import { type GitHost, gitHost, hookOutOfReach } from "./gitHost";
+import { sameRepository } from "./RepositoryField";
 import { usePlaces } from "./useServices";
 
 import "./Source.css";
@@ -58,12 +60,57 @@ export function SourcePanel() {
               <code>{shownRepository(source.url)}</code>
             )}
             <Tag icon="branch">{shownRef(source.ref) || t`default branch`}</Tag>
+            {build?.gitLogin ? <ThroughApp login={build.gitLogin} url={source.url} /> : null}
           </dd>
           <LastCommit serviceId={service.id} source={source} />
         </dl>
         <DeployOnPush source={source} host={host} />
       </div>
     </Panel>
+  );
+}
+
+/**
+ * Which GitHub App installation a private repository is fetched through, and where
+ * it can't any more, that fact with the way to fix it on GitHub (ADR 0098).
+ */
+function ThroughApp({ login, url }: { login: string; url: string }) {
+  const { t } = useLingui();
+  const { service } = useApp();
+  const places = usePlaces();
+  const apps = useGitHubApps().data?.apps;
+  const project = places.place(environmentOf(service))?.scope ?? "";
+  const reached = useGitRepositories(project);
+  const found = installationOf(apps, login);
+  const account = found?.installation?.account ?? "";
+  if (found?.app.gone) {
+    return (
+      <span className="app-source-line is-warning">
+        <Icon name="alert" size={14} />
+        <span>{t`The GitHub App was deleted on GitHub.`}</span>
+        <Link to="/settings/integrations" className="app-panel-link">
+          {t`Connect again`}
+        </Link>
+      </span>
+    );
+  }
+  const listed = reached.data?.repositories;
+  if (listed && !listed.some((r) => sameRepository(r.url, url))) {
+    const name = gitHost(url)?.path || shownRepository(url);
+    return (
+      <span className="app-source-line is-warning">
+        <Icon name="alert" size={14} />
+        <span>{t`The GitHub App can't reach ${name} any more.`}</span>
+        {found?.installation?.settingsUrl ? (
+          <a className="app-panel-link" href={found.installation.settingsUrl} target="_blank" rel="noreferrer">
+            {t`Add it on GitHub`}
+          </a>
+        ) : null}
+      </span>
+    );
+  }
+  return (
+    <span className="app-muted">{account ? t`through the GitHub App on ${account}` : t`through the GitHub App`}</span>
   );
 }
 
@@ -143,10 +190,12 @@ function DeployOnPush({ source, host }: { source: GitSource; host: GitHost | und
         const res = await withStepUpIfAsked(transport, StepUpAction.CREATE_GIT_HOOK, service.id, (proof) =>
           hooks.createGitHook({ id: service.id, proof }),
         );
-        setOpen({ secret: res.secret });
+        // Pushes through a GitHub App need nothing set on the repository: no sheet, no secret (ADR 0098).
+        if (!res.hook?.githubApp) setOpen({ secret: res.secret });
       } else {
         await hooks.deleteGitHook({ id: service.id });
-        setTurnedOff(true);
+        // A hook through a GitHub App has nothing on the repository to remove.
+        setTurnedOff(!hook?.githubApp);
       }
     } catch (err) {
       setProblem(explain(err) || sentence(err));
@@ -165,9 +214,12 @@ function DeployOnPush({ source, host }: { source: GitSource; host: GitHost | und
         label={t`Deploy on push`}
         description={offer.reason || (on ? pushes : t`Pushes to ${branch} don't deploy ${name}.`)}
       />
-      {hook ? (
-        <HookLine hook={hook} source={source} host={host} onOpen={() => setOpen({})} />
-      ) : turnedOff && host ? (
+      {hook ? <HookLine hook={hook} source={source} host={host} onOpen={() => setOpen({})} /> : null}
+      {hook?.githubApp ? (
+        // Pushes through a GitHub App have no sheet: whether they wait is chosen here.
+        <WithoutWaiting hook={hook} guarded={guarded} onChanged={() => void query.refetch()} />
+      ) : null}
+      {!hook && turnedOff && host ? (
         <p className="app-source-line">
           <span className="app-muted">{t`The hook now refuses pushes. Remove it from the repository too.`}</span>
           <a className="app-panel-link" href={host.hooksPage.replace(/\/new$/, "")} target="_blank" rel="noreferrer">
@@ -212,6 +264,7 @@ function HookLine({
 }) {
   const { t } = useLingui();
   const last = hook.deliveries[0];
+  if (hook.githubApp) return <AppHookLine hook={hook} />;
   if (hookOutOfReach(hook.url, source.url)) {
     const who = host?.name || t`The repository's host`;
     return (
@@ -230,6 +283,46 @@ function HookLine({
       <button type="button" className="app-panel-link" onClick={onOpen}>
         {last ? t`Hook settings` : t`Set up`}
       </button>
+    </p>
+  );
+}
+
+/**
+ * Pushes through a GitHub App's one webhook, in one line: the last push, or that
+ * pushes come through the App; where GitHub can't reach the panel, that Dockwell
+ * checks for pushes itself, with the fix (ADR 0098).
+ */
+function AppHookLine({ hook }: { hook: GitHook }) {
+  const { t } = useLingui();
+  const words = useDeliveryWords();
+  const app = useGitHubApps().data?.apps.find((a) => a.name === hook.githubApp);
+  const delivery = words(app?.delivery);
+  const last = hook.deliveries[0];
+  if (delivery.refused) {
+    return (
+      <p className="app-source-line is-warning">
+        <Icon name="alert" size={14} />
+        <span>{delivery.text}</span>
+        <Link to="/settings/integrations" className="app-panel-link">
+          {t`Open Integrations`}
+        </Link>
+      </p>
+    );
+  }
+  if (delivery.unreached) {
+    return (
+      <p className="app-source-line is-warning">
+        <Icon name="alert" size={14} />
+        <span>{delivery.text}</span>
+        <Link to="/settings/general" className="app-panel-link">
+          {t`Give the panel a domain`}
+        </Link>
+      </p>
+    );
+  }
+  return (
+    <p className="app-source-line">
+      {last ? <LastPush delivery={last} /> : <span className="app-muted">{delivery.text}</span>}
     </p>
   );
 }
@@ -318,36 +411,8 @@ function HookSheet({
   const may = useMay();
   const where = { environment: environmentOf(service) };
   const mayRotate = may(GitHookService.method.rotateGitHookSecret, where);
-  // Where it's protected, only an admin may set it, and it's its maker's choice.
-  const me = useSignedInUser();
-  const chooses =
-    guarded && may(GitHookService.method.setGitHookRole, where).allowed && hook.createdBy?.id === me?.id && !!me;
-  const place = usePlaces().label(where.environment) || t`this environment`;
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string>();
-  const [choosing, setChoosing] = useState(false);
-  const [unchosen, setUnchosen] = useState<string>();
-
-  const choose = async (withoutWaiting: boolean) => {
-    setChoosing(true);
-    setUnchosen(undefined);
-    const hooks = createClient(GitHookService, transport);
-    try {
-      if (withoutWaiting) {
-        // Your browser asks for your passkey, to confirm it's you, once nothing else stops it.
-        await withStepUpIfAsked(transport, StepUpAction.WIDEN_GIT_HOOK, service.id, (proof) =>
-          hooks.setGitHookRole({ id: service.id, role: Role.ADMIN, proof }),
-        );
-      } else {
-        await hooks.setGitHookRole({ id: service.id, role: Role.DEVELOPER });
-      }
-    } catch (err) {
-      setUnchosen(explain(err) || sentence(err));
-    } finally {
-      setChoosing(false);
-      onChanged();
-    }
-  };
   const name = nameOf(service);
   const hostName = host?.name ?? "";
   const urlLabel =
@@ -437,21 +502,67 @@ function HookSheet({
             {problem}
           </Callout>
         ) : null}
-        {chooses ? (
-          <Switch
-            checked={hook.role === Role.ADMIN}
-            disabled={choosing}
-            onChange={(next) => void choose(next)}
-            label={t`Deploy without waiting`}
-            description={t`Each push into ${place} applies with no person's approval.`}
-          />
-        ) : null}
-        {unchosen ? (
-          <Callout tone="critical" title={t`Deploy without waiting didn't change`}>
-            {unchosen}
-          </Callout>
-        ) : null}
+        <WithoutWaiting hook={hook} guarded={guarded} onChanged={onChanged} />
       </div>
     </Sheet>
+  );
+}
+
+/**
+ * Deploy without waiting (ADR 0071): where the app's environment is protected, a
+ * hook's push plans its deploy for a person to apply, unless the hook's maker, an
+ * admin there, lets it deploy without waiting, which takes their passkey. It's
+ * theirs alone to choose; anyone else sees nothing here.
+ */
+function WithoutWaiting({ hook, guarded, onChanged }: { hook: GitHook; guarded: boolean; onChanged: () => void }) {
+  const { t } = useLingui();
+  const { service } = useApp();
+  const transport = useTransport();
+  const explain = useAuthError();
+  const may = useMay();
+  const where = { environment: environmentOf(service) };
+  const me = useSignedInUser();
+  const chooses =
+    guarded && may(GitHookService.method.setGitHookRole, where).allowed && hook.createdBy?.id === me?.id && !!me;
+  const place = usePlaces().label(where.environment) || t`this environment`;
+  const [choosing, setChoosing] = useState(false);
+  const [unchosen, setUnchosen] = useState<string>();
+
+  const choose = async (withoutWaiting: boolean) => {
+    setChoosing(true);
+    setUnchosen(undefined);
+    const hooks = createClient(GitHookService, transport);
+    try {
+      if (withoutWaiting) {
+        // Your browser asks for your passkey, to confirm it's you, once nothing else stops it.
+        await withStepUpIfAsked(transport, StepUpAction.WIDEN_GIT_HOOK, service.id, (proof) =>
+          hooks.setGitHookRole({ id: service.id, role: Role.ADMIN, proof }),
+        );
+      } else {
+        await hooks.setGitHookRole({ id: service.id, role: Role.DEVELOPER });
+      }
+    } catch (err) {
+      setUnchosen(explain(err) || sentence(err));
+    } finally {
+      setChoosing(false);
+      onChanged();
+    }
+  };
+  if (!chooses) return null;
+  return (
+    <>
+      <Switch
+        checked={hook.role === Role.ADMIN}
+        disabled={choosing}
+        onChange={(next) => void choose(next)}
+        label={t`Deploy without waiting`}
+        description={t`Each push into ${place} applies with no person's approval.`}
+      />
+      {unchosen ? (
+        <Callout tone="critical" title={t`Deploy without waiting didn't change`}>
+          {unchosen}
+        </Callout>
+      ) : null}
+    </>
   );
 }

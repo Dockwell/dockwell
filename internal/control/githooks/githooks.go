@@ -61,7 +61,10 @@ type Config struct {
 	Builds Canceller
 	// Sources reads what a branch names now.
 	Sources revision.Sources
-	Logger  *slog.Logger
+	// Apps are the GitHub Apps Dockwell made, whose one webhook carries the pushes
+	// of every app they reach (ADR 0098). Nil has every hook its own.
+	Apps   Apps
+	Logger *slog.Logger
 }
 
 // Handler implements GitHookService, and receives deliveries.
@@ -274,6 +277,25 @@ func (h *Handler) CreateGitHook(ctx context.Context, req *connect.Request[dockwe
 			fmt.Errorf("%s builds commit %s, which no push moves, so deploy on push would do nothing. Have it build a branch first", r.Name, short(g.GetRef())), "no_branch")
 	}
 	client, _ := authapi.ClientFrom(ctx)
+	// A repository a GitHub App reaches for the service's project deploys on push
+	// through the App, with nothing to paste (ADR 0098).
+	if h.cfg.Apps != nil {
+		app, err := h.cfg.Apps.Serves(ctx, g.GetUrl(), r.ID)
+		if err != nil {
+			return nil, h.internal(ctx, "reading which GitHub App reaches a repository", err)
+		}
+		if app != "" {
+			made, err := h.cfg.Auth.CreateAppGitHook(ctx, client, p, r.ID, m.GetProof())
+			if err != nil {
+				return nil, authapi.AuthError(ctx, h.cfg.Logger, err)
+			}
+			hook, err := h.proto(ctx, made, nil)
+			if err != nil {
+				return nil, err
+			}
+			return connect.NewResponse(&dockwellv1.CreateGitHookResponse{Hook: hook}), nil
+		}
+	}
 	made, err := h.cfg.Auth.CreateGitHook(ctx, client, p, r.ID, m.GetProof())
 	if err != nil {
 		return nil, authapi.AuthError(ctx, h.cfg.Logger, err)
@@ -386,6 +408,10 @@ func (h *Handler) proto(ctx context.Context, hook store.GitHook, deliveries []st
 		Id: hook.ID, ServiceId: hook.ResourceID, Url: h.url(ctx, hook.ID),
 		CreateTime: timestamppb.New(hook.CreatedAt), SecretTime: timestamppb.New(hook.SecretAt),
 		Role: authapi.RoleProto(hook.Role),
+	}
+	if hook.Via == store.ViaGitHub {
+		// Its pushes come through the App's one webhook: it has no URL of its own.
+		out.Url, out.GithubApp = "", h.appOf(ctx, hook.ResourceID)
 	}
 	for i := range deliveries {
 		out.Deliveries = append(out.Deliveries, deliveryProto(&deliveries[i]))
@@ -511,4 +537,21 @@ func short(c string) string {
 		return c[:7]
 	}
 	return c
+}
+
+// appOf names the GitHub App whose installation reaches the service's repository
+// now, or "" where none does any more.
+func (h *Handler) appOf(ctx context.Context, serviceID string) string {
+	if h.cfg.Apps == nil {
+		return ""
+	}
+	b, _, _, err := h.cfg.Services.BuildOf(ctx, serviceID, "", "")
+	if err != nil || b.GetGit() == nil {
+		return ""
+	}
+	name, err := h.cfg.Apps.Serves(ctx, b.GetGit().GetUrl(), serviceID)
+	if err != nil {
+		return ""
+	}
+	return name
 }

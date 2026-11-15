@@ -346,6 +346,11 @@ func main() {
 	if addr := os.Getenv("FAKEDOCKER_CLOUDFLARE"); addr != "" {
 		serveCloudflare(addr)
 	}
+	// GitHub's pages and API, for the control plane to connect as an App, where a
+	// test names one (DOCKWELL_TEST_GITHUB, ADR 0098).
+	if addr := os.Getenv("FAKEDOCKER_GITHUB"); addr != "" {
+		serveGitHub(addr)
+	}
 	e.BindError = func(source string) string {
 		if strings.HasPrefix(source, "/readonly") {
 			return "mkdir " + source + ": read-only file system"

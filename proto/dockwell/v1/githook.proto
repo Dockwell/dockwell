@@ -119,6 +119,9 @@ message GitHook {
   google.protobuf.Timestamp secret_time = 6;
   // Its newest deliveries, newest first, at most 20.
   repeated GitHookDelivery deliveries = 7;
+  // The GitHub App its pushes come through, by name, for a hook with no URL or
+  // secret of its own: the App's one webhook carries them (ADR 0098).
+  string github_app = 8;
   // The role it acts as at most in its service's project: ROLE_DEVELOPER, so a
   // push into a protected environment waits for a person, or ROLE_ADMIN, so it
   // deploys there too. ROLE_UNSPECIFIED is its maker's role.
