@@ -73,6 +73,10 @@ type Config struct {
 type Handler struct {
 	cfg Config
 
+	// changing holds an App's change of its secret or key: one at a time, each
+	// from the App as it is then, so two never start from the same secret.
+	changing sync.Mutex
+
 	mu sync.Mutex
 	// starting is each connection begun, by the hash of its state.
 	starting map[string]starting
@@ -619,29 +623,41 @@ func (h *Handler) RotateGitHubWebhookSecret(ctx context.Context, req *connect.Re
 	if err != nil {
 		return nil, authapi.AuthError(ctx, h.cfg.Logger, err)
 	}
+	h.changing.Lock()
+	defer h.changing.Unlock()
+	if k, err = h.one(ctx, k.r.ID); err != nil {
+		giveBack()
+		return nil, err
+	}
 	app, err := h.acting(k)
 	if err != nil {
 		giveBack()
 		return nil, h.internal(ctx, "opening the App's key", err)
 	}
-	secret := randomHex(32)
+	// Dockwell keeps the new secret first, the old one still counting, so a push
+	// GitHub signs with either is taken while GitHub moves to the new one; only
+	// then is GitHub given it. Nothing GitHub sends between is refused.
+	old, secret := k.spec.GetWebhookSecret(), randomHex(32)
+	keep := func(summary, now, before string) (string, error) {
+		return h.change(ctx, summary, k.r.Name, &resourcev1.GitHubApp{
+			WebhookSecret: now, PreviousWebhookSecret: before, PreviousUntil: h.now().Add(keepOldSecret).Unix(),
+			Reaches: k.spec.GetReaches(),
+		})
+	}
+	changeID, err := keep("Give the GitHub App "+k.r.Name+" a new webhook secret", secret, old)
+	if err != nil {
+		giveBack()
+		return nil, err
+	}
 	err = app.SetHook(ctx, "", secret)
 	h.noted(k.r.ID, err)
 	if err != nil {
-		giveBack()
-		return nil, fromGitHub("the new webhook secret", err)
-	}
-	spec := &resourcev1.GitHubApp{
-		WebhookSecret: secret, PreviousWebhookSecret: k.spec.GetWebhookSecret(), PreviousUntil: h.now().Add(keepOldSecret).Unix(),
-		Reaches: k.spec.GetReaches(),
-	}
-	changeID, err := h.change(ctx, "Give the GitHub App "+k.r.Name+" a new webhook secret", k.r.Name, spec)
-	if err != nil {
-		// GitHub has the new secret, and Dockwell still the old: put it back.
-		if back := app.SetHook(ctx, "", k.spec.GetWebhookSecret()); back != nil {
-			h.cfg.Logger.ErrorContext(ctx, "GitHub kept the App's new webhook secret, which Dockwell didn't", slog.String("app", k.r.Name), slog.String("error", back.Error()))
+		// GitHub may sign with either now, as a call that failed may have reached it:
+		// the old secret is Dockwell's again, and the new one counts as long.
+		if _, back := keep("Keep the GitHub App "+k.r.Name+"'s webhook secret, as GitHub didn't take a new one", old, secret); back != nil {
+			h.cfg.Logger.ErrorContext(ctx, "can't keep a GitHub App's webhook secret after GitHub didn't take a new one", slog.String("app", k.r.Name), slog.String("error", back.Error()))
 		}
-		return nil, err
+		return nil, fromGitHub("the new webhook secret", err)
 	}
 	if err := h.cfg.DB.Update(ctx, func(tx *store.Tx) error {
 		return h.audit(ctx, tx, p.Actor(), "github_app.rotate_secret", k.r.ID, "a new webhook secret, the old one counting 10 minutes more")
@@ -673,6 +689,12 @@ func (h *Handler) ReplaceGitHubPrivateKey(ctx context.Context, req *connect.Requ
 	giveBack, err := h.cfg.Auth.HoldStepUp(ctx, client, p, req.Msg.GetProof(), auth.StepUpRotateGitHubApp, k.r.ID)
 	if err != nil {
 		return nil, authapi.AuthError(ctx, h.cfg.Logger, err)
+	}
+	h.changing.Lock()
+	defer h.changing.Unlock()
+	if k, err = h.one(ctx, k.r.ID); err != nil {
+		giveBack()
+		return nil, err
 	}
 	trial := &github.App{ID: k.spec.GetAppId(), Key: key, Base: h.cfg.API, Client: h.cfg.Client, Now: h.cfg.Now}
 	if _, err := trial.Self(ctx); err != nil {
