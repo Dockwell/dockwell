@@ -124,17 +124,17 @@ func TestDowntimeCountsTheHealthCheck(t *testing.T) {
 // instead; others are host access, which a person approves.
 func TestServerPathsNoContainerMayMount(t *testing.T) {
 	for path, want := range map[string]string{
-		"/":                         "is the server's whole file system",
-		"/proc/1":                   "is in /proc",
-		"/sys":                      "is in /sys",
-		"/dev/sda":                  "is in /dev",
-		"/boot/grub":                "is in /boot",
-		"/var/lib/dockwell":         "is in Dockwell's data directory, /var/lib/dockwell",
-		"/var/lib/dockwell/agent":   "is in Dockwell's data directory",
-		"/var/lib/docker/volumes/x": "is in Docker's data directory, /var/lib/docker",
-		"/var":                      "holds Dockwell's data directory",
-		"/var/lib":                  "holds Dockwell's data directory",
-		"//var//lib//dockwell//":    "is in Dockwell's data directory",
+		"/dev/sda":                       "is in /dev",
+		"/boot/grub":                     "is in /boot",
+		"/var/lib/dockwell":              "is in Dockwell's data directory, /var/lib/dockwell",
+		"/var/lib/dockwell/agent":        "is in Dockwell's data directory",
+		"/var/lib/docker/volumes/x":      "is in Docker's data directory, /var/lib/docker",
+		"/var/lib/docker":                "is in Docker's data directory, /var/lib/docker",
+		"/var/lib/docker/containers/abc": "is in Docker's data directory, /var/lib/docker",
+		"/dev/urandom2":                  "is in /dev",
+		"/var":                           "holds Dockwell's data directory",
+		"/var/lib":                       "holds Dockwell's data directory",
+		"//var//lib//dockwell//":         "is in Dockwell's data directory",
 	} {
 		c := &resourcev1.Container{Image: "alpine", Mounts: []*resourcev1.Mount{{Source: &resourcev1.Mount_HostPath{HostPath: path}, Target: "/host"}}}
 		err := container.Validate(c)
@@ -1054,6 +1054,59 @@ func TestARealTimePriorityIsAccess(t *testing.T) {
 		}
 		if !slices.Equal(got, c.want) {
 			t.Errorf("%s: capabilities asked %v, want %v", name, got, c.want)
+		}
+	}
+}
+
+// Some server paths a container may mount only where a person chose it, each the
+// same as root: /proc even read-only, /sys read-only alone, Docker's folder of
+// every container's log, /dev/disk and the whole of /. A volume's bind still can't name them. The
+// kernel's random numbers, read-only, are no host access at all, and refused
+// read-write (ADR 0097, "Server paths a person chooses").
+func TestServerPathsAPersonChooses(t *testing.T) {
+	mount := func(p string, readOnly bool) *resourcev1.Container {
+		return &resourcev1.Container{Image: "alpine", Mounts: []*resourcev1.Mount{{Source: &resourcev1.Mount_HostPath{HostPath: p}, Target: "/host", ReadOnly: readOnly}}}
+	}
+	for _, p := range []string{"/proc", "/proc/1", "/var/lib/docker/containers", "/dev/disk", "/dev/disk/by-id", "/", "//proc"} {
+		for _, readOnly := range []bool{true, false} {
+			c := mount(p, readOnly)
+			if err := container.Validate(c); err != nil {
+				t.Errorf("mounting %s (read-only %v) = %v", p, readOnly, err)
+				continue
+			}
+			access := container.ServiceAccess(c)
+			if len(access) != 1 || !access[0].AsGoodAsRoot() || !container.ChoiceOnlyPath(access[0].Path) {
+				t.Errorf("mounting %s (read-only %v) reaches %+v", p, readOnly, access)
+			}
+		}
+		if err := container.DefaultHost.CheckPath(p, "the server path "+p+" that the volume binds"); err == nil {
+			t.Errorf("a volume binding %s passes", p)
+		}
+	}
+	// /sys, read-only alone: a container only needs to read the kernel's settings.
+	for _, p := range []string{"/sys", "/sys/kernel/tracing"} {
+		c := mount(p, true)
+		if err := container.Validate(c); err != nil {
+			t.Errorf("reading %s = %v", p, err)
+		} else if access := container.ServiceAccess(c); len(access) != 1 || !access[0].SameAsRoot || !container.ChoiceOnlyPath(access[0].Path) {
+			t.Errorf("reading %s reaches %+v", p, access)
+		}
+		if err := container.Validate(mount(p, false)); err == nil || !strings.Contains(err.Error(), "a container only needs to read them. Mount it read-only") {
+			t.Errorf("writing %s = %v", p, err)
+		}
+	}
+	for _, p := range []string{"/srv/app", "/var/lib/docker", "/system", "/proc2"} {
+		if container.ChoiceOnlyPath(p) {
+			t.Errorf("%s is a path a person chooses", p)
+		}
+	}
+	for _, p := range []string{"/dev/urandom", "/dev/random"} {
+		c := mount(p, true)
+		if err := container.Validate(c); err != nil || len(container.ServiceAccess(c)) != 0 {
+			t.Errorf("reading %s = %v, reaching %v", p, err, container.ServiceAccess(c))
+		}
+		if err := container.Validate(mount(p, false)); err == nil || !strings.Contains(err.Error(), "Mount it read-only") {
+			t.Errorf("writing %s = %v", p, err)
 		}
 	}
 }

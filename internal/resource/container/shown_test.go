@@ -110,3 +110,19 @@ func TestADatabasePasswordThatIsOneOfItsNamesIsGuessable(t *testing.T) {
 		}
 	}
 }
+
+// A variable named for a secret that holds a flag holds a setting, not a secret, so
+// it shows nothing wherever its value is (the gaps survey of #604). A short value
+// that isn't one still counts.
+func TestAFlagIsNoSecret(t *testing.T) {
+	for _, v := range []string{"1", "0", "true", "False", "YES", "no"} {
+		app := &resourcev1.Container{Image: "formbricks:1.0", Hostname: "yes-no-true-false", Env: map[string]string{"PASSWORD_RESET_DISABLED": v}}
+		if got := valuesShown(app); len(got) != 0 {
+			t.Errorf("PASSWORD_RESET_DISABLED=%s shows %q", v, got)
+		}
+	}
+	app := &resourcev1.Container{Image: "formbricks:1.2", Env: map[string]string{"ADMIN_PASSWORD": "2"}}
+	if got := valuesShown(app); !slices.Equal(got, []string{"the value of ADMIN_PASSWORD in its image"}) {
+		t.Errorf("a short password that isn't a flag shows %q", got)
+	}
+}

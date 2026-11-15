@@ -1143,6 +1143,10 @@ func app(name string, s *types.ServiceConfig, uses []resource.Use, p *model) (*r
 		case v.Type == types.VolumeTypeBind && !path.IsAbs(v.Source):
 			return nil, invalidAt(at, "%s mounts %s, a path relative to the Compose file, and Dockwell doesn't know where the file is on the server. "+
 				"Pass the directory it is in, as directory (--directory on the CLI), or use an absolute path, such as /srv/%s/data, or a named volume", what, v.Source, name)
+		case v.Type == types.VolumeTypeBind && container.ChoiceOnlyPath(v.Source):
+			// What a person may choose for a container taken on, a file they import
+			// can't ask for, as ADR 0097 has it of devices.
+			return nil, invalidAt(at, "%s mounts the server path %s, which is the same as root to reach, so Dockwell takes it on only from a running container a person chooses it for. Mount only the folder it needs, or a volume", what, v.Source)
 		case v.Type == types.VolumeTypeBind:
 			m.Source = &resourcev1.Mount_HostPath{HostPath: v.Source}
 		default:

@@ -1540,10 +1540,16 @@ func testHostAccessNeedsAPerson(t *testing.T, backend store.Backend) {
 	}
 
 	// A path no container may mount is refused as the change is proposed.
+	boot := &resourcev1.Mount{Source: &resourcev1.Mount_HostPath{HostPath: "/boot"}, Target: "/host"}
+	_, err = script.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Mount the server's boot", Edits: []*dockwellv1.Edit{web("nginx:1.28", boot)}}))
+	if err == nil || !strings.Contains(err.Error(), "the server path /boot mounted at /host is in /boot") {
+		t.Errorf("proposing a mount of /boot = %v, want it refused", err)
+	}
+	// The whole of /, a spec may hold, as it may a device, and its plan is the same
+	// as root, which needs a person (ADR 0097, "Server paths a person chooses").
 	root := &resourcev1.Mount{Source: &resourcev1.Mount_HostPath{HostPath: "/"}, Target: "/host"}
-	_, err = script.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Mount the server", Edits: []*dockwellv1.Edit{web("nginx:1.28", root)}}))
-	if err == nil || !strings.Contains(err.Error(), "the server path / mounted at /host is the server's whole file system") {
-		t.Errorf("proposing a mount of / = %v, want it refused", err)
+	if got := propose(t, script, "Mount the server", web("nginx:1.28", root)); !got.GetPlan().GetHostAccess() || !strings.Contains(got.GetPlan().String(), "HOST_ACCESS_KIND_DOCKER") {
+		t.Errorf("proposing a mount of / plans %v", got.GetPlan())
 	}
 }
 

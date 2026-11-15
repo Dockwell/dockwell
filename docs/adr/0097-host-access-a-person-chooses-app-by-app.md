@@ -45,6 +45,16 @@ What was settled already:
 - **An agent that can't run them gets none.** One from before would make the container without them, so an agent says it runs them (`Hello.runs_host_access`, 337), and the control plane plans, applies and remembers none on one that doesn't, with how to update it. The fields that came beside them, `Healthcheck.start_interval` and `Container.network_aliases`, go through the same gate, and one function names them all for the agent and the control plane.
 - **Making a Swarm app again asks the same choice,** by the app's ID. 1Panel's import has none to make, so an app of it that needs some is left, saying the take-on that chooses it: `dockwell compose adopt --name <project> --host-access`, or `AdoptCompose` with `host_access`.
 
+### Server paths a person chooses
+
+*Added 2026-11-14, from the gaps survey of #604.*
+
+About 10 of the panels' templates mount a server path no container could mount at all: monitoring and log tools read the server's processes, the kernel's settings or every container's log, a file manager the whole of the server, and Metabase, in both panels, the kernel's random numbers.
+
+- **Five become host access a person chooses, app by app, each the same as root:** `/proc` and what's in it, read-only or not, as it shows every process and its environment; `/sys` and what's in it, read-only alone, as it shows the kernel's devices and settings, and refused read-write, as a container only needs to read them; Docker's folder of every container's log, `<Docker's data directory>/containers`, which holds each one's output, secrets included; `/dev/disk` and what's in it; and the whole of `/`, which also holds Docker's socket. A container taken on asks for the choice as for a device: Move in's checkbox, `host_access` on the take-on, and a plan that shows it in red. Every other system path still refuses (`/boot`, the rest of `/dev`, and Docker's and Dockwell's data directories), and none of the five may be a volume's bind.
+- **`/dev/urandom` and `/dev/random`, mounted read-only, are no host access at all:** every container reads them already. They're taken on with no choice and show nothing in a plan. Mounted read-write, they're refused, with how to fix it.
+- **A Compose file a person imports, and a catalog app, still can't ask for the five,** as for devices: the converter refuses them, saying they're taken on only from a running container a person chooses them for. A spec a person writes through the API can hold them, as it can a device, and its plan is the same as root, which only a signed-in admin applies.
+
 ### Numbers
 
 `Container` 101 to 105, `Device` and `Gpus`; `HostAccessKind` 170 to 174 (`DEVICE`, `GPUS`, `SECURITY_OPTION`, `HOST_PROCESSES`, `ROOT_TOGETHER`); `Hello.runs_host_access` 337; `ImportCoolifyRequest.host_access` and `ImportDokployRequest.host_access` 3, `AdoptComposeRequest.host_access` 5, `AdoptContainerRequest.host_access` 6, `ImportStep.app_id` 8 and `needs_host_access` 9; the plan's `root_devices` is in its stored JSON, not the API.

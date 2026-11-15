@@ -113,6 +113,66 @@ func (h Host) CheckPath(p, what string) error {
 	return nil
 }
 
+// choiceOnly reports a server path a container may mount only where a person
+// chose it as host access, which is the same as root: the kernel's view of the
+// server's processes, read-only or not, its devices and settings, read-only
+// alone (CheckMount), the server's disks by their names, Docker's folder of every
+// container's log, secrets included, and the whole of the server (ADR 0097,
+// "Server paths a person chooses"). Every other path refuse names stays refused,
+// as does each of these for a volume's bind.
+func (h Host) choiceOnly(p string) bool {
+	p = path.Clean(p)
+	if p == "/" || within(p, "/proc") || within(p, "/sys") || within(p, "/dev/disk") {
+		return true
+	}
+	return slices.ContainsFunc(h.DockerRoots, func(d string) bool { return d != "" && p == path.Join(d, "containers") })
+}
+
+// ChoiceOnlyPath reports a server path a container may mount only where a person
+// chose it, as the control plane reads it (DefaultHost), for what has to ask that
+// choice or refuse it, as an import of a Compose file does.
+func ChoiceOnlyPath(p string) bool { return DefaultHost.choiceOnly(p) }
+
+// randomDevices are the kernel's random numbers, which every container reads
+// already: mounted read-only, one gives it nothing it lacks.
+var randomDevices = []string{"/dev/urandom", "/dev/random"}
+
+// harmlessDevice reports a mount of one of randomDevices, read-only: no host
+// access at all.
+func harmlessDevice(p string, readOnly bool) bool {
+	return readOnly && slices.Contains(randomDevices, path.Clean(p))
+}
+
+// CheckMount is CheckPath for a server path a container mounts, which may also be
+// one a person chooses (choiceOnly), or a random device read-only (randomDevices).
+// readOnly says how it's mounted.
+func (h Host) CheckMount(p, what string, readOnly bool) error {
+	clean := path.Clean(p)
+	switch {
+	case slices.Contains(randomDevices, clean) && !readOnly:
+		return fmt.Errorf("%s can write to the kernel's random numbers, which a container only needs to read. Mount it read-only", what)
+	case slices.Contains(randomDevices, clean):
+		return nil
+	case within(clean, "/sys") && !readOnly:
+		return fmt.Errorf("%s can change the kernel's settings, and a container only needs to read them. Mount it read-only", what)
+	case !h.choiceOnly(clean):
+		return h.CheckPath(p, what)
+	case h.Resolve == nil:
+		return nil
+	}
+	to, err := h.Resolve(p)
+	if errors.Is(err, resource.ErrPathNotAnswering) {
+		return err
+	}
+	if err != nil {
+		return fmt.Errorf("can't follow %s on this server to check where it leads: %w. Mount a path the agent can read", what, err)
+	}
+	if why := h.refuse(to); to != clean && why != "" && !h.choiceOnly(to) {
+		return fmt.Errorf("%s leads to %s through a symlink, and %s %s, so no container may mount it. %s", what, to, to, why, instead)
+	}
+	return nil
+}
+
 // refuse says why no container may mount p, or nothing.
 func (h Host) refuse(p string) string {
 	if p == "/" {
@@ -178,7 +238,7 @@ func ServiceAccess(c *resourcev1.Container) []resource.Access {
 func mountAccess(c *resourcev1.Container) []resource.Access {
 	var out []resource.Access
 	for _, m := range c.GetMounts() {
-		if p := m.GetHostPath(); p != "" {
+		if p := m.GetHostPath(); p != "" && !harmlessDevice(p, m.GetReadOnly()) {
 			// Making the folder, owned by a user, writes to the server, however the
 			// container reads it.
 			a := PathAccess(p, m.GetReadOnly() && m.GetMakeOwner() == "")
@@ -291,7 +351,7 @@ func (d *Docker) CheckHost(ctx context.Context, t Target, spec *resourcev1.Conta
 	}
 	for _, m := range spec.GetMounts() {
 		if p := m.GetHostPath(); p != "" {
-			if err := h.CheckPath(p, fmt.Sprintf("the server path %s mounted at %s", p, m.GetTarget())); err != nil {
+			if err := h.CheckMount(p, fmt.Sprintf("the server path %s mounted at %s", p, m.GetTarget()), m.GetReadOnly()); err != nil {
 				return err
 			}
 			continue

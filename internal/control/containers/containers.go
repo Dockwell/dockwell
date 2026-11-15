@@ -193,6 +193,13 @@ func HostAccessNeeded(app *resourcev1.Container) []string {
 			}
 		case resource.AccessHostProcesses:
 			out = append(out, "the server's processes")
+		case resource.AccessPath, resource.AccessDocker:
+			// A server path a container may mount only where a person chose it,
+			// the whole of / among them, which holds Docker's socket (ADR 0097,
+			// "Server paths a person chooses").
+			if container.ChoiceOnlyPath(a.Path) {
+				out = append(out, a.Path)
+			}
 		}
 	}
 	return out

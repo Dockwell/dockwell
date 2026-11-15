@@ -444,7 +444,7 @@ func TestCheckCompose(t *testing.T) {
 			t.Errorf("checking a build = %v", res)
 		}
 		res = check("services:\n  sh:\n    image: alpine\n    volumes: [\"/:/host\"]\n", nil)
-		if got := res.GetRefusal(); !strings.Contains(got.GetMessage(), "the server's whole file system") || got.GetLine() == 0 {
+		if got := res.GetRefusal(); !strings.Contains(got.GetMessage(), "mounts the server path /, which is the same as root to reach") || got.GetLine() == 0 {
 			t.Errorf("checking a mount of / = %v", res)
 		}
 

@@ -34,19 +34,19 @@ func convertPlain(t *testing.T, c *Converter, file string, fields ...Field) Resu
 // reaches, and what its volumes and networks reach, as the plan counts them.
 func TestNothingThatReachesItsServerConvertsUnlooked(t *testing.T) {
 	for name, tc := range map[string]struct{ file, reaches string }{
-		"a volume that binds /":           {"services:\n  a:\n    image: example/a:1.0\n    volumes:\n      - root:/host\nvolumes:\n  root:\n    driver: local\n    driver_opts:\n      type: none\n      o: bind\n      device: /\n", "volume root: control of Docker, through /"},
-		"a volume that binds Docker's":    {"services:\n  a:\n    image: example/a:1.0\n    volumes:\n      - run:/var/run\nvolumes:\n  run:\n    driver_opts:\n      type: none\n      o: bind\n      device: /var/run\n", "volume run: control of Docker, through /var/run"},
-		"an NFS volume":                   {"services:\n  a:\n    image: example/a:1.0\n    volumes:\n      - share:/share\nvolumes:\n  share:\n    driver_opts:\n      type: nfs\n      o: addr=192.0.2.10,rw\n      device: \":/export\"\n", "volume share: a mount nfs 192.0.2.10 :/export"},
-		"a plugin's volume":               {"services:\n  a:\n    image: example/a:1.0\n    volumes:\n      - plugin:/p\nvolumes:\n  plugin:\n    driver: local-persist\n    driver_opts:\n      mountpoint: /etc\n", "volume plugin: a mount local-persist /etc"},
-		"a macvlan network":               {"services:\n  a:\n    image: example/a:1.0\n    networks: [lan]\nnetworks:\n  lan:\n    driver: macvlan\n    driver_opts:\n      parent: eth0\n", "network lan: the macvlan network driver eth0"},
-		"a bridge that binds elsewhere":   {"services:\n  a:\n    image: example/a:1.0\n    networks: [n]\nnetworks:\n  n:\n    driver_opts:\n      com.docker.network.bridge.host_binding_ipv4: 0.0.0.0\n", "network n: the bridge network driver com.docker.network.bridge.host_binding_ipv4=0.0.0.0"},
-		"privileged through a merge key":  {"x-base: &base\n  privileged: true\nservices:\n  a:\n    <<: *base\n    image: example/a:1.0\n", "a: every privilege"},
-		"a capability":                    {"services:\n  a:\n    image: example/a:1.0\n    cap_add: [SYS_ADMIN]\n", "a: the capability"},
-		"/ through an alias":              {"x-v: &v\n  - /:/host\nservices:\n  a:\n    image: example/a:1.0\n    volumes: *v\n", "a: control of Docker, through /"},
-		"a folder a person names":         {"services:\n  a:\n    image: example/a:1.0\n    volumes:\n      - ${PANEL_DATA}:/data\n", "a: a server path a person names, ${DATA}"},
-		"Docker's group":                  {"services:\n  a:\n    image: example/a:1.0\n    group_add: [docker]\n", "a:"},
-		"/etc/localtime, writable":        {"services:\n  a:\n    image: example/a:1.0\n    volumes:\n      - /etc/localtime:/etc/localtime\n", "a: the server path /etc/localtime"},
-		"a network named as the server's": {"services:\n  a:\n    image: example/a:1.0\n    networks: [n]\nnetworks:\n  n:\n    name: bridge\n", ""},
+		"a volume that binds /":            {"services:\n  a:\n    image: example/a:1.0\n    volumes:\n      - root:/host\nvolumes:\n  root:\n    driver: local\n    driver_opts:\n      type: none\n      o: bind\n      device: /\n", "volume root: control of Docker, through /"},
+		"a volume that binds Docker's":     {"services:\n  a:\n    image: example/a:1.0\n    volumes:\n      - run:/var/run\nvolumes:\n  run:\n    driver_opts:\n      type: none\n      o: bind\n      device: /var/run\n", "volume run: control of Docker, through /var/run"},
+		"an NFS volume":                    {"services:\n  a:\n    image: example/a:1.0\n    volumes:\n      - share:/share\nvolumes:\n  share:\n    driver_opts:\n      type: nfs\n      o: addr=192.0.2.10,rw\n      device: \":/export\"\n", "volume share: a mount nfs 192.0.2.10 :/export"},
+		"a plugin's volume":                {"services:\n  a:\n    image: example/a:1.0\n    volumes:\n      - plugin:/p\nvolumes:\n  plugin:\n    driver: local-persist\n    driver_opts:\n      mountpoint: /etc\n", "volume plugin: a mount local-persist /etc"},
+		"a macvlan network":                {"services:\n  a:\n    image: example/a:1.0\n    networks: [lan]\nnetworks:\n  lan:\n    driver: macvlan\n    driver_opts:\n      parent: eth0\n", "network lan: the macvlan network driver eth0"},
+		"a bridge that binds elsewhere":    {"services:\n  a:\n    image: example/a:1.0\n    networks: [n]\nnetworks:\n  n:\n    driver_opts:\n      com.docker.network.bridge.host_binding_ipv4: 0.0.0.0\n", "network n: the bridge network driver com.docker.network.bridge.host_binding_ipv4=0.0.0.0"},
+		"privileged through a merge key":   {"x-base: &base\n  privileged: true\nservices:\n  a:\n    <<: *base\n    image: example/a:1.0\n", "a: every privilege"},
+		"a capability":                     {"services:\n  a:\n    image: example/a:1.0\n    cap_add: [SYS_ADMIN]\n", "a: the capability"},
+		"Docker's socket through an alias": {"x-v: &v\n  - /var/run/docker.sock:/var/run/docker.sock\nservices:\n  a:\n    image: example/a:1.0\n    volumes: *v\n", "a: control of Docker, through /var/run/docker.sock"},
+		"a folder a person names":          {"services:\n  a:\n    image: example/a:1.0\n    volumes:\n      - ${PANEL_DATA}:/data\n", "a: a server path a person names, ${DATA}"},
+		"Docker's group":                   {"services:\n  a:\n    image: example/a:1.0\n    group_add: [docker]\n", "a:"},
+		"/etc/localtime, writable":         {"services:\n  a:\n    image: example/a:1.0\n    volumes:\n      - /etc/localtime:/etc/localtime\n", "a: the server path /etc/localtime"},
+		"a network named as the server's":  {"services:\n  a:\n    image: example/a:1.0\n    networks: [n]\nnetworks:\n  n:\n    name: bridge\n", ""},
 	} {
 		t.Run(name, func(t *testing.T) {
 			r := convertPlain(t, converter(), tc.file, Field{Name: "PANEL_DATA", Kind: Text, Default: "./data"})
@@ -419,7 +419,7 @@ func TestAnOverlayCanMakeASecret(t *testing.T) {
 // What a person looked at is what converts: an app that reaches more, or less, waits
 // for them to look again.
 func TestHostAccessIsWhatAPersonLookedAt(t *testing.T) {
-	file := "services:\n  ddns:\n    image: example/ddns:1.0\n    network_mode: host\n    privileged: true\n    volumes:\n      - /:/host\n      - /var/run/docker.sock:/var/run/docker.sock\n"
+	file := "services:\n  ddns:\n    image: example/ddns:1.0\n    network_mode: host\n    privileged: true\n    volumes:\n      - /var/run/docker.sock:/var/run/docker.sock\n"
 	app := App{ID: "ddns", Name: "DDNS", Version: "1.0", Compose: []byte(file)}
 	c := converter()
 	c.Overlays["ddns"] = Overlay{
@@ -431,7 +431,7 @@ func TestHostAccessIsWhatAPersonLookedAt(t *testing.T) {
 		t.Fatalf("%s: %q", r.Class, r.LeftOut)
 	}
 	c.Overlays["ddns"] = Overlay{Entry: c.Overlays["ddns"].Entry, Reaches: []string{
-		"ddns: control of Docker, through /", "ddns: control of Docker, through /var/run/docker.sock", "ddns: every privilege",
+		"ddns: control of Docker, through /var/run/docker.sock", "ddns: every privilege",
 		"ddns: the same as root, with privileged mode", "ddns: the server's own network",
 	}}
 	if r := c.Convert(t.Context(), app); r.Entry == nil {
@@ -600,6 +600,18 @@ func TestHostAccessOfADR0097HasWords(t *testing.T) {
 	} {
 		if w := words(&a); strings.HasPrefix(w, "what Dockwell counts as") {
 			t.Errorf("%v reads %q", a.Kind, w)
+		}
+	}
+}
+
+// What a container may reach only where a person chose it, as it runs, a catalog
+// app can't ask for: the four server paths ADR 0097 makes a choice of are refused,
+// as its devices are.
+func TestACatalogAppCantAskForAServerPathAPersonChooses(t *testing.T) {
+	for _, p := range []string{"/", "/proc", "/var/lib/docker/containers", "/dev/disk/by-id"} {
+		r := convertPlain(t, converter(), "services:\n  a:\n    image: example/a:1.0\n    volumes:\n      - "+p+":/host:ro\n")
+		if r.Entry != nil || !strings.Contains(r.LeftOut, "mounts the server path "+p+", which is the same as root to reach") {
+			t.Errorf("%s: %s %q", p, r.Class, r.LeftOut)
 		}
 	}
 }

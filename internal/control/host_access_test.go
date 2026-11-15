@@ -3,6 +3,7 @@
 package control
 
 import (
+	"fmt"
 	"regexp"
 	"slices"
 	"strings"
@@ -433,5 +434,68 @@ func TestAnImportTakesOnAGuessablePasswordWhereChosen(t *testing.T) {
 	}
 	if res.GetChange() == nil || n != 1 {
 		t.Errorf("the plan %v, with %d choices on Activity", res.GetChange().GetId(), n)
+	}
+}
+
+// A server path that's the same as root to reach is taken on only where a person
+// chooses it, as a device is, each one: /proc read-only, /sys read-only, Docker's
+// folder of every container's log, /dev/disk and /. The kernel's random numbers read-only need no
+// choice, as they're no host access. A Compose file a person imports can't ask for
+// the rest (ADR 0097, "Server paths a person chooses").
+func TestServerPathsAreAChoice(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	cc := containerClient(b, b.origin)
+	for i, m := range []struct {
+		path     string
+		readOnly bool
+	}{{"/proc", true}, {"/sys", true}, {"/var/lib/docker/containers", true}, {"/dev/disk", true}, {"/", false}} {
+		name := fmt.Sprintf("watcher-%d", i)
+		runByHand(t, e, name, func(r *docker.CreateRequest) {
+			r.HostConfig.PortBindings = nil
+			bind := m.path + ":/host"
+			if m.readOnly {
+				bind += ":ro"
+			}
+			r.HostConfig.Binds = []string{bind}
+		})
+		_, err := cc.AdoptContainer(t.Context(), connect.NewRequest(&dockwellv1.AdoptContainerRequest{Id: name, Project: "default"}))
+		if reasonOf(err) != "needs_host_access" || !strings.Contains(err.Error(), "needs host access, "+m.path+",") {
+			t.Errorf("%s unchosen = %v", m.path, err)
+			continue
+		}
+		res, err := cc.AdoptContainer(t.Context(), connect.NewRequest(&dockwellv1.AdoptContainerRequest{Id: name, Project: "default", HostAccess: true}))
+		if err != nil {
+			t.Errorf("%s chosen = %v", m.path, err)
+			continue
+		}
+		if !regexp.MustCompile(`path:"` + regexp.QuoteMeta(m.path) + `"[^}]*same_as_root:true|kind:HOST_ACCESS_KIND_DOCKER\s+path:"` + regexp.QuoteMeta(m.path) + `"`).MatchString(res.Msg.GetChange().GetPlan().String()) {
+			t.Errorf("%s isn't the same as root in the plan: %v", m.path, res.Msg.GetChange().GetPlan())
+		}
+	}
+
+	runByHand(t, e, "chart", func(r *docker.CreateRequest) {
+		r.HostConfig.PortBindings = nil
+		r.HostConfig.Binds = []string{"/dev/urandom:/dev/random:ro"}
+	})
+	res, err := cc.AdoptContainer(t.Context(), connect.NewRequest(&dockwellv1.AdoptContainerRequest{Id: "chart", Project: "default"}))
+	if err != nil {
+		t.Fatalf("reading the kernel's random numbers = %v", err)
+	}
+	for _, r := range res.Msg.GetChange().GetPlan().GetResources() {
+		for _, a := range r.GetHostAccess() {
+			if a.GetKind() != dockwellv1.HostAccessKind_HOST_ACCESS_KIND_TAKES_ON {
+				t.Errorf("reading the kernel's random numbers reaches %v", a)
+			}
+		}
+	}
+
+	compose := dockwellv1connect.NewComposeServiceClient(b, b.origin, connect.WithProtoJSON())
+	_, err = compose.ImportCompose(t.Context(), connect.NewRequest(&dockwellv1.ImportComposeRequest{
+		Project: "default", Compose: "services:\n  netdata:\n    image: netdata/netdata:v2\n    volumes:\n      - /proc:/host/proc:ro\n",
+	}))
+	if err == nil || !strings.Contains(err.Error(), "mounts the server path /proc, which is the same as root to reach") {
+		t.Errorf("a Compose file mounting /proc = %v", err)
 	}
 }
