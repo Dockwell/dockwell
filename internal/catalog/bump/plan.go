@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -245,8 +246,23 @@ func (p *Planner) service(ctx context.Context, e *Entry, svc string, gives bool,
 			out = append(out, c)
 		}
 	}
-	current, _ := registry.MajorOf(ref.Tag)
-	out, majorWait := nextBeyond(out, current, eff.MajorsInOrder)
+	// The next step beyond goes by the first number, or for a database whose data
+	// moves by series, by the series: MariaDB 12.3 to 12.4 is a major of its own.
+	keyOf := func(tag string) []int {
+		if eff.Engine != nil && eff.Engine.MovesBySeries() {
+			if k := seriesKey(database.Series(eff.Engine, ref.Name()+":"+tag)); k != nil {
+				return k
+			}
+		}
+		m, _ := registry.MajorOf(tag)
+		return []int{m}
+	}
+	beyondAll := len(out)
+	out, majorWait := nextBeyond(out, ref.Tag, keyOf, eff.MajorsInOrder)
+	if beyondAll > 0 && len(out) == 0 {
+		// Never dropped without a word.
+		note = fmt.Sprintf("%s has %d newer tags past its level, %s, and none reads as the next step after %s, so none is offered.", svc, beyondAll, eff.Level, ref.Tag)
+	}
 	pick := func(list []registry.NewerTag, beyondLevel bool) *Step {
 		if len(list) == 0 {
 			return nil
@@ -261,14 +277,16 @@ func (p *Planner) service(ctx context.Context, e *Entry, svc string, gives bool,
 		p.check(ctx, s, e, svc, ref, byName[s.ToTag], gives, eff)
 		return s
 	}
-	return pick(in, false), pick(out, true), "", ""
+	return pick(in, false), pick(out, true), note, ""
 }
 
 // nextBeyond keeps, of the steps past a service's level, the next step alone: the
 // smallest kind there is, and for a major, the next major only, never two at once.
-// Where majors must go in order, a next major that isn't the one right after the
-// current one waits for a person, with why.
-func nextBeyond(out []registry.NewerTag, current int, inOrder bool) ([]registry.NewerTag, string) {
+// keyOf says which major a tag is in: its first number, or a database's series, so
+// MariaDB 12.4 comes before 13.0 (#726's review, M1). Where majors must go in order,
+// a next major that isn't the one right after the current one waits for a person,
+// with why.
+func nextBeyond(out []registry.NewerTag, currentTag string, keyOf func(string) []int, inOrder bool) ([]registry.NewerTag, string) {
 	if len(out) == 0 {
 		return nil, ""
 	}
@@ -276,25 +294,45 @@ func nextBeyond(out []registry.NewerTag, current int, inOrder bool) ([]registry.
 	for _, c := range out {
 		smallest = min(smallest, c.Kind)
 	}
-	var kept []registry.NewerTag
-	next := -1
+	current := keyOf(currentTag)
+	var next []int
 	for _, c := range out {
-		if c.Kind != smallest {
+		if c.Kind != smallest || smallest != registry.KindMajor {
 			continue
 		}
-		if smallest == registry.KindMajor && c.Major > current && (next < 0 || c.Major < next) {
-			next = c.Major
+		if k := keyOf(c.Tag); slices.Compare(k, current) > 0 && (next == nil || slices.Compare(k, next) < 0) {
+			next = k
 		}
 	}
+	var kept []registry.NewerTag
 	for _, c := range out {
-		if c.Kind == smallest && (smallest != registry.KindMajor || c.Major == next) {
+		if c.Kind == smallest && (smallest != registry.KindMajor || slices.Equal(keyOf(c.Tag), next)) {
 			kept = append(kept, c)
 		}
 	}
-	if smallest == registry.KindMajor && inOrder && next != current+1 {
-		return kept, fmt.Sprintf("Its majors go in order, and its next one among the tags read is %d, not %d", next, current+1)
+	// In order goes by the first number: a series of a database is next where
+	// it's the smallest above, which it is here.
+	if smallest == registry.KindMajor && inOrder && len(next) == 1 && len(current) == 1 && next[0] != current[0]+1 {
+		return kept, fmt.Sprintf("Its majors go in order, and its next one among the tags read is %d, not %d", next[0], current[0]+1)
 	}
 	return kept, ""
+}
+
+// seriesKey reads a database's series, such as "12.4" or "16", as numbers to
+// order by, or nil where there's none.
+func seriesKey(series string) []int {
+	if series == "" {
+		return nil
+	}
+	var out []int
+	for p := range strings.SplitSeq(series, ".") {
+		n, err := strconv.Atoi(p)
+		if err != nil {
+			return nil
+		}
+		out = append(out, n)
+	}
+	return out
 }
 
 // choose takes the newest version that's aged past its wait, else the newest.

@@ -346,3 +346,41 @@ func applyPatch(t *testing.T, dir string, patch []byte) string {
 	}
 	return string(after)
 }
+
+// mariaStand is the shop on MariaDB, which moves its data by series (12.3 to 12.4
+// is a series move within one first number).
+func mariaStand(t *testing.T, tags ...string) (*bumptest.Stand, string) {
+	t.Helper()
+	s := shopStand(t)
+	var list []bumptest.Tag
+	file := "Tags: "
+	for _, tag := range tags {
+		list = append(list, bumptest.Tag{Name: tag, Pushed: ago(30)})
+		file += tag + ", "
+	}
+	s.Images["library/mariadb"] = list
+	s.Hub["library/mariadb"] = true
+	s.Official["mariadb"] = strings.TrimSuffix(file, ", ") + "\n"
+	entry := strings.Replace(shopEntry("1.4.2"), image("postgres", "library/postgres", "17.2"), image("mariadb", "library/mariadb", "12.3.3"), 1)
+	return s, checkout(t, map[string]string{"shop": entry}, map[string]string{"shop": "gives: app\n"})
+}
+
+// A series move within one first number, the only step past the level, is offered
+// beyond, as the next major it is (#726's review, M1).
+func TestASeriesMoveAloneIsOfferedBeyond(t *testing.T) {
+	s, dir := mariaStand(t, "12.3.3", "12.3.4", "12.4.1")
+	r := plan(t, s, dir, "shop", nil)
+	if db := step(lane(r, bump.LaneBeyond), "db"); db == nil || db.ToTag != "12.4.1" {
+		t.Errorf("MariaDB 12.3 to 12.4, a series move, is offered beyond as %+v; notes %v", db, r.Notes)
+	}
+}
+
+// With a later first number there too, the lane beyond offers the series right
+// after, never two series moves at once.
+func TestTheNextSeriesComesFirst(t *testing.T) {
+	s, dir := mariaStand(t, "12.3.3", "12.3.4", "12.4.1", "13.0.2")
+	r := plan(t, s, dir, "shop", nil)
+	if db := step(lane(r, bump.LaneBeyond), "db"); db == nil || db.ToTag != "12.4.1" {
+		t.Errorf("the next series is 12.4, and the lane beyond offers %+v", db)
+	}
+}
