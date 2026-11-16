@@ -248,7 +248,13 @@ func TestRunBehindATunnelHoldsNoPublicPort(t *testing.T) {
 	if strings.Contains(logs.String(), "the panel's certificate") || strings.Contains(logs.String(), "acme.invalid") {
 		t.Errorf("dockwell run asked for a certificate behind a tunnel:\n%s", logs.String())
 	}
-
+	// dockwell recover's way round a domain that doesn't answer names the tunnel.
+	if got := whenDomainIsDown(panelAddress{Domain: "panel.example.com", BehindProxy: true}); !strings.Contains(got, "as when its tunnel or proxy is down") {
+		t.Errorf("recover behind a tunnel says %q", got)
+	}
+	if got := whenDomainIsDown(panelAddress{Domain: "panel.example.com"}); !strings.Contains(got, "as when this server's ingress is down") {
+		t.Errorf("recover with Dockwell serving it says %q", got)
+	}
 }
 
 // DOCKWELL_BEHIND_PROXY with no domain from dockwell run, as when the domain was set
