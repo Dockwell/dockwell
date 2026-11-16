@@ -11,10 +11,12 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"log/slog"
 	"maps"
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"slices"
 	"strings"
 	"sync"
@@ -71,6 +73,11 @@ type Sources struct {
 	Refs func(ctx context.Context, client *http.Client, url string) (gitfetch.Listing, error)
 	// Now is the time, time.Now unless a test sets it.
 	Now func() time.Time
+	// OnServer converts a store's commit, convert.OnServer unless a test sets it.
+	OnServer func(ctx context.Context, store convert.Store, l *convert.Listing, src convert.Source, committed time.Time, before uint32) (convert.Run, error)
+
+	// logger says what converting a store's app stopped on, set by New.
+	logger *slog.Logger
 
 	mu       sync.Mutex
 	read     map[string]sourceRead
@@ -223,12 +230,18 @@ func (s *Sources) files(ctx context.Context, spec *resourcev1.CatalogSource) (co
 	s.fetching[key] = f
 	slot := s.slot
 	s.mu.Unlock()
-	// The fetch is every waiting read's, so one that gives up doesn't end it.
-	f.files, f.err = s.fetchOne(context.WithoutCancel(ctx), slot, spec)
-	s.mu.Lock()
-	delete(s.fetching, key)
-	s.mu.Unlock()
-	close(f.done)
+	// The fetch is every waiting read's, so one that gives up doesn't end it. It's
+	// done however it ends, so a later read of the commit never waits on one that
+	// stopped (#570's re-check, N2).
+	func() {
+		defer func() {
+			s.mu.Lock()
+			delete(s.fetching, key)
+			s.mu.Unlock()
+			close(f.done)
+		}()
+		f.files, f.err = s.fetchOne(context.WithoutCancel(ctx), slot, spec)
+	}()
 	return f.files, f.err
 }
 
@@ -310,7 +323,17 @@ func (s *Sources) releaseBefore(spec *resourcev1.CatalogSource) uint32 {
 // fetchOne fetches a commit's files once the slot is free, within fetchWait of
 // asking, and keeps them for a plan. Another store's commit is fetched and converted
 // within budgets of their own (convertOne).
-func (s *Sources) fetchOne(parent context.Context, slot chan struct{}, spec *resourcev1.CatalogSource) (commitFiles, error) {
+func (s *Sources) fetchOne(parent context.Context, slot chan struct{}, spec *resourcev1.CatalogSource) (_ commitFiles, err error) {
+	// A source is a stranger's repository: whatever reading its commit stops on, as
+	// fetching or preparing its files, leaves the commit unread, saying so, as
+	// convertOne does a store's (#570's re-check, N2).
+	defer func() {
+		if p := recover(); p != nil {
+			s.log().ErrorContext(parent, "reading a catalog source stopped on what Dockwell didn't expect, so its commit isn't read",
+				slog.String("url", spec.GetRepository()), slog.String("commit", spec.GetCommit()), slog.String("panic", fmt.Sprint(p)), slog.String("stack", string(debug.Stack())))
+			err = fmt.Errorf("reading it stopped on what Dockwell didn't expect (%v)", p)
+		}
+	}()
 	ctx, cancel := context.WithTimeout(parent, fetchWait)
 	defer cancel()
 	select {

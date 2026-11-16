@@ -13,6 +13,7 @@ import (
 	"path"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"time"
 	"unicode"
 	"unicode/utf8"
@@ -467,10 +468,35 @@ func readShipped(ctx context.Context, c *Converter, l *Listing, apps []App, resu
 func (c *Converter) convertSafely(ctx context.Context, app App) (r Result) {
 	defer func() {
 		if p := recover(); p != nil {
-			r = Result{ID: app.ID, Path: app.Path, LeftOut: fmt.Sprintf("reading its files stopped on what Dockwell didn't expect (%v)", p), Class: ClassFile}
+			r = Result{ID: app.ID, Path: app.Path, LeftOut: fmt.Sprintf("%s (%v)", stoppedReading, p), Class: ClassFile, Panic: fmt.Sprint(p)}
 		}
 	}()
 	return c.Convert(ctx, app)
+}
+
+// stoppedReading is why an app whose reading or converting panicked is left out.
+const stoppedReading = "reading its files stopped on what Dockwell didn't expect"
+
+// beforeRead, where a test sets it, runs as readSafely starts reading an app, by
+// the name of its folder or file: a test's way to make a reader panic.
+var beforeRead atomic.Pointer[func(name string)]
+
+// readSafely reads one app of a store with read, and leaves it out, saying so, if
+// reading it panics, as convertSafely does converting it: a store is a stranger's,
+// read with nobody watching once a source follows a branch, so one app's files
+// never stop the rest, or the control plane (#570's review, H1). name is the app's
+// folder or file in the store, and at where it is.
+func readSafely(name, at string, read func() App) (app App) {
+	defer func() {
+		if p := recover(); p != nil {
+			id := strings.NewReplacer("_", "-", ".", "-").Replace(strings.ToLower(name))
+			app = App{ID: id, Name: name, Path: at, LeftOut: fmt.Sprintf("%s (%v)", stoppedReading, p), Class: ClassFile, Panic: fmt.Sprint(p)}
+		}
+	}()
+	if hook := beforeRead.Load(); hook != nil {
+		(*hook)(name)
+	}
+	return read()
 }
 
 // PrivateRegistry says an image names a registry that's this server, a private

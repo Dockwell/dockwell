@@ -65,7 +65,7 @@ func umbrelApps(ctx context.Context, t *tree, root string) ([]App, error) {
 			return nil, err
 		}
 		if d.IsDir() && t.isFile(path.Join(d.Name(), "umbrel-app.yml")) {
-			out = append(out, umbrelRead(t, d.Name()))
+			out = append(out, readSafely(d.Name(), d.Name(), func() App { return umbrelRead(t, d.Name()) }))
 		}
 	}
 	if len(out) == 0 {

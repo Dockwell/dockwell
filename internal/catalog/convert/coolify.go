@@ -64,7 +64,7 @@ func coolifyApps(ctx context.Context, t *tree, root string) ([]App, error) {
 		if !ok || d.IsDir() {
 			continue
 		}
-		out = append(out, coolifyRead(t, dir, name))
+		out = append(out, readSafely(name, path.Join(dir, name+".yaml"), func() App { return coolifyRead(t, dir, name) }))
 	}
 	if len(out) == 0 {
 		return nil, fmt.Errorf("Coolify's templates at %s: %w", root, ErrNoApps) //nolint:staticcheck // it starts with a name

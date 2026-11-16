@@ -1122,3 +1122,19 @@ func TestADirectoryOfEntries(t *testing.T) {
 		t.Errorf("a broken entry in the directory = %v", err)
 	}
 }
+
+// A secret inside a longer value in a YAML extension a service merges in, such as a
+// shared environment, is refused saying where it is, as Dockwell writes such a value
+// from a template only in a service's own environment (#570's review, L1).
+func TestCheckSaysASecretIsInAYAMLExtension(t *testing.T) {
+	c, err := catalog.Load("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	base, _ := c.Entry("postgres")
+	e := proto.CloneOf(base)
+	e.Compose = "x-env: &env\n  URL: postgres://u:${POSTGRES_PASSWORD}@db/x\n" + e.GetCompose()
+	if err := catalog.Check(e); err == nil || !strings.Contains(err.Error(), "the secret POSTGRES_PASSWORD is inside a longer value in x-env, a YAML extension a service merges in") {
+		t.Errorf("Check = %v", err)
+	}
+}

@@ -115,15 +115,20 @@ func TestDokployWritesWhatItsTemplateMakes(t *testing.T) {
 	}
 }
 
-func TestDokployLeavesOutWhatAnEntryCantSay(t *testing.T) {
+// A value a template makes up inside a longer one, such as a database URL, is an
+// input of its own the longer value names, which an entry says (#570). Before, it
+// was left out: "puts a value it makes up, db_password, inside a longer one".
+func TestDokployNamesAValueItMakesUpInsideALongerOne(t *testing.T) {
 	apps := appsOf(t, Dokploy, "testdata/dokploy")
-	for id, want := range map[string]string{
-		"urlsecret": "puts a value it makes up, db_password, inside a longer one",
-	} {
-		r := templateConverter(DokploySource("abc")).Convert(t.Context(), apps[id])
-		if r.Entry != nil || !strings.Contains(r.LeftOut, want) {
-			t.Errorf("%s: %q, want it left out as %q", id, r.LeftOut, want)
-		}
+	r := templateConverter(DokploySource("abc")).Convert(t.Context(), apps["urlsecret"])
+	if r.Entry == nil {
+		t.Fatal(r.LeftOut)
+	}
+	if file := r.Entry.GetCompose(); !strings.Contains(file, "DATABASE_URL=postgres://app:${DB_PASSWORD}@db:5432/app") {
+		t.Errorf("its file:\n%s", file)
+	}
+	if p := inputsByName(r.Entry)["DB_PASSWORD"]; p.GetType() != catalogv1.InputType_INPUT_TYPE_SECRET || p.GetGenerate() != 32 {
+		t.Errorf("DB_PASSWORD is %v, want a secret of 32 Dockwell generates", p)
 	}
 }
 
