@@ -16,6 +16,7 @@ import (
 	"github.com/dockwell/dockwell/internal/fault"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/connection"
+	"github.com/dockwell/dockwell/internal/resource/link"
 	"github.com/dockwell/dockwell/internal/resource/variable"
 	"github.com/dockwell/dockwell/internal/scope"
 	"github.com/dockwell/dockwell/internal/store"
@@ -190,7 +191,10 @@ func (e *Engine) checkReaches(ctx context.Context, tx *store.Tx, items []item, i
 	switch s := it.spec.(type) {
 	case *resourcev1.Link:
 		if s.GetConnection() != "" {
-			return e.checkConnectionReached(ctx, tx, items, it, s.GetConnection())
+			if err := e.checkConnectionReached(ctx, tx, items, it, s.GetConnection()); err != nil {
+				return err
+			}
+			return e.checkLinkPrefix(ctx, tx, items, it, s)
 		}
 		if err := e.checkLinkUser(ctx, tx, items, it, s); err != nil {
 			return err
@@ -291,6 +295,46 @@ func (e *Engine) checkConnectionLinks(ctx context.Context, tx *store.Tx, items [
 		}
 	}
 	return nil
+}
+
+// checkLinkPrefix refuses a link to a connection whose prefix meets another link's
+// to the same connection, made by an install, Connect storage or by hand alike: their
+// apps would overwrite and delete each other's files. It looks only at a link that's
+// new, or moves to another connection or prefix, so a link from before keeps its
+// place as it is. The refusal names no other project, as the person linking may not
+// see it.
+func (e *Engine) checkLinkPrefix(ctx context.Context, tx *store.Tx, items []item, it *item, l *resourcev1.Link) error {
+	if was, ok := it.current.(*resourcev1.Link); ok && was.GetConnection() == l.GetConnection() && was.GetPrefix() == l.GetPrefix() {
+		return nil
+	}
+	links, err := e.allLinks(ctx, tx, items)
+	if err != nil {
+		return err
+	}
+	var taken []string
+	for i := range links {
+		other := &links[i]
+		if other.ref == it.ref || other.GetConnection() != l.GetConnection() {
+			continue
+		}
+		taken = append(taken, other.GetPrefix())
+	}
+	if !slices.ContainsFunc(taken, func(p string) bool { return link.PrefixesMeet(l.GetPrefix(), p) }) {
+		return nil
+	}
+	where := cmp.Or(l.GetPrefix(), "the bucket's root")
+	if free := link.FreePrefix(l.GetPrefix(), taken); free != l.GetPrefix() {
+		return fault.New(ErrInvalid, "link %s keeps its files under %s on the connection %s, where another app keeps its files already, so each would overwrite the other's. Pick another prefix, such as %s",
+			it.ref.Name, where, l.GetConnection(), free)
+	}
+	// Beside a link that uses the bucket's root, no prefix keeps them apart (the slice
+	// 1 re-check, N2).
+	if slices.Contains(taken, "") {
+		return fault.New(ErrInvalid, "link %s keeps its files under %s on the connection %s, where another app keeps its files at the bucket's root already, so each would overwrite the other's and no prefix keeps them apart. Give it a connection of its own",
+			it.ref.Name, where, l.GetConnection())
+	}
+	return fault.New(ErrInvalid, "link %s keeps its files under %s on the connection %s, where another app keeps its files already, so each would overwrite the other's. Pick a prefix of its own",
+		it.ref.Name, where, l.GetConnection())
 }
 
 // connectionUnusable is the one refusal of a connection that isn't there and of one
@@ -614,11 +658,11 @@ func checkCopyFrom(items []item, it *item, u *resourcev1.DatabaseUser) error {
 // server is (ADR 0084, ADR 0071). To one who holds nothing where the link is, it
 // reads as not there.
 func (e *Engine) forLinkRoles(ctx context.Context, tx *store.Tx, grants []store.Grant, it *item, server spot, byID map[string]*item, a act) error {
-	link, err := e.load(ctx, tx, it.forLink)
+	linked, err := e.load(ctx, tx, it.forLink)
 	if err != nil {
 		return err
 	}
-	l, ok := link.current.(*resourcev1.Link)
+	l, ok := linked.current.(*resourcev1.Link)
 	if !ok || cmp.Or(l.GetMeetsEnvironment(), it.forLink.Scope) != it.ref.Scope {
 		return fault.New(ErrInvalid, "link %s doesn't meet the server %s is on, so nothing of it is done for that link", it.forLink.Name, it.ref.Name)
 	}

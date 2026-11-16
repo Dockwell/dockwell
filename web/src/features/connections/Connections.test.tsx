@@ -30,7 +30,7 @@ import { webPlanned } from "../../test/changes";
 import { type Api, feed, renderAt } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
 import { freeConnectionName, placeOf, provider } from "./providers";
-import { freeLinkName, suggestedStorage, suggestStoragePart } from "./storage";
+import { freeLinkName, freePrefix, suggestedStorage, suggestStoragePart } from "./storage";
 
 const R2 = "0123456789abcdef0123456789abcdef";
 
@@ -115,6 +115,16 @@ describe("what Dockwell works out for a connection", () => {
       ["S3_SECRET_ACCESS_KEY", LinkPart.SECRET_KEY],
     ]);
     expect(freeLinkName(["storage"])).toBe("storage-2");
+  });
+
+  // Slice 1 review, H2: two links on one connection never keep to one prefix.
+  it("picks a prefix no other link on the connection meets", () => {
+    expect(freePrefix("ghost/", [])).toBe("ghost/");
+    expect(freePrefix("ghost/", ["ghost/", "ghost-2/"])).toBe("ghost-3/");
+    expect(freePrefix("ghost/", ["ghost/media/"])).toBe("ghost-2/");
+    expect(freePrefix("ghost/", ["gh/"])).toBe("ghost/");
+    expect(freePrefix("ghost/", [""])).toBe("ghost/");
+    expect(freePrefix("ghost/media/", ["ghost/"])).toBe("ghost-2/");
   });
 });
 

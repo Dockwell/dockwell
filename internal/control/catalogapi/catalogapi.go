@@ -193,7 +193,14 @@ func (h *Handler) GetCatalogEntry(ctx context.Context, req *connect.Request[dock
 		h.logger.WarnContext(ctx, "couldn't say what a catalog entry installs", slog.String("entry", entry.GetId()), slog.String("error", err.Error()))
 		parts = nil
 	}
-	needs := needOptions(entry, catalog.WaysWith(entry, s.lookup(), h.candidates(ctx), ""))
+	// An install always makes a new project, so only a connection that reaches every
+	// project is one it may take. The request's project is a name to start from, never
+	// one whose connections the caller may read (ADR 0099).
+	conns, _, err := h.connectionWays(ctx, entry, "")
+	if err != nil {
+		return nil, h.internal(ctx, err)
+	}
+	needs := needOptions(entry, catalog.WithConnections(entry, catalog.WaysWith(entry, s.lookup(), h.candidates(ctx), ""), conns))
 	seen, err := h.seenProjects(ctx)
 	if err != nil {
 		return nil, h.internal(ctx, err)
@@ -363,7 +370,10 @@ func (h *Handler) InstallCatalogEntry(ctx context.Context, req *connect.Request[
 		return nil, authapi.ReasonError(connect.CodeInvalidArgument, err, "invalid")
 	}
 	pinNotes = append(pinNotes, lentNotes(chosen, filled.Plain, free.lent)...)
-	written := writtenEdits(needed, filled)
+	written, err := h.neededEdits(ctx, needed, filled)
+	if err != nil {
+		return nil, h.internal(ctx, err)
+	}
 	pin := pinTo(entry, from, filled, choice)
 	pin.Needs = needed.Pinned
 	shared, sharedOn, err := h.sharedEdits(ctx, needed, filled)
@@ -718,7 +728,10 @@ func (h *Handler) upgrade(ctx context.Context, m *dockwellv1.UpgradeCatalogInsta
 	if err != nil {
 		return nil, h.internal(ctx, err)
 	}
-	written := writtenEdits(needed, filled)
+	written, err := h.neededEdits(ctx, needed, filled)
+	if err != nil {
+		return nil, h.internal(ctx, err)
+	}
 	users, err := h.userEdits(ctx, install.GetEnvironmentId(), needed)
 	if err != nil {
 		return nil, h.internal(ctx, err)

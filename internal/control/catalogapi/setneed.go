@@ -138,7 +138,10 @@ func (h *Handler) SetCatalogNeed(ctx context.Context, req *connect.Request[dockw
 		return nil, err
 	}
 	notes = append(notes, moved.notes...)
-	written := writtenEdits(needed, filled)
+	written, err := h.neededEdits(ctx, needed, filled)
+	if err != nil {
+		return nil, err
+	}
 	shared, _, err := h.sharedEdits(ctx, needed, filled)
 	if err != nil {
 		return nil, err

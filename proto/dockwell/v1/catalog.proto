@@ -484,6 +484,13 @@ message CatalogNeedOption {
   string upgrade_install = 42;
   uint32 upgrade_release = 43;
   string upgrade_app = 44;
+  // A connection that meets it, by name, as choice names it ("connection:<name>"),
+  // and what the panel calls it, such as "Cloudflare R2 · outline-uploads": one the
+  // app's project may use, of the need's kind (ADR 0099). Below an admin, a
+  // connection reads by name and label alone. Numbered in the block ADR 0099's
+  // installs hold, 90 to 99.
+  string connection = 90;
+  string connection_label = 91;
 }
 
 // CatalogPart is one service an entry installs.

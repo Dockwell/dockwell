@@ -47,6 +47,9 @@ func needOptions(e *catalogv1.Entry, ways map[string][]catalog.Way) []*dockwellv
 		for i := range ways[n.GetName()] {
 			w := &ways[n.GetName()][i]
 			o := &dockwellv1.CatalogNeedOption{Need: n.GetName(), Choice: w.Choice(), Engine: w.Engine, Version: w.Version, Why: w.Why}
+			if c := w.Connection; c != nil {
+				o.Connection, o.ConnectionLabel = c.Name, c.Label
+			}
 			if w.From != nil {
 				o.Entry, o.EntryName = w.From.GetId(), w.From.GetName()
 			}
@@ -85,11 +88,22 @@ func (h *Handler) meetNeeds(ctx context.Context, s sourced, e *catalogv1.Entry, 
 				fmt.Errorf("%s is set by what meets %s's needs, so it takes no value of its own. Leave it out", name, e.GetName()), "invalid")
 		}
 	}
-	met, err := catalog.Meet(e, catalog.WaysWith(e, s.lookup(), candidates, ""), asked, pinned)
+	conns, unread, err := h.connectionWays(ctx, e, project)
 	if err != nil {
+		return nil, nil, err
+	}
+	met, err := catalog.Meet(e, catalog.WithConnections(e, catalog.WaysWith(e, s.lookup(), candidates, ""), conns), asked, pinned)
+	if err != nil {
+		// A connection the install reads that the control plane can't open says so,
+		// rather than that the project can't use it.
+		for _, p := range pinned {
+			if slices.Contains(unread, p.GetConnection()) {
+				err = fmt.Errorf("Dockwell can't read the connection %s, which the install's storage reads, so it stays on its release. Check that the control plane runs with the secrets key it was saved with", p.GetConnection()) //nolint:staticcheck // it starts with a name
+			}
+		}
 		return nil, nil, authapi.ReasonError(connect.CodeInvalidArgument, err, "invalid")
 	}
-	var notes []revision.Note
+	notes := unreadNotes(unread)
 	for _, name := range slices.Sorted(maps.Keys(met)) {
 		w := met[name]
 		if w.From != nil {
@@ -100,6 +114,12 @@ func (h *Handler) meetNeeds(ctx context.Context, s sourced, e *catalogv1.Entry, 
 			w.From = from
 			met[name] = w
 			notes = append(notes, pins...)
+		}
+		// A link to a connection the install makes plans with no check of the bucket
+		// yet, and says so, with what the app needs it to allow (the slice 1 review,
+		// M4). The check before planning is the next slice's.
+		if c := w.Connection; c != nil && pinned[name].GetConnection() != c.Name {
+			notes = append(notes, revision.Note{Reason: ConnectionUncheckedNote, Message: uncheckedWords(e, w)})
 		}
 		// An optional need a release adds is left unset: the app runs as it did.
 		if _, had := pinned[name]; pinned != nil && !had && !w.Unset {
@@ -148,11 +168,30 @@ func restartsForNeeds(e *catalogv1.Entry, pin *resourcev1.CatalogPin, needed *ca
 	return out
 }
 
+// ConnectionUncheckedNote is a plan note's reason for a link to a connection the
+// install makes, whose bucket Dockwell hasn't checked from where the app runs.
+const ConnectionUncheckedNote = "catalog_connection_unchecked"
+
+// uncheckedWords say that Dockwell hasn't checked a connection an install links to,
+// what that means, and what the app needs the bucket to allow.
+func uncheckedWords(e *catalogv1.Entry, w catalog.Way) string {
+	words := fmt.Sprintf("Dockwell hasn't checked the connection %s from where %s runs yet, so a bucket that refuses %s shows only once it runs", cmp.Or(w.Connection.Label, w.Connection.Name), e.GetName(), e.GetName())
+	if fs := catalog.NeedFeatures(w.Need); len(fs) > 0 {
+		words += fmt.Sprintf(". %s needs it to allow %s", e.GetName(), catalog.FeatureWords(fs))
+	}
+	return words
+}
+
 // newNeedWords say what meeting a need a release adds does. Met by the entry's own
 // server, as a release that moves the database an app ran beside it onto a need does,
 // it's that server: one whose image makes the app a user of its own, as MySQL's and
-// MariaDB's do, is then one other apps can share (ADR 0084).
+// MariaDB's do, is then one other apps can share (ADR 0084). Met by a connection,
+// it names the connection (ADR 0099).
 func newNeedWords(e *catalogv1.Entry, name string, w catalog.Way) string {
+	if c := w.Connection; c != nil {
+		// A bucket of a connection, not a server beside the app (the slice 1 review, M2).
+		return fmt.Sprintf("%s %s needs %s, which it didn't before, so it keeps its files on the connection %s", e.GetName(), e.GetVersion(), strings.ToLower(cmp.Or(w.Need.GetLabel(), name)), cmp.Or(c.Label, c.Name))
+	}
 	if w.From == nil && w.Existing == nil {
 		engine := cmp.Or(catalog.EngineName(w.Engine), "database")
 		if w.Engine == catalogv1.Engine_ENGINE_MYSQL || w.Engine == catalogv1.Engine_ENGINE_MARIADB {

@@ -303,6 +303,19 @@ func (h *Handler) userEdits(ctx context.Context, env string, needed *catalog.Nee
 	return out, nil
 }
 
+// neededEdits are the values an install's needs give the app beyond the file's
+// reading: the URLs they write, and the names a connection meets, each read through
+// its link. Every path that plans an install's needs (install, upgrade, Use
+// another) takes them here, so none leaves a need's values empty (the slice 1
+// review, H4).
+func (h *Handler) neededEdits(ctx context.Context, needed *catalog.Needed, filled *catalog.Filled) ([]*dockwellv1.Edit, error) {
+	read, err := h.connectionEdits(ctx, needed, filled)
+	if err != nil {
+		return nil, err
+	}
+	return append(writtenEdits(needed, filled), read...), nil
+}
+
 // writtenEdits are the URLs an install's needs set, each a secret of the app's
 // environment that Dockwell writes from the need's parts there. It takes the value of
 // no meaning Fill made for each out of filled, so the install keeps none of it, and

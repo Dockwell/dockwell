@@ -35,7 +35,7 @@ import { useMay } from "../auth/may";
 import { type Opening, PlanView } from "../changes/ChangeSheet";
 import { useAllVariables } from "../variables/VariablesPage";
 import { ConnectionSheet } from "./ConnectionSheet";
-import { freeLinkName, keyPart, linksIn, STORAGE_PARTS, suggestedStorage } from "./storage";
+import { freeLinkName, freePrefix, keyPart, linksIn, STORAGE_PARTS, suggestedStorage } from "./storage";
 import { useConnections } from "./useConnections";
 import "../apps/Apps.css";
 import "./Connections.css";
@@ -127,7 +127,16 @@ export function ConnectStorageSheet({
   const [typedPrefix, setTypedPrefix] = useState<string>();
   const [presigned, setPresigned] = useState(false);
   const link = typedLink ?? linkName;
-  const prefix = typedPrefix ?? (app ? `${app}/` : "");
+  // Each app on a connection keeps to a prefix no other link's meets, as the server
+  // refuses one that does.
+  const prefix =
+    typedPrefix ??
+    (app
+      ? freePrefix(
+          `${app}/`,
+          (connection?.uses ?? []).map((u) => u.prefix),
+        )
+      : "");
   const prefixOk = PREFIX.test(prefix);
 
   const [busy, setBusy] = useState(false);
