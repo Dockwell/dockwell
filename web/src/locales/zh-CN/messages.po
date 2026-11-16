@@ -11381,6 +11381,9 @@ msgstr "适用于不支持在主机名中放存储桶的存储。"
 msgid "It saves unchecked: each app's link checks it from the app's network before it plans."
 msgstr "它将以未检查状态保存：每个应用的链接会在计划前从该应用的网络检查它。"
 
+msgid "Its saved keys stay on these servers. Type them to pick any."
+msgstr "已保存的密钥只会发送到这些服务器。输入密钥即可选择任意服务器。"
+
 msgid "Kept unless you type one"
 msgstr "不填则保留原值"
 

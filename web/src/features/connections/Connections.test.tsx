@@ -324,6 +324,56 @@ describe("Connections", () => {
     await waitFor(() => expect(signals[1]?.aborted).toBe(true));
   });
 
+  // #710 L5: a saved connection's keys go only to the control server or a server an
+  // app linked to it runs on, so until they're typed, those alone check it.
+  it("checks a saved connection only from where its keys may go, until they're typed", async () => {
+    const user = userEvent.setup();
+    const checks: CheckConnectionRequest[] = [];
+    const watch = feed<WatchServersResponse>();
+    watch.push(
+      changed(aServer({ id: "srv_cp", name: "cp-1", controlServer: true })),
+      changed(aServer({ id: SERVER, name: "hz-1" })),
+      changed(aServer({ id: "srv_db", name: "db-1" })),
+      snapshotComplete,
+    );
+    renderAt("/connections/outline-uploads", {
+      servers: { watchServers: watch.stream },
+      resources: places(),
+      // outline, which reads the connection through its link, runs on hz-1.
+      services: {
+        listServices: () => ({ services: [anApp("outline", "ghcr.io/acme/outline:1", {}, { id: "svc_outline" })] }),
+      },
+      connections: {
+        listConnections: () => ({ connections: [used] }),
+        checkConnection: (req) => {
+          checks.push(req);
+          return { passed: true, server: "hz-1" };
+        },
+      },
+    });
+    await user.click(await screen.findByRole("button", { name: "Replace keys" }));
+    const sheet = await screen.findByRole("dialog", { name: "Connection outline-uploads" });
+    await user.click(within(sheet).getByRole("button", { name: "Advanced" }));
+    const from = within(sheet).getByRole("combobox", { name: "Checked from" });
+    const offered = () =>
+      within(from)
+        .getAllByRole("option")
+        .map((o) => o.textContent);
+    await waitFor(() => expect(offered()).toEqual(["cp-1", "hz-1"]));
+    expect(from).toHaveValue("srv_cp");
+    expect(within(sheet).getByText("Its saved keys stay on these servers. Type them to pick any.")).toBeVisible();
+    await user.selectOptions(from, "srv_1");
+    await user.click(within(sheet).getByRole("button", { name: "Check" }));
+    await waitFor(() => expect(checks).toHaveLength(1));
+    expect(checks[0]).toMatchObject({ name: "outline-uploads", server: SERVER });
+
+    // Typed keys go to any server.
+    await user.type(within(sheet).getByRole("textbox", { name: "Access key ID" }), "AKIDNEW");
+    await user.type(within(sheet).getByLabelText("Secret access key"), "a-new-secret");
+    await waitFor(() => expect(offered()).toEqual(["cp-1", "hz-1", "db-1"]));
+    expect(within(sheet).queryByText(/Its saved keys stay on these servers/)).toBeNull();
+  });
+
   // Review M1: an address Dockwell keeps every check and app from, such as loopback or a
   // metadata service, can never work, so it isn't saved as one nothing answered.
   it("doesn't plan an address Dockwell keeps apps from, and says why", async () => {

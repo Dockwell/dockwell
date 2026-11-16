@@ -11381,6 +11381,9 @@ msgstr "For stores that don't take the bucket in the host."
 msgid "It saves unchecked: each app's link checks it from the app's network before it plans."
 msgstr "It saves unchecked: each app's link checks it from the app's network before it plans."
 
+msgid "Its saved keys stay on these servers. Type them to pick any."
+msgstr "Its saved keys stay on these servers. Type them to pick any."
+
 msgid "Kept unless you type one"
 msgstr "Kept unless you type one"
 

@@ -16,6 +16,7 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { sentence } from "../../lib/errors";
+import { useServices } from "../apps/useServices";
 import { useMay } from "../auth/may";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { useAllResources } from "../projects/useProjects";
@@ -67,6 +68,7 @@ export function ConnectionSheet({
   // on, or one a removal leaves, says what's there now.
   const listed = useConnections();
   const fleet = useFleetView();
+  const services = useServices();
   const resources = useAllResources();
   const projects = (resources.data ?? [])
     .filter((r) => r.resource?.kind === "project")
@@ -113,7 +115,18 @@ export function ConnectionSheet({
       existing.map((c) => c.name),
     );
   const servers = fleet.servers ?? [];
-  const from = server || checkServer(servers);
+  // A saved connection's keys go only to the control server, which holds them, or a
+  // server an app linked to it runs on: until they're typed, a check runs on one of
+  // those (ADR 0099, #710). Typed, they go to any server.
+  const keysStay = editing !== undefined && secret === "";
+  const linkedOn = useMemo(() => {
+    const apps = new Set(editing?.uses.flatMap((u) => u.appIds) ?? []);
+    return new Set(
+      (services.data ?? []).filter((s) => apps.has(s.id)).flatMap((s) => s.deployments.map((d) => d.serverId)),
+    );
+  }, [editing, services.data]);
+  const checkable = keysStay ? servers.filter((s) => s.control || linkedOn.has(s.id)) : servers;
+  const from = (checkable.some((s) => s.id === server) ? server : "") || checkServer(checkable);
   const bucketOk = BUCKET.test(bucket) && !bucket.includes("..");
   const typedKeys = keyId !== "" && secret !== "";
   // Moving a saved connection, or its keys, needs its keys again: the server keeps
@@ -449,7 +462,12 @@ export function ConnectionSheet({
             <SelectField
               label={t`Checked from`}
               value={from}
-              options={servers.map((s) => ({ value: s.id, label: s.name }))}
+              options={checkable.map((s) => ({ value: s.id, label: s.name }))}
+              hint={
+                checkable.length < servers.length
+                  ? t`Its saved keys stay on these servers. Type them to pick any.`
+                  : undefined
+              }
               onChange={(event) => setServer(event.target.value)}
             />
           ) : null}
