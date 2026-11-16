@@ -94,9 +94,9 @@ func (r *waitStand) release(t *testing.T) uint32 {
 	return 0
 }
 
-// record sets what the control plane recorded of notes-src's release on community,
-// at the source's revision now, as if it had held it since then.
-func (r *waitStand) record(t *testing.T, release uint32, since time.Time) {
+// record sets what the control plane recorded of notes-src's release 2 on
+// community, at the source's revision now, as if it had held it since then.
+func (r *waitStand) record(t *testing.T, since time.Time) {
 	t.Helper()
 	if err := r.f.store.Update(t.Context(), func(tx *store.Tx) error {
 		list, err := tx.ListKind(t.Context(), string(catalogsource.Kind))
@@ -105,7 +105,7 @@ func (r *waitStand) record(t *testing.T, release uint32, since time.Time) {
 		}
 		for _, src := range list {
 			if src.Name == "community" {
-				value := strconv.Itoa(int(release)) + " " + strconv.Itoa(src.Revision) + " " + since.UTC().Format(time.RFC3339Nano)
+				value := "2 " + strconv.Itoa(src.Revision) + " " + since.UTC().Format(time.RFC3339Nano)
 				return tx.PutSetting(t.Context(), "catalog.release."+src.ID+"/notes-src", []byte(value))
 			}
 		}
@@ -147,7 +147,7 @@ func TestAnAutomaticUpdateWaitsOnTheReleaseItPlans(t *testing.T) {
 		at := windowAfter(time.Now())
 		r.move(t, map[string]string{"entries/notes-src.yaml": waitEntry("notes-src", 2, "1.2")})
 		// Release 2 has been on the source for 4 days by the time the window opens.
-		r.record(t, 2, at.Add(-4*24*time.Hour))
+		r.record(t, at.Add(-4*24*time.Hour))
 		k := r.keeper()
 		cached := services.NewerFrom(k)
 		got, ok, err := cached.Of(t.Context(), r.id)
@@ -185,7 +185,7 @@ func TestASourceThatComesBackToAReleaseHoldsItFromItsReturn(t *testing.T) {
 		}
 		// As if the follower moved it 2 days ago.
 		old := time.Now().Add(-2 * 24 * time.Hour)
-		r.record(t, 2, old)
+		r.record(t, old)
 		// A person moves the source back to the commit before, pinned.
 		res, err := r.cat.SetCatalogSource(t.Context(), connect.NewRequest(&dockwellv1.SetCatalogSourceRequest{Name: "community", Repository: r.repo.URL, Path: "entries", Commit: r.commits[0]}))
 		if err != nil {
@@ -230,7 +230,7 @@ func TestASourceAddedAgainHoldsAReleaseFromItsOwnAdding(t *testing.T) {
 		if _, _, err := services.NewerFrom(r.keeper()).Of(t.Context(), r.id); err != nil {
 			t.Fatal(err)
 		}
-		r.record(t, 2, time.Now().Add(-10*24*time.Hour))
+		r.record(t, time.Now().Add(-10*24*time.Hour))
 		res, err := r.cat.RemoveCatalogSource(t.Context(), connect.NewRequest(&dockwellv1.RemoveCatalogSourceRequest{Name: "community"}))
 		if err != nil {
 			t.Fatal(err)
@@ -263,7 +263,7 @@ func TestAMoveDuringAReadRecordsNothingWrong(t *testing.T) {
 		if _, _, err := services.NewerFrom(r.keeper()).Of(t.Context(), r.id); err != nil {
 			t.Fatal(err)
 		}
-		r.record(t, 2, time.Now().Add(-2*24*time.Hour))
+		r.record(t, time.Now().Add(-2*24*time.Hour))
 		// A person undoes the move after the next read read the catalog, and before it
 		// records what the source holds.
 		r.f.server.catalogs.BeforeHeld(func() {
@@ -310,7 +310,7 @@ func TestAWalkBackReadsAtMostTenRevisions(t *testing.T) {
 	if _, _, err := services.NewerFrom(r.keeper()).Of(t.Context(), r.id); err != nil {
 		t.Fatal(err)
 	}
-	r.record(t, 2, time.Now().Add(-2*24*time.Hour))
+	r.record(t, time.Now().Add(-2*24*time.Hour))
 	// Twelve moves of another entry, which leave release 2 where it is.
 	before := time.Now()
 	for i := range 12 {
@@ -337,7 +337,7 @@ func TestARenumberingIsAPersonsToTake(t *testing.T) {
 		t.Fatalf("the move to 2024.10.1: %+v, %v, %v; want it offered, renumbered", got, ok, err)
 	}
 	at := windowAfter(time.Now())
-	r.record(t, 2, at.Add(-10*24*time.Hour))
+	r.record(t, at.Add(-10*24*time.Hour))
 	r.tick(t, at, services.NewerFrom(r.keeper()))
 	if got := r.release(t); got != 1 {
 		t.Errorf("an automatic update took the move from 1.1 to 2024.10.1, release %d", got)
