@@ -105,3 +105,13 @@ func TestAValueFromAnotherEnvironment(t *testing.T) {
 		t.Fatalf("uses %+v", uses)
 	}
 }
+
+// A value in a URL's query is written with a space as %20, which every parser reads
+// as a space, where + reads as a plus to libpq (#570's review, L3).
+func TestAQuerysSpaceIsPercentTwenty(t *testing.T) {
+	for v, want := range map[string]string{"a b+c&d": "a%20b%2Bc%26d", "plain": "plain"} {
+		if got := variable.Encode(v, resourcev1.Encoding_ENCODING_QUERY); got != want {
+			t.Errorf("Encode(%q) in a query = %q, want %q", v, got, want)
+		}
+	}
+}

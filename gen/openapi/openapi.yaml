@@ -10570,6 +10570,16 @@ components:
                          by the entry's own service, as an install from before needs ran it. Numbered
                          apart, as 80 and 81 are taken here. See
                          docs/adr/0084-what-an-app-needs-met-by-a-new-service-one-you-run-or-a-connection.md.
+                written:
+                    type: object
+                    additionalProperties:
+                        $ref: '#/components/schemas/ValueTemplate'
+                    description: |-
+                        The templates Dockwell wrote the install's secrets from, by the secret's name:
+                         a need's URL, and a value with a secret inside (ADR 0085). An upgrade or a
+                         change of need reads a secret whose template is another as one a person set,
+                         and keeps it. A secret with no word here, as an install from before this kept
+                         them, is Dockwell's while it has a template.
             description: |-
                 CatalogPin is what an install is pinned to: updates come from there, and each
                  is a plan. It holds no secret: those are the environment's, by reference.

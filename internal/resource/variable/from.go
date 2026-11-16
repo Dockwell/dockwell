@@ -224,7 +224,7 @@ func Write(t *resourcev1.ValueTemplate, values map[string]string) (string, error
 			if !ok {
 				return "", fmt.Errorf("there's no value of %s to write into the template", name)
 			}
-			b.WriteString(encode(v, encoding[name]))
+			b.WriteString(Encode(v, encoding[name]))
 			i += end
 		default:
 			b.WriteByte(text[i])
@@ -233,8 +233,10 @@ func Write(t *resourcev1.ValueTemplate, values map[string]string) (string, error
 	return b.String(), nil
 }
 
-// encode writes a value as a URL takes it where it stands.
-func encode(v string, e resourcev1.Encoding) string {
+// Encode writes a value as a URL takes it where it stands. In a query a space is
+// %20, never +, which a URL's parser reads as a space and libpq as a plus (#570's
+// review, L3).
+func Encode(v string, e resourcev1.Encoding) string {
 	switch e {
 	case resourcev1.Encoding_ENCODING_USERINFO:
 		// url.UserPassword encodes for a user and a password alike, as : stays
@@ -243,7 +245,7 @@ func encode(v string, e resourcev1.Encoding) string {
 	case resourcev1.Encoding_ENCODING_PATH:
 		return url.PathEscape(v)
 	case resourcev1.Encoding_ENCODING_QUERY:
-		return url.QueryEscape(v)
+		return strings.ReplaceAll(url.QueryEscape(v), "+", "%20")
 	default:
 		return v
 	}

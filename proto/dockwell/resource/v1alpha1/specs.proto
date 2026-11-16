@@ -640,6 +640,12 @@ message CatalogPin {
   // apart, as 80 and 81 are taken here. See
   // docs/adr/0084-what-an-app-needs-met-by-a-new-service-one-you-run-or-a-connection.md.
   map<string, PinnedNeed> needs = 82;
+  // The templates Dockwell wrote the install's secrets from, by the secret's name:
+  // a need's URL, and a value with a secret inside (ADR 0085). An upgrade or a
+  // change of need reads a secret whose template is another as one a person set,
+  // and keeps it. A secret with no word here, as an install from before this kept
+  // them, is Dockwell's while it has a template.
+  map<string, ValueTemplate> written = 83;
 }
 
 // PinnedNeed is how an install met one of its entry's needs.

@@ -500,7 +500,7 @@ func check(e *catalogv1.Entry, byTag bool) error {
 		}
 		seen[name] = true
 		if Secret(in) {
-			if err := standsAlone(cf, name); err != nil {
+			if err := standsAlone(cf, name, true); err != nil {
 				return err
 			}
 		}
@@ -649,6 +649,12 @@ func composeServices(compose string) (map[string]any, error) {
 	return file.Services, nil
 }
 
+// matcher is a test of a string, as a regexp's MatchString is.
+type matcher func(string) bool
+
+// MatchString is the test.
+func (m matcher) MatchString(s string) bool { return m(s) }
+
 // standsAlone refuses a secret inside a longer value. An upgrade stands something in for
 // a secret it never opens, which reaches a service's environment only as a whole value,
 // by reference, so in a longer one it would write that in place of the secret, and a
@@ -658,34 +664,57 @@ func composeServices(compose string) (map[string]any, error) {
 // A service's command, entrypoint and health check's test are kept by the names their
 // words use, and each word is written with the values it names as the container is
 // made (ADR 0022), so a secret may stand anywhere in one of their words, as in
-// redis-server --requirepass ${PASSWORD} or --api-key=${KEY} (ADR 0085).
-func standsAlone(cf *composeFile, name string) error {
+// redis-server --requirepass ${PASSWORD} or --api-key=${KEY} (ADR 0085). A value of
+// its environment with a secret inside, as a connection URL holds a password, is a
+// secret of its own that Dockwell writes from a template of the environment's values
+// (inside, #570).
+//
+// A need's secret stays a whole value everywhere (inEnv false): Dockwell writes it from
+// the need's own parts already, which a template of it can't name in turn.
+func standsAlone(cf *composeFile, name string, inEnv bool) error {
 	tree := cf.tree
-	whole := regexp.MustCompile(`^([A-Za-z_][A-Za-z0-9_]*=)?\$\{` + regexp.QuoteMeta(name) + `\}$`)
+	whole := regexp.MustCompile(`^([A-Za-z_][A-Za-z0-9_]*=)?\$(\{` + regexp.QuoteMeta(name) + `\}|` + regexp.QuoteMeta(name) + `)$`)
 	// The name whole, so KEY isn't found in ${KEY2}.
-	uses := regexp.MustCompile(`\$\{` + regexp.QuoteMeta(name) + `(\}|:?[-?+])`)
-	var walk func(any) error
-	walk = func(v any) error {
+	// ${NAME}, its kin, or a bare $NAME, which Compose reads too (#570's recheck, N4),
+	// with $$, a $ of its own, masked.
+	usesRe := regexp.MustCompile(`\$\{?` + regexp.QuoteMeta(name) + `([^A-Za-z0-9_]|$)`)
+	uses := matcher(func(s string) bool { return usesRe.MatchString(strings.ReplaceAll(s, "$$", "\x00\x00")) })
+	// env says the value is a service's environment, where a template writes a value
+	// with the secret inside, as long as each place it's named is a placeholder of its
+	// own (insideRefusal).
+	var walkIn func(any, bool) error
+	walkIn = func(v any, env bool) error {
 		switch v := v.(type) {
 		case string:
-			if uses.MatchString(v) && !whole.MatchString(v) {
+			switch {
+			case !uses.MatchString(v) || whole.MatchString(v):
+			case env:
+				return insideRefusal(v, name)
+			default:
 				return fmt.Errorf("the secret %s is inside a longer value, %q, which an upgrade and a rotation couldn't reach. Give the app the secret as a value of its own", name, strings.ReplaceAll(v, "\n", " "))
 			}
 		case []any:
 			for _, item := range v {
-				if err := walk(item); err != nil {
+				// A list's KEY=value is judged by its value (inside does the same).
+				if s, ok := item.(string); ok && env {
+					if _, value, ok := strings.Cut(s, "="); ok {
+						item = value
+					}
+				}
+				if err := walkIn(item, env); err != nil {
 					return err
 				}
 			}
 		case map[string]any:
 			for _, key := range slices.Sorted(maps.Keys(v)) {
-				if err := walk(v[key]); err != nil {
+				if err := walkIn(v[key], env); err != nil {
 					return err
 				}
 			}
 		}
 		return nil
 	}
+	walk := func(v any) error { return walkIn(v, false) }
 	top, ok := tree.(map[string]any)
 	if !ok {
 		return walk(tree)
@@ -722,6 +751,13 @@ func standsAlone(cf *composeFile, name string) error {
 				switch field {
 				case "command", "entrypoint":
 					continue
+				case "environment":
+					if inEnv {
+						if err := walkIn(value, true); err != nil {
+							return err
+						}
+						continue
+					}
 				case "healthcheck":
 					if check, ok := value.(map[string]any); ok {
 						rest := maps.Clone(check)

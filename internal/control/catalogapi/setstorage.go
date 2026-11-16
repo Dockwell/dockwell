@@ -72,7 +72,8 @@ func (h *Handler) setStorageNeed(ctx context.Context, s sourced, f found, entry 
 	pinned := maps.Clone(pin.GetNeeds())
 	delete(pinned, need.GetName())
 	server := h.serverOf(ctx, install.GetEnvironmentId())
-	needed, notes, err := h.meetNeeds(ctx, s, ran, nil, map[string]string{need.GetName(): m.GetChoice()}, pinned, h.candidates(ctx), install.GetProject(), server)
+	// Each value with a secret inside keeps the secret what runs names it by (#570).
+	needed, notes, err := h.meetNeeds(ctx, s, ran, nil, map[string]string{need.GetName(): m.GetChoice()}, pinned, h.candidates(ctx), install.GetProject(), server, f.running())
 	if err != nil {
 		return nil, err
 	}
@@ -120,7 +121,7 @@ func (h *Handler) setStorageNeed(ctx context.Context, s sourced, f found, entry 
 	if err != nil {
 		return nil, authapi.ReasonError(connect.CodeInvalidArgument, err, "invalid")
 	}
-	old, err := ranFile(pin)
+	old, _, err := ranFile(pin, f, needed.InsideKeys)
 	if err != nil {
 		return nil, h.internal(ctx, err)
 	}
@@ -132,12 +133,18 @@ func (h *Handler) setStorageNeed(ctx context.Context, s sourced, f found, entry 
 	if err != nil {
 		return nil, h.internal(ctx, err)
 	}
-	written, err := h.neededEdits(ctx, needed, filled)
+	// A connection points the need's names at itself, whatever they held. A value
+	// with a secret inside that holds what a person gave it stays theirs, as through
+	// Use another database: the need doesn't touch it (#570's recheck, N3).
+	written, kept, err := h.neededEdits(ctx, needed, filled, func(name string) bool {
+		return needed.Inside[name] && f.theirs(name, pin)
+	})
 	if err != nil {
 		return nil, err
 	}
+	notes = append(notes, kept...)
 	newPin := pinTo(entry, s.origins[entry.GetId()], filled, choice)
-	newPin.Version, newPin.Release, newPin.File, newPin.Needs = pin.GetVersion(), pin.GetRelease(), pin.GetFile(), needed.Pinned
+	newPin.Version, newPin.Release, newPin.File, newPin.Needs, newPin.Written = pin.GetVersion(), pin.GetRelease(), pin.GetFile(), needed.Pinned, needed.Written
 	change, err := h.imports.PlanUpgrade(ctx, composeapi.Upgrade{
 		Project:     install.GetProjectId(),
 		Environment: install.GetEnvironmentId(),

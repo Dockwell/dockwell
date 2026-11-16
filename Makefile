@@ -253,7 +253,9 @@ store-rates: ## Convert every store Dockwell reads at the commits the repository
 # which reads which engine it's on, on MySQL and on PostgreSQL, each with its word for it.
 # 1Panel's Gitea, recommended between them, runs Gitea's Enterprise image, so a server
 # leaves it out as another app under an ID Dockwell's own catalog has.
-STORE_APPS ?= 1panel/linux-command dokploy/excalidraw dokploy/mazanoke coolify/privatebin dokploy/keydb 1panel/rabbitmq 1panel/glance 1panel/navidrome 1panel/umami 1panel/wordpress 1panel/roundcube 1panel/roundcube@db=new:postgresql
+# Coolify's Miniflux, whose database URL holds its password and user, written from a
+# template of its environment's values (#570).
+STORE_APPS ?= 1panel/linux-command dokploy/excalidraw dokploy/mazanoke coolify/privatebin dokploy/keydb 1panel/rabbitmq 1panel/glance 1panel/navidrome 1panel/umami 1panel/wordpress 1panel/roundcube 1panel/roundcube@db=new:postgresql coolify/miniflux
 
 .PHONY: store-e2e
 store-e2e: build-go ## Install a sample of 1Panel's, Dokploy's and Coolify's apps, converted on the server at the pinned commits, on this machine's Docker (STORE_APPS names them)
