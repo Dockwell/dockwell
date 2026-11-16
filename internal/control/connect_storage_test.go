@@ -171,6 +171,32 @@ func TestAnAppIsConnectedToStorage(t *testing.T) {
 		t.Errorf("the gallery runs without the connection's key: %v", got)
 	}
 
+	// The connection says what reads it: each link, in its environment and project,
+	// with the app that reads it and the names it sets.
+	listed, err := cc.ListConnections(t.Context(), connect.NewRequest(&dockwellv1.ListConnectionsRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	read := map[string]string{}
+	for _, info := range listed.Msg.GetConnections() {
+		if info.GetName() != "uploads" {
+			continue
+		}
+		for _, u := range info.GetUses() {
+			if u.GetProject() != project || u.GetEnvironment() == "" || u.GetLinkId() == "" {
+				t.Errorf("a use of uploads reads as %v", u)
+			}
+			read[u.GetLink()] = strings.Join(u.GetApps(), ",")
+			secret := map[string]string{"storage": "S3_SECRET_ACCESS_KEY", "media": "MEDIA_SECRET"}[u.GetLink()]
+			if u.GetSets()[secret] != resourcev1.LinkPart_LINK_PART_SECRET_KEY {
+				t.Errorf("%s doesn't say %s holds the secret key: %v", u.GetLink(), secret, u.GetSets())
+			}
+		}
+	}
+	if read["storage"] != "notes" || read["media"] != "gallery" || len(read) != 2 {
+		t.Errorf("uploads is read by %v, want notes through storage and gallery through media", read)
+	}
+
 	// A new key for the connection reaches both apps in one plan, which holds no key.
 	const newKey = "a-new-secret-key"
 	plan := propose(t, c, "Rotate the uploads key", connectionEdit("uploads", &resourcev1.ConnectionSpec{

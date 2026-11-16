@@ -87,20 +87,47 @@ func TestAConnectionOfAnotherProjectReadsAsNotThere(t *testing.T) {
 		Reach: resourcev1.ConnectionReach_CONNECTION_REACH_PROJECTS, Projects: []string{dataProject},
 		S3: &resourcev1.ConnectionS3{Endpoint: srv.URL(), Bucket: "theirs", AccessKeyId: "AKIDTHEIRS", SecretKey: "theirs-secret", PathStyle: true},
 	})))
+	// One that reaches every project, linked in this one and in data: below an admin,
+	// what reads it in data isn't theirs to see.
+	var dataEnv string
+	if err := f.store.View(t.Context(), func(tx *store.Tx) error {
+		e, err := tx.GetResource(t.Context(), "environment", dataProject, "production")
+		dataEnv = e.ID
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	sharedLink := func(env, name string) *dockwellv1.Edit {
+		return &dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Kind: "link", Scope: env, Name: name},
+			Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Link{Link: &resourcev1.Link{
+				Label: "Storage", Connection: "shared", Kind: resourcev1.LinkKind_LINK_KIND_S3, Prefix: name + "/",
+				Sets: []*resourcev1.LinkSet{{Name: "SHARED_BUCKET", Part: resourcev1.LinkPart_LINK_PART_BUCKET}},
+			}}},
+		}
+	}
+	apply(t, c, propose(t, c, "Add shared", connectionEdit("shared", &resourcev1.ConnectionSpec{
+		DisplayName: "Shared", Kind: resourcev1.LinkKind_LINK_KIND_S3, Reach: resourcev1.ConnectionReach_CONNECTION_REACH_EVERY,
+		S3: &resourcev1.ConnectionS3{Endpoint: srv.URL(), Bucket: "shared", AccessKeyId: "AKIDSHARED", SecretKey: "shared-secret", PathStyle: true},
+	}), sharedLink(env, "ours-link"), sharedLink(dataEnv, "data-link")))
 
 	hold := aMember(t, f)
 	for _, role := range []string{store.RoleDeveloper, store.RoleViewer} {
 		hold(store.Grant{ProjectID: project, Role: role})
 		who := role + " of one project"
 
-		// The list shows ours, by name alone.
+		// The list shows ours, by name alone, and of what reads a connection, only
+		// what's in their project.
 		listed, err := cc.ListConnections(t.Context(), connect.NewRequest(&dockwellv1.ListConnectionsRequest{}))
 		if err != nil {
 			t.Fatalf("%s lists: %v", who, err)
 		}
 		raw, _ := protojson.Marshal(listed.Msg)
-		if strings.Contains(string(raw), "theirs") || strings.Contains(string(raw), srv.URL()) {
+		if strings.Contains(string(raw), "theirs") || strings.Contains(string(raw), srv.URL()) || strings.Contains(string(raw), "data-link") || strings.Contains(string(raw), dataEnv) {
 			t.Errorf("%s lists %s", who, raw)
+		}
+		if !strings.Contains(string(raw), "ours-link") {
+			t.Errorf("%s doesn't see what reads shared in their own project: %s", who, raw)
 		}
 		// Narrowed to the other project, nothing.
 		if got, err := cc.ListConnections(t.Context(), connect.NewRequest(&dockwellv1.ListConnectionsRequest{Project: "data"})); err == nil && len(got.Msg.GetConnections()) > 0 {

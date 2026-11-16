@@ -79,6 +79,65 @@ func (c *Connections) All(ctx context.Context) ([]Saved, error) {
 	return out, err
 }
 
+// Uses reads what reads each connection, by its name: each link to it, in its
+// environment and project, with the apps that read the names the link sets (ADR
+// 0099). A link names a connection of the install's one organization by name alone.
+func (c *Connections) Uses(ctx context.Context) (map[string][]*dockwellv1.ConnectionUse, error) {
+	out := map[string][]*dockwellv1.ConnectionUse{}
+	err := c.db.View(ctx, func(tx *store.Tx) error {
+		links, err := tx.ListKind(ctx, string(link.Kind))
+		if err != nil {
+			return err
+		}
+		projects := map[string]string{}
+		for i := range links {
+			r := &links[i]
+			spec, err := c.keeper.Decode(ctx, tx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec)
+			if err != nil {
+				return fmt.Errorf("can't read the link %s: %w", r.Name, err)
+			}
+			l, ok := spec.(*resourcev1.Link)
+			if !ok || l.GetConnection() == "" {
+				continue
+			}
+			project, seen := projects[r.Scope]
+			if !seen {
+				if project, err = registrylogins.ProjectOf(ctx, tx, r.Scope); err != nil && !errors.Is(err, store.ErrNotFound) {
+					return err
+				}
+				projects[r.Scope] = project
+			}
+			use := &dockwellv1.ConnectionUse{
+				LinkId: r.ID, Link: r.Name, Environment: r.Scope, Project: project, Prefix: l.GetPrefix(),
+				Sets: map[string]resourcev1.LinkPart{},
+			}
+			names := make([]string, 0, len(l.GetSets()))
+			for _, set := range l.GetSets() {
+				use.Sets[set.GetName()] = set.GetPart()
+				names = append(names, set.GetName())
+			}
+			if len(names) > 0 {
+				users, err := tx.UsersOf(ctx, r.Scope, "", names...)
+				if err != nil {
+					return err
+				}
+				for i := range users {
+					if u := &users[i]; u.Kind == serviceKind && !slices.Contains(use.AppIds, u.ID) {
+						use.AppIds = append(use.AppIds, u.ID)
+						use.Apps = append(use.Apps, u.Name)
+					}
+				}
+			}
+			out[l.GetConnection()] = append(out[l.GetConnection()], use)
+		}
+		return nil
+	})
+	return out, err
+}
+
+// serviceKind is an app's kind, which reads a link's values.
+const serviceKind = "service"
+
 // ProjectFor is the project a request names, by its environment's ID, or by the
 // project's own ID or name. Empty for none.
 func (c *Connections) ProjectFor(ctx context.Context, environment, project string) (string, error) {
@@ -136,6 +195,10 @@ func (s *Service) ListConnections(ctx context.Context, req *connect.Request[dock
 			return nil, err
 		}
 	}
+	uses, err := s.connections.Uses(ctx)
+	if err != nil {
+		return nil, err
+	}
 	admin, mine := callerProjects(ctx)
 	for _, c := range all {
 		switch {
@@ -149,6 +212,13 @@ func (s *Service) ListConnections(ctx context.Context, req *connect.Request[dock
 			s3 := c.Spec.GetS3()
 			info.Endpoint, info.Region, info.Bucket, info.PathStyle, info.PublicUrl = s3.GetEndpoint(), s3.GetRegion(), s3.GetBucket(), s3.GetPathStyle(), s3.GetPublicUrl()
 			info.Reach, info.Projects = c.Spec.GetReach(), c.Spec.GetProjects()
+		}
+		// Below an admin, only what reads it in the caller's own projects: another
+		// project's apps and links aren't theirs to see.
+		for _, u := range uses[c.Name] {
+			if admin || mine == nil || mine[u.GetProject()] {
+				info.Uses = append(info.Uses, u)
+			}
 		}
 		out.Connections = append(out.Connections, info)
 	}

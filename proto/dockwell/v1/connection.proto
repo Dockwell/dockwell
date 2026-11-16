@@ -131,6 +131,26 @@ message ConnectionInfo {
   // Which projects may use it, for an admin, and those by ID.
   dockwell.resource.v1alpha1.ConnectionReach reach = 10;
   repeated string projects = 11;
+  // What reads it: each link to it, in the environment it's in, with the apps that
+  // read the link's values. An admin's, every one; below an admin, those in the
+  // caller's projects alone.
+  repeated ConnectionUse uses = 12;
+}
+
+// ConnectionUse is one link to a connection, and the apps that read it.
+message ConnectionUse {
+  // The link's resource ID and name, and its environment and project, by ID.
+  string link_id = 1;
+  string link = 2;
+  string environment = 3;
+  string project = 4;
+  // Where its app's objects go in the bucket, such as "outline/".
+  string prefix = 5;
+  // The names of the environment it sets, each with what it holds.
+  map<string, dockwell.resource.v1alpha1.LinkPart> sets = 6;
+  // The apps that read those names, by their services' IDs and names.
+  repeated string app_ids = 7;
+  repeated string apps = 8;
 }
 
 // CheckConnectionRequest is a connection to check, as typed, or a saved one again.

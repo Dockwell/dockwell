@@ -12014,6 +12014,14 @@ components:
                     type: array
                     items:
                         type: string
+                uses:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ConnectionUse'
+                    description: |-
+                        What reads it: each link to it, in the environment it's in, with the apps that
+                         read the link's values. An admin's, every one; below an admin, those in the
+                         caller's projects alone.
             description: |-
                 ConnectionInfo is a connection as a caller may see it: never its keys. Below an
                  admin, its name, kind and what it reaches alone.
@@ -12121,6 +12129,57 @@ components:
                  Dockwell keeps its secrets encrypted, and sends them only to the servers that run
                  an app linked to it. See
                  docs/adr/0099-every-kind-of-thing-an-app-needs-met-the-same-three-ways.md.
+        ConnectionUse:
+            type: object
+            properties:
+                linkId:
+                    type: string
+                    description: The link's resource ID and name, and its environment and project, by ID.
+                link:
+                    type: string
+                environment:
+                    type: string
+                project:
+                    type: string
+                prefix:
+                    type: string
+                    description: Where its app's objects go in the bucket, such as "outline/".
+                sets:
+                    type: object
+                    additionalProperties:
+                        enum:
+                            - LINK_PART_UNSPECIFIED
+                            - LINK_PART_HOST
+                            - LINK_PART_PORT
+                            - LINK_PART_ADDRESS
+                            - LINK_PART_DATABASE
+                            - LINK_PART_USER
+                            - LINK_PART_PASSWORD
+                            - LINK_PART_URL
+                            - LINK_PART_TLS
+                            - LINK_PART_KEY_PREFIX
+                            - LINK_PART_ENGINE
+                            - LINK_PART_ENDPOINT
+                            - LINK_PART_REGION
+                            - LINK_PART_BUCKET
+                            - LINK_PART_ACCESS_KEY_ID
+                            - LINK_PART_SECRET_KEY
+                            - LINK_PART_PATH_STYLE
+                            - LINK_PART_PUBLIC_URL
+                            - LINK_PART_MET
+                        type: string
+                        format: enum
+                    description: The names of the environment it sets, each with what it holds.
+                appIds:
+                    type: array
+                    items:
+                        type: string
+                    description: The apps that read those names, by their services' IDs and names.
+                apps:
+                    type: array
+                    items:
+                        type: string
+            description: ConnectionUse is one link to a connection, and the apps that read it.
         Container:
             type: object
             properties:

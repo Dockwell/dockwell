@@ -18,7 +18,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/connection.proto.
  */
 export const file_dockwell_v1_connection: GenFile = /*@__PURE__*/
-  fileDesc("Chxkb2Nrd2VsbC92MS9jb25uZWN0aW9uLnByb3RvEgtkb2Nrd2VsbC52MSKjAgoVQ29ubmVjdFN0b3JhZ2VSZXF1ZXN0Eg8KB3Byb2plY3QYASABKAkSEwoLZW52aXJvbm1lbnQYAiABKAkSCwoDYXBwGAMgASgJEhIKCmNvbm5lY3Rpb24YBCABKAkSDAoEbGluaxgFIAEoCRIOCgZwcmVmaXgYBiABKAkSOgoEc2V0cxgHIAMoCzIsLmRvY2t3ZWxsLnYxLkNvbm5lY3RTdG9yYWdlUmVxdWVzdC5TZXRzRW50cnkSFgoOcHJlc2lnbmVkX3VybHMYCCABKAgaUQoJU2V0c0VudHJ5EgsKA2tleRgBIAEoCRIzCgV2YWx1ZRgCIAEoDjIkLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkxpbmtQYXJ0OgI4ASJyChZDb25uZWN0U3RvcmFnZVJlc3BvbnNlEiMKBmNoYW5nZRgBIAEoCzITLmRvY2t3ZWxsLnYxLkNoYW5nZRIzCgVjaGVjaxgCIAEoCzIkLmRvY2t3ZWxsLnYxLkNoZWNrQ29ubmVjdGlvblJlc3BvbnNlIj4KFkxpc3RDb25uZWN0aW9uc1JlcXVlc3QSDwoHcHJvamVjdBgBIAEoCRITCgtlbnZpcm9ubWVudBgCIAEoCSJLChdMaXN0Q29ubmVjdGlvbnNSZXNwb25zZRIwCgtjb25uZWN0aW9ucxgBIAMoCzIbLmRvY2t3ZWxsLnYxLkNvbm5lY3Rpb25JbmZvIpwCCg5Db25uZWN0aW9uSW5mbxIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEhQKDGRpc3BsYXlfbmFtZRgDIAEoCRIyCgRraW5kGAQgASgOMiQuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuTGlua0tpbmQSEAoIZW5kcG9pbnQYBSABKAkSDgoGcmVnaW9uGAYgASgJEg4KBmJ1Y2tldBgHIAEoCRISCgpwYXRoX3N0eWxlGAggASgIEhIKCnB1YmxpY191cmwYCSABKAkSOgoFcmVhY2gYCiABKA4yKy5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5Db25uZWN0aW9uUmVhY2gSEAoIcHJvamVjdHMYCyADKAkitQEKFkNoZWNrQ29ubmVjdGlvblJlcXVlc3QSDAoEbmFtZRgBIAEoCRI6CgJzMxgCIAEoCzIoLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkNvbm5lY3Rpb25TM0IEyPMYARIOCgZzZXJ2ZXIYAyABKAkSEwoLZW52aXJvbm1lbnQYBCABKAkSCwoDYXBwGAUgASgJEg8KB3ByZXNpZ24YBiABKAgSDgoGcHJlZml4GAcgASgJIpUBChdDaGVja0Nvbm5lY3Rpb25SZXNwb25zZRIOCgZwYXNzZWQYASABKAgSDAoEc3RlcBgCIAEoCRIMCgRjb2RlGAMgASgJEg4KBnN0YXR1cxgEIAEoBRIPCgdtZXNzYWdlGAUgASgJEg0KBXdvcmRzGAYgASgJEg4KBnJlZ2lvbhgHIAEoCRIOCgZzZXJ2ZXIYCCABKAky/AYKEUNvbm5lY3Rpb25TZXJ2aWNlEogBCg9MaXN0Q29ubmVjdGlvbnMSIy5kb2Nrd2VsbC52MS5MaXN0Q29ubmVjdGlvbnNSZXF1ZXN0GiQuZG9ja3dlbGwudjEuTGlzdENvbm5lY3Rpb25zUmVzcG9uc2UiKpACAaC7GAHAuxgCyLsYAtC7GAWC0+STAhESDy92MS9jb25uZWN0aW9ucxKSAQoPQ2hlY2tDb25uZWN0aW9uEiMuZG9ja3dlbGwudjEuQ2hlY2tDb25uZWN0aW9uUmVxdWVzdBokLmRvY2t3ZWxsLnYxLkNoZWNrQ29ubmVjdGlvblJlc3BvbnNlIjSguxgBsLsYAcC7GATIuxgE0LsYBoLT5JMCGjoBKiIVL3YxL2Nvbm5lY3Rpb25zOmNoZWNrEqkBCg5Db25uZWN0U3RvcmFnZRIiLmRvY2t3ZWxsLnYxLkNvbm5lY3RTdG9yYWdlUmVxdWVzdBojLmRvY2t3ZWxsLnYxLkNvbm5lY3RTdG9yYWdlUmVzcG9uc2UiTqC7GAKquxgREg9jb25uZWN0LXN0b3JhZ2XAuxgDyLsYA9C7GASC0+STAiM6ASoiHi92MS9jb25uZWN0aW9uczpjb25uZWN0U3RvcmFnZRqaA6K7GJUDCgtjb25uZWN0aW9ucxKFA0Nvbm5lY3Rpb25zIGFwcHMgdXNlLCBzdWNoIGFzIGEgYnVja2V0IG9mIFMzLWNvbXBhdGlibGUgc3RvcmFnZSBhbmQgdGhlIGtleXMgdGhhdCByZWFjaCBpdC4gQSBjb25uZWN0aW9uIGlzIGluc3RhbGwtd2lkZTogYW4gYWRtaW4gc2F2ZXMgaXQgYXMgYSBjaGFuZ2UsIHdpdGggYSBwbGFuLCBhbmQgc2F5cyB3aGljaCBwcm9qZWN0cyBtYXkgdXNlIGl0LiBDaGVja0Nvbm5lY3Rpb24gY2hlY2tzIG9uZSBmcm9tIGEgc2VydmVyLCBpbiBhIGNvbnRhaW5lciBvZiB0aGUgYWdlbnQncyBvd24gYmluYXJ5LCB3aXRob3V0IHNhdmluZyBhbnl0aGluZy4gU2VlIGRvY3MvYWRyLzAwOTktZXZlcnkta2luZC1vZi10aGluZy1hbi1hcHAtbmVlZHMtbWV0LXRoZS1zYW1lLXRocmVlLXdheXMubWQuQqgBCg9jb20uZG9ja3dlbGwudjFCD0Nvbm5lY3Rpb25Qcm90b1ABWjdnaXRodWIuY29tL2RvY2t3ZWxsL2RvY2t3ZWxsL2dlbi9kb2Nrd2VsbC92MTtkb2Nrd2VsbHYxogIDRFhYqgILRG9ja3dlbGwuVjHKAgtEb2Nrd2VsbFxWMeICF0RvY2t3ZWxsXFYxXEdQQk1ldGFkYXRh6gIMRG9ja3dlbGw6OlYxYgZwcm90bzM", [file_dockwell_resource_v1alpha1_specs, file_dockwell_v1_change, file_dockwell_v1_options, file_google_api_annotations]);
+  fileDesc("Chxkb2Nrd2VsbC92MS9jb25uZWN0aW9uLnByb3RvEgtkb2Nrd2VsbC52MSKjAgoVQ29ubmVjdFN0b3JhZ2VSZXF1ZXN0Eg8KB3Byb2plY3QYASABKAkSEwoLZW52aXJvbm1lbnQYAiABKAkSCwoDYXBwGAMgASgJEhIKCmNvbm5lY3Rpb24YBCABKAkSDAoEbGluaxgFIAEoCRIOCgZwcmVmaXgYBiABKAkSOgoEc2V0cxgHIAMoCzIsLmRvY2t3ZWxsLnYxLkNvbm5lY3RTdG9yYWdlUmVxdWVzdC5TZXRzRW50cnkSFgoOcHJlc2lnbmVkX3VybHMYCCABKAgaUQoJU2V0c0VudHJ5EgsKA2tleRgBIAEoCRIzCgV2YWx1ZRgCIAEoDjIkLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkxpbmtQYXJ0OgI4ASJyChZDb25uZWN0U3RvcmFnZVJlc3BvbnNlEiMKBmNoYW5nZRgBIAEoCzITLmRvY2t3ZWxsLnYxLkNoYW5nZRIzCgVjaGVjaxgCIAEoCzIkLmRvY2t3ZWxsLnYxLkNoZWNrQ29ubmVjdGlvblJlc3BvbnNlIj4KFkxpc3RDb25uZWN0aW9uc1JlcXVlc3QSDwoHcHJvamVjdBgBIAEoCRITCgtlbnZpcm9ubWVudBgCIAEoCSJLChdMaXN0Q29ubmVjdGlvbnNSZXNwb25zZRIwCgtjb25uZWN0aW9ucxgBIAMoCzIbLmRvY2t3ZWxsLnYxLkNvbm5lY3Rpb25JbmZvIsYCCg5Db25uZWN0aW9uSW5mbxIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEhQKDGRpc3BsYXlfbmFtZRgDIAEoCRIyCgRraW5kGAQgASgOMiQuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuTGlua0tpbmQSEAoIZW5kcG9pbnQYBSABKAkSDgoGcmVnaW9uGAYgASgJEg4KBmJ1Y2tldBgHIAEoCRISCgpwYXRoX3N0eWxlGAggASgIEhIKCnB1YmxpY191cmwYCSABKAkSOgoFcmVhY2gYCiABKA4yKy5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5Db25uZWN0aW9uUmVhY2gSEAoIcHJvamVjdHMYCyADKAkSKAoEdXNlcxgMIAMoCzIaLmRvY2t3ZWxsLnYxLkNvbm5lY3Rpb25Vc2UiigIKDUNvbm5lY3Rpb25Vc2USDwoHbGlua19pZBgBIAEoCRIMCgRsaW5rGAIgASgJEhMKC2Vudmlyb25tZW50GAMgASgJEg8KB3Byb2plY3QYBCABKAkSDgoGcHJlZml4GAUgASgJEjIKBHNldHMYBiADKAsyJC5kb2Nrd2VsbC52MS5Db25uZWN0aW9uVXNlLlNldHNFbnRyeRIPCgdhcHBfaWRzGAcgAygJEgwKBGFwcHMYCCADKAkaUQoJU2V0c0VudHJ5EgsKA2tleRgBIAEoCRIzCgV2YWx1ZRgCIAEoDjIkLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkxpbmtQYXJ0OgI4ASK1AQoWQ2hlY2tDb25uZWN0aW9uUmVxdWVzdBIMCgRuYW1lGAEgASgJEjoKAnMzGAIgASgLMiguZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuQ29ubmVjdGlvblMzQgTI8xgBEg4KBnNlcnZlchgDIAEoCRITCgtlbnZpcm9ubWVudBgEIAEoCRILCgNhcHAYBSABKAkSDwoHcHJlc2lnbhgGIAEoCBIOCgZwcmVmaXgYByABKAkilQEKF0NoZWNrQ29ubmVjdGlvblJlc3BvbnNlEg4KBnBhc3NlZBgBIAEoCBIMCgRzdGVwGAIgASgJEgwKBGNvZGUYAyABKAkSDgoGc3RhdHVzGAQgASgFEg8KB21lc3NhZ2UYBSABKAkSDQoFd29yZHMYBiABKAkSDgoGcmVnaW9uGAcgASgJEg4KBnNlcnZlchgIIAEoCTL8BgoRQ29ubmVjdGlvblNlcnZpY2USiAEKD0xpc3RDb25uZWN0aW9ucxIjLmRvY2t3ZWxsLnYxLkxpc3RDb25uZWN0aW9uc1JlcXVlc3QaJC5kb2Nrd2VsbC52MS5MaXN0Q29ubmVjdGlvbnNSZXNwb25zZSIqkAIBoLsYAcC7GALIuxgC0LsYBYLT5JMCERIPL3YxL2Nvbm5lY3Rpb25zEpIBCg9DaGVja0Nvbm5lY3Rpb24SIy5kb2Nrd2VsbC52MS5DaGVja0Nvbm5lY3Rpb25SZXF1ZXN0GiQuZG9ja3dlbGwudjEuQ2hlY2tDb25uZWN0aW9uUmVzcG9uc2UiNKC7GAGwuxgBwLsYBMi7GATQuxgGgtPkkwIaOgEqIhUvdjEvY29ubmVjdGlvbnM6Y2hlY2sSqQEKDkNvbm5lY3RTdG9yYWdlEiIuZG9ja3dlbGwudjEuQ29ubmVjdFN0b3JhZ2VSZXF1ZXN0GiMuZG9ja3dlbGwudjEuQ29ubmVjdFN0b3JhZ2VSZXNwb25zZSJOoLsYAqq7GBESD2Nvbm5lY3Qtc3RvcmFnZcC7GAPIuxgD0LsYBILT5JMCIzoBKiIeL3YxL2Nvbm5lY3Rpb25zOmNvbm5lY3RTdG9yYWdlGpoDorsYlQMKC2Nvbm5lY3Rpb25zEoUDQ29ubmVjdGlvbnMgYXBwcyB1c2UsIHN1Y2ggYXMgYSBidWNrZXQgb2YgUzMtY29tcGF0aWJsZSBzdG9yYWdlIGFuZCB0aGUga2V5cyB0aGF0IHJlYWNoIGl0LiBBIGNvbm5lY3Rpb24gaXMgaW5zdGFsbC13aWRlOiBhbiBhZG1pbiBzYXZlcyBpdCBhcyBhIGNoYW5nZSwgd2l0aCBhIHBsYW4sIGFuZCBzYXlzIHdoaWNoIHByb2plY3RzIG1heSB1c2UgaXQuIENoZWNrQ29ubmVjdGlvbiBjaGVja3Mgb25lIGZyb20gYSBzZXJ2ZXIsIGluIGEgY29udGFpbmVyIG9mIHRoZSBhZ2VudCdzIG93biBiaW5hcnksIHdpdGhvdXQgc2F2aW5nIGFueXRoaW5nLiBTZWUgZG9jcy9hZHIvMDA5OS1ldmVyeS1raW5kLW9mLXRoaW5nLWFuLWFwcC1uZWVkcy1tZXQtdGhlLXNhbWUtdGhyZWUtd2F5cy5tZC5CqAEKD2NvbS5kb2Nrd2VsbC52MUIPQ29ubmVjdGlvblByb3RvUAFaN2dpdGh1Yi5jb20vZG9ja3dlbGwvZG9ja3dlbGwvZ2VuL2RvY2t3ZWxsL3YxO2RvY2t3ZWxsdjGiAgNEWFiqAgtEb2Nrd2VsbC5WMcoCC0RvY2t3ZWxsXFYx4gIXRG9ja3dlbGxcVjFcR1BCTWV0YWRhdGHqAgxEb2Nrd2VsbDo6VjFiBnByb3RvMw", [file_dockwell_resource_v1alpha1_specs, file_dockwell_v1_change, file_dockwell_v1_options, file_google_api_annotations]);
 
 /**
  * ConnectStorageRequest names an app, and the connection it reads its storage from.
@@ -236,6 +236,15 @@ export type ConnectionInfo = Message<"dockwell.v1.ConnectionInfo"> & {
    * @generated from field: repeated string projects = 11;
    */
   projects: string[];
+
+  /**
+   * What reads it: each link to it, in the environment it's in, with the apps that
+   * read the link's values. An admin's, every one; below an admin, those in the
+   * caller's projects alone.
+   *
+   * @generated from field: repeated dockwell.v1.ConnectionUse uses = 12;
+   */
+  uses: ConnectionUse[];
 };
 
 /**
@@ -244,6 +253,68 @@ export type ConnectionInfo = Message<"dockwell.v1.ConnectionInfo"> & {
  */
 export const ConnectionInfoSchema: GenMessage<ConnectionInfo> = /*@__PURE__*/
   messageDesc(file_dockwell_v1_connection, 4);
+
+/**
+ * ConnectionUse is one link to a connection, and the apps that read it.
+ *
+ * @generated from message dockwell.v1.ConnectionUse
+ */
+export type ConnectionUse = Message<"dockwell.v1.ConnectionUse"> & {
+  /**
+   * The link's resource ID and name, and its environment and project, by ID.
+   *
+   * @generated from field: string link_id = 1;
+   */
+  linkId: string;
+
+  /**
+   * @generated from field: string link = 2;
+   */
+  link: string;
+
+  /**
+   * @generated from field: string environment = 3;
+   */
+  environment: string;
+
+  /**
+   * @generated from field: string project = 4;
+   */
+  project: string;
+
+  /**
+   * Where its app's objects go in the bucket, such as "outline/".
+   *
+   * @generated from field: string prefix = 5;
+   */
+  prefix: string;
+
+  /**
+   * The names of the environment it sets, each with what it holds.
+   *
+   * @generated from field: map<string, dockwell.resource.v1alpha1.LinkPart> sets = 6;
+   */
+  sets: { [key: string]: LinkPart };
+
+  /**
+   * The apps that read those names, by their services' IDs and names.
+   *
+   * @generated from field: repeated string app_ids = 7;
+   */
+  appIds: string[];
+
+  /**
+   * @generated from field: repeated string apps = 8;
+   */
+  apps: string[];
+};
+
+/**
+ * Describes the message dockwell.v1.ConnectionUse.
+ * Use `create(ConnectionUseSchema)` to create a new message.
+ */
+export const ConnectionUseSchema: GenMessage<ConnectionUse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_connection, 5);
 
 /**
  * CheckConnectionRequest is a connection to check, as typed, or a saved one again.
@@ -308,7 +379,7 @@ export type CheckConnectionRequest = Message<"dockwell.v1.CheckConnectionRequest
  * Use `create(CheckConnectionRequestSchema)` to create a new message.
  */
 export const CheckConnectionRequestSchema: GenMessage<CheckConnectionRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_connection, 5);
+  messageDesc(file_dockwell_v1_connection, 6);
 
 /**
  * CheckConnectionResponse is what a check found: codes, never a body.
@@ -377,7 +448,7 @@ export type CheckConnectionResponse = Message<"dockwell.v1.CheckConnectionRespon
  * Use `create(CheckConnectionResponseSchema)` to create a new message.
  */
 export const CheckConnectionResponseSchema: GenMessage<CheckConnectionResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_connection, 6);
+  messageDesc(file_dockwell_v1_connection, 7);
 
 /**
  * ConnectionService reads the connections apps use, and checks one from where an
