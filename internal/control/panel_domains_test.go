@@ -666,3 +666,42 @@ func TestAWWWRedirectTheProxyDoesntAnswerStaysBehind(t *testing.T) {
 		t.Errorf("a redirect to a domain held back reads %q, and that domain %v", got, checks["www.shop.example.com"])
 	}
 }
+
+// A redirect whose domain the control plane holds, as one its proxy's labels name no
+// port of, stays behind too: chosen, it would land on nothing, and the plan would
+// refuse it with a fix the sheet can't offer (slice 4's review, M2).
+func TestAWWWRedirectToADomainHeldHereStaysBehind(t *testing.T) {
+	t.Parallel()
+	s := coolifyHandover(t)
+	s.e.AddNetwork(docker.Network{ID: "m3n8net", Name: "m3n8_default", Driver: "bridge"})
+	labels := map[string]string{
+		"coolify.managed": "true", "coolify.type": "service", "traefik.enable": "true", "coolify.serviceUuid": "m3n8", "coolify.resourceName": "shop",
+		docker.LabelWorkingDir: "/data/coolify/services/m3n8",
+		"traefik.http.middlewares.to-non-www.redirectregex.regex":         `^(http|https)://www\.(.+)`,
+		"traefik.http.middlewares.to-non-www.redirectregex.replacement":   "${1}://${2}",
+		"traefik.http.services.http-0-m3n8-shop.loadbalancer.server.port": "8080",
+		// The bare domain's router names a service with no port, which the control
+		// plane can't route; www's redirect needs none.
+		"traefik.http.routers.https-0-m3n8-shop.rule":        "Host(`shop.example.com`)",
+		"traefik.http.routers.https-0-m3n8-shop.middlewares": "to-non-www",
+		"traefik.http.routers.https-0-m3n8-shop.service":     "elsewhere",
+		"traefik.http.routers.https-1-m3n8-shop.rule":        "Host(`www.shop.example.com`)",
+		"traefik.http.routers.https-1-m3n8-shop.middlewares": "to-non-www",
+		"traefik.http.routers.https-1-m3n8-shop.service":     "http-0-m3n8-shop",
+	}
+	composeContainer(t, s.e, "m3n8", "shop", "shop-m3n8", func(r *docker.CreateRequest) { maps.Copy(r.Labels, labels) })
+	s.answers("www.shop.example.com", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "https://shop.example.com"+r.URL.Path, http.StatusFound)
+	})
+	s.takeOn(t)
+	checks := s.check(t)
+	if !strings.Contains(checks["shop.example.com"].GetHeld(), "which port") {
+		t.Fatalf("the domain it lands on reads %v", checks["shop.example.com"])
+	}
+	if got := checks["www.shop.example.com"].GetHeld(); got != "it redirects to shop.example.com, which stays behind" {
+		t.Errorf("a redirect to a domain held here reads %q", got)
+	}
+	if _, err := s.plan(t, "www.shop.example.com"); reasonOf(err) != "domain_held" {
+		t.Errorf("a handover of it = %v", err)
+	}
+}

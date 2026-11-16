@@ -37,6 +37,11 @@ function landsOn(c: PanelDomainCheck, checks: readonly PanelDomainCheck[]): stri
   }
 }
 
+/** Whether a domain of the checks stays behind, which nothing can land on. */
+function stays(domain: string, checks: readonly PanelDomainCheck[]): boolean {
+  return domain !== "" && checks.some((o) => o.domain === domain && o.held !== "");
+}
+
 /** Where a check's redirect goes, as a host, or "". */
 function redirectHost(c: PanelDomainCheck): string {
   try {
@@ -99,6 +104,8 @@ export function HandOverSheet({
         next.add(domain);
         const c = all.find((o) => o.domain === domain);
         const to = c ? landsOn(c, all) : "";
+        // A redirect lands only on one that comes too: never on one that stays behind.
+        if (to !== "" && stays(to, all)) return was;
         if (to !== "") next.add(to);
       } else {
         next.delete(domain);
@@ -171,7 +178,7 @@ export function HandOverSheet({
                   <input
                     type="checkbox"
                     checked={chosen.has(c.domain)}
-                    disabled={c.held !== ""}
+                    disabled={c.held !== "" || stays(landsOn(c, checks), checks)}
                     onChange={(e) => pick(c.domain, e.currentTarget.checked)}
                   />
                   <span className="handover-name">{c.domain}</span>

@@ -247,6 +247,34 @@ describe("moving in from Coolify", () => {
     ]);
   });
 
+  it("never offers a redirect whose domain stays behind, nor chooses that domain with it", async () => {
+    const user = userEvent.setup();
+    const checkPanelDomains = vi.fn((_req: CheckPanelDomainsRequest) =>
+      create(CheckPanelDomainsResponseSchema, {
+        domains: [
+          { domain: "shop.example.com", held: "shop stays where it is. Add it from shop's page once it's taken on" },
+          {
+            domain: "www.shop.example.com",
+            redirectsTo: "https://shop.example.com",
+            probes: [{ path: "/", answer: "302 to shop.example.com, as its redirect does", open: true }],
+          },
+        ],
+      }),
+    );
+    const planPanelDomains = vi.fn((_req: PlanPanelDomainsRequest) => ({ change: handover }));
+    renderAt(
+      "/servers/srv_1/import",
+      api({ imports: { importCoolify: () => found, checkPanelDomains, planPanelDomains } }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Read what Coolify runs" }));
+    await user.click(await screen.findByRole("button", { name: "Hand over ports 80 and 443" }));
+    const choice = await screen.findByRole("dialog", { name: "Hand over Coolify's domains" });
+    const shop = (await within(choice).findByRole("checkbox", { name: "shop.example.com" })) as HTMLInputElement;
+    const www = within(choice).getByRole("checkbox", { name: "www.shop.example.com" }) as HTMLInputElement;
+    expect(www.disabled && !www.checked).toBe(true);
+    expect(shop.checked).toBe(false);
+  });
+
   it("offers the proxy's start where it's stopped and no domain is a route", async () => {
     const user = userEvent.setup();
     const planStartPanel = vi.fn((_req: { serverId: string; panel: PanelKind; proxy: boolean }) => ({

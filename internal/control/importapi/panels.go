@@ -632,6 +632,17 @@ func (h *Handler) readHandover(ctx context.Context, server string, pk dockwellv1
 		}
 		ho.checks = append(ho.checks, pc)
 	}
+	// A redirect to a domain held here would land on nothing once the proxy stops, as
+	// the agent says of one it holds itself, so it can't be chosen either (ADR 0070).
+	for _, pc := range ho.checks {
+		to := redirectHost(pc.GetRedirectsTo())
+		if pc.GetHeld() != "" || to == "" {
+			continue
+		}
+		if slices.ContainsFunc(ho.checks, func(c *dockwellv1.PanelDomainCheck) bool { return c.GetDomain() == to && c.GetHeld() != "" }) {
+			pc.Held = fmt.Sprintf("it redirects to %s, which stays behind", to)
+		}
+	}
 	return ho, nil
 }
 
