@@ -47,6 +47,8 @@ data=$(mktemp -d)
 log=$(mktemp)
 cookie=$(mktemp)
 passkey=$(mktemp)
+# Where each app's input_file is written, which cleanup takes with it.
+work=$(mktemp -d)
 projects=()
 pid=""
 
@@ -62,7 +64,7 @@ cleanup() {
   done
   [[ -z "$pid" ]] || priv kill "$pid" 2>/dev/null || true
   wait 2>/dev/null || true
-  priv rm -rf "$data" "$log" "$cookie" "$passkey"
+  priv rm -rf "$data" "$log" "$cookie" "$passkey" "$work"
 }
 trap cleanup EXIT
 
@@ -84,8 +86,38 @@ fail() {
 }
 step() { echo "--- $*"; }
 
-input_env=()
-dw() { priv env DOCKWELL_DATA_DIR="$data" DOCKWELL_LOG_FORMAT=text "${input_env[@]}" "$bin" "$@"; }
+# The values given_env gives as secrets reach the CLI's environment from input_file,
+# mode 0600, never as arguments, which ps shows and sudo logs, as catalog-e2e.sh
+# gives them (#750).
+input_file="" secret_names=()
+dw() {
+  if [[ -n "$input_file" ]]; then
+    # shellcheck disable=SC2016 # the inner shell reads its own arguments.
+    priv bash -c 'set -a && . "$1" && set +a && shift && exec "$@"' dw "$input_file" \
+      env DOCKWELL_DATA_DIR="$data" DOCKWELL_LOG_FORMAT=text "$bin" "$@"
+    return
+  fi
+  priv env DOCKWELL_DATA_DIR="$data" DOCKWELL_LOG_FORMAT=text "$bin" "$@"
+}
+# inputs_file writes an app's given_env, NAME=value pairs apart by spaces, into a
+# fresh input_file, mode 0600, and sets secret_names to what they name; or leaves none.
+inputs_file() {
+  local pair given=${given_env[$1]:-}
+  local -a pairs
+  input_file="" secret_names=()
+  [[ -n "$given" ]] || return 0
+  # Space between pairs and nothing else, so a value can't add a line the shell sources.
+  [[ "$given" != *[$'\n\t\r']* ]] || fail "$1's given_env holds a line break or a tab: give each NAME=value with no whitespace in it"
+  IFS=' ' read -r -a pairs <<<"$given"
+  for pair in "${pairs[@]}"; do
+    [[ "$pair" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]] || fail "$1's given_env has a part that isn't NAME=value: give each as NAME=value, apart by spaces"
+    secret_names+=("${pair%%=*}")
+  done
+  input_file=$(umask 077 && mktemp "$work/inputs.XXXXXX")
+  for pair in "${pairs[@]}"; do
+    printf '%s=%q\n' "${pair%%=*}" "${pair#*=}"
+  done >"$input_file"
+}
 
 step "Dockwell starts, and its owner claims it"
 "${as_dockwell[@]}" env DOCKWELL_TEST=1 DOCKWELL_TEST_REGISTRY=public \
@@ -190,9 +222,9 @@ for app in "$@"; do
   step "$app installs from its store, runs and answers"
   entry=$(dw catalog get "$id" --catalog "$source" --json | jq .entry) || fail "the catalog has no $id from $source"
   [[ "$entry" != null ]] || fail "the catalog has no $id from $source"
-  read -r -a input_env <<<"${given_env[$app]:-}"
+  inputs_file "$app"
   values=()
-  for kv in "${input_env[@]}"; do values+=(--values "${kv%%=*}"); done
+  for name in "${secret_names[@]}"; do values+=(--values "$name"); done
   planned=$(dw catalog install "$id" --catalog "$source" "${needs[@]}" "${values[@]}" --plan-only --json) || fail "planning to install $id from $source failed"
   change=$(jq -r '.change.id // empty' <<<"$planned")
   [[ "$change" == chg_* ]] || fail "installing $id planned no change: $planned"
@@ -274,7 +306,9 @@ for app in "$@"; do
   [[ -z "$left" ]] || fail "removing $id left containers"
   echo "$app took $((SECONDS - started)) s"
   project=""
-  input_env=()
+  # Its secrets' values go with the app; cleanup takes the folder they were in.
+  if [[ -n "$input_file" ]]; then rm -f -- "$input_file"; fi
+  input_file=""
 done
 
 echo "store-e2e: ok"
