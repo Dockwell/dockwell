@@ -80,6 +80,25 @@ func TestStep(t *testing.T) {
 	}
 }
 
+// A change of numbering, dates to semver or back, is neither newer nor lower, and a
+// person takes it (ADR 0080).
+func TestRenumbered(t *testing.T) {
+	for _, c := range []struct {
+		from, to string
+		want     bool
+	}{
+		{"2024.10.1", "3.0.0", true},
+		{"3.0.0", "2024.10.1", true},
+		{"2024.10", "2024.11.2", false},
+		{"1.2", "1.3", false},
+		{"latest", "2024.10.1", false},
+	} {
+		if got := Renumbered(c.from, c.to); got != c.want {
+			t.Errorf("Renumbered(%q, %q) = %v, want %v", c.from, c.to, got, c.want)
+		}
+	}
+}
+
 // A lower version is a move down, which a catalog install refuses (ADR 0080); a
 // version with no numbers is never lower, as nothing says it is.
 func TestOlder(t *testing.T) {

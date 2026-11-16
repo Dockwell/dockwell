@@ -416,9 +416,8 @@ func better(a track, aTag string, b track, bTag, variant string) bool {
 // its release, and below a later pre-release (2.0.0-rc1 below 2.0.0-rc2, and
 // beta below rc), and a build numbered by a word, such as -ls44, below a later one
 // of the same word. A version whose numbers can't be read, such as latest, is
-// never lower, nor is one of another numbering: a calendar version, such as
-// 2024.10.1, against one that isn't, as an app that moves from dates to semver
-// moves on. A catalog's release of a lower version is a move down (ADR 0080).
+// never lower, nor is one of another numbering (Renumbered), which a person
+// decides. A catalog's release of a lower version is a move down (ADR 0080).
 func Older(from, to string) bool {
 	a, okA := readTrack(from)
 	b, okB := readTrack(to)
@@ -440,6 +439,17 @@ func Older(from, to string) bool {
 	wa, na, okA := wordNumber(a.variant)
 	wb, nb, okB := wordNumber(b.variant)
 	return okA && okB && wa == wb && nb < na
+}
+
+// Renumbered says two versions are of different numberings, a calendar version,
+// such as 2024.10.1, against one that isn't, such as 3.0.0, either way round.
+// Neither can say whether the other is newer or lower, so a catalog's move from one
+// to the other is offered, and a person takes it: an automatic update never does
+// (ADR 0080; the release-wait re-check, N2).
+func Renumbered(from, to string) bool {
+	a, okA := readTrack(from)
+	b, okB := readTrack(to)
+	return okA && okB && calendar(a.nums) != calendar(b.nums)
 }
 
 // calendar says a version's numbers are a date's, as its first is a year.

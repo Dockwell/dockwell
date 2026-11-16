@@ -100,7 +100,8 @@ As built (#559): an app's row has a box where its update counts (ADR 0079), no c
   - The install says so: `CatalogInstall.withdrawn` names the lower version, and its card says it's withdrawn by its catalog and stays on its version until a later release, with "Install 1.2 beside it" to the entry's page.
   - It takes no new build of a tag it runs meanwhile, as that would build the lower version's entry.
   - A new install takes the release as it is.
-  - Lower is read from the versions' numbers. With the same numbers, a pre-release is below its release and below a later pre-release, and a build numbered by a word, such as `-ls44`, below a later one of the same word. A version with no numbers, such as `latest`, is never lower, nor is one of another numbering: an app that moves from calendar versions, such as `2024.10.1`, to `3.0.0` moves on, as a major step.
+  - Lower is read from the versions' numbers. With the same numbers, a pre-release is below its release and below a later pre-release, and a build numbered by a word, such as `-ls44`, below a later one of the same word. A version with no numbers, such as `latest`, is never lower.
+  - **A change of numbering is a person's to take.** A move between calendar versions, such as `2024.10.1`, and others, such as `3.0.0`, either way round, can't say whether it's newer or lower: an app may have moved to semver, or a catalog may have withdrawn its first semver release. So it's offered, as a major step, and never refused, but an automatic update never takes it, past its wait or not (`renumbered`). A person reads its notes and decides.
 
 ### Robust
 

@@ -6,6 +6,7 @@ import (
 	"context"
 
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/internal/registry"
 )
 
 // Nexter is ADR 0079's record of what's newer than each service runs, as
@@ -38,7 +39,10 @@ func (x nexter) Of(ctx context.Context, serviceID string) (Newer, bool, error) {
 	if err != nil || a == nil {
 		return Newer{}, false, err
 	}
-	out := Newer{Image: a.GetToImage(), Kind: kinds[a.GetKind()], Catalog: a.GetCatalogRelease() > 0}
+	out := Newer{
+		Image: a.GetToImage(), Kind: kinds[a.GetKind()], Catalog: a.GetCatalogRelease() > 0,
+		Renumbered: registry.Renumbered(a.GetFromVersion(), a.GetToVersion()),
+	}
 	if a.GetFoundTime() != nil {
 		out.Found = a.GetFoundTime().AsTime()
 	}

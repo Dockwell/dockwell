@@ -238,6 +238,12 @@ func (r *Runner) update(ctx context.Context, d *due) error {
 	if newer.Catalog && newer.Kind != "digest" && (newer.Found.IsZero() || r.now().Sub(newer.Found) < CatalogWait) {
 		return nil
 	}
+	// A move to another numbering, such as from calendar versions to semver, can't
+	// say whether it's newer or lower, so a person takes it (the release-wait
+	// re-check, N2).
+	if newer.Renumbered {
+		return nil
+	}
 	a := d.spec.GetAutoUpdate()
 	kind := newer.Kind
 	if kind == "digest" {

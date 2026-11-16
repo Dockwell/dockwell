@@ -31,6 +31,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/changes"
 	"github.com/dockwell/dockwell/internal/control/composeapi"
+	"github.com/dockwell/dockwell/internal/registry"
 	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
 	"github.com/dockwell/dockwell/internal/resource/service"
@@ -643,6 +644,11 @@ func (h *Handler) upgrade(ctx context.Context, m *dockwellv1.UpgradeCatalogInsta
 	// ReleaseWait: checked here, on the release this plans, as the source may have
 	// moved since the update was found (ADR 0080; the release-wait review, H1). A
 	// later look in the window may take it, so it's Unavailable, not refused.
+	// Nor a move to another numbering, which can't say whether it's newer or lower,
+	// and a person takes (the release-wait re-check, N2).
+	if newer && changes.IsDockwell(ctx) && registry.Renumbered(pin.GetVersion(), entry.GetVersion()) {
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s moves from %s to %s, another numbering, which can't say whether it's newer, so an automatic update leaves it for you. Read its notes, then upgrade it on its page", install.GetProject(), pin.GetVersion(), entry.GetVersion()), "renumbered")
+	}
 	if newer && !rebuildOnly && changes.IsDockwell(ctx) {
 		now := h.sources.now()
 		if at, ok := changes.DockwellAt(ctx); ok {

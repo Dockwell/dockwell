@@ -324,3 +324,30 @@ func TestAWalkBackReadsAtMostTenRevisions(t *testing.T) {
 		t.Errorf("release 2 is found at %v, from a record 12 revisions back, where a read looks back over 10", got.Found)
 	}
 }
+
+// A source that moves an entry to another numbering, as from 1.1 to 2024.10.1, is
+// offered, but an automatic update never takes it, past its wait or not; a person's
+// plan does (ADR 0080; the release-wait re-check, N2).
+func TestARenumberingIsAPersonsToTake(t *testing.T) {
+	t.Parallel()
+	r := newWaitStand(t, store.SQLite)
+	r.move(t, map[string]string{"entries/notes-src.yaml": waitEntry("notes-src", 2, "2024.10.1")})
+	got, ok, err := services.NewerFrom(r.keeper()).Of(t.Context(), r.id)
+	if err != nil || !ok || !got.Renumbered {
+		t.Fatalf("the move to 2024.10.1: %+v, %v, %v; want it offered, renumbered", got, ok, err)
+	}
+	at := windowAfter(time.Now())
+	r.record(t, 2, at.Add(-10*24*time.Hour))
+	r.tick(t, at, services.NewerFrom(r.keeper()))
+	if got := r.release(t); got != 1 {
+		t.Errorf("an automatic update took the move from 1.1 to 2024.10.1, release %d", got)
+	}
+	res, err := r.cat.UpgradeCatalogInstall(t.Context(), connect.NewRequest(&dockwellv1.UpgradeCatalogInstallRequest{Id: "notes-src"}))
+	if err != nil {
+		t.Fatalf("a person's upgrade to 2024.10.1: %v", err)
+	}
+	apply(t, r.c, res.Msg.GetChange())
+	if got := r.release(t); got != 2 {
+		t.Errorf("after a person's upgrade, release %d", got)
+	}
+}

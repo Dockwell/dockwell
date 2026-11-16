@@ -51,6 +51,9 @@ type Newer struct {
 	// Found is when it was found: for a catalog release, when the install's source
 	// moved to it. Zero where it isn't known.
 	Found time.Time
+	// Renumbered says it moves to another numbering, such as from calendar versions
+	// to semver, which only a person takes (ADR 0080).
+	Renumbered bool
 }
 
 // Updates says what newer image each service has, as Dockwell's checks found
