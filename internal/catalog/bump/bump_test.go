@@ -455,3 +455,25 @@ func TestALimitThatHoldsLeavesItsImagesUnread(t *testing.T) {
 		t.Errorf("with the limit held, after %s it reads unread %v", time.Since(start), r.Unread)
 	}
 }
+
+// A version whose digest can't be read in a run keeps what was seen of it, so a
+// flaky registry doesn't start its wait again (#726's re-check, L-N3).
+func TestAVersionUnreadThisRunKeepsWhenItWasSeen(t *testing.T) {
+	s := shopStand(t)
+	dir := checkout(t, map[string]string{"shop": shopEntry("1.4.2")}, map[string]string{"shop": "gives: app\n"})
+	ref := mustParse(t, "ghcr.io/acme/shop:v1.4.2")
+	key := bump.SeenKey(ref, "v1.4.3", bumptest.Digest("acme/shop", bumptest.Tag{Name: "v1.4.3"}))
+	s.Broken["acme/shop:v1.4.3"] = true
+	r := plan(t, s, dir, "shop", map[string]time.Time{key: ago(2)})
+	var kept bool
+	for i := range r.Lanes {
+		for _, st := range r.Lanes[i].Steps {
+			if at, ok := st.Saw[key]; ok && at.Equal(ago(2)) {
+				kept = true
+			}
+		}
+	}
+	if !kept {
+		t.Errorf("v1.4.3, unread this run, lost when it was first seen: %+v", r.Lanes)
+	}
+}

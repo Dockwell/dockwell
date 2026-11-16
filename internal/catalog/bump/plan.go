@@ -365,7 +365,18 @@ func (p *Planner) choose(ctx context.Context, list []registry.NewerTag, byName m
 				}
 			}
 			s.Out = p.Now
-			if s.digest != "" {
+			if s.digest == "" {
+				// Its digest couldn't be read this run: what was seen of the tag before
+				// is kept as it was, so a flaky registry doesn't start its wait again
+				// (#726's re-check, L-N3).
+				prefix := seenTag(ref, c.Tag) + "@"
+				for k, at := range p.Seen {
+					if strings.HasPrefix(k, prefix) && len(saw) < maxSaw {
+						saw[k] = at
+					}
+				}
+			}
+			if s.digest != "" && len(saw) < maxSaw {
 				key := SeenKey(ref, c.Tag, s.digest)
 				if seen, ok := p.Seen[key]; ok && !seen.After(p.Now) {
 					s.Out = seen
@@ -391,6 +402,10 @@ func (p *Planner) choose(ctx context.Context, list []registry.NewerTag, byName m
 	}
 	return chosen
 }
+
+// maxSaw bounds what a body records of one image, well within GitHub's limit on a
+// body: the newest versions first, as candidates come.
+const maxSaw = 64
 
 // pushedAgain says the bump saw tag at another digest before.
 func (p *Planner) pushedAgain(ref registry.Ref, tag, digest string) bool {

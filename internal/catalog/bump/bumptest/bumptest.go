@@ -59,6 +59,9 @@ type Stand struct {
 	Official map[string]string
 	// Limited is how many requests to a registry answer 429 first.
 	Limited int
+	// Broken are the manifests that answer 500, by repository:tag, as a registry
+	// that fails for a while.
+	Broken map[string]bool
 	// Asked are the paths it was asked for, in order.
 	Asked []string
 }
@@ -66,7 +69,7 @@ type Stand struct {
 // New starts a stand-in, stopped when the test ends.
 func New(t *testing.T) *Stand {
 	t.Helper()
-	s := &Stand{Images: map[string][]Tag{}, Hub: map[string]bool{}, Releases: map[string]Release{}, Tags: map[string]bool{}, Official: map[string]string{}}
+	s := &Stand{Images: map[string][]Tag{}, Hub: map[string]bool{}, Releases: map[string]Release{}, Tags: map[string]bool{}, Official: map[string]string{}, Broken: map[string]bool{}}
 	srv := httptest.NewServer(http.HandlerFunc(s.serve))
 	t.Cleanup(srv.Close)
 	s.URL = srv.URL
@@ -159,6 +162,10 @@ func (s *Stand) registry(w http.ResponseWriter, r *http.Request, p string) {
 	repo, ref, ok := strings.Cut(p, "/manifests/")
 	if !ok {
 		http.NotFound(w, r)
+		return
+	}
+	if s.Broken[repo+":"+ref] {
+		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 	for _, t := range s.Images[repo] {
