@@ -688,11 +688,11 @@ func TestEveryEntryHasACatalogJob(t *testing.T) {
 			case !strings.Contains(string(check), "\ncheck_"+e.GetId()+"() {"):
 				t.Errorf("checks/%s.sh defines no check_%s", e.GetId(), e.GetId())
 			case mayProveNone[e.GetId()]:
-				if m := waivedLine.FindSubmatch(check); m == nil || string(m[1]) != e.GetId() {
+				if m := waivedLine.FindSubmatch(check); len(m) < 2 || string(m[1]) != e.GetId() {
 					t.Errorf("checks/%s.sh says nothing of why %s proves no upgrade: give it an upgrade_waived[%s] line", e.GetId(), e.GetId(), e.GetId())
 				}
 			default:
-				if m := beforeLine.FindSubmatch(check); m == nil || string(m[1]) != e.GetId() {
+				if m := beforeLine.FindSubmatch(check); len(m) < 2 || string(m[1]) != e.GetId() {
 					t.Errorf("checks/%s.sh names no release before %s to upgrade from, by its version and each image by digest: give it a before[%s] line", e.GetId(), e.GetId(), e.GetId())
 				}
 				if waivedLine.Match(check) {

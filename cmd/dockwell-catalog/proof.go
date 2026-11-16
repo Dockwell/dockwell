@@ -72,7 +72,7 @@ func whoseCommand(args []string, stdout, stderr io.Writer) error {
 	}
 	branches := map[string]string{}
 	if *branchesFile != "" {
-		raw, err := os.ReadFile(*branchesFile) //nolint:gosec // the file the workflow names
+		raw, err := os.ReadFile(*branchesFile)
 		if err != nil {
 			return err
 		}
