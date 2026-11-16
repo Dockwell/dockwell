@@ -250,3 +250,51 @@ func TestASourceAddedAgainHoldsAReleaseFromItsOwnAdding(t *testing.T) {
 		}
 	})
 }
+
+// A source that moves between a read of the catalog and its record of the release
+// writes no record for a revision that doesn't hold it, so a later return to the
+// release counts from the return (the release-wait re-check, N1).
+func TestAMoveDuringAReadRecordsNothingWrong(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		r := newWaitStand(t, backend)
+		r.move(t, map[string]string{"entries/notes-src.yaml": waitEntry("notes-src", 2, "1.2")})
+		if _, _, err := services.NewerFrom(r.keeper()).Of(t.Context(), r.id); err != nil {
+			t.Fatal(err)
+		}
+		r.record(t, 2, time.Now().Add(-2*24*time.Hour))
+		// A person undoes the move after the next read read the catalog, and before it
+		// records what the source holds.
+		r.f.server.catalogs.BeforeHeld(func() {
+			res, err := r.cat.SetCatalogSource(t.Context(), connect.NewRequest(&dockwellv1.SetCatalogSourceRequest{Name: "community", Repository: r.repo.URL, Path: "entries", Commit: r.commits[0]}))
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			apply(t, r.c, res.Msg.GetChange())
+		})
+		if _, _, err := services.NewerFrom(r.keeper()).Of(t.Context(), r.id); err != nil {
+			t.Fatal(err)
+		}
+		// The branch moves on with another entry, and the source follows it back to
+		// release 2.
+		r.repo.Commit(map[string]string{"entries/wiki-src.yaml": waitEntry("wiki-src", 1, "1.0")})
+		before := time.Now()
+		res, err := r.cat.SetCatalogSource(t.Context(), connect.NewRequest(&dockwellv1.SetCatalogSourceRequest{Name: "community", Repository: r.repo.URL, Path: "entries", Follow: "main"}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		apply(t, r.c, res.Msg.GetChange())
+		got, ok, err := services.NewerFrom(r.keeper()).Of(t.Context(), r.id)
+		if err != nil || !ok {
+			t.Fatalf("release 2's update: %+v, %v, %v", got, ok, err)
+		}
+		if got.Found.Before(before.Add(-time.Second)) {
+			t.Errorf("release 2 is found at %v, before the source came back to it at %v", got.Found, before)
+		}
+		r.tick(t, windowAfter(before.Add(36*time.Hour)), services.NewerFrom(r.keeper()))
+		if got := r.release(t); got != 1 {
+			t.Errorf("the automatic update took release %d within 3 days of the source's return to release 2", got)
+		}
+	})
+}

@@ -86,9 +86,12 @@ type asked struct {
 // A record of the same release at the source's latest revision stands. Otherwise
 // the source moved since: its revisions are read back from the latest, while the
 // entry's release in them is the one it holds now, to the one before the record or
-// walkBack of them, and the time is the first of that run's. So a release the
-// source left and came back to counts from its return, and a source removed and
-// added again from its own revisions (its review, M1). The catalog built into
+// walkBack of them, and the time is the first of that run's.
+// So a release the source left and came back to counts from its return, and a
+// source removed and added again from its own revisions (its review, M1). A latest
+// revision that doesn't hold the release asked, as the source moved after the
+// catalog asked about was read, counts from now and records nothing (its re-check,
+// N1). The catalog built into
 // Dockwell, which no revision moves, holds a release from when the control plane
 // first read it. A record that can't be written is logged, and read again next time,
 // which only makes the wait longer.
@@ -96,6 +99,9 @@ func (h *Handler) heldSince(ctx context.Context, list map[string]asked, now time
 	out := make(map[string]time.Time, len(list))
 	if len(list) == 0 {
 		return out
+	}
+	if hook := h.beforeHeld.Swap(nil); hook != nil {
+		(*hook)()
 	}
 	fresh := map[string]held{}
 	for key, a := range list {
@@ -210,22 +216,31 @@ func (h *Handler) since(ctx context.Context, a asked, now time.Time) (since time
 	case known && was.revision == latest.number && was.release == a.release:
 		return was.since, held{}, "", nil
 	}
+	// The latest revision must hold the release asked: the catalog asked about was
+	// read before, and the source may have moved since. One that doesn't counts
+	// from now, and records nothing (its re-check, N1).
+	releases := map[string]uint32{}
+	at := func(spec *resourcev1.CatalogSource) uint32 {
+		key := spec.GetRepository() + "\x00" + spec.GetPath() + "\x00" + spec.GetCommit()
+		release, ok := releases[key]
+		if !ok {
+			release = h.releaseAt(ctx, a.source, spec, a.entry)
+			releases[key] = release
+		}
+		return release
+	}
+	if latest.spec == nil || at(latest.spec) != a.release {
+		return now, held{}, "", nil
+	}
 	// The run of revisions back from the latest that hold this release, by commit,
 	// as each commit's read is the same.
 	start, stopped := latest, false
-	releases := map[string]uint32{}
 	for _, rev := range earlier {
 		if rev.spec == nil {
 			stopped = true
 			break
 		}
-		at := rev.spec.GetRepository() + "\x00" + rev.spec.GetPath() + "\x00" + rev.spec.GetCommit()
-		release, ok := releases[at]
-		if !ok {
-			release = h.releaseAt(ctx, a.source, rev.spec, a.entry)
-			releases[at] = release
-		}
-		if release != a.release {
+		if at(rev.spec) != a.release {
 			stopped = true
 			break
 		}

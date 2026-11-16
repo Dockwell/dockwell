@@ -15,6 +15,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"connectrpc.com/connect"
@@ -49,6 +50,9 @@ type Handler struct {
 	sources *Sources
 	commit  string
 	logger  *slog.Logger
+	// beforeHeld, where a test sets it, runs as heldSince starts, after the catalog
+	// it's asked about was read, to move a source in between.
+	beforeHeld atomic.Pointer[func()]
 	// digests pins the images of an entry converted on the control plane when a
 	// plan installs it. Nil can't plan installing one.
 	digests Digests
