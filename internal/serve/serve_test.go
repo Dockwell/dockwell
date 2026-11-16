@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os/exec"
 	"slices"
 	"strings"
 	"sync"
@@ -23,6 +24,7 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/dockwell/dockwell/internal/pki"
+	"github.com/dockwell/dockwell/internal/testport"
 )
 
 func discard() *slog.Logger { return slog.New(slog.DiscardHandler) }
@@ -355,4 +357,43 @@ func at(list []string, i int) string {
 		return list[i]
 	}
 	return ""
+}
+
+// A listener Serve stops serving is free once Serve returns, though processes start
+// all the while: a child between its fork and its exec holds a copy of the listener,
+// which would keep its port taken past the close (#756).
+func TestAPortIsFreeOnceServeReturnsWhileProcessesStart(t *testing.T) {
+	t.Parallel()
+	bin, err := exec.LookPath("true")
+	if err != nil {
+		t.Skip("no true to start")
+	}
+	forks, stopForks := context.WithCancel(t.Context())
+	var started sync.WaitGroup
+	for range 8 {
+		started.Go(func() {
+			for forks.Err() == nil {
+				_ = exec.CommandContext(forks, bin).Run()
+			}
+		})
+	}
+	defer started.Wait()
+	defer stopForks()
+	logger := slog.New(slog.DiscardHandler)
+	for range 50 {
+		ln := testport.Listen(t, "127.0.0.1")
+		addr := ln.Addr().String()
+		ctx, cancel := context.WithCancel(t.Context())
+		done := make(chan error, 1)
+		go func() { done <- Serve(ctx, ln, http.NotFoundHandler(), Options{Name: "test", Logger: logger}) }()
+		cancel()
+		if err := <-done; err != nil {
+			t.Fatal(err)
+		}
+		again, err := Listen(t.Context(), addr)
+		if err != nil {
+			t.Fatalf("the port isn't free once Serve returned: %v", err)
+		}
+		_ = again.Close()
+	}
 }
