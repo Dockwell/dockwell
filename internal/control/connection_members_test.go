@@ -5,6 +5,7 @@ package control
 import (
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"testing"
 
@@ -89,6 +90,13 @@ func TestAConnectionOfAnotherProjectReadsAsNotThere(t *testing.T) {
 		Reach: resourcev1.ConnectionReach_CONNECTION_REACH_PROJECTS, Projects: []string{dataProject},
 		S3: &resourcev1.ConnectionS3{Endpoint: srv.URL(), Bucket: "theirs", AccessKeyId: "AKIDTHEIRS", SecretKey: "theirs-secret", PathStyle: true},
 	})))
+	// Ours reaches data too: below an admin, it says the caller's own project alone,
+	// never data's ID (re-check N3).
+	apply(t, c, propose(t, c, "Let data use ours", connectionEdit("ours", &resourcev1.ConnectionSpec{
+		DisplayName: "Ours", Kind: resourcev1.LinkKind_LINK_KIND_S3,
+		Reach: resourcev1.ConnectionReach_CONNECTION_REACH_PROJECTS, Projects: []string{project, dataProject},
+		S3: &resourcev1.ConnectionS3{Endpoint: srv.URL(), Bucket: "ours", PathStyle: true},
+	})))
 	// One that reaches every project, linked in this one and in data: below an admin,
 	// what reads it in data isn't theirs to see.
 	var dataEnv string
@@ -144,6 +152,11 @@ func TestAConnectionOfAnotherProjectReadsAsNotThere(t *testing.T) {
 		}
 		if !strings.Contains(string(raw), "ours-link") {
 			t.Errorf("%s doesn't see what reads shared in their own project: %s", who, raw)
+		}
+		for _, info := range listed.Msg.GetConnections() {
+			if info.GetName() == "ours" && !slices.Equal(info.GetProjects(), []string{project}) {
+				t.Errorf("%s reads ours as reaching %v, want their own project alone", who, info.GetProjects())
+			}
 		}
 		// Narrowed to the other project, nothing.
 		if got, err := cc.ListConnections(t.Context(), connect.NewRequest(&dockwellv1.ListConnectionsRequest{Project: "data"})); err == nil && len(got.Msg.GetConnections()) > 0 {
