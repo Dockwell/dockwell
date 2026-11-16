@@ -319,9 +319,9 @@ func (h *Handler) SetPanelDomain(ctx context.Context, req *connect.Request[dockw
 	if h.domain.Auth == nil {
 		return nil, connect.NewError(connect.CodeUnavailable, errors.New("this control plane can't check a passkey, so the domain didn't change"))
 	}
-	// The passkey confirms the domain set, or the one cleared.
-	target := d
-	if target == "" {
+	// The passkey confirms the domain set, and how it's served, or the one cleared.
+	target := PanelDomainTarget(d, want.BehindProxy)
+	if d == "" {
 		target = was.Domain
 	}
 	client, _ := authapi.ClientFrom(ctx)
@@ -373,6 +373,16 @@ func (h *Handler) setPanel(ctx context.Context, want, was PanelSet) (*dockwellv1
 		return err
 	})
 	return out, err
+}
+
+// PanelDomainTarget is what a passkey confirms for setting the panel's domain: the
+// domain, and behind a tunnel or proxy, that too, as that mode trusts what the
+// proxy says on loopback (#734's review, L3).
+func PanelDomainTarget(domain string, behindProxy bool) string {
+	if behindProxy {
+		return domain + " behind a proxy"
+	}
+	return domain
 }
 
 // current reads the settings as they are.

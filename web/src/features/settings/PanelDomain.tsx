@@ -111,7 +111,9 @@ function useSetDomain(onRestart: (r: { to: string }) => void) {
     setFailure(undefined);
     try {
       const client = createClient(SettingsService, transport);
-      const res = await withStepUpIfAsked(transport, StepUpAction.SET_PANEL_DOMAIN, confirmOn, (proof) =>
+      // The passkey confirms how it's served too, as the server's target says (settings.PanelDomainTarget).
+      const target = domain && behindProxy ? `${confirmOn} behind a proxy` : confirmOn;
+      const res = await withStepUpIfAsked(transport, StepUpAction.SET_PANEL_DOMAIN, target, (proof) =>
         client.setPanelDomain({ domain, proof, behindProxy }),
       );
       if (res.restarting) onRestart({ to: domain });

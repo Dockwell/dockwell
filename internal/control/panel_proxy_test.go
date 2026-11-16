@@ -405,7 +405,7 @@ func TestTheOwnerPutsThePanelBehindATunnel(t *testing.T) {
 	set := func(domain string, behind bool) (*dockwellv1.SetPanelDomainResponse, error) {
 		res, err := c.SetPanelDomain(t.Context(), connect.NewRequest(&dockwellv1.SetPanelDomainRequest{
 			Domain: domain, BehindProxy: behind,
-			Proof: stepUpFor(t, b, dockwellv1.StepUpAction_STEP_UP_ACTION_SET_PANEL_DOMAIN, cmpOr(domain, tunnelDomain)),
+			Proof: stepUpFor(t, b, dockwellv1.StepUpAction_STEP_UP_ACTION_SET_PANEL_DOMAIN, settings.PanelDomainTarget(cmpOr(domain, tunnelDomain), behind && domain != "")),
 		}))
 		if err != nil {
 			return nil, err
@@ -419,6 +419,13 @@ func TestTheOwnerPutsThePanelBehindATunnel(t *testing.T) {
 			t.Fatal(err)
 		}
 		return s
+	}
+	// A passkey for the domain served by Dockwell doesn't confirm it behind a proxy.
+	if _, err := c.SetPanelDomain(t.Context(), connect.NewRequest(&dockwellv1.SetPanelDomainRequest{
+		Domain: tunnelDomain, BehindProxy: true,
+		Proof: stepUpFor(t, b, dockwellv1.StepUpAction_STEP_UP_ACTION_SET_PANEL_DOMAIN, tunnelDomain),
+	})); reasonOf(err) != authapi.ReasonNeedsStepUp {
+		t.Errorf("behind a proxy with a passkey for the domain alone: %v, want needs_step_up", err)
 	}
 	if got, err := set(tunnelDomain, true); err != nil || !got.GetRestarting() {
 		t.Fatalf("setting it behind a tunnel: %v, %v", got, err)
