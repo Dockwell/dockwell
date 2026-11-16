@@ -38,6 +38,9 @@ on:
       floored:
         description: The entries proven with the floor alone, as they have no checks/<id>.sh, which don't merge by themselves.
         value: ${{ jobs.x86.outputs.floored }}
+      not-upgraded:
+        description: The entries that proved no upgrade, as every earlier release was before the earliest their check runs, which don't merge by themselves either.
+        value: ${{ jobs.x86.outputs.not-upgraded }}
 
 permissions:
   contents: read
@@ -51,6 +54,7 @@ jobs:
     timeout-minutes: 60
     outputs:
       floored: ${{ steps.prove.outputs.floored }}
+      not-upgraded: ${{ steps.prove.outputs.not-upgraded }}
     env:
       E2E_ROOT: "1"
       ENTRIES: ${{ inputs.entries }}
@@ -112,14 +116,16 @@ jobs:
           FLOOR: ${{ inputs.floor }}
         run: |
           floored=$(mktemp)
+          not_upgraded=$(mktemp)
           read -r -a ids <<< "$ENTRIES"
           (cd dockwell && make build-go)
           flags=(--catalog catalog --at "$AT")
           [[ -z "$BASE" ]] || flags+=(--base "$BASE")
           [[ "$REQUIRE" != true ]] || flags+=(--require-upgrade)
           [[ "$FLOOR" == true ]] || flags+=(--no-floor)
-          E2E_FLOORED="$floored" dockwell/scripts/catalog-e2e.sh dockwell/bin/dockwell "${flags[@]}" "${ids[@]}"
+          E2E_FLOORED="$floored" E2E_NOT_UPGRADED="$not_upgraded" dockwell/scripts/catalog-e2e.sh dockwell/bin/dockwell "${flags[@]}" "${ids[@]}"
           echo "floored=$(tr '\n' ' ' < "$floored" | sed 's/ $//')" >> "$GITHUB_OUTPUT"
+          echo "not-upgraded=$(tr '\n' ' ' < "$not_upgraded" | sed 's/ $//')" >> "$GITHUB_OUTPUT"
 
   # An entry with no check of its own runs on arm64 too, as nothing else says it
   # runs there.

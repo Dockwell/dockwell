@@ -79,7 +79,9 @@ chmod 755 "$catalog_dir"
 media_dir=$(mktemp -d)
 echo kept >"$media_dir/e2e.txt"
 chmod -R a+rX "$media_dir"
-projects=()
+# The Compose projects of what this made, one a line, for cleanup: each entry is
+# proven in a subshell of its own, whose variables go with it.
+projects_file=$(mktemp)
 plans=()
 input_env=()
 pid=""
@@ -89,16 +91,18 @@ as_dockwell=()
 priv() { "${as_dockwell[@]}" "$@"; }
 
 cleanup() {
-  for p in "${projects[@]}"; do
+  local p
+  while read -r p; do
+    [[ -n "$p" ]] || continue
     docker ps --all --quiet --filter "label=com.docker.compose.project=$p" | xargs --no-run-if-empty docker rm --force --volumes >/dev/null 2>&1 || true
     docker volume ls --quiet --filter "label=com.docker.compose.project=$p" | xargs --no-run-if-empty docker volume rm --force >/dev/null 2>&1 || true
     docker network ls --quiet --filter "label=com.docker.compose.project=$p" | xargs --no-run-if-empty docker network rm >/dev/null 2>&1 || true
-  done
+  done <"$projects_file"
   docker ps --all --quiet --filter label=dev.dockwell.volume-tool | xargs --no-run-if-empty docker rm --force >/dev/null 2>&1 || true
   docker rm --force e2e-adminer-db >/dev/null 2>&1 || true
   [[ -z "$pid" ]] || priv kill "$pid" 2>/dev/null || true
   wait 2>/dev/null || true
-  priv rm -rf "$data" "$log" "$cookie" "$passkey" "$stepup" "$catalog_tool" "$catalog_dir" "$media_dir"
+  priv rm -rf "$data" "$log" "$cookie" "$passkey" "$stepup" "$catalog_tool" "$catalog_dir" "$media_dir" "$projects_file"
 }
 trap cleanup EXIT
 
@@ -476,7 +480,7 @@ plan_install() {
   [[ -n "$installed" ]] || fail "installing $id planned no project: $planned"
   environment=$(jq -r '[.change.plan.resources[] | select(.resource.kind == "service")][0].resource.scope' <<<"$planned")
   project=${environment,,}
-  projects+=("$project")
+  echo "$project" >>"$projects_file"
 }
 # plan_upgrade plans upgrading the install, and sets planned and change.
 plan_upgrade() {
@@ -554,7 +558,15 @@ prove() {
   project=""
 }
 
+# The harness's own functions can't be redefined by what a check defines: a check
+# that tries fails its entry (#726's slice 2 review, M4).
+mapfile -t harness < <(declare -F | awk '{print $3}')
+readonly -f "${harness[@]}"
+
 for id in "$@"; do
+  # Each entry in a subshell of its own: nothing its check sets or defines reaches
+  # the next, and a failure ends the run through set -e.
+  (
   started=$SECONDS
   [[ -f "$catalog/entries/$id.yaml" ]] || fail "the catalog has no entries/$id.yaml"
   # Its own check where the catalog has one, else the floor, with which it doesn't
@@ -584,7 +596,7 @@ for id in "$@"; do
   # release of the current major, as an install that waited months would; from
   # nothing for an entry that's new.
   earlier=$("$catalog_tool" earlier --catalog "$catalog" --at "$at" ${base:+--base "$base"} "$id") || fail "reading $id's earlier releases failed"
-  proved=0
+  proved=0 skipped=0
   history_before=$(jq -r '.before.version // empty' <<<"$earlier")
   # A release before its check names, by its version and image digests, where the
   # history holds none of another version, as a young catalog's doesn't.
@@ -601,6 +613,7 @@ for id in "$@"; do
     was=$(jq -r --arg w "$which" '.[$w].version' <<<"$earlier")
     if [[ -n "${earliest[$id]:-}" && "$(printf '%s\n' "$was" "${earliest[$id]}" | sort -V | head -1)" != "${earliest[$id]}" ]]; then
       step "$id: $was is before ${earliest[$id]}, the earliest its check says runs here, so it isn't proven from"
+      skipped=1
       continue
     fi
     prove "$from" "$was"
@@ -612,9 +625,15 @@ for id in "$@"; do
       fail "$id has no earlier release to upgrade from. Give checks/$id.sh a before[$id] line: the release before, by its version and each image by digest"
     step "$id: proves no upgrade, as its check says: ${upgrade_waived[$id]}"
   fi
+  if ((!proved)) && ((skipped)); then
+    # Upgraded from nothing, as every earlier release was before its earliest: not a
+    # full proof, which slice 3 leaves to a person, as with the floor.
+    echo "$id" >>"${E2E_NOT_UPGRADED:-/dev/null}"
+  fi
   ((proved)) || prove
   rm -f "$catalog_dir/$id.yaml"
   echo "$id took $((SECONDS - started)) s"
+  )
 done
 
 echo "catalog-e2e: ok"
