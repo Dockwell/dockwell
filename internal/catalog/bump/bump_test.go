@@ -140,7 +140,7 @@ func says(waits []string, part string) bool {
 func TestTwoLanesEachTheirNextStep(t *testing.T) {
 	s := shopStand(t)
 	dir := checkout(t, map[string]string{"shop": shopEntry("1.4.2")}, map[string]string{"shop": "gives: app\n"})
-	key := bump.SeenKey(mustParse(t, "ghcr.io/acme/shop:v1.4.2"), "v1.5.0")
+	key := bump.SeenKey(mustParse(t, "ghcr.io/acme/shop:v1.4.2"), "v1.5.0", bumptest.Digest("acme/shop", bumptest.Tag{Name: "v1.5.0"}))
 
 	// Never seen: the newest minor is offered, and waits, as its wait hasn't begun.
 	r := plan(t, s, dir, "shop", nil)
@@ -382,5 +382,29 @@ func TestTheNextSeriesComesFirst(t *testing.T) {
 	r := plan(t, s, dir, "shop", nil)
 	if db := step(lane(r, bump.LaneBeyond), "db"); db == nil || db.ToTag != "12.4.1" {
 		t.Errorf("the next series is 12.4, and the lane beyond offers %+v", db)
+	}
+}
+
+// First-seen goes by the digest: a tag pushed again with another image after its
+// wait doesn't inherit the old time, and says so (#726's review, M4).
+func TestATagPushedAgainStartsItsWaitAgain(t *testing.T) {
+	s := shopStand(t)
+	dir := checkout(t, map[string]string{"shop": shopEntry("1.4.2")}, map[string]string{"shop": "gives: app\n"})
+	ref := mustParse(t, "ghcr.io/acme/shop:v1.4.2")
+	real := bumptest.Digest("acme/shop", bumptest.Tag{Name: "v1.5.0"})
+	// Seen ten days ago at what it was then; it now points elsewhere.
+	r := plan(t, s, dir, "shop", map[string]time.Time{bump.SeenKey(ref, "v1.5.0", "sha256:"+strings.Repeat("0", 64)): ago(10)})
+	l := lane(r, bump.LaneWithin)
+	app := step(l, "app")
+	if app == nil || !says(app.Waits, "pushed again") || !says(app.Waits, "within its wait") || !slices.Contains(l.Labels, "tag pushed again") {
+		t.Errorf("a tag seen at another digest reads %+v, labels %v", app, l.Labels)
+	}
+	if at, ok := app.Saw[bump.SeenKey(ref, "v1.5.0", real)]; !ok || !at.Equal(now) {
+		t.Errorf("it's first seen now at its digest: %v", app.Saw)
+	}
+	// Seen at the same digest, its time stands.
+	r = plan(t, s, dir, "shop", map[string]time.Time{bump.SeenKey(ref, "v1.5.0", real): ago(10)})
+	if app := step(lane(r, bump.LaneWithin), "app"); app == nil || says(app.Waits, "pushed again") || says(app.Waits, "within its wait") {
+		t.Errorf("a tag seen at its digest reads %+v", app)
 	}
 }

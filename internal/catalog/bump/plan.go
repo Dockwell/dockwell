@@ -3,6 +3,7 @@
 package bump
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -40,8 +41,8 @@ type Planner struct {
 	Sources Sources
 	Now     time.Time
 	// Seen is when the bump first saw each version where its registry doesn't
-	// say when it was pushed, by the image's repository and tag, as an open bump's
-	// pull request records it.
+	// say when it was pushed, by the image's repository, tag and digest (SeenKey),
+	// as an open bump's pull request records it.
 	Seen map[string]time.Time
 }
 
@@ -107,6 +108,13 @@ type Step struct {
 	Corroborated string
 	// Waits are why it can't merge by itself, each a line.
 	Waits []string
+	// Saw is when the bump first saw each version it read of this image, as SeenKey
+	// names them, where its registry gives no push time: every candidate, not only
+	// the one it took, so one passed over for a newer keeps its time (#726's review,
+	// M3). A body records them for the next run.
+	Saw map[string]time.Time
+	// digest is the digest the version was seen at, where it was read.
+	digest string
 }
 
 // Lane is an entry's bump in one lane: a pull request, on its branch.
@@ -267,7 +275,7 @@ func (p *Planner) service(ctx context.Context, e *Entry, svc string, gives bool,
 		if len(list) == 0 {
 			return nil
 		}
-		s := p.choose(list, byName, ref)
+		s := p.choose(ctx, list, byName, ref)
 		if beyondLevel {
 			s.Waits = append(s.Waits, fmt.Sprintf("A %s is past %s's level, %s, so a person moves it", s.Kind, svc, eff.Level))
 			if majorWait != "" {
@@ -336,30 +344,72 @@ func seriesKey(series string) []int {
 }
 
 // choose takes the newest version that's aged past its wait, else the newest.
-func (p *Planner) choose(list []registry.NewerTag, byName map[string]registry.Tag, ref registry.Ref) *Step {
-	var first *Step
+// Where the registry gives no push time, a version's wait runs from when the bump
+// first saw it at its digest: a tag pushed again with another image starts again
+// (#726's review, M4), and every version read is kept in Saw (M3).
+func (p *Planner) choose(ctx context.Context, list []registry.NewerTag, byName map[string]registry.Tag, ref registry.Ref) *Step {
+	saw := map[string]time.Time{}
+	var first, chosen *Step
 	for _, c := range list {
 		s := &Step{ToTag: c.Tag, Kind: c.Kind, FromTag: ref.Tag}
-		if t := byName[c.Tag]; !t.Pushed.IsZero() {
-			s.Out, s.Pushed = t.Pushed, true
-		} else if seen, ok := p.Seen[SeenKey(ref, c.Tag)]; ok {
-			s.Out = seen
+		t := byName[c.Tag]
+		if !t.Pushed.IsZero() {
+			s.Out, s.Pushed, s.digest = t.Pushed, true, t.Digest
 		} else {
+			s.digest = t.Digest
+			if s.digest == "" {
+				at := ref
+				at.Tag, at.Digest = c.Tag, ""
+				if d, err := p.Sources.Digest(ctx, at); err == nil {
+					s.digest = d
+				}
+			}
 			s.Out = p.Now
+			if s.digest != "" {
+				key := SeenKey(ref, c.Tag, s.digest)
+				if seen, ok := p.Seen[key]; ok && !seen.After(p.Now) {
+					s.Out = seen
+				} else if p.pushedAgain(ref, c.Tag, s.digest) {
+					s.Waits = append(s.Waits, "Its tag was pushed again with another image since the bump first saw it, so its wait starts again")
+				}
+				saw[key] = s.Out
+			}
 		}
 		if first == nil {
 			first = s
 		}
-		if p.Now.Sub(s.Out) >= waitFor(s.Kind) {
-			return s
+		if chosen == nil && p.Now.Sub(s.Out) >= waitFor(s.Kind) {
+			chosen = s
 		}
 	}
-	first.Waits = append(first.Waits, fmt.Sprintf("It's within its wait: %s out for %s of %s", first.ToTag, days(p.Now.Sub(first.Out)), days(waitFor(first.Kind))))
-	return first
+	if chosen == nil {
+		chosen = first
+		chosen.Waits = append(chosen.Waits, fmt.Sprintf("It's within its wait: %s out for %s of %s", chosen.ToTag, days(p.Now.Sub(chosen.Out)), days(waitFor(chosen.Kind))))
+	}
+	if len(saw) > 0 {
+		chosen.Saw = saw
+	}
+	return chosen
 }
 
-// SeenKey is how Seen names a version of an image: its repository and the tag.
-func SeenKey(ref registry.Ref, tag string) string {
+// pushedAgain says the bump saw tag at another digest before.
+func (p *Planner) pushedAgain(ref registry.Ref, tag, digest string) bool {
+	prefix := seenTag(ref, tag) + "@"
+	for k := range p.Seen {
+		if strings.HasPrefix(k, prefix) && k != prefix+digest {
+			return true
+		}
+	}
+	return false
+}
+
+// SeenKey is how Seen names a version of an image: its repository, the tag, and
+// the digest it was seen at.
+func SeenKey(ref registry.Ref, tag, digest string) string {
+	return seenTag(ref, tag) + "@" + digest
+}
+
+func seenTag(ref registry.Ref, tag string) string {
 	return ref.Registry + "/" + ref.Repository + ":" + tag
 }
 
@@ -384,7 +434,7 @@ func (p *Planner) check(ctx context.Context, s *Step, e *Entry, svc string, ref 
 	s.Service = svc
 	s.From = e.Images[svc]
 	to := ref
-	to.Tag, to.Digest = s.ToTag, tag.Digest
+	to.Tag, to.Digest = s.ToTag, cmp.Or(tag.Digest, s.digest)
 	if to.Digest == "" {
 		d, err := p.Sources.Digest(ctx, to)
 		if err != nil {
@@ -494,6 +544,8 @@ func (p *Planner) lane(e *Entry, name string, steps map[string]*Step, gives stri
 // labelFor is the label a reason a bump waits gives its pull request.
 func labelFor(why string) string {
 	switch {
+	case strings.Contains(why, "pushed again"):
+		return "tag pushed again"
 	case strings.Contains(why, "past "):
 		return "past its level"
 	case strings.Contains(why, "within its wait"):

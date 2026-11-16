@@ -180,7 +180,7 @@ func entryIDs(checkout, only string) ([]string, error) {
 }
 
 // readSeen reads a file of when each version was first seen: JSON of an image's
-// repository and tag to a time, as bump.SeenKey names them. No file is none seen.
+// repository, tag and digest to a time, as bump.SeenKey names them. No file is none seen.
 func readSeen(file string) (map[string]time.Time, error) {
 	seen := map[string]time.Time{}
 	if file == "" {
@@ -214,8 +214,10 @@ func body(e *bump.Entry, l *bump.Lane, now time.Time) string {
 		out := "first seen " + s.Out.UTC().Format("2006-01-02")
 		if s.Pushed {
 			out = "pushed " + s.Out.UTC().Format("2006-01-02")
-		} else if ref, err := registry.Parse(s.From); err == nil {
-			seen[bump.SeenKey(ref, s.ToTag)] = s.Out.UTC().Format(time.RFC3339)
+		}
+		// Every version the run read of the image, so one passed over keeps its time.
+		for k, at := range s.Saw {
+			seen[k] = at.UTC().Format(time.RFC3339)
 		}
 		fmt.Fprintf(&b, "| %s | `%s` | `%s` | %s | %s, %s | %s |\n", s.Service, s.FromTag, s.ToTag, s.Kind, out,
 			age(now.Sub(s.Out)), cmpOr(s.Corroborated, "nothing"))

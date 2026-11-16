@@ -101,11 +101,13 @@ compose: |
 	if err := json.Unmarshal(seen.Bytes(), &times); err != nil {
 		t.Fatalf("seen reads %s: %v", seen.String(), err)
 	}
-	if at, ok := times["ghcr.io/acme/notes:2.4.0"]; !ok || time.Since(at) > time.Hour {
+	// Each by its digest, so a tag pushed again doesn't keep the time.
+	key := "ghcr.io/acme/notes:2.4.0@" + bumptest.Digest("acme/notes", bumptest.Tag{Name: "2.4.0"})
+	if at, ok := times[key]; !ok || time.Since(at) > time.Hour {
 		t.Errorf("seen reads %s", seen.String())
 	}
 	seenFile := filepath.Join(t.TempDir(), "seen.json")
-	week := map[string]time.Time{"ghcr.io/acme/notes:2.4.0": time.Now().Add(-8 * 24 * time.Hour)}
+	week := map[string]time.Time{key: time.Now().Add(-8 * 24 * time.Hour)}
 	weekRaw, _ := json.Marshal(week)
 	if err := os.WriteFile(seenFile, weekRaw, 0o600); err != nil {
 		t.Fatal(err)
@@ -210,5 +212,76 @@ func git(t *testing.T, dir string, args ...string) {
 	cmd.Dir = dir
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("git %v: %v\n%s", args, err, out)
+	}
+}
+
+// A body records when the bump first saw every version it read, not only the one
+// it offers, so one passed over for a newer keeps its time, and on GHCR an app that
+// releases more often than its wait still moves (#726's review, M3).
+func TestAVersionKeepsWhenItWasFirstSeen(t *testing.T) {
+	s := bumptest.New(t)
+	s.Images["acme/notes"] = []bumptest.Tag{{Name: "2.3.1"}, {Name: "2.3.2"}}
+	for _, v := range []string{"2.3.2", "2.3.3"} {
+		s.Releases["acme/notes@v"+v] = bumptest.Release{}
+	}
+	digest := func(tag string) string { return bumptest.Digest("acme/notes", bumptest.Tag{Name: tag}) }
+	dir := t.TempDir()
+	entry := `id: notes
+name: Notes
+summary: Notes
+category: productivity
+version: "2.3.1"
+release: 7
+license: AGPL-3.0-only
+appLicense: MIT
+appSource: https://github.com/acme/notes
+compose: |
+  services:
+    app:
+      image: ghcr.io/acme/notes:2.3.1@` + digest("2.3.1") + `
+`
+	if err := os.MkdirAll(filepath.Join(dir, "entries"), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "entries", "notes.yaml"), []byte(entry), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	day0 := time.Date(2026, 11, 1, 10, 0, 0, 0, time.UTC)
+	var bodies []byte
+	run := func(now time.Time) bumpOutput {
+		t.Helper()
+		var seen bytes.Buffer
+		if err := seenFromBodies(bytes.NewReader(bodies), &seen); err != nil {
+			t.Fatal(err)
+		}
+		seenFile := filepath.Join(t.TempDir(), "seen.json")
+		if err := os.WriteFile(seenFile, seen.Bytes(), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		out := t.TempDir()
+		var stdout, stderr bytes.Buffer
+		deps := &bumpDeps{sources: s.Live(), now: now}
+		if err := bumpCommand(t.Context(), []string{"--catalog", dir, "--out", out, "--seen", seenFile}, &stdout, &stderr, deps); err != nil {
+			t.Fatalf("bump: %v\n%s", err, stderr.String())
+		}
+		raw, _ := os.ReadFile(filepath.Join(out, BumpsFile))
+		var got bumpOutput
+		if err := json.Unmarshal(raw, &got); err != nil {
+			t.Fatal(err)
+		}
+		// The write job puts each body on its pull request, which the next run reads.
+		bodies = nil
+		for _, b := range got.Bumps {
+			line, _ := json.Marshal(map[string]string{"body": b.Body})
+			bodies = append(append(bodies, line...), '\n')
+		}
+		return got
+	}
+	run(day0) // 2.3.2 first seen on day 0.
+	s.Images["acme/notes"] = append(s.Images["acme/notes"], bumptest.Tag{Name: "2.3.3"})
+	run(day0.Add(2 * 24 * time.Hour)) // 2.3.3 out, newer and within its wait.
+	got := run(day0.Add(4 * 24 * time.Hour))
+	if len(got.Bumps) == 0 || slices.Contains(got.Bumps[0].Labels, "within its wait") {
+		t.Errorf("2.3.2, first seen four days ago, is past a patch's three, and the bump reads %+v", got.Bumps)
 	}
 }
