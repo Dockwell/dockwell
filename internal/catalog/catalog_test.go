@@ -613,10 +613,13 @@ func TestFirstStepsKeepToTheTextBudget(t *testing.T) {
 }
 
 // Every entry is tried on real Docker in CI: by scripts/docker-e2e.sh, as the first
-// five are, or by scripts/catalog-e2e.sh in one of the Catalog on Docker jobs, which
-// installs the version before it, checks it answers, upgrades it and removes it. An
-// entry no job tries would reach people untried. Its name stays clear of OnRealDocker,
-// which the Go on Docker job runs, as this reads files and needs no Docker.
+// five are, or by scripts/catalog-e2e.sh in one of the Catalog on Docker groups,
+// which upgrades it from its earlier releases, as the catalog's history has them,
+// with the catalog's own check of it, and removes it (ADR 0100). An entry no job
+// tries would reach people untried, and a group proves at most 5, as the
+// organization's jobs are shared with the catalog's. Its name stays clear of
+// OnRealDocker, which the Go on Docker job runs, as this reads files and needs no
+// Docker.
 func TestEveryEntryHasACatalogJob(t *testing.T) {
 	c, err := catalog.Load("")
 	if err != nil {
@@ -640,6 +643,9 @@ func TestEveryEntryHasACatalogJob(t *testing.T) {
 	}
 	tried := map[string]string{}
 	for _, apps := range workflow.Jobs["catalog-docker"].Strategy.Matrix.Apps {
+		if n := len(strings.Fields(apps)); n > 5 {
+			t.Errorf("the Catalog on Docker group %q proves %d entries, and a run proves at most 5", apps, n)
+		}
 		for _, id := range strings.Fields(apps) {
 			if was, twice := tried[id]; twice {
 				t.Errorf("%s is in two of the Catalog on Docker jobs, %q and %q", id, was, apps)
@@ -658,42 +664,9 @@ func TestEveryEntryHasACatalogJob(t *testing.T) {
 	for _, m := range regexp.MustCompile(`(?m)^\s*catalog_install ([a-z0-9-]+)|"\$bin" catalog install ([a-z0-9-]+)`).FindAllSubmatch(script, -1) {
 		tried[string(m[1])+string(m[2])] = "scripts/docker-e2e.sh"
 	}
-	checks, err := os.ReadFile("../../scripts/catalog-e2e.sh")
-	if err != nil {
-		t.Fatal(err)
-	}
-	block := regexp.MustCompile(`(?s)declare -A previous=\((.*?)\n\)`).FindSubmatch(checks)
-	if block == nil {
-		t.Fatal("scripts/catalog-e2e.sh has no table of the version before each app")
-	}
-	before := map[string]bool{}
-	for _, m := range regexp.MustCompile(`(?m)^\s*\[([a-z0-9-]+)\]="\S+ \S+@sha256:[0-9a-f]{64}`).FindAllSubmatch(block[1], -1) {
-		before[string(m[1])] = true
-	}
-	// An entry with no version before it that runs where CI does, at the version it
-	// pins, which installs and goes without an upgrade: once it pins another, that
-	// one has a version before it, and the exception goes.
-	noneBefore := map[string]struct{ version, why string }{
-		// No MongoDB 8.0 before 8.0.38 starts on Linux 6.19 or newer, as CI's runners
-		// run (SERVER-121912). Take it out, and put 8.0.38 in the table, once the
-		// entry pins 8.0.39 or later.
-		"mongo": {"8.0.38", "no MongoDB 8.0 before 8.0.38 starts on Linux 6.19 or newer"},
-	}
 	for _, e := range c.All() {
-		at, ok := tried[e.GetId()]
-		switch {
-		case !ok:
+		if _, ok := tried[e.GetId()]; !ok {
 			t.Errorf("no CI job tries %s on real Docker. Add it to a Catalog on Docker job's apps in .github/workflows/ci.yml", e.GetId())
-		case at == "scripts/docker-e2e.sh":
-		case !strings.Contains(string(checks), "\ncheck_"+e.GetId()+"() {"):
-			t.Errorf("scripts/catalog-e2e.sh has no check_%s, which says what answering means for it", e.GetId())
-		case before[e.GetId()]:
-		case noneBefore[e.GetId()].version == e.GetVersion():
-		case noneBefore[e.GetId()].version != "":
-			t.Errorf("%s pins %s now, and %s, which had no version before it to upgrade from (%s), starts where CI does: put it in scripts/catalog-e2e.sh's table of the version before each app, and take %s out of noneBefore",
-				e.GetId(), e.GetVersion(), noneBefore[e.GetId()].version, noneBefore[e.GetId()].why, e.GetId())
-		default:
-			t.Errorf("scripts/catalog-e2e.sh has no version before %s to upgrade from, pinned by digest", e.GetId())
 		}
 		delete(tried, e.GetId())
 	}

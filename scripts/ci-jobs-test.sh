@@ -103,7 +103,6 @@ picks "schema panel" packages/mockview/src/mocks.ts
 picks "go docker-e2e catalog-docker e2e" internal/catalog/snapshot/entries/redis.yaml
 picks "go docker-e2e catalog-docker e2e" internal/catalog/snapshot/entries/redis.yaml internal/catalog/snapshot/entries/mariadb.yaml
 picks "go docker-e2e catalog-docker e2e" internal/catalog/snapshot/entries/media/redis-icon.webp
-picks "go docker-e2e catalog-docker e2e" scripts/catalog-e2e-before/ghost.yaml
 picks "go docker-e2e catalog-docker e2e" internal/catalog/snapshot/commit
 # Service end to end on Docker uninstalls with it.
 picks "go containers-load transfers-load docker-e2e snapshot budgets $install" scripts/install.sh
