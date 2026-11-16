@@ -258,3 +258,40 @@ func TestAPushQueuedBeforeItsHookWaitsAgainWaitsForAPerson(t *testing.T) {
 	release()
 	g.stored(t, url, "q-1", store.HookNeedsPerson)
 }
+
+// A developer's hook plans into a protected environment and waits; its maker may
+// discard what it planned, as discarding runs nothing, though applying it needs an
+// admin's approval (ADR 0071, #711).
+func TestAHooksMakerDiscardsWhatItPlanned(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		g := newGitBench(t, backend)
+		g.repo.Commit("main", "First", map[string]string{"Dockerfile": webDockerfile})
+		made := g.done(t, g.propose(t, g.buildEdit("main", nil)))
+		production := made.GetPlan().GetResources()[0].GetResource().GetScope()
+		project := envProject(t, g.f, production)
+		web := g.service(t, "", "web")
+		// A developer turns deploy on push on while production is open, then an admin
+		// protects it.
+		protectEnv(t, g.c, g.f, production, resourcev1.Protection_PROTECTION_OPEN)
+		hold := aMember(t, g.f)
+		hold(store.Grant{ProjectID: project, Role: store.RoleDeveloper})
+		url, secret := g.hook(t, web.GetId())
+		hold(store.Grant{ProjectID: store.Install, Role: store.RoleAdmin})
+		protectEnv(t, g.c, g.f, production, resourcev1.Protection_PROTECTION_PROTECTED)
+		hold(store.Grant{ProjectID: project, Role: store.RoleDeveloper})
+
+		d := g.pushTo(t, url, secret, "d-1", store.HookNeedsPerson)
+		read, err := g.c.GetChange(t.Context(), connect.NewRequest(&dockwellv1.GetChangeRequest{Id: d.ChangeID}))
+		if err != nil || !read.Msg.GetChange().GetDiscards() || read.Msg.GetChange().GetWaits() == "" {
+			t.Errorf("to its maker, the hook's waiting plan reads %v, %v; want theirs to discard, waiting for an admin", read, err)
+		}
+		if _, err := g.c.DiscardChange(t.Context(), connect.NewRequest(&dockwellv1.DiscardChangeRequest{Id: d.ChangeID})); err != nil {
+			t.Fatalf("the hook's maker discarding what it planned: %v", err)
+		}
+		got, err := g.c.GetChange(t.Context(), connect.NewRequest(&dockwellv1.GetChangeRequest{Id: d.ChangeID}))
+		if err != nil || got.Msg.GetChange().GetState() != dockwellv1.ChangeState_CHANGE_STATE_DISCARDED {
+			t.Errorf("after its maker discarded it, the hook's plan is %v, %v", got, err)
+		}
+	})
+}

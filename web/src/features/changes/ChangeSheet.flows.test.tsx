@@ -1703,6 +1703,33 @@ describe("a plan in a protected environment", () => {
     expect(within(sheet).queryByRole("button", { name: "Discard" })).toBeNull();
   });
 
+  it("offers Discard on the waiting plan a hook of theirs planned, as the control plane says (#711)", async () => {
+    const pushed = moved(waiting(), {
+      discards: true,
+      proposedBy: create(ActorSchema, { kind: ActorKind.HOOK, id: "ghk_1", name: "web" }),
+    });
+    const discardChange = vi.fn(() => ({ change: moved(pushed, { state: ChangeState.DISCARDED }) }));
+    renderWithApi(
+      <ChangeSheetProvider>
+        <Opener opening={{ kind: "change", id: pushed.id }} />
+      </ChangeSheetProvider>,
+      {
+        changes: {
+          getChange: () => ({ change: pushed }),
+          watchChange: feed<WatchChangeResponse>().stream,
+          discardChange,
+        } as never,
+        auth: { getAuthState: () => authState({ user: { ...signedIn, role: Role.DEVELOPER } }) },
+      },
+    );
+    const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+    expect(await within(sheet).findByRole("button", { name: "Leave it for an admin" })).toBeVisible();
+    await userEvent.click(within(sheet).getByRole("button", { name: "Discard" }));
+    await waitFor(() =>
+      expect(discardChange).toHaveBeenCalledWith(expect.objectContaining({ id: pushed.id }), expect.anything()),
+    );
+  });
+
   it("says applying a plan made with someone's API token approves it, as the API says", async () => {
     const change = moved(protectedPlan(), {
       approves: true,

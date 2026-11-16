@@ -11031,6 +11031,14 @@ components:
                          protected environment, an admin or the owner applies this. Leave it
                          planned for them". Empty when they may apply it, and for a viewer, who
                          applies nothing.
+                discards:
+                    type: boolean
+                    description: |-
+                        On a planned change, for whoever reads it: true when they may discard it
+                         as their own, wherever it is: one they planned, or one a deploy-on-push
+                         hook of theirs or an API token they made planned, which only its maker
+                         discards in person (ADR 0071). False doesn't mean they can't discard it:
+                         someone else's needs what applying it would.
                 confirmation:
                     allOf:
                         - $ref: '#/components/schemas/ChangeConfirmation'

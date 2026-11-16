@@ -1242,7 +1242,7 @@ func ForCaller(ctx context.Context, tx *store.Tx, engine *revision.Engine, chang
 	if err != nil {
 		return err
 	}
-	out.Approves, out.Waits = applying.Approves, applying.Waits
+	out.Approves, out.Waits, out.Discards = applying.Approves, applying.Waits, applying.Discards
 	return nil
 }
 
