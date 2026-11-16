@@ -3,6 +3,7 @@
 package bump
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"path"
@@ -165,7 +166,8 @@ func StepInScope(ctx context.Context, p *Planner, base *Entry, policy *Policy, h
 		edit.Version = ""
 	}
 	var why []string
-	for _, s := range within.Steps {
+	for i := range within.Steps {
+		s := &within.Steps[i]
 		if s.To != "" {
 			edit.Images[s.From] = s.To
 		}
@@ -177,7 +179,7 @@ func StepInScope(ctx context.Context, p *Planner, base *Entry, policy *Policy, h
 	if err != nil {
 		return append(why, "The step the bump would make can't be written: "+err.Error())
 	}
-	if string(after) != string(head) {
+	if !bytes.Equal(after, head) {
 		why = append(why, "Its change isn't the step the bump makes from its base now")
 	}
 	return why
