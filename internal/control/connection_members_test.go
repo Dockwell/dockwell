@@ -251,6 +251,38 @@ func TestAConnectionOfAnotherProjectReadsAsNotThere(t *testing.T) {
 	if got, err := reveal("STORAGE_URL"); err != nil || !strings.Contains(got, "s3://") {
 		t.Errorf("an admin of the install reveals a secret written from it: %q, %v", got, err)
 	}
+
+	// Disconnecting below an install admin doesn't copy the key into a secret of
+	// their environment, which they could reveal: the names that hold a key go, and
+	// the plan says so (re-check N1). One their own secret writes from the key holds
+	// it on, so the plan is refused until that goes first.
+	hold(store.Grant{ProjectID: project, Role: store.RoleDeveloper})
+	_, err = cc.DisconnectStorage(t.Context(), connect.NewRequest(&dockwellv1.DisconnectStorageRequest{Project: project, Link: "storage"}))
+	if connect.CodeOf(err) != connect.CodeInvalidArgument || !strings.Contains(err.Error(), "STORAGE_URL") {
+		t.Errorf("a developer disconnects while STORAGE_URL writes from the key: %v", err)
+	}
+	apply(t, c, propose(t, c, "Drop the URL", &dockwellv1.Edit{Resource: &dockwellv1.ResourceRef{Kind: "secret", Name: "STORAGE_URL"}, Delete: true}))
+	off, err := cc.DisconnectStorage(t.Context(), connect.NewRequest(&dockwellv1.DisconnectStorageRequest{Project: project, Link: "storage"}))
+	if err != nil {
+		t.Fatalf("a developer disconnects: %v", err)
+	}
+	if raw, _ := protojson.Marshal(off.Msg); strings.Contains(string(raw), connectionSecret) ||
+		!strings.Contains(off.Msg.GetChange().GetSummary(), "S3_SECRET_ACCESS_KEY go, and the app runs without them") {
+		t.Errorf("a developer's disconnect plans %s", raw)
+	}
+	if done := apply(t, c, off.Msg.GetChange()); done.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("a developer's disconnect ended %v: %s", done.GetState(), done.GetError())
+	}
+	list, err = v.ListVariables(t.Context(), connect.NewRequest(&dockwellv1.ListVariablesRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, x := range list.Msg.GetVariables() {
+		if x.GetName() == "S3_SECRET_ACCESS_KEY" {
+			got, err := reveal("S3_SECRET_ACCESS_KEY")
+			t.Errorf("after a developer's disconnect, S3_SECRET_ACCESS_KEY is still there, revealing %q, %v", got, err)
+		}
+	}
 }
 
 // A developer of one project names a connection of another, then one that isn't

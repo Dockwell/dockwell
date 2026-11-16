@@ -445,6 +445,39 @@ describe("disconnecting an app from a connection", () => {
     expect(await screen.findByRole("button", { name: /Apply plan/ })).toBeVisible();
   });
 
+  // Re-check N1: below an install admin, Disconnect doesn't copy a connection's key
+  // into a secret they could reveal; the names that hold one go, and the row says so.
+  it("says below an install admin that a link's keys go with it, and not to an admin", async () => {
+    const developer = {
+      ...fleet(),
+      resources: places(),
+      auth: {
+        getAuthState: () =>
+          authState({
+            user: { ...mira, role: Role.UNSPECIFIED },
+            grants: [{ projectId: "prj_1", role: Role.DEVELOPER }],
+          }),
+      },
+      connections: {
+        listConnections: () => ({
+          connections: [aConnection({ ...used, endpoint: "", bucket: "", reach: ConnectionReach.PROJECTS })],
+        }),
+      },
+    };
+    const { unmount } = renderAt("/connections/outline-uploads", developer);
+    const usedBy = await screen.findByRole("region", { name: "Used by" });
+    expect(within(usedBy).getByText("Its keys go with it")).toBeVisible();
+    unmount();
+    renderAt("/connections/outline-uploads", {
+      ...fleet(),
+      resources: places(),
+      connections: { listConnections: () => ({ connections: [used] }) },
+    });
+    const asAdmin = await screen.findByRole("region", { name: "Used by" });
+    expect(within(asAdmin).getByRole("button", { name: "Disconnect storage" })).toBeVisible();
+    expect(within(asAdmin).queryByText("Its keys go with it")).toBeNull();
+  });
+
   it("keeps Remove off while a link names the connection, with the reason", async () => {
     const user = userEvent.setup();
     renderAt("/connections/outline-uploads", {

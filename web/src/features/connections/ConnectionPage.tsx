@@ -10,6 +10,7 @@ import {
   ConnectionReach,
   ConnectionService,
   type ConnectionUse,
+  LinkPart,
 } from "@dockwell/api";
 import {
   Button,
@@ -130,6 +131,7 @@ export function ConnectionPage({ name }: { name: string }) {
       {check.answer ? <CheckLine answer={check.answer} /> : null}
       <UsedBy
         connection={connection}
+        admin={admin}
         onUse={canUse ? () => setUsing(true) : undefined}
         onDisconnected={() => void query.refetch()}
       />
@@ -220,10 +222,13 @@ function CheckLine({ answer }: { answer: CheckConnectionResponse }) {
  */
 function UsedBy({
   connection,
+  admin,
   onUse,
   onDisconnected,
 }: {
   connection: ConnectionInfo;
+  /** An install admin keeps a connection's keys on Disconnect, as secrets; below one, they go. */
+  admin: boolean;
   onUse: (() => void) | undefined;
   onDisconnected: () => void;
 }) {
@@ -246,7 +251,11 @@ function UsedBy({
   const disconnectButton = (u: ConnectionUse) => {
     const allowed = may(ConnectionService.method.disconnectStorage, { environment: u.environment });
     const link = u.link;
-    return (
+    // Below an install admin, a connection's keys aren't theirs to keep: the names
+    // that hold one go with the link, and the app runs without them.
+    const keysGo =
+      !admin && Object.values(u.sets).some((p) => p === LinkPart.ACCESS_KEY_ID || p === LinkPart.SECRET_KEY);
+    const button = (
       <Button
         size="sm"
         variant="secondary"
@@ -256,6 +265,16 @@ function UsedBy({
       >
         <Trans>Disconnect</Trans>
       </Button>
+    );
+    return keysGo ? (
+      <span className="connection-disconnect">
+        {button}
+        <span className="connections-meta">
+          <Trans>Its keys go with it</Trans>
+        </span>
+      </span>
+    ) : (
+      button
     );
   };
   if (connection.uses.length === 0) {
@@ -339,7 +358,7 @@ function UsedBy({
     {
       key: "more",
       header: <span className="dw-sr">{t`Actions`}</span>,
-      width: 130,
+      width: 150,
       align: "right",
       render: disconnectButton,
     },

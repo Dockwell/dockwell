@@ -332,3 +332,10 @@ a.connections-name:hover {
   display: flex;
   justify-content: flex-end;
 }
+
+.connection-disconnect {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-1);
+}

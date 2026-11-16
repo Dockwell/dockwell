@@ -11285,6 +11285,9 @@ msgstr "在主机名中"
 msgid "In the path"
 msgstr "在路径中"
 
+msgid "Its keys go with it"
+msgstr "其密钥会随之移除"
+
 msgid "Keys"
 msgstr "密钥"
 

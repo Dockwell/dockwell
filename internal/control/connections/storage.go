@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"connectrpc.com/connect"
+	"google.golang.org/protobuf/proto"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
@@ -266,6 +267,8 @@ func (s *Service) DisconnectStorage(ctx context.Context, req *connect.Request[do
 	// The names that read the connection through this link now, each with its kind:
 	// one a person has set otherwise since is theirs, and stays as it is.
 	reading := map[string]string{}
+	// The environment's apps, by name, as one that reads a key that goes stops reading it.
+	apps := map[string]*resourcev1.Service{}
 	err := s.db.View(ctx, func(tx *store.Tx) error {
 		if err := envOf(ctx, tx, m.GetProject(), m.GetEnvironment(), a); err != nil {
 			return err
@@ -312,6 +315,23 @@ func (s *Service) DisconnectStorage(ctx context.Context, req *connect.Request[do
 				}
 			}
 		}
+		services, err := tx.ListResources(ctx, a.env, serviceKind)
+		if err != nil {
+			return err
+		}
+		for i := range services {
+			r := &services[i]
+			if r.Spec == nil {
+				continue
+			}
+			spec, err := s.connections.keeper.Decode(ctx, tx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec)
+			if err != nil {
+				return fmt.Errorf("can't read the app %s: %w", r.Name, err)
+			}
+			if svc, ok := spec.(*resourcev1.Service); ok {
+				apps[r.Name] = svc
+			}
+		}
 		return nil
 	})
 	if err != nil {
@@ -326,7 +346,12 @@ func (s *Service) DisconnectStorage(ctx context.Context, req *connect.Request[do
 		return nil, fmt.Errorf("the link %s names the connection %s, which isn't there", m.GetLink(), l.GetConnection())
 	}
 	conn := all[i]
+	// A connection's keys are the install's: only an install admin may read them, so
+	// only theirs keeps them, as secrets of the environment. Below one, the names that
+	// hold a key go, and the app runs without them, as its plan says.
+	admin, _ := callerProjects(ctx)
 	edits := []*dockwellv1.Edit{{Resource: &dockwellv1.ResourceRef{Kind: string(link.Kind), Scope: a.env, Name: m.GetLink()}, Delete: true}}
+	var lost []string
 	sets := slices.Clone(l.GetSets())
 	slices.SortFunc(sets, func(x, y *resourcev1.LinkSet) int { return strings.Compare(x.GetName(), y.GetName()) })
 	for _, set := range sets {
@@ -340,6 +365,9 @@ func (s *Service) DisconnectStorage(ctx context.Context, req *connect.Request[do
 		}
 		ref := &dockwellv1.ResourceRef{Kind: kind, Scope: a.env, Name: set.GetName()}
 		switch {
+		case key && !admin:
+			edits = append(edits, &dockwellv1.Edit{Resource: ref, Delete: true})
+			lost = append(lost, set.GetName())
 		case key || kind == string(variable.SecretKind):
 			// A key is a secret whatever the name was, so no plan shows it.
 			ref.Kind = string(variable.SecretKind)
@@ -348,7 +376,29 @@ func (s *Service) DisconnectStorage(ctx context.Context, req *connect.Request[do
 			edits = append(edits, &dockwellv1.Edit{Resource: ref, Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Variable{Variable: &resourcev1.Variable{Value: value}}}})
 		}
 	}
+	// Each app that reads a name that goes stops reading it, in the same change, as
+	// nothing may read a value that's gone.
+	for _, name := range slices.Sorted(maps.Keys(apps)) {
+		svc := apps[name]
+		drop := func(m map[string]string) bool {
+			was := len(m)
+			maps.DeleteFunc(m, func(_, from string) bool { return slices.Contains(lost, from) })
+			return len(m) != was
+		}
+		svc = proto.CloneOf(svc)
+		svc.Revisions = nil
+		if dv, ds := drop(svc.GetVariables()), drop(svc.GetSecrets()); dv || ds {
+			edits = append(edits, &dockwellv1.Edit{
+				Resource: &dockwellv1.ResourceRef{Kind: serviceKind, Scope: a.env, Name: name},
+				Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: svc}},
+			})
+		}
+	}
 	summary := fmt.Sprintf("Disconnect %s from %s, keeping its values", m.GetLink(), cmp.Or(conn.Spec.GetDisplayName(), conn.Name))
+	if len(lost) > 0 {
+		summary = fmt.Sprintf("Disconnect %s from %s, keeping its values but its keys: %s go, and the app runs without them",
+			m.GetLink(), cmp.Or(conn.Spec.GetDisplayName(), conn.Name), strings.Join(lost, " and "))
+	}
 	change, err := s.changes.Propose(ctx, summary, edits, nil, changes.Also{})
 	if err != nil {
 		return nil, err
