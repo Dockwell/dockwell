@@ -12176,6 +12176,44 @@ components:
             description: |-
                 ConnectionInfo is a connection as a caller may see it: never its keys. Below an
                  admin, its name, kind and what it reaches alone.
+        ConnectionRead:
+            type: object
+            properties:
+                connection:
+                    type: string
+                    description: The connection, by name, and what the panel calls it.
+                connectionLabel:
+                    type: string
+                part:
+                    enum:
+                        - LINK_PART_UNSPECIFIED
+                        - LINK_PART_HOST
+                        - LINK_PART_PORT
+                        - LINK_PART_ADDRESS
+                        - LINK_PART_DATABASE
+                        - LINK_PART_USER
+                        - LINK_PART_PASSWORD
+                        - LINK_PART_URL
+                        - LINK_PART_TLS
+                        - LINK_PART_KEY_PREFIX
+                        - LINK_PART_ENGINE
+                        - LINK_PART_ENDPOINT
+                        - LINK_PART_REGION
+                        - LINK_PART_BUCKET
+                        - LINK_PART_ACCESS_KEY_ID
+                        - LINK_PART_SECRET_KEY
+                        - LINK_PART_PATH_STYLE
+                        - LINK_PART_PUBLIC_URL
+                        - LINK_PART_MET
+                    type: string
+                    description: The part it reads, such as the bucket.
+                    format: enum
+                link:
+                    type: string
+                    description: The link it reads through, by name.
+            description: |-
+                ConnectionRead is what a variable or a secret reads from a connection, through a
+                 link (ADR 0099).
         ConnectionRef:
             type: object
             properties:
@@ -18282,6 +18320,20 @@ components:
                 tlsOff:
                     type: string
             description: LinkSet is a name a link sets in its environment, and what it holds.
+        LinkStorage:
+            type: object
+            properties:
+                connection:
+                    type: string
+                    description: The connection, by name, and what the panel calls it.
+                connectionLabel:
+                    type: string
+                prefix:
+                    type: string
+                    description: |-
+                        Where the app's files go in the connection's bucket, such as "ghost/". Empty
+                         is the bucket's root.
+            description: LinkStorage is where a link to a connection keeps an app's files (ADR 0099).
         ListAlertChannelsResponse:
             type: object
             properties:
@@ -19762,6 +19814,22 @@ components:
                         Set, empty, while an optional need is unmet, for an app that needs the name
                          there and reads it empty as unset. Elsewhere it's left out.
             description: NeedSet is a name a need sets in the app's environment, and what it holds.
+        NeedStorage:
+            type: object
+            properties:
+                need:
+                    type: string
+                    description: The need, by its name in the entry, such as "storage".
+                storage:
+                    allOf:
+                        - $ref: '#/components/schemas/LinkStorage'
+                    description: The connection it comes from, unset for its own values.
+                own:
+                    type: boolean
+                    description: It comes from the app's own values, as a Disconnect left them.
+            description: |-
+                NeedStorage is where a catalog install's need comes from: a connection, with the
+                 prefix in its bucket, or the app's own values since a Disconnect (ADR 0099).
         NeedTls:
             type: object
             properties:
@@ -21918,6 +21986,51 @@ components:
                         What upgrading its server's agent does, for a server's host whose agent the
                          change upgrades (ADR 0094). Numbered in the block fleet actions hold, 150 to
                          159.
+                storage:
+                    allOf:
+                        - $ref: '#/components/schemas/LinkStorage'
+                    description: |-
+                        Where a link to a connection keeps the app's files once the change applies,
+                         and where it kept them before: the connection by name and by what the panel
+                         calls it, and the prefix in its bucket, as the plan was made (ADR 0099). A row
+                         is narrowed with the link it's of, whose project the connection reaches.
+                         Numbered in the block links' words hold, 160 to 169.
+                storageBefore:
+                    $ref: '#/components/schemas/LinkStorage'
+                reads:
+                    allOf:
+                        - $ref: '#/components/schemas/ConnectionRead'
+                    description: |-
+                        What a variable or a secret reads from a connection once the change applies,
+                         and what it read before: the part, through which link, from which connection by
+                         name and by what the panel calls it, as the plan was made (ADR 0099). Narrowed
+                         with the value's row, whose environment's link reaches the connection.
+                readsBefore:
+                    $ref: '#/components/schemas/ConnectionRead'
+                sets:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/LinkSet'
+                    description: |-
+                        A link's sets whole, once the change applies and before it, where they change:
+                         a row for a set says its name and what it reads, though only one of them
+                         changed, which the field changes alone can't (ADR 0099).
+                setsBefore:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/LinkSet'
+                needs:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/NeedStorage'
+                    description: |-
+                        Where each need a catalog install's pin keeps on a connection, or on its own
+                         values, comes from once the change applies and before it, for a project's row,
+                         where they change (ADR 0099).
+                needsBefore:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/NeedStorage'
             description: PlannedResource is what a plan does to one resource as a whole.
         PortMapping:
             type: object

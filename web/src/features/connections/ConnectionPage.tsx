@@ -30,6 +30,7 @@ import { useMemo, useState } from "react";
 import { sentence } from "../../lib/errors";
 import { usePlaces } from "../apps/useServices";
 import { useMay } from "../auth/may";
+import { useInstalls } from "../catalog/useCatalog";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { useFleetView } from "../servers/useFleet";
 import { EmptyState } from "../shell/EmptyState";
@@ -248,8 +249,24 @@ function UsedBy({
         if (after && after.state !== ChangeState.PLANNED && after.state !== ChangeState.FAILED) onDisconnected();
       },
     });
+  // A link a catalog install's pin names for a need is the install's: disconnecting it
+  // changes what the install is pinned to, which is an admin's or the owner's, so
+  // below one it's off with why (the slice 3 review, L4), and off while the installs
+  // load, until it's known whose it is (its re-check, N5).
+  const listed = useInstalls();
+  const installs = listed.data?.installs ?? [];
+  const pinned = (u: ConnectionUse) =>
+    installs.some((i) => i.projectId === u.project && i.pin?.needs[u.link]?.connection === connection.name);
   const disconnectButton = (u: ConnectionUse) => {
-    const allowed = may(ConnectionService.method.disconnectStorage, { environment: u.environment });
+    const allowed =
+      !admin && listed.isPending
+        ? { allowed: false, off: { disabled: true as const } }
+        : pinned(u) && !admin
+          ? {
+              allowed: false,
+              off: { disabled: true as const, off: t`An admin or the owner disconnects an install's storage` },
+            }
+          : may(ConnectionService.method.disconnectStorage, { environment: u.environment });
     const link = u.link;
     // Below an install admin, a connection's keys aren't theirs to keep: the names
     // that hold one go with the link, and the app runs without them.

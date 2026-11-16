@@ -131,21 +131,24 @@ func (h *Handler) connectionWays(ctx context.Context, e *catalogv1.Entry, projec
 		return nil, nil, nil
 	}
 	projectID, projectName := "", project
-	if project != "" {
-		if err := h.db.View(ctx, func(tx *store.Tx) error {
-			tree, err := scope.Load(ctx, tx)
-			if err != nil {
-				return err
-			}
-			for _, p := range tree.Projects {
-				if p.Name == project || p.ID == project {
-					projectID, projectName = p.ID, p.Name
-				}
-			}
-			return nil
-		}); err != nil {
-			return nil, nil, err
+	// The environments' names on the install, which a set of connections is named for.
+	environments := map[string]bool{}
+	if err := h.db.View(ctx, func(tx *store.Tx) error {
+		tree, err := scope.Load(ctx, tx)
+		if err != nil {
+			return err
 		}
+		for _, p := range tree.Projects {
+			if project != "" && (p.Name == project || p.ID == project) {
+				projectID, projectName = p.ID, p.Name
+			}
+			for _, e := range p.Environments {
+				environments[e.Name] = true
+			}
+		}
+		return nil
+	}); err != nil {
+		return nil, nil, err
 	}
 	conns := connections.NewConnections(h.db, h.keeper)
 	all, unread, err := conns.Readable(ctx)
@@ -190,7 +193,7 @@ func (h *Handler) connectionWays(ctx context.Context, e *catalogv1.Entry, projec
 		out = append(out, catalog.ConnectionWay{
 			Name: c.Name, Label: cmp.Or(c.Spec.GetDisplayName(), c.Name), PathStyle: c.Spec.GetS3().GetPathStyle(),
 			Prefix: link.FreePrefix(prefixFor(projectName), taken),
-			Named:  namedForEnvironment(c.Name, all),
+			Named:  namedForEnvironment(c.Name, all, environments),
 			Serves: len(taken) > 0 || connections.Holds(values, c.Spec),
 			Widens: widens,
 		})
@@ -237,14 +240,17 @@ const ConnectionUnreadNote = "catalog_connection_unread"
 // "<stem>-production", and another connection's is "<stem>-<another>", such as
 // uploads-staging (ADR 0099). A name that merely ends in -production, as
 // backups-production alone does, isn't (the slice 1 review, L1).
-func namedForEnvironment(name string, all []connections.Saved) bool {
+//
+// The sibling's word is an environment's name on the install, as staging is, so
+// backups-production beside backups-offsite isn't a set (slice 1 re-check, N6).
+func namedForEnvironment(name string, all []connections.Saved, environments map[string]bool) bool {
 	stem, ok := strings.CutSuffix(name, "-"+scope.DefaultEnvironment)
 	if !ok || stem == "" {
 		return false
 	}
 	return slices.ContainsFunc(all, func(c connections.Saved) bool {
 		other, sibling := strings.CutPrefix(c.Name, stem+"-")
-		return sibling && other != scope.DefaultEnvironment && other != "" && !strings.Contains(other, "-")
+		return sibling && other != scope.DefaultEnvironment && environments[other]
 	})
 }
 

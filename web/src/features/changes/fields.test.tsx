@@ -1,7 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { create } from "@bufbuild/protobuf";
-import { FieldChangeSchema, FieldOp, HostAccessKind, HostAccessSchema } from "@dockwell/api";
+import {
+  ConnectionReadSchema,
+  type FieldChange,
+  FieldChangeSchema,
+  FieldOp,
+  HostAccessKind,
+  HostAccessSchema,
+  LinkPart,
+  type LinkSet,
+  LinkSetSchema,
+  LinkStorageSchema,
+  NeedStorageSchema,
+} from "@dockwell/api";
 import type { PlanChange, PlanValue } from "@dockwell/ui";
 import { describe, expect, it } from "vitest";
 
@@ -43,6 +55,302 @@ function reads(rows: readonly PlanChange[]): string[] {
 }
 
 describe("a plan's fields, in words", () => {
+  // The slice 3 review, M1: a set's row says its name and part though only one changed.
+  it("says a set's name and what it reads though only one changed, and whose a URL's template is", () => {
+    const uploads = create(LinkStorageSchema, { connection: "uploads", connectionLabel: "Uploads", prefix: "ghost/" });
+    const set = (name: string, part: LinkPart, more: Partial<{ template: string; tlsOn: string }> = {}) =>
+      create(LinkSetSchema, { name, part, ...more });
+    const renamed = reads(
+      rowsOf({
+        kind: "link",
+        changes: [modified("sets[0].name", "S3_BUCKET", "BUCKET_NAME")],
+        storage: uploads,
+        storageBefore: uploads,
+        sets: [set("BUCKET_NAME", LinkPart.BUCKET)],
+        setsBefore: [set("S3_BUCKET", LinkPart.BUCKET)],
+      }),
+    );
+    expect(renamed).toEqual(["BUCKET_NAME to reads the bucket from Uploads, in place of S3_BUCKET [change]"]);
+    const repart = reads(
+      rowsOf({
+        kind: "link",
+        changes: [modified("sets[0].part", "bucket", "endpoint")],
+        storage: uploads,
+        storageBefore: uploads,
+        sets: [set("S3_BUCKET", LinkPart.ENDPOINT)],
+        setsBefore: [set("S3_BUCKET", LinkPart.BUCKET)],
+      }),
+    );
+    expect(repart).toEqual(["S3_BUCKET to reads the endpoint from Uploads, in place of the bucket [change]"]);
+    const url = reads(
+      rowsOf({
+        kind: "link",
+        changes: [
+          added("sets[0].name", "DATABASE_URL"),
+          added("sets[0].part", "url"),
+          added("sets[0].template", "postgres://{user}@{host}"),
+          added("sets[0].tls_on", "require"),
+        ],
+        sets: [set("DATABASE_URL", LinkPart.URL, { template: "postgres://{user}@{host}", tlsOn: "require" })],
+      }),
+    );
+    expect(url).toEqual([
+      "DATABASE_URL to reads the URL",
+      "DATABASE_URL's template to postgres://{user}@{host}",
+      "DATABASE_URL with TLS to require",
+    ]);
+  });
+
+  // The slice 3 re-check, N1: sets pair by name, so one added or removed beside others
+  // is just that, and N2: a plan with no whole sets reads its fields as it did.
+  it("pairs a link's sets by name, and leaves an older plan's sets as their fields", () => {
+    const uploads = create(LinkStorageSchema, { connection: "uploads", connectionLabel: "Uploads", prefix: "ghost/" });
+    const bucket = create(LinkSetSchema, { name: "S3_BUCKET", part: LinkPart.BUCKET });
+    const endpoint = create(LinkSetSchema, { name: "S3_ENDPOINT", part: LinkPart.ENDPOINT });
+    const region = create(LinkSetSchema, { name: "S3_REGION", part: LinkPart.REGION });
+    const link = (changes: FieldChange[], sets: LinkSet[], setsBefore: LinkSet[]) =>
+      reads(rowsOf({ kind: "link", changes, storage: uploads, storageBefore: uploads, sets, setsBefore }));
+    expect(
+      link(
+        [
+          modified("sets[1].name", "S3_REGION", "S3_ENDPOINT"),
+          modified("sets[1].part", "region", "endpoint"),
+          added("sets[2].name", "S3_REGION"),
+          added("sets[2].part", "region"),
+        ],
+        [bucket, endpoint, region],
+        [bucket, region],
+      ),
+    ).toEqual(["S3_ENDPOINT to reads the endpoint from Uploads"]);
+    expect(
+      link(
+        [
+          modified("sets[0].name", "S3_BUCKET", "S3_REGION"),
+          modified("sets[0].part", "bucket", "region"),
+          removed("sets[1].name", "S3_REGION"),
+          removed("sets[1].part", "region"),
+        ],
+        [region],
+        [bucket, region],
+      ),
+    ).toEqual(["S3_BUCKET from reads the bucket from Uploads"]);
+    // A rename to another part, beside a set that stays, is one gone and one come.
+    expect(
+      link(
+        [modified("sets[1].name", "S3_REGION", "S3_ENDPOINT"), modified("sets[1].part", "region", "endpoint")],
+        [bucket, endpoint],
+        [bucket, region],
+      ),
+    ).toEqual(["S3_ENDPOINT to reads the endpoint from Uploads", "S3_REGION from reads the region from Uploads"]);
+    // The review's R1 and R2, on a plan from before sets were kept whole.
+    expect(
+      reads(
+        rowsOf({
+          kind: "link",
+          changes: [modified("sets[0].name", "S3_BUCKET", "BUCKET_NAME")],
+          storage: uploads,
+          storageBefore: uploads,
+        }),
+      ),
+    ).toEqual(["sets 1 name from S3_BUCKET to BUCKET_NAME"]);
+    expect(
+      reads(
+        rowsOf({
+          kind: "link",
+          changes: [modified("sets[0].part", "bucket", "endpoint")],
+          storage: uploads,
+          storageBefore: uploads,
+        }),
+      ),
+    ).toEqual(["sets 1 part from bucket to endpoint"]);
+  });
+
+  // The slice 3 review, L1: what a value reads says what differs.
+  it("says which part a value read, where it reads another part of the same connection", () => {
+    const read = (part: LinkPart, connection = "uploads", connectionLabel = "Uploads") =>
+      create(ConnectionReadSchema, { connection, connectionLabel, part, link: "storage" });
+    expect(
+      reads(
+        rowsOf({
+          kind: "variable",
+          changes: [modified("from.connection.part", "bucket", "endpoint")],
+          reads: read(LinkPart.ENDPOINT),
+          readsBefore: read(LinkPart.BUCKET),
+        }),
+      ),
+    ).toEqual(["reads to the endpoint from Uploads, in place of the bucket [change]"]);
+    expect(
+      reads(
+        rowsOf({
+          kind: "variable",
+          changes: [],
+          reads: read(LinkPart.ENDPOINT, "files", "Ghost files"),
+          readsBefore: read(LinkPart.BUCKET),
+        }),
+      ),
+    ).toEqual(["reads to the endpoint from Ghost files, in place of the bucket from Uploads [change]"]);
+  });
+
+  // The slice 3 review, M2: two connections with one label are told apart by name.
+  it("tells two connections with one label apart by name, where a value or a link moves between them", () => {
+    const read = (connection: string) =>
+      create(ConnectionReadSchema, { connection, connectionLabel: "Uploads", part: LinkPart.BUCKET, link: "storage" });
+    expect(
+      reads(
+        rowsOf({
+          kind: "variable",
+          changes: [modified("from.connection.name", "uploads", "uploads-eu")],
+          reads: read("uploads-eu"),
+          readsBefore: read("uploads"),
+        }),
+      ),
+    ).toEqual(["reads to the bucket from Uploads (uploads-eu), in place of Uploads (uploads) [change]"]);
+    const kept = (connection: string) =>
+      create(LinkStorageSchema, { connection, connectionLabel: "Uploads", prefix: "site/" });
+    expect(
+      reads(
+        rowsOf({
+          kind: "link",
+          changes: [modified("connection", "uploads", "uploads-eu")],
+          storage: kept("uploads-eu"),
+          storageBefore: kept("uploads"),
+        }),
+      ),
+    ).toEqual(["keeps its files on from Uploads (uploads), under site/ to Uploads (uploads-eu), under site/ [change]"]);
+  });
+
+  // The slice 3 review, L2: a catalog install's project says where a need comes from.
+  it("says where a catalog install's need comes from, in place of its pin's fields", () => {
+    const kept = (connection: string, connectionLabel: string) =>
+      create(LinkStorageSchema, { connection, connectionLabel, prefix: "site/" });
+    const moved = reads(
+      rowsOf({
+        kind: "project",
+        changes: [modified("catalog.needs[storage].connection", "uploads", "files")],
+        needs: [create(NeedStorageSchema, { need: "storage", storage: kept("files", "Ghost files") })],
+        needsBefore: [create(NeedStorageSchema, { need: "storage", storage: kept("uploads", "Uploads") })],
+      }),
+    );
+    expect(moved).toEqual(["storage comes from from Uploads, under site/ to Ghost files, under site/ [change]"]);
+    const own = reads(
+      rowsOf({
+        kind: "project",
+        changes: [removed("catalog.needs[storage].connection", "uploads"), added("catalog.needs[storage].own", "true")],
+        needs: [create(NeedStorageSchema, { need: "storage", own: true })],
+        needsBefore: [create(NeedStorageSchema, { need: "storage", storage: kept("uploads", "Uploads") })],
+      }),
+    );
+    expect(own).toEqual(["storage comes from from Uploads, under site/ to its own values [change]"]);
+  });
+
+  // The slice 3 review, H1: a renamed connection is the same connection, by name.
+  it("writes no row where a value reads the same connection under a new label, nor where a link keeps to it", () => {
+    const read = (label: string) =>
+      create(ConnectionReadSchema, {
+        connection: "uploads",
+        connectionLabel: label,
+        part: LinkPart.BUCKET,
+        link: "storage",
+      });
+    expect(
+      reads(rowsOf({ kind: "variable", changes: [], reads: read("Media library"), readsBefore: read("Uploads") })),
+    ).toEqual([]);
+    const kept = (label: string) =>
+      create(LinkStorageSchema, { connection: "uploads", connectionLabel: label, prefix: "ghost/" });
+    expect(
+      reads(rowsOf({ kind: "link", changes: [], storage: kept("Media library"), storageBefore: kept("Uploads") })),
+    ).toEqual([]);
+  });
+
+  // ADR 0099, slice 3: each name a link sets, and a value read from a connection, in words.
+  it("reads a link's sets as each name and what it reads, and a value as what it reads, in place of what it read", () => {
+    const uploads = create(LinkStorageSchema, { connection: "uploads", connectionLabel: "Uploads", prefix: "ghost/" });
+    const sets = reads(
+      rowsOf({
+        kind: "link",
+        changes: [
+          added("sets[0].name", "S3_BUCKET"),
+          added("sets[0].part", "bucket"),
+          added("sets[1].name", "S3_ACCESS_KEY_ID"),
+          added("sets[1].part", "access-key-id"),
+        ],
+        storage: uploads,
+        sets: [
+          create(LinkSetSchema, { name: "S3_BUCKET", part: LinkPart.BUCKET }),
+          create(LinkSetSchema, { name: "S3_ACCESS_KEY_ID", part: LinkPart.ACCESS_KEY_ID }),
+        ],
+      }),
+    );
+    expect(sets).toContain("S3_BUCKET to reads the bucket from Uploads");
+    expect(sets).toContain("S3_ACCESS_KEY_ID to reads the access key ID from Uploads");
+    expect(sets.some((row) => row.startsWith("sets"))).toBe(false);
+    // A database's link reads as what each name reads, with no connection.
+    expect(
+      reads(
+        rowsOf({
+          kind: "link",
+          changes: [added("sets[0].name", "DB_HOST"), added("sets[0].part", "host")],
+          sets: [create(LinkSetSchema, { name: "DB_HOST", part: LinkPart.HOST })],
+        }),
+      ),
+    ).toEqual(["DB_HOST to reads the host"]);
+    const value = reads(
+      rowsOf({
+        kind: "variable",
+        changes: [modified("from.connection.name", "files", "uploads")],
+        reads: create(ConnectionReadSchema, {
+          connection: "uploads",
+          connectionLabel: "Uploads",
+          part: LinkPart.BUCKET,
+          link: "storage",
+        }),
+        readsBefore: create(ConnectionReadSchema, {
+          connection: "files",
+          connectionLabel: "Ghost files",
+          part: LinkPart.BUCKET,
+          link: "storage",
+        }),
+      }),
+    );
+    expect(value).toEqual(["reads to the bucket from Uploads, in place of Ghost files [change]"]);
+  });
+
+  // ADR 0099, slice 3: a link to a connection says where it keeps the app's files.
+  it("says where a link keeps an app's files, by the connection's label, in place of its connection and prefix", () => {
+    const uploads = create(LinkStorageSchema, { connection: "uploads", connectionLabel: "Uploads", prefix: "ghost/" });
+    const media = create(LinkStorageSchema, {
+      connection: "media",
+      connectionLabel: "Media library",
+      prefix: "ghost/",
+    });
+    const made = reads(
+      rowsOf({
+        kind: "link",
+        changes: [added("label", "Storage"), added("connection", "uploads"), added("prefix", "ghost/")],
+        storage: uploads,
+      }),
+    );
+    expect(made).toContain("keeps its files on to Uploads, under ghost/");
+    expect(made.some((row) => row.startsWith("connection") || row.startsWith("prefix"))).toBe(false);
+    const moved = reads(
+      rowsOf({
+        kind: "link",
+        changes: [modified("connection", "uploads", "media")],
+        storage: media,
+        storageBefore: uploads,
+      }),
+    );
+    expect(moved).toEqual(["keeps its files on from Uploads, under ghost/ to Media library, under ghost/ [change]"]);
+    const root = reads(
+      rowsOf({
+        kind: "link",
+        changes: [removed("connection", "uploads")],
+        storageBefore: create(LinkStorageSchema, { connection: "uploads", connectionLabel: "Uploads" }),
+      }),
+    );
+    expect(root).toEqual(["keeps its files on from Uploads, at the bucket's root"]);
+  });
+
   it("reads a branch by its own name, as people know it", () => {
     const rows = rowsOf({
       kind: "service",

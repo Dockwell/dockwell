@@ -234,6 +234,14 @@ export function diffResources(
       destroysData: steps.some(losesData),
       keepsData: steps.some(keepsData),
       restores: steps.some((s) => s.restore !== undefined),
+      storage: resource.storage,
+      storageBefore: resource.storageBefore,
+      reads: resource.reads,
+      readsBefore: resource.readsBefore,
+      sets: resource.sets,
+      setsBefore: resource.setsBefore,
+      needs: resource.needs,
+      needsBefore: resource.needsBefore,
     });
     const out: PlanResource = {
       id: resource.id,

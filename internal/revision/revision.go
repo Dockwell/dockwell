@@ -604,6 +604,22 @@ type ResourcePlan struct {
 	// admin's (ADR 0049). It asks no passkey and no warning: who may apply is
 	// all it decides.
 	Keeps []resource.Access `json:",omitempty"`
+	// Storage is where a link to a connection keeps the app's files once applied,
+	// and StorageBefore where it kept them, by the connection's label as the plan
+	// was made (ADR 0099), so history reads as it did.
+	Storage       *LinkStorage `json:",omitempty"`
+	StorageBefore *LinkStorage `json:",omitempty"`
+	// Reads is what a variable or a secret reads from a connection once applied,
+	// and ReadsBefore what it read, by the connection's label as the plan was made.
+	Reads       *ConnectionRead `json:",omitempty"`
+	ReadsBefore *ConnectionRead `json:",omitempty"`
+	// Sets and SetsBefore are a link's sets whole, where they change.
+	Sets       []LinkSetWords `json:",omitempty"`
+	SetsBefore []LinkSetWords `json:",omitempty"`
+	// Needs and NeedsBefore are where a catalog install's needs come from, for a
+	// project's row, where they change.
+	Needs       []NeedStorage `json:",omitempty"`
+	NeedsBefore []NeedStorage `json:",omitempty"`
 	// RootDevices are the devices it reaches that its agent found the same as root
 	// as it was planned (ADR 0097): what a person approved as root, which the next
 	// plan compares what an agent finds with, as a device can come to be a disk.
@@ -3111,8 +3127,16 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 	// switch does, its undo, or a rollback of it: the value may have been a
 	// secret all along, so the plan shows it on neither side.
 	masked := e.switchSides(items)
+	storage, err := e.linkStorages(ctx, items)
+	if err != nil {
+		return nil, err
+	}
 	for i := range items {
 		rp := items[i].resourcePlan(actions[items[i].id])
+		w := storage[items[i].id]
+		rp.Storage, rp.StorageBefore, rp.Reads, rp.ReadsBefore = w.storage[1], w.storage[0], w.reads[1], w.reads[0]
+		rp.Sets, rp.SetsBefore = w.sets[1], w.sets[0]
+		rp.Needs, rp.NeedsBefore = w.needs[1], w.needs[0]
 		rp.HostAccess, rp.Keeps, rp.Install, rp.Reboot, rp.Unit, rp.Panel = access[items[i].id], keeps[items[i].id], installs[items[i].id], reboots[items[i].id], units[items[i].id], panels[items[i].id]
 		if root := rootDevicesOf[items[i].id]; len(root) > 0 {
 			rp.RootDevices = slices.Compact(slices.Sorted(slices.Values(root)))
