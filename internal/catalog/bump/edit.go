@@ -22,7 +22,10 @@ type Edit struct {
 }
 
 var (
-	versionLine = sync.OnceValue(func() *regexp.Regexp { return regexp.MustCompile(`(?m)^version:[ \t]*(\S.*?)[ \t]*$`) })
+	// The version's scalar alone, quoted or plain, so a comment after it stays.
+	versionLine = sync.OnceValue(func() *regexp.Regexp {
+		return regexp.MustCompile(`(?m)^version:[ \t]*("[^"\n]*"|'[^'\n]*'|[^\s#'"][^\s#]*)[ \t]*(?:#.*)?$`)
+	})
 	releaseLine = sync.OnceValue(func() *regexp.Regexp { return regexp.MustCompile(`(?m)^release:[ \t]*(\d+)[ \t]*$`) })
 )
 

@@ -408,3 +408,15 @@ func TestATagPushedAgainStartsItsWaitAgain(t *testing.T) {
 		t.Errorf("a tag seen at its digest reads %+v", app)
 	}
 }
+
+// A comment after the version stays, as every comment does (#726's review, L1).
+func TestAVersionsCommentStays(t *testing.T) {
+	text := strings.Replace(shopEntry("1.4.2"), `version: "1.4.2"`, `version: "1.4.2" # the app's own tag`, 1)
+	after, err := bump.Apply([]byte(text), bump.Edit{Version: "1.5.0", Release: 4})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(after), "# the app's own tag") {
+		t.Errorf("the version's line reads %q", strings.Split(string(after), "\n")[5])
+	}
+}
