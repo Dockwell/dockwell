@@ -346,7 +346,7 @@ func ReadStack(ctx context.Context, e *catalogv1.Entry) (*compose.Stack, error) 
 			given[in.GetName()] = StandIn(in)
 		}
 	}
-	filled, err := catalog.Fill(e, given, catalog.Suggest(e, nil))
+	filled, err := catalog.Fill(e, given, catalog.Suggest(e, nil, nil))
 	if err != nil {
 		return nil, fmt.Errorf("its form can't be filled in: %w", err)
 	}

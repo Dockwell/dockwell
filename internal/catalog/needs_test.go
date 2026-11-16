@@ -418,7 +418,7 @@ func TestFilledLink(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	filled, err := catalog.Fill(needed.Entry, nil, catalog.Suggest(needed.Entry, nil))
+	filled, err := catalog.Fill(needed.Entry, nil, catalog.Suggest(needed.Entry, nil, nil))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -447,7 +447,7 @@ func TestStanding(t *testing.T) {
 // readsAsInstalled fills an entry's inputs and reads its file, as an install would.
 func readsAsInstalled(t *testing.T, e *catalogv1.Entry) {
 	t.Helper()
-	filled, err := catalog.Fill(e, nil, catalog.Suggest(e, nil))
+	filled, err := catalog.Fill(e, nil, catalog.Suggest(e, nil, nil))
 	if err != nil {
 		t.Fatalf("%s's form: %v", e.GetId(), err)
 	}

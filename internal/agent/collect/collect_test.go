@@ -26,14 +26,15 @@ NAME="Ubuntu"
 VERSION_ID="24.04"
 ID=ubuntu
 `)},
-		"proc/sys/kernel/osrelease": {Data: []byte("6.8.0-48-generic\n")},
-		"proc/cpuinfo":              {Data: []byte(strings.Repeat("processor\t: 0\nmodel name\t: AMD EPYC 7763 64-Core Processor\n\n", 4))},
-		"proc/meminfo":              {Data: []byte("MemTotal:        8388608 kB\nMemFree:          524288 kB\nMemAvailable:    6291456 kB\nSwapTotal:       2097152 kB\nSwapFree:        1572864 kB\n")},
-		"proc/self/status":          {Data: []byte("Name:\tdockwell\nVmPeak:\t 1300000 kB\nVmRSS:\t   19456 kB\nThreads:\t9\n")},
-		"proc/loadavg":              {Data: []byte("0.52 0.41 0.30 2/345 12345\n")},
-		"proc/uptime":               {Data: []byte("86400.42 340000.00\n")},
-		"proc/stat":                 {Data: []byte(stat)},
-		"proc/net/dev":              {Data: []byte(netdev)},
+		"proc/sys/kernel/osrelease":             {Data: []byte("6.8.0-48-generic\n")},
+		"proc/sys/net/ipv4/ip_local_port_range": {Data: []byte("32768\t60999\n")},
+		"proc/cpuinfo":                          {Data: []byte(strings.Repeat("processor\t: 0\nmodel name\t: AMD EPYC 7763 64-Core Processor\n\n", 4))},
+		"proc/meminfo":                          {Data: []byte("MemTotal:        8388608 kB\nMemFree:          524288 kB\nMemAvailable:    6291456 kB\nSwapTotal:       2097152 kB\nSwapFree:        1572864 kB\n")},
+		"proc/self/status":                      {Data: []byte("Name:\tdockwell\nVmPeak:\t 1300000 kB\nVmRSS:\t   19456 kB\nThreads:\t9\n")},
+		"proc/loadavg":                          {Data: []byte("0.52 0.41 0.30 2/345 12345\n")},
+		"proc/uptime":                           {Data: []byte("86400.42 340000.00\n")},
+		"proc/stat":                             {Data: []byte(stat)},
+		"proc/net/dev":                          {Data: []byte(netdev)},
 		"proc/self/mounts": {Data: []byte(`/dev/sda1 / ext4 rw,relatime 0 0
 proc /proc proc rw,nosuid 0 0
 tmpfs /run tmpfs rw,nosuid 0 0
@@ -298,5 +299,19 @@ func TestDiskBytesCountEachWholeDiskOnce(t *testing.T) {
 	delete(fsys, "proc/diskstats")
 	if st := newFixtureCollector(fsys).Stats(time.Now()); st.GetDiskReadBytes() != 0 || st.GetDiskWrittenBytes() != 0 {
 		t.Errorf("no diskstats read %d and wrote %d", st.GetDiskReadBytes(), st.GetDiskWrittenBytes())
+	}
+}
+
+// The ports the server lends to outgoing connections are read from its own range, and
+// a range that can't be read says nothing (#688).
+func TestInventoryReadsTheEphemeralPorts(t *testing.T) {
+	inv := newFixtureCollector(fixture("cpu 1 0 1 8 0 0 0 0 0 0\n", netdev(0, 0))).Inventory(t.Context())
+	if inv.GetEphemeralPortsLow() != 32768 || inv.GetEphemeralPortsHigh() != 60999 {
+		t.Errorf("ephemeral ports %d to %d", inv.GetEphemeralPortsLow(), inv.GetEphemeralPortsHigh())
+	}
+	for _, said := range []string{"", "32768", "61000 32768", "a b", "0 100"} {
+		if l, h := ephemeralPorts([]byte(said)); l != 0 || h != 0 {
+			t.Errorf("%q reads as %d to %d", said, l, h)
+		}
 	}
 }

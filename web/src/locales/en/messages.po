@@ -7738,6 +7738,9 @@ msgstr "Give {missingLabel} a value to review the plan"
 msgid "Hide {label}"
 msgstr "Hide {label}"
 
+msgid "In {low} to {high}, which the server lends to outgoing connections, so one may hold it as the app starts"
+msgstr "In {low} to {high}, which the server lends to outgoing connections, so one may hold it as the app starts"
+
 msgid "Its apps can read and change each other's data"
 msgstr "Its apps can read and change each other's data"
 

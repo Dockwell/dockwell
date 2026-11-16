@@ -775,10 +775,19 @@ func MinLength(in *catalogv1.Input) int {
 // Secret reports an input kept as a secret.
 func Secret(in *catalogv1.Input) bool { return in.GetType() == catalogv1.InputType_INPUT_TYPE_SECRET }
 
+// FirstPort is where a port is looked for when an entry's default can't be had, as
+// most apps that serve HTTP are published from 8080 up.
+const FirstPort = 8080
+
 // Suggest says what each input takes when no one gives it anything, by name,
-// with each port one that isn't in taken, or that an input before it took. Secrets
-// have nothing to suggest.
-func Suggest(e *catalogv1.Entry, taken map[uint32]bool) map[string]string {
+// with each port one that isn't in taken, or that an input before it took. A default
+// port avoid says no to, as one in the range a server lends to outgoing connections
+// is (#688), is looked for from FirstPort instead, passing over what avoid says no to.
+// Secrets have nothing to suggest.
+func Suggest(e *catalogv1.Entry, taken map[uint32]bool, avoid func(port uint32) bool) map[string]string {
+	if avoid == nil {
+		avoid = func(uint32) bool { return false }
+	}
 	out := map[string]string{}
 	used := map[uint32]bool{}
 	for _, in := range e.GetInputs() {
@@ -793,8 +802,12 @@ func Suggest(e *catalogv1.Entry, taken map[uint32]bool) map[string]string {
 		if err != nil {
 			continue
 		}
-		for p := uint32(port); p <= 65535; p++ {
-			if !taken[p] && !used[p] {
+		from := uint32(port)
+		if avoid(from) {
+			from = FirstPort
+		}
+		for p := from; p <= 65535; p++ {
+			if !taken[p] && !used[p] && !avoid(p) {
 				used[p] = true
 				out[in.GetName()] = strconv.FormatUint(uint64(p), 10)
 				break

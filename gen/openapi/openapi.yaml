@@ -23965,6 +23965,17 @@ components:
                         True when addresses lists only physical interfaces' addresses, so a
                          private one there is a private network the server is on, as a cloud's is,
                          and never a Docker bridge's.
+                ephemeralPortsLow:
+                    type: integer
+                    description: |-
+                        The ports the server lends to outgoing connections as their source ports,
+                         from its net.ipv4.ip_local_port_range, such as 32768 to 60999. A port in
+                         them may be held by a connection as an app starts, so an install's default
+                         port isn't taken from them (#688). Zero from an agent from before this.
+                    format: uint32
+                ephemeralPortsHigh:
+                    type: integer
+                    format: uint32
             description: 'ServerInventory is what a server is: its system and hardware.'
         ServerLogStatus:
             type: object

@@ -2502,8 +2502,14 @@ type ServerInventory struct {
 	// private one there is a private network the server is on, as a cloud's is,
 	// and never a Docker bridge's.
 	AddressesPhysical bool `protobuf:"varint,15,opt,name=addresses_physical,json=addressesPhysical,proto3" json:"addresses_physical,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	// The ports the server lends to outgoing connections as their source ports,
+	// from its net.ipv4.ip_local_port_range, such as 32768 to 60999. A port in
+	// them may be held by a connection as an app starts, so an install's default
+	// port isn't taken from them (#688). Zero from an agent from before this.
+	EphemeralPortsLow  uint32 `protobuf:"varint,16,opt,name=ephemeral_ports_low,json=ephemeralPortsLow,proto3" json:"ephemeral_ports_low,omitempty"`
+	EphemeralPortsHigh uint32 `protobuf:"varint,17,opt,name=ephemeral_ports_high,json=ephemeralPortsHigh,proto3" json:"ephemeral_ports_high,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *ServerInventory) Reset() {
@@ -2639,6 +2645,20 @@ func (x *ServerInventory) GetAddressesPhysical() bool {
 		return x.AddressesPhysical
 	}
 	return false
+}
+
+func (x *ServerInventory) GetEphemeralPortsLow() uint32 {
+	if x != nil {
+		return x.EphemeralPortsLow
+	}
+	return 0
+}
+
+func (x *ServerInventory) GetEphemeralPortsHigh() uint32 {
+	if x != nil {
+		return x.EphemeralPortsHigh
+	}
+	return 0
 }
 
 // Disk is one mounted filesystem.
@@ -3947,7 +3967,7 @@ const file_dockwell_v1_server_proto_rawDesc = "" +
 	"known_time\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\tknownTime\x12\x16\n" +
 	"\x06domain\x18\x04 \x01(\tR\x06domain\x12)\n" +
 	"\x06set_by\x18\x05 \x01(\v2\x12.dockwell.v1.ActorR\x05setBy\x12\x1a\n" +
-	"\bunproven\x18\x06 \x01(\bR\bunproven\"\x87\x04\n" +
+	"\bunproven\x18\x06 \x01(\bR\bunproven\"\xe9\x04\n" +
 	"\x0fServerInventory\x12\x1a\n" +
 	"\bhostname\x18\x01 \x01(\tR\bhostname\x12\x17\n" +
 	"\aos_name\x18\x02 \x01(\tR\x06osName\x12\x13\n" +
@@ -3965,7 +3985,9 @@ const file_dockwell_v1_server_proto_rawDesc = "" +
 	"\taddresses\x18\f \x03(\tR\taddresses\x12*\n" +
 	"\x11docker_log_driver\x18\r \x01(\tR\x0fdockerLogDriver\x12)\n" +
 	"\x10outbound_address\x18\x0e \x01(\tR\x0foutboundAddress\x12-\n" +
-	"\x12addresses_physical\x18\x0f \x01(\bR\x11addressesPhysical\"~\n" +
+	"\x12addresses_physical\x18\x0f \x01(\bR\x11addressesPhysical\x12.\n" +
+	"\x13ephemeral_ports_low\x18\x10 \x01(\rR\x11ephemeralPortsLow\x120\n" +
+	"\x14ephemeral_ports_high\x18\x11 \x01(\rR\x12ephemeralPortsHigh\"~\n" +
 	"\x04Disk\x12\x1f\n" +
 	"\vmount_point\x18\x01 \x01(\tR\n" +
 	"mountPoint\x12\x16\n" +

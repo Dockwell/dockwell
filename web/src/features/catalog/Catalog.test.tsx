@@ -1216,6 +1216,40 @@ describe("Installing from the catalog", () => {
     await waitFor(() => expect(asked?.values).toEqual({ ADMIN_PORT: "8086" }));
   });
 
+  it("warns in one line under a typed port the server lends to outgoing connections, and keeps it", async () => {
+    const user = userEvent.setup();
+    let asked: InstallCatalogEntryRequest | undefined;
+    renderAt("/catalog/postgres/install", {
+      ...api({
+        installCatalogEntry: (req) => {
+          asked = req;
+          throw new ConnectError("stop here", Code.FailedPrecondition);
+        },
+      }),
+      containers: { listContainers: () => ({ containers: [] }) },
+    });
+    const sheet = await screen.findByRole("dialog", { name: "Install PostgreSQL" });
+    await waitFor(() =>
+      expect(within(sheet).getByRole("group", { name: "Adminer port" })).toHaveTextContent("8085Free"),
+    );
+    await user.click(within(sheet).getByRole("button", { name: "Change adminer port" }));
+    const field = within(sheet).getByRole("textbox", { name: "Adminer port" });
+    await user.clear(field);
+    await user.type(field, "40108");
+    expect(
+      await within(sheet).findByText(
+        "In 32768 to 60999, which the server lends to outgoing connections, so one may hold it as the app starts",
+      ),
+    ).toBeVisible();
+    await user.clear(field);
+    await user.type(field, "9090");
+    expect(within(sheet).queryByText(/lends to outgoing connections/)).not.toBeInTheDocument();
+    await user.clear(field);
+    await user.type(field, "40108");
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    await waitFor(() => expect(asked?.values).toEqual({ ADMIN_PORT: "40108" }));
+  });
+
   it("copies the same install as a CLI command, under Advanced", async () => {
     const user = userEvent.setup();
     const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();

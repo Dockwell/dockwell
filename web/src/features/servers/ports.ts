@@ -38,6 +38,25 @@ const PROXY_PORTS: readonly { port: number; udp: boolean }[] = [
   { port: 443, udp: true },
 ];
 
+/** The ports Linux lends to outgoing connections, unless a server is set otherwise. */
+export const LINUX_LENT: readonly [number, number] = [32768, 60999];
+
+/**
+ * The range of ports one of these servers lends to outgoing connections that port is
+ * in, if any: each server's own, as its agent says, or Linux's where it doesn't. A
+ * connection may hold such a port as an app starts (#688).
+ */
+export function lentRangeOf(
+  port: number,
+  servers: readonly { lent?: readonly [number, number] }[],
+): readonly [number, number] | undefined {
+  for (const server of servers) {
+    const range = server.lent ?? LINUX_LENT;
+    if (port >= range[0] && port <= range[1]) return range;
+  }
+  return undefined;
+}
+
 /** Where a free port is looked for first, as most apps that serve HTTP are published from 8080 up. */
 export const FIRST_FREE = 8080;
 

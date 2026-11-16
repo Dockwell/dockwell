@@ -645,7 +645,7 @@ func reachesOf(ctx context.Context, e *catalogv1.Entry, typed []string, typedRes
 			given[in.GetName()] = standIn(in)
 		}
 	}
-	filled, err := catalog.Fill(e, given, catalog.Suggest(e, nil))
+	filled, err := catalog.Fill(e, given, catalog.Suggest(e, nil, nil))
 	if err != nil {
 		return nil, fmt.Errorf("filling in its form: %w", err)
 	}

@@ -146,7 +146,23 @@ func (c *Collector) Inventory(ctx context.Context) *dockwellv1.ServerInventory {
 	if c.Outbound != nil {
 		inv.OutboundAddress = c.Outbound(ctx)
 	}
+	inv.EphemeralPortsLow, inv.EphemeralPortsHigh = ephemeralPorts(c.read("proc/sys/net/ipv4/ip_local_port_range"))
 	return inv
+}
+
+// ephemeralPorts reads ip_local_port_range, two ports apart by whitespace, such as
+// "32768\t60999". Zeros where it can't be read.
+func ephemeralPorts(b []byte) (low, high uint32) {
+	f := strings.Fields(string(b))
+	if len(f) != 2 {
+		return 0, 0
+	}
+	l, errL := strconv.ParseUint(f[0], 10, 16)
+	h, errH := strconv.ParseUint(f[1], 10, 16)
+	if errL != nil || errH != nil || l == 0 || h < l {
+		return 0, 0
+	}
+	return uint32(l), uint32(h)
 }
 
 // Stats samples the server's resource use. Rates (CPU, network) cover the
