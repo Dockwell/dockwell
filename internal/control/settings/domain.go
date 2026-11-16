@@ -320,6 +320,16 @@ func (h *Handler) SetPanelDomain(ctx context.Context, req *connect.Request[dockw
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, errors.New(
 			"a change is applying, and the restart would stop it partway, so the domain didn't change. Save once it ends"), "change_applying")
 	}
+	// Leaving the tunnel for Dockwell's own certificate needs ports 80 and 443: with
+	// one held, the restart would serve the domain nowhere, so it's refused, naming
+	// what holds it (#734's re-check, N1).
+	if was.BehindProxy && was.Domain == d && !want.BehindProxy && h.domain.PortsHeld != nil {
+		if held := h.domain.PortsHeld(ctx); len(held) > 0 {
+			return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf(
+				"%s holds port %d on this server, so Dockwell couldn't serve %s itself, and it would answer on loopback alone. Free the port, then try again, or keep the tunnel",
+				held[0].GetProgram(), held[0].GetPort(), d), "ports_held")
+		}
+	}
 	if h.domain.Auth == nil {
 		return nil, connect.NewError(connect.CodeUnavailable, errors.New("this control plane can't check a passkey, so the domain didn't change"))
 	}

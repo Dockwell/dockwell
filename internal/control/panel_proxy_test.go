@@ -16,6 +16,7 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -439,7 +440,8 @@ func TestAReachCheckFindsThePanelThroughItsTunnel(t *testing.T) {
 // else to change. Clearing the domain clears how it was served.
 func TestTheOwnerPutsThePanelBehindATunnel(t *testing.T) {
 	t.Parallel()
-	f, restarts, _ := panelDomainStand(t)
+	var ports atomic.Bool
+	f, restarts, _ := panelDomainStandHeld(t, &ports)
 	b := signedIn(t, f)
 	c := dockwellv1connect.NewSettingsServiceClient(b, b.origin, connect.WithProtoJSON())
 	set := func(domain string, behind bool) (*dockwellv1.SetPanelDomainResponse, error) {
@@ -476,6 +478,16 @@ func TestTheOwnerPutsThePanelBehindATunnel(t *testing.T) {
 	if got, err := set(tunnelDomain, true); err != nil || got.GetRestarting() {
 		t.Errorf("the same again: %v, %v; want nothing to do", got, err)
 	}
+	// Leaving the tunnel while another program holds a port would serve it nowhere,
+	// so it's refused, naming it (#734's re-check, N1).
+	ports.Store(true)
+	if _, err := set(tunnelDomain, false); reasonOf(err) != "ports_held" || !strings.Contains(err.Error(), "nginx holds port 80 on this server, so Dockwell couldn't serve panel.example.com itself") {
+		t.Errorf("leaving the tunnel with port 80 held: %v, want ports_held", err)
+	}
+	if s := held(); !s.BehindProxy {
+		t.Errorf("a refused move left the settings at %+v", s)
+	}
+	ports.Store(false)
 	// Dockwell serving it instead, on the same domain, isn't a move.
 	if got, err := set(tunnelDomain, false); err != nil || !got.GetRestarting() {
 		t.Fatalf("serving it from Dockwell: %v, %v", got, err)

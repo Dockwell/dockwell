@@ -16992,6 +16992,9 @@ msgstr "{domain} isn't served"
 msgid "{domain} reaches this panel through a tunnel"
 msgstr "{domain} reaches this panel through a tunnel"
 
+msgid "{domain} stops answering through the tunnel until its record leads here and a certificate comes. The SSH tunnel keeps working."
+msgstr "{domain} stops answering through the tunnel until its record leads here and a certificate comes. The SSH tunnel keeps working."
+
 msgid "{leads}. This server's public address isn't known: set it, and Dockwell compares the two."
 msgstr "{leads}. This server's public address isn't known: set it, and Dockwell compares the two."
 

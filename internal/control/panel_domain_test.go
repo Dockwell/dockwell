@@ -33,6 +33,14 @@ import (
 // ports 80 and 443 something else holds, and whose restarts are counted.
 func panelDomainStand(t *testing.T) (*fullServer, *atomic.Int32, *atomic.Value) {
 	t.Helper()
+	var held atomic.Bool
+	held.Store(true)
+	return panelDomainStandHeld(t, &held)
+}
+
+// panelDomainStandHeld is panelDomainStand, with nginx holding port 80 while held.
+func panelDomainStandHeld(t *testing.T, held *atomic.Bool) (*fullServer, *atomic.Int32, *atomic.Value) {
+	t.Helper()
 	var restarts atomic.Int32
 	var saved atomic.Value
 	f := startFullConfig(t, store.SQLite, nil, slog.New(slog.DiscardHandler), nil, logapi.Options{}, func(c *Config) {
@@ -51,6 +59,9 @@ func panelDomainStand(t *testing.T) (*fullServer, *atomic.Int32, *atomic.Value) 
 			},
 			PublicAddresses: func() []string { return []string{"192.0.2.10", "2001:db8::10"} },
 			PortsHeld: func(context.Context) []*dockwellv1.PanelPortHolder {
+				if !held.Load() {
+					return nil
+				}
 				return []*dockwellv1.PanelPortHolder{{Port: 80, Program: "nginx"}}
 			},
 			Restart: func() { restarts.Add(1) },

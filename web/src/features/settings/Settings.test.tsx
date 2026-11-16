@@ -372,6 +372,7 @@ describe("Settings", () => {
 
   it("moves a domain from the tunnel back to Dockwell's own certificate as one change, its record and ports first", async () => {
     const user = userEvent.setup();
+    let held = true;
     const setPanelDomain = vi.fn(() => ({ settings: settings(), restarting: true }));
     const tunnelled = settings({
       panel: {
@@ -391,7 +392,7 @@ describe("Settings", () => {
         checkPanelDomain: () => ({
           addresses: ["198.51.100.7"],
           publicAddresses: ["192.0.2.10"],
-          portsHeld: [{ port: 443, program: "nginx" }],
+          portsHeld: held ? [{ port: 443, program: "nginx" }] : [],
         }),
         setPanelDomain,
       },
@@ -406,10 +407,78 @@ describe("Settings", () => {
     expect(
       within(panel).getByText("Dockwell restarts to serve panel.example.com with its own certificate"),
     ).toBeVisible();
-    await user.click(within(panel).getByRole("button", { name: "Restart and serve it" }));
+    // Off the tunnel, the domain goes dark until its record leads here and a certificate comes (N1).
+    expect(panel).toHaveTextContent(
+      "panel.example.com stops answering through the tunnel until its record leads here and a certificate comes. The SSH tunnel keeps working.",
+    );
+    // With a port held, the restart would serve it nowhere, so it waits.
+    const restart = within(panel).getByRole("button", { name: "Restart and serve it" });
+    expect(restart).toBeDisabled();
+    held = false;
+    await user.click(within(panel).getByRole("button", { name: "Check again" }));
+    await waitFor(() => expect(restart).toBeEnabled());
+    await user.click(restart);
     await waitFor(() =>
       expect(setPanelDomain).toHaveBeenCalledWith(
         expect.objectContaining({ domain: "panel.example.com", behindProxy: false }),
+        expect.anything(),
+      ),
+    );
+  });
+
+  it("warns on the way back from a tunnel where this server's public address isn't known", async () => {
+    const user = userEvent.setup();
+    const tunnelled = settings({
+      panel: {
+        listen: "127.0.0.1:7600",
+        domain: "panel.example.com",
+        setDomain: "panel.example.com",
+        domainFrom: PanelDomainFrom.SETTING,
+        servedBy: PanelServedBy.PROXY,
+        url: "https://panel.example.com",
+        certified: true,
+      },
+    });
+    renderSettings("/settings/general", {
+      settings: {
+        getSettings: () => ({ settings: tunnelled }),
+        checkPanelReach: () => ({ reached: true, target: "http://127.0.0.1:7600" }),
+        checkPanelDomain: () => ({ addresses: ["104.16.0.10"], cloudflare: true }),
+      },
+    });
+    const panel = await screen.findByRole("region", { name: "Panel address" });
+    await user.click(await within(panel).findByRole("button", { name: "Serve it with its own certificate" }));
+    expect(await within(panel).findByText("Dockwell can't tell whether panel.example.com leads here")).toBeVisible();
+  });
+
+  it("offers the tunnel back on a domain that isn't served, first where the tunnel still reaches the panel", async () => {
+    const user = userEvent.setup();
+    const setPanelDomain = vi.fn(() => ({ settings: settings(), restarting: true }));
+    const refused = settings({
+      panel: {
+        listen: "127.0.0.1:7600",
+        setDomain: "panel.example.com",
+        domainFrom: PanelDomainFrom.SETTING,
+        servedBy: PanelServedBy.NONE,
+        problem:
+          "Dockwell couldn't hold the ports panel.example.com needs: listen tcp :443: bind: address already in use.",
+      },
+    });
+    renderSettings("/settings/general", {
+      settings: {
+        getSettings: () => ({ settings: refused }),
+        checkPanelReach: () => ({ reached: true, target: "http://127.0.0.1:7600" }),
+        setPanelDomain,
+      },
+    });
+    const panel = await screen.findByRole("region", { name: "Panel address" });
+    const back = await within(panel).findByRole("button", { name: "Serve it behind a tunnel" });
+    await waitFor(() => expect(back).toHaveClass("dw-btn-primary"));
+    await user.click(back);
+    await user.click(within(panel).getByRole("button", { name: "Restart and serve it" }));
+    await waitFor(() =>
+      expect(setPanelDomain).toHaveBeenCalledWith(
+        expect.objectContaining({ domain: "panel.example.com", behindProxy: true }),
         expect.anything(),
       ),
     );

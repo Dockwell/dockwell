@@ -3,6 +3,7 @@
 import { createClient } from "@connectrpc/connect";
 import { createConnectQueryKey, skipToken, useQuery, useTransport } from "@connectrpc/connect-query";
 import {
+  type CheckPanelDomainResponse,
   PanelDomainFrom,
   PanelServedBy,
   type PanelServing,
@@ -172,6 +173,88 @@ function TunnelRecord({ domain, listen, reach }: { domain: string; listen: strin
   );
 }
 
+/**
+ * Where a domain Dockwell serves itself leads, from a check: the record to make, with
+ * its state, or why that can't be told and the way to fix it, and what holds a port
+ * its certificate needs. The field and the way back from a tunnel show the same.
+ */
+function DomainLeads({
+  domain,
+  found,
+  checking,
+  onCheck,
+}: {
+  domain: string;
+  found: CheckPanelDomainResponse;
+  checking: boolean;
+  onCheck: () => void;
+}) {
+  const { t } = useLingui();
+  const may = useMay();
+  const maySetAddress = may(ServerService.method.setServerPublicAddress);
+  const fleet = useFleet();
+  const controlServer = fleet.status === "connecting" ? undefined : fleet.servers.find((s) => s.controlServer);
+  const [addressing, setAddressing] = useState(false);
+  const address = found.publicAddresses.find((a) => !a.includes(":")) ?? found.publicAddresses[0] ?? "";
+  const leads = found.addresses.length
+    ? t`It leads to ${found.addresses.join(", ")}`
+    : found.dnsProblem
+      ? capital(found.dnsProblem)
+      : "";
+  return (
+    <>
+      {address ? (
+        <DnsRecord
+          type={address.includes(":") ? "AAAA" : "A"}
+          name={domain}
+          value={address}
+          state={
+            found.pointsHere
+              ? { status: "healthy", word: t`Points here` }
+              : { status: "degraded", word: t`DNS doesn't point here yet` }
+          }
+          onCheck={found.pointsHere ? undefined : onCheck}
+          checking={checking}
+          note={found.pointsHere || !leads ? undefined : leads}
+        />
+      ) : (
+        // Without this server's public address, where the name leads can't be told from here.
+        <Callout
+          stacked
+          tone="warning"
+          title={t`Dockwell can't tell whether ${domain} leads here`}
+          actions={
+            controlServer ? (
+              <Button size="sm" onClick={() => setAddressing(true)} {...maySetAddress.off}>
+                <Trans>Set public address</Trans>
+              </Button>
+            ) : null
+          }
+        >
+          {leads
+            ? t`${leads}. This server's public address isn't known: set it, and Dockwell compares the two.`
+            : t`This server's public address isn't known: set it, and Dockwell compares the two.`}
+        </Callout>
+      )}
+      {addressing && controlServer ? (
+        <SetPublicAddressSheet
+          server={controlServer}
+          current={controlServer.network?.ipv4}
+          onClose={() => {
+            setAddressing(false);
+            onCheck();
+          }}
+        />
+      ) : null}
+      {found.portsHeld.map((p) => (
+        <p key={`${p.port}-${p.program}`} className="settings-sub panel-domain-warn">
+          {t`${p.program} holds port ${p.port} on this server, so no certificate can come until it's freed.`}
+        </p>
+      ))}
+    </>
+  );
+}
+
 /** A domain to give the panel, checked as it's typed. */
 function DomainField({
   owner,
@@ -186,10 +269,6 @@ function DomainField({
   const may = useMay();
   const mayCheck = may(SettingsService.method.checkPanelDomain, { install: true });
   const maySet = may(SettingsService.method.setPanelDomain, { install: true });
-  const maySetAddress = may(ServerService.method.setServerPublicAddress);
-  const fleet = useFleet();
-  const controlServer = fleet.status === "connecting" ? undefined : fleet.servers.find((s) => s.controlServer);
-  const [addressing, setAddressing] = useState(false);
   const [typed, setTyped] = useState("");
   const [settled, setSettled] = useState("");
   const [confirming, setConfirming] = useState(false);
@@ -207,7 +286,6 @@ function DomainField({
   const refusal = found?.refusal ?? "";
   const ready =
     owner && domain !== "" && typed.trim() !== "" && !check.isFetching && found !== undefined && refusal === "";
-  const address = found?.publicAddresses.find((a) => !a.includes(":")) ?? found?.publicAddresses[0] ?? "";
   // A name that leads to Cloudflare is behind its proxy or tunnel, which ends TLS before this server.
   const cloudflare = found?.cloudflare ?? false;
   // On Cloudflare the way in is asked too: a tunnel that reaches this panel chooses
@@ -221,11 +299,6 @@ function DomainField({
     { value: "dockwell" as const, label: t`Dockwell serves it` },
     { value: "proxy" as const, label: t`Behind a tunnel or proxy` },
   ];
-  const leads = found?.addresses.length
-    ? t`It leads to ${found.addresses.join(", ")}`
-    : found?.dnsProblem
-      ? capital(found.dnsProblem)
-      : "";
   return (
     <div className="panel-domain">
       <TextField
@@ -263,55 +336,9 @@ function DomainField({
       {found && refusal === "" && via === "proxy" ? (
         <TunnelRecord domain={domain} listen={listen} reach={reach} />
       ) : null}
-      {found && refusal === "" && via === "dockwell" && address ? (
-        <DnsRecord
-          type={address.includes(":") ? "AAAA" : "A"}
-          name={domain}
-          value={address}
-          state={
-            found.pointsHere
-              ? { status: "healthy", word: t`Points here` }
-              : { status: "degraded", word: t`DNS doesn't point here yet` }
-          }
-          onCheck={found.pointsHere ? undefined : () => void check.refetch()}
-          checking={check.isFetching}
-          note={found.pointsHere || !leads ? undefined : leads}
-        />
+      {found && refusal === "" && via === "dockwell" ? (
+        <DomainLeads domain={domain} found={found} checking={check.isFetching} onCheck={() => void check.refetch()} />
       ) : null}
-      {found && refusal === "" && via === "dockwell" && !address ? (
-        // Without this server's public address, where the name leads can't be told from here.
-        <Callout
-          stacked
-          tone="warning"
-          title={t`Dockwell can't tell whether ${domain} leads here`}
-          actions={
-            controlServer ? (
-              <Button size="sm" onClick={() => setAddressing(true)} {...maySetAddress.off}>
-                <Trans>Set public address</Trans>
-              </Button>
-            ) : null
-          }
-        >
-          {leads
-            ? t`${leads}. This server's public address isn't known: set it, and Dockwell compares the two.`
-            : t`This server's public address isn't known: set it, and Dockwell compares the two.`}
-        </Callout>
-      ) : null}
-      {addressing && controlServer ? (
-        <SetPublicAddressSheet
-          server={controlServer}
-          current={controlServer.network?.ipv4}
-          onClose={() => {
-            setAddressing(false);
-            void check.refetch();
-          }}
-        />
-      ) : null}
-      {(via === "dockwell" ? (found?.portsHeld ?? []) : []).map((p) => (
-        <p key={`${p.port}-${p.program}`} className="settings-sub panel-domain-warn">
-          {t`${p.program} holds port ${p.port} on this server, so no certificate can come until it's freed.`}
-        </p>
-      ))}
       {set.failure ? (
         <Callout stacked tone="critical">
           {sentence(set.failure)}
@@ -385,7 +412,10 @@ function Served({
     SettingsService.method.checkPanelDomain,
     (waiting || switching === "dockwell") && mayCheck.allowed ? { domain } : skipToken,
   );
-  const reach = useReach((behind && !panel.problem) || (waiting && dns.data?.cloudflare) ? domain : "");
+  // A domain that isn't served is asked too, as the way back to its tunnel may be one restart.
+  const reach = useReach(
+    (behind && !panel.problem) || (waiting && dns.data?.cloudflare) || (panel.problem && domain) ? domain : "",
+  );
   const reached = (reach.data?.reached ?? false) && !reach.isPlaceholderData;
   const here = typeof window !== "undefined" && window.location.hostname === domain;
   const stop = owner ? (
@@ -411,7 +441,7 @@ function Served({
   const toTunnel = owner ? (
     <Button
       size="sm"
-      variant={waiting && reached ? "primary" : "ghost"}
+      variant={(waiting || panel.problem) && reached ? "primary" : "ghost"}
       onClick={() => setSwitching("proxy")}
       {...maySet.off}
     >
@@ -423,7 +453,9 @@ function Served({
       <Trans>Serve it with its own certificate</Trans>
     </Button>
   ) : null;
-  const address = dns.data?.publicAddresses.find((a) => !a.includes(":")) ?? dns.data?.publicAddresses[0] ?? "";
+  // Ports another program holds would leave the domain served nowhere after the
+  // restart, so the way back from a tunnel waits for them (the server refuses too).
+  const portHeld = switching === "dockwell" && (dns.data?.portsHeld.length ?? 0) > 0;
   const opener = (
     <Callout
       stacked
@@ -453,6 +485,7 @@ function Served({
         size="sm"
         variant="primary"
         loading={set.busy}
+        disabled={portHeld || (switching === "dockwell" && !dns.data)}
         onClick={() => void set.save(domain, domain, switching === "proxy")}
       >
         <Trans>Restart and serve it</Trans>
@@ -466,41 +499,46 @@ function Served({
       </Callout>
     );
   } else if (switching === "dockwell") {
-    // As the field does before a domain is set: the record to make, and what holds a port.
+    // As the field does before a domain is set: where it leads, and what holds a port.
+    // Off the tunnel, the domain answers only once its record leads here and a
+    // certificate comes, which the confirm says where it doesn't yet, or the person
+    // is on it now (#734's re-check, N1).
+    const dark = here || !dns.data?.pointsHere;
     body = (
       <>
-        {dns.data && address ? (
-          <DnsRecord
-            type={address.includes(":") ? "AAAA" : "A"}
-            name={domain}
-            value={address}
-            state={
-              dns.data.pointsHere
-                ? { status: "healthy", word: t`Points here` }
-                : { status: "degraded", word: t`DNS doesn't point here yet` }
-            }
-            onCheck={dns.data.pointsHere ? undefined : () => void dns.refetch()}
-            checking={dns.isFetching}
-          />
+        {dns.data ? (
+          <DomainLeads domain={domain} found={dns.data} checking={dns.isFetching} onCheck={() => void dns.refetch()} />
         ) : null}
-        {dns.data?.portsHeld.map((p) => (
-          <p key={`${p.port}-${p.program}`} className="settings-sub panel-domain-warn">
-            {t`${p.program} holds port ${p.port} on this server, so no certificate can come until it's freed.`}
-          </p>
-        ))}
         <Callout
           stacked
-          tone="info"
+          tone={dark ? "warning" : "info"}
           title={t`Dockwell restarts to serve ${domain} with its own certificate`}
           actions={confirm}
         >
-          <Trans>Apps, websites and passkeys keep working. It asks for your passkey.</Trans>
+          {dark ? (
+            <Trans>
+              {domain} stops answering through the tunnel until its record leads here and a certificate comes. The SSH
+              tunnel keeps working.
+            </Trans>
+          ) : (
+            <Trans>Apps, websites and passkeys keep working. It asks for your passkey.</Trans>
+          )}
         </Callout>
       </>
     );
   } else if (panel.problem) {
     body = (
-      <Callout stacked tone="warning" title={t`${domain} isn't served`} actions={stop}>
+      <Callout
+        stacked
+        tone="warning"
+        title={t`${domain} isn't served`}
+        actions={
+          <>
+            {toTunnel}
+            {stop}
+          </>
+        }
+      >
         {panel.problem}
       </Callout>
     );

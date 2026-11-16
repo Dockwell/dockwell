@@ -16992,6 +16992,9 @@ msgstr "{domain} 未在提供"
 msgid "{domain} reaches this panel through a tunnel"
 msgstr "{domain} 通过隧道到达此面板"
 
+msgid "{domain} stops answering through the tunnel until its record leads here and a certificate comes. The SSH tunnel keeps working."
+msgstr "在它的记录指向这里并获得证书之前，{domain} 不再通过隧道响应。SSH 隧道仍可继续使用。"
+
 msgid "{leads}. This server's public address isn't known: set it, and Dockwell compares the two."
 msgstr "{leads}。尚不知道此服务器的公网地址：设置后，Dockwell 会比较两者。"
 
