@@ -204,7 +204,7 @@ In Cloudflare, add a published application with the panel's domain as its hostna
 - **Leave the application's HTTP host header as it is.** Passkeys need the domain as the host.
 - **Passkeys belong to the domain,** so moving it between Dockwell serving it and the tunnel keeps them. The SSH tunnel keeps working throughout.
 
-Without the panel, start `dockwell run` with `--domain panel.example.com --behind-proxy`, or set `DOCKWELL_DOMAIN` and `DOCKWELL_BEHIND_PROXY=1` as [Change settings](#change-settings) says. Any other proxy on this server that ends TLS works the same way, sending to `http://127.0.0.1:7600` with the domain as the host and `X-Forwarded-Proto: https`.
+Without the panel, start `dockwell run` with `--domain panel.example.com --behind-proxy`, or set `DOCKWELL_DOMAIN` and `DOCKWELL_BEHIND_PROXY=1` as [Change settings](#change-settings) says. Any other proxy on this server that ends TLS works the same way, sending to `http://127.0.0.1:7600` with the domain as the host and `X-Forwarded-Proto: https`, and appending the visitor's address to `X-Forwarded-For`, which the panel reads it from.
 
 ### Cloudflare's proxy, or another in front
 

@@ -364,6 +364,8 @@ func TestAReachCheckFindsThePanelThroughItsTunnel(t *testing.T) {
 			"a proxy that doesn't say HTTPS", startTunnel(t, srv.api, func(r *httputil.ProxyRequest) { r.Out.Header.Del("X-Forwarded-Proto") }).client(),
 			"without X-Forwarded-Proto https",
 		},
+		{"a proxy that doesn't say who's visiting", startTunnel(t, srv.api, func(r *httputil.ProxyRequest) { r.Out.Header.Del("X-Forwarded-For") }).client(),
+			"without X-Forwarded-For, so every visitor reads as one address"},
 		{"a tunnel that isn't connected", answering(t, 530).client(), "Cloudflare answered 530 for panel.example.com: its tunnel isn't connected"},
 		{"Cloudflare's proxy, not a tunnel", answering(t, 522).client(), "Cloudflare answered 522 for panel.example.com: its proxy connects to this server's public address, not a tunnel"},
 		{"Cloudflare's proxy with no certificate here", answering(t, 525).client(), "choose Dockwell serves it and set Cloudflare's SSL mode to Full (strict)"},

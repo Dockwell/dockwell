@@ -68,6 +68,8 @@ type reachTicket struct {
 	host   string
 	proto  string
 	fromLo bool
+	// forwarded says it carried X-Forwarded-For, where the visitor's address is read.
+	forwarded bool
 }
 
 // NewReach returns a Reach with no tokens.
@@ -141,6 +143,7 @@ func (r *Reach) Serve(next http.Handler) http.Handler {
 			t.host = req.Host
 			t.proto = req.Header.Get("X-Forwarded-Proto")
 			t.fromLo = loopbackRemote(req.RemoteAddr)
+			t.forwarded = strings.TrimSpace(req.Header.Get("X-Forwarded-For")) != ""
 		}
 		r.mu.Unlock()
 		if !found {
@@ -226,6 +229,9 @@ func (h *Handler) reach(ctx context.Context, d, target string) (bool, string) {
 		return false, fmt.Sprintf("it reached the panel with %s as its host, not %s, so passkeys can't work there. Have the tunnel or proxy keep the host it was asked for", seen.host, d)
 	case !strings.EqualFold(firstOf(seen.proto), "https"):
 		return false, "it reached the panel without X-Forwarded-Proto https, so the panel can't tell it came over HTTPS. Have the proxy set it for " + d
+	case !seen.forwarded:
+		// Every visitor would read as one address, sharing one limit on sign-in.
+		return false, "it reached the panel without X-Forwarded-For, so every visitor reads as one address. Have the proxy append the visitor's address for " + d
 	}
 	return true, ""
 }
