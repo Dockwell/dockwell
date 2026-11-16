@@ -258,7 +258,8 @@ func (e *Engine) checkConnectionReached(ctx context.Context, tx *store.Tx, items
 // from a project, while a link there still names it, though no value reads through
 // the link: the link would name a connection that's gone or out of its reach, and no
 // later edit of it would plan (#710). Disconnecting the link first, or in the same
-// change, lets it go.
+// change, lets it go. Each refusal names where the link is, as the person narrowing
+// or deleting the connection is on it, not in a project.
 func (e *Engine) checkConnectionLinks(ctx context.Context, tx *store.Tx, items []item, it *item) error {
 	if it.ref.Kind != variable.ConnectionKind || it.current == nil {
 		return nil
@@ -273,11 +274,20 @@ func (e *Engine) checkConnectionLinks(ctx context.Context, tx *store.Tx, items [
 		if l.GetConnection() != it.ref.Name {
 			continue
 		}
+		where := whichScope(ctx, tx, l.ref.Scope)
 		if it.spec == nil {
-			return fault.New(ErrInvalid, "link %s names the connection %s, which this change deletes. Disconnect it on the connection's page first, or in the same change", l.ref.Name, it.ref.Name)
+			// An undo can't take an edit of its own, so it's told only to disconnect first.
+			also := ", or in the same change"
+			if it.reverses {
+				also = ""
+			}
+			return fault.New(ErrInvalid, "link %s in %s still uses the connection %s, which this change deletes. Disconnect it on the connection's page first%s",
+				l.ref.Name, where, it.ref.Name, also)
 		}
-		if !connection.Reaches(after, projectOfScope(ctx, tx, items, l.ref.Scope)) {
-			return connectionUnusable(&item{ref: l.ref}, it.ref.Name)
+		if project := projectOfScope(ctx, tx, items, l.ref.Scope); !connection.Reaches(after, project) {
+			name := whichScope(ctx, tx, project)
+			return fault.New(ErrInvalid, "link %s in %s still uses the connection %s, which this change takes away from %s. Disconnect it on the connection's page first, or keep %s in its reach",
+				l.ref.Name, where, it.ref.Name, name, name)
 		}
 	}
 	return nil
