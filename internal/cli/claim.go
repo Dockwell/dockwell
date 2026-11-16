@@ -52,6 +52,9 @@ type panelAddress struct {
 	Port string `json:"port"`
 	// PublicHost is this server's address as other machines reach it.
 	PublicHost string `json:"public_host,omitempty"`
+	// BehindProxy says a tunnel or a proxy that ends TLS serves Domain, sending it
+	// to the loopback listener, so no certificate comes here (ADR 0063's amendment).
+	BehindProxy bool `json:"behind_proxy,omitempty"`
 }
 
 // url is the panel's base URL for a link: the domain when there is one,
@@ -249,6 +252,8 @@ func printClaim(w io.Writer, addr panelAddress, link auth.Link, command string, 
 	case addr.Domain == "":
 		fmt.Fprintf(w, "The panel stays on this server's loopback address until you give it a domain. "+
 			"To serve it over HTTPS, point a domain's DNS record at this server's public address, then restart with --domain.\n")
+	case addr.BehindProxy:
+		fmt.Fprintf(w, "Your tunnel or proxy serves %s, so no certificate comes here: point it at %s.\n", addr.Domain, addr.loopbackURL())
 	default:
 		fmt.Fprintf(w, "The first visit gets the panel's certificate from Let's Encrypt, which takes a few seconds.\n")
 	}

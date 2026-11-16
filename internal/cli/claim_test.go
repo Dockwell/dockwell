@@ -237,6 +237,11 @@ func TestRunBehindATunnelHoldsNoPublicPort(t *testing.T) {
 	if !strings.Contains(out.String(), "https://panel.example.com/claim#") {
 		t.Errorf("the claim link isn't the domain's on 443:\n%s", out.String())
 	}
+	// It promises no certificate, and says where the tunnel points (#734's review, L1).
+	if strings.Contains(out.String(), "certificate from Let's Encrypt") ||
+		!strings.Contains(out.String(), "Your tunnel or proxy serves panel.example.com, so no certificate comes here: point it at http://127.0.0.1:") {
+		t.Errorf("the claim text behind a tunnel:\n%s", out.String())
+	}
 	if !strings.Contains(logs.String(), "a tunnel or a proxy that ends TLS serves the panel's domain") || !strings.Contains(logs.String(), `"target":"http://127.0.0.1:`) {
 		t.Errorf("dockwell run doesn't say where the tunnel points:\n%s", logs.String())
 	}

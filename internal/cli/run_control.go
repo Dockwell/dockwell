@@ -330,7 +330,7 @@ func runControl(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logg
 		}
 	}
 
-	addr := panelAddress{Domain: f.domain, Host: ipOf(ls.API.Addr()), Port: portOf(ls.API.Addr()), PublicHost: hostOf(agentURL)}
+	addr := panelAddress{Domain: f.domain, Host: ipOf(ls.API.Addr()), Port: portOf(ls.API.Addr()), PublicHost: hostOf(agentURL), BehindProxy: f.behindProxy && f.domain != ""}
 	if ls.HTTPS != nil {
 		addr.HTTPSPort = portOf(ls.HTTPS.Addr())
 	} else if proxied || f.behindProxy && f.domain != "" {
