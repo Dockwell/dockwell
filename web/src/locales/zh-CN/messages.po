@@ -7428,14 +7428,14 @@ msgstr "每周{day} {at}"
 msgid "{database} dump"
 msgstr "{database} 转储"
 
+msgid "Back to catalog"
+msgstr "返回应用目录"
+
 msgid "About {app}"
 msgstr "关于 {app}"
 
 msgid "App information"
 msgstr "应用信息"
-
-msgid "Back to catalog"
-msgstr "返回应用目录"
 
 msgid "Catalog to install from"
 msgstr "安装来源目录"
@@ -7894,23 +7894,34 @@ msgstr "{ownCount, plural, other {# 个自己设置的密钥}}"
 msgid "{service} in {project}"
 msgstr "{project} 中的 {service}"
 
-msgid "A change to how {version} runs is out."
-msgstr "{version} 的运行方式有更新。"
-
 msgid "From the catalog"
 msgstr "来自应用目录"
+
+msgctxt "catalog card"
+msgid "Installed"
+msgstr "已安装"
+
+msgid "Its notes"
+msgstr "它的说明"
 
 msgid "Its secrets"
 msgstr "它的密钥"
 
+msgid "Read"
+msgstr "查看"
+
 msgid "Upgrade to {next}"
 msgstr "升级到 {next}"
 
-msgid "Version {next} is out."
-msgstr "已发布版本 {next}。"
+#. placeholder {0}: notes.length
+msgid "{0, plural, one {# note from its catalog} other {# notes from its catalog}}"
+msgstr "{0, plural, other {来自其目录的 # 条说明}}"
 
-msgid "{name} {version}"
-msgstr "{name} {version}"
+msgid "· a change to how it runs is out"
+msgstr "· 它的运行方式有了变更"
+
+msgid "· {next} is out"
+msgstr "· {next} 已发布"
 
 msgid "Back up daily"
 msgstr "每天备份"
@@ -7954,11 +7965,20 @@ msgstr "它的备份"
 msgid "Its data can't be copied there"
 msgstr "它的数据无法复制到那里"
 
+msgid "Its own {runs}, beside {app}"
+msgstr "它自己的 {runs}，在 {app} 旁边"
+
 msgid "Nothing else Dockwell runs takes it"
 msgstr "Dockwell 运行的其他服务都不适用"
 
-msgid "Shares {meets} in {project}"
-msgstr "共享 {project} 中的 {meets}"
+msgid "Of its {what} alone"
+msgstr "仅它的{what}"
+
+msgid "Shares {named} in the project {where}"
+msgstr "共用项目 {where} 中的 {named}"
+
+msgid "Shares {runs} in a project you can't see"
+msgstr "共用你无法查看的项目中的 {runs}"
 
 msgid "Start empty on it"
 msgstr "在其上从空数据库开始"
@@ -7969,11 +7989,11 @@ msgstr "使用另一个{what}"
 msgid "Use it"
 msgstr "使用它"
 
-msgid "What it needs"
-msgstr "它需要的"
+msgid "Where else it can run"
+msgstr "它还能在哪里运行"
 
-msgid "{server} in {where}"
-msgstr "{where} 中的 {server}"
+msgid "{there} in {project}"
+msgstr "{project} 中的 {there}"
 
 msgid "1Panel's app store"
 msgstr "1Panel 应用商店"
@@ -8243,12 +8263,12 @@ msgid "As read at {at}"
 msgstr "读取于 {at}"
 
 msgctxt "catalog store"
-msgid "Go to it"
-msgstr "前往"
+msgid "Browse its apps"
+msgstr "浏览它的应用"
 
 #. placeholder {0}: store.label
-msgid "Go to {0}"
-msgstr "前往 {0}"
+msgid "Browse the apps from {0}"
+msgstr "浏览来自 {0} 的应用"
 
 msgid "None stated"
 msgstr "未声明"
@@ -8269,12 +8289,6 @@ msgstr "{0, plural, other {# 个应用中约 {2} 个可安装}}"
 msgid "{0, plural, one {{1} of # app installs} other {{2} of # apps install}}"
 msgstr "{0, plural, other {# 个应用中 {2} 个可安装}}"
 
-msgid "Answers on this server alone, on port {port}, until it has a domain"
-msgstr "在有域名之前，只在此服务器的 {port} 端口上响应"
-
-msgid "Anyone who reaches it can make an account until sign-ups close"
-msgstr "在关闭注册之前，任何能访问它的人都可以创建账号"
-
 msgid "Anyone who reaches it can make an account, until you close sign-ups"
 msgstr "在你关闭注册之前，任何能访问它的人都可以创建账号"
 
@@ -8287,17 +8301,29 @@ msgstr "关闭 {app} 的注册"
 msgid "Copy the SSH tunnel command"
 msgstr "复制 SSH 隧道命令"
 
+msgid "Follow the domain you add: {names}"
+msgstr "跟随你添加的域名：{names}"
+
+msgid "Follow {domain}: {names}"
+msgstr "跟随 {domain}：{names}"
+
+msgid "Its first account"
+msgstr "它的第一个账户"
+
 msgid "Its first account is its owner"
 msgstr "它的第一个账号就是所有者"
 
-msgid "Its first account is its owner: make yours before it has a domain"
-msgstr "它的第一个账号就是所有者：请在它有域名之前创建你的账号"
+msgid "Its first account: make yours before it has a domain"
+msgstr "它的第一个账户：在它有域名之前先创建你的账户"
 
-msgid "Its links follow its domain, {domain}: {names}"
-msgstr "它的链接跟随它的域名 {domain}：{names}"
+msgid "Its links"
+msgstr "它的链接"
 
 msgid "Its links follow the domain you add: {names}"
 msgstr "它的链接跟随你添加的域名：{names}"
+
+msgid "Open to anyone who reaches it"
+msgstr "对能访问到它的任何人开放"
 
 msgid "Open {app} in a new tab"
 msgstr "在新标签页中打开 {app}"
@@ -8305,8 +8331,18 @@ msgstr "在新标签页中打开 {app}"
 msgid "Point {app} at {domain}"
 msgstr "将 {app} 指向 {domain}"
 
+msgid "Port {port}, on this server alone until it has a domain"
+msgstr "端口 {port}，在它有域名之前仅限这台服务器"
+
 msgid "Published on port {port}"
 msgstr "已发布在端口 {port}"
+
+msgctxt "catalog card"
+msgid "Reach"
+msgstr "访问方式"
+
+msgid "SSH tunnel"
+msgstr "SSH 隧道"
 
 msgid "SSH tunnel command copied"
 msgstr "已复制 SSH 隧道命令"
@@ -8316,6 +8352,9 @@ msgstr "首次启动时设定：请在 {app} 的「{where}」中修改"
 
 msgid "Set to {domain}"
 msgstr "设为 {domain}"
+
+msgid "Sign-ups"
+msgstr "注册"
 
 msgid "Signs in as {user}"
 msgstr "以 {user} 登录"

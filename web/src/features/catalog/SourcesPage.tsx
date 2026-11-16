@@ -29,6 +29,7 @@ import { type Opening, PlanView, useChangeSheet } from "../changes/ChangeSheet";
 import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
 import { CopyButton } from "../system/CopyCommand";
+import { CatalogBack } from "./CatalogBack";
 import { AppIcon } from "./media";
 import { converted, FormatLine, LeftOut, repositoryKey, useFormatWords } from "./SourceFormats";
 import {
@@ -72,12 +73,6 @@ export function SourcesPage() {
   const sources = useSources();
   const [editing, setEditing] = useState<Editing>();
   const list = sources.data?.sources;
-  // To a source's card, from the store that it reads, with its name read out as it lands.
-  const go = (name: string) => {
-    const card = document.getElementById(sourceAnchor(name));
-    card?.scrollIntoView?.({ block: "start", behavior: "smooth" });
-    card?.querySelector<HTMLElement>("h3")?.focus({ preventScroll: true });
-  };
   // A source decides what anyone can install, so adding, moving and removing one are an admin's.
   const may = useMay();
   const set = may(CatalogService.method.setCatalogSource, { install: true });
@@ -104,6 +99,7 @@ export function SourcesPage() {
   return (
     <Page
       title={t`Catalog sources`}
+      breadcrumb={<CatalogBack />}
       back="/catalog"
       lead={t`The catalogs Dockwell installs apps from`}
       actions={
@@ -160,11 +156,11 @@ export function SourcesPage() {
               <Trans>Dockwell's own apps, kept up to date, or any public Git repository.</Trans>
             </p>
           </EmptyState>
-          <StoreGallery sources={list} off={set.off} onGo={go} />
+          <StoreGallery sources={list} off={set.off} />
         </>
       ) : (
         <>
-          <StoreGallery sources={list} off={set.off} onGo={go} />
+          <StoreGallery sources={list} off={set.off} />
           <section className="sources-list" aria-labelledby="sources-list-heading">
             <h2 id="sources-list-heading" className="sources-list-heading">
               {plural(list.length, { one: "# catalog you read", other: "# catalogs you read" })}

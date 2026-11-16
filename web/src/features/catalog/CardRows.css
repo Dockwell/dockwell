@@ -1,0 +1,109 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+/*
+ * A card's rows (#722): its label in a column of its own, its state, then its one
+ * action at the row's end, so a button sits beside what it acts on. On a phone, the
+ * label goes above the state and the action stays at the end.
+ */
+.card-rows {
+  margin: 0;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.card-row {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr) auto;
+  gap: var(--space-1) var(--space-4);
+  align-items: center;
+  min-height: 32px;
+  padding: var(--space-2) 0;
+  border-top: 1px solid var(--line);
+}
+
+.card-row:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.card-row:last-child {
+  padding-bottom: 0;
+}
+
+.card-row > dt {
+  color: var(--ink-muted);
+}
+
+.card-row > dd {
+  margin: 0;
+  min-width: 0;
+}
+
+.card-row-value {
+  grid-column: 2;
+  overflow-wrap: anywhere;
+}
+
+.card-row-action {
+  grid-column: 3;
+  display: flex;
+  gap: var(--space-2);
+  justify-content: flex-end;
+}
+
+.card-row-under {
+  grid-column: 2 / -1;
+}
+
+.card-row code {
+  font: 400 12px / 20px var(--font-mono);
+}
+
+.card-row a {
+  color: var(--link);
+  text-decoration: none;
+}
+
+.card-row a:hover {
+  text-decoration: underline;
+}
+
+.card-row-notes {
+  margin: 0;
+  padding-left: var(--space-4);
+  color: var(--ink-muted);
+}
+
+.card-row-notes li + li {
+  margin-top: var(--space-1);
+}
+
+.card-row-quiet {
+  color: var(--ink-muted);
+}
+
+@media (max-width: 639.98px) {
+  .card-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 2px var(--space-3);
+  }
+
+  .card-row > dt {
+    grid-column: 1 / -1;
+    font-size: 12px;
+  }
+
+  .card-row-value {
+    grid-column: 1 / -1;
+  }
+
+  /* On its own line under the state, where it has room, as the row's next step. */
+  .card-row-action {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+
+  .card-row-under {
+    grid-column: 1 / -1;
+  }
+}

@@ -486,7 +486,7 @@ func (h *Handler) installs(ctx context.Context, tx *store.Tx, s sourced) ([]*doc
 	}
 	var out []*dockwellv1.CatalogInstall
 	for _, p := range tree.Projects {
-		pin, err := h.pinOf(ctx, tx, tree.Organization.ID, p.Name)
+		pin, err := h.pinOf(ctx, tx, tree, p)
 		if err != nil {
 			return nil, err
 		}
@@ -914,8 +914,8 @@ func pinTo(e *catalogv1.Entry, from origin, filled *catalog.Filled, companions m
 
 // pinOf reads what a project is pinned to. Nil for one that isn't an install. A
 // project's spec is never sealed, as it has nothing sensitive.
-func (h *Handler) pinOf(ctx context.Context, tx *store.Tx, org, project string) (*resourcev1.CatalogPin, error) {
-	r, err := tx.GetResource(ctx, string(scope.ProjectKind), org, project)
+func (h *Handler) pinOf(ctx context.Context, tx *store.Tx, tree scope.Tree, project scope.Project) (*resourcev1.CatalogPin, error) {
+	r, err := tx.GetResource(ctx, string(scope.ProjectKind), tree.Organization.ID, project.Name)
 	if err != nil {
 		return nil, err
 	}
@@ -924,7 +924,53 @@ func (h *Handler) pinOf(ctx context.Context, tx *store.Tx, org, project string) 
 		return nil, err
 	}
 	p, _ := spec.(*resourcev1.Project)
-	return p.GetCatalog(), nil
+	pin := p.GetCatalog()
+	if pin == nil {
+		return nil, nil
+	}
+	return pin, followLinks(ctx, tx, tree, project, pin)
+}
+
+// followLinks has a need the install shares a server for name where that server is
+// now, as the install's link does, where its pin names an environment there's no
+// more of: a release before #722 moved the server out of a project being deleted
+// and rewrote the link, but not the pin. The link is what the app reaches, so it's
+// what the pin should say.
+func followLinks(ctx context.Context, tx *store.Tx, tree scope.Tree, project scope.Project, pin *resourcev1.CatalogPin) error {
+	for name, n := range pin.GetNeeds() {
+		if n.GetEnvironment() == "" || environmentIn(tree, n.GetEnvironment()) {
+			continue
+		}
+		for _, env := range project.Environments {
+			r, err := tx.GetResource(ctx, "link", env.ID, name)
+			if errors.Is(err, store.ErrNotFound) {
+				continue
+			}
+			if err != nil {
+				return err
+			}
+			l := &resourcev1.Link{}
+			if r.Spec == nil || proto.Unmarshal(r.Spec, l) != nil || l.GetService() == "" {
+				continue
+			}
+			// A link to a server of its own environment names none.
+			n.Environment, n.Meets = cmp.Or(l.GetMeetsEnvironment(), env.ID), l.GetService()
+			break
+		}
+	}
+	return nil
+}
+
+// environmentIn reports an environment, by ID, the tree has.
+func environmentIn(tree scope.Tree, id string) bool {
+	for _, p := range tree.Projects {
+		for _, e := range p.Environments {
+			if e.ID == id {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // free is what an install can take without getting in anything's way.

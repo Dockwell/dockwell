@@ -17,6 +17,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { expectAccessible } from "../../test/a11y";
 import { anApp, ENV, places, SERVER } from "../../test/apps";
 import { authError, authState, mira, stubPasskeys } from "../../test/auth";
+import { rowLabelled } from "../../test/catalog";
 import { type Api, feed, renderAt } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
 
@@ -202,12 +203,15 @@ describe("What an installed app says of itself", () => {
       }),
     );
     const panel = await screen.findByRole("region", { name: "From the catalog" });
-    expect(
-      await within(panel).findByText("Answers on this server alone, on port 3000, until it has a domain"),
-    ).toBeVisible();
-    await user.click(within(panel).getByRole("button", { name: "Copy the SSH tunnel command" }));
+    expect(await waitFor(() => rowLabelled(panel, "Reach"))).toHaveTextContent(
+      "Port 3000, on this server alone until it has a domain",
+    );
+    // The tunnel is a row of its own: the command as it runs, and Copy.
+    const tunnel = rowLabelled(panel, "SSH tunnel");
+    expect(tunnel).toHaveTextContent("ssh -N -L 3000:127.0.0.1:3000 203.0.113.7");
+    await user.click(within(tunnel).getByRole("button", { name: "Copy the SSH tunnel command" }));
     expect(writeText).toHaveBeenCalledWith("ssh -N -L 3000:127.0.0.1:3000 203.0.113.7");
-    expect(within(panel).getByText("Its first account is its owner: make yours before it has a domain")).toBeVisible();
+    expect(rowLabelled(panel, "Owner")).toHaveTextContent("Its first account: make yours before it has a domain");
   });
 
   /** Gitea, published on loopback alone, which opens through the panel, with a passkey. */
@@ -275,15 +279,21 @@ describe("What an installed app says of itself", () => {
     expect(tab.opener).toBeNull();
   });
 
-  it("keeps the tunnel beside Open on localhost, for an app that takes only its own address", async () => {
+  it("keeps the tunnel a row under Open on localhost, for an app that takes only its own address", async () => {
     const user = userEvent.setup();
     const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
     renderAt("/apps/svc_gitea", openable(() => {}).api);
     const panel = await screen.findByRole("region", { name: "From the catalog" });
-    const local = (await within(panel).findByText("Answers on this server alone, on port 3000, until it has a domain"))
-      .parentElement as HTMLElement;
-    expect(within(local).getByRole("button", { name: "Open Gitea" })).toBeVisible();
-    await user.click(within(local).getByRole("button", { name: "Copy the SSH tunnel command" }));
+    // Each row its one action: Open where it answers, Copy where the tunnel is.
+    const reach = await waitFor(() => rowLabelled(panel, "Reach"));
+    expect(
+      within(reach)
+        .getAllByRole("button")
+        .map((b) => b.textContent),
+    ).toEqual(["Open Gitea"]);
+    await user.click(
+      within(rowLabelled(panel, "SSH tunnel")).getByRole("button", { name: "Copy the SSH tunnel command" }),
+    );
     expect(writeText).toHaveBeenCalledWith("ssh -N -L 3000:127.0.0.1:3000 203.0.113.7");
   });
 

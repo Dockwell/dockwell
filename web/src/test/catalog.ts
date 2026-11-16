@@ -99,3 +99,10 @@ export function catalogPages(
     });
   };
 }
+
+/** A card's row by its label (CardRows): the term and what follows it. */
+export function rowLabelled(within: HTMLElement, label: string): HTMLElement {
+  const term = [...within.querySelectorAll<HTMLElement>(".card-row > dt")].find((dt) => dt.textContent === label);
+  if (!term?.parentElement) throw new Error(`no row labelled ${label}`);
+  return term.parentElement;
+}

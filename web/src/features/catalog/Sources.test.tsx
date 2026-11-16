@@ -1087,10 +1087,7 @@ describe("Other stores' catalogs", () => {
     await waitFor(() => expect(asked?.name).toBe("onepanel-2"));
   });
 
-  it("shows a store a source reads as added, with the way to that source, and never takes it off the list", async () => {
-    const user = userEvent.setup();
-    const scrolled = vi.fn();
-    Element.prototype.scrollIntoView = scrolled;
+  it("shows a store a source reads as added, with the way to its apps, and never takes it off the list", async () => {
     renderAt(
       "/catalog/sources",
       api({
@@ -1113,12 +1110,22 @@ describe("Other stores' catalogs", () => {
     expect(within(added).getByText("Added")).toBeVisible();
     expect(within(added).getByText("72 of 269 apps install")).toBeVisible();
     expect(within(added).queryByRole("button", { name: /^Add/ })).toBeNull();
-    // One action to a tile: Add, or the way to the source that reads it.
-    for (const tile of within(gallery).getAllByRole("listitem"))
-      expect(within(tile).getAllByRole("button")).toHaveLength(1);
-    await user.click(within(added).getByRole("button", { name: "Go to 1Panel" }));
-    expect(scrolled).toHaveBeenCalled();
-    expect(screen.getByRole("heading", { name: "1Panel" })).toHaveFocus();
+    // One action to a tile: Add, or, added, its apps in the catalog, where a person goes next (#725).
+    expect(within(added).queryByRole("button")).toBeNull();
+    expect(within(added).getByRole("link", { name: "Browse the apps from 1Panel" })).toHaveAttribute(
+      "href",
+      "/catalog?catalog=onepanel",
+    );
+    const other = within(gallery).getAllByRole("listitem")[1] as HTMLElement;
+    expect(within(other).getAllByRole("button")).toHaveLength(1);
+  });
+
+  it("leads back to the catalog's apps, on every width", async () => {
+    renderAt("/catalog/sources", api());
+    await screen.findByRole("heading", { level: 1, name: "Catalog sources" });
+    const back = screen.getAllByRole("link", { name: "Back to catalog" });
+    expect(back.length).toBeGreaterThan(0);
+    for (const link of back) expect(link).toHaveAttribute("href", "/catalog");
   });
 
   it("offers the stores first in Add a source, one click each, with a link for anything else", async () => {

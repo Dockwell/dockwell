@@ -121,9 +121,13 @@ func (e *Engine) PlanAppMove(ctx context.Context, ask AppMove) ([]Edit, *MoveRep
 			}
 			moving[ref] = true
 		}
+		// An install moves whole, with its pin. A server that leaves a project being
+		// deleted leaves its install behind, which goes with the project (#722).
 		var pin *resourcev1.CatalogPin
-		if pin, err = e.pinOf(ctx, tx, fromProject); err != nil {
-			return err
+		if !ask.Leaving {
+			if pin, err = e.pinOf(ctx, tx, tree, fromProject); err != nil {
+				return err
+			}
 		}
 		if pin != nil {
 			// An install moves whole, as its pin is its project's (ADR 0084).
@@ -137,7 +141,7 @@ func (e *Engine) PlanAppMove(ctx context.Context, ask AppMove) ([]Edit, *MoveRep
 			}
 			if ask.NewProject != "" {
 				// A new project has no install of its own.
-			} else if toPin, err := e.pinOf(ctx, tx, toProject); err != nil {
+			} else if toPin, err := e.pinOf(ctx, tx, tree, toProject); err != nil {
 				return err
 			} else if toPin != nil {
 				report.Blocks = append(report.Blocks, MoveBlock{
@@ -187,15 +191,22 @@ func (e *Engine) PlanAppMove(ctx context.Context, ask AppMove) ([]Edit, *MoveRep
 		}
 		edits = append(edits, follows...)
 		if pin != nil {
-			pinEdits, err := e.movePin(ctx, tx, fromProject, toProject, pin)
+			pinEdits, err := e.movePin(ctx, tx, tree, fromProject, toProject, pin)
 			if err != nil {
 				return err
 			}
 			for i := range pinEdits {
 				pe := &pinEdits[i]
-				// The project the move makes takes the pin as it's made.
+				// The project the move makes takes the pin as it's made, and a project an
+				// edit already changes keeps what else that changes.
 				if j := slices.IndexFunc(edits, func(ed Edit) bool { return ed.Ref == pe.Ref }); j >= 0 {
-					edits[j].Spec = pe.Spec
+					if was, ok := edits[j].Spec.(*resourcev1.Project); ok {
+						merged := proto.CloneOf(was)
+						merged.Catalog = pe.Spec.(*resourcev1.Project).GetCatalog()
+						edits[j].Spec = merged
+					} else {
+						edits[j].Spec = pe.Spec
+					}
 					continue
 				}
 				edits = append(edits, *pe)
@@ -274,8 +285,8 @@ func (e *Engine) readEnv(ctx context.Context, tx *store.Tx, env string) (*moveFr
 }
 
 // pinOf is a project's catalog pin, or nil.
-func (e *Engine) pinOf(ctx context.Context, tx *store.Tx, p *scope.Project) (*resourcev1.CatalogPin, error) {
-	it, err := e.load(ctx, tx, resource.Ref{Kind: scope.ProjectKind, Name: p.Name})
+func (e *Engine) pinOf(ctx context.Context, tx *store.Tx, tree scope.Tree, p *scope.Project) (*resourcev1.CatalogPin, error) {
+	it, err := e.load(ctx, tx, resource.Ref{Kind: scope.ProjectKind, Scope: tree.Organization.ID, Name: p.Name})
 	if err != nil {
 		return nil, err
 	}
@@ -776,6 +787,35 @@ func (e *Engine) whatFollows(ctx context.Context, tx *store.Tx, ask AppMove, mov
 			}
 		}
 	}
+	// An install elsewhere that a person had share a server that moves names it by
+	// its environment in its pin too, which its page and its upgrades read: that
+	// follows it as its link does (#722).
+	tree, err := scope.Load(ctx, tx)
+	if err != nil {
+		return nil, err
+	}
+	for i := range tree.Projects {
+		p := &tree.Projects[i]
+		ref := resource.Ref{Kind: scope.ProjectKind, Scope: tree.Organization.ID, Name: p.Name}
+		it, err := e.load(ctx, tx, ref)
+		if err != nil {
+			return nil, err
+		}
+		project, _ := it.current.(*resourcev1.Project)
+		if project.GetCatalog() == nil {
+			continue
+		}
+		spec, _ := proto.Clone(project).(*resourcev1.Project)
+		changed := false
+		for _, n := range spec.GetCatalog().GetNeeds() {
+			if n.GetEnvironment() == ask.From && n.GetMeets() != "" && movingNamed(serviceKind, n.GetMeets()) {
+				n.Environment, changed = ask.To, true
+			}
+		}
+		if changed {
+			out = append(out, Edit{Ref: ref, Spec: spec, Base: it.base})
+		}
+	}
 	return out, nil
 }
 
@@ -797,10 +837,10 @@ func followValue(f *resourcev1.ValueFrom, from, to string, moving func(resource.
 
 // movePin gives the install's pin to the project it moves to, and takes it from the
 // one it leaves.
-func (e *Engine) movePin(ctx context.Context, tx *store.Tx, from, to *scope.Project, pin *resourcev1.CatalogPin) ([]Edit, error) {
+func (e *Engine) movePin(ctx context.Context, tx *store.Tx, tree scope.Tree, from, to *scope.Project, pin *resourcev1.CatalogPin) ([]Edit, error) {
 	var out []Edit
 	for _, p := range []*scope.Project{from, to} {
-		ref := resource.Ref{Kind: scope.ProjectKind, Name: p.Name}
+		ref := resource.Ref{Kind: scope.ProjectKind, Scope: tree.Organization.ID, Name: p.Name}
 		it, err := e.load(ctx, tx, ref)
 		if err != nil {
 			return nil, err

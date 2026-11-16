@@ -7428,14 +7428,14 @@ msgstr "Weekly on {day} at {at}"
 msgid "{database} dump"
 msgstr "{database} dump"
 
+msgid "Back to catalog"
+msgstr "Back to catalog"
+
 msgid "About {app}"
 msgstr "About {app}"
 
 msgid "App information"
 msgstr "App information"
-
-msgid "Back to catalog"
-msgstr "Back to catalog"
 
 msgid "Catalog to install from"
 msgstr "Catalog to install from"
@@ -7894,23 +7894,34 @@ msgstr "{ownCount, plural, one {# secret of your own} other {# secrets of your o
 msgid "{service} in {project}"
 msgstr "{service} in {project}"
 
-msgid "A change to how {version} runs is out."
-msgstr "A change to how {version} runs is out."
-
 msgid "From the catalog"
 msgstr "From the catalog"
+
+msgctxt "catalog card"
+msgid "Installed"
+msgstr "Installed"
+
+msgid "Its notes"
+msgstr "Its notes"
 
 msgid "Its secrets"
 msgstr "Its secrets"
 
+msgid "Read"
+msgstr "Read"
+
 msgid "Upgrade to {next}"
 msgstr "Upgrade to {next}"
 
-msgid "Version {next} is out."
-msgstr "Version {next} is out."
+#. placeholder {0}: notes.length
+msgid "{0, plural, one {# note from its catalog} other {# notes from its catalog}}"
+msgstr "{0, plural, one {# note from its catalog} other {# notes from its catalog}}"
 
-msgid "{name} {version}"
-msgstr "{name} {version}"
+msgid "· a change to how it runs is out"
+msgstr "· a change to how it runs is out"
+
+msgid "· {next} is out"
+msgstr "· {next} is out"
 
 msgid "Back up daily"
 msgstr "Back up daily"
@@ -7954,11 +7965,20 @@ msgstr "Its backups"
 msgid "Its data can't be copied there"
 msgstr "Its data can't be copied there"
 
+msgid "Its own {runs}, beside {app}"
+msgstr "Its own {runs}, beside {app}"
+
 msgid "Nothing else Dockwell runs takes it"
 msgstr "Nothing else Dockwell runs takes it"
 
-msgid "Shares {meets} in {project}"
-msgstr "Shares {meets} in {project}"
+msgid "Of its {what} alone"
+msgstr "Of its {what} alone"
+
+msgid "Shares {named} in the project {where}"
+msgstr "Shares {named} in the project {where}"
+
+msgid "Shares {runs} in a project you can't see"
+msgstr "Shares {runs} in a project you can't see"
 
 msgid "Start empty on it"
 msgstr "Start empty on it"
@@ -7969,11 +7989,11 @@ msgstr "Use another {what}"
 msgid "Use it"
 msgstr "Use it"
 
-msgid "What it needs"
-msgstr "What it needs"
+msgid "Where else it can run"
+msgstr "Where else it can run"
 
-msgid "{server} in {where}"
-msgstr "{server} in {where}"
+msgid "{there} in {project}"
+msgstr "{there} in {project}"
 
 msgid "1Panel's app store"
 msgstr "1Panel's app store"
@@ -8243,12 +8263,12 @@ msgid "As read at {at}"
 msgstr "As read at {at}"
 
 msgctxt "catalog store"
-msgid "Go to it"
-msgstr "Go to it"
+msgid "Browse its apps"
+msgstr "Browse its apps"
 
 #. placeholder {0}: store.label
-msgid "Go to {0}"
-msgstr "Go to {0}"
+msgid "Browse the apps from {0}"
+msgstr "Browse the apps from {0}"
 
 msgid "None stated"
 msgstr "None stated"
@@ -8269,12 +8289,6 @@ msgstr "{0, plural, one {About {1} of # app installs} other {About {2} of # apps
 msgid "{0, plural, one {{1} of # app installs} other {{2} of # apps install}}"
 msgstr "{0, plural, one {{1} of # app installs} other {{2} of # apps install}}"
 
-msgid "Answers on this server alone, on port {port}, until it has a domain"
-msgstr "Answers on this server alone, on port {port}, until it has a domain"
-
-msgid "Anyone who reaches it can make an account until sign-ups close"
-msgstr "Anyone who reaches it can make an account until sign-ups close"
-
 msgid "Anyone who reaches it can make an account, until you close sign-ups"
 msgstr "Anyone who reaches it can make an account, until you close sign-ups"
 
@@ -8287,17 +8301,29 @@ msgstr "Close sign-ups to {app}"
 msgid "Copy the SSH tunnel command"
 msgstr "Copy the SSH tunnel command"
 
+msgid "Follow the domain you add: {names}"
+msgstr "Follow the domain you add: {names}"
+
+msgid "Follow {domain}: {names}"
+msgstr "Follow {domain}: {names}"
+
+msgid "Its first account"
+msgstr "Its first account"
+
 msgid "Its first account is its owner"
 msgstr "Its first account is its owner"
 
-msgid "Its first account is its owner: make yours before it has a domain"
-msgstr "Its first account is its owner: make yours before it has a domain"
+msgid "Its first account: make yours before it has a domain"
+msgstr "Its first account: make yours before it has a domain"
 
-msgid "Its links follow its domain, {domain}: {names}"
-msgstr "Its links follow its domain, {domain}: {names}"
+msgid "Its links"
+msgstr "Its links"
 
 msgid "Its links follow the domain you add: {names}"
 msgstr "Its links follow the domain you add: {names}"
+
+msgid "Open to anyone who reaches it"
+msgstr "Open to anyone who reaches it"
 
 msgid "Open {app} in a new tab"
 msgstr "Open {app} in a new tab"
@@ -8305,8 +8331,18 @@ msgstr "Open {app} in a new tab"
 msgid "Point {app} at {domain}"
 msgstr "Point {app} at {domain}"
 
+msgid "Port {port}, on this server alone until it has a domain"
+msgstr "Port {port}, on this server alone until it has a domain"
+
 msgid "Published on port {port}"
 msgstr "Published on port {port}"
+
+msgctxt "catalog card"
+msgid "Reach"
+msgstr "Reach"
+
+msgid "SSH tunnel"
+msgstr "SSH tunnel"
 
 msgid "SSH tunnel command copied"
 msgstr "SSH tunnel command copied"
@@ -8316,6 +8352,9 @@ msgstr "Set as it first started: change it in {app}, in {where}"
 
 msgid "Set to {domain}"
 msgstr "Set to {domain}"
+
+msgid "Sign-ups"
+msgstr "Sign-ups"
 
 msgid "Signs in as {user}"
 msgstr "Signs in as {user}"

@@ -313,7 +313,7 @@ func (h *Handler) installedHere(ctx context.Context, s sourced) (map[string]int,
 			if !everything && place.Holds(caller.Grants, place.Place{Project: p.ID}) == "" {
 				continue
 			}
-			pin, err := h.pinOf(ctx, tx, tree.Organization.ID, p.Name)
+			pin, err := h.pinOf(ctx, tx, tree, p)
 			if err != nil {
 				return err
 			}
