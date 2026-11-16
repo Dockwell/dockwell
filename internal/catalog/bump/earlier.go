@@ -93,7 +93,10 @@ func EarlierReleases(ctx context.Context, dir, id, at, base string) (*Earlier, e
 			history = append(history, Proven{Commit: c, Version: versionOf(text), text: text})
 		}
 	}
-	if base == "" {
+	// Where the base's entry is the head's, as a change to its check alone, the
+	// history's release before is what its upgrade is proven from (#726's slice 2
+	// review, L3).
+	if out.Before == nil {
 		// The newest earlier release whose file differs, whether or not its version
 		// does: a release that keeps its version and changes how it's put together,
 		// as one whose database became a need, or a digest moved, is an upgrade too

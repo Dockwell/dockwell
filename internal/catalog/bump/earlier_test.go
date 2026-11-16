@@ -116,3 +116,17 @@ func TestAReleaseThatKeepsItsVersionIsUpgradedFrom(t *testing.T) {
 		t.Fatalf("release 2 of 7.1.3 upgrades from %+v; want release 1", got.Before)
 	}
 }
+
+// A pull request that changes only checks/<id>.sh leaves the entry as its base has
+// it. Its check's "upgraded" half still needs an upgrade to run on: the history's
+// release before (#726's slice 2 review, L3).
+func TestACheckOnlyChangeStillUpgrades(t *testing.T) {
+	dir, c := history(t, "1.0.0", "1.1.0")
+	got, err := bump.EarlierReleases(t.Context(), dir, "shop", "HEAD", "HEAD")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Before == nil || got.Before.Commit != c["1.0.0"] {
+		t.Fatalf("a base whose entry is the head's gives %+v; want the history's 1.0.0", got.Before)
+	}
+}
