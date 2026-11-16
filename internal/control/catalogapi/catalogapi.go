@@ -586,6 +586,11 @@ func (h *Handler) upgrade(ctx context.Context, m *dockwellv1.UpgradeCatalogInsta
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s came from %s, which has no %s now, so it stays on %s. The %s in the catalog is %s's, another app: install it under another name to move to it", install.GetProject(), originOf(pin).words(), pin.GetEntry(), pin.GetVersion(), pin.GetEntry(), s.origins[pin.GetEntry()].words()), "not_in_catalog")
 	case !ok:
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s came from %s, which has no %s now, so it stays on %s", install.GetProject(), originOf(pin).words(), pin.GetEntry(), pin.GetVersion()), "not_in_catalog")
+	case catalog.MovesDown(entry, pin):
+		// A catalog withdraws a bad version by pinning the one before. An install on the
+		// bad version keeps it: its data may be in a format the version before can't
+		// read. A new install takes the release (ADR 0080).
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s's catalog now has %s %s, below the %s it runs, so upgrading would move it down, which its data may not take. It stays on %s until the catalog has %s or later; a new install takes %s", install.GetProject(), entry.GetName(), entry.GetVersion(), pin.GetVersion(), pin.GetVersion(), pin.GetVersion(), entry.GetVersion()), "moves_down")
 	case !newer && !rebuild:
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s is up to date, on %s %s", install.GetProject(), entry.GetName(), pin.GetVersion()), "up_to_date")
 	case len(pin.GetFile()) == 0:

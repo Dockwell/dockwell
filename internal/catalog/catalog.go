@@ -40,6 +40,7 @@ import (
 	catalogv1 "github.com/dockwell/dockwell/gen/dockwell/catalog/v1alpha1"
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/catalog/snapshot"
+	"github.com/dockwell/dockwell/internal/registry"
 	"github.com/dockwell/dockwell/internal/resource"
 )
 
@@ -877,7 +878,24 @@ func StandFor(variables map[string]string, names []string) (map[string]string, e
 //
 // An entry that names its images by tag is compared with the install's file as it
 // read before the install pinned them, so a digest the install chose is no change.
+// A release of a lower version than the install runs is no upgrade: it's a move
+// down, which MovesDown says (ADR 0080).
 func Upgrades(e *catalogv1.Entry, pin *resourcev1.CatalogPin) bool {
+	return changes(e, pin) && !registry.Older(pin.GetVersion(), e.GetVersion())
+}
+
+// MovesDown says an entry's newer release names a lower version than an install
+// runs, as a catalog's release does that withdraws a bad version by pinning the
+// one before (ADR 0100). An install on that bad version keeps it: its data may be
+// in a format the version before can't read. A new install takes the release as
+// it is (ADR 0080).
+func MovesDown(e *catalogv1.Entry, pin *resourcev1.CatalogPin) bool {
+	return changes(e, pin) && registry.Older(pin.GetVersion(), e.GetVersion())
+}
+
+// changes says an entry's release is newer than an install's, and changes what
+// it runs.
+func changes(e *catalogv1.Entry, pin *resourcev1.CatalogPin) bool {
 	file, entry := string(pin.GetFile()), e.GetCompose()
 	if Tagged(e) {
 		file, entry = Unpin(file), Unpin(entry)

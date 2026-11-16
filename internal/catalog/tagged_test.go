@@ -127,3 +127,27 @@ func TestMoving(t *testing.T) {
 		t.Errorf("MovingImages = %v", got)
 	}
 }
+
+// A catalog withdraws a bad version by a release that pins the one before. An
+// install on the bad version is offered no upgrade to it, as a move down its data may
+// not take; one still on the version before takes it as any release (ADR 0080).
+func TestAReleaseOfALowerVersionMovesDown(t *testing.T) {
+	entry := func(version string, release uint32) *catalogv1.Entry {
+		return &catalogv1.Entry{Id: "app", Version: version, Release: release, Compose: "services:\n  app:\n    image: example/app:" + version + "\n"}
+	}
+	withdrawn := entry("1.9", 6)
+	onBad := &resourcev1.CatalogPin{Version: "2.0", Release: 5, File: []byte(entry("2.0", 5).GetCompose())}
+	if catalog.Upgrades(withdrawn, onBad) || !catalog.MovesDown(withdrawn, onBad) {
+		t.Errorf("release 6 of 1.9 for an install on 2.0: upgrades %v, moves down %v; want a move down alone",
+			catalog.Upgrades(withdrawn, onBad), catalog.MovesDown(withdrawn, onBad))
+	}
+	onBefore := &resourcev1.CatalogPin{Version: "1.9", Release: 4, File: []byte(entry("1.9", 4).GetCompose() + "# release 4\n")}
+	if !catalog.Upgrades(withdrawn, onBefore) || catalog.MovesDown(withdrawn, onBefore) {
+		t.Error("release 6 of 1.9 for an install on 1.9's release 4 isn't an upgrade")
+	}
+	// A tag that moves names no version, so its release is never lower.
+	moving := &resourcev1.CatalogPin{Version: "latest", Release: 4, File: []byte("services: {}\n")}
+	if !catalog.Upgrades(withdrawn, moving) || catalog.MovesDown(withdrawn, moving) {
+		t.Error("a release for an install on latest reads as a move down")
+	}
+}

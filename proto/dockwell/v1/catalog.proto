@@ -62,8 +62,9 @@ service CatalogService {
   // the image. Its secrets stay as they are, and the plan says that no backup is
   // taken, as Dockwell can't take one yet. Undoing it puts the old version back, but
   // not what the new one changed in its data. It's refused with the reason up_to_date
-  // when there's nothing newer, and no_record for an install from before Dockwell
-  // kept what its file gave.
+  // when there's nothing newer, no_record for an install from before Dockwell
+  // kept what its file gave, and moves_down when the newer release names a lower
+  // version than the install runs, which a new install takes instead.
   rpc UpgradeCatalogInstall(UpgradeCatalogInstallRequest) returns (UpgradeCatalogInstallResponse) {
     option (dockwell.v1.effect) = EFFECT_PLAN;
     option (dockwell.v1.min_role) = NEEDS_DEVELOPER;

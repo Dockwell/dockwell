@@ -411,6 +411,17 @@ func better(a track, aTag string, b track, bTag, variant string) bool {
 	return aTag < bTag
 }
 
+// Older says to is a lower version than from, as their numbers read: 1.9 is
+// below 2.0, and 2.0.1 below 2.1. A version whose numbers can't be read, such as
+// latest, is never lower, nor is the same version written another way, or a
+// pre-release of the version from runs, which Step reads as a step of its own.
+// A catalog's release of a lower version is a move down (ADR 0080).
+func Older(from, to string) bool {
+	a, okA := readTrack(from)
+	b, okB := readTrack(to)
+	return okA && okB && compareInts(b.nums, a.nums) < 0
+}
+
 // Step classes a step from one version to another, read alone, as a catalog
 // entry's versions are: KindNone when they're the same, and KindMajor when they
 // differ and either doesn't read as a version, which says too much rather than

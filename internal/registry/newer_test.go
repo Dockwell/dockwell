@@ -80,6 +80,30 @@ func TestStep(t *testing.T) {
 	}
 }
 
+// A lower version is a move down, which a catalog install refuses (ADR 0080); a
+// version with no numbers is never lower, as nothing says it is.
+func TestOlder(t *testing.T) {
+	for _, c := range []struct {
+		from, to string
+		want     bool
+	}{
+		{"2.0", "1.9", true},
+		{"2.1", "2.0.1", true},
+		{"17.11", "17.11.0", false},
+		{"1.9", "2.0", false},
+		{"2.0", "2.0", false},
+		{"v2.1", "2.0", true},
+		{"0.13.1-patch.1", "0.13.0", true},
+		{"latest", "1.0", false},
+		{"2.0", "latest", false},
+		{"2.0.0", "2.0.0-rc1", false},
+	} {
+		if got := Older(c.from, c.to); got != c.want {
+			t.Errorf("Older(%q, %q) = %v, want %v", c.from, c.to, got, c.want)
+		}
+	}
+}
+
 func TestIsVersion(t *testing.T) {
 	for tag, want := range map[string]bool{"16.3": true, "16": true, "v1.2": true, "1.27.3-alpine": true, "latest": false, "stable": false, "alpine": false, "18beta1": false} {
 		if got := IsVersion(tag); got != want {
