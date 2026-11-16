@@ -1,6 +1,6 @@
 # 0100. Dockwell's catalog keeps its apps current by itself
 
-- Status: Proposed. Amends [ADR 0077](0077-dockwells-catalog-in-its-own-repository.md), for how a change reaches the catalog's main.
+- Status: Accepted. Amends [ADR 0077](0077-dockwells-catalog-in-its-own-repository.md), for how a change reaches the catalog's main.
 - Date: 2026-11-15
 
 ## Context
