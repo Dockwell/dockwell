@@ -612,24 +612,47 @@ func probePaths(named []string) []string {
 // Check reads the panel again and checks domains as a handover's plan chose them,
 // just before the proxy stops: PanelEvidence of what it found, or an error naming
 // a domain that stays behind now (ADR 0089).
-func (r Reader) Check(ctx context.Context, kind string, domains []string) (string, error) {
+func (r Reader) Check(ctx context.Context, kind string, domains []string) (Checked, error) {
 	pk := resourcepb.PanelKind(kind)
 	out, err := r.Read(ctx, pk, true)
 	if err != nil {
-		return "", err
+		return Checked{}, err
 	}
 	if out.GetFound() == nil {
-		return "", fmt.Errorf("%s doesn't run here now: %s", resource.PanelName(kind), out.GetNotHere())
+		return Checked{}, fmt.Errorf("%s doesn't run here now: %s", resource.PanelName(kind), out.GetNotHere())
 	}
 	checks := resourcepb.PanelChecksFrom(out.GetFound().GetChecks())
+	var redirects []string
 	for _, d := range domains {
 		i := slices.IndexFunc(checks, func(c resource.PanelCheck) bool { return strings.EqualFold(c.Domain, d) })
 		switch {
 		case i < 0:
-			return "", fmt.Errorf("%s's proxy doesn't serve %s now", resource.PanelName(kind), d)
+			return Checked{}, fmt.Errorf("%s's proxy doesn't serve %s now", resource.PanelName(kind), d)
 		case checks[i].Held != "":
-			return "", fmt.Errorf("%s stays behind now: %s", d, checks[i].Held)
+			return Checked{}, fmt.Errorf("%s stays behind now: %s", d, checks[i].Held)
+		case checks[i].RedirectsTo != "":
+			redirects = append(redirects, checks[i].Domain)
 		}
 	}
-	return resource.PanelEvidence(checks, domains), nil
+	got := Checked{Evidence: resource.PanelEvidence(checks, domains), Redirects: redirects}
+	if len(redirects) > 0 {
+		// As a control plane from before redirects digests it, which never knew them.
+		before := slices.Clone(checks)
+		for i := range before {
+			before[i].RedirectsTo, before[i].RedirectTemporary = "", false
+		}
+		got.AsBefore = resource.PanelEvidence(before, domains)
+	}
+	return got, nil
+}
+
+// Checked is what a handover's check finds just before the proxy stops.
+type Checked struct {
+	// Evidence is PanelEvidence of the chosen domains.
+	Evidence string
+	// Redirects are the chosen domains that come as redirects (ADR 0070), and
+	// AsBefore the evidence as a control plane from before redirects digests it:
+	// where the plan's is AsBefore, a control plane older than this agent made it.
+	Redirects []string
+	AsBefore  string
 }

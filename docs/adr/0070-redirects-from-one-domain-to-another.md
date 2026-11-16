@@ -235,7 +235,14 @@ The slices are as above, with a fourth: the imports, 1Panel's website redirects 
 - **The probe expects the redirect.** A domain that comes as a redirect is open only where the proxy answers with that redirect over HTTPS, the path kept; a page, a sign-in or a redirect anywhere else holds it back. The check says where it goes (`PanelDomainCheck.redirects_to`, 8), and the evidence the agent checks again before the proxy stops covers it.
 - **It comes only with the domain it lands on.** A redirect to a domain of the proxy's that stays behind stays too, and the plan refuses one whose domain isn't chosen, as it would land on nothing once the proxy stops. The handover's sheet says "Redirects to example.com" on its row, and choosing it chooses the domain it lands on; leaving that one leaves it too.
 - **The import's step** says "a route that redirects to https://example.com", and "for a while (302), as it does now" where it does.
-- **Numbers:** `PanelRoute.redirect` (7, a `RouteRedirect`) and `PanelDomainCheck.redirects_to` (8).
+- **After its review:**
+  - A middleware the proxy's files define more than once, in two files or in one, holds what passes through it. Traefik keeps the first definition in the order it reads its files, which can't be told for sure from here, and the reader had kept the last. A name with a dot, which no panel writes and every redirect setting's key has, reads as one Dockwell can't read.
+  - A Caddy site with more than one `redir` stays behind, the same on every read.
+  - A redirect whose domain the control plane holds, as one whose labels name no port, stays behind too, and the sheet never offers it or ticks a domain that stays behind.
+  - A path a redirecting domain serves through a router of its own is asked for as a page.
+  - The live check takes only the redirect's own kind, 301 or 308 for good and 302 or 307 for a while, and no query, and the evidence digests which kind it is (`PanelDomainCheck.redirect_temporary`, 9).
+- **Mixed versions:** an older agent sends no `redirect`, and its probe holds a redirect to another host, as before. A newer agent with an older control plane: the control plane plans the redirect's domain as a plain route to the app, and its evidence leaves the redirect out, so the agent's check just before the stop differs and refuses it. The refusal says the control plane is older than the agent and names the domain, to update the control plane or leave it out, rather than to plan again, which would refuse again.
+- **Numbers:** `PanelRoute.redirect` (7, a `RouteRedirect`), `PanelDomainCheck.redirects_to` (8) and `redirect_temporary` (9).
 
 ## Considered
 
