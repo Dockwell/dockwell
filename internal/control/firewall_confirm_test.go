@@ -119,7 +119,8 @@ func (f *fullServer) addFirewallServer(t *testing.T, name string, timer time.Dur
 
 // waitingFor waits for a change to wait for its confirmation on a server other
 // than those done, and returns what it waits for: a server just confirmed may
-// show its step running for a moment yet.
+// show its step running for a moment yet. It polls, which suits a window of a
+// minute; a test with a window of seconds follows the change with watchConfirm.
 func waitingFor(t *testing.T, c dockwellv1connect.ChangeServiceClient, changeID string, done ...string) *dockwellv1.ChangeConfirmation {
 	t.Helper()
 	deadline := time.Now().Add(10 * time.Second)
@@ -135,6 +136,81 @@ func waitingFor(t *testing.T, c dockwellv1connect.ChangeServiceClient, changeID 
 	}
 	t.Fatalf("%s never waited for its confirmation", changeID)
 	return nil
+}
+
+// confirmWatch follows a change from before it applies, so each time it waits for a
+// confirmation reaches the test as the change's watch sends it, however short the
+// wait. A poll can miss a window that opens and closes between two reads, as a
+// 400 ms one does on a busy runner (#760); the watch sends each step as it goes.
+type confirmWatch struct {
+	t     *testing.T
+	waits chan *dockwellv1.ChangeConfirmation
+	done  chan watched
+}
+
+// watchConfirm starts following a change's confirmations, before it's applied.
+func watchConfirm(t *testing.T, c dockwellv1connect.ChangeServiceClient, changeID string) *confirmWatch {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	stream, err := c.WatchChange(ctx, connect.NewRequest(&dockwellv1.WatchChangeRequest{Id: changeID}))
+	if err != nil {
+		cancel()
+		t.Fatal(err)
+	}
+	if !stream.Receive() {
+		cancel()
+		t.Fatalf("WatchChange %s sent nothing: %v", changeID, stream.Err())
+	}
+	cw := &confirmWatch{t: t, waits: make(chan *dockwellv1.ChangeConfirmation, 64), done: make(chan watched, 1)}
+	go func() {
+		defer cancel()
+		defer close(cw.waits)
+		seen := map[string]bool{}
+		send := func(w *dockwellv1.ChangeConfirmation) {
+			if key := w.GetServerId() + " " + w.GetDeadline().AsTime().String(); w != nil && !seen[key] {
+				seen[key] = true
+				cw.waits <- w
+			}
+		}
+		read := func(m *dockwellv1.WatchChangeResponse) {
+			send(m.GetChange().GetConfirmation())
+			for _, step := range m.GetChange().GetSteps() {
+				send(step.GetConfirmation())
+			}
+			send(m.GetStep().GetStep().GetConfirmation())
+		}
+		w := watched{msgs: []*dockwellv1.WatchChangeResponse{stream.Msg()}}
+		read(stream.Msg())
+		for stream.Receive() {
+			w.msgs = append(w.msgs, stream.Msg())
+			read(stream.Msg())
+		}
+		w.err = stream.Err()
+		_ = stream.Close()
+		cw.done <- w
+	}()
+	return cw
+}
+
+// next is the next confirmation the change waits for.
+func (cw *confirmWatch) next() *dockwellv1.ChangeConfirmation {
+	cw.t.Helper()
+	select {
+	case w, ok := <-cw.waits:
+		if !ok {
+			cw.t.Fatal("the change's watch ended, and it never waited for its confirmation")
+		}
+		return w
+	case <-time.After(10 * time.Second):
+		cw.t.Fatal("the change never waited for its confirmation")
+	}
+	return nil
+}
+
+// end is the change's watch, once it ends.
+func (cw *confirmWatch) end() watched {
+	cw.t.Helper()
+	return waitWatch(cw.t, cw.done)
 }
 
 // confirmation is the request that confirms what a change waits for.
@@ -244,12 +320,13 @@ func testAFirewallChangeNobodyConfirmsRollsBack(t *testing.T, backend store.Back
 	srv, tbl := f.addFirewallServer(t, "hz-1", 400*time.Millisecond)
 	c := changeClient(b, b.origin)
 	open := propose(t, c, "Open http", ruleOn(srv.id.ServerID, "http", 80))
-	w := watch(t, c, open.GetId())
+	w := watchConfirm(t, c, open.GetId())
 	if _, err := applyChange(t, c, &dockwellv1.ApplyChangeRequest{Id: open.GetId()}); err != nil {
 		t.Fatal(err)
 	}
-	wait := waitingFor(t, c, open.GetId())
-	got := waitWatch(t, w).last()
+	// Read from the change's watch: a poll could miss a 400 ms wait (#760).
+	wait := w.next()
+	got := w.end().last()
 	if got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_FAILED || !strings.Contains(got.GetError(), "Nobody confirmed the change") {
 		t.Errorf("an unconfirmed change ends %v: %s", got.GetState(), got.GetError())
 	}
@@ -386,15 +463,15 @@ func TestASecondServerThatTimesOutTakesTheFirstBack(t *testing.T) {
 	y, ty := f.addFirewallServer(t, "hz-2", 3*time.Second)
 	c := changeClient(b, b.origin)
 	both := propose(t, c, "Open 8080 on both", ruleOn(x.id.ServerID, "web", 8080), ruleOn(y.id.ServerID, "web", 8080))
-	w := watch(t, c, both.GetId())
+	w := watchConfirm(t, c, both.GetId())
 	if _, err := applyChange(t, c, &dockwellv1.ApplyChangeRequest{Id: both.GetId()}); err != nil {
 		t.Fatal(err)
 	}
-	first := waitingFor(t, c, both.GetId())
+	first := w.next()
 	if _, err := c.ConfirmChange(t.Context(), confirmation(both.GetId(), first)); err != nil {
 		t.Fatal(err)
 	}
-	got := waitWatch(t, w).last()
+	got := w.end().last()
 	if got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_FAILED || !strings.Contains(got.GetError(), "Nobody confirmed the change") {
 		t.Errorf("the change ends %v: %s", got.GetState(), got.GetError())
 	}
@@ -503,17 +580,17 @@ func TestARolledBackVerdictIsntReadAsKept(t *testing.T) {
 	srv, tbl := f.addFirewallServer(t, "hz-1", 2*time.Second, func(s *testServer) { s.access = saysRolledBack{s.access} })
 	c := changeClient(b, b.origin)
 	open := propose(t, c, "Open http", ruleOn(srv.id.ServerID, "http", 80))
-	w := watch(t, c, open.GetId())
+	w := watchConfirm(t, c, open.GetId())
 	if _, err := applyChange(t, c, &dockwellv1.ApplyChangeRequest{Id: open.GetId()}); err != nil {
 		t.Fatal(err)
 	}
-	wait := waitingFor(t, c, open.GetId())
+	wait := w.next()
 	res, err := c.ConfirmChange(t.Context(), confirmation(open.GetId(), wait))
 	if reasonOf(err) != "rolled_back" || res != nil {
 		t.Errorf("a confirmation the server answered rolled back = %v, %v, want rolled_back", res, err)
 	}
 	// Nothing kept it, so the server's own timer puts the firewall back.
-	if got := waitWatch(t, w).last(); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_FAILED {
+	if got := w.end().last(); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_FAILED {
 		t.Errorf("the change ends %v", got.GetState())
 	}
 	if rules := tbl.rules(); len(rules) != 0 {
@@ -531,10 +608,11 @@ func TestNobodyConfirmsAfterTheControlPlaneRestarts(t *testing.T) {
 	srv, tbl := f.addFirewallServer(t, "hz-1", 3*time.Second)
 	c := changeClient(b, b.origin)
 	open := propose(t, c, "Open http", ruleOn(srv.id.ServerID, "http", 80))
+	w := watchConfirm(t, c, open.GetId())
 	if _, err := applyChange(t, c, &dockwellv1.ApplyChangeRequest{Id: open.GetId()}); err != nil {
 		t.Fatal(err)
 	}
-	wait := waitingFor(t, c, open.GetId())
+	wait := w.next()
 	if got := tbl.rules(); len(got) != 1 {
 		t.Fatalf("while it waits the table holds %v", got)
 	}
@@ -662,10 +740,11 @@ func TestAChangeTheServerCouldntKeepStillWaits(t *testing.T) {
 	srv, tbl := f.addFirewallServer(t, "hz-1", 3*time.Second, func(s *testServer) { s.access = saysNotKept{s.access} })
 	c := changeClient(b, b.origin)
 	open := propose(t, c, "Open http", ruleOn(srv.id.ServerID, "http", 80))
+	w := watchConfirm(t, c, open.GetId())
 	if _, err := applyChange(t, c, &dockwellv1.ApplyChangeRequest{Id: open.GetId()}); err != nil {
 		t.Fatal(err)
 	}
-	wait := waitingFor(t, c, open.GetId())
+	wait := w.next()
 	res, err := c.ConfirmChange(t.Context(), confirmation(open.GetId(), wait))
 	if reasonOf(err) != "not_kept" || res != nil || !strings.Contains(err.Error(), "so it still waits") {
 		t.Errorf("a confirmation the server couldn't keep = %v, %v, want not_kept", res, err)
