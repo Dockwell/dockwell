@@ -10,7 +10,6 @@ import {
   ConnectionReach,
   ConnectionService,
   type ConnectionUse,
-  LinkPart,
   Connection as ServerConnection,
 } from "@dockwell/api";
 import {
@@ -38,7 +37,7 @@ import { Page } from "../shell/Page";
 import { ConnectionSheet } from "./ConnectionSheet";
 import { where } from "./ConnectionsPage";
 import { ConnectStorageSheet } from "./ConnectStorageSheet";
-import { SILENT, useCheckWords, useConnections, useProjectLabel } from "./useConnections";
+import { SILENT, useCheckWords, useConnections, usePartWords, useProjectLabel } from "./useConnections";
 import "../apps/Apps.css";
 import "./Connections.css";
 
@@ -330,20 +329,6 @@ function UsedBy({
       <Table columns={columns} rows={connection.uses} rowKey="linkId" caption={t`Used by`} />
     </Panel>
   );
-}
-
-/** What each part a link sets is called, short, as the page lists them. */
-function usePartWords(): Record<number, string> {
-  const { t } = useLingui();
-  return {
-    [LinkPart.ENDPOINT]: t`endpoint`,
-    [LinkPart.REGION]: t`region`,
-    [LinkPart.BUCKET]: t`bucket`,
-    [LinkPart.ACCESS_KEY_ID]: t`access key ID`,
-    [LinkPart.SECRET_KEY]: t`secret access key`,
-    [LinkPart.PUBLIC_URL]: t`public address`,
-    [LinkPart.PATH_STYLE]: t`bucket in the path`,
-  };
 }
 
 /** Where the bucket is and who may use it: an admin's to see. */

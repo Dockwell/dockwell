@@ -15,6 +15,7 @@ import {
   LinkPart,
   type ProposeChangeRequest,
   Role,
+  ServiceSchema,
   type WatchChangeResponse,
   type WatchServersResponse,
 } from "@dockwell/api";
@@ -422,6 +423,38 @@ describe("connecting an app to storage", () => {
       prefix: "outline/",
       sets: { S3_BUCKET: LinkPart.BUCKET, S3_ENDPOINT: LinkPart.ENDPOINT, S3_SECRET_ACCESS_KEY: LinkPart.SECRET_KEY },
     });
+  });
+
+  // Review M3: after Connect storage, the names it set read as blank variables to edit.
+  it("shows the names a link sets as its connection's, read-only, with a way to the connection", async () => {
+    const linkedVariables = [
+      variable({ id: "var_1", name: "S3_BUCKET", usedBy: uses("S3_BUCKET") }),
+      variable({ id: "var_2", name: "S3_ENDPOINT", value: "https://old.example.com", usedBy: uses("S3_ENDPOINT") }),
+      variable({ id: "sec_1", name: "S3_SECRET_ACCESS_KEY", secret: true, usedBy: uses("S3_SECRET_ACCESS_KEY") }),
+    ];
+    const base = api([]);
+    const outline = anApp("outline", "ghcr.io/acme/outline:1", {}, {
+      spec: create(ServiceSchema, {
+        runs: { case: "app", value: { image: "ghcr.io/acme/outline:1" } },
+        variables: { S3_BUCKET: "S3_BUCKET", S3_ENDPOINT: "S3_ENDPOINT" },
+        secrets: { S3_SECRET_ACCESS_KEY: "S3_SECRET_ACCESS_KEY" },
+      }),
+    });
+    const { container } = renderAt("/apps/svc_outline/environment", {
+      ...base,
+      services: { ...base.services, listServices: () => ({ services: [outline] }) },
+      variables: { listVariables: () => ({ environmentId: ENV, variables: linkedVariables }) },
+      connections: { listConnections: () => ({ connections: [used] }) },
+    });
+    const from = await screen.findAllByRole("link", { name: "From outline-uploads" }, { timeout: 5000 });
+    expect(from).toHaveLength(2);
+    expect(from[0]).toHaveAttribute("href", "/connections/outline-uploads");
+    expect(screen.getByText("bucket")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Change S3_BUCKET" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Remove S3_SECRET_ACCESS_KEY" })).toBeNull();
+    // A name no link sets is the app's to change, as before.
+    expect(screen.getByRole("button", { name: "Change S3_ENDPOINT" })).toBeVisible();
+    await expectAccessible(container);
   });
 
   it("plans nothing when the check from the app's server fails, and says what it found", async () => {

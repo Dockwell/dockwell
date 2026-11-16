@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { useQuery } from "@connectrpc/connect-query";
-import { type CheckConnectionResponse, ConnectionService } from "@dockwell/api";
+import { type CheckConnectionResponse, ConnectionService, LinkPart } from "@dockwell/api";
 import { StatusBadge } from "@dockwell/ui";
 import { useLingui } from "@lingui/react/macro";
+import { useMemo } from "react";
 
 import { useAllResources } from "../projects/useProjects";
 
@@ -89,4 +90,43 @@ export function useProjectLabel(): (id: string) => string {
     const p = (resources.data ?? []).find((r) => r.id === id && r.resource?.kind === "project");
     return p?.displayName || p?.resource?.name || id;
   };
+}
+
+/** What each part a link sets is called, short, as the page lists them. */
+export function usePartWords(): Record<number, string> {
+  const { t } = useLingui();
+  return {
+    [LinkPart.ENDPOINT]: t`endpoint`,
+    [LinkPart.REGION]: t`region`,
+    [LinkPart.BUCKET]: t`bucket`,
+    [LinkPart.ACCESS_KEY_ID]: t`access key ID`,
+    [LinkPart.SECRET_KEY]: t`secret access key`,
+    [LinkPart.PUBLIC_URL]: t`public address`,
+    [LinkPart.PATH_STYLE]: t`bucket in the path`,
+  };
+}
+
+/** A name of an environment a link sets from a connection. */
+export interface LinkedName {
+  connection: string;
+  link: string;
+  part: LinkPart;
+}
+
+/**
+ * The names an environment's links to connections set, by name: each reads its
+ * connection through the link, so it changes there, not as a value of its own.
+ */
+export function useLinkedNames(environment: string): ReadonlyMap<string, LinkedName> {
+  const query = useConnections(environment);
+  return useMemo(() => {
+    const out = new Map<string, LinkedName>();
+    for (const c of query.data?.connections ?? []) {
+      for (const u of c.uses) {
+        if (u.environment !== environment) continue;
+        for (const [name, part] of Object.entries(u.sets)) out.set(name, { connection: c.name, link: u.link, part });
+      }
+    }
+    return out;
+  }, [query.data, environment]);
 }

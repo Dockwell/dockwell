@@ -2555,6 +2555,9 @@ msgstr "{name} 的环境变量"
 msgid "Every app that uses this variable gets the new value."
 msgstr "每个使用这个变量的应用都会得到新值。"
 
+msgid "From {connection}"
+msgstr "来自 {connection}"
+
 msgid "Import .env"
 msgstr "导入 .env"
 
@@ -11321,27 +11324,6 @@ msgstr "查看所有连接"
 msgid "Use in an app"
 msgstr "在应用中使用"
 
-msgid "access key ID"
-msgstr "访问密钥 ID"
-
-msgid "bucket"
-msgstr "存储桶"
-
-msgid "bucket in the path"
-msgstr "存储桶在路径中"
-
-msgid "endpoint"
-msgstr "端点"
-
-msgid "public address"
-msgstr "公开地址"
-
-msgid "region"
-msgstr "区域"
-
-msgid "secret access key"
-msgstr "秘密访问密钥"
-
 msgid "the server"
 msgstr "服务器"
 
@@ -11419,6 +11401,9 @@ msgstr "浏览器获取其对象的地址（如有）。"
 
 msgid "bucket in the host"
 msgstr "存储桶在主机名中"
+
+msgid "bucket in the path"
+msgstr "存储桶在路径中"
 
 msgid "every project"
 msgstr "所有项目"
@@ -11535,6 +11520,24 @@ msgstr "证书不受信任"
 
 msgid "Wrote, read and deleted a test object."
 msgstr "已写入、读取并删除一个测试对象。"
+
+msgid "access key ID"
+msgstr "访问密钥 ID"
+
+msgid "bucket"
+msgstr "存储桶"
+
+msgid "endpoint"
+msgstr "端点"
+
+msgid "public address"
+msgstr "公开地址"
+
+msgid "region"
+msgstr "区域"
+
+msgid "secret access key"
+msgstr "秘密访问密钥"
 
 msgid "Add a user to {name}"
 msgstr "为 {name} 添加用户"

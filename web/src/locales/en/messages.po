@@ -2555,6 +2555,9 @@ msgstr "Environment variables of {name}"
 msgid "Every app that uses this variable gets the new value."
 msgstr "Every app that uses this variable gets the new value."
 
+msgid "From {connection}"
+msgstr "From {connection}"
+
 msgid "Import .env"
 msgstr "Import .env"
 
@@ -11321,27 +11324,6 @@ msgstr "See every connection"
 msgid "Use in an app"
 msgstr "Use in an app"
 
-msgid "access key ID"
-msgstr "access key ID"
-
-msgid "bucket"
-msgstr "bucket"
-
-msgid "bucket in the path"
-msgstr "bucket in the path"
-
-msgid "endpoint"
-msgstr "endpoint"
-
-msgid "public address"
-msgstr "public address"
-
-msgid "region"
-msgstr "region"
-
-msgid "secret access key"
-msgstr "secret access key"
-
 msgid "the server"
 msgstr "the server"
 
@@ -11419,6 +11401,9 @@ msgstr "Where browsers fetch its objects, if it has one."
 
 msgid "bucket in the host"
 msgstr "bucket in the host"
+
+msgid "bucket in the path"
+msgstr "bucket in the path"
 
 msgid "every project"
 msgstr "every project"
@@ -11535,6 +11520,24 @@ msgstr "Untrusted certificate"
 
 msgid "Wrote, read and deleted a test object."
 msgstr "Wrote, read and deleted a test object."
+
+msgid "access key ID"
+msgstr "access key ID"
+
+msgid "bucket"
+msgstr "bucket"
+
+msgid "endpoint"
+msgstr "endpoint"
+
+msgid "public address"
+msgstr "public address"
+
+msgid "region"
+msgstr "region"
+
+msgid "secret access key"
+msgstr "secret access key"
 
 msgid "Add a user to {name}"
 msgstr "Add a user to {name}"
