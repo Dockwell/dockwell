@@ -664,9 +664,41 @@ func TestEveryEntryHasACatalogJob(t *testing.T) {
 	for _, m := range regexp.MustCompile(`(?m)^\s*catalog_install ([a-z0-9-]+)|"\$bin" catalog install ([a-z0-9-]+)`).FindAllSubmatch(script, -1) {
 		tried[string(m[1])+string(m[2])] = "scripts/docker-e2e.sh"
 	}
+	// Each entry a Catalog on Docker group tries proves an upgrade, from the release
+	// before its check names, as the snapshot's checks/<id>.sh has it, or from the
+	// catalog's history, or says why not. Fewer upgrades proven than before fails
+	// here: only these may prove none (#726's slice 2 review, M1).
+	mayProveNone := map[string]bool{
+		// No MongoDB 8.0 before 8.0.38 starts on CI's runners. Once mongo pins 8.0.39 or
+		// later, its check names 8.0.38 as its release before, and it leaves this list.
+		"mongo": true,
+	}
+	beforeLine := regexp.MustCompile(`(?m)^before\[([a-z0-9-]+)\]="\S+( \S+@sha256:[0-9a-f]{64})+"$`)
+	waivedLine := regexp.MustCompile(`(?m)^upgrade_waived\[([a-z0-9-]+)\]="[^"]+"$`)
 	for _, e := range c.All() {
-		if _, ok := tried[e.GetId()]; !ok {
+		at, ok := tried[e.GetId()]
+		if !ok {
 			t.Errorf("no CI job tries %s on real Docker. Add it to a Catalog on Docker job's apps in .github/workflows/ci.yml", e.GetId())
+		}
+		if ok && at != "scripts/docker-e2e.sh" {
+			check, err := os.ReadFile("snapshot/checks/" + e.GetId() + ".sh")
+			switch {
+			case err != nil:
+				t.Errorf("the snapshot has no checks/%s.sh, which says what answering means for %s. Write one in Dockwell/catalog, and move the snapshot to it", e.GetId(), e.GetId())
+			case !strings.Contains(string(check), "\ncheck_"+e.GetId()+"() {"):
+				t.Errorf("checks/%s.sh defines no check_%s", e.GetId(), e.GetId())
+			case mayProveNone[e.GetId()]:
+				if m := waivedLine.FindSubmatch(check); m == nil || string(m[1]) != e.GetId() {
+					t.Errorf("checks/%s.sh says nothing of why %s proves no upgrade: give it an upgrade_waived[%s] line", e.GetId(), e.GetId(), e.GetId())
+				}
+			default:
+				if m := beforeLine.FindSubmatch(check); m == nil || string(m[1]) != e.GetId() {
+					t.Errorf("checks/%s.sh names no release before %s to upgrade from, by its version and each image by digest: give it a before[%s] line", e.GetId(), e.GetId(), e.GetId())
+				}
+				if waivedLine.Match(check) {
+					t.Errorf("checks/%s.sh waives %s's upgrade, which only %v may", e.GetId(), e.GetId(), mayProveNone)
+				}
+			}
 		}
 		delete(tried, e.GetId())
 	}

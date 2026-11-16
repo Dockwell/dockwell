@@ -399,6 +399,8 @@ jobs:
     uses: ./.github/workflows/catalog-proof.yml
     with:
       entries: ${{ matrix.apps }}
+      # Each upgrades from its release before, as before slice 2 (ADR 0100).
+      require-upgrade: true
 
   # One check of a fixed name for every group above, which a branch rule can require:
   # a matrix's own checks are named by their groups, which change as the catalog grows.

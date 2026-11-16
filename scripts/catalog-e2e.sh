@@ -30,7 +30,7 @@ set -euo pipefail
 # Anything this starts asks nothing beyond this machine (DOCKWELL_TEST, ADR 0034).
 export DOCKWELL_TEST=1
 
-usage="usage: scripts/catalog-e2e.sh path/to/dockwell --catalog <checkout> [--at <commit>] [--base <commit>] ENTRY..."
+usage="usage: scripts/catalog-e2e.sh path/to/dockwell --catalog <checkout> [--at <commit>] [--base <commit>] [--require-upgrade] ENTRY..."
 for tool in docker curl git go jq openssl; do
   command -v "$tool" >/dev/null || {
     echo "catalog-e2e: $tool isn't installed, and the script needs it. Install it, such as with apt-get install $tool, then run it again" >&2
@@ -39,12 +39,13 @@ for tool in docker curl git go jq openssl; do
 done
 bin=$(realpath "${1:?$usage}")
 shift
-catalog="" at=HEAD base=""
+catalog="" at=HEAD base="" require_upgrade=0
 while (($# > 0)); do
   case "$1" in
   --catalog) catalog=$(realpath "${2:?$usage}") && shift 2 ;;
   --at) at=${2:?$usage} && shift 2 ;;
   --base) base=${2:?$usage} && shift 2 ;;
+  --require-upgrade) require_upgrade=1 && shift ;;
   *) break ;;
   esac
 done
@@ -345,6 +346,12 @@ declare -A given_env=()
 # release of the catalog's isn't proven, as no MongoDB 8.0 before 8.0.38 starts on
 # the kernels CI's runners run.
 declare -A earliest=()
+# The release before, as a check names it where the catalog's history has none of
+# another version: its version, then each image by digest.
+declare -A before=()
+# Why an entry proves no upgrade, where its check says so, which --require-upgrade
+# otherwise fails.
+declare -A upgrade_waived=()
 
 # release writes an entry into the catalog's directory, which takes over from the
 # built-in one: as it is, at a higher release, or as the version before it.
@@ -463,7 +470,12 @@ plan_upgrade() {
 # the entry in one plan that backs its volumes up, keeping its data and its secrets.
 prove() {
   local from=${1:-} was=${2:-}
-  if [[ -n "$from" ]]; then
+  if [[ "$from" == check ]]; then
+    # The release before its check names: the entry with that version and those
+    # images, as the catalog's history doesn't hold it.
+    step "$id: $was, the release before its check names, installs, answers and signs in"
+    release "$entry" 1 "${@:2}"
+  elif [[ -n "$from" ]]; then
     step "$id: $was installs, answers and signs in"
     git -C "$catalog" show "$from:entries/$id.yaml" | sed 's/^release: .*/release: 1/' >"$catalog_dir/$id.yaml" ||
       fail "the catalog's $from has no entries/$id.yaml"
@@ -550,6 +562,16 @@ for id in "$@"; do
   # nothing for an entry that's new.
   earlier=$("$catalog_tool" earlier --catalog "$catalog" --at "$at" ${base:+--base "$base"} "$id") || fail "reading $id's earlier releases failed"
   proved=0
+  history_before=$(jq -r '.before.version // empty' <<<"$earlier")
+  # A release before its check names, by its version and image digests, where the
+  # history holds none of another version, as a young catalog's doesn't.
+  if [[ -n "${before[$id]:-}" ]]; then
+    read -r -a named <<<"${before[$id]}"
+    if [[ "${named[0]}" != "$version" && "${named[0]}" != "$history_before" ]]; then
+      prove check "${named[@]}"
+      proved=1
+    fi
+  fi
   for which in before first; do
     from=$(jq -r --arg w "$which" '.[$w].commit // empty' <<<"$earlier")
     [[ -n "$from" ]] || continue
@@ -561,6 +583,12 @@ for id in "$@"; do
     prove "$from" "$was"
     proved=1
   done
+  if ((!proved)) && ((require_upgrade)); then
+    # Dockwell's CI proves an upgrade of every entry, or says in the check why not.
+    [[ -n "${upgrade_waived[$id]:-}" ]] ||
+      fail "$id has no earlier release to upgrade from. Give checks/$id.sh a before[$id] line: the release before, by its version and each image by digest"
+    step "$id: proves no upgrade, as its check says: ${upgrade_waived[$id]}"
+  fi
   ((proved)) || prove
   rm -f "$catalog_dir/$id.yaml"
   echo "$id took $((SECONDS - started)) s"

@@ -128,7 +128,7 @@ jobs_for() {
   # Read by people. Licenses and links checks them, and it always runs.
   docs/* | .github/*.md | .github/ISSUE_TEMPLATE/* | .github/dependabot.yml | assets/*) ;;
   # Dockwell/catalog's snapshot: its entries, their images, and the commit it is.
-  internal/catalog/snapshot/entries/* | internal/catalog/snapshot/commit) echo "$catalog" ;;
+  internal/catalog/snapshot/entries/* | internal/catalog/snapshot/checks/* | internal/catalog/snapshot/commit) echo "$catalog" ;;
   # The Go tests source it, the load tests and the budgets read its memory
   # limit, and Service end to end on Docker uninstalls with it.
   scripts/install.sh) echo "go containers-load transfers-load docker-e2e $install $budgets" ;;

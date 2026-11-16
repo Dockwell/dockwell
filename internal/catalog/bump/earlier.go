@@ -26,6 +26,8 @@ import (
 type Proven struct {
 	Commit  string `json:"commit"`
 	Version string `json:"version"`
+	// text is its file.
+	text []byte
 }
 
 // Earlier are the releases an upgrade to an entry is proven from.
@@ -88,12 +90,16 @@ func EarlierReleases(ctx context.Context, dir, id, at, base string) (*Earlier, e
 			return nil, err
 		}
 		if ok {
-			history = append(history, Proven{Commit: c, Version: versionOf(text)})
+			history = append(history, Proven{Commit: c, Version: versionOf(text), text: text})
 		}
 	}
 	if base == "" {
+		// The newest earlier release whose file differs, whether or not its version
+		// does: a release that keeps its version and changes how it's put together,
+		// as one whose database became a need, or a digest moved, is an upgrade too
+		// (#726's slice 2 review, M1).
 		for i := len(history) - 1; i >= 0; i-- {
-			if history[i].Version != "" && history[i].Version != current {
+			if !bytes.Equal(history[i].text, now) {
 				out.Before = &history[i]
 				break
 			}

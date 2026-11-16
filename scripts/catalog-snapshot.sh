@@ -32,15 +32,21 @@ git -C "$work/catalog" fetch -q --depth 1 "$repo" "$commit"
 git -C "$work/catalog" -c advice.detachedHead=false checkout -q FETCH_HEAD
 [[ -d $work/catalog/entries ]] || { echo "catalog-snapshot: $commit of $repo has no folder entries." >&2; exit 1; }
 
+# Each app's check beside the entries, which the binary doesn't embed: Dockwell's
+# tests hold every entry to one, and to an upgrade it proves (ADR 0100).
+[[ -d $work/catalog/checks ]] || { echo "catalog-snapshot: $commit of $repo has no folder checks, which proves each entry. Move to a commit that has it." >&2; exit 1; }
 if ((check)); then
-  if ! diff -r "$work/catalog/entries" "$dir/entries" >/dev/null; then
-    diff -rq "$work/catalog/entries" "$dir/entries" >&2 || true
-    echo "catalog-snapshot: $dir/entries isn't what $commit of Dockwell/catalog holds. Run make catalog-snapshot, and commit what it writes." >&2
-    exit 1
-  fi
-  echo "catalog-snapshot: $dir/entries is Dockwell/catalog at $commit."
+  for folder in entries checks; do
+    if ! diff -r "$work/catalog/$folder" "$dir/$folder" >/dev/null; then
+      diff -rq "$work/catalog/$folder" "$dir/$folder" >&2 || true
+      echo "catalog-snapshot: $dir/$folder isn't what $commit of Dockwell/catalog holds. Run make catalog-snapshot, and commit what it writes." >&2
+      exit 1
+    fi
+  done
+  echo "catalog-snapshot: $dir/entries and $dir/checks are Dockwell/catalog at $commit."
   exit 0
 fi
-rm -rf "$dir/entries"
+rm -rf "$dir/entries" "$dir/checks"
 cp -R "$work/catalog/entries" "$dir/entries"
-echo "catalog-snapshot: wrote Dockwell/catalog's entries at $commit into $dir/entries."
+cp -R "$work/catalog/checks" "$dir/checks"
+echo "catalog-snapshot: wrote Dockwell/catalog's entries and checks at $commit into $dir."

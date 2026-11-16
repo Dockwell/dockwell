@@ -102,3 +102,17 @@ func TestEarlierReleasesComeFromTheCatalogsHistory(t *testing.T) {
 		t.Error("an entry the commit hasn't reads")
 	}
 }
+
+// A release that changes how an entry is put together, keeping its version, as
+// Dockwell/catalog#4 gave WordPress and Ghost a database need at 7.1.3 and 6.72.0,
+// is the release an install upgrades from (#726's slice 2 review, M1).
+func TestAReleaseThatKeepsItsVersionIsUpgradedFrom(t *testing.T) {
+	dir, c := history(t, "7.1.3", "7.1.3")
+	got, err := bump.EarlierReleases(t.Context(), dir, "shop", "HEAD", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Before == nil || got.Before.Commit == c["7.1.3"] {
+		t.Fatalf("release 2 of 7.1.3 upgrades from %+v; want release 1", got.Before)
+	}
+}

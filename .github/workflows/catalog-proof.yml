@@ -26,6 +26,10 @@ on:
         description: The Dockwell commit that proves. The calling run's own commit when left out, as in Dockwell's CI.
         type: string
         default: ""
+      require-upgrade:
+        description: Fail an entry that proves no upgrade, unless its check says why, as Dockwell's CI does for its snapshot.
+        type: boolean
+        default: false
     outputs:
       floored:
         description: The entries proven with the floor alone, as they have no checks/<id>.sh, which don't merge by themselves.
@@ -100,11 +104,15 @@ jobs:
         env:
           AT: ${{ steps.catalog.outputs.ref }}
           BASE: ${{ inputs.base-ref }}
+          REQUIRE: ${{ inputs.require-upgrade }}
         run: |
           floored=$(mktemp)
           read -r -a ids <<< "$ENTRIES"
           (cd dockwell && make build-go)
-          E2E_FLOORED="$floored" dockwell/scripts/catalog-e2e.sh dockwell/bin/dockwell --catalog catalog --at "$AT" ${BASE:+--base "$BASE"} "${ids[@]}"
+          flags=(--catalog catalog --at "$AT")
+          [[ -z "$BASE" ]] || flags+=(--base "$BASE")
+          [[ "$REQUIRE" != true ]] || flags+=(--require-upgrade)
+          E2E_FLOORED="$floored" dockwell/scripts/catalog-e2e.sh dockwell/bin/dockwell "${flags[@]}" "${ids[@]}"
           echo "floored=$(tr '\n' ' ' < "$floored" | sed 's/ $//')" >> "$GITHUB_OUTPUT"
 
   # An entry with no check of its own runs on arm64 too, as nothing else says it
