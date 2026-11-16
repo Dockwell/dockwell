@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	"google.golang.org/protobuf/proto"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
@@ -556,5 +557,192 @@ func TestAGuardedPathKeepsItsDomainBehind(t *testing.T) {
 	}).id.ServerID
 	if _, err := s.ic.CheckPanelDomains(t.Context(), connect.NewRequest(&dockwellv1.CheckPanelDomainsRequest{ServerId: old, Panel: dockwellv1.PanelKind_PANEL_KIND_COOLIFY})); reasonOf(err) != "agent_outdated" {
 		t.Errorf("a check through an agent that doesn't check domains = %v", err)
+	}
+}
+
+// A domain Coolify redirects to its other half, www to the bare domain here, is
+// handed over as a route that answers with that redirect (ADR 0070): the check
+// expects the proxy to answer with it, and holds it back where it doesn't; and it
+// comes only with the domain it lands on, which would stop answering otherwise.
+func TestAWWWRedirectIsHandedOverAsOne(t *testing.T) {
+	t.Parallel()
+	s := coolifyHandover(t)
+	s.e.AddNetwork(docker.Network{ID: "m3n8net", Name: "m3n8_default", Driver: "bridge"})
+	labels := map[string]string{
+		"coolify.managed": "true", "coolify.type": "service", "traefik.enable": "true", "coolify.serviceUuid": "m3n8", "coolify.resourceName": "shop",
+		docker.LabelWorkingDir: "/data/coolify/services/m3n8",
+		"traefik.http.middlewares.redirect-to-non-www.redirectregex.regex":       `^(http|https)://www\.(.+)`,
+		"traefik.http.middlewares.redirect-to-non-www.redirectregex.replacement": "${1}://${2}",
+		"traefik.http.middlewares.redirect-to-non-www.redirectregex.permanent":   "false",
+		"traefik.http.services.http-0-m3n8-shop.loadbalancer.server.port":        "8080",
+	}
+	for i, host := range []string{"shop.example.com", "www.shop.example.com"} {
+		router := "traefik.http.routers.https-" + string(rune('0'+i)) + "-m3n8-shop."
+		maps.Copy(labels, map[string]string{
+			router + "rule": "Host(`" + host + "`) && PathPrefix(`/`)", router + "entrypoints": "https",
+			router + "middlewares": "redirect-to-non-www", router + "service": "http-0-m3n8-shop",
+		})
+	}
+	composeContainer(t, s.e, "m3n8", "shop", "shop-m3n8", func(r *docker.CreateRequest) { maps.Copy(r.Labels, labels) })
+	s.answers("www.shop.example.com", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "https://shop.example.com"+r.URL.Path, http.StatusFound)
+	})
+	s.takeOn(t)
+	res, err := s.ic.ImportCoolify(t.Context(), connect.NewRequest(&dockwellv1.ImportCoolifyRequest{ServerId: s.id, SkipPlan: true}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st := panelSteps(res.Msg)["IMPORT_KIND_DOMAIN www.shop.example.com"]; st.GetBecomes() != "a route that redirects to https://shop.example.com, for a while (302), as it does now" {
+		t.Errorf("www's step reads %v", st)
+	}
+	checks := s.check(t)
+	www := checks["www.shop.example.com"]
+	if www.GetHeld() != "" || www.GetRedirectsTo() != "https://shop.example.com" || len(www.GetProbes()) != 1 || !www.GetProbes()[0].GetOpen() ||
+		www.GetProbes()[0].GetAnswer() != "302 to shop.example.com, as its redirect does" {
+		t.Errorf("www reads %v", www)
+	}
+	if shop := checks["shop.example.com"]; shop.GetHeld() != "" || shop.GetRedirectsTo() != "" {
+		t.Errorf("the domain it lands on reads %v", shop)
+	}
+
+	// Alone, it would land on a domain that stops answering with the proxy.
+	if _, err := s.plan(t, "www.shop.example.com"); reasonOf(err) != "redirect_left" ||
+		!strings.Contains(err.Error(), "www.shop.example.com redirects to shop.example.com, which stops answering once coolify-proxy stops, as it isn't chosen. Choose shop.example.com too") {
+		t.Errorf("a handover of the redirect alone = %v", err)
+	}
+	change, err := s.plan(t, "shop.example.com", "www.shop.example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if done := actedOn(t, s.c, change, ""); done.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("the handover ended %v: %s", done.GetState(), done.GetError())
+	}
+	made := map[string]*resourcev1.Route{}
+	for _, r := range s.ing.routes {
+		made[r.GetDomain()] = r
+	}
+	if r := made["www.shop.example.com"]; r.GetService() != "" || r.GetPort() != 0 ||
+		!proto.Equal(r.GetRedirect(), &resourcev1.RouteRedirect{To: "https://shop.example.com", Temporary: true}) {
+		t.Errorf("www's route is %v", r)
+	}
+	if r := made["shop.example.com"]; r.GetService() != "shop" || r.GetPort() != 8080 || r.GetRedirect() != nil {
+		t.Errorf("the domain's route is %v", r)
+	}
+}
+
+// A domain whose route would redirect is held back where the proxy answers it any
+// other way, and so is one that redirects to a domain that stays behind.
+func TestAWWWRedirectTheProxyDoesntAnswerStaysBehind(t *testing.T) {
+	t.Parallel()
+	s := coolifyHandover(t)
+	s.e.AddNetwork(docker.Network{ID: "m3n8net", Name: "m3n8_default", Driver: "bridge"})
+	labels := map[string]string{
+		"coolify.managed": "true", "coolify.type": "service", "traefik.enable": "true", "coolify.serviceUuid": "m3n8", "coolify.resourceName": "shop",
+		docker.LabelWorkingDir:                                            "/data/coolify/services/m3n8",
+		"traefik.http.middlewares.to-www.redirectregex.regex":             `^(http|https)://(?:www\.)?(.+)`,
+		"traefik.http.middlewares.to-www.redirectregex.replacement":       "${1}://www.${2}",
+		"traefik.http.services.http-0-m3n8-shop.loadbalancer.server.port": "8080",
+		"traefik.http.routers.https-0-m3n8-shop.rule":                     "Host(`shop.example.com`)",
+		"traefik.http.routers.https-0-m3n8-shop.middlewares":              "to-www",
+		"traefik.http.routers.https-1-m3n8-shop.rule":                     "Host(`www.shop.example.com`)",
+		"traefik.http.routers.https-1-m3n8-shop.middlewares":              "to-www",
+		"traefik.http.routers.https-1-m3n8-shop.service":                  "http-0-m3n8-shop",
+	}
+	composeContainer(t, s.e, "m3n8", "shop", "shop-m3n8", func(r *docker.CreateRequest) { maps.Copy(r.Labels, labels) })
+	s.takeOn(t)
+
+	// The proxy serves a page where the route would redirect.
+	shop := s.check(t)["shop.example.com"]
+	if shop.GetRedirectsTo() != "https://www.shop.example.com" || shop.GetHeld() != "a request for / through the proxy answered 200, where its redirect would send it to www.shop.example.com" {
+		t.Errorf("a redirect the proxy doesn't answer with reads %v", shop)
+	}
+	// It does now, but where it lands stays behind, behind a login.
+	s.answers("shop.example.com", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "https://www.shop.example.com"+r.URL.Path, http.StatusFound)
+	})
+	s.answers("www.shop.example.com", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusUnauthorized) })
+	checks := s.check(t)
+	if got := checks["shop.example.com"].GetHeld(); got != "it redirects to www.shop.example.com, which stays behind" {
+		t.Errorf("a redirect to a domain held back reads %q, and that domain %v", got, checks["www.shop.example.com"])
+	}
+}
+
+// A redirect whose domain the control plane holds, as one its proxy's labels name no
+// port of, stays behind too: chosen, it would land on nothing, and the plan would
+// refuse it with a fix the sheet can't offer (slice 4's review, M2).
+func TestAWWWRedirectToADomainHeldHereStaysBehind(t *testing.T) {
+	t.Parallel()
+	s := coolifyHandover(t)
+	s.e.AddNetwork(docker.Network{ID: "m3n8net", Name: "m3n8_default", Driver: "bridge"})
+	labels := map[string]string{
+		"coolify.managed": "true", "coolify.type": "service", "traefik.enable": "true", "coolify.serviceUuid": "m3n8", "coolify.resourceName": "shop",
+		docker.LabelWorkingDir: "/data/coolify/services/m3n8",
+		"traefik.http.middlewares.to-non-www.redirectregex.regex":         `^(http|https)://www\.(.+)`,
+		"traefik.http.middlewares.to-non-www.redirectregex.replacement":   "${1}://${2}",
+		"traefik.http.services.http-0-m3n8-shop.loadbalancer.server.port": "8080",
+		// The bare domain's router names a service with no port, which the control
+		// plane can't route; www's redirect needs none.
+		"traefik.http.routers.https-0-m3n8-shop.rule":        "Host(`shop.example.com`)",
+		"traefik.http.routers.https-0-m3n8-shop.middlewares": "to-non-www",
+		"traefik.http.routers.https-0-m3n8-shop.service":     "elsewhere",
+		"traefik.http.routers.https-1-m3n8-shop.rule":        "Host(`www.shop.example.com`)",
+		"traefik.http.routers.https-1-m3n8-shop.middlewares": "to-non-www",
+		"traefik.http.routers.https-1-m3n8-shop.service":     "http-0-m3n8-shop",
+	}
+	composeContainer(t, s.e, "m3n8", "shop", "shop-m3n8", func(r *docker.CreateRequest) { maps.Copy(r.Labels, labels) })
+	s.answers("www.shop.example.com", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "https://shop.example.com"+r.URL.Path, http.StatusFound)
+	})
+	s.takeOn(t)
+	checks := s.check(t)
+	if !strings.Contains(checks["shop.example.com"].GetHeld(), "which port") {
+		t.Fatalf("the domain it lands on reads %v", checks["shop.example.com"])
+	}
+	if got := checks["www.shop.example.com"].GetHeld(); got != "it redirects to shop.example.com, which stays behind" {
+		t.Errorf("a redirect to a domain held here reads %q", got)
+	}
+	if _, err := s.plan(t, "www.shop.example.com"); reasonOf(err) != "domain_held" {
+		t.Errorf("a handover of it = %v", err)
+	}
+}
+
+// A domain that redirects but serves a path through a router of its own is asked
+// for that path as a page, not as the redirect, so it isn't held for a 200 there
+// (slice 4's review, L2).
+func TestAWWWRedirectWithAPathItServes(t *testing.T) {
+	t.Parallel()
+	s := coolifyHandover(t)
+	s.e.AddNetwork(docker.Network{ID: "m3n8net", Name: "m3n8_default", Driver: "bridge"})
+	labels := map[string]string{
+		"coolify.managed": "true", "coolify.type": "service", "traefik.enable": "true", "coolify.serviceUuid": "m3n8", "coolify.resourceName": "shop",
+		docker.LabelWorkingDir: "/data/coolify/services/m3n8",
+		"traefik.http.middlewares.to-non-www.redirectregex.regex":         `^(http|https)://www\.(.+)`,
+		"traefik.http.middlewares.to-non-www.redirectregex.replacement":   "${1}://${2}",
+		"traefik.http.services.http-0-m3n8-shop.loadbalancer.server.port": "8080",
+		"traefik.http.routers.https-0-m3n8-shop.rule":                     "Host(`shop.example.com`)",
+		"traefik.http.routers.https-0-m3n8-shop.service":                  "http-0-m3n8-shop",
+		"traefik.http.routers.https-1-m3n8-shop.rule":                     "Host(`www.shop.example.com`)",
+		"traefik.http.routers.https-1-m3n8-shop.middlewares":              "to-non-www",
+		"traefik.http.routers.https-1-m3n8-shop.service":                  "http-0-m3n8-shop",
+		"traefik.http.routers.https-2-m3n8-shop.rule":                     "Host(`www.shop.example.com`) && PathPrefix(`/api`)",
+		"traefik.http.routers.https-2-m3n8-shop.service":                  "http-0-m3n8-shop",
+	}
+	composeContainer(t, s.e, "m3n8", "shop", "shop-m3n8", func(r *docker.CreateRequest) { maps.Copy(r.Labels, labels) })
+	s.answers("www.shop.example.com", func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/api") {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		http.Redirect(w, r, "https://shop.example.com"+r.URL.Path, http.StatusFound)
+	})
+	s.takeOn(t)
+	www := s.check(t)["www.shop.example.com"]
+	if www.GetHeld() != "" || www.GetRedirectsTo() != "https://shop.example.com" || len(www.GetProbes()) != 2 {
+		t.Fatalf("www reads %v", www)
+	}
+	for _, p := range www.GetProbes() {
+		if !p.GetOpen() {
+			t.Errorf("www's probe of %s reads %v", p.GetPath(), p)
+		}
 	}
 }

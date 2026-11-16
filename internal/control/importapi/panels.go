@@ -8,12 +8,14 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"net/url"
 	"regexp"
 	"slices"
 	"strings"
 	"sync"
 
 	"connectrpc.com/connect"
+	"google.golang.org/protobuf/proto"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
@@ -204,6 +206,12 @@ func panelSteps(w panel, found *dockwellv1.Panel) ([]*dockwellv1.ImportStep, []*
 			}
 			if why := routeLeft(found, a, rt); why != "" {
 				leave(step, fmt.Sprintf("It doesn't come as a route, as %s, so it stops answering once %s hands over ports 80 and 443.", why, w.proxy))
+			} else if rd := rt.GetRedirect(); rd != nil {
+				step.Becomes = "a route that redirects to " + rd.GetTo()
+				if rd.GetTemporary() {
+					step.Becomes += ", for a while (302), as it does now"
+				}
+				step.Reason = fmt.Sprintf("It comes once %s hands over ports 80 and 443, a step of its own, after %s is taken on.", w.proxy, a.GetName())
 			} else {
 				step.Becomes = fmt.Sprintf("a route to %s on port %d", rt.GetService(), rt.GetPort())
 				step.Reason = fmt.Sprintf("It comes once %s hands over ports 80 and 443, a step of its own, after %s is taken on.", w.proxy, a.GetName())
@@ -624,6 +632,17 @@ func (h *Handler) readHandover(ctx context.Context, server string, pk dockwellv1
 		}
 		ho.checks = append(ho.checks, pc)
 	}
+	// A redirect to a domain held here would land on nothing once the proxy stops, as
+	// the agent says of one it holds itself, so it can't be chosen either (ADR 0070).
+	for _, pc := range ho.checks {
+		to := redirectHost(pc.GetRedirectsTo())
+		if pc.GetHeld() != "" || to == "" {
+			continue
+		}
+		if slices.ContainsFunc(ho.checks, func(c *dockwellv1.PanelDomainCheck) bool { return c.GetDomain() == to && c.GetHeld() != "" }) {
+			pc.Held = fmt.Sprintf("it redirects to %s, which stays behind", to)
+		}
+	}
 	return ho, nil
 }
 
@@ -668,6 +687,13 @@ func (h *Handler) PlanPanelDomains(ctx context.Context, req *connect.Request[doc
 		case ho.checks[i].GetHeld() != "":
 			return nil, authapi.ReasonError(connect.CodeFailedPrecondition,
 				fmt.Errorf("%s stays behind: %s. Choose only domains nothing was found for", d, ho.checks[i].GetHeld()), "domain_held")
+		}
+		// A redirect to a domain of the proxy's that isn't chosen would land on
+		// nothing once the proxy stops (ADR 0070).
+		if to := redirectHost(ho.checks[i].GetRedirectsTo()); to != "" && !slices.Contains(chosen, to) &&
+			slices.ContainsFunc(ho.checks, func(c *dockwellv1.PanelDomainCheck) bool { return c.GetDomain() == to }) {
+			return nil, authapi.ReasonError(connect.CodeFailedPrecondition,
+				fmt.Errorf("%s redirects to %s, which stops answering once %s stops, as it isn't chosen. Choose %s too, or leave %s", d, to, w.proxy, to, d), "redirect_left")
 		}
 	}
 	var edits []*dockwellv1.Edit
@@ -798,6 +824,11 @@ func (h *Handler) panelRoutes(ctx context.Context, r *containers.Running, found 
 			}
 			pr.environment = env
 			pr.route = &resourcev1.Route{Domain: rt.GetDomain(), Path: rt.GetPath(), Service: svc, Port: rt.GetPort()}
+			if rd := rt.GetRedirect(); rd != nil {
+				// It answers with the redirect its router did, in the app's environment,
+				// and sends to no service (ADR 0070).
+				pr.route = &resourcev1.Route{Domain: rt.GetDomain(), Path: rt.GetPath(), Redirect: proto.CloneOf(rd)}
+			}
 			for _, existing := range have[env] {
 				pr.done = pr.done || existing.GetDomain() == rt.GetDomain() && existing.GetPath() == rt.GetPath()
 			}
@@ -892,13 +923,22 @@ func routeLeft(found *dockwellv1.Panel, a *dockwellv1.PanelApp, rt *dockwellv1.P
 		return a.GetName() + " stays where it is"
 	case rt.GetLeft() != "":
 		return rt.GetLeft() + ". Add it from " + a.GetName() + "'s page once it's taken on"
-	case rt.GetPort() == 0:
+	case rt.GetPort() == 0 && rt.GetRedirect() == nil:
 		return "the proxy's labels don't say which port it goes to. Add it from " + a.GetName() + "'s page once it's taken on"
 	}
 	if err := route.CheckPath(rt.GetPath()); rt.GetPath() != "" && err != nil {
 		return "its path can't be a route's: " + strings.TrimSuffix(err.Error(), ".")
 	}
 	return ""
+}
+
+// redirectHost is the host of a check's redirect, or "".
+func redirectHost(to string) string {
+	u, err := url.Parse(to)
+	if err != nil {
+		return ""
+	}
+	return strings.ToLower(u.Hostname())
 }
 
 // unrouted are an app's domains the proxy's labels or files give no route for.

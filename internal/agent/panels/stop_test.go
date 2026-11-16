@@ -211,6 +211,17 @@ func TestStoppingThePanelsProxyAlone(t *testing.T) {
 			t.Errorf("%s: the stop = %v", name, err)
 		}
 	}
+	// A control plane older than this agent digests a redirect as no redirect, so
+	// planning again would refuse again; a redirect turned on since a current plan
+	// reads the same. It names both ways out (the slice 4 re-check's N2).
+	older := Stopper{Docker: e.Client(), Check: func(context.Context, string, []string) (Checked, error) {
+		return Checked{Evidence: "e2", Redirects: []string{"www.blog.example.com"}, AsBefore: "e1"}, nil
+	}}
+	if err := older.ApplyPanel(t.Context(), *plan, func(string) {}); err == nil ||
+		!strings.Contains(err.Error(), "www.blog.example.com redirects now, which the plan didn't read. Plan the handover again; if it's refused the same way, the control plane is older than this agent") ||
+		!e.Container("coolify-proxy").State.Running {
+		t.Errorf("a plan an older control plane made of a redirect = %v", err)
+	}
 	unchosen := *plan
 	unchosen.Domains, unchosen.Evidence = nil, ""
 	if err := s.ApplyPanel(t.Context(), unchosen, func(string) {}); err == nil || !strings.Contains(err.Error(), "names no domains") {
@@ -326,8 +337,8 @@ func TestAStartGivesEachItsOwnPolicy(t *testing.T) {
 }
 
 // checksAs is a check of a handover's domains that finds evidence, or fails.
-func checksAs(evidence string, err error) func(context.Context, string, []string) (string, error) {
-	return func(context.Context, string, []string) (string, error) { return evidence, err }
+func checksAs(evidence string, err error) func(context.Context, string, []string) (Checked, error) {
+	return func(context.Context, string, []string) (Checked, error) { return Checked{Evidence: evidence}, err }
 }
 
 // A scale to none waits for the service's task to stop, as Swarm stops it a while

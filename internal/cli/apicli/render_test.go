@@ -1310,11 +1310,13 @@ func TestADomainCheckSaysWhatCanBeHandedOver(t *testing.T) {
 	var buf bytes.Buffer
 	Render(&buf, &dockwellv1.CheckPanelDomainsResponse{Domains: []*dockwellv1.PanelDomainCheck{
 		{Domain: "blog.example.com", Scanned: "labels on 4 containers and 0 services, and 2 files in the proxy's mounts", Probes: []*dockwellv1.PanelProbe{{Path: "/", Answer: "200", Open: true}}},
+		{Domain: "www.blog.example.com", RedirectsTo: "https://blog.example.com", Probes: []*dockwellv1.PanelProbe{{Path: "/", Answer: "301 to blog.example.com, as its redirect does", Open: true}}},
 		{Domain: "wiki.example.com", Held: "a request for / through the proxy answered 401"},
 	}}, time.Now())
 	out := buf.String()
 	for _, says := range []string{
-		"No login or address limit found, so each can be handed over (dockwell import domains --domains):\n  blog.example.com  / 200\n",
+		"No login or address limit found, so each can be handed over (dockwell import domains --domains):\n  blog.example.com      / 200\n",
+		"  www.blog.example.com  redirects to https://blog.example.com: / 301 to blog.example.com, as its redirect does\n",
 		"Stays behind:\n  wiki.example.com  a request for / through the proxy answered 401\n",
 		"Checked labels on 4 containers and 0 services, and 2 files in the proxy's mounts, and asked the proxy for each.\n",
 	} {

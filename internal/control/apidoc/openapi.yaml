@@ -20376,6 +20376,17 @@ components:
                     description: |-
                         The address the proxy was asked from, such as "203.0.113.10". An address
                          limit that lets it in, or the private networks it's on, can't be seen.
+                redirectsTo:
+                    type: string
+                    description: |-
+                        Where its route redirects, such as "https://example.com", where it comes as a
+                         redirect: the proxy is expected to answer with that redirect, and anything
+                         else holds it back (ADR 0070).
+                redirectTemporary:
+                    type: boolean
+                    description: |-
+                        Whether that redirect is for a while (302) rather than for good (301): the
+                         proxy is expected to answer with the same kind (ADR 0070).
             description: |-
                 PanelDomainCheck is what Dockwell checked of a domain a panel's proxy serves,
                  before a handover.
@@ -20456,6 +20467,14 @@ components:
                         Why it can't come as a plain route, or empty where it can: a middleware or a
                          directive a route would drop, such as a login or an allowlist, so what it
                          guards would answer anyone, a stripped path, or a rule a route can't say.
+                redirect:
+                    allOf:
+                        - $ref: '#/components/schemas/RouteRedirect'
+                    description: |-
+                        Where it redirects every request, where its router does so to its other
+                         half, www.example.com to example.com or the other way round, keeping the
+                         path: it comes as a route that answers with that redirect, not one to the
+                         container (ADR 0070).
             description: |-
                 PanelRoute is a domain the panel's proxy sends to one of an app's containers,
                  read from the proxy's labels on it.

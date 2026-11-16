@@ -88,6 +88,11 @@ type PanelCheck struct {
 	// AskedFrom is the address the proxy was asked from, which an address limit
 	// that lets it in doesn't show. It's no part of the evidence either.
 	AskedFrom string
+	// RedirectsTo is where its route redirects, where it comes as a redirect: the
+	// proxy was expected to answer with it (ADR 0070).
+	RedirectsTo string
+	// RedirectTemporary says that redirect is for a while (302), not for good.
+	RedirectTemporary bool
 }
 
 // PanelProbe is a request through a panel's proxy for a domain's path.
@@ -126,6 +131,10 @@ func PanelEvidence(checks []PanelCheck, domains []string) string {
 			continue
 		}
 		fmt.Fprintf(h, "domain %q held %q\n", d, c.Held)
+		if c.RedirectsTo != "" {
+			// Only where it redirects, so the digest of every other reads as before.
+			fmt.Fprintf(h, "  redirects to %q temporary %t\n", c.RedirectsTo, c.RedirectTemporary)
+		}
 		mentions := slices.Clone(c.Mentions)
 		slices.Sort(mentions)
 		for _, m := range mentions {

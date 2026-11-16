@@ -12537,6 +12537,9 @@ msgstr "未发现登录或地址限制"
 msgid "Nothing left to hand over"
 msgstr "没有可接管的域名"
 
+msgid "Redirects to {to}"
+msgstr "重定向到 {to}"
+
 msgid "1Panel isn't on this server"
 msgstr "此服务器上没有 1Panel"
 

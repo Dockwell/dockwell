@@ -9,6 +9,7 @@
 package panels
 
 import (
+	"bytes"
 	"cmp"
 	"context"
 	"errors"
@@ -26,6 +27,7 @@ import (
 	"syscall"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
+	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/resource"
@@ -398,33 +400,38 @@ func routesFrom(l map[string]string, container string, files map[string]string, 
 	l = foldTraefik(l)
 	service := l[labelService]
 	var out []*dockwellv1.PanelRoute
-	add := func(router, host, path string, port uint32, left string) {
-		built.add(owner, router, host)
+	merged := newRouteMerger()
+	add := func(lr labelRoute) {
+		built.add(owner, lr.router, lr.host)
+		host, path := lr.host, lr.path
 		if path == "/" {
 			path = ""
 		}
 		for _, r := range out {
 			if r.GetDomain() == host && r.GetPath() == path {
 				if r.GetPort() == 0 {
-					r.Port = port
+					r.Port = lr.port
 				}
 				// What one router of it can't bring, the domain can't: an HTTPS
 				// router behind a login and an HTTP one that redirects are one site.
-				r.Left = cmp.Or(r.GetLeft(), left)
+				r.Left = cmp.Or(r.GetLeft(), lr.left)
+				merged.add(r, lr.redirect, lr.upgrades)
 				return
 			}
 		}
-		out = append(out, &dockwellv1.PanelRoute{Domain: host, Path: path, Container: container, Service: service, Port: port, Left: left})
+		r := &dockwellv1.PanelRoute{Domain: host, Path: path, Container: container, Service: service, Port: lr.port, Left: lr.left}
+		merged.add(r, lr.redirect, lr.upgrades)
+		out = append(out, r)
 	}
 	if traefikOn(l) {
 		for _, r := range traefikRoutes(l, files) {
-			add(r.router, r.host, r.path, r.port, r.left)
+			add(r)
 		}
 	}
 	for _, r := range caddyRoutes(l) {
-		add(r.router, r.host, r.path, r.port, r.left)
+		add(r)
 	}
-	return sameDomainLeft(out)
+	return settle(out)
 }
 
 // sameDomainLeft keeps every route of a domain behind where one is: a plain route
@@ -449,6 +456,10 @@ func sameDomainLeft(routes []*dockwellv1.PanelRoute) []*dockwellv1.PanelRoute {
 type labelRoute struct {
 	host, path, left string
 	port             uint32
+	// redirect is where it redirects every request, where its router sends it to
+	// its other half; upgrades says its router sends plain HTTP to HTTPS first.
+	redirect *resourcev1.RouteRedirect
+	upgrades bool
 	// router is what it came from: traefik.http.routers.<name>, or the Caddy
 	// label, such as caddy_0.
 	router string
@@ -489,11 +500,18 @@ func traefikRoutes(l, files map[string]string) []labelRoute {
 				}
 			}
 		}
+		middlewares := strings.Split(l[at+"middlewares"], ",")
 		if left == "" {
-			left = middlewaresLeft(l, strings.Split(l[at+"middlewares"], ","), files)
+			left = middlewaresLeft(l, middlewares, files, "docker")
 		}
 		for _, h := range hosts {
-			out = append(out, labelRoute{host: h, path: prefix, port: port, left: left, router: "traefik.http.routers." + router})
+			lr := labelRoute{host: h, path: prefix, port: port, left: left, router: "traefik.http.routers." + router}
+			if left == "" {
+				var why string
+				lr.redirect, lr.upgrades, why = routerRedirect(l, middlewares, files, "docker", h, strings.Split(l[at+"entrypoints"], ","))
+				lr.left = why
+			}
+			out = append(out, lr)
 		}
 	}
 	return out
@@ -545,59 +563,47 @@ var plainRuleForm = sync.OnceValue(func() *regexp.Regexp {
 
 // middlewaresLeft says why a router's middlewares keep its domain from coming as a
 // plain route, or "" where each is one a route can do without. A middleware
-// defined elsewhere, as in a file of the proxy's, can't be read, so it can't be
-// told harmless either.
-func middlewaresLeft(l map[string]string, list []string, files map[string]string) string {
+// defined elsewhere, as in a file of the proxy's other than the ones read, can't be
+// read, so it can't be told harmless either. own is the provider the router is in,
+// where one named without a provider is looked for.
+func middlewaresLeft(l map[string]string, list []string, files map[string]string, own string) string {
 	for _, m := range list {
 		ref := strings.ToLower(strings.TrimSpace(m))
 		name, provider, _ := strings.Cut(ref, "@")
 		if name == "" {
 			continue
 		}
-		kind, ok := "", false
-		switch provider {
-		case "", "docker", "swarm":
-			// Defined in the labels of what it routes, as one with no provider is
-			// looked for first, and read in full there.
-			for k := range l {
-				if rest, found := strings.CutPrefix(k, "traefik.http.middlewares."+name+"."); found {
-					kind, _, _ = strings.Cut(rest, ".")
-				}
-			}
-			ok = harmlessLabelMiddleware(l, name, kind)
-		case "file":
-			// Defined in the proxy's own files, as Dokploy's redirect-to-https is,
-			// where only its kind is read: one whose settings matter isn't let by.
-			kind = files[name]
-			ok = kind == "redirectscheme" || kind == "compress"
-		}
+		defs, kind := middlewareOf(l, files, own, name, provider)
+		// Of one in the proxy's files, only its kind is read, and a redirect's
+		// settings: a headers middleware there could set what the app reads.
+		inFile := provider == "file" || provider == "" && own == "file"
 		switch {
 		case kind == "":
 			return fmt.Sprintf("it passes through the middleware %s, which Dockwell can't read, so it can't tell what a plain route would drop", ref)
-		case !ok:
+		case kind == definedTwice:
+			return fmt.Sprintf("it passes through the middleware %s, which the proxy's files define more than once, so Dockwell can't tell which runs", ref)
+		case kind == "headers" && inFile, !harmlessMiddleware(defs, name, kind):
 			return fmt.Sprintf("it passes through the middleware %s (%s), which a plain route would drop, so what it guards would answer anyone", name, kind)
 		}
 	}
 	return ""
 }
 
-// harmlessLabelMiddleware reports a middleware, read in full from labels, that a
-// plain route can do without: a redirect to HTTPS, compression, headers that only
-// set the response's, and a redirect of www as Coolify writes one.
-func harmlessLabelMiddleware(l map[string]string, name, kind string) bool {
+// harmlessMiddleware reports a middleware a plain route can do without, or says
+// in its own way: a redirect to HTTPS, compression, headers that only set the
+// response's, read in full from labels, and a redirect to or from www, which
+// routerRedirect reads as what it does to each domain.
+func harmlessMiddleware(defs map[string]string, name, kind string) bool {
 	switch kind {
 	case "redirectscheme", "compress":
 		return true
 	case "headers":
-		return onlyResponseHeaders(l, name)
+		return defs != nil && onlyResponseHeaders(defs, name)
 	case "redirectregex":
-		return slices.Contains(coolifyWWW, l["traefik.http.middlewares."+name+".redirectregex.regex"])
+		return slices.Contains(wwwRegexes, defs["traefik.http.middlewares."+name+".redirectregex.regex"])
 	}
 	return false
 }
-
-// coolifyWWW are the regular expressions of Coolify's redirects to and from www.
-var coolifyWWW = []string{`^(http|https)://www\.(.+)`, `^(http|https)://(?:www\.)?(.+)`}
 
 // onlyResponseHeaders reports a headers middleware that sets only what the
 // response carries, as Coolify's noindex does: nothing the app reads or trusts.
@@ -616,7 +622,7 @@ func caddyRoutes(l map[string]string) []labelRoute {
 		if !caddyLabel().MatchString(k) {
 			continue
 		}
-		port, prefix, left := uint32(0), "", ""
+		port, prefix, left, redir, redirs := uint32(0), "", "", "", 0
 		handles := map[string]bool{}
 		for sub, v := range l {
 			rest, ok := strings.CutPrefix(sub, k+".")
@@ -642,9 +648,8 @@ func caddyRoutes(l map[string]string) []labelRoute {
 				}
 				port = portOf(m[1])
 			case last == "redir" && len(segs) == 1:
-				if !caddyRedirect().MatchString(strings.TrimSpace(v)) {
-					left = cmp.Or(left, "its Caddy labels redirect it in a way a route can't say")
-				}
+				// What it does to each address is read below, for each: one alone.
+				redir, redirs = v, redirs+1
 			}
 			if len(segs) == 1 && (first == "handle_path" || first == "handle") {
 				if p := strings.TrimSuffix(strings.TrimSpace(v), "*"); p != "" && p != "/" {
@@ -658,6 +663,11 @@ func caddyRoutes(l map[string]string) []labelRoute {
 		if len(handles) > 1 {
 			left = cmp.Or(left, "its Caddy labels handle more than one path, which a route can't say")
 		}
+		if redirs > 1 {
+			// Which runs for which request is Caddy's order of them, and one may be a
+			// path's alone, which a route can't say.
+			left = cmp.Or(left, "its Caddy labels redirect it more than once, which a route can't say")
+		}
 		for _, a := range strings.FieldsFunc(l[k], func(r rune) bool { return r == ',' || r == ' ' }) {
 			h := hostOf(a)
 			if h == "" {
@@ -667,7 +677,11 @@ func caddyRoutes(l map[string]string) []labelRoute {
 			if siteHasPath(a) {
 				why = cmp.Or(why, "its Caddy address names a path, which Dockwell doesn't read as a route")
 			}
-			out = append(out, labelRoute{host: h, path: prefix, port: port, left: why, router: k})
+			var rd *resourcev1.RouteRedirect
+			if redir != "" && why == "" {
+				rd, why = caddyRedirectOf(h, redir)
+			}
+			out = append(out, labelRoute{host: h, path: prefix, port: port, left: why, router: k, redirect: rd})
 		}
 	}
 	return out
@@ -688,12 +702,6 @@ func siteHasPath(a string) bool {
 // and nothing else.
 var plainUpstreams = sync.OnceValue(func() *regexp.Regexp {
 	return regexp.MustCompile(`^\{\{upstreams(?: (?:http|https|h2c))? (\d+)\}\}$`)
-})
-
-// caddyRedirect is a redirect as Coolify writes one, to the same or the www name
-// of a host, keeping the request's path.
-var caddyRedirect = sync.OnceValue(func() *regexp.Regexp {
-	return regexp.MustCompile(`^(?:https?|\{scheme\})://[a-z0-9.-]+\{uri\}(?: permanent)?$`)
 })
 
 // Caddy's directives a plain route can do without, as Coolify writes them: those
@@ -824,6 +832,7 @@ func (r Reader) dynamicRoutesFrom(app, task string, files map[string]string, bui
 		unread = fmt.Sprintf("its file %s names %d rules, and Dockwell reads %d of them", at, named, f.rules)
 	}
 	var out []*dockwellv1.PanelRoute
+	merged := newRouteMerger()
 	for _, name := range f.order {
 		rt := f.routers[name]
 		if rt.top != "http" {
@@ -842,18 +851,25 @@ func (r Reader) dynamicRoutesFrom(app, task string, files map[string]string, bui
 			}
 		}
 		if left == "" {
-			left = middlewaresLeft(nil, rt.middlewares, files)
+			left = middlewaresLeft(nil, rt.middlewares, files, "file")
 		}
 		left = cmp.Or(unread, left)
 		for _, h := range hosts {
 			if unread == "" {
 				built.add("file:"+at, name, h)
 			}
+			why, rd, upgrades := left, (*resourcev1.RouteRedirect)(nil), false
+			if why == "" {
+				rd, upgrades, why = routerRedirect(nil, rt.middlewares, files, "file", h, rt.entrypoints)
+			}
 			if i := slices.IndexFunc(out, func(o *dockwellv1.PanelRoute) bool { return o.GetDomain() == h && o.GetPath() == prefix }); i >= 0 {
-				out[i].Left = cmp.Or(out[i].GetLeft(), left)
+				out[i].Left = cmp.Or(out[i].GetLeft(), why)
+				merged.add(out[i], rd, upgrades)
 				continue
 			}
-			out = append(out, &dockwellv1.PanelRoute{Domain: h, Path: prefix, Container: task, Service: app, Port: f.ports[rt.service], Left: left})
+			r := &dockwellv1.PanelRoute{Domain: h, Path: prefix, Container: task, Service: app, Port: f.ports[rt.service], Left: why}
+			merged.add(r, rd, upgrades)
+			out = append(out, r)
 		}
 	}
 	if unread != "" {
@@ -868,7 +884,7 @@ func (r Reader) dynamicRoutesFrom(app, task string, files map[string]string, bui
 			}
 		}
 	}
-	return sameDomainLeft(out)
+	return settle(out)
 }
 
 // traefikFile is what a file of Traefik's dynamic configuration says, as far as a
@@ -880,6 +896,12 @@ type traefikFile struct {
 	order       []string
 	ports       map[string]uint32
 	middlewares map[string]string
+	// settings are a redirectRegex's regex, replacement and permanent, keyed as
+	// labels name them, traefik.http.middlewares.<name>.redirectregex.<field>, so
+	// a redirect to or from www reads alike from both.
+	settings map[string]string
+	// twice are the middlewares it defines more than once, by name in lower case.
+	twice map[string]bool
 	// rules is how many routers it read a rule of, in any section.
 	rules int
 }
@@ -912,7 +934,7 @@ var ruleKey = sync.OnceValue(func() *regexp.Regexp { return regexp.MustCompile(`
 // write them, line by line: a rule folded onto the next line, as YAML's >- writes
 // a long one, reads as one.
 func readTraefikFile(b []byte) traefikFile {
-	f := traefikFile{routers: map[string]*fileRouter{}, ports: map[string]uint32{}, middlewares: map[string]string{}}
+	f := traefikFile{routers: map[string]*fileRouter{}, ports: map[string]uint32{}, middlewares: map[string]string{}, settings: map[string]string{}, twice: map[string]bool{}}
 	top, section, current, list, field := "", "", "", "", ""
 	// Where a router's fields stand, and its tls's, as the first line deeper than
 	// the router's, and than its tls, has them; and where a folded rule's key is.
@@ -949,6 +971,14 @@ func readTraefikFile(b []byte) traefikFile {
 			}
 		case indent == 4 && value == "" && !strings.HasPrefix(trimmed, "-"):
 			current, list, field, fieldAt, tlsAt = key, "", "", -1, -1
+			if section == "middlewares" {
+				// A name its file gives twice is noted, its kind read from the first.
+				if _, again := f.middlewares[key]; again {
+					f.twice[strings.ToLower(key)] = true
+				} else {
+					f.middlewares[key] = ""
+				}
+			}
 			if section == "routers" {
 				// By its section too: an HTTP router and a TCP one may share a name.
 				current = top + ".routers." + key
@@ -959,6 +989,9 @@ func readTraefikFile(b []byte) traefikFile {
 			}
 		case section == "middlewares" && current != "" && indent == 6 && f.middlewares[current] == "":
 			f.middlewares[current] = strings.ToLower(key)
+		case section == "middlewares" && current != "" && indent == 8 && f.middlewares[current] == "redirectregex":
+			_, raw, _ := strings.Cut(line, ":")
+			f.settings["traefik.http.middlewares."+strings.ToLower(current)+".redirectregex."+lower] = yamlScalar(raw)
 		case section == "routers" && current != "" && list != "" && strings.HasPrefix(trimmed, "- "):
 			f.routers[current].add(list, strings.Trim(strings.TrimSpace(trimmed[2:]), `"'`))
 		case section == "routers" && current != "" && (lower == "middlewares" || lower == "entrypoints"):
@@ -1035,10 +1068,68 @@ func (r *fileRouter) add(list, entry string) {
 // redirect-to-https, in its middlewares.yml, is a redirectScheme.
 func (r Reader) fileMiddlewares(kind dockwellv1.PanelKind) map[string]string {
 	out := map[string]string{}
+	twice := map[string]bool{}
+	var raw [][]byte
 	for _, f := range r.proxyFiles(kind) {
-		maps.Copy(out, readTraefikFile(r.panelFile(f)).middlewares)
+		b := r.panelFile(f)
+		raw = append(raw, b)
+		read := readTraefikFile(b)
+		for name, k := range read.middlewares {
+			name = strings.ToLower(name)
+			if _, again := out[name]; again || read.twice[name] {
+				twice[name] = true
+			}
+			out[name] = k
+		}
+		maps.Copy(out, read.settings)
+	}
+	// The reader takes YAML's block style at the indents Traefik's files are written
+	// with, but Traefik decodes any YAML: four spaces, flow style, JSON, a quoted
+	// key. So each name read is counted again as a key in every file's own text,
+	// in any of those, and one written more than once, however, reads as defined
+	// twice. A router or a setting of the same name counts too, which only holds
+	// more than it need.
+	for name := range out {
+		if strings.Contains(name, ".") || twice[name] {
+			continue
+		}
+		key := regexp.MustCompile(`(?mi)(?:^|[\s{,])["']?` + regexp.QuoteMeta(name) + `["']?\s*:`)
+		n := 0
+		for _, b := range raw {
+			n += len(key.FindAll(b, -1))
+		}
+		if n > 1 {
+			twice[name] = true
+		}
+	}
+	// Traefik runs the first definition of a name, in the order it reads its files,
+	// and skips the rest: which that is can't be told for sure from here, so a name
+	// defined more than once reads as neither, and holds what passes through it.
+	for name := range twice {
+		out[name] = definedTwice
 	}
 	return out
+}
+
+// definedTwice is what fileMiddlewares says a middleware is that the proxy's files
+// define more than once.
+const definedTwice = "defined more than once"
+
+// yamlScalar is a scalar of YAML's as a file of Traefik's writes one: plain,
+// single-quoted with a quote written twice, or double-quoted with escapes, as Go writes
+// them. One Dockwell can't read comes back as written, which reads as no
+// redirect it knows.
+func yamlScalar(raw string) string {
+	v := strings.TrimSpace(raw)
+	switch {
+	case len(v) >= 2 && v[0] == '\'' && v[len(v)-1] == '\'':
+		return strings.ReplaceAll(v[1:len(v)-1], "''", "'")
+	case len(v) >= 2 && v[0] == '"' && v[len(v)-1] == '"':
+		if u, err := strconv.Unquote(v); err == nil {
+			return u
+		}
+	}
+	return v
 }
 
 // proxyFiles are the files of a panel's proxy's dynamic configuration: Coolify's
@@ -1061,7 +1152,9 @@ func (r Reader) proxyFiles(kind dockwellv1.PanelKind) []string {
 	}
 	var out []string
 	for _, e := range entries {
-		if len(out) < maxOwnFiles && e.Type().IsRegular() && (strings.HasSuffix(e.Name(), ".yaml") || strings.HasSuffix(e.Name(), ".yml")) {
+		// Traefik takes the extension in any case, A-LIMIT.YML too.
+		ext := strings.ToLower(filepath.Ext(e.Name()))
+		if len(out) < maxOwnFiles && e.Type().IsRegular() && (ext == ".yaml" || ext == ".yml") {
 			out = append(out, path.Join(dir, e.Name()))
 		}
 	}
@@ -1304,6 +1397,11 @@ func (r Reader) filesLeft(kind dockwellv1.PanelKind) string {
 		if strings.Contains(strings.ToLower(string(b)), "clientauth") {
 			return fmt.Sprintf("a TLS option in the proxy's file %s asks clients for a certificate", at)
 		}
+		// Traefik renders each file as a Go template before it reads it, so what one
+		// with {{ says is known only once it's rendered.
+		if bytes.Contains(b, []byte("{{")) {
+			return fmt.Sprintf("the proxy's file %s is a template, which Traefik fills in and Dockwell can't read", at)
+		}
 	}
 	return ""
 }
@@ -1411,7 +1509,7 @@ func entryMiddlewaresLeft(list []string, files map[string]string) string {
 		if name == "" {
 			continue
 		}
-		if kind := files[name]; provider == "file" && (kind == "redirectscheme" || kind == "compress") {
+		if kind := files[name]; provider == "file" && !strings.Contains(name, ".") && (kind == "redirectscheme" || kind == "compress") {
 			continue
 		}
 		return fmt.Sprintf("the proxy passes every request on an entrypoint through the middleware %s, which a route would drop", ref)
