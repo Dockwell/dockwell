@@ -468,7 +468,9 @@ export type AvailableUpdate = Message<"dockwell.v1.AvailableUpdate"> & {
   releaseTime?: Timestamp | undefined;
 
   /**
-   * When Dockwell first found it.
+   * When Dockwell first found it. For a catalog release, when the install's
+   * source moved to it, which an automatic update waits 3 days from before it
+   * takes it (ADR 0080).
    *
    * @generated from field: google.protobuf.Timestamp found_time = 9;
    */

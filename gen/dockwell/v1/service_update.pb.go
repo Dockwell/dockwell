@@ -1006,7 +1006,9 @@ type AvailableUpdate struct {
 	// When to_version came out, or its image was pushed, where its registry or
 	// catalog says. Unset where they don't.
 	ReleaseTime *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=release_time,json=releaseTime,proto3" json:"release_time,omitempty"`
-	// When Dockwell first found it.
+	// When Dockwell first found it. For a catalog release, when the install's
+	// source moved to it, which an automatic update waits 3 days from before it
+	// takes it (ADR 0080).
 	FoundTime *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=found_time,json=foundTime,proto3" json:"found_time,omitempty"`
 	// Where its release notes or changelog are, an https address, where they're
 	// known.

@@ -236,7 +236,9 @@ message AvailableUpdate {
   // When to_version came out, or its image was pushed, where its registry or
   // catalog says. Unset where they don't.
   google.protobuf.Timestamp release_time = 8;
-  // When Dockwell first found it.
+  // When Dockwell first found it. For a catalog release, when the install's
+  // source moved to it, which an automatic update waits 3 days from before it
+  // takes it (ADR 0080).
   google.protobuf.Timestamp found_time = 9;
   // Where its release notes or changelog are, an https address, where they're
   // known.
