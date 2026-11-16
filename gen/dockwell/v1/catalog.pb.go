@@ -682,8 +682,15 @@ type CatalogNeedOption struct {
 	UpgradeInstall string `protobuf:"bytes,42,opt,name=upgrade_install,json=upgradeInstall,proto3" json:"upgrade_install,omitempty"`
 	UpgradeRelease uint32 `protobuf:"varint,43,opt,name=upgrade_release,json=upgradeRelease,proto3" json:"upgrade_release,omitempty"`
 	UpgradeApp     string `protobuf:"bytes,44,opt,name=upgrade_app,json=upgradeApp,proto3" json:"upgrade_app,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// A connection that meets it, by name, as choice names it ("connection:<name>"),
+	// and what the panel calls it, such as "Cloudflare R2 · outline-uploads": one the
+	// app's project may use, of the need's kind (ADR 0099). Below an admin, a
+	// connection reads by name and label alone. Numbered in the block ADR 0099's
+	// installs hold, 90 to 99.
+	Connection      string `protobuf:"bytes,90,opt,name=connection,proto3" json:"connection,omitempty"`
+	ConnectionLabel string `protobuf:"bytes,91,opt,name=connection_label,json=connectionLabel,proto3" json:"connection_label,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *CatalogNeedOption) Reset() {
@@ -838,6 +845,20 @@ func (x *CatalogNeedOption) GetUpgradeRelease() uint32 {
 func (x *CatalogNeedOption) GetUpgradeApp() string {
 	if x != nil {
 		return x.UpgradeApp
+	}
+	return ""
+}
+
+func (x *CatalogNeedOption) GetConnection() string {
+	if x != nil {
+		return x.Connection
+	}
+	return ""
+}
+
+func (x *CatalogNeedOption) GetConnectionLabel() string {
+	if x != nil {
+		return x.ConnectionLabel
 	}
 	return ""
 }
@@ -3518,7 +3539,7 @@ const file_dockwell_v1_catalog_proto_rawDesc = "" +
 	"\x05needs\x18P \x03(\v2\x1e.dockwell.v1.CatalogNeedOptionR\x05needs\x1a9\n" +
 	"\vValuesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xbe\x04\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x89\x05\n" +
 	"\x11CatalogNeedOption\x12\x12\n" +
 	"\x04need\x18\x01 \x01(\tR\x04need\x12\x16\n" +
 	"\x06choice\x18\x02 \x01(\tR\x06choice\x129\n" +
@@ -3544,7 +3565,11 @@ const file_dockwell_v1_catalog_proto_rawDesc = "" +
 	"\x0fupgrade_install\x18* \x01(\tR\x0eupgradeInstall\x12'\n" +
 	"\x0fupgrade_release\x18+ \x01(\rR\x0eupgradeRelease\x12\x1f\n" +
 	"\vupgrade_app\x18, \x01(\tR\n" +
-	"upgradeApp\"\xf9\x03\n" +
+	"upgradeApp\x12\x1e\n" +
+	"\n" +
+	"connection\x18Z \x01(\tR\n" +
+	"connection\x12)\n" +
+	"\x10connection_label\x18[ \x01(\tR\x0fconnectionLabel\"\xf9\x03\n" +
 	"\vCatalogPart\x12\x18\n" +
 	"\aservice\x18\x01 \x01(\tR\aservice\x12\x14\n" +
 	"\x05image\x18\x02 \x01(\tR\x05image\x12\x1a\n" +

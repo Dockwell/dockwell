@@ -58,7 +58,20 @@ type Saved struct {
 
 // All reads every saved connection, sorted by name.
 func (c *Connections) All(ctx context.Context) ([]Saved, error) {
+	out, _, err := c.read(ctx, false)
+	return out, err
+}
+
+// Readable is every saved connection the control plane can open, and the names of
+// those it can't, as one saved under a secrets key it no longer holds: one of them
+// leaves out that connection alone, not every connection for everyone.
+func (c *Connections) Readable(ctx context.Context) ([]Saved, []string, error) {
+	return c.read(ctx, true)
+}
+
+func (c *Connections) read(ctx context.Context, skip bool) ([]Saved, []string, error) {
 	var out []Saved
+	var unread []string
 	err := c.db.View(ctx, func(tx *store.Tx) error {
 		stored, err := tx.ListKind(ctx, string(connection.Kind))
 		if err != nil {
@@ -70,6 +83,10 @@ func (c *Connections) All(ctx context.Context) ([]Saved, error) {
 				continue
 			}
 			spec, err := c.keeper.Decode(ctx, tx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec)
+			if err != nil && skip {
+				unread = append(unread, r.Name)
+				continue
+			}
 			if err != nil {
 				return fmt.Errorf("can't read the connection %s: %w", r.Name, err)
 			}
@@ -80,7 +97,8 @@ func (c *Connections) All(ctx context.Context) ([]Saved, error) {
 		return nil
 	})
 	slices.SortFunc(out, func(a, b Saved) int { return strings.Compare(a.Name, b.Name) })
-	return out, err
+	slices.Sort(unread)
+	return out, unread, err
 }
 
 // Uses reads what reads each connection, by its name: each link to it, in its

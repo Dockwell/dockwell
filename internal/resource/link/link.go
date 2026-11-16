@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -310,4 +311,37 @@ func compare(a, b []int) int {
 		}
 	}
 	return 0
+}
+
+// PrefixesMeet says two prefixes in one bucket overlap: they're the same, or one
+// holds the other, as "" holds every prefix and "site/" holds "site/media/". Two
+// links to one connection whose prefixes meet would have their apps overwrite and
+// delete each other's files.
+func PrefixesMeet(a, b string) bool {
+	return strings.HasPrefix(a, b) || strings.HasPrefix(b, a)
+}
+
+// FreePrefix is want, such as "ghost/", if it meets none of taken, and otherwise the
+// first of "ghost-2/", "ghost-3/" and on that meets none. A want of "" (the bucket's
+// root) has no other to offer, nor does any want where a link keeps to the root
+// already, so it stays as it is, for the engine to refuse. Each candidate is one
+// folder whose name no taken prefix has, so the search ends.
+func FreePrefix(want string, taken []string) string {
+	free := func(p string) bool {
+		return !slices.ContainsFunc(taken, func(t string) bool { return PrefixesMeet(p, t) })
+	}
+	if free(want) || want == "" || slices.Contains(taken, "") {
+		return want
+	}
+	// Within a prefix that's taken, no sibling is free either, so it starts again
+	// from want's first folder: "ghost/media/" under "ghost/" becomes "ghost-2/".
+	stem := strings.TrimSuffix(want, "/")
+	if slices.ContainsFunc(taken, func(t string) bool { return strings.HasPrefix(want, t) }) {
+		stem, _, _ = strings.Cut(want, "/")
+	}
+	for i := 2; ; i++ {
+		if p := fmt.Sprintf("%s-%d/", stem, i); free(p) {
+			return p
+		}
+	}
 }

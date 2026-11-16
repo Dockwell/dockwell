@@ -59,6 +59,24 @@ export function freeLinkName(taken: readonly string[]): string {
   for (let i = 2; ; i++) if (!taken.includes(`storage-${i}`)) return `storage-${i}`;
 }
 
+/** Two prefixes in one bucket overlap: the same, or one holds the other, as "" holds all. */
+export function prefixesMeet(a: string, b: string): boolean {
+  return a.startsWith(b) || b.startsWith(a);
+}
+
+/**
+ * The first of want ("outline/"), "outline-2/", "outline-3/" and on that meets no
+ * prefix taken on the connection, as the server picks it. The root, or a connection
+ * with a link at its root, has no other to offer.
+ */
+export function freePrefix(want: string, taken: readonly string[]): string {
+  const free = (p: string) => !taken.some((t) => prefixesMeet(p, t));
+  if (free(want) || want === "" || taken.includes("")) return want;
+  // Within a prefix that's taken no sibling is free, so start from the first folder.
+  const stem = taken.some((t) => want.startsWith(t)) ? want.split("/")[0] : want.replace(/\/$/, "");
+  for (let i = 2; ; i++) if (free(`${stem}-${i}/`)) return `${stem}-${i}/`;
+}
+
 /** The links of an environment there are, from what reads each connection. */
 export function linksIn(connections: readonly ConnectionInfo[], environment: string): string[] {
   return connections.flatMap((c) => c.uses.filter((u) => u.environment === environment).map((u) => u.link));

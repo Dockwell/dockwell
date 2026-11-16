@@ -82,7 +82,17 @@ func (s *Service) ConnectStorage(ctx context.Context, req *connect.Request[dockw
 	}
 	prefix := m.GetPrefix()
 	if prefix == "" {
-		prefix = m.GetApp() + "/"
+		// Under the app's name, or the first after it no other link to the connection
+		// keeps to, as the engine refuses two that meet.
+		uses, err := s.connections.Uses(ctx)
+		if err != nil {
+			return nil, err
+		}
+		var taken []string
+		for _, u := range uses[conn.Name] {
+			taken = append(taken, u.GetPrefix())
+		}
+		prefix = link.FreePrefix(m.GetApp()+"/", taken)
 	}
 	if err := link.CheckPrefix(prefix); err != nil {
 		return nil, authapi.Invalid(err)
@@ -269,6 +279,10 @@ func (s *Service) DisconnectStorage(ctx context.Context, req *connect.Request[do
 	reading := map[string]string{}
 	// The environment's apps, by name, as one that reads a key that goes stops reading it.
 	apps := map[string]*resourcev1.Service{}
+	// The project, by name, and its spec, when it's a catalog install's, whose pin
+	// says a connection meets the need the link is named for.
+	var projectName string
+	var project *resourcev1.Project
 	err := s.db.View(ctx, func(tx *store.Tx) error {
 		if err := envOf(ctx, tx, m.GetProject(), m.GetEnvironment(), a); err != nil {
 			return err
@@ -313,6 +327,19 @@ func (s *Service) DisconnectStorage(ctx context.Context, req *connect.Request[do
 				if c := from.GetConnection(); c != nil && c.GetName() == got.GetConnection() && c.GetLink() == m.GetLink() {
 					reading[set.GetName()] = kind
 				}
+			}
+		}
+		pr, err := tx.GetResourceByID(ctx, a.project)
+		if err != nil {
+			return err
+		}
+		if pr.Spec != nil {
+			spec, err := s.connections.keeper.Decode(ctx, tx, store.InRevision(pr.ID, pr.Kind, pr.Revision), pr.Spec)
+			if err != nil {
+				return fmt.Errorf("can't read the project %s: %w", pr.Name, err)
+			}
+			if p, ok := spec.(*resourcev1.Project); ok && p.GetCatalog().GetNeeds()[m.GetLink()].GetConnection() == got.GetConnection() {
+				projectName, project = pr.Name, p
 			}
 		}
 		services, err := tx.ListResources(ctx, a.env, serviceKind)
@@ -393,6 +420,18 @@ func (s *Service) DisconnectStorage(ctx context.Context, req *connect.Request[do
 				Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: svc}},
 			})
 		}
+	}
+	// A catalog install's pin says its need keeps the app's own values from now on,
+	// so no upgrade, an automatic one least of all, links it to the connection again,
+	// and the keys that went stay out of its environment (the slice 1 review, M1).
+	if project != nil {
+		project = proto.CloneOf(project)
+		pinned := project.GetCatalog().GetNeeds()[m.GetLink()]
+		pinned.Connection, pinned.Own, pinned.LeftOut = "", true, slices.Concat(pinned.GetLeftOut(), lost)
+		edits = append(edits, &dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Kind: string(scope.ProjectKind), Scope: a.orgID, Name: projectName},
+			Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Project{Project: project}},
+		})
 	}
 	summary := fmt.Sprintf("Disconnect %s from %s, keeping its values", m.GetLink(), cmp.Or(conn.Spec.GetDisplayName(), conn.Name))
 	if len(lost) > 0 {

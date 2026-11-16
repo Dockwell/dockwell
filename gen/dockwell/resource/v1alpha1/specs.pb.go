@@ -3642,7 +3642,21 @@ type PinnedNeed struct {
 	// docs/adr/0099-every-kind-of-thing-an-app-needs-met-the-same-three-ways.md.
 	Unset bool `protobuf:"varint,90,opt,name=unset,proto3" json:"unset,omitempty"`
 	// The names an unset need leaves out of the app's environment, as the install ran.
-	LeftOut       []string `protobuf:"bytes,91,rep,name=left_out,json=leftOut,proto3" json:"left_out,omitempty"`
+	LeftOut []string `protobuf:"bytes,91,rep,name=left_out,json=leftOut,proto3" json:"left_out,omitempty"`
+	// A connection meets it, by name, through the link named for the need, which
+	// reads the connection's values into the names the need sets: the install keeps
+	// it so through an upgrade (ADR 0099). Numbered in the block ADR 0099's
+	// installs hold, 92 to 99.
+	Connection string `protobuf:"bytes,92,opt,name=connection,proto3" json:"connection,omitempty"`
+	// Where the app's objects go in the connection's bucket, such as "notes/", as
+	// the install chose it: an upgrade keeps it, so the app's objects stay where they
+	// are (ADR 0099).
+	Prefix string `protobuf:"bytes,93,opt,name=prefix,proto3" json:"prefix,omitempty"`
+	// A Disconnect made what a connection gave it the app's own values, which the
+	// install keeps as they are: an upgrade links it to nothing again, and the names
+	// in left_out, keys a Disconnect below an install admin took away, stay out of
+	// the app's environment (ADR 0099).
+	Own           bool `protobuf:"varint,94,opt,name=own,proto3" json:"own,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3780,6 +3794,27 @@ func (x *PinnedNeed) GetLeftOut() []string {
 		return x.LeftOut
 	}
 	return nil
+}
+
+func (x *PinnedNeed) GetConnection() string {
+	if x != nil {
+		return x.Connection
+	}
+	return ""
+}
+
+func (x *PinnedNeed) GetPrefix() string {
+	if x != nil {
+		return x.Prefix
+	}
+	return ""
+}
+
+func (x *PinnedNeed) GetOwn() bool {
+	if x != nil {
+		return x.Own
+	}
+	return false
 }
 
 // Environment is a stage of a project, such as production or staging, with
@@ -9581,7 +9616,7 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\n" +
 	"NeedsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12<\n" +
-	"\x05value\x18\x02 \x01(\v2&.dockwell.resource.v1alpha1.PinnedNeedR\x05value:\x028\x01\"\xa9\x03\n" +
+	"\x05value\x18\x02 \x01(\v2&.dockwell.resource.v1alpha1.PinnedNeedR\x05value:\x028\x01\"\xf3\x03\n" +
 	"\n" +
 	"PinnedNeed\x12>\n" +
 	"\x06engine\x18\x01 \x01(\x0e2&.dockwell.resource.v1alpha1.LinkEngineR\x06engine\x12\x14\n" +
@@ -9599,7 +9634,12 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\bpassword\x18\f \x01(\tR\bpassword\x12\x14\n" +
 	"\x05plain\x18\r \x03(\tR\x05plain\x12\x14\n" +
 	"\x05unset\x18Z \x01(\bR\x05unset\x12\x19\n" +
-	"\bleft_out\x18[ \x03(\tR\aleftOut\"x\n" +
+	"\bleft_out\x18[ \x03(\tR\aleftOut\x12\x1e\n" +
+	"\n" +
+	"connection\x18\\ \x01(\tR\n" +
+	"connection\x12\x16\n" +
+	"\x06prefix\x18] \x01(\tR\x06prefix\x12\x10\n" +
+	"\x03own\x18^ \x01(\bR\x03own\"x\n" +
 	"\vEnvironment\x12!\n" +
 	"\fdisplay_name\x18\x01 \x01(\tR\vdisplayName\x12F\n" +
 	"\n" +

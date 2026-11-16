@@ -669,7 +669,50 @@ type Way struct {
 	// CopyFrom is a database the user made on the server it shares starts as a copy
 	// of, as Use another database copies the app's across.
 	CopyFrom *resourcev1.DatabaseCopy
+	// Connection is a connection that meets a need of its kind, through a link named
+	// for the need (ADR 0099).
+	Connection *ConnectionWay
+	// Own says the app's own values meet the need, as a Disconnect left them: the
+	// install keeps them, and links to nothing (ADR 0099).
+	Own bool
 }
+
+// ConnectionWay is a connection a need may be met by: one the app's project may use, of
+// the need's kind (ADR 0099). Its values reach the app through a link named for the
+// need, read from the connection, never held by the install.
+type ConnectionWay struct {
+	// Name is the connection's, and Label what the panel calls it.
+	Name, Label string
+	// PathStyle says the connection puts the bucket in the path, which a need's
+	// path-style set says in the app's word.
+	PathStyle bool
+	// Prefix is where the app's objects go in the bucket, such as "outline/".
+	Prefix string
+	// Named says the connection is named for the app's environment, as
+	// "uploads-production" is, which makes it the default among several.
+	Named bool
+	// Serves says a link of another app reads it already. A connection serves one
+	// app (ADR 0099), so it's no way to meet a need now, but an install it meets
+	// already keeps it.
+	Serves bool
+}
+
+// servesWhy is why a connection another app reads can't meet a need: it serves one
+// app, and an app that can't keep to a prefix of the bucket would mix its files
+// with the other's. It names no other app, which may be another project's.
+func servesWhy(n *catalogv1.Need) string {
+	if !slices.ContainsFunc(n.GetSets(), func(s *catalogv1.NeedSet) bool { return s.GetPart() == catalogv1.Part_PART_KEY_PREFIX }) {
+		return "it serves another app already, and this app can't keep to a prefix of the bucket, so their files would mix. Add a connection of its own on Connections"
+	}
+	return "it serves another app already, and a connection serves one app. Add a connection of its own on Connections"
+}
+
+// ChoiceConnection starts the choice of a connection, as "connection:uploads".
+const ChoiceConnection = "connection:"
+
+// ChoiceOwn is the way of a need the app's own values meet, as a Disconnect left
+// them. Only a pin gives it.
+const ChoiceOwn = "own"
 
 // Choice is how InstallCatalogEntryRequest.needs names a way, such as "new:mysql",
 // or "service:data/production/db" for a server Dockwell runs already.
@@ -679,6 +722,12 @@ func (w Way) Choice() string {
 	}
 	if w.Unset {
 		return ChoiceUnset
+	}
+	if w.Connection != nil {
+		return ChoiceConnection + w.Connection.Name
+	}
+	if w.Own {
+		return ChoiceOwn
 	}
 	return "new:" + EngineWord(w.Engine)
 }
@@ -799,6 +848,29 @@ func WaysWith(e *catalogv1.Entry, lookup Lookup, candidates []Candidate, on stri
 	return out
 }
 
+// WithConnections adds to ways, after the others, each connection that may meet
+// each of the entry's needs of a kind beyond the databases (ADR 0099), with why it
+// can't where it can't.
+func WithConnections(e *catalogv1.Entry, ways map[string][]Way, conns []ConnectionWay) map[string][]Way {
+	for _, n := range e.GetNeeds() {
+		if n.GetKind() != catalogv1.Kind_KIND_S3 {
+			continue
+		}
+		for i := range conns {
+			c := conns[i]
+			w := Way{Need: n, Connection: &c}
+			switch {
+			case slices.ContainsFunc(n.GetSets(), func(s *catalogv1.NeedSet) bool { return s.GetPart() == catalogv1.Part_PART_URL }):
+				w.Why = "the app reads its storage as a URL, which Dockwell can't write from a connection yet"
+			case c.Serves:
+				w.Why = servesWhy(n)
+			}
+			ways[n.GetName()] = append(ways[n.GetName()], w)
+		}
+	}
+	return ways
+}
+
 func waysNew(e *catalogv1.Entry, lookup Lookup) map[string][]Way {
 	out := map[string][]Way{}
 	services, _ := composeServices(e.GetCompose())
@@ -861,12 +933,28 @@ func Meet(e *catalogv1.Entry, ways map[string][]Way, asked map[string]string, pi
 			continue
 		}
 		choice := asked[name]
-		// New is the default, always: a server is shared only because a person chose it.
-		first := slices.IndexFunc(options, func(w Way) bool { return !w.Shares() })
+		// New is the default, always: a server is shared only because a person chose it,
+		// and a connection where it's the only one the project may use (ADR 0099).
+		first := slices.IndexFunc(options, func(w Way) bool { return !w.Shares() && w.Connection == nil })
+		if first < 0 && choice == "" {
+			if only := onlyConnection(options); only >= 0 {
+				out[name] = options[only]
+				continue
+			}
+		}
 		switch {
 		case (choice == "" || choice == "new") && first < 0:
 			if n.GetKind() != catalogv1.Kind_KIND_UNSPECIFIED {
-				return nil, fmt.Errorf("%s needs %s, %s, which Dockwell can't make beside it yet. Connect one once the app is in, or install an app that keeps it optional", e.GetName(), strings.ToLower(n.GetLabel()), acceptWords(n))
+				// Each says what happened, what that means, and the way out (the slice 1
+				// review, L2).
+				usable := choicesOf(options)
+				switch {
+				case len(usable) > 1 && choice == "":
+					return nil, fmt.Errorf("%s needs %s, and more than one connection may meet it, so nothing was planned. Pick one: %s", e.GetName(), strings.ToLower(n.GetLabel()), strings.Join(usable, " or "))
+				case len(usable) > 0:
+					return nil, fmt.Errorf("%s needs %s, %s, which Dockwell can't make beside it yet, so nothing was planned. Pick a connection that meets it: %s", e.GetName(), strings.ToLower(n.GetLabel()), acceptWords(n), strings.Join(usable, " or "))
+				}
+				return nil, fmt.Errorf("%s needs %s, %s, which Dockwell can't make beside it yet, so nothing was planned. Add a connection on Connections that this project may use, or install an app that keeps it optional", e.GetName(), strings.ToLower(n.GetLabel()), acceptWords(n))
 			}
 			return nil, fmt.Errorf("%s needs %s, and nothing here can make a new one yet: %s. Choose one you run, if one takes it", e.GetName(), strings.ToLower(n.GetLabel()), acceptWords(n))
 		case choice == "":
@@ -890,6 +978,28 @@ func Meet(e *catalogv1.Entry, ways map[string][]Way, asked map[string]string, pi
 		}
 	}
 	return out, nil
+}
+
+// onlyConnection is the connection a need is met by unless a person picks another,
+// by its index in options: the only one that can meet it, or else the only one of
+// those named for the app's environment (ADR 0099). It's -1 where there's no such one.
+func onlyConnection(options []Way) int {
+	var usable, named []int
+	for i := range options {
+		if c := options[i].Connection; c != nil && options[i].Why == "" {
+			usable = append(usable, i)
+			if c.Named {
+				named = append(named, i)
+			}
+		}
+	}
+	switch {
+	case len(usable) == 1:
+		return usable[0]
+	case len(named) == 1:
+		return named[0]
+	}
+	return -1
 }
 
 // choicesOf are the choices of the ways that can meet a need.
@@ -916,6 +1026,31 @@ func pinnedWay(n *catalogv1.Need, p *resourcev1.PinnedNeed, options []Way) (Way,
 			return Way{}, fmt.Errorf("this release of the app needs its %s, which the install runs without, so it stays on its release. Set up its %s first", what, what)
 		}
 		return Way{Need: n, Unset: true, pin: p}, nil
+	}
+	if p.GetOwn() {
+		// Disconnected, the app keeps its values: no release links it again unasked.
+		if n.GetKind() == catalogv1.Kind_KIND_UNSPECIFIED {
+			return Way{}, fmt.Errorf("this release of the app needs a database for its %s, which the install meets with values of its own, so it stays on its release", what)
+		}
+		return Way{Need: n, Own: true, pin: p}, nil
+	}
+	if name := p.GetConnection(); name != "" {
+		// The connection it reads stays, as the project may still use it.
+		i := slices.IndexFunc(options, func(w Way) bool { return w.Connection != nil && w.Connection.Name == name })
+		switch {
+		case n.GetKind() == catalogv1.Kind_KIND_UNSPECIFIED:
+			return Way{}, fmt.Errorf("this release of the app needs a database for its %s, which the install meets with the connection %s, so it stays on its release", what, name)
+		case i < 0:
+			return Way{}, fmt.Errorf("the install meets its %s with the connection %s, which this project can't use any more, so it stays on its release. Let the project use %s, or meet the need another way", what, name, name)
+		// Another app that reads the connection since doesn't move this one off it.
+		case options[i].Why != "" && options[i].Why != servesWhy(n):
+			return Way{}, fmt.Errorf("this release of the app can't keep its %s on the connection %s: %s, so it stays on its release", what, name, options[i].Why)
+		}
+		w := options[i]
+		c := *w.Connection
+		c.Prefix = p.GetPrefix()
+		w.Connection, w.pin, w.Why = &c, p, ""
+		return w, nil
 	}
 	if eng != catalogv1.Engine_ENGINE_UNSPECIFIED {
 		a := acceptOf(n, eng)
@@ -976,6 +1111,40 @@ func acceptWords(n *catalogv1.Need) string {
 	return strings.Join(out, " or ")
 }
 
+// NeedFeatures are what a need asks of what meets it, such as presigned URLs, from
+// each of its accepts, each once, in order.
+func NeedFeatures(n *catalogv1.Need) []catalogv1.Feature {
+	var out []catalogv1.Feature
+	for _, a := range n.GetAccepts() {
+		out = append(out, a.GetFeatures()...)
+	}
+	slices.Sort(out)
+	return slices.Compact(out)
+}
+
+// FeatureWords say what features ask of storage, as "signed URLs and uploads in
+// parts".
+func FeatureWords(fs []catalogv1.Feature) string {
+	words := make([]string, 0, len(fs))
+	for _, f := range fs {
+		words = append(words, cmp.Or(featureWords[f], strings.ToLower(strings.TrimPrefix(f.String(), "FEATURE_"))))
+	}
+	return strings.Join(words, " and ")
+}
+
+var featureWords = map[catalogv1.Feature]string{
+	catalogv1.Feature_FEATURE_PRESIGNED_URLS: "signed URLs",
+	catalogv1.Feature_FEATURE_VIRTUAL_HOST:   "the bucket in the host name",
+	catalogv1.Feature_FEATURE_PATH_STYLE:     "the bucket in the path",
+	catalogv1.Feature_FEATURE_MULTIPART:      "uploads in parts",
+	catalogv1.Feature_FEATURE_BATCH_DELETE:   "deleting many objects at once",
+	catalogv1.Feature_FEATURE_CORS:           "uploads straight from browsers",
+	catalogv1.Feature_FEATURE_PUBLIC_READ:    "reading objects at its public address",
+	catalogv1.Feature_FEATURE_OBJECT_ACL:     "an ACL on each object",
+	catalogv1.Feature_FEATURE_PRESIGNED_POST: "form uploads from browsers",
+	catalogv1.Feature_FEATURE_SDK_CHECKSUMS:  "the checksums AWS's SDKs send",
+}
+
 // kindWords say what a need of each kind beyond the databases takes.
 var kindWords = map[catalogv1.Kind]string{
 	catalogv1.Kind_KIND_S3:   "S3 storage",
@@ -1028,12 +1197,122 @@ type Needed struct {
 	// through an upgrade. Fill gives each a value of no meaning, which the install
 	// drops.
 	Written map[string]*resourcev1.ValueTemplate
+	// Read are the names needs met by a connection set, each read from the
+	// connection through the link named for its need, by name (ADR 0099). Fill gives
+	// each a value of no meaning, which the install drops.
+	Read map[string]ReadFrom
+	// Kept are the names a need the app's own values meet sets, each with whether
+	// it's a secret: the environment holds each as a Disconnect left it, so the
+	// install writes none of them. Fill gives each a value of no meaning, which the
+	// install drops.
+	Kept map[string]bool
+}
+
+// ReadFrom is a name a link to a connection sets: the connection, the link, the
+// part it holds, and whether it's a secret, as a key is.
+type ReadFrom struct {
+	Connection, Link string
+	Part             resourcev1.LinkPart
+	Secret           bool
+}
+
+// connectedNeed is what a need met by a connection adds: a link to the connection,
+// named for the need, which sets each name it reads; an input of no meaning for
+// each such name, which the install drops for the value the link reads, a key as a
+// secret; the app's words for whether it's met and where the bucket goes, and the
+// prefix its objects keep to, as plain values. It returns the need's pin and its
+// plain names.
+func connectedNeed(n *catalogv1.Need, c ConnectionWay, out *Needed, adds *[]*catalogv1.Input) (*resourcev1.PinnedNeed, []string, error) {
+	l := &resourcev1.Link{Label: cmp.Or(n.GetLabel(), "Storage"), Connection: c.Name, Kind: resourcev1.LinkKind_LINK_KIND_S3, Prefix: c.Prefix}
+	// What the app asks of the bucket goes with the link, so a check of it tries each
+	// (the slice 1 review, M4). The two enums share their numbers.
+	for _, f := range NeedFeatures(n) {
+		l.Features = append(l.Features, resourcev1.LinkFeature(f))
+	}
+	var plain []string
+	literal := func(name, value string) {
+		*adds = append(*adds, &catalogv1.Input{Name: name, Label: name, Type: catalogv1.InputType_INPUT_TYPE_TEXT, DefaultValue: value, Optional: true})
+		plain = append(plain, name)
+	}
+	for _, s := range n.GetSets() {
+		name, part := s.GetName(), s.GetPart()
+		switch part {
+		case catalogv1.Part_PART_MET:
+			literal(name, fixedWord(s, "met"))
+		case catalogv1.Part_PART_PATH_STYLE:
+			word := fixedWord(s, "off")
+			if c.PathStyle {
+				word = fixedWord(s, "on")
+			}
+			literal(name, word)
+		case catalogv1.Part_PART_KEY_PREFIX:
+			literal(name, c.Prefix)
+		case catalogv1.Part_PART_ENDPOINT, catalogv1.Part_PART_REGION, catalogv1.Part_PART_BUCKET, catalogv1.Part_PART_PUBLIC_URL:
+			literal(name, "")
+			out.Read[name] = ReadFrom{Connection: c.Name, Link: n.GetName(), Part: resourcev1.LinkPart(part)}
+			l.Sets = append(l.Sets, &resourcev1.LinkSet{Name: name, Part: resourcev1.LinkPart(part)})
+		case catalogv1.Part_PART_ACCESS_KEY_ID, catalogv1.Part_PART_SECRET_KEY:
+			// A key goes only as a secret, which no plan shows.
+			*adds = append(*adds, &catalogv1.Input{Name: name, Label: name, Type: catalogv1.InputType_INPUT_TYPE_SECRET, Generate: 32})
+			out.Read[name] = ReadFrom{Connection: c.Name, Link: n.GetName(), Part: resourcev1.LinkPart(part), Secret: true}
+			l.Sets = append(l.Sets, &resourcev1.LinkSet{Name: name, Part: resourcev1.LinkPart(part)})
+		default:
+			return nil, nil, fmt.Errorf("the need %s sets %s as %s, which a connection can't meet yet", n.GetName(), name, part)
+		}
+	}
+	out.Links[n.GetName()] = l
+	return &resourcev1.PinnedNeed{Connection: c.Name, Prefix: c.Prefix, Plain: plain}, plain, nil
+}
+
+// ownNeed is what a need the app's own values meet adds, as a Disconnect left them:
+// the app's word for met, and its path style and prefix as the pin kept them, as
+// plain values; and an input of no meaning for each name a connection gave it,
+// which the install drops, so it writes none of them. A name the pin leaves out
+// stays out. It returns the need's plain names.
+func ownNeed(n *catalogv1.Need, p *resourcev1.PinnedNeed, out *Needed, adds *[]*catalogv1.Input) []string {
+	var plain []string
+	literal := func(name, value string) {
+		*adds = append(*adds, &catalogv1.Input{Name: name, Label: name, Type: catalogv1.InputType_INPUT_TYPE_TEXT, DefaultValue: value, Optional: true})
+		plain = append(plain, name)
+	}
+	for _, s := range n.GetSets() {
+		name := s.GetName()
+		if slices.Contains(p.GetLeftOut(), name) {
+			continue
+		}
+		switch s.GetPart() {
+		case catalogv1.Part_PART_MET:
+			literal(name, fixedWord(s, "met"))
+		case catalogv1.Part_PART_PATH_STYLE, catalogv1.Part_PART_KEY_PREFIX:
+			literal(name, "")
+		case catalogv1.Part_PART_ACCESS_KEY_ID, catalogv1.Part_PART_SECRET_KEY:
+			*adds = append(*adds, &catalogv1.Input{Name: name, Label: name, Type: catalogv1.InputType_INPUT_TYPE_SECRET, Generate: 32})
+			out.Kept[name] = true
+		default:
+			literal(name, "")
+			out.Kept[name] = false
+		}
+	}
+	return plain
+}
+
+// fixedWord is a set's word for one of its part's fixed values, such as "met".
+func fixedWord(s *catalogv1.NeedSet, value string) string {
+	for _, w := range s.GetWords() {
+		if w.GetValue() == value {
+			return w.GetWord()
+		}
+	}
+	return ""
 }
 
 // Need is the entry as an install that meets its needs by met runs it. An entry with
 // no needs is as it is.
 func Need(e *catalogv1.Entry, met map[string]Way) (*Needed, error) {
-	out := &Needed{Entry: e, Pinned: map[string]*resourcev1.PinnedNeed{}, Links: map[string]*resourcev1.Link{}, Users: map[string]*resourcev1.DatabaseUser{}, Written: map[string]*resourcev1.ValueTemplate{}}
+	out := &Needed{
+		Entry: e, Pinned: map[string]*resourcev1.PinnedNeed{}, Links: map[string]*resourcev1.Link{}, Users: map[string]*resourcev1.DatabaseUser{},
+		Written: map[string]*resourcev1.ValueTemplate{}, Read: map[string]ReadFrom{}, Kept: map[string]bool{},
+	}
 	if len(e.GetNeeds()) == 0 {
 		return out, nil
 	}
@@ -1053,6 +1332,25 @@ func Need(e *catalogv1.Entry, met map[string]Way) (*Needed, error) {
 			}
 			out.Plain = append(out.Plain, plain...)
 			out.Pinned[n.GetName()] = &resourcev1.PinnedNeed{Unset: true, Service: n.GetService(), Plain: plain, LeftOut: leftOut(n)}
+			continue
+		}
+		if w.Own {
+			var err error
+			if file, err = withoutNames(file, w.pin.GetLeftOut()); err != nil {
+				return nil, err
+			}
+			plain := ownNeed(n, w.pin, out, &adds)
+			out.Pinned[n.GetName()] = &resourcev1.PinnedNeed{Own: true, Prefix: w.pin.GetPrefix(), Plain: plain, LeftOut: w.pin.GetLeftOut()}
+			out.Plain = append(out.Plain, plain...)
+			continue
+		}
+		if w.Connection != nil {
+			pinned, plain, err := connectedNeed(n, *w.Connection, out, &adds)
+			if err != nil {
+				return nil, err
+			}
+			out.Pinned[n.GetName()] = pinned
+			out.Plain = append(out.Plain, plain...)
 			continue
 		}
 		password := passwordName(n)
@@ -1237,6 +1535,13 @@ func MetFile(file string, pinned map[string]*resourcev1.PinnedNeed) (string, err
 			if file, err = withoutService(file, p.GetService()); err != nil {
 				return "", err
 			}
+			if file, err = withoutNames(file, p.GetLeftOut()); err != nil {
+				return "", err
+			}
+			continue
+		}
+		if p.GetOwn() {
+			var err error
 			if file, err = withoutNames(file, p.GetLeftOut()); err != nil {
 				return "", err
 			}

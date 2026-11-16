@@ -10408,6 +10408,16 @@ components:
                     format: uint32
                 upgradeApp:
                     type: string
+                connection:
+                    type: string
+                    description: |-
+                        A connection that meets it, by name, as choice names it ("connection:<name>"),
+                         and what the panel calls it, such as "Cloudflare R2 · outline-uploads": one the
+                         app's project may use, of the need's kind (ADR 0099). Below an admin, a
+                         connection reads by name and label alone. Numbered in the block ADR 0099's
+                         installs hold, 90 to 99.
+                connectionLabel:
+                    type: string
             description: CatalogNeedOption is one way to meet an entry's need.
         CatalogPart:
             type: object
@@ -20880,6 +20890,26 @@ components:
                     items:
                         type: string
                     description: The names an unset need leaves out of the app's environment, as the install ran.
+                connection:
+                    type: string
+                    description: |-
+                        A connection meets it, by name, through the link named for the need, which
+                         reads the connection's values into the names the need sets: the install keeps
+                         it so through an upgrade (ADR 0099). Numbered in the block ADR 0099's
+                         installs hold, 92 to 99.
+                prefix:
+                    type: string
+                    description: |-
+                        Where the app's objects go in the connection's bucket, such as "notes/", as
+                         the install chose it: an upgrade keeps it, so the app's objects stay where they
+                         are (ADR 0099).
+                own:
+                    type: boolean
+                    description: |-
+                        A Disconnect made what a connection gave it the app's own values, which the
+                         install keeps as they are: an upgrade links it to nothing again, and the names
+                         in left_out, keys a Disconnect below an install admin took away, stay out of
+                         the app's environment (ADR 0099).
             description: PinnedNeed is how an install met one of its entry's needs.
         Plan:
             type: object
