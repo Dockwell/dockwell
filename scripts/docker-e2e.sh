@@ -480,6 +480,22 @@ for p in less tar which file zip unzip tzdata; do
   echo "$p" >/tmp/put-back
   break
 done
+# A new point release, as AlmaLinux 9.9, leaves the repositories one version of each
+# package, so nothing goes back; but an image from before it has packages behind
+# them already, and one of those proves the same: installed, with a newer one listed.
+if [ ! -s /tmp/put-back ]; then
+  behind=0
+  dnf -q check-update >/tmp/behind 2>/dev/null || behind=$?
+  if [ "$behind" = 100 ]; then
+    p=$(awk 'NF == 3 && $1 ~ /\./ { sub(/\.[^.]*$/, "", $1); print $1; exit }' /tmp/behind)
+    now=$(rpm -q --qf '%|EPOCH?{%{EPOCH}:}:{}|%{VERSION}-%{RELEASE}\n' "$p" 2>/dev/null | tail -n 1)
+    if [ -n "$p" ] && [ -n "$now" ]; then
+      echo "put-back $p $now" >&2
+      echo "raw nothing could go back, so $p, at $now and behind the repositories, stands for one put back" >&2
+      echo "$p" >/tmp/put-back
+    fi
+  fi
+fi
 code=0
 dnf -q --cacheonly check-update >/tmp/before 2>&1 || code=$?
 echo "raw Before the reader, dnf -q --cacheonly check-update exited $code and printed:" >&2
