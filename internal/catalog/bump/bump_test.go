@@ -355,14 +355,12 @@ func mariaStand(t *testing.T, tags ...string) (*bumptest.Stand, string) {
 	t.Helper()
 	s := shopStand(t)
 	var list []bumptest.Tag
-	file := "Tags: "
 	for _, tag := range tags {
 		list = append(list, bumptest.Tag{Name: tag, Pushed: ago(30)})
-		file += tag + ", "
 	}
 	s.Images["library/mariadb"] = list
 	s.Hub["library/mariadb"] = true
-	s.Official["mariadb"] = strings.TrimSuffix(file, ", ") + "\n"
+	s.Official["mariadb"] = "Tags: " + strings.Join(tags, ", ") + "\n"
 	entry := strings.Replace(shopEntry("1.4.2"), image("postgres", "library/postgres", "17.2"), image("mariadb", "library/mariadb", "12.3.3"), 1)
 	return s, checkout(t, map[string]string{"shop": entry}, map[string]string{"shop": "gives: app\n"})
 }
@@ -393,7 +391,7 @@ func TestATagPushedAgainStartsItsWaitAgain(t *testing.T) {
 	s := shopStand(t)
 	dir := checkout(t, map[string]string{"shop": shopEntry("1.4.2")}, map[string]string{"shop": "gives: app\n"})
 	ref := mustParse(t, "ghcr.io/acme/shop:v1.4.2")
-	real := bumptest.Digest("acme/shop", bumptest.Tag{Name: "v1.5.0"})
+	current := bumptest.Digest("acme/shop", bumptest.Tag{Name: "v1.5.0"})
 	// Seen ten days ago at what it was then; it now points elsewhere.
 	r := plan(t, s, dir, "shop", map[string]time.Time{bump.SeenKey(ref, "v1.5.0", "sha256:"+strings.Repeat("0", 64)): ago(10)})
 	l := lane(r, bump.LaneWithin)
@@ -401,11 +399,11 @@ func TestATagPushedAgainStartsItsWaitAgain(t *testing.T) {
 	if app == nil || !says(app.Waits, "pushed again") || !says(app.Waits, "within its wait") || !slices.Contains(l.Labels, "tag pushed again") {
 		t.Errorf("a tag seen at another digest reads %+v, labels %v", app, l.Labels)
 	}
-	if at, ok := app.Saw[bump.SeenKey(ref, "v1.5.0", real)]; !ok || !at.Equal(now) {
+	if at, ok := app.Saw[bump.SeenKey(ref, "v1.5.0", current)]; !ok || !at.Equal(now) {
 		t.Errorf("it's first seen now at its digest: %v", app.Saw)
 	}
 	// Seen at the same digest, its time stands.
-	r = plan(t, s, dir, "shop", map[string]time.Time{bump.SeenKey(ref, "v1.5.0", real): ago(10)})
+	r = plan(t, s, dir, "shop", map[string]time.Time{bump.SeenKey(ref, "v1.5.0", current): ago(10)})
 	if app := step(lane(r, bump.LaneWithin), "app"); app == nil || says(app.Waits, "pushed again") || says(app.Waits, "within its wait") {
 		t.Errorf("a tag seen at its digest reads %+v", app)
 	}

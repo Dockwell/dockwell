@@ -83,7 +83,7 @@ func retry[T any](ctx context.Context, l *Live, ask func() (T, error)) (T, error
 			return v, err
 		}
 		if !l.spend(wait) {
-			return v, fmt.Errorf("Docker Hub kept saying it's asked too often past the run's %s of waiting, so it wasn't read this run: %w", l.Budget, err)
+			return v, fmt.Errorf("the registry kept saying it's asked too often past the run's %s of waiting, so it wasn't read this run: %w", l.Budget, err)
 		}
 		select {
 		case <-ctx.Done():
