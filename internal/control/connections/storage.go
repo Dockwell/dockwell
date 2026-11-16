@@ -283,6 +283,7 @@ func (s *Service) DisconnectStorage(ctx context.Context, req *connect.Request[do
 	// says a connection meets the need the link is named for.
 	var projectName string
 	var project *resourcev1.Project
+	var projectRevision int64
 	err := s.db.View(ctx, func(tx *store.Tx) error {
 		if err := envOf(ctx, tx, m.GetProject(), m.GetEnvironment(), a); err != nil {
 			return err
@@ -339,7 +340,7 @@ func (s *Service) DisconnectStorage(ctx context.Context, req *connect.Request[do
 				return fmt.Errorf("can't read the project %s: %w", pr.Name, err)
 			}
 			if p, ok := spec.(*resourcev1.Project); ok && p.GetCatalog().GetNeeds()[m.GetLink()].GetConnection() == got.GetConnection() {
-				projectName, project = pr.Name, p
+				projectName, project, projectRevision = pr.Name, p, int64(pr.Revision)
 			}
 		}
 		services, err := tx.ListResources(ctx, a.env, serviceKind)
@@ -431,6 +432,8 @@ func (s *Service) DisconnectStorage(ctx context.Context, req *connect.Request[do
 		edits = append(edits, &dockwellv1.Edit{
 			Resource: &dockwellv1.ResourceRef{Kind: string(scope.ProjectKind), Scope: a.orgID, Name: projectName},
 			Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Project{Project: project}},
+			// An upgrade landing between this read and the plan isn't undone (N5).
+			BaseRevision: projectRevision,
 		})
 	}
 	summary := fmt.Sprintf("Disconnect %s from %s, keeping its values", m.GetLink(), cmp.Or(conn.Spec.GetDisplayName(), conn.Name))

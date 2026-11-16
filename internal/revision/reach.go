@@ -327,6 +327,12 @@ func (e *Engine) checkLinkPrefix(ctx context.Context, tx *store.Tx, items []item
 		return fault.New(ErrInvalid, "link %s keeps its files under %s on the connection %s, where another app keeps its files already, so each would overwrite the other's. Pick another prefix, such as %s",
 			it.ref.Name, where, l.GetConnection(), free)
 	}
+	// Beside a link that uses the bucket's root, no prefix keeps them apart (the slice
+	// 1 re-check, N2).
+	if slices.Contains(taken, "") {
+		return fault.New(ErrInvalid, "link %s keeps its files under %s on the connection %s, where another app keeps its files at the bucket's root already, so each would overwrite the other's and no prefix keeps them apart. Give it a connection of its own",
+			it.ref.Name, where, l.GetConnection())
+	}
 	return fault.New(ErrInvalid, "link %s keeps its files under %s on the connection %s, where another app keeps its files already, so each would overwrite the other's. Pick a prefix of its own",
 		it.ref.Name, where, l.GetConnection())
 }

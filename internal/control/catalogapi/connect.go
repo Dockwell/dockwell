@@ -80,12 +80,11 @@ func (h *Handler) connectionWays(ctx context.Context, e *catalogv1.Entry, projec
 		if c.Spec.GetReach() != resourcev1.ConnectionReach_CONNECTION_REACH_EVERY && (projectID == "" || !connection.Reaches(c.Spec, projectID)) {
 			continue
 		}
-		// The project's own links don't count, as an upgrade keeps the prefix it has.
+		// Every link counts, the project's own other apps' too: an upgrade keeps an
+		// install's own pinned connection by another path (the slice 1 re-check, N1).
 		var taken []string
 		for _, u := range uses[c.Name] {
-			if projectID == "" || u.GetProject() != projectID {
-				taken = append(taken, u.GetPrefix())
-			}
+			taken = append(taken, u.GetPrefix())
 		}
 		// A connection serves one app: one another project's link reads is no way to
 		// meet a need now (ADR 0099). Marking one shared is a slice of its own.
