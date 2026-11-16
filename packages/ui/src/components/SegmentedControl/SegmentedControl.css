@@ -1,6 +1,9 @@
 /* SPDX-License-Identifier: AGPL-3.0-only */
 /* Concentric corners: the outer radius is the inner radius plus the padding. */
 .dw-seg {
+  /* The box of what's in it, as a count's words for screen readers, so a control that
+     scrolls on a phone clips them rather than widening the page (#738). */
+  position: relative;
   display: inline-flex;
   gap: 2px;
   padding: 2px;

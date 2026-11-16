@@ -270,13 +270,16 @@
   padding: var(--space-4);
 }
 
+/* An event's title, as a button: one naming a server with a long name breaks within the line (#738). */
 .activity-open {
+  max-width: 100%;
   padding: 0;
   border: 0;
   background: none;
   color: inherit;
   font: inherit;
   text-align: left;
+  overflow-wrap: anywhere;
   cursor: pointer;
 }
 
@@ -284,12 +287,13 @@
   text-decoration: underline;
 }
 
-@media (max-width: 639px) {
-  .activity-filters .dw-seg {
-    max-width: 100%;
-    overflow-x: auto;
-  }
+/* Its kinds scroll where they don't fit, at any width, rather than widen the page (#738). */
+.activity-filters .dw-seg {
+  max-width: 100%;
+  overflow-x: auto;
+}
 
+@media (max-width: 639px) {
   .activity-fill {
     display: none;
   }

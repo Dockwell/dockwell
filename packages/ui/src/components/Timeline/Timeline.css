@@ -59,6 +59,12 @@
   line-height: 18px;
   color: var(--ink-muted);
 }
+/* A part longer than the line, as one naming a server with a long name, breaks within it; one that fits stays whole (#738). */
+.dw-tl-meta > * {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
 .dw-tl-meta .dw-status {
   font-size: 12.5px;
 }

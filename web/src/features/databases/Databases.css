@@ -31,6 +31,7 @@
 
 .databases-servers {
   font-size: 12px;
+  overflow-wrap: anywhere;
 }
 
 .databases-section-head {
@@ -130,10 +131,15 @@
   list-style: none;
 }
 
+/* A container's name and where it runs wrap within the callout, as a server's long name breaks (#738). */
 .databases-strangers li {
   display: inline-flex;
+  flex-wrap: wrap;
   align-items: baseline;
-  gap: var(--space-2);
+  gap: 0 var(--space-2);
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .databases-stranger {
@@ -403,8 +409,10 @@ a.databases-engine:hover .databases-engine-plus {
 }
 
 .databases-phone-sub code {
+  min-width: 0;
   font-size: 12px;
   color: var(--ink);
+  overflow-wrap: anywhere;
 }
 
 .databases-phone-word {

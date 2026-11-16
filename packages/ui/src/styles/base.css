@@ -31,6 +31,9 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
+  /* A word with nowhere to break, such as a server's host name or an IPv6 address,
+     breaks where it would pass its box, rather than widening the page (#738). */
+  overflow-wrap: break-word;
 }
 
 ::selection {
