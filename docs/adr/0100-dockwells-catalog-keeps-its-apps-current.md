@@ -54,7 +54,7 @@ It's keyed by entry and Compose service, since the same image appears in several
   - `stays` means it never moves, as Plausible's ClickHouse, which follows what Plausible itself pins.
 
   A step ADR 0080 calls a database series move counts as a major, whatever ADR 0079's numbers say.
-- **`gives`:** the service whose tag gives the entry's `version`. That's only needed where an entry has more than one image. A leading `v` and a suffix are dropped from it.
+- **`gives`:** the service whose tag gives the entry's `version`. A leading `v` and a suffix are dropped from it. An entry with more than one image and no `gives` gets no bumps until a person sets it. Where `version` and the tag disagree today, as pgadmin's `9.18` against its `9.18.0`, a person makes them agree once, first.
 - **`rebuilds`:** whether the repository re-pushes the same tag by design. Docker Official Images do, and it's on by default for them.
 - **`signedBy`:** the identity that signs the image. That's a cosign keyless issuer and subject, or a GitHub attestation's repository and workflow. A person confirms it once.
 - **`majorsInOrder`:** for an app that can't skip a major, as Nextcloud.
@@ -89,8 +89,11 @@ A tag that isn't a version, such as `latest`, isn't allowed in Dockwell's own ca
 
 A version merges by itself only once all of these hold:
 
-- **It has aged.** It's been out for 3 days for a patch, and 7 for a minor or a new digest, counted from when the tag was pushed. The bot offers the newest version past its wait, so a fast-moving app still moves. A person can merge sooner, such as for a security fix.
-- **It's corroborated.** The same version is a published, non-draft, non-pre-release GitHub release or tag of the entry's `appSource`. Registry credentials alone can't fake that. Where `appSource` isn't on GitHub, the bump waits for a person.
+- **It has aged.** It's been out for 3 days for a patch, and 7 for a minor or a new digest. On Docker Hub, that's counted from when the tag was pushed, which Docker Hub says. Elsewhere, such as GHCR, it's counted from when the bot first saw the version, which the bump's pull request records when it's opened. An image's own build date doesn't count, as whoever builds it sets it. The bot offers the newest version past its wait, so a fast-moving app still moves. A person can merge sooner, such as for a security fix.
+- **It's corroborated.** Registry credentials alone can't fake this:
+  - for the image that gives the entry's `version`, the same version is a published, non-draft, non-pre-release GitHub release or tag of the entry's `appSource`;
+  - for a Docker Official Image, such as a `postgres` beside an app, the tag and digest are in that image's file in github.com/docker-library/official-images, which Docker builds it from;
+  - anywhere else, the bump waits for a person.
 - **It's signed, where the image was.** With `signedBy` set, the new digest must be signed by that identity. It waits for a person if it's unsigned where the one before was signed, or signed by someone else.
 - **It keeps its platforms.** The new digest's index lists every platform the old one did. A release that drops arm64 waits for a person.
 
@@ -103,10 +106,10 @@ These are required checks on every bump. Their runs get `contents: read` and no 
    - The previous release is the entry as the pull request's base has it. The hand-kept `previous` map in Dockwell goes.
    - **Each app's check moves to the catalog,** as `checks/<id>.sh`. It writes something through the app, such as a user, a folder or a row. After the upgrade it reads it back, and signs in with the generated secrets.
    - **An entry with no check** gets a floor: a sentinel row or key per database need, written and read back with the engine's own client. An entry with only the floor doesn't merge by itself.
-   - **It also upgrades from the first release of the current major,** as an install that waited months would.
+   - **It also upgrades from the first release of the current major,** as an install that waited months would. The format can't yet say "upgrades only from release N or later", so an app that needs that waits for a person, and a later record adds it.
    - It runs on x86, and on arm64 (`ubuntu-24.04-arm`) for entries with no check yet.
    - Pulls go through the CI mirror. A run proves at most 5 entries, as the organization's 20-job cap is shared with Dockwell's CI.
-3. **`bump scope`** is required, and runs from `main`'s own definition. It reads the diff only, never running the head. It fails unless every one of these holds:
+3. **`bump scope`** runs from `main`'s own definition on every pull request, reading the diff only and never running the head. It posts its result as a commit status on the head, which a ruleset can require. It passes a pull request that doesn't come from the App, and leaves it to the review rule. For a pull request from the App, it fails unless every one of these holds:
    - the pull request comes from the App on a `bump/*` branch;
    - it changes one entry, and only an image's tag and digest, `version` and `release`;
    - `release` is exactly the base's plus 1;
@@ -114,15 +117,17 @@ These are required checks on every bump. Their runs get `contents: read` and no 
    - it leaves `updates/`, `checks/` and `.github/` alone;
    - its step is within the levels, past its wait, corroborated, signed where it should be, and keeps its platforms.
 
-   A bump that fails `bump scope` can still merge, but only with a person's review.
+   A maintainer's approval of an App bump that's out of scope runs it again, and then it passes, so a person can merge a major or a held step.
 
 ### Merging
 
-Two rulesets on `main`:
+Two rulesets on `main`, which GitHub applies together:
 - **One requires a review.** The App may bypass it.
 - **One requires the entry check, the proof and `bump scope`.** Nobody bypasses it.
 
-So a bump within the rules merges by itself through GitHub's auto-merge. Anything else waits for a person, with a label saying why:
+GitHub's own auto-merge waits for the review rule even for an actor that may bypass it, so it isn't used. Instead, a small workflow on `main` merges: once every required check on a bump passes, it merges at the head the checks ran on, through the merge API, with the App's token. It runs no Dockwell code. Slice 3 first proves this on a scratch repository.
+
+Anything else waits for a person, with a label saying why:
 - a major or a series move;
 - a step past its level;
 - a version still within its wait;
@@ -138,7 +143,9 @@ This amends ADR 0077: a change reaches the catalog's main when it's "reviewed, o
 
 ### On the install side
 
-ADR 0080's automatic update of a catalog install takes a release only once it's been on the install's source for 3 days, counted from when the source moved to it. A person's plan can take it at once. This needs a change to ADR 0080, as a follow-up.
+ADR 0080's automatic update of a catalog install takes a release only once it's been on the install's source for 3 days, counted from when the source moved to it. A person's plan can take it at once. This needs a change to ADR 0080.
+
+v0.3.0 already updates catalog installs automatically, with no such wait. So nothing in the catalog merges by itself until a Dockwell release with this wait is out. Until then, the catalog's own wait is the only one.
 
 ### When a bad release gets through
 
@@ -167,4 +174,4 @@ The bot never changes an image's repository. That's a person's pull request.
 
 1. **`dockwell-catalog bump` and the two-job workflow,** with `updates/`, the wait, corroboration and the platform check. It opens pull requests; nothing merges by itself.
 2. **Proof:** the reusable install-and-upgrade workflow, checks moved to `checks/`, the floor, arm64, and `bump scope`.
-3. **Auto-merge** by the two rulesets, signatures, digest bumps, the weekly report, and the follow-ups to ADR 0080.
+3. **Merging by itself:** the merge workflow, proven first on a scratch repository; the two rulesets; signatures; digest bumps; and the weekly report. It turns on only once a Dockwell release with ADR 0080's install-side wait is out.
