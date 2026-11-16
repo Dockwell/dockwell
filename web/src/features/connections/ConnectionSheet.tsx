@@ -363,7 +363,9 @@ export function ConnectionSheet({
               />
               <span className="connection-sheet-said">
                 {check.line}
-                {unreached ? ` ${t`An app's link checks it again from where the app runs.`}` : null}
+                {unreached
+                  ? ` ${t`It saves unchecked: each app's link checks it from the app's network before it plans.`}`
+                  : null}
               </span>
             </>
           ) : editing && complete && mayCheck ? (

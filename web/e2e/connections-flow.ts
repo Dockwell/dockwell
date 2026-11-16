@@ -95,7 +95,7 @@ export const flow: Flow = {
     await shoot(page, "connections-add-refused");
     await sheet.getByRole("textbox", { name: "Endpoint" }).fill(ENDPOINT);
     await sheet.getByText(UNREACHED).waitFor({ timeout: 90_000 });
-    await sheet.getByText(/An app's link checks it again/).waitFor();
+    await sheet.getByText(/It saves unchecked/).waitFor();
     await shoot(page, "connections-add");
     if (await review.isDisabled()) fail("a bucket the server can't reach from here can't be planned");
     await review.click();

@@ -11344,9 +11344,6 @@ msgstr "32 letters and digits, as Cloudflare shows it"
 msgid "A bucket of S3-compatible storage, for apps to keep files in"
 msgstr "A bucket of S3-compatible storage, for apps to keep files in"
 
-msgid "An app's link checks it again from where the app runs."
-msgstr "An app's link checks it again from where the app runs."
-
 msgid "Another store"
 msgstr "Another store"
 
@@ -11368,6 +11365,9 @@ msgstr "Connection {0}"
 
 msgid "For stores that don't take the bucket in the host."
 msgstr "For stores that don't take the bucket in the host."
+
+msgid "It saves unchecked: each app's link checks it from the app's network before it plans."
+msgstr "It saves unchecked: each app's link checks it from the app's network before it plans."
 
 msgid "Kept unless you type one"
 msgstr "Kept unless you type one"

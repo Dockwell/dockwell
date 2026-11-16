@@ -234,7 +234,7 @@ describe("Connections", () => {
     await user.type(within(sheet).getByRole("textbox", { name: "Access key ID" }), "minio");
     await user.type(within(sheet).getByLabelText("Secret access key"), "minio-secret");
     expect(await within(sheet).findByText("Can't reach it", {}, { timeout: 3000 })).toBeVisible();
-    expect(within(sheet).getByText(/An app's link checks it again from where the app runs/)).toBeVisible();
+    expect(within(sheet).getByText(/It saves unchecked: each app's link checks it/)).toBeVisible();
     expect(within(sheet).getByRole("button", { name: "Review plan" })).toBeEnabled();
   });
 
@@ -324,7 +324,7 @@ describe("Connections", () => {
     await user.type(within(sheet).getByLabelText("Secret access key"), "minio-secret");
     expect(await within(sheet).findByText("Address refused", {}, { timeout: 3000 })).toBeVisible();
     expect(within(sheet).getByText(/this server's own address.*No app can use it either/)).toBeVisible();
-    expect(within(sheet).queryByText(/An app's link checks it again/)).toBeNull();
+    expect(within(sheet).queryByText(/It saves unchecked/)).toBeNull();
     expect(within(sheet).getByRole("button", { name: "Review plan" })).toBeDisabled();
   });
 
@@ -387,8 +387,11 @@ describe("Connections", () => {
     const details = screen.getByRole("region", { name: "Details" });
     expect(details).toHaveTextContent(`https://${R2}.r2.cloudflarestorage.com`);
     expect(details).toHaveTextContent("Sealed, never shown");
+    // No check is kept: until one runs here, it says so (review L4).
+    expect(screen.getByText("Not checked")).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Check" }));
     expect(await screen.findByText("Check the bucket's name.")).toBeVisible();
+    expect(screen.queryByText("Not checked")).toBeNull();
     await expectAccessible(container);
   });
 });

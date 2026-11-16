@@ -86,7 +86,7 @@ export function ConnectionPage({ name }: { name: string }) {
       machineTitle
       breadcrumb={<Crumbs />}
       backLink={<BackToConnections />}
-      badge={check.answer ? <CheckState answer={check.answer} /> : undefined}
+      badge={check.answer ? <CheckState answer={check.answer} /> : mayCheck.allowed ? <Unchecked /> : undefined}
       lead={lead}
       phoneSub={lead}
       phoneAction={
@@ -137,7 +137,7 @@ export function ConnectionPage({ name }: { name: string }) {
       {phone ? (
         // A phone's page has no head for its actions: they sit under it, as the mock has them.
         <div className="connection-phone-actions">
-          {check.answer ? <CheckState answer={check.answer} /> : null}
+          {check.answer ? <CheckState answer={check.answer} /> : mayCheck.allowed ? <Unchecked /> : null}
           <div className="connection-phone-buttons">
             {mayCheck.allowed ? (
               <Button size="lg" icon="refresh" loading={check.busy} onClick={() => void check.run()}>
@@ -182,6 +182,15 @@ function useCheck(name: string) {
     setBusy(false);
   };
   return { answer, failure, busy, run };
+}
+
+/**
+ * Nothing checked it here yet: no check is kept, so one saved without reaching its
+ * bucket, and one that reached it, read the same until Check runs.
+ */
+function Unchecked() {
+  const { t } = useLingui();
+  return <StatusBadge status="unknown" label={t`Not checked`} labelIsState />;
 }
 
 function CheckState({ answer }: { answer: CheckConnectionResponse }) {
