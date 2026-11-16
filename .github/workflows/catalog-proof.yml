@@ -36,7 +36,7 @@ on:
         default: true
     outputs:
       floored:
-        description: The entries proven with the floor alone, as they have no checks/<id>.sh, which don't merge by themselves.
+        description: The entries proven with the floor alone, as they have no checks/<id>.sh, which don't merge by themselves, separated by "; ", each with what a stand-in for an input left unproven after a colon, where one did.
         value: ${{ jobs.x86.outputs.floored }}
       not-upgraded:
         description: The entries that proved no upgrade, as every earlier release was before the earliest their check runs, which don't merge by themselves either.
@@ -54,6 +54,7 @@ jobs:
     timeout-minutes: 60
     outputs:
       floored: ${{ steps.prove.outputs.floored }}
+      floored-ids: ${{ steps.prove.outputs.floored-ids }}
       not-upgraded: ${{ steps.prove.outputs.not-upgraded }}
     env:
       E2E_ROOT: "1"
@@ -124,20 +125,24 @@ jobs:
           [[ "$REQUIRE" != true ]] || flags+=(--require-upgrade)
           [[ "$FLOOR" == true ]] || flags+=(--no-floor)
           E2E_FLOORED="$floored" E2E_NOT_UPGRADED="$not_upgraded" dockwell/scripts/catalog-e2e.sh dockwell/bin/dockwell "${flags[@]}" "${ids[@]}"
-          echo "floored=$(tr '\n' ' ' < "$floored" | sed 's/ $//')" >> "$GITHUB_OUTPUT"
-          echo "not-upgraded=$(tr '\n' ' ' < "$not_upgraded" | sed 's/ $//')" >> "$GITHUB_OUTPUT"
+          # Each floored entry on a line, with what a stand-in left unproven after a colon.
+          {
+            echo "floored=$(paste -sd ';' "$floored" | sed 's/;/; /g')"
+            echo "floored-ids=$(cut -d: -f1 "$floored" | paste -sd ' ')"
+            echo "not-upgraded=$(tr '\n' ' ' < "$not_upgraded" | sed 's/ $//')"
+          } >> "$GITHUB_OUTPUT"
 
   # An entry with no check of its own runs on arm64 too, as nothing else says it
   # runs there.
   arm64:
     name: arm64, entries with the floor alone
     needs: x86
-    if: needs.x86.outputs.floored != ''
+    if: needs.x86.outputs.floored-ids != ''
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 60
     env:
       E2E_ROOT: "1"
-      ENTRIES: ${{ needs.x86.outputs.floored }}
+      ENTRIES: ${{ needs.x86.outputs.floored-ids }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

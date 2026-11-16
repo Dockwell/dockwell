@@ -4,7 +4,12 @@
 # and a check ask of it, over the folder $FAKE_STATE names. An install runs a
 # container for each service of its entry's compose, healthy, on the image named,
 # with its inputs' defaults as its values, publishing what its ports say. An
-# entry whose ID isn't its file's name is refused, as Dockwell's catalog read does.
+# entry whose ID isn't its file's name is refused, as Dockwell's catalog read does,
+# and so is an install that leaves a required input with no value. A service whose
+# definition says x-fake: unready never turns healthy, as one that reaches nothing
+# with a stand-in token wouldn't, unless its health check is test: ["NONE"], which
+# Docker then doesn't run; and one that says x-fake: exits restarts. A change whose
+# container reads unhealthy fails, as Dockwell's verify fails it.
 set -euo pipefail
 S=$FAKE_STATE
 mkdir -p "$S/changes" "$S/installs" "$S/containers"
@@ -29,19 +34,45 @@ planned() {
 }
 # run_entry starts a container for each service of the entry an install holds.
 run_entry() {
-  local p=$1 service="" line host
+  local p=$1 service="" line host as name flag file flags=()
   rm -f "$S/containers/$p-production-"*
   while IFS= read -r line; do
     if [[ "$line" =~ ^\ \ ([a-z0-9_-]+):$ ]]; then service=${BASH_REMATCH[1]}; fi
     if [[ "$line" =~ ^\ \ \ \ image:\ (.+)$ ]]; then
       printf 'project=%s\nservice=%s\nimage=%s\nhealth=healthy\n' "$p-production" "$service" "${BASH_REMATCH[1]}" >"$S/containers/$p-production-$service-1"
     fi
+    # What its environment reads from an input: env=<variable>=<value>, and for a
+    # secret, use=<variable>=secret:<name>@1, as Dockwell's dockwell.uses label says.
+    if [[ "$line" =~ ^\ \ \ \ \ \ ([A-Z_]+):\ \$\{([A-Z_]+)\}$ ]]; then
+      as=${BASH_REMATCH[1]} name=${BASH_REMATCH[2]}
+      echo "env=$as=$(jq -r --arg k "$name" '.values[$k] // ""' "$S/installs/$p.json")" >>"$S/containers/$p-production-$service-1"
+      if jq -e --arg k "$name" 'any(.entry.inputs[]?; .name == $k and .type == "INPUT_TYPE_SECRET")' "$S/installs/$p.json" >/dev/null; then
+        echo "use=$as=secret:$name@1" >>"$S/containers/$p-production-$service-1"
+      fi
+    fi
+    case "$line" in
+    '      test: ["NONE"]') flags+=("$service none") ;;
+    '    x-fake: unready') flags+=("$service unready") ;;
+    '    x-fake: exits') flags+=("$service exits") ;;
+    esac
     # A port it publishes, from an input: port=<in the container>:<on this server>.
     if [[ "$line" =~ ^\ \ \ \ \ \ -\ \"?127\.0\.0\.1:\$\{([A-Z_]+)\}:([0-9]+)\"?$ ]]; then
       host=$(jq -r --arg k "${BASH_REMATCH[1]}" '.values[$k]' "$S/installs/$p.json")
       echo "port=${BASH_REMATCH[2]}:$host" >>"$S/containers/$p-production-$service-1"
     fi
   done < <(jq -r .entry.compose "$S/installs/$p.json")
+  for flag in "${flags[@]}"; do
+    file="$S/containers/$p-production-${flag% *}-1"
+    echo "flag=${flag#* }" >>"$file"
+  done
+  for file in "$S/containers/$p-production-"*; do
+    [[ -f "$file" ]] || continue
+    if grep -qx 'flag=none' "$file"; then
+      sed -i 's/^health=.*/health=none/' "$file"
+    elif grep -qx 'flag=unready' "$file"; then
+      sed -i 's/^health=.*/health=unhealthy/' "$file"
+    fi
+  done
 }
 case "$1 ${2:-}" in
 "claim "*) echo "http://localhost:7698/claim#abc" ;;
@@ -52,9 +83,13 @@ case "$1 ${2:-}" in
   values=$(jq -c '[.inputs[]? | select(.defaultValue) | {(.name): .defaultValue}] | add // {}' "$file")
   shift 3
   while (($#)); do
-    if [[ "$1" == --values ]]; then values=$(jq -c --arg k "${2%%=*}" --arg v "${2#*=}" '.[$k] = $v' <<<"$values"); fi
+    if [[ "$1" == --values && "$2" == *=* ]]; then values=$(jq -c --arg k "${2%%=*}" --arg v "${2#*=}" '.[$k] = $v' <<<"$values"); fi
+    # A secret named alone is read from the CLI's environment, as Dockwell's CLI does.
+    if [[ "$1" == --values && "$2" != *=* ]]; then values=$(jq -c --arg k "$2" --arg v "${!2:-}" '.[$k] = $v' <<<"$values"); fi
     shift
   done
+  missing=$(jq -r --argjson v "$values" '[.inputs[]? | select((.optional | not) and ((.generate // 0) == 0) and (($v[.name] // "") == ""))][0].label // empty' "$file")
+  [[ -z "$missing" ]] || { echo "dockwell: $missing needs a value" >&2 && exit 1; }
   jq -nc --arg p "$id" --argjson v "$values" --slurpfile e "$file" '{kind: "install", project: $p, values: $v, entry: $e[0]}' >"$S/changes/$c"
   planned "$c" "$id" ;;
 "catalog upgrade")
@@ -65,7 +100,10 @@ case "$1 ${2:-}" in
   for f in "$S/installs"/*.json; do
     [[ -f "$f" ]] || continue
     now=$(jq -r .version "$cat_dir/$(jq -r .project "$f").yaml" 2>/dev/null || true)
-    jq -c --arg now "$now" '{project, pin: {values}} + (if $now != "" and $now != .version then {upgrade: {version: $now}} else {} end)' "$f"
+    # A pin keeps what was given, but for a secret, which it never holds.
+    jq -c --arg now "$now" '([.entry.inputs[]? | select(.type == "INPUT_TYPE_SECRET") | .name]) as $secret
+      | {project, pin: {values: (.values | with_entries(select(.key as $k | $secret | index($k) | not)))}}
+      + (if $now != "" and $now != .version then {upgrade: {version: $now}} else {} end)' "$f"
   done | jq -sc '{installs: .}' ;;
 "databases change-password")
   c=$(new_change)
@@ -78,10 +116,17 @@ case "$1 ${2:-}" in
   upgrade) jq -c --argjson e "$(jq -c .entry <<<"$ch")" '.entry = $e | .version = $e.version' "$S/installs/$p.json" >"$S/up" && mv "$S/up" "$S/installs/$p.json" && run_entry "$p" ;;
   remove) rm -f "$S/installs/$p.json" "$S/containers/$p-production-"* ;;
   esac
+  # As Dockwell's Verify (resource/container waitHealthy) does: a container that
+  # fails its health check fails the change.
+  if [[ -n "$p" ]] && grep -qs '^health=unhealthy' "$S/containers/$p-production-"*; then
+    jq -c '.failed = true' <<<"$ch" >"$S/changes/$3"
+    echo "dockwell: a container runs, but fails its health check" >&2
+    exit 1
+  fi
   jq -c '.applied = true' <<<"$ch" >"$S/changes/$3" ;;
 "changes get")
   echo "$3" >>"$S/read-back"
-  jq -c --arg c "$3" '{change: {id: $c, state: (if .applied then "CHANGE_STATE_APPLIED" else "CHANGE_STATE_PLANNED" end), plan: {fingerprint: "f", destructive: false, hostAccess: false, resources: []}}}' "$S/changes/$3" ;;
+  jq -c --arg c "$3" '{change: {id: $c, state: (if .applied then "CHANGE_STATE_APPLIED" elif .failed then "CHANGE_STATE_FAILED" else "CHANGE_STATE_PLANNED" end), plan: {fingerprint: "f", destructive: false, hostAccess: false, resources: []}}}' "$S/changes/$3" ;;
 "changes propose")
   c=$(new_change) p=""
   for a in "$@"; do [[ "$a" != *'"kind":"project"'* ]] || p=$(jq -r .resource.name <<<"$a"); done

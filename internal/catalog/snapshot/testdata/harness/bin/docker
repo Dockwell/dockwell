@@ -39,9 +39,13 @@ inspect)
   '{{json .HostConfig.PortBindings}}')
     get "$n" port | jq -Rnc '[inputs | split(":") | {key: (.[0] + "/tcp"), value: [{HostIp: "127.0.0.1", HostPort: .[1]}]}] | from_entries' ;;
   *com.docker.compose.service*) get "$n" service ;;
-  *dockwell.uses* | *Config.Env*) echo "" ;;
+  *dockwell.uses*) get "$n" use | paste -sd, - ;;
+  *Config.Env*) get "$n" env ;;
   '{{len .Mounts}}') echo 0 ;;
   '{{.Name}}') echo "/$n" ;;
+  '{{.State.StartedAt}}') if grep -qx 'flag=exits' "$S/$n"; then date +%s%N; else echo "2026-11-16T00:00:00Z"; fi ;;
+  '{{.State.Running}}') if grep -qx 'flag=exits' "$S/$n"; then echo false; else echo true; fi ;;
+  '{{.RestartCount}}') if grep -qx 'flag=exits' "$S/$n"; then echo 3; else echo 0; fi ;;
   *) echo "fake docker: inspect $fmt" >&2 && exit 1 ;;
   esac ;;
 port) get "$2" port | sed 's#^\([0-9]*\):\(.*\)#\1/tcp -> 127.0.0.1:\2#' ;;

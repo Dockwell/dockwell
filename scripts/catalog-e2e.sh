@@ -116,7 +116,7 @@ else
   # The Compose projects of what this made, for cleanup.
   projects=()
   plans=()
-  input_env=()
+  input_file=""
   pid=""
 fi
 
@@ -164,7 +164,36 @@ step() { echo "--- $*"; }
 
 # Local access on the control server: the CLI finds the control plane, and makes its
 # own token, from the data directory.
-dw() { priv env DOCKWELL_DATA_DIR="$data" DOCKWELL_LOG_FORMAT=text "${input_env[@]}" "$bin" "$@"; }
+# The values a check or the floor gives as secrets reach the CLI's environment from
+# input_file, mode 0600, never as arguments, which ps shows and sudo logs (#745's
+# review, L2).
+dw() {
+  if [[ -n "${input_file:-}" ]]; then
+    # shellcheck disable=SC2016 # the inner shell reads its own arguments.
+    priv bash -c 'set -a && . "$1" && set +a && shift && exec "$@"' dw "$input_file" \
+      env DOCKWELL_DATA_DIR="$data" DOCKWELL_LOG_FORMAT=text "$bin" "$@"
+    return
+  fi
+  priv env DOCKWELL_DATA_DIR="$data" DOCKWELL_LOG_FORMAT=text "$bin" "$@"
+}
+# inputs_file writes the NAME=value pairs given_env_of holds into a fresh input_file,
+# mode 0600, or leaves none.
+inputs_file() {
+  local pair
+  input_file=""
+  [[ -n "$given_env_of" ]] || return 0
+  # Space between pairs and nothing else, so a value can't add a line root sources.
+  [[ "$given_env_of" != *[$'\n\t\r']* ]] || fail "$id's given_env holds a line break or a tab: give each NAME=value with no whitespace in it"
+  local -a pairs
+  IFS=' ' read -r -a pairs <<<"$given_env_of"
+  for pair in "${pairs[@]}"; do
+    [[ "$pair" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]] || fail "$id's given_env has a part that isn't NAME=value: give each as NAME=value, apart by spaces"
+  done
+  input_file=$(umask 077 && mktemp "$work/inputs.XXXXXX")
+  for pair in "${pairs[@]}"; do
+    printf '%s=%q\n' "${pair%%=*}" "${pair#*=}"
+  done >"$input_file"
+}
 
 
 # person_answer calls the API as a signed-in person does, from the panel's origin, and
@@ -421,6 +450,11 @@ declare -A before=()
 # Why an entry proves no upgrade, where its check says so, which --require-upgrade
 # otherwise fails.
 declare -A upgrade_waived=()
+# The services of the entry being proven that read a stand-in the floor gave for a
+# secret, which run with no health check and are held to running instead (#745);
+# what that leaves unproven, for the floored list; and the change settled last held
+# them for, so each change holds them once.
+unready="" floor_notes="" held_for=""
 
 # release writes an entry into the catalog's directory, which takes over from the
 # built-in one: as it is, at a higher release, or as the version before it.
@@ -437,22 +471,159 @@ release() {
       [[ "$(jq -r .compose <<<"$entry")" == *"image: $ref"* ]] || fail "the entry $id runs no image of $repo for the version before"
     done
   fi
-  jq --argjson n "$number" '.release = $n' <<<"$entry" >"$catalog_dir/$id.yaml"
+  # A service that reads a stand-in for a secret runs with no health check (#745).
+  jq --argjson n "$number" '.release = $n' <<<"$entry" | drop_entry_health "$unready" >"$catalog_dir/$id.yaml"
+}
+
+# The floor's stand-ins for an entry's required inputs, where it has no check to give
+# them (#745): each input no person may leave empty, with no default and not a
+# secret Dockwell generates, gets a value fitting its type and what the entry says
+# it takes, which is no real credential and names no real host: an email and a host
+# at .invalid, which never resolves, and for a secret a token in the shape apps such
+# as cloudflared read, base64 of a JSON object of no account anywhere, or hex where
+# the entry takes only what a URL carries or more than that holds. A stand-in may
+# make an app dial its upstream's service, as cloudflared dials Cloudflare's edge,
+# which refuses it. standins sets given_of and given_env_of; unready, the services
+# that read a secret's stand-in; and floor_notes, what that leaves unproven.
+standin_secret() {
+  local characters=$1 least=$2 shape n
+  shape=$(printf '{"a":"%s","t":"%s","s":"%s"}' "$(openssl rand -hex 16)" "$(cat /proc/sys/kernel/random/uuid)" "$(openssl rand -base64 32)" | base64 -w0)
+  if [[ "$characters" != CHARACTERS_URL_SAFE ]] && ((${#shape} >= least)); then
+    echo "$shape"
+    return
+  fi
+  n=$((least > 48 ? least : 48))
+  openssl rand -hex $(((n + 1) / 2)) | cut -c1-"$n"
+}
+# standin_text is a text input's stand-in, by its name, kept to the characters and
+# the length the entry says it takes.
+standin_text() {
+  local name=$1 characters=$2 least=$3 value
+  case "${name^^}" in
+  *URL*) value="https://$id.invalid" ;;
+  *DOMAIN* | *HOST*) value="$id.invalid" ;;
+  *) value="catalog-proof" ;;
+  esac
+  [[ "$characters" != CHARACTERS_URL_SAFE ]] || value=$(tr -c 'A-Za-z0-9._~\n-' '-' <<<"${value#https://}")
+  while ((${#value} < least)); do value+="-$(openssl rand -hex 4)"; done
+  echo "$value"
+}
+# reads prints the services of a Compose file that read one of the names given, by
+# the whole name: ${NAME}, ${NAME:-...} and its kin, or $NAME, never ${NAME_TTL}.
+reads() {
+  awk -v names="$1" '
+    BEGIN { n = split(names, want, " ") }
+    function indent(s) { match(s, /^ */); return RLENGTH }
+    /^ *services:[ \t]*$/ { base = indent($0); in_services = 1; next }
+    in_services && $0 !~ /^[ \t]*$/ && indent($0) <= base { in_services = 0 }
+    in_services && indent($0) == base + 2 && /^ *[A-Za-z0-9_.-]+:[ \t]*$/ { service = $1; sub(/:$/, "", service); next }
+    in_services && service != "" {
+      # A doubled dollar is the Compose way to write a literal one: not a read.
+      line = $0; gsub(/\$\$/, "", line)
+      for (i = 1; i <= n; i++)
+        if (line ~ ("\\$\\{" want[i] "[}:?+-]") || line ~ ("\\$" want[i] "([^A-Za-z0-9_{]|$)")) print service
+    }' | sort -u | tr '\n' ' '
+}
+# drop_health sets the health check of each service named to none, in a Compose file
+# or an entry's YAML that holds one, which Dockwell then holds to keeping running
+# rather than to a check its stand-in can't pass (its review, M1).
+drop_health() {
+  awk -v names="$1" '
+    BEGIN { n = split(names, want, " "); for (i = 1; i <= n; i++) drop[want[i]] = 1 }
+    function indent(s) { match(s, /^ */); return RLENGTH }
+    skipping && ($0 ~ /^[ \t]*$/ || indent($0) > skip_at) { next }
+    { skipping = 0 }
+    /^ *services:[ \t]*$/ { base = indent($0); in_services = 1; print; next }
+    in_services && $0 !~ /^[ \t]*$/ && indent($0) <= base { in_services = 0 }
+    in_services && indent($0) == base + 2 && /^ *[A-Za-z0-9_.-]+:[ \t]*$/ {
+      service = $1; sub(/:$/, "", service); print
+      if (service in drop) printf "%" (base + 4) "s%s\n%" (base + 6) "s%s\n", "", "healthcheck:", "", "test: [\"NONE\"]"
+      next
+    }
+    in_services && (service in drop) && indent($0) == base + 4 && /^ *healthcheck:/ { skipping = 1; skip_at = indent($0); next }
+    { print }'
+}
+# drop_entry_health is drop_health on an entry's file, as YAML or JSON, whichever
+# it is; nothing named, it's as it was.
+drop_entry_health() {
+  local text
+  text=$(cat)
+  if [[ -z "$1" ]]; then
+    printf '%s\n' "$text"
+  elif jq -e . >/dev/null 2>&1 <<<"$text"; then
+    jq --arg c "$(jq -r .compose <<<"$text" | drop_health "$1")"$'\n' '.compose = $c' <<<"$text"
+  else
+    printf '%s\n' "$text" | drop_health "$1"
+  fi
+}
+standins() {
+  local name type characters least value secrets=()
+  while IFS=$'\t' read -r name type characters least; do
+    case "$type" in
+    INPUT_TYPE_EMAIL) given_of+=" $name=owner@$id.invalid" ;;
+    INPUT_TYPE_PORT) given_of+=" $name=$((20000 + RANDOM % 10000))" ;;
+    INPUT_TYPE_SECRET)
+      value=$(standin_secret "$characters" "$least")
+      given_of+=" $name" given_env_of+=" $name=$value"
+      secrets+=("$name")
+      ;;
+    *) given_of+=" $name=$(standin_text "$name" "$characters" "$least")" ;;
+    esac
+    step "$id: has no check to give $name, so the floor gives it a stand-in"
+  done < <(jq -r '.inputs[]? | select((.optional | not) and ((.defaultValue // "") == "")
+    and ((.type == "INPUT_TYPE_SECRET" and ((.generate // 0) > 0)) | not))
+    | [.name, (.type // "INPUT_TYPE_TEXT"), (.characters // "-"), (.minLength // 0)] | @tsv' <<<"$entry")
+  ((${#secrets[@]} > 0)) || return 0
+  unready=$(jq -r .compose <<<"$entry" | reads "${secrets[*]}")
+  [[ -n "$unready" ]] || return 0
+  unready=${unready% }
+  floor_notes="${unready// /, } not held to a health check, as it reads a stand-in for ${secrets[*]}, which connects to nothing it would with a real one"
+  step "$id: runs ${unready// /, } with no health check, as it reads a stand-in for ${secrets[*]}: the proof holds it to running for ${E2E_HOLD:-120} s with no restart, and keeping its data"
 }
 
 # settled waits for every container of the app to pass its health check, and says
 # each runs an image pinned by digest.
 settled() {
-  local names health image
+  local names health image service started running restarts was
   names=$(docker ps --all --filter "label=com.docker.compose.project=$project" --format '{{.Names}}') || fail "docker ps failed"
   [[ -n "$names" ]] || fail "$id runs nothing once its install has applied"
   for c in $names; do
     image=$(docker inspect --format '{{.Config.Image}}' "$c") || fail "docker inspect $c failed"
     [[ "$image" == *@sha256:* ]] || fail "$c runs $image, not pinned by digest"
     [[ -z "${1:-}" || "$1" == *"image: $image"* ]] || fail "$c runs $image, which its entry doesn't name"
+    # A service that uses a stand-in the floor gave for a secret reaches nothing
+    # with it, so it's held to having started, not to its health (#745).
+    service=$(docker inspect --format '{{index .Config.Labels "com.docker.compose.service"}}' "$c") || fail "docker inspect $c failed"
+    if [[ " $unready " == *" $service "* ]]; then
+      continue
+    fi
     health=$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$c") || fail "docker inspect $c failed"
     [[ "$health" == healthy ]] || fail "$c reads $health once the change has applied, want healthy: its entry needs a health check that proves it answers"
   done
+  # A service that reads a stand-in for a secret runs with no health check, so it's
+  # held to running, with no restart and the same start, for E2E_HOLD seconds, 120
+  # unless set, past the 90 s cloudflared's own check allowed, after each change. An
+  # exit fails it whatever its code, as a bad token's, a broken binary's and a wrong
+  # platform's look alike (its review, M1; its re-check, N1).
+  if [[ -n "$unready" && "${change:-}" != "$held_for" ]]; then
+    held_for=${change:-}
+    declare -A first=()
+    for c in $names; do
+      service=$(docker inspect --format '{{index .Config.Labels "com.docker.compose.service"}}' "$c") || fail "docker inspect $c failed"
+      [[ " $unready " == *" $service "* ]] || continue
+      first[$c]=$(docker inspect --format '{{.State.StartedAt}}' "$c") || fail "docker inspect $c failed"
+    done
+    sleep "${E2E_HOLD:-120}"
+    for c in "${!first[@]}"; do
+      service=$(docker inspect --format '{{index .Config.Labels "com.docker.compose.service"}}' "$c") || fail "docker inspect $c failed"
+      running=$(docker inspect --format '{{.State.Running}}' "$c") || fail "docker inspect $c failed"
+      restarts=$(docker inspect --format '{{.RestartCount}}' "$c") || fail "docker inspect $c failed"
+      started=$(docker inspect --format '{{.State.StartedAt}}' "$c") || fail "docker inspect $c failed"
+      was=${first[$c]}
+      [[ "$running" == true && "$restarts" == 0 && "$started" == "$was" ]] ||
+        fail "can't prove $service: it stops on a stand-in for a secret it reads (running $running, $restarts restarts, started $was then $started). Give checks/$id.sh, with a value it runs on"
+    done
+  fi
   # Every port of every service answers only on this server until it has a domain, and
   # what a person opens has one.
   local web bound
@@ -548,7 +719,7 @@ prove() {
     step "$id: $was installs, answers and signs in"
     # As the catalog had it when this run started, before any check ran.
     [[ -n "${earlier_text[$id@$from]:-}" ]] || fail "the catalog's $from has no entries/$id.yaml"
-    printf '%s\n' "${earlier_text[$id@$from]}" | sed 's/^release: .*/release: 1/' >"$catalog_dir/$id.yaml"
+    printf '%s\n' "${earlier_text[$id@$from]}" | sed 's/^release: .*/release: 1/' | drop_entry_health "$unready" >"$catalog_dir/$id.yaml"
   else
     step "$id: $version installs, answers and signs in"
     release "$entry" 1
@@ -628,7 +799,7 @@ run_check() {
   : >"$state/plans"
   env E2E_ID="$id" E2E_VERSION="${2:-}" E2E_PROJECT="${project:-}" E2E_INSTALLED="${installed:-}" E2E_ENVIRONMENT="${environment:-}" E2E_ENTRY="${entry:-}" \
     E2E_BIN="$bin" E2E_ADDR="$addr" E2E_DATA="$data" E2E_LOG="$log" E2E_COOKIE="$cookie" E2E_PASSKEY="$passkey" E2E_STEPUP="$stepup" \
-    E2E_CATALOG_DIR="$catalog_dir" E2E_MEDIA_DIR="$media_dir" E2E_STATE="$state" E2E_INPUT_ENV="${given_env_of:-}" \
+    E2E_CATALOG_DIR="$catalog_dir" E2E_MEDIA_DIR="$media_dir" E2E_STATE="$state" E2E_INPUT_FILE="${input_file:-}" \
     bash "$dir/catalog-e2e.sh" --check "$phase" "$dir/check.sh" || fail "check_$id $phase failed"
   while read -r plan; do
     [[ "$plan" =~ ^chg_[A-Za-z0-9]+$ ]] && plans+=("$plan")
@@ -646,8 +817,7 @@ if [[ -n "$check_phase" ]]; then
   readonly id=$E2E_ID version=$E2E_VERSION project=$E2E_PROJECT installed=$E2E_INSTALLED environment=$E2E_ENVIRONMENT entry=$E2E_ENTRY \
     bin=$E2E_BIN addr=$E2E_ADDR data=$E2E_DATA log=$E2E_LOG cookie=$E2E_COOKIE passkey=$E2E_PASSKEY stepup=$E2E_STEPUP \
     catalog_dir=$E2E_CATALOG_DIR media_dir=$E2E_MEDIA_DIR state=$E2E_STATE dockwell_port=${E2E_ADDR##*:}
-  read -r -a input_env <<<"${E2E_INPUT_ENV:-}"
-  readonly input_env
+  readonly input_file=${E2E_INPUT_FILE:-}
   mapfile -t harness < <(declare -F | awk '{print $3}')
   readonly -f "${harness[@]}"
   if [[ -f "$state/kept" ]]; then
@@ -717,11 +887,12 @@ for id in "$@"; do
   done
 done
 floored=() not_upgraded=()
+declare -A floored_notes=()
 
 for id in "$@"; do
   started=$SECONDS
   state=$(mktemp -d "$work/state.XXXXXX")
-  given_of="" given_env_of="" companions_of="" earliest_of="" before_of="" waived_of=""
+  given_of="" given_env_of="" companions_of="" earliest_of="" before_of="" waived_of="" unready="" floor_notes="" held_for="" input_file=""
   # Its own check where the catalog has one, else the floor, with which it doesn't
   # merge by itself (ADR 0100).
   if [[ -n "${check_text[$id]+set}" ]]; then
@@ -742,8 +913,11 @@ for id in "$@"; do
   entry=$(dw catalog get "$id" --json | jq .entry) || fail "the catalog has no $id"
   [[ "$entry" != null ]] || fail "the catalog has no $id"
   version=$(jq -r .version <<<"$entry")
+  # With no check to give what a person types, the floor gives stand-ins (#745).
+  [[ -n "${check_text[$id]+set}" ]] || standins
+  [[ -z "$floor_notes" ]] || floored_notes[$id]=$floor_notes
   read -r -a values <<<"$given_of"
-  read -r -a input_env <<<"$given_env_of"
+  inputs_file
   install_flags=()
   for v in "${values[@]}"; do install_flags+=(--values "$v"); done
   for c in $companions_of; do install_flags+=(--companions "$c=true"); done
@@ -784,6 +958,9 @@ for id in "$@"; do
   fi
   ((proved)) || prove
   rm -f "${catalog_dir:?}/${id:?}.yaml"
+  # Its secrets' values go with the entry; cleanup takes the folder they were in.
+  if [[ -n "$input_file" ]]; then rm -f -- "$input_file"; fi
+  input_file=""
   echo "$id took $((SECONDS - started)) s"
 done
 
@@ -791,7 +968,10 @@ done
 # wrote there.
 if [[ -n "${E2E_FLOORED:-}" ]]; then
   : >"$E2E_FLOORED"
-  ((${#floored[@]} == 0)) || printf '%s\n' "${floored[@]}" >"$E2E_FLOORED"
+  for id in "${floored[@]}"; do
+    # What a stand-in left unproven, beside the entry, for the person who merges.
+    if [[ -n "${floored_notes[$id]:-}" ]]; then echo "$id: ${floored_notes[$id]}"; else echo "$id"; fi
+  done >"$E2E_FLOORED"
 fi
 if [[ -n "${E2E_NOT_UPGRADED:-}" ]]; then
   : >"$E2E_NOT_UPGRADED"
