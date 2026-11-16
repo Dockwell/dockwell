@@ -363,13 +363,19 @@ function Served({
   const mayCheck = may(SettingsService.method.checkPanelDomain, { install: true });
   const [opening, setOpening] = useState(false);
   const [failure, setFailure] = useState<unknown>();
-  const [switching, setSwitching] = useState(false);
+  // A move between the two ways of serving the same domain, waiting for its confirm.
+  const [switching, setSwitching] = useState<Via | undefined>();
   const domain = panel.setDomain;
   const behind = panel.servedBy === PanelServedBy.PROXY;
   const waiting = !panel.problem && !behind && !panel.certified;
   // A certificate that doesn't come may be one a tunnel stands in front of: a domain on
   // Cloudflare is asked through the way in, as its proxy without a tunnel needs one.
-  const dns = useQuery(SettingsService.method.checkPanelDomain, waiting && mayCheck.allowed ? { domain } : skipToken);
+  // Before Dockwell serves it itself, as before a domain is set, where its record leads
+  // and what holds the ports its certificate needs.
+  const dns = useQuery(
+    SettingsService.method.checkPanelDomain,
+    (waiting || switching === "dockwell") && mayCheck.allowed ? { domain } : skipToken,
+  );
   const reach = useReach((behind && !panel.problem) || (waiting && dns.data?.cloudflare) ? domain : "");
   const reached = (reach.data?.reached ?? false) && !reach.isPlaceholderData;
   const here = typeof window !== "undefined" && window.location.hostname === domain;
@@ -397,12 +403,18 @@ function Served({
     <Button
       size="sm"
       variant={waiting && reached ? "primary" : "ghost"}
-      onClick={() => setSwitching(true)}
+      onClick={() => setSwitching("proxy")}
       {...maySet.off}
     >
       <Trans>Serve it behind a tunnel</Trans>
     </Button>
   ) : null;
+  const toCertificate = owner ? (
+    <Button size="sm" variant="ghost" onClick={() => setSwitching("dockwell")} {...maySet.off}>
+      <Trans>Serve it with its own certificate</Trans>
+    </Button>
+  ) : null;
+  const address = dns.data?.publicAddresses.find((a) => !a.includes(":")) ?? dns.data?.publicAddresses[0] ?? "";
   const opener = (
     <Callout
       tone="info"
@@ -422,24 +434,54 @@ function Served({
     </Callout>
   );
   let body: React.ReactNode;
-  if (switching) {
-    body = (
-      <Callout
-        tone="info"
-        title={t`Dockwell restarts to serve ${domain} behind your tunnel`}
-        actions={
-          <>
-            <Button size="sm" variant="ghost" onClick={() => setSwitching(false)}>
-              <Trans>Cancel</Trans>
-            </Button>
-            <Button size="sm" variant="primary" loading={set.busy} onClick={() => void set.save(domain, domain, true)}>
-              <Trans>Restart and serve it</Trans>
-            </Button>
-          </>
-        }
+  const confirm = (
+    <>
+      <Button size="sm" variant="ghost" onClick={() => setSwitching(undefined)}>
+        <Trans>Cancel</Trans>
+      </Button>
+      <Button
+        size="sm"
+        variant="primary"
+        loading={set.busy}
+        onClick={() => void set.save(domain, domain, switching === "proxy")}
       >
+        <Trans>Restart and serve it</Trans>
+      </Button>
+    </>
+  );
+  if (switching === "proxy") {
+    body = (
+      <Callout tone="info" title={t`Dockwell restarts to serve ${domain} behind your tunnel`} actions={confirm}>
         <Trans>Apps, websites and passkeys keep working. It asks for your passkey.</Trans>
       </Callout>
+    );
+  } else if (switching === "dockwell") {
+    // As the field does before a domain is set: the record to make, and what holds a port.
+    body = (
+      <>
+        {dns.data && address ? (
+          <DnsRecord
+            type={address.includes(":") ? "AAAA" : "A"}
+            name={domain}
+            value={address}
+            state={
+              dns.data.pointsHere
+                ? { status: "healthy", word: t`Points here` }
+                : { status: "degraded", word: t`DNS doesn't point here yet` }
+            }
+            onCheck={dns.data.pointsHere ? undefined : () => void dns.refetch()}
+            checking={dns.isFetching}
+          />
+        ) : null}
+        {dns.data?.portsHeld.map((p) => (
+          <p key={`${p.port}-${p.program}`} className="settings-sub panel-domain-warn">
+            {t`${p.program} holds port ${p.port} on this server, so no certificate can come until it's freed.`}
+          </p>
+        ))}
+        <Callout tone="info" title={t`Dockwell restarts to serve ${domain} with its own certificate`} actions={confirm}>
+          <Trans>Apps, websites and passkeys keep working. It asks for your passkey.</Trans>
+        </Callout>
+      </>
     );
   } else if (panel.problem) {
     body = (
@@ -451,7 +493,11 @@ function Served({
     body = (
       <>
         <TunnelRecord domain={domain} listen={panel.listen} reach={reach} />
-        {reached && !here ? opener : <div className="panel-domain-actions">{stop}</div>}
+        {reached && !here ? opener : null}
+        <div className="panel-domain-actions">
+          {toCertificate}
+          {reached && !here ? null : stop}
+        </div>
       </>
     );
   } else if (waiting && reached) {

@@ -16914,6 +16914,9 @@ msgstr "Dockwell restarts to serve {domain}"
 msgid "Dockwell restarts to serve {domain} behind your tunnel"
 msgstr "Dockwell restarts to serve {domain} behind your tunnel"
 
+msgid "Dockwell restarts to serve {domain} with its own certificate"
+msgstr "Dockwell restarts to serve {domain} with its own certificate"
+
 msgid "Dockwell serves it"
 msgstr "Dockwell serves it"
 
@@ -16950,6 +16953,9 @@ msgstr "Restart and serve it"
 
 msgid "Serve it behind a tunnel"
 msgstr "Serve it behind a tunnel"
+
+msgid "Serve it with its own certificate"
+msgstr "Serve it with its own certificate"
 
 msgid "Serve the panel there"
 msgstr "Serve the panel there"

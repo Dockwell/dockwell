@@ -16914,6 +16914,9 @@ msgstr "Dockwell 将重启以提供 {domain}"
 msgid "Dockwell restarts to serve {domain} behind your tunnel"
 msgstr "Dockwell 将重启，通过你的隧道提供 {domain}"
 
+msgid "Dockwell restarts to serve {domain} with its own certificate"
+msgstr "Dockwell 将重启，用自己的证书提供 {domain}"
+
 msgid "Dockwell serves it"
 msgstr "由 Dockwell 提供"
 
@@ -16950,6 +16953,9 @@ msgstr "重启并提供它"
 
 msgid "Serve it behind a tunnel"
 msgstr "改为通过隧道提供"
+
+msgid "Serve it with its own certificate"
+msgstr "改为用自己的证书提供"
 
 msgid "Serve the panel there"
 msgstr "在此域名上提供面板"

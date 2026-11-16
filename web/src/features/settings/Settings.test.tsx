@@ -369,6 +369,51 @@ describe("Settings", () => {
     expect(within(panel).getByRole("button", { name: "Serve it behind a tunnel" })).not.toHaveClass("dw-btn-primary");
   });
 
+  it("moves a domain from the tunnel back to Dockwell's own certificate as one change, its record and ports first", async () => {
+    const user = userEvent.setup();
+    const setPanelDomain = vi.fn(() => ({ settings: settings(), restarting: true }));
+    const tunnelled = settings({
+      panel: {
+        listen: "127.0.0.1:7600",
+        domain: "panel.example.com",
+        setDomain: "panel.example.com",
+        domainFrom: PanelDomainFrom.SETTING,
+        servedBy: PanelServedBy.PROXY,
+        url: "https://panel.example.com",
+        certified: true,
+      },
+    });
+    renderSettings("/settings/general", {
+      settings: {
+        getSettings: () => ({ settings: tunnelled }),
+        checkPanelReach: () => ({ reached: true, target: "http://127.0.0.1:7600" }),
+        checkPanelDomain: () => ({
+          addresses: ["198.51.100.7"],
+          publicAddresses: ["192.0.2.10"],
+          portsHeld: [{ port: 443, program: "nginx" }],
+        }),
+        setPanelDomain,
+      },
+    });
+    const panel = await screen.findByRole("region", { name: "Panel address" });
+    await user.click(await within(panel).findByRole("button", { name: "Serve it with its own certificate" }));
+    expect(await within(panel).findByText("DNS doesn't point here yet")).toBeVisible();
+    expect(panel).toHaveTextContent("192.0.2.10");
+    expect(panel).toHaveTextContent(
+      "nginx holds port 443 on this server, so no certificate can come until it's freed.",
+    );
+    expect(
+      within(panel).getByText("Dockwell restarts to serve panel.example.com with its own certificate"),
+    ).toBeVisible();
+    await user.click(within(panel).getByRole("button", { name: "Restart and serve it" }));
+    await waitFor(() =>
+      expect(setPanelDomain).toHaveBeenCalledWith(
+        expect.objectContaining({ domain: "panel.example.com", behindProxy: false }),
+        expect.anything(),
+      ),
+    );
+  });
+
   it("says why a domain set here isn't served, with the way to stop using it", async () => {
     const user = userEvent.setup();
     const setPanelDomain = vi.fn(() => ({ settings: settings(), restarting: true }));
