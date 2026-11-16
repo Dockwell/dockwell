@@ -52,6 +52,9 @@ type panelAddress struct {
 	Port string `json:"port"`
 	// PublicHost is this server's address as other machines reach it.
 	PublicHost string `json:"public_host,omitempty"`
+	// BehindProxy says a tunnel or a proxy that ends TLS serves Domain, sending it
+	// to the loopback listener, so no certificate comes here (ADR 0063's amendment).
+	BehindProxy bool `json:"behind_proxy,omitempty"`
 }
 
 // url is the panel's base URL for a link: the domain when there is one,
@@ -249,6 +252,8 @@ func printClaim(w io.Writer, addr panelAddress, link auth.Link, command string, 
 	case addr.Domain == "":
 		fmt.Fprintf(w, "The panel stays on this server's loopback address until you give it a domain. "+
 			"To serve it over HTTPS, point a domain's DNS record at this server's public address, then restart with --domain.\n")
+	case addr.BehindProxy:
+		fmt.Fprintf(w, "Your tunnel or proxy serves %s, so no certificate comes here: point it at %s.\n", addr.Domain, addr.loopbackURL())
 	default:
 		fmt.Fprintf(w, "The first visit gets the panel's certificate from Let's Encrypt, which takes a few seconds.\n")
 	}
@@ -448,7 +453,7 @@ func newRecoverCmd(stdio IO, g *globalFlags) *cobra.Command {
 				// the public ports (ADR 0024).
 				tunnel := addr
 				tunnel.Domain, tunnel.HTTPSPort = "", ""
-				fmt.Fprintf(w, "If %s doesn't answer, as when this server's ingress is down, the same link works through an SSH tunnel:\n\n", addr.Domain)
+				fmt.Fprint(w, whenDomainIsDown(addr))
 				printLink(w, tunnel, "/recover#"+link.Token, stdio.Getenv)
 			}
 			fmt.Fprintf(w, "Then add a passkey for %s under Profile and security.\n\n", orPlaceholder(addr.Domain, "localhost"))
@@ -458,4 +463,15 @@ func newRecoverCmd(stdio IO, g *globalFlags) *cobra.Command {
 	cmd.Flags().StringVar(&email, "user", "", "the email of the person to sign in; defaults to the owner")
 	cmd.Flags().StringVar(&owner, "owner", "", "the email of someone who signs in already, to make the owner, as when the owner is gone; whoever was is an admin after")
 	return cmd
+}
+
+// whenDomainIsDown says the link works through an SSH tunnel when the domain
+// doesn't answer, as when what serves it is down: the ingress, or a tunnel or
+// proxy that ends TLS.
+func whenDomainIsDown(addr panelAddress) string {
+	down := "this server's ingress"
+	if addr.BehindProxy {
+		down = "its tunnel or proxy"
+	}
+	return fmt.Sprintf("If %s doesn't answer, as when %s is down, the same link works through an SSH tunnel:\n\n", addr.Domain, down)
 }

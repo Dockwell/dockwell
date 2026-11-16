@@ -274,7 +274,15 @@ export interface TimelineEvent {
 export interface TimelineProps { events: TimelineEvent[]; onUndo?: (event: TimelineEvent) => void; className?: string }
 export declare function Timeline(props: TimelineProps): React.ReactElement;
 
-export interface CalloutProps { tone?: Tone; title?: React.ReactNode; children?: React.ReactNode; actions?: React.ReactNode; className?: string }
+export interface CalloutProps {
+  tone?: Tone;
+  title?: React.ReactNode;
+  children?: React.ReactNode;
+  actions?: React.ReactNode;
+  /** The actions sit under the text at every width, as on a phone: for a callout in a narrow card. */
+  stacked?: boolean;
+  className?: string;
+}
 export declare function Callout(props: CalloutProps): React.ReactElement;
 
 export interface ToastProps {

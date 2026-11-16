@@ -1425,6 +1425,14 @@
   color: var(--warning);
 }
 
+/* How the domain reaches this server: a label over the choice, as a field's. */
+.panel-domain-via {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
 /* A card's actions side by side, wrapping on a narrow card. */
 .integrations-actions {
   display: flex;

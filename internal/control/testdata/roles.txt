@@ -205,6 +205,7 @@ ServiceUpdateService.ListServiceUpdates        read         viewer     viewer   
 ServiceUpdateService.SkipServiceUpdate         apply        developer  developer  project
 ServiceUpdateService.SnoozeServiceUpdates      apply        developer  developer  project
 SettingsService.CheckPanelDomain               read         admin      admin      install
+SettingsService.CheckPanelReach                read         admin      admin      install
 SettingsService.CreatePanelSignInLink          apply        admin      admin      install  session
 SettingsService.GetControlPlane                read         admin      admin      install
 SettingsService.GetSettings                    read         viewer     viewer     shared

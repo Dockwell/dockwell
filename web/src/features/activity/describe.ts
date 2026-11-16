@@ -397,6 +397,15 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
               ? { title: t`Stopped serving the panel on ${previous}`, icon: "settings" }
               : { title: t`Cleared the panel's domain`, icon: "settings" };
           }
+          // The same domain, served another way: a tunnel or proxy that ends TLS, or Dockwell (ADR 0063).
+          if (previous === value) {
+            return event.setting?.behindProxy
+              ? { title: t`Served the panel on ${value} behind a tunnel or proxy`, icon: "settings" }
+              : { title: t`Served the panel on ${value} with its own certificate`, icon: "settings" };
+          }
+          if (event.setting?.behindProxy) {
+            return { title: t`Set the panel's domain to ${value}, behind a tunnel or proxy`, icon: "settings" };
+          }
           return previous
             ? { title: t`Set the panel's domain to ${value}, which was ${previous}`, icon: "settings" }
             : { title: t`Set the panel's domain to ${value}`, icon: "settings" };

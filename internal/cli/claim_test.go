@@ -24,6 +24,7 @@ import (
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/auth"
 	"github.com/dockwell/dockwell/internal/auth/authtest"
+	"github.com/dockwell/dockwell/internal/control/settings"
 	"github.com/dockwell/dockwell/internal/datadir"
 	"github.com/dockwell/dockwell/internal/seal"
 	"github.com/dockwell/dockwell/internal/store"
@@ -57,6 +58,12 @@ func startRunAsService(t *testing.T, dir string) (out, logs *syncBuffer, stop fu
 
 func startRunOn(t *testing.T, terminal bool, dir, want string, args ...string) (out, logs *syncBuffer, stop func()) {
 	t.Helper()
+	return startRunEnvOn(t, terminal, dir, want, nil, args...)
+}
+
+// startRunEnvOn is startRunOn with env set beside what every run has.
+func startRunEnvOn(t *testing.T, terminal bool, dir, want string, env map[string]string, args ...string) (out, logs *syncBuffer, stop func()) {
+	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan int, 1)
 	out = &syncBuffer{}
@@ -64,6 +71,9 @@ func startRunOn(t *testing.T, terminal bool, dir, want string, args ...string) (
 	all := append([]string{"run", "--listen", "127.0.0.1:0", "--agent-listen", "127.0.0.1:0", "--data-dir", dir, "--log-format", "json"}, args...)
 	go func() {
 		done <- Execute(ctx, all, IO{Out: out, Err: errOut, Getenv: quiet(func(k string) string {
+			if v, ok := env[k]; ok {
+				return v
+			}
 			return map[string]string{"USER": "mira", "SSH_CONNECTION": "198.51.100.23 52000 203.0.113.7 22"}[k]
 		}), OutIsTerminal: func() bool { return terminal }})
 	}()
@@ -213,6 +223,81 @@ func TestRunSaysWhenThePanelGainsADomain(t *testing.T) {
 	if r.code != exitOK || !strings.Contains(r.out, "https://panel.example.com:") ||
 		!strings.Contains(r.out, "doesn't answer") || !strings.Contains(r.out, "ssh -L") || !strings.Contains(r.out, "http://localhost:") {
 		t.Errorf("dockwell recover with a domain = %d:\n%s%s", r.code, r.out, r.err)
+	}
+}
+
+// Behind a tunnel or a proxy that ends TLS, dockwell run holds no public port and
+// asks for no certificate, and its links lead to the domain on 443 (ADR 0063's
+// amendment). Ports it can't hold would stop it, so neither is tried.
+func TestRunBehindATunnelHoldsNoPublicPort(t *testing.T) {
+	dir := t.TempDir()
+	out, logs, _ := startRunWithLogs(t, dir, "/claim#",
+		"--domain", "panel.example.com", "--behind-proxy", "--https-listen", "192.0.2.1:443", "--http-listen", "192.0.2.1:80",
+		"--acme-directory-url", "https://acme.invalid/directory")
+	if !strings.Contains(out.String(), "https://panel.example.com/claim#") {
+		t.Errorf("the claim link isn't the domain's on 443:\n%s", out.String())
+	}
+	// It promises no certificate, and says where the tunnel points (#734's review, L1).
+	if strings.Contains(out.String(), "certificate from Let's Encrypt") ||
+		!strings.Contains(out.String(), "Your tunnel or proxy serves panel.example.com, so no certificate comes here: point it at http://127.0.0.1:") {
+		t.Errorf("the claim text behind a tunnel:\n%s", out.String())
+	}
+	if !strings.Contains(logs.String(), "a tunnel or a proxy that ends TLS serves the panel's domain") || !strings.Contains(logs.String(), `"target":"http://127.0.0.1:`) {
+		t.Errorf("dockwell run doesn't say where the tunnel points:\n%s", logs.String())
+	}
+	if strings.Contains(logs.String(), "the panel's certificate") || strings.Contains(logs.String(), "acme.invalid") {
+		t.Errorf("dockwell run asked for a certificate behind a tunnel:\n%s", logs.String())
+	}
+	// dockwell recover's way round a domain that doesn't answer names the tunnel.
+	if got := whenDomainIsDown(panelAddress{Domain: "panel.example.com", BehindProxy: true}); !strings.Contains(got, "as when its tunnel or proxy is down") {
+		t.Errorf("recover behind a tunnel says %q", got)
+	}
+	if got := whenDomainIsDown(panelAddress{Domain: "panel.example.com"}); !strings.Contains(got, "as when this server's ingress is down") {
+		t.Errorf("recover with Dockwell serving it says %q", got)
+	}
+}
+
+// DOCKWELL_BEHIND_PROXY with no domain from dockwell run, as when the domain was set
+// under Settings, never stops it: the panel answers on loopback, and on the
+// setting's domain as the setting says, and the log says the variable does nothing
+// (#734's review, M1).
+func TestBehindProxyWithoutADomainNeverStopsRun(t *testing.T) {
+	env := map[string]string{envBehindProxy: "1"}
+	dir := t.TempDir()
+	_, logs, stop := startRunEnvOn(t, true, dir, "/claim#", env)
+	if !strings.Contains(logs.String(), "--behind-proxy (DOCKWELL_BEHIND_PROXY) goes with --domain (DOCKWELL_DOMAIN), so it does nothing here") {
+		t.Errorf("with no domain anywhere, run doesn't say the variable does nothing:\n%s", logs.String())
+	}
+	stop()
+
+	// A domain from the settings, Dockwell serving it: the variable doesn't make it
+	// a tunnel's, and run still starts.
+	db, err := store.Open(t.Context(), filepath.Join(dir, "control", "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Update(t.Context(), func(tx *store.Tx) error {
+		return tx.PutSetting(t.Context(), settings.KeyPanelDomain, []byte("panel.example.com"))
+	}); err != nil {
+		t.Fatal(err)
+	}
+	_ = db.Close()
+	_, logs, _ = startRunEnvOn(t, true, dir, "", env, "--https-listen", "127.0.0.1:0", "--http-listen", "127.0.0.1:0")
+	waitForLog(t, logs, "--behind-proxy (DOCKWELL_BEHIND_PROXY) goes with --domain")
+	if strings.Contains(logs.String(), "a tunnel or a proxy that ends TLS serves the panel's domain") {
+		t.Errorf("the variable made a domain from the settings a tunnel's:\n%s", logs.String())
+	}
+}
+
+// waitForLog waits until logs hold want.
+func waitForLog(t *testing.T, logs *syncBuffer, want string) {
+	t.Helper()
+	deadline := time.Now().Add(startUp)
+	for !strings.Contains(logs.String(), want) {
+		if time.Now().After(deadline) {
+			t.Fatalf("dockwell run never logged %q:\n%s", want, logs.String())
+		}
+		time.Sleep(20 * time.Millisecond)
 	}
 }
 

@@ -17,6 +17,11 @@ export interface CalloutProps {
   actions?: ReactNode;
   /** The tone's shape stands for the state unless the state has one of its own, such as the arc of work in flight. */
   shape?: GlyphShape;
+  /**
+   * The actions sit under the text at every width, as they do on a phone: for a callout in a narrow card, where
+   * beside the text they would squeeze its title.
+   */
+  stacked?: boolean;
   className?: string;
 }
 
@@ -24,11 +29,11 @@ export interface CalloutProps {
  * An inline notice about the current page: what happened, what Dockwell
  * already did, and what the reader can do next. At most one per view.
  */
-export function Callout({ tone = "info", title, children, actions, shape, className }: CalloutProps) {
+export function Callout({ tone = "info", title, children, actions, shape, stacked = false, className }: CalloutProps) {
   const spec = TONE[tone];
   return (
     <div
-      className={cx("dw-callout", `dw-tone-${spec.tone}`, className)}
+      className={cx("dw-callout", `dw-tone-${spec.tone}`, stacked && "dw-callout-stacked", className)}
       role={tone === "critical" ? "alert" : "status"}
     >
       {/* Not knowing is grey wherever it's drawn, as that shape is, whatever the tone around it. */}

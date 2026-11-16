@@ -152,7 +152,7 @@ A route's certificate needs the internet to reach the server on 80 or 443. A ser
 dockwell routes create www --domain app.example.com --service myapp --port 8080 --tls off --yes
 ```
 
-Caddy then serves that domain over plain HTTP on port 80, asks for no certificate, and doesn't redirect it to HTTPS, which would loop behind a tunnel. The plan says its traffic reaches this server unencrypted, which is fine on a tunnel or a private network, and not on the open internet. Its certificate reads "none". While no route on the server takes a certificate, Caddy holds port 80 and nothing else. All of a domain's routes take the same setting, so to change one, change them together in one change. A domain that has had a certificate needs a person to take it off, in the panel, as `https://` stops answering, and browsers that saw HSTS refuse plain HTTP until that runs out. The panel's own domain can't be served this way, as its passkeys and cookies need HTTPS: reach it through the SSH tunnel.
+Caddy then serves that domain over plain HTTP on port 80, asks for no certificate, and doesn't redirect it to HTTPS, which would loop behind a tunnel. The plan says its traffic reaches this server unencrypted, which is fine on a tunnel or a private network, and not on the open internet. Its certificate reads "none". While no route on the server takes a certificate, Caddy holds port 80 and nothing else. All of a domain's routes take the same setting, so to change one, change them together in one change. A domain that has had a certificate needs a person to take it off, in the panel, as `https://` stops answering, and browsers that saw HSTS refuse plain HTTP until that runs out. The panel's own domain goes through a tunnel differently: see [The panel behind a tunnel](#the-panel-behind-a-tunnel).
 
 **It doesn't answer the whole internet.** Port 80 is open on every address, so someone who finds the server's address could otherwise send `Host: app.example.com` straight to it, around whatever you have in the tunnel or the proxy. So such a route answers only the proxies it names in `--trusted-proxies`, by the address on the connection, or with none, this server's own loopback. Anyone else gets what a name with no route gets, a 404, so they can't tell it's there. For a site on a private network, or a load balancer whose addresses you don't know, `--plain-for-anyone` answers anyone who can reach the port, and a person approves it, in the panel.
 
@@ -193,6 +193,18 @@ docker network inspect tunnel --format '{{(index .IPAM.Config 0).Subnet}}'
 Start it with `docker run --network tunnel --add-host host.docker.internal:host-gateway`. Its service is `http://host.docker.internal:80`, and the route names the range that printed, such as `--trusted-proxies 10.77.0.0/24`. Without that, it's someone else, and gets a 404. A firewall such as ufw treats it as incoming, so allow it: `ufw allow in on tunnel0 to any port 80`. Keep everything else off that network, as anything on it could say the same. A service on a network of its environment can do this too, with that network's range and the address of its gateway, if the network isn't `internal`.
 
 **On a network other projects share,** such as one a service joins with `external_networks`, it's the same with that network's range, from `docker network inspect NAME --format '{{(index .IPAM.Config 0).Subnet}}'`. Naming it names everything on it: each could reach the route, and say who its client is. So give the tunnel a network of its own, or run it on the server's own.
+
+### The panel behind a tunnel
+
+The panel's own domain can come through the same tunnel, with passkeys and sign-in working there as on any HTTPS address. Under Settings, General, type the domain and choose **Behind a tunnel or proxy**, which the panel chooses for you when the domain reaches it through a tunnel already. Dockwell then asks for no certificate and holds neither port 80 nor 443 for the panel, which keeps answering on loopback alone. A domain already waiting for a certificate offers **Serve it behind a tunnel**, first where the tunnel reaches the panel.
+
+In Cloudflare, add a published application with the panel's domain as its hostname and `http://127.0.0.1:7600` as its service: the panel's loopback address, not port 80. The panel checks the way in as you type, by asking the domain for a one-time token through the tunnel, and says **Reached through your tunnel**, or why not and what to change.
+
+- **Run the tunnel on this server,** as above. The panel believes a request for its domain only from loopback, with that domain as its host and `X-Forwarded-Proto: https`, which Cloudflare sets. Anything else on the server could reach the panel on loopback already, and gets no more: a passkey is bound to the browser's address, and a session cookie to the browser that holds it.
+- **Leave the application's HTTP host header as it is.** Passkeys need the domain as the host.
+- **Passkeys belong to the domain,** so moving it between Dockwell serving it and the tunnel keeps them. The SSH tunnel keeps working throughout.
+
+Without the panel, start `dockwell run` with `--domain panel.example.com --behind-proxy`, or set `DOCKWELL_DOMAIN` and `DOCKWELL_BEHIND_PROXY=1` as [Change settings](#change-settings) says. Any other proxy on this server that ends TLS works the same way, sending to `http://127.0.0.1:7600` with the domain as the host and `X-Forwarded-Proto: https`, and appending the visitor's address to `X-Forwarded-For`, which the panel reads it from.
 
 ### Cloudflare's proxy, or another in front
 
@@ -307,7 +319,7 @@ These settings are for air-gapped servers, mirrors that re-sign releases, and te
 
 The script replaces the service file on every upgrade, so put your changes somewhere it doesn't touch:
 
-- On systemd, run `systemctl edit dockwell` to add a drop-in. To change the agent listener's address, or the URL other servers use to reach it, add `Environment=DOCKWELL_AGENT_LISTEN=…` or `Environment=DOCKWELL_ADVERTISE_URL=…`. To serve the panel on a domain, add `Environment=DOCKWELL_DOMAIN=panel.example.com`.
+- On systemd, run `systemctl edit dockwell` to add a drop-in. To change the agent listener's address, or the URL other servers use to reach it, add `Environment=DOCKWELL_AGENT_LISTEN=…` or `Environment=DOCKWELL_ADVERTISE_URL=…`. To serve the panel on a domain, add `Environment=DOCKWELL_DOMAIN=panel.example.com`, and beside it `Environment=DOCKWELL_BEHIND_PROXY=1` when [a tunnel serves it](#the-panel-behind-a-tunnel). A domain set under Settings is served as Settings say, and `DOCKWELL_BEHIND_PROXY` alone does nothing.
 - On OpenRC, set them in `/etc/conf.d/dockwell`, with `export`, such as `export DOCKWELL_ADVERTISE_URL=https://203.0.113.7:7443`.
 
 The panel itself always stays on loopback. `DOCKWELL_LISTEN` can move it to another loopback address or port, such as `127.0.0.1:7700` or `[::1]:7600`, and the script reads it from the service, so it waits for the panel there. An address beyond loopback, such as `0.0.0.0:7600`, would serve the panel over plain HTTP to the network, so `dockwell run` refuses to start with it, and the script refuses it before it installs anything. To reach the panel from elsewhere, set `DOCKWELL_DOMAIN` instead: the panel is then served over HTTPS on the domain, and its loopback address keeps working.

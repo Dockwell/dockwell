@@ -334,6 +334,10 @@ message EventSetting {
   string value = 2;
   // What it was. Empty when it wasn't set.
   string previous = 3;
+  // For "panel_domain": a tunnel or a proxy that ends TLS serves value, and
+  // served previous.
+  bool behind_proxy = 4;
+  bool previous_behind_proxy = 5;
 }
 
 // EventAlert is an alert that fired or resolved, or a mute of a rule or a

@@ -84,6 +84,28 @@ service SettingsService {
     };
   }
 
+  // CheckPanelReach checks a domain behind a tunnel or a proxy that ends TLS
+  // (ADR 0063's amendment), before it's set and after: the control plane makes a
+  // one-time token, asks https://<domain>/.well-known/dockwell-reach/<token>,
+  // and says whether this panel answered it, through the proxy on this server,
+  // as a request for its domain over HTTPS. Otherwise it says why not, with the
+  // fix: a name that doesn't resolve, a tunnel that isn't connected (530), one
+  // pointing somewhere else (502), something else that answered, or a proxy that
+  // reaches the panel without the domain as its Host or X-Forwarded-Proto https.
+  // The token answers once, within 30 seconds.
+  rpc CheckPanelReach(CheckPanelReachRequest) returns (CheckPanelReachResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.command) = {
+      noun: "settings"
+      verb: "check-panel-reach"
+    };
+    option (google.api.http) = {get: "/v1/settings/panelDomain:checkReach"};
+  }
+
   // CheckPanelDomain checks a domain for the panel as it's typed, before it's
   // set (ADR 0063): whether the panel can take it, by the rules --domain has
   // and as no route serves it or a name under it; what its A and AAAA records
@@ -91,7 +113,8 @@ service SettingsService {
   // server's public addresses; and whether something other than Dockwell or its
   // Caddy holds port 80 or 443 on the control server, which would stop a
   // certificate. DNS that doesn't lead here yet is a warning, not a refusal: a
-  // person may set DNS and the domain in either order.
+  // person may set DNS and the domain in either order. It also says when the
+  // records lead to Cloudflare, whose tunnel ends TLS before this server.
   rpc CheckPanelDomain(CheckPanelDomainRequest) returns (CheckPanelDomainResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
@@ -106,7 +129,8 @@ service SettingsService {
   }
 
   // SetPanelDomain sets the domain the panel is served on over HTTPS, or clears
-  // it (an empty domain), and restarts the control plane to serve it: the
+  // it (an empty domain), served by Dockwell itself or behind a tunnel or a
+  // proxy that ends TLS, and restarts the control plane to serve it: the
   // response goes out first, then it re-executes itself, so apps and websites
   // keep running and the panel answers again within seconds, on loopback and
   // the domain (ADR 0063). It takes the owner, signed in, and a passkey just
@@ -116,8 +140,9 @@ service SettingsService {
   // clears. Refused while a
   // change is applying, when dockwell run was given a domain with --domain or
   // DOCKWELL_DOMAIN, for a name the panel can't take, and for a move from one
-  // domain to another, which comes later. It's on the activity log with the
-  // domain it replaced.
+  // domain to another, which comes later. Moving between Dockwell serving it
+  // and a proxy, on the same domain, keeps every passkey. It's on the activity
+  // log with the domain it replaced.
   rpc SetPanelDomain(SetPanelDomainRequest) returns (SetPanelDomainResponse) {
     option (dockwell.v1.effect) = EFFECT_APPLY;
     option (dockwell.v1.min_role) = NEEDS_ADMIN;
@@ -322,6 +347,29 @@ message CheckPanelDomainResponse {
   // What holds port 80 or 443 on the control server other than Dockwell or its
   // Caddy, which would stop a certificate.
   repeated PanelPortHolder ports_held = 6;
+  // True when an address it resolves to is in Cloudflare's published ranges,
+  // as with Cloudflare Tunnel, which ends TLS before this server: the panel
+  // then offers to serve it behind a tunnel or proxy first.
+  bool cloudflare = 7;
+}
+
+// CheckPanelReachRequest names a domain behind a tunnel or proxy to check.
+message CheckPanelReachRequest {
+  // The domain, such as "panel.example.com".
+  string domain = 1;
+}
+
+// CheckPanelReachResponse says whether the panel answered on the domain,
+// through the tunnel or proxy.
+message CheckPanelReachResponse {
+  // True when this panel answered, as a request for the domain over HTTPS.
+  bool reached = 1;
+  // Why it didn't, with the fix, such as "Cloudflare answered 530: the tunnel
+  // isn't connected. Start cloudflared on this server". Empty when it did.
+  string problem = 2;
+  // The loopback address the tunnel or proxy should send to, such as
+  // "http://127.0.0.1:7600".
+  string target = 3;
 }
 
 // PanelPortHolder is a program that holds a port the panel's certificate needs.
@@ -338,6 +386,10 @@ message SetPanelDomainRequest {
   string domain = 1;
   // The proof from FinishStepUp for STEP_UP_ACTION_SET_PANEL_DOMAIN.
   string proof = 2;
+  // True when a tunnel or a proxy that ends TLS, such as Cloudflare Tunnel,
+  // sends the domain's requests to the panel on loopback: Dockwell then asks
+  // for no certificate and holds no port 80 or 443 for it.
+  bool behind_proxy = 3;
 }
 
 // SetPanelDomainResponse is the settings as saved, before the restart.
@@ -374,6 +426,11 @@ enum PanelServedBy {
   // has a route, and serves the panel's domain with its own certificate (ADR
   // 0024). The panel takes them back when the last route goes.
   PANEL_SERVED_BY_INGRESS = 3;
+  // A tunnel or a proxy that ends TLS, such as Cloudflare Tunnel, which sends
+  // the domain's requests to the panel on loopback, from this server, with the
+  // domain as their Host and X-Forwarded-Proto https. Dockwell asks for no
+  // certificate and holds no port 80 or 443 for it (ADR 0063's amendment).
+  PANEL_SERVED_BY_PROXY = 4;
 }
 
 // SetInstallNameRequest names the install.

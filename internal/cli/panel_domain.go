@@ -13,6 +13,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"net"
+	"net/http"
 	"net/netip"
 	"os"
 	"path"
@@ -31,6 +32,60 @@ import (
 // envTestDNS names what a test resolves, as "panel.example.com=192.0.2.10,...":
 // a test asks no DNS server beyond the machine it runs on.
 const envTestDNS = "DOCKWELL_TEST_DNS"
+
+// envBehindProxy says a tunnel or a proxy that ends TLS serves the panel's domain
+// (ADR 0063's amendment).
+const envBehindProxy = "DOCKWELL_BEHIND_PROXY"
+
+// envTestReach names where a test's check of a domain behind a tunnel connects,
+// as "127.0.0.1:8443", in place of the domain's own address on 443: a test's
+// stand-in for the tunnel, which asks nothing beyond the machine.
+const envTestReach = "DOCKWELL_TEST_REACH"
+
+// behindProxyDomain is the panel's domain where a tunnel or a proxy that ends TLS
+// serves it, or "".
+func behindProxyDomain(f runFlags) string {
+	if f.behindProxy {
+		return f.domain
+	}
+	return ""
+}
+
+// reachClient is what checks a domain behind a tunnel asks it with: nil, for the
+// control plane's guarded client, except in a test, which reaches only the
+// stand-in DOCKWELL_TEST_REACH names, trusting DOCKWELL_ACME_ROOTS's roots.
+func reachClient(getenv func(string) string) settings.Doer {
+	if !isSet(getenv(envTest)) {
+		return nil
+	}
+	to := getenv(envTestReach)
+	tr := &http.Transport{
+		Proxy: nil,
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			if to == "" {
+				host, _, _ := net.SplitHostPort(addr)
+				return nil, &net.DNSError{Err: "no such host", Name: host, IsNotFound: true}
+			}
+			var d net.Dialer
+			return d.DialContext(ctx, network, to)
+		},
+	}
+	if c := caClient(getenv(envACMERoots)); c != nil {
+		if t, ok := c.Transport.(*http.Transport); ok {
+			tr.TLSClientConfig = t.TLSClientConfig
+		}
+	}
+	return &http.Client{Transport: tr, Timeout: 15 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+}
+
+// reachInside is which addresses a check of the way in counts as inside: nil, for
+// settings.Inside, except in a test, whose stand-in tunnel is on loopback.
+func reachInside(getenv func(string) string) func(netip.Addr) bool {
+	if !isSet(getenv(envTest)) {
+		return nil
+	}
+	return func(netip.Addr) bool { return false }
+}
 
 // errRestart is a control plane that stopped to start again, as a person asked
 // when they saved the panel's domain (ADR 0063).

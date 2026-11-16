@@ -259,6 +259,7 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "ServiceUpdateService.snoozeServiceUpdates": "may",
 
   "SettingsService.checkPanelDomain": "may",
+  "SettingsService.checkPanelReach": "may",
   "SettingsService.createPanelSignInLink": "may",
   "SettingsService.getControlPlane": "may",
   "SettingsService.getSettings": "read",

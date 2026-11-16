@@ -1135,6 +1135,12 @@ msgstr "Sent a test to {name} ({kind}, {host}), which arrived"
 msgid "Sent a test to {name} ({kind}, {host}), which didn't arrive"
 msgstr "Sent a test to {name} ({kind}, {host}), which didn't arrive"
 
+msgid "Served the panel on {value} behind a tunnel or proxy"
+msgstr "Served the panel on {value} behind a tunnel or proxy"
+
+msgid "Served the panel on {value} with its own certificate"
+msgstr "Served the panel on {value} with its own certificate"
+
 msgid "Set everyone to be asked for their passkey at least once an hour"
 msgstr "Set everyone to be asked for their passkey at least once an hour"
 
@@ -1155,6 +1161,9 @@ msgstr "Set new apps to wait for a person for each update"
 
 msgid "Set the panel's domain to {value}"
 msgstr "Set the panel's domain to {value}"
+
+msgid "Set the panel's domain to {value}, behind a tunnel or proxy"
+msgstr "Set the panel's domain to {value}, behind a tunnel or proxy"
 
 msgid "Set the panel's domain to {value}, which was {previous}"
 msgstr "Set the panel's domain to {value}, which was {previous}"
@@ -16104,6 +16113,9 @@ msgstr "What this install is called, its time zone and how its panel is served"
 msgid "What this install is called, its time zone and how its panel is served · set up {since}"
 msgstr "What this install is called, its time zone and how its panel is served · set up {since}"
 
+msgid "Your tunnel or proxy, which ends TLS and sends it here"
+msgstr "Your tunnel or proxy, which ends TLS and sends it here"
+
 msgid "An organization"
 msgstr "An organization"
 
@@ -16877,6 +16889,12 @@ msgstr "{withPasskeys} of {count} sign in with a passkey"
 msgid "Apps and websites keep running. It asks for your passkey."
 msgstr "Apps and websites keep running. It asks for your passkey."
 
+msgid "Apps, websites and passkeys keep working. It asks for your passkey."
+msgstr "Apps, websites and passkeys keep working. It asks for your passkey."
+
+msgid "Behind a tunnel or proxy"
+msgstr "Behind a tunnel or proxy"
+
 msgid "DNS doesn't point here yet"
 msgstr "DNS doesn't point here yet"
 
@@ -16893,12 +16911,27 @@ msgstr "Dockwell restarts to serve {0}. Apps and websites keep running…"
 msgid "Dockwell restarts to serve {domain}"
 msgstr "Dockwell restarts to serve {domain}"
 
+msgid "Dockwell restarts to serve {domain} behind your tunnel"
+msgstr "Dockwell restarts to serve {domain} behind your tunnel"
+
+msgid "Dockwell restarts to serve {domain} with its own certificate"
+msgstr "Dockwell restarts to serve {domain} with its own certificate"
+
+msgid "Dockwell serves it"
+msgstr "Dockwell serves it"
+
 msgid "Getting a certificate for {domain}…"
 msgstr "Getting a certificate for {domain}…"
+
+msgid "How it reaches this server"
+msgstr "How it reaches this server"
 
 #. placeholder {0}: found.addresses.join(", ")
 msgid "It leads to {0}"
 msgstr "It leads to {0}"
+
+msgid "Not reached yet"
+msgstr "Not reached yet"
 
 msgid "Once DNS leads here and ports 80 and 443 reach this server, it comes on its own."
 msgstr "Once DNS leads here and ports 80 and 443 reach this server, it comes on its own."
@@ -16912,8 +16945,17 @@ msgstr "Open {domain}"
 msgid "Passkeys belong to the address they were made on: open it, and add one there."
 msgstr "Passkeys belong to the address they were made on: open it, and add one there."
 
+msgid "Reached through your tunnel"
+msgstr "Reached through your tunnel"
+
 msgid "Restart and serve it"
 msgstr "Restart and serve it"
+
+msgid "Serve it behind a tunnel"
+msgstr "Serve it behind a tunnel"
+
+msgid "Serve it with its own certificate"
+msgstr "Serve it with its own certificate"
 
 msgid "Serve the panel there"
 msgstr "Serve the panel there"
@@ -16927,8 +16969,14 @@ msgstr "The panel answers on {domain}"
 msgid "The panel answers there over HTTPS too. The SSH tunnel keeps working."
 msgstr "The panel answers there over HTTPS too. The SSH tunnel keeps working."
 
+msgid "The tunnel ends TLS, so no certificate comes here."
+msgstr "The tunnel ends TLS, so no certificate comes here."
+
 msgid "This server's public address isn't known: set it, and Dockwell compares the two."
 msgstr "This server's public address isn't known: set it, and Dockwell compares the two."
+
+msgid "Tunnel"
+msgstr "Tunnel"
 
 msgid "dockwell run was started with this domain, as <0>DOCKWELL_DOMAIN</0> or <1>--domain</1>, which wins over Settings. Change it there."
 msgstr "dockwell run was started with this domain, as <0>DOCKWELL_DOMAIN</0> or <1>--domain</1>, which wins over Settings. Change it there."
@@ -16940,6 +16988,12 @@ msgstr "{0} holds port {1} on this server, so no certificate can come until it's
 
 msgid "{domain} isn't served"
 msgstr "{domain} isn't served"
+
+msgid "{domain} reaches this panel through a tunnel"
+msgstr "{domain} reaches this panel through a tunnel"
+
+msgid "{domain} stops answering through the tunnel until its record leads here and a certificate comes. The SSH tunnel keeps working."
+msgstr "{domain} stops answering through the tunnel until its record leads here and a certificate comes. The SSH tunnel keeps working."
 
 msgid "{leads}. This server's public address isn't known: set it, and Dockwell compares the two."
 msgstr "{leads}. This server's public address isn't known: set it, and Dockwell compares the two."

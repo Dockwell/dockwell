@@ -95,6 +95,9 @@ type runFlags struct {
 	httpsListen   string
 	httpListen    string
 	acmeDirector  string
+	// behindProxy says a tunnel or a proxy that ends TLS serves domain, sending
+	// its requests to listen (ADR 0063's amendment).
+	behindProxy bool
 }
 
 // A stream's session is what the engine sends a server's desired state through.
@@ -129,6 +132,9 @@ func runCommand(cmd *cobra.Command, stdio IO, g *globalFlags) runRole {
 		"address that answers certificate challenges and redirects to HTTPS when the panel has a --domain (env "+envHTTPListen+")")
 	fl.StringVar(&f.acmeDirector, "acme-directory-url", envOr(stdio, envACMEDirectory, ""),
 		"the ACME CA's directory, such as Let's Encrypt's staging one; defaults to Let's Encrypt (env "+envACMEDirectory+")")
+	fl.BoolVar(&f.behindProxy, "behind-proxy", isSet(stdio.Getenv(envBehindProxy)),
+		"a tunnel or a proxy that ends TLS on this server, such as Cloudflare Tunnel, serves --domain and sends it to --listen: "+
+			"Dockwell then gets no certificate and holds no port 80 or 443 for the panel (env "+envBehindProxy+")")
 
 	return func(ctx context.Context, logger *slog.Logger, dir datadir.Dir, build buildinfo.Info) error {
 		role, id, err := decideRole(dir)
@@ -189,6 +195,21 @@ func runControl(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logg
 	var domainProblem string
 	f.domain, domainFrom, domainProblem = panelDomainAtStart(ctx, logger, db, f.domain)
 	fromSetting := domainFrom == dockwellv1.PanelDomainFrom_PANEL_DOMAIN_FROM_SETTING
+	// --behind-proxy goes with --domain. A domain from the settings is served as they
+	// say, and neither stops dockwell run, so the panel always answers on loopback
+	// (ADR 0063's amendment).
+	given := f.behindProxy
+	if fromSetting {
+		f.behindProxy = false
+		if f.domain != "" {
+			set, err := settings.PanelSetting(ctx, db)
+			f.behindProxy = err == nil && set.Domain == f.domain && set.BehindProxy
+		}
+	}
+	if given && domainFrom != dockwellv1.PanelDomainFrom_PANEL_DOMAIN_FROM_RUN {
+		logger.Warn("--behind-proxy (DOCKWELL_BEHIND_PROXY) goes with --domain (DOCKWELL_DOMAIN), so it does nothing here: how the panel's domain is served is set where the domain is, under Settings, General",
+			slog.String("domain", f.domain), slog.Bool("behind_proxy", f.behindProxy))
+	}
 
 	var ls control.Listeners
 	closeAll := func() {
@@ -212,9 +233,11 @@ func runControl(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logg
 	// With routes on this server, its proxy holds the public ports and sends
 	// the panel's domain here over a socket only it reaches, so the panel
 	// leaves them alone, whether the proxy is up or not (ADR 0024).
-	handsOver := f.domain != "" && onPublicPorts(f)
+	// Behind a tunnel or a proxy that ends TLS, the panel holds nothing public, and
+	// what the proxy sends comes to the loopback listener (ADR 0063's amendment).
+	handsOver := f.domain != "" && !f.behindProxy && onPublicPorts(f)
 	proxied := handsOver && ingress.Active(dir.Ingress())
-	if f.domain != "" && !proxied {
+	if f.domain != "" && !f.behindProxy && !proxied {
 		flag := "--https-listen"
 		var listenErr error
 		if ls.HTTPS, listenErr = serve.Listen(ctx, f.httpsListen); listenErr == nil {
@@ -294,7 +317,7 @@ func runControl(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logg
 	}
 	var public https.Source
 	certified := func() bool { return true }
-	if f.domain != "" {
+	if f.domain != "" && !f.behindProxy {
 		if public, err = acmeSource(f, dir, httpsAddrOf(ls.HTTPS, f.httpsListen)); err != nil {
 			closeAll()
 			return err
@@ -307,16 +330,20 @@ func runControl(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logg
 		}
 	}
 
-	addr := panelAddress{Domain: f.domain, Host: ipOf(ls.API.Addr()), Port: portOf(ls.API.Addr()), PublicHost: hostOf(agentURL)}
+	addr := panelAddress{Domain: f.domain, Host: ipOf(ls.API.Addr()), Port: portOf(ls.API.Addr()), PublicHost: hostOf(agentURL), BehindProxy: f.behindProxy && f.domain != ""}
 	if ls.HTTPS != nil {
 		addr.HTTPSPort = portOf(ls.HTTPS.Addr())
-	} else if proxied {
+	} else if proxied || f.behindProxy && f.domain != "" {
 		addr.HTTPSPort = "443"
 	}
 	claim := claimCommand(dir, f.database, stdio.Getenv)
 	if err := announce(ctx, stdio, logger, db, people, addr, claim); err != nil {
 		closeAll()
 		return err
+	}
+	if f.behindProxy && f.domain != "" {
+		logger.Info("a tunnel or a proxy that ends TLS serves the panel's domain, so Dockwell gets no certificate for it. Point it at the panel's loopback address",
+			slog.String("domain", f.domain), slog.String("target", "http://"+ls.API.Addr().String()))
 	}
 	if proxied {
 		logger.Info("this server's routes hold ports 80 and 443, and Caddy serves the panel's domain. If it's down, the panel still answers through an SSH tunnel",
@@ -441,7 +468,8 @@ func runControl(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logg
 		PanelDomain: control.PanelDomain{
 			From: domainFrom, Problem: domainProblem, Certified: certified,
 			Resolve: resolverFor(stdio.Getenv), PortsHeld: portsHeld(stdio.Getenv), Restart: restart,
-			Saved: func(d string) { saved.Store(d) },
+			Saved:       func(d string) { saved.Store(d) },
+			BehindProxy: behindProxyDomain(f), ReachClient: reachClient(stdio.Getenv), ReachInside: reachInside(stdio.Getenv),
 		},
 		AgentListen:    ls.Agents.Addr().String(),
 		PublicAddress:  addr.dnsAddress(),
@@ -490,7 +518,7 @@ func runControl(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logg
 		wg.Go(func() { followPublicAddress(ctx, logger, hub, srv.AddAgentHost, authority, portOf(ls.Agents.Addr())) })
 	}
 	var panel *ingress.Panel
-	if f.domain != "" {
+	if f.domain != "" && !f.behindProxy {
 		panel = &ingress.Panel{Domain: f.domain}
 		if handsOver {
 			ports := srv.PublicPorts(f.httpsListen, f.httpListen)
@@ -537,7 +565,7 @@ func ownPorts(ls control.Listeners, f runFlags) []int {
 			out = append(out, addr.Port)
 		}
 	}
-	if f.domain == "" {
+	if f.domain == "" || f.behindProxy {
 		return out
 	}
 	for _, listen := range []string{f.httpsListen, f.httpListen} {
@@ -713,7 +741,7 @@ func panelURL(addr panelAddress) string {
 // unless dockwell run was given another ACME directory, which is named by its
 // host. Empty without a domain.
 func certificateAuthority(f runFlags) string {
-	if f.domain == "" {
+	if f.domain == "" || f.behindProxy {
 		return ""
 	}
 	u, err := url.Parse(f.acmeDirector)

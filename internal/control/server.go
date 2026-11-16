@@ -466,6 +466,8 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 	mux := http.NewServeMux()
 	var services []string
 	var rest []*vanguard.Service
+	// The tokens a check of the panel's domain behind a tunnel asks for.
+	reach := settings.NewReach()
 	guardREST := func(h http.Handler) http.Handler { return h }
 	var filesHandler http.Handler
 	var appOpener *opener.Opener
@@ -482,6 +484,9 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 			Listen: cfg.PanelListen, URL: cfg.PanelURL, CA: cfg.PanelCA,
 			From: cfg.PanelDomain.From, Problem: cfg.PanelDomain.Problem, Certified: cfg.PanelDomain.Certified,
 			Started: time.Now(),
+		}
+		if d := cfg.PanelDomain.BehindProxy; d != "" {
+			serving.Domain, serving.BehindProxy = d, true
 		}
 		if cfg.Public != nil {
 			serving.Domain = cfg.Public.Domain()
@@ -505,6 +510,10 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		domain := settings.Domain{
 			Auth: cfg.Auth, Resolve: cfg.PanelDomain.Resolve, PortsHeld: cfg.PanelDomain.PortsHeld, Restart: cfg.PanelDomain.Restart, Saved: cfg.PanelDomain.Saved,
 			PublicAddresses: func() []string { return controlAddresses(cfg.Fleet) },
+			Reach:           reach, ReachClient: cfg.PanelDomain.ReachClient, Inside: cfg.PanelDomain.ReachInside,
+		}
+		if domain.ReachClient == nil {
+			domain.ReachClient = settings.ReachClient()
 		}
 		if cfg.PanelDomain.PublicAddresses != nil {
 			domain.PublicAddresses = cfg.PanelDomain.PublicAddresses
@@ -825,8 +834,12 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		sites = cfg.Auth.Sites()
 	}
 	// An app opened through the panel answers on an origin of its own, ahead of the
-	// panel's guard, which answers none but the panel's (ADR 0061).
-	return serve.Recover(cfg.Logger, opener.Dispatch(appOpener, authapi.Guard(sites, cfg.Logger, mux))), nil
+	// panel's guard, which answers none but the panel's (ADR 0061). Behind a tunnel
+	// or a proxy that ends TLS, what it sends for the panel's domain reads as the
+	// HTTPS it came over, and a check of the way in is answered whatever its host
+	// (ADR 0063's amendment).
+	return serve.Recover(cfg.Logger, reach.Serve(authapi.ViaProxy(cfg.PanelDomain.BehindProxy,
+		opener.Dispatch(appOpener, authapi.Guard(sites, cfg.Logger, mux))))), nil
 }
 
 // Serve serves the API and panel on ln until ctx is done.
@@ -1211,6 +1224,16 @@ type PanelDomain struct {
 	Saved func(domain string)
 	// PublicAddresses replaces the control server's own, as a test does.
 	PublicAddresses func() []string
+	// BehindProxy is the panel's domain where a tunnel or a proxy that ends TLS
+	// serves it, in Public's place: requests for it come to the loopback listener
+	// from the proxy on this server (ADR 0063's amendment).
+	BehindProxy string
+	// ReachClient asks a domain behind a tunnel or proxy for the token its check
+	// makes. Nil takes settings.ReachClient, guarded as what a person names is.
+	ReachClient settings.Doer
+	// ReachInside says which addresses that check reaches lead inside. Nil takes
+	// settings.Inside.
+	ReachInside func(netip.Addr) bool
 }
 
 // controlAddresses are the control server's public addresses, as it knows them

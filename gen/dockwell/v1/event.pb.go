@@ -1297,9 +1297,13 @@ type EventSetting struct {
 	// What it is now. Empty when they cleared it.
 	Value string `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
 	// What it was. Empty when it wasn't set.
-	Previous      string `protobuf:"bytes,3,opt,name=previous,proto3" json:"previous,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Previous string `protobuf:"bytes,3,opt,name=previous,proto3" json:"previous,omitempty"`
+	// For "panel_domain": a tunnel or a proxy that ends TLS serves value, and
+	// served previous.
+	BehindProxy         bool `protobuf:"varint,4,opt,name=behind_proxy,json=behindProxy,proto3" json:"behind_proxy,omitempty"`
+	PreviousBehindProxy bool `protobuf:"varint,5,opt,name=previous_behind_proxy,json=previousBehindProxy,proto3" json:"previous_behind_proxy,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *EventSetting) Reset() {
@@ -1351,6 +1355,20 @@ func (x *EventSetting) GetPrevious() string {
 		return x.Previous
 	}
 	return ""
+}
+
+func (x *EventSetting) GetBehindProxy() bool {
+	if x != nil {
+		return x.BehindProxy
+	}
+	return false
+}
+
+func (x *EventSetting) GetPreviousBehindProxy() bool {
+	if x != nil {
+		return x.PreviousBehindProxy
+	}
+	return false
 }
 
 // EventAlert is an alert that fired or resolved, or a mute of a rule or a
@@ -2360,11 +2378,13 @@ const file_dockwell_v1_event_proto_rawDesc = "" +
 	"\x04user\x18\x04 \x01(\tR\x04user\x12\x1c\n" +
 	"\tcontainer\x18\x05 \x01(\tR\tcontainer\x12\x16\n" +
 	"\x06killed\x18\x06 \x01(\bR\x06killed\x12\x14\n" +
-	"\x05error\x18\a \x01(\tR\x05errorJ\x04\b\x03\x10\x04R\acommand\"Z\n" +
+	"\x05error\x18\a \x01(\tR\x05errorJ\x04\b\x03\x10\x04R\acommand\"\xb1\x01\n" +
 	"\fEventSetting\x12\x18\n" +
 	"\asetting\x18\x01 \x01(\tR\asetting\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value\x12\x1a\n" +
-	"\bprevious\x18\x03 \x01(\tR\bprevious\"\xea\x04\n" +
+	"\bprevious\x18\x03 \x01(\tR\bprevious\x12!\n" +
+	"\fbehind_proxy\x18\x04 \x01(\bR\vbehindProxy\x122\n" +
+	"\x15previous_behind_proxy\x18\x05 \x01(\bR\x13previousBehindProxy\"\xea\x04\n" +
 	"\n" +
 	"EventAlert\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
