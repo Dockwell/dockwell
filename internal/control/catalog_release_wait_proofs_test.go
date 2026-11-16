@@ -298,3 +298,28 @@ func TestAMoveDuringAReadRecordsNothingWrong(t *testing.T) {
 		}
 	})
 }
+
+// A read looks back over at most 10 of a source's revisions, record or not, and one
+// that can't reach the record's counts from the oldest it read (the release-wait
+// re-check, N3).
+func TestAWalkBackReadsAtMostTenRevisions(t *testing.T) {
+	t.Parallel()
+	r := newWaitStand(t, store.SQLite)
+	r.move(t, map[string]string{"entries/notes-src.yaml": waitEntry("notes-src", 2, "1.2")})
+	if _, _, err := services.NewerFrom(r.keeper()).Of(t.Context(), r.id); err != nil {
+		t.Fatal(err)
+	}
+	r.record(t, 2, time.Now().Add(-2*24*time.Hour))
+	// Twelve moves of another entry, which leave release 2 where it is.
+	before := time.Now()
+	for i := range 12 {
+		r.move(t, map[string]string{"entries/wiki-src.yaml": waitEntry("wiki-src", i+1, "1.0")})
+	}
+	got, ok, err := services.NewerFrom(r.keeper()).Of(t.Context(), r.id)
+	if err != nil || !ok {
+		t.Fatalf("release 2's update: %+v, %v, %v", got, ok, err)
+	}
+	if got.Found.Before(before.Add(-time.Second)) {
+		t.Errorf("release 2 is found at %v, from a record 12 revisions back, where a read looks back over 10", got.Found)
+	}
+}

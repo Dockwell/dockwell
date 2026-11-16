@@ -85,8 +85,8 @@ type asked struct {
 //
 // A record of the same release at the source's latest revision stands. Otherwise
 // the source moved since: its revisions are read back from the latest, while the
-// entry's release in them is the one it holds now, to the one before the record or
-// walkBack of them, and the time is the first of that run's.
+// entry's release in them is the one it holds now, to the record's revision or
+// walkBack of them, whichever is nearer, and the time is the first of that run's.
 // So a release the source left and came back to counts from its return, and a
 // source removed and added again from its own revisions (its review, M1). A latest
 // revision that doesn't hold the release asked, as the source moved after the
@@ -138,6 +138,7 @@ func (h *Handler) since(ctx context.Context, a asked, now time.Time) (since time
 	var (
 		was     held
 		known   bool
+		reached bool // the walk reaches back to the record's revision
 		latest  sourceRevision
 		earlier []sourceRevision // newest first, down to the record's or walkBack
 	)
@@ -191,9 +192,11 @@ func (h *Handler) since(ctx context.Context, a asked, now time.Time) (since time
 		if known && was.revision == r.Revision && was.release == a.release {
 			return nil
 		}
+		// To the record's revision, or walkBack, whichever is nearer (its re-check, N3).
 		floor := max(r.Revision-walkBack, 0)
 		if known {
-			floor = was.revision
+			floor = max(floor, was.revision)
+			reached = floor == was.revision
 		}
 		for number := r.Revision - 1; number > floor; number-- {
 			rev, err := read(number)
@@ -247,7 +250,7 @@ func (h *Handler) since(ctx context.Context, a asked, now time.Time) (since time
 		start = rev
 	}
 	since = start.at
-	if !stopped && known && was.release == a.release {
+	if !stopped && reached && was.release == a.release {
 		// The run reaches back to the record's revision, which held it too.
 		since = was.since
 	}
