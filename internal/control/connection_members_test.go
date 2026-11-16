@@ -113,6 +113,20 @@ func TestAConnectionOfAnotherProjectReadsAsNotThere(t *testing.T) {
 		S3: &resourcev1.ConnectionS3{Endpoint: srv.URL(), Bucket: "shared", AccessKeyId: "AKIDSHARED", SecretKey: "shared-secret", PathStyle: true},
 	}), sharedLink(env, "ours-link"), sharedLink(dataEnv, "data-link")))
 
+	// An admin's API token narrowed to this project is the only admin of one project
+	// there is: it reads as below an admin, with what reads a connection here alone,
+	// and no endpoint (review L7).
+	secret, _ := narrowedToken(t, b, &dockwellv1.CreateTokenRequest{Projects: []string{project}})
+	scripted := dockwellv1connect.NewConnectionServiceClient(bearer{token: secret, rt: b.client.Transport}, b.origin, connect.WithProtoJSON())
+	byToken, err := scripted.ListConnections(t.Context(), connect.NewRequest(&dockwellv1.ListConnectionsRequest{}))
+	if err != nil {
+		t.Fatalf("the narrowed token lists: %v", err)
+	}
+	if raw, _ := protojson.Marshal(byToken.Msg); !strings.Contains(string(raw), "ours-link") || strings.Contains(string(raw), "data-link") ||
+		strings.Contains(string(raw), dataEnv) || strings.Contains(string(raw), dataProject) || strings.Contains(string(raw), srv.URL()) {
+		t.Errorf("an admin's token narrowed to one project lists %s", raw)
+	}
+
 	hold := aMember(t, f)
 	for _, role := range []string{store.RoleDeveloper, store.RoleViewer} {
 		hold(store.Grant{ProjectID: project, Role: role})
