@@ -9,6 +9,7 @@
 package panels
 
 import (
+	"bytes"
 	"cmp"
 	"context"
 	"errors"
@@ -1068,8 +1069,11 @@ func (r *fileRouter) add(list, entry string) {
 func (r Reader) fileMiddlewares(kind dockwellv1.PanelKind) map[string]string {
 	out := map[string]string{}
 	twice := map[string]bool{}
+	var raw [][]byte
 	for _, f := range r.proxyFiles(kind) {
-		read := readTraefikFile(r.panelFile(f))
+		b := r.panelFile(f)
+		raw = append(raw, b)
+		read := readTraefikFile(b)
 		for name, k := range read.middlewares {
 			name = strings.ToLower(name)
 			if _, again := out[name]; again || read.twice[name] {
@@ -1078,6 +1082,25 @@ func (r Reader) fileMiddlewares(kind dockwellv1.PanelKind) map[string]string {
 			out[name] = k
 		}
 		maps.Copy(out, read.settings)
+	}
+	// The reader takes YAML's block style at the indents Traefik's files are written
+	// with, but Traefik decodes any YAML: four spaces, flow style, JSON, a quoted
+	// key. So each name read is counted again as a key in every file's own text,
+	// in any of those, and one written more than once, however, reads as defined
+	// twice. A router or a setting of the same name counts too, which only holds
+	// more than it need.
+	for name := range out {
+		if strings.Contains(name, ".") || twice[name] {
+			continue
+		}
+		key := regexp.MustCompile(`(?mi)(?:^|[\s{,])["']?` + regexp.QuoteMeta(name) + `["']?\s*:`)
+		n := 0
+		for _, b := range raw {
+			n += len(key.FindAll(b, -1))
+		}
+		if n > 1 {
+			twice[name] = true
+		}
 	}
 	// Traefik runs the first definition of a name, in the order it reads its files,
 	// and skips the rest: which that is can't be told for sure from here, so a name
@@ -1129,7 +1152,9 @@ func (r Reader) proxyFiles(kind dockwellv1.PanelKind) []string {
 	}
 	var out []string
 	for _, e := range entries {
-		if len(out) < maxOwnFiles && e.Type().IsRegular() && (strings.HasSuffix(e.Name(), ".yaml") || strings.HasSuffix(e.Name(), ".yml")) {
+		// Traefik takes the extension in any case, A-LIMIT.YML too.
+		ext := strings.ToLower(filepath.Ext(e.Name()))
+		if len(out) < maxOwnFiles && e.Type().IsRegular() && (ext == ".yaml" || ext == ".yml") {
 			out = append(out, path.Join(dir, e.Name()))
 		}
 	}
@@ -1371,6 +1396,11 @@ func (r Reader) filesLeft(kind dockwellv1.PanelKind) string {
 		}
 		if strings.Contains(strings.ToLower(string(b)), "clientauth") {
 			return fmt.Sprintf("a TLS option in the proxy's file %s asks clients for a certificate", at)
+		}
+		// Traefik renders each file as a Go template before it reads it, so what one
+		// with {{ says is known only once it's rendered.
+		if bytes.Contains(b, []byte("{{")) {
+			return fmt.Sprintf("the proxy's file %s is a template, which Traefik fills in and Dockwell can't read", at)
 		}
 	}
 	return ""

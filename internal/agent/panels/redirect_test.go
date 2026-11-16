@@ -304,6 +304,50 @@ func writeDynamic(t *testing.T, root, name, body string) {
 	}
 }
 
+// Traefik decodes its files as any YAML, takes their extension in any case and
+// renders each as a template first, so a second definition in four spaces, flow
+// style, JSON, a quoted key or a file named in capitals counts too, and a file
+// that's a template holds every domain (the slice 4 re-check's N1).
+func TestAMiddlewareDefinedTwiceInAnyStyleHoldsItsDomain(t *testing.T) {
+	t.Parallel()
+	router := "http:\n  routers:\n    shop-k2m4-router-websecure-1:\n      rule: Host(`shop.example.com`)\n      service: shop-k2m4-service-1\n      entryPoints:\n        - websecure\n      middlewares:\n        - gzip\n      tls:\n        certResolver: letsencrypt\n" +
+		"  services:\n    shop-k2m4-service-1:\n      loadBalancer:\n        servers:\n          - url: http://shop-k2m4:3000\n        passHostHeader: true\n"
+	compress := "http:\n  middlewares:\n    gzip:\n      compress: {}\n"
+	for name, files := range map[string]map[string]string{
+		"upper ext":   {"A-LIMIT.YML": "http:\n  middlewares:\n    gzip:\n      ipAllowList:\n        sourceRange:\n          - 192.0.2.10/32\n", "middlewares.yml": compress},
+		"four spaces": {"a-limit.yml": "http:\n    middlewares:\n        gzip:\n            ipAllowList:\n                sourceRange:\n                    - 192.0.2.10/32\n", "middlewares.yml": compress},
+		"flow style":  {"a-limit.yml": "http: {middlewares: {gzip: {ipAllowList: {sourceRange: [192.0.2.10/32]}}}}\n", "middlewares.yml": compress},
+		"quoted name": {"a-limit.yml": "http:\n  middlewares:\n    \"gzip\":\n      ipAllowList:\n        sourceRange:\n          - 192.0.2.10/32\n", "middlewares.yml": compress},
+		"json":        {"a-limit.yml": "{\"http\":{\"middlewares\":{\"gzip\":{\"ipAllowList\":{\"sourceRange\":[\"192.0.2.10/32\"]}}}}}\n", "middlewares.yml": compress},
+		"a template":  {"a-limit.yml": "http:\n  middlewares:\n    {{ \"gzip\" }}:\n      ipAllowList:\n        sourceRange:\n          - 192.0.2.10/32\n", "middlewares.yml": compress},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			for f, body := range files {
+				writeDynamic(t, root, f, body)
+			}
+			writeDynamic(t, root, "shop-k2m4.yml", router)
+			r := Reader{Root: root}
+			k := dockwellv1.PanelKind_PANEL_KIND_DOKPLOY
+			got := r.dynamicRoutesFrom("shop-k2m4", "shop-k2m4.1.x7k2", r.fileMiddlewares(k), nil)
+			left := r.filesLeft(k)
+			if left == "" && (len(got) != 1 || got[0].GetLeft() == "") {
+				t.Errorf("reads as a plain route: filesLeft %q, routes %v, defs %v", left, got, r.fileMiddlewares(k))
+			}
+		})
+	}
+	// Defined once, as Dokploy writes it, it still comes.
+	root := t.TempDir()
+	writeDynamic(t, root, "middlewares.yml", compress)
+	writeDynamic(t, root, "shop-k2m4.yml", router)
+	r := Reader{Root: root}
+	k := dockwellv1.PanelKind_PANEL_KIND_DOKPLOY
+	if got := r.dynamicRoutesFrom("shop-k2m4", "shop-k2m4.1.x7k2", r.fileMiddlewares(k), nil); r.filesLeft(k) != "" || len(got) != 1 || got[0].GetLeft() != "" {
+		t.Errorf("gzip defined once: filesLeft %q, routes %v", r.filesLeft(k), got)
+	}
+}
+
 // Traefik's file provider keeps the first definition of a middleware name, in the
 // order it reads its files, and skips the rest, where Dockwell would keep the last.
 // A name the proxy's files define more than once, in two files or one, holds what
