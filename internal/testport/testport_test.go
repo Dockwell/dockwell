@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -120,5 +121,49 @@ func TestAPortAnotherProcessHoldsIsntGivenOut(t *testing.T) {
 	mu.Unlock()
 	if !free {
 		t.Errorf("port %d stayed claimed once the process that held it ended", port)
+	}
+}
+
+// bindsALiteral finds a bind of a literal port: Listen, ListenPacket or a Dialer's
+// local address on "host:port" or ":port", with the port written out.
+var bindsALiteral = regexp.MustCompile(`(Listen|ListenPacket|ListenTCP|ListenUDP)\([^)]*"[^"]*:([0-9]{4,5})"`)
+
+// No test binds a port of testport's range directly, outside it: the claims keep
+// test processes from one another only where each port goes through here. A test
+// that wants a port of its own takes one from Free, Addr or Listen, and one that
+// binds port 0 gets one from the kernel's range, which this one isn't (#731).
+func TestNoTestBindsAPortOfTheRangeDirectly(t *testing.T) {
+	root, err := filepath.Abs("../..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "go.mod")); err != nil {
+		t.Fatalf("the module isn't at %s: %v", root, err)
+	}
+	top := ephemeralStart()
+	err = filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() && (d.Name() == "node_modules" || d.Name() == ".git" || d.Name() == "web") {
+			return filepath.SkipDir
+		}
+		if d.IsDir() || !strings.HasSuffix(path, ".go") {
+			return nil
+		}
+		b, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		for _, m := range bindsALiteral.FindAllStringSubmatch(string(b), -1) {
+			if port, err := strconv.Atoi(m[2]); err == nil && port >= below && port < top {
+				rel, _ := filepath.Rel(root, path)
+				t.Errorf("%s binds port %d, in the range testport gives out, so another test process may be given it: take one from testport", rel, port)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
 }
