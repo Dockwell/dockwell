@@ -191,6 +191,9 @@ type Also struct {
 	// Adopts is what each edit takes on, by what's edited. A change can take on
 	// several projects, whose services may share a name.
 	Adopts map[resource.Ref]Adoption
+	// Public are the ports each edit makes public on purpose, by what's edited, as a
+	// catalog entry declares them (revision.Edit.Public, ADR 0101).
+	Public map[resource.Ref][]string
 	// Intent is what the plan is for, when the method proposing it knows.
 	Intent *revision.Intent
 	// BackUp names resources to back up first (revision.Edit), and BackUpOne apps'
@@ -248,6 +251,7 @@ func (h *Handler) proposeAlso(ctx context.Context, who revision.By, summary stri
 		edits[i].Pull, edits[i].Run = also.Pull, also.Run
 		a := also.Adopts[edits[i].Ref]
 		edits[i].Adopt, edits[i].AdoptName = a.ID, a.Name
+		edits[i].Public = also.Public[edits[i].Ref]
 		edits[i].Backup = slices.Contains(also.BackUp, edits[i].Ref)
 	}
 	plan, err := h.engine.Propose(ctx, revision.Proposal{

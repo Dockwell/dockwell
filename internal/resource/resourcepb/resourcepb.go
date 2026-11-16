@@ -429,6 +429,7 @@ var accessKinds = map[resource.AccessKind]dockwellv1.HostAccessKind{
 	resource.AccessSecurityOption: dockwellv1.HostAccessKind_HOST_ACCESS_KIND_SECURITY_OPTION,
 	resource.AccessHostProcesses:  dockwellv1.HostAccessKind_HOST_ACCESS_KIND_HOST_PROCESSES,
 	resource.AccessRootTogether:   dockwellv1.HostAccessKind_HOST_ACCESS_KIND_ROOT_TOGETHER,
+	resource.AccessPublicPort:     dockwellv1.HostAccessKind_HOST_ACCESS_KIND_PUBLIC_PORT,
 }
 
 // HostAccess converts what a resource reaches on its server.

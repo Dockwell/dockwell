@@ -150,7 +150,14 @@ func TestPresentationChangesDoNotOfferAnUpgrade(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, e := range c.All() {
-		pin := &resourcev1.CatalogPin{Entry: e.GetId(), Release: e.GetRelease() - 1, Version: e.GetVersion(), File: []byte(e.GetCompose())}
+		// Pinned as an install pins it now, its ports on the server alone but those it
+		// declares public (ADR 0101). A pin from before, with its ports as the entry
+		// wrote them, is offered the release, which moves them (#752's review, L2).
+		ran, err := catalog.Loopback(e)
+		if err != nil {
+			t.Fatal(err)
+		}
+		pin := &resourcev1.CatalogPin{Entry: e.GetId(), Release: e.GetRelease() - 1, Version: e.GetVersion(), File: []byte(ran.GetCompose())}
 		if catalog.Upgrades(e, pin) {
 			t.Errorf("%s offers a plan for the same Compose file", e.GetId())
 		}

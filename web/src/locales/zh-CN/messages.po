@@ -7789,6 +7789,9 @@ msgstr "这里还无法创建"
 msgid "Open {app}"
 msgstr "打开 {app}"
 
+msgid "Public"
+msgstr "公开"
+
 msgid "Reaches"
 msgstr "可访问"
 
@@ -9920,6 +9923,9 @@ msgstr "放行本服务器或私有网络的地址限制无法从这里看出。
 msgid "Anyone who can reach this server gets it, around whatever is in front of it."
 msgstr "任何能访问此服务器的人都能访问它，并绕过它前面的任何内容。"
 
+msgid "Anyone who can reach this server reaches it there, as its catalog entry means it to."
+msgstr "任何能访问此服务器的人都能在这里访问它，这正是其目录条目的本意。"
+
 msgid "Anyone who can read this app can see it, as it can't be hidden there."
 msgstr "能读取此应用的任何人都能看到它，因为这里无法隐藏它。"
 
@@ -10601,6 +10607,9 @@ msgstr "{names} 未连接，因此不在此变更中"
 
 msgid "{names}'s agent is older than fleet upgrades, so it isn't in this change"
 msgstr "{names} 的代理早于集群升级功能，因此不在此变更中"
+
+msgid "{name} answers on port {path} on every address of {server}"
+msgstr "{name} 在 {server} 的每个地址上通过端口 {path} 应答"
 
 msgid "{name} answers plain HTTP on {path} on {server}"
 msgstr "{name} 在 {server} 上以明文 HTTP 响应 {path}"

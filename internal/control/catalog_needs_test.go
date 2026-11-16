@@ -1376,6 +1376,9 @@ func TestUseAnotherDatabaseStartingEmptyHoldsTheRoute(t *testing.T) {
 	if ip := bound(); ip != "127.0.0.1" {
 		t.Errorf("held, the blog listens on %q", ip)
 	}
+	if app := e.Newest(docker.Project(env), "app"); app.Config.Labels["dev.dockwell.held-ports"] == "" {
+		t.Errorf("held, the blog's port isn't held: %v", app.Config.Labels)
+	}
 	var held resourcev1.Route
 	err = f.store.View(t.Context(), func(tx *store.Tx) error {
 		r, err := tx.GetResource(t.Context(), "route", env, "www")
@@ -1410,8 +1413,13 @@ func TestUseAnotherDatabaseStartingEmptyHoldsTheRoute(t *testing.T) {
 			t.Errorf("opened, the ingress has the blog's route %s as %v", name, got)
 		}
 	}
-	if ip := bound(); ip != "" {
+	// Where it did: the server alone, as every port of a catalog app answers but one
+	// its entry declares public (ADR 0101), and no longer held there.
+	if ip := bound(); ip != "127.0.0.1" {
 		t.Errorf("opened, the blog listens on %q", ip)
+	}
+	if app := e.Newest(docker.Project(env), "app"); app.Config.Labels["dev.dockwell.held-ports"] != "" {
+		t.Errorf("opened, the blog's port is still held: %v", app.Config.Labels)
 	}
 	if _, err := cat.OpenCatalogInstall(t.Context(), connect.NewRequest(&dockwellv1.OpenCatalogInstallRequest{Id: "blog"})); connect.CodeOf(err) != connect.CodeFailedPrecondition {
 		t.Errorf("opening it again = %v", err)

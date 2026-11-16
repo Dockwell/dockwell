@@ -478,6 +478,12 @@ message Input {
   // keeps with it, so setting the secret anew changes nothing or loses what it
   // encrypted. The panel marks it, and says where to change it, if anywhere.
   bool set_once = 9;
+  // A port the app publishes on every address of the server, on purpose, such as
+  // a proxy's 80 and 443: anyone who reaches the server reaches it. Only a port
+  // input takes it. Every other port answers on the server alone, 127.0.0.1, and
+  // a person approves a public one in the plan. See
+  // docs/adr/0101-a-port-a-catalog-app-publishes-to-everyone-on-purpose.md.
+  bool public = 83;
 }
 
 // Characters are what a value a person gives may hold.

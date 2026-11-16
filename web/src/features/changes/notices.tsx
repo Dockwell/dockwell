@@ -136,6 +136,7 @@ const WORST: Readonly<Partial<Record<HostAccessKind, number>>> = {
   [HostAccessKind.CERTIFICATE_KEY]: 2,
   [HostAccessKind.SERVER_PORT]: 3,
   [HostAccessKind.PLAIN_FOR_ANYONE]: 4,
+  [HostAccessKind.PUBLIC_PORT]: 4,
   [HostAccessKind.TRUSTED_PROXY]: 4,
   [HostAccessKind.HTTPS_OFF]: 4,
   [HostAccessKind.ACCESS_OPENED]: 4,
@@ -445,6 +446,12 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
                 more: t`It takes that proxy's word for where a request came from. Whatever else is in that range can reach the route, and say who its client is.`,
               }
             : { more: t`It takes that proxy's word for where a request came from.` }),
+        };
+      case HostAccessKind.PUBLIC_PORT:
+        return {
+          key,
+          title: t`${name} answers on port ${path} on every address of ${server}`,
+          more: t`Anyone who can reach this server reaches it there, as its catalog entry means it to.`,
         };
       case HostAccessKind.PLAIN_FOR_ANYONE:
         return {

@@ -624,12 +624,24 @@ settled() {
         fail "can't prove $service: it stops on a stand-in for a secret it reads (running $running, $restarts restarts, started $was then $started). Give checks/$id.sh, with a value it runs on"
     done
   fi
-  # Every port of every service answers only on this server until it has a domain, and
-  # what a person opens has one.
-  local web bound
+  # Every port of every service answers only on this server until it has a domain,
+  # but one its entry declares public on purpose, as a proxy's 80 and 443, which the
+  # install's plan had a person approve (ADR 0101); and what a person opens has one.
+  local web bound public service installs values
+  installs=$(dw catalog installs --json) || fail "catalog installs failed"
+  values=$(jq -c --arg p "$installed" '[.installs[] | select(.project == $p) | .pin.values][0] // {}' <<<"$installs")
+  # What the entry declares public, as "<service> <port>", from its file and the
+  # install's values, so a port passes only on its own service and protocol.
+  public=$(jq -n --argjson entry "$entry" --argjson values "$values" '{entry: $entry, values: $values}' | "$catalog_tool" public-ports | jq -Rsc 'split("\n") | map(select(. != ""))') ||
+    fail "reading what $id declares public failed"
   for c in $names; do
+    service=$(docker inspect --format '{{index .Config.Labels "com.docker.compose.service"}}' "$c") || fail "docker inspect $c failed"
     bound=$(docker inspect --format '{{json .HostConfig.PortBindings}}' "$c") || fail "docker inspect $c failed"
-    jq -e '[(. // {})[][] | .HostIp] | all(. == "127.0.0.1")' <<<"$bound" >/dev/null || fail "$c is published past this server: $bound"
+    jq -e --argjson public "$public" --arg service "$service" '
+      [(. // {}) | to_entries[] | (.key | split("/")[1] // "tcp") as $protocol | .value[] | select(.HostIp != "127.0.0.1") | . + {protocol: $protocol}]
+      | all(.HostIp as $ip | ($service + " " + .HostPort + (if .protocol == "tcp" then "" else "/" + .protocol end)) as $port
+          | ($port | IN($public[])) and ($ip == "" or $ip == "0.0.0.0" or $ip == "::"))' <<<"$bound" >/dev/null ||
+      fail "$c is published past this server, where its entry declares only $public public: $bound"
   done
   web=$(jq -r '.web.service // empty' <<<"$entry")
   if [[ -n "$web" ]]; then
@@ -800,6 +812,7 @@ run_check() {
   env E2E_ID="$id" E2E_VERSION="${2:-}" E2E_PROJECT="${project:-}" E2E_INSTALLED="${installed:-}" E2E_ENVIRONMENT="${environment:-}" E2E_ENTRY="${entry:-}" \
     E2E_BIN="$bin" E2E_ADDR="$addr" E2E_DATA="$data" E2E_LOG="$log" E2E_COOKIE="$cookie" E2E_PASSKEY="$passkey" E2E_STEPUP="$stepup" \
     E2E_CATALOG_DIR="$catalog_dir" E2E_MEDIA_DIR="$media_dir" E2E_STATE="$state" E2E_INPUT_FILE="${input_file:-}" \
+    E2E_CATALOG_TOOL="$catalog_tool" \
     bash "$dir/catalog-e2e.sh" --check "$phase" "$dir/check.sh" || fail "check_$id $phase failed"
   while read -r plan; do
     [[ "$plan" =~ ^chg_[A-Za-z0-9]+$ ]] && plans+=("$plan")
@@ -816,7 +829,8 @@ if [[ -n "$check_phase" ]]; then
   # CLI, its session and passkey, and the folders it reads from (#743's first run).
   readonly id=$E2E_ID version=$E2E_VERSION project=$E2E_PROJECT installed=$E2E_INSTALLED environment=$E2E_ENVIRONMENT entry=$E2E_ENTRY \
     bin=$E2E_BIN addr=$E2E_ADDR data=$E2E_DATA log=$E2E_LOG cookie=$E2E_COOKIE passkey=$E2E_PASSKEY stepup=$E2E_STEPUP \
-    catalog_dir=$E2E_CATALOG_DIR media_dir=$E2E_MEDIA_DIR state=$E2E_STATE dockwell_port=${E2E_ADDR##*:}
+    catalog_dir=$E2E_CATALOG_DIR media_dir=$E2E_MEDIA_DIR state=$E2E_STATE dockwell_port=${E2E_ADDR##*:} \
+    catalog_tool=$E2E_CATALOG_TOOL
   readonly input_file=${E2E_INPUT_FILE:-}
   mapfile -t harness < <(declare -F | awk '{print $3}')
   readonly -f "${harness[@]}"

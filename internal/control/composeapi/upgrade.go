@@ -70,6 +70,9 @@ type Upgrade struct {
 	Notes []revision.Note
 	// Needs are what its needs set, and how each is met, as Install's are.
 	Needs Needs
+	// Public are the ports each service makes public on purpose, as Install's are:
+	// only those it doesn't publish on every address already.
+	Public map[string][]string
 	// Hold closes the app to strangers as it restarts, as one that starts on an
 	// empty database whose first visitor makes its owner (ADR 0084): each port its
 	// services publish listens on the server alone (PortMapping.held), beside the
@@ -163,7 +166,7 @@ func (h *Handler) PlanUpgrade(ctx context.Context, in Upgrade) (*dockwellv1.Chan
 	}
 	switch {
 	case in.Companion:
-		return h.plan(ctx, req, next, place, planning{needs: in.Needs, secrets: in.Secrets, upgrade: true, deletes: deletes, notes: notes, empties: in.Empties})
+		return h.plan(ctx, req, next, place, planning{needs: in.Needs, secrets: in.Secrets, public: in.Public, upgrade: true, deletes: deletes, notes: notes, empties: in.Empties})
 	case in.SkipBackup:
 		backUp = nil
 		say = revision.Note{
@@ -172,9 +175,9 @@ func (h *Handler) PlanUpgrade(ctx context.Context, in Upgrade) (*dockwellv1.Chan
 			Ref:     project,
 		}
 	case len(backUp) == 0 && len(ones) == 0:
-		return h.plan(ctx, req, next, place, planning{needs: in.Needs, secrets: in.Secrets, upgrade: true, deletes: deletes, notes: notes, intent: intent, empties: in.Empties})
+		return h.plan(ctx, req, next, place, planning{needs: in.Needs, secrets: in.Secrets, public: in.Public, upgrade: true, deletes: deletes, notes: notes, intent: intent, empties: in.Empties})
 	}
-	return h.plan(ctx, req, next, place, planning{needs: in.Needs, secrets: in.Secrets, upgrade: true, deletes: deletes, backUp: backUp, backUpOne: ones, skipBackup: in.SkipBackup, notes: append([]revision.Note{say}, notes...), intent: intent, empties: in.Empties})
+	return h.plan(ctx, req, next, place, planning{needs: in.Needs, secrets: in.Secrets, public: in.Public, upgrade: true, deletes: deletes, backUp: backUp, backUpOne: ones, skipBackup: in.SkipBackup, notes: append([]revision.Note{say}, notes...), intent: intent, empties: in.Empties})
 }
 
 // linkedDatabases are the databases an app in env has alone on servers other

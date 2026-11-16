@@ -48,6 +48,7 @@ const usage = `Usage: dockwell-catalog convert --from 1panel --source <checkout>
        dockwell-catalog bump scope --catalog <checkout> --base <commit> --head <commit> --author <login> --branch <ref>
        dockwell-catalog bump scope-whose --head <commit> --started <file> [--open <file>] [--branches <file>]
        dockwell-catalog earlier --catalog <checkout> [--at <commit>] [--base <commit>] <id>
+       dockwell-catalog public-ports < {"entry": ..., "values": {...}}
 
 convert converts a catalog's apps into Dockwell's entries, one file each in --out,
 with a report of what it left out and why, and what it knows of each image.
@@ -70,6 +71,9 @@ bump makes now with nothing waiting for a person, or a maintainer approved it.
 earlier says which releases an upgrade to an entry is proven from: the one
 before, and the first of its current major, from the catalog's history.
 
+public-ports says the ports an entry declares public, as an install's values have
+them, a line each as "<service> <port>", for the proof's floor (ADR 0101).
+
 `
 
 func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
@@ -90,6 +94,9 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	}
 	if len(args) > 0 && args[0] == "earlier" {
 		return earlierCommand(ctx, args[1:], stdout, stderr)
+	}
+	if len(args) > 0 && args[0] == "public-ports" {
+		return publicCommand(os.Stdin, stdout)
 	}
 	if len(args) == 0 || args[0] != "convert" {
 		fmt.Fprint(stderr, usage)

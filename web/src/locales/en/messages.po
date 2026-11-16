@@ -7789,6 +7789,9 @@ msgstr "Nothing here can make one yet"
 msgid "Open {app}"
 msgstr "Open {app}"
 
+msgid "Public"
+msgstr "Public"
+
 msgid "Reaches"
 msgstr "Reaches"
 
@@ -9920,6 +9923,9 @@ msgstr "An address limit that lets in this server or private networks can't be s
 msgid "Anyone who can reach this server gets it, around whatever is in front of it."
 msgstr "Anyone who can reach this server gets it, around whatever is in front of it."
 
+msgid "Anyone who can reach this server reaches it there, as its catalog entry means it to."
+msgstr "Anyone who can reach this server reaches it there, as its catalog entry means it to."
+
 msgid "Anyone who can read this app can see it, as it can't be hidden there."
 msgstr "Anyone who can read this app can see it, as it can't be hidden there."
 
@@ -10601,6 +10607,9 @@ msgstr "{names} isn't connected, so it isn't in this change"
 
 msgid "{names}'s agent is older than fleet upgrades, so it isn't in this change"
 msgstr "{names}'s agent is older than fleet upgrades, so it isn't in this change"
+
+msgid "{name} answers on port {path} on every address of {server}"
+msgstr "{name} answers on port {path} on every address of {server}"
 
 msgid "{name} answers plain HTTP on {path} on {server}"
 msgstr "{name} answers plain HTTP on {path} on {server}"

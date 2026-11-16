@@ -129,6 +129,9 @@ func (h *Handler) setStorageNeed(ctx context.Context, s sourced, f found, entry 
 	if err != nil {
 		return nil, authapi.ReasonError(connect.CodeInvalidArgument, err, "invalid")
 	}
+	if err := serverAlone(ctx, chosen, filled.Variables); err != nil {
+		return nil, err
+	}
 	old, _, err := ranFile(pin, f, needed.InsideKeys)
 	if err != nil {
 		return nil, h.internal(ctx, err)
@@ -151,6 +154,9 @@ func (h *Handler) setStorageNeed(ctx context.Context, s sourced, f found, entry 
 		return nil, err
 	}
 	notes = append(notes, kept...)
+	// A port an install from before answered on every address moves to the server
+	// alone with it, as at an upgrade, which says so (ADR 0101; #752's review, M1).
+	notes = append(notes, f.movedAlone(chosen, filled.Variables, old, oldVariables)...)
 	newPin := pinTo(entry, s.origins[entry.GetId()], filled, choice)
 	newPin.Version, newPin.Release, newPin.File, newPin.Needs, newPin.Written = pin.GetVersion(), pin.GetRelease(), pin.GetFile(), needed.Pinned, needed.Written
 	change, err := h.imports.PlanUpgrade(ctx, composeapi.Upgrade{

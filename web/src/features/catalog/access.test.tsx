@@ -51,6 +51,20 @@ const grafana = create(EntrySchema, {
   ],
 });
 
+const proxy = create(EntrySchema, {
+  id: "proxy",
+  name: "Proxy",
+  summary: "Sends sites on",
+  category: "networking",
+  version: "2",
+  appLicense: "MIT",
+  web: { service: "proxy" },
+  inputs: [
+    { name: "ADMIN_PORT", label: "Console port", type: InputType.PORT, defaultValue: "8881" },
+    { name: "HTTP_PORT", label: "HTTP port", type: InputType.PORT, defaultValue: "8880", public: true },
+  ],
+});
+
 function api(entry = gitea, more: Api = {}): Api {
   const watch = feed<WatchServersResponse>();
   watch.push(
@@ -105,6 +119,17 @@ describe("What an entry says of itself", () => {
     expect(await within(sheet).findByRole("group", { name: "Your email" })).toHaveTextContent("mira@example.com");
     expect(within(sheet).getByRole("button", { name: "Advanced" })).toHaveAccessibleDescription(/1 secret generated/);
     expect(within(sheet).queryByText("What to do first")).not.toBeInTheDocument();
+  });
+});
+
+describe("A port an entry publishes to everyone (ADR 0101)", () => {
+  it("says Public beside it, and nothing beside a port on the server alone", async () => {
+    const { container } = renderAt("/catalog/proxy/install", api(proxy));
+    const sheet = await screen.findByRole("dialog", { name: "Install Proxy" });
+    const http = (await within(sheet).findByText("HTTP port")).closest("label");
+    expect(http).toHaveTextContent("HTTP port Public");
+    expect(within(sheet).getByText("Console port").closest("label")).not.toHaveTextContent("Public");
+    await expectAccessible(container);
   });
 });
 

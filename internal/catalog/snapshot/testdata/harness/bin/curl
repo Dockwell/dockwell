@@ -17,7 +17,7 @@ done
 port=${url#http://127.0.0.1:}
 port=${port%%/*}
 # Anything else, as SFTP's port, gives curl an empty reply.
-grep -qx "port=8080:$port" "$FAKE_STATE"/containers/* 2>/dev/null || exit 52
+grep -qxE "port=8080:$port(:all)?" "$FAKE_STATE"/containers/* 2>/dev/null || exit 52
 ((!status)) || { echo 200 && exit 0; }
 version=$(jq -r --arg p "$port" 'select(.values.PORT == $p) | .version' "$FAKE_STATE"/installs/*.json 2>/dev/null)
 if [[ -n "$password" ]]; then

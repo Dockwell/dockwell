@@ -1,6 +1,6 @@
 # 0100. Dockwell's catalog keeps its apps current by itself
 
-- Status: Accepted. Amends [ADR 0077](0077-dockwells-catalog-in-its-own-repository.md), for how a change reaches the catalog's main.
+- Status: Accepted. Amends [ADR 0077](0077-dockwells-catalog-in-its-own-repository.md), for how a change reaches the catalog's main. Amended by [ADR 0101](0101-a-port-a-catalog-app-publishes-to-everyone-on-purpose.md): the floor allows a port its entry declares public on every address, and only that one.
 - Date: 2026-11-15
 
 ## Context

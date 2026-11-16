@@ -534,6 +534,27 @@ describe("the plan sheet", () => {
     await expectAccessible(document.body);
   });
 
+  it("names a port a catalog app publishes to everyone, as what a person approves (ADR 0101)", async () => {
+    const planned = webPlanned();
+    const step = planned.plan?.servers[0]?.steps[0];
+    if (!step) throw new Error("webPlanned has no step");
+    step.hostAccess = [create(HostAccessSchema, { kind: HostAccessKind.PUBLIC_PORT, path: "80", detail: "web" })];
+    renderSheet(proposeWeb, {
+      changes: {
+        proposeChange: () => ({ change: planned }),
+        watchChange: feed<WatchChangeResponse>().stream,
+      },
+    });
+
+    const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+    await waitFor(() => expect(sheet.querySelector(".plan-risk")).toBeTruthy());
+    expect(sheet).toHaveTextContent("web answers on port 80 on every address of hz-1");
+    expect(sheet).toHaveTextContent(
+      "Anyone who can reach this server reaches it there, as its catalog entry means it to.",
+    );
+    await expectAccessible(document.body);
+  });
+
   it("names a port on the server and a proxy to believe, as what a person approves", async () => {
     const routed = webPlanned();
     const step = routed.plan?.servers[0]?.steps[0];

@@ -123,6 +123,9 @@ type ChangeItem struct {
 	// Follows is true when the change took it in because it uses a value the change
 	// changes: Dockwell's own item, not the person's edit (ADR 0084).
 	Follows bool
+	// Public are the ports the item makes public on purpose, as its catalog entry
+	// declares, such as "80" or "443/udp" (ADR 0101).
+	Public []string
 }
 
 // Resource is a managed resource with its latest revision.
@@ -180,9 +183,9 @@ func (t *RevisionTx) CreateChange(ctx context.Context, c Change) error {
 	}
 	for i := range c.Items {
 		it := &c.Items[i]
-		if _, err := t.exec(ctx, `INSERT INTO change_items (change_id, position, resource_id, kind, scope, name, base_revision, spec, servers, rotates, pull, run, adopts, adopts_name, follows)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, c.ID, i, it.ResourceID, it.Kind, it.Scope, it.Name, it.BaseRevision, it.Spec,
-			strings.Join(it.Servers, " "), boolInt(it.Rotates), boolInt(it.Pull), boolInt(it.Run), it.Adopts, it.AdoptsName, boolInt(it.Follows)); err != nil {
+		if _, err := t.exec(ctx, `INSERT INTO change_items (change_id, position, resource_id, kind, scope, name, base_revision, spec, servers, rotates, pull, run, adopts, adopts_name, follows, public_ports)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, c.ID, i, it.ResourceID, it.Kind, it.Scope, it.Name, it.BaseRevision, it.Spec,
+			strings.Join(it.Servers, " "), boolInt(it.Rotates), boolInt(it.Pull), boolInt(it.Run), it.Adopts, it.AdoptsName, boolInt(it.Follows), strings.Join(it.Public, " ")); err != nil {
 			return fmt.Errorf("can't record change %s: %w", c.ID, err)
 		}
 	}
@@ -221,7 +224,7 @@ func (t *Tx) GetChange(ctx context.Context, changeID string) (Change, error) {
 	if err != nil {
 		return Change{}, fmt.Errorf("can't read change %s: %w", changeID, err)
 	}
-	rows, err := t.query(ctx, `SELECT resource_id, kind, scope, name, base_revision, spec, spec IS NULL, servers, rotates, pull, run, adopts, adopts_name, follows
+	rows, err := t.query(ctx, `SELECT resource_id, kind, scope, name, base_revision, spec, spec IS NULL, servers, rotates, pull, run, adopts, adopts_name, follows, public_ports
 		FROM change_items WHERE change_id = ? ORDER BY position`, changeID)
 	if err != nil {
 		return Change{}, fmt.Errorf("can't read change %s: %w", changeID, err)
@@ -229,13 +232,14 @@ func (t *Tx) GetChange(ctx context.Context, changeID string) (Change, error) {
 	defer rows.Close()
 	for rows.Next() {
 		var it ChangeItem
-		var servers string
+		var servers, public string
 		var deleted bool
 		var rotates, pull, run, follows int64
-		if err := rows.Scan(&it.ResourceID, &it.Kind, &it.Scope, &it.Name, &it.BaseRevision, &it.Spec, &deleted, &servers, &rotates, &pull, &run, &it.Adopts, &it.AdoptsName, &follows); err != nil {
+		if err := rows.Scan(&it.ResourceID, &it.Kind, &it.Scope, &it.Name, &it.BaseRevision, &it.Spec, &deleted, &servers, &rotates, &pull, &run, &it.Adopts, &it.AdoptsName, &follows, &public); err != nil {
 			return Change{}, fmt.Errorf("can't read change %s: %w", changeID, err)
 		}
 		it.Rotates, it.Pull, it.Run, it.Follows = rotates != 0, pull != 0, run != 0, follows != 0
+		it.Public = strings.Fields(public)
 		it.Spec = spec(it.Spec, deleted)
 		if servers != "" {
 			it.Servers = strings.Fields(servers)

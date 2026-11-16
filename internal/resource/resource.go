@@ -1334,6 +1334,11 @@ const (
 	// AccessRootTogether is what a container reaches of its server together with a
 	// capability or privileged mode, in Path, that makes all of it the same as root.
 	AccessRootTogether
+	// AccessPublicPort is a port a catalog app publishes on every address of the
+	// server, on purpose, as its entry declares: Path, as "80" or "443/udp", of the
+	// service in Detail. Anyone who reaches the server reaches it. Only a catalog
+	// install or upgrade that makes the port public says it (ADR 0101).
+	AccessPublicPort
 )
 
 // NewAccess lists what to reaches that from doesn't: access it didn't
@@ -1620,6 +1625,8 @@ func AccessWords(a Access) string {
 		return "every process on the server, which it sees and signals, the same as root"
 	case AccessRootTogether:
 		return "what it reaches of the server, with " + plain(a.Path) + ", which together are the same as root"
+	case AccessPublicPort:
+		return "the port " + plain(a.Path) + " on every address of the server, for " + plain(a.Detail) + ": anyone who reaches the server reaches it there"
 	}
 	return fmt.Sprintf("access(%d)", int(a.Kind))
 }

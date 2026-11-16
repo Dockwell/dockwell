@@ -359,6 +359,12 @@ type Edit struct {
 	// place of making one, and AdoptName is what it is called. Bringing a container
 	// in brings its environment, so a person applies it (resource.AccessTakesOn).
 	Adopt, AdoptName string
+	// Public are the ports a container's edit makes public on purpose, as its
+	// catalog entry declares, such as "80" or "443/udp": each is host access a person
+	// approves (resource.AccessPublicPort). Only a catalog install or upgrade says
+	// it, for a port the service doesn't publish on every address already, so any
+	// other app's public port is as it was (ADR 0101).
+	Public []string
 }
 
 // Note is something a person should know before applying a plan that no step
@@ -808,6 +814,8 @@ type item struct {
 	run bool
 	// adopt and adoptName are what it takes on (Edit.Adopt).
 	adopt, adoptName string
+	// public are the ports it makes public on purpose (Edit.Public).
+	public []string
 	// madeOn are the servers a run of the change stopped partway had a step on that
 	// makes its container, which may not have got as far as starting it. That isn't
 	// a stop by hand.
@@ -1612,6 +1620,7 @@ func (e *Engine) changeItems(ctx context.Context, tx *store.Tx, changeID string,
 		out[i] = store.ChangeItem{
 			ResourceID: it.id, Kind: string(it.ref.Kind), Scope: it.ref.Scope, Name: it.ref.Name, BaseRevision: it.base, Spec: spec,
 			Servers: it.servers, Rotates: it.rotates, Pull: it.pull, Run: it.run, Adopts: it.adopt, AdoptsName: it.adoptName, Follows: it.follows,
+			Public: it.public,
 		}
 	}
 	return out, nil
@@ -1715,6 +1724,7 @@ func (e *Engine) items(ctx context.Context, edits []Edit, rotate bool) ([]item, 
 				return err
 			}
 			it.pull, it.run, it.adopt, it.adoptName, it.reverses, it.observed = ed.Pull, ed.Run, ed.Adopt, ed.AdoptName, ed.Reverses, ed.Observed
+			it.public = ed.Public
 			if ed.WithContents && (ed.Spec != nil || (ed.Ref.Kind != scope.ProjectKind && ed.Ref.Kind != scope.EnvironmentKind)) {
 				return fault.New(ErrInvalid, "%s asks to take what lives in it, which only deleting a project or an environment can. Leave with_contents out", ed.Ref)
 			}
@@ -2909,6 +2919,9 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 				gained = append(gained, takes[it.ref]...)
 				if it.adopt != "" {
 					gained = append(gained, resource.Access{Kind: resource.AccessTakesOn, Path: it.adoptName})
+				}
+				for _, port := range it.public {
+					gained = append(gained, resource.Access{Kind: resource.AccessPublicPort, Path: port, Detail: it.ref.Name})
 				}
 				reaches := append(rootByAgent(e.reach(it.ref, desired, after), found), mounts.holderOf(it.ref)...)
 				gained = append(gained, resource.NewAccess(gained, mounts.gained(it.ref))...)
@@ -5207,7 +5220,7 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 			if !bytes.Equal(it.encoded, asked) || it.base == 0 {
 				continue // a later change moved it on
 			}
-			it.run, it.adopt, it.adoptName = ci.Run, ci.Adopts, ci.AdoptsName
+			it.run, it.adopt, it.adoptName, it.public = ci.Run, ci.Adopts, ci.AdoptsName, ci.Public
 			if ci.Pull {
 				moved, err := resumingPull(ctx, tx, c.ID, ci, &it)
 				if err != nil {
@@ -5438,6 +5451,7 @@ func (e *Engine) current(ctx context.Context, tx *store.Tx, c store.Change, aske
 			}
 		}
 		it.servers, it.rotates, it.pull, it.run, it.adopt, it.adoptName, it.follows = ci.Servers, ci.Rotates, ci.Pull, ci.Run, ci.Adopts, ci.AdoptsName, ci.Follows
+		it.public = ci.Public
 		// Opened as the item of the change it was sealed for, of the
 		// resource the base check above makes the one there now.
 		if it.encoded, err = e.open(ctx, tx, store.InChange(cmp.Or(ci.ResourceID, it.id), ci.Kind, c.ID, i), ci.Spec); err != nil {
