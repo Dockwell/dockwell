@@ -621,7 +621,7 @@ func caddyRoutes(l map[string]string) []labelRoute {
 		if !caddyLabel().MatchString(k) {
 			continue
 		}
-		port, prefix, left, redir := uint32(0), "", "", ""
+		port, prefix, left, redir, redirs := uint32(0), "", "", "", 0
 		handles := map[string]bool{}
 		for sub, v := range l {
 			rest, ok := strings.CutPrefix(sub, k+".")
@@ -647,8 +647,8 @@ func caddyRoutes(l map[string]string) []labelRoute {
 				}
 				port = portOf(m[1])
 			case last == "redir" && len(segs) == 1:
-				// What it does to each address is read below, for each.
-				redir = v
+				// What it does to each address is read below, for each: one alone.
+				redir, redirs = v, redirs+1
 			}
 			if len(segs) == 1 && (first == "handle_path" || first == "handle") {
 				if p := strings.TrimSuffix(strings.TrimSpace(v), "*"); p != "" && p != "/" {
@@ -661,6 +661,11 @@ func caddyRoutes(l map[string]string) []labelRoute {
 		}
 		if len(handles) > 1 {
 			left = cmp.Or(left, "its Caddy labels handle more than one path, which a route can't say")
+		}
+		if redirs > 1 {
+			// Which runs for which request is Caddy's order of them, and one may be a
+			// path's alone, which a route can't say.
+			left = cmp.Or(left, "its Caddy labels redirect it more than once, which a route can't say")
 		}
 		for _, a := range strings.FieldsFunc(l[k], func(r rune) bool { return r == ',' || r == ' ' }) {
 			h := hostOf(a)

@@ -331,3 +331,22 @@ func TestAMiddlewareDefinedTwiceHoldsItsDomain(t *testing.T) {
 		t.Errorf("gzip, defined once, reads %v", got)
 	}
 }
+
+// A Caddy site with more than one redir stays behind, the same on every read: which
+// runs is Caddy's order, and one may be a path's alone, which a route can't say
+// (slice 4's review, M1).
+func TestTwoCaddyRedirsStayBehindEveryTime(t *testing.T) {
+	l := map[string]string{
+		"caddy_0":                             "https://www.shop.example.com",
+		"caddy_0.handle_path":                 "/*",
+		"caddy_0.handle_path.0_reverse_proxy": "{{upstreams 8080}}",
+		"caddy_0.1_redir":                     "/admin* https://elsewhere.example.net{uri}",
+		"caddy_0.2_redir":                     "https://shop.example.com{uri}",
+	}
+	for range 200 {
+		got := routesOf(l, "web-1", nil)
+		if len(got) != 1 || got[0].GetLeft() != "its Caddy labels redirect it more than once, which a route can't say" || got[0].GetRedirect() != nil {
+			t.Fatalf("a site with two redirs reads %v", got)
+		}
+	}
+}
