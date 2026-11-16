@@ -202,6 +202,9 @@ function PanelServed({ settings }: { settings: Settings | undefined }) {
     case PanelServedBy.INGRESS:
       served = t`Caddy, the server's ingress, which holds ports 80 and 443 while the server has routes`;
       break;
+    case PanelServedBy.PROXY:
+      served = t`Your tunnel or proxy, which ends TLS and sends it here`;
+      break;
     default:
       served = t`Nothing yet: the panel has no domain`;
   }

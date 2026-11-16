@@ -99,6 +99,11 @@ const (
 	// has a route, and serves the panel's domain with its own certificate (ADR
 	// 0024). The panel takes them back when the last route goes.
 	PanelServedBy_PANEL_SERVED_BY_INGRESS PanelServedBy = 3
+	// A tunnel or a proxy that ends TLS, such as Cloudflare Tunnel, which sends
+	// the domain's requests to the panel on loopback, from this server, with the
+	// domain as their Host and X-Forwarded-Proto https. Dockwell asks for no
+	// certificate and holds no port 80 or 443 for it (ADR 0063's amendment).
+	PanelServedBy_PANEL_SERVED_BY_PROXY PanelServedBy = 4
 )
 
 // Enum value maps for PanelServedBy.
@@ -108,12 +113,14 @@ var (
 		1: "PANEL_SERVED_BY_NONE",
 		2: "PANEL_SERVED_BY_DOCKWELL",
 		3: "PANEL_SERVED_BY_INGRESS",
+		4: "PANEL_SERVED_BY_PROXY",
 	}
 	PanelServedBy_value = map[string]int32{
 		"PANEL_SERVED_BY_UNSPECIFIED": 0,
 		"PANEL_SERVED_BY_NONE":        1,
 		"PANEL_SERVED_BY_DOCKWELL":    2,
 		"PANEL_SERVED_BY_INGRESS":     3,
+		"PANEL_SERVED_BY_PROXY":       4,
 	}
 )
 
@@ -646,7 +653,11 @@ type CheckPanelDomainResponse struct {
 	PointsHere bool `protobuf:"varint,5,opt,name=points_here,json=pointsHere,proto3" json:"points_here,omitempty"`
 	// What holds port 80 or 443 on the control server other than Dockwell or its
 	// Caddy, which would stop a certificate.
-	PortsHeld     []*PanelPortHolder `protobuf:"bytes,6,rep,name=ports_held,json=portsHeld,proto3" json:"ports_held,omitempty"`
+	PortsHeld []*PanelPortHolder `protobuf:"bytes,6,rep,name=ports_held,json=portsHeld,proto3" json:"ports_held,omitempty"`
+	// True when an address it resolves to is in Cloudflare's published ranges,
+	// as with Cloudflare Tunnel, which ends TLS before this server: the panel
+	// then offers to serve it behind a tunnel or proxy first.
+	Cloudflare    bool `protobuf:"varint,7,opt,name=cloudflare,proto3" json:"cloudflare,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -723,6 +734,126 @@ func (x *CheckPanelDomainResponse) GetPortsHeld() []*PanelPortHolder {
 	return nil
 }
 
+func (x *CheckPanelDomainResponse) GetCloudflare() bool {
+	if x != nil {
+		return x.Cloudflare
+	}
+	return false
+}
+
+// CheckPanelReachRequest names a domain behind a tunnel or proxy to check.
+type CheckPanelReachRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The domain, such as "panel.example.com".
+	Domain        string `protobuf:"bytes,1,opt,name=domain,proto3" json:"domain,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CheckPanelReachRequest) Reset() {
+	*x = CheckPanelReachRequest{}
+	mi := &file_dockwell_v1_settings_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CheckPanelReachRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CheckPanelReachRequest) ProtoMessage() {}
+
+func (x *CheckPanelReachRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_settings_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CheckPanelReachRequest.ProtoReflect.Descriptor instead.
+func (*CheckPanelReachRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_settings_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *CheckPanelReachRequest) GetDomain() string {
+	if x != nil {
+		return x.Domain
+	}
+	return ""
+}
+
+// CheckPanelReachResponse says whether the panel answered on the domain,
+// through the tunnel or proxy.
+type CheckPanelReachResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// True when this panel answered, as a request for the domain over HTTPS.
+	Reached bool `protobuf:"varint,1,opt,name=reached,proto3" json:"reached,omitempty"`
+	// Why it didn't, with the fix, such as "Cloudflare answered 530: the tunnel
+	// isn't connected. Start cloudflared on this server". Empty when it did.
+	Problem string `protobuf:"bytes,2,opt,name=problem,proto3" json:"problem,omitempty"`
+	// The loopback address the tunnel or proxy should send to, such as
+	// "http://127.0.0.1:7600".
+	Target        string `protobuf:"bytes,3,opt,name=target,proto3" json:"target,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CheckPanelReachResponse) Reset() {
+	*x = CheckPanelReachResponse{}
+	mi := &file_dockwell_v1_settings_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CheckPanelReachResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CheckPanelReachResponse) ProtoMessage() {}
+
+func (x *CheckPanelReachResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_settings_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CheckPanelReachResponse.ProtoReflect.Descriptor instead.
+func (*CheckPanelReachResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_settings_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *CheckPanelReachResponse) GetReached() bool {
+	if x != nil {
+		return x.Reached
+	}
+	return false
+}
+
+func (x *CheckPanelReachResponse) GetProblem() string {
+	if x != nil {
+		return x.Problem
+	}
+	return ""
+}
+
+func (x *CheckPanelReachResponse) GetTarget() string {
+	if x != nil {
+		return x.Target
+	}
+	return ""
+}
+
 // PanelPortHolder is a program that holds a port the panel's certificate needs.
 type PanelPortHolder struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -736,7 +867,7 @@ type PanelPortHolder struct {
 
 func (x *PanelPortHolder) Reset() {
 	*x = PanelPortHolder{}
-	mi := &file_dockwell_v1_settings_proto_msgTypes[6]
+	mi := &file_dockwell_v1_settings_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -748,7 +879,7 @@ func (x *PanelPortHolder) String() string {
 func (*PanelPortHolder) ProtoMessage() {}
 
 func (x *PanelPortHolder) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_settings_proto_msgTypes[6]
+	mi := &file_dockwell_v1_settings_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -761,7 +892,7 @@ func (x *PanelPortHolder) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PanelPortHolder.ProtoReflect.Descriptor instead.
 func (*PanelPortHolder) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_settings_proto_rawDescGZIP(), []int{6}
+	return file_dockwell_v1_settings_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *PanelPortHolder) GetPort() uint32 {
@@ -784,14 +915,18 @@ type SetPanelDomainRequest struct {
 	// The domain, such as "panel.example.com". Empty clears it.
 	Domain string `protobuf:"bytes,1,opt,name=domain,proto3" json:"domain,omitempty"`
 	// The proof from FinishStepUp for STEP_UP_ACTION_SET_PANEL_DOMAIN.
-	Proof         string `protobuf:"bytes,2,opt,name=proof,proto3" json:"proof,omitempty"`
+	Proof string `protobuf:"bytes,2,opt,name=proof,proto3" json:"proof,omitempty"`
+	// True when a tunnel or a proxy that ends TLS, such as Cloudflare Tunnel,
+	// sends the domain's requests to the panel on loopback: Dockwell then asks
+	// for no certificate and holds no port 80 or 443 for it.
+	BehindProxy   bool `protobuf:"varint,3,opt,name=behind_proxy,json=behindProxy,proto3" json:"behind_proxy,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *SetPanelDomainRequest) Reset() {
 	*x = SetPanelDomainRequest{}
-	mi := &file_dockwell_v1_settings_proto_msgTypes[7]
+	mi := &file_dockwell_v1_settings_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -803,7 +938,7 @@ func (x *SetPanelDomainRequest) String() string {
 func (*SetPanelDomainRequest) ProtoMessage() {}
 
 func (x *SetPanelDomainRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_settings_proto_msgTypes[7]
+	mi := &file_dockwell_v1_settings_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -816,7 +951,7 @@ func (x *SetPanelDomainRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetPanelDomainRequest.ProtoReflect.Descriptor instead.
 func (*SetPanelDomainRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_settings_proto_rawDescGZIP(), []int{7}
+	return file_dockwell_v1_settings_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *SetPanelDomainRequest) GetDomain() string {
@@ -833,6 +968,13 @@ func (x *SetPanelDomainRequest) GetProof() string {
 	return ""
 }
 
+func (x *SetPanelDomainRequest) GetBehindProxy() bool {
+	if x != nil {
+		return x.BehindProxy
+	}
+	return false
+}
+
 // SetPanelDomainResponse is the settings as saved, before the restart.
 type SetPanelDomainResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -846,7 +988,7 @@ type SetPanelDomainResponse struct {
 
 func (x *SetPanelDomainResponse) Reset() {
 	*x = SetPanelDomainResponse{}
-	mi := &file_dockwell_v1_settings_proto_msgTypes[8]
+	mi := &file_dockwell_v1_settings_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -858,7 +1000,7 @@ func (x *SetPanelDomainResponse) String() string {
 func (*SetPanelDomainResponse) ProtoMessage() {}
 
 func (x *SetPanelDomainResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_settings_proto_msgTypes[8]
+	mi := &file_dockwell_v1_settings_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -871,7 +1013,7 @@ func (x *SetPanelDomainResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetPanelDomainResponse.ProtoReflect.Descriptor instead.
 func (*SetPanelDomainResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_settings_proto_rawDescGZIP(), []int{8}
+	return file_dockwell_v1_settings_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *SetPanelDomainResponse) GetSettings() *Settings {
@@ -899,7 +1041,7 @@ type CreatePanelSignInLinkRequest struct {
 
 func (x *CreatePanelSignInLinkRequest) Reset() {
 	*x = CreatePanelSignInLinkRequest{}
-	mi := &file_dockwell_v1_settings_proto_msgTypes[9]
+	mi := &file_dockwell_v1_settings_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -911,7 +1053,7 @@ func (x *CreatePanelSignInLinkRequest) String() string {
 func (*CreatePanelSignInLinkRequest) ProtoMessage() {}
 
 func (x *CreatePanelSignInLinkRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_settings_proto_msgTypes[9]
+	mi := &file_dockwell_v1_settings_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -924,7 +1066,7 @@ func (x *CreatePanelSignInLinkRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreatePanelSignInLinkRequest.ProtoReflect.Descriptor instead.
 func (*CreatePanelSignInLinkRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_settings_proto_rawDescGZIP(), []int{9}
+	return file_dockwell_v1_settings_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *CreatePanelSignInLinkRequest) GetProof() string {
@@ -947,7 +1089,7 @@ type CreatePanelSignInLinkResponse struct {
 
 func (x *CreatePanelSignInLinkResponse) Reset() {
 	*x = CreatePanelSignInLinkResponse{}
-	mi := &file_dockwell_v1_settings_proto_msgTypes[10]
+	mi := &file_dockwell_v1_settings_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -959,7 +1101,7 @@ func (x *CreatePanelSignInLinkResponse) String() string {
 func (*CreatePanelSignInLinkResponse) ProtoMessage() {}
 
 func (x *CreatePanelSignInLinkResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_settings_proto_msgTypes[10]
+	mi := &file_dockwell_v1_settings_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -972,7 +1114,7 @@ func (x *CreatePanelSignInLinkResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreatePanelSignInLinkResponse.ProtoReflect.Descriptor instead.
 func (*CreatePanelSignInLinkResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_settings_proto_rawDescGZIP(), []int{10}
+	return file_dockwell_v1_settings_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *CreatePanelSignInLinkResponse) GetUrl() string {
@@ -1000,7 +1142,7 @@ type SetInstallNameRequest struct {
 
 func (x *SetInstallNameRequest) Reset() {
 	*x = SetInstallNameRequest{}
-	mi := &file_dockwell_v1_settings_proto_msgTypes[11]
+	mi := &file_dockwell_v1_settings_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1012,7 +1154,7 @@ func (x *SetInstallNameRequest) String() string {
 func (*SetInstallNameRequest) ProtoMessage() {}
 
 func (x *SetInstallNameRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_settings_proto_msgTypes[11]
+	mi := &file_dockwell_v1_settings_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1025,7 +1167,7 @@ func (x *SetInstallNameRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetInstallNameRequest.ProtoReflect.Descriptor instead.
 func (*SetInstallNameRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_settings_proto_rawDescGZIP(), []int{11}
+	return file_dockwell_v1_settings_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *SetInstallNameRequest) GetName() string {
@@ -1046,7 +1188,7 @@ type SetInstallNameResponse struct {
 
 func (x *SetInstallNameResponse) Reset() {
 	*x = SetInstallNameResponse{}
-	mi := &file_dockwell_v1_settings_proto_msgTypes[12]
+	mi := &file_dockwell_v1_settings_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1058,7 +1200,7 @@ func (x *SetInstallNameResponse) String() string {
 func (*SetInstallNameResponse) ProtoMessage() {}
 
 func (x *SetInstallNameResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_settings_proto_msgTypes[12]
+	mi := &file_dockwell_v1_settings_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1071,7 +1213,7 @@ func (x *SetInstallNameResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetInstallNameResponse.ProtoReflect.Descriptor instead.
 func (*SetInstallNameResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_settings_proto_rawDescGZIP(), []int{12}
+	return file_dockwell_v1_settings_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *SetInstallNameResponse) GetSettings() *Settings {
@@ -1093,7 +1235,7 @@ type SetTimeZoneRequest struct {
 
 func (x *SetTimeZoneRequest) Reset() {
 	*x = SetTimeZoneRequest{}
-	mi := &file_dockwell_v1_settings_proto_msgTypes[13]
+	mi := &file_dockwell_v1_settings_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1105,7 +1247,7 @@ func (x *SetTimeZoneRequest) String() string {
 func (*SetTimeZoneRequest) ProtoMessage() {}
 
 func (x *SetTimeZoneRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_settings_proto_msgTypes[13]
+	mi := &file_dockwell_v1_settings_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1118,7 +1260,7 @@ func (x *SetTimeZoneRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetTimeZoneRequest.ProtoReflect.Descriptor instead.
 func (*SetTimeZoneRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_settings_proto_rawDescGZIP(), []int{13}
+	return file_dockwell_v1_settings_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *SetTimeZoneRequest) GetTimeZone() string {
@@ -1139,7 +1281,7 @@ type SetTimeZoneResponse struct {
 
 func (x *SetTimeZoneResponse) Reset() {
 	*x = SetTimeZoneResponse{}
-	mi := &file_dockwell_v1_settings_proto_msgTypes[14]
+	mi := &file_dockwell_v1_settings_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1151,7 +1293,7 @@ func (x *SetTimeZoneResponse) String() string {
 func (*SetTimeZoneResponse) ProtoMessage() {}
 
 func (x *SetTimeZoneResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_settings_proto_msgTypes[14]
+	mi := &file_dockwell_v1_settings_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1164,7 +1306,7 @@ func (x *SetTimeZoneResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetTimeZoneResponse.ProtoReflect.Descriptor instead.
 func (*SetTimeZoneResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_settings_proto_rawDescGZIP(), []int{14}
+	return file_dockwell_v1_settings_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *SetTimeZoneResponse) GetSettings() *Settings {
@@ -1187,7 +1329,7 @@ type SetStepUpFloorRequest struct {
 
 func (x *SetStepUpFloorRequest) Reset() {
 	*x = SetStepUpFloorRequest{}
-	mi := &file_dockwell_v1_settings_proto_msgTypes[15]
+	mi := &file_dockwell_v1_settings_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1199,7 +1341,7 @@ func (x *SetStepUpFloorRequest) String() string {
 func (*SetStepUpFloorRequest) ProtoMessage() {}
 
 func (x *SetStepUpFloorRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_settings_proto_msgTypes[15]
+	mi := &file_dockwell_v1_settings_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1212,7 +1354,7 @@ func (x *SetStepUpFloorRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetStepUpFloorRequest.ProtoReflect.Descriptor instead.
 func (*SetStepUpFloorRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_settings_proto_rawDescGZIP(), []int{15}
+	return file_dockwell_v1_settings_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *SetStepUpFloorRequest) GetFloor() StepUpPolicy {
@@ -1239,7 +1381,7 @@ type SetStepUpFloorResponse struct {
 
 func (x *SetStepUpFloorResponse) Reset() {
 	*x = SetStepUpFloorResponse{}
-	mi := &file_dockwell_v1_settings_proto_msgTypes[16]
+	mi := &file_dockwell_v1_settings_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1251,7 +1393,7 @@ func (x *SetStepUpFloorResponse) String() string {
 func (*SetStepUpFloorResponse) ProtoMessage() {}
 
 func (x *SetStepUpFloorResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_settings_proto_msgTypes[16]
+	mi := &file_dockwell_v1_settings_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1264,7 +1406,7 @@ func (x *SetStepUpFloorResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetStepUpFloorResponse.ProtoReflect.Descriptor instead.
 func (*SetStepUpFloorResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_settings_proto_rawDescGZIP(), []int{16}
+	return file_dockwell_v1_settings_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *SetStepUpFloorResponse) GetSettings() *Settings {
@@ -1286,7 +1428,7 @@ type SetAutoUpdateDefaultRequest struct {
 
 func (x *SetAutoUpdateDefaultRequest) Reset() {
 	*x = SetAutoUpdateDefaultRequest{}
-	mi := &file_dockwell_v1_settings_proto_msgTypes[17]
+	mi := &file_dockwell_v1_settings_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1298,7 +1440,7 @@ func (x *SetAutoUpdateDefaultRequest) String() string {
 func (*SetAutoUpdateDefaultRequest) ProtoMessage() {}
 
 func (x *SetAutoUpdateDefaultRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_settings_proto_msgTypes[17]
+	mi := &file_dockwell_v1_settings_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1311,7 +1453,7 @@ func (x *SetAutoUpdateDefaultRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetAutoUpdateDefaultRequest.ProtoReflect.Descriptor instead.
 func (*SetAutoUpdateDefaultRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_settings_proto_rawDescGZIP(), []int{17}
+	return file_dockwell_v1_settings_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *SetAutoUpdateDefaultRequest) GetAutoUpdate() *v1alpha1.AutoUpdate {
@@ -1331,7 +1473,7 @@ type SetAutoUpdateDefaultResponse struct {
 
 func (x *SetAutoUpdateDefaultResponse) Reset() {
 	*x = SetAutoUpdateDefaultResponse{}
-	mi := &file_dockwell_v1_settings_proto_msgTypes[18]
+	mi := &file_dockwell_v1_settings_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1343,7 +1485,7 @@ func (x *SetAutoUpdateDefaultResponse) String() string {
 func (*SetAutoUpdateDefaultResponse) ProtoMessage() {}
 
 func (x *SetAutoUpdateDefaultResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_settings_proto_msgTypes[18]
+	mi := &file_dockwell_v1_settings_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1356,7 +1498,7 @@ func (x *SetAutoUpdateDefaultResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetAutoUpdateDefaultResponse.ProtoReflect.Descriptor instead.
 func (*SetAutoUpdateDefaultResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_settings_proto_rawDescGZIP(), []int{18}
+	return file_dockwell_v1_settings_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *SetAutoUpdateDefaultResponse) GetSettings() *Settings {
@@ -1375,7 +1517,7 @@ type GetControlPlaneRequest struct {
 
 func (x *GetControlPlaneRequest) Reset() {
 	*x = GetControlPlaneRequest{}
-	mi := &file_dockwell_v1_settings_proto_msgTypes[19]
+	mi := &file_dockwell_v1_settings_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1387,7 +1529,7 @@ func (x *GetControlPlaneRequest) String() string {
 func (*GetControlPlaneRequest) ProtoMessage() {}
 
 func (x *GetControlPlaneRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_settings_proto_msgTypes[19]
+	mi := &file_dockwell_v1_settings_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1400,7 +1542,7 @@ func (x *GetControlPlaneRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetControlPlaneRequest.ProtoReflect.Descriptor instead.
 func (*GetControlPlaneRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_settings_proto_rawDescGZIP(), []int{19}
+	return file_dockwell_v1_settings_proto_rawDescGZIP(), []int{21}
 }
 
 // GetControlPlaneResponse describes the control plane that answers.
@@ -1414,7 +1556,7 @@ type GetControlPlaneResponse struct {
 
 func (x *GetControlPlaneResponse) Reset() {
 	*x = GetControlPlaneResponse{}
-	mi := &file_dockwell_v1_settings_proto_msgTypes[20]
+	mi := &file_dockwell_v1_settings_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1426,7 +1568,7 @@ func (x *GetControlPlaneResponse) String() string {
 func (*GetControlPlaneResponse) ProtoMessage() {}
 
 func (x *GetControlPlaneResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_settings_proto_msgTypes[20]
+	mi := &file_dockwell_v1_settings_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1439,7 +1581,7 @@ func (x *GetControlPlaneResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetControlPlaneResponse.ProtoReflect.Descriptor instead.
 func (*GetControlPlaneResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_settings_proto_rawDescGZIP(), []int{20}
+	return file_dockwell_v1_settings_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *GetControlPlaneResponse) GetControlPlane() *ControlPlane {
@@ -1481,7 +1623,7 @@ type ControlPlane struct {
 
 func (x *ControlPlane) Reset() {
 	*x = ControlPlane{}
-	mi := &file_dockwell_v1_settings_proto_msgTypes[21]
+	mi := &file_dockwell_v1_settings_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1493,7 +1635,7 @@ func (x *ControlPlane) String() string {
 func (*ControlPlane) ProtoMessage() {}
 
 func (x *ControlPlane) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_settings_proto_msgTypes[21]
+	mi := &file_dockwell_v1_settings_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1506,7 +1648,7 @@ func (x *ControlPlane) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ControlPlane.ProtoReflect.Descriptor instead.
 func (*ControlPlane) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_settings_proto_rawDescGZIP(), []int{21}
+	return file_dockwell_v1_settings_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *ControlPlane) GetBuild() *BuildInfo {
@@ -1592,7 +1734,7 @@ type StateStore struct {
 
 func (x *StateStore) Reset() {
 	*x = StateStore{}
-	mi := &file_dockwell_v1_settings_proto_msgTypes[22]
+	mi := &file_dockwell_v1_settings_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1604,7 +1746,7 @@ func (x *StateStore) String() string {
 func (*StateStore) ProtoMessage() {}
 
 func (x *StateStore) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_settings_proto_msgTypes[22]
+	mi := &file_dockwell_v1_settings_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1617,7 +1759,7 @@ func (x *StateStore) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StateStore.ProtoReflect.Descriptor instead.
 func (*StateStore) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_settings_proto_rawDescGZIP(), []int{22}
+	return file_dockwell_v1_settings_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *StateStore) GetEngine() StateStoreEngine {
@@ -1673,7 +1815,7 @@ type AgentListener struct {
 
 func (x *AgentListener) Reset() {
 	*x = AgentListener{}
-	mi := &file_dockwell_v1_settings_proto_msgTypes[23]
+	mi := &file_dockwell_v1_settings_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1685,7 +1827,7 @@ func (x *AgentListener) String() string {
 func (*AgentListener) ProtoMessage() {}
 
 func (x *AgentListener) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_settings_proto_msgTypes[23]
+	mi := &file_dockwell_v1_settings_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1698,7 +1840,7 @@ func (x *AgentListener) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AgentListener.ProtoReflect.Descriptor instead.
 func (*AgentListener) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_settings_proto_rawDescGZIP(), []int{23}
+	return file_dockwell_v1_settings_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *AgentListener) GetListen() string {
@@ -1756,7 +1898,7 @@ const file_dockwell_v1_settings_proto_rawDesc = "" +
 	"\n" +
 	"start_time\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\tstartTime\"1\n" +
 	"\x17CheckPanelDomainRequest\x12\x16\n" +
-	"\x06domain\x18\x01 \x01(\tR\x06domain\"\xfc\x01\n" +
+	"\x06domain\x18\x01 \x01(\tR\x06domain\"\x9c\x02\n" +
 	"\x18CheckPanelDomainResponse\x12\x18\n" +
 	"\arefusal\x18\x01 \x01(\tR\arefusal\x12\x1c\n" +
 	"\taddresses\x18\x02 \x03(\tR\taddresses\x12\x1f\n" +
@@ -1766,13 +1908,23 @@ const file_dockwell_v1_settings_proto_rawDesc = "" +
 	"\vpoints_here\x18\x05 \x01(\bR\n" +
 	"pointsHere\x12;\n" +
 	"\n" +
-	"ports_held\x18\x06 \x03(\v2\x1c.dockwell.v1.PanelPortHolderR\tportsHeld\"?\n" +
+	"ports_held\x18\x06 \x03(\v2\x1c.dockwell.v1.PanelPortHolderR\tportsHeld\x12\x1e\n" +
+	"\n" +
+	"cloudflare\x18\a \x01(\bR\n" +
+	"cloudflare\"0\n" +
+	"\x16CheckPanelReachRequest\x12\x16\n" +
+	"\x06domain\x18\x01 \x01(\tR\x06domain\"e\n" +
+	"\x17CheckPanelReachResponse\x12\x18\n" +
+	"\areached\x18\x01 \x01(\bR\areached\x12\x18\n" +
+	"\aproblem\x18\x02 \x01(\tR\aproblem\x12\x16\n" +
+	"\x06target\x18\x03 \x01(\tR\x06target\"?\n" +
 	"\x0fPanelPortHolder\x12\x12\n" +
 	"\x04port\x18\x01 \x01(\rR\x04port\x12\x18\n" +
-	"\aprogram\x18\x02 \x01(\tR\aprogram\"E\n" +
+	"\aprogram\x18\x02 \x01(\tR\aprogram\"h\n" +
 	"\x15SetPanelDomainRequest\x12\x16\n" +
 	"\x06domain\x18\x01 \x01(\tR\x06domain\x12\x14\n" +
-	"\x05proof\x18\x02 \x01(\tR\x05proof\"k\n" +
+	"\x05proof\x18\x02 \x01(\tR\x05proof\x12!\n" +
+	"\fbehind_proxy\x18\x03 \x01(\bR\vbehindProxy\"k\n" +
 	"\x16SetPanelDomainResponse\x121\n" +
 	"\bsettings\x18\x01 \x01(\v2\x15.dockwell.v1.SettingsR\bsettings\x12\x1e\n" +
 	"\n" +
@@ -1834,12 +1986,13 @@ const file_dockwell_v1_settings_proto_rawDesc = "" +
 	"\x1dPANEL_DOMAIN_FROM_UNSPECIFIED\x10\x00\x12\x1a\n" +
 	"\x16PANEL_DOMAIN_FROM_NONE\x10\x01\x12\x19\n" +
 	"\x15PANEL_DOMAIN_FROM_RUN\x10\x02\x12\x1d\n" +
-	"\x19PANEL_DOMAIN_FROM_SETTING\x10\x03*\x85\x01\n" +
+	"\x19PANEL_DOMAIN_FROM_SETTING\x10\x03*\xa0\x01\n" +
 	"\rPanelServedBy\x12\x1f\n" +
 	"\x1bPANEL_SERVED_BY_UNSPECIFIED\x10\x00\x12\x18\n" +
 	"\x14PANEL_SERVED_BY_NONE\x10\x01\x12\x1c\n" +
 	"\x18PANEL_SERVED_BY_DOCKWELL\x10\x02\x12\x1b\n" +
-	"\x17PANEL_SERVED_BY_INGRESS\x10\x03*\x84\x01\n" +
+	"\x17PANEL_SERVED_BY_INGRESS\x10\x03\x12\x19\n" +
+	"\x15PANEL_SERVED_BY_PROXY\x10\x04*\x84\x01\n" +
 	"\x0eServiceManager\x12\x1f\n" +
 	"\x1bSERVICE_MANAGER_UNSPECIFIED\x10\x00\x12\x18\n" +
 	"\x14SERVICE_MANAGER_NONE\x10\x01\x12\x1b\n" +
@@ -1848,14 +2001,16 @@ const file_dockwell_v1_settings_proto_rawDesc = "" +
 	"\x10StateStoreEngine\x12\"\n" +
 	"\x1eSTATE_STORE_ENGINE_UNSPECIFIED\x10\x00\x12\x1d\n" +
 	"\x19STATE_STORE_ENGINE_SQLITE\x10\x01\x12\x1f\n" +
-	"\x1bSTATE_STORE_ENGINE_POSTGRES\x10\x022\xf7\x10\n" +
+	"\x1bSTATE_STORE_ENGINE_POSTGRES\x10\x022\xb7\x12\n" +
 	"\x0fSettingsService\x12\x8c\x01\n" +
 	"\vGetSettings\x12\x1f.dockwell.v1.GetSettingsRequest\x1a .dockwell.v1.GetSettingsResponse\":\xa0\xbb\x18\x01\xaa\xbb\x18\x0f\n" +
 	"\bsettings\x12\x03get\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x03\x82\xd3\xe4\x93\x02\x0e\x12\f/v1/settings\x90\x02\x01\x12\xa6\x01\n" +
 	"\x0eSetInstallName\x12\".dockwell.v1.SetInstallNameRequest\x1a#.dockwell.v1.SetInstallNameResponse\"K\xa0\xbb\x18\x03\xaa\xbb\x18\x14\n" +
 	"\bsettings\x12\bset-name\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\x19:\x01*\"\x14/v1/settings:setName\x12\xa2\x01\n" +
 	"\vSetTimeZone\x12\x1f.dockwell.v1.SetTimeZoneRequest\x1a .dockwell.v1.SetTimeZoneResponse\"P\xa0\xbb\x18\x03\xaa\xbb\x18\x19\n" +
-	"\bsettings\x12\rset-time-zone\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\x1d:\x01*\"\x18/v1/settings:setTimeZone\x12\xbc\x01\n" +
+	"\bsettings\x12\rset-time-zone\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\x1d:\x01*\"\x18/v1/settings:setTimeZone\x12\xbd\x01\n" +
+	"\x0fCheckPanelReach\x12#.dockwell.v1.CheckPanelReachRequest\x1a$.dockwell.v1.CheckPanelReachResponse\"_\xa0\xbb\x18\x01\xaa\xbb\x18\x1d\n" +
+	"\bsettings\x12\x11check-panel-reach\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02%\x12#/v1/settings/panelDomain:checkReach\x90\x02\x01\x12\xbc\x01\n" +
 	"\x10CheckPanelDomain\x12$.dockwell.v1.CheckPanelDomainRequest\x1a%.dockwell.v1.CheckPanelDomainResponse\"[\xa0\xbb\x18\x01\xaa\xbb\x18\x1e\n" +
 	"\bsettings\x12\x12check-panel-domain\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02 \x12\x1e/v1/settings/panelDomain:check\x90\x02\x01\x12\xb5\x01\n" +
 	"\x0eSetPanelDomain\x12\".dockwell.v1.SetPanelDomainRequest\x1a#.dockwell.v1.SetPanelDomainResponse\"Z\xa0\xbb\x18\x03\xaa\xbb\x18\x1c\n" +
@@ -1884,7 +2039,7 @@ func file_dockwell_v1_settings_proto_rawDescGZIP() []byte {
 }
 
 var file_dockwell_v1_settings_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
-var file_dockwell_v1_settings_proto_msgTypes = make([]protoimpl.MessageInfo, 24)
+var file_dockwell_v1_settings_proto_msgTypes = make([]protoimpl.MessageInfo, 26)
 var file_dockwell_v1_settings_proto_goTypes = []any{
 	(PanelDomainFrom)(0),                  // 0: dockwell.v1.PanelDomainFrom
 	(PanelServedBy)(0),                    // 1: dockwell.v1.PanelServedBy
@@ -1896,77 +2051,81 @@ var file_dockwell_v1_settings_proto_goTypes = []any{
 	(*PanelServing)(nil),                  // 7: dockwell.v1.PanelServing
 	(*CheckPanelDomainRequest)(nil),       // 8: dockwell.v1.CheckPanelDomainRequest
 	(*CheckPanelDomainResponse)(nil),      // 9: dockwell.v1.CheckPanelDomainResponse
-	(*PanelPortHolder)(nil),               // 10: dockwell.v1.PanelPortHolder
-	(*SetPanelDomainRequest)(nil),         // 11: dockwell.v1.SetPanelDomainRequest
-	(*SetPanelDomainResponse)(nil),        // 12: dockwell.v1.SetPanelDomainResponse
-	(*CreatePanelSignInLinkRequest)(nil),  // 13: dockwell.v1.CreatePanelSignInLinkRequest
-	(*CreatePanelSignInLinkResponse)(nil), // 14: dockwell.v1.CreatePanelSignInLinkResponse
-	(*SetInstallNameRequest)(nil),         // 15: dockwell.v1.SetInstallNameRequest
-	(*SetInstallNameResponse)(nil),        // 16: dockwell.v1.SetInstallNameResponse
-	(*SetTimeZoneRequest)(nil),            // 17: dockwell.v1.SetTimeZoneRequest
-	(*SetTimeZoneResponse)(nil),           // 18: dockwell.v1.SetTimeZoneResponse
-	(*SetStepUpFloorRequest)(nil),         // 19: dockwell.v1.SetStepUpFloorRequest
-	(*SetStepUpFloorResponse)(nil),        // 20: dockwell.v1.SetStepUpFloorResponse
-	(*SetAutoUpdateDefaultRequest)(nil),   // 21: dockwell.v1.SetAutoUpdateDefaultRequest
-	(*SetAutoUpdateDefaultResponse)(nil),  // 22: dockwell.v1.SetAutoUpdateDefaultResponse
-	(*GetControlPlaneRequest)(nil),        // 23: dockwell.v1.GetControlPlaneRequest
-	(*GetControlPlaneResponse)(nil),       // 24: dockwell.v1.GetControlPlaneResponse
-	(*ControlPlane)(nil),                  // 25: dockwell.v1.ControlPlane
-	(*StateStore)(nil),                    // 26: dockwell.v1.StateStore
-	(*AgentListener)(nil),                 // 27: dockwell.v1.AgentListener
-	(*timestamppb.Timestamp)(nil),         // 28: google.protobuf.Timestamp
-	(StepUpPolicy)(0),                     // 29: dockwell.v1.StepUpPolicy
-	(*v1alpha1.AutoUpdate)(nil),           // 30: dockwell.resource.v1alpha1.AutoUpdate
-	(*BuildInfo)(nil),                     // 31: dockwell.v1.BuildInfo
-	(*durationpb.Duration)(nil),           // 32: google.protobuf.Duration
+	(*CheckPanelReachRequest)(nil),        // 10: dockwell.v1.CheckPanelReachRequest
+	(*CheckPanelReachResponse)(nil),       // 11: dockwell.v1.CheckPanelReachResponse
+	(*PanelPortHolder)(nil),               // 12: dockwell.v1.PanelPortHolder
+	(*SetPanelDomainRequest)(nil),         // 13: dockwell.v1.SetPanelDomainRequest
+	(*SetPanelDomainResponse)(nil),        // 14: dockwell.v1.SetPanelDomainResponse
+	(*CreatePanelSignInLinkRequest)(nil),  // 15: dockwell.v1.CreatePanelSignInLinkRequest
+	(*CreatePanelSignInLinkResponse)(nil), // 16: dockwell.v1.CreatePanelSignInLinkResponse
+	(*SetInstallNameRequest)(nil),         // 17: dockwell.v1.SetInstallNameRequest
+	(*SetInstallNameResponse)(nil),        // 18: dockwell.v1.SetInstallNameResponse
+	(*SetTimeZoneRequest)(nil),            // 19: dockwell.v1.SetTimeZoneRequest
+	(*SetTimeZoneResponse)(nil),           // 20: dockwell.v1.SetTimeZoneResponse
+	(*SetStepUpFloorRequest)(nil),         // 21: dockwell.v1.SetStepUpFloorRequest
+	(*SetStepUpFloorResponse)(nil),        // 22: dockwell.v1.SetStepUpFloorResponse
+	(*SetAutoUpdateDefaultRequest)(nil),   // 23: dockwell.v1.SetAutoUpdateDefaultRequest
+	(*SetAutoUpdateDefaultResponse)(nil),  // 24: dockwell.v1.SetAutoUpdateDefaultResponse
+	(*GetControlPlaneRequest)(nil),        // 25: dockwell.v1.GetControlPlaneRequest
+	(*GetControlPlaneResponse)(nil),       // 26: dockwell.v1.GetControlPlaneResponse
+	(*ControlPlane)(nil),                  // 27: dockwell.v1.ControlPlane
+	(*StateStore)(nil),                    // 28: dockwell.v1.StateStore
+	(*AgentListener)(nil),                 // 29: dockwell.v1.AgentListener
+	(*timestamppb.Timestamp)(nil),         // 30: google.protobuf.Timestamp
+	(StepUpPolicy)(0),                     // 31: dockwell.v1.StepUpPolicy
+	(*v1alpha1.AutoUpdate)(nil),           // 32: dockwell.resource.v1alpha1.AutoUpdate
+	(*BuildInfo)(nil),                     // 33: dockwell.v1.BuildInfo
+	(*durationpb.Duration)(nil),           // 34: google.protobuf.Duration
 }
 var file_dockwell_v1_settings_proto_depIdxs = []int32{
 	6,  // 0: dockwell.v1.GetSettingsResponse.settings:type_name -> dockwell.v1.Settings
 	7,  // 1: dockwell.v1.Settings.panel:type_name -> dockwell.v1.PanelServing
-	28, // 2: dockwell.v1.Settings.create_time:type_name -> google.protobuf.Timestamp
-	29, // 3: dockwell.v1.Settings.step_up_floor:type_name -> dockwell.v1.StepUpPolicy
-	30, // 4: dockwell.v1.Settings.auto_update:type_name -> dockwell.resource.v1alpha1.AutoUpdate
+	30, // 2: dockwell.v1.Settings.create_time:type_name -> google.protobuf.Timestamp
+	31, // 3: dockwell.v1.Settings.step_up_floor:type_name -> dockwell.v1.StepUpPolicy
+	32, // 4: dockwell.v1.Settings.auto_update:type_name -> dockwell.resource.v1alpha1.AutoUpdate
 	1,  // 5: dockwell.v1.PanelServing.served_by:type_name -> dockwell.v1.PanelServedBy
 	0,  // 6: dockwell.v1.PanelServing.domain_from:type_name -> dockwell.v1.PanelDomainFrom
-	28, // 7: dockwell.v1.PanelServing.start_time:type_name -> google.protobuf.Timestamp
-	10, // 8: dockwell.v1.CheckPanelDomainResponse.ports_held:type_name -> dockwell.v1.PanelPortHolder
+	30, // 7: dockwell.v1.PanelServing.start_time:type_name -> google.protobuf.Timestamp
+	12, // 8: dockwell.v1.CheckPanelDomainResponse.ports_held:type_name -> dockwell.v1.PanelPortHolder
 	6,  // 9: dockwell.v1.SetPanelDomainResponse.settings:type_name -> dockwell.v1.Settings
-	28, // 10: dockwell.v1.CreatePanelSignInLinkResponse.expire_time:type_name -> google.protobuf.Timestamp
+	30, // 10: dockwell.v1.CreatePanelSignInLinkResponse.expire_time:type_name -> google.protobuf.Timestamp
 	6,  // 11: dockwell.v1.SetInstallNameResponse.settings:type_name -> dockwell.v1.Settings
 	6,  // 12: dockwell.v1.SetTimeZoneResponse.settings:type_name -> dockwell.v1.Settings
-	29, // 13: dockwell.v1.SetStepUpFloorRequest.floor:type_name -> dockwell.v1.StepUpPolicy
+	31, // 13: dockwell.v1.SetStepUpFloorRequest.floor:type_name -> dockwell.v1.StepUpPolicy
 	6,  // 14: dockwell.v1.SetStepUpFloorResponse.settings:type_name -> dockwell.v1.Settings
-	30, // 15: dockwell.v1.SetAutoUpdateDefaultRequest.auto_update:type_name -> dockwell.resource.v1alpha1.AutoUpdate
+	32, // 15: dockwell.v1.SetAutoUpdateDefaultRequest.auto_update:type_name -> dockwell.resource.v1alpha1.AutoUpdate
 	6,  // 16: dockwell.v1.SetAutoUpdateDefaultResponse.settings:type_name -> dockwell.v1.Settings
-	25, // 17: dockwell.v1.GetControlPlaneResponse.control_plane:type_name -> dockwell.v1.ControlPlane
-	31, // 18: dockwell.v1.ControlPlane.build:type_name -> dockwell.v1.BuildInfo
-	28, // 19: dockwell.v1.ControlPlane.start_time:type_name -> google.protobuf.Timestamp
-	26, // 20: dockwell.v1.ControlPlane.store:type_name -> dockwell.v1.StateStore
+	27, // 17: dockwell.v1.GetControlPlaneResponse.control_plane:type_name -> dockwell.v1.ControlPlane
+	33, // 18: dockwell.v1.ControlPlane.build:type_name -> dockwell.v1.BuildInfo
+	30, // 19: dockwell.v1.ControlPlane.start_time:type_name -> google.protobuf.Timestamp
+	28, // 20: dockwell.v1.ControlPlane.store:type_name -> dockwell.v1.StateStore
 	7,  // 21: dockwell.v1.ControlPlane.panel:type_name -> dockwell.v1.PanelServing
-	27, // 22: dockwell.v1.ControlPlane.agents:type_name -> dockwell.v1.AgentListener
+	29, // 22: dockwell.v1.ControlPlane.agents:type_name -> dockwell.v1.AgentListener
 	2,  // 23: dockwell.v1.ControlPlane.service_manager:type_name -> dockwell.v1.ServiceManager
 	3,  // 24: dockwell.v1.StateStore.engine:type_name -> dockwell.v1.StateStoreEngine
-	32, // 25: dockwell.v1.StateStore.round_trip:type_name -> google.protobuf.Duration
+	34, // 25: dockwell.v1.StateStore.round_trip:type_name -> google.protobuf.Duration
 	4,  // 26: dockwell.v1.SettingsService.GetSettings:input_type -> dockwell.v1.GetSettingsRequest
-	15, // 27: dockwell.v1.SettingsService.SetInstallName:input_type -> dockwell.v1.SetInstallNameRequest
-	17, // 28: dockwell.v1.SettingsService.SetTimeZone:input_type -> dockwell.v1.SetTimeZoneRequest
-	8,  // 29: dockwell.v1.SettingsService.CheckPanelDomain:input_type -> dockwell.v1.CheckPanelDomainRequest
-	11, // 30: dockwell.v1.SettingsService.SetPanelDomain:input_type -> dockwell.v1.SetPanelDomainRequest
-	13, // 31: dockwell.v1.SettingsService.CreatePanelSignInLink:input_type -> dockwell.v1.CreatePanelSignInLinkRequest
-	19, // 32: dockwell.v1.SettingsService.SetStepUpFloor:input_type -> dockwell.v1.SetStepUpFloorRequest
-	21, // 33: dockwell.v1.SettingsService.SetAutoUpdateDefault:input_type -> dockwell.v1.SetAutoUpdateDefaultRequest
-	23, // 34: dockwell.v1.SettingsService.GetControlPlane:input_type -> dockwell.v1.GetControlPlaneRequest
-	5,  // 35: dockwell.v1.SettingsService.GetSettings:output_type -> dockwell.v1.GetSettingsResponse
-	16, // 36: dockwell.v1.SettingsService.SetInstallName:output_type -> dockwell.v1.SetInstallNameResponse
-	18, // 37: dockwell.v1.SettingsService.SetTimeZone:output_type -> dockwell.v1.SetTimeZoneResponse
-	9,  // 38: dockwell.v1.SettingsService.CheckPanelDomain:output_type -> dockwell.v1.CheckPanelDomainResponse
-	12, // 39: dockwell.v1.SettingsService.SetPanelDomain:output_type -> dockwell.v1.SetPanelDomainResponse
-	14, // 40: dockwell.v1.SettingsService.CreatePanelSignInLink:output_type -> dockwell.v1.CreatePanelSignInLinkResponse
-	20, // 41: dockwell.v1.SettingsService.SetStepUpFloor:output_type -> dockwell.v1.SetStepUpFloorResponse
-	22, // 42: dockwell.v1.SettingsService.SetAutoUpdateDefault:output_type -> dockwell.v1.SetAutoUpdateDefaultResponse
-	24, // 43: dockwell.v1.SettingsService.GetControlPlane:output_type -> dockwell.v1.GetControlPlaneResponse
-	35, // [35:44] is the sub-list for method output_type
-	26, // [26:35] is the sub-list for method input_type
+	17, // 27: dockwell.v1.SettingsService.SetInstallName:input_type -> dockwell.v1.SetInstallNameRequest
+	19, // 28: dockwell.v1.SettingsService.SetTimeZone:input_type -> dockwell.v1.SetTimeZoneRequest
+	10, // 29: dockwell.v1.SettingsService.CheckPanelReach:input_type -> dockwell.v1.CheckPanelReachRequest
+	8,  // 30: dockwell.v1.SettingsService.CheckPanelDomain:input_type -> dockwell.v1.CheckPanelDomainRequest
+	13, // 31: dockwell.v1.SettingsService.SetPanelDomain:input_type -> dockwell.v1.SetPanelDomainRequest
+	15, // 32: dockwell.v1.SettingsService.CreatePanelSignInLink:input_type -> dockwell.v1.CreatePanelSignInLinkRequest
+	21, // 33: dockwell.v1.SettingsService.SetStepUpFloor:input_type -> dockwell.v1.SetStepUpFloorRequest
+	23, // 34: dockwell.v1.SettingsService.SetAutoUpdateDefault:input_type -> dockwell.v1.SetAutoUpdateDefaultRequest
+	25, // 35: dockwell.v1.SettingsService.GetControlPlane:input_type -> dockwell.v1.GetControlPlaneRequest
+	5,  // 36: dockwell.v1.SettingsService.GetSettings:output_type -> dockwell.v1.GetSettingsResponse
+	18, // 37: dockwell.v1.SettingsService.SetInstallName:output_type -> dockwell.v1.SetInstallNameResponse
+	20, // 38: dockwell.v1.SettingsService.SetTimeZone:output_type -> dockwell.v1.SetTimeZoneResponse
+	11, // 39: dockwell.v1.SettingsService.CheckPanelReach:output_type -> dockwell.v1.CheckPanelReachResponse
+	9,  // 40: dockwell.v1.SettingsService.CheckPanelDomain:output_type -> dockwell.v1.CheckPanelDomainResponse
+	14, // 41: dockwell.v1.SettingsService.SetPanelDomain:output_type -> dockwell.v1.SetPanelDomainResponse
+	16, // 42: dockwell.v1.SettingsService.CreatePanelSignInLink:output_type -> dockwell.v1.CreatePanelSignInLinkResponse
+	22, // 43: dockwell.v1.SettingsService.SetStepUpFloor:output_type -> dockwell.v1.SetStepUpFloorResponse
+	24, // 44: dockwell.v1.SettingsService.SetAutoUpdateDefault:output_type -> dockwell.v1.SetAutoUpdateDefaultResponse
+	26, // 45: dockwell.v1.SettingsService.GetControlPlane:output_type -> dockwell.v1.GetControlPlaneResponse
+	36, // [36:46] is the sub-list for method output_type
+	26, // [26:36] is the sub-list for method input_type
 	26, // [26:26] is the sub-list for extension type_name
 	26, // [26:26] is the sub-list for extension extendee
 	0,  // [0:26] is the sub-list for field type_name
@@ -1986,7 +2145,7 @@ func file_dockwell_v1_settings_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_settings_proto_rawDesc), len(file_dockwell_v1_settings_proto_rawDesc)),
 			NumEnums:      4,
-			NumMessages:   24,
+			NumMessages:   26,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

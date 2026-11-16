@@ -58,6 +58,27 @@ export async function panelDomainFlow(page: Page, { origin, step, shoot }: Panel
   await field.waitFor({ timeout: 60_000 });
   if ((await panel.getByText("Loopback only").count()) === 0)
     fail("after Stop using it, the panel doesn't read loopback only");
+
+  // Behind a tunnel or a proxy that ends TLS (ADR 0063's amendment): no certificate, no
+  // ports, and a live check of the way in, which a test's tunnel, reaching nothing,
+  // fails with the fix. The restart reads it from the setting.
+  step("panel domain: behind a tunnel, checked by the way in, then saved, with nothing to wait for");
+  await field.fill("panel.example.com");
+  await panel.getByRole("radio", { name: "Behind a tunnel or proxy" }).click();
+  await panel.getByText("Not reached yet").waitFor({ timeout: 15_000 });
+  await panel.getByText(/There's no DNS record for panel\.example\.com yet/).waitFor();
+  if ((await panel.getByText("DNS doesn't point here yet").count()) > 0)
+    fail("behind a tunnel, the panel still asks for DNS to lead here");
+  await shoot(page, "settings-panel-domain-tunnel");
+  await save.click();
+  await panel.getByRole("button", { name: "Restart and serve it" }).click();
+  await panel.getByText("Your tunnel or proxy, which ends TLS and sends it here").waitFor({ timeout: 60_000 });
+  if ((await panel.getByText(/Getting a certificate/).count()) > 0)
+    fail("behind a tunnel, the panel waits for a certificate");
+  await panel.getByText("Not reached yet").waitFor({ timeout: 15_000 });
+  await shoot(page, "settings-panel-domain-tunnel-after");
+  await panel.getByRole("button", { name: "Stop using it" }).click();
+  await field.waitFor({ timeout: 60_000 });
 }
 
 /** Where sign-in.ts runs this among the flows: last, as it restarts the control plane (flows.ts). */

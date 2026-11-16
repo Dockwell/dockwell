@@ -43,6 +43,9 @@ func panelDomainStand(t *testing.T) (*fullServer, *atomic.Int32, *atomic.Value) 
 					return []netip.Addr{netip.MustParseAddr("192.0.2.10")}, nil
 				case "elsewhere.example.com":
 					return []netip.Addr{netip.MustParseAddr("198.51.100.7")}, nil
+				case "tunnel.example.com":
+					// One of Cloudflare's, as a tunnel's CNAME leads to.
+					return []netip.Addr{netip.MustParseAddr("2606:4700::6810:84e5"), netip.MustParseAddr("104.16.0.10")}, nil
 				}
 				return nil, &net.DNSError{Err: "no such host", Name: host, IsNotFound: true}
 			},

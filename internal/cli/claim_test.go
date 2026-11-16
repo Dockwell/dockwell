@@ -216,6 +216,30 @@ func TestRunSaysWhenThePanelGainsADomain(t *testing.T) {
 	}
 }
 
+// Behind a tunnel or a proxy that ends TLS, dockwell run holds no public port and
+// asks for no certificate, and its links lead to the domain on 443 (ADR 0063's
+// amendment). Ports it can't hold would stop it, so neither is tried.
+func TestRunBehindATunnelHoldsNoPublicPort(t *testing.T) {
+	dir := t.TempDir()
+	out, logs, _ := startRunWithLogs(t, dir, "/claim#",
+		"--domain", "panel.example.com", "--behind-proxy", "--https-listen", "192.0.2.1:443", "--http-listen", "192.0.2.1:80",
+		"--acme-directory-url", "https://acme.invalid/directory")
+	if !strings.Contains(out.String(), "https://panel.example.com/claim#") {
+		t.Errorf("the claim link isn't the domain's on 443:\n%s", out.String())
+	}
+	if !strings.Contains(logs.String(), "a tunnel or a proxy that ends TLS serves the panel's domain") || !strings.Contains(logs.String(), `"target":"http://127.0.0.1:`) {
+		t.Errorf("dockwell run doesn't say where the tunnel points:\n%s", logs.String())
+	}
+	if strings.Contains(logs.String(), "the panel's certificate") || strings.Contains(logs.String(), "acme.invalid") {
+		t.Errorf("dockwell run asked for a certificate behind a tunnel:\n%s", logs.String())
+	}
+
+	r := run(t, map[string]string{envLogFormat: "json", envDataDir: t.TempDir(), envBehindProxy: "1"}, "run", "--agent-listen", "127.0.0.1:0")
+	if r.code != exitUsage || !strings.Contains(r.err, "--behind-proxy needs the domain the tunnel or proxy serves") {
+		t.Errorf("run behind a proxy with no domain = %d %q, want a usage error", r.code, r.err)
+	}
+}
+
 func TestRunRefusesToServeThePanelBeyondLoopback(t *testing.T) {
 	// The fix names the setting as it was given, and never suggests that a
 	// domain would let the panel's own listener leave loopback.

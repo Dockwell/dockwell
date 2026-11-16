@@ -964,6 +964,52 @@ func ViaIngress(next http.Handler) http.Handler {
 	})
 }
 
+// ViaProxy marks what a tunnel or a proxy that ends TLS sends the loopback
+// listener for the panel's domain as the HTTPS traffic it is, as ViaIngress does
+// for Caddy's hand-over (ADR 0063's amendment). It believes a request only where
+// it came over loopback, from the proxy on this server, as cloudflared on the
+// host's network does, with the domain as its Host and X-Forwarded-Proto https.
+// The panel listens on loopback alone (ADR 0011), so whatever else could send
+// those could reach the panel there already, and gets no more: a passkey's
+// assertion is bound to the browser's origin, and a cookie to the browser that
+// holds it. Anything else, and anything already marked, goes to next as it came.
+// An empty domain marks nothing.
+func ViaProxy(domain string, next http.Handler) http.Handler {
+	if domain == "" {
+		return next
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.TLS != nil || !proxied(r, domain) {
+			next.ServeHTTP(w, r)
+			return
+		}
+		if r.Header.Get("Early-Data") != "" {
+			w.WriteHeader(http.StatusTooEarly)
+			return
+		}
+		via := *r
+		via.TLS = &tls.ConnectionState{Version: tls.VersionTLS13, HandshakeComplete: true, ServerName: domain}
+		via.RemoteAddr = net.JoinHostPort(forwardedClient(r), "0")
+		next.ServeHTTP(w, &via)
+	})
+}
+
+// proxied reports a request a proxy on this server sent for domain over HTTPS.
+func proxied(r *http.Request, domain string) bool {
+	host := r.Host
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		host = h
+	}
+	host = strings.TrimSuffix(strings.ToLower(host), ".")
+	scheme, _, _ := strings.Cut(r.Header.Get("X-Forwarded-Proto"), ",")
+	remote, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		remote = r.RemoteAddr
+	}
+	ip := net.ParseIP(remote)
+	return host == domain && strings.EqualFold(strings.TrimSpace(scheme), "https") && ip != nil && ip.IsLoopback()
+}
+
 // forwardedClient is the address the proxy says a request came from, or none
 // that could pass for loopback.
 func forwardedClient(r *http.Request) string {

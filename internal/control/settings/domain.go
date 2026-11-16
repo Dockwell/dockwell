@@ -22,6 +22,7 @@ import (
 	"github.com/dockwell/dockwell/internal/auth"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/id"
+	"github.com/dockwell/dockwell/internal/ingress"
 	"github.com/dockwell/dockwell/internal/resource/route"
 	"github.com/dockwell/dockwell/internal/store"
 )
@@ -30,6 +31,9 @@ import (
 const (
 	// KeyPanelDomain is where the setting is kept.
 	KeyPanelDomain = "panel_domain"
+	// KeyPanelBehindProxy is "true" where a tunnel or a proxy that ends TLS
+	// serves it (ADR 0063's amendment), and unset where Dockwell does.
+	KeyPanelBehindProxy = "panel_domain_behind_proxy"
 	// ActionPanelDomain is its event.
 	ActionPanelDomain = "settings.panel_domain"
 )
@@ -60,6 +64,10 @@ type Domain struct {
 	// Saved hears a domain as it's saved, so no route claims it before the
 	// restart serves it.
 	Saved func(domain string)
+	// Reach answers the tokens a check of a domain behind a tunnel or proxy asks
+	// for, and ReachClient asks the domain for them. A check needs both.
+	Reach       *Reach
+	ReachClient Doer
 }
 
 // WithDomain lets the handler set the panel's domain.
@@ -80,26 +88,72 @@ func PanelDomain(ctx context.Context, db *store.DB) (string, error) {
 	return d, err
 }
 
+// PanelSet is the panel's domain as the settings hold it, and whether a tunnel
+// or a proxy that ends TLS serves it.
+type PanelSet struct {
+	Domain      string
+	BehindProxy bool
+}
+
+// PanelSetting reads the panel's domain the settings hold, and how it's served,
+// as dockwell run does as it starts.
+func PanelSetting(ctx context.Context, db *store.DB) (PanelSet, error) {
+	var out PanelSet
+	err := db.View(ctx, func(tx *store.Tx) error {
+		var err error
+		out, err = panelSet(ctx, tx)
+		return err
+	})
+	return out, err
+}
+
+func panelSet(ctx context.Context, tx *store.Tx) (PanelSet, error) {
+	d, err := getString(ctx, tx, KeyPanelDomain)
+	if err != nil || d == "" {
+		return PanelSet{}, err
+	}
+	behind, err := getString(ctx, tx, KeyPanelBehindProxy)
+	return PanelSet{Domain: d, BehindProxy: behind == "true"}, err
+}
+
 // ClearPanelDomain clears the panel's domain from the control server, as
 // dockwell panel-domain --clear does when the panel can't be reached to stop
 // using it there (ADR 0063), and says what it was. It's on the activity log.
 func ClearPanelDomain(ctx context.Context, db *store.DB, actor string, now time.Time) (string, error) {
-	var previous string
+	var previous PanelSet
 	err := db.Update(ctx, func(tx *store.Tx) error {
 		var err error
-		if previous, err = getString(ctx, tx, KeyPanelDomain); err != nil || previous == "" {
+		if previous, err = panelSet(ctx, tx); err != nil || previous.Domain == "" {
 			return err
 		}
-		if err := tx.DeleteSetting(ctx, KeyPanelDomain); err != nil {
+		if err := putPanelSet(ctx, tx, PanelSet{}); err != nil {
 			return err
 		}
-		detail, err := json.Marshal(Change{Previous: previous})
+		detail, err := json.Marshal(Change{Previous: previous.Domain, PreviousBehindProxy: previous.BehindProxy})
 		if err != nil {
 			return err
 		}
 		return tx.RecordEvent(ctx, store.Event{ID: id.New(id.Event), At: now, Actor: actor, Action: ActionPanelDomain, Surface: store.SurfaceCLI, Detail: string(detail)})
 	})
-	return previous, err
+	return previous.Domain, err
+}
+
+// putPanelSet keeps the domain and how it's served, or clears both.
+func putPanelSet(ctx context.Context, tx *store.Tx, set PanelSet) error {
+	if set.Domain == "" {
+		if err := tx.DeleteSetting(ctx, KeyPanelDomain); err != nil && !errors.Is(err, store.ErrNotFound) {
+			return err
+		}
+	} else if err := tx.PutSetting(ctx, KeyPanelDomain, []byte(set.Domain)); err != nil {
+		return err
+	}
+	if set.Domain != "" && set.BehindProxy {
+		return tx.PutSetting(ctx, KeyPanelBehindProxy, []byte("true"))
+	}
+	if err := tx.DeleteSetting(ctx, KeyPanelBehindProxy); err != nil && !errors.Is(err, store.ErrNotFound) {
+		return err
+	}
+	return nil
 }
 
 // Takeable refuses a domain the panel can't take: one against the rules a
@@ -168,6 +222,8 @@ func (h *Handler) CheckPanelDomain(ctx context.Context, req *connect.Request[doc
 				a = a.Unmap()
 				out.Addresses = append(out.Addresses, a.String())
 				out.PointsHere = out.PointsHere || slices.Contains(out.PublicAddresses, a.String())
+				// Cloudflare's tunnel ends TLS there, so no certificate comes here.
+				out.Cloudflare = out.Cloudflare || ingress.IsCloudflare(a)
 			}
 		}
 	}
@@ -224,12 +280,13 @@ func (h *Handler) SetPanelDomain(ctx context.Context, req *connect.Request[dockw
 			"dockwell run was started with the domain %s, by --domain or DOCKWELL_DOMAIN, which wins over Settings, so it didn't change. Change it where dockwell run is started", h.serving.Domain), "domain_from_run")
 	}
 	d := normalDomain(req.Msg.GetDomain())
-	var previous string
+	want := PanelSet{Domain: d, BehindProxy: d != "" && req.Msg.GetBehindProxy()}
+	var was PanelSet
 	var refusal string
 	var applying bool
 	if err := h.db.View(ctx, func(tx *store.Tx) error {
 		var err error
-		if previous, err = getString(ctx, tx, KeyPanelDomain); err != nil {
+		if was, err = panelSet(ctx, tx); err != nil {
 			return err
 		}
 		if d != "" {
@@ -245,16 +302,16 @@ func (h *Handler) SetPanelDomain(ctx context.Context, req *connect.Request[dockw
 	switch {
 	case refusal != "":
 		return nil, authapi.ReasonError(connect.CodeInvalidArgument, errors.New(refusal), "domain_refused")
-	case d == previous:
+	case want == was:
 		s, err := h.current(ctx)
 		if err != nil {
 			return nil, err
 		}
 		return connect.NewResponse(&dockwellv1.SetPanelDomainResponse{Settings: s}), nil
-	case previous != "" && d != "":
+	case was.Domain != "" && d != "" && d != was.Domain:
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf(
 			"the panel can't move from %s to %s yet: people sign in on %s with passkeys made there, and a move that keeps them signing in comes later. Keep %s for now",
-			previous, d, previous, previous), "domain_move")
+			was.Domain, d, was.Domain, was.Domain), "domain_move")
 	case applying:
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, errors.New(
 			"a change is applying, and the restart would stop it partway, so the domain didn't change. Save once it ends"), "change_applying")
@@ -265,13 +322,13 @@ func (h *Handler) SetPanelDomain(ctx context.Context, req *connect.Request[dockw
 	// The passkey confirms the domain set, or the one cleared.
 	target := d
 	if target == "" {
-		target = previous
+		target = was.Domain
 	}
 	client, _ := authapi.ClientFrom(ctx)
 	if err := h.domain.Auth.UseStepUp(ctx, client, p, req.Msg.GetProof(), auth.StepUpSetPanelDomain, target); err != nil {
 		return nil, authapi.StepUpRefused(err)
 	}
-	s, err := h.set(ctx, KeyPanelDomain, ActionPanelDomain, d)
+	s, err := h.setPanel(ctx, want, was)
 	if err != nil {
 		return nil, err
 	}
@@ -288,6 +345,34 @@ func (h *Handler) SetPanelDomain(ctx context.Context, req *connect.Request[dockw
 		}()
 	}
 	return connect.NewResponse(&dockwellv1.SetPanelDomainResponse{Settings: s, Restarting: restarting}), nil
+}
+
+// setPanel keeps the panel's domain and how it's served, on the activity log
+// with what it replaced.
+func (h *Handler) setPanel(ctx context.Context, want, was PanelSet) (*dockwellv1.Settings, error) {
+	p, ok := authapi.PrincipalFrom(ctx)
+	if !ok {
+		return nil, authapi.ReasonError(connect.CodeUnauthenticated, auth.ErrUnauthenticated, authapi.ReasonUnauthenticated)
+	}
+	client, _ := authapi.ClientFrom(ctx)
+	var out *dockwellv1.Settings
+	err := h.db.Update(ctx, func(tx *store.Tx) error {
+		if err := putPanelSet(ctx, tx, want); err != nil {
+			return err
+		}
+		detail, err := json.Marshal(Change{Value: want.Domain, Previous: was.Domain, BehindProxy: want.BehindProxy, PreviousBehindProxy: was.BehindProxy})
+		if err != nil {
+			return err
+		}
+		if err := tx.RecordEvent(ctx, store.Event{
+			ID: id.New(id.Event), At: h.now(), Actor: p.Actor(), Action: ActionPanelDomain, Surface: client.Surface(p), Detail: string(detail),
+		}); err != nil {
+			return err
+		}
+		out, err = h.read(ctx, tx)
+		return err
+	})
+	return out, err
 }
 
 // current reads the settings as they are.

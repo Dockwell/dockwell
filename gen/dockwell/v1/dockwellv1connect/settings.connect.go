@@ -44,6 +44,9 @@ const (
 	// SettingsServiceSetTimeZoneProcedure is the fully-qualified name of the SettingsService's
 	// SetTimeZone RPC.
 	SettingsServiceSetTimeZoneProcedure = "/dockwell.v1.SettingsService/SetTimeZone"
+	// SettingsServiceCheckPanelReachProcedure is the fully-qualified name of the SettingsService's
+	// CheckPanelReach RPC.
+	SettingsServiceCheckPanelReachProcedure = "/dockwell.v1.SettingsService/CheckPanelReach"
 	// SettingsServiceCheckPanelDomainProcedure is the fully-qualified name of the SettingsService's
 	// CheckPanelDomain RPC.
 	SettingsServiceCheckPanelDomainProcedure = "/dockwell.v1.SettingsService/CheckPanelDomain"
@@ -78,6 +81,16 @@ type SettingsServiceClient interface {
 	// it was made with, so this moves none. An empty zone clears it, and new
 	// schedules start in UTC again.
 	SetTimeZone(context.Context, *connect.Request[v1.SetTimeZoneRequest]) (*connect.Response[v1.SetTimeZoneResponse], error)
+	// CheckPanelReach checks a domain behind a tunnel or a proxy that ends TLS
+	// (ADR 0063's amendment), before it's set and after: the control plane makes a
+	// one-time token, asks https://<domain>/.well-known/dockwell-reach/<token>,
+	// and says whether this panel answered it, through the proxy on this server,
+	// as a request for its domain over HTTPS. Otherwise it says why not, with the
+	// fix: a name that doesn't resolve, a tunnel that isn't connected (530), one
+	// pointing somewhere else (502), something else that answered, or a proxy that
+	// reaches the panel without the domain as its Host or X-Forwarded-Proto https.
+	// The token answers once, within 30 seconds.
+	CheckPanelReach(context.Context, *connect.Request[v1.CheckPanelReachRequest]) (*connect.Response[v1.CheckPanelReachResponse], error)
 	// CheckPanelDomain checks a domain for the panel as it's typed, before it's
 	// set (ADR 0063): whether the panel can take it, by the rules --domain has
 	// and as no route serves it or a name under it; what its A and AAAA records
@@ -85,10 +98,12 @@ type SettingsServiceClient interface {
 	// server's public addresses; and whether something other than Dockwell or its
 	// Caddy holds port 80 or 443 on the control server, which would stop a
 	// certificate. DNS that doesn't lead here yet is a warning, not a refusal: a
-	// person may set DNS and the domain in either order.
+	// person may set DNS and the domain in either order. It also says when the
+	// records lead to Cloudflare, whose tunnel ends TLS before this server.
 	CheckPanelDomain(context.Context, *connect.Request[v1.CheckPanelDomainRequest]) (*connect.Response[v1.CheckPanelDomainResponse], error)
 	// SetPanelDomain sets the domain the panel is served on over HTTPS, or clears
-	// it (an empty domain), and restarts the control plane to serve it: the
+	// it (an empty domain), served by Dockwell itself or behind a tunnel or a
+	// proxy that ends TLS, and restarts the control plane to serve it: the
 	// response goes out first, then it re-executes itself, so apps and websites
 	// keep running and the panel answers again within seconds, on loopback and
 	// the domain (ADR 0063). It takes the owner, signed in, and a passkey just
@@ -98,8 +113,9 @@ type SettingsServiceClient interface {
 	// clears. Refused while a
 	// change is applying, when dockwell run was given a domain with --domain or
 	// DOCKWELL_DOMAIN, for a name the panel can't take, and for a move from one
-	// domain to another, which comes later. It's on the activity log with the
-	// domain it replaced.
+	// domain to another, which comes later. Moving between Dockwell serving it
+	// and a proxy, on the same domain, keeps every passkey. It's on the activity
+	// log with the domain it replaced.
 	SetPanelDomain(context.Context, *connect.Request[v1.SetPanelDomainRequest]) (*connect.Response[v1.SetPanelDomainResponse], error)
 	// CreatePanelSignInLink makes the owner a one-time sign-in link to the panel
 	// on its domain, once it answers there over HTTPS: passkeys belong to the
@@ -163,6 +179,13 @@ func NewSettingsServiceClient(httpClient connect.HTTPClient, baseURL string, opt
 			connect.WithSchema(settingsServiceMethods.ByName("SetTimeZone")),
 			connect.WithClientOptions(opts...),
 		),
+		checkPanelReach: connect.NewClient[v1.CheckPanelReachRequest, v1.CheckPanelReachResponse](
+			httpClient,
+			baseURL+SettingsServiceCheckPanelReachProcedure,
+			connect.WithSchema(settingsServiceMethods.ByName("CheckPanelReach")),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
 		checkPanelDomain: connect.NewClient[v1.CheckPanelDomainRequest, v1.CheckPanelDomainResponse](
 			httpClient,
 			baseURL+SettingsServiceCheckPanelDomainProcedure,
@@ -209,6 +232,7 @@ type settingsServiceClient struct {
 	getSettings           *connect.Client[v1.GetSettingsRequest, v1.GetSettingsResponse]
 	setInstallName        *connect.Client[v1.SetInstallNameRequest, v1.SetInstallNameResponse]
 	setTimeZone           *connect.Client[v1.SetTimeZoneRequest, v1.SetTimeZoneResponse]
+	checkPanelReach       *connect.Client[v1.CheckPanelReachRequest, v1.CheckPanelReachResponse]
 	checkPanelDomain      *connect.Client[v1.CheckPanelDomainRequest, v1.CheckPanelDomainResponse]
 	setPanelDomain        *connect.Client[v1.SetPanelDomainRequest, v1.SetPanelDomainResponse]
 	createPanelSignInLink *connect.Client[v1.CreatePanelSignInLinkRequest, v1.CreatePanelSignInLinkResponse]
@@ -230,6 +254,11 @@ func (c *settingsServiceClient) SetInstallName(ctx context.Context, req *connect
 // SetTimeZone calls dockwell.v1.SettingsService.SetTimeZone.
 func (c *settingsServiceClient) SetTimeZone(ctx context.Context, req *connect.Request[v1.SetTimeZoneRequest]) (*connect.Response[v1.SetTimeZoneResponse], error) {
 	return c.setTimeZone.CallUnary(ctx, req)
+}
+
+// CheckPanelReach calls dockwell.v1.SettingsService.CheckPanelReach.
+func (c *settingsServiceClient) CheckPanelReach(ctx context.Context, req *connect.Request[v1.CheckPanelReachRequest]) (*connect.Response[v1.CheckPanelReachResponse], error) {
+	return c.checkPanelReach.CallUnary(ctx, req)
 }
 
 // CheckPanelDomain calls dockwell.v1.SettingsService.CheckPanelDomain.
@@ -276,6 +305,16 @@ type SettingsServiceHandler interface {
 	// it was made with, so this moves none. An empty zone clears it, and new
 	// schedules start in UTC again.
 	SetTimeZone(context.Context, *connect.Request[v1.SetTimeZoneRequest]) (*connect.Response[v1.SetTimeZoneResponse], error)
+	// CheckPanelReach checks a domain behind a tunnel or a proxy that ends TLS
+	// (ADR 0063's amendment), before it's set and after: the control plane makes a
+	// one-time token, asks https://<domain>/.well-known/dockwell-reach/<token>,
+	// and says whether this panel answered it, through the proxy on this server,
+	// as a request for its domain over HTTPS. Otherwise it says why not, with the
+	// fix: a name that doesn't resolve, a tunnel that isn't connected (530), one
+	// pointing somewhere else (502), something else that answered, or a proxy that
+	// reaches the panel without the domain as its Host or X-Forwarded-Proto https.
+	// The token answers once, within 30 seconds.
+	CheckPanelReach(context.Context, *connect.Request[v1.CheckPanelReachRequest]) (*connect.Response[v1.CheckPanelReachResponse], error)
 	// CheckPanelDomain checks a domain for the panel as it's typed, before it's
 	// set (ADR 0063): whether the panel can take it, by the rules --domain has
 	// and as no route serves it or a name under it; what its A and AAAA records
@@ -283,10 +322,12 @@ type SettingsServiceHandler interface {
 	// server's public addresses; and whether something other than Dockwell or its
 	// Caddy holds port 80 or 443 on the control server, which would stop a
 	// certificate. DNS that doesn't lead here yet is a warning, not a refusal: a
-	// person may set DNS and the domain in either order.
+	// person may set DNS and the domain in either order. It also says when the
+	// records lead to Cloudflare, whose tunnel ends TLS before this server.
 	CheckPanelDomain(context.Context, *connect.Request[v1.CheckPanelDomainRequest]) (*connect.Response[v1.CheckPanelDomainResponse], error)
 	// SetPanelDomain sets the domain the panel is served on over HTTPS, or clears
-	// it (an empty domain), and restarts the control plane to serve it: the
+	// it (an empty domain), served by Dockwell itself or behind a tunnel or a
+	// proxy that ends TLS, and restarts the control plane to serve it: the
 	// response goes out first, then it re-executes itself, so apps and websites
 	// keep running and the panel answers again within seconds, on loopback and
 	// the domain (ADR 0063). It takes the owner, signed in, and a passkey just
@@ -296,8 +337,9 @@ type SettingsServiceHandler interface {
 	// clears. Refused while a
 	// change is applying, when dockwell run was given a domain with --domain or
 	// DOCKWELL_DOMAIN, for a name the panel can't take, and for a move from one
-	// domain to another, which comes later. It's on the activity log with the
-	// domain it replaced.
+	// domain to another, which comes later. Moving between Dockwell serving it
+	// and a proxy, on the same domain, keeps every passkey. It's on the activity
+	// log with the domain it replaced.
 	SetPanelDomain(context.Context, *connect.Request[v1.SetPanelDomainRequest]) (*connect.Response[v1.SetPanelDomainResponse], error)
 	// CreatePanelSignInLink makes the owner a one-time sign-in link to the panel
 	// on its domain, once it answers there over HTTPS: passkeys belong to the
@@ -357,6 +399,13 @@ func NewSettingsServiceHandler(svc SettingsServiceHandler, opts ...connect.Handl
 		connect.WithSchema(settingsServiceMethods.ByName("SetTimeZone")),
 		connect.WithHandlerOptions(opts...),
 	)
+	settingsServiceCheckPanelReachHandler := connect.NewUnaryHandler(
+		SettingsServiceCheckPanelReachProcedure,
+		svc.CheckPanelReach,
+		connect.WithSchema(settingsServiceMethods.ByName("CheckPanelReach")),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
 	settingsServiceCheckPanelDomainHandler := connect.NewUnaryHandler(
 		SettingsServiceCheckPanelDomainProcedure,
 		svc.CheckPanelDomain,
@@ -403,6 +452,8 @@ func NewSettingsServiceHandler(svc SettingsServiceHandler, opts ...connect.Handl
 			settingsServiceSetInstallNameHandler.ServeHTTP(w, r)
 		case SettingsServiceSetTimeZoneProcedure:
 			settingsServiceSetTimeZoneHandler.ServeHTTP(w, r)
+		case SettingsServiceCheckPanelReachProcedure:
+			settingsServiceCheckPanelReachHandler.ServeHTTP(w, r)
 		case SettingsServiceCheckPanelDomainProcedure:
 			settingsServiceCheckPanelDomainHandler.ServeHTTP(w, r)
 		case SettingsServiceSetPanelDomainProcedure:
@@ -434,6 +485,10 @@ func (UnimplementedSettingsServiceHandler) SetInstallName(context.Context, *conn
 
 func (UnimplementedSettingsServiceHandler) SetTimeZone(context.Context, *connect.Request[v1.SetTimeZoneRequest]) (*connect.Response[v1.SetTimeZoneResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.SettingsService.SetTimeZone is not implemented"))
+}
+
+func (UnimplementedSettingsServiceHandler) CheckPanelReach(context.Context, *connect.Request[v1.CheckPanelReachRequest]) (*connect.Response[v1.CheckPanelReachResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.SettingsService.CheckPanelReach is not implemented"))
 }
 
 func (UnimplementedSettingsServiceHandler) CheckPanelDomain(context.Context, *connect.Request[v1.CheckPanelDomainRequest]) (*connect.Response[v1.CheckPanelDomainResponse], error) {

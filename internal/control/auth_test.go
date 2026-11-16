@@ -330,6 +330,15 @@ func startFullConfig(t *testing.T, backend store.Backend, public https.Source, l
 	if tweak != nil {
 		tweak(&config)
 	}
+	// A domain behind a tunnel is the panel's site, as dockwell run gives it to auth
+	// (ADR 0063's amendment).
+	if d := config.PanelDomain.BehindProxy; d != "" && sites.Domain == "" {
+		sites.Domain = d
+		if people, err = auth.New(auth.Config{DB: db, Key: key, Logger: logger, Sites: sites, AskWait: askWait, AfterFunc: asks.after, Recheck: testRecheck}); err != nil {
+			t.Fatal(err)
+		}
+		config.Auth = people
+	}
 	srv, err := New(config)
 	if err != nil {
 		t.Fatal(err)

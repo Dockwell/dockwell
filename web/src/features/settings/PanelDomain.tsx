@@ -2,8 +2,16 @@
 
 import { createClient } from "@connectrpc/connect";
 import { createConnectQueryKey, skipToken, useQuery, useTransport } from "@connectrpc/connect-query";
-import { PanelDomainFrom, type PanelServing, Role, ServerService, SettingsService, StepUpAction } from "@dockwell/api";
-import { Button, Callout, DnsRecord, TextField } from "@dockwell/ui";
+import {
+  PanelDomainFrom,
+  PanelServedBy,
+  type PanelServing,
+  Role,
+  ServerService,
+  SettingsService,
+  StepUpAction,
+} from "@dockwell/api";
+import { Button, Callout, DnsRecord, SegmentedControl, TextField } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
@@ -28,10 +36,14 @@ export const leave = {
 /** Where the install docs say how to change what dockwell run starts with. */
 const CHANGE_SETTINGS = "https://github.com/Dockwell/dockwell/blob/main/docs/install.md#change-settings";
 
+/** How the domain reaches the panel: Dockwell serves it, or a tunnel or proxy that ends TLS does (ADR 0063). */
+type Via = "dockwell" | "proxy";
+
 /**
- * The panel's domain, set here (ADR 0063): a field checked as it's typed, a save
- * the owner confirms with a passkey, which restarts Dockwell to serve it, then
- * the way onto it. A domain dockwell run was given stays where it was given.
+ * The panel's domain, set here (ADR 0063): a field checked as it's typed, served by
+ * Dockwell or behind a tunnel, a save the owner confirms with a passkey, which
+ * restarts Dockwell to serve it, then the way onto it. A domain dockwell run was
+ * given stays where it was given.
  */
 export function PanelDomain({ panel }: { panel: PanelServing | undefined }) {
   const owner = useSignedIn()?.user?.role === Role.OWNER;
@@ -79,7 +91,7 @@ export function PanelDomain({ panel }: { panel: PanelServing | undefined }) {
   if (now.setDomain) {
     return <Served panel={now} owner={owner} onRestart={onRestart} />;
   }
-  return <DomainField owner={owner} onRestart={onRestart} />;
+  return <DomainField owner={owner} listen={now.listen} onRestart={onRestart} />;
 }
 
 /** When the control plane that answered started, which a restart changes; "" when it doesn't say. */
@@ -94,13 +106,13 @@ function useSetDomain(onRestart: (r: { to: string }) => void) {
   const queryClient = useQueryClient();
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<unknown>();
-  const save = async (domain: string, confirmOn: string) => {
+  const save = async (domain: string, confirmOn: string, behindProxy = false) => {
     setBusy(true);
     setFailure(undefined);
     try {
       const client = createClient(SettingsService, transport);
       const res = await withStepUpIfAsked(transport, StepUpAction.SET_PANEL_DOMAIN, confirmOn, (proof) =>
-        client.setPanelDomain({ domain, proof }),
+        client.setPanelDomain({ domain, proof, behindProxy }),
       );
       if (res.restarting) onRestart({ to: domain });
       void queryClient.invalidateQueries({
@@ -118,8 +130,56 @@ function useSetDomain(onRestart: (r: { to: string }) => void) {
 /** A server's words, which start lower case to sit inside a sentence, standing on their own. */
 const capital = (words: string) => `${words.charAt(0).toUpperCase()}${words.slice(1)}`;
 
+/** A live check of the way in through a tunnel or proxy, which asks the domain for a token. */
+function useReach(domain: string) {
+  const may = useMay();
+  const mayCheck = may(SettingsService.method.checkPanelReach, { install: true });
+  return useQuery(SettingsService.method.checkPanelReach, domain && mayCheck.allowed ? { domain } : skipToken, {
+    placeholderData: (previous) => previous,
+  });
+}
+
+type Reach = ReturnType<typeof useReach>;
+
+/**
+ * The way in through a tunnel or proxy, checked live: the control plane asks the
+ * domain for a token, and this says whether the panel answered, with where the
+ * tunnel should point, ready to copy, and why not.
+ */
+function TunnelRecord({ domain, listen, reach }: { domain: string; listen: string; reach: Reach }) {
+  const { t } = useLingui();
+  const found = reach.data;
+  const target = found?.target || (listen ? `http://${listen}` : "");
+  if (!target) return null;
+  return (
+    <DnsRecord
+      type={t`Tunnel`}
+      name={domain}
+      value={target}
+      state={
+        found
+          ? found.reached
+            ? { status: "healthy", word: t`Reached through your tunnel` }
+            : { status: "degraded", word: t`Not reached yet` }
+          : undefined
+      }
+      onCheck={found?.reached ? undefined : () => void reach.refetch()}
+      checking={reach.isFetching}
+      note={found && !found.reached && found.problem ? capital(found.problem) : undefined}
+    />
+  );
+}
+
 /** A domain to give the panel, checked as it's typed. */
-function DomainField({ owner, onRestart }: { owner: boolean; onRestart: (r: { to: string }) => void }) {
+function DomainField({
+  owner,
+  listen,
+  onRestart,
+}: {
+  owner: boolean;
+  listen: string;
+  onRestart: (r: { to: string }) => void;
+}) {
   const { t } = useLingui();
   const may = useMay();
   const mayCheck = may(SettingsService.method.checkPanelDomain, { install: true });
@@ -131,6 +191,7 @@ function DomainField({ owner, onRestart }: { owner: boolean; onRestart: (r: { to
   const [typed, setTyped] = useState("");
   const [settled, setSettled] = useState("");
   const [confirming, setConfirming] = useState(false);
+  const [chosen, setChosen] = useState<Via | undefined>();
   const domain = settled.trim().toLowerCase().replace(/\.$/, "");
   useEffect(() => {
     const timer = setTimeout(() => setSettled(typed), CHECK_AFTER_MS);
@@ -145,6 +206,14 @@ function DomainField({ owner, onRestart }: { owner: boolean; onRestart: (r: { to
   const ready =
     owner && domain !== "" && typed.trim() !== "" && !check.isFetching && found !== undefined && refusal === "";
   const address = found?.publicAddresses.find((a) => !a.includes(":")) ?? found?.publicAddresses[0] ?? "";
+  // A name that leads to Cloudflare is behind its proxy or tunnel, which ends TLS before this server.
+  const cloudflare = found?.cloudflare ?? false;
+  const via: Via = chosen ?? (cloudflare ? "proxy" : "dockwell");
+  const reach = useReach(found && refusal === "" && via === "proxy" ? domain : "");
+  const ways = [
+    { value: "dockwell" as const, label: t`Dockwell serves it` },
+    { value: "proxy" as const, label: t`Behind a tunnel or proxy` },
+  ];
   const leads = found?.addresses.length
     ? t`It leads to ${found.addresses.join(", ")}`
     : found?.dnsProblem
@@ -166,7 +235,27 @@ function DomainField({ owner, onRestart }: { owner: boolean; onRestart: (r: { to
           setConfirming(false);
         }}
       />
-      {found && refusal === "" && address ? (
+      {found && refusal === "" ? (
+        <div className="panel-domain-via">
+          <span className="dw-field-label" aria-hidden="true">
+            <Trans>How it reaches this server</Trans>
+          </span>
+          <SegmentedControl<Via>
+            label={t`How it reaches this server`}
+            size="sm"
+            value={via}
+            options={cloudflare ? [...ways].reverse() : ways}
+            onChange={(value) => {
+              setChosen(value);
+              setConfirming(false);
+            }}
+          />
+        </div>
+      ) : null}
+      {found && refusal === "" && via === "proxy" ? (
+        <TunnelRecord domain={domain} listen={listen} reach={reach} />
+      ) : null}
+      {found && refusal === "" && via === "dockwell" && address ? (
         <DnsRecord
           type={address.includes(":") ? "AAAA" : "A"}
           name={domain}
@@ -181,7 +270,7 @@ function DomainField({ owner, onRestart }: { owner: boolean; onRestart: (r: { to
           note={found.pointsHere || !leads ? undefined : leads}
         />
       ) : null}
-      {found && refusal === "" && !address ? (
+      {found && refusal === "" && via === "dockwell" && !address ? (
         // Without this server's public address, where the name leads can't be told from here.
         <Callout
           tone="warning"
@@ -209,7 +298,7 @@ function DomainField({ owner, onRestart }: { owner: boolean; onRestart: (r: { to
           }}
         />
       ) : null}
-      {found?.portsHeld.map((p) => (
+      {(via === "dockwell" ? (found?.portsHeld ?? []) : []).map((p) => (
         <p key={`${p.port}-${p.program}`} className="settings-sub panel-domain-warn">
           {t`${p.program} holds port ${p.port} on this server, so no certificate can come until it's freed.`}
         </p>
@@ -224,7 +313,12 @@ function DomainField({ owner, onRestart }: { owner: boolean; onRestart: (r: { to
               <Button size="sm" variant="ghost" onClick={() => setConfirming(false)}>
                 <Trans>Cancel</Trans>
               </Button>
-              <Button size="sm" variant="primary" loading={set.busy} onClick={() => void set.save(domain, domain)}>
+              <Button
+                size="sm"
+                variant="primary"
+                loading={set.busy}
+                onClick={() => void set.save(domain, domain, via === "proxy")}
+              >
                 <Trans>Restart and serve it</Trans>
               </Button>
             </>
@@ -261,9 +355,17 @@ function Served({
   const may = useMay();
   const maySet = may(SettingsService.method.setPanelDomain, { install: true });
   const mayOpen = may(SettingsService.method.createPanelSignInLink, { install: true });
+  const mayCheck = may(SettingsService.method.checkPanelDomain, { install: true });
   const [opening, setOpening] = useState(false);
   const [failure, setFailure] = useState<unknown>();
+  const [switching, setSwitching] = useState(false);
   const domain = panel.setDomain;
+  const behind = panel.servedBy === PanelServedBy.PROXY;
+  const waiting = !panel.problem && !behind && !panel.certified;
+  const reach = useReach(behind && !panel.problem ? domain : "");
+  // A certificate that doesn't come may be one a tunnel's Cloudflare stands in front of.
+  const dns = useQuery(SettingsService.method.checkPanelDomain, waiting && mayCheck.allowed ? { domain } : skipToken);
+  const reached = reach.data?.reached ?? false;
   const here = typeof window !== "undefined" && window.location.hostname === domain;
   const stop = owner ? (
     <Button size="sm" variant="ghost" loading={set.busy} onClick={() => void set.save("", domain)} {...maySet.off}>
@@ -285,11 +387,80 @@ function Served({
     }
   };
   const failed = set.failure ?? failure;
+  const toTunnel = owner ? (
+    <Button
+      size="sm"
+      variant={dns.data?.cloudflare ? "primary" : "ghost"}
+      onClick={() => setSwitching(true)}
+      {...maySet.off}
+    >
+      <Trans>Serve it behind a tunnel</Trans>
+    </Button>
+  ) : null;
+  const opener = (
+    <Callout
+      tone="info"
+      title={t`The panel answers on ${domain}`}
+      actions={
+        <>
+          {owner ? (
+            <Button size="sm" variant="primary" loading={opening} onClick={() => void open()} {...mayOpen.off}>
+              <Trans>Open {domain}</Trans>
+            </Button>
+          ) : null}
+          {stop}
+        </>
+      }
+    >
+      <Trans>Passkeys belong to the address they were made on: open it, and add one there.</Trans>
+    </Callout>
+  );
   let body: React.ReactNode;
-  if (panel.problem) {
+  if (switching) {
+    body = (
+      <Callout
+        tone="info"
+        title={t`Dockwell restarts to serve ${domain} behind your tunnel`}
+        actions={
+          <>
+            <Button size="sm" variant="ghost" onClick={() => setSwitching(false)}>
+              <Trans>Cancel</Trans>
+            </Button>
+            <Button size="sm" variant="primary" loading={set.busy} onClick={() => void set.save(domain, domain, true)}>
+              <Trans>Restart and serve it</Trans>
+            </Button>
+          </>
+        }
+      >
+        <Trans>Apps, websites and passkeys keep working. It asks for your passkey.</Trans>
+      </Callout>
+    );
+  } else if (panel.problem) {
     body = (
       <Callout tone="warning" title={t`${domain} isn't served`} actions={stop}>
         {panel.problem}
+      </Callout>
+    );
+  } else if (behind) {
+    body = (
+      <>
+        <TunnelRecord domain={domain} listen={panel.listen} reach={reach} />
+        {reached && !here ? opener : <div className="panel-domain-actions">{stop}</div>}
+      </>
+    );
+  } else if (!panel.certified && dns.data?.cloudflare) {
+    body = (
+      <Callout
+        tone="warning"
+        title={t`${domain} leads to Cloudflare`}
+        actions={
+          <>
+            {toTunnel}
+            {stop}
+          </>
+        }
+      >
+        <Trans>Its tunnel or proxy ends TLS, so no certificate comes here.</Trans>
       </Callout>
     );
   } else if (!panel.certified) {
@@ -313,6 +484,7 @@ function Served({
             >
               <Trans>Check again</Trans>
             </Button>
+            {toTunnel}
             {stop}
           </>
         }
@@ -321,24 +493,7 @@ function Served({
       </Callout>
     );
   } else if (!here) {
-    body = (
-      <Callout
-        tone="info"
-        title={t`The panel answers on ${domain}`}
-        actions={
-          <>
-            {owner ? (
-              <Button size="sm" variant="primary" loading={opening} onClick={() => void open()} {...mayOpen.off}>
-                <Trans>Open {domain}</Trans>
-              </Button>
-            ) : null}
-            {stop}
-          </>
-        }
-      >
-        <Trans>Passkeys belong to the address they were made on: open it, and add one there.</Trans>
-      </Callout>
-    );
+    body = opener;
   } else {
     body = <div className="panel-domain-actions">{stop}</div>;
   }

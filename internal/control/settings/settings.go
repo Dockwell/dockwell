@@ -72,6 +72,10 @@ type Serving struct {
 	Certified func() bool
 	// Started is when this control plane started, which a restart changes.
 	Started time.Time
+	// BehindProxy says a tunnel or a proxy that ends TLS serves Domain, sending
+	// its requests to Listen (ADR 0063's amendment): Dockwell holds no
+	// certificate or public port for it.
+	BehindProxy bool
 }
 
 // Handler implements SettingsService.
@@ -96,6 +100,10 @@ func New(db *store.DB, serving Serving, plane Plane) *Handler {
 type Change struct {
 	Value    string `json:"value,omitempty"`
 	Previous string `json:"previous,omitempty"`
+	// For the panel's domain, a tunnel or a proxy that ends TLS serves Value,
+	// and served Previous.
+	BehindProxy         bool `json:"behind_proxy,omitempty"`
+	PreviousBehindProxy bool `json:"previous_behind_proxy,omitempty"`
 }
 
 // ReadEvent says what an event of a setting changed, for the timeline.
@@ -119,7 +127,7 @@ func ReadEvent(action, detail string) (*dockwellv1.EventSetting, bool) {
 	if err := json.Unmarshal([]byte(detail), &c); err != nil {
 		return nil, false
 	}
-	return &dockwellv1.EventSetting{Setting: setting, Value: c.Value, Previous: c.Previous}, true
+	return &dockwellv1.EventSetting{Setting: setting, Value: c.Value, Previous: c.Previous, BehindProxy: c.BehindProxy, PreviousBehindProxy: c.PreviousBehindProxy}, true
 }
 
 // GetSettings returns the install's settings, and how its panel is served.
@@ -276,6 +284,10 @@ func (h *Handler) panel() *dockwellv1.PanelServing {
 		}
 	}
 	if s.Domain == "" {
+		return out
+	}
+	if s.BehindProxy {
+		out.ServedBy, out.Url, out.Certified = dockwellv1.PanelServedBy_PANEL_SERVED_BY_PROXY, "https://"+s.Domain, true
 		return out
 	}
 	out.CertificateAuthority = s.CA
