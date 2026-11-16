@@ -22,8 +22,11 @@ import { useChangeSheet } from "../changes/ChangeSheet";
 import { useAllResources } from "../projects/useProjects";
 import { useFleetView } from "../servers/useFleet";
 import { BUCKET, freeConnectionName, PROVIDERS, type ProviderId, placeOf, provider, R2_ACCOUNT } from "./providers";
-import { useCheckWords } from "./useConnections";
+import { useCheckWords, useConnections } from "./useConnections";
 import "./Connections.css";
+
+/** What a check says where it got no answer from the bucket, rather than a refusal. */
+const NO_ANSWER: readonly string[] = ["refused", "timeout", "unreachable"];
 
 /** How long typing pauses before a connection is checked. */
 const CHECK_AFTER_MS = 700;
@@ -64,6 +67,9 @@ export function ConnectionSheet({
   const mayPlan = may(ChangeService.method.proposeChange, { install: true });
   const mayCheck = may(ConnectionService.method.checkConnection).allowed;
   const words = useCheckWords();
+  // What the pages list, read again once a change applies, so the page a save lands
+  // on, or one a removal leaves, says what's there now.
+  const listed = useConnections();
   const fleet = useFleetView();
   const resources = useAllResources();
   const projects = (resources.data ?? [])
@@ -126,7 +132,12 @@ export function ConnectionSheet({
   const complete = endpoint !== "" && bucketOk && (keysNeeded ? typedKeys : true);
   const reaching = reach === ConnectionReach.EVERY || picked.length > 0;
   const passed = answer?.passed === true;
-  const ready = complete && reaching && name !== "" && (mayCheck ? passed : true);
+  // A bucket that answered and refused is wrong as typed. One this server can't reach
+  // from a network of the check's own may still be one an app reaches from its own, as
+  // a store on an app's network is: each app's link checks it again from there before
+  // anything is planned for it.
+  const unreached = answer !== undefined && !passed && NO_ANSWER.includes(answer.code);
+  const ready = complete && reaching && name !== "" && (mayCheck ? passed || unreached : true);
 
   // Each change to what's checked moves this on, so an answer to what changed since is dropped.
   const asked = useRef(0);
@@ -180,8 +191,10 @@ export function ConnectionSheet({
       edits: [{ resource: { kind: "connection", name }, spec: { kind: { case: "connection", value: spec() } } }],
       onClose: (change) => {
         if (!change) return;
-        onClose();
-        onSaved?.(name);
+        void listed.refetch().then(() => {
+          onClose();
+          onSaved?.(name);
+        });
       },
     });
   const used = (editing?.uses.length ?? 0) > 0;
@@ -191,7 +204,7 @@ export function ConnectionSheet({
       summary: t`Remove the connection ${name}`,
       edits: [{ resource: { kind: "connection", name }, delete: true }],
       onClose: (change) => {
-        if (change) onClose();
+        if (change) void listed.refetch().then(onClose);
       },
     });
 
@@ -340,7 +353,10 @@ export function ConnectionSheet({
                 label={check.state}
                 labelIsState
               />
-              <span className="connection-sheet-said">{check.line}</span>
+              <span className="connection-sheet-said">
+                {check.line}
+                {unreached ? ` ${t`An app's link checks it again from where the app runs.`}` : null}
+              </span>
             </>
           ) : null}
         </div>

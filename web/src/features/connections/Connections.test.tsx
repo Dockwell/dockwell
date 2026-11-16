@@ -218,6 +218,24 @@ describe("Connections", () => {
     });
   });
 
+  it("plans a bucket this server can't reach, as an app may reach it from its own network", async () => {
+    const user = userEvent.setup();
+    renderAt("/connections", {
+      ...fleet(),
+      resources: places(),
+      connections: { checkConnection: () => ({ passed: false, step: "connect", code: "unreachable", server: "hz-1" }) },
+    });
+    await user.click(await screen.findByRole("button", { name: "Another S3-compatible store" }));
+    const sheet = await screen.findByRole("dialog", { name: "Add a connection" });
+    await user.type(within(sheet).getByRole("textbox", { name: "Endpoint" }), "http://minio:9000");
+    await user.type(within(sheet).getByRole("textbox", { name: "Bucket" }), "wiki-files");
+    await user.type(within(sheet).getByRole("textbox", { name: "Access key ID" }), "minio");
+    await user.type(within(sheet).getByLabelText("Secret access key"), "minio-secret");
+    expect(await within(sheet).findByText("Can't reach it", {}, { timeout: 3000 })).toBeVisible();
+    expect(within(sheet).getByText(/An app's link checks it again from where the app runs/)).toBeVisible();
+    expect(within(sheet).getByRole("button", { name: "Review plan" })).toBeEnabled();
+  });
+
   it("shows one connection: what reads it as what, where it is, and what a check found", async () => {
     const user = userEvent.setup();
     const { container } = renderAt("/connections/outline-uploads", {

@@ -156,10 +156,11 @@ export function ConnectStorageSheet({
           kind: "plan",
           make: () => Promise.resolve({ change }),
           retryLabel: t`Choose again`,
-          onDone: onClose,
+          // What reads the connection changed: its pages read the list again.
+          onDone: () => void all.refetch().then(onClose),
           onClose: (after) => {
             if (!after || after.state === ChangeState.PLANNED || after.state === ChangeState.FAILED) setPlan(undefined);
-            else onClose();
+            else void all.refetch().then(onClose);
           },
         });
       }

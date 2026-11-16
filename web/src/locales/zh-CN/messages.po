@@ -11356,6 +11356,9 @@ msgstr "32 位字母和数字，与 Cloudflare 显示的一致"
 msgid "A bucket of S3-compatible storage, for apps to keep files in"
 msgstr "S3 兼容存储的存储桶，供应用存放文件"
 
+msgid "An app's link checks it again from where the app runs."
+msgstr "应用的链接会从应用运行的位置再次检查它。"
+
 msgid "Another store"
 msgstr "其他存储"
 

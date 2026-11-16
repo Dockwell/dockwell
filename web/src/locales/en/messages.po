@@ -11356,6 +11356,9 @@ msgstr "32 letters and digits, as Cloudflare shows it"
 msgid "A bucket of S3-compatible storage, for apps to keep files in"
 msgstr "A bucket of S3-compatible storage, for apps to keep files in"
 
+msgid "An app's link checks it again from where the app runs."
+msgstr "An app's link checks it again from where the app runs."
+
 msgid "Another store"
 msgstr "Another store"
 
