@@ -487,13 +487,13 @@ func (h *Handler) InstallUpgrades(ctx context.Context) (map[string]InstallUpgrad
 	if err != nil {
 		return nil, err
 	}
-	since, err := h.heldSince(ctx, wanted, h.sources.now())
+	since := h.heldSince(ctx, wanted, h.sources.now())
 	for project, key := range keys {
 		u := out[project]
 		u.Since = since[key]
 		out[project] = u
 	}
-	return out, err
+	return out, nil
 }
 
 // installs reads each project's pin, by project, and leaves out a project whose
@@ -633,11 +633,7 @@ func (h *Handler) upgrade(ctx context.Context, m *dockwellv1.UpgradeCatalogInsta
 			now = at
 		}
 		key := pin.GetCatalog() + "/" + pin.GetEntry()
-		held, err := h.heldSince(ctx, map[string]asked{key: {source: pin.GetCatalog(), entry: pin.GetEntry(), release: entry.GetRelease()}}, now)
-		if err != nil {
-			return nil, h.internal(ctx, err)
-		}
-		since := held[key]
+		since := h.heldSince(ctx, map[string]asked{key: {source: pin.GetCatalog(), entry: pin.GetEntry(), release: entry.GetRelease()}}, now)[key]
 		if until := since.Add(ReleaseWait); now.Before(until) {
 			return nil, authapi.ReasonError(connect.CodeUnavailable, fmt.Errorf("%s's catalog moved to release %d of %s on %s, so an automatic update waits until %s to take it", install.GetProject(), entry.GetRelease(), entry.GetName(), since.UTC().Format(time.RFC3339), until.UTC().Format(time.RFC3339)), ReasonReleaseWaits)
 		}

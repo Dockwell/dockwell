@@ -5,6 +5,7 @@ package catalogapi
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"strconv"
 	"strings"
 	"time"
@@ -89,17 +90,20 @@ type asked struct {
 // source left and came back to counts from its return, and a source removed and
 // added again from its own revisions (its review, M1). The catalog built into
 // Dockwell, which no revision moves, holds a release from when the control plane
-// first read it.
-func (h *Handler) heldSince(ctx context.Context, list map[string]asked, now time.Time) (map[string]time.Time, error) {
+// first read it. A record that can't be written is logged, and read again next time,
+// which only makes the wait longer.
+func (h *Handler) heldSince(ctx context.Context, list map[string]asked, now time.Time) map[string]time.Time {
 	out := make(map[string]time.Time, len(list))
 	if len(list) == 0 {
-		return out, nil
+		return out
 	}
 	fresh := map[string]held{}
 	for key, a := range list {
 		since, rec, recKey, err := h.since(ctx, a, now)
 		if err != nil {
-			return nil, err
+			// What can't be read counts from now, which only makes the wait longer.
+			h.logger.WarnContext(ctx, "can't read since when a catalog source has held a release, so its wait counts from now", slog.String("source", a.source), slog.String("entry", a.entry), slog.String("error", err.Error()))
+			since = now
 		}
 		out[key] = since
 		if recKey != "" {
@@ -107,16 +111,19 @@ func (h *Handler) heldSince(ctx context.Context, list map[string]asked, now time
 		}
 	}
 	if len(fresh) == 0 {
-		return out, nil
+		return out
 	}
-	return out, h.db.Update(ctx, func(tx *store.Tx) error {
+	if err := h.db.Update(ctx, func(tx *store.Tx) error {
 		for key, rec := range fresh {
 			if err := tx.PutSetting(ctx, settingReleaseSince+key, rec.encode()); err != nil {
 				return err
 			}
 		}
 		return nil
-	})
+	}); err != nil && ctx.Err() == nil {
+		h.logger.WarnContext(ctx, "can't record since when catalog sources have held their releases; the next read works it out again", slog.String("error", err.Error()))
+	}
+	return out
 }
 
 // since works out one source's entry's time, and the record to keep of it, empty
