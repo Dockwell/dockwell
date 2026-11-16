@@ -64,7 +64,23 @@ export function linksIn(connections: readonly ConnectionInfo[], environment: str
   return connections.flatMap((c) => c.uses.filter((u) => u.environment === environment).map((u) => u.link));
 }
 
-/** The apps that read a connection, each once, by name. */
-export function appsOf(connection: ConnectionInfo): string[] {
-  return [...new Set(connection.uses.flatMap((u) => u.apps))];
+/** An app that reads a connection, and the environment it's in. */
+export interface ReadingApp {
+  id: string;
+  name: string;
+  environment: string;
+}
+
+/**
+ * The apps that read a connection, each once, by ID: an app of the same name in
+ * another environment is another app.
+ */
+export function appsOf(connection: ConnectionInfo): ReadingApp[] {
+  const out = new Map<string, ReadingApp>();
+  for (const u of connection.uses) {
+    u.appIds.forEach((id, i) => {
+      if (!out.has(id)) out.set(id, { id, name: u.apps[i] ?? id, environment: u.environment });
+    });
+  }
+  return [...out.values()];
 }

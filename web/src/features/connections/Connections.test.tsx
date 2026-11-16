@@ -142,6 +142,31 @@ describe("Connections", () => {
     await expectAccessible(container);
   });
 
+  // Review L6: two apps of one name, in two environments, counted as one.
+  it("counts the apps that read a connection by app, and tells same-named ones apart", async () => {
+    const twice = aConnection({
+      uses: [
+        { linkId: "lnk_1", link: "storage", environment: ENV, project: "prj_1", appIds: ["svc_a"], apps: ["outline"] },
+        {
+          linkId: "lnk_2",
+          link: "storage",
+          environment: "env_staging",
+          project: "prj_1",
+          appIds: ["svc_b"],
+          apps: ["outline"],
+        },
+      ],
+    });
+    renderAt("/connections", {
+      ...fleet(),
+      resources: places("staging"),
+      connections: { listConnections: () => ({ connections: [twice] }) },
+    });
+    const row = await screen.findByRole("row", { name: /outline-uploads/ });
+    expect(row).toHaveTextContent("2 apps");
+    expect(row).toHaveTextContent("outline (production), outline (staging)");
+  });
+
   it("starts empty with a tile for each store, and holds nothing back below an admin but the way to add one", async () => {
     const user = userEvent.setup();
     renderAt("/connections", { ...fleet(), resources: places() });

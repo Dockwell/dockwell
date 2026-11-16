@@ -8,6 +8,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 
 import { sentence } from "../../lib/errors";
+import { usePlaces } from "../apps/useServices";
 import { useMay } from "../auth/may";
 import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
@@ -32,7 +33,7 @@ export function ConnectionsPage() {
   const query = useConnections();
   const connections = query.data?.connections ?? [];
   const [adding, setAdding] = useState<ProviderId | "">();
-  const apps = new Set(connections.flatMap(appsOf)).size;
+  const apps = new Set(connections.flatMap((c) => appsOf(c).map((a) => a.id))).size;
   const lead = query.isPending
     ? undefined
     : connections.length === 0
@@ -187,7 +188,12 @@ export function Mark({ connection }: { connection: ConnectionInfo }) {
 /** How many apps read it, with their names. */
 function UsedBy({ connection }: { connection: ConnectionInfo }) {
   const { t } = useLingui();
-  const apps = appsOf(connection);
+  const places = usePlaces();
+  const reading = appsOf(connection);
+  // A name two environments share says which each is.
+  const apps = reading.map((a) =>
+    reading.some((o) => o.id !== a.id && o.name === a.name) ? `${a.name} (${places.label(a.environment)})` : a.name,
+  );
   if (apps.length === 0) {
     return (
       <span className="connections-meta">
