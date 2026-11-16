@@ -171,3 +171,26 @@ func TestNewerTagsKeepToTheImagesOwnNumbering(t *testing.T) {
 		}
 	}
 }
+
+// Every newer tag of a track, the newest first, each with its step and major, for a
+// catalog's bump, which takes the newest that's aged past its wait (ADR 0100). A
+// pre-release is left out unless the current tag is one, and a variant keeps to its
+// own track, one tag for each version.
+func TestAllNewerAndTagVersion(t *testing.T) {
+	tags := []string{"v1.4.2", "v1.4.3", "v1.5.0", "v2.0.0", "v2.1.0", "v3.0.0", "v1.6.0-rc1", "1.9.9", "v1.5.0-alpine"}
+	var said []string
+	for _, n := range AllNewer("v1.4.2", tags) {
+		said = append(said, fmt.Sprintf("%s %s %d", n.Tag, n.Kind, n.Major))
+	}
+	if got := strings.Join(said, ", "); got != "v3.0.0 major 3, v2.1.0 major 2, v2.0.0 major 2, v1.5.0 minor 1, v1.4.3 patch 1" {
+		t.Errorf("AllNewer = %s", got)
+	}
+	if got := AllNewer("latest", tags); got != nil {
+		t.Errorf("AllNewer of a tag that isn't a version = %v", got)
+	}
+	for tag, want := range map[string]string{"7.1.3-apache": "7.1.3", "v3.2.1": "3.2.1", "17": "17", "latest": "", "2026.11.1": "2026.11.1"} {
+		if got := TagVersion(tag); got != want {
+			t.Errorf("TagVersion(%q) = %q, want %q", tag, got, want)
+		}
+	}
+}

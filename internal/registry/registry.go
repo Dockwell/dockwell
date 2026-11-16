@@ -679,6 +679,36 @@ func (c *Client) Config(ctx context.Context, r Ref, want Platform) (*Config, str
 	return out, digest, nil
 }
 
+// Platforms are the platforms an image runs on: each its index lists, but an
+// attestation's, which says "unknown", or for an image of one platform, the one
+// its config says. One GET of its manifest, which Docker Hub counts as a pull,
+// and for an image of one platform, of its config blob. It returns the image's
+// digest too.
+func (c *Client) Platforms(ctx context.Context, r Ref) ([]Platform, string, error) {
+	m, digest, err := c.manifest(ctx, r, r.Reference())
+	if err != nil {
+		return nil, "", err
+	}
+	if len(m.Manifests) == 0 {
+		cfg, d, err := c.Config(ctx, r, Platform{})
+		if err != nil {
+			return nil, d, err
+		}
+		return []Platform{cfg.Platform}, cmp.Or(digest, d), nil
+	}
+	var out []Platform
+	for _, d := range m.Manifests {
+		if d.Platform == nil || d.Platform.OS == "unknown" || d.Platform.Architecture == "unknown" {
+			continue
+		}
+		p := Platform{OS: d.Platform.OS, Architecture: d.Platform.Architecture, Variant: d.Platform.Variant}
+		if !slices.Contains(out, p) {
+			out = append(out, p)
+		}
+	}
+	return out, digest, nil
+}
+
 func (c *Client) manifest(ctx context.Context, r Ref, reference string) (*manifest, string, error) {
 	resp, err := c.get(ctx, http.MethodGet, r.Registry, r.Repository, "/v2/"+r.Repository+"/manifests/"+reference, manifestTypes, false)
 	if err != nil {

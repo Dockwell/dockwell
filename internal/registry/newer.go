@@ -4,6 +4,7 @@ package registry
 
 import (
 	"cmp"
+	"fmt"
 	"slices"
 	"strconv"
 	"strings"
@@ -209,32 +210,8 @@ func NewerTags(current string, tags []string) []Newer {
 	if !ok {
 		return nil
 	}
-	want := cur.key()
-	places := placesOf(cur, tags)
-	reach := ownMajors(cur, tags)
-	shape := variantShape(cur.variant)
-	type candidate struct {
-		tag  string
-		t    track
-		kind Kind
-	}
-	var found []candidate
-	for _, tag := range tags {
-		t, ok := readTrack(tag)
-		if !ok || t.v != cur.v || variantShape(t.variant) != shape {
-			continue
-		}
-		if t.key() != want || t.pre && !cur.pre || tag == current || len(t.nums) > 0 && t.nums[0] > reach {
-			continue
-		}
-		found = append(found, candidate{tag: tag, t: t})
-	}
 	best := map[Kind]candidate{}
-	for _, c := range found {
-		c.kind = step(cur, c.t, places)
-		if c.kind == KindNone {
-			continue
-		}
+	for _, c := range newerIn(cur, current, tags) {
 		if have, ok := best[c.kind]; !ok || better(c.t, c.tag, have.t, have.tag, cur.variant) {
 			best[c.kind] = c
 		}
@@ -246,6 +223,100 @@ func NewerTags(current string, tags []string) []Newer {
 		}
 	}
 	return out
+}
+
+// candidate is a tag newer than a version tag, in its track, and its step.
+type candidate struct {
+	tag  string
+	t    track
+	kind Kind
+}
+
+// newerIn is each tag newer than current, in its track, with its step, as
+// NewerTags reads them.
+func newerIn(cur track, current string, tags []string) []candidate {
+	want := cur.key()
+	places := placesOf(cur, tags)
+	reach := ownMajors(cur, tags)
+	shape := variantShape(cur.variant)
+	var found []candidate
+	for _, tag := range tags {
+		t, ok := readTrack(tag)
+		if !ok || t.v != cur.v || variantShape(t.variant) != shape {
+			continue
+		}
+		if t.key() != want || t.pre && !cur.pre || tag == current || len(t.nums) > 0 && t.nums[0] > reach {
+			continue
+		}
+		if k := step(cur, t, places); k != KindNone {
+			found = append(found, candidate{tag: tag, t: t, kind: k})
+		}
+	}
+	return found
+}
+
+// AllNewer is every tag newer than current, in its track, as NewerTags reads
+// them, each with its step and its major, the best of each version first and
+// newest first: for a catalog's bump (ADR 0100), which takes the newest that's
+// aged past its wait, not only the newest of each kind. Nil when current isn't
+// a version.
+func AllNewer(current string, tags []string) []NewerTag {
+	cur, ok := readTrack(current)
+	if !ok {
+		return nil
+	}
+	found := newerIn(cur, current, tags)
+	slices.SortFunc(found, func(a, b candidate) int {
+		switch {
+		case better(a.t, a.tag, b.t, b.tag, cur.variant):
+			return -1
+		case better(b.t, b.tag, a.t, a.tag, cur.variant):
+			return 1
+		}
+		return 0
+	})
+	out := make([]NewerTag, 0, len(found))
+	seen := map[string]bool{}
+	for _, c := range found {
+		// One tag for each version: the variant that runs exactly, else the newest.
+		v := fmt.Sprint(c.t.nums, c.t.pre, c.t.preNum)
+		if seen[v] {
+			continue
+		}
+		seen[v] = true
+		out = append(out, NewerTag{Newer: Newer{Tag: c.tag, Kind: c.kind}, Major: c.t.nums[0]})
+	}
+	return out
+}
+
+// NewerTag is a tag newer than a version tag, with its major.
+type NewerTag struct {
+	Newer
+	Major int
+}
+
+// MajorOf is a version tag's first number, and whether it reads as a version.
+func MajorOf(tag string) (int, bool) {
+	t, ok := readTrack(tag)
+	if !ok || len(t.nums) == 0 {
+		return 0, false
+	}
+	return t.nums[0], true
+}
+
+// TagVersion is the version a tag names, as an entry's version says it: its
+// numbers alone, without a leading v or its suffix, such as 7.1.3 for
+// 7.1.3-apache and 3.2.1 for v3.2.1. Empty for a tag that isn't a version.
+func TagVersion(tag string) string {
+	t, ok := readTrack(tag)
+	if !ok {
+		return ""
+	}
+	parts := make([]string, len(t.nums))
+	for i, n := range t.nums {
+		parts[i] = strconv.Itoa(n)
+	}
+	return strings.Join(parts, ".")
 }
 
 // schemeGap is the most a repository's majors may jump, from one to the next its tags
