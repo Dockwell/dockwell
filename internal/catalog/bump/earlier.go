@@ -71,8 +71,14 @@ func EarlierReleases(ctx context.Context, dir, id, at, base string) (*Earlier, e
 			out.Before = &Proven{Commit: commit, Version: versionOf(was)}
 		}
 	}
-	// Oldest first: every commit before at that touched the file.
-	raw, err := git(ctx, dir, "log", "--format=%H", "--reverse", at, "--", file)
+	// Oldest first: every release main had, as its first parents hold them: the
+	// base's history where there's a base, so a commit only a pull request's branch
+	// had is never a release proven from (#726's slice 2 review, L2).
+	from := at
+	if base != "" {
+		from = base
+	}
+	raw, err := git(ctx, dir, "log", "--format=%H", "--reverse", "--first-parent", from, "--", file)
 	if err != nil {
 		return nil, err
 	}

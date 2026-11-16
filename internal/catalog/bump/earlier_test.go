@@ -130,3 +130,47 @@ func TestACheckOnlyChangeStillUpgrades(t *testing.T) {
 		t.Fatalf("a base whose entry is the head's gives %+v; want the history's 1.0.0", got.Before)
 	}
 }
+
+// Proven at a pull request's merge commit, the history holds the pull request's own
+// commits. The first release of a new major must be one main had, not a commit
+// that only lived on the branch (#726's slice 2 review, L2).
+func TestTheFirstOfAMajorIsOneMainHad(t *testing.T) {
+	dir, _ := history(t, "1.9.0")
+	run := func(args ...string) string {
+		t.Helper()
+		out, err := exec.CommandContext(t.Context(), "git", append([]string{"-C", dir, "-c", "user.name=t", "-c", "user.email=t@example.com"}, args...)...).CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+		return strings.TrimSpace(string(out))
+	}
+	write := func(v, r string) {
+		if err := os.WriteFile(filepath.Join(dir, "entries", "shop.yaml"), []byte("id: shop\nversion: \""+v+"\"\nrelease: "+r+"\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	run("checkout", "-q", "-b", "pr")
+	write("2.0.0", "2")
+	run("commit", "-qam", "a first try, never on main")
+	write("2.0.1", "2")
+	run("commit", "-qam", "2.0.1")
+	run("checkout", "-q", "main")
+	// main moves on elsewhere, so the merge is a real merge commit, as refs/pull/N/merge is.
+	if err := os.WriteFile(filepath.Join(dir, "README"), []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	run("add", "README")
+	run("commit", "-qm", "elsewhere")
+	base := run("rev-parse", "HEAD")
+	run("merge", "-q", "--no-ff", "-m", "merge", "pr")
+	got, err := bump.EarlierReleases(t.Context(), dir, "shop", "HEAD", base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Before == nil || got.Before.Version != "1.9.0" || got.Before.Commit != base {
+		t.Errorf("before is %+v, want the base's 1.9.0", got.Before)
+	}
+	if got.First != nil {
+		t.Errorf("the first of major 2 is %+v, a commit only the pull request's branch had; want none", got.First)
+	}
+}
