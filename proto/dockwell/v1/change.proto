@@ -1593,6 +1593,29 @@ message PlannedResource {
   // change upgrades (ADR 0094). Numbered in the block fleet actions hold, 150 to
   // 159.
   HostAgentUpgrade agent_upgrade = 150;
+  // Where a link to a connection keeps the app's files once the change applies,
+  // and where it kept them before: the connection by name and by what the panel
+  // calls it, and the prefix in its bucket, as the plan was made (ADR 0099). A row
+  // is narrowed with the link it's of, whose project the connection reaches.
+  // Numbered in the block links' words hold, 160 to 169.
+  LinkStorage storage = 160;
+  LinkStorage storage_before = 161;
+  // What a variable or a secret reads from a connection once the change applies,
+  // and what it read before: the part, through which link, from which connection by
+  // name and by what the panel calls it, as the plan was made (ADR 0099). Narrowed
+  // with the value's row, whose environment's link reaches the connection.
+  ConnectionRead reads = 162;
+  ConnectionRead reads_before = 163;
+  // A link's sets whole, once the change applies and before it, where they change:
+  // a row for a set says its name and what it reads, though only one of them
+  // changed, which the field changes alone can't (ADR 0099).
+  repeated dockwell.resource.v1alpha1.LinkSet sets = 164;
+  repeated dockwell.resource.v1alpha1.LinkSet sets_before = 165;
+  // Where each need a catalog install's pin keeps on a connection, or on its own
+  // values, comes from once the change applies and before it, for a project's row,
+  // where they change (ADR 0099).
+  repeated NeedStorage needs = 166;
+  repeated NeedStorage needs_before = 167;
 }
 
 // HostAccess is something on a server that a resource reaches beyond what
@@ -2553,6 +2576,39 @@ enum PlanWarning {
   // The step may cut off remote access to the server, such as a rule that
   // blocks SSH from everywhere.
   PLAN_WARNING_MAY_LOCK_OUT = 1;
+}
+
+// ConnectionRead is what a variable or a secret reads from a connection, through a
+// link (ADR 0099).
+message ConnectionRead {
+  // The connection, by name, and what the panel calls it.
+  string connection = 1;
+  string connection_label = 2;
+  // The part it reads, such as the bucket.
+  dockwell.resource.v1alpha1.LinkPart part = 3;
+  // The link it reads through, by name.
+  string link = 4;
+}
+
+// NeedStorage is where a catalog install's need comes from: a connection, with the
+// prefix in its bucket, or the app's own values since a Disconnect (ADR 0099).
+message NeedStorage {
+  // The need, by its name in the entry, such as "storage".
+  string need = 1;
+  // The connection it comes from, unset for its own values.
+  LinkStorage storage = 2;
+  // It comes from the app's own values, as a Disconnect left them.
+  bool own = 3;
+}
+
+// LinkStorage is where a link to a connection keeps an app's files (ADR 0099).
+message LinkStorage {
+  // The connection, by name, and what the panel calls it.
+  string connection = 1;
+  string connection_label = 2;
+  // Where the app's files go in the connection's bucket, such as "ghost/". Empty
+  // is the bucket's root.
+  string prefix = 3;
 }
 
 // FieldChange is one field that differs between two specs.

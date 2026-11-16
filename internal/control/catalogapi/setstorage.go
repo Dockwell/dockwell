@@ -97,7 +97,15 @@ func (h *Handler) setStorageNeed(ctx context.Context, s sourced, f found, entry 
 	notes = slices.DeleteFunc(notes, func(n revision.Note) bool { return n.Reason == NewNeedNote })
 	// Starting empty is said where it's applied, as Use another database says it
 	// (slice 2 review, M2).
-	if words := startsEmptyWords(install.GetProject(), was, name); !back {
+	// One name for a connection throughout the sheet: its label, as the rows say it.
+	labels := map[string]string{}
+	if all, _, err := connections.NewConnections(h.db, h.keeper).Readable(ctx); err == nil {
+		for _, c := range all {
+			labels[c.Name] = cmp.Or(c.Spec.GetDisplayName(), c.Name)
+		}
+	}
+	labelOf := func(n string) string { return cmp.Or(labels[n], n) }
+	if words := startsEmptyWords(install.GetProject(), was, name, labelOf); !back {
 		notes = append(notes, revision.Note{Reason: StartsEmptyNote, Message: words})
 	}
 	choice := catalog.Resolve(needed.Entry, pin)
@@ -148,7 +156,7 @@ func (h *Handler) setStorageNeed(ctx context.Context, s sourced, f found, entry 
 	change, err := h.imports.PlanUpgrade(ctx, composeapi.Upgrade{
 		Project:     install.GetProjectId(),
 		Environment: install.GetEnvironmentId(),
-		Summary:     fmt.Sprintf("Connect %s's %s to %s", install.GetProject(), what, name),
+		Summary:     fmt.Sprintf("Connect %s's %s to %s", install.GetProject(), what, labelOf(name)),
 		FromRelease: pin.GetVersion(),
 		Release:     pin.GetVersion(),
 		Name:        f.display,
@@ -176,15 +184,17 @@ func (h *Handler) setStorageNeed(ctx context.Context, s sourced, f found, entry 
 const StartsEmptyNote = "catalog_need_starts_empty"
 
 // startsEmptyWords say where an app's files stay as its storage moves to the
-// connection to, and that it starts empty there.
-func startsEmptyWords(project string, was *resourcev1.PinnedNeed, to string) string {
+// connection to, and that it starts empty there, naming each connection by labelOf,
+// as the plan's rows do (the slice 3 review, L2).
+func startsEmptyWords(project string, was *resourcev1.PinnedNeed, to string, labelOf func(string) string) string {
+	on := labelOf(to)
 	switch {
 	case was.GetConnection() != "":
-		return fmt.Sprintf("%s's files stay in %s under %s, as Dockwell copies none across; it starts empty on %s", project, was.GetConnection(), cmp.Or(was.GetPrefix(), "the bucket's root"), to)
+		return fmt.Sprintf("%s's files stay on %s under %s, as Dockwell copies none across. It starts empty on %s", project, labelOf(was.GetConnection()), cmp.Or(was.GetPrefix(), "the bucket's root"), on)
 	case was.GetOwn():
-		return fmt.Sprintf("%s's files stay in the bucket its own settings name, as Dockwell copies none across; it starts empty on %s", project, to)
+		return fmt.Sprintf("%s's files stay in the bucket its own settings name, as Dockwell copies none across. It starts empty on %s", project, on)
 	}
-	return fmt.Sprintf("%s's files stay on its own disk, as Dockwell copies none across; it starts empty on %s", project, to)
+	return fmt.Sprintf("%s's files stay on its own disk, as Dockwell copies none across. It starts empty on %s", project, on)
 }
 
 // namesBucket says the plain values of the environment env name the connection

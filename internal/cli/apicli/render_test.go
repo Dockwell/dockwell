@@ -5,6 +5,7 @@ package apicli
 import (
 	"bytes"
 	"encoding/json"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -1399,5 +1400,118 @@ func TestAPlanSaysOnceThatABrowsersRedirectGoesRound(t *testing.T) {
 	got := b.String()
 	if strings.Count(got, "Browsers keep") != 1 || !strings.Contains(got, msg+".") {
 		t.Errorf("the plan reads:\n%s", got)
+	}
+}
+
+// A link to a connection says where it keeps the app's files, by the connection's
+// label, in place of its connection and prefix fields; one that moves says from where
+// to where (ADR 0099).
+func TestPlanViewSaysWhereALinkKeepsItsFiles(t *testing.T) {
+	link := func(action dockwellv1.PlanAction, after, before *dockwellv1.LinkStorage, changes ...*dockwellv1.FieldChange) *dockwellv1.PlannedResource {
+		return &dockwellv1.PlannedResource{
+			Id: "lnk_1", Resource: &dockwellv1.ResourceRef{Kind: "link", Name: "storage"}, Action: action,
+			Storage: after, StorageBefore: before, Changes: changes,
+		}
+	}
+	uploads := &dockwellv1.LinkStorage{Connection: "uploads", ConnectionLabel: "Uploads", Prefix: "ghost/"}
+	media := &dockwellv1.LinkStorage{Connection: "media", ConnectionLabel: "Media library", Prefix: "ghost/"}
+	var b strings.Builder
+	PlanView(&b, &dockwellv1.Plan{Resources: []*dockwellv1.PlannedResource{link(dockwellv1.PlanAction_PLAN_ACTION_CREATE, uploads, nil,
+		&dockwellv1.FieldChange{Path: "label", Op: dockwellv1.FieldOp_FIELD_OP_ADDED, To: "Storage"},
+		&dockwellv1.FieldChange{Path: "connection", Op: dockwellv1.FieldOp_FIELD_OP_ADDED, To: "uploads"},
+		&dockwellv1.FieldChange{Path: "prefix", Op: dockwellv1.FieldOp_FIELD_OP_ADDED, To: "ghost/"},
+	)}})
+	got := b.String()
+	if !regexp.MustCompile(`\+ keeps its files on +Uploads, under ghost/\n`).MatchString(got) || strings.Contains(got, "+ connection") || strings.Contains(got, "+ prefix") || !strings.Contains(got, "+ label") {
+		t.Errorf("a new link reads:\n%s", got)
+	}
+	b.Reset()
+	PlanView(&b, &dockwellv1.Plan{Resources: []*dockwellv1.PlannedResource{link(dockwellv1.PlanAction_PLAN_ACTION_UPDATE, media, uploads,
+		&dockwellv1.FieldChange{Path: "connection", Op: dockwellv1.FieldOp_FIELD_OP_MODIFIED, From: "uploads", To: "media"},
+	)}})
+	if !regexp.MustCompile(`~ keeps its files on +Uploads, under ghost/ → Media library, under ghost/\n`).MatchString(b.String()) {
+		t.Errorf("a moved link reads:\n%s", b.String())
+	}
+}
+
+// A link's sets read as each name and what it reads, from the connection's label,
+// and a value read from a connection as what it reads, in place of what it read,
+// never as their raw fields (ADR 0099).
+func TestPlanViewSaysWhatEachNameReads(t *testing.T) {
+	uploads := &dockwellv1.LinkStorage{Connection: "uploads", ConnectionLabel: "Uploads", Prefix: "ghost/"}
+	var b strings.Builder
+	PlanView(&b, &dockwellv1.Plan{Resources: []*dockwellv1.PlannedResource{
+		{
+			Id: "lnk_1", Resource: &dockwellv1.ResourceRef{Kind: "link", Name: "storage"}, Action: dockwellv1.PlanAction_PLAN_ACTION_CREATE, Storage: uploads,
+			Sets: []*resourcev1.LinkSet{
+				{Name: "S3_BUCKET", Part: resourcev1.LinkPart_LINK_PART_BUCKET},
+				{Name: "S3_ACCESS_KEY_ID", Part: resourcev1.LinkPart_LINK_PART_ACCESS_KEY_ID},
+			},
+			Changes: []*dockwellv1.FieldChange{
+				{Path: "sets[0].name", Op: dockwellv1.FieldOp_FIELD_OP_ADDED, To: "S3_BUCKET"},
+				{Path: "sets[0].part", Op: dockwellv1.FieldOp_FIELD_OP_ADDED, To: "bucket"},
+				{Path: "sets[1].name", Op: dockwellv1.FieldOp_FIELD_OP_ADDED, To: "S3_ACCESS_KEY_ID"},
+				{Path: "sets[1].part", Op: dockwellv1.FieldOp_FIELD_OP_ADDED, To: "access-key-id"},
+			},
+		},
+		{
+			Id: "var_1", Resource: &dockwellv1.ResourceRef{Kind: "variable", Name: "S3_BUCKET"}, Action: dockwellv1.PlanAction_PLAN_ACTION_UPDATE,
+			Reads:       &dockwellv1.ConnectionRead{Connection: "uploads", ConnectionLabel: "Uploads", Part: resourcev1.LinkPart_LINK_PART_BUCKET, Link: "storage"},
+			ReadsBefore: &dockwellv1.ConnectionRead{Connection: "files", ConnectionLabel: "Ghost files", Part: resourcev1.LinkPart_LINK_PART_BUCKET, Link: "storage"},
+			Changes: []*dockwellv1.FieldChange{
+				{Path: "from.connection.name", Op: dockwellv1.FieldOp_FIELD_OP_MODIFIED, From: "files", To: "uploads"},
+			},
+		},
+	}})
+	got := b.String()
+	for _, want := range []string{
+		`\+ S3_BUCKET +reads the bucket from Uploads\n`,
+		`\+ S3_ACCESS_KEY_ID +reads the access key ID from Uploads\n`,
+		`~ reads +the bucket from Uploads, in place of Ghost files\n`,
+	} {
+		if !regexp.MustCompile(want).MatchString(got) {
+			t.Errorf("the plan doesn't read %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "sets[") || strings.Contains(got, "from.connection") {
+		t.Errorf("the plan reads raw fields:\n%s", got)
+	}
+}
+
+// A renamed connection is the same connection, by name: a value that reads it, or a
+// link that keeps to it, writes no row (the slice 3 review, H1).
+func TestPlanViewTakesARenamedConnectionAsTheSame(t *testing.T) {
+	read := func(label string) *dockwellv1.ConnectionRead {
+		return &dockwellv1.ConnectionRead{Connection: "uploads", ConnectionLabel: label, Part: resourcev1.LinkPart_LINK_PART_BUCKET, Link: "storage"}
+	}
+	kept := func(label string) *dockwellv1.LinkStorage {
+		return &dockwellv1.LinkStorage{Connection: "uploads", ConnectionLabel: label, Prefix: "ghost/"}
+	}
+	var b strings.Builder
+	PlanView(&b, &dockwellv1.Plan{Resources: []*dockwellv1.PlannedResource{
+		{Id: "var_1", Resource: &dockwellv1.ResourceRef{Kind: "variable", Name: "S3_BUCKET"}, Action: dockwellv1.PlanAction_PLAN_ACTION_UPDATE, Reads: read("Media library"), ReadsBefore: read("Uploads")},
+		{Id: "lnk_1", Resource: &dockwellv1.ResourceRef{Kind: "link", Name: "storage"}, Action: dockwellv1.PlanAction_PLAN_ACTION_UPDATE, Storage: kept("Media library"), StorageBefore: kept("Uploads")},
+	}})
+	if strings.Contains(b.String(), "in place of") || strings.Contains(b.String(), "keeps its files on") {
+		t.Errorf("a renamed connection reads as a move:\n%s", b.String())
+	}
+}
+
+// A catalog install's project says where each need that changes comes from, in place
+// of its pin's connection, prefix and own fields (the slice 3 review, L2).
+func TestPlanViewSaysWhereANeedComesFrom(t *testing.T) {
+	kept := func(name, label string) *dockwellv1.LinkStorage {
+		return &dockwellv1.LinkStorage{Connection: name, ConnectionLabel: label, Prefix: "site/"}
+	}
+	var b strings.Builder
+	PlanView(&b, &dockwellv1.Plan{Resources: []*dockwellv1.PlannedResource{{
+		Id: "prj_1", Resource: &dockwellv1.ResourceRef{Kind: "project", Name: "site"}, Action: dockwellv1.PlanAction_PLAN_ACTION_UPDATE,
+		Needs:       []*dockwellv1.NeedStorage{{Need: "storage", Storage: kept("files", "Ghost files")}},
+		NeedsBefore: []*dockwellv1.NeedStorage{{Need: "storage", Storage: kept("uploads", "Uploads")}},
+		Changes:     []*dockwellv1.FieldChange{{Path: "catalog.needs[storage].connection", Op: dockwellv1.FieldOp_FIELD_OP_MODIFIED, From: "uploads", To: "files"}},
+	}}})
+	got := b.String()
+	if !regexp.MustCompile(`~ storage comes from +Uploads, under site/ → Ghost files, under site/\n`).MatchString(got) || strings.Contains(got, "catalog.needs") {
+		t.Errorf("the project's row reads:\n%s", got)
 	}
 }

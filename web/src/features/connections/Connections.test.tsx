@@ -538,6 +538,65 @@ describe("disconnecting an app from a connection", () => {
     expect(within(asAdmin).queryByText("Its keys go with it")).toBeNull();
   });
 
+  // The slice 3 review, L4: a link an install's pin names is the install's, so below
+  // an admin Disconnect stays off, with why.
+  it("keeps Disconnect off below an admin for a catalog install's storage, with why", async () => {
+    renderAt("/connections/outline-uploads", {
+      ...fleet(),
+      resources: places(),
+      auth: {
+        getAuthState: () =>
+          authState({
+            user: { ...mira, role: Role.UNSPECIFIED },
+            grants: [{ projectId: "prj_1", role: Role.DEVELOPER }],
+          }),
+      },
+      catalog: {
+        listCatalogInstalls: () => ({
+          installs: [
+            {
+              project: "outline",
+              projectId: "prj_1",
+              environmentId: ENV,
+              pin: { entry: "outline", needs: { storage: { connection: "outline-uploads", prefix: "outline/" } } },
+            },
+          ],
+        }),
+      },
+      connections: {
+        listConnections: () => ({
+          connections: [aConnection({ ...used, endpoint: "", bucket: "", reach: ConnectionReach.PROJECTS })],
+        }),
+      },
+    });
+    const usedBy = await screen.findByRole("region", { name: "Used by" });
+    const button = await within(usedBy).findByRole("button", { name: "Disconnect storage" });
+    await waitFor(() => expect(button).toHaveAttribute("aria-disabled", "true"));
+    expect(button).toHaveAccessibleDescription("An admin or the owner disconnects an install's storage");
+  });
+
+  it("keeps Disconnect off below an admin while it isn't known yet whose the link is", async () => {
+    renderAt("/connections/outline-uploads", {
+      ...fleet(),
+      resources: places(),
+      auth: {
+        getAuthState: () =>
+          authState({
+            user: { ...mira, role: Role.UNSPECIFIED },
+            grants: [{ projectId: "prj_1", role: Role.DEVELOPER }],
+          }),
+      },
+      catalog: { listCatalogInstalls: () => new Promise<never>(() => {}) },
+      connections: {
+        listConnections: () => ({
+          connections: [aConnection({ ...used, endpoint: "", bucket: "", reach: ConnectionReach.PROJECTS })],
+        }),
+      },
+    });
+    const usedBy = await screen.findByRole("region", { name: "Used by" });
+    expect(await within(usedBy).findByRole("button", { name: "Disconnect storage" })).toBeDisabled();
+  });
+
   it("keeps Remove off while a link names the connection, with the reason", async () => {
     const user = userEvent.setup();
     renderAt("/connections/outline-uploads", {

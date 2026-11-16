@@ -1410,8 +1410,16 @@ func planProto(r *revision.Record) *dockwellv1.Plan {
 			Id: r.ID, Resource: resourcepb.Ref(r.Ref), Action: resourcepb.Action(r.Action), BaseRevision: int64(r.Base),
 			Changes: resourcepb.Changes(r.Changes), Servers: r.Servers, PreviousServers: r.Previous,
 			HostAccess: resourcepb.HostAccess(r.HostAccess), Install: resourcepb.Install(r.Install), Reboot: resourcepb.Reboot(r.Reboot), Unit: resourcepb.Unit(r.Unit), Panel: resourcepb.Panel(r.Panel),
-			AgentUpgrade: resourcepb.AgentUpgrade(r.AgentUpgrade),
-			LetsGo:       r.Forget,
+			AgentUpgrade:  resourcepb.AgentUpgrade(r.AgentUpgrade),
+			LetsGo:        r.Forget,
+			Storage:       linkStorageProto(r.Storage),
+			StorageBefore: linkStorageProto(r.StorageBefore),
+			Reads:         connectionReadProto(r.Reads),
+			ReadsBefore:   connectionReadProto(r.ReadsBefore),
+			Sets:          linkSetsProto(r.Sets),
+			SetsBefore:    linkSetsProto(r.SetsBefore),
+			Needs:         needStoragesProto(r.Needs),
+			NeedsBefore:   needStoragesProto(r.NeedsBefore),
 		})
 	}
 	for i := range p.Servers {
@@ -1426,6 +1434,40 @@ func planProto(r *revision.Record) *dockwellv1.Plan {
 		out.Servers = append(out.Servers, sp)
 	}
 	return out
+}
+
+// linkStorageProto is where a link keeps an app's files, as the plan says it.
+func linkStorageProto(s *revision.LinkStorage) *dockwellv1.LinkStorage {
+	if s == nil {
+		return nil
+	}
+	return &dockwellv1.LinkStorage{Connection: s.Connection, ConnectionLabel: s.Label, Prefix: s.Prefix}
+}
+
+// needStoragesProto are where a catalog install's needs come from, as the plan says it.
+func needStoragesProto(needs []revision.NeedStorage) []*dockwellv1.NeedStorage {
+	out := make([]*dockwellv1.NeedStorage, 0, len(needs))
+	for _, n := range needs {
+		out = append(out, &dockwellv1.NeedStorage{Need: n.Need, Storage: linkStorageProto(n.Storage), Own: n.Own})
+	}
+	return out
+}
+
+// linkSetsProto are a link's sets whole, as the plan says them.
+func linkSetsProto(sets []revision.LinkSetWords) []*resourcev1.LinkSet {
+	out := make([]*resourcev1.LinkSet, 0, len(sets))
+	for _, s := range sets {
+		out = append(out, &resourcev1.LinkSet{Name: s.Name, Part: s.Part, Template: s.Template, TlsOn: s.TLSOn, TlsOff: s.TLSOff})
+	}
+	return out
+}
+
+// connectionReadProto is what a value reads from a connection, as the plan says it.
+func connectionReadProto(r *revision.ConnectionRead) *dockwellv1.ConnectionRead {
+	if r == nil {
+		return nil
+	}
+	return &dockwellv1.ConnectionRead{Connection: r.Connection, ConnectionLabel: r.Label, Part: r.Part, Link: r.Link}
 }
 
 var intentKinds = map[string]dockwellv1.IntentKind{

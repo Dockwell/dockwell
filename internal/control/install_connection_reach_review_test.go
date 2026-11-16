@@ -73,8 +73,33 @@ func TestStartingEmptyOnAnotherBucketIsSaidInThePlan(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// The project's row says where storage comes from, before and after (the slice 3 review, L2).
+	for _, r := range res.Msg.GetChange().GetPlan().GetResources() {
+		if r.GetResource().GetKind() == "project" {
+			if a, b := r.GetNeeds(), r.GetNeedsBefore(); len(a) != 1 || a[0].GetNeed() != "storage" || a[0].GetStorage().GetConnection() != "media" || len(b) != 1 || b[0].GetStorage().GetConnection() != "uploads" {
+				t.Errorf("the project's row says storage comes from %v, before %v", a, b)
+			}
+		}
+	}
+	// Its values say what they read, before and after, by label (slice 3).
+	for _, r := range res.Msg.GetChange().GetPlan().GetResources() {
+		if r.GetResource().GetKind() == "variable" && r.GetResource().GetName() == "S3_BUCKET" {
+			if a, b := r.GetReads(), r.GetReadsBefore(); a.GetConnection() != "media" || a.GetPart() != resourcev1.LinkPart_LINK_PART_BUCKET || a.GetLink() != "storage" || b.GetConnection() != "uploads" {
+				t.Errorf("S3_BUCKET's row reads %v, before %v", a, b)
+			}
+		}
+	}
+	// The plan says where the link keeps the files before and after, by label (slice 3).
+	for _, r := range res.Msg.GetChange().GetPlan().GetResources() {
+		if r.GetResource().GetKind() != "link" || r.GetResource().GetName() != "storage" {
+			continue
+		}
+		if b, a := r.GetStorageBefore(), r.GetStorage(); b.GetConnection() != "uploads" || b.GetPrefix() != "site/" || a.GetConnection() != "media" || a.GetConnectionLabel() != "media" || a.GetPrefix() != "site/" {
+			t.Errorf("the move's link row keeps its files on %v, before %v", a, b)
+		}
+	}
 	if notes := notesOf(res.Msg.GetChange(), catalogapi.StartsEmptyNote); len(notes) != 1 ||
-		notes[0] != "site's files stay in uploads under site/, as Dockwell copies none across; it starts empty on media" {
+		notes[0] != "site's files stay on uploads under site/, as Dockwell copies none across. It starts empty on media" {
 		t.Errorf("starting empty on media plans with %v", res.Msg.GetChange().GetPlan().GetNotes())
 	}
 }

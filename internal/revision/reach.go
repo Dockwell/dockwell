@@ -311,19 +311,31 @@ func (e *Engine) checkLinkPrefix(ctx context.Context, tx *store.Tx, items []item
 	if err != nil {
 		return err
 	}
-	var taken []string
+	// The suggestion comes from links in places the person may see alone, so it says
+	// nothing of another project's prefixes (the slice 1 re-check, N3), and is offered
+	// only where no project holds it, so taking it plans (the slice 3 review, L3).
+	// Otherwise the refusal asks for a prefix of its own; it can't help saying the one
+	// asked for is taken.
+	caller, person := place.CallerFrom(ctx)
+	var taken, seen []string
 	for i := range links {
 		other := &links[i]
 		if other.ref == it.ref || other.GetConnection() != l.GetConnection() {
 			continue
 		}
 		taken = append(taken, other.GetPrefix())
+		if !person || place.Holds(caller.Grants, place.Place{Project: projectOfScope(ctx, tx, items, other.ref.Scope)}) != "" {
+			seen = append(seen, other.GetPrefix())
+		}
 	}
-	if !slices.ContainsFunc(taken, func(p string) bool { return link.PrefixesMeet(l.GetPrefix(), p) }) {
+	meets := func(p string) bool {
+		return slices.ContainsFunc(taken, func(t string) bool { return link.PrefixesMeet(p, t) })
+	}
+	if !meets(l.GetPrefix()) {
 		return nil
 	}
 	where := cmp.Or(l.GetPrefix(), "the bucket's root")
-	if free := link.FreePrefix(l.GetPrefix(), taken); free != l.GetPrefix() {
+	if free := link.FreePrefix(l.GetPrefix(), seen); free != l.GetPrefix() && !meets(free) && !slices.Contains(taken, "") {
 		return fault.New(ErrInvalid, "link %s keeps its files under %s on the connection %s, where another app keeps its files already, so each would overwrite the other's. Pick another prefix, such as %s",
 			it.ref.Name, where, l.GetConnection(), free)
 	}

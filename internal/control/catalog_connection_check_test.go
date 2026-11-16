@@ -132,7 +132,7 @@ func TestAnInstalledAppIsConnectedFromItsNeedCard(t *testing.T) {
 	if err != nil {
 		t.Fatalf("connecting Ghost's storage: %v", err)
 	}
-	if notes := notesOf(planned, catalogapi.StartsEmptyNote); len(notes) != 1 || notes[0] != "site's files stay on its own disk, as Dockwell copies none across; it starts empty on uploads" {
+	if notes := notesOf(planned, catalogapi.StartsEmptyNote); len(notes) != 1 || notes[0] != "site's files stay on its own disk, as Dockwell copies none across. It starts empty on uploads" {
 		t.Errorf("connecting says %v", notes)
 	}
 	if planned.GetSummary() != "Connect site's storage to uploads" || len(notesOf(planned, catalogapi.ConnectionUncheckedNote)) != 1 {

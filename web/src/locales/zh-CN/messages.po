@@ -9647,8 +9647,14 @@ msgstr "健康检查超时"
 msgid "internal"
 msgstr "内部"
 
+msgid "its own values"
+msgstr "它自己的值"
+
 msgid "its provider's settings"
 msgstr "其提供方的设置"
+
+msgid "keeps its files on"
+msgstr "文件保存在"
 
 msgid "kept 7 days, then deleted"
 msgstr "保留 7 天，然后删除"
@@ -9705,6 +9711,23 @@ msgstr "协议"
 msgid "read-only"
 msgstr "只读"
 
+msgctxt "a link's set read from a connection"
+msgid "reads"
+msgstr "读取"
+
+msgctxt "a value read from a connection"
+msgid "reads"
+msgstr "读取"
+
+msgid "reads from {where}"
+msgstr "从 {where} 读取"
+
+msgid "reads {what}"
+msgstr "读取{what}"
+
+msgid "reads {what} from {where}"
+msgstr "从 {where} 读取{what}"
+
 msgid "replaced, and undoing this puts it back"
 msgstr "被替换，撤销后可恢复"
 
@@ -9735,6 +9758,66 @@ msgstr "登录方式"
 msgid "sources"
 msgstr "来源"
 
+msgctxt "a part a link meets"
+msgid "the URL"
+msgstr "URL"
+
+msgctxt "a part a link meets"
+msgid "the access key ID"
+msgstr "访问密钥 ID"
+
+msgctxt "a part a link meets"
+msgid "the address"
+msgstr "地址"
+
+msgctxt "a part a link meets"
+msgid "the bucket"
+msgstr "存储桶"
+
+msgctxt "a part a link meets"
+msgid "the database"
+msgstr "数据库"
+
+msgctxt "a part a link meets"
+msgid "the endpoint"
+msgstr "端点"
+
+msgctxt "a part a link meets"
+msgid "the engine"
+msgstr "引擎"
+
+msgctxt "a part a link meets"
+msgid "the host"
+msgstr "主机"
+
+msgctxt "a part a link meets"
+msgid "the password"
+msgstr "密码"
+
+msgctxt "a part a link meets"
+msgid "the port"
+msgstr "端口"
+
+msgctxt "a part a link meets"
+msgid "the prefix"
+msgstr "前缀"
+
+msgctxt "a part a link meets"
+msgid "the public address"
+msgstr "公开地址"
+
+msgctxt "a part a link meets"
+msgid "the region"
+msgstr "区域"
+
+msgctxt "a part a link meets"
+msgid "the secret key"
+msgstr "私有访问密钥"
+
+msgctxt "a part a link meets"
+msgid "the user"
+msgstr "用户"
+
 msgid "tmpfs"
 msgstr "tmpfs"
 
@@ -9753,11 +9836,53 @@ msgstr "使用密钥"
 msgid "uses variable"
 msgstr "使用变量"
 
+msgctxt "a part a link meets"
+msgid "whether it takes TLS"
+msgstr "是否使用 TLS"
+
+msgctxt "a part a link meets"
+msgid "whether it's met"
+msgstr "是否已满足"
+
+msgctxt "a part a link meets"
+msgid "whether the bucket goes in the path"
+msgstr "存储桶是否在路径中"
+
 msgid "yes"
 msgstr "是"
 
+msgid "{label}, at the bucket's root"
+msgstr "{label}，存储桶根目录"
+
+msgid "{label}, under {prefix}"
+msgstr "{label}，{prefix} 下"
+
+msgid "{name} with TLS"
+msgstr "{name}（使用 TLS）"
+
+msgid "{name} without TLS"
+msgstr "{name}（不使用 TLS）"
+
+msgid "{name}'s template"
+msgstr "{name} 的模板"
+
+msgid "{need} comes from"
+msgstr "{need} 来自"
+
+msgid "{now}, in place of {was}"
+msgstr "{now}，取代 {was}"
+
+msgid "{reading}, in place of {wasName}"
+msgstr "{reading}，取代 {wasName}"
+
+msgid "{reading}, in place of {wasPart}"
+msgstr "{reading}，取代{wasPart}"
+
 msgid "{target}, up to {size}"
 msgstr "{target},最多 {size}"
+
+msgid "{what} from {where}"
+msgstr "来自 {where} 的{what}"
 
 msgid "1Panel still manages {container}"
 msgstr "1Panel 仍在管理 {container}"
@@ -11361,6 +11486,9 @@ msgstr "对象位于 {0} 下"
 
 msgid "{app} reads no variable or secret of its environment yet."
 msgstr "{app} 尚未读取其环境中的任何变量或机密。"
+
+msgid "An admin or the owner disconnects an install's storage"
+msgstr "由管理员或所有者断开安装的存储"
 
 msgid "Bucket goes"
 msgstr "存储桶位置"

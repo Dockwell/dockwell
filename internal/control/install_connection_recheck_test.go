@@ -138,7 +138,11 @@ func TestRecheckDeveloperDisconnectOfInstallStorage(t *testing.T) {
 	hold(store.Grant{ProjectID: project, Role: store.RoleDeveloper})
 	cc := dockwellv1connect.NewConnectionServiceClient(b, b.origin, connect.WithProtoJSON())
 	off, err := cc.DisconnectStorage(t.Context(), connect.NewRequest(&dockwellv1.DisconnectStorageRequest{Project: "site", Link: "storage"}))
-	t.Logf("developer disconnect: err=%v", err)
+	// It's refused in words about what it changes, the install's pin, and what to do
+	// (slice 1 re-check, N4).
+	if connect.CodeOf(err) != connect.CodePermissionDenied || !strings.Contains(err.Error(), "site's storage comes from its catalog install, so an admin or the owner disconnects it, and nothing was planned. Ask one of them") {
+		t.Errorf("a developer's disconnect of an install's storage: %v", err)
+	}
 	if err == nil {
 		done := apply(t, c, off.Msg.GetChange())
 		t.Errorf("a developer's disconnect of an install's storage planned; apply ended %v: %s", done.GetState(), done.GetError())
