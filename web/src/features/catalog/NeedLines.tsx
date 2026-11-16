@@ -8,10 +8,11 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
 import { type ReactNode, useState } from "react";
 
-import { environmentOf, nameOf } from "../apps/app";
+import { environmentOf, imageOf, nameOf } from "../apps/app";
 import { usePlaces, useServices } from "../apps/useServices";
 import { useMay } from "../auth/may";
 import { useChangeSheet } from "../changes/ChangeSheet";
+import { tagOf } from "../changes/upgrade";
 import type { CardRow } from "./CardRows";
 import { NeedBackups } from "./NeedBackups";
 import { engineName } from "./needs";
@@ -50,11 +51,15 @@ export function useNeedRows(entry: Entry | undefined, install: CatalogInstall): 
     const pinned = install.pin?.needs[need.name];
     const what = need.label.toLowerCase();
     const engine = engineName(Number(pinned?.engine ?? 0) as Engine);
-    const runs = `${engine} ${pinned?.version ?? ""}`.trim();
     const shared = pinned?.environment ?? "";
     const place = shared ? places.place(shared) : undefined;
     const meets = pinned?.meets ?? "";
     const server = services.find((s) => environmentOf(s) === shared && nameOf(s) === meets);
+    // The version the database runs now, as an upgrade of it moves it on; the pin keeps
+    // the version it was installed at.
+    const image = server ? imageOf(server) : "";
+    const version = image ? tagOf(image) : (pinned?.version ?? "");
+    const runs = `${engine} ${version === "latest" ? (pinned?.version ?? "") : version}`.trim();
     const where = place?.label ?? "";
     let value: ReactNode;
     if (!shared) {

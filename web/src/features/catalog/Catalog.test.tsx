@@ -32,7 +32,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
-import { anApp, aProject, ENV, places, projectPlaces, SERVER } from "../../test/apps";
+import { anApp, ENV, places, projectPlaces, SERVER } from "../../test/apps";
 import { authState, mira } from "../../test/auth";
 import { catalogPages, rowLabelled } from "../../test/catalog";
 import { type Api, feed, onPhone, renderAt } from "../../test/render";
@@ -826,14 +826,23 @@ describe("A database's admin tool", () => {
       resources: projectPlaces("data"),
       services: {
         listServices: () => ({
-          services: [anApp("db", "postgres:17.11"), ...aProject("data", "db")],
+          // It was upgraded past the version its pin keeps, so the row says what it runs now.
+          services: [
+            anApp("db", "postgres:17.11"),
+            anApp(
+              "db",
+              "postgres:18.1@sha256:0000000000000000000000000000000000000000000000000000000000000000",
+              {},
+              { id: "svc_data_db", resource: { kind: "service", scope: "env_data", name: "db" } },
+            ),
+          ],
         }),
       },
     });
     const { unmount } = renderAt("/apps/svc_db", shared("env_data"));
     let panel = await screen.findByRole("region", { name: "From the catalog" });
     const row = await waitFor(() => rowLabelled(panel, "Database"));
-    await waitFor(() => expect(row).toHaveTextContent("Shares db in the project data · PostgreSQL 17.11"));
+    await waitFor(() => expect(row).toHaveTextContent("Shares db in the project data · PostgreSQL 18.1"));
     expect(within(row).getByRole("link", { name: "db" })).toHaveAttribute("href", "/apps/svc_data_db");
     unmount();
     // Where it is isn't the reader's to see: no name, no blank.
