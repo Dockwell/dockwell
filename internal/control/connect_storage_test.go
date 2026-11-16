@@ -331,3 +331,48 @@ func orgID(t *testing.T, f *fullServer) string {
 	}
 	return out
 }
+
+// A link that names a connection holds it, though no value reads through it, as one
+// that sets only path style, a plain word: the connection can't go, or stop reaching
+// the link's project, while the link names it, and both go in one change (#710).
+func TestALinkAloneHoldsItsConnection(t *testing.T) {
+	t.Parallel()
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	env := listedEnv(t, b)
+	project := envProject(t, f, env)
+	c := changeClient(b, b.origin)
+	srv := s3test.New(t)
+	uploads := func(reach resourcev1.ConnectionReach, projects ...string) *dockwellv1.Edit {
+		return connectionEdit("uploads", &resourcev1.ConnectionSpec{
+			DisplayName: "Uploads", Kind: resourcev1.LinkKind_LINK_KIND_S3, Reach: reach, Projects: projects,
+			S3: &resourcev1.ConnectionS3{Endpoint: srv.URL(), Bucket: "uploads", AccessKeyId: "AKIDEXAMPLE", SecretKey: connectionSecret, PathStyle: true},
+		})
+	}
+	link := &dockwellv1.Edit{
+		Resource: &dockwellv1.ResourceRef{Kind: "link", Scope: env, Name: "storage"},
+		Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Link{Link: &resourcev1.Link{
+			Label: "Storage", Connection: "uploads", Kind: resourcev1.LinkKind_LINK_KIND_S3, Prefix: "notes/",
+			Sets: []*resourcev1.LinkSet{{Name: "S3_FORCE_PATH_STYLE", Part: resourcev1.LinkPart_LINK_PART_PATH_STYLE}},
+		}}},
+	}
+	apply(t, c, propose(t, c, "Add uploads and a link to it", uploads(resourcev1.ConnectionReach_CONNECTION_REACH_PROJECTS, project), link))
+
+	gone := &dockwellv1.Edit{Resource: &dockwellv1.ResourceRef{Kind: string(connection.Kind), Name: "uploads"}, Delete: true}
+	_, err := c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Delete it", Edits: []*dockwellv1.Edit{gone}}))
+	if connect.CodeOf(err) != connect.CodeInvalidArgument || !strings.Contains(err.Error(), "link storage names the connection uploads, which this change deletes") {
+		t.Errorf("deleting a connection a link alone names: %v", err)
+	}
+	_, err = c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Reach no project", Edits: []*dockwellv1.Edit{
+		uploads(resourcev1.ConnectionReach_CONNECTION_REACH_UNSPECIFIED),
+	}}))
+	if connect.CodeOf(err) != connect.CodeInvalidArgument || !strings.Contains(err.Error(), "link storage names the connection uploads, which isn't one this project can use") {
+		t.Errorf("narrowing a connection a link alone names away from its project: %v", err)
+	}
+
+	// The link and the connection go together.
+	letGo := &dockwellv1.Edit{Resource: &dockwellv1.ResourceRef{Kind: "link", Scope: env, Name: "storage"}, Delete: true}
+	if done := apply(t, c, propose(t, c, "Let both go", letGo, gone)); done.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Errorf("deleting the link and its connection ended %v: %s", done.GetState(), done.GetError())
+	}
+}

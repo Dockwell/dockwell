@@ -254,6 +254,35 @@ func (e *Engine) checkConnectionReached(ctx context.Context, tx *store.Tx, items
 	return nil
 }
 
+// checkConnectionLinks refuses a change that deletes a connection, or narrows it away
+// from a project, while a link there still names it, though no value reads through
+// the link: the link would name a connection that's gone or out of its reach, and no
+// later edit of it would plan (#710). Disconnecting the link first, or in the same
+// change, lets it go.
+func (e *Engine) checkConnectionLinks(ctx context.Context, tx *store.Tx, items []item, it *item) error {
+	if it.ref.Kind != variable.ConnectionKind || it.current == nil {
+		return nil
+	}
+	links, err := e.allLinks(ctx, tx, items)
+	if err != nil {
+		return err
+	}
+	after, _ := it.spec.(*resourcev1.ConnectionSpec)
+	for i := range links {
+		l := &links[i]
+		if l.GetConnection() != it.ref.Name {
+			continue
+		}
+		if it.spec == nil {
+			return fault.New(ErrInvalid, "link %s names the connection %s, which this change deletes. Disconnect it on the connection's page first, or in the same change", l.ref.Name, it.ref.Name)
+		}
+		if !connection.Reaches(after, projectOfScope(ctx, tx, items, l.ref.Scope)) {
+			return connectionUnusable(&item{ref: l.ref}, it.ref.Name)
+		}
+	}
+	return nil
+}
+
 // connectionUnusable is the one refusal of a connection that isn't there and of one
 // that doesn't reach the item's project, wherever it's looked up: a link naming it,
 // or a value read from it, pinned or checked.

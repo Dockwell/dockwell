@@ -2051,6 +2051,9 @@ func (e *Engine) check(ctx context.Context, tx *store.Tx, items []item) error {
 	}
 	for i := range items {
 		it := &items[i]
+		if err := e.checkConnectionLinks(ctx, tx, items, it); err != nil {
+			return err
+		}
 		if it.spec == nil {
 			continue
 		}
