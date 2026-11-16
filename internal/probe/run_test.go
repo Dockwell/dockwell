@@ -9,6 +9,8 @@ import (
 	"log/slog"
 	"net"
 	"net/netip"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -98,6 +100,55 @@ func TestACheckRunsLockedDownOnTheAppsNetwork(t *testing.T) {
 	}
 	if ran := e.Helpers(); ran[len(ran)-1].Image != images[0] {
 		t.Errorf("the last check ran %s, want %s", ran[len(ran)-1].Image, images[0])
+	}
+}
+
+// An image by this build's name is run only when its layer is the one this agent
+// would import: one made by other hands, which would be given a connection's keys,
+// is made again first (#710 review L1). One that is this agent's isn't imported again.
+func TestACheckRunsOnlyItsOwnImage(t *testing.T) {
+	t.Parallel()
+	e := dockertest.New(t)
+	e.AddNetwork(docker.Network{Name: appNetwork, IPAM: docker.IPAM{Config: []docker.IPAMConfig{{Subnet: "127.0.0.0/8"}}}})
+	req := bucket(s3test.New(t), false)
+	if _, err := runner(e).Run(t.Context(), req, []string{appNetwork}); err != nil {
+		t.Fatal(err)
+	}
+	tags := e.Images(docker.ProbeRepository)
+	if len(tags) != 1 {
+		t.Fatalf("a check left images %v", tags)
+	}
+	ours, err := e.Client().InspectImage(t.Context(), tags[0])
+	if err != nil || len(ours.RootFS.Layers) != 1 {
+		t.Fatalf("this build's image reads %+v, %v", ours, err)
+	}
+	imports := e.Imports
+	if _, err := runner(e).Run(t.Context(), req, []string{appNetwork}); err != nil {
+		t.Fatal(err)
+	}
+	if e.Imports != imports {
+		t.Errorf("a check imported this build's image again: %d imports, want %d", e.Imports, imports)
+	}
+
+	// Another image under the same name.
+	other := filepath.Join(t.TempDir(), "other")
+	if err := os.WriteFile(other, []byte("#!/bin/sh\ncat\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.Client().ImportFiles(t.Context(), tags[0], []docker.ImageFile{{Name: "/dockwell", Path: other, Mode: 0o755}}); err != nil {
+		t.Fatal(err)
+	}
+	imports = e.Imports
+	if _, err := runner(e).Run(t.Context(), req, []string{appNetwork}); err != nil {
+		t.Fatal(err)
+	}
+	now, err := e.Client().InspectImage(t.Context(), tags[0])
+	if err != nil || !slices.Equal(now.RootFS.Layers, ours.RootFS.Layers) || e.Imports != imports+1 {
+		t.Errorf("after an image by its name that isn't its own, the check's image reads %v (%v), with %d imports, want %v and one more",
+			now.RootFS.Layers, err, e.Imports-imports, ours.RootFS.Layers)
+	}
+	if ran := e.Helpers(); ran[len(ran)-1].Image != tags[0] {
+		t.Errorf("the check ran %s", ran[len(ran)-1].Image)
 	}
 }
 

@@ -4,7 +4,9 @@ package dockertest
 
 import (
 	"bufio"
+	"crypto/sha256"
 	"encoding/binary"
+	"encoding/hex"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -395,13 +397,14 @@ func (e *Engine) inspectExec(w http.ResponseWriter, id string) {
 func (e *Engine) importImage(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	ref := q.Get("repo") + ":" + q.Get("tag")
-	n, err := io.Copy(io.Discard, r.Body)
+	layer := sha256.New()
+	n, err := io.Copy(layer, r.Body)
 	if err != nil || n == 0 {
 		fail(w, http.StatusBadRequest, "archive/tar: invalid tar header")
 		return
 	}
 	id := "sha256:" + newID()
-	img := &image{id: id, repo: q.Get("repo"), imported: true}
+	img := &image{id: id, repo: q.Get("repo"), imported: true, layer: "sha256:" + hex.EncodeToString(layer.Sum(nil))}
 	e.images[ref], e.images[id] = img, img
 	e.Imports++
 	writeJSON(w, http.StatusOK, map[string]string{"status": id})

@@ -12,7 +12,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"net"
 	"net/netip"
@@ -81,9 +80,11 @@ type Runner struct {
 	// slots holds a place for each check running, MaxChecks at most.
 	slots     chan struct{}
 	slotsOnce sync.Once
-	// made is the image of this binary, once known, which every check runs.
+	// made is the image of this binary, once known, which every check runs, and
+	// layer the DiffID of its one layer, which an image by that name must have.
 	madeMu sync.Mutex
 	made   string
+	layer  string
 }
 
 // started is what this agent's checks are labelled with.
@@ -203,9 +204,11 @@ func (r *Runner) Run(ctx context.Context, req Request, networks []string) (Resul
 	return res, nil
 }
 
-// image is the probe's image for this agent's binary, tagged by a digest of what it
-// holds: made the first time a check needs it, again only if it's gone, and kept,
-// so a check imports nothing (#710). Clean removes another build's.
+// image is the probe's image for this agent's binary, tagged by its layer's digest:
+// made the first time a check needs it, again if it's gone, and kept, so a check
+// imports nothing (#710). An image by that name is run only if its one layer is the
+// one this agent would import, so one made by other hands, which would be given a
+// connection's keys, is made again instead. Clean removes another build's.
 func (r *Runner) image(ctx context.Context) (string, error) {
 	r.madeMu.Lock()
 	defer r.madeMu.Unlock()
@@ -218,7 +221,16 @@ func (r *Runner) image(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("docker can't list the check's images: %w", err)
 	}
 	if slices.Contains(tags, tag) {
-		return tag, nil
+		got, err := r.Client.InspectImage(ctx, tag)
+		if err != nil {
+			return "", fmt.Errorf("docker can't read the check's image: %w", err)
+		}
+		if slices.Equal(got.RootFS.Layers, []string{r.layer}) {
+			return tag, nil
+		}
+		if err := r.Client.RemoveImage(ctx, tag); err != nil {
+			return "", fmt.Errorf("the check's image isn't this agent's, and docker can't remove it: %w", err)
+		}
 	}
 	if err := r.Client.ImportFiles(ctx, tag, r.files()); err != nil {
 		return "", fmt.Errorf("docker can't import the check's container: %w", err)
@@ -227,25 +239,18 @@ func (r *Runner) image(ctx context.Context) (string, error) {
 }
 
 // tag is the probe image's name for this binary, worked out once: the repository
-// and the start of a digest of the files it holds. Callers hold madeMu.
+// and the start of the DiffID of the layer ImportFiles writes of its files, which
+// layer keeps whole. Callers hold madeMu.
 func (r *Runner) tag() (string, error) {
 	if r.made != "" {
 		return r.made, nil
 	}
 	sum := sha256.New()
-	for _, f := range r.files() {
-		file, err := os.Open(f.Path)
-		if err != nil {
-			return "", fmt.Errorf("can't read the agent's own binary: %w", err)
-		}
-		_, err = io.Copy(sum, file)
-		_ = file.Close()
-		if err != nil {
-			return "", fmt.Errorf("can't read %s for the check's image: %w", f.Path, err)
-		}
-		sum.Write([]byte(f.Name))
+	if err := docker.WriteFiles(sum, r.files()); err != nil {
+		return "", fmt.Errorf("can't read the agent's own binary: %w", err)
 	}
-	r.made = docker.ProbeRepository + ":" + hex.EncodeToString(sum.Sum(nil))[:16]
+	digest := hex.EncodeToString(sum.Sum(nil))
+	r.made, r.layer = docker.ProbeRepository+":"+digest[:16], "sha256:"+digest
 	return r.made, nil
 }
 

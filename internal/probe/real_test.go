@@ -85,6 +85,16 @@ func TestAProbeChecksFromAnAppsNetworkOnRealDocker(t *testing.T) {
 	if got := check("http://storage:9000", storageSecret, []string{network}); !got.Passed {
 		t.Errorf("the app's storage, by the name it uses, checks as %+v", got)
 	}
+	// The image the first check made, which each check after runs as it is: its
+	// layer is the one this agent would import, so it's never made again (#710).
+	first, err := client.ImageTags(t.Context(), docker.ProbeRepository)
+	if err != nil || len(first) != 1 {
+		t.Fatalf("the first check left images %v, %v", first, err)
+	}
+	made, err := client.InspectImage(t.Context(), first[0])
+	if err != nil {
+		t.Fatal(err)
+	}
 	if got := check("http://storage:9000", "not-the-secret", []string{network}); got.Passed || got.Code != "SignatureDoesNotMatch" || got.Message != "" {
 		t.Errorf("a wrong secret checks as %+v", got)
 	}
@@ -108,6 +118,9 @@ func TestAProbeChecksFromAnAppsNetworkOnRealDocker(t *testing.T) {
 	tags, err := client.ImageTags(t.Context(), docker.ProbeRepository)
 	if err != nil || len(tags) != 1 {
 		t.Errorf("the checks left images %v, %v, want this build's alone", tags, err)
+	}
+	if now, err := client.InspectImage(t.Context(), first[0]); err != nil || now.ID != made.ID {
+		t.Errorf("a later check made the probe's image again: %v, was %s, %v", now, made.ID, err)
 	}
 	for _, tag := range tags {
 		if err := client.RemoveImage(t.Context(), tag); err != nil {
