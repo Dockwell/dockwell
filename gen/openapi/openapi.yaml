@@ -2190,6 +2190,35 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/connections:disconnectStorage:
+        post:
+            tags:
+                - ConnectionService
+            description: |-
+                DisconnectStorage lets go of an app's link to a connection: it plans one change
+                 that keeps each name the link sets as it reads now, a plain variable or a
+                 secret with that value, and deletes the link, so the app keeps its bucket and
+                 the connection can be removed.
+            operationId: ConnectionService_DisconnectStorage
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/DisconnectStorageRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/DisconnectStorageResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/containers:
         get:
             tags:
@@ -13544,6 +13573,26 @@ components:
                         - $ref: '#/components/schemas/Change'
                     description: The change, discarded.
             description: DiscardChangeResponse carries the discarded change.
+        DisconnectStorageRequest:
+            type: object
+            properties:
+                project:
+                    type: string
+                    description: |-
+                        The link's project, by name or ID, and its environment, by name or ID: empty
+                         is the only one its project has.
+                environment:
+                    type: string
+                link:
+                    type: string
+                    description: The link, by its name in the environment, such as "storage".
+            description: DisconnectStorageRequest names a link to a connection in an environment.
+        DisconnectStorageResponse:
+            type: object
+            properties:
+                change:
+                    $ref: '#/components/schemas/Change'
+            description: DisconnectStorageResponse is the change, planned.
         Disk:
             type: object
             properties:

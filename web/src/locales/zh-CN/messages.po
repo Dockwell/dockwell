@@ -11264,6 +11264,12 @@ msgstr "存储桶位置"
 msgid "Connections"
 msgstr "连接"
 
+msgid "Disconnect"
+msgstr "断开"
+
+msgid "Disconnect {link}"
+msgstr "断开 {link}"
+
 msgid "Dockwell can't read its connections"
 msgstr "Dockwell 无法读取其连接"
 
@@ -11362,9 +11368,6 @@ msgstr "应用的链接会从应用运行的位置再次检查它。"
 msgid "Another store"
 msgstr "其他存储"
 
-msgid "Apps read it. Disconnect them first."
-msgstr "有应用在读取它。请先断开它们。"
-
 msgid "Bucket in the path"
 msgstr "存储桶放在路径中"
 
@@ -11426,6 +11429,9 @@ msgstr "供 {who} 使用"
 #. placeholder {0}: picked.length
 msgid "{0, plural, one {# project} other {# projects}}"
 msgstr "{0, plural, other {# 个项目}}"
+
+msgid "{links, plural, one {# link names it. Disconnect it under Used by first.} other {# links name it. Disconnect them under Used by first.}}"
+msgstr "{links, plural, other {有 # 个链接使用它。请先在“使用者”中断开。}}"
 
 msgid "A bucket's keys, pasted once, for any app to keep its files in"
 msgstr "粘贴一次存储桶的密钥，任何应用都可以用它存放文件"

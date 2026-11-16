@@ -4,6 +4,7 @@ import { createClient } from "@connectrpc/connect";
 import { useTransport } from "@connectrpc/connect-query";
 import {
   ChangeService,
+  ChangeState,
   type CheckConnectionResponse,
   type ConnectionInfo,
   ConnectionReach,
@@ -30,6 +31,7 @@ import { useMemo, useState } from "react";
 import { sentence } from "../../lib/errors";
 import { usePlaces } from "../apps/useServices";
 import { useMay } from "../auth/may";
+import { useChangeSheet } from "../changes/ChangeSheet";
 import { useFleetView } from "../servers/useFleet";
 import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
@@ -124,7 +126,7 @@ export function ConnectionPage({ name }: { name: string }) {
         </Callout>
       ) : null}
       {check.answer ? <CheckLine answer={check.answer} /> : null}
-      <UsedBy connection={connection} onUse={() => setUsing(true)} />
+      <UsedBy connection={connection} onUse={() => setUsing(true)} onDisconnected={() => void query.refetch()} />
       {admin ? <Details connection={connection} onReplace={() => setEditing(true)} /> : null}
       {phone ? (
         // A phone's page has no head for its actions: they sit under it, as the mock has them.
@@ -194,12 +196,51 @@ function CheckLine({ answer }: { answer: CheckConnectionResponse }) {
   );
 }
 
-/** Each link to the connection: the app that reads it, where, the names it sets and where its objects go. */
-function UsedBy({ connection, onUse }: { connection: ConnectionInfo; onUse: () => void }) {
+/**
+ * Each link to the connection: the app that reads it, where, the names it sets and
+ * where its objects go, and Disconnect, which plans letting go of the link with each
+ * value kept as it reads now, so the connection can be removed.
+ */
+function UsedBy({
+  connection,
+  onUse,
+  onDisconnected,
+}: {
+  connection: ConnectionInfo;
+  onUse: () => void;
+  onDisconnected: () => void;
+}) {
   const { t } = useLingui();
   const places = usePlaces();
   const partWord = usePartWords();
   const phone = useMediaQuery(PHONE_QUERY);
+  const may = useMay();
+  const sheet = useChangeSheet();
+  const transport = useTransport();
+  const client = useMemo(() => createClient(ConnectionService, transport), [transport]);
+  const disconnect = (u: ConnectionUse) =>
+    sheet.open({
+      kind: "plan",
+      make: () => client.disconnectStorage({ project: u.project, environment: u.environment, link: u.link }),
+      onClose: (after) => {
+        if (after && after.state !== ChangeState.PLANNED && after.state !== ChangeState.FAILED) onDisconnected();
+      },
+    });
+  const disconnectButton = (u: ConnectionUse) => {
+    const allowed = may(ConnectionService.method.disconnectStorage, { environment: u.environment });
+    const link = u.link;
+    return (
+      <Button
+        size="sm"
+        variant="secondary"
+        aria-label={t`Disconnect ${link}`}
+        onClick={() => disconnect(u)}
+        {...allowed.off}
+      >
+        <Trans>Disconnect</Trans>
+      </Button>
+    );
+  };
   if (connection.uses.length === 0) {
     return (
       <Panel title={t`Used by`}>
@@ -255,6 +296,7 @@ function UsedBy({ connection, onUse }: { connection: ConnectionInfo; onUse: () =
                 </span>
               </div>
               {sets(u)}
+              <div className="connection-use-actions">{disconnectButton(u)}</div>
             </li>
           ))}
         </ul>
@@ -275,6 +317,13 @@ function UsedBy({ connection, onUse }: { connection: ConnectionInfo; onUse: () =
     { key: "sets", header: t`Names it sets`, render: sets },
     { key: "prefix", header: t`Objects under`, width: 180, mono: true, render: (u) => u.prefix || "/" },
     { key: "link", header: t`Link`, width: 140, mono: true, muted: true, render: (u) => u.link },
+    {
+      key: "more",
+      header: <span className="dw-sr">{t`Actions`}</span>,
+      width: 130,
+      align: "right",
+      render: disconnectButton,
+    },
   ];
   return (
     <Panel title={t`Used by`} flush>

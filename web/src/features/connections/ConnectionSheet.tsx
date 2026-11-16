@@ -197,7 +197,9 @@ export function ConnectionSheet({
         });
       },
     });
-  const used = (editing?.uses.length ?? 0) > 0;
+  // A connection a link names can't go: Used by disconnects each first, as a plan.
+  const links = editing?.uses.length ?? 0;
+  const inUse = links > 0 ? plural(links, { one: "# link names it. Disconnect it under Used by first.", other: "# links name it. Disconnect them under Used by first." }) : undefined;
   const remove = () =>
     sheet.open({
       kind: "propose",
@@ -232,8 +234,7 @@ export function ConnectionSheet({
               variant="ghost"
               className="connection-remove"
               onClick={remove}
-              disabled={used}
-              title={used ? t`Apps read it. Disconnect them first.` : undefined}
+              off={inUse}
               {...mayPlan.off}
             >
               <Trans>Remove</Trans>

@@ -270,6 +270,45 @@ func TestAnAppIsConnectedToStorage(t *testing.T) {
 	if connect.CodeOf(err) != connect.CodeNotFound {
 		t.Errorf("connecting to a connection the project may not use: %v", err)
 	}
+
+	// Disconnecting lets go of the link and keeps each value as it reads now, in a
+	// plan that holds no key: the app runs with the same bucket, and once no link
+	// names the connection, it can go.
+	_, err = cc.DisconnectStorage(t.Context(), connect.NewRequest(&dockwellv1.DisconnectStorageRequest{Project: project, Link: "nothing"}))
+	if connect.CodeOf(err) != connect.CodeNotFound {
+		t.Errorf("disconnecting a link that isn't there: %v", err)
+	}
+	for _, l := range []string{"storage", "media"} {
+		off, err := cc.DisconnectStorage(t.Context(), connect.NewRequest(&dockwellv1.DisconnectStorageRequest{Project: project, Link: l}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if raw, _ := protojson.Marshal(off.Msg); strings.Contains(string(raw), newKey) {
+			t.Errorf("disconnecting %s plans its key in the open", l)
+		}
+		if done := apply(t, c, off.Msg.GetChange()); done.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+			t.Fatalf("disconnecting %s ended %v: %s", l, done.GetState(), done.GetError())
+		}
+	}
+	got = appEnv("notes")
+	for _, want := range []string{"S3_ENDPOINT=" + srv.URL(), "S3_BUCKET=uploads", "S3_ACCESS_KEY_ID=AKIDEXAMPLE", "S3_SECRET_ACCESS_KEY=" + newKey, "S3_FORCE_PATH_STYLE=true"} {
+		if !slices.Contains(got, want) {
+			t.Errorf("after disconnecting, the app runs without %s: %v", want, got)
+		}
+	}
+	if got := appEnv("gallery"); !slices.Contains(got, "MEDIA_SECRET="+newKey) || !slices.Contains(got, "MEDIA_BUCKET=uploads") {
+		t.Errorf("after disconnecting, the gallery runs with %v", got)
+	}
+	listed, err = cc.ListConnections(t.Context(), connect.NewRequest(&dockwellv1.ListConnectionsRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, info := range listed.Msg.GetConnections() {
+		if len(info.GetUses()) != 0 {
+			t.Errorf("after disconnecting, %s is still read through %v", info.GetName(), info.GetUses())
+		}
+	}
+	apply(t, c, propose(t, c, "Delete it", &dockwellv1.Edit{Resource: &dockwellv1.ResourceRef{Kind: string(connection.Kind), Name: "uploads"}, Delete: true}))
 }
 
 // orgID is the install's organization's ID.

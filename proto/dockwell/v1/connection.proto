@@ -66,6 +66,21 @@ service ConnectionService {
       body: "*"
     };
   }
+  // DisconnectStorage lets go of an app's link to a connection: it plans one change
+  // that keeps each name the link sets as it reads now, a plain variable or a
+  // secret with that value, and deletes the link, so the app keeps its bucket and
+  // the connection can be removed.
+  rpc DisconnectStorage(DisconnectStorageRequest) returns (DisconnectStorageResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.command) = {verb: "disconnect-storage"};
+    option (google.api.http) = {
+      post: "/v1/connections:disconnectStorage"
+      body: "*"
+    };
+  }
 }
 
 // ConnectStorageRequest names an app, and the connection it reads its storage from.
@@ -95,6 +110,21 @@ message ConnectStorageRequest {
 message ConnectStorageResponse {
   Change change = 1;
   CheckConnectionResponse check = 2;
+}
+
+// DisconnectStorageRequest names a link to a connection in an environment.
+message DisconnectStorageRequest {
+  // The link's project, by name or ID, and its environment, by name or ID: empty
+  // is the only one its project has.
+  string project = 1;
+  string environment = 2;
+  // The link, by its name in the environment, such as "storage".
+  string link = 3;
+}
+
+// DisconnectStorageResponse is the change, planned.
+message DisconnectStorageResponse {
+  Change change = 1;
 }
 
 // ListConnectionsRequest asks for the connections the caller may see.

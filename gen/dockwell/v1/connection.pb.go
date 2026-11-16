@@ -192,6 +192,115 @@ func (x *ConnectStorageResponse) GetCheck() *CheckConnectionResponse {
 	return nil
 }
 
+// DisconnectStorageRequest names a link to a connection in an environment.
+type DisconnectStorageRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The link's project, by name or ID, and its environment, by name or ID: empty
+	// is the only one its project has.
+	Project     string `protobuf:"bytes,1,opt,name=project,proto3" json:"project,omitempty"`
+	Environment string `protobuf:"bytes,2,opt,name=environment,proto3" json:"environment,omitempty"`
+	// The link, by its name in the environment, such as "storage".
+	Link          string `protobuf:"bytes,3,opt,name=link,proto3" json:"link,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DisconnectStorageRequest) Reset() {
+	*x = DisconnectStorageRequest{}
+	mi := &file_dockwell_v1_connection_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DisconnectStorageRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DisconnectStorageRequest) ProtoMessage() {}
+
+func (x *DisconnectStorageRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_connection_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DisconnectStorageRequest.ProtoReflect.Descriptor instead.
+func (*DisconnectStorageRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_connection_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *DisconnectStorageRequest) GetProject() string {
+	if x != nil {
+		return x.Project
+	}
+	return ""
+}
+
+func (x *DisconnectStorageRequest) GetEnvironment() string {
+	if x != nil {
+		return x.Environment
+	}
+	return ""
+}
+
+func (x *DisconnectStorageRequest) GetLink() string {
+	if x != nil {
+		return x.Link
+	}
+	return ""
+}
+
+// DisconnectStorageResponse is the change, planned.
+type DisconnectStorageResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Change        *Change                `protobuf:"bytes,1,opt,name=change,proto3" json:"change,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DisconnectStorageResponse) Reset() {
+	*x = DisconnectStorageResponse{}
+	mi := &file_dockwell_v1_connection_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DisconnectStorageResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DisconnectStorageResponse) ProtoMessage() {}
+
+func (x *DisconnectStorageResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_connection_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DisconnectStorageResponse.ProtoReflect.Descriptor instead.
+func (*DisconnectStorageResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_connection_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *DisconnectStorageResponse) GetChange() *Change {
+	if x != nil {
+		return x.Change
+	}
+	return nil
+}
+
 // ListConnectionsRequest asks for the connections the caller may see.
 type ListConnectionsRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -206,7 +315,7 @@ type ListConnectionsRequest struct {
 
 func (x *ListConnectionsRequest) Reset() {
 	*x = ListConnectionsRequest{}
-	mi := &file_dockwell_v1_connection_proto_msgTypes[2]
+	mi := &file_dockwell_v1_connection_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -218,7 +327,7 @@ func (x *ListConnectionsRequest) String() string {
 func (*ListConnectionsRequest) ProtoMessage() {}
 
 func (x *ListConnectionsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_connection_proto_msgTypes[2]
+	mi := &file_dockwell_v1_connection_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -231,7 +340,7 @@ func (x *ListConnectionsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListConnectionsRequest.ProtoReflect.Descriptor instead.
 func (*ListConnectionsRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_connection_proto_rawDescGZIP(), []int{2}
+	return file_dockwell_v1_connection_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *ListConnectionsRequest) GetProject() string {
@@ -258,7 +367,7 @@ type ListConnectionsResponse struct {
 
 func (x *ListConnectionsResponse) Reset() {
 	*x = ListConnectionsResponse{}
-	mi := &file_dockwell_v1_connection_proto_msgTypes[3]
+	mi := &file_dockwell_v1_connection_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -270,7 +379,7 @@ func (x *ListConnectionsResponse) String() string {
 func (*ListConnectionsResponse) ProtoMessage() {}
 
 func (x *ListConnectionsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_connection_proto_msgTypes[3]
+	mi := &file_dockwell_v1_connection_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -283,7 +392,7 @@ func (x *ListConnectionsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListConnectionsResponse.ProtoReflect.Descriptor instead.
 func (*ListConnectionsResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_connection_proto_rawDescGZIP(), []int{3}
+	return file_dockwell_v1_connection_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *ListConnectionsResponse) GetConnections() []*ConnectionInfo {
@@ -324,7 +433,7 @@ type ConnectionInfo struct {
 
 func (x *ConnectionInfo) Reset() {
 	*x = ConnectionInfo{}
-	mi := &file_dockwell_v1_connection_proto_msgTypes[4]
+	mi := &file_dockwell_v1_connection_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -336,7 +445,7 @@ func (x *ConnectionInfo) String() string {
 func (*ConnectionInfo) ProtoMessage() {}
 
 func (x *ConnectionInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_connection_proto_msgTypes[4]
+	mi := &file_dockwell_v1_connection_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -349,7 +458,7 @@ func (x *ConnectionInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConnectionInfo.ProtoReflect.Descriptor instead.
 func (*ConnectionInfo) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_connection_proto_rawDescGZIP(), []int{4}
+	return file_dockwell_v1_connection_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *ConnectionInfo) GetId() string {
@@ -457,7 +566,7 @@ type ConnectionUse struct {
 
 func (x *ConnectionUse) Reset() {
 	*x = ConnectionUse{}
-	mi := &file_dockwell_v1_connection_proto_msgTypes[5]
+	mi := &file_dockwell_v1_connection_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -469,7 +578,7 @@ func (x *ConnectionUse) String() string {
 func (*ConnectionUse) ProtoMessage() {}
 
 func (x *ConnectionUse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_connection_proto_msgTypes[5]
+	mi := &file_dockwell_v1_connection_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -482,7 +591,7 @@ func (x *ConnectionUse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConnectionUse.ProtoReflect.Descriptor instead.
 func (*ConnectionUse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_connection_proto_rawDescGZIP(), []int{5}
+	return file_dockwell_v1_connection_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ConnectionUse) GetLinkId() string {
@@ -567,7 +676,7 @@ type CheckConnectionRequest struct {
 
 func (x *CheckConnectionRequest) Reset() {
 	*x = CheckConnectionRequest{}
-	mi := &file_dockwell_v1_connection_proto_msgTypes[6]
+	mi := &file_dockwell_v1_connection_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -579,7 +688,7 @@ func (x *CheckConnectionRequest) String() string {
 func (*CheckConnectionRequest) ProtoMessage() {}
 
 func (x *CheckConnectionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_connection_proto_msgTypes[6]
+	mi := &file_dockwell_v1_connection_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -592,7 +701,7 @@ func (x *CheckConnectionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CheckConnectionRequest.ProtoReflect.Descriptor instead.
 func (*CheckConnectionRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_connection_proto_rawDescGZIP(), []int{6}
+	return file_dockwell_v1_connection_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *CheckConnectionRequest) GetName() string {
@@ -669,7 +778,7 @@ type CheckConnectionResponse struct {
 
 func (x *CheckConnectionResponse) Reset() {
 	*x = CheckConnectionResponse{}
-	mi := &file_dockwell_v1_connection_proto_msgTypes[7]
+	mi := &file_dockwell_v1_connection_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -681,7 +790,7 @@ func (x *CheckConnectionResponse) String() string {
 func (*CheckConnectionResponse) ProtoMessage() {}
 
 func (x *CheckConnectionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_connection_proto_msgTypes[7]
+	mi := &file_dockwell_v1_connection_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -694,7 +803,7 @@ func (x *CheckConnectionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CheckConnectionResponse.ProtoReflect.Descriptor instead.
 func (*CheckConnectionResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_connection_proto_rawDescGZIP(), []int{7}
+	return file_dockwell_v1_connection_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *CheckConnectionResponse) GetPassed() bool {
@@ -774,7 +883,13 @@ const file_dockwell_v1_connection_proto_rawDesc = "" +
 	"\x05value\x18\x02 \x01(\x0e2$.dockwell.resource.v1alpha1.LinkPartR\x05value:\x028\x01\"\x81\x01\n" +
 	"\x16ConnectStorageResponse\x12+\n" +
 	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\x12:\n" +
-	"\x05check\x18\x02 \x01(\v2$.dockwell.v1.CheckConnectionResponseR\x05check\"T\n" +
+	"\x05check\x18\x02 \x01(\v2$.dockwell.v1.CheckConnectionResponseR\x05check\"j\n" +
+	"\x18DisconnectStorageRequest\x12\x18\n" +
+	"\aproject\x18\x01 \x01(\tR\aproject\x12 \n" +
+	"\venvironment\x18\x02 \x01(\tR\venvironment\x12\x12\n" +
+	"\x04link\x18\x03 \x01(\tR\x04link\"H\n" +
+	"\x19DisconnectStorageResponse\x12+\n" +
+	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"T\n" +
 	"\x16ListConnectionsRequest\x12\x18\n" +
 	"\aproject\x18\x01 \x01(\tR\aproject\x12 \n" +
 	"\venvironment\x18\x02 \x01(\tR\venvironment\"X\n" +
@@ -824,11 +939,12 @@ const file_dockwell_v1_connection_proto_rawDesc = "" +
 	"\amessage\x18\x05 \x01(\tR\amessage\x12\x14\n" +
 	"\x05words\x18\x06 \x01(\tR\x05words\x12\x16\n" +
 	"\x06region\x18\a \x01(\tR\x06region\x12\x16\n" +
-	"\x06server\x18\b \x01(\tR\x06server2\xfc\x06\n" +
+	"\x06server\x18\b \x01(\tR\x06server2\xb7\b\n" +
 	"\x11ConnectionService\x12\x88\x01\n" +
 	"\x0fListConnections\x12#.dockwell.v1.ListConnectionsRequest\x1a$.dockwell.v1.ListConnectionsResponse\"*\xa0\xbb\x18\x01\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x05\x82\xd3\xe4\x93\x02\x11\x12\x0f/v1/connections\x90\x02\x01\x12\x92\x01\n" +
 	"\x0fCheckConnection\x12#.dockwell.v1.CheckConnectionRequest\x1a$.dockwell.v1.CheckConnectionResponse\"4\xa0\xbb\x18\x01\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\x1a:\x01*\"\x15/v1/connections:check\x12\xa9\x01\n" +
-	"\x0eConnectStorage\x12\".dockwell.v1.ConnectStorageRequest\x1a#.dockwell.v1.ConnectStorageResponse\"N\xa0\xbb\x18\x02\xaa\xbb\x18\x11\x12\x0fconnect-storage\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02#:\x01*\"\x1e/v1/connections:connectStorage\x1a\x9a\x03\xa2\xbb\x18\x95\x03\n" +
+	"\x0eConnectStorage\x12\".dockwell.v1.ConnectStorageRequest\x1a#.dockwell.v1.ConnectStorageResponse\"N\xa0\xbb\x18\x02\xaa\xbb\x18\x11\x12\x0fconnect-storage\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02#:\x01*\"\x1e/v1/connections:connectStorage\x12\xb8\x01\n" +
+	"\x11DisconnectStorage\x12%.dockwell.v1.DisconnectStorageRequest\x1a&.dockwell.v1.DisconnectStorageResponse\"T\xa0\xbb\x18\x02\xaa\xbb\x18\x14\x12\x12disconnect-storage\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02&:\x01*\"!/v1/connections:disconnectStorage\x1a\x9a\x03\xa2\xbb\x18\x95\x03\n" +
 	"\vconnections\x12\x85\x03Connections apps use, such as a bucket of S3-compatible storage and the keys that reach it. A connection is install-wide: an admin saves it as a change, with a plan, and says which projects may use it. CheckConnection checks one from a server, in a container of the agent's own binary, without saving anything. See docs/adr/0099-every-kind-of-thing-an-app-needs-met-the-same-three-ways.md.B\xa8\x01\n" +
 	"\x0fcom.dockwell.v1B\x0fConnectionProtoP\x01Z7github.com/dockwell/dockwell/gen/dockwell/v1;dockwellv1\xa2\x02\x03DXX\xaa\x02\vDockwell.V1\xca\x02\vDockwell\\V1\xe2\x02\x17Dockwell\\V1\\GPBMetadata\xea\x02\fDockwell::V1b\x06proto3"
 
@@ -844,47 +960,52 @@ func file_dockwell_v1_connection_proto_rawDescGZIP() []byte {
 	return file_dockwell_v1_connection_proto_rawDescData
 }
 
-var file_dockwell_v1_connection_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
+var file_dockwell_v1_connection_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
 var file_dockwell_v1_connection_proto_goTypes = []any{
-	(*ConnectStorageRequest)(nil),   // 0: dockwell.v1.ConnectStorageRequest
-	(*ConnectStorageResponse)(nil),  // 1: dockwell.v1.ConnectStorageResponse
-	(*ListConnectionsRequest)(nil),  // 2: dockwell.v1.ListConnectionsRequest
-	(*ListConnectionsResponse)(nil), // 3: dockwell.v1.ListConnectionsResponse
-	(*ConnectionInfo)(nil),          // 4: dockwell.v1.ConnectionInfo
-	(*ConnectionUse)(nil),           // 5: dockwell.v1.ConnectionUse
-	(*CheckConnectionRequest)(nil),  // 6: dockwell.v1.CheckConnectionRequest
-	(*CheckConnectionResponse)(nil), // 7: dockwell.v1.CheckConnectionResponse
-	nil,                             // 8: dockwell.v1.ConnectStorageRequest.SetsEntry
-	nil,                             // 9: dockwell.v1.ConnectionUse.SetsEntry
-	(*Change)(nil),                  // 10: dockwell.v1.Change
-	(v1alpha1.LinkKind)(0),          // 11: dockwell.resource.v1alpha1.LinkKind
-	(v1alpha1.ConnectionReach)(0),   // 12: dockwell.resource.v1alpha1.ConnectionReach
-	(*v1alpha1.ConnectionS3)(nil),   // 13: dockwell.resource.v1alpha1.ConnectionS3
-	(v1alpha1.LinkPart)(0),          // 14: dockwell.resource.v1alpha1.LinkPart
+	(*ConnectStorageRequest)(nil),     // 0: dockwell.v1.ConnectStorageRequest
+	(*ConnectStorageResponse)(nil),    // 1: dockwell.v1.ConnectStorageResponse
+	(*DisconnectStorageRequest)(nil),  // 2: dockwell.v1.DisconnectStorageRequest
+	(*DisconnectStorageResponse)(nil), // 3: dockwell.v1.DisconnectStorageResponse
+	(*ListConnectionsRequest)(nil),    // 4: dockwell.v1.ListConnectionsRequest
+	(*ListConnectionsResponse)(nil),   // 5: dockwell.v1.ListConnectionsResponse
+	(*ConnectionInfo)(nil),            // 6: dockwell.v1.ConnectionInfo
+	(*ConnectionUse)(nil),             // 7: dockwell.v1.ConnectionUse
+	(*CheckConnectionRequest)(nil),    // 8: dockwell.v1.CheckConnectionRequest
+	(*CheckConnectionResponse)(nil),   // 9: dockwell.v1.CheckConnectionResponse
+	nil,                               // 10: dockwell.v1.ConnectStorageRequest.SetsEntry
+	nil,                               // 11: dockwell.v1.ConnectionUse.SetsEntry
+	(*Change)(nil),                    // 12: dockwell.v1.Change
+	(v1alpha1.LinkKind)(0),            // 13: dockwell.resource.v1alpha1.LinkKind
+	(v1alpha1.ConnectionReach)(0),     // 14: dockwell.resource.v1alpha1.ConnectionReach
+	(*v1alpha1.ConnectionS3)(nil),     // 15: dockwell.resource.v1alpha1.ConnectionS3
+	(v1alpha1.LinkPart)(0),            // 16: dockwell.resource.v1alpha1.LinkPart
 }
 var file_dockwell_v1_connection_proto_depIdxs = []int32{
-	8,  // 0: dockwell.v1.ConnectStorageRequest.sets:type_name -> dockwell.v1.ConnectStorageRequest.SetsEntry
-	10, // 1: dockwell.v1.ConnectStorageResponse.change:type_name -> dockwell.v1.Change
-	7,  // 2: dockwell.v1.ConnectStorageResponse.check:type_name -> dockwell.v1.CheckConnectionResponse
-	4,  // 3: dockwell.v1.ListConnectionsResponse.connections:type_name -> dockwell.v1.ConnectionInfo
-	11, // 4: dockwell.v1.ConnectionInfo.kind:type_name -> dockwell.resource.v1alpha1.LinkKind
-	12, // 5: dockwell.v1.ConnectionInfo.reach:type_name -> dockwell.resource.v1alpha1.ConnectionReach
-	5,  // 6: dockwell.v1.ConnectionInfo.uses:type_name -> dockwell.v1.ConnectionUse
-	9,  // 7: dockwell.v1.ConnectionUse.sets:type_name -> dockwell.v1.ConnectionUse.SetsEntry
-	13, // 8: dockwell.v1.CheckConnectionRequest.s3:type_name -> dockwell.resource.v1alpha1.ConnectionS3
-	14, // 9: dockwell.v1.ConnectStorageRequest.SetsEntry.value:type_name -> dockwell.resource.v1alpha1.LinkPart
-	14, // 10: dockwell.v1.ConnectionUse.SetsEntry.value:type_name -> dockwell.resource.v1alpha1.LinkPart
-	2,  // 11: dockwell.v1.ConnectionService.ListConnections:input_type -> dockwell.v1.ListConnectionsRequest
-	6,  // 12: dockwell.v1.ConnectionService.CheckConnection:input_type -> dockwell.v1.CheckConnectionRequest
-	0,  // 13: dockwell.v1.ConnectionService.ConnectStorage:input_type -> dockwell.v1.ConnectStorageRequest
-	3,  // 14: dockwell.v1.ConnectionService.ListConnections:output_type -> dockwell.v1.ListConnectionsResponse
-	7,  // 15: dockwell.v1.ConnectionService.CheckConnection:output_type -> dockwell.v1.CheckConnectionResponse
-	1,  // 16: dockwell.v1.ConnectionService.ConnectStorage:output_type -> dockwell.v1.ConnectStorageResponse
-	14, // [14:17] is the sub-list for method output_type
-	11, // [11:14] is the sub-list for method input_type
-	11, // [11:11] is the sub-list for extension type_name
-	11, // [11:11] is the sub-list for extension extendee
-	0,  // [0:11] is the sub-list for field type_name
+	10, // 0: dockwell.v1.ConnectStorageRequest.sets:type_name -> dockwell.v1.ConnectStorageRequest.SetsEntry
+	12, // 1: dockwell.v1.ConnectStorageResponse.change:type_name -> dockwell.v1.Change
+	9,  // 2: dockwell.v1.ConnectStorageResponse.check:type_name -> dockwell.v1.CheckConnectionResponse
+	12, // 3: dockwell.v1.DisconnectStorageResponse.change:type_name -> dockwell.v1.Change
+	6,  // 4: dockwell.v1.ListConnectionsResponse.connections:type_name -> dockwell.v1.ConnectionInfo
+	13, // 5: dockwell.v1.ConnectionInfo.kind:type_name -> dockwell.resource.v1alpha1.LinkKind
+	14, // 6: dockwell.v1.ConnectionInfo.reach:type_name -> dockwell.resource.v1alpha1.ConnectionReach
+	7,  // 7: dockwell.v1.ConnectionInfo.uses:type_name -> dockwell.v1.ConnectionUse
+	11, // 8: dockwell.v1.ConnectionUse.sets:type_name -> dockwell.v1.ConnectionUse.SetsEntry
+	15, // 9: dockwell.v1.CheckConnectionRequest.s3:type_name -> dockwell.resource.v1alpha1.ConnectionS3
+	16, // 10: dockwell.v1.ConnectStorageRequest.SetsEntry.value:type_name -> dockwell.resource.v1alpha1.LinkPart
+	16, // 11: dockwell.v1.ConnectionUse.SetsEntry.value:type_name -> dockwell.resource.v1alpha1.LinkPart
+	4,  // 12: dockwell.v1.ConnectionService.ListConnections:input_type -> dockwell.v1.ListConnectionsRequest
+	8,  // 13: dockwell.v1.ConnectionService.CheckConnection:input_type -> dockwell.v1.CheckConnectionRequest
+	0,  // 14: dockwell.v1.ConnectionService.ConnectStorage:input_type -> dockwell.v1.ConnectStorageRequest
+	2,  // 15: dockwell.v1.ConnectionService.DisconnectStorage:input_type -> dockwell.v1.DisconnectStorageRequest
+	5,  // 16: dockwell.v1.ConnectionService.ListConnections:output_type -> dockwell.v1.ListConnectionsResponse
+	9,  // 17: dockwell.v1.ConnectionService.CheckConnection:output_type -> dockwell.v1.CheckConnectionResponse
+	1,  // 18: dockwell.v1.ConnectionService.ConnectStorage:output_type -> dockwell.v1.ConnectStorageResponse
+	3,  // 19: dockwell.v1.ConnectionService.DisconnectStorage:output_type -> dockwell.v1.DisconnectStorageResponse
+	16, // [16:20] is the sub-list for method output_type
+	12, // [12:16] is the sub-list for method input_type
+	12, // [12:12] is the sub-list for extension type_name
+	12, // [12:12] is the sub-list for extension extendee
+	0,  // [0:12] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_connection_proto_init() }
@@ -900,7 +1021,7 @@ func file_dockwell_v1_connection_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_connection_proto_rawDesc), len(file_dockwell_v1_connection_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   10,
+			NumMessages:   12,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

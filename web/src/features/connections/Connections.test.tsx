@@ -9,6 +9,7 @@ import {
   ConnectionInfoSchema,
   ConnectionReach,
   type ConnectStorageRequest,
+  type DisconnectStorageRequest,
   EnvironmentVariableSchema,
   LinkKind,
   LinkPart,
@@ -321,6 +322,45 @@ describe("Connections", () => {
     await user.click(screen.getByRole("button", { name: "Check" }));
     expect(await screen.findByText("Check the bucket's name.")).toBeVisible();
     await expectAccessible(container);
+  });
+});
+
+describe("disconnecting an app from a connection", () => {
+  // Review M2: Remove said "Disconnect them first", and nothing in the panel could.
+  it("plans each link's disconnect from Used by, and says why Remove waits for it", async () => {
+    const user = userEvent.setup();
+    const asked: DisconnectStorageRequest[] = [];
+    renderAt("/connections/outline-uploads", {
+      ...fleet(),
+      resources: places(),
+      connections: {
+        listConnections: () => ({ connections: [used] }),
+        disconnectStorage: (req) => {
+          asked.push(req);
+          return { change: webPlanned() };
+        },
+      },
+      changes: { watchChange: feed<WatchChangeResponse>().stream, discardChange: () => ({}) },
+    });
+    const usedBy = await screen.findByRole("region", { name: "Used by" });
+    await user.click(within(usedBy).getByRole("button", { name: "Disconnect storage" }));
+    await waitFor(() => expect(asked).toHaveLength(1));
+    expect(asked[0]).toMatchObject({ project: "prj_1", environment: ENV, link: "storage" });
+    expect(await screen.findByRole("button", { name: /Apply plan/ })).toBeVisible();
+  });
+
+  it("keeps Remove off while a link names the connection, with the reason", async () => {
+    const user = userEvent.setup();
+    renderAt("/connections/outline-uploads", {
+      ...fleet(),
+      resources: places(),
+      connections: { listConnections: () => ({ connections: [used] }) },
+    });
+    await user.click(await screen.findByRole("button", { name: "Replace keys" }));
+    const sheet = await screen.findByRole("dialog", { name: "Connection outline-uploads" });
+    const remove = within(sheet).getByRole("button", { name: /Remove/ });
+    expect(remove).toHaveAttribute("aria-disabled", "true");
+    expect(sheet).toHaveTextContent("1 link names it. Disconnect it under Used by first.");
   });
 });
 

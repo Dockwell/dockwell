@@ -44,6 +44,9 @@ const (
 	// ConnectionServiceConnectStorageProcedure is the fully-qualified name of the ConnectionService's
 	// ConnectStorage RPC.
 	ConnectionServiceConnectStorageProcedure = "/dockwell.v1.ConnectionService/ConnectStorage"
+	// ConnectionServiceDisconnectStorageProcedure is the fully-qualified name of the
+	// ConnectionService's DisconnectStorage RPC.
+	ConnectionServiceDisconnectStorageProcedure = "/dockwell.v1.ConnectionService/DisconnectStorage"
 )
 
 // ConnectionServiceClient is a client for the dockwell.v1.ConnectionService service.
@@ -66,6 +69,11 @@ type ConnectionServiceClient interface {
 	// each a variable, or a secret for a key. A connection the app's project may not
 	// use, or a check that fails, plans nothing.
 	ConnectStorage(context.Context, *connect.Request[v1.ConnectStorageRequest]) (*connect.Response[v1.ConnectStorageResponse], error)
+	// DisconnectStorage lets go of an app's link to a connection: it plans one change
+	// that keeps each name the link sets as it reads now, a plain variable or a
+	// secret with that value, and deletes the link, so the app keeps its bucket and
+	// the connection can be removed.
+	DisconnectStorage(context.Context, *connect.Request[v1.DisconnectStorageRequest]) (*connect.Response[v1.DisconnectStorageResponse], error)
 }
 
 // NewConnectionServiceClient constructs a client for the dockwell.v1.ConnectionService service. By
@@ -98,14 +106,21 @@ func NewConnectionServiceClient(httpClient connect.HTTPClient, baseURL string, o
 			connect.WithSchema(connectionServiceMethods.ByName("ConnectStorage")),
 			connect.WithClientOptions(opts...),
 		),
+		disconnectStorage: connect.NewClient[v1.DisconnectStorageRequest, v1.DisconnectStorageResponse](
+			httpClient,
+			baseURL+ConnectionServiceDisconnectStorageProcedure,
+			connect.WithSchema(connectionServiceMethods.ByName("DisconnectStorage")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // connectionServiceClient implements ConnectionServiceClient.
 type connectionServiceClient struct {
-	listConnections *connect.Client[v1.ListConnectionsRequest, v1.ListConnectionsResponse]
-	checkConnection *connect.Client[v1.CheckConnectionRequest, v1.CheckConnectionResponse]
-	connectStorage  *connect.Client[v1.ConnectStorageRequest, v1.ConnectStorageResponse]
+	listConnections   *connect.Client[v1.ListConnectionsRequest, v1.ListConnectionsResponse]
+	checkConnection   *connect.Client[v1.CheckConnectionRequest, v1.CheckConnectionResponse]
+	connectStorage    *connect.Client[v1.ConnectStorageRequest, v1.ConnectStorageResponse]
+	disconnectStorage *connect.Client[v1.DisconnectStorageRequest, v1.DisconnectStorageResponse]
 }
 
 // ListConnections calls dockwell.v1.ConnectionService.ListConnections.
@@ -121,6 +136,11 @@ func (c *connectionServiceClient) CheckConnection(ctx context.Context, req *conn
 // ConnectStorage calls dockwell.v1.ConnectionService.ConnectStorage.
 func (c *connectionServiceClient) ConnectStorage(ctx context.Context, req *connect.Request[v1.ConnectStorageRequest]) (*connect.Response[v1.ConnectStorageResponse], error) {
 	return c.connectStorage.CallUnary(ctx, req)
+}
+
+// DisconnectStorage calls dockwell.v1.ConnectionService.DisconnectStorage.
+func (c *connectionServiceClient) DisconnectStorage(ctx context.Context, req *connect.Request[v1.DisconnectStorageRequest]) (*connect.Response[v1.DisconnectStorageResponse], error) {
+	return c.disconnectStorage.CallUnary(ctx, req)
 }
 
 // ConnectionServiceHandler is an implementation of the dockwell.v1.ConnectionService service.
@@ -143,6 +163,11 @@ type ConnectionServiceHandler interface {
 	// each a variable, or a secret for a key. A connection the app's project may not
 	// use, or a check that fails, plans nothing.
 	ConnectStorage(context.Context, *connect.Request[v1.ConnectStorageRequest]) (*connect.Response[v1.ConnectStorageResponse], error)
+	// DisconnectStorage lets go of an app's link to a connection: it plans one change
+	// that keeps each name the link sets as it reads now, a plain variable or a
+	// secret with that value, and deletes the link, so the app keeps its bucket and
+	// the connection can be removed.
+	DisconnectStorage(context.Context, *connect.Request[v1.DisconnectStorageRequest]) (*connect.Response[v1.DisconnectStorageResponse], error)
 }
 
 // NewConnectionServiceHandler builds an HTTP handler from the service implementation. It returns
@@ -171,6 +196,12 @@ func NewConnectionServiceHandler(svc ConnectionServiceHandler, opts ...connect.H
 		connect.WithSchema(connectionServiceMethods.ByName("ConnectStorage")),
 		connect.WithHandlerOptions(opts...),
 	)
+	connectionServiceDisconnectStorageHandler := connect.NewUnaryHandler(
+		ConnectionServiceDisconnectStorageProcedure,
+		svc.DisconnectStorage,
+		connect.WithSchema(connectionServiceMethods.ByName("DisconnectStorage")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/dockwell.v1.ConnectionService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case ConnectionServiceListConnectionsProcedure:
@@ -179,6 +210,8 @@ func NewConnectionServiceHandler(svc ConnectionServiceHandler, opts ...connect.H
 			connectionServiceCheckConnectionHandler.ServeHTTP(w, r)
 		case ConnectionServiceConnectStorageProcedure:
 			connectionServiceConnectStorageHandler.ServeHTTP(w, r)
+		case ConnectionServiceDisconnectStorageProcedure:
+			connectionServiceDisconnectStorageHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -198,4 +231,8 @@ func (UnimplementedConnectionServiceHandler) CheckConnection(context.Context, *c
 
 func (UnimplementedConnectionServiceHandler) ConnectStorage(context.Context, *connect.Request[v1.ConnectStorageRequest]) (*connect.Response[v1.ConnectStorageResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ConnectionService.ConnectStorage is not implemented"))
+}
+
+func (UnimplementedConnectionServiceHandler) DisconnectStorage(context.Context, *connect.Request[v1.DisconnectStorageRequest]) (*connect.Response[v1.DisconnectStorageResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ConnectionService.DisconnectStorage is not implemented"))
 }

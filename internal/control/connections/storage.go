@@ -170,36 +170,9 @@ func valueEdit(a *app, conn Saved, linkName, name string, part resourcev1.LinkPa
 func (s *Service) appOf(ctx context.Context, projectRef, envRef, name string) (*app, error) {
 	out := &app{reads: map[string]bool{}, has: map[string]bool{}}
 	err := s.db.View(ctx, func(tx *store.Tx) error {
-		tree, err := scope.Load(ctx, tx)
-		if err != nil {
+		if err := envOf(ctx, tx, projectRef, envRef, out); err != nil {
 			return err
 		}
-		out.orgID = tree.Organization.ID
-		caller, hasCaller := place.CallerFrom(ctx)
-		var envs []scope.Environment
-		for _, p := range tree.Projects {
-			if projectRef != p.ID && projectRef != p.Name {
-				continue
-			}
-			if hasCaller && place.Holds(caller.Grants, place.Place{Project: p.ID}) == "" {
-				continue
-			}
-			out.project = p.ID
-			for _, e := range p.Environments {
-				if envRef == "" || envRef == e.ID || envRef == e.Name {
-					envs = append(envs, e)
-				}
-			}
-		}
-		switch {
-		case out.project == "":
-			return authapi.ReasonError(connect.CodeNotFound, fmt.Errorf("there's no project %s", projectRef), "not_found")
-		case len(envs) == 0:
-			return authapi.Invalid(fmt.Errorf("the project has no environment %s", envRef))
-		case len(envs) > 1:
-			return authapi.Invalid(errors.New("the project has more than one environment. Say which the app is in"))
-		}
-		out.env, out.envName = envs[0].ID, envs[0].Name
 		r, err := tx.GetResource(ctx, "service", out.env, name)
 		if errors.Is(err, store.ErrNotFound) || err == nil && r.Spec == nil {
 			return authapi.ReasonError(connect.CodeNotFound, fmt.Errorf("there's no app %s in %s", name, out.envName), "not_found")
@@ -222,20 +195,139 @@ func (s *Service) appOf(ctx context.Context, projectRef, envRef, name string) (*
 		for _, n := range svc.GetSecrets() {
 			out.reads[n] = true
 		}
-		for kind, secret := range map[string]bool{string(variable.VariableKind): false, string(variable.SecretKind): true} {
-			rs, err := tx.ListResources(ctx, out.env, kind)
-			if err != nil {
-				return err
-			}
-			for i := range rs {
-				if rs[i].Spec != nil {
-					out.has[rs[i].Name] = secret
-				}
-			}
-		}
-		return nil
+		return hasIn(ctx, tx, out)
 	})
 	return out, err
+}
+
+// envOf finds an environment, by its project and its own name or ID, in a project
+// the caller holds a role in: one they don't reads as not there.
+func envOf(ctx context.Context, tx *store.Tx, projectRef, envRef string, out *app) error {
+	tree, err := scope.Load(ctx, tx)
+	if err != nil {
+		return err
+	}
+	out.orgID = tree.Organization.ID
+	caller, hasCaller := place.CallerFrom(ctx)
+	var envs []scope.Environment
+	for _, p := range tree.Projects {
+		if projectRef != p.ID && projectRef != p.Name {
+			continue
+		}
+		if hasCaller && place.Holds(caller.Grants, place.Place{Project: p.ID}) == "" {
+			continue
+		}
+		out.project = p.ID
+		for _, e := range p.Environments {
+			if envRef == "" || envRef == e.ID || envRef == e.Name {
+				envs = append(envs, e)
+			}
+		}
+	}
+	switch {
+	case out.project == "":
+		return authapi.ReasonError(connect.CodeNotFound, fmt.Errorf("there's no project %s", projectRef), "not_found")
+	case len(envs) == 0:
+		return authapi.Invalid(fmt.Errorf("the project has no environment %s", envRef))
+	case len(envs) > 1:
+		return authapi.Invalid(errors.New("the project has more than one environment. Say which the app is in"))
+	}
+	out.env, out.envName = envs[0].ID, envs[0].Name
+	return nil
+}
+
+// hasIn reads the names an environment holds, each with whether it's a secret.
+func hasIn(ctx context.Context, tx *store.Tx, out *app) error {
+	for kind, secret := range map[string]bool{string(variable.VariableKind): false, string(variable.SecretKind): true} {
+		rs, err := tx.ListResources(ctx, out.env, kind)
+		if err != nil {
+			return err
+		}
+		for i := range rs {
+			if rs[i].Spec != nil {
+				out.has[rs[i].Name] = secret
+			}
+		}
+	}
+	return nil
+}
+
+// DisconnectStorage plans letting go of an app's link to a connection, in one
+// change: each name it sets keeps the value it reads now, as a plain variable or a
+// secret, as it is one now, and the link goes (ADR 0099's Detach, as ADR 0084's).
+// Path style is the app's own word already, so it stays as it is.
+func (s *Service) DisconnectStorage(ctx context.Context, req *connect.Request[dockwellv1.DisconnectStorageRequest]) (*connect.Response[dockwellv1.DisconnectStorageResponse], error) {
+	m := req.Msg
+	if s.changes == nil || s.db == nil {
+		return nil, connect.NewError(connect.CodeUnimplemented, errors.New("this control plane plans no changes"))
+	}
+	a := &app{has: map[string]bool{}}
+	var l *resourcev1.Link
+	err := s.db.View(ctx, func(tx *store.Tx) error {
+		if err := envOf(ctx, tx, m.GetProject(), m.GetEnvironment(), a); err != nil {
+			return err
+		}
+		r, err := tx.GetResource(ctx, string(link.Kind), a.env, m.GetLink())
+		notThere := authapi.ReasonError(connect.CodeNotFound, fmt.Errorf("there's no link %s to a connection in %s. Its connection's page lists them", m.GetLink(), a.envName), "not_found")
+		switch {
+		case errors.Is(err, store.ErrNotFound), err == nil && r.Spec == nil:
+			return notThere
+		case err != nil:
+			return err
+		}
+		spec, err := s.connections.keeper.Decode(ctx, tx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec)
+		if err != nil {
+			return fmt.Errorf("can't read the link %s: %w", m.GetLink(), err)
+		}
+		got, ok := spec.(*resourcev1.Link)
+		if !ok || got.GetConnection() == "" {
+			return notThere
+		}
+		l = got
+		return hasIn(ctx, tx, a)
+	})
+	if err != nil {
+		return nil, err
+	}
+	all, err := s.connections.All(ctx)
+	if err != nil {
+		return nil, err
+	}
+	i := slices.IndexFunc(all, func(c Saved) bool { return c.Name == l.GetConnection() })
+	if i < 0 {
+		return nil, fmt.Errorf("the link %s names the connection %s, which isn't there", m.GetLink(), l.GetConnection())
+	}
+	conn := all[i]
+	edits := []*dockwellv1.Edit{{Resource: &dockwellv1.ResourceRef{Kind: string(link.Kind), Scope: a.env, Name: m.GetLink()}, Delete: true}}
+	sets := slices.Clone(l.GetSets())
+	slices.SortFunc(sets, func(x, y *resourcev1.LinkSet) int { return strings.Compare(x.GetName(), y.GetName()) })
+	for _, set := range sets {
+		secret, has := a.has[set.GetName()]
+		if !has || set.GetPart() == resourcev1.LinkPart_LINK_PART_PATH_STYLE {
+			continue
+		}
+		value, _, ok := connection.Part(conn.Spec, set.GetPart())
+		if !ok {
+			return nil, fmt.Errorf("the link %s sets %s as %s, which the connection doesn't have", m.GetLink(), set.GetName(), set.GetPart())
+		}
+		edit := &dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Kind: string(variable.VariableKind), Scope: a.env, Name: set.GetName()},
+			Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Variable{Variable: &resourcev1.Variable{Value: value}}},
+		}
+		if secret {
+			edit = &dockwellv1.Edit{
+				Resource: &dockwellv1.ResourceRef{Kind: string(variable.SecretKind), Scope: a.env, Name: set.GetName()},
+				Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Secret{Secret: &resourcev1.Secret{Value: value}}},
+			}
+		}
+		edits = append(edits, edit)
+	}
+	summary := fmt.Sprintf("Disconnect %s from %s, keeping its values", m.GetLink(), cmp.Or(conn.Spec.GetDisplayName(), conn.Name))
+	change, err := s.changes.Propose(ctx, summary, edits, nil, changes.Also{})
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&dockwellv1.DisconnectStorageResponse{Change: change}), nil
 }
 
 // checkFrom checks a connection's bucket from the app's network, on the server the

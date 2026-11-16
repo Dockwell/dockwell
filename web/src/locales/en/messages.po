@@ -11264,6 +11264,12 @@ msgstr "Bucket goes"
 msgid "Connections"
 msgstr "Connections"
 
+msgid "Disconnect"
+msgstr "Disconnect"
+
+msgid "Disconnect {link}"
+msgstr "Disconnect {link}"
+
 msgid "Dockwell can't read its connections"
 msgstr "Dockwell can't read its connections"
 
@@ -11362,9 +11368,6 @@ msgstr "An app's link checks it again from where the app runs."
 msgid "Another store"
 msgstr "Another store"
 
-msgid "Apps read it. Disconnect them first."
-msgstr "Apps read it. Disconnect them first."
-
 msgid "Bucket in the path"
 msgstr "Bucket in the path"
 
@@ -11426,6 +11429,9 @@ msgstr "for {who}"
 #. placeholder {0}: picked.length
 msgid "{0, plural, one {# project} other {# projects}}"
 msgstr "{0, plural, one {# project} other {# projects}}"
+
+msgid "{links, plural, one {# link names it. Disconnect it under Used by first.} other {# links name it. Disconnect them under Used by first.}}"
+msgstr "{links, plural, one {# link names it. Disconnect it under Used by first.} other {# links name it. Disconnect them under Used by first.}}"
 
 msgid "A bucket's keys, pasted once, for any app to keep its files in"
 msgstr "A bucket's keys, pasted once, for any app to keep its files in"

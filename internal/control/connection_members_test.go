@@ -149,6 +149,12 @@ func TestAConnectionOfAnotherProjectReadsAsNotThere(t *testing.T) {
 		if role == store.RoleDeveloper && (connect.CodeOf(errTheirs) != connect.CodeNotFound || connect.CodeOf(errNone) != connect.CodeNotFound) {
 			t.Errorf("%s ConnectStorage: theirs %v, none %v", who, errTheirs, errNone)
 		}
+		// Disconnecting another project's link reads as not there, and plans nothing.
+		_, errData := cc.DisconnectStorage(t.Context(), connect.NewRequest(&dockwellv1.DisconnectStorageRequest{Project: "data", Link: "data-link"}))
+		_, errNoProject := cc.DisconnectStorage(t.Context(), connect.NewRequest(&dockwellv1.DisconnectStorageRequest{Project: "no-such-project", Link: "data-link"}))
+		if errData == nil || connect.CodeOf(errData) != connect.CodeOf(errNoProject) || strings.Contains(errData.Error(), dataEnv) {
+			t.Errorf("%s disconnects data's link: %v, and one of no project: %v", who, errData, errNoProject)
+		}
 		// A link by hand to theirs, and to one that isn't there, read the same.
 		linkTo := func(name string) error {
 			_, err := c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Probe a name", Edits: []*dockwellv1.Edit{{

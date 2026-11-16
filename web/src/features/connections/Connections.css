@@ -327,3 +327,8 @@ a.connections-name:hover {
 .connection-use + .connection-use {
   border-top: 1px solid var(--line);
 }
+
+.connection-use-actions {
+  display: flex;
+  justify-content: flex-end;
+}

@@ -134,6 +134,7 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
 
   "ConnectionService.checkConnection": "may",
   "ConnectionService.connectStorage": "may",
+  "ConnectionService.disconnectStorage": "may",
   "ConnectionService.listConnections": "read",
   "ContainerService.adoptContainer": { within: "ContainerService.listContainers" },
   "ContainerService.listContainers": "may",
