@@ -24,6 +24,7 @@ import (
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/auth"
 	"github.com/dockwell/dockwell/internal/control/place"
+	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/store"
 )
 
@@ -576,6 +577,9 @@ func grantsFrom(ctx context.Context) ([]store.Grant, bool) {
 // roleRefusal says what the call needs, what the caller holds, that it didn't
 // happen, and who can change that.
 func roleRefusal(p auth.Principal, held, needs string) error {
+	if p.Token != nil && strings.HasPrefix(p.Token.ID, id.GitHook+"_") {
+		return hookRefusal(p.Token, held, needs)
+	}
 	who, whose := "you're "+aRole(held), "your"
 	if p.Token != nil {
 		who, whose = "this API token's maker is "+aRole(held), "its maker's"
@@ -594,6 +598,20 @@ func roleRefusal(p auth.Principal, held, needs string) error {
 		return fmt.Errorf("only the owner can do this, and %s, so it didn't happen. Ask the owner", who)
 	}
 	return fmt.Errorf("only %s can do this, and %s, so it didn't happen. Ask an admin to change %s role", atLeast(needs), who, whose)
+}
+
+// hookRefusal says, for a push, what keeps its deploy-on-push hook from doing
+// something: the hook, never an API token, with its fix (ADR 0071, #711).
+func hookRefusal(hook *store.APIToken, held, needs string) error {
+	switch {
+	case held == "" && hook.Projects != nil:
+		return errors.New("this deploy-on-push hook's app is in no project it acts in, so a push deploys nothing. Give the hook a new secret from the app's Source panel, which takes the app's project as it is now")
+	case held == "":
+		return errors.New("the person this deploy-on-push hook acts for holds no role on this install any more, so a push deploys nothing. Turn deploy on push off and on again as someone who does")
+	case hook.Role != "" && store.RoleRank(hook.Role) < store.RoleRank(needs):
+		return fmt.Errorf("only %s can do this, and this deploy-on-push hook acts as %s at most, so it didn't happen. Deploy it by hand", atLeast(needs), aRole(hook.Role))
+	}
+	return fmt.Errorf("only %s can do this, and the person this deploy-on-push hook acts for is %s, so it didn't happen. Deploy it by hand", atLeast(needs), aRole(held))
 }
 
 // adminsBecause says why a call is an admin's, where its name alone doesn't.

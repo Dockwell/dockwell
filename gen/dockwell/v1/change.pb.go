@@ -5313,6 +5313,12 @@ type Change struct {
 	// planned for them". Empty when they may apply it, and for a viewer, who
 	// applies nothing.
 	Waits string `protobuf:"bytes,23,opt,name=waits,proto3" json:"waits,omitempty"`
+	// On a planned change, for whoever reads it: true when they may discard it
+	// as their own, wherever it is: one they planned, or one a deploy-on-push
+	// hook of theirs or an API token they made planned, which only its maker
+	// discards in person (ADR 0071). False doesn't mean they can't discard it:
+	// someone else's needs what applying it would.
+	Discards bool `protobuf:"varint,24,opt,name=discards,proto3" json:"discards,omitempty"`
 	// What the change waits for, while a change to a server's firewall waits
 	// for its confirmation (ConfirmChange). Unset otherwise. Numbered apart, as
 	// open work adds to this message.
@@ -5520,6 +5526,13 @@ func (x *Change) GetWaits() string {
 		return x.Waits
 	}
 	return ""
+}
+
+func (x *Change) GetDiscards() bool {
+	if x != nil {
+		return x.Discards
+	}
+	return false
 }
 
 func (x *Change) GetConfirmation() *ChangeConfirmation {
@@ -10186,7 +10199,7 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\vresource_id\x18\x02 \x01(\tR\n" +
 	"resourceId\"A\n" +
 	"\x12AdoptDriftResponse\x12+\n" +
-	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"\xda\b\n" +
+	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"\xf6\b\n" +
 	"\x06Change\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
 	"\asummary\x18\x02 \x01(\tR\asummary\x12.\n" +
@@ -10216,7 +10229,8 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\arestart\x18\x14 \x01(\bR\arestart\x12\x1c\n" +
 	"\tprotected\x18\x15 \x01(\bR\tprotected\x12\x1a\n" +
 	"\bapproves\x18\x16 \x01(\bR\bapproves\x12\x14\n" +
-	"\x05waits\x18\x17 \x01(\tR\x05waits\x12C\n" +
+	"\x05waits\x18\x17 \x01(\tR\x05waits\x12\x1a\n" +
+	"\bdiscards\x18\x18 \x01(\bR\bdiscards\x12C\n" +
 	"\fconfirmation\x18( \x01(\v2\x1f.dockwell.v1.ChangeConfirmationR\fconfirmation\x12:\n" +
 	"\telsewhere\x18P \x01(\v2\x1c.dockwell.v1.ChangeElsewhereR\telsewhere\x123\n" +
 	"\atouches\x18\xa2\x02 \x03(\v2\x18.dockwell.v1.ResourceRefR\atouches\"\xd3\x01\n" +

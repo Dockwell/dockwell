@@ -113,6 +113,11 @@ func (e *Engine) checkRolesOf(ctx context.Context, tx *store.Tx, actor string, c
 		if own, err = sameProposer(ctx, tx, caller, c.Actor); err != nil {
 			return err
 		}
+		if !own {
+			if own, err = madeBy(ctx, tx, caller, c); err != nil {
+				return err
+			}
+		}
 	}
 	// What each item reaches on its server that only an admin may give it, or
 	// keeps while it runs something else.
@@ -708,6 +713,31 @@ func sameProposer(ctx context.Context, tx *store.Tx, caller place.Caller, actor 
 	return false, nil
 }
 
+// madeBy reports a change that a hook or an API token the caller made planned, for
+// discarding it: a change a narrowed token or a hook plans is someone else's to
+// apply, its maker's included, as applying it approves it; but discarding runs
+// nothing, and the next push, or the token, can plan it again, so its maker may
+// discard it as their own (ADR 0071, #711): in person, as a token of theirs acts
+// for itself alone. A hook's maker is who it acted for when it planned, as the
+// change records.
+func madeBy(ctx context.Context, tx *store.Tx, caller place.Caller, c *store.Change) (bool, error) {
+	if caller.UserID == "" || caller.TokenID != "" {
+		return false, nil
+	}
+	kind, actorID, _ := strings.Cut(c.Actor, ":")
+	switch kind {
+	case "hook":
+		return c.ActsFor != "" && c.ActsFor == caller.UserID, nil
+	case "token":
+		tok, err := tx.GetAPIToken(ctx, actorID)
+		if errors.Is(err, store.ErrNotFound) {
+			return false, nil
+		}
+		return err == nil && tok.UserID == caller.UserID, err
+	}
+	return false, nil
+}
+
 // placed are a change's items as far as checking roles needs: each as it is
 // now, with what the change asks of an environment. Unlike current, it reads a
 // plan that went stale, as discarding one has to work.
@@ -812,6 +842,9 @@ type Applying struct {
 	// Waits says why it waits for an admin or the owner, for someone below an
 	// admin whose role covers the rest of it (Refusal.Waits), or "".
 	Waits string
+	// Discards says the caller may discard it as their own: they planned it, or
+	// a hook or an API token of theirs did (ADR 0071, #711).
+	Discards bool
 }
 
 // ApplyingOf says, within tx, what applying changeID asks of the caller in ctx,
@@ -826,6 +859,14 @@ func (e *Engine) ApplyingOf(ctx context.Context, tx *store.Tx, changeID string) 
 	if err != nil || c.State != store.ChangePlanned {
 		return Applying{}, err
 	}
+	caller, _ := place.CallerFrom(ctx)
+	discards, err := sameProposer(ctx, tx, caller, c.Actor)
+	if err == nil && !discards {
+		discards, err = madeBy(ctx, tx, caller, &c)
+	}
+	if err != nil {
+		return Applying{}, err
+	}
 	asked := readPlan(c)
 	items, err := e.placed(ctx, tx, c, asked)
 	if err != nil {
@@ -834,14 +875,17 @@ func (e *Engine) ApplyingOf(ctx context.Context, tx *store.Tx, changeID string) 
 	var refused *Refusal
 	switch err := e.checkRoles(ctx, tx, c.Actor, &c, asked, items, applying); {
 	case errors.As(err, &refused) && refused.Needs == store.RoleAdmin:
-		return Applying{Waits: refused.Waits()}, nil
+		// Discarding needs a developer where it edits, as the guard asks, so a
+		// maker lowered to viewer since isn't offered it (#711).
+		mayDiscard := store.RoleRank(refused.Held) >= store.RoleRank(store.RoleDeveloper)
+		return Applying{Waits: refused.Waits(), Discards: discards && mayDiscard}, nil
 	case errors.As(err, &refused):
-		return Applying{}, nil // a viewer applies nothing: no one's waiting on them
+		return Applying{}, nil // a viewer applies and discards nothing: no one's waiting on them
 	case errors.Is(err, ErrOutOfReach):
 		return Applying{}, nil // not theirs to read, so a list doesn't show it
 	case err != nil:
 		return Applying{}, err
 	}
 	approval, err := e.approvalIn(ctx, tx, c)
-	return Applying{Approves: approval.Protected && approval.Theirs}, err
+	return Applying{Approves: approval.Protected && approval.Theirs, Discards: discards}, err
 }

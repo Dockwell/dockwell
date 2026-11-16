@@ -613,9 +613,11 @@ function ChangeSheet({
   const mayUndo = useMay()(ChangeService.method.undoChange, placesOfChange(change));
   const waits = phase === "review" && (change?.waits ?? "") !== "";
   const approves = phase === "review" && change?.approves === true;
-  // Theirs to discard, as the sheet's own plan is: one they planned in the panel.
+  // Theirs to discard, as the sheet's own plan is: one they planned, or one their
+  // hook or a token of theirs planned, as the control plane says (ADR 0071).
   const theirs =
     proposal.current !== undefined ||
+    change?.discards === true ||
     (change?.proposedBy?.kind === ActorKind.USER && change.proposedBy.id === user?.id);
 
   const apply = useCallback(async () => {

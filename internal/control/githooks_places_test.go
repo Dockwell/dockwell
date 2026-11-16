@@ -258,3 +258,116 @@ func TestAPushQueuedBeforeItsHookWaitsAgainWaitsForAPerson(t *testing.T) {
 	release()
 	g.stored(t, url, "q-1", store.HookNeedsPerson)
 }
+
+// A developer's hook plans into a protected environment and waits; its maker may
+// discard what it planned, as discarding runs nothing, though applying it needs an
+// admin's approval (ADR 0071, #711).
+func TestAHooksMakerDiscardsWhatItPlanned(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		g := newGitBench(t, backend)
+		g.repo.Commit("main", "First", map[string]string{"Dockerfile": webDockerfile})
+		made := g.done(t, g.propose(t, g.buildEdit("main", nil)))
+		production := made.GetPlan().GetResources()[0].GetResource().GetScope()
+		project := envProject(t, g.f, production)
+		web := g.service(t, "", "web")
+		// A developer turns deploy on push on while production is open, then an admin
+		// protects it.
+		protectEnv(t, g.c, g.f, production, resourcev1.Protection_PROTECTION_OPEN)
+		hold := aMember(t, g.f)
+		hold(store.Grant{ProjectID: project, Role: store.RoleDeveloper})
+		url, secret := g.hook(t, web.GetId())
+		hold(store.Grant{ProjectID: store.Install, Role: store.RoleAdmin})
+		protectEnv(t, g.c, g.f, production, resourcev1.Protection_PROTECTION_PROTECTED)
+		hold(store.Grant{ProjectID: project, Role: store.RoleDeveloper})
+
+		d := g.pushTo(t, url, secret, "d-1", store.HookNeedsPerson)
+		// Lowered to viewer since, the maker may not discard it, so isn't told they may.
+		hold(store.Grant{ProjectID: project, Role: store.RoleViewer})
+		lowered, err := g.c.GetChange(t.Context(), connect.NewRequest(&dockwellv1.GetChangeRequest{Id: d.ChangeID}))
+		if err != nil || lowered.Msg.GetChange().GetDiscards() {
+			t.Errorf("to its maker lowered to viewer, the hook's waiting plan reads %v, %v; want not theirs to discard", lowered, err)
+		}
+		if _, err := g.c.DiscardChange(t.Context(), connect.NewRequest(&dockwellv1.DiscardChangeRequest{Id: d.ChangeID})); err == nil {
+			t.Fatal("a viewer discarded the hook's plan")
+		}
+		hold(store.Grant{ProjectID: project, Role: store.RoleDeveloper})
+
+		read, err := g.c.GetChange(t.Context(), connect.NewRequest(&dockwellv1.GetChangeRequest{Id: d.ChangeID}))
+		if err != nil || !read.Msg.GetChange().GetDiscards() || read.Msg.GetChange().GetWaits() == "" {
+			t.Errorf("to its maker, the hook's waiting plan reads %v, %v; want theirs to discard, waiting for an admin", read, err)
+		}
+		if _, err := g.c.DiscardChange(t.Context(), connect.NewRequest(&dockwellv1.DiscardChangeRequest{Id: d.ChangeID})); err != nil {
+			t.Fatalf("the hook's maker discarding what it planned: %v", err)
+		}
+		got, err := g.c.GetChange(t.Context(), connect.NewRequest(&dockwellv1.GetChangeRequest{Id: d.ChangeID}))
+		if err != nil || got.Msg.GetChange().GetState() != dockwellv1.ChangeState_CHANGE_STATE_DISCARDED {
+			t.Errorf("after its maker discarded it, the hook's plan is %v, %v", got, err)
+		}
+	})
+}
+
+// A hook left in no project, as migration 0043 left one whose app was in no
+// environment then, deploys nothing, and says so in its own words, with its fix:
+// a new secret, which takes its app's project as it is now (ADR 0071, #711).
+func TestANewSecretGivesAHookItsAppsProject(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		g := newGitBench(t, backend)
+		g.repo.Commit("main", "First", map[string]string{"Dockerfile": webDockerfile})
+		made := g.done(t, g.propose(t, g.buildEdit("main", nil)))
+		project := envProject(t, g.f, made.GetPlan().GetResources()[0].GetResource().GetScope())
+		web := g.service(t, "", "web")
+		url, _ := g.hook(t, web.GetId())
+		if err := g.f.store.Update(t.Context(), func(tx *store.Tx) error {
+			h, err := tx.GitHookOf(t.Context(), web.GetId())
+			if err != nil {
+				return err
+			}
+			if err := tx.DeleteGitHook(t.Context(), h.ID); err != nil {
+				return err
+			}
+			h.Projects = []string{}
+			return tx.CreateGitHook(t.Context(), h)
+		}); err != nil {
+			t.Fatal(err)
+		}
+		got, err := g.hooks().RotateGitHookSecret(t.Context(), connect.NewRequest(&dockwellv1.RotateGitHookSecretRequest{
+			Id: web.GetId(), Proof: stepUpFor(t, g.b, dockwellv1.StepUpAction_STEP_UP_ACTION_ROTATE_GIT_HOOK, web.GetId()),
+		}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := g.f.store.View(t.Context(), func(tx *store.Tx) error {
+			h, err := tx.GitHookOf(t.Context(), web.GetId())
+			if err == nil && !slices.Equal(h.Projects, []string{project}) {
+				t.Errorf("after a new secret, the hook acts in %v, want web's project %s", h.Projects, project)
+			}
+			return err
+		}); err != nil {
+			t.Fatal(err)
+		}
+		// Production waits for a person, so a push it may make plans and waits.
+		g.pushTo(t, url, got.Msg.GetSecret(), "d-1", store.HookNeedsPerson)
+
+		// Left in no project again, it says so, naming the hook and the fix.
+		if err := g.f.store.Update(t.Context(), func(tx *store.Tx) error {
+			h, err := tx.GitHookOf(t.Context(), web.GetId())
+			if err != nil {
+				return err
+			}
+			if err := tx.DeleteGitHook(t.Context(), h.ID); err != nil {
+				return err
+			}
+			h.Projects = []string{}
+			return tx.CreateGitHook(t.Context(), h)
+		}); err != nil {
+			t.Fatal(err)
+		}
+		d := g.pushTo(t, url, got.Msg.GetSecret(), "d-2", store.HookFailed)
+		if !strings.Contains(d.Detail, "deploy-on-push hook's app is in no project it acts in") || !strings.Contains(d.Detail, "Give the hook a new secret") ||
+			strings.Contains(d.Detail, "API token") {
+			t.Errorf("a push through a hook in no project came to %+v, want it refused in the hook's words", d)
+		}
+	})
+}

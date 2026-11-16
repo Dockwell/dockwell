@@ -212,9 +212,11 @@ func (t *Tx) SetGitHookRole(ctx context.Context, id, role string) error {
 	return nil
 }
 
-// SetGitHookSecret gives a hook a new sealed secret.
-func (t *Tx) SetGitHookSecret(ctx context.Context, id, userID string, secret []byte, at time.Time) error {
-	res, err := t.exec(ctx, `UPDATE git_hooks SET user_id = ?, secret = ?, secret_at = ? WHERE id = ?`, userID, secret, millis(at), id)
+// SetGitHookSecret gives a hook a new sealed secret, for who holds it now, and the
+// projects it acts in from now on (ADR 0071).
+func (t *Tx) SetGitHookSecret(ctx context.Context, id, userID string, projects []string, secret []byte, at time.Time) error {
+	res, err := t.exec(ctx, `UPDATE git_hooks SET user_id = ?, projects = ?, secret = ?, secret_at = ? WHERE id = ?`,
+		userID, projectsColumn(projects), secret, millis(at), id)
 	if err != nil {
 		return fmt.Errorf("can't give hook %s a new secret: %w", id, err)
 	}
