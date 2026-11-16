@@ -28,9 +28,12 @@ import { parseArgs } from "node:util";
 import { type Browser, chromium, type Locator, type Page } from "playwright-core";
 
 import { describePages, watchBrowser } from "./report.ts";
+import { LONG_HOSTNAME } from "./sheets.ts";
 
 // A real binary asks nothing beyond this machine in a test.
 process.env["DOCKWELL_TEST"] = "1";
+// The control server has a name as long as a cloud's, for every check that a page fits a phone (#738).
+process.env["DOCKWELL_TEST_HOSTNAME"] ??= LONG_HOSTNAME;
 
 const { values, positionals } = parseArgs({ allowPositionals: true, options: { shots: { type: "string" } } });
 const bin = resolve(positionals[0] ?? "bin/dockwell");

@@ -40,10 +40,12 @@ import { dockerMade, dockerProbe, dockerStop, removeMade } from "./docker-probe.
 import { hostTools } from "./firewall-flow.ts";
 import { runFlows } from "./flows.ts";
 import { describePages, watchBrowser } from "./report.ts";
-import { onTop } from "./sheets.ts";
+import { LONG_HOSTNAME, onTop } from "./sheets.ts";
 
 // A real binary asks nothing beyond this machine in a test.
 process.env["DOCKWELL_TEST"] = "1";
+// The control server has a name as long as a cloud's, for every check that a page fits a phone (#738).
+process.env["DOCKWELL_TEST_HOSTNAME"] ??= LONG_HOSTNAME;
 // Its builds keep secrets and registry logins in a folder of the test's, as /run is root's.
 process.env["DOCKWELL_TEST_BUILD_SECRETS"] ??= mkdtempSync(join(tmpdir(), "dockwell-build-secrets-"));
 
