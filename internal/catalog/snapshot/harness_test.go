@@ -279,14 +279,11 @@ func TestACheckReachesNoLaterEntryThroughFiles(t *testing.T) {
 
 // needsInputs is an entry, as JSON, with inputs a person must give, an email and a
 // token no default or generator fills, and a tunnel service that reads the token
-// and, with a stand-in, never passes its health check, as cloudflared's wouldn't;
-// or, with exits, stops on it. Its app reads TUNNEL_TOKEN_TTL, a name that starts
-// with the token's, and no stand-in.
-func needsInputs(version string, exits bool) string {
-	fake := "unready"
-	if exits {
-		fake = "exits"
-	}
+// and, as fake says: unready, never passes its health check, as cloudflared's
+// wouldn't with a stand-in; exits, stops on it; or refused, both, as cloudflared's
+// does on a token its far end refuses. Its app reads TUNNEL_TOKEN_TTL, a name that
+// starts with the token's, and no stand-in.
+func needsInputs(version, fake string) string {
 	compose := "services:\n  app:\n    image: example/needs:" + version + "@sha256:" + strings.Repeat("ab", 32) +
 		"\n    ports:\n      - \"127.0.0.1:${PORT}:8080\"\n    environment:\n      ADMIN_EMAIL: ${ADMIN_EMAIL}\n      TTL: ${TUNNEL_TOKEN_TTL}\n" +
 		"  tunnel:\n    image: example/needs-tunnel:" + version + "@sha256:" + strings.Repeat("cd", 32) +
@@ -312,7 +309,7 @@ func needsInputs(version string, exits bool) string {
 // what was left unproven (#745). Before, Dockwell refused the install: "Your email
 // needs a value", and then failed it on the tunnel's health check.
 func TestTheFloorGivesStandInsForWhatAPersonMustGive(t *testing.T) {
-	w := newWorld(t, map[string][]string{"needs": {needsInputs("1.0.0", false), needsInputs("1.1.0", false)}}, nil)
+	w := newWorld(t, map[string][]string{"needs": {needsInputs("1.0.0", "unready"), needsInputs("1.1.0", "unready")}}, nil)
 	out, err := w.run("needs")
 	if err != nil {
 		t.Fatalf("the harness failed: %v\n%s", err, out)
@@ -352,7 +349,7 @@ func TestTheFloorGivesStandInsForWhatAPersonMustGive(t *testing.T) {
 // A service that stops on a stand-in fails the floor plainly, whatever its exit code:
 // a bad token's looks like a broken release's (#745's review, M1).
 func TestAServiceThatStopsOnAStandInFailsTheFloor(t *testing.T) {
-	w := newWorld(t, map[string][]string{"needs": {needsInputs("1.0.0", true), needsInputs("1.1.0", true)}}, nil)
+	w := newWorld(t, map[string][]string{"needs": {needsInputs("1.0.0", "exits"), needsInputs("1.1.0", "exits")}}, nil)
 	out, err := w.run("needs")
 	if err == nil || !strings.Contains(out, "can't prove tunnel: it stops on a stand-in for a secret it reads") || !strings.Contains(out, "Give checks/needs.sh") {
 		t.Errorf("a tunnel that restarts on a stand-in: %v\n%s", err, out)
@@ -408,5 +405,83 @@ func TestTheFloorAllowsAPublicPortOnlyOnItsService(t *testing.T) {
 	out, err := w.run("proxy")
 	if err == nil || !strings.Contains(out, "proxy-production-db-1 is published past this server, where its entry declares only [\"app 18091\"] public") {
 		t.Errorf("another service on the public port's number: %v\n%s", err, out)
+	}
+}
+
+// refusedCheck is a check of needs that gives its inputs, a made-up token among them,
+// and proves its tunnel refused, as checks/cloudflared.sh does, with the line its
+// harness reads for that, as given.
+func refusedCheck(line string) string {
+	return `given[needs]="ADMIN_EMAIL=owner@example.com TUNNEL_TOKEN"
+given_env[needs]="TUNNEL_TOKEN=made-up"
+` + line + `
+check_needs() {
+  container tunnel >/dev/null
+  echo "$1" >>"$FAKE_STATE/../needs-check"
+}
+`
+}
+
+// A check can prove a service its far end refuses, as cloudflared's tunnel on a
+// token of no account: it says refused[needs]="tunnel", and the proof runs that
+// service with no health check and doesn't hold it to running, as it stops and
+// starts again on the refusal. Before and after the upgrade alike, and the check
+// runs at each; the entry is floored, as a real token is left unproven. Before, no
+// check could: the tunnel failed its health check, and with none, the 120 s hold
+// (#745's option 1).
+func TestACheckProvesAServiceItsFarEndRefuses(t *testing.T) {
+	w := newWorld(t, map[string][]string{"needs": {needsInputs("1.0.0", "refused"), needsInputs("1.1.0", "refused")}},
+		map[string]string{"needs": refusedCheck(`refused[needs]="tunnel"`)})
+	out, err := w.run("--require-upgrade", "--no-floor", "needs")
+	if err != nil {
+		t.Fatalf("the harness failed: %v\n%s", err, out)
+	}
+	for _, want := range []string{
+		"needs: runs tunnel with no health check and doesn't hold it to running, as its check proves its far end refuses it",
+		"needs: upgrades from 1.0.0 to 1.1.0",
+		"catalog-e2e: ok",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("the harness never said %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "stand-in") {
+		t.Errorf("an entry with a check got stand-ins:\n%s", out)
+	}
+	if got, want := w.read("needs-check"), "first\nupgraded\n"; got != want {
+		t.Errorf("the check ran as %q, want %q", got, want)
+	}
+	// Its check ran, but what the tunnel does with a real token is left unproven, so
+	// it doesn't merge by itself.
+	if got, want := w.read("floored"), "needs: tunnel's far end refuses it, so what it does with a real value is left unproven\n"; got != want {
+		t.Errorf("the floored list reads %q, want %q", got, want)
+	}
+	if strings.Contains(out, "has no checks/needs.sh") {
+		t.Errorf("the run says needs has no check:\n%s", out)
+	}
+	for _, c := range []string{"chg_1", "chg_2"} {
+		change, err := os.ReadFile(filepath.Join(w.state, "changes", c))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Count(string(change), `\"NONE\"`) != 1 {
+			t.Errorf("%s doesn't run the tunnel, and it alone, with no health check: %s", c, change)
+		}
+	}
+}
+
+// What a check says is refused is held to: a service it doesn't name keeps its health
+// check, and a name the entry runs no service of fails the run.
+func TestACheckSaysWhatItsFarEndRefuses(t *testing.T) {
+	for _, tc := range []struct{ line, want string }{
+		{"", "a container runs, but fails its health check"},
+		{`refused[needs]="tunel"`, "checks/needs.sh says its far end refuses tunel, and needs runs no tunel"},
+	} {
+		w := newWorld(t, map[string][]string{"needs": {needsInputs("1.0.0", "refused"), needsInputs("1.1.0", "refused")}},
+			map[string]string{"needs": refusedCheck(tc.line)})
+		out, err := w.run("--require-upgrade", "--no-floor", "needs")
+		if err == nil || !strings.Contains(out, tc.want) {
+			t.Errorf("a check that says %q: %v, want it to fail with %q:\n%s", tc.line, err, tc.want, out)
+		}
 	}
 }

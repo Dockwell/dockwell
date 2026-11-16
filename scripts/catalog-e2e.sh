@@ -450,11 +450,18 @@ declare -A before=()
 # Why an entry proves no upgrade, where its check says so, which --require-upgrade
 # otherwise fails.
 declare -A upgrade_waived=()
+# The services an entry's check proves its far end refuses, as cloudflared's tunnel
+# is refused on a token of no account: each runs with no health check, which it
+# can't pass, and isn't held to running, as it stops and starts again on the
+# refusal; the check proves the refusal instead (#745). Space-separated, as given.
+# What a real value does is left unproven, so the entry is floored.
+declare -A refused=()
 # The services of the entry being proven that read a stand-in the floor gave for a
 # secret, which run with no health check and are held to running instead (#745);
-# what that leaves unproven, for the floored list; and the change settled last held
-# them for, so each change holds them once.
-unready="" floor_notes="" held_for=""
+# what that leaves unproven, for the floored list; the change settled last held
+# them for, so each change holds them once; and the services its check declares
+# refused, which run with no health check and aren't held, and floor the entry.
+unready="" floor_notes="" held_for="" refused_of=""
 
 # release writes an entry into the catalog's directory, which takes over from the
 # built-in one: as it is, at a higher release, or as the version before it.
@@ -472,7 +479,7 @@ release() {
     done
   fi
   # A service that reads a stand-in for a secret runs with no health check (#745).
-  jq --argjson n "$number" '.release = $n' <<<"$entry" | drop_entry_health "$unready" >"$catalog_dir/$id.yaml"
+  jq --argjson n "$number" '.release = $n' <<<"$entry" | drop_entry_health "$unready $refused_of" >"$catalog_dir/$id.yaml"
 }
 
 # The floor's stand-ins for an entry's required inputs, where it has no check to give
@@ -507,6 +514,14 @@ standin_text() {
   [[ "$characters" != CHARACTERS_URL_SAFE ]] || value=$(tr -c 'A-Za-z0-9._~\n-' '-' <<<"${value#https://}")
   while ((${#value} < least)); do value+="-$(openssl rand -hex 4)"; done
   echo "$value"
+}
+# services_in prints the services of a Compose file, a line each.
+services_in() {
+  awk '
+    function indent(s) { match(s, /^ */); return RLENGTH }
+    /^ *services:[ \t]*$/ { base = indent($0); in_services = 1; next }
+    in_services && $0 !~ /^[ \t]*$/ && indent($0) <= base { in_services = 0 }
+    in_services && indent($0) == base + 2 && /^ *[A-Za-z0-9_.-]+:[ \t]*$/ { service = $1; sub(/:$/, "", service); print service }'
 }
 # reads prints the services of a Compose file that read one of the names given, by
 # the whole name: ${NAME}, ${NAME:-...} and its kin, or $NAME, never ${NAME_TTL}.
@@ -548,7 +563,7 @@ drop_health() {
 drop_entry_health() {
   local text
   text=$(cat)
-  if [[ -z "$1" ]]; then
+  if [[ -z "${1// /}" ]]; then
     printf '%s\n' "$text"
   elif jq -e . >/dev/null 2>&1 <<<"$text"; then
     jq --arg c "$(jq -r .compose <<<"$text" | drop_health "$1")"$'\n' '.compose = $c' <<<"$text"
@@ -592,9 +607,10 @@ settled() {
     [[ "$image" == *@sha256:* ]] || fail "$c runs $image, not pinned by digest"
     [[ -z "${1:-}" || "$1" == *"image: $image"* ]] || fail "$c runs $image, which its entry doesn't name"
     # A service that uses a stand-in the floor gave for a secret reaches nothing
-    # with it, so it's held to having started, not to its health (#745).
+    # with it, so it's held to having started, not to its health; and one its check
+    # proves refused is held to that check (#745).
     service=$(docker inspect --format '{{index .Config.Labels "com.docker.compose.service"}}' "$c") || fail "docker inspect $c failed"
-    if [[ " $unready " == *" $service "* ]]; then
+    if [[ " $unready $refused_of " == *" $service "* ]]; then
       continue
     fi
     health=$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$c") || fail "docker inspect $c failed"
@@ -731,7 +747,7 @@ prove() {
     step "$id: $was installs, answers and signs in"
     # As the catalog had it when this run started, before any check ran.
     [[ -n "${earlier_text[$id@$from]:-}" ]] || fail "the catalog's $from has no entries/$id.yaml"
-    printf '%s\n' "${earlier_text[$id@$from]}" | sed 's/^release: .*/release: 1/' | drop_entry_health "$unready" >"$catalog_dir/$id.yaml"
+    printf '%s\n' "${earlier_text[$id@$from]}" | sed 's/^release: .*/release: 1/' | drop_entry_health "$unready $refused_of" >"$catalog_dir/$id.yaml"
   else
     step "$id: $version installs, answers and signs in"
     release "$entry" 1
@@ -844,8 +860,8 @@ if [[ -n "$check_phase" ]]; then
     defined=false
     ! declare -F "check_$id" >/dev/null || defined=true
     jq -n --argjson defined "$defined" --arg given "${given[$id]:-}" --arg given_env "${given_env[$id]:-}" --arg companions "${companions[$id]:-}" \
-      --arg earliest "${earliest[$id]:-}" --arg before "${before[$id]:-}" --arg upgrade_waived "${upgrade_waived[$id]:-}" \
-      '{$defined, $given, $given_env, $companions, $earliest, $before, $upgrade_waived}' >"$state/declared.json"
+      --arg earliest "${earliest[$id]:-}" --arg before "${before[$id]:-}" --arg upgrade_waived "${upgrade_waived[$id]:-}" --arg refused "${refused[$id]:-}" \
+      '{$defined, $given, $given_env, $companions, $earliest, $before, $upgrade_waived, $refused}' >"$state/declared.json"
     exit 0
   fi
   declare -F "check_$id" >/dev/null || fail "checks/$id.sh defines no check_$id"
@@ -906,7 +922,7 @@ declare -A floored_notes=()
 for id in "$@"; do
   started=$SECONDS
   state=$(mktemp -d "$work/state.XXXXXX")
-  given_of="" given_env_of="" companions_of="" earliest_of="" before_of="" waived_of="" unready="" floor_notes="" held_for="" input_file=""
+  given_of="" given_env_of="" companions_of="" earliest_of="" before_of="" waived_of="" unready="" floor_notes="" held_for="" refused_of="" input_file=""
   # Its own check where the catalog has one, else the floor, with which it doesn't
   # merge by itself (ADR 0100).
   if [[ -n "${check_text[$id]+set}" ]]; then
@@ -919,6 +935,8 @@ for id in "$@"; do
     earliest_of=$(jq -r .earliest <<<"$declared")
     before_of=$(jq -r .before <<<"$declared")
     waived_of=$(jq -r .upgrade_waived <<<"$declared")
+    read -r -a named <<<"$(jq -r .refused <<<"$declared")"
+    refused_of=${named[*]}
   else
     step "$id: has no checks/$id.sh, so it gets the floor alone"
     floored+=("$id")
@@ -929,6 +947,18 @@ for id in "$@"; do
   version=$(jq -r .version <<<"$entry")
   # With no check to give what a person types, the floor gives stand-ins (#745).
   [[ -n "${check_text[$id]+set}" ]] || standins
+  # A service its check proves refused, by its far end, is one the entry runs. Its
+  # entry is floored, though its check runs: what the service does with a real value
+  # is left unproven, so it doesn't merge by itself.
+  if [[ -n "$refused_of" ]]; then
+    runs=" $(jq -r .compose <<<"$entry" | services_in | tr '\n' ' ')"
+    for s in $refused_of; do
+      [[ "$runs" == *" $s "* ]] || fail "checks/$id.sh says its far end refuses $s, and $id runs no $s. Name a service of its compose in refused[$id]"
+    done
+    step "$id: runs ${refused_of// /, } with no health check and doesn't hold it to running, as its check proves its far end refuses it: what it does with a real value is left unproven, so it's floored"
+    floored+=("$id")
+    floor_notes="${refused_of// /, }'s far end refuses it, so what it does with a real value is left unproven"
+  fi
   [[ -z "$floor_notes" ]] || floored_notes[$id]=$floor_notes
   read -r -a values <<<"$given_of"
   inputs_file
@@ -983,7 +1013,8 @@ done
 if [[ -n "${E2E_FLOORED:-}" ]]; then
   : >"$E2E_FLOORED"
   for id in "${floored[@]}"; do
-    # What a stand-in left unproven, beside the entry, for the person who merges.
+    # What a stand-in, or a refusal its check proves, left unproven, beside the entry,
+    # for the person who merges.
     if [[ -n "${floored_notes[$id]:-}" ]]; then echo "$id: ${floored_notes[$id]}"; else echo "$id"; fi
   done >"$E2E_FLOORED"
 fi

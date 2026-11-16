@@ -36,7 +36,7 @@ on:
         default: true
     outputs:
       floored:
-        description: The entries proven with the floor alone, as they have no checks/<id>.sh, which don't merge by themselves, separated by "; ", each with what a stand-in for an input left unproven after a colon, where one did.
+        description: The entries that don't merge by themselves, as they have no checks/<id>.sh or their check proves a service refused by its far end, separated by "; ", each with what a stand-in for an input or the refusal left unproven after a colon, where one did.
         value: ${{ jobs.x86.outputs.floored }}
       not-upgraded:
         description: The entries that proved no upgrade, as every earlier release was before the earliest their check runs, which don't merge by themselves either.
@@ -125,7 +125,7 @@ jobs:
           [[ "$REQUIRE" != true ]] || flags+=(--require-upgrade)
           [[ "$FLOOR" == true ]] || flags+=(--no-floor)
           E2E_FLOORED="$floored" E2E_NOT_UPGRADED="$not_upgraded" dockwell/scripts/catalog-e2e.sh dockwell/bin/dockwell "${flags[@]}" "${ids[@]}"
-          # Each floored entry on a line, with what a stand-in left unproven after a colon.
+          # Each floored entry on a line, with what a stand-in or a refusal left unproven after a colon.
           {
             echo "floored=$(paste -sd ';' "$floored" | sed 's/;/; /g')"
             echo "floored-ids=$(cut -d: -f1 "$floored" | paste -sd ' ')"
@@ -133,7 +133,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
   # An entry with no check of its own runs on arm64 too, as nothing else says it
-  # runs there.
+  # runs there, and so does one floored for a refusal its check proves.
   arm64:
     name: arm64, entries with the floor alone
     needs: x86

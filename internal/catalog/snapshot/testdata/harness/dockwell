@@ -8,7 +8,8 @@
 # and so is an install that leaves a required input with no value. A service whose
 # definition says x-fake: unready never turns healthy, as one that reaches nothing
 # with a stand-in token wouldn't, unless its health check is test: ["NONE"], which
-# Docker then doesn't run; and one that says x-fake: exits restarts. A change whose
+# Docker then doesn't run; one that says x-fake: exits restarts; and one that says
+# x-fake: refused does both, as a tunnel its far end refuses does. A change whose
 # container reads unhealthy fails, as Dockwell's verify fails it.
 set -euo pipefail
 S=$FAKE_STATE
@@ -54,6 +55,7 @@ run_entry() {
     '      test: ["NONE"]') flags+=("$service none") ;;
     '    x-fake: unready') flags+=("$service unready") ;;
     '    x-fake: exits') flags+=("$service exits") ;;
+    '    x-fake: refused') flags+=("$service refused") ;;
     esac
     # A port it publishes, from an input: port=<in the container>:<on this server>,
     # and :all after it where it has no address, on every one.
@@ -72,7 +74,7 @@ run_entry() {
     [[ -f "$file" ]] || continue
     if grep -qx 'flag=none' "$file"; then
       sed -i 's/^health=.*/health=none/' "$file"
-    elif grep -qx 'flag=unready' "$file"; then
+    elif grep -qxE 'flag=(unready|refused)' "$file"; then
       sed -i 's/^health=.*/health=unhealthy/' "$file"
     fi
   done
