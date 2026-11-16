@@ -26,6 +26,7 @@ import (
 	"github.com/dockwell/dockwell/internal/auth/authtest"
 	"github.com/dockwell/dockwell/internal/datadir"
 	"github.com/dockwell/dockwell/internal/seal"
+	"github.com/dockwell/dockwell/internal/control/settings"
 	"github.com/dockwell/dockwell/internal/store"
 )
 
@@ -57,6 +58,12 @@ func startRunAsService(t *testing.T, dir string) (out, logs *syncBuffer, stop fu
 
 func startRunOn(t *testing.T, terminal bool, dir, want string, args ...string) (out, logs *syncBuffer, stop func()) {
 	t.Helper()
+	return startRunEnvOn(t, terminal, dir, want, nil, args...)
+}
+
+// startRunEnvOn is startRunOn with env set beside what every run has.
+func startRunEnvOn(t *testing.T, terminal bool, dir, want string, env map[string]string, args ...string) (out, logs *syncBuffer, stop func()) {
+	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan int, 1)
 	out = &syncBuffer{}
@@ -64,6 +71,9 @@ func startRunOn(t *testing.T, terminal bool, dir, want string, args ...string) (
 	all := append([]string{"run", "--listen", "127.0.0.1:0", "--agent-listen", "127.0.0.1:0", "--data-dir", dir, "--log-format", "json"}, args...)
 	go func() {
 		done <- Execute(ctx, all, IO{Out: out, Err: errOut, Getenv: quiet(func(k string) string {
+			if v, ok := env[k]; ok {
+				return v
+			}
 			return map[string]string{"USER": "mira", "SSH_CONNECTION": "198.51.100.23 52000 203.0.113.7 22"}[k]
 		}), OutIsTerminal: func() bool { return terminal }})
 	}()
@@ -234,9 +244,49 @@ func TestRunBehindATunnelHoldsNoPublicPort(t *testing.T) {
 		t.Errorf("dockwell run asked for a certificate behind a tunnel:\n%s", logs.String())
 	}
 
-	r := run(t, map[string]string{envLogFormat: "json", envDataDir: t.TempDir(), envBehindProxy: "1"}, "run", "--agent-listen", "127.0.0.1:0")
-	if r.code != exitUsage || !strings.Contains(r.err, "--behind-proxy needs the domain the tunnel or proxy serves") {
-		t.Errorf("run behind a proxy with no domain = %d %q, want a usage error", r.code, r.err)
+}
+
+// DOCKWELL_BEHIND_PROXY with no domain from dockwell run, as when the domain was set
+// under Settings, never stops it: the panel answers on loopback, and on the
+// setting's domain as the setting says, and the log says the variable does nothing
+// (#734's review, M1).
+func TestBehindProxyWithoutADomainNeverStopsRun(t *testing.T) {
+	env := map[string]string{envBehindProxy: "1"}
+	dir := t.TempDir()
+	_, logs, stop := startRunEnvOn(t, true, dir, "/claim#", env)
+	if !strings.Contains(logs.String(), "--behind-proxy (DOCKWELL_BEHIND_PROXY) goes with --domain (DOCKWELL_DOMAIN), so it does nothing here") {
+		t.Errorf("with no domain anywhere, run doesn't say the variable does nothing:\n%s", logs.String())
+	}
+	stop()
+
+	// A domain from the settings, Dockwell serving it: the variable doesn't make it
+	// a tunnel's, and run still starts.
+	db, err := store.Open(t.Context(), filepath.Join(dir, "control", "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Update(t.Context(), func(tx *store.Tx) error {
+		return tx.PutSetting(t.Context(), settings.KeyPanelDomain, []byte("panel.example.com"))
+	}); err != nil {
+		t.Fatal(err)
+	}
+	_ = db.Close()
+	_, logs, _ = startRunEnvOn(t, true, dir, "", env, "--https-listen", "127.0.0.1:0", "--http-listen", "127.0.0.1:0")
+	waitForLog(t, logs, "--behind-proxy (DOCKWELL_BEHIND_PROXY) goes with --domain")
+	if strings.Contains(logs.String(), "a tunnel or a proxy that ends TLS serves the panel's domain") {
+		t.Errorf("the variable made a domain from the settings a tunnel's:\n%s", logs.String())
+	}
+}
+
+// waitForLog waits until logs hold want.
+func waitForLog(t *testing.T, logs *syncBuffer, want string) {
+	t.Helper()
+	deadline := time.Now().Add(startUp)
+	for !strings.Contains(logs.String(), want) {
+		if time.Now().After(deadline) {
+			t.Fatalf("dockwell run never logged %q:\n%s", want, logs.String())
+		}
+		time.Sleep(20 * time.Millisecond)
 	}
 }
 

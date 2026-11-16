@@ -171,9 +171,6 @@ func runControl(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logg
 			return usageError{fmt.Errorf("--domain %w", err)}
 		}
 	}
-	if f.behindProxy && f.domain == "" {
-		return usageError{errors.New("--behind-proxy needs the domain the tunnel or proxy serves: add --domain, or set it under Settings, General, without --behind-proxy")}
-	}
 	if err := datadir.Ensure(dir.Control()); err != nil {
 		return err
 	}
@@ -198,10 +195,20 @@ func runControl(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logg
 	var domainProblem string
 	f.domain, domainFrom, domainProblem = panelDomainAtStart(ctx, logger, db, f.domain)
 	fromSetting := domainFrom == dockwellv1.PanelDomainFrom_PANEL_DOMAIN_FROM_SETTING
-	if fromSetting && f.domain != "" {
-		// The setting says how its domain is served too.
-		set, err := settings.PanelSetting(ctx, db)
-		f.behindProxy = err == nil && set.Domain == f.domain && set.BehindProxy
+	// --behind-proxy goes with --domain. A domain from the settings is served as they
+	// say, and neither stops dockwell run, so the panel always answers on loopback
+	// (ADR 0063's amendment).
+	given := f.behindProxy
+	if fromSetting {
+		f.behindProxy = false
+		if f.domain != "" {
+			set, err := settings.PanelSetting(ctx, db)
+			f.behindProxy = err == nil && set.Domain == f.domain && set.BehindProxy
+		}
+	}
+	if given && domainFrom != dockwellv1.PanelDomainFrom_PANEL_DOMAIN_FROM_RUN {
+		logger.Warn("--behind-proxy (DOCKWELL_BEHIND_PROXY) goes with --domain (DOCKWELL_DOMAIN), so it does nothing here: how the panel's domain is served is set where the domain is, under Settings, General",
+			slog.String("domain", f.domain), slog.Bool("behind_proxy", f.behindProxy))
 	}
 
 	var ls control.Listeners
