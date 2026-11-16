@@ -36,7 +36,7 @@ import { Page } from "../shell/Page";
 import { ConnectionSheet } from "./ConnectionSheet";
 import { where } from "./ConnectionsPage";
 import { ConnectStorageSheet } from "./ConnectStorageSheet";
-import { useCheckWords, useConnections, useProjectLabel } from "./useConnections";
+import { SILENT, useCheckWords, useConnections, useProjectLabel } from "./useConnections";
 import "../apps/Apps.css";
 import "./Connections.css";
 
@@ -176,7 +176,7 @@ function useCheck(name: string) {
 
 function CheckState({ answer }: { answer: CheckConnectionResponse }) {
   const words = useCheckWords()(answer);
-  const silent = ["timeout", "unreachable", "refused"].includes(answer.code);
+  const silent = SILENT.includes(answer.code);
   return (
     <StatusBadge status={words.passed ? "healthy" : silent ? "unknown" : "down"} label={words.state} labelIsState />
   );

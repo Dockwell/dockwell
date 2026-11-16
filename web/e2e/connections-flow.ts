@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 // Connections (ADR 0099): Connections adds one to a bucket from a store's tile, the
-// bucket checked from the server as its keys are typed, and a bucket the check can't
-// reach from a network of its own still plans, as an app may reach it from its own;
-// the plan never shows the key. The connection's page checks it again, and an app's
+// bucket checked from the server as its keys are typed. An address Dockwell keeps
+// every check and app from, as this server's own is, can't be planned; a bucket the
+// check can't reach from a network of its own still plans, as an app may reach it
+// from its own; the plan never shows the key. The connection's page checks it again, and an app's
 // Connect storage checks it from the app's network, which plans nothing here and says
 // why, as nothing on this machine is a bucket the app's network reaches. Then it's
 // removed, as nothing reads it.
@@ -17,11 +18,15 @@ function fail(message: string): never {
   throw new Error(message);
 }
 
-// Made-up keys; the port is one nothing listens on, on this machine's loopback, which
-// a check from a server never reaches.
+// Made-up keys. The first endpoint is this machine's loopback, which Dockwell sends
+// nothing to; the second an IPv6 documentation address, which the guard allows and
+// nothing answers at: a machine with no IPv6 route says so at once, one with a route
+// waits out the check.
 const KEY_ID = "AKIDE2EEXAMPLE";
 const SECRET = "e2e-connection-secret-key";
-const ENDPOINT = "http://127.0.0.1:9";
+const OWN = "http://127.0.0.1:9";
+const ENDPOINT = "http://[2001:db8::10]:9000";
+const UNREACHED = /Can't reach it|No answer/;
 
 export const flow: Flow = {
   order: 98,
@@ -78,15 +83,20 @@ export const flow: Flow = {
     await page.getByRole("button", { name: "Another S3-compatible store" }).click();
     const sheet = page.getByRole("dialog", { name: "Add a connection" });
     await sheet.waitFor();
-    await sheet.getByRole("textbox", { name: "Endpoint" }).fill(ENDPOINT);
+    await sheet.getByRole("textbox", { name: "Endpoint" }).fill(OWN);
     await sheet.getByRole("textbox", { name: "Bucket" }).fill("e2e-files");
     await sheet.getByRole("textbox", { name: "Access key ID" }).fill(KEY_ID);
     await sheet.getByLabel("Secret access key").fill(SECRET);
-    // The server's own address is one a check never reaches from a network of its own.
+    // The server's own address is one no check and no app reaches, from any network.
     await sheet.getByText("Address refused").waitFor({ timeout: 30_000 });
+    await sheet.getByText(/No app can use it either/).waitFor();
+    const review = sheet.getByRole("button", { name: "Review plan" });
+    if (!(await review.isDisabled())) fail("an address Dockwell sends nothing to can be planned");
+    await shoot(page, "connections-add-refused");
+    await sheet.getByRole("textbox", { name: "Endpoint" }).fill(ENDPOINT);
+    await sheet.getByText(UNREACHED).waitFor({ timeout: 90_000 });
     await sheet.getByText(/An app's link checks it again/).waitFor();
     await shoot(page, "connections-add");
-    const review = sheet.getByRole("button", { name: "Review plan" });
     if (await review.isDisabled()) fail("a bucket the server can't reach from here can't be planned");
     await review.click();
     const plan = page.locator(".plan-sheet");
@@ -101,7 +111,7 @@ export const flow: Flow = {
     await page.getByRole("heading", { level: 1, name: "e2e-files" }).waitFor({ timeout: 20_000 });
     await page.getByText("No app reads it yet.").waitFor();
     await page.getByRole("button", { name: "Check", exact: true }).click();
-    await page.getByText("Address refused").first().waitFor({ timeout: 30_000 });
+    await page.getByText(UNREACHED).first().waitFor({ timeout: 90_000 });
     if ((await page.locator("main").innerText()).includes(SECRET)) fail("the connection's page shows its key");
     await shoot(page, "connections-page");
 
@@ -117,7 +127,7 @@ export const flow: Flow = {
     if ((await bucket.inputValue()) === "0") fail("Connect storage suggested nothing for NOTES_S3_BUCKET");
     await shoot(page, "connections-connect-storage");
     await connect.getByRole("button", { name: /Check and review plan/ }).click();
-    await connect.getByText("Nothing was planned", { exact: true }).waitFor({ timeout: 60_000 });
+    await connect.getByText("Nothing was planned", { exact: true }).waitFor({ timeout: 90_000 });
     await shoot(page, "connections-connect-refused");
     await connect.getByRole("button", { name: "Cancel" }).click();
 

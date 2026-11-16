@@ -22,11 +22,8 @@ import { useChangeSheet } from "../changes/ChangeSheet";
 import { useAllResources } from "../projects/useProjects";
 import { useFleetView } from "../servers/useFleet";
 import { BUCKET, freeConnectionName, PROVIDERS, type ProviderId, placeOf, provider, R2_ACCOUNT } from "./providers";
-import { useCheckWords, useConnections } from "./useConnections";
+import { SILENT, useCheckWords, useConnections } from "./useConnections";
 import "./Connections.css";
-
-/** What a check says where it got no answer from the bucket, rather than a refusal. */
-const NO_ANSWER: readonly string[] = ["refused", "timeout", "unreachable"];
 
 /** How long typing pauses before a connection is checked. */
 const CHECK_AFTER_MS = 700;
@@ -135,11 +132,11 @@ export function ConnectionSheet({
   const complete = endpoint !== "" && bucketOk && (keysNeeded ? typedKeys : true);
   const reaching = reach === ConnectionReach.EVERY || picked.length > 0;
   const passed = answer?.passed === true;
-  // A bucket that answered and refused is wrong as typed. One this server can't reach
-  // from a network of the check's own may still be one an app reaches from its own, as
-  // a store on an app's network is: each app's link checks it again from there before
-  // anything is planned for it.
-  const unreached = answer !== undefined && !passed && NO_ANSWER.includes(answer.code);
+  // A bucket that answered and refused is wrong as typed, as is an address Dockwell
+  // keeps every check and app from. One this server can't reach from a network of the
+  // check's own may still be one an app reaches from its own, as a store on an app's
+  // network is: each app's link checks it again from there before anything is planned.
+  const unreached = answer !== undefined && !passed && SILENT.includes(answer.code);
   const ready = complete && reaching && name !== "" && (mayCheck ? passed || unreached : true);
 
   // Each change to what's checked moves this on, so an answer to what changed since is dropped.
@@ -351,7 +348,7 @@ export function ConnectionSheet({
                 status={
                   check.passed
                     ? "healthy"
-                    : ["timeout", "unreachable", "refused"].includes(answer?.code ?? "")
+                    : unreached
                       ? "unknown"
                       : "down"
                 }

@@ -11491,9 +11491,6 @@ msgstr "请检查端点，以及服务器能否访问它。"
 msgid "Check the endpoint."
 msgstr "请检查端点。"
 
-msgid "Dockwell keeps apps from that address."
-msgstr "Dockwell 不允许应用访问该地址。"
-
 #. placeholder {0}: c.region
 msgid "It answered from region {0}."
 msgstr "它从区域 {0} 应答。"
@@ -11503,6 +11500,9 @@ msgstr "密钥被拒绝"
 
 msgid "No answer"
 msgstr "无应答"
+
+msgid "No app can use it either. Give the address apps reach the store at."
+msgstr "任何应用也都无法使用它。请填写应用访问该存储所用的地址。"
 
 msgid "No such bucket"
 msgstr "没有这个存储桶"

@@ -11491,9 +11491,6 @@ msgstr "Check the endpoint, and that the server can reach it."
 msgid "Check the endpoint."
 msgstr "Check the endpoint."
 
-msgid "Dockwell keeps apps from that address."
-msgstr "Dockwell keeps apps from that address."
-
 #. placeholder {0}: c.region
 msgid "It answered from region {0}."
 msgstr "It answered from region {0}."
@@ -11503,6 +11500,9 @@ msgstr "Keys refused"
 
 msgid "No answer"
 msgstr "No answer"
+
+msgid "No app can use it either. Give the address apps reach the store at."
+msgstr "No app can use it either. Give the address apps reach the store at."
 
 msgid "No such bucket"
 msgstr "No such bucket"

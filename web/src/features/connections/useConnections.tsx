@@ -16,6 +16,13 @@ export function useConnections(environment = "") {
 const NO_ANSWER = ["refused", "timeout", "unreachable", "tls", "mismatch"] as const;
 
 /**
+ * The codes of a check that got no answer from the bucket, rather than a refusal: a
+ * check from another network, as an app's, may still reach it. "refused" isn't one:
+ * it's an address Dockwell keeps every check and app from.
+ */
+export const SILENT: readonly string[] = ["timeout", "unreachable"];
+
+/**
  * What a check found, as a state and a line: Reached from a server, or the fact and
  * its fix in the words a person acts on, never the bucket's own body.
  */
@@ -33,7 +40,11 @@ export function useCheckWords() {
     const said = c.words || c.message;
     switch (code as (typeof NO_ANSWER)[number] | string) {
       case "refused":
-        return { passed: false, state: t`Address refused`, line: said || t`Dockwell keeps apps from that address.` };
+        return {
+          passed: false,
+          state: t`Address refused`,
+          line: `${said ? `${said}. ` : ""}${t`No app can use it either. Give the address apps reach the store at.`}`,
+        };
       case "timeout":
         return { passed: false, state: t`No answer`, line: t`Check the endpoint, and that the server can reach it.` };
       case "unreachable":
@@ -65,7 +76,7 @@ export function useCheckWords() {
 /** A check's state, as a badge: healthy where it passed, down where the bucket refused, unknown where nothing answered. */
 export function CheckBadge({ check }: { check: CheckConnectionResponse }) {
   const words = useCheckWords()(check);
-  const silent = ["timeout", "unreachable", "refused"].includes(check.code);
+  const silent = SILENT.includes(check.code);
   return (
     <StatusBadge status={words.passed ? "healthy" : silent ? "unknown" : "down"} label={words.state} labelIsState />
   );

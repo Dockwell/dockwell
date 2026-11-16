@@ -236,6 +236,35 @@ describe("Connections", () => {
     expect(within(sheet).getByRole("button", { name: "Review plan" })).toBeEnabled();
   });
 
+  // Review M1: an address Dockwell keeps every check and app from, such as loopback or a
+  // metadata service, can never work, so it isn't saved as one nothing answered.
+  it("doesn't plan an address Dockwell keeps apps from, and says why", async () => {
+    const user = userEvent.setup();
+    renderAt("/connections", {
+      ...fleet(),
+      resources: places(),
+      connections: {
+        checkConnection: () => ({
+          passed: false,
+          step: "connect",
+          code: "refused",
+          words: "127.0.0.1 is this server's own address, so Dockwell sends nothing there",
+          server: "hz-1",
+        }),
+      },
+    });
+    await user.click(await screen.findByRole("button", { name: "Another S3-compatible store" }));
+    const sheet = await screen.findByRole("dialog", { name: "Add a connection" });
+    await user.type(within(sheet).getByRole("textbox", { name: "Endpoint" }), "http://127.0.0.1:9000");
+    await user.type(within(sheet).getByRole("textbox", { name: "Bucket" }), "wiki-files");
+    await user.type(within(sheet).getByRole("textbox", { name: "Access key ID" }), "minio");
+    await user.type(within(sheet).getByLabelText("Secret access key"), "minio-secret");
+    expect(await within(sheet).findByText("Address refused", {}, { timeout: 3000 })).toBeVisible();
+    expect(within(sheet).getByText(/this server's own address.*No app can use it either/)).toBeVisible();
+    expect(within(sheet).queryByText(/An app's link checks it again/)).toBeNull();
+    expect(within(sheet).getByRole("button", { name: "Review plan" })).toBeDisabled();
+  });
+
   // Review H1: a secret typed alone was planned beside an empty access key ID, which
   // every app reading the connection would then start with.
   it("asks for both keys once either is typed, and never plans a new secret without its ID", async () => {
