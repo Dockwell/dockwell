@@ -212,13 +212,14 @@ func TestStoppingThePanelsProxyAlone(t *testing.T) {
 		}
 	}
 	// A control plane older than this agent digests a redirect as no redirect, so
-	// planning again would refuse again: it says what helps instead.
+	// planning again would refuse again; a redirect turned on since a current plan
+	// reads the same. It names both ways out (the slice 4 re-check's N2).
 	older := Stopper{Docker: e.Client(), Check: func(context.Context, string, []string) (Checked, error) {
 		return Checked{Evidence: "e2", Redirects: []string{"www.blog.example.com"}, AsBefore: "e1"}, nil
 	}}
 	if err := older.ApplyPanel(t.Context(), *plan, func(string) {}); err == nil ||
-		!strings.Contains(err.Error(), "the control plane that planned this is older than this agent and would hand over www.blog.example.com as a route to the app") ||
-		strings.Contains(err.Error(), "Plan the handover again") || !e.Container("coolify-proxy").State.Running {
+		!strings.Contains(err.Error(), "www.blog.example.com redirects now, which the plan didn't read. Plan the handover again; if it's refused the same way, the control plane is older than this agent") ||
+		!e.Container("coolify-proxy").State.Running {
 		t.Errorf("a plan an older control plane made of a redirect = %v", err)
 	}
 	unchosen := *plan

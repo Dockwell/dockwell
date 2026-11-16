@@ -297,8 +297,11 @@ func (s Stopper) checkAgain(ctx context.Context, p resource.Panel) error {
 	case got.Evidence == p.Evidence:
 		return nil
 	case len(got.Redirects) > 0 && got.AsBefore == p.Evidence:
-		// Planning again can't help: the control plane would plan it the same.
-		return fmt.Errorf("%s goes on running, as the control plane that planned this is older than this agent and would hand over %s as a route to the app, not the redirect it is. Update the control plane, or leave them out of the handover",
+		// Either a control plane older than this agent planned it, which would plan it
+		// the same again, or the panel's redirect came on since the plan, which a
+		// plan made now would see: the digest can't tell them apart, as one without a
+		// redirect reads as before by design, so the words name both.
+		return fmt.Errorf("%s goes on running, as %s redirects now, which the plan didn't read. Plan the handover again; if it's refused the same way, the control plane is older than this agent: update it, or leave them out of the handover",
 			proxy, strings.Join(got.Redirects, " and "))
 	}
 	return fmt.Errorf("%s goes on running, as what Dockwell checked of %s changed since the plan. Plan the handover again to see what changed", proxy, strings.Join(p.Domains, ", "))
