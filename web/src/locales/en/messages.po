@@ -7915,6 +7915,9 @@ msgstr "{service} in {project}"
 msgid "From the catalog"
 msgstr "From the catalog"
 
+msgid "Install {lower} beside it"
+msgstr "Install {lower} beside it"
+
 msgctxt "catalog card"
 msgid "Installed"
 msgstr "Installed"
@@ -7937,6 +7940,9 @@ msgstr "{0, plural, one {# note from its catalog} other {# notes from its catalo
 
 msgid "· a change to how it runs is out"
 msgstr "· a change to how it runs is out"
+
+msgid "· withdrawn by its catalog, so it stays on {version} until a later release"
+msgstr "· withdrawn by its catalog, so it stays on {version} until a later release"
 
 msgid "· {next} is out"
 msgstr "· {next} is out"

@@ -411,6 +411,75 @@ func better(a track, aTag string, b track, bTag, variant string) bool {
 	return aTag < bTag
 }
 
+// Older says to is a lower version than from, as their numbers read: 1.9 is
+// below 2.0, and 2.0.1 below 2.1. With the same numbers, a pre-release is below
+// its release, and below a later pre-release (2.0.0-rc1 below 2.0.0-rc2, and
+// beta below rc), and a build numbered by a word, such as -ls44, below a later one
+// of the same word. A version whose numbers can't be read, such as latest, is
+// never lower, nor is one of another numbering (Renumbered), which a person
+// decides. A catalog's release of a lower version is a move down (ADR 0080).
+func Older(from, to string) bool {
+	a, okA := readTrack(from)
+	b, okB := readTrack(to)
+	if !okA || !okB || calendar(a.nums) != calendar(b.nums) {
+		return false
+	}
+	if c := compareInts(b.nums, a.nums); c != 0 {
+		return c < 0
+	}
+	switch {
+	case a.pre != b.pre:
+		return b.pre
+	case a.pre:
+		if ra, rb := preRank(from), preRank(to); ra != rb {
+			return rb < ra
+		}
+		return compareInts(b.preNum, a.preNum) < 0
+	}
+	wa, na, okA := wordNumber(a.variant)
+	wb, nb, okB := wordNumber(b.variant)
+	return okA && okB && wa == wb && nb < na
+}
+
+// Renumbered says two versions are of different numberings, a calendar version,
+// such as 2024.10.1, against one that isn't, such as 3.0.0, either way round.
+// Neither can say whether the other is newer or lower, so a catalog's move from one
+// to the other is offered, and a person takes it: an automatic update never does
+// (ADR 0080; the release-wait re-check, N2).
+func Renumbered(from, to string) bool {
+	a, okA := readTrack(from)
+	b, okB := readTrack(to)
+	return okA && okB && calendar(a.nums) != calendar(b.nums)
+}
+
+// calendar says a version's numbers are a date's, as its first is a year.
+func calendar(nums []int) bool { return len(nums) > 0 && nums[0] >= 1000 }
+
+// preRank orders a pre-release's word: a nightly or a dev build, then alpha,
+// beta, pre and rc.
+func preRank(tag string) int {
+	low := strings.ToLower(parseVersion(tag).suffix)
+	for i, w := range []string{"alpha", "beta", "pre", "rc"} {
+		if strings.HasPrefix(low, w) {
+			return i + 1
+		}
+	}
+	return 0
+}
+
+// wordNumber reads a variant that's a word and a number, such as ls45, as both.
+func wordNumber(variant string) (word string, number int, ok bool) {
+	i := strings.IndexFunc(variant, func(r rune) bool { return r >= '0' && r <= '9' })
+	if i <= 0 {
+		return "", 0, false
+	}
+	n, err := strconv.Atoi(variant[i:])
+	if err != nil {
+		return "", 0, false
+	}
+	return variant[:i], n, true
+}
+
 // Step classes a step from one version to another, read alone, as a catalog
 // entry's versions are: KindNone when they're the same, and KindMajor when they
 // differ and either doesn't read as a version, which says too much rather than

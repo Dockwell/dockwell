@@ -82,6 +82,14 @@ type CatalogInstall struct {
 	Release uint32
 	// Notes is where the app's releases are, an https address, or empty.
 	Notes string
+	// Since is when the install's source moved to the newer release, which its
+	// update says as when it was found: an automatic update waits 3 days from it
+	// (ADR 0080). Zero where it isn't known.
+	Since time.Time
+	// WithdrawnTo is the lower version its catalog moved to, below the one it runs,
+	// which it keeps, taking no new build of a tag that moves meanwhile; empty
+	// unless (ADR 0080).
+	WithdrawnTo string
 }
 
 // Keeper knows what's newer than what each service runs.
@@ -379,6 +387,8 @@ func catalogUpdate(c CatalogInstall, now time.Time) *dockwellv1.ServiceUpdate {
 		Source:    dockwellv1.UpdateSource_UPDATE_SOURCE_CATALOG,
 		Check:     dockwellv1.UpdateCheck_UPDATE_CHECK_UP_TO_DATE,
 		CheckTime: timestamppb.New(now),
+		// What it reads beside up to date where its catalog withdrew what it runs.
+		WithdrawnVersion: c.WithdrawnTo,
 	}
 	if c.ToRelease == 0 {
 		return u
@@ -396,6 +406,9 @@ func catalogUpdate(c CatalogInstall, now time.Time) *dockwellv1.ServiceUpdate {
 	u.Available = []*dockwellv1.AvailableUpdate{{
 		Kind: kind, FromVersion: c.FromVersion, ToVersion: c.ToVersion, CatalogRelease: c.ToRelease, NotesUrl: c.Notes,
 	}}
+	if !c.Since.IsZero() {
+		u.Available[0].FoundTime = timestamppb.New(c.Since)
+	}
 	return u
 }
 
@@ -404,7 +417,10 @@ func catalogUpdate(c CatalogInstall, now time.Time) *dockwellv1.ServiceUpdate {
 // install takes (ADR 0085). Each is offered at the release it runs, as it upgrades
 // through its catalog and takes no image.
 func newBuilds(u, found *dockwellv1.ServiceUpdate, install CatalogInstall) {
-	if found == nil {
+	// An install whose catalog withdrew the version it runs builds from an entry it
+	// can't take, so it's offered none until a later release (the release-wait
+	// review, L1).
+	if found == nil || install.WithdrawnTo != "" {
 		return
 	}
 	for _, a := range found.GetAvailable() {

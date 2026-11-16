@@ -15,6 +15,8 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync/atomic"
+	"time"
 
 	"connectrpc.com/connect"
 	"google.golang.org/protobuf/proto"
@@ -29,6 +31,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/changes"
 	"github.com/dockwell/dockwell/internal/control/composeapi"
+	"github.com/dockwell/dockwell/internal/registry"
 	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
 	"github.com/dockwell/dockwell/internal/resource/service"
@@ -48,6 +51,9 @@ type Handler struct {
 	sources *Sources
 	commit  string
 	logger  *slog.Logger
+	// beforeHeld, where a test sets it, runs as heldSince starts, after the catalog
+	// it's asked about was read, to move a source in between.
+	beforeHeld atomic.Pointer[func()]
 	// digests pins the images of an entry converted on the control plane when a
 	// plan installs it. Nil can't plan installing one.
 	digests Digests
@@ -446,6 +452,12 @@ type InstallUpgrade struct {
 	// it's up to date or its catalog no longer has its entry.
 	ToVersion string
 	ToRelease uint32
+	// Since is when the install's source moved to that release, from which an
+	// automatic update waits 3 days to take it (ADR 0080). Zero with none.
+	Since time.Time
+	// WithdrawnTo is the lower version its catalog moved to, below the one it runs,
+	// empty unless (ADR 0080).
+	WithdrawnTo string
 	// AppSource is the app's source repository, as its entry says, for its
 	// release notes.
 	AppSource string
@@ -459,21 +471,40 @@ func (h *Handler) InstallUpgrades(ctx context.Context) (map[string]InstallUpgrad
 		return nil, err
 	}
 	out := map[string]InstallUpgrade{}
+	// Each source's release of each entry an install can move to, by "<source>/<entry>".
+	wanted, keys := map[string]asked{}, map[string]string{}
 	err = h.db.View(ctx, func(tx *store.Tx) error {
 		installs, err := h.installs(ctx, tx, s)
 		if err != nil {
 			return err
 		}
 		for _, in := range installs {
-			u := InstallUpgrade{FromVersion: in.GetPin().GetVersion(), Release: in.GetPin().GetRelease(), ToVersion: in.GetUpgrade().GetVersion(), ToRelease: in.GetUpgrade().GetRelease()}
+			u := InstallUpgrade{
+				FromVersion: in.GetPin().GetVersion(), Release: in.GetPin().GetRelease(), ToVersion: in.GetUpgrade().GetVersion(), ToRelease: in.GetUpgrade().GetRelease(),
+				WithdrawnTo: in.GetWithdrawn().GetVersion(),
+			}
 			if entry, known := s.entryFor(in.GetPin()); known {
 				u.AppSource = entry.GetAppSource()
+			}
+			if u.ToRelease > 0 {
+				key := in.GetPin().GetCatalog() + "/" + in.GetPin().GetEntry()
+				wanted[key] = asked{source: in.GetPin().GetCatalog(), entry: in.GetPin().GetEntry(), release: u.ToRelease}
+				keys[in.GetProjectId()] = key
 			}
 			out[in.GetProjectId()] = u
 		}
 		return nil
 	})
-	return out, err
+	if err != nil {
+		return nil, err
+	}
+	since := h.heldSince(ctx, wanted, h.sources.now())
+	for project, key := range keys {
+		u := out[project]
+		u.Since = since[key]
+		out[project] = u
+	}
+	return out, nil
 }
 
 // installs reads each project's pin, by project, and leaves out a project whose
@@ -502,6 +533,10 @@ func (h *Handler) installs(ctx context.Context, tx *store.Tx, s sourced) ([]*doc
 			install.Name, install.FirstSteps = entry.GetName(), catalog.FirstWords(entry, install.GetCompanions())
 			if catalog.Upgrades(entry, pin) && len(pin.GetFile()) > 0 {
 				install.Upgrade = &dockwellv1.CatalogUpgrade{Version: entry.GetVersion(), Release: entry.GetRelease()}
+			}
+			// Its catalog withdrew the version it runs: it stays, saying so (ADR 0080).
+			if catalog.MovesDown(entry, pin) {
+				install.Withdrawn = &dockwellv1.CatalogWithdrawal{Version: entry.GetVersion(), Release: entry.GetRelease()}
 			}
 		}
 		for _, env := range p.Environments {
@@ -586,6 +621,14 @@ func (h *Handler) upgrade(ctx context.Context, m *dockwellv1.UpgradeCatalogInsta
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s came from %s, which has no %s now, so it stays on %s. The %s in the catalog is %s's, another app: install it under another name to move to it", install.GetProject(), originOf(pin).words(), pin.GetEntry(), pin.GetVersion(), pin.GetEntry(), s.origins[pin.GetEntry()].words()), "not_in_catalog")
 	case !ok:
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s came from %s, which has no %s now, so it stays on %s", install.GetProject(), originOf(pin).words(), pin.GetEntry(), pin.GetVersion()), "not_in_catalog")
+	case catalog.MovesDown(entry, pin) && rebuildOnly:
+		// Its new builds would build the lower version's entry (the release-wait review, L1).
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s runs %s %s, which its catalog withdrew, so it takes no new build alone until the catalog has a release of %s or later", install.GetProject(), entry.GetName(), pin.GetVersion(), pin.GetVersion()), "moves_down")
+	case catalog.MovesDown(entry, pin):
+		// A catalog withdraws a bad version by pinning the one before. An install on the
+		// bad version keeps it: its data may be in a format the version before can't
+		// read. A new install takes the release (ADR 0080).
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s runs %s %s, and its catalog now has %s, a lower version its data may not work with. It stays on %s until the catalog has a release of %s or later. To run %s, install it again under another name", install.GetProject(), entry.GetName(), pin.GetVersion(), entry.GetVersion(), pin.GetVersion(), pin.GetVersion(), entry.GetVersion()), "moves_down")
 	case !newer && !rebuild:
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s is up to date, on %s %s", install.GetProject(), entry.GetName(), pin.GetVersion()), "up_to_date")
 	case len(pin.GetFile()) == 0:
@@ -597,6 +640,26 @@ func (h *Handler) upgrade(ctx context.Context, m *dockwellv1.UpgradeCatalogInsta
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s's catalog has moved on to %s %s, release %d, so a new build alone would leave that out. Take the release as its own update, which brings the newest builds too", install.GetProject(), entry.GetName(), entry.GetVersion(), entry.GetRelease()), "newer_release")
 	case rebuildOnly && !rebuild:
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s runs no image by a tag that moves at release %d, so it has no new build to take alone", install.GetProject(), pin.GetRelease()), "no_rebuild")
+	}
+	// An automatic update takes a release only once its source has held it for
+	// ReleaseWait: checked here, on the release this plans, as the source may have
+	// moved since the update was found (ADR 0080; the release-wait review, H1). A
+	// later look in the window may take it, so it's Unavailable, not refused.
+	// Nor a move to another numbering, which can't say whether it's newer or lower,
+	// and a person takes (the release-wait re-check, N2).
+	if newer && changes.IsDockwell(ctx) && registry.Renumbered(pin.GetVersion(), entry.GetVersion()) {
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s moves from %s to %s, another numbering, which can't say whether it's newer, so an automatic update leaves it for you. Read its notes, then upgrade it on its page", install.GetProject(), pin.GetVersion(), entry.GetVersion()), "renumbered")
+	}
+	if newer && !rebuildOnly && changes.IsDockwell(ctx) {
+		now := h.sources.now()
+		if at, ok := changes.DockwellAt(ctx); ok {
+			now = at
+		}
+		key := pin.GetCatalog() + "/" + pin.GetEntry()
+		since := h.heldSince(ctx, map[string]asked{key: {source: pin.GetCatalog(), entry: pin.GetEntry(), release: entry.GetRelease()}}, now)[key]
+		if until := since.Add(ReleaseWait); now.Before(until) {
+			return nil, authapi.ReasonError(connect.CodeUnavailable, fmt.Errorf("%s's catalog moved to release %d of %s on %s, so an automatic update waits until %s to take it", install.GetProject(), entry.GetRelease(), entry.GetName(), since.UTC().Format(time.RFC3339), until.UTC().Format(time.RFC3339)), ReasonReleaseWaits)
+		}
 	}
 	// An image whose tag the release keeps stays at the build the install runs, and
 	// one it moves is pinned to the build its new tag points at now. A tag that moves

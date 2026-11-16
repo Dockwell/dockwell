@@ -80,6 +80,64 @@ func TestStep(t *testing.T) {
 	}
 }
 
+// A change of numbering, dates to semver or back, is neither newer nor lower, and a
+// person takes it (ADR 0080).
+func TestRenumbered(t *testing.T) {
+	for _, c := range []struct {
+		from, to string
+		want     bool
+	}{
+		{"2024.10.1", "3.0.0", true},
+		{"3.0.0", "2024.10.1", true},
+		{"2024.10", "2024.11.2", false},
+		{"1.2", "1.3", false},
+		{"latest", "2024.10.1", false},
+	} {
+		if got := Renumbered(c.from, c.to); got != c.want {
+			t.Errorf("Renumbered(%q, %q) = %v, want %v", c.from, c.to, got, c.want)
+		}
+	}
+}
+
+// A lower version is a move down, which a catalog install refuses (ADR 0080); a
+// version with no numbers is never lower, as nothing says it is.
+func TestOlder(t *testing.T) {
+	for _, c := range []struct {
+		from, to string
+		want     bool
+	}{
+		{"2.0", "1.9", true},
+		{"2.1", "2.0.1", true},
+		{"17.11", "17.11.0", false},
+		{"1.9", "2.0", false},
+		{"2.0", "2.0", false},
+		{"v2.1", "2.0", true},
+		{"0.13.1-patch.1", "0.13.0", true},
+		{"latest", "1.0", false},
+		{"2.0", "latest", false},
+		// A pre-release is below its release, and an earlier one below a later.
+		{"2.0.0", "2.0.0-rc1", true},
+		{"2.0.0-rc1", "2.0.0", false},
+		{"2.0.0-rc2", "2.0.0-rc1", true},
+		{"2.0.0-rc1", "2.0.0-beta3", true},
+		{"2.0.0-beta3", "2.0.0-rc1", false},
+		// A build numbered by a word, as linuxserver.io's images are.
+		{"1.2.3-ls45", "1.2.3-ls44", true},
+		{"1.2.3-ls44", "1.2.3-ls45", false},
+		{"1.27-alpine", "1.26-alpine", true},
+		{"8.4", "8.0-apache", true},
+		{"1.10", "1.9", true},
+		// Another numbering, dates to semver or back, moves on.
+		{"2024.10.1", "3.0.0", false},
+		{"3.0.0", "2024.10.1", false},
+		{"2024.10", "2024.9.30", true},
+	} {
+		if got := Older(c.from, c.to); got != c.want {
+			t.Errorf("Older(%q, %q) = %v, want %v", c.from, c.to, got, c.want)
+		}
+	}
+}
+
 func TestIsVersion(t *testing.T) {
 	for tag, want := range map[string]bool{"16.3": true, "16": true, "v1.2": true, "1.27.3-alpine": true, "latest": false, "stable": false, "alpine": false, "18beta1": false} {
 		if got := IsVersion(tag); got != want {

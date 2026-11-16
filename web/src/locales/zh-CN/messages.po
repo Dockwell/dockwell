@@ -7915,6 +7915,9 @@ msgstr "{project} 中的 {service}"
 msgid "From the catalog"
 msgstr "来自应用目录"
 
+msgid "Install {lower} beside it"
+msgstr "在旁边另装 {lower}"
+
 msgctxt "catalog card"
 msgid "Installed"
 msgstr "已安装"
@@ -7937,6 +7940,9 @@ msgstr "{0, plural, other {来自其目录的 # 条说明}}"
 
 msgid "· a change to how it runs is out"
 msgstr "· 它的运行方式有了变更"
+
+msgid "· withdrawn by its catalog, so it stays on {version} until a later release"
+msgstr "· 应用目录已撤回此版本，它会停留在 {version}，直到有更新的发布"
 
 msgid "· {next} is out"
 msgstr "· {next} 已发布"

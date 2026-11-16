@@ -109,8 +109,9 @@ type CatalogServiceClient interface {
 	// the image. Its secrets stay as they are, and the plan says that no backup is
 	// taken, as Dockwell can't take one yet. Undoing it puts the old version back, but
 	// not what the new one changed in its data. It's refused with the reason up_to_date
-	// when there's nothing newer, and no_record for an install from before Dockwell
-	// kept what its file gave.
+	// when there's nothing newer, no_record for an install from before Dockwell
+	// kept what its file gave, and moves_down when the newer release names a lower
+	// version than the install runs, which a new install takes instead.
 	UpgradeCatalogInstall(context.Context, *connect.Request[v1.UpgradeCatalogInstallRequest]) (*connect.Response[v1.UpgradeCatalogInstallResponse], error)
 	// SetCatalogCompanion plans adding one of an install's companions, or taking
 	// it away, ready to apply or discard, at the release the install is on. Adding
@@ -450,8 +451,9 @@ type CatalogServiceHandler interface {
 	// the image. Its secrets stay as they are, and the plan says that no backup is
 	// taken, as Dockwell can't take one yet. Undoing it puts the old version back, but
 	// not what the new one changed in its data. It's refused with the reason up_to_date
-	// when there's nothing newer, and no_record for an install from before Dockwell
-	// kept what its file gave.
+	// when there's nothing newer, no_record for an install from before Dockwell
+	// kept what its file gave, and moves_down when the newer release names a lower
+	// version than the install runs, which a new install takes instead.
 	UpgradeCatalogInstall(context.Context, *connect.Request[v1.UpgradeCatalogInstallRequest]) (*connect.Response[v1.UpgradeCatalogInstallResponse], error)
 	// SetCatalogCompanion plans adding one of an install's companions, or taking
 	// it away, ready to apply or discard, at the release the install is on. Adding

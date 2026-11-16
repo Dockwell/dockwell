@@ -96,6 +96,7 @@ A version merges by itself only once all of these hold:
   - anywhere else, the bump waits for a person.
 - **It's signed, where the image was.** With `signedBy` set, the new digest must be signed by that identity. It waits for a person if it's unsigned where the one before was signed, or signed by someone else.
 - **It keeps its platforms.** The new digest's index lists every platform the old one did. A release that drops arm64 waits for a person.
+- **Its entry has settled.** At most one version an entry merges by itself every 4 days, release changes beside it included, as a rebuild's or a `-major` merge's rebase. An install's automatic update takes a release only once its source has held it for 3 days, and each release starts that again (ADR 0080), so an entry that merged faster would never reach its installs on their own. A person's merge is never held (the release-wait review, M3).
 
 ### Proving a bump
 
@@ -143,7 +144,7 @@ This amends ADR 0077: a change reaches the catalog's main when it's "reviewed, o
 
 ### On the install side
 
-ADR 0080's automatic update of a catalog install takes a release only once it's been on the install's source for 3 days, counted from when the source moved to it. A person's plan can take it at once. This needs a change to ADR 0080.
+ADR 0080's automatic update of a catalog install takes a release only once it's been on the install's source for 3 days, counted from when the source moved to it. A person's plan can take it at once. ADR 0080 says so, as amended on 2026-11-16.
 
 v0.3.0 already updates catalog installs automatically, with no such wait. So nothing in the catalog merges by itself until a Dockwell release with this wait is out. Until then, the catalog's own wait is the only one.
 
@@ -151,7 +152,7 @@ v0.3.0 already updates catalog installs automatically, with no such wait. So not
 
 **A person withdraws it.** Their pull request adds the version to `hold`. If no install could have moved its data forward, the next release pins the version before. Otherwise the catalog waits for the upstream's fix.
 
-**ADR 0080 must refuse a higher release of a lower version as a move down.** It offers it only to new installs. That's also a follow-up to ADR 0080.
+**ADR 0080 refuses a higher release of a lower version as a move down,** as amended on 2026-11-16. It offers it only to new installs.
 
 ### A weekly report
 
@@ -174,7 +175,7 @@ The bot never changes an image's repository. That's a person's pull request.
 
 1. **`dockwell-catalog bump` and the two-job workflow,** with `updates/`, the wait, corroboration and the platform check. It opens pull requests; nothing merges by itself.
 2. **Proof:** the reusable install-and-upgrade workflow, checks moved to `checks/`, the floor, arm64, and `bump scope`.
-3. **Merging by itself:** the merge workflow, proven first on a scratch repository, which runs `bump scope` itself rather than trust a status on the head; the two rulesets; signatures; digest bumps; and the weekly report. It turns on only once a Dockwell release with ADR 0080's install-side wait is out.
+3. **Merging by itself:** the merge workflow, proven first on a scratch repository, which runs `bump scope` itself rather than trust a status on the head; the two rulesets; signatures; digest bumps; and the weekly report. It turns on only once a Dockwell release with ADR 0080's install-side wait is out. It requires that an entry merges at most one version by itself every 4 days, its last merge read from main's history, so each settles for its installs' 3 days ("Its entry has settled", above).
 
 ### Slice 1, as built
 

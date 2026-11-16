@@ -82,6 +82,17 @@ type followState struct {
 	branch string
 }
 
+// BeforeHeld sets what runs as the handler next reads since when its sources held
+// their releases, after the catalog it's asked about was read, once: a test's way
+// to move a source in between. Nil sets none.
+func (f *Follower) BeforeHeld(hook func()) {
+	if hook == nil {
+		f.h.beforeHeld.Store(nil)
+		return
+	}
+	f.h.beforeHeld.Store(&hook)
+}
+
 // Follow gives the handler a follower that moves sources through engine, for the
 // control plane to run, and to look when asked through CheckCatalogSource.
 func (h *Handler) Follow(engine *revision.Engine) *Follower {
