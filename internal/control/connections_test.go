@@ -3,6 +3,7 @@
 package control
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -125,7 +126,7 @@ func TestAConnectionIsSavedListedAndChecked(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if l := trimmed.Msg.GetConnections(); len(l) != 1 || l[0].GetName() != "uploads" || l[0].GetEndpoint() != "" || l[0].GetBucket() != "" || len(l[0].GetProjects()) != 0 {
+	if l := trimmed.Msg.GetConnections(); len(l) != 1 || l[0].GetName() != "uploads" || l[0].GetEndpoint() != "" || l[0].GetBucket() != "" || !slices.Equal(l[0].GetProjects(), []string{project}) {
 		t.Errorf("a developer of its project lists %v", l)
 	}
 	_, err = cc.CheckConnection(t.Context(), connect.NewRequest(&dockwellv1.CheckConnectionRequest{Name: "uploads"}))

@@ -4,6 +4,8 @@ package control
 
 import (
 	"fmt"
+	"log/slog"
+	"slices"
 	"strings"
 	"testing"
 
@@ -16,6 +18,7 @@ import (
 	"github.com/dockwell/dockwell/internal/backup/s3/s3test"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/store"
+	"github.com/dockwell/dockwell/internal/store/storetest"
 )
 
 // A developer, then a viewer, of one project tries every way at a connection that
@@ -87,20 +90,73 @@ func TestAConnectionOfAnotherProjectReadsAsNotThere(t *testing.T) {
 		Reach: resourcev1.ConnectionReach_CONNECTION_REACH_PROJECTS, Projects: []string{dataProject},
 		S3: &resourcev1.ConnectionS3{Endpoint: srv.URL(), Bucket: "theirs", AccessKeyId: "AKIDTHEIRS", SecretKey: "theirs-secret", PathStyle: true},
 	})))
+	// Ours reaches data too: below an admin, it says the caller's own project alone,
+	// never data's ID (re-check N3).
+	apply(t, c, propose(t, c, "Let data use ours", connectionEdit("ours", &resourcev1.ConnectionSpec{
+		DisplayName: "Ours", Kind: resourcev1.LinkKind_LINK_KIND_S3,
+		Reach: resourcev1.ConnectionReach_CONNECTION_REACH_PROJECTS, Projects: []string{project, dataProject},
+		S3: &resourcev1.ConnectionS3{Endpoint: srv.URL(), Bucket: "ours", PathStyle: true},
+	})))
+	// One that reaches every project, linked in this one and in data: below an admin,
+	// what reads it in data isn't theirs to see.
+	var dataEnv string
+	if err := f.store.View(t.Context(), func(tx *store.Tx) error {
+		e, err := tx.GetResource(t.Context(), "environment", dataProject, "production")
+		dataEnv = e.ID
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	sharedLink := func(env, name string) *dockwellv1.Edit {
+		return &dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Kind: "link", Scope: env, Name: name},
+			Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Link{Link: &resourcev1.Link{
+				Label: "Storage", Connection: "shared", Kind: resourcev1.LinkKind_LINK_KIND_S3, Prefix: name + "/",
+				Sets: []*resourcev1.LinkSet{{Name: "SHARED_BUCKET", Part: resourcev1.LinkPart_LINK_PART_BUCKET}},
+			}}},
+		}
+	}
+	apply(t, c, propose(t, c, "Add shared", connectionEdit("shared", &resourcev1.ConnectionSpec{
+		DisplayName: "Shared", Kind: resourcev1.LinkKind_LINK_KIND_S3, Reach: resourcev1.ConnectionReach_CONNECTION_REACH_EVERY,
+		S3: &resourcev1.ConnectionS3{Endpoint: srv.URL(), Bucket: "shared", AccessKeyId: "AKIDSHARED", SecretKey: "shared-secret", PathStyle: true},
+	}), sharedLink(env, "ours-link"), sharedLink(dataEnv, "data-link")))
+
+	// An admin's API token narrowed to this project is the only admin of one project
+	// there is: it reads as below an admin, with what reads a connection here alone,
+	// and no endpoint (review L7).
+	secret, _ := narrowedToken(t, b, &dockwellv1.CreateTokenRequest{Projects: []string{project}})
+	scripted := dockwellv1connect.NewConnectionServiceClient(bearer{token: secret, rt: b.client.Transport}, b.origin, connect.WithProtoJSON())
+	byToken, err := scripted.ListConnections(t.Context(), connect.NewRequest(&dockwellv1.ListConnectionsRequest{}))
+	if err != nil {
+		t.Fatalf("the narrowed token lists: %v", err)
+	}
+	if raw, _ := protojson.Marshal(byToken.Msg); !strings.Contains(string(raw), "ours-link") || strings.Contains(string(raw), "data-link") ||
+		strings.Contains(string(raw), dataEnv) || strings.Contains(string(raw), dataProject) || strings.Contains(string(raw), srv.URL()) {
+		t.Errorf("an admin's token narrowed to one project lists %s", raw)
+	}
 
 	hold := aMember(t, f)
 	for _, role := range []string{store.RoleDeveloper, store.RoleViewer} {
 		hold(store.Grant{ProjectID: project, Role: role})
 		who := role + " of one project"
 
-		// The list shows ours, by name alone.
+		// The list shows ours, by name alone, and of what reads a connection, only
+		// what's in their project.
 		listed, err := cc.ListConnections(t.Context(), connect.NewRequest(&dockwellv1.ListConnectionsRequest{}))
 		if err != nil {
 			t.Fatalf("%s lists: %v", who, err)
 		}
 		raw, _ := protojson.Marshal(listed.Msg)
-		if strings.Contains(string(raw), "theirs") || strings.Contains(string(raw), srv.URL()) {
+		if strings.Contains(string(raw), "theirs") || strings.Contains(string(raw), srv.URL()) || strings.Contains(string(raw), "data-link") || strings.Contains(string(raw), dataEnv) || strings.Contains(string(raw), dataProject) {
 			t.Errorf("%s lists %s", who, raw)
+		}
+		if !strings.Contains(string(raw), "ours-link") {
+			t.Errorf("%s doesn't see what reads shared in their own project: %s", who, raw)
+		}
+		for _, info := range listed.Msg.GetConnections() {
+			if info.GetName() == "ours" && !slices.Equal(info.GetProjects(), []string{project}) {
+				t.Errorf("%s reads ours as reaching %v, want their own project alone", who, info.GetProjects())
+			}
 		}
 		// Narrowed to the other project, nothing.
 		if got, err := cc.ListConnections(t.Context(), connect.NewRequest(&dockwellv1.ListConnectionsRequest{Project: "data"})); err == nil && len(got.Msg.GetConnections()) > 0 {
@@ -121,6 +177,12 @@ func TestAConnectionOfAnotherProjectReadsAsNotThere(t *testing.T) {
 		}))
 		if role == store.RoleDeveloper && (connect.CodeOf(errTheirs) != connect.CodeNotFound || connect.CodeOf(errNone) != connect.CodeNotFound) {
 			t.Errorf("%s ConnectStorage: theirs %v, none %v", who, errTheirs, errNone)
+		}
+		// Disconnecting another project's link reads as not there, and plans nothing.
+		_, errData := cc.DisconnectStorage(t.Context(), connect.NewRequest(&dockwellv1.DisconnectStorageRequest{Project: "data", Link: "data-link"}))
+		_, errNoProject := cc.DisconnectStorage(t.Context(), connect.NewRequest(&dockwellv1.DisconnectStorageRequest{Project: "no-such-project", Link: "data-link"}))
+		if errData == nil || connect.CodeOf(errData) != connect.CodeOf(errNoProject) || strings.Contains(errData.Error(), dataEnv) {
+			t.Errorf("%s disconnects data's link: %v, and one of no project: %v", who, errData, errNoProject)
 		}
 		// A link by hand to theirs, and to one that isn't there, read the same.
 		linkTo := func(name string) error {
@@ -201,6 +263,38 @@ func TestAConnectionOfAnotherProjectReadsAsNotThere(t *testing.T) {
 	}
 	if got, err := reveal("STORAGE_URL"); err != nil || !strings.Contains(got, "s3://") {
 		t.Errorf("an admin of the install reveals a secret written from it: %q, %v", got, err)
+	}
+
+	// Disconnecting below an install admin doesn't copy the key into a secret of
+	// their environment, which they could reveal: the names that hold a key go, and
+	// the plan says so (re-check N1). One their own secret writes from the key holds
+	// it on, so the plan is refused until that goes first.
+	hold(store.Grant{ProjectID: project, Role: store.RoleDeveloper})
+	_, err = cc.DisconnectStorage(t.Context(), connect.NewRequest(&dockwellv1.DisconnectStorageRequest{Project: project, Link: "storage"}))
+	if connect.CodeOf(err) != connect.CodeInvalidArgument || !strings.Contains(err.Error(), "STORAGE_URL") {
+		t.Errorf("a developer disconnects while STORAGE_URL writes from the key: %v", err)
+	}
+	apply(t, c, propose(t, c, "Drop the URL", &dockwellv1.Edit{Resource: &dockwellv1.ResourceRef{Kind: "secret", Name: "STORAGE_URL"}, Delete: true}))
+	off, err := cc.DisconnectStorage(t.Context(), connect.NewRequest(&dockwellv1.DisconnectStorageRequest{Project: project, Link: "storage"}))
+	if err != nil {
+		t.Fatalf("a developer disconnects: %v", err)
+	}
+	if raw, _ := protojson.Marshal(off.Msg); strings.Contains(string(raw), connectionSecret) ||
+		!strings.Contains(off.Msg.GetChange().GetSummary(), "S3_SECRET_ACCESS_KEY go, and the app runs without them") {
+		t.Errorf("a developer's disconnect plans %s", raw)
+	}
+	if done := apply(t, c, off.Msg.GetChange()); done.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("a developer's disconnect ended %v: %s", done.GetState(), done.GetError())
+	}
+	list, err = v.ListVariables(t.Context(), connect.NewRequest(&dockwellv1.ListVariablesRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, x := range list.Msg.GetVariables() {
+		if x.GetName() == "S3_SECRET_ACCESS_KEY" {
+			got, err := reveal("S3_SECRET_ACCESS_KEY")
+			t.Errorf("after a developer's disconnect, S3_SECRET_ACCESS_KEY is still there, revealing %q, %v", got, err)
+		}
 	}
 }
 
@@ -315,5 +409,47 @@ func TestAValueFromAConnectionOfAnotherProjectReadsAsNotThere(t *testing.T) {
 	_, e2 := cc.ListConnections(t.Context(), connect.NewRequest(&dockwellv1.ListConnectionsRequest{Project: "nope"}))
 	if connect.CodeOf(e1) != connect.CodeOf(e2) || e1 == nil {
 		t.Errorf("the list narrowed to another project, then to none: %v, %v", e1, e2)
+	}
+}
+
+// A link the control plane can't read leaves out what reads through it, not every
+// connection for everyone: the list still answers, without the link's name, which
+// may be another project's, and the log says which row it was (review L5).
+func TestALinkItCantReadLeavesOnlyItselfOut(t *testing.T) {
+	t.Parallel()
+	logs := &syncBuffer{}
+	f := startFullLogging(t, store.SQLite, nil, slog.New(slog.NewJSONHandler(logs, &slog.HandlerOptions{Level: slog.LevelWarn})))
+	b := signedIn(t, f)
+	env := listedEnv(t, b)
+	c := changeClient(b, b.origin)
+	cc := dockwellv1connect.NewConnectionServiceClient(b, b.origin, connect.WithProtoJSON())
+	srv := s3test.New(t)
+	linkTo := func(name string) *dockwellv1.Edit {
+		return &dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Kind: "link", Scope: env, Name: name},
+			Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Link{Link: &resourcev1.Link{
+				Label: "Storage", Connection: "shared", Kind: resourcev1.LinkKind_LINK_KIND_S3, Prefix: name + "/",
+				Sets: []*resourcev1.LinkSet{{Name: strings.ToUpper(strings.ReplaceAll(name, "-", "_")), Part: resourcev1.LinkPart_LINK_PART_BUCKET}},
+			}}},
+		}
+	}
+	apply(t, c, propose(t, c, "Add shared", connectionEdit("shared", &resourcev1.ConnectionSpec{
+		DisplayName: "Shared", Kind: resourcev1.LinkKind_LINK_KIND_S3, Reach: resourcev1.ConnectionReach_CONNECTION_REACH_EVERY,
+		S3: &resourcev1.ConnectionS3{Endpoint: srv.URL(), Bucket: "shared", AccessKeyId: "AKIDSHARED", SecretKey: "shared-secret", PathStyle: true},
+	}), linkTo("fine-link"), linkTo("broken-link")))
+
+	storetest.Exec(t, f.db, `DROP TRIGGER revisions_never_change`)
+	storetest.Exec(t, f.db, `UPDATE revisions SET spec = x'0a0a' WHERE resource_id IN (SELECT id FROM resources WHERE kind = 'link' AND name = 'broken-link')`)
+
+	listed, err := cc.ListConnections(t.Context(), connect.NewRequest(&dockwellv1.ListConnectionsRequest{}))
+	if err != nil {
+		t.Fatalf("one link it can't read fails the list: %v", err)
+	}
+	raw, _ := protojson.Marshal(listed.Msg)
+	if !strings.Contains(string(raw), "fine-link") || strings.Contains(string(raw), "broken-link") {
+		t.Errorf("with broken-link unreadable, the list says %s", raw)
+	}
+	if !strings.Contains(logs.String(), "can't read a link") {
+		t.Errorf("the log doesn't say which link it left out: %s", logs.String())
 	}
 }

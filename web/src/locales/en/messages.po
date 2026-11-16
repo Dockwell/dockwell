@@ -2549,6 +2549,9 @@ msgstr "Change {target}"
 msgid "Connect a database"
 msgstr "Connect a database"
 
+msgid "Connect storage"
+msgstr "Connect storage"
+
 msgid "Discard"
 msgstr "Discard"
 
@@ -2560,6 +2563,9 @@ msgstr "Environment variables of {name}"
 
 msgid "Every app that uses this variable gets the new value."
 msgstr "Every app that uses this variable gets the new value."
+
+msgid "From {connection}"
+msgstr "From {connection}"
 
 msgid "Import .env"
 msgstr "Import .env"
@@ -11186,6 +11192,365 @@ msgstr "{where} stops redirecting to {to}, and sends to {sendsTo}."
 msgid "{where} stops sending to {leaves}, and redirects to {to}, {how}, {path}."
 msgstr "{where} stops sending to {leaves}, and redirects to {to}, {how}, {path}."
 
+msgid "A bucket's keys, pasted once."
+msgstr "A bucket's keys, pasted once."
+
+msgid "A key goes only into a secret, as plans show a variable."
+msgstr "A key goes only into a secret, as plans show a variable."
+
+msgid "Access key ID"
+msgstr "Access key ID"
+
+msgid "Add a connection"
+msgstr "Add a connection"
+
+msgid "Add another"
+msgstr "Add another"
+
+msgid "An admin adds one."
+msgstr "An admin adds one."
+
+msgid "Bucket in the path: true or false"
+msgstr "Bucket in the path: true or false"
+
+msgid "Check and review plan"
+msgstr "Check and review plan"
+
+msgid "Connect {app} to storage"
+msgstr "Connect {app} to storage"
+
+msgid "Connection"
+msgstr "Connection"
+
+msgid "Folders, each ending with a slash, such as {app}/"
+msgstr "Folders, each ending with a slash, such as {app}/"
+
+msgid "It hands browsers signed links"
+msgstr "It hands browsers signed links"
+
+msgid "Its values come from the connection, checked from where the app runs"
+msgstr "Its values come from the connection, checked from where the app runs"
+
+msgid "Link"
+msgstr "Link"
+
+msgid "Link {link}"
+msgstr "Link {link}"
+
+msgid "No connection reaches this project"
+msgstr "No connection reaches this project"
+
+msgid "Nothing was planned"
+msgstr "Nothing was planned"
+
+msgid "Public address"
+msgstr "Public address"
+
+msgid "Secret access key"
+msgstr "Secret access key"
+
+msgid "The check fetches one too."
+msgstr "The check fetches one too."
+
+#. placeholder {0}: fixedConnection?.name ?? ""
+msgid "Use {0} in an app"
+msgstr "Use {0} in an app"
+
+msgid "What {app} reads"
+msgstr "What {app} reads"
+
+msgid "Where its objects go"
+msgstr "Where its objects go"
+
+#. placeholder {0}: prefix || "/"
+#. placeholder {0}: u.prefix || "/"
+msgid "objects under {0}"
+msgstr "objects under {0}"
+
+msgid "{app} reads no variable or secret of its environment yet."
+msgstr "{app} reads no variable or secret of its environment yet."
+
+msgid "Bucket goes"
+msgstr "Bucket goes"
+
+msgid "Connections"
+msgstr "Connections"
+
+msgid "Disconnect"
+msgstr "Disconnect"
+
+msgid "Disconnect {link}"
+msgstr "Disconnect {link}"
+
+msgid "Dockwell can't read its connections"
+msgstr "Dockwell can't read its connections"
+
+msgid "Every project"
+msgstr "Every project"
+
+msgid "In the host"
+msgstr "In the host"
+
+msgid "In the path"
+msgstr "In the path"
+
+msgid "Its keys go with it"
+msgstr "Its keys go with it"
+
+msgid "Keys"
+msgstr "Keys"
+
+msgid "Names it sets"
+msgstr "Names it sets"
+
+msgid "No app reads it"
+msgstr "No app reads it"
+
+msgid "No app reads it yet."
+msgstr "No app reads it yet."
+
+msgid "No connection named {name}"
+msgstr "No connection named {name}"
+
+msgid "No project yet"
+msgstr "No project yet"
+
+msgid "Not checked"
+msgstr "Not checked"
+
+msgid "Objects under"
+msgstr "Objects under"
+
+msgid "Projects"
+msgstr "Projects"
+
+msgid "Replace keys"
+msgstr "Replace keys"
+
+msgid "Sealed, never shown"
+msgstr "Sealed, never shown"
+
+msgid "See every connection"
+msgstr "See every connection"
+
+msgid "Use in an app"
+msgstr "Use in an app"
+
+msgid "the server"
+msgstr "the server"
+
+#. placeholder {0}: words.state
+#. placeholder {1}: answer.server || t`the server`
+msgid "{0} from {1}"
+msgstr "{0} from {1}"
+
+msgid "1 project"
+msgstr "1 project"
+
+msgid "3 to 63 lowercase letters, digits, dots and dashes"
+msgstr "3 to 63 lowercase letters, digits, dots and dashes"
+
+msgid "32 letters and digits, as Cloudflare shows it"
+msgstr "32 letters and digits, as Cloudflare shows it"
+
+msgid "A bucket of S3-compatible storage, for apps to keep files in"
+msgstr "A bucket of S3-compatible storage, for apps to keep files in"
+
+msgid "Another store"
+msgstr "Another store"
+
+msgid "Bucket in the path"
+msgstr "Bucket in the path"
+
+msgid "Change the connection {name}"
+msgstr "Change the connection {name}"
+
+msgid "Checked from"
+msgstr "Checked from"
+
+msgid "Connect to the bucket {bucket}"
+msgstr "Connect to the bucket {bucket}"
+
+#. placeholder {0}: editing.name
+msgid "Connection {0}"
+msgstr "Connection {0}"
+
+msgid "For stores that don't take the bucket in the host."
+msgstr "For stores that don't take the bucket in the host."
+
+msgid "It saves unchecked: each app's link checks it from the app's network before it plans."
+msgstr "It saves unchecked: each app's link checks it from the app's network before it plans."
+
+msgid "Kept unless you type one"
+msgstr "Kept unless you type one"
+
+msgid "Label"
+msgstr "Label"
+
+msgid "Moved: type its keys again"
+msgstr "Moved: type its keys again"
+
+msgid "Only some projects"
+msgstr "Only some projects"
+
+msgid "Remove the connection {name}"
+msgstr "Remove the connection {name}"
+
+msgid "Store"
+msgstr "Store"
+
+msgid "Their apps alone may use it."
+msgstr "Their apps alone may use it."
+
+msgid "Type both keys"
+msgstr "Type both keys"
+
+msgid "What an app's link names it by, and the CLI."
+msgstr "What an app's link names it by, and the CLI."
+
+msgid "Where browsers fetch its objects, if it has one."
+msgstr "Where browsers fetch its objects, if it has one."
+
+msgid "bucket in the host"
+msgstr "bucket in the host"
+
+msgid "bucket in the path"
+msgstr "bucket in the path"
+
+msgid "every project"
+msgstr "every project"
+
+msgid "for {who}"
+msgstr "for {who}"
+
+#. placeholder {0}: picked.length
+msgid "{0, plural, one {# project} other {# projects}}"
+msgstr "{0, plural, one {# project} other {# projects}}"
+
+msgid "{links, plural, one {# link names it. Disconnect it under Used by first.} other {# links name it. Disconnect them under Used by first.}}"
+msgstr "{links, plural, one {# link names it. Disconnect it under Used by first.} other {# links name it. Disconnect them under Used by first.}}"
+
+msgid "A bucket's keys, pasted once, for any app to keep its files in"
+msgstr "A bucket's keys, pasted once, for any app to keep its files in"
+
+msgid "Add connection"
+msgstr "Add connection"
+
+msgid "An admin adds the buckets your apps may use."
+msgstr "An admin adds the buckets your apps may use."
+
+msgid "Another S3-compatible store"
+msgstr "Another S3-compatible store"
+
+msgid "No app yet"
+msgstr "No app yet"
+
+msgid "No connections yet"
+msgstr "No connections yet"
+
+msgid "None yet"
+msgstr "None yet"
+
+msgid "The page tries again by itself."
+msgstr "The page tries again by itself."
+
+msgid "no app uses them yet"
+msgstr "no app uses them yet"
+
+msgid "none"
+msgstr "none"
+
+#. placeholder {0}: connections.length
+msgid "{0, plural, one {# connection} other {# connections}}"
+msgstr "{0, plural, one {# connection} other {# connections}}"
+
+msgid "{apps, plural, one {used by # app} other {used by # apps}}"
+msgstr "{apps, plural, one {used by # app} other {used by # apps}}"
+
+msgid "Access denied"
+msgstr "Access denied"
+
+msgid "Address refused"
+msgstr "Address refused"
+
+msgid "Answered wrongly"
+msgstr "Answered wrongly"
+
+msgid "Can't reach it"
+msgstr "Can't reach it"
+
+msgid "Check the access key ID and its secret."
+msgstr "Check the access key ID and its secret."
+
+msgid "Check the bucket's name."
+msgstr "Check the bucket's name."
+
+msgid "Check the endpoint's address."
+msgstr "Check the endpoint's address."
+
+msgid "Check the endpoint, and that the server can reach it."
+msgstr "Check the endpoint, and that the server can reach it."
+
+msgid "Check the endpoint."
+msgstr "Check the endpoint."
+
+#. placeholder {0}: c.region
+msgid "It answered from region {0}."
+msgstr "It answered from region {0}."
+
+msgid "Keys refused"
+msgstr "Keys refused"
+
+msgid "No answer"
+msgstr "No answer"
+
+msgid "No app can use it either. Give the address apps reach the store at."
+msgstr "No app can use it either. Give the address apps reach the store at."
+
+msgid "No such bucket"
+msgstr "No such bucket"
+
+msgid "Reached"
+msgstr "Reached"
+
+#. placeholder {0}: c.server
+msgid "Reached from {0}"
+msgstr "Reached from {0}"
+
+msgid "The bucket gave back something other than what was written."
+msgstr "The bucket gave back something other than what was written."
+
+#. placeholder {0}: code || String(c.status)
+msgid "The bucket refused the check with {0}."
+msgstr "The bucket refused the check with {0}."
+
+msgid "The keys may not write in this bucket."
+msgstr "The keys may not write in this bucket."
+
+msgid "Untrusted certificate"
+msgstr "Untrusted certificate"
+
+msgid "Wrote, read and deleted a test object."
+msgstr "Wrote, read and deleted a test object."
+
+msgid "access key ID"
+msgstr "access key ID"
+
+msgid "bucket"
+msgstr "bucket"
+
+msgid "endpoint"
+msgstr "endpoint"
+
+msgid "public address"
+msgstr "public address"
+
+msgid "region"
+msgstr "region"
+
+msgid "secret access key"
+msgstr "secret access key"
+
 msgid "Add a user to {name}"
 msgstr "Add a user to {name}"
 
@@ -11315,9 +11680,6 @@ msgstr "Change password"
 msgid "Connection string"
 msgstr "Connection string"
 
-msgid "Connections"
-msgstr "Connections"
-
 msgid "Data at {features}'s features, which its next upgrade raises"
 msgstr "Data at {features}'s features, which its next upgrade raises"
 
@@ -11380,9 +11742,6 @@ msgstr "Make a root user in it, then set <0>MONGO_INITDB_ROOT_USERNAME</0> and <
 
 msgid "Newest"
 msgstr "Newest"
-
-msgid "None yet"
-msgstr "None yet"
 
 msgid "Nothing read yet"
 msgstr "Nothing read yet"
@@ -11490,9 +11849,6 @@ msgstr "Its own"
 
 msgid "Its users show again once it does."
 msgstr "Its users show again once it does."
-
-msgid "No app yet"
-msgstr "No app yet"
 
 msgid "No server has said yet"
 msgstr "No server has said yet"
@@ -11655,9 +12011,6 @@ msgstr "Kept unless you paste one"
 
 msgid "Make a token at Cloudflare"
 msgstr "Make a token at Cloudflare"
-
-msgid "Not checked"
-msgstr "Not checked"
 
 msgid "Prove names by DNS through Cloudflare"
 msgstr "Prove names by DNS through Cloudflare"
@@ -13443,9 +13796,6 @@ msgstr "Nothing runs in it, and it keeps no data."
 msgid "Open in Variables"
 msgstr "Open in Variables"
 
-msgid "Projects"
-msgstr "Projects"
-
 msgid "Protected"
 msgstr "Protected"
 
@@ -13632,23 +13982,14 @@ msgstr "Change the registry login {name}"
 msgid "Check with {checkWith}"
 msgstr "Check with {checkWith}"
 
-msgid "Checked from"
-msgstr "Checked from"
-
 msgid "Checked once you leave the field."
 msgstr "Checked once you leave the field."
 
 msgid "Its token service moved"
 msgstr "Its token service moved"
 
-msgid "Kept unless you type one"
-msgstr "Kept unless you type one"
-
 msgid "Not a registry, or can't reach it"
 msgstr "Not a registry, or can't reach it"
-
-msgid "Only some projects"
-msgstr "Only some projects"
 
 msgid "Pull private images from {host}"
 msgstr "Pull private images from {host}"
@@ -13686,15 +14027,8 @@ msgstr "What an app names it by, in Compose and the CLI."
 msgid "Wrong username or password"
 msgstr "Wrong username or password"
 
-msgid "every project"
-msgstr "every project"
-
 msgid "this registry"
 msgstr "this registry"
-
-#. placeholder {0}: picked.length
-msgid "{0, plural, one {# project} other {# projects}}"
-msgstr "{0, plural, one {# project} other {# projects}}"
 
 msgid "Add a server"
 msgstr "Add a server"
@@ -15068,9 +15402,6 @@ msgstr "Can't read Docker"
 msgid "Connected"
 msgstr "Connected"
 
-msgid "Connection"
-msgstr "Connection"
-
 msgid "Control plane"
 msgstr "Control plane"
 
@@ -15118,9 +15449,6 @@ msgstr "Public IPv4"
 
 msgid "Public IPv6"
 msgstr "Public IPv6"
-
-msgid "Public address"
-msgstr "Public address"
 
 msgid "Reachable"
 msgstr "Reachable"
@@ -16192,9 +16520,6 @@ msgstr "The webhook secret didn't change."
 msgid "private repositories, and deploy on push"
 msgstr "private repositories, and deploy on push"
 
-msgid "1 project"
-msgstr "1 project"
-
 msgid "1 repository"
 msgstr "1 repository"
 
@@ -16380,9 +16705,6 @@ msgstr "Cloud providers come later."
 
 msgid "Connect a registry"
 msgstr "Connect a registry"
-
-msgid "Connect storage"
-msgstr "Connect storage"
 
 msgid "DNS and proxies"
 msgstr "DNS and proxies"
@@ -19182,9 +19504,6 @@ msgstr "Over HTTPS, with its own certificate"
 
 msgid "Over plain HTTP, to anyone who reaches the server"
 msgstr "Over plain HTTP, to anyone who reaches the server"
-
-msgid "Reached"
-msgstr "Reached"
 
 msgid "Route"
 msgstr "Route"

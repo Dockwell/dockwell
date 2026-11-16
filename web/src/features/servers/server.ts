@@ -106,6 +106,8 @@ export interface ServerSummary {
   strained?: boolean;
   /** The ports it lends to outgoing connections, low and high, where its agent says (#688). */
   lent?: readonly [number, number];
+  /** True for the server the control plane runs on. */
+  control?: boolean;
 }
 
 /**
@@ -176,6 +178,7 @@ function summaries(servers: readonly Server[], prev: readonly ServerSummary[] | 
       ...(server.inventory?.ephemeralPortsLow
         ? { lent: [server.inventory.ephemeralPortsLow, server.inventory.ephemeralPortsHigh] as const }
         : {}),
+      ...(server.controlServer ? { control: true } : {}),
     };
     const old = prev?.[i];
     return old && sameSummary(old, summary) ? old : summary;
@@ -194,7 +197,8 @@ function sameSummary(a: ServerSummary, b: ServerSummary): boolean {
     a.dockerUnreadableSince === b.dockerUnreadableSince &&
     a.strained === b.strained &&
     a.lent?.[0] === b.lent?.[0] &&
-    a.lent?.[1] === b.lent?.[1]
+    a.lent?.[1] === b.lent?.[1] &&
+    a.control === b.control
   );
 }
 

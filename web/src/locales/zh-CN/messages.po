@@ -2549,6 +2549,9 @@ msgstr "更改 {target}"
 msgid "Connect a database"
 msgstr "连接数据库"
 
+msgid "Connect storage"
+msgstr "连接存储"
+
 msgid "Discard"
 msgstr "丢弃"
 
@@ -2560,6 +2563,9 @@ msgstr "{name} 的环境变量"
 
 msgid "Every app that uses this variable gets the new value."
 msgstr "每个使用这个变量的应用都会得到新值。"
+
+msgid "From {connection}"
+msgstr "来自 {connection}"
 
 msgid "Import .env"
 msgstr "导入 .env"
@@ -11186,6 +11192,365 @@ msgstr "{where} 不再重定向到 {to}，改为发送到 {sendsTo}。"
 msgid "{where} stops sending to {leaves}, and redirects to {to}, {how}, {path}."
 msgstr "{where} 不再发送到 {leaves}，改为{how}重定向到 {to}，{path}。"
 
+msgid "A bucket's keys, pasted once."
+msgstr "存储桶的密钥，粘贴一次即可。"
+
+msgid "A key goes only into a secret, as plans show a variable."
+msgstr "密钥只能放入机密，因为计划会显示变量。"
+
+msgid "Access key ID"
+msgstr "访问密钥 ID"
+
+msgid "Add a connection"
+msgstr "添加连接"
+
+msgid "Add another"
+msgstr "再添加一个"
+
+msgid "An admin adds one."
+msgstr "由管理员添加。"
+
+msgid "Bucket in the path: true or false"
+msgstr "存储桶放在路径中：true 或 false"
+
+msgid "Check and review plan"
+msgstr "检查并查看计划"
+
+msgid "Connect {app} to storage"
+msgstr "将 {app} 连接到存储"
+
+msgid "Connection"
+msgstr "连接方式"
+
+msgid "Folders, each ending with a slash, such as {app}/"
+msgstr "文件夹，每个以斜杠结尾，例如 {app}/"
+
+msgid "It hands browsers signed links"
+msgstr "它向浏览器提供签名链接"
+
+msgid "Its values come from the connection, checked from where the app runs"
+msgstr "它的值来自连接，并从应用运行的位置检查"
+
+msgid "Link"
+msgstr "链接"
+
+msgid "Link {link}"
+msgstr "链接 {link}"
+
+msgid "No connection reaches this project"
+msgstr "没有连接可用于此项目"
+
+msgid "Nothing was planned"
+msgstr "未生成计划"
+
+msgid "Public address"
+msgstr "公网地址"
+
+msgid "Secret access key"
+msgstr "秘密访问密钥"
+
+msgid "The check fetches one too."
+msgstr "检查也会获取一个。"
+
+#. placeholder {0}: fixedConnection?.name ?? ""
+msgid "Use {0} in an app"
+msgstr "在应用中使用 {0}"
+
+msgid "What {app} reads"
+msgstr "{app} 读取的内容"
+
+msgid "Where its objects go"
+msgstr "对象存放位置"
+
+#. placeholder {0}: prefix || "/"
+#. placeholder {0}: u.prefix || "/"
+msgid "objects under {0}"
+msgstr "对象位于 {0} 下"
+
+msgid "{app} reads no variable or secret of its environment yet."
+msgstr "{app} 尚未读取其环境中的任何变量或机密。"
+
+msgid "Bucket goes"
+msgstr "存储桶位置"
+
+msgid "Connections"
+msgstr "连接"
+
+msgid "Disconnect"
+msgstr "断开"
+
+msgid "Disconnect {link}"
+msgstr "断开 {link}"
+
+msgid "Dockwell can't read its connections"
+msgstr "Dockwell 无法读取其连接"
+
+msgid "Every project"
+msgstr "所有项目"
+
+msgid "In the host"
+msgstr "在主机名中"
+
+msgid "In the path"
+msgstr "在路径中"
+
+msgid "Its keys go with it"
+msgstr "其密钥会随之移除"
+
+msgid "Keys"
+msgstr "密钥"
+
+msgid "Names it sets"
+msgstr "设置的名称"
+
+msgid "No app reads it"
+msgstr "没有应用读取它"
+
+msgid "No app reads it yet."
+msgstr "尚无应用读取它。"
+
+msgid "No connection named {name}"
+msgstr "没有名为 {name} 的连接"
+
+msgid "No project yet"
+msgstr "尚无项目"
+
+msgid "Not checked"
+msgstr "未检查"
+
+msgid "Objects under"
+msgstr "对象位于"
+
+msgid "Projects"
+msgstr "项目"
+
+msgid "Replace keys"
+msgstr "更换密钥"
+
+msgid "Sealed, never shown"
+msgstr "已加密，从不显示"
+
+msgid "See every connection"
+msgstr "查看所有连接"
+
+msgid "Use in an app"
+msgstr "在应用中使用"
+
+msgid "the server"
+msgstr "服务器"
+
+#. placeholder {0}: words.state
+#. placeholder {1}: answer.server || t`the server`
+msgid "{0} from {1}"
+msgstr "{0}（来自 {1}）"
+
+msgid "1 project"
+msgstr "1 个项目"
+
+msgid "3 to 63 lowercase letters, digits, dots and dashes"
+msgstr "3 到 63 个小写字母、数字、点和连字符"
+
+msgid "32 letters and digits, as Cloudflare shows it"
+msgstr "32 位字母和数字，与 Cloudflare 显示的一致"
+
+msgid "A bucket of S3-compatible storage, for apps to keep files in"
+msgstr "S3 兼容存储的存储桶，供应用存放文件"
+
+msgid "Another store"
+msgstr "其他存储"
+
+msgid "Bucket in the path"
+msgstr "存储桶放在路径中"
+
+msgid "Change the connection {name}"
+msgstr "更改连接 {name}"
+
+msgid "Checked from"
+msgstr "检查所用服务器"
+
+msgid "Connect to the bucket {bucket}"
+msgstr "连接到存储桶 {bucket}"
+
+#. placeholder {0}: editing.name
+msgid "Connection {0}"
+msgstr "连接 {0}"
+
+msgid "For stores that don't take the bucket in the host."
+msgstr "适用于不支持在主机名中放存储桶的存储。"
+
+msgid "It saves unchecked: each app's link checks it from the app's network before it plans."
+msgstr "它将以未检查状态保存：每个应用的链接会在计划前从该应用的网络检查它。"
+
+msgid "Kept unless you type one"
+msgstr "不填则保留原值"
+
+msgid "Label"
+msgstr "标签"
+
+msgid "Moved: type its keys again"
+msgstr "位置已变：请重新输入密钥"
+
+msgid "Only some projects"
+msgstr "仅限部分项目"
+
+msgid "Remove the connection {name}"
+msgstr "移除连接 {name}"
+
+msgid "Store"
+msgstr "存储服务"
+
+msgid "Their apps alone may use it."
+msgstr "只有这些项目的应用可以使用它。"
+
+msgid "Type both keys"
+msgstr "请输入两个密钥"
+
+msgid "What an app's link names it by, and the CLI."
+msgstr "应用的链接和 CLI 用来引用它的名称。"
+
+msgid "Where browsers fetch its objects, if it has one."
+msgstr "浏览器获取其对象的地址（如有）。"
+
+msgid "bucket in the host"
+msgstr "存储桶在主机名中"
+
+msgid "bucket in the path"
+msgstr "存储桶在路径中"
+
+msgid "every project"
+msgstr "所有项目"
+
+msgid "for {who}"
+msgstr "供 {who} 使用"
+
+#. placeholder {0}: picked.length
+msgid "{0, plural, one {# project} other {# projects}}"
+msgstr "{0, plural, other {# 个项目}}"
+
+msgid "{links, plural, one {# link names it. Disconnect it under Used by first.} other {# links name it. Disconnect them under Used by first.}}"
+msgstr "{links, plural, other {有 # 个链接使用它。请先在“使用者”中断开。}}"
+
+msgid "A bucket's keys, pasted once, for any app to keep its files in"
+msgstr "粘贴一次存储桶的密钥，任何应用都可以用它存放文件"
+
+msgid "Add connection"
+msgstr "添加连接"
+
+msgid "An admin adds the buckets your apps may use."
+msgstr "由管理员添加你的应用可以使用的存储桶。"
+
+msgid "Another S3-compatible store"
+msgstr "其他 S3 兼容存储"
+
+msgid "No app yet"
+msgstr "尚无应用"
+
+msgid "No connections yet"
+msgstr "尚无连接"
+
+msgid "None yet"
+msgstr "还没有"
+
+msgid "The page tries again by itself."
+msgstr "页面会自动重试。"
+
+msgid "no app uses them yet"
+msgstr "尚无应用使用"
+
+msgid "none"
+msgstr "无"
+
+#. placeholder {0}: connections.length
+msgid "{0, plural, one {# connection} other {# connections}}"
+msgstr "{0, plural, other {# 个连接}}"
+
+msgid "{apps, plural, one {used by # app} other {used by # apps}}"
+msgstr "{apps, plural, other {被 # 个应用使用}}"
+
+msgid "Access denied"
+msgstr "拒绝访问"
+
+msgid "Address refused"
+msgstr "地址被拒绝"
+
+msgid "Answered wrongly"
+msgstr "返回内容有误"
+
+msgid "Can't reach it"
+msgstr "无法访问"
+
+msgid "Check the access key ID and its secret."
+msgstr "请检查访问密钥 ID 和对应的秘密。"
+
+msgid "Check the bucket's name."
+msgstr "请检查存储桶名称。"
+
+msgid "Check the endpoint's address."
+msgstr "请检查端点地址。"
+
+msgid "Check the endpoint, and that the server can reach it."
+msgstr "请检查端点，以及服务器能否访问它。"
+
+msgid "Check the endpoint."
+msgstr "请检查端点。"
+
+#. placeholder {0}: c.region
+msgid "It answered from region {0}."
+msgstr "它从区域 {0} 应答。"
+
+msgid "Keys refused"
+msgstr "密钥被拒绝"
+
+msgid "No answer"
+msgstr "无应答"
+
+msgid "No app can use it either. Give the address apps reach the store at."
+msgstr "任何应用也都无法使用它。请填写应用访问该存储所用的地址。"
+
+msgid "No such bucket"
+msgstr "没有这个存储桶"
+
+msgid "Reached"
+msgstr "访问方式"
+
+#. placeholder {0}: c.server
+msgid "Reached from {0}"
+msgstr "已从 {0} 访问成功"
+
+msgid "The bucket gave back something other than what was written."
+msgstr "存储桶返回的内容与写入的不同。"
+
+#. placeholder {0}: code || String(c.status)
+msgid "The bucket refused the check with {0}."
+msgstr "存储桶以 {0} 拒绝了检查。"
+
+msgid "The keys may not write in this bucket."
+msgstr "这些密钥无权写入此存储桶。"
+
+msgid "Untrusted certificate"
+msgstr "证书不受信任"
+
+msgid "Wrote, read and deleted a test object."
+msgstr "已写入、读取并删除一个测试对象。"
+
+msgid "access key ID"
+msgstr "访问密钥 ID"
+
+msgid "bucket"
+msgstr "存储桶"
+
+msgid "endpoint"
+msgstr "端点"
+
+msgid "public address"
+msgstr "公开地址"
+
+msgid "region"
+msgstr "区域"
+
+msgid "secret access key"
+msgstr "秘密访问密钥"
+
 msgid "Add a user to {name}"
 msgstr "为 {name} 添加用户"
 
@@ -11315,9 +11680,6 @@ msgstr "修改密码"
 msgid "Connection string"
 msgstr "连接字符串"
 
-msgid "Connections"
-msgstr "连接"
-
 msgid "Data at {features}'s features, which its next upgrade raises"
 msgstr "数据处于 {features} 的功能，下次升级会先提升"
 
@@ -11380,9 +11742,6 @@ msgstr "请先在其中创建一个 root 用户，再设置 <0>MONGO_INITDB_ROOT
 
 msgid "Newest"
 msgstr "最新"
-
-msgid "None yet"
-msgstr "还没有"
 
 msgid "Nothing read yet"
 msgstr "尚未读取任何数据"
@@ -11490,9 +11849,6 @@ msgstr "系统自带"
 
 msgid "Its users show again once it does."
 msgstr "它报告后，这里会重新显示用户。"
-
-msgid "No app yet"
-msgstr "尚无应用"
 
 msgid "No server has said yet"
 msgstr "还没有服务器报告"
@@ -11655,9 +12011,6 @@ msgstr "保留原值，除非你粘贴新的"
 
 msgid "Make a token at Cloudflare"
 msgstr "在 Cloudflare 创建令牌"
-
-msgid "Not checked"
-msgstr "未检查"
 
 msgid "Prove names by DNS through Cloudflare"
 msgstr "通过 Cloudflare 用 DNS 证明域名"
@@ -13443,9 +13796,6 @@ msgstr "其中没有在运行的内容，也没有保留数据。"
 msgid "Open in Variables"
 msgstr "在变量中打开"
 
-msgid "Projects"
-msgstr "项目"
-
 msgid "Protected"
 msgstr "受保护"
 
@@ -13632,23 +13982,14 @@ msgstr "修改镜像仓库登录 {name}"
 msgid "Check with {checkWith}"
 msgstr "用 {checkWith} 检查"
 
-msgid "Checked from"
-msgstr "检查所用服务器"
-
 msgid "Checked once you leave the field."
 msgstr "离开此栏后再检查。"
 
 msgid "Its token service moved"
 msgstr "其令牌服务已更换"
 
-msgid "Kept unless you type one"
-msgstr "不填则保留原值"
-
 msgid "Not a registry, or can't reach it"
 msgstr "不是镜像仓库，或无法连接"
-
-msgid "Only some projects"
-msgstr "仅限部分项目"
 
 msgid "Pull private images from {host}"
 msgstr "从 {host} 拉取私有镜像"
@@ -13686,15 +14027,8 @@ msgstr "应用在 Compose 和 CLI 中用这个名称指代它。"
 msgid "Wrong username or password"
 msgstr "用户名或密码错误"
 
-msgid "every project"
-msgstr "所有项目"
-
 msgid "this registry"
 msgstr "此镜像仓库"
-
-#. placeholder {0}: picked.length
-msgid "{0, plural, one {# project} other {# projects}}"
-msgstr "{0, plural, other {# 个项目}}"
 
 msgid "Add a server"
 msgstr "添加服务器"
@@ -15068,9 +15402,6 @@ msgstr "无法读取 Docker"
 msgid "Connected"
 msgstr "已连接"
 
-msgid "Connection"
-msgstr "连接方式"
-
 msgid "Control plane"
 msgstr "控制平面"
 
@@ -15118,9 +15449,6 @@ msgstr "公网 IPv4"
 
 msgid "Public IPv6"
 msgstr "公网 IPv6"
-
-msgid "Public address"
-msgstr "公网地址"
 
 msgid "Reachable"
 msgstr "可访问"
@@ -16192,9 +16520,6 @@ msgstr "Webhook 密钥未更改。"
 msgid "private repositories, and deploy on push"
 msgstr "私有仓库，以及推送时部署"
 
-msgid "1 project"
-msgstr "1 个项目"
-
 msgid "1 repository"
 msgstr "1 个仓库"
 
@@ -16380,9 +16705,6 @@ msgstr "云服务商将在之后推出。"
 
 msgid "Connect a registry"
 msgstr "连接镜像仓库"
-
-msgid "Connect storage"
-msgstr "连接存储"
 
 msgid "DNS and proxies"
 msgstr "DNS 和代理"
@@ -19182,9 +19504,6 @@ msgstr "通过 HTTPS，使用它自己的证书"
 
 msgid "Over plain HTTP, to anyone who reaches the server"
 msgstr "通过明文 HTTP，任何能访问到服务器的人都可以访问"
-
-msgid "Reached"
-msgstr "访问方式"
 
 msgid "Route"
 msgstr "路由"

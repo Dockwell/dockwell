@@ -1,7 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { timestampDate } from "@bufbuild/protobuf/wkt";
-import { type Change, ChangeService, ChangeState, DatabaseService, type EnvironmentVariable } from "@dockwell/api";
+import {
+  type Change,
+  ChangeService,
+  ChangeState,
+  ConnectionService,
+  DatabaseService,
+  type EnvironmentVariable,
+} from "@dockwell/api";
 import {
   Button,
   Callout,
@@ -38,6 +45,8 @@ import { useActorWords } from "../activity/actor";
 import { MayEdit } from "../auth/MayEdit";
 import { useMay } from "../auth/may";
 import { useChangeSheet } from "../changes/ChangeSheet";
+import { ConnectStorageSheet } from "../connections/ConnectStorageSheet";
+import { type LinkedName, useLinkedNames, usePartWords } from "../connections/useConnections";
 import { useControlPlaneNow } from "../servers/useFleet";
 import { EmptyState } from "../shell/EmptyState";
 import { RevealsProvider, useReveals } from "../variables/useReveal";
@@ -90,6 +99,8 @@ export function AppEnvironment({ changeFirst }: { changeFirst?: string | undefin
   // Counts the asks to type a new variable's key, from the Connect a database sheet.
   const [askedForKey, setAskedForKey] = useState(0);
   const mayConnect = useMay()(DatabaseService.method.connectDatabase, { environment });
+  const [storing, setStoring] = useState(false);
+  const mayStore = useMay()(ConnectionService.method.connectStorage, { environment });
   const rows = useMemo(() => envRows(service, pending, store.data?.variables), [service, pending, store.data]);
   const moving = isMoving(state);
   const readable = service.spec !== undefined;
@@ -172,7 +183,9 @@ export function AppEnvironment({ changeFirst }: { changeFirst?: string | undefin
     ...(asRoot(service) ? [name] : []),
     ...others.filter((o) => asRoot(apps?.find((s) => s.id === o.id))).map((o) => o.name),
   ];
-  const columns = useColumns(phone, service.id, store.isPending, store.data?.variables, {
+  // Names a link sets read from a connection: they change there, not here.
+  const linked = useLinkedNames(environment);
+  const columns = useColumns(phone, service.id, store.isPending, store.data?.variables, linked, {
     change: (row) => setChanging(row.name),
     remove: (row) => put({ op: "remove", name: row.name }),
     share: (row) => put({ op: "share", name: row.name, value: row.now?.value ?? "" }),
@@ -213,6 +226,15 @@ export function AppEnvironment({ changeFirst }: { changeFirst?: string | undefin
               onClick={() => setConnecting(true)}
             >
               <Trans>Connect a database</Trans>
+            </Button>
+            <Button
+              variant="secondary"
+              icon="archive"
+              disabled={moving}
+              off={mayStore.allowed ? undefined : mayStore.reason || undefined}
+              onClick={() => setStoring(true)}
+            >
+              <Trans>Connect storage</Trans>
             </Button>
           </div>
 
@@ -299,6 +321,8 @@ export function AppEnvironment({ changeFirst }: { changeFirst?: string | undefin
             }}
           />
         ) : null}
+
+        {storing ? <ConnectStorageSheet service={service} onClose={() => setStoring(false)} /> : null}
 
         {importing ? (
           <ImportSheet
@@ -396,19 +420,38 @@ interface RowActions {
   revert: (name: string) => void;
 }
 
+/** The link to a connection a row's name reads through, if any: one of the environment's, not changed here. */
+function linkOf(row: EnvRow, linked: ReadonlyMap<string, LinkedName>): LinkedName | undefined {
+  const now = row.now;
+  if (row.pending || !now || (now.kind !== "variable" && now.kind !== "secret")) return undefined;
+  return linked.get(now.from);
+}
+
 function useColumns(
   phone: boolean,
   service: string,
   loading: boolean,
   store: readonly EnvironmentVariable[] | undefined,
+  linked: ReadonlyMap<string, LinkedName>,
   on: RowActions,
 ): TableColumn<EnvRow & { id: string }>[] {
   const { t } = useLingui();
   const shareOff = useShareOff();
   const secretOff = useSecretOff();
-  const value = (row: EnvRow) => (
-    <Value row={row} loading={loading} service={service} onShow={(v) => on.show(row, v)} />
-  );
+  const partWord = usePartWords();
+  const value = (row: EnvRow) => {
+    const from = linkOf(row, linked);
+    // A value read through a link has none of its own here: it's the connection's part.
+    if (from && !row.stored?.value) {
+      return row.now?.kind === "secret" ? (
+        <Masked label={partWord[from.part]} />
+      ) : (
+        <span className="app-muted">{partWord[from.part]}</span>
+      );
+    }
+    return <Value row={row} loading={loading} service={service} onShow={(v) => on.show(row, v)} />;
+  };
+  const source = (row: EnvRow) => <Source row={row} from={linkOf(row, linked)} />;
   const key = (row: EnvRow) => {
     const op = row.pending?.op;
     const said =
@@ -431,6 +474,8 @@ function useColumns(
   };
   const actions = (row: EnvRow) => {
     const name = row.name;
+    // Its connection's page changes it, or disconnects the link.
+    if (linkOf(row, linked)) return <span className="app-env-actions" />;
     return row.pending ? (
       <span className="app-env-actions">
         <Button
@@ -498,9 +543,7 @@ function useColumns(
           <>
             {key(row)}
             <span className="app-env-phone-value">{value(row)}</span>
-            <span className="app-env-source">
-              <Source row={row} />
-            </span>
+            <span className="app-env-source">{source(row)}</span>
           </>
         ),
       },
@@ -510,7 +553,7 @@ function useColumns(
   return [
     { key: "name", header: t`Key`, width: "28%", render: key },
     { key: "value", header: t`Value`, render: value },
-    { key: "source", header: t`Source`, width: 200, muted: true, render: (row) => <Source row={row} /> },
+    { key: "source", header: t`Source`, width: 200, muted: true, render: source },
     { key: "updated", header: t`Updated`, width: 160, render: (row) => <Updated row={row} /> },
     { key: "more", header: <span className="dw-sr">{t`Actions`}</span>, width: 112, align: "right", render: actions },
   ];
@@ -610,8 +653,16 @@ function Value({
   return <span className="app-muted">{loading ? "…" : t`Not loaded`}</span>;
 }
 
-function Source({ row }: { row: EnvRow }) {
+function Source({ row, from: link }: { row: EnvRow; from?: LinkedName | undefined }) {
   const { t } = useLingui();
+  if (link) {
+    const connection = link.connection;
+    return (
+      <Link to="/connections/$name" params={{ name: connection }} className="dw-link">
+        {t`From ${connection}`}
+      </Link>
+    );
+  }
   const edit = row.pending;
   if (edit?.op === "add") return <>{edit.secret ? t`New secret` : t`Set on this app`}</>;
   if (edit?.op === "share") return <>{t`Shared variable`}</>;

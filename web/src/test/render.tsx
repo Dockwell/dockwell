@@ -11,6 +11,7 @@ import {
   CatalogService,
   ChangeService,
   ComposeService,
+  ConnectionService,
   ContainerService,
   DatabaseService,
   DomainService,
@@ -90,6 +91,7 @@ export type Api = {
   terminals?: Partial<ServiceImpl<typeof TerminalService>>;
   images?: Partial<ServiceImpl<typeof ImageService>>;
   appUpdates?: Partial<ServiceImpl<typeof ServiceUpdateService>>;
+  connections?: Partial<ServiceImpl<typeof ConnectionService>>;
 };
 
 /** A server watch that stays open with nothing to report, so screens around it settle. */
@@ -186,6 +188,7 @@ function apiWrapper(api: Api, cache: CacheOptions = {}) {
         ...api.backups,
       });
       service(DatabaseService, { listDatabases: () => ({}), ...api.databases });
+      service(ConnectionService, { listConnections: () => ({}), ...api.connections });
       service(WebsiteService, { listWebsites: () => ({}), ...api.websites });
       service(BuildService, api.builds ?? {});
       // An app that builds from Git has deploy on push off unless a test says.

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { act, screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
@@ -58,14 +58,10 @@ describe("routes", () => {
     expect(await screen.findByRole("heading", { level: 1, name: "Servers" })).toBeVisible();
   });
 
-  it("says plainly that a section from the design isn't built yet", async () => {
+  it("opens Connections, which every section of the design's rail now has", async () => {
     renderAt("/connections");
     expect(await screen.findByRole("heading", { level: 1, name: "Connections" })).toBeVisible();
-    expect(screen.getByRole("heading", { level: 2, name: "Not in this release yet" })).toBeVisible();
-    expect(within(screen.getByRole("main")).getByRole("link", { name: "Go to the overview" })).toHaveAttribute(
-      "href",
-      "/",
-    );
+    expect(await screen.findByRole("heading", { level: 2, name: "No connections yet" })).toBeVisible();
   });
 
   it.each(["/servers/hz-9/nowhere", "/nowhere"])("explains a missing page at %s and links home", async (path) => {

@@ -261,6 +261,7 @@ var proposers = map[string]bool{
 	"dockwell.v1.DatabaseService.ChangeDatabasePassword": true,
 	"dockwell.v1.DatabaseService.ConnectDatabase":        true,
 	"dockwell.v1.ConnectionService.ConnectStorage":       true,
+	"dockwell.v1.ConnectionService.DisconnectStorage":    true,
 }
 
 // proposes reports a method that proposes a new change, by what it does,

@@ -171,6 +171,32 @@ func TestAnAppIsConnectedToStorage(t *testing.T) {
 		t.Errorf("the gallery runs without the connection's key: %v", got)
 	}
 
+	// The connection says what reads it: each link, in its environment and project,
+	// with the app that reads it and the names it sets.
+	listed, err := cc.ListConnections(t.Context(), connect.NewRequest(&dockwellv1.ListConnectionsRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	read := map[string]string{}
+	for _, info := range listed.Msg.GetConnections() {
+		if info.GetName() != "uploads" {
+			continue
+		}
+		for _, u := range info.GetUses() {
+			if u.GetProject() != project || u.GetEnvironment() == "" || u.GetLinkId() == "" {
+				t.Errorf("a use of uploads reads as %v", u)
+			}
+			read[u.GetLink()] = strings.Join(u.GetApps(), ",")
+			secret := map[string]string{"storage": "S3_SECRET_ACCESS_KEY", "media": "MEDIA_SECRET"}[u.GetLink()]
+			if u.GetSets()[secret] != resourcev1.LinkPart_LINK_PART_SECRET_KEY {
+				t.Errorf("%s doesn't say %s holds the secret key: %v", u.GetLink(), secret, u.GetSets())
+			}
+		}
+	}
+	if read["storage"] != "notes" || read["media"] != "gallery" || len(read) != 2 {
+		t.Errorf("uploads is read by %v, want notes through storage and gallery through media", read)
+	}
+
 	// A new key for the connection reaches both apps in one plan, which holds no key.
 	const newKey = "a-new-secret-key"
 	plan := propose(t, c, "Rotate the uploads key", connectionEdit("uploads", &resourcev1.ConnectionSpec{
@@ -244,6 +270,52 @@ func TestAnAppIsConnectedToStorage(t *testing.T) {
 	if connect.CodeOf(err) != connect.CodeNotFound {
 		t.Errorf("connecting to a connection the project may not use: %v", err)
 	}
+
+	// Disconnecting lets go of the link and keeps each value as it reads now, in a
+	// plan that holds no key: the app runs with the same bucket, and once no link
+	// names the connection, it can go.
+	_, err = cc.DisconnectStorage(t.Context(), connect.NewRequest(&dockwellv1.DisconnectStorageRequest{Project: project, Link: "nothing"}))
+	if connect.CodeOf(err) != connect.CodeNotFound {
+		t.Errorf("disconnecting a link that isn't there: %v", err)
+	}
+	// A name a person set otherwise since the link wrote it is theirs, and stays as
+	// it is: the link's key name made a plain variable, and its endpoint typed by
+	// hand. The connection's key never lands in a plain variable, in the open in the
+	// plan (re-check N2).
+	apply(t, c, propose(t, c, "Set two by hand",
+		&dockwellv1.Edit{Resource: &dockwellv1.ResourceRef{Kind: "secret", Name: "S3_SECRET_ACCESS_KEY"}, Delete: true},
+		variableSpec("S3_SECRET_ACCESS_KEY", "plain-literal"), variableSpec("S3_ENDPOINT", "http://by-hand.example.com")))
+	for _, l := range []string{"storage", "media"} {
+		off, err := cc.DisconnectStorage(t.Context(), connect.NewRequest(&dockwellv1.DisconnectStorageRequest{Project: project, Link: l}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if raw, _ := protojson.Marshal(off.Msg); strings.Contains(string(raw), newKey) {
+			t.Errorf("disconnecting %s plans its key in the open", l)
+		}
+		if done := apply(t, c, off.Msg.GetChange()); done.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+			t.Fatalf("disconnecting %s ended %v: %s", l, done.GetState(), done.GetError())
+		}
+	}
+	got = appEnv("notes")
+	for _, want := range []string{"S3_ENDPOINT=http://by-hand.example.com", "S3_BUCKET=uploads", "S3_ACCESS_KEY_ID=AKIDEXAMPLE", "S3_SECRET_ACCESS_KEY=plain-literal", "S3_FORCE_PATH_STYLE=true"} {
+		if !slices.Contains(got, want) {
+			t.Errorf("after disconnecting, the app runs without %s: %v", want, got)
+		}
+	}
+	if got := appEnv("gallery"); !slices.Contains(got, "MEDIA_SECRET="+newKey) || !slices.Contains(got, "MEDIA_BUCKET=uploads") {
+		t.Errorf("after disconnecting, the gallery runs with %v", got)
+	}
+	listed, err = cc.ListConnections(t.Context(), connect.NewRequest(&dockwellv1.ListConnectionsRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, info := range listed.Msg.GetConnections() {
+		if len(info.GetUses()) != 0 {
+			t.Errorf("after disconnecting, %s is still read through %v", info.GetName(), info.GetUses())
+		}
+	}
+	apply(t, c, propose(t, c, "Delete it", &dockwellv1.Edit{Resource: &dockwellv1.ResourceRef{Kind: string(connection.Kind), Name: "uploads"}, Delete: true}))
 }
 
 // orgID is the install's organization's ID.
