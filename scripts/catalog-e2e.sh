@@ -378,14 +378,31 @@ probe_data() {
     [[ "$value" == *"$held"* ]] || fail "$service lost what it held through the upgrade: it reads '$value'"
   done
 }
-# probe_web says what the app opens answers.
+# probe_web says what the app opens answers: its entry's web service, on the port
+# Dockwell opens it on. That's the one TCP port the service publishes; or, where it
+# publishes several, the one its PORT input publishes, as an entry's web port is;
+# or, with no PORT among them, any one that answers a page, as an SFTP or S3 port
+# beside it doesn't. An entry with no web service has no page to probe.
 probe_web() {
-  local web port
+  local web ports port out
   web=$(jq -r '.web.service // empty' <<<"$entry")
   [[ -n "$web" ]] || return 0
-  port=$(docker port "$(container "$web")" | sed -n '1s/.*://p')
-  [[ -n "$port" ]] || fail "$web publishes no port"
-  answers "http://127.0.0.1:$port/"
+  mapfile -t ports < <(docker inspect --format '{{json .HostConfig.PortBindings}}' "$(container "$web")" |
+    jq -r '(. // {}) | to_entries[] | select(.key | endswith("/udp") | not) | .value[]?.HostPort | select(. != "")' | sort -u)
+  ((${#ports[@]} > 0)) || fail "$web publishes no port"
+  if ((${#ports[@]} > 1)); then
+    port=$(dw catalog installs --json | jq -r --arg p "$installed" '.installs[] | select(.project == $p) | .pin.values.PORT // empty') ||
+      fail "catalog installs failed"
+    if [[ -n "$port" && " ${ports[*]} " == *" $port "* ]]; then ports=("$port"); fi
+  fi
+  for _ in $(seq 60); do
+    for port in "${ports[@]}"; do
+      out=$(curl -sS --max-time 10 -o /dev/null -w '%{http_code}' "http://127.0.0.1:$port/" 2>/dev/null) || out=""
+      [[ -n "$out" && "$out" != 000 && "$out" -lt 500 ]] && return 0
+    done
+    sleep 1
+  done
+  fail "$web answers no page on ${ports[*]} a minute after the change, want one"
 }
 
 # What a person types for an entry, as dockwell catalog install takes it.
@@ -530,8 +547,8 @@ prove() {
   elif [[ -n "$from" ]]; then
     step "$id: $was installs, answers and signs in"
     # As the catalog had it when this run started, before any check ran.
-    [[ -n "${earlier_text[$from]:-}" ]] || fail "the catalog's $from has no entries/$id.yaml"
-    printf '%s\n' "${earlier_text[$from]}" | sed 's/^release: .*/release: 1/' >"$catalog_dir/$id.yaml"
+    [[ -n "${earlier_text[$id@$from]:-}" ]] || fail "the catalog's $from has no entries/$id.yaml"
+    printf '%s\n' "${earlier_text[$id@$from]}" | sed 's/^release: .*/release: 1/' >"$catalog_dir/$id.yaml"
   else
     step "$id: $version installs, answers and signs in"
     release "$entry" 1
@@ -695,7 +712,8 @@ for id in "$@"; do
   earlier_of[$id]=$("$catalog_tool" earlier --catalog "$catalog" --at "$at" ${base:+--base "$base"} "$id") || fail "reading $id's earlier releases failed"
   for which in before first; do
     from=$(jq -r --arg w "$which" '.[$w].commit // empty' <<<"${earlier_of[$id]}")
-    [[ -z "$from" ]] || earlier_text[$from]=$(git -C "$catalog" show "$from:entries/$id.yaml") || fail "the catalog's $from has no entries/$id.yaml"
+    # By the entry and the commit, as one commit can hold the release before of several.
+    [[ -z "$from" ]] || earlier_text[$id@$from]=$(git -C "$catalog" show "$from:entries/$id.yaml") || fail "the catalog's $from has no entries/$id.yaml"
   done
 done
 floored=() not_upgraded=()

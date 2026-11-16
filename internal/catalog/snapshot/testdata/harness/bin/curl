@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: AGPL-3.0-only
 # A stand-in for curl, for harness_test.go: Dockwell's /healthz says ok, a status
-# asked for is 200, and an app's port answers as Adminer at the version its install
-# runs, signing in to the throwaway database with its password alone.
+# asked for is 200, on a port a container publishes from its 8080, which speaks
+# HTTP in this world, as no other port does; and that port answers as Adminer at
+# the version its install runs, signing in to the throwaway database with its
+# password alone.
 url="" password="" status=0
 for a in "$@"; do
   case "$a" in
@@ -12,9 +14,11 @@ for a in "$@"; do
   esac
 done
 [[ "$url" != */healthz ]] || { echo ok && exit 0; }
-((!status)) || { echo 200 && exit 0; }
 port=${url#http://127.0.0.1:}
 port=${port%%/*}
+# Anything else, as SFTP's port, gives curl an empty reply.
+grep -qx "port=8080:$port" "$FAKE_STATE"/containers/* 2>/dev/null || exit 52
+((!status)) || { echo 200 && exit 0; }
 version=$(jq -r --arg p "$port" 'select(.values.PORT == $p) | .version' "$FAKE_STATE"/installs/*.json 2>/dev/null)
 if [[ -n "$password" ]]; then
   if [[ "$password" == e2e-throwaway-password ]]; then echo "<a id='logout'>Logout</a>"; else echo "password authentication failed"; fi

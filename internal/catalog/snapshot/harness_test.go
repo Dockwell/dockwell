@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -139,14 +140,26 @@ func writeFile(t *testing.T, file, text string) {
 	}
 }
 
-// madeUp is an entry of two services at a version, a web one and a database, with
-// a port among its inputs, as JSON, which reads as YAML too.
-func madeUp(id, version string) string {
+// madeUp is an entry of two services at a version, a web one and a database, as
+// JSON, which reads as YAML too. The web one publishes ports, as "${NAME}:<port in
+// the container>", each from an input of its own; ${PORT}:8080 where none are
+// given. In the fake world, a container's 8080 alone answers a page.
+func madeUp(id, version string, ports ...string) string {
+	if len(ports) == 0 {
+		ports = []string{"${PORT}:8080"}
+	}
+	var compose strings.Builder
+	compose.WriteString("services:\n  app:\n    image: example/" + id + ":" + version + "@sha256:" + strings.Repeat("ab", 32) + "\n    ports:\n")
+	var inputs []map[string]string
+	for i, p := range ports {
+		compose.WriteString("      - \"127.0.0.1:" + p + "\"\n")
+		name := strings.TrimPrefix(strings.Split(p, "}")[0], "${")
+		inputs = append(inputs, map[string]string{"name": name, "type": "INPUT_TYPE_PORT", "defaultValue": strconv.Itoa(18090 + i)})
+	}
+	compose.WriteString("  db:\n    image: example/" + id + "-db:" + version + "@sha256:" + strings.Repeat("cd", 32) + "\n")
 	raw, _ := json.Marshal(map[string]any{
 		"id": id, "name": id, "version": version, "release": 1, "web": map[string]string{"service": "app"},
-		"inputs": []map[string]string{{"name": "PORT", "type": "INPUT_TYPE_PORT", "defaultValue": "18090"}},
-		"compose": "services:\n  app:\n    image: example/" + id + ":" + version + "@sha256:" + strings.Repeat("ab", 32) +
-			"\n  db:\n    image: example/" + id + "-db:" + version + "@sha256:" + strings.Repeat("cd", 32) + "\n",
+		"inputs": inputs, "compose": compose.String(),
 	})
 	return string(raw)
 }
@@ -176,9 +189,17 @@ func TestTheHarnessRunsARealCheckInItsOwnProcess(t *testing.T) {
 	}
 	w := newWorld(t, map[string][]string{
 		"adminer": {string(adminerJSON)},
+		// Their releases share commits, as Ghost's and WordPress's do since
+		// Dockwell/catalog#4, and each upgrades from its own (#743's first run).
 		"planner": {madeUp("planner", "1.0.0"), madeUp("planner", "1.1.0")},
+		// A web service that publishes SFTP's port before its web one, as SFTPGo's
+		// does, and one with no PORT among its ports, as RustFS's S3 and console.
+		"sftp":  {madeUp("sftp", "2.0.0", "${SFTP_PORT}:2022", "${PORT}:8080"), madeUp("sftp", "2.1.0", "${SFTP_PORT}:2022", "${PORT}:8080")},
+		"store": {madeUp("store", "3.0.0", "${S3_PORT}:9000", "${CONSOLE_PORT}:8080"), madeUp("store", "3.1.0", "${S3_PORT}:9000", "${CONSOLE_PORT}:8080")},
 	}, map[string]string{
 		"adminer": string(check),
+		"sftp":    "check_sftp() { :; }\n",
+		"store":   "check_store() { :; }\n",
 		"planner": `check_planner() {
   local port planned
   port=$(value PORT)
@@ -198,7 +219,7 @@ func TestTheHarnessRunsARealCheckInItsOwnProcess(t *testing.T) {
 }
 `,
 	})
-	out, err := w.run("--require-upgrade", "--no-floor", "adminer", "planner")
+	out, err := w.run("--require-upgrade", "--no-floor", "adminer", "planner", "sftp", "store")
 	if err != nil {
 		t.Fatalf("the harness failed: %v\n%s", err, out)
 	}
@@ -206,6 +227,8 @@ func TestTheHarnessRunsARealCheckInItsOwnProcess(t *testing.T) {
 		"adminer: 6.1.2, the release before its check names, installs",
 		"adminer: upgrades from 6.1.2 to " + adminer["version"].(string),
 		"planner: upgrades from 1.0.0 to 1.1.0",
+		"sftp: upgrades from 2.0.0 to 2.1.0",
+		"store: upgrades from 3.0.0 to 3.1.0",
 		"catalog-e2e: ok",
 	} {
 		if !strings.Contains(out, want) {
