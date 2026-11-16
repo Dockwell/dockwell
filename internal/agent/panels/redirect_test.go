@@ -350,3 +350,19 @@ func TestTwoCaddyRedirsStayBehindEveryTime(t *testing.T) {
 		}
 	}
 }
+
+// A middleware named as a redirect's setting is keyed, which shares the files' map,
+// never reads as that setting's value: a name with a dot, which no panel writes,
+// holds what passes through it (slice 4's review, L1).
+func TestAMiddlewareNamedLikeASettingHoldsItsDomain(t *testing.T) {
+	root := t.TempDir()
+	const odd = "traefik.http.middlewares.foo.redirectregex.replacement"
+	writeDynamic(t, root, "middlewares.yml", "http:\n  middlewares:\n    "+odd+":\n      ipAllowList:\n        sourceRange:\n          - 192.0.2.10/32\n    foo:\n      redirectRegex:\n        regex: x\n        replacement: compress\n")
+	writeDynamic(t, root, "shop-k2m4.yml", "http:\n  routers:\n    shop-k2m4-router-websecure-1:\n      rule: Host(`shop.example.com`)\n      service: shop-k2m4-service-1\n      entryPoints:\n        - websecure\n      middlewares:\n        - "+odd+"\n      tls:\n        certResolver: letsencrypt\n"+
+		"  services:\n    shop-k2m4-service-1:\n      loadBalancer:\n        servers:\n          - url: http://shop-k2m4:3000\n")
+	r := Reader{Root: root}
+	got := r.dynamicRoutesFrom("shop-k2m4", "shop-k2m4.1.x7k2", r.fileMiddlewares(dockwellv1.PanelKind_PANEL_KIND_DOKPLOY), nil)
+	if len(got) != 1 || !strings.Contains(got[0].GetLeft(), "which Dockwell can't read") {
+		t.Errorf("a middleware named like a setting reads %v", got)
+	}
+}

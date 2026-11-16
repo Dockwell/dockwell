@@ -1479,7 +1479,7 @@ func entryMiddlewaresLeft(list []string, files map[string]string) string {
 		if name == "" {
 			continue
 		}
-		if kind := files[name]; provider == "file" && (kind == "redirectscheme" || kind == "compress") {
+		if kind := files[name]; provider == "file" && !strings.Contains(name, ".") && (kind == "redirectscheme" || kind == "compress") {
 			continue
 		}
 		return fmt.Sprintf("the proxy passes every request on an entrypoint through the middleware %s, which a route would drop", ref)

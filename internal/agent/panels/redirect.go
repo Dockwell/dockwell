@@ -158,6 +158,12 @@ func routerRedirect(l map[string]string, list []string, files map[string]string,
 // what it routes. defs are its settings, keyed as labels are, and kind is its kind,
 // or "" where it's defined nowhere Dockwell reads.
 func middlewareOf(l, files map[string]string, own, name, provider string) (defs map[string]string, kind string) {
+	// No panel writes a name with a dot, and every redirect setting's key has them,
+	// which share the files' map: one with a dot reads as a middleware Dockwell
+	// can't read, so it holds what passes through it.
+	if strings.Contains(name, ".") {
+		return nil, ""
+	}
 	switch {
 	case provider == "file" || provider == "" && own == "file":
 		return files, files[name]
