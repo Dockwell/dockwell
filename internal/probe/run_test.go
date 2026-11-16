@@ -4,12 +4,18 @@ package probe_test
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"log/slog"
+	"net"
 	"net/netip"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/dockwell/dockwell/internal/backup/s3"
 	"github.com/dockwell/dockwell/internal/backup/s3/s3test"
@@ -40,7 +46,8 @@ func bucket(srv *s3test.Server, presign bool) probe.Request {
 
 // A check runs in a container made of the agent's own binary, on the app's
 // network, with no capability, a read-only root, no log and its secrets on its
-// input alone, and leaves nothing behind (ADR 0099).
+// input alone, and leaves nothing behind but the binary's one image, which the next
+// check runs too (ADR 0099, #710).
 func TestACheckRunsLockedDownOnTheAppsNetwork(t *testing.T) {
 	t.Parallel()
 	e := dockertest.New(t)
@@ -78,8 +85,120 @@ func TestACheckRunsLockedDownOnTheAppsNetwork(t *testing.T) {
 	if left := e.Containers(); len(left) != 0 {
 		t.Errorf("the check left containers %v", left)
 	}
-	if left := e.Images(docker.ProbeRepository); len(left) != 0 {
-		t.Errorf("the check left images %v", left)
+	images := e.Images(docker.ProbeRepository)
+	if len(images) != 1 || !strings.HasPrefix(images[0], docker.ProbeRepository+":") {
+		t.Fatalf("the check left images %v, want this build's alone", images)
+	}
+	// Another check, by this runner or one this build starts again, runs the same image.
+	for _, r := range []*probe.Runner{runner(e), runner(e)} {
+		if _, err := r.Run(t.Context(), req, []string{appNetwork}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if again := e.Images(docker.ProbeRepository); !slices.Equal(again, images) {
+		t.Errorf("checks after the first left images %v, want %v", again, images)
+	}
+	if ran := e.Helpers(); ran[len(ran)-1].Image != images[0] {
+		t.Errorf("the last check ran %s, want %s", ran[len(ran)-1].Image, images[0])
+	}
+}
+
+// An image by this build's name is run only when its layer is the one this agent
+// would import: one made by other hands, which would be given a connection's keys,
+// is made again first (#710 review L1). One that is this agent's isn't imported again.
+func TestACheckRunsOnlyItsOwnImage(t *testing.T) {
+	t.Parallel()
+	e := dockertest.New(t)
+	e.AddNetwork(docker.Network{Name: appNetwork, IPAM: docker.IPAM{Config: []docker.IPAMConfig{{Subnet: "127.0.0.0/8"}}}})
+	req := bucket(s3test.New(t), false)
+	if _, err := runner(e).Run(t.Context(), req, []string{appNetwork}); err != nil {
+		t.Fatal(err)
+	}
+	tags := e.Images(docker.ProbeRepository)
+	if len(tags) != 1 {
+		t.Fatalf("a check left images %v", tags)
+	}
+	ours, err := e.Client().InspectImage(t.Context(), tags[0])
+	if err != nil || len(ours.RootFS.Layers) != 1 {
+		t.Fatalf("this build's image reads %+v, %v", ours, err)
+	}
+	imports := e.Imports
+	if _, err := runner(e).Run(t.Context(), req, []string{appNetwork}); err != nil {
+		t.Fatal(err)
+	}
+	if e.Imports != imports {
+		t.Errorf("a check imported this build's image again: %d imports, want %d", e.Imports, imports)
+	}
+
+	// Another image under the same name.
+	other := filepath.Join(t.TempDir(), "other")
+	if err := os.WriteFile(other, []byte("#!/bin/sh\ncat\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.Client().ImportFiles(t.Context(), tags[0], []docker.ImageFile{{Name: "/dockwell", Path: other, Mode: 0o755}}); err != nil {
+		t.Fatal(err)
+	}
+	imports = e.Imports
+	if _, err := runner(e).Run(t.Context(), req, []string{appNetwork}); err != nil {
+		t.Fatal(err)
+	}
+	now, err := e.Client().InspectImage(t.Context(), tags[0])
+	if err != nil || !slices.Equal(now.RootFS.Layers, ours.RootFS.Layers) || e.Imports != imports+1 {
+		t.Errorf("after an image by its name that isn't its own, the check's image reads %v (%v), with %d imports, want %v and one more",
+			now.RootFS.Layers, err, e.Imports-imports, ours.RootFS.Layers)
+	}
+	if ran := e.Helpers(); ran[len(ran)-1].Image != tags[0] {
+		t.Errorf("the check ran %s", ran[len(ran)-1].Image)
+	}
+}
+
+// An agent runs MaxChecks at once, and refuses another as busy, at once, with
+// nothing made, until one ends (#710).
+func TestAnAgentRunsTwoChecksAtOnce(t *testing.T) {
+	t.Parallel()
+	e := dockertest.New(t)
+	e.AddNetwork(docker.Network{Name: appNetwork, IPAM: docker.IPAM{Config: []docker.IPAMConfig{{Subnet: "127.0.0.0/8"}}}})
+	// A store that takes connections and never answers holds each check.
+	stall, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = stall.Close() })
+	go func() {
+		for {
+			conn, err := stall.Accept()
+			if err != nil {
+				return
+			}
+			t.Cleanup(func() { _ = conn.Close() })
+		}
+	}()
+	req := probe.Request{Kind: probe.KindS3, S3: &probe.S3{
+		Endpoint: "http://" + stall.Addr().String(), Bucket: "uploads", Region: "auto", AccessKey: "AKIDEXAMPLE", SecretKey: "the-secret",
+	}}
+	r := runner(e)
+	ctx, cancel := context.WithCancel(t.Context())
+	var running sync.WaitGroup
+	for range probe.MaxChecks {
+		running.Go(func() { _, _ = r.Run(ctx, req, []string{appNetwork}) })
+	}
+	deadline := time.Now().Add(20 * time.Second)
+	for len(e.Containers()) < probe.MaxChecks {
+		if time.Now().After(deadline) {
+			t.Fatalf("%d checks run, want %d", len(e.Containers()), probe.MaxChecks)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if _, err := r.Run(t.Context(), req, []string{appNetwork}); !errors.Is(err, probe.ErrBusy) || !strings.Contains(err.Error(), "Try again in a moment") {
+		t.Errorf("a third check at once: %v", err)
+	}
+	if n := len(e.Containers()); n != probe.MaxChecks {
+		t.Errorf("the busy check made a container: %d run", n)
+	}
+	cancel()
+	running.Wait()
+	if _, err := r.Run(t.Context(), bucket(s3test.New(t), false), []string{appNetwork}); err != nil {
+		t.Errorf("a check once the others ended: %v", err)
 	}
 }
 
@@ -123,9 +242,9 @@ func TestTheServersOwnAddressesAreRefusedOnAnAppsNetwork(t *testing.T) {
 	}
 }
 
-// What a crash cut short is removed as the agent starts: the check's container,
-// its network and its image. A check of this start, which may run while Clean
-// does, keeps all three.
+// What a crash cut short is removed as the agent starts: the check's container and
+// its network, and every probe image but this build's. A check of this start, which
+// may run while Clean does, keeps its container and network.
 func TestCleanRemovesWhatACrashLeft(t *testing.T) {
 	t.Parallel()
 	e := dockertest.New(t)
@@ -148,14 +267,24 @@ func TestCleanRemovesWhatACrashLeft(t *testing.T) {
 	}
 	made("before-1", "before")
 	made("now-1", "now")
+	// This build's image, as a check of this start made it.
+	if _, err := r.Run(t.Context(), probe.Request{Kind: probe.KindS3, S3: &probe.S3{Endpoint: "http://127.0.0.1:9", Bucket: "uploads", AccessKey: "a", SecretKey: "b"}}, nil); err != nil {
+		t.Fatal(err)
+	}
+	var build string
+	for _, tag := range e.Images(docker.ProbeRepository) {
+		if tag != docker.ProbeRepository+":before-1" && tag != docker.ProbeRepository+":now-1" {
+			build = tag
+		}
+	}
 	if err := r.Clean(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 	if left := e.Containers(); !slices.Equal(left, []string{docker.ProbeRepository + "-now-1"}) {
 		t.Errorf("Clean left containers %v, want this start's alone", left)
 	}
-	if left := e.Images(docker.ProbeRepository); !slices.Equal(left, []string{docker.ProbeRepository + ":now-1"}) {
-		t.Errorf("Clean left images %v, want this start's alone", left)
+	if left := e.Images(docker.ProbeRepository); build == "" || !slices.Equal(left, []string{build}) {
+		t.Errorf("Clean left images %v, want this build's alone, %q", left, build)
 	}
 	if n := e.Network(docker.ProbeRepository + "-before-1"); n != nil {
 		t.Errorf("Clean left the network %s", n.Name)

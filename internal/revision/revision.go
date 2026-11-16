@@ -351,6 +351,10 @@ type Edit struct {
 	// what a caller said. So nothing is kept of what's stored (resource.Keeper): it
 	// holds what those servers were given, and nothing goes anywhere it hasn't been.
 	Reverses bool
+	// Restores says Spec is an earlier revision put back as it was recorded, as a
+	// rollback to it does: what Dockwell recorded of who chose it stays as it was
+	// (resource.SaverStamper), as an undo's does.
+	Restores bool
 	// Adopt takes on this container, by its full ID, as what the resource runs, in
 	// place of making one, and AdoptName is what it is called. Bringing a container
 	// in brings its environment, so a person applies it (resource.AccessTakesOn).
@@ -1731,6 +1735,14 @@ func (e *Engine) items(ctx context.Context, edits []Edit, rotate bool) ([]item, 
 				if err := e.kinds.Validate(ed.Ref.Kind, it.spec); err != nil {
 					return fault.New(ErrInvalid, "%s isn't valid: %w", ed.Ref, err)
 				}
+				// Who chose it is Dockwell's to record, not the edit's, from the spec as
+				// Validate wrote it out, and an undo or a rollback puts back what was
+				// recorded then (#710).
+				if t, err := e.kinds.Type(ed.Ref.Kind); err == nil && !ed.Reverses && !ed.Restores && !ed.Observed {
+					if s, ok := t.(resource.SaverStamper); ok {
+						s.StampSaver(it.current, it.spec, installAdmin(ctx))
+					}
+				}
 				// Before anything compares it with what is there.
 				if k, ok := e.keeper(ed.Ref.Kind); ok && it.current != nil && !ed.Observed && !ed.Reverses {
 					if it.kept, err = k.Keep(it.current, it.spec); err != nil {
@@ -2051,6 +2063,9 @@ func (e *Engine) check(ctx context.Context, tx *store.Tx, items []item) error {
 	}
 	for i := range items {
 		it := &items[i]
+		if err := e.checkConnectionLinks(ctx, tx, items, it); err != nil {
+			return err
+		}
 		if it.spec == nil {
 			continue
 		}

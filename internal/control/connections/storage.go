@@ -424,14 +424,7 @@ func (s *Service) checkFrom(ctx context.Context, a *app, c *resourcev1.Connectio
 	if err != nil {
 		return nil, err
 	}
-	s3 := c.GetS3()
-	got, err := session.ProbeConnection(ctx, a.env, a.service, probe.Request{
-		Kind: probe.KindS3, Private: true,
-		S3: &probe.S3{
-			Endpoint: s3.GetEndpoint(), Region: s3.GetRegion(), Bucket: s3.GetBucket(), VirtualHost: !s3.GetPathStyle(),
-			Prefix: prefix, AccessKey: s3.GetAccessKeyId(), SecretKey: s3.GetSecretKey(), Presign: presign,
-		},
-	})
+	got, err := session.ProbeConnection(ctx, a.env, a.service, probeOf(c, prefix, presign))
 	switch {
 	case errors.Is(err, agentapi.ErrOlderAgent):
 		return nil, connect.NewError(connect.CodeFailedPrecondition, fmt.Errorf("%s can't check a connection: %w", srv.GetName(), err))

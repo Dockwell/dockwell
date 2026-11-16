@@ -6,7 +6,9 @@ import (
 	"bytes"
 	"cmp"
 	"context"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -51,6 +53,13 @@ const (
 	maxAnswer = 64 << 10
 )
 
+// MaxChecks is how many checks an agent runs at once: each makes a container, and
+// maybe a network, so a loop of them can't keep the server's Docker busy (#710).
+const MaxChecks = 2
+
+// ErrBusy is a check refused as the agent runs as many as it takes at once.
+var ErrBusy = errors.New("this server is running as many connection checks as it takes at once. Try again in a moment")
+
 // Runner runs checks in the probe's container, on this server's Docker.
 type Runner struct {
 	Client *docker.Client
@@ -67,6 +76,15 @@ type Runner struct {
 	// with, so Clean takes only what an earlier start left: random unless set.
 	Start string
 	start sync.Once
+
+	// slots holds a place for each check running, MaxChecks at most.
+	slots     chan struct{}
+	slotsOnce sync.Once
+	// made is the image of this binary, once known, which every check runs, and
+	// layer the DiffID of its one layer, which an image by that name must have.
+	madeMu sync.Mutex
+	made   string
+	layer  string
 }
 
 // started is what this agent's checks are labelled with.
@@ -87,10 +105,16 @@ func (r *Runner) Run(ctx context.Context, req Request, networks []string) (Resul
 	if req.S3 != nil && s3.CheckPrefix(req.S3.Prefix) != nil {
 		return Result{}, fmt.Errorf("the check's prefix isn't folders in a bucket, so nothing ran: %w", s3.ErrPrefix)
 	}
+	r.slotsOnce.Do(func() { r.slots = make(chan struct{}, MaxChecks) })
+	select {
+	case r.slots <- struct{}{}:
+		defer func() { <-r.slots }()
+	default:
+		return Result{}, ErrBusy
+	}
 	start := r.started()
 	run := start + "-" + randomHex()
 	name := docker.ProbeRepository + "-" + run
-	image := docker.ProbeRepository + ":" + run
 	own, err := r.own()
 	if err != nil {
 		return Result{}, err
@@ -118,14 +142,10 @@ func (r *Runner) Run(ctx context.Context, req Request, networks []string) (Resul
 			}
 		}
 	}
-	files := r.files()
-	if _, err := os.Stat(files[0].Path); err != nil {
-		return Result{}, fmt.Errorf("can't read the agent's own binary: %w", err)
+	image, err := r.image(ctx)
+	if err != nil {
+		return Result{}, err
 	}
-	if err := r.Client.ImportFiles(ctx, image, files); err != nil {
-		return Result{}, fmt.Errorf("docker can't import the check's container: %w", err)
-	}
-	defer r.cleanup(ctx, "image", image, func(ctx context.Context) error { return r.Client.RemoveImage(ctx, image) })
 	id, err := r.Client.CreateContainer(ctx, name, &docker.CreateRequest{
 		Config: docker.Config{
 			Image: image, Entrypoint: []string{binaryIn}, Cmd: []string{Command},
@@ -184,6 +204,56 @@ func (r *Runner) Run(ctx context.Context, req Request, networks []string) (Resul
 	return res, nil
 }
 
+// image is the probe's image for this agent's binary, tagged by its layer's digest:
+// made the first time a check needs it, again if it's gone, and kept, so a check
+// imports nothing (#710). An image by that name is run only if its one layer is the
+// one this agent would import, so one made by other hands, which would be given a
+// connection's keys, is made again instead. Clean removes another build's.
+func (r *Runner) image(ctx context.Context) (string, error) {
+	r.madeMu.Lock()
+	defer r.madeMu.Unlock()
+	tag, err := r.tag()
+	if err != nil {
+		return "", err
+	}
+	tags, err := r.Client.ImageTags(ctx, docker.ProbeRepository)
+	if err != nil {
+		return "", fmt.Errorf("docker can't list the check's images: %w", err)
+	}
+	if slices.Contains(tags, tag) {
+		got, err := r.Client.InspectImage(ctx, tag)
+		if err != nil {
+			return "", fmt.Errorf("docker can't read the check's image: %w", err)
+		}
+		if slices.Equal(got.RootFS.Layers, []string{r.layer}) {
+			return tag, nil
+		}
+		if err := r.Client.RemoveImage(ctx, tag); err != nil {
+			return "", fmt.Errorf("the check's image isn't this agent's, and docker can't remove it: %w", err)
+		}
+	}
+	if err := r.Client.ImportFiles(ctx, tag, r.files()); err != nil {
+		return "", fmt.Errorf("docker can't import the check's container: %w", err)
+	}
+	return tag, nil
+}
+
+// tag is the probe image's name for this binary, worked out once: the repository
+// and the start of the DiffID of the layer ImportFiles writes of its files, which
+// layer keeps whole. Callers hold madeMu.
+func (r *Runner) tag() (string, error) {
+	if r.made != "" {
+		return r.made, nil
+	}
+	sum := sha256.New()
+	if err := docker.WriteFiles(sum, r.files()); err != nil {
+		return "", fmt.Errorf("can't read the agent's own binary: %w", err)
+	}
+	digest := hex.EncodeToString(sum.Sum(nil))
+	r.made, r.layer = docker.ProbeRepository+":"+digest[:16], "sha256:"+digest
+	return r.made, nil
+}
+
 // files are what the probe's image holds.
 func (r *Runner) files() []docker.ImageFile {
 	binary := r.Binary
@@ -240,10 +310,10 @@ func (r *Runner) cleanup(ctx context.Context, what, name string, remove func(con
 	}
 }
 
-// Clean removes what a check an agent's crash cut short left: its containers, its
-// networks and its images. It takes only what an earlier start of the agent made,
-// by their label and name, so a check this start runs, which may begin while Clean
-// does, is never cut short.
+// Clean removes what a check an agent's crash cut short left: its containers and its
+// networks, only what an earlier start of the agent made, by their label and name,
+// so a check this start runs, which may begin while Clean does, is never cut short;
+// and the probe images of other builds, as an upgrade leaves them.
 func (r *Runner) Clean(ctx context.Context) error {
 	start := r.started()
 	list, err := r.Client.ListContainers(ctx, map[string][]string{"label": {docker.LabelProbe}})
@@ -268,12 +338,19 @@ func (r *Runner) Clean(ctx context.Context) error {
 			errs = append(errs, r.Client.RemoveNetwork(ctx, nets[i].Name))
 		}
 	}
+	// One image per build: this one's stays, and another's, as an upgrade leaves it, goes.
+	r.madeMu.Lock()
+	keep, err := r.tag()
+	r.madeMu.Unlock()
+	if err != nil {
+		return errors.Join(append(errs, err)...)
+	}
 	tags, err := r.Client.ImageTags(ctx, docker.ProbeRepository)
 	if err != nil {
 		return errors.Join(append(errs, err)...)
 	}
 	for _, tag := range tags {
-		if !strings.HasPrefix(tag, docker.ProbeRepository+":"+start+"-") {
+		if tag != keep {
 			errs = append(errs, r.Client.RemoveImage(ctx, tag))
 		}
 	}

@@ -28,6 +28,11 @@ type Image struct {
 	Architecture string `json:"Architecture"`
 	// Size is what it takes on the server's disk, unpacked, in bytes.
 	Size int64 `json:"Size"`
+	// RootFS is its layers, by DiffID: the SHA-256 of each layer's tar, as
+	// sha256:<hex>.
+	RootFS struct {
+		Layers []string `json:"Layers"`
+	} `json:"RootFS"`
 }
 
 // Digest says what a registry calls an image a reference names, or nothing for

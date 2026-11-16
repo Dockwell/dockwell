@@ -87,6 +87,16 @@ func markToken(ctx context.Context, r *Refusal) {
 	r.hook = isHook(caller.TokenID)
 }
 
+// installAdmin says whether the caller holds an admin's role on the whole install,
+// or is Dockwell itself, with no caller.
+func installAdmin(ctx context.Context) bool {
+	caller, ok := place.CallerFrom(ctx)
+	if !ok {
+		return true
+	}
+	return store.RoleRank(place.Holds(caller.Grants, place.Install)) >= store.RoleRank(store.RoleAdmin)
+}
+
 func (e *Engine) checkRolesOf(ctx context.Context, tx *store.Tx, actor string, c *store.Change, asked *planRead, items []item, a act) error {
 	caller, ok := place.CallerFrom(ctx)
 	person := aPerson(actor)

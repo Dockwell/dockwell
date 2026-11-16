@@ -254,6 +254,45 @@ func (e *Engine) checkConnectionReached(ctx context.Context, tx *store.Tx, items
 	return nil
 }
 
+// checkConnectionLinks refuses a change that deletes a connection, or narrows it away
+// from a project, while a link there still names it, though no value reads through
+// the link: the link would name a connection that's gone or out of its reach, and no
+// later edit of it would plan (#710). Disconnecting the link first, or in the same
+// change, lets it go. Each refusal names where the link is, as the person narrowing
+// or deleting the connection is on it, not in a project.
+func (e *Engine) checkConnectionLinks(ctx context.Context, tx *store.Tx, items []item, it *item) error {
+	if it.ref.Kind != variable.ConnectionKind || it.current == nil {
+		return nil
+	}
+	links, err := e.allLinks(ctx, tx, items)
+	if err != nil {
+		return err
+	}
+	after, _ := it.spec.(*resourcev1.ConnectionSpec)
+	for i := range links {
+		l := &links[i]
+		if l.GetConnection() != it.ref.Name {
+			continue
+		}
+		where := whichScope(ctx, tx, l.ref.Scope)
+		if it.spec == nil {
+			// An undo can't take an edit of its own, so it's told only to disconnect first.
+			also := ", or in the same change"
+			if it.reverses {
+				also = ""
+			}
+			return fault.New(ErrInvalid, "link %s in %s still uses the connection %s, which this change deletes. Disconnect it on the connection's page first%s",
+				l.ref.Name, where, it.ref.Name, also)
+		}
+		if project := projectOfScope(ctx, tx, items, l.ref.Scope); !connection.Reaches(after, project) {
+			name := whichScope(ctx, tx, project)
+			return fault.New(ErrInvalid, "link %s in %s still uses the connection %s, which this change takes away from %s. Disconnect it on the connection's page first, or keep %s in its reach",
+				l.ref.Name, where, it.ref.Name, name, name)
+		}
+	}
+	return nil
+}
+
 // connectionUnusable is the one refusal of a connection that isn't there and of one
 // that doesn't reach the item's project, wherever it's looked up: a link naming it,
 // or a value read from it, pinned or checked.

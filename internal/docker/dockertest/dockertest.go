@@ -222,6 +222,8 @@ type image struct {
 	id      string
 	digest  string
 	repo    string
+	// layer is an imported image's one layer's DiffID, as Docker reports it.
+	layer string
 	Image
 }
 
@@ -761,6 +763,9 @@ func (e *Engine) serveImages(w http.ResponseWriter, r *http.Request, path string
 			}
 		}
 		out := docker.Image{ID: img.id, Config: &cfg, Created: img.created, Size: img.Size}
+		if img.layer != "" {
+			out.RootFS.Layers = []string{img.layer}
+		}
 		// An image built here has none.
 		if img.digest != "" {
 			out.RepoDigests = []string{img.repo + "@" + img.digest}

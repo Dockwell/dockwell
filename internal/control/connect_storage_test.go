@@ -9,6 +9,7 @@ import (
 
 	"connectrpc.com/connect"
 	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
@@ -140,6 +141,13 @@ func TestAnAppIsConnectedToStorage(t *testing.T) {
 		}
 	}
 
+	// The server the linked app runs on may check it with its saved keys, though it
+	// isn't the control server (#710). It runs: from a network of the check's own,
+	// the stand-in on loopback is refused.
+	if got, err := cc.CheckConnection(t.Context(), connect.NewRequest(&dockwellv1.CheckConnectionRequest{Name: "uploads"})); err != nil || got.Msg.GetServer() == "" {
+		t.Errorf("checking it from the server its linked app runs on: %v, %v", got, err)
+	}
+
 	// A second app reads the same bucket through a link of its own, by names of its own.
 	gallery := &dockwellv1.Edit{
 		Resource: &dockwellv1.ResourceRef{Name: "gallery"},
@@ -247,7 +255,7 @@ func TestAnAppIsConnectedToStorage(t *testing.T) {
 			S3: &resourcev1.ConnectionS3{Endpoint: srv.URL(), Bucket: "uploads", PathStyle: true},
 		}),
 	}}))
-	if connect.CodeOf(err) != connect.CodeInvalidArgument || !strings.Contains(err.Error(), "which isn't one this project can use") {
+	if connect.CodeOf(err) != connect.CodeInvalidArgument || !strings.Contains(err.Error(), "still uses the connection uploads, which this change takes away from default") {
 		t.Errorf("narrowing a connection an app reads: %v", err)
 	}
 
@@ -330,4 +338,67 @@ func orgID(t *testing.T, f *fullServer) string {
 		t.Fatal(err)
 	}
 	return out
+}
+
+// A link that names a connection holds it, though no value reads through it, as one
+// that sets only path style, a plain word: the connection can't go, or stop reaching
+// the link's project, while the link names it, and both go in one change (#710).
+func TestALinkAloneHoldsItsConnection(t *testing.T) {
+	t.Parallel()
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	env := listedEnv(t, b)
+	project := envProject(t, f, env)
+	c := changeClient(b, b.origin)
+	srv := s3test.New(t)
+	uploads := func(reach resourcev1.ConnectionReach, projects ...string) *dockwellv1.Edit {
+		return connectionEdit("uploads", &resourcev1.ConnectionSpec{
+			DisplayName: "Uploads", Kind: resourcev1.LinkKind_LINK_KIND_S3, Reach: reach, Projects: projects,
+			S3: &resourcev1.ConnectionS3{Endpoint: srv.URL(), Bucket: "uploads", AccessKeyId: "AKIDEXAMPLE", SecretKey: connectionSecret, PathStyle: true},
+		})
+	}
+	link := &dockwellv1.Edit{
+		Resource: &dockwellv1.ResourceRef{Kind: "link", Scope: env, Name: "storage"},
+		Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Link{Link: &resourcev1.Link{
+			Label: "Storage", Connection: "uploads", Kind: resourcev1.LinkKind_LINK_KIND_S3, Prefix: "notes/",
+			Sets: []*resourcev1.LinkSet{{Name: "S3_FORCE_PATH_STYLE", Part: resourcev1.LinkPart_LINK_PART_PATH_STYLE}},
+		}}},
+	}
+	apply(t, c, propose(t, c, "Add uploads and a link to it", uploads(resourcev1.ConnectionReach_CONNECTION_REACH_PROJECTS, project), link))
+
+	gone := &dockwellv1.Edit{Resource: &dockwellv1.ResourceRef{Kind: string(connection.Kind), Name: "uploads"}, Delete: true}
+	_, err := c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Delete it", Edits: []*dockwellv1.Edit{gone}}))
+	if connect.CodeOf(err) != connect.CodeInvalidArgument || !strings.Contains(err.Error(), "link storage in default's production still uses the connection uploads, which this change deletes. Disconnect it on the connection's page first, or in the same change") {
+		t.Errorf("deleting a connection a link alone names: %v", err)
+	}
+	_, err = c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Reach no project", Edits: []*dockwellv1.Edit{
+		uploads(resourcev1.ConnectionReach_CONNECTION_REACH_UNSPECIFIED),
+	}}))
+	if connect.CodeOf(err) != connect.CodeInvalidArgument || !strings.Contains(err.Error(), "link storage in default's production still uses the connection uploads, which this change takes away from default. Disconnect it on the connection's page first, or keep default in its reach") {
+		t.Errorf("narrowing a connection a link alone names away from its project: %v", err)
+	}
+
+	// Undoing the change that made a connection a later link names is refused too,
+	// told to disconnect first: an undo takes no edit of its own.
+	spare := propose(t, c, "Add spare", connectionEdit("spare", &resourcev1.ConnectionSpec{
+		DisplayName: "Spare", Kind: resourcev1.LinkKind_LINK_KIND_S3,
+		Reach: resourcev1.ConnectionReach_CONNECTION_REACH_PROJECTS, Projects: []string{project},
+		S3: &resourcev1.ConnectionS3{Endpoint: srv.URL(), Bucket: "spare", AccessKeyId: "AKIDSPARE", SecretKey: connectionSecret, PathStyle: true},
+	}))
+	apply(t, c, spare)
+	spareLink := proto.CloneOf(link)
+	spareLink.Resource.Name = "spare-link"
+	spareLink.GetSpec().GetLink().Connection = "spare"
+	apply(t, c, propose(t, c, "Link spare", spareLink))
+	_, err = c.UndoChange(t.Context(), connect.NewRequest(&dockwellv1.UndoChangeRequest{Id: spare.GetId()}))
+	if connect.CodeOf(err) != connect.CodeInvalidArgument || !strings.Contains(err.Error(), "which this change deletes. Disconnect it on the connection's page first") ||
+		strings.Contains(err.Error(), "in the same change") {
+		t.Errorf("undoing the change that made a connection a link names: %v", err)
+	}
+
+	// The link and the connection go together.
+	letGo := &dockwellv1.Edit{Resource: &dockwellv1.ResourceRef{Kind: "link", Scope: env, Name: "storage"}, Delete: true}
+	if done := apply(t, c, propose(t, c, "Let both go", letGo, gone)); done.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Errorf("deleting the link and its connection ended %v: %s", done.GetState(), done.GetError())
+	}
 }

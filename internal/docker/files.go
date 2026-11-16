@@ -26,42 +26,33 @@ type ImageFile struct {
 // helper made of the agent's own static binary runs with nothing else there and
 // comes from no registry (ADR 0033, ADR 0099).
 func (c *Client) ImportFiles(ctx context.Context, ref string, files []ImageFile) error {
-	opened := make([]*os.File, 0, len(files))
-	sizes := make([]int64, 0, len(files))
-	defer func() {
-		for _, f := range opened {
-			_ = f.Close()
-		}
-	}()
+	pr, pw := io.Pipe()
+	go func() { _ = pw.CloseWithError(WriteFiles(pw, files)) }()
+	defer pr.Close()
+	return c.ImportImage(ctx, ref, pr)
+}
+
+// WriteFiles writes files as the one layer ImportFiles imports: a tar with no
+// times or owners in it, so the same files always write the same bytes, and the
+// layer's DiffID, the SHA-256 of them, says what an image holds.
+func WriteFiles(w io.Writer, files []ImageFile) error {
+	tw := tar.NewWriter(w)
 	for _, file := range files {
 		f, err := os.Open(file.Path)
 		if err != nil {
 			return fmt.Errorf("can't read %s for the helper's image: %w", file.Path, err)
 		}
-		opened = append(opened, f)
 		fi, err := f.Stat()
+		if err == nil {
+			err = tw.WriteHeader(&tar.Header{Name: strings.TrimPrefix(file.Name, "/"), Typeflag: tar.TypeReg, Mode: file.Mode, Size: fi.Size()})
+		}
+		if err == nil {
+			_, err = io.Copy(tw, f)
+		}
+		_ = f.Close()
 		if err != nil {
 			return fmt.Errorf("can't read %s for the helper's image: %w", file.Path, err)
 		}
-		sizes = append(sizes, fi.Size())
 	}
-	pr, pw := io.Pipe()
-	go func() {
-		tw := tar.NewWriter(pw)
-		var err error
-		for i, file := range files {
-			if err = tw.WriteHeader(&tar.Header{Name: strings.TrimPrefix(file.Name, "/"), Typeflag: tar.TypeReg, Mode: file.Mode, Size: sizes[i]}); err != nil {
-				break
-			}
-			if _, err = io.Copy(tw, opened[i]); err != nil {
-				break
-			}
-		}
-		if err == nil {
-			err = tw.Close()
-		}
-		_ = pw.CloseWithError(err)
-	}()
-	defer pr.Close()
-	return c.ImportImage(ctx, ref, pr)
+	return tw.Close()
 }
