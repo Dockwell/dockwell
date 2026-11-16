@@ -74,6 +74,7 @@ func bumpCommand(ctx context.Context, args []string, stdout, stderr io.Writer, d
 	seenFile := flags.String("seen", "", "a file of when each version was first seen, as the open bumps' bodies record it")
 	only := flags.String("only", "", "the entries to bump, by ID, separated by commas; every entry when left out")
 	schema := flags.Bool("schema", false, "print the schema of a policy in updates/, and do nothing else")
+	deadline := flags.Duration("deadline", 25*time.Minute, "how long the run reads before it writes what it has, leaving the rest unread; below the job's own limit")
 	fromBodies := flags.Bool("seen-from-bodies", false, "read the open bumps' bodies, as JSON lines of {\"body\": ...}, on standard input, and print when each version was first seen")
 	if err := flags.Parse(args); err != nil {
 		return err
@@ -98,6 +99,8 @@ func bumpCommand(ctx context.Context, args []string, stdout, stderr io.Writer, d
 				Registry: registry.New(registry.Options{}),
 				Token:    os.Getenv("GITHUB_TOKEN"),
 				Tries:    4,
+				// Waiting on Docker Hub's 429s takes at most a third of the run.
+				Budget: *deadline / 3,
 			},
 			now: time.Now(),
 		}
@@ -109,9 +112,16 @@ func bumpCommand(ctx context.Context, args []string, stdout, stderr io.Writer, d
 	if err := os.MkdirAll(*out, 0o750); err != nil {
 		return err
 	}
+	// The run writes what it has before the job's limit, naming what it didn't read.
+	ctx, cancel := context.WithTimeout(ctx, *deadline)
+	defer cancel()
 	p := &bump.Planner{Sources: deps.sources, Now: deps.now, Seen: seen}
 	result := bumpOutput{Bumps: []bumpPR{}, Notes: []entryNote{}, Unread: []entryNote{}}
 	for _, id := range ids {
+		if ctx.Err() != nil {
+			result.Unread = append(result.Unread, entryNote{id, fmt.Sprintf("the run's %s ran out before it was read", *deadline)})
+			continue
+		}
 		e, err := bump.ReadEntry(*checkout, id)
 		if err != nil {
 			result.Notes = append(result.Notes, entryNote{id, "Its file can't be read: " + err.Error() + "."})

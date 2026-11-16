@@ -285,3 +285,29 @@ compose: |
 		t.Errorf("2.3.2, first seen four days ago, is past a patch's three, and the bump reads %+v", got.Bumps)
 	}
 }
+
+// A run whose time runs out writes what it has, naming each entry it didn't read,
+// rather than the job ending with nothing (#726's review, L3).
+func TestARunOutOfTimeNamesWhatItDidntRead(t *testing.T) {
+	s := bumptest.New(t)
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "entries"), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "entries", "notes.yaml"), []byte("id: notes\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	out := t.TempDir()
+	var stdout, stderr bytes.Buffer
+	if err := bumpCommand(t.Context(), []string{"--catalog", dir, "--out", out, "--deadline", "1ns"}, &stdout, &stderr, &bumpDeps{sources: s.Live(), now: time.Now()}); err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := os.ReadFile(filepath.Join(out, BumpsFile))
+	var got bumpOutput
+	if err := json.Unmarshal(raw, &got); err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Unread) != 1 || got.Unread[0].Entry != "notes" || !strings.Contains(got.Unread[0].Said, "ran out before it was read") {
+		t.Errorf("out of time, the run reads unread %+v", got.Unread)
+	}
+}

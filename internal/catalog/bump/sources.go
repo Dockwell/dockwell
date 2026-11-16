@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/dockwell/dockwell/internal/registry"
@@ -52,6 +53,13 @@ type Live struct {
 	// how long the first wait between is, doubling after.
 	Tries int
 	Wait  time.Duration
+	// Budget bounds all the waiting on 429s in a run, so a limit that holds can't
+	// run the job past its time with nothing said: once it's spent, an image Docker
+	// Hub refuses is left unread, saying why (#726's review, L3). Zero has no bound.
+	Budget time.Duration
+
+	mu     sync.Mutex
+	waited time.Duration
 }
 
 func (l *Live) client() *http.Client {
@@ -74,6 +82,9 @@ func retry[T any](ctx context.Context, l *Live, ask func() (T, error)) (T, error
 		if !errors.Is(err, registry.ErrLimited) || i >= tries {
 			return v, err
 		}
+		if !l.spend(wait) {
+			return v, fmt.Errorf("Docker Hub kept saying it's asked too often past the run's %s of waiting, so it wasn't read this run: %w", l.Budget, err)
+		}
 		select {
 		case <-ctx.Done():
 			return v, ctx.Err()
@@ -81,6 +92,21 @@ func retry[T any](ctx context.Context, l *Live, ask func() (T, error)) (T, error
 		}
 		wait *= 2
 	}
+}
+
+// spend takes d from the run's budget for waiting, and says whether there was that
+// much left.
+func (l *Live) spend(d time.Duration) bool {
+	if l.Budget <= 0 {
+		return true
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.waited+d > l.Budget {
+		return false
+	}
+	l.waited += d
+	return true
 }
 
 // Tags reads a repository's tags as ADR 0079's check does: Docker Hub's 100 most

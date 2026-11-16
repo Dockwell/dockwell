@@ -433,3 +433,27 @@ func TestAHoldTakesAVersionOrItsFirstParts(t *testing.T) {
 		}
 	}
 }
+
+// Waiting on Docker Hub's 429s has a budget for the run: once it's spent, an image
+// it refuses is left unread, saying why, rather than the run going past the job's
+// time with nothing written (#726's review, L3).
+func TestALimitThatHoldsLeavesItsImagesUnread(t *testing.T) {
+	s := shopStand(t)
+	s.Limited = 1 << 20
+	dir := checkout(t, map[string]string{"shop": shopEntry("1.4.2")}, map[string]string{"shop": "gives: app\n"})
+	e, err := bump.ReadEntry(dir, "shop")
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := bump.ReadPolicy(dir, "shop")
+	if err != nil {
+		t.Fatal(err)
+	}
+	live := s.Live()
+	live.Tries, live.Wait, live.Budget = 100, 10*time.Millisecond, 25*time.Millisecond
+	start := time.Now()
+	r := (&bump.Planner{Sources: live, Now: now}).Plan(t.Context(), e, p)
+	if time.Since(start) > 5*time.Second || len(r.Unread) == 0 || !strings.Contains(strings.Join(r.Unread, " "), "past the run's 25ms of waiting") {
+		t.Errorf("with the limit held, after %s it reads unread %v", time.Since(start), r.Unread)
+	}
+}
