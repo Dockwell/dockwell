@@ -10,6 +10,7 @@ import type { Page } from "playwright-core";
 import { type DockerProbe, dockerRemove, dockerRun, dockerStarted } from "./docker-probe.ts";
 import type { Flow } from "./flows.ts";
 import { ownServerPath } from "./own-server.ts";
+import { atWidth } from "./sheets.ts";
 
 export interface ContainersFlowOptions {
   origin: string;
@@ -44,7 +45,7 @@ export async function containersFlow(
   });
   try {
     const before = await dockerStarted(socket, id);
-    await page.setViewportSize({ width: 1280, height: 900 });
+    await atWidth(page, { width: 1280, height: 900 });
     const link = await ownServerPath(page, origin);
     await page.goto(`${origin}${link}`);
     const panel = page.getByRole("region", { name: PANEL });
@@ -73,7 +74,7 @@ export async function containersFlow(
     if ((await page.content()).includes(SECRET)) fail("a value of the container's environment reached the page");
 
     step("containers: on a phone it stacks, and nothing runs off the screen");
-    await page.setViewportSize({ width: 390, height: 844 });
+    await atWidth(page, { width: 390, height: 844 });
     await page.goto(`${origin}${link}`);
     const stacked = page.getByRole("link", { name: new RegExp(NAME) }).first();
     await stacked.waitFor({ timeout: 20_000 });
@@ -83,7 +84,7 @@ export async function containersFlow(
     await stacked.click();
     await page.getByRole("log").getByText(SAYS).waitFor({ timeout: 20_000 });
     await shoot(page, "container-phone");
-    await page.setViewportSize({ width: 1280, height: 900 });
+    await atWidth(page, { width: 1280, height: 900 });
 
     step("containers: nothing was touched by being looked at");
     const after = await dockerStarted(socket, id);

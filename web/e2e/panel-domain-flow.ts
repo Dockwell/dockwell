@@ -11,6 +11,7 @@
 import type { Page } from "playwright-core";
 
 import type { Flow } from "./flows.ts";
+import { atWidth } from "./sheets.ts";
 
 interface PanelDomainFlowOptions {
   origin: string;
@@ -24,7 +25,7 @@ function fail(message: string): never {
 
 export async function panelDomainFlow(page: Page, { origin, step, shoot }: PanelDomainFlowOptions) {
   step("panel domain: typed and checked, then saved with a passkey, which restarts Dockwell to serve it");
-  await page.setViewportSize({ width: 1440, height: 900 });
+  await atWidth(page, { width: 1440, height: 900 });
   await page.goto(`${origin}/settings/general`);
   const panel = page.getByRole("region", { name: "Panel address" });
   const field = panel.getByRole("textbox", { name: "Domain" });

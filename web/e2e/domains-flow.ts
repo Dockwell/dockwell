@@ -11,7 +11,7 @@
 import type { Page } from "playwright-core";
 
 import type { Flow } from "./flows.ts";
-import { onTop } from "./sheets.ts";
+import { atWidth, onTop } from "./sheets.ts";
 import { bytes, number } from "./wire.ts";
 
 export interface DomainsFlowOptions {
@@ -242,14 +242,14 @@ export async function domainsFlow(page: Page, { origin, step, shoot }: DomainsFl
   await page.goBack();
 
   step("domains: at 800 px what a row reaches, and where, can be read whole");
-  await page.setViewportSize({ width: 800, height: 844 });
+  await atWidth(page, { width: 800, height: 844 });
   await row("shop.example.com").waitFor();
   const narrow = await howItFits(page);
   if (narrow.page > 0) fail(`at 800 px the page is ${narrow.page} px too wide`);
   if (narrow.clipped.length > 0) fail(`at 800 px these are clipped: ${narrow.clipped.join(", ")}`);
 
   step("domains: the narrowest phone fits it all, and reaches it from More");
-  await page.setViewportSize({ width: 360, height: 780 });
+  await atWidth(page, { width: 360, height: 780 });
   await page.goto(`${origin}/more`);
   await page.getByRole("link", { name: "Domains" }).click();
   await heading.waitFor();
@@ -265,7 +265,7 @@ export async function domainsFlow(page: Page, { origin, step, shoot }: DomainsFl
   await state.selectOption({ label: "Behind a tunnel or a proxy" });
   await page.getByRole("link", { name: /^tunnel\.example\.com/ }).click();
   await page.waitForURL(new RegExp(`/apps/${adminer.id}$`));
-  await page.setViewportSize({ width: 1440, height: 900 });
+  await atWidth(page, { width: 1440, height: 900 });
 
   step("domains: once the panel can't read them it says so, and nothing reads as serving");
   await page.goto(`${origin}/domains`);
@@ -286,7 +286,7 @@ export async function domainsFlow(page: Page, { origin, step, shoot }: DomainsFl
   const listTop = async () => (await page.locator(".dw-table, .domains-phone").first().boundingBox())?.y ?? Number.NaN;
   const quietly = answers.find((answer) => answer.name === "tunnel.example.com") ?? fail("the tunnel isn't listed");
   for (const width of [1440, 360]) {
-    await page.setViewportSize({ width, height: 800 });
+    await atWidth(page, { width, height: 800 });
     await page.goto(`${origin}/domains`);
     await page.getByRole("link", { name: "Open tunnel.example.com" }).waitFor();
     const before = await listTop();
@@ -302,7 +302,7 @@ export async function domainsFlow(page: Page, { origin, step, shoot }: DomainsFl
     await showFirst.waitFor({ state: "hidden" });
     Object.assign(quietly, { state: NONE, tls: "off", message: "" });
   }
-  await page.setViewportSize({ width: 1440, height: 900 });
+  await atWidth(page, { width: 1440, height: 900 });
 
   step("domains: coming back after a while it says it's checking, keeps its filter, and so does Apps");
   await page.goto(`${origin}/domains?state=failing`);

@@ -28,7 +28,7 @@ import { parseArgs } from "node:util";
 import { type Browser, chromium, type Locator, type Page } from "playwright-core";
 
 import { describePages, watchBrowser } from "./report.ts";
-import { LONG_HOSTNAME } from "./sheets.ts";
+import { atWidth, LONG_HOSTNAME } from "./sheets.ts";
 
 // A real binary asks nothing beyond this machine in a test.
 process.env["DOCKWELL_TEST"] = "1";
@@ -155,11 +155,11 @@ async function shoot(page: Page, name: string) {
   if (!shots) return;
   mkdirSync(shots, { recursive: true });
   for (const width of [1440, 390]) {
-    await page.setViewportSize({ width, height: width >= 800 ? 970 : 844 });
+    await atWidth(page, { width, height: width >= 800 ? 970 : 844 });
     await sleep(250);
     await page.screenshot({ path: join(shots, `${name}-${width}.png`), fullPage: true });
   }
-  await page.setViewportSize({ width: 1440, height: 970 });
+  await atWidth(page, { width: 1440, height: 970 });
   await sleep(100);
 }
 
@@ -177,7 +177,7 @@ async function shootSheet(page: Page, name: string, open: () => Promise<Locator>
   if (!shots) return;
   mkdirSync(shots, { recursive: true });
   for (const width of [1440, 390]) {
-    await page.setViewportSize({ width, height: width >= 800 ? 970 : 844 });
+    await atWidth(page, { width, height: width >= 800 ? 970 : 844 });
     const sheet = await open();
     for (const scheme of ["light", "dark"] as const) {
       await page.emulateMedia({ colorScheme: scheme });
@@ -188,7 +188,7 @@ async function shootSheet(page: Page, name: string, open: () => Promise<Locator>
     await sheet.getByRole("button", { name: "Cancel" }).click();
     await sheet.waitFor({ state: "detached" });
   }
-  await page.setViewportSize({ width: 1440, height: 970 });
+  await atWidth(page, { width: 1440, height: 970 });
   await sleep(100);
 }
 

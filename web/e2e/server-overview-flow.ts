@@ -12,6 +12,7 @@ import type { Page } from "playwright-core";
 
 import type { Flow } from "./flows.ts";
 import { ownServerPath } from "./own-server.ts";
+import { atWidth } from "./sheets.ts";
 
 interface ServerOverviewFlowOptions {
   origin: string;
@@ -27,7 +28,7 @@ function fail(message: string): never {
 
 export async function serverOverviewFlow(page: Page, { origin, step, shoot, breakdown }: ServerOverviewFlowOptions) {
   step("a server's Overview: live numbers, what runs here, what takes the disk, and what the server is");
-  await page.setViewportSize({ width: 1440, height: 900 });
+  await atWidth(page, { width: 1440, height: 900 });
   const link = await ownServerPath(page, origin);
   await page.goto(`${origin}${link}`);
   await page.locator(".dw-metric", { hasText: "Load average" }).waitFor({ timeout: 15_000 });
@@ -91,7 +92,7 @@ export async function serverOverviewFlow(page: Page, { origin, step, shoot, brea
   await runs.waitFor();
 
   step("on a phone it leads with how the server is, what runs there, and what happened, and fits the narrowest");
-  await page.setViewportSize({ width: 390, height: 844 });
+  await atWidth(page, { width: 390, height: 844 });
   // The phone's page comes once the page has seen it's on a phone.
   const status = page.getByRole("region", { name: "Status" });
   await status.waitFor();
@@ -100,11 +101,11 @@ export async function serverOverviewFlow(page: Page, { origin, step, shoot, brea
   const recent = page.getByRole("region", { name: "Recent" });
   await recent.locator("li").first().waitFor({ timeout: 15_000 });
   await shoot(page, "server-overview-phone");
-  await page.setViewportSize({ width: 360, height: 780 });
+  await atWidth(page, { width: 360, height: 780 });
   await status.waitFor();
   const wide = await page.evaluate(() => document.documentElement.scrollWidth);
   if (wide > 360) fail(`the server's page is ${wide} px wide on a 360 px phone`);
-  await page.setViewportSize({ width: 1440, height: 900 });
+  await atWidth(page, { width: 1440, height: 900 });
 }
 
 /** Where sign-in.ts runs this among the flows, on the fake engine (flows.ts). */

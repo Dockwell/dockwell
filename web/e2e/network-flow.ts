@@ -8,6 +8,7 @@ import type { Page } from "playwright-core";
 
 import type { Flow } from "./flows.ts";
 import { ownServerPath } from "./own-server.ts";
+import { atWidth } from "./sheets.ts";
 
 interface NetworkFlowOptions {
   origin: string;
@@ -78,7 +79,7 @@ export async function networkFlow(page: Page, { origin, step, shoot }: NetworkFl
   await page.goto(`${origin}/apps`);
   const app = await page.locator('a[href^="/apps/svc_"]').first().getAttribute("href");
   if (!app) throw new Error("there's no app to add a domain to");
-  await page.setViewportSize({ width: 360, height: 780 });
+  await atWidth(page, { width: 360, height: 780 });
   await page.goto(`${origin}${app}`);
   await page.getByRole("button", { name: "Add a domain" }).first().click();
   const form = page.getByRole("dialog", { name: /^Add a domain to / });
@@ -96,7 +97,7 @@ export async function networkFlow(page: Page, { origin, step, shoot }: NetworkFl
   await shoot(page, "network-domain-ipv6-phone");
   await page.keyboard.press("Escape");
   await form.waitFor({ state: "hidden" });
-  await page.setViewportSize({ width: 1440, height: 900 });
+  await atWidth(page, { width: 1440, height: 900 });
   for (const { id } of servers) await call("SetServerPublicAddress", { id, address: "", ipv6: true });
 }
 

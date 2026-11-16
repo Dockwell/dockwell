@@ -40,7 +40,7 @@ import { dockerMade, dockerProbe, dockerStop, removeMade } from "./docker-probe.
 import { hostTools } from "./firewall-flow.ts";
 import { runFlows } from "./flows.ts";
 import { describePages, watchBrowser } from "./report.ts";
-import { LONG_HOSTNAME, onTop } from "./sheets.ts";
+import { atWidth, LONG_HOSTNAME, onTop } from "./sheets.ts";
 
 // A real binary asks nothing beyond this machine in a test.
 process.env["DOCKWELL_TEST"] = "1";
@@ -244,7 +244,7 @@ async function shoot(page: Page, name: string) {
     for (const scheme of ["light", "dark"] as const) {
       await page.emulateMedia({ colorScheme: scheme });
       for (const width of [1440, 800, 390, 360]) {
-        await page.setViewportSize({ width, height: width === 1440 ? 900 : 844 });
+        await atWidth(page, { width, height: width === 1440 ? 900 : 844 });
         // A full-page shot of a long page starts at its top, as someone arriving would see it.
         await page.evaluate(() => window.scrollTo(0, 0));
         await page.waitForTimeout(100);
@@ -254,7 +254,7 @@ async function shoot(page: Page, name: string) {
   } finally {
     // Recording a screen must not turn the phone assertions after it into desktop checks.
     await page.emulateMedia({ colorScheme });
-    if (viewport) await page.setViewportSize(viewport);
+    if (viewport) await atWidth(page, viewport);
   }
 }
 
@@ -914,7 +914,7 @@ async function main() {
   }
 
   step("sign out on a phone, from More");
-  await page.setViewportSize({ width: 390, height: 844 });
+  await atWidth(page, { width: 390, height: 844 });
   await page.goto(`${origin}/more`);
   await expectPage(page, "More");
   await page.getByRole("button", { name: "Sign out", exact: true }).click();

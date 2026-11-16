@@ -19,7 +19,7 @@ import type { Page } from "playwright-core";
 
 import type { DockerProbe } from "./docker-probe.ts";
 import type { Flow } from "./flows.ts";
-import { onTop } from "./sheets.ts";
+import { atWidth, onTop } from "./sheets.ts";
 
 export interface RuntimesFlowOptions {
   origin: string;
@@ -80,7 +80,7 @@ export async function runtimesFlow(page: Page, { origin, step, shoot, docker }: 
   const name = "storefront";
   try {
     step("runtimes: New app takes a folder, and reads who owns it, what it holds and what it runs on");
-    await page.setViewportSize({ width: 1440, height: 900 });
+    await atWidth(page, { width: 1440, height: 900 });
     await page.goto(`${origin}/apps/new`);
     const sheet = page.getByRole("dialog", { name: "New app" });
     await sheet.waitFor();
@@ -210,13 +210,13 @@ export async function runtimesFlow(page: Page, { origin, step, shoot, docker }: 
     await shoot(page, "websites-runtimes");
 
     step("runtimes: on a phone, the app's page says what it runs on");
-    await page.setViewportSize({ width: 390, height: 844 });
+    await atWidth(page, { width: 390, height: 844 });
     await page.goto(appURL);
     const phoneConfig = page.getByRole("region", { name: "Configuration" });
     await phoneConfig.getByText(`Node.js ${older}`).waitFor({ timeout: 15_000 });
     await phoneConfig.getByText(folder, { exact: true }).waitFor();
     await shoot(page, "apps-runtime-phone");
-    await page.setViewportSize({ width: 1440, height: 900 });
+    await atWidth(page, { width: 1440, height: 900 });
 
     step("runtimes: deleting the app leaves its folder as it is");
     await page.goto(`${origin}/apps`);

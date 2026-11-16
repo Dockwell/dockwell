@@ -29,6 +29,32 @@ export async function coveredHidden(page: Page): Promise<void> {
 export const LONG_HOSTNAME = "ip10x0x12x34a7f3c9d1e5b8a4f60d2c7e9b1a3f5d8c0b6e2a9f4d71";
 
 /**
+ * Waits until the shell has the layout of the viewport's width: the phone's, or the
+ * wide one, with its rail and top bar. Until the frame after a resize
+ * it still has the one before, so a page measured then reads 182 px past a 390 px
+ * edge (#738). A page with no shell, such as sign-in, has nothing to wait for.
+ */
+export async function shellFits(page: Page): Promise<void> {
+  await page.waitForFunction(
+    () => {
+      if (!document.querySelector(".shell")) return true;
+      // The wide layout has its rail and top bar, and a phone neither. A phone's tab bar
+      // isn't a sign of it: it steps aside on an app's logs.
+      const phone = matchMedia("(max-width: 639.98px)").matches;
+      return phone === !document.querySelector(".rail") && phone === !document.querySelector(".topbar");
+    },
+    undefined,
+    { timeout: 10_000 },
+  );
+}
+
+/** Resizes the page, as setViewportSize does, and waits for the shell to take the new width's layout. */
+export async function atWidth(page: Page, size: { width: number; height: number }): Promise<void> {
+  await page.setViewportSize(size);
+  await shellFits(page);
+}
+
+/**
  * How far the page reaches past the viewport's width, and what reaches past it, so a
  * check that a page fits a phone names what doesn't, as a failure in another browser
  * than this machine's can't be looked at after. It waits first for the shell to take
@@ -38,15 +64,7 @@ export const LONG_HOSTNAME = "ip10x0x12x34a7f3c9d1e5b8a4f60d2c7e9b1a3f5d8c0b6e2a
  * words.
  */
 export async function pastTheEdge(page: Page): Promise<{ wider: number; what: string }> {
-  await page.waitForFunction(
-    () => {
-      if (!document.querySelector(".shell")) return true;
-      const phone = matchMedia("(max-width: 639.98px)").matches;
-      return phone === !!document.querySelector(".tabbar") && phone === !document.querySelector(".topbar");
-    },
-    undefined,
-    { timeout: 10_000 },
-  );
+  await shellFits(page);
   return page.evaluate(() => {
     const width = document.documentElement.clientWidth;
     const wider = document.documentElement.scrollWidth - width;

@@ -23,7 +23,7 @@ import { parseArgs } from "node:util";
 import { type Browser, chromium, type Page } from "playwright-core";
 
 import { describePages, watchBrowser } from "./report.ts";
-import { LONG_HOSTNAME, onTop } from "./sheets.ts";
+import { atWidth, LONG_HOSTNAME, onTop } from "./sheets.ts";
 
 // A real binary asks nothing beyond this machine in a test.
 process.env["DOCKWELL_TEST"] = "1";
@@ -231,25 +231,25 @@ async function shoot(page: Page, name: string) {
   for (const scheme of ["light", "dark"] as const) {
     await page.emulateMedia({ colorScheme: scheme });
     for (const width of [1440, 390]) {
-      await page.setViewportSize({ width, height: width >= 800 ? 970 : 844 });
+      await atWidth(page, { width, height: width >= 800 ? 970 : 844 });
       await sleep(250);
       await page.screenshot({ path: join(shots, `${name}-${width}-${scheme}.png`), fullPage: true });
     }
   }
   await page.emulateMedia({ colorScheme: "light" });
-  await page.setViewportSize({ width: 1440, height: 970 });
+  await atWidth(page, { width: 1440, height: 970 });
   await sleep(100);
 }
 
 /** Fails when the page scrolls sideways at a width: every view works from 360 px up. */
 async function noSidewaysScroll(page: Page, what: string) {
   for (const width of [390, 360]) {
-    await page.setViewportSize({ width, height: 844 });
+    await atWidth(page, { width, height: 844 });
     await sleep(200);
     const over = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     if (over > 0) fail(`${what} scrolls sideways by ${over} px at ${width} px`);
   }
-  await page.setViewportSize({ width: 1440, height: 970 });
+  await atWidth(page, { width: 1440, height: 970 });
 }
 
 async function main() {
@@ -377,14 +377,14 @@ async function main() {
   if (refreshes() !== 2) fail("Check now refreshed twice within a minute");
 
   step("on a phone, a package a row, and the overview's card is one link");
-  await page.setViewportSize({ width: 390, height: 844 });
+  await atWidth(page, { width: 390, height: 844 });
   await page.getByRole("list", { name: /^Security updates for / }).waitFor();
   await noSidewaysScroll(page, "the Updates tab");
-  await page.setViewportSize({ width: 390, height: 844 });
+  await atWidth(page, { width: 390, height: 844 });
   await page.goto(`${origin}/`);
   await page.getByRole("link", { name: /6 security updates for / }).click();
   await page.waitForURL(/\/updates$/);
-  await page.setViewportSize({ width: 1440, height: 970 });
+  await atWidth(page, { width: 1440, height: 970 });
 
   step("in Chinese");
   const zh = await browser.newContext({

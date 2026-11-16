@@ -13,7 +13,7 @@ import { join } from "node:path";
 import type { Page } from "playwright-core";
 
 import type { Flow } from "./flows.ts";
-import { LONG_HOSTNAME, onTop } from "./sheets.ts";
+import { atWidth, LONG_HOSTNAME, onTop, pastTheEdge } from "./sheets.ts";
 
 export interface DatabasesFlowOptions {
   origin: string;
@@ -29,18 +29,16 @@ function fail(message: string): never {
   throw new Error(message);
 }
 
-/** Fails if the page scrolls sideways at its width. */
+/** Fails if the page scrolls sideways at its width, naming what reaches past it. */
 async function fitsItsWidth(page: Page, what: string) {
-  const { scroll, width } = await page.evaluate(() => ({
-    scroll: document.documentElement.scrollWidth,
-    width: window.innerWidth,
-  }));
-  if (scroll > width) fail(`${what} scrolls sideways at ${width} px: it's ${scroll} px wide`);
+  const edge = await pastTheEdge(page);
+  const width = page.viewportSize()?.width ?? 0;
+  if (edge.wider > 0) fail(`${what} scrolls sideways at ${width} px, by ${edge.wider} px: ${edge.what}`);
 }
 
 export async function databasesFlow(page: Page, { origin, step, shoot, catalogDir }: DatabasesFlowOptions) {
   step("databases: the rail leads to them, with what the catalog's PostgreSQL says of itself");
-  await page.setViewportSize({ width: 1440, height: 900 });
+  await atWidth(page, { width: 1440, height: 900 });
   await page.goto(`${origin}/apps`);
   await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Databases" }).click();
   await page.getByRole("heading", { level: 1, name: "Databases" }).waitFor();
@@ -201,7 +199,7 @@ export async function databasesFlow(page: Page, { origin, step, shoot, catalogDi
   }
 
   step("databases: on a phone, each is a row that opens its page");
-  await page.setViewportSize({ width: 390, height: 844 });
+  await atWidth(page, { width: 390, height: 844 });
   await page.goto(`${origin}/databases`);
   const phoneRow = page.locator(".databases-phone-row").filter({ hasText: "PostgreSQL 17.11" }).first();
   await phoneRow.waitFor({ timeout: 20_000 });
@@ -214,7 +212,7 @@ export async function databasesFlow(page: Page, { origin, step, shoot, catalogDi
   // The masked password keeps to one line beside its actions, rather than a dot to a line.
   const tall = await masked.evaluate((el) => el.getBoundingClientRect().height);
   if (tall > 28) fail(`the masked password on a phone is ${Math.round(tall)} px tall, more than one line`);
-  await page.setViewportSize({ width: 1440, height: 900 });
+  await atWidth(page, { width: 1440, height: 900 });
 }
 
 /** Where sign-in.ts runs this among the flows, on the fake engine (flows.ts). */

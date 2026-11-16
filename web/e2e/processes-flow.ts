@@ -11,6 +11,7 @@ import type { Page } from "playwright-core";
 
 import type { Flow } from "./flows.ts";
 import { ownServerPath } from "./own-server.ts";
+import { atWidth } from "./sheets.ts";
 
 interface ProcessesFlowOptions {
   origin: string;
@@ -28,7 +29,7 @@ export async function processesFlow(page: Page, { origin, step, shoot }: Process
   const ended = new Promise<NodeJS.Signals | null>((done) => sleeper.once("exit", (_code, signal) => done(signal)));
   try {
     const pid = sleeper.pid ?? fail("couldn't start a process to stop");
-    await page.setViewportSize({ width: 1440, height: 900 });
+    await atWidth(page, { width: 1440, height: 900 });
     const link = await ownServerPath(page, origin);
     await page.goto(`${origin}${link}`);
     await page
@@ -83,11 +84,11 @@ export async function processesFlow(page: Page, { origin, step, shoot }: Process
 
     step("the processes fit the narrowest phone");
     await page.goBack();
-    await page.setViewportSize({ width: 360, height: 780 });
+    await atWidth(page, { width: 360, height: 780 });
     await page.getByRole("list", { name: "Processes" }).waitFor({ timeout: 15_000 });
     const wide = await page.evaluate(() => document.documentElement.scrollWidth);
     if (wide > 360) fail(`the processes are ${wide} px wide on a 360 px phone`);
-    await page.setViewportSize({ width: 1440, height: 900 });
+    await atWidth(page, { width: 1440, height: 900 });
   } finally {
     sleeper.kill();
   }

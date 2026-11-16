@@ -23,7 +23,7 @@ import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 
 import { type Browser, type BrowserContext, chromium, type Page } from "playwright-core";
-import { LONG_HOSTNAME } from "./sheets.ts";
+import { atWidth, LONG_HOSTNAME } from "./sheets.ts";
 
 // A real binary asks nothing beyond this machine in a test.
 process.env["DOCKWELL_TEST"] = "1";
@@ -178,13 +178,13 @@ async function shoot(page: Page, name: string) {
   for (const scheme of ["dark", "light"] as const) {
     await page.emulateMedia({ colorScheme: scheme });
     for (const width of [1440, 390]) {
-      await page.setViewportSize({ width, height: width === 1440 ? 930 : 844 });
+      await atWidth(page, { width, height: width === 1440 ? 930 : 844 });
       await sleep(400);
       await page.screenshot({ path: join(shots, `${name}-${width}-${scheme}.png`) });
     }
   }
   await page.emulateMedia({ colorScheme: "light" });
-  await page.setViewportSize({ width: 1440, height: 930 });
+  await atWidth(page, { width: 1440, height: 930 });
   await sleep(300);
 }
 
@@ -212,12 +212,12 @@ async function typeLine(page: Page, line: string) {
 
 async function noSidewaysScroll(page: Page, what: string) {
   for (const width of [390, 360]) {
-    await page.setViewportSize({ width, height: 844 });
+    await atWidth(page, { width, height: 844 });
     await sleep(200);
     const over = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     if (over > 0) fail(`${what} scrolls sideways by ${over} px at ${width} px`);
   }
-  await page.setViewportSize({ width: 1440, height: 930 });
+  await atWidth(page, { width: 1440, height: 930 });
 }
 
 async function main() {
@@ -291,12 +291,12 @@ async function main() {
   const [, cols, rows] = await sizeOf();
   await typeLine(page, "stty size");
   await shows(page, `${rows} ${cols}`);
-  await page.setViewportSize({ width: 1100, height: 760 });
+  await atWidth(page, { width: 1100, height: 760 });
   await until("the terminal to fit the smaller window", async () => (await sizeOf())[1] !== cols);
   const [, narrower, shorter] = await sizeOf();
   await typeLine(page, "clear; stty size");
   await shows(page, `${shorter} ${narrower}`);
-  await page.setViewportSize({ width: 1440, height: 930 });
+  await atWidth(page, { width: 1440, height: 930 });
 
   step("find in the scrollback, copy what it found, and paste");
   await typeLine(page, "echo findable-$((40+2))");
@@ -342,9 +342,9 @@ async function main() {
   await page.getByText("Reconnecting").waitFor({ timeout: 40_000 });
   await typeLine(page, "echo typed-offline-$((3*3))");
   // Narrowed to a phone and back, it keeps its terminal, what it printed and what was typed.
-  await page.setViewportSize({ width: 390, height: 844 });
+  await atWidth(page, { width: 390, height: 844 });
   await sleep(300);
-  await page.setViewportSize({ width: 1440, height: 930 });
+  await atWidth(page, { width: 1440, height: 930 });
   await shows(page, "pasted-5");
   await shoot(page, "reconnecting");
   await context.setOffline(false);
@@ -386,7 +386,7 @@ async function main() {
   await shows(page, "typed-offline-9");
 
   step("on a phone it takes the screen, with the keys a phone's keyboard hasn't");
-  await page.setViewportSize({ width: 390, height: 844 });
+  await atWidth(page, { width: 390, height: 844 });
   const keys = page.getByRole("toolbar", { name: "Terminal keys, scroll for more" });
   await keys.waitFor();
   if (await page.locator(".tabbar").isVisible()) fail("the tab bar shows under the terminal's keys");
@@ -433,7 +433,7 @@ async function main() {
   await page.getByRole("button", { name: "Text size" }).click();
   await shoot(page, "phone");
   await noSidewaysScroll(page, "the terminal on a phone");
-  await page.setViewportSize({ width: 1440, height: 930 });
+  await atWidth(page, { width: 1440, height: 930 });
 
   step("the shell exits, and the terminal says so");
   await typeLine(page, "exit 3");

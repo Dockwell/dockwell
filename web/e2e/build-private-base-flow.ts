@@ -14,7 +14,7 @@ import type { Page } from "playwright-core";
 
 import { startGitServer } from "./build-flow.ts";
 import type { Flow } from "./flows.ts";
-import { onTop } from "./sheets.ts";
+import { atWidth, onTop } from "./sheets.ts";
 
 function fail(message: string): never {
   throw new Error(message);
@@ -54,7 +54,7 @@ async function connectGHCR(page: Page, origin: string) {
 
 export async function buildPrivateBaseFlow(page: Page, { origin, step, shoot, git }: Options) {
   step("build from a private base: GitHub's registry is connected, so the build's base image pulls with its login");
-  await page.setViewportSize({ width: 1440, height: 900 });
+  await atWidth(page, { width: 1440, height: 900 });
   await connectGHCR(page, origin);
 
   step("build from a private base: New app picks the login, the plan says what it gives, and the app runs");

@@ -8,7 +8,7 @@
 
 import type { Flow } from "./flows.ts";
 import { aDomain, type Listed } from "./private-flow.ts";
-import { onTop, pastTheEdge } from "./sheets.ts";
+import { atWidth, onTop, pastTheEdge } from "./sheets.ts";
 import { bytes, number } from "./wire.ts";
 
 function fail(message: string): never {
@@ -32,7 +32,7 @@ export const flow: Flow = {
   order: 99,
   run: async (page, { origin, step, shoot }) => {
     step("sign-in providers: Integrations offers one, and won't read an issuer on the control server's own address");
-    await page.setViewportSize({ width: 1440, height: 900 });
+    await atWidth(page, { width: 1440, height: 900 });
     await page.goto(`${origin}/settings/integrations`);
     const section = page.getByRole("region", { name: "Sign-in" });
     await section.waitFor({ timeout: 20_000 });
@@ -74,13 +74,13 @@ export const flow: Flow = {
     await shoot(page, "signin-providers-listed");
 
     step("sign-in providers: on a phone, the section fits");
-    await page.setViewportSize({ width: 390, height: 844 });
+    await atWidth(page, { width: 390, height: 844 });
     await section.getByRole("article", { name: "auth.example.com" }).waitFor();
     const integrations = await pastTheEdge(page);
     if (integrations.wider > 0)
       fail(`on a phone, Integrations is ${integrations.wider}px wider than the page: ${integrations.what}`);
     await shoot(page, "signin-providers-phone");
-    await page.setViewportSize({ width: 1440, height: 900 });
+    await atWidth(page, { width: 1440, height: 900 });
 
     step(
       "sign-in providers: Make it private signs a route in with it, you first, with the address to register, to a plan",
@@ -125,7 +125,7 @@ export const flow: Flow = {
     await make.getByRole("list", { name: "Who may sign in" }).getByText("mira@acme.dev").waitFor();
     await make.getByText("https://sso.example.com/.dockwell/signin/callback").waitFor();
     await shoot(page, "signin-private-sheet");
-    await page.setViewportSize({ width: 390, height: 844 });
+    await atWidth(page, { width: 390, height: 844 });
     // The sheet and the page under it take a phone's layout as the panel reads the
     // new width, which is when they're measured.
     await page.locator(".private-sheet.is-phone").waitFor();
@@ -133,7 +133,7 @@ export const flow: Flow = {
     if (sheetWide.wider > 0)
       fail(`on a phone, Make it private is ${sheetWide.wider}px wider than the page: ${sheetWide.what}`);
     await shoot(page, "signin-private-sheet-phone");
-    await page.setViewportSize({ width: 1440, height: 900 });
+    await atWidth(page, { width: 1440, height: 900 });
     await make.getByRole("button", { name: /Review plan/ }).click();
     const routePlan = onTop(page.getByRole("dialog", { name: "Review plan" }));
     await routePlan.waitFor({ timeout: 30_000 });

@@ -18,7 +18,7 @@ import type { Browser, BrowserContext, Page } from "playwright-core";
 
 import type { DockerProbe } from "./docker-probe.ts";
 import type { Flow } from "./flows.ts";
-import { onTop } from "./sheets.ts";
+import { atWidth, onTop } from "./sheets.ts";
 import { bytes, number } from "./wire.ts";
 
 export interface PlanFlowOptions {
@@ -461,14 +461,14 @@ export async function planFlow(
       await shoot(page, "plan-check-quoted");
     }
     if (name === "tagged") {
-      await page.setViewportSize({ width: 390, height: 844 });
+      await atWidth(page, { width: 390, height: 844 });
       // The sheet changes for a phone once the browser says the width changed.
       await page.locator(".plan-view.is-phone").waitFor();
       const summary = await details.locator("summary").boundingBox();
       if (!summary || summary.height < 44 || summary.width < 44) {
         fail(`Details is ${summary?.width} by ${summary?.height} px on a phone, too small for a thumb`);
       }
-      await page.setViewportSize({ width: 1440, height: 900 });
+      await atWidth(page, { width: 1440, height: 900 });
       await shoot(page, "plan-failed");
       await expectAxe(page, "a failure");
       await expectContrast(page, "a failure, light");
@@ -1121,7 +1121,7 @@ volumes:
   }
 
   step("plan: on a phone, the actions are in reach of a thumb, and a confirmation sits with them");
-  await page.setViewportSize({ width: 390, height: 844 });
+  await atWidth(page, { width: 390, height: 844 });
   const phonePlan = await reviewNew(page, origin, "acme/phone:1", "phone", async (f) => {
     await f.getByRole("button", { name: "Add volume" }).click();
     await f.getByLabel("Volume or server path").fill("/var/run/docker.sock");
@@ -1152,7 +1152,7 @@ volumes:
     .getByRole("button", { name: /^Open phone-reach|^Done/ })
     .first()
     .click();
-  await page.setViewportSize({ width: 1440, height: 900 });
+  await atWidth(page, { width: 1440, height: 900 });
 
   step("plan: reads in Chinese, and passes axe there too");
   const chinese = await browser.newContext({
