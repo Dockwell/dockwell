@@ -231,7 +231,7 @@ describe("Settings", () => {
     went.mockRestore();
   });
 
-  it("offers the tunnel first for a domain on Cloudflare, checks the way in, and serves it behind the tunnel", async () => {
+  it("keeps both ways in one order, leaves Cloudflare alone on Dockwell, checks the tunnel chosen, and serves it there", async () => {
     const user = userEvent.setup();
     let now = settings();
     let connected = false;
