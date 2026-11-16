@@ -1,0 +1,329 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+/* Machine values: names, endpoints, buckets and the names an app reads. */
+.connections-mono {
+  font-family: var(--font-mono);
+}
+
+/* A store's two letters on a small tile, as the mocks have them. */
+.connection-mark {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  box-sizing: border-box;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.connections-name {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+a.connections-name:hover {
+  text-decoration: underline;
+}
+
+.connections-meta {
+  color: var(--ink-muted);
+  font-size: 12.5px;
+  line-height: 16px;
+}
+
+.connections-apps {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.connections-cell-name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+/* The stores, as tiles that start a connection there. */
+.connection-store-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--space-2);
+}
+
+.connection-store {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 48px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 120ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.connection-store:hover {
+  border-color: var(--ink-muted);
+}
+
+.connection-store:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.connection-store.is-picked {
+  border-color: var(--cobalt);
+  background: var(--cobalt-soft);
+}
+
+.connection-store:disabled {
+  cursor: default;
+}
+
+.connection-stores {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.connection-stores legend {
+  margin-bottom: var(--space-2);
+  font-size: 13px;
+  font-weight: 550;
+}
+
+.connection-stores .connection-store-grid {
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+}
+
+.connection-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* Two fields side by side, one above the other on a phone. */
+.connection-sheet-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-3);
+}
+
+/* What the live check found, in a line, with what to do beside it. */
+.connection-sheet-check {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  min-height: 24px;
+}
+
+.connection-sheet-said {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.connection-projects {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.connection-project {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 14px;
+}
+
+/* Remove sits apart from Cancel and Review plan, at the footer's start. */
+.connection-remove {
+  margin-inline-end: auto;
+  color: var(--critical);
+}
+
+/* The connection a sheet uses, with the way to add another beside it. */
+.connection-pick {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--space-2) var(--space-3);
+}
+
+.connection-pick .dw-field {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+
+/* A phone lists connections as rows that open each. */
+.connections-phone {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  list-style: none;
+}
+
+.connections-phone li + li {
+  border-top: 1px solid var(--line);
+}
+
+.connections-phone-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 56px;
+  padding: var(--space-3) var(--space-4);
+  color: inherit;
+  text-decoration: none;
+}
+
+.connections-phone-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.connection-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.connection-unused {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.connection-apps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  font-size: 13px;
+}
+
+/* Each name a link sets, with what it holds. */
+.connection-sets {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+}
+
+.connection-set {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.connection-sets-arrow {
+  color: var(--ink-muted);
+}
+
+.connection-part {
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-xs);
+  background: var(--surface-sunken);
+  color: var(--ink);
+  font-size: 12.5px;
+}
+
+/* Where the bucket is and who may use it, as label and value pairs. */
+.connection-details {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--space-4) var(--space-6);
+  margin: 0;
+}
+
+.connection-details dt {
+  color: var(--ink-muted);
+  font-size: 12.5px;
+}
+
+.connection-details dd {
+  margin: var(--space-1) 0 0;
+  overflow-wrap: anywhere;
+  font-size: 14px;
+}
+
+.connection-details dd.connections-mono {
+  font-size: 13px;
+}
+
+.connection-keys {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.connection-keys .connections-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+/* The empty page's stores, in one row where there's room for them. */
+.connections-tiles {
+  grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
+}
+
+/* A phone's actions for one connection, under its panels. */
+.connection-phone-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.connection-phone-buttons {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--space-3);
+}
+
+/* A phone's Used by: each link as a row, its app over the names it sets. */
+.connection-uses {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.connection-use {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+}
+
+.connection-use + .connection-use {
+  border-top: 1px solid var(--line);
+}

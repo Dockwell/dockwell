@@ -635,13 +635,13 @@ describe("the shell in Simplified Chinese", () => {
     expect(within(top).getByText("全部健康")).toBeVisible();
   });
 
-  it("translates the not-yet page", async () => {
+  it("translates Connections, which has a screen of its own now", async () => {
     await activateLocale("zh-CN");
     renderAt("/connections", {
       system: { getVersion: () => create(GetVersionResponseSchema, {}) },
       servers: { watchServers: feed<WatchServersResponse>().stream },
     });
     expect(await screen.findByRole("heading", { level: 1, name: "连接" })).toBeVisible();
-    expect(screen.getByRole("heading", { level: 2, name: "此版本尚未提供" })).toBeVisible();
+    expect(await screen.findByRole("heading", { level: 2, name: "尚无连接" })).toBeVisible();
   });
 });

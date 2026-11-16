@@ -1,7 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { timestampDate } from "@bufbuild/protobuf/wkt";
-import { type Change, ChangeService, ChangeState, DatabaseService, type EnvironmentVariable } from "@dockwell/api";
+import {
+  type Change,
+  ChangeService,
+  ChangeState,
+  ConnectionService,
+  DatabaseService,
+  type EnvironmentVariable,
+} from "@dockwell/api";
 import {
   Button,
   Callout,
@@ -38,6 +45,7 @@ import { useActorWords } from "../activity/actor";
 import { MayEdit } from "../auth/MayEdit";
 import { useMay } from "../auth/may";
 import { useChangeSheet } from "../changes/ChangeSheet";
+import { ConnectStorageSheet } from "../connections/ConnectStorageSheet";
 import { useControlPlaneNow } from "../servers/useFleet";
 import { EmptyState } from "../shell/EmptyState";
 import { RevealsProvider, useReveals } from "../variables/useReveal";
@@ -90,6 +98,8 @@ export function AppEnvironment({ changeFirst }: { changeFirst?: string | undefin
   // Counts the asks to type a new variable's key, from the Connect a database sheet.
   const [askedForKey, setAskedForKey] = useState(0);
   const mayConnect = useMay()(DatabaseService.method.connectDatabase, { environment });
+  const [storing, setStoring] = useState(false);
+  const mayStore = useMay()(ConnectionService.method.connectStorage, { environment });
   const rows = useMemo(() => envRows(service, pending, store.data?.variables), [service, pending, store.data]);
   const moving = isMoving(state);
   const readable = service.spec !== undefined;
@@ -214,6 +224,15 @@ export function AppEnvironment({ changeFirst }: { changeFirst?: string | undefin
             >
               <Trans>Connect a database</Trans>
             </Button>
+            <Button
+              variant="secondary"
+              icon="archive"
+              disabled={moving}
+              off={mayStore.allowed ? undefined : mayStore.reason || undefined}
+              onClick={() => setStoring(true)}
+            >
+              <Trans>Connect storage</Trans>
+            </Button>
           </div>
 
           {store.error ? (
@@ -299,6 +318,8 @@ export function AppEnvironment({ changeFirst }: { changeFirst?: string | undefin
             }}
           />
         ) : null}
+
+        {storing ? <ConnectStorageSheet service={service} onClose={() => setStoring(false)} /> : null}
 
         {importing ? (
           <ImportSheet
