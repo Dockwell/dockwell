@@ -45,6 +45,8 @@ const usage = `Usage: dockwell-catalog convert --from 1panel --source <checkout>
        dockwell-catalog check <folder>
        dockwell-catalog rates [--record] [--pin] [--list]
        dockwell-catalog bump --catalog <checkout> --out <folder> [--seen <file>] [--only <ids>]
+       dockwell-catalog bump scope --catalog <checkout> --base <commit> --head <commit> --author <login> --branch <ref>
+       dockwell-catalog earlier --catalog <checkout> [--at <commit>] [--base <commit>] <id>
 
 convert converts a catalog's apps into Dockwell's entries, one file each in --out,
 with a report of what it left out and why, and what it knows of each image.
@@ -59,6 +61,13 @@ bump reads each entry's images from their registries, as an install's update
 check does, and writes a patch for each pull request that moves an entry to newer
 ones, with bumps.json saying each one's branch, title, body and labels (ADR 0100).
 
+bump scope reads a pull request's diff, never its head, and prints the commit
+status it earns: a person's passes, and the App's only where it's the step the
+bump makes now with nothing waiting for a person, or a maintainer approved it.
+
+earlier says which releases an upgrade to an entry is proven from: the one
+before, and the first of its current major, from the catalog's history.
+
 `
 
 func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
@@ -68,12 +77,18 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	if len(args) > 0 && args[0] == "rates" {
 		return rates(ctx, args[1:], stdout, stderr)
 	}
+	if len(args) > 1 && args[0] == "bump" && args[1] == "scope" {
+		return scopeCommand(ctx, args[2:], stdout, stderr, nil)
+	}
 	if len(args) > 0 && args[0] == "bump" {
 		return bumpCommand(ctx, args[1:], stdout, stderr, nil)
 	}
+	if len(args) > 0 && args[0] == "earlier" {
+		return earlierCommand(ctx, args[1:], stdout, stderr)
+	}
 	if len(args) == 0 || args[0] != "convert" {
 		fmt.Fprint(stderr, usage)
-		return errors.New("name what to do: convert, check, rates or bump")
+		return errors.New("name what to do: convert, check, rates, bump or earlier")
 	}
 	flags := flag.NewFlagSet("convert", flag.ContinueOnError)
 	flags.SetOutput(stderr)
