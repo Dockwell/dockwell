@@ -316,25 +316,39 @@ sentinel() {
 
 # floor is the check of an entry with no checks/<id>.sh of its own (ADR 0100): what
 # it opens answers, and each database it keeps on a volume holds a sentinel through
-# the upgrade, written and read back with the engine's own client. An entry with
-# the floor alone doesn't merge by itself, which E2E_FLOORED's file lists.
+# the upgrade, written and read back with the engine's own client. After the
+# upgrade, every service that held one must still run that engine, on a volume, and
+# hold it: one gone, off its volume or another engine is data lost (#726's slice 2
+# review, M3). An entry with the floor alone doesn't merge by itself, which
+# E2E_FLOORED's file lists.
 floor() {
-  local c service image engine value web port
-  for c in $(docker ps --filter "label=com.docker.compose.project=$project" --format '{{.Names}}'); do
-    image=$(docker inspect --format '{{.Config.Image}}' "$c") || fail "docker inspect $c failed"
-    engine=$(engine_of "$image") || continue
-    # A database that keeps nothing, as a cache, has nothing to keep through an upgrade.
-    [[ "$(docker inspect --format '{{len .Mounts}}' "$c")" != 0 ]] || continue
-    service=$(docker inspect --format '{{index .Config.Labels "com.docker.compose.service"}}' "$c") || fail "docker inspect $c failed"
-    if [[ "$1" == first ]]; then
+  local c service image engine value web port key held
+  if [[ "$1" == first ]]; then
+    for c in $(docker ps --filter "label=com.docker.compose.project=$project" --format '{{.Names}}'); do
+      image=$(docker inspect --format '{{.Config.Image}}' "$c") || fail "docker inspect $c failed"
+      engine=$(engine_of "$image") || continue
+      # A database that keeps nothing, as a cache, has nothing to keep through an upgrade.
+      [[ "$(docker inspect --format '{{len .Mounts}}' "$c")" != 0 ]] || continue
+      service=$(docker inspect --format '{{index .Config.Labels "com.docker.compose.service"}}' "$c") || fail "docker inspect $c failed"
       value="kept-$id-$RANDOM$RANDOM"
       sentinel "$engine" "$c" write "$value" || fail "$service, $engine, won't take a sentinel through its own client"
-      kept["$id/$service"]=$value
-    elif [[ -n "${kept[$id/$service]:-}" ]]; then
+      kept["$id/$service"]="$engine $value"
+    done
+  else
+    for key in "${!kept[@]}"; do
+      [[ "$key" == "$id/"* ]] || continue
+      service=${key#"$id/"}
+      read -r engine held <<<"${kept[$key]}"
+      c=$(docker ps --filter "label=com.docker.compose.project=$project" --filter "label=com.docker.compose.service=$service" --format '{{.Names}}') ||
+        fail "docker ps failed"
+      [[ -n "$c" && "$c" != *$'\n'* ]] || fail "$service, which held its data on a volume before the upgrade, doesn't run after it"
+      image=$(docker inspect --format '{{.Config.Image}}' "$c") || fail "docker inspect $c failed"
+      [[ "$(engine_of "$image" || true)" == "$engine" ]] || fail "$service ran $engine before the upgrade, and runs $image after it"
+      [[ "$(docker inspect --format '{{len .Mounts}}' "$c")" != 0 ]] || fail "$service kept its data on a volume before the upgrade, and has none after it"
       value=$(sentinel "$engine" "$c" read) || fail "$service, $engine, won't read its sentinel back through its own client"
-      [[ "$value" == *"${kept[$id/$service]}"* ]] || fail "$service lost what it held through the upgrade: it reads '$value'"
-    fi
-  done
+      [[ "$value" == *"$held"* ]] || fail "$service lost what it held through the upgrade: it reads '$value'"
+    done
+  fi
   web=$(jq -r '.web.service // empty' <<<"$entry")
   if [[ -n "$web" ]]; then
     port=$(docker port "$(container "$web")" | sed -n '1s/.*://p')
