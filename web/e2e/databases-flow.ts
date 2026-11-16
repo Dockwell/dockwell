@@ -13,7 +13,7 @@ import { join } from "node:path";
 import type { Page } from "playwright-core";
 
 import type { Flow } from "./flows.ts";
-import { onTop } from "./sheets.ts";
+import { LONG_HOSTNAME, onTop } from "./sheets.ts";
 
 export interface DatabasesFlowOptions {
   origin: string;
@@ -135,7 +135,9 @@ export async function databasesFlow(page: Page, { origin, step, shoot, catalogDi
   await shoot(page, "database-add-user-plan");
   const shownPlan = await planned.innerText();
   if (!shownPlan.includes("orders")) fail(`the plan for a user doesn't name them: ${shownPlan.slice(0, 400)}`);
-  if (/[A-Za-z0-9]{32}/.test(shownPlan.replace(/ORDERS_DATABASE_PASSWORD|chg_[A-Z0-9]+|sha256:[0-9a-f]+/g, ""))) {
+  // The server's name, as long as a name may be and with nowhere to break, is no password (#738).
+  const unnamed = shownPlan.replaceAll(LONG_HOSTNAME, "");
+  if (/[A-Za-z0-9]{32}/.test(unnamed.replace(/ORDERS_DATABASE_PASSWORD|chg_[A-Z0-9]+|sha256:[0-9a-f]+/g, ""))) {
     fail("the plan for a user shows what may be its password");
   }
   await planned.getByRole("button", { name: /Apply plan/ }).click();

@@ -21,11 +21,12 @@ export async function coveredHidden(page: Page): Promise<void> {
 }
 
 /**
- * The control server's name in a test, as long as a cloud's host names run and with
- * nowhere to break, so a check that a page fits a phone can't pass on a short one.
- * Every script that starts dockwell sets it, through DOCKWELL_TEST_HOSTNAME (#738).
+ * The control server's name in a test, as long as a server's name may be (56) and
+ * with nowhere to break, so a check that a page fits a phone can't pass on a short
+ * one. Mostly hex, so no flow's check for a word finds it in the name. Every script
+ * that starts dockwell sets it, through DOCKWELL_TEST_HOSTNAME (#738).
  */
-export const LONG_HOSTNAME = "ip10x0x12x34storagereplicaprimary0001examplecomputeinternal";
+export const LONG_HOSTNAME = "ip10x0x12x34a7f3c9d1e5b8a4f60d2c7e9b1a3f5d8c0b6e2a9f4d71";
 
 /**
  * How far the page reaches past the viewport's width, and what reaches past it, so a

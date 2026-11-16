@@ -162,6 +162,21 @@
   overflow-wrap: anywhere;
 }
 
+/*
+ * A server's name in what a plan does keeps that line to one row, so the address
+ * that takes its place on arrival moves nothing (#738). A long one is cut, whole
+ * in its title, the top bar and the server's page.
+ */
+.plan-lead code.plan-server {
+  display: inline-block;
+  max-width: 24ch;
+  overflow: hidden;
+  overflow-wrap: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+
 .plan-lead.is-next {
   align-items: flex-start;
 }
