@@ -53,4 +53,17 @@ describe("Callout", () => {
     expect(healthy.querySelector(".dw-tone-healthy .dw-callout-glyph circle")).not.toBeNull();
     expect(healthy.querySelector(".dw-callout-title")).toBeNull();
   });
+
+  it("stacks its actions under its text when asked, for a narrow card, and not otherwise", () => {
+    const { container } = render(
+      <Callout
+        stacked
+        title="Getting a certificate for panel.example.com…"
+        actions={<Button size="sm">Check again</Button>}
+      />,
+    );
+    expect(container.querySelector(".dw-callout")).toHaveClass("dw-callout-stacked");
+    const { container: beside } = render(<Callout title="Copied." />);
+    expect(beside.querySelector(".dw-callout")).not.toHaveClass("dw-callout-stacked");
+  });
 });

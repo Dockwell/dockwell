@@ -280,6 +280,7 @@ function DomainField({
       {found && refusal === "" && via === "dockwell" && !address ? (
         // Without this server's public address, where the name leads can't be told from here.
         <Callout
+          stacked
           tone="warning"
           title={t`Dockwell can't tell whether ${domain} leads here`}
           actions={
@@ -310,9 +311,14 @@ function DomainField({
           {t`${p.program} holds port ${p.port} on this server, so no certificate can come until it's freed.`}
         </p>
       ))}
-      {set.failure ? <Callout tone="critical">{sentence(set.failure)}</Callout> : null}
+      {set.failure ? (
+        <Callout stacked tone="critical">
+          {sentence(set.failure)}
+        </Callout>
+      ) : null}
       {confirming ? (
         <Callout
+          stacked
           tone="info"
           title={t`Dockwell restarts to serve ${domain}`}
           actions={
@@ -419,6 +425,7 @@ function Served({
   const address = dns.data?.publicAddresses.find((a) => !a.includes(":")) ?? dns.data?.publicAddresses[0] ?? "";
   const opener = (
     <Callout
+      stacked
       tone="info"
       title={t`The panel answers on ${domain}`}
       actions={
@@ -453,7 +460,7 @@ function Served({
   );
   if (switching === "proxy") {
     body = (
-      <Callout tone="info" title={t`Dockwell restarts to serve ${domain} behind your tunnel`} actions={confirm}>
+      <Callout stacked tone="info" title={t`Dockwell restarts to serve ${domain} behind your tunnel`} actions={confirm}>
         <Trans>Apps, websites and passkeys keep working. It asks for your passkey.</Trans>
       </Callout>
     );
@@ -480,14 +487,19 @@ function Served({
             {t`${p.program} holds port ${p.port} on this server, so no certificate can come until it's freed.`}
           </p>
         ))}
-        <Callout tone="info" title={t`Dockwell restarts to serve ${domain} with its own certificate`} actions={confirm}>
+        <Callout
+          stacked
+          tone="info"
+          title={t`Dockwell restarts to serve ${domain} with its own certificate`}
+          actions={confirm}
+        >
           <Trans>Apps, websites and passkeys keep working. It asks for your passkey.</Trans>
         </Callout>
       </>
     );
   } else if (panel.problem) {
     body = (
-      <Callout tone="warning" title={t`${domain} isn't served`} actions={stop}>
+      <Callout stacked tone="warning" title={t`${domain} isn't served`} actions={stop}>
         {panel.problem}
       </Callout>
     );
@@ -506,6 +518,7 @@ function Served({
     // The check reached this panel through a tunnel, which ends TLS before it.
     body = (
       <Callout
+        stacked
         tone="warning"
         title={t`${domain} reaches this panel through a tunnel`}
         actions={
@@ -521,6 +534,7 @@ function Served({
   } else if (!panel.certified) {
     body = (
       <Callout
+        stacked
         tone="info"
         title={t`Getting a certificate for ${domain}…`}
         actions={
@@ -555,7 +569,11 @@ function Served({
   return (
     <div className="panel-domain">
       {body}
-      {failed ? <Callout tone="critical">{sentence(failed)}</Callout> : null}
+      {failed ? (
+        <Callout stacked tone="critical">
+          {sentence(failed)}
+        </Callout>
+      ) : null}
     </div>
   );
 }

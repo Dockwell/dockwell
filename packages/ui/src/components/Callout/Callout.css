@@ -68,3 +68,16 @@
     padding-left: calc(10px + var(--space-3));
   }
 }
+/* A stacked callout, as in a narrow card, does the same at every width. */
+.dw-callout-stacked {
+  flex-wrap: wrap;
+}
+.dw-callout-stacked .dw-callout-body {
+  flex: 1 1 0;
+}
+.dw-callout-stacked .dw-callout-actions {
+  flex: 1 0 100%;
+  flex-wrap: wrap;
+  min-width: 0;
+  padding-left: calc(10px + var(--space-3));
+}
