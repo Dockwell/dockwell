@@ -648,8 +648,11 @@ func TestAPauseCountsFromAWaveThatWaitedForItsServer(t *testing.T) {
 			return st.GetServerId() == alpha.id.ServerID && st.GetState() == dockwellv1.StepState_STEP_STATE_WAITING
 		})
 	})
-	alpha.upgraded(t, f)
+	// Taken before alpha comes back, which the pause counts from, as the engine may
+	// see it come back before upgraded returns: a moment taken after would make the
+	// pause look short by however long that took.
 	back := time.Now()
+	alpha.upgraded(t, f)
 	if err := f.engine.Resume(t.Context()); err != nil && !strings.Contains(err.Error(), "reconnect") {
 		t.Logf("resume after alpha: %v", err)
 	}

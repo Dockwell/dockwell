@@ -211,6 +211,7 @@ func NewerTags(current string, tags []string) []Newer {
 	}
 	want := cur.key()
 	places := placesOf(cur, tags)
+	reach := ownMajors(cur, tags)
 	shape := variantShape(cur.variant)
 	type candidate struct {
 		tag  string
@@ -223,7 +224,7 @@ func NewerTags(current string, tags []string) []Newer {
 		if !ok || t.v != cur.v || variantShape(t.variant) != shape {
 			continue
 		}
-		if t.key() != want || t.pre && !cur.pre || tag == current {
+		if t.key() != want || t.pre && !cur.pre || tag == current || len(t.nums) > 0 && t.nums[0] > reach {
 			continue
 		}
 		found = append(found, candidate{tag: tag, t: t})
@@ -245,6 +246,38 @@ func NewerTags(current string, tags []string) []Newer {
 		}
 	}
 	return out
+}
+
+// schemeGap is the most a repository's majors may jump, from one to the next its tags
+// have, and still be one way of numbering: past it, what follows is another scheme,
+// such as MySQL's year.month releases after its 9.x (#724).
+const schemeGap = 4
+
+// ownMajors is the highest major a version tag's own way of numbering reaches, as its
+// repository's tags show it: from its major up, each next major its tags have, while
+// none is more than schemeGap past the one before. So 8.4.7 reaches 9 among MySQL's
+// 8.0, 8.4, 9.x, 26.7 and 26.10, and never 26, while Node's 18 reaches 24 through
+// 20 and 22, and PostgreSQL's 9.6 reaches 18 through 10. Every version tag of the
+// same v counts, whatever its suffix, as placesOf reads them.
+func ownMajors(cur track, tags []string) int {
+	if len(cur.nums) == 0 {
+		return 0
+	}
+	var majors []int
+	for _, tag := range tags {
+		if t, ok := readTrack(tag); ok && t.v == cur.v && len(t.nums) > 0 && t.nums[0] > cur.nums[0] {
+			majors = append(majors, t.nums[0])
+		}
+	}
+	slices.Sort(majors)
+	reach := cur.nums[0]
+	for _, m := range majors {
+		if m-reach > schemeGap {
+			break
+		}
+		reach = max(reach, m)
+	}
+	return reach
 }
 
 // placesOf is how many places a version tag's numbers stand for, as its

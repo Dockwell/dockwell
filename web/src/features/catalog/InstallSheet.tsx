@@ -138,7 +138,13 @@ export function InstallSheet({
   const navigate = useNavigate();
   const { fleet, servers, only } = useFleetView();
   const client = useMemo(() => createClient(CatalogService, transport), [transport]);
-  const got = useQuery(CatalogService.method.getCatalogEntry, { id, catalog });
+  // Picking another version or engine keeps the sheet as it is while that one is read,
+  // rather than emptying it; nothing is planned until it has been (#723).
+  const got = useQuery(
+    CatalogService.method.getCatalogEntry,
+    { id, catalog },
+    { placeholderData: (previous) => previous },
+  );
   // Where a need nothing here can make yet could be met: the catalog's entries for its engines.
   const listed = useQuery(CatalogService.method.listCatalogEntries, { ids: [...ENGINE_ENTRY_IDS] }).data?.entries;
   const catalogIds = useMemo(() => new Set((listed ?? []).map((e) => e.id)), [listed]);
@@ -353,6 +359,7 @@ export function InstallSheet({
   const unmetShares = unmet !== undefined && (needOptions.get(unmet.name) ?? []).some((o) => o.why === "");
   const ready =
     entry !== undefined &&
+    !got.isPlaceholderData &&
     !unmet &&
     origins.data !== undefined &&
     !origins.error &&

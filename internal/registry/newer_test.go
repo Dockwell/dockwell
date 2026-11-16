@@ -4,6 +4,8 @@ package registry
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -120,6 +122,45 @@ func TestNewerTagsOfRealShapedLists(t *testing.T) {
 		// An older major's third number says nothing of how it's numbered now, as
 		// PostgreSQL's 9.6.24 before 10.
 		{"16.4", []string{"9.6.24", "15.8", "16.4", "16.6"}, "16.6 patch"},
+	} {
+		var said []string
+		for _, n := range NewerTags(c.current, c.tags) {
+			said = append(said, fmt.Sprintf("%s %s", n.Tag, n.Kind))
+		}
+		if got := strings.Join(said, ", "); got != c.want {
+			t.Errorf("NewerTags(%q) = %q, want %q", c.current, got, c.want)
+		}
+	}
+}
+
+// MySQL's official repository as Docker Hub listed it on 15 November 2026: its 8.0
+// and 8.4 lines, 9.0 to 9.7, then year.month releases from 26.7. A database on 8.4.x
+// was offered 26.10.0 as a major, which isn't a release of its own numbering; it moves
+// within 8.4, and to 9.7 as its next major, and 26.x is never offered to it (#724).
+// What's on year.month already moves within it.
+func TestNewerTagsKeepToTheImagesOwnNumbering(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("testdata", "mysql-tags.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	mysql := strings.Fields(string(raw))
+	node := []string{"16.20.2", "18.20.4", "20.18.0", "22.11.0", "23.3.0", "24.0.0"}
+	postgres := []string{"9.6.24", "10.23", "11.22", "12.21", "13.17", "14.14", "15.9", "16.5", "17.2", "18.1"}
+	for _, c := range []struct {
+		current string
+		tags    []string
+		want    string
+	}{
+		{"8.4.7", mysql, "8.4.13 patch, 9.7.4 major"},
+		{"8.4", mysql, "9.7 major"},
+		{"8.4.7-oracle", mysql, "8.4.13-oracle patch, 9.7.4-oracle major"},
+		{"8.0.44", mysql, "8.0.46 patch, 8.4.13 minor, 9.7.4 major"},
+		{"9.4.0", mysql, "9.7.4 minor"},
+		{"26.7.0", mysql, "26.10.0 minor"},
+		// Majors a few apart are one numbering: Node's even releases, PostgreSQL's 9 to 10.
+		{"18.20.4", node, "24.0.0 major"},
+		{"9.6.24", postgres, ""},
+		{"10.23", postgres, "18.1 major"},
 	} {
 		var said []string
 		for _, n := range NewerTags(c.current, c.tags) {

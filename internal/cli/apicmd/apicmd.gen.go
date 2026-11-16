@@ -693,6 +693,7 @@ func Methods() []*apicli.Method {
 				{Path: "installed", Help: "Only the apps installed here, from the catalog the entry comes from."},
 				{Path: "ids", Help: "Only the entries of these IDs."},
 				{Path: "order", Help: "How the entries are ordered: by name unless set."},
+				{Path: "with_engines", Help: "True to have the answer say which engine each entry makes a database of, in engines, so New database groups the catalog's databases by engine in one request rather than one for each entry (#723)."},
 			},
 			Call: apicli.Unary[v1.ListCatalogEntriesRequest, v1.ListCatalogEntriesResponse](dockwellv1connect.CatalogServiceListCatalogEntriesProcedure),
 		},

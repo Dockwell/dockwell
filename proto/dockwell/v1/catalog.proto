@@ -326,6 +326,10 @@ message ListCatalogEntriesRequest {
   repeated string ids = 9;
   // How the entries are ordered: by name unless set.
   CatalogOrder order = 10;
+  // True to have the answer say which engine each entry makes a database of, in
+  // engines, so New database groups the catalog's databases by engine in one
+  // request rather than one for each entry (#723).
+  bool with_engines = 11;
 }
 
 // CatalogOrder is how the catalog's entries are ordered.
@@ -358,6 +362,12 @@ message ListCatalogEntriesResponse {
   // them offers, which stay as words are typed and as the installed filter is
   // turned on, and how many each holds then. No one page can say either.
   repeated CatalogCategoryCount categories = 23;
+  // The engine each entry of the page makes a database of, by its ID, when
+  // with_engines asks: where everything it runs beside its companions is one
+  // engine's database, as PostgreSQL for Dockwell's postgres. A tool, such as
+  // Adminer, or an app that brings a database of its own, makes none, and isn't
+  // here. Empty unless asked.
+  map<string, dockwell.catalog.v1alpha1.Engine> engines = 24;
 }
 
 // CatalogCategoryCount is a category and how many entries are in it.

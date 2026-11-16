@@ -48,6 +48,28 @@ type catalogIndex struct {
 	// also are each app's entries in the catalogs after the one it's listed from,
 	// as ListCatalogEntries answers them, by its ID.
 	also map[string][]*dockwellv1.CatalogAlternative
+	// engines are the engines its entries make, each read once from its file, as
+	// ListCatalogEntries says them when asked (#723), by the entry as it's listed.
+	enginesMu sync.Mutex
+	engines   map[*catalogv1.Entry]catalogv1.Engine
+}
+
+// engineOf is the engine an entry of the index makes, read from its file once.
+func (idx *catalogIndex) engineOf(ctx context.Context, e *catalogv1.Entry) catalogv1.Engine {
+	idx.enginesMu.Lock()
+	engine, ok := idx.engines[e]
+	idx.enginesMu.Unlock()
+	if ok {
+		return engine
+	}
+	engine = engineOf(ctx, e)
+	idx.enginesMu.Lock()
+	if idx.engines == nil {
+		idx.engines = map[*catalogv1.Entry]catalogv1.Engine{}
+	}
+	idx.engines[e] = engine
+	idx.enginesMu.Unlock()
+	return engine
 }
 
 // An indexed entry is one app's entry as it's listed, and what a search reads of it.

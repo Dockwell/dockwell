@@ -24,7 +24,7 @@ import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useQueries } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { type CSSProperties, type ReactNode, useLayoutEffect, useMemo, useState } from "react";
+import { type CSSProperties, type ReactNode, useEffect, useLayoutEffect, useMemo, useState } from "react";
 
 import { sentence } from "../../lib/errors";
 import { formatBytes, formatDateTime } from "../../lib/format";
@@ -442,8 +442,30 @@ function DatabasesSkeleton({ fleet }: { fleet: boolean }) {
   );
 }
 
-/** How many tiles stand in for the engines while the catalog is read. */
-const PLACEHOLDERS = 4;
+/**
+ * How many tiles stand in for the engines while the catalog is read: as many as
+ * there were last time, kept in this browser, so the grid keeps its size as they
+ * arrive; Dockwell's own five before that.
+ */
+const PLACEHOLDERS = 5;
+const SEEN_ENGINES = "dockwell.databases.engines";
+
+function enginesSeen(): number {
+  try {
+    const n = Number(localStorage.getItem(SEEN_ENGINES));
+    return Number.isInteger(n) && n > 0 && n <= 12 ? n : PLACEHOLDERS;
+  } catch {
+    return PLACEHOLDERS;
+  }
+}
+
+function rememberEngines(n: number) {
+  try {
+    localStorage.setItem(SEEN_ENGINES, String(n));
+  } catch {
+    // A browser that keeps nothing shows Dockwell's own count next time.
+  }
+}
 
 /** The narrowest an engine's tile reads well at, its logo, name and version on a line. */
 const TILE_MIN = 160;
@@ -517,13 +539,17 @@ function Engines({ groups, pending }: { groups: readonly EngineGroup[]; pending:
  */
 function EngineTiles({ groups, pending }: { groups: readonly EngineGroup[]; pending: boolean }) {
   const { t } = useLingui();
-  const count = groups.length || PLACEHOLDERS;
+  const [placeholders] = useState(enginesSeen);
+  const count = groups.length || placeholders;
   const [grid, columns] = useBalancedColumns(count);
+  useEffect(() => {
+    if (groups.length > 0) rememberEngines(groups.length);
+  }, [groups.length]);
   const style = columns ? ({ "--databases-engine-columns": columns } as CSSProperties) : undefined;
   if (groups.length === 0) {
     return (
       <ul ref={grid} style={style} aria-label={t`Engines`} aria-busy="true" className="databases-engine-grid">
-        {Array.from({ length: PLACEHOLDERS }, (_, k) => `placeholder-${k}`).map((k) => (
+        {Array.from({ length: placeholders }, (_, k) => `placeholder-${k}`).map((k) => (
           <li key={k} className="databases-engine is-placeholder" />
         ))}
       </ul>
