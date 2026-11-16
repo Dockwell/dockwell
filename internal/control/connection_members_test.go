@@ -4,6 +4,7 @@ package control
 
 import (
 	"fmt"
+	"log/slog"
 	"strings"
 	"testing"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/dockwell/dockwell/internal/backup/s3/s3test"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/store"
+	"github.com/dockwell/dockwell/internal/store/storetest"
 )
 
 // A developer, then a viewer, of one project tries every way at a connection that
@@ -348,5 +350,47 @@ func TestAValueFromAConnectionOfAnotherProjectReadsAsNotThere(t *testing.T) {
 	_, e2 := cc.ListConnections(t.Context(), connect.NewRequest(&dockwellv1.ListConnectionsRequest{Project: "nope"}))
 	if connect.CodeOf(e1) != connect.CodeOf(e2) || e1 == nil {
 		t.Errorf("the list narrowed to another project, then to none: %v, %v", e1, e2)
+	}
+}
+
+// A link the control plane can't read leaves out what reads through it, not every
+// connection for everyone: the list still answers, without the link's name, which
+// may be another project's, and the log says which row it was (review L5).
+func TestALinkItCantReadLeavesOnlyItselfOut(t *testing.T) {
+	t.Parallel()
+	logs := &syncBuffer{}
+	f := startFullLogging(t, store.SQLite, nil, slog.New(slog.NewJSONHandler(logs, &slog.HandlerOptions{Level: slog.LevelWarn})))
+	b := signedIn(t, f)
+	env := listedEnv(t, b)
+	c := changeClient(b, b.origin)
+	cc := dockwellv1connect.NewConnectionServiceClient(b, b.origin, connect.WithProtoJSON())
+	srv := s3test.New(t)
+	linkTo := func(name string) *dockwellv1.Edit {
+		return &dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Kind: "link", Scope: env, Name: name},
+			Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Link{Link: &resourcev1.Link{
+				Label: "Storage", Connection: "shared", Kind: resourcev1.LinkKind_LINK_KIND_S3, Prefix: name + "/",
+				Sets: []*resourcev1.LinkSet{{Name: strings.ToUpper(strings.ReplaceAll(name, "-", "_")), Part: resourcev1.LinkPart_LINK_PART_BUCKET}},
+			}}},
+		}
+	}
+	apply(t, c, propose(t, c, "Add shared", connectionEdit("shared", &resourcev1.ConnectionSpec{
+		DisplayName: "Shared", Kind: resourcev1.LinkKind_LINK_KIND_S3, Reach: resourcev1.ConnectionReach_CONNECTION_REACH_EVERY,
+		S3: &resourcev1.ConnectionS3{Endpoint: srv.URL(), Bucket: "shared", AccessKeyId: "AKIDSHARED", SecretKey: "shared-secret", PathStyle: true},
+	}), linkTo("fine-link"), linkTo("broken-link")))
+
+	storetest.Exec(t, f.db, `DROP TRIGGER revisions_never_change`)
+	storetest.Exec(t, f.db, `UPDATE revisions SET spec = x'0a0a' WHERE resource_id IN (SELECT id FROM resources WHERE kind = 'link' AND name = 'broken-link')`)
+
+	listed, err := cc.ListConnections(t.Context(), connect.NewRequest(&dockwellv1.ListConnectionsRequest{}))
+	if err != nil {
+		t.Fatalf("one link it can't read fails the list: %v", err)
+	}
+	raw, _ := protojson.Marshal(listed.Msg)
+	if !strings.Contains(string(raw), "fine-link") || strings.Contains(string(raw), "broken-link") {
+		t.Errorf("with broken-link unreadable, the list says %s", raw)
+	}
+	if !strings.Contains(logs.String(), "can't read a link") {
+		t.Errorf("the log doesn't say which link it left out: %s", logs.String())
 	}
 }

@@ -341,6 +341,7 @@ func New(cfg Config) (*Server, error) {
 	if cfg.Store != nil && cfg.Secrets != nil {
 		cfg.logins = registrylogins.New(cfg.Store, cfg.Secrets)
 		cfg.connections = connections.NewConnections(cfg.Store, cfg.Secrets)
+		cfg.connections.Logger = cfg.Logger
 		if cfg.ECR != nil {
 			cfg.logins.ECR = cfg.ECR
 		}

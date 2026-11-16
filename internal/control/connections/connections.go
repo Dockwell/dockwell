@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"maps"
 	"slices"
 	"strings"
@@ -38,6 +39,8 @@ import (
 type Connections struct {
 	db     *store.DB
 	keeper *secrets.Keeper
+	// Logger says which link Uses left out, as it couldn't read it. Nil says nothing.
+	Logger *slog.Logger
 }
 
 // NewConnections reads connections from db, opened with keeper.
@@ -95,7 +98,14 @@ func (c *Connections) Uses(ctx context.Context) (map[string][]*dockwellv1.Connec
 			r := &links[i]
 			spec, err := c.keeper.Decode(ctx, tx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec)
 			if err != nil {
-				return fmt.Errorf("can't read the link %s: %w", r.Name, err)
+				// One link that can't be read leaves out what reads through it, not every
+				// connection for everyone, and its name stays out of the answer, which
+				// may go to someone of another project.
+				if c.Logger != nil {
+					c.Logger.Warn("can't read a link, so the connections list leaves out what reads through it. Check that the control plane runs with the secrets key it was saved with",
+						"link", r.ID, "environment", r.Scope, "error", err.Error())
+				}
+				continue
 			}
 			l, ok := spec.(*resourcev1.Link)
 			if !ok || l.GetConnection() == "" {
