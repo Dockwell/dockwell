@@ -464,7 +464,7 @@ func (h *Handler) InstallUpgrades(ctx context.Context) (map[string]InstallUpgrad
 	}
 	out := map[string]InstallUpgrade{}
 	// Each source's release of each entry an install can move to, by "<source>/<entry>".
-	asked, keys := map[string]uint32{}, map[string]string{}
+	wanted, keys := map[string]asked{}, map[string]string{}
 	err = h.db.View(ctx, func(tx *store.Tx) error {
 		installs, err := h.installs(ctx, tx, s)
 		if err != nil {
@@ -477,7 +477,8 @@ func (h *Handler) InstallUpgrades(ctx context.Context) (map[string]InstallUpgrad
 			}
 			if u.ToRelease > 0 {
 				key := in.GetPin().GetCatalog() + "/" + in.GetPin().GetEntry()
-				asked[key], keys[in.GetProjectId()] = u.ToRelease, key
+				wanted[key] = asked{source: in.GetPin().GetCatalog(), entry: in.GetPin().GetEntry(), release: u.ToRelease}
+				keys[in.GetProjectId()] = key
 			}
 			out[in.GetProjectId()] = u
 		}
@@ -486,7 +487,7 @@ func (h *Handler) InstallUpgrades(ctx context.Context) (map[string]InstallUpgrad
 	if err != nil {
 		return nil, err
 	}
-	since, err := h.heldSince(ctx, asked)
+	since, err := h.heldSince(ctx, wanted)
 	for project, key := range keys {
 		u := out[project]
 		u.Since = since[key]
