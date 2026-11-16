@@ -83,6 +83,22 @@ func TestAConnectionIsSavedListedAndChecked(t *testing.T) {
 		t.Error("the list holds a key")
 	}
 
+	// Its saved keys go only to the control server, or a server that runs an app
+	// linked to it, which hz-1 isn't yet; typed, they go where the caller says (#710).
+	_, err = cc.CheckConnection(t.Context(), connect.NewRequest(&dockwellv1.CheckConnectionRequest{Name: "uploads"}))
+	if connect.CodeOf(err) != connect.CodeFailedPrecondition || reasonOf(err) != "keys_stay" || !strings.Contains(err.Error(), "type its keys") {
+		t.Errorf("checking a saved connection from a server that runs nothing linked to it: %v", err)
+	}
+	typed, err := cc.CheckConnection(t.Context(), connect.NewRequest(&dockwellv1.CheckConnectionRequest{
+		Name: "uploads",
+		S3:   &resourcev1.ConnectionS3{Endpoint: srv.URL(), Bucket: "uploads", AccessKeyId: "AKIDEXAMPLE", SecretKey: connectionSecret, PathStyle: true},
+	}))
+	// It runs: from a network of the check's own, the stand-in on loopback is refused.
+	if err != nil || typed.Msg.GetServer() != "hz-1" || typed.Msg.GetStep() == "" {
+		t.Errorf("checking it with its keys typed: %v, %v", typed, err)
+	}
+	f.config.Fleet.SetControlServer(f.lastDocker.id.ServerID)
+
 	// Checked from the app's network, as the app reaches it.
 	got, err := cc.CheckConnection(t.Context(), connect.NewRequest(&dockwellv1.CheckConnectionRequest{Name: "uploads", Environment: env, App: "notes", Presign: true, Prefix: "notes/"}))
 	if err != nil {

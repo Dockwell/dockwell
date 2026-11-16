@@ -146,6 +146,58 @@ func (c *Connections) Uses(ctx context.Context) (map[string][]*dockwellv1.Connec
 	return out, err
 }
 
+// ServersOf are the servers, by ID, that run an app linked to the connection named:
+// one that reads a name a link to it sets.
+func (c *Connections) ServersOf(ctx context.Context, name string) (map[string]bool, error) {
+	out := map[string]bool{}
+	err := c.db.View(ctx, func(tx *store.Tx) error {
+		links, err := tx.ListKind(ctx, string(link.Kind))
+		if err != nil {
+			return err
+		}
+		for i := range links {
+			r := &links[i]
+			spec, err := c.keeper.Decode(ctx, tx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec)
+			if err != nil {
+				continue // one it can't read names nothing here; Uses logs it
+			}
+			l, ok := spec.(*resourcev1.Link)
+			if !ok || l.GetConnection() != name || len(l.GetSets()) == 0 {
+				continue
+			}
+			names := make([]string, 0, len(l.GetSets()))
+			for _, set := range l.GetSets() {
+				names = append(names, set.GetName())
+			}
+			users, err := tx.UsersOf(ctx, r.Scope, "", names...)
+			if err != nil {
+				return err
+			}
+			for j := range users {
+				if users[j].Kind != serviceKind {
+					continue
+				}
+				app, err := tx.GetResource(ctx, serviceKind, r.Scope, users[j].Name)
+				if errors.Is(err, store.ErrNotFound) {
+					continue
+				}
+				if err != nil {
+					return err
+				}
+				placed, err := tx.Placement(ctx, app.ID, app.Revision)
+				if err != nil {
+					return err
+				}
+				for _, srv := range placed {
+					out[srv] = true
+				}
+			}
+		}
+		return nil
+	})
+	return out, err
+}
+
 // serviceKind is an app's kind, which reads a link's values.
 const serviceKind = "service"
 
@@ -307,6 +359,9 @@ func (s *Service) CheckConnection(ctx context.Context, req *connect.Request[dock
 	if err != nil {
 		return nil, err
 	}
+	if err := s.mayHoldKeys(ctx, req.Msg, srv); err != nil {
+		return nil, err
+	}
 	got, err := session.ProbeConnection(ctx, req.Msg.GetEnvironment(), req.Msg.GetApp(), probeOf(spec, req.Msg.GetPrefix(), req.Msg.GetPresign()))
 	switch {
 	case errors.Is(err, agentapi.ErrOlderAgent):
@@ -322,6 +377,27 @@ func (s *Service) CheckConnection(ctx context.Context, req *connect.Request[dock
 		Passed: got.GetPassed(), Step: got.GetStep(), Code: got.GetCode(), Status: got.GetStatus(),
 		Message: got.GetMessage(), Words: got.GetWords(), Region: got.GetRegion(), Server: srv.GetName(),
 	}), nil
+}
+
+// mayHoldKeys refuses to send a saved connection's keys, where none are typed, to a
+// server that runs no app linked to it: they go only with the values of an app
+// that reads them, or for the check from where such an app is, and to the control
+// server's own agent, which holds them already (ADR 0099, #710). Keys typed in the
+// request are the caller's to send anywhere.
+func (s *Service) mayHoldKeys(ctx context.Context, req *dockwellv1.CheckConnectionRequest, srv *dockwellv1.Server) error {
+	if req.GetName() == "" || req.GetS3().GetSecretKey() != "" || srv.GetControlServer() {
+		return nil
+	}
+	runs, err := s.connections.ServersOf(ctx, req.GetName())
+	if err != nil {
+		return err
+	}
+	if runs[srv.GetId()] {
+		return nil
+	}
+	return authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf(
+		"%s runs no app linked to %s, so Dockwell doesn't send it the saved keys. Check it from the control server or a server an app linked to it runs on, or type its keys",
+		srv.GetName(), req.GetName()), "keys_stay")
 }
 
 // probeOf is the check of a connection: its bucket under prefix, and a presigned

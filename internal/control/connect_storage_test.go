@@ -140,6 +140,13 @@ func TestAnAppIsConnectedToStorage(t *testing.T) {
 		}
 	}
 
+	// The server the linked app runs on may check it with its saved keys, though it
+	// isn't the control server (#710). It runs: from a network of the check's own,
+	// the stand-in on loopback is refused.
+	if got, err := cc.CheckConnection(t.Context(), connect.NewRequest(&dockwellv1.CheckConnectionRequest{Name: "uploads"})); err != nil || got.Msg.GetServer() == "" {
+		t.Errorf("checking it from the server its linked app runs on: %v, %v", got, err)
+	}
+
 	// A second app reads the same bucket through a link of its own, by names of its own.
 	gallery := &dockwellv1.Edit{
 		Resource: &dockwellv1.ResourceRef{Name: "gallery"},
