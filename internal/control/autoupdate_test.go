@@ -26,6 +26,9 @@ import (
 	"github.com/dockwell/dockwell/internal/store/storetest"
 )
 
+// longAgo is when a test's catalog release was found, past any wait.
+var longAgo = time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+
 // newer is what a test says Dockwell's checks found, by service.
 type newer struct {
 	mu    sync.Mutex
@@ -391,15 +394,23 @@ func TestAnAutomaticUpdateOfACatalogInstallUpgradesIt(t *testing.T) {
 	b.setAutoUpdate(t, web, &resourcev1.AutoUpdate{Level: resourcev1.AutoUpdate_LEVEL_MINOR, At: "03:00", TimeZone: "UTC"})
 	r := &autoupdate.Runner{
 		DB: u.f.store, Keeper: u.f.keeper, Planner: u.f.server.autoupdates.Planner, Engine: u.f.engine,
-		Updates: &newer{found: map[string]services.Newer{web.GetId(): {Image: secondRelease, Kind: "major", Catalog: true}}},
+		Updates: &newer{found: map[string]services.Newer{web.GetId(): {Image: secondRelease, Kind: "major", Catalog: true, Found: longAgo}}},
 		Logger:  slog.New(slog.DiscardHandler), Now: func() time.Time { return time.Date(2026, 11, 14, 3, 5, 0, 0, time.UTC) },
 	}
 	// 1.0 to 2.0 is a major release, which minor doesn't take.
 	if err := r.Tick(t.Context()); err != nil || u.web().Config.Image != firstRelease {
 		t.Fatalf("a major catalog release at minor: %v, web runs %s", err, u.web().Config.Image)
 	}
-	r.Updates = &newer{found: map[string]services.Newer{web.GetId(): {Image: secondRelease, Kind: "minor", Catalog: true}}}
+	// A release its source moved to a day ago waits for 3 days, and one whose time
+	// isn't known waits too (ADR 0080).
 	r.Now = func() time.Time { return time.Date(2026, 11, 15, 3, 5, 0, 0, time.UTC) }
+	for _, found := range []time.Time{time.Date(2026, 11, 14, 3, 5, 0, 0, time.UTC), {}} {
+		r.Updates = &newer{found: map[string]services.Newer{web.GetId(): {Image: secondRelease, Kind: "minor", Catalog: true, Found: found}}}
+		if err := r.Tick(t.Context()); err != nil || u.web().Config.Image != firstRelease {
+			t.Fatalf("a catalog release found at %v, taken on its own on 2026-11-15: %v, web runs %s", found, err, u.web().Config.Image)
+		}
+	}
+	r.Updates = &newer{found: map[string]services.Newer{web.GetId(): {Image: secondRelease, Kind: "minor", Catalog: true, Found: time.Date(2026, 11, 12, 3, 0, 0, 0, time.UTC)}}}
 	if err := r.Tick(t.Context()); err != nil {
 		t.Fatal(err)
 	}
@@ -515,7 +526,7 @@ func TestAnAutomaticUpdateNeverMovesADatabaseInACatalogRelease(t *testing.T) {
 	b.setAutoUpdate(t, db, &resourcev1.AutoUpdate{Level: resourcev1.AutoUpdate_LEVEL_ANY, At: "03:00", TimeZone: "UTC"})
 	r := &autoupdate.Runner{
 		DB: u.f.store, Keeper: u.f.keeper, Planner: u.f.server.autoupdates.Planner, Engine: u.f.engine,
-		Updates: &newer{found: map[string]services.Newer{db.GetId(): {Kind: "release", Catalog: true}}},
+		Updates: &newer{found: map[string]services.Newer{db.GetId(): {Kind: "release", Catalog: true, Found: longAgo}}},
 		Logger:  slog.New(slog.DiscardHandler), Now: func() time.Time { return time.Date(2026, 11, 14, 3, 5, 0, 0, time.UTC) },
 	}
 	if err := r.Tick(t.Context()); err != nil {

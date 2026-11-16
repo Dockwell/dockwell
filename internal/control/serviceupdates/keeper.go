@@ -82,6 +82,10 @@ type CatalogInstall struct {
 	Release uint32
 	// Notes is where the app's releases are, an https address, or empty.
 	Notes string
+	// Since is when the install's source moved to the newer release, which its
+	// update says as when it was found: an automatic update waits 3 days from it
+	// (ADR 0080). Zero where it isn't known.
+	Since time.Time
 }
 
 // Keeper knows what's newer than what each service runs.
@@ -396,6 +400,9 @@ func catalogUpdate(c CatalogInstall, now time.Time) *dockwellv1.ServiceUpdate {
 	u.Available = []*dockwellv1.AvailableUpdate{{
 		Kind: kind, FromVersion: c.FromVersion, ToVersion: c.ToVersion, CatalogRelease: c.ToRelease, NotesUrl: c.Notes,
 	}}
+	if !c.Since.IsZero() {
+		u.Available[0].FoundTime = timestamppb.New(c.Since)
+	}
 	return u
 }
 

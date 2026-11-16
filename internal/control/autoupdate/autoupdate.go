@@ -31,6 +31,12 @@ import (
 // Every is how often the runner looks for a window that's open.
 const Every = time.Minute
 
+// CatalogWait is how long a catalog release must have been on an install's source
+// before an automatic update takes it, counted from when the source moved to it,
+// so a bad release a catalog bumped by itself can be withdrawn before it reaches
+// what runs. A person's plan takes it at once (ADR 0080, for ADR 0100).
+const CatalogWait = 3 * 24 * time.Hour
+
 // Planner plans an update, as ServiceService.UpgradeService does.
 type Planner interface {
 	UpgradeService(ctx context.Context, req *connect.Request[dockwellv1.UpgradeServiceRequest]) (*connect.Response[dockwellv1.UpgradeServiceResponse], error)
@@ -225,6 +231,13 @@ func (r *Runner) update(ctx context.Context, d *due) error {
 	newer, ok, err := r.Updates.Of(ctx, d.id)
 	if err != nil || !ok {
 		return err
+	}
+	// A catalog release waits until its source has held it for CatalogWait; one whose
+	// time isn't known waits too. A new build at the release it runs isn't a release,
+	// and doesn't wait. Nothing is recorded, so a later look in the window takes it
+	// once its time is up.
+	if newer.Catalog && newer.Kind != "digest" && (newer.Found.IsZero() || r.now().Sub(newer.Found) < CatalogWait) {
+		return nil
 	}
 	a := d.spec.GetAutoUpdate()
 	kind := newer.Kind

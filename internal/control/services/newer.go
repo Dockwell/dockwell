@@ -39,5 +39,8 @@ func (x nexter) Of(ctx context.Context, serviceID string) (Newer, bool, error) {
 		return Newer{}, false, err
 	}
 	out := Newer{Image: a.GetToImage(), Kind: kinds[a.GetKind()], Catalog: a.GetCatalogRelease() > 0}
+	if a.GetFoundTime() != nil {
+		out.Found = a.GetFoundTime().AsTime()
+	}
 	return out, out.Catalog || out.Image != "", nil
 }

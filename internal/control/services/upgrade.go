@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"time"
 
 	"connectrpc.com/connect"
 
@@ -47,6 +48,9 @@ type Newer struct {
 	// Catalog says it's a catalog install's newer release, which upgrades the
 	// install and takes no image.
 	Catalog bool
+	// Found is when it was found: for a catalog release, when the install's source
+	// moved to it. Zero where it isn't known.
+	Found time.Time
 }
 
 // Updates says what newer image each service has, as Dockwell's checks found
