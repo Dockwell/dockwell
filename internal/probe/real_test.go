@@ -104,8 +104,15 @@ func TestAProbeChecksFromAnAppsNetworkOnRealDocker(t *testing.T) {
 	if err != nil || len(left) != 0 {
 		t.Errorf("the checks left containers %v, %v", left, err)
 	}
-	if tags, err := client.ImageTags(t.Context(), docker.ProbeRepository); err != nil || len(tags) != 0 {
-		t.Errorf("the checks left images %v, %v", tags, err)
+	// Every check ran this build's one image, which stays for the next (#710).
+	tags, err := client.ImageTags(t.Context(), docker.ProbeRepository)
+	if err != nil || len(tags) != 1 {
+		t.Errorf("the checks left images %v, %v, want this build's alone", tags, err)
+	}
+	for _, tag := range tags {
+		if err := client.RemoveImage(t.Context(), tag); err != nil {
+			t.Errorf("removing the probe's image: %v", err)
+		}
 	}
 }
 
