@@ -12,13 +12,18 @@ import {
   ChangeSchema,
   ChangeState,
   CompanionSchema,
+  ConnectionInfoSchema,
+  ConnectionReach,
   Engine,
   EntrySchema,
   HostAccessKind,
   InputType,
   type InstallCatalogEntryRequest,
+  Kind,
+  LinkKind,
   type ListCatalogEntriesRequest,
   NeedSchema,
+  Part,
   PlanAction,
   RestartPolicy,
   ScreenshotSchema,
@@ -809,6 +814,144 @@ describe("A database's admin tool", () => {
     await user.click(within(needs).getByRole("button", { name: "Use it" }));
     await waitFor(() =>
       expect(asked).toEqual({ id: "prj_1", need: "db", choice: "service:data/production/pg", startEmpty: false }),
+    );
+  });
+
+  it("connects an app's storage from its card to a connection its project may use, one serving another app off", async () => {
+    const user = userEvent.setup();
+    const asked: { need: string; choice: string; startEmpty: boolean }[] = [];
+    const withStorage = create(EntrySchema, {
+      ...withTools,
+      companions: [],
+      needs: [
+        create(NeedSchema, {
+          name: "storage",
+          label: "Storage",
+          kind: Kind.S3,
+          optional: true,
+          accepts: [{ kind: Kind.S3 }],
+          sets: [{ name: "S3_BUCKET", part: Part.BUCKET }],
+        }),
+      ],
+    });
+    const installed = (storage: object) => ({
+      installs: [
+        {
+          project: "postgres",
+          projectId: "prj_1",
+          environmentId: ENV,
+          pin: { entry: "postgres", version: "17.11", release: 5, needs: { storage } },
+          webServiceId: "svc_db",
+          name: "PostgreSQL",
+          companions: {},
+        },
+      ],
+    });
+    const connections = [
+      create(ConnectionInfoSchema, {
+        name: "uploads",
+        displayName: "Uploads",
+        kind: LinkKind.S3,
+        reach: ConnectionReach.EVERY,
+        endpoint: "https://s3.example.com",
+        bucket: "uploads",
+      }),
+      create(ConnectionInfoSchema, {
+        name: "media",
+        kind: LinkKind.S3,
+        reach: ConnectionReach.PROJECTS,
+        projects: ["prj_1"],
+        uses: [{ link: "storage", environment: "env_other", project: "prj_2", prefix: "shop/" }],
+      }),
+      create(ConnectionInfoSchema, {
+        name: "theirs",
+        kind: LinkKind.S3,
+        reach: ConnectionReach.PROJECTS,
+        projects: ["prj_2"],
+      }),
+      // Held by another app's own values, with no link (slice 2 re-check, N2).
+      create(ConnectionInfoSchema, { name: "kept", kind: LinkKind.S3, reach: ConnectionReach.EVERY, held: true }),
+    ];
+    const render = (storage: object) =>
+      renderAt("/apps/svc_db", {
+        ...api({
+          getCatalogEntry: () => ({ entry: withStorage, project: "postgres", needs: [] }),
+          listCatalogInstalls: () => installed(storage),
+          setCatalogNeed: (req) => {
+            asked.push({ need: req.need, choice: req.choice, startEmpty: req.startEmpty });
+            throw new ConnectError("nothing more to do here", Code.FailedPrecondition);
+          },
+        }),
+        connections: { listConnections: () => ({ connections }) },
+        // What a Disconnect left: the app's own values, naming uploads' bucket.
+        variables: {
+          listVariables: () => ({
+            environmentId: ENV,
+            variables: [
+              { id: "var_1", name: "S3_ENDPOINT", value: "https://s3.example.com" },
+              { id: "var_2", name: "S3_BUCKET", value: "uploads" },
+            ],
+          }),
+        },
+        resources: places(),
+        services: { listServices: () => ({ services: [anApp("db", "postgres:17.11")] }) },
+      });
+
+    const { container, unmount } = render({ unset: true });
+    const panel = await screen.findByRole("region", { name: "From the catalog" });
+    const row = await waitFor(() => rowLabelled(panel, "Storage"));
+    expect(row).toHaveTextContent("On its own disk");
+    await user.click(within(row).getByRole("button", { name: "Use a connection" }));
+    const ways = within(row).getByRole("list", { name: "Connections it can use" });
+    expect(ways).toHaveTextContent("Uploads");
+    expect(ways).not.toHaveTextContent("theirs");
+    const kept = within(ways)
+      .getAllByRole("listitem")
+      .find((li) => li.textContent?.includes("kept"));
+    expect(kept).toHaveTextContent("It serves another app already");
+    const media = within(ways)
+      .getAllByRole("listitem")
+      .find((li) => li.textContent?.includes("media"));
+    expect(media).toHaveTextContent("It serves another app already");
+    expect(within(media as HTMLElement).getByRole("button", { name: "Start empty on it" })).toBeDisabled();
+    await expectAccessible(container);
+    const first = within(ways)
+      .getAllByRole("listitem")
+      .find((li) => li.textContent?.includes("Uploads"));
+    // Its files on its own disk stay there: it starts empty on the bucket (slice 2 review, M3).
+    expect(first).toHaveTextContent("Its files stay where they are now");
+    await user.click(within(first as HTMLElement).getByRole("button", { name: "Start empty on it" }));
+    await waitFor(() => expect(asked).toEqual([{ need: "storage", choice: "connection:uploads", startEmpty: true }]));
+    unmount();
+
+    // On its own values since a Disconnect, the bucket they name has its files already:
+    // it goes back onto it with nothing to start empty (slice 2 review, L3).
+    const second = render({ own: true });
+    const back = await waitFor(() => rowLabelled(screen.getByRole("region", { name: "From the catalog" }), "Storage"));
+    await user.click(within(back).getByRole("button", { name: "Use a connection" }));
+    const onto = within(back)
+      .getAllByRole("listitem")
+      .find((li) => li.textContent?.includes("Uploads"));
+    await waitFor(() => expect(onto).toHaveTextContent("Its files are there already"));
+    await user.click(within(onto as HTMLElement).getByRole("button", { name: "Use it" }));
+    await waitFor(() =>
+      expect(asked.at(-1)).toEqual({ need: "storage", choice: "connection:uploads", startEmpty: false }),
+    );
+    second.unmount();
+
+    // On a bucket already, another leaves its files there, which its button says.
+    render({ connection: "media", prefix: "postgres/" });
+    const on = await waitFor(() => rowLabelled(screen.getByRole("region", { name: "From the catalog" }), "Storage"));
+    expect(on).toHaveTextContent("media · objects under postgres/");
+    await user.click(within(on).getByRole("button", { name: "Use another connection" }));
+    const other = within(on).getByRole("list", { name: "Connections it can use" });
+    expect(other).toHaveTextContent("Its files stay where they are now");
+    const leaving = within(other)
+      .getAllByRole("listitem")
+      .find((li) => li.textContent?.includes("Uploads"));
+    await user.click(within(leaving as HTMLElement).getByRole("button", { name: "Start empty on it" }));
+    await waitFor(() =>
+      expect(asked.at(-1)).toEqual({ need: "storage", choice: "connection:uploads", startEmpty: true }),
     );
   });
 

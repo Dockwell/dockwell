@@ -485,15 +485,22 @@ func (s *Service) checkFrom(ctx context.Context, a *app, c *resourcev1.Connectio
 
 // checkWords says what a failed check found, as a fact.
 func checkWords(c *dockwellv1.CheckConnectionResponse) string {
+	return checkWordsFrom(c, "the app's server")
+}
+
+// checkWordsFrom is checkWords for a check from who, such as "the control server",
+// where that isn't the app's server.
+func checkWordsFrom(c *dockwellv1.CheckConnectionResponse, who string) string {
+	Who := strings.ToUpper(who[:1]) + who[1:]
 	switch c.GetCode() {
 	case probe.CodeRefused:
-		return "The app's server sends nothing to that address: " + cmp.Or(c.GetWords(), "it's one Dockwell keeps the app from")
+		return Who + " sends nothing to that address: " + cmp.Or(c.GetWords(), "it's one Dockwell keeps the app from")
 	case probe.CodeTimeout:
-		return "The bucket didn't answer from the app's server in time"
+		return "The bucket didn't answer from " + who + " in time"
 	case probe.CodeTLS:
-		return "The bucket's address has a certificate the app's server doesn't trust"
+		return "The bucket's address has a certificate " + who + " doesn't trust"
 	case probe.CodeUnreachable:
-		return "The app's server can't reach the bucket: " + cmp.Or(c.GetWords(), "nothing answered")
+		return Who + " can't reach the bucket: " + cmp.Or(c.GetWords(), "nothing answered")
 	case probe.CodeMismatch:
 		return "The bucket gave back something other than what the check wrote"
 	}
@@ -506,13 +513,18 @@ func checkWords(c *dockwellv1.CheckConnectionResponse) string {
 
 // checkFix says what to do about a failed check, in a line.
 func checkFix(c *dockwellv1.CheckConnectionResponse) string {
+	return checkFixFrom(c, "the app's server")
+}
+
+// checkFixFrom is checkFix for a check from who.
+func checkFixFrom(c *dockwellv1.CheckConnectionResponse, who string) string {
 	switch c.GetCode() {
 	case "SignatureDoesNotMatch", "InvalidAccessKeyId", "AccessDenied":
 		return "Check the connection's keys, and that they may write in its bucket"
 	case "NoSuchBucket":
 		return "Check the connection's bucket"
 	case probe.CodeRefused, probe.CodeUnreachable, probe.CodeTimeout:
-		return "Check the connection's endpoint, and that the app's server can reach it"
+		return "Check the connection's endpoint, and that " + who + " can reach it"
 	case probe.CodeTLS:
 		return "Check the connection's endpoint"
 	}

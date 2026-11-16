@@ -28,6 +28,89 @@ import (
 // project may use: a link named for the need reads the connection's values into the
 // names the need sets (ADR 0099).
 
+// ConnectionChecks checks a connection's bucket before an install links an app to it
+// (ADR 0099).
+type ConnectionChecks interface {
+	// CheckBeforeLinking checks the connection name's bucket under prefix from
+	// server's agent, on the networks of the app env and app name where it runs
+	// already, or else on a network made for the check, trying presigned URLs where
+	// presign asks. It refuses a bucket that fails, in the check's words; checked is
+	// false, with no error, where nothing can check it now.
+	CheckBeforeLinking(ctx context.Context, name, server, env, app, prefix string, presign bool) (checked bool, err error)
+}
+
+// CheckWith has an install check each connection it links an app to, through c,
+// before it plans.
+func (h *Handler) CheckWith(c ConnectionChecks) { h.checks = c }
+
+// checkConnection checks the connection a need is met by from server, as the app
+// will reach it, before the install plans: a bucket that fails refuses the plan, and
+// one nothing can check now plans with a note that says so.
+func (h *Handler) checkConnection(ctx context.Context, e *catalogv1.Entry, w catalog.Way, server, project string) ([]revision.Note, error) {
+	checked := false
+	if h.checks != nil {
+		presign := slices.Contains(catalog.NeedFeatures(w.Need), catalogv1.Feature_FEATURE_PRESIGNED_URLS)
+		env, app, err := h.appOf(ctx, project, w.Need)
+		if err != nil {
+			return nil, err
+		}
+		if checked, err = h.checks.CheckBeforeLinking(ctx, w.Connection.Name, server, env, app, w.Connection.Prefix, presign); err != nil {
+			return nil, err
+		}
+	}
+	if checked {
+		return nil, nil
+	}
+	return []revision.Note{{Reason: ConnectionUncheckedNote, Message: uncheckedWords(e, w)}}, nil
+}
+
+// appOf is where an install's app runs already, for a check from its networks: the
+// environment of project, by name or ID, and the service there that reads a name n
+// sets. Both are empty for a project an install is about to make.
+func (h *Handler) appOf(ctx context.Context, project string, n *catalogv1.Need) (env, app string, err error) {
+	if project == "" || h.db == nil {
+		return "", "", nil
+	}
+	names := make([]string, 0, len(n.GetSets()))
+	for _, s := range n.GetSets() {
+		names = append(names, s.GetName())
+	}
+	err = h.db.View(ctx, func(tx *store.Tx) error {
+		tree, err := scope.Load(ctx, tx)
+		if err != nil {
+			return err
+		}
+		for _, p := range tree.Projects {
+			if p.Name != project && p.ID != project {
+				continue
+			}
+			for _, e := range p.Environments {
+				if env == "" || e.Name == scope.DefaultEnvironment {
+					env = e.ID
+				}
+			}
+		}
+		if env == "" || len(names) == 0 {
+			return nil
+		}
+		users, err := tx.UsersOf(ctx, env, "", names...)
+		if err != nil {
+			return err
+		}
+		for i := range users {
+			if u := &users[i]; u.Kind == "service" && u.Scope == env {
+				app = u.Name
+				return nil
+			}
+		}
+		return nil
+	})
+	if app == "" {
+		env = ""
+	}
+	return env, app, err
+}
+
 // connectionWays are the connections that may meet an install's needs in project,
 // by its name or ID: those that reach every project, and, for a project that's there
 // already, those that name it. A project an install makes is new, so a connection
@@ -38,7 +121,12 @@ import (
 // It reads none for an entry with no need a connection meets, and leaves out one
 // the control plane can't open, naming it in unread, so that connection fails no
 // other app's sheet, install or upgrade (the slice 1 review, M3).
-func (h *Handler) connectionWays(ctx context.Context, e *catalogv1.Entry, project string) ([]catalog.ConnectionWay, []string, error) {
+//
+// An install that asks for a connection that reaches no project yet by name, in
+// asked, is offered it, as one an admin added from the install sheet: its plan gives
+// the connection the project it makes (Widens, ADR 0099). An install is an admin's,
+// and nothing else asks. One that names other projects is never widened.
+func (h *Handler) connectionWays(ctx context.Context, e *catalogv1.Entry, project string, asked map[string]string) ([]catalog.ConnectionWay, []string, error) {
 	if h.db == nil || h.keeper == nil || !slices.ContainsFunc(e.GetNeeds(), func(n *catalogv1.Need) bool { return n.GetKind() == catalogv1.Kind_KIND_S3 }) {
 		return nil, nil, nil
 	}
@@ -71,13 +159,24 @@ func (h *Handler) connectionWays(ctx context.Context, e *catalogv1.Entry, projec
 	if err != nil {
 		return nil, nil, err
 	}
+	values, err := conns.OwnValues(ctx, projectID)
+	if err != nil {
+		return nil, nil, err
+	}
 	var out []catalog.ConnectionWay
 	for i := range all {
 		c := &all[i]
 		if c.Spec.GetKind() != resourcev1.LinkKind_LINK_KIND_S3 {
 			continue
 		}
-		if c.Spec.GetReach() != resourcev1.ConnectionReach_CONNECTION_REACH_EVERY && (projectID == "" || !connection.Reaches(c.Spec, projectID)) {
+		reaches := c.Spec.GetReach() == resourcev1.ConnectionReach_CONNECTION_REACH_EVERY || projectID != "" && connection.Reaches(c.Spec, projectID)
+		// Only one that reaches no project yet, as the install sheet saves one: a
+		// connection that names other projects keeps to them, so an install never
+		// widens what an admin chose for them.
+		reachesNone := c.Spec.GetReach() == resourcev1.ConnectionReach_CONNECTION_REACH_UNSPECIFIED ||
+			c.Spec.GetReach() == resourcev1.ConnectionReach_CONNECTION_REACH_PROJECTS && len(c.Spec.GetProjects()) == 0
+		widens := !reaches && reachesNone && projectID == "" && project != "" && slices.Contains(slices.Collect(maps.Values(asked)), catalog.ChoiceConnection+c.Name)
+		if !reaches && !widens {
 			continue
 		}
 		// Every link counts, the project's own other apps' too: an upgrade keeps an
@@ -92,7 +191,8 @@ func (h *Handler) connectionWays(ctx context.Context, e *catalogv1.Entry, projec
 			Name: c.Name, Label: cmp.Or(c.Spec.GetDisplayName(), c.Name), PathStyle: c.Spec.GetS3().GetPathStyle(),
 			Prefix: link.FreePrefix(prefixFor(projectName), taken),
 			Named:  namedForEnvironment(c.Name, all),
-			Serves: len(taken) > 0,
+			Serves: len(taken) > 0 || connections.Holds(values, c.Spec),
+			Widens: widens,
 		})
 	}
 	return out, unread, nil
@@ -106,6 +206,23 @@ func unreadNotes(unread []string) []revision.Note {
 		out = append(out, revision.Note{
 			Reason:  ConnectionUnreadNote,
 			Message: fmt.Sprintf("Dockwell can't read the connection %s, so it wasn't offered for the app's storage. Check that the control plane runs with the secrets key it was saved with", name),
+		})
+	}
+	return out
+}
+
+// ConnectionReachNote is a plan note's reason for a connection an install gives the
+// project it makes, as one an admin added from the install sheet (ADR 0099).
+const ConnectionReachNote = "catalog_connection_reach"
+
+// reachNotes say, in an install's plan, which connections it gives the project it
+// makes, so the reach is said, never implied.
+func reachNotes(names []string, project string) []revision.Note {
+	var out []revision.Note
+	for _, name := range names {
+		out = append(out, revision.Note{
+			Reason:  ConnectionReachNote,
+			Message: fmt.Sprintf("The connection %s reaches the project %s from this install on, so its apps may use it", name, project),
 		})
 	}
 	return out

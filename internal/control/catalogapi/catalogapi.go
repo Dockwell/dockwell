@@ -70,6 +70,9 @@ type Handler struct {
 	// entriesDir is a folder whose entries take over Dockwell's own of the same ID,
 	// as catalog.DirEnv names one (EntriesFrom). Empty adds none.
 	entriesDir string
+	// checks checks a connection's bucket before an install links an app to it
+	// (CheckWith). Nil checks nothing, and the plan says so.
+	checks ConnectionChecks
 }
 
 // EntriesFrom has the catalog take the entries in dir, read each time, over
@@ -196,7 +199,7 @@ func (h *Handler) GetCatalogEntry(ctx context.Context, req *connect.Request[dock
 	// An install always makes a new project, so only a connection that reaches every
 	// project is one it may take. The request's project is a name to start from, never
 	// one whose connections the caller may read (ADR 0099).
-	conns, _, err := h.connectionWays(ctx, entry, "")
+	conns, _, err := h.connectionWays(ctx, entry, "", nil)
 	if err != nil {
 		return nil, h.internal(ctx, err)
 	}
@@ -406,8 +409,9 @@ func (h *Handler) InstallCatalogEntry(ctx context.Context, req *connect.Request[
 		FirstSteps: catalog.FirstWords(entry, choice),
 		Pin:        pin,
 		Limits:     limitsOf(m),
-		Notes:      pinNotes,
+		Notes:      slices.Concat(pinNotes, reachNotes(needed.Reaches, project)),
 		Needs:      composeapi.Needs{Variables: filled.Linked, Stands: filled.LinkStands, Links: needed.Links, Extra: slices.Concat(shared.Extra, users, written), Joins: shared.Joins},
+		Reaches:    needed.Reaches,
 	})
 	if err != nil {
 		return nil, err

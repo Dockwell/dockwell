@@ -181,6 +181,26 @@ func useCatalogDir(t *testing.T, dir string) {
 	t.Cleanup(func() { catalogDirs.Delete(t) })
 }
 
+// agentChecks are the tests whose installs check a connection through the server's
+// agent, as the control plane does (useAgentChecks).
+var agentChecks sync.Map // *testing.T to struct{}
+
+// useAgentChecks has the control planes t starts check a connection an install links
+// to through the server's agent, as dockwell run does, rather than plan unchecked.
+func useAgentChecks(t *testing.T) {
+	t.Helper()
+	agentChecks.Store(t, struct{}{})
+	t.Cleanup(func() { agentChecks.Delete(t) })
+}
+
+// uncheckedHere stands in for the agent's check of a connection: nothing checks it,
+// so an install plans with the note that says so.
+type uncheckedHere struct{}
+
+func (uncheckedHere) CheckBeforeLinking(context.Context, string, string, string, string, string, bool) (bool, error) {
+	return false, nil
+}
+
 // heldAsks holds the waits for step-ups that were asked for, which run out only when
 // a test misses them. A wait on the clock ran out mid-test on a busy machine, before
 // what confirmed it came, and read as nobody confirming (#197).
@@ -326,6 +346,12 @@ func startFullConfig(t *testing.T, backend store.Backend, public https.Source, l
 	}
 	if dir, ok := catalogDirs.Load(t); ok {
 		config.CatalogDir = dir.(string)
+	}
+	// An install's check of a connection runs on the server's agent only where a
+	// test asks for it: elsewhere, a test's connection names a bucket no check may
+	// reach from this machine, so it plans unchecked, as with an agent that's away.
+	if _, ok := agentChecks.Load(t); !ok {
+		config.ConnectionChecks = uncheckedHere{}
 	}
 	if tweak != nil {
 		tweak(&config)

@@ -1432,6 +1432,21 @@
   list-style: none;
 }
 
+/* A way's name over what it does, as Use another database and Use a connection list them. */
+.catalog-need-line-way {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+/* Why a way is off: it wraps, on a phone too, with the whole reason behind Why. */
+.catalog-need-line-now.is-reason {
+  white-space: normal;
+}
+/* A line of its own under the ways: none to pick, or adding one. */
+.catalog-need-line-ways li.catalog-need-line-none,
+.catalog-need-line-ways li.catalog-need-line-add {
+  display: flex;
+}
 .catalog-need-line-ways li {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;

@@ -1092,7 +1092,9 @@ export type SetCatalogNeedRequest = Message<"dockwell.v1.SetCatalogNeedRequest">
 
   /**
    * What meets it, as GetCatalogEntryResponse.needs offers it: a server Dockwell
-   * runs, as "service:<project>/<environment>/<service>".
+   * runs, as "service:<project>/<environment>/<service>"; for storage, a connection
+   * the install's project may use, as "connection:<name>", which is checked from the
+   * app's server first (ADR 0099).
    *
    * @generated from field: string choice = 3;
    */
@@ -1106,7 +1108,9 @@ export type SetCatalogNeedRequest = Message<"dockwell.v1.SetCatalogNeedRequest">
    * restarts: its routes answer that it isn't open, and the ports its services
    * publish listen on the server alone, until OpenCatalogInstall opens them, so
    * its owner sets it up first, through the panel. Where nothing can be held, it's
-   * refused with the reason cant_hold.
+   * refused with the reason cant_hold. For storage that's on a bucket already, it
+   * says to leave the app's files there and start on the new one empty, as
+   * Dockwell copies none across; the plan is refused with cant_copy until it does.
    *
    * @generated from field: bool start_empty = 4;
    */

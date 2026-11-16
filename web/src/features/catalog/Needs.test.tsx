@@ -7,8 +7,10 @@ import {
   ChangeState,
   Engine,
   EntrySchema,
+  Feature,
   InputType,
   type InstallCatalogEntryRequest,
+  Kind,
   NeedSchema,
   Part,
   type WatchServersResponse,
@@ -363,5 +365,151 @@ describe("Sharing a Redis whose apps keep apart without a prefix", () => {
     const sheet = await screen.findByRole("dialog", { name: "Install WordPress" });
     const picker = await within(sheet).findByRole("group", { name: "Database" });
     expect(picker).toHaveTextContent("this one keeps no prefix: shop and it could read and change each other's data");
+  });
+});
+
+// WordPress given optional storage, as ADR 0099 writes it: S3 that takes signed URLs.
+const withStorage = create(EntrySchema, {
+  ...wordpress,
+  needs: [
+    ...wordpress.needs,
+    create(NeedSchema, {
+      name: "storage",
+      label: "Storage",
+      kind: Kind.S3,
+      optional: true,
+      accepts: [{ kind: Kind.S3, features: [Feature.PRESIGNED_URLS] }],
+      sets: [
+        { name: "S3_BUCKET", part: Part.BUCKET },
+        { name: "S3_SECRET_ACCESS_KEY", part: Part.SECRET_KEY },
+      ],
+    }),
+  ],
+});
+const onItsOwnDisk = create(CatalogNeedOptionSchema, { need: "storage", choice: "unset" });
+const uploads = create(CatalogNeedOptionSchema, {
+  need: "storage",
+  choice: "connection:uploads",
+  connection: "uploads",
+  connectionLabel: "Uploads",
+});
+const busy = create(CatalogNeedOptionSchema, {
+  need: "storage",
+  choice: "connection:media",
+  connection: "media",
+  connectionLabel: "Media",
+  why: "it serves another app already, and a connection serves one app. Add a connection of its own on Connections",
+});
+
+function storageApi(options = [onItsOwnDisk, uploads, busy], more: Api["catalog"] = {}): Api {
+  const base = api([ownMariaDB, ...options], more);
+  return {
+    ...base,
+    catalog: {
+      ...base.catalog,
+      getCatalogEntry: () => ({
+        entry: withStorage,
+        project: "wordpress",
+        values: { PORT: "8085" },
+        parts: [{ service: "wordpress", image: "wordpress:7.1.3-apache", opens: true }],
+        needs: [ownMariaDB, ...options],
+      }),
+      ...more,
+    },
+    connections: { listConnections: () => ({ connections: [] }) },
+  };
+}
+
+describe("An app's storage as it's installed (ADR 0099)", () => {
+  it("runs on its own disk by default, and takes a connection the new project may use, one that can't off with why", async () => {
+    const user = userEvent.setup();
+    let asked: InstallCatalogEntryRequest | undefined;
+    const change = create(ChangeSchema, { id: "chg_wp", summary: "Install WordPress", state: ChangeState.PLANNED });
+    const { container } = renderAt(
+      "/catalog/wordpress/install",
+      storageApi(undefined, {
+        installCatalogEntry: (req) => {
+          asked = req;
+          return { change };
+        },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "Install WordPress" });
+    const row = await within(sheet).findByRole("group", { name: "Storage" });
+    expect(row).toHaveTextContent("On its own disk");
+    await user.click(within(row).getByRole("button", { name: "Use a connection" }));
+    const picker = within(sheet).getByRole("group", { name: "Storage" });
+    expect(picker).toHaveTextContent("Needs signed URLs");
+    expect(within(picker).getByRole("radio", { name: /On its own disk/ })).toBeChecked();
+    expect(within(picker).getByRole("radio", { name: /Media/ })).toBeDisabled();
+    // A line, with the whole reason a step away (slice 2 review, L3).
+    expect(picker).not.toHaveTextContent("a connection serves one app");
+    await user.click(within(picker).getByRole("button", { name: "Why" }));
+    expect(picker).toHaveTextContent("It serves another app already, and a connection serves one app");
+    await expectAccessible(container);
+    await user.click(within(picker).getByRole("radio", { name: /Uploads/ }));
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    await waitFor(() => expect(asked).toBeDefined());
+    expect(asked?.needs).toEqual({ db: "new:mariadb", storage: "connection:uploads" });
+  });
+
+  it("takes the only connection where the app can't run without storage", async () => {
+    const required = create(CatalogNeedOptionSchema, { ...uploads });
+    renderAt("/catalog/wordpress/install", storageApi([required]));
+    const sheet = await screen.findByRole("dialog", { name: "Install WordPress" });
+    const row = await within(sheet).findByRole("group", { name: "Storage" });
+    expect(row).toHaveTextContent("Uploads");
+    expect(within(row).getByRole("button", { name: "Change storage" })).toBeVisible();
+  });
+
+  it("says no connection meets it yet where none can, and adds one from the sheet", async () => {
+    const user = userEvent.setup();
+    renderAt("/catalog/wordpress/install", storageApi([busy]));
+    const sheet = await screen.findByRole("dialog", { name: "Install WordPress" });
+    const picker = await within(sheet).findByRole("group", { name: "Storage" });
+    expect(picker).toHaveTextContent("No connection meets it yet");
+    expect(within(sheet).getByRole("button", { name: /Review plan/ })).toBeDisabled();
+    await user.click(within(picker).getByRole("button", { name: "Add a connection" }));
+    const adding = await screen.findByRole("dialog", { name: "Add a connection" });
+    // It reaches the project this install makes, which the install's plan gives it.
+    expect(adding).toHaveTextContent("for WordPress's project");
+    // Exactly that project, as a line: more are given on Connections, later (slice 2 review, H2).
+    await user.click(within(adding).getByRole("button", { name: /Advanced/ }));
+    expect(adding).toHaveTextContent("ReachesWordPress's project, once it's installed");
+    expect(within(adding).queryByRole("switch", { name: /Only some projects/ })).not.toBeInTheDocument();
+    expect(within(adding).queryByRole("checkbox")).not.toBeInTheDocument();
+  });
+});
+
+describe("The way the sheet shows is the way it sends (slice 2 review, H1)", () => {
+  it("sends the connection the sheet shows, never a busy one listed first", async () => {
+    const user = userEvent.setup();
+    let asked: InstallCatalogEntryRequest | undefined;
+    const change = create(ChangeSchema, { id: "chg_wp", summary: "Install WordPress", state: ChangeState.PLANNED });
+    // Required storage: the server lists connections by name, so a busy media comes first.
+    const required = create(EntrySchema, {
+      ...withStorage,
+      needs: withStorage.needs.map((n) => (n.name === "storage" ? create(NeedSchema, { ...n, optional: false }) : n)),
+    });
+    const base = storageApi([busy, uploads], {
+      getCatalogEntry: () => ({
+        entry: required,
+        project: "wordpress",
+        values: { PORT: "8085" },
+        parts: [{ service: "wordpress", image: "wordpress:7.1.3-apache", opens: true }],
+        needs: [ownMariaDB, busy, uploads],
+      }),
+      installCatalogEntry: (req) => {
+        asked = req;
+        return { change };
+      },
+    });
+    renderAt("/catalog/wordpress/install", base);
+    const sheet = await screen.findByRole("dialog", { name: "Install WordPress" });
+    const row = await within(sheet).findByRole("group", { name: "Storage" });
+    expect(row).toHaveTextContent("Uploads");
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    await waitFor(() => expect(asked).toBeDefined());
+    expect(asked?.needs["storage"]).toBe("connection:uploads");
   });
 });

@@ -166,6 +166,10 @@ message ConnectionInfo {
   // read the link's values. An admin's, every one; below an admin, those in the
   // caller's projects alone.
   repeated ConnectionUse uses = 12;
+  // Some app's own values name its endpoint and bucket, with no link, as a
+  // Disconnect leaves them, so it keeps its files there: the connection serves it,
+  // and no other app is offered it. It names no project (ADR 0099).
+  bool held = 13;
 }
 
 // ConnectionUse is one link to a connection, and the apps that read it.

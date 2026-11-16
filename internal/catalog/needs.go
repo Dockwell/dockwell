@@ -691,6 +691,10 @@ type ConnectionWay struct {
 	// Named says the connection is named for the app's environment, as
 	// "uploads-production" is, which makes it the default among several.
 	Named bool
+	// Widens says it doesn't reach the project an install makes yet, as one an admin
+	// added from the install sheet: the install's plan gives it that project (ADR
+	// 0099). Only an install that asks for it by name is offered it.
+	Widens bool
 	// Serves says a link of another app reads it already. A connection serves one
 	// app (ADR 0099), so it's no way to meet a need now, but an install it meets
 	// already keeps it.
@@ -861,7 +865,7 @@ func WithConnections(e *catalogv1.Entry, ways map[string][]Way, conns []Connecti
 			w := Way{Need: n, Connection: &c}
 			switch {
 			case slices.ContainsFunc(n.GetSets(), func(s *catalogv1.NeedSet) bool { return s.GetPart() == catalogv1.Part_PART_URL }):
-				w.Why = "the app reads its storage as a URL, which Dockwell can't write from a connection yet"
+				w.Why = "the app reads its storage as one URL, which a connection can't give yet"
 			case c.Serves:
 				w.Why = servesWhy(n)
 			}
@@ -970,6 +974,11 @@ func Meet(e *catalogv1.Entry, ways map[string][]Way, asked map[string]string, pi
 			i := slices.IndexFunc(options, func(w Way) bool { return w.Choice() == choice })
 			if i >= 0 && options[i].Why != "" {
 				return nil, fmt.Errorf("%s can't meet %s's %s: %s", strings.TrimPrefix(choice, "service:"), e.GetName(), strings.ToLower(n.GetLabel()), options[i].Why)
+			}
+			if c, ok := strings.CutPrefix(choice, ChoiceConnection); ok && i < 0 {
+				// One the project can't use reads as not there, as a name can't tell
+				// which (slice 2 review, H2).
+				return nil, fmt.Errorf("the connection %s doesn't reach %s's project, so nothing was planned. Let every project use it on Connections, or add one from the install sheet, which reaches the project the install makes", c, e.GetName())
 			}
 			if i < 0 {
 				return nil, fmt.Errorf("%s's need %s takes %s, not %q", e.GetName(), name, strings.Join(choicesOf(options), " or "), choice)
@@ -1201,6 +1210,9 @@ type Needed struct {
 	// connection through the link named for its need, by name (ADR 0099). Fill gives
 	// each a value of no meaning, which the install drops.
 	Read map[string]ReadFrom
+	// Reaches are the connections needs are met by that don't reach the project the
+	// install makes yet, by name: its plan gives each that project (ADR 0099).
+	Reaches []string
 	// Kept are the names a need the app's own values meet sets, each with whether
 	// it's a secret: the environment holds each as a Disconnect left it, so the
 	// install writes none of them. Fill gives each a value of no meaning, which the
@@ -1261,6 +1273,9 @@ func connectedNeed(n *catalogv1.Need, c ConnectionWay, out *Needed, adds *[]*cat
 		}
 	}
 	out.Links[n.GetName()] = l
+	if c.Widens && !slices.Contains(out.Reaches, c.Name) {
+		out.Reaches = append(out.Reaches, c.Name)
+	}
 	return &resourcev1.PinnedNeed{Connection: c.Name, Prefix: c.Prefix, Plain: plain}, plain, nil
 }
 
