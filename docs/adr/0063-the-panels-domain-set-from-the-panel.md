@@ -1,6 +1,6 @@
 # 0063. The panel's domain, set from the panel
 
-- Status: Proposed. Amends [ADR 0042](0042-the-installs-settings.md), where it says how the panel is served is only `dockwell run`'s.
+- Status: Proposed. Amends [ADR 0042](0042-the-installs-settings.md), where it says how the panel is served is only `dockwell run`'s. Amended 2026-11-16 for a panel behind a tunnel or a proxy that ends TLS (#734), below.
 - Date: 2026-11-10
 
 ## Context
@@ -62,3 +62,17 @@ The grace period ends 7 days after B has answered over HTTPS and its owner has s
 - For a move, the control plane serves two names for up to a week after the new one works, with a certificate for each, and passkey ceremonies take their relying party ID from the name the request came to, except **Use a passkey from A** on B, which asks for A's. Every member gets a way to B without SSH.
 - A restart the panel asks for exists for the first time. Later settings that are read at start, such as the ACME directory, can use it the same way; until one does, they stay `dockwell run`'s.
 - Without the domain set from the panel, nothing changes: an install that sets `DOCKWELL_DOMAIN` keeps working as it does.
+
+## Amendment: behind a tunnel or a proxy that ends TLS
+
+*2026-11-16, #734.*
+
+The panel's domain may reach the control server through Cloudflare Tunnel, or another proxy that ends TLS: the browser is on `https://panel.example.com`, so passkeys and Secure cookies hold, but no certificate comes to this server, and nothing needs ports 80 or 443. The panel treated every domain as one it serves itself, so it said "Getting a certificate…" for ever.
+
+- **A second choice for the panel's address.** Settings → General asks how the domain reaches the panel: **Dockwell serves it**, as above, or **Behind a tunnel or proxy that ends TLS**. The second is kept beside the domain in the store (`panel_domain_behind_proxy`), and `dockwell run` takes it from `--behind-proxy` (`DOCKWELL_BEHIND_PROXY`) with `--domain`. Behind a proxy, `dockwell run` asks for no certificate, holds no port 80 or 443 for the panel, and doesn't hand the domain to Caddy (ADR 0024). The panel keeps answering on loopback alone, and takes `https://<domain>` as its public origin: the relying party ID passkeys are made for, the origin their ceremonies check, `__Host-` cookies, and the links it makes.
+- **Whom it believes.** A request is the domain's only where it comes over loopback, from the proxy on this server, as `cloudflared` on the host's network is, with `Host` set to the domain and `X-Forwarded-Proto: https`. The panel listens on loopback alone (ADR 0011), so loopback is the only proxy there can be; a proxy elsewhere reaches it through one on this server. Then, as Caddy's hand-over of the domain is (ADR 0024), the request reads as HTTPS on the domain, and the visitor's address is the last of `X-Forwarded-For`. Anything else that comes over loopback with those headers could already reach the panel there: it gets no more, as a passkey's assertion is bound to the browser's origin, and a cookie to the browser that holds it. From anyone else, neither header counts.
+- **A live check that fits.** For a domain behind a proxy, Settings → General checks the way in, not DNS and ports: the control plane makes a one-time token, asks `https://<domain>/.well-known/dockwell-reach/<token>`, and sees it answered by this panel, through the proxy. It reads **Reached through your tunnel**, or why not, in a line with **Check again**: DNS with no tunnel route ("Cloudflare answered 530: the tunnel has no route for this name"), a tunnel pointing elsewhere ("502: the tunnel can't reach what it points at. Point it at http://127.0.0.1:7600"), or something else answering. The token answers once, within 30 seconds, and says nothing else.
+- **Noticed for the person.** As the domain is typed, `CheckPanelDomain` says when its DNS leads to Cloudflare, by the ranges Cloudflare publishes; the panel then offers **Behind a tunnel or proxy** first, so nobody waits for a certificate that can't come.
+- **The docs.** The install guide's "Behind Cloudflare Tunnel or another proxy" gets a part for the panel, and its "the panel's own domain can't be served this way" goes.
+
+Moving between the two choices on the same domain is a restart, as setting the domain is, and keeps every passkey, as the relying party ID doesn't change.
