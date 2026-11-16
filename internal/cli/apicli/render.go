@@ -4,9 +4,11 @@ package apicli
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"io"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -736,7 +738,7 @@ func PlanView(w io.Writer, p *dockwellv1.Plan) {
 		}
 		a := actions[r.GetAction()]
 		row(tw, "  "+a.symbol+" "+ref(r.GetResource()), a.word)
-		fieldChanges(tw, r.GetChanges(), "      ")
+		fieldChanges(tw, needsRows(tw, r, readsRow(tw, r, setsRows(tw, r, storageRow(tw, r, "      "), "      "), "      "), "      "), "      ")
 		wrote = true
 	}
 	_ = tw.Flush()
@@ -1456,6 +1458,292 @@ func downtime(d *durationpb.Duration) string {
 		return "under 1 s"
 	}
 	return Span(d.AsDuration())
+}
+
+// storageRow writes, for a link to a connection, where it keeps the app's files, by
+// the connection's label, as one row in place of its connection and prefix fields,
+// and returns the fields left to write (ADR 0099).
+func storageRow(tw io.Writer, r *dockwellv1.PlannedResource, indent string) []*dockwellv1.FieldChange {
+	after, before := r.GetStorage(), r.GetStorageBefore()
+	if after == nil && before == nil {
+		return r.GetChanges()
+	}
+	switch {
+	case before == nil:
+		row(tw, indent+"+ keeps its files on", storageWords(after, nil))
+	case after == nil:
+		row(tw, indent+"- keeps its files on", storageWords(before, nil))
+	// Compared by name and prefix, never by label: a renamed label moves nothing
+	// (the slice 3 review, H1).
+	case before.GetConnection() != after.GetConnection() || before.GetPrefix() != after.GetPrefix():
+		row(tw, indent+"~ keeps its files on", storageWords(before, after)+" → "+storageWords(after, before))
+	}
+	var rest []*dockwellv1.FieldChange
+	for _, c := range r.GetChanges() {
+		if c.GetPath() != "connection" && c.GetPath() != "prefix" {
+			rest = append(rest, c)
+		}
+	}
+	return rest
+}
+
+// partWords say a part of what a link meets in words, from its word in a plan's
+// field, such as "access-key-id": "the access key ID".
+var partWords = map[string]string{
+	"host": "the host", "port": "the port", "address": "the address", "database": "the database", "user": "the user",
+	"password": "the password", "url": "the URL", "tls": "whether it takes TLS", "key-prefix": "the prefix",
+	"engine": "the engine", "endpoint": "the endpoint", "region": "the region", "bucket": "the bucket",
+	"access-key-id": "the access key ID", "secret-key": "the secret key", "path-style": "whether the bucket goes in the path",
+	"public-url": "the public address", "met": "whether it's met",
+}
+
+// partWord is a part in words, from its word in a field, or the LinkPart's name.
+func partWord(word string) string {
+	word = strings.ReplaceAll(strings.ToLower(strings.TrimPrefix(word, "LINK_PART_")), "_", "-")
+	if w, ok := partWords[word]; ok {
+		return w
+	}
+	return "the " + strings.ReplaceAll(word, "-", " ")
+}
+
+// setsRows writes each set of a link that changes as rows in words, in place of its
+// sets[n] fields: the name and what it reads, "S3_BUCKET  reads the bucket from
+// Uploads", or, for a database, "DB_HOST  reads the host"; one reading another part,
+// or renamed, says what it was in place of; a URL's template and its words for TLS
+// say whose they are (ADR 0099). It reads the plan's sets whole and pairs them by
+// name, so one added or removed beside others is just that; a plan from before they
+// were kept writes its sets[n] fields as they were. It returns the fields left to write.
+func setsRows(tw io.Writer, r *dockwellv1.PlannedResource, changes []*dockwellv1.FieldChange, indent string) []*dockwellv1.FieldChange {
+	if r.GetResource().GetKind() != "link" || (len(r.GetSets()) == 0 && len(r.GetSetsBefore()) == 0) {
+		return changes
+	}
+	var rest []*dockwellv1.FieldChange
+	for _, c := range changes {
+		if !linkSetPath.MatchString(c.GetPath()) {
+			rest = append(rest, c)
+		}
+	}
+	from := func(s *dockwellv1.LinkStorage) string {
+		if s == nil {
+			return ""
+		}
+		return " from " + s.GetConnectionLabel()
+	}
+	reads := func(set *resourcev1.LinkSet, s *dockwellv1.LinkStorage) string {
+		if set.GetPart() == resourcev1.LinkPart_LINK_PART_UNSPECIFIED {
+			return "reads" + from(s)
+		}
+		return "reads " + partWord(set.GetPart().String()) + from(s)
+	}
+	for _, p := range pairSets(r.GetSetsBefore(), r.GetSets()) {
+		was, now := p.was, p.now
+		switch {
+		case was == nil:
+			row(tw, indent+"+ "+now.GetName(), reads(now, r.GetStorage()))
+		case now == nil:
+			row(tw, indent+"- "+was.GetName(), reads(was, r.GetStorageBefore()))
+		case was.GetName() != now.GetName():
+			row(tw, indent+"~ "+now.GetName(), reads(now, r.GetStorage())+", in place of "+was.GetName())
+		case was.GetPart() != now.GetPart():
+			// A part change reads as one (the slice 3 review, L1).
+			row(tw, indent+"~ "+now.GetName(), reads(now, r.GetStorage())+", in place of "+partWord(was.GetPart().String()))
+		}
+		// A URL's template, and its words for TLS, say whose they are.
+		name := cmp.Or(now.GetName(), was.GetName())
+		for _, f := range []struct{ label, from, to string }{
+			{name + "'s template", was.GetTemplate(), now.GetTemplate()},
+			{name + " with TLS", was.GetTlsOn(), now.GetTlsOn()},
+			{name + " without TLS", was.GetTlsOff(), now.GetTlsOff()},
+		} {
+			switch {
+			case f.from == f.to:
+			case f.from == "":
+				row(tw, indent+"+ "+f.label, f.to)
+			case f.to == "":
+				row(tw, indent+"- "+f.label, f.from)
+			default:
+				row(tw, indent+"~ "+f.label, f.from+" → "+f.to)
+			}
+		}
+	}
+	return rest
+}
+
+// linkSetPath is a field of a link's sets[n], or one whole.
+var linkSetPath = regexp.MustCompile(`^sets\[\d+\](\.|$)`)
+
+// A setPair is a link's set before and after a change: nil on the side it isn't on.
+type setPair struct{ was, now *resourcev1.LinkSet }
+
+// pairSets pairs a link's sets by name, in the order they now have, with those it
+// drops after: a name on one side alone comes or goes, and a name on both is the same
+// set. One dropped and one added, alone and reading the same part, is a rename (the
+// slice 3 re-check, N1). Sets the same on both sides are left out.
+func pairSets(before, after []*resourcev1.LinkSet) []setPair {
+	was := map[string]*resourcev1.LinkSet{}
+	for _, s := range before {
+		was[s.GetName()] = s
+	}
+	now := map[string]bool{}
+	for _, s := range after {
+		now[s.GetName()] = true
+	}
+	var added, dropped []*resourcev1.LinkSet
+	for _, s := range after {
+		if was[s.GetName()] == nil {
+			added = append(added, s)
+		}
+	}
+	for _, s := range before {
+		if !now[s.GetName()] {
+			dropped = append(dropped, s)
+		}
+	}
+	renamed := len(added) == 1 && len(dropped) == 1 && added[0].GetPart() == dropped[0].GetPart()
+	var pairs []setPair
+	for _, s := range after {
+		switch b := was[s.GetName()]; {
+		case b != nil && !proto.Equal(b, s):
+			pairs = append(pairs, setPair{b, s})
+		case b == nil && renamed:
+			pairs = append(pairs, setPair{dropped[0], s})
+		case b == nil:
+			pairs = append(pairs, setPair{nil, s})
+		}
+	}
+	if !renamed {
+		for _, s := range dropped {
+			pairs = append(pairs, setPair{s, nil})
+		}
+	}
+	return pairs
+}
+
+// readsRow writes, for a variable or a secret read from a connection, what it reads,
+// as one row in place of its from.connection fields: "reads the bucket from Uploads",
+// and, where it read another, "in place of Ghost files" (ADR 0099). It returns the
+// fields left to write.
+func readsRow(tw io.Writer, r *dockwellv1.PlannedResource, changes []*dockwellv1.FieldChange, indent string) []*dockwellv1.FieldChange {
+	after, before := r.GetReads(), r.GetReadsBefore()
+	if after == nil && before == nil {
+		return changes
+	}
+	words := func(c, other *dockwellv1.ConnectionRead) string {
+		var them named
+		if other != nil {
+			them = other
+		}
+		return partWord(c.GetPart().String()) + " from " + connectionName(c, them)
+	}
+	switch {
+	case before == nil:
+		row(tw, indent+"+ reads", words(after, nil))
+	case after == nil:
+		row(tw, indent+"- reads", words(before, nil))
+	case before.GetConnection() != after.GetConnection() || before.GetPart() != after.GetPart() || before.GetLink() != after.GetLink():
+		// Say what differs: the part, the connection, or both (the slice 3 review, L1).
+		was := connectionName(before, named(after))
+		switch {
+		case before.GetConnection() == after.GetConnection():
+			was = partWord(before.GetPart().String())
+		case before.GetPart() != after.GetPart():
+			was = words(before, after)
+		}
+		row(tw, indent+"~ reads", words(after, before)+", in place of "+was)
+	}
+	var rest []*dockwellv1.FieldChange
+	for _, c := range changes {
+		if !strings.HasPrefix(c.GetPath(), "from.connection.") {
+			rest = append(rest, c)
+		}
+	}
+	return rest
+}
+
+// needsRows writes, for a catalog install's project, where each need that changes
+// comes from, "storage comes from  Ghost files, under site/", or "its own values",
+// in place of its pin's connection, prefix and own fields (the slice 3 review, L2).
+// It returns the fields left to write.
+func needsRows(tw io.Writer, r *dockwellv1.PlannedResource, changes []*dockwellv1.FieldChange, indent string) []*dockwellv1.FieldChange {
+	after, before := r.GetNeeds(), r.GetNeedsBefore()
+	if len(after) == 0 && len(before) == 0 {
+		return changes
+	}
+	at := func(needs []*dockwellv1.NeedStorage, need string) *dockwellv1.NeedStorage {
+		for _, n := range needs {
+			if n.GetNeed() == need {
+				return n
+			}
+		}
+		return nil
+	}
+	words := func(n, other *dockwellv1.NeedStorage) string {
+		if n.GetOwn() {
+			return "its own values"
+		}
+		return storageWords(n.GetStorage(), other.GetStorage())
+	}
+	var names []string
+	for _, n := range append(slices.Clone(before), after...) {
+		if !slices.Contains(names, n.GetNeed()) {
+			names = append(names, n.GetNeed())
+		}
+	}
+	for _, name := range names {
+		now, was := at(after, name), at(before, name)
+		label := name + " comes from"
+		switch {
+		case was == nil:
+			row(tw, indent+"+ "+label, words(now, nil))
+		case now == nil:
+			row(tw, indent+"- "+label, words(was, nil))
+		case now.GetOwn() != was.GetOwn() || now.GetStorage().GetConnection() != was.GetStorage().GetConnection() || now.GetStorage().GetPrefix() != was.GetStorage().GetPrefix():
+			row(tw, indent+"~ "+label, words(was, now)+" → "+words(now, was))
+		}
+	}
+	var rest []*dockwellv1.FieldChange
+	for _, c := range changes {
+		if !pinField.MatchString(c.GetPath()) {
+			rest = append(rest, c)
+		}
+	}
+	return rest
+}
+
+// pinField is a catalog install's pinned need's connection, prefix or own field.
+var pinField = regexp.MustCompile(`^catalog\.needs\[[^\]]+\]\.(connection|prefix|own)$`)
+
+// named is a connection a plan row names, by name and label.
+type named interface {
+	GetConnection() string
+	GetConnectionLabel() string
+}
+
+// connectionName is a connection as a row names it: its label, and its name too where
+// the other side of the row is another connection with the same label, as
+// "Uploads (uploads-eu)" (the slice 3 review, M2).
+func connectionName(c, other named) string {
+	label := cmp.Or(c.GetConnectionLabel(), c.GetConnection())
+	if other == nil || other.GetConnection() == c.GetConnection() {
+		return label
+	}
+	if cmp.Or(other.GetConnectionLabel(), other.GetConnection()) == label {
+		return label + " (" + c.GetConnection() + ")"
+	}
+	return label
+}
+
+// storageWords say where a link keeps an app's files: "Uploads, under ghost/". other
+// is the row's other side, which tells two connections with one label apart.
+func storageWords(s, other *dockwellv1.LinkStorage) string {
+	var them named
+	if other != nil {
+		them = other
+	}
+	if s.GetPrefix() == "" {
+		return connectionName(s, them) + ", at the bucket's root"
+	}
+	return connectionName(s, them) + ", under " + s.GetPrefix()
 }
 
 // fieldChanges writes each field that changes, never a sensitive value.

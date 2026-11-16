@@ -339,3 +339,86 @@ func TestAConnectionThatCantBeReadFailsNoInstall(t *testing.T) {
 		t.Fatalf("installing Ghost ended %v: %s", done.GetState(), done.GetError())
 	}
 }
+
+// prefixClash makes uploads with a link at hidden in the default project, which a
+// developer of data can't see, and, where seen isn't empty, one in data itself; then
+// that developer links media to ghost/ in data. It returns what the developer's
+// proposal says, with a way to propose another prefix as the same developer.
+func prefixClash(t *testing.T, hidden, seen string) (link func(prefix string) error, err error) {
+	t.Helper()
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	env := listedEnv(t, b)
+	c := changeClient(b, b.origin)
+	linkTo := func(scope, name, prefix string) *dockwellv1.Edit {
+		return &dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Kind: "link", Scope: scope, Name: name},
+			Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Link{Link: &resourcev1.Link{
+				Label: "Storage", Connection: "uploads", Kind: resourcev1.LinkKind_LINK_KIND_S3, Prefix: prefix,
+				Sets: []*resourcev1.LinkSet{{Name: "S3_BUCKET_" + strings.ToUpper(name), Part: resourcev1.LinkPart_LINK_PART_BUCKET}},
+			}}},
+		}
+	}
+	apply(t, c, propose(t, c, "Add uploads", connectionEdit("uploads", &resourcev1.ConnectionSpec{
+		Kind: resourcev1.LinkKind_LINK_KIND_S3, Reach: resourcev1.ConnectionReach_CONNECTION_REACH_EVERY,
+		S3: &resourcev1.ConnectionS3{Endpoint: "https://s3.example.com", Bucket: "uploads", AccessKeyId: "AKIDEXAMPLE", SecretKey: connectionSecret},
+	}), linkTo(env, "hidden", hidden), &dockwellv1.Edit{
+		Resource: &dockwellv1.ResourceRef{Name: "data"},
+		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Project{Project: &resourcev1.Project{DisplayName: "Data"}}},
+	}))
+	data := envProjectByName(t, f, "data")
+	var dataEnv string
+	if err := f.store.View(t.Context(), func(tx *store.Tx) error {
+		r, err := tx.GetResource(t.Context(), "environment", data, "production")
+		dataEnv = r.ID
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if seen != "" {
+		apply(t, c, propose(t, c, "Their own link", linkTo(dataEnv, "seen", seen)))
+	}
+	hold := aMember(t, f)
+	hold(store.Grant{ProjectID: data, Role: store.RoleDeveloper})
+	link = func(prefix string) error {
+		_, err := c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Link media", Edits: []*dockwellv1.Edit{linkTo(dataEnv, "media", prefix)}}))
+		return err
+	}
+	return link, link("ghost/")
+}
+
+// A prefix refusal suggests one from the links the person sees, where no project
+// holds it, so taking it plans; its words name no project and no other app (the
+// slice 3 review, L3, and its re-check, N3).
+func TestAPrefixSuggestionIsFreeEverywhere(t *testing.T) {
+	t.Parallel()
+	link, err := prefixClash(t, "ghost-3/", "ghost/")
+	if err == nil || !strings.HasSuffix(strings.TrimSpace(err.Error()), "such as ghost-2/") || strings.Contains(err.Error(), "default") || strings.Contains(err.Error(), "hidden") {
+		t.Fatalf("a developer's clash: %v", err)
+	}
+	if err := link("ghost-2/"); err != nil {
+		t.Errorf("taking the suggested ghost-2/: %v", err)
+	}
+}
+
+// Below an admin, a clash with another project's link is refused with no suggestion
+// drawn from prefixes the person can't see, so "such as ghost-3/" never says that
+// ghost-2/ is taken elsewhere (the slice 1 re-check, N3).
+func TestAPrefixRefusalSuggestsOnlyFromWhatThePersonSees(t *testing.T) {
+	t.Parallel()
+	_, err := prefixClash(t, "ghost/", "")
+	if err == nil || !strings.Contains(err.Error(), "Pick a prefix of its own") || strings.Contains(err.Error(), "such as") {
+		t.Errorf("a developer's clash with another project's prefix: %v", err)
+	}
+}
+
+// Where the prefix the person's own links suggest is held in a project they can't
+// see, the refusal suggests none rather than one that fails or says it's held (the
+// slice 3 re-check, N3).
+func TestAPrefixHeldOutOfSightIsNotSuggested(t *testing.T) {
+	t.Parallel()
+	_, err := prefixClash(t, "ghost-2/", "ghost/")
+	if err == nil || !strings.Contains(err.Error(), "Pick a prefix of its own") || strings.Contains(err.Error(), "such as") {
+		t.Errorf("a developer's clash beside a hidden ghost-2/: %v", err)
+	}
+}

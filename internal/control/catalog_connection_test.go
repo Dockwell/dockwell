@@ -85,6 +85,14 @@ func TestAnInstallTakesAConnection(t *testing.T) {
 	if raw, _ := protojson.Marshal(installed); strings.Contains(string(raw), connectionSecret) || strings.Contains(string(raw), "AKIDEXAMPLE") {
 		t.Error("the install's plan holds a key")
 	}
+	// Its plan says where the link keeps Ghost's files, by the connection's label (slice 3).
+	for _, r := range installed.GetPlan().GetResources() {
+		if r.GetResource().GetKind() == "link" && r.GetResource().GetName() == "storage" {
+			if a := r.GetStorage(); a.GetConnection() != "uploads" || a.GetConnectionLabel() != "Uploads" || a.GetPrefix() != "site/" || r.GetStorageBefore() != nil {
+				t.Errorf("the install's link row keeps its files on %v, before %v", a, r.GetStorageBefore())
+			}
+		}
+	}
 	// Its plan says the bucket isn't checked yet, and what Ghost needs it to allow.
 	if notes := notesOf(installed, catalogapi.ConnectionUncheckedNote); len(notes) != 1 ||
 		notes[0] != "Dockwell hasn't checked the connection Uploads from where Ghost runs yet, so a bucket that refuses Ghost shows only once it runs. Ghost needs it to allow signed URLs" {

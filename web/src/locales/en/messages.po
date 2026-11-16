@@ -9647,8 +9647,14 @@ msgstr "health check timeout"
 msgid "internal"
 msgstr "internal"
 
+msgid "its own values"
+msgstr "its own values"
+
 msgid "its provider's settings"
 msgstr "its provider's settings"
+
+msgid "keeps its files on"
+msgstr "keeps its files on"
 
 msgid "kept 7 days, then deleted"
 msgstr "kept 7 days, then deleted"
@@ -9705,6 +9711,23 @@ msgstr "protocol"
 msgid "read-only"
 msgstr "read-only"
 
+msgctxt "a link's set read from a connection"
+msgid "reads"
+msgstr "reads"
+
+msgctxt "a value read from a connection"
+msgid "reads"
+msgstr "reads"
+
+msgid "reads from {where}"
+msgstr "reads from {where}"
+
+msgid "reads {what}"
+msgstr "reads {what}"
+
+msgid "reads {what} from {where}"
+msgstr "reads {what} from {where}"
+
 msgid "replaced, and undoing this puts it back"
 msgstr "replaced, and undoing this puts it back"
 
@@ -9735,6 +9758,66 @@ msgstr "signs in with"
 msgid "sources"
 msgstr "sources"
 
+msgctxt "a part a link meets"
+msgid "the URL"
+msgstr "the URL"
+
+msgctxt "a part a link meets"
+msgid "the access key ID"
+msgstr "the access key ID"
+
+msgctxt "a part a link meets"
+msgid "the address"
+msgstr "the address"
+
+msgctxt "a part a link meets"
+msgid "the bucket"
+msgstr "the bucket"
+
+msgctxt "a part a link meets"
+msgid "the database"
+msgstr "the database"
+
+msgctxt "a part a link meets"
+msgid "the endpoint"
+msgstr "the endpoint"
+
+msgctxt "a part a link meets"
+msgid "the engine"
+msgstr "the engine"
+
+msgctxt "a part a link meets"
+msgid "the host"
+msgstr "the host"
+
+msgctxt "a part a link meets"
+msgid "the password"
+msgstr "the password"
+
+msgctxt "a part a link meets"
+msgid "the port"
+msgstr "the port"
+
+msgctxt "a part a link meets"
+msgid "the prefix"
+msgstr "the prefix"
+
+msgctxt "a part a link meets"
+msgid "the public address"
+msgstr "the public address"
+
+msgctxt "a part a link meets"
+msgid "the region"
+msgstr "the region"
+
+msgctxt "a part a link meets"
+msgid "the secret key"
+msgstr "the secret key"
+
+msgctxt "a part a link meets"
+msgid "the user"
+msgstr "the user"
+
 msgid "tmpfs"
 msgstr "tmpfs"
 
@@ -9753,11 +9836,53 @@ msgstr "uses secret"
 msgid "uses variable"
 msgstr "uses variable"
 
+msgctxt "a part a link meets"
+msgid "whether it takes TLS"
+msgstr "whether it takes TLS"
+
+msgctxt "a part a link meets"
+msgid "whether it's met"
+msgstr "whether it's met"
+
+msgctxt "a part a link meets"
+msgid "whether the bucket goes in the path"
+msgstr "whether the bucket goes in the path"
+
 msgid "yes"
 msgstr "yes"
 
+msgid "{label}, at the bucket's root"
+msgstr "{label}, at the bucket's root"
+
+msgid "{label}, under {prefix}"
+msgstr "{label}, under {prefix}"
+
+msgid "{name} with TLS"
+msgstr "{name} with TLS"
+
+msgid "{name} without TLS"
+msgstr "{name} without TLS"
+
+msgid "{name}'s template"
+msgstr "{name}'s template"
+
+msgid "{need} comes from"
+msgstr "{need} comes from"
+
+msgid "{now}, in place of {was}"
+msgstr "{now}, in place of {was}"
+
+msgid "{reading}, in place of {wasName}"
+msgstr "{reading}, in place of {wasName}"
+
+msgid "{reading}, in place of {wasPart}"
+msgstr "{reading}, in place of {wasPart}"
+
 msgid "{target}, up to {size}"
 msgstr "{target}, up to {size}"
+
+msgid "{what} from {where}"
+msgstr "{what} from {where}"
 
 msgid "1Panel still manages {container}"
 msgstr "1Panel still manages {container}"
@@ -11361,6 +11486,9 @@ msgstr "objects under {0}"
 
 msgid "{app} reads no variable or secret of its environment yet."
 msgstr "{app} reads no variable or secret of its environment yet."
+
+msgid "An admin or the owner disconnects an install's storage"
+msgstr "An admin or the owner disconnects an install's storage"
 
 msgid "Bucket goes"
 msgstr "Bucket goes"

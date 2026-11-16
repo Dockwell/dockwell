@@ -365,6 +365,12 @@ func (s *Service) DisconnectStorage(ctx context.Context, req *connect.Request[do
 	if err != nil {
 		return nil, err
 	}
+	// Storage a catalog install's connection gave it is the install's, which an admin
+	// or the owner changes: below one, it's refused here, in short words, rather than
+	// in the engine's about projects (slice 1 re-check, N4; the slice 3 review, L5).
+	if admin, _ := callerProjects(ctx); project != nil && !admin {
+		return nil, authapi.ReasonError(connect.CodePermissionDenied, fmt.Errorf("%s's storage comes from its catalog install, so an admin or the owner disconnects it, and nothing was planned. Ask one of them", projectName), "needs_role")
+	}
 	all, err := s.connections.All(ctx)
 	if err != nil {
 		return nil, err
