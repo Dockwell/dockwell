@@ -1,5 +1,7 @@
 # Build output
 /bin/
+# What go build ./cmd/dockwell-catalog writes at the top, which belongs in bin/.
+/dockwell-catalog
 /dist/
 # What go build leaves here with no -o
 /dockwell

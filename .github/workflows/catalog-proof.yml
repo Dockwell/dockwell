@@ -1,0 +1,177 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Proves catalog entries on real Docker (ADR 0100): each installs from its earlier
+# releases, as the catalog's history has them, upgrades to the entry in one plan
+# keeping its data and its secrets, passes the catalog's own check of it, and goes
+# again. Dockwell's CI calls it for its snapshot's entries, in groups; Dockwell/
+# catalog's calls it for the entries a pull request changes, at the Dockwell commit
+# its .github/dockwell-commit names. Its runs read alone, and hold no secret.
+name: Catalog proof
+
+on:
+  workflow_call:
+    inputs:
+      entries:
+        description: The entries to prove, by ID, separated by spaces. At most 5, as the organization's 20 jobs are shared.
+        type: string
+        required: true
+      catalog-ref:
+        description: The catalog's commit to prove at. Dockwell's snapshot commit when left out.
+        type: string
+        default: ""
+      base-ref:
+        description: A pull request's base, which each entry upgrades from. The catalog's history's release before when left out.
+        type: string
+        default: ""
+      dockwell-ref:
+        description: The Dockwell commit that proves. The calling run's own commit when left out, as in Dockwell's CI.
+        type: string
+        default: ""
+      require-upgrade:
+        description: Fail an entry that proves no upgrade, unless its check says why, as Dockwell's CI does for its snapshot.
+        type: boolean
+        default: false
+      floor:
+        description: Prove an entry with no check of its own with the floor. Dockwell's CI says no, so an entry without one fails rather than passing on the floor.
+        type: boolean
+        default: true
+    outputs:
+      floored:
+        description: The entries proven with the floor alone, as they have no checks/<id>.sh, which don't merge by themselves.
+        value: ${{ jobs.x86.outputs.floored }}
+      not-upgraded:
+        description: The entries that proved no upgrade, as every earlier release was before the earliest their check runs, which don't merge by themselves either.
+        value: ${{ jobs.x86.outputs.not-upgraded }}
+
+permissions:
+  contents: read
+
+jobs:
+  x86:
+    name: x86
+    runs-on: ubuntu-24.04
+    # Each entry takes up to 10 minutes per release it upgrades from, most of it
+    # pulling images.
+    timeout-minutes: 60
+    outputs:
+      floored: ${{ steps.prove.outputs.floored }}
+      not-upgraded: ${{ steps.prove.outputs.not-upgraded }}
+    env:
+      E2E_ROOT: "1"
+      ENTRIES: ${{ inputs.entries }}
+    steps:
+      - name: At most 5 entries
+        run: |
+          read -r -a ids <<< "$ENTRIES"
+          if ((${#ids[@]} == 0 || ${#ids[@]} > 5)); then
+            echo "::error::A run proves 1 to 5 entries, and was given ${#ids[@]}: $ENTRIES. Split them."
+            exit 1
+          fi
+          for id in "${ids[@]}"; do
+            [[ "$id" =~ ^[a-z0-9-]+$ ]] || { echo "::error::$id isn't an entry's ID"; exit 1; }
+          done
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: Dockwell/dockwell
+          ref: ${{ inputs.dockwell-ref || github.sha }}
+          path: dockwell
+          # It runs images as root, so no token stays in the checkout's Git config.
+          persist-credentials: false
+      - name: Which commit of the catalog
+        id: catalog
+        env:
+          REF: ${{ inputs.catalog-ref }}
+        run: |
+          ref=${REF:-$(tr -d '[:space:]' < dockwell/internal/catalog/snapshot/commit)}
+          [[ "$ref" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::$ref isn't a commit of Dockwell/catalog, in full"; exit 1; }
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: Dockwell/catalog
+          ref: ${{ steps.catalog.outputs.ref }}
+          path: catalog
+          # Its history: each entry upgrades from its earlier releases.
+          fetch-depth: 0
+          persist-credentials: false
+      # Docker Hub's images through mirror.gcr.io, before the job pulls any (#651).
+      - uses: ./dockwell/.github/actions/docker-hub-mirror
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: dockwell/go.mod
+          # No cache: the job runs catalog images as root, which could write Go's cache
+          # for every later proof to build from (#726's slice 2 review, M5).
+          cache: false
+      - name: Docker
+        run: docker version
+      - name: SFTP client
+        if: contains(inputs.entries, 'sftpgo')
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y sshpass
+      - name: Prove the entries
+        id: prove
+        env:
+          AT: ${{ steps.catalog.outputs.ref }}
+          BASE: ${{ inputs.base-ref }}
+          REQUIRE: ${{ inputs.require-upgrade }}
+          FLOOR: ${{ inputs.floor }}
+        run: |
+          floored=$(mktemp)
+          not_upgraded=$(mktemp)
+          read -r -a ids <<< "$ENTRIES"
+          (cd dockwell && make build-go)
+          flags=(--catalog catalog --at "$AT")
+          [[ -z "$BASE" ]] || flags+=(--base "$BASE")
+          [[ "$REQUIRE" != true ]] || flags+=(--require-upgrade)
+          [[ "$FLOOR" == true ]] || flags+=(--no-floor)
+          E2E_FLOORED="$floored" E2E_NOT_UPGRADED="$not_upgraded" dockwell/scripts/catalog-e2e.sh dockwell/bin/dockwell "${flags[@]}" "${ids[@]}"
+          echo "floored=$(tr '\n' ' ' < "$floored" | sed 's/ $//')" >> "$GITHUB_OUTPUT"
+          echo "not-upgraded=$(tr '\n' ' ' < "$not_upgraded" | sed 's/ $//')" >> "$GITHUB_OUTPUT"
+
+  # An entry with no check of its own runs on arm64 too, as nothing else says it
+  # runs there.
+  arm64:
+    name: arm64, entries with the floor alone
+    needs: x86
+    if: needs.x86.outputs.floored != ''
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 60
+    env:
+      E2E_ROOT: "1"
+      ENTRIES: ${{ needs.x86.outputs.floored }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: Dockwell/dockwell
+          ref: ${{ inputs.dockwell-ref || github.sha }}
+          path: dockwell
+          persist-credentials: false
+      - name: Which commit of the catalog
+        id: catalog
+        env:
+          REF: ${{ inputs.catalog-ref }}
+        run: |
+          ref=${REF:-$(tr -d '[:space:]' < dockwell/internal/catalog/snapshot/commit)}
+          [[ "$ref" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::$ref isn't a commit of Dockwell/catalog, in full"; exit 1; }
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: Dockwell/catalog
+          ref: ${{ steps.catalog.outputs.ref }}
+          path: catalog
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ./dockwell/.github/actions/docker-hub-mirror
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: dockwell/go.mod
+          # No cache: the job runs catalog images as root, which could write Go's cache
+          # for every later proof to build from (#726's slice 2 review, M5).
+          cache: false
+      - name: Prove the entries on arm64
+        env:
+          AT: ${{ steps.catalog.outputs.ref }}
+          BASE: ${{ inputs.base-ref }}
+        run: |
+          read -r -a ids <<< "$ENTRIES"
+          (cd dockwell && make build-go)
+          dockwell/scripts/catalog-e2e.sh dockwell/bin/dockwell --catalog catalog --at "$AT" ${BASE:+--base "$BASE"} "${ids[@]}"

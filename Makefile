@@ -234,9 +234,10 @@ swarm-e2e: build-go ## Make Dokploy's Swarm-run apps and a stack again in Dockwe
 	scripts/swarm-e2e.sh $(BIN)
 
 .PHONY: catalog-e2e
-catalog-e2e: build-go ## Install, check, upgrade and remove catalog apps on this machine's Docker, as APPS="pgadmin redis" names them
+catalog-e2e: build-go ## Prove catalog apps on this machine's Docker, from their earlier releases, as APPS="pgadmin redis" names them, in a checkout of Dockwell/catalog CATALOG names
 	@test -n "$(APPS)" || { echo 'catalog-e2e: name the apps to try, such as make catalog-e2e APPS="pgadmin redis"' >&2; exit 1; }
-	scripts/catalog-e2e.sh $(BIN) $(APPS)
+	@test -d "$(CATALOG)/entries" || { echo 'catalog-e2e: name a checkout of Dockwell/catalog with its history, such as CATALOG=../catalog. git clone https://github.com/Dockwell/catalog makes one' >&2; exit 1; }
+	scripts/catalog-e2e.sh $(BIN) --catalog $(CATALOG) $(if $(BASE),--base $(BASE)) $(APPS)
 
 .PHONY: store-rates
 store-rates: ## Convert every store Dockwell reads at the commits the repository pins, as a server does, and fail if an app stops converting (RECORD=1 writes the record, PIN=1 moves each store to its branch first)

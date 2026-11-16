@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-only
+# A stand-in for go, for harness_test.go: the claim does nothing, stepup is a stub,
+# and dockwell-catalog is the one the test built.
+set -e
+[[ "$1" != run ]] || exit 0
+if [[ "$1" == build ]]; then
+  case "$4" in
+  ./cmd/dockwell-catalog) cp "$FAKE_CATALOG_TOOL" "$3" && chmod +x "$3" ;;
+  *) printf '#!/bin/sh\nexit 0\n' >"$3" && chmod +x "$3" ;;
+  esac
+fi
