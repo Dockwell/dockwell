@@ -163,6 +163,16 @@ func testACatalogReleaseWaitsOnItsSourceAndNeverMovesDown(t *testing.T, backend 
 	if got := release(); got != 3 {
 		t.Errorf("the install moved down to release %d on its own", got)
 	}
+	// Its install says its catalog withdrew the version it runs, and what to.
+	installs, err := cat.ListCatalogInstalls(t.Context(), connect.NewRequest(&dockwellv1.ListCatalogInstallsRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, in := range installs.Msg.GetInstalls() {
+		if w := in.GetWithdrawn(); in.GetProject() == "notes-src" && (w.GetVersion() != "1.2" || w.GetRelease() != 4 || in.GetUpgrade() != nil) {
+			t.Errorf("the install on the withdrawn 1.3 says withdrawn %v, upgrade %v; want 1.2 release 4, and no upgrade", w, in.GetUpgrade())
+		}
+	}
 	_, err = cat.UpgradeCatalogInstall(t.Context(), connect.NewRequest(&dockwellv1.UpgradeCatalogInstallRequest{Id: "notes-src"}))
 	if connect.CodeOf(err) != connect.CodeFailedPrecondition || reasonOf(err) != "moves_down" || !strings.Contains(err.Error(), "below the 1.3 it runs") {
 		t.Errorf("a person's upgrade down to 1.2: %v", err)

@@ -45,6 +45,8 @@ export function InstalledPanel({ service }: { service: ServiceInfo }) {
   const name = install.name || install.pin?.entry || "";
   const version = install.pin?.version ?? "";
   const next = install.upgrade?.version ?? "";
+  // Its catalog withdrew the version it runs, which it keeps, as moving down could break its data (ADR 0080).
+  const lower = install.withdrawn?.version ?? "";
   // An action on what you can see stays where it is, off, with why (ADR 0059).
   const mayUpgrade = upgrading.may;
   // One flow for every update: the install's, with its backup first, which a switch leaves out (ADR 0080).
@@ -63,6 +65,15 @@ export function InstalledPanel({ service }: { service: ServiceInfo }) {
             {next === version ? <Trans>· a change to how it runs is out</Trans> : <Trans>· {next} is out</Trans>}
           </span>
         </>
+      ) : lower ? (
+        <>
+          <code>
+            {name} {version}
+          </code>{" "}
+          <span className="card-row-quiet">
+            <Trans>· withdrawn by its catalog, so it stays on {version} until a later release</Trans>
+          </span>
+        </>
       ) : (
         <code>
           {name} {version}
@@ -72,6 +83,10 @@ export function InstalledPanel({ service }: { service: ServiceInfo }) {
         <Button variant="primary" size="sm" onClick={upgrade} {...mayUpgrade.off}>
           {next === version ? <Trans>Review the change</Trans> : <Trans>Upgrade to {next}</Trans>}
         </Button>
+      ) : lower ? (
+        <RouterButtonLink to="/catalog/$entryId" params={{ entryId: id }} variant="ghost" size="sm">
+          <Trans>Install {lower} beside it</Trans>
+        </RouterButtonLink>
       ) : undefined,
     },
     ...facts.flatMap((f) => (f.label ? [{ key: f.key, label: f.label, value: f.text, action: f.action }] : [])),

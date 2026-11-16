@@ -568,6 +568,24 @@ describe("A newer release", () => {
     expect(installed).not.toHaveTextContent(/17.11 is out/);
   });
 
+  it("says when its catalog withdrew the version it runs, with the way to install the lower one beside it", async () => {
+    const withdrawn = {
+      installs: [{ ...behind.installs[0], upgrade: undefined, withdrawn: { version: "17.9", release: 3 } }],
+    };
+    renderAt("/apps/svc_adminer", {
+      ...api({ listCatalogInstalls: () => withdrawn }),
+      resources: places(),
+      services: { listServices: () => ({ services: [anApp("adminer", "adminer:6.2.0")] }) },
+    });
+    const panel = await screen.findByRole("region", { name: "From the catalog" });
+    const installed = await waitFor(() => rowLabelled(panel, "Installed"));
+    await waitFor(() =>
+      expect(installed).toHaveTextContent(/withdrawn by its catalog, so it stays on 17\.11 until a later release/),
+    );
+    expect(within(installed).getByRole("link", { name: "Install 17.9 beside it" })).toBeVisible();
+    expect(within(installed).queryByRole("button", { name: /Upgrade/ })).toBeNull();
+  });
+
   it("offers its plan on the app's page, as an update of the app, with its backup first", async () => {
     const user = userEvent.setup();
     let asked: UpgradeServiceRequest | undefined;

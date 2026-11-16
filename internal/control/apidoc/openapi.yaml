@@ -10301,6 +10301,15 @@ components:
                     description: |-
                         Whether each of its entry's companions runs, by service, such as adminer:
                          false. Empty when the catalog no longer has its entry, or it has none.
+                withdrawn:
+                    allOf:
+                        - $ref: '#/components/schemas/CatalogWithdrawal'
+                    description: |-
+                        Set where its catalog withdrew the version this install runs: the catalog's
+                         newer release names a lower version, as a catalog's withdrawal of a bad one
+                         does, which would move this down, so it stays on its own version until the
+                         catalog has a release of it or later, and takes no new build meanwhile. A new
+                         install takes the lower one (ADR 0080). Unset otherwise.
             description: CatalogInstall is one project installed from the catalog.
         CatalogNeedOption:
             type: object
@@ -10808,6 +10817,17 @@ components:
                     description: The entry's release.
                     format: uint32
             description: CatalogUpgrade is a newer release of an install's entry.
+        CatalogWithdrawal:
+            type: object
+            properties:
+                version:
+                    type: string
+                    description: The lower version the catalog's entry names now, such as "1.2".
+                release:
+                    type: integer
+                    description: The entry's release that names it.
+                    format: uint32
+            description: CatalogWithdrawal is the release a catalog moved to below what an install runs.
         Certificate:
             type: object
             properties:

@@ -523,6 +523,10 @@ func (h *Handler) installs(ctx context.Context, tx *store.Tx, s sourced) ([]*doc
 			if catalog.Upgrades(entry, pin) && len(pin.GetFile()) > 0 {
 				install.Upgrade = &dockwellv1.CatalogUpgrade{Version: entry.GetVersion(), Release: entry.GetRelease()}
 			}
+			// Its catalog withdrew the version it runs: it stays, saying so (ADR 0080).
+			if catalog.MovesDown(entry, pin) {
+				install.Withdrawn = &dockwellv1.CatalogWithdrawal{Version: entry.GetVersion(), Release: entry.GetRelease()}
+			}
 		}
 		for _, env := range p.Environments {
 			list, err := tx.ListResources(ctx, env.ID, string(service.Kind))
