@@ -4,6 +4,7 @@ package store_test
 
 import (
 	"errors"
+	"slices"
 	"testing"
 	"time"
 
@@ -52,10 +53,11 @@ func TestAHookKeepsWhatItsDeliveriesCameTo(t *testing.T) {
 				t.Errorf("the newest deliveries = %+v, %v", list, err)
 			}
 			// A new secret binds the hook to whoever gave it.
-			if err := tx.SetGitHookSecret(ctx, "ghk_1", "usr_2", []byte("new"), at.Add(time.Hour)); err != nil {
+			if err := tx.SetGitHookSecret(ctx, "ghk_1", "usr_2", []string{"prj_new"}, []byte("new"), at.Add(time.Hour)); err != nil {
 				return err
 			}
-			if h, err := tx.GetGitHook(ctx, "ghk_1"); err != nil || h.UserID != "usr_2" || string(h.Secret) != "new" || !h.SecretAt.Equal(at.Add(time.Hour)) {
+			if h, err := tx.GetGitHook(ctx, "ghk_1"); err != nil || h.UserID != "usr_2" || string(h.Secret) != "new" || !h.SecretAt.Equal(at.Add(time.Hour)) ||
+				!slices.Equal(h.Projects, []string{"prj_new"}) {
 				t.Errorf("after a new secret, the hook is %+v, %v", h, err)
 			}
 			if err := tx.ForgetGitHookDeliveries(ctx, at.Add(90*time.Minute)); err != nil {

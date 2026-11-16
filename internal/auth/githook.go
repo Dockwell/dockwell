@@ -81,7 +81,7 @@ func (s *Service) CreateGitHook(ctx context.Context, client Client, p Principal,
 		if perr != nil {
 			return perr
 		}
-		h.Projects, h.Role = []string{project}, store.RoleDeveloper
+		h.Projects, h.Role = projectsOf(project), store.RoleDeveloper
 		if err := tx.CreateGitHook(ctx, h); err != nil {
 			if errors.Is(err, store.ErrConflict) {
 				return ErrHookExists
@@ -180,7 +180,20 @@ func serviceProject(ctx context.Context, tx *store.Tx, serviceID string) (string
 	if err != nil {
 		return "", fmt.Errorf("can't read the environment of service %s: %w", serviceID, err)
 	}
+	if environment.Kind != environmentKind {
+		// No project, which reaches none, rather than whatever holds the service.
+		return "", nil
+	}
 	return environment.Scope, nil
+}
+
+// projectsOf is the projects a hook acts in, for its app's project: none, which
+// reaches nothing, where the app is in no environment.
+func projectsOf(project string) []string {
+	if project == "" {
+		return []string{}
+	}
+	return []string{project}
 }
 
 // RotateGitHookSecret gives a service's hook a new secret, for a person, signed in,
@@ -216,9 +229,16 @@ func (s *Service) RotateGitHookSecret(ctx context.Context, client Client, p Prin
 				return err
 			}
 		}
-		h.SecretAt, h.UserID = s.now(), p.User.ID
+		// It acts in its app's project as it is now, as a new hook would: one left
+		// with none, as migration 0043 left a hook whose app was in no environment
+		// then, deploys again (#711).
+		project, err := serviceProject(ctx, tx, serviceID)
+		if err != nil {
+			return err
+		}
+		h.SecretAt, h.UserID, h.Projects = s.now(), p.User.ID, projectsOf(project)
 		h.Secret = s.key.Seal(purposeHook(h.ID), []byte(secret))
-		if err := tx.SetGitHookSecret(ctx, h.ID, h.UserID, h.Secret, h.SecretAt); err != nil {
+		if err := tx.SetGitHookSecret(ctx, h.ID, h.UserID, h.Projects, h.Secret, h.SecretAt); err != nil {
 			return err
 		}
 		return s.auditOn(ctx, tx, p.Actor(), "git_hook.rotate", p.User.ID, serviceID, "a new secret for hook "+h.ID+", which acts for "+p.User.ID+" now")

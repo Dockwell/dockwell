@@ -337,6 +337,9 @@ func (s *Service) stillInvites(ctx context.Context, tx *store.Tx, createdBy stri
 // projectKind is a project's kind, as internal/scope names it.
 const projectKind = "project"
 
+// environmentKind is an environment's kind, which holds a project's services.
+const environmentKind = "environment"
+
 // ActorName is who an actor is, by name, for words: a person's name, or for an
 // API token or a deploy-on-push hook, its maker's.
 func (s *Service) ActorName(ctx context.Context, tx *store.Tx, actor string) string {
