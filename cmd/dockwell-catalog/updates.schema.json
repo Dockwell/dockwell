@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Dockwell/dockwell/blob/main/cmd/dockwell-catalog/updates.schema.json",
+  "title": "A catalog entry's update policy",
+  "description": "updates/<id>.yaml in a catalog repository: how dockwell-catalog bump moves the entry's images to newer releases (ADR 0100). A server never reads it. Each field left out takes its default from code.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "gives": {
+      "description": "The Compose service whose tag gives the entry's version. An entry of one image needs none; one of more gets no bumps until it's set.",
+      "type": "string",
+      "minLength": 1
+    },
+    "services": {
+      "description": "Each service's policy, by its name in the entry's Compose file.",
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/service" }
+    }
+  },
+  "$defs": {
+    "service": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "level": {
+          "description": "The largest step that merges by itself: patch (a database engine's image, and an app on 0.x or calendar versions, by default), minor (an app at 1.0 or later, by default), none (only a person moves it) or stays (it never moves). A major never merges by itself.",
+          "enum": ["patch", "minor", "none", "stays"]
+        },
+        "rebuilds": {
+          "description": "The repository pushes the same tag again by design, as Docker Official Images do, which is its default for them.",
+          "type": "boolean"
+        },
+        "signedBy": {
+          "description": "Who signs the image: a cosign keyless issuer and subject, or a GitHub attestation's repository and workflow. A person confirms it once.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "issuer": { "type": "string", "minLength": 1 },
+            "subject": { "type": "string", "minLength": 1 },
+            "repository": { "type": "string", "minLength": 1 },
+            "workflow": { "type": "string", "minLength": 1 }
+          },
+          "oneOf": [
+            {
+              "required": ["issuer", "subject"],
+              "not": { "anyOf": [{ "required": ["repository"] }, { "required": ["workflow"] }] }
+            },
+            {
+              "required": ["repository", "workflow"],
+              "not": { "anyOf": [{ "required": ["issuer"] }, { "required": ["subject"] }] }
+            }
+          ]
+        },
+        "majorsInOrder": {
+          "description": "The app can't skip a major, as Nextcloud can't: its next major is offered only where it's the one right after.",
+          "type": "boolean"
+        },
+        "hold": {
+          "description": "Versions to skip, each with why. Only a person's pull request changes it.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["version", "why"],
+            "properties": {
+              "version": { "type": "string", "minLength": 1 },
+              "why": { "type": "string", "minLength": 1 }
+            }
+          }
+        }
+      }
+    }
+  }
+}

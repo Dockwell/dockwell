@@ -12,7 +12,9 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 
+	"github.com/dockwell/dockwell/internal/catalog/bump"
 	"github.com/dockwell/dockwell/internal/catalog/folder"
 	"github.com/dockwell/dockwell/internal/gitfetch"
 )
@@ -45,6 +47,11 @@ func check(ctx context.Context, args []string, stdout io.Writer) error {
 	}
 	got := folder.Check(ctx, "this catalog", entries, passed, map[string]folder.Taken{}, folder.Options{})
 	refused = append(refused, got.Refused...)
+	policies, err := checkPolicies(filepath.Dir(filepath.Clean(dir)), entries)
+	if err != nil {
+		return err
+	}
+	refused = append(refused, policies...)
 	for _, r := range refused {
 		fmt.Fprintf(stdout, "%s: %s\n", r.File, r.Reason)
 	}
@@ -53,6 +60,44 @@ func check(ctx context.Context, args []string, stdout io.Writer) error {
 	}
 	fmt.Fprintf(stdout, "Checked %s and %s in %s, as a server reads them: each passes.\n", count(len(got.Entries), "entry", "entries"), count(len(passed), "image", "images"), dir)
 	return nil
+}
+
+// checkPolicies checks each policy in updates/ beside a folder of entries, as a
+// bump reads it (ADR 0100): to its schema, strictly, and naming only an entry there
+// is and services it has. A catalog with no updates/ has none to check.
+func checkPolicies(checkout string, entries map[string][]byte) ([]folder.Refusal, error) {
+	files, err := filepath.Glob(filepath.Join(checkout, bump.PolicyDir, "*"))
+	if err != nil {
+		return nil, err
+	}
+	var out []folder.Refusal
+	for _, f := range files {
+		name := filepath.Base(f)
+		file := bump.PolicyDir + "/" + name
+		id, ok := strings.CutSuffix(name, ".yaml")
+		if !ok {
+			out = append(out, folder.Refusal{File: file, Reason: "it isn't a policy, which is <id>.yaml. Name it for its entry"})
+			continue
+		}
+		if _, ok := entries[name]; !ok {
+			out = append(out, folder.Refusal{File: file, Reason: "there's no entry " + id + " for it to be the policy of"})
+			continue
+		}
+		p, err := bump.ReadPolicy(checkout, id)
+		if err != nil {
+			out = append(out, folder.Refusal{File: file, Reason: err.Error()})
+			continue
+		}
+		e, err := bump.ReadEntry(checkout, id)
+		if err != nil {
+			// The entry's own refusal says why.
+			continue
+		}
+		if err := p.Check(slices.Sorted(maps.Keys(e.Images))); err != nil {
+			out = append(out, folder.Refusal{File: file, Reason: err.Error()})
+		}
+	}
+	return out, nil
 }
 
 // count says how many of something there are, as "1 entry" or "2 entries".
