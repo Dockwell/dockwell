@@ -2,7 +2,8 @@
 
 // Package testport gives tests ports that stay theirs: below the kernel's
 // ephemeral range, so no outgoing connection and no listener on port 0 takes one,
-// and never the same one twice in a process. A test that frees a port and binds it
+// and never one another test process holds, as go test runs packages as processes
+// at once (#731), nor the same one twice in a process. A test that frees a port and binds it
 // again, or hands one to something that binds it later, or needs one nothing
 // answers on, takes it here: a port the kernel picked can be taken by anything else
 // on a busy machine in between (#707).
@@ -13,10 +14,13 @@ import (
 	"math/rand/v2"
 	"net"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
 	"testing"
+
+	"golang.org/x/sys/unix"
 )
 
 // below is the lowest port the range starts at, so a port isn't a well-known
@@ -24,11 +28,44 @@ import (
 const below = 10000
 
 // given is what Free has given out in this process, as nothing may hold a port
-// between Free and what binds it, so asking again would find it free.
+// between Free and what binds it, so asking again would find it free. claims are
+// the lock files that keep each from every other test process.
 var (
-	mu    sync.Mutex
-	given = map[int]bool{}
+	mu     sync.Mutex
+	given  = map[int]bool{}
+	claims []*os.File
 )
+
+// claimDir is where each port given out has a lock file, which the process that
+// gave it out holds locked while it runs. It's one folder for every test process
+// of this user, whatever each one's TMPDIR, as each runs with its own.
+func claimDir() string {
+	base := "/tmp"
+	if st, err := os.Stat(base); err != nil || !st.IsDir() {
+		base = os.TempDir()
+	}
+	return filepath.Join(base, "dockwell-testport-"+strconv.Itoa(os.Getuid()))
+}
+
+// claim takes port for this process, unless another test process holds it, by
+// locking the port's file. The kernel lets go of the lock as the process ends,
+// however it ends, so a port is free again for the next run. Callers hold mu.
+func claim(port int) bool {
+	dir := claimDir()
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return false
+	}
+	f, err := os.OpenFile(filepath.Join(dir, strconv.Itoa(port)), os.O_CREATE|os.O_RDWR, 0o600) //nolint:gosec // a port's file in the tests' own folder
+	if err != nil {
+		return false
+	}
+	if err := unix.Flock(int(f.Fd()), unix.LOCK_EX|unix.LOCK_NB); err != nil {
+		_ = f.Close()
+		return false
+	}
+	claims = append(claims, f)
+	return true
+}
 
 // ephemeralStart is where the kernel starts handing out ports on its own, from
 // /proc, or Linux's default.
@@ -56,9 +93,14 @@ func Free(t testing.TB) int {
 	var lc net.ListenConfig
 	for range 500 {
 		port := below + rand.IntN(top-below) //nolint:gosec // a port to try, not a secret
-		if given[port] {
+		// Claimed first, so another process never probes a port this one gave
+		// out, which would hold it for a moment as something binds it.
+		if given[port] || !claim(port) {
 			continue
 		}
+		// Claimed, it's this process's to give out or pass over: something outside
+		// the tests that holds it now isn't asked about again.
+		given[port] = true
 		l, err := lc.Listen(context.Background(), "tcp", ":"+strconv.Itoa(port))
 		if err != nil {
 			continue
@@ -69,7 +111,6 @@ func Free(t testing.TB) int {
 			continue
 		}
 		_ = u.Close()
-		given[port] = true
 		return port
 	}
 	t.Fatal("no free port below the kernel's ephemeral range")
