@@ -120,10 +120,10 @@ func TestNewBuildsOfACatalogInstall(t *testing.T) {
 	}
 	// Its catalog withdrew the version it runs: no new build, which would build
 	// the lower one's entry.
-	withdrawn := catalogUpdate(CatalogInstall{FromVersion: "1.3", Release: 5, Withdrawn: true}, now)
-	newBuilds(withdrawn, found, CatalogInstall{FromVersion: "1.3", Release: 5, Withdrawn: true})
-	if len(withdrawn.GetAvailable()) != 0 {
-		t.Errorf("an install on a withdrawn version is offered %v", withdrawn.GetAvailable())
+	withdrawn := catalogUpdate(CatalogInstall{FromVersion: "1.3", Release: 5, WithdrawnTo: "1.2"}, now)
+	newBuilds(withdrawn, found, CatalogInstall{FromVersion: "1.3", Release: 5, WithdrawnTo: "1.2"})
+	if len(withdrawn.GetAvailable()) != 0 || withdrawn.GetWithdrawnVersion() != "1.2" {
+		t.Errorf("an install on a withdrawn version reads %v", withdrawn)
 	}
 	still := catalogUpdate(CatalogInstall{FromVersion: "latest"}, now)
 	newBuilds(still, nil, CatalogInstall{})

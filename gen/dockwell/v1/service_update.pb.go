@@ -890,9 +890,14 @@ type ServiceUpdate struct {
 	Source UpdateSource `protobuf:"varint,7,opt,name=source,proto3,enum=dockwell.v1.UpdateSource" json:"source,omitempty"`
 	// Until when a person set its updates aside, which then count nowhere and
 	// send no alert, but still show on its page. Unset when they aren't.
-	SnoozeTime    *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=snooze_time,json=snoozeTime,proto3" json:"snooze_time,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	SnoozeTime *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=snooze_time,json=snoozeTime,proto3" json:"snooze_time,omitempty"`
+	// For a catalog install whose catalog withdrew the version it runs, the lower
+	// version the catalog moved to: it stays on its own until the catalog has a
+	// release of it or later, and reads as up to date beside this (ADR 0080).
+	// Empty otherwise.
+	WithdrawnVersion string `protobuf:"bytes,9,opt,name=withdrawn_version,json=withdrawnVersion,proto3" json:"withdrawn_version,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *ServiceUpdate) Reset() {
@@ -979,6 +984,13 @@ func (x *ServiceUpdate) GetSnoozeTime() *timestamppb.Timestamp {
 		return x.SnoozeTime
 	}
 	return nil
+}
+
+func (x *ServiceUpdate) GetWithdrawnVersion() string {
+	if x != nil {
+		return x.WithdrawnVersion
+	}
+	return ""
 }
 
 // AvailableUpdate is one newer version a service can move to.
@@ -1196,7 +1208,7 @@ const file_dockwell_v1_service_update_proto_rawDesc = "" +
 	"\venvironment\x18\x03 \x01(\tR\venvironment\x12\x1a\n" +
 	"\bduration\x18\x04 \x01(\tR\bduration\"R\n" +
 	"\x1cSnoozeServiceUpdatesResponse\x122\n" +
-	"\x06update\x18\x01 \x01(\v2\x1a.dockwell.v1.ServiceUpdateR\x06update\"\xc7\x03\n" +
+	"\x06update\x18\x01 \x01(\v2\x1a.dockwell.v1.ServiceUpdateR\x06update\"\xf4\x03\n" +
 	"\rServiceUpdate\x12.\n" +
 	"\x05check\x18\x01 \x01(\x0e2\x18.dockwell.v1.UpdateCheckR\x05check\x12:\n" +
 	"\tavailable\x18\x02 \x03(\v2\x1c.dockwell.v1.AvailableUpdateR\tavailable\x129\n" +
@@ -1207,7 +1219,8 @@ const file_dockwell_v1_service_update_proto_rawDesc = "" +
 	"\x0eproblem_detail\x18\x06 \x01(\tR\rproblemDetail\x121\n" +
 	"\x06source\x18\a \x01(\x0e2\x19.dockwell.v1.UpdateSourceR\x06source\x12;\n" +
 	"\vsnooze_time\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"snoozeTime\"\x88\x04\n" +
+	"snoozeTime\x12+\n" +
+	"\x11withdrawn_version\x18\t \x01(\tR\x10withdrawnVersion\"\x88\x04\n" +
 	"\x0fAvailableUpdate\x12+\n" +
 	"\x04kind\x18\x01 \x01(\x0e2\x17.dockwell.v1.UpdateKindR\x04kind\x12!\n" +
 	"\ffrom_version\x18\x02 \x01(\tR\vfromVersion\x12\x1d\n" +

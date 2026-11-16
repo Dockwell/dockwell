@@ -25086,6 +25086,13 @@ components:
                         Until when a person set its updates aside, which then count nowhere and
                          send no alert, but still show on its page. Unset when they aren't.
                     format: date-time
+                withdrawnVersion:
+                    type: string
+                    description: |-
+                        For a catalog install whose catalog withdrew the version it runs, the lower
+                         version the catalog moved to: it stays on its own until the catalog has a
+                         release of it or later, and reads as up to date beside this (ADR 0080).
+                         Empty otherwise.
             description: |-
                 ServiceUpdate is what Dockwell last found newer than what a service runs:
                  another version of its image, a new image for the tag it runs, a higher

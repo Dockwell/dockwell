@@ -455,8 +455,9 @@ type InstallUpgrade struct {
 	// Since is when the install's source moved to that release, from which an
 	// automatic update waits 3 days to take it (ADR 0080). Zero with none.
 	Since time.Time
-	// Withdrawn says its catalog moved below the version it runs (ADR 0080).
-	Withdrawn bool
+	// WithdrawnTo is the lower version its catalog moved to, below the one it runs,
+	// empty unless (ADR 0080).
+	WithdrawnTo string
 	// AppSource is the app's source repository, as its entry says, for its
 	// release notes.
 	AppSource string
@@ -480,7 +481,7 @@ func (h *Handler) InstallUpgrades(ctx context.Context) (map[string]InstallUpgrad
 		for _, in := range installs {
 			u := InstallUpgrade{
 				FromVersion: in.GetPin().GetVersion(), Release: in.GetPin().GetRelease(), ToVersion: in.GetUpgrade().GetVersion(), ToRelease: in.GetUpgrade().GetRelease(),
-				Withdrawn: in.GetWithdrawn() != nil,
+				WithdrawnTo: in.GetWithdrawn().GetVersion(),
 			}
 			if entry, known := s.entryFor(in.GetPin()); known {
 				u.AppSource = entry.GetAppSource()
