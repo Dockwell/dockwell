@@ -143,7 +143,7 @@ This amends ADR 0077: a change reaches the catalog's main when it's "reviewed, o
 
 ### On the install side
 
-ADR 0080's automatic update of a catalog install takes a release only once it's been on the install's source for 3 days, counted from when the source moved to it. A person's plan can take it at once. This needs a change to ADR 0080.
+ADR 0080's automatic update of a catalog install takes a release only once it's been on the install's source for 3 days, counted from when the source moved to it. A person's plan can take it at once. ADR 0080 says so, as amended on 2026-11-16.
 
 v0.3.0 already updates catalog installs automatically, with no such wait. So nothing in the catalog merges by itself until a Dockwell release with this wait is out. Until then, the catalog's own wait is the only one.
 
@@ -151,7 +151,7 @@ v0.3.0 already updates catalog installs automatically, with no such wait. So not
 
 **A person withdraws it.** Their pull request adds the version to `hold`. If no install could have moved its data forward, the next release pins the version before. Otherwise the catalog waits for the upstream's fix.
 
-**ADR 0080 must refuse a higher release of a lower version as a move down.** It offers it only to new installs. That's also a follow-up to ADR 0080.
+**ADR 0080 refuses a higher release of a lower version as a move down,** as amended on 2026-11-16. It offers it only to new installs.
 
 ### A weekly report
 

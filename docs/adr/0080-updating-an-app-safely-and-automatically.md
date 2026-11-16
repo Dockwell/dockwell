@@ -85,6 +85,20 @@ As built (#559): an app's row has a box where its update counts (ADR 0079), no c
 - **A database's major release is never automatic,** at any level, nor a version a person skipped or a service a person snoozed, which ADR 0079's record leaves out.
 - **An admin sets what new apps start with,** in Settings, General (`SetAutoUpdateDefault`, on the activity log): off, the default, or a level, with the window's defaults, in the install's time zone. A change that makes an app with no automatic updates of its own gives it that, and the plan shows it. An app made already keeps its own, and one that builds or runs from a folder takes none.
 
+### A catalog release waits, and never moves an install down
+
+*Amended 2026-11-16, for [ADR 0100](0100-dockwells-catalog-keeps-its-apps-current.md):* Dockwell's catalog now moves its apps on by itself, so a release can reach a source before a person has read it. Two rules hold for a catalog install:
+
+- **An automatic update takes a release only once it has been on the install's source for 3 days**, counted from when the source moved to it. That's the revision that moved the source's commit, by the follower or a person. For the catalog built into Dockwell, which has no revision, it's when the control plane first read the release. The control plane keeps, for each source and entry, the release the source holds and since when (the setting `catalog.release.<source>/<entry>`). A catalog install's update carries that time as its found time.
+  - **A source that moves the entry again inside the 3 days starts them again.** An update takes only what the source holds now, and the newer release has been there for less time. So an entry whose source moves it more often than every 3 days waits until it settles.
+  - **A person's plan never waits.** Update, the Updates panel and `services upgrade` take the release at once.
+  - **A new build is not a release.** A new build of a tag the install runs, which [ADR 0085](0085-most-of-other-stores-apps-installed-safely.md) offers at the release it runs, doesn't wait.
+- **A release of a lower version is a move down, refused for an install that runs a higher one.** A catalog withdraws a bad version by a release that pins the version before it (ADR 0100).
+  - An install still on the earlier version takes that release as it would any other.
+  - An install already on the bad version keeps it, as its data may be in a format the version before can't read. Its page offers no upgrade, and an automatic update never takes it. A person's upgrade is refused with why (`moves_down`), until the catalog has a release of the version it runs or later.
+  - A new install takes the release as it is.
+  - Lower is read from the versions' numbers. A version with none, such as `latest`, is never lower.
+
 ### Robust
 
 - One update per app at a time: `ErrBusy`, as built.
@@ -100,4 +114,5 @@ As built (#559): an app's row has a box where its update counts (ADR 0079), no c
 - An update with volumes takes longer by its backup, and a volume that isn't a database's stops its app while it's copied, which the plan says. `skip_backup` leaves it out.
 - `StepProgress` gains a phase and bytes, which every deploy fills, not only updates.
 - ADR 0079's record of a found update is what an update with no image takes: the first a person neither skipped nor snoozed (`serviceupdates.Keeper.Next`). A catalog install's upgrades its install, with no image of its own.
+- A catalog install updates on its own only to a release its source has held for 3 days, and never to a lower version (amended for ADR 0100). A Dockwell before this takes a catalog release in its first window, which is why ADR 0100's catalog merges nothing by itself until a release with the wait is out.
 - Still to come: a move from a tag that names no release, such as `latest`, which reads the series from the image that runs; and a restore drill of a MariaDB backup.
