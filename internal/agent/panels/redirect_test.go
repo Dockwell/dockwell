@@ -292,3 +292,42 @@ func writeDynamic(t *testing.T, root, name, body string) {
 		t.Fatal(err)
 	}
 }
+
+// Traefik's file provider keeps the first definition of a middleware name, in the
+// order it reads its files, and skips the rest, where Dockwell would keep the last.
+// A name the proxy's files define more than once, in two files or one, holds what
+// passes through it, as which runs can't be told for sure (slice 4's review, H1).
+func TestAMiddlewareDefinedTwiceHoldsItsDomain(t *testing.T) {
+	router := "http:\n  routers:\n    shop-k2m4-router-websecure-1:\n      rule: Host(`shop.example.com`)\n      service: shop-k2m4-service-1\n      entryPoints:\n        - websecure\n      middlewares:\n        - gzip\n      tls:\n        certResolver: letsencrypt\n" +
+		"  services:\n    shop-k2m4-service-1:\n      loadBalancer:\n        servers:\n          - url: http://shop-k2m4:3000\n        passHostHeader: true\n"
+	for name, files := range map[string]map[string]string{
+		"in two files": {
+			// Traefik reads a-limit.yml first: an address limit.
+			"a-limit.yml":     "http:\n  middlewares:\n    gzip:\n      ipAllowList:\n        sourceRange:\n          - 192.0.2.10/32\n",
+			"middlewares.yml": "http:\n  middlewares:\n    gzip:\n      compress: {}\n",
+		},
+		"in one": {"middlewares.yml": "http:\n  middlewares:\n    gzip:\n      compress: {}\n    gzip:\n      ipAllowList:\n        sourceRange:\n          - 192.0.2.10/32\n"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			root := t.TempDir()
+			for f, body := range files {
+				writeDynamic(t, root, f, body)
+			}
+			writeDynamic(t, root, "shop-k2m4.yml", router)
+			r := Reader{Root: root}
+			defs := r.fileMiddlewares(dockwellv1.PanelKind_PANEL_KIND_DOKPLOY)
+			got := r.dynamicRoutesFrom("shop-k2m4", "shop-k2m4.1.x7k2", defs, nil)
+			if len(got) != 1 || !strings.Contains(got[0].GetLeft(), "the proxy's files define more than once") {
+				t.Errorf("gzip, defined twice, reads %v", got)
+			}
+		})
+	}
+	// Defined once, it's compression, which a route does without.
+	root := t.TempDir()
+	writeDynamic(t, root, "middlewares.yml", "http:\n  middlewares:\n    gzip:\n      compress: {}\n")
+	writeDynamic(t, root, "shop-k2m4.yml", router)
+	r := Reader{Root: root}
+	if got := r.dynamicRoutesFrom("shop-k2m4", "shop-k2m4.1.x7k2", r.fileMiddlewares(dockwellv1.PanelKind_PANEL_KIND_DOKPLOY), nil); len(got) != 1 || got[0].GetLeft() != "" {
+		t.Errorf("gzip, defined once, reads %v", got)
+	}
+}

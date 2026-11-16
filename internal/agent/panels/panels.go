@@ -579,6 +579,8 @@ func middlewaresLeft(l map[string]string, list []string, files map[string]string
 		switch {
 		case kind == "":
 			return fmt.Sprintf("it passes through the middleware %s, which Dockwell can't read, so it can't tell what a plain route would drop", ref)
+		case kind == definedTwice:
+			return fmt.Sprintf("it passes through the middleware %s, which the proxy's files define more than once, so Dockwell can't tell which runs", ref)
 		case kind == "headers" && inFile, !harmlessMiddleware(defs, name, kind):
 			return fmt.Sprintf("it passes through the middleware %s (%s), which a plain route would drop, so what it guards would answer anyone", name, kind)
 		}
@@ -892,6 +894,8 @@ type traefikFile struct {
 	// labels name them, traefik.http.middlewares.<name>.redirectregex.<field>, so
 	// a redirect to or from www reads alike from both.
 	settings map[string]string
+	// twice are the middlewares it defines more than once, by name in lower case.
+	twice map[string]bool
 	// rules is how many routers it read a rule of, in any section.
 	rules int
 }
@@ -924,7 +928,7 @@ var ruleKey = sync.OnceValue(func() *regexp.Regexp { return regexp.MustCompile(`
 // write them, line by line: a rule folded onto the next line, as YAML's >- writes
 // a long one, reads as one.
 func readTraefikFile(b []byte) traefikFile {
-	f := traefikFile{routers: map[string]*fileRouter{}, ports: map[string]uint32{}, middlewares: map[string]string{}, settings: map[string]string{}}
+	f := traefikFile{routers: map[string]*fileRouter{}, ports: map[string]uint32{}, middlewares: map[string]string{}, settings: map[string]string{}, twice: map[string]bool{}}
 	top, section, current, list, field := "", "", "", "", ""
 	// Where a router's fields stand, and its tls's, as the first line deeper than
 	// the router's, and than its tls, has them; and where a folded rule's key is.
@@ -961,6 +965,14 @@ func readTraefikFile(b []byte) traefikFile {
 			}
 		case indent == 4 && value == "" && !strings.HasPrefix(trimmed, "-"):
 			current, list, field, fieldAt, tlsAt = key, "", "", -1, -1
+			if section == "middlewares" {
+				// A name its file gives twice is noted, its kind read from the first.
+				if _, again := f.middlewares[key]; again {
+					f.twice[strings.ToLower(key)] = true
+				} else {
+					f.middlewares[key] = ""
+				}
+			}
 			if section == "routers" {
 				// By its section too: an HTTP router and a TCP one may share a name.
 				current = top + ".routers." + key
@@ -1050,13 +1062,30 @@ func (r *fileRouter) add(list, entry string) {
 // redirect-to-https, in its middlewares.yml, is a redirectScheme.
 func (r Reader) fileMiddlewares(kind dockwellv1.PanelKind) map[string]string {
 	out := map[string]string{}
+	twice := map[string]bool{}
 	for _, f := range r.proxyFiles(kind) {
 		read := readTraefikFile(r.panelFile(f))
-		maps.Copy(out, read.middlewares)
+		for name, k := range read.middlewares {
+			name = strings.ToLower(name)
+			if _, again := out[name]; again || read.twice[name] {
+				twice[name] = true
+			}
+			out[name] = k
+		}
 		maps.Copy(out, read.settings)
+	}
+	// Traefik runs the first definition of a name, in the order it reads its files,
+	// and skips the rest: which that is can't be told for sure from here, so a name
+	// defined more than once reads as neither, and holds what passes through it.
+	for name := range twice {
+		out[name] = definedTwice
 	}
 	return out
 }
+
+// definedTwice is what fileMiddlewares says a middleware is that the proxy's files
+// define more than once.
+const definedTwice = "defined more than once"
 
 // yamlScalar is a scalar of YAML's as a file of Traefik's writes one: plain,
 // single-quoted with a quote written twice, or double-quoted with escapes, as Go writes
