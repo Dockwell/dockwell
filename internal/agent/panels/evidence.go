@@ -477,7 +477,9 @@ func readFull(onDisk string) ([]byte, bool) {
 func (r Reader) checks(ctx context.Context, kind dockwellv1.PanelKind, p *dockwellv1.Panel, built builtFrom) []resource.PanelCheck {
 	sc := r.scanServer(ctx, kind)
 	summary := fmt.Sprintf("labels on %d containers and %d services, and %d files in the proxy's mounts", sc.containers, sc.services, sc.files)
-	routed, redirects := map[string]string{}, map[string]string{}
+	// served are the paths of a domain a route of their own serves, which the
+	// domain's redirect doesn't answer, by domain and path.
+	routed, redirects, served := map[string]string{}, map[string]string{}, map[string]bool{}
 	var domains []string
 	for _, a := range p.GetApps() {
 		for _, d := range a.GetDomains() {
@@ -492,6 +494,9 @@ func (r Reader) checks(ctx context.Context, kind dockwellv1.PanelKind, p *dockwe
 			}
 			if to := rt.GetRedirect().GetTo(); to != "" && rt.GetPath() == "" {
 				redirects[d] = to
+			}
+			if rt.GetRedirect() == nil && rt.GetPath() != "" {
+				served[d+rt.GetPath()] = true
 			}
 			if _, ok := routed[d]; !ok {
 				routed[d] = ""
@@ -547,7 +552,12 @@ func (r Reader) checks(ctx context.Context, kind dockwellv1.PanelKind, p *dockwe
 		}
 		if c.Held == "" {
 			for _, pa := range paths {
-				asks = append(asks, probeAsk{check: len(out), domain: d, path: pa, to: redirects[d]})
+				to := redirects[d]
+				if served[d+pa] {
+					// Its own route serves it: a page, not the redirect.
+					to = ""
+				}
+				asks = append(asks, probeAsk{check: len(out), domain: d, path: pa, to: to})
 			}
 		}
 		out = append(out, c)

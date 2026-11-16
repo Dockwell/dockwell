@@ -705,3 +705,44 @@ func TestAWWWRedirectToADomainHeldHereStaysBehind(t *testing.T) {
 		t.Errorf("a handover of it = %v", err)
 	}
 }
+
+// A domain that redirects but serves a path through a router of its own is asked
+// for that path as a page, not as the redirect, so it isn't held for a 200 there
+// (slice 4's review, L2).
+func TestAWWWRedirectWithAPathItServes(t *testing.T) {
+	t.Parallel()
+	s := coolifyHandover(t)
+	s.e.AddNetwork(docker.Network{ID: "m3n8net", Name: "m3n8_default", Driver: "bridge"})
+	labels := map[string]string{
+		"coolify.managed": "true", "coolify.type": "service", "traefik.enable": "true", "coolify.serviceUuid": "m3n8", "coolify.resourceName": "shop",
+		docker.LabelWorkingDir: "/data/coolify/services/m3n8",
+		"traefik.http.middlewares.to-non-www.redirectregex.regex":         `^(http|https)://www\.(.+)`,
+		"traefik.http.middlewares.to-non-www.redirectregex.replacement":   "${1}://${2}",
+		"traefik.http.services.http-0-m3n8-shop.loadbalancer.server.port": "8080",
+		"traefik.http.routers.https-0-m3n8-shop.rule":                     "Host(`shop.example.com`)",
+		"traefik.http.routers.https-0-m3n8-shop.service":                  "http-0-m3n8-shop",
+		"traefik.http.routers.https-1-m3n8-shop.rule":                     "Host(`www.shop.example.com`)",
+		"traefik.http.routers.https-1-m3n8-shop.middlewares":              "to-non-www",
+		"traefik.http.routers.https-1-m3n8-shop.service":                  "http-0-m3n8-shop",
+		"traefik.http.routers.https-2-m3n8-shop.rule":                     "Host(`www.shop.example.com`) && PathPrefix(`/api`)",
+		"traefik.http.routers.https-2-m3n8-shop.service":                  "http-0-m3n8-shop",
+	}
+	composeContainer(t, s.e, "m3n8", "shop", "shop-m3n8", func(r *docker.CreateRequest) { maps.Copy(r.Labels, labels) })
+	s.answers("www.shop.example.com", func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/api") {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		http.Redirect(w, r, "https://shop.example.com"+r.URL.Path, http.StatusFound)
+	})
+	s.takeOn(t)
+	www := s.check(t)["www.shop.example.com"]
+	if www.GetHeld() != "" || www.GetRedirectsTo() != "https://shop.example.com" || len(www.GetProbes()) != 2 {
+		t.Fatalf("www reads %v", www)
+	}
+	for _, p := range www.GetProbes() {
+		if !p.GetOpen() {
+			t.Errorf("www's probe of %s reads %v", p.GetPath(), p)
+		}
+	}
+}
