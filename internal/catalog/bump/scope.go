@@ -146,13 +146,18 @@ func imageLineChange(b, a string) string {
 	return ""
 }
 
+// Unread starts the reason StepInScope gives where a registry couldn't be read:
+// not out of scope, but not known yet, which a run again may settle (#726's slice 2
+// review, L5).
+const Unread = "Its images can't all be read now, so run it again: "
+
 // StepInScope checks that a bump's head is the step the bump would make now from
 // its base, within its policy's levels, past its wait, corroborated, and keeping its
 // platforms, and says why it isn't, read again from the registries.
 func StepInScope(ctx context.Context, p *Planner, base *Entry, policy *Policy, head []byte) []string {
 	r := p.Plan(ctx, base, policy)
 	if len(r.Unread) > 0 {
-		return []string{"Its images can't all be read now: " + strings.Join(r.Unread, "; ")}
+		return []string{Unread + strings.Join(r.Unread, "; ")}
 	}
 	var within *Lane
 	for i := range r.Lanes {

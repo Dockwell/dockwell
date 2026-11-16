@@ -12,6 +12,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"slices"
 	"strings"
 	"time"
 
@@ -166,7 +167,11 @@ func scopeCommand(ctx context.Context, args []string, stdout, stderr io.Writer, 
 		}
 	}
 	out := scopeOutput{State: "success", Why: r.Why}
-	if !r.Pass {
+	switch {
+	case !r.Pass && slices.ContainsFunc(r.Why, func(w string) bool { return strings.HasPrefix(w, bump.Unread) }):
+		// A registry that didn't answer says nothing of the bump: an error, run again.
+		out.State = "error"
+	case !r.Pass:
 		out.State = "failure"
 	}
 	out.Description = r.Why[0]

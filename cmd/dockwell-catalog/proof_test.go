@@ -118,6 +118,11 @@ func TestScopeIsACommitStatusFromTheDiff(t *testing.T) {
 	if got := scope(inScope, "--author", "app/dockwell-catalog-bump", "--branch", "bump/cache"); got.State != "failure" || !strings.Contains(got.Description, "within its wait") {
 		t.Errorf("a step within its wait reads %+v", got)
 	}
+	// A registry that can't be read now gives an error, to run again, not a failure.
+	delete(s.Images, "library/redis")
+	if got := scope(inScope, "--author", "app/dockwell-catalog-bump", "--branch", "bump/cache"); got.State != "error" || !strings.Contains(got.Description, "run it again") {
+		t.Errorf("an unread registry reads %+v", got)
+	}
 	if got := scope(inScope, "--author", "app/dockwell-catalog-bump", "--branch", "bump/cache"); len(got.Description) > 140 {
 		t.Errorf("a description of %d characters", len(got.Description))
 	}
