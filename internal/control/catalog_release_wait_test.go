@@ -174,7 +174,7 @@ func testACatalogReleaseWaitsOnItsSourceAndNeverMovesDown(t *testing.T, backend 
 		}
 	}
 	_, err = cat.UpgradeCatalogInstall(t.Context(), connect.NewRequest(&dockwellv1.UpgradeCatalogInstallRequest{Id: "notes-src"}))
-	if connect.CodeOf(err) != connect.CodeFailedPrecondition || reasonOf(err) != "moves_down" || !strings.Contains(err.Error(), "below the 1.3 it runs") {
+	if connect.CodeOf(err) != connect.CodeFailedPrecondition || reasonOf(err) != "moves_down" || !strings.Contains(err.Error(), "notes-src runs Thing 1.3, and its catalog now has 1.2, a lower version") || !strings.Contains(err.Error(), "To run 1.2, install it again under another name") {
 		t.Errorf("a person's upgrade down to 1.2: %v", err)
 	}
 	// Nor does it take a new build alone, which would build 1.2's entry.

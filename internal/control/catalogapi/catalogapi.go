@@ -622,7 +622,7 @@ func (h *Handler) upgrade(ctx context.Context, m *dockwellv1.UpgradeCatalogInsta
 		// A catalog withdraws a bad version by pinning the one before. An install on the
 		// bad version keeps it: its data may be in a format the version before can't
 		// read. A new install takes the release (ADR 0080).
-		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s's catalog now has %s %s, below the %s it runs, so upgrading would move it down, which its data may not take. It stays on %s until the catalog has %s or later; a new install takes %s", install.GetProject(), entry.GetName(), entry.GetVersion(), pin.GetVersion(), pin.GetVersion(), pin.GetVersion(), entry.GetVersion()), "moves_down")
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s runs %s %s, and its catalog now has %s, a lower version its data may not work with. It stays on %s until the catalog has a release of %s or later. To run %s, install it again under another name", install.GetProject(), entry.GetName(), pin.GetVersion(), entry.GetVersion(), pin.GetVersion(), pin.GetVersion(), entry.GetVersion()), "moves_down")
 	case !newer && !rebuild:
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s is up to date, on %s %s", install.GetProject(), entry.GetName(), pin.GetVersion()), "up_to_date")
 	case len(pin.GetFile()) == 0:
