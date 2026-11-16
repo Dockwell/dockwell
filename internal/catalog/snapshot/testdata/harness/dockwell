@@ -55,10 +55,13 @@ run_entry() {
     '    x-fake: unready') flags+=("$service unready") ;;
     '    x-fake: exits') flags+=("$service exits") ;;
     esac
-    # A port it publishes, from an input: port=<in the container>:<on this server>.
-    if [[ "$line" =~ ^\ \ \ \ \ \ -\ \"?127\.0\.0\.1:\$\{([A-Z_]+)\}:([0-9]+)\"?$ ]]; then
-      host=$(jq -r --arg k "${BASH_REMATCH[1]}" '.values[$k]' "$S/installs/$p.json")
-      echo "port=${BASH_REMATCH[2]}:$host" >>"$S/containers/$p-production-$service-1"
+    # A port it publishes, from an input: port=<in the container>:<on this server>,
+    # and :all after it where it has no address, on every one.
+    if [[ "$line" =~ ^\ \ \ \ \ \ -\ \"?(127\.0\.0\.1:)?\$\{([A-Z_]+)\}:([0-9]+)\"?$ ]]; then
+      host=$(jq -r --arg k "${BASH_REMATCH[2]}" '.values[$k]' "$S/installs/$p.json")
+      every=""
+      [[ -n "${BASH_REMATCH[1]}" ]] || every=":all"
+      echo "port=${BASH_REMATCH[3]}:$host$every" >>"$S/containers/$p-production-$service-1"
     fi
   done < <(jq -r .entry.compose "$S/installs/$p.json")
   for flag in "${flags[@]}"; do

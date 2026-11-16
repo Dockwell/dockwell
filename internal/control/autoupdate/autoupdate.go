@@ -367,9 +367,11 @@ func needsPerson(c *dockwellv1.Change) bool {
 	if c.GetPlan().GetDestructive() || c.GetPlan().GetHostAccess() || c.GetWaits() != "" {
 		return true
 	}
-	// A release that needs what the install didn't makes a database no one asked for.
+	// A release that needs what the install didn't makes a database no one asked for,
+	// and one that moves a port to the server alone leaves whoever reached it there
+	// without it until they know (ADR 0101).
 	for _, n := range c.GetPlan().GetNotes() {
-		if n.GetReason() == catalogapi.NewNeedNote {
+		if n.GetReason() == catalogapi.NewNeedNote || n.GetReason() == catalogapi.PortToServerAloneNote {
 			return true
 		}
 	}

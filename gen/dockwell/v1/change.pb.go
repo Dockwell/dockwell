@@ -696,6 +696,12 @@ const (
 	// A backup of a volume that reached path, which is as good as root, coming back
 	// into a volume that doesn't. What it holds can be read from there.
 	HostAccessKind_HOST_ACCESS_KIND_BACKUP_OF HostAccessKind = 18
+	// A port a catalog app publishes on every address of the server, on purpose, as
+	// its entry declares, in path, as "80" or "443/udp", and its service in detail:
+	// anyone who reaches the server reaches it (ADR 0101). A port a catalog
+	// install or upgrade makes public where it wasn't; any other app's public port
+	// is as it was.
+	HostAccessKind_HOST_ACCESS_KIND_PUBLIC_PORT HostAccessKind = 19
 	// A private route opened to someone it kept out within the undo window, at the
 	// domain and path in path, and how in detail: its address list taken off or
 	// widened, its users taken off, a user added, or a password changed. A token
@@ -749,6 +755,7 @@ var (
 		16:  "HOST_ACCESS_KIND_EXTERNAL_VOLUME",
 		17:  "HOST_ACCESS_KIND_TAKES_ON",
 		18:  "HOST_ACCESS_KIND_BACKUP_OF",
+		19:  "HOST_ACCESS_KIND_PUBLIC_PORT",
 		110: "HOST_ACCESS_KIND_ACCESS_OPENED",
 		150: "HOST_ACCESS_KIND_SERVER_SHELL",
 		120: "HOST_ACCESS_KIND_CERTIFICATE_KEY",
@@ -778,6 +785,7 @@ var (
 		"HOST_ACCESS_KIND_EXTERNAL_VOLUME":  16,
 		"HOST_ACCESS_KIND_TAKES_ON":         17,
 		"HOST_ACCESS_KIND_BACKUP_OF":        18,
+		"HOST_ACCESS_KIND_PUBLIC_PORT":      19,
 		"HOST_ACCESS_KIND_ACCESS_OPENED":    110,
 		"HOST_ACCESS_KIND_SERVER_SHELL":     150,
 		"HOST_ACCESS_KIND_CERTIFICATE_KEY":  120,
@@ -11008,7 +11016,7 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\x1cGUESSABLE_SECRET_UNSPECIFIED\x10\x00\x12&\n" +
 	"\"GUESSABLE_SECRET_DATABASE_PASSWORD\x10\x01\x12\x1d\n" +
 	"\x19GUESSABLE_SECRET_PASSWORD\x10\x02\x12\x18\n" +
-	"\x14GUESSABLE_SECRET_KEY\x10\x03*\xb4\a\n" +
+	"\x14GUESSABLE_SECRET_KEY\x10\x03*\xd6\a\n" +
 	"\x0eHostAccessKind\x12 \n" +
 	"\x1cHOST_ACCESS_KIND_UNSPECIFIED\x10\x00\x12 \n" +
 	"\x1cHOST_ACCESS_KIND_SERVER_PATH\x10\x01\x12\"\n" +
@@ -11029,7 +11037,8 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\x1aHOST_ACCESS_KIND_HTTPS_OFF\x10\x0f\x12$\n" +
 	" HOST_ACCESS_KIND_EXTERNAL_VOLUME\x10\x10\x12\x1d\n" +
 	"\x19HOST_ACCESS_KIND_TAKES_ON\x10\x11\x12\x1e\n" +
-	"\x1aHOST_ACCESS_KIND_BACKUP_OF\x10\x12\x12\"\n" +
+	"\x1aHOST_ACCESS_KIND_BACKUP_OF\x10\x12\x12 \n" +
+	"\x1cHOST_ACCESS_KIND_PUBLIC_PORT\x10\x13\x12\"\n" +
 	"\x1eHOST_ACCESS_KIND_ACCESS_OPENED\x10n\x12\"\n" +
 	"\x1dHOST_ACCESS_KIND_SERVER_SHELL\x10\x96\x01\x12$\n" +
 	" HOST_ACCESS_KIND_CERTIFICATE_KEY\x10x\x12\x1c\n" +

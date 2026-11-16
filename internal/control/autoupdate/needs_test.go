@@ -22,3 +22,13 @@ func TestAReleaseWithANewNeedWaitsForAPerson(t *testing.T) {
 		t.Error("a release that only pins its images waits for a person")
 	}
 }
+
+// A catalog release that moves a port to the server alone, as one to an install from
+// before ADR 0101 moves its console, waits for a person: whoever reached it on the
+// server's address would find it gone the next morning (#752's re-check, N2).
+func TestAReleaseThatMovesAPortToTheServerAloneWaitsForAPerson(t *testing.T) {
+	plan := &dockwellv1.Change{Plan: &dockwellv1.Plan{Notes: []*dockwellv1.PlanNote{{Reason: catalogapi.PortToServerAloneNote, Message: "a note"}}}}
+	if !needsPerson(plan) {
+		t.Error("a release that moves a port to the server alone applies on its own")
+	}
+}

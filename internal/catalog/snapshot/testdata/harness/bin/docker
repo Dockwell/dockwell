@@ -37,7 +37,7 @@ inspect)
   '{{.Config.Image}}') get "$n" image ;;
   *State.Health*) get "$n" health ;;
   '{{json .HostConfig.PortBindings}}')
-    get "$n" port | jq -Rnc '[inputs | split(":") | {key: (.[0] + "/tcp"), value: [{HostIp: "127.0.0.1", HostPort: .[1]}]}] | from_entries' ;;
+    get "$n" port | jq -Rnc '[inputs | split(":") | {key: (.[0] + "/tcp"), value: [{HostIp: (if .[2] == "all" then "" else "127.0.0.1" end), HostPort: .[1]}]}] | from_entries' ;;
   *com.docker.compose.service*) get "$n" service ;;
   *dockwell.uses*) get "$n" use | paste -sd, - ;;
   *Config.Env*) get "$n" env ;;

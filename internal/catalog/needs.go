@@ -1349,7 +1349,10 @@ func NeedAs(e *catalogv1.Entry, met map[string]Way, running map[string]string) (
 		Written: map[string]*resourcev1.ValueTemplate{}, Read: map[string]ReadFrom{}, Kept: map[string]bool{},
 	}
 	if len(e.GetNeeds()) == 0 {
-		return out, inside(out, running)
+		if err := inside(out, running); err != nil {
+			return out, err
+		}
+		return out, loopback(out)
 	}
 	file := e.GetCompose()
 	inputs := slices.Clone(e.GetInputs())
@@ -1519,7 +1522,10 @@ func NeedAs(e *catalogv1.Entry, met map[string]Way, running map[string]string) (
 	needed := proto.CloneOf(e)
 	needed.Compose, needed.Inputs = file, inputs
 	out.Entry = needed
-	return out, inside(out, running)
+	if err := inside(out, running); err != nil {
+		return out, err
+	}
+	return out, loopback(out)
 }
 
 // PinnedPlain are the names an install's needs set that hold no password, as it ran,

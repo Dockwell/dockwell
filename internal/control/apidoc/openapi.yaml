@@ -16670,6 +16670,7 @@ components:
                         - HOST_ACCESS_KIND_EXTERNAL_VOLUME
                         - HOST_ACCESS_KIND_TAKES_ON
                         - HOST_ACCESS_KIND_BACKUP_OF
+                        - HOST_ACCESS_KIND_PUBLIC_PORT
                         - HOST_ACCESS_KIND_ACCESS_OPENED
                         - HOST_ACCESS_KIND_SERVER_SHELL
                         - HOST_ACCESS_KIND_CERTIFICATE_KEY
@@ -17743,6 +17744,14 @@ components:
                         The app reads this secret on its first start alone, or encrypts what it
                          keeps with it, so setting the secret anew changes nothing or loses what it
                          encrypted. The panel marks it, and says where to change it, if anywhere.
+                public:
+                    type: boolean
+                    description: |-
+                        A port the app publishes on every address of the server, on purpose, such as
+                         a proxy's 80 and 443: anyone who reaches the server reaches it. Only a port
+                         input takes it. Every other port answers on the server alone, 127.0.0.1, and
+                         a person approves a public one in the plan. See
+                         docs/adr/0101-a-port-a-catalog-app-publishes-to-everyone-on-purpose.md.
             description: |-
                 Input is one thing an entry needs to know to install, named by the ${NAME}
                  its Compose file uses.

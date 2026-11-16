@@ -1917,7 +1917,13 @@ type Input struct {
 	// The app reads this secret on its first start alone, or encrypts what it
 	// keeps with it, so setting the secret anew changes nothing or loses what it
 	// encrypted. The panel marks it, and says where to change it, if anywhere.
-	SetOnce       bool `protobuf:"varint,9,opt,name=set_once,json=setOnce,proto3" json:"set_once,omitempty"`
+	SetOnce bool `protobuf:"varint,9,opt,name=set_once,json=setOnce,proto3" json:"set_once,omitempty"`
+	// A port the app publishes on every address of the server, on purpose, such as
+	// a proxy's 80 and 443: anyone who reaches the server reaches it. Only a port
+	// input takes it. Every other port answers on the server alone, 127.0.0.1, and
+	// a person approves a public one in the plan. See
+	// docs/adr/0101-a-port-a-catalog-app-publishes-to-everyone-on-purpose.md.
+	Public        bool `protobuf:"varint,83,opt,name=public,proto3" json:"public,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2032,6 +2038,13 @@ func (x *Input) GetCharacters() Characters {
 func (x *Input) GetSetOnce() bool {
 	if x != nil {
 		return x.SetOnce
+	}
+	return false
+}
+
+func (x *Input) GetPublic() bool {
+	if x != nil {
+		return x.Public
 	}
 	return false
 }
@@ -2200,7 +2213,7 @@ const file_dockwell_catalog_v1alpha1_entry_proto_rawDesc = "" +
 	"repository\x18\x01 \x01(\tR\n" +
 	"repository\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x12\x16\n" +
-	"\x06commit\x18\x03 \x01(\tR\x06commit\"\xbd\x03\n" +
+	"\x06commit\x18\x03 \x01(\tR\x06commit\"\xd5\x03\n" +
 	"\x05Input\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
 	"\x05label\x18\x02 \x01(\tR\x05label\x12\x12\n" +
@@ -2217,7 +2230,8 @@ const file_dockwell_catalog_v1alpha1_entry_proto_rawDesc = "" +
 	"\n" +
 	"characters\x18R \x01(\x0e2%.dockwell.catalog.v1alpha1.CharactersR\n" +
 	"characters\x12\x19\n" +
-	"\bset_once\x18\t \x01(\bR\asetOnce\"\x1f\n" +
+	"\bset_once\x18\t \x01(\bR\asetOnce\x12\x16\n" +
+	"\x06public\x18S \x01(\bR\x06public\"\x1f\n" +
 	"\x03Web\x12\x18\n" +
 	"\aservice\x18\x01 \x01(\tR\aservice*8\n" +
 	"\x04Kind\x12\x14\n" +

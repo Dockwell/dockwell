@@ -134,6 +134,10 @@ type Install struct {
 	// install makes, by name, as one an admin added from the install sheet: the plan
 	// gives each that project in the same change, which it shows (ADR 0099).
 	Reaches []string
+	// Public are the ports each service makes public on purpose, by its name in the
+	// file, as the catalog entry declares them and as a person approves them in the
+	// plan: "80", or "443/udp" (ADR 0101).
+	Public map[string][]string
 }
 
 // Needs are what an install's needs set in its environment, and how each is met
@@ -296,7 +300,7 @@ func (h *Handler) PlanInstall(ctx context.Context, in Install) (*dockwellv1.Chan
 		}
 		notes = append(notes, n)
 	}
-	return h.plan(ctx, req, stack, place, planning{secrets: in.Secrets, notes: notes, needs: in.Needs})
+	return h.plan(ctx, req, stack, place, planning{secrets: in.Secrets, notes: notes, needs: in.Needs, public: in.Public})
 }
 
 // planning is what a plan adds to a file read for a place.
@@ -321,6 +325,9 @@ type planning struct {
 	needs Needs
 	// empties is the app the change starts on an empty database of another engine.
 	empties string
+	// public are the ports each service makes public on purpose, by its name
+	// (Install.Public).
+	public map[string][]string
 }
 
 // useSecrets has each service use by reference what a file's variables gave its
@@ -470,12 +477,16 @@ func (h *Handler) plan(ctx context.Context, m *dockwellv1.ImportComposeRequest, 
 	for i := range updates {
 		updates[i].Deleted, updates[i].Named = deleted, true // for a surface that says it in its own words
 	}
+	public := map[resource.Ref][]string{}
+	for name, ports := range also.public {
+		public[resource.Ref{Kind: service.Kind, Scope: env, Name: name}] = ports
+	}
 	return h.changes.Propose(ctx, summary, edits, func(choice *scope.ChoiceError, _ string) string {
 		if choice.Level == scope.ServerLevel {
 			return "servers"
 		}
 		return ""
-	}, changes.Also{Edits: place.made, BackUp: also.backUp, BackUpOne: also.backUpOne, SkipBackup: also.skipBackup, Empties: also.empties, Intent: also.intent, Notes: slices.Concat(also.notes, updates, planNotes(env, stack.Notices), exposedNotes(env, stack.Exposed, stack.ExposedMore, m.GetVariables()), rotationNotes(env, stack.Rotations))})
+	}, changes.Also{Edits: place.made, Public: public, BackUp: also.backUp, BackUpOne: also.backUpOne, SkipBackup: also.skipBackup, Empties: also.empties, Intent: also.intent, Notes: slices.Concat(also.notes, updates, planNotes(env, stack.Notices), exposedNotes(env, stack.Exposed, stack.ExposedMore, m.GetVariables()), rotationNotes(env, stack.Rotations))})
 }
 
 // usersAfterTheirServers moves each database user the edits make in env right after

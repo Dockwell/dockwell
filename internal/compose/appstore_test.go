@@ -341,6 +341,8 @@ func accessClass(a resource.Access) string {
 		return "a volume the server has"
 	case resource.AccessTakesOn:
 		return "a container taken on"
+	case resource.AccessPublicPort:
+		return "a port on every address"
 	case resource.AccessBackupOf:
 		return "a backup of what reached a server path"
 	case resource.AccessServerShell:

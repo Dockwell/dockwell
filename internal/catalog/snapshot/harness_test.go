@@ -358,3 +358,55 @@ func TestAServiceThatStopsOnAStandInFailsTheFloor(t *testing.T) {
 		t.Errorf("a tunnel that restarts on a stand-in: %v\n%s", err, out)
 	}
 }
+
+// publicPorts is an entry whose app publishes its page on the server alone and a
+// second port, HTTP_PORT, as its file writes it, with no address: on every one. With
+// public, the entry declares that port public on purpose (ADR 0101).
+func publicPorts(version string, public bool) string {
+	return publicPortsWith(version, public, "")
+}
+
+// publicPortsWith is publicPorts with a second service's ports, from its own input
+// DB_PORT, whose value is HTTP_PORT's.
+func publicPortsWith(version string, public bool, dbPorts string) string {
+	compose := "services:\n  app:\n    image: example/proxy:" + version + "@sha256:" + strings.Repeat("ab", 32) +
+		"\n    ports:\n      - \"127.0.0.1:${PORT}:8080\"\n      - \"${HTTP_PORT}:80\"\n"
+	inputs := []map[string]any{
+		{"name": "PORT", "type": "INPUT_TYPE_PORT", "defaultValue": "18090"},
+		{"name": "HTTP_PORT", "type": "INPUT_TYPE_PORT", "defaultValue": "18091", "public": public},
+	}
+	if dbPorts != "" {
+		compose += "  db:\n    image: example/proxy-db:" + version + "@sha256:" + strings.Repeat("cd", 32) + "\n    ports:\n      - \"" + dbPorts + "\"\n"
+		inputs = append(inputs, map[string]any{"name": "DB_PORT", "type": "INPUT_TYPE_PORT", "defaultValue": "18091"})
+	}
+	raw, _ := json.Marshal(map[string]any{
+		"id": "proxy", "name": "proxy", "version": version, "release": 1, "web": map[string]string{"service": "app"},
+		"inputs": inputs, "compose": compose,
+	})
+	return string(raw)
+}
+
+// The floor lets a port its entry declares public answer on every address, and only
+// that one (ADR 0101; #752, where nginx-proxy-manager's console failed it).
+func TestTheFloorAllowsOnlyADeclaredPublicPort(t *testing.T) {
+	w := newWorld(t, map[string][]string{"proxy": {publicPorts("1.0.0", true), publicPorts("1.1.0", true)}}, nil)
+	if out, err := w.run("proxy"); err != nil || !strings.Contains(out, "catalog-e2e: ok") {
+		t.Errorf("a declared public port: %v\n%s", err, out)
+	}
+	w = newWorld(t, map[string][]string{"proxy": {publicPorts("1.0.0", false), publicPorts("1.1.0", false)}}, nil)
+	out, err := w.run("proxy")
+	if err == nil || !strings.Contains(out, "is published past this server, where its entry declares only [] public") {
+		t.Errorf("a port on every address it doesn't declare public: %v\n%s", err, out)
+	}
+}
+
+// The floor lets a public port past the server only on the service its entry
+// declares it on: another service with the same port number on every address fails
+// it (#752's review, L4).
+func TestTheFloorAllowsAPublicPortOnlyOnItsService(t *testing.T) {
+	w := newWorld(t, map[string][]string{"proxy": {publicPortsWith("1.0.0", true, "${DB_PORT}:5432"), publicPortsWith("1.1.0", true, "${DB_PORT}:5432")}}, nil)
+	out, err := w.run("proxy")
+	if err == nil || !strings.Contains(out, "proxy-production-db-1 is published past this server, where its entry declares only [\"app 18091\"] public") {
+		t.Errorf("another service on the public port's number: %v\n%s", err, out)
+	}
+}

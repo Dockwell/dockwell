@@ -467,6 +467,12 @@ func check(e *catalogv1.Entry, byTag bool) error {
 	if err := checkAccess(e, cf); err != nil {
 		return err
 	}
+	if err := checkPortForms(e.GetCompose()); err != nil {
+		return err
+	}
+	if err := checkPublic(e, cf); err != nil {
+		return err
+	}
 	seen := map[string]bool{}
 	for _, in := range e.GetInputs() {
 		name := in.GetName()
@@ -932,11 +938,19 @@ func MovesDown(e *catalogv1.Entry, pin *resourcev1.CatalogPin) bool {
 // changes says an entry's release is newer than an install's, and changes what
 // it runs.
 func changes(e *catalogv1.Entry, pin *resourcev1.CatalogPin) bool {
-	file, entry := string(pin.GetFile()), e.GetCompose()
-	if Tagged(e) {
-		file, entry = Unpin(file), Unpin(entry)
+	// A pin keeps its file as the install ran it, each port on the server alone but
+	// those the entry declares public (ADR 0101), so the release is compared as an
+	// install runs it. A release that only takes public away is one, and so is any
+	// release to an install from before, whose pin has its ports as the entry wrote
+	// them, which moves them to the server alone (#752's review, L2).
+	file, ran := string(pin.GetFile()), e.GetCompose()
+	if l, err := Loopback(e); err == nil {
+		ran = l.GetCompose()
 	}
-	return e.GetRelease() > pin.GetRelease() && file != entry
+	if Tagged(e) {
+		file, ran = Unpin(file), Unpin(ran)
+	}
+	return e.GetRelease() > pin.GetRelease() && file != ran
 }
 
 // usedNames finds the ${NAME}s a Compose file uses.

@@ -372,6 +372,9 @@ func (h *Handler) InstallCatalogEntry(ctx context.Context, req *connect.Request[
 	if err != nil {
 		return nil, authapi.ReasonError(connect.CodeInvalidArgument, err, "invalid")
 	}
+	if err := serverAlone(ctx, chosen, filled.Variables); err != nil {
+		return nil, err
+	}
 	pinNotes = append(pinNotes, lentNotes(chosen, filled.Plain, free.lent)...)
 	written, _, err := h.neededEdits(ctx, needed, filled, nil)
 	if err != nil {
@@ -412,6 +415,8 @@ func (h *Handler) InstallCatalogEntry(ctx context.Context, req *connect.Request[
 		Notes:      slices.Concat(pinNotes, reachNotes(needed.Reaches, project)),
 		Needs:      composeapi.Needs{Variables: filled.Linked, Stands: filled.LinkStands, Links: needed.Links, Extra: slices.Concat(shared.Extra, users, written), Joins: shared.Joins},
 		Reaches:    needed.Reaches,
+		// What the entry declares public, which a person approves (ADR 0101).
+		Public: catalog.PublicPorts(chosen, filled.Variables),
 	})
 	if err != nil {
 		return nil, err
@@ -717,6 +722,9 @@ func (h *Handler) upgrade(ctx context.Context, m *dockwellv1.UpgradeCatalogInsta
 	if err != nil {
 		return nil, authapi.ReasonError(connect.CodeInvalidArgument, err, "invalid")
 	}
+	if err := serverAlone(ctx, chosen, filled.Variables); err != nil {
+		return nil, err
+	}
 	if err := h.keepEdited(ctx, install.GetEnvironmentId(), pin, filled); err != nil {
 		return nil, h.internal(ctx, err)
 	}
@@ -758,6 +766,10 @@ func (h *Handler) upgrade(ctx context.Context, m *dockwellv1.UpgradeCatalogInsta
 	}
 	newPin := pinTo(entry, s.origins[entry.GetId()], filled, choice)
 	newPin.Needs, newPin.Written = needed.Pinned, needed.Written
+	// A port the release declares public that isn't yet is a person's to approve,
+	// and one that answered on every address and doesn't now says so (ADR 0101).
+	asked := newlyPublic(catalog.PublicPorts(chosen, filled.Variables), ranOnEveryAddress(chosen, old, oldVariables))
+	pinNotes = append(pinNotes, found.movedAlone(chosen, filled.Variables, old, oldVariables)...)
 	return h.imports.PlanUpgrade(ctx, composeapi.Upgrade{
 		Project:     install.GetProjectId(),
 		Environment: install.GetEnvironmentId(),
@@ -780,6 +792,7 @@ func (h *Handler) upgrade(ctx context.Context, m *dockwellv1.UpgradeCatalogInsta
 		OldStands:    oldStands,
 		Notes:        pinNotes,
 		Needs:        composeapi.Needs{Variables: filled.Linked, Stands: filled.LinkStands, OldStands: oldLinked, Links: needed.Links, Extra: slices.Concat(users, written), Joins: linkJoins(needed)},
+		Public:       asked,
 	})
 }
 
@@ -868,6 +881,14 @@ func (h *Handler) SetCatalogCompanion(ctx context.Context, req *connect.Request[
 	if file, _, err = found.inside(file, pin, nil); err != nil {
 		return nil, h.internal(ctx, err)
 	}
+	// Each port on the server alone, but those the entry declares public, as an
+	// install's are (ADR 0101).
+	ran := proto.CloneOf(entry)
+	ran.Compose = file
+	if ran, err = catalog.Loopback(ran); err != nil {
+		return nil, h.internal(ctx, err)
+	}
+	file = ran.GetCompose()
 	newPin := proto.CloneOf(pin)
 	newPin.Values, newPin.Companions = values, next
 	oldVariables, oldStands, err := catalog.Given(old)
@@ -878,6 +899,12 @@ func (h *Handler) SetCatalogCompanion(ctx context.Context, req *connect.Request[
 	if err != nil {
 		return nil, h.internal(ctx, err)
 	}
+	if err := serverAlone(ctx, ran, variables); err != nil {
+		return nil, err
+	}
+	// A port an install from before answered on every address moves to the server
+	// alone with it, as at an upgrade, which says so (#752's review, M1).
+	moved := found.movedAlone(ran, variables, old, oldVariables)
 	// What its needs set is used by reference on both sides, and stays as it is, by the
 	// names the install ran, whatever the release in the catalog now names.
 	plain := catalog.PinnedPlain(pin.GetNeeds(), entry)
@@ -908,6 +935,8 @@ func (h *Handler) SetCatalogCompanion(ctx context.Context, req *connect.Request[
 		OldVariables: oldVariables,
 		OldStands:    oldStands,
 		Needs:        composeapi.Needs{Stands: linked, OldStands: oldLinked, Joins: pinJoins(entry, pin)},
+		Notes:        moved,
+		Public:       newlyPublic(catalog.PublicPorts(ran, variables), ranOnEveryAddress(ran, old, oldVariables)),
 	})
 	if err != nil {
 		return nil, err
@@ -1052,6 +1081,8 @@ type found struct {
 	// spec are its secrets as they're held, by name, values and all, for a password
 	// a release names anew to keep (keptPasswords). Nothing else reads them.
 	spec map[string]*resourcev1.Secret
+	// ports are what each of its services publishes now, by the service's name.
+	ports map[string][]*resourcev1.PortMapping
 }
 
 // theirs says a secret of the install holds what a person gave it, not what
@@ -1108,7 +1139,7 @@ func (f found) inside(file string, pin *resourcev1.CatalogPin, named map[string]
 
 // find reads an install by its project's name or ID, with the secrets it has.
 func (h *Handler) find(ctx context.Context, s sourced, id string) (found, error) {
-	out := found{held: map[string]bool{}, refs: map[string]map[string]string{}, from: map[string]*resourcev1.ValueTemplate{}, read: map[string]bool{}, spec: map[string]*resourcev1.Secret{}}
+	out := found{held: map[string]bool{}, refs: map[string]map[string]string{}, from: map[string]*resourcev1.ValueTemplate{}, read: map[string]bool{}, spec: map[string]*resourcev1.Secret{}, ports: map[string][]*resourcev1.PortMapping{}}
 	err := h.db.View(ctx, func(tx *store.Tx) error {
 		all, err := h.installs(ctx, tx, s)
 		if err != nil {
@@ -1165,8 +1196,11 @@ func (h *Handler) find(ctx context.Context, s sourced, id string) (found, error)
 			if err != nil {
 				return err
 			}
-			if svc, ok := decoded.(*resourcev1.Service); ok && len(svc.GetSecrets()) > 0 {
-				out.refs[r.Name] = maps.Clone(svc.GetSecrets())
+			if svc, ok := decoded.(*resourcev1.Service); ok {
+				out.ports[r.Name] = svc.GetApp().GetPorts()
+				if len(svc.GetSecrets()) > 0 {
+					out.refs[r.Name] = maps.Clone(svc.GetSecrets())
+				}
 			}
 		}
 		return nil
@@ -1181,8 +1215,14 @@ func (h *Handler) find(ctx context.Context, s sourced, id string) (found, error)
 }
 
 // pinTo is what an install of an entry is pinned to: the entry, and where it came
-// from, as the control plane knows it.
+// from, as the control plane knows it. Its file publishes each port as the install
+// runs it, on the server alone but those the entry declares public, so an upgrade
+// reads what Dockwell ran, not a person's edit, where the file said no address (ADR
+// 0101).
 func pinTo(e *catalogv1.Entry, from origin, filled *catalog.Filled, companions map[string]bool) *resourcev1.CatalogPin {
+	if ran, err := catalog.Loopback(e); err == nil {
+		e = ran
+	}
 	return &resourcev1.CatalogPin{
 		Companions: companions,
 		Entry:      e.GetId(),

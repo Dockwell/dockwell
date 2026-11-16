@@ -222,7 +222,11 @@ export async function catalogFlow(page: Page, { origin, step, shoot, docker, cat
     )?.id ?? fail(`GET /v1/services listed no adminer: ${JSON.stringify(listed).slice(0, 300)}`);
   await page.goto(`${origin}/apps/${adminer}`);
   await page.getByRole("heading", { level: 1, name: "adminer", exact: true }).waitFor();
-  await page.getByRole("link", { name: new RegExp(`Open .*:${port}`) }).waitFor({ timeout: 30_000 });
+  // Its port answers on the server alone, as every catalog app's does but one its
+  // entry declares public (ADR 0101), so the way to reach it goes through the server.
+  await page.getByText(`Port ${port}, on this server alone until it has a domain`).waitFor({ timeout: 30_000 });
+  await page.getByText("Open Adminer", { exact: true }).waitFor();
+  await page.getByRole("button", { name: "Copy the SSH tunnel command" }).waitFor();
   const from = page.getByRole("region", { name: "From the catalog" });
   await from.getByText("PostgreSQL 17.11").waitFor();
   // How to sign in is a card to copy from, with the password to reveal, not a sentence naming its secret.

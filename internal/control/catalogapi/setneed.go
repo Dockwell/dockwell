@@ -118,6 +118,9 @@ func (h *Handler) SetCatalogNeed(ctx context.Context, req *connect.Request[dockw
 	if err != nil {
 		return nil, authapi.ReasonError(connect.CodeInvalidArgument, err, "invalid")
 	}
+	if err := serverAlone(ctx, chosen, filled.Variables); err != nil {
+		return nil, err
+	}
 	// The password the app had is the new user's now, in the server's environment.
 	password := catalog.PasswordName(need)
 	if _, generated := filled.Secrets[password]; !generated {
@@ -166,6 +169,9 @@ func (h *Handler) SetCatalogNeed(ctx context.Context, req *connect.Request[dockw
 	}
 	newPin := pinTo(entry, s.origins[entry.GetId()], filled, choice)
 	newPin.Version, newPin.Release, newPin.File, newPin.Needs, newPin.Written = pin.GetVersion(), pin.GetRelease(), pin.GetFile(), needed.Pinned, needed.Written
+	// A port an install from before answered on every address moves to the server
+	// alone with it, as at an upgrade, which says so (#752's review, M1).
+	notes = append(notes, found.movedAlone(chosen, filled.Variables, old, oldVariables)...)
 	change, err := h.imports.PlanUpgrade(ctx, composeapi.Upgrade{
 		Project:     install.GetProjectId(),
 		Environment: install.GetEnvironmentId(),

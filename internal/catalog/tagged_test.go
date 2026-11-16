@@ -97,7 +97,12 @@ func TestPinsOfATaggedEntry(t *testing.T) {
 	if got := catalog.PinnedDigests(pinned); !maps.Equal(got, digests) {
 		t.Errorf("PinnedDigests = %v", got)
 	}
-	pin := &resourcev1.CatalogPin{Release: e.GetRelease(), File: []byte(pinned)}
+	// Pinned as an install pins it, its ports on the server alone (ADR 0101).
+	ran, err := catalog.Loopback(e)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pin := &resourcev1.CatalogPin{Release: e.GetRelease(), File: []byte(catalog.Pin(ran.GetCompose(), digests))}
 	newer := proto.CloneOf(e)
 	newer.Release++
 	if catalog.Upgrades(newer, pin) {

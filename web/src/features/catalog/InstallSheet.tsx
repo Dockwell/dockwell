@@ -36,6 +36,7 @@ import {
   Sheet,
   STATUS,
   Switch,
+  Tag,
   TextField,
   TONE,
   useMediaQuery,
@@ -1392,10 +1393,21 @@ function InputField({
   autoFocus: boolean;
   onChange: (next: string) => void;
 }) {
+  const { t } = useLingui();
   if (input.type === InputType.PORT) {
     return (
       <PortField
-        label={input.label}
+        label={
+          // A port the entry publishes to everyone on purpose, which the plan asks you
+          // to approve (ADR 0101). Every other port answers on the server alone.
+          input.public ? (
+            <>
+              {input.label} <Tag words>{t`Public`}</Tag>
+            </>
+          ) : (
+            input.label
+          )
+        }
         hint={warning ?? (input.hint || undefined)}
         autoFocus={autoFocus}
         value={value}
