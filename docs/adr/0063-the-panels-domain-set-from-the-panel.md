@@ -76,3 +76,12 @@ The panel's domain may reach the control server through Cloudflare Tunnel, or an
 - **The docs.** The install guide's "Behind Cloudflare Tunnel or another proxy" gets a part for the panel, and its "the panel's own domain can't be served this way" goes.
 
 Moving between the two choices on the same domain is a restart, as setting the domain is, and keeps every passkey, as the relying party ID doesn't change.
+
+### The amendment, as built
+
+- **The check's answers.** A 530 reads as a tunnel that isn't connected ("Start cloudflared on this server"), as that's what Cloudflare answers for a tunnel with no connector; a name the tunnel has no rule for gets cloudflared's own catch-all, which reads as something else answering. The token's answer is a second random value the request never carried, so a site that echoes its path doesn't pass. A token another Dockwell didn't make answers 404 with `Dockwell-Reach: unknown`, which reads as another Dockwell answering. Once the token comes, the check also says when the proxy reached the panel from beyond loopback, with another `Host`, as cloudflared's HTTP host header setting sends, or without `X-Forwarded-Proto: https`.
+- **It asks through netguard,** with the private network and this server's own addresses allowed, as a proxy that ends TLS may be on either; the path is fixed, and nothing of the answer but its status and whether it matched comes back. A test binary asks only `DOCKWELL_TEST_REACH`, a stand-in for the tunnel, trusting `DOCKWELL_ACME_ROOTS`.
+- **The token is answered on the loopback listener alone, whatever its host,** ahead of the guard, so a domain can be checked before it's saved; a request that came over TLS, or through Caddy's hand-over, isn't a tunnel's and goes on to the panel.
+- **A domain waiting for its certificate** asks `CheckPanelDomain` too: one that leads to Cloudflare reads "panel.example.com leads to Cloudflare" with **Serve it behind a tunnel**, and any other offers it beside **Check again**.
+- **Activity** says "Served the panel on panel.example.com behind a tunnel or proxy" for a move between the two, from `EventSetting.behind_proxy` and `previous_behind_proxy`.
+- **The tunnel's way in reuses the DNS record row,** as a "Tunnel" record of the domain and `http://127.0.0.1:7600`, ready to copy, with the check's state under it.

@@ -1425,6 +1425,21 @@
   color: var(--warning);
 }
 
+/* The card is narrow beside This install, so a callout's actions sit under its text, as they do on a phone,
+   and its title keeps the width a domain needs. */
+.panel-domain .dw-callout {
+  flex-wrap: wrap;
+}
+.panel-domain .dw-callout-body {
+  flex: 1 1 0;
+}
+.panel-domain .dw-callout-actions {
+  flex: 1 0 100%;
+  flex-wrap: wrap;
+  min-width: 0;
+  padding-left: calc(10px + var(--space-3));
+}
+
 /* How the domain reaches this server: a label over the choice, as a field's. */
 .panel-domain-via {
   display: flex;

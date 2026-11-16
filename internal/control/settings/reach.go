@@ -14,6 +14,7 @@ import (
 	"net/netip"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"connectrpc.com/connect"
@@ -236,8 +237,10 @@ func reachErrorWords(d string, err error) string {
 	switch {
 	case errors.As(err, &dns) && dns.IsNotFound:
 		return "there's no DNS record for " + d + " yet. Add the tunnel's public hostname for it, or a record for your proxy"
+	case errors.Is(err, syscall.ECONNREFUSED):
+		return "nothing answered HTTPS where " + d + " leads. Start the tunnel or proxy, and point " + d + " at it"
 	case errors.Is(err, context.DeadlineExceeded):
-		return "no answer came from " + d + " in time"
+		return "no answer came from " + d + " in time. Check that the tunnel or proxy is running, and that " + d + " leads to it"
 	}
-	return fmt.Sprintf("Dockwell couldn't reach %s: %s", d, netguard.Words(err))
+	return fmt.Sprintf("Dockwell couldn't reach %s: %s. Check that the tunnel or proxy is running, and that %s leads to it", d, netguard.Words(err), d)
 }
