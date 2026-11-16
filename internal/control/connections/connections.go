@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 
@@ -208,9 +209,22 @@ func (s *Service) ListConnections(ctx context.Context, req *connect.Request[dock
 			continue
 		}
 		info := &dockwellv1.ConnectionInfo{Id: c.ID, Name: c.Name, DisplayName: c.Spec.GetDisplayName(), Kind: c.Spec.GetKind()}
-		if admin {
+		switch {
+		case admin:
 			s3 := c.Spec.GetS3()
 			info.Endpoint, info.Region, info.Bucket, info.PathStyle, info.PublicUrl = s3.GetEndpoint(), s3.GetRegion(), s3.GetBucket(), s3.GetPathStyle(), s3.GetPublicUrl()
+			info.Reach, info.Projects = c.Spec.GetReach(), c.Spec.GetProjects()
+		case mine != nil:
+			// Below an admin, which of the caller's own projects may use it, so the
+			// panel offers only their apps: never another project's.
+			info.Reach = resourcev1.ConnectionReach_CONNECTION_REACH_PROJECTS
+			for _, p := range slices.Sorted(maps.Keys(mine)) {
+				if connection.Reaches(c.Spec, p) {
+					info.Projects = append(info.Projects, p)
+				}
+			}
+		default:
+			// A grant on the whole install holds every project.
 			info.Reach, info.Projects = c.Spec.GetReach(), c.Spec.GetProjects()
 		}
 		// Below an admin, only what reads it in the caller's own projects: another

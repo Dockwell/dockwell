@@ -279,7 +279,8 @@ export type ConnectionInfo = Message<"dockwell.v1.ConnectionInfo"> & {
   publicUrl: string;
 
   /**
-   * Which projects may use it, for an admin, and those by ID.
+   * Which projects may use it, and those by ID: for an admin, as it's saved;
+   * below one, those of the caller's own projects that may, as PROJECTS.
    *
    * @generated from field: dockwell.resource.v1alpha1.ConnectionReach reach = 10;
    */

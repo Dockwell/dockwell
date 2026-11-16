@@ -123,7 +123,7 @@ func TestAConnectionOfAnotherProjectReadsAsNotThere(t *testing.T) {
 			t.Fatalf("%s lists: %v", who, err)
 		}
 		raw, _ := protojson.Marshal(listed.Msg)
-		if strings.Contains(string(raw), "theirs") || strings.Contains(string(raw), srv.URL()) || strings.Contains(string(raw), "data-link") || strings.Contains(string(raw), dataEnv) {
+		if strings.Contains(string(raw), "theirs") || strings.Contains(string(raw), srv.URL()) || strings.Contains(string(raw), "data-link") || strings.Contains(string(raw), dataEnv) || strings.Contains(string(raw), dataProject) {
 			t.Errorf("%s lists %s", who, raw)
 		}
 		if !strings.Contains(string(raw), "ours-link") {

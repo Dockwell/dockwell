@@ -35,7 +35,7 @@ import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
 import { ConnectionSheet } from "./ConnectionSheet";
 import { where } from "./ConnectionsPage";
-import { ConnectStorageSheet } from "./ConnectStorageSheet";
+import { ConnectStorageSheet, useConnectableApps } from "./ConnectStorageSheet";
 import { checkServer, SILENT, useCheckWords, useConnections, usePartWords, useProjectLabel } from "./useConnections";
 import "../apps/Apps.css";
 import "./Connections.css";
@@ -58,6 +58,8 @@ export function ConnectionPage({ name }: { name: string }) {
   const [using, setUsing] = useState(false);
   const check = useCheck(name);
   const phone = useMediaQuery(PHONE_QUERY);
+  // Use in an app is for someone who may connect an app it reaches: not a viewer.
+  const canUse = useConnectableApps(connection).length > 0;
 
   if (!connection) {
     return (
@@ -111,9 +113,11 @@ export function ConnectionPage({ name }: { name: string }) {
               <Trans>Change</Trans>
             </Button>
           ) : null}
-          <Button variant="primary" icon="plus" onClick={() => setUsing(true)}>
-            <Trans>Use in an app</Trans>
-          </Button>
+          {canUse ? (
+            <Button variant="primary" icon="plus" onClick={() => setUsing(true)}>
+              <Trans>Use in an app</Trans>
+            </Button>
+          ) : null}
         </>
       }
       className="connection-page"
@@ -124,7 +128,11 @@ export function ConnectionPage({ name }: { name: string }) {
         </Callout>
       ) : null}
       {check.answer ? <CheckLine answer={check.answer} /> : null}
-      <UsedBy connection={connection} onUse={() => setUsing(true)} onDisconnected={() => void query.refetch()} />
+      <UsedBy
+        connection={connection}
+        onUse={canUse ? () => setUsing(true) : undefined}
+        onDisconnected={() => void query.refetch()}
+      />
       {admin ? <Details connection={connection} onReplace={() => setEditing(true)} /> : null}
       {phone ? (
         // A phone's page has no head for its actions: they sit under it, as the mock has them.
@@ -136,9 +144,11 @@ export function ConnectionPage({ name }: { name: string }) {
                 <Trans>Check</Trans>
               </Button>
             ) : null}
-            <Button size="lg" variant="primary" icon="plus" onClick={() => setUsing(true)}>
-              <Trans>Use in an app</Trans>
-            </Button>
+            {canUse ? (
+              <Button size="lg" variant="primary" icon="plus" onClick={() => setUsing(true)}>
+                <Trans>Use in an app</Trans>
+              </Button>
+            ) : null}
           </div>
         </div>
       ) : null}
@@ -205,7 +215,7 @@ function UsedBy({
   onDisconnected,
 }: {
   connection: ConnectionInfo;
-  onUse: () => void;
+  onUse: (() => void) | undefined;
   onDisconnected: () => void;
 }) {
   const { t } = useLingui();
@@ -246,9 +256,11 @@ function UsedBy({
           <span className="connections-meta">
             <Trans>No app reads it yet.</Trans>
           </span>
-          <Button size="sm" variant="secondary" icon="plus" onClick={onUse}>
-            <Trans>Use in an app</Trans>
-          </Button>
+          {onUse ? (
+            <Button size="sm" variant="secondary" icon="plus" onClick={onUse}>
+              <Trans>Use in an app</Trans>
+            </Button>
+          ) : null}
         </div>
       </Panel>
     );

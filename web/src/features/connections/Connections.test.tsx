@@ -24,7 +24,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { expectAccessible } from "../../test/a11y";
-import { anApp, aRevision, ENV, places, SERVER } from "../../test/apps";
+import { anApp, aRevision, ENV, places, projectPlaces, SERVER } from "../../test/apps";
 import { authState, mira } from "../../test/auth";
 import { webPlanned } from "../../test/changes";
 import { type Api, feed, renderAt } from "../../test/render";
@@ -429,6 +429,73 @@ describe("disconnecting an app from a connection", () => {
     const remove = within(sheet).getByRole("button", { name: /Remove/ });
     expect(remove).toHaveAttribute("aria-disabled", "true");
     expect(sheet).toHaveTextContent("1 link names it. Disconnect it under Used by first.");
+  });
+});
+
+describe("using a connection in an app", () => {
+  // Review L3: Use in an app showed to a viewer, and offered apps of a project the
+  // connection doesn't reach.
+  const two = (role: Role) => ({
+    ...fleet(),
+    resources: projectPlaces("data"),
+    auth: {
+      getAuthState: () =>
+        authState({
+          user: { ...mira, role: Role.UNSPECIFIED },
+          grants: [
+            { projectId: "prj_1", role },
+            { projectId: "prj_data", role },
+          ],
+        }),
+    },
+    services: {
+      listServices: () => ({
+        services: [
+          anApp("outline", "ghcr.io/acme/outline:1"),
+          anApp(
+            "warehouse",
+            "ghcr.io/acme/warehouse:1",
+            {},
+            {
+              id: "svc_warehouse",
+              resource: { kind: "service", scope: "env_data", name: "warehouse" },
+            },
+          ),
+        ],
+      }),
+    },
+    connections: {
+      // Below an admin, the projects it reaches are those of the caller's that may.
+      listConnections: () => ({
+        connections: [
+          create(ConnectionInfoSchema, {
+            id: "cnx_1",
+            name: "shared",
+            kind: LinkKind.S3,
+            reach: ConnectionReach.PROJECTS,
+            projects: ["prj_1"],
+          }),
+        ],
+      }),
+    },
+  });
+
+  it("offers a developer only the apps of projects it reaches", async () => {
+    const user = userEvent.setup();
+    renderAt("/connections/shared", two(Role.DEVELOPER));
+    const use = await screen.findAllByRole("button", { name: "Use in an app" }, { timeout: 5000 });
+    await user.click(use[0] as HTMLElement);
+    const sheet = await screen.findByRole("dialog", { name: "Use shared in an app" });
+    const app = await within(sheet).findByRole("combobox", { name: "App" });
+    expect(within(app).getByRole("option", { name: /outline/ })).toBeInTheDocument();
+    expect(within(app).queryByRole("option", { name: /warehouse/ })).toBeNull();
+  });
+
+  it("offers a viewer no way to use it", async () => {
+    renderAt("/connections/shared", two(Role.VIEWER));
+    expect(await screen.findByRole("heading", { level: 1, name: "shared" })).toBeVisible();
+    await screen.findByText("No app reads it yet.");
+    expect(screen.queryByRole("button", { name: "Use in an app" })).toBeNull();
   });
 });
 

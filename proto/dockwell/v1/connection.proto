@@ -158,7 +158,8 @@ message ConnectionInfo {
   string bucket = 7;
   bool path_style = 8;
   string public_url = 9;
-  // Which projects may use it, for an admin, and those by ID.
+  // Which projects may use it, and those by ID: for an admin, as it's saved;
+  // below one, those of the caller's own projects that may, as PROJECTS.
   dockwell.resource.v1alpha1.ConnectionReach reach = 10;
   repeated string projects = 11;
   // What reads it: each link to it, in the environment it's in, with the apps that

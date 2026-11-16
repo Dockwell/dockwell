@@ -46,6 +46,31 @@ const UNSET = String(LinkPart.UNSPECIFIED);
 const PREFIX = /^([A-Za-z0-9._-]+\/)*$/;
 
 /**
+ * The apps a person may connect to storage: in an environment they may plan in, and,
+ * for a connection, in a project it reaches. Below an admin, its projects are those
+ * of the caller's own that may use it.
+ */
+export function useConnectableApps(connection?: ConnectionInfo | undefined): readonly ServiceInfo[] {
+  const may = useMay();
+  const places = usePlaces();
+  const apps = useApps();
+  return useMemo(
+    () =>
+      (apps.data ?? []).filter((s) => {
+        const env = environmentOf(s);
+        const project = places.environments.find((e) => e.id === env)?.scope ?? "";
+        return (
+          may(ConnectionService.method.connectStorage, { environment: env }).allowed &&
+          (connection === undefined ||
+            connection.reach === ConnectionReach.EVERY ||
+            connection.projects.includes(project))
+        );
+      }),
+    [connection, apps.data, places.environments, may],
+  );
+}
+
+/**
  * Connects an app to a connection's bucket, as one plan (ADR 0099, Connect
  * storage). One choice a line, defaults first: the connection, the only one or
  * the first its project may use; which of the app's names the link sets, each
@@ -71,26 +96,13 @@ export function ConnectStorageSheet({
   const client = useMemo(() => createClient(ConnectionService, transport), [transport]);
   const may = useMay();
   const places = usePlaces();
-  const apps = useApps();
 
   // The app: the one it was opened for, or one a person picks in a project the
   // connection reaches, as the server narrowed what it lists.
   const [pickedApp, setPickedApp] = useState<string>();
-  const choosable = useMemo(() => {
-    if (fixedService) return [fixedService];
-    const all = apps.data ?? [];
-    return all.filter((s) => {
-      const env = environmentOf(s);
-      const project = places.environments.find((e) => e.id === env)?.scope ?? "";
-      return (
-        may(ConnectionService.method.connectStorage, { environment: env }).allowed &&
-        (fixedConnection === undefined ||
-          fixedConnection.reach === ConnectionReach.EVERY ||
-          fixedConnection.projects.includes(project) ||
-          fixedConnection.projects.length === 0)
-      );
-    });
-  }, [fixedService, fixedConnection, apps.data, places.environments, may]);
+  const apps = useApps();
+  const connectable = useConnectableApps(fixedConnection);
+  const choosable = fixedService ? [fixedService] : connectable;
   const service = fixedService ?? choosable.find((s) => s.id === pickedApp) ?? choosable[0];
   const environment = service ? environmentOf(service) : "";
   const project = places.environments.find((e) => e.id === environment)?.scope ?? "";

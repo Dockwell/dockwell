@@ -12037,7 +12037,9 @@ components:
                         - CONNECTION_REACH_PROJECTS
                         - CONNECTION_REACH_EVERY
                     type: string
-                    description: Which projects may use it, for an admin, and those by ID.
+                    description: |-
+                        Which projects may use it, and those by ID: for an admin, as it's saved;
+                         below one, those of the caller's own projects that may, as PROJECTS.
                     format: enum
                 projects:
                     type: array

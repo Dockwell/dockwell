@@ -420,7 +420,8 @@ type ConnectionInfo struct {
 	Bucket    string `protobuf:"bytes,7,opt,name=bucket,proto3" json:"bucket,omitempty"`
 	PathStyle bool   `protobuf:"varint,8,opt,name=path_style,json=pathStyle,proto3" json:"path_style,omitempty"`
 	PublicUrl string `protobuf:"bytes,9,opt,name=public_url,json=publicUrl,proto3" json:"public_url,omitempty"`
-	// Which projects may use it, for an admin, and those by ID.
+	// Which projects may use it, and those by ID: for an admin, as it's saved;
+	// below one, those of the caller's own projects that may, as PROJECTS.
 	Reach    v1alpha1.ConnectionReach `protobuf:"varint,10,opt,name=reach,proto3,enum=dockwell.resource.v1alpha1.ConnectionReach" json:"reach,omitempty"`
 	Projects []string                 `protobuf:"bytes,11,rep,name=projects,proto3" json:"projects,omitempty"`
 	// What reads it: each link to it, in the environment it's in, with the apps that
