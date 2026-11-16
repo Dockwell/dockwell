@@ -212,10 +212,14 @@ func Official(ref registry.Ref) bool {
 	return ref.Registry == registry.Hub && strings.HasPrefix(ref.Repository, "library/")
 }
 
-// Held says why version is held, or "".
+// Held says why version is held, or "". A hold names a version whole, or its
+// first parts: 1.5 holds 1.5.0 and every 1.5.x, as a person writing it means
+// (#726's review, L6), but not 1.50.
 func (e Effective) Held(version string) string {
 	for _, h := range e.Hold {
-		if strings.EqualFold(strings.TrimPrefix(strings.TrimSpace(h.Version), "v"), version) {
+		held := strings.ToLower(strings.TrimPrefix(strings.TrimSpace(h.Version), "v"))
+		v := strings.ToLower(version)
+		if held == v || strings.HasPrefix(v, held+".") || strings.HasPrefix(v, held+"-") {
 			return h.Why
 		}
 	}

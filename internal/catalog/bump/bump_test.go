@@ -422,3 +422,14 @@ func TestAVersionsCommentStays(t *testing.T) {
 		t.Errorf("the version's line reads %q", strings.Split(string(after), "\n")[5])
 	}
 }
+
+// A hold names a version whole or by its first parts: 1.5 holds 1.5.0 and 1.5.3,
+// not 1.50.0 (#726's review, L6).
+func TestAHoldTakesAVersionOrItsFirstParts(t *testing.T) {
+	e := bump.Effective{Hold: []bump.Hold{{Version: "1.5", Why: "breaks logins"}, {Version: "v2.0.1", Why: "bad image"}}}
+	for version, held := range map[string]bool{"1.5.0": true, "1.5.3": true, "1.50.0": false, "1.4.9": false, "2.0.1": true, "2.0.10": false} {
+		if got := e.Held(version) != ""; got != held {
+			t.Errorf("Held(%s) = %v, want %v", version, got, held)
+		}
+	}
+}

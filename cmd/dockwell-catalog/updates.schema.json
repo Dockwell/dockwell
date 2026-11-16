@@ -63,7 +63,11 @@
             "additionalProperties": false,
             "required": ["version", "why"],
             "properties": {
-              "version": { "type": "string", "minLength": 1 },
+              "version": {
+                "description": "A version whole, such as 1.5.2, or its first parts: 1.5 holds 1.5.0 and every 1.5.x.",
+                "type": "string",
+                "minLength": 1
+              },
               "why": { "type": "string", "minLength": 1 }
             }
           }
