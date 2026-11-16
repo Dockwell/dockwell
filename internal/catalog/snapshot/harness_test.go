@@ -103,7 +103,9 @@ func newWorld(t *testing.T, entries map[string][]string, checks map[string]strin
 	}
 	w.env = append(w.env, "PATH="+filepath.Join(testdata, "bin")+string(os.PathListSeparator)+os.Getenv("PATH"),
 		"TMPDIR="+tmp, "FAKE_STATE="+w.state, "FAKE_CATALOG_TOOL="+tool, "FAKE_CATALOG="+w.catalog,
-		"E2E_FLOORED="+filepath.Join(dir, "floored"), "E2E_NOT_UPGRADED="+filepath.Join(dir, "not-upgraded"))
+		"E2E_FLOORED="+filepath.Join(dir, "floored"), "E2E_NOT_UPGRADED="+filepath.Join(dir, "not-upgraded"),
+		// A service on a stand-in is held to running for a second, not a minute.
+		"E2E_HOLD=1")
 	return w
 }
 
@@ -272,5 +274,87 @@ func TestACheckReachesNoLaterEntryThroughFiles(t *testing.T) {
 	}
 	if got := w.read("not-upgraded"); got != "" {
 		t.Errorf("the not-upgraded list reads %q, want none", got)
+	}
+}
+
+// needsInputs is an entry, as JSON, with inputs a person must give, an email and a
+// token no default or generator fills, and a tunnel service that reads the token
+// and, with a stand-in, never passes its health check, as cloudflared's wouldn't;
+// or, with exits, stops on it. Its app reads TUNNEL_TOKEN_TTL, a name that starts
+// with the token's, and no stand-in.
+func needsInputs(version string, exits bool) string {
+	fake := "unready"
+	if exits {
+		fake = "exits"
+	}
+	compose := "services:\n  app:\n    image: example/needs:" + version + "@sha256:" + strings.Repeat("ab", 32) +
+		"\n    ports:\n      - \"127.0.0.1:${PORT}:8080\"\n    environment:\n      ADMIN_EMAIL: ${ADMIN_EMAIL}\n      TTL: ${TUNNEL_TOKEN_TTL}\n" +
+		"  tunnel:\n    image: example/needs-tunnel:" + version + "@sha256:" + strings.Repeat("cd", 32) +
+		"\n    x-fake: " + fake + "\n    healthcheck:\n      test: [\"CMD\", \"tunnel\", \"ready\"]\n      interval: 10s\n    environment:\n      TUNNEL_TOKEN: ${TUNNEL_TOKEN}\n"
+	raw, _ := json.Marshal(map[string]any{
+		"id": "needs", "name": "Needs", "version": version, "release": 1, "web": map[string]string{"service": "app"},
+		"inputs": []map[string]string{
+			{"name": "ADMIN_EMAIL", "label": "Your email", "type": "INPUT_TYPE_EMAIL"},
+			{"name": "TUNNEL_TOKEN", "label": "Tunnel token", "type": "INPUT_TYPE_SECRET"},
+			{"name": "TUNNEL_TOKEN_TTL", "label": "Token lifetime", "type": "INPUT_TYPE_TEXT", "defaultValue": "3600"},
+			{"name": "PORT", "label": "Port", "type": "INPUT_TYPE_PORT", "defaultValue": "18095"},
+		},
+		"compose": compose,
+	})
+	return string(raw)
+}
+
+// An entry with no check of its own, whose inputs a person must give, is proven with
+// stand-ins for them: an email at .invalid, and a token of no account anywhere. The
+// tunnel that reads the token runs with no health check, which it can't pass with a
+// stand-in, and is held to running with no restart; the app beside it, which reads
+// TUNNEL_TOKEN_TTL and no stand-in, keeps its health check. The floored list says
+// what was left unproven (#745). Before, Dockwell refused the install: "Your email
+// needs a value", and then failed it on the tunnel's health check.
+func TestTheFloorGivesStandInsForWhatAPersonMustGive(t *testing.T) {
+	w := newWorld(t, map[string][]string{"needs": {needsInputs("1.0.0", false), needsInputs("1.1.0", false)}}, nil)
+	out, err := w.run("needs")
+	if err != nil {
+		t.Fatalf("the harness failed: %v\n%s", err, out)
+	}
+	for _, want := range []string{
+		"needs: has no check to give ADMIN_EMAIL, so the floor gives it a stand-in",
+		"needs: has no check to give TUNNEL_TOKEN, so the floor gives it a stand-in",
+		"needs: runs tunnel with no health check, as it reads a stand-in for TUNNEL_TOKEN",
+		"needs: upgrades from 1.0.0 to 1.1.0",
+		"catalog-e2e: ok",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("the harness never said %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "runs app, tunnel") || strings.Contains(out, "runs tunnel, app") {
+		t.Errorf("the app, which reads TUNNEL_TOKEN_TTL and no stand-in, lost its health check:\n%s", out)
+	}
+	if got, want := w.read("floored"), "needs: tunnel not held to a health check, as it reads a stand-in for TUNNEL_TOKEN, which connects to nothing it would with a real one\n"; got != want {
+		t.Errorf("the floored list reads %q, want %q", got, want)
+	}
+	for _, c := range []string{"chg_1", "chg_2"} {
+		change, err := os.ReadFile(filepath.Join(w.state, "changes", c))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if c == "chg_1" && (!strings.Contains(string(change), `"ADMIN_EMAIL":"owner@needs.invalid"`) || strings.Contains(string(change), `"TUNNEL_TOKEN":""`)) {
+			t.Errorf("the install was given %s", change)
+		}
+		// Both releases run the tunnel, and it alone, with no health check.
+		if strings.Count(string(change), `\"NONE\"`) != 1 {
+			t.Errorf("%s doesn't run the tunnel, and it alone, with no health check: %s", c, change)
+		}
+	}
+}
+
+// A service that stops on a stand-in fails the floor plainly, whatever its exit code:
+// a bad token's looks like a broken release's (#745's review, M1).
+func TestAServiceThatStopsOnAStandInFailsTheFloor(t *testing.T) {
+	w := newWorld(t, map[string][]string{"needs": {needsInputs("1.0.0", true), needsInputs("1.1.0", true)}}, nil)
+	out, err := w.run("needs")
+	if err == nil || !strings.Contains(out, "can't prove tunnel: it stops on a stand-in for a secret it reads") || !strings.Contains(out, "Give checks/needs.sh") {
+		t.Errorf("a tunnel that restarts on a stand-in: %v\n%s", err, out)
 	}
 }
