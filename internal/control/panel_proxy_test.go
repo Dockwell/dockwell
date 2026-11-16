@@ -365,6 +365,8 @@ func TestAReachCheckFindsThePanelThroughItsTunnel(t *testing.T) {
 			"without X-Forwarded-Proto https",
 		},
 		{"a tunnel that isn't connected", answering(t, 530).client(), "Cloudflare answered 530 for panel.example.com: its tunnel isn't connected"},
+		{"Cloudflare's proxy, not a tunnel", answering(t, 522).client(), "Cloudflare answered 522 for panel.example.com: its proxy connects to this server's public address, not a tunnel"},
+		{"Cloudflare's proxy with no certificate here", answering(t, 525).client(), "choose Dockwell serves it and set Cloudflare's SSL mode to Full (strict)"},
 		{"a tunnel pointing at nothing", answering(t, http.StatusBadGateway).client(), "it can't reach what it points at. Point it at http://127.0.0.1:7600"},
 		{"something else", answering(t, http.StatusNotFound).client(), "something else answered 404 for panel.example.com, not this panel"},
 		{"another Dockwell", startTunnel(t, startFull(t, store.SQLite, nil).api, nil).client(), "another Dockwell answered for panel.example.com"},

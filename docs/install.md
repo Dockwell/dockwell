@@ -196,7 +196,7 @@ Start it with `docker run --network tunnel --add-host host.docker.internal:host-
 
 ### The panel behind a tunnel
 
-The panel's own domain can come through the same tunnel, with passkeys and sign-in working there as on any HTTPS address. Under Settings, General, type the domain and choose **Behind a tunnel or proxy**, which the panel chooses for you when the domain leads to Cloudflare. Dockwell then asks for no certificate and holds neither port 80 nor 443 for the panel, which keeps answering on loopback alone. A domain already waiting for a certificate behind Cloudflare offers **Serve it behind a tunnel**.
+The panel's own domain can come through the same tunnel, with passkeys and sign-in working there as on any HTTPS address. Under Settings, General, type the domain and choose **Behind a tunnel or proxy**, which the panel chooses for you when the domain reaches it through a tunnel already. Dockwell then asks for no certificate and holds neither port 80 nor 443 for the panel, which keeps answering on loopback alone. A domain already waiting for a certificate offers **Serve it behind a tunnel**, first where the tunnel reaches the panel.
 
 In Cloudflare, add a published application with the panel's domain as its hostname and `http://127.0.0.1:7600` as its service: the panel's loopback address, not port 80. The panel checks the way in as you type, by asking the domain for a one-time token through the tunnel, and says **Reached through your tunnel**, or why not and what to change.
 

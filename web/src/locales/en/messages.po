@@ -16927,9 +16927,6 @@ msgstr "How it reaches this server"
 msgid "It leads to {0}"
 msgstr "It leads to {0}"
 
-msgid "Its tunnel or proxy ends TLS, so no certificate comes here."
-msgstr "Its tunnel or proxy ends TLS, so no certificate comes here."
-
 msgid "Not reached yet"
 msgstr "Not reached yet"
 
@@ -16966,6 +16963,9 @@ msgstr "The panel answers on {domain}"
 msgid "The panel answers there over HTTPS too. The SSH tunnel keeps working."
 msgstr "The panel answers there over HTTPS too. The SSH tunnel keeps working."
 
+msgid "The tunnel ends TLS, so no certificate comes here."
+msgstr "The tunnel ends TLS, so no certificate comes here."
+
 msgid "This server's public address isn't known: set it, and Dockwell compares the two."
 msgstr "This server's public address isn't known: set it, and Dockwell compares the two."
 
@@ -16983,8 +16983,8 @@ msgstr "{0} holds port {1} on this server, so no certificate can come until it's
 msgid "{domain} isn't served"
 msgstr "{domain} isn't served"
 
-msgid "{domain} leads to Cloudflare"
-msgstr "{domain} leads to Cloudflare"
+msgid "{domain} reaches this panel through a tunnel"
+msgstr "{domain} reaches this panel through a tunnel"
 
 msgid "{leads}. This server's public address isn't known: set it, and Dockwell compares the two."
 msgstr "{leads}. This server's public address isn't known: set it, and Dockwell compares the two."

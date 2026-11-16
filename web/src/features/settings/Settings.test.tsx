@@ -271,7 +271,10 @@ describe("Settings", () => {
     const ways = await within(panel).findByRole("radiogroup", { name: "How it reaches this server" });
     const options = within(ways).getAllByRole("radio");
     expect(options.map((o) => o.textContent)).toEqual(["Behind a tunnel or proxy", "Dockwell serves it"]);
-    expect(within(ways).getByRole("radio", { name: "Behind a tunnel or proxy" })).toBeChecked();
+    // Cloudflare alone isn't a tunnel: the check that didn't reach leaves Dockwell serving it.
+    await waitFor(() => expect(checkPanelReach).toHaveBeenCalled());
+    expect(within(ways).getByRole("radio", { name: "Dockwell serves it" })).toBeChecked();
+    await user.click(within(ways).getByRole("radio", { name: "Behind a tunnel or proxy" }));
     // No certificate comes through a tunnel, so nothing says DNS must lead here, or ports.
     expect(await within(panel).findByText("Not reached yet")).toBeVisible();
     expect(panel).not.toHaveTextContent("DNS doesn't point here yet");
@@ -316,11 +319,12 @@ describe("Settings", () => {
       settings: {
         getSettings: () => ({ settings: waiting }),
         checkPanelDomain: () => ({ addresses: ["104.16.0.10"], publicAddresses: ["192.0.2.10"], cloudflare: true }),
+        checkPanelReach: () => ({ reached: true, target: "http://127.0.0.1:7600" }),
         setPanelDomain,
       },
     });
     const panel = await screen.findByRole("region", { name: "Panel address" });
-    expect(await within(panel).findByText("panel.example.com leads to Cloudflare")).toBeVisible();
+    expect(await within(panel).findByText("panel.example.com reaches this panel through a tunnel")).toBeVisible();
     expect(panel).not.toHaveTextContent("Getting a certificate");
     await user.click(within(panel).getByRole("button", { name: "Serve it behind a tunnel" }));
     expect(within(panel).getByText("Dockwell restarts to serve panel.example.com behind your tunnel")).toBeVisible();
@@ -331,6 +335,38 @@ describe("Settings", () => {
         expect.anything(),
       ),
     );
+  });
+
+  it("leaves a domain on Cloudflare's proxy without a tunnel waiting for its certificate, the tunnel one step away", async () => {
+    const waiting = settings({
+      panel: {
+        listen: "127.0.0.1:7600",
+        domain: "panel.example.com",
+        setDomain: "panel.example.com",
+        domainFrom: PanelDomainFrom.SETTING,
+        servedBy: PanelServedBy.DOCKWELL,
+        url: "https://panel.example.com",
+        certified: false,
+      },
+    });
+    const checkPanelReach = vi.fn(() => ({
+      problem:
+        "cloudflare answered 525 for panel.example.com: its proxy connects to this server's public address, not a tunnel",
+      target: "http://127.0.0.1:7600",
+    }));
+    renderSettings("/settings/general", {
+      settings: {
+        getSettings: () => ({ settings: waiting }),
+        checkPanelDomain: () => ({ addresses: ["104.16.0.10"], publicAddresses: ["192.0.2.10"], cloudflare: true }),
+        checkPanelReach,
+      },
+    });
+    const panel = await screen.findByRole("region", { name: "Panel address" });
+    await waitFor(() => expect(checkPanelReach).toHaveBeenCalled());
+    expect(await within(panel).findByText("Getting a certificate for panel.example.com…")).toBeVisible();
+    expect(panel).not.toHaveTextContent("through a tunnel");
+    // Not the primary action, as nothing says a tunnel is there.
+    expect(within(panel).getByRole("button", { name: "Serve it behind a tunnel" })).not.toHaveClass("dw-btn-primary");
   });
 
   it("says why a domain set here isn't served, with the way to stop using it", async () => {

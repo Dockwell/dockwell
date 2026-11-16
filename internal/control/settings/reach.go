@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"slices"
 	"strings"
 	"sync"
 	"syscall"
@@ -202,6 +203,10 @@ func (h *Handler) reach(ctx context.Context, d, target string) (bool, string) {
 	case resp.StatusCode == http.StatusOK && seen.came && string(body) == ticket.answer:
 	case resp.StatusCode == 530:
 		return false, fmt.Sprintf("Cloudflare answered 530 for %s: its tunnel isn't connected. Start cloudflared on this server, or check the tunnel's public hostname", d)
+	case slices.Contains([]int{521, 522, 523, 525, 526}, resp.StatusCode):
+		// Cloudflare's proxy, not its tunnel: it connects to this server's public
+		// address, where Dockwell would have to serve the domain itself.
+		return false, fmt.Sprintf("Cloudflare answered %d for %s: its proxy connects to this server's public address, not a tunnel. Run a tunnel to %s, or choose Dockwell serves it and set Cloudflare's SSL mode to Full (strict)", resp.StatusCode, d, target)
 	case resp.StatusCode == http.StatusBadGateway || resp.StatusCode == http.StatusServiceUnavailable || resp.StatusCode == http.StatusGatewayTimeout:
 		return false, fmt.Sprintf("the tunnel or proxy answered %d for %s: it can't reach what it points at. Point it at %s", resp.StatusCode, d, target)
 	case resp.Header.Get(reachHeader) != "":

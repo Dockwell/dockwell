@@ -208,8 +208,13 @@ function DomainField({
   const address = found?.publicAddresses.find((a) => !a.includes(":")) ?? found?.publicAddresses[0] ?? "";
   // A name that leads to Cloudflare is behind its proxy or tunnel, which ends TLS before this server.
   const cloudflare = found?.cloudflare ?? false;
-  const via: Via = chosen ?? (cloudflare ? "proxy" : "dockwell");
-  const reach = useReach(found && refusal === "" && via === "proxy" ? domain : "");
+  // On Cloudflare the way in is asked too: a tunnel that reaches this panel chooses
+  // itself, and Cloudflare's proxy without one leaves Dockwell serving it.
+  const askReach =
+    found !== undefined && refusal === "" && (chosen === "proxy" || (chosen === undefined && cloudflare));
+  const reach = useReach(askReach ? domain : "");
+  const tunnelled = cloudflare && (reach.data?.reached ?? false) && !reach.isPlaceholderData;
+  const via: Via = chosen ?? (tunnelled ? "proxy" : "dockwell");
   const ways = [
     { value: "dockwell" as const, label: t`Dockwell serves it` },
     { value: "proxy" as const, label: t`Behind a tunnel or proxy` },
@@ -362,10 +367,11 @@ function Served({
   const domain = panel.setDomain;
   const behind = panel.servedBy === PanelServedBy.PROXY;
   const waiting = !panel.problem && !behind && !panel.certified;
-  const reach = useReach(behind && !panel.problem ? domain : "");
-  // A certificate that doesn't come may be one a tunnel's Cloudflare stands in front of.
+  // A certificate that doesn't come may be one a tunnel stands in front of: a domain on
+  // Cloudflare is asked through the way in, as its proxy without a tunnel needs one.
   const dns = useQuery(SettingsService.method.checkPanelDomain, waiting && mayCheck.allowed ? { domain } : skipToken);
-  const reached = reach.data?.reached ?? false;
+  const reach = useReach((behind && !panel.problem) || (waiting && dns.data?.cloudflare) ? domain : "");
+  const reached = (reach.data?.reached ?? false) && !reach.isPlaceholderData;
   const here = typeof window !== "undefined" && window.location.hostname === domain;
   const stop = owner ? (
     <Button size="sm" variant="ghost" loading={set.busy} onClick={() => void set.save("", domain)} {...maySet.off}>
@@ -390,7 +396,7 @@ function Served({
   const toTunnel = owner ? (
     <Button
       size="sm"
-      variant={dns.data?.cloudflare ? "primary" : "ghost"}
+      variant={waiting && reached ? "primary" : "ghost"}
       onClick={() => setSwitching(true)}
       {...maySet.off}
     >
@@ -448,11 +454,12 @@ function Served({
         {reached && !here ? opener : <div className="panel-domain-actions">{stop}</div>}
       </>
     );
-  } else if (!panel.certified && dns.data?.cloudflare) {
+  } else if (waiting && reached) {
+    // The check reached this panel through a tunnel, which ends TLS before it.
     body = (
       <Callout
         tone="warning"
-        title={t`${domain} leads to Cloudflare`}
+        title={t`${domain} reaches this panel through a tunnel`}
         actions={
           <>
             {toTunnel}
@@ -460,7 +467,7 @@ function Served({
           </>
         }
       >
-        <Trans>Its tunnel or proxy ends TLS, so no certificate comes here.</Trans>
+        <Trans>The tunnel ends TLS, so no certificate comes here.</Trans>
       </Callout>
     );
   } else if (!panel.certified) {

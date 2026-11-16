@@ -16927,9 +16927,6 @@ msgstr "如何到达此服务器"
 msgid "It leads to {0}"
 msgstr "它指向 {0}"
 
-msgid "Its tunnel or proxy ends TLS, so no certificate comes here."
-msgstr "它的隧道或代理会终止 TLS，因此这里不会获得证书。"
-
 msgid "Not reached yet"
 msgstr "尚未连通"
 
@@ -16966,6 +16963,9 @@ msgstr "面板已在 {domain} 上响应"
 msgid "The panel answers there over HTTPS too. The SSH tunnel keeps working."
 msgstr "面板也会通过 HTTPS 在那里响应。SSH 隧道仍可继续使用。"
 
+msgid "The tunnel ends TLS, so no certificate comes here."
+msgstr "隧道会终止 TLS，因此这里不会获得证书。"
+
 msgid "This server's public address isn't known: set it, and Dockwell compares the two."
 msgstr "尚不知道此服务器的公网地址：设置后，Dockwell 会比较两者。"
 
@@ -16983,8 +16983,8 @@ msgstr "{0} 占用了这台服务器的端口 {1}，在释放之前无法获取�
 msgid "{domain} isn't served"
 msgstr "{domain} 未在提供"
 
-msgid "{domain} leads to Cloudflare"
-msgstr "{domain} 指向 Cloudflare"
+msgid "{domain} reaches this panel through a tunnel"
+msgstr "{domain} 通过隧道到达此面板"
 
 msgid "{leads}. This server's public address isn't known: set it, and Dockwell compares the two."
 msgstr "{leads}。尚不知道此服务器的公网地址：设置后，Dockwell 会比较两者。"
