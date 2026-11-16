@@ -177,6 +177,11 @@ func testACatalogReleaseWaitsOnItsSourceAndNeverMovesDown(t *testing.T, backend 
 	if connect.CodeOf(err) != connect.CodeFailedPrecondition || reasonOf(err) != "moves_down" || !strings.Contains(err.Error(), "below the 1.3 it runs") {
 		t.Errorf("a person's upgrade down to 1.2: %v", err)
 	}
+	// Nor does it take a new build alone, which would build 1.2's entry.
+	_, err = s.UpgradeService(t.Context(), connect.NewRequest(&dockwellv1.UpgradeServiceRequest{Id: id, Rebuild: true}))
+	if connect.CodeOf(err) != connect.CodeFailedPrecondition || reasonOf(err) != "moves_down" || !strings.Contains(err.Error(), "takes no new build alone") {
+		t.Errorf("a new build alone on the withdrawn 1.3: %v", err)
+	}
 	// A new install takes the release as it is.
 	apply(t, c, installApp(t, cat, &dockwellv1.InstallCatalogEntryRequest{Id: "notes-src", Project: "notes-new"}))
 	list, err := cat.ListCatalogInstalls(t.Context(), connect.NewRequest(&dockwellv1.ListCatalogInstallsRequest{}))

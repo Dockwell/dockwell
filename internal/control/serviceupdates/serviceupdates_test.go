@@ -118,6 +118,13 @@ func TestNewBuildsOfACatalogInstall(t *testing.T) {
 	if a := u.GetAvailable()[0]; a.GetKind() != dockwellv1.UpdateKind_UPDATE_KIND_DIGEST || a.GetCatalogRelease() != 1762947277 {
 		t.Errorf("the new build = %v", a)
 	}
+	// Its catalog withdrew the version it runs: no new build, which would build
+	// the lower one's entry.
+	withdrawn := catalogUpdate(CatalogInstall{FromVersion: "1.3", Release: 5, Withdrawn: true}, now)
+	newBuilds(withdrawn, found, CatalogInstall{FromVersion: "1.3", Release: 5, Withdrawn: true})
+	if len(withdrawn.GetAvailable()) != 0 {
+		t.Errorf("an install on a withdrawn version is offered %v", withdrawn.GetAvailable())
+	}
 	still := catalogUpdate(CatalogInstall{FromVersion: "latest"}, now)
 	newBuilds(still, nil, CatalogInstall{})
 	if still.GetCheck() != dockwellv1.UpdateCheck_UPDATE_CHECK_UP_TO_DATE || len(still.GetAvailable()) != 0 {

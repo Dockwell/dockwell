@@ -450,6 +450,8 @@ type InstallUpgrade struct {
 	// Since is when the install's source moved to that release, from which an
 	// automatic update waits 3 days to take it (ADR 0080). Zero with none.
 	Since time.Time
+	// Withdrawn says its catalog moved below the version it runs (ADR 0080).
+	Withdrawn bool
 	// AppSource is the app's source repository, as its entry says, for its
 	// release notes.
 	AppSource string
@@ -471,7 +473,10 @@ func (h *Handler) InstallUpgrades(ctx context.Context) (map[string]InstallUpgrad
 			return err
 		}
 		for _, in := range installs {
-			u := InstallUpgrade{FromVersion: in.GetPin().GetVersion(), Release: in.GetPin().GetRelease(), ToVersion: in.GetUpgrade().GetVersion(), ToRelease: in.GetUpgrade().GetRelease()}
+			u := InstallUpgrade{
+				FromVersion: in.GetPin().GetVersion(), Release: in.GetPin().GetRelease(), ToVersion: in.GetUpgrade().GetVersion(), ToRelease: in.GetUpgrade().GetRelease(),
+				Withdrawn: in.GetWithdrawn() != nil,
+			}
 			if entry, known := s.entryFor(in.GetPin()); known {
 				u.AppSource = entry.GetAppSource()
 			}
@@ -610,6 +615,9 @@ func (h *Handler) upgrade(ctx context.Context, m *dockwellv1.UpgradeCatalogInsta
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s came from %s, which has no %s now, so it stays on %s. The %s in the catalog is %s's, another app: install it under another name to move to it", install.GetProject(), originOf(pin).words(), pin.GetEntry(), pin.GetVersion(), pin.GetEntry(), s.origins[pin.GetEntry()].words()), "not_in_catalog")
 	case !ok:
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s came from %s, which has no %s now, so it stays on %s", install.GetProject(), originOf(pin).words(), pin.GetEntry(), pin.GetVersion()), "not_in_catalog")
+	case catalog.MovesDown(entry, pin) && rebuildOnly:
+		// Its new builds would build the lower version's entry (the release-wait review, L1).
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s runs %s %s, which its catalog withdrew, so it takes no new build alone until the catalog has a release of %s or later", install.GetProject(), entry.GetName(), pin.GetVersion(), pin.GetVersion()), "moves_down")
 	case catalog.MovesDown(entry, pin):
 		// A catalog withdraws a bad version by pinning the one before. An install on the
 		// bad version keeps it: its data may be in a format the version before can't

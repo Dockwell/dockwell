@@ -684,7 +684,7 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 					}
 					out := make(map[string]serviceupdates.CatalogInstall, len(upgrades))
 					for project, u := range upgrades {
-						out[project] = serviceupdates.CatalogInstall{FromVersion: u.FromVersion, Release: u.Release, ToVersion: u.ToVersion, ToRelease: u.ToRelease, Notes: serviceupdates.NotesOf(u.AppSource), Since: u.Since}
+						out[project] = serviceupdates.CatalogInstall{FromVersion: u.FromVersion, Release: u.Release, ToVersion: u.ToVersion, ToRelease: u.ToRelease, Notes: serviceupdates.NotesOf(u.AppSource), Since: u.Since, Withdrawn: u.Withdrawn}
 					}
 					return out, nil
 				},
