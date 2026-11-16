@@ -29,8 +29,9 @@ const ReasonReleaseWaits = "release_waits"
 // settingReleaseSince is the setting that holds, for a source and an entry, the
 // release the source holds of it, at which of the source's revisions, and since
 // when, by "<source's ID>/<entry>" after it, and "/<entry>" for the catalog built
-// into Dockwell. A source removed and added again is another resource, with records
-// of its own (its review, M1).
+// into Dockwell. A source removed and added again keeps its ID, and its record: the
+// walk back reads the revision that removed it, which holds nothing, and so counts
+// from the revision that added it again (its review, M1, and its re-check, N4).
 const settingReleaseSince = "catalog.release."
 
 // walkBack is how many of a source's revisions a read looks back over, to find when
@@ -88,7 +89,7 @@ type asked struct {
 // entry's release in them is the one it holds now, to the record's revision or
 // walkBack of them, whichever is nearer, and the time is the first of that run's.
 // So a release the source left and came back to counts from its return, and a
-// source removed and added again from its own revisions (its review, M1). A latest
+// source removed and added again from its adding (its review, M1). A latest
 // revision that doesn't hold the release asked, as the source moved after the
 // catalog asked about was read, counts from now and records nothing (its re-check,
 // N1). The catalog built into

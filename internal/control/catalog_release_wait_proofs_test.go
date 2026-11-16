@@ -219,8 +219,9 @@ func TestASourceThatComesBackToAReleaseHoldsItFromItsReturn(t *testing.T) {
 }
 
 // A source removed and added again under the same name, repository and folder holds
-// a release from its own adding, not the removed one's time (the release-wait
-// review, M1).
+// a release from its adding, not the removed one's time: it keeps its ID and its
+// record, and the walk back stops at the revision that removed it (the release-wait
+// review, M1, and its re-check, N4).
 func TestASourceAddedAgainHoldsAReleaseFromItsOwnAdding(t *testing.T) {
 	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
