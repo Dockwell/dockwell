@@ -100,6 +100,28 @@ func TestAnUpdateKeepsTheKeysOnlyWhereTheyWent(t *testing.T) {
 	}
 }
 
+// An update with a new secret and no access key ID is refused: it never saves an
+// empty ID, which every app linked to the connection would start with.
+func TestANewSecretAloneIsRefused(t *testing.T) {
+	was := &resourcev1.ConnectionSpec{
+		Kind: resourcev1.LinkKind_LINK_KIND_S3, Reach: resourcev1.ConnectionReach_CONNECTION_REACH_EVERY,
+		S3: &resourcev1.ConnectionS3{Endpoint: "https://s3.example.com", Region: "auto", Bucket: "uploads", AccessKeyId: "AKIDOLD", SecretKey: "old", PathStyle: true},
+	}
+	to := &resourcev1.ConnectionSpec{
+		Kind: resourcev1.LinkKind_LINK_KIND_S3, Reach: resourcev1.ConnectionReach_CONNECTION_REACH_EVERY,
+		S3: &resourcev1.ConnectionS3{Endpoint: "https://s3.example.com", Region: "auto", Bucket: "uploads", SecretKey: "new", PathStyle: true},
+	}
+	if err := (Type{}).Validate(to); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := (Type{}).Keep(was, to); err == nil || !strings.Contains(err.Error(), "access key's ID") {
+		t.Errorf("an update with a new secret alone was kept, %v: %v", err, to.GetS3())
+	}
+	if to.GetS3().GetAccessKeyId() != "" {
+		t.Errorf("an update with a new secret alone took an access key ID: %v", to.GetS3())
+	}
+}
+
 // Reach is said, never implied: unset reaches no project.
 func TestReachIsSaid(t *testing.T) {
 	c := aBucket()

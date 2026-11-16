@@ -236,6 +236,37 @@ describe("Connections", () => {
     expect(within(sheet).getByRole("button", { name: "Review plan" })).toBeEnabled();
   });
 
+  // Review H1: a secret typed alone was planned beside an empty access key ID, which
+  // every app reading the connection would then start with.
+  it("asks for both keys once either is typed, and never plans a new secret without its ID", async () => {
+    const user = userEvent.setup();
+    const proposed = planned();
+    const minio = aConnection({ name: "minio", displayName: "minio", endpoint: "http://minio:9000", bucket: "wiki-files" });
+    renderAt("/connections/minio", {
+      ...fleet(),
+      resources: places(),
+      connections: {
+        listConnections: () => ({ connections: [minio] }),
+        checkConnection: () => ({ passed: false, step: "connect", code: "unreachable", server: "hz-1" }),
+      },
+      changes: { proposeChange: proposed, watchChange: feed<WatchChangeResponse>().stream },
+    });
+    await user.click(await screen.findByRole("button", { name: "Replace keys" }));
+    const sheet = await screen.findByRole("dialog", { name: "Connection minio" });
+    await user.type(within(sheet).getByLabelText("Secret access key"), "rotated-secret");
+    expect(await within(sheet).findByText("Type both keys")).toBeVisible();
+    expect(within(sheet).getByRole("button", { name: "Review plan" })).toBeDisabled();
+    expect(within(sheet).getByRole("textbox", { name: "Access key ID" })).not.toHaveAttribute("placeholder");
+
+    await user.type(within(sheet).getByRole("textbox", { name: "Access key ID" }), "minio");
+    expect(await within(sheet).findByText("Can't reach it", {}, { timeout: 3000 })).toBeVisible();
+    await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
+    await waitFor(() => expect(proposed).toHaveBeenCalled());
+    const s3 = (proposed.mock.calls[0]?.[0].edits[0]?.spec?.kind.value as { s3?: { accessKeyId: string; secretKey: string } })
+      ?.s3;
+    expect(s3).toMatchObject({ accessKeyId: "minio", secretKey: "rotated-secret" });
+  });
+
   it("shows one connection: what reads it as what, where it is, and what a check found", async () => {
     const user = userEvent.setup();
     const { container } = renderAt("/connections/outline-uploads", {

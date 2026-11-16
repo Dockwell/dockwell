@@ -128,7 +128,10 @@ export function ConnectionSheet({
       signRegion !== editing.region ||
       bucket !== editing.bucket ||
       (editing.pathStyle && !pathStyle));
-  const keysNeeded = !editing || moved || keyId !== "";
+  // A key is its ID and its secret together: typing either asks for both, or a new
+  // secret would be saved beside no ID, and every app reading it would start with none.
+  const keysNeeded = !editing || moved || keyId !== "" || secret !== "";
+  const keysKept = editing !== undefined && !moved && keyId === "" && secret === "";
   const complete = endpoint !== "" && bucketOk && (keysNeeded ? typedKeys : true);
   const reaching = reach === ConnectionReach.EVERY || picked.length > 0;
   const passed = answer?.passed === true;
@@ -322,7 +325,7 @@ export function ConnectionSheet({
             autoComplete="off"
             spellCheck={false}
             value={keyId}
-            placeholder={editing && !moved ? t`Kept unless you type one` : undefined}
+            placeholder={keysKept ? t`Kept unless you type one` : undefined}
             onChange={(event) => setKeyId(event.target.value.trim())}
           />
           <TextField
@@ -331,13 +334,15 @@ export function ConnectionSheet({
             type="password"
             autoComplete="off"
             value={secret}
-            placeholder={editing && !moved ? t`Kept unless you type one` : undefined}
+            placeholder={keysKept ? t`Kept unless you type one` : undefined}
             onChange={(event) => setSecret(event.target.value.trim())}
           />
         </div>
         <div className="connection-sheet-check" aria-live="polite">
           {editing && moved && !typedKeys ? (
             <StatusBadge status="unknown" label={t`Moved: type its keys again`} labelIsState />
+          ) : editing && keysNeeded && !typedKeys ? (
+            <StatusBadge status="unknown" label={t`Type both keys`} labelIsState />
           ) : checking ? (
             <StatusBadge status="deploying" label={t`Checking`} labelIsState />
           ) : check ? (

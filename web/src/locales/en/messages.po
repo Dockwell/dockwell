@@ -11405,6 +11405,9 @@ msgstr "Store"
 msgid "Their apps alone may use it."
 msgstr "Their apps alone may use it."
 
+msgid "Type both keys"
+msgstr "Type both keys"
+
 msgid "What an app's link names it by, and the CLI."
 msgstr "What an app's link names it by, and the CLI."
 

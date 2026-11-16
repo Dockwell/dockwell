@@ -11405,6 +11405,9 @@ msgstr "存储服务"
 msgid "Their apps alone may use it."
 msgstr "只有这些项目的应用可以使用它。"
 
+msgid "Type both keys"
+msgstr "请输入两个密钥"
+
 msgid "What an app's link names it by, and the CLI."
 msgstr "应用的链接和 CLI 用来引用它的名称。"
 

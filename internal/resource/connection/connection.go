@@ -157,7 +157,8 @@ func (Type) CheckNew(spec proto.Message) error {
 // where they go stays: the same endpoint, region and bucket, and the bucket still in
 // the path where it was, as a key is never sent somewhere it wasn't saved to go.
 // Turning path style off sends it to the bucket's own host, a name under the
-// endpoint's that on a shared domain may be someone else's.
+// endpoint's that on a shared domain may be someone else's. A new secret comes with
+// its key's ID, as a new ID comes with its secret.
 func (Type) Keep(current, desired proto.Message) (resource.Kept, error) {
 	was, ok := current.(*resourcev1.ConnectionSpec)
 	is, same := desired.(*resourcev1.ConnectionSpec)
@@ -165,7 +166,15 @@ func (Type) Keep(current, desired proto.Message) (resource.Kept, error) {
 		return resource.Kept{}, nil
 	}
 	from, to := was.GetS3(), is.GetS3()
-	if from == nil || to == nil || to.GetSecretKey() != "" {
+	if from == nil || to == nil {
+		return resource.Kept{}, nil
+	}
+	if to.GetSecretKey() != "" {
+		// A key is its ID and its secret together: a new secret alone would be
+		// saved beside no ID, and every app linked to it would start with an empty one.
+		if to.GetAccessKeyId() == "" {
+			return resource.Kept{}, errors.New("a new secret key needs its access key's ID too. Give both, even when the ID stays the same")
+		}
 		return resource.Kept{}, nil
 	}
 	switch {
