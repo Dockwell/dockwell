@@ -154,13 +154,19 @@ export function ConnectionSheet({
       return;
     }
     setChecking(true);
+    // A check still running when what's checked changes, or the sheet closes, stops:
+    // its container on the server goes with it.
+    const stop = new AbortController();
     const timer = setTimeout(async () => {
       try {
-        const said = await client.checkConnection({
-          name: editing?.name ?? "",
-          s3: { endpoint, region: signRegion, bucket, accessKeyId: keyId, secretKey: secret, pathStyle },
-          server: from,
-        });
+        const said = await client.checkConnection(
+          {
+            name: editing?.name ?? "",
+            s3: { endpoint, region: signRegion, bucket, accessKeyId: keyId, secretKey: secret, pathStyle },
+            server: from,
+          },
+          { signal: stop.signal },
+        );
         if (mine === asked.current) setAnswer(said);
       } catch (err) {
         if (mine === asked.current) setFailure(sentence(err));
@@ -168,7 +174,10 @@ export function ConnectionSheet({
         if (mine === asked.current) setChecking(false);
       }
     }, CHECK_AFTER_MS);
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      stop.abort();
+    };
   }, [what, complete, mayCheck, keysNeeded]);
 
   const spec = () => ({

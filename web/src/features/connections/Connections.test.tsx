@@ -271,6 +271,34 @@ describe("Connections", () => {
     expect(checks[0]?.s3?.secretKey).toBe("");
   });
 
+  // Review L2: a check already sent ran on after its inputs changed or the sheet closed.
+  it("stops a check that's running once what it checks changes, or the sheet closes", async () => {
+    const user = userEvent.setup();
+    const signals: AbortSignal[] = [];
+    renderAt("/connections", {
+      ...fleet(),
+      resources: places(),
+      connections: {
+        checkConnection: (_req, ctx) => {
+          signals.push(ctx.signal);
+          return new Promise(() => {});
+        },
+      },
+    });
+    await user.click(await screen.findByRole("button", { name: "Another S3-compatible store" }));
+    const sheet = await screen.findByRole("dialog", { name: "Add a connection" });
+    await user.type(within(sheet).getByRole("textbox", { name: "Endpoint" }), "http://minio:9000");
+    await user.type(within(sheet).getByRole("textbox", { name: "Bucket" }), "wiki-files");
+    await user.type(within(sheet).getByRole("textbox", { name: "Access key ID" }), "minio");
+    await user.type(within(sheet).getByLabelText("Secret access key"), "minio-secret");
+    await waitFor(() => expect(signals).toHaveLength(1), { timeout: 3000 });
+    await user.type(within(sheet).getByRole("textbox", { name: "Bucket" }), "-2");
+    await waitFor(() => expect(signals[0]?.aborted).toBe(true));
+    await waitFor(() => expect(signals).toHaveLength(2), { timeout: 3000 });
+    await user.click(within(sheet).getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(signals[1]?.aborted).toBe(true));
+  });
+
   // Review M1: an address Dockwell keeps every check and app from, such as loopback or a
   // metadata service, can never work, so it isn't saved as one nothing answered.
   it("doesn't plan an address Dockwell keeps apps from, and says why", async () => {
