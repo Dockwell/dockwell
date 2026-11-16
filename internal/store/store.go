@@ -411,19 +411,34 @@ func (db *DB) writeTx(ctx context.Context, fn func(*Tx) error) error {
 func (db *DB) update(ctx context.Context, fn func(*sql.Tx) error) error {
 	tx, err := db.write.BeginTx(ctx, nil)
 	if err != nil {
-		return fmt.Errorf("can't begin a write: %w", err)
+		return stopped(ctx, fmt.Errorf("can't begin a write: %w", err))
 	}
 	defer func() { _ = tx.Rollback() }()
 	if err := db.dialect.lockWrites(ctx, tx); err != nil {
-		return fmt.Errorf("can't begin a write: %w", err)
+		return stopped(ctx, fmt.Errorf("can't begin a write: %w", err))
 	}
 	if err := fn(tx); err != nil {
-		return err
+		return stopped(ctx, err)
 	}
 	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("can't commit: %w", err)
+		return stopped(ctx, fmt.Errorf("can't commit: %w", err))
 	}
 	return nil
+}
+
+// stopped is err as the stop it is where ctx ended while the write was under way:
+// database/sql rolls the transaction back as its context ends, so what follows
+// says the transaction is done, or names the context, rather than that anything
+// failed. The write left nothing behind, so a caller that was asked to stop, as
+// dockwell run is by systemd, reads it as the stop and not a failure (#758).
+func stopped(ctx context.Context, err error) error {
+	if ctx.Err() == nil || errors.Is(err, ctx.Err()) {
+		return err
+	}
+	if errors.Is(err, sql.ErrTxDone) || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return fmt.Errorf("stopped before the write committed: %w", ctx.Err())
+	}
+	return err
 }
 
 // RevisionTx is a write transaction that may also write managed state:
