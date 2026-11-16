@@ -75,12 +75,28 @@ func startTunnel(t *testing.T, panel string, edit func(*httputil.ProxyRequest)) 
 }
 
 // answering is a TLS server for tunnelDomain that answers every request with
-// code, as Cloudflare does for a tunnel that isn't connected, or a site that
-// isn't the panel.
+// code, as a site that isn't the panel does.
 func answering(t *testing.T, code int) *fakeTunnel {
 	t.Helper()
+	return answeringWith(t, code, nil)
+}
+
+// answeringCloudflare answers as Cloudflare's edge does, with a CF-RAY, as for a
+// tunnel that isn't connected.
+func answeringCloudflare(t *testing.T, code int) *fakeTunnel {
+	t.Helper()
+	return answeringWith(t, code, http.Header{"Cf-Ray": {"8f2a1b3c4d5e6f70-AMS"}, "Server": {"cloudflare"}})
+}
+
+func answeringWith(t *testing.T, code int, headers http.Header) *fakeTunnel {
+	t.Helper()
 	cert, roots := selfSigned(t, tunnelDomain)
-	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(code) }))
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		for k, v := range headers {
+			w.Header()[k] = v
+		}
+		w.WriteHeader(code)
+	}))
 	srv.TLS = &tls.Config{Certificates: []tls.Certificate{cert}, MinVersion: tls.VersionTLS12}
 	srv.StartTLS()
 	t.Cleanup(srv.Close)
@@ -318,7 +334,8 @@ func TestAReachCheckFindsThePanelThroughItsTunnel(t *testing.T) {
 	// No domain yet: the check is for one being typed.
 	srv := startFullConfig(t, store.SQLite, nil, slog.New(slog.DiscardHandler), nil, logapi.Options{}, func(c *Config) {
 		c.PanelListen = "127.0.0.1:7600"
-		c.PanelDomain = PanelDomain{ReachClient: &to}
+		// The stand-ins listen on loopback, which the check would count as inside.
+		c.PanelDomain = PanelDomain{ReachClient: &to, ReachInside: func(netip.Addr) bool { return false }}
 	})
 	b := signedIn(t, srv)
 	c := dockwellv1connect.NewSettingsServiceClient(b, b.origin, connect.WithProtoJSON())
@@ -369,9 +386,13 @@ func TestAReachCheckFindsThePanelThroughItsTunnel(t *testing.T) {
 			"a proxy that doesn't say who's visiting", startTunnel(t, srv.api, func(r *httputil.ProxyRequest) { r.Out.Header.Del("X-Forwarded-For") }).client(),
 			"without X-Forwarded-For, so every visitor reads as one address",
 		},
-		{"a tunnel that isn't connected", answering(t, 530).client(), "Cloudflare answered 530 for panel.example.com: its tunnel isn't connected"},
-		{"Cloudflare's proxy, not a tunnel", answering(t, 522).client(), "Cloudflare answered 522 for panel.example.com: its proxy connects to this server's public address, not a tunnel"},
-		{"Cloudflare's proxy with no certificate here", answering(t, 525).client(), "choose Dockwell serves it and set Cloudflare's SSL mode to Full (strict)"},
+		{"a tunnel that isn't connected", answeringCloudflare(t, 530).client(), "Cloudflare answered 530 for panel.example.com: its tunnel isn't connected"},
+		{"Cloudflare's proxy, not a tunnel", answeringCloudflare(t, 522).client(), "Cloudflare answered 522 for panel.example.com: its proxy connects to this server's public address, not a tunnel"},
+		{"Cloudflare's proxy with no certificate here", answeringCloudflare(t, 525).client(), "choose Dockwell serves it and set Cloudflare's SSL mode to Full (strict)"},
+		{"Cloudflare's proxy that gave up waiting", answeringCloudflare(t, 524).client(), "Cloudflare answered 524 for panel.example.com: its proxy connects"},
+		{"Cloudflare's proxy with an empty answer", answeringCloudflare(t, 520).client(), "Cloudflare answered 520 for panel.example.com"},
+		// A 52x without Cloudflare's mark is whatever answered's own (N4).
+		{"a 522 that isn't Cloudflare's", answering(t, 522).client(), "something else answered 522 for panel.example.com"},
 		{"a tunnel pointing at nothing", answering(t, http.StatusBadGateway).client(), "it can't reach what it points at. Point it at http://127.0.0.1:7600"},
 		{"something else", answering(t, http.StatusNotFound).client(), "something else answered 404 for panel.example.com, not this panel"},
 		{"another Dockwell", startTunnel(t, startFull(t, store.SQLite, nil).api, nil).client(), "another Dockwell answered for panel.example.com"},
@@ -394,9 +415,9 @@ func TestAReachCheckFindsThePanelThroughItsTunnel(t *testing.T) {
 	// answers there (#734's review, L4).
 	inside := startFullConfig(t, store.SQLite, nil, slog.New(slog.DiscardHandler), nil, logapi.Options{}, func(c *Config) {
 		c.PanelListen = "127.0.0.1:7600"
-		c.PanelDomain = PanelDomain{ReachClient: answering(t, http.StatusNotFound).client(), Resolve: func(context.Context, string) ([]netip.Addr, error) {
-			return []netip.Addr{netip.MustParseAddr("10.0.0.5")}, nil
-		}}
+		// Whatever the name resolves to, the address connected to decides (N3): this
+		// stand-in, on loopback, is inside.
+		c.PanelDomain = PanelDomain{ReachClient: answering(t, http.StatusNotFound).client()}
 	})
 	ib := signedIn(t, inside)
 	got, err := dockwellv1connect.NewSettingsServiceClient(ib, ib.origin, connect.WithProtoJSON()).CheckPanelReach(t.Context(),

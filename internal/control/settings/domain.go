@@ -68,6 +68,10 @@ type Domain struct {
 	// for, and ReachClient asks the domain for them. A check needs both.
 	Reach       *Reach
 	ReachClient Doer
+	// Inside says an address a reach check connected to leads inside, where it
+	// says reached or not and nothing more. Nil takes Inside; a test whose
+	// stand-ins listen on loopback says which of them count.
+	Inside func(netip.Addr) bool
 }
 
 // WithDomain lets the handler set the panel's domain.

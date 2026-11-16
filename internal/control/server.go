@@ -510,7 +510,7 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		domain := settings.Domain{
 			Auth: cfg.Auth, Resolve: cfg.PanelDomain.Resolve, PortsHeld: cfg.PanelDomain.PortsHeld, Restart: cfg.PanelDomain.Restart, Saved: cfg.PanelDomain.Saved,
 			PublicAddresses: func() []string { return controlAddresses(cfg.Fleet) },
-			Reach:           reach, ReachClient: cfg.PanelDomain.ReachClient,
+			Reach:           reach, ReachClient: cfg.PanelDomain.ReachClient, Inside: cfg.PanelDomain.ReachInside,
 		}
 		if domain.ReachClient == nil {
 			domain.ReachClient = settings.ReachClient()
@@ -1231,6 +1231,9 @@ type PanelDomain struct {
 	// ReachClient asks a domain behind a tunnel or proxy for the token its check
 	// makes. Nil takes settings.ReachClient, guarded as what a person names is.
 	ReachClient settings.Doer
+	// ReachInside says which addresses that check reaches lead inside. Nil takes
+	// settings.Inside.
+	ReachInside func(netip.Addr) bool
 }
 
 // controlAddresses are the control server's public addresses, as it knows them

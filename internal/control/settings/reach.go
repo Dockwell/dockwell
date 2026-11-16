@@ -11,6 +11,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/http/httptrace"
 	"net/netip"
 	"slices"
 	"strings"
@@ -197,12 +198,34 @@ func (h *Handler) reach(ctx context.Context, d, target string) (bool, string) {
 	}
 	// A name that leads inside, to a private network or this server, is answered
 	// reached or not and nothing more: what answers there, and how, isn't the
-	// check's to tell an admin, who could name any address that way.
-	inside := h.leadsInside(ask, d)
+	// check's to tell an admin, who could name any address that way. It's told by
+	// each address the client connects to, as it connects, so a name that answers
+	// one address and then another can't slip between a lookup and the dial.
+	isInside := h.domain.Inside
+	if isInside == nil {
+		isInside = Inside
+	}
+	var mu sync.Mutex
+	inside := false
+	r = r.WithContext(httptrace.WithClientTrace(ask, &httptrace.ClientTrace{
+		ConnectStart: func(_, addr string) {
+			ap, err := netip.ParseAddrPort(addr)
+			if err == nil && isInside(ap.Addr()) {
+				mu.Lock()
+				inside = true
+				mu.Unlock()
+			}
+		},
+	}))
+	wentInside := func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return inside
+	}
 	unreached := fmt.Sprintf("Dockwell couldn't reach this panel through %s. Point the tunnel or proxy at %s", d, target)
 	resp, err := h.domain.ReachClient.Do(r)
 	if err != nil {
-		if inside {
+		if wentInside() {
 			return false, unreached
 		}
 		return false, reachErrorWords(d, err)
@@ -210,13 +233,16 @@ func (h *Handler) reach(ctx context.Context, d, target string) (bool, string) {
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<10))
 	seen := h.domain.Reach.seen(ticket)
+	// Cloudflare marks what its edge answers with CF-RAY; a 52x from elsewhere is
+	// the origin's own.
+	cloudflare := resp.Header.Get("Cf-Ray") != "" || strings.EqualFold(resp.Header.Get("Server"), "cloudflare")
 	switch {
 	case resp.StatusCode == http.StatusOK && seen.came && string(body) == ticket.answer:
-	case inside:
+	case wentInside():
 		return false, unreached
-	case resp.StatusCode == 530:
+	case resp.StatusCode == 530 && cloudflare:
 		return false, fmt.Sprintf("Cloudflare answered 530 for %s: its tunnel isn't connected. Start cloudflared on this server, or check the tunnel's public hostname", d)
-	case slices.Contains([]int{521, 522, 523, 525, 526}, resp.StatusCode):
+	case cloudflare && slices.Contains([]int{520, 521, 522, 523, 524, 525, 526}, resp.StatusCode):
 		// Cloudflare's proxy, not its tunnel: it connects to this server's public
 		// address, where Dockwell would have to serve the domain itself.
 		return false, fmt.Sprintf("Cloudflare answered %d for %s: its proxy connects to this server's public address, not a tunnel. Run a tunnel to %s, or choose Dockwell serves it and set Cloudflare's SSL mode to Full (strict)", resp.StatusCode, d, target)
@@ -246,22 +272,14 @@ func (h *Handler) reach(ctx context.Context, d, target string) (bool, string) {
 	return true, ""
 }
 
-// leadsInside reports a domain that resolves to a private, loopback or link-local
-// address, or one of carrier-grade NAT's.
-func (h *Handler) leadsInside(ctx context.Context, d string) bool {
-	if h.domain.Resolve == nil {
-		return false
-	}
-	addrs, err := h.domain.Resolve(ctx, d)
-	if err != nil {
-		return false
-	}
-	cgnat := netip.MustParsePrefix("100.64.0.0/10")
-	return slices.ContainsFunc(addrs, func(a netip.Addr) bool {
-		a = a.Unmap()
-		return a.IsPrivate() || a.IsLoopback() || a.IsLinkLocalUnicast() || a.IsUnspecified() || cgnat.Contains(a)
-	})
+// Inside reports a private, loopback or link-local address, or one of
+// carrier-grade NAT's: where a reach check says reached or not, and nothing more.
+func Inside(a netip.Addr) bool {
+	a = a.Unmap()
+	return a.IsPrivate() || a.IsLoopback() || a.IsLinkLocalUnicast() || a.IsUnspecified() || cgnat.Contains(a)
 }
+
+var cgnat = netip.MustParsePrefix("100.64.0.0/10")
 
 // firstOf is the first of a header's comma-separated values.
 func firstOf(v string) string {

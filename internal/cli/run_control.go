@@ -469,7 +469,7 @@ func runControl(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logg
 			From: domainFrom, Problem: domainProblem, Certified: certified,
 			Resolve: resolverFor(stdio.Getenv), PortsHeld: portsHeld(stdio.Getenv), Restart: restart,
 			Saved:       func(d string) { saved.Store(d) },
-			BehindProxy: behindProxyDomain(f), ReachClient: reachClient(stdio.Getenv),
+			BehindProxy: behindProxyDomain(f), ReachClient: reachClient(stdio.Getenv), ReachInside: reachInside(stdio.Getenv),
 		},
 		AgentListen:    ls.Agents.Addr().String(),
 		PublicAddress:  addr.dnsAddress(),

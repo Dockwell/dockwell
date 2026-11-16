@@ -78,6 +78,15 @@ func reachClient(getenv func(string) string) settings.Doer {
 	return &http.Client{Transport: tr, Timeout: 15 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 }
 
+// reachInside is which addresses a check of the way in counts as inside: nil, for
+// settings.Inside, except in a test, whose stand-in tunnel is on loopback.
+func reachInside(getenv func(string) string) func(netip.Addr) bool {
+	if !isSet(getenv(envTest)) {
+		return nil
+	}
+	return func(netip.Addr) bool { return false }
+}
+
 // errRestart is a control plane that stopped to start again, as a person asked
 // when they saved the panel's domain (ADR 0063).
 var errRestart = errors.New("the control plane restarts to serve the panel's domain")
