@@ -25,8 +25,12 @@ func TestPanelEvidence(t *testing.T) {
 	closed.Probes = []PanelProbe{{Path: "/", Answer: "401"}}
 	// Where it redirects, the proxy is expected to answer with that redirect: one
 	// that redirects elsewhere since reads otherwise (ADR 0070).
-	redirects, elsewhere := blog, blog
+	redirects, elsewhere, forAWhile := blog, blog, blog
 	redirects.RedirectsTo, elsewhere.RedirectsTo = "https://example.com", "https://example.org"
+	forAWhile.RedirectsTo, forAWhile.RedirectTemporary = "https://example.com", true
+	if PanelEvidence([]PanelCheck{redirects}, []string{"blog.example.com"}) == PanelEvidence([]PanelCheck{forAWhile}, []string{"blog.example.com"}) {
+		t.Error("a redirect for a while digests as one for good")
+	}
 	if PanelEvidence([]PanelCheck{redirects}, []string{"blog.example.com"}) == PanelEvidence([]PanelCheck{elsewhere}, []string{"blog.example.com"}) {
 		t.Error("a redirect elsewhere digests as the one before")
 	}

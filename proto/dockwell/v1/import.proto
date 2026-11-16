@@ -238,6 +238,9 @@ message PanelDomainCheck {
   // redirect: the proxy is expected to answer with that redirect, and anything
   // else holds it back (ADR 0070).
   string redirects_to = 8;
+  // Whether that redirect is for a while (302) rather than for good (301): the
+  // proxy is expected to answer with the same kind (ADR 0070).
+  bool redirect_temporary = 9;
 }
 
 // PanelProbe is a request through the panel's proxy, over HTTPS with the

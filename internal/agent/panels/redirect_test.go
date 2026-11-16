@@ -238,25 +238,36 @@ func TestDokploysWWWRedirectComesAsARedirect(t *testing.T) {
 // path kept; a page, or a redirect anywhere else, holds it back.
 func TestTheProbeOfARedirect(t *testing.T) {
 	for name, c := range map[string]struct {
-		answer http.HandlerFunc
-		open   bool
-		says   string
+		answer    http.HandlerFunc
+		open      bool
+		says      string
+		permanent bool
 	}{
+		// Read as for good, a 302 isn't what its route will answer (slice 4's review, L3).
+		"for a while, where it's for good": {func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, "https://shop.example.com"+r.URL.Path, http.StatusFound)
+		}, false, "where its redirect would send it there for good (301)", true},
+		"for good": {func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, "https://shop.example.com"+r.URL.Path, http.StatusPermanentRedirect)
+		}, true, "308 to shop.example.com, as its redirect does", true},
+		"with a query": {func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, "https://shop.example.com"+r.URL.Path+"?from=www", http.StatusFound)
+		}, false, "where its redirect would send it to shop.example.com/admin", false},
 		"its redirect": {func(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, "https://shop.example.com"+r.URL.Path, http.StatusFound)
-		}, true, "302 to shop.example.com, as its redirect does"},
-		"a page": {func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) }, false, "200, where its redirect would send it to shop.example.com"},
+		}, true, "302 to shop.example.com, as its redirect does", false},
+		"a page": {func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) }, false, "200, where its redirect would send it to shop.example.com", false},
 		"a sign-in": {func(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, "https://shop.example.com/login?rd=/", http.StatusFound)
-		}, false, "where its redirect would send it to shop.example.com/admin"},
+		}, false, "where its redirect would send it to shop.example.com/admin", false},
 		"plain HTTP": {func(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, "http://shop.example.com"+r.URL.Path, http.StatusMovedPermanently)
-		}, false, "301 to http://shop.example.com/admin"},
+		}, false, "301 to http://shop.example.com/admin", false},
 	} {
 		t.Run(name, func(t *testing.T) {
 			srv := httptest.NewTLSServer(c.answer)
 			defer srv.Close()
-			got := (Reader{ProbeAddr: srv.Listener.Addr().String()}).probe(t.Context(), "www.shop.example.com", "/admin", "https://shop.example.com")
+			got := (Reader{ProbeAddr: srv.Listener.Addr().String()}).probe(t.Context(), probeAsk{domain: "www.shop.example.com", path: "/admin", to: "https://shop.example.com", temporary: !c.permanent})
 			if got.Open != c.open || !strings.Contains(got.Answer, c.says) {
 				t.Errorf("answers %q, open %v; want %q, open %v", got.Answer, got.Open, c.says, c.open)
 			}

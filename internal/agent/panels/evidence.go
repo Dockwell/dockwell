@@ -479,7 +479,7 @@ func (r Reader) checks(ctx context.Context, kind dockwellv1.PanelKind, p *dockwe
 	summary := fmt.Sprintf("labels on %d containers and %d services, and %d files in the proxy's mounts", sc.containers, sc.services, sc.files)
 	// served are the paths of a domain a route of their own serves, which the
 	// domain's redirect doesn't answer, by domain and path.
-	routed, redirects, served := map[string]string{}, map[string]string{}, map[string]bool{}
+	routed, redirects, served, temporary := map[string]string{}, map[string]string{}, map[string]bool{}, map[string]bool{}
 	var domains []string
 	for _, a := range p.GetApps() {
 		for _, d := range a.GetDomains() {
@@ -493,7 +493,7 @@ func (r Reader) checks(ctx context.Context, kind dockwellv1.PanelKind, p *dockwe
 				continue
 			}
 			if to := rt.GetRedirect().GetTo(); to != "" && rt.GetPath() == "" {
-				redirects[d] = to
+				redirects[d], temporary[d] = to, rt.GetRedirect().GetTemporary()
 			}
 			if rt.GetRedirect() == nil && rt.GetPath() != "" {
 				served[d+rt.GetPath()] = true
@@ -511,7 +511,7 @@ func (r Reader) checks(ctx context.Context, kind dockwellv1.PanelKind, p *dockwe
 	out := make([]resource.PanelCheck, 0, len(domains))
 	var asks []probeAsk
 	for _, d := range domains {
-		c := resource.PanelCheck{Domain: d, Scanned: summary, RedirectsTo: redirects[d]}
+		c := resource.PanelCheck{Domain: d, Scanned: summary, RedirectsTo: redirects[d], RedirectTemporary: temporary[d]}
 		// A rule passes only where it's of the very router a route of the domain
 		// was built from: any other, the app's own included, says something no
 		// route says, such as a path behind a login.
@@ -557,7 +557,7 @@ func (r Reader) checks(ctx context.Context, kind dockwellv1.PanelKind, p *dockwe
 					// Its own route serves it: a page, not the redirect.
 					to = ""
 				}
-				asks = append(asks, probeAsk{check: len(out), domain: d, path: pa, to: to})
+				asks = append(asks, probeAsk{check: len(out), domain: d, path: pa, to: to, temporary: temporary[d]})
 			}
 		}
 		out = append(out, c)

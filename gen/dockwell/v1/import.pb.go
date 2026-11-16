@@ -497,9 +497,12 @@ type PanelDomainCheck struct {
 	// Where its route redirects, such as "https://example.com", where it comes as a
 	// redirect: the proxy is expected to answer with that redirect, and anything
 	// else holds it back (ADR 0070).
-	RedirectsTo   string `protobuf:"bytes,8,opt,name=redirects_to,json=redirectsTo,proto3" json:"redirects_to,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	RedirectsTo string `protobuf:"bytes,8,opt,name=redirects_to,json=redirectsTo,proto3" json:"redirects_to,omitempty"`
+	// Whether that redirect is for a while (302) rather than for good (301): the
+	// proxy is expected to answer with the same kind (ADR 0070).
+	RedirectTemporary bool `protobuf:"varint,9,opt,name=redirect_temporary,json=redirectTemporary,proto3" json:"redirect_temporary,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *PanelDomainCheck) Reset() {
@@ -586,6 +589,13 @@ func (x *PanelDomainCheck) GetRedirectsTo() string {
 		return x.RedirectsTo
 	}
 	return ""
+}
+
+func (x *PanelDomainCheck) GetRedirectTemporary() bool {
+	if x != nil {
+		return x.RedirectTemporary
+	}
+	return false
 }
 
 // PanelProbe is a request through the panel's proxy, over HTTPS with the
@@ -3321,7 +3331,7 @@ const file_dockwell_v1_import_proto_rawDesc = "" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12,\n" +
 	"\x05panel\x18\x02 \x01(\x0e2\x16.dockwell.v1.PanelKindR\x05panel\"T\n" +
 	"\x19CheckPanelDomainsResponse\x127\n" +
-	"\adomains\x18\x01 \x03(\v2\x1d.dockwell.v1.PanelDomainCheckR\adomains\"\xff\x01\n" +
+	"\adomains\x18\x01 \x03(\v2\x1d.dockwell.v1.PanelDomainCheckR\adomains\"\xae\x02\n" +
 	"\x10PanelDomainCheck\x12\x16\n" +
 	"\x06domain\x18\x01 \x01(\tR\x06domain\x12\x1a\n" +
 	"\bmentions\x18\x02 \x03(\tR\bmentions\x12/\n" +
@@ -3331,7 +3341,8 @@ const file_dockwell_v1_import_proto_rawDesc = "" +
 	"\x06unsure\x18\x06 \x01(\tR\x06unsure\x12\x1d\n" +
 	"\n" +
 	"asked_from\x18\a \x01(\tR\taskedFrom\x12!\n" +
-	"\fredirects_to\x18\b \x01(\tR\vredirectsTo\"L\n" +
+	"\fredirects_to\x18\b \x01(\tR\vredirectsTo\x12-\n" +
+	"\x12redirect_temporary\x18\t \x01(\bR\x11redirectTemporary\"L\n" +
 	"\n" +
 	"PanelProbe\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x12\x16\n" +

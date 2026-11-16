@@ -111,6 +111,8 @@ type probeAsk struct {
 	domain string
 	path   string
 	to     string
+	// temporary says that redirect is for a while (302), not for good (301).
+	temporary bool
 }
 
 // loginPath is a path a redirect to a sign-in goes to: login, sign-in, auth, SSO,
@@ -147,7 +149,7 @@ func (r Reader) probeAll(ctx context.Context, asks []probeAsk) []resource.PanelP
 		go func() {
 			defer wg.Done()
 			for i := range next {
-				out[i] = r.probe(ctx, asks[i].domain, asks[i].path, asks[i].to)
+				out[i] = r.probe(ctx, asks[i])
 			}
 		}()
 	}
@@ -163,7 +165,8 @@ func (r Reader) probeAll(ctx context.Context, asks []probeAsk) []resource.PanelP
 // comes as a redirect to to is open only where the proxy answers with that
 // redirect, the path kept: anything else, a page included, isn't what its route
 // will answer, so a guard could be behind it.
-func (r Reader) probe(ctx context.Context, domain, p, to string) resource.PanelProbe {
+func (r Reader) probe(ctx context.Context, ask probeAsk) resource.PanelProbe {
+	domain, p, to := ask.domain, ask.path, ask.to
 	out := resource.PanelProbe{Path: p}
 	addr := cmp.Or(r.ProbeAddr, net.JoinHostPort(probeHost(), proxyPort))
 	dialer := &net.Dialer{Timeout: probeWait}
@@ -206,7 +209,7 @@ func (r Reader) probe(ctx context.Context, domain, p, to string) resource.PanelP
 	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 64<<10))
 	code := strconv.Itoa(resp.StatusCode)
 	if to != "" {
-		out.Answer, out.Open = redirectAnswer(resp, code, p, to)
+		out.Answer, out.Open = redirectAnswer(resp, code, p, to, ask.temporary)
 		return out
 	}
 	switch {
@@ -237,7 +240,7 @@ func (r Reader) probe(ctx context.Context, domain, p, to string) resource.PanelP
 
 // redirectAnswer says how a domain that comes as a redirect to to answered a
 // request for p, and whether that's the redirect its route will answer with.
-func redirectAnswer(resp *http.Response, code, p, to string) (string, bool) {
+func redirectAnswer(resp *http.Response, code, p, to string, temporary bool) (string, bool) {
 	want, err := url.Parse(to)
 	if err != nil {
 		return code + ", and Dockwell can't read where its redirect goes", false
@@ -249,8 +252,17 @@ func redirectAnswer(resp *http.Response, code, p, to string) (string, bool) {
 	switch {
 	case err != nil:
 		return code + " to nowhere Dockwell can read", false
-	case loc.Scheme != "https" || !strings.EqualFold(loc.Host, want.Host) || loc.EscapedPath() != (&url.URL{Path: p}).EscapedPath():
+	case loc.Scheme != "https" || !strings.EqualFold(loc.Host, want.Host) || loc.EscapedPath() != (&url.URL{Path: p}).EscapedPath() || loc.RawQuery != "":
 		return fmt.Sprintf("%s to %s, where its redirect would send it to %s%s", code, loc.Redacted(), want.Host, p), false
+	case temporary != (resp.StatusCode == http.StatusFound || resp.StatusCode == http.StatusTemporaryRedirect):
+		// The route answers as it was read, for a while or for good, as the proxy must now.
+		kind := "for good (301)"
+		if temporary {
+			kind = "for a while (302)"
+		}
+		return fmt.Sprintf("%s to %s, where its redirect would send it there %s", code, want.Host, kind), false
+	case resp.StatusCode != http.StatusMovedPermanently && resp.StatusCode != http.StatusPermanentRedirect && !temporary:
+		return fmt.Sprintf("%s to %s, which is neither 301 nor 308", code, want.Host), false
 	}
 	return fmt.Sprintf("%s to %s, as its redirect does", code, want.Host), true
 }

@@ -20382,6 +20382,11 @@ components:
                         Where its route redirects, such as "https://example.com", where it comes as a
                          redirect: the proxy is expected to answer with that redirect, and anything
                          else holds it back (ADR 0070).
+                redirectTemporary:
+                    type: boolean
+                    description: |-
+                        Whether that redirect is for a while (302) rather than for good (301): the
+                         proxy is expected to answer with the same kind (ADR 0070).
             description: |-
                 PanelDomainCheck is what Dockwell checked of a domain a panel's proxy serves,
                  before a handover.
