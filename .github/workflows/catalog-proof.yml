@@ -30,6 +30,10 @@ on:
         description: Fail an entry that proves no upgrade, unless its check says why, as Dockwell's CI does for its snapshot.
         type: boolean
         default: false
+      floor:
+        description: Prove an entry with no check of its own with the floor. Dockwell's CI says no, so an entry without one fails rather than passing on the floor.
+        type: boolean
+        default: true
     outputs:
       floored:
         description: The entries proven with the floor alone, as they have no checks/<id>.sh, which don't merge by themselves.
@@ -105,6 +109,7 @@ jobs:
           AT: ${{ steps.catalog.outputs.ref }}
           BASE: ${{ inputs.base-ref }}
           REQUIRE: ${{ inputs.require-upgrade }}
+          FLOOR: ${{ inputs.floor }}
         run: |
           floored=$(mktemp)
           read -r -a ids <<< "$ENTRIES"
@@ -112,6 +117,7 @@ jobs:
           flags=(--catalog catalog --at "$AT")
           [[ -z "$BASE" ]] || flags+=(--base "$BASE")
           [[ "$REQUIRE" != true ]] || flags+=(--require-upgrade)
+          [[ "$FLOOR" == true ]] || flags+=(--no-floor)
           E2E_FLOORED="$floored" dockwell/scripts/catalog-e2e.sh dockwell/bin/dockwell "${flags[@]}" "${ids[@]}"
           echo "floored=$(tr '\n' ' ' < "$floored" | sed 's/ $//')" >> "$GITHUB_OUTPUT"
 

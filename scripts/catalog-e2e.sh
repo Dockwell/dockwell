@@ -30,7 +30,7 @@ set -euo pipefail
 # Anything this starts asks nothing beyond this machine (DOCKWELL_TEST, ADR 0034).
 export DOCKWELL_TEST=1
 
-usage="usage: scripts/catalog-e2e.sh path/to/dockwell --catalog <checkout> [--at <commit>] [--base <commit>] [--require-upgrade] ENTRY..."
+usage="usage: scripts/catalog-e2e.sh path/to/dockwell --catalog <checkout> [--at <commit>] [--base <commit>] [--require-upgrade] [--no-floor] ENTRY..."
 for tool in docker curl git go jq openssl; do
   command -v "$tool" >/dev/null || {
     echo "catalog-e2e: $tool isn't installed, and the script needs it. Install it, such as with apt-get install $tool, then run it again" >&2
@@ -39,18 +39,25 @@ for tool in docker curl git go jq openssl; do
 done
 bin=$(realpath "${1:?$usage}")
 shift
-catalog="" at=HEAD base="" require_upgrade=0
+catalog="" at=HEAD base="" require_upgrade=0 no_floor=0
 while (($# > 0)); do
   case "$1" in
   --catalog) catalog=$(realpath "${2:?$usage}") && shift 2 ;;
   --at) at=${2:?$usage} && shift 2 ;;
   --base) base=${2:?$usage} && shift 2 ;;
   --require-upgrade) require_upgrade=1 && shift ;;
+  --no-floor) no_floor=1 && shift ;;
   *) break ;;
   esac
 done
 [[ -n "$catalog" && -d "$catalog/entries" ]] || {
   echo "$usage: --catalog names a git checkout of the catalog, with its history" >&2
+  exit 1
+}
+# A catalog with no checks at all is one before ADR 0100's slice 2, which would prove
+# every entry with the floor alone.
+[[ -d "$catalog/checks" ]] || {
+  echo "catalog-e2e: $catalog has no checks/, which says what answering means for each app. Prove a commit of the catalog that has it" >&2
   exit 1
 }
 (($# > 0)) || {
@@ -543,6 +550,8 @@ for id in "$@"; do
     source "$catalog/checks/$id.sh"
     declare -F "check_$id" >/dev/null || fail "checks/$id.sh defines no check_$id"
     check="check_$id"
+  elif ((no_floor)); then
+    fail "the catalog has no checks/$id.sh, and this run proves no entry with the floor alone. Write one"
   else
     step "$id: has no checks/$id.sh, so it gets the floor alone"
     check=floor

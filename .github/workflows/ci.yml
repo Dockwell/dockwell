@@ -401,6 +401,8 @@ jobs:
       entries: ${{ matrix.apps }}
       # Each upgrades from its release before, as before slice 2 (ADR 0100).
       require-upgrade: true
+      # Every entry here has its own check, so none passes on the floor alone.
+      floor: false
 
   # One check of a fixed name for every group above, which a branch rule can require:
   # a matrix's own checks are named by their groups, which change as the catalog grows.
