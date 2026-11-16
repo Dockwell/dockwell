@@ -96,7 +96,22 @@ func TestOlder(t *testing.T) {
 		{"0.13.1-patch.1", "0.13.0", true},
 		{"latest", "1.0", false},
 		{"2.0", "latest", false},
-		{"2.0.0", "2.0.0-rc1", false},
+		// A pre-release is below its release, and an earlier one below a later.
+		{"2.0.0", "2.0.0-rc1", true},
+		{"2.0.0-rc1", "2.0.0", false},
+		{"2.0.0-rc2", "2.0.0-rc1", true},
+		{"2.0.0-rc1", "2.0.0-beta3", true},
+		{"2.0.0-beta3", "2.0.0-rc1", false},
+		// A build numbered by a word, as linuxserver.io's images are.
+		{"1.2.3-ls45", "1.2.3-ls44", true},
+		{"1.2.3-ls44", "1.2.3-ls45", false},
+		{"1.27-alpine", "1.26-alpine", true},
+		{"8.4", "8.0-apache", true},
+		{"1.10", "1.9", true},
+		// Another numbering, dates to semver or back, moves on.
+		{"2024.10.1", "3.0.0", false},
+		{"3.0.0", "2024.10.1", false},
+		{"2024.10", "2024.9.30", true},
 	} {
 		if got := Older(c.from, c.to); got != c.want {
 			t.Errorf("Older(%q, %q) = %v, want %v", c.from, c.to, got, c.want)

@@ -97,7 +97,7 @@ As built (#559): an app's row has a box where its update counts (ADR 0079), no c
   - An install still on the earlier version takes that release as it would any other.
   - An install already on the bad version keeps it, as its data may be in a format the version before can't read. Its page offers no upgrade, and an automatic update never takes it. A person's upgrade is refused with why (`moves_down`), until the catalog has a release of the version it runs or later.
   - A new install takes the release as it is.
-  - Lower is read from the versions' numbers. A version with none, such as `latest`, is never lower.
+  - Lower is read from the versions' numbers. With the same numbers, a pre-release is below its release and below a later pre-release, and a build numbered by a word, such as `-ls44`, below a later one of the same word. A version with no numbers, such as `latest`, is never lower, nor is one of another numbering: an app that moves from calendar versions, such as `2024.10.1`, to `3.0.0` moves on, as a major step.
 
 ### Robust
 
