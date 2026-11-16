@@ -116,7 +116,7 @@ func (h *Handler) ListCatalogEntries(ctx context.Context, req *connect.Request[d
 // an app that brings a database of its own, or an entry whose file can't be read
 // makes none.
 func engineOf(ctx context.Context, e *catalogv1.Entry) catalogv1.Engine {
-	parts, err := partsOf(ctx, catalog.Standing(e), catalog.Suggest(e, nil))
+	parts, err := partsOf(ctx, catalog.Standing(e), catalog.Suggest(e, nil, nil))
 	if err != nil {
 		return catalogv1.Engine_ENGINE_UNSPECIFIED
 	}
