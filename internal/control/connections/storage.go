@@ -263,6 +263,9 @@ func (s *Service) DisconnectStorage(ctx context.Context, req *connect.Request[do
 	}
 	a := &app{has: map[string]bool{}}
 	var l *resourcev1.Link
+	// The names that read the connection through this link now, each with its kind:
+	// one a person has set otherwise since is theirs, and stays as it is.
+	reading := map[string]string{}
 	err := s.db.View(ctx, func(tx *store.Tx) error {
 		if err := envOf(ctx, tx, m.GetProject(), m.GetEnvironment(), a); err != nil {
 			return err
@@ -284,7 +287,32 @@ func (s *Service) DisconnectStorage(ctx context.Context, req *connect.Request[do
 			return notThere
 		}
 		l = got
-		return hasIn(ctx, tx, a)
+		for _, set := range got.GetSets() {
+			for _, kind := range []string{string(variable.SecretKind), string(variable.VariableKind)} {
+				v, err := tx.GetResource(ctx, kind, a.env, set.GetName())
+				if errors.Is(err, store.ErrNotFound) || err == nil && v.Spec == nil {
+					continue
+				}
+				if err != nil {
+					return err
+				}
+				spec, err := s.connections.keeper.Decode(ctx, tx, store.InRevision(v.ID, v.Kind, v.Revision), v.Spec)
+				if err != nil {
+					return fmt.Errorf("can't read %s: %w", set.GetName(), err)
+				}
+				var from *resourcev1.ValueFrom
+				switch x := spec.(type) {
+				case *resourcev1.Secret:
+					from = x.GetFrom()
+				case *resourcev1.Variable:
+					from = x.GetFrom()
+				}
+				if c := from.GetConnection(); c != nil && c.GetName() == got.GetConnection() && c.GetLink() == m.GetLink() {
+					reading[set.GetName()] = kind
+				}
+			}
+		}
+		return nil
 	})
 	if err != nil {
 		return nil, err
@@ -302,25 +330,23 @@ func (s *Service) DisconnectStorage(ctx context.Context, req *connect.Request[do
 	sets := slices.Clone(l.GetSets())
 	slices.SortFunc(sets, func(x, y *resourcev1.LinkSet) int { return strings.Compare(x.GetName(), y.GetName()) })
 	for _, set := range sets {
-		secret, has := a.has[set.GetName()]
-		if !has || set.GetPart() == resourcev1.LinkPart_LINK_PART_PATH_STYLE {
+		kind, reads := reading[set.GetName()]
+		if !reads {
 			continue
 		}
-		value, _, ok := connection.Part(conn.Spec, set.GetPart())
+		value, key, ok := connection.Part(conn.Spec, set.GetPart())
 		if !ok {
 			return nil, fmt.Errorf("the link %s sets %s as %s, which the connection doesn't have", m.GetLink(), set.GetName(), set.GetPart())
 		}
-		edit := &dockwellv1.Edit{
-			Resource: &dockwellv1.ResourceRef{Kind: string(variable.VariableKind), Scope: a.env, Name: set.GetName()},
-			Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Variable{Variable: &resourcev1.Variable{Value: value}}},
+		ref := &dockwellv1.ResourceRef{Kind: kind, Scope: a.env, Name: set.GetName()}
+		switch {
+		case key || kind == string(variable.SecretKind):
+			// A key is a secret whatever the name was, so no plan shows it.
+			ref.Kind = string(variable.SecretKind)
+			edits = append(edits, &dockwellv1.Edit{Resource: ref, Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Secret{Secret: &resourcev1.Secret{Value: value}}}})
+		default:
+			edits = append(edits, &dockwellv1.Edit{Resource: ref, Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Variable{Variable: &resourcev1.Variable{Value: value}}}})
 		}
-		if secret {
-			edit = &dockwellv1.Edit{
-				Resource: &dockwellv1.ResourceRef{Kind: string(variable.SecretKind), Scope: a.env, Name: set.GetName()},
-				Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Secret{Secret: &resourcev1.Secret{Value: value}}},
-			}
-		}
-		edits = append(edits, edit)
 	}
 	summary := fmt.Sprintf("Disconnect %s from %s, keeping its values", m.GetLink(), cmp.Or(conn.Spec.GetDisplayName(), conn.Name))
 	change, err := s.changes.Propose(ctx, summary, edits, nil, changes.Also{})

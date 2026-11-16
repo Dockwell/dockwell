@@ -278,6 +278,13 @@ func TestAnAppIsConnectedToStorage(t *testing.T) {
 	if connect.CodeOf(err) != connect.CodeNotFound {
 		t.Errorf("disconnecting a link that isn't there: %v", err)
 	}
+	// A name a person set otherwise since the link wrote it is theirs, and stays as
+	// it is: the link's key name made a plain variable, and its endpoint typed by
+	// hand. The connection's key never lands in a plain variable, in the open in the
+	// plan (re-check N2).
+	apply(t, c, propose(t, c, "Set two by hand",
+		&dockwellv1.Edit{Resource: &dockwellv1.ResourceRef{Kind: "secret", Name: "S3_SECRET_ACCESS_KEY"}, Delete: true},
+		variableSpec("S3_SECRET_ACCESS_KEY", "plain-literal"), variableSpec("S3_ENDPOINT", "http://by-hand.example.com")))
 	for _, l := range []string{"storage", "media"} {
 		off, err := cc.DisconnectStorage(t.Context(), connect.NewRequest(&dockwellv1.DisconnectStorageRequest{Project: project, Link: l}))
 		if err != nil {
@@ -291,7 +298,7 @@ func TestAnAppIsConnectedToStorage(t *testing.T) {
 		}
 	}
 	got = appEnv("notes")
-	for _, want := range []string{"S3_ENDPOINT=" + srv.URL(), "S3_BUCKET=uploads", "S3_ACCESS_KEY_ID=AKIDEXAMPLE", "S3_SECRET_ACCESS_KEY=" + newKey, "S3_FORCE_PATH_STYLE=true"} {
+	for _, want := range []string{"S3_ENDPOINT=http://by-hand.example.com", "S3_BUCKET=uploads", "S3_ACCESS_KEY_ID=AKIDEXAMPLE", "S3_SECRET_ACCESS_KEY=plain-literal", "S3_FORCE_PATH_STYLE=true"} {
 		if !slices.Contains(got, want) {
 			t.Errorf("after disconnecting, the app runs without %s: %v", want, got)
 		}
