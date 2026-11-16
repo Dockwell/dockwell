@@ -15,6 +15,7 @@ import (
 	"net"
 	"net/http"
 	"runtime/debug"
+	"syscall"
 	"time"
 
 	"connectrpc.com/connect"
@@ -102,6 +103,7 @@ func Serve(ctx context.Context, ln net.Listener, h http.Handler, opts Options) e
 		BaseContext:    func(net.Listener) context.Context { return baseCtx },
 	}
 
+	ln = forkSafe{ln}
 	errc := make(chan error, 1)
 	go func() {
 		if opts.TLS != nil {
@@ -132,6 +134,11 @@ func Serve(ctx context.Context, ln net.Listener, h http.Handler, opts Options) e
 	defer cancel()
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		_ = srv.Close()
+		// Serve closes the listener as it returns, which it does at once now, so
+		// the port is free when this does.
+		if served := <-errc; !errors.Is(served, http.ErrServerClosed) {
+			logger.Warn("stopped", slog.Any("error", served))
+		}
 		return fmt.Errorf("%s didn't stop within %s, so its remaining connections were closed: %w", opts.Name, human.Duration(timeout), err)
 	}
 	if err := <-errc; !errors.Is(err, http.ErrServerClosed) {
@@ -139,6 +146,20 @@ func Serve(ctx context.Context, ln net.Listener, h http.Handler, opts Options) e
 	}
 	logger.Info("stopped")
 	return nil
+}
+
+// forkSafe closes a listener only while no process this one starts is between
+// its fork and its exec. Such a child holds a copy of every descriptor until it
+// execs, so a listener closed then keeps listening, and its port stays taken, for
+// as long as the child takes: under load, long enough for the proxy that takes the
+// public ports next to find them held (#756). Go forks under ForkLock's write side
+// and keeps it until the child has exec'd, so the read side waits that out.
+type forkSafe struct{ net.Listener }
+
+func (l forkSafe) Close() error {
+	syscall.ForkLock.RLock()
+	defer syscall.ForkLock.RUnlock()
+	return l.Listener.Close()
 }
 
 // Listen listens on addr. A failure wraps the underlying error, so callers
