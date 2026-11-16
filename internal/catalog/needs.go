@@ -120,14 +120,11 @@ var templateParts = map[string]bool{"host": true, "port": true, "address": true,
 const maxNeedLabel = 40
 
 // checkNeeds refuses needs an install couldn't meet as they say.
-func checkNeeds(e *catalogv1.Entry) error {
+func checkNeeds(e *catalogv1.Entry, cf *composeFile) error {
 	if len(e.GetNeeds()) == 0 {
 		return nil
 	}
-	services, err := composeServices(e.GetCompose())
-	if err != nil {
-		return err
-	}
+	services := cf.services
 	inputs := map[string]bool{}
 	for _, in := range e.GetInputs() {
 		inputs[in.GetName()] = true
@@ -167,7 +164,7 @@ func checkNeeds(e *catalogv1.Entry) error {
 		}
 		password := ""
 		for _, s := range n.GetSets() {
-			if err := checkSet(e, n, s, inputs, sets); err != nil {
+			if err := checkSet(e, n, s, inputs, sets, cf); err != nil {
 				return err
 			}
 			sets[s.GetName()] = name
@@ -398,7 +395,7 @@ func checkNeedService(e *catalogv1.Entry, n *catalogv1.Need, services map[string
 }
 
 // checkSet refuses a name a need sets that the app couldn't read as it's set.
-func checkSet(e *catalogv1.Entry, n *catalogv1.Need, s *catalogv1.NeedSet, inputs map[string]bool, sets map[string]string) error {
+func checkSet(e *catalogv1.Entry, n *catalogv1.Need, s *catalogv1.NeedSet, inputs map[string]bool, sets map[string]string, cf *composeFile) error {
 	need, name := n.GetName(), s.GetName()
 	part := s.GetPart()
 	tls := s.GetTls()
@@ -440,9 +437,9 @@ func checkSet(e *catalogv1.Entry, n *catalogv1.Need, s *catalogv1.NeedSet, input
 		}
 	}
 	if SecretPart(s) {
-		return standsAlone(e.GetCompose(), name)
+		return standsAlone(cf, name)
 	}
-	return plainAlone(e.GetCompose(), name)
+	return plainAlone(cf, name)
 }
 
 // valueWords are the values of each part with a fixed set of them that the app has
@@ -546,11 +543,8 @@ func SecretPart(s *catalogv1.NeedSet) bool {
 // plainAlone refuses a plain value a need sets that's used anywhere but as a whole
 // value of a service's environment, as the app's services use it by reference there,
 // and a reference stands only for a whole value.
-func plainAlone(file, name string) error {
-	services, err := composeServices(file)
-	if err != nil {
-		return err
-	}
+func plainAlone(cf *composeFile, name string) error {
+	services := cf.services
 	usesOf := regexp.MustCompile(`\$\{` + regexp.QuoteMeta(name) + `(\}|:?[-?+])`)
 	whole := "${" + name + "}"
 	all := 0
@@ -569,11 +563,7 @@ func plainAlone(file, name string) error {
 			}
 		}
 	}
-	var tree any
-	if err := yaml.Unmarshal([]byte(file), &tree); err != nil {
-		return fmt.Errorf("its Compose file isn't YAML: %w", err)
-	}
-	walk(tree)
+	walk(cf.tree)
 	inEnv := 0
 	for _, svc := range services {
 		switch env := mapGet(svc, "environment").(type) {

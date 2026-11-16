@@ -285,14 +285,11 @@ func usesInput(file, name string) bool {
 // the entry hasn't: a service it doesn't run, one of its databases, one another
 // service depends on, a secret, which turning it on later couldn't generate, and an
 // input it doesn't use alone, or one it uses alone that it doesn't name.
-func checkCompanions(e *catalogv1.Entry) error {
+func checkCompanions(e *catalogv1.Entry, cf *composeFile) error {
 	if len(e.GetCompanions()) == 0 {
 		return nil
 	}
-	services, err := composeServices(e.GetCompose())
-	if err != nil {
-		return err
-	}
+	services := cf.services
 	if !slices.ContainsFunc(slices.Collect(maps.Keys(services)), func(s string) bool {
 		_, companion := Companion(e, s)
 		return !companion

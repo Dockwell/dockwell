@@ -232,9 +232,11 @@ type Options struct {
 	// keeps in Also, once it reads as an install would, rather than leaving it out.
 	// Nil leaves every one out.
 	Same func(before, e *catalogv1.Entry) bool
-	// Proved reads no entry's Compose file again, for files this whole check passed
-	// as they were built: the catalog a build holds, whose tests check it so. Each
-	// entry is still parsed, and each image it names still has to be in media.
+	// Proved decodes each entry without checking it again, and reads no Compose file,
+	// for files this whole check passed as they were built: the catalog a build
+	// holds, whose tests check it so (TestTheSnapshotPassesTheWholeCheck). Each image
+	// an entry names still has to be in media. A source read from a repository is
+	// never proved, and is checked whole each time.
 	Proved bool
 }
 
@@ -251,7 +253,10 @@ func Check(ctx context.Context, name string, files map[string][]byte, media map[
 		out.Refused = append(out.Refused, Refusal{File: file, Reason: why, Kind: kind})
 	}
 	parse := catalog.Parse
-	if opts.Tagged {
+	switch {
+	case opts.Proved:
+		parse = catalog.Decode
+	case opts.Tagged:
 		parse = catalog.ParseTagged
 	}
 	for _, file := range slices.Sorted(maps.Keys(files)) {
