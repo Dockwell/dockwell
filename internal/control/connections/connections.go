@@ -31,6 +31,8 @@ import (
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/connection"
 	"github.com/dockwell/dockwell/internal/resource/link"
+	"github.com/dockwell/dockwell/internal/resource/variable"
+	"github.com/dockwell/dockwell/internal/scope"
 	"github.com/dockwell/dockwell/internal/secrets"
 	"github.com/dockwell/dockwell/internal/store"
 )
@@ -280,6 +282,12 @@ func (s *Service) ListConnections(ctx context.Context, req *connect.Request[dock
 	if err != nil {
 		return nil, err
 	}
+	// Whether an app's own values hold each, as a link would: a yes or no, which
+	// names no project, so it reads the same to anyone (slice 2 re-check, N2).
+	values, err := s.connections.OwnValues(ctx, "")
+	if err != nil {
+		return nil, err
+	}
 	admin, mine := callerProjects(ctx)
 	for _, c := range all {
 		switch {
@@ -288,7 +296,7 @@ func (s *Service) ListConnections(ctx context.Context, req *connect.Request[dock
 		case !admin && !reachesAny(c.Spec, mine):
 			continue
 		}
-		info := &dockwellv1.ConnectionInfo{Id: c.ID, Name: c.Name, DisplayName: c.Spec.GetDisplayName(), Kind: c.Spec.GetKind()}
+		info := &dockwellv1.ConnectionInfo{Id: c.ID, Name: c.Name, DisplayName: c.Spec.GetDisplayName(), Kind: c.Spec.GetKind(), Held: Holds(values, c.Spec)}
 		switch {
 		case admin:
 			s3 := c.Spec.GetS3()
@@ -528,4 +536,65 @@ func (s *Service) server(named string) (*dockwellv1.Server, error) {
 	slices.Sort(names)
 	return nil, authapi.ChoiceError(&dockwellv1.Choice{Level: "server", Field: "server", Options: names},
 		fmt.Errorf("there are %d servers, so say which one checks it: a connection is checked as that server reaches it", len(all)))
+}
+
+// OwnValues are the plain values of each environment, by its ID, but those of
+// project's own: an app that a Disconnect left on its own values, or one set up by
+// hand, still keeps its files in the bucket they name (slice 2 review, M6). An app
+// may go back onto the bucket its own values name, so project's don't count; "" counts
+// every one.
+func (c *Connections) OwnValues(ctx context.Context, project string) (map[string]map[string]bool, error) {
+	out := map[string]map[string]bool{}
+	err := c.db.View(ctx, func(tx *store.Tx) error {
+		tree, err := scope.Load(ctx, tx)
+		if err != nil {
+			return err
+		}
+		mine := map[string]bool{}
+		for _, p := range tree.Projects {
+			if p.ID == project {
+				for _, e := range p.Environments {
+					mine[e.ID] = true
+				}
+			}
+		}
+		stored, err := tx.ListKind(ctx, string(variable.VariableKind))
+		if err != nil {
+			return err
+		}
+		for i := range stored {
+			r := &stored[i]
+			if r.Spec == nil || mine[r.Scope] {
+				continue
+			}
+			spec, err := c.keeper.Decode(ctx, tx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec)
+			if err != nil {
+				continue // one that can't be read names no bucket here
+			}
+			if v, ok := spec.(*resourcev1.Variable); ok && v.GetFrom() == nil && v.GetValue() != "" {
+				if out[r.Scope] == nil {
+					out[r.Scope] = map[string]bool{}
+				}
+				out[r.Scope][v.GetValue()] = true
+			}
+		}
+		return nil
+	})
+	return out, err
+}
+
+// Holds says some environment's own values name c's endpoint and bucket, so an app
+// there keeps its files in that bucket, with no link to say so: the connection serves
+// that app (slice 2 review, M6).
+func Holds(values map[string]map[string]bool, spec *resourcev1.ConnectionSpec) bool {
+	s3 := spec.GetS3()
+	if s3.GetEndpoint() == "" || s3.GetBucket() == "" {
+		return false
+	}
+	for _, env := range values {
+		if env[s3.GetEndpoint()] && env[s3.GetBucket()] {
+			return true
+		}
+	}
+	return false
 }

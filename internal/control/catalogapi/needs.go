@@ -88,7 +88,7 @@ func (h *Handler) meetNeeds(ctx context.Context, s sourced, e *catalogv1.Entry, 
 				fmt.Errorf("%s is set by what meets %s's needs, so it takes no value of its own. Leave it out", name, e.GetName()), "invalid")
 		}
 	}
-	conns, unread, err := h.connectionWays(ctx, e, project)
+	conns, unread, err := h.connectionWays(ctx, e, project, asked)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -115,11 +115,15 @@ func (h *Handler) meetNeeds(ctx context.Context, s sourced, e *catalogv1.Entry, 
 			met[name] = w
 			notes = append(notes, pins...)
 		}
-		// A link to a connection the install makes plans with no check of the bucket
-		// yet, and says so, with what the app needs it to allow (the slice 1 review,
-		// M4). The check before planning is the next slice's.
+		// A link to a connection the install makes is checked first, from where the
+		// app is to run; one nothing can check now plans with a note that says so, with
+		// what the app needs the bucket to allow (ADR 0099).
 		if c := w.Connection; c != nil && pinned[name].GetConnection() != c.Name {
-			notes = append(notes, revision.Note{Reason: ConnectionUncheckedNote, Message: uncheckedWords(e, w)})
+			checked, err := h.checkConnection(ctx, e, w, server, project)
+			if err != nil {
+				return nil, nil, err
+			}
+			notes = append(notes, checked...)
 		}
 		// An optional need a release adds is left unset: the app runs as it did.
 		if _, had := pinned[name]; pinned != nil && !had && !w.Unset {

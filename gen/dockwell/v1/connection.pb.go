@@ -427,7 +427,11 @@ type ConnectionInfo struct {
 	// What reads it: each link to it, in the environment it's in, with the apps that
 	// read the link's values. An admin's, every one; below an admin, those in the
 	// caller's projects alone.
-	Uses          []*ConnectionUse `protobuf:"bytes,12,rep,name=uses,proto3" json:"uses,omitempty"`
+	Uses []*ConnectionUse `protobuf:"bytes,12,rep,name=uses,proto3" json:"uses,omitempty"`
+	// Some app's own values name its endpoint and bucket, with no link, as a
+	// Disconnect leaves them, so it keeps its files there: the connection serves it,
+	// and no other app is offered it. It names no project (ADR 0099).
+	Held          bool `protobuf:"varint,13,opt,name=held,proto3" json:"held,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -544,6 +548,13 @@ func (x *ConnectionInfo) GetUses() []*ConnectionUse {
 		return x.Uses
 	}
 	return nil
+}
+
+func (x *ConnectionInfo) GetHeld() bool {
+	if x != nil {
+		return x.Held
+	}
+	return false
 }
 
 // ConnectionUse is one link to a connection, and the apps that read it.
@@ -895,7 +906,7 @@ const file_dockwell_v1_connection_proto_rawDesc = "" +
 	"\aproject\x18\x01 \x01(\tR\aproject\x12 \n" +
 	"\venvironment\x18\x02 \x01(\tR\venvironment\"X\n" +
 	"\x17ListConnectionsResponse\x12=\n" +
-	"\vconnections\x18\x01 \x03(\v2\x1b.dockwell.v1.ConnectionInfoR\vconnections\"\xaa\x03\n" +
+	"\vconnections\x18\x01 \x03(\v2\x1b.dockwell.v1.ConnectionInfoR\vconnections\"\xbe\x03\n" +
 	"\x0eConnectionInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12!\n" +
@@ -911,7 +922,8 @@ const file_dockwell_v1_connection_proto_rawDesc = "" +
 	"\x05reach\x18\n" +
 	" \x01(\x0e2+.dockwell.resource.v1alpha1.ConnectionReachR\x05reach\x12\x1a\n" +
 	"\bprojects\x18\v \x03(\tR\bprojects\x12.\n" +
-	"\x04uses\x18\f \x03(\v2\x1a.dockwell.v1.ConnectionUseR\x04uses\"\xd6\x02\n" +
+	"\x04uses\x18\f \x03(\v2\x1a.dockwell.v1.ConnectionUseR\x04uses\x12\x12\n" +
+	"\x04held\x18\r \x01(\bR\x04held\"\xd6\x02\n" +
 	"\rConnectionUse\x12\x17\n" +
 	"\alink_id\x18\x01 \x01(\tR\x06linkId\x12\x12\n" +
 	"\x04link\x18\x02 \x01(\tR\x04link\x12 \n" +

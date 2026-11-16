@@ -1772,7 +1772,9 @@ type SetCatalogNeedRequest struct {
 	// The need, by its name in the entry, such as "db".
 	Need string `protobuf:"bytes,2,opt,name=need,proto3" json:"need,omitempty"`
 	// What meets it, as GetCatalogEntryResponse.needs offers it: a server Dockwell
-	// runs, as "service:<project>/<environment>/<service>".
+	// runs, as "service:<project>/<environment>/<service>"; for storage, a connection
+	// the install's project may use, as "connection:<name>", which is checked from the
+	// app's server first (ADR 0099).
 	Choice string `protobuf:"bytes,3,opt,name=choice,proto3" json:"choice,omitempty"`
 	// Start the app on an empty database there, rather than copying its own across.
 	// Copying is the default where both ends run the same engine; where they don't,
@@ -1781,7 +1783,9 @@ type SetCatalogNeedRequest struct {
 	// restarts: its routes answer that it isn't open, and the ports its services
 	// publish listen on the server alone, until OpenCatalogInstall opens them, so
 	// its owner sets it up first, through the panel. Where nothing can be held, it's
-	// refused with the reason cant_hold.
+	// refused with the reason cant_hold. For storage that's on a bucket already, it
+	// says to leave the app's files there and start on the new one empty, as
+	// Dockwell copies none across; the plan is refused with cant_copy until it does.
 	StartEmpty    bool `protobuf:"varint,4,opt,name=start_empty,json=startEmpty,proto3" json:"start_empty,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

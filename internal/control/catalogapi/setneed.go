@@ -31,7 +31,8 @@ import (
 
 // SetCatalogNeed plans Use another database: one of an install's needs met by a server
 // Dockwell runs, at the release the install is on, as installing it would have, with
-// what met it before left running as it is, data and all (ADR 0084).
+// what met it before left running as it is, data and all (ADR 0084). A storage need
+// is met by a connection instead (setStorageNeed, ADR 0099).
 func (h *Handler) SetCatalogNeed(ctx context.Context, req *connect.Request[dockwellv1.SetCatalogNeedRequest]) (*connect.Response[dockwellv1.SetCatalogNeedResponse], error) {
 	m := req.Msg
 	s, err := h.catalog(ctx)
@@ -58,6 +59,9 @@ func (h *Handler) SetCatalogNeed(ctx context.Context, req *connect.Request[dockw
 		return nil, authapi.ReasonError(connect.CodeInvalidArgument, fmt.Errorf("%s has no need %s. Name one of what it needs: %s", entry.GetName(), m.GetNeed(), strings.Join(slices.Collect(maps.Keys(pin.GetNeeds())), ", ")), "invalid")
 	case !met:
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s runs %s %s, which doesn't need %s. Upgrade it first", install.GetProject(), entry.GetName(), pin.GetVersion(), m.GetNeed()), "upgrade_first")
+	case entry.GetNeeds()[i].GetKind() == catalogv1.Kind_KIND_S3:
+		// Storage is met by a connection, from the app's need card (ADR 0099).
+		return h.setStorageNeed(ctx, s, found, entry, entry.GetNeeds()[i], m)
 	case !strings.HasPrefix(m.GetChoice(), "service:"):
 		return nil, authapi.ReasonError(connect.CodeInvalidArgument, fmt.Errorf("%s's %s moves to a server Dockwell runs, named as service:<project>/<environment>/<service>, as its install offers them. A new one beside it comes once Dockwell copies the data across", install.GetProject(), m.GetNeed()), "invalid")
 	}

@@ -90,9 +90,30 @@ export function optionsByNeed(
 }
 
 /**
- * What InstallCatalogEntryRequest.needs takes for each need: the choice picked, or the
- * default where none is. With onlyChanged, just those that differ from the default, as
- * the CLI command says no more than it must.
+ * The way a need is met unless someone picks another: the first new one, or for
+ * storage the first that can meet it. A server is shared only because someone picked
+ * it (ADR 0084), and a connection that can't meet the need, as one serving another
+ * app, is never the default (ADR 0099).
+ */
+export function defaultWay(options: readonly CatalogNeedOption[]): CatalogNeedOption | undefined {
+  return options.find((o) => o.service === "" && (o.connection === "" || o.why === ""));
+}
+
+/**
+ * The way a need is met: the one picked, where it can meet the need, or the default.
+ * What the sheet shows and what it sends both come from here, so they can't differ.
+ */
+export function pickedWay(
+  options: readonly CatalogNeedOption[],
+  picked: string | undefined,
+): CatalogNeedOption | undefined {
+  return options.find((o) => o.choice === picked && o.why === "") ?? defaultWay(options);
+}
+
+/**
+ * What InstallCatalogEntryRequest.needs takes for each need: the way picked, as the
+ * sheet shows it. With onlyChanged, just those that differ from the default, as the
+ * CLI command says no more than it must, but a connection always.
  */
 export function needsRequest(
   needs: readonly Need[],
@@ -102,9 +123,12 @@ export function needsRequest(
 ): Record<string, string> {
   const out: Record<string, string> = {};
   for (const need of needs) {
-    const first = options.get(need.name)?.[0]?.choice;
-    const choice = picked[need.name] ?? first;
-    if (!choice || (onlyChanged && choice === first)) continue;
+    const ways = options.get(need.name) ?? [];
+    const choice = pickedWay(ways, picked[need.name])?.choice;
+    // A connection is always named: the server's default among several isn't the
+    // sheet's, so leaving it out could install on another (slice 2 re-check, N1).
+    const named = choice?.startsWith("connection:") === true;
+    if (!choice || (onlyChanged && !named && choice === defaultWay(ways)?.choice)) continue;
     out[need.name] = choice;
   }
   return out;

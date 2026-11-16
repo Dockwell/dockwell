@@ -35,6 +35,7 @@ import (
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/binding"
+	"github.com/dockwell/dockwell/internal/resource/connection"
 	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/link"
 	"github.com/dockwell/dockwell/internal/resource/network"
@@ -129,6 +130,10 @@ type Install struct {
 	Notes []revision.Note
 	// Needs are what its needs set, and how each is met.
 	Needs Needs
+	// Reaches are connections a need is met by that don't reach the project the
+	// install makes, by name, as one an admin added from the install sheet: the plan
+	// gives each that project in the same change, which it shows (ADR 0099).
+	Reaches []string
 }
 
 // Needs are what an install's needs set in its environment, and how each is met
@@ -261,6 +266,13 @@ func (h *Handler) PlanInstall(ctx context.Context, in Install) (*dockwellv1.Chan
 		return nil, err
 	}
 	place.made[0].Spec = &resourcev1.Project{DisplayName: in.Name, Catalog: in.Pin}
+	for _, name := range in.Reaches {
+		edit, err := h.reachNew(ctx, place.organization, name, place.made[0].ID)
+		if err != nil {
+			return nil, err
+		}
+		place.made = append(place.made, edit)
+	}
 	useSecrets(stack, in.Stands)
 	// What a need sets is the environment's variables, used by reference, before what
 	// shows is read, so a need's plain parts show as the variables they are and its
@@ -1612,4 +1624,48 @@ func (h *Handler) internal(ctx context.Context, err error) error {
 	}
 	h.logger.ErrorContext(ctx, "compose call failed", slog.String("error", err.Error()))
 	return connect.NewError(connect.CodeInternal, errors.New("the control plane couldn't complete the request; try again, and check its logs if it keeps failing"))
+}
+
+// reachNew is the edit that has the connection name reach the project an install
+// makes, by the ID the change gives it, beside the projects it reaches already, from
+// the revision it reads (ADR 0099).
+func (h *Handler) reachNew(ctx context.Context, org, name, project string) (revision.Edit, error) {
+	ref := resource.Ref{Kind: connection.Kind, Scope: org, Name: name}
+	var out revision.Edit
+	err := h.db.View(ctx, func(tx *store.Tx) error {
+		r, err := tx.GetResource(ctx, string(ref.Kind), org, name)
+		if err != nil {
+			return err
+		}
+		spec, err := h.keeper.Decode(ctx, tx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec)
+		if err != nil {
+			return fmt.Errorf("can't read the connection %s: %w", name, err)
+		}
+		c, ok := spec.(*resourcev1.ConnectionSpec)
+		if !ok {
+			return fmt.Errorf("%s isn't a connection", name)
+		}
+		// The install was offered it as one that reaches no project: if it reaches one
+		// now, an admin gave it one since, and widening it would change their choice
+		// (slice 2 review, M5).
+		if c.GetReach() == resourcev1.ConnectionReach_CONNECTION_REACH_EVERY ||
+			c.GetReach() == resourcev1.ConnectionReach_CONNECTION_REACH_PROJECTS && len(c.GetProjects()) > 0 {
+			return authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("the connection %s was given a reach while this install was planned, so nothing was planned. Plan the install again, to take it as it is now", name), "stale")
+		}
+		c = proto.CloneOf(c)
+		c.Reach = resourcev1.ConnectionReach_CONNECTION_REACH_PROJECTS
+		if !slices.Contains(c.GetProjects(), project) {
+			c.Projects = append(c.Projects, project)
+		}
+		out = revision.Edit{Ref: ref, Spec: c, Base: r.Revision}
+		return nil
+	})
+	var refused *connect.Error
+	if errors.As(err, &refused) {
+		return revision.Edit{}, err
+	}
+	if err != nil {
+		return revision.Edit{}, h.internal(ctx, err)
+	}
+	return out, nil
 }

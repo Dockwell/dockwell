@@ -7980,8 +7980,17 @@ msgstr "停止计划"
 msgid "{how}, keeps {keeps}"
 msgstr "{how}，保留 {keeps} 个"
 
+msgid "Add a connection"
+msgstr "添加连接"
+
+msgid "Connections it can use"
+msgstr "它可以使用的连接"
+
 msgid "Copies its data"
 msgstr "复制它的数据"
+
+msgid "It serves another app already"
+msgstr "它已在为另一个应用服务"
 
 msgid "Its backups"
 msgstr "它的备份"
@@ -7989,14 +7998,29 @@ msgstr "它的备份"
 msgid "Its data can't be copied there"
 msgstr "它的数据无法复制到那里"
 
+msgid "Its files are there already"
+msgstr "它的文件已经在那里"
+
+msgid "Its files stay where they are now"
+msgstr "它的文件留在现在的位置"
+
+msgid "Its own settings, since it was disconnected"
+msgstr "断开连接后使用它自己的设置"
+
 msgid "Its own {runs}, beside {app}"
 msgstr "它自己的 {runs}，在 {app} 旁边"
+
+msgid "No connection this project may use"
+msgstr "没有此项目可以使用的连接"
 
 msgid "Nothing else Dockwell runs takes it"
 msgstr "Dockwell 运行的其他服务都不适用"
 
 msgid "Of its {what} alone"
 msgstr "仅它的{what}"
+
+msgid "On its own disk"
+msgstr "在它自己的磁盘上"
 
 msgid "Shares {named} in the project {where}"
 msgstr "共用项目 {where} 中的 {named}"
@@ -8007,6 +8031,16 @@ msgstr "共用你无法查看的项目中的 {runs}"
 msgid "Start empty on it"
 msgstr "在其上从空数据库开始"
 
+msgctxt "storage"
+msgid "Start empty on it"
+msgstr "在其上从空存储桶开始"
+
+msgid "Use a connection"
+msgstr "使用连接"
+
+msgid "Use another connection"
+msgstr "使用其他连接"
+
 msgid "Use another {what}"
 msgstr "使用另一个{what}"
 
@@ -8015,6 +8049,12 @@ msgstr "使用它"
 
 msgid "Where else it can run"
 msgstr "它还能在哪里运行"
+
+msgid "objects under {prefix}"
+msgstr "对象位于 {prefix}"
+
+msgid "{app} reads its storage as one URL, which a connection can't give yet"
+msgstr "{app} 以一个 URL 读取存储，连接还不能提供它"
 
 msgid "{there} in {project}"
 msgstr "{project} 中的 {there}"
@@ -8275,6 +8315,55 @@ msgstr "{count, plural, other {已读取。共有 # 个分支和标签。}}"
 
 msgid "{short} (tag)"
 msgstr "{short}（标签）"
+
+msgid "Any S3-compatible bucket"
+msgstr "任意兼容 S3 的存储桶"
+
+msgid "Checked from {app}'s server before it's planned"
+msgstr "在规划之前从 {app} 的服务器检查"
+
+msgctxt "show less of the rest"
+msgid "Less"
+msgstr "收起"
+
+msgid "Needs {list}"
+msgstr "需要{list}"
+
+msgid "No connection meets it yet"
+msgstr "还没有满足它的连接"
+
+msgid "an ACL on each object"
+msgstr "每个对象的 ACL"
+
+msgid "deleting many objects at once"
+msgstr "一次删除多个对象"
+
+msgid "form uploads from browsers"
+msgstr "浏览器表单上传"
+
+msgid "reading objects at its public address"
+msgstr "在公开地址读取对象"
+
+msgid "signed URLs"
+msgstr "签名 URL"
+
+msgid "the bucket in the host name"
+msgstr "主机名中的存储桶"
+
+msgid "the bucket in the path"
+msgstr "路径中的存储桶"
+
+msgid "the checksums AWS's SDKs send"
+msgstr "AWS SDK 发送的校验和"
+
+msgid "uploads in parts"
+msgstr "分段上传"
+
+msgid "uploads straight from browsers"
+msgstr "浏览器直接上传"
+
+msgid "{app} keeps its files beside it"
+msgstr "{app} 将文件保存在它旁边"
 
 msgctxt "catalog store"
 msgid "Added"
@@ -11207,9 +11296,6 @@ msgstr "密钥只能放入机密，因为计划会显示变量。"
 msgid "Access key ID"
 msgstr "访问密钥 ID"
 
-msgid "Add a connection"
-msgstr "添加连接"
-
 msgid "Add another"
 msgstr "再添加一个"
 
@@ -11435,6 +11521,12 @@ msgstr "供 {who} 使用"
 #. placeholder {0}: picked.length
 msgid "{0, plural, one {# project} other {# projects}}"
 msgstr "{0, plural, other {# 个项目}}"
+
+msgid "{app}'s project"
+msgstr "{app} 的项目"
+
+msgid "{app}'s project, once it's installed"
+msgstr "{app} 的项目（安装后）"
 
 msgid "{links, plural, one {# link names it. Disconnect it under Used by first.} other {# links name it. Disconnect them under Used by first.}}"
 msgstr "{links, plural, other {有 # 个链接使用它。请先在“使用者”中断开。}}"
@@ -12078,10 +12170,6 @@ msgstr "域名"
 
 msgid "Filter domains"
 msgstr "筛选域名"
-
-msgctxt "show less of the rest"
-msgid "Less"
-msgstr "收起"
 
 msgid "Less about {name}"
 msgstr "收起 {name} 的详情"

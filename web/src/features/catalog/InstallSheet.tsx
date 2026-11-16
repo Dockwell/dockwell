@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { create } from "@bufbuild/protobuf";
 import { createClient } from "@connectrpc/connect";
 import { useQuery, useTransport } from "@connectrpc/connect-query";
 import {
   type CatalogNeedOption,
+  CatalogNeedOptionSchema,
   type CatalogPart,
   CatalogService,
   type Change,
@@ -59,6 +61,8 @@ import { useMay } from "../auth/may";
 import { useSignedInUser } from "../auth/useAuthState";
 import { type Opening, PlanView } from "../changes/ChangeSheet";
 import { asGoodAsRoot } from "../changes/plan";
+import { ConnectionSheet } from "../connections/ConnectionSheet";
+import { useConnections } from "../connections/useConnections";
 import { lentRangeOf, type PortHolder, useServerPorts } from "../servers/ports";
 import { useFleetView } from "../servers/useFleet";
 import { CopyAsCommand } from "../system/CopyCommand";
@@ -66,8 +70,18 @@ import { Facts, useEntryFacts } from "./access";
 import { type EngineGroup, groupOf } from "./engines";
 import { nextFree } from "./freeName";
 import { projectLink } from "./media";
-import { ENGINE_ENTRY_IDS, engineName, entriesFor, keepsApart, needsRequest, optionsByNeed, takesLine } from "./needs";
+import {
+  ENGINE_ENTRY_IDS,
+  engineName,
+  entriesFor,
+  keepsApart,
+  needsRequest,
+  optionsByNeed,
+  pickedWay,
+  takesLine,
+} from "./needs";
 import { type OwnFault, ownFault, ownRule, strongValue } from "./ownSecret";
+import { isStorage, StorageNeed } from "./StorageNeed";
 import { stranger, useOrigins, useSourceNames } from "./useCatalog";
 // The form is New app's, so its fields sit apart the same way, however the sheet is reached.
 import "../apps/Apps.css";
@@ -184,6 +198,10 @@ export function InstallSheet({
   // The plan under review takes this sheet over, and Cancel brings the form back as it was.
   const [plan, setPlan] = useState<Opening>();
   const change = (key: string) => setChanging((was) => new Set(was).add(key));
+  // A connection an install admin adds for a storage need, by the need's name: the
+  // sheet that adds it stands in for this one until it's saved (ADR 0099).
+  const [addingFor, setAddingFor] = useState<string>();
+  const connections = useConnections();
   // Another engine starts from its own defaults.
   const [shown, setShown] = useState(id);
   if (shown !== id) {
@@ -359,13 +377,26 @@ export function InstallSheet({
   const source = catalog ? (pickedSource?.own ? undefined : catalog) : stranger(origins.origins, id)?.name;
   // What the app needs from outside its own containers, each met by a new one beside it for now.
   const needs = entry?.needs ?? [];
-  const needOptions = optionsByNeed(got.data?.needs ?? []);
+  // A connection an install admin added from the sheet reaches no project yet, so the
+  // entry doesn't offer it: it's this install's to pick, whose plan gives it the
+  // project it makes (ADR 0099).
+  const [added, setAdded] = useState<Readonly<Record<string, string>>>({});
+  const needOptions = optionsByNeed([
+    ...(got.data?.needs ?? []),
+    ...Object.entries(added)
+      .filter(([need, name]) => !(got.data?.needs ?? []).some((o) => o.need === need && o.connection === name))
+      .map(([need, name]) =>
+        create(CatalogNeedOptionSchema, {
+          need,
+          choice: `connection:${name}`,
+          connection: name,
+          connectionLabel: connections.data?.connections.find((c) => c.name === name)?.displayName ?? "",
+        }),
+      ),
+  ]);
   // The way each need is met: the one picked, or the first new one. A server is shared
   // only because someone picked it (ADR 0084).
-  const pickOf = (name: string) => {
-    const options = needOptions.get(name) ?? [];
-    return options.find((o) => o.choice === needPicks[name] && o.why === "") ?? options.find((o) => o.service === "");
-  };
+  const pickOf = (name: string) => pickedWay(needOptions.get(name) ?? [], needPicks[name]);
   const unmet = needs.find((need) => pickOf(need.name) === undefined);
   const unmetShares = unmet !== undefined && (needOptions.get(unmet.name) ?? []).some((o) => o.why === "");
   const ready =
@@ -553,6 +584,24 @@ export function InstallSheet({
       />
     );
 
+  if (addingFor) {
+    const need = addingFor;
+    return (
+      <ConnectionSheet
+        onClose={() => setAddingFor(undefined)}
+        onSaved={(name) => {
+          setAddingFor(undefined);
+          setAdded((was) => ({ ...was, [need]: name }));
+          setNeedPicks((was) => ({ ...was, [need]: `connection:${name}` }));
+          void connections.refetch();
+          void got.refetch();
+        }}
+        existing={connections.data?.connections ?? []}
+        forInstall={app}
+      />
+    );
+  }
+
   return (
     <Sheet
       open
@@ -697,6 +746,22 @@ export function InstallSheet({
                 const options = needOptions.get(need.name) ?? [];
                 const usable = options.filter((o) => o.why === "");
                 const pick = pickOf(need.name);
+                if (isStorage(need)) {
+                  return (
+                    <StorageNeed
+                      key={need.name}
+                      need={need}
+                      app={app}
+                      options={options}
+                      value={pick?.choice ?? ""}
+                      picking={changing.has(`need:${need.name}`)}
+                      disabled={busy}
+                      onChange={() => change(`need:${need.name}`)}
+                      onPick={(choice) => setNeedPicks((was) => ({ ...was, [need.name]: choice }))}
+                      onAdd={() => setAddingFor(need.name)}
+                    />
+                  );
+                }
                 if ((changing.has(`need:${need.name}`) || (!pick && usable.length > 0)) && options.length > 0) {
                   return (
                     <NeedPicker

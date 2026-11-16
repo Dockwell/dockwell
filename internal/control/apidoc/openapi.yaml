@@ -12157,6 +12157,12 @@ components:
                         What reads it: each link to it, in the environment it's in, with the apps that
                          read the link's values. An admin's, every one; below an admin, those in the
                          caller's projects alone.
+                held:
+                    type: boolean
+                    description: |-
+                        Some app's own values name its endpoint and bucket, with no link, as a
+                         Disconnect leaves them, so it keeps its files there: the connection serves it,
+                         and no other app is offered it. It names no project (ADR 0099).
             description: |-
                 ConnectionInfo is a connection as a caller may see it: never its keys. Below an
                  admin, its name, kind and what it reaches alone.
@@ -25268,7 +25274,9 @@ components:
                     type: string
                     description: |-
                         What meets it, as GetCatalogEntryResponse.needs offers it: a server Dockwell
-                         runs, as "service:<project>/<environment>/<service>".
+                         runs, as "service:<project>/<environment>/<service>"; for storage, a connection
+                         the install's project may use, as "connection:<name>", which is checked from the
+                         app's server first (ADR 0099).
                 startEmpty:
                     type: boolean
                     description: |-
@@ -25279,7 +25287,9 @@ components:
                          restarts: its routes answer that it isn't open, and the ports its services
                          publish listen on the server alone, until OpenCatalogInstall opens them, so
                          its owner sets it up first, through the panel. Where nothing can be held, it's
-                         refused with the reason cant_hold.
+                         refused with the reason cant_hold. For storage that's on a bucket already, it
+                         says to leave the app's files there and start on the new one empty, as
+                         Dockwell copies none across; the plan is refused with cant_copy until it does.
             description: SetCatalogNeedRequest names an install's need, and what meets it now.
         SetCatalogNeedResponse:
             type: object

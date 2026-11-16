@@ -83,7 +83,7 @@ func TestAConnectionMeetsAStorageNeed(t *testing.T) {
 	url.Needs[1].Sets = append(url.Needs[1].Sets, &catalogv1.NeedSet{Name: "S3_URL", Part: catalogv1.Part_PART_URL})
 	url.Compose = strings.Replace(url.GetCompose(), "S3_BUCKET: ${S3_BUCKET}", "S3_BUCKET: ${S3_BUCKET}\n      S3_URL: ${S3_URL}", 1)
 	urlWays := catalog.WithConnections(url, catalog.Ways(url, lookupBuiltIn(t)), []catalog.ConnectionWay{uploads})
-	if w := urlWays["storage"]; len(w) != 1 || !strings.Contains(w[0].Why, "as a URL") {
+	if w := urlWays["storage"]; len(w) != 1 || w[0].Why != "the app reads its storage as one URL, which a connection can't give yet" {
 		t.Errorf("an app that reads a URL is offered %+v", w)
 	}
 }

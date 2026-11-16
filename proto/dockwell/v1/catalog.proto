@@ -682,7 +682,9 @@ message SetCatalogNeedRequest {
   // The need, by its name in the entry, such as "db".
   string need = 2;
   // What meets it, as GetCatalogEntryResponse.needs offers it: a server Dockwell
-  // runs, as "service:<project>/<environment>/<service>".
+  // runs, as "service:<project>/<environment>/<service>"; for storage, a connection
+  // the install's project may use, as "connection:<name>", which is checked from the
+  // app's server first (ADR 0099).
   string choice = 3;
   // Start the app on an empty database there, rather than copying its own across.
   // Copying is the default where both ends run the same engine; where they don't,
@@ -691,7 +693,9 @@ message SetCatalogNeedRequest {
   // restarts: its routes answer that it isn't open, and the ports its services
   // publish listen on the server alone, until OpenCatalogInstall opens them, so
   // its owner sets it up first, through the panel. Where nothing can be held, it's
-  // refused with the reason cant_hold.
+  // refused with the reason cant_hold. For storage that's on a bucket already, it
+  // says to leave the app's files there and start on the new one empty, as
+  // Dockwell copies none across; the plan is refused with cant_copy until it does.
   bool start_empty = 4;
 }
 

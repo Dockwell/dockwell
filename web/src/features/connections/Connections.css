@@ -138,6 +138,14 @@ a.connections-name:hover {
   overflow-wrap: anywhere;
 }
 
+/* An install's connection reaches the project it makes: a line, not a choice. */
+.connection-reach-fixed {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: 14px;
+  line-height: 20px;
+}
 .connection-projects {
   display: flex;
   flex-direction: column;

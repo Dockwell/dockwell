@@ -7980,8 +7980,17 @@ msgstr "Stop the schedule"
 msgid "{how}, keeps {keeps}"
 msgstr "{how}, keeps {keeps}"
 
+msgid "Add a connection"
+msgstr "Add a connection"
+
+msgid "Connections it can use"
+msgstr "Connections it can use"
+
 msgid "Copies its data"
 msgstr "Copies its data"
+
+msgid "It serves another app already"
+msgstr "It serves another app already"
 
 msgid "Its backups"
 msgstr "Its backups"
@@ -7989,14 +7998,29 @@ msgstr "Its backups"
 msgid "Its data can't be copied there"
 msgstr "Its data can't be copied there"
 
+msgid "Its files are there already"
+msgstr "Its files are there already"
+
+msgid "Its files stay where they are now"
+msgstr "Its files stay where they are now"
+
+msgid "Its own settings, since it was disconnected"
+msgstr "Its own settings, since it was disconnected"
+
 msgid "Its own {runs}, beside {app}"
 msgstr "Its own {runs}, beside {app}"
+
+msgid "No connection this project may use"
+msgstr "No connection this project may use"
 
 msgid "Nothing else Dockwell runs takes it"
 msgstr "Nothing else Dockwell runs takes it"
 
 msgid "Of its {what} alone"
 msgstr "Of its {what} alone"
+
+msgid "On its own disk"
+msgstr "On its own disk"
 
 msgid "Shares {named} in the project {where}"
 msgstr "Shares {named} in the project {where}"
@@ -8007,6 +8031,16 @@ msgstr "Shares {runs} in a project you can't see"
 msgid "Start empty on it"
 msgstr "Start empty on it"
 
+msgctxt "storage"
+msgid "Start empty on it"
+msgstr "Start empty on it"
+
+msgid "Use a connection"
+msgstr "Use a connection"
+
+msgid "Use another connection"
+msgstr "Use another connection"
+
 msgid "Use another {what}"
 msgstr "Use another {what}"
 
@@ -8015,6 +8049,12 @@ msgstr "Use it"
 
 msgid "Where else it can run"
 msgstr "Where else it can run"
+
+msgid "objects under {prefix}"
+msgstr "objects under {prefix}"
+
+msgid "{app} reads its storage as one URL, which a connection can't give yet"
+msgstr "{app} reads its storage as one URL, which a connection can't give yet"
 
 msgid "{there} in {project}"
 msgstr "{there} in {project}"
@@ -8275,6 +8315,55 @@ msgstr "{count, plural, one {Read. It has # branch or tag.} other {Read. It has 
 
 msgid "{short} (tag)"
 msgstr "{short} (tag)"
+
+msgid "Any S3-compatible bucket"
+msgstr "Any S3-compatible bucket"
+
+msgid "Checked from {app}'s server before it's planned"
+msgstr "Checked from {app}'s server before it's planned"
+
+msgctxt "show less of the rest"
+msgid "Less"
+msgstr "Less"
+
+msgid "Needs {list}"
+msgstr "Needs {list}"
+
+msgid "No connection meets it yet"
+msgstr "No connection meets it yet"
+
+msgid "an ACL on each object"
+msgstr "an ACL on each object"
+
+msgid "deleting many objects at once"
+msgstr "deleting many objects at once"
+
+msgid "form uploads from browsers"
+msgstr "form uploads from browsers"
+
+msgid "reading objects at its public address"
+msgstr "reading objects at its public address"
+
+msgid "signed URLs"
+msgstr "signed URLs"
+
+msgid "the bucket in the host name"
+msgstr "the bucket in the host name"
+
+msgid "the bucket in the path"
+msgstr "the bucket in the path"
+
+msgid "the checksums AWS's SDKs send"
+msgstr "the checksums AWS's SDKs send"
+
+msgid "uploads in parts"
+msgstr "uploads in parts"
+
+msgid "uploads straight from browsers"
+msgstr "uploads straight from browsers"
+
+msgid "{app} keeps its files beside it"
+msgstr "{app} keeps its files beside it"
 
 msgctxt "catalog store"
 msgid "Added"
@@ -11207,9 +11296,6 @@ msgstr "A key goes only into a secret, as plans show a variable."
 msgid "Access key ID"
 msgstr "Access key ID"
 
-msgid "Add a connection"
-msgstr "Add a connection"
-
 msgid "Add another"
 msgstr "Add another"
 
@@ -11435,6 +11521,12 @@ msgstr "for {who}"
 #. placeholder {0}: picked.length
 msgid "{0, plural, one {# project} other {# projects}}"
 msgstr "{0, plural, one {# project} other {# projects}}"
+
+msgid "{app}'s project"
+msgstr "{app}'s project"
+
+msgid "{app}'s project, once it's installed"
+msgstr "{app}'s project, once it's installed"
 
 msgid "{links, plural, one {# link names it. Disconnect it under Used by first.} other {# links name it. Disconnect them under Used by first.}}"
 msgstr "{links, plural, one {# link names it. Disconnect it under Used by first.} other {# links name it. Disconnect them under Used by first.}}"
@@ -12078,10 +12170,6 @@ msgstr "Domains"
 
 msgid "Filter domains"
 msgstr "Filter domains"
-
-msgctxt "show less of the rest"
-msgid "Less"
-msgstr "Less"
 
 msgid "Less about {name}"
 msgstr "Less about {name}"

@@ -2,7 +2,17 @@
 
 import { createClient } from "@connectrpc/connect";
 import { useQuery, useTransport } from "@connectrpc/connect-query";
-import { type CatalogInstall, CatalogService, type Engine, type Entry } from "@dockwell/api";
+import {
+  type CatalogInstall,
+  CatalogService,
+  type ConnectionInfo,
+  ConnectionReach,
+  type Engine,
+  type Entry,
+  LinkKind,
+  type Need,
+  Part,
+} from "@dockwell/api";
 import { Button } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
@@ -13,9 +23,13 @@ import { usePlaces, useServices } from "../apps/useServices";
 import { useMay } from "../auth/may";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { tagOf } from "../changes/upgrade";
+import { ConnectionSheet } from "../connections/ConnectionSheet";
+import { useConnections } from "../connections/useConnections";
+import { useAllVariables } from "../variables/VariablesPage";
 import type { CardRow } from "./CardRows";
 import { NeedBackups } from "./NeedBackups";
 import { engineName } from "./needs";
+import { isStorage, Reason, useMayLink } from "./StorageNeed";
 
 /**
  * What meets each of an install's needs, on its app's card, as rows (#722): the need,
@@ -32,6 +46,14 @@ export function useNeedRows(entry: Entry | undefined, install: CatalogInstall): 
   const services = useServices().data ?? [];
   const [open, setOpen] = useState<string>();
   const [backups, setBackups] = useState<string>();
+  // Storage is met by a connection, linked from here by an install admin (ADR 0099).
+  const connections = useConnections();
+  const mayLink = useMayLink();
+  const [addingFor, setAddingFor] = useState<string>();
+  // The values a Disconnect left, where storage is on them: the bucket they name is
+  // where the app's files are already.
+  const onOwn = (entry?.needs ?? []).some((n) => isStorage(n) && install.pin?.needs[n.name]?.own);
+  const variables = useAllVariables(onOwn ? install.environmentId : undefined);
   const id = entry?.id ?? "";
   const options = useQuery(CatalogService.method.getCatalogEntry, { id }, { enabled: (entry?.needs.length ?? 0) > 0 })
     .data?.needs;
@@ -46,9 +68,170 @@ export function useNeedRows(entry: Entry | undefined, install: CatalogInstall): 
       make: () =>
         createClient(CatalogService, transport).setCatalogNeed({ id: install.projectId, need, choice, startEmpty }),
     });
+  /**
+   * A storage need's row on an install's card (ADR 0099): what meets it now, the
+   * connection with where its files go, the app's own disk, or its own values since a
+   * Disconnect; and Use a connection, which lists each connection the install's project
+   * may use, one that serves another app, or that the app can't take, off with why.
+   * Leaving its disk or a bucket leaves the app's files there, which its button says,
+   * and so does its plan (slice 2 review, M3).
+   */
+  const storageRow = ({
+    need,
+    open,
+    onToggle,
+    onUse,
+    onAdd,
+    adding,
+  }: {
+    need: Need;
+    open: boolean;
+    onToggle: () => void;
+    onUse: (choice: string, startEmpty: boolean) => void;
+    onAdd: () => void;
+    adding: ReactNode;
+  }): CardRow => {
+    const connectionsList: readonly ConnectionInfo[] = connections.data?.connections ?? [];
+    const may = mayLink;
+    const pinned = install.pin?.needs[need.name];
+    const on = pinned?.connection ?? "";
+    const prefix = pinned?.prefix || "/";
+    // Moving off a bucket, or off the values a Disconnect left, starts empty there.
+    // Wherever its files are now, its own disk or a bucket, they stay there: but for
+    // the bucket its own values name, as a Disconnect leaves them, where they are
+    // already (slice 2 review, L3).
+    const own = new Set(
+      pinned?.own
+        ? (variables.data?.variables ?? []).filter((v) => !v.secret && v.value !== "").map((v) => v.value)
+        : [],
+    );
+    // Where the need sets a key prefix, its files are there only under the prefix its
+    // own value keeps to, as the server compares it (slice 2 re-check, N4).
+    const prefixName = need.sets.find((x) => x.part === Part.KEY_PREFIX)?.name;
+    const keptUnder = (variables.data?.variables ?? []).find((v) => v.name === prefixName && !v.secret)?.value;
+    const samePrefix = prefixName === undefined || keptUnder === undefined || keptUnder === (pinned?.prefix ?? "");
+    const back = (c: ConnectionInfo) => samePrefix && c.endpoint !== "" && own.has(c.endpoint) && own.has(c.bucket);
+    const asURL = need.sets.some((s) => s.part === Part.URL);
+    const candidates = connectionsList.filter(
+      (c) =>
+        c.kind === LinkKind.S3 &&
+        c.name !== on &&
+        (c.reach === ConnectionReach.EVERY || c.projects.includes(install.projectId)),
+    );
+    let value: ReactNode;
+    if (on) {
+      value = (
+        <>
+          <Link to="/connections/$name" params={{ name: on }}>
+            {on}
+          </Link>{" "}
+          <span className="card-row-quiet">· {t`objects under ${prefix}`}</span>
+        </>
+      );
+    } else if (pinned?.own) {
+      value = <Trans>Its own settings, since it was disconnected</Trans>;
+    } else {
+      value = <Trans>On its own disk</Trans>;
+    }
+    return {
+      key: `need-${need.name}`,
+      label: need.label,
+      value,
+      action: (
+        <Button variant="ghost" size="sm" aria-expanded={open} onClick={onToggle} {...may.off}>
+          {on ? <Trans>Use another connection</Trans> : <Trans>Use a connection</Trans>}
+        </Button>
+      ),
+      under:
+        adding ??
+        (open ? (
+          <ul className="catalog-need-line-ways" aria-label={t`Connections it can use`}>
+            {candidates.map((c) => {
+              // A connection serves one app (ADR 0099): one another link reads is off.
+              // An app's own values hold it too, as a Disconnect leaves them, but for this
+              // app's own, which it may go back onto (slice 2 re-check, N2).
+              const serves =
+                c.uses.some((u) => !(u.environment === install.environmentId && u.link === need.name)) ||
+                (c.held && !back(c));
+              const why = asURL
+                ? t`${app} reads its storage as one URL, which a connection can't give yet`
+                : serves
+                  ? t`It serves another app already`
+                  : "";
+              const label = c.displayName || c.name;
+              const leaves = !back(c);
+              return (
+                <li key={c.name}>
+                  <span className="catalog-need-line-way">
+                    <span>{label}</span>
+                    {why ? (
+                      <span className="catalog-need-line-now is-reason">
+                        <Reason why={why} />
+                      </span>
+                    ) : (
+                      <span className="catalog-need-line-now">
+                        {leaves ? t`Its files stay where they are now` : t`Its files are there already`}
+                      </span>
+                    )}
+                  </span>
+                  <code>{c.name}</code>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => onUse(`connection:${c.name}`, leaves)}
+                    {...(why ? { disabled: true } : may.off)}
+                  >
+                    {leaves ? <Trans context="storage">Start empty on it</Trans> : <Trans>Use it</Trans>}
+                  </Button>
+                </li>
+              );
+            })}
+            {candidates.length === 0 ? (
+              <li className="catalog-need-line-none">
+                <span className="catalog-need-line-now">
+                  <Trans>No connection this project may use</Trans>
+                </span>
+              </li>
+            ) : null}
+            {may.allowed ? (
+              <li className="catalog-need-line-add">
+                <Button variant="ghost" size="sm" icon="plus" onClick={onAdd}>
+                  <Trans>Add a connection</Trans>
+                </Button>
+              </li>
+            ) : null}
+          </ul>
+        ) : undefined),
+    };
+  };
+
   const rows: CardRow[] = [];
   for (const need of needs) {
     const pinned = install.pin?.needs[need.name];
+    if (isStorage(need)) {
+      rows.push(
+        storageRow({
+          need,
+          open: open === need.name,
+          onToggle: () => setOpen(open === need.name ? undefined : need.name),
+          onUse: (choice, startEmpty) => use(need.name, choice, startEmpty),
+          onAdd: () => setAddingFor(need.name),
+          adding:
+            addingFor === need.name ? (
+              <ConnectionSheet
+                onClose={() => setAddingFor(undefined)}
+                onSaved={() => {
+                  setAddingFor(undefined);
+                  void connections.refetch();
+                }}
+                existing={connections.data?.connections ?? []}
+                project={install.projectId}
+              />
+            ) : undefined,
+        }),
+      );
+      continue;
+    }
     const what = need.label.toLowerCase();
     const engine = engineName(Number(pinned?.engine ?? 0) as Engine);
     const shared = pinned?.environment ?? "";

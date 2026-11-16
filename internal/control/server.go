@@ -205,6 +205,10 @@ type Config struct {
 	logins *registrylogins.Logins
 	// connections are the connections apps use (ADR 0099).
 	connections *connections.Connections
+	// ConnectionChecks checks a connection's bucket before an install links an app to
+	// it: each server's agent, from a network made for the check, unless a test
+	// passes one that stands in for a bucket on loopback, which no check reaches.
+	ConnectionChecks catalogapi.ConnectionChecks
 	// DNSAPI reaches a DNS provider's API with a token, for the DNS providers
 	// (ADR 0088): Cloudflare's own unless a test passes one that reaches its own
 	// server.
@@ -796,7 +800,15 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		if cfg.connections != nil && cfg.Fleet != nil {
 			// The connections apps use, their check from where an app is, and an app
 			// connected to one (ADR 0099).
-			handle(dockwellv1connect.NewConnectionServiceHandler(connections.New(cfg.connections, cfg.Fleet, cfg.Agents, ch, cfg.Store), opts...))
+			conns := connections.New(cfg.connections, cfg.Fleet, cfg.Agents, ch, cfg.Store)
+			handle(dockwellv1connect.NewConnectionServiceHandler(conns, opts...))
+			// An install checks a connection's bucket from where the app is to run
+			// before it links the app to it.
+			var bucketChecks catalogapi.ConnectionChecks = conns
+			if cfg.ConnectionChecks != nil {
+				bucketChecks = cfg.ConnectionChecks
+			}
+			catalogHandler.CheckWith(bucketChecks)
 		}
 		*tasksOut = tasks.New(cfg.Changes, cfg.Agents, cfg.Store, cfg.Logger)
 		handle(dockwellv1connect.NewTaskServiceHandler(*tasksOut, opts...))

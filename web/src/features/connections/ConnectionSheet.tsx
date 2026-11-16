@@ -43,6 +43,7 @@ export function ConnectionSheet({
   editing,
   project,
   start,
+  forInstall,
 }: {
   onClose: () => void;
   /** Where to go once the plan applies, with the connection's name. */
@@ -55,6 +56,12 @@ export function ConnectionSheet({
   project?: string | undefined;
   /** The store a new one starts at, as a tile picked on Connections. */
   start?: ProviderId | undefined;
+  /**
+   * The app an install sheet adds it for, which has no project yet: a new one reaches
+   * the project its install makes, which that install's plan gives it (ADR 0099), and
+   * any others picked.
+   */
+  forInstall?: string | undefined;
 }) {
   const { t } = useLingui();
   const sheet = useChangeSheet();
@@ -88,7 +95,8 @@ export function ConnectionSheet({
   const [publicUrl, setPublicUrl] = useState(editing?.publicUrl ?? "");
   const [pathStyle, setPathStyle] = useState<boolean>(editing?.pathStyle ?? p.pathStyle);
   const [pathTouched, setPathTouched] = useState(editing !== undefined);
-  const startReach = editing?.reach ?? (project ? ConnectionReach.PROJECTS : ConnectionReach.EVERY);
+  const installing = !editing && forInstall !== undefined;
+  const startReach = editing?.reach ?? (project || installing ? ConnectionReach.PROJECTS : ConnectionReach.EVERY);
   const [reach, setReach] = useState(
     startReach === ConnectionReach.UNSPECIFIED ? ConnectionReach.PROJECTS : startReach,
   );
@@ -142,7 +150,7 @@ export function ConnectionSheet({
   const keysNeeded = !editing || moved || keyId !== "" || secret !== "";
   const keysKept = editing !== undefined && !moved && keyId === "" && secret === "";
   const complete = endpoint !== "" && bucketOk && (keysNeeded ? typedKeys : true);
-  const reaching = reach === ConnectionReach.EVERY || picked.length > 0;
+  const reaching = reach === ConnectionReach.EVERY || picked.length > 0 || installing;
   const passed = answer?.passed === true;
   // A bucket that answered and refused is wrong as typed, as is an address Dockwell
   // keeps every check and app from. One this server can't reach from a network of the
@@ -205,8 +213,11 @@ export function ConnectionSheet({
       pathStyle,
       publicUrl: publicUrl.trim(),
     },
-    reach,
-    projects: reach === ConnectionReach.PROJECTS ? picked : [],
+    // For an install, it reaches exactly the project the install makes, which the
+    // install's plan gives it: until then it reaches none (ADR 0099). More projects
+    // are given on Connections, later.
+    reach: installing ? ConnectionReach.UNSPECIFIED : reach,
+    projects: !installing && reach === ConnectionReach.PROJECTS ? picked : [],
   });
   const review = () =>
     sheet.open({
@@ -240,8 +251,10 @@ export function ConnectionSheet({
       },
     });
 
-  const who =
-    reach === ConnectionReach.EVERY
+  const app = forInstall ?? "";
+  const who = installing
+    ? t`${app}'s project`
+    : reach === ConnectionReach.EVERY
       ? t`every project`
       : picked.length === 1
         ? (projects.find((x) => x.id === picked[0])?.label ?? t`1 project`)
@@ -409,29 +422,42 @@ export function ConnectionSheet({
             placeholder={p.name ? `${p.name} · ${bucket || "bucket"}` : bucket || "bucket"}
             onChange={(event) => setLabel(event.target.value)}
           />
-          <Switch
-            checked={reach === ConnectionReach.PROJECTS}
-            onChange={(on) => setReach(on ? ConnectionReach.PROJECTS : ConnectionReach.EVERY)}
-            label={t`Only some projects`}
-            description={t`Their apps alone may use it.`}
-          />
-          {reach === ConnectionReach.PROJECTS ? (
-            <fieldset className="connection-projects">
-              <legend className="dw-sr">{t`Projects`}</legend>
-              {projects.map((x) => (
-                <label key={x.id} className="connection-project">
-                  <input
-                    type="checkbox"
-                    checked={picked.includes(x.id)}
-                    onChange={(event) =>
-                      setPicked((was) => (event.target.checked ? [...was, x.id] : was.filter((y) => y !== x.id)))
-                    }
-                  />
-                  <span>{x.label}</span>
-                </label>
-              ))}
-            </fieldset>
-          ) : null}
+          {installing ? (
+            <div className="connection-reach-fixed">
+              <span className="dw-field-label">
+                <Trans>Reaches</Trans>
+              </span>
+              <span>
+                <Trans>{app}'s project, once it's installed</Trans>
+              </span>
+            </div>
+          ) : (
+            <>
+              <Switch
+                checked={reach === ConnectionReach.PROJECTS}
+                onChange={(on) => setReach(on ? ConnectionReach.PROJECTS : ConnectionReach.EVERY)}
+                label={t`Only some projects`}
+                description={t`Their apps alone may use it.`}
+              />
+              {reach === ConnectionReach.PROJECTS ? (
+                <fieldset className="connection-projects">
+                  <legend className="dw-sr">{t`Projects`}</legend>
+                  {projects.map((x) => (
+                    <label key={x.id} className="connection-project">
+                      <input
+                        type="checkbox"
+                        checked={picked.includes(x.id)}
+                        onChange={(event) =>
+                          setPicked((was) => (event.target.checked ? [...was, x.id] : was.filter((y) => y !== x.id)))
+                        }
+                      />
+                      <span>{x.label}</span>
+                    </label>
+                  ))}
+                </fieldset>
+              ) : null}
+            </>
+          )}
           <Switch
             checked={pathStyle}
             onChange={(on) => {
