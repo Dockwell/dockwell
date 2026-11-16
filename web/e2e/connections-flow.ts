@@ -4,12 +4,15 @@
 // bucket checked from the server as its keys are typed. An address Dockwell keeps
 // every check and app from, as this server's own is, can't be planned; a bucket the
 // check can't reach from a network of its own still plans, as an app may reach it
-// from its own; the plan never shows the key. The connection's page checks it again, and an app's
+// from its own; the plan never shows the key. The connection's page checks it again. An app
+// linked to it reads its names from it on its Environment tab, and Disconnect lets go
+// of the link with each value kept, as a plan. Then an app's
 // Connect storage checks it from the app's network, which plans nothing here and says
 // why, as nothing on this machine is a bucket the app's network reaches. Then it's
 // removed, as nothing reads it.
 
 import { execFileSync } from "node:child_process";
+import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import type { Flow } from "./flows.ts";
@@ -70,9 +73,11 @@ export const flow: Flow = {
       "-y",
     ]);
     const listed = JSON.parse(cli(["services", "list", "--json"])) as {
-      services: { id: string; resource: { name: string } }[];
+      services: { id: string; resource: { name: string; scope: string } }[];
     };
-    const notes = listed.services.find((s) => s.resource.name === "notes")?.id ?? fail("notes isn't listed");
+    const notesInfo = listed.services.find((s) => s.resource.name === "notes") ?? fail("notes isn't listed");
+    const notes = notesInfo.id;
+    const notesEnv = notesInfo.resource.scope;
 
     step("connections: one added from a store's tile, checked as its keys are typed");
     await page.setViewportSize({ width: 1440, height: 900 });
@@ -114,6 +119,70 @@ export const flow: Flow = {
     await page.getByText(UNREACHED).first().waitFor({ timeout: 90_000 });
     if ((await page.locator("main").innerText()).includes(SECRET)) fail("the connection's page shows its key");
     await shoot(page, "connections-page");
+
+    step("connections: an app linked to it reads its names from it, and Disconnect keeps their values");
+    // The link Connect storage would plan, made from the CLI, as nothing here is a
+    // bucket the app's network reaches.
+    const org =
+      cli(["resources", "list", "--kind", "project", "--json"]).match(/org_[0-9A-Za-z]+/)?.[0] ??
+      fail("no organization is listed");
+    const from = (part: string) => ({ connection: { scope: org, name: "e2e-files", part, link: "storage" } });
+    const edits = [
+      {
+        resource: { kind: "link", scope: notesEnv, name: "storage" },
+        spec: {
+          link: {
+            label: "Storage",
+            connection: "e2e-files",
+            kind: "LINK_KIND_S3",
+            prefix: "notes/",
+            sets: [
+              { name: "NOTES_S3_BUCKET", part: "LINK_PART_BUCKET" },
+              { name: "NOTES_S3_SECRET_ACCESS_KEY", part: "LINK_PART_SECRET_KEY" },
+            ],
+          },
+        },
+      },
+      {
+        resource: { kind: "variable", scope: notesEnv, name: "NOTES_S3_BUCKET" },
+        spec: { variable: { from: from("LINK_PART_BUCKET") } },
+      },
+      {
+        resource: { kind: "secret", scope: notesEnv, name: "NOTES_S3_SECRET_ACCESS_KEY" },
+        spec: { secret: { from: from("LINK_PART_SECRET_KEY") } },
+      },
+    ];
+    const args = ["changes", "propose", "--summary", "Connect notes to e2e-files", "-y"];
+    edits.forEach((edit, i) => {
+      const file = join(data, `connections-edit-${i}.json`);
+      writeFileSync(file, JSON.stringify(edit));
+      args.push("--edits", `@${file}`);
+    });
+    cli(args);
+    await page.goto(`${origin}/apps/${notes}/environment`);
+    const fromConnection = page.getByRole("link", { name: "From e2e-files" });
+    await fromConnection.first().waitFor({ timeout: 20_000 });
+    if ((await fromConnection.count()) !== 2)
+      fail(`${await fromConnection.count()} names read as from e2e-files, want 2`);
+    if (await page.getByRole("button", { name: "Change NOTES_S3_BUCKET" }).count()) {
+      fail("a name the link sets offers its own change");
+    }
+    await shoot(page, "connections-env-linked");
+    await page.goto(`${origin}/connections/e2e-files`);
+    const usedBy = page.getByRole("region", { name: "Used by" });
+    await usedBy.getByRole("link", { name: "notes" }).waitFor({ timeout: 20_000 });
+    await shoot(page, "connections-used");
+    await usedBy.getByRole("button", { name: "Disconnect storage" }).click();
+    const detach = page.locator(".plan-sheet");
+    const applyDetach = detach.getByRole("button", { name: /Apply plan/ });
+    await applyDetach.waitFor({ timeout: 30_000 });
+    if ((await detach.innerText()).includes(SECRET)) fail("disconnecting shows the connection's key");
+    await applyDetach.click();
+    await detach.getByRole("button", { name: "Done" }).waitFor({ timeout: 30_000 });
+    await detach.getByRole("button", { name: "Done" }).click();
+    await page.getByText("No app reads it yet.").waitFor({ timeout: 20_000 });
+    const kept = cli(["variables", "list", "--environment", notesEnv, "--json"]);
+    if (!kept.includes("e2e-files")) fail(`after disconnecting, NOTES_S3_BUCKET isn't kept: ${kept}`);
 
     step("connections: Connect storage checks from the app's network, and plans nothing it can't reach");
     await page.goto(`${origin}/apps/${notes}/environment`);
