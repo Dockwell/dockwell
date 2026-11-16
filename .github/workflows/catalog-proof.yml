@@ -97,9 +97,9 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: dockwell/go.mod
-          cache-dependency-path: |
-            dockwell/go.sum
-            dockwell/tools/go.sum
+          # No cache: the job runs catalog images as root, which could write Go's cache
+          # for every later proof to build from (#726's slice 2 review, M5).
+          cache: false
       - name: Docker
         run: docker version
       - name: SFTP client
@@ -164,9 +164,9 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: dockwell/go.mod
-          cache-dependency-path: |
-            dockwell/go.sum
-            dockwell/tools/go.sum
+          # No cache: the job runs catalog images as root, which could write Go's cache
+          # for every later proof to build from (#726's slice 2 review, M5).
+          cache: false
       - name: Prove the entries on arm64
         env:
           AT: ${{ steps.catalog.outputs.ref }}
