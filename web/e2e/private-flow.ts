@@ -10,7 +10,7 @@
 import type { Page } from "playwright-core";
 
 import type { Flow, FlowRun } from "./flows.ts";
-import { coveredHidden, onTop } from "./sheets.ts";
+import { atWidth, coveredHidden, onTop } from "./sheets.ts";
 import { bytes, number } from "./wire.ts";
 
 function fail(message: string): never {
@@ -155,7 +155,7 @@ async function privateFlow(page: Page, { origin, step, shoot }: FlowRun) {
   await sheet.waitFor({ state: "hidden" });
 
   step("private: a private route keeps its users' passwords, and fits a phone");
-  await page.setViewportSize({ width: 390, height: 844 });
+  await atWidth(page, { width: 390, height: 844 });
   await page.goto(`${origin}/domains?private=rte_locked.example.com`);
   const locked = page.getByRole("dialog", { name: "Who gets in to locked.example.com" });
   await locked.waitFor({ timeout: 15_000 });
@@ -168,7 +168,7 @@ async function privateFlow(page: Page, { origin, step, shoot }: FlowRun) {
   if (wider > 0) fail(`on a phone, the sheet is ${wider}px wider than the page`);
   await shoot(page, "private-phone");
   await locked.getByRole("button", { name: "Cancel" }).click();
-  await page.setViewportSize({ width: 1440, height: 900 });
+  await atWidth(page, { width: 1440, height: 900 });
   await page.unroute(stubbed);
 }
 

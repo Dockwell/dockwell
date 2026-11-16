@@ -13,7 +13,7 @@ import type { Page } from "playwright-core";
 
 import type { Flow } from "./flows.ts";
 import { ownServerPath } from "./own-server.ts";
-import { onTop } from "./sheets.ts";
+import { atWidth, onTop } from "./sheets.ts";
 
 /** ufw status verbose as ufw prints it, its rows "%-26s %-12s%-26s", app profiles named after their ports. */
 const ufwStatus = [
@@ -215,12 +215,12 @@ export async function firewallFlow(page: Page, { origin, step, shoot, env }: Fir
     if (!written.includes("[sshd]") || !written.includes("maxretry = 3")) fail(`Dockwell's jail file reads ${written}`);
   }
   await f2b.getByText("Dockwell writes this jail.").waitFor({ timeout: 15_000 });
-  await page.setViewportSize({ width: 390, height: 844 });
+  await atWidth(page, { width: 390, height: 844 });
   await f2b.scrollIntoViewIfNeeded();
   const wide = await page.evaluate(() => document.documentElement.scrollWidth);
   if (wide > 390) fail(`the Firewall tab is ${wide} px wide on a 390 px phone`);
   await shoot(page, "server-firewall-access-phone");
-  await page.setViewportSize({ width: 1440, height: 900 });
+  await atWidth(page, { width: 1440, height: 900 });
 
   step(
     "a rule of Dockwell's own applies with a passkey, waits for you to say you can still reach the server, and stays",

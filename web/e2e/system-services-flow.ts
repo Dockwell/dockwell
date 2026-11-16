@@ -9,7 +9,7 @@ import type { Page } from "playwright-core";
 
 import type { Flow } from "./flows.ts";
 import { ownServerPath } from "./own-server.ts";
-import { onTop } from "./sheets.ts";
+import { atWidth, onTop } from "./sheets.ts";
 
 interface SystemServicesFlowOptions {
   origin: string;
@@ -23,7 +23,7 @@ function fail(message: string): never {
 
 export async function systemServicesFlow(page: Page, { origin, step, shoot }: SystemServicesFlowOptions) {
   step("a server's system services: the failed one first, live, found by name, its facts a row away");
-  await page.setViewportSize({ width: 1440, height: 900 });
+  await atWidth(page, { width: 1440, height: 900 });
   const link = await ownServerPath(page, origin);
   await page.goto(`${origin}${link}`);
   await page
@@ -106,11 +106,11 @@ export async function systemServicesFlow(page: Page, { origin, step, shoot }: Sy
   await sheet.waitFor({ state: "hidden" });
 
   step("on a phone, the system services are rows");
-  await page.setViewportSize({ width: 360, height: 780 });
+  await atWidth(page, { width: 360, height: 780 });
   await page.getByRole("list", { name: "System services" }).waitFor({ timeout: 15_000 });
   const wide = await page.evaluate(() => document.documentElement.scrollWidth);
   if (wide > 360) fail(`the system services are ${wide} px wide on a 360 px phone`);
-  await page.setViewportSize({ width: 1440, height: 900 });
+  await atWidth(page, { width: 1440, height: 900 });
 }
 
 /** Where sign-in.ts runs this among the flows, beside processes (flows.ts). */

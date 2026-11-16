@@ -8,6 +8,7 @@
 import type { Locator, Page } from "playwright-core";
 
 import type { Flow } from "./flows.ts";
+import { atWidth } from "./sheets.ts";
 
 export interface BackupsFlowOptions {
   origin: string;
@@ -34,7 +35,7 @@ async function pickTheDatabase(sheet: Locator) {
 
 export async function backupsFlow(page: Page, { origin, step, shoot }: BackupsFlowOptions) {
   step("backups: the rail leads to them, with what the catalog's upgrade took");
-  await page.setViewportSize({ width: 1280, height: 900 });
+  await atWidth(page, { width: 1280, height: 900 });
   await page.goto(`${origin}/apps`);
   await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Backups" }).click();
   await page.getByRole("heading", { level: 1, name: "Backups" }).waitFor();
@@ -158,7 +159,7 @@ export async function backupsFlow(page: Page, { origin, step, shoot }: BackupsFl
   await shoot(page, "backups-destinations");
 
   step("backups: a copy that can't get there says why on its row, and the row keeps its buttons");
-  await page.setViewportSize({ width: 1024, height: 800 });
+  await atWidth(page, { width: 1024, height: 800 });
   await page.goto(`${origin}/backups`);
   await page.getByRole("button", { name: "Back up now" }).click();
   const toStorage = page.getByRole("dialog", { name: /^Back up / });
@@ -172,7 +173,7 @@ export async function backupsFlow(page: Page, { origin, step, shoot }: BackupsFl
   const edge = await noCopy.getByRole("button", { name: "Delete this backup" }).boundingBox();
   if (!edge || edge.x + edge.width > 1024) fail("a long copy error pushes a backup's buttons off the page");
   await shoot(page, "backups-copy-failed");
-  await page.setViewportSize({ width: 1280, height: 900 });
+  await atWidth(page, { width: 1280, height: 900 });
 
   step("backups: an app's page shows its newest, and takes another");
   // journal has a db too, so go by the app. A link that has no width can't be clicked,
@@ -188,7 +189,7 @@ export async function backupsFlow(page: Page, { origin, step, shoot }: BackupsFl
   await shoot(page, "backups-app");
 
   step("backups: on a phone, they stack");
-  await page.setViewportSize({ width: 360, height: 780 });
+  await atWidth(page, { width: 360, height: 780 });
   await page.goto(`${origin}/backups`);
   await page.locator(".backup-phone").getByText("data").first().waitFor();
   await page.getByRole("link", { name: "Back" }).waitFor();
@@ -197,7 +198,7 @@ export async function backupsFlow(page: Page, { origin, step, shoot }: BackupsFl
     fail("the backups page scrolls sideways on a phone");
   }
   await shoot(page, "backups-phone");
-  await page.setViewportSize({ width: 1280, height: 900 });
+  await atWidth(page, { width: 1280, height: 900 });
 }
 
 /** Where sign-in.ts runs this among the flows, on the fake engine (flows.ts). */

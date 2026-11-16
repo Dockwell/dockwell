@@ -11,7 +11,7 @@
 import type { Page } from "playwright-core";
 
 import type { Flow } from "./flows.ts";
-import { onTop } from "./sheets.ts";
+import { atWidth, onTop } from "./sheets.ts";
 import { bytes, number } from "./wire.ts";
 
 export interface WebsitesFlowOptions {
@@ -120,7 +120,7 @@ export async function websitesFlow(page: Page, { origin, step, shoot }: Websites
   const heading = page.getByRole("heading", { level: 1, name: "Websites" });
 
   step("websites: the rail leads to it, and with none it offers the first");
-  await page.setViewportSize({ width: 1440, height: 900 });
+  await atWidth(page, { width: 1440, height: 900 });
   await page.goto(`${origin}/apps`);
   await rail.getByRole("link", { name: "Websites" }).click();
   await heading.waitFor();
@@ -301,7 +301,7 @@ export async function websitesFlow(page: Page, { origin, step, shoot }: Websites
 
   step("websites: at 1440 px, 800 px and on a phone it fits, with every domain whole");
   for (const width of [1440, 800, 390]) {
-    await page.setViewportSize({ width, height: 844 });
+    await atWidth(page, { width, height: 844 });
     await page
       .getByText(sites[2]?.domain ?? "")
       .first()
@@ -310,7 +310,7 @@ export async function websitesFlow(page: Page, { origin, step, shoot }: Websites
     if (fits.page > 0) fail(`at ${width} px the page is ${fits.page} px too wide`);
     if (fits.clipped.length > 0) fail(`at ${width} px these domains are cut: ${fits.clipped.join(", ")}`);
   }
-  await page.setViewportSize({ width: 1440, height: 900 });
+  await atWidth(page, { width: 1440, height: 900 });
 
   step(
     "websites: a website's page shows what its web server runs, from the control plane, and marks what an edit changes",

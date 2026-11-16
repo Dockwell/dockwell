@@ -35,9 +35,12 @@ import { parseArgs } from "node:util";
 import { type Browser, chromium, type Page } from "playwright-core";
 
 import { describePages, watchBrowser } from "./report.ts";
+import { atWidth, LONG_HOSTNAME } from "./sheets.ts";
 
 // A real binary asks nothing beyond this machine in a test.
 process.env["DOCKWELL_TEST"] = "1";
+// The control server has a name as long as a cloud's, for every check that a page fits a phone (#738).
+process.env["DOCKWELL_TEST_HOSTNAME"] ??= LONG_HOSTNAME;
 
 const { values, positionals } = parseArgs({ allowPositionals: true, options: { shots: { type: "string" } } });
 const bin = resolve(positionals[0] ?? "bin/dockwell");
@@ -137,20 +140,20 @@ async function shoot(page: Page, name: string) {
   for (const scheme of ["dark", "light"] as const) {
     await page.emulateMedia({ colorScheme: scheme });
     for (const width of [1440, 800, 390, 360]) {
-      await page.setViewportSize({ width, height: width >= 800 ? 970 : 844 });
+      await atWidth(page, { width, height: width >= 800 ? 970 : 844 });
       await sleep(250);
       await page.screenshot({ path: join(shots, `${name}-${width}-${scheme}.png`) });
     }
   }
   await page.emulateMedia({ colorScheme: "light" });
-  await page.setViewportSize({ width: 1440, height: 970 });
+  await atWidth(page, { width: 1440, height: 970 });
   await sleep(100);
 }
 
 /** Fails when the page scrolls sideways at a width: every view works from 360 px up. */
 async function noSidewaysScroll(page: Page, what: string) {
   for (const width of [390, 360]) {
-    await page.setViewportSize({ width, height: 844 });
+    await atWidth(page, { width, height: 844 });
     await sleep(150);
     const over = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     if (over > 0) fail(`${what} scrolls sideways by ${over} px at ${width} px`);
@@ -212,7 +215,7 @@ async function main() {
   await page.goto(at({ path: site }));
   await shoot(page, "folder");
   await noSidewaysScroll(page, "a folder");
-  await page.setViewportSize({ width: 1440, height: 970 });
+  await atWidth(page, { width: 1440, height: 970 });
 
   step("a folder longer than its pane scrolls there, and the page is no taller for it");
   const pageHeight = () => page.evaluate(() => document.documentElement.scrollHeight);
@@ -224,7 +227,7 @@ async function main() {
     fail(`a folder of 120 files makes the page ${long - short} px taller than a short one, past its pane`);
 
   step("on a tall window the panes reach its foot, and the page still doesn't scroll");
-  await page.setViewportSize({ width: 1440, height: 1600 });
+  await atWidth(page, { width: 1440, height: 1600 });
   await page.waitForFunction(() => {
     const list = document.querySelector(".files-list .dw-table-wrap")?.getBoundingClientRect();
     return list !== undefined && innerHeight - list.bottom < 40;
@@ -239,7 +242,7 @@ async function main() {
   });
   if (tall.list > 32 || tall.tree > 32 || tall.scrolls)
     fail(`on a 1600 px window the list ends ${tall.list} px and the tree ${tall.tree} px short of its foot`);
-  await page.setViewportSize({ width: 1440, height: 970 });
+  await atWidth(page, { width: 1440, height: 970 });
   await page.goto(at({ path: site }));
   await page.getByText("nginx.conf").waitFor();
 
@@ -467,12 +470,12 @@ async function main() {
   }
 
   step("a file on a phone takes the screen, and its header goes back");
-  await page.setViewportSize({ width: 390, height: 844 });
+  await atWidth(page, { width: 390, height: 844 });
   await page.goto(at({ path: site }));
   await page.getByText("nginx.conf").click();
   await page.getByRole("heading", { level: 1, name: "nginx.conf" }).waitFor();
   await noSidewaysScroll(page, "an open file");
-  await page.setViewportSize({ width: 390, height: 844 });
+  await atWidth(page, { width: 390, height: 844 });
   await code.fill("edited on a phone\n");
   const save = page.getByRole("button", { name: "Save", exact: true });
   await save.click();
@@ -482,7 +485,7 @@ async function main() {
   await page.getByText("说明.txt").waitFor();
 
   step("what was read, saved and refused is on Activity, and opens the file");
-  await page.setViewportSize({ width: 1440, height: 970 });
+  await atWidth(page, { width: 1440, height: 970 });
   await page.goto(`${origin}/activity`);
   await page.getByText(`Read ${conf} on`).first().waitFor();
   await page.getByText(`Couldn't save ${conf} on`).first().waitFor();

@@ -12,6 +12,7 @@
 import type { Page } from "playwright-core";
 
 import type { Flow } from "./flows.ts";
+import { atWidth, pastTheEdge } from "./sheets.ts";
 
 export interface LayoutFlowOptions {
   origin: string;
@@ -111,7 +112,7 @@ export async function layoutFlow(page: Page, { origin, step }: LayoutFlowOptions
   ];
   const name = (path: string) => path.replace(app, "<app>");
 
-  await page.setViewportSize({ width: 2560, height: 1000 });
+  await atWidth(page, { width: 2560, height: 1000 });
   const seen = new Map<string, Measure>();
   for (const { kind, path, max, waitFor } of kinds) {
     await open(page, origin, path, waitFor);
@@ -166,7 +167,7 @@ export async function layoutFlow(page: Page, { origin, step }: LayoutFlowOptions
   step(`  an app's head and tabs stay put on Logs, and its log view takes ${Math.round(logs.logs.width)} px`);
 
   for (const width of [1440, 1280]) {
-    await page.setViewportSize({ width, height: 900 });
+    await atWidth(page, { width, height: 900 });
     for (const { kind, path, waitFor } of kinds) {
       await open(page, origin, path, waitFor);
       const m = await measure(page);
@@ -180,9 +181,12 @@ export async function layoutFlow(page: Page, { origin, step }: LayoutFlowOptions
 
   // On a phone, a callout with two long actions keeps to the screen, each action on a row of its own where both
   // don't fit (#624). It is the UI kit's Callout as it renders, with no class of a screen's own to help it.
-  await page.setViewportSize({ width: 390, height: 844 });
+  await atWidth(page, { width: 390, height: 844 });
   await page.goto(`${origin}/`);
   await page.locator("#main .page").first().waitFor();
+  // The page fits on its own first, or what's wide is named, not the callout.
+  const alone = await pastTheEdge(page);
+  if (alone.wider > 0) fail(`at 390 px, the overview is ${alone.wider} px wider than the screen: ${alone.what}`);
   const callout = await page.evaluate(() => {
     const at = document.querySelector("#main .page") ?? document.body;
     const make = (tag: string, className: string, text?: string) => {
@@ -208,15 +212,22 @@ export async function layoutFlow(page: Page, { origin, step }: LayoutFlowOptions
       .map((b) => b.getBoundingClientRect())
       .filter((r) => r.right > edge.right + 0.5 || r.left < edge.left - 0.5).length;
     const wide = document.documentElement.scrollWidth;
+    const past = [...document.querySelectorAll("body *")]
+      .filter((el) => el.getBoundingClientRect().right > window.innerWidth + 0.5)
+      .slice(0, 8)
+      .map((el) => `${el.tagName.toLowerCase()}.${String(el.className).trim().split(/\s+/).join(".")}`)
+      .join(", ");
     box.remove();
-    return { out, wide, screen: window.innerWidth };
+    return { out, wide, screen: window.innerWidth, past };
   });
   if (callout.wide > callout.screen) {
-    fail(`a callout with two long actions makes the page ${px(callout.wide)} wide on a ${px(callout.screen)} screen`);
+    fail(
+      `a callout with two long actions makes the page ${px(callout.wide)} wide on a ${px(callout.screen)} screen: ${callout.past}`,
+    );
   }
   if (callout.out > 0) fail(`${callout.out} of a callout's actions run past its edge at 390 px`);
   step("  at 390 px a callout with two long actions keeps to the screen");
-  await page.setViewportSize({ width: 1440, height: 900 });
+  await atWidth(page, { width: 1440, height: 900 });
 }
 
 /** Where sign-in.ts runs this among the flows, on the fake engine (flows.ts). */

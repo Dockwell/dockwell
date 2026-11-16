@@ -5,6 +5,7 @@
 import type { Page } from "playwright-core";
 
 import type { Flow, FlowRun } from "./flows.ts";
+import { atWidth } from "./sheets.ts";
 import { bytes, number } from "./wire.ts";
 
 /** How far the page is scrolled, as the window scrolls it under the shell's sticky rail and top bar. */
@@ -19,7 +20,7 @@ export async function serversFlow(page: Page, { origin, step }: Pick<FlowRun, "o
   const was = page.viewportSize();
   // Short enough that even one server's page scrolls, wide enough for the inspector beside the list.
   const height = 320;
-  await page.setViewportSize({ width: 1280, height });
+  await atWidth(page, { width: 1280, height });
   try {
     await page.goto(`${origin}/servers?closed=true`);
     const row = page.getByRole("table", { name: "Servers, sorted by name" }).getByRole("row").nth(1);
@@ -50,7 +51,7 @@ export async function serversFlow(page: Page, { origin, step }: Pick<FlowRun, "o
       `  chosen at ${before} px down, the page stayed at ${after} px, with the inspector at ${Math.round(box.y)} px`,
     );
   } finally {
-    if (was) await page.setViewportSize(was);
+    if (was) await atWidth(page, was);
   }
   await manyServersFlow(page, { origin, step });
 }
@@ -82,7 +83,7 @@ async function manyServersFlow(page: Page, { origin, step }: Pick<FlowRun, "orig
       route.fulfill({ contentType: "application/connect+proto", body: snapshot }),
     );
     for (const width of [1440, 1180]) {
-      await probe.setViewportSize({ width, height: 900 });
+      await atWidth(probe, { width, height: 900 });
       await probe.goto(`${origin}/servers?closed=true`);
       const tile = probe.getByRole("button", { name: /^node-53, / });
       await tile.click();
@@ -102,7 +103,7 @@ async function manyServersFlow(page: Page, { origin, step }: Pick<FlowRun, "orig
     }
     step("servers: closing a server past row 20 keeps its row and returns keyboard focus, wide and wrapped");
 
-    await probe.setViewportSize({ width: 390, height: 844 });
+    await atWidth(probe, { width: 390, height: 844 });
     await probe.goto(`${origin}/servers?closed=true`);
     const rows = probe.locator(".servers-phone-row");
     const chosen = rows.nth(40);

@@ -8,7 +8,7 @@
 import type { Locator, Page } from "playwright-core";
 
 import type { Flow, FlowRun } from "./flows.ts";
-import { onTop } from "./sheets.ts";
+import { atWidth, onTop } from "./sheets.ts";
 
 function fail(message: string): never {
   throw new Error(message);
@@ -29,7 +29,7 @@ async function chooseServer(sheet: Locator) {
 
 export async function newAppCatalogFlow(page: Page, { origin, step, shoot }: FlowRun) {
   step("new app: the top bar's New is a menu of an app, a database, a domain and a server");
-  await page.setViewportSize({ width: 1440, height: 900 });
+  await atWidth(page, { width: 1440, height: 900 });
   await page.goto(`${origin}/apps`);
   await page.getByRole("banner").getByRole("button", { name: "New" }).click();
   const menu = page.getByRole("menu", { name: "New" });

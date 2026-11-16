@@ -10,7 +10,7 @@ import { readFile } from "node:fs/promises";
 import type { Page } from "playwright-core";
 
 import type { Flow } from "./flows.ts";
-import { pastTheEdge } from "./sheets.ts";
+import { atWidth, pastTheEdge } from "./sheets.ts";
 
 interface SettingsFlowOptions {
   origin: string;
@@ -24,7 +24,7 @@ function fail(message: string): never {
 
 export async function settingsFlow(page: Page, { origin, step, shoot }: SettingsFlowOptions) {
   step("settings: the rail leads to General, beside the other sections");
-  await page.setViewportSize({ width: 1440, height: 900 });
+  await atWidth(page, { width: 1440, height: 900 });
   await page.goto(`${origin}/`);
   await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Settings" }).click();
   await page.getByRole("heading", { level: 1, name: "General" }).waitFor();
@@ -165,7 +165,7 @@ export async function settingsFlow(page: Page, { origin, step, shoot }: Settings
   await adding.waitFor({ state: "detached" });
 
   step("settings: on a phone, the sections are a list reached from More");
-  await page.setViewportSize({ width: 390, height: 844 });
+  await atWidth(page, { width: 390, height: 844 });
   await page.goto(`${origin}/more`);
   await page.getByRole("link", { name: "Settings" }).click();
   await page.getByRole("heading", { level: 1, name: "Settings" }).waitFor();
@@ -212,7 +212,7 @@ export async function settingsFlow(page: Page, { origin, step, shoot }: Settings
   }
 
   // What later steps and screens read stays as it was.
-  await page.setViewportSize({ width: 1440, height: 900 });
+  await atWidth(page, { width: 1440, height: 900 });
   await page.goto(`${origin}/settings/general`);
   await page.getByRole("heading", { level: 1, name: "General" }).waitFor();
   await name.fill("");

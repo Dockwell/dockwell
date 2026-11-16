@@ -27,9 +27,12 @@ import { parseArgs } from "node:util";
 import { type Browser, type BrowserContext, chromium, type Page } from "playwright-core";
 
 import { describePages, watchBrowser } from "./report.ts";
+import { atWidth, LONG_HOSTNAME } from "./sheets.ts";
 
 // A real binary asks nothing beyond this machine in a test.
 process.env["DOCKWELL_TEST"] = "1";
+// The control server has a name as long as a cloud's, for every check that a page fits a phone (#738).
+process.env["DOCKWELL_TEST_HOSTNAME"] ??= LONG_HOSTNAME;
 
 const { values, positionals } = parseArgs({
   allowPositionals: true,
@@ -267,13 +270,13 @@ async function shoot(page: Page, name: string) {
   for (const scheme of ["dark", "light"] as const) {
     await page.emulateMedia({ colorScheme: scheme });
     for (const width of [1440, 800, 390, 360]) {
-      await page.setViewportSize({ width, height: width >= 800 ? 970 : 844 });
+      await atWidth(page, { width, height: width >= 800 ? 970 : 844 });
       await sleep(250);
       await page.screenshot({ path: join(shots, `${name}-${width}-${scheme}.png`) });
     }
   }
   await page.emulateMedia({ colorScheme: "dark" });
-  await page.setViewportSize({ width: 1440, height: 970 });
+  await atWidth(page, { width: 1440, height: 970 });
   await sleep(100);
 }
 
@@ -580,7 +583,7 @@ async function main() {
   await page.keyboard.press("Escape");
   await page.getByRole("dialog").waitFor({ state: "hidden" });
   // On a phone, tapping a line shows what can be done with it, clear of what it says.
-  await page.setViewportSize({ width: 360, height: 740 });
+  await atWidth(page, { width: 360, height: 740 });
   await sleep(300);
   await page.locator(".dw-log-line:has(.dw-log-lvl-word)").first().click();
   await page.getByRole("button", { name: "Show in context" }).first().waitFor({ timeout: 2000 });
@@ -599,7 +602,7 @@ async function main() {
       .join(", ");
   });
   if (covered) fail(`on a phone, a line's actions sit over its ${covered}`);
-  await page.setViewportSize({ width: 1440, height: 970 });
+  await atWidth(page, { width: 1440, height: 970 });
   await sleep(300);
   await page.getByRole("textbox", { name: "Search logs" }).fill("nothing has this in it");
   await page.getByText(/^Nothing in the [\d,]+ lines loaded has "nothing has this in it"\.$/).waitFor();
@@ -810,10 +813,10 @@ async function main() {
   await page.getByText("hz-2 is offline").waitFor({ timeout: 40_000 });
   await post("/print", "while the server was away");
   await shoot(page, "offline");
-  await page.setViewportSize({ width: 360, height: 740 });
+  await atWidth(page, { width: 360, height: 740 });
   await sleep(300);
   const offlineRoom = await logBody(page).evaluate((el) => el.getBoundingClientRect().height / window.innerHeight);
-  await page.setViewportSize({ width: 1440, height: 970 });
+  await atWidth(page, { width: 1440, height: 970 });
   step(`  with a note up, the log takes ${Math.round(offlineRoom * 100)}% of a phone's screen`);
   if (offlineRoom < 0.5)
     fail(`with a server offline, the log takes ${Math.round(offlineRoom * 100)}% of a phone's screen`);
@@ -1098,7 +1101,7 @@ async function main() {
   await page.getByRole("button", { name: "Warnings", exact: true }).click();
 
   step("a phone gives the log the room, and targets of 44 px");
-  await page.setViewportSize({ width: 360, height: 740 });
+  await atWidth(page, { width: 360, height: 740 });
   await sleep(300);
   const room = await page.evaluate(() => {
     const body = document.querySelector('[role="log"]') as HTMLElement;
@@ -1126,7 +1129,7 @@ async function main() {
   if (!/\d,\d/.test(room.errors))
     fail(`the phone's log head needs thousands of errors to be tested, and has ${room.errors}`);
   if (room.crowded > 0) fail(`with ${room.errors}, a phone's log head runs ${room.crowded} px into its own tools`);
-  await page.setViewportSize({ width: 1440, height: 970 });
+  await atWidth(page, { width: 1440, height: 970 });
 
   step("closing the page stops the reading on the agent");
   const followers = async () => Number((await (await fetch(`${load}/followers`)).text()).trim());

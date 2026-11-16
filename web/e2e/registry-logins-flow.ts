@@ -7,7 +7,7 @@
 // login it pulls with, and the app runs.
 
 import type { Flow } from "./flows.ts";
-import { onTop } from "./sheets.ts";
+import { atWidth, onTop } from "./sheets.ts";
 
 function fail(message: string): never {
   throw new Error(message);
@@ -26,7 +26,7 @@ export const flow: Flow = {
       return;
     }
     step("registry logins: Integrations connects GitHub's registry, checked as it's typed");
-    await page.setViewportSize({ width: 1440, height: 900 });
+    await atWidth(page, { width: 1440, height: 900 });
     await page.goto(`${origin}/settings/integrations`);
     const registries = page.getByRole("region", { name: "Registries" });
     await registries.waitFor({ timeout: 20_000 });
@@ -91,10 +91,10 @@ export const flow: Flow = {
     await page.getByRole("heading", { level: 1, name: "private-app" }).waitFor();
 
     step("registry logins: the section on a phone");
-    await page.setViewportSize({ width: 390, height: 844 });
+    await atWidth(page, { width: 390, height: 844 });
     await page.goto(`${origin}/settings/integrations`);
     await page.getByRole("region", { name: "Registries" }).waitFor({ timeout: 20_000 });
     await shoot(page, "registry-logins-phone");
-    await page.setViewportSize({ width: 1440, height: 900 });
+    await atWidth(page, { width: 1440, height: 900 });
   },
 };

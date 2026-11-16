@@ -15,7 +15,10 @@
   border-bottom: 1px solid var(--line);
 }
 .dw-panel-title {
+  /* A title naming something long, as a server's host name, wraps beside its actions (#738). */
+  min-width: 0;
   margin: 0;
+  overflow-wrap: anywhere;
   font-size: 14px;
   line-height: 20px;
   font-weight: 600;

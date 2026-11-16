@@ -16,7 +16,7 @@ import type { Page } from "playwright-core";
 
 import type { DockerProbe } from "./docker-probe.ts";
 import type { Flow } from "./flows.ts";
-import { onTop } from "./sheets.ts";
+import { atWidth, onTop } from "./sheets.ts";
 
 export interface AppsFlowOptions {
   origin: string;
@@ -301,7 +301,7 @@ export async function appsFlow(
 
   step("apps: on the narrowest phone nothing widens the page, the tabs fit, and the address reads whole");
   const wideAt = page.url();
-  await page.setViewportSize({ width: 360, height: 780 });
+  await atWidth(page, { width: 360, height: 780 });
   await page.goto(wideAt);
   await page.getByText("The last deploy failed, so Dockwell rolled it back").waitFor();
   const fits = await page.evaluate(() => {
@@ -347,7 +347,7 @@ export async function appsFlow(
 
   step("apps: a domain behind a tunnel is one switch away, and fits the narrowest phone");
   // A screenshot above ends at another width, when it takes one.
-  await page.setViewportSize({ width: 360, height: 780 });
+  await atWidth(page, { width: 360, height: 780 });
   await page.getByRole("button", { name: "Add a domain" }).first().click();
   const addDomain = page.getByRole("dialog", { name: /^Add a domain to / });
   // What it says to do goes by the machine this runs on, and it always says something.
@@ -395,7 +395,7 @@ export async function appsFlow(
     return { error: error?.bottom ?? 0, foot: foot?.top ?? 0 };
   });
   if (seen.error > seen.foot) fail(`at 360 px a Compose error ends at ${seen.error}, under the footer at ${seen.foot}`);
-  await page.setViewportSize({ width: 1440, height: 900 });
+  await atWidth(page, { width: 1440, height: 900 });
   await page.goto(wideAt);
 
   // Only a real engine can run the ingress. It holds port 80 for as long as it runs.
@@ -440,7 +440,7 @@ export async function appsFlow(
     // Someone visiting comes in through what ends TLS, so that's where its link goes.
     const visit = await row.getByRole("link", { name: tunnelled }).getAttribute("href");
     if (visit !== `https://${tunnelled}`) fail(`a tunnel's link goes to ${visit}`);
-    await page.setViewportSize({ width: 360, height: 844 });
+    await atWidth(page, { width: 360, height: 844 });
     const nameBox = await row.locator(".plan-reach-at").boundingBox();
     for (const [what, part] of [
       ["icon", row.locator(":scope > .dw-icon")],
@@ -452,7 +452,7 @@ export async function appsFlow(
     }
     if (await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth))
       fail("on a phone, an arrival with a long domain widens the page");
-    await page.setViewportSize({ width: 1440, height: 900 });
+    await atWidth(page, { width: 1440, height: 900 });
     // The app's page behind it has read it too, and doesn't wait for its cache to run out.
     const onPage = page.locator(".app-reach-domain", { hasText: tunnelled });
     await onPage.waitFor({ timeout: 10_000 });
@@ -735,7 +735,7 @@ export async function appsFlow(
   // A long value wraps in its cell: the table never widens, and no key breaks for it.
   await addValue("LONG_NOTE", "x".repeat(90).concat("-", "y".repeat(90), "/", "z".repeat(90)), false);
   for (const width of [1440, 390]) {
-    await page.setViewportSize({ width, height: width > 600 ? 900 : 844 });
+    await atWidth(page, { width, height: width > 600 ? 900 : 844 });
     // Wait for the responsive columns before measuring their layout.
     await page
       .getByRole("columnheader", { name: "Value", exact: true })
@@ -753,7 +753,7 @@ export async function appsFlow(
       fail(`at ${width} px a long value widens the table by ${fits.table} px, the page by ${fits.page}`);
     if (fits.broken.length > 0) fail(`at ${width} px a long value breaks the keys ${fits.broken.join(", ")}`);
   }
-  await page.setViewportSize({ width: 1440, height: 900 });
+  await atWidth(page, { width: 1440, height: 900 });
   await page.getByRole("button", { name: "Revert LONG_NOTE" }).click();
   if ((await docker()).some((c) => c.env.some((v) => v.startsWith("GREETING="))))
     fail("an edit reached Docker before its plan");
@@ -808,7 +808,7 @@ export async function appsFlow(
   await limits.getByRole("button", { name: /Review plan/ }).click();
   await applyPlan(page, "Done");
   await page.getByRole("region", { name: "Resources" }).getByText("256M").waitFor();
-  await page.setViewportSize({ width: 360, height: 780 });
+  await atWidth(page, { width: 360, height: 780 });
   await page.reload();
   await page.getByRole("region", { name: "Resources" }).waitFor();
   const settingsTab = await page.evaluate(() => {
@@ -824,7 +824,7 @@ export async function appsFlow(
   if (!settingsTab?.inSight) fail("on a phone the Settings tab is out of sight on Settings");
   if ((settingsTab?.wide ?? 1) > 0) fail(`on a phone Settings is ${settingsTab?.wide} px too wide`);
   await shoot(page, "apps-settings-phone");
-  await page.setViewportSize({ width: 1440, height: 900 });
+  await atWidth(page, { width: 1440, height: 900 });
 
   step("apps: deleting goes through a plan too, and the list follows");
   // A project left with one app is that app's row, under the project's name.

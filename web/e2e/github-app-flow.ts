@@ -16,7 +16,7 @@ import type { Locator, Page } from "playwright-core";
 
 import { startGitServer } from "./build-flow.ts";
 import type { Flow, FlowRun } from "./flows.ts";
-import { onTop } from "./sheets.ts";
+import { atWidth, onTop } from "./sheets.ts";
 
 function fail(message: string): never {
   throw new Error(message);
@@ -29,7 +29,7 @@ function planSheet(page: Page): Locator {
 
 async function githubAppFlow(page: Page, { origin, step, shoot }: FlowRun, stand: string, git: string) {
   step("GitHub App: Integrations connects GitHub with one choice, one button and a passkey");
-  await page.setViewportSize({ width: 1440, height: 900 });
+  await atWidth(page, { width: 1440, height: 900 });
   await page.goto(`${origin}/settings/integrations`);
   const section = page.getByRole("region", { name: "Git" });
   const card = section.getByRole("article", { name: "GitHub" });

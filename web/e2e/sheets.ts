@@ -21,23 +21,82 @@ export async function coveredHidden(page: Page): Promise<void> {
 }
 
 /**
+ * The control server's name in a test, as long as a server's name may be (56) and
+ * with nowhere to break, so a check that a page fits a phone can't pass on a short
+ * one. Mostly hex, so no flow's check for a word finds it in the name. Every script
+ * that starts dockwell sets it, through DOCKWELL_TEST_HOSTNAME (#738).
+ */
+export const LONG_HOSTNAME = "ip10x0x12x34a7f3c9d1e5b8a4f60d2c7e9b1a3f5d8c0b6e2a9f4d71";
+
+/**
+ * Waits until the shell has the layout of the viewport's width: the phone's, or the
+ * wide one, with its rail and top bar. Until the frame after a resize
+ * it still has the one before, so a page measured then reads 182 px past a 390 px
+ * edge (#738). A page with no shell, such as sign-in, has nothing to wait for.
+ */
+export async function shellFits(page: Page): Promise<void> {
+  await page.waitForFunction(
+    () => {
+      if (!document.querySelector(".shell")) return true;
+      // The wide layout has its rail and top bar, and a phone neither. A phone's tab bar
+      // isn't a sign of it: it steps aside on an app's logs.
+      const phone = matchMedia("(max-width: 639.98px)").matches;
+      return phone === !document.querySelector(".rail") && phone === !document.querySelector(".topbar");
+    },
+    undefined,
+    { timeout: 10_000 },
+  );
+}
+
+/** Resizes the page, as setViewportSize does, and waits for the shell to take the new width's layout. */
+export async function atWidth(page: Page, size: { width: number; height: number }): Promise<void> {
+  await page.setViewportSize(size);
+  await shellFits(page);
+}
+
+/**
  * How far the page reaches past the viewport's width, and what reaches past it, so a
  * check that a page fits a phone names what doesn't, as a failure in another browser
- * than this machine's can't be looked at after.
+ * than this machine's can't be looked at after. It waits first for the shell to take
+ * the viewport's layout, as a page measured between a resize and the next frame still
+ * has the wide one's rail and top bar, 182 px past a phone's edge (#738). What a
+ * scrolling box clips isn't past the edge, and text that doesn't wrap is named by its
+ * words.
  */
 export async function pastTheEdge(page: Page): Promise<{ wider: number; what: string }> {
+  await shellFits(page);
   return page.evaluate(() => {
     const width = document.documentElement.clientWidth;
     const wider = document.documentElement.scrollWidth - width;
     if (wider <= 0) return { wider, what: "" };
+    const clipped = (from: Element | null) => {
+      for (let p = from; p && p !== document.body; p = p.parentElement) {
+        if (getComputedStyle(p).overflowX !== "visible" && p.getBoundingClientRect().right <= width + 0.5) return true;
+      }
+      return false;
+    };
+    const named = (el: Element) => {
+      const classes = typeof el.className === "string" ? el.className.trim().split(/\s+/).filter(Boolean) : [];
+      return `${el.tagName.toLowerCase()}${classes.map((c) => `.${c}`).join("")}`;
+    };
     const past: string[] = [];
     for (const el of Array.from(document.querySelectorAll("body *"))) {
       const box = el.getBoundingClientRect();
-      if (box.width > 0 && box.right > width + 0.5) {
-        const classes = typeof el.className === "string" ? el.className.trim().split(/\s+/).filter(Boolean) : [];
-        past.push(`${el.tagName.toLowerCase()}${classes.map((c) => `.${c}`).join("")} to ${Math.round(box.right)} px`);
+      if (box.width > 0 && box.right > width + 0.5 && !clipped(el.parentElement)) {
+        past.push(`${named(el)} to ${Math.round(box.right)} px`);
       }
     }
-    return { wider, what: past.slice(0, 8).join(", ") };
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+      const range = document.createRange();
+      range.selectNodeContents(n);
+      const box = range.getBoundingClientRect();
+      if (box.width > 0 && box.right > width + 0.5 && n.parentElement && !clipped(n.parentElement)) {
+        past.push(
+          `"${(n.textContent ?? "").trim().slice(0, 40)}" in ${named(n.parentElement)} to ${Math.round(box.right)} px`,
+        );
+      }
+    }
+    return { wider, what: past.slice(0, 10).join(", ") };
   });
 }

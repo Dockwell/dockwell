@@ -9,6 +9,7 @@
 import type { Page } from "playwright-core";
 
 import type { Flow } from "./flows.ts";
+import { atWidth } from "./sheets.ts";
 
 interface TokensFlowOptions {
   origin: string;
@@ -22,7 +23,7 @@ function fail(message: string): never {
 
 export async function tokensFlow(page: Page, { origin, step, shoot }: TokensFlowOptions) {
   step("tokens: a new token acts in every project you hold, as you, until Change narrows it");
-  await page.setViewportSize({ width: 1440, height: 900 });
+  await atWidth(page, { width: 1440, height: 900 });
   await page.goto(`${origin}/settings/api-tokens`);
   await page.getByRole("heading", { level: 1, name: "API tokens" }).waitFor();
   const create = page.getByRole("region", { name: "Create a token" });

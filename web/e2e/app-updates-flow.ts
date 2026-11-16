@@ -11,7 +11,7 @@ import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 
 import type { Flow } from "./flows.ts";
-import { onTop } from "./sheets.ts";
+import { atWidth, onTop } from "./sheets.ts";
 
 function fail(message: string): never {
   throw new Error(message);
@@ -121,7 +121,7 @@ export const flow: Flow = {
     for (const scheme of ["light", "dark"] as const) {
       await page.emulateMedia({ colorScheme: scheme });
       for (const width of [1440, 390]) {
-        await page.setViewportSize({ width, height: 900 });
+        await atWidth(page, { width, height: 900 });
         await page.goto(`${origin}/apps`);
         const pick = page.getByRole("checkbox", { name: "Select cache's update" });
         await pick.waitFor({ timeout: 20_000 });
@@ -140,7 +140,7 @@ export const flow: Flow = {
       }
     }
     await page.emulateMedia({ colorScheme: null });
-    await page.setViewportSize({ width: 1440, height: 900 });
+    await atWidth(page, { width: 1440, height: 900 });
 
     step("app updates: the app goes again");
     cli("services", "delete", "updates-cache", "--project", "default", "-y");

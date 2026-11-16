@@ -14,7 +14,7 @@ import { join, resolve } from "node:path";
 import type { Locator, Page } from "playwright-core";
 
 import type { Flow } from "./flows.ts";
-import { onTop } from "./sheets.ts";
+import { atWidth, onTop } from "./sheets.ts";
 
 interface BuildFlowOptions {
   origin: string;
@@ -66,7 +66,7 @@ function planSheet(page: Page): Locator {
 
 export async function buildFlow(page: Page, { origin, step, shoot, git }: BuildFlowOptions) {
   step("an app builds from a Git repository with its Dockerfile, through its plan, and runs what it built");
-  await page.setViewportSize({ width: 1440, height: 900 });
+  await atWidth(page, { width: 1440, height: 900 });
   await page.goto(`${origin}/apps/new`);
   const sheet = page.getByRole("dialog", { name: "New app" });
   // New app opens on the catalog, as most apps start there, and Git is one step away (#617).

@@ -12,6 +12,7 @@ import type { Page } from "playwright-core";
 
 import type { Flow, FlowRun } from "./flows.ts";
 import { ownServerPath } from "./own-server.ts";
+import { atWidth } from "./sheets.ts";
 
 function fail(message: string): never {
   throw new Error(message);
@@ -22,7 +23,7 @@ export async function systemLogFlow(
   { origin, step, shoot, env }: Pick<FlowRun, "origin" | "step" | "shoot" | "env">,
 ) {
   step("a server's system log: its newest lines, then what the journal writes as it comes");
-  await page.setViewportSize({ width: 1440, height: 900 });
+  await atWidth(page, { width: 1440, height: 900 });
   const link = await ownServerPath(page, origin);
   await page.goto(`${origin}${link}`);
   await page
@@ -76,7 +77,7 @@ export async function systemLogFlow(
   }
 
   step("on a phone, the system log's filters wrap above it");
-  await page.setViewportSize({ width: 390, height: 844 });
+  await atWidth(page, { width: 390, height: 844 });
   await log
     .getByText(/unknown directive/)
     .first()
@@ -84,7 +85,7 @@ export async function systemLogFlow(
   const wide = await page.evaluate(() => document.documentElement.scrollWidth);
   if (wide > 390) fail(`the system log is ${wide} px wide on a 390 px phone`);
   await shoot(page, "server-system-log-phone");
-  await page.setViewportSize({ width: 1440, height: 900 });
+  await atWidth(page, { width: 1440, height: 900 });
 }
 
 /** Where sign-in.ts runs this among the flows, beside the system services. */

@@ -9,6 +9,7 @@
 import type { Page } from "playwright-core";
 
 import type { Flow } from "./flows.ts";
+import { atWidth } from "./sheets.ts";
 
 export interface TasksFlowOptions {
   origin: string;
@@ -24,7 +25,7 @@ function fail(message: string): never {
 
 export async function tasksFlow(page: Page, { origin, step, shoot }: TasksFlowOptions) {
   step("tasks: the rail leads to them, and none yet says what one is");
-  await page.setViewportSize({ width: 1280, height: 900 });
+  await atWidth(page, { width: 1280, height: 900 });
   await page.goto(`${origin}/apps`);
   await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Scheduled tasks" }).click();
   await page.getByRole("heading", { level: 1, name: "Scheduled tasks" }).waitFor();
@@ -69,7 +70,7 @@ export async function tasksFlow(page: Page, { origin, step, shoot }: TasksFlowOp
   await shoot(page, "tasks-list");
 
   step("tasks: on a phone, each is a row, and nothing widens the page");
-  await page.setViewportSize({ width: 390, height: 844 });
+  await atWidth(page, { width: 390, height: 844 });
   await page.getByRole("button", { name: /Say hello/ }).waitFor();
   const wide = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   if (wide > 0) fail(`the page scrolls ${wide}px sideways on a phone`);
@@ -78,7 +79,7 @@ export async function tasksFlow(page: Page, { origin, step, shoot }: TasksFlowOp
   step("tasks: timeline labels stay on the track at the day's boundaries, on desktop and phones");
   try {
     for (const width of [1280, 390, 360]) {
-      await page.setViewportSize({ width, height: 900 });
+      await atWidth(page, { width, height: 900 });
       for (const [hour, minute] of [
         [0, 0],
         [0, 3],
@@ -115,7 +116,7 @@ export async function tasksFlow(page: Page, { origin, step, shoot }: TasksFlowOp
     }
   } finally {
     await page.clock.setSystemTime(new Date());
-    await page.setViewportSize({ width: 1280, height: 900 });
+    await atWidth(page, { width: 1280, height: 900 });
     await page.reload();
   }
 }

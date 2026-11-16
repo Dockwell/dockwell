@@ -15,7 +15,7 @@ import type { Locator, Page } from "playwright-core";
 
 import type { DockerProbe } from "./docker-probe.ts";
 import type { Flow } from "./flows.ts";
-import { onTop } from "./sheets.ts";
+import { atWidth, onTop } from "./sheets.ts";
 
 export interface CatalogFlowOptions {
   origin: string;
@@ -128,12 +128,12 @@ export async function catalogFlow(page: Page, { origin, step, shoot, docker, cat
   step("catalog: an app's direct address works on desktop and phone");
   await page.goto(`${origin}/catalog/postgres`);
   await page.getByRole("heading", { name: "About PostgreSQL" }).waitFor();
-  await page.setViewportSize({ width: 390, height: 844 });
+  await atWidth(page, { width: 390, height: 844 });
   await page.getByRole("link", { name: "Install PostgreSQL" }).waitFor();
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
   if (overflow) fail("the app page overflows the phone's viewport");
   await shoot(page, "catalog-detail-phone");
-  await page.setViewportSize({ width: 1440, height: 900 });
+  await atWidth(page, { width: 1440, height: 900 });
   await page.getByRole("link", { name: "Install PostgreSQL" }).click();
   const direct = page.getByRole("dialog", { name: "Install PostgreSQL" });
   await direct.getByRole("switch", { name: "Adminer" }).waitFor();

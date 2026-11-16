@@ -9,6 +9,7 @@
 import type { Page } from "playwright-core";
 
 import type { Flow, FlowRun } from "./flows.ts";
+import { atWidth } from "./sheets.ts";
 
 const SEEN_WITHIN = 20_000;
 
@@ -21,7 +22,7 @@ export async function fleetActionsFlow(
   { origin, step, shoot }: Pick<FlowRun, "origin" | "step" | "shoot">,
 ) {
   step("fleet actions: servers picked on Servers go to New fleet action, and a restart runs on each through a plan");
-  await page.setViewportSize({ width: 1440, height: 900 });
+  await atWidth(page, { width: 1440, height: 900 });
   await page.goto(`${origin}/servers?closed=true`);
   const table = page.getByRole("table", { name: /^Servers/ });
   await table.waitFor({ timeout: SEEN_WITHIN });
@@ -67,14 +68,14 @@ export async function fleetActionsFlow(
   await plan.waitFor({ state: "hidden" });
 
   step("on a phone, New fleet action fits its width");
-  await page.setViewportSize({ width: 390, height: 844 });
+  await atWidth(page, { width: 390, height: 844 });
   await page.goto(`${origin}/fleet-actions`);
   await page.getByRole("heading", { name: "New fleet action" }).first().waitFor({ timeout: SEEN_WITHIN });
   await page.getByRole("radio", { name: /Apply OS updates/ }).waitFor();
   const wide = await page.evaluate(() => document.documentElement.scrollWidth);
   if (wide > 390) fail(`New fleet action is ${wide} px wide on a 390 px phone`);
   await shoot(page, "fleet-action-phone");
-  await page.setViewportSize({ width: 1440, height: 900 });
+  await atWidth(page, { width: 1440, height: 900 });
 }
 
 /** Where sign-in.ts runs this among the flows: after system services, before the second server leaves (flows.ts). */

@@ -1738,7 +1738,9 @@ function Impact({ plan }: { plan: Plan | undefined }) {
       servers.map((s, i) => (
         <span key={s.serverId}>
           {i > 0 ? ", " : null}
-          <code>{s.serverName}</code>
+          <code className="plan-server" title={s.serverName}>
+            {s.serverName}
+          </code>
         </span>
       ))
     ) : (

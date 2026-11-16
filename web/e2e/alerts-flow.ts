@@ -16,6 +16,7 @@ import type { Page } from "playwright-core";
 
 import { type DockerProbe, dockerHealth } from "./docker-probe.ts";
 import type { Flow } from "./flows.ts";
+import { atWidth } from "./sheets.ts";
 
 interface AlertsFlowOptions {
   origin: string;
@@ -91,7 +92,7 @@ export async function alertsFlow(page: Page, { origin, step, shoot, docker, sock
   await dockerHealth(socket, sick.id, "unhealthy", "the database refuses connections");
   try {
     step("alerts: the rail leads to Alerts, whose rules came with the install");
-    await page.setViewportSize({ width: 1440, height: 900 });
+    await atWidth(page, { width: 1440, height: 900 });
     await page.goto(`${origin}/`);
     await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Alerts" }).click();
     await page.getByRole("heading", { level: 1, name: "Alerts" }).waitFor();
@@ -193,12 +194,12 @@ export async function alertsFlow(page: Page, { origin, step, shoot, docker, sock
     await change.getByRole("button", { name: "Close" }).first().click();
 
     step("alerts: on a phone, channels are a list with a test for each");
-    await page.setViewportSize({ width: 390, height: 844 });
+    await atWidth(page, { width: 390, height: 844 });
     await page.goto(`${origin}/alerts/channels`);
     await page.getByRole("button", { name: "Send a test to ops-hook" }).waitFor();
     const wide = await page.evaluate(() => document.documentElement.scrollWidth);
     if (wide > 390) fail(`Channels is ${wide} px wide on a 390 px phone`);
-    await page.setViewportSize({ width: 1440, height: 900 });
+    await atWidth(page, { width: 1440, height: 900 });
 
     step("alerts: what's open is a card, which takes an acknowledgement with no plan and gives it back");
     await page.goto(`${origin}/alerts`);

@@ -7,6 +7,7 @@
 // never shows the token.
 
 import type { Flow } from "./flows.ts";
+import { atWidth } from "./sheets.ts";
 
 function fail(message: string): never {
   throw new Error(message);
@@ -23,7 +24,7 @@ export const flow: Flow = {
       return;
     }
     step("DNS providers: Integrations connects Cloudflare, checked as the token is pasted");
-    await page.setViewportSize({ width: 1440, height: 900 });
+    await atWidth(page, { width: 1440, height: 900 });
     await page.goto(`${origin}/settings/integrations`);
     const section = page.getByRole("region", { name: "DNS and proxies" });
     await section.waitFor({ timeout: 20_000 });
@@ -63,9 +64,9 @@ export const flow: Flow = {
     await shoot(page, "dns-providers-connected");
 
     step("DNS providers: the section on a phone");
-    await page.setViewportSize({ width: 390, height: 844 });
+    await atWidth(page, { width: 390, height: 844 });
     await section.scrollIntoViewIfNeeded();
     await shoot(page, "dns-providers-phone");
-    await page.setViewportSize({ width: 1440, height: 900 });
+    await atWidth(page, { width: 1440, height: 900 });
   },
 };

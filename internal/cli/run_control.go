@@ -287,7 +287,7 @@ func runControl(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logg
 		return err
 	}
 
-	own, err := localIdentity(ctx, authority, dir, ls.Agents.Addr())
+	own, err := localIdentity(ctx, authority, dir, ls.Agents.Addr(), testHostname(stdio))
 	if err != nil {
 		closeAll()
 		return err
@@ -794,13 +794,27 @@ func hostOf(rawURL string) string {
 	return ""
 }
 
+// envTestHostname names the control server, in place of this machine's host name,
+// under DOCKWELL_TEST, and only then, so the panel's e2e can give it a name as long
+// as a cloud's, which a phone's layout has to take (#738).
+const envTestHostname = "DOCKWELL_TEST_HOSTNAME"
+
+// testHostname is the name a test gives the control server in place of this
+// machine's host name, under DOCKWELL_TEST, and "" otherwise.
+func testHostname(stdio IO) string {
+	if !isSet(stdio.Getenv(envTest)) {
+		return ""
+	}
+	return stdio.Getenv(envTestHostname)
+}
+
 // localIdentity loads the control server's own agent identity, enrolling it
 // directly with the authority the first time: it shares the machine, and
 // the data directory, with the CA, so it needs no ticket. On every start it
 // points the agent at the listener's current address, and renews directly
 // if the certificate is due, which also rescues one that expired while the
 // control server was off.
-func localIdentity(ctx context.Context, authority *identity.Authority, dir datadir.Dir, agentAddr net.Addr) (*enroll.Identity, error) {
+func localIdentity(ctx context.Context, authority *identity.Authority, dir datadir.Dir, agentAddr net.Addr, named string) (*enroll.Identity, error) {
 	controlURL := loopbackURL(agentAddr)
 	id, err := enroll.Load(dir.Agent())
 	switch {
@@ -809,7 +823,10 @@ func localIdentity(ctx context.Context, authority *identity.Authority, dir datad
 		if err != nil {
 			return nil, err
 		}
-		hostname, _ := os.Hostname()
+		hostname := named
+		if hostname == "" {
+			hostname, _ = os.Hostname()
+		}
 		joined, err := authority.EnrollLocal(ctx, csr, hostname)
 		if err != nil {
 			return nil, err

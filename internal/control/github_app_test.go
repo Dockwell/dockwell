@@ -264,6 +264,23 @@ func TestAnAdminConnectsGitHubAsAnApp(t *testing.T) {
 		t.Errorf("finishing twice = %v", err)
 	}
 	c := changeClient(b, b.origin)
+	// Each call that keeps the App applies a change and answers as the change starts
+	// applying, so the App is on record before the change ends. The test waits for
+	// each to end on its watch, which ends on the engine's own word, before it reads
+	// the change or starts the next, which would find this one still applying (#737).
+	ended := func() {
+		t.Helper()
+		listed, err := c.ListChanges(ctx, connect.NewRequest(&dockwellv1.ListChangesRequest{PageSize: 100}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, ch := range listed.Msg.GetChanges() {
+			if ch.GetState() == dockwellv1.ChangeState_CHANGE_STATE_APPLYING {
+				waitWatch(t, watch(t, c, ch.GetId()))
+			}
+		}
+	}
+	ended()
 	kept, err := c.GetChange(ctx, connect.NewRequest(&dockwellv1.GetChangeRequest{Id: finished.Msg.GetChangeId()}))
 	if err != nil || kept.Msg.GetChange().GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
 		t.Fatalf("the change that keeps it = %v, %v", kept, err)
@@ -289,6 +306,7 @@ func TestAnAdminConnectsGitHubAsAnApp(t *testing.T) {
 	if in := added.Msg.GetInstallation(); in.GetAccount() != "acme" || in.GetRepositoryCount() != 2 || !in.GetEveryProject() {
 		t.Errorf("the installation is %v", in)
 	}
+	ended()
 	var project, other string
 	if err := f.store.View(ctx, func(tx *store.Tx) error {
 		tree, err := scope.Load(ctx, tx)
@@ -329,6 +347,7 @@ func TestAnAdminConnectsGitHubAsAnApp(t *testing.T) {
 	})); err != nil {
 		t.Fatal(err)
 	}
+	ended()
 	gh.mu.Lock()
 	secrets := append([]string(nil), gh.secrets...)
 	gh.mu.Unlock()
@@ -350,6 +369,7 @@ func TestAnAdminConnectsGitHubAsAnApp(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	ended()
 	if r := replaced.Msg; r.GetOldFingerprint() != app.GetKeyFingerprint() || r.GetFingerprint() == r.GetOldFingerprint() ||
 		r.GetKeysUrl() != "https://github.com/organizations/acme/settings/apps/dockwell-deploy" {
 		t.Errorf("replacing the key said %v", r)
@@ -376,6 +396,7 @@ func TestAnAdminConnectsGitHubAsAnApp(t *testing.T) {
 		removed.Msg.GetDeleteUrl() != "https://github.com/organizations/acme/settings/apps/dockwell-deploy/advanced" {
 		t.Errorf("removing it said %v, and GitHub uninstalled %v", removed.Msg, uninstalled)
 	}
+	ended()
 	if listed, err := gp.ListGitProviders(ctx, connect.NewRequest(&dockwellv1.ListGitProvidersRequest{})); err != nil || len(listed.Msg.GetApps()) != 0 {
 		t.Errorf("after removing it, the Apps listed = %v, %v", listed, err)
 	}

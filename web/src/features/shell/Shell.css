@@ -230,8 +230,9 @@
 
 .topbar-scope {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-1) 10px;
   min-width: 0;
   padding-left: var(--space-2);
 }
@@ -241,8 +242,11 @@
   color: var(--ink-muted);
 }
 
+/* A server's name and address show whole: past the bar's width, they wrap (#738). */
 .topbar-server {
-  font: 500 13px / 1 var(--font-mono);
+  min-width: 0;
+  font: 500 13px / 16px var(--font-mono);
+  overflow-wrap: anywhere;
 }
 
 .topbar-count {
@@ -251,8 +255,10 @@
 }
 
 .topbar-address {
+  min-width: 0;
   color: var(--ink-muted);
-  font: 400 12px / 1 var(--font-mono);
+  font: 400 12px / 16px var(--font-mono);
+  overflow-wrap: anywhere;
 }
 
 .topbar-fill {

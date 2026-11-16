@@ -8,6 +8,7 @@
 import type { Page } from "playwright-core";
 
 import type { Flow, FlowRun } from "./flows.ts";
+import { atWidth } from "./sheets.ts";
 
 const SEEN_WITHIN = 40_000;
 
@@ -35,7 +36,7 @@ export async function passkeyFlow(page: Page, { origin, step, shoot }: Pick<Flow
   page.on("request", count);
   try {
     step("passkey: Profile offers each time, once an hour and only when I sign in, each time chosen");
-    await page.setViewportSize({ width: 1440, height: 900 });
+    await atWidth(page, { width: 1440, height: 900 });
     await page.goto(`${origin}/profile`);
     const choice = page.getByRole("region", { name: "Ask for my passkey" });
     const option = (name: RegExp) => choice.getByRole("radio", { name });
@@ -93,7 +94,7 @@ export async function passkeyFlow(page: Page, { origin, step, shoot }: Pick<Flow
     await shoot(page, "passkey-floor");
 
     step("passkey: on a phone, the choices stack and nothing scrolls sideways");
-    await page.setViewportSize({ width: 390, height: 844 });
+    await atWidth(page, { width: 390, height: 844 });
     await page.goto(`${origin}/profile`);
     await choice.getByText("Your choice reads as each time, the least the owner allows.").waitFor();
     const wide = await page.evaluate(() => document.documentElement.scrollWidth);
@@ -104,7 +105,7 @@ export async function passkeyFlow(page: Page, { origin, step, shoot }: Pick<Flow
     if (wideSecurity > 390) fail(`Security is ${wideSecurity} px wide on a 390 px phone`);
 
     step("passkey: both go back, so the flows after this are asked as before");
-    await page.setViewportSize({ width: 1440, height: 900 });
+    await atWidth(page, { width: 1440, height: 900 });
     await page.goto(`${origin}/settings/security`);
     await page
       .getByRole("group", { name: "The least anyone may choose" })
