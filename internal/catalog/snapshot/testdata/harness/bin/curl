@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-only
+# A stand-in for curl, for harness_test.go: Dockwell's /healthz says ok, a status
+# asked for is 200, and an app's port answers as Adminer at the version its install
+# runs, signing in to the throwaway database with its password alone.
+url="" password="" status=0
+for a in "$@"; do
+  case "$a" in
+  http://*) url=$a ;;
+  'auth[password]='*) password=${a#auth\[password\]=} ;;
+  *'%{http_code}'*) status=1 ;;
+  esac
+done
+[[ "$url" != */healthz ]] || { echo ok && exit 0; }
+((!status)) || { echo 200 && exit 0; }
+port=${url#http://127.0.0.1:}
+port=${port%%/*}
+version=$(jq -r --arg p "$port" 'select(.values.PORT == $p) | .version' "$FAKE_STATE"/installs/*.json 2>/dev/null)
+if [[ -n "$password" ]]; then
+  if [[ "$password" == e2e-throwaway-password ]]; then echo "<a id='logout'>Logout</a>"; else echo "password authentication failed"; fi
+  exit 0
+fi
+echo "<form><input name='auth[driver]'><input type='hidden' name='token' value='t0k3n'></form> Adminer $version"

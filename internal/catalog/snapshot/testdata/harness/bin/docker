@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-only
+# A stand-in for Docker's CLI, for harness_test.go, over the containers the fake
+# dockwell runs: a file each in $FAKE_STATE/containers, of key=value lines. A label
+# filter matches its value exactly, as Docker's does, an empty one included.
+set -euo pipefail
+S=$FAKE_STATE/containers
+mkdir -p "$S"
+get() { sed -n "s/^$2=//p" "$S/$1"; }
+# port_of is the PORT value of the install a container is of.
+port_of() { jq -r '.values.PORT // "18080"' "$FAKE_STATE/installs/$(get "$1" project | sed 's/-production$//').json"; }
+case "$1" in
+ps)
+  shift
+  filters=()
+  while (($#)); do
+    case "$1" in
+    --filter) filters+=("$2") && shift 2 ;;
+    *) shift ;;
+    esac
+  done
+  for f in "$S"/*; do
+    [[ -f "$f" ]] || continue
+    n=$(basename "$f") ok=1
+    for filter in "${filters[@]}"; do
+      case "$filter" in
+      label=com.docker.compose.project=*) [[ "$(get "$n" project)" == "${filter#label=com.docker.compose.project=}" ]] || ok=0 ;;
+      label=com.docker.compose.service=*) [[ "$(get "$n" service)" == "${filter#label=com.docker.compose.service=}" ]] || ok=0 ;;
+      *) ok=0 ;;
+      esac
+    done
+    ((ok)) && echo "$n"
+  done
+  true ;;
+inspect)
+  fmt=$3 n=$4
+  case "$fmt" in
+  '{{.Config.Image}}') get "$n" image ;;
+  *State.Health*) get "$n" health ;;
+  '{{json .HostConfig.PortBindings}}') jq -nc --arg p "$(port_of "$n")" '{"8080/tcp": [{HostIp: "127.0.0.1", HostPort: $p}]}' ;;
+  *com.docker.compose.service*) get "$n" service ;;
+  *dockwell.uses* | *Config.Env*) echo "" ;;
+  '{{len .Mounts}}') echo 0 ;;
+  '{{.Name}}') echo "/$n" ;;
+  *) echo "fake docker: inspect $fmt" >&2 && exit 1 ;;
+  esac ;;
+port) echo "8080/tcp -> 127.0.0.1:$(port_of "$2")" ;;
+run)
+  name=""
+  while (($#)); do [[ "$1" != --name ]] || name=$2; shift; done
+  printf 'project=\nservice=\nimage=\nhealth=healthy\n' >"$S/$name"
+  echo "$name" ;;
+exec)
+  [[ -f "$S/$2" ]] || { echo "Error: No such container: $2" >&2 && exit 1; } ;;
+rm)
+  [[ "$2" != --force ]] || rm -f "$S/$3" ;;
+stop) sed -i 's/^health=.*/health=unhealthy/' "$S/$2" && echo "$2" ;;
+logs | volume | network) ;;
+*) echo "fake docker: $*" >&2 && exit 1 ;;
+esac

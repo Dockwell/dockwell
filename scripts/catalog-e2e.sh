@@ -48,14 +48,10 @@ fi
 usage="usage: scripts/catalog-e2e.sh path/to/dockwell --catalog <checkout> [--at <commit>] [--base <commit>] [--require-upgrade] [--no-floor] ENTRY..."
 check_phase=""
 if [[ "${1:-}" == --check ]]; then
-  # One phase of one entry's check, as its own process: what it needs comes in its
-  # environment, from the run that judges it.
+  # One phase of one entry's check, as its own process. What it needs comes in its
+  # environment, from the run that judges it, and is set read-only just before the
+  # check is sourced, past everything this script sets for both.
   check_phase=${2:?} check_file=${3:?}
-  id=$E2E_ID version=$E2E_VERSION project=$E2E_PROJECT installed=$E2E_INSTALLED environment=$E2E_ENVIRONMENT entry=$E2E_ENTRY
-  bin=$E2E_BIN addr=$E2E_ADDR data=$E2E_DATA log=$E2E_LOG cookie=$E2E_COOKIE passkey=$E2E_PASSKEY stepup=$E2E_STEPUP
-  catalog_dir=$E2E_CATALOG_DIR media_dir=$E2E_MEDIA_DIR state=$E2E_STATE
-  port=${addr##*:}
-  read -r -a input_env <<<"${E2E_INPUT_ENV:-}"
   plans=()
   projects=()
   pid=""
@@ -98,7 +94,8 @@ else
     exit 1
   }
   addr=127.0.0.1:${E2E_PORT:-7698}
-  port=${addr##*:}
+  # Dockwell's own port, which a check's local port can't shadow.
+  dockwell_port=${addr##*:}
   data=$(mktemp -d)
   log=$(mktemp)
   cookie=$(mktemp)
@@ -173,8 +170,8 @@ dw() { priv env DOCKWELL_DATA_DIR="$data" DOCKWELL_LOG_FORMAT=text "${input_env[
 # person_answer calls the API as a signed-in person does, from the panel's origin, and
 # says what it answered, its headers first, and the status last.
 person_answer() {
-  curl -sS --max-time 30 -D - -w '\n%{http_code}' --resolve "localhost:$port:127.0.0.1" -H "Origin: http://localhost:$port" -H 'Content-Type: application/json' \
-    -H "Cookie: $(cat "$cookie")" -d "$2" "http://localhost:$port/dockwell.v1.$1"
+  curl -sS --max-time 30 -D - -w '\n%{http_code}' --resolve "localhost:$dockwell_port:127.0.0.1" -H "Origin: http://localhost:$dockwell_port" -H 'Content-Type: application/json' \
+    -H "Cookie: $(cat "$cookie")" -d "$2" "http://localhost:$dockwell_port/dockwell.v1.$1"
 }
 change_field() { dw changes get "$1" --json | jq -r ".change.$2"; }
 # settles waits for a change to finish applying: it returns 0 once it's applied, and
@@ -204,7 +201,7 @@ try_apply() {
   fingerprint=$(jq -r .change.plan.fingerprint <<<"$plan")
   answer=$(person_answer ChangeService/ApplyChange "{\"id\":\"$1\",\"fingerprint\":\"$fingerprint\"}") || fail "a person can't reach the API to apply $1"
   if [[ "${answer##*$'\n'}" == 403 ]] && grep -qi '^dockwell-error: needs_step_up' <<<"$answer"; then
-    proof=$("$stepup" "http://localhost:$port" "$cookie" "$passkey" STEP_UP_ACTION_APPLY_ROOT_CHANGE "$1") || fail "can't confirm $1 with the passkey"
+    proof=$("$stepup" "http://localhost:$dockwell_port" "$cookie" "$passkey" STEP_UP_ACTION_APPLY_ROOT_CHANGE "$1") || fail "can't confirm $1 with the passkey"
     answer=$(person_answer ChangeService/ApplyChange "{\"id\":\"$1\",\"fingerprint\":\"$fingerprint\",\"proof\":\"$proof\"}") || fail "a person can't reach the API to apply $1"
   fi
   [[ "${answer##*$'\n'}" == 200 ]] || fail "a person can't apply $1: $answer"
@@ -626,6 +623,14 @@ run_check() {
 # declarations go back as JSON; a phase runs check_<id>, and keeps kept and the plans
 # it made in the entry's state.
 if [[ -n "$check_phase" ]]; then
+  # What a check and the harness's functions it calls read, from the run that judges
+  # it, read-only: the entry and its install, as the run has them now, and Dockwell's
+  # CLI, its session and passkey, and the folders it reads from (#743's first run).
+  readonly id=$E2E_ID version=$E2E_VERSION project=$E2E_PROJECT installed=$E2E_INSTALLED environment=$E2E_ENVIRONMENT entry=$E2E_ENTRY \
+    bin=$E2E_BIN addr=$E2E_ADDR data=$E2E_DATA log=$E2E_LOG cookie=$E2E_COOKIE passkey=$E2E_PASSKEY stepup=$E2E_STEPUP \
+    catalog_dir=$E2E_CATALOG_DIR media_dir=$E2E_MEDIA_DIR state=$E2E_STATE dockwell_port=${E2E_ADDR##*:}
+  read -r -a input_env <<<"${E2E_INPUT_ENV:-}"
+  readonly input_env
   mapfile -t harness < <(declare -F | awk '{print $3}')
   readonly -f "${harness[@]}"
   if [[ -f "$state/kept" ]]; then

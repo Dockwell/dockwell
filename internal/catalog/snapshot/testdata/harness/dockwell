@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-only
+# A stand-in for Dockwell's CLI, for harness_test.go: what scripts/catalog-e2e.sh
+# and a check ask of it, over the folder $FAKE_STATE names. An install runs a
+# container for each service of its entry's compose, healthy, on the image named,
+# with its inputs' defaults as its values.
+set -euo pipefail
+S=$FAKE_STATE
+mkdir -p "$S/changes" "$S/installs" "$S/containers"
+if [[ "$1" == run ]]; then
+  echo "$DOCKWELL_CATALOG_DIR" >"$S/catalog_dir"
+  echo '{"msg":"connected to the control plane"}'
+  exec sleep 600
+fi
+cat_dir=$(<"$S/catalog_dir")
+new_change() { echo "chg_$(($(find "$S/changes" -type f | wc -l) + 1))"; }
+planned() {
+  jq -nc --arg c "$1" --arg p "$2" '{change: {id: $c, state: "CHANGE_STATE_PLANNED", plan: {fingerprint: "f", destructive: false, hostAccess: false,
+    notes: [], servers: [{steps: []}], resources: [{resource: {kind: "project", name: $p}}, {resource: {kind: "service", name: "app", scope: ($p + "-production")}}]}}}'
+  echo "$1 is planned. Apply it with dockwell changes apply $1, or discard it with dockwell changes discard $1." >&2
+}
+# run_entry starts a container for each service of the entry an install holds.
+run_entry() {
+  local p=$1 service="" line
+  rm -f "$S/containers/$p-production-"*
+  while IFS= read -r line; do
+    if [[ "$line" =~ ^\ \ ([a-z0-9_-]+):$ ]]; then service=${BASH_REMATCH[1]}; fi
+    if [[ "$line" =~ ^\ \ \ \ image:\ (.+)$ ]]; then
+      printf 'project=%s\nservice=%s\nimage=%s\nhealth=healthy\n' "$p-production" "$service" "${BASH_REMATCH[1]}" >"$S/containers/$p-production-$service-1"
+    fi
+  done < <(jq -r .entry.compose "$S/installs/$p.json")
+}
+case "$1 ${2:-}" in
+"claim "*) echo "http://localhost:7698/claim#abc" ;;
+"login "*) ;;
+"catalog get") jq -c '{entry: .}' "$cat_dir/$3.yaml" ;;
+"catalog install")
+  id=$3 c=$(new_change)
+  values=$(jq -c '[.inputs[]? | select(.defaultValue) | {(.name): .defaultValue}] | add // {}' "$cat_dir/$id.yaml")
+  shift 3
+  while (($#)); do
+    if [[ "$1" == --values ]]; then values=$(jq -c --arg k "${2%%=*}" --arg v "${2#*=}" '.[$k] = $v' <<<"$values"); fi
+    shift
+  done
+  jq -nc --arg p "$id" --argjson v "$values" --slurpfile e "$cat_dir/$id.yaml" '{kind: "install", project: $p, values: $v, entry: $e[0]}' >"$S/changes/$c"
+  planned "$c" "$id" ;;
+"catalog upgrade")
+  p=$3 c=$(new_change)
+  jq -nc --arg p "$p" --slurpfile e "$cat_dir/$p.yaml" '{kind: "upgrade", project: $p, entry: $e[0]}' >"$S/changes/$c"
+  planned "$c" "$p" | jq -c '.change.plan.resources = []' ;;
+"catalog installs")
+  for f in "$S/installs"/*.json; do
+    [[ -f "$f" ]] || continue
+    now=$(jq -r .version "$cat_dir/$(jq -r .project "$f").yaml" 2>/dev/null || true)
+    jq -c --arg now "$now" '{project, pin: {values}} + (if $now != "" and $now != .version then {upgrade: {version: $now}} else {} end)' "$f"
+  done | jq -sc '{installs: .}' ;;
+"databases change-password")
+  c=$(new_change)
+  jq -nc '{kind: "password"}' >"$S/changes/$c"
+  planned "$c" "$5" ;;
+"changes apply")
+  ch=$(<"$S/changes/$3") p=$(jq -r '.project // ""' <<<"$ch")
+  case "$(jq -r .kind <<<"$ch")" in
+  install) jq -c '{project, values, version: .entry.version, entry}' <<<"$ch" >"$S/installs/$p.json" && run_entry "$p" ;;
+  upgrade) jq -c --argjson e "$(jq -c .entry <<<"$ch")" '.entry = $e | .version = $e.version' "$S/installs/$p.json" >"$S/up" && mv "$S/up" "$S/installs/$p.json" && run_entry "$p" ;;
+  remove) rm -f "$S/installs/$p.json" "$S/containers/$p-production-"* ;;
+  esac
+  jq -c '.applied = true' <<<"$ch" >"$S/changes/$3" ;;
+"changes get")
+  echo "$3" >>"$S/read-back"
+  jq -c --arg c "$3" '{change: {id: $c, state: (if .applied then "CHANGE_STATE_APPLIED" else "CHANGE_STATE_PLANNED" end), plan: {fingerprint: "f", destructive: false, hostAccess: false, resources: []}}}' "$S/changes/$3" ;;
+"changes propose")
+  c=$(new_change) p=""
+  for a in "$@"; do [[ "$a" != *'"kind":"project"'* ]] || p=$(jq -r .resource.name <<<"$a"); done
+  jq -nc --arg p "$p" '{kind: "remove", project: $p}' >"$S/changes/$c"
+  jq -nc --arg c "$c" '{change: {id: $c}}' ;;
+"changes list" | "events list" | "services list") echo '{}' ;;
+"compose export") echo "services: {}" ;;
+"resources list") echo '{"resources":[]}' ;;
+*) echo "fake dockwell: $*" >&2 && exit 1 ;;
+esac
