@@ -307,14 +307,7 @@ func (s *Service) CheckConnection(ctx context.Context, req *connect.Request[dock
 	if err != nil {
 		return nil, err
 	}
-	s3 := spec.GetS3()
-	got, err := session.ProbeConnection(ctx, req.Msg.GetEnvironment(), req.Msg.GetApp(), probe.Request{
-		Kind: probe.KindS3, Private: true,
-		S3: &probe.S3{
-			Endpoint: s3.GetEndpoint(), Region: s3.GetRegion(), Bucket: s3.GetBucket(), VirtualHost: !s3.GetPathStyle(),
-			Prefix: req.Msg.GetPrefix(), AccessKey: s3.GetAccessKeyId(), SecretKey: s3.GetSecretKey(), Presign: req.Msg.GetPresign(),
-		},
-	})
+	got, err := session.ProbeConnection(ctx, req.Msg.GetEnvironment(), req.Msg.GetApp(), probeOf(spec, req.Msg.GetPrefix(), req.Msg.GetPresign()))
 	switch {
 	case errors.Is(err, agentapi.ErrOlderAgent):
 		return nil, connect.NewError(connect.CodeFailedPrecondition, fmt.Errorf("%s can't check a connection: %w", srv.GetName(), err))
@@ -329,6 +322,20 @@ func (s *Service) CheckConnection(ctx context.Context, req *connect.Request[dock
 		Passed: got.GetPassed(), Step: got.GetStep(), Code: got.GetCode(), Status: got.GetStatus(),
 		Message: got.GetMessage(), Words: got.GetWords(), Region: got.GetRegion(), Server: srv.GetName(),
 	}), nil
+}
+
+// probeOf is the check of a connection: its bucket under prefix, and a presigned
+// URL where asked. It reaches a private address beyond the app's own networks only
+// where an install admin saved the connection (ADR 0099, #710).
+func probeOf(c *resourcev1.ConnectionSpec, prefix string, presign bool) probe.Request {
+	s3 := c.GetS3()
+	return probe.Request{
+		Kind: probe.KindS3, Private: connection.Private(c),
+		S3: &probe.S3{
+			Endpoint: s3.GetEndpoint(), Region: s3.GetRegion(), Bucket: s3.GetBucket(), VirtualHost: !s3.GetPathStyle(),
+			Prefix: prefix, AccessKey: s3.GetAccessKeyId(), SecretKey: s3.GetSecretKey(), Presign: presign,
+		},
+	}
 }
 
 // toCheck is the connection a check reaches: as typed, or a saved one with what's
@@ -369,6 +376,9 @@ func (s *Service) toCheck(ctx context.Context, req *dockwellv1.CheckConnectionRe
 		if req.GetS3() == nil {
 			to.PathStyle = was.GetPathStyle()
 		}
+		// Checked as it's saved: where someone below an admin saved it, it reaches no
+		// private address (#710).
+		typed.SavedBelowAdmin = c.Spec.GetSavedBelowAdmin()
 		if err := (connection.Type{}).Validate(typed); err != nil {
 			return nil, authapi.Invalid(err)
 		}

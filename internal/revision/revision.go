@@ -1714,6 +1714,13 @@ func (e *Engine) items(ctx context.Context, edits []Edit, rotate bool) ([]item, 
 					return err
 				}
 				it.spec = proto.Clone(ed.Spec)
+				// Who proposes it is Dockwell's to record, not the edit's, and an undo
+				// puts back what was recorded then (#710).
+				if t, err := e.kinds.Type(ed.Ref.Kind); err == nil && !ed.Reverses && !ed.Observed {
+					if s, ok := t.(resource.SaverStamper); ok {
+						s.StampSaver(it.spec, installAdmin(ctx))
+					}
+				}
 				// What the edit keeps is in the spec before anything checks it.
 				if len(ed.KeepEnv) > 0 {
 					if it.kept, err = e.keepEnv(it, ed.KeepEnv); err != nil {

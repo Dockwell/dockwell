@@ -1590,6 +1590,12 @@ message ConnectionSpec {
   ConnectionReach reach = 4;
   // The projects it reaches, by ID, for REACH_PROJECTS.
   repeated string projects = 5;
+  // Someone below an install admin saved it last, so a check, from the app's
+  // network or its own, reaches no private address beyond the app's own
+  // networks, as theirs would let them probe the server's network. Dockwell sets
+  // it from who proposes the change; an edit's is ignored. Unset, as every
+  // connection an admin saved, a check may reach a private address (ADR 0099).
+  bool saved_below_admin = 6 [(google.api.field_behavior) = OUTPUT_ONLY];
 }
 
 // ConnectionReach says which projects may use a connection, said, never implied.

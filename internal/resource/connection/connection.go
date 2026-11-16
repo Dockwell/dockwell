@@ -189,6 +189,21 @@ func (Type) Keep(current, desired proto.Message) (resource.Kept, error) {
 	return resource.Kept{Reason: "kept_key", Words: "keeps the key it was saved with, as the update left that out"}, nil
 }
 
+// StampSaver records whether an install admin saved the connection, whatever the
+// edit says: below one, its checks reach no private address beyond the app's own
+// networks (#710).
+func (Type) StampSaver(spec proto.Message, installAdmin bool) {
+	if c, ok := spec.(*resourcev1.ConnectionSpec); ok {
+		c.SavedBelowAdmin = !installAdmin
+	}
+}
+
+// Private says whether a check of the connection may reach a private address beyond
+// the app's own networks: where an install admin saved it (ADR 0099).
+func Private(c *resourcev1.ConnectionSpec) bool {
+	return !c.GetSavedBelowAdmin()
+}
+
 // Reaches reports a connection a project may use.
 func Reaches(c *resourcev1.ConnectionSpec, project string) bool {
 	switch c.GetReach() {

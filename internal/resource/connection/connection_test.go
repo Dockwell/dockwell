@@ -137,3 +137,16 @@ func TestReachIsSaid(t *testing.T) {
 		t.Error("every project doesn't reach a new one")
 	}
 }
+
+// A connection records whether an install admin saved it, whatever its edit says,
+// and only one an admin saved reaches private addresses (#710).
+func TestWhoSavedItDecidesItsPrivateReach(t *testing.T) {
+	for _, admin := range []bool{true, false} {
+		c := aBucket()
+		c.SavedBelowAdmin = admin
+		(Type{}).StampSaver(c, admin)
+		if c.GetSavedBelowAdmin() == admin || Private(c) != admin {
+			t.Errorf("saved by an install admin %v: below an admin %v, private %v", admin, c.GetSavedBelowAdmin(), Private(c))
+		}
+	}
+}

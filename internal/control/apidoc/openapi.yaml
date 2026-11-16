@@ -12213,6 +12213,15 @@ components:
                     items:
                         type: string
                     description: The projects it reaches, by ID, for REACH_PROJECTS.
+                savedBelowAdmin:
+                    readOnly: true
+                    type: boolean
+                    description: |-
+                        Someone below an install admin saved it last, so a check, from the app's
+                         network or its own, reaches no private address beyond the app's own
+                         networks, as theirs would let them probe the server's network. Dockwell sets
+                         it from who proposes the change; an edit's is ignored. Unset, as every
+                         connection an admin saved, a check may reach a private address (ADR 0099).
             description: |-
                 ConnectionSpec is one set of values of one kind that something uses, kind
                  "connection": an app through a link, or Dockwell itself (ADR 0099). It lives in the
