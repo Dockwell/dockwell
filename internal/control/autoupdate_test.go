@@ -22,12 +22,38 @@ import (
 	"github.com/dockwell/dockwell/internal/control/services"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
+	"github.com/dockwell/dockwell/internal/resource/catalogsource"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
 )
 
 // longAgo is when a test's catalog release was found, past any wait.
 var longAgo = time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+
+// builtInHeldSince records that every catalog has held an entry's release since a
+// time: the one built into Dockwell, and each source at its revision now, which an
+// entry DOCKWELL_CATALOG_DIR adds comes from, for an upgrade's own check of the wait
+// (ADR 0080).
+func builtInHeldSince(t *testing.T, db *store.DB, entry string, release int, since time.Time) {
+	t.Helper()
+	if err := db.Update(t.Context(), func(tx *store.Tx) error {
+		if err := tx.PutSetting(t.Context(), "catalog.release./"+entry, []byte(fmt.Sprintf("%d 0 %s", release, since.Format(time.RFC3339Nano)))); err != nil {
+			return err
+		}
+		sources, err := tx.ListKind(t.Context(), string(catalogsource.Kind))
+		if err != nil {
+			return err
+		}
+		for _, src := range sources {
+			if err := tx.PutSetting(t.Context(), "catalog.release."+src.ID+"/"+entry, []byte(fmt.Sprintf("%d %d %s", release, src.Revision, since.Format(time.RFC3339Nano)))); err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
 
 // newer is what a test says Dockwell's checks found, by service.
 type newer struct {
@@ -379,6 +405,7 @@ func TestAnAutomaticUpdateOfACatalogInstallUpgradesIt(t *testing.T) {
 	t.Parallel()
 	u := startUpgrading(t, store.SQLite, testEntry(1, "1.0", firstRelease, ""))
 	u.release(testEntry(2, "2.0", secondRelease, ""))
+	builtInHeldSince(t, u.f.store, "thing", 2, longAgo)
 	s := dockwellv1connect.NewServiceServiceClient(u.b, u.b.origin, connect.WithProtoJSON())
 	list, err := s.ListServices(t.Context(), connect.NewRequest(&dockwellv1.ListServicesRequest{}))
 	if err != nil {
@@ -508,6 +535,7 @@ func TestAnAutomaticUpdateNeverMovesADatabaseInACatalogRelease(t *testing.T) {
 		u.env = r.GetId()
 	}
 	u.release(dbEntry(2, "1.1", "postgres:17.2@sha256:"+digest2))
+	builtInHeldSince(t, u.f.store, "thing", 2, longAgo)
 	s := dockwellv1connect.NewServiceServiceClient(u.b, u.b.origin, connect.WithProtoJSON())
 	list, err := s.ListServices(t.Context(), connect.NewRequest(&dockwellv1.ListServicesRequest{}))
 	if err != nil {

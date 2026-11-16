@@ -123,6 +123,28 @@ func AsDockwell(ctx context.Context) context.Context {
 	return context.WithValue(ctx, asDockwell{}, true)
 }
 
+// IsDockwell says ctx is for a change Dockwell proposes on its own, as AsDockwell
+// makes it: an automatic update's, when it plans an upgrade (ADR 0080).
+func IsDockwell(ctx context.Context) bool {
+	dockwell, _ := ctx.Value(asDockwell{}).(bool)
+	return dockwell
+}
+
+type dockwellAt struct{}
+
+// AsDockwellAt is AsDockwell at the time the loop that proposes judges by, as an
+// automatic update's window is, so a plan's own checks of time, such as a catalog
+// release's wait, judge by the same moment (ADR 0080).
+func AsDockwellAt(ctx context.Context, at time.Time) context.Context {
+	return context.WithValue(AsDockwell(ctx), dockwellAt{}, at)
+}
+
+// DockwellAt is the time AsDockwellAt gave ctx, and false for none.
+func DockwellAt(ctx context.Context) (time.Time, bool) {
+	at, ok := ctx.Value(dockwellAt{}).(time.Time)
+	return at, ok
+}
+
 // ownMethods are the kinds that change only through methods of their own, which do
 // what a plan of one needs, with what to use instead. A catalog source's read its
 // commit, and say in the plan what it holds and leaves out (ADR 0055).

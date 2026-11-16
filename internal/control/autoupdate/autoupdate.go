@@ -17,6 +17,7 @@ import (
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/catalogapi"
 	"github.com/dockwell/dockwell/internal/control/changes"
 	"github.com/dockwell/dockwell/internal/control/services"
@@ -32,10 +33,8 @@ import (
 const Every = time.Minute
 
 // CatalogWait is how long a catalog release must have been on an install's source
-// before an automatic update takes it, counted from when the source moved to it,
-// so a bad release a catalog bumped by itself can be withdrawn before it reaches
-// what runs. A person's plan takes it at once (ADR 0080, for ADR 0100).
-const CatalogWait = 3 * 24 * time.Hour
+// before an automatic update takes it (catalogapi.ReleaseWait).
+const CatalogWait = catalogapi.ReleaseWait
 
 // Planner plans an update, as ServiceService.UpgradeService does.
 type Planner interface {
@@ -271,11 +270,16 @@ func (r *Runner) update(ctx context.Context, d *due) error {
 	case newer.Catalog:
 		image, summary = "", fmt.Sprintf("Update %s to its catalog's newer release on its own, in its window", d.name)
 	}
-	res, err := r.Planner.UpgradeService(changes.AsDockwell(ctx), connect.NewRequest(&dockwellv1.UpgradeServiceRequest{
+	res, err := r.Planner.UpgradeService(changes.AsDockwellAt(ctx, r.now()), connect.NewRequest(&dockwellv1.UpgradeServiceRequest{
 		Id: d.id, Image: image, SkipBackup: a.GetSkipBackup(),
 		Summary: summary, Rebuild: rebuild,
 	}))
 	if err != nil {
+		// A catalog release its source moved to since the update was found waits,
+		// and a later look in the window may take it.
+		if reasonOf(err) == catalogapi.ReasonReleaseWaits {
+			return nil
+		}
 		// What it can't plan now, such as with its server offline, it tries again
 		// within the window; what it refuses, as a plan always would, waits for the next.
 		if code := connect.CodeOf(err); code == connect.CodeInvalidArgument || code == connect.CodeFailedPrecondition {
@@ -301,6 +305,15 @@ func (r *Runner) update(ctx context.Context, d *due) error {
 		return err
 	}
 	return r.Engine.Apply(ctx, c.GetId())
+}
+
+// reasonOf is the reason a refusal gives, as authapi.ReasonError sets it.
+func reasonOf(err error) string {
+	var ce *connect.Error
+	if errors.As(err, &ce) {
+		return ce.Meta().Get(authapi.ReasonKey)
+	}
+	return ""
 }
 
 // movedBy is how far a moving tag's new image moves from what runs, as their

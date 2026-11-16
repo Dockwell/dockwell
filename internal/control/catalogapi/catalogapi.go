@@ -487,7 +487,7 @@ func (h *Handler) InstallUpgrades(ctx context.Context) (map[string]InstallUpgrad
 	if err != nil {
 		return nil, err
 	}
-	since, err := h.heldSince(ctx, wanted)
+	since, err := h.heldSince(ctx, wanted, h.sources.now())
 	for project, key := range keys {
 		u := out[project]
 		u.Since = since[key]
@@ -622,6 +622,25 @@ func (h *Handler) upgrade(ctx context.Context, m *dockwellv1.UpgradeCatalogInsta
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s's catalog has moved on to %s %s, release %d, so a new build alone would leave that out. Take the release as its own update, which brings the newest builds too", install.GetProject(), entry.GetName(), entry.GetVersion(), entry.GetRelease()), "newer_release")
 	case rebuildOnly && !rebuild:
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s runs no image by a tag that moves at release %d, so it has no new build to take alone", install.GetProject(), pin.GetRelease()), "no_rebuild")
+	}
+	// An automatic update takes a release only once its source has held it for
+	// ReleaseWait: checked here, on the release this plans, as the source may have
+	// moved since the update was found (ADR 0080; the release-wait review, H1). A
+	// later look in the window may take it, so it's Unavailable, not refused.
+	if newer && !rebuildOnly && changes.IsDockwell(ctx) {
+		now := h.sources.now()
+		if at, ok := changes.DockwellAt(ctx); ok {
+			now = at
+		}
+		key := pin.GetCatalog() + "/" + pin.GetEntry()
+		held, err := h.heldSince(ctx, map[string]asked{key: {source: pin.GetCatalog(), entry: pin.GetEntry(), release: entry.GetRelease()}}, now)
+		if err != nil {
+			return nil, h.internal(ctx, err)
+		}
+		since := held[key]
+		if until := since.Add(ReleaseWait); now.Before(until) {
+			return nil, authapi.ReasonError(connect.CodeUnavailable, fmt.Errorf("%s's catalog moved to release %d of %s on %s, so an automatic update waits until %s to take it", install.GetProject(), entry.GetRelease(), entry.GetName(), since.UTC().Format(time.RFC3339), until.UTC().Format(time.RFC3339)), ReasonReleaseWaits)
+		}
 	}
 	// An image whose tag the release keeps stays at the build the install runs, and
 	// one it moves is pinned to the build its new tag points at now. A tag that moves

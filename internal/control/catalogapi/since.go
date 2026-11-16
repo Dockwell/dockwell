@@ -14,6 +14,17 @@ import (
 	"github.com/dockwell/dockwell/internal/store"
 )
 
+// ReleaseWait is how long a catalog release must have been on an install's source
+// before an automatic update takes it, counted from when the source moved to it,
+// so a bad release a catalog bumped by itself can be withdrawn before it reaches
+// what runs. A person's plan takes it at once (ADR 0080, for ADR 0100).
+const ReleaseWait = 3 * 24 * time.Hour
+
+// ReasonReleaseWaits is why an automatic update's upgrade is refused for now: the
+// release it would take hasn't been on its source for ReleaseWait. It's
+// Unavailable, as a later look in the same window may take it.
+const ReasonReleaseWaits = "release_waits"
+
 // settingReleaseSince is the setting that holds, for a source and an entry, the
 // release the source holds of it, at which of the source's revisions, and since
 // when, by "<source's ID>/<entry>" after it, and "/<entry>" for the catalog built
@@ -79,12 +90,11 @@ type asked struct {
 // added again from its own revisions (its review, M1). The catalog built into
 // Dockwell, which no revision moves, holds a release from when the control plane
 // first read it.
-func (h *Handler) heldSince(ctx context.Context, list map[string]asked) (map[string]time.Time, error) {
+func (h *Handler) heldSince(ctx context.Context, list map[string]asked, now time.Time) (map[string]time.Time, error) {
 	out := make(map[string]time.Time, len(list))
 	if len(list) == 0 {
 		return out, nil
 	}
-	now := h.sources.now()
 	fresh := map[string]held{}
 	for key, a := range list {
 		since, rec, recKey, err := h.since(ctx, a, now)

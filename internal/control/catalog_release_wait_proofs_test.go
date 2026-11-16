@@ -137,6 +137,42 @@ func windowAfter(now time.Time) time.Time {
 	return at
 }
 
+// An automatic update checks the wait on the release it plans, not the one it found:
+// the keeper's read is kept for 30 s, and a source that moves in between moved to a
+// release that waits (the release-wait review, H1).
+func TestAnAutomaticUpdateWaitsOnTheReleaseItPlans(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		r := newWaitStand(t, backend)
+		at := windowAfter(time.Now())
+		r.move(t, map[string]string{"entries/notes-src.yaml": waitEntry("notes-src", 2, "1.2")})
+		// Release 2 has been on the source for 4 days by the time the window opens.
+		r.record(t, 2, at.Add(-4*24*time.Hour))
+		k := r.keeper()
+		cached := services.NewerFrom(k)
+		got, ok, err := cached.Of(t.Context(), r.id)
+		if err != nil || !ok || !got.Found.Equal(at.Add(-4*24*time.Hour)) {
+			t.Fatalf("release 2's update: %+v, %v, %v", got, ok, err)
+		}
+		// The follower moves the source to release 3 a few seconds later.
+		r.move(t, map[string]string{"entries/notes-src.yaml": waitEntry("notes-src", 3, "1.3")})
+		fresh, _, _ := services.NewerFrom(r.keeper()).Of(t.Context(), r.id)
+		if at.Sub(fresh.Found) >= autoupdate.CatalogWait {
+			t.Fatalf("release 3 is found at %v, which isn't inside the wait at %v", fresh.Found, at)
+		}
+		// Control: a runner that reads afresh waits for release 3.
+		r.tick(t, at, services.NewerFrom(r.keeper()))
+		if got := r.release(t); got != 1 {
+			t.Fatalf("control: a fresh read took release %d", got)
+		}
+		// The runner's read is the keeper's, within its 30 s.
+		r.tick(t, at, cached)
+		if got := r.release(t); got == 3 {
+			t.Errorf("the automatic update took release 3, found %v, %v before the window, inside the 3 days: it checked release 2's time and planned whatever was newest", fresh.Found, at.Sub(fresh.Found).Round(time.Minute))
+		}
+	})
+}
+
 // A source that leaves a release and comes back to it, while no install is offered
 // it, holds it from its move back (the release-wait review, M1).
 func TestASourceThatComesBackToAReleaseHoldsItFromItsReturn(t *testing.T) {
