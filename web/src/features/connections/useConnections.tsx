@@ -1,7 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { useQuery } from "@connectrpc/connect-query";
-import { type CheckConnectionResponse, ConnectionService, LinkPart } from "@dockwell/api";
+import {
+  type CheckConnectionResponse,
+  ConnectionService,
+  LinkPart,
+  Connection as ServerConnection,
+} from "@dockwell/api";
 import { StatusBadge } from "@dockwell/ui";
 import { useLingui } from "@lingui/react/macro";
 import { useMemo } from "react";
@@ -11,6 +16,17 @@ import { useAllResources } from "../projects/useProjects";
 /** Every connection the caller may see, or those an environment's project may use. */
 export function useConnections(environment = "") {
   return useQuery(ConnectionService.method.listConnections, { environment });
+}
+
+/**
+ * The server a check runs from unless a person picks one: the control server, which
+ * holds the keys already, where it's connected; then any connected server.
+ */
+export function checkServer(
+  servers: readonly { id: string; connection: ServerConnection; control?: boolean | undefined }[],
+): string {
+  const up = servers.filter((s) => s.connection === ServerConnection.CONNECTED);
+  return (up.find((s) => s.control) ?? up[0] ?? servers[0])?.id ?? "";
 }
 
 /** The probe's own codes for what kept it from an answer, as the agent says them. */

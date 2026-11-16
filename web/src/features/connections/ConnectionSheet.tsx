@@ -9,7 +9,6 @@ import {
   ConnectionReach,
   ConnectionService,
   LinkKind,
-  Connection as ServerConnection,
 } from "@dockwell/api";
 import { Advanced, Button, Callout, cx, SelectField, Sheet, StatusBadge, Switch, TextField } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
@@ -22,7 +21,7 @@ import { useChangeSheet } from "../changes/ChangeSheet";
 import { useAllResources } from "../projects/useProjects";
 import { useFleetView } from "../servers/useFleet";
 import { BUCKET, freeConnectionName, PROVIDERS, type ProviderId, placeOf, provider, R2_ACCOUNT } from "./providers";
-import { SILENT, useCheckWords, useConnections } from "./useConnections";
+import { checkServer, SILENT, useCheckWords, useConnections } from "./useConnections";
 import "./Connections.css";
 
 /** How long typing pauses before a connection is checked. */
@@ -114,7 +113,7 @@ export function ConnectionSheet({
       existing.map((c) => c.name),
     );
   const servers = fleet.servers ?? [];
-  const from = server || servers.find((s) => s.connection === ServerConnection.CONNECTED)?.id || servers[0]?.id || "";
+  const from = server || checkServer(servers);
   const bucketOk = BUCKET.test(bucket) && !bucket.includes("..");
   const typedKeys = keyId !== "" && secret !== "";
   // Moving a saved connection, or its keys, needs its keys again: the server keeps
@@ -137,17 +136,20 @@ export function ConnectionSheet({
   // check's own may still be one an app reaches from its own, as a store on an app's
   // network is: each app's link checks it again from there before anything is planned.
   const unreached = answer !== undefined && !passed && SILENT.includes(answer.code);
-  const ready = complete && reaching && name !== "" && (mayCheck ? passed || unreached : true);
+  // A change that moves nothing the bucket sees, as a label or reach, needs no check:
+  // one runs only when asked, so opening Change sends the saved keys nowhere.
+  const ready = complete && reaching && name !== "" && (mayCheck && keysNeeded ? passed || unreached : true);
+  const [askedToCheck, setAskedToCheck] = useState(0);
 
   // Each change to what's checked moves this on, so an answer to what changed since is dropped.
   const asked = useRef(0);
-  const what = JSON.stringify([endpoint, signRegion, bucket, keyId, secret, pathStyle, from]);
+  const what = JSON.stringify([endpoint, signRegion, bucket, keyId, secret, pathStyle, from, askedToCheck]);
   // biome-ignore lint/correctness/useExhaustiveDependencies: it checks again whenever what's checked changes, which `what` holds
   useEffect(() => {
     const mine = ++asked.current;
     setAnswer(undefined);
     setFailure(undefined);
-    if (!complete || !mayCheck) {
+    if (!complete || !mayCheck || (!keysNeeded && askedToCheck === 0)) {
       setChecking(false);
       return;
     }
@@ -167,7 +169,7 @@ export function ConnectionSheet({
       }
     }, CHECK_AFTER_MS);
     return () => clearTimeout(timer);
-  }, [what, complete, mayCheck]);
+  }, [what, complete, mayCheck, keysNeeded]);
 
   const spec = () => ({
     displayName: label.trim() || (p.name ? `${p.name} · ${bucket}` : bucket),
@@ -199,7 +201,13 @@ export function ConnectionSheet({
     });
   // A connection a link names can't go: Used by disconnects each first, as a plan.
   const links = editing?.uses.length ?? 0;
-  const inUse = links > 0 ? plural(links, { one: "# link names it. Disconnect it under Used by first.", other: "# links name it. Disconnect them under Used by first." }) : undefined;
+  const inUse =
+    links > 0
+      ? plural(links, {
+          one: "# link names it. Disconnect it under Used by first.",
+          other: "# links name it. Disconnect them under Used by first.",
+        })
+      : undefined;
   const remove = () =>
     sheet.open({
       kind: "propose",
@@ -230,13 +238,7 @@ export function ConnectionSheet({
       footer={
         <>
           {editing ? (
-            <Button
-              variant="ghost"
-              className="connection-remove"
-              onClick={remove}
-              off={inUse}
-              {...mayPlan.off}
-            >
+            <Button variant="ghost" className="connection-remove" onClick={remove} off={inUse} {...mayPlan.off}>
               <Trans>Remove</Trans>
             </Button>
           ) : null}
@@ -346,13 +348,7 @@ export function ConnectionSheet({
           ) : check ? (
             <>
               <StatusBadge
-                status={
-                  check.passed
-                    ? "healthy"
-                    : unreached
-                      ? "unknown"
-                      : "down"
-                }
+                status={check.passed ? "healthy" : unreached ? "unknown" : "down"}
                 label={check.state}
                 labelIsState
               />
@@ -361,6 +357,10 @@ export function ConnectionSheet({
                 {unreached ? ` ${t`An app's link checks it again from where the app runs.`}` : null}
               </span>
             </>
+          ) : editing && complete && mayCheck ? (
+            <Button size="sm" variant="secondary" icon="refresh" onClick={() => setAskedToCheck((n) => n + 1)}>
+              <Trans>Check</Trans>
+            </Button>
           ) : null}
         </div>
         {failure ? (

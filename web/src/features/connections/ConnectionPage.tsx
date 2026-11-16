@@ -10,7 +10,6 @@ import {
   ConnectionReach,
   ConnectionService,
   type ConnectionUse,
-  Connection as ServerConnection,
 } from "@dockwell/api";
 import {
   Button,
@@ -37,7 +36,7 @@ import { Page } from "../shell/Page";
 import { ConnectionSheet } from "./ConnectionSheet";
 import { where } from "./ConnectionsPage";
 import { ConnectStorageSheet } from "./ConnectStorageSheet";
-import { SILENT, useCheckWords, useConnections, usePartWords, useProjectLabel } from "./useConnections";
+import { checkServer, SILENT, useCheckWords, useConnections, usePartWords, useProjectLabel } from "./useConnections";
 import "../apps/Apps.css";
 import "./Connections.css";
 
@@ -157,7 +156,7 @@ function useCheck(name: string) {
   const client = useMemo(() => createClient(ConnectionService, transport), [transport]);
   const fleet = useFleetView();
   const servers = fleet.servers ?? [];
-  const from = servers.find((s) => s.connection === ServerConnection.CONNECTED)?.id ?? servers[0]?.id ?? "";
+  const from = checkServer(servers);
   const [answer, setAnswer] = useState<CheckConnectionResponse>();
   const [failure, setFailure] = useState<string>();
   const [busy, setBusy] = useState(false);

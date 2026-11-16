@@ -238,6 +238,39 @@ describe("Connections", () => {
     expect(within(sheet).getByRole("button", { name: "Review plan" })).toBeEnabled();
   });
 
+  // Review L1: opening Change checked the saved keys from a server at once, unasked.
+  it("checks a saved connection only when asked, from the control server", async () => {
+    const user = userEvent.setup();
+    const checks: CheckConnectionRequest[] = [];
+    const watch = feed<WatchServersResponse>();
+    watch.push(
+      changed(aServer({ id: "srv_web", name: "web-1" })),
+      changed(aServer({ id: SERVER, name: "hz-1", controlServer: true })),
+      snapshotComplete,
+    );
+    renderAt("/connections/outline-uploads", {
+      servers: { watchServers: watch.stream },
+      resources: places(),
+      connections: {
+        listConnections: () => ({ connections: [used] }),
+        checkConnection: (req) => {
+          checks.push(req);
+          return { passed: true, server: "hz-1" };
+        },
+      },
+    });
+    await user.click(await screen.findByRole("button", { name: "Replace keys" }));
+    const sheet = await screen.findByRole("dialog", { name: "Connection outline-uploads" });
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    expect(checks).toHaveLength(0);
+    expect(within(sheet).getByRole("button", { name: "Review plan" })).toBeEnabled();
+    await user.click(within(sheet).getByRole("button", { name: "Check" }));
+    expect(await within(sheet).findByText("Reached from hz-1", {}, { timeout: 3000 })).toBeVisible();
+    expect(checks).toHaveLength(1);
+    expect(checks[0]).toMatchObject({ name: "outline-uploads", server: SERVER });
+    expect(checks[0]?.s3?.secretKey).toBe("");
+  });
+
   // Review M1: an address Dockwell keeps every check and app from, such as loopback or a
   // metadata service, can never work, so it isn't saved as one nothing answered.
   it("doesn't plan an address Dockwell keeps apps from, and says why", async () => {
@@ -272,7 +305,12 @@ describe("Connections", () => {
   it("asks for both keys once either is typed, and never plans a new secret without its ID", async () => {
     const user = userEvent.setup();
     const proposed = planned();
-    const minio = aConnection({ name: "minio", displayName: "minio", endpoint: "http://minio:9000", bucket: "wiki-files" });
+    const minio = aConnection({
+      name: "minio",
+      displayName: "minio",
+      endpoint: "http://minio:9000",
+      bucket: "wiki-files",
+    });
     renderAt("/connections/minio", {
       ...fleet(),
       resources: places(),
@@ -293,8 +331,9 @@ describe("Connections", () => {
     expect(await within(sheet).findByText("Can't reach it", {}, { timeout: 3000 })).toBeVisible();
     await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
     await waitFor(() => expect(proposed).toHaveBeenCalled());
-    const s3 = (proposed.mock.calls[0]?.[0].edits[0]?.spec?.kind.value as { s3?: { accessKeyId: string; secretKey: string } })
-      ?.s3;
+    const s3 = (
+      proposed.mock.calls[0]?.[0].edits[0]?.spec?.kind.value as { s3?: { accessKeyId: string; secretKey: string } }
+    )?.s3;
     expect(s3).toMatchObject({ accessKeyId: "minio", secretKey: "rotated-secret" });
   });
 
@@ -433,13 +472,18 @@ describe("connecting an app to storage", () => {
       variable({ id: "sec_1", name: "S3_SECRET_ACCESS_KEY", secret: true, usedBy: uses("S3_SECRET_ACCESS_KEY") }),
     ];
     const base = api([]);
-    const outline = anApp("outline", "ghcr.io/acme/outline:1", {}, {
-      spec: create(ServiceSchema, {
-        runs: { case: "app", value: { image: "ghcr.io/acme/outline:1" } },
-        variables: { S3_BUCKET: "S3_BUCKET", S3_ENDPOINT: "S3_ENDPOINT" },
-        secrets: { S3_SECRET_ACCESS_KEY: "S3_SECRET_ACCESS_KEY" },
-      }),
-    });
+    const outline = anApp(
+      "outline",
+      "ghcr.io/acme/outline:1",
+      {},
+      {
+        spec: create(ServiceSchema, {
+          runs: { case: "app", value: { image: "ghcr.io/acme/outline:1" } },
+          variables: { S3_BUCKET: "S3_BUCKET", S3_ENDPOINT: "S3_ENDPOINT" },
+          secrets: { S3_SECRET_ACCESS_KEY: "S3_SECRET_ACCESS_KEY" },
+        }),
+      },
+    );
     const { container } = renderAt("/apps/svc_outline/environment", {
       ...base,
       services: { ...base.services, listServices: () => ({ services: [outline] }) },
