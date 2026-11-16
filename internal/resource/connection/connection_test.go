@@ -138,15 +138,36 @@ func TestReachIsSaid(t *testing.T) {
 	}
 }
 
-// A connection records whether an install admin saved it, whatever its edit says,
-// and only one an admin saved reaches private addresses (#710).
-func TestWhoSavedItDecidesItsPrivateReach(t *testing.T) {
+// A connection records whether an install admin chose where it goes, whatever its
+// edit says: a new one, or one moved to another endpoint, region or path style, is
+// the proposer's; one whose address stays keeps who chose it (#710).
+func TestWhoChoseItsAddressDecidesItsPrivateReach(t *testing.T) {
 	for _, admin := range []bool{true, false} {
 		c := aBucket()
 		c.SavedBelowAdmin = admin
-		(Type{}).StampSaver(c, admin)
+		(Type{}).StampSaver(nil, c, admin)
 		if c.GetSavedBelowAdmin() == admin || Private(c) != admin {
-			t.Errorf("saved by an install admin %v: below an admin %v, private %v", admin, c.GetSavedBelowAdmin(), Private(c))
+			t.Errorf("new, by an install admin %v: below an admin %v, private %v", admin, c.GetSavedBelowAdmin(), Private(c))
+		}
+	}
+	below := aBucket()
+	below.SavedBelowAdmin = true
+	renamed := aBucket()
+	renamed.DisplayName = "Renamed"
+	(Type{}).StampSaver(below, renamed, true)
+	if Private(renamed) {
+		t.Error("an admin's rename gave a developer's address private reach")
+	}
+	for what, move := range map[string]func(*resourcev1.ConnectionS3){
+		"endpoint":   func(s *resourcev1.ConnectionS3) { s.Endpoint = "https://elsewhere.example.com" },
+		"region":     func(s *resourcev1.ConnectionS3) { s.Region = "eu-central-1" },
+		"path style": func(s *resourcev1.ConnectionS3) { s.PathStyle = !s.GetPathStyle() },
+	} {
+		moved := aBucket()
+		move(moved.S3)
+		(Type{}).StampSaver(below, moved, true)
+		if !Private(moved) {
+			t.Errorf("an admin's new %s stays a developer's", what)
 		}
 	}
 }

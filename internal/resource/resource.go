@@ -1801,11 +1801,12 @@ type WriterNamer interface {
 	WriterOf(spec proto.Message) string
 }
 
-// SaverStamper is a kind whose spec records whether an install admin proposed its
-// last change, whatever the edit says, as a connection's reach to private
-// addresses depends on it (ADR 0099). Dockwell's own changes count as an admin's.
+// SaverStamper is a kind whose spec records whether an install admin chose what it
+// holds, whatever the edit says, as a connection's reach to private addresses
+// depends on who chose its address (ADR 0099). It's given what's there, nil for a
+// new one. Dockwell's own changes count as an admin's.
 type SaverStamper interface {
-	StampSaver(spec proto.Message, installAdmin bool)
+	StampSaver(current, spec proto.Message, installAdmin bool)
 }
 
 // NewDefaulter is a kind whose new resources take a default from their ref

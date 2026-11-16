@@ -189,13 +189,27 @@ func (Type) Keep(current, desired proto.Message) (resource.Kept, error) {
 	return resource.Kept{Reason: "kept_key", Words: "keeps the key it was saved with, as the update left that out"}, nil
 }
 
-// StampSaver records whether an install admin saved the connection, whatever the
-// edit says: below one, its checks reach no private address beyond the app's own
-// networks (#710).
-func (Type) StampSaver(spec proto.Message, installAdmin bool) {
-	if c, ok := spec.(*resourcev1.ConnectionSpec); ok {
-		c.SavedBelowAdmin = !installAdmin
+// StampSaver records whether an install admin chose where the connection goes,
+// whatever the edit says: below one, its checks reach no private address beyond
+// the app's own networks (#710). An edit that keeps its endpoint, region and path
+// style, as a rename or a wider reach does, keeps who chose them; one that moves
+// it, or a new one, is the proposer's.
+func (Type) StampSaver(current, spec proto.Message, installAdmin bool) {
+	c, ok := spec.(*resourcev1.ConnectionSpec)
+	if !ok {
+		return
 	}
+	if was, ok := current.(*resourcev1.ConnectionSpec); ok && !movesAddress(was.GetS3(), c.GetS3()) {
+		c.SavedBelowAdmin = was.GetSavedBelowAdmin()
+		return
+	}
+	c.SavedBelowAdmin = !installAdmin
+}
+
+// movesAddress says whether an edit sends a connection somewhere else: another
+// endpoint, region or path style.
+func movesAddress(from, to *resourcev1.ConnectionS3) bool {
+	return to.GetEndpoint() != from.GetEndpoint() || to.GetRegion() != from.GetRegion() || to.GetPathStyle() != from.GetPathStyle()
 }
 
 // Private says whether a check of the connection may reach a private address beyond
