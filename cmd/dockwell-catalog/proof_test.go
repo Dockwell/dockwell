@@ -136,3 +136,19 @@ func TestEarlierPrintsTheReleasesBefore(t *testing.T) {
 		t.Errorf("earlier prints %s, want %s", stdout.String(), want)
 	}
 }
+
+// scope-whose reads the pull requests and the branches as GitHub and git give them.
+func TestScopeWhoseReadsWhatGitHubGives(t *testing.T) {
+	dir := t.TempDir()
+	write(t, dir, "started.json", `{"number":13,"state":"open","user":{"login":"mallory","type":"User"},"head":{"sha":"x","ref":"bump/redis","repo":{"full_name":"mallory/catalog"}},"base":{"repo":{"full_name":"Dockwell/catalog"}}}`)
+	write(t, dir, "open.json", `[{"number":13,"state":"open","user":{"login":"mallory","type":"User"},"head":{"sha":"x","ref":"bump/redis","repo":{"full_name":"mallory/catalog"}},"base":{"repo":{"full_name":"Dockwell/catalog"}}},
+	 {"number":12,"state":"open","user":{"login":"dockwell-catalog-bump[bot]","type":"Bot"},"head":{"sha":"x","ref":"bump/redis","repo":{"full_name":"Dockwell/catalog"}},"base":{"repo":{"full_name":"Dockwell/catalog"}}}]`)
+	write(t, dir, "branches.txt", "m\trefs/heads/main\nx\trefs/heads/bump/redis\n")
+	var stdout, stderr bytes.Buffer
+	if err := whoseCommand([]string{"--head", "x", "--started", dir + "/started.json", "--open", dir + "/open.json", "--branches", dir + "/branches.txt"}, &stdout, &stderr); err != nil {
+		t.Fatalf("scope-whose: %v\n%s", err, stderr.String())
+	}
+	if want := `{"number":12,"branch":"bump/redis","author":"app/dockwell-catalog-bump","cross_repository":false}`; strings.TrimSpace(stdout.String()) != want {
+		t.Errorf("scope-whose prints %s, want %s", stdout.String(), want)
+	}
+}

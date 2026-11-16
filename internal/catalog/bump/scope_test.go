@@ -120,3 +120,49 @@ func TestAStepInScopeIsTheStepTheBumpMakes(t *testing.T) {
 		t.Errorf("a dropped platform reads %q", why)
 	}
 }
+
+// A commit status belongs to the commit, so a commit that's the App's head is
+// judged as the App's bump, whichever pull request started the run: a fork's pull
+// request of the same commit earns it no person's pass (#726's slice 2 review, H1).
+func TestACommitIsJudgedAsTheAppsBumpWhereverItIsOpened(t *testing.T) {
+	pull := func(number int, login, kind, ref, from, sha string) bump.Pull {
+		var p bump.Pull
+		p.Number, p.State = number, "open"
+		p.User.Login, p.User.Type = login, kind
+		p.Head.SHA, p.Head.Ref = sha, ref
+		p.Head.Repo = &struct {
+			FullName string `json:"full_name"`
+		}{from}
+		p.Base.Repo.FullName = "Dockwell/catalog"
+		return p
+	}
+	apps := pull(12, "dockwell-catalog-bump[bot]", "Bot", "bump/redis-major", "Dockwell/catalog", "x")
+	forks := pull(13, "mallory", "User", "bump/redis-major", "mallory/catalog", "x")
+
+	// The fork's run, with both open: judged as the App's.
+	if got := bump.Whose("x", app, &forks, []bump.Pull{forks, apps}, nil); got.Number != 12 || got.Author != app || got.CrossRepository || got.Branch != "bump/redis-major" {
+		t.Errorf("the fork's run of the App's head is judged as %+v", got)
+	}
+	// The App's pull request closed, its branch still here: still the App's, with no
+	// pull request to read approvals from.
+	if got := bump.Whose("x", app, &forks, []bump.Pull{forks}, map[string]string{"refs/heads/bump/redis-major": "x", "refs/heads/main": "m"}); got.Number != 0 || got.Author != app || got.Branch != "bump/redis-major" {
+		t.Errorf("the head of a bump branch is judged as %+v", got)
+	}
+	// A fork's own commit is the fork's.
+	if got := bump.Whose("y", app, &forks, []bump.Pull{forks}, map[string]string{"refs/heads/bump/redis-major": "x"}); got.Number != 13 || got.Author != "mallory" || !got.CrossRepository {
+		t.Errorf("a fork's own commit is judged as %+v", got)
+	}
+	// A fork that names its user like the App's bot isn't the App: its pull request
+	// is from another repository.
+	posing := pull(14, "dockwell-catalog-bump[bot]", "Bot", "bump/redis", "mallory/catalog", "z")
+	if got := bump.Whose("z", app, &posing, []bump.Pull{posing}, nil); !got.CrossRepository {
+		t.Errorf("a fork's pull request reads %+v", got)
+	}
+	// What Scope then makes of the fork's run of the App's head: the App's bump,
+	// beyond its levels, out of scope.
+	j := bump.Whose("x", app, &forks, []bump.Pull{forks, apps}, nil)
+	in := inScope(bump.ScopeInput{Author: j.Author, Branch: j.Branch, CrossRepository: j.CrossRepository})
+	if got := bump.Scope(in); got.Pass {
+		t.Errorf("the fork's run of the App's major passes: %+v", got)
+	}
+}

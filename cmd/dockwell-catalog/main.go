@@ -46,6 +46,7 @@ const usage = `Usage: dockwell-catalog convert --from 1panel --source <checkout>
        dockwell-catalog rates [--record] [--pin] [--list]
        dockwell-catalog bump --catalog <checkout> --out <folder> [--seen <file>] [--only <ids>]
        dockwell-catalog bump scope --catalog <checkout> --base <commit> --head <commit> --author <login> --branch <ref>
+       dockwell-catalog bump scope-whose --head <commit> --started <file> [--open <file>] [--branches <file>]
        dockwell-catalog earlier --catalog <checkout> [--at <commit>] [--base <commit>] <id>
 
 convert converts a catalog's apps into Dockwell's entries, one file each in --out,
@@ -62,7 +63,8 @@ check does, and writes a patch for each pull request that moves an entry to newe
 ones, with bumps.json saying each one's branch, title, body and labels (ADR 0100).
 
 bump scope reads a pull request's diff, never its head, and prints the commit
-status it earns: a person's passes, and the App's only where it's the step the
+status it earns, judged as bump scope-whose says, as a commit's status shows on
+every pull request with it as its head: a person's passes, and the App's only where it's the step the
 bump makes now with nothing waiting for a person, or a maintainer approved it.
 
 earlier says which releases an upgrade to an entry is proven from: the one
@@ -76,6 +78,9 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	}
 	if len(args) > 0 && args[0] == "rates" {
 		return rates(ctx, args[1:], stdout, stderr)
+	}
+	if len(args) > 1 && args[0] == "bump" && args[1] == "scope-whose" {
+		return whoseCommand(args[2:], stdout, stderr)
 	}
 	if len(args) > 1 && args[0] == "bump" && args[1] == "scope" {
 		return scopeCommand(ctx, args[2:], stdout, stderr, nil)

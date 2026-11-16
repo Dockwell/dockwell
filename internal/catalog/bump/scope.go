@@ -6,8 +6,10 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"maps"
 	"path"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 
@@ -183,4 +185,72 @@ func StepInScope(ctx context.Context, p *Planner, base *Entry, policy *Policy, h
 		why = append(why, "Its change isn't the step the bump makes from its base now")
 	}
 	return why
+}
+
+// Pull is a pull request as GitHub's API gives it, what Whose reads of it.
+type Pull struct {
+	Number int    `json:"number"`
+	State  string `json:"state"`
+	User   struct {
+		Login string `json:"login"`
+		Type  string `json:"type"`
+	} `json:"user"`
+	Head struct {
+		SHA  string `json:"sha"`
+		Ref  string `json:"ref"`
+		Repo *struct {
+			FullName string `json:"full_name"`
+		} `json:"repo"`
+	} `json:"head"`
+	Base struct {
+		Repo struct {
+			FullName string `json:"full_name"`
+		} `json:"repo"`
+	} `json:"base"`
+}
+
+// Author is who opened it, as GitHub names it in a pull request list: "app/<slug>"
+// for an App.
+func (p *Pull) Author() string {
+	if p.User.Type == "Bot" {
+		return "app/" + strings.TrimSuffix(p.User.Login, "[bot]")
+	}
+	return p.User.Login
+}
+
+// CrossRepository says it comes from a fork, or from a repository that's gone.
+func (p *Pull) CrossRepository() bool {
+	return p.Head.Repo == nil || p.Head.Repo.FullName != p.Base.Repo.FullName
+}
+
+// Judged is the pull request a commit is judged as.
+type Judged struct {
+	// Number is its number, which its approvals are read from; 0 for a bump branch
+	// with no pull request open, which has none.
+	Number          int    `json:"number"`
+	Branch          string `json:"branch"`
+	Author          string `json:"author"`
+	CrossRepository bool   `json:"cross_repository"`
+}
+
+// Whose decides what a commit is judged as. A commit status belongs to the
+// commit, which every pull request with it as its head shows, so a fork's pull
+// request of the App's own head must not earn it a person's pass (#726's slice 2
+// review, H1): a commit that's the head of any open pull request of the App's from
+// this repository, or of a bump/ branch here, is judged as the App's bump, whatever
+// pull request started the run. Anything else is judged as the one that started
+// it. branches are this repository's heads, by ref, as git ls-remote gives them.
+func Whose(head, app string, started *Pull, open []Pull, branches map[string]string) Judged {
+	for i := range open {
+		p := &open[i]
+		if p.State == "open" && p.Head.SHA == head && !p.CrossRepository() && p.Author() == app {
+			return Judged{Number: p.Number, Branch: p.Head.Ref, Author: app}
+		}
+	}
+	for _, ref := range slices.Sorted(maps.Keys(branches)) {
+		if name, ok := strings.CutPrefix(ref, "refs/heads/"); ok && strings.HasPrefix(name, "bump/") && branches[ref] == head {
+			return Judged{Branch: name, Author: app}
+		}
+	}
+	return Judged{Number: started.Number, Branch: started.Head.Ref, Author: started.Author(), CrossRepository: started.CrossRepository()}
 }

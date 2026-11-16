@@ -40,6 +40,61 @@ func earlierCommand(ctx context.Context, args []string, stdout, stderr io.Writer
 	return json.NewEncoder(stdout).Encode(got)
 }
 
+// whoseCommand says which pull request a commit is judged as, as JSON, for
+// scope.yml (#726's slice 2 review, H1): --started is the pull request whose run it
+// is, --open the open pull requests with the commit as their head, as GitHub's
+// commits/<sha>/pulls lists them, and --branches this repository's heads, as git
+// ls-remote prints them.
+func whoseCommand(args []string, stdout, stderr io.Writer) error {
+	flags := flag.NewFlagSet("scope-whose", flag.ContinueOnError)
+	flags.SetOutput(stderr)
+	head := flags.String("head", "", "the commit")
+	app := flags.String("app", "app/dockwell-catalog-bump", "the bump App, as GitHub names it")
+	startedFile := flags.String("started", "", "a file of the pull request whose run it is, as GitHub's API gives it")
+	openFile := flags.String("open", "", "a file of the pull requests with the commit, as GitHub's commits/<sha>/pulls gives them")
+	branchesFile := flags.String("branches", "", "a file of this repository's heads, as git ls-remote prints them")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if *head == "" || *startedFile == "" {
+		return errors.New("name the commit with --head, and the pull request whose run it is with --started")
+	}
+	var started bump.Pull
+	if err := readJSON(*startedFile, &started); err != nil {
+		return err
+	}
+	var open []bump.Pull
+	if *openFile != "" {
+		if err := readJSON(*openFile, &open); err != nil {
+			return err
+		}
+	}
+	branches := map[string]string{}
+	if *branchesFile != "" {
+		raw, err := os.ReadFile(*branchesFile) //nolint:gosec // the file the workflow names
+		if err != nil {
+			return err
+		}
+		for line := range strings.SplitSeq(string(raw), "\n") {
+			if sha, ref, ok := strings.Cut(strings.TrimSpace(line), "\t"); ok {
+				branches[ref] = sha
+			}
+		}
+	}
+	return json.NewEncoder(stdout).Encode(bump.Whose(*head, *app, &started, open, branches))
+}
+
+func readJSON(file string, into any) error {
+	raw, err := os.ReadFile(file) //nolint:gosec // the file the workflow names
+	if err != nil {
+		return err
+	}
+	if err := json.Unmarshal(raw, into); err != nil {
+		return fmt.Errorf("reading %s: %w", file, err)
+	}
+	return nil
+}
+
 // scopeOutput is what scope prints: a commit status's state and description.
 type scopeOutput struct {
 	State       string   `json:"state"`
