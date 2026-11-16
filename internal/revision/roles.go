@@ -865,9 +865,12 @@ func (e *Engine) ApplyingOf(ctx context.Context, tx *store.Tx, changeID string) 
 	var refused *Refusal
 	switch err := e.checkRoles(ctx, tx, c.Actor, &c, asked, items, applying); {
 	case errors.As(err, &refused) && refused.Needs == store.RoleAdmin:
-		return Applying{Waits: refused.Waits(), Discards: discards}, nil
+		// Discarding needs a developer where it edits, as the guard asks, so a
+		// maker lowered to viewer since isn't offered it (#711).
+		mayDiscard := store.RoleRank(refused.Held) >= store.RoleRank(store.RoleDeveloper)
+		return Applying{Waits: refused.Waits(), Discards: discards && mayDiscard}, nil
 	case errors.As(err, &refused):
-		return Applying{Discards: discards}, nil // a viewer applies nothing: no one's waiting on them
+		return Applying{}, nil // a viewer applies and discards nothing: no one's waiting on them
 	case errors.Is(err, ErrOutOfReach):
 		return Applying{}, nil // not theirs to read, so a list doesn't show it
 	case err != nil:

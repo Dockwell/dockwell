@@ -282,6 +282,17 @@ func TestAHooksMakerDiscardsWhatItPlanned(t *testing.T) {
 		hold(store.Grant{ProjectID: project, Role: store.RoleDeveloper})
 
 		d := g.pushTo(t, url, secret, "d-1", store.HookNeedsPerson)
+		// Lowered to viewer since, the maker may not discard it, so isn't told they may.
+		hold(store.Grant{ProjectID: project, Role: store.RoleViewer})
+		lowered, err := g.c.GetChange(t.Context(), connect.NewRequest(&dockwellv1.GetChangeRequest{Id: d.ChangeID}))
+		if err != nil || lowered.Msg.GetChange().GetDiscards() {
+			t.Errorf("to its maker lowered to viewer, the hook's waiting plan reads %v, %v; want not theirs to discard", lowered, err)
+		}
+		if _, err := g.c.DiscardChange(t.Context(), connect.NewRequest(&dockwellv1.DiscardChangeRequest{Id: d.ChangeID})); err == nil {
+			t.Fatal("a viewer discarded the hook's plan")
+		}
+		hold(store.Grant{ProjectID: project, Role: store.RoleDeveloper})
+
 		read, err := g.c.GetChange(t.Context(), connect.NewRequest(&dockwellv1.GetChangeRequest{Id: d.ChangeID}))
 		if err != nil || !read.Msg.GetChange().GetDiscards() || read.Msg.GetChange().GetWaits() == "" {
 			t.Errorf("to its maker, the hook's waiting plan reads %v, %v; want theirs to discard, waiting for an admin", read, err)

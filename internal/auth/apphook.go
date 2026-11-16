@@ -41,7 +41,7 @@ func (s *Service) CreateAppGitHook(ctx context.Context, client Client, p Princip
 		if perr != nil {
 			return perr
 		}
-		h.Projects, h.Role = []string{project}, store.RoleDeveloper
+		h.Projects, h.Role = projectsOf(project), store.RoleDeveloper
 		if err := tx.CreateGitHook(ctx, h); err != nil {
 			if errors.Is(err, store.ErrConflict) {
 				return ErrHookExists
