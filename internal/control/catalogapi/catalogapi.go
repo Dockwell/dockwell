@@ -344,7 +344,7 @@ func (h *Handler) InstallCatalogEntry(ctx context.Context, req *connect.Request[
 	if err != nil {
 		return nil, h.internal(ctx, err)
 	}
-	needed, needNotes, err := h.meetNeeds(ctx, s, entry, m.GetValues(), m.GetNeeds(), nil, candidates, cmp.Or(m.GetProject(), named.project), onServer)
+	needed, needNotes, err := h.meetNeeds(ctx, s, entry, m.GetValues(), m.GetNeeds(), nil, candidates, cmp.Or(m.GetProject(), named.project), onServer, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -373,12 +373,12 @@ func (h *Handler) InstallCatalogEntry(ctx context.Context, req *connect.Request[
 		return nil, authapi.ReasonError(connect.CodeInvalidArgument, err, "invalid")
 	}
 	pinNotes = append(pinNotes, lentNotes(chosen, filled.Plain, free.lent)...)
-	written, err := h.neededEdits(ctx, needed, filled)
+	written, _, err := h.neededEdits(ctx, needed, filled, nil)
 	if err != nil {
 		return nil, h.internal(ctx, err)
 	}
 	pin := pinTo(entry, from, filled, choice)
-	pin.Needs = needed.Pinned
+	pin.Needs, pin.Written = needed.Pinned, needed.Written
 	shared, sharedOn, err := h.sharedEdits(ctx, needed, filled)
 	if err != nil {
 		return nil, err
@@ -694,7 +694,7 @@ func (h *Handler) upgrade(ctx context.Context, m *dockwellv1.UpgradeCatalogInsta
 	}
 	// Its needs stay met as they are, and one the release adds takes its first way.
 	server := h.serverOf(ctx, install.GetEnvironmentId())
-	needed, needNotes, err := h.meetNeeds(ctx, s, entry, m.GetValues(), nil, pin.GetNeeds(), nil, install.GetProject(), server)
+	needed, needNotes, err := h.meetNeeds(ctx, s, entry, m.GetValues(), nil, pin.GetNeeds(), nil, install.GetProject(), server, found.running())
 	if err != nil {
 		return nil, err
 	}
@@ -720,9 +720,12 @@ func (h *Handler) upgrade(ctx context.Context, m *dockwellv1.UpgradeCatalogInsta
 	if err := h.keepEdited(ctx, install.GetEnvironmentId(), pin, filled); err != nil {
 		return nil, h.internal(ctx, err)
 	}
-	old, err := ranFile(pin)
+	old, had, err := ranFile(pin, found, needed.InsideKeys)
 	if err != nil {
 		return nil, h.internal(ctx, err)
+	}
+	if err := takenOwn(needed, found, pin); err != nil {
+		return nil, err
 	}
 	oldVariables, oldStands, err := catalog.Given(old)
 	if err != nil {
@@ -732,16 +735,29 @@ func (h *Handler) upgrade(ctx context.Context, m *dockwellv1.UpgradeCatalogInsta
 	if err != nil {
 		return nil, h.internal(ctx, err)
 	}
-	written, err := h.neededEdits(ctx, needed, filled)
+	// A written secret a person set to what they chose stays theirs (M1, N2): one
+	// whose template isn't the one the install's pin says Dockwell wrote.
+	written, kept, err := h.neededEdits(ctx, needed, filled, func(name string) bool { return found.theirs(name, pin) })
 	if err != nil {
 		return nil, h.internal(ctx, err)
 	}
+	pinNotes = append(pinNotes, kept...)
+	// A password the release names anew keeps its value (#570's check 4, F1).
+	renames, err := h.renamedPasswords(ctx, install.GetEnvironmentId(), needed, found, pin)
+	if err != nil {
+		return nil, h.internal(ctx, err)
+	}
+	same, sameNotes := keptPasswords(renames, found, filled)
+	written = append(written, same...)
+	pinNotes = append(pinNotes, sameNotes...)
+	// What the release no longer writes from a template goes (L5).
+	written = append(written, goneInside(had, pin, needed, found)...)
 	users, err := h.userEdits(ctx, install.GetEnvironmentId(), needed)
 	if err != nil {
 		return nil, h.internal(ctx, err)
 	}
 	newPin := pinTo(entry, s.origins[entry.GetId()], filled, choice)
-	newPin.Needs = needed.Pinned
+	newPin.Needs, newPin.Written = needed.Pinned, needed.Written
 	return h.imports.PlanUpgrade(ctx, composeapi.Upgrade{
 		Project:     install.GetProjectId(),
 		Environment: install.GetEnvironmentId(),
@@ -835,7 +851,7 @@ func (h *Handler) SetCatalogCompanion(ctx context.Context, req *connect.Request[
 	}
 	next := maps.Clone(choice)
 	next[m.GetService()] = m.GetOn()
-	old, err := ranFile(pin)
+	old, _, err := ranFile(pin, found, nil)
 	if err != nil {
 		return nil, h.internal(ctx, err)
 	}
@@ -845,6 +861,11 @@ func (h *Handler) SetCatalogCompanion(ctx context.Context, req *connect.Request[
 	}
 	file, err := catalog.Without(met, catalog.Off(next))
 	if err != nil {
+		return nil, h.internal(ctx, err)
+	}
+	// The release it runs, with each value that holds a secret inside named as the
+	// install has it, on both sides (#570's review, H2).
+	if file, _, err = found.inside(file, pin, nil); err != nil {
 		return nil, h.internal(ctx, err)
 	}
 	newPin := proto.CloneOf(pin)
@@ -917,16 +938,100 @@ func (h *Handler) serverOf(ctx context.Context, env string) string {
 
 // ranFile is the pin as what runs now read it: its file without the companions it
 // left out, with the values it kept.
-func ranFile(pin *resourcev1.CatalogPin) (*resourcev1.CatalogPin, error) {
+//
+// A value with a secret inside it names its own secret whole, as the install wrote
+// it, so a person's edit of it reads as theirs (#570's review, H2): by the secret what
+// runs uses for it, or else as the release now names it (named, by InsideKey), or as
+// an install would.
+//
+// It returns, too, the name each such value had, by catalog.InsideKey.
+func ranFile(pin *resourcev1.CatalogPin, f found, named map[string]string) (*resourcev1.CatalogPin, map[string]string, error) {
 	met, err := catalog.MetFile(string(pin.GetFile()), pin.GetNeeds())
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	file, err := catalog.Without(met, catalog.Off(pin.GetCompanions()))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return &resourcev1.CatalogPin{File: []byte(file), Values: pin.GetValues()}, nil
+	file, had, err := f.inside(file, pin, named)
+	if err != nil {
+		return nil, nil, err
+	}
+	return &resourcev1.CatalogPin{File: []byte(file), Values: pin.GetValues()}, had, nil
+}
+
+// goneInside are the secrets an install's release wrote from a template for a value
+// with a secret inside, by had, that the new release no longer
+// makes, as deletions (#570's review, L5). It keeps one that holds what a person gave
+// it, one a service uses elsewhere or another secret reads, as a person may have made
+// that, and one of a name the new release has again, as an input or a need's URL: a
+// deletion of any of them would hold the upgrade up, or take what the release now
+// writes (#570's recheck, N5).
+func goneInside(had map[string]string, pin *resourcev1.CatalogPin, needed *catalog.Needed, f found) []*dockwellv1.Edit {
+	at := map[string]bool{}
+	for key, name := range had {
+		at[name+"\x00"+key] = true
+	}
+	again := map[string]bool{}
+	for _, in := range needed.Entry.GetInputs() {
+		again[in.GetName()] = true
+	}
+	for name := range needed.Written {
+		again[name] = true
+	}
+	var out []*dockwellv1.Edit
+	for _, name := range slices.Compact(slices.Sorted(maps.Values(had))) {
+		if needed.Inside[name] || again[name] || f.read[name] || !f.held[name] || f.theirs(name, pin) {
+			continue
+		}
+		used := false
+		for service, refs := range f.refs {
+			for key, ref := range refs {
+				if ref == name && !at[name+"\x00"+catalog.InsideKey(service, key)] {
+					used = true
+				}
+			}
+		}
+		if !used {
+			out = append(out, &dockwellv1.Edit{Resource: &dockwellv1.ResourceRef{Kind: string(variable.SecretKind), Name: name}, Delete: true})
+		}
+	}
+	return out
+}
+
+// takenOwn refuses an upgrade whose release takes the secret a value with a secret
+// inside runs by, for an input or a need's URL of another service, where the secret
+// holds what a person gave it: the value would move to a new secret, written as the
+// release writes it, and the other service would read the person's value as its own
+// (#570's check 2, M1). One Dockwell wrote takes the new name, as it is.
+func takenOwn(needed *catalog.Needed, f found, pin *resourcev1.CatalogPin) error {
+	for _, key := range slices.Sorted(maps.Keys(needed.Taken)) {
+		name := needed.Taken[key]
+		if !f.theirs(name, pin) {
+			continue
+		}
+		on, value, _ := strings.Cut(key, "/")
+		as := "an input of its own"
+		if _, ok := needed.Written[name]; ok {
+			as = "a need's URL of its own"
+		}
+		users := catalog.UsedBy(needed.Entry.GetCompose(), name)
+		by := slices.DeleteFunc(slices.Clone(users), func(s string) bool { return s == on })
+		// The release may give the name to the same service, for another variable
+		// (#570's check 3, N2).
+		to, reads := "another service", "another service would read your value"
+		switch {
+		case len(by) > 0:
+			to = strings.Join(by, " and ")
+			reads = to + " would read your value"
+		case slices.Contains(users, on):
+			to, as = on, as+" too"
+			reads = on + " would read your value in another variable"
+		}
+		return authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s's %s holds a value you set in %s, which this release gives %s as %s, so %s. Have %s's %s use a secret of another name that holds your value, and delete %s, then upgrade", on, value, name, to, as, reads, on, value, name), "taken_own")
+	}
+	return nil
 }
 
 // found is an install, as an upgrade or a change to its companions needs it.
@@ -936,11 +1041,74 @@ type found struct {
 	display string
 	// held are the secrets it has, by name.
 	held map[string]bool
+	// refs are the secret each of its services uses for a variable, by the service's
+	// name and then the variable's.
+	refs map[string]map[string]string
+	// from are the templates its secrets are written from, by name. One that holds a
+	// value of its own, or reads another's, has none.
+	from map[string]*resourcev1.ValueTemplate
+	// read are the secrets its secrets' templates and references read, by name.
+	read map[string]bool
+	// spec are its secrets as they're held, by name, values and all, for a password
+	// a release names anew to keep (keptPasswords). Nothing else reads them.
+	spec map[string]*resourcev1.Secret
+}
+
+// theirs says a secret of the install holds what a person gave it, not what
+// Dockwell writes: a value of its own, a reference, or a template other than the one
+// the install's pin says Dockwell wrote it from, as Connect a database or the API
+// writes one to point the app elsewhere (#570's recheck, N2). It's judged by that
+// record, not by a template made again, as a release may change a need's URL, as
+// when it renames its password, and Dockwell how it makes one (#570's check 2, H1
+// and L1). A secret the pin has no template for, as one from an install made before
+// pins kept them, is Dockwell's while it has a template, as before.
+func (f found) theirs(name string, pin *resourcev1.CatalogPin) bool {
+	if !f.held[name] {
+		return false
+	}
+	t := f.from[name]
+	if t == nil {
+		return true
+	}
+	wrote := pin.GetWritten()[name]
+	return wrote != nil && !proto.Equal(t, wrote)
+}
+
+// running are the secrets its services use, by catalog.InsideKey, as catalog.NeedAs
+// keeps them.
+func (f found) running() map[string]string {
+	out := map[string]string{}
+	for service, refs := range f.refs {
+		for key, name := range refs {
+			if f.held[name] {
+				out[catalog.InsideKey(service, key)] = name
+			}
+		}
+	}
+	return out
+}
+
+// inside is a file of the install's release, with each value that holds a secret
+// inside named as the install has it, as ranFile says.
+func (f found) inside(file string, pin *resourcev1.CatalogPin, named map[string]string) (string, map[string]string, error) {
+	taken := maps.Clone(f.held)
+	for name := range pin.GetValues() {
+		taken[name] = true
+	}
+	return catalog.InsideFile(file, f.held, func(service, key string) string {
+		if s := f.refs[service][key]; s != "" && f.held[s] {
+			return s
+		}
+		if s := named[catalog.InsideKey(service, key)]; s != "" {
+			return s
+		}
+		return catalog.InsideName(service, key, taken)
+	})
 }
 
 // find reads an install by its project's name or ID, with the secrets it has.
 func (h *Handler) find(ctx context.Context, s sourced, id string) (found, error) {
-	out := found{held: map[string]bool{}}
+	out := found{held: map[string]bool{}, refs: map[string]map[string]string{}, from: map[string]*resourcev1.ValueTemplate{}, read: map[string]bool{}, spec: map[string]*resourcev1.Secret{}}
 	err := h.db.View(ctx, func(tx *store.Tx) error {
 		all, err := h.installs(ctx, tx, s)
 		if err != nil {
@@ -963,10 +1131,45 @@ func (h *Handler) find(ctx context.Context, s sourced, id string) (found, error)
 			}
 		}
 		list, err := tx.ListResources(ctx, out.install.GetEnvironmentId(), string(variable.SecretKind))
-		for i := range list {
-			out.held[list[i].Name] = true
+		if err != nil {
+			return err
 		}
-		return err
+		for i := range list {
+			r := list[i]
+			out.held[r.Name] = true
+			decoded, err := h.keeper.Decode(ctx, tx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec)
+			if err != nil {
+				return err
+			}
+			s, _ := decoded.(*resourcev1.Secret)
+			if s != nil {
+				out.spec[r.Name] = s
+			}
+			if t := s.GetFrom().GetTemplate(); t != nil {
+				out.from[r.Name] = t
+				for _, n := range t.GetNames() {
+					out.read[n.GetName()] = true
+				}
+			}
+			if v := s.GetFrom().GetValue(); v != nil && v.GetEnvironment() == "" {
+				out.read[v.GetName()] = true
+			}
+		}
+		services, err := tx.ListResources(ctx, out.install.GetEnvironmentId(), string(service.Kind))
+		if err != nil {
+			return err
+		}
+		for i := range services {
+			r := services[i]
+			decoded, err := h.keeper.Decode(ctx, tx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec)
+			if err != nil {
+				return err
+			}
+			if svc, ok := decoded.(*resourcev1.Service); ok && len(svc.GetSecrets()) > 0 {
+				out.refs[r.Name] = maps.Clone(svc.GetSecrets())
+			}
+		}
+		return nil
 	})
 	if err != nil {
 		return found{}, h.internal(ctx, err)

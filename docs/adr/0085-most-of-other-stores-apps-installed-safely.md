@@ -88,7 +88,46 @@ The catalog refused a secret anywhere but a value of its own, as an upgrade stan
 
 In a shell's script, the word `sh -c` or a `CMD-SHELL` test reads, a name isn't written in: it stays for the shell to read from the container's environment, where the value is, quoted for where it stands (`"${PASSWORD}"` outside quotes, `'"${PASSWORD}"'` inside single ones). Written in, a value would show in the process's command line to every user of the server, and a typed one with a quote, a `$(` or a `;` would change what the script does. The references label says which word is a script, so the container reads back as its spec, and a container made before keeps the form it has. One docker compose makes from an export has the value written in, as Compose writes any value it's given, and reads back as the spec too. In any other word the value is the program's own argument, as it is for any program given a password on its command line.
 
-A secret inside an environment's value, over 100 of the stores' apps and most of them a companion database's URL, is left for the need that writes it (ADR 0084), or a mechanism that writes an environment's value as a command's words are.
+A secret inside an environment's value, over 100 of the stores' apps and most of them a companion database's URL, is the next section's.
+
+### A secret inside an environment's value
+
+*Added with the next slice of #570, 16 Nov 2026.*
+
+A value of a service's environment with a secret inside it, as `DATABASE_URL: postgres://app:${DB_PASSWORD}@db/app` is, becomes a secret of its own, which Dockwell writes from a template of the environment's values, as it writes a need's URL (ADR 0084's `ValueFrom`).
+
+- **The install's file:** the value names the new secret whole, `${DATABASE_URL}`, which the service uses by reference. The secret is named as the variable is, or with its service's name before it where an input or another value has the name. Once installed, a value keeps its secret through every release: an upgrade names it as what runs does, so a release that adds or drops a service before it, whose value would take the name, never moves it, or a person's own value with it, to another service. A value a release adds takes a name nothing runs.
+- **Which values:** a value that's one URL from its start, in one pair of quotes or none, or a line of text with nothing a format reads, such as a key=value DSN or a prefix. Each place it names a secret, as `${S}` or a bare `$S`, must be a placeholder of its own. Anything else stays refused, as it was: JSON, two URLs, a URL after other text, a config of several lines, and a secret inside another value's default, as in `${GIVEN_URL:-postgres://u:${PASSWORD}@db/x}`, which Compose reads and a template can't hold.
+- **The template is the value's own text,** each secret named where it stands. In a URL it's percent-encoded as a URL's user and password before its host's `@`, in its path, or in its query, a space as `%20` there. A URL's query may hold what a format reads, such as JSON, as its password is never there. In a line of text it's as it is. A plain value it names, such as the database's user or `${DB:-app}`, is written into the template as the install has it, encoded the same way, as only secrets are values of the environment a template can name. So a plain value reaches the URL when an upgrade or a change of need writes the template again.
+- **An upgrade stands in nothing,** as the app's file names the new secret whole and its template is made again from the release. Its merge reads the file the install ran with each such value named as what runs names it, so a URL a person set by hand on the service reads as theirs and stays. A secret that holds what a person gave it is kept too, and the plan says so ("URL holds a value you set"), for a need's URL as well: a value of its own, a reference, or a template other than the one Dockwell wrote it from, as Connect a database writes one. The install's pin keeps each template Dockwell wrote (`CatalogPin.written`), set at an install, an upgrade and a change of need, and that record is what a secret is judged by. So a release that changes a need's URL, as when it renames the need's password, writes the URL anew, and a change to how Dockwell makes a template reads no install's as a person's. A secret the pin has no template for, as one from an install made before pins kept them, is Dockwell's while it has a template, as it was. Where a release names a need's database password anew, the new secret takes the old one's value, or its reference to a shared server's password, rather than a new one: the database holds the password it has, so it stays as it is, and the plan says so. Dockwell's own URL follows the new name through what the release writes. A kept URL of the person's, a template or a value, stays exactly as they wrote it, and the old secret stays while anything reads it, so it still signs in, wherever it points. This also mends a shared server's rename, which before gave the app a new password the server never had. A change of need keeps such a value with a secret inside the same way, and writes its own URL anew. A secret the new release no longer writes goes, unless it holds what a person gave it, something else reads it, or the release has an input or a need's URL of that name, so the deletion never holds an upgrade up.
+- **A release that takes a person's secret for another service is refused.** Where a value's secret holds what a person gave it, and the new release has an input or a need's URL of that name on another service, the upgrade stops and says so: the value would move to a new secret, and the other service would read the person's. The person points the value at a secret of another name and deletes the old one, then upgrades. A secret Dockwell wrote takes a new name, as it is.
+- **A rotation writes the URL again, encoded.** It reaches the app's side alone: a companion database, such as the PostgreSQL beside most of these apps, reads its password only as it first makes its data, and keeps it until it's changed in the database. So a rotation of that password leaves the app unable to sign in until the database takes the new one, as with a password the app reads whole.
+- **Tests prove it:**
+  - An install of such an entry runs with the URL holding its password.
+  - A rotation to `second/one@x` gives `second%2Fone%40x`, and an undo puts back both.
+  - An upgrade that changes the URL keeps the password, and one that changes only the image keeps a person's own URL, on the service or in the secret.
+  - A release that drops the URL removes its secret, and one that takes it as an input keeps it.
+  - A release that adds a service before web, whose own URL would take web's name, leaves web's URL, and a person's own, on web, through an automatic update too. One that gives another service an input of that name is refused while the person's value is in it.
+  - A release that renames a need's password keeps its value, on a new database and a shared one, and writes Dockwell's URL with the new name; one that changes the URL's template writes it, with no note. A person's own URL, a template to the need's database or to a server of theirs, or a value, stays as written through either, with the note, and still signs in.
+  - Without the template, the app ran with the stand-in where its password belongs.
+- **Not yet:** a need's own secret stays a whole value, as Dockwell writes it from the need's parts already, and a template of it would name a value that's written in turn. Neither does a value outside a service's environment, such as a label, a top-level YAML anchor a service's environment merges in, or a config's content.
+
+The catalog's check lets such a value through:
+
+| Store | Before | After |
+|---|---|---|
+| 1Panel | 155 of 269 | 158 |
+| Dokploy | 369 of 612 | 432 |
+| Coolify | 235 of 384 | 289 |
+| Runtipi | 160 of 267 | 175 |
+
+Dokploy's count takes in LibreChat too: its config holds `$${OPENROUTER_KEY}`, a `$` of its own the app reads from its environment, which the check now reads as Compose does, not as the secret written in.
+
+The ones still out:
+- **Not one URL or a line of text:** GitLab's two omnibus configs and HyperDX's JSON.
+- **Outside a service's environment:** 1Panel's cloudreve, and Dokploy's dify, openpanel and reloop.
+
+The store sample adds Coolify's Miniflux, whose `DATABASE_URL` holds its PostgreSQL password and its user, to install on real Docker.
 
 ### Files beside the Compose file, as data
 
@@ -157,4 +196,4 @@ ADR 0085. `UpgradeServiceRequest.rebuild` (90) and `AvailableUpdate.skip_as` (90
 - Over 250 more apps from Dokploy and Coolify install, with each new build offered as an update.
 - Each store's pinned commit is a person's to move. Until it moves, what upstream adds is measured only by a server reading the store.
 - CI reaches GitHub, and the registries of the sample's images.
-- Still to come in #570: a shipped folder the app writes to, copied into its volume; a volume's mode, as 1Panel's `chmod` gives one; a secret inside an environment's value; an app that runs on amd64 alone offered where such a server is; and another app's database, as a need (ADR 0084).
+- Still to come in #570: a shipped folder the app writes to, copied into its volume; a volume's mode, as 1Panel's `chmod` gives one; a secret inside a value outside a service's environment, such as a YAML anchor; an app that runs on amd64 alone offered where such a server is; and another app's database, as a need (ADR 0084).

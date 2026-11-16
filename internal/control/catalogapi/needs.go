@@ -78,9 +78,11 @@ func needOptions(e *catalogv1.Entry, ways map[string][]catalog.Way) []*dockwellv
 // that pinned. A need the install's pin hasn't met, as one a release adds, gets a note
 // that an automatic update leaves for a person, as it makes a database unasked.
 //
-// taken are services that stay beside the app under names of their own, so a server
-// it shares answers to <need>-link where the need's name is one of them.
-func (h *Handler) meetNeeds(ctx context.Context, s sourced, e *catalogv1.Entry, values, asked map[string]string, pinned map[string]*resourcev1.PinnedNeed, candidates []catalog.Candidate, project, server string, taken ...string) (*catalog.Needed, []revision.Note, error) {
+// running are the secrets an install's services use, by catalog.InsideKey, which a
+// value with a secret inside keeps (catalog.NeedAs). taken are services that stay
+// beside the app under names of their own, so a server it shares answers to
+// <need>-link where the need's name is one of them.
+func (h *Handler) meetNeeds(ctx context.Context, s sourced, e *catalogv1.Entry, values, asked map[string]string, pinned map[string]*resourcev1.PinnedNeed, candidates []catalog.Candidate, project, server string, running map[string]string, taken ...string) (*catalog.Needed, []revision.Note, error) {
 	names := catalog.NeedNames(e)
 	for _, name := range slices.Sorted(maps.Keys(values)) {
 		if names[name] {
@@ -139,7 +141,7 @@ func (h *Handler) meetNeeds(ctx context.Context, s sourced, e *catalogv1.Entry, 
 	if err := h.share(ctx, project, met); err != nil {
 		return nil, nil, err
 	}
-	needed, err := catalog.Need(e, met)
+	needed, err := catalog.NeedAs(e, met, running)
 	if err != nil {
 		return nil, nil, authapi.ReasonError(connect.CodeInvalidArgument, err, "invalid")
 	}

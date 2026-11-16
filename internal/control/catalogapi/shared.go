@@ -308,24 +308,42 @@ func (h *Handler) userEdits(ctx context.Context, env string, needed *catalog.Nee
 // its link. Every path that plans an install's needs (install, upgrade, Use
 // another) takes them here, so none leaves a need's values empty (the slice 1
 // review, H4).
-func (h *Handler) neededEdits(ctx context.Context, needed *catalog.Needed, filled *catalog.Filled) ([]*dockwellv1.Edit, error) {
+//
+// theirs, nil for an install, is as writtenEdits takes it, with the notes it gives.
+func (h *Handler) neededEdits(ctx context.Context, needed *catalog.Needed, filled *catalog.Filled, theirs func(name string) bool) ([]*dockwellv1.Edit, []revision.Note, error) {
 	read, err := h.connectionEdits(ctx, needed, filled)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return append(writtenEdits(needed, filled), read...), nil
+	written, kept := writtenEdits(needed, filled, theirs)
+	return append(written, read...), kept, nil
 }
 
 // writtenEdits are the URLs an install's needs set, each a secret of the app's
 // environment that Dockwell writes from the need's parts there. It takes the value of
 // no meaning Fill made for each out of filled, so the install keeps none of it, and
 // the app's services use each secret by reference.
-func writtenEdits(needed *catalog.Needed, filled *catalog.Filled) []*dockwellv1.Edit {
+//
+// One theirs says a person set to what they chose, as an upgrade finds it, is kept,
+// and a note says so, where writing the release's template would move the app off
+// what the person pointed it at (#570's review, M1). A need's URL and a value with a
+// secret inside alike. theirs reads the templates with the plain values in.
+func writtenEdits(needed *catalog.Needed, filled *catalog.Filled, theirs func(name string) bool) ([]*dockwellv1.Edit, []revision.Note) {
+	// A value with a secret inside it names its plain values as the install has them (#570).
+	needed.Fix(filled.Variables)
 	var out []*dockwellv1.Edit
+	var notes []revision.Note
 	for _, name := range slices.Sorted(maps.Keys(needed.Written)) {
 		if _, ok := filled.Secrets[name]; ok {
 			delete(filled.Secrets, name)
 			filled.Held[name] = filled.Variables[name]
+		}
+		if theirs != nil && theirs(name) {
+			notes = append(notes, revision.Note{
+				Reason: "upgrade_kept_own", Names: []string{name}, Named: true,
+				Message: name + " holds a value you set, so this keeps it, where the release writes it from its own template.",
+			})
+			continue
 		}
 		out = append(out, &dockwellv1.Edit{
 			Resource: &dockwellv1.ResourceRef{Kind: string(variable.SecretKind), Name: name},
@@ -334,7 +352,7 @@ func writtenEdits(needed *catalog.Needed, filled *catalog.Filled) []*dockwellv1.
 			}}}},
 		})
 	}
-	return out
+	return out, notes
 }
 
 // sharedEdits are what a shared way makes besides the app: the user's password, from
@@ -544,4 +562,84 @@ func pinApart(ctx context.Context, tx *store.Tx, c *catalog.Candidate, owners ma
 	}
 	pin.Needs[need] = apart
 	return nil
+}
+
+// renamed is a database user's password a release names anew: the secret the app
+// had it in, and the user, where the user is in the app's environment.
+type renamed struct{ from, user string }
+
+// renamedPasswords are the passwords of an install's database needs that its
+// release names anew, by the new name: one of a database user in the app's
+// environment, by the user's password, and one of a server the app shares, by the
+// secret that reads the server's password through the need's link.
+func (h *Handler) renamedPasswords(ctx context.Context, env string, needed *catalog.Needed, f found, pin *resourcev1.CatalogPin) (map[string]renamed, error) {
+	out := map[string]renamed{}
+	err := h.db.View(ctx, func(tx *store.Tx) error {
+		for _, name := range slices.Sorted(maps.Keys(needed.Users)) {
+			r, err := tx.GetResource(ctx, string(database.UserKind), env, name)
+			switch {
+			case errors.Is(err, store.ErrNotFound):
+				continue
+			case err != nil:
+				return err
+			case r.Spec == nil:
+				continue
+			}
+			// A user's spec holds nothing secret, so it's stored as it is.
+			was := &resourcev1.DatabaseUser{}
+			if err := proto.Unmarshal(r.Spec, was); err != nil {
+				return fmt.Errorf("can't read the database user %s: %w", name, err)
+			}
+			if now := needed.Users[name].GetPassword(); was.GetPassword() != "" && now != "" && now != was.GetPassword() && f.held[was.GetPassword()] {
+				out[now] = renamed{from: was.GetPassword(), user: name}
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	for _, n := range needed.Entry.GetNeeds() {
+		now := catalog.PasswordName(n)
+		if f.held[now] || pin.GetNeeds()[n.GetName()].GetEnvironment() == "" || needed.Pinned[n.GetName()].GetEnvironment() == "" {
+			continue
+		}
+		for _, name := range slices.Sorted(maps.Keys(f.spec)) {
+			if v := f.spec[name].GetFrom().GetValue(); v.GetEnvironment() != "" && v.GetLink() == n.GetName() {
+				out[now] = renamed{from: name}
+			}
+		}
+	}
+	return out, nil
+}
+
+// keptPasswords have each password a release names anew keep its value, or the
+// reference to a shared server's, under the new name, rather than take a new one: the
+// database holds the password it has, and anything a person made that reads the
+// old name, such as a URL of their own, still reads the same password, as the old
+// secret stays (#570's check 4, F1). The app's services read the new secret, and
+// Dockwell's own URLs follow the new name through what the release writes.
+func keptPasswords(renames map[string]renamed, f found, filled *catalog.Filled) ([]*dockwellv1.Edit, []revision.Note) {
+	var out []*dockwellv1.Edit
+	var notes []revision.Note
+	for _, now := range slices.Sorted(maps.Keys(renames)) {
+		r := renames[now]
+		was := f.spec[r.from]
+		if was == nil {
+			continue
+		}
+		if _, ok := filled.Secrets[now]; ok {
+			delete(filled.Secrets, now)
+			filled.Held[now] = filled.Variables[now]
+		}
+		out = append(out, &dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Kind: string(variable.SecretKind), Name: now},
+			Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Secret{Secret: proto.CloneOf(was)}},
+		})
+		notes = append(notes, revision.Note{
+			Reason: "password_renamed", Names: []string{now, r.from}, Named: true,
+			Message: now + ", this release's name for the database password, takes the value in " + r.from + ", so the password stays as it is.",
+		})
+	}
+	return out, notes
 }

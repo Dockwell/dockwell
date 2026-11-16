@@ -768,9 +768,9 @@ func TestCheckRefuses(t *testing.T) {
 		"no release":    {func(e *catalogv1.Entry) { e.Release = 0 }, "no release"},
 		"unused input":  {func(e *catalogv1.Entry) { e.Inputs[0].Name = "NOT_USED" }, "doesn't use the input NOT_USED"},
 		"shared secret": {func(e *catalogv1.Entry) { e.Inputs[1].DefaultValue = "hunter2" }, "everyone who installs it would share"},
-		"a secret inside a longer value": {func(e *catalogv1.Entry) {
-			e.Compose = strings.Replace(e.GetCompose(), "POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}", "POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}\n      URL: postgres://u:${POSTGRES_PASSWORD}@db/x", 1)
-		}, "inside a longer value"},
+		"a secret inside another value's default": {func(e *catalogv1.Entry) {
+			e.Compose = strings.Replace(e.GetCompose(), "POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}", "POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}\n      URL: ${GIVEN:-postgres://u:${POSTGRES_PASSWORD}@db/x}", 1)
+		}, "inside another value's default"},
 		"a secret inside a label": {func(e *catalogv1.Entry) {
 			e.Compose = strings.Replace(e.GetCompose(), "POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}", "POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}\n    labels: {key: \"k-${POSTGRES_PASSWORD}\"}", 1)
 		}, "inside a longer value"},

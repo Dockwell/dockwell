@@ -437,7 +437,7 @@ func checkSet(e *catalogv1.Entry, n *catalogv1.Need, s *catalogv1.NeedSet, input
 		}
 	}
 	if SecretPart(s) {
-		return standsAlone(cf, name)
+		return standsAlone(cf, name, false)
 	}
 	return plainAlone(cf, name)
 }
@@ -1206,6 +1206,17 @@ type Needed struct {
 	// through an upgrade. Fill gives each a value of no meaning, which the install
 	// drops.
 	Written map[string]*resourcev1.ValueTemplate
+	// Inside are the names in Written that hold a value of a service's environment
+	// with a secret inside it, whose templates Fix writes the plain values into
+	// (#570).
+	Inside map[string]bool
+	// InsideKeys are those names by the value they hold, by InsideKey.
+	InsideKeys map[string]string
+	// Taken are the values, by InsideKey, whose secret what runs names them by the
+	// release takes for an input or a need's URL of its own, with that secret's name
+	// (NeedAs). Each takes a new name, and an upgrade refuses where the secret it
+	// leaves holds what a person gave it (#570's check 2, M1).
+	Taken map[string]string
 	// Read are the names needs met by a connection set, each read from the
 	// connection through the link named for its need, by name (ADR 0099). Fill gives
 	// each a value of no meaning, which the install drops.
@@ -1324,12 +1335,21 @@ func fixedWord(s *catalogv1.NeedSet, value string) string {
 // Need is the entry as an install that meets its needs by met runs it. An entry with
 // no needs is as it is.
 func Need(e *catalogv1.Entry, met map[string]Way) (*Needed, error) {
+	return NeedAs(e, met, nil)
+}
+
+// NeedAs is Need for an install that runs already: each value with a secret inside
+// keeps the secret running names it by, by InsideKey, so a release that names it
+// otherwise, as when a service it adds before takes the name, never moves the value
+// to another secret, or a person's own value to another service (#570's recheck,
+// N1). A value it adds takes a name none of running has.
+func NeedAs(e *catalogv1.Entry, met map[string]Way, running map[string]string) (*Needed, error) {
 	out := &Needed{
 		Entry: e, Pinned: map[string]*resourcev1.PinnedNeed{}, Links: map[string]*resourcev1.Link{}, Users: map[string]*resourcev1.DatabaseUser{},
 		Written: map[string]*resourcev1.ValueTemplate{}, Read: map[string]ReadFrom{}, Kept: map[string]bool{},
 	}
 	if len(e.GetNeeds()) == 0 {
-		return out, nil
+		return out, inside(out, running)
 	}
 	file := e.GetCompose()
 	inputs := slices.Clone(e.GetInputs())
@@ -1499,7 +1519,7 @@ func Need(e *catalogv1.Entry, met map[string]Way) (*Needed, error) {
 	needed := proto.CloneOf(e)
 	needed.Compose, needed.Inputs = file, inputs
 	out.Entry = needed
-	return out, nil
+	return out, inside(out, running)
 }
 
 // PinnedPlain are the names an install's needs set that hold no password, as it ran,

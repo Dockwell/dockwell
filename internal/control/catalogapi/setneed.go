@@ -82,7 +82,7 @@ func (h *Handler) SetCatalogNeed(ctx context.Context, req *connect.Request[dockw
 	}
 	server := h.serverOf(ctx, install.GetEnvironmentId())
 	candidates := h.candidates(ctx)
-	needed, notes, err := h.meetNeeds(ctx, s, ran, nil, map[string]string{m.GetNeed(): m.GetChoice()}, pinned, candidates, install.GetProject(), server, stays...)
+	needed, notes, err := h.meetNeeds(ctx, s, ran, nil, map[string]string{m.GetNeed(): m.GetChoice()}, pinned, candidates, install.GetProject(), server, found.running(), stays...)
 	if err != nil {
 		return nil, err
 	}
@@ -123,7 +123,7 @@ func (h *Handler) SetCatalogNeed(ctx context.Context, req *connect.Request[dockw
 	if _, generated := filled.Secrets[password]; !generated {
 		filled.Secrets[password] = filled.Variables[password]
 	}
-	old, err := ranFile(pin)
+	old, _, err := ranFile(pin, found, needed.InsideKeys)
 	if err != nil {
 		return nil, h.internal(ctx, err)
 	}
@@ -142,10 +142,16 @@ func (h *Handler) SetCatalogNeed(ctx context.Context, req *connect.Request[dockw
 		return nil, err
 	}
 	notes = append(notes, moved.notes...)
-	written, err := h.neededEdits(ctx, needed, filled)
+	// A change of need points the URL at the new way, whatever it held. A value with
+	// a secret inside that holds what a person gave it stays theirs, as through an
+	// upgrade: the need doesn't touch it (#570's recheck, N3).
+	written, kept, err := h.neededEdits(ctx, needed, filled, func(name string) bool {
+		return needed.Inside[name] && found.theirs(name, pin)
+	})
 	if err != nil {
 		return nil, err
 	}
+	notes = append(notes, kept...)
 	shared, _, err := h.sharedEdits(ctx, needed, filled)
 	if err != nil {
 		return nil, err
@@ -159,7 +165,7 @@ func (h *Handler) SetCatalogNeed(ctx context.Context, req *connect.Request[dockw
 		})
 	}
 	newPin := pinTo(entry, s.origins[entry.GetId()], filled, choice)
-	newPin.Version, newPin.Release, newPin.File, newPin.Needs = pin.GetVersion(), pin.GetRelease(), pin.GetFile(), needed.Pinned
+	newPin.Version, newPin.Release, newPin.File, newPin.Needs, newPin.Written = pin.GetVersion(), pin.GetRelease(), pin.GetFile(), needed.Pinned, needed.Written
 	change, err := h.imports.PlanUpgrade(ctx, composeapi.Upgrade{
 		Project:     install.GetProjectId(),
 		Environment: install.GetEnvironmentId(),
