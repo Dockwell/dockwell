@@ -130,7 +130,14 @@ func scopeCommand(ctx context.Context, args []string, stdout, stderr io.Writer, 
 	if *checkout == "" || *base == "" || *head == "" {
 		return errors.New("name the checkout with --catalog, and the pull request's --base and --head")
 	}
-	raw, err := gitOut(ctx, *checkout, "diff", "--name-status", "--no-renames", *base, *head)
+	// What the head changes since it left main, not main's own later changes (#726's
+	// slice 2 review, L1).
+	forked, err := gitOut(ctx, *checkout, "merge-base", *base, *head)
+	if err != nil {
+		return err
+	}
+	from := strings.TrimSpace(string(forked))
+	raw, err := gitOut(ctx, *checkout, "diff", "--name-status", "--no-renames", from, *head)
 	if err != nil {
 		return err
 	}
@@ -139,12 +146,18 @@ func scopeCommand(ctx context.Context, args []string, stdout, stderr io.Writer, 
 			in.Changes = append(in.Changes, bump.Change{Status: status, Path: file})
 		}
 	}
+	moved := false
 	if len(in.Changes) == 1 {
 		file := in.Changes[0].Path
-		in.BaseEntry, _ = gitOut(ctx, *checkout, "show", *base+":"+file)
+		in.BaseEntry, _ = gitOut(ctx, *checkout, "show", from+":"+file)
 		in.HeadEntry, _ = gitOut(ctx, *checkout, "show", *head+":"+file)
+		now, _ := gitOut(ctx, *checkout, "show", *base+":"+file)
+		moved = !bytes.Equal(now, in.BaseEntry)
 	}
 	r := bump.Scope(in)
+	if r.Pass && moved && in.Author == in.App && !in.Approved && !in.CrossRepository {
+		r.Pass, r.Why = false, []string{"Its entry moved on main since the bump was made, so the bump makes it again"}
+	}
 	if r.Pass && in.Author == in.App && !in.Approved && !in.CrossRepository {
 		r.Why = append(r.Why, stepInScope(ctx, *checkout, *base, r.Entry, in.HeadEntry, *bodyFile, deps)...)
 		r.Pass = len(r.Why) == 0

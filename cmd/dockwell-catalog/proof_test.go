@@ -152,3 +152,45 @@ func TestScopeWhoseReadsWhatGitHubGives(t *testing.T) {
 		t.Errorf("scope-whose prints %s, want %s", stdout.String(), want)
 	}
 }
+
+// bump scope reads what the head changes since it left main, so a bump made before
+// main moved elsewhere is judged by its own change; one whose entry main moved since
+// is made again (#726's slice 2 review, L1).
+func TestScopeReadsFromWhereTheBumpLeftMain(t *testing.T) {
+	s := bumptest.New(t)
+	s.Images["library/redis"] = []bumptest.Tag{{Name: "7.4.1", Pushed: time.Now().Add(-90 * 24 * time.Hour)}, {Name: "7.4.2", Pushed: time.Now().Add(-5 * 24 * time.Hour)}}
+	s.Hub["library/redis"] = true
+	s.Releases["redis/redis@7.4.2"] = bumptest.Release{}
+	dir, forked, git := scopeRepo(t)
+	deps := &scopeDeps{sources: s.Live(), now: time.Now()}
+	git("checkout", "-q", "-b", "bump", forked)
+	write(t, dir, "entries/cache.yaml", cacheEntry("7.4.2", 3))
+	git("commit", "-qam", "bump")
+	head := git("rev-parse", "HEAD")
+	scope := func(base string) scopeOutput {
+		t.Helper()
+		var stdout, stderr bytes.Buffer
+		if err := scopeCommand(t.Context(), []string{"--catalog", dir, "--base", base, "--head", head, "--author", "app/dockwell-catalog-bump", "--branch", "bump/cache"}, &stdout, &stderr, deps); err != nil {
+			t.Fatalf("scope: %v\n%s", err, stderr.String())
+		}
+		var out scopeOutput
+		if err := json.Unmarshal(stdout.Bytes(), &out); err != nil {
+			t.Fatal(err)
+		}
+		return out
+	}
+	// main moves on elsewhere: the bump is still its own change alone.
+	git("checkout", "-q", "main")
+	write(t, dir, "entries/other.yaml", "id: other\n")
+	git("add", "-A")
+	git("commit", "-qm", "elsewhere")
+	if got := scope(git("rev-parse", "HEAD")); got.State != "success" {
+		t.Errorf("a bump made before main moved elsewhere reads %+v", got)
+	}
+	// main moves its entry: the bump is made again.
+	write(t, dir, "entries/cache.yaml", strings.Replace(cacheEntry("7.4.1", 2), "summary: A cache", "summary: A fast cache", 1))
+	git("commit", "-qam", "moved")
+	if got := scope(git("rev-parse", "HEAD")); got.State != "failure" || !strings.Contains(got.Description, "moved on main") {
+		t.Errorf("a bump whose entry main moved reads %+v", got)
+	}
+}
