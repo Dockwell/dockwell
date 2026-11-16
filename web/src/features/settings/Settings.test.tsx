@@ -270,7 +270,8 @@ describe("Settings", () => {
     await user.type(await within(panel).findByRole("textbox", { name: "Domain" }), "panel.example.com");
     const ways = await within(panel).findByRole("radiogroup", { name: "How it reaches this server" });
     const options = within(ways).getAllByRole("radio");
-    expect(options.map((o) => o.textContent)).toEqual(["Behind a tunnel or proxy", "Dockwell serves it"]);
+    // The choices keep one order, whatever the check finds (#734's review, L6).
+    expect(options.map((o) => o.textContent)).toEqual(["Dockwell serves it", "Behind a tunnel or proxy"]);
     // Cloudflare alone isn't a tunnel: the check that didn't reach leaves Dockwell serving it.
     await waitFor(() => expect(checkPanelReach).toHaveBeenCalled());
     expect(within(ways).getByRole("radio", { name: "Dockwell serves it" })).toBeChecked();

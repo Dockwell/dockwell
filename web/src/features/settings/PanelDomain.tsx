@@ -251,7 +251,8 @@ function DomainField({
             label={t`How it reaches this server`}
             size="sm"
             value={via}
-            options={cloudflare ? [...ways].reverse() : ways}
+            // In one order always: the choice moving as each check lands could take a click meant for the other.
+            options={ways}
             onChange={(value) => {
               setChosen(value);
               setConfirming(false);
