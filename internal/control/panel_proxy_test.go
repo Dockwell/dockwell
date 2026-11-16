@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
+	"net/netip"
 	"net/url"
 	"strings"
 	"sync"
@@ -385,6 +386,22 @@ func TestAReachCheckFindsThePanelThroughItsTunnel(t *testing.T) {
 		if got := check(); got.GetReached() || !strings.Contains(got.GetProblem(), tt.want) {
 			t.Errorf("%s: %v, want %q", tt.name, got, tt.want)
 		}
+	}
+
+	// A name that leads inside is answered reached or not, and nothing of what
+	// answers there (#734's review, L4).
+	inside := startFullConfig(t, store.SQLite, nil, slog.New(slog.DiscardHandler), nil, logapi.Options{}, func(c *Config) {
+		c.PanelListen = "127.0.0.1:7600"
+		c.PanelDomain = PanelDomain{ReachClient: answering(t, http.StatusNotFound).client(), Resolve: func(context.Context, string) ([]netip.Addr, error) {
+			return []netip.Addr{netip.MustParseAddr("10.0.0.5")}, nil
+		}}
+	})
+	ib := signedIn(t, inside)
+	got, err := dockwellv1connect.NewSettingsServiceClient(ib, ib.origin, connect.WithProtoJSON()).CheckPanelReach(t.Context(),
+		connect.NewRequest(&dockwellv1.CheckPanelReachRequest{Domain: "inside.example.com"}))
+	if err != nil || got.Msg.GetReached() || strings.Contains(got.Msg.GetProblem(), "404") ||
+		got.Msg.GetProblem() != "Dockwell couldn't reach this panel through inside.example.com. Point the tunnel or proxy at http://127.0.0.1:7600" {
+		t.Errorf("a name that leads inside: %v, %v", got, err)
 	}
 
 	// An address isn't a domain the panel can take.

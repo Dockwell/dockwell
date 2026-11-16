@@ -195,8 +195,16 @@ func (h *Handler) reach(ctx context.Context, d, target string) (bool, string) {
 	if err != nil {
 		return false, err.Error()
 	}
+	// A name that leads inside, to a private network or this server, is answered
+	// reached or not and nothing more: what answers there, and how, isn't the
+	// check's to tell an admin, who could name any address that way.
+	inside := h.leadsInside(ask, d)
+	unreached := fmt.Sprintf("Dockwell couldn't reach this panel through %s. Point the tunnel or proxy at %s", d, target)
 	resp, err := h.domain.ReachClient.Do(r)
 	if err != nil {
+		if inside {
+			return false, unreached
+		}
 		return false, reachErrorWords(d, err)
 	}
 	defer resp.Body.Close()
@@ -204,6 +212,8 @@ func (h *Handler) reach(ctx context.Context, d, target string) (bool, string) {
 	seen := h.domain.Reach.seen(ticket)
 	switch {
 	case resp.StatusCode == http.StatusOK && seen.came && string(body) == ticket.answer:
+	case inside:
+		return false, unreached
 	case resp.StatusCode == 530:
 		return false, fmt.Sprintf("Cloudflare answered 530 for %s: its tunnel isn't connected. Start cloudflared on this server, or check the tunnel's public hostname", d)
 	case slices.Contains([]int{521, 522, 523, 525, 526}, resp.StatusCode):
@@ -234,6 +244,23 @@ func (h *Handler) reach(ctx context.Context, d, target string) (bool, string) {
 		return false, "it reached the panel without X-Forwarded-For, so every visitor reads as one address. Have the proxy append the visitor's address for " + d
 	}
 	return true, ""
+}
+
+// leadsInside reports a domain that resolves to a private, loopback or link-local
+// address, or one of carrier-grade NAT's.
+func (h *Handler) leadsInside(ctx context.Context, d string) bool {
+	if h.domain.Resolve == nil {
+		return false
+	}
+	addrs, err := h.domain.Resolve(ctx, d)
+	if err != nil {
+		return false
+	}
+	cgnat := netip.MustParsePrefix("100.64.0.0/10")
+	return slices.ContainsFunc(addrs, func(a netip.Addr) bool {
+		a = a.Unmap()
+		return a.IsPrivate() || a.IsLoopback() || a.IsLinkLocalUnicast() || a.IsUnspecified() || cgnat.Contains(a)
+	})
 }
 
 // firstOf is the first of a header's comma-separated values.
