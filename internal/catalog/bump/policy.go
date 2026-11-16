@@ -118,6 +118,11 @@ func ParsePolicy(raw []byte) (*Policy, error) {
 	if err := dec.Decode(p); err != nil && !errors.Is(err, io.EOF) {
 		return nil, fmt.Errorf("reading its YAML: %w", err)
 	}
+	// One document: a second would be read past without a word.
+	var more any
+	if err := dec.Decode(&more); !errors.Is(err, io.EOF) {
+		return nil, errors.New("it holds more than one YAML document, and a policy is one. Put everything in the first")
+	}
 	for name, s := range p.Services {
 		switch s.Level {
 		case "", LevelMinor, LevelPatch, LevelNone, LevelStays:

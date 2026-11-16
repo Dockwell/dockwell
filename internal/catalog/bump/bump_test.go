@@ -270,6 +270,8 @@ func TestPolicies(t *testing.T) {
 		"services:\n  app:\n    signedBy:\n      issuer: x\n":                                      "Give one pair",
 		"services:\n  app:\n    hold:\n      - version: 1.2\n":                                     "without saying which or why",
 		"services:\n  app:\n    signedBy:\n      issuer: x\n      subject: y\n      workflow: z\n": "Give one pair",
+		// A second document isn't read past (#726's review, L5).
+		"gives: app\n---\nservices: {app: {level: banana}}\n": "more than one YAML document",
 	} {
 		if _, err := bump.ParsePolicy([]byte(raw)); err == nil || !strings.Contains(err.Error(), says) {
 			t.Errorf("ParsePolicy(%q) = %v, want it refused, saying %q", raw, err, says)
