@@ -10,7 +10,9 @@
 # with a stand-in token wouldn't, unless its health check is test: ["NONE"], which
 # Docker then doesn't run; one that says x-fake: exits restarts; and one that says
 # x-fake: refused does both, as a tunnel its far end refuses does. A change whose
-# container reads unhealthy fails, as Dockwell's verify fails it.
+# container reads unhealthy fails, as Dockwell's verify fails it. A companion runs
+# only where its entry turns it on, or the install's --companions <service>=true
+# does, as Dockwell's install leaves one out unless asked (ADR 0076).
 set -euo pipefail
 S=$FAKE_STATE
 mkdir -p "$S/changes" "$S/installs" "$S/containers"
@@ -35,10 +37,13 @@ planned() {
 }
 # run_entry starts a container for each service of the entry an install holds.
 run_entry() {
-  local p=$1 service="" line host as name flag file flags=()
+  local p=$1 service="" line host as name flag file flags=() off
   rm -f "$S/containers/$p-production-"*
+  off=" $(jq -r '(.off // []) | join(" ")' "$S/installs/$p.json") "
   while IFS= read -r line; do
     if [[ "$line" =~ ^\ \ ([a-z0-9_-]+):$ ]]; then service=${BASH_REMATCH[1]}; fi
+    # A companion the install leaves out runs nothing.
+    [[ "$off" != *" $service "* ]] || continue
     if [[ "$line" =~ ^\ \ \ \ image:\ (.+)$ ]]; then
       printf 'project=%s\nservice=%s\nimage=%s\nhealth=healthy\n' "$p-production" "$service" "${BASH_REMATCH[1]}" >"$S/containers/$p-production-$service-1"
     fi
@@ -86,8 +91,11 @@ case "$1 ${2:-}" in
 "catalog install")
   id=$3 c=$(new_change) file=$(entry_file "$3")
   values=$(jq -c '[.inputs[]? | select(.defaultValue) | {(.name): .defaultValue}] | add // {}' "$file")
+  # The companions it leaves out: each its entry doesn't turn on, unless asked.
+  off=$(jq -c '[.companions[]? | select(.on | not) | .service]' "$file")
   shift 3
   while (($#)); do
+    if [[ "$1" == --companions && "$2" == *=true ]]; then off=$(jq -c --arg s "${2%%=*}" 'map(select(. != $s))' <<<"$off"); fi
     if [[ "$1" == --values && "$2" == *=* ]]; then values=$(jq -c --arg k "${2%%=*}" --arg v "${2#*=}" '.[$k] = $v' <<<"$values"); fi
     # A secret named alone is read from the CLI's environment, as Dockwell's CLI does.
     if [[ "$1" == --values && "$2" != *=* ]]; then values=$(jq -c --arg k "$2" --arg v "${!2:-}" '.[$k] = $v' <<<"$values"); fi
@@ -95,7 +103,7 @@ case "$1 ${2:-}" in
   done
   missing=$(jq -r --argjson v "$values" '[.inputs[]? | select((.optional | not) and ((.generate // 0) == 0) and (($v[.name] // "") == ""))][0].label // empty' "$file")
   [[ -z "$missing" ]] || { echo "dockwell: $missing needs a value" >&2 && exit 1; }
-  jq -nc --arg p "$id" --argjson v "$values" --slurpfile e "$file" '{kind: "install", project: $p, values: $v, entry: $e[0]}' >"$S/changes/$c"
+  jq -nc --arg p "$id" --argjson v "$values" --argjson off "$off" --slurpfile e "$file" '{kind: "install", project: $p, values: $v, off: $off, entry: $e[0]}' >"$S/changes/$c"
   planned "$c" "$id" ;;
 "catalog upgrade")
   p=$3 c=$(new_change) file=$(entry_file "$3")
@@ -117,7 +125,7 @@ case "$1 ${2:-}" in
 "changes apply")
   ch=$(<"$S/changes/$3") p=$(jq -r '.project // ""' <<<"$ch")
   case "$(jq -r .kind <<<"$ch")" in
-  install) jq -c '{project, values, version: .entry.version, entry}' <<<"$ch" >"$S/installs/$p.json" && run_entry "$p" ;;
+  install) jq -c '{project, values, off, version: .entry.version, entry}' <<<"$ch" >"$S/installs/$p.json" && run_entry "$p" ;;
   upgrade) jq -c --argjson e "$(jq -c .entry <<<"$ch")" '.entry = $e | .version = $e.version' "$S/installs/$p.json" >"$S/up" && mv "$S/up" "$S/installs/$p.json" && run_entry "$p" ;;
   remove) rm -f "$S/installs/$p.json" "$S/containers/$p-production-"* ;;
   esac

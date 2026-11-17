@@ -964,6 +964,13 @@ for id in "$@"; do
   inputs_file
   install_flags=()
   for v in "${values[@]}"; do install_flags+=(--values "$v"); done
+  # What the entry opens may be a companion an install leaves out unless asked, as
+  # mysql's phpMyAdmin is: the proof turns it on, so what it opens runs and is
+  # proven, its ports with it (ADR 0076, ADR 0101; catalog#31).
+  opens=$(jq -r '.web.service // empty' <<<"$entry")
+  if [[ -n "$opens" && " $companions_of " != *" $opens "* ]] && jq -e --arg w "$opens" 'any(.companions[]?; .service == $w)' <<<"$entry" >/dev/null; then
+    companions_of="$companions_of $opens"
+  fi
   for c in $companions_of; do install_flags+=(--companions "$c=true"); done
   earlier=${earlier_of[$id]}
   proved=0 skipped=0
