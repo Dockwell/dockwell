@@ -125,11 +125,13 @@ func (h *Holds) Hook(ctx context.Context, tx *store.Tx, edits []revision.Edit) (
 			continue
 		}
 		held := p.GetCatalog().GetHeld() || (old.GetHeld() && !ed.Unholds)
-		if held == p.GetCatalog().GetHeld() && p.GetCatalog().GetSignupsOpen() == old.GetSignupsOpen() {
+		// Once opened, always: only an Open sets it, and nothing takes it back (L10).
+		opened := old.GetOpened() || ed.Unholds && p.GetCatalog().GetOpened()
+		if held == p.GetCatalog().GetHeld() && p.GetCatalog().GetSignupsOpen() == old.GetSignupsOpen() && opened == p.GetCatalog().GetOpened() {
 			continue
 		}
 		p = proto.CloneOf(p)
-		p.Catalog.Held, p.Catalog.SignupsOpen = held, old.GetSignupsOpen()
+		p.Catalog.Held, p.Catalog.SignupsOpen, p.Catalog.Opened = held, old.GetSignupsOpen(), opened
 		ed.Spec = p
 	}
 	for i := range edits {
@@ -245,6 +247,20 @@ func (h *Holds) Hook(ctx context.Context, tx *store.Tx, edits []revision.Edit) (
 		}
 	}
 	return out, notes, nil
+}
+
+// Opened says whether a person opened an environment's install, as its pin says.
+func (h *Holds) Opened(ctx context.Context, tx *store.Tx, environment string) (bool, error) {
+	v, err := h.view(ctx, tx, nil)
+	if err != nil {
+		return false, err
+	}
+	project, ok := v.projectOf(environment)
+	if !ok {
+		return false, nil
+	}
+	pin, _, err := v.pin(project)
+	return pin.GetOpened(), err
 }
 
 // HostPortRoute is a route to a port on the server, as stored.

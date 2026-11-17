@@ -393,7 +393,7 @@ func (h *Handler) OpenCatalogInstall(ctx context.Context, req *connect.Request[d
 				return err
 			}
 			if p, ok := spec.(*resourcev1.Project); ok && p.GetCatalog() != nil {
-				p.Catalog.Held = false
+				p.Catalog.Held, p.Catalog.Opened = false, true
 				edits = append(edits, &dockwellv1.Edit{Resource: &dockwellv1.ResourceRef{Kind: string(scope.ProjectKind), Name: install.GetProject()}, Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Project{Project: p}}})
 				unholds = append(unholds, resource.Ref{Kind: scope.ProjectKind, Scope: tree.Organization.ID, Name: install.GetProject()})
 			}

@@ -829,3 +829,46 @@ func TestTheOpenAPersonAppliesRecordsTheOwnerOpened(t *testing.T) {
 		t.Error("a route added after the Open a person applied is held")
 	}
 }
+
+// A route planned while a first-visitor install is held is written held, and if a
+// person applies it after opening the install, Dockwell releases it at its next
+// look, as the pin says it's opened, which no write but Open sets or takes back
+// (the review's L10).
+func TestARoutePlannedWhileHeldIsReleasedOnceTheInstallIsOpened(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		o := startOwning(t, backend, ownedEntry(1, "1.0", firstRelease, "", "firstVisitorOwns: true\n"), &dockwellv1.InstallCatalogEntryRequest{Id: "thing"})
+		late := propose(t, o.c, "A domain thing.example.com", &dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Kind: string(route.Kind), Scope: o.env, Name: "www"},
+			Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Route{Route: &resourcev1.Route{Domain: "thing.example.com", Service: "web", Port: 80}}},
+		})
+		o.open()
+		if p := o.pin(); !p.GetOpened() || p.GetHeld() {
+			t.Fatalf("once opened, the pin reads opened %v, held %v", p.GetOpened(), p.GetHeld())
+		}
+		o.applied(late)
+		if !o.route("www").GetHeld() {
+			t.Fatal("the route planned while held was written open; the test needs it held")
+		}
+		o.look()
+		if o.route("www").GetHeld() {
+			t.Error("a route planned while held and applied after Open stays held")
+		}
+		// A write of the pin that leaves opened out keeps it.
+		org := ""
+		_ = o.f.store.View(t.Context(), func(tx *store.Tx) error {
+			tree, err := scope.Load(t.Context(), tx)
+			org = tree.Organization.ID
+			return err
+		})
+		project, _ := proto.CloneOf(o.spec(scope.ProjectKind, org, "thing")).(*resourcev1.Project)
+		project.Catalog.Opened = false
+		o.applied(propose(t, o.c, "Rewrite the pin", &dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Kind: string(scope.ProjectKind), Name: "thing"},
+			Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Project{Project: project}},
+		}))
+		if !o.pin().GetOpened() {
+			t.Error("a write of the pin took back that it was opened")
+		}
+	})
+}

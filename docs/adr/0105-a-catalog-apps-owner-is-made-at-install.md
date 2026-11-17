@@ -272,7 +272,7 @@ These were checked against main, every pushed branch and the local worktrees on 
   - `OwnerCheck`: `request` 1, `status` 2, `contains` 3 and `command` 4, for an app that answers only its own loopback as it's reached.
   - `Spec.app_owner` = 160, with the new message `AppOwner`: `service` 1, `email` 2, `user` 3, `password` 4 and `app` 12, with 5 to 11 reserved. It holds no step: the steps are the entry's.
   - `OwnerRun`, never stored: what the agent call carries, the steps from the entry at the install's release with who the owner is and where the app is reached (`host` 10, `https` 11).
-  - `CatalogPin.held` = 86 and `CatalogPin.signups_open` = 87.
+  - `CatalogPin.held` = 86, `CatalogPin.signups_open` = 87 and `CatalogPin.opened` = 88. An applied Open sets `opened` and every write after keeps it, so a route or port planned while the install was held, and applied after it opened, is released at the runner's next look, though the install has no `AppOwner`.
   - `Route.setup` = 81, with the new message `RouteSetup`: `key_hash` 1 and `until` 2. #785's work takes `Route.publish` = 340.
 - **Values a step names beyond its inputs:** `DOCKWELL_OWNER_BASIC`, the owner's user, or email, and password as a Basic credential; `DOCKWELL_BASIC_<NAME>`, the same with a value a step captured, as Gitea's made-up password; and `DOCKWELL_HOST` and `DOCKWELL_SCHEME`, where the app is reached.
 - **API:**

@@ -667,6 +667,10 @@ message CatalogPin {
   // The person installed it with sign-ups open, so neither the install nor opening
   // it closes them. Every write of the pin keeps it (ADR 0105).
   bool signups_open = 87;
+  // A person opened it, so Dockwell releases a route or port its hold kept that's
+  // applied after, though the install has no owner Dockwell makes. Set by an applied
+  // OpenCatalogInstall, and kept by every write after (ADR 0105).
+  bool opened = 88;
 }
 
 // AppOwner is the owner's account in a catalog app, which Dockwell makes once the

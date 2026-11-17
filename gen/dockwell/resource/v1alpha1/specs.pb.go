@@ -3650,7 +3650,11 @@ type CatalogPin struct {
 	Held bool `protobuf:"varint,86,opt,name=held,proto3" json:"held,omitempty"`
 	// The person installed it with sign-ups open, so neither the install nor opening
 	// it closes them. Every write of the pin keeps it (ADR 0105).
-	SignupsOpen   bool `protobuf:"varint,87,opt,name=signups_open,json=signupsOpen,proto3" json:"signups_open,omitempty"`
+	SignupsOpen bool `protobuf:"varint,87,opt,name=signups_open,json=signupsOpen,proto3" json:"signups_open,omitempty"`
+	// A person opened it, so Dockwell releases a route or port its hold kept that's
+	// applied after, though the install has no owner Dockwell makes. Set by an applied
+	// OpenCatalogInstall, and kept by every write after (ADR 0105).
+	Opened        bool `protobuf:"varint,88,opt,name=opened,proto3" json:"opened,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3800,6 +3804,13 @@ func (x *CatalogPin) GetHeld() bool {
 func (x *CatalogPin) GetSignupsOpen() bool {
 	if x != nil {
 		return x.SignupsOpen
+	}
+	return false
+}
+
+func (x *CatalogPin) GetOpened() bool {
+	if x != nil {
+		return x.Opened
 	}
 	return false
 }
@@ -10784,7 +10795,7 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\fWebsiteProxy\x12\x10\n" +
 	"\x03url\x18\x01 \x01(\tR\x03url\x12\x12\n" +
 	"\x04port\x18\x02 \x01(\rR\x04port\x12(\n" +
-	"\x10send_target_host\x18\x03 \x01(\bR\x0esendTargetHost\"\x86\b\n" +
+	"\x10send_target_host\x18\x03 \x01(\bR\x0esendTargetHost\"\x9e\b\n" +
 	"\n" +
 	"CatalogPin\x12\x14\n" +
 	"\x05entry\x18\x01 \x01(\tR\x05entry\x12\x18\n" +
@@ -10807,7 +10818,8 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\x05given\x18U \x01(\v2&.dockwell.resource.v1alpha1.GivenNamesR\x05given\x12\x18\n" +
 	"\aaddress\x18T \x01(\tR\aaddress\x12\x12\n" +
 	"\x04held\x18V \x01(\bR\x04held\x12!\n" +
-	"\fsignups_open\x18W \x01(\bR\vsignupsOpen\x1a9\n" +
+	"\fsignups_open\x18W \x01(\bR\vsignupsOpen\x12\x16\n" +
+	"\x06opened\x18X \x01(\bR\x06opened\x1a9\n" +
 	"\vValuesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a=\n" +

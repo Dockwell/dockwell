@@ -10789,6 +10789,12 @@ components:
                     description: |-
                         The person installed it with sign-ups open, so neither the install nor opening
                          it closes them. Every write of the pin keeps it (ADR 0105).
+                opened:
+                    type: boolean
+                    description: |-
+                        A person opened it, so Dockwell releases a route or port its hold kept that's
+                         applied after, though the install has no owner Dockwell makes. Set by an applied
+                         OpenCatalogInstall, and kept by every write after (ADR 0105).
             description: |-
                 CatalogPin is what an install is pinned to: updates come from there, and each
                  is a plan. It holds no secret: those are the environment's, by reference.

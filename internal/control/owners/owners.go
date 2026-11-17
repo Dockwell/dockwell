@@ -458,13 +458,27 @@ func (r *Runner) record(ctx context.Context, states ...store.AppOwnerState) erro
 	})
 }
 
-// releasable says whether an environment has an owner that's made or opened, isn't
-// held, and still has a route or a port its hold kept: a hold with no owner, as one
-// ADR 0084 started before ADR 0105, is a person's to open.
+// releasable says whether an environment isn't held, and still has a route or a port
+// its hold kept, where its owner is made or opened, or a person opened its install,
+// as its pin says, so a route planned while it was held and applied after is
+// released too (L10). A hold with neither, as one ADR 0084 started before ADR 0105,
+// is a person's to open.
 func (r *Runner) releasable(ctx context.Context, tx *store.Tx, environment string) (bool, error) {
 	list, err := tx.ListResources(ctx, environment, string(appowner.Kind))
-	if err != nil || len(list) == 0 {
+	if err != nil {
 		return false, err
+	}
+	if len(list) == 0 {
+		opened, err := r.Holds.Opened(ctx, tx, environment)
+		if err != nil || !opened {
+			return false, err
+		}
+		held, err := r.Holds.Held(ctx, tx, environment)
+		if err != nil || held {
+			return false, err
+		}
+		edits, err := r.releases(ctx, tx, environment)
+		return len(edits) > 0, err
 	}
 	ids := make([]string, len(list))
 	for i := range list {
@@ -545,15 +559,21 @@ func (r *Runner) releases(ctx context.Context, tx *store.Tx, environment string)
 }
 
 // Release opens what an environment's hold kept, now that its owner is made or
-// opened, as a change of Dockwell's, applied at once.
+// opened, or a person opened its install, as a change of Dockwell's, applied at once.
 func (r *Runner) Release(ctx context.Context, environment string) error {
 	var edits []revision.Edit
 	var project string
+	var owned bool
 	err := r.DB.View(ctx, func(tx *store.Tx) error {
 		held, err := r.Holds.Held(ctx, tx, environment)
 		if err != nil || held {
 			return err
 		}
+		list, err := tx.ListResources(ctx, environment, string(appowner.Kind))
+		if err != nil {
+			return err
+		}
+		owned = len(list) > 0
 		tree, err := scope.Load(ctx, tx)
 		if err != nil {
 			return err
@@ -572,9 +592,13 @@ func (r *Runner) Release(ctx context.Context, environment string) error {
 		return err
 	}
 	by := revision.By{Actor: revision.SystemActor, Via: revision.ViaAutomatic}
+	summary, note := "Open "+project+": its owner exists", revision.Note{Reason: "owner_made", Message: project + "'s owner exists, so what its hold kept answers everyone again"}
+	if !owned {
+		summary, note = "Open "+project+": a person opened it", revision.Note{Reason: "install_opened", Message: "A person opened " + project + ", so what its hold kept after that answers everyone too"}
+	}
 	plan, err := r.Engine.Propose(ctx, revision.Proposal{
-		Summary: "Open " + project + ": its owner exists", Actor: by.Actor, Via: by.Via, Edits: edits,
-		Notes: []revision.Note{{Reason: "owner_made", Message: project + "'s owner exists, so what its hold kept answers everyone again"}},
+		Summary: summary, Actor: by.Actor, Via: by.Via, Edits: edits,
+		Notes: []revision.Note{note},
 	})
 	if err != nil {
 		return err
