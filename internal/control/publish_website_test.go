@@ -3,6 +3,8 @@
 package control
 
 import (
+	"context"
+	"net/netip"
 	"slices"
 	"testing"
 
@@ -11,6 +13,7 @@ import (
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
+	"github.com/dockwell/dockwell/internal/control/publish"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
 )
@@ -98,4 +101,39 @@ func TestANewWebsitesNameIsCheckedInEveryZoneForAnAdmin(t *testing.T) {
 	if cf := got.Msg.GetCloudflare(); cf != nil {
 		t.Fatalf("a developer's check with no project reads Cloudflare: %v", cf)
 	}
+}
+
+// A new website through Cloudflare's proxy, as the check offers for a server with a
+// public address and no tunnel: its record is a proxied A to the server, and its
+// route proves its domain by DNS, through the provider (the review's B-H1).
+func TestANewWebsitePublishedThroughTheProxy(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		s := newPublishStandOn(t, backend)
+		s.f.server.publisher.Server = func(context.Context, string) (publish.Facts, error) {
+			return publish.Facts{Name: "hz-1", Public: []netip.Addr{netip.MustParseAddr("203.0.113.10")}, WaysOut: []string{"203.0.113.10"}}, nil
+		}
+		made, err := websiteClient(s.b, s.b.origin).CreateWebsite(t.Context(), connect.NewRequest(&dockwellv1.CreateWebsiteRequest{
+			Domain: "docs.example.com", Website: onPort3000(), TrustedProxies: []string{"cloudflare"},
+			Publish: &resourcev1.RoutePublish{Way: resourcev1.RouteWay_ROUTE_WAY_PROXY, Provider: "cloudflare"},
+		}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		s.applied(t, made.Msg.GetChange())
+		got := s.cf.Records("example.com")
+		if len(got) != 1 || got[0].Type != "A" || got[0].Content != "203.0.113.10" || !got[0].Proxied {
+			t.Fatalf("a proxied A record to the server: %+v", got)
+		}
+		dc := dockwellv1connect.NewDomainServiceClient(s.b, s.b.origin, connect.WithProtoJSON())
+		listed, err := dc.ListDomains(t.Context(), connect.NewRequest(&dockwellv1.ListDomainsRequest{}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, d := range listed.Msg.GetDomains() {
+			if d.GetName() == "docs.example.com" && d.GetRoutes()[0].GetProof() != "dns" {
+				t.Fatalf("its route proves its domain by DNS: %v", d.GetRoutes()[0])
+			}
+		}
+	})
 }

@@ -2771,6 +2771,15 @@ paths:
                      as a service's name is unique only in its environment.
                   schema:
                     type: string
+                - name: readDns
+                  in: query
+                  description: |-
+                    Read what DNS says of each domain now, in Domain.dns: from its connected
+                     zone's records, read once per zone, or from public DNS for a name in no
+                     connected zone. Each read is cached, so a page that opens costs a zone list,
+                     never a check per domain (ADR 0104, #791).
+                  schema:
+                    type: boolean
             responses:
                 "200":
                     description: OK
@@ -12162,6 +12171,13 @@ components:
                         When checks read Cloudflare again, while it asks Dockwell to wait (state
                          CLOUDFLARE_NAME_WAITING).
                     format: date-time
+                handRule:
+                    allOf:
+                        - $ref: '#/components/schemas/HandRule'
+                    description: |-
+                        The tunnel's rule made by hand that serves the name now, when one does: an
+                         admin's alone, so Take it on or Move it to Dockwell can name it in the route's
+                         takes_over (ADR 0104, section 8). Unset below an admin.
             description: |-
                 CloudflareCheck is what a connected Cloudflare zone, and the server's tunnel, say
                  of a name, before any plan (ADR 0104, section 1). Below an admin it says only
@@ -14574,6 +14590,13 @@ components:
                     description: |-
                         What Dockwell published for it at Cloudflare, and whether it's still there
                          (ADR 0104). Empty for a domain published by hand, or not at all.
+                dns:
+                    allOf:
+                        - $ref: '#/components/schemas/DomainCheck'
+                    description: |-
+                        What DNS says of it now, where the list was asked to read it (read_dns). Below
+                         an admin it says nothing of a proxied record's content, the origin address
+                         public DNS hides. Unset otherwise.
             description: Domain is one domain the routes of an environment serve.
         DomainCheck:
             type: object
@@ -14760,6 +14783,11 @@ components:
                         How its domain is published at Cloudflare, as the route's spec has it (ADR
                          0104). A form that sends the route as it is sends this back, or the plan takes
                          the domain's records away.
+                proof:
+                    type: string
+                    description: |-
+                        How its domain proves itself for its certificate, as the route's spec has it
+                         (ADR 0088): a form that sends the route as it is sends this back.
             description: DomainRoute is one route of a domain.
         DomainServer:
             type: object
@@ -17343,6 +17371,31 @@ components:
                     type: string
                     description: The driver Docker asks, such as "nvidia". Empty takes Docker's default.
             description: Gpus are the GPUs a container reaches.
+        HandRule:
+            type: object
+            properties:
+                tunnel:
+                    type: string
+                    description: The tunnel holding it, by ID.
+                tunnelName:
+                    type: string
+                    description: The tunnel's name, such as "web-1".
+                hostname:
+                    type: string
+                    description: The rule's hostname, such as "wiki.example.com".
+                path:
+                    type: string
+                    description: The rule's path, if it has one.
+                service:
+                    type: string
+                    description: Where it sends, such as "http://127.0.0.1:8080".
+                reachesProxy:
+                    type: boolean
+                    description: |-
+                        Whether it reaches the server's proxy already, so taking it on writes nothing;
+                         false where it reaches an app's own port, so Move it to Dockwell points it at
+                         the proxy.
+            description: HandRule is a tunnel's rule made in Cloudflare by hand that serves a name.
         HealthResult:
             type: object
             properties:

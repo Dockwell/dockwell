@@ -3189,7 +3189,7 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 			if it := itemOf(its, s.Ref); it != nil && s.Action != resource.ActionDelete {
 				if rt, ok := it.spec.(*resourcev1.Route); ok && rt.GetTls() == "" {
 					if keys == nil {
-						keys = e.keys(ctx)
+						keys = e.keysWith(ctx, items)
 					}
 					proof := rt.GetProof()
 					if proof == "" {

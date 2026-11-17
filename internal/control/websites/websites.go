@@ -463,15 +463,17 @@ func publishedFront(front website.Front, publish *resourcev1.RoutePublish) websi
 		return front
 	}
 	front.Publish = proto.CloneOf(publish)
+	// Behind Cloudflare's proxy the internet reaches Cloudflare, not the server, so
+	// the certificate comes by DNS, through the provider that publishes it (ADR 0104,
+	// the review's B-H1).
 	if publish.GetWay() == resourcev1.RouteWay_ROUTE_WAY_PROXY && front.TLS == "" {
-		front.Proof = publish.GetProvider()
+		front.Proof = route.ProofDNS
 	}
 	return front
 }
 
 // servedBy is the edit that has publish's DNS provider serve project, where it
 // doesn't yet: an admin's, as a provider is, so the plan shows it as its own step.
-// Its tokens are left out, so the provider keeps them.
 func (h *Handler) servedBy(ctx context.Context, publish *resourcev1.RoutePublish, project string) ([]*dockwellv1.Edit, error) {
 	if publish.GetProvider() == "" || h.DNS == nil || project == "" {
 		return nil, nil
@@ -483,8 +485,9 @@ func (h *Handler) servedBy(ctx context.Context, publish *resourcev1.RoutePublish
 	if dnsprovider.Serves(saved.Spec, project) {
 		return nil, nil
 	}
+	// Its tokens go back as they are, so the plan shows only the project it gains
+	// (the review's B-M5).
 	spec := proto.CloneOf(saved.Spec)
-	spec.ApiToken, spec.TunnelApiToken = "", ""
 	spec.Projects = append(spec.Projects, project)
 	return []*dockwellv1.Edit{{
 		Resource: &dockwellv1.ResourceRef{Kind: string(dnsprovider.Kind), Name: saved.Name},

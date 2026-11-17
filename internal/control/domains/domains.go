@@ -247,7 +247,7 @@ func (h *Handler) add(ctx context.Context, tx *store.Tx, r *store.Resource, byNa
 		Id: r.ID, Name: r.Name, Path: rt.GetPath(), Service: rt.GetService(), Port: rt.GetPort(), Url: scheme + route.Where(rt),
 		Tls: rt.GetTls(), HostPort: rt.GetHostPort(), PlainForAnyone: rt.GetPlainForAnyone(), Held: rt.GetHeld(), TrustedProxies: rt.GetTrustedProxies(), Redirect: rt.GetRedirect(),
 		Allow: rt.GetAccess().GetAllow(), Users: users, SignIn: withoutProvider(rt.GetAccess().GetSignIn()),
-		SetupUntil: setupUntil(rt), Publish: rt.GetPublish(),
+		SetupUntil: setupUntil(rt), Publish: rt.GetPublish(), Proof: rt.GetProof(),
 	})
 	placed, err := tx.Placement(ctx, r.ID, r.Revision)
 	if err != nil {

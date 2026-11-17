@@ -1432,6 +1432,7 @@ func Methods() []*apicli.Method {
 			Fields: []apicli.Field{
 				{Path: "environment", Help: "Only domains with a route in this environment, by ID. Empty means every environment."},
 				{Path: "service", Help: "Only domains with a route to this service, by name. It needs environment, as a service's name is unique only in its environment."},
+				{Path: "read_dns", Help: "Read what DNS says of each domain now, in Domain.dns: from its connected zone's records, read once per zone, or from public DNS for a name in no connected zone. Each read is cached, so a page that opens costs a zone list, never a check per domain (ADR 0104, #791)."},
 			},
 			Call: apicli.Unary[v1.ListDomainsRequest, v1.ListDomainsResponse](dockwellv1connect.DomainServiceListDomainsProcedure),
 		},
