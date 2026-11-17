@@ -113,8 +113,9 @@ func (p *Publisher) planProvider(ctx context.Context, pp revision.PublishProvide
 		}); err != nil {
 			return nil, err
 		}
-		if !found {
-			// Dockwell didn't change it, so there's nothing of its to put back.
+		if !found || held.Provider != name {
+			// Dockwell didn't change it through this provider, so there's nothing of its
+			// to put back (the review's L2).
 			continue
 		}
 		proxied, err := t.cf.RecordsProxied(ctx, t.zone)
@@ -126,6 +127,25 @@ func (p *Publisher) planProvider(ctx context.Context, pp revision.PublishProvide
 			Provider: name, Action: resource.ProviderSetZoneMode, Target: zone, Name: zone, Was: modeWords(strict), To: modeWords(held.Was),
 			Routing: putBackWords(zone, held.Was, all), ZoneID: t.zone.ID, Mode: held.Was,
 		})
+	}
+	// The second token taken off while Dockwell holds rules it wrote with it: the API
+	// token does tunnels from then on, which the plan says (the review's L4).
+	if pp.Before.GetTunnelApiToken() != "" && pp.After.GetTunnelApiToken() == "" {
+		var rules []store.CloudflareRule
+		if err := p.DB.View(ctx, func(tx *store.Tx) error {
+			var err error
+			rules, err = tx.CloudflareRulesAll(ctx)
+			return err
+		}); err != nil {
+			return nil, err
+		}
+		held := slices.DeleteFunc(rules, func(r store.CloudflareRule) bool { return r.Provider != name })
+		if len(held) > 0 {
+			add(resource.ActionNone, resource.ProviderStep{
+				Provider: name, Action: resource.ProviderKeepRule, Name: name, Skip: true,
+				Routing: fmt.Sprintf("Dockwell holds %d rules in tunnels written with the tunnels' token, which the API token writes from now on. Check it under Integrations, or removing those routes fails", len(held)),
+			})
+		}
 	}
 	for _, id := range pp.After.GetPutBack() {
 		ps, access, err := p.planPutBack(ctx, name, id)
@@ -186,8 +206,8 @@ func (p *Publisher) modeSet(ctx context.Context, provider, zone string) (bool, e
 	}
 	set := false
 	err = p.DB.View(ctx, func(tx *store.Tx) error {
-		_, err := tx.CloudflareZoneModeOf(ctx, t.zone.ID)
-		set = err == nil
+		m, err := tx.CloudflareZoneModeOf(ctx, t.zone.ID)
+		set = err == nil && m.Provider == provider
 		if errors.Is(err, store.ErrNotFound) {
 			return nil
 		}
@@ -305,6 +325,8 @@ func (p *Publisher) setZoneMode(ctx context.Context, changeID string, s resource
 	switch {
 	case !found:
 		return "", letGo{"Dockwell didn't set " + s.Name + "'s mode, so it stays " + modeWords(mode)}
+	case held.Provider != s.Provider:
+		return "", letGo{held.Provider + " set " + s.Name + "'s mode, so it's that provider's to put back"}
 	case mode == held.Was:
 		// Put back already, by a step a crash cut short.
 		return "", forget()
@@ -317,7 +339,9 @@ func (p *Publisher) setZoneMode(ctx context.Context, changeID string, s resource
 	if err := write(held.Was); err != nil {
 		return "", err
 	}
-	return "", forget()
+	// What was read, as a dashboard edit between the read and the write would be
+	// replaced (the review's L3).
+	return s.Name + " read " + modeWords(mode) + ", and is " + modeWords(held.Was) + " again", forget()
 }
 
 // Kept lists the records made by hand that provider keeps a copy of, with whether

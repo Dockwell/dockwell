@@ -2933,7 +2933,9 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 		sp := ServerPlan{Server: server, Name: names[server]}
 		var steps []resource.Step
 		agent, online := e.agents.Agent(server)
-		sp.Offline = !online
+		// A server whose plan holds only the control plane's steps at Cloudflare needs
+		// nothing of its agent (the review's L8).
+		sp.Offline = !online && len(its) > 0
 		if online && len(its) > 0 {
 			var err error
 			if steps, err = e.planOn(ctx, agent, server, sp.Name, its); err != nil {

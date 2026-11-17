@@ -69,6 +69,8 @@ Awaiting the owner's decision; nothing is built for it yet.
 - **Apps share a site with each other.** Every label is under `apps-example.net`, so one app's script can set a cookie for `apps-example.net` that another app's pages then send to it. The proxy keeps app headers to their own host, but not scripts. On localhost the browser keeps labels apart; here it doesn't, so this is a limit to state: an app opened through the panel can plant cookies in the others. A domain for each app would end it, at a cost no owner pays.
 - **Behind Cloudflare's proxy**, its free certificate covers `*.apps-example.net`, one level, so the record can stay proxied with Cloudflare's certificate in front and Dockwell's behind it, or be DNS only.
 
+- **Tunnels.** Whatever builds it names the apps domain in `PanelNames.Apps`, so the tunnel writer of [ADR 0104](0104-adding-a-domain-publishes-it.md) treats it and every name under it as the panel's, and no rule Dockwell writes serves or moves them.
+
 #### Alternatives
 
 - **The server's IP address, a port each**: `https://203.0.113.7:7701`, with a short-lived IP certificate and a listener for each app. It's another site from the panel, but cookies ignore ports, so every app on the address shares cookies with every other, and each needs a port open, which a provider's firewall often blocks.

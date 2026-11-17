@@ -474,6 +474,13 @@ func (p *Publisher) addRule(ctx context.Context, changeID, routeID, server strin
 	if err != nil {
 		return "", err
 	}
+	// A rule made by hand kept at this name, to put back by undo, is never written
+	// over (the review's L7).
+	if held, found, err := p.heldRule(ctx, s.Tunnel, s.Rule.Hostname); err != nil {
+		return "", err
+	} else if found && (held.State == store.CloudflareRuleKept || held.State == store.CloudflareRuleMoving) {
+		return "", fmt.Errorf("Dockwell keeps the rule made in Cloudflare for %s in %s, to put back by undo, so it adds no rule there. Undo the change that took it out, or publish %s with its takeover", s.Rule.Hostname, s.Target, s.Rule.Hostname) //nolint:staticcheck // the product's name
+	}
 	need := NeedFor(doc, rt, t.zone.Name, name)
 	record := func(written *Document, version int) error {
 		return p.DB.Update(ctx, func(tx *store.Tx) error {
