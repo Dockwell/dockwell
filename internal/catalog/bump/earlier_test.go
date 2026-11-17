@@ -32,7 +32,7 @@ func history(t *testing.T, versions ...string) (string, map[string]string) {
 	}
 	commits := map[string]string{}
 	for i, v := range versions {
-		text := "id: shop\nversion: \"" + v + "\"\nrelease: " + string(rune('1'+i)) + "\n"
+		text := shopRelease(v, string(rune('1'+i)))
 		if err := os.WriteFile(filepath.Join(dir, "entries", "shop.yaml"), []byte(text), 0o600); err != nil {
 			t.Fatal(err)
 		}
@@ -45,6 +45,46 @@ func history(t *testing.T, versions ...string) (string, map[string]string) {
 		commits[v] = run("rev-parse", "HEAD")
 	}
 	return dir, commits
+}
+
+// shopRelease is a release of shop that runs an image of its own, as each release a
+// catalog makes runs something else.
+func shopRelease(version, release string) string {
+	return "id: shop\nversion: \"" + version + "\"\nrelease: " + release +
+		"\ncompose: |\n  services:\n    web:\n      image: shop:" + version + "-r" + release + "\n"
+}
+
+// A release that runs what the one before ran, as one that adds an owner's steps or
+// only words, is no upgrade Dockwell offers: the release before it is the one an
+// upgrade is proven from, from a base or the history (catalog#34's Proof).
+func TestAReleaseThatRunsTheSameIsntUpgradedFrom(t *testing.T) {
+	dir, c := history(t, "28.2.0", "28.3.0")
+	run := func(args ...string) string {
+		t.Helper()
+		out, err := exec.CommandContext(t.Context(), "git", append([]string{"-C", dir, "-c", "user.name=t", "-c", "user.email=t@example.com"}, args...)...).CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+		return strings.TrimSpace(string(out))
+	}
+	// Release 3 keeps release 2's Compose file, and adds an owner's steps.
+	same := strings.Replace(shopRelease("28.3.0", "2"), "release: 2", "release: 3", 1) + "owner:\n  service: web\n"
+	if err := os.WriteFile(filepath.Join(dir, "entries", "shop.yaml"), []byte(same), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	run("commit", "-qam", "an owner")
+	for name, base := range map[string]string{"from the base": c["28.3.0"], "from the history": ""} {
+		got, err := bump.EarlierReleases(t.Context(), dir, "shop", "HEAD", base)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.Before == nil || got.Before.Commit != c["28.2.0"] {
+			t.Errorf("%s, release 3 upgrades from %+v; want 28.2.0, the release before that runs otherwise", name, got.Before)
+		}
+		if got.First != nil && got.First.Commit == c["28.3.0"] {
+			t.Errorf("%s, the first of the major is %+v, which runs what release 3 does", name, got.First)
+		}
+	}
 }
 
 // The release before comes from the pull request's base, or without one from the
@@ -145,7 +185,7 @@ func TestTheFirstOfAMajorIsOneMainHad(t *testing.T) {
 		return strings.TrimSpace(string(out))
 	}
 	write := func(v, r string) {
-		if err := os.WriteFile(filepath.Join(dir, "entries", "shop.yaml"), []byte("id: shop\nversion: \""+v+"\"\nrelease: "+r+"\n"), 0o600); err != nil {
+		if err := os.WriteFile(filepath.Join(dir, "entries", "shop.yaml"), []byte(shopRelease(v, r)), 0o600); err != nil {
 			t.Fatal(err)
 		}
 	}

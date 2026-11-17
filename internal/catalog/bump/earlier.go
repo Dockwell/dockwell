@@ -13,6 +13,7 @@ import (
 
 	"go.yaml.in/yaml/v4"
 
+	"github.com/dockwell/dockwell/internal/catalog"
 	"github.com/dockwell/dockwell/internal/registry"
 )
 
@@ -63,7 +64,7 @@ func EarlierReleases(ctx context.Context, dir, id, at, base string) (*Earlier, e
 		if err != nil {
 			return nil, err
 		}
-		if ok && !bytes.Equal(was, now) {
+		if ok && !sameRun(was, now) {
 			commit, err := revParse(ctx, dir, base)
 			if err != nil {
 				return nil, err
@@ -103,12 +104,14 @@ func EarlierReleases(ctx context.Context, dir, id, at, base string) (*Earlier, e
 	// history's release before is what its upgrade is proven from (#726's slice 2
 	// review, L3).
 	if out.Before == nil {
-		// The newest earlier release whose file differs, whether or not its version
+		// The newest earlier release that runs otherwise, whether or not its version
 		// does: a release that keeps its version and changes how it's put together,
 		// as one whose database became a need, or a digest moved, is an upgrade too
-		// (#726's slice 2 review, M1).
+		// (#726's slice 2 review, M1). One that runs the same, as a release that adds
+		// only words or an owner's steps, is no upgrade Dockwell offers, so nothing to
+		// prove one from (catalog#34's Proof).
 		for i := len(history) - 1; i >= 0; i-- {
-			if !bytes.Equal(history[i].text, now) {
+			if !sameRun(history[i].text, now) {
 				out.Before = &history[i]
 				break
 			}
@@ -123,7 +126,7 @@ func EarlierReleases(ctx context.Context, dir, id, at, base string) (*Earlier, e
 		if m, ok := registry.MajorOf(r.Version); !ok || m != major {
 			continue
 		}
-		if r.Version != current && (out.Before == nil || r.Version != out.Before.Version) {
+		if r.Version != current && (out.Before == nil || r.Version != out.Before.Version) && !sameRun(r.text, now) {
 			out.First = &r
 		}
 		break
@@ -173,4 +176,30 @@ func git(ctx context.Context, dir string, args ...string) ([]byte, error) {
 		return nil, err
 	}
 	return out, nil
+}
+
+// sameRun says two releases of an entry run the same, as Dockwell compares a release
+// with what an install runs (catalog.Upgrades): its Compose file, each port on the
+// server alone but those it declares public. A release that changes nothing of that
+// isn't offered as an upgrade, so an upgrade from one can't be proven. A text that
+// isn't an entry reads by its Compose file as written.
+func sameRun(a, b []byte) bool {
+	return runOf(a) == runOf(b)
+}
+
+// runOf is what an entry's release runs, as sameRun compares it.
+func runOf(text []byte) string {
+	if e, err := catalog.Parse(text); err == nil {
+		if l, err := catalog.Loopback(e); err == nil {
+			return l.GetCompose()
+		}
+		return e.GetCompose()
+	}
+	var e struct {
+		Compose string `yaml:"compose"`
+	}
+	if yaml.Unmarshal(text, &e) != nil {
+		return string(text)
+	}
+	return e.Compose
 }
