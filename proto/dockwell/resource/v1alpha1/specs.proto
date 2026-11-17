@@ -1821,6 +1821,17 @@ message DnsProvider {
   // mode changes how all its proxied names are reached, so it's set here, on its
   // own plan, never as a side effect of one domain (ADR 0104).
   repeated string strict_zones = 6;
+  // Takes the second token off, so the API token does tunnels again. An update
+  // that leaves tunnel_api_token out keeps it, so this says it goes. It's never
+  // stored, and comes with no tunnel_api_token (ADR 0104).
+  bool clear_tunnel_api_token = 7;
+  // Records made by hand that Dockwell keeps a copy of, by the ID the provider's
+  // info lists them with, to put back at Cloudflare in this change: a route that
+  // replaced one was removed, and the name held something else then. One whose
+  // name holds a record now isn't put back, and the plan says so; nothing is
+  // replaced. It takes an admin, as it writes someone's record, and it's never
+  // stored (ADR 0104).
+  repeated string put_back = 8;
 }
 
 // ConnectionSpec is one set of values of one kind that something uses, kind

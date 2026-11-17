@@ -1684,13 +1684,27 @@ func (e *Engine) changeItems(ctx context.Context, tx *store.Tx, changeID string,
 // stored is the item's spec as the store keeps it at at: sealed for there,
 // for a kind that may hold secrets, and nil for a deletion.
 func (e *Engine) stored(ctx context.Context, tx *store.Tx, it *item, at store.SpecAt) ([]byte, error) {
-	if it.encoded == nil || !it.sealed {
-		return it.encoded, nil
+	encoded := it.encoded
+	// What a change asks for once stays in the change, where a plan made again reads
+	// it, and out of the revision, so no later edit asks for it again.
+	if at.Revision > 0 && encoded != nil && it.spec != nil {
+		if t, err := e.kinds.Type(it.ref.Kind); err == nil {
+			if tr, ok := t.(resource.Transient); ok {
+				if kept := tr.StripTransient(it.spec); kept != it.spec {
+					if encoded, err = resource.Encode(kept); err != nil {
+						return nil, err
+					}
+				}
+			}
+		}
+	}
+	if encoded == nil || !it.sealed {
+		return encoded, nil
 	}
 	if e.sealer == nil {
 		return nil, fmt.Errorf("can't store %s without the install's key, which keeps it encrypted", it.ref)
 	}
-	return e.sealer.Seal(ctx, tx, at, it.encoded)
+	return e.sealer.Seal(ctx, tx, at, encoded)
 }
 
 // open reads the encoding of a spec stored at at: opened, if it is sealed.

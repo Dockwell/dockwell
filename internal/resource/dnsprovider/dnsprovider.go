@@ -150,6 +150,14 @@ func (Type) Validate(spec proto.Message) error {
 	if IsGlobalKey(p.GetTunnelApiToken()) {
 		return ErrGlobalKey
 	}
+	if p.GetClearTunnelApiToken() && p.GetTunnelApiToken() != "" {
+		return errors.New("the edit gives a tunnels' token and takes it off too. Give one, or clear it")
+	}
+	for _, id := range p.GetPutBack() {
+		if !strings.HasPrefix(id, "pending:") {
+			return fmt.Errorf("%q isn't a kept record's ID. Name one as the provider's info lists it, such as pending:…", id)
+		}
+	}
 	strict := make([]string, 0, len(p.GetStrictZones()))
 	for _, z := range p.GetStrictZones() {
 		zone := Zone(z)
@@ -195,11 +203,34 @@ func IsGlobalKey(s string) bool {
 	return true
 }
 
+// DefaultNew spends a clear on a new provider, which has no second token to take
+// off.
+func (Type) DefaultNew(_ resource.Ref, spec proto.Message) {
+	spec.(*resourcev1.DnsProvider).ClearTunnelApiToken = false //nolint:forcetypeassert // Validate saw it
+}
+
+// StripTransient is the spec as its revision keeps it: without the records to put
+// back, which the change keeps, so a plan made again finds them, and no later edit
+// asks for them again.
+func (Type) StripTransient(spec proto.Message) proto.Message {
+	p, ok := spec.(*resourcev1.DnsProvider)
+	if !ok || len(p.GetPutBack()) == 0 && !p.GetClearTunnelApiToken() {
+		return spec
+	}
+	out := proto.CloneOf(p)
+	out.PutBack, out.ClearTunnelApiToken = nil, false
+	return out
+}
+
 // CheckNew asks a new provider for its token. An update can leave it out, which
 // Keep fills in, so Validate can't.
 func (Type) CheckNew(spec proto.Message) error {
-	if spec.(*resourcev1.DnsProvider).GetApiToken() == "" { //nolint:forcetypeassert // Validate saw it
+	p := spec.(*resourcev1.DnsProvider) //nolint:forcetypeassert // Validate saw it
+	if p.GetApiToken() == "" {
 		return errors.New("a DNS provider needs its API token: for Cloudflare, an API token with Zone:Read and DNS:Edit, scoped to its zones")
+	}
+	if len(p.GetPutBack()) > 0 {
+		return errors.New("a new DNS provider keeps no records to put back")
 	}
 	return nil
 }
@@ -213,8 +244,12 @@ func (Type) Keep(current, desired proto.Message) (resource.Kept, error) {
 	if !ok || !same {
 		return resource.Kept{}, nil
 	}
+	// Clearing the second token is said, as leaving it out keeps it, and the flag
+	// is spent here: it's never stored.
+	clearing := is.GetClearTunnelApiToken()
+	is.ClearTunnelApiToken = false
 	keepMain := is.GetApiToken() == "" && was.GetApiToken() != ""
-	keepTunnel := is.GetTunnelApiToken() == "" && was.GetTunnelApiToken() != ""
+	keepTunnel := is.GetTunnelApiToken() == "" && was.GetTunnelApiToken() != "" && !clearing
 	if !keepMain && !keepTunnel {
 		return resource.Kept{}, nil
 	}

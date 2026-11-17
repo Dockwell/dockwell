@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	"github.com/dockwell/dockwell/internal/resource"
 )
 
 // A provider's zones are written as DNS names them, and what can't be a zone a
@@ -66,6 +67,41 @@ func TestAProvidersTokenIsKept(t *testing.T) {
 	given := &resourcev1.DnsProvider{Provider: Cloudflare, Zones: []string{"example.com"}, ApiToken: "new-token"}
 	if _, err := (Type{}).Keep(was, given); err != nil || given.GetApiToken() != "new-token" {
 		t.Errorf("a new token was replaced: %q, %v", given.GetApiToken(), err)
+	}
+}
+
+// A second token comes off only when an edit says so; with a token beside the
+// clear, the edit is refused; and neither the clear nor records to put back are
+// ever kept in the provider's revision (ADR 0104).
+func TestASecondTokenIsCleared(t *testing.T) {
+	was := &resourcev1.DnsProvider{Provider: Cloudflare, Zones: []string{"example.com"}, ApiToken: "dns-token", TunnelApiToken: "tunnel-token"}
+	kept := &resourcev1.DnsProvider{Provider: Cloudflare, Zones: []string{"example.com"}}
+	if _, err := (Type{}).Keep(was, kept); err != nil || kept.GetTunnelApiToken() != "tunnel-token" {
+		t.Fatalf("leaving it out should keep it: %q, %v", kept.GetTunnelApiToken(), err)
+	}
+	cleared := &resourcev1.DnsProvider{Provider: Cloudflare, Zones: []string{"example.com"}, ClearTunnelApiToken: true}
+	if _, err := (Type{}).Keep(was, cleared); err != nil || cleared.GetTunnelApiToken() != "" || cleared.GetApiToken() != "dns-token" || cleared.GetClearTunnelApiToken() {
+		t.Fatalf("a clear: %+v, %v", cleared, err)
+	}
+	both := &resourcev1.DnsProvider{Provider: Cloudflare, Zones: []string{"example.com"}, TunnelApiToken: "another", ClearTunnelApiToken: true}
+	if err := (Type{}).Validate(both); err == nil {
+		t.Fatal("a token and a clear together were taken")
+	}
+	fresh := &resourcev1.DnsProvider{Provider: Cloudflare, Zones: []string{"example.com"}, ApiToken: "dns-token", ClearTunnelApiToken: true}
+	(Type{}).DefaultNew(resource.Ref{}, fresh)
+	if fresh.GetClearTunnelApiToken() {
+		t.Fatal("a new provider kept the clear")
+	}
+	if err := (Type{}).Validate(&resourcev1.DnsProvider{Provider: Cloudflare, Zones: []string{"example.com"}, PutBack: []string{"rec-1"}}); err == nil {
+		t.Fatal("a put back that names no kept record was taken")
+	}
+	if err := (Type{}).CheckNew(&resourcev1.DnsProvider{Provider: Cloudflare, Zones: []string{"example.com"}, ApiToken: "t", PutBack: []string{"pending:rec-1"}}); err == nil {
+		t.Fatal("a new provider with records to put back was taken")
+	}
+	asked := &resourcev1.DnsProvider{Provider: Cloudflare, Zones: []string{"example.com"}, ApiToken: "t", PutBack: []string{"pending:rec-1"}}
+	stored, ok := (Type{}).StripTransient(asked).(*resourcev1.DnsProvider)
+	if !ok || len(stored.GetPutBack()) != 0 || len(asked.GetPutBack()) != 1 {
+		t.Fatalf("the revision should keep no put back, and the change should: %v, %v", stored, asked)
 	}
 }
 

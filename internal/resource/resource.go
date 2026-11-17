@@ -1852,6 +1852,15 @@ type SaverStamper interface {
 	StampSaver(current, spec proto.Message, installAdmin bool)
 }
 
+// Transient is a kind whose spec can carry what a change asks for once, as records
+// for a DNS provider to put back: the change keeps it, so a plan made again finds
+// it, and its revision doesn't, so no later edit asks for it again. StripTransient
+// returns the spec as the revision keeps it, or spec itself when there's nothing to
+// leave out.
+type Transient interface {
+	StripTransient(spec proto.Message) proto.Message
+}
+
 // NewDefaulter is a kind whose new resources take a default from their ref
 // where their edit leaves it out, such as an environment's protection from its
 // name. An edit of one that's there keeps what's there instead (Keeper).
