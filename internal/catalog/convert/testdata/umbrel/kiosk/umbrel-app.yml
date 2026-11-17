@@ -1,0 +1,13 @@
+manifestVersion: 1
+id: kiosk
+name: Kiosk
+tagline: A stand-in app that starts with a password everyone knows
+description: Kiosk shows things.
+version: "1.2.0"
+category: files
+port: 8547
+website: https://kiosk.example.com
+repo: https://github.com/example/kiosk
+dependencies: []
+defaultUsername: admin
+defaultPassword: changeme

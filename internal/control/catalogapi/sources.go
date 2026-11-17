@@ -974,6 +974,8 @@ func isOwn(spec *resourcev1.CatalogSource) bool {
 type origin struct {
 	catalog, repository, path, commit string
 	own                               bool
+	// converted says its source is another store's, converted as it's read.
+	converted bool
 }
 
 // originOf is where a pin says its install came from.
@@ -1098,7 +1100,7 @@ func (h *Handler) withSources(ctx context.Context, instead planned) (sourced, er
 		overlay(origin{}, nil)
 	}
 	for _, s := range list {
-		o := origin{catalog: s.name, repository: s.spec.GetRepository(), path: s.spec.GetPath(), commit: s.spec.GetCommit(), own: isOwn(s.spec)}
+		o := origin{catalog: s.name, repository: s.spec.GetRepository(), path: s.spec.GetPath(), commit: s.spec.GetCommit(), own: isOwn(s.spec), converted: converted(s.spec)}
 		got, err := h.sources.readSource(ctx, s.name, s.spec, maps.Clone(taken))
 		if err != nil {
 			out.unread[s.name] = err

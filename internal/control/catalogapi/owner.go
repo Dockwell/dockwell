@@ -209,10 +209,19 @@ func closedSignups(entry *catalogv1.Entry, ask ownerAsk, signupsOpen bool) map[s
 }
 
 // heldAtInstall says an install starts held: its first visitor makes its owner, and
-// nothing makes it first (ADR 0105).
-func heldAtInstall(entry *catalogv1.Entry) bool {
+// nothing makes it first; or it's converted from another store, with web, and its
+// entry says no way it's owned: no owner steps, no admin its environment makes
+// (sign_in with a password input), and not none. A password everyone knows, which
+// nothing changes, is no way (ADR 0105).
+func heldAtInstall(entry *catalogv1.Entry, converted bool) bool {
 	o := entry.GetOwner()
-	return entry.GetFirstVisitorOwns() && len(o.GetSteps()) == 0 && !o.GetNone()
+	if len(o.GetSteps()) > 0 || o.GetNone() {
+		return false
+	}
+	if entry.GetFirstVisitorOwns() {
+		return true
+	}
+	return converted && entry.GetWeb().GetService() != "" && entry.GetSignIn().GetPasswordInput() == ""
 }
 
 // OwnerRetrier has a failed owner tried again (owners.Runner).

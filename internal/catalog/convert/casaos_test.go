@@ -113,6 +113,19 @@ func TestOnServerReadsUmbrelsStore(t *testing.T) {
 	if generated["APP_SEED"] != 64 || generated["APP_PASSWORD"] != 32 {
 		t.Errorf("its generated values = %v", generated)
 	}
+	// How a person signs in, as Umbrel shows it: planner's admin with its own
+	// APP_PASSWORD, which its environment makes, and kiosk's password everyone
+	// knows, which holds it until a person changes it (ADR 0105).
+	if si := e.GetSignIn(); si.GetUser() != "admin" || si.GetPasswordInput() != "APP_PASSWORD" || e.GetOwner() != nil {
+		t.Errorf("planner signs in with %v, owner %v", si, e.GetOwner())
+	}
+	kiosk := got["kiosk"].Entry
+	if o := kiosk.GetOwner(); o.GetKnownUser() != "admin" || o.GetKnownPassword() != "changeme" || len(o.GetSteps()) > 0 || kiosk.GetSignIn() != nil {
+		t.Errorf("kiosk's owner is %v, sign-in %v, left out %q", o, kiosk.GetSignIn(), got["kiosk"].LeftOut)
+	}
+	if err := catalog.CheckTagged(kiosk); err != nil {
+		t.Errorf("kiosk's entry fails the catalog's check: %v", err)
+	}
 	for id, class := range map[string]Class{"hooked": ClassScripts, "exporter": ClassScripts, "needs": ClassAnotherApp} {
 		if r := got[id]; r.Entry != nil || r.Class != class {
 			t.Errorf("%s: class %q (%s), want %q", id, r.Class, r.LeftOut, class)

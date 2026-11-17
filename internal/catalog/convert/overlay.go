@@ -113,6 +113,10 @@ func applyOverlay(e *catalogv1.Entry, o Overlay) error {
 	if w.GetSignIn() != nil {
 		e.SignIn = proto.CloneOf(w.GetSignIn())
 	}
+	// How its owner is made, which counts for whether it's held (ADR 0105).
+	if w.GetOwner() != nil {
+		e.Owner = proto.CloneOf(w.GetOwner())
+	}
 	e.FirstVisitorOwns = e.GetFirstVisitorOwns() || w.GetFirstVisitorOwns()
 	if w.GetSignups() != nil {
 		e.Signups = proto.CloneOf(w.GetSignups())

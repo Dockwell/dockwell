@@ -153,6 +153,12 @@ type App struct {
 	Description string
 	Readme      string
 	Words       map[string]Words
+	// SignIn is how its store says a person signs in where its environment makes the
+	// admin: the user, and the input whose generated value is the password. KnownUser
+	// and KnownPassword are a password its store publishes, that everyone knows
+	// (ADR 0105).
+	SignIn                   *catalogv1.SignIn
+	KnownUser, KnownPassword string
 	// Screenshots are the pictures of the app the source keeps in its own repository,
 	// each by its path from the source's folder, in the source's order (ADR 0083).
 	Screenshots []Shot
@@ -399,6 +405,14 @@ func (c *Converter) convert(ctx context.Context, app App) Result {
 	}
 	if c.OnServer {
 		e.Release = c.Release
+	}
+	// How it's owned, as its store says: an admin its environment makes, with a
+	// password it generates, or a password everyone knows, which holds it until a
+	// person changes it (ADR 0105).
+	if in := app.SignIn.GetPasswordInput(); in != "" && e.GetWeb() != nil && slices.ContainsFunc(e.GetInputs(), func(i *catalogv1.Input) bool { return i.GetName() == in }) {
+		e.SignIn = proto.CloneOf(app.SignIn)
+	} else if app.KnownPassword != "" && e.GetWeb() != nil {
+		e.Owner = &catalogv1.Owner{KnownUser: cmp.Or(app.KnownUser, "admin"), KnownPassword: app.KnownPassword}
 	}
 	if own := c.ownImage(e); own != "" && !c.OnServer {
 		return fail(leave(ClassOwn, "it runs %s, as Dockwell's own entry does, so it stays out until the reviewed list says whether they're one app", own), "")

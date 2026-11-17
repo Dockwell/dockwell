@@ -425,7 +425,7 @@ func (h *Handler) InstallCatalogEntry(ctx context.Context, req *connect.Request[
 			webIDs, address, pin.Address = map[string]string{web: webID}, catalog.AddressValues(chosen, at), at.Origin()
 		}
 	}
-	pin.Held, pin.SignupsOpen = heldAtInstall(entry), m.GetSignupsOpen()
+	pin.Held, pin.SignupsOpen = heldAtInstall(entry, from.converted), m.GetSignupsOpen()
 	shared, sharedOn, err := h.sharedEdits(ctx, needed, filled)
 	if err != nil {
 		return nil, err

@@ -352,6 +352,11 @@ func holdRoutes(ctx context.Context, tx *store.Tx, env string, services []string
 // first takes it. The panel asks for a passkey up front where a plan has it.
 const NoteOpensToEveryone = "opens_to_everyone"
 
+// NoteKnownPassword is the note of an Open of a store's app that starts with a
+// password everyone knows, which no steps change: it's a person's to change first.
+// The panel asks for a passkey up front where a plan has it, too.
+const NoteKnownPassword = "known_password"
+
 // OpenCatalogInstall plans opening an install that SetCatalogNeed held as it started
 // empty: each held route answers again, and each held port listens where it did, as
 // the person who set it up asks (ADR 0084).
@@ -371,8 +376,14 @@ func (h *Handler) OpenCatalogInstall(ctx context.Context, req *connect.Request[d
 	// installed with them open (ADR 0105).
 	var signups *catalogv1.Signups
 	app := cmp.Or(install.GetName(), pin.GetEntry())
+	// A store's app that starts with a password everyone knows, which no steps
+	// change (ADR 0105).
+	var knownUser string
 	if entry, known := s.entryFor(pin); known {
 		app = cmp.Or(entry.GetName(), app)
+		if o := entry.GetOwner(); o.GetKnownPassword() != "" && len(o.GetSteps()) == 0 {
+			knownUser = cmp.Or(o.GetKnownUser(), "admin")
+		}
 		if entry.GetSignups().GetVariable() != "" && !pin.GetSignupsOpen() {
 			signups = entry.GetSignups()
 		}
@@ -495,7 +506,9 @@ func (h *Handler) OpenCatalogInstall(ctx context.Context, req *connect.Request[d
 	// Who reaches it first takes it, where its owner isn't made: the plan says so, and
 	// a person applies it with a passkey (ADR 0105, "Installs by token").
 	var notes []revision.Note
-	if owner == nil || !store.OwnerFinal(owner.state.State) {
+	if knownUser != "" {
+		notes = append(notes, revision.Note{Reason: NoteKnownPassword, Message: "It signs in as " + knownUser + " with a password everyone knows. Change it in " + app + " first, through the panel"})
+	} else if owner == nil || !store.OwnerFinal(owner.state.State) {
 		where := "it"
 		switch {
 		case len(domains) > 0:

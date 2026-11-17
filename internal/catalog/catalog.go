@@ -636,6 +636,11 @@ func checkOwner(e *catalogv1.Entry, cf *composeFile, inputs map[string]*catalogv
 		return nil
 	}
 	if len(o.GetSteps()) == 0 {
+		// A store's app that starts with a password everyone knows, which no steps
+		// change: it's held, and a person changes it before opening it (ADR 0105).
+		if o.GetKnownPassword() != "" && o.GetPasswordInput() == "" && !e.GetFirstVisitorOwns() {
+			return nil
+		}
 		return errors.New("its owner says no steps that make it. Give its steps, or say none for an app with no accounts")
 	}
 	if e.GetFirstVisitorOwns() {
