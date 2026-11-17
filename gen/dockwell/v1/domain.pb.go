@@ -1256,7 +1256,11 @@ func (x *CertificateInfo) GetNextTime() *timestamppb.Timestamp {
 
 // ListDnsProvidersRequest asks for every DNS provider the caller may see.
 type ListDnsProvidersRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// A project's ID: with one, only the providers that serve it are listed, as a
+	// domain in it can be published through those alone (ADR 0104). The caller
+	// must be able to read the project.
+	ProjectId     string `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1289,6 +1293,13 @@ func (x *ListDnsProvidersRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use ListDnsProvidersRequest.ProtoReflect.Descriptor instead.
 func (*ListDnsProvidersRequest) Descriptor() ([]byte, []int) {
 	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *ListDnsProvidersRequest) GetProjectId() string {
+	if x != nil {
+		return x.ProjectId
+	}
+	return ""
 }
 
 // ListDnsProvidersResponse holds the DNS providers.
@@ -3348,8 +3359,10 @@ const file_dockwell_v1_domain_proto_rawDesc = "" +
 	"\vexpire_time\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"expireTime\x12\x18\n" +
 	"\amessage\x18\a \x01(\tR\amessage\x127\n" +
-	"\tnext_time\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\bnextTime\"\x19\n" +
-	"\x17ListDnsProvidersRequest\"V\n" +
+	"\tnext_time\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\bnextTime\"8\n" +
+	"\x17ListDnsProvidersRequest\x12\x1d\n" +
+	"\n" +
+	"project_id\x18\x01 \x01(\tR\tprojectId\"V\n" +
 	"\x18ListDnsProvidersResponse\x12:\n" +
 	"\tproviders\x18\x01 \x03(\v2\x1c.dockwell.v1.DnsProviderInfoR\tproviders\"\x84\x02\n" +
 	"\x0fDnsProviderInfo\x12\x0e\n" +

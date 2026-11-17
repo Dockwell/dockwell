@@ -439,3 +439,37 @@ func TestListingProvidersReadsCloudflareOnlyForAnAdmin(t *testing.T) {
 		}
 	})
 }
+
+// Narrowed to a project, the list of DNS providers names those that serve it; a
+// caller who holds no role in the project is refused, so it can't learn another
+// project's providers (ADR 0104, the lead's condition).
+func TestDnsProvidersNarrowedToAProject(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		s := newPublishStandOn(t, backend)
+		dc := dockwellv1connect.NewDomainServiceClient(s.b, s.b.origin, connect.WithProtoJSON())
+		list := func(project string) ([]*dockwellv1.DnsProviderInfo, error) {
+			got, err := dc.ListDnsProviders(t.Context(), connect.NewRequest(&dockwellv1.ListDnsProvidersRequest{ProjectId: project}))
+			if err != nil {
+				return nil, err
+			}
+			return got.Msg.GetProviders(), nil
+		}
+		if got, err := list(s.project); err != nil || len(got) != 1 || got[0].GetName() != "cloudflare" {
+			t.Fatalf("an admin, for the project: %v, %v", got, err)
+		}
+		if got, err := list("prj_other"); err != nil || len(got) != 0 {
+			t.Fatalf("an admin, for a project it serves not: %v, %v", got, err)
+		}
+		hold := aMember(t, s.f)
+		hold(store.Grant{ProjectID: s.project, Role: store.RoleDeveloper})
+		if got, err := list(s.project); err != nil || len(got) != 1 || len(got[0].GetZones()) != 1 || got[0].GetProvider() != "" {
+			t.Fatalf("a developer in the project: %v, %v", got, err)
+		}
+		hold(store.Grant{ProjectID: "prj_other", Role: store.RoleDeveloper})
+		// Refused as a project the caller can't see, saying nothing of its providers.
+		if got, err := list(s.project); err == nil || connect.CodeOf(err) != connect.CodeNotFound && connect.CodeOf(err) != connect.CodePermissionDenied || len(got) != 0 {
+			t.Fatalf("a developer of another project: %v, %v", got, err)
+		}
+	})
+}

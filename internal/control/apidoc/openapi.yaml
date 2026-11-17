@@ -2694,6 +2694,15 @@ paths:
                  is never returned. Below an admin, it says each one's ID, name and zones. See
                  docs/adr/0088-certificates-by-dns-01-and-wildcard-domains.md.
             operationId: DomainService_ListDnsProviders
+            parameters:
+                - name: projectId
+                  in: query
+                  description: |-
+                    A project's ID: with one, only the providers that serve it are listed, as a
+                     domain in it can be published through those alone (ADR 0104). The caller
+                     must be able to read the project.
+                  schema:
+                    type: string
             responses:
                 "200":
                     description: OK

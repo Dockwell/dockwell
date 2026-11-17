@@ -1398,7 +1398,10 @@ func Methods() []*apicli.Method {
 			Short:     "Return the DNS providers an admin connected",
 			Long:      "Return the DNS providers an admin connected, sorted by name, with the zones each\nwrites in, so a certificate can name one. A token is never returned. Below an\nadmin, it says each one's ID, name and zones. See\ndocs/adr/0088-certificates-by-dns-01-and-wildcard-domains.md.",
 			Effect:    v1.Effect_EFFECT_READ,
-			Call:      apicli.Unary[v1.ListDnsProvidersRequest, v1.ListDnsProvidersResponse](dockwellv1connect.DomainServiceListDnsProvidersProcedure),
+			Fields: []apicli.Field{
+				{Path: "project_id", Help: "A project's ID: with one, only the providers that serve it are listed, as a domain in it can be published through those alone (ADR 0104). The caller must be able to read the project."},
+			},
+			Call: apicli.Unary[v1.ListDnsProvidersRequest, v1.ListDnsProvidersResponse](dockwellv1connect.DomainServiceListDnsProvidersProcedure),
 		},
 		{
 			Name:      "dockwell.v1.DomainService.CheckDomain",

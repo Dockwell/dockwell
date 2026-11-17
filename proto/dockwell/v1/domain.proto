@@ -235,7 +235,12 @@ message CertificateInfo {
 }
 
 // ListDnsProvidersRequest asks for every DNS provider the caller may see.
-message ListDnsProvidersRequest {}
+message ListDnsProvidersRequest {
+  // A project's ID: with one, only the providers that serve it are listed, as a
+  // domain in it can be published through those alone (ADR 0104). The caller
+  // must be able to read the project.
+  string project_id = 1;
+}
 
 // ListDnsProvidersResponse holds the DNS providers.
 message ListDnsProvidersResponse {

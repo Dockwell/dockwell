@@ -26,7 +26,7 @@ import (
 // authorization layer trims what's below an admin sees (authapi's trim).
 //
 //nolint:revive // the generated DomainServiceHandler names it
-func (h *Handler) ListDnsProviders(ctx context.Context, _ *connect.Request[dockwellv1.ListDnsProvidersRequest]) (*connect.Response[dockwellv1.ListDnsProvidersResponse], error) {
+func (h *Handler) ListDnsProviders(ctx context.Context, req *connect.Request[dockwellv1.ListDnsProvidersRequest]) (*connect.Response[dockwellv1.ListDnsProvidersResponse], error) {
 	out := &dockwellv1.ListDnsProvidersResponse{}
 	if h.DNS == nil {
 		return connect.NewResponse(out), nil
@@ -35,9 +35,18 @@ func (h *Handler) ListDnsProviders(ctx context.Context, _ *connect.Request[dockw
 	if err != nil {
 		return nil, err
 	}
-	admin, _ := callerProjects(ctx)
+	admin, projects := callerProjects(ctx)
+	// Narrowed to a project's providers, the list says which serve a project the
+	// caller may read, and no other's (ADR 0104).
+	project := req.Msg.GetProjectId()
+	if project != "" && !admin && projects != nil && !projects[project] {
+		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("you hold no role in that project, so its DNS providers aren't yours to list"))
+	}
 	for i := range shown {
 		p := &shown[i]
+		if project != "" && !slices.Contains(p.Projects, project) {
+			continue
+		}
 		info := &dockwellv1.DnsProviderInfo{Id: p.ID, Name: p.Name, Provider: p.Provider, Zones: p.Zones, TunnelApiTokenSet: p.TunnelTokenSet, Projects: p.Projects, StrictZones: p.StrictZones}
 		// What a provider keeps is an admin's alone, as the trim below an admin drops it,
 		// so nothing is read at Cloudflare for anyone else (the review's M5).
