@@ -263,6 +263,9 @@ message DnsProviderInfo {
   // alone. A form that changes the provider sends them back, as an edit is the whole
   // spec.
   repeated string projects = 7;
+  // The zones it set to Full (strict), and keeps so: an admin's alone. A form that
+  // changes the provider sends them back, or the plan puts their mode back.
+  repeated string strict_zones = 8;
 }
 
 // KeptRecord is a copy of a record made by hand that Dockwell keeps (ADR 0104).

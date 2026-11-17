@@ -127,6 +127,10 @@ func TestAZoneSetToFullStrictAndBack(t *testing.T) {
 		if got := s.cf.Mode("example.com"); got != "strict" {
 			t.Fatalf("the zone's mode: %s", got)
 		}
+		// An admin's list says it, so a form that changes the provider sends it back.
+		if got := s.providerInfo(t).GetStrictZones(); !slices.Equal(got, []string{"example.com"}) {
+			t.Fatalf("an admin's list of zones on Full (strict): %v", got)
+		}
 		undo, err := s.person.UndoChange(t.Context(), connect.NewRequest(&dockwellv1.UndoChangeRequest{Id: done.GetId()}))
 		if err != nil {
 			t.Fatal(err)
@@ -417,8 +421,8 @@ func TestListingProvidersReadsCloudflareOnlyForAnAdmin(t *testing.T) {
 		s.applied(t, propose(t, s.person, "Remove vpn", s.removed("vpn")))
 		before := len(s.cf.Calls())
 		for range 2 {
-			if kept := s.providerInfo(t).GetKept(); len(kept) != 1 {
-				t.Fatalf("an admin's list: %v", kept)
+			if info := s.providerInfo(t); len(info.GetKept()) != 1 || !slices.Equal(info.GetProjects(), []string{s.project}) {
+				t.Fatalf("an admin's list: %v", info)
 			}
 		}
 		if n := len(s.cf.Calls()) - before; n != 1 {
@@ -427,8 +431,8 @@ func TestListingProvidersReadsCloudflareOnlyForAnAdmin(t *testing.T) {
 		hold := aMember(t, s.f)
 		hold(store.Grant{ProjectID: s.project, Role: store.RoleDeveloper})
 		before = len(s.cf.Calls())
-		if kept := s.providerInfo(t).GetKept(); len(kept) != 0 {
-			t.Fatalf("a developer sees what's kept: %v", kept)
+		if info := s.providerInfo(t); len(info.GetKept()) != 0 || len(info.GetProjects()) != 0 || len(info.GetStrictZones()) != 0 {
+			t.Fatalf("a developer sees what's kept, or the provider's projects or modes: %v", info)
 		}
 		if n := len(s.cf.Calls()) - before; n != 0 {
 			t.Fatalf("a developer's list read Cloudflare %d times", n)

@@ -14419,6 +14419,13 @@ components:
                         The projects whose routes it proves and publishes names for, by ID: an admin's
                          alone. A form that changes the provider sends them back, as an edit is the whole
                          spec.
+                strictZones:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        The zones it set to Full (strict), and keeps so: an admin's alone. A form that
+                         changes the provider sends them back, or the plan puts their mode back.
             description: DnsProviderInfo is a DNS provider, without its token.
         DnsZoneCheck:
             type: object

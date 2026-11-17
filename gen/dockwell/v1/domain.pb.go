@@ -1357,7 +1357,10 @@ type DnsProviderInfo struct {
 	// The projects whose routes it proves and publishes names for, by ID: an admin's
 	// alone. A form that changes the provider sends them back, as an edit is the whole
 	// spec.
-	Projects      []string `protobuf:"bytes,7,rep,name=projects,proto3" json:"projects,omitempty"`
+	Projects []string `protobuf:"bytes,7,rep,name=projects,proto3" json:"projects,omitempty"`
+	// The zones it set to Full (strict), and keeps so: an admin's alone. A form that
+	// changes the provider sends them back, or the plan puts their mode back.
+	StrictZones   []string `protobuf:"bytes,8,rep,name=strict_zones,json=strictZones,proto3" json:"strict_zones,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1437,6 +1440,13 @@ func (x *DnsProviderInfo) GetKept() []*KeptRecord {
 func (x *DnsProviderInfo) GetProjects() []string {
 	if x != nil {
 		return x.Projects
+	}
+	return nil
+}
+
+func (x *DnsProviderInfo) GetStrictZones() []string {
+	if x != nil {
+		return x.StrictZones
 	}
 	return nil
 }
@@ -3341,7 +3351,7 @@ const file_dockwell_v1_domain_proto_rawDesc = "" +
 	"\tnext_time\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\bnextTime\"\x19\n" +
 	"\x17ListDnsProvidersRequest\"V\n" +
 	"\x18ListDnsProvidersResponse\x12:\n" +
-	"\tproviders\x18\x01 \x03(\v2\x1c.dockwell.v1.DnsProviderInfoR\tproviders\"\xe1\x01\n" +
+	"\tproviders\x18\x01 \x03(\v2\x1c.dockwell.v1.DnsProviderInfoR\tproviders\"\x84\x02\n" +
 	"\x0fDnsProviderInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1a\n" +
@@ -3349,7 +3359,8 @@ const file_dockwell_v1_domain_proto_rawDesc = "" +
 	"\x05zones\x18\x04 \x03(\tR\x05zones\x12/\n" +
 	"\x14tunnel_api_token_set\x18\x05 \x01(\bR\x11tunnelApiTokenSet\x12+\n" +
 	"\x04kept\x18\x06 \x03(\v2\x17.dockwell.v1.KeptRecordR\x04kept\x12\x1a\n" +
-	"\bprojects\x18\a \x03(\tR\bprojects\"\x9a\x01\n" +
+	"\bprojects\x18\a \x03(\tR\bprojects\x12!\n" +
+	"\fstrict_zones\x18\b \x03(\tR\vstrictZones\"\x9a\x01\n" +
 	"\n" +
 	"KeptRecord\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
