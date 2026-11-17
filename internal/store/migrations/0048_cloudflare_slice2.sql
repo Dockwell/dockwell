@@ -2,12 +2,8 @@
 -- What Dockwell keeps at Cloudflare beyond records and rules: the mode it set a
 -- zone to, and what a zone's mode was before; and the server a tunnel's rule was
 -- written for, so the drift timer can tell when the tunnel runs somewhere else too.
+-- (0047, on main, let kept copies of records share a name.)
 -- See docs/adr/0104-adding-a-domain-publishes-it.md.
-
--- A record's backup kept apart (type 'pending') can share its name with another
--- one, so only records written at Cloudflare are one per name and type.
-DROP INDEX cloudflare_records_name;
-CREATE UNIQUE INDEX cloudflare_records_name ON cloudflare_records (zone_id, name, type) WHERE type <> 'pending';
 
 -- The server whose proxy a rule sends to, by ID: empty for a rule written before
 -- this was kept.
