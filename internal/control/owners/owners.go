@@ -70,6 +70,13 @@ type Runner struct {
 	wg    sync.WaitGroup
 }
 
+// forgetSetUp drops what was read of an environment's failed owner's app being set up.
+func (r *Runner) forgetSetUp(environment string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.setUp, environment)
+}
+
 // SetUp says whether an environment's failed owner's app read set up, by its done,
 // while a person set it up through its setup link (ADR 0105).
 func (r *Runner) SetUp(environment string) bool {
@@ -291,7 +298,8 @@ func (r *Runner) look(ctx context.Context, tx *store.Tx, environment string) ([]
 			continue
 		case st.State == store.OwnerFailed:
 			// It waits for a person: RetryCatalogOwner, or open it. While they set it
-			// up through its setup link, its done is read for its page.
+			// up through its setup link, its done is read for its page; once the link
+			// ends, what was read goes (the review's L3).
 			live, err := r.setupLive(ctx, tx, environment, now)
 			if err != nil {
 				return nil, nil, err
@@ -304,9 +312,13 @@ func (r *Runner) look(ctx context.Context, tx *store.Tx, environment string) ([]
 			}
 			if server != "" {
 				jobs = append(jobs, job{id: res.ID, environment: environment, server: server, setUp: true, tries: st.Tries, since: st.UpdatedAt})
+			} else {
+				r.forgetSetUp(environment)
 			}
 			continue
 		}
+		// It's not failed, so nothing it read of being set up holds.
+		r.forgetSetUp(environment)
 		if !has || st.State == store.OwnerWaitingEmail {
 			st.State, st.UpdatedAt = store.OwnerWaiting, now
 			record = append(record, st)
@@ -767,6 +779,8 @@ func (r *Runner) Release(ctx context.Context, environment string) error {
 // Retry has a failed owner tried again at the next look, reading whether it's made
 // first, and says what's observed now.
 func (r *Runner) Retry(ctx context.Context, environment string) (store.AppOwnerState, error) {
+	// A retry starts over: what was read of it being set up by hand goes.
+	r.forgetSetUp(environment)
 	var out store.AppOwnerState
 	err := r.DB.Update(ctx, func(tx *store.Tx) error {
 		list, err := tx.ListResources(ctx, environment, string(appowner.Kind))

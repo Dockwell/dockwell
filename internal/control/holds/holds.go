@@ -230,7 +230,7 @@ func (h *Holds) Hook(ctx context.Context, tx *store.Tx, edits []revision.Edit) (
 	for i := range out {
 		ed := &out[i]
 		spec, ok := ed.Spec.(*resourcev1.Route)
-		if !ok || ed.SetsUp || ed.Reverses || ed.Restores {
+		if !ok || ed.SetsUp {
 			continue
 		}
 		var want *resourcev1.RouteSetup
@@ -240,6 +240,12 @@ func (h *Holds) Hook(ctx context.Context, tx *store.Tx, edits []revision.Edit) (
 				return nil, nil, err
 			}
 			want = stored.GetSetup()
+			// An undo or a rollback never brings a link back: it keeps the one
+			// stored now, where it puts that same one, and nothing else (the review's
+			// L2).
+			if (ed.Reverses || ed.Restores) && !proto.Equal(spec.GetSetup(), want) {
+				want = nil
+			}
 		}
 		if proto.Equal(spec.GetSetup(), want) {
 			continue

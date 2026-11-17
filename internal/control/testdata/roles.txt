@@ -76,7 +76,7 @@ CatalogService.ListCatalogStores               read         viewer     viewer   
 CatalogService.OpenCatalogInstall              plan         developer  developer  project
 CatalogService.RemoveCatalogSource             plan         admin      admin      install
 CatalogService.RestoreCatalogNeed              plan         developer  developer  project
-CatalogService.RetryCatalogOwner               apply        developer  developer  project
+CatalogService.RetryCatalogOwner               apply        developer  admin      project
 CatalogService.SetCatalogCompanion             plan         developer  developer  project
 CatalogService.SetCatalogNeed                  plan         developer  developer  project
 CatalogService.SetCatalogOwnerEmail            plan         developer  developer  project

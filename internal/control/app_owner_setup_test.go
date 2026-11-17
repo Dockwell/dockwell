@@ -101,21 +101,90 @@ func TestASetupLinkIsAPersonsAndOnlyItsOwnWriteChangesIt(t *testing.T) {
 	})
 }
 
-// A domain served over plain HTTP gets no setup link, as its Secure cookie wouldn't
-// be kept there (ADR 0105).
+// A domain a browser reaches over plain HTTP gets no setup link, as its Secure
+// cookie wouldn't be kept there: one that answers anyone, and one that answers this
+// server alone with no proxy named in front, as the route's own rule says (ADR 0105;
+// the review's M6).
 func TestAPlainDomainGetsNoSetupLink(t *testing.T) {
 	t.Parallel()
-	o := startOwning(t, store.SQLite, ownedEntry(1, "1.0", firstRelease, "", "firstVisitorOwns: true\n"), &dockwellv1.InstallCatalogEntryRequest{Id: "thing"})
-	r := &resourcev1.Route{Domain: "thing.example.com", Service: "web", Port: 80, Tls: "off", PlainForAnyone: true}
-	applyAsRoot(t, o.b, propose(t, o.c, "A plain domain", &dockwellv1.Edit{
-		Resource: &dockwellv1.ResourceRef{Kind: string(route.Kind), Scope: o.env, Name: "www"},
-		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Route{Route: r}},
-	}))
-	if !o.route("www").GetHeld() {
-		t.Fatal("the test needs the route held")
+	for name, r := range map[string]*resourcev1.Route{
+		"answering anyone":   {Domain: "thing.example.com", Service: "web", Port: 80, Tls: "off", PlainForAnyone: true},
+		"naming no proxy":    {Domain: "thing.example.com", Service: "web", Port: 80, Tls: "off"},
+		"behind a tunnel ok": {Domain: "thing.example.com", Service: "web", Port: 80, Tls: "off", TrustedProxies: []string{"127.0.0.1"}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			o := startOwning(t, store.SQLite, ownedEntry(1, "1.0", firstRelease, "", "firstVisitorOwns: true\n"), &dockwellv1.InstallCatalogEntryRequest{Id: "thing"})
+			applyAsRoot(t, o.b, propose(t, o.c, "A plain domain", &dockwellv1.Edit{
+				Resource: &dockwellv1.ResourceRef{Kind: string(route.Kind), Scope: o.env, Name: "www"},
+				Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Route{Route: r}},
+			}))
+			if !o.route("www").GetHeld() {
+				t.Fatal("the test needs the route held")
+			}
+			_, err := o.cat.SetUpCatalogInstall(t.Context(), connect.NewRequest(&dockwellv1.SetUpCatalogInstallRequest{Id: "thing"}))
+			if want := "no_https"; name == "behind a tunnel ok" {
+				if reasonOf(err) == want {
+					t.Errorf("a domain behind a tunnel was refused: %v", err)
+				}
+			} else if reasonOf(err) != want {
+				t.Errorf("a plain domain's setup link: %v", err)
+			}
+		})
 	}
-	if _, err := o.cat.SetUpCatalogInstall(t.Context(), connect.NewRequest(&dockwellv1.SetUpCatalogInstallRequest{Id: "thing"})); reasonOf(err) != "no_https" {
-		t.Errorf("a plain domain's setup link: %v", err)
+}
+
+// The setup link comes back once its change has applied on the server, so the
+// first click works; trying again takes it away first, and undoing that doesn't
+// bring it back (the review's M4, L1 and L2).
+func TestASetupLinkIsLiveWhenItComesBackAndGoesForGood(t *testing.T) {
+	t.Parallel()
+	o := startOwning(t, store.SQLite, ownedEntry(1, "1.0", firstRelease, ownerInputs, ownerTop), &dockwellv1.InstallCatalogEntryRequest{Id: "thing"})
+	o.agent.fail = "it answered 500"
+	o.look()
+	o.addRoute("www", "thing.example.com", 80, 0)
+	proof := stepUpFor(t, o.b, dockwellv1.StepUpAction_STEP_UP_ACTION_SET_UP_CATALOG_INSTALL, o.install().GetProjectId())
+	res, err := o.cat.SetUpCatalogInstall(t.Context(), connect.NewRequest(&dockwellv1.SetUpCatalogInstallRequest{Id: "thing", Proof: proof}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := o.c.GetChange(t.Context(), connect.NewRequest(&dockwellv1.GetChangeRequest{Id: res.Msg.GetChange().GetId()}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Msg.GetChange().GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Errorf("the link came back with its change %v", got.Msg.GetChange().GetState())
+	}
+	if _, err := o.cat.RetryCatalogOwner(t.Context(), connect.NewRequest(&dockwellv1.RetryCatalogOwnerRequest{Id: "thing"})); err != nil {
+		t.Fatal(err)
+	}
+	o.f.engine.Wait()
+	if s := o.route("www").GetSetup(); s != nil {
+		t.Fatalf("a retry left the link: %v", s)
+	}
+	list, err := o.c.ListChanges(t.Context(), connect.NewRequest(&dockwellv1.ListChangesRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var taken string
+	for _, c := range list.Msg.GetChanges() {
+		if strings.Contains(c.GetSummary(), "setup link away") {
+			taken = c.GetId()
+		}
+	}
+	if taken == "" {
+		t.Fatal("no change took the link away")
+	}
+	undo, err := o.c.UndoChange(t.Context(), connect.NewRequest(&dockwellv1.UndoChangeRequest{Id: taken}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	applyAsRoot(t, o.b, undo.Msg.GetChange())
+	if s := o.route("www").GetSetup(); s != nil {
+		t.Errorf("undoing the change that took the link away brought it back: %v", s)
+	}
+	if !o.route("www").GetHeld() {
+		t.Error("the undo opened the route")
 	}
 }
 
@@ -143,6 +212,17 @@ func TestAFailedOwnersAppReadsSetUpThroughItsSetupLink(t *testing.T) {
 	o.look()
 	if in := o.install(); in.GetOwner().GetState() != dockwellv1.CatalogOwnerState_CATALOG_OWNER_STATE_FAILED || !in.GetOwner().GetSetUp() || !in.GetHeld() {
 		t.Errorf("set up through the link: %v, held %v", in.GetOwner(), in.GetHeld())
+	}
+	// A retry starts over, and what was read goes with the link (the review's L3).
+	o.agent.mu.Lock()
+	o.agent.fail, o.agent.made = "it answered 500", false
+	o.agent.mu.Unlock()
+	if _, err := o.cat.RetryCatalogOwner(t.Context(), connect.NewRequest(&dockwellv1.RetryCatalogOwnerRequest{Id: "thing"})); err != nil {
+		t.Fatal(err)
+	}
+	o.look()
+	if in := o.install(); in.GetOwner().GetSetUp() {
+		t.Errorf("after a retry, it still reads set up: %v", in.GetOwner())
 	}
 }
 

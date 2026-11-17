@@ -25,7 +25,6 @@ import (
 	"github.com/dockwell/dockwell/internal/auth"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/changes"
-	"github.com/dockwell/dockwell/internal/ingress"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/route"
 	"github.com/dockwell/dockwell/internal/revision"
@@ -154,6 +153,11 @@ func (h *Handler) SetUpCatalogInstall(ctx context.Context, req *connect.Request[
 		return nil, err
 	}
 	done = true
+	// The link works once its server's agent has it, so it goes back only then,
+	// never to a first click that would find the app isn't open yet (the review's M4).
+	if err := h.waitApplied(ctx, change.GetId(), install.GetProject()); err != nil {
+		return nil, err
+	}
 	path := strings.TrimSuffix(routes[0].spec.GetPath(), "/")
 	link := url.URL{Scheme: "https", Host: domain, Path: path + "/.well-known/dockwell-setup", RawQuery: url.Values{"key": {key}}.Encode()}
 	return connect.NewResponse(&dockwellv1.SetUpCatalogInstallResponse{
@@ -193,11 +197,42 @@ func (h *Handler) heldRoutes(ctx context.Context, environment string) ([]heldRou
 	return out, err
 }
 
-// overHTTPS says whether a browser reaches a route over HTTPS: one the server's
-// proxy serves with a certificate, or one it serves over plain HTTP behind a proxy
-// it names, which serves HTTPS in front, as a tunnel does.
-func overHTTPS(r *resourcev1.Route) bool {
-	return r.GetTls() != ingress.TLSOff || len(r.GetTrustedProxies()) > 0
+// overHTTPS says whether a browser reaches a route over HTTPS, as the route's own
+// rule says (route.PlainAtTheBrowser), which the panel mirrors (the review's M6).
+func overHTTPS(r *resourcev1.Route) bool { return !route.PlainAtTheBrowser(r) }
+
+// setupWait bounds how long a setup link waits for its change to reach the server.
+var setupWait = time.Minute
+
+// waitApplied waits for the change that writes a setup link to apply on its
+// server, and says why where it failed or didn't within setupWait.
+func (h *Handler) waitApplied(ctx context.Context, change, project string) error {
+	ctx, cancel := context.WithTimeout(ctx, setupWait)
+	defer cancel()
+	for {
+		var got store.Change
+		err := h.db.View(ctx, func(tx *store.Tx) error {
+			var err error
+			got, err = tx.GetChange(ctx, change)
+			return err
+		})
+		if err != nil && ctx.Err() == nil {
+			return h.internal(ctx, err)
+		}
+		switch got.State {
+		case store.ChangeApplied:
+			return nil
+		case store.ChangeFailed, store.ChangeDiscarded:
+			return authapi.ReasonError(connect.CodeFailedPrecondition,
+				fmt.Errorf("the change that writes %s's setup link didn't apply: %s. Make a new link once that's fixed", project, cmp.Or(got.Error, got.State)), "not_applied")
+		}
+		select {
+		case <-ctx.Done():
+			return authapi.ReasonError(connect.CodeUnavailable,
+				fmt.Errorf("the change that writes %s's setup link hasn't reached its server within %s, so the link wouldn't work yet. Check that the server is connected, then make a new link", project, setupWait), "not_applied")
+		case <-time.After(200 * time.Millisecond):
+		}
+	}
 }
 
 // clearSetups takes the setup link off an install's held routes, as a change it

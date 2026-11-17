@@ -120,12 +120,13 @@ service CatalogService {
 
   // RetryCatalogOwner tries again to make an install's owner, where it failed: it
   // reads whether the owner is made first, and runs the entry's steps only where it
-  // isn't. It changes nothing Dockwell manages, as the owner is the app's, so it
-  // plans nothing (ADR 0105).
+  // isn't. The owner is the app's, so it plans nothing of it; it first takes away a
+  // setup link the install has, as a change it applies, so in a protected
+  // environment it's an admin's (ADR 0105).
   rpc RetryCatalogOwner(RetryCatalogOwnerRequest) returns (RetryCatalogOwnerResponse) {
     option (dockwell.v1.effect) = EFFECT_APPLY;
     option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
-    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
     option (dockwell.v1.reach) = REACH_PROJECT;
     option (dockwell.v1.command) = {verb: "retry-owner"};
     option (google.api.http) = {

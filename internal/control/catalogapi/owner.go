@@ -304,16 +304,17 @@ func (h *Handler) RetryCatalogOwner(ctx context.Context, req *connect.Request[do
 	if h.owners == nil {
 		return nil, connect.NewError(connect.CodeUnavailable, errors.New("this control plane doesn't make apps' owners"))
 	}
+	// Trying again takes a setup link made for doing it by hand away, first, so a
+	// retry that runs has done that (ADR 0105; the review's L1).
+	if err := h.clearSetups(ctx, found.install); err != nil {
+		return nil, err
+	}
 	st, err := h.owners.Retry(ctx, found.install.GetEnvironmentId())
 	if errors.Is(err, store.ErrNotFound) {
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("there's nothing to try again: Dockwell doesn't make %s's owner", found.install.GetProject()), "no_owner")
 	}
 	if err != nil {
 		return nil, h.internal(ctx, err)
-	}
-	// Trying again takes a setup link made for doing it by hand away (ADR 0105).
-	if err := h.clearSetups(ctx, found.install); err != nil {
-		return nil, err
 	}
 	var owner *dockwellv1.CatalogOwner
 	err = h.db.View(ctx, func(tx *store.Tx) error {

@@ -751,7 +751,7 @@ func Methods() []*apicli.Method {
 			Noun:      "catalog",
 			Verb:      "retry-owner",
 			Short:     "Try again to make an install's owner",
-			Long:      "Try again to make an install's owner, where it failed: it reads whether the\nowner is made first, and runs the entry's steps only where it isn't. It changes\nnothing Dockwell manages, as the owner is the app's, so it plans nothing (ADR\n0105).",
+			Long:      "Try again to make an install's owner, where it failed: it reads whether the\nowner is made first, and runs the entry's steps only where it isn't. The owner\nis the app's, so it plans nothing of it; it first takes away a setup link the\ninstall has, as a change it applies, so in a protected environment it's an\nadmin's (ADR 0105).",
 			Effect:    v1.Effect_EFFECT_APPLY,
 			Fields: []apicli.Field{
 				{Path: "id", Help: "The install's project, by name or ID.", Arg: true},

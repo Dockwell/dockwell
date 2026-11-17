@@ -143,8 +143,9 @@ type CatalogServiceClient interface {
 	SetCatalogNeed(context.Context, *connect.Request[v1.SetCatalogNeedRequest]) (*connect.Response[v1.SetCatalogNeedResponse], error)
 	// RetryCatalogOwner tries again to make an install's owner, where it failed: it
 	// reads whether the owner is made first, and runs the entry's steps only where it
-	// isn't. It changes nothing Dockwell manages, as the owner is the app's, so it
-	// plans nothing (ADR 0105).
+	// isn't. The owner is the app's, so it plans nothing of it; it first takes away a
+	// setup link the install has, as a change it applies, so in a protected
+	// environment it's an admin's (ADR 0105).
 	RetryCatalogOwner(context.Context, *connect.Request[v1.RetryCatalogOwnerRequest]) (*connect.Response[v1.RetryCatalogOwnerResponse], error)
 	// SetCatalogOwnerEmail plans giving the owner's email to an install a token made
 	// without one, which waits held for it. Once applied, Dockwell makes the owner
@@ -540,8 +541,9 @@ type CatalogServiceHandler interface {
 	SetCatalogNeed(context.Context, *connect.Request[v1.SetCatalogNeedRequest]) (*connect.Response[v1.SetCatalogNeedResponse], error)
 	// RetryCatalogOwner tries again to make an install's owner, where it failed: it
 	// reads whether the owner is made first, and runs the entry's steps only where it
-	// isn't. It changes nothing Dockwell manages, as the owner is the app's, so it
-	// plans nothing (ADR 0105).
+	// isn't. The owner is the app's, so it plans nothing of it; it first takes away a
+	// setup link the install has, as a change it applies, so in a protected
+	// environment it's an admin's (ADR 0105).
 	RetryCatalogOwner(context.Context, *connect.Request[v1.RetryCatalogOwnerRequest]) (*connect.Response[v1.RetryCatalogOwnerResponse], error)
 	// SetCatalogOwnerEmail plans giving the owner's email to an install a token made
 	// without one, which waits held for it. Once applied, Dockwell makes the owner
