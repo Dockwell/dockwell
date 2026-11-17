@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -89,8 +90,8 @@ func (p *Publisher) planProvider(ctx context.Context, pp revision.PublishProvide
 		all, atRisk := p.zoneModeNames(ctx, proxied)
 		add(resource.ActionUpdate, resource.ProviderStep{
 			Provider: name, Action: resource.ProviderSetZoneMode, Target: zone, Name: zone, Was: modeWords(mode), To: modeWords(strict),
-			Routing: strictWords(zone, all), ZoneID: t.zone.ID, Mode: strict,
-		}, resource.Access{Kind: resource.AccessZoneMode, Path: zone, Detail: strings.Join(atRisk, ", ")})
+			Routing: strictWords(zone, all, atRisk), ZoneID: t.zone.ID, Mode: strict,
+		}, resource.Access{Kind: resource.AccessZoneMode, Path: zone, Detail: listed(atRisk, len(atRisk))})
 	}
 	for _, zone := range before {
 		if slices.Contains(after, zone) {
@@ -249,11 +250,40 @@ func (p *Publisher) zoneModeNames(ctx context.Context, proxied []dnsproviders.Re
 }
 
 // strictWords says what Full (strict) does to names, every one named.
-func strictWords(zone string, names []string) string {
+func strictWords(zone string, names, atRisk []string) string {
 	if len(names) == 0 {
 		return "No name in " + zone + " is proxied outside a tunnel now"
 	}
-	return "Cloudflare reaches each over HTTPS with a certificate it checks, so a name whose server has none valid stops answering: " + strings.Join(names, ", ")
+	// The names at risk come first, each by name; Dockwell's own, which it vouches
+	// for, as a count past them (the re-check's A-L1).
+	said := "Cloudflare reaches each over HTTPS with a certificate it checks, so a name whose server has none valid stops answering: "
+	if len(atRisk) == 0 {
+		return said + listed(names, len(names))
+	}
+	out := said + listed(atRisk, len(atRisk))
+	if ours := len(names) - len(atRisk); ours == 1 {
+		out += ", and 1 name Dockwell publishes"
+	} else if ours > 1 {
+		out += ", and " + strconv.Itoa(ours) + " names Dockwell publishes"
+	}
+	return out
+}
+
+// maxNamed is how many names a plan's line names before it counts the rest.
+const maxNamed = 20
+
+// listed names up to maxNamed of names, then counts the rest of total.
+func listed(names []string, total int) string {
+	if len(names) > maxNamed {
+		names = names[:maxNamed]
+	}
+	out := strings.Join(names, ", ")
+	if rest := total - len(names); rest == 1 {
+		out += ", and 1 more"
+	} else if rest > 1 {
+		out += ", and " + strconv.Itoa(rest) + " more"
+	}
+	return out
 }
 
 // putBackWords says what putting a zone's mode back does to names.
@@ -261,7 +291,7 @@ func putBackWords(zone, mode string, names []string) string {
 	if len(names) == 0 {
 		return "No name in " + zone + " is proxied outside a tunnel now"
 	}
-	return "Cloudflare reaches each as " + modeWords(mode) + " says again: " + strings.Join(names, ", ")
+	return "Cloudflare reaches each as " + modeWords(mode) + " says again: " + listed(names, len(names))
 }
 
 // setZoneMode sets a zone's mode as its step says. Setting Full (strict) keeps what

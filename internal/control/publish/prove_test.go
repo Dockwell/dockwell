@@ -5,6 +5,8 @@ package publish
 import (
 	"context"
 	"net/http/httptest"
+	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -97,5 +99,22 @@ func TestZoneModeNamesPanelFirst(t *testing.T) {
 	}
 	if got := strings.Join(atRisk, " "); got != "panel.example.com vpn.example.com" {
 		t.Errorf("at risk: %s", got)
+	}
+}
+
+// A zone with many proxied names names the ones at risk, up to a bound, and counts
+// the rest, so a plan's line stays a line (the re-check's A-L1).
+func TestFullStrictWordsAreBounded(t *testing.T) {
+	var atRisk []string
+	for i := range 25 {
+		atRisk = append(atRisk, "n"+strconv.Itoa(i)+".example.com")
+	}
+	all := append(slices.Clone(atRisk), "docs.example.com", "wiki.example.com")
+	got := strictWords("example.com", all, atRisk)
+	if !strings.HasSuffix(got, "n19.example.com, and 5 more, and 2 names Dockwell publishes") || strings.Contains(got, "n20.") {
+		t.Fatalf("bounded: %s", got)
+	}
+	if got := listed(atRisk, len(atRisk)); strings.Count(got, ".example.com") != 20 {
+		t.Fatalf("an approval names 20: %s", got)
 	}
 }
