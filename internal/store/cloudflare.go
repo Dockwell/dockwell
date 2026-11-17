@@ -28,6 +28,10 @@ const (
 	// CloudflareTunnelShared is a rule whose tunnel runs on another server too, so
 	// Cloudflare sends some of the zone's names to a server with no route for them.
 	CloudflareTunnelShared = "tunnel_shared"
+	// CloudflareRuleKept is a rule made by hand that Dockwell took on, or moved, and
+	// took out of its tunnel since, kept whole so undo puts it back where it was.
+	// Dockwell holds it in no tunnel, and no listing of held rules names it.
+	CloudflareRuleKept = "kept"
 )
 
 // CloudflareRecord is a DNS record Dockwell wrote or took on, as it wrote it.
@@ -226,16 +230,16 @@ func (t *Tx) PutCloudflareRule(ctx context.Context, r CloudflareRule) error {
 
 // CloudflareRulesOf lists the rules Dockwell holds in a tunnel.
 func (t *Tx) CloudflareRulesOf(ctx context.Context, tunnelID string) ([]CloudflareRule, error) {
-	return t.cloudflareRules(ctx, `WHERE tunnel_id = ? ORDER BY hostname, path`, tunnelID)
+	return t.cloudflareRules(ctx, `WHERE tunnel_id = ? AND state <> 'kept' ORDER BY hostname, path`, tunnelID)
 }
 
 // CloudflareRulesAll lists every rule Dockwell holds, for the drift timer.
 func (t *Tx) CloudflareRulesAll(ctx context.Context) ([]CloudflareRule, error) {
-	return t.cloudflareRules(ctx, `ORDER BY tunnel_id, hostname, path`)
+	return t.cloudflareRules(ctx, `WHERE state <> 'kept' ORDER BY tunnel_id, hostname, path`)
 }
 
-// CloudflareRuleAt returns the rule Dockwell holds in a tunnel for hostname and
-// path, or ErrNotFound.
+// CloudflareRuleAt returns what's recorded of a rule in a tunnel for hostname and
+// path, held or kept (CloudflareRuleKept), or ErrNotFound.
 func (t *Tx) CloudflareRuleAt(ctx context.Context, tunnelID, hostname, path string) (CloudflareRule, error) {
 	r, err := scanCloudflareRule(t.queryRow(ctx, `SELECT `+cloudflareRuleColumns+` FROM cloudflare_rules WHERE tunnel_id = ? AND hostname = ? AND path = ?`, tunnelID, strings.ToLower(hostname), path))
 	if errors.Is(err, sql.ErrNoRows) {

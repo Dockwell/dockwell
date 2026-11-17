@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -152,5 +153,51 @@ func TestADocumentFromNothing(t *testing.T) {
 	}
 	if _, err := Parse(json.RawMessage(`[1]`)); !errors.Is(err, ErrNoDocument) {
 		t.Errorf("not an object: %v", err)
+	}
+}
+
+// A rule taken out goes back whole, where it was; a rule moved keeps every key but
+// its service; and the check before a move's write refuses anything more.
+func TestPuttingARuleBackAndMovingOne(t *testing.T) {
+	raw := json.RawMessage(`{"originRequest":{"connectTimeout":10},"ingress":[{"hostname":"panel.example.com","service":"http://127.0.0.1:7600"},{"hostname":"wiki.example.com","service":"http://127.0.0.1:8080","originRequest":{"noTLSVerify":true},"future":1},{"service":"http_status:404"}]}`)
+	d, err := Parse(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	elem := d.Elem(1)
+	out, err := d.Remove(1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	back, at, err := out.InsertAt(elem, 1)
+	if err != nil || at != 1 {
+		t.Fatalf("put back: %d, %v", at, err)
+	}
+	if err := CheckSplice(out.Raw(), back.Raw(), 1, true); err != nil {
+		t.Fatalf("put back is one rule more: %v", err)
+	}
+	same, err := decodeExact(back.Raw())
+	if err != nil {
+		t.Fatal(err)
+	}
+	was, _ := decodeExact(raw)
+	if !reflect.DeepEqual(same, was) {
+		t.Fatalf("put back, the document should be as it was:\n%s", back.Raw())
+	}
+	moved, err := d.WithService(1, "http://127.0.0.1:80")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := CheckMoved(d.Raw(), moved.Raw(), 1, "http://127.0.0.1:80"); err != nil {
+		t.Fatalf("a move is its service alone: %v", err)
+	}
+	if moved.Rules[1].Service != "http://127.0.0.1:80" || !strings.Contains(string(moved.Raw()), `"future":1`) || !strings.Contains(string(moved.Raw()), `"noTLSVerify":true`) {
+		t.Fatalf("moved: %s", moved.Raw())
+	}
+	if err := CheckMoved(d.Raw(), moved.Raw(), 0, "http://127.0.0.1:80"); err == nil {
+		t.Fatal("a move checked at another rule passed")
+	}
+	if _, err := d.WithService(2, "http://127.0.0.1:80"); err == nil {
+		t.Fatal("the catch-all was moved")
 	}
 }

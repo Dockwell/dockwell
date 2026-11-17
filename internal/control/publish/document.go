@@ -167,6 +167,114 @@ func (d *Document) Remove(i int) (*Document, error) {
 	return Parse(b.Bytes())
 }
 
+// Elem is the rule at i as it sits in the document, with every key it has: what's
+// kept of a rule taken out, to put it back whole.
+func (d *Document) Elem(i int) json.RawMessage {
+	if i < 0 || i >= len(d.elems) {
+		return nil
+	}
+	return bytes.Clone(d.raw[d.elems[i][0]:d.elems[i][1]])
+}
+
+// InsertAt splices elem, a whole rule as Elem gave it, in at at, before the
+// catch-all at the latest, and returns the new document and where it went: a rule
+// put back where it was.
+func (d *Document) InsertAt(elem json.RawMessage, at int) (*Document, int, error) {
+	var r Rule
+	if err := json.Unmarshal(elem, &r); err != nil {
+		return nil, 0, fmt.Errorf("the rule to put back can't be read: %w", err)
+	}
+	if !d.HasCatchAll() {
+		return nil, 0, errors.New("the tunnel's last rule isn't a catch-all, which Cloudflare asks for, so Dockwell won't add to it")
+	}
+	at = max(0, min(at, len(d.Rules)-1))
+	start := d.elems[at][0]
+	var b bytes.Buffer
+	b.Write(d.raw[:start])
+	b.Write(bytes.TrimSpace(elem))
+	b.WriteByte(',')
+	b.Write(d.raw[start:])
+	out, err := Parse(b.Bytes())
+	return out, at, err
+}
+
+// WithService points the rule at i at service, keeping every other key of it, and
+// returns the new document: a rule moved to the server's proxy.
+func (d *Document) WithService(i int, service string) (*Document, error) {
+	if i < 0 || i >= len(d.Rules)-1 {
+		return nil, errors.New("there's no such rule to move, or it's the catch-all")
+	}
+	var keys map[string]json.RawMessage
+	if err := json.Unmarshal(d.raw[d.elems[i][0]:d.elems[i][1]], &keys); err != nil {
+		return nil, fmt.Errorf("can't read the rule to move: %w", err)
+	}
+	to, err := json.Marshal(service)
+	if err != nil {
+		return nil, err
+	}
+	keys["service"] = to
+	elem, err := json.Marshal(keys)
+	if err != nil {
+		return nil, err
+	}
+	var b bytes.Buffer
+	b.Write(d.raw[:d.elems[i][0]])
+	b.Write(elem)
+	b.Write(d.raw[d.elems[i][1]:])
+	return Parse(b.Bytes())
+}
+
+// CheckMoved checks, before a write, that after differs from before by the service
+// of the rule at at alone, which is now service: every other key of it, every other
+// rule and everything outside ingress the same, value for value.
+func CheckMoved(before, after json.RawMessage, at int, service string) error {
+	b, err := decodeExact(before)
+	if err != nil {
+		return err
+	}
+	a, err := decodeExact(after)
+	if err != nil {
+		return err
+	}
+	bm, _ := b.(map[string]any)
+	am, _ := a.(map[string]any)
+	if bm == nil || am == nil || len(bm) != len(am) {
+		return ErrMoreChanged
+	}
+	for k, v := range bm {
+		if k == "ingress" {
+			continue
+		}
+		if w, ok := am[k]; !ok || !reflect.DeepEqual(v, w) {
+			return ErrMoreChanged
+		}
+	}
+	br, _ := bm["ingress"].([]any)
+	ar, _ := am["ingress"].([]any)
+	if len(br) != len(ar) || at < 0 || at >= len(br) {
+		return ErrMoreChanged
+	}
+	for i := range br {
+		if i != at {
+			if !reflect.DeepEqual(br[i], ar[i]) {
+				return ErrMoreChanged
+			}
+			continue
+		}
+		was, _ := br[i].(map[string]any)
+		is, _ := ar[i].(map[string]any)
+		if was == nil || is == nil || len(was) != len(is) || is["service"] != service {
+			return ErrMoreChanged
+		}
+		for k, v := range was {
+			if k != "service" && !reflect.DeepEqual(v, is[k]) {
+				return ErrMoreChanged
+			}
+		}
+	}
+	return nil
+}
+
 // Index finds a rule by its hostname and path, or -1.
 func (d *Document) Index(hostname, path string) int {
 	for i, r := range d.Rules {
