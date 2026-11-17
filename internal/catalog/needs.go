@@ -1703,8 +1703,11 @@ func NeedAs(e *catalogv1.Entry, met map[string]Way, running map[string]string) (
 			l.MeetsEnvironment, l.Service = w.Existing.EnvironmentID, w.Existing.Service
 		}
 	}
-	// What only a service left out used goes with it, as a companion's inputs do.
-	inputs = slices.DeleteFunc(inputs, func(in *catalogv1.Input) bool { return !usesInput(file, in.GetName()) })
+	// What only a service left out used goes with it, as a companion's inputs do. What
+	// the owner's steps name is no service's, and stays, as their file needn't name it
+	// (ADR 0105).
+	owned := OwnerInputs(e)
+	inputs = slices.DeleteFunc(inputs, func(in *catalogv1.Input) bool { return !usesInput(file, in.GetName()) && !owned[in.GetName()] })
 	for _, add := range adds {
 		if slices.ContainsFunc(inputs, func(in *catalogv1.Input) bool { return in.GetName() == add.GetName() }) {
 			continue
