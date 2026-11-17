@@ -1146,7 +1146,16 @@ type CatalogInstall struct {
 	// does, which would move this down, so it stays on its own version until the
 	// catalog has a release of it or later, and takes no new build meanwhile. A new
 	// install takes the lower one (ADR 0080). Unset otherwise.
-	Withdrawn     *CatalogWithdrawal `protobuf:"bytes,10,opt,name=withdrawn,proto3" json:"withdrawn,omitempty"`
+	Withdrawn *CatalogWithdrawal `protobuf:"bytes,10,opt,name=withdrawn,proto3" json:"withdrawn,omitempty"`
+	// Where a browser opens it now, as the control plane works it out (ADR 0103):
+	// its domain, such as "https://docs.example.com", or else the panel's Open
+	// address, or else its port on loopback. Empty for an app with nothing to open,
+	// or one whose entry names no variable that follows it.
+	Address string `protobuf:"bytes,11,opt,name=address,proto3" json:"address,omitempty"`
+	// The variables that follow its address which don't hold what that address
+	// gives them, as "service/VARIABLE": a value a person set, or one a change the
+	// address didn't pass through left behind. Empty where every one follows.
+	AddressKept   []string `protobuf:"bytes,12,rep,name=address_kept,json=addressKept,proto3" json:"address_kept,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1247,6 +1256,20 @@ func (x *CatalogInstall) GetCompanions() map[string]bool {
 func (x *CatalogInstall) GetWithdrawn() *CatalogWithdrawal {
 	if x != nil {
 		return x.Withdrawn
+	}
+	return nil
+}
+
+func (x *CatalogInstall) GetAddress() string {
+	if x != nil {
+		return x.Address
+	}
+	return ""
+}
+
+func (x *CatalogInstall) GetAddressKept() []string {
+	if x != nil {
+		return x.AddressKept
 	}
 	return nil
 }
@@ -3616,7 +3639,7 @@ const file_dockwell_v1_catalog_proto_rawDesc = "" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x1c\n" +
 	"\x1aListCatalogInstallsRequest\"V\n" +
 	"\x1bListCatalogInstallsResponse\x127\n" +
-	"\binstalls\x18\x01 \x03(\v2\x1b.dockwell.v1.CatalogInstallR\binstalls\"\x86\x04\n" +
+	"\binstalls\x18\x01 \x03(\v2\x1b.dockwell.v1.CatalogInstallR\binstalls\"\xc3\x04\n" +
 	"\x0eCatalogInstall\x12\x1d\n" +
 	"\n" +
 	"project_id\x18\x01 \x01(\tR\tprojectId\x12\x18\n" +
@@ -3632,7 +3655,9 @@ const file_dockwell_v1_catalog_proto_rawDesc = "" +
 	"companions\x18\t \x03(\v2+.dockwell.v1.CatalogInstall.CompanionsEntryR\n" +
 	"companions\x12<\n" +
 	"\twithdrawn\x18\n" +
-	" \x01(\v2\x1e.dockwell.v1.CatalogWithdrawalR\twithdrawn\x1a=\n" +
+	" \x01(\v2\x1e.dockwell.v1.CatalogWithdrawalR\twithdrawn\x12\x18\n" +
+	"\aaddress\x18\v \x01(\tR\aaddress\x12!\n" +
+	"\faddress_kept\x18\f \x03(\tR\vaddressKept\x1a=\n" +
 	"\x0fCompanionsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\bR\x05value:\x028\x01\"G\n" +

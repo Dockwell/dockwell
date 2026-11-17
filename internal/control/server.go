@@ -568,6 +568,8 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		catalogSources := &catalogapi.Sources{Dir: cfg.CatalogSources, Client: cfg.CatalogClient}
 		catalogHandler := catalogapi.New(imports, ch, cfg.Store, cfg.Secrets, catalogSources, cfg.Build.Commit, cfg.Logger)
 		catalogHandler.EntriesFrom(cfg.CatalogDir)
+		// A route that moves a catalog app's address moves what follows it (ADR 0103).
+		ch.Address = catalogHandler.FollowAddress
 		*followOut = catalogHandler.Follow(cfg.Changes)
 		follower := *followOut
 		if cfg.Fleet != nil {
@@ -674,6 +676,18 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 			}
 			serviceHandler.Opener = appOpener
 			serviceHandler.Auth = cfg.Auth
+			// Until it has a domain, an app is reached at its Open address, which what
+			// follows its address says, where the panel opens apps: served on localhost
+			// alone (ADR 0061). Served at a domain, the panel offers a tunnel to the
+			// app's own port instead, which the loopback address is (ADR 0103; #779's
+			// review, H2).
+			if cfg.Public == nil && cfg.PanelDomain.BehindProxy == "" {
+				at := ".localhost"
+				if _, port, err := net.SplitHostPort(cfg.PanelListen); err == nil && port != "" {
+					at += ":" + port
+				}
+				catalogHandler.Open = func(serviceID string) string { return "http://" + appOpener.Label(serviceID) + at }
+			}
 		}
 		// What's newer than what each service runs, checked through its server's
 		// agent, and a catalog install's read from its catalog (ADR 0079).

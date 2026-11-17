@@ -174,6 +174,8 @@ func (h *Handler) setStorageNeed(ctx context.Context, s sourced, f found, entry 
 	if mail {
 		summary = fmt.Sprintf("Send %s's mail through %s", install.GetProject(), labelOf(name))
 	}
+	// Its address stays as Dockwell last wrote it (ADR 0103).
+	newPin.Address = pin.GetAddress()
 	change, err := h.imports.PlanUpgrade(ctx, composeapi.Upgrade{
 		Project:     install.GetProjectId(),
 		Environment: install.GetEnvironmentId(),

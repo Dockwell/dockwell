@@ -31,6 +31,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/changes"
 	"github.com/dockwell/dockwell/internal/control/composeapi"
+	newid "github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/registry"
 	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
@@ -44,6 +45,11 @@ import (
 
 // Handler implements CatalogService.
 type Handler struct {
+	// Open is the panel's Open address of a service, by its ID, such as
+	// "http://abcdefghij.localhost:7600", or "" where this control plane opens no
+	// apps (ADR 0061): where an app is reached until it has a domain (ADR 0103).
+	Open func(serviceID string) string
+
 	imports *composeapi.Handler
 	changes *changes.Handler
 	db      *store.DB
@@ -386,6 +392,18 @@ func (h *Handler) InstallCatalogEntry(ctx context.Context, req *connect.Request[
 	}
 	pin := pinTo(entry, from, filled, choice)
 	pin.Needs, pin.Written, pin.Given = needed.Pinned, needed.Written, givenNames(nil, m.GetValues())
+	// What follows the app's address is written from where it's reached as it's
+	// planned: the panel's Open address of web, by the ID web takes now, or its port.
+	// The pin records it, by which a value a person sets later reads as theirs (ADR
+	// 0103).
+	var webIDs map[string]string
+	var address map[string]map[string]string
+	if web := chosen.GetWeb().GetService(); web != "" && len(chosen.GetAddressVariables()) > 0 {
+		webID := newid.New(newid.Service)
+		if at := h.installAddress(chosen, filled.Variables, webID); at.Host != "" {
+			webIDs, address, pin.Address = map[string]string{web: webID}, catalog.AddressValues(chosen, at), at.Origin()
+		}
+	}
 	shared, sharedOn, err := h.sharedEdits(ctx, needed, filled)
 	if err != nil {
 		return nil, err
@@ -423,6 +441,8 @@ func (h *Handler) InstallCatalogEntry(ctx context.Context, req *connect.Request[
 		Public: catalog.PublicPorts(chosen, filled.Variables),
 		// Where it runs, which each of its services takes (ADR 0102).
 		Architectures: entry.GetArchitectures(),
+		IDs:           webIDs,
+		Address:       address,
 	})
 	if err != nil {
 		return nil, err
@@ -459,8 +479,17 @@ func (h *Handler) ListCatalogInstalls(ctx context.Context, _ *connect.Request[do
 	}
 	var installs []*dockwellv1.CatalogInstall
 	err = h.db.View(ctx, func(tx *store.Tx) (err error) {
-		installs, err = h.installs(ctx, tx, s)
-		return err
+		if installs, err = h.installs(ctx, tx, s); err != nil {
+			return err
+		}
+		for _, install := range installs {
+			if entry, ok := s.entryFor(install.GetPin()); ok {
+				if err := h.addressState(ctx, tx, install, entry); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
 	})
 	if err != nil {
 		return nil, h.internal(ctx, err)
@@ -816,6 +845,13 @@ func (h *Handler) upgrade(ctx context.Context, m *dockwellv1.UpgradeCatalogInsta
 	}
 	newPin := pinTo(entry, s.origins[entry.GetId()], filled, choice)
 	newPin.Needs, newPin.Written, newPin.Given = needed.Pinned, needed.Written, givenNames(pin, m.GetValues())
+	// What follows the app's address takes the release's values at the address it
+	// has now, and keeps a value a person set (ADR 0103).
+	address, at, err := h.upgradeAddress(ctx, install.GetEnvironmentId(), chosen, pin)
+	if err != nil {
+		return nil, h.internal(ctx, err)
+	}
+	newPin.Address = cmp.Or(at.Origin(), pin.GetAddress())
 	// A port the release declares public that isn't yet is a person's to approve,
 	// and one that answered on every address and doesn't now says so (ADR 0101).
 	asked := newlyPublic(catalog.PublicPorts(chosen, filled.Variables), ranOnEveryAddress(chosen, old, oldVariables))
@@ -851,6 +887,7 @@ func (h *Handler) upgrade(ctx context.Context, m *dockwellv1.UpgradeCatalogInsta
 		Notes:        pinNotes,
 		Needs:        composeapi.Needs{Variables: filled.Linked, Stands: filled.LinkStands, OldStands: oldLinked, Links: needed.Links, Extra: slices.Concat(users, written), Joins: linkJoins(needed)},
 		Public:       asked,
+		Address:      address,
 	})
 }
 

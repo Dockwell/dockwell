@@ -229,7 +229,8 @@ export type Entry = Message<"dockwell.catalog.v1alpha1.Entry"> & {
 
   /**
    * Variables a service builds its links or checks requests from, which follow
-   * the domain added to what web opens, such as Ghost's url.
+   * the app's address, such as Ghost's url: its domain, or the panel's Open
+   * address, or its port on loopback (ADR 0103).
    *
    * @generated from field: repeated dockwell.catalog.v1alpha1.AddressVariable address_variables = 26;
    */
@@ -789,7 +790,9 @@ export const SignupsSchema: GenMessage<Signups> = /*@__PURE__*/
   messageDesc(file_dockwell_catalog_v1alpha1_entry, 9);
 
 /**
- * AddressVariable is a variable that follows the domain an app is reached at.
+ * AddressVariable is a variable that follows the address an app is reached at
+ * (ADR 0103): the oldest domain routed to what web opens, at its whole path, or
+ * else the panel's Open address, or else web's port on loopback.
  *
  * @generated from message dockwell.catalog.v1alpha1.AddressVariable
  */
@@ -809,9 +812,14 @@ export type AddressVariable = Message<"dockwell.catalog.v1alpha1.AddressVariable
   variable: string;
 
   /**
-   * What it's set to, with {domain} where the domain goes, such as
-   * "https://{domain}", or a value of its own that goes with a domain, such
-   * as "https" for Nextcloud's OVERWRITEPROTOCOL.
+   * What it's set to. {origin} is the address as a browser opens it, such as
+   * "https://docs.example.com" or "http://abcdefghij.localhost:7600", {host} the
+   * same without its scheme, and {scheme} "https" for a domain and "http"
+   * otherwise: a value with them is written at install and again as the address
+   * moves. {domain} is the domain alone, so a value with it, such as
+   * "https://{domain}", or a value of its own that goes with a domain alone,
+   * such as "https" for Nextcloud's OVERWRITEPROTOCOL, is written only once the
+   * app has a domain, as before.
    *
    * @generated from field: string value = 3;
    */

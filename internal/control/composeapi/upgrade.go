@@ -73,6 +73,9 @@ type Upgrade struct {
 	// Public are the ports each service makes public on purpose, as Install's are:
 	// only those it doesn't publish on every address already.
 	Public map[string][]string
+	// Address is what each variable that follows the app's address takes at the
+	// address it has now, and took at the one Dockwell last wrote (ADR 0103).
+	Address Address
 	// Hold closes the app to strangers as it restarts, as one that starts on an
 	// empty database whose first visitor makes its owner (ADR 0084): each port its
 	// services publish listens on the server alone (PortMapping.held), beside the
@@ -121,10 +124,12 @@ func (h *Handler) PlanUpgrade(ctx context.Context, in Upgrade) (*dockwellv1.Chan
 		return nil, h.internal(ctx, err)
 	}
 	keepArchitectures(next, now, in.Architectures)
+	addressNotes := followAddress(place.environment, old, now, next, in.Address)
 	deletes, notes, err := mergeStack(place.environment, old, now, next)
 	if err != nil {
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, err, "upgrade_clash")
 	}
+	notes = append(notes, addressNotes...)
 	deletes = slices.DeleteFunc(deletes, func(r resource.Ref) bool { return r.Kind == service.Kind && slices.Contains(in.Keeps, r.Name) })
 	if in.Hold {
 		held, err := h.holdWays(ctx, place.environment, next, &in)

@@ -77,7 +77,7 @@ Awaiting the owner's decision; nothing is built for it yet.
 ## What it can't do
 
 - **Share an app.** Only people signed in to the panel, with the role and a passkey, open it. To give an app to others, add a domain, which stays the next step on its page.
-- **Fix an app that keeps the address it was first opened at.** WordPress's site address, Ghost's `url` and Nextcloud's trusted domains keep the label's until a domain sets them; the entry fields that let the domain step set them are separate work under #426.
+- **Fix an app that keeps the address it was first opened at.** WordPress's site address, Ghost's `url` and Nextcloud's trusted domains keep the label's until a domain sets them; the entry fields that let the domain step set them are separate work under #426. ADR 0103 writes an entry's address variables at the Open address until the app has a domain.
 - **Carry anything but HTTP and WebSockets.** Gitea's SSH, an S3 client, or a database's own port need their port published, or a domain where the protocol allows it.
 - **Serve a site.** Each request crosses the agent's link to the control plane, which is fine for an admin UI, not for traffic, and an agent carries 16 connections at once.
 - **Reach a service that publishes no port.** Dialing a container's address on its network is possible later; every catalog entry publishes its UI, so this starts there.

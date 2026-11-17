@@ -599,8 +599,8 @@ func checkAccess(e *catalogv1.Entry, cf *composeFile) error {
 		if _, ok := services[a.GetService()]; !ok || !envName.MatchString(a.GetVariable()) || a.GetValue() == "" {
 			return fmt.Errorf("its address sets %s on %s, which needs a service it runs, a variable's name and a value", a.GetVariable(), a.GetService())
 		}
-		if strings.Contains(strings.ReplaceAll(a.GetValue(), "{domain}", ""), "{") {
-			return fmt.Errorf("its address sets %s to %q, which names something other than {domain}", a.GetVariable(), a.GetValue())
+		if strings.Contains(addressPart.ReplaceAllString(a.GetValue(), ""), "{") || strings.Contains(a.GetValue(), "$") {
+			return fmt.Errorf("its address sets %s to %q, which names something other than {origin}, {host}, {scheme} or {domain}", a.GetVariable(), a.GetValue())
 		}
 	}
 	for _, n := range e.GetNotes() {

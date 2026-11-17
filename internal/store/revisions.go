@@ -820,6 +820,27 @@ func (t *Tx) GetRevision(ctx context.Context, resourceID string, number int) (Re
 	return rev, nil
 }
 
+// RevisionsIn returns every revision of every resource of a kind in a scope,
+// deleted ones' too, by resource and then by number: what it has ever been, as an
+// app's address reads the domains its routes ever had (ADR 0103).
+func (t *Tx) RevisionsIn(ctx context.Context, scope, kind string) ([]Revision, error) {
+	rows, err := t.query(ctx, `SELECT `+revisionColumns+`
+		FROM revisions v JOIN resources r ON r.id = v.resource_id WHERE r.scope = ? AND r.kind = ? ORDER BY r.id, v.number`, scope, kind)
+	if err != nil {
+		return nil, fmt.Errorf("can't read the revisions of %s in %s: %w", kind, scope, err)
+	}
+	defer rows.Close()
+	var out []Revision
+	for rows.Next() {
+		rev, err := scanRevision(rows)
+		if err != nil {
+			return nil, fmt.Errorf("can't read the revisions of %s in %s: %w", kind, scope, err)
+		}
+		out = append(out, rev)
+	}
+	return out, rows.Err()
+}
+
 // RevisionsOf returns the revisions a change made, in the order it asked
 // for them.
 func (t *Tx) RevisionsOf(ctx context.Context, changeID string) ([]Revision, error) {
