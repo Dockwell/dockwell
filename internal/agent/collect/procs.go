@@ -370,7 +370,10 @@ func readProcessIn(dir fs.FS, pid uint32) (p process, ok bool) {
 	}
 	// Only the start of a command line is read, as one can run to megabytes.
 	cmdline := readAtMost(dir, "cmdline", maxCommand*2)
-	p.command = strings.TrimSpace(strings.ReplaceAll(string(cmdline), "\x00", " "))
+	// A secret on it, as cloudflared's connector token, never leaves the server.
+	args := redact(strings.Split(strings.TrimRight(string(cmdline), "\x00"), "\x00"))
+	clear(cmdline)
+	p.command = strings.TrimSpace(strings.Join(args, " "))
 	if len(p.command) > maxCommand {
 		p.command = strings.ToValidUTF8(p.command[:maxCommand], "")
 	}
