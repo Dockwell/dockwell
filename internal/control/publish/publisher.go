@@ -18,6 +18,7 @@ import (
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/control/dnsproviders"
+	"github.com/dockwell/dockwell/internal/control/place"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/dnsprovider"
 	"github.com/dockwell/dockwell/internal/revision"
@@ -143,6 +144,13 @@ func (p *Publisher) target(ctx context.Context, provider, name string) (*target,
 	return nil, Unreadable{fmt.Errorf("%s's token doesn't reach %s at Cloudflare any more. Check the provider again under Integrations", provider, zoneName)}
 }
 
+// AdminCaller says the caller ctx carries is an admin of the install, or that it
+// carries none, as the control plane's own work does.
+func AdminCaller(ctx context.Context) bool {
+	c, ok := place.CallerFrom(ctx)
+	return !ok || store.RoleRank(place.Holds(c.Grants, place.Install)) >= store.RoleRank(store.RoleAdmin)
+}
+
 // Unreadable is a reason Dockwell can't read what it published at all, short of
 // someone fixing it: its provider isn't connected any more, or Cloudflare refuses the
 // token. Anything else may pass on its own.
@@ -260,8 +268,24 @@ func (p *Publisher) planRoute(ctx context.Context, r revision.PublishRoute, rule
 			delete(keep, w.ID)
 		}
 	}
+	// The name this plan still writes or keeps a record of the route's at. Nothing is
+	// put back there: what a record there replaced is carried on to it (the re-check's
+	// H1a).
+	published := ""
+	for id := range keep {
+		if i := slices.IndexFunc(written, func(w store.CloudflareRecord) bool { return w.ID == id }); i >= 0 {
+			published = written[i].Name
+		}
+	}
+	for i := range steps {
+		if ps := steps[i].Provider; ps != nil && ps.Record != nil && published == "" {
+			published = strings.ToLower(ps.Name)
+		}
+	}
 	// What Dockwell wrote that this route doesn't publish any more comes off, after
-	// the route is gone from its server, and what it replaced goes back.
+	// the route is gone from its server, and what it replaced goes back where the route
+	// writes nothing any more. Deleting it keeps that backup first (keepBackup), and
+	// putting it back takes it from there.
 	for i := range written {
 		w := &written[i]
 		if keep[w.ID] {
@@ -275,12 +299,13 @@ func (p *Publisher) planRoute(ctx context.Context, r revision.PublishRoute, rule
 		steps = append(steps, step(r, resource.ActionDelete, resource.ProviderStep{
 			Provider: w.Provider, Action: resource.ProviderDeleteRecord, Target: w.Zone, Name: w.Name, Was: words, ZoneID: w.ZoneID, Record: rec,
 		}))
-		if w.Replaced != "" {
+		if w.Replaced != "" && !strings.EqualFold(w.Name, published) {
 			var old dnsproviders.Record
 			if json.Unmarshal([]byte(w.Replaced), &old) == nil {
 				steps = append(steps, step(r, resource.ActionDelete, resource.ProviderStep{
 					Provider: w.Provider, Action: resource.ProviderRestoreRecord, Target: w.Zone, Name: w.Name, To: recordWords(old), ZoneID: w.ZoneID,
-					Record: &resource.ProviderRecord{Type: old.Type, Name: old.Name, Content: old.Content, Proxied: old.Proxied, TTL: old.TTL, Comment: old.Comment},
+					Pending: pending(w.ID),
+					Record:  &resource.ProviderRecord{Type: old.Type, Name: old.Name, Content: old.Content, Proxied: old.Proxied, TTL: old.TTL, Comment: old.Comment},
 				}))
 			}
 		}
@@ -288,14 +313,10 @@ func (p *Publisher) planRoute(ctx context.Context, r revision.PublishRoute, rule
 	// What a replace kept of a record made by hand, before a delete that landed without
 	// its write, goes back where the route doesn't publish that name any more. Where it
 	// does, the write takes it on (createRecord) (the review's H1).
-	publishes := strings.ToLower(r.After.GetDomain())
-	if pub := r.After.GetPublish(); pub == nil || pub.GetWay() == resourcev1.RouteWay_ROUTE_WAY_FRONT {
-		publishes = ""
-	}
 	for i := range kept {
 		k := &kept[i]
 		var old dnsproviders.Record
-		if strings.EqualFold(k.Name, publishes) || json.Unmarshal([]byte(k.Replaced), &old) != nil {
+		if strings.EqualFold(k.Name, published) || json.Unmarshal([]byte(k.Replaced), &old) != nil {
 			continue
 		}
 		steps = append(steps, step(r, resource.ActionDelete, resource.ProviderStep{
@@ -390,8 +411,13 @@ func (p *Publisher) planWrites(ctx context.Context, r revision.PublishRoute, pub
 			// from there is written again, so it isn't removed as well.
 			base.Action = resource.ProviderCreateRecord
 			steps = append(steps, step(r, resource.ActionCreate, base))
+			// A row of this type, or of any type whose record is gone, as a replace
+			// across types cut short leaves it, is what the write stands for: kept, so
+			// what it replaced is carried on, never put back beside it (the re-check's
+			// H1a).
 			for i := range written {
-				if written[i].Name == name && written[i].Type == d.Type {
+				gone := !slices.ContainsFunc(there, func(x dnsproviders.Record) bool { return x.ID == written[i].ID })
+				if written[i].Name == name && (written[i].Type == d.Type || gone) {
 					keep[written[i].ID] = true
 				}
 			}
@@ -424,7 +450,17 @@ func (p *Publisher) planWrites(ctx context.Context, r revision.PublishRoute, pub
 }
 
 // planRule plans the rule a route's tunnel needs, once for its zone, or its apex.
-func (p *Publisher) planRule(ctx context.Context, r revision.PublishRoute, t *target, tunnel, name string, facts Facts, rules map[string]bool) ([]resource.Step, error) {
+func (p *Publisher) planRule(ctx context.Context, r revision.PublishRoute, t *target, tunnel, name string, facts Facts, rules map[string]bool) (_ []resource.Step, err error) {
+	// Below an admin, a refusal says the tunnel's name and a fixed reason, never its
+	// rules, their services, other names or servers, as the live check does (ADR 0104,
+	// section 1, and the re-check's M7a). Applying plans again as the control plane,
+	// which is told why.
+	tunnelName := tunnel
+	defer func() {
+		if err != nil && !AdminCaller(ctx) {
+			err = fmt.Errorf("can't publish %s through %s now. An admin can see why", name, tunnelName)
+		}
+	}()
 	found, err := p.proveTunnel(ctx, r.Server, t, tunnel, facts)
 	if err != nil {
 		return nil, err
@@ -434,6 +470,7 @@ func (p *Publisher) planRule(ctx context.Context, r revision.PublishRoute, t *ta
 	if err != nil {
 		return nil, fmt.Errorf("can't read the tunnel at Cloudflare: %w", err)
 	}
+	tunnelName = info.Name
 	cfg, err := t.tunnels.ReadTunnelConfig(ctx, account, tunnel)
 	if err != nil {
 		return nil, fmt.Errorf("can't read %s's routes at Cloudflare: %w", info.Name, err)

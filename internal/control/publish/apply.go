@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -25,10 +26,46 @@ func (p *Publisher) Apply(ctx context.Context, changeID string, route revision.P
 	// whatever came of it.
 	defer p.cache.forgetUnder("pointing:" + s.ZoneID)
 	said, err := p.apply(ctx, changeID, route, s)
+	var nothing letGo
+	if errors.As(err, &nothing) {
+		return nothing.said, nil
+	}
 	if err == nil {
 		p.noteWrite(ctx, changeID, route.ID, s, 0)
 	}
 	return said, err
+}
+
+// letGo is a step done without writing at Cloudflare, with why: a record or rule
+// changed there since, or something in the way of putting one back. The change goes
+// on, and Activity notes no write (the re-check's L10).
+type letGo struct{ said string }
+
+func (l letGo) Error() string { return l.said }
+
+// keepBackup keeps what the record id of Dockwell's stood for, a record made by hand
+// it replaced, as a pending row of its route, before the record's own row goes: a
+// restore puts it back from there, or a write at its name carries it on. No path
+// drops it (the re-check's H1a and H1b).
+func (p *Publisher) keepBackup(ctx context.Context, tx *store.Tx, id string) error {
+	row, err := tx.CloudflareRecordByID(ctx, id)
+	if errors.Is(err, store.ErrNotFound) || err == nil && row.Replaced == "" {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	return tx.PutCloudflareRecord(ctx, pendingRow(row, row.Replaced, p.now()))
+}
+
+// pendingRow is the store's row for a backup kept apart, as of row's route and name.
+func pendingRow(row store.CloudflareRecord, replaced string, now time.Time) store.CloudflareRecord {
+	var old dnsproviders.Record
+	_ = json.Unmarshal([]byte(replaced), &old)
+	return store.CloudflareRecord{
+		ID: pending(row.ID), Provider: row.Provider, ZoneID: row.ZoneID, Zone: row.Zone, Name: row.Name, Type: store.CloudflarePendingType,
+		Content: old.Content, RouteID: row.RouteID, ChangeID: row.ChangeID, Replaced: replaced, State: "pending", CreatedAt: now,
+	}
 }
 
 func (p *Publisher) apply(ctx context.Context, changeID string, route revision.PublishRoute, s resource.ProviderStep) (string, error) {
@@ -81,25 +118,53 @@ func (p *Publisher) createRecord(ctx context.Context, changeID string, route rev
 		return "", fmt.Errorf("can't read what Cloudflare holds at %s: %w", want.Name, err)
 	}
 	var got dnsproviders.Record
+	atNow := map[string]bool{}
 	for _, x := range there {
+		atNow[x.ID] = true
 		if x.Type == want.Type && x.Content == want.Content && x.Comment == want.Comment {
 			got = x
 		}
+	}
+	restore := s.Action == resource.ProviderRestoreRecord
+	if restore && s.Pending != "" && got.ID == "" {
+		// What it would put back was carried on to a write at the name, or put back
+		// already: nothing's left to write.
+		var held bool
+		if err := p.DB.View(ctx, func(tx *store.Tx) error {
+			_, err := tx.CloudflareRecordByID(ctx, s.Pending)
+			held = err == nil
+			if errors.Is(err, store.ErrNotFound) {
+				return nil
+			}
+			return err
+		}); err != nil {
+			return "", err
+		}
+		if !held {
+			return "", letGo{"Nothing of " + want.Name + " was left to put back"}
+		}
+	}
+	// Something at the name now, as a record Dockwell let go as changed in Cloudflare,
+	// or one made since: the record kept isn't put back over it, nor beside it, and
+	// its copy stays kept (the re-check's H1b).
+	theirs := letGo{want.Name + " was changed in Cloudflare, so the record it had before Dockwell wasn't put back. Dockwell keeps a copy of it"}
+	if restore && got.ID == "" && slices.ContainsFunc(there, func(x dnsproviders.Record) bool { return addressLike(x.Type) }) {
+		return "", theirs
 	}
 	if got.ID == "" {
 		got, err = t.cf.CreateRecord(ctx, t.zone, want)
 		if err != nil {
 			var api *dnsproviders.APIError
 			if errors.As(err, &api) && api.Code == 81053 {
-				if s.Action == resource.ProviderRestoreRecord {
-					return "", fmt.Errorf("%s has been taken at Cloudflare since, so the record it had can't be put back", want.Name)
+				if restore {
+					return "", theirs
 				}
 				return "", fmt.Errorf("%s was taken at Cloudflare after the change was planned. Plan it again", want.Name)
 			}
 			return "", fmt.Errorf("can't write the DNS record for %s: %w", want.Name, err)
 		}
 	}
-	if s.Action == resource.ProviderRestoreRecord {
+	if restore {
 		// Put back as it was, it's someone else's again, and what kept it goes.
 		if s.Pending == "" {
 			return "", nil
@@ -107,6 +172,28 @@ func (p *Publisher) createRecord(ctx context.Context, changeID string, route rev
 		return "", p.DB.Update(ctx, func(tx *store.Tx) error { return tx.DeleteCloudflareRecord(ctx, s.Pending) })
 	}
 	return "", p.DB.Update(ctx, func(tx *store.Tx) error {
+		// What this one takes on of an older row: its backup, where this one holds none
+		// yet. A second, different backup stays kept apart, never dropped (the
+		// re-check's H1a).
+		carry := func(row store.CloudflareRecord, isPending bool) error {
+			switch {
+			case row.Replaced == "" || row.Replaced == replaced:
+			case replaced == "":
+				replaced = row.Replaced
+			case isPending:
+				return nil
+			default:
+				if err := tx.PutCloudflareRecord(ctx, pendingRow(row, row.Replaced, p.now())); err != nil {
+					return err
+				}
+			}
+			return tx.DeleteCloudflareRecord(ctx, row.ID)
+		}
+		// A step run again after its write was kept, as a resume runs one, finds its
+		// own row: what it holds stays.
+		if row, err := tx.CloudflareRecordByID(ctx, got.ID); err == nil {
+			replaced = cmp.Or(replaced, row.Replaced)
+		}
 		// What a replace kept of a record made by hand at this name, before a delete
 		// that landed without its write, stays with the record that's written now, so
 		// removing it, or undo, puts that one back (the review's H1).
@@ -116,22 +203,21 @@ func (p *Publisher) createRecord(ctx context.Context, changeID string, route rev
 		}
 		for i := range kept {
 			if strings.EqualFold(kept[i].Name, got.Name) {
-				replaced = cmp.Or(replaced, kept[i].Replaced)
-				if err := tx.DeleteCloudflareRecord(ctx, kept[i].ID); err != nil {
+				if err := carry(kept[i], true); err != nil {
 					return err
 				}
 			}
 		}
-		// What was kept of a record of this route's at the name, of this type, that's
-		// gone, goes: this one stands for it now, with what that one replaced.
+		// A row of this route's at the name that this one stands for now goes, with what
+		// it replaced carried on: one of this type, or one of any type whose record is
+		// gone from Cloudflare, as a replace across types cut short leaves it.
 		was, err := tx.CloudflareRecordsOf(ctx, route.ID)
 		if err != nil {
 			return err
 		}
 		for i := range was {
-			if was[i].ID != got.ID && strings.EqualFold(was[i].Name, got.Name) && was[i].Type == got.Type {
-				replaced = cmp.Or(replaced, was[i].Replaced)
-				if err := tx.DeleteCloudflareRecord(ctx, was[i].ID); err != nil {
+			if was[i].ID != got.ID && strings.EqualFold(was[i].Name, got.Name) && (was[i].Type == got.Type || !atNow[was[i].ID]) {
+				if err := carry(was[i], false); err != nil {
 					return err
 				}
 			}
@@ -151,7 +237,12 @@ func (p *Publisher) deleteRecord(ctx context.Context, s resource.ProviderStep) (
 		return "", err
 	}
 	forget := func() error {
-		return p.DB.Update(ctx, func(tx *store.Tx) error { return tx.DeleteCloudflareRecord(ctx, s.Record.ID) })
+		return p.DB.Update(ctx, func(tx *store.Tx) error {
+			if err := p.keepBackup(ctx, tx, s.Record.ID); err != nil {
+				return err
+			}
+			return tx.DeleteCloudflareRecord(ctx, s.Record.ID)
+		})
 	}
 	there, err := t.cf.RecordByID(ctx, t.zone, s.Record.ID)
 	var api *dnsproviders.APIError
@@ -164,7 +255,7 @@ func (p *Publisher) deleteRecord(ctx context.Context, s resource.ProviderStep) (
 		if err := forget(); err != nil {
 			return "", err
 		}
-		return s.Name + "'s record was changed in Cloudflare, so it stays", nil
+		return "", letGo{s.Name + "'s record was changed in Cloudflare, so it stays"}
 	}
 	if err := t.cf.Delete(ctx, t.zone, s.Record.ID); err != nil && (!errors.As(err, &api) || api.Code != 81044) {
 		return "", fmt.Errorf("can't remove the DNS record for %s: %w", s.Name, err)

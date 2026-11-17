@@ -555,6 +555,17 @@ func (a *API) tunnelJSON(t *Tunnel) map[string]any {
 	return out
 }
 
+// EditInPlace changes the record id in zone as an edit in the dashboard does,
+// keeping its ID.
+func (a *API) EditInPlace(zone, id string, change func(*Record)) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if r, ok := a.records[zone][id]; ok {
+		change(&r)
+		a.records[zone][id] = r
+	}
+}
+
 // SetToken sets what token may do while requests may be served; nil revokes it.
 func (a *API) SetToken(token string, t *Token) {
 	a.mu.Lock()

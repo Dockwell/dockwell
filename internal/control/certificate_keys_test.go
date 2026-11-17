@@ -42,7 +42,13 @@ func newDNSStand(t *testing.T) *dnsStand {
 // server joins.
 func newDNSStandWith(t *testing.T, prepare func(*fullServer)) *dnsStand {
 	t.Helper()
-	f := startFull(t, store.SQLite, nil)
+	return newDNSStandOn(t, store.SQLite, prepare)
+}
+
+// newDNSStandOn is newDNSStandWith, its control plane on backend.
+func newDNSStandOn(t *testing.T, backend store.Backend, prepare func(*fullServer)) *dnsStand {
+	t.Helper()
+	f := startFull(t, backend, nil)
 	if prepare != nil {
 		prepare(f)
 	}

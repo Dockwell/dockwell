@@ -47,9 +47,21 @@ func newPublishStand(t *testing.T) *publishStand {
 	return newPublishStandRunning(t, "cloudflared\x00tunnel\x00run\x00--token\x00"+token+"\x00")
 }
 
+// newPublishStandOn is newPublishStand, its control plane on backend.
+func newPublishStandOn(t *testing.T, backend store.Backend) *publishStand {
+	t.Helper()
+	token := base64.StdEncoding.EncodeToString([]byte(`{"a":"` + cftest.Account + `","t":"` + webOne + `","s":"never-leaves"}`))
+	return newPublishStandIn(t, backend, "cloudflared\x00tunnel\x00run\x00--token\x00"+token+"\x00")
+}
+
 // newPublishStandRunning is the stand with cloudflared run by the command line
 // cmdline, its arguments each ended by a NUL.
 func newPublishStandRunning(t *testing.T, cmdline string) *publishStand {
+	t.Helper()
+	return newPublishStandIn(t, store.SQLite, cmdline)
+}
+
+func newPublishStandIn(t *testing.T, backend store.Backend, cmdline string) *publishStand {
 	t.Helper()
 	finder := &tunnels.Finder{
 		Proc: fstest.MapFS{
@@ -62,7 +74,7 @@ func newPublishStandRunning(t *testing.T, cmdline string) *publishStand {
 			return tunnels.Ready{Connections: 4, ConnectorID: "connector-hz-1"}, nil
 		},
 	}
-	s := newDNSStandWith(t, func(f *fullServer) { f.tunnels = finder })
+	s := newDNSStandOn(t, backend, func(f *fullServer) { f.tunnels = finder })
 	cf := s.f.cloudflare
 	cf.Tokens[dnsToken] = cftest.Token{
 		Reads: []string{"example.com", "example.org"}, Writes: []string{"example.com", "example.org"}, Account: true,
