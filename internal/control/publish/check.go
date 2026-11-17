@@ -3,6 +3,7 @@
 package publish
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"net/http"
@@ -276,18 +277,27 @@ func (p *Publisher) ways(ctx context.Context, a CheckAsk, t *target, name string
 			opt.Off = name + " is past Cloudflare's free certificate"
 			continue
 		}
-		if _, err := p.proveTunnel(ctx, a.Server, t, f.GetTunnelId(), facts); err != nil {
-			opt.Off = offWords(err)
-			if denied(err) {
-				opt.Action, opt.ActionUrl = "Add it to this token", dnsproviders.TokenPage(t.zone.Account)
-			}
-			continue
-		}
-		account := f.GetAccountTag()
+		account := cmp.Or(f.GetAccountTag(), t.zone.Account)
 		if info, err := readFor(p, t, "info:"+f.GetTunnelId(), func() (dnsproviders.Tunnel, error) {
 			return t.tunnels.TunnelByID(ctx, account, f.GetTunnelId())
 		}); err == nil {
 			opt.TunnelName = info.Name
+		}
+		// Below an admin, a refusal says the tunnel's name and a fixed reason, never its
+		// rules, their services, other names or servers (ADR 0104, section 1, and the
+		// review's M7).
+		off := func(err error) string {
+			if a.Admin {
+				return offWords(err)
+			}
+			return "Dockwell can't publish through " + opt.TunnelName + " now. An admin can see why"
+		}
+		if _, err := p.proveTunnel(ctx, a.Server, t, f.GetTunnelId(), facts); err != nil {
+			opt.Off = off(err)
+			if denied(err) && a.Admin {
+				opt.Action, opt.ActionUrl = "Add it to this token", dnsproviders.TokenPage(t.zone.Account)
+			}
+			continue
 		}
 		doc, err := p.cache.get("doc:"+f.GetTunnelId(), p.now(), func() (any, error) {
 			cfg, err := t.tunnels.ReadTunnelConfig(ctx, account, f.GetTunnelId())
@@ -297,13 +307,13 @@ func (p *Publisher) ways(ctx context.Context, a CheckAsk, t *target, name string
 			return Parse(cfg.Config)
 		})
 		if err != nil {
-			opt.Off = offWords(err)
+			opt.Off = off(err)
 			continue
 		}
 		d, _ := doc.(*Document)
 		rt, err := p.routing(ctx, t, f.GetTunnelId(), d, f.GetReaches(), name)
 		if err != nil {
-			opt.Off = offWords(err)
+			opt.Off = off(err)
 			continue
 		}
 		need := NeedFor(d, rt, t.zone.Name, name)
@@ -314,6 +324,10 @@ func (p *Publisher) ways(ctx context.Context, a CheckAsk, t *target, name string
 			if a.Admin {
 				opt.CaughtBy, opt.Off = caught.Rule.Hostname+", to "+caught.Rule.Service, caught.Error()
 			}
+		case need.Refused != nil && !a.Admin && errors.Is(need.Refused, ErrServesPanel):
+			opt.Off = opt.TunnelName + " serves the panel there"
+		case need.Refused != nil && !a.Admin:
+			opt.Off = opt.TunnelName + " would send another name elsewhere"
 		case need.Refused != nil:
 			opt.Off = need.Refused.Error()
 		case !need.Nothing:

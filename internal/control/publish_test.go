@@ -421,6 +421,47 @@ func TestARuleStaysWhileANameMadeByHandUsesIt(t *testing.T) {
 	}
 }
 
+// Below an admin, a refusal on the tunnel's way says its name and a fixed reason,
+// and a domain's row says its record's type alone (the review's M7).
+func TestBelowAnAdminTheCheckSaysLittle(t *testing.T) {
+	t.Parallel()
+	s := newPublishStand(t)
+	s.applied(t, propose(t, s.person, "Publish wiki", s.published("wiki", "wiki.example.com")))
+	s.cf.Tunnels[webOne].Connectors = append(s.cf.Tunnels[webOne].Connectors, cftest.Connector{ID: "connector-elsewhere"})
+	hold := aMember(t, s.f)
+	hold(store.Grant{ProjectID: s.project, Role: store.RoleDeveloper})
+	dc := dockwellv1connect.NewDomainServiceClient(s.b, s.b.origin, connect.WithProtoJSON())
+	got, err := dc.CheckDomain(t.Context(), connect.NewRequest(&dockwellv1.CheckDomainRequest{ServerId: s.server, Domain: "blog.example.com", ProjectId: s.project}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	off := ""
+	for _, w := range got.Msg.GetCloudflare().GetWays() {
+		if w.GetWay() == resourcev1.RouteWay_ROUTE_WAY_SERVER_TUNNEL {
+			off = w.GetOff()
+		}
+	}
+	if off != "Dockwell can't publish through web-1 now. An admin can see why" {
+		t.Fatalf("a refusal, as a developer sees it: %q", off)
+	}
+	listed, err := dc.ListDomains(t.Context(), connect.NewRequest(&dockwellv1.ListDomainsRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows := 0
+	for _, d := range listed.Msg.GetDomains() {
+		for _, p := range d.GetPublished() {
+			rows++
+			if p.GetRecord() != "CNAME, proxied" {
+				t.Fatalf("a row's record, as a developer sees it: %q", p.GetRecord())
+			}
+		}
+	}
+	if rows != 1 {
+		t.Fatalf("rows: %d", rows)
+	}
+}
+
 // Ten checks of different names read Cloudflare once each after the first: only
 // the name's records, as what else a check reads is kept for 30 seconds. Once
 // Cloudflare says too many requests, checks read nothing for a minute (the

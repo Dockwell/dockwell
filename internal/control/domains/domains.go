@@ -275,6 +275,9 @@ func (h *Handler) add(ctx context.Context, tx *store.Tx, r *store.Resource, byNa
 // timer last read it: each record, and whether the tunnel's rule that served it is
 // still there (ADR 0104).
 func addPublished(ctx context.Context, tx *store.Tx, routeID string, rt *resourcev1.Route, d *dockwellv1.Domain) error {
+	// A proxied record's content is the origin address public DNS hides, so below an
+	// admin a row says only the record's type (ADR 0104, M12, and the review's M7).
+	admin, _ := callerProjects(ctx)
 	pub := rt.GetPublish()
 	if pub == nil || pub.GetWay() == resourcev1.RouteWay_ROUTE_WAY_FRONT {
 		return nil
@@ -300,7 +303,10 @@ func addPublished(ctx context.Context, tx *store.Tx, routeID string, rt *resourc
 		if rec.Type == "pending" {
 			continue
 		}
-		words := rec.Type + " " + rec.Content
+		words := rec.Type
+		if admin {
+			words += " " + rec.Content
+		}
 		if rec.Proxied {
 			words += ", proxied"
 		}
