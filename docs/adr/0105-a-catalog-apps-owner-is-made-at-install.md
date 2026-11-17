@@ -231,7 +231,7 @@ Each entry's owner way is proven on its real image in the catalog's checks befor
 | None | Adminer. |
 | Held | Uptime Kuma (setup is a socket.io event) and Plausible (its form carries a CSRF token). |
 
-**Ghost and mail.** Ghost emails a sign-in code on each new device, and with no mail its owner is locked out. Its entry turns staff device verification off (`security__staffDeviceVerification: false`) until its mail need (ADR 0099) is met, and the plan that meets the need turns it back on.
+**Ghost and mail.** Ghost emails a sign-in code on each new device, and with no mail its owner is locked out. Its entry turns staff device verification off (`security__staffDeviceVerification: false`) until its mail need (ADR 0099) is met, and the plan that meets the need turns it back on. As built in slice 1, the entry turns it off and nothing turns it back on: Ghost's entry has no mail need yet, so it stays off with mail too, until that need comes with the step that turns it on.
 
 ### What a person sees
 

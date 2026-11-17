@@ -250,9 +250,11 @@ func TestAnAppsOwnerIsMadeOnRealDocker(t *testing.T) {
 		// url: its default, http://localhost:<port>, is where an install without a
 		// domain is reached, and the entry writes https://<domain> once one routes
 		// (ADR 0103), which is the case a redirect would break. NODE_ENV is the
-		// image's own default, said here so the test can't run in development.
+		// image's own default, said here so the test can't run in development. Staff
+		// device verification is off, as the entry has it while it has no mail to send
+		// a new device its code (ADR 0105, "Ghost and mail").
 		run(t, client, env, "web", ghostImage, network, docker.Config{Env: []string{
-			"NODE_ENV=production", "url=https://blog.example.com", "database__client=mysql", "database__connection__host=db",
+			"NODE_ENV=production", "url=https://blog.example.com", "security__staffDeviceVerification=false", "database__client=mysql", "database__connection__host=db",
 			"database__connection__user=ghost", "database__connection__password=the-blogs", "database__connection__database=ghost",
 		}})
 		target, err := healthyContainer(t.Context(), client, env, "web")
@@ -262,7 +264,7 @@ func TestAnAppsOwnerIsMadeOnRealDocker(t *testing.T) {
 		// Ghost answers once MySQL is up and its tables are made, from inside.
 		site := ghostStep(http.MethodGet, "/ghost/api/admin/site/", "")
 		for until := time.Now().Add(6 * time.Minute); ; time.Sleep(3 * time.Second) {
-			out, code, err := target.Exec(t.Context(), site.GetWords(), "", []string{"DOCKWELL_HOST=blog.example.com", "DOCKWELL_SCHEME=https"})
+			out, code, err := target.Exec(t.Context(), site.GetWords(), "", nil)
 			if err == nil && code == 0 {
 				break
 			}
@@ -276,14 +278,11 @@ func TestAnAppsOwnerIsMadeOnRealDocker(t *testing.T) {
 			t.Fatalf("making Ghost's owner: %+v", res)
 		}
 		signIn := ghostStep(http.MethodPost, "/ghost/api/admin/session", `{"username":"{{OWNER_EMAIL}}","password":"{{OWNER_PASSWORD}}"}`)
-		// With the entry's settings, Ghost asks a new device for a code it emails, so a
-		// fresh client signing in with the right password is told its device needs
-		// verifying: that, or a session, says the password is right, where a wrong one
-		// answers that it's incorrect.
-		out, _, err := target.Exec(t.Context(), signIn.GetWords(), "", []string{"DOCKWELL_HOST=blog.example.com", "DOCKWELL_SCHEME=https", "OWNER_EMAIL=owner@example.com", "OWNER_PASSWORD=" + password})
+		// A fresh client, with no cookie of a device Ghost knows, signs in with the
+		// password Dockwell generated and gets a session, with no code to wait for.
+		out, _, err := target.Exec(t.Context(), signIn.GetWords(), "", []string{"OWNER_EMAIL=owner@example.com", "OWNER_PASSWORD=" + password})
 		said := string(out)
-		signedIn := strings.HasPrefix(said, "201 ") || strings.HasPrefix(said, "403 ") && strings.Contains(strings.ToLower(said), "verif")
-		if err != nil || !signedIn {
+		if err != nil || !strings.HasPrefix(said, "201 ") {
 			t.Errorf("the owner signs in to Ghost at https://blog.example.com: %v %s", err, said)
 		}
 		if yes, said := ownerstep.Read(t.Context(), target, ghostOwner(), ghostOwner().GetDone(), values); !yes {

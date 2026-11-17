@@ -714,8 +714,19 @@ sealed() {
 # environment and project (its Compose project) from the plan. Each plan goes on the
 # list a secret mustn't be in, and its project on the list cleanup removes, a plan a
 # registry failed included.
+#
+# What a check gives that the release being installed doesn't take is left out, as
+# an earlier release has no input for its owner's password yet, which the release a
+# check proves does (ADR 0105).
 plan_install() {
-  planned=$(dw catalog install "$id" "${install_flags[@]}" --plan-only --json) || fail "planning to install $id failed"
+  local takes flags=() i name
+  takes=" $(dw catalog get "$id" --json | jq -r '[.entry.inputs[]?.name] | join(" ")') " || fail "the catalog has no $id"
+  for ((i = 0; i < ${#install_flags[@]}; i += 2)); do
+    name=${install_flags[i + 1]%%=*}
+    [[ "${install_flags[i]}" != --values || "$takes" == *" $name "* ]] || continue
+    flags+=("${install_flags[i]}" "${install_flags[i + 1]}")
+  done
+  planned=$(dw catalog install "$id" "${flags[@]}" --plan-only --json) || fail "planning to install $id failed"
   change=$(jq -r '.change.id // empty' <<<"$planned")
   [[ "$change" == chg_* ]] || fail "installing $id planned no change: $planned"
   plans+=("$change")
