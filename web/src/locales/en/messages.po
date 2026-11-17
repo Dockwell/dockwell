@@ -7995,6 +7995,9 @@ msgstr "Copies its data"
 msgid "It serves another app already"
 msgstr "It serves another app already"
 
+msgid "It serves another app already, and {app} can't keep to a prefix of the bucket"
+msgstr "It serves another app already, and {app} can't keep to a prefix of the bucket"
+
 msgid "Its backups"
 msgstr "Its backups"
 
@@ -8006,6 +8009,9 @@ msgstr "Its files are there already"
 
 msgid "Its files stay where they are now"
 msgstr "Its files stay where they are now"
+
+msgid "Its files stay where they are now · shared"
+msgstr "Its files stay where they are now · shared"
 
 msgid "Its own settings, since it was disconnected"
 msgstr "Its own settings, since it was disconnected"
@@ -8334,6 +8340,9 @@ msgstr "Needs {list}"
 
 msgid "No connection meets it yet"
 msgstr "No connection meets it yet"
+
+msgid "Shared with other apps, each under its own prefix"
+msgstr "Shared with other apps, each under its own prefix"
 
 msgid "an ACL on each object"
 msgstr "an ACL on each object"
@@ -11454,6 +11463,9 @@ msgstr "Folders, each ending with a slash, such as {app}/"
 msgid "It hands browsers signed links"
 msgstr "It hands browsers signed links"
 
+msgid "It serves another app already, and isn't shared"
+msgstr "It serves another app already, and isn't shared"
+
 msgid "Its values come from the connection, checked from where the app runs"
 msgstr "Its values come from the connection, checked from where the app runs"
 
@@ -11468,6 +11480,9 @@ msgstr "No connection reaches this project"
 
 msgid "Nothing was planned"
 msgstr "Nothing was planned"
+
+msgid "Prefix it keeps its files under"
+msgstr "Prefix it keeps its files under"
 
 msgid "Public address"
 msgstr "Public address"
@@ -11514,6 +11529,9 @@ msgstr "Disconnect {link}"
 msgid "Dockwell can't read its connections"
 msgstr "Dockwell can't read its connections"
 
+msgid "Each keeps its files under a prefix of its own"
+msgstr "Each keeps its files under a prefix of its own"
+
 msgid "Every project"
 msgstr "Every project"
 
@@ -11523,11 +11541,17 @@ msgstr "In the host"
 msgid "In the path"
 msgstr "In the path"
 
+msgid "It serves an app already, and isn't shared"
+msgstr "It serves an app already, and isn't shared"
+
 msgid "Its keys go with it"
 msgstr "Its keys go with it"
 
 msgid "Keys"
 msgstr "Keys"
+
+msgid "More than one app may use it"
+msgstr "More than one app may use it"
 
 msgid "Names it sets"
 msgstr "Names it sets"
@@ -11562,6 +11586,18 @@ msgstr "Sealed, never shown"
 msgid "See every connection"
 msgstr "See every connection"
 
+msgid "Share it"
+msgstr "Share it"
+
+msgid "Share it to link another app beside them."
+msgstr "Share it to link another app beside them."
+
+msgid "Share the connection {label}"
+msgstr "Share the connection {label}"
+
+msgid "Stop sharing the connection {label}"
+msgstr "Stop sharing the connection {label}"
+
 msgid "Use in an app"
 msgstr "Use in an app"
 
@@ -11572,6 +11608,12 @@ msgstr "the server"
 #. placeholder {1}: answer.server || t`the server`
 msgid "{0} from {1}"
 msgstr "{0} from {1}"
+
+msgid "{apps, plural, one {# app uses it, but it isn't shared} other {# apps use it, but it isn't shared}}"
+msgstr "{apps, plural, one {# app uses it, but it isn't shared} other {# apps use it, but it isn't shared}}"
+
+msgid "{apps, plural, one {Stays shared while # app uses it: disconnect all but one first} other {Stays shared while # apps use it: disconnect all but one first}}"
+msgstr "{apps, plural, one {Stays shared while # app uses it: disconnect all but one first} other {Stays shared while # apps use it: disconnect all but one first}}"
 
 msgid "1 project"
 msgstr "1 project"
@@ -11698,6 +11740,10 @@ msgstr "no app uses them yet"
 msgid "none"
 msgstr "none"
 
+msgctxt "a connection more than one app may use"
+msgid "shared"
+msgstr "shared"
+
 #. placeholder {0}: connections.length
 msgid "{0, plural, one {# connection} other {# connections}}"
 msgstr "{0, plural, one {# connection} other {# connections}}"
@@ -11779,6 +11825,10 @@ msgstr "bucket"
 
 msgid "endpoint"
 msgstr "endpoint"
+
+msgctxt "where in a bucket an app keeps its files"
+msgid "prefix"
+msgstr "prefix"
 
 msgid "public address"
 msgstr "public address"

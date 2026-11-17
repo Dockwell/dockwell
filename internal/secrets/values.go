@@ -3,6 +3,7 @@
 package secrets
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -274,12 +275,19 @@ func (k *Keeper) written(ctx context.Context, tx *store.Tx, scopeID string, kind
 		}
 		return k.valueFrom(ctx, tx, scopeID, uses[0], depth+1, tr)
 	case *resourcev1.ValueFrom_Connection:
-		if len(uses) != 1 {
+		if len(uses) == 0 {
 			return "", errors.New("a value from a connection names none")
 		}
 		if tr != nil {
 			tr.connection = src.Connection.GetName()
 			return "", errFromConnection
+		}
+		if src.Connection.GetPart() == resourcev1.LinkPart_LINK_PART_KEY_PREFIX {
+			i := slices.IndexFunc(uses, func(u resource.Use) bool { return u.As == variable.LinkUse })
+			if i < 0 {
+				return "", errors.New("a value of a link's prefix names no link")
+			}
+			return k.linkPrefix(ctx, tx, scopeID, uses[i])
 		}
 		return k.connectionPart(ctx, tx, uses[0], src.Connection.GetPart())
 	}
@@ -319,6 +327,38 @@ func (k *Keeper) connectionPart(ctx context.Context, tx *store.Tx, u resource.Us
 		return "", fmt.Errorf("the connection %s holds no %s", u.Name, part)
 	}
 	return value, nil
+}
+
+// linkPrefix is the prefix a link keeps its app's files under, read at the revision
+// a value pins: the link owns it, so the value can't say other than the link does
+// (ADR 0099, the re-check's N3).
+func (k *Keeper) linkPrefix(ctx context.Context, tx *store.Tx, scopeID string, u resource.Use) (string, error) {
+	r, err := tx.GetResource(ctx, string(u.Kind), cmp.Or(u.Scope, scopeID), u.Name)
+	if errors.Is(err, store.ErrNotFound) {
+		return "", fmt.Errorf("there's no link %s for %s", u.Name, u.As)
+	}
+	if err != nil {
+		return "", err
+	}
+	if u.Revision <= 0 {
+		return "", fmt.Errorf("%s uses the link %s at no revision; plan the change again", u.As, u.Name)
+	}
+	rev, err := tx.GetRevision(ctx, r.ID, u.Revision)
+	if err != nil {
+		return "", err
+	}
+	if rev.Spec == nil {
+		return "", fmt.Errorf("%s uses the link %s at revision %d, which deleted it", u.As, u.Name, u.Revision)
+	}
+	spec, err := k.Decode(ctx, tx, store.InRevision(r.ID, string(u.Kind), rev.Revision), rev.Spec)
+	if err != nil {
+		return "", err
+	}
+	l, ok := spec.(*resourcev1.Link)
+	if !ok {
+		return "", fmt.Errorf("%s isn't a link", u.Name)
+	}
+	return l.GetPrefix(), nil
 }
 
 // Revealed is a secret's value, as RevealSecret returns it.

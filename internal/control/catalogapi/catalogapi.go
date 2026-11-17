@@ -699,10 +699,17 @@ func (h *Handler) upgrade(ctx context.Context, m *dockwellv1.UpgradeCatalogInsta
 	}
 	// Its needs stay met as they are, and one the release adds takes its first way.
 	server := h.serverOf(ctx, install.GetEnvironmentId())
-	needed, needNotes, err := h.meetNeeds(ctx, s, entry, m.GetValues(), nil, pin.GetNeeds(), nil, install.GetProject(), server, found.running())
+	// A link from before keeps the prefix its app's own setting says (#772's last
+	// check, C1).
+	pinned, keptNotes, err := h.prefixesKept(ctx, install.GetEnvironmentId(), install.GetProject(), entry, pin.GetNeeds())
+	if err != nil {
+		return nil, h.internal(ctx, err)
+	}
+	needed, needNotes, err := h.meetNeeds(ctx, s, entry, m.GetValues(), nil, pinned, nil, install.GetProject(), server, found.running())
 	if err != nil {
 		return nil, err
 	}
+	pinNotes = append(pinNotes, keptNotes...)
 	pinNotes = append(pinNotes, needNotes...)
 	pinNotes = append(pinNotes, restartsForNeeds(entry, pin, needed)...)
 	free, err := h.whatsFree(ctx, needed.Entry, "")

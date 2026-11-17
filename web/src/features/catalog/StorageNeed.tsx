@@ -155,7 +155,13 @@ export function StorageNeed({
               <code className="catalog-engine-version">{o.connection}</code>
             ) : null}
             <span className="catalog-need-server-state">
-              {o.why ? <Reason why={o.why} /> : t`Checked from ${app}'s server before it's planned`}
+              {o.why ? (
+                <Reason why={o.why} />
+              ) : o.connectionShared ? (
+                t`Shared with other apps, each under its own prefix`
+              ) : (
+                t`Checked from ${app}'s server before it's planned`
+              )}
             </span>
           </label>
         ))}

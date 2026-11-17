@@ -1616,6 +1616,10 @@ message ConnectionSpec {
   // it from who proposes the change; an edit's is ignored. Unset, as every
   // connection an admin saved, a check may reach a private address (ADR 0099).
   bool saved_below_admin = 6 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // An install admin has marked it as serving more than one link, each app under a
+  // prefix of its own: a need that keeps to a prefix is offered it though another
+  // app uses it already. Unset, it serves one link (ADR 0099).
+  bool shared = 7;
 }
 
 // ConnectionReach says which projects may use a connection, said, never implied.

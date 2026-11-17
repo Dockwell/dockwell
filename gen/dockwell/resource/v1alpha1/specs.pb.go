@@ -7204,8 +7204,12 @@ type ConnectionSpec struct {
 	// it from who proposes the change; an edit's is ignored. Unset, as every
 	// connection an admin saved, a check may reach a private address (ADR 0099).
 	SavedBelowAdmin bool `protobuf:"varint,6,opt,name=saved_below_admin,json=savedBelowAdmin,proto3" json:"saved_below_admin,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// An install admin has marked it as serving more than one link, each app under a
+	// prefix of its own: a need that keeps to a prefix is offered it though another
+	// app uses it already. Unset, it serves one link (ADR 0099).
+	Shared        bool `protobuf:"varint,7,opt,name=shared,proto3" json:"shared,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ConnectionSpec) Reset() {
@@ -7276,6 +7280,13 @@ func (x *ConnectionSpec) GetProjects() []string {
 func (x *ConnectionSpec) GetSavedBelowAdmin() bool {
 	if x != nil {
 		return x.SavedBelowAdmin
+	}
+	return false
+}
+
+func (x *ConnectionSpec) GetShared() bool {
+	if x != nil {
+		return x.Shared
 	}
 	return false
 }
@@ -9961,14 +9972,15 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\bprovider\x18\x01 \x01(\tR\bprovider\x12\x14\n" +
 	"\x05zones\x18\x02 \x03(\tR\x05zones\x12!\n" +
 	"\tapi_token\x18\x03 \x01(\tB\x04\xc8\xf3\x18\x01R\bapiToken\x12\x1a\n" +
-	"\bprojects\x18\x04 \x03(\tR\bprojects\"\xb8\x02\n" +
+	"\bprojects\x18\x04 \x03(\tR\bprojects\"\xd0\x02\n" +
 	"\x0eConnectionSpec\x12!\n" +
 	"\fdisplay_name\x18\x01 \x01(\tR\vdisplayName\x128\n" +
 	"\x04kind\x18\x02 \x01(\x0e2$.dockwell.resource.v1alpha1.LinkKindR\x04kind\x128\n" +
 	"\x02s3\x18\x03 \x01(\v2(.dockwell.resource.v1alpha1.ConnectionS3R\x02s3\x12A\n" +
 	"\x05reach\x18\x04 \x01(\x0e2+.dockwell.resource.v1alpha1.ConnectionReachR\x05reach\x12\x1a\n" +
 	"\bprojects\x18\x05 \x03(\tR\bprojects\x120\n" +
-	"\x11saved_below_admin\x18\x06 \x01(\bB\x04\xe2A\x01\x03R\x0fsavedBelowAdmin\"\xe7\x01\n" +
+	"\x11saved_below_admin\x18\x06 \x01(\bB\x04\xe2A\x01\x03R\x0fsavedBelowAdmin\x12\x16\n" +
+	"\x06shared\x18\a \x01(\bR\x06shared\"\xe7\x01\n" +
 	"\fConnectionS3\x12\x1a\n" +
 	"\bendpoint\x18\x01 \x01(\tR\bendpoint\x12\x16\n" +
 	"\x06region\x18\x02 \x01(\tR\x06region\x12\x16\n" +

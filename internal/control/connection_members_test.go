@@ -107,19 +107,14 @@ func TestAConnectionOfAnotherProjectReadsAsNotThere(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	sharedLink := func(env, name string) *dockwellv1.Edit {
-		return &dockwellv1.Edit{
-			Resource: &dockwellv1.ResourceRef{Kind: "link", Scope: env, Name: name},
-			Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Link{Link: &resourcev1.Link{
-				Label: "Storage", Connection: "shared", Kind: resourcev1.LinkKind_LINK_KIND_S3, Prefix: name + "/",
-				Sets: []*resourcev1.LinkSet{{Name: "SHARED_BUCKET", Part: resourcev1.LinkPart_LINK_PART_BUCKET}},
-			}}},
-		}
-	}
-	apply(t, c, propose(t, c, "Add shared", connectionEdit("shared", &resourcev1.ConnectionSpec{
-		DisplayName: "Shared", Kind: resourcev1.LinkKind_LINK_KIND_S3, Reach: resourcev1.ConnectionReach_CONNECTION_REACH_EVERY,
+	// Each an app of its own on shared, which it shares, under its own prefix.
+	edits := []*dockwellv1.Edit{connectionEdit("shared", &resourcev1.ConnectionSpec{
+		DisplayName: "Shared", Kind: resourcev1.LinkKind_LINK_KIND_S3, Reach: resourcev1.ConnectionReach_CONNECTION_REACH_EVERY, Shared: true,
 		S3: &resourcev1.ConnectionS3{Endpoint: srv.URL(), Bucket: "shared", AccessKeyId: "AKIDSHARED", SecretKey: "shared-secret", PathStyle: true},
-	}), sharedLink(env, "ours-link"), sharedLink(dataEnv, "data-link")))
+	})}
+	edits = append(edits, appOn(orgID(t, f), env, "shared", "ours-link", "ours-link/")...)
+	edits = append(edits, appOn(orgID(t, f), dataEnv, "shared", "data-link", "data-link/")...)
+	apply(t, c, propose(t, c, "Add shared", edits...))
 
 	// An admin's API token narrowed to this project is the only admin of one project
 	// there is: it reads as below an admin, with what reads a connection here alone,
@@ -424,19 +419,15 @@ func TestALinkItCantReadLeavesOnlyItselfOut(t *testing.T) {
 	c := changeClient(b, b.origin)
 	cc := dockwellv1connect.NewConnectionServiceClient(b, b.origin, connect.WithProtoJSON())
 	srv := s3test.New(t)
-	linkTo := func(name string) *dockwellv1.Edit {
-		return &dockwellv1.Edit{
-			Resource: &dockwellv1.ResourceRef{Kind: "link", Scope: env, Name: name},
-			Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Link{Link: &resourcev1.Link{
-				Label: "Storage", Connection: "shared", Kind: resourcev1.LinkKind_LINK_KIND_S3, Prefix: name + "/",
-				Sets: []*resourcev1.LinkSet{{Name: strings.ToUpper(strings.ReplaceAll(name, "-", "_")), Part: resourcev1.LinkPart_LINK_PART_BUCKET}},
-			}}},
-		}
-	}
-	apply(t, c, propose(t, c, "Add shared", connectionEdit("shared", &resourcev1.ConnectionSpec{
-		DisplayName: "Shared", Kind: resourcev1.LinkKind_LINK_KIND_S3, Reach: resourcev1.ConnectionReach_CONNECTION_REACH_EVERY,
+	pullsAnything(f.addDockerServer(t))
+	// Two apps of their own on shared, which they share, each under its own prefix.
+	edits := []*dockwellv1.Edit{connectionEdit("shared", &resourcev1.ConnectionSpec{
+		DisplayName: "Shared", Kind: resourcev1.LinkKind_LINK_KIND_S3, Reach: resourcev1.ConnectionReach_CONNECTION_REACH_EVERY, Shared: true,
 		S3: &resourcev1.ConnectionS3{Endpoint: srv.URL(), Bucket: "shared", AccessKeyId: "AKIDSHARED", SecretKey: "shared-secret", PathStyle: true},
-	}), linkTo("fine-link"), linkTo("broken-link")))
+	})}
+	edits = append(edits, appOn(orgID(t, f), env, "shared", "fine-link", "fine-link/")...)
+	edits = append(edits, appOn(orgID(t, f), env, "shared", "broken-link", "broken-link/")...)
+	apply(t, c, propose(t, c, "Add shared", edits...))
 
 	storetest.Exec(t, f.db, `DROP TRIGGER revisions_never_change`)
 	storetest.Exec(t, f.db, `UPDATE revisions SET spec = x'0a0a' WHERE resource_id IN (SELECT id FROM resources WHERE kind = 'link' AND name = 'broken-link')`)

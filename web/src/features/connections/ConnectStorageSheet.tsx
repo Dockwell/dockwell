@@ -35,7 +35,16 @@ import { useMay } from "../auth/may";
 import { type Opening, PlanView } from "../changes/ChangeSheet";
 import { useAllVariables } from "../variables/VariablesPage";
 import { ConnectionSheet } from "./ConnectionSheet";
-import { freeLinkName, freePrefix, keyPart, linksIn, STORAGE_PARTS, suggestedStorage } from "./storage";
+import {
+  freeLinkName,
+  freePrefix,
+  keptPrefix,
+  keyPart,
+  linksIn,
+  STORAGE_PARTS,
+  servedBy,
+  suggestedStorage,
+} from "./storage";
 import { useConnections } from "./useConnections";
 import "../apps/Apps.css";
 import "./Connections.css";
@@ -114,6 +123,11 @@ export function ConnectStorageSheet({
   const usable = listed.data?.connections ?? [];
   const [pickedConnection, setPickedConnection] = useState<string>();
   const connection = fixedConnection ?? usable.find((c) => c.name === pickedConnection) ?? usable[0];
+  // A connection serves one app unless it's shared, as the server holds (ADR 0099).
+  const servesAnother =
+    !!connection &&
+    !connection.shared &&
+    connection.uses.some((u) => servedBy(u).some((a) => a !== service?.id && a !== environment));
   const [adding, setAdding] = useState(false);
   const mayAdd = may(ConnectionService.method.checkConnection).allowed;
 
@@ -128,13 +142,13 @@ export function ConnectStorageSheet({
   const [presigned, setPresigned] = useState(false);
   const link = typedLink ?? linkName;
   // Each app on a connection keeps to a prefix no other link's meets, as the server
-  // refuses one that does.
+  // refuses one that does: an app no link tells a prefix keeps to the bucket's root.
   const prefix =
     typedPrefix ??
     (app
       ? freePrefix(
           `${app}/`,
-          (connection?.uses ?? []).map((u) => u.prefix),
+          (connection?.uses ?? []).map((u) => keptPrefix(u)),
         )
       : "");
   const prefixOk = PREFIX.test(prefix);
@@ -151,11 +165,12 @@ export function ConnectStorageSheet({
     [LinkPart.SECRET_KEY]: t`Secret access key`,
     [LinkPart.PUBLIC_URL]: t`Public address`,
     [LinkPart.PATH_STYLE]: t`Bucket in the path: true or false`,
+    [LinkPart.KEY_PREFIX]: t`Prefix it keeps its files under`,
   };
 
   const ask = async (event?: FormEvent) => {
     event?.preventDefault();
-    if (busy || !service || !connection || !setsAny || !prefixOk) return;
+    if (busy || !service || !connection || !setsAny || !prefixOk || servesAnother) return;
     setBusy(true);
     setFailure(undefined);
     const sets: Record<string, LinkPart> = {};
@@ -232,7 +247,7 @@ export function ConnectStorageSheet({
             variant="primary"
             size={phone ? "lg" : "md"}
             loading={busy}
-            disabled={!service || !connection || !setsAny || !prefixOk}
+            disabled={!service || !connection || !setsAny || !prefixOk || servesAnother}
             kbd={phone ? undefined : onApple() ? "⌘↵" : "Ctrl ↵"}
             onClick={() => void ask()}
           >
@@ -298,6 +313,7 @@ export function ConnectStorageSheet({
                 label: c.displayName && c.displayName !== c.name ? `${c.name} · ${c.displayName}` : c.name,
               }))}
               onChange={(event) => setPickedConnection(event.target.value)}
+              error={servesAnother ? t`It serves another app already, and isn't shared` : undefined}
             />
             {mayAdd ? (
               <Button size="sm" variant="ghost" icon="plus" onClick={() => setAdding(true)}>

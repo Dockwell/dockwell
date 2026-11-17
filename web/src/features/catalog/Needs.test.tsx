@@ -398,7 +398,7 @@ const busy = create(CatalogNeedOptionSchema, {
   choice: "connection:media",
   connection: "media",
   connectionLabel: "Media",
-  why: "it serves another app already, and a connection serves one app. Add a connection of its own on Connections",
+  why: "it serves another app already, and isn't shared",
 });
 
 function storageApi(options = [onItsOwnDisk, uploads, busy], more: Api["catalog"] = {}): Api {
@@ -443,14 +443,27 @@ describe("An app's storage as it's installed (ADR 0099)", () => {
     expect(within(picker).getByRole("radio", { name: /On its own disk/ })).toBeChecked();
     expect(within(picker).getByRole("radio", { name: /Media/ })).toBeDisabled();
     // A line, with the whole reason a step away (slice 2 review, L3).
-    expect(picker).not.toHaveTextContent("a connection serves one app");
+    expect(picker).not.toHaveTextContent("isn't shared");
     await user.click(within(picker).getByRole("button", { name: "Why" }));
-    expect(picker).toHaveTextContent("It serves another app already, and a connection serves one app");
+    expect(picker).toHaveTextContent("It serves another app already, and isn't shared");
     await expectAccessible(container);
     await user.click(within(picker).getByRole("radio", { name: /Uploads/ }));
     await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
     await waitFor(() => expect(asked).toBeDefined());
     expect(asked?.needs).toEqual({ db: "new:mariadb", storage: "connection:uploads" });
+  });
+
+  // ADR 0099: a shared connection another app uses is a way, and says it's shared.
+  it("offers a shared connection another app uses, and says it's shared", async () => {
+    const user = userEvent.setup();
+    const shared = create(CatalogNeedOptionSchema, { ...busy, why: "", connectionShared: true });
+    renderAt("/catalog/wordpress/install", storageApi([onItsOwnDisk, uploads, shared]));
+    const sheet = await screen.findByRole("dialog", { name: "Install WordPress" });
+    await user.click(await within(sheet).findByRole("button", { name: "Use a connection" }));
+    const picker = within(sheet).getByRole("group", { name: "Storage" });
+    const media = within(picker).getByRole("radio", { name: /Media/ });
+    expect(media).toBeEnabled();
+    expect(media.closest("label")).toHaveTextContent("Shared with other apps, each under its own prefix");
   });
 
   it("takes the only connection where the app can't run without storage", async () => {

@@ -106,35 +106,32 @@ func TestLinksToAConnectionKeepToPrefixesApart(t *testing.T) {
 	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
+	pullsAnything(f.addDockerServer(t))
 	env := listedEnv(t, b)
 	c := changeClient(b, b.origin)
-	linkTo := func(name, prefix string) *dockwellv1.Edit {
-		return &dockwellv1.Edit{
-			Resource: &dockwellv1.ResourceRef{Kind: "link", Scope: env, Name: name},
-			Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Link{Link: &resourcev1.Link{
-				Label: "Storage", Connection: "uploads", Kind: resourcev1.LinkKind_LINK_KIND_S3, Prefix: prefix,
-				Sets: []*resourcev1.LinkSet{{Name: "S3_BUCKET_" + strings.ToUpper(strings.ReplaceAll(name, "-", "_")), Part: resourcev1.LinkPart_LINK_PART_BUCKET}},
-			}}},
-		}
+	// Each an app that keeps to its prefix, on uploads, which is shared, as two apps on
+	// one connection need it to be (ADR 0099).
+	linkTo := func(name, prefix string) []*dockwellv1.Edit {
+		return appOn(orgID(t, f), env, "uploads", name, prefix)
 	}
-	apply(t, c, propose(t, c, "Add uploads", connectionEdit("uploads", &resourcev1.ConnectionSpec{
-		DisplayName: "Uploads", Kind: resourcev1.LinkKind_LINK_KIND_S3, Reach: resourcev1.ConnectionReach_CONNECTION_REACH_EVERY,
+	apply(t, c, propose(t, c, "Add uploads", append([]*dockwellv1.Edit{connectionEdit("uploads", &resourcev1.ConnectionSpec{
+		DisplayName: "Uploads", Kind: resourcev1.LinkKind_LINK_KIND_S3, Reach: resourcev1.ConnectionReach_CONNECTION_REACH_EVERY, Shared: true,
 		S3: &resourcev1.ConnectionS3{Endpoint: "https://s3.example.com", Bucket: "uploads", AccessKeyId: "AKIDEXAMPLE", SecretKey: connectionSecret},
-	}), linkTo("storage", "ghost/")))
+	})}, linkTo("storage", "ghost/")...)...))
 
 	for prefix, want := range map[string]string{
 		"ghost/":       "Pick another prefix, such as ghost-2/",
 		"ghost/media/": "Pick another prefix, such as ghost-2/",
 		"":             "under the bucket's root",
 	} {
-		_, err := c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Link media", Edits: []*dockwellv1.Edit{linkTo("media", prefix)}}))
+		_, err := c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Link media", Edits: linkTo("media", prefix)}))
 		if err == nil || !strings.Contains(err.Error(), "where another app keeps its files already, so each would overwrite the other's") || !strings.Contains(err.Error(), want) {
 			t.Errorf("a second link under %q: %v", prefix, err)
 		}
 	}
-	apply(t, c, propose(t, c, "Link media beside it", linkTo("media", "ghost-2/")))
+	apply(t, c, propose(t, c, "Link media beside it", linkTo("media", "ghost-2/")...))
 	// A link keeps the prefix it has through an edit, and may move to a free one.
-	apply(t, c, propose(t, c, "Move media", linkTo("media", "media/")))
+	apply(t, c, propose(t, c, "Move media", linkTo("media", "media/")...))
 }
 
 // A connection serves one app: once one install keeps its files on it, a second
@@ -348,24 +345,19 @@ func prefixClash(t *testing.T, hidden, seen string) (link func(prefix string) er
 	t.Helper()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
+	pullsAnything(f.addDockerServer(t))
 	env := listedEnv(t, b)
 	c := changeClient(b, b.origin)
-	linkTo := func(scope, name, prefix string) *dockwellv1.Edit {
-		return &dockwellv1.Edit{
-			Resource: &dockwellv1.ResourceRef{Kind: "link", Scope: scope, Name: name},
-			Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Link{Link: &resourcev1.Link{
-				Label: "Storage", Connection: "uploads", Kind: resourcev1.LinkKind_LINK_KIND_S3, Prefix: prefix,
-				Sets: []*resourcev1.LinkSet{{Name: "S3_BUCKET_" + strings.ToUpper(name), Part: resourcev1.LinkPart_LINK_PART_BUCKET}},
-			}}},
-		}
+	linkTo := func(scope, name, prefix string) []*dockwellv1.Edit {
+		return appOn(orgID(t, f), scope, "uploads", name, prefix)
 	}
-	apply(t, c, propose(t, c, "Add uploads", connectionEdit("uploads", &resourcev1.ConnectionSpec{
-		Kind: resourcev1.LinkKind_LINK_KIND_S3, Reach: resourcev1.ConnectionReach_CONNECTION_REACH_EVERY,
+	apply(t, c, propose(t, c, "Add uploads", append(append([]*dockwellv1.Edit{connectionEdit("uploads", &resourcev1.ConnectionSpec{
+		Kind: resourcev1.LinkKind_LINK_KIND_S3, Reach: resourcev1.ConnectionReach_CONNECTION_REACH_EVERY, Shared: true,
 		S3: &resourcev1.ConnectionS3{Endpoint: "https://s3.example.com", Bucket: "uploads", AccessKeyId: "AKIDEXAMPLE", SecretKey: connectionSecret},
-	}), linkTo(env, "hidden", hidden), &dockwellv1.Edit{
+	})}, linkTo(env, "hidden", hidden)...), &dockwellv1.Edit{
 		Resource: &dockwellv1.ResourceRef{Name: "data"},
 		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Project{Project: &resourcev1.Project{DisplayName: "Data"}}},
-	}))
+	})...))
 	data := envProjectByName(t, f, "data")
 	var dataEnv string
 	if err := f.store.View(t.Context(), func(tx *store.Tx) error {
@@ -376,12 +368,12 @@ func prefixClash(t *testing.T, hidden, seen string) (link func(prefix string) er
 		t.Fatal(err)
 	}
 	if seen != "" {
-		apply(t, c, propose(t, c, "Their own link", linkTo(dataEnv, "seen", seen)))
+		apply(t, c, propose(t, c, "Their own link", linkTo(dataEnv, "seen", seen)...))
 	}
 	hold := aMember(t, f)
 	hold(store.Grant{ProjectID: data, Role: store.RoleDeveloper})
 	link = func(prefix string) error {
-		_, err := c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Link media", Edits: []*dockwellv1.Edit{linkTo(dataEnv, "media", prefix)}}))
+		_, err := c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Link media", Edits: linkTo(dataEnv, "media", prefix)}))
 		return err
 	}
 	return link, link("ghost/")

@@ -43,13 +43,13 @@ func TestAnAppIsConnectedToStorage(t *testing.T) {
 		Resource: &dockwellv1.ResourceRef{Name: "notes"},
 		Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: &resourcev1.Service{
 			Runs:      &resourcev1.Service_App{App: &resourcev1.Container{Image: "acme/notes:1"}},
-			Variables: map[string]string{"S3_ENDPOINT": "S3_ENDPOINT", "S3_BUCKET": "S3_BUCKET", "S3_FORCE_PATH_STYLE": "S3_FORCE_PATH_STYLE"},
+			Variables: map[string]string{"S3_ENDPOINT": "S3_ENDPOINT", "S3_BUCKET": "S3_BUCKET", "S3_FORCE_PATH_STYLE": "S3_FORCE_PATH_STYLE", "S3_PREFIX": "S3_PREFIX"},
 			Secrets:   map[string]string{"S3_ACCESS_KEY_ID": "S3_ACCESS_KEY_ID", "S3_SECRET_ACCESS_KEY": "S3_SECRET_ACCESS_KEY"},
 		}}},
 		Servers: []string{f.lastDocker.id.ServerID},
 	}
 	apply(t, c, propose(t, c, "Run the notes app",
-		variableSpec("S3_ENDPOINT", "http://old.example.com"), variableSpec("S3_BUCKET", "old"), variableSpec("S3_FORCE_PATH_STYLE", "false"),
+		variableSpec("S3_ENDPOINT", "http://old.example.com"), variableSpec("S3_BUCKET", "old"), variableSpec("S3_FORCE_PATH_STYLE", "false"), variableSpec("S3_PREFIX", ""),
 		secretSpec("S3_ACCESS_KEY_ID", "old-id"), secretSpec("S3_SECRET_ACCESS_KEY", "old-secret"), notes))
 	appEnv := func(app string) []string {
 		t.Helper()
@@ -92,7 +92,7 @@ func TestAnAppIsConnectedToStorage(t *testing.T) {
 	sets := map[string]resourcev1.LinkPart{
 		"S3_ENDPOINT": resourcev1.LinkPart_LINK_PART_ENDPOINT, "S3_BUCKET": resourcev1.LinkPart_LINK_PART_BUCKET,
 		"S3_ACCESS_KEY_ID": resourcev1.LinkPart_LINK_PART_ACCESS_KEY_ID, "S3_SECRET_ACCESS_KEY": resourcev1.LinkPart_LINK_PART_SECRET_KEY,
-		"S3_FORCE_PATH_STYLE": resourcev1.LinkPart_LINK_PART_PATH_STYLE,
+		"S3_FORCE_PATH_STYLE": resourcev1.LinkPart_LINK_PART_PATH_STYLE, "S3_PREFIX": resourcev1.LinkPart_LINK_PART_KEY_PREFIX,
 	}
 	connectIt := func() (*connect.Response[dockwellv1.ConnectStorageResponse], error) {
 		return cc.ConnectStorage(t.Context(), connect.NewRequest(&dockwellv1.ConnectStorageRequest{
@@ -153,22 +153,36 @@ func TestAnAppIsConnectedToStorage(t *testing.T) {
 		Resource: &dockwellv1.ResourceRef{Name: "gallery"},
 		Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: &resourcev1.Service{
 			Runs:      &resourcev1.Service_App{App: &resourcev1.Container{Image: "acme/gallery:1"}},
-			Variables: map[string]string{"MEDIA_ENDPOINT": "MEDIA_ENDPOINT", "MEDIA_BUCKET": "MEDIA_BUCKET"},
+			Variables: map[string]string{"MEDIA_ENDPOINT": "MEDIA_ENDPOINT", "MEDIA_BUCKET": "MEDIA_BUCKET", "MEDIA_PREFIX": "MEDIA_PREFIX"},
 			Secrets:   map[string]string{"MEDIA_KEY_ID": "MEDIA_KEY_ID", "MEDIA_SECRET": "MEDIA_SECRET"},
 		}}},
 		Servers: []string{f.lastDocker.id.ServerID},
 	}
 	apply(t, c, propose(t, c, "Run the gallery app",
-		variableSpec("MEDIA_ENDPOINT", "http://old.example.com"), variableSpec("MEDIA_BUCKET", "old"),
+		variableSpec("MEDIA_ENDPOINT", "http://old.example.com"), variableSpec("MEDIA_BUCKET", "old"), variableSpec("MEDIA_PREFIX", ""),
 		secretSpec("MEDIA_KEY_ID", "old-id"), secretSpec("MEDIA_SECRET", "old-secret"), gallery))
 	onLoopback("gallery")
-	second, err := cc.ConnectStorage(t.Context(), connect.NewRequest(&dockwellv1.ConnectStorageRequest{
-		Project: project, App: "gallery", Connection: "uploads", Link: "media", Prefix: "gallery/",
-		Sets: map[string]resourcev1.LinkPart{
-			"MEDIA_ENDPOINT": resourcev1.LinkPart_LINK_PART_ENDPOINT, "MEDIA_BUCKET": resourcev1.LinkPart_LINK_PART_BUCKET,
-			"MEDIA_KEY_ID": resourcev1.LinkPart_LINK_PART_ACCESS_KEY_ID, "MEDIA_SECRET": resourcev1.LinkPart_LINK_PART_SECRET_KEY,
-		},
-	}))
+	connectGallery := func() (*connect.Response[dockwellv1.ConnectStorageResponse], error) {
+		return cc.ConnectStorage(t.Context(), connect.NewRequest(&dockwellv1.ConnectStorageRequest{
+			Project: project, App: "gallery", Connection: "uploads", Link: "media", Prefix: "gallery/",
+			Sets: map[string]resourcev1.LinkPart{
+				"MEDIA_ENDPOINT": resourcev1.LinkPart_LINK_PART_ENDPOINT, "MEDIA_BUCKET": resourcev1.LinkPart_LINK_PART_BUCKET,
+				"MEDIA_KEY_ID": resourcev1.LinkPart_LINK_PART_ACCESS_KEY_ID, "MEDIA_SECRET": resourcev1.LinkPart_LINK_PART_SECRET_KEY,
+				"MEDIA_PREFIX": resourcev1.LinkPart_LINK_PART_KEY_PREFIX,
+			},
+		}))
+	}
+	// The gallery is another app in the same environment, and uploads isn't shared, so
+	// it can't join notes there until an admin shares it (the re-check's N2).
+	if _, err := connectGallery(); err == nil || !strings.Contains(err.Error(), "the connection uploads serves another app already, and isn't shared") {
+		t.Fatalf("the gallery joining notes on unshared uploads: %v", err)
+	}
+	apply(t, c, propose(t, c, "Share uploads", connectionEdit("uploads", &resourcev1.ConnectionSpec{
+		DisplayName: "Uploads", Kind: resourcev1.LinkKind_LINK_KIND_S3, Shared: true,
+		Reach: resourcev1.ConnectionReach_CONNECTION_REACH_PROJECTS, Projects: []string{project},
+		S3: &resourcev1.ConnectionS3{Endpoint: srv.URL(), Bucket: "uploads", AccessKeyId: "AKIDEXAMPLE", SecretKey: connectionSecret, PathStyle: true},
+	})))
+	second, err := connectGallery()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -177,6 +191,14 @@ func TestAnAppIsConnectedToStorage(t *testing.T) {
 	}
 	if got := appEnv("gallery"); !slices.Contains(got, "MEDIA_SECRET="+connectionSecret) {
 		t.Errorf("the gallery runs without the connection's key: %v", got)
+	}
+	// Two apps in one environment are two apps: uploads stays shared while both use it.
+	if _, err := c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Unshare uploads", Edits: []*dockwellv1.Edit{connectionEdit("uploads", &resourcev1.ConnectionSpec{
+		DisplayName: "Uploads", Kind: resourcev1.LinkKind_LINK_KIND_S3,
+		Reach: resourcev1.ConnectionReach_CONNECTION_REACH_PROJECTS, Projects: []string{project},
+		S3: &resourcev1.ConnectionS3{Endpoint: srv.URL(), Bucket: "uploads", PathStyle: true},
+	})}})); err == nil || !strings.Contains(err.Error(), "serves 2 apps") {
+		t.Errorf("unsharing uploads, which notes and the gallery use: %v", err)
 	}
 
 	// The connection says what reads it: each link, in its environment and project,
@@ -208,7 +230,7 @@ func TestAnAppIsConnectedToStorage(t *testing.T) {
 	// A new key for the connection reaches both apps in one plan, which holds no key.
 	const newKey = "a-new-secret-key"
 	plan := propose(t, c, "Rotate the uploads key", connectionEdit("uploads", &resourcev1.ConnectionSpec{
-		DisplayName: "Uploads", Kind: resourcev1.LinkKind_LINK_KIND_S3,
+		DisplayName: "Uploads", Kind: resourcev1.LinkKind_LINK_KIND_S3, Shared: true,
 		Reach: resourcev1.ConnectionReach_CONNECTION_REACH_PROJECTS, Projects: []string{project},
 		S3: &resourcev1.ConnectionS3{Endpoint: srv.URL(), Bucket: "uploads", AccessKeyId: "AKIDEXAMPLE", SecretKey: newKey, PathStyle: true},
 	}))

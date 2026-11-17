@@ -177,16 +177,28 @@ func (Type) Keep(current, desired proto.Message) (resource.Kept, error) {
 		}
 		return resource.Kept{}, nil
 	}
+	// An ID with no secret is refused whether it's the saved one or not, so no edit
+	// tells a right guess at the ID from a wrong one (the review's L2).
+	if to.GetAccessKeyId() != "" {
+		return resource.Kept{}, errors.New("give a new key's ID and its secret together, or leave both out to keep the saved key")
+	}
 	switch {
 	case to.GetEndpoint() != from.GetEndpoint() || to.GetRegion() != from.GetRegion() || to.GetBucket() != from.GetBucket():
 		return resource.Kept{}, errors.New("the connection moves to another endpoint, region or bucket, so it needs its secret key again: Dockwell won't send what it kept to where it hasn't sent it before")
 	case from.GetPathStyle() && !to.GetPathStyle():
 		return resource.Kept{}, errors.New("the connection stops putting the bucket in the path, so its requests go to the bucket's own host, and it needs its secret key again: Dockwell won't send what it kept to where it hasn't sent it before. Give the key, or keep path style on")
-	case to.GetAccessKeyId() != "" && to.GetAccessKeyId() != from.GetAccessKeyId():
-		return resource.Kept{}, errors.New("a new access key needs its secret too")
 	}
 	to.AccessKeyId, to.SecretKey = from.GetAccessKeyId(), from.GetSecretKey()
 	return resource.Kept{Reason: "kept_key", Words: "keeps the key it was saved with, as the update left that out"}, nil
+}
+
+// ChangesWhatsRead says whether a change reaches the apps that read the connection:
+// its values or keys do, as its kind; its label, reach and sharing don't, nor who
+// saved it (ADR 0099).
+func (Type) ChangesWhatsRead(current, spec proto.Message) bool {
+	was, ok := current.(*resourcev1.ConnectionSpec)
+	is, same := spec.(*resourcev1.ConnectionSpec)
+	return !ok || !same || was.GetKind() != is.GetKind() || !proto.Equal(was.GetS3(), is.GetS3())
 }
 
 // StampSaver records whether an install admin chose where the connection goes,

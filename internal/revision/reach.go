@@ -297,19 +297,34 @@ func (e *Engine) checkConnectionLinks(ctx context.Context, tx *store.Tx, items [
 	return nil
 }
 
-// checkLinkPrefix refuses a link to a connection whose prefix meets another link's
-// to the same connection, made by an install, Connect storage or by hand alike: their
-// apps would overwrite and delete each other's files. It looks only at a link that's
-// new, or moves to another connection or prefix, so a link from before keeps its
-// place as it is. The refusal names no other project, as the person linking may not
-// see it.
+// checkLinkPrefix refuses a link to a connection where its app would keep its files
+// where another link's app keeps theirs, made by an install, Connect storage or by
+// hand alike: their apps would overwrite and delete each other's files. Where an app
+// keeps its files is its link's prefix only where the link sets the name that tells
+// the app it; otherwise it's the bucket's root (link.Kept, the review's H1). It looks
+// only at a link that's new, or moves to another connection or prefix, or stops or
+// starts telling its app the prefix, so a link from before keeps its place as it is.
+// The refusal names no other project, as the person linking may not see it.
 func (e *Engine) checkLinkPrefix(ctx context.Context, tx *store.Tx, items []item, it *item, l *resourcev1.Link) error {
-	if was, ok := it.current.(*resourcev1.Link); ok && was.GetConnection() == l.GetConnection() && was.GetPrefix() == l.GetPrefix() {
+	was, _ := it.current.(*resourcev1.Link)
+	// A link from before links named the setting that tells their app the prefix,
+	// which gains it now, as its install's upgrade gives it (the re-check's N1).
+	gains := was != nil && was.GetConnection() == l.GetConnection() && !link.KeepsToPrefix(was) && link.KeepsToPrefix(l)
+	if was != nil && was.GetConnection() == l.GetConnection() && was.GetPrefix() == l.GetPrefix() {
+		// Unchanged, or only gaining or losing the record of the prefix: nothing
+		// moves. Gaining it is an upgrade recording what its app kept to already;
+		// losing it, as undoing that upgrade does, puts back a link that was accepted,
+		// and only makes it read as the root from then on (#772's last check, C2).
 		return nil
 	}
 	links, err := e.allLinks(ctx, tx, items)
 	if err != nil {
 		return err
+	}
+	if was, ok := it.current.(*resourcev1.Link); !ok || was.GetConnection() != l.GetConnection() {
+		if err := e.checkOneApp(ctx, tx, items, it, l, links); err != nil {
+			return err
+		}
 	}
 	// The suggestion comes from links in places the person may see alone, so it says
 	// nothing of another project's prefixes (the slice 1 re-check, N3), and is offered
@@ -323,30 +338,78 @@ func (e *Engine) checkLinkPrefix(ctx context.Context, tx *store.Tx, items []item
 		if other.ref == it.ref || other.GetConnection() != l.GetConnection() {
 			continue
 		}
-		taken = append(taken, other.GetPrefix())
+		// Where a link from before takes its app's own prefix as it gains the record,
+		// the links from before beside it are read by their prefixes, as they were
+		// accepted then, so it's checked against them as any prefix was (#772's last
+		// check, C1). Anything else reads a link that names no setting as the root.
+		kept := link.Kept(other.Link)
+		if gains && !link.KeepsToPrefix(other.Link) {
+			kept = other.GetPrefix()
+		}
+		taken = append(taken, kept)
 		if !person || place.Holds(caller.Grants, place.Place{Project: projectOfScope(ctx, tx, items, other.ref.Scope)}) != "" {
-			seen = append(seen, other.GetPrefix())
+			seen = append(seen, kept)
 		}
 	}
 	meets := func(p string) bool {
 		return slices.ContainsFunc(taken, func(t string) bool { return link.PrefixesMeet(p, t) })
 	}
-	if !meets(l.GetPrefix()) {
+	want := link.Kept(l)
+	if !meets(want) {
 		return nil
 	}
-	where := cmp.Or(l.GetPrefix(), "the bucket's root")
-	if free := link.FreePrefix(l.GetPrefix(), seen); free != l.GetPrefix() && !meets(free) && !slices.Contains(taken, "") {
+	if !link.KeepsToPrefix(l) && l.GetPrefix() != "" {
+		return fault.New(ErrInvalid, "link %s doesn't name the setting that tells its app the prefix %s, so nothing keeps its files apart from another app's on the connection %s. Name that setting on the link, or give it a connection of its own",
+			it.ref.Name, l.GetPrefix(), l.GetConnection())
+	}
+	where := cmp.Or(want, "the bucket's root")
+	if free := link.FreePrefix(want, seen); free != want && !meets(free) && !slices.Contains(taken, "") {
 		return fault.New(ErrInvalid, "link %s keeps its files under %s on the connection %s, where another app keeps its files already, so each would overwrite the other's. Pick another prefix, such as %s",
 			it.ref.Name, where, l.GetConnection(), free)
 	}
-	// Beside a link that uses the bucket's root, no prefix keeps them apart (the slice
-	// 1 re-check, N2).
+	// Beside a link whose app keeps to the bucket's root, no prefix keeps them apart
+	// (the slice 1 re-check, N2).
 	if slices.Contains(taken, "") {
-		return fault.New(ErrInvalid, "link %s keeps its files under %s on the connection %s, where another app keeps its files at the bucket's root already, so each would overwrite the other's and no prefix keeps them apart. Give it a connection of its own",
+		return fault.New(ErrInvalid, "link %s keeps its files under %s on the connection %s, where another app's link doesn't say which prefix its app keeps to, so nothing keeps their files apart. Give it a connection of its own",
 			it.ref.Name, where, l.GetConnection())
 	}
 	return fault.New(ErrInvalid, "link %s keeps its files under %s on the connection %s, where another app keeps its files already, so each would overwrite the other's. Pick a prefix of its own",
 		it.ref.Name, where, l.GetConnection())
+}
+
+// checkOneApp refuses a link that brings another app to a connection that isn't
+// shared: a connection serves one app unless an install admin shares it (ADR 0099).
+// An app is a service (appsOf), so one app's links to it for two needs are one app. It's
+// asked only of a link that's new or moves to the connection, so apps that share one
+// from before keep working, and the same change may share it. The words name no
+// other project, as the person linking may not see it.
+func (e *Engine) checkOneApp(ctx context.Context, tx *store.Tx, items []item, it *item, l *resourcev1.Link, links []aLink) error {
+	org, err := tx.Organization(ctx)
+	if err != nil {
+		return err
+	}
+	spec, err := e.specAfter(ctx, tx, items, resource.Ref{Kind: variable.ConnectionKind, Scope: org.ID, Name: l.GetConnection()})
+	if err != nil {
+		return err
+	}
+	if c, ok := spec.(*resourcev1.ConnectionSpec); !ok || c.GetShared() {
+		return nil
+	}
+	mine, err := e.appsOf(ctx, tx, items, &aLink{Link: l, ref: it.ref})
+	if err != nil {
+		return err
+	}
+	others, err := e.appsOn(ctx, tx, items, links, l.GetConnection(), it.ref)
+	if err != nil {
+		return err
+	}
+	for app := range others {
+		if !slices.ContainsFunc(mine, func(m string) bool { return sameApp(m, app) }) {
+			return fault.New(ErrInvalid, "the connection %s serves another app already, and isn't shared. Give this app a connection of its own, or have an admin share %s",
+				l.GetConnection(), l.GetConnection())
+		}
+	}
+	return nil
 }
 
 // connectionUnusable is the one refusal of a connection that isn't there and of one
@@ -377,6 +440,9 @@ func (e *Engine) checkConnectionValue(ctx context.Context, tx *store.Tx, items [
 		return fault.New(ErrInvalid, "%s %s takes its value from a connection, which only a link writes, and its environment has no link %s", it.ref.Kind, it.ref.Name, ref.GetLink())
 	case l.GetConnection() != ref.GetName():
 		return fault.New(ErrInvalid, "%s %s reads the connection %s through link %s, which names %s", it.ref.Kind, it.ref.Name, ref.GetName(), ref.GetLink(), cmp.Or(l.GetConnection(), "none"))
+	case ref.GetPart() == resourcev1.LinkPart_LINK_PART_KEY_PREFIX && !recordsPrefix(l, it.ref.Name):
+		return fault.New(ErrInvalid, "%s %s reads the prefix of link %s, and the link doesn't name %s as the setting that tells its app the prefix. Name it on the link",
+			it.ref.Kind, it.ref.Name, ref.GetLink(), it.ref.Name)
 	}
 	return e.checkConnectionReached(ctx, tx, items, it, ref.GetName())
 }
