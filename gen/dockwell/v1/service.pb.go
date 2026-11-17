@@ -424,6 +424,13 @@ type ServiceInfo struct {
 	// What the guessable secret is, for the state's words: a database's password,
 	// another password, or a key. Unspecified where guessable_password is false.
 	Guessable GuessableSecret `protobuf:"varint,13,opt,name=guessable,proto3,enum=dockwell.v1.GuessableSecret" json:"guessable,omitempty"`
+	// The port in its container that most likely serves its web pages, which Add a
+	// domain starts from: the port a route already sends to, else the one its
+	// health check asks over HTTP, else its first published port that isn't one
+	// known for something else, such as SSH's 22 or PostgreSQL's 5432, else its
+	// first published port. 0 when it publishes none and nothing names one, or
+	// it's on the server's own network, where the port is the server's.
+	WebPort uint32 `protobuf:"varint,14,opt,name=web_port,json=webPort,proto3" json:"web_port,omitempty"`
 	// What Dockwell last found newer than what it runs, and how its check stands.
 	// Unset before its first check. See
 	// docs/adr/0079-knowing-a-newer-version-of-an-app-is-out.md. Numbered apart,
@@ -552,6 +559,13 @@ func (x *ServiceInfo) GetGuessable() GuessableSecret {
 		return x.Guessable
 	}
 	return GuessableSecret_GUESSABLE_SECRET_UNSPECIFIED
+}
+
+func (x *ServiceInfo) GetWebPort() uint32 {
+	if x != nil {
+		return x.WebPort
+	}
+	return 0
 }
 
 func (x *ServiceInfo) GetUpdate() *ServiceUpdate {
@@ -1948,7 +1962,7 @@ const file_dockwell_v1_service_proto_rawDesc = "" +
 	"page_token\x18\x04 \x01(\tR\tpageToken\"t\n" +
 	"\x14ListServicesResponse\x124\n" +
 	"\bservices\x18\x01 \x03(\v2\x18.dockwell.v1.ServiceInfoR\bservices\x12&\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\xb6\x05\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\xd1\x05\n" +
 	"\vServiceInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x124\n" +
 	"\bresource\x18\x02 \x01(\v2\x18.dockwell.v1.ResourceRefR\bresource\x12\x1a\n" +
@@ -1965,7 +1979,8 @@ const file_dockwell_v1_service_proto_rawDesc = "" +
 	"\vhost_access\x18\v \x03(\v2\x17.dockwell.v1.HostAccessR\n" +
 	"hostAccess\x12-\n" +
 	"\x12guessable_password\x18\f \x01(\bR\x11guessablePassword\x12:\n" +
-	"\tguessable\x18\r \x01(\x0e2\x1c.dockwell.v1.GuessableSecretR\tguessable\x122\n" +
+	"\tguessable\x18\r \x01(\x0e2\x1c.dockwell.v1.GuessableSecretR\tguessable\x12\x19\n" +
+	"\bweb_port\x18\x0e \x01(\rR\awebPort\x122\n" +
 	"\x06update\x18\x14 \x01(\v2\x1a.dockwell.v1.ServiceUpdateR\x06update\"\xf0\x01\n" +
 	"\x11ServiceDeployment\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x1f\n" +

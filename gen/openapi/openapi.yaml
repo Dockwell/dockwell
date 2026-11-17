@@ -25324,6 +25324,16 @@ components:
                         What the guessable secret is, for the state's words: a database's password,
                          another password, or a key. Unspecified where guessable_password is false.
                     format: enum
+                webPort:
+                    type: integer
+                    description: |-
+                        The port in its container that most likely serves its web pages, which Add a
+                         domain starts from: the port a route already sends to, else the one its
+                         health check asks over HTTP, else its first published port that isn't one
+                         known for something else, such as SSH's 22 or PostgreSQL's 5432, else its
+                         first published port. 0 when it publishes none and nothing names one, or
+                         it's on the server's own network, where the port is the server's.
+                    format: uint32
                 update:
                     allOf:
                         - $ref: '#/components/schemas/ServiceUpdate'

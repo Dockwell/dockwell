@@ -93,6 +93,10 @@ function portOf(service: ServiceInfo | undefined): string {
   const app = service ? appOf(service) : undefined;
   // On the server's own network, there's no port it's likely to be: 80 is the proxy's.
   if (app?.hostNetwork) return "";
+  // The control plane says which port serves its pages (#791): the one a route
+  // sends to, its health check's, or a published one that isn't SSH's or a
+  // database's. Never just the first, which is 22 for an app that lists SSH first.
+  if (service?.webPort) return String(service.webPort);
   const published = app?.ports[0]?.containerPort;
   return published ? String(published) : "80";
 }
@@ -203,9 +207,16 @@ export function AddDomainSheet({
     if (service) void navigate({ to: "/apps/$serviceId", params: { serviceId: service.id } });
   };
   // The ports the app listens on, its own, to pick from; any other is typed.
+  // The port that serves its pages comes first, whether or not it's published.
   const listens = onServer
     ? []
-    : [...new Set((service ? (appOf(service)?.ports ?? []) : []).map((p) => p.containerPort).filter((p) => p > 0))];
+    : [
+        ...new Set(
+          [service?.webPort ?? 0, ...(service ? (appOf(service)?.ports ?? []) : []).map((p) => p.containerPort)].filter(
+            (p) => p > 0,
+          ),
+        ),
+      ];
   const [typingPort, setTypingPort] = useState(false);
   const picksPort = listens.length > 0 && !typingPort && (port === "" || listens.includes(Number(port)));
   // A domain's root may be with another app already, whatever its route is called.

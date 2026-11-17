@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -157,6 +158,16 @@ func (h *Handler) ListServices(ctx context.Context, req *connect.Request[dockwel
 			return err
 		}
 		reaches := h.reaches(ctx, tx, list, decoded, unreadable)
+		scopes := make([]string, 0, 1)
+		for i := range list {
+			if !slices.Contains(scopes, list[i].Scope) {
+				scopes = append(scopes, list[i].Scope)
+			}
+		}
+		routed, err := h.routedPorts(ctx, tx, scopes)
+		if err != nil {
+			return err
+		}
 		names := serverNames{tx: tx, known: map[string]string{}}
 		subjects = make([]serviceupdates.Subject, 0, len(list))
 		for i := range list {
@@ -180,6 +191,7 @@ func (h *Handler) ListServices(ctx context.Context, req *connect.Request[dockwel
 				}
 				info.Spec = Blanked(spec)
 				info.HostAccess = resourcepb.HostAccess(reaches[i])
+				info.WebPort = WebPort(spec.GetApp(), routed[r.Scope][r.Name])
 				// Read from the values as they are, so it goes once the password does
 				// (ADR 0096). It says no more than that it is.
 				info.GuessablePassword = container.GuessablePassword(spec.GetApp())

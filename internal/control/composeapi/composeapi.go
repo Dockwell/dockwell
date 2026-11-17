@@ -1405,6 +1405,7 @@ func (h *Handler) CheckCompose(ctx context.Context, req *connect.Request[dockwel
 		res.Services = append(res.Services, &dockwellv1.ServiceInfo{
 			Resource: &dockwellv1.ResourceRef{Kind: string(service.Kind), Name: s.Name},
 			Spec:     services.Blanked(s.Spec),
+			WebPort:  services.WebPort(s.Spec.GetApp(), 0),
 		})
 	}
 	return connect.NewResponse(res), nil
