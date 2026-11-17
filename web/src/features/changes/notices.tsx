@@ -35,7 +35,7 @@ import {
   shownName,
   startsStopped,
 } from "./plan";
-import { namesARange, plain, type RolloutLine, useChangeWords } from "./words";
+import { LOOPBACK, namesARange, plain, type RolloutLine, reachLines, tunnelledRoutes, useChangeWords } from "./words";
 
 /** One thing to know about a plan before applying it. */
 export interface Notice {
@@ -171,12 +171,9 @@ function useRolloutLines(plan: Plan | undefined): (RolloutLine & { key: string }
   return [...out.values()];
 }
 
-/** A tunnel's own address, as a route through it believes it. */
-const LOOPBACK = new Set(["127.0.0.1", "127.0.0.1/32", "::1", "::1/128"]);
-
 /** Whether a plan publishes a route through a tunnel at Cloudflare. */
 function publishesThroughTunnel(plan: Plan): boolean {
-  return plan.resources.some((r) => r.changes.some((c) => c.path === "publish.way" && c.to.endsWith("tunnel")));
+  return tunnelledRoutes(plan).size > 0;
 }
 
 /** What a plan lets a resource reach on its server, in words, worst first, with what is as good as root apart. */
@@ -1534,16 +1531,14 @@ export function useAsides(plan: Plan | undefined): Notice[] {
       notice: true,
     });
   }
+  const tunnelled = tunnelledRoutes(plan);
   for (const server of plan?.servers ?? []) {
     for (const step of server.steps) {
       const name = step.resource?.name ?? step.resourceId;
       const key = `${server.serverId}/${step.resourceId}`;
       for (const line of words.ingress(step.ingress, server.serverName))
         out.push({ key: `ingress-${key}-${line}`, title: line });
-      if (step.unencrypted) {
-        out.push({ key: `unencrypted-${key}`, title: words.unencrypted(server.serverName), notice: true });
-      }
-      for (const line of words.answers(step.answers, step.serverPort, server.serverName)) {
+      for (const line of reachLines(words, step, server.serverName, tunnelled.has(step.resourceId))) {
         out.push({ key: `answers-${key}-${line}`, title: line, notice: true });
       }
       if (step.goes) out.push({ key: `goes-${key}`, title: words.goes(step.goes), notice: true });
