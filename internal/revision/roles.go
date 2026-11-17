@@ -485,10 +485,12 @@ func installWide(a resource.Access) string {
 		return "takes on a container Dockwell didn't make"
 	case resource.AccessCertificateKey:
 		return "sends a certificate's key to its server for the first time"
+	case resource.AccessTunnelRule:
+		return "adds a rule to a Cloudflare tunnel it shares with others"
 	case resource.AccessDocker, resource.AccessNetwork, resource.AccessBackupOf,
 		resource.AccessDomain, resource.AccessPlainForAnyone, resource.AccessHTTPSOff, resource.AccessExternalVolume,
 		resource.AccessServerShell, resource.AccessOpened, resource.AccessHostProcesses, resource.AccessRootTogether,
-		resource.AccessPublicPort: // as good as root, which the first check holds, or a person's to approve, as plain HTTP for anyone is
+		resource.AccessPublicPort, resource.AccessCloudflareTakeover: // as good as root, which the first check holds, or a person's to approve, as plain HTTP for anyone is
 	}
 	return ""
 }

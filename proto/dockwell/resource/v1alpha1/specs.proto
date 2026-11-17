@@ -1347,6 +1347,58 @@ message Route {
   // access, as nothing is behind it to protect. Its domain gets a certificate as
   // any route's does. See docs/adr/0070-redirects-from-one-domain-to-another.md.
   RouteRedirect redirect = 10;
+  // How the domain is published at Cloudflare, where Dockwell writes its DNS record,
+  // and the tunnel's rule where one is needed, as steps of the change. Unset, Dockwell
+  // writes nothing at Cloudflare, as before. Only the control plane reads it: no
+  // server's proxy sees it. See docs/adr/0104-adding-a-domain-publishes-it.md.
+  // Numbered in the block ADR 0104 holds, 340 to 349.
+  RoutePublish publish = 340;
+}
+
+// How a route's domain is published at Cloudflare (ADR 0104).
+message RoutePublish {
+  // The way in.
+  RouteWay way = 1;
+  // The tunnel, by its ID at Cloudflare, for ROUTE_WAY_SERVER_TUNNEL: one the
+  // route's server runs, proved by its connector's ID.
+  string tunnel = 2;
+  // The DNS provider whose token writes it, by name. Its projects must hold the
+  // route's.
+  string provider = 3;
+  // What a person agreed to replace or take on, made by someone else at Cloudflare:
+  // an admin's, with a passkey (HOST_ACCESS_KIND_CLOUDFLARE_TAKEOVER). Anything
+  // there that isn't named here stops the plan.
+  repeated TakeOver takes_over = 4;
+}
+
+// A thing at Cloudflare that Dockwell didn't make, which a person agreed it may
+// replace or take on: a DNS record by its ID, or a tunnel's rule, which has none, by
+// its tunnel, hostname and path.
+message TakeOver {
+  // The record's ID at Cloudflare.
+  string record_id = 1;
+  // The tunnel holding the rule, by ID.
+  string tunnel = 2;
+  // The rule's hostname.
+  string hostname = 3;
+  // The rule's path, if it has one.
+  string path = 4;
+}
+
+// How a domain is reached from the internet (ADR 0104, section 2).
+enum RouteWay {
+  ROUTE_WAY_UNSPECIFIED = 0;
+  // Through the tunnel the route's server runs: a proxied CNAME to the tunnel, and
+  // the zone's rule in the tunnel when no rule reaches Caddy yet.
+  ROUTE_WAY_SERVER_TUNNEL = 1;
+  // Through a tunnel of Dockwell's own on the server (slice 3).
+  ROUTE_WAY_OWN_TUNNEL = 2;
+  // Through Cloudflare's proxy: a proxied A or AAAA record to the server.
+  ROUTE_WAY_PROXY = 3;
+  // The server's own HTTPS: a DNS-only A or AAAA record to the server.
+  ROUTE_WAY_OWN_HTTPS = 4;
+  // Something else in front, which Dockwell writes nothing for.
+  ROUTE_WAY_FRONT = 5;
 }
 
 // Where a route's redirect sends, and how.
@@ -1608,6 +1660,16 @@ message DnsProvider {
   // The projects whose routes' names it proves, by ID. Empty is none: proving a
   // name by DNS works wherever it points, so an admin says which projects may.
   repeated string projects = 4;
+  // A second token for tunnels alone, for whoever wants one: Cloudflare Tunnel
+  // Edit, and API Tokens Read to check its own rights. Empty, the API token does
+  // tunnels too, as one token may carry both (ADR 0104, amending ADR 0099). Leave it
+  // out of an update to keep it.
+  string tunnel_api_token = 5 [(sensitive) = true];
+  // The zones an admin set to Full (strict) through Dockwell, so Cloudflare reaches
+  // every proxied name in them over HTTPS with a certificate it checks. A zone's
+  // mode changes how all its proxied names are reached, so it's set here, on its
+  // own plan, never as a side effect of one domain (ADR 0104).
+  repeated string strict_zones = 6;
 }
 
 // ConnectionSpec is one set of values of one kind that something uses, kind
@@ -1942,6 +2004,10 @@ message AlertRule {
     // and not snoozed (ADR 0079). threshold 3 fires for a major alone; 0, for
     // any. Numbered apart, as open work adds to this enum.
     CONDITION_UPDATE_AVAILABLE = 40;
+    // A domain Dockwell published at Cloudflare is gone from it: its tunnel's rule,
+    // or its DNS record, or its tunnel runs on more than its server now. One alert
+    // per tunnel and zone (ADR 0104).
+    CONDITION_DOMAIN_UNPUBLISHED = 50;
   }
   // How much it matters, which a message says and a channel can choose by.
   enum Severity {

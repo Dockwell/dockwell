@@ -1224,7 +1224,10 @@ func (a Access) Leading(to string) Access {
 // warning that comes with every folder is a warning nobody reads (ADR 0028).
 func (a Access) AsGoodAsRoot() bool {
 	return a.SameAsRoot || a.Kind == AccessDocker || a.Kind == AccessNetwork || a.Kind == AccessBackupOf || a.Kind == AccessServerShell ||
-		a.Kind == AccessNetworkDriver && a.Driver == "host"
+		a.Kind == AccessNetworkDriver && a.Driver == "host" ||
+		// What someone else made at Cloudflare, which Dockwell may then delete
+		// (ADR 0104).
+		a.Kind == AccessCloudflareTakeover
 }
 
 // Who writes to a read-write server path, in its Access's Detail, where that's root
@@ -1339,6 +1342,17 @@ const (
 	// service in Detail. Anyone who reaches the server reaches it. Only a catalog
 	// install or upgrade that makes the port public says it (ADR 0101).
 	AccessPublicPort
+	// AccessTunnelRule is a rule Dockwell adds to a Cloudflare tunnel it shares with
+	// others, as the one in front of the panel: Path is the rule's hostname, such as
+	// "*.example.com", Detail the tunnel's name, Address where it sends, and Type
+	// what the routing check found of every other name. Once per zone, an admin's
+	// (ADR 0104).
+	AccessTunnelRule
+	// AccessCloudflareTakeover is something at Cloudflare that Dockwell didn't make,
+	// which it replaces or takes on, and so may delete later: Path is the name, Detail
+	// what's there, as "A 203.0.113.9" or "a rule in web-1". As good as root to
+	// apply: an admin's, with a passkey (ADR 0104).
+	AccessCloudflareTakeover
 )
 
 // NewAccess lists what to reaches that from doesn't: access it didn't
@@ -1627,6 +1641,14 @@ func AccessWords(a Access) string {
 		return "what it reaches of the server, with " + plain(a.Path) + ", which together are the same as root"
 	case AccessPublicPort:
 		return "the port " + plain(a.Path) + " on every address of the server, for " + plain(a.Detail) + ": anyone who reaches the server reaches it there"
+	case AccessTunnelRule:
+		out := "the rule " + plain(a.Path) + " in the tunnel " + plain(a.Detail) + ", which it shares with others, sending to " + plain(a.Address)
+		if a.Type != "" {
+			out += ". " + a.Type
+		}
+		return out
+	case AccessCloudflareTakeover:
+		return plain(a.Detail) + " at " + plain(a.Path) + ", made in Cloudflare by someone else, which Dockwell replaces or takes on, and may delete later"
 	}
 	return fmt.Sprintf("access(%d)", int(a.Kind))
 }
