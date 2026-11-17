@@ -100,7 +100,9 @@ func (h *Handler) ListServiceUpdates(ctx context.Context, req *connect.Request[d
 }
 
 // Counts reports a service's updates that count: something newer that isn't
-// skipped, while they aren't snoozed.
+// skipped, while they aren't snoozed, and that can be planned where the service
+// runs, as the panel counts them: a release that drops its server's architecture
+// is shown, with why, but no alert says it's there to take (#771's review, M1).
 func Counts(u *dockwellv1.ServiceUpdate, now time.Time) bool {
 	if u.GetCheck() != dockwellv1.UpdateCheck_UPDATE_CHECK_AVAILABLE {
 		return false
@@ -108,7 +110,8 @@ func Counts(u *dockwellv1.ServiceUpdate, now time.Time) bool {
 	if t := u.GetSnoozeTime(); t != nil && t.AsTime().After(now) {
 		return false
 	}
-	return slices.ContainsFunc(u.GetAvailable(), func(a *dockwellv1.AvailableUpdate) bool { return !a.GetSkipped() })
+	first := offered(u)
+	return first != nil && first.GetUnavailable() == ""
 }
 
 // CheckServiceUpdates checks a service, or a server's services, now.

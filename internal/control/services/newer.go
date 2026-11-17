@@ -41,7 +41,8 @@ func (x nexter) Of(ctx context.Context, serviceID string) (Newer, bool, error) {
 	}
 	out := Newer{
 		Image: a.GetToImage(), Kind: kinds[a.GetKind()], Catalog: a.GetCatalogRelease() > 0,
-		Renumbered: registry.Renumbered(a.GetFromVersion(), a.GetToVersion()),
+		Renumbered:  registry.Renumbered(a.GetFromVersion(), a.GetToVersion()),
+		Unavailable: a.GetUnavailable(),
 	}
 	if a.GetFoundTime() != nil {
 		out.Found = a.GetFoundTime().AsTime()

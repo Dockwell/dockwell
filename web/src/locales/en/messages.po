@@ -7692,6 +7692,9 @@ msgstr "A project named {name} is here already"
 msgid "A project named {name} was here before, and its data may come back"
 msgstr "A project named {name} was here before, and its data may come back"
 
+msgid "Add server"
+msgstr "Add server"
+
 msgid "App you open"
 msgstr "App you open"
 
@@ -7805,8 +7808,8 @@ msgstr "Reading the sources"
 msgid "Restarts {0}"
 msgstr "Restarts {0}"
 
-msgid "Runs on {archList} alone, and none of your servers is {archList}. Add an {archList} server."
-msgstr "Runs on {archList} alone, and none of your servers is {archList}. Add an {archList} server."
+msgid "Runs on {archList} alone, and none of your servers is {archList}."
+msgstr "Runs on {archList} alone, and none of your servers is {archList}."
 
 msgid "Runs on {archList} alone."
 msgstr "Runs on {archList} alone."
@@ -7839,8 +7842,8 @@ msgstr "Such as 512M or 2G."
 msgid "Take away the space at its start or end."
 msgstr "Take away the space at its start or end."
 
-msgid "This app runs on {archList} alone, and {onlyName} is {onlyUnfit}. Add a server it runs on."
-msgstr "This app runs on {archList} alone, and {onlyName} is {onlyUnfit}. Add a server it runs on."
+msgid "This app runs on {archList} alone, and {onlyName} is {onlyUnfit}."
+msgstr "This app runs on {archList} alone, and {onlyName} is {onlyUnfit}."
 
 msgid "Upgrade {upgraded}"
 msgstr "Upgrade {upgraded}"
@@ -13942,9 +13945,6 @@ msgstr "{used} of {total}"
 msgid "{without, plural, one {# without a region} other {# without a region}}"
 msgstr "{without, plural, one {# without a region} other {# without a region}}"
 
-msgid "Add server"
-msgstr "Add server"
-
 msgid "Files"
 msgstr "Files"
 
@@ -15518,6 +15518,18 @@ msgstr "Volumes start empty there, and their data stays"
 
 msgid "{apps, plural, one {# app runs on it} other {# apps run on it}}"
 msgstr "{apps, plural, one {# app runs on it} other {# apps run on it}}"
+
+msgid "{differing} run on different architectures, so no one server takes them all"
+msgstr "{differing} run on different architectures, so no one server takes them all"
+
+msgid "{unfitApp} runs on {unfitRunsOn} alone, and no other server has said it's {unfitRunsOn} yet"
+msgstr "{unfitApp} runs on {unfitRunsOn} alone, and no other server has said it's {unfitRunsOn} yet"
+
+msgid "{unfitApp} runs on {unfitRunsOn} alone, and no other server is {unfitRunsOn}"
+msgstr "{unfitApp} runs on {unfitRunsOn} alone, and no other server is {unfitRunsOn}"
+
+msgid "{unfitApp} runs on {unfitRunsOn} alone."
+msgstr "{unfitApp} runs on {unfitRunsOn} alone."
 
 msgid "Add one to reach an app at a name of yours"
 msgstr "Add one to reach an app at a name of yours"

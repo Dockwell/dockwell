@@ -12,6 +12,8 @@ import "./SelectField.css";
 export interface SelectOption {
   value: string;
   label: string;
+  /** Shown, but it can't be chosen, as a server an app can't run on. Say why in its label. */
+  disabled?: boolean;
 }
 
 export interface SelectFieldProps extends Omit<SelectHTMLAttributes<HTMLSelectElement>, "size"> {
@@ -67,7 +69,7 @@ export function SelectField({
           aria-describedby={cx(hasMessage && messageId, describedBy) || undefined}
         >
           {options.map((option) => (
-            <option key={option.value} value={option.value}>
+            <option key={option.value} value={option.value} disabled={option.disabled}>
               {option.label}
             </option>
           ))}

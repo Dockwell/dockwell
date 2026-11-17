@@ -28,6 +28,10 @@ import {
   PlanAction,
   RestartPolicy,
   ScreenshotSchema,
+  ServiceUpdateSchema,
+  UpdateCheck,
+  UpdateKind,
+  UpdateSource,
   type UpgradeServiceRequest,
   type WatchChangeResponse,
   type WatchServersResponse,
@@ -613,6 +617,48 @@ describe("A newer release", () => {
     await waitFor(() => expect(asked?.id).toBe("svc_adminer"));
     expect(asked?.skipBackup).toBe(false);
     expect(asked?.image).toBe("");
+  });
+
+  it("says why a release can't be planned where it runs, with nothing to take", async () => {
+    const why = "6.3 runs on arm64 alone, and adminer runs on hz-1, which is amd64";
+    renderAt("/apps/svc_adminer", {
+      ...api({ listCatalogInstalls: () => behind }),
+      resources: places(),
+      services: {
+        listServices: () => ({
+          services: [
+            anApp(
+              "adminer",
+              "adminer:6.2.0",
+              {},
+              {
+                update: create(ServiceUpdateSchema, {
+                  check: UpdateCheck.AVAILABLE,
+                  source: UpdateSource.CATALOG,
+                  available: [
+                    {
+                      kind: UpdateKind.MINOR,
+                      fromVersion: "17.11",
+                      toVersion: "17.13",
+                      catalogRelease: 2,
+                      unavailable: why,
+                    },
+                  ],
+                }),
+              },
+            ),
+          ],
+        }),
+      },
+    });
+    const panel = await screen.findByRole("region", { name: "From the catalog" });
+    const installed = await waitFor(() => rowLabelled(panel, "Installed"));
+    await waitFor(() => expect(installed).toHaveTextContent(why));
+    expect(within(installed).queryByRole("button", { name: /Upgrade/ })).toBeNull();
+    // Nor does it count as an upgrade beside Catalog.
+    expect(
+      within(screen.getByRole("navigation", { name: "Main" })).getByRole("link", { name: "Catalog" }),
+    ).toBeVisible();
   });
 });
 

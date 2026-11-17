@@ -122,7 +122,7 @@ describe("updates on the apps list", () => {
  * catalog's update gives each of them: a new release of the entry, which keeps the
  * site's version where the release only changes how it runs.
  */
-function siteInstall({ version = "6.72.0", release = 5 } = {}) {
+function siteInstall({ version = "6.72.0", release = 5, unavailable = "" } = {}) {
   const update = () =>
     create(ServiceUpdateSchema, {
       check: UpdateCheck.AVAILABLE,
@@ -134,6 +134,7 @@ function siteInstall({ version = "6.72.0", release = 5 } = {}) {
           fromVersion: "6.72.0",
           toVersion: version,
           catalogRelease: release,
+          unavailable,
         },
       ],
     });
@@ -362,5 +363,15 @@ describe("the update card on an app's page", () => {
     expect(await screen.findByRole("heading", { name: "有可用更新" })).toBeVisible();
     expect(screen.getByText("补丁")).toBeVisible();
     expect(screen.getByRole("link", { name: "发布说明" })).toBeVisible();
+  });
+});
+
+describe("an update that can't be planned where the app runs", () => {
+  it("isn't counted, or marked, on the apps list", async () => {
+    const why = "2.0 runs on arm64 alone, and site runs on hz-1, which is amd64";
+    renderAt("/apps", { ...api(siteInstall({ unavailable: why })), resources: projectPlaces("site") });
+    const table = await screen.findByRole("table", { name: "Apps" });
+    expect(within(table).queryByTitle(/Update available/)).toBeNull();
+    expect(screen.queryByRole("button", { name: /update available/ })).toBeNull();
   });
 });

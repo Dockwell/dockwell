@@ -17,3 +17,25 @@ export function unfitOn(runsOn: readonly string[], server: Reported): string | u
   if (arch === "") return "unknown";
   return runsOn.includes(arch) ? undefined : arch;
 }
+
+/** What can't go on a server, and why, of apps that run on the architectures given, or undefined where all can. */
+export interface Unfit {
+  /** The first app that can't, by its name. */
+  app: string;
+  /** Its architectures, joined, such as "amd64". */
+  runsOn: string;
+  /** Why, as unfitOn says. */
+  why: string;
+}
+
+/** The first of the apps given that can't go on a server, and why (#771). */
+export function appsUnfitOn(
+  apps: readonly { name: string; architectures: readonly string[] }[],
+  server: Reported,
+): Unfit | undefined {
+  for (const app of apps) {
+    const why = unfitOn(app.architectures, server);
+    if (why !== undefined) return { app: app.name, runsOn: app.architectures.join(" or "), why };
+  }
+  return undefined;
+}

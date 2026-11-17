@@ -9263,6 +9263,13 @@ components:
                          version, its new digest, its commit, or "release:7" for a catalog release whose
                          version stays, or names a tag that moves, such as latest, so skipping one
                          release never skips the next (ADR 0085). Other stores' work takes 90 to 99 here.
+                unavailable:
+                    type: string
+                    description: |-
+                        Why it can't be planned where the app runs, such as "Release 5 runs on amd64
+                         alone, and web runs on pi-1, which is arm64", so it's shown with no update
+                         action and an automatic update leaves it. Empty when it can. See
+                         docs/adr/0102-an-app-that-runs-on-one-architecture-goes-only-where-it-runs.md.
             description: AvailableUpdate is one newer version a service can move to.
         BackUpCatalogNeedRequest:
             type: object

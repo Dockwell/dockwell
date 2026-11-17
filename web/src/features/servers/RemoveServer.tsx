@@ -11,6 +11,7 @@ import { useId, useMemo, useState } from "react";
 
 import { useApps } from "../apps/useServices";
 import { useMay } from "../auth/may";
+import { appsUnfitOn, type Unfit } from "../catalog/architectures";
 import { type Opening, useChangeSheet } from "../changes/ChangeSheet";
 import { useFleetView } from "./useFleet";
 import "../apps/Apps.css";
@@ -105,6 +106,7 @@ export function RemoveServerButton({ server }: { server: Server }) {
         <RemoveServerSheet
           server={server}
           apps={here.length}
+          moving={here.map((s) => ({ name: s.resource?.name ?? s.id, architectures: s.spec?.architectures ?? [] }))}
           // The plan opens in the app's own sheet, which stays as the server leaves the fleet and its page goes.
           plan={(ask) => {
             setChoosing(false);
@@ -124,30 +126,59 @@ export function RemoveServerButton({ server }: { server: Server }) {
 function RemoveServerSheet({
   server,
   apps,
+  moving,
   plan,
   onClose,
 }: {
   server: Server;
   apps: number;
+  /** The apps on it, with the architectures each runs on, which a server they move to must be (ADR 0102). */
+  moving: readonly { name: string; architectures: readonly string[] }[];
   plan: (ask: Ask) => void;
   onClose: () => void;
 }) {
-  const { t } = useLingui();
+  const { t, i18n } = useLingui();
   const name = useId();
   const { servers } = useFleetView();
   const others = (servers ?? []).filter((s) => s.id !== server.id);
-  const [ask, setAsk] = useState<Ask>({ apps: AppsOnRemoval.LEAVE, moveTo: others[0]?.id ?? "", compromised: false });
+  // A server some app on it can't run on can't take them, which it says beside its
+  // name; the first that fits is the one offered (#771).
+  const unfit = new Map<string, Unfit>();
+  for (const s of others) {
+    const u = appsUnfitOn(moving, s);
+    if (u) unfit.set(s.id, u);
+  }
+  const fitting = others.filter((s) => !unfit.has(s.id));
+  const firstUnfit = unfit.values().next().value;
+  const unfitApp = firstUnfit?.app ?? "";
+  const unfitRunsOn = firstUnfit?.runsOn ?? "";
+  // Why none fits, as it is (#771's review, M3): the apps run on different
+  // architectures, so no one server takes them all; or one architecture no other
+  // server has said it is yet, where some haven't reported; or one no other server is.
+  const limited = moving.filter((a) => a.architectures.length > 0);
+  const kinds = new Set(limited.map((a) => [...a.architectures].sort().join(" or ")));
+  const differ = kinds.size > 1;
+  const differing = new Intl.ListFormat(i18n.locale, { type: "conjunction" }).format(limited.map((a) => a.name));
+  const unreported = others.some((s) => !s.architecture);
+  const noneFitWords = differ
+    ? t`${differing} run on different architectures, so no one server takes them all`
+    : unreported
+      ? t`${unfitApp} runs on ${unfitRunsOn} alone, and no other server has said it's ${unfitRunsOn} yet`
+      : t`${unfitApp} runs on ${unfitRunsOn} alone, and no other server is ${unfitRunsOn}`;
+  const whyWords = (u: Unfit) => (u.why === "unknown" ? t`Architecture not known yet` : u.why);
+  const [ask, setAsk] = useState<Ask>({ apps: AppsOnRemoval.LEAVE, moveTo: fitting[0]?.id ?? "", compromised: false });
   const only = others.length === 1 ? others[0] : undefined;
   const onlyName = only?.name ?? "";
   const serverName = server.name;
-  const choices: { value: AppsOnRemoval; label: string; hint: string }[] = [
+  const choices: { value: AppsOnRemoval; label: string; hint: string; disabled?: boolean }[] = [
     { value: AppsOnRemoval.LEAVE, label: t`Leave them running`, hint: t`Nothing on the server changes` },
     ...(others.length > 0
       ? [
           {
             value: AppsOnRemoval.MOVE,
             label: only ? t`Move them to ${onlyName}` : t`Move them to another server`,
-            hint: t`Volumes start empty there, and their data stays`,
+            hint: fitting.length === 0 ? noneFitWords : t`Volumes start empty there, and their data stays`,
+            disabled: fitting.length === 0,
           },
         ]
       : []),
@@ -186,6 +217,7 @@ function RemoveServerSheet({
               type="radio"
               name={name}
               checked={ask.apps === choice.value}
+              disabled={choice.disabled}
               onChange={() => setAsk({ ...ask, apps: choice.value })}
             />
             <span className="app-front-text">
@@ -199,7 +231,13 @@ function RemoveServerSheet({
         <SelectField
           label={t`Move them to`}
           value={ask.moveTo}
-          options={others.map((s) => ({ value: s.id, label: s.name }))}
+          options={others.map((s) => {
+            const u = unfit.get(s.id);
+            return u
+              ? { value: s.id, label: `${s.name} · ${whyWords(u)}`, disabled: true }
+              : { value: s.id, label: s.name };
+          })}
+          hint={unfit.size > 0 ? t`${unfitApp} runs on ${unfitRunsOn} alone.` : undefined}
           onChange={(event) => setAsk({ ...ask, moveTo: event.target.value })}
         />
       ) : null}

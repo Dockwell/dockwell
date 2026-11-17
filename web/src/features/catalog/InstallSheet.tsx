@@ -17,6 +17,7 @@ import {
   InputType,
   type Need,
   RestartPolicy,
+  ServerService,
 } from "@dockwell/api";
 import {
   Advanced,
@@ -64,6 +65,7 @@ import { type Opening, PlanView } from "../changes/ChangeSheet";
 import { asGoodAsRoot } from "../changes/plan";
 import { ConnectionSheet } from "../connections/ConnectionSheet";
 import { useConnections } from "../connections/useConnections";
+import { AddServerSheet } from "../servers/AddServerSheet";
 import { lentRangeOf, type PortHolder, useServerPorts } from "../servers/ports";
 import { useFleetView } from "../servers/useFleet";
 import { CopyAsCommand } from "../system/CopyCommand";
@@ -149,10 +151,15 @@ export function InstallSheet({
   const words = useAppWords();
   // Installing makes a project of its own, which is an admin's (ADR 0049): off, with why, for anyone else.
   const mayInstall = useMay()(CatalogService.method.installCatalogEntry);
+  // Where no server can take the app, adding one is the way on, here, as the form
+  // keeps what's typed and offers the new server once its agent says what it is (#771).
+  const mayAddServer = useMay()(ServerService.method.createJoinTicket);
+  const [addingServer, setAddingServer] = useState(false);
   const phone = useMediaQuery(PHONE_QUERY);
   const transport = useTransport();
   const navigate = useNavigate();
   const { fleet, servers, only } = useFleetView();
+  const controlServer = servers?.find((s) => s.control);
   const client = useMemo(() => createClient(CatalogService, transport), [transport]);
   // Picking another version or engine keeps the sheet as it is while that one is read,
   // rather than emptying it; nothing is planned until it has been (#723).
@@ -765,12 +772,17 @@ export function InstallSheet({
                   }}
                   servers={servers ?? []}
                   unfit={(server) => unfitWords(unfitOn(runsOn, server))}
-                  hint={runsOnHint}
+                  hint={noneFit ? undefined : runsOnHint}
                   error={
                     serversError ??
-                    (noneFit
-                      ? t`Runs on ${archList} alone, and none of your servers is ${archList}. Add an ${archList} server.`
-                      : undefined)
+                    (noneFit ? t`Runs on ${archList} alone, and none of your servers is ${archList}.` : undefined)
+                  }
+                  action={
+                    noneFit && mayAddServer.allowed ? (
+                      <Button size="sm" variant="secondary" icon="plus" onClick={() => setAddingServer(true)}>
+                        <Trans>Add server</Trans>
+                      </Button>
+                    ) : undefined
                   }
                 />
               ) : only ? (
@@ -780,11 +792,18 @@ export function InstallSheet({
                   tone={onlyUnfit === undefined ? undefined : "warning"}
                   state={
                     onlyUnfit === undefined ? undefined : (
-                      <span className="dw-field-error" role="alert">
-                        {onlyUnfit === "unknown"
-                          ? t`${onlyName} hasn't said its architecture yet, so it can't take this app. It does once its agent connects.`
-                          : t`This app runs on ${archList} alone, and ${onlyName} is ${onlyUnfit}. Add a server it runs on.`}
-                      </span>
+                      <>
+                        <span className="dw-field-error" role="alert">
+                          {onlyUnfit === "unknown"
+                            ? t`${onlyName} hasn't said its architecture yet, so it can't take this app. It does once its agent connects.`
+                            : t`This app runs on ${archList} alone, and ${onlyName} is ${onlyUnfit}.`}
+                        </span>
+                        {onlyUnfit !== "unknown" && mayAddServer.allowed ? (
+                          <Button size="sm" variant="secondary" icon="plus" onClick={() => setAddingServer(true)}>
+                            <Trans>Add server</Trans>
+                          </Button>
+                        ) : null}
+                      </>
                     )
                   }
                 />
@@ -965,6 +984,13 @@ export function InstallSheet({
           </p>
         ) : null}
       </form>
+      {addingServer ? (
+        <AddServerSheet
+          control={controlServer ? { id: controlServer.id, name: controlServer.name } : undefined}
+          onClose={() => setAddingServer(false)}
+          overForm
+        />
+      ) : null}
     </Sheet>
   );
 }

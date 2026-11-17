@@ -16,6 +16,7 @@ import { useLingui } from "@lingui/react/macro";
 import { keepPreviousData } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { useServices } from "../apps/useServices";
 import { sourcesWords } from "./SourceFormats";
 
 /** What a screen asks of the catalog: a page of it, or a few entries by their IDs, a category or a catalog. */
@@ -196,9 +197,32 @@ export function useInstalls() {
   return useQuery(CatalogService.method.listCatalogInstalls, {});
 }
 
-/** How many installs have a newer release out. */
+/**
+ * Why an install's newer release can't be planned where it runs, as one that drops
+ * the architecture of a server it's on, which its apps' updates say; "" where it can
+ * (#771). Such a release is shown, with why, but offers nothing to take.
+ */
+export function useUpgradeUnavailable(): (install: CatalogInstall) => string {
+  const services = useServices().data;
+  return useCallback(
+    (install: CatalogInstall) => {
+      const release = install.upgrade?.release;
+      if (!release) return "";
+      for (const s of services ?? []) {
+        if (s.resource?.scope !== install.environmentId) continue;
+        const a = s.update?.available.find((x) => x.catalogRelease === release && x.unavailable);
+        if (a) return a.unavailable;
+      }
+      return "";
+    },
+    [services],
+  );
+}
+
+/** How many installs have a newer release out that can be taken where they run. */
 export function useUpgrades(): number {
-  return (useInstalls().data?.installs ?? []).filter((install) => install.upgrade).length;
+  const unavailable = useUpgradeUnavailable();
+  return (useInstalls().data?.installs ?? []).filter((install) => install.upgrade && !unavailable(install)).length;
 }
 
 /** The install an environment's services belong to, if they're one. */

@@ -28,6 +28,9 @@ import {
   type RestoreBackupRequest,
   Role,
   type SetCatalogCompanionRequest,
+  UpdateCheck,
+  UpdateKind,
+  UpdateSource,
   type UpgradeCatalogInstallRequest,
   type WatchChangeResponse,
   type WatchServersResponse,
@@ -248,6 +251,44 @@ function api(databases: Database[], more: Api = {}): Api {
     },
     ...more,
   };
+}
+
+/** A database whose catalog's newer release can't be planned where it runs (#771). */
+function unavailableUpgrade(): Api {
+  const why = "17.12 doesn't run on the server db is on";
+  const db = anApp(
+    "db",
+    "postgres:17",
+    {},
+    {
+      id: "svc_db",
+      update: {
+        check: UpdateCheck.AVAILABLE,
+        source: UpdateSource.CATALOG,
+        available: [
+          { kind: UpdateKind.MINOR, fromVersion: "17.11", toVersion: "17.12", catalogRelease: 2, unavailable: why },
+        ],
+      },
+    },
+  );
+  return api([aDatabase({ catalogEntry: "postgres" })], {
+    services: { listServices: () => ({ services: [db] }) },
+    catalog: {
+      listCatalogEntries: () => listed([postgres]),
+      listCatalogInstalls: () => ({
+        installs: [
+          {
+            projectId: "prj_pg",
+            project: "postgres",
+            environmentId: ENV,
+            name: "PostgreSQL",
+            pin: { entry: "postgres", version: "17.11", release: 1 },
+            upgrade: { version: "17.12", release: 2 },
+          },
+        ],
+      }),
+    },
+  });
 }
 
 afterEach(() => {
@@ -1012,6 +1053,23 @@ describe("a database's backups and upgrades", () => {
     await waitFor(() =>
       expect(upgraded).toHaveBeenCalledWith(expect.objectContaining({ id: "prj_pg" }), expect.anything()),
     );
+  });
+
+  // #771's review, M2: a release that can't be planned where it runs is no upgrade to take.
+  it("says why the catalog's newer release can't be planned where it runs, with no Upgrade", async () => {
+    renderAt("/databases/svc_db", unavailableUpgrade());
+    // The header says why, once, and the overview offers no upgrade note beside it.
+    expect(await screen.findByText(/17\.12 doesn't run on the server db is on/)).toBeVisible();
+    expect(screen.queryByRole("button", { name: /Upgrade to/ })).toBeNull();
+    expect(screen.queryByText("PostgreSQL 17.12 is out")).toBeNull();
+  });
+
+  it("says why on a phone, whose header has no room for it", async () => {
+    onPhone();
+    renderAt("/databases/svc_db", unavailableUpgrade());
+    expect(await screen.findByText("PostgreSQL 17.12 is out")).toBeVisible();
+    expect(screen.getByText("17.12 doesn't run on the server db is on.")).toBeVisible();
+    expect(screen.queryByRole("button", { name: /Upgrade to/ })).toBeNull();
   });
 
   it("adds the admin tool its install left out, from its own page, as a plan", async () => {

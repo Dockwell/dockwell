@@ -688,6 +688,9 @@ func (i *interceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc {
 		if trims(ctx, procedure) {
 			trim(res.Any())
 		}
+		if briefs(ctx) {
+			brief(res.Any())
+		}
 		return res, nil
 	}
 }
@@ -813,6 +816,9 @@ func (c *scopedConn) Send(m any) error {
 	c.i.sealPage(ctx, c.Spec().Procedure, m)
 	if c.trim {
 		trim(m)
+	}
+	if briefs(ctx) {
+		brief(m)
 	}
 	return c.StreamingHandlerConn.Send(m)
 }

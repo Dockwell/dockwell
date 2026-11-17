@@ -49,7 +49,9 @@ func runsThere(ctx context.Context, tx *store.Tx, it item, servers []string) err
 			if !changed && slices.Contains(it.placed, id) {
 				continue
 			}
-			return fault.New(ErrInvalid, "%s runs on %s alone, and %s hasn't said its architecture yet, so Dockwell can't tell whether %s runs there. It says once its agent connects; plan this again then, or put %s on %s", it.ref.Name, alone, name, it.ref.Name, it.ref.Name, an(alone)+" server")
+			// Unknown for now, not wrong: a plan made again once the agent reports may
+			// go ahead, so an automatic update tries again in its window (#771).
+			return fault.New(ErrUnavailable, "%s runs on %s alone, and %s hasn't said its architecture yet, so Dockwell can't tell whether %s runs there. It says once its agent connects; plan this again then, or put %s on %s", it.ref.Name, alone, name, it.ref.Name, it.ref.Name, an(alone)+" server")
 		}
 		if !slices.Contains(arch, inv.GetArchitecture()) {
 			return fault.New(ErrInvalid, "%s runs on %s alone, and %s is %s, so its images have no build there and it wouldn't start. Put %s on %s", it.ref.Name, alone, name, inv.GetArchitecture(), it.ref.Name, an(alone)+" server")

@@ -25,6 +25,7 @@ import {
   useInstalls,
   useOrigins,
   useSourceNames,
+  useUpgradeUnavailable,
 } from "./useCatalog";
 import "./Catalog.css";
 
@@ -467,7 +468,8 @@ function Card({
   const list = (names: readonly string[]) => new Intl.ListFormat(i18n.locale, { type: "conjunction" }).format(names);
   const [first] = installs;
   const count = installs.length;
-  const behind = installs.some((install) => install.upgrade);
+  const unavailable = useUpgradeUnavailable();
+  const behind = installs.some((install) => install.upgrade && !unavailable(install));
   const sameVersion = installs.every((install) => !install.upgrade || install.upgrade.version === install.pin?.version);
   const latest = entry.version;
   const body = (

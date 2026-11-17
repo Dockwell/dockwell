@@ -90,6 +90,10 @@ type CatalogInstall struct {
 	// which it keeps, taking no new build of a tag that moves meanwhile; empty
 	// unless (ADR 0080).
 	WithdrawnTo string
+	// Unavailable says why the newer release can't be planned where the install
+	// runs, which its update says, so it's shown with no update action and an
+	// automatic update leaves it (#771).
+	Unavailable string
 }
 
 // Keeper knows what's newer than what each service runs.
@@ -405,6 +409,7 @@ func catalogUpdate(c CatalogInstall, now time.Time) *dockwellv1.ServiceUpdate {
 	}
 	u.Available = []*dockwellv1.AvailableUpdate{{
 		Kind: kind, FromVersion: c.FromVersion, ToVersion: c.ToVersion, CatalogRelease: c.ToRelease, NotesUrl: c.Notes,
+		Unavailable: c.Unavailable,
 	}}
 	if !c.Since.IsZero() {
 		u.Available[0].FoundTime = timestamppb.New(c.Since)

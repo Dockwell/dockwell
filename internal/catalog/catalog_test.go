@@ -1168,3 +1168,22 @@ func TestAnEntrySaysTheArchitecturesItRunsOn(t *testing.T) {
 		t.Error("an entry of amd64 alone runs where it shouldn't")
 	}
 }
+
+// Why a release can't run where a service is, in full for an admin and in brief for
+// someone below one, who isn't shown a server's architecture (#771's review, L2, L3).
+func TestUnfitWordsAndTheirBriefForm(t *testing.T) {
+	full := catalog.UnfitWords("1.5.0", []string{"arm64"}, "web", "web-3", "amd64")
+	if full != "1.5.0 runs on arm64 alone, and web runs on web-3, which is amd64" {
+		t.Errorf("UnfitWords = %q", full)
+	}
+	if got := catalog.UnfitBrief(full); got != "1.5.0 doesn't run on the server web is on" {
+		t.Errorf("UnfitBrief = %q", got)
+	}
+	same := catalog.UnfitWords("Release 2 of 1.5.0", []string{"amd64"}, "db", "pi-1", "arm64")
+	if got := catalog.UnfitBrief(same); got != "Release 2 of 1.5.0 doesn't run on the server db is on" {
+		t.Errorf("UnfitBrief of a release of the same version = %q", got)
+	}
+	if got := catalog.UnfitBrief("something else, which is amd64"); strings.Contains(got, "amd64") {
+		t.Errorf("UnfitBrief of words it can't read keeps the architecture: %q", got)
+	}
+}

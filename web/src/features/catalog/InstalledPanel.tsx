@@ -17,7 +17,7 @@ import { type CardRow, CardRows } from "./CardRows";
 import { useCompanionRows } from "./Companions";
 import { HeldRoutes } from "./HeldRoutes";
 import { useNeedRows } from "./NeedLines";
-import { installIn, useInstalls } from "./useCatalog";
+import { installIn, useInstalls, useUpgradeUnavailable } from "./useCatalog";
 import "./Catalog.css";
 
 /**
@@ -35,6 +35,7 @@ export function InstalledPanel({ service }: { service: ServiceInfo }) {
   const web = useServices().data?.find((s) => s.id === install?.webServiceId);
   const facts = useInstallFacts(entry, install, web);
   const upgrading = useUpgrade(service);
+  const unavailableOf = useUpgradeUnavailable();
   const [notesOpen, setNotesOpen] = useState(false);
   const needRows = useNeedRows(entry, install ?? EMPTY_INSTALL);
   const companionRows = useCompanionRows(entry, install ?? EMPTY_INSTALL);
@@ -45,6 +46,9 @@ export function InstalledPanel({ service }: { service: ServiceInfo }) {
   const name = install.name || install.pin?.entry || "";
   const version = install.pin?.version ?? "";
   const next = install.upgrade?.version ?? "";
+  // A release that can't be planned where it runs, as one that drops its server's
+  // architecture, says why, with nothing to take (#771).
+  const unavailable = unavailableOf(install);
   // Its catalog withdrew the version it runs, which it keeps, as moving down could break its data (ADR 0080).
   const lower = install.withdrawn?.version ?? "";
   // An action on what you can see stays where it is, off, with why (ADR 0059).
@@ -64,6 +68,7 @@ export function InstalledPanel({ service }: { service: ServiceInfo }) {
           <span className="card-row-quiet">
             {next === version ? <Trans>· a change to how it runs is out</Trans> : <Trans>· {next} is out</Trans>}
           </span>
+          {unavailable ? <span className="card-row-quiet"> · {unavailable}</span> : null}
         </>
       ) : lower ? (
         <>
@@ -79,7 +84,7 @@ export function InstalledPanel({ service }: { service: ServiceInfo }) {
           {name} {version}
         </code>
       ),
-      action: install.upgrade ? (
+      action: unavailable ? undefined : install.upgrade ? (
         <Button variant="primary" size="sm" onClick={upgrade} {...mayUpgrade.off}>
           {next === version ? <Trans>Review the change</Trans> : <Trans>Upgrade to {next}</Trans>}
         </Button>

@@ -205,6 +205,9 @@ func (h *Handler) GetCatalogEntry(ctx context.Context, req *connect.Request[dock
 		return nil, h.internal(ctx, err)
 	}
 	needs := needOptions(entry, catalog.WithConnections(entry, catalog.WaysWith(entry, s.lookup(), h.candidates(ctx), ""), conns))
+	if err := h.upgradesThatRun(ctx, s, needs); err != nil {
+		return nil, h.internal(ctx, err)
+	}
 	seen, err := h.seenProjects(ctx)
 	if err != nil {
 		return nil, h.internal(ctx, err)
@@ -483,6 +486,10 @@ type InstallUpgrade struct {
 	// AppSource is the app's source repository, as its entry says, for its
 	// release notes.
 	AppSource string
+	// Unavailable says why the newer release can't be planned where the install
+	// runs, as one that drops the architecture of a server it's on; empty when it
+	// can (#771).
+	Unavailable string
 }
 
 // InstallUpgrades says, of each catalog install, by project ID, what it can
@@ -507,6 +514,11 @@ func (h *Handler) InstallUpgrades(ctx context.Context) (map[string]InstallUpgrad
 			}
 			if entry, known := s.entryFor(in.GetPin()); known {
 				u.AppSource = entry.GetAppSource()
+				if u.ToRelease > 0 {
+					if u.Unavailable, err = runsWhereItIs(ctx, tx, in.GetEnvironmentId(), entry, in.GetPin()); err != nil {
+						return err
+					}
+				}
 			}
 			if u.ToRelease > 0 {
 				key := in.GetPin().GetCatalog() + "/" + in.GetPin().GetEntry()
@@ -662,6 +674,24 @@ func (h *Handler) upgrade(ctx context.Context, m *dockwellv1.UpgradeCatalogInsta
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s's catalog has moved on to %s %s, release %d, so a new build alone would leave that out. Take the release as its own update, which brings the newest builds too", install.GetProject(), entry.GetName(), entry.GetVersion(), entry.GetRelease()), "newer_release")
 	case rebuildOnly && !rebuild:
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s runs no image by a tag that moves at release %d, so it has no new build to take alone", install.GetProject(), pin.GetRelease()), "no_rebuild")
+	}
+	// A release that can't be planned where the install runs is refused in the words
+	// the list of updates gives it, from the same function, so the two can't disagree
+	// (#771's review, H1).
+	if newer {
+		var why string
+		if err := h.db.View(ctx, func(tx *store.Tx) (err error) {
+			why, err = runsWhereItIs(ctx, tx, install.GetEnvironmentId(), entry, pin)
+			return err
+		}); err != nil {
+			return nil, h.internal(ctx, err)
+		}
+		if why != "" {
+			if !installAdmin(ctx) {
+				why = catalog.UnfitBrief(why)
+			}
+			return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s, so %s stays on %s", why, install.GetProject(), pin.GetVersion()), "release_unavailable")
+		}
 	}
 	// An automatic update takes a release only once its source has held it for
 	// ReleaseWait: checked here, on the release this plans, as the source may have
