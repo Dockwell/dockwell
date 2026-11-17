@@ -2676,7 +2676,9 @@ func (x *ServerInventory) GetTunnels() []*CloudflaredTunnel {
 // in memory and dropped; it never leaves the server (ADR 0104, section 3).
 type CloudflaredTunnel struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// The tunnel's ID at Cloudflare.
+	// The tunnel's ID at Cloudflare. Empty for a run of cloudflared whose tunnel the
+	// agent can't read, as one whose token file it can't open: cloudflared runs here
+	// all the same.
 	TunnelId string `protobuf:"bytes,1,opt,name=tunnel_id,json=tunnelId,proto3" json:"tunnel_id,omitempty"`
 	// The account it's in, by its tag; empty for one read from a config file.
 	AccountTag string `protobuf:"bytes,2,opt,name=account_tag,json=accountTag,proto3" json:"account_tag,omitempty"`

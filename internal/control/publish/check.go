@@ -199,8 +199,13 @@ func (p *Publisher) ways(ctx context.Context, a CheckAsk, t *target, name string
 		runsCloudflared = true
 	}
 	seen := map[string]bool{}
+	unread := false
 	for _, f := range tunnels {
 		runsCloudflared = true
+		if f.GetTunnelId() == "" {
+			unread = true
+			continue
+		}
 		if seen[f.GetTunnelId()] {
 			continue
 		}
@@ -259,6 +264,9 @@ func (p *Publisher) ways(ctx context.Context, a CheckAsk, t *target, name string
 		if opt.Off == "" && pick == resourcev1.RouteWay_ROUTE_WAY_UNSPECIFIED {
 			pick = resourcev1.RouteWay_ROUTE_WAY_SERVER_TUNNEL
 		}
+	}
+	if unread {
+		out = append(out, &dockwellv1.WayOption{Way: resourcev1.RouteWay_ROUTE_WAY_SERVER_TUNNEL, Off: facts.Name + " runs cloudflared Dockwell can't read"})
 	}
 	public := len(facts.Public) > 0
 	proxy := &dockwellv1.WayOption{Way: resourcev1.RouteWay_ROUTE_WAY_PROXY}

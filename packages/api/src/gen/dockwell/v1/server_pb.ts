@@ -1195,7 +1195,9 @@ export const ServerInventorySchema: GenMessage<ServerInventory> = /*@__PURE__*/
  */
 export type CloudflaredTunnel = Message<"dockwell.v1.CloudflaredTunnel"> & {
   /**
-   * The tunnel's ID at Cloudflare.
+   * The tunnel's ID at Cloudflare. Empty for a run of cloudflared whose tunnel the
+   * agent can't read, as one whose token file it can't open: cloudflared runs here
+   * all the same.
    *
    * @generated from field: string tunnel_id = 1;
    */

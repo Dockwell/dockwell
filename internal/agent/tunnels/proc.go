@@ -73,9 +73,12 @@ func readBeneath(dir int, name string, relative bool) ([]byte, error) {
 	if clean == "" {
 		return nil, ErrNotRegular
 	}
-	resolve := uint64(unix.RESOLVE_IN_ROOT | unix.RESOLVE_NO_MAGICLINKS | unix.RESOLVE_NO_XDEV)
+	// Links resolve inside the root, or beneath the working directory, never out of
+	// it; a mount inside it, as a Docker secret or a bind-mounted file is, may be
+	// crossed (the review's M1).
+	resolve := uint64(unix.RESOLVE_IN_ROOT | unix.RESOLVE_NO_MAGICLINKS)
 	if relative {
-		resolve = unix.RESOLVE_BENEATH | unix.RESOLVE_NO_MAGICLINKS | unix.RESOLVE_NO_XDEV
+		resolve = unix.RESOLVE_BENEATH | unix.RESOLVE_NO_MAGICLINKS
 	}
 	fd, err := unix.Openat2(dir, clean, &unix.OpenHow{Flags: unix.O_PATH | unix.O_CLOEXEC | unix.O_NOFOLLOW, Resolve: resolve})
 	if errors.Is(err, unix.ENOSYS) {

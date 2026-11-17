@@ -474,6 +474,9 @@ func (p *Publisher) proveTunnel(ctx context.Context, server string, t *target, t
 	if p.Tunnels == nil {
 		return nil, errors.New("this control plane can't read a server's tunnels")
 	}
+	if tunnel == "" {
+		return nil, fmt.Errorf("%s runs cloudflared Dockwell can't read. Pick a way in under Change", facts.Name)
+	}
 	found, err := p.Tunnels(ctx, server)
 	if err != nil {
 		return nil, fmt.Errorf("can't read %s's tunnels: %w", facts.Name, err)

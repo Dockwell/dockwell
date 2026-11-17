@@ -43,11 +43,18 @@ type publishStand struct {
 func newPublishStand(t *testing.T) *publishStand {
 	t.Helper()
 	token := base64.StdEncoding.EncodeToString([]byte(`{"a":"` + cftest.Account + `","t":"` + webOne + `","s":"never-leaves"}`))
+	return newPublishStandRunning(t, "cloudflared\x00tunnel\x00run\x00--token\x00"+token+"\x00")
+}
+
+// newPublishStandRunning is the stand with cloudflared run by the command line
+// cmdline, its arguments each ended by a NUL.
+func newPublishStandRunning(t *testing.T, cmdline string) *publishStand {
+	t.Helper()
 	finder := &tunnels.Finder{
 		Proc: fstest.MapFS{
 			"self/ns/net": {Data: []byte("net:[1]"), Mode: fs.ModeSymlink},
 			"100/stat":    {Data: []byte("100 (cloudflared) S 1 1 1 0 -1 4194560 100 0 0 0 1 1 0 0 20 0 9 0 500 1000 100")},
-			"100/cmdline": {Data: []byte("cloudflared\x00tunnel\x00run\x00--token\x00" + token + "\x00")},
+			"100/cmdline": {Data: []byte(cmdline)},
 			"100/ns/net":  {Data: []byte("net:[1]"), Mode: fs.ModeSymlink},
 		},
 		ReadyIn: func(context.Context, int, string) (tunnels.Ready, error) {
@@ -350,6 +357,32 @@ func TestTheLiveCheckOfAName(t *testing.T) {
 	hold(store.Grant{ProjectID: s.project, Role: store.RoleDeveloper})
 	if taken := check("vpn.example.com"); taken.GetState() != dockwellv1.CloudflareName_CLOUDFLARE_NAME_TAKEN || taken.GetRecord() != "" || taken.GetRecordId() != "" || len(taken.GetTypes()) != 0 {
 		t.Fatalf("taken, as a developer sees it: %v", taken)
+	}
+}
+
+// cloudflared whose tunnel the agent can't read, as one whose token is in a file
+// it can't open, still runs there: the check never picks publishing the server's
+// address, and says why the tunnel's way is off (the review's M1).
+func TestTheCheckWithCloudflaredItCantRead(t *testing.T) {
+	t.Parallel()
+	s := newPublishStandRunning(t, "cloudflared\x00tunnel\x00run\x00--token-file\x00/run/secrets/tunnel\x00")
+	dc := dockwellv1connect.NewDomainServiceClient(s.b, s.b.origin, connect.WithProtoJSON())
+	got, err := dc.CheckDomain(t.Context(), connect.NewRequest(&dockwellv1.CheckDomainRequest{ServerId: s.server, Domain: "wiki.example.com", ProjectId: s.project}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := got.Msg.GetCloudflare()
+	if c.GetWay() != resourcev1.RouteWay_ROUTE_WAY_FRONT {
+		t.Fatalf("picked %v with cloudflared running: %v", c.GetWay(), c)
+	}
+	off := ""
+	for _, w := range c.GetWays() {
+		if w.GetWay() == resourcev1.RouteWay_ROUTE_WAY_SERVER_TUNNEL {
+			off = w.GetOff()
+		}
+	}
+	if !strings.Contains(off, "runs cloudflared Dockwell can't read") {
+		t.Fatalf("the tunnel's way: %q", off)
 	}
 }
 

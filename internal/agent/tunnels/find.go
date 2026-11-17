@@ -102,20 +102,20 @@ func (f *Finder) one(ctx context.Context, pid int, ownNet string) *dockwellv1.Cl
 			clear(b)
 		}
 	}
+	// A run whose tunnel can't be read is reported all the same, with no tunnel ID:
+	// cloudflared runs here, so the server's address is never published by default
+	// (the review's M1).
 	switch {
 	case token != "":
-		account, id, ok := decodeToken(token)
-		if !ok {
-			return nil
+		if account, id, ok := decodeToken(token); ok {
+			t.AccountTag, t.TunnelId = account, id
 		}
-		t.AccountTag, t.TunnelId = account, id
+	case tokenFile != "":
+		// Its token is in a file the agent can't read.
 	default:
 		// A locally managed tunnel: its ID from its config, or the command line.
 		t.ManagedInFile = true
 		t.TunnelId = f.localID(pid, start, a, env["HOME"])
-		if t.TunnelId == "" {
-			return nil
-		}
 	}
 	// What's read is the process's only while its PID is: one that changed hands
 	// as it was read is dropped.

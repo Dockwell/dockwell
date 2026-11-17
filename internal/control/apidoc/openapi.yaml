@@ -11951,7 +11951,10 @@ components:
             properties:
                 tunnelId:
                     type: string
-                    description: The tunnel's ID at Cloudflare.
+                    description: |-
+                        The tunnel's ID at Cloudflare. Empty for a run of cloudflared whose tunnel the
+                         agent can't read, as one whose token file it can't open: cloudflared runs here
+                         all the same.
                 accountTag:
                     type: string
                     description: The account it's in, by its tag; empty for one read from a config file.

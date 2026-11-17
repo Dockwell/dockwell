@@ -128,6 +128,33 @@ func TestFind(t *testing.T) {
 	}
 }
 
+// A run whose tunnel can't be read is reported with no tunnel ID, so the control
+// plane knows cloudflared runs there (the review's M1).
+func TestFindReportsARunItCantRead(t *testing.T) {
+	p := newProc()
+	// Its token in a file the agent can't open.
+	p.add("100", "cloudflared", 500, []string{"cloudflared", "tunnel", "run", "--token-file", "/run/secrets/tunnel"}, nil, "net:[4026531840]", "")
+	// A token that isn't one.
+	p.add("200", "cloudflared", 600, []string{"cloudflared", "tunnel", "run", "--token", "not-a-token"}, nil, "net:[4026531840]", "")
+	// Locally managed, with a config the agent can't read.
+	p.add("300", "cloudflared", 700, []string{"cloudflared", "tunnel", "--config", "/etc/cloudflared/config.yml", "run"}, nil, "net:[4026531840]", "")
+	f := &Finder{Proc: p.fs, ReadIn: func(int, uint64, string) ([]byte, error) { return nil, os.ErrPermission }}
+	got := f.Find(context.Background())
+	want := []*dockwellv1.CloudflaredTunnel{
+		{Reaches: ReachesFromHost, Pid: 100},
+		{Reaches: ReachesFromHost, Pid: 200},
+		{ManagedInFile: true, Reaches: ReachesFromHost, Pid: 300},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("found %d, want %d: %v", len(got), len(want), got)
+	}
+	for i := range want {
+		if prototext.Format(got[i]) != prototext.Format(want[i]) {
+			t.Errorf("run %d:\n got %v\nwant %v", i, got[i], want[i])
+		}
+	}
+}
+
 // changing is a /proc whose stat for a PID says a new start the second time it's
 // read, as a PID taken by another process while the first was read.
 type changing struct {
@@ -241,6 +268,44 @@ func TestReadBeneathStaysInItsRoot(t *testing.T) {
 	} else {
 		unix.Close(got)
 	}
+}
+
+// A token on a mount of its own inside the root, as a Docker secret or a bound file
+// is, is read: the mount is crossed, never left (the review's M1).
+func TestReadInRootCrossesAMount(t *testing.T) {
+	if !mountPoint("/dev/shm") {
+		t.Skip("no /dev/shm mount here")
+	}
+	dir, err := os.MkdirTemp("/dev/shm", "dockwell-tunnels-")
+	if err != nil {
+		t.Skip("can't write in /dev/shm")
+	}
+	t.Cleanup(func() { os.RemoveAll(dir) })
+	file := filepath.Join(dir, "token")
+	if err := os.WriteFile(file, []byte("abc"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	start, err := startOf(os.Getpid())
+	if err != nil {
+		t.Skip("no /proc here")
+	}
+	if b, err := ReadInRoot(os.Getpid(), start, file); err != nil || string(b) != "abc" {
+		t.Fatalf("a file on a mount: %q %v", b, err)
+	}
+}
+
+// mountPoint says /proc/self/mountinfo lists dir as a mount.
+func mountPoint(dir string) bool {
+	b, err := os.ReadFile("/proc/self/mountinfo")
+	if err != nil {
+		return false
+	}
+	for line := range strings.SplitSeq(string(b), "\n") {
+		if f := strings.Fields(line); len(f) > 4 && f[4] == dir {
+			return true
+		}
+	}
+	return false
 }
 
 func TestReadInRootOfThisProcess(t *testing.T) {

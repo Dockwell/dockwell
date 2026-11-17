@@ -699,7 +699,9 @@ message ServerInventory {
 // and the ID of this run of cloudflared from its /ready. The token's secret is read
 // in memory and dropped; it never leaves the server (ADR 0104, section 3).
 message CloudflaredTunnel {
-  // The tunnel's ID at Cloudflare.
+  // The tunnel's ID at Cloudflare. Empty for a run of cloudflared whose tunnel the
+  // agent can't read, as one whose token file it can't open: cloudflared runs here
+  // all the same.
   string tunnel_id = 1;
   // The account it's in, by its tag; empty for one read from a config file.
   string account_tag = 2;
