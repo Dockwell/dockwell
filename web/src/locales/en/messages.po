@@ -8417,6 +8417,12 @@ msgstr "As {who}, once {runs} runs. Until then, only people in this project reac
 msgid "As {who}. Until then, only people in this project reach it."
 msgstr "As {who}. Until then, only people in this project reach it."
 
+msgid "Changed it in {app}? <0>Forget it</0>"
+msgstr "Changed it in {app}? <0>Forget it</0>"
+
+msgid "Forget {app}'s owner password"
+msgstr "Forget {app}'s owner password"
+
 msgid "Held"
 msgstr "Held"
 
@@ -8435,6 +8441,9 @@ msgstr "It's held until then."
 msgctxt "a long text, shown whole"
 msgid "Less"
 msgstr "Less"
+
+msgid "Make a new password"
+msgstr "Make a new password"
 
 msgid "Make it as {mine}"
 msgstr "Make it as {mine}"
@@ -8472,6 +8481,12 @@ msgstr "Set it up at {secure}"
 msgid "Set it up yourself"
 msgstr "Set it up yourself"
 
+msgid "Setting a new password"
+msgstr "Setting a new password"
+
+msgid "Setting a new password in {app}. The current one works until then."
+msgstr "Setting a new password in {app}. The current one works until then."
+
 msgid "Your setup link to {secure} works for {left} min. Everyone else finds it isn't open yet."
 msgstr "Your setup link to {secure} works for {left} min. Everyone else finds it isn't open yet."
 
@@ -8486,6 +8501,10 @@ msgstr "{0} answers that it isn't open yet, so only people in this project reach
 
 msgid "{app} is set up"
 msgstr "{app} is set up"
+
+#. placeholder {0}: owner.error
+msgid "{app} kept its password. {0}"
+msgstr "{app} kept its password. {0}"
 
 msgid "{app} waits for its owner's email"
 msgstr "{app} waits for its owner's email"
