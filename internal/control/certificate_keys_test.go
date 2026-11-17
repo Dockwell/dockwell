@@ -35,7 +35,17 @@ type dnsStand struct {
 
 func newDNSStand(t *testing.T) *dnsStand {
 	t.Helper()
+	return newDNSStandWith(t, nil)
+}
+
+// newDNSStandWith is newDNSStand, with prepare run on the control plane before its
+// server joins.
+func newDNSStandWith(t *testing.T, prepare func(*fullServer)) *dnsStand {
+	t.Helper()
 	f := startFull(t, store.SQLite, nil)
+	if prepare != nil {
+		prepare(f)
+	}
 	b := signedIn(t, f)
 	ing := &routesInMemory{routes: map[resource.Ref]*resourcev1.Route{}}
 	f.addServerWith(t, func() []resource.Type { return []resource.Type{&route.Driver{Ingress: ing}} })

@@ -149,6 +149,12 @@ func (c *Cloudflare) RecordsCommented(ctx context.Context, zone Zone, prefix str
 	return c.records(ctx, zone, url.Values{"comment.startswith": {prefix}})
 }
 
+// RecordsPointingAt lists the CNAME records in zone whose content is target, as the
+// names that point at a tunnel.
+func (c *Cloudflare) RecordsPointingAt(ctx context.Context, zone Zone, target string) ([]Record, error) {
+	return c.records(ctx, zone, url.Values{"type": {"CNAME"}, "content": {target}})
+}
+
 // maxRecordPages bounds a listing of records, 100 at a time.
 const maxRecordPages = 20
 

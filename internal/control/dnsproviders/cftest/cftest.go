@@ -348,6 +348,9 @@ func (a *API) records2(w http.ResponseWriter, r *http.Request, t Token, zone str
 			if c := q.Get("comment.startswith"); c != "" && !strings.HasPrefix(rec.Comment, c) {
 				continue
 			}
+			if c := q.Get("content"); c != "" && rec.Content != c {
+				continue
+			}
 			out = append(out, rec)
 		}
 		slices.SortFunc(out, func(x, y Record) int { return strings.Compare(x.ID, y.ID) })

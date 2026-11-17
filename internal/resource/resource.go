@@ -386,6 +386,10 @@ type Decision struct {
 	// sends its visitors is easy to miss among a plan's fields (ADR 0070). It never
 	// stops a plan, and the fingerprint covers the spec that says it.
 	Redirects *RouteRedirects `json:",omitempty"`
+	// Provider is a step the control plane takes at Cloudflare for a route, not on
+	// its server: a DNS record, or a tunnel's rule. Its server is the route's, to
+	// say where it belongs; nothing runs there (ADR 0104).
+	Provider *ProviderStep `json:",omitempty"`
 }
 
 // RouteRedirects is a route that answers every request with a redirect.
@@ -2857,4 +2861,65 @@ func Encode(spec proto.Message) ([]byte, error) {
 		b = []byte{}
 	}
 	return b, err
+}
+
+// ProviderAction is what a step at Cloudflare does (ADR 0104, section 8).
+type ProviderAction int
+
+// What a step at Cloudflare can do.
+const (
+	ProviderCreateRecord ProviderAction = iota + 1
+	ProviderDeleteRecord
+	ProviderReplaceRecord
+	ProviderTakeOnRecord
+	ProviderRestoreRecord
+	ProviderAddRule
+	ProviderRemoveRule
+	ProviderTakeOnRule
+	ProviderMoveRule
+)
+
+// ProviderStep is one thing the control plane writes, or removes, at Cloudflare for
+// a route. What a plan shows is in its first fields; the rest is what applying it
+// needs, which a plan worked out again, as a resumed change's is, finds again.
+type ProviderStep struct {
+	// Provider is the DNS provider whose token writes it, by name.
+	Provider string `json:",omitempty"`
+	Action   ProviderAction
+	// Target is the zone for a record, or the tunnel's name for a rule; Name the
+	// name it's for, or a rule's hostname.
+	Target, Name string
+	// Was is what's there now, To what it writes, in words; Routing what the routing
+	// check found of every other name, for a rule.
+	Was, To, Routing string `json:",omitempty"`
+
+	// ZoneID, Account and Tunnel say where it writes; Record is the record it
+	// writes, or the one it deletes, replaces or takes on, by its ID; Rule is the
+	// rule it adds, removes, takes on or moves, with At its index for a rule put
+	// back where it was.
+	ZoneID, Account, Tunnel string          `json:",omitempty"`
+	Record                  *ProviderRecord `json:",omitempty"`
+	Rule                    *ProviderRule   `json:",omitempty"`
+}
+
+// ProviderRecord is a DNS record a step writes or acts on.
+type ProviderRecord struct {
+	ID, Type, Name, Content, Comment string `json:",omitempty"`
+	Proxied                          bool   `json:",omitempty"`
+	TTL                              int    `json:",omitempty"`
+}
+
+// ProviderRule is a tunnel's rule a step writes or acts on.
+type ProviderRule struct {
+	Hostname, Path, Service string `json:",omitempty"`
+	At                      int    `json:",omitempty"`
+}
+
+// Key tells a route's steps at Cloudflare apart from each other, and from its own
+// step on its server: its action, where, and the name.
+func (p *ProviderStep) Key() string {
+	if p == nil {
+		return ""
+	}
+	return fmt.Sprintf("%d|%s|%s", p.Action, p.Target, p.Name)
 }

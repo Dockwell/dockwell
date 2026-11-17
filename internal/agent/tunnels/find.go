@@ -11,10 +11,11 @@ import (
 	"io/fs"
 	"net"
 	"path"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
+
+	"github.com/dockwell/dockwell/internal/lazyre"
 
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/agent/collect"
@@ -229,9 +230,9 @@ func decodeToken(token string) (account, tunnel string, ok bool) {
 	return got.A, strings.ToLower(got.T), true
 }
 
-var uuid = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
+var uuid = lazyre.Regexp(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
 
-func uuidLike(s string) bool { return uuid.MatchString(s) }
+func uuidLike(s string) bool { return uuid().MatchString(s) }
 
 // configPlaces are cloudflared's default places for its config file, under a home
 // for the first three.

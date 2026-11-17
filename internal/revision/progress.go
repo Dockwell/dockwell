@@ -46,11 +46,14 @@ func (s StepState) Final() bool { return s == StepDone || s == StepFailed || s =
 
 // StepProgress is one step of an applying change and how it is going.
 type StepProgress struct {
-	Server     string          `json:"server"`
-	ResourceID string          `json:"resource_id"`
-	Ref        resource.Ref    `json:"ref"`
-	Action     resource.Action `json:"action"`
-	State      StepState       `json:"state"`
+	Server     string `json:"server"`
+	ResourceID string `json:"resource_id"`
+	// Provider tells a route's steps at Cloudflare apart from its own step on its
+	// server, which has none (ADR 0104).
+	Provider string          `json:"provider,omitempty"`
+	Ref      resource.Ref    `json:"ref"`
+	Action   resource.Action `json:"action"`
+	State    StepState       `json:"state"`
 	// Message says what is happening, for people, or why the step failed,
 	// in plain words.
 	Message string `json:"message,omitempty"`
@@ -98,9 +101,15 @@ type Progress struct {
 
 func (p *Progress) clone() Progress { return Progress{Steps: slices.Clone(p.Steps)} }
 
-// index finds a step by its server and resource, or -1.
-func (p *Progress) index(server, resourceID string) int {
-	return slices.IndexFunc(p.Steps, func(s StepProgress) bool { return s.Server == server && s.ResourceID == resourceID })
+// index finds a resource's own step on a server, or -1.
+func (p *Progress) index(server, resourceID string) int { return p.indexOf(server, resourceID, "") }
+
+// indexOf finds a step by its server, resource, and, for a step at Cloudflare, its
+// key; or -1.
+func (p *Progress) indexOf(server, resourceID, provider string) int {
+	return slices.IndexFunc(p.Steps, func(s StepProgress) bool {
+		return s.Server == server && s.ResourceID == resourceID && s.Provider == provider
+	})
 }
 
 // ended says the record has a resource's step on a server as having ended.
@@ -531,7 +540,7 @@ func newProgress(plan *Plan, items []item) Progress {
 		for j := range sp.Steps {
 			st := &sp.Steps[j]
 			p.Steps = append(p.Steps, StepProgress{
-				Server: sp.Server, ResourceID: ids[st.Ref], Ref: st.Ref, Action: st.Action, State: StepQueued,
+				Server: sp.Server, ResourceID: ids[st.Ref], Provider: st.Provider.Key(), Ref: st.Ref, Action: st.Action, State: StepQueued,
 				Message: stepMessage(StepQueued, st, sp.Name), Wave: plan.Waves.waveOf(sp.Server),
 			})
 		}
@@ -548,7 +557,7 @@ func resumed(before Progress, plan *Plan, items []item, now time.Time) Progress 
 	todo := map[int]bool{}
 	for j := range fresh.Steps {
 		st := &fresh.Steps[j]
-		i := p.index(st.Server, st.ResourceID)
+		i := p.indexOf(st.Server, st.ResourceID, st.Provider)
 		if i < 0 {
 			p.Steps = append(p.Steps, *st)
 			i = len(p.Steps) - 1
@@ -638,6 +647,9 @@ func message(state StepState, action resource.Action, ref resource.Ref, server s
 // stepMessage is message for a step, in its own words where it restarts a
 // resource, rather than replacing it for a new spec.
 func stepMessage(state StepState, st *resource.Step, server string) string {
+	if st.Provider != nil {
+		return providerWords(state, st.Provider)
+	}
 	if st.Restore != nil {
 		what := fmt.Sprintf("%s %s on %s", st.Ref.Kind, st.Ref.Name, server)
 		switch state {

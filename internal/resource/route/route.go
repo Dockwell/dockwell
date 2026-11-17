@@ -21,6 +21,8 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
+	"github.com/dockwell/dockwell/internal/lazyre"
+
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/ingress"
@@ -294,6 +296,9 @@ func (d *Driver) Validate(spec proto.Message) error {
 		return errors.New("a route's plain_for_anyone says who answers over plain HTTP, and this route takes a certificate. Set tls to off with it, or leave it out")
 	}
 	if err := d.checkAccess(r); err != nil {
+		return err
+	}
+	if err := checkPublish(r); err != nil {
 		return err
 	}
 	if r.GetRedirect() != nil {
@@ -630,4 +635,78 @@ func ServedFor(rt *resourcev1.Route) string {
 		return fmt.Sprintf("port %d on the server", rt.GetHostPort())
 	}
 	return ""
+}
+
+// checkPublish checks how a route's domain is published at Cloudflare, if it is
+// (ADR 0104).
+func checkPublish(r *resourcev1.Route) error {
+	p := r.GetPublish()
+	if p == nil {
+		return nil
+	}
+	switch p.GetWay() {
+	case resourcev1.RouteWay_ROUTE_WAY_FRONT:
+		// Nothing written at Cloudflare: nothing more to say.
+		if p.GetTunnel() != "" || len(p.GetTakesOver()) > 0 {
+			return errors.New("a route published with something else in front writes nothing at Cloudflare, so it names no tunnel and takes nothing over. Leave them out")
+		}
+		return nil
+	case resourcev1.RouteWay_ROUTE_WAY_SERVER_TUNNEL:
+		if !tunnelID().MatchString(p.GetTunnel()) {
+			return fmt.Errorf("a route published through its server's tunnel names the tunnel by its ID at Cloudflare, such as 327d9d41-b009-413d-8494-7eeeefb3ed2a, not %q", p.GetTunnel())
+		}
+		p.Tunnel = strings.ToLower(p.GetTunnel())
+	case resourcev1.RouteWay_ROUTE_WAY_PROXY, resourcev1.RouteWay_ROUTE_WAY_OWN_HTTPS:
+		if p.GetTunnel() != "" {
+			return errors.New("a route published through Cloudflare's proxy, or its server's own HTTPS, names no tunnel. Leave it out")
+		}
+	case resourcev1.RouteWay_ROUTE_WAY_OWN_TUNNEL:
+		return errors.New("a tunnel of Dockwell's own on the server comes in a later version. Publish through the server's tunnel, Cloudflare's proxy or its own HTTPS for now")
+	case resourcev1.RouteWay_ROUTE_WAY_UNSPECIFIED:
+		return errors.New("a route's publish needs its way in: the server's tunnel, Cloudflare's proxy, the server's own HTTPS, or something else in front")
+	}
+	if p.GetProvider() == "" {
+		return errors.New("a route's publish names the DNS provider whose token writes its record, by name")
+	}
+	if r.GetPath() != "" && r.GetPath() != "/" {
+		return errors.New("a domain is published once, by its route at /. Publish it there, and leave this route's publish out")
+	}
+	for _, t := range p.GetTakesOver() {
+		record, rule := t.GetRecordId() != "", t.GetHostname() != "" || t.GetTunnel() != ""
+		switch {
+		case record == rule:
+			return errors.New("a route takes over a DNS record by its ID, or a tunnel's rule by its tunnel and hostname: one, not both")
+		case rule && (!tunnelID().MatchString(t.GetTunnel()) || t.GetHostname() == ""):
+			return errors.New("a tunnel's rule to take over names its tunnel by ID and its hostname")
+		}
+	}
+	return nil
+}
+
+// tunnelID is a Cloudflare tunnel's ID.
+var tunnelID = lazyre.Regexp(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
+
+// OnServer is a route as its server sees it: how it's published at Cloudflare is
+// the control plane's alone (ADR 0104).
+func (*Driver) OnServer(spec proto.Message) proto.Message {
+	r := spec.(*resourcev1.Route) //nolint:forcetypeassert // the kind's own message
+	if r.GetPublish() == nil {
+		return spec
+	}
+	out := proto.CloneOf(r)
+	out.Publish = nil
+	return out
+}
+
+// Readopted keeps how a route is published, which its server never had, on what
+// the server has read back.
+func (*Driver) Readopted(current, observed proto.Message) proto.Message {
+	cur, _ := current.(*resourcev1.Route)
+	obs, ok := observed.(*resourcev1.Route)
+	if !ok || cur.GetPublish() == nil {
+		return observed
+	}
+	out := proto.CloneOf(obs)
+	out.Publish = proto.CloneOf(cur.GetPublish())
+	return out
 }

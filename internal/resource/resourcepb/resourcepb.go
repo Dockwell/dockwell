@@ -190,6 +190,7 @@ func Step(s resource.Step, resourceID string) *dockwellv1.PlanStep {
 	}
 	p.Install = Install(s.Install)
 	p.Reboot = Reboot(s.Reboot)
+	p.Provider = Provider(s.Provider)
 	p.Unit = Unit(s.Unit)
 	p.Panel = Panel(s.Panel)
 	p.AgentUpgrade = AgentUpgrade(s.AgentUpgrade)
@@ -575,6 +576,7 @@ func FromStep(p *dockwellv1.PlanStep) (resource.Step, error) {
 	}
 	s.Install = InstallFrom(p.GetInstall())
 	s.Reboot = RebootFrom(p.GetReboot())
+	s.Provider = ProviderFrom(p.GetProvider())
 	s.Unit = UnitFrom(p.GetUnit())
 	s.Panel = PanelFrom(p.GetPanel())
 	s.AgentUpgrade = AgentUpgradeFrom(p.GetAgentUpgrade())
@@ -855,4 +857,23 @@ func PanelChecksFrom(checks []*dockwellv1.PanelDomainCheck) []resource.PanelChec
 		out = append(out, rc)
 	}
 	return out
+}
+
+// Provider is a step at Cloudflare as the API says it: what it does, where and to
+// what, never what applying it needs beyond (ADR 0104); nil for none.
+func Provider(p *resource.ProviderStep) *dockwellv1.ProviderStep {
+	if p == nil {
+		return nil
+	}
+	return &dockwellv1.ProviderStep{Provider: p.Provider, Action: dockwellv1.ProviderAction(p.Action), Target: p.Target, //nolint:gosec // a small enum
+		Name: p.Name, Was: p.Was, To: p.To, Routing: p.Routing}
+}
+
+// ProviderFrom reads a step at Cloudflare as the API says it; nil for none. What
+// applying it needs is found again by planning it.
+func ProviderFrom(p *dockwellv1.ProviderStep) *resource.ProviderStep {
+	if p == nil {
+		return nil
+	}
+	return &resource.ProviderStep{Provider: p.GetProvider(), Action: resource.ProviderAction(p.GetAction()), Target: p.GetTarget(), Name: p.GetName(), Was: p.GetWas(), To: p.GetTo(), Routing: p.GetRouting()}
 }

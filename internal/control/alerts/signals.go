@@ -74,6 +74,8 @@ func (s *signals) of(ctx context.Context, r rule) ([]finding, error) {
 		return s.updates(ctx, r), nil
 	case resourcev1.AlertRule_CONDITION_CATALOG_SOURCE_STUCK:
 		return s.catalogsStuck(ctx), nil
+	case resourcev1.AlertRule_CONDITION_DOMAIN_UNPUBLISHED:
+		return s.unpublished(ctx)
 	case resourcev1.AlertRule_CONDITION_UNSPECIFIED:
 	}
 	return nil, fmt.Errorf("no signal for %v", r.spec.GetCondition())
@@ -112,6 +114,64 @@ func (s *signals) catalogsStuck(ctx context.Context) []finding {
 		out = append(out, f)
 	}
 	return out
+}
+
+// unpublished is what Dockwell published at Cloudflare that the drift timer found
+// gone or changed: one finding for each tunnel, and each zone's records, not one for
+// each domain, as a zone's rule gone takes every domain in it (ADR 0104).
+func (s *signals) unpublished(ctx context.Context) ([]finding, error) {
+	if s.e.DB == nil {
+		return nil, nil
+	}
+	var rules []store.CloudflareRule
+	var records []store.CloudflareRecord
+	if err := s.e.DB.View(ctx, func(tx *store.Tx) error {
+		var err error
+		if rules, err = tx.CloudflareRulesAll(ctx); err != nil {
+			return err
+		}
+		records, err = tx.CloudflareRecordsAll(ctx)
+		return err
+	}); err != nil {
+		return nil, err
+	}
+	byThing := map[string]*finding{}
+	var order []string
+	add := func(thing string, f finding) *finding {
+		if got, ok := byThing[thing]; ok {
+			return got
+		}
+		f.thing, f.path, f.verdict = thing, "/domains", fine
+		byThing[thing] = &f
+		order = append(order, thing)
+		return byThing[thing]
+	}
+	for i := range rules {
+		r := &rules[i]
+		f := add("cloudflare-tunnel:"+r.TunnelID+":"+r.Zone, finding{subjectID: r.TunnelID, subjectName: r.Zone})
+		if r.State != store.CloudflarePublished && f.verdict == fine {
+			f.verdict = holds
+			f.title = r.Hostname + " is gone from its tunnel"
+			f.detail = "Every domain in " + r.Zone + " published through it can't be reached. Put it back from Domains."
+		}
+	}
+	for i := range records {
+		r := &records[i]
+		if r.Type == "pending" {
+			continue
+		}
+		f := add("cloudflare-dns:"+r.ZoneID, finding{subjectID: r.ZoneID, subjectName: r.Zone})
+		if r.State != store.CloudflarePublished && f.verdict == fine {
+			f.verdict = holds
+			f.title = "A DNS record Dockwell wrote in " + r.Zone + " is gone"
+			f.detail = r.Name + "'s record was removed or changed in Cloudflare, so it may not reach its app. Put it back from Domains."
+		}
+	}
+	out := make([]finding, 0, len(order))
+	for _, thing := range order {
+		out = append(out, *byThing[thing])
+	}
+	return out, nil
 }
 
 // Revocation is a key a server that's gone had, which the control plane hasn't

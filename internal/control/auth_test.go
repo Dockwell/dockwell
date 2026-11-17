@@ -36,6 +36,7 @@ import (
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/agent"
+	"github.com/dockwell/dockwell/internal/agent/tunnels"
 	"github.com/dockwell/dockwell/internal/auth"
 	"github.com/dockwell/dockwell/internal/auth/authtest"
 	"github.com/dockwell/dockwell/internal/control/agentapi"
@@ -133,6 +134,8 @@ type fullServer struct {
 	lastDocker *testServer
 	// cloudflare is Cloudflare's stand-in, which takes dnsToken for its zones.
 	cloudflare *cftest.API
+	// tunnels finds the tunnels cloudflared runs on the next server added (ADR 0104).
+	tunnels *tunnels.Finder
 	// onePanelRoot is where the next Docker server added has 1Panel installed, if anywhere.
 	onePanelRoot string
 	// panelsRoot is the next Docker server's root, for Coolify's and Dokploy's

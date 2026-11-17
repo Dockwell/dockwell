@@ -388,6 +388,10 @@ func New(cfg Config) (*Server, error) {
 	// A server a change took out of the fleet: it leaves the fleet's list, its
 	// stream ends now, and its certificates' keys are replaced and revoked at once
 	// (ADR 0090).
+	// Publishing a route's domain at Cloudflare is steps the engine takes (ADR 0104).
+	if cfg.Changes != nil && cfg.dns != nil {
+		cfg.Changes.SetPublisher(publisher(&cfg))
+	}
 	if cfg.Changes != nil {
 		agents, certs, hub := cfg.Agents, cfg.certificates, cfg.Fleet
 		cfg.Changes.OnRemoved(func(server string) {

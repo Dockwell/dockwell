@@ -73,11 +73,14 @@ func NeedFor(doc *Document, rt Routing, zone, name string) Need {
 	return Need{Rule: rule, Edit: edit, After: after}
 }
 
-// Unless says what's left of every other name when rule goes in: the words a plan
-// shows beside it.
-func (rt Routing) Unless(tunnel string) string {
-	if len(rt.Panel) > 0 {
-		return "Every other name in " + tunnel + ", the panel's among them, goes where it went"
+// Unless says what's left of every other name when a rule goes in: the words a
+// plan shows beside it, naming the panel where a rule of the tunnel serves one of its
+// names.
+func (rt Routing) Unless(tunnel string, rules []Rule) string {
+	for _, p := range rt.Panel {
+		if i := FirstFor(rules, probeName(p)); i >= 0 && rules[i].Hostname != "" {
+			return "Every other name in " + tunnel + ", the panel's among them, goes where it went"
+		}
 	}
 	return "Every other name in " + tunnel + " goes where it went"
 }
