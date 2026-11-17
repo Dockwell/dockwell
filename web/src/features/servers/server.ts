@@ -108,6 +108,8 @@ export interface ServerSummary {
   lent?: readonly [number, number];
   /** True for the server the control plane runs on. */
   control?: boolean;
+  /** Its CPU architecture, such as amd64, where its agent has said (ADR 0102). */
+  architecture?: string;
 }
 
 /**
@@ -179,6 +181,7 @@ function summaries(servers: readonly Server[], prev: readonly ServerSummary[] | 
         ? { lent: [server.inventory.ephemeralPortsLow, server.inventory.ephemeralPortsHigh] as const }
         : {}),
       ...(server.controlServer ? { control: true } : {}),
+      ...(server.inventory?.architecture ? { architecture: server.inventory.architecture } : {}),
     };
     const old = prev?.[i];
     return old && sameSummary(old, summary) ? old : summary;
@@ -196,6 +199,7 @@ function sameSummary(a: ServerSummary, b: ServerSummary): boolean {
     a.connectedAt === b.connectedAt &&
     a.dockerUnreadableSince === b.dockerUnreadableSince &&
     a.strained === b.strained &&
+    a.architecture === b.architecture &&
     a.lent?.[0] === b.lent?.[0] &&
     a.lent?.[1] === b.lent?.[1] &&
     a.control === b.control

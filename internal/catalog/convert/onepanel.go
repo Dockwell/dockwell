@@ -174,8 +174,8 @@ func onePanelRead(t *tree, dir string) App {
 		app.LeftOut, app.Class = "it has no version with a Compose file of its own", ClassFile
 		return app
 	}
-	if arch := meta.More.Architectures; len(arch) > 0 && (!slices.Contains(arch, "amd64") || !slices.Contains(arch, "arm64")) {
-		app.LeftOut, app.Class = fmt.Sprintf("1Panel says it runs on %s alone, where an entry runs on amd64 and arm64 both", strings.Join(arch, " and ")), ClassArch
+	if app.Architectures, err = architecturesOf("1Panel", meta.More.Architectures); err != nil {
+		app.LeftOut, app.Class = err.Error(), ClassArch
 		return app
 	}
 	slices.SortFunc(names, compareVersions)

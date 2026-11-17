@@ -355,6 +355,10 @@ type Edit struct {
 	// rollback to it does: what Dockwell recorded of who chose it stays as it was
 	// (resource.SaverStamper), as an undo's does.
 	Restores bool
+	// SetsArchitectures says the edit sets where its service runs, as a catalog
+	// install and upgrade do from their entry, so an empty list clears it; any other
+	// edit that leaves it out keeps it (resource.Holder, ADR 0102).
+	SetsArchitectures bool
 	// Adopt takes on this container, by its full ID, as what the resource runs, in
 	// place of making one, and AdoptName is what it is called. Bringing a container
 	// in brings its environment, so a person applies it (resource.AccessTakesOn).
@@ -1782,6 +1786,11 @@ func (e *Engine) items(ctx context.Context, edits []Edit, rotate bool) ([]item, 
 						return fault.New(ErrInvalid, "%s: %w", ed.Ref, err)
 					}
 				}
+				if t, err := e.kinds.Type(ed.Ref.Kind); err == nil && it.current != nil && !ed.Observed && !ed.Reverses && !ed.Restores && !ed.SetsArchitectures {
+					if h, ok := t.(resource.Holder); ok {
+						h.HoldUnset(it.current, it.spec)
+					}
+				}
 				if t, err := e.kinds.Type(ed.Ref.Kind); it.current == nil && err == nil && !ed.Reverses {
 					if d, ok := t.(resource.NewDefaulter); ok {
 						d.DefaultNew(ed.Ref, it.spec)
@@ -1991,6 +2000,21 @@ func (e *Engine) placement(ctx context.Context, tx *store.Tx, it item, revision 
 // told where when there is a choice (PRD principle 4). Nothing is placed
 // on a removed server.
 func (e *Engine) place(ctx context.Context, tx *store.Tx, it item, want []string) ([]string, error) {
+	out, err := e.placeOn(ctx, tx, it, want)
+	if err != nil {
+		return nil, err
+	}
+	// A service runs only on a server of an architecture it says it runs on, which
+	// its server reports, wherever it's placed: as it's made, moved, upgraded or
+	// undone (ADR 0102).
+	if err := runsThere(ctx, tx, it, out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// placeOn is where place puts the item, before its architectures are checked.
+func (e *Engine) placeOn(ctx context.Context, tx *store.Tx, it item, want []string) ([]string, error) {
 	switch {
 	case it.spec == nil || !it.runs:
 		return nil, nil

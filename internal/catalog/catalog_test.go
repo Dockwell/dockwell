@@ -1138,3 +1138,33 @@ func TestCheckSaysASecretIsInAYAMLExtension(t *testing.T) {
 		t.Errorf("Check = %v", err)
 	}
 }
+
+// An entry says the architectures it runs on as a server's inventory names them,
+// each once, and runs on any server where it names none (ADR 0102).
+func TestAnEntrySaysTheArchitecturesItRunsOn(t *testing.T) {
+	c, err := catalog.Load("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	base, _ := c.Entry("postgres")
+	for arch, want := range map[string]string{
+		"amd64":       "",
+		"amd64 arm64": "",
+		"arm/v7":      `it says it runs on "arm/v7", which isn't an architecture Dockwell runs on`,
+		"amd64 amd64": "it names amd64 twice in architectures",
+	} {
+		e := proto.CloneOf(base)
+		e.Architectures = strings.Fields(arch)
+		if err := catalog.Check(e); want == "" && err != nil || want != "" && (err == nil || !strings.Contains(err.Error(), want)) {
+			t.Errorf("%q: %v, want %q", arch, err, want)
+		}
+	}
+	e := proto.CloneOf(base)
+	if !catalog.RunsOn(e, "arm64") {
+		t.Error("an entry that names no architecture doesn't run on arm64")
+	}
+	e.Architectures = []string{"amd64"}
+	if catalog.RunsOn(e, "arm64") || !catalog.RunsOn(e, "amd64") {
+		t.Error("an entry of amd64 alone runs where it shouldn't")
+	}
+}

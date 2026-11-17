@@ -2827,11 +2827,17 @@ export function RunsOnField({
   onChange,
   error,
   servers,
+  unfit,
+  hint,
 }: {
   value: readonly string[];
   onChange: (next: readonly string[]) => void;
   error: string | undefined;
   servers: NonNullable<ReturnType<typeof useFleetView>["servers"]>;
+  /** Why the app can't go on a server, which then can't be chosen, or undefined where it can. */
+  unfit?: (server: NonNullable<ReturnType<typeof useFleetView>["servers"]>[number]) => string | undefined;
+  /** One line under the servers, such as which architectures the app runs on. */
+  hint?: string | undefined;
 }) {
   const { t } = useLingui();
   const id = useId();
@@ -2841,20 +2847,26 @@ export function RunsOnField({
         <Trans>Runs on</Trans>
       </span>
       <div className="app-servers">
-        {servers.map((server) => (
-          <label key={server.id} className="app-check is-server">
-            <input
-              type="checkbox"
-              checked={value.includes(server.id)}
-              onChange={(event) =>
-                onChange(event.target.checked ? [...value, server.id] : value.filter((s) => s !== server.id))
-              }
-            />
-            <code className="app-server-name">{server.name}</code>
-            {server.connection === Connection.CONNECTED ? null : <Tag words>{t`Offline`}</Tag>}
-          </label>
-        ))}
+        {servers.map((server) => {
+          const why = unfit?.(server);
+          return (
+            <label key={server.id} className="app-check is-server">
+              <input
+                type="checkbox"
+                checked={value.includes(server.id)}
+                disabled={why !== undefined}
+                onChange={(event) =>
+                  onChange(event.target.checked ? [...value, server.id] : value.filter((s) => s !== server.id))
+                }
+              />
+              <code className="app-server-name">{server.name}</code>
+              {why !== undefined ? <Tag words>{why}</Tag> : null}
+              {server.connection === Connection.CONNECTED ? null : <Tag words>{t`Offline`}</Tag>}
+            </label>
+          );
+        })}
       </div>
+      {hint ? <span className="dw-field-hint">{hint}</span> : null}
       {error ? (
         <span className="dw-field-error" role="alert">
           {error}

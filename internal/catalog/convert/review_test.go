@@ -352,16 +352,28 @@ func TestABuildWithNoDateCountsFromFirstSight(t *testing.T) {
 	}
 }
 
-// An entry runs on amd64 and arm64 both, as the owner's servers do.
-func TestAnAmd64ImageAloneStaysOut(t *testing.T) {
+// An entry that says nothing runs on amd64 and arm64 both, so an image of one build
+// leaves it out. One that says it runs on amd64 alone takes an amd64 image, and its
+// store's word is the entry's (ADR 0102); one that names no architecture Dockwell's
+// servers run is left out.
+func TestAnAmd64ImageAloneRunsWhereItsAppSays(t *testing.T) {
 	c := converter()
 	c.Registry = &fakeRegistry{platforms: map[string][]string{"example/a:1.0": {"linux/amd64"}}}
 	r := convertPlain(t, c, "services:\n  a:\n    image: example/a:1.0\n")
 	if r.Entry != nil || r.Class != ClassArch || !strings.Contains(r.LeftOut, "not linux/arm64") {
 		t.Errorf("%s: %q", r.Class, r.LeftOut)
 	}
-	if a := readFixture(t)["amd64only"]; a.Class != ClassArch || !strings.Contains(a.LeftOut, "1Panel says it runs on amd64 alone") {
-		t.Errorf("1Panel's own word: %s, %q", a.Class, a.LeftOut)
+	if a := readFixture(t)["amd64only"]; a.LeftOut != "" || !slices.Equal(a.Architectures, []string{"amd64"}) {
+		t.Errorf("1Panel's own word: %v, %q", a.Architectures, a.LeftOut)
+	}
+	for said, want := range map[string][]string{"amd64": {"amd64"}, "arm64 arm/v7": {"arm64"}, "amd64 arm64 arm/v7": nil, "": nil} {
+		got, err := architecturesOf("1Panel", strings.Fields(said))
+		if err != nil || !slices.Equal(got, want) {
+			t.Errorf("%q: %v, %v, want %v", said, got, err, want)
+		}
+	}
+	if _, err := architecturesOf("1Panel", []string{"arm/v7", "ppc64le"}); err == nil || !strings.Contains(err.Error(), "1Panel says it runs on arm/v7 and ppc64le alone, where Dockwell's servers run amd64 or arm64") {
+		t.Errorf("arm/v7 alone: %v", err)
 	}
 }
 

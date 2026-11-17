@@ -82,6 +82,10 @@ type Upgrade struct {
 	// Empties is the app it starts on an empty database of another engine, its data
 	// left on the one before, which makes the plan destructive (ADR 0084).
 	Empties string
+	// Architectures are those the release runs on, which each of its services takes,
+	// as Install's are (ADR 0102). Nil keeps what each runs on now, for a change
+	// that keeps the release, such as a companion's or a need's.
+	Architectures *[]string
 }
 
 // PlanUpgrade plans an install's newer release into the environment it runs in, with
@@ -116,6 +120,7 @@ func (h *Handler) PlanUpgrade(ctx context.Context, in Upgrade) (*dockwellv1.Chan
 	if err != nil {
 		return nil, h.internal(ctx, err)
 	}
+	keepArchitectures(next, now, in.Architectures)
 	deletes, notes, err := mergeStack(place.environment, old, now, next)
 	if err != nil {
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, err, "upgrade_clash")
@@ -166,7 +171,7 @@ func (h *Handler) PlanUpgrade(ctx context.Context, in Upgrade) (*dockwellv1.Chan
 	}
 	switch {
 	case in.Companion:
-		return h.plan(ctx, req, next, place, planning{needs: in.Needs, secrets: in.Secrets, public: in.Public, upgrade: true, deletes: deletes, notes: notes, empties: in.Empties})
+		return h.plan(ctx, req, next, place, planning{needs: in.Needs, secrets: in.Secrets, public: in.Public, setsArchitectures: in.Architectures != nil, upgrade: true, deletes: deletes, notes: notes, empties: in.Empties})
 	case in.SkipBackup:
 		backUp = nil
 		say = revision.Note{
@@ -175,9 +180,9 @@ func (h *Handler) PlanUpgrade(ctx context.Context, in Upgrade) (*dockwellv1.Chan
 			Ref:     project,
 		}
 	case len(backUp) == 0 && len(ones) == 0:
-		return h.plan(ctx, req, next, place, planning{needs: in.Needs, secrets: in.Secrets, public: in.Public, upgrade: true, deletes: deletes, notes: notes, intent: intent, empties: in.Empties})
+		return h.plan(ctx, req, next, place, planning{needs: in.Needs, secrets: in.Secrets, public: in.Public, setsArchitectures: in.Architectures != nil, upgrade: true, deletes: deletes, notes: notes, intent: intent, empties: in.Empties})
 	}
-	return h.plan(ctx, req, next, place, planning{needs: in.Needs, secrets: in.Secrets, public: in.Public, upgrade: true, deletes: deletes, backUp: backUp, backUpOne: ones, skipBackup: in.SkipBackup, notes: append([]revision.Note{say}, notes...), intent: intent, empties: in.Empties})
+	return h.plan(ctx, req, next, place, planning{needs: in.Needs, secrets: in.Secrets, public: in.Public, setsArchitectures: in.Architectures != nil, upgrade: true, deletes: deletes, backUp: backUp, backUpOne: ones, skipBackup: in.SkipBackup, notes: append([]revision.Note{say}, notes...), intent: intent, empties: in.Empties})
 }
 
 // linkedDatabases are the databases an app in env has alone on servers other
@@ -374,7 +379,32 @@ func mergeService(base, ours, next *resourcev1.Service) (*resourcev1.Service, []
 	clashes = append(clashes, c...)
 	secrets, c := mergeStrings("secret ", base.GetSecrets(), ours.GetSecrets(), next.GetSecrets())
 	clashes = append(clashes, c...)
-	return &resourcev1.Service{Runs: &resourcev1.Service_App{App: app}, Variables: variables, Secrets: secrets, ShownEnv: mergeShown(app, ours, next)}, clashes
+	// Where it runs is the release's, set on next before the merge (keepArchitectures).
+	return &resourcev1.Service{Runs: &resourcev1.Service_App{App: app}, Variables: variables, Secrets: secrets, ShownEnv: mergeShown(app, ours, next), Architectures: slices.Clone(next.GetArchitectures())}, clashes
+}
+
+// keepArchitectures sets the architectures each of next's services runs on: the
+// release's, where an upgrade gives them, or else what the service runs on now, or
+// for one the change adds, what the install's other services run on (ADR 0102).
+func keepArchitectures(next *compose.Stack, now runs, release *[]string) {
+	if release != nil {
+		runsOn(next, *release)
+		return
+	}
+	var install []string
+	for _, name := range slices.Sorted(maps.Keys(now.services)) {
+		if a := now.services[name].GetArchitectures(); len(a) > 0 {
+			install = a
+			break
+		}
+	}
+	for _, s := range next.Services {
+		if have := now.services[s.Name]; have != nil {
+			s.Spec.Architectures = slices.Clone(have.GetArchitectures())
+		} else {
+			s.Spec.Architectures = slices.Clone(install)
+		}
+	}
 }
 
 // mergeShown is which of a merged app's own values a read shows: each that has the

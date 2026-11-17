@@ -7695,6 +7695,9 @@ msgstr "之前有过名为 {name} 的项目，它的数据可能会回来"
 msgid "App you open"
 msgstr "你打开的应用"
 
+msgid "Architecture not known yet"
+msgstr "尚不知道架构"
+
 #. placeholder {0}: rule.min
 msgid "At least {0} characters"
 msgstr "至少 {0} 个字符"
@@ -7802,6 +7805,12 @@ msgstr "正在读取来源"
 msgid "Restarts {0}"
 msgstr "重启：{0}"
 
+msgid "Runs on {archList} alone, and none of your servers is {archList}. Add an {archList} server."
+msgstr "只能在 {archList} 上运行，而你的服务器都不是 {archList}。请添加一台 {archList} 服务器。"
+
+msgid "Runs on {archList} alone."
+msgstr "只能在 {archList} 上运行。"
+
 msgid "Set my own"
 msgstr "自己设置"
 
@@ -7829,6 +7838,9 @@ msgstr "例如 512M 或 2G。"
 
 msgid "Take away the space at its start or end."
 msgstr "请去掉开头或结尾的空格。"
+
+msgid "This app runs on {archList} alone, and {onlyName} is {onlyUnfit}. Add a server it runs on."
+msgstr "此应用只能在 {archList} 上运行，而 {onlyName} 是 {onlyUnfit}。请添加一台它能运行的服务器。"
 
 msgid "Upgrade {upgraded}"
 msgstr "升级 {upgraded}"
@@ -7908,6 +7920,9 @@ msgstr "{cpus} 个 vCPU"
 
 msgid "{name} in the catalog"
 msgstr "目录中的 {name}"
+
+msgid "{onlyName} hasn't said its architecture yet, so it can't take this app. It does once its agent connects."
+msgstr "{onlyName} 尚未报告其架构，因此无法安装此应用。其代理连接后会报告。"
 
 msgid "{ownCount, plural, one {# secret of your own} other {# secrets of your own}}"
 msgstr "{ownCount, plural, other {# 个自己设置的密钥}}"
@@ -8113,9 +8128,6 @@ msgstr "Dockwell 支持连接数据库后即可安装"
 msgid "Install once Dockwell fills in what their store does"
 msgstr "Dockwell 能填入其商店提供的值后即可安装"
 
-msgid "Install once Dockwell offers them for amd64 servers"
-msgstr "Dockwell 为 amd64 服务器提供后即可安装"
-
 msgid "Install once Dockwell pins their moving tag by digest"
 msgstr "Dockwell 按摘要固定其浮动标签后即可安装"
 
@@ -8137,8 +8149,8 @@ msgstr "把密钥写在更长的值里"
 msgid "Read it as"
 msgstr "读取为"
 
-msgid "Run on amd64 alone"
-msgstr "仅支持 amd64"
+msgid "Run on neither amd64 nor arm64"
+msgstr "既不在 amd64 也不在 arm64 上运行"
 
 msgid "Run scripts on the server"
 msgstr "会在服务器上运行脚本"

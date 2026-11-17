@@ -138,6 +138,10 @@ type Install struct {
 	// file, as the catalog entry declares them and as a person approves them in the
 	// plan: "80", or "443/udp" (ADR 0101).
 	Public map[string][]string
+	// Architectures are the CPU architectures the entry runs on, which each of its
+	// services takes, so a plan places it only on a server of one (ADR 0102). Empty
+	// runs anywhere.
+	Architectures []string
 }
 
 // Needs are what an install's needs set in its environment, and how each is met
@@ -284,6 +288,7 @@ func (h *Handler) PlanInstall(ctx context.Context, in Install) (*dockwellv1.Chan
 	useValues(stack, in.Needs.Stands, variable.VariableKind)
 	joinLinks(stack, in.Needs.Joins)
 	showPlain(stack)
+	runsOn(stack, in.Architectures)
 	req := &dockwellv1.ImportComposeRequest{Summary: in.Summary, Servers: in.Servers, Variables: in.Variables}
 	var notes []revision.Note
 	if in.FirstSteps != "" {
@@ -300,7 +305,7 @@ func (h *Handler) PlanInstall(ctx context.Context, in Install) (*dockwellv1.Chan
 		}
 		notes = append(notes, n)
 	}
-	return h.plan(ctx, req, stack, place, planning{secrets: in.Secrets, notes: notes, needs: in.Needs, public: in.Public})
+	return h.plan(ctx, req, stack, place, planning{secrets: in.Secrets, notes: notes, needs: in.Needs, public: in.Public, setsArchitectures: true})
 }
 
 // planning is what a plan adds to a file read for a place.
@@ -328,6 +333,9 @@ type planning struct {
 	// public are the ports each service makes public on purpose, by its name
 	// (Install.Public).
 	public map[string][]string
+	// setsArchitectures says the plan sets where each service runs from its catalog
+	// entry or release, so an empty list clears it (ADR 0102).
+	setsArchitectures bool
 }
 
 // useSecrets has each service use by reference what a file's variables gave its
@@ -368,6 +376,14 @@ func useValues(stack *compose.Stack, stands map[string]string, kind resource.Kin
 func showPlain(stack *compose.Stack) {
 	for _, s := range stack.Services {
 		s.Spec.ShownEnv = catalog.ShownEnv(s.Spec.GetApp())
+	}
+}
+
+// runsOn has each service of a catalog entry's file run on the architectures the
+// entry runs on, which a plan places it by (ADR 0102).
+func runsOn(stack *compose.Stack, arch []string) {
+	for _, s := range stack.Services {
+		s.Spec.Architectures = slices.Clone(arch)
 	}
 }
 
@@ -481,12 +497,19 @@ func (h *Handler) plan(ctx context.Context, m *dockwellv1.ImportComposeRequest, 
 	for name, ports := range also.public {
 		public[resource.Ref{Kind: service.Kind, Scope: env, Name: name}] = ports
 	}
+	var sets map[resource.Ref]bool
+	if also.setsArchitectures {
+		sets = map[resource.Ref]bool{}
+		for _, s := range stack.Services {
+			sets[resource.Ref{Kind: service.Kind, Scope: env, Name: s.Name}] = true
+		}
+	}
 	return h.changes.Propose(ctx, summary, edits, func(choice *scope.ChoiceError, _ string) string {
 		if choice.Level == scope.ServerLevel {
 			return "servers"
 		}
 		return ""
-	}, changes.Also{Edits: place.made, Public: public, BackUp: also.backUp, BackUpOne: also.backUpOne, SkipBackup: also.skipBackup, Empties: also.empties, Intent: also.intent, Notes: slices.Concat(also.notes, updates, planNotes(env, stack.Notices), exposedNotes(env, stack.Exposed, stack.ExposedMore, m.GetVariables()), rotationNotes(env, stack.Rotations))})
+	}, changes.Also{Edits: place.made, Public: public, SetsArchitectures: sets, BackUp: also.backUp, BackUpOne: also.backUpOne, SkipBackup: also.skipBackup, Empties: also.empties, Intent: also.intent, Notes: slices.Concat(also.notes, updates, planNotes(env, stack.Notices), exposedNotes(env, stack.Exposed, stack.ExposedMore, m.GetVariables()), rotationNotes(env, stack.Rotations))})
 }
 
 // usersAfterTheirServers moves each database user the edits make in env right after

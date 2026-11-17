@@ -3955,7 +3955,13 @@ type Service struct {
 	// plane keeps it: its servers never see it, so changing it alone restarts
 	// nothing. See docs/adr/0081-an-apps-own-values-shown-and-its-secrets-kept.md.
 	// Numbered apart, as open work adds to this message.
-	ShownEnv      []string `protobuf:"bytes,180,rep,name=shown_env,json=shownEnv,proto3" json:"shown_env,omitempty"`
+	ShownEnv []string `protobuf:"bytes,180,rep,name=shown_env,json=shownEnv,proto3" json:"shown_env,omitempty"`
+	// The CPU architectures it runs on, as a server's inventory names them: "amd64",
+	// "arm64". A plan refuses to place it on a server that reports another, or none
+	// yet. Empty, it runs anywhere. A catalog install and upgrade copy their entry's.
+	// Only the control plane keeps it: its servers never see it. See
+	// docs/adr/0102-an-app-that-runs-on-one-architecture-goes-only-where-it-runs.md.
+	Architectures []string `protobuf:"bytes,190,rep,name=architectures,proto3" json:"architectures,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4051,6 +4057,13 @@ func (x *Service) GetAutoUpdate() *AutoUpdate {
 func (x *Service) GetShownEnv() []string {
 	if x != nil {
 		return x.ShownEnv
+	}
+	return nil
+}
+
+func (x *Service) GetArchitectures() []string {
+	if x != nil {
+		return x.Architectures
 	}
 	return nil
 }
@@ -9672,7 +9685,7 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\fdisplay_name\x18\x01 \x01(\tR\vdisplayName\x12F\n" +
 	"\n" +
 	"protection\x18\x02 \x01(\x0e2&.dockwell.resource.v1alpha1.ProtectionR\n" +
-	"protection\"\xe1\x05\n" +
+	"protection\"\x88\x06\n" +
 	"\aService\x129\n" +
 	"\x03app\x18\x01 \x01(\v2%.dockwell.resource.v1alpha1.ContainerH\x00R\x03app\x12P\n" +
 	"\tvariables\x18\x02 \x03(\v22.dockwell.resource.v1alpha1.Service.VariablesEntryR\tvariables\x12J\n" +
@@ -9682,7 +9695,8 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\aruntime\x18\x96\x01 \x01(\v2#.dockwell.resource.v1alpha1.RuntimeR\aruntime\x12H\n" +
 	"\vauto_update\x18\xaa\x01 \x01(\v2&.dockwell.resource.v1alpha1.AutoUpdateR\n" +
 	"autoUpdate\x12\x1c\n" +
-	"\tshown_env\x18\xb4\x01 \x03(\tR\bshownEnv\x1a<\n" +
+	"\tshown_env\x18\xb4\x01 \x03(\tR\bshownEnv\x12%\n" +
+	"\rarchitectures\x18\xbe\x01 \x03(\tR\rarchitectures\x1a<\n" +
 	"\x0eVariablesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a:\n" +

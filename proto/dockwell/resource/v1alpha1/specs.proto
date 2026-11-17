@@ -791,6 +791,12 @@ message Service {
   // nothing. See docs/adr/0081-an-apps-own-values-shown-and-its-secrets-kept.md.
   // Numbered apart, as open work adds to this message.
   repeated string shown_env = 180;
+  // The CPU architectures it runs on, as a server's inventory names them: "amd64",
+  // "arm64". A plan refuses to place it on a server that reports another, or none
+  // yet. Empty, it runs anywhere. A catalog install and upgrade copy their entry's.
+  // Only the control plane keeps it: its servers never see it. See
+  // docs/adr/0102-an-app-that-runs-on-one-architecture-goes-only-where-it-runs.md.
+  repeated string architectures = 190;
 }
 
 // AutoUpdate is how Dockwell updates a service on its own: which updates it

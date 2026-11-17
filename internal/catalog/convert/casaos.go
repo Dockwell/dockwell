@@ -119,8 +119,9 @@ func casaosRead(t *tree, dir string) App {
 			app.Screenshots = append(app.Screenshots, Shot{Path: p})
 		}
 	}
-	if len(meta.Architectures) > 0 && (!slices.Contains(meta.Architectures, "amd64") || !slices.Contains(meta.Architectures, "arm64")) {
-		app.LeftOut, app.Class = fmt.Sprintf("CasaOS says it runs on %s alone, where an entry runs on amd64 and arm64 both", strings.Join(meta.Architectures, " and ")), ClassArch
+	var archErr error
+	if app.Architectures, archErr = architecturesOf("CasaOS", meta.Architectures); archErr != nil {
+		app.LeftOut, app.Class = archErr.Error(), ClassArch
 		return app
 	}
 	port := ""

@@ -222,4 +222,4 @@ ADR 0085. `UpgradeServiceRequest.rebuild` (90) and `AvailableUpdate.skip_as` (90
 - Over 250 more apps from Dokploy and Coolify install, with each new build offered as an update.
 - Each store's pinned commit is a person's to move. Until it moves, what upstream adds is measured only by a server reading the store.
 - CI reaches GitHub, and the registries of the sample's images.
-- Still to come in #570: a shipped folder the app writes to, copied into its volume; a volume's mode, as 1Panel's `chmod` gives one; a secret inside a value outside a service's environment, such as a YAML anchor; an app that runs on amd64 alone offered where such a server is; and another app's database, as a need (ADR 0084).
+- Still to come in #570: a shipped folder the app writes to, copied into its volume; a volume's mode, as 1Panel's `chmod` gives one; a secret inside a value outside a service's environment, such as a YAML anchor; and another app's database, as a need (ADR 0084).

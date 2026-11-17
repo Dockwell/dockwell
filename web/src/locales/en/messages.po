@@ -7695,6 +7695,9 @@ msgstr "A project named {name} was here before, and its data may come back"
 msgid "App you open"
 msgstr "App you open"
 
+msgid "Architecture not known yet"
+msgstr "Architecture not known yet"
+
 #. placeholder {0}: rule.min
 msgid "At least {0} characters"
 msgstr "At least {0} characters"
@@ -7802,6 +7805,12 @@ msgstr "Reading the sources"
 msgid "Restarts {0}"
 msgstr "Restarts {0}"
 
+msgid "Runs on {archList} alone, and none of your servers is {archList}. Add an {archList} server."
+msgstr "Runs on {archList} alone, and none of your servers is {archList}. Add an {archList} server."
+
+msgid "Runs on {archList} alone."
+msgstr "Runs on {archList} alone."
+
 msgid "Set my own"
 msgstr "Set my own"
 
@@ -7829,6 +7838,9 @@ msgstr "Such as 512M or 2G."
 
 msgid "Take away the space at its start or end."
 msgstr "Take away the space at its start or end."
+
+msgid "This app runs on {archList} alone, and {onlyName} is {onlyUnfit}. Add a server it runs on."
+msgstr "This app runs on {archList} alone, and {onlyName} is {onlyUnfit}. Add a server it runs on."
 
 msgid "Upgrade {upgraded}"
 msgstr "Upgrade {upgraded}"
@@ -7908,6 +7920,9 @@ msgstr "{cpus} vCPU"
 
 msgid "{name} in the catalog"
 msgstr "{name} in the catalog"
+
+msgid "{onlyName} hasn't said its architecture yet, so it can't take this app. It does once its agent connects."
+msgstr "{onlyName} hasn't said its architecture yet, so it can't take this app. It does once its agent connects."
 
 msgid "{ownCount, plural, one {# secret of your own} other {# secrets of your own}}"
 msgstr "{ownCount, plural, one {# secret of your own} other {# secrets of your own}}"
@@ -8113,9 +8128,6 @@ msgstr "Install once Dockwell connects them to a database"
 msgid "Install once Dockwell fills in what their store does"
 msgstr "Install once Dockwell fills in what their store does"
 
-msgid "Install once Dockwell offers them for amd64 servers"
-msgstr "Install once Dockwell offers them for amd64 servers"
-
 msgid "Install once Dockwell pins their moving tag by digest"
 msgstr "Install once Dockwell pins their moving tag by digest"
 
@@ -8137,8 +8149,8 @@ msgstr "Put a secret inside a longer value"
 msgid "Read it as"
 msgstr "Read it as"
 
-msgid "Run on amd64 alone"
-msgstr "Run on amd64 alone"
+msgid "Run on neither amd64 nor arm64"
+msgstr "Run on neither amd64 nor arm64"
 
 msgid "Run scripts on the server"
 msgstr "Run scripts on the server"
