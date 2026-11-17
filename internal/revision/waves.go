@@ -51,6 +51,8 @@ type planWith struct {
 	// empties is the app the change starts on an empty database of another engine
 	// (Proposal.Empties).
 	empties string
+	// unholds says the change lifts a catalog install's hold (Plan.Unholds).
+	unholds bool
 }
 
 // wavesOf is how plan runs over the servers that take a step, in the order the
@@ -141,6 +143,11 @@ func emptiesIn(p *planRead) string {
 		return ""
 	}
 	return p.plan.Empties
+}
+
+// unholdsIn says whether a change planned before lifts a catalog install's hold.
+func unholdsIn(p *planRead) bool {
+	return p != nil && p.plan != nil && p.plan.Unholds
 }
 
 // endedBefore is when the last step of the waves before wave ended, as progress has

@@ -814,7 +814,7 @@ func shortInside(f Field) error {
 		unit = "hex digits"
 	case catalogv1.GenerateAs_GENERATE_AS_BASE64:
 		unit = "bytes in base64"
-	case catalogv1.GenerateAs_GENERATE_AS_UNSPECIFIED:
+	case catalogv1.GenerateAs_GENERATE_AS_UNSPECIFIED, catalogv1.GenerateAs_GENERATE_AS_PASSWORD:
 	}
 	return leave(ClassMadeUp, "makes up %d %s inside a longer value, fewer than the %d of a secret Dockwell generates, so the value would come out longer than the app reads", f.Length, unit, minMadeUp)
 }

@@ -1053,6 +1053,20 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 		}
 		return &agentv1.CallResult{Result: &agentv1.CallResult_ProbeConnection{ProbeConnection: found}}
 	}
+	if ask := call.GetMakeAppOwner(); ask != nil {
+		made, err := c.makeAppOwner(ctx, ask)
+		if err != nil {
+			return fail(err)
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_MakeAppOwner{MakeAppOwner: made}}
+	}
+	if read := call.GetReadAppOwner(); read != nil {
+		got, err := c.readAppOwner(ctx, read)
+		if err != nil {
+			return fail(err)
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_ReadAppOwner{ReadAppOwner: got}}
+	}
 	if read := call.GetReadPanel(); read != nil {
 		if c.cfg.Panels == nil {
 			return fail(errors.New("this agent doesn't read what Coolify or Dokploy runs"))

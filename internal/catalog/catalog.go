@@ -40,6 +40,7 @@ import (
 	catalogv1 "github.com/dockwell/dockwell/gen/dockwell/catalog/v1alpha1"
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/catalog/snapshot"
+	"github.com/dockwell/dockwell/internal/ownerstep"
 	"github.com/dockwell/dockwell/internal/registry"
 	"github.com/dockwell/dockwell/internal/resource"
 )
@@ -477,6 +478,7 @@ func check(e *catalogv1.Entry, byTag bool) error {
 		return err
 	}
 	seen := map[string]bool{}
+	owned := OwnerInputs(e)
 	for _, in := range e.GetInputs() {
 		name := in.GetName()
 		switch {
@@ -484,7 +486,7 @@ func check(e *catalogv1.Entry, byTag bool) error {
 			return fmt.Errorf("the input %q needs a name a Compose file can use, in capitals, such as ADMIN_PORT", name)
 		case seen[name]:
 			return fmt.Errorf("two inputs are named %s. Rename one", name)
-		case !regexp.MustCompile(`\$\{` + name + `(\}|:?[-?+])`).MatchString(e.GetCompose()):
+		case !owned[name] && !regexp.MustCompile(`\$\{`+name+`(\}|:?[-?+])`).MatchString(e.GetCompose()):
 			return fmt.Errorf("its Compose file doesn't use the input %s. Use it as ${%s}, or as ${%s:-default}, or remove it", name, name, name)
 		case in.GetType() == catalogv1.InputType_INPUT_TYPE_SECRET && in.GetDefaultValue() != "":
 			return fmt.Errorf("the secret %s has a default, which everyone who installs it would share. Set generate, or leave it to a person", name)
@@ -591,9 +593,16 @@ func checkAccess(e *catalogv1.Entry, cf *composeFile) error {
 	}
 	services := cf.services
 	if s := e.GetSignups(); s != nil {
-		if _, ok := services[s.GetService()]; !ok || !envName.MatchString(s.GetVariable()) || s.GetClosed() == "" {
+		if len(s.GetSteps()) > 0 {
+			if err := checkSignupSteps(e, s); err != nil {
+				return err
+			}
+		} else if _, ok := services[s.GetService()]; !ok || !envName.MatchString(s.GetVariable()) || s.GetClosed() == "" {
 			return fmt.Errorf("its sign-ups close with %s=%s on %s, which needs a service it runs, a variable's name and a value", s.GetVariable(), s.GetClosed(), s.GetService())
 		}
+	}
+	if err := checkOwner(e, cf, inputs); err != nil {
+		return err
 	}
 	for _, a := range e.GetAddressVariables() {
 		if _, ok := services[a.GetService()]; !ok || !envName.MatchString(a.GetVariable()) || a.GetValue() == "" {
@@ -609,6 +618,107 @@ func checkAccess(e *catalogv1.Entry, cf *composeFile) error {
 		}
 	}
 	return nil
+}
+
+// checkOwner refuses an owner Dockwell couldn't make as it says (ADR 0105).
+func checkOwner(e *catalogv1.Entry, cf *composeFile, inputs map[string]*catalogv1.Input) error {
+	o := e.GetOwner()
+	if o == nil {
+		return nil
+	}
+	if o.GetNone() {
+		if len(o.GetSteps()) > 0 || o.GetPasswordInput() != "" || e.GetFirstVisitorOwns() {
+			return errors.New("its owner says the app has no accounts, and says how one is made. Keep one")
+		}
+		return nil
+	}
+	if len(o.GetSteps()) == 0 {
+		return errors.New("its owner says no steps that make it. Give its steps, or say none for an app with no accounts")
+	}
+	if e.GetFirstVisitorOwns() {
+		return errors.New("its owner is made by its steps, and its first visitor makes its owner too. Keep one")
+	}
+	if _, ok := cf.services[o.GetService()]; !ok {
+		return fmt.Errorf("its owner is made in %s, which isn't a service it runs", o.GetService())
+	}
+	password := inputs[o.GetPasswordInput()]
+	switch {
+	case o.GetKnownPassword() == "" && (password == nil || !Secret(password) || password.GetGenerate() == 0):
+		return fmt.Errorf("its owner's password is %s, which isn't a secret input Dockwell generates", o.GetPasswordInput())
+	case o.GetEmailInput() != "" && (inputs[o.GetEmailInput()] == nil || inputs[o.GetEmailInput()].GetType() != catalogv1.InputType_INPUT_TYPE_EMAIL):
+		return fmt.Errorf("its owner's email is %s, which isn't an email input of its own", o.GetEmailInput())
+	case o.GetUserInput() != "" && (inputs[o.GetUserInput()] == nil || Secret(inputs[o.GetUserInput()])):
+		return fmt.Errorf("its owner's user is %s, which isn't an input of its own that isn't a secret", o.GetUserInput())
+	case o.GetDone() == nil:
+		return errors.New("its owner's steps say no done, so a second try can't tell what the first one made, and runs them again. Give done, a check that the owner signs in")
+	}
+	if p := o.GetUserPattern(); p != "" {
+		if _, err := regexp.Compile(p); err != nil {
+			return fmt.Errorf("its owner's user pattern isn't a regular expression: %w", err)
+		}
+	}
+	var secrets []string
+	for _, in := range e.GetInputs() {
+		if Secret(in) {
+			secrets = append(secrets, in.GetName())
+		}
+	}
+	for name, steps := range map[string][]*resourcev1.OwnerStep{"steps": o.GetSteps(), "reset": o.GetResetSteps(), "sign-up steps": e.GetSignups().GetSteps()} {
+		if err := ownerstep.Check(steps); err != nil {
+			return fmt.Errorf("its owner's %s: %w", name, err)
+		}
+		// A password in a command's words sits in its arguments for anyone listing
+		// the server's processes (the review's M2).
+		if err := ownerstep.CheckSecretWords(steps, secrets); err != nil {
+			return fmt.Errorf("its owner's %s: %w", name, err)
+		}
+	}
+	if err := ownerstep.CheckCheck(o.GetDone()); err != nil {
+		return fmt.Errorf("its owner's done %w", err)
+	}
+	return nil
+}
+
+// OwnerInputs are the inputs an entry's owner names, and its steps, which its Compose
+// file needn't: the owner's email, user and password, and what a step reads.
+func OwnerInputs(e *catalogv1.Entry) map[string]bool {
+	o := e.GetOwner()
+	out := map[string]bool{}
+	for _, name := range []string{o.GetEmailInput(), o.GetUserInput(), o.GetPasswordInput()} {
+		if name != "" {
+			out[name] = true
+		}
+	}
+	var text []string
+	steps := slices.Concat(o.GetSteps(), o.GetResetSteps(), e.GetSignups().GetSteps())
+	for _, step := range steps {
+		text = append(text, step.GetCommand().GetWords()...)
+		r := step.GetRequest()
+		text = append(text, r.GetPath(), r.GetBody())
+		text = slices.AppendSeq(text, maps.Values(r.GetHeaders()))
+	}
+	all := strings.Join(text, "\n")
+	for _, in := range e.GetInputs() {
+		if regexp.MustCompile(`\$\{?` + in.GetName() + `\b`).MatchString(all) {
+			out[in.GetName()] = true
+		}
+	}
+	return out
+}
+
+// checkSignupSteps refuses sign-ups that steps close where nothing makes the owner
+// whose session they run with, or nothing reads them closed.
+func checkSignupSteps(e *catalogv1.Entry, s *catalogv1.Signups) error {
+	switch {
+	case len(e.GetOwner().GetSteps()) == 0:
+		return errors.New("its sign-ups close by steps, which run with the owner's session, and nothing makes its owner. Give the owner's steps")
+	case s.GetCheck() == nil:
+		return errors.New("its sign-ups close by steps, and nothing reads them closed. Give their check")
+	}
+	if err := ownerstep.Check(s.GetSteps()); err != nil {
+		return fmt.Errorf("its sign-ups' %w", err)
+	}
+	return ownerstep.CheckCheck(s.GetCheck())
 }
 
 // maxNote is how long a note may be: one line, as a person reads it.
@@ -1058,6 +1168,13 @@ func fill(e *catalogv1.Entry, given, suggested map[string]string, held map[strin
 				return nil, err
 			}
 		}
+		// The owner's email and user are made at install alone, from the person
+		// installing it where nothing gives them, so they never hold up a fill, as an
+		// upgrade's or a need's (ADR 0105).
+		if value == "" && (name == e.GetOwner().GetEmailInput() || name == e.GetOwner().GetUserInput()) {
+			out.Variables[name], out.Plain[name] = "", ""
+			continue
+		}
 		if err := checkValue(in, value, own); err != nil {
 			return nil, err
 		}
@@ -1126,6 +1243,10 @@ func CheckOwn(in *catalogv1.Input, value string) error {
 			return fmt.Errorf("%s takes %d bytes written in base64, as the app decodes it", label, in.GetGenerate())
 		}
 		return nil
+	case catalogv1.GenerateAs_GENERATE_AS_PASSWORD:
+		if !hasEachClass(value) {
+			return fmt.Errorf("%s needs an upper-case letter, a lower-case one and a digit, as the app takes", label)
+		}
 	case catalogv1.GenerateAs_GENERATE_AS_UNSPECIFIED:
 	}
 	if n := MinLength(in); utf8.RuneCountInString(value) < n {
@@ -1180,9 +1301,34 @@ func generateAs(n int, as catalogv1.GenerateAs) (string, error) {
 			return "", fmt.Errorf("generating a secret: %w", err)
 		}
 		return base64.StdEncoding.EncodeToString(b), nil
+	case catalogv1.GenerateAs_GENERATE_AS_PASSWORD:
+		return generatePassword(n)
 	default:
 		return generate(n)
 	}
+}
+
+// generatePassword makes a password of n letters and digits with at least one
+// upper-case letter, one lower-case letter and one digit, as an app whose
+// passwords must have each takes, drawing again until it has them (ADR 0105).
+func generatePassword(n int) (string, error) {
+	if n < 3 {
+		return "", fmt.Errorf("a password of %d characters can't have an upper-case letter, a lower-case one and a digit", n)
+	}
+	for {
+		v, err := generate(n)
+		if err != nil {
+			return "", err
+		}
+		if hasEachClass(v) {
+			return v, nil
+		}
+	}
+}
+
+// hasEachClass says whether v has an upper-case letter, a lower-case one and a digit.
+func hasEachClass(v string) bool {
+	return strings.ContainsAny(v, "ABCDEFGHIJKLMNOPQRSTUVWXYZ") && strings.ContainsAny(v, "abcdefghijklmnopqrstuvwxyz") && strings.ContainsAny(v, "0123456789")
 }
 
 // generate makes a secret of n letters and digits.

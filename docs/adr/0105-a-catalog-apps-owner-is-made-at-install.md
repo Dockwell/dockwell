@@ -65,7 +65,7 @@ A step is one of:
   - `capture`: fields of its answer, by JSON path, that later steps read as inputs. That's how a session token or a user's ID passes from a sign-in to the change that follows it.
 
 Rules for every step:
-- **Inputs never go in argv.** They reach a command through its environment, or its standard input, and a command names them as `"$NAME"` in a `sh -c` where the app takes them only as arguments. Where an app reads the password from its environment, the entry uses that in place of a step, as OpenList's `OPENLIST_ADMIN_PASSWORD` does.
+- **Inputs never go in argv.** They reach a command through its environment, or its standard input. A command whose words name a secret, as `"$NAME"` in a `sh -c` line does, is refused, as the shell writes the value into the command's own arguments. Where an app takes a password only as an argument, the app makes one up, a step captures it from what the command prints (`capture`), and a request sets the owner's own through the app's API, signing in with the made-up one (`DOCKWELL_BASIC_<NAME>`). Where an app reads the password from its environment, the entry uses that in place of a step, as OpenList's `OPENLIST_ADMIN_PASSWORD` does.
 - **A request never follows a redirect.** An answer of 3xx fails the step, so a body with a password never goes to another address.
 - **A request's `Host` is the app's address** (ADR 0103), and `X-Forwarded-Proto` may be set, as an app behind a proxy expects it.
 - **Nothing a step prints or answers is kept,** beyond what's below. A one-off container is removed when its step ends, and its output is never kept as a task run's.
@@ -93,7 +93,7 @@ Rules for every step:
 - **Whether it's made is a fact Dockwell observes, never a field a change writes.**
   - After the install's change applies and the service is healthy, the control plane asks the agent to run the steps (agent protocol 380).
   - The agent answers with the outcome (381).
-  - The control plane records it in the store's `app_owners` table (migration 0047), with the state, the scrubbed error, the tries, and when.
+  - The control plane records it in the store's `app_owners` table (migration 0048), with the state, the scrubbed error, the tries, and when.
 - **The states:**
   - `waiting_email`: a token install with no owner email;
   - `waiting`: steps not yet run, or running;
@@ -223,9 +223,9 @@ Each entry's owner way is proven on its real image in the catalog's checks befor
 
 | Kind | App and how |
 |---|---|
-| Steps, a command | Gitea: `gitea admin user create --admin`, run as `git` in the running container, as it refuses root, with the password from the environment. |
+| Steps, a command and a request | Gitea: `gitea admin user create --admin --random-password`, run as `git` in the running container, as it refuses root; the step captures the password Gitea made up, and a request then sets the owner's own over `PATCH /api/v1/admin/users/<user>`, so no process's arguments hold it. |
 | Environment | OpenList: `OPENLIST_ADMIN_PASSWORD`, set once. Its user is the fixed `admin`, which the page shows in place of the email. |
-| Steps, requests | Ghost: `/ghost/api/admin/authentication/setup/`, with `X-Forwarded-Proto: https`. n8n: `/rest/owner/setup`. Jellyfin: read `/Startup/User`, post it, set `/Startup/Configuration`, then `/Startup/Complete`. Home Assistant: `/api/onboarding/users`, with a `client_id` that's a URL of the instance; the person finishes onboarding after signing in. Coder: `/api/v2/users/first`. new-api: `/api/setup`, then registration off; the proof also tries the one-api line's old `root` and `123456` and fails the entry if it works. WordPress: `/wp-admin/install.php?step=2`, as a form; its `WP_HOME` and `WP_SITEURL` are address variables (ADR 0103), so its stored address follows its domain. Memos: its sign-up, whose first account is its host, then registration off. |
+| Steps, requests | Ghost: its setup and its `done` as commands in its container, `node` asking its own loopback, the only address whose `X-Forwarded-Proto` Ghost believes, with the app's Host and scheme, so a Ghost reached over HTTPS answers rather than redirects. n8n: `/rest/owner/setup`. Jellyfin: read `/Startup/User`, post it, set `/Startup/Configuration`, then `/Startup/Complete`. Home Assistant: `/api/onboarding/users`, with a `client_id` that's a URL of the instance; the person finishes onboarding after signing in. Coder: `/api/v2/users/first`. new-api: `/api/setup`, then registration off; the proof also tries the one-api line's old `root` and `123456` and fails the entry if it works. WordPress: `/wp-admin/install.php?step=2`, as a form; its `WP_HOME` and `WP_SITEURL` are address variables (ADR 0103), so its stored address follows its domain. Memos: its sign-up, whose first account is its host, then registration off. |
 | Known password | Umami: sign in as `admin` with `umami`, capture the token and the user's ID, change the password, then the user name. |
 | Invite | Vaultwarden, as above. |
 | None | Adminer. |
@@ -258,21 +258,23 @@ Each entry's owner way is proven on its real image in the catalog's checks befor
 
 ### Numbers
 
-These were checked against main, every pushed branch and the local worktrees on 2026-11-17.
+These were checked against main, every pushed branch and the local worktrees on 2026-11-17, and amended as built in slice 1.
 
 - **Entry** (`dockwell.catalog.v1alpha1`):
   - `Entry.owner` = 33.
-  - The new message `Owner`: `service` 1, `email_input` 2, `user_input` 3, `password_input` 4, `steps` 5, `done` 6, `user_pattern` 7, `reset` 8, `none` 9, `known_user` 10, `known_password` 11 and `made_when_done` 12.
-  - `OwnerStep`: a oneof of `command` 1 and `request` 2.
-  - `OwnerCommand`: `words` 1, `user` 2 and `one_off` 3.
-  - `OwnerRequest`: `method` 1, `path` 2, `content_type` 3, `body` 4, `headers` 5, `expect_status` 6 and `capture` 7.
-  - `OwnerCheck`: `request` 1, `status` 2 and `contains` 3.
+  - The new message `Owner`: `service` 1, `email_input` 2, `user_input` 3, `password_input` 4, `steps` 5, `done` 6, `user_pattern` 7, `reset_steps` 8 (named so, as `reset` clashes with Go's generated `Reset`), `none` 9, `known_user` 10, `known_password` 11 and `made_when_done` 12.
   - `Signups.steps` = 4 and `Signups.check` = 5.
   - `GenerateAs.GENERATE_AS_PASSWORD` = 3.
-- **Resource:**
-  - `Spec.app_owner` = 160, with the new message `AppOwner`.
+- **Resource** (`dockwell.resource.v1alpha1`), where the step messages live, as the agent build links this package and never the catalog's:
+  - `OwnerStep`: a oneof of `command` 1 and `request` 2.
+  - `OwnerCommand`: `words` 1, `user` 2, `one_off` 3 and `capture` 4, regular expressions over what it prints.
+  - `OwnerRequest`: `method` 1, `path` 2, `content_type` 3, `body` 4, `headers` 5, `expect_status` 6, `capture` 7 and `port` 8, the container's port.
+  - `OwnerCheck`: `request` 1, `status` 2, `contains` 3 and `command` 4, for an app that answers only its own loopback as it's reached.
+  - `Spec.app_owner` = 160, with the new message `AppOwner`: `service` 1, `email` 2, `user` 3, `password` 4 and `app` 12, with 5 to 11 reserved. It holds no step: the steps are the entry's.
+  - `OwnerRun`, never stored: what the agent call carries, the steps from the entry at the install's release with who the owner is and where the app is reached (`host` 10, `https` 11).
   - `CatalogPin.held` = 86 and `CatalogPin.signups_open` = 87.
   - `Route.setup` = 81, with the new message `RouteSetup`: `key_hash` 1 and `until` 2. #785's work takes `Route.publish` = 340.
+- **Values a step names beyond its inputs:** `DOCKWELL_OWNER_BASIC`, the owner's user, or email, and password as a Basic credential; `DOCKWELL_BASIC_<NAME>`, the same with a value a step captured, as Gitea's made-up password; and `DOCKWELL_HOST` and `DOCKWELL_SCHEME`, where the app is reached.
 - **API:**
   - `InstallCatalogEntryRequest.owner_email` = 9 and `signups_open` = 10.
   - `CatalogInstall.owner` = 13, with the new message `CatalogOwner` (email, user, state, error, set up), and `CatalogInstall.held` = 14. #789 takes 11 and 12.
@@ -281,8 +283,10 @@ These were checked against main, every pushed branch and the local worktrees on 
 - **Agent protocol:**
   - 380 `MakeAppOwnerCall` and 381 `MakeAppOwnerResult`;
   - 382 `ReadAppOwnerCall` and 383 `ReadAppOwnerResult`, for `done` and `signups.check`;
-  - 384 to 389 kept for this record.
-- **Store:** migration 0047 (`app_owners`, with the states `waiting_email`, `waiting`, `made`, `failed` and `opened`). Main ends at 0045, and #785's work takes 0046.
+  - 384 `Hello.makes_app_owners`;
+  - 385 to 389 kept for this record.
+- **Store:** migration `0048_app_owners.sql` (`app_owners`, with the states `waiting_email`, `waiting`, `made`, `failed` and `opened`, and the changes that open it while they're planned). It follows ADR 0104's `0046_cloudflare.sql` and the fix to Cloudflare's pending-row index, which takes 0047.
+- **Plans:** `Plan.unholds`, a plan that lifts a hold, which ApplyChange takes from a person with a passkey, never a token.
 - **Note reasons** (words, no numbers): `owner_made`, `owner_failed`, `owner_held`, `signups_closed`, `known_password` and `setup_link`.
 
 ## What we turned down
@@ -306,7 +310,7 @@ These were checked against main, every pushed branch and the local worktrees on 
 
 ## Order of work
 
-1. This record, the proto and migration 0047, `AppOwner`, the agent's call, the scrubbing and its test, and the steps for Gitea, Ghost and n8n, proven on real images in CI's Docker job. Sign-ups close at install. The hold as a fact worked out from the install's own state, kept by every pin write, with routes, host-port routes and ports.
+1. This record, the proto and migration 0048, `AppOwner`, the agent's call, the scrubbing and its test, and the steps for Gitea, Ghost and n8n, proven on real images in CI's Docker job. Sign-ups close at install. The hold as a fact worked out from the install's own state, kept by every pin write, with routes, host-port routes and ports.
 2. The setup link, Umami's known password, Memos' and new-api's sign-ups, WordPress (which needs ADR 0103), Uptime Kuma and Plausible held, `done` and the page's states, and converted apps.
 3. The rest of the 13, Vaultwarden's invite, Rotate, and installs from before.
 4. Converters' default credentials and admin passwords, and overlays for the store apps used most.
@@ -317,7 +321,7 @@ The review of 2026-11-17 (accept after changes) maps to this revision as follows
 
 | Finding | Where it's addressed |
 |---|---|
-| H1, the hold cleared in desired state | "The owner is a resource, and its being made is observed" and "Held is a fact the control plane works out": `made` is observed (381, `app_owners`, migration 0047), a failed step leaves the app installed and held with Try again, and release is a change after the fact. |
+| H1, the hold cleared in desired state | "The owner is a resource, and its being made is observed" and "Held is a fact the control plane works out": `made` is observed (381, `app_owners`, migration 0048), a failed step leaves the app installed and held with Try again, and release is a change after the fact. |
 | H2, Vaultwarden's invite | "Vaultwarden: held until its owner has registered": held until `done` reads the user registered, `ADMIN_TOKEN` as an Argon2 hash, sign-ups closed, the setup link as the only way in, `/admin` off after. |
 | H3, the password in argv, logs and the change | "Steps" (inputs by environment or stdin, no redirects, nothing kept, 512 scrubbed bytes, a test) and "The owner's password" (for the step alone, never in desired state, revealed by passkey, Rotate). |
 | H4, Umami's default password | "How an entry says its app is owned", the known-password kind with `capture`, Umami in "Per app", and the catalog's check. Umami is the only entry with a published default. |

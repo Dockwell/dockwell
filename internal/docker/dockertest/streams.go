@@ -26,8 +26,10 @@ import (
 // Exec is a command run in a container of an image with an Exec of its own.
 type Exec struct {
 	Cmd []string
-	// Env is the container's environment.
+	// Env is the container's environment, with what an exec adds to it.
 	Env []string
+	// User is who an exec runs as, empty for the container's own.
+	User string
 	// Volumes says where each mount of the container is on this machine, by its
 	// path in the container.
 	Volumes        map[string]string
@@ -39,8 +41,12 @@ type Exec struct {
 type execRun struct {
 	container *container
 	cmd       []string
-	running   bool
-	exitCode  int
+	// user and env are what the exec asked to run as, and to add to the container's
+	// environment.
+	user     string
+	env      []string
+	running  bool
+	exitCode int
 	// tty runs the image's shell on a terminal, as shell, once started.
 	tty        bool
 	cols, rows uint16
@@ -298,6 +304,8 @@ func (e *Engine) createExec(w http.ResponseWriter, r *http.Request, c *container
 		Cmd         []string
 		Tty         bool
 		ConsoleSize [2]uint16
+		User        string
+		Env         []string
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		fail(w, http.StatusBadRequest, "%v", err)
@@ -322,7 +330,7 @@ func (e *Engine) createExec(w http.ResponseWriter, r *http.Request, c *container
 		return
 	}
 	id := newID()
-	e.execs[id] = &execRun{container: c, cmd: req.Cmd}
+	e.execs[id] = &execRun{container: c, cmd: req.Cmd, user: req.User, env: req.Env}
 	writeJSON(w, http.StatusCreated, map[string]string{"Id": id})
 }
 
@@ -344,7 +352,7 @@ func (e *Engine) startExec(w http.ResponseWriter, r *http.Request, id string) {
 	}
 	x.running = true
 	c := x.container
-	run, env, mounts := c.img.Exec, c.Config.Env, e.mountsOf(c)
+	run, env, mounts := c.img.Exec, append(slices.Clone(c.Config.Env), x.env...), e.mountsOf(c)
 	if x.tty {
 		shell, err := startShell(x.cols, x.rows)
 		if err != nil {
@@ -373,7 +381,7 @@ func (e *Engine) startExec(w http.ResponseWriter, r *http.Request, id string) {
 	}
 	defer closeConn()
 	mu := &sync.Mutex{}
-	code := run(Exec{Cmd: x.cmd, Env: env, Volumes: mounts, Stdin: in, Stdout: frames{mu, out, 1}, Stderr: frames{mu, out, 2}})
+	code := run(Exec{Cmd: x.cmd, Env: env, User: x.user, Volumes: mounts, Stdin: in, Stdout: frames{mu, out, 1}, Stderr: frames{mu, out, 2}})
 	e.mu.Lock()
 	x.running, x.exitCode = false, code
 	e.mu.Unlock()

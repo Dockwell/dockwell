@@ -659,6 +659,131 @@ message CatalogPin {
   // install from before Dockwell kept it, where only the file's value is
   // Dockwell's.
   string address = 84;
+  // The install is held: its routes answer that it isn't open yet, and its ports
+  // listen on the server alone, until a person opens it, as an app whose first
+  // visitor makes its owner is. Every write of the pin keeps it as it was, but
+  // OpenCatalogInstall's, which clears it (ADR 0105).
+  bool held = 86;
+  // The person installed it with sign-ups open, so neither the install nor opening
+  // it closes them. Every write of the pin keeps it (ADR 0105).
+  bool signups_open = 87;
+}
+
+// AppOwner is the owner's account in a catalog app, which Dockwell makes once the
+// app runs (ADR 0105). It holds who the owner is, never how they're made: the
+// steps come from the install's catalog entry at its pinned release, which the
+// control plane reads as it runs them, so no write of this names a command.
+// Whether it's made is what Dockwell observes, never a field here: the install
+// stays held until then. Only the catalog writes one, and changes its email and
+// user while it waits for them; deleting it leaves the account in the app.
+message AppOwner {
+  // The service it's made in, by name.
+  string service = 1;
+  // The owner's email and user. An empty user is the email.
+  string email = 2;
+  string user = 3;
+  // The environment's secret that holds the owner's password, by name. Its value
+  // reaches the agent for a step alone.
+  string password = 4;
+  // How the owner was made before ADR 0105 was built in full: the steps are the
+  // catalog entry's now, and never this resource's.
+  reserved 5, 6, 7, 8, 9, 10, 11;
+  reserved "steps", "done", "made_when_done", "values", "secrets", "signups_steps", "signups_check";
+  // What people call the app, such as "Gitea", for what a plan says.
+  string app = 12;
+}
+
+// OwnerRun is what the control plane sends an agent to make an app's owner, or read
+// whether it's made: the steps, from the install's catalog entry at its pinned
+// release, who the owner is, and where the app is reached. It's never stored.
+message OwnerRun {
+  // The service, the owner's email and user, and the input that holds their
+  // password, by name.
+  string service = 1;
+  string email = 2;
+  string user = 3;
+  string password = 4;
+  // What makes the account, in order, and what says it's made.
+  repeated OwnerStep steps = 5;
+  OwnerCheck done = 6;
+  // The steps succeeding isn't the owner being made: done must read it too.
+  bool made_when_done = 7;
+  // Steps that close sign-ups through the app's settings, run right after the
+  // owner's, and what reads them closed. Empty where a variable closes them, or the
+  // install keeps them open.
+  repeated OwnerStep signups_steps = 8;
+  OwnerCheck signups_check = 9;
+  // Where the app is reached (ADR 0103), as a host, such as "docs.example.com", and
+  // whether that's over HTTPS. Every request a step sends carries the host as its
+  // Host and the scheme as its X-Forwarded-Proto, and a command reads them as
+  // DOCKWELL_HOST and DOCKWELL_SCHEME. An empty host leaves the container's own.
+  string host = 10;
+  bool https = 11;
+}
+
+// OwnerStep is one step that makes an app's owner, or closes its sign-ups.
+message OwnerStep {
+  oneof step {
+    OwnerCommand command = 1;
+    OwnerRequest request = 2;
+  }
+}
+
+// OwnerCommand is a command run in the service's running container, as docker exec
+// runs one. The inputs it names reach it in its environment, never its words.
+message OwnerCommand {
+  // The command, word by word, such as ["gitea", "admin", "user", "create", ...].
+  // A word may be "$NAME" only inside a "sh -c" line, which reads it from the
+  // environment.
+  repeated string words = 1;
+  // The user it runs as, such as "git". Empty runs as the container's own.
+  string user = 2;
+  // Runs as a one-off container of the app's image, with its environment, mounts
+  // and networks, in place of in the running one.
+  bool one_off = 3;
+  // What it prints that later steps read as inputs, by name: each a regular
+  // expression whose first group is the value, such as "password (\\S+)" for a
+  // password the app made up. It lives in the agent's memory for the call alone.
+  map<string, string> capture = 4;
+}
+
+// OwnerRequest is an HTTP request to the service's container, from its agent. It
+// never follows a redirect.
+message OwnerRequest {
+  // GET unless set, or POST, PUT or PATCH.
+  string method = 1;
+  // The path, such as "/rest/owner/setup".
+  string path = 2;
+  // What body holds: "application/json" or "application/x-www-form-urlencoded".
+  // A value body names is written as that type writes it.
+  string content_type = 3;
+  // The body, naming inputs as ${NAME}.
+  string body = 4;
+  // Headers to send, such as X-Forwarded-Proto, naming inputs as ${NAME}, and
+  // ${DOCKWELL_OWNER_BASIC}, the owner's user, or email, and password as a Basic
+  // credential writes them, for a check that signs in as the owner.
+  map<string, string> headers = 5;
+  // The status it expects, such as 201. Any 2xx unless set. A 3xx always fails.
+  uint32 expect_status = 6;
+  // Fields of its JSON answer, by a path of keys apart by dots, such as
+  // "data.token", that later steps read as inputs, by name.
+  map<string, string> capture = 7;
+  // The port in the container it goes to, such as 3000.
+  uint32 port = 8;
+}
+
+// OwnerCheck is a request, or a command, whose answer says something of the app,
+// such as that its owner signs in.
+message OwnerCheck {
+  OwnerRequest request = 1;
+  // The status that means yes, such as 200. Any 2xx unless set.
+  uint32 status = 2;
+  // Text the answer must hold too, where status alone can't say.
+  string contains = 3;
+  // A command in the running container, in place of request, for an app that
+  // answers only its own loopback as it's reached: it means yes where it exits 0,
+  // and its output holds contains.
+  OwnerCommand command = 4;
 }
 
 // PinnedNeed is how an install met one of its entry's needs.
@@ -1598,6 +1723,9 @@ message Spec {
     // Work that runs on a schedule, kind "task". Numbered in the block scheduled
     // tasks hold, as open work adds to this message.
     Task task = 150;
+    // The owner's account in a catalog app, which Dockwell makes once the app runs,
+    // kind "app.owner" (ADR 0105). Numbered in the block an app's owner holds.
+    AppOwner app_owner = 160;
     // How one of an app's needs is met, kind "link" (ADR 0084). Numbered apart,
     // as open work adds to this message.
     Link link = 81;

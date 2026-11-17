@@ -34,6 +34,7 @@ import (
 	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/appowner"
 	"github.com/dockwell/dockwell/internal/resource/binding"
 	"github.com/dockwell/dockwell/internal/resource/connection"
 	"github.com/dockwell/dockwell/internal/resource/container"
@@ -148,6 +149,10 @@ type Install struct {
 	IDs map[string]string
 	// Address is what each variable that follows the app's address takes (ADR 0103).
 	Address map[string]map[string]string
+	// Env sets values in a service's own environment, by its name in the file, then
+	// the variable's: what an install writes beyond the file, such as the value that
+	// closes its sign-ups (ADR 0105).
+	Env map[string]map[string]string
 }
 
 // Needs are what an install's needs set in its environment, and how each is met
@@ -279,6 +284,7 @@ func (h *Handler) PlanInstall(ctx context.Context, in Install) (*dockwellv1.Chan
 	if err := limit(stack, in.Limits); err != nil {
 		return nil, err
 	}
+	setEnv(stack, in.Env)
 	place.made[0].Spec = &resourcev1.Project{DisplayName: in.Name, Catalog: in.Pin}
 	for _, name := range in.Reaches {
 		edit, err := h.reachNew(ctx, place.organization, name, place.made[0].ID)
@@ -313,6 +319,21 @@ func (h *Handler) PlanInstall(ctx context.Context, in Install) (*dockwellv1.Chan
 		notes = append(notes, n)
 	}
 	return h.plan(ctx, req, stack, place, planning{secrets: in.Secrets, notes: notes, needs: in.Needs, public: in.Public, setsArchitectures: true, ids: in.IDs})
+}
+
+// setEnv sets values in each named service's own environment.
+func setEnv(stack *compose.Stack, env map[string]map[string]string) {
+	for _, s := range stack.Services {
+		values := env[s.Name]
+		app := s.Spec.GetApp()
+		if len(values) == 0 || app == nil {
+			continue
+		}
+		if app.Env == nil {
+			app.Env = map[string]string{}
+		}
+		maps.Copy(app.Env, values)
+	}
 }
 
 // planning is what a plan adds to a file read for a place.
@@ -510,6 +531,14 @@ func (h *Handler) plan(ctx context.Context, m *dockwellv1.ImportComposeRequest, 
 	for name, id := range also.ids {
 		ids[resource.Ref{Kind: service.Kind, Scope: env, Name: name}] = id
 	}
+	// An app's owner an install makes is the catalog's own write, which the hold's
+	// hook takes from no one else (ADR 0105).
+	var owners []resource.Ref
+	for _, ed := range edits {
+		if ed.GetResource().GetKind() == string(appowner.Kind) && ed.GetSpec() != nil {
+			owners = append(owners, resource.Ref{Kind: appowner.Kind, Scope: cmp.Or(ed.GetResource().GetScope(), env), Name: ed.GetResource().GetName()})
+		}
+	}
 	var sets map[resource.Ref]bool
 	if also.setsArchitectures {
 		sets = map[resource.Ref]bool{}
@@ -522,7 +551,7 @@ func (h *Handler) plan(ctx context.Context, m *dockwellv1.ImportComposeRequest, 
 			return "servers"
 		}
 		return ""
-	}, changes.Also{Edits: place.made, IDs: ids, Public: public, SetsArchitectures: sets, BackUp: also.backUp, BackUpOne: also.backUpOne, SkipBackup: also.skipBackup, Empties: also.empties, Intent: also.intent, Notes: slices.Concat(also.notes, updates, planNotes(env, stack.Notices), exposedNotes(env, stack.Exposed, stack.ExposedMore, m.GetVariables()), rotationNotes(env, stack.Rotations))})
+	}, changes.Also{Edits: place.made, IDs: ids, Public: public, Owners: owners, SetsArchitectures: sets, BackUp: also.backUp, BackUpOne: also.backUpOne, SkipBackup: also.skipBackup, Empties: also.empties, Intent: also.intent, Notes: slices.Concat(also.notes, updates, planNotes(env, stack.Notices), exposedNotes(env, stack.Exposed, stack.ExposedMore, m.GetVariables()), rotationNotes(env, stack.Rotations))})
 }
 
 // usersAfterTheirServers moves each database user the edits make in env right after

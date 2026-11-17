@@ -71,10 +71,11 @@ var agentPackages = []string{
 	"internal/ingress/caddy",
 	"internal/lazyre", // a check's expression, compiled on first use (#622)
 	"internal/logging",
-	"internal/mounts",   // what's mounted, to keep away from a mount that stopped answering
-	"internal/netguard", // the one guarded way to an address a person names, for reading registries
-	"internal/netif",    // which network interfaces are physical, as sysfs says
-	"internal/oidc",     // a route's provider: its keys, codes and ID tokens, moved from internal/agent/signin (ADR 0095)
+	"internal/mounts",    // what's mounted, to keep away from a mount that stopped answering
+	"internal/netguard",  // the one guarded way to an address a person names, for reading registries
+	"internal/netif",     // which network interfaces are physical, as sysfs says
+	"internal/oidc",      // a route's provider: its keys, codes and ID tokens, moved from internal/agent/signin (ADR 0095)
+	"internal/ownerstep", // the steps that make a catalog app's owner, which the agent runs in its container (ADR 0105)
 	"internal/pki",
 	"internal/probe",    // checking a connection from an app's networks, in a throwaway container of the agent's own binary (ADR 0099)
 	"internal/registry", // reading an image from its registry, for a form (ADR 0062)

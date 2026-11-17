@@ -234,13 +234,28 @@ func (c *Client) WaitContainer(ctx context.Context, id string) (int, error) {
 // and says how it exited. It runs as the container's own user, with its
 // environment.
 func (c *Client) Exec(ctx context.Context, id string, cmd []string, s Streams) (int, error) {
+	return c.ExecWith(ctx, id, cmd, ExecOptions{}, s)
+}
+
+// ExecOptions are what a command run in a container takes beyond its words: the
+// user it runs as, and what's added to its environment, which a value its words
+// would show to anyone listing the server's processes goes in instead.
+type ExecOptions struct {
+	User string
+	Env  []string
+}
+
+// ExecWith is Exec, as o's user, with o's environment added to the container's.
+func (c *Client) ExecWith(ctx context.Context, id string, cmd []string, o ExecOptions, s Streams) (int, error) {
 	var made struct {
 		ID string `json:"Id"`
 	}
 	req := struct {
 		AttachStdin, AttachStdout, AttachStderr bool
 		Cmd                                     []string
-	}{s.Stdin != nil, true, true, cmd}
+		User                                    string   `json:",omitempty"`
+		Env                                     []string `json:",omitempty"`
+	}{s.Stdin != nil, true, true, cmd, o.User, o.Env}
 	if err := c.do(ctx, http.MethodPost, "/containers/"+esc(id)+"/exec", nil, req, &made); err != nil {
 		return 0, err
 	}
