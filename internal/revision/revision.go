@@ -1183,7 +1183,7 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 	if plan.Empty() {
 		p.Notes = slices.DeleteFunc(slices.Clone(p.Notes), func(n Note) bool { return n.IfItChanges })
 	}
-	p.Notes = unmeasuredNotes(plan, sharedNameNotes(plan, elsewhereNotes(plan, e.keptRootNotes(plan, items, keptNotes(items, e.confinedNotes(items, e.textNotes(items, e.dataNotes(plan, items, startingNotes(plan, p.Notes)))))))))
+	p.Notes = unmeasuredNotes(plan, sharedNameNotes(plan, elsewhereNotes(plan, e.keptRootNotes(plan, items, e.keptNotes(items, e.confinedNotes(items, e.textNotes(items, e.dataNotes(plan, items, startingNotes(plan, p.Notes)))))))))
 	if p.Notes, err = e.taskNotes(ctx, plan, items, p.Notes); err != nil {
 		return nil, err
 	}
@@ -1449,9 +1449,16 @@ func (e *Engine) confinedNotes(items []item, notes []Note) []Note {
 // was made with, whatever the edit said (resource.Keeper). Each says the same
 // whatever the edit gave there, so a plan never says whether a guess at a
 // volume's password is right.
-func keptNotes(items []item, notes []Note) []Note {
+//
+// A kind whose change reaches no reader where nothing read changes says nothing of
+// what it kept there: that plan restates nothing and restarts nothing, so the note
+// would tell of something that didn't happen (resource.ReadChanger, the review's L3).
+func (e *Engine) keptNotes(items []item, notes []Note) []Note {
 	out := slices.Clone(notes)
 	for i := range items {
+		if !items[i].rotates && !e.changesWhatsRead(&items[i]) {
+			continue
+		}
 		if k := items[i].kept; k.Reason != "" {
 			out = append(out, Note{Reason: k.Reason, Ref: items[i].ref, Message: items[i].ref.Name + " " + k.Words})
 		}
@@ -1797,7 +1804,14 @@ func (e *Engine) items(ctx context.Context, edits []Edit, rotate bool) ([]item, 
 				if it.encoded, err = resource.Encode(it.spec); err != nil {
 					return err
 				}
-				it.rotates = rotate && e.rotating(ed.Ref.Kind) && resource.SetsSensitive(it.spec)
+				// An edit that left its sensitive values out, which the update kept, and
+				// changes nothing else a reader reads, restates nothing: it rotates nothing,
+				// and reaches no reader (resource.ReadChanger). An undo's values come from a
+				// stored revision, not from a person, so there's no guess to hide: it rotates
+				// only where what's read changes, as the edit it undoes did (the review's M1).
+				restated := it.kept.Reason == "" && !ed.Reverses
+				it.rotates = rotate && e.rotating(ed.Ref.Kind) && resource.SetsSensitive(it.spec) &&
+					(restated || e.changesWhatsRead(&it))
 			} else if it.current == nil {
 				return fault.New(ErrInvalid, "there's no %s to delete. Check its kind, name and scope", ed.Ref)
 			}
@@ -2090,6 +2104,12 @@ func (e *Engine) check(ctx context.Context, tx *store.Tx, items []item) error {
 	for i := range items {
 		it := &items[i]
 		if err := e.checkConnectionLinks(ctx, tx, items, it); err != nil {
+			return err
+		}
+		if err := e.checkUnsharing(ctx, tx, items, it); err != nil {
+			return err
+		}
+		if err := e.checkPrefixHeld(ctx, tx, items, it); err != nil {
 			return err
 		}
 		if it.spec == nil {
@@ -3144,6 +3164,11 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 	if err != nil {
 		return nil, err
 	}
+	shared, err := e.sharingNotes(ctx, items)
+	if err != nil {
+		return nil, err
+	}
+	keyNotes = append(keyNotes, shared...)
 	for i := range items {
 		rp := items[i].resourcePlan(actions[items[i].id])
 		w := storage[items[i].id]

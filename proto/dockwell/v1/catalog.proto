@@ -491,6 +491,9 @@ message CatalogNeedOption {
   // installs hold, 90 to 99.
   string connection = 90;
   string connection_label = 91;
+  // The connection is shared and another app keeps its files there already, each
+  // under its own prefix, as this app would (ConnectionSpec.shared).
+  bool connection_shared = 92;
 }
 
 // CatalogPart is one service an entry installs.

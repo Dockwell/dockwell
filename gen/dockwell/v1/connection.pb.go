@@ -431,7 +431,10 @@ type ConnectionInfo struct {
 	// Some app's own values name its endpoint and bucket, with no link, as a
 	// Disconnect leaves them, so it keeps its files there: the connection serves it,
 	// and no other app is offered it. It names no project (ADR 0099).
-	Held          bool `protobuf:"varint,13,opt,name=held,proto3" json:"held,omitempty"`
+	Held bool `protobuf:"varint,13,opt,name=held,proto3" json:"held,omitempty"`
+	// An install admin has marked it as serving more than one link, each app under a
+	// prefix of its own (ConnectionSpec.shared).
+	Shared        bool `protobuf:"varint,14,opt,name=shared,proto3" json:"shared,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -553,6 +556,13 @@ func (x *ConnectionInfo) GetUses() []*ConnectionUse {
 func (x *ConnectionInfo) GetHeld() bool {
 	if x != nil {
 		return x.Held
+	}
+	return false
+}
+
+func (x *ConnectionInfo) GetShared() bool {
+	if x != nil {
+		return x.Shared
 	}
 	return false
 }
@@ -906,7 +916,7 @@ const file_dockwell_v1_connection_proto_rawDesc = "" +
 	"\aproject\x18\x01 \x01(\tR\aproject\x12 \n" +
 	"\venvironment\x18\x02 \x01(\tR\venvironment\"X\n" +
 	"\x17ListConnectionsResponse\x12=\n" +
-	"\vconnections\x18\x01 \x03(\v2\x1b.dockwell.v1.ConnectionInfoR\vconnections\"\xbe\x03\n" +
+	"\vconnections\x18\x01 \x03(\v2\x1b.dockwell.v1.ConnectionInfoR\vconnections\"\xd6\x03\n" +
 	"\x0eConnectionInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12!\n" +
@@ -923,7 +933,8 @@ const file_dockwell_v1_connection_proto_rawDesc = "" +
 	" \x01(\x0e2+.dockwell.resource.v1alpha1.ConnectionReachR\x05reach\x12\x1a\n" +
 	"\bprojects\x18\v \x03(\tR\bprojects\x12.\n" +
 	"\x04uses\x18\f \x03(\v2\x1a.dockwell.v1.ConnectionUseR\x04uses\x12\x12\n" +
-	"\x04held\x18\r \x01(\bR\x04held\"\xd6\x02\n" +
+	"\x04held\x18\r \x01(\bR\x04held\x12\x16\n" +
+	"\x06shared\x18\x0e \x01(\bR\x06shared\"\xd6\x02\n" +
 	"\rConnectionUse\x12\x17\n" +
 	"\alink_id\x18\x01 \x01(\tR\x06linkId\x12\x12\n" +
 	"\x04link\x18\x02 \x01(\tR\x04link\x12 \n" +

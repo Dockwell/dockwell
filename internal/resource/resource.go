@@ -2078,6 +2078,17 @@ type ReadThrough interface {
 	ReadThrough()
 }
 
+// ReadChanger is a ReadThrough kind, and a Keeper, that says whether a change reaches
+// what reads it: one whose edit left its sensitive values out, which the update kept,
+// and that changes nothing else a reader reads, as a connection's label, reach or
+// sharing, takes nothing else in, so no app restarts for it, and restates nothing.
+// Each reader stays on the revision it pins, which holds the same values (ADR 0099).
+// An edit that restates a sensitive value always reaches them, so no plan says whether
+// it's the one saved. It's given what's there and what the change makes of it.
+type ReadChanger interface {
+	ChangesWhatsRead(current, spec proto.Message) bool
+}
+
 // ValueMaker is a kind whose spec is a value of its own, which another resource's
 // value can be moved into (ValueMover).
 type ValueMaker interface {

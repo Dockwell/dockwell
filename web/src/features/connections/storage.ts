@@ -13,7 +13,36 @@ export const STORAGE_PARTS: readonly LinkPart[] = [
   LinkPart.SECRET_KEY,
   LinkPart.PUBLIC_URL,
   LinkPart.PATH_STYLE,
+  LinkPart.KEY_PREFIX,
 ];
+
+/** Who a link serves: each app that reads a name it sets, or its environment, where none does yet, as the server counts them. */
+export function servedBy(use: { environment: string; appIds: readonly string[] }): string[] {
+  return use.appIds.length > 0 ? [...use.appIds] : [use.environment];
+}
+
+/**
+ * How many apps use a connection: an app is a service, each reading names a link sets
+ * (ADR 0084), and links no service reads yet are one app of their environment, where
+ * no service there reads one, as the server counts them.
+ */
+export function appsOn(connection: { uses: readonly { environment: string; appIds: readonly string[] }[] }): number {
+  const services = new Set(connection.uses.flatMap((u) => u.appIds));
+  const read = new Set(connection.uses.filter((u) => u.appIds.length > 0).map((u) => u.environment));
+  const unread = new Set(
+    connection.uses.filter((u) => u.appIds.length === 0 && !read.has(u.environment)).map((u) => u.environment),
+  );
+  return services.size + unread.size;
+}
+
+/**
+ * Where a link's app keeps its files in the bucket: its prefix, where the link sets
+ * the name that tells the app it, and otherwise the bucket's root, "", as the server
+ * reads it (ADR 0099).
+ */
+export function keptPrefix(use: { prefix: string; sets: Record<string, LinkPart> }): string {
+  return Object.values(use.sets).includes(LinkPart.KEY_PREFIX) ? use.prefix : "";
+}
 
 /** What only a secret holds: the keys, as plans show a variable. */
 export function keyPart(part: LinkPart): boolean {
@@ -33,6 +62,7 @@ export function suggestStoragePart(name: string): LinkPart {
   if (/(SECRET_ACCESS_KEY|SECRET_KEY|ACCESS_SECRET|SECRET)$/.test(n)) return LinkPart.SECRET_KEY;
   if (/(ACCESS_KEY_ID|ACCESS_KEY|KEY_ID)$/.test(n)) return LinkPart.ACCESS_KEY_ID;
   if (/(FORCE_PATH_STYLE|PATH_STYLE|USE_PATH_STYLE)$/.test(n)) return LinkPart.PATH_STYLE;
+  if (/(KEY_PREFIX|PATH_PREFIX|PREFIX)$/.test(n)) return LinkPart.KEY_PREFIX;
   if (/(PUBLIC_URL|PUBLIC_ENDPOINT|CDN_URL|CUSTOM_DOMAIN)$/.test(n)) return LinkPart.PUBLIC_URL;
   if (/(ENDPOINT|ENDPOINT_URL|URL|HOST)$/.test(n)) return LinkPart.ENDPOINT;
   if (/REGION$/.test(n)) return LinkPart.REGION;

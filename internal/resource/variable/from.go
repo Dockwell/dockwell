@@ -26,6 +26,13 @@ import (
 // template name can be, as it isn't a name an environment takes.
 const FromUse = "from:value"
 
+// LinkUse is the name a value of a link's prefix uses the link as, which it reads
+// the prefix from, pinned as the connection is (ADR 0099).
+const LinkUse = "from:link"
+
+// LinkKind is the kind a value of a link's prefix reads it from.
+const LinkKind resource.Kind = "link"
+
 // FromOf is where a variable's or a secret's value comes from, or nil for one that
 // holds its value.
 func FromOf(spec proto.Message) *resourcev1.ValueFrom {
@@ -85,8 +92,11 @@ func checkFrom(what string, from *resourcev1.ValueFrom, value string, secret boo
 }
 
 // connectionParts are the parts a value may take from a connection, each with
-// whether it's one of its keys, which only a secret holds (ADR 0099).
+// whether it's one of its keys, which only a secret holds (ADR 0099). The prefix is
+// the link's own, read through it as the rest are, so the value can't drift from
+// what the link records (the re-check's N3).
 var connectionParts = map[resourcev1.LinkPart]bool{
+	resourcev1.LinkPart_LINK_PART_KEY_PREFIX:    false,
 	resourcev1.LinkPart_LINK_PART_ENDPOINT:      false,
 	resourcev1.LinkPart_LINK_PART_REGION:        false,
 	resourcev1.LinkPart_LINK_PART_BUCKET:        false,
@@ -183,8 +193,13 @@ func fromUses(from *resourcev1.ValueFrom, revisions map[string]int64) []resource
 		return []resource.Use{{As: FromUse, Kind: kind, Name: src.Value.GetName(), Scope: src.Value.GetEnvironment(), Revision: int(revisions[FromUse])}}
 	case *resourcev1.ValueFrom_Connection:
 		// The connection, pinned as a value it's read from is, so a change to it
-		// reaches every app that uses it in the same plan.
-		return []resource.Use{{As: FromUse, Kind: ConnectionKind, Name: src.Connection.GetName(), Scope: src.Connection.GetScope(), Revision: int(revisions[FromUse])}}
+		// reaches every app that uses it in the same plan. The prefix is the link's,
+		// pinned too, so a change to it reaches the app the same way.
+		out := []resource.Use{{As: FromUse, Kind: ConnectionKind, Name: src.Connection.GetName(), Scope: src.Connection.GetScope(), Revision: int(revisions[FromUse])}}
+		if src.Connection.GetPart() == resourcev1.LinkPart_LINK_PART_KEY_PREFIX {
+			out = append(out, resource.Use{As: LinkUse, Kind: LinkKind, Name: src.Connection.GetLink(), Revision: int(revisions[LinkUse])})
+		}
+		return out
 	}
 	return nil
 }

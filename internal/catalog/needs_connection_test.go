@@ -196,8 +196,29 @@ func TestAConnectionThatServesAnotherAppIsNoWay(t *testing.T) {
 	prefixed.Needs[1].Sets = append(prefixed.Needs[1].Sets, &catalogv1.NeedSet{Name: "S3_PREFIX", Part: catalogv1.Part_PART_KEY_PREFIX})
 	prefixed.Compose = strings.Replace(prefixed.GetCompose(), "S3_BUCKET: ${S3_BUCKET}", "S3_BUCKET: ${S3_BUCKET}\n      S3_PREFIX: ${S3_PREFIX}", 1)
 	pw := catalog.WithConnections(prefixed, catalog.Ways(prefixed, lookupBuiltIn(t)), []catalog.ConnectionWay{busy})
-	if w := pw["storage"]; len(w) != 1 || w[0].Why != "it serves another app already, and a connection serves one app. Add a connection of its own on Connections" {
+	if w := pw["storage"]; len(w) != 1 || w[0].Why != "it serves another app already, and isn't shared" {
 		t.Errorf("with a key prefix, the connection is offered as %+v", w)
+	}
+	// Shared, it's a way for an app that keeps to a prefix, and the default as the only
+	// one, but only beside apps that keep to prefixes of their own (ADR 0099).
+	shared := busy
+	shared.Shared, shared.Apart = true, true
+	sw := catalog.WithConnections(prefixed, catalog.Ways(prefixed, lookupBuiltIn(t)), []catalog.ConnectionWay{shared})
+	if w := sw["storage"]; len(w) != 1 || w[0].Why != "" {
+		t.Errorf("shared, with a key prefix, the connection is offered as %+v", w)
+	}
+	if met, err := catalog.Meet(prefixed, sw, nil, nil); err != nil || met["storage"].Connection == nil || met["storage"].Connection.Name != "uploads" {
+		t.Errorf("shared, the only connection isn't the default: %+v, %v", met["storage"], err)
+	}
+	if w := catalog.WithConnections(required, catalog.Ways(required, lookupBuiltIn(t)), []catalog.ConnectionWay{shared})["storage"]; len(w) != 1 ||
+		!strings.HasPrefix(w[0].Why, "it serves another app already, and this app can't keep to a prefix of the bucket") {
+		t.Errorf("shared, to an app that can't keep to a prefix, the connection is offered as %+v", w)
+	}
+	beside := shared
+	beside.Apart = false
+	if w := catalog.WithConnections(prefixed, catalog.Ways(prefixed, lookupBuiltIn(t)), []catalog.ConnectionWay{beside})["storage"]; len(w) != 1 ||
+		w[0].Why != "another app's link doesn't say which prefix its app keeps to, so nothing keeps their files apart" {
+		t.Errorf("shared beside an app at the bucket's root, the connection is offered as %+v", w)
 	}
 
 	// An install the connection meets already keeps it, though another app reads it now.

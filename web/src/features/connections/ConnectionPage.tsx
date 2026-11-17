@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { create } from "@bufbuild/protobuf";
 import { createClient } from "@connectrpc/connect";
 import { useTransport } from "@connectrpc/connect-query";
 import {
@@ -7,6 +8,7 @@ import {
   ChangeState,
   type CheckConnectionResponse,
   type ConnectionInfo,
+  ConnectionInfoSchema,
   ConnectionReach,
   ConnectionService,
   type ConnectionUse,
@@ -19,17 +21,19 @@ import {
   Panel,
   PHONE_QUERY,
   StatusBadge,
+  Switch,
   Table,
   type TableColumn,
   useMediaQuery,
 } from "@dockwell/ui";
+import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 
 import { sentence } from "../../lib/errors";
 import { usePlaces } from "../apps/useServices";
-import { useMay } from "../auth/may";
+import { type Offer, useMay } from "../auth/may";
 import { useInstalls } from "../catalog/useCatalog";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { useFleetView } from "../servers/useFleet";
@@ -38,6 +42,7 @@ import { Page } from "../shell/Page";
 import { ConnectionSheet } from "./ConnectionSheet";
 import { where } from "./ConnectionsPage";
 import { ConnectStorageSheet, useConnectableApps } from "./ConnectStorageSheet";
+import { appsOn } from "./storage";
 import { checkServer, SILENT, useCheckWords, useConnections, usePartWords, useProjectLabel } from "./useConnections";
 import "../apps/Apps.css";
 import "./Connections.css";
@@ -59,6 +64,7 @@ export function ConnectionPage({ name }: { name: string }) {
   const [editing, setEditing] = useState(false);
   const [using, setUsing] = useState(false);
   const check = useCheck(name);
+  const share = useShare(connection ?? EMPTY, () => void query.refetch());
   const phone = useMediaQuery(PHONE_QUERY);
   // Use in an app is for someone who may connect an app it reaches: not a viewer.
   const canUse = useConnectableApps(connection).length > 0;
@@ -82,6 +88,19 @@ export function ConnectionPage({ name }: { name: string }) {
   }
   const admin = connection.endpoint !== "";
   const lead = where(connection) || connection.displayName;
+  // One app per connection unless it's shared, as the server holds: two from before
+  // keep working, and sharing it is one step away (the review's M2).
+  const apps = appsOn(connection);
+  const servesOne = !connection.shared && apps > 0;
+  // Where the callout says it, with Share it, Use in an app says nothing more, so a
+  // phone, which says an off control's reason at the top, says it once (the
+  // re-check's N4).
+  const unsharedMany = admin && !connection.shared && apps > 1;
+  const useOff = unsharedMany
+    ? { disabled: true }
+    : servesOne
+      ? { off: t`It serves an app already, and isn't shared` }
+      : {};
   return (
     <Page
       title={connection.name}
@@ -116,7 +135,7 @@ export function ConnectionPage({ name }: { name: string }) {
             </Button>
           ) : null}
           {canUse ? (
-            <Button variant="primary" icon="plus" onClick={() => setUsing(true)}>
+            <Button variant="primary" icon="plus" onClick={() => setUsing(true)} {...useOff}>
               <Trans>Use in an app</Trans>
             </Button>
           ) : null}
@@ -130,13 +149,36 @@ export function ConnectionPage({ name }: { name: string }) {
         </Callout>
       ) : null}
       {check.answer ? <CheckLine answer={check.answer} /> : null}
+      {unsharedMany ? (
+        <Callout
+          tone="warning"
+          title={plural(apps, {
+            one: "# app uses it, but it isn't shared",
+            other: "# apps use it, but it isn't shared",
+          })}
+          actions={
+            <Button size="sm" onClick={() => share(true)} {...mayChange.off}>
+              <Trans>Share it</Trans>
+            </Button>
+          }
+        >
+          <Trans>Share it to link another app beside them.</Trans>
+        </Callout>
+      ) : null}
       <UsedBy
         connection={connection}
         admin={admin}
         onUse={canUse ? () => setUsing(true) : undefined}
         onDisconnected={() => void query.refetch()}
       />
-      {admin ? <Details connection={connection} onReplace={() => setEditing(true)} /> : null}
+      {admin ? (
+        <Details
+          connection={connection}
+          onReplace={() => setEditing(true)}
+          mayChange={mayChange}
+          onSaved={() => void query.refetch()}
+        />
+      ) : null}
       {phone ? (
         // A phone's page has no head for its actions: they sit under it, as the mock has them.
         <div className="connection-phone-actions">
@@ -148,7 +190,7 @@ export function ConnectionPage({ name }: { name: string }) {
               </Button>
             ) : null}
             {canUse ? (
-              <Button size="lg" variant="primary" icon="plus" onClick={() => setUsing(true)}>
+              <Button size="lg" variant="primary" icon="plus" onClick={() => setUsing(true)} {...useOff}>
                 <Trans>Use in an app</Trans>
               </Button>
             ) : null}
@@ -162,6 +204,9 @@ export function ConnectionPage({ name }: { name: string }) {
     </Page>
   );
 }
+
+/** No connection, for the hooks a page calls before it knows there's one. */
+const EMPTY = create(ConnectionInfoSchema, {});
 
 /** A check of a saved connection, from the first server that's connected. */
 function useCheck(name: string) {
@@ -388,9 +433,25 @@ function UsedBy({
 }
 
 /** Where the bucket is and who may use it: an admin's to see. */
-function Details({ connection, onReplace }: { connection: ConnectionInfo; onReplace: () => void }) {
+function Details({
+  connection,
+  onReplace,
+  mayChange,
+  onSaved,
+}: {
+  connection: ConnectionInfo;
+  onReplace: () => void;
+  mayChange: Offer;
+  onSaved: () => void;
+}) {
   const { t } = useLingui();
   const projectName = useProjectLabel();
+  // A connection serves one app unless an admin shares it: then each app that keeps to
+  // a prefix of the bucket may keep its files there, under its own (ADR 0099). It stays
+  // shared while more than one app uses it, which the server refuses too.
+  const apps = appsOn(connection);
+  const stuck = connection.shared && apps > 1;
+  const share = useShare(connection, onSaved);
   const reach =
     connection.reach === ConnectionReach.EVERY
       ? t`Every project`
@@ -414,6 +475,29 @@ function Details({ connection, onReplace }: { connection: ConnectionInfo; onRepl
             <dd className={r.mono ? "connections-mono" : undefined}>{r.value}</dd>
           </div>
         ))}
+        <div>
+          <dt>
+            <Trans>Apps</Trans>
+          </dt>
+          <dd>
+            <Switch
+              checked={connection.shared}
+              onChange={share}
+              disabled={!mayChange.allowed || stuck}
+              label={t`More than one app may use it`}
+              description={
+                !mayChange.allowed
+                  ? mayChange.reason
+                  : stuck
+                    ? plural(apps, {
+                        one: "Stays shared while # app uses it: disconnect all but one first",
+                        other: "Stays shared while # apps use it: disconnect all but one first",
+                      })
+                    : t`Each keeps its files under a prefix of its own`
+              }
+            />
+          </dd>
+        </div>
         <div>
           <dt>
             <Trans>Keys</Trans>
@@ -450,4 +534,41 @@ function BackToConnections() {
       <Icon name="arrow-left" size={20} />
     </Link>
   );
+}
+
+/** Plans sharing a connection, or unsharing it, as a change of that alone. */
+function useShare(connection: ConnectionInfo, onSaved: () => void) {
+  const { t } = useLingui();
+  const sheet = useChangeSheet();
+  const label = connection.displayName || connection.name;
+  return (shared: boolean) =>
+    sheet.open({
+      kind: "propose",
+      summary: shared ? t`Share the connection ${label}` : t`Stop sharing the connection ${label}`,
+      edits: [
+        {
+          resource: { kind: "connection", name: connection.name },
+          spec: { kind: { case: "connection", value: { ...specOf(connection), shared } } },
+        },
+      ],
+      onClose: (change) => {
+        if (change) onSaved();
+      },
+    });
+}
+
+/**
+ * A connection's spec as ConnectionInfo shows it to an admin, with no keys, which an
+ * update keeps where its address stays (ADR 0099): for a change of one setting, such
+ * as whether it's shared.
+ */
+export function specOf(c: ConnectionInfo) {
+  return {
+    displayName: c.displayName,
+    kind: c.kind,
+    s3: { endpoint: c.endpoint, region: c.region, bucket: c.bucket, pathStyle: c.pathStyle, publicUrl: c.publicUrl },
+    reach: c.reach,
+    projects: [...c.projects],
+    shared: c.shared,
+  };
 }

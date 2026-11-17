@@ -170,6 +170,9 @@ message ConnectionInfo {
   // Disconnect leaves them, so it keeps its files there: the connection serves it,
   // and no other app is offered it. It names no project (ADR 0099).
   bool held = 13;
+  // An install admin has marked it as serving more than one link, each app under a
+  // prefix of its own (ConnectionSpec.shared).
+  bool shared = 14;
 }
 
 // ConnectionUse is one link to a connection, and the apps that read it.

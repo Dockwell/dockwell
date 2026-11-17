@@ -695,20 +695,43 @@ type ConnectionWay struct {
 	// added from the install sheet: the install's plan gives it that project (ADR
 	// 0099). Only an install that asks for it by name is offered it.
 	Widens bool
-	// Serves says a link of another app reads it already. A connection serves one
-	// app (ADR 0099), so it's no way to meet a need now, but an install it meets
+	// Serves says a link of another app reads it already, or an app's own values name
+	// its bucket, as a Disconnect leaves them. A connection serves one app unless it's
+	// shared (ADR 0099), so it's then no way to meet a need, but an install it meets
 	// already keeps it.
 	Serves bool
+	// Shared says an install admin marked it as serving more than one app, each under
+	// a prefix of its own: a need that keeps to a prefix may take it though it serves
+	// another app already.
+	Shared bool
+	// Apart says every other app it serves keeps to a prefix Dockwell knows, through a
+	// link: none keeps its files at the bucket's root, and no app's own values name it.
+	// A shared connection is a way beside them only then.
+	Apart bool
 }
 
-// servesWhy is why a connection another app reads can't meet a need: it serves one
-// app, and an app that can't keep to a prefix of the bucket would mix its files
-// with the other's. It names no other app, which may be another project's.
-func servesWhy(n *catalogv1.Need) string {
-	if !slices.ContainsFunc(n.GetSets(), func(s *catalogv1.NeedSet) bool { return s.GetPart() == catalogv1.Part_PART_KEY_PREFIX }) {
-		return "it serves another app already, and this app can't keep to a prefix of the bucket, so their files would mix. Add a connection of its own on Connections"
+// keepsToPrefix says whether an app keeps its files under a prefix of the bucket it's
+// given, as a need that sets one does.
+func keepsToPrefix(n *catalogv1.Need) bool {
+	return slices.ContainsFunc(n.GetSets(), func(s *catalogv1.NeedSet) bool { return s.GetPart() == catalogv1.Part_PART_KEY_PREFIX })
+}
+
+// servesWhy is why a connection another app uses already can't meet a need, or ""
+// where it can: a shared one, for an app that keeps to a prefix of the bucket, beside
+// apps that each keep to theirs. It names no other app, which may be another
+// project's.
+func servesWhy(n *catalogv1.Need, c *ConnectionWay) string {
+	switch {
+	case !c.Serves:
+		return ""
+	case !keepsToPrefix(n):
+		return "it serves another app already, and this app can't keep to a prefix of the bucket, so their files would mix"
+	case !c.Shared:
+		return "it serves another app already, and isn't shared"
+	case !c.Apart:
+		return "another app's link doesn't say which prefix its app keeps to, so nothing keeps their files apart"
 	}
-	return "it serves another app already, and a connection serves one app. Add a connection of its own on Connections"
+	return ""
 }
 
 // ChoiceConnection starts the choice of a connection, as "connection:uploads".
@@ -866,8 +889,8 @@ func WithConnections(e *catalogv1.Entry, ways map[string][]Way, conns []Connecti
 			switch {
 			case slices.ContainsFunc(n.GetSets(), func(s *catalogv1.NeedSet) bool { return s.GetPart() == catalogv1.Part_PART_URL }):
 				w.Why = "the app reads its storage as one URL, which a connection can't give yet"
-			case c.Serves:
-				w.Why = servesWhy(n)
+			default:
+				w.Why = servesWhy(n, &c)
 			}
 			ways[n.GetName()] = append(ways[n.GetName()], w)
 		}
@@ -972,6 +995,11 @@ func Meet(e *catalogv1.Entry, ways map[string][]Way, asked map[string]string, pi
 			out[name] = options[i]
 		default:
 			i := slices.IndexFunc(options, func(w Way) bool { return w.Choice() == choice })
+			if i >= 0 && options[i].Why != "" && options[i].Connection != nil {
+				// A connection's why is a state, as the sheet shows it beside Add a
+				// connection; a refusal adds the way out.
+				return nil, fmt.Errorf("the connection %s can't meet %s's %s: %s, so nothing was planned. Pick another, or add a connection of its own on Connections", options[i].Connection.Name, e.GetName(), strings.ToLower(n.GetLabel()), options[i].Why)
+			}
 			if i >= 0 && options[i].Why != "" {
 				return nil, fmt.Errorf("%s can't meet %s's %s: %s", strings.TrimPrefix(choice, "service:"), e.GetName(), strings.ToLower(n.GetLabel()), options[i].Why)
 			}
@@ -1052,7 +1080,7 @@ func pinnedWay(n *catalogv1.Need, p *resourcev1.PinnedNeed, options []Way) (Way,
 		case i < 0:
 			return Way{}, fmt.Errorf("the install meets its %s with the connection %s, which this project can't use any more, so it stays on its release. Let the project use %s, or meet the need another way", what, name, name)
 		// Another app that reads the connection since doesn't move this one off it.
-		case options[i].Why != "" && options[i].Why != servesWhy(n):
+		case options[i].Why != "" && options[i].Why != servesWhy(n, options[i].Connection):
 			return Way{}, fmt.Errorf("this release of the app can't keep its %s on the connection %s: %s, so it stays on its release", what, name, options[i].Why)
 		}
 		w := options[i]
@@ -1269,7 +1297,12 @@ func connectedNeed(n *catalogv1.Need, c ConnectionWay, out *Needed, adds *[]*cat
 			}
 			literal(name, word)
 		case catalogv1.Part_PART_KEY_PREFIX:
-			literal(name, c.Prefix)
+			// The app keeps to the prefix, which the link records by the name that
+			// tells it, so a shared connection may serve another app beside it. The
+			// value is read from the link, which owns it (the re-check's N3).
+			literal(name, "")
+			out.Read[name] = ReadFrom{Connection: c.Name, Link: n.GetName(), Part: resourcev1.LinkPart_LINK_PART_KEY_PREFIX}
+			l.Sets = append(l.Sets, &resourcev1.LinkSet{Name: name, Part: resourcev1.LinkPart_LINK_PART_KEY_PREFIX})
 		case catalogv1.Part_PART_ENDPOINT, catalogv1.Part_PART_REGION, catalogv1.Part_PART_BUCKET, catalogv1.Part_PART_PUBLIC_URL:
 			literal(name, "")
 			out.Read[name] = ReadFrom{Connection: c.Name, Link: n.GetName(), Part: resourcev1.LinkPart(part)}

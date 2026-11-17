@@ -10418,6 +10418,11 @@ components:
                          installs hold, 90 to 99.
                 connectionLabel:
                     type: string
+                connectionShared:
+                    type: boolean
+                    description: |-
+                        The connection is shared and another app keeps its files there already, each
+                         under its own prefix, as this app would (ConnectionSpec.shared).
             description: CatalogNeedOption is one way to meet an entry's need.
         CatalogPart:
             type: object
@@ -12173,6 +12178,11 @@ components:
                         Some app's own values name its endpoint and bucket, with no link, as a
                          Disconnect leaves them, so it keeps its files there: the connection serves it,
                          and no other app is offered it. It names no project (ADR 0099).
+                shared:
+                    type: boolean
+                    description: |-
+                        An install admin has marked it as serving more than one link, each app under a
+                         prefix of its own (ConnectionSpec.shared).
             description: |-
                 ConnectionInfo is a connection as a caller may see it: never its keys. Below an
                  admin, its name, kind and what it reaches alone.
@@ -12318,6 +12328,12 @@ components:
                          networks, as theirs would let them probe the server's network. Dockwell sets
                          it from who proposes the change; an edit's is ignored. Unset, as every
                          connection an admin saved, a check may reach a private address (ADR 0099).
+                shared:
+                    type: boolean
+                    description: |-
+                        An install admin has marked it as serving more than one link, each app under a
+                         prefix of its own: a need that keeps to a prefix is offered it though another
+                         app uses it already. Unset, it serves one link (ADR 0099).
             description: |-
                 ConnectionSpec is one set of values of one kind that something uses, kind
                  "connection": an app through a link, or Dockwell itself (ADR 0099). It lives in the

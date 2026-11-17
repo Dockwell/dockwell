@@ -11,6 +11,8 @@ import (
 	"slices"
 	"strings"
 
+	"google.golang.org/protobuf/proto"
+
 	catalogv1 "github.com/dockwell/dockwell/gen/dockwell/catalog/v1alpha1"
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
@@ -186,15 +188,21 @@ func (h *Handler) connectionWays(ctx context.Context, e *catalogv1.Entry, projec
 		// install's own pinned connection by another path (the slice 1 re-check, N1).
 		var taken []string
 		for _, u := range uses[c.Name] {
-			taken = append(taken, u.GetPrefix())
+			// Where its app keeps its files: an app no link tells a prefix keeps them
+			// at the root, so nothing keeps another apart from it (the review's H1).
+			taken = append(taken, connections.KeptPrefix(u))
 		}
-		// A connection serves one app: one another project's link reads is no way to
-		// meet a need now (ADR 0099). Marking one shared is a slice of its own.
+		// A connection serves one app unless an admin shared it: then a need that keeps
+		// to a prefix may take it beside apps that keep to theirs, under a prefix none
+		// of them holds (ADR 0099).
+		held := connections.Holds(values, c.Spec)
 		out = append(out, catalog.ConnectionWay{
 			Name: c.Name, Label: cmp.Or(c.Spec.GetDisplayName(), c.Name), PathStyle: c.Spec.GetS3().GetPathStyle(),
 			Prefix: link.FreePrefix(prefixFor(projectName), taken),
 			Named:  namedForEnvironment(c.Name, all, environments),
-			Serves: len(taken) > 0 || connections.Holds(values, c.Spec),
+			Serves: len(taken) > 0 || held,
+			Shared: c.Spec.GetShared(),
+			Apart:  !held && !slices.Contains(taken, ""),
 			Widens: widens,
 		})
 	}
@@ -314,4 +322,58 @@ func (h *Handler) connectionEdits(ctx context.Context, needed *catalog.Needed, f
 		})
 	}
 	return out, nil
+}
+
+// PrefixKeptNote is a plan note's reason where an upgrade takes the prefix an app
+// keeps its files under from its own setting, as a person changed it, rather than the
+// one its install chose (ADR 0099).
+const PrefixKeptNote = "catalog_prefix_kept"
+
+// prefixesKept is an install's pinned needs with each storage need's prefix where its
+// app keeps its files now. A link from before links named the setting that tells
+// their app the prefix wrote that setting as a value of its own, which a person may
+// have changed since: that value is where the files are, so the upgrade that makes
+// the link name the setting takes it as the link's prefix, and the engine checks it
+// against the other apps on the connection as any new prefix (#772's last check, C1).
+// It changes nothing where the value is the link's prefix, or the link names the
+// setting already, and says in a note where it does.
+func (h *Handler) prefixesKept(ctx context.Context, env, project string, e *catalogv1.Entry, pinned map[string]*resourcev1.PinnedNeed) (map[string]*resourcev1.PinnedNeed, []revision.Note, error) {
+	if h.db == nil || env == "" {
+		return pinned, nil, nil
+	}
+	out := maps.Clone(pinned)
+	var notes []revision.Note
+	err := h.db.View(ctx, func(tx *store.Tx) error {
+		for _, n := range e.GetNeeds() {
+			p := pinned[n.GetName()]
+			i := slices.IndexFunc(n.GetSets(), func(s *catalogv1.NeedSet) bool { return s.GetPart() == catalogv1.Part_PART_KEY_PREFIX })
+			if p.GetConnection() == "" || i < 0 {
+				continue
+			}
+			setting := n.GetSets()[i].GetName()
+			r, err := tx.GetResource(ctx, string(variable.LinkKind), env, n.GetName())
+			if err != nil {
+				continue // no link to take it from
+			}
+			var l resourcev1.Link
+			if proto.Unmarshal(r.Spec, &l) != nil || l.GetConnection() == "" || link.KeepsToPrefix(&l) {
+				continue
+			}
+			r, err = tx.GetResource(ctx, string(variable.VariableKind), env, setting)
+			if err != nil {
+				continue
+			}
+			var v resourcev1.Variable
+			if proto.Unmarshal(r.Spec, &v) != nil || v.GetFrom() != nil || v.GetValue() == l.GetPrefix() {
+				continue
+			}
+			kept := proto.CloneOf(p)
+			kept.Prefix = v.GetValue()
+			out[n.GetName()] = kept
+			notes = append(notes, revision.Note{Reason: PrefixKeptNote, Message: fmt.Sprintf("%s keeps its files under %s, as its %s says, and its link %s keeps to that prefix from now on, in place of %s",
+				project, cmp.Or(v.GetValue(), "the bucket's root"), setting, n.GetName(), cmp.Or(l.GetPrefix(), "the bucket's root"))})
+		}
+		return nil
+	})
+	return out, notes, err
 }

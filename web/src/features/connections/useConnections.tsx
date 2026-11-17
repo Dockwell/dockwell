@@ -119,6 +119,7 @@ export function usePartWords(): Record<number, string> {
     [LinkPart.SECRET_KEY]: t`secret access key`,
     [LinkPart.PUBLIC_URL]: t`public address`,
     [LinkPart.PATH_STYLE]: t`bucket in the path`,
+    [LinkPart.KEY_PREFIX]: t({ message: "prefix", context: "where in a bucket an app keeps its files" }),
   };
 }
 

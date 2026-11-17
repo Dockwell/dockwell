@@ -218,6 +218,9 @@ export function ConnectionSheet({
     // are given on Connections, later.
     reach: installing ? ConnectionReach.UNSPECIFIED : reach,
     projects: !installing && reach === ConnectionReach.PROJECTS ? picked : [],
+    // Whether it's shared is its own switch's, on the connection's page: a change here
+    // keeps it as it is.
+    shared: editing?.shared ?? false,
   });
   const review = () =>
     sheet.open({

@@ -79,6 +79,20 @@ func (e *Engine) rotating(kind resource.Kind) bool {
 	return ok || e.valuer(kind)
 }
 
+// changesWhatsRead reports a change that reaches what reads the item: any, but for
+// a kind that says otherwise (resource.ReadChanger), as a connection's label does.
+// An edit that restates a sensitive value, right or wrong, rotates it and reaches
+// every reader all the same (it.rotates), so no plan says whether a guess at a key is
+// the one saved.
+func (e *Engine) changesWhatsRead(it *item) bool {
+	t, err := e.kinds.Type(it.ref.Kind)
+	if err != nil || it.current == nil || it.spec == nil {
+		return true
+	}
+	rc, ok := t.(resource.ReadChanger)
+	return !ok || rc.ChangesWhatsRead(it.current, it.spec)
+}
+
 // usesOf lists what an item's spec uses, keyed in its scope.
 func (e *Engine) usesOf(it *item, spec proto.Message) []resource.Use {
 	b, ok := e.binder(it.ref.Kind)
@@ -181,7 +195,9 @@ func (e *Engine) users(ctx context.Context, tx *store.Tx, items []item) ([]resou
 	for i := range items {
 		it := &items[i]
 		in[it.ref] = true
-		if (e.valuer(it.ref.Kind) || e.readThrough(it.ref.Kind)) && it.changes() {
+		// A change that restates a sensitive value rotates it, and reaches every reader
+		// whatever it says (changesWhatsRead).
+		if (e.valuer(it.ref.Kind) || e.readThrough(it.ref.Kind)) && it.changes() && (it.rotates || e.changesWhatsRead(it)) {
 			if changed[it.ref.Scope] == nil {
 				changed[it.ref.Scope] = map[resource.Kind][]string{}
 			}
@@ -308,7 +324,14 @@ func (e *Engine) stillPinned(ctx context.Context, tx *store.Tx, c store.Change, 
 			return fmt.Errorf("%w. %s can't apply as it was planned, so propose the change again", err, c.ID)
 		}
 		for _, u := range e.usesOf(it, it.spec) {
-			if want[u.As] != u.Revision {
+			switch {
+			case want[u.As] == u.Revision:
+			case e.readThrough(u.Kind):
+				// A connection's change may have left what's read as it was, as a rename
+				// or a share does, so the words claim no wrong value (the review's L4).
+				return fault.New(ErrStale, "%s %s changed after %s was planned. Propose the change again, to plan it from the latest",
+					u.Kind, u.Name, c.ID)
+			default:
 				return fault.New(ErrStale, "%s %s changed after %s was planned, so %s would start with the wrong value. Propose the change again",
 					u.Kind, u.Name, c.ID, it.ref.Name)
 			}

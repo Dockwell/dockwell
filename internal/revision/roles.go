@@ -651,6 +651,9 @@ func (e *Engine) spotOf(ctx context.Context, tx *store.Tx, it *item, byID map[st
 		return spot{admins: "what runs on a server alone, outside a project, is an admin's"}, nil
 	case resource.LevelProject, resource.LevelOrganization:
 	}
+	if _, _, changes := sharing(it); changes {
+		return spot{admins: sharingAdmins}, nil
+	}
 	return spot{admins: "what belongs to no project is an admin's"}, nil
 }
 

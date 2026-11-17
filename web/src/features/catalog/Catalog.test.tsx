@@ -21,6 +21,7 @@ import {
   type InstallCatalogEntryRequest,
   Kind,
   LinkKind,
+  LinkPart,
   type ListCatalogEntriesRequest,
   NeedSchema,
   Part,
@@ -953,6 +954,95 @@ describe("A database's admin tool", () => {
     await waitFor(() =>
       expect(asked.at(-1)).toEqual({ need: "storage", choice: "connection:uploads", startEmpty: true }),
     );
+  });
+
+  // ADR 0099: a shared connection another app uses is a way for an app that keeps to a
+  // prefix of the bucket, and never for one that can't.
+  it("offers a shared connection another app uses to an app that keeps to a prefix, and not otherwise", async () => {
+    const user = userEvent.setup();
+    const storageNeed = (prefix: boolean) =>
+      create(EntrySchema, {
+        ...withTools,
+        companions: [],
+        needs: [
+          create(NeedSchema, {
+            name: "storage",
+            label: "Storage",
+            kind: Kind.S3,
+            optional: true,
+            accepts: [{ kind: Kind.S3 }],
+            sets: [
+              { name: "S3_BUCKET", part: Part.BUCKET },
+              ...(prefix ? [{ name: "S3_PREFIX", part: Part.KEY_PREFIX }] : []),
+            ],
+          }),
+        ],
+      });
+    // The other app keeps to its prefix where its link sets the name that tells it.
+    const sharedBeside = (keeps: boolean) =>
+      create(ConnectionInfoSchema, {
+        name: "media",
+        kind: LinkKind.S3,
+        reach: ConnectionReach.EVERY,
+        shared: true,
+        uses: [
+          {
+            link: "storage",
+            environment: "env_other",
+            project: "prj_2",
+            prefix: "shop/",
+            sets: keeps ? { SHOP_PREFIX: LinkPart.KEY_PREFIX } : {},
+          },
+        ],
+      });
+    let shared = sharedBeside(true);
+    const render = (prefix: boolean) =>
+      renderAt("/apps/svc_db", {
+        ...api({
+          getCatalogEntry: () => ({ entry: storageNeed(prefix), project: "postgres", needs: [] }),
+          listCatalogInstalls: () => ({
+            installs: [
+              {
+                project: "postgres",
+                projectId: "prj_1",
+                environmentId: ENV,
+                pin: { entry: "postgres", version: "17.11", release: 5, needs: { storage: { unset: true } } },
+                webServiceId: "svc_db",
+                name: "PostgreSQL",
+                companions: {},
+              },
+            ],
+          }),
+        }),
+        connections: { listConnections: () => ({ connections: [shared] }) },
+        resources: places(),
+        services: { listServices: () => ({ services: [anApp("db", "postgres:17.11")] }) },
+      });
+    const wayOf = async () => {
+      const row = await waitFor(() => rowLabelled(screen.getByRole("region", { name: "From the catalog" }), "Storage"));
+      await user.click(within(row).getByRole("button", { name: "Use a connection" }));
+      return within(within(row).getByRole("list", { name: "Connections it can use" }))
+        .getAllByRole("listitem")
+        .find((li) => li.textContent?.includes("media"));
+    };
+
+    const first = render(true);
+    const keeps = (await wayOf()) as HTMLElement;
+    expect(keeps).toHaveTextContent("Its files stay where they are now · shared");
+    expect(within(keeps).getByRole("button", { name: "Start empty on it" })).toBeEnabled();
+    first.unmount();
+
+    const second = render(false);
+    const mixes = (await wayOf()) as HTMLElement;
+    expect(mixes).toHaveTextContent("It serves another app already");
+    expect(within(mixes).getByRole("button", { name: "Start empty on it" })).toBeDisabled();
+    second.unmount();
+
+    // Beside an app no link tells a prefix, which keeps its files at the root, it's off.
+    shared = sharedBeside(false);
+    render(true);
+    const atRoot = (await wayOf()) as HTMLElement;
+    expect(within(atRoot).getByRole("button", { name: "Start empty on it" })).toBeDisabled();
   });
 
   it("names the server an app shares where it is now, with the way to it, and none of a project you can't see", async () => {

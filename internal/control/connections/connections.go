@@ -103,6 +103,18 @@ func (c *Connections) read(ctx context.Context, skip bool) ([]Saved, []string, e
 	return out, unread, err
 }
 
+// KeptPrefix is where a use's app keeps its files in the bucket: its link's prefix,
+// where the link sets the name that tells the app it, and otherwise the bucket's root,
+// "" (link.Kept).
+func KeptPrefix(u *dockwellv1.ConnectionUse) string {
+	for _, part := range u.GetSets() {
+		if part == resourcev1.LinkPart_LINK_PART_KEY_PREFIX {
+			return u.GetPrefix()
+		}
+	}
+	return ""
+}
+
 // Uses reads what reads each connection, by its name: each link to it, in its
 // environment and project, with the apps that read the names the link sets (ADR
 // 0099). A link names a connection of the install's one organization by name alone.
@@ -296,7 +308,7 @@ func (s *Service) ListConnections(ctx context.Context, req *connect.Request[dock
 		case !admin && !reachesAny(c.Spec, mine):
 			continue
 		}
-		info := &dockwellv1.ConnectionInfo{Id: c.ID, Name: c.Name, DisplayName: c.Spec.GetDisplayName(), Kind: c.Spec.GetKind(), Held: Holds(values, c.Spec)}
+		info := &dockwellv1.ConnectionInfo{Id: c.ID, Name: c.Name, DisplayName: c.Spec.GetDisplayName(), Kind: c.Spec.GetKind(), Held: Holds(values, c.Spec), Shared: c.Spec.GetShared()}
 		switch {
 		case admin:
 			s3 := c.Spec.GetS3()

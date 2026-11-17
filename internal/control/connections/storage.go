@@ -36,11 +36,13 @@ type Changes interface {
 }
 
 // storageParts are the parts ConnectStorage sets: each a value read from the
-// connection, but path style, which it writes in the app's words.
+// connection, but path style, which it writes in the app's words, and the prefix,
+// which it writes as the link's. A link that sets the prefix's name keeps its app's
+// files under it; one that sets none counts as at the bucket's root (link.Kept).
 var storageParts = map[resourcev1.LinkPart]bool{
 	resourcev1.LinkPart_LINK_PART_ENDPOINT: true, resourcev1.LinkPart_LINK_PART_REGION: true, resourcev1.LinkPart_LINK_PART_BUCKET: true,
 	resourcev1.LinkPart_LINK_PART_ACCESS_KEY_ID: true, resourcev1.LinkPart_LINK_PART_SECRET_KEY: true, resourcev1.LinkPart_LINK_PART_PUBLIC_URL: true,
-	resourcev1.LinkPart_LINK_PART_PATH_STYLE: true,
+	resourcev1.LinkPart_LINK_PART_PATH_STYLE: true, resourcev1.LinkPart_LINK_PART_KEY_PREFIX: true,
 }
 
 // app is an app's environment and what its service reads, as ConnectStorage needs.
@@ -90,7 +92,7 @@ func (s *Service) ConnectStorage(ctx context.Context, req *connect.Request[dockw
 		}
 		var taken []string
 		for _, u := range uses[conn.Name] {
-			taken = append(taken, u.GetPrefix())
+			taken = append(taken, KeptPrefix(u))
 		}
 		prefix = link.FreePrefix(m.GetApp()+"/", taken)
 	}
@@ -107,7 +109,7 @@ func (s *Service) ConnectStorage(ctx context.Context, req *connect.Request[dockw
 		_, key, ok := connection.Part(conn.Spec, part)
 		switch {
 		case !storageParts[part]:
-			return nil, authapi.Invalid(fmt.Errorf("%s is set as %s, which storage doesn't have. Pick its endpoint, region, bucket, keys, public address or path style", name, part))
+			return nil, authapi.Invalid(fmt.Errorf("%s is set as %s, which storage doesn't have. Pick its endpoint, region, bucket, keys, public address, path style or prefix", name, part))
 		case !read:
 			return nil, authapi.Invalid(fmt.Errorf("%s doesn't read %s, so setting it changes nothing. Pick a name it reads", m.GetApp(), name))
 		case ok && key && has && !secret:
@@ -146,8 +148,8 @@ func (s *Service) ConnectStorage(ctx context.Context, req *connect.Request[dockw
 }
 
 // valueEdit is the edit of one name the link sets: a value read from the connection
-// through the link, a secret for a key or for a name that's one already, or for path
-// style, the app's word for it.
+// through the link, the prefix too, which the link owns, a secret for a key or for a
+// name that's one already, or for path style, the app's word for it.
 func valueEdit(a *app, conn Saved, linkName, name string, part resourcev1.LinkPart) *dockwellv1.Edit {
 	if part == resourcev1.LinkPart_LINK_PART_PATH_STYLE {
 		word := "false"
@@ -394,6 +396,10 @@ func (s *Service) DisconnectStorage(ctx context.Context, req *connect.Request[do
 			continue
 		}
 		value, key, ok := connection.Part(conn.Spec, set.GetPart())
+		if set.GetPart() == resourcev1.LinkPart_LINK_PART_KEY_PREFIX {
+			// The prefix is the link's, which the app keeps as it was.
+			value, key, ok = l.GetPrefix(), false, true
+		}
 		if !ok {
 			return nil, fmt.Errorf("the link %s sets %s as %s, which the connection doesn't have", m.GetLink(), set.GetName(), set.GetPart())
 		}

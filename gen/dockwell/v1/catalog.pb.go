@@ -689,8 +689,11 @@ type CatalogNeedOption struct {
 	// installs hold, 90 to 99.
 	Connection      string `protobuf:"bytes,90,opt,name=connection,proto3" json:"connection,omitempty"`
 	ConnectionLabel string `protobuf:"bytes,91,opt,name=connection_label,json=connectionLabel,proto3" json:"connection_label,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// The connection is shared and another app keeps its files there already, each
+	// under its own prefix, as this app would (ConnectionSpec.shared).
+	ConnectionShared bool `protobuf:"varint,92,opt,name=connection_shared,json=connectionShared,proto3" json:"connection_shared,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *CatalogNeedOption) Reset() {
@@ -861,6 +864,13 @@ func (x *CatalogNeedOption) GetConnectionLabel() string {
 		return x.ConnectionLabel
 	}
 	return ""
+}
+
+func (x *CatalogNeedOption) GetConnectionShared() bool {
+	if x != nil {
+		return x.ConnectionShared
+	}
+	return false
 }
 
 // CatalogPart is one service an entry installs.
@@ -3543,7 +3553,7 @@ const file_dockwell_v1_catalog_proto_rawDesc = "" +
 	"\x05needs\x18P \x03(\v2\x1e.dockwell.v1.CatalogNeedOptionR\x05needs\x1a9\n" +
 	"\vValuesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x89\x05\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xb6\x05\n" +
 	"\x11CatalogNeedOption\x12\x12\n" +
 	"\x04need\x18\x01 \x01(\tR\x04need\x12\x16\n" +
 	"\x06choice\x18\x02 \x01(\tR\x06choice\x129\n" +
@@ -3573,7 +3583,8 @@ const file_dockwell_v1_catalog_proto_rawDesc = "" +
 	"\n" +
 	"connection\x18Z \x01(\tR\n" +
 	"connection\x12)\n" +
-	"\x10connection_label\x18[ \x01(\tR\x0fconnectionLabel\"\xf9\x03\n" +
+	"\x10connection_label\x18[ \x01(\tR\x0fconnectionLabel\x12+\n" +
+	"\x11connection_shared\x18\\ \x01(\bR\x10connectionShared\"\xf9\x03\n" +
 	"\vCatalogPart\x12\x18\n" +
 	"\aservice\x18\x01 \x01(\tR\aservice\x12\x14\n" +
 	"\x05image\x18\x02 \x01(\tR\x05image\x12\x1a\n" +

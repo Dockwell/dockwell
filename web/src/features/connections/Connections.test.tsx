@@ -30,7 +30,7 @@ import { webPlanned } from "../../test/changes";
 import { type Api, feed, renderAt } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
 import { freeConnectionName, placeOf, provider } from "./providers";
-import { freeLinkName, freePrefix, suggestedStorage, suggestStoragePart } from "./storage";
+import { appsOn, freeLinkName, freePrefix, keptPrefix, suggestedStorage, suggestStoragePart } from "./storage";
 
 const R2 = "0123456789abcdef0123456789abcdef";
 
@@ -125,6 +125,45 @@ describe("what Dockwell works out for a connection", () => {
     expect(freePrefix("ghost/", ["gh/"])).toBe("ghost/");
     expect(freePrefix("ghost/", [""])).toBe("ghost/");
     expect(freePrefix("ghost/media/", ["ghost/"])).toBe("ghost-2/");
+  });
+});
+
+describe("where an app keeps its files", () => {
+  // The review's H1: an app no link tells a prefix keeps its files at the bucket's root.
+  it("reads a link that names no prefix setting as at the root, and suggests the setting by its name", () => {
+    expect(keptPrefix({ prefix: "site/", sets: { S3_BUCKET: LinkPart.BUCKET } })).toBe("");
+    expect(keptPrefix({ prefix: "site/", sets: { S3_PREFIX: LinkPart.KEY_PREFIX } })).toBe("site/");
+    expect(suggestStoragePart("S3_PREFIX")).toBe(LinkPart.KEY_PREFIX);
+    expect(suggestStoragePart("STORAGE_KEY_PREFIX")).toBe(LinkPart.KEY_PREFIX);
+  });
+
+  // The re-check's N2: an app is a service, and links no service reads yet are one app
+  // of their environment.
+  it("counts apps by the services that read a link", () => {
+    expect(
+      appsOn({
+        uses: [
+          { environment: ENV, appIds: ["svc_notes"] },
+          { environment: ENV, appIds: ["svc_gallery"] },
+        ],
+      }),
+    ).toBe(2);
+    expect(
+      appsOn({
+        uses: [
+          { environment: ENV, appIds: ["svc_notes"] },
+          { environment: ENV, appIds: [] },
+        ],
+      }),
+    ).toBe(1);
+    expect(
+      appsOn({
+        uses: [
+          { environment: ENV, appIds: [] },
+          { environment: "env_other", appIds: [] },
+        ],
+      }),
+    ).toBe(2);
   });
 });
 
@@ -478,6 +517,126 @@ describe("Connections", () => {
     expect(await screen.findByText("Check the bucket's name.")).toBeVisible();
     expect(screen.queryByText("Not checked")).toBeNull();
     await expectAccessible(container);
+  });
+});
+
+describe("sharing a connection", () => {
+  const specOfCall = (proposed: ReturnType<typeof planned>) =>
+    proposed.mock.calls[0]?.[0].edits[0]?.spec?.kind.value as {
+      shared?: boolean;
+      s3?: { accessKeyId: string; secretKey: string; bucket: string };
+    };
+
+  // ADR 0099: a connection serves one app unless an admin shares it, as a plan.
+  it("plans sharing from the connection's switch, with no keys, and keeps it while more than one app uses it", async () => {
+    const user = userEvent.setup();
+    const proposed = planned();
+    renderAt("/connections/outline-uploads", {
+      ...fleet(),
+      resources: places(),
+      connections: { listConnections: () => ({ connections: [used] }) },
+      changes: { proposeChange: proposed, watchChange: feed<WatchChangeResponse>().stream },
+    });
+    const details = await screen.findByRole("region", { name: "Details" });
+    const toggle = within(details).getByRole("switch", { name: "More than one app may use it" });
+    expect(toggle).toHaveAttribute("aria-checked", "false");
+    expect(toggle).toHaveAccessibleDescription("Each keeps its files under a prefix of its own");
+    await user.click(toggle);
+    await waitFor(() => expect(proposed).toHaveBeenCalled());
+    expect(proposed.mock.calls[0]?.[0].summary).toBe("Share the connection Cloudflare R2 · outline-uploads");
+    const spec = specOfCall(proposed);
+    expect(spec.shared).toBe(true);
+    expect(spec.s3).toMatchObject({ bucket: "outline-uploads", accessKeyId: "", secretKey: "" });
+  });
+
+  it("keeps a shared connection's switch off while two apps use it, with why", async () => {
+    const use = (linkId: string, prefix: string, app: string, environment = ENV) => ({
+      linkId,
+      link: "storage",
+      environment,
+      project: "prj_1",
+      prefix,
+      sets: { S3_BUCKET: LinkPart.BUCKET },
+      appIds: [`svc_${app}`],
+      apps: [app],
+    });
+    const two = aConnection({
+      shared: true,
+      uses: [use("lnk_1", "outline/", "outline"), use("lnk_2", "wiki/", "wiki", "env_wiki")],
+    });
+    renderAt("/connections/outline-uploads", {
+      ...fleet(),
+      resources: places(),
+      connections: { listConnections: () => ({ connections: [two] }) },
+    });
+    const details = await screen.findByRole("region", { name: "Details" });
+    const toggle = within(details).getByRole("switch", { name: "More than one app may use it" });
+    expect(toggle).toHaveAttribute("aria-checked", "true");
+    expect(toggle).toBeDisabled();
+    expect(toggle).toHaveAccessibleDescription("Stays shared while 2 apps use it: disconnect all but one first");
+  });
+
+  // The review's M2: two apps from before on an unshared connection keep working, and
+  // sharing it is one step away.
+  it("says when two apps use a connection that isn't shared, with Share it", async () => {
+    const user = userEvent.setup();
+    const proposed = planned();
+    const app = (linkId: string, environment: string, name: string) => ({
+      linkId,
+      link: "storage",
+      environment,
+      project: "prj_1",
+      prefix: `${name}/`,
+      sets: { S3_BUCKET: LinkPart.BUCKET },
+      appIds: [`svc_${name}`],
+      apps: [name],
+    });
+    const two = aConnection({ uses: [app("lnk_1", ENV, "outline"), app("lnk_2", "env_wiki", "wiki")] });
+    renderAt("/connections/outline-uploads", {
+      ...fleet(),
+      resources: places(),
+      connections: { listConnections: () => ({ connections: [two] }) },
+      changes: { proposeChange: proposed, watchChange: feed<WatchChangeResponse>().stream },
+    });
+    expect(await screen.findByText("2 apps use it, but it isn't shared")).toBeVisible();
+    // The callout says it once: nothing else on the page repeats "isn't shared".
+    expect(screen.queryByText("It serves an app already, and isn't shared")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Share it" }));
+    await waitFor(() => expect(proposed).toHaveBeenCalled());
+    expect(specOfCall(proposed).shared).toBe(true);
+  });
+
+  // The owner's ask with ConnectionInfo.shared: the sheet's own save keeps sharing as it is.
+  it("keeps a connection shared when its sheet saves another change", async () => {
+    const user = userEvent.setup();
+    const proposed = planned();
+    const shared = aConnection({ name: "minio", displayName: "minio", endpoint: "http://minio:9000", shared: true });
+    renderAt("/connections/minio", {
+      ...fleet(),
+      resources: places(),
+      connections: {
+        listConnections: () => ({ connections: [shared] }),
+        checkConnection: () => ({ passed: false, step: "connect", code: "unreachable", server: "hz-1" }),
+      },
+      changes: { proposeChange: proposed, watchChange: feed<WatchChangeResponse>().stream },
+    });
+    await user.click(await screen.findByRole("button", { name: "Replace keys" }));
+    const sheet = await screen.findByRole("dialog", { name: "Connection minio" });
+    await user.type(within(sheet).getByRole("textbox", { name: "Access key ID" }), "minio");
+    await user.type(within(sheet).getByLabelText("Secret access key"), "rotated-secret");
+    expect(await within(sheet).findByText("Can't reach it", {}, { timeout: 3000 })).toBeVisible();
+    await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
+    await waitFor(() => expect(proposed).toHaveBeenCalled());
+    expect(specOfCall(proposed).shared).toBe(true);
+  });
+
+  it("says in the list which connections are shared", async () => {
+    renderAt("/connections", {
+      ...fleet(),
+      resources: places(),
+      connections: { listConnections: () => ({ connections: [aConnection({ ...used, shared: true })] }) },
+    });
+    expect(await screen.findByText("1 app · shared")).toBeVisible();
   });
 });
 

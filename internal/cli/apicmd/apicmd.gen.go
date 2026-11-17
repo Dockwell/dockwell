@@ -4377,6 +4377,7 @@ func Kinds() []*apicli.Kind {
 				{Path: "s3.public_url", Help: "Where objects are read from publicly, such as a custom domain. Empty is none."},
 				{Path: "reach", Help: "Which projects may use it. Unset reaches none."},
 				{Path: "projects", Help: "The projects it reaches, by ID, for REACH_PROJECTS."},
+				{Path: "shared", Help: "An install admin has marked it as serving more than one link, each app under a prefix of its own: a need that keeps to a prefix is offered it though another app uses it already. Unset, it serves one link (ADR 0099)."},
 			},
 		},
 		{

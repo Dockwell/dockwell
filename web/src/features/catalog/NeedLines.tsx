@@ -24,6 +24,7 @@ import { useMay } from "../auth/may";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { tagOf } from "../changes/upgrade";
 import { ConnectionSheet } from "../connections/ConnectionSheet";
+import { keptPrefix } from "../connections/storage";
 import { useConnections } from "../connections/useConnections";
 import { useAllVariables } from "../variables/VariablesPage";
 import type { CardRow } from "./CardRows";
@@ -147,16 +148,21 @@ export function useNeedRows(entry: Entry | undefined, install: CatalogInstall): 
         (open ? (
           <ul className="catalog-need-line-ways" aria-label={t`Connections it can use`}>
             {candidates.map((c) => {
-              // A connection serves one app (ADR 0099): one another link reads is off.
-              // An app's own values hold it too, as a Disconnect leaves them, but for this
-              // app's own, which it may go back onto (slice 2 re-check, N2).
-              const serves =
-                c.uses.some((u) => !(u.environment === install.environmentId && u.link === need.name)) ||
-                (c.held && !back(c));
+              // A connection serves one app unless an admin shared it (ADR 0099): one
+              // another link reads is off. An app's own values hold it too, as a
+              // Disconnect leaves them, but for this app's own, which it may go back onto
+              // (slice 2 re-check, N2). Shared, an app that keeps to a prefix takes it
+              // beside apps that keep to theirs, as the server offers it.
+              const others = c.uses.filter((u) => !(u.environment === install.environmentId && u.link === need.name));
+              const held = c.held && !back(c);
+              const serves = others.length > 0 || held;
+              const beside = c.shared && prefixName !== undefined && !held && others.every((u) => keptPrefix(u) !== "");
               const why = asURL
                 ? t`${app} reads its storage as one URL, which a connection can't give yet`
-                : serves
-                  ? t`It serves another app already`
+                : serves && !beside
+                  ? c.shared && prefixName === undefined
+                    ? t`It serves another app already, and ${app} can't keep to a prefix of the bucket`
+                    : t`It serves another app already`
                   : "";
               const label = c.displayName || c.name;
               const leaves = !back(c);
@@ -170,7 +176,11 @@ export function useNeedRows(entry: Entry | undefined, install: CatalogInstall): 
                       </span>
                     ) : (
                       <span className="catalog-need-line-now">
-                        {leaves ? t`Its files stay where they are now` : t`Its files are there already`}
+                        {serves
+                          ? t`Its files stay where they are now · shared`
+                          : leaves
+                            ? t`Its files stay where they are now`
+                            : t`Its files are there already`}
                       </span>
                     )}
                   </span>

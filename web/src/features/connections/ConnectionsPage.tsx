@@ -194,16 +194,24 @@ function UsedBy({ connection }: { connection: ConnectionInfo }) {
   const apps = reading.map((a) =>
     reading.some((o) => o.id !== a.id && o.name === a.name) ? `${a.name} (${places.label(a.environment)})` : a.name,
   );
+  // Shared, more than one app may keep its files there, each under its own prefix.
+  const shared = connection.shared
+    ? ` · ${t({ message: "shared", context: "a connection more than one app may use" })}`
+    : "";
   if (apps.length === 0) {
     return (
       <span className="connections-meta">
         <Trans>No app yet</Trans>
+        {shared}
       </span>
     );
   }
   return (
     <div className="dw-cell">
-      <span>{plural(apps.length, { one: "# app", other: "# apps" })}</span>
+      <span>
+        {plural(apps.length, { one: "# app", other: "# apps" })}
+        {shared}
+      </span>
       <span className="connections-mono connections-meta connections-apps" title={apps.join(", ")}>
         {apps.join(", ") || t`none`}
       </span>

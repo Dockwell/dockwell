@@ -115,12 +115,42 @@ func (Type) Validate(spec proto.Message) error {
 	return nil
 }
 
-// connectionParts are the parts a link to a connection sets, beside PART_MET and
-// PART_PATH_STYLE, which it writes in the app's own words.
+// connectionParts are the parts a link to a connection sets, beside PART_MET,
+// PART_PATH_STYLE and PART_KEY_PREFIX, which it writes in the app's own words.
 var connectionParts = map[resourcev1.LinkPart]bool{
 	resourcev1.LinkPart_LINK_PART_ENDPOINT: true, resourcev1.LinkPart_LINK_PART_REGION: true, resourcev1.LinkPart_LINK_PART_BUCKET: true,
 	resourcev1.LinkPart_LINK_PART_ACCESS_KEY_ID: true, resourcev1.LinkPart_LINK_PART_SECRET_KEY: true, resourcev1.LinkPart_LINK_PART_PUBLIC_URL: true,
-	resourcev1.LinkPart_LINK_PART_PATH_STYLE: true, resourcev1.LinkPart_LINK_PART_MET: true,
+	resourcev1.LinkPart_LINK_PART_PATH_STYLE: true, resourcev1.LinkPart_LINK_PART_MET: true, resourcev1.LinkPart_LINK_PART_KEY_PREFIX: true,
+}
+
+// ReadThrough marks a link as what a value of its prefix reads (ADR 0099): a change
+// to it takes in what reads it.
+func (Type) ReadThrough() {}
+
+// ChangesWhatsRead says whether a change reaches the values that read the link: what
+// they read of it is a link to a connection's prefix. A database's link is read
+// through the database, as before.
+func (Type) ChangesWhatsRead(current, spec proto.Message) bool {
+	was, ok := current.(*resourcev1.Link)
+	is, same := spec.(*resourcev1.Link)
+	return !ok || !same || was.GetPrefix() != is.GetPrefix()
+}
+
+// KeepsToPrefix says whether a link's app keeps its files under the link's prefix: it
+// sets the name that tells the app the prefix (PART_KEY_PREFIX). An app told none
+// writes where it likes, which Dockwell takes as the bucket's root, whatever prefix
+// the link names (ADR 0099).
+func KeepsToPrefix(l *resourcev1.Link) bool {
+	return slices.ContainsFunc(l.GetSets(), func(s *resourcev1.LinkSet) bool { return s.GetPart() == resourcev1.LinkPart_LINK_PART_KEY_PREFIX })
+}
+
+// Kept is where a link's app keeps its files in the bucket: the link's prefix where
+// the app keeps to it, and otherwise the bucket's root, "".
+func Kept(l *resourcev1.Link) string {
+	if KeepsToPrefix(l) {
+		return l.GetPrefix()
+	}
+	return ""
 }
 
 // CheckPrefix refuses a prefix that isn't folders in a bucket, for the link and for

@@ -7995,6 +7995,9 @@ msgstr "复制它的数据"
 msgid "It serves another app already"
 msgstr "它已在为另一个应用服务"
 
+msgid "It serves another app already, and {app} can't keep to a prefix of the bucket"
+msgstr "它已在为另一个应用服务，而 {app} 无法限定在存储桶的某个前缀下"
+
 msgid "Its backups"
 msgstr "它的备份"
 
@@ -8006,6 +8009,9 @@ msgstr "它的文件已经在那里"
 
 msgid "Its files stay where they are now"
 msgstr "它的文件留在现在的位置"
+
+msgid "Its files stay where they are now · shared"
+msgstr "它的文件留在现在的位置 · 已共享"
 
 msgid "Its own settings, since it was disconnected"
 msgstr "断开连接后使用它自己的设置"
@@ -8334,6 +8340,9 @@ msgstr "需要{list}"
 
 msgid "No connection meets it yet"
 msgstr "还没有满足它的连接"
+
+msgid "Shared with other apps, each under its own prefix"
+msgstr "与其他应用共享，每个应用使用各自的前缀"
 
 msgid "an ACL on each object"
 msgstr "每个对象的 ACL"
@@ -11454,6 +11463,9 @@ msgstr "文件夹，每个以斜杠结尾，例如 {app}/"
 msgid "It hands browsers signed links"
 msgstr "它向浏览器提供签名链接"
 
+msgid "It serves another app already, and isn't shared"
+msgstr "它已在为另一个应用服务，且未共享"
+
 msgid "Its values come from the connection, checked from where the app runs"
 msgstr "它的值来自连接，并从应用运行的位置检查"
 
@@ -11468,6 +11480,9 @@ msgstr "没有连接可用于此项目"
 
 msgid "Nothing was planned"
 msgstr "未生成计划"
+
+msgid "Prefix it keeps its files under"
+msgstr "存放文件的前缀"
 
 msgid "Public address"
 msgstr "公网地址"
@@ -11514,6 +11529,9 @@ msgstr "断开 {link}"
 msgid "Dockwell can't read its connections"
 msgstr "Dockwell 无法读取其连接"
 
+msgid "Each keeps its files under a prefix of its own"
+msgstr "每个应用把文件放在各自的前缀下"
+
 msgid "Every project"
 msgstr "所有项目"
 
@@ -11523,11 +11541,17 @@ msgstr "在主机名中"
 msgid "In the path"
 msgstr "在路径中"
 
+msgid "It serves an app already, and isn't shared"
+msgstr "它已在为一个应用服务，且未共享"
+
 msgid "Its keys go with it"
 msgstr "其密钥会随之移除"
 
 msgid "Keys"
 msgstr "密钥"
+
+msgid "More than one app may use it"
+msgstr "允许多个应用使用"
 
 msgid "Names it sets"
 msgstr "设置的名称"
@@ -11562,6 +11586,18 @@ msgstr "已加密，从不显示"
 msgid "See every connection"
 msgstr "查看所有连接"
 
+msgid "Share it"
+msgstr "共享它"
+
+msgid "Share it to link another app beside them."
+msgstr "共享后可在它们旁边连接另一个应用。"
+
+msgid "Share the connection {label}"
+msgstr "共享连接 {label}"
+
+msgid "Stop sharing the connection {label}"
+msgstr "停止共享连接 {label}"
+
 msgid "Use in an app"
 msgstr "在应用中使用"
 
@@ -11572,6 +11608,12 @@ msgstr "服务器"
 #. placeholder {1}: answer.server || t`the server`
 msgid "{0} from {1}"
 msgstr "{0}（来自 {1}）"
+
+msgid "{apps, plural, one {# app uses it, but it isn't shared} other {# apps use it, but it isn't shared}}"
+msgstr "{apps, plural, other {有 # 个应用在使用，但它未共享}}"
+
+msgid "{apps, plural, one {Stays shared while # app uses it: disconnect all but one first} other {Stays shared while # apps use it: disconnect all but one first}}"
+msgstr "{apps, plural, other {有 # 个应用在使用，因此保持共享：请先只保留一个应用，断开其余应用}}"
 
 msgid "1 project"
 msgstr "1 个项目"
@@ -11698,6 +11740,10 @@ msgstr "尚无应用使用"
 msgid "none"
 msgstr "无"
 
+msgctxt "a connection more than one app may use"
+msgid "shared"
+msgstr "已共享"
+
 #. placeholder {0}: connections.length
 msgid "{0, plural, one {# connection} other {# connections}}"
 msgstr "{0, plural, other {# 个连接}}"
@@ -11779,6 +11825,10 @@ msgstr "存储桶"
 
 msgid "endpoint"
 msgstr "端点"
+
+msgctxt "where in a bucket an app keeps its files"
+msgid "prefix"
+msgstr "前缀"
 
 msgid "public address"
 msgstr "公开地址"

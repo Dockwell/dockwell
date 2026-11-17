@@ -36,6 +36,52 @@ func recheckSetup(t *testing.T, raw []byte) (*fullServer, *browser, dockwellv1co
 	return f, b, c, catalogClient(b), e
 }
 
+// appOn is an app of env that keeps its files under prefix on connection, as Connect
+// storage makes one: a link named name that records the name telling its app the
+// prefix, the bucket's and the prefix's values read through it, and a service named
+// name that reads both (the re-check's N3).
+func appOn(org, env, connection, name, prefix string) []*dockwellv1.Edit {
+	up := strings.ToUpper(strings.ReplaceAll(name, "-", "_"))
+	bucket, keep := "S3_BUCKET_"+up, "S3_PREFIX_"+up
+	read := func(n string, part resourcev1.LinkPart) *dockwellv1.Edit {
+		return &dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Kind: "variable", Scope: env, Name: n},
+			Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Variable{Variable: &resourcev1.Variable{From: &resourcev1.ValueFrom{Source: &resourcev1.ValueFrom_Connection{
+				Connection: &resourcev1.ConnectionRef{Scope: org, Name: connection, Part: part, Link: name},
+			}}}}},
+		}
+	}
+	return []*dockwellv1.Edit{
+		{
+			Resource: &dockwellv1.ResourceRef{Kind: "link", Scope: env, Name: name},
+			Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Link{Link: &resourcev1.Link{
+				Label: "Storage", Connection: connection, Kind: resourcev1.LinkKind_LINK_KIND_S3, Prefix: prefix,
+				Sets: []*resourcev1.LinkSet{
+					{Name: bucket, Part: resourcev1.LinkPart_LINK_PART_BUCKET},
+					{Name: keep, Part: resourcev1.LinkPart_LINK_PART_KEY_PREFIX},
+				},
+			}}},
+		},
+		read(bucket, resourcev1.LinkPart_LINK_PART_BUCKET),
+		read(keep, resourcev1.LinkPart_LINK_PART_KEY_PREFIX),
+		{
+			Resource: &dockwellv1.ResourceRef{Kind: "service", Scope: env, Name: name},
+			Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: &resourcev1.Service{
+				Runs:      &resourcev1.Service_App{App: &resourcev1.Container{Image: "acme/" + name + ":1"}},
+				Variables: map[string]string{bucket: bucket, keep: keep},
+			}}},
+		},
+	}
+}
+
+// recheckApp is appOn on uploads.
+func recheckApp(t *testing.T, f *fullServer, env, name, prefix string) []*dockwellv1.Edit {
+	t.Helper()
+	return appOn(orgID(t, f), env, "uploads", name, prefix)
+}
+
+// recheckLink is a link to uploads by hand that tells its app no prefix, which counts
+// as at the bucket's root.
 func recheckLink(env, name, prefix string) *dockwellv1.Edit {
 	return &dockwellv1.Edit{
 		Resource: &dockwellv1.ResourceRef{Kind: "link", Scope: env, Name: name},
@@ -150,26 +196,24 @@ func TestRecheckDeveloperDisconnectOfInstallStorage(t *testing.T) {
 }
 
 // H3: an install keeps its connection through an upgrade while another project's
-// link reads it too.
+// link reads it too, both links written as they were before links recorded the prefix
+// (the re-check's N1): the upgrade records site's, and plans.
 func TestRecheckUpgradeKeepsItsConnectionBesideAnother(t *testing.T) {
 	t.Parallel()
-	dir, raw := ghostWithStorage(t)
-	_, b, c, cat, _ := recheckSetup(t, raw)
+	dir, raw := ghostKeepingToAPrefixIn(t, false)
+	f, b, c, cat, _ := recheckSetup(t, raw)
 	defaultEnv := listedEnv(t, b)
+	apply(t, c, propose(t, c, "Share uploads", connectionEdit("uploads", uploadsSpec(true))))
 	installed := installApp(t, cat, &dockwellv1.InstallCatalogEntryRequest{Id: "ghost", Project: "site", Needs: map[string]string{"storage": "connection:uploads"}})
 	if done := apply(t, c, installed); done.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
 		t.Fatalf("install ended %v: %s", done.GetState(), done.GetError())
 	}
-	apply(t, c, propose(t, c, "Link other", recheckLink(defaultEnv, "other", "other/")))
+	apply(t, c, propose(t, c, "Link other", recheckApp(t, f, defaultEnv, "other", "other/")...))
+	asBeforeTheBranch(t, f)
 	recheckBump(t, dir, string(raw))
 	res, err := cat.UpgradeCatalogInstall(t.Context(), connect.NewRequest(&dockwellv1.UpgradeCatalogInstallRequest{Id: "site", SkipBackup: true}))
 	if err != nil {
 		t.Fatalf("upgrade beside another project's link: %v", err)
-	}
-	for _, r := range res.Msg.GetChange().GetPlan().GetResources() {
-		if r.GetResource().GetKind() == "link" && r.GetAction() != dockwellv1.PlanAction_PLAN_ACTION_NONE {
-			t.Errorf("upgrade plans %v for link %s", r.GetAction(), r.GetResource().GetName())
-		}
 	}
 	if done := apply(t, c, res.Msg.GetChange()); done.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
 		t.Fatalf("upgrade ended %v: %s", done.GetState(), done.GetError())
@@ -189,13 +233,13 @@ func TestRecheckNewNeedTakesAConnectionItsOwnProjectUses(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "ghost.yaml"), []byte(base), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	_, _, c, cat, _ := recheckSetup(t, raw)
+	f, _, c, cat, _ := recheckSetup(t, raw)
 	installed := installApp(t, cat, &dockwellv1.InstallCatalogEntryRequest{Id: "ghost", Project: "site"})
 	if done := apply(t, c, installed); done.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
 		t.Fatalf("install ended %v: %s", done.GetState(), done.GetError())
 	}
 	if os.Getenv("RECHECK_NO_MEDIA") == "" {
-		apply(t, c, propose(t, c, "Link media", recheckLink(installEnv(t, cat, "site"), "media", "media/")))
+		apply(t, c, propose(t, c, "Link media", recheckApp(t, f, installEnv(t, cat, "site"), "media", "media/")...))
 	}
 	required := strings.Replace(full, "    kind: KIND_S3\n    optional: true\n", "    kind: KIND_S3\n", 1)
 	required = regexp.MustCompile(`      - name: STORAGE_DRIVER\n        part: PART_MET\n        words:\n.*\n.*\n`).ReplaceAllString(required, "")
@@ -221,13 +265,14 @@ func TestRecheckRootLinkBlocksAll(t *testing.T) {
 	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
+	pullsAnything(f.addDockerServer(t))
 	env := listedEnv(t, b)
 	c := changeClient(b, b.origin)
 	apply(t, c, propose(t, c, "Add uploads", connectionEdit("uploads", &resourcev1.ConnectionSpec{
 		DisplayName: "Uploads", Kind: resourcev1.LinkKind_LINK_KIND_S3, Reach: resourcev1.ConnectionReach_CONNECTION_REACH_EVERY,
 		S3: &resourcev1.ConnectionS3{Endpoint: "https://s3.example.com", Bucket: "uploads", AccessKeyId: "AKIDEXAMPLE", SecretKey: connectionSecret},
 	}), recheckLink(env, "root", "")))
-	_, err := c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Link ghost", Edits: []*dockwellv1.Edit{recheckLink(env, "ghost", "ghost/")}}))
+	_, err := c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Link ghost", Edits: recheckApp(t, f, env, "ghost", "ghost/")}))
 	if err == nil || !strings.Contains(err.Error(), "Give it a connection of its own") {
 		t.Errorf("a link beside one at the root: %v, want it refused, with a connection of its own as the fix", err)
 	}
