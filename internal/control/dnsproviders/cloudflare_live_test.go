@@ -14,6 +14,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -24,9 +25,11 @@ import (
 
 	"github.com/dockwell/dockwell/internal/agent/tunnels"
 	"github.com/dockwell/dockwell/internal/control/dnsproviders"
+	"github.com/dockwell/dockwell/internal/control/dnsproviders/cftest"
 )
 
-// The checks ADR 0104 rests on, made against Cloudflare itself. They run only when
+// The checks ADR 0104 rests on, made against Cloudflare itself, and against the
+// stand-in, which must answer the same. Against Cloudflare they run only when
 // DOCKWELL_TEST_CLOUDFLARE names a command that sends one call to a scratch zone and
 // prints Cloudflare's answer with its HTTP status as "status": a guard that holds
 // every call to a test zone and to tunnels named dockwell-test-*, fills in {zone}
@@ -73,13 +76,23 @@ func (g guardDoer) Do(req *http.Request) (*http.Response, error) {
 	return &http.Response{StatusCode: said.Status, Body: io.NopCloser(bytes.NewReader(out)), Header: http.Header{}, Request: req}, nil
 }
 
-func liveCloudflare(t *testing.T) *dnsproviders.Cloudflare {
+// cloudflareUnderTest is Cloudflare itself through the guard, where
+// DOCKWELL_TEST_CLOUDFLARE names one, and otherwise the stand-in, which the same
+// checks hold to what Cloudflare was found to do. It returns the account and zone
+// ID to name: the guard's placeholders, or the stand-in's own.
+func cloudflareUnderTest(t *testing.T) (cf *dnsproviders.Cloudflare, account, zoneID string, live bool) {
 	t.Helper()
-	command := os.Getenv("DOCKWELL_TEST_CLOUDFLARE")
-	if command == "" {
-		t.Skip("DOCKWELL_TEST_CLOUDFLARE names no guard to a scratch Cloudflare zone")
+	if command := os.Getenv("DOCKWELL_TEST_CLOUDFLARE"); command != "" {
+		return &dnsproviders.Cloudflare{Base: "https://guard.invalid/client/v4", Client: guardDoer{command: command}}, "{account}", "{zone}", true
 	}
-	return &dnsproviders.Cloudflare{Base: "https://guard.invalid/client/v4", Client: guardDoer{command: command}}
+	api := cftest.New("token", "example.com")
+	api.Tokens["token"] = cftest.Token{
+		Reads: []string{"example.com"}, Writes: []string{"example.com"}, Account: true,
+		Rights: []string{"Zone Read", "DNS Write", "Zone Settings Read", "Cloudflare Tunnel Write", "Account API Tokens Read"},
+	}
+	srv := httptest.NewServer(api)
+	t.Cleanup(srv.Close)
+	return &dnsproviders.Cloudflare{Token: "token", Base: srv.URL + "/client/v4", Client: srv.Client()}, cftest.Account, cftest.ZoneID("example.com"), false
 }
 
 func scratchName(t *testing.T) string {
@@ -111,10 +124,9 @@ func apiCode(err error) int {
 }
 
 func TestCloudflareLive(t *testing.T) {
-	cf := liveCloudflare(t)
+	cf, account, zoneID, live := cloudflareUnderTest(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
-	const account = "{account}"
 
 	// A token reads its own rights (Verified, 11).
 	id, status, err := cf.VerifyAccountToken(ctx, account)
@@ -131,11 +143,11 @@ func TestCloudflareLive(t *testing.T) {
 
 	// A zone's name, account and SSL mode (Verified, 7). Its name comes from the
 	// API, so nothing here names it.
-	zinfo, err := cf.ZoneByID(ctx, "{zone}")
+	zinfo, err := cf.ZoneByID(ctx, zoneID)
 	if err != nil || zinfo.Name == "" || zinfo.Account == "" {
 		t.Fatalf("the zone: %+v %v", zinfo, err)
 	}
-	zone := dnsproviders.Zone{ID: "{zone}", Name: zinfo.Name}
+	zone := dnsproviders.Zone{ID: zoneID, Name: zinfo.Name}
 	if mode, _, err := cf.SSLMode(ctx, zone); err != nil || mode == "" {
 		t.Fatalf("the zone's SSL mode: %q %v", mode, err)
 	}
@@ -289,8 +301,8 @@ func TestCloudflareLive(t *testing.T) {
 
 	t.Run("a connector proves itself by its ID", func(t *testing.T) {
 		binary := os.Getenv("DOCKWELL_TEST_CLOUDFLARED")
-		if binary == "" {
-			t.Skip("DOCKWELL_TEST_CLOUDFLARED names no cloudflared")
+		if binary == "" || !live {
+			t.Skip("DOCKWELL_TEST_CLOUDFLARED names no cloudflared, or this is the stand-in, which no cloudflared reaches")
 		}
 		token, err := json.Marshal(map[string]string{"a": tunnel.AccountTag, "t": tunnel.ID, "s": secret})
 		if err != nil {

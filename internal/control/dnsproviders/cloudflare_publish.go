@@ -59,6 +59,11 @@ func (c *Cloudflare) VerifyAccountToken(ctx context.Context, account string) (id
 // Read (or Write) on the account. It reads only a token's own record here: the
 // check passes the ID its own verify returned.
 func (c *Cloudflare) AccountTokenRights(ctx context.Context, account, id string) (Rights, error) {
+	return c.tokenRights(ctx, "/accounts/"+url.PathEscape(account)+"/tokens/"+url.PathEscape(id))
+}
+
+// tokenRights reads a token's record at path.
+func (c *Cloudflare) tokenRights(ctx context.Context, path string) (Rights, error) {
 	var got struct {
 		ID       string `json:"id"`
 		Name     string `json:"name"`
@@ -72,7 +77,7 @@ func (c *Cloudflare) AccountTokenRights(ctx context.Context, account, id string)
 			Resources map[string]any `json:"resources"`
 		} `json:"policies"`
 	}
-	if _, err := c.call(ctx, http.MethodGet, "/accounts/"+url.PathEscape(account)+"/tokens/"+url.PathEscape(id), nil, &got); err != nil {
+	if _, err := c.call(ctx, http.MethodGet, path, nil, &got); err != nil {
 		return Rights{}, err
 	}
 	out := Rights{ID: got.ID, Name: got.Name, Status: got.Status}

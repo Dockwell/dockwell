@@ -23,9 +23,10 @@ import (
 	"github.com/dockwell/dockwell/internal/store"
 )
 
-// Zone is a zone a token reaches, as the provider names it.
+// Zone is a zone a token reaches, as the provider names it, with the account that
+// holds it where the provider says.
 type Zone struct {
-	ID, Name string
+	ID, Name, Account string
 }
 
 // TXT is a TXT record, by its ID at the provider, with its value.
@@ -100,6 +101,8 @@ func (p *Providers) All(ctx context.Context) ([]Saved, error) {
 type Info struct {
 	ID, Name, Provider string
 	Zones              []string
+	// TunnelTokenSet says it holds a second token, for tunnels alone.
+	TunnelTokenSet bool
 }
 
 // Shown returns every provider without its token, sorted by name. The token is
@@ -110,8 +113,8 @@ func (p *Providers) Shown(ctx context.Context) ([]Info, error) {
 	out := make([]Info, 0, len(all))
 	for i := range all {
 		s := &all[i]
-		out = append(out, Info{ID: s.ID, Name: s.Name, Provider: s.Spec.GetProvider(), Zones: s.Spec.GetZones()})
-		s.Spec.ApiToken = ""
+		out = append(out, Info{ID: s.ID, Name: s.Name, Provider: s.Spec.GetProvider(), Zones: s.Spec.GetZones(), TunnelTokenSet: s.Spec.GetTunnelApiToken() != ""})
+		s.Spec.ApiToken, s.Spec.TunnelApiToken = "", ""
 	}
 	return out, err
 }
@@ -196,6 +199,8 @@ type Result struct {
 	Reaches []string
 	Zones   []ZoneCheck
 	Detail  string
+	// Found are the zones the token reaches, with their accounts.
+	Found []Zone
 }
 
 // checkTimeout bounds a whole check, as a form waits on it.
@@ -214,7 +219,7 @@ func Check(ctx context.Context, api API, zones []string) Result {
 	if err != nil {
 		return failed(err)
 	}
-	out := Result{}
+	out := Result{Found: reached}
 	byName := map[string]Zone{}
 	for _, z := range reached {
 		out.Reaches = append(out.Reaches, z.Name)
