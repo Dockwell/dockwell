@@ -95,6 +95,45 @@ func normalService(s string) string {
 	return strings.ToLower(u.Scheme) + "://" + host + ":" + port + strings.TrimSuffix(u.Path, "/")
 }
 
+// PanelNames are every name the panel answers to, which the guard keeps every rule
+// Dockwell writes off (ADR 0104, section 4).
+type PanelNames struct {
+	// Served are the domains it's served on now, the one saved for its next
+	// restart, and the one dockwell run was started with.
+	Served []string
+	// Moving is the domain it's moving from, which answers beside the new one for a
+	// grace period (ADR 0063). A move from one domain to another isn't built yet, so
+	// nothing sets it; once it is, the guard holds it as it holds the domain in use.
+	Moving string
+	// Apps is the domain apps open on through the panel, whose every name is the
+	// panel's (ADR 0061, proposed). Nothing sets it until it's built; once it is, a
+	// rule for it, or for any name under it, is the panel's.
+	Apps string
+	// Service is the panel's own listener, as a rule would name it, such as
+	// "http://127.0.0.1:7600"; empty if no rule could.
+	Service string
+}
+
+// Names lists them as the routing check takes them, the apps domain as itself and
+// every name under it.
+func (n PanelNames) Names() []string {
+	out := make([]string, 0, len(n.Served)+3)
+	add := func(name string) {
+		if name = strings.ToLower(strings.TrimSpace(name)); name != "" && !slices.Contains(out, name) {
+			out = append(out, name)
+		}
+	}
+	for _, d := range n.Served {
+		add(d)
+	}
+	add(n.Moving)
+	if n.Apps != "" {
+		add(n.Apps)
+		add("*." + strings.TrimPrefix(strings.ToLower(n.Apps), "*."))
+	}
+	return out
+}
+
 // Routing is what's known of the names a tunnel's document routes, for the routing
 // check (ADR 0104, section 4).
 type Routing struct {

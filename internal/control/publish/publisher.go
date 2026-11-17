@@ -52,7 +52,7 @@ type Publisher struct {
 	Server func(ctx context.Context, server string) (Facts, error)
 	// Panel says every name the panel answers to, and its own listener as a
 	// tunnel's rule would name it.
-	Panel func(ctx context.Context) (names []string, service string)
+	Panel func(ctx context.Context) PanelNames
 	// ProjectOf says the project an environment is in.
 	ProjectOf func(ctx context.Context, environment string) (string, error)
 	// Routes are every route as it stands, by resource ID, to tell when a zone's
@@ -523,7 +523,8 @@ func (p *Publisher) planRule(ctx context.Context, r revision.PublishRoute, t *ta
 func (p *Publisher) routing(ctx context.Context, t *target, tunnel string, doc *Document, reaches, name string) (Routing, error) {
 	rt := Routing{Proxy: cmp.Or(reaches, "http://127.0.0.1:80"), Ours: []string{name}}
 	if p.Panel != nil {
-		rt.Panel, rt.PanelService = p.Panel(ctx)
+		names := p.Panel(ctx)
+		rt.Panel, rt.PanelService = names.Names(), names.Service
 	}
 	for _, r := range doc.Rules {
 		if r.Hostname != "" && !strings.Contains(r.Hostname, "*") {

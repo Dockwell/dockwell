@@ -61,27 +61,25 @@ func publisher(cfg *Config) *publish.Publisher {
 		facts.SharesWith = sharingAnAddress(cfg.Fleet.List(), srv.GetId(), facts.WaysOut)
 		return facts, nil
 	}
-	p.Panel = func(context.Context) ([]string, string) {
-		var names []string
+	// The panel's names: in use, saved for its restart, and the one dockwell run was
+	// started with. The domain it moves from (ADR 0063) and its apps domain (ADR 0061)
+	// go in Moving and Apps once those are built; neither is yet.
+	p.Panel = func(context.Context) publish.PanelNames {
+		var names publish.PanelNames
 		if cfg.Auth != nil && cfg.Auth.Sites().Domain != "" {
-			names = append(names, cfg.Auth.Sites().Domain)
+			names.Served = append(names.Served, cfg.Auth.Sites().Domain)
 		}
 		if cfg.Changes != nil {
 			if t, err := cfg.Changes.Kinds().Type("route"); err == nil {
 				if pd, ok := t.(revision.PanelDomains); ok {
-					for _, d := range pd.PanelDomains() {
-						if d != "" {
-							names = append(names, d)
-						}
-					}
+					names.Served = append(names.Served, pd.PanelDomains()...)
 				}
 			}
 		}
-		service := ""
 		if cfg.PanelListen != "" {
-			service = "http://" + cfg.PanelListen
+			names.Service = "http://" + cfg.PanelListen
 		}
-		return names, service
+		return names
 	}
 	p.ProjectOf = func(ctx context.Context, environment string) (string, error) {
 		var project string
