@@ -65,7 +65,7 @@ const proxy = create(EntrySchema, {
   ],
 });
 
-function api(entry = gitea, more: Api = {}): Api {
+function api(entry = gitea, more: Api = {}, install: Record<string, unknown> = {}): Api {
   const watch = feed<WatchServersResponse>();
   watch.push(
     changed(
@@ -89,6 +89,7 @@ function api(entry = gitea, more: Api = {}): Api {
             pin: { entry: entry.id, version: entry.version, release: 1, values: {} },
             webServiceId: `svc_${entry.web?.service}`,
             name: entry.name,
+            ...install,
           },
         ],
       }),
@@ -161,29 +162,33 @@ describe("What an installed app says of itself", () => {
     expect(revealed).toEqual(["sec_g"]);
   });
 
-  it("closes sign-ups, and points what follows its domain at the one it has, each through a plan", async () => {
+  it("closes sign-ups through a plan, and says what follows its domain, which the control plane moves (ADR 0103)", async () => {
     const user = userEvent.setup();
     const proposed: ProposeChangeRequest[] = [];
     renderAt(
       "/apps/svc_gitea",
-      api(gitea, {
-        services: {
-          listServices: () => ({
-            services: [anApp("gitea", "gitea/gitea:1.25", { env: { GITEA__server__ROOT_URL: "" } })],
-          }),
-        },
-        domains: {
-          listDomains: () => ({
-            domains: [{ name: "git.example.com", environmentId: ENV, route: { service: "gitea", port: 3000 } }],
-          }),
-        },
-        changes: {
-          proposeChange: (req: ProposeChangeRequest) => {
-            proposed.push(req);
-            return { change: { id: "chg_1", summary: req.summary, state: 1 } };
+      api(
+        gitea,
+        {
+          services: {
+            listServices: () => ({
+              services: [anApp("gitea", "gitea/gitea:1.25", { env: { GITEA__server__ROOT_URL: "" } })],
+            }),
+          },
+          domains: {
+            listDomains: () => ({
+              domains: [{ name: "git.example.com", environmentId: ENV, route: { service: "gitea", port: 3000 } }],
+            }),
+          },
+          changes: {
+            proposeChange: (req: ProposeChangeRequest) => {
+              proposed.push(req);
+              return { change: { id: "chg_1", summary: req.summary, state: 1 } };
+            },
           },
         },
-      }),
+        { address: "https://git.example.com", addressKept: [] },
+      ),
     );
     const panel = await screen.findByRole("region", { name: "From the catalog" });
     await user.click(await within(panel).findByRole("button", { name: "Close sign-ups" }));
@@ -197,13 +202,49 @@ describe("What an installed app says of itself", () => {
     });
     expect(closing?.case === "service" && closing.value.shownEnv).toContain("GITEA__service__DISABLE_REGISTRATION");
     await user.keyboard("{Escape}");
-    await user.click(await within(panel).findByRole("button", { name: "Set to git.example.com" }));
-    await waitFor(() => expect(proposed).toHaveLength(2));
-    const address = proposed[1]?.edits ?? [];
-    expect(address).toHaveLength(1);
-    const service = address[0]?.spec?.kind;
-    expect(service?.case === "service" && service.value.runs.case === "app" && service.value.runs.value.env).toEqual({
-      GITEA__server__ROOT_URL: "https://git.example.com/",
+    // What follows the domain is state alone: a route moves it, in the plan that routes it.
+    expect(within(panel).getByText(/Follow git\.example\.com: GITEA__server__ROOT_URL/)).toBeVisible();
+    expect(within(panel).queryByRole("button", { name: /Set to/ })).toBeNull();
+  });
+
+  it("says what doesn't follow the app's address, and sets it there as its entry writes it (ADR 0103)", async () => {
+    const user = userEvent.setup();
+    const proposed: ProposeChangeRequest[] = [];
+    renderAt(
+      "/apps/svc_gitea",
+      api(
+        gitea,
+        {
+          services: {
+            listServices: () => ({
+              services: [
+                anApp("gitea", "gitea/gitea:1.25", { env: { GITEA__server__ROOT_URL: "https://a.example.com/" } }),
+              ],
+            }),
+          },
+          domains: {
+            listDomains: () => ({
+              domains: [{ name: "git.example.com", environmentId: ENV, route: { service: "gitea", port: 3000 } }],
+            }),
+          },
+          changes: {
+            proposeChange: (req: ProposeChangeRequest) => {
+              proposed.push(req);
+              return { change: { id: "chg_1", summary: req.summary, state: 1 } };
+            },
+          },
+        },
+        { address: "https://git.example.com", addressKept: ["gitea/GITEA__server__ROOT_URL"] },
+      ),
+    );
+    const panel = await screen.findByRole("region", { name: "From the catalog" });
+    expect(await within(panel).findByText(/Not at git\.example\.com: GITEA__server__ROOT_URL/)).toBeVisible();
+    await user.click(within(panel).getByRole("button", { name: "Set to git.example.com" }));
+    await waitFor(() => expect(proposed).toHaveLength(1));
+    // The value as the entry writes it, which the control plane renders at the address.
+    const set = proposed[0]?.edits[0]?.spec?.kind;
+    expect(set?.case === "service" && set.value.runs.case === "app" && set.value.runs.value.env).toEqual({
+      GITEA__server__ROOT_URL: "https://{domain}/",
     });
   });
 

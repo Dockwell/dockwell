@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { MessageInitShape } from "@bufbuild/protobuf";
 import { createClient } from "@connectrpc/connect";
 import { useQuery, useTransport } from "@connectrpc/connect-query";
 import {
   type CatalogInstall,
   ChangeService,
   DomainService,
-  type EditSchema,
   type Entry,
   type Input,
   InputType,
@@ -171,28 +169,6 @@ function setting(service: ServiceInfo, values: Readonly<Record<string, string>>)
 }
 
 /**
- * The edits that point a catalog app's links at domain: each variable its entry
- * says follows the domain (Entry.address_variables), set on the service of its
- * own name, found by inEnvironment.
- */
-export function addressEdits(
-  entry: Entry,
-  domain: string,
-  inEnvironment: (name: string) => ServiceInfo | undefined,
-): MessageInitShape<typeof EditSchema>[] {
-  const byService = new Map<string, Record<string, string>>();
-  for (const a of entry.addressVariables) {
-    const values = byService.get(a.service) ?? {};
-    values[a.variable] = a.value.replaceAll("{domain}", domain);
-    byService.set(a.service, values);
-  }
-  return [...byService].flatMap(([name, values]) => {
-    const service = inEnvironment(name);
-    return service ? envEdits(service, setting(service, values)) : [];
-  });
-}
-
-/**
  * What an installed app says of itself as state, each with the action that resolves it
  * where there is one: closing sign-ups, and setting what follows its domain to the
  * domain it has, each a plan.
@@ -259,29 +235,51 @@ export function useInstallFacts(
       ),
     });
   }
-  if (entry.addressVariables.length > 0) {
-    const names = entry.addressVariables.map((a) => a.variable).join(", ");
-    const domain = domains[0]?.name ?? "";
-    if (!domain) {
-      out.push({ key: "address", icon: "globe", label: t`Its links`, text: t`Follow the domain you add: ${names}` });
-    } else {
-      const edits = addressEdits(entry, domain, inEnvironment);
+  if (entry.addressVariables.length > 0 && install.address) {
+    // Where it's reached, and what doesn't follow, are the control plane's to say
+    // (ADR 0103; #779's check, N2): a variable that names {domain}, or nothing of the
+    // address, follows a domain alone.
+    const address = install.address.replace(/^https?:\/\//, "");
+    const atDomain = !/^(localhost|[^:]*\.localhost)(:|$)/.test(address);
+    const following = entry.addressVariables.filter(
+      (a) => atDomain || (/\{(origin|host|scheme)\}/.test(a.value) && !a.value.includes("{domain}")),
+    );
+    const kept = install.addressKept;
+    if (kept.length > 0) {
+      const keptNames = kept.map((k) => k.slice(k.indexOf("/") + 1)).join(", ");
+      // Each asked for as its entry writes it, which the control plane renders at the
+      // app's address in the plan.
+      const byService = new Map<string, Record<string, string>>();
+      for (const a of entry.addressVariables) {
+        if (!kept.includes(`${a.service}/${a.variable}`)) continue;
+        byService.set(a.service, { ...byService.get(a.service), [a.variable]: a.value });
+      }
+      const edits = [...byService].flatMap(([name, values]) => {
+        const service = inEnvironment(name);
+        return service ? envEdits(service, setting(service, values)) : [];
+      });
       out.push({
         key: "address",
         icon: "globe",
         label: t`Its links`,
-        text: t`Follow ${domain}: ${names}`,
+        text: t`Not at ${address}: ${keptNames}`,
         action: (
           <Button
             size="sm"
             variant="ghost"
             {...mayPropose.off}
-            onClick={() => sheet.open({ kind: "propose", summary: t`Point ${app} at ${domain}`, edits })}
+            onClick={() => sheet.open({ kind: "propose", summary: t`Point ${app} at ${address}`, edits })}
           >
-            <Trans>Set to {domain}</Trans>
+            <Trans>Set to {address}</Trans>
           </Button>
         ),
       });
+    } else if (following.length > 0) {
+      const names = following.map((a) => a.variable).join(", ");
+      out.push({ key: "address", icon: "globe", label: t`Its links`, text: t`Follow ${address}: ${names}` });
+    } else {
+      const names = entry.addressVariables.map((a) => a.variable).join(", ");
+      out.push({ key: "address", icon: "globe", label: t`Its links`, text: t`Follow the domain you add: ${names}` });
     }
   }
   // Before a domain, it opens through the panel on localhost (ADR 0061), with a tunnel

@@ -8480,8 +8480,8 @@ msgstr "复制 SSH 隧道命令"
 msgid "Follow the domain you add: {names}"
 msgstr "跟随你添加的域名：{names}"
 
-msgid "Follow {domain}: {names}"
-msgstr "跟随 {domain}：{names}"
+msgid "Follow {address}: {names}"
+msgstr "跟随 {address}：{names}"
 
 msgid "Its first account"
 msgstr "它的第一个账户"
@@ -8498,14 +8498,17 @@ msgstr "它的链接"
 msgid "Its links follow the domain you add: {names}"
 msgstr "它的链接跟随你添加的域名：{names}"
 
+msgid "Not at {address}: {keptNames}"
+msgstr "未指向 {address}：{keptNames}"
+
 msgid "Open to anyone who reaches it"
 msgstr "对能访问到它的任何人开放"
 
 msgid "Open {app} in a new tab"
 msgstr "在新标签页中打开 {app}"
 
-msgid "Point {app} at {domain}"
-msgstr "将 {app} 指向 {domain}"
+msgid "Point {app} at {address}"
+msgstr "将 {app} 指向 {address}"
 
 msgid "Port {port}, on this server alone until it has a domain"
 msgstr "端口 {port}，在它有域名之前仅限这台服务器"
@@ -8526,8 +8529,8 @@ msgstr "已复制 SSH 隧道命令"
 msgid "Set as it first started: change it in {app}, in {where}"
 msgstr "首次启动时设定：请在 {app} 的「{where}」中修改"
 
-msgid "Set to {domain}"
-msgstr "设为 {domain}"
+msgid "Set to {address}"
+msgstr "设为 {address}"
 
 msgid "Sign-ups"
 msgstr "注册"

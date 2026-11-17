@@ -81,6 +81,10 @@ func copyrightOf(src Source) string {
 
 // App is one app as an adapter reads it, before it's an entry.
 type App struct {
+	// Address are variables its store's converter knows follow the app's address
+	// beyond what the file names at web's port, such as a value of the app's own
+	// scheme (ADR 0103).
+	Address []*catalogv1.AddressVariable
 	// Architectures are those its store says it runs on, of the ones Dockwell's
 	// servers run, empty for both (ADR 0102).
 	Architectures []string
@@ -390,6 +394,8 @@ func (c *Converter) convert(ctx context.Context, app App) Result {
 	}
 	if svc := serviceOf(file, rw.web); svc != "" {
 		e.Web = &catalogv1.Web{Service: svc}
+		// What the store fills in with the app's address follows it (ADR 0103).
+		e.AddressVariables = append(addressVariables(file, rw.web), app.Address...)
 	}
 	if c.OnServer {
 		e.Release = c.Release

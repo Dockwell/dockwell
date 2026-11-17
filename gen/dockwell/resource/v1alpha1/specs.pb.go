@@ -3563,7 +3563,15 @@ type CatalogPin struct {
 	// suggestion, so an upgrade that takes them as a need keeps as theirs only what
 	// they typed (ADR 0099). Unset for an install from before this was kept, whose
 	// values all count as given.
-	Given         *GivenNames `protobuf:"bytes,85,opt,name=given,proto3" json:"given,omitempty"`
+	Given *GivenNames `protobuf:"bytes,85,opt,name=given,proto3" json:"given,omitempty"`
+	// The app's address Dockwell last wrote its address variables from, as a
+	// browser opens it, such as "https://docs.example.com",
+	// "http://abcdefghij.localhost:7600" or "http://localhost:8080" (ADR 0103).
+	// A variable whose value is neither what this address gives it nor what the
+	// install's file gives it holds a value a person set, which stays. Empty for an
+	// install from before Dockwell kept it, where only the file's value is
+	// Dockwell's.
+	Address       string `protobuf:"bytes,84,opt,name=address,proto3" json:"address,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3694,6 +3702,13 @@ func (x *CatalogPin) GetGiven() *GivenNames {
 		return x.Given
 	}
 	return nil
+}
+
+func (x *CatalogPin) GetAddress() string {
+	if x != nil {
+		return x.Address
+	}
+	return ""
 }
 
 // PinnedNeed is how an install met one of its entry's needs.
@@ -9881,7 +9896,7 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\fWebsiteProxy\x12\x10\n" +
 	"\x03url\x18\x01 \x01(\tR\x03url\x12\x12\n" +
 	"\x04port\x18\x02 \x01(\rR\x04port\x12(\n" +
-	"\x10send_target_host\x18\x03 \x01(\bR\x0esendTargetHost\"\xb5\a\n" +
+	"\x10send_target_host\x18\x03 \x01(\bR\x0esendTargetHost\"\xcf\a\n" +
 	"\n" +
 	"CatalogPin\x12\x14\n" +
 	"\x05entry\x18\x01 \x01(\tR\x05entry\x12\x18\n" +
@@ -9901,7 +9916,8 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\x0fbuilt_in_commit\x18\t \x01(\tR\rbuiltInCommit\x12G\n" +
 	"\x05needs\x18R \x03(\v21.dockwell.resource.v1alpha1.CatalogPin.NeedsEntryR\x05needs\x12M\n" +
 	"\awritten\x18S \x03(\v23.dockwell.resource.v1alpha1.CatalogPin.WrittenEntryR\awritten\x12<\n" +
-	"\x05given\x18U \x01(\v2&.dockwell.resource.v1alpha1.GivenNamesR\x05given\x1a9\n" +
+	"\x05given\x18U \x01(\v2&.dockwell.resource.v1alpha1.GivenNamesR\x05given\x12\x18\n" +
+	"\aaddress\x18T \x01(\tR\aaddress\x1a9\n" +
 	"\vValuesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a=\n" +

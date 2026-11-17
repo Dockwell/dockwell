@@ -163,3 +163,28 @@ func TestDetectRuntipi(t *testing.T) {
 		t.Errorf("Detect = %v, %v", guesses, counts)
 	}
 }
+
+// A Runtipi value that is its protocol alone takes the app's scheme, and Nextcloud's
+// OVERWRITEHOST follows its host, as Nextcloud trusts the host it names where it
+// reads NEXTCLOUD_TRUSTED_DOMAINS on its first install alone (#779's review, M4).
+func TestRuntipisNextcloudFollowsItsAddress(t *testing.T) {
+	file := []byte(`services:
+  nextcloud:
+    image: nextcloud:35.0.2
+    ports:
+      - ${APP_PORT}:80
+    environment:
+      - NEXTCLOUD_TRUSTED_DOMAINS=${APP_DOMAIN}
+      - OVERWRITEPROTOCOL=${APP_PROTOCOL:-http}
+`)
+	got := map[string]string{}
+	for _, a := range runtipiAddress("nextcloud", file) {
+		got[a.GetService()+"."+a.GetVariable()] = a.GetValue()
+	}
+	if got["nextcloud.OVERWRITEPROTOCOL"] != "{scheme}" || got["nextcloud.OVERWRITEHOST"] != "{host}" || len(got) != 2 {
+		t.Errorf("got %v", got)
+	}
+	if len(runtipiAddress("other", []byte("services:\n  web:\n    image: x:1\n"))) != 0 {
+		t.Error("an app with neither follows its address")
+	}
+}

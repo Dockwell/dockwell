@@ -170,6 +170,8 @@ func (h *Handler) SetCatalogNeed(ctx context.Context, req *connect.Request[dockw
 	newPin := pinTo(entry, s.origins[entry.GetId()], filled, choice)
 	newPin.Version, newPin.Release, newPin.File, newPin.Needs, newPin.Written = pin.GetVersion(), pin.GetRelease(), pin.GetFile(), needed.Pinned, needed.Written
 	newPin.Given = pin.GetGiven()
+	// Its address stays as Dockwell last wrote it (ADR 0103).
+	newPin.Address = pin.GetAddress()
 	// A port an install from before answered on every address moves to the server
 	// alone with it, as at an upgrade, which says so (#752's review, M1).
 	notes = append(notes, found.movedAlone(chosen, filled.Variables, old, oldVariables)...)

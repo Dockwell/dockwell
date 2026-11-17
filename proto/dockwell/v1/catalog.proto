@@ -578,6 +578,15 @@ message CatalogInstall {
   // catalog has a release of it or later, and takes no new build meanwhile. A new
   // install takes the lower one (ADR 0080). Unset otherwise.
   CatalogWithdrawal withdrawn = 10;
+  // Where a browser opens it now, as the control plane works it out (ADR 0103):
+  // its domain, such as "https://docs.example.com", or else the panel's Open
+  // address, or else its port on loopback. Empty for an app with nothing to open,
+  // or one whose entry names no variable that follows it.
+  string address = 11;
+  // The variables that follow its address which don't hold what that address
+  // gives them, as "service/VARIABLE": a value a person set, or one a change the
+  // address didn't pass through left behind. Empty where every one follows.
+  repeated string address_kept = 12;
 }
 
 // CatalogWithdrawal is the release a catalog moved to below what an install runs.

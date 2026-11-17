@@ -142,6 +142,12 @@ type Install struct {
 	// services takes, so a plan places it only on a server of one (ADR 0102). Empty
 	// runs anywhere.
 	Architectures []string
+	// IDs are what services the install makes are called, by name, where the
+	// install chose one up front, as for the panel's Open address its address
+	// variables name (ADR 0103).
+	IDs map[string]string
+	// Address is what each variable that follows the app's address takes (ADR 0103).
+	Address map[string]map[string]string
 }
 
 // Needs are what an install's needs set in its environment, and how each is met
@@ -282,6 +288,7 @@ func (h *Handler) PlanInstall(ctx context.Context, in Install) (*dockwellv1.Chan
 		place.made = append(place.made, edit)
 	}
 	useSecrets(stack, in.Stands)
+	setAddress(stack, in.Address)
 	// What a need sets is the environment's variables, used by reference, before what
 	// shows is read, so a need's plain parts show as the variables they are and its
 	// password and URL, secrets, never do (ADR 0081, 0084).
@@ -305,7 +312,7 @@ func (h *Handler) PlanInstall(ctx context.Context, in Install) (*dockwellv1.Chan
 		}
 		notes = append(notes, n)
 	}
-	return h.plan(ctx, req, stack, place, planning{secrets: in.Secrets, notes: notes, needs: in.Needs, public: in.Public, setsArchitectures: true})
+	return h.plan(ctx, req, stack, place, planning{secrets: in.Secrets, notes: notes, needs: in.Needs, public: in.Public, setsArchitectures: true, ids: in.IDs})
 }
 
 // planning is what a plan adds to a file read for a place.
@@ -336,6 +343,8 @@ type planning struct {
 	// setsArchitectures says the plan sets where each service runs from its catalog
 	// entry or release, so an empty list clears it (ADR 0102).
 	setsArchitectures bool
+	// ids are what new services are called, by name (Install.IDs).
+	ids map[string]string
 }
 
 // useSecrets has each service use by reference what a file's variables gave its
@@ -497,6 +506,10 @@ func (h *Handler) plan(ctx context.Context, m *dockwellv1.ImportComposeRequest, 
 	for name, ports := range also.public {
 		public[resource.Ref{Kind: service.Kind, Scope: env, Name: name}] = ports
 	}
+	ids := map[resource.Ref]string{}
+	for name, id := range also.ids {
+		ids[resource.Ref{Kind: service.Kind, Scope: env, Name: name}] = id
+	}
 	var sets map[resource.Ref]bool
 	if also.setsArchitectures {
 		sets = map[resource.Ref]bool{}
@@ -509,7 +522,7 @@ func (h *Handler) plan(ctx context.Context, m *dockwellv1.ImportComposeRequest, 
 			return "servers"
 		}
 		return ""
-	}, changes.Also{Edits: place.made, Public: public, SetsArchitectures: sets, BackUp: also.backUp, BackUpOne: also.backUpOne, SkipBackup: also.skipBackup, Empties: also.empties, Intent: also.intent, Notes: slices.Concat(also.notes, updates, planNotes(env, stack.Notices), exposedNotes(env, stack.Exposed, stack.ExposedMore, m.GetVariables()), rotationNotes(env, stack.Rotations))})
+	}, changes.Also{Edits: place.made, IDs: ids, Public: public, SetsArchitectures: sets, BackUp: also.backUp, BackUpOne: also.backUpOne, SkipBackup: also.skipBackup, Empties: also.empties, Intent: also.intent, Notes: slices.Concat(also.notes, updates, planNotes(env, stack.Notices), exposedNotes(env, stack.Exposed, stack.ExposedMore, m.GetVariables()), rotationNotes(env, stack.Rotations))})
 }
 
 // usersAfterTheirServers moves each database user the edits make in env right after
