@@ -255,10 +255,28 @@ message DnsProviderInfo {
   repeated string zones = 4;
   // Whether it holds a second token, for tunnels alone (ADR 0104).
   bool tunnel_api_token_set = 5;
+  // Records made by hand that Dockwell replaced and keeps a copy of, which it
+  // couldn't put back as the name held something else then. Put back on the
+  // provider (DnsProvider.put_back) writes one again where its name is free.
+  repeated KeptRecord kept = 6;
   // The projects whose routes it proves and publishes names for, by ID: an admin's
   // alone. A form that changes the provider sends them back, as an edit is the whole
   // spec.
   repeated string projects = 7;
+}
+
+// KeptRecord is a copy of a record made by hand that Dockwell keeps (ADR 0104).
+message KeptRecord {
+  // Its ID, pending:…, as DnsProvider.put_back names it.
+  string id = 1;
+  // The name it was at, such as "vpn.example.com".
+  string name = 2;
+  // The record, in words, such as "CNAME elsewhere.example.net": an admin's alone.
+  string record = 3;
+  // When it was kept.
+  google.protobuf.Timestamp kept_at = 4;
+  // Whether nothing is at its name now, so putting it back writes it.
+  bool name_free = 5;
 }
 
 // CheckDnsProviderRequest is a token to check, or a saved provider to check

@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"slices"
 	"time"
 
@@ -34,8 +35,18 @@ func (h *Handler) ListDnsProviders(ctx context.Context, _ *connect.Request[dockw
 	if err != nil {
 		return nil, err
 	}
+	admin, _ := callerProjects(ctx)
 	for _, p := range shown {
-		out.Providers = append(out.Providers, &dockwellv1.DnsProviderInfo{Id: p.ID, Name: p.Name, Provider: p.Provider, Zones: p.Zones, TunnelApiTokenSet: p.TunnelTokenSet, Projects: p.Projects})
+		info := &dockwellv1.DnsProviderInfo{Id: p.ID, Name: p.Name, Provider: p.Provider, Zones: p.Zones, TunnelApiTokenSet: p.TunnelTokenSet, Projects: p.Projects}
+		if h.Cloudflare != nil {
+			// A list that can't say what's kept still lists the provider.
+			if kept, err := h.Cloudflare.Kept(ctx, p.Name, admin); err == nil {
+				info.Kept = kept
+			} else {
+				h.logger.WarnContext(ctx, "couldn't list the records a DNS provider keeps", slog.String("provider", p.Name), slog.String("error", err.Error()))
+			}
+		}
+		out.Providers = append(out.Providers, info)
 	}
 	return connect.NewResponse(out), nil
 }

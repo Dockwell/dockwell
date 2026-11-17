@@ -940,6 +940,13 @@ msgstr "GitHub removed an installation of the GitHub App {name}"
 msgid "Invited {0} as {1}"
 msgstr "Invited {0} as {1}"
 
+msgid "Kept a copy of a record made in Cloudflare"
+msgstr "Kept a copy of a record made in Cloudflare"
+
+#. placeholder {0}: cf.name
+msgid "Kept a copy of {0}'s record made in Cloudflare, as the name holds another now"
+msgstr "Kept a copy of {0}'s record made in Cloudflare, as the name holds another now"
+
 msgid "Killed {what} (PID {pid}) on {server}, as it didn't stop within 10 s"
 msgstr "Killed {what} (PID {pid}) on {server}, as it didn't stop within 10 s"
 

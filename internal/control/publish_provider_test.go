@@ -3,6 +3,7 @@
 package control
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -178,6 +179,106 @@ func TestAZoneModeStepRunAgainAndWithoutTheRight(t *testing.T) {
 		step.Mode = "strict"
 		if _, err := pub.Apply(t.Context(), "chg_denied", revision.PublishRoute{}, step); err == nil || !strings.Contains(err.Error(), "the token lacks Zone Settings edit") {
 			t.Fatalf("without the right: %v", err)
+		}
+	})
+}
+
+// storedProvider is the stand's DNS provider as its revision keeps it.
+func (s *publishStand) storedProvider(t *testing.T) *resourcev1.DnsProvider {
+	t.Helper()
+	var out *resourcev1.DnsProvider
+	if err := s.f.store.View(t.Context(), func(tx *store.Tx) error {
+		all, err := tx.ListKind(t.Context(), "dns.provider")
+		if err != nil {
+			return err
+		}
+		for i := range all {
+			if all[i].Name == "cloudflare" {
+				m, err := s.f.keeper.Decode(t.Context(), tx, store.InRevision(all[i].ID, all[i].Kind, all[i].Revision), all[i].Spec)
+				out, _ = m.(*resourcev1.DnsProvider)
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	return out
+}
+
+// A record made by hand that couldn't go back, as the name held Dockwell's record
+// let go, is listed on the provider's info and on Activity. Putting it back while
+// the name is taken skips, saying so, and writes nothing; once the name is free, it
+// writes the record as it was, and the provider's revision never keeps what was
+// asked (ADR 0104, and the lead's decision on kept backups).
+func TestAKeptRecordIsListedAndPutBack(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		s := newPublishStandOn(t, backend)
+		s.f.engine.SetControlServer(s.server)
+		id := s.cf.Put("example.com", byHandCNAME)
+		s.applied(t, propose(t, s.person, "Publish vpn", s.published("vpn", "vpn.example.com", &resourcev1.TakeOver{RecordId: id})))
+		recs := s.cf.Records("example.com")
+		s.cf.EditInPlace("example.com", recs[0].ID, func(r *cftest.Record) { r.Proxied = false })
+		s.applied(t, propose(t, s.person, "Remove vpn", s.removed("vpn")))
+
+		kept := s.providerInfo(t).GetKept()
+		if len(kept) != 1 || kept[0].GetName() != "vpn.example.com" || kept[0].GetRecord() != "CNAME elsewhere.example.net" || kept[0].GetNameFree() {
+			t.Fatalf("what the provider keeps: %v", kept)
+		}
+		ec := dockwellv1connect.NewEventServiceClient(s.b, s.b.origin, connect.WithProtoJSON())
+		events, err := ec.ListEvents(t.Context(), connect.NewRequest(&dockwellv1.ListEventsRequest{Kinds: []dockwellv1.EventKind{dockwellv1.EventKind_EVENT_KIND_HEALTH}}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !slices.ContainsFunc(events.Msg.GetEvents(), func(e *dockwellv1.Event) bool {
+			return e.GetAction() == "cloudflare.kept" && e.GetCloudflare().GetName() == "vpn.example.com"
+		}) {
+			t.Fatalf("Activity should say a copy is kept: %v", events.Msg.GetEvents())
+		}
+
+		// Taken: the step says so and writes nothing.
+		putBack := func() *dockwellv1.Edit {
+			return s.provider(func(p *resourcev1.DnsProvider) { p.PutBack = []string{kept[0].GetId()} })
+		}
+		taken := propose(t, s.person, "Put it back", putBack())
+		steps := providerSteps(taken)
+		if len(steps) != 1 || steps[0].GetAction() != dockwellv1.ProviderAction_PROVIDER_ACTION_RESTORE_RECORD ||
+			!strings.Contains(steps[0].GetRouting(), "vpn.example.com holds CNAME "+webOne+".cfargotunnel.com now, so the record kept isn't put back") {
+			t.Fatalf("a put back at a taken name: %v", steps)
+		}
+		s.applied(t, taken)
+		if got := s.cf.Records("example.com"); len(got) != 1 || got[0].Comment == "by hand" {
+			t.Fatalf("a taken name was written: %+v", got)
+		}
+		if got := s.storedProvider(t); len(got.GetPutBack()) != 0 {
+			t.Fatalf("the provider's revision kept what was asked: %v", got.GetPutBack())
+		}
+
+		// Free: it writes the record as it was, with an admin's passkey.
+		s.cf.Remove("example.com", recs[0].ID)
+		if kept := s.providerInfo(t).GetKept(); len(kept) != 1 || !kept[0].GetNameFree() {
+			t.Fatalf("a free name: %v", kept)
+		}
+		free := propose(t, s.person, "Put it back", putBack())
+		if !slices.ContainsFunc(free.GetPlan().GetResources(), func(r *dockwellv1.PlannedResource) bool {
+			return slices.ContainsFunc(r.GetHostAccess(), func(a *dockwellv1.HostAccess) bool {
+				return a.GetKind() == dockwellv1.HostAccessKind_HOST_ACCESS_KIND_CLOUDFLARE_TAKEOVER && a.GetPath() == "vpn.example.com"
+			})
+		}) {
+			t.Fatalf("putting someone's record back takes an admin's passkey: %v", free.GetPlan().GetResources())
+		}
+		s.applied(t, free)
+		got := s.cf.Records("example.com")
+		if len(got) != 1 || got[0].Content != byHandCNAME.Content || got[0].Comment != "by hand" || got[0].TTL != 300 {
+			t.Fatalf("the record should be back as it was: %+v", got)
+		}
+		if kept := s.providerInfo(t).GetKept(); len(kept) != 0 {
+			t.Fatalf("a record put back is kept no more: %v", kept)
+		}
+		// Asked again, it names a record kept no more, and the plan is refused.
+		if _, err := s.person.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Again", Edits: []*dockwellv1.Edit{putBack()}})); err == nil {
+			t.Fatal("putting back a record kept no more was planned")
 		}
 	})
 }

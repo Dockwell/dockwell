@@ -105,6 +105,12 @@ func (t *Tx) CloudflarePendingOf(ctx context.Context, routeID string) ([]Cloudfl
 	return t.cloudflareRecords(ctx, `WHERE route_id = ? AND type = 'pending' ORDER BY name`, routeID)
 }
 
+// CloudflarePendingAll lists every record made by hand that Dockwell keeps a copy of,
+// by name.
+func (t *Tx) CloudflarePendingAll(ctx context.Context) ([]CloudflareRecord, error) {
+	return t.cloudflareRecords(ctx, `WHERE type = 'pending' ORDER BY name`)
+}
+
 // CloudflareRecordByID returns the row of a record by its ID at Cloudflare, or
 // ErrNotFound.
 func (t *Tx) CloudflareRecordByID(ctx context.Context, id string) (CloudflareRecord, error) {

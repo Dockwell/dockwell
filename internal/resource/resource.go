@@ -2918,6 +2918,9 @@ type ProviderStep struct {
 	// Mode is the SSL/TLS mode a step sets a zone to, such as "strict", or puts
 	// back.
 	Mode string `json:",omitempty"`
+	// Skip says the plan found the step can't be taken, as a kept record whose name
+	// holds another now: it writes nothing, and Routing says why.
+	Skip bool `json:",omitempty"`
 }
 
 // ProviderRecord is a DNS record a step writes or acts on.

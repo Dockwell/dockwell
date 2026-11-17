@@ -827,6 +827,17 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
             tone: "warning",
           };
         }
+        case "cloudflare.kept": {
+          // A record made by hand that couldn't go back, as its name held another: the DNS provider keeps a copy.
+          const cf = event.cloudflare;
+          return {
+            title: cf?.name
+              ? t`Kept a copy of ${cf.name}'s record made in Cloudflare, as the name holds another now`
+              : t`Kept a copy of a record made in Cloudflare`,
+            icon: "globe",
+            tone: "warning",
+          };
+        }
         case "dns_provider.check":
           // A saved DNS provider's token, used again to write and delete a record in its zones.
           return {

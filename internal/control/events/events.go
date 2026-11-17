@@ -112,7 +112,7 @@ var (
 	},
 		// Who had a root shell on a server, and when (ADR 0037).
 		terminals.Actions, fileWrites)
-	healthActions = []string{health.Action, publish.ActionGone, publish.ActionReplaced}
+	healthActions = []string{health.Action, publish.ActionGone, publish.ActionReplaced, publish.ActionKept}
 	// What a change wrote at Cloudflare is on its record, beside its steps (ADR 0104).
 	changeActions = []string{publish.ActionWrite}
 	// A setting of the install isn't managed state, so it's an event, not a change (ADR 0042).

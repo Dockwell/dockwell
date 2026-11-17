@@ -940,6 +940,13 @@ msgstr "GitHub 移除了 GitHub 应用 {name} 的一个安装"
 msgid "Invited {0} as {1}"
 msgstr "邀请 {0} 成为 {1}"
 
+msgid "Kept a copy of a record made in Cloudflare"
+msgstr "保留了一条在 Cloudflare 中创建的记录的副本"
+
+#. placeholder {0}: cf.name
+msgid "Kept a copy of {0}'s record made in Cloudflare, as the name holds another now"
+msgstr "保留了 {0} 在 Cloudflare 中创建的记录的副本，因为该名称现在有另一条记录"
+
 msgid "Killed {what} (PID {pid}) on {server}, as it didn't stop within 10 s"
 msgstr "已在 {server} 上强制结束 {what}（PID {pid}），因为它在 10 秒内没有停止"
 

@@ -69,6 +69,9 @@ func pendingRow(row store.CloudflareRecord, replaced string, now time.Time) stor
 }
 
 func (p *Publisher) apply(ctx context.Context, changeID string, route revision.PublishRoute, s resource.ProviderStep) (string, error) {
+	if s.Skip {
+		return "", letGo{s.Routing}
+	}
 	switch s.Action {
 	case resource.ProviderCreateRecord, resource.ProviderRestoreRecord:
 		return p.createRecord(ctx, changeID, route, s, "")
@@ -151,6 +154,9 @@ func (p *Publisher) createRecord(ctx context.Context, changeID string, route rev
 	// its copy stays kept (the re-check's H1b).
 	theirs := letGo{want.Name + " was changed in Cloudflare, so the record it had before Dockwell wasn't put back. Dockwell keeps a copy of it"}
 	if restore && got.ID == "" && slices.ContainsFunc(there, func(x dnsproviders.Record) bool { return addressLike(x.Type) }) {
+		// The copy stays kept, and Activity says so: the provider's info lists it, with
+		// Put back for when its name is free (ADR 0104).
+		p.note(ctx, ActionKept, route.ID, told{Provider: s.Provider, Target: s.Target, Name: want.Name, Action: int(s.Action), ChangeID: changeID})
 		return "", theirs
 	}
 	if got.ID == "" {
@@ -159,6 +165,7 @@ func (p *Publisher) createRecord(ctx context.Context, changeID string, route rev
 			var api *dnsproviders.APIError
 			if errors.As(err, &api) && api.Code == 81053 {
 				if restore {
+					p.note(ctx, ActionKept, route.ID, told{Provider: s.Provider, Target: s.Target, Name: want.Name, Action: int(s.Action), ChangeID: changeID})
 					return "", theirs
 				}
 				return "", fmt.Errorf("%s was taken at Cloudflare after the change was planned. Plan it again", want.Name)

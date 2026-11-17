@@ -76,6 +76,9 @@ type Handler struct {
 // ways in.
 type CloudflareChecker interface {
 	Check(ctx context.Context, ask publish.CheckAsk) (*dockwellv1.CloudflareCheck, error)
+	// Kept lists the records made by hand a provider keeps a copy of, with whether
+	// each one's name is free now; their words only for an admin.
+	Kept(ctx context.Context, provider string, admin bool) ([]*dockwellv1.KeptRecord, error)
 }
 
 var _ dockwellv1connect.DomainServiceHandler = (*Handler)(nil)

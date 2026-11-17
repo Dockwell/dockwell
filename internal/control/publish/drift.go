@@ -29,10 +29,13 @@ const (
 	// replaced, as it landed between Dockwell's read and its write: whoever made it
 	// isn't watching the change, so it raises an alert (ADR 0104, section 4).
 	ActionReplaced = "cloudflare.replaced"
+	// ActionKept is a record made by hand that Dockwell couldn't put back, as its name
+	// held another, and keeps a copy of: the DNS provider's info lists it.
+	ActionKept = "cloudflare.kept"
 )
 
 // Actions are the actions this package writes on Activity.
-var Actions = []string{ActionWrite, ActionGone, ActionReplaced}
+var Actions = []string{ActionWrite, ActionGone, ActionReplaced, ActionKept}
 
 // told is what an event of this package keeps: never a token, nor a record's
 // content.

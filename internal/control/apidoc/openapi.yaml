@@ -14403,6 +14403,14 @@ components:
                 tunnelApiTokenSet:
                     type: boolean
                     description: Whether it holds a second token, for tunnels alone (ADR 0104).
+                kept:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/KeptRecord'
+                    description: |-
+                        Records made by hand that Dockwell replaced and keeps a copy of, which it
+                         couldn't put back as the name held something else then. Put back on the
+                         provider (DnsProvider.put_back) writes one again where its name is free.
                 projects:
                     type: array
                     items:
@@ -18917,6 +18925,26 @@ components:
                         The labels a server joining with it gets (ADR 0091). Numbered in the block
                          labels hold, 20 to 29.
             description: JoinTicket is a ticket that adds one server, without its secret.
+        KeptRecord:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: Its ID, pending:…, as DnsProvider.put_back names it.
+                name:
+                    type: string
+                    description: The name it was at, such as "vpn.example.com".
+                record:
+                    type: string
+                    description: 'The record, in words, such as "CNAME elsewhere.example.net": an admin''s alone.'
+                keptAt:
+                    type: string
+                    description: When it was kept.
+                    format: date-time
+                nameFree:
+                    type: boolean
+                    description: Whether nothing is at its name now, so putting it back writes it.
+            description: KeptRecord is a copy of a record made by hand that Dockwell keeps (ADR 0104).
         Link:
             type: object
             properties:

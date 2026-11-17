@@ -4,11 +4,15 @@ package publish
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
 	"strings"
 
+	"google.golang.org/protobuf/types/known/timestamppb"
+
+	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/control/dnsproviders"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/revision"
@@ -118,7 +122,55 @@ func (p *Publisher) planProvider(ctx context.Context, pp revision.PublishProvide
 			Routing: proxiedWords(zone, proxied), ZoneID: t.zone.ID, Mode: held.Was,
 		})
 	}
+	for _, id := range pp.After.GetPutBack() {
+		ps, access, err := p.planPutBack(ctx, name, id)
+		if err != nil {
+			return nil, err
+		}
+		action := resource.ActionCreate
+		if ps.Skip {
+			action = resource.ActionNone
+		}
+		add(action, ps, access...)
+	}
 	return steps, nil
+}
+
+// planPutBack plans putting back a kept record where its name is free at
+// Cloudflare. Where the name holds a record, the step says so and writes nothing:
+// putting it back never replaces anything. It writes someone's record, so it takes
+// an admin with a fresh passkey (cloudflare_takeover).
+func (p *Publisher) planPutBack(ctx context.Context, provider, id string) (resource.ProviderStep, []resource.Access, error) {
+	var k store.CloudflareRecord
+	if err := p.DB.View(ctx, func(tx *store.Tx) error {
+		var err error
+		k, err = tx.CloudflareRecordByID(ctx, id)
+		return err
+	}); err != nil || k.Type != store.CloudflarePendingType || k.Provider != provider {
+		return resource.ProviderStep{}, nil, fmt.Errorf("%s keeps no record %s. The provider's info lists the ones it keeps", provider, id)
+	}
+	var old dnsproviders.Record
+	if err := json.Unmarshal([]byte(k.Replaced), &old); err != nil {
+		return resource.ProviderStep{}, nil, fmt.Errorf("the record kept as %s can't be read: %w", id, err)
+	}
+	t, err := p.target(ctx, provider, k.Name)
+	if err != nil {
+		return resource.ProviderStep{}, nil, err
+	}
+	there, err := t.cf.RecordsAt(ctx, t.zone, k.Name)
+	if err != nil {
+		return resource.ProviderStep{}, nil, fmt.Errorf("can't read what Cloudflare holds at %s: %w", k.Name, err)
+	}
+	ps := resource.ProviderStep{
+		Provider: provider, Action: resource.ProviderRestoreRecord, Target: k.Zone, Name: k.Name, To: recordWords(old), ZoneID: k.ZoneID, Pending: k.ID,
+		Record: &resource.ProviderRecord{Type: old.Type, Name: old.Name, Content: old.Content, Proxied: old.Proxied, TTL: old.TTL, Comment: old.Comment},
+	}
+	if i := slices.IndexFunc(there, func(x dnsproviders.Record) bool { return addressLike(x.Type) }); i >= 0 {
+		ps.Skip, ps.Was = true, recordWords(there[i])
+		ps.Routing = k.Name + " holds " + recordWords(there[i]) + " now, so the record kept isn't put back. Free the name, then put it back"
+		return ps, nil, nil
+	}
+	return ps, []resource.Access{{Kind: resource.AccessCloudflareTakeover, Path: k.Name, Detail: recordWords(old)}}, nil
 }
 
 // modeSet says Dockwell set zone's mode through provider, and keeps what it was.
@@ -231,4 +283,40 @@ func (p *Publisher) setZoneMode(ctx context.Context, changeID string, s resource
 		return "", err
 	}
 	return "", forget()
+}
+
+// Kept lists the records made by hand that provider keeps a copy of, with whether
+// each name is free at Cloudflare now: a record replaced by a route that was
+// removed while its name held something else. Below an admin, a record's content
+// isn't said, as a proxied record's is the origin address (ADR 0104, M12).
+func (p *Publisher) Kept(ctx context.Context, provider string, admin bool) ([]*dockwellv1.KeptRecord, error) {
+	var kept []store.CloudflareRecord
+	if err := p.DB.View(ctx, func(tx *store.Tx) error {
+		all, err := tx.CloudflarePendingAll(ctx)
+		for i := range all {
+			if all[i].Provider == provider {
+				kept = append(kept, all[i])
+			}
+		}
+		return err
+	}); err != nil {
+		return nil, err
+	}
+	out := make([]*dockwellv1.KeptRecord, 0, len(kept))
+	for i := range kept {
+		k := &kept[i]
+		var old dnsproviders.Record
+		_ = json.Unmarshal([]byte(k.Replaced), &old)
+		rec := &dockwellv1.KeptRecord{Id: k.ID, Name: k.Name, KeptAt: timestamppb.New(k.CreatedAt)}
+		if admin {
+			rec.Record = recordWords(old)
+		}
+		if t, err := p.target(ctx, provider, k.Name); err == nil {
+			if there, err := t.cf.RecordsAt(ctx, t.zone, k.Name); err == nil {
+				rec.NameFree = !slices.ContainsFunc(there, func(x dnsproviders.Record) bool { return addressLike(x.Type) })
+			}
+		}
+		out = append(out, rec)
+	}
+	return out, nil
 }
