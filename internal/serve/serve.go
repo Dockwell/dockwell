@@ -148,17 +148,23 @@ func Serve(ctx context.Context, ln net.Listener, h http.Handler, opts Options) e
 	return nil
 }
 
-// forkSafe closes a listener only while no process this one starts is between
-// its fork and its exec. Such a child holds a copy of every descriptor until it
-// execs, so a listener closed then keeps listening, and its port stays taken, for
-// as long as the child takes: under load, long enough for the proxy that takes the
-// public ports next to find them held (#756). Go forks under ForkLock's write side
-// and keeps it until the child has exec'd, so the read side waits that out.
+// forkSafe frees a listener's port as it closes, though a process this one
+// starts may hold a copy of its descriptor: a child between its fork and its exec
+// holds every descriptor, and keeps a closed listener listening, and its port
+// taken, for as long as it takes. Under load that's long enough for the proxy that
+// takes the public ports next to find them held (#756). ForkLock doesn't cover it:
+// Go lets go of it once a vfork's parent wakes, which the kernel does before the
+// child closes what it shouldn't keep. So the socket itself is shut down first,
+// which takes it out of listening whoever holds it, and the port can be bound
+// again at once.
 type forkSafe struct{ net.Listener }
 
 func (l forkSafe) Close() error {
-	syscall.ForkLock.RLock()
-	defer syscall.ForkLock.RUnlock()
+	if sc, ok := l.Listener.(syscall.Conn); ok {
+		if raw, err := sc.SyscallConn(); err == nil {
+			_ = raw.Control(func(fd uintptr) { _ = syscall.Shutdown(int(fd), syscall.SHUT_RDWR) })
+		}
+	}
 	return l.Listener.Close()
 }
 

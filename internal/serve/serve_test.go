@@ -397,3 +397,28 @@ func TestAPortIsFreeOnceServeReturnsWhileProcessesStart(t *testing.T) {
 		_ = again.Close()
 	}
 }
+
+// A listener whose descriptor another holder still has, as a child between its
+// fork and its exec does, frees its port as it closes (#756).
+func TestAClosedListenerFreesItsPortThoughACopyIsHeld(t *testing.T) {
+	t.Parallel()
+	ln := testport.Listen(t, "127.0.0.1")
+	addr := ln.Addr().String()
+	raw, err := ln.(syscall.Conn).SyscallConn()
+	if err != nil {
+		t.Fatal(err)
+	}
+	held := -1
+	if err := raw.Control(func(fd uintptr) { held, err = syscall.Dup(int(fd)) }); err != nil || held < 0 {
+		t.Fatalf("can't copy the listener's descriptor: %v", err)
+	}
+	defer func() { _ = syscall.Close(held) }()
+	if err := (forkSafe{ln}).Close(); err != nil {
+		t.Fatal(err)
+	}
+	again, err := Listen(t.Context(), addr)
+	if err != nil {
+		t.Fatalf("the port is held by a copy of a closed listener: %v", err)
+	}
+	_ = again.Close()
+}
