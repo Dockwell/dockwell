@@ -1058,6 +1058,9 @@ msgstr "Published {name} at Cloudflare, in {where}"
 msgid "Put back the DNS record for {name} at Cloudflare, in {where}"
 msgstr "Put back the DNS record for {name} at Cloudflare, in {where}"
 
+msgid "Put back {name} in the tunnel {where}, made in Cloudflare"
+msgstr "Put back {name} in the tunnel {where}, made in Cloudflare"
+
 msgid "Put back {path} on {server}"
 msgstr "Put back {path} on {server}"
 
@@ -1229,6 +1232,9 @@ msgstr "Set the time zone for new schedules to {value}"
 
 msgid "Set the time zone for new schedules to {value}, which was {previous}"
 msgstr "Set the time zone for new schedules to {value}, which was {previous}"
+
+msgid "Set {name}'s SSL mode at Cloudflare"
+msgstr "Set {name}'s SSL mode at Cloudflare"
 
 msgid "Signed in"
 msgstr "Signed in"

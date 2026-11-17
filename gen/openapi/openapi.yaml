@@ -15599,6 +15599,7 @@ components:
                         - PROVIDER_ACTION_MOVE_RULE
                         - PROVIDER_ACTION_KEEP_RULE
                         - PROVIDER_ACTION_SET_ZONE_MODE
+                        - PROVIDER_ACTION_RESTORE_RULE
                     type: string
                     description: What was done.
                     format: enum
@@ -23253,6 +23254,7 @@ components:
                         - PROVIDER_ACTION_MOVE_RULE
                         - PROVIDER_ACTION_KEEP_RULE
                         - PROVIDER_ACTION_SET_ZONE_MODE
+                        - PROVIDER_ACTION_RESTORE_RULE
                     type: string
                     description: What it does.
                     format: enum

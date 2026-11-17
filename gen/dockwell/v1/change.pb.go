@@ -868,6 +868,9 @@ const (
 	// provider's own plan, or back to what it was. It changes how Cloudflare reaches
 	// every proxied name in the zone; routing names them.
 	ProviderAction_PROVIDER_ACTION_SET_ZONE_MODE ProviderAction = 11
+	// Puts back a rule made by hand that Dockwell took on or moved: in its tunnel
+	// where it was, held again, or as it was before Move it to Dockwell, let go.
+	ProviderAction_PROVIDER_ACTION_RESTORE_RULE ProviderAction = 12
 )
 
 // Enum value maps for ProviderAction.
@@ -885,6 +888,7 @@ var (
 		9:  "PROVIDER_ACTION_MOVE_RULE",
 		10: "PROVIDER_ACTION_KEEP_RULE",
 		11: "PROVIDER_ACTION_SET_ZONE_MODE",
+		12: "PROVIDER_ACTION_RESTORE_RULE",
 	}
 	ProviderAction_value = map[string]int32{
 		"PROVIDER_ACTION_UNSPECIFIED":    0,
@@ -899,6 +903,7 @@ var (
 		"PROVIDER_ACTION_MOVE_RULE":      9,
 		"PROVIDER_ACTION_KEEP_RULE":      10,
 		"PROVIDER_ACTION_SET_ZONE_MODE":  11,
+		"PROVIDER_ACTION_RESTORE_RULE":   12,
 	}
 )
 
@@ -11279,7 +11284,7 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\x1fHOST_ACCESS_KIND_HOST_PROCESSES\x10\xad\x01\x12#\n" +
 	"\x1eHOST_ACCESS_KIND_ROOT_TOGETHER\x10\xae\x01\x12!\n" +
 	"\x1cHOST_ACCESS_KIND_TUNNEL_RULE\x10\xd4\x02\x12)\n" +
-	"$HOST_ACCESS_KIND_CLOUDFLARE_TAKEOVER\x10\xd5\x02*\xa5\x03\n" +
+	"$HOST_ACCESS_KIND_CLOUDFLARE_TAKEOVER\x10\xd5\x02*\xc7\x03\n" +
 	"\x0eProviderAction\x12\x1f\n" +
 	"\x1bPROVIDER_ACTION_UNSPECIFIED\x10\x00\x12!\n" +
 	"\x1dPROVIDER_ACTION_CREATE_RECORD\x10\x01\x12!\n" +
@@ -11293,7 +11298,8 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\x19PROVIDER_ACTION_MOVE_RULE\x10\t\x12\x1d\n" +
 	"\x19PROVIDER_ACTION_KEEP_RULE\x10\n" +
 	"\x12!\n" +
-	"\x1dPROVIDER_ACTION_SET_ZONE_MODE\x10\v*\x99\x01\n" +
+	"\x1dPROVIDER_ACTION_SET_ZONE_MODE\x10\v\x12 \n" +
+	"\x1cPROVIDER_ACTION_RESTORE_RULE\x10\f*\x99\x01\n" +
 	"\x10VolumeMoveMethod\x12\"\n" +
 	"\x1eVOLUME_MOVE_METHOD_UNSPECIFIED\x10\x00\x12\x1f\n" +
 	"\x1bVOLUME_MOVE_METHOD_IN_PLACE\x10\x01\x12#\n" +

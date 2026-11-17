@@ -1058,6 +1058,9 @@ msgstr "已在 Cloudflare 的 {where} 中发布 {name}"
 msgid "Put back the DNS record for {name} at Cloudflare, in {where}"
 msgstr "已在 Cloudflare 的 {where} 中恢复 {name} 的 DNS 记录"
 
+msgid "Put back {name} in the tunnel {where}, made in Cloudflare"
+msgstr "已在隧道 {where} 中恢复在 Cloudflare 中创建的 {name}"
+
 msgid "Put back {path} on {server}"
 msgstr "已放回 {server} 上的 {path}"
 
@@ -1229,6 +1232,9 @@ msgstr "将新计划的时区设为 {value}"
 
 msgid "Set the time zone for new schedules to {value}, which was {previous}"
 msgstr "将新计划的时区设为 {value}（原为 {previous}）"
+
+msgid "Set {name}'s SSL mode at Cloudflare"
+msgstr "已在 Cloudflare 设置 {name} 的 SSL 模式"
 
 msgid "Signed in"
 msgstr "登录了"

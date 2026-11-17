@@ -88,8 +88,16 @@ func (p *Publisher) apply(ctx context.Context, changeID string, route revision.P
 	case resource.ProviderSetZoneMode:
 		return p.setZoneMode(ctx, changeID, s)
 	case resource.ProviderKeepRule:
+		if s.Mode == letGoRule {
+			return p.letGoOfRule(ctx, s)
+		}
 		return "Kept " + s.Name + " in " + s.Target + ": " + s.Routing, nil
-	case resource.ProviderTakeOnRule, resource.ProviderMoveRule:
+	case resource.ProviderTakeOnRule:
+		return p.takeOnRule(ctx, changeID, route.Server, s)
+	case resource.ProviderMoveRule:
+		return p.moveRule(ctx, changeID, route, s)
+	case resource.ProviderRestoreRule:
+		return p.restoreRule(ctx, changeID, route, s)
 	}
 	return "", fmt.Errorf("a step of kind %d at Cloudflare isn't one this control plane takes yet. Upgrade it, then try again", s.Action)
 }
@@ -546,8 +554,21 @@ func (p *Publisher) removeRule(ctx context.Context, changeID, routeID string, s 
 		return "", fmt.Errorf("can't write %s's routes: %w", s.Target, err)
 	}
 	if err := p.DB.Update(ctx, func(tx *store.Tx) error {
-		if err := tx.DeleteCloudflareRule(ctx, s.Tunnel, s.Rule.Hostname, s.Rule.Path); err != nil {
+		// A rule made by hand that the route took on is kept whole, where it was, so
+		// undo puts it back (ADR 0104, section 8); Dockwell's own goes.
+		held, err := tx.CloudflareRuleAt(ctx, s.Tunnel, s.Rule.Hostname, s.Rule.Path)
+		switch {
+		case err == nil && held.TakenOnAt != nil:
+			held.State, held.Replaced = store.CloudflareRuleKept, keptRule{Elem: doc.Elem(i), At: i}.String()
+			if err := tx.PutCloudflareRule(ctx, held); err != nil {
+				return err
+			}
+		case err != nil && !errors.Is(err, store.ErrNotFound):
 			return err
+		default:
+			if err := tx.DeleteCloudflareRule(ctx, s.Tunnel, s.Rule.Hostname, s.Rule.Path); err != nil {
+				return err
+			}
 		}
 		return tx.SawTunnel(ctx, s.Tunnel, s.Account, wrote.Version, p.now())
 	}); err != nil {

@@ -93,6 +93,31 @@ func publisher(cfg *Config) *publish.Publisher {
 		})
 		return project, err
 	}
+	p.HostPorts = func(ctx context.Context, environment, name string) ([]uint32, error) {
+		var out []uint32
+		err := cfg.Store.View(ctx, func(tx *store.Tx) error {
+			r, err := tx.GetResource(ctx, "service", environment, name)
+			if errors.Is(err, store.ErrNotFound) || err == nil && r.Spec == nil {
+				return nil
+			}
+			if err != nil {
+				return err
+			}
+			spec, err := cfg.Secrets.Decode(ctx, tx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec)
+			if err != nil {
+				return fmt.Errorf("can't read the service %s: %w", name, err)
+			}
+			if svc, ok := spec.(*resourcev1.Service); ok {
+				for _, port := range svc.GetApp().GetPorts() {
+					if port.GetHostPort() != 0 {
+						out = append(out, port.GetHostPort())
+					}
+				}
+			}
+			return nil
+		})
+		return out, err
+	}
 	p.Routes = func(ctx context.Context) (map[string]*resourcev1.Route, error) {
 		out := map[string]*resourcev1.Route{}
 		err := cfg.Store.View(ctx, func(tx *store.Tx) error {

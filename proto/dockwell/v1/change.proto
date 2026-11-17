@@ -2057,6 +2057,9 @@ enum ProviderAction {
   // provider's own plan, or back to what it was. It changes how Cloudflare reaches
   // every proxied name in the zone; routing names them.
   PROVIDER_ACTION_SET_ZONE_MODE = 11;
+  // Puts back a rule made by hand that Dockwell took on or moved: in its tunnel
+  // where it was, held again, or as it was before Move it to Dockwell, let go.
+  PROVIDER_ACTION_RESTORE_RULE = 12;
 }
 
 // VolumeMove is how a step that makes a volume takes its data from another on its

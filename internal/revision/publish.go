@@ -134,6 +134,8 @@ func providerWords(state StepState, p *resource.ProviderStep) string {
 		doing, did = fmt.Sprintf("Adding %s to the tunnel %s", p.Name, p.Target), fmt.Sprintf("Added %s to the tunnel %s", p.Name, p.Target)
 	case resource.ProviderRemoveRule:
 		doing, did = fmt.Sprintf("Removing %s from the tunnel %s", p.Name, p.Target), fmt.Sprintf("Removed %s from the tunnel %s", p.Name, p.Target)
+	case resource.ProviderRestoreRule:
+		doing, did = fmt.Sprintf("Putting back %s in the tunnel %s", p.Name, p.Target), fmt.Sprintf("Put back %s in the tunnel %s", p.Name, p.Target)
 	case resource.ProviderSetZoneMode:
 		doing, did = fmt.Sprintf("Setting %s to %s", p.Name, p.To), fmt.Sprintf("Set %s to %s", p.Name, p.To)
 	case resource.ProviderKeepRule:

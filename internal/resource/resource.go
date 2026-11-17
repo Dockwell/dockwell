@@ -2888,6 +2888,7 @@ const (
 	ProviderMoveRule
 	ProviderKeepRule
 	ProviderSetZoneMode
+	ProviderRestoreRule
 )
 
 // ProviderStep is one thing the control plane writes, or removes, at Cloudflare for

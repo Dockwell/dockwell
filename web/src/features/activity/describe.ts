@@ -798,6 +798,12 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
             case ProviderAction.MOVE_RULE:
               title = t`Moved ${name} in the tunnel ${where} to the server's proxy`;
               break;
+            case ProviderAction.RESTORE_RULE:
+              title = t`Put back ${name} in the tunnel ${where}, made in Cloudflare`;
+              break;
+            case ProviderAction.SET_ZONE_MODE:
+              title = t`Set ${name}'s SSL mode at Cloudflare`;
+              break;
           }
           return { title, icon: "globe" };
         }

@@ -58,6 +58,10 @@ type Publisher struct {
 	// Routes are every route as it stands, by resource ID, to tell when a zone's
 	// rule is the last route's.
 	Routes func(ctx context.Context) (map[string]*resourcev1.Route, error)
+	// HostPorts are the ports a service publishes on its server, by its
+	// environment and name: an app's own ports, which a tunnel's rule made by hand
+	// may point at, for Move it to Dockwell.
+	HostPorts func(ctx context.Context, environment, service string) ([]uint32, error)
 	// Now is the clock; nil is time.Now.
 	Now func() time.Time
 	// LockWait is how long a step waits for another writer of a tunnel; zero waits
@@ -500,11 +504,22 @@ func (p *Publisher) planRule(ctx context.Context, r revision.PublishRoute, t *ta
 		return nil, err
 	}
 	need := NeedFor(doc, routing, t.zone.Name, name)
+	// The rule for the name made by hand, taken on, moved, put back or let go, as the
+	// route's consent says (ADR 0104, section 8).
+	hand, handled, err := p.planHandRule(ctx, r, t, account, tunnel, info.Name, name, doc, routing, need)
+	if err != nil || handled {
+		if handKey := tunnel + "|" + name; err == nil && rules[handKey] {
+			return nil, nil
+		} else if err == nil {
+			rules[handKey] = true
+		}
+		return hand, err
+	}
 	switch {
 	case need.Refused != nil:
 		return nil, fmt.Errorf("can't publish %s through %s: %w", name, info.Name, need.Refused)
 	case need.Nothing:
-		return nil, nil
+		return hand, nil
 	}
 	key := tunnel + "|" + need.Rule.Hostname
 	if rules[key] {
@@ -645,7 +660,7 @@ func (p *Publisher) removalRouting(ctx context.Context, t *target, tunnel string
 		return Routing{}, err
 	}
 	rt.Names = slices.DeleteFunc(rt.Names, func(n string) bool {
-		return slices.ContainsFunc(own, func(r store.CloudflareRecord) bool { return strings.EqualFold(r.Name, n) })
+		return strings.EqualFold(n, leaving) || slices.ContainsFunc(own, func(r store.CloudflareRecord) bool { return strings.EqualFold(r.Name, n) })
 	})
 	return rt, nil
 }
@@ -703,6 +718,12 @@ func (p *Publisher) planRuleRemoval(ctx context.Context, r revision.PublishRoute
 		return nil, err
 	}
 	name := strings.ToLower(r.Before.GetDomain())
+	// The rule for the name made by hand that the route took on or moved comes out,
+	// or goes back as it was (ADR 0104, section 8).
+	hand, err := p.planHandRuleRemoval(ctx, r, was.GetTunnel(), name)
+	if err != nil {
+		return nil, err
+	}
 	all, err := p.Routes(ctx)
 	if err != nil {
 		return nil, err
@@ -710,9 +731,10 @@ func (p *Publisher) planRuleRemoval(ctx context.Context, r revision.PublishRoute
 	for id, spec := range inChange {
 		all[id] = spec
 	}
-	var steps []resource.Step
+	steps := hand
 	for i := range held {
 		rule := &held[i]
+		// A rule made by hand is the route's own to settle, above.
 		if rule.TakenOnAt != nil || !HostMatches(rule.Hostname, name) {
 			continue
 		}
