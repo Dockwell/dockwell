@@ -70,6 +70,19 @@ func (s *swapFS) Lstat(name string) (fs.FileInfo, error) {
 	return s.m.Lstat(name)
 }
 
+// stop takes a process's files out of it, as a process that ended.
+func (s *swapFS) stop(pid string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	next := maps.Clone(s.m)
+	for name := range next {
+		if strings.HasPrefix(name, pid+"/") {
+			delete(next, name)
+		}
+	}
+	s.m = next
+}
+
 // add puts files in it, as a process that started.
 func (s *swapFS) add(files fstest.MapFS) {
 	s.mu.Lock()

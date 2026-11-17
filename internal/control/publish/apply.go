@@ -26,6 +26,7 @@ func (p *Publisher) Apply(ctx context.Context, changeID string, route revision.P
 	// whatever came of it.
 	defer p.cache.forgetUnder("pointing:" + s.ZoneID)
 	defer p.cache.forgetUnder("at:" + s.ZoneID)
+	defer p.cache.forget("zone:" + s.ZoneID)
 	said, err := p.apply(ctx, changeID, route, s)
 	var nothing letGo
 	if errors.As(err, &nothing) {

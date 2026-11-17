@@ -78,27 +78,35 @@ func TestANewWebsitePublishedThroughTheTunnel(t *testing.T) {
 	})
 }
 
-// A new website has no project yet, so an admin's check reads every provider's zones,
-// as the plan adds the project to the provider; a developer's says nothing of
-// Cloudflare (ADR 0104, the lead's decision on websites).
+// A new website has no project yet, so an admin's check that asks for a way reads
+// every provider's zones, as the plan adds the project to the provider; one that
+// asks for nothing, as Domains' is, reads DNS alone, and a developer's says nothing
+// of Cloudflare (ADR 0104, the review's B-M2).
 func TestANewWebsitesNameIsCheckedInEveryZoneForAnAdmin(t *testing.T) {
 	t.Parallel()
 	s := newPublishStand(t)
 	dc := dockwellv1connect.NewDomainServiceClient(s.b, s.b.origin, connect.WithProtoJSON())
-	got, err := dc.CheckDomain(t.Context(), connect.NewRequest(&dockwellv1.CheckDomainRequest{ServerId: s.server, Domain: "docs.example.com"}))
-	if err != nil {
-		t.Fatal(err)
+	check := func(publish *resourcev1.RoutePublish) *dockwellv1.CloudflareCheck {
+		t.Helper()
+		got, err := dc.CheckDomain(t.Context(), connect.NewRequest(&dockwellv1.CheckDomainRequest{ServerId: s.server, Domain: "docs.example.com", Publish: publish}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return got.Msg.GetCloudflare()
 	}
-	if cf := got.Msg.GetCloudflare(); cf.GetZone() != "example.com" || cf.GetProvider() != "cloudflare" || cf.GetState() != dockwellv1.CloudflareName_CLOUDFLARE_NAME_FREE {
-		t.Fatalf("an admin's check with no project: %v", cf)
+	if cf := check(&resourcev1.RoutePublish{}); cf.GetZone() != "example.com" || cf.GetProvider() != "cloudflare" || cf.GetState() != dockwellv1.CloudflareName_CLOUDFLARE_NAME_FREE {
+		t.Fatalf("an admin's check for a new website: %v", cf)
+	}
+	before := len(s.cf.Calls())
+	if cf := check(nil); cf != nil {
+		t.Fatalf("a check that asks for no way reads Cloudflare: %v", cf)
+	}
+	if n := len(s.cf.Calls()) - before; n != 0 {
+		t.Fatalf("a check that asks for no way called Cloudflare %d times", n)
 	}
 	hold := aMember(t, s.f)
 	hold(store.Grant{ProjectID: s.project, Role: store.RoleDeveloper})
-	got, err = dc.CheckDomain(t.Context(), connect.NewRequest(&dockwellv1.CheckDomainRequest{ServerId: s.server, Domain: "docs.example.com"}))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if cf := got.Msg.GetCloudflare(); cf != nil {
+	if cf := check(&resourcev1.RoutePublish{}); cf != nil {
 		t.Fatalf("a developer's check with no project reads Cloudflare: %v", cf)
 	}
 }

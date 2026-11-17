@@ -124,7 +124,7 @@ func TestFullStrictWordsAreBounded(t *testing.T) {
 // its way, with why and what fixes it, so the panel never shows a way it can't name.
 func TestNoWayInIsTheWayTaken(t *testing.T) {
 	p, tg := proving(t, nil)
-	ways, way := p.ways(t.Context(), CheckAsk{Server: "hz-1", Name: "wiki.example.com", Admin: true}, tg, "wiki.example.com", Facts{Name: "hz-1"}, false)
+	ways, way, _ := p.ways(t.Context(), CheckAsk{Server: "hz-1", Name: "wiki.example.com", Admin: true}, tg, "wiki.example.com", Facts{Name: "hz-1"}, false)
 	if way != resourcev1.RouteWay_ROUTE_WAY_OWN_TUNNEL {
 		t.Fatalf("the way taken: %v", way)
 	}

@@ -29,6 +29,9 @@ type CheckAsk struct {
 	// name is taken (ADR 0104, M12).
 	Admin bool
 	Way   resourcev1.RouteWay
+	// Fresh reads the server's tunnels now, past the 30 s they're kept, as a person
+	// pressing Check again has just started cloudflared (the review's open question 3).
+	Fresh bool
 }
 
 // cache keeps what a check reads that changes slowly, for about 30 seconds, so a
@@ -168,10 +171,16 @@ func (p *Publisher) Check(ctx context.Context, a CheckAsk) (out *dockwellv1.Clou
 	if w := p.waiting(provider); w != nil {
 		return w, nil
 	}
-	// A 429 met on the way says so as a state, as the checks after it do.
+	// A 429 met on the way says so as a state, as the checks after it do. Any other
+	// failure says the provider that couldn't be read, with no state, so the panel
+	// says so with Check again rather than planning as if the zone weren't Cloudflare's
+	// (the review's B-M1).
 	defer func() {
 		if w := p.waiting(provider); err != nil && w != nil {
 			out, err = w, nil
+		}
+		if err != nil && out == nil {
+			out = &dockwellv1.CloudflareCheck{Provider: provider}
 		}
 	}()
 	t, err := p.target(ctx, provider, name)
@@ -237,8 +246,48 @@ func (p *Publisher) Check(ctx context.Context, a CheckAsk) (out *dockwellv1.Clou
 	if past && out.State == dockwellv1.CloudflareName_CLOUDFLARE_NAME_FREE {
 		out.State = dockwellv1.CloudflareName_CLOUDFLARE_NAME_PAST_CERTIFICATE
 	}
-	out.Ways, out.Way = p.ways(ctx, a, t, name, facts, past)
+	out.Ways, out.Way, out.HandRule = p.ways(ctx, a, t, name, facts, past)
 	return out, nil
+}
+
+// ZoneRecordsAt is what a connected zone holds at name, read in one listing of the
+// zone kept for 30 s, so a page of domains costs a listing per zone, never a check
+// per name (ADR 0104, the review's B-M2). inZone says a connected zone holds it.
+func (p *Publisher) ZoneRecordsAt(ctx context.Context, name string) (recs []dnsproviders.Record, inZone bool, err error) {
+	name = strings.ToLower(name)
+	all, err := p.Providers.All(ctx)
+	if err != nil {
+		return nil, false, err
+	}
+	provider, zone := "", ""
+	for i := range all {
+		for _, z := range all[i].Spec.GetZones() {
+			if dnsprovider.Covers(z, name) && len(z) > len(zone) {
+				provider, zone = all[i].Name, z
+			}
+		}
+	}
+	if provider == "" {
+		return nil, false, nil
+	}
+	if w := p.waiting(provider); w != nil {
+		return nil, true, errors.New("cloudflare asked Dockwell to wait, so its zones are read again in a minute")
+	}
+	t, err := p.target(ctx, provider, name)
+	if err != nil {
+		return nil, true, err
+	}
+	listed, err := p.cache.get("zone:"+t.zone.ID, p.now(), func() (any, error) { return t.cf.ZoneRecords(ctx, t.zone) })
+	if err != nil {
+		return nil, true, err
+	}
+	zoneRecs, _ := listed.([]dnsproviders.Record)
+	for i := range zoneRecs {
+		if strings.EqualFold(zoneRecs[i].Name, name) && addressLike(zoneRecs[i].Type) {
+			recs = append(recs, zoneRecs[i])
+		}
+	}
+	return recs, true, nil
 }
 
 // pointsHere says a record made by hand points where Dockwell would: at a tunnel, or
@@ -259,8 +308,12 @@ func pointsHere(r dnsproviders.Record, facts Facts) bool {
 // the server's tunnel; then, where cloudflared runs that Dockwell can't use,
 // something else in front, never publishing the server's address; then Cloudflare's
 // proxy; then the server's own HTTPS (ADR 0104, section 2).
-func (p *Publisher) ways(ctx context.Context, a CheckAsk, t *target, name string, facts Facts, past bool) ([]*dockwellv1.WayOption, resourcev1.RouteWay) {
+func (p *Publisher) ways(ctx context.Context, a CheckAsk, t *target, name string, facts Facts, past bool) ([]*dockwellv1.WayOption, resourcev1.RouteWay, *dockwellv1.HandRule) {
 	var out []*dockwellv1.WayOption
+	var hand *dockwellv1.HandRule
+	if a.Fresh {
+		p.cache.forget("tunnels:" + a.Server)
+	}
 	pick := resourcev1.RouteWay_ROUTE_WAY_UNSPECIFIED
 	runsCloudflared := false
 	found, err := p.cache.get("tunnels:"+a.Server, p.now(), func() (any, error) {
@@ -331,6 +384,11 @@ func (p *Publisher) ways(ctx context.Context, a CheckAsk, t *target, name string
 			continue
 		}
 		d, _ := doc.(*Document)
+		// A rule made by hand that serves the name, for an admin to take on or move to
+		// Dockwell from the panel (the review's B-M4).
+		if a.Admin && hand == nil {
+			hand = p.handRuleAt(ctx, d, f, opt.TunnelName, name)
+		}
 		rt, err := p.routing(ctx, t, f.GetTunnelId(), d, f.GetReaches(), name)
 		if err != nil {
 			opt.Off = off(err)
@@ -389,7 +447,35 @@ func (p *Publisher) ways(ctx context.Context, a CheckAsk, t *target, name string
 	if a.Way != resourcev1.RouteWay_ROUTE_WAY_UNSPECIFIED {
 		pick = a.Way
 	}
-	return out, pick
+	return out, pick, hand
+}
+
+// handRuleAt is the rule made by hand in a tunnel's document at name, where one is
+// and Dockwell holds none there: where it sends, and whether that's the server's
+// proxy already.
+func (p *Publisher) handRuleAt(ctx context.Context, d *Document, f *dockwellv1.CloudflaredTunnel, tunnelName, name string) *dockwellv1.HandRule {
+	if d == nil {
+		return nil
+	}
+	i := d.Index(name, "")
+	if i < 0 {
+		return nil
+	}
+	held := false
+	if err := p.DB.View(ctx, func(tx *store.Tx) error {
+		_, err := tx.CloudflareRuleAt(ctx, f.GetTunnelId(), d.Rules[i].Hostname, "")
+		held = err == nil
+		if errors.Is(err, store.ErrNotFound) {
+			return nil
+		}
+		return err
+	}); err != nil || held {
+		return nil
+	}
+	return &dockwellv1.HandRule{
+		Tunnel: f.GetTunnelId(), TunnelName: tunnelName, Hostname: d.Rules[i].Hostname, Service: d.Rules[i].Service,
+		ReachesProxy: SameService(d.Rules[i].Service, f.GetReaches()),
+	}
 }
 
 // offWords is a refusal as a way's state, in a line.

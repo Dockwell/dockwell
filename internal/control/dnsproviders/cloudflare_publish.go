@@ -152,6 +152,12 @@ func (c *Cloudflare) RecordsAt(ctx context.Context, zone Zone, name string) ([]R
 	return c.records(ctx, zone, url.Values{"name": {name}})
 }
 
+// ZoneRecords lists every record in zone, as Domains reads what DNS says of its
+// names in one listing per zone (ADR 0104, #791).
+func (c *Cloudflare) ZoneRecords(ctx context.Context, zone Zone) ([]Record, error) {
+	return c.records(ctx, zone, url.Values{})
+}
+
 // RecordsCommented lists the records in zone whose comment starts with prefix, as
 // Dockwell's own records' comments do.
 func (c *Cloudflare) RecordsCommented(ctx context.Context, zone Zone, prefix string) ([]Record, error) {
