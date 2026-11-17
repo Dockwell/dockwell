@@ -227,14 +227,14 @@ func runStep(ctx context.Context, t Target, o *resourcev1.OwnerRun, step *resour
 		basics(o, step.GetCommand().GetCapture(), captured)
 		return out, nil
 	case step.GetRequest() != nil:
-		status, answer, err := send(ctx, t, o, step.GetRequest(), values, captured)
+		status, answer, cookies, err := send(ctx, t, o, step.GetRequest(), values, captured)
 		if err != nil {
 			return answer, err
 		}
 		if !wanted(status, step.GetRequest().GetExpectStatus()) {
 			return answer, fmt.Errorf("it answered %d", status)
 		}
-		if err := capture(answer, step.GetRequest().GetCapture(), captured); err != nil {
+		if err := capture(answer, cookies, step.GetRequest().GetCapture(), captured); err != nil {
 			return answer, err
 		}
 		basics(o, step.GetRequest().GetCapture(), captured)
@@ -281,11 +281,12 @@ var direct = &http.Client{
 	CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 }
 
-// send makes a request to the container, and says its status and its answer.
-func send(ctx context.Context, t Target, o *resourcev1.OwnerRun, r *resourcev1.OwnerRequest, values, captured map[string]string) (int, []byte, error) {
+// send makes a request to the container, and says its status, its answer, and the
+// cookies it set, which a capture may keep for the steps after it.
+func send(ctx context.Context, t Target, o *resourcev1.OwnerRun, r *resourcev1.OwnerRequest, values, captured map[string]string) (int, []byte, []*http.Cookie, error) {
 	addr, err := t.Address(ctx, r.GetPort())
 	if err != nil {
-		return 0, nil, err
+		return 0, nil, nil, err
 	}
 	all := maps.Clone(values)
 	if all == nil {
@@ -304,7 +305,7 @@ func send(ctx context.Context, t Target, o *resourcev1.OwnerRun, r *resourcev1.O
 	defer clear(body)
 	req, err := http.NewRequestWithContext(ctx, cmpOr(r.GetMethod(), http.MethodGet), "http://"+addr+path, bytes.NewReader(body))
 	if err != nil {
-		return 0, nil, err
+		return 0, nil, nil, err
 	}
 	if r.GetContentType() != "" {
 		req.Header.Set("Content-Type", r.GetContentType())
@@ -325,17 +326,17 @@ func send(ctx context.Context, t Target, o *resourcev1.OwnerRun, r *resourcev1.O
 	req.Header.Set("X-Forwarded-Proto", scheme(o))
 	res, err := direct.Do(req)
 	if err != nil {
-		return 0, nil, err
+		return 0, nil, nil, err
 	}
 	defer res.Body.Close()
 	answer, err := io.ReadAll(io.LimitReader(res.Body, maxAnswer))
 	if err != nil {
-		return res.StatusCode, answer, err
+		return res.StatusCode, answer, nil, err
 	}
 	if res.StatusCode >= 300 && res.StatusCode < 400 {
-		return res.StatusCode, answer, fmt.Errorf("it answered %d, a redirect, which a step never follows", res.StatusCode)
+		return res.StatusCode, answer, nil, fmt.Errorf("it answered %d, a redirect, which a step never follows", res.StatusCode)
 	}
-	return res.StatusCode, answer, nil
+	return res.StatusCode, answer, res.Cookies(), nil
 }
 
 // check reads c: its request's status is the one it wants, and its answer holds
@@ -351,15 +352,52 @@ func check(ctx context.Context, t Target, o *resourcev1.OwnerRun, c *resourcev1.
 		}
 		return true, out, nil
 	}
-	status, answer, err := send(ctx, t, o, c.GetRequest(), values, nil)
+	// What a request sent first captures, as a sign-in's cookie, is for this check
+	// alone, and hidden in what it says (ADR 0105).
+	captured := map[string]string{}
+	defer clear(captured)
+	hidden := func(said []byte) []byte {
+		if len(captured) == 0 {
+			return said
+		}
+		return []byte(Scrub(said, nil, captured, o))
+	}
+	if b := c.GetBefore(); b != nil {
+		status, answer, cookies, err := send(ctx, t, o, b, values, nil)
+		if err == nil && !wanted(status, b.GetExpectStatus()) {
+			err = fmt.Errorf("what it sends first answered %d", status)
+		}
+		if err == nil {
+			err = capture(answer, cookies, b.GetCapture(), captured)
+		}
+		if err != nil {
+			return false, hidden(answer), err
+		}
+	}
+	status, answer, _, err := send(ctx, t, o, c.GetRequest(), values, captured)
 	if err != nil {
-		return false, answer, err
+		return false, hidden(answer), err
 	}
 	if !wanted(status, c.GetStatus()) {
-		return false, answer, fmt.Errorf("it answered %d", status)
+		return false, hidden(answer), fmt.Errorf("it answered %d", status)
 	}
 	if c.GetContains() != "" && !bytes.Contains(answer, []byte(c.GetContains())) {
-		return false, answer, errors.New("its answer doesn't say so")
+		return false, hidden(answer), errors.New("its answer doesn't say so")
+	}
+	if w := c.GetWhere(); w != "" {
+		all := maps.Clone(values)
+		if all == nil {
+			all = map[string]string{}
+		}
+		maps.Copy(all, captured)
+		ok, err := Where(w, answer, all)
+		clear(all)
+		if err != nil {
+			return false, hidden(answer), err
+		}
+		if !ok {
+			return false, hidden(answer), errors.New("its answer doesn't say so")
+		}
 	}
 	return true, answer, nil
 }
@@ -409,17 +447,34 @@ func Fill(template string, values map[string]string, encode func(string) string)
 	})
 }
 
+// CookiePrefix names a cookie a request's answer sets, in place of a path in its
+// JSON, as a capture keeps it: cookie:VW_ADMIN. It's a secret, as any capture is.
+const CookiePrefix = "cookie:"
+
 // capture keeps each field of a JSON answer a step names, by a path of keys apart by
-// dots, as a value for the steps after it.
-func capture(answer []byte, fields, into map[string]string) error {
+// dots, or a cookie it set, by cookie: and its name, as a value for the steps after
+// it.
+func capture(answer []byte, cookies []*http.Cookie, fields, into map[string]string) error {
 	if len(fields) == 0 {
 		return nil
 	}
 	var doc any
-	if err := json.Unmarshal(answer, &doc); err != nil {
-		return errors.New("its answer isn't JSON, so nothing of it can be kept for the next step")
-	}
+	parsed := false
 	for _, name := range slices.Sorted(maps.Keys(fields)) {
+		if c, ok := strings.CutPrefix(fields[name], CookiePrefix); ok {
+			i := slices.IndexFunc(cookies, func(k *http.Cookie) bool { return k.Name == c && k.Value != "" })
+			if i < 0 {
+				return fmt.Errorf("its answer sets no cookie %s", c)
+			}
+			into[name] = cookies[i].Value
+			continue
+		}
+		if !parsed {
+			if err := json.Unmarshal(answer, &doc); err != nil {
+				return errors.New("its answer isn't JSON, so nothing of it can be kept for the next step")
+			}
+			parsed = true
+		}
 		v, ok := at(doc, fields[name])
 		if !ok {
 			return fmt.Errorf("its answer has no %s", fields[name])
@@ -621,10 +676,23 @@ func secretInWords(c *resourcev1.OwnerCommand, secrets []string) error {
 // command.
 func CheckCheck(c *resourcev1.OwnerCheck) error {
 	if c.GetCommand() != nil {
-		if c.GetRequest() != nil {
+		switch {
+		case c.GetRequest() != nil:
 			return errors.New("is a request and a command. Keep one")
+		case c.GetBefore() != nil || c.GetWhere() != "":
+			return errors.New("is a command, which reads no answer as JSON and sends nothing first. Make it a request, or take before and where away")
 		}
 		return checkStep(&resourcev1.OwnerStep{Step: &resourcev1.OwnerStep_Command{Command: c.GetCommand()}})
+	}
+	if b := c.GetBefore(); b != nil {
+		if err := CheckRequest(b); err != nil {
+			return fmt.Errorf("sends first what %w", err)
+		}
+	}
+	if w := c.GetWhere(); w != "" {
+		if _, _, err := parseWhere(w); err != nil {
+			return err
+		}
 	}
 	return CheckRequest(c.GetRequest())
 }
@@ -642,5 +710,13 @@ func CheckRequest(r *resourcev1.OwnerRequest) error {
 	if s := r.GetExpectStatus(); s >= 300 && s < 400 {
 		return fmt.Errorf("expects %d, a redirect, which a step never follows", s)
 	}
+	for name, field := range r.GetCapture() {
+		if c, ok := strings.CutPrefix(field, CookiePrefix); ok && !cookieName.MatchString(c) {
+			return fmt.Errorf("captures %s from the cookie %q, which isn't a cookie's name", name, c)
+		}
+	}
 	return nil
 }
+
+// cookieName is a cookie's name, as RFC 6265's token.
+var cookieName = regexp.MustCompile(`^[!#$%&'*+\-.^_\x60|~0-9A-Za-z]+$`)

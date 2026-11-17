@@ -186,3 +186,32 @@ func (h *Handler) OwnerResetRun(ctx context.Context, environment string) (*resou
 	}
 	return run, plain, secretNames, nil
 }
+
+// OwnerUnset is what an environment's install takes out of its owner's service once
+// its owner is made, as its entry at the release it runs says: Vaultwarden's
+// ADMIN_TOKEN, which turns its admin page off (ADR 0105). Nothing where it says none.
+func (h *Handler) OwnerUnset(ctx context.Context, environment string) (string, []string, error) {
+	s, err := h.catalog(ctx)
+	if err != nil {
+		return "", nil, err
+	}
+	var pin *resourcev1.CatalogPin
+	err = h.db.View(ctx, func(tx *store.Tx) error {
+		installs, err := h.installs(ctx, tx, s)
+		for _, in := range installs {
+			if in.GetEnvironmentId() == environment {
+				pin = in.GetPin()
+			}
+		}
+		return err
+	})
+	if err != nil || pin == nil {
+		return "", nil, err
+	}
+	entry, known := s.entryFor(pin)
+	if !known || entry.GetRelease() != pin.GetRelease() {
+		return "", nil, nil
+	}
+	o := entry.GetOwner()
+	return o.GetService(), slices.Clone(o.GetUnsetWhenMade()), nil
+}

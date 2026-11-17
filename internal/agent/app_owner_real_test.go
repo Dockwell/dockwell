@@ -16,6 +16,7 @@ import (
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	"github.com/dockwell/dockwell/internal/catalog"
 	"github.com/dockwell/dockwell/internal/delivery"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
@@ -32,6 +33,7 @@ const (
 	n8nImage   = "n8nio/n8n:2.45.5@sha256:9f6d0a5987ab5a297c4b0b38fbf1a22285dd1364551478e93f03d506908fa74c"
 	umamiImage = "ghcr.io/umami-software/umami:3.4.1@sha256:e69d1a7932e9dab0fc523edc7be1f3a53f3c261f57856fc2167ae74a8fc022e8"
 	pgImage    = "postgres:17.11@sha256:748a18a54d3842d43bc156f0840d78029b8d349e0feca98c12b9c4ce3404a6b3"
+	vaultImage = "vaultwarden/server:1.37.5@sha256:4fe17f415f90087377d37c755e0ea3cf189dcc6794e49cdd2a9adbb4937d9e1f"
 )
 
 func jsonRequest(port uint32, method, path, body string, headers map[string]string) *resourcev1.OwnerStep {
@@ -120,6 +122,37 @@ func umamiOwner() *resourcev1.OwnerRun {
 	}
 }
 
+// vaultSignIn signs in to Vaultwarden's admin page with its admin token, which
+// ADMIN_TOKEN holds as an Argon2id PHC, and captures the session's cookie.
+func vaultSignIn() *resourcev1.OwnerRequest {
+	return &resourcev1.OwnerRequest{
+		Method: http.MethodPost, Path: "/admin", ContentType: "application/x-www-form-urlencoded", Body: "token=${ADMIN_TOKEN_PLAIN}", Port: 80,
+		Capture: map[string]string{"VW_SESSION": "cookie:VW_ADMIN"},
+	}
+}
+
+// vaultOwner invites Vaultwarden's owner through its admin API, as its entry does:
+// a sign-in with the admin token, then the invite, skipped where the user is there
+// already. It's made once done reads the invited user registered (made_when_done),
+// as only the person makes their account, from their master password (ADR 0105).
+func vaultOwner() *resourcev1.OwnerRun {
+	users := func(where string) *resourcev1.OwnerCheck {
+		return &resourcev1.OwnerCheck{
+			Before:  vaultSignIn(),
+			Request: &resourcev1.OwnerRequest{Path: "/admin/users", Port: 80, Headers: map[string]string{"Cookie": "VW_ADMIN=${VW_SESSION}"}},
+			Where:   where,
+		}
+	}
+	invite := jsonRequest(80, http.MethodPost, "/admin/invite", `{"email":"${OWNER_EMAIL}"}`, map[string]string{"Cookie": "VW_ADMIN=${VW_SESSION}"})
+	invite.Unless = users("[email=${OWNER_EMAIL}].email=${OWNER_EMAIL}")
+	login := &resourcev1.OwnerStep{Step: &resourcev1.OwnerStep_Request{Request: vaultSignIn()}}
+	return &resourcev1.OwnerRun{
+		Service: "web", Email: "owner@example.com", MadeWhenDone: true,
+		Steps: []*resourcev1.OwnerStep{login, invite},
+		Done:  users("[email=${OWNER_EMAIL}]._status=0"),
+	}
+}
+
 // ghostScript asks Ghost from inside its container, on its own loopback, which is
 // the only address whose X-Forwarded-Proto Ghost believes, as the address its url
 // says, so a Ghost reached at an https address answers rather than redirects (the
@@ -146,7 +179,7 @@ func ghostStep(method, path, body string) *resourcev1.OwnerCommand {
 // secret there either.
 func TestTheOwnersStepsAreOnesAnEntryMayHold(t *testing.T) {
 	t.Parallel()
-	for name, o := range map[string]*resourcev1.OwnerRun{"gitea": giteaOwner(), "gitea reset": giteaReset(), "ghost": ghostOwner(), "n8n": n8nOwner(), "umami": umamiOwner()} {
+	for name, o := range map[string]*resourcev1.OwnerRun{"gitea": giteaOwner(), "gitea reset": giteaReset(), "ghost": ghostOwner(), "n8n": n8nOwner(), "umami": umamiOwner(), "vaultwarden": vaultOwner()} {
 		if err := ownerstep.Check(o.GetSteps()); err != nil {
 			t.Errorf("%s: %v", name, err)
 		}
@@ -402,6 +435,53 @@ func TestAnAppsOwnerIsMadeOnRealDocker(t *testing.T) {
 			t.Errorf("a second run, reading done first: %+v", res)
 		}
 	})
+	t.Run("vaultwarden", func(t *testing.T) {
+		env := dockertest.Scope(t)
+		dockertest.Cleanup(t, client, docker.Project(env))
+		token := newPassword() + newPassword()
+		phc, err := catalog.HashOf(token)
+		if err != nil {
+			t.Fatal(err)
+		}
+		run(t, client, env, "web", vaultImage, "", docker.Config{Env: []string{
+			"ADMIN_TOKEN=" + phc, "SIGNUPS_ALLOWED=false", "ADMIN_RATELIMIT_SECONDS=60", "ADMIN_RATELIMIT_MAX_BURST=30",
+		}})
+		target, err := healthyContainer(t.Context(), client, env, "web")
+		if err != nil {
+			t.Fatal(err)
+		}
+		addr, _ := target.Address(t.Context(), 80)
+		answers(t, "http://"+addr+"/alive")
+		values := map[string]string{"OWNER_EMAIL": "owner@example.com", "ADMIN_TOKEN_PLAIN": token}
+		// Vaultwarden's own check takes the token against the PHC Dockwell wrote, and
+		// refuses another.
+		wrong := maps.Clone(values)
+		wrong["ADMIN_TOKEN_PLAIN"] = "not-the-token"
+		if res := ownerstep.Run(t.Context(), target, &resourcev1.OwnerRun{Steps: vaultOwner().GetSteps()[:1]}, wrong, false); res.Made {
+			t.Fatal("Vaultwarden took a token that isn't its admin token's")
+		}
+		res := ownerstep.Run(t.Context(), target, vaultOwner(), values, false)
+		if res.Made || !res.Waiting {
+			t.Fatalf("inviting Vaultwarden's owner: %+v, want waiting for them to register", res)
+		}
+		if strings.Contains(res.Said, token) {
+			t.Error("what the steps said holds the admin token")
+		}
+		// A second run skips the invite of a user who's there, and still waits.
+		if res := ownerstep.Run(t.Context(), target, vaultOwner(), values, true); res.Made || !res.Waiting {
+			t.Fatalf("a second run: %+v, want waiting", res)
+		}
+		// The owner registers as Bitwarden's web vault does, with what stands for the
+		// keys it would make from their master password: invited, with no mail, they
+		// take a token without one (Vaultwarden's register_verification_email).
+		said, _ := vaultRegister(t, addr)
+		if said != http.StatusOK {
+			t.Fatalf("the invited owner couldn't register: %d", said)
+		}
+		if yes, said := ownerstep.Read(t.Context(), target, vaultOwner(), vaultOwner().GetDone(), values); !yes {
+			t.Errorf("done doesn't read the owner registered: %s", said)
+		}
+	})
 	t.Run("n8n", func(t *testing.T) {
 		env := dockertest.Scope(t)
 		dockertest.Cleanup(t, client, docker.Project(env))
@@ -445,4 +525,35 @@ func TestAnAppsOwnerIsMadeOnRealDocker(t *testing.T) {
 			t.Errorf("a second call, reading done first: %v, %v", again, err)
 		}
 	})
+}
+
+// vaultRegister registers owner@example.com at Vaultwarden as an invited user does:
+// a token for the address, which an invite without mail gives at once, then the
+// account, with what stands for the keys a web vault makes from a master password.
+func vaultRegister(t *testing.T, addr string) (int, string) {
+	t.Helper()
+	post := func(path, body string) (int, []byte) {
+		req, _ := http.NewRequestWithContext(t.Context(), http.MethodPost, "http://"+addr+path, strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Accept", "application/json")
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer res.Body.Close()
+		b, _ := io.ReadAll(res.Body)
+		return res.StatusCode, b
+	}
+	status, said := post("/identity/accounts/register/send-verification-email", `{"email":"owner@example.com","name":"Owner"}`)
+	var token string
+	if status != http.StatusOK || json.Unmarshal(said, &token) != nil || token == "" {
+		t.Fatalf("Vaultwarden gave the invited owner no token: %d %s", status, said)
+	}
+	body, _ := json.Marshal(map[string]any{
+		"email": "owner@example.com", "masterPasswordHash": "ZTJlLW1hc3Rlci1wYXNzd29yZC1oYXNoLXN0YW5kLWlu", "emailVerificationToken": token,
+		"kdf": 0, "kdfIterations": 600000,
+		"userSymmetricKey": "2.AAAAAAAAAAAAAAAAAAAAAA==|AAAAAAAAAAAAAAAAAAAAAA==|AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+	})
+	status, said = post("/identity/accounts/register/finish", string(body))
+	return status, string(said)
 }

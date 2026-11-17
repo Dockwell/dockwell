@@ -163,6 +163,13 @@ type ResetRuns interface {
 	OwnerResetRun(ctx context.Context, environment string) (*resourcev1.OwnerRun, map[string]string, []string, error)
 }
 
+// Unsets reads what an environment's install takes out of its owner's service once
+// its owner is made (catalogapi.Handler.OwnerUnset): the service, and the names of
+// its environment's variables.
+type Unsets interface {
+	OwnerUnset(ctx context.Context, environment string) (string, []string, error)
+}
+
 // SetRuns has the runner read what makes an owner from runs.
 func (r *Runner) SetRuns(runs Runs) {
 	r.mu.Lock()
@@ -496,6 +503,12 @@ func (r *Runner) start(ctx context.Context, j job) {
 		st := r.make(ctx, j)
 		if err := r.record(context.WithoutCancel(ctx), st); err != nil {
 			r.logger().WarnContext(ctx, "can't record what came of making an app's owner", slog.String("error", err.Error()))
+			return
+		}
+		if st.State == store.OwnerMade {
+			if err := r.Unset(context.WithoutCancel(ctx), j.environment); err != nil {
+				r.logger().WarnContext(ctx, "can't take out what only making an app's owner needed", slog.String("environment", j.environment), slog.String("error", err.Error()))
+			}
 		}
 	}()
 }
@@ -769,6 +782,78 @@ func (r *Runner) releases(ctx context.Context, tx *store.Tx, environment string)
 	return out, nil
 }
 
+// Unset takes out of an environment's owner's service what its entry says only
+// making the owner needed, once it's made, as a change of Dockwell's applied at
+// once: Vaultwarden's ADMIN_TOKEN, which turns its admin page off (ADR 0105). It
+// changes nothing where the service sets none of it.
+func (r *Runner) Unset(ctx context.Context, environment string) error {
+	r.mu.Lock()
+	runs := r.runs
+	r.mu.Unlock()
+	u, ok := runs.(Unsets)
+	if !ok {
+		return nil
+	}
+	name, names, err := u.OwnerUnset(ctx, environment)
+	if err != nil || len(names) == 0 {
+		return err
+	}
+	var edit *revision.Edit
+	var project string
+	err = r.DB.View(ctx, func(tx *store.Tx) error {
+		res, err := tx.GetResource(ctx, string(service.Kind), environment, name)
+		if errors.Is(err, store.ErrNotFound) {
+			return nil
+		}
+		if err != nil || res.Spec == nil {
+			return err
+		}
+		spec, err := r.Keeper.Decode(ctx, tx, store.InRevision(res.ID, res.Kind, res.Revision), res.Spec)
+		if err != nil {
+			return err
+		}
+		svc, ok := spec.(*resourcev1.Service)
+		if !ok {
+			return nil
+		}
+		changed := false
+		for _, n := range names {
+			for _, m := range []map[string]string{svc.GetApp().GetEnv(), svc.GetVariables(), svc.GetSecrets()} {
+				if _, ok := m[n]; ok {
+					delete(m, n)
+					changed = true
+				}
+			}
+		}
+		if changed {
+			edit = &revision.Edit{Ref: resource.Ref{Kind: service.Kind, Scope: environment, Name: name}, Spec: svc, Base: res.Revision}
+		}
+		project, err = projectOf(ctx, tx, environment)
+		return err
+	})
+	if err != nil || edit == nil {
+		return err
+	}
+	by := revision.By{Actor: revision.SystemActor, Via: revision.ViaAutomatic}
+	plan, err := r.Engine.Propose(ctx, revision.Proposal{
+		Summary: "Take " + strings.Join(names, ", ") + " out of " + project + ": its owner exists", Actor: by.Actor, Via: by.Via,
+		Edits: []revision.Edit{*edit},
+		Notes: []revision.Note{{Reason: NoteOwnerUnset, Message: project + "'s owner exists, so " + strings.Join(names, ", ") + " goes from " + name + ", as only making the owner needed it", Names: names}},
+	})
+	if err != nil {
+		return err
+	}
+	if err := r.Engine.Apply(ctx, plan.Change); err != nil {
+		_ = r.Engine.Discard(context.WithoutCancel(ctx), plan.Change, by)
+		return err
+	}
+	return nil
+}
+
+// NoteOwnerUnset is the note of the change that takes out what only making an
+// owner needed.
+const NoteOwnerUnset = "owner_unset"
+
 // Release opens what an environment's hold kept, now that its owner is made or
 // opened, or a person opened its install, as a change of Dockwell's, applied at once.
 func (r *Runner) Release(ctx context.Context, environment string) error {
@@ -804,12 +889,13 @@ func (r *Runner) Release(ctx context.Context, environment string) error {
 	}
 	by := revision.By{Actor: revision.SystemActor, Via: revision.ViaAutomatic}
 	summary, note := "Open "+project+": its owner exists", revision.Note{Reason: "owner_made", Message: project + "'s owner exists, so what its hold kept answers everyone again"}
+	notes := []revision.Note{note}
 	if !owned {
 		summary, note = "Open "+project+": a person opened it", revision.Note{Reason: "install_opened", Message: "A person opened " + project + ", so what its hold kept after that answers everyone too"}
 	}
 	plan, err := r.Engine.Propose(ctx, revision.Proposal{
 		Summary: summary, Actor: by.Actor, Via: by.Via, Edits: edits,
-		Notes: []revision.Note{note},
+		Notes: notes,
 	})
 	if err != nil {
 		return err
