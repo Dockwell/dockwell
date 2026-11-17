@@ -8,11 +8,12 @@
 // it writes at Cloudflare. A record made in Cloudflare by hand is said with Replace it.
 // The fake engine can't run the ingress, so the plan isn't applied here.
 
+import { execFileSync } from "node:child_process";
 import { mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import type { Flow } from "./flows.ts";
-import { atWidth, onTop } from "./sheets.ts";
+import { atWidth, LONG_HOSTNAME, onTop } from "./sheets.ts";
 
 function fail(message: string): never {
   throw new Error(message);
@@ -51,7 +52,7 @@ function runCloudflared(proc: string): void {
 export const flow: Flow = {
   // After DNS providers connects Cloudflare.
   order: 99.5,
-  run: async (page, { origin, step, shoot }) => {
+  run: async (page, { origin, step, shoot, bin, data }) => {
     const api = process.env["DOCKWELL_TEST_CLOUDFLARE"];
     const proc = process.env["DOCKWELL_TEST_PROC"];
     if (!api || !proc) {
@@ -59,9 +60,27 @@ export const flow: Flow = {
       return;
     }
     runCloudflared(proc);
-    // The control plane keeps what a server's tunnels were for 30 s, so a check another
-    // flow made a moment ago without this run doesn't stand in for one with it.
-    await page.waitForTimeout(31_000);
+    const read = async <T>(path: string): Promise<T> =>
+      (await (await page.request.get(`${origin}${path}`)).json()) as T;
+    const { servers } = await read<{ servers: { id: string; name: string }[] }>("/v1/servers");
+    const server = servers.find((s) => s.name === LONG_HOSTNAME) ?? fail("the e2e server isn't listed");
+    // What a server's tunnels were is kept a while, so the check asks past it, as Check
+    // again does, until the run just started is seen (the review's B-M7).
+    const tunnelSeen = async (body: Record<string, unknown>) => {
+      let said = "";
+      for (let i = 0; i < 60; i++) {
+        const res = await page.request.post(`${origin}/dockwell.v1.DomainService/CheckDomain`, {
+          data: { serverId: server.id, domain: "probe.example.com", ...body },
+          headers: { "Content-Type": "application/json", "Cache-Control": "no-cache", Origin: origin },
+        });
+        said = await res.text();
+        const answer = JSON.parse(said) as { cloudflare?: { ways?: { way?: string; off?: string }[] } };
+        if (answer.cloudflare?.ways?.some((w) => w.way === "ROUTE_WAY_SERVER_TUNNEL" && !w.off)) return;
+        await page.waitForTimeout(1000);
+      }
+      fail(`the check never saw the server's tunnel: ${said}`);
+    };
+    await tunnelSeen({ publish: {} });
     const cloudflare = async (path: string, init: RequestInit = {}) =>
       (await (
         await fetch(`${api}${path}`, {
@@ -160,12 +179,138 @@ export const flow: Flow = {
       }
 
       step("adding a domain through Cloudflare: the sheet on a phone, the name over the zone");
+      // (The app's page path follows, once its project is the provider's.)
       await sub.fill("docs");
       await sheet.getByText(/^Through the tunnel web-1 on /).waitFor({ timeout: 30_000 });
       await atWidth(page, { width: 390, height: 844 });
       await shoot(page, "publish-domain-phone");
       await atWidth(page, { width: 1440, height: 1000 });
       await sheet.getByRole("button", { name: "Cancel" }).click();
+
+      step(
+        "adding a domain through Cloudflare: the provider serves an app's project, and sets its zone to Full (strict), applied",
+      );
+      const cli = (...args: string[]) =>
+        execFileSync(bin, [...args, "--data-dir", data, "--log-format", "json"], {
+          encoding: "utf8",
+          env: {
+            ...process.env,
+            USER: "mira",
+            DOCKWELL_URL: "",
+            DOCKWELL_TOKEN: "",
+            XDG_CONFIG_HOME: join(data, "cli-publish"),
+          },
+        });
+      cli("login", "--local");
+      cli("services", "create", "wiki-app", "--project", "default", "--app-image", "nginx:1.27-alpine", "--yes");
+      const listedApps = await read<{ services: { id: string; resource: { name: string; scope: string } }[] }>(
+        "/v1/services",
+      );
+      const appEnv =
+        listedApps.services.find((sv) => sv.resource.name === "wiki-app")?.resource.scope ??
+        fail("wiki-app wasn't made");
+      const envs = await read<{ resources: { id: string; resource: { scope: string } }[] }>(
+        "/v1/resources?kind=environment",
+      );
+      const project =
+        envs.resources.find((r) => r.id === appEnv)?.resource.scope ?? fail("wiki-app's project isn't listed");
+      const planned = JSON.parse(
+        cli(
+          "dns-providers",
+          "update",
+          "cloudflare",
+          "--provider",
+          "cloudflare",
+          "--zones",
+          "example.com",
+          "--zones",
+          "example.org",
+          "--projects",
+          project,
+          "--strict-zones",
+          "example.com",
+          "--plan-only",
+          "--json",
+        ),
+      ) as { change?: { id?: string } };
+      await page.goto(`${origin}/changes/${planned.change?.id ?? fail("the provider's plan has no change")}`);
+      const providerPlan = onTop(page.getByRole("dialog", { name: "Review plan" }));
+      await providerPlan
+        .getByRole("region", { name: "At Cloudflare" })
+        .getByText("Set example.com to Full (strict) at Cloudflare")
+        .waitFor({ timeout: 30_000 });
+      await providerPlan.getByRole("button", { name: /^Apply plan/ }).click();
+      await page
+        .getByRole("dialog", { name: /^(Applied|cloudflare is changed)$/ })
+        .getByRole("button", { name: "Done" })
+        .click();
+      const ssl = (await cloudflare(`/zones/${zoneId}/settings/ssl`)) as unknown as { result: { value: string } };
+      if (ssl.result.value !== "strict") fail(`the zone's mode after the plan: ${ssl.result.value}`);
+
+      step("adding a domain through Cloudflare: from an app's page, the tunnel by default, another way one step away");
+      const { services } = await read<{ services: { id: string; resource: { name: string } }[] }>("/v1/services");
+      const app = services.find((sv) => sv.resource.name === "wiki-app") ?? fail("wiki-app isn't there");
+      await tunnelSeen({ projectId: project });
+      await page.goto(`${origin}/apps/${app.id}`);
+      await page.getByRole("button", { name: "Add a domain" }).first().click();
+      const add = page.getByRole("dialog", { name: "Add a domain to wiki-app" });
+      await add.getByRole("combobox", { name: "Zone" }).waitFor({ timeout: 20_000 });
+      const addSub = add.getByRole("textbox", { name: "Subdomain" });
+      await addSub.fill("blog");
+      await add.getByText(/^Through the tunnel web-1 on /).waitFor({ timeout: 30_000 });
+      await add
+        .getByText(/^Reaches/)
+        .first()
+        .waitFor();
+      await shoot(page, "publish-domain-app");
+      await add.getByRole("button", { name: "Change the way in" }).click();
+      await add
+        .getByRole("radiogroup", { name: "Way in" })
+        .getByRole("radio", { name: /Something else in front/ })
+        .click();
+      await add.getByRole("button", { name: /Review plan/ }).click();
+      const frontPlan = onTop(page.getByRole("dialog", { name: "Review plan" }));
+      await frontPlan.waitFor({ timeout: 30_000 });
+      if ((await frontPlan.getByRole("region", { name: "At Cloudflare" }).count()) > 0) {
+        fail("Something else in front still writes at Cloudflare");
+      }
+      await frontPlan.getByRole("button", { name: /Cancel/ }).click();
+      await add.waitFor();
+
+      step("adding a domain through Cloudflare: Replace it, and the plan's replace step");
+      const hand = (
+        await cloudflare(`/zones/${zoneId}/dns_records`, {
+          method: "POST",
+          body: JSON.stringify({
+            type: "A",
+            name: "vpn.example.com",
+            content: "203.0.113.9",
+            ttl: 300,
+            proxied: false,
+          }),
+        })
+      ).result as { id: string };
+      try {
+        await add.getByRole("button", { name: "Change the way in" }).click();
+        await add
+          .getByRole("radiogroup", { name: "Way in" })
+          .getByRole("radio", { name: /Through the tunnel web-1/ })
+          .click();
+        await addSub.fill("vpn");
+        await add.getByText("A record exists: A 203.0.113.9, made in Cloudflare").waitFor({ timeout: 30_000 });
+        await add.getByRole("button", { name: "Replace it" }).click();
+        await add.getByRole("button", { name: /Review plan/ }).click();
+        const replacePlan = onTop(page.getByRole("dialog", { name: "Review plan" }));
+        await replacePlan
+          .getByRole("region", { name: "At Cloudflare" })
+          .getByText("Replace the DNS record for vpn.example.com at Cloudflare, keeping what was there")
+          .waitFor({ timeout: 30_000 });
+        await shoot(page, "publish-domain-replace-plan");
+        await replacePlan.getByRole("button", { name: /Cancel/ }).click();
+        await add.getByRole("button", { name: "Cancel" }).click();
+      } finally {
+        await cloudflare(`/zones/${zoneId}/dns_records/${hand.id}`, { method: "DELETE" });
+      }
     } finally {
       // The run goes, so nothing after reads a tunnel the machine doesn't run.
       rmSync(join(proc, PID), { recursive: true, force: true });
