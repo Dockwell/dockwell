@@ -1312,6 +1312,18 @@ func (c *Caddy) bootstrap(panel *ingress.PanelSite, plainOnly bool) ([]byte, err
 			"config": map[string]any{"persist": true},
 		},
 		"logging": map[string]any{"logs": map[string]any{
+			// What Caddy says of a request it couldn't serve names its address,
+			// less a setup link's key and a sign-in's code and state, which would
+			// otherwise sit in the ingress's log while they still work (ADR 0105, the
+			// review's M2).
+			"default": map[string]any{"encoder": map[string]any{
+				"format": "filter", "wrap": map[string]any{"format": "json"},
+				"fields": map[string]any{"request>uri": map[string]any{"filter": "query", "actions": []any{
+					map[string]any{"type": "delete", "parameter": "key"},
+					map[string]any{"type": "delete", "parameter": "code"},
+					map[string]any{"type": "delete", "parameter": "state"},
+				}}},
+			}},
 			// What certificates are doing, for the agent, as Caddy has no API
 			// that says.
 			"dockwell_tls": map[string]any{

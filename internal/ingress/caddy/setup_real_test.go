@@ -8,6 +8,8 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -75,5 +77,46 @@ func TestASetupLinkGoesThroughTheAgentOnRealCaddy(t *testing.T) {
 	}
 	if got = visit(t, other, http.MethodGet, home, nil); got.status != http.StatusServiceUnavailable {
 		t.Errorf("another browser gets %d", got.status)
+	}
+}
+
+// On real Caddy, a setup link's request that the agent doesn't answer is a 502, and
+// what Caddy logs of it holds no key, nor a sign-in's code or state (the review's M2).
+func TestCaddyLogsNoSetupKeyOnRealCaddy(t *testing.T) {
+	c := startCaddy(t)
+	const domain = "blog.example.net"
+	// No agent answers on the sign-in socket.
+	route := ingress.Route{ID: "dockwell.blog.www", Domain: domain, Upstreams: []string{seenApp(t)}, Held: true, Setup: c.SignInDial()}
+	put(t, c, route)
+	b := c.browser(t, domain)
+	link := "https://" + domain + "/.well-known/dockwell-setup?key=SECRETKEY123&code=SECRETCODE456&state=SECRETSTATE789&keep=this"
+	var got visited
+	for range 100 {
+		req, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, link, http.NoBody)
+		if res, err := b.Do(req); err == nil {
+			_ = res.Body.Close()
+			got.status = res.StatusCode
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	if got.status != http.StatusBadGateway {
+		t.Fatalf("with no agent, the link answers %d, want 502", got.status)
+	}
+	var out []byte
+	for range 50 {
+		out, _ = os.ReadFile(filepath.Join(c.Dir, "caddy.out"))
+		if strings.Contains(string(out), "dockwell-setup") {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	if !strings.Contains(string(out), "dockwell-setup") || !strings.Contains(string(out), "keep=this") {
+		t.Fatalf("Caddy logged nothing of the request:\n%s", out)
+	}
+	for _, secret := range []string{"SECRETKEY123", "SECRETCODE456", "SECRETSTATE789"} {
+		if strings.Contains(string(out), secret) {
+			t.Errorf("Caddy's log holds %s:\n%s", secret, out)
+		}
 	}
 }
