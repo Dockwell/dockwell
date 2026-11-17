@@ -49,8 +49,8 @@ func (c *cache) slowed(now time.Time) bool {
 	return now.Before(c.slow)
 }
 
-// note marks a 429 from Cloudflare, and gives err back.
-func (c *cache) note(err error, now time.Time) error {
+// slowOn marks a 429 from Cloudflare, and gives err back.
+func (c *cache) slowOn(err error, now time.Time) error {
 	var api *dnsproviders.APIError
 	if errors.As(err, &api) && api.Status == http.StatusTooManyRequests {
 		c.mu.Lock()
@@ -97,7 +97,7 @@ func (c *cache) get(key string, now time.Time, read func() (any, error)) (any, e
 	c.mu.Unlock()
 	v, err := read()
 	if err != nil {
-		return nil, c.note(err, now)
+		return nil, c.slowOn(err, now)
 	}
 	c.mu.Lock()
 	c.data[key] = cached{value: v, at: now}
@@ -110,7 +110,7 @@ func (c *cache) get(key string, now time.Time, read func() (any, error)) (any, e
 func readFor[T any](p *Publisher, t *target, key string, read func() (T, error)) (T, error) {
 	if !t.cached {
 		v, err := read()
-		return v, p.cache.note(err, p.now())
+		return v, p.cache.slowOn(err, p.now())
 	}
 	v, err := p.cache.get(key, p.now(), func() (any, error) { return read() })
 	if err != nil {
@@ -169,7 +169,7 @@ func (p *Publisher) Check(ctx context.Context, a CheckAsk) (*dockwellv1.Cloudfla
 	}
 	there, err := t.cf.RecordsAt(ctx, t.zone, name)
 	if err != nil {
-		return nil, p.cache.note(err, now)
+		return nil, p.cache.slowOn(err, now)
 	}
 	var ours []store.CloudflareRecord
 	if err := p.DB.View(ctx, func(tx *store.Tx) error {

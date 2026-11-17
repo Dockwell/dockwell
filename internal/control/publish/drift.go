@@ -138,7 +138,7 @@ func (p *Publisher) Drift(ctx context.Context) error {
 	tooMany := func(err error) bool {
 		var api *dnsproviders.APIError
 		if errors.As(err, &api) && api.Status == http.StatusTooManyRequests {
-			_ = p.cache.note(err, p.now())
+			_ = p.cache.slowOn(err, p.now())
 			return true
 		}
 		return false

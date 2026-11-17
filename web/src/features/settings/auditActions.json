@@ -35,6 +35,7 @@
   "change.planned",
   "claim_link.create",
   "cloudflare.gone",
+  "cloudflare.replaced",
   "cloudflare.write",
   "dns_provider.check",
   "file.change_unknown",

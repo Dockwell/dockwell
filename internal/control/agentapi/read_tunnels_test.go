@@ -51,7 +51,14 @@ func TestReadTunnelsAsksTheAgentNow(t *testing.T) {
 		tun := srv.GetInventory().GetTunnels()
 		return len(tun) == 1 && tun[0].GetTunnelId() == tunnelID && tun[0].GetConnectorId() == "connector-run-i"
 	})
+	// The session the inventory came on may be a reconnect's, still saying hello
+	// under load, so it's waited for as the inventory is.
+	deadline := time.Now().Add(5 * time.Second)
 	session, ok := s.agents.Session(id.ServerID)
+	for (!ok || !session.ReadsTunnels()) && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+		session, ok = s.agents.Session(id.ServerID)
+	}
 	if !ok || !session.ReadsTunnels() {
 		t.Fatal("the agent should say it reads tunnels")
 	}
