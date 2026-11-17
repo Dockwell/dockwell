@@ -25,6 +25,9 @@ const (
 	// CloudflareUnreadable is what Dockwell can't read: its provider isn't connected
 	// any more, or Cloudflare refuses the token.
 	CloudflareUnreadable = "unreadable"
+	// CloudflareTunnelShared is a rule whose tunnel runs on another server too, so
+	// Cloudflare sends some of the zone's names to a server with no route for them.
+	CloudflareTunnelShared = "tunnel_shared"
 )
 
 // CloudflareRecord is a DNS record Dockwell wrote or took on, as it wrote it.

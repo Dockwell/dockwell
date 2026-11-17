@@ -144,6 +144,10 @@ func (p *Publisher) target(ctx context.Context, provider, name string) (*target,
 	return nil, Unreadable{fmt.Errorf("%s's token doesn't reach %s at Cloudflare any more. Check the provider again under Integrations", provider, zoneName)}
 }
 
+// ErrShared is a tunnel connected from somewhere besides the server it's proved on,
+// which Cloudflare would send a zone's names to as well.
+var ErrShared = errors.New("its names go to whichever connection answers")
+
 // AdminCaller says the caller ctx carries is an admin of the install, or that it
 // carries none, as the control plane's own work does.
 func AdminCaller(ctx context.Context) bool {
@@ -612,7 +616,7 @@ func (p *Publisher) proveTunnel(ctx context.Context, server string, t *target, t
 		if byAddress && len(c.Connections) > 0 && !slices.ContainsFunc(c.Connections, func(conn dnsproviders.Connection) bool { return !slices.Contains(facts.WaysOut, conn.OriginIP) }) {
 			continue
 		}
-		return nil, fmt.Errorf("the tunnel runs on %s and somewhere else too, so Dockwell can't send a name to one of them", facts.Name)
+		return nil, fmt.Errorf("the tunnel runs on %s and somewhere else too, so Dockwell can't send a name to one of them: %w", facts.Name, ErrShared)
 	}
 	if byAddress {
 		return here[0], nil

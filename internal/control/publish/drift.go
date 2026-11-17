@@ -200,15 +200,49 @@ func (p *Publisher) driftTunnel(ctx context.Context, tunnel string, held []store
 	if err != nil {
 		return err
 	}
+	shared, err := p.sharedNow(ctx, t, tunnel, held)
+	if err != nil {
+		return err
+	}
 	return p.markRules(ctx, tunnel, held, func(r *store.CloudflareRule) string {
 		switch at := doc.Index(r.Hostname, r.Path); {
 		case at < 0:
 			return store.CloudflareGone
 		case !SameService(doc.Rules[at].Service, r.Service):
 			return store.CloudflareChanged
+		case shared:
+			return store.CloudflareTunnelShared
 		}
 		return store.CloudflarePublished
 	}, cfg.Version)
+}
+
+// sharedNow says the tunnel runs somewhere besides the server its rules were
+// written for, as a second server that joined it since: Cloudflare then sends the
+// zone's names to whichever answers (ADR 0104, section 3). Where a server's tunnels
+// can't be read now, as its agent is away, nothing is said of it.
+func (p *Publisher) sharedNow(ctx context.Context, t *target, tunnel string, held []store.CloudflareRule) (bool, error) {
+	var servers []string
+	for i := range held {
+		if s := held[i].ServerID; s != "" && !slices.Contains(servers, s) {
+			servers = append(servers, s)
+		}
+	}
+	for _, server := range servers {
+		facts, err := p.Server(ctx, server)
+		if err != nil {
+			continue
+		}
+		_, err = p.proveTunnel(ctx, server, t, tunnel, facts)
+		var api *dnsproviders.APIError
+		switch {
+		case errors.Is(err, ErrShared):
+			return true, nil
+		case errors.As(err, &api) && api.Status == http.StatusTooManyRequests:
+			return false, err
+		}
+	}
+	return false, nil
 }
 
 // markRules marks each of a tunnel's rules with what stateOf finds, putting each one
@@ -237,7 +271,8 @@ func (p *Publisher) markRules(ctx context.Context, tunnel string, held []store.C
 			if unchanged && state == r.State || state == r.State && version < 0 {
 				continue
 			}
-			if state != store.CloudflarePublished && r.State == store.CloudflarePublished {
+			// A tunnel run elsewhere too isn't something gone: the alert says it.
+			if state != store.CloudflarePublished && state != store.CloudflareTunnelShared && r.State == store.CloudflarePublished {
 				gone = append(gone, told{Provider: r.Provider, Target: r.Zone, Name: r.Hostname, Action: int(resource.ProviderAddRule), Drift: true, Version: max(version, 0)})
 			}
 			if err := tx.MarkCloudflareRule(ctx, r.TunnelID, r.Hostname, r.Path, state, now); err != nil {

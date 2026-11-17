@@ -164,6 +164,9 @@ func (s *signals) unpublished(ctx context.Context, r rule) ([]finding, error) {
 			f.detail = "Every domain in " + r.Zone + " published through it can't be reached. Publish them another way from Domains."
 		case store.CloudflareUnreadable:
 			f.title, f.detail = cantRead(r.Zone)
+		case store.CloudflareTunnelShared:
+			f.title = "The tunnel that serves " + r.Zone + " runs on another server too"
+			f.detail = "Cloudflare sends " + r.Zone + "'s names to whichever server answers, so some reach one with no route for them. Stop the tunnel there, or publish them another way from Domains."
 		default:
 			f.title = r.Hostname + " is gone from its tunnel"
 			f.detail = "Every domain in " + r.Zone + " published through it can't be reached. Put it back from Domains."

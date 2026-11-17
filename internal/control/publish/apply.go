@@ -82,7 +82,7 @@ func (p *Publisher) apply(ctx context.Context, changeID string, route revision.P
 	case resource.ProviderTakeOnRecord:
 		return p.takeOnRecord(ctx, changeID, route, s)
 	case resource.ProviderAddRule:
-		return p.addRule(ctx, changeID, route.ID, s)
+		return p.addRule(ctx, changeID, route.ID, route.Server, s)
 	case resource.ProviderRemoveRule:
 		return p.removeRule(ctx, changeID, route.ID, s, route.Before.GetDomain())
 	case resource.ProviderSetZoneMode:
@@ -397,7 +397,7 @@ func (p *Publisher) lock(ctx context.Context, tunnel, holder string) (func(), er
 
 // addRule adds the zone's rule, or its apex's, to a tunnel, as the document reads
 // now: spliced into what was read, checked before it's written, and read back.
-func (p *Publisher) addRule(ctx context.Context, changeID, routeID string, s resource.ProviderStep) (string, error) {
+func (p *Publisher) addRule(ctx context.Context, changeID, routeID, server string, s resource.ProviderStep) (string, error) {
 	t, err := p.target(ctx, s.Provider, s.Name)
 	if err != nil {
 		// A rule's name is a wildcard; its zone is what follows the "*.".
@@ -431,7 +431,7 @@ func (p *Publisher) addRule(ctx context.Context, changeID, routeID string, s res
 		return p.DB.Update(ctx, func(tx *store.Tx) error {
 			if err := tx.PutCloudflareRule(ctx, store.CloudflareRule{
 				TunnelID: s.Tunnel, Hostname: s.Rule.Hostname, Account: s.Account, Provider: s.Provider, Zone: t.zone.Name, Service: s.Rule.Service,
-				ReadDoc: string(read.Config), WrittenDoc: string(written.Raw()), Version: version, ChangeID: changeID, CreatedAt: p.now(),
+				ReadDoc: string(read.Config), WrittenDoc: string(written.Raw()), Version: version, ChangeID: changeID, CreatedAt: p.now(), ServerID: server,
 			}); err != nil {
 				return err
 			}

@@ -622,6 +622,25 @@ func (a *API) SetToken(token string, t *Token) {
 	a.Tokens[token] = *t
 }
 
+// Connect gives the tunnel id one more connector, as cloudflared started for it
+// somewhere does; Disconnect takes the connector cid away.
+func (a *API) Connect(id string, c Connector) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if t := a.Tunnels[id]; t != nil {
+		t.Connectors = append(t.Connectors, c)
+	}
+}
+
+// Disconnect takes the connector cid off the tunnel id.
+func (a *API) Disconnect(id, cid string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if t := a.Tunnels[id]; t != nil {
+		t.Connectors = slices.DeleteFunc(t.Connectors, func(c Connector) bool { return c.ID == cid })
+	}
+}
+
 // DeleteTunnel deletes the tunnel id, as the dashboard does once its connections
 // closed.
 func (a *API) DeleteTunnel(id string) {

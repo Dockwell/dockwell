@@ -282,3 +282,48 @@ func TestAKeptRecordIsListedAndPutBack(t *testing.T) {
 		}
 	})
 }
+
+// A tunnel that gains a second server after Dockwell wrote its rule, as cloudflared
+// started for it somewhere else, is found by the drift timer: the domain's row says
+// so, and the domain alert raises it. Once it's gone from there, the row is
+// published again (ADR 0104, section 3).
+func TestDriftSaysATunnelRunsElsewhereToo(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		s := newPublishStandOn(t, backend)
+		s.applied(t, propose(t, s.person, "Publish wiki", s.published("wiki", "wiki.example.com")))
+		dc := dockwellv1connect.NewDomainServiceClient(s.b, s.b.origin, connect.WithProtoJSON())
+		stateOf := func() dockwellv1.PublishedState {
+			t.Helper()
+			listed, err := dc.ListDomains(t.Context(), connect.NewRequest(&dockwellv1.ListDomainsRequest{}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, d := range listed.Msg.GetDomains() {
+				if d.GetName() == "wiki.example.com" && len(d.GetPublished()) == 1 {
+					return d.GetPublished()[0].GetState()
+				}
+			}
+			t.Fatal("no row for wiki")
+			return 0
+		}
+		drift := s.f.server.publisher.Drift
+		if err := drift(t.Context()); err != nil || stateOf() != dockwellv1.PublishedState_PUBLISHED_STATE_PUBLISHED {
+			t.Fatalf("before: %v, %v", err, stateOf())
+		}
+		s.cf.Connect(webOne, cftest.Connector{ID: "connector-elsewhere"})
+		if err := drift(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		if got := stateOf(); got != dockwellv1.PublishedState_PUBLISHED_STATE_TUNNEL_SHARED {
+			t.Fatalf("with a second server: %v", got)
+		}
+		s.cf.Disconnect(webOne, "connector-elsewhere")
+		if err := drift(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		if got := stateOf(); got != dockwellv1.PublishedState_PUBLISHED_STATE_PUBLISHED {
+			t.Fatalf("once it's gone from there: %v", got)
+		}
+	})
+}
