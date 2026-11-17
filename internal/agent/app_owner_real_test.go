@@ -37,21 +37,35 @@ func jsonRequest(port uint32, method, path, body string, headers map[string]stri
 	}}}
 }
 
-// giteaOwner makes Gitea's owner with a password Gitea makes up, which it prints,
-// and then sets the owner's own through its API, so the real password is never in
-// any process's arguments (the review's M2).
+// giteaOwner makes Gitea's owner with a password Gitea makes up and no one keeps,
+// then has Gitea make an admin token, which the step captures, sets the owner's own
+// password through its API with it, and deletes it, signing in as the owner. So the
+// real password is never in any process's arguments (the review's M2), and a second
+// try after one that stopped between the user and its password skips making the user
+// again, as Gitea refuses a second (the re-check's N6).
 func giteaOwner() *resourcev1.OwnerRun {
 	return &resourcev1.OwnerRun{
 		Service: "web", Email: "owner@example.com", User: "owner", Password: "OWNER_PASSWORD",
 		Steps: []*resourcev1.OwnerStep{
+			{
+				Step: &resourcev1.OwnerStep_Command{Command: &resourcev1.OwnerCommand{
+					User:  "git",
+					Words: []string{"sh", "-c", `gitea admin user create --admin --username "$OWNER_USER" --email "$OWNER_EMAIL" --random-password --must-change-password=false`},
+				}},
+				Unless: &resourcev1.OwnerCheck{Request: &resourcev1.OwnerRequest{Path: "/api/v1/users/${OWNER_USER}", Port: 3000}},
+			},
 			{Step: &resourcev1.OwnerStep_Command{Command: &resourcev1.OwnerCommand{
 				User:    "git",
-				Words:   []string{"sh", "-c", `gitea admin user create --admin --username "$OWNER_USER" --email "$OWNER_EMAIL" --random-password --must-change-password=false`},
-				Capture: map[string]string{"MADE_UP": `random password is '([^']+)'`},
+				Words:   []string{"sh", "-c", `n="dockwell-$(date +%s%N)"; echo "name=$n"; gitea admin user generate-access-token --username "$OWNER_USER" --token-name "$n" --scopes write:admin --raw`},
+				Capture: map[string]string{"TOKEN": `(?m)^([0-9a-f]{40})\s*$`, "TOKEN_NAME": `name=(\S+)`},
 			}}},
 			jsonRequest(3000, http.MethodPatch, "/api/v1/admin/users/${OWNER_USER}",
 				`{"password":"${OWNER_PASSWORD}","login_name":"${OWNER_USER}","source_id":0,"must_change_password":false}`,
-				map[string]string{"Authorization": "Basic ${DOCKWELL_BASIC_MADE_UP}"}),
+				map[string]string{"Authorization": "token ${TOKEN}"}),
+			{Step: &resourcev1.OwnerStep_Request{Request: &resourcev1.OwnerRequest{
+				Method: http.MethodDelete, Path: "/api/v1/users/${OWNER_USER}/tokens/${TOKEN_NAME}", Port: 3000,
+				Headers: map[string]string{"Authorization": "Basic ${DOCKWELL_OWNER_BASIC}"},
+			}}},
 		},
 		Done: &resourcev1.OwnerCheck{Request: &resourcev1.OwnerRequest{Path: "/api/v1/user", Port: 3000, Headers: map[string]string{"Authorization": "Basic ${DOCKWELL_OWNER_BASIC}"}}},
 	}
@@ -197,8 +211,15 @@ func TestAnAppsOwnerIsMadeOnRealDocker(t *testing.T) {
 		answers(t, "http://"+addr+"/api/healthz")
 		password := newPassword()
 		values := map[string]string{"OWNER_EMAIL": "owner@example.com", "OWNER_USER": "owner", "OWNER_PASSWORD": password}
-		if res := ownerstep.Run(t.Context(), target, giteaOwner(), values, false); !res.Made {
-			t.Fatalf("making Gitea's owner: %+v", res)
+		// A first try that made the user and stopped before its password, then a
+		// second, which reads done first and finishes.
+		partial := giteaOwner()
+		partial.Steps = partial.GetSteps()[:1]
+		if res := ownerstep.Run(t.Context(), target, partial, values, false); !res.Made {
+			t.Fatalf("making Gitea's user alone: %+v", res)
+		}
+		if res := ownerstep.Run(t.Context(), target, giteaOwner(), values, true); !res.Made {
+			t.Fatalf("making Gitea's owner after a try that stopped: %+v", res)
 		}
 		if got := basicStatus(t, "http://"+addr+"/api/v1/user", "owner", password); got != http.StatusOK {
 			t.Errorf("the owner signs in to Gitea with their own password: %d", got)
@@ -221,10 +242,14 @@ func TestAnAppsOwnerIsMadeOnRealDocker(t *testing.T) {
 		run(t, client, env, "db", mysqlImage, network, docker.Config{Env: []string{
 			"MYSQL_ROOT_PASSWORD=the-administrators", "MYSQL_DATABASE=ghost", "MYSQL_USER=ghost", "MYSQL_PASSWORD=the-blogs",
 		}})
+		// The entry's own settings (internal/catalog/snapshot/entries/ghost.yaml), but
+		// url: its default, http://localhost:<port>, is where an install without a
+		// domain is reached, and the entry writes https://<domain> once one routes
+		// (ADR 0103), which is the case a redirect would break. NODE_ENV is the
+		// image's own default, said here so the test can't run in development.
 		run(t, client, env, "web", ghostImage, network, docker.Config{Env: []string{
 			"NODE_ENV=production", "url=https://blog.example.com", "database__client=mysql", "database__connection__host=db",
 			"database__connection__user=ghost", "database__connection__password=the-blogs", "database__connection__database=ghost",
-			"security__staffDeviceVerification=false",
 		}})
 		target, err := healthyContainer(t.Context(), client, env, "web")
 		if err != nil {
@@ -247,9 +272,15 @@ func TestAnAppsOwnerIsMadeOnRealDocker(t *testing.T) {
 			t.Fatalf("making Ghost's owner: %+v", res)
 		}
 		signIn := ghostStep(http.MethodPost, "/ghost/api/admin/session", `{"username":"{{OWNER_EMAIL}}","password":"{{OWNER_PASSWORD}}"}`)
-		out, code, err := target.Exec(t.Context(), signIn.GetWords(), "", []string{"DOCKWELL_HOST=blog.example.com", "DOCKWELL_SCHEME=https", "OWNER_EMAIL=owner@example.com", "OWNER_PASSWORD=" + password})
-		if err != nil || code != 0 {
-			t.Errorf("the owner signs in to Ghost at https://blog.example.com: %d %v %s", code, err, out)
+		// With the entry's settings, Ghost asks a new device for a code it emails, so a
+		// fresh client signing in with the right password is told its device needs
+		// verifying: that, or a session, says the password is right, where a wrong one
+		// answers that it's incorrect.
+		out, _, err := target.Exec(t.Context(), signIn.GetWords(), "", []string{"DOCKWELL_HOST=blog.example.com", "DOCKWELL_SCHEME=https", "OWNER_EMAIL=owner@example.com", "OWNER_PASSWORD=" + password})
+		said := string(out)
+		signedIn := strings.HasPrefix(said, "201 ") || strings.HasPrefix(said, "403 ") && strings.Contains(strings.ToLower(said), "verif")
+		if err != nil || !signedIn {
+			t.Errorf("the owner signs in to Ghost at https://blog.example.com: %v %s", err, said)
 		}
 		if yes, said := ownerstep.Read(t.Context(), target, ghostOwner(), ghostOwner().GetDone(), values); !yes {
 			t.Errorf("done doesn't read Ghost's owner made: %s", said)

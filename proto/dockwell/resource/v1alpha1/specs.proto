@@ -727,6 +727,10 @@ message OwnerStep {
     OwnerCommand command = 1;
     OwnerRequest request = 2;
   }
+  // Skips the step where this reads yes, as a step that made what it makes on a try
+  // that stopped after it, such as a user that exists already, so a second try goes
+  // on to the steps after it.
+  OwnerCheck unless = 3;
 }
 
 // OwnerCommand is a command run in the service's running container, as docker exec
@@ -750,7 +754,7 @@ message OwnerCommand {
 // OwnerRequest is an HTTP request to the service's container, from its agent. It
 // never follows a redirect.
 message OwnerRequest {
-  // GET unless set, or POST, PUT or PATCH.
+  // GET unless set, or POST, PUT, PATCH or DELETE.
   string method = 1;
   // The path, such as "/rest/owner/setup".
   string path = 2;

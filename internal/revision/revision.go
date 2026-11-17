@@ -269,6 +269,10 @@ type Edit struct {
 	// Owner says the edit is the catalog's own write of an app's owner, as an
 	// install's or SetCatalogOwnerEmail's, which no other write may make (ADR 0105).
 	Owner bool
+	// Pin says the edit is the catalog's own write of a project's pin, as an
+	// install's or an upgrade's, which alone may change what the pin says the install
+	// runs and where it's reached (ADR 0105).
+	Pin bool
 	// Restart asks for the resource to restart, with its spec as it is.
 	Restart bool
 	// Restore asks for the resource's data to come back from a backup, with its

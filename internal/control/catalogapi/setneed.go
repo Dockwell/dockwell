@@ -441,6 +441,24 @@ func (h *Handler) OpenCatalogInstall(ctx context.Context, req *connect.Request[d
 				}
 			}
 		}
+		// A route to one of its ports on the server, from any environment, held as it
+		// published there (the re-check's N1).
+		if h.holds != nil {
+			stale, err := h.holds.HeldHostPortRoutes(ctx, tx, env)
+			if err != nil {
+				return err
+			}
+			for _, r := range stale {
+				if slices.ContainsFunc(edits, func(ed *dockwellv1.Edit) bool {
+					return ed.GetResource().GetKind() == string(r.Ref.Kind) && ed.GetResource().GetScope() == r.Ref.Scope && ed.GetResource().GetName() == r.Ref.Name
+				}) {
+					continue
+				}
+				spec := proto.CloneOf(r.Spec)
+				spec.Held = false
+				edits = append(edits, &dockwellv1.Edit{Resource: &dockwellv1.ResourceRef{Kind: string(r.Ref.Kind), Scope: r.Ref.Scope, Name: r.Ref.Name}, Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Route{Route: spec}}})
+			}
+		}
 		return nil
 	})
 	if err != nil {

@@ -742,3 +742,90 @@ func TestOpeningAnOwnersInstallOpensItInThatChange(t *testing.T) {
 		t.Errorf("after Open: %v, held %v", in.GetOwner(), in.GetHeld())
 	}
 }
+
+// A route to a port on the server, made before a held install published there,
+// would dial the held app on 127.0.0.1 from then on, so it's held as the port is
+// published, and opening the install releases it with the rest (the re-check's N1).
+func TestARouteMadeBeforeAHeldAppTakesItsPortIsHeld(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		o := startOwning(t, backend, ownedEntry(1, "1.0", firstRelease, ownerInputs, ownerTop), &dockwellv1.InstallCatalogEntryRequest{Id: "thing"})
+		o.addRoute("hp", "port.example.com", 0, 18200)
+		if o.route("hp").GetHeld() {
+			t.Fatal("a route to a port nothing publishes is held")
+		}
+		token := createToken(t, o.b, dockwellv1.TokenScope_TOKEN_SCOPE_READ_WRITE)
+		tc := dockwellv1connect.NewChangeServiceClient(bearer{token: token, rt: o.b.client.Transport}, o.b.origin, connect.WithProtoJSON())
+		web := proto.CloneOf(o.stored("web"))
+		web.GetApp().Ports = append(web.GetApp().Ports, &resourcev1.PortMapping{HostPort: 18200, ContainerPort: 80})
+		if got := apply(t, tc, propose(t, tc, "Another port", &dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Kind: "service", Scope: o.env, Name: "web"},
+			Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: web}},
+		})); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+			t.Fatalf("the port ended %v: %s", got.GetState(), got.GetError())
+		}
+		if !o.route("hp").GetHeld() {
+			t.Error("a route made before to the held app's new port answers everyone")
+		}
+		o.open()
+		if o.route("hp").GetHeld() {
+			t.Error("opening the install left the route to its port held")
+		}
+	})
+}
+
+// No write but the catalog's changes what the pin says the install runs, its values
+// and where it's reached, which the owner's run reads (the re-check's N2).
+func TestOnlyTheCatalogChangesWhatAPinSaysItRuns(t *testing.T) {
+	t.Parallel()
+	o := startOwning(t, store.SQLite, ownedEntry(1, "1.0", firstRelease, ownerInputs, ownerTop), &dockwellv1.InstallCatalogEntryRequest{Id: "thing"})
+	before := proto.CloneOf(o.pin())
+	token := createToken(t, o.b, dockwellv1.TokenScope_TOKEN_SCOPE_READ_WRITE)
+	tc := dockwellv1connect.NewChangeServiceClient(bearer{token: token, rt: o.b.client.Transport}, o.b.origin, connect.WithProtoJSON())
+	pin := proto.CloneOf(before)
+	pin.Address, pin.Entry, pin.Release = "https://elsewhere.example.com", "other", 9
+	if pin.Values == nil {
+		pin.Values = map[string]string{}
+	}
+	pin.Values["PORT"] = "1"
+	if got := apply(t, tc, propose(t, tc, "Rewrite the pin", &dockwellv1.Edit{
+		Resource: &dockwellv1.ResourceRef{Kind: string(scope.ProjectKind), Name: "thing"},
+		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Project{Project: &resourcev1.Project{DisplayName: "Thing", Catalog: pin}}},
+	})); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("the write ended %v: %s", got.GetState(), got.GetError())
+	}
+	after := o.pin()
+	if after.GetAddress() != before.GetAddress() || after.GetEntry() != before.GetEntry() || after.GetRelease() != before.GetRelease() || after.GetValues()["PORT"] != before.GetValues()["PORT"] {
+		t.Errorf("a token's write changed the pin: %v", after)
+	}
+	o.look()
+	if len(o.agent.runs) != 1 || o.agent.runs[0].GetHost() == "elsewhere.example.com" {
+		t.Errorf("the owner ran with %v", o.agent.runs)
+	}
+}
+
+// Each Open planned counts: the one a person applies records the owner opened,
+// though another was planned after it (the re-check's N4).
+func TestTheOpenAPersonAppliesRecordsTheOwnerOpened(t *testing.T) {
+	t.Parallel()
+	o := startOwning(t, store.SQLite, ownedEntry(1, "1.0", firstRelease, ownerInputs, ownerTop), &dockwellv1.InstallCatalogEntryRequest{Id: "thing"})
+	o.agent.fail = "it answered 500"
+	o.look()
+	o.addRoute("www", "thing.example.com", 80, 0)
+	first, err := o.cat.OpenCatalogInstall(t.Context(), connect.NewRequest(&dockwellv1.OpenCatalogInstallRequest{Id: "thing"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := o.cat.OpenCatalogInstall(t.Context(), connect.NewRequest(&dockwellv1.OpenCatalogInstallRequest{Id: "thing"})); err != nil {
+		t.Fatal(err)
+	}
+	applyAsRoot(t, o.b, first.Msg.GetChange())
+	o.look()
+	if in := o.install(); in.GetOwner().GetState() != dockwellv1.CatalogOwnerState_CATALOG_OWNER_STATE_OPENED || in.GetHeld() {
+		t.Errorf("after the first Open applied: %v, held %v", in.GetOwner(), in.GetHeld())
+	}
+	o.addRoute("later", "later.example.com", 80, 0)
+	if o.route("later").GetHeld() {
+		t.Error("a route added after the Open a person applied is held")
+	}
+}

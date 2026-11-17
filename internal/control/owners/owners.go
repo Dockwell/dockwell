@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -243,16 +244,19 @@ func (r *Runner) look(ctx context.Context, tx *store.Tx, environment string) ([]
 			st = store.AppOwnerState{ResourceID: res.ID, Environment: environment, State: store.OwnerWaiting, UpdatedAt: now}
 		}
 		// A person's open, once its change applied, ends it.
-		if st.Opening != "" {
-			applied, err := changeApplied(ctx, tx, st.Opening)
+		// Any of the Opens planned, once applied (the re-check's N4).
+		opened := false
+		for _, change := range strings.Fields(st.Opening) {
+			applied, err := changeApplied(ctx, tx, change)
 			if err != nil {
 				return nil, nil, err
 			}
-			if applied {
-				st.State, st.UpdatedAt = store.OwnerOpened, now
-				record = append(record, st)
-				continue
-			}
+			opened = opened || applied
+		}
+		if opened {
+			st.State, st.UpdatedAt = store.OwnerOpened, now
+			record = append(record, st)
+			continue
 		}
 		spec, err := r.Keeper.Decode(ctx, tx, store.InRevision(res.ID, res.Kind, res.Revision), res.Spec)
 		if err != nil {
@@ -479,12 +483,13 @@ func (r *Runner) releasable(ctx context.Context, tx *store.Tx, environment strin
 	if err != nil || held {
 		return false, err
 	}
-	edits, err := releases(ctx, tx, r.Keeper, environment)
+	edits, err := r.releases(ctx, tx, environment)
 	return len(edits) > 0, err
 }
 
 // releases are the edits that open what an environment's hold kept.
-func releases(ctx context.Context, tx *store.Tx, keeper holds.Decoder, environment string) ([]revision.Edit, error) {
+func (r *Runner) releases(ctx context.Context, tx *store.Tx, environment string) ([]revision.Edit, error) {
+	keeper := r.Keeper
 	var out []revision.Edit
 	for _, kind := range []resource.Kind{route.Kind, service.Kind} {
 		list, err := tx.ListResources(ctx, environment, string(kind))
@@ -522,6 +527,20 @@ func releases(ctx context.Context, tx *store.Tx, keeper holds.Decoder, environme
 			}
 		}
 	}
+	// A route to one of its ports on the server, held as it published there, from
+	// any environment (the re-check's N1).
+	stale, err := r.Holds.HeldHostPortRoutes(ctx, tx, environment)
+	if err != nil {
+		return nil, err
+	}
+	for _, h := range stale {
+		if slices.ContainsFunc(out, func(ed revision.Edit) bool { return ed.Ref == h.Ref }) {
+			continue
+		}
+		spec := proto.CloneOf(h.Spec)
+		spec.Held = false
+		out = append(out, revision.Edit{Ref: h.Ref, Spec: spec, Base: h.Revision})
+	}
 	return out, nil
 }
 
@@ -546,7 +565,7 @@ func (r *Runner) Release(ctx context.Context, environment string) error {
 				}
 			}
 		}
-		edits, err = releases(ctx, tx, r.Keeper, environment)
+		edits, err = r.releases(ctx, tx, environment)
 		return err
 	})
 	if err != nil || len(edits) == 0 {

@@ -204,6 +204,17 @@ func scheme(o *resourcev1.OwnerRun) string {
 }
 
 func runStep(ctx context.Context, t Target, o *resourcev1.OwnerRun, step *resourcev1.OwnerStep, values, captured map[string]string) ([]byte, error) {
+	// A step whose work a try that stopped after it did is skipped, so a second try
+	// goes on to the steps after it (the re-check's N6).
+	if u := step.GetUnless(); u != nil {
+		all := maps.Clone(values)
+		maps.Copy(all, captured)
+		yes, _, _ := check(ctx, t, o, u, all)
+		clear(all)
+		if yes {
+			return nil, nil
+		}
+	}
 	switch {
 	case step.GetCommand() != nil:
 		out, err := runCommand(ctx, t, step.GetCommand(), values, captured)
@@ -529,6 +540,11 @@ func Check(steps []*resourcev1.OwnerStep) error {
 }
 
 func checkStep(step *resourcev1.OwnerStep) error {
+	if u := step.GetUnless(); u != nil {
+		if err := CheckCheck(u); err != nil {
+			return fmt.Errorf("is skipped by a check that %w", err)
+		}
+	}
 	switch {
 	case step.GetCommand() != nil:
 		words := step.GetCommand().GetWords()
@@ -556,19 +572,46 @@ func checkStep(step *resourcev1.OwnerStep) error {
 	return nil
 }
 
-// CheckSecretWords refuses a command that names one of secrets in its words, as
-// "$NAME" in a sh -c line does: the shell writes the value into the command's own
-// arguments, which anyone who lists the server's processes reads. A step that needs a
-// password in a command has the app make one up, captures it, and sets the real one
-// through the app's API (ADR 0105).
+// CheckSecretWords refuses a command, a step's, or one of the checks that skip a
+// step, that names one of secrets in its words, by "$NAME" in a sh -c line, or bare,
+// as "printenv NAME" does, and one that names the owner's Basic credential or a
+// captured value's: a shell writes the value into the command's own arguments, which
+// anyone who lists the server's processes reads. A step that needs a password in a
+// command has the app make one up, captures it, and sets the real one through the
+// app's API (ADR 0105, the re-check's N3).
 func CheckSecretWords(steps []*resourcev1.OwnerStep, secrets []string) error {
 	for i, step := range steps {
-		for _, w := range step.GetCommand().GetWords() {
-			for _, name := range secrets {
-				if regexp.MustCompile(`\$\{?` + regexp.QuoteMeta(name) + `\b`).MatchString(w) {
-					return fmt.Errorf("step %d passes the secret %s in its command's words, where it would sit in the command's arguments for anyone listing the server's processes. Have the app make one up, capture it, and set %s through the app's API", i+1, name, name)
-				}
+		for _, c := range []*resourcev1.OwnerCommand{step.GetCommand(), step.GetUnless().GetCommand()} {
+			if err := secretInWords(c, secrets); err != nil {
+				return fmt.Errorf("step %d %w", i+1, err)
 			}
+		}
+	}
+	return nil
+}
+
+// CheckSecretCheck is CheckSecretWords for a check, as an owner's done.
+func CheckSecretCheck(c *resourcev1.OwnerCheck, secrets []string) error {
+	if err := secretInWords(c.GetCommand(), secrets); err != nil {
+		return fmt.Errorf("a check %w", err)
+	}
+	return nil
+}
+
+// placeholder is {{NAME}}, which a script a step runs fills from its environment, as
+// Ghost's does, so the value is never in its words.
+var placeholder = regexp.MustCompile(`\{\{[A-Za-z_][A-Za-z0-9_]*\}\}`)
+
+func secretInWords(c *resourcev1.OwnerCommand, secrets []string) error {
+	for _, w := range c.GetWords() {
+		w = placeholder.ReplaceAllString(w, "")
+		for _, name := range append(slices.Clone(secrets), Basic) {
+			if regexp.MustCompile(`\b` + regexp.QuoteMeta(name) + `\b`).MatchString(w) {
+				return fmt.Errorf("names the secret %s in its command's words, where it would sit in the command's arguments for anyone listing the server's processes. Have the app make one up, capture it, and set %s through the app's API", name, name)
+			}
+		}
+		if strings.Contains(w, BasicOf) {
+			return fmt.Errorf("names a Basic credential, %s..., in its command's words, where it would sit in the command's arguments. Send it in a request's header", BasicOf)
 		}
 	}
 	return nil
@@ -592,9 +635,9 @@ func CheckRequest(r *resourcev1.OwnerRequest) error {
 		return errors.New("names no port in the container to send to")
 	}
 	switch r.GetMethod() {
-	case "", http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch:
+	case "", http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
 	default:
-		return fmt.Errorf("sends %s, where a step sends GET, POST, PUT or PATCH", r.GetMethod())
+		return fmt.Errorf("sends %s, where a step sends GET, POST, PUT, PATCH or DELETE", r.GetMethod())
 	}
 	if s := r.GetExpectStatus(); s >= 300 && s < 400 {
 		return fmt.Errorf("expects %d, a redirect, which a step never follows", s)

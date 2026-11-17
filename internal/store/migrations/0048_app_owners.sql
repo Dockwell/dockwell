@@ -12,6 +12,6 @@ CREATE TABLE app_owners (
   state       TEXT NOT NULL,            -- waiting_email, waiting, made, failed or opened
   error       TEXT NOT NULL DEFAULT '', -- scrubbed, 512 bytes at most
   tries       INTEGER NOT NULL DEFAULT 0,
-  opening     TEXT NOT NULL DEFAULT '', -- the planned change that opens its install, until it applies
+  opening     TEXT NOT NULL DEFAULT '', -- the planned changes that open its install, apart by spaces
   updated_at  BIGINT NOT NULL
 );

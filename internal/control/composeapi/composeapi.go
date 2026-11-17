@@ -285,7 +285,7 @@ func (h *Handler) PlanInstall(ctx context.Context, in Install) (*dockwellv1.Chan
 		return nil, err
 	}
 	setEnv(stack, in.Env)
-	place.made[0].Spec = &resourcev1.Project{DisplayName: in.Name, Catalog: in.Pin}
+	place.made[0].Spec, place.made[0].Pin = &resourcev1.Project{DisplayName: in.Name, Catalog: in.Pin}, true
 	for _, name := range in.Reaches {
 		edit, err := h.reachNew(ctx, place.organization, name, place.made[0].ID)
 		if err != nil {

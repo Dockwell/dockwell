@@ -21161,7 +21161,7 @@ components:
             properties:
                 method:
                     type: string
-                    description: GET unless set, or POST, PUT or PATCH.
+                    description: GET unless set, or POST, PUT, PATCH or DELETE.
                 path:
                     type: string
                     description: The path, such as "/rest/owner/setup".
@@ -21206,6 +21206,13 @@ components:
                     $ref: '#/components/schemas/OwnerCommand'
                 request:
                     $ref: '#/components/schemas/OwnerRequest'
+                unless:
+                    allOf:
+                        - $ref: '#/components/schemas/OwnerCheck'
+                    description: |-
+                        Skips the step where this reads yes, as a step that made what it makes on a try
+                         that stopped after it, such as a user that exists already, so a second try goes
+                         on to the steps after it.
             description: OwnerStep is one step that makes an app's owner, or closes its sign-ups.
         PackageInstall:
             type: object

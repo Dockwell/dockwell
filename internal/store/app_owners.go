@@ -36,8 +36,8 @@ type AppOwnerState struct {
 	Error     string
 	Tries     int
 	UpdatedAt time.Time
-	// Opening is a planned change that opens the install, which makes the owner
-	// opened once it applies (ADR 0105).
+	// Opening are the planned changes that open the install, apart by spaces, any of
+	// which makes the owner opened once it applies (ADR 0105).
 	Opening string
 }
 
@@ -87,12 +87,13 @@ func (t *Tx) SetAppOwnerState(ctx context.Context, s AppOwnerState) (bool, error
 	return n > 0, nil
 }
 
-// SetAppOwnerOpening records a planned change that opens an owner's install, which
-// makes the owner opened once it applies. It keeps what's observed as it is, and
-// does nothing to an owner made or opened already.
+// SetAppOwnerOpening records a planned change that opens an owner's install, beside
+// any planned before it, any of which makes the owner opened once it applies (the
+// re-check's N4). It keeps what's observed as it is, and does nothing to an owner
+// made or opened already.
 func (t *Tx) SetAppOwnerOpening(ctx context.Context, resourceID, environment, change string, at time.Time) error {
 	_, err := t.exec(ctx, `INSERT INTO app_owners (resource_id, environment, state, updated_at, opening) VALUES (?, ?, ?, ?, ?)
-		ON CONFLICT (resource_id) DO UPDATE SET opening = excluded.opening
+		ON CONFLICT (resource_id) DO UPDATE SET opening = TRIM(app_owners.opening || ' ' || excluded.opening)
 		WHERE app_owners.state NOT IN ('made', 'opened')`,
 		resourceID, environment, OwnerWaiting, millis(at), change)
 	if err != nil {

@@ -676,6 +676,11 @@ func checkOwner(e *catalogv1.Entry, cf *composeFile, inputs map[string]*catalogv
 	if err := ownerstep.CheckCheck(o.GetDone()); err != nil {
 		return fmt.Errorf("its owner's done %w", err)
 	}
+	for name, c := range map[string]*resourcev1.OwnerCheck{"done": o.GetDone(), "sign-ups' check": e.GetSignups().GetCheck()} {
+		if err := ownerstep.CheckSecretCheck(c, secrets); err != nil {
+			return fmt.Errorf("its owner's %s: %w", name, err)
+		}
+	}
 	return nil
 }
 
@@ -690,16 +695,25 @@ func OwnerInputs(e *catalogv1.Entry) map[string]bool {
 		}
 	}
 	var text []string
-	steps := slices.Concat(o.GetSteps(), o.GetResetSteps(), e.GetSignups().GetSteps())
-	for _, step := range steps {
-		text = append(text, step.GetCommand().GetWords()...)
-		r := step.GetRequest()
+	add := func(c *resourcev1.OwnerCommand, r *resourcev1.OwnerRequest) {
+		text = append(text, c.GetWords()...)
 		text = append(text, r.GetPath(), r.GetBody())
 		text = slices.AppendSeq(text, maps.Values(r.GetHeaders()))
 	}
+	steps := slices.Concat(o.GetSteps(), o.GetResetSteps(), e.GetSignups().GetSteps())
+	for _, step := range steps {
+		add(step.GetCommand(), step.GetRequest())
+		add(step.GetUnless().GetCommand(), step.GetUnless().GetRequest())
+	}
+	for _, c := range []*resourcev1.OwnerCheck{o.GetDone(), e.GetSignups().GetCheck()} {
+		add(c.GetCommand(), c.GetRequest())
+	}
 	all := strings.Join(text, "\n")
 	for _, in := range e.GetInputs() {
-		if regexp.MustCompile(`\$\{?` + in.GetName() + `\b`).MatchString(all) {
+		// ${NAME} or $NAME, and {{NAME}}, which a script a step runs fills from its
+		// environment (the re-check's N5).
+		name := regexp.QuoteMeta(in.GetName())
+		if regexp.MustCompile(`\$\{?` + name + `\b|\{\{` + name + `\}\}`).MatchString(all) {
 			out[in.GetName()] = true
 		}
 	}

@@ -9,6 +9,7 @@
 package holds
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"maps"
@@ -76,6 +77,28 @@ func (h *Holds) Hook(ctx context.Context, tx *store.Tx, edits []revision.Edit) (
 			ed.Spec = p
 		}
 	}
+	// Only the catalog's own write of a pin, an undo or a rollback changes what it says
+	// the install runs and where it's reached, which the owner's run reads: any other
+	// write keeps them as stored (the re-check's N2).
+	for i := range out {
+		ed := &out[i]
+		p, ok := ed.Spec.(*resourcev1.Project)
+		if ed.Ref.Kind != scope.ProjectKind || !ok || p.GetCatalog() == nil || ed.Pin || ed.Reverses || ed.Restores {
+			continue
+		}
+		old, err := v.storedPin(ed.Ref.Name)
+		if err != nil {
+			return nil, nil, err
+		}
+		if old == nil || keepsIdentity(p.GetCatalog(), old) {
+			continue
+		}
+		p = proto.CloneOf(p)
+		c, o := p.GetCatalog(), old
+		c.Entry, c.Version, c.Release, c.Catalog, c.Repository, c.Commit, c.Path, c.BuiltInCommit = o.GetEntry(), o.GetVersion(), o.GetRelease(), o.GetCatalog(), o.GetRepository(), o.GetCommit(), o.GetPath(), o.GetBuiltInCommit()
+		c.Values, c.File, c.Address = maps.Clone(o.GetValues()), slices.Clone(o.GetFile()), o.GetAddress()
+		ed.Spec = p
+	}
 	// Only the catalog writes an app's owner: an install makes it, and giving it its
 	// email changes that and its user alone. Any other write of one is refused, so
 	// no change can say who the owner is but the person installing it (the review's
@@ -137,6 +160,8 @@ func (h *Holds) Hook(ctx context.Context, tx *store.Tx, edits []revision.Edit) (
 	v.edits = out
 	// Routes and ports of a held install are held, whatever an edit says.
 	heldNoted := map[string]bool{}
+	// published are the host ports a held install's services publish in this change.
+	published := map[uint32]bool{}
 	for i := range out {
 		ed := &out[i]
 		if ed.Spec == nil {
@@ -178,6 +203,13 @@ func (h *Holds) Hook(ctx context.Context, tx *store.Tx, edits []revision.Edit) (
 			if held && spec.GetApp().GetHostNetwork() {
 				return nil, nil, fault.New(revision.ErrInvalid, "%s is held until its owner is made or a person opens it, and on the server's own network every port it listens on would answer everyone. Open it first, or keep it on its own network", ed.Ref.Name)
 			}
+			if held {
+				for _, p := range spec.GetApp().GetPorts() {
+					if p.GetHostPort() > 0 {
+						published[p.GetHostPort()] = true
+					}
+				}
+			}
 			if !held || !holdsPorts(spec) {
 				continue
 			}
@@ -190,7 +222,77 @@ func (h *Holds) Hook(ctx context.Context, tx *store.Tx, edits []revision.Edit) (
 			ed.Spec = spec
 		}
 	}
+	// A route to a port on the server, made before a held install published on it,
+	// dials the held app on 127.0.0.1 from now on, so it's held too, in this change
+	// (the re-check's N1). Loopback ports count, as the route dials loopback.
+	if len(published) > 0 {
+		stale, err := v.hostPortRoutes(published, false)
+		if err != nil {
+			return nil, nil, err
+		}
+		for _, r := range stale {
+			if slices.ContainsFunc(out, func(ed revision.Edit) bool { return ed.Ref == r.Ref }) {
+				continue
+			}
+			spec := proto.CloneOf(r.Spec)
+			spec.Held = true
+			out = append(out, revision.Edit{Ref: r.Ref, Spec: spec, Base: r.Revision})
+			notes = append(notes, revision.Note{
+				Reason:  "owner_held",
+				Message: spec.GetDomain() + " sends to a port a held app publishes now, so it answers that the app isn't open yet, until its owner is made or you open it",
+				Ref:     r.Ref,
+			})
+		}
+	}
 	return out, notes, nil
+}
+
+// HostPortRoute is a route to a port on the server, as stored.
+type HostPortRoute struct {
+	Ref      resource.Ref
+	Spec     *resourcev1.Route
+	Revision int
+}
+
+// HeldHostPortRoutes are the held routes, in any environment, to a port on the
+// server that environment's services publish, which opening it, or its owner being
+// made, releases with the rest (the re-check's N1).
+func (h *Holds) HeldHostPortRoutes(ctx context.Context, tx *store.Tx, environment string) ([]HostPortRoute, error) {
+	v, err := h.view(ctx, tx, nil)
+	if err != nil {
+		return nil, err
+	}
+	ports := map[uint32]bool{}
+	list, err := tx.ListResources(ctx, environment, string(service.Kind))
+	if err != nil {
+		return nil, err
+	}
+	for i := range list {
+		r := list[i]
+		spec, err := h.Keeper.Decode(ctx, tx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec)
+		if err != nil {
+			return nil, err
+		}
+		s, _ := spec.(*resourcev1.Service)
+		for _, p := range s.GetApp().GetPorts() {
+			if p.GetHostPort() > 0 {
+				ports[p.GetHostPort()] = true
+			}
+		}
+	}
+	if len(ports) == 0 {
+		return nil, nil
+	}
+	return v.hostPortRoutes(ports, true)
+}
+
+// keepsIdentity says whether a pin says the same of what the install runs and where
+// it's reached as old.
+func keepsIdentity(c, old *resourcev1.CatalogPin) bool {
+	return c.GetEntry() == old.GetEntry() && c.GetVersion() == old.GetVersion() && c.GetRelease() == old.GetRelease() &&
+		c.GetCatalog() == old.GetCatalog() && c.GetRepository() == old.GetRepository() && c.GetCommit() == old.GetCommit() &&
+		c.GetPath() == old.GetPath() && c.GetBuiltInCommit() == old.GetBuiltInCommit() && c.GetAddress() == old.GetAddress() &&
+		maps.Equal(c.GetValues(), old.GetValues()) && bytes.Equal(c.GetFile(), old.GetFile())
 }
 
 // holdsPorts says whether a held service has a port to hold that isn't held yet.
@@ -481,4 +583,32 @@ func (v *view) heldHostPort(port uint32) (bool, error) {
 		}
 	}
 	return v.hostPorts[port], nil
+}
+
+// hostPortRoutes are the stored routes, in every environment, to one of ports on the
+// server, with no service, and held or not as held says. A redirect sends nowhere.
+func (v *view) hostPortRoutes(ports map[uint32]bool, held bool) ([]HostPortRoute, error) {
+	var out []HostPortRoute
+	for _, environment := range slices.Sorted(maps.Keys(v.projects)) {
+		list, err := v.tx.ListResources(v.ctx, environment, string(route.Kind))
+		if err != nil {
+			return nil, err
+		}
+		for i := range list {
+			r := list[i]
+			if r.Spec == nil {
+				continue
+			}
+			spec, err := v.h.Keeper.Decode(v.ctx, v.tx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec)
+			if err != nil {
+				return nil, err
+			}
+			rt, _ := spec.(*resourcev1.Route)
+			if rt.GetService() != "" || rt.GetRedirect() != nil || !ports[rt.GetHostPort()] || rt.GetHeld() != held {
+				continue
+			}
+			out = append(out, HostPortRoute{Ref: resource.Ref{Kind: route.Kind, Scope: environment, Name: r.Name}, Spec: rt, Revision: r.Revision})
+		}
+	}
+	return out, nil
 }

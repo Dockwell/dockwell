@@ -276,7 +276,7 @@ func TestCheckRefusesWhatAnAgentCantRun(t *testing.T) {
 	for name, step := range map[string]*resourcev1.OwnerStep{
 		"no port":    post("/", "", 0),
 		"a redirect": {Step: &resourcev1.OwnerStep_Request{Request: &resourcev1.OwnerRequest{Port: 80, ExpectStatus: 302}}},
-		"DELETE":     {Step: &resourcev1.OwnerStep_Request{Request: &resourcev1.OwnerRequest{Port: 80, Method: http.MethodDelete}}},
+		"TRACE":      {Step: &resourcev1.OwnerStep_Request{Request: &resourcev1.OwnerRequest{Port: 80, Method: http.MethodTrace}}},
 		"no words":   {Step: &resourcev1.OwnerStep_Command{Command: &resourcev1.OwnerCommand{}}},
 		"a one-off":  {Step: &resourcev1.OwnerStep_Command{Command: &resourcev1.OwnerCommand{Words: []string{"x"}, OneOff: true}}},
 		"nothing":    {},
@@ -405,5 +405,85 @@ func TestAFailureSaysItsErrorAndTheAnswer(t *testing.T) {
 	res := Run(t.Context(), tg, owner(post("/setup", `{}`, 80)), values(), false)
 	if res.Made || !strings.Contains(res.Said, "it answered 500") || !strings.Contains(res.Said, "database is locked") || strings.Contains(res.Said, "Tr0ub4") {
 		t.Errorf("a failure said %q", res.Said)
+	}
+}
+
+// A command names no secret in its words in any form: "$NAME", a bare name as
+// printenv takes it, the owner's Basic credential or a captured value's, in a step,
+// a check that skips one, or a check of its own (the re-check's N3).
+func TestNoCommandNamesASecretInItsWords(t *testing.T) {
+	t.Parallel()
+	command := func(words ...string) *resourcev1.OwnerCommand { return &resourcev1.OwnerCommand{Words: words} }
+	secrets := []string{"OWNER_PASSWORD"}
+	for name, c := range map[string]*resourcev1.OwnerCommand{
+		"$NAME":    command("sh", "-c", `app --password "$OWNER_PASSWORD"`),
+		"printenv": command("sh", "-c", `app --password "$(printenv OWNER_PASSWORD)"`),
+		"basic":    command("sh", "-c", `curl -H "Authorization: Basic $DOCKWELL_OWNER_BASIC" localhost`),
+		"captured": command("sh", "-c", `curl -H "Authorization: Basic $DOCKWELL_BASIC_MADE_UP" localhost`),
+	} {
+		if err := CheckSecretWords([]*resourcev1.OwnerStep{{Step: &resourcev1.OwnerStep_Command{Command: c}}}, secrets); err == nil {
+			t.Errorf("%s: a step's command passes", name)
+		}
+		if err := CheckSecretCheck(&resourcev1.OwnerCheck{Command: c}, secrets); err == nil {
+			t.Errorf("%s: a check's command passes", name)
+		}
+		unless := &resourcev1.OwnerStep{Step: &resourcev1.OwnerStep_Request{Request: &resourcev1.OwnerRequest{Port: 80}}, Unless: &resourcev1.OwnerCheck{Command: c}}
+		if err := CheckSecretWords([]*resourcev1.OwnerStep{unless}, secrets); err == nil {
+			t.Errorf("%s: a step's unless passes", name)
+		}
+	}
+	if err := CheckSecretCheck(&resourcev1.OwnerCheck{Command: command("sh", "-c", `app user exists "$OWNER_USER"`)}, secrets); err != nil {
+		t.Errorf("a check that names no secret: %v", err)
+	}
+}
+
+// A step skipped by its unless lets a second try finish what a first stopped in, as
+// Gitea's create when the user exists and its password's PATCH failed (the
+// re-check's N6).
+func TestASecondTryFinishesAfterAPartialRun(t *testing.T) {
+	t.Parallel()
+	var created, patched int
+	exists, patchOK := false, false
+	tg := serve(t, func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/users/you" && exists:
+		case r.URL.Path == "/users/you":
+			w.WriteHeader(http.StatusNotFound)
+		case r.URL.Path == "/token":
+			_, _ = w.Write([]byte(`{"token":"tok-0123456789"}`))
+		case r.URL.Path == "/password" && patchOK:
+			patched++
+		case r.URL.Path == "/password":
+			w.WriteHeader(http.StatusInternalServerError)
+		case r.URL.Path == "/me":
+			w.WriteHeader(http.StatusUnauthorized)
+		}
+	})
+	tg.exec = func([]string, []string) ([]byte, int) {
+		if exists {
+			return []byte("user already exists"), 1
+		}
+		created++
+		exists = true
+		return []byte("created"), 0
+	}
+	create := &resourcev1.OwnerStep{
+		Step:   &resourcev1.OwnerStep_Command{Command: &resourcev1.OwnerCommand{Words: []string{"make-user"}}},
+		Unless: &resourcev1.OwnerCheck{Request: &resourcev1.OwnerRequest{Path: "/users/${OWNER_USER}", Port: 80}},
+	}
+	token := post("/token", `{}`, 80)
+	token.GetRequest().Capture = map[string]string{"TOKEN": "token"}
+	set := post("/password", `{"password":"${OWNER_PASSWORD}"}`, 80)
+	o := owner(create, token, set)
+	o.Done = &resourcev1.OwnerCheck{Request: &resourcev1.OwnerRequest{Path: "/me", Port: 80}}
+	if res := Run(t.Context(), tg, o, values(), false); res.Made || res.Step != 3 {
+		t.Fatalf("the first try = %+v, want step 3 failed", res)
+	}
+	patchOK = true
+	if res := Run(t.Context(), tg, o, values(), true); !res.Made {
+		t.Fatalf("the second try = %+v, want made", res)
+	}
+	if created != 1 || patched != 1 {
+		t.Errorf("made %d users and set %d passwords, want 1 and 1", created, patched)
 	}
 }
