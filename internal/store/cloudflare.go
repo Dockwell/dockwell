@@ -74,19 +74,43 @@ func (t *Tx) PutCloudflareRecord(ctx context.Context, r CloudflareRecord) error 
 	return nil
 }
 
+// CloudflarePendingType is the type of a row that keeps a record made by hand,
+// whole, before a replace deletes it: no record at Cloudflare has its ID, and no
+// listing of records holds it.
+const CloudflarePendingType = "pending"
+
 // CloudflareRecordsOf lists the records written or taken on for a route.
 func (t *Tx) CloudflareRecordsOf(ctx context.Context, routeID string) ([]CloudflareRecord, error) {
-	return t.cloudflareRecords(ctx, `WHERE route_id = ? ORDER BY name, type`, routeID)
+	return t.cloudflareRecords(ctx, `WHERE route_id = ? AND type <> 'pending' ORDER BY name, type`, routeID)
 }
 
 // CloudflareRecordsIn lists the records Dockwell holds in a zone.
 func (t *Tx) CloudflareRecordsIn(ctx context.Context, zoneID string) ([]CloudflareRecord, error) {
-	return t.cloudflareRecords(ctx, `WHERE zone_id = ? ORDER BY name, type`, zoneID)
+	return t.cloudflareRecords(ctx, `WHERE zone_id = ? AND type <> 'pending' ORDER BY name, type`, zoneID)
 }
 
 // CloudflareRecordsAll lists every record Dockwell holds, for the drift timer.
 func (t *Tx) CloudflareRecordsAll(ctx context.Context) ([]CloudflareRecord, error) {
-	return t.cloudflareRecords(ctx, `ORDER BY zone_id, name, type`)
+	return t.cloudflareRecords(ctx, `WHERE type <> 'pending' ORDER BY zone_id, name, type`)
+}
+
+// CloudflarePendingOf lists what a route's replaces kept of records made by hand,
+// before their deletes, whose writes haven't landed yet.
+func (t *Tx) CloudflarePendingOf(ctx context.Context, routeID string) ([]CloudflareRecord, error) {
+	return t.cloudflareRecords(ctx, `WHERE route_id = ? AND type = 'pending' ORDER BY name`, routeID)
+}
+
+// CloudflareRecordByID returns the row of a record by its ID at Cloudflare, or
+// ErrNotFound.
+func (t *Tx) CloudflareRecordByID(ctx context.Context, id string) (CloudflareRecord, error) {
+	r, err := scanCloudflareRecord(t.queryRow(ctx, `SELECT `+cloudflareRecordColumns+` FROM cloudflare_records WHERE id = ?`, id))
+	if errors.Is(err, sql.ErrNoRows) {
+		return CloudflareRecord{}, fmt.Errorf("the record %s: %w", id, ErrNotFound)
+	}
+	if err != nil {
+		return CloudflareRecord{}, fmt.Errorf("can't read the record %s: %w", id, err)
+	}
+	return r, nil
 }
 
 // CloudflareRecordAt returns the record Dockwell holds of a type at a name, or

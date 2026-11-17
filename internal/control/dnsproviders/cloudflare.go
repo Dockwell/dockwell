@@ -230,6 +230,9 @@ func (c *Cloudflare) TXTAt(ctx context.Context, zone Zone, name string) ([]TXT, 
 
 // Delete removes the record with id from zone.
 func (c *Cloudflare) Delete(ctx context.Context, zone Zone, id string) error {
+	if !recordID(id) {
+		return ErrNotARecordID
+	}
 	_, err := c.call(ctx, http.MethodDelete, "/zones/"+url.PathEscape(zone.ID)+"/dns_records/"+url.PathEscape(id), nil, nil)
 	return err
 }

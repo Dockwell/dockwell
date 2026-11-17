@@ -2900,6 +2900,10 @@ type ProviderStep struct {
 	ZoneID, Account, Tunnel string          `json:",omitempty"`
 	Record                  *ProviderRecord `json:",omitempty"`
 	Rule                    *ProviderRule   `json:",omitempty"`
+	// Pending names the store's row that kept a record made by hand before a
+	// replace deleted it, for a step that puts it back from there. It's never sent
+	// to Cloudflare.
+	Pending string `json:",omitempty"`
 }
 
 // ProviderRecord is a DNS record a step writes or acts on.

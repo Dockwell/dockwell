@@ -198,10 +198,13 @@ func (p *Publisher) Plan(ctx context.Context, changeID string, routes []revision
 }
 
 func (p *Publisher) planRoute(ctx context.Context, r revision.PublishRoute, rules map[string]bool, inChange map[string]*resourcev1.Route) ([]resource.Step, error) {
-	var written []store.CloudflareRecord
+	var written, kept []store.CloudflareRecord
 	if err := p.DB.View(ctx, func(tx *store.Tx) error {
 		var err error
-		written, err = tx.CloudflareRecordsOf(ctx, r.ID)
+		if written, err = tx.CloudflareRecordsOf(ctx, r.ID); err != nil {
+			return err
+		}
+		kept, err = tx.CloudflarePendingOf(ctx, r.ID)
 		return err
 	}); err != nil {
 		return nil, err
@@ -216,6 +219,19 @@ func (p *Publisher) planRoute(ctx context.Context, r revision.PublishRoute, rule
 		steps = append(steps, pre...)
 		for id := range kept {
 			keep[id] = true
+		}
+	}
+	// A record made by hand stays replaced only while the route's publish consents to
+	// taking it over, by its ID: consent taken away, as by undo, gives it back (the
+	// review's H1).
+	for i := range written {
+		w := &written[i]
+		var old dnsproviders.Record
+		if !keep[w.ID] || w.Replaced == "" || json.Unmarshal([]byte(w.Replaced), &old) != nil || old.ID == "" {
+			continue
+		}
+		if !slices.ContainsFunc(r.After.GetPublish().GetTakesOver(), func(t *resourcev1.TakeOver) bool { return t.GetRecordId() == old.ID }) {
+			delete(keep, w.ID)
 		}
 	}
 	// What Dockwell wrote that this route doesn't publish any more comes off, after
@@ -242,6 +258,24 @@ func (p *Publisher) planRoute(ctx context.Context, r revision.PublishRoute, rule
 				}))
 			}
 		}
+	}
+	// What a replace kept of a record made by hand, before a delete that landed without
+	// its write, goes back where the route doesn't publish that name any more. Where it
+	// does, the write takes it on (createRecord) (the review's H1).
+	publishes := strings.ToLower(r.After.GetDomain())
+	if pub := r.After.GetPublish(); pub == nil || pub.GetWay() == resourcev1.RouteWay_ROUTE_WAY_FRONT {
+		publishes = ""
+	}
+	for i := range kept {
+		k := &kept[i]
+		var old dnsproviders.Record
+		if strings.EqualFold(k.Name, publishes) || json.Unmarshal([]byte(k.Replaced), &old) != nil {
+			continue
+		}
+		steps = append(steps, step(r, resource.ActionDelete, resource.ProviderStep{
+			Provider: k.Provider, Action: resource.ProviderRestoreRecord, Target: k.Zone, Name: k.Name, To: recordWords(old), ZoneID: k.ZoneID, Pending: k.ID,
+			Record: &resource.ProviderRecord{Type: old.Type, Name: old.Name, Content: old.Content, Proxied: old.Proxied, TTL: old.TTL, Comment: old.Comment},
+		}))
 	}
 	removal, err := p.planRuleRemoval(ctx, r, inChange)
 	if err != nil {
@@ -335,11 +369,12 @@ func (p *Publisher) planWrites(ctx context.Context, r revision.PublishRoute, pub
 					keep[written[i].ID] = true
 				}
 			}
-		case ours(conflict.ID) != nil || strings.HasPrefix(conflict.Comment, comment):
+		case ours(conflict.ID) != nil || conflict.Comment == comment:
 			// Ours, written another way, as when the way in changed: replaced, and
-			// nothing to put back.
+			// what it replaced carried on, not put back.
 			base.Action, base.Was = resource.ProviderReplaceRecord, recordWords(*conflict)
 			base.Record.ID = conflict.ID
+			keep[conflict.ID] = true
 			steps = append(steps, step(r, resource.ActionUpdate, base))
 		case conflict.Type == d.Type && conflict.Content == d.Content:
 			// Made by hand, and pointing where Dockwell would: taken on, writing

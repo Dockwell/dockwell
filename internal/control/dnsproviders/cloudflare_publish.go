@@ -176,8 +176,30 @@ func (c *Cloudflare) records(ctx context.Context, zone Zone, q url.Values) ([]Re
 	return out, nil
 }
 
+// ErrNotARecordID is an ID that isn't one of Cloudflare's, which is never sent: a
+// bug in Dockwell, never a record that's gone. Cloudflare answers one with 400 and
+// 7000, "No route for that URI".
+var ErrNotARecordID = errors.New("a DNS record was asked for by an ID that isn't one, which is a bug in Dockwell. Nothing was sent to Cloudflare; report it")
+
+// recordID says id is one Cloudflare could have given a record: letters, digits,
+// "-" and "_".
+func recordID(id string) bool {
+	if id == "" {
+		return false
+	}
+	for _, r := range id {
+		if (r < 'a' || r > 'z') && (r < 'A' || r > 'Z') && (r < '0' || r > '9') && r != '-' && r != '_' {
+			return false
+		}
+	}
+	return true
+}
+
 // RecordByID reads one record.
 func (c *Cloudflare) RecordByID(ctx context.Context, zone Zone, id string) (Record, error) {
+	if !recordID(id) {
+		return Record{}, ErrNotARecordID
+	}
 	var got Record
 	_, err := c.call(ctx, http.MethodGet, "/zones/"+url.PathEscape(zone.ID)+"/dns_records/"+url.PathEscape(id), nil, &got)
 	return got, err

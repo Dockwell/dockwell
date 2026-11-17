@@ -44,6 +44,9 @@ type API struct {
 	// LoseWrites writes each record, then answers 502, as a write whose answer
 	// was lost on its way back.
 	LoseWrites bool
+	// FailCreate answers a write of a record at a name it says with 500, writing
+	// nothing, as a POST that failed after the delete before it landed.
+	FailCreate func(name string) bool
 	// BeforePut runs as a tunnel's configuration is written, before it's taken, with
 	// the stand-in unlocked: a test writes there, as someone in the dashboard would
 	// between Dockwell's read and its write.
@@ -335,6 +338,11 @@ func (a *API) records2(w http.ResponseWriter, r *http.Request, t Token, zone str
 		a.records[zone] = map[string]Record{}
 	}
 	q := r.URL.Query()
+	// An ID that isn't a record's has no route at Cloudflare (checked 2026-11-17).
+	if len(parts) == 1 && strings.ContainsAny(parts[0], ":%") {
+		fail(w, http.StatusBadRequest, 7000, "No route for that URI")
+		return
+	}
 	switch {
 	case r.Method == http.MethodGet && len(parts) == 0:
 		var out []Record
@@ -382,6 +390,10 @@ func (a *API) records2(w http.ResponseWriter, r *http.Request, t Token, zone str
 				fail(w, http.StatusBadRequest, 81053, "An A, AAAA, or CNAME record with that host already exists.")
 				return
 			}
+		}
+		if a.FailCreate != nil && a.FailCreate(body.Name) {
+			fail(w, http.StatusInternalServerError, 10000, "Internal server error")
+			return
 		}
 		id := a.put(zone, body)
 		if a.LoseWrites {

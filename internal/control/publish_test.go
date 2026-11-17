@@ -10,8 +10,10 @@ import (
 	"io/fs"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"testing/fstest"
+	"time"
 
 	"connectrpc.com/connect"
 
@@ -19,6 +21,7 @@ import (
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/agent/tunnels"
+	"github.com/dockwell/dockwell/internal/control/dnsproviders"
 	"github.com/dockwell/dockwell/internal/control/dnsproviders/cftest"
 	"github.com/dockwell/dockwell/internal/resource/route"
 	"github.com/dockwell/dockwell/internal/store"
@@ -401,5 +404,135 @@ func TestDriftIsFoundAndPutBack(t *testing.T) {
 	s.applied(t, back)
 	if got := rulesOf(t, s.cf); !slices.Contains(got, "*.example.com=http://127.0.0.1:80") || len(s.cf.Records("example.com")) != 1 {
 		t.Fatalf("after putting it back: %v %v", got, s.cf.Records("example.com"))
+	}
+}
+
+// pendingRows are what replaces kept of records made by hand, waiting on a write.
+func (s *publishStand) pendingRows(t *testing.T, routeID string) []store.CloudflareRecord {
+	t.Helper()
+	var out []store.CloudflareRecord
+	if err := s.f.store.View(t.Context(), func(tx *store.Tx) error {
+		var err error
+		out, err = tx.CloudflarePendingOf(t.Context(), routeID)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	return out
+}
+
+func routeIDOf(t *testing.T, r cftest.Record) string {
+	t.Helper()
+	fields := strings.Fields(r.Comment)
+	if len(fields) != 3 || fields[0] != "dockwell" {
+		t.Fatalf("not Dockwell's: %+v", r)
+	}
+	return fields[2]
+}
+
+// A replace whose delete landed and whose write didn't leaves what it kept of the
+// record made by hand: the next plan's write carries it, so removing the route puts
+// that record back whole (the review's H1, path A).
+func TestAReplaceCutShortKeepsTheRecord(t *testing.T) {
+	t.Parallel()
+	s := newPublishStand(t)
+	s.applied(t, propose(t, s.person, "Publish vpn at old", s.published("vpn", "old.example.com")))
+	routeID := routeIDOf(t, s.cf.Records("example.com")[0])
+	byHand := cftest.Record{Type: "A", Name: "vpn.example.com", Content: "203.0.113.9", TTL: 300, Comment: "by hand"}
+	id := s.cf.Put("example.com", byHand)
+	saved, err := json.Marshal(dnsproviders.Record{ID: id, Type: byHand.Type, Name: byHand.Name, Content: byHand.Content, TTL: byHand.TTL, Comment: byHand.Comment})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The first half of a replace: kept, then deleted; the write never happened.
+	if err := s.f.store.Update(t.Context(), func(tx *store.Tx) error {
+		return tx.PutCloudflareRecord(t.Context(), store.CloudflareRecord{
+			ID: "pending:" + id, Provider: "cloudflare", ZoneID: cftest.ZoneID("example.com"), Zone: "example.com", Name: "vpn.example.com",
+			Type: store.CloudflarePendingType, Content: "203.0.113.9", RouteID: routeID, ChangeID: "chg_cut", Replaced: string(saved), State: "pending",
+		})
+	}); err != nil {
+		t.Fatal(err)
+	}
+	s.cf.Remove("example.com", id)
+
+	// Planned again, as a resume or a retry does: no step names the pending row.
+	again := propose(t, s.person, "Publish vpn", s.published("vpn", "vpn.example.com", &resourcev1.TakeOver{RecordId: id}))
+	for _, p := range providerSteps(again) {
+		if strings.Contains(p.GetName()+p.GetWas()+p.GetTo(), "pending") {
+			t.Fatalf("a step names the pending row: %v", p)
+		}
+	}
+	s.applied(t, again)
+	if left := s.pendingRows(t, routeID); len(left) != 0 {
+		t.Fatalf("what was kept should be on the new record now: %+v", left)
+	}
+	var row store.CloudflareRecord
+	_ = s.f.store.View(t.Context(), func(tx *store.Tx) error {
+		row, err = tx.CloudflareRecordAt(t.Context(), cftest.ZoneID("example.com"), "vpn.example.com", "CNAME")
+		return nil
+	})
+	if err != nil || !strings.Contains(row.Replaced, "203.0.113.9") {
+		t.Fatalf("the record written: %+v %v", row, err)
+	}
+	// Removing the route puts the record made by hand back, whole.
+	s.applied(t, propose(t, s.person, "Remove vpn", s.removed("vpn")))
+	got := s.cf.Records("example.com")
+	if len(got) != 1 || got[0].Type != "A" || got[0].Content != "203.0.113.9" || got[0].TTL != 300 || got[0].Comment != "by hand" {
+		t.Fatalf("the record made by hand should be back: %+v", got)
+	}
+}
+
+// A replace whose write fails after its delete landed fails the change, and the
+// rollback puts the record made by hand back from what was kept (the review's H1).
+func TestAReplaceWhoseWriteFailsPutsTheRecordBack(t *testing.T) {
+	t.Parallel()
+	s := newPublishStand(t)
+	id := s.cf.Put("example.com", cftest.Record{Type: "A", Name: "vpn.example.com", Content: "203.0.113.9", TTL: 300, Comment: "by hand"})
+	var failed atomic.Bool
+	s.cf.FailCreate = func(name string) bool { return name == "vpn.example.com" && failed.CompareAndSwap(false, true) }
+	ch := propose(t, s.person, "Publish vpn", s.published("vpn", "vpn.example.com", &resourcev1.TakeOver{RecordId: id}))
+	w := watch(t, s.person, ch.GetId())
+	if _, err := applyChange(t, s.person, &dockwellv1.ApplyChangeRequest{Id: ch.GetId(), Fingerprint: ch.GetPlan().GetFingerprint()}); err != nil {
+		t.Fatal(err)
+	}
+	if got := waitWatch(t, w).last(); got.GetState() == dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatal("a change whose write failed applied")
+	}
+	deadline := time.Now().Add(20 * time.Second)
+	for {
+		got := s.cf.Records("example.com")
+		if len(got) == 1 && got[0].Type == "A" && got[0].Content == "203.0.113.9" && got[0].Comment == "by hand" {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("the rollback should put the record made by hand back: %+v", got)
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+}
+
+// Dockwell's record gone at Cloudflare, someone's own made in its place, and Put it
+// back with an admin's consent: theirs is kept whole, and undo writes it back (the
+// review's H1, path B).
+func TestAReplaceAfterDriftKeepsTheirRecord(t *testing.T) {
+	t.Parallel()
+	s := newPublishStand(t)
+	s.applied(t, propose(t, s.person, "Publish vpn", s.published("vpn", "vpn.example.com")))
+	for _, r := range s.cf.Records("example.com") {
+		s.cf.Remove("example.com", r.ID)
+	}
+	if err := s.f.server.publisher.Drift(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	id := s.cf.Put("example.com", cftest.Record{Type: "CNAME", Name: "vpn.example.com", Content: "elsewhere.example.net", TTL: 300, Comment: "by hand"})
+	done := s.applied(t, propose(t, s.person, "Put vpn back", s.published("vpn", "vpn.example.com", &resourcev1.TakeOver{RecordId: id})))
+	undo, err := s.person.UndoChange(t.Context(), connect.NewRequest(&dockwellv1.UndoChangeRequest{Id: done.GetId()}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.applied(t, undo.Msg.GetChange())
+	got := s.cf.Records("example.com")
+	if len(got) != 1 || got[0].Content != "elsewhere.example.net" || got[0].Comment != "by hand" || got[0].TTL != 300 {
+		t.Fatalf("their record should be back after undo: %+v", got)
 	}
 }

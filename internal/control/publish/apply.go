@@ -95,10 +95,28 @@ func (p *Publisher) createRecord(ctx context.Context, changeID string, route rev
 		}
 	}
 	if s.Action == resource.ProviderRestoreRecord {
-		// Put back as it was, it's someone else's again.
-		return "", nil
+		// Put back as it was, it's someone else's again, and what kept it goes.
+		if s.Pending == "" {
+			return "", nil
+		}
+		return "", p.DB.Update(ctx, func(tx *store.Tx) error { return tx.DeleteCloudflareRecord(ctx, s.Pending) })
 	}
 	return "", p.DB.Update(ctx, func(tx *store.Tx) error {
+		// What a replace kept of a record made by hand at this name, before a delete
+		// that landed without its write, stays with the record that's written now, so
+		// removing it, or undo, puts that one back (the review's H1).
+		kept, err := tx.CloudflarePendingOf(ctx, route.ID)
+		if err != nil {
+			return err
+		}
+		for i := range kept {
+			if strings.EqualFold(kept[i].Name, got.Name) {
+				replaced = cmp.Or(replaced, kept[i].Replaced)
+				if err := tx.DeleteCloudflareRecord(ctx, kept[i].ID); err != nil {
+					return err
+				}
+			}
+		}
 		// What was kept of a record of this route's at the name, of this type, that's
 		// gone, goes: this one stands for it now, with what that one replaced.
 		was, err := tx.CloudflareRecordsOf(ctx, route.ID)
@@ -159,23 +177,33 @@ func (p *Publisher) replaceRecord(ctx context.Context, changeID string, route re
 	var api *dnsproviders.APIError
 	old, err := t.cf.RecordByID(ctx, t.zone, s.Record.ID)
 	if errors.As(err, &api) && api.Code == 81044 {
-		// Gone already, as a step a crash cut short leaves it: what was kept of it stays.
-		return p.createRecord(ctx, changeID, route, s, p.pendingReplaced(ctx, s.Record.ID))
+		// Gone already, as a step a crash cut short leaves it: what was kept of it stays,
+		// and the write takes it on (createRecord).
+		return p.createRecord(ctx, changeID, route, s, "")
 	}
 	if err != nil {
 		return "", fmt.Errorf("can't read the DNS record at %s: %w", s.Name, err)
 	}
+	// Dockwell's own only where the store holds this very record for this route, or
+	// its comment is this route's own: another record at the name, of the same type,
+	// is someone else's, and kept (the review's H1).
 	var mine bool
+	replaced := ""
 	if err := p.DB.View(ctx, func(tx *store.Tx) error {
-		_, err := tx.CloudflareRecordAt(ctx, t.zone.ID, old.Name, old.Type)
-		mine = err == nil || strings.HasPrefix(old.Comment, p.Comment(route.ID))
+		row, err := tx.CloudflareRecordByID(ctx, old.ID)
+		mine = err == nil && row.RouteID == route.ID || old.Comment == p.Comment(route.ID)
+		if mine {
+			// Its own record, written another way: what that one replaced, the new one
+			// stands for now.
+			replaced = row.Replaced
+		}
 		return nil
 	}); err != nil {
 		return "", err
 	}
-	replaced := ""
 	if !mine {
-		b, err := json.Marshal(dnsproviders.Record{Type: old.Type, Name: old.Name, Content: old.Content, Proxied: old.Proxied, TTL: old.TTL, Comment: old.Comment, Priority: old.Priority})
+		// Its ID is kept too, as what the route's consent names (the review's H1).
+		b, err := json.Marshal(dnsproviders.Record{ID: old.ID, Type: old.Type, Name: old.Name, Content: old.Content, Proxied: old.Proxied, TTL: old.TTL, Comment: old.Comment, Priority: old.Priority})
 		if err != nil {
 			return "", err
 		}
@@ -183,7 +211,7 @@ func (p *Publisher) replaceRecord(ctx context.Context, changeID string, route re
 		// Kept before it's deleted, so a crash between the two loses nothing.
 		if err := p.DB.Update(ctx, func(tx *store.Tx) error {
 			return tx.PutCloudflareRecord(ctx, store.CloudflareRecord{
-				ID: pending(old.ID), Provider: s.Provider, ZoneID: t.zone.ID, Zone: t.zone.Name, Name: old.Name, Type: "pending",
+				ID: pending(old.ID), Provider: s.Provider, ZoneID: t.zone.ID, Zone: t.zone.Name, Name: old.Name, Type: store.CloudflarePendingType,
 				Content: old.Content, RouteID: route.ID, ChangeID: changeID, Replaced: replaced, State: "pending", CreatedAt: p.now(),
 			})
 		}); err != nil {
@@ -208,22 +236,9 @@ func (p *Publisher) replaceRecord(ctx context.Context, changeID string, route re
 	})
 }
 
+// pending is the store's ID for what a replace kept of a record before deleting it:
+// never a record's ID at Cloudflare, nor sent there.
 func pending(id string) string { return "pending:" + id }
-
-// pendingReplaced is what a replace kept of a record before it deleted it.
-func (p *Publisher) pendingReplaced(ctx context.Context, id string) string {
-	var out string
-	_ = p.DB.View(ctx, func(tx *store.Tx) error {
-		all, err := tx.CloudflareRecordsAll(ctx)
-		for i := range all {
-			if all[i].ID == pending(id) {
-				out = all[i].Replaced
-			}
-		}
-		return err
-	})
-	return out
-}
 
 // takeOnRecord keeps a record made by hand as Dockwell's, writing nothing.
 func (p *Publisher) takeOnRecord(ctx context.Context, changeID string, route revision.PublishRoute, s resource.ProviderStep) (string, error) {
