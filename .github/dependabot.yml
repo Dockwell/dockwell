@@ -10,6 +10,16 @@ updates:
     groups:
       go:
         patterns: ["*"]
+    # Held until each one's issue is done, so the rest of the group can land.
+    ignore:
+      # Needs Connect v2 (#514).
+      - dependency-name: connectrpc.com/vanguard
+        versions: [">= 0.5.0"]
+      # Both break the Compose parser's tests (#516).
+      - dependency-name: go.yaml.in/yaml/v4
+        versions: ["> 4.0.0-rc.4"]
+      - dependency-name: github.com/mattn/go-shellwords
+        versions: ["> 1.0.12"]
 
   - package-ecosystem: npm
     directory: "/"
@@ -20,6 +30,10 @@ updates:
     groups:
       npm:
         patterns: ["*"]
+    ignore:
+      # Its new rules flag 89 places (#513).
+      - dependency-name: "@biomejs/biome"
+        versions: [">= 2.6.0"]
 
   - package-ecosystem: github-actions
     directory: "/"
