@@ -45,8 +45,12 @@ type Doer = oidc.Doer
 type Server struct {
 	// Routes gives the route Caddy names, by ID.
 	Routes func(id string) (Route, bool)
-	// Setups gives a held route's setup link, by ID (ADR 0105).
-	Setups func(id string) (Setup, bool)
+	// Setups gives a held route's setup link, by ID (ADR 0105); SetupsOn every held
+	// route of a domain with a key's hash; and UseSetup says whether a key is used for
+	// the first time, keeping that past a restart.
+	Setups   func(id string) (Setup, bool)
+	SetupsOn func(domain, keyHash string) []Setup
+	UseSetup func(hash string, until time.Time) (bool, error)
 	// Client reads the provider's discovery, keys and tokens, from this server.
 	Client Doer
 	// Now is the clock; nil is time.Now.

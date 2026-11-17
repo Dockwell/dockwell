@@ -669,7 +669,7 @@ func serveSignIn(ctx context.Context, logger *slog.Logger, dir datadir.Dir, keep
 	// A provider is read from this server, as the control plane read it when it was
 	// saved: on a private network an admin named, never this server's own addresses,
 	// a link-local one or a metadata service.
-	answer := &signin.Server{Routes: keep.Route, Setups: keep.Setup, Client: netguard.Client(netguard.Options{Private: true, MaxBody: signin.MaxAnswer})}
+	answer := &signin.Server{Routes: keep.Route, Setups: keep.Setup, SetupsOn: keep.SetupsOn, UseSetup: keep.UseSetupKey, Client: netguard.Client(netguard.Options{Private: true, MaxBody: signin.MaxAnswer})}
 	go func() {
 		<-ctx.Done()
 		_ = ln.Close()

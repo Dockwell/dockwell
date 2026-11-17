@@ -5,8 +5,12 @@ package signin
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -19,16 +23,43 @@ import (
 // moves.
 func setupStand(t *testing.T, key string, until time.Time, now *time.Time) *Server {
 	t.Helper()
-	k := &Keep{Dir: t.TempDir()}
+	return setupAgent(t, t.TempDir(), key, until, now, "rte_blog")
+}
+
+// setupAgent is an agent keeping its routes' setup links in dir, as one that starts
+// again finds them, each route of blog.example.com, the first at /, the next at /api.
+func setupAgent(t *testing.T, dir, key string, until time.Time, now *time.Time, routes ...string) *Server {
+	t.Helper()
+	k := &Keep{Dir: dir, Now: func() time.Time { return *now }}
 	sum := sha256.Sum256([]byte(key))
-	if err := k.PutSetup("rte_blog", "blog.example.com", "", &resourcev1.RouteSetup{KeyHash: hex.EncodeToString(sum[:]), Until: until.Unix()}); err != nil {
-		t.Fatal(err)
+	for i, id := range routes {
+		path := ""
+		if i > 0 {
+			path = "/api"
+		}
+		if err := k.PutSetup(id, "blog.example.com", path, &resourcev1.RouteSetup{KeyHash: hex.EncodeToString(sum[:]), Until: until.Unix()}); err != nil {
+			t.Fatal(err)
+		}
 	}
 	return &Server{
 		Routes: func(string) (Route, bool) { return Route{}, false },
-		Setups: k.Setup,
-		Now:    func() time.Time { return *now },
+		Setups: k.Setup, SetupsOn: k.SetupsOn, UseSetup: k.UseSetupKey,
+		Now: func() time.Time { return *now },
 	}
+}
+
+// askRoute is askSetup for another route.
+func askRoute(s *Server, route, uri string, cookies ...*http.Cookie) *httptest.ResponseRecorder {
+	r := httptest.NewRequest(http.MethodGet, "/setup/"+route, http.NoBody)
+	r.Header.Set("X-Forwarded-Method", http.MethodGet)
+	r.Header.Set("X-Forwarded-Uri", uri)
+	r.Header.Set("Accept", html)
+	for _, c := range cookies {
+		r.AddCookie(c)
+	}
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, r)
+	return w
 }
 
 // askSetup is forward_auth for the held route, as Caddy sends it, with cookies.
@@ -86,8 +117,8 @@ func TestASetupLinkLetsOneBrowserThroughTheHold(t *testing.T) {
 	if w := askSetup(s, SetupPath+"?key=the-key", html); w.Code != http.StatusForbidden || len(w.Result().Cookies()) != 0 {
 		t.Errorf("the key a second time: %d, cookies %v", w.Code, w.Result().Cookies())
 	}
-	// The hour over, the cookie opens nothing.
-	now = now.Add(time.Hour)
+	// The hour over, and the minute's leeway, the cookie opens nothing.
+	now = now.Add(time.Hour + setupSkew)
 	if w := askSetup(s, "/", html, c); w.Code != http.StatusServiceUnavailable {
 		t.Errorf("after the hour, with the cookie: %d", w.Code)
 	}
@@ -116,13 +147,77 @@ func TestASetupCookieOpensOnlyItsOwnLink(t *testing.T) {
 	}
 }
 
-// A link that says it works for more than an hour works for an hour.
+// A link that says it works for a day works for an hour from when the agent was
+// given it: its key sets no cookie two hours on, and a cookie it set lasts the hour
+// (the review's M3).
 func TestASetupLinkWorksAnHourAtMost(t *testing.T) {
 	now := time.Unix(1_800_000_000, 0)
 	s := setupStand(t, "the-key", now.Add(24*time.Hour), &now)
 	c := cookie(t, askSetup(s, SetupPath+"?key=the-key", html), SetupName("rte_blog"))
-	if c.MaxAge > int(time.Hour.Seconds())+1 {
+	if c.MaxAge > int((time.Hour + setupSkew).Seconds()) {
 		t.Errorf("the cookie lasts %d s", c.MaxAge)
+	}
+	later := setupStand(t, "another", now.Add(24*time.Hour), &now)
+	now = now.Add(2 * time.Hour)
+	if w := askSetup(later, SetupPath+"?key=another", html); len(w.Result().Cookies()) != 0 || w.Code != http.StatusServiceUnavailable {
+		t.Errorf("a day-long link two hours on: %d, cookies %v", w.Code, w.Result().Cookies())
+	}
+	if w := askSetup(s, "/", html, c); w.Code != http.StatusServiceUnavailable {
+		t.Errorf("its cookie two hours on: %d", w.Code)
+	}
+}
+
+// An agent whose clock is behind the control plane's keeps the link working: the
+// cookie the link set lets the browser in on its next request (the review's M3).
+func TestASetupLinkWorksOnAnAgentWhoseClockIsBehind(t *testing.T) {
+	made := time.Unix(1_800_000_000, 0)
+	now := made.Add(-30 * time.Second)
+	s := setupStand(t, "the-key", made.Add(time.Hour), &now)
+	c := cookie(t, askSetup(s, SetupPath+"?key=the-key", html), SetupName("rte_blog"))
+	now = now.Add(time.Second)
+	if w := askSetup(s, "/", html, c); w.Code != http.StatusOK {
+		t.Errorf("a second on, with the cookie: %d", w.Code)
+	}
+	now = now.Add(50 * time.Minute)
+	if w := askSetup(s, "/", html, c); w.Code != http.StatusOK {
+		t.Errorf("50 minutes on, with the cookie: %d", w.Code)
+	}
+}
+
+// A key used once stays used though the agent starts again within the hour, with
+// what it keeps on disk (the review's M1).
+func TestAUsedSetupKeyStaysUsedAcrossARestart(t *testing.T) {
+	now := time.Unix(1_800_000_000, 0)
+	dir := t.TempDir()
+	first := setupAgent(t, dir, "the-key", now.Add(time.Hour), &now, "rte_blog")
+	cookie(t, askSetup(first, SetupPath+"?key=the-key", html), SetupName("rte_blog"))
+	now = now.Add(20 * time.Minute)
+	again := setupAgent(t, dir, "the-key", now.Add(40*time.Minute), &now, "rte_blog")
+	if w := askSetup(again, SetupPath+"?key=the-key", html); w.Code != http.StatusForbidden || len(w.Result().Cookies()) != 0 {
+		t.Errorf("the key after a restart: %d, cookies %v", w.Code, w.Result().Cookies())
+	}
+	// What's kept of it goes once its link ends.
+	now = now.Add(time.Hour)
+	other := setupAgent(t, dir, "other", now.Add(time.Hour), &now, "rte_blog")
+	askSetup(other, SetupPath+"?key=other", html)
+	sum := sha256.Sum256([]byte("the-key"))
+	if _, err := os.Stat(filepath.Join(dir, "setup-used", hex.EncodeToString(sum[:]))); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("a used key past its link's end is still kept: %v", err)
+	}
+}
+
+// One link opens every held route of its domain: the app at / and its API at /api
+// both let in the browser that opened it (the review's M5).
+func TestOneSetupLinkOpensEveryHeldRouteOfItsDomain(t *testing.T) {
+	now := time.Unix(1_800_000_000, 0)
+	s := setupAgent(t, t.TempDir(), "the-key", now.Add(time.Hour), &now, "rte_blog", "rte_blog_api")
+	w := askSetup(s, SetupPath+"?key=the-key", html)
+	web, api := cookie(t, w, SetupName("rte_blog")), cookie(t, w, SetupName("rte_blog_api"))
+	if got := askRoute(s, "rte_blog_api", "/api/v1/setup", web, api); got.Code != http.StatusOK {
+		t.Errorf("the API route with the link's cookies: %d", got.Code)
+	}
+	if got := askRoute(s, "rte_blog_api", "/api/v1/setup"); got.Code != http.StatusServiceUnavailable {
+		t.Errorf("the API route without them: %d", got.Code)
 	}
 }
 

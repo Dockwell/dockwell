@@ -8,8 +8,14 @@ import (
 	"crypto/subtle"
 	"encoding/hex"
 	"errors"
+	"fmt"
+	"io/fs"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
+	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -21,8 +27,14 @@ import (
 // SetupPath is where under a held route's path its setup link answers (ADR 0105).
 const SetupPath = "/.well-known/dockwell-setup"
 
-// maxSetupFor bounds how long a setup link works, whatever a route says.
-const maxSetupFor = time.Hour
+// maxSetupFor bounds how long a setup link works, from when this agent is given it,
+// whatever a route says, and setupSkew is the leeway its end is read with, so a
+// clock a little apart from the control plane's neither ends it early nor keeps it
+// longer than that (the review's M3).
+const (
+	maxSetupFor = time.Hour
+	setupSkew   = time.Minute
+)
 
 // Setup is a held route's setup link, as the agent keeps it: the hash of the key a
 // person was given, until when it works, and the key its cookie is signed with,
@@ -52,7 +64,9 @@ func SetupName(route string) string {
 	return "__Host-dw_" + hex.EncodeToString(sum[:6])
 }
 
-// PutSetup keeps a held route's setup link, at its domain and path.
+// PutSetup keeps a held route's setup link, at its domain and path. Its end is the
+// one the control plane set, held to an hour from now, once, so it's a fixed time
+// every cookie is checked against.
 func (k *Keep) PutSetup(id, domain, path string, s *resourcev1.RouteSetup) error {
 	if len(s.GetKeyHash()) != hex.EncodedLen(sha256.Size) {
 		return errors.New("the route's setup link has no key hash of a SHA-256")
@@ -70,10 +84,90 @@ func (k *Keep) PutSetup(id, domain, path string, s *resourcev1.RouteSetup) error
 	if k.setups == nil {
 		k.setups = map[string]keptSetup{}
 	}
+	until := time.Unix(s.GetUntil(), 0)
+	if most := k.now().Add(maxSetupFor); until.After(most) {
+		until = most
+	}
 	k.setups[id] = keptSetup{spec: proto.CloneOf(s), setup: Setup{
-		ID: id, Domain: domain, Path: path, KeyHash: strings.ToLower(s.GetKeyHash()), Until: time.Unix(s.GetUntil(), 0), Key: key,
+		ID: id, Domain: domain, Path: path, KeyHash: strings.ToLower(s.GetKeyHash()), Until: until, Key: key,
 	}}
 	return nil
+}
+
+// now is the keep's clock.
+func (k *Keep) now() time.Time {
+	if k.Now != nil {
+		return k.Now()
+	}
+	return time.Now()
+}
+
+// SetupsOn are the held routes of a domain whose setup link has a key's hash: one
+// key opens them all (the review's M5).
+func (k *Keep) SetupsOn(domain, keyHash string) []Setup {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	var out []Setup
+	for _, s := range k.setups {
+		if strings.EqualFold(s.setup.Domain, domain) && s.setup.KeyHash == keyHash {
+			out = append(out, s.setup)
+		}
+	}
+	slices.SortFunc(out, func(a, b Setup) int { return strings.Compare(a.ID, b.ID) })
+	return out
+}
+
+// UseSetupKey says whether a setup link's key, by its hash, is used for the first
+// time, and keeps that it's used until the link ends, in Dir, beside the routes'
+// cookie keys, so a key works once though the agent starts again (the review's M1).
+// With no Dir, it keeps it in memory.
+func (k *Keep) UseSetupKey(hash string, until time.Time) (bool, error) {
+	now := k.now()
+	if k.Dir == "" {
+		k.mu.Lock()
+		defer k.mu.Unlock()
+		for h, end := range k.used {
+			if !now.Before(end) {
+				delete(k.used, h)
+			}
+		}
+		if _, seen := k.used[hash]; seen {
+			return false, nil
+		}
+		if k.used == nil {
+			k.used = map[string]time.Time{}
+		}
+		k.used[hash] = until
+		return true, nil
+	}
+	dir := filepath.Join(k.Dir, "setup-used")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return false, fmt.Errorf("can't keep which setup links were used: %w", err)
+	}
+	// What's past its link's end goes.
+	if entries, err := os.ReadDir(dir); err == nil {
+		for _, e := range entries {
+			b, err := os.ReadFile(filepath.Join(dir, e.Name())) //nolint:gosec // Dir and a name it wrote
+			if end, perr := strconv.ParseInt(strings.TrimSpace(string(b)), 10, 64); err == nil && perr == nil && !now.Before(time.Unix(end, 0).Add(setupSkew)) {
+				_ = os.Remove(filepath.Join(dir, e.Name()))
+			}
+		}
+	}
+	if len(hash) != hex.EncodedLen(sha256.Size) {
+		return false, errors.New("a setup link's key hash isn't a SHA-256")
+	}
+	f, err := os.OpenFile(filepath.Join(dir, hash), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600) //nolint:gosec // a hex hash in Dir
+	if errors.Is(err, fs.ErrExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("can't keep that a setup link was used: %w", err)
+	}
+	_, werr := f.WriteString(strconv.FormatInt(until.Unix(), 10))
+	if err := errors.Join(werr, f.Sync(), f.Close()); err != nil {
+		return false, fmt.Errorf("can't keep that a setup link was used: %w", err)
+	}
+	return true, nil
 }
 
 // DropSetup forgets a route's setup link, if it has one.
@@ -116,7 +210,7 @@ type keptSetup struct {
 func (s *Server) serveSetup(w http.ResponseWriter, r *http.Request, id string) {
 	st, ok := s.setupOf(id)
 	now := s.now()
-	if !ok || !now.Before(st.Until) {
+	if !ok || !now.Before(st.Until.Add(setupSkew)) {
 		notOpen(w, r)
 		return
 	}
@@ -129,24 +223,39 @@ func (s *Server) serveSetup(w http.ResponseWriter, r *http.Request, id string) {
 		key := q.Get("key")
 		sum := sha256.Sum256([]byte(key))
 		got := hex.EncodeToString(sum[:])
-		if key == "" || subtle.ConstantTimeCompare([]byte(got), []byte(st.KeyHash)) != 1 || !s.firstUse(got, st.Until, now) {
+		if key == "" || subtle.ConstantTimeCompare([]byte(got), []byte(st.KeyHash)) != 1 {
 			end{
 				Status: http.StatusForbidden, Title: "This setup link doesn't work",
-				Said: "It was used already, or it ran out. Make a new one from the app's page in Dockwell.",
+				Said: "It's for another link, or it ran out. Make a new one from the app's page in Dockwell.",
 			}.write(w)
 			return
 		}
-		value, err := seal(st.Key, 0, "setup", setupCookie{Route: id, Domain: st.Domain, Until: st.Until})
+		first, err := s.use(got, st.Until, now)
 		if err != nil {
 			end{Status: http.StatusBadGateway, Title: "This setup link can't be used here", Said: sentence(err)}.write(w)
 			return
 		}
-		// Strict, as the page that goes on is the site's own, so the next request
-		// carries it.
-		http.SetCookie(w, &http.Cookie{
-			Name: name, Value: value, Path: "/", MaxAge: int(st.Until.Sub(now).Seconds()) + 1,
-			Secure: true, HttpOnly: true, SameSite: http.SameSiteStrictMode,
-		})
+		if !first {
+			end{
+				Status: http.StatusForbidden, Title: "This setup link was used already",
+				Said: "A link works once. Make a new one from the app's page in Dockwell.",
+			}.write(w)
+			return
+		}
+		// One cookie for each held route of the domain the key is for, path routes
+		// included, as one link sets the app up (the review's M5). Strict, as the page
+		// that goes on is the site's own, so the next request carries them.
+		for _, each := range s.setupsOn(st) {
+			value, err := seal(each.Key, 0, "setup", setupCookie{Route: each.ID, Domain: each.Domain, Until: each.Until})
+			if err != nil {
+				end{Status: http.StatusBadGateway, Title: "This setup link can't be used here", Said: sentence(err)}.write(w)
+				return
+			}
+			http.SetCookie(w, &http.Cookie{
+				Name: SetupName(each.ID), Value: value, Path: "/", MaxAge: max(int(each.Until.Add(setupSkew).Sub(now).Seconds()), 1),
+				Secure: true, HttpOnly: true, SameSite: http.SameSiteStrictMode,
+			})
+		}
 		// Never 2xx, which would send the link and its key on to the app, and never
 		// a redirect: a page that goes on by itself, with no referrer.
 		end{
@@ -157,7 +266,7 @@ func (s *Server) serveSetup(w http.ResponseWriter, r *http.Request, id string) {
 	}
 	if c, err := r.Cookie(name); err == nil {
 		var got setupCookie
-		if open(st.Key, 0, "setup", c.Value, &got) == nil && got.Route == id && got.Domain == st.Domain && got.Until.Equal(st.Until) {
+		if open(st.Key, 0, "setup", c.Value, &got) == nil && got.Route == id && got.Domain == st.Domain && got.Until.Equal(st.Until) && now.Before(got.Until.Add(setupSkew)) {
 			w.WriteHeader(http.StatusOK)
 			return
 		}
@@ -165,24 +274,32 @@ func (s *Server) serveSetup(w http.ResponseWriter, r *http.Request, id string) {
 	notOpen(w, r)
 }
 
-// setupOf is a route's setup link, held to an hour at most.
+// setupOf is a route's setup link, as its keep has it, its end fixed when it came.
 func (s *Server) setupOf(id string) (Setup, bool) {
 	if s.Setups == nil {
 		return Setup{}, false
 	}
-	st, ok := s.Setups(id)
-	if !ok {
-		return Setup{}, false
-	}
-	if most := s.now().Add(maxSetupFor); st.Until.After(most) {
-		st.Until = most
-	}
-	return st, true
+	return s.Setups(id)
 }
 
-// firstUse says whether a key, by its hash, opens for the first time, and remembers
-// it until the link it's for runs out, so a key works once.
-func (s *Server) firstUse(hash string, until, now time.Time) bool {
+// setupsOn are the held routes a setup link's key opens: those of its domain with
+// its hash, or the one route where nothing says more.
+func (s *Server) setupsOn(st Setup) []Setup {
+	if s.SetupsOn == nil {
+		return []Setup{st}
+	}
+	if all := s.SetupsOn(st.Domain, st.KeyHash); len(all) > 0 {
+		return all
+	}
+	return []Setup{st}
+}
+
+// use says whether a key, by its hash, opens for the first time, through UseSetup,
+// which keeps that past a restart, or in this server's memory where nothing does.
+func (s *Server) use(hash string, until, now time.Time) (bool, error) {
+	if s.UseSetup != nil {
+		return s.UseSetup(hash, until)
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for h, end := range s.used {
@@ -191,13 +308,13 @@ func (s *Server) firstUse(hash string, until, now time.Time) bool {
 		}
 	}
 	if _, seen := s.used[hash]; seen {
-		return false
+		return false, nil
 	}
 	if s.used == nil {
 		s.used = map[string]time.Time{}
 	}
 	s.used[hash] = until
-	return true
+	return true, nil
 }
 
 // notOpen is what a held route answers anyone without its setup cookie: the app
