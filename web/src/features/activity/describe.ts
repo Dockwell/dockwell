@@ -799,7 +799,7 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
               title = t`Moved ${name} in the tunnel ${where} to the server's proxy`;
               break;
             case ProviderAction.RESTORE_RULE:
-              title = t`Put back ${name} in the tunnel ${where}, made in Cloudflare`;
+              title = t`Put back ${name}'s rule made in Cloudflare, in the tunnel ${where}`;
               break;
             case ProviderAction.SET_ZONE_MODE:
               title = t`Set ${name}'s SSL mode at Cloudflare`;

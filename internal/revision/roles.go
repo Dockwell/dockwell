@@ -487,6 +487,8 @@ func installWide(a resource.Access) string {
 		return "sends a certificate's key to its server for the first time"
 	case resource.AccessTunnelRule:
 		return "adds a rule to a Cloudflare tunnel it shares with others"
+	case resource.AccessZoneMode:
+		return "sets a zone at Cloudflare to Full (strict)"
 	case resource.AccessDocker, resource.AccessNetwork, resource.AccessBackupOf,
 		resource.AccessDomain, resource.AccessPlainForAnyone, resource.AccessHTTPSOff, resource.AccessExternalVolume,
 		resource.AccessServerShell, resource.AccessOpened, resource.AccessHostProcesses, resource.AccessRootTogether,

@@ -945,7 +945,7 @@ msgstr "保留了一条在 Cloudflare 中创建的记录的副本"
 
 #. placeholder {0}: cf.name
 msgid "Kept a copy of {0}'s record made in Cloudflare, as the name holds another now"
-msgstr "保留了 {0} 在 Cloudflare 中创建的记录的副本，因为该名称现在有另一条记录"
+msgstr "保留了 {0} 处在 Cloudflare 中手动创建的记录的副本，因为该名称现在有另一条记录"
 
 msgid "Killed {what} (PID {pid}) on {server}, as it didn't stop within 10 s"
 msgstr "已在 {server} 上强制结束 {what}（PID {pid}），因为它在 10 秒内没有停止"
@@ -1058,8 +1058,8 @@ msgstr "已在 Cloudflare 的 {where} 中发布 {name}"
 msgid "Put back the DNS record for {name} at Cloudflare, in {where}"
 msgstr "已在 Cloudflare 的 {where} 中恢复 {name} 的 DNS 记录"
 
-msgid "Put back {name} in the tunnel {where}, made in Cloudflare"
-msgstr "已在隧道 {where} 中恢复在 Cloudflare 中创建的 {name}"
+msgid "Put back {name}'s rule made in Cloudflare, in the tunnel {where}"
+msgstr "已在隧道 {where} 中恢复 {name} 在 Cloudflare 中创建的规则"
 
 msgid "Put back {path} on {server}"
 msgstr "已放回 {server} 上的 {path}"
@@ -11163,6 +11163,12 @@ msgstr "来自 CLI"
 msgid "From the panel"
 msgstr "来自面板"
 
+msgid "Full (strict) for {path}, where a name whose server has no valid certificate stops answering: {detail}"
+msgstr "{path} 设为 Full (strict)，其服务器没有有效证书的名称将无法访问：{detail}"
+
+msgid "Full (strict) for {path}, where a proxied name whose server has no valid certificate stops answering"
+msgstr "{path} 设为 Full (strict)，其服务器没有有效证书的代理名称将无法访问"
+
 msgid "HTTPS on {path}, which stops: https:// addresses get an error, and browsers that saw HSTS from it refuse plain HTTP until that runs out"
 msgstr "{path} 上的 HTTPS，它将停止：https:// 地址会报错，见过其 HSTS 的浏览器在该设置到期前也会拒绝纯 HTTP"
 
@@ -11526,6 +11532,9 @@ msgstr "服务器本身的端口 {path}，这越过了容器的边界，位于 {
 msgid "the port {path} on the server itself, past its containers, at {detail} over plain HTTP"
 msgstr "服务器本身的端口 {path}，这越过了容器的边界，位于 {detail}，通过纯 HTTP"
 
+msgid "the rule {path} in the tunnel {detail}, which it shares with others, sending to {sendsTo}"
+msgstr "与他人共用的隧道 {detail} 中的规则 {path}，转发到 {sendsTo}"
+
 msgid "the server path {path} ({how})"
 msgstr "服务器路径 {path}（{how}）"
 
@@ -11585,6 +11594,9 @@ msgstr "{base}，由 {by} 以镜像自身的用户写入，该用户可能是 ro
 
 msgid "{base}, written by {by} as root"
 msgstr "{base}，由 {by} 以 root 写入"
+
+msgid "{detail} at {path}, made in Cloudflare by someone else, which Dockwell takes on or replaces, and may delete later"
+msgstr "{path} 处由他人在 Cloudflare 中创建的 {detail}，Dockwell 将接管或替换它，之后可能会删除它"
 
 msgid "{domain} has no DNS record yet, so its certificate can't come until it has one. {point}"
 msgstr "{domain} 还没有 DNS 记录，在添加之前无法获取证书。{point}"

@@ -1357,6 +1357,10 @@ const (
 	// what's there, as "A 203.0.113.9" or "a rule in web-1". As good as root to
 	// apply: an admin's, with a passkey (ADR 0104).
 	AccessCloudflareTakeover
+	// AccessZoneMode is a zone set to Full (strict): Path is the zone, Detail the
+	// proxied names a server without a valid certificate behind stops answering, the
+	// panel's first, comma-separated. An admin's to approve (ADR 0104).
+	AccessZoneMode
 )
 
 // NewAccess lists what to reaches that from doesn't: access it didn't
@@ -1653,6 +1657,11 @@ func AccessWords(a Access) string {
 		return out
 	case AccessCloudflareTakeover:
 		return plain(a.Detail) + " at " + plain(a.Path) + ", made in Cloudflare by someone else, which Dockwell replaces or takes on, and may delete later"
+	case AccessZoneMode:
+		if a.Detail == "" {
+			return "Full (strict) for " + plain(a.Path) + ", where a proxied name whose server has no valid certificate stops answering"
+		}
+		return "Full (strict) for " + plain(a.Path) + ", where a name whose server has no valid certificate stops answering: " + plain(a.Detail)
 	}
 	return fmt.Sprintf("access(%d)", int(a.Kind))
 }

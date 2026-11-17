@@ -85,6 +85,9 @@ func strictStand(t *testing.T, backend store.Backend) *publishStand {
 	tok.Rights = append(tok.Rights, "Zone Settings Write")
 	s.cf.SetToken(dnsToken, &tok)
 	s.applied(t, propose(t, s.person, "Publish wiki", s.published("wiki", "wiki.example.com")))
+	// A proxied name Dockwell doesn't publish, whose server's certificate it can't
+	// vouch for.
+	s.cf.Put("example.com", cftest.Record{Type: "A", Name: "vpn.example.com", Content: "203.0.113.9", Proxied: true, TTL: 1, Comment: "by hand"})
 	s.cf.SetMode("example.com", "flexible")
 	return s
 }
@@ -108,8 +111,17 @@ func TestAZoneSetToFullStrictAndBack(t *testing.T) {
 		s := strictStand(t, backend)
 		ch := propose(t, s.person, "Use Full (strict)", s.provider(func(p *resourcev1.DnsProvider) { p.StrictZones = []string{"example.com"} }))
 		steps := zoneModeSteps(ch)
-		if len(steps) != 1 || steps[0].GetWas() != "Flexible" || steps[0].GetTo() != "Full (strict)" || steps[0].GetRouting() != "Changes how Cloudflare reaches wiki.example.com" {
+		if len(steps) != 1 || steps[0].GetWas() != "Flexible" || steps[0].GetTo() != "Full (strict)" ||
+			steps[0].GetRouting() != "Cloudflare reaches each over HTTPS with a certificate it checks, so a name whose server has none valid stops answering: vpn.example.com" {
 			t.Fatalf("the plan: %v", providerSteps(ch))
+		}
+		// An admin approves it, with the names it can break (the review's M3).
+		if !slices.ContainsFunc(ch.GetPlan().GetResources(), func(r *dockwellv1.PlannedResource) bool {
+			return slices.ContainsFunc(r.GetHostAccess(), func(a *dockwellv1.HostAccess) bool {
+				return a.GetKind() == dockwellv1.HostAccessKind_HOST_ACCESS_KIND_ZONE_MODE && a.GetPath() == "example.com" && a.GetDetail() == "vpn.example.com"
+			})
+		}) {
+			t.Fatalf("Full (strict) should be an admin's approval, naming what it can break: %v", ch.GetPlan().GetResources())
 		}
 		done := s.applied(t, ch)
 		if got := s.cf.Mode("example.com"); got != "strict" {

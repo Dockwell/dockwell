@@ -17428,6 +17428,7 @@ components:
                         - HOST_ACCESS_KIND_ROOT_TOGETHER
                         - HOST_ACCESS_KIND_TUNNEL_RULE
                         - HOST_ACCESS_KIND_CLOUDFLARE_TAKEOVER
+                        - HOST_ACCESS_KIND_ZONE_MODE
                     type: string
                     description: What it is.
                     format: enum

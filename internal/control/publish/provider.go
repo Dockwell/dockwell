@@ -83,10 +83,13 @@ func (p *Publisher) planProvider(ctx context.Context, pp revision.PublishProvide
 		if err != nil {
 			return nil, fmt.Errorf("can't read %s's proxied names at Cloudflare: %w", zone, err)
 		}
+		// Each name the mode changes, and those it can break, which an admin approves:
+		// the panel's first, then the names Dockwell doesn't publish (the review's M3).
+		all, atRisk := p.zoneModeNames(ctx, proxied)
 		add(resource.ActionUpdate, resource.ProviderStep{
 			Provider: name, Action: resource.ProviderSetZoneMode, Target: zone, Name: zone, Was: modeWords(mode), To: modeWords(strict),
-			Routing: proxiedWords(zone, proxied), ZoneID: t.zone.ID, Mode: strict,
-		})
+			Routing: strictWords(zone, all), ZoneID: t.zone.ID, Mode: strict,
+		}, resource.Access{Kind: resource.AccessZoneMode, Path: zone, Detail: strings.Join(atRisk, ", ")})
 	}
 	for _, zone := range before {
 		if slices.Contains(after, zone) {
@@ -117,9 +120,10 @@ func (p *Publisher) planProvider(ctx context.Context, pp revision.PublishProvide
 		if err != nil {
 			return nil, fmt.Errorf("can't read %s's proxied names at Cloudflare: %w", zone, err)
 		}
+		all, _ := p.zoneModeNames(ctx, proxied)
 		add(resource.ActionUpdate, resource.ProviderStep{
 			Provider: name, Action: resource.ProviderSetZoneMode, Target: zone, Name: zone, Was: modeWords(strict), To: modeWords(held.Was),
-			Routing: proxiedWords(zone, proxied), ZoneID: t.zone.ID, Mode: held.Was,
+			Routing: putBackWords(zone, held.Was, all), ZoneID: t.zone.ID, Mode: held.Was,
 		})
 	}
 	for _, id := range pp.After.GetPutBack() {
@@ -191,22 +195,52 @@ func (p *Publisher) modeSet(ctx context.Context, provider, zone string) (bool, e
 	return set, err
 }
 
-// proxiedWords names the proxied names in zone whose way in a mode changes.
-func proxiedWords(zone string, records []dnsproviders.Record) string {
-	var names []string
-	for _, r := range records {
-		if !slices.Contains(names, r.Name) {
-			names = append(names, r.Name)
+// zoneModeNames are the proxied names a zone's mode changes how Cloudflare reaches,
+// leaving out names on a tunnel, which the mode doesn't touch, with the panel's
+// first, then the names Dockwell doesn't publish, then its own. atRisk are those
+// that can stop answering under Full (strict): the panel's and the ones Dockwell
+// doesn't publish, whose server's certificate it can't vouch for.
+func (p *Publisher) zoneModeNames(ctx context.Context, proxied []dnsproviders.Record) (all, atRisk []string) {
+	var panel []string
+	if p.Panel != nil {
+		panel = p.Panel(ctx).Names()
+	}
+	ours := "dockwell " + p.Install + " "
+	var first, theirs, own []string
+	for _, r := range proxied {
+		if strings.HasSuffix(r.Content, ".cfargotunnel.com") || slices.Contains(all, r.Name) {
+			continue
+		}
+		all = append(all, r.Name)
+		switch {
+		case slices.ContainsFunc(panel, func(n string) bool { return strings.EqualFold(n, r.Name) }):
+			first = append(first, r.Name)
+		case !strings.HasPrefix(r.Comment, ours):
+			theirs = append(theirs, r.Name)
+		default:
+			own = append(own, r.Name)
 		}
 	}
-	slices.Sort(names)
-	switch {
-	case len(names) == 0:
-		return "No name in " + zone + " is proxied now"
-	case len(names) <= 3:
-		return "Changes how Cloudflare reaches " + strings.Join(names, ", ")
+	slices.Sort(theirs)
+	slices.Sort(own)
+	atRisk = slices.Concat(first, theirs)
+	return slices.Concat(first, theirs, own), atRisk
+}
+
+// strictWords says what Full (strict) does to names, every one named.
+func strictWords(zone string, names []string) string {
+	if len(names) == 0 {
+		return "No name in " + zone + " is proxied outside a tunnel now"
 	}
-	return fmt.Sprintf("Changes how Cloudflare reaches %s and %d other proxied names in %s", strings.Join(names[:3], ", "), len(names)-3, zone)
+	return "Cloudflare reaches each over HTTPS with a certificate it checks, so a name whose server has none valid stops answering: " + strings.Join(names, ", ")
+}
+
+// putBackWords says what putting a zone's mode back does to names.
+func putBackWords(zone, mode string, names []string) string {
+	if len(names) == 0 {
+		return "No name in " + zone + " is proxied outside a tunnel now"
+	}
+	return "Cloudflare reaches each as " + modeWords(mode) + " says again: " + strings.Join(names, ", ")
 }
 
 // setZoneMode sets a zone's mode as its step says. Setting Full (strict) keeps what

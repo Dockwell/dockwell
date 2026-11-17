@@ -1799,6 +1799,10 @@ enum HostAccessKind {
   // on: a DNS record, or a tunnel's rule. Taking it on lets Dockwell delete it
   // later. As good as root to apply: an admin's, with a passkey (ADR 0104).
   HOST_ACCESS_KIND_CLOUDFLARE_TAKEOVER = 341;
+  // A zone set to Full (strict) for an admin: path is the zone, detail the names a
+  // server with no valid certificate behind stops answering, the panel's first,
+  // comma-separated (ADR 0104).
+  HOST_ACCESS_KIND_ZONE_MODE = 342;
 }
 
 // ServerPlan is the part of a plan on one server.

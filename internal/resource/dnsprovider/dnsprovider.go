@@ -151,7 +151,7 @@ func (Type) Validate(spec proto.Message) error {
 		return ErrGlobalKey
 	}
 	if p.GetClearTunnelApiToken() && p.GetTunnelApiToken() != "" {
-		return errors.New("the edit gives a tunnels' token and takes it off too. Give one, or clear it")
+		return errors.New("this edit gives a tunnels token and clears it too. Leave out tunnel_api_token, or clear_tunnel_api_token")
 	}
 	for _, id := range p.GetPutBack() {
 		if !strings.HasPrefix(id, "pending:") {

@@ -436,6 +436,17 @@ export function useChangeWords(): ChangeWords {
             return type === "http"
               ? t`the port ${path} on the server itself, past its containers, at ${detail} over plain HTTP`
               : t`the port ${path} on the server itself, past its containers, at ${detail}`;
+          case HostAccessKind.TUNNEL_RULE: {
+            // A rule Dockwell adds to a tunnel it shares with others, once per zone (ADR 0104).
+            const sendsTo = plain(access.address);
+            return t`the rule ${path} in the tunnel ${detail}, which it shares with others, sending to ${sendsTo}`;
+          }
+          case HostAccessKind.CLOUDFLARE_TAKEOVER:
+            return t`${detail} at ${path}, made in Cloudflare by someone else, which Dockwell takes on or replaces, and may delete later`;
+          case HostAccessKind.ZONE_MODE:
+            return access.detail === ""
+              ? t`Full (strict) for ${path}, where a proxied name whose server has no valid certificate stops answering`
+              : t`Full (strict) for ${path}, where a name whose server has no valid certificate stops answering: ${detail}`;
           case HostAccessKind.TRUSTED_PROXY:
             return namesARange(access.path)
               ? t`${path} as a proxy it believes on where a request came from: whatever else is in that range can reach the route, and say who its client is`

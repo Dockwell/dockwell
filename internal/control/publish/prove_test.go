@@ -80,3 +80,22 @@ func TestTheProofByAddress(t *testing.T) {
 		t.Fatalf("connected from somewhere else too: %v", err)
 	}
 }
+
+// The names a zone's mode changes leave out names on a tunnel, with the panel's
+// first and the names Dockwell doesn't publish next, which are those at risk under
+// Full (strict) (the review's M3).
+func TestZoneModeNamesPanelFirst(t *testing.T) {
+	p := &Publisher{Install: "ins_1", Panel: func(context.Context) PanelNames { return PanelNames{Served: []string{"panel.example.com"}} }}
+	all, atRisk := p.zoneModeNames(t.Context(), []dnsproviders.Record{
+		{Name: "wiki.example.com", Content: proveTunnel + ".cfargotunnel.com", Proxied: true, Comment: "dockwell ins_1 rte_1"},
+		{Name: "docs.example.com", Content: "203.0.113.10", Proxied: true, Comment: "dockwell ins_1 rte_2"},
+		{Name: "vpn.example.com", Content: "203.0.113.9", Proxied: true, Comment: "by hand"},
+		{Name: "panel.example.com", Content: "203.0.113.10", Proxied: true},
+	})
+	if got := strings.Join(all, " "); got != "panel.example.com vpn.example.com docs.example.com" {
+		t.Errorf("every name: %s", got)
+	}
+	if got := strings.Join(atRisk, " "); got != "panel.example.com vpn.example.com" {
+		t.Errorf("at risk: %s", got)
+	}
+}
