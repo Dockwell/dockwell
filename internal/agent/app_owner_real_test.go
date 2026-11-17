@@ -30,6 +30,8 @@ const (
 	ghostImage = "ghost:6.72.0@sha256:c0d83a8d45222b3f37a897572000050ab8e6e507d3eee5a35b3ef8345c7293d6"
 	mysqlImage = "mysql:8.4.11@sha256:0f51e63e537a1f176423fa03ef559aabe6fa4372a53160a44bc7e75da7d15364"
 	n8nImage   = "n8nio/n8n:2.45.5@sha256:9f6d0a5987ab5a297c4b0b38fbf1a22285dd1364551478e93f03d506908fa74c"
+	umamiImage = "ghcr.io/umami-software/umami:3.4.1@sha256:e69d1a7932e9dab0fc523edc7be1f3a53f3c261f57856fc2167ae74a8fc022e8"
+	pgImage    = "postgres:17.11@sha256:748a18a54d3842d43bc156f0840d78029b8d349e0feca98c12b9c4ce3404a6b3"
 )
 
 func jsonRequest(port uint32, method, path, body string, headers map[string]string) *resourcev1.OwnerStep {
@@ -81,6 +83,43 @@ func giteaReset() *resourcev1.OwnerRun {
 	return o
 }
 
+// umamiSignIns signs in to Umami from inside its container with each body it's
+// given, each filled from its environment as {{NAME}}, and says yes where the first
+// signs in and every other is refused: the owner with their password, then the
+// known password for the known user and for the owner's (ADR 0105). It names no
+// value, so its words hold none.
+const umamiSignIns = `const fill = (s) => s.replace(/\{\{(\w+)\}\}/g, (_, k) => JSON.stringify(process.env[k] || "").slice(1, -1));
+const login = (b) => fetch("http://127.0.0.1:3000/api/auth/login", {method: "POST", headers: {"content-type": "application/json"}, body: fill(b)}).then((r) => r.status);
+const [own, ...known] = process.argv.slice(1);
+Promise.all([login(own), ...known.map(login)]).then(([o, ...k]) => {
+  console.log(o + " " + k.join(" "));
+  process.exit(o === 200 && k.every((s) => s === 401) ? 0 : 1);
+}, (e) => { console.error(e.message); process.exit(1); });`
+
+// umamiOwner makes Umami's owner from the account it starts with, admin with the
+// password umami: it signs in with them, then changes the user name and the password
+// to the owner's in one request, so no try that stops part-way leaves the known
+// password with a name of the owner's. Its done reads the owner signs in, and the
+// known password is refused for both names.
+func umamiOwner() *resourcev1.OwnerRun {
+	login := jsonRequest(3000, http.MethodPost, "/api/auth/login", `{"username":"${KNOWN_USER}","password":"${KNOWN_PASSWORD}"}`, nil)
+	login.GetRequest().Capture = map[string]string{"TOKEN": "token", "ADMIN_ID": "user.id"}
+	return &resourcev1.OwnerRun{
+		Service: "web", Email: "owner@example.com", User: "owner", Password: "OWNER_PASSWORD",
+		Steps: []*resourcev1.OwnerStep{
+			login,
+			jsonRequest(3000, http.MethodPost, "/api/users/${ADMIN_ID}", `{"username":"${OWNER_USER}","password":"${OWNER_PASSWORD}"}`,
+				map[string]string{"Authorization": "Bearer ${TOKEN}"}),
+		},
+		Done: &resourcev1.OwnerCheck{Command: &resourcev1.OwnerCommand{Words: []string{
+			"node", "-e", umamiSignIns,
+			`{"username":"{{OWNER_USER}}","password":"{{OWNER_PASSWORD}}"}`,
+			`{"username":"{{KNOWN_USER}}","password":"{{KNOWN_PASSWORD}}"}`,
+			`{"username":"{{OWNER_USER}}","password":"{{KNOWN_PASSWORD}}"}`,
+		}}},
+	}
+}
+
 // ghostScript asks Ghost from inside its container, on its own loopback, which is
 // the only address whose X-Forwarded-Proto Ghost believes, as the address its url
 // says, so a Ghost reached at an https address answers rather than redirects (the
@@ -107,7 +146,7 @@ func ghostStep(method, path, body string) *resourcev1.OwnerCommand {
 // secret there either.
 func TestTheOwnersStepsAreOnesAnEntryMayHold(t *testing.T) {
 	t.Parallel()
-	for name, o := range map[string]*resourcev1.OwnerRun{"gitea": giteaOwner(), "gitea reset": giteaReset(), "ghost": ghostOwner(), "n8n": n8nOwner()} {
+	for name, o := range map[string]*resourcev1.OwnerRun{"gitea": giteaOwner(), "gitea reset": giteaReset(), "ghost": ghostOwner(), "n8n": n8nOwner(), "umami": umamiOwner()} {
 		if err := ownerstep.Check(o.GetSteps()); err != nil {
 			t.Errorf("%s: %v", name, err)
 		}
@@ -318,6 +357,48 @@ func TestAnAppsOwnerIsMadeOnRealDocker(t *testing.T) {
 			t.Errorf("done doesn't read Ghost's owner made: %s", said)
 		}
 		if res := ownerstep.Run(t.Context(), target, ghostOwner(), values, true); !res.Made {
+			t.Errorf("a second run, reading done first: %+v", res)
+		}
+	})
+	t.Run("umami", func(t *testing.T) {
+		env := dockertest.Scope(t)
+		project := docker.Project(env)
+		dockertest.Cleanup(t, client, project)
+		network := project + "_default"
+		if _, err := client.CreateNetwork(t.Context(), &docker.NetworkCreate{Name: network, Labels: map[string]string{docker.LabelProject: project}}); err != nil {
+			t.Fatal(err)
+		}
+		run(t, client, env, "db", pgImage, network, docker.Config{Env: []string{"POSTGRES_USER=umami", "POSTGRES_DB=umami", "POSTGRES_PASSWORD=the-sites"}})
+		run(t, client, env, "web", umamiImage, network, docker.Config{Env: []string{
+			"DATABASE_URL=postgresql://umami:the-sites@db:5432/umami", "APP_SECRET=" + newPassword(),
+		}})
+		target, err := healthyContainer(t.Context(), client, env, "web")
+		if err != nil {
+			t.Fatal(err)
+		}
+		// Umami signs in once its migrations ran: a user it doesn't have is refused.
+		probe := []string{"node", "-e", umamiSignIns, `{"username":"nobody","password":"nobody-at-all"}`}
+		for until := time.Now().Add(6 * time.Minute); ; time.Sleep(3 * time.Second) {
+			out, _, err := target.Exec(t.Context(), probe, "", nil)
+			if err == nil && strings.HasPrefix(string(out), "401") {
+				break
+			}
+			if time.Now().After(until) {
+				t.Fatalf("Umami never answered a sign-in: %v %s", err, out)
+			}
+		}
+		password := newPassword()
+		values := map[string]string{"OWNER_EMAIL": "owner@example.com", "OWNER_USER": "owner", "OWNER_PASSWORD": password, "KNOWN_USER": "admin", "KNOWN_PASSWORD": "umami"}
+		if yes, _ := ownerstep.Read(t.Context(), target, umamiOwner(), umamiOwner().GetDone(), values); yes {
+			t.Fatal("done reads Umami's owner made before its steps ran")
+		}
+		if res := ownerstep.Run(t.Context(), target, umamiOwner(), values, false); !res.Made {
+			t.Fatalf("making Umami's owner: %+v", res)
+		}
+		if yes, said := ownerstep.Read(t.Context(), target, umamiOwner(), umamiOwner().GetDone(), values); !yes {
+			t.Errorf("done doesn't read Umami's owner made, and admin with umami refused: %s", said)
+		}
+		if res := ownerstep.Run(t.Context(), target, umamiOwner(), values, true); !res.Made {
 			t.Errorf("a second run, reading done first: %+v", res)
 		}
 	})

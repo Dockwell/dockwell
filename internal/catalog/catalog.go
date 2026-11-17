@@ -604,6 +604,9 @@ func checkAccess(e *catalogv1.Entry, cf *composeFile) error {
 	if err := checkOwner(e, cf, inputs); err != nil {
 		return err
 	}
+	if o := e.GetOwner(); (o.GetKnownPassword() == "") != (o.GetKnownUser() == "") {
+		return errors.New("its owner says what the app starts with, and needs both its known_user and its known_password")
+	}
 	for _, a := range e.GetAddressVariables() {
 		if _, ok := services[a.GetService()]; !ok || !envName.MatchString(a.GetVariable()) || a.GetValue() == "" {
 			return fmt.Errorf("its address sets %s on %s, which needs a service it runs, a variable's name and a value", a.GetVariable(), a.GetService())
@@ -679,6 +682,30 @@ func checkOwner(e *catalogv1.Entry, cf *composeFile, inputs map[string]*catalogv
 	for name, c := range map[string]*resourcev1.OwnerCheck{"done": o.GetDone(), "sign-ups' check": e.GetSignups().GetCheck()} {
 		if err := ownerstep.CheckSecretCheck(c, secrets); err != nil {
 			return fmt.Errorf("its owner's %s: %w", name, err)
+		}
+	}
+	return nil
+}
+
+// speaksOfKnownPassword is words that tell a person the password an app starts
+// with, as Umami's "It starts with the account admin and the password umami".
+var speaksOfKnownPassword = regexp.MustCompile(`(?i)\b(default|initial|starts with)\b[^.:]*\bpassword\b`)
+
+// CheckWords refuses what an entry says that tells a person to do by hand what
+// Dockwell does, as the catalog's own check reads its entries, never a server: the
+// password an app starts with, which known_password and the owner's steps change
+// (ADR 0105). A store's converted entry says it as it is, and is held.
+func CheckWords(e *catalogv1.Entry) error {
+	o := e.GetOwner()
+	if o.GetKnownPassword() != "" {
+		if len(o.GetSteps()) == 0 || o.GetPasswordInput() == "" {
+			return errors.New("its owner starts with a password everyone knows, and no steps change it to the owner's. Give the steps, and the password input they change it to")
+		}
+		return nil
+	}
+	for _, text := range append([]string{e.GetFirstSteps()}, e.GetNotes()...) {
+		if speaksOfKnownPassword.MatchString(text) {
+			return fmt.Errorf("it says %q, a password everyone knows, which a person would change by hand. Give its owner known_user, known_password and the steps that change them, and take the words away", text)
 		}
 	}
 	return nil

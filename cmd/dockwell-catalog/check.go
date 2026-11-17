@@ -3,6 +3,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -14,6 +15,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/dockwell/dockwell/internal/catalog"
 	"github.com/dockwell/dockwell/internal/catalog/bump"
 	"github.com/dockwell/dockwell/internal/catalog/folder"
 	"github.com/dockwell/dockwell/internal/gitfetch"
@@ -47,6 +49,12 @@ func check(ctx context.Context, args []string, stdout io.Writer) error {
 	}
 	got := folder.Check(ctx, "this catalog", entries, passed, map[string]folder.Taken{}, folder.Options{})
 	refused = append(refused, got.Refused...)
+	// What the catalog's own entries say, which a server keeps as it is.
+	for _, e := range got.Entries {
+		if err := catalog.CheckWords(e); err != nil {
+			refused = append(refused, folder.Refusal{File: cmp.Or(filepath.Base(e.GetSource().GetPath()), e.GetId()+".yaml"), Reason: err.Error()})
+		}
+	}
 	policies, err := checkPolicies(filepath.Dir(filepath.Clean(dir)), entries)
 	if err != nil {
 		return err
