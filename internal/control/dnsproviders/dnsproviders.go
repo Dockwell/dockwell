@@ -103,6 +103,8 @@ type Info struct {
 	Zones              []string
 	// TunnelTokenSet says it holds a second token, for tunnels alone.
 	TunnelTokenSet bool
+	// Projects are the projects it serves, by ID.
+	Projects []string
 }
 
 // Shown returns every provider without its token, sorted by name. The token is
@@ -113,7 +115,7 @@ func (p *Providers) Shown(ctx context.Context) ([]Info, error) {
 	out := make([]Info, 0, len(all))
 	for i := range all {
 		s := &all[i]
-		out = append(out, Info{ID: s.ID, Name: s.Name, Provider: s.Spec.GetProvider(), Zones: s.Spec.GetZones(), TunnelTokenSet: s.Spec.GetTunnelApiToken() != ""})
+		out = append(out, Info{ID: s.ID, Name: s.Name, Provider: s.Spec.GetProvider(), Zones: s.Spec.GetZones(), TunnelTokenSet: s.Spec.GetTunnelApiToken() != "", Projects: s.Spec.GetProjects()})
 		s.Spec.ApiToken, s.Spec.TunnelApiToken = "", ""
 	}
 	return out, err

@@ -255,6 +255,10 @@ message DnsProviderInfo {
   repeated string zones = 4;
   // Whether it holds a second token, for tunnels alone (ADR 0104).
   bool tunnel_api_token_set = 5;
+  // The projects whose routes it proves and publishes names for, by ID: an admin's
+  // alone. A form that changes the provider sends them back, as an edit is the whole
+  // spec.
+  repeated string projects = 7;
 }
 
 // CheckDnsProviderRequest is a token to check, or a saved provider to check
@@ -610,6 +614,10 @@ message DomainRoute {
   // Where it redirects, for a route that answers with a redirect in place of a
   // service (ADR 0070). Unset for any other route.
   dockwell.resource.v1alpha1.RouteRedirect redirect = 10;
+  // How its domain is published at Cloudflare, as the route's spec has it (ADR
+  // 0104). A form that sends the route as it is sends this back, or the plan takes
+  // the domain's records away.
+  dockwell.resource.v1alpha1.RoutePublish publish = 113;
 }
 
 // DomainServer is where a domain stands on one server.

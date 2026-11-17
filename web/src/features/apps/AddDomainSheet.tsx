@@ -383,6 +383,7 @@ export function AddDomainSheet({
                           tls: "",
                           trustedProxies: [],
                           plainForAnyone: false,
+                          ...(route.publish ? { publish: route.publish } : {}),
                           ...(noCertificate ? front() : {}),
                         },
                       },

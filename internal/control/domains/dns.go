@@ -35,7 +35,7 @@ func (h *Handler) ListDnsProviders(ctx context.Context, _ *connect.Request[dockw
 		return nil, err
 	}
 	for _, p := range shown {
-		out.Providers = append(out.Providers, &dockwellv1.DnsProviderInfo{Id: p.ID, Name: p.Name, Provider: p.Provider, Zones: p.Zones, TunnelApiTokenSet: p.TunnelTokenSet})
+		out.Providers = append(out.Providers, &dockwellv1.DnsProviderInfo{Id: p.ID, Name: p.Name, Provider: p.Provider, Zones: p.Zones, TunnelApiTokenSet: p.TunnelTokenSet, Projects: p.Projects})
 	}
 	return connect.NewResponse(out), nil
 }

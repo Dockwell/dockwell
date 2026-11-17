@@ -8,6 +8,7 @@ import {
   Connection,
   DomainCheckState,
   type ProposeChangeRequest,
+  RouteWay,
   StrangerOutcome,
   type WatchChangeResponse,
   type WatchServersResponse,
@@ -768,7 +769,14 @@ describe("the list of domains", () => {
               CertificateState.FAILED,
               "A certificate authority can't reach app.example.com. If a tunnel or a proxy ends TLS in front of this server, set tls to off on its routes.",
             ),
-            route: { held: true, allow: ["203.0.113.0/24"], users: ["mira"], signIn, trustedProxies: ["10.0.0.0/8"] },
+            route: {
+              held: true,
+              allow: ["203.0.113.0/24"],
+              users: ["mira"],
+              signIn,
+              trustedProxies: ["10.0.0.0/8"],
+              publish: { way: RouteWay.PROXY, provider: "cloudflare" },
+            },
           }),
         ],
         {
@@ -796,6 +804,8 @@ describe("the list of domains", () => {
       tls: "off",
       trustedProxies: ["127.0.0.1"],
       access: { allow: ["203.0.113.0/24"], users: [{ name: "mira" }], signIn },
+      // How it's published at Cloudflare stays, or the plan would take its records away.
+      publish: { way: RouteWay.PROXY, provider: "cloudflare" },
     });
   });
 
@@ -2055,7 +2065,13 @@ describe("who gets in to a route (ADR 0087)", () => {
     renderAt(
       "/domains",
       privateApi(
-        [aDomain({ name: "app.example.com", certificate: issued, route: { trustedProxies: [] } })],
+        [
+          aDomain({
+            name: "app.example.com",
+            certificate: issued,
+            route: { trustedProxies: [], publish: { way: RouteWay.OWN_HTTPS, provider: "cloudflare" } },
+          }),
+        ],
         "198.51.100.23",
         edits,
       ),
@@ -2097,6 +2113,8 @@ describe("who gets in to a route (ADR 0087)", () => {
     // It stays on the server it runs on, and as open or held as it was.
     expect(edits[0]?.servers).toEqual([SERVER]);
     expect(edits[0]?.spec?.kind.value).toMatchObject({ held: false });
+    // How it's published at Cloudflare stays, or the plan would take its records away.
+    expect(edits[0]?.spec?.kind.value).toMatchObject({ publish: { way: RouteWay.OWN_HTTPS, provider: "cloudflare" } });
   });
 
   it("asks for a password Dockwell makes, shown once, through the SSH tunnel where your address can't be offered", async () => {

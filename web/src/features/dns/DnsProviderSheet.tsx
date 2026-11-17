@@ -113,7 +113,13 @@ export function DnsProviderSheet({
       edits: [
         {
           resource: { kind: "dns.provider", name },
-          spec: { kind: { case: "dnsProvider", value: { provider: "cloudflare", zones, apiToken: token } } },
+          // An edit is the whole spec, so the projects it serves go back as they are.
+          spec: {
+            kind: {
+              case: "dnsProvider",
+              value: { provider: "cloudflare", zones, apiToken: token, projects: editing?.projects ?? [] },
+            },
+          },
         },
       ],
       onClose: (change) => {

@@ -861,3 +861,59 @@ func TestServersSharingAnAddress(t *testing.T) {
 		t.Fatalf("shares with %q", got)
 	}
 }
+
+// A form that sends a route as it is, as Make private and Move behind what's in
+// front do, sends what the domain's row says, publish included, so the plan keeps
+// the domain's records at Cloudflare (the panel slice's find).
+func TestARouteSentAsItIsKeepsItsRecords(t *testing.T) {
+	t.Parallel()
+	s := newPublishStand(t)
+	s.applied(t, propose(t, s.person, "Publish wiki", s.published("wiki", "wiki.example.com")))
+	dc := dockwellv1connect.NewDomainServiceClient(s.b, s.b.origin, connect.WithProtoJSON())
+	asItIs := func() *resourcev1.Route {
+		t.Helper()
+		listed, err := dc.ListDomains(t.Context(), connect.NewRequest(&dockwellv1.ListDomainsRequest{}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, d := range listed.Msg.GetDomains() {
+			if d.GetName() != "wiki.example.com" {
+				continue
+			}
+			r := d.GetRoutes()[0]
+			if r.GetPublish().GetWay() != resourcev1.RouteWay_ROUTE_WAY_SERVER_TUNNEL || r.GetPublish().GetTunnel() != webOne {
+				t.Fatalf("the row should say how it's published: %v", r)
+			}
+			return &resourcev1.Route{
+				Domain: d.GetName(), Path: r.GetPath(), Service: r.GetService(), Port: r.GetPort(), Tls: r.GetTls(),
+				TrustedProxies: r.GetTrustedProxies(), PlainForAnyone: r.GetPlainForAnyone(), Held: r.GetHeld(), Publish: r.GetPublish(),
+			}
+		}
+		t.Fatal("wiki.example.com isn't listed")
+		return nil
+	}
+	edit := func(r *resourcev1.Route) *dockwellv1.Edit {
+		return &dockwellv1.Edit{Resource: &dockwellv1.ResourceRef{Kind: string(route.Kind), Scope: s.env, Name: "wiki"}, Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Route{Route: r}}}
+	}
+
+	// Move behind what's in front: who it believes changes, and nothing at Cloudflare does.
+	behind := asItIs()
+	behind.TrustedProxies = []string{"127.0.0.1"}
+	ch := propose(t, s.person, "Move wiki behind what's in front", edit(behind))
+	if steps := providerSteps(ch); len(steps) != 0 {
+		t.Fatalf("moving it behind what's in front touches Cloudflare: %v", steps)
+	}
+	s.applied(t, ch)
+
+	// Make private: who gets in changes, and nothing at Cloudflare does.
+	private := asItIs()
+	private.Access = &resourcev1.RouteAccess{Allow: []string{"203.0.113.0/24"}}
+	ch = propose(t, s.person, "Make wiki private", edit(private))
+	if steps := providerSteps(ch); len(steps) != 0 {
+		t.Fatalf("making it private touches Cloudflare: %v", steps)
+	}
+	s.applied(t, ch)
+	if got := s.cf.Records("example.com"); len(got) != 1 || got[0].Name != "wiki.example.com" {
+		t.Fatalf("records after: %v", got)
+	}
+}

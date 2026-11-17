@@ -24,6 +24,7 @@ const saved = create(DnsProviderInfoSchema, {
   name: "cloudflare",
   provider: "cloudflare",
   zones: ["example.com"],
+  projects: ["prj_1"],
 });
 
 afterEach(async () => {
@@ -162,6 +163,8 @@ describe("DNS providers", () => {
     expect(proposed.mock.calls[0]?.[0].edits[0]?.spec?.kind.value).toMatchObject({
       zones: ["example.com", "example.org"],
       apiToken: "",
+      // An edit is the whole spec, so the projects it serves go back as they are.
+      projects: ["prj_1"],
     });
     // The saved token was checked by name; none was sent.
     expect(checks.every((c) => c.name === "cloudflare" && c.apiToken === "")).toBe(true);

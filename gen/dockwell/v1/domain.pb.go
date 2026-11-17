@@ -1345,8 +1345,12 @@ type DnsProviderInfo struct {
 	Zones []string `protobuf:"bytes,4,rep,name=zones,proto3" json:"zones,omitempty"`
 	// Whether it holds a second token, for tunnels alone (ADR 0104).
 	TunnelApiTokenSet bool `protobuf:"varint,5,opt,name=tunnel_api_token_set,json=tunnelApiTokenSet,proto3" json:"tunnel_api_token_set,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	// The projects whose routes it proves and publishes names for, by ID: an admin's
+	// alone. A form that changes the provider sends them back, as an edit is the whole
+	// spec.
+	Projects      []string `protobuf:"bytes,7,rep,name=projects,proto3" json:"projects,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *DnsProviderInfo) Reset() {
@@ -1412,6 +1416,13 @@ func (x *DnsProviderInfo) GetTunnelApiTokenSet() bool {
 		return x.TunnelApiTokenSet
 	}
 	return false
+}
+
+func (x *DnsProviderInfo) GetProjects() []string {
+	if x != nil {
+		return x.Projects
+	}
+	return nil
 }
 
 // CheckDnsProviderRequest is a token to check, or a saved provider to check
@@ -2577,7 +2588,11 @@ type DomainRoute struct {
 	SignIn *v1alpha1.RouteSignIn `protobuf:"bytes,112,opt,name=sign_in,json=signIn,proto3" json:"sign_in,omitempty"`
 	// Where it redirects, for a route that answers with a redirect in place of a
 	// service (ADR 0070). Unset for any other route.
-	Redirect      *v1alpha1.RouteRedirect `protobuf:"bytes,10,opt,name=redirect,proto3" json:"redirect,omitempty"`
+	Redirect *v1alpha1.RouteRedirect `protobuf:"bytes,10,opt,name=redirect,proto3" json:"redirect,omitempty"`
+	// How its domain is published at Cloudflare, as the route's spec has it (ADR
+	// 0104). A form that sends the route as it is sends this back, or the plan takes
+	// the domain's records away.
+	Publish       *v1alpha1.RoutePublish `protobuf:"bytes,113,opt,name=publish,proto3" json:"publish,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2720,6 +2735,13 @@ func (x *DomainRoute) GetSignIn() *v1alpha1.RouteSignIn {
 func (x *DomainRoute) GetRedirect() *v1alpha1.RouteRedirect {
 	if x != nil {
 		return x.Redirect
+	}
+	return nil
+}
+
+func (x *DomainRoute) GetPublish() *v1alpha1.RoutePublish {
+	if x != nil {
+		return x.Publish
 	}
 	return nil
 }
@@ -3221,13 +3243,14 @@ const file_dockwell_v1_domain_proto_rawDesc = "" +
 	"\tnext_time\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\bnextTime\"\x19\n" +
 	"\x17ListDnsProvidersRequest\"V\n" +
 	"\x18ListDnsProvidersResponse\x12:\n" +
-	"\tproviders\x18\x01 \x03(\v2\x1c.dockwell.v1.DnsProviderInfoR\tproviders\"\x98\x01\n" +
+	"\tproviders\x18\x01 \x03(\v2\x1c.dockwell.v1.DnsProviderInfoR\tproviders\"\xb4\x01\n" +
 	"\x0fDnsProviderInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1a\n" +
 	"\bprovider\x18\x03 \x01(\tR\bprovider\x12\x14\n" +
 	"\x05zones\x18\x04 \x03(\tR\x05zones\x12/\n" +
-	"\x14tunnel_api_token_set\x18\x05 \x01(\bR\x11tunnelApiTokenSet\"\x82\x01\n" +
+	"\x14tunnel_api_token_set\x18\x05 \x01(\bR\x11tunnelApiTokenSet\x12\x1a\n" +
+	"\bprojects\x18\a \x03(\tR\bprojects\"\x82\x01\n" +
 	"\x17CheckDnsProviderRequest\x12\x1a\n" +
 	"\bprovider\x18\x01 \x01(\tR\bprovider\x12!\n" +
 	"\tapi_token\x18\x02 \x01(\tB\x04\xc8\xf3\x18\x01R\bapiToken\x12\x14\n" +
@@ -3316,7 +3339,7 @@ const file_dockwell_v1_domain_proto_rawDesc = "" +
 	"\x06tunnel\x18\x03 \x01(\tR\x06tunnel\x12\x16\n" +
 	"\x06record\x18\x04 \x01(\tR\x06record\x121\n" +
 	"\x05state\x18\x05 \x01(\x0e2\x1b.dockwell.v1.PublishedStateR\x05state\x125\n" +
-	"\btaken_on\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\atakenOn\"\xf1\x03\n" +
+	"\btaken_on\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\atakenOn\"\xb5\x04\n" +
 	"\vDomainRoute\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x12\n" +
@@ -3335,7 +3358,8 @@ const file_dockwell_v1_domain_proto_rawDesc = "" +
 	"\x05users\x18o \x03(\tR\x05users\x12@\n" +
 	"\asign_in\x18p \x01(\v2'.dockwell.resource.v1alpha1.RouteSignInR\x06signIn\x12E\n" +
 	"\bredirect\x18\n" +
-	" \x01(\v2).dockwell.resource.v1alpha1.RouteRedirectR\bredirect\"\xf8\x01\n" +
+	" \x01(\v2).dockwell.resource.v1alpha1.RouteRedirectR\bredirect\x12B\n" +
+	"\apublish\x18q \x01(\v2(.dockwell.resource.v1alpha1.RoutePublishR\apublish\"\xf8\x01\n" +
 	"\fDomainServer\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x1f\n" +
 	"\vserver_name\x18\x02 \x01(\tR\n" +
@@ -3551,35 +3575,36 @@ var file_dockwell_v1_domain_proto_depIdxs = []int32{
 	40, // 28: dockwell.v1.DomainPublished.taken_on:type_name -> google.protobuf.Timestamp
 	44, // 29: dockwell.v1.DomainRoute.sign_in:type_name -> dockwell.resource.v1alpha1.RouteSignIn
 	45, // 30: dockwell.v1.DomainRoute.redirect:type_name -> dockwell.resource.v1alpha1.RouteRedirect
-	37, // 31: dockwell.v1.DomainServer.status:type_name -> dockwell.v1.DomainStatus
-	36, // 32: dockwell.v1.DomainServer.ingress:type_name -> dockwell.v1.IngressStatus
-	6,  // 33: dockwell.v1.IngressStatus.problem:type_name -> dockwell.v1.IngressProblem
-	39, // 34: dockwell.v1.DomainStatus.certificate:type_name -> dockwell.v1.Certificate
-	42, // 35: dockwell.v1.DomainStatus.dns:type_name -> dockwell.v1.DomainCheck
-	38, // 36: dockwell.v1.DomainStatus.strangers:type_name -> dockwell.v1.StrangerCheck
-	7,  // 37: dockwell.v1.StrangerCheck.outcome:type_name -> dockwell.v1.StrangerOutcome
-	8,  // 38: dockwell.v1.Certificate.state:type_name -> dockwell.v1.CertificateState
-	9,  // 39: dockwell.v1.Certificate.problem:type_name -> dockwell.v1.CertificateProblem
-	40, // 40: dockwell.v1.Certificate.expire_time:type_name -> google.protobuf.Timestamp
-	30, // 41: dockwell.v1.DomainService.ListDomains:input_type -> dockwell.v1.ListDomainsRequest
-	25, // 42: dockwell.v1.DomainService.CheckDomain:input_type -> dockwell.v1.CheckDomainRequest
-	15, // 43: dockwell.v1.DomainService.ListCertificates:input_type -> dockwell.v1.ListCertificatesRequest
-	18, // 44: dockwell.v1.DomainService.ListDnsProviders:input_type -> dockwell.v1.ListDnsProvidersRequest
-	21, // 45: dockwell.v1.DomainService.CheckDnsProvider:input_type -> dockwell.v1.CheckDnsProviderRequest
-	10, // 46: dockwell.v1.DomainService.ListSigninProviders:input_type -> dockwell.v1.ListSigninProvidersRequest
-	13, // 47: dockwell.v1.DomainService.CheckSigninProvider:input_type -> dockwell.v1.CheckSigninProviderRequest
-	31, // 48: dockwell.v1.DomainService.ListDomains:output_type -> dockwell.v1.ListDomainsResponse
-	26, // 49: dockwell.v1.DomainService.CheckDomain:output_type -> dockwell.v1.CheckDomainResponse
-	16, // 50: dockwell.v1.DomainService.ListCertificates:output_type -> dockwell.v1.ListCertificatesResponse
-	19, // 51: dockwell.v1.DomainService.ListDnsProviders:output_type -> dockwell.v1.ListDnsProvidersResponse
-	22, // 52: dockwell.v1.DomainService.CheckDnsProvider:output_type -> dockwell.v1.CheckDnsProviderResponse
-	11, // 53: dockwell.v1.DomainService.ListSigninProviders:output_type -> dockwell.v1.ListSigninProvidersResponse
-	14, // 54: dockwell.v1.DomainService.CheckSigninProvider:output_type -> dockwell.v1.CheckSigninProviderResponse
-	48, // [48:55] is the sub-list for method output_type
-	41, // [41:48] is the sub-list for method input_type
-	41, // [41:41] is the sub-list for extension type_name
-	41, // [41:41] is the sub-list for extension extendee
-	0,  // [0:41] is the sub-list for field type_name
+	41, // 31: dockwell.v1.DomainRoute.publish:type_name -> dockwell.resource.v1alpha1.RoutePublish
+	37, // 32: dockwell.v1.DomainServer.status:type_name -> dockwell.v1.DomainStatus
+	36, // 33: dockwell.v1.DomainServer.ingress:type_name -> dockwell.v1.IngressStatus
+	6,  // 34: dockwell.v1.IngressStatus.problem:type_name -> dockwell.v1.IngressProblem
+	39, // 35: dockwell.v1.DomainStatus.certificate:type_name -> dockwell.v1.Certificate
+	42, // 36: dockwell.v1.DomainStatus.dns:type_name -> dockwell.v1.DomainCheck
+	38, // 37: dockwell.v1.DomainStatus.strangers:type_name -> dockwell.v1.StrangerCheck
+	7,  // 38: dockwell.v1.StrangerCheck.outcome:type_name -> dockwell.v1.StrangerOutcome
+	8,  // 39: dockwell.v1.Certificate.state:type_name -> dockwell.v1.CertificateState
+	9,  // 40: dockwell.v1.Certificate.problem:type_name -> dockwell.v1.CertificateProblem
+	40, // 41: dockwell.v1.Certificate.expire_time:type_name -> google.protobuf.Timestamp
+	30, // 42: dockwell.v1.DomainService.ListDomains:input_type -> dockwell.v1.ListDomainsRequest
+	25, // 43: dockwell.v1.DomainService.CheckDomain:input_type -> dockwell.v1.CheckDomainRequest
+	15, // 44: dockwell.v1.DomainService.ListCertificates:input_type -> dockwell.v1.ListCertificatesRequest
+	18, // 45: dockwell.v1.DomainService.ListDnsProviders:input_type -> dockwell.v1.ListDnsProvidersRequest
+	21, // 46: dockwell.v1.DomainService.CheckDnsProvider:input_type -> dockwell.v1.CheckDnsProviderRequest
+	10, // 47: dockwell.v1.DomainService.ListSigninProviders:input_type -> dockwell.v1.ListSigninProvidersRequest
+	13, // 48: dockwell.v1.DomainService.CheckSigninProvider:input_type -> dockwell.v1.CheckSigninProviderRequest
+	31, // 49: dockwell.v1.DomainService.ListDomains:output_type -> dockwell.v1.ListDomainsResponse
+	26, // 50: dockwell.v1.DomainService.CheckDomain:output_type -> dockwell.v1.CheckDomainResponse
+	16, // 51: dockwell.v1.DomainService.ListCertificates:output_type -> dockwell.v1.ListCertificatesResponse
+	19, // 52: dockwell.v1.DomainService.ListDnsProviders:output_type -> dockwell.v1.ListDnsProvidersResponse
+	22, // 53: dockwell.v1.DomainService.CheckDnsProvider:output_type -> dockwell.v1.CheckDnsProviderResponse
+	11, // 54: dockwell.v1.DomainService.ListSigninProviders:output_type -> dockwell.v1.ListSigninProvidersResponse
+	14, // 55: dockwell.v1.DomainService.CheckSigninProvider:output_type -> dockwell.v1.CheckSigninProviderResponse
+	49, // [49:56] is the sub-list for method output_type
+	42, // [42:49] is the sub-list for method input_type
+	42, // [42:42] is the sub-list for extension type_name
+	42, // [42:42] is the sub-list for extension extendee
+	0,  // [0:42] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_domain_proto_init() }

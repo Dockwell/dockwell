@@ -243,6 +243,7 @@ func (h *Handler) add(ctx context.Context, tx *store.Tx, r *store.Resource, byNa
 		Tls: rt.GetTls(), HostPort: rt.GetHostPort(), PlainForAnyone: rt.GetPlainForAnyone(), Held: rt.GetHeld(), TrustedProxies: rt.GetTrustedProxies(), Redirect: rt.GetRedirect(),
 		Allow: rt.GetAccess().GetAllow(), Users: users, SignIn: withoutProvider(rt.GetAccess().GetSignIn()),
 		SetupUntil: setupUntil(rt),
+		Publish: rt.GetPublish(),
 	})
 	placed, err := tx.Placement(ctx, r.ID, r.Revision)
 	if err != nil {

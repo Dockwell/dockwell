@@ -14386,6 +14386,14 @@ components:
                 tunnelApiTokenSet:
                     type: boolean
                     description: Whether it holds a second token, for tunnels alone (ADR 0104).
+                projects:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        The projects whose routes it proves and publishes names for, by ID: an admin's
+                         alone. A form that changes the provider sends them back, as an edit is the whole
+                         spec.
             description: DnsProviderInfo is a DNS provider, without its token.
         DnsZoneCheck:
             type: object
@@ -14693,6 +14701,13 @@ components:
                     description: |-
                         Where it redirects, for a route that answers with a redirect in place of a
                          service (ADR 0070). Unset for any other route.
+                publish:
+                    allOf:
+                        - $ref: '#/components/schemas/RoutePublish'
+                    description: |-
+                        How its domain is published at Cloudflare, as the route's spec has it (ADR
+                         0104). A form that sends the route as it is sends this back, or the plan takes
+                         the domain's records away.
             description: DomainRoute is one route of a domain.
         DomainServer:
             type: object
