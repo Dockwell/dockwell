@@ -803,7 +803,7 @@ func TestCheckRefuses(t *testing.T) {
 		}, "needs a service it runs"},
 		"an address that names more than its domain": {func(e *catalogv1.Entry) {
 			e.AddressVariables = []*catalogv1.AddressVariable{{Service: "adminer", Variable: "URL", Value: "https://{domain}:{port}"}}
-		}, "names something other than {domain}"},
+		}, "names something other than {origin}, {host}, {scheme} or {domain}"},
 		"a note of two lines":             {func(e *catalogv1.Entry) { e.Notes = []string{"One.\nTwo."} }, "isn't one line"},
 		"a port with a length":            {func(e *catalogv1.Entry) { e.Inputs[0].MinLength = 4 }, "only text and a secret do"},
 		"a port of characters":            {func(e *catalogv1.Entry) { e.Inputs[0].Characters = catalogv1.Characters_CHARACTERS_URL_SAFE }, "only text and a secret do"},

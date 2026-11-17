@@ -651,6 +651,14 @@ message CatalogPin {
   // they typed (ADR 0099). Unset for an install from before this was kept, whose
   // values all count as given.
   GivenNames given = 85;
+  // The app's address Dockwell last wrote its address variables from, as a
+  // browser opens it, such as "https://docs.example.com",
+  // "http://abcdefghij.localhost:7600" or "http://localhost:8080" (ADR 0103).
+  // A variable whose value is neither what this address gives it nor what the
+  // install's file gives it holds a value a person set, which stays. Empty for an
+  // install from before Dockwell kept it, where only the file's value is
+  // Dockwell's.
+  string address = 84;
 }
 
 // PinnedNeed is how an install met one of its entry's needs.

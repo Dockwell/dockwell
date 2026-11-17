@@ -8359,10 +8359,18 @@ components:
                 value:
                     type: string
                     description: |-
-                        What it's set to, with {domain} where the domain goes, such as
-                         "https://{domain}", or a value of its own that goes with a domain, such
-                         as "https" for Nextcloud's OVERWRITEPROTOCOL.
-            description: AddressVariable is a variable that follows the domain an app is reached at.
+                        What it's set to. {origin} is the address as a browser opens it, such as
+                         "https://docs.example.com" or "http://abcdefghij.localhost:7600", {host} the
+                         same without its scheme, and {scheme} "https" for a domain and "http"
+                         otherwise: a value with them is written at install and again as the address
+                         moves. {domain} is the domain alone, so a value with it, such as
+                         "https://{domain}", or a value of its own that goes with a domain alone,
+                         such as "https" for Nextcloud's OVERWRITEPROTOCOL, is written only once the
+                         app has a domain, as before.
+            description: |-
+                AddressVariable is a variable that follows the address an app is reached at
+                 (ADR 0103): the oldest domain routed to what web opens, at its whole path, or
+                 else the panel's Open address, or else web's port on loopback.
         AdoptComposeRequest:
             type: object
             properties:
@@ -10320,6 +10328,21 @@ components:
                          does, which would move this down, so it stays on its own version until the
                          catalog has a release of it or later, and takes no new build meanwhile. A new
                          install takes the lower one (ADR 0080). Unset otherwise.
+                address:
+                    type: string
+                    description: |-
+                        Where a browser opens it now, as the control plane works it out (ADR 0103):
+                         its domain, such as "https://docs.example.com", or else the panel's Open
+                         address, or else its port on loopback. Empty for an app with nothing to open,
+                         or one whose entry names no variable that follows it.
+                addressKept:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        The variables that follow its address which don't hold what that address
+                         gives them, as "service/VARIABLE": a value a person set, or one a change the
+                         address didn't pass through left behind. Empty where every one follows.
             description: CatalogInstall is one project installed from the catalog.
         CatalogNeedOption:
             type: object
@@ -10605,6 +10628,16 @@ components:
                          suggestion, so an upgrade that takes them as a need keeps as theirs only what
                          they typed (ADR 0099). Unset for an install from before this was kept, whose
                          values all count as given.
+                address:
+                    type: string
+                    description: |-
+                        The app's address Dockwell last wrote its address variables from, as a
+                         browser opens it, such as "https://docs.example.com",
+                         "http://abcdefghij.localhost:7600" or "http://localhost:8080" (ADR 0103).
+                         A variable whose value is neither what this address gives it nor what the
+                         install's file gives it holds a value a person set, which stays. Empty for an
+                         install from before Dockwell kept it, where only the file's value is
+                         Dockwell's.
             description: |-
                 CatalogPin is what an install is pinned to: updates come from there, and each
                  is a plan. It holds no secret: those are the environment's, by reference.
@@ -14622,7 +14655,8 @@ components:
                         $ref: '#/components/schemas/AddressVariable'
                     description: |-
                         Variables a service builds its links or checks requests from, which follow
-                         the domain added to what web opens, such as Ghost's url.
+                         the app's address, such as Ghost's url: its domain, or the panel's Open
+                         address, or its port on loopback (ADR 0103).
                 notes:
                     type: array
                     items:

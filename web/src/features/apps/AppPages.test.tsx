@@ -1141,7 +1141,7 @@ describe("an app's overview", () => {
     });
   });
 
-  it("points a catalog app at its first domain in the same plan", async () => {
+  it("routes a catalog app's first domain, which the control plane points the app at in the same plan", async () => {
     const user = userEvent.setup();
     const ghost = anApp("ghost", "ghost:6.4", {}, {});
     const asked: { summary: string; edits: unknown[] }[] = [];
@@ -1187,11 +1187,11 @@ describe("an app's overview", () => {
     await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
     await waitFor(() => expect(asked).toHaveLength(1));
     expect(asked[0]?.summary).toBe("Send blog.example.com to ghost, and point Ghost at it");
-    // The route, and the app with its address as its own value, shown (ADR 0081).
-    expect(asked[0]?.edits).toHaveLength(2);
-    const app = JSON.stringify(asked[0]?.edits[1], (_, v) => (typeof v === "bigint" ? Number(v) : v));
-    expect(app).toContain('"url":"https://blog.example.com"');
-    expect(app).toContain('"shownEnv":["url"]');
+    // The route alone: the control plane writes what follows the app's address beside it (ADR 0103).
+    expect(asked[0]?.edits).toHaveLength(1);
+    expect(JSON.stringify(asked[0]?.edits[0], (_, v) => (typeof v === "bigint" ? Number(v) : v))).toContain(
+      '"domain":"blog.example.com"',
+    );
   });
 
   it("leaves a catalog app's links alone when it has a domain already", async () => {

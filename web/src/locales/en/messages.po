@@ -8480,8 +8480,8 @@ msgstr "Copy the SSH tunnel command"
 msgid "Follow the domain you add: {names}"
 msgstr "Follow the domain you add: {names}"
 
-msgid "Follow {domain}: {names}"
-msgstr "Follow {domain}: {names}"
+msgid "Follow {address}: {names}"
+msgstr "Follow {address}: {names}"
 
 msgid "Its first account"
 msgstr "Its first account"
@@ -8498,14 +8498,17 @@ msgstr "Its links"
 msgid "Its links follow the domain you add: {names}"
 msgstr "Its links follow the domain you add: {names}"
 
+msgid "Not at {address}: {keptNames}"
+msgstr "Not at {address}: {keptNames}"
+
 msgid "Open to anyone who reaches it"
 msgstr "Open to anyone who reaches it"
 
 msgid "Open {app} in a new tab"
 msgstr "Open {app} in a new tab"
 
-msgid "Point {app} at {domain}"
-msgstr "Point {app} at {domain}"
+msgid "Point {app} at {address}"
+msgstr "Point {app} at {address}"
 
 msgid "Port {port}, on this server alone until it has a domain"
 msgstr "Port {port}, on this server alone until it has a domain"
@@ -8526,8 +8529,8 @@ msgstr "SSH tunnel command copied"
 msgid "Set as it first started: change it in {app}, in {where}"
 msgstr "Set as it first started: change it in {app}, in {where}"
 
-msgid "Set to {domain}"
-msgstr "Set to {domain}"
+msgid "Set to {address}"
+msgstr "Set to {address}"
 
 msgid "Sign-ups"
 msgstr "Sign-ups"

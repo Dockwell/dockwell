@@ -18,7 +18,7 @@ The product requirements live next door in [`docs/product/prd.md`](../docs/produ
 | [`system/brand/`](system/brand/) | Logotype, mark and app icon as SVG, in light, dark and one-colour versions. |
 | [`system/fonts/`](system/fonts/) | Host Grotesk and JetBrains Mono variable fonts, both under the SIL Open Font License (licence files alongside). |
 | `system/design-system.json` | Claude Design's index for the system. Its paths are relative to the original artifact, so `project/README.md` means `system/README.md`, and the `components/lib/` React files were not copied (React comes from npm). |
-| [`mocks/`](mocks/) | 84 artboards: 63 desktop screens, 15 phone screens, 4 shared shell pieces, a screen map and the logo sheet. |
+| [`mocks/`](mocks/) | 89 artboards: 67 desktop screens, 16 phone screens, 4 shared shell pieces, a screen map and the logo sheet. |
 | [`mocks/canvas.json`](mocks/canvas.json) | Claude Design's canvas index: each artboard's title, page (area) and size, and the page order. |
 
 ## Reading the mocks
@@ -80,6 +80,10 @@ Every screen, with the roadmap phase that builds it. Phase 1 is split into the m
 | Data | Database · postgres | [`Database-Detail.dc.html`](mocks/Database-Detail.dc.html) | 2 | Point-in-time recovery is phase 4 |
 | Data | Domains | [`Domains-List.dc.html`](mocks/Domains-List.dc.html) | 2 |  |
 | Data | Add a domain | [`Domain-Add.dc.html`](mocks/Domain-Add.dc.html) | 2 |  |
+| Data | Add a domain to an app | [`Domain-Add-Zone.dc.html`](mocks/Domain-Add-Zone.dc.html) | 2 | ADR 0104: a zone, a way in, Cloudflare done |
+| Data | Add a domain: the way in | [`Domain-Add-Ways.dc.html`](mocks/Domain-Add-Ways.dc.html) | 2 | ADR 0104 |
+| Data | Add a domain: its states | [`Domain-Add-States.dc.html`](mocks/Domain-Add-States.dc.html) | 2 | ADR 0104: each state and its action |
+| Websites and catalog | New website: its domain | [`Website-New-Domain.dc.html`](mocks/Website-New-Domain.dc.html) | 2 | ADR 0104 |
 | Data | Backups | [`Backups.dc.html`](mocks/Backups.dc.html) | 2 | Restore drills are phase 3 |
 | Data | Restore | [`Backup-Restore.dc.html`](mocks/Backup-Restore.dc.html) | 2 |  |
 | Connections | Connections | [`Connections-List.dc.html`](mocks/Connections-List.dc.html) | 2 |  |
@@ -124,6 +128,7 @@ Every screen, with the roadmap phase that builds it. Phase 1 is split into the m
 | Phone | Phone · edit a file | [`M-Files.dc.html`](mocks/M-Files.dc.html) | 2 |  |
 | Phone | Phone · connection | [`M-Connection.dc.html`](mocks/M-Connection.dc.html) | 2 |  |
 | Phone | Phone · domain | [`M-Domain.dc.html`](mocks/M-Domain.dc.html) | 3 |  |
+| Phone | Phone · add a domain | [`M-Domain-Add.dc.html`](mocks/M-Domain-Add.dc.html) | 2 | ADR 0104 |
 | Access and settings | Organization | [`Settings-General.dc.html`](mocks/Settings-General.dc.html) | 2 | Approvals are phase 4 |
 | Access and settings | Members | [`Members.dc.html`](mocks/Members.dc.html) | 2 | SSO is phase 3 (OIDC) and 4 (SAML, SCIM) |
 | Access and settings | API tokens | [`API-Tokens.dc.html`](mocks/API-Tokens.dc.html) | 2 |  |

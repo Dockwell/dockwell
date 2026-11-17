@@ -14,6 +14,9 @@ import (
 	"strings"
 
 	"go.yaml.in/yaml/v4"
+	"google.golang.org/protobuf/proto"
+
+	catalogv1 "github.com/dockwell/dockwell/gen/dockwell/catalog/v1alpha1"
 )
 
 // runtipiApp is what an app's config.json says of it, in Runtipi's app store.
@@ -198,6 +201,7 @@ func runtipiRead(t *tree, dir string) App {
 		fields = append(fields, mediaField)
 	}
 	app.Fields = fields
+	app.Address = runtipiAddress(app.ID, file)
 	if err := runtipiShipped(t, &app, at, file); err != nil {
 		app.LeftOut, app.Class = err.Error(), classOf(err, ClassShipped)
 		return app
@@ -530,4 +534,42 @@ func runtipiShipped(t *tree, app *App, at string, file []byte) error {
 		return out
 	}
 	return nil
+}
+
+// runtipiProtocol is a value that is Runtipi's protocol alone, which the converter
+// writes as http.
+var runtipiProtocol = regexp.MustCompile(`^\$\{APP_PROTOCOL(:-https?)?\}$`)
+
+// runtipiAddress are what follows a Runtipi app's address beyond what names it at
+// its port: a value that is Runtipi's protocol alone takes the address's scheme, as
+// Nextcloud's OVERWRITEPROTOCOL does, and what runtipiAddressByHand adds (ADR 0103;
+// #779's review, M4).
+func runtipiAddress(id string, file []byte) []*catalogv1.AddressVariable {
+	doc, err := parseFile(file)
+	if err != nil || len(doc.Content) == 0 {
+		return nil
+	}
+	var out []*catalogv1.AddressVariable
+	for _, name := range serviceNames(doc) {
+		for _, kv := range serviceEnv(mapGet(service(doc, name), "environment")) {
+			if runtipiProtocol.MatchString(strings.TrimSpace(kv[1])) {
+				out = append(out, &catalogv1.AddressVariable{Service: name, Variable: kv[0], Value: "{scheme}"})
+			}
+		}
+	}
+	for _, a := range runtipiAddressByHand[id] {
+		if service(doc, a.GetService()) != nil {
+			out = append(out, proto.CloneOf(a))
+		}
+	}
+	return out
+}
+
+// runtipiAddressByHand are variables a review found an app needs to follow its
+// address that its store's file doesn't name, by app.
+var runtipiAddressByHand = map[string][]*catalogv1.AddressVariable{
+	// Nextcloud's image reads OVERWRITEHOST at every start, and Nextcloud trusts the
+	// host it names, where NEXTCLOUD_TRUSTED_DOMAINS is read on its first install
+	// alone, so a domain added later needs it.
+	"nextcloud": {{Service: "nextcloud", Variable: "OVERWRITEHOST", Value: "{host}"}},
 }

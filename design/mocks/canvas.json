@@ -254,6 +254,33 @@
    "x": 0,
    "y": 0
   },
+  "Domain-Add-States.dc.html": {
+   "expand": "fill",
+   "h": 1830,
+   "page": "data",
+   "title": "Add a domain: its states",
+   "w": 1440,
+   "x": 6080,
+   "y": 1170
+  },
+  "Domain-Add-Ways.dc.html": {
+   "expand": "fill",
+   "h": 1000,
+   "page": "data",
+   "title": "Add a domain: the way in",
+   "w": 1440,
+   "x": 4560,
+   "y": 1170
+  },
+  "Domain-Add-Zone.dc.html": {
+   "expand": "fill",
+   "h": 1000,
+   "page": "data",
+   "title": "Add a domain to an app",
+   "w": 1440,
+   "x": 3040,
+   "y": 1170
+  },
   "Domain-Add.dc.html": {
    "expand": "fill",
    "h": 760,
@@ -383,6 +410,14 @@
    "title": "Phone · connection",
    "w": 390,
    "x": 1410,
+   "y": 2008
+  },
+  "M-Domain-Add.dc.html": {
+   "h": 844,
+   "page": "mobile",
+   "title": "Phone · add a domain",
+   "w": 390,
+   "x": 2310,
    "y": 2008
   },
   "M-Domain.dc.html": {
@@ -730,6 +765,15 @@
    "x": 1520,
    "y": 0
   },
+  "Website-New-Domain.dc.html": {
+   "expand": "fill",
+   "h": 1000,
+   "page": "data",
+   "title": "New website: its domain",
+   "w": 1440,
+   "x": 7600,
+   "y": 1170
+  },
   "Websites-List.dc.html": {
    "expand": "fill",
    "h": 770,
@@ -917,6 +961,10 @@
   "Database-Detail.dc.html",
   "Domains-List.dc.html",
   "Domain-Add.dc.html",
+  "Domain-Add-Zone.dc.html",
+  "Domain-Add-Ways.dc.html",
+  "Domain-Add-States.dc.html",
+  "Website-New-Domain.dc.html",
   "Backups.dc.html",
   "Backup-Restore.dc.html",
   "Connections-List.dc.html",
@@ -961,6 +1009,7 @@
   "M-Files.dc.html",
   "M-Connection.dc.html",
   "M-Domain.dc.html",
+  "M-Domain-Add.dc.html",
   "Settings-General.dc.html",
   "Members.dc.html",
   "API-Tokens.dc.html",

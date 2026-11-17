@@ -41,6 +41,7 @@ import (
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/catalogsource"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
+	"github.com/dockwell/dockwell/internal/resource/route"
 	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/revision"
 	"github.com/dockwell/dockwell/internal/scope"
@@ -71,6 +72,10 @@ type Handler struct {
 	// gitLogins checks and fills what fetches a build's private repository, for
 	// its project (ADR 0098). Nil leaves a build as it's sent.
 	gitLogins GitLogins
+	// Address has edits that route a catalog app's web to a domain, or stop, write
+	// what follows the app's address too, and says so (ADR 0103). Nil writes nothing
+	// more.
+	Address func(ctx context.Context, edits []revision.Edit) ([]revision.Edit, []revision.Note, error)
 }
 
 // GitLogins checks a build's git login, as a plan is made: one named must reach
@@ -180,6 +185,9 @@ func (h *Handler) ProposeChange(ctx context.Context, req *connect.Request[dockwe
 type Also struct {
 	Edits []revision.Edit
 	Notes []revision.Note
+	// IDs are what new resources the edits make are called, by what's edited, where
+	// the method chose one up front (revision.Edit.ID).
+	IDs map[resource.Ref]string
 	// Base is the revision the request's edits were made from (revision.Edit).
 	Base int
 	// IfNothing refuses a plan that would do nothing (revision.Proposal).
@@ -257,6 +265,23 @@ func (h *Handler) proposeAlso(ctx context.Context, who revision.By, summary stri
 		edits[i].Public = also.Public[edits[i].Ref]
 		edits[i].SetsArchitectures = also.SetsArchitectures[edits[i].Ref]
 		edits[i].Backup = slices.Contains(also.BackUp, edits[i].Ref)
+		if chosen := also.IDs[edits[i].Ref]; chosen != "" {
+			edits[i].ID = chosen
+		}
+	}
+	// A route that moves a catalog app's address moves what follows it, in the same
+	// change, and a service's value asked for as its entry writes it is rendered
+	// (ADR 0103).
+	if h.Address != nil && slices.ContainsFunc(edits, func(e revision.Edit) bool { return e.Ref.Kind == route.Kind || e.Ref.Kind == service.Kind }) {
+		var notes []revision.Note
+		if edits, notes, err = h.Address(ctx, edits); err != nil {
+			// A refusal in its own words reaches the caller as it is.
+			if cerr := new(connect.Error); errors.As(err, &cerr) {
+				return nil, cerr
+			}
+			return nil, fail(err)
+		}
+		also.Notes = append(slices.Clip(also.Notes), notes...)
 	}
 	plan, err := h.engine.Propose(ctx, revision.Proposal{
 		Summary: summary, Actor: who.Actor, Via: who.Via, Edits: slices.Concat(also.Edits, edits), Notes: also.Notes, IfNothing: also.IfNothing, Intent: also.Intent,

@@ -31,7 +31,6 @@ import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import { reasonOf, sentence } from "../../lib/errors";
 import { onApple } from "../../lib/platform";
-import { addressEdits } from "../catalog/access";
 import { type Opening, PlanView } from "../changes/ChangeSheet";
 import { type FleetState, useFleet } from "../servers/useFleet";
 import { CompanionChoice, useCompanion, useCompanionChoice } from "../websites/Companion";
@@ -51,7 +50,7 @@ import {
 import { FrontFields, frontOf, type InFront } from "./FrontFields";
 import { validPort } from "./form";
 import { routeAsItIs } from "./PrivateSheet";
-import { usePlaces, useServices } from "./useServices";
+import { usePlaces } from "./useServices";
 
 /** A domain that's refused a certificate, moved behind what's in front by editing the routes it has. */
 export interface MoveBehind {
@@ -240,9 +239,9 @@ export function AddDomainSheet({
   const alsoCompanion = chosenCompanion && !companionAlready;
   const target = useRouteTarget();
   const leavesApp = leaves ? target(leaves) : "";
-  // A catalog app builds its links from variables that follow its domain (Entry.address_variables):
-  // its first domain sets them in the same plan, rather than leaving that for after.
-  const services = useServices().data ?? [];
+  // A catalog app builds its links from variables that follow its address (Entry.address_variables):
+  // the control plane sets them in the plan that routes its first domain (ADR 0103), which the
+  // summary says.
   const installs = useQuery(
     CatalogService.method.listCatalogInstalls,
     {},
@@ -442,11 +441,6 @@ export function AddDomainSheet({
                         ...(server ? { servers: [server] } : {}),
                       },
                     ]
-                  : []),
-                ...(follows
-                  ? addressEdits(follows, wanted, (n) =>
-                      services.find((s) => environmentOf(s) === environment && nameOf(s) === n),
-                    )
                   : []),
               ],
         })

@@ -231,6 +231,18 @@ func TestDeletionsAreFoundFromRevisions(t *testing.T) {
 			if _, err := tx.RevisionChange(ctx, "svc_1", 9); !errors.Is(err, store.ErrNotFound) {
 				t.Errorf("a revision that isn't there: %v", err)
 			}
+			// Every revision of the services in env_1, a deleted one's too (ADR 0103).
+			revs, err := tx.RevisionsIn(ctx, "env_1", "service")
+			if err != nil {
+				return err
+			}
+			var seen []string
+			for _, r := range revs {
+				seen = append(seen, fmt.Sprintf("%s/%d/%s", r.ID, r.Revision, r.Spec))
+			}
+			if !slices.Equal(seen, []string{"svc_1/1/x", "svc_1/2/", "svc_1/3/y", "svc_2/1/x", "svc_2/2/"}) {
+				t.Errorf("revisions in env_1 = %v", seen)
+			}
 			ids, err := tx.DeletedSince(ctx, "service", at, 10)
 			if err != nil {
 				return err

@@ -636,7 +636,8 @@ type Entry struct {
 	// anyone who reaches it make one. The panel offers to close them.
 	Signups *Signups `protobuf:"bytes,25,opt,name=signups,proto3" json:"signups,omitempty"`
 	// Variables a service builds its links or checks requests from, which follow
-	// the domain added to what web opens, such as Ghost's url.
+	// the app's address, such as Ghost's url: its domain, or the panel's Open
+	// address, or its port on loopback (ADR 0103).
 	AddressVariables []*AddressVariable `protobuf:"bytes,26,rep,name=address_variables,json=addressVariables,proto3" json:"address_variables,omitempty"`
 	// What a person may want to know of the app as it runs here, a line each,
 	// such as "Transcodes on the server's CPU". Never steps to follow.
@@ -1706,16 +1707,23 @@ func (x *Signups) GetClosed() string {
 	return ""
 }
 
-// AddressVariable is a variable that follows the domain an app is reached at.
+// AddressVariable is a variable that follows the address an app is reached at
+// (ADR 0103): the oldest domain routed to what web opens, at its whole path, or
+// else the panel's Open address, or else web's port on loopback.
 type AddressVariable struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The service, by its name in the Compose file, such as "ghost".
 	Service string `protobuf:"bytes,1,opt,name=service,proto3" json:"service,omitempty"`
 	// The variable, such as "url".
 	Variable string `protobuf:"bytes,2,opt,name=variable,proto3" json:"variable,omitempty"`
-	// What it's set to, with {domain} where the domain goes, such as
-	// "https://{domain}", or a value of its own that goes with a domain, such
-	// as "https" for Nextcloud's OVERWRITEPROTOCOL.
+	// What it's set to. {origin} is the address as a browser opens it, such as
+	// "https://docs.example.com" or "http://abcdefghij.localhost:7600", {host} the
+	// same without its scheme, and {scheme} "https" for a domain and "http"
+	// otherwise: a value with them is written at install and again as the address
+	// moves. {domain} is the domain alone, so a value with it, such as
+	// "https://{domain}", or a value of its own that goes with a domain alone,
+	// such as "https" for Nextcloud's OVERWRITEPROTOCOL, is written only once the
+	// app has a domain, as before.
 	Value         string `protobuf:"bytes,3,opt,name=value,proto3" json:"value,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
