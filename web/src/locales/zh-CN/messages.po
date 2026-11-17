@@ -1026,6 +1026,14 @@ msgstr "通过面板打开了一个应用"
 msgid "Opened {name} through the panel"
 msgstr "通过面板打开了 {name}"
 
+msgid "Published a domain at Cloudflare"
+msgstr "已在 Cloudflare 发布域名"
+
+#. placeholder {0}: cf.name
+#. placeholder {1}: cf.target
+msgid "Published {0} at Cloudflare, in {1}"
+msgstr "已在 Cloudflare 的 {1} 中发布 {0}"
+
 msgid "Put back {path} on {server}"
 msgstr "已放回 {server} 上的 {path}"
 
@@ -1186,6 +1194,9 @@ msgstr "登录了"
 msgid "Signed out other sessions"
 msgstr "退出了其他会话"
 
+msgid "Something Dockwell published at Cloudflare is gone"
+msgstr "Dockwell 在 Cloudflare 发布的内容已不在了"
+
 msgid "Stopped serving the panel on {previous}"
 msgstr "不再在 {previous} 上提供面板"
 
@@ -1282,6 +1293,9 @@ msgstr "已上传 {path} 到 {server}，{size}"
 msgid "Uploaded {path} to {server}, {size}, and unpacked it into {to}"
 msgstr "已上传 {path} 到 {server}，{size}，并解压到 {to}"
 
+msgid "What Dockwell published in {subject} at Cloudflare is gone"
+msgstr "Dockwell 在 Cloudflare 的 {subject} 中发布的内容已不在了"
+
 msgid "a server"
 msgstr "一台服务器"
 
@@ -1290,6 +1304,11 @@ msgstr "一个应用"
 
 msgid "its server"
 msgstr "它的服务器"
+
+#. placeholder {0}: cf.name
+#. placeholder {1}: cf.target
+msgid "{0} is gone from {1} at Cloudflare"
+msgstr "{0} 已不在 Cloudflare 的 {1} 中"
 
 #. placeholder {0}: s.create
 msgid "{0} to create"

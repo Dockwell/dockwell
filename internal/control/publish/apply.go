@@ -21,6 +21,14 @@ import (
 // again after a control plane stopped midway finds what it wrote (ADR 0104, section
 // 8).
 func (p *Publisher) Apply(ctx context.Context, changeID string, route revision.PublishRoute, s resource.ProviderStep) (string, error) {
+	said, err := p.apply(ctx, changeID, route, s)
+	if err == nil {
+		p.noteWrite(ctx, route.ID, s, 0)
+	}
+	return said, err
+}
+
+func (p *Publisher) apply(ctx context.Context, changeID string, route revision.PublishRoute, s resource.ProviderStep) (string, error) {
 	switch s.Action {
 	case resource.ProviderCreateRecord, resource.ProviderRestoreRecord:
 		return p.createRecord(ctx, changeID, route, s, "")
@@ -91,6 +99,20 @@ func (p *Publisher) createRecord(ctx context.Context, changeID string, route rev
 		return "", nil
 	}
 	return "", p.DB.Update(ctx, func(tx *store.Tx) error {
+		// What was kept of a record of this route's at the name, of this type, that's
+		// gone, goes: this one stands for it now, with what that one replaced.
+		was, err := tx.CloudflareRecordsOf(ctx, route.ID)
+		if err != nil {
+			return err
+		}
+		for i := range was {
+			if was[i].ID != got.ID && strings.EqualFold(was[i].Name, got.Name) && was[i].Type == got.Type {
+				replaced = cmp.Or(replaced, was[i].Replaced)
+				if err := tx.DeleteCloudflareRecord(ctx, was[i].ID); err != nil {
+					return err
+				}
+			}
+		}
 		return tx.PutCloudflareRecord(ctx, store.CloudflareRecord{
 			ID: got.ID, Provider: s.Provider, ZoneID: t.zone.ID, Zone: t.zone.Name, Name: got.Name, Type: got.Type, Content: got.Content,
 			Proxied: got.Proxied, TTL: got.TTL, Comment: got.Comment, RouteID: route.ID, ChangeID: changeID, Replaced: replaced, CreatedAt: p.now(),

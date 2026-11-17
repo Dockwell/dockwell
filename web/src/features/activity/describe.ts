@@ -740,6 +740,27 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
               : t`Revoked a certificate's key a server that's gone had`,
             icon: "key",
           };
+        case "cloudflare.write": {
+          // A step a change took at Cloudflare: a DNS record, or a tunnel's rule (ADR 0104).
+          const cf = event.cloudflare;
+          return {
+            title: cf?.name
+              ? t`Published ${cf.name} at Cloudflare, in ${cf.target}`
+              : t`Published a domain at Cloudflare`,
+            icon: "globe",
+          };
+        }
+        case "cloudflare.gone": {
+          // What the drift timer found gone at Cloudflare, which nothing puts back on its own.
+          const cf = event.cloudflare;
+          return {
+            title: cf?.name
+              ? t`${cf.name} is gone from ${cf.target} at Cloudflare`
+              : t`Something Dockwell published at Cloudflare is gone`,
+            icon: "globe",
+            tone: "warning",
+          };
+        }
         case "dns_provider.check":
           // A saved DNS provider's token, used again to write and delete a record in its zones.
           return {
@@ -881,6 +902,8 @@ export function alertTitle(
         : i18n._(msg`An update of ${subject} is out: ${where}`);
     case AlertRule_Condition.CATALOG_SOURCE_STUCK:
       return i18n._(msg`The catalog ${subject} can't follow its branch`);
+    case AlertRule_Condition.DOMAIN_UNPUBLISHED:
+      return i18n._(msg`What Dockwell published in ${subject} at Cloudflare is gone`);
   }
   return a.title;
 }

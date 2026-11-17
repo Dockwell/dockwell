@@ -349,3 +349,57 @@ func TestTheLiveCheckOfAName(t *testing.T) {
 		t.Fatalf("taken, as a developer sees it: %v", taken)
 	}
 }
+
+// A save in a stale dashboard tab takes the zone's rule out of the tunnel, and a
+// record is deleted by hand: the drift timer marks both, Activity says so, and the
+// domain's row says where it stands; proposing the route again puts it back (ADR
+// 0104, section 4).
+func TestDriftIsFoundAndPutBack(t *testing.T) {
+	t.Parallel()
+	s := newPublishStand(t)
+	s.applied(t, propose(t, s.person, "Publish wiki", s.published("wiki", "wiki.example.com")))
+	s.cf.SetDocument(webOne, json.RawMessage(panelDoc))
+	for _, r := range s.cf.Records("example.com") {
+		s.cf.Remove("example.com", r.ID)
+	}
+	if err := s.f.server.publisher.Drift(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	dc := dockwellv1connect.NewDomainServiceClient(s.b, s.b.origin, connect.WithProtoJSON())
+	listed, err := dc.ListDomains(t.Context(), connect.NewRequest(&dockwellv1.ListDomainsRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var row *dockwellv1.Domain
+	for _, d := range listed.Msg.GetDomains() {
+		if d.GetName() == "wiki.example.com" {
+			row = d
+		}
+	}
+	if len(row.GetPublished()) != 1 || row.GetPublished()[0].GetState() != dockwellv1.PublishedState_PUBLISHED_STATE_GONE_FROM_TUNNEL {
+		t.Fatalf("the domain's row: %v", row)
+	}
+	ec := dockwellv1connect.NewEventServiceClient(s.b, s.b.origin, connect.WithProtoJSON())
+	events, err := ec.ListEvents(t.Context(), connect.NewRequest(&dockwellv1.ListEventsRequest{Kinds: []dockwellv1.EventKind{dockwellv1.EventKind_EVENT_KIND_HEALTH}}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := 0
+	for _, e := range events.Msg.GetEvents() {
+		if e.GetCloudflare().GetDrift() {
+			found++
+		}
+	}
+	if found != 2 {
+		t.Fatalf("Activity should say the rule and the record are gone: %v", events.Msg.GetEvents())
+	}
+	// Put it back: the route, proposed as it is, writes what's gone again.
+	back := propose(t, s.person, "Put wiki back", s.published("wiki", "wiki.example.com"))
+	if steps := providerSteps(back); len(steps) != 2 {
+		t.Fatalf("putting it back: %v", steps)
+	}
+	s.applied(t, back)
+	if got := rulesOf(t, s.cf); !slices.Contains(got, "*.example.com=http://127.0.0.1:80") || len(s.cf.Records("example.com")) != 1 {
+		t.Fatalf("after putting it back: %v %v", got, s.cf.Records("example.com"))
+	}
+}

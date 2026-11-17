@@ -343,6 +343,10 @@ func accessClass(a resource.Access) string {
 		return "a container taken on"
 	case resource.AccessPublicPort:
 		return "a port on every address"
+	case resource.AccessTunnelRule:
+		return "a rule in a shared tunnel"
+	case resource.AccessCloudflareTakeover:
+		return "something taken over at Cloudflare"
 	case resource.AccessBackupOf:
 		return "a backup of what reached a server path"
 	case resource.AccessServerShell:

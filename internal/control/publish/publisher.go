@@ -326,9 +326,15 @@ func (p *Publisher) planWrites(ctx context.Context, r revision.PublishRoute, pub
 		switch {
 		case conflict == nil || conflict.Comment == comment && conflict.Type == d.Type && conflict.Content == d.Content:
 			// Free, or written for this route by a step a crash cut short, which
-			// writing finds and keeps.
+			// writing finds and keeps. A record of Dockwell's of this type that's gone
+			// from there is written again, so it isn't removed as well.
 			base.Action = resource.ProviderCreateRecord
 			steps = append(steps, step(r, resource.ActionCreate, base))
+			for i := range written {
+				if written[i].Name == name && written[i].Type == d.Type {
+					keep[written[i].ID] = true
+				}
+			}
 		case ours(conflict.ID) != nil || strings.HasPrefix(conflict.Comment, comment):
 			// Ours, written another way, as when the way in changed: replaced, and
 			// nothing to put back.

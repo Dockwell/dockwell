@@ -40,6 +40,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/paging"
 	"github.com/dockwell/dockwell/internal/control/place"
 	"github.com/dockwell/dockwell/internal/control/processes"
+	"github.com/dockwell/dockwell/internal/control/publish"
 	"github.com/dockwell/dockwell/internal/control/reconciled"
 	"github.com/dockwell/dockwell/internal/control/settings"
 	"github.com/dockwell/dockwell/internal/control/tasks"
@@ -110,7 +111,9 @@ var (
 	},
 		// Who had a root shell on a server, and when (ADR 0037).
 		terminals.Actions, fileWrites)
-	healthActions = []string{health.Action}
+	healthActions = []string{health.Action, publish.ActionGone}
+	// What a change wrote at Cloudflare is on its record, beside its steps (ADR 0104).
+	changeActions = []string{publish.ActionWrite}
 	// A setting of the install isn't managed state, so it's an event, not a change (ADR 0042).
 	settingsActions = settings.Actions
 	// Taking a backup is an event, and a restore is a change (ADR 0033).
@@ -317,6 +320,7 @@ func kindOfAction(action string) dockwellv1.EventKind {
 		{dockwellv1.EventKind_EVENT_KIND_TASK, taskActions},
 		{dockwellv1.EventKind_EVENT_KIND_ALERT, alertActions},
 		{dockwellv1.EventKind_EVENT_KIND_PUSH, pushActions},
+		{dockwellv1.EventKind_EVENT_KIND_CHANGE, changeActions},
 	} {
 		if slices.Contains(k.actions, action) {
 			return k.kind
@@ -737,6 +741,14 @@ func FromAudit(a *store.Event, look actors.Lookup) *dockwellv1.Event {
 		}
 		return e
 	}
+	if cf, ok := publish.ReadEvent(a); ok {
+		// As for pushes: only internal/control/publish writes these, and what it
+		// writes holds no token and no record's content.
+		e.Kind = kindOfAction(a.Action)
+		e.Subject = &dockwellv1.EventSubject{Id: a.Subject, Name: look.Name(a.Subject), Scope: look.Scope(a.Subject)}
+		e.Cloudflare = cf
+		return e
+	}
 	if push, ok := githooks.ReadEvent(a); ok {
 		// As for health: only internal/control/githooks writes this, and what it
 		// writes is what the hook's own deliveries say.
@@ -876,6 +888,9 @@ func filter(kinds []dockwellv1.EventKind, serverID, resourceID, actorID string, 
 	}
 	every := len(want) == 0
 	f.Changes = every || want[dockwellv1.EventKind_EVENT_KIND_CHANGE]
+	if f.Changes {
+		f.Actions = append(f.Actions, changeActions...)
+	}
 	if every || want[dockwellv1.EventKind_EVENT_KIND_SERVER] {
 		f.Actions = append(f.Actions, serverActions...)
 	}
@@ -900,7 +915,7 @@ func filter(kinds []dockwellv1.EventKind, serverID, resourceID, actorID string, 
 	if every || want[dockwellv1.EventKind_EVENT_KIND_PUSH] {
 		f.Actions = append(f.Actions, pushActions...)
 	}
-	f.ResourceActions = slices.Concat(healthActions, backupActions, alertActions, taskActions, pushActions)
+	f.ResourceActions = slices.Concat(healthActions, backupActions, alertActions, taskActions, pushActions, changeActions)
 	if actorID != "" {
 		a, ok := actors.Store(actorID)
 		if !ok {

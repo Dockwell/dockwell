@@ -265,10 +265,12 @@ const DefaultStepGrace = 30 * time.Second
 
 // Server is a configured control plane, ready to serve.
 type Server struct {
-	logger   *slog.Logger
-	api      http.Handler
-	agents   http.Handler
-	agentTLS *tls.Config
+	// publisher reads what Dockwell published at Cloudflare on a timer (ADR 0104).
+	publisher *publish.Publisher
+	logger    *slog.Logger
+	api       http.Handler
+	agents    http.Handler
+	agentTLS  *tls.Config
 	// addAgentHost has the agent listener's certificate name one more address.
 	addAgentHost func(string)
 	// logs reads service logs, and tells servers what deletions put out of reach.
@@ -420,7 +422,7 @@ func New(cfg Config) (*Server, error) {
 		// refuses a person's that comes without (ADR 0049).
 		cfg.Changes.RequireRoles()
 	}
-	s := &Server{logger: cfg.Logger, api: api, logs: logs, backups: backupHandler, hooks: hooks, apps: gitApps, tasks: taskHandler, updates: updateKeeper, alerts: evaluator, manualAlerts: cfg.ManualAlerts, manualBackups: cfg.ManualBackups, public: cfg.Public, changes: cfg.Changes, store: cfg.Store, stepGrace: cfg.StepGrace, autoupdates: autoupdates, certificates: cfg.certificates}
+	s := &Server{logger: cfg.Logger, api: api, logs: logs, backups: backupHandler, hooks: hooks, apps: gitApps, tasks: taskHandler, updates: updateKeeper, alerts: evaluator, manualAlerts: cfg.ManualAlerts, manualBackups: cfg.ManualBackups, public: cfg.Public, changes: cfg.Changes, store: cfg.Store, stepGrace: cfg.StepGrace, autoupdates: autoupdates, certificates: cfg.certificates, publisher: cfg.publisher}
 	s.catalogs = follower
 	if cfg.Agents != nil {
 		agents := cfg.Agents
@@ -1153,6 +1155,10 @@ func (s *Server) Run(ctx context.Context, ls Listeners) error {
 	if s.hosts != nil {
 		api.Go(func() { s.hosts.Run(apiCtx) })
 		api.Go(func() { s.hosts.FollowLabels(apiCtx) })
+	}
+	// What Dockwell published at Cloudflare is read every few minutes (ADR 0104).
+	if s.publisher != nil && !s.manualAlerts {
+		api.Go(func() { s.publisher.Watch(apiCtx, s.logger) })
 	}
 	if s.certificates != nil && !s.manualAlerts {
 		api.Go(func() { s.certificates.Run(apiCtx) })

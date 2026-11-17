@@ -17,6 +17,7 @@ import (
 	"strings"
 
 	"connectrpc.com/connect"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
@@ -230,6 +231,9 @@ func (h *Handler) add(ctx context.Context, tx *store.Tx, r *store.Resource, byNa
 		d = &dockwellv1.Domain{Name: name, EnvironmentId: r.Scope, Url: scheme + name}
 		byName[name] = d
 	}
+	if err := addPublished(ctx, tx, r.ID, rt, d); err != nil {
+		return err
+	}
 	var users []string
 	for _, u := range rt.GetAccess().GetUsers() {
 		users = append(users, u.GetName())
@@ -263,6 +267,56 @@ func (h *Handler) add(ctx context.Context, tx *store.Tx, r *store.Resource, byNa
 				d.Servers[i].RedirectUnserved = true
 			}
 		}
+	}
+	return nil
+}
+
+// addPublished says what Dockwell published at Cloudflare for a route, as the drift
+// timer last read it: each record, and whether the tunnel's rule that served it is
+// still there (ADR 0104).
+func addPublished(ctx context.Context, tx *store.Tx, routeID string, rt *resourcev1.Route, d *dockwellv1.Domain) error {
+	pub := rt.GetPublish()
+	if pub == nil || pub.GetWay() == resourcev1.RouteWay_ROUTE_WAY_FRONT {
+		return nil
+	}
+	records, err := tx.CloudflareRecordsOf(ctx, routeID)
+	if err != nil {
+		return err
+	}
+	ruleGone := false
+	if pub.GetWay() == resourcev1.RouteWay_ROUTE_WAY_SERVER_TUNNEL {
+		rules, err := tx.CloudflareRulesOf(ctx, pub.GetTunnel())
+		if err != nil {
+			return err
+		}
+		for i := range rules {
+			if rules[i].State != store.CloudflarePublished && publish.HostMatches(rules[i].Hostname, rt.GetDomain()) {
+				ruleGone = true
+			}
+		}
+	}
+	for i := range records {
+		rec := &records[i]
+		if rec.Type == "pending" {
+			continue
+		}
+		words := rec.Type + " " + rec.Content
+		if rec.Proxied {
+			words += ", proxied"
+		}
+		p := &dockwellv1.DomainPublished{Name: rec.Name, Way: pub.GetWay(), Tunnel: pub.GetTunnel(), Record: words, State: dockwellv1.PublishedState_PUBLISHED_STATE_PUBLISHED}
+		switch {
+		case ruleGone:
+			p.State = dockwellv1.PublishedState_PUBLISHED_STATE_GONE_FROM_TUNNEL
+		case rec.State == store.CloudflareGone:
+			p.State = dockwellv1.PublishedState_PUBLISHED_STATE_RECORD_GONE
+		case rec.State == store.CloudflareChanged:
+			p.State = dockwellv1.PublishedState_PUBLISHED_STATE_CHANGED
+		}
+		if rec.TakenOnAt != nil {
+			p.TakenOn = timestamppb.New(*rec.TakenOnAt)
+		}
+		d.Published = append(d.Published, p)
 	}
 	return nil
 }
