@@ -189,3 +189,12 @@ func (c *Cloudflare) tunnelCount(ctx context.Context, accounts []string) (int, e
 	}
 	return n, nil
 }
+
+// TokenPage is Cloudflare's page where an account's tokens' rights are changed, or a
+// user's where account is empty.
+func TokenPage(account string) string {
+	if account == "" {
+		return userTokensPage
+	}
+	return strings.Replace(accountTokensPage, "%s", url.PathEscape(account), 1)
+}

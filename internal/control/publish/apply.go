@@ -313,6 +313,7 @@ func (p *Publisher) addRule(ctx context.Context, changeID string, s resource.Pro
 		return "", err
 	}
 	start := p.now()
+	defer p.cache.forget("doc:" + s.Tunnel)
 	wrote, err := t.tunnels.WriteTunnelConfig(ctx, s.Account, s.Tunnel, need.After.Raw())
 	if err != nil {
 		return "", fmt.Errorf("can't write %s's routes: %w", s.Target, err)
@@ -390,6 +391,7 @@ func (p *Publisher) removeRule(ctx context.Context, s resource.ProviderStep) (st
 	if err := CheckSplice(read.Config, after.Raw(), i, false); err != nil {
 		return "", err
 	}
+	defer p.cache.forget("doc:" + s.Tunnel)
 	wrote, err := t.tunnels.WriteTunnelConfig(ctx, s.Account, s.Tunnel, after.Raw())
 	if err != nil {
 		return "", fmt.Errorf("can't write %s's routes: %w", s.Target, err)

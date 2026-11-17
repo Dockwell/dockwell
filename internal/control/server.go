@@ -78,6 +78,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/members"
 	"github.com/dockwell/dockwell/internal/control/opener"
 	"github.com/dockwell/dockwell/internal/control/processes"
+	"github.com/dockwell/dockwell/internal/control/publish"
 	"github.com/dockwell/dockwell/internal/control/registrylogins"
 	"github.com/dockwell/dockwell/internal/control/resources"
 	"github.com/dockwell/dockwell/internal/control/servers"
@@ -215,6 +216,9 @@ type Config struct {
 	DNSAPI func(token string) dnsproviders.API
 	// dns are the DNS providers, read with Secrets from Store.
 	dns *dnsproviders.Providers
+	// publisher publishes routes' domains at Cloudflare, for the engine and the
+	// live check (ADR 0104).
+	publisher *publish.Publisher
 	// CatalogDir is a folder of catalog entries that take over Dockwell's own of the
 	// same ID, as catalog.DirEnv names one. Empty adds none.
 	CatalogDir string
@@ -390,7 +394,8 @@ func New(cfg Config) (*Server, error) {
 	// (ADR 0090).
 	// Publishing a route's domain at Cloudflare is steps the engine takes (ADR 0104).
 	if cfg.Changes != nil && cfg.dns != nil {
-		cfg.Changes.SetPublisher(publisher(&cfg))
+		cfg.publisher = publisher(&cfg)
+		cfg.Changes.SetPublisher(cfg.publisher)
 	}
 	if cfg.Changes != nil {
 		agents, certs, hub := cfg.Agents, cfg.certificates, cfg.Fleet
@@ -598,6 +603,9 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		}
 		domainHandler := domains.New(cfg.Changes.Kinds(), cfg.Store, cfg.Agents, fleetOf(cfg), cfg.Logger)
 		domainHandler.DNS, domainHandler.Certificates = cfg.dns, cfg.certificates
+		if cfg.publisher != nil {
+			domainHandler.Cloudflare = cfg.publisher
+		}
 		domainHandler.Lookup = cfg.DNSLookup
 		if cfg.Secrets != nil {
 			domainHandler.Providers = signinproviders.New(cfg.Store, cfg.Secrets)

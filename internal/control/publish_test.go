@@ -17,9 +17,11 @@ import (
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/agent/tunnels"
 	"github.com/dockwell/dockwell/internal/control/dnsproviders/cftest"
 	"github.com/dockwell/dockwell/internal/resource/route"
+	"github.com/dockwell/dockwell/internal/store"
 )
 
 const webOne = "327d9d41-b009-413d-8494-7eeeefb3ed2a"
@@ -291,5 +293,59 @@ func TestARaceWithTheDashboardIsSaid(t *testing.T) {
 	}
 	if got := rulesOf(t, s.cf); !slices.Contains(got, "*.example.com=http://127.0.0.1:80") {
 		t.Fatalf("Dockwell's rule: %v", got)
+	}
+}
+
+// The live check says what Cloudflare holds at a name, and the ways in with the one
+// it would take; a record's content only to an admin (ADR 0104, section 1).
+func TestTheLiveCheckOfAName(t *testing.T) {
+	t.Parallel()
+	s := newPublishStand(t)
+	dc := dockwellv1connect.NewDomainServiceClient(s.b, s.b.origin, connect.WithProtoJSON())
+	check := func(name string) *dockwellv1.CloudflareCheck {
+		t.Helper()
+		got, err := dc.CheckDomain(t.Context(), connect.NewRequest(&dockwellv1.CheckDomainRequest{ServerId: s.server, Domain: name, ProjectId: s.project}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return got.Msg.GetCloudflare()
+	}
+	tunnelWay := func(c *dockwellv1.CloudflareCheck) *dockwellv1.WayOption {
+		for _, w := range c.GetWays() {
+			if w.GetWay() == resourcev1.RouteWay_ROUTE_WAY_SERVER_TUNNEL {
+				return w
+			}
+		}
+		return nil
+	}
+
+	free := check("wiki.example.com")
+	if free.GetState() != dockwellv1.CloudflareName_CLOUDFLARE_NAME_FREE || free.GetZone() != "example.com" || free.GetWay() != resourcev1.RouteWay_ROUTE_WAY_SERVER_TUNNEL {
+		t.Fatalf("a free name: %v", free)
+	}
+	if w := tunnelWay(free); w.GetTunnelName() != "web-1" || w.GetAddsRule() != "*.example.com" || w.GetOff() != "" {
+		t.Fatalf("the tunnel's way: %v", w)
+	}
+	s.applied(t, propose(t, s.person, "Publish wiki", s.published("wiki", "wiki.example.com")))
+	if w := tunnelWay(check("docs.example.com")); w.GetAddsRule() != "" || w.GetOff() != "" {
+		t.Fatalf("with the zone's rule in: %v", w)
+	}
+	if ours := check("wiki.example.com"); ours.GetState() != dockwellv1.CloudflareName_CLOUDFLARE_NAME_OURS {
+		t.Fatalf("a name Dockwell published: %v", ours)
+	}
+
+	s.cf.Put("example.com", cftest.Record{Type: "A", Name: "vpn.example.com", Content: "203.0.113.9"})
+	if taken := check("vpn.example.com"); taken.GetState() != dockwellv1.CloudflareName_CLOUDFLARE_NAME_TAKEN || taken.GetRecord() != "A 203.0.113.9" || taken.GetRecordId() == "" {
+		t.Fatalf("taken, as an admin sees it: %v", taken)
+	}
+	if past := check("a.docs.example.com"); past.GetState() != dockwellv1.CloudflareName_CLOUDFLARE_NAME_PAST_CERTIFICATE || tunnelWay(past).GetOff() == "" {
+		t.Fatalf("past the certificate: %v", past)
+	}
+
+	// Below an admin, a name is taken, and nothing more.
+	hold := aMember(t, s.f)
+	hold(store.Grant{ProjectID: s.project, Role: store.RoleDeveloper})
+	if taken := check("vpn.example.com"); taken.GetState() != dockwellv1.CloudflareName_CLOUDFLARE_NAME_TAKEN || taken.GetRecord() != "" || taken.GetRecordId() != "" || len(taken.GetTypes()) != 0 {
+		t.Fatalf("taken, as a developer sees it: %v", taken)
 	}
 }

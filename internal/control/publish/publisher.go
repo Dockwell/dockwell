@@ -57,6 +57,9 @@ type Publisher struct {
 	// LockWait is how long a step waits for another writer of a tunnel; zero waits
 	// a minute.
 	LockWait time.Duration
+
+	// cache keeps what a live check reads that changes slowly.
+	cache cache
 }
 
 var _ revision.Publisher = (*Publisher)(nil)

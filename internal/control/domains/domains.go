@@ -26,6 +26,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/certificates"
 	"github.com/dockwell/dockwell/internal/control/dnsproviders"
 	"github.com/dockwell/dockwell/internal/control/fleet"
+	"github.com/dockwell/dockwell/internal/control/publish"
 	"github.com/dockwell/dockwell/internal/control/signinproviders"
 	"github.com/dockwell/dockwell/internal/ingress"
 	"github.com/dockwell/dockwell/internal/resource"
@@ -65,6 +66,15 @@ type Handler struct {
 	Certificates *certificates.Manager
 	// Providers reads the sign-in providers, and checks an issuer. Nil keeps none.
 	Providers *signinproviders.Providers
+	// Cloudflare says what a connected Cloudflare zone holds at a name, and the ways
+	// in (ADR 0104); nil says nothing of it.
+	Cloudflare CloudflareChecker
+}
+
+// CloudflareChecker says what a connected Cloudflare zone holds at a name, and the
+// ways in.
+type CloudflareChecker interface {
+	Check(ctx context.Context, ask publish.CheckAsk) (*dockwellv1.CloudflareCheck, error)
 }
 
 var _ dockwellv1connect.DomainServiceHandler = (*Handler)(nil)
@@ -137,6 +147,18 @@ func (h *Handler) CheckDomain(ctx context.Context, req *connect.Request[dockwell
 	check := read(domain)
 	<-done
 	out := &dockwellv1.CheckDomainResponse{Check: resourcepb.DomainCheck(check), Companion: companion}
+	// What Cloudflare holds there, where a provider serving the project has the name:
+	// a check that couldn't be made says nothing, beside what DNS says (ADR 0104).
+	if h.Cloudflare != nil && req.Msg.GetProjectId() != "" {
+		admin, _ := callerProjects(ctx)
+		cf, err := h.Cloudflare.Check(ctx, publish.CheckAsk{
+			Server: srv.GetId(), Project: req.Msg.GetProjectId(), Name: domain, Admin: admin, Way: req.Msg.GetPublish().GetWay(),
+		})
+		if err != nil {
+			h.logger.WarnContext(ctx, "couldn't check a name at Cloudflare", slog.String("domain", domain), slog.String("error", err.Error()))
+		}
+		out.Cloudflare = cf
+	}
 	if companion != "" {
 		if out.CompanionCheck, err = h.companionCheck(ctx, req.Msg.GetProjectId(), check, other); err != nil {
 			return nil, err
