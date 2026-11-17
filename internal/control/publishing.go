@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/netip"
+	"slices"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
@@ -57,6 +58,7 @@ func publisher(cfg *Config) *publish.Publisher {
 		if out := srv.GetInventory().GetOutboundAddress(); out != "" {
 			facts.WaysOut = append(facts.WaysOut, out)
 		}
+		facts.SharesWith = sharingAnAddress(cfg.Fleet.List(), srv.GetId(), facts.WaysOut)
 		return facts, nil
 	}
 	p.Panel = func(context.Context) ([]string, string) {
@@ -118,4 +120,21 @@ func publisher(cfg *Config) *publish.Publisher {
 		return out, err
 	}
 	return p
+}
+
+// sharingAnAddress names the servers of fleet, other than id, that leave from one of
+// the addresses in out.
+func sharingAnAddress(fleet []*dockwellv1.Server, id string, out []string) []string {
+	var names []string
+	for _, srv := range fleet {
+		if srv.GetId() == id {
+			continue
+		}
+		theirs := []string{srv.GetNetwork().GetIpv4().GetAddress(), srv.GetNetwork().GetIpv6().GetAddress(), srv.GetInventory().GetOutboundAddress()}
+		if slices.ContainsFunc(theirs, func(a string) bool { return a != "" && slices.Contains(out, a) }) {
+			names = append(names, srv.GetName())
+		}
+	}
+	slices.Sort(names)
+	return names
 }

@@ -569,3 +569,23 @@ func TestAReplaceAfterDriftKeepsTheirRecord(t *testing.T) {
 		t.Fatalf("their record should be back after undo: %+v", got)
 	}
 }
+
+// The servers that leave from one of a server's addresses are named, the server
+// itself never.
+func TestServersSharingAnAddress(t *testing.T) {
+	at := func(id, name, v4, out string) *dockwellv1.Server {
+		return &dockwellv1.Server{Id: id, Name: name, Network: &dockwellv1.ServerNetwork{Ipv4: &dockwellv1.PublicAddress{Address: v4}}, Inventory: &dockwellv1.ServerInventory{OutboundAddress: out}}
+	}
+	fleet := []*dockwellv1.Server{
+		at("a", "hz-1", "203.0.113.10", ""),
+		at("b", "nas", "", "203.0.113.10"),
+		at("c", "hz-2", "198.51.100.7", ""),
+		at("d", "pi", "", ""),
+	}
+	if got := strings.Join(sharingAnAddress(fleet, "a", []string{"203.0.113.10"}), ","); got != "nas" {
+		t.Fatalf("shares with %q", got)
+	}
+	if got := sharingAnAddress(fleet, "c", []string{"198.51.100.7"}); len(got) != 0 {
+		t.Fatalf("shares with %q", got)
+	}
+}

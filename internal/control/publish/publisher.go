@@ -31,6 +31,9 @@ type Facts struct {
 	// WaysOut are the addresses it leaves from, as ADR 0034 knows them, which a
 	// tunnel's connections come from where no connector ID can be read.
 	WaysOut []string
+	// SharesWith are the other servers of the fleet that leave from one of the same
+	// addresses, which addresses alone can't tell from this one (ADR 0104, section 3).
+	SharesWith []string
 }
 
 // Publisher plans and takes a change's steps at Cloudflare (ADR 0104).
@@ -493,6 +496,14 @@ func (p *Publisher) proveTunnel(ctx context.Context, server string, t *target, t
 	if slices.ContainsFunc(here, func(f *dockwellv1.CloudflaredTunnel) bool { return f.GetManagedInFile() }) {
 		return nil, fmt.Errorf("%s's tunnel is managed in a file, so Dockwell writes nothing at Cloudflare", facts.Name)
 	}
+	// Each run of the tunnel here gets names from Cloudflare, so a rule's service has
+	// to reach apps from every one of them: runs that reach apps differently, or say
+	// different accounts, leave no one service to write (the review's M2).
+	for _, f := range here[1:] {
+		if f.GetReaches() != here[0].GetReaches() || f.GetNetworkRange() != here[0].GetNetworkRange() || f.GetAccountTag() != here[0].GetAccountTag() {
+			return nil, fmt.Errorf("the tunnel runs more than once on %s, and its runs reach apps differently, so Dockwell can't pick where its rule sends a name. Keep one of them", facts.Name)
+		}
+	}
 	account := cmp.Or(here[0].GetAccountTag(), t.zone.Account)
 	connectors, err := t.tunnels.TunnelConnectors(ctx, account, tunnel)
 	if err != nil {
@@ -501,22 +512,42 @@ func (p *Publisher) proveTunnel(ctx context.Context, server string, t *target, t
 	if len(connectors) == 0 {
 		return nil, fmt.Errorf("the tunnel isn't connected from %s now, so Dockwell can't tell it runs there", facts.Name)
 	}
-	ids := map[string]bool{}
+	ids := map[string]*dockwellv1.CloudflaredTunnel{}
+	unread := false
 	for _, f := range here {
 		if f.GetConnectorId() != "" {
-			ids[f.GetConnectorId()] = true
+			ids[f.GetConnectorId()] = f
+		} else {
+			unread = true
 		}
 	}
+	// Addresses stand in for connector IDs only where no run here gave one, and no
+	// other server leaves from the same address (ADR 0104, section 3).
+	byAddress := len(ids) == 0
+	if byAddress && len(facts.SharesWith) > 0 {
+		return nil, fmt.Errorf("%s and %s share an address, so Dockwell can't tell which runs the tunnel", facts.Name, strings.Join(facts.SharesWith, ", "))
+	}
+	if !byAddress && unread {
+		return nil, fmt.Errorf("the tunnel runs more than once on %s, and Dockwell can't read one of its runs, so it can't tell which is real. Keep one of them", facts.Name)
+	}
+	var proved *dockwellv1.CloudflaredTunnel
 	for _, c := range connectors {
-		if ids[c.ID] {
+		if f, ok := ids[c.ID]; ok {
+			proved = cmp.Or(proved, f)
 			continue
 		}
-		if len(ids) == 0 && len(c.Connections) > 0 && !slices.ContainsFunc(c.Connections, func(conn dnsproviders.Connection) bool { return !slices.Contains(facts.WaysOut, conn.OriginIP) }) {
+		if byAddress && len(c.Connections) > 0 && !slices.ContainsFunc(c.Connections, func(conn dnsproviders.Connection) bool { return !slices.Contains(facts.WaysOut, conn.OriginIP) }) {
 			continue
 		}
 		return nil, fmt.Errorf("the tunnel runs on %s and somewhere else too, so Dockwell can't send a name to one of them", facts.Name)
 	}
-	return here[0], nil
+	if byAddress {
+		return here[0], nil
+	}
+	if proved == nil {
+		return nil, fmt.Errorf("the tunnel isn't connected from %s now, so Dockwell can't tell it runs there", facts.Name)
+	}
+	return proved, nil
 }
 
 // planRuleRemoval takes the zone's rule out of a tunnel once no route publishes
