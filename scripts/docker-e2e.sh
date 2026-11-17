@@ -594,7 +594,10 @@ for distro in "Ubuntu ubuntu:24.04" "Debian debian:12"; do
   diff <(the_reader_says "$out" '.packages[]? | select(.security) | .name') <(the_tool_says security) ||
     fail "on $name, the reader marked other security fixes than apt-get --simulate does"
 done
-alma=$(read_updates_patiently almalinux:9 dnf) || fail "the agent's reader failed on AlmaLinux: $(said)"
+# A point release behind the newest, so its packages are behind the repositories,
+# which follow the newest: AlmaLinux keeps one version of each package, so nothing
+# goes back on an image as new as they are, as almalinux:9 became at 9.9.
+alma=$(read_updates_patiently almalinux:9.8 dnf) || fail "the agent's reader failed on AlmaLinux: $(said)"
 jq -e '.manager == "PACKAGE_MANAGER_DNF" and .marksSecurity and (.refreshError // "") == "" and .listsTime != null' >/dev/null <<<"$alma" ||
   fail "on AlmaLinux, the reader said: $alma$(raw)"
 put_back AlmaLinux "$alma"
