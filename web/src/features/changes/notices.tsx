@@ -110,7 +110,9 @@ export function needsPasskey(plan: Plan | undefined): boolean {
       reboots(plan) ||
       // A removal cuts a server off and revokes what it holds (ADR 0090).
       plan.removes !== undefined ||
-      plan.resources.some((r) => r.unit?.passkey === true))
+      plan.resources.some((r) => r.unit?.passkey === true) ||
+      // An Open whose owner isn't made: who reaches it first takes it (ADR 0105).
+      plan.notes.some((n) => n.reason === "opens_to_everyone"))
   );
 }
 

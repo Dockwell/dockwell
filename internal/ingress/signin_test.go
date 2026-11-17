@@ -22,9 +22,35 @@ func (askingProxy) SignInDial() string { return askAt }
 
 // keptSignIns is what an agent keeps of the routes that sign people in.
 type keptSignIns struct {
-	mu   sync.Mutex
-	kept map[string]*resourcev1.RouteSignIn
-	at   map[string]string
+	mu     sync.Mutex
+	kept   map[string]*resourcev1.RouteSignIn
+	at     map[string]string
+	setups map[string]*resourcev1.RouteSetup
+}
+
+func (k *keptSignIns) PutSetup(id, _, _ string, s *resourcev1.RouteSetup) error {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	if k.setups == nil {
+		k.setups = map[string]*resourcev1.RouteSetup{}
+	}
+	k.setups[id] = proto.CloneOf(s)
+	return nil
+}
+
+func (k *keptSignIns) DropSetup(id string) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	delete(k.setups, id)
+}
+
+func (k *keptSignIns) GetSetup(id string) *resourcev1.RouteSetup {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	if s, ok := k.setups[id]; ok {
+		return proto.CloneOf(s)
+	}
+	return nil
 }
 
 func (k *keptSignIns) Put(id, domain, path string, s *resourcev1.RouteSignIn) error {

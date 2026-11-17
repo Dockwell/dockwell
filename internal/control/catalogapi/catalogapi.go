@@ -84,6 +84,8 @@ type Handler struct {
 	// (ADR 0105). Nil where the control plane runs neither, as some tests.
 	holds  *holds.Holds
 	owners OwnerRetrier
+	// stepUps confirms a person's passkey, for a setup link (ADR 0105).
+	stepUps StepUps
 }
 
 // EntriesFrom has the catalog take the entries in dir, read each time, over
@@ -636,6 +638,9 @@ func (h *Handler) installs(ctx context.Context, tx *store.Tx, s sourced) ([]*doc
 				return nil, err
 			}
 			install.Owner = ownerProto(owner)
+			if o := install.GetOwner(); o.GetState() == dockwellv1.CatalogOwnerState_CATALOG_OWNER_STATE_FAILED && h.owners != nil {
+				o.SetUp = h.owners.SetUp(install.GetEnvironmentId())
+			}
 			if h.holds != nil {
 				if install.Held, err = h.holds.Held(ctx, tx, install.GetEnvironmentId()); err != nil {
 					return nil, err

@@ -59,6 +59,9 @@ const (
 	// CatalogServiceSetCatalogOwnerEmailProcedure is the fully-qualified name of the CatalogService's
 	// SetCatalogOwnerEmail RPC.
 	CatalogServiceSetCatalogOwnerEmailProcedure = "/dockwell.v1.CatalogService/SetCatalogOwnerEmail"
+	// CatalogServiceSetUpCatalogInstallProcedure is the fully-qualified name of the CatalogService's
+	// SetUpCatalogInstall RPC.
+	CatalogServiceSetUpCatalogInstallProcedure = "/dockwell.v1.CatalogService/SetUpCatalogInstall"
 	// CatalogServiceOpenCatalogInstallProcedure is the fully-qualified name of the CatalogService's
 	// OpenCatalogInstall RPC.
 	CatalogServiceOpenCatalogInstallProcedure = "/dockwell.v1.CatalogService/OpenCatalogInstall"
@@ -140,13 +143,23 @@ type CatalogServiceClient interface {
 	SetCatalogNeed(context.Context, *connect.Request[v1.SetCatalogNeedRequest]) (*connect.Response[v1.SetCatalogNeedResponse], error)
 	// RetryCatalogOwner tries again to make an install's owner, where it failed: it
 	// reads whether the owner is made first, and runs the entry's steps only where it
-	// isn't. It changes nothing Dockwell manages, as the owner is the app's, so it
-	// plans nothing (ADR 0105).
+	// isn't. The owner is the app's, so it plans nothing of it; it first takes away a
+	// setup link the install has, as a change it applies, so in a protected
+	// environment it's an admin's (ADR 0105).
 	RetryCatalogOwner(context.Context, *connect.Request[v1.RetryCatalogOwnerRequest]) (*connect.Response[v1.RetryCatalogOwnerResponse], error)
 	// SetCatalogOwnerEmail plans giving the owner's email to an install a token made
 	// without one, which waits held for it. Once applied, Dockwell makes the owner
 	// (ADR 0105).
 	SetCatalogOwnerEmail(context.Context, *connect.Request[v1.SetCatalogOwnerEmailRequest]) (*connect.Response[v1.SetCatalogOwnerEmailResponse], error)
+	// SetUpCatalogInstall gives a held install's domain a setup link: a key, good once
+	// and for an hour, which lets the browser that opens it through the hold, to set
+	// the app up on its real domain, and no one else. It writes the key's hash on the
+	// install's held routes of the domain, as a change it applies at once, and returns
+	// the address with the key, which is on no change. It takes a signed-in person and
+	// a passkey (ADR 0105). It's refused with the reason not_held where the install
+	// isn't held, and no_https where the domain isn't reached over HTTPS, where the
+	// link's cookie wouldn't be kept.
+	SetUpCatalogInstall(context.Context, *connect.Request[v1.SetUpCatalogInstallRequest]) (*connect.Response[v1.SetUpCatalogInstallResponse], error)
 	// OpenCatalogInstall plans opening a held install: each of its routes answers
 	// again, and each port its services publish listens where it did, as the person
 	// who set it up asks. It clears the pin's held, and records an owner not yet made
@@ -280,6 +293,12 @@ func NewCatalogServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(catalogServiceMethods.ByName("SetCatalogOwnerEmail")),
 			connect.WithClientOptions(opts...),
 		),
+		setUpCatalogInstall: connect.NewClient[v1.SetUpCatalogInstallRequest, v1.SetUpCatalogInstallResponse](
+			httpClient,
+			baseURL+CatalogServiceSetUpCatalogInstallProcedure,
+			connect.WithSchema(catalogServiceMethods.ByName("SetUpCatalogInstall")),
+			connect.WithClientOptions(opts...),
+		),
 		openCatalogInstall: connect.NewClient[v1.OpenCatalogInstallRequest, v1.OpenCatalogInstallResponse](
 			httpClient,
 			baseURL+CatalogServiceOpenCatalogInstallProcedure,
@@ -362,6 +381,7 @@ type catalogServiceClient struct {
 	setCatalogNeed         *connect.Client[v1.SetCatalogNeedRequest, v1.SetCatalogNeedResponse]
 	retryCatalogOwner      *connect.Client[v1.RetryCatalogOwnerRequest, v1.RetryCatalogOwnerResponse]
 	setCatalogOwnerEmail   *connect.Client[v1.SetCatalogOwnerEmailRequest, v1.SetCatalogOwnerEmailResponse]
+	setUpCatalogInstall    *connect.Client[v1.SetUpCatalogInstallRequest, v1.SetUpCatalogInstallResponse]
 	openCatalogInstall     *connect.Client[v1.OpenCatalogInstallRequest, v1.OpenCatalogInstallResponse]
 	backUpCatalogNeed      *connect.Client[v1.BackUpCatalogNeedRequest, v1.BackUpCatalogNeedResponse]
 	listCatalogNeedBackups *connect.Client[v1.ListCatalogNeedBackupsRequest, v1.ListCatalogNeedBackupsResponse]
@@ -413,6 +433,11 @@ func (c *catalogServiceClient) RetryCatalogOwner(ctx context.Context, req *conne
 // SetCatalogOwnerEmail calls dockwell.v1.CatalogService.SetCatalogOwnerEmail.
 func (c *catalogServiceClient) SetCatalogOwnerEmail(ctx context.Context, req *connect.Request[v1.SetCatalogOwnerEmailRequest]) (*connect.Response[v1.SetCatalogOwnerEmailResponse], error) {
 	return c.setCatalogOwnerEmail.CallUnary(ctx, req)
+}
+
+// SetUpCatalogInstall calls dockwell.v1.CatalogService.SetUpCatalogInstall.
+func (c *catalogServiceClient) SetUpCatalogInstall(ctx context.Context, req *connect.Request[v1.SetUpCatalogInstallRequest]) (*connect.Response[v1.SetUpCatalogInstallResponse], error) {
+	return c.setUpCatalogInstall.CallUnary(ctx, req)
 }
 
 // OpenCatalogInstall calls dockwell.v1.CatalogService.OpenCatalogInstall.
@@ -516,13 +541,23 @@ type CatalogServiceHandler interface {
 	SetCatalogNeed(context.Context, *connect.Request[v1.SetCatalogNeedRequest]) (*connect.Response[v1.SetCatalogNeedResponse], error)
 	// RetryCatalogOwner tries again to make an install's owner, where it failed: it
 	// reads whether the owner is made first, and runs the entry's steps only where it
-	// isn't. It changes nothing Dockwell manages, as the owner is the app's, so it
-	// plans nothing (ADR 0105).
+	// isn't. The owner is the app's, so it plans nothing of it; it first takes away a
+	// setup link the install has, as a change it applies, so in a protected
+	// environment it's an admin's (ADR 0105).
 	RetryCatalogOwner(context.Context, *connect.Request[v1.RetryCatalogOwnerRequest]) (*connect.Response[v1.RetryCatalogOwnerResponse], error)
 	// SetCatalogOwnerEmail plans giving the owner's email to an install a token made
 	// without one, which waits held for it. Once applied, Dockwell makes the owner
 	// (ADR 0105).
 	SetCatalogOwnerEmail(context.Context, *connect.Request[v1.SetCatalogOwnerEmailRequest]) (*connect.Response[v1.SetCatalogOwnerEmailResponse], error)
+	// SetUpCatalogInstall gives a held install's domain a setup link: a key, good once
+	// and for an hour, which lets the browser that opens it through the hold, to set
+	// the app up on its real domain, and no one else. It writes the key's hash on the
+	// install's held routes of the domain, as a change it applies at once, and returns
+	// the address with the key, which is on no change. It takes a signed-in person and
+	// a passkey (ADR 0105). It's refused with the reason not_held where the install
+	// isn't held, and no_https where the domain isn't reached over HTTPS, where the
+	// link's cookie wouldn't be kept.
+	SetUpCatalogInstall(context.Context, *connect.Request[v1.SetUpCatalogInstallRequest]) (*connect.Response[v1.SetUpCatalogInstallResponse], error)
 	// OpenCatalogInstall plans opening a held install: each of its routes answers
 	// again, and each port its services publish listens where it did, as the person
 	// who set it up asks. It clears the pin's held, and records an owner not yet made
@@ -652,6 +687,12 @@ func NewCatalogServiceHandler(svc CatalogServiceHandler, opts ...connect.Handler
 		connect.WithSchema(catalogServiceMethods.ByName("SetCatalogOwnerEmail")),
 		connect.WithHandlerOptions(opts...),
 	)
+	catalogServiceSetUpCatalogInstallHandler := connect.NewUnaryHandler(
+		CatalogServiceSetUpCatalogInstallProcedure,
+		svc.SetUpCatalogInstall,
+		connect.WithSchema(catalogServiceMethods.ByName("SetUpCatalogInstall")),
+		connect.WithHandlerOptions(opts...),
+	)
 	catalogServiceOpenCatalogInstallHandler := connect.NewUnaryHandler(
 		CatalogServiceOpenCatalogInstallProcedure,
 		svc.OpenCatalogInstall,
@@ -739,6 +780,8 @@ func NewCatalogServiceHandler(svc CatalogServiceHandler, opts ...connect.Handler
 			catalogServiceRetryCatalogOwnerHandler.ServeHTTP(w, r)
 		case CatalogServiceSetCatalogOwnerEmailProcedure:
 			catalogServiceSetCatalogOwnerEmailHandler.ServeHTTP(w, r)
+		case CatalogServiceSetUpCatalogInstallProcedure:
+			catalogServiceSetUpCatalogInstallHandler.ServeHTTP(w, r)
 		case CatalogServiceOpenCatalogInstallProcedure:
 			catalogServiceOpenCatalogInstallHandler.ServeHTTP(w, r)
 		case CatalogServiceBackUpCatalogNeedProcedure:
@@ -800,6 +843,10 @@ func (UnimplementedCatalogServiceHandler) RetryCatalogOwner(context.Context, *co
 
 func (UnimplementedCatalogServiceHandler) SetCatalogOwnerEmail(context.Context, *connect.Request[v1.SetCatalogOwnerEmailRequest]) (*connect.Response[v1.SetCatalogOwnerEmailResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.CatalogService.SetCatalogOwnerEmail is not implemented"))
+}
+
+func (UnimplementedCatalogServiceHandler) SetUpCatalogInstall(context.Context, *connect.Request[v1.SetUpCatalogInstallRequest]) (*connect.Response[v1.SetUpCatalogInstallResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.CatalogService.SetUpCatalogInstall is not implemented"))
 }
 
 func (UnimplementedCatalogServiceHandler) OpenCatalogInstall(context.Context, *connect.Request[v1.OpenCatalogInstallRequest]) (*connect.Response[v1.OpenCatalogInstallResponse], error) {

@@ -335,6 +335,9 @@ const (
 	// (ADR 0095). The target is the provider's ID. Numbered in its block, 250 to
 	// 259.
 	StepUpAction_STEP_UP_ACTION_LINK_PROVIDER StepUpAction = 250
+	// A setup link to a held catalog install's domain, by the install's project ID
+	// (ADR 0105). 260 to 269 are this record's.
+	StepUpAction_STEP_UP_ACTION_SET_UP_CATALOG_INSTALL StepUpAction = 260
 	// Reveals one of a service's own environment variables that reads hidden.
 	// Its target is the service's ID and the name, as "svc_…:NAME". Numbered
 	// apart, as open work adds to this enum.
@@ -378,6 +381,7 @@ var (
 		240: "STEP_UP_ACTION_SET_STEP_UP_POLICY",
 		241: "STEP_UP_ACTION_SET_STEP_UP_FLOOR",
 		250: "STEP_UP_ACTION_LINK_PROVIDER",
+		260: "STEP_UP_ACTION_SET_UP_CATALOG_INSTALL",
 		60:  "STEP_UP_ACTION_REVEAL_SERVICE_VALUE",
 	}
 	StepUpAction_value = map[string]int32{
@@ -415,6 +419,7 @@ var (
 		"STEP_UP_ACTION_SET_STEP_UP_POLICY":        240,
 		"STEP_UP_ACTION_SET_STEP_UP_FLOOR":         241,
 		"STEP_UP_ACTION_LINK_PROVIDER":             250,
+		"STEP_UP_ACTION_SET_UP_CATALOG_INSTALL":    260,
 		"STEP_UP_ACTION_REVEAL_SERVICE_VALUE":      60,
 	}
 )
@@ -4924,7 +4929,7 @@ const file_dockwell_v1_auth_proto_rawDesc = "" +
 	"\x1fPROVIDER_LINK_STATE_UNSPECIFIED\x10\x00\x12\x1d\n" +
 	"\x19PROVIDER_LINK_STATE_WORKS\x10\x01\x12$\n" +
 	" PROVIDER_LINK_STATE_PROVIDER_OFF\x10\x02\x12$\n" +
-	" PROVIDER_LINK_STATE_ISSUER_MOVED\x10\x03*\x80\n" +
+	" PROVIDER_LINK_STATE_ISSUER_MOVED\x10\x03*\xac\n" +
 	"\n" +
 	"\fStepUpAction\x12\x1e\n" +
 	"\x1aSTEP_UP_ACTION_UNSPECIFIED\x10\x00\x12 \n" +
@@ -4961,7 +4966,8 @@ const file_dockwell_v1_auth_proto_rawDesc = "" +
 	"&STEP_UP_ACTION_SIGN_IN_ON_PANEL_DOMAIN\x10\xe7\x01\x12&\n" +
 	"!STEP_UP_ACTION_SET_STEP_UP_POLICY\x10\xf0\x01\x12%\n" +
 	" STEP_UP_ACTION_SET_STEP_UP_FLOOR\x10\xf1\x01\x12!\n" +
-	"\x1cSTEP_UP_ACTION_LINK_PROVIDER\x10\xfa\x01\x12'\n" +
+	"\x1cSTEP_UP_ACTION_LINK_PROVIDER\x10\xfa\x01\x12*\n" +
+	"%STEP_UP_ACTION_SET_UP_CATALOG_INSTALL\x10\x84\x02\x12'\n" +
 	"#STEP_UP_ACTION_REVEAL_SERVICE_VALUE\x10<*\x86\x01\n" +
 	"\fStepUpPolicy\x12\x1e\n" +
 	"\x1aSTEP_UP_POLICY_UNSPECIFIED\x10\x00\x12\x1c\n" +

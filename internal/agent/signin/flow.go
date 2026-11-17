@@ -45,6 +45,12 @@ type Doer = oidc.Doer
 type Server struct {
 	// Routes gives the route Caddy names, by ID.
 	Routes func(id string) (Route, bool)
+	// Setups gives a held route's setup link, by ID (ADR 0105); SetupsOn every held
+	// route of a domain with a key's hash; and UseSetup says whether a key is used for
+	// the first time, keeping that past a restart.
+	Setups   func(id string) (Setup, bool)
+	SetupsOn func(domain, keyHash string) []Setup
+	UseSetup func(hash string, until time.Time) (bool, error)
 	// Client reads the provider's discovery, keys and tokens, from this server.
 	Client Doer
 	// Now is the clock; nil is time.Now.
@@ -53,6 +59,8 @@ type Server struct {
 	mu       sync.Mutex
 	provider *oidc.Client
 	limits   map[string]*limit
+	// used are setup links' keys opened already, by hash, until their links end.
+	used map[string]time.Time
 }
 
 // oidc is what reads the providers, kept between sign-ins.
@@ -97,6 +105,12 @@ func (s *Server) now() time.Time {
 // ServeHTTP answers forward_auth for /route/<id>, with the visitor's method and URI
 // in X-Forwarded-Method and X-Forwarded-Uri.
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// A held route's hold, which its setup link lifts for one browser, comes first
+	// (ADR 0105).
+	if id, ok := strings.CutPrefix(r.URL.Path, "/setup/"); ok {
+		s.serveSetup(w, r, id)
+		return
+	}
 	route, ok := s.Routes(strings.TrimPrefix(r.URL.Path, "/route/"))
 	if !ok {
 		// Closed, never open: a route Caddy names that this agent doesn't sign in for.

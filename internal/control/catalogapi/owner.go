@@ -218,6 +218,9 @@ func heldAtInstall(entry *catalogv1.Entry) bool {
 // OwnerRetrier has a failed owner tried again (owners.Runner).
 type OwnerRetrier interface {
 	Retry(ctx context.Context, environment string) (store.AppOwnerState, error)
+	// SetUp says whether a failed owner's app read set up, by its done, while a
+	// person set it up through its setup link.
+	SetUp(environment string) bool
 }
 
 // SetHolds has the handler work out whether an install is held with hs, and try a
@@ -300,6 +303,11 @@ func (h *Handler) RetryCatalogOwner(ctx context.Context, req *connect.Request[do
 	}
 	if h.owners == nil {
 		return nil, connect.NewError(connect.CodeUnavailable, errors.New("this control plane doesn't make apps' owners"))
+	}
+	// Trying again takes a setup link made for doing it by hand away, first, so a
+	// retry that runs has done that (ADR 0105; the review's L1).
+	if err := h.clearSetups(ctx, found.install); err != nil {
+		return nil, err
 	}
 	st, err := h.owners.Retry(ctx, found.install.GetEnvironmentId())
 	if errors.Is(err, store.ErrNotFound) {

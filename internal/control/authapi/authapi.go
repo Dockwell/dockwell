@@ -426,6 +426,7 @@ var stepUpActions = map[dockwellv1.StepUpAction]auth.StepUpAction{
 	dockwellv1.StepUpAction_STEP_UP_ACTION_TRANSFER_OWNERSHIP:        auth.StepUpTransferOwnership,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_ADD_SERVER:                auth.StepUpAddServer,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_OPEN_SERVICE:              auth.StepUpOpenService,
+	dockwellv1.StepUpAction_STEP_UP_ACTION_SET_UP_CATALOG_INSTALL:    auth.StepUpSetUpCatalogInstall,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_SET_PANEL_DOMAIN:          auth.StepUpSetPanelDomain,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_SIGN_IN_ON_PANEL_DOMAIN:   auth.StepUpSignInOnPanelDomain,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_SET_STEP_UP_POLICY:        auth.StepUpSetPolicy,

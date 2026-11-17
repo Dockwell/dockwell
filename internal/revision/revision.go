@@ -273,6 +273,9 @@ type Edit struct {
 	// install's or an upgrade's, which alone may change what the pin says the install
 	// runs and where it's reached (ADR 0105).
 	Pin bool
+	// SetsUp says the edit is SetUpCatalogInstall's or RetryCatalogOwner's write of a
+	// held route's setup link, which alone may write or clear it (ADR 0105).
+	SetsUp bool
 	// Restart asks for the resource to restart, with its spec as it is.
 	Restart bool
 	// Restore asks for the resource's data to come back from a backup, with its

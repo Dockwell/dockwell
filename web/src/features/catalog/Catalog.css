@@ -223,6 +223,28 @@
   color: var(--cobalt);
 }
 
+/* Not open to everyone yet, or its owner isn't made (ADR 0105): a state to act on, in the warning's colour. */
+.catalog-installed.is-held {
+  padding: 0 var(--space-2);
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+/* An install's owner state, above its rows in the catalog's panel, apart from them. */
+.catalog-owner-callout {
+  margin-bottom: var(--space-4);
+}
+
+/* What the app said where its owner couldn't be made, scrubbed: a line of its own, wrapping. */
+.catalog-owner-said {
+  overflow-wrap: anywhere;
+}
+
+/* The owner's email, asked in the callout that waits for it. */
+.catalog-owner-email {
+  max-width: 360px;
+}
+
 /* Two lines at most, so every card in a row is as tall as the next; the app's page says the rest. */
 .catalog-card-summary {
   display: -webkit-box;

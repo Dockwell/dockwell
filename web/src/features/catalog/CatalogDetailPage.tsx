@@ -16,6 +16,7 @@ import { Facts, useEntryFacts } from "./access";
 import { CatalogBack } from "./CatalogBack";
 import { Markdown } from "./Markdown";
 import { AppIcon, AppScreenshot, projectLink } from "./media";
+import { useOwnerWords } from "./Owner";
 import type { CatalogSearch } from "./search";
 import { categoryLabel, installOf, useEntryWords, useInstalls, useOrigins, useSourceNames } from "./useCatalog";
 import "./Catalog.css";
@@ -44,6 +45,7 @@ export function CatalogDetailPage({
     : origins.origins.get(id);
   // Dockwell's own catalog, which a source reads too (ADR 0077), is no other catalog's.
   const from = listed && !listed.own ? listed : undefined;
+  const ownerWords = useOwnerWords();
   const installs = (useInstalls().data?.installs ?? []).filter((install) =>
     installOf(install, id, origins.origins, origins.also),
   );
@@ -386,6 +388,9 @@ export function CatalogDetailPage({
                           )}
                         </strong>
                         <code>{installed.pin?.version}</code>
+                        {ownerWords(installed) ? (
+                          <span className="catalog-installed is-held">{ownerWords(installed)}</span>
+                        ) : null}
                       </span>
                       {installed.webServiceId ? (
                         <RouterButtonLink

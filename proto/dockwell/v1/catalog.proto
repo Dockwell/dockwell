@@ -120,12 +120,13 @@ service CatalogService {
 
   // RetryCatalogOwner tries again to make an install's owner, where it failed: it
   // reads whether the owner is made first, and runs the entry's steps only where it
-  // isn't. It changes nothing Dockwell manages, as the owner is the app's, so it
-  // plans nothing (ADR 0105).
+  // isn't. The owner is the app's, so it plans nothing of it; it first takes away a
+  // setup link the install has, as a change it applies, so in a protected
+  // environment it's an admin's (ADR 0105).
   rpc RetryCatalogOwner(RetryCatalogOwnerRequest) returns (RetryCatalogOwnerResponse) {
     option (dockwell.v1.effect) = EFFECT_APPLY;
     option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
-    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
     option (dockwell.v1.reach) = REACH_PROJECT;
     option (dockwell.v1.command) = {verb: "retry-owner"};
     option (google.api.http) = {
@@ -145,6 +146,27 @@ service CatalogService {
     option (dockwell.v1.command) = {verb: "set-owner-email"};
     option (google.api.http) = {
       post: "/v1/catalog/installs/{id}:set-owner-email"
+      body: "*"
+    };
+  }
+
+  // SetUpCatalogInstall gives a held install's domain a setup link: a key, good once
+  // and for an hour, which lets the browser that opens it through the hold, to set
+  // the app up on its real domain, and no one else. It writes the key's hash on the
+  // install's held routes of the domain, as a change it applies at once, and returns
+  // the address with the key, which is on no change. It takes a signed-in person and
+  // a passkey (ADR 0105). It's refused with the reason not_held where the install
+  // isn't held, and no_https where the domain isn't reached over HTTPS, where the
+  // link's cookie wouldn't be kept.
+  rpc SetUpCatalogInstall(SetUpCatalogInstallRequest) returns (SetUpCatalogInstallResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.command) = {verb: "set-up"};
+    option (dockwell.v1.needs_session) = true;
+    option (google.api.http) = {
+      post: "/v1/catalog/installs/{id}:set-up"
       body: "*"
     };
   }
@@ -638,6 +660,9 @@ message CatalogOwner {
   // What the app said where making it failed, with every value the steps sent
   // hidden.
   string error = 4;
+  // The app reads set up, by the owner's done, while it's held: a person set it up
+  // through the setup link, so it's theirs to open to everyone.
+  bool set_up = 5;
 }
 
 // CatalogOwnerState is how making an install's owner stands.
@@ -653,6 +678,28 @@ enum CatalogOwnerState {
   CATALOG_OWNER_STATE_FAILED = 4;
   // A person opened the install before its owner was made.
   CATALOG_OWNER_STATE_OPENED = 5;
+}
+
+// SetUpCatalogInstallRequest asks for a setup link to a held install's domain.
+message SetUpCatalogInstallRequest {
+  // The install's project, by name or ID.
+  string id = 1;
+  // The domain, one of the install's held routes'. Empty takes its first.
+  string domain = 2;
+  // The proof from FinishStepUp, for setting this install up, by its project's ID.
+  // It works once, within a minute, in the session that made it. Without one, the
+  // call is refused with needs_step_up once nothing else refuses it.
+  string proof = 3;
+}
+
+// SetUpCatalogInstallResponse is the link and the change that made it.
+message SetUpCatalogInstallResponse {
+  // The address to open, with the key: https://<domain>/.well-known/dockwell-setup?key=...
+  string url = 1;
+  // When it stops working.
+  google.protobuf.Timestamp until = 2;
+  // The change that wrote the key's hash on the routes.
+  Change change = 3;
 }
 
 // RetryCatalogOwnerRequest names an install whose owner Dockwell couldn't make.

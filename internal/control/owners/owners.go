@@ -10,6 +10,7 @@ package owners
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -23,6 +24,7 @@ import (
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/control/holds"
+	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/ownerstep"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/appowner"
@@ -62,7 +64,25 @@ type Runner struct {
 	mu      sync.Mutex
 	runs    Runs
 	running map[string]bool
-	wg      sync.WaitGroup
+	// setUp are environments whose failed owner's app read set up, by done, while
+	// a setup link was live.
+	setUp map[string]bool
+	wg    sync.WaitGroup
+}
+
+// forgetSetUp drops what was read of an environment's failed owner's app being set up.
+func (r *Runner) forgetSetUp(environment string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.setUp, environment)
+}
+
+// SetUp says whether an environment's failed owner's app read set up, by its done,
+// while a person set it up through its setup link (ADR 0105).
+func (r *Runner) SetUp(environment string) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.setUp[environment]
 }
 
 func (r *Runner) now() time.Time {
@@ -102,7 +122,10 @@ type job struct {
 	owner                   *resourcev1.OwnerRun
 	values                  map[string]string
 	checkFirst, readOnly    bool
-	tries                   int
+	// setUp reads whether a failed owner's app reads set up, for its page, while a
+	// person sets it up through its setup link: it records nothing (ADR 0105).
+	setUp bool
+	tries int
 	// since is when what's observed of it last changed.
 	since time.Time
 }
@@ -274,9 +297,28 @@ func (r *Runner) look(ctx context.Context, tx *store.Tx, environment string) ([]
 			}
 			continue
 		case st.State == store.OwnerFailed:
-			// It waits for a person: RetryCatalogOwner, or open it.
+			// It waits for a person: RetryCatalogOwner, or open it. While they set it
+			// up through its setup link, its done is read for its page; once the link
+			// ends, what was read goes (the review's L3).
+			live, err := r.setupLive(ctx, tx, environment, now)
+			if err != nil {
+				return nil, nil, err
+			}
+			server := ""
+			if live {
+				if server, err = liveServer(ctx, tx, environment, owner.GetService()); err != nil {
+					return nil, nil, err
+				}
+			}
+			if server != "" {
+				jobs = append(jobs, job{id: res.ID, environment: environment, server: server, setUp: true, tries: st.Tries, since: st.UpdatedAt})
+			} else {
+				r.forgetSetUp(environment)
+			}
 			continue
 		}
+		// It's not failed, so nothing it read of being set up holds.
+		r.forgetSetUp(environment)
 		if !has || st.State == store.OwnerWaitingEmail {
 			st.State, st.UpdatedAt = store.OwnerWaiting, now
 			record = append(record, st)
@@ -294,8 +336,8 @@ func (r *Runner) look(ctx context.Context, tx *store.Tx, environment string) ([]
 }
 
 // changeApplied says whether a change applied.
-func changeApplied(ctx context.Context, tx *store.Tx, id string) (bool, error) {
-	c, err := tx.GetChange(ctx, id)
+func changeApplied(ctx context.Context, tx *store.Tx, change string) (bool, error) {
+	c, err := tx.GetChange(ctx, change)
 	if errors.Is(err, store.ErrNotFound) {
 		return false, nil
 	}
@@ -339,13 +381,17 @@ func (r *Runner) ready(ctx context.Context, j job) (*job, *store.AppOwnerState, 
 		return nil, nil, nil
 	}
 	run, plain, secretNames, err := runs.OwnerRun(ctx, j.environment)
+	if err != nil && j.setUp {
+		// A read for the page says nothing it can't read.
+		return nil, nil, nil
+	}
 	if err != nil {
 		if ctx.Err() != nil {
 			return nil, nil, ctx.Err()
 		}
 		return nil, &store.AppOwnerState{ResourceID: j.id, Environment: j.environment, State: store.OwnerFailed, Error: cut(err.Error()), Tries: j.tries, UpdatedAt: r.now()}, nil
 	}
-	j.readOnly = j.tries > 0 && run.GetMadeWhenDone()
+	j.readOnly = j.tries > 0 && run.GetMadeWhenDone() && !j.setUp
 	if j.readOnly && r.now().Sub(j.since) < Poll {
 		return nil, nil, nil
 	}
@@ -398,11 +444,55 @@ func (r *Runner) start(ctx context.Context, j job) {
 			r.mu.Unlock()
 		}()
 		defer clear(j.values)
+		if j.setUp {
+			r.readSetUp(ctx, j)
+			return
+		}
 		st := r.make(ctx, j)
 		if err := r.record(context.WithoutCancel(ctx), st); err != nil {
 			r.logger().WarnContext(ctx, "can't record what came of making an app's owner", slog.String("error", err.Error()))
 		}
 	}()
+}
+
+// readSetUp reads a failed owner's done, for its page, and keeps what it read.
+func (r *Runner) readSetUp(ctx context.Context, j job) {
+	a, ok := r.agentFor(j.server)
+	if !ok {
+		return
+	}
+	got, err := a.ReadAppOwner(ctx, j.environment, j.owner.GetService(), j.owner, j.values, false)
+	if err != nil {
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.setUp == nil {
+		r.setUp = map[string]bool{}
+	}
+	r.setUp[j.environment] = got.GetYes()
+}
+
+// setupLive says whether an environment has a held route whose setup link works now.
+func (r *Runner) setupLive(ctx context.Context, tx *store.Tx, environment string, now time.Time) (bool, error) {
+	list, err := tx.ListResources(ctx, environment, string(route.Kind))
+	if err != nil {
+		return false, err
+	}
+	for i := range list {
+		res := list[i]
+		if res.Spec == nil {
+			continue
+		}
+		spec, err := r.Keeper.Decode(ctx, tx, store.InRevision(res.ID, res.Kind, res.Revision), res.Spec)
+		if err != nil {
+			return false, err
+		}
+		if rt, ok := spec.(*resourcev1.Route); ok && rt.GetHeld() && now.Before(time.Unix(rt.GetSetup().GetUntil(), 0)) {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // make asks the job's agent, and says what's observed.
@@ -450,11 +540,87 @@ func (r *Runner) record(ctx context.Context, states ...store.AppOwnerState) erro
 	}
 	return r.DB.Update(ctx, func(tx *store.Tx) error {
 		for _, st := range states {
-			if _, err := tx.SetAppOwnerState(ctx, st); err != nil {
+			before, err := tx.AppOwnerStates(ctx, []string{st.ResourceID})
+			if err != nil {
+				return err
+			}
+			wrote, err := tx.SetAppOwnerState(ctx, st)
+			if err != nil {
+				return err
+			}
+			// Activity says what came of it, once, as it turns made, failed or opened.
+			if !wrote || before[st.ResourceID].State == st.State {
+				continue
+			}
+			switch st.State {
+			case store.OwnerMade:
+				err = r.recordEvent(ctx, tx, ActionMade, st)
+			case store.OwnerFailed:
+				err = r.recordEvent(ctx, tx, ActionFailed, st)
+			case store.OwnerOpened:
+				err = r.recordEvent(ctx, tx, ActionOpened, st)
+			}
+			if err != nil {
 				return err
 			}
 		}
 		return nil
+	})
+}
+
+// What becomes of making an app's owner, on Activity (ADR 0105).
+const (
+	ActionMade   = "app_owner.made"
+	ActionFailed = "app_owner.failed"
+	ActionOpened = "app_owner.opened"
+)
+
+// Actions are the events the runner records.
+var Actions = []string{ActionMade, ActionFailed, ActionOpened}
+
+// Told is what an event says of an owner, in its detail: who, and how it stands,
+// with what the app said scrubbed, and never a value its steps sent.
+type Told struct {
+	App   string `json:"app,omitempty"`
+	Email string `json:"email,omitempty"`
+	User  string `json:"user,omitempty"`
+	State string `json:"state"`
+	Error string `json:"error,omitempty"`
+	Tries int    `json:"tries,omitempty"`
+}
+
+// ReadTold reads what an event's detail says of an owner.
+func ReadTold(detail string) (Told, bool) {
+	var t Told
+	err := json.Unmarshal([]byte(detail), &t)
+	return t, err == nil && t.State != ""
+}
+
+// recordEvent puts what became of an owner on Activity, as Dockwell's own.
+func (r *Runner) recordEvent(ctx context.Context, tx *store.Tx, action string, st store.AppOwnerState) error {
+	told := Told{State: st.State, Error: st.Error, Tries: st.Tries}
+	list, err := tx.ListResources(ctx, st.Environment, string(appowner.Kind))
+	if err != nil {
+		return err
+	}
+	for i := range list {
+		if res := list[i]; res.ID == st.ResourceID && res.Spec != nil {
+			spec, err := r.Keeper.Decode(ctx, tx, store.InRevision(res.ID, res.Kind, res.Revision), res.Spec)
+			if err != nil {
+				return err
+			}
+			if o, ok := spec.(*resourcev1.AppOwner); ok {
+				told.App, told.Email, told.User = o.GetApp(), o.GetEmail(), o.GetUser()
+			}
+		}
+	}
+	detail, err := json.Marshal(told)
+	if err != nil {
+		return err
+	}
+	return tx.RecordEvent(ctx, store.Event{
+		ID: id.New(id.Event), At: r.now(), Actor: revision.SystemActor, Action: action,
+		Subject: st.ResourceID, Target: st.Environment, Detail: string(detail), Surface: store.SurfaceAutomatic,
 	})
 }
 
@@ -613,6 +779,8 @@ func (r *Runner) Release(ctx context.Context, environment string) error {
 // Retry has a failed owner tried again at the next look, reading whether it's made
 // first, and says what's observed now.
 func (r *Runner) Retry(ctx context.Context, environment string) (store.AppOwnerState, error) {
+	// A retry starts over: what was read of it being set up by hand goes.
+	r.forgetSetUp(environment)
 	var out store.AppOwnerState
 	err := r.DB.Update(ctx, func(tx *store.Tx) error {
 		list, err := tx.ListResources(ctx, environment, string(appowner.Kind))

@@ -223,6 +223,9 @@ type Also struct {
 	// Owners are the app owners the catalog writes, as an install makes one and
 	// SetCatalogOwnerEmail gives one its email, which no other write may (ADR 0105).
 	Owners []resource.Ref
+	// SetsUp are the held routes whose setup link SetUpCatalogInstall writes, which no
+	// other write may (ADR 0105).
+	SetsUp []resource.Ref
 }
 
 // Adoption is a container a change takes on: its full ID, and what it is called.
@@ -272,6 +275,7 @@ func (h *Handler) proposeAlso(ctx context.Context, who revision.By, summary stri
 		edits[i].SetsArchitectures = also.SetsArchitectures[edits[i].Ref]
 		edits[i].Backup = slices.Contains(also.BackUp, edits[i].Ref)
 		edits[i].Unholds = slices.Contains(also.Unholds, edits[i].Ref)
+		edits[i].SetsUp = slices.Contains(also.SetsUp, edits[i].Ref)
 		edits[i].Owner = slices.Contains(also.Owners, edits[i].Ref)
 		if chosen := also.IDs[edits[i].Ref]; chosen != "" {
 			edits[i].ID = chosen

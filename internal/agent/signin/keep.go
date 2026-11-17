@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"slices"
 	"sync"
+	"time"
 
 	"google.golang.org/protobuf/proto"
 
@@ -31,6 +32,12 @@ type Keep struct {
 
 	mu     sync.Mutex
 	routes map[string]kept
+	// setups are held routes' setup links (ADR 0105), by the same IDs.
+	setups map[string]keptSetup
+	// used are setup links' keys used already, by hash, where there's no Dir.
+	used map[string]time.Time
+	// Now is the clock, time.Now unless set.
+	Now func() time.Time
 }
 
 // kept is a route as Put was given it, and as Server reads it.

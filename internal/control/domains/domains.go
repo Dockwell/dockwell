@@ -242,6 +242,7 @@ func (h *Handler) add(ctx context.Context, tx *store.Tx, r *store.Resource, byNa
 		Id: r.ID, Name: r.Name, Path: rt.GetPath(), Service: rt.GetService(), Port: rt.GetPort(), Url: scheme + route.Where(rt),
 		Tls: rt.GetTls(), HostPort: rt.GetHostPort(), PlainForAnyone: rt.GetPlainForAnyone(), Held: rt.GetHeld(), TrustedProxies: rt.GetTrustedProxies(), Redirect: rt.GetRedirect(),
 		Allow: rt.GetAccess().GetAllow(), Users: users, SignIn: withoutProvider(rt.GetAccess().GetSignIn()),
+		SetupUntil: setupUntil(rt),
 	})
 	placed, err := tx.Placement(ctx, r.ID, r.Revision)
 	if err != nil {
@@ -329,4 +330,13 @@ func addPublished(ctx context.Context, tx *store.Tx, routeID string, rt *resourc
 		d.Published = append(d.Published, p)
 	}
 	return nil
+}
+
+// setupUntil is when a held route's setup link stops working, or 0: its end alone,
+// never its key's hash (ADR 0105).
+func setupUntil(rt *resourcev1.Route) int64 {
+	if !rt.GetHeld() || rt.GetSetup().GetKeyHash() == "" {
+		return 0
+	}
+	return rt.GetSetup().GetUntil()
 }

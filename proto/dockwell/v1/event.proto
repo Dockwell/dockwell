@@ -7,6 +7,7 @@ package dockwell.v1;
 import "dockwell/resource/v1alpha1/specs.proto";
 import "dockwell/v1/auth.proto";
 import "dockwell/v1/backup.proto";
+import "dockwell/v1/catalog.proto";
 import "dockwell/v1/change.proto";
 import "dockwell/v1/githook.proto";
 import "dockwell/v1/health.proto";
@@ -246,6 +247,25 @@ message Event {
   // action that starts "cloudflare." (ADR 0104). Numbered in the block ADR 0104
   // holds, 340 to 349.
   EventCloudflare cloudflare = 340;
+  // What became of making a catalog app's owner, for an event with an action that
+  // starts "app_owner." (ADR 0105). Its subject is the app.owner resource.
+  EventAppOwner app_owner = 150;
+}
+
+// EventAppOwner says what became of making a catalog app's owner: made, failed with
+// what the app said, scrubbed, or opened by a person before it was made.
+message EventAppOwner {
+  // The app, as its catalog names it, such as "Gitea".
+  string app = 1;
+  // Who the owner is: their email, and their user where the app has user names.
+  string email = 2;
+  string user = 3;
+  // How it stands now.
+  CatalogOwnerState state = 4;
+  // What the app said, with every value the steps sent hidden, where it failed.
+  string error = 5;
+  // How many times Dockwell has tried.
+  int32 tries = 6;
 }
 
 // EventCloudflare is one thing Dockwell wrote at Cloudflare, or found gone there.
@@ -556,6 +576,9 @@ enum EventKind {
   // A scheduled task's run failed or timed out, or one succeeded after that.
   // Numbered in the block scheduled tasks hold.
   EVENT_KIND_TASK = 130;
+  // A catalog app's owner was made, couldn't be made, or a person opened its
+  // install before it was (ADR 0105).
+  EVENT_KIND_APP_OWNER = 150;
 }
 
 // EventMember is who a member's event is about, with what role, where.

@@ -12,6 +12,7 @@ import { RouterButtonLink } from "../../lib/links";
 import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
 import { AppIcon } from "./media";
+import { useOwnerWords } from "./Owner";
 import { StoreMark } from "./Stores";
 import type { CatalogSearch } from "./search";
 import {
@@ -470,6 +471,9 @@ function Card({
   const count = installs.length;
   const unavailable = useUpgradeUnavailable();
   const behind = installs.some((install) => install.upgrade && !unavailable(install));
+  // An install not open yet, or whose owner isn't made, says so before anything else (ADR 0105).
+  const ownerWords = useOwnerWords();
+  const waiting = installs.map(ownerWords).find((w) => w !== undefined);
   const sameVersion = installs.every((install) => !install.upgrade || install.upgrade.version === install.pin?.version);
   const latest = entry.version;
   const body = (
@@ -480,7 +484,9 @@ function Card({
           <span className="catalog-card-name">{entry.name}</span>
           {category ? <span className="catalog-card-category">{category}</span> : null}
         </span>
-        {behind ? (
+        {waiting ? (
+          <span className="catalog-installed is-held">{waiting}</span>
+        ) : behind ? (
           <span className="catalog-installed is-behind">{sameVersion ? t`Update out` : t`Upgrade to ${latest}`}</span>
         ) : first ? (
           <span className="catalog-installed">

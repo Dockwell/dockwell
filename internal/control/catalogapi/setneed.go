@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -347,6 +348,10 @@ func holdRoutes(ctx context.Context, tx *store.Tx, env string, services []string
 	return out, nil
 }
 
+// NoteOpensToEveryone is the note of an Open whose owner isn't made: who reaches it
+// first takes it. The panel asks for a passkey up front where a plan has it.
+const NoteOpensToEveryone = "opens_to_everyone"
+
 // OpenCatalogInstall plans opening an install that SetCatalogNeed held as it started
 // empty: each held route answers again, and each held port listens where it did, as
 // the person who set it up asks (ADR 0084).
@@ -365,9 +370,15 @@ func (h *Handler) OpenCatalogInstall(ctx context.Context, req *connect.Request[d
 	// Its sign-ups close as it opens, where a variable closes them and it wasn't
 	// installed with them open (ADR 0105).
 	var signups *catalogv1.Signups
-	if entry, known := s.entryFor(pin); known && entry.GetSignups().GetVariable() != "" && !pin.GetSignupsOpen() {
-		signups = entry.GetSignups()
+	app := cmp.Or(install.GetName(), pin.GetEntry())
+	if entry, known := s.entryFor(pin); known {
+		app = cmp.Or(entry.GetName(), app)
+		if entry.GetSignups().GetVariable() != "" && !pin.GetSignupsOpen() {
+			signups = entry.GetSignups()
+		}
 	}
+	// What it opens, in words, for the plan's note.
+	var domains, ports []string
 	var edits []*dockwellv1.Edit
 	var unholds []resource.Ref
 	var owner *installOwner
@@ -418,10 +429,16 @@ func (h *Handler) OpenCatalogInstall(ctx context.Context, req *connect.Request[d
 					if v.GetHeld() {
 						v.Held = false
 						out = &resourcev1.Spec{Kind: &resourcev1.Spec_Route{Route: v}}
+						if d := v.GetDomain(); d != "" && !slices.Contains(domains, d) {
+							domains = append(domains, d)
+						}
 					}
 				case *resourcev1.Service:
 					opened := false
 					for _, p := range v.GetApp().GetPorts() {
+						if p.GetHeld() {
+							ports = append(ports, strconv.FormatUint(uint64(p.GetHostPort()), 10))
+						}
 						opened = opened || p.GetHeld()
 						p.Held = false
 					}
@@ -475,7 +492,20 @@ func (h *Handler) OpenCatalogInstall(ctx context.Context, req *connect.Request[d
 		}
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s %s, so there's nothing to open", install.GetProject(), why), "not_held")
 	}
-	change, err := h.changes.Propose(ctx, "Open "+install.GetProject()+" to everyone", edits, nil, changes.Also{Unholds: unholds})
+	// Who reaches it first takes it, where its owner isn't made: the plan says so, and
+	// a person applies it with a passkey (ADR 0105, "Installs by token").
+	var notes []revision.Note
+	if owner == nil || !store.OwnerFinal(owner.state.State) {
+		where := "it"
+		switch {
+		case len(domains) > 0:
+			where = strings.Join(domains, ", ")
+		case len(ports) > 0:
+			where = "port " + strings.Join(ports, ", ")
+		}
+		notes = append(notes, revision.Note{Reason: NoteOpensToEveryone, Message: "Anyone who reaches " + where + " first takes " + app})
+	}
+	change, err := h.changes.Propose(ctx, "Open "+install.GetProject()+" to everyone", edits, nil, changes.Also{Unholds: unholds, Notes: notes})
 	if err != nil {
 		return nil, err
 	}

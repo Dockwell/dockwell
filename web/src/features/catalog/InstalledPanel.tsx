@@ -17,6 +17,7 @@ import { type CardRow, CardRows } from "./CardRows";
 import { useCompanionRows } from "./Companions";
 import { HeldRoutes } from "./HeldRoutes";
 import { useNeedRows } from "./NeedLines";
+import { OwnerCallout, OwnerCard, ownerStatus } from "./Owner";
 import { installIn, useInstalls, useUpgradeUnavailable } from "./useCatalog";
 import "./Catalog.css";
 
@@ -127,12 +128,19 @@ export function InstalledPanel({ service }: { service: ServiceInfo }) {
           </RouterButtonLink>
         }
       >
-        <HeldRoutes service={service} install={install} />
+        {/* An install whose owner Dockwell makes, or that's held until a person sets it up, says
+            which (ADR 0105); a hold of its own routes alone, as a new empty database's, is ADR 0084's. */}
+        {ownerStatus(install) && ownerStatus(install) !== "made" ? (
+          <OwnerCallout service={service} install={install} entry={entry} />
+        ) : (
+          <HeldRoutes service={service} install={install} />
+        )}
         <CardRows rows={rows} label={t`From the catalog`} />
       </Panel>
       {entry?.signIn && service.id === install.webServiceId && webRuns ? (
         <SignInCard entry={entry} install={install} />
       ) : null}
+      {entry?.owner && service.id === install.webServiceId ? <OwnerCard entry={entry} install={install} /> : null}
     </>
   );
 }

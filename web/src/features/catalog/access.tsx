@@ -209,7 +209,20 @@ export function useInstallFacts(
   }
   const signups = entry.signups;
   const signupsService = signups ? inEnvironment(signups.service) : undefined;
-  if (signups && signupsService) {
+  // Closed as the service runs, as an install with an owner Dockwell makes closes them (ADR 0105):
+  // a state, with nothing to do.
+  const signupsClosed =
+    signups !== undefined &&
+    signupsService !== undefined &&
+    appOf(signupsService)?.env[signups.variable] === signups.closed;
+  if (signups && signupsService && signupsClosed) {
+    out.push({
+      key: "signups",
+      icon: "users",
+      label: t`Sign-ups`,
+      text: t({ message: "Closed", context: "sign-ups" }),
+    });
+  } else if (signups && signupsService) {
     const variable = signups.variable;
     const closed = signups.closed;
     out.push({

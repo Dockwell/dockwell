@@ -1092,6 +1092,9 @@ enum StepUpAction {
   // (ADR 0095). The target is the provider's ID. Numbered in its block, 250 to
   // 259.
   STEP_UP_ACTION_LINK_PROVIDER = 250;
+  // A setup link to a held catalog install's domain, by the install's project ID
+  // (ADR 0105). 260 to 269 are this record's.
+  STEP_UP_ACTION_SET_UP_CATALOG_INSTALL = 260;
   // Reveals one of a service's own environment variables that reads hidden.
   // Its target is the service's ID and the name, as "svc_…:NAME". Numbered
   // apart, as open work adds to this enum.

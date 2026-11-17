@@ -2561,6 +2561,9 @@ type DomainRoute struct {
 	// The proxies in front it believes, as Route.trusted_proxies names them, so what
 	// reads a route has all of it.
 	TrustedProxies []string `protobuf:"bytes,81,rep,name=trusted_proxies,json=trustedProxies,proto3" json:"trusted_proxies,omitempty"`
+	// When its setup link stops working, in Unix seconds, while it's held and has
+	// one; 0 otherwise. Never the link's key, nor its hash (ADR 0105).
+	SetupUntil int64 `protobuf:"varint,114,opt,name=setup_until,json=setupUntil,proto3" json:"setup_until,omitempty"`
 	// Who it lets in, as addresses and ranges, as Route.access says: anyone else
 	// gets 403. Empty lets in everyone it answers (ADR 0087).
 	Allow []string `protobuf:"bytes,110,rep,name=allow,proto3" json:"allow,omitempty"`
@@ -2684,6 +2687,13 @@ func (x *DomainRoute) GetTrustedProxies() []string {
 		return x.TrustedProxies
 	}
 	return nil
+}
+
+func (x *DomainRoute) GetSetupUntil() int64 {
+	if x != nil {
+		return x.SetupUntil
+	}
+	return 0
 }
 
 func (x *DomainRoute) GetAllow() []string {
@@ -3306,7 +3316,7 @@ const file_dockwell_v1_domain_proto_rawDesc = "" +
 	"\x06tunnel\x18\x03 \x01(\tR\x06tunnel\x12\x16\n" +
 	"\x06record\x18\x04 \x01(\tR\x06record\x121\n" +
 	"\x05state\x18\x05 \x01(\x0e2\x1b.dockwell.v1.PublishedStateR\x05state\x125\n" +
-	"\btaken_on\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\atakenOn\"\xd0\x03\n" +
+	"\btaken_on\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\atakenOn\"\xf1\x03\n" +
 	"\vDomainRoute\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x12\n" +
@@ -3318,7 +3328,9 @@ const file_dockwell_v1_domain_proto_rawDesc = "" +
 	"\thost_port\x18\b \x01(\rR\bhostPort\x12(\n" +
 	"\x10plain_for_anyone\x18\t \x01(\bR\x0eplainForAnyone\x12\x12\n" +
 	"\x04held\x18P \x01(\bR\x04held\x12'\n" +
-	"\x0ftrusted_proxies\x18Q \x03(\tR\x0etrustedProxies\x12\x14\n" +
+	"\x0ftrusted_proxies\x18Q \x03(\tR\x0etrustedProxies\x12\x1f\n" +
+	"\vsetup_until\x18r \x01(\x03R\n" +
+	"setupUntil\x12\x14\n" +
 	"\x05allow\x18n \x03(\tR\x05allow\x12\x14\n" +
 	"\x05users\x18o \x03(\tR\x05users\x12@\n" +
 	"\asign_in\x18p \x01(\v2'.dockwell.resource.v1alpha1.RouteSignInR\x06signIn\x12E\n" +
