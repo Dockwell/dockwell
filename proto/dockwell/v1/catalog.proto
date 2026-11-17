@@ -150,6 +150,27 @@ service CatalogService {
     };
   }
 
+  // ResetCatalogOwnerPassword sets a new password for an install's owner, by its
+  // entry's reset steps: it seals a new one as pending beside the current one, has
+  // the app's server run the steps, and keeps whichever the app takes, by the steps'
+  // answer or, where that's lost, by the owner's done signing in with one of them.
+  // The new one replaces the install's secret as a change of Dockwell's. It takes a
+  // signed-in person and a passkey, and is refused with the reason no_reset where the
+  // entry has no reset steps, and rotating while a new password is being set
+  // (ADR 0105).
+  rpc ResetCatalogOwnerPassword(ResetCatalogOwnerPasswordRequest) returns (ResetCatalogOwnerPasswordResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.command) = {verb: "reset-owner-password"};
+    option (dockwell.v1.needs_session) = true;
+    option (google.api.http) = {
+      post: "/v1/catalog/installs/{id}:reset-owner-password"
+      body: "*"
+    };
+  }
+
   // SetUpCatalogInstall gives a held install's domain a setup link: a key, good once
   // and for an hour, which lets the browser that opens it through the hold, to set
   // the app up on its real domain, and no one else. It writes the key's hash on the
@@ -663,6 +684,9 @@ message CatalogOwner {
   // The app reads set up, by the owner's done, while it's held: a person set it up
   // through the setup link, so it's theirs to open to everyone.
   bool set_up = 5;
+  // A new password is being set, by the entry's reset steps: until it's known
+  // which the app takes, the current one is the one revealed.
+  bool rotating = 6;
 }
 
 // CatalogOwnerState is how making an install's owner stands.
@@ -678,6 +702,21 @@ enum CatalogOwnerState {
   CATALOG_OWNER_STATE_FAILED = 4;
   // A person opened the install before its owner was made.
   CATALOG_OWNER_STATE_OPENED = 5;
+}
+
+// ResetCatalogOwnerPasswordRequest asks for a new password for an install's owner.
+message ResetCatalogOwnerPasswordRequest {
+  // The install's project, by name or ID.
+  string id = 1;
+  // The proof from FinishStepUp, for this install's project, by its ID. Without
+  // one, the call is refused with needs_step_up once nothing else refuses it.
+  string proof = 2;
+}
+
+// ResetCatalogOwnerPasswordResponse says how the owner stands now: rotating, as the
+// new password is set.
+message ResetCatalogOwnerPasswordResponse {
+  CatalogOwner owner = 1;
 }
 
 // SetUpCatalogInstallRequest asks for a setup link to a held install's domain.

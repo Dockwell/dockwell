@@ -1239,6 +1239,46 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/catalog/installs/{id}:reset-owner-password:
+        post:
+            tags:
+                - CatalogService
+            description: |-
+                ResetCatalogOwnerPassword sets a new password for an install's owner, by its
+                 entry's reset steps: it seals a new one as pending beside the current one, has
+                 the app's server run the steps, and keeps whichever the app takes, by the steps'
+                 answer or, where that's lost, by the owner's done signing in with one of them.
+                 The new one replaces the install's secret as a change of Dockwell's. It takes a
+                 signed-in person and a passkey, and is refused with the reason no_reset where the
+                 entry has no reset steps, and rotating while a new password is being set
+                 (ADR 0105).
+            operationId: CatalogService_ResetCatalogOwnerPassword
+            parameters:
+                - name: id
+                  in: path
+                  description: The install's project, by name or ID.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/ResetCatalogOwnerPasswordRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ResetCatalogOwnerPasswordResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/catalog/installs/{id}:restore:
         post:
             tags:
@@ -10037,6 +10077,7 @@ components:
                         - STEP_UP_ACTION_SET_STEP_UP_FLOOR
                         - STEP_UP_ACTION_LINK_PROVIDER
                         - STEP_UP_ACTION_SET_UP_CATALOG_INSTALL
+                        - STEP_UP_ACTION_RESET_CATALOG_OWNER_PASSWORD
                         - STEP_UP_ACTION_REVEAL_SERVICE_VALUE
                     type: string
                     description: The action.
@@ -10701,6 +10742,11 @@ components:
                     description: |-
                         The app reads set up, by the owner's done, while it's held: a person set it up
                          through the setup link, so it's theirs to open to everyone.
+                rotating:
+                    type: boolean
+                    description: |-
+                        A new password is being set, by the entry's reset steps: until it's known
+                         which the app takes, the current one is the one revealed.
             description: CatalogOwner is the owner's account in an install, as Dockwell makes it.
         CatalogPart:
             type: object
@@ -18624,6 +18670,13 @@ components:
                         The app reads this secret on its first start alone, or encrypts what it
                          keeps with it, so setting the secret anew changes nothing or loses what it
                          encrypted. The panel marks it, and says where to change it, if anywhere.
+                hashOf:
+                    type: string
+                    description: |-
+                        The secret input whose Argon2id hash, in PHC form, this one holds, generated as
+                         the install fills it: an app such as Vaultwarden keeps the hash of an admin
+                         token, and Dockwell keeps the token sealed for the steps alone. It's never given
+                         by a person, revealed or logged (ADR 0105).
                 public:
                     type: boolean
                     description: |-
@@ -21403,6 +21456,14 @@ components:
                     description: |-
                         The steps succeeding isn't the owner being made, as an invite's: the owner is
                          made only once done reads it too.
+                unsetWhenMade:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        Variables of the owner's service the release takes out once the owner is made,
+                         as Vaultwarden's ADMIN_TOKEN, which turns its admin page off: what only making
+                         the owner needed. A later need for one sets it again, as a plan.
             description: Owner is how a catalog app's owner comes to exist (ADR 0105).
         OwnerCheck:
             type: object
@@ -21423,6 +21484,18 @@ components:
                         A command in the running container, in place of request, for an app that
                          answers only its own loopback as it's reached: it means yes where it exits 0,
                          and its output holds contains.
+                before:
+                    allOf:
+                        - $ref: '#/components/schemas/OwnerRequest'
+                    description: |-
+                        A request sent first, whose captures request may name, as a sign-in whose
+                         cookie the read needs. What it captures is kept for this check alone.
+                where:
+                    type: string
+                    description: |-
+                        What the answer must say, as JSON: path=value, where a path's part may pick a
+                         list's element by one of its fields, as [email=${OWNER_EMAIL}]._status=0. A
+                         small grammar, never an expression (ADR 0105).
             description: |-
                 OwnerCheck is a request, or a command, whose answer says something of the app,
                  such as that its owner signs in.
@@ -23920,6 +23993,26 @@ components:
                     type: string
                     description: The change that keeps the new key.
             description: ReplaceGitHubPrivateKeyResponse says which key to delete on GitHub.
+        ResetCatalogOwnerPasswordRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The install's project, by name or ID.
+                proof:
+                    type: string
+                    description: |-
+                        The proof from FinishStepUp, for this install's project, by its ID. Without
+                         one, the call is refused with needs_step_up once nothing else refuses it.
+            description: ResetCatalogOwnerPasswordRequest asks for a new password for an install's owner.
+        ResetCatalogOwnerPasswordResponse:
+            type: object
+            properties:
+                owner:
+                    $ref: '#/components/schemas/CatalogOwner'
+            description: |-
+                ResetCatalogOwnerPasswordResponse says how the owner stands now: rotating, as the
+                 new password is set.
         Resource:
             type: object
             properties:

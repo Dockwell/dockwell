@@ -39,6 +39,14 @@ type AppOwnerState struct {
 	// Opening are the planned changes that open the install, apart by spaces, any of
 	// which makes the owner opened once it applies (ADR 0105).
 	Opening string
+	// Rotation names a new password being set, by the entry's reset steps, and
+	// Pending is that password, sealed for it; both empty where none is. RotateError
+	// is what the app said where the last one couldn't be set, scrubbed, and
+	// RotateTries how often the outcome was read.
+	Rotation    string
+	Pending     []byte
+	RotateError string
+	RotateTries int
 }
 
 // AppOwnerStates reads what's observed of each app.owner resource of ids, by ID. One
@@ -52,7 +60,7 @@ func (t *Tx) AppOwnerStates(ctx context.Context, ids []string) (map[string]AppOw
 	for i, id := range ids {
 		args[i] = id
 	}
-	rows, err := t.query(ctx, `SELECT resource_id, environment, state, error, tries, updated_at, opening FROM app_owners WHERE resource_id IN (`+strings.TrimSuffix(strings.Repeat("?, ", len(ids)), ", ")+`)`, args...)
+	rows, err := t.query(ctx, `SELECT resource_id, environment, state, error, tries, updated_at, opening, rotation, pending, rotate_error, rotate_tries FROM app_owners WHERE resource_id IN (`+strings.TrimSuffix(strings.Repeat("?, ", len(ids)), ", ")+`)`, args...)
 	if err != nil {
 		return nil, fmt.Errorf("can't read the app owners: %w", err)
 	}
@@ -60,7 +68,7 @@ func (t *Tx) AppOwnerStates(ctx context.Context, ids []string) (map[string]AppOw
 	for rows.Next() {
 		var s AppOwnerState
 		var at int64
-		if err := rows.Scan(&s.ResourceID, &s.Environment, &s.State, &s.Error, &s.Tries, &at, &s.Opening); err != nil {
+		if err := rows.Scan(&s.ResourceID, &s.Environment, &s.State, &s.Error, &s.Tries, &at, &s.Opening, &s.Rotation, &s.Pending, &s.RotateError, &s.RotateTries); err != nil {
 			return nil, err
 		}
 		s.UpdatedAt = fromMillis(at)
@@ -105,7 +113,7 @@ func (t *Tx) SetAppOwnerOpening(ctx context.Context, resourceID, environment, ch
 // AppOwnersOpenToChange reads what's observed of every app owner not yet made or
 // opened, for the control plane to make or watch.
 func (t *Tx) AppOwnersOpenToChange(ctx context.Context) ([]AppOwnerState, error) {
-	rows, err := t.query(ctx, `SELECT resource_id, environment, state, error, tries, updated_at, opening FROM app_owners WHERE state NOT IN ('made', 'opened') ORDER BY resource_id`)
+	rows, err := t.query(ctx, `SELECT resource_id, environment, state, error, tries, updated_at, opening, rotation, pending, rotate_error, rotate_tries FROM app_owners WHERE state NOT IN ('made', 'opened') ORDER BY resource_id`)
 	if err != nil {
 		return nil, fmt.Errorf("can't read the app owners: %w", err)
 	}
@@ -114,7 +122,69 @@ func (t *Tx) AppOwnersOpenToChange(ctx context.Context) ([]AppOwnerState, error)
 	for rows.Next() {
 		var s AppOwnerState
 		var at int64
-		if err := rows.Scan(&s.ResourceID, &s.Environment, &s.State, &s.Error, &s.Tries, &at, &s.Opening); err != nil {
+		if err := rows.Scan(&s.ResourceID, &s.Environment, &s.State, &s.Error, &s.Tries, &at, &s.Opening, &s.Rotation, &s.Pending, &s.RotateError, &s.RotateTries); err != nil {
+			return nil, err
+		}
+		s.UpdatedAt = fromMillis(at)
+		out = append(out, s)
+	}
+	return out, rows.Err()
+}
+
+// StartAppOwnerRotation seals a new password for a made owner as pending, for
+// rotation, beside the current one, and says whether it did: not where one is
+// already being set, nor for an owner that isn't made.
+func (t *Tx) StartAppOwnerRotation(ctx context.Context, resourceID, rotation string, pending []byte, at time.Time) (bool, error) {
+	res, err := t.exec(ctx, `UPDATE app_owners SET rotation = ?, pending = ?, rotate_error = '', rotate_tries = 0, updated_at = ?
+		WHERE resource_id = ? AND state = 'made' AND rotation = ''`, rotation, pending, millis(at), resourceID)
+	if err != nil {
+		return false, fmt.Errorf("can't keep app owner %s's new password: %w", resourceID, err)
+	}
+	n, err := res.RowsAffected()
+	return n > 0, err
+}
+
+// AppOwnerPendingAt is where a rotation's pending password is sealed: beside its
+// app.owner's ID and the rotation, so it opens for that rotation alone.
+func AppOwnerPendingAt(resourceID, rotation string) SpecAt {
+	return SpecAt{ResourceID: resourceID, Kind: "app.owner.pending", Change: rotation, Position: 0}
+}
+
+// CountAppOwnerRotation records that a rotation's outcome was read once more, with
+// what the app said, if anything, where it couldn't tell yet.
+func (t *Tx) CountAppOwnerRotation(ctx context.Context, resourceID, rotation, rotateError string, at time.Time) error {
+	_, err := t.exec(ctx, `UPDATE app_owners SET rotate_tries = rotate_tries + 1, rotate_error = ?, updated_at = ? WHERE resource_id = ? AND rotation = ?`,
+		rotateError, millis(at), resourceID, rotation)
+	if err != nil {
+		return fmt.Errorf("can't record app owner %s's new password: %w", resourceID, err)
+	}
+	return nil
+}
+
+// EndAppOwnerRotation forgets a rotation's pending password, with what the app said
+// where it couldn't be set, and says whether it was this rotation's to end.
+func (t *Tx) EndAppOwnerRotation(ctx context.Context, resourceID, rotation, rotateError string, at time.Time) (bool, error) {
+	res, err := t.exec(ctx, `UPDATE app_owners SET rotation = '', pending = NULL, rotate_error = ?, updated_at = ? WHERE resource_id = ? AND rotation = ?`,
+		rotateError, millis(at), resourceID, rotation)
+	if err != nil {
+		return false, fmt.Errorf("can't end app owner %s's new password: %w", resourceID, err)
+	}
+	n, err := res.RowsAffected()
+	return n > 0, err
+}
+
+// AppOwnersRotating reads every owner a new password is being set for.
+func (t *Tx) AppOwnersRotating(ctx context.Context) ([]AppOwnerState, error) {
+	rows, err := t.query(ctx, `SELECT resource_id, environment, state, error, tries, updated_at, opening, rotation, pending, rotate_error, rotate_tries FROM app_owners WHERE rotation <> '' ORDER BY resource_id`)
+	if err != nil {
+		return nil, fmt.Errorf("can't read the app owners: %w", err)
+	}
+	defer rows.Close()
+	var out []AppOwnerState
+	for rows.Next() {
+		var s AppOwnerState
+		var at int64
+		if err := rows.Scan(&s.ResourceID, &s.Environment, &s.State, &s.Error, &s.Tries, &at, &s.Opening, &s.Rotation, &s.Pending, &s.RotateError, &s.RotateTries); err != nil {
 			return nil, err
 		}
 		s.UpdatedAt = fromMillis(at)

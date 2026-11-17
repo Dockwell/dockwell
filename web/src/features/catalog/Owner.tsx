@@ -6,6 +6,7 @@ import {
   type CatalogInstall,
   CatalogOwnerState,
   CatalogService,
+  ChangeService,
   type Entry,
   type ServiceInfo,
   StepUpAction,
@@ -14,7 +15,7 @@ import {
 import { Button, Callout, ConnectionCard, type ConnectionItem, TextField } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useQueryClient } from "@tanstack/react-query";
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, type ReactNode, useEffect, useRef, useState } from "react";
 
 import { sentence } from "../../lib/errors";
 import { appOf } from "../apps/app";
@@ -425,8 +426,39 @@ function OwnerEmail({ install, app }: { install: CatalogInstall; app: string }) 
 }
 
 /**
+ * A new password for a made owner, with a passkey: Dockwell sets it in the app by
+ * the entry's reset steps, and keeps the one that signs in (ADR 0105).
+ */
+function useNewPassword(install: CatalogInstall) {
+  const transport = useTransport();
+  const queries = useQueryClient();
+  const explain = useAuthError();
+  const may = useMay()(CatalogService.method.resetCatalogOwnerPassword, { project: install.projectId });
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<string>();
+  const make = async () => {
+    setBusy(true);
+    setProblem(undefined);
+    try {
+      const client = createClient(CatalogService, transport);
+      await withStepUpIfAsked(transport, StepUpAction.RESET_CATALOG_OWNER_PASSWORD, install.projectId, (proof) =>
+        client.resetCatalogOwnerPassword({ id: install.projectId, proof }),
+      );
+      await queries.invalidateQueries();
+    } catch (err) {
+      setProblem(explain(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return { make, busy, problem, may };
+}
+
+/**
  * The owner Dockwell made: who, to copy, and the password, which a passkey reveals
- * in place, on the page of what a person opens (ADR 0105).
+ * in place, on the page of what a person opens. Where the entry says how, a new
+ * password is a button away; where it doesn't, a person who changed it in the app
+ * forgets the copy Dockwell keeps, by a plan (ADR 0105).
  */
 export function OwnerCard({ entry, install }: { entry: Entry; install: CatalogInstall }) {
   const { t } = useLingui();
@@ -437,17 +469,68 @@ export function OwnerCard({ entry, install }: { entry: Entry; install: CatalogIn
   const reveals = useReveals();
   const shown = secretId ? reveals.get(secretId) : {};
   const mayReveal = useMay()(VariableService.method.revealSecret, { environment });
+  const mayPropose = useMay()(ChangeService.method.proposeChange, { environment });
+  const sheet = useChangeSheet();
+  const fresh = useNewPassword(install);
   const owner = install.owner;
+  const rotating = owner?.rotating ?? false;
+  // Read again while a new password is being set, as its outcome is observed after.
+  useInstallsWhileMaking(rotating);
+  const wasRotating = useRef(rotating);
+  useEffect(() => {
+    // The one that signs in now may be the new one, so what was revealed goes.
+    if (wasRotating.current && !rotating && secretId) reveals.hide(secretId);
+    wasRotating.current = rotating;
+  }, [rotating, secretId, reveals]);
   if (owner?.state !== CatalogOwnerState.MADE) return null;
+  const app = entry.name;
+  const resettable = (entry.owner?.resetSteps.length ?? 0) > 0;
   const items: ConnectionItem[] = [
     ...(owner.email ? [{ label: t`Email`, value: owner.email }] : []),
     ...(owner.user && owner.user !== owner.email ? [{ label: t`User`, value: owner.user }] : []),
   ];
+  const forget = () =>
+    sheet.open({
+      kind: "propose",
+      summary: t`Forget ${app}'s owner password`,
+      edits: [{ resource: { kind: "secret", scope: environment, name: secretName }, delete: true }],
+    });
+  let note: ReactNode;
+  if (rotating) {
+    note = <Trans>Setting a new password in {app}. The current one works until then.</Trans>;
+  } else if (fresh.problem) {
+    note = fresh.problem;
+  } else if (owner.error) {
+    note = t`${app} kept its password. ${owner.error}`;
+  } else if (!resettable && secretId) {
+    note = (
+      <Trans>
+        Changed it in {app}?{" "}
+        <Button variant="ghost" size="sm" onClick={forget} {...mayPropose.off}>
+          Forget it
+        </Button>
+      </Trans>
+    );
+  }
   return (
     <ConnectionCard
       title={t`Owner`}
       className="catalog-sign-in"
       items={items}
+      actions={
+        resettable && secretId ? (
+          <Button
+            size="sm"
+            icon="key"
+            loading={fresh.busy || rotating}
+            {...fresh.may.off}
+            onClick={() => void fresh.make()}
+          >
+            {rotating ? <Trans>Setting a new password</Trans> : <Trans>Make a new password</Trans>}
+          </Button>
+        ) : undefined
+      }
+      note={note}
       secret={
         secretName
           ? {

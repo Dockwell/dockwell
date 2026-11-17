@@ -1322,6 +1322,15 @@ func generateAs(n int, as catalogv1.GenerateAs) (string, error) {
 	}
 }
 
+// Generate makes a new value for a secret input that generates one, as an install
+// does, such as a new password for an app's owner (ADR 0105).
+func Generate(in *catalogv1.Input) (string, error) {
+	if in.GetGenerate() <= 0 {
+		return "", fmt.Errorf("the input %s generates nothing", in.GetName())
+	}
+	return generateAs(int(in.GetGenerate()), in.GetGenerateAs())
+}
+
 // generatePassword makes a password of n letters and digits with at least one
 // upper-case letter, one lower-case letter and one digit, as an app whose
 // passwords must have each takes, drawing again until it has them (ADR 0105).

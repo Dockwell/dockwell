@@ -287,7 +287,12 @@ func ownerProto(o *installOwner) *dockwellv1.CatalogOwner {
 		store.OwnerFailed:       dockwellv1.CatalogOwnerState_CATALOG_OWNER_STATE_FAILED,
 		store.OwnerOpened:       dockwellv1.CatalogOwnerState_CATALOG_OWNER_STATE_OPENED,
 	}[o.state.State]
-	return &dockwellv1.CatalogOwner{Email: o.spec.GetEmail(), User: o.spec.GetUser(), State: state, Error: o.state.Error}
+	out := &dockwellv1.CatalogOwner{Email: o.spec.GetEmail(), User: o.spec.GetUser(), State: state, Error: o.state.Error, Rotating: o.state.Rotation != ""}
+	// A made owner's error is what kept its last new password from being set.
+	if o.state.State == store.OwnerMade {
+		out.Error = o.state.RotateError
+	}
+	return out
 }
 
 // RetryCatalogOwner tries again to make an install's owner where it failed: the

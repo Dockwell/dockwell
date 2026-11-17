@@ -49,10 +49,16 @@ const (
 	Poll  = 5 * time.Minute
 )
 
-// Runner makes owners and releases what their holds kept.
+// Keeper decodes a resource's spec, and opens a rotation's pending password.
+type Keeper interface {
+	holds.Decoder
+	Open(ctx context.Context, tx *store.Tx, at store.SpecAt, stored []byte) ([]byte, error)
+}
+
+// Runner makes owners, sets their new passwords, and releases what their holds kept.
 type Runner struct {
 	DB     *store.DB
-	Keeper holds.Decoder
+	Keeper Keeper
 	Engine *revision.Engine
 	Holds  *holds.Holds
 	// Agent is the connected agent of a server, if any.
@@ -86,10 +92,20 @@ func (r *Runner) SetUp(environment string) bool {
 }
 
 func (r *Runner) now() time.Time {
-	if r.Now != nil {
-		return r.Now()
+	r.mu.Lock()
+	now := r.Now
+	r.mu.Unlock()
+	if now != nil {
+		return now()
 	}
 	return time.Now()
+}
+
+// SetNow has the runner read the time from now, as a test does while it runs.
+func (r *Runner) SetNow(now func() time.Time) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.Now = now
 }
 
 func (r *Runner) logger() *slog.Logger {
@@ -128,6 +144,10 @@ type job struct {
 	tries int
 	// since is when what's observed of it last changed.
 	since time.Time
+	// rotation names a new password to set, by the entry's reset steps, and
+	// pending is it, which values never hold: they hold the current one
+	// (ADR 0105).
+	rotation, pending string
 }
 
 // Runs reads what makes an environment's install's owner from its catalog entry at
@@ -135,6 +155,12 @@ type job struct {
 // steps name, and the secrets they name, by name.
 type Runs interface {
 	OwnerRun(ctx context.Context, environment string) (*resourcev1.OwnerRun, map[string]string, []string, error)
+}
+
+// ResetRuns reads what sets a new password for an environment's install's owner
+// (catalogapi.Handler.OwnerResetRun), as Runs does.
+type ResetRuns interface {
+	OwnerResetRun(ctx context.Context, environment string) (*resourcev1.OwnerRun, map[string]string, []string, error)
 }
 
 // SetRuns has the runner read what makes an owner from runs.
@@ -165,7 +191,9 @@ func (r *Runner) Tick(ctx context.Context) error {
 				jobs, states = append(jobs, js...), append(states, ss...)
 			}
 		}
-		return nil
+		js, err := r.rotations(ctx, tx)
+		jobs = append(jobs, js...)
+		return err
 	})
 	if err != nil {
 		return err
@@ -380,6 +408,9 @@ func (r *Runner) ready(ctx context.Context, j job) (*job, *store.AppOwnerState, 
 	if runs == nil {
 		return nil, nil, nil
 	}
+	if j.rotation != "" {
+		return r.readyRotation(ctx, j, runs)
+	}
 	run, plain, secretNames, err := runs.OwnerRun(ctx, j.environment)
 	if err != nil && j.setUp {
 		// A read for the page says nothing it can't read.
@@ -395,13 +426,23 @@ func (r *Runner) ready(ctx context.Context, j job) (*job, *store.AppOwnerState, 
 	if j.readOnly && r.now().Sub(j.since) < Poll {
 		return nil, nil, nil
 	}
+	values, err := r.secrets(ctx, j.environment, plain, secretNames)
+	if err != nil {
+		return nil, nil, err
+	}
+	j.owner, j.values = run, values
+	return &j, nil, nil
+}
+
+// secrets adds to plain the values of the secrets the owner's steps name.
+func (r *Runner) secrets(ctx context.Context, environment string, plain map[string]string, secretNames []string) (map[string]string, error) {
 	values := plain
 	if values == nil {
 		values = map[string]string{}
 	}
-	err = r.DB.View(ctx, func(tx *store.Tx) error {
+	err := r.DB.View(ctx, func(tx *store.Tx) error {
 		for _, name := range secretNames {
-			res, err := tx.GetResource(ctx, string(variable.SecretKind), j.environment, name)
+			res, err := tx.GetResource(ctx, string(variable.SecretKind), environment, name)
 			if err != nil {
 				return fmt.Errorf("can't read the secret %s the owner's steps name: %w", name, err)
 			}
@@ -416,10 +457,9 @@ func (r *Runner) ready(ctx context.Context, j job) (*job, *store.AppOwnerState, 
 	})
 	if err != nil {
 		clear(values)
-		return nil, nil, err
+		return nil, err
 	}
-	j.owner, j.values = run, values
-	return &j, nil, nil
+	return values, nil
 }
 
 // start runs a job on its own, once at a time for each owner.
@@ -444,6 +484,11 @@ func (r *Runner) start(ctx context.Context, j job) {
 			r.mu.Unlock()
 		}()
 		defer clear(j.values)
+		if j.rotation != "" {
+			r.rotate(ctx, j)
+			j.pending = ""
+			return
+		}
 		if j.setUp {
 			r.readSetUp(ctx, j)
 			return

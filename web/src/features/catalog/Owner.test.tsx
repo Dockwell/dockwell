@@ -1,7 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { clone, create } from "@bufbuild/protobuf";
-import { CatalogOwnerState, EntrySchema, InputType, SignupsSchema, type WatchServersResponse } from "@dockwell/api";
+import {
+  CatalogOwnerState,
+  EntrySchema,
+  InputType,
+  OwnerStepSchema,
+  SignupsSchema,
+  type WatchServersResponse,
+} from "@dockwell/api";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -233,6 +240,109 @@ describe("An install's owner, on its app's page (ADR 0105)", () => {
     );
     expect(await screen.findByText("Gitea is set up")).toBeVisible();
     expect(screen.getByRole("button", { name: "Open it to everyone" })).toBeVisible();
+  });
+});
+
+describe("A new owner's password (ADR 0105)", () => {
+  const madeOwner = { email: "mira@example.com", user: "mira", state: CatalogOwnerState.MADE };
+  const variables = {
+    listVariables: () => ({
+      environmentId: ENV,
+      variables: [{ id: "sec_o", name: "OWNER_PASSWORD", secret: true, revision: 1n }],
+    }),
+  };
+  const resettable = clone(EntrySchema, gitea);
+  if (resettable.owner) {
+    resettable.owner.resetSteps = [create(OwnerStepSchema, { step: { case: "request", value: { path: "/password" } } })];
+  }
+
+  it("is made with a passkey where the entry says how, and says so while it's set", async () => {
+    const user = userEvent.setup();
+    const asked: { id: string }[] = [];
+    let rotating = false;
+    renderAt(
+      "/apps/svc_gitea",
+      api(
+        {},
+        {
+          variables,
+          catalog: {
+            listCatalogEntries: () => ({ entries: [resettable] }),
+            getCatalogEntry: () => ({ entry: resettable, project: "gitea", values: {}, parts: [] }),
+            listCatalogInstalls: () => ({
+              installs: [
+                {
+                  project: "gitea",
+                  projectId: "prj_1",
+                  environmentId: ENV,
+                  pin: { entry: "gitea", version: "28.3.0", release: 5, values: {} },
+                  webServiceId: "svc_gitea",
+                  name: "Gitea",
+                  owner: { ...madeOwner, rotating },
+                },
+              ],
+            }),
+            resetCatalogOwnerPassword: (req: { id: string }) => {
+              asked.push(req);
+              rotating = true;
+              return { owner: { ...madeOwner, rotating } };
+            },
+          },
+        },
+      ),
+    );
+    const card = await screen.findByRole("region", { name: "Owner" });
+    expect(within(card).queryByText(/Changed it in Gitea/)).not.toBeInTheDocument();
+    await user.click(await within(card).findByRole("button", { name: "Make a new password" }));
+    await waitFor(() => expect(asked).toEqual([expect.objectContaining({ id: "prj_1" })]));
+    expect(await within(card).findByText("Setting a new password in Gitea. The current one works until then.")).toBeVisible();
+    expect(within(card).getByRole("button", { name: "Setting a new password" })).toHaveAttribute("aria-busy", "true");
+  });
+
+  it("says what kept the last one from being set", async () => {
+    renderAt(
+      "/apps/svc_gitea",
+      api(
+        { owner: { ...madeOwner, error: "Step 2: the token was refused" } },
+        {
+          variables,
+          catalog: {
+            listCatalogEntries: () => ({ entries: [resettable] }),
+            getCatalogEntry: () => ({ entry: resettable, project: "gitea", values: {}, parts: [] }),
+          },
+        },
+      ),
+    );
+    const card = await screen.findByRole("region", { name: "Owner" });
+    expect(await within(card).findByText("Gitea kept its password. Step 2: the token was refused")).toBeVisible();
+  });
+
+  it("where the entry can't set one, forgets the copy Dockwell keeps, by a plan", async () => {
+    const user = userEvent.setup();
+    const proposed: { edits: { resource?: unknown; delete: boolean }[] }[] = [];
+    renderAt(
+      "/apps/svc_gitea",
+      api(
+        { owner: madeOwner },
+        {
+          variables,
+          changes: {
+            proposeChange: (req: { edits: { resource?: unknown; delete: boolean }[] }) => {
+              proposed.push(req);
+              return { change: { id: "chg_forget", summary: "Forget Gitea's owner password", plan: { fingerprint: "f" } } };
+            },
+          },
+        },
+      ),
+    );
+    const card = await screen.findByRole("region", { name: "Owner" });
+    expect(within(card).queryByRole("button", { name: "Make a new password" })).not.toBeInTheDocument();
+    await user.click(await within(card).findByRole("button", { name: "Forget it" }));
+    await waitFor(() => expect(proposed).toHaveLength(1));
+    expect(proposed[0]?.edits[0]).toMatchObject({
+      resource: { kind: "secret", scope: ENV, name: "OWNER_PASSWORD" },
+      delete: true,
+    });
   });
 });
 

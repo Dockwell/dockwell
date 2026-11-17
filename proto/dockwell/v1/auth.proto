@@ -1095,6 +1095,8 @@ enum StepUpAction {
   // A setup link to a held catalog install's domain, by the install's project ID
   // (ADR 0105). 260 to 269 are this record's.
   STEP_UP_ACTION_SET_UP_CATALOG_INSTALL = 260;
+  // A new password for a catalog app's owner, by the install's project ID (ADR 0105).
+  STEP_UP_ACTION_RESET_CATALOG_OWNER_PASSWORD = 261;
   // Reveals one of a service's own environment variables that reads hidden.
   // Its target is the service's ID and the name, as "svc_…:NAME". Numbered
   // apart, as open work adds to this enum.

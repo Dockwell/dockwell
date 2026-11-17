@@ -104,6 +104,7 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "CatalogService.retryCatalogOwner": "may",
   "CatalogService.setCatalogOwnerEmail": "may",
   "CatalogService.setUpCatalogInstall": "may",
+  "CatalogService.resetCatalogOwnerPassword": "may",
   "CatalogService.restoreCatalogNeed": "may",
   "CatalogService.removeCatalogSource": "may",
   "CatalogService.setCatalogCompanion": "may",
