@@ -610,3 +610,27 @@ describe("a plan's fields, in words", () => {
     expect(reads(rows)).toEqual(["卷 to web-data 挂载到 /data"]);
   });
 });
+
+describe("a route published at Cloudflare (ADR 0104)", () => {
+  it("reads in words, the tunnel by its name, with none of its fields or IDs", async () => {
+    await activateLocale("en");
+    const rows = rowsOf({
+      kind: "route",
+      tunnel: "web-1",
+      changes: [
+        added("domain", "wiki.example.com"),
+        added("service", "wiki-app"),
+        added("port", "80"),
+        added("tls", "off"),
+        added("trusted_proxies", "127.0.0.1/32"),
+        added("publish.way", "server-tunnel"),
+        added("publish.tunnel", "3f2d1c0b-4a5b-4c6d-8e7f-9a0b1c2d3e4f"),
+        added("publish.provider", "cloudflare"),
+      ],
+    });
+    const said = rows.map((r) => `${String(r.label)}: ${String(r.to ?? "")}`);
+    expect(said).toContain("HTTPS: Ends at Cloudflare");
+    expect(said).toContain("through: the tunnel web-1");
+    expect(said.join(" ")).not.toMatch(/3f2d1c0b|publish|127\.0\.0\.1|tls/);
+  });
+});

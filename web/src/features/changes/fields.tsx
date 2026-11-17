@@ -22,6 +22,8 @@ import { asGoodAsRoot } from "./plan";
 /** What the rows of a plan are read from: a resource's kind and what changes in it. */
 export interface FieldSource {
   kind: string;
+  /** The tunnel a route is published through, by name, as the plan's steps at Cloudflare say it (ADR 0104). */
+  tunnel?: string;
   changes: readonly FieldChange[];
   /** What the change lets it reach on its servers, which reads as a risk. */
   hostAccess?: readonly HostAccess[];
@@ -560,6 +562,7 @@ export function useFieldRows(): FieldRows {
       setsBefore,
       needs,
       needsBefore,
+      tunnel,
     }: FieldSource): PlanChange[] => {
       // What a route that signs people in has of its provider is the provider's, as
       // saved, which its own plan says: one row says the route takes it (ADR 0087).
@@ -577,8 +580,50 @@ export function useFieldRows(): FieldRows {
       // A link's sets read as each name and what it reads, not as their fields, where
       // the plan has them whole; an older plan's read as they did (the slice 3 re-check, N2).
       const whole = kind === "link" && (sets?.length || setsBefore?.length);
-      const fields = whole ? all.filter((f) => !SET.test(f.path)) : all;
+      let fields = whole ? all.filter((f) => !SET.test(f.path)) : all;
       const rows: PlanChange[] = [];
+      // A route published at Cloudflare reads in words: where HTTPS ends and what it goes
+      // through, the tunnel by its name, never its fields or its ID (ADR 0104).
+      if (kind === "route" && fields.some((f) => f.path.startsWith("publish."))) {
+        const wayAt = (at: "from" | "to") => fields.find((f) => f.path === "publish.way")?.change[at] ?? "";
+        const ends = (way: string) =>
+          way === "server-tunnel" || way === "own-tunnel" || way === "proxy"
+            ? t`Ends at Cloudflare`
+            : way === "own-https"
+              ? t`A certificate on the server`
+              : "";
+        const through = (way: string) =>
+          way === "server-tunnel"
+            ? tunnel
+              ? t`the tunnel ${tunnel}`
+              : t`the server's tunnel`
+            : way === "own-tunnel"
+              ? t`Dockwell's own tunnel`
+              : way === "proxy"
+                ? t`Cloudflare's proxy`
+                : "";
+        const [was, now] = [wayAt("from"), wayAt("to")];
+        const sided = (path: string, label: string, word: (way: string) => string) => {
+          const [from, to] = [word(was), word(now)];
+          if (from === to || (from === "" && to === "")) return;
+          rows.push({
+            path,
+            label,
+            ...(from ? { from } : {}),
+            ...(to ? { to } : {}),
+            ...(from && to ? { tone: "change" as const } : {}),
+          });
+        };
+        sided("publish.https", t`HTTPS`, ends);
+        sided("publish.through", t`through`, through);
+        // What the way sets of the route says nothing a person reads beside it.
+        const setByWay = now !== "" && now !== "front";
+        fields = fields.filter(
+          (f) =>
+            !f.path.startsWith("publish.") &&
+            !(setByWay && (f.path === "tls" || f.path === "trusted_proxies" || f.path === "proof")),
+        );
+      }
       const kept = storageRow(storage, storageBefore);
       if (kept) rows.push(kept);
       const reading = readsRow(reads, readsBefore);

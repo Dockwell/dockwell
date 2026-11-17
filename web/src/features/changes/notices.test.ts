@@ -78,3 +78,28 @@ describe("what asks for a passkey up front (ADR 0105)", () => {
     expect(needsPasskey(create(PlanSchema, { notes: [{ reason: "owner_held", message: "Held" }] }))).toBe(false);
   });
 });
+
+describe("taking on a record made in Cloudflare (ADR 0104, section 5)", () => {
+  it("asks for a fresh passkey and no typed code, as it runs nothing on a server", () => {
+    const takeover = create(PlanSchema, {
+      hostAccess: true,
+      resources: [
+        {
+          id: "rte_1",
+          resource: { kind: "route", scope: "env_1", name: "vpn" },
+          action: PlanAction.CREATE,
+          hostAccess: [
+            {
+              kind: HostAccessKind.CLOUDFLARE_TAKEOVER,
+              path: "vpn.example.com",
+              detail: "A 203.0.113.9",
+              sameAsRoot: true,
+            },
+          ],
+        },
+      ],
+    });
+    expect(needsPasskey(takeover)).toBe(true);
+    expect(needsConfirming(takeover)).toBe(false);
+  });
+});

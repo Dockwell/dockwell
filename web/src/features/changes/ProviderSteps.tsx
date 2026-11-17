@@ -89,7 +89,10 @@ export function ProviderMeta({ step }: { step: ProviderStep }) {
       {was && !zoneMode ? <span>{t`Now ${was}`}</span> : null}
       {zoneMode && was ? <span>{t`From ${was}`}</span> : null}
       {to && !zoneMode && step.action !== ProviderAction.DELETE_RECORD ? <span>{t`Writes ${to}`}</span> : null}
-      {routing ? <span className="plan-step-notice">{routing}</span> : null}
+      {/* What else moves is a notice where a rule stays for names made in Cloudflare; what stays as it went is a fact. */}
+      {routing ? (
+        <span className={step.action === ProviderAction.KEEP_RULE ? "plan-step-notice" : undefined}>{routing}</span>
+      ) : null}
     </span>
   );
 }

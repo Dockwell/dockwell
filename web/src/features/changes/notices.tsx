@@ -106,6 +106,8 @@ export function needsPasskey(plan: Plan | undefined): boolean {
   return (
     plan !== undefined &&
     (accessOf(plan).some(asGoodAsRoot) ||
+      // Taking on a record made in Cloudflare takes a fresh passkey, with no typed code (ADR 0104, section 5).
+      accessOf(plan).some((a) => a.kind === HostAccessKind.CLOUDFLARE_TAKEOVER) ||
       installs(plan) ||
       reboots(plan) ||
       // A removal cuts a server off and revokes what it holds (ADR 0090).
@@ -169,6 +171,14 @@ function useRolloutLines(plan: Plan | undefined): (RolloutLine & { key: string }
   return [...out.values()];
 }
 
+/** A tunnel's own address, as a route through it believes it. */
+const LOOPBACK = new Set(["127.0.0.1", "127.0.0.1/32", "::1", "::1/128"]);
+
+/** Whether a plan publishes a route through a tunnel at Cloudflare. */
+function publishesThroughTunnel(plan: Plan): boolean {
+  return plan.resources.some((r) => r.changes.some((c) => c.path === "publish.way" && c.to.endsWith("tunnel")));
+}
+
 /** What a plan lets a resource reach on its server, in words, worst first, with what is as good as root apart. */
 function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } {
   const { t } = useLingui();
@@ -177,7 +187,13 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
 
   const reaches: { name: string; server: string; access: HostAccess }[] = [];
   const seen = new Set<string>();
+  // Through a tunnel Dockwell proved runs on the server, believing the tunnel's own
+  // address, and the zone's rule its step at Cloudflare says, are the happy path: no
+  // warning (ADR 0104, the polish round).
+  const tunnelled = publishesThroughTunnel(plan);
   const add = (name: string, server: string, access: HostAccess) => {
+    if (access.kind === HostAccessKind.TUNNEL_RULE) return;
+    if (tunnelled && access.kind === HostAccessKind.TRUSTED_PROXY && LOOPBACK.has(access.path)) return;
     const key = `${name}/${server}/${access.kind}/${access.path}/${access.address}/${access.readOnly}/${access.holds}/${access.heldBy}/${access.detail}`;
     if (seen.has(key)) return;
     seen.add(key);
@@ -199,6 +215,17 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
   reaches.sort((a, b) => (WORST[a.access.kind] ?? 9) - (WORST[b.access.kind] ?? 9));
 
   const notice = ({ name, server, access }: (typeof reaches)[number], key: string): Notice => {
+    // Taking on or replacing a record made in Cloudflare runs nothing: it says what's
+    // taken, and that it's kept whole so undo puts it back (ADR 0104, section 5).
+    if (access.kind === HostAccessKind.CLOUDFLARE_TAKEOVER) {
+      const { path, detail } = access;
+      return {
+        key,
+        title: t`${path}'s ${detail}, made in Cloudflare, becomes Dockwell's`,
+        detail: t`Dockwell keeps it whole, so undo puts it back.`,
+        amber: true,
+      };
+    }
     // What a spec holds is quoted where it isn't what a name holds, so it can't write these words.
     const [path, leadsTo] = [plain(access.path), plain(access.leadsTo)];
     // A relabel writes on the server, however read-only the mount is (ADR 0021).
