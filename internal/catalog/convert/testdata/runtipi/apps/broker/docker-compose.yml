@@ -1,0 +1,11 @@
+services:
+  broker:
+    image: example/broker:1.0.0
+    ports:
+      - '1883:1883'
+  console:
+    image: example/console:1.0.0
+    environment:
+      - BROKER_URL=mqtt://${INTERNAL_IP}:1883
+    ports:
+      - ${APP_PORT}:8088

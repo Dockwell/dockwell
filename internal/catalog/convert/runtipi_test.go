@@ -88,6 +88,74 @@ func TestOnServerReadsRuntipisStore(t *testing.T) {
 	}
 }
 
+// What Runtipi fills in about the app and the server becomes what an entry says
+// (#570): its resolver goes, so the app asks the server's; the server's address where
+// a browser opens the app is localhost, as ${APP_DOMAIN} is; a list of hosts or
+// origins drops Runtipi's own and names each once; the app's whole folder is ./data;
+// its ID is its ID; and the user Runtipi runs as is 1000. Runtipi's own folder, and
+// the server's address from inside a container, leave the app out, saying so.
+func TestRuntipisPlatformValuesBecomeTheEntrysOwn(t *testing.T) {
+	store := storeOf(t, FormatRuntipi)
+	src := Source{Name: store.Name, Repository: "https://example.com/appstore", Commit: strings.Repeat("a", 40), License: store.License}
+	run, err := OnServer(t.Context(), store, listingOf(t, store, "testdata/runtipi", nil), src, committed, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := resultsByID(run)
+	tracker := got["tracker"]
+	if tracker.Entry == nil {
+		t.Fatalf("tracker was left out: %s", tracker.LeftOut)
+	}
+	if err := catalog.CheckTagged(tracker.Entry); err != nil {
+		t.Errorf("its entry fails the catalog's check: %v", err)
+	}
+	compose := tracker.Entry.GetCompose()
+	for _, want := range []string{
+		"hostname: tracker\n",
+		"PUID=1000",
+		"PGID=1000",
+		"CSRF_TRUSTED_ORIGINS=http://localhost:${APP_PORT}\n",
+		"ALLOWED_HOSTS=localhost:${APP_PORT}\n",
+		"CALLBACK_URL=http://localhost:${APP_PORT}/callback",
+		"LOCAL_ORIGINS=https://localhost:${APP_PORT}\n",
+		":/config",
+	} {
+		if !strings.Contains(compose, want) {
+			t.Errorf("its Compose file has no %q:\n%s", want, compose)
+		}
+	}
+	for _, gone := range []string{"dns", "DNS_IP", "INTERNAL_IP", "APP_HOST", "LOCAL_DOMAIN", "APP_ID", "TIPI_", "APP_DATA_DIR"} {
+		if strings.Contains(compose, gone) {
+			t.Errorf("its Compose file keeps %q:\n%s", gone, compose)
+		}
+	}
+	for id, words := range map[string]string{
+		"ownfolder": "it binds Runtipi's own folder on the server, ${ROOT_FOLDER_HOST}:/runtipi, which Dockwell has nothing like",
+		"broker":    "it names the server's address, BROKER_URL=mqtt://${INTERNAL_IP}:1883, which an entry has none of to give",
+	} {
+		if r := got[id]; r.Entry != nil || r.Class != ClassPlatform || r.LeftOut != words {
+			t.Errorf("%s: class %q, left out %q, want %q", id, r.Class, r.LeftOut, words)
+		}
+	}
+}
+
+// The app's whole folder is ./data, and ${APP_DATA_DIR}/data beside a subfolder of it
+// stays a folder of its own, as before, so neither binds inside the other.
+func TestRuntipisDataFolderWholeAndBeside(t *testing.T) {
+	for bind, want := range map[string]string{
+		"${APP_DATA_DIR}:/data":             "./data:/data",
+		"${APP_DATA_DIR}/data:/storage":     "./data/data:/storage",
+		"${APP_DATA_DIR}/data/mysql:/mysql": "./data/mysql:/mysql",
+		"${APP_DATA_DIR}/mysql:/mysql":      "./data/mysql:/mysql",
+		"${APP_DATA_DIR}/:/config":          "./data/:/config",
+	} {
+		out, err := runtipiCompose([]byte("services:\n  a:\n    image: example/a:1.0\n    volumes:\n      - "+bind+"\n"), "a")
+		if err != nil || !strings.Contains(string(out), "- "+want+"\n") {
+			t.Errorf("%s: %v\n%s", bind, err, out)
+		}
+	}
+}
+
 // A store laid out as Runtipi's reads as Runtipi's.
 func TestDetectRuntipi(t *testing.T) {
 	guesses, counts := Detect([]string{"apps/notes/config.json", "apps/notes/docker-compose.yml", "apps/media/config.json", "README.md"})

@@ -43,7 +43,7 @@ func TestAPersonsFolderIsNoWayOut(t *testing.T) {
 	}
 
 	runtipi := func(bind string) (string, error) {
-		out, err := runtipiCompose([]byte("services:\n  notes:\n    image: example/notes:1.0\n    volumes:\n      - " + bind + "\n"))
+		out, err := runtipiCompose([]byte("services:\n  notes:\n    image: example/notes:1.0\n    volumes:\n      - "+bind+"\n"), "notes")
 		return string(out), err
 	}
 	for _, bind := range []string{"${ROOT_FOLDER_HOST}/media/../../var/run:/x", "${APP_DATA_DIR}/data/../../etc:/x", "${APP_DATA_DIR}/../x:/x"} {
@@ -172,7 +172,7 @@ func FuzzRuntipiCompose(f *testing.F) {
 	fuzzSeeds(f, "runtipi/apps/*/docker-compose.yml")
 	f.Add([]byte("services:\n  a:\n    image: x\n    volumes:\n      - ${ROOT_FOLDER_HOST}/media/../x:/x\n"))
 	f.Fuzz(func(t *testing.T, file []byte) {
-		if out, err := runtipiCompose(file); err == nil {
+		if out, err := runtipiCompose(file, "app"); err == nil {
 			noWayOut(t, out)
 		}
 	})

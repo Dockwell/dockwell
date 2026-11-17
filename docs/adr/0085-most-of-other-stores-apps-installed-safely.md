@@ -196,6 +196,46 @@ How the agent gives a volume its owner:
 
 An upgrade's `chown -R` of data an app already wrote isn't taken: the data keeps the owner it has.
 
+### What Runtipi fills in about the app and the server
+
+*Added with the next slice of #570, 17 Nov 2026.*
+
+Runtipi fills in values about the app and the server as it installs one, which 28 of its apps used and an entry couldn't say. Each becomes what Dockwell already has, or leaves the app out where Dockwell has nothing honest to give:
+
+- **Its resolver, `dns: [${DNS_IP}]`,** goes, so the service asks the server's own, as every container Dockwell runs does. It's Runtipi's own setting, Quad9 unless a person changed it, and no part of the app.
+- **The server's address where a browser opens the app,** `http://${INTERNAL_IP}:${APP_PORT}` or `${APP_HOST}:${APP_PORT}`, is `localhost`, as `${APP_DOMAIN}` already is. That's only in an `http(s)` URL, or as an item of a list of hosts or origins, at the app's own port. It's the address a tunnel to the app's port reaches, and no more: behind a domain or the panel's Open, an app that checks its host or hands out its URL still names localhost (#779). The server's address anywhere else, such as Mosquitto's console reaching its broker at `mqtt://${INTERNAL_IP}:1883` or a URL at another port, leaves the app out: inside a container, `localhost` is the container.
+- **A host only Runtipi's proxy answers,** `<app>.${LOCAL_DOMAIN}` or `${APP_LOCAL_DOMAIN}`, is dropped from a list of hosts or origins the app accepts, and the list names each host once. A list of those alone leaves the app out, as an empty one is no host, or every host.
+- **The app's whole folder, `${APP_DATA_DIR}`,** is `./data`, as its subfolders already are. Where an app binds it and a subfolder too, the folder inside another leaves it out, as before.
+- **The app's ID, `${APP_ID}`,** is its ID, and **the user Runtipi runs as, `${TIPI_UID}` and `${TIPI_GID}`,** is 1000, as the store's other apps write it.
+- **Runtipi's own folder, `${ROOT_FOLDER_HOST}`,** other than its media folder, leaves the app out: code-server, Duplicati and FileBrowser Quantum bind Runtipi's install or every app's data, and traefik-certs-dumper reads its proxy's certificates.
+- **Still left out:** a variable neither Runtipi nor the app's form fills in, which Runtipi runs empty. Two are misspellings in the store, such as LobeChat's `OPEANAI_PROXY_URL`, and writing them empty would carry the store's bug.
+
+**The files it ships.** Runtipi copies an app's `data/` folder into `${APP_DATA_DIR}/data` as it installs, which the converter didn't carry, so an app that bound one of those files got an empty volume instead. A file the app binds at `${APP_DATA_DIR}/data/<path>`, or a folder of them it binds read-only, is now a file Dockwell writes, as the other stores' are, and a server's fetch lists each app's `data/` folder to read them. What Runtipi does beyond a copy leaves the app out, saying so, until #778:
+- a folder of them the app writes to;
+- a binding of the whole folder they land in;
+- a `.template`, which Runtipi fills in with the app's values.
+
+That takes 11 apps out that converted before and would have installed without the files they need, such as Glance, whose image ships no config and exits without one.
+
+**Apps that fill their own folder keep it empty, by name.** Five apps ran on an empty volume before Runtipi's files were carried, because each one's image writes its own starting files into an empty folder:
+- Home Assistant writes a default `configuration.yaml`;
+- SearXNG's entrypoint writes `settings.yml`;
+- Node-RED writes its `settings.js`;
+- Dashy's image copies its `user-data`, `conf.yml` with it, into a new volume;
+- calibre-web starts with an empty config, and a library a person names at `/books`.
+
+They keep that empty volume (`runtipiFillsItself`), and Runtipi's own files for them, such as Home Assistant's reverse-proxy settings, wait for #778.
+
+**By hand:** TubeArchivist runs as user 1000 and writes `/cache`, which its image makes as root's on a new volume. Runtipi makes the folder for that user before it starts. So it's left out by name, as what an entry can't say yet, until a volume can take an owner from a service's `user:`.
+
+Runtipi goes from 188 to 194 of 267. 17 apps come in: Budibase, Jackett, Joplin, LibrePhotos, LibreTranslate, OctoBot, paperless-ngx, Prowlarr, qBittorrent, Radarr, Readarr, Send, Sonarr, Transmission, Unmanic, Uptime Kuma and Whisparr. The 11 above go out: adguard, adguardhome-sync, dozzle, glance, guacamole, invoice-ninja, notemark, olivetin, romm, rss and smallweb. An install of one keeps running, and loses its catalog updates (#781). Four more stop at a second reason:
+- Halo, with its database folder inside the app's;
+- your-spotify, with `links`;
+- Homepage, with an environment item written as a mapping;
+- transmission-vpn, with a variable nothing fills.
+
+slskd binds its whole folder.
+
 ### Numbers
 
 ADR 0085. `UpgradeServiceRequest.rebuild` (90) and `AvailableUpdate.skip_as` (90), `Container` 90 to 99, `Mount.file` (90) and its `MountFile`, and the agent's `Hello.own_settings` (300), `Hello.writes_files` (301) and `Hello.owns_volumes` (302); `CatalogInstall.release` in Go alone, and `ImageUpdatesCall` as it is.

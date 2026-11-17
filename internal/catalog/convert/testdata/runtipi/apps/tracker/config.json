@@ -1,0 +1,1 @@
+{ "name": "Tracker", "available": true, "port": 8214, "id": "tracker", "version": "2.1.0", "categories": ["media"], "short_desc": "A stand-in app that uses what Runtipi fills in", "description": "x", "source": "https://example.com", "form_fields": [], "supported_architectures": ["amd64", "arm64"] }

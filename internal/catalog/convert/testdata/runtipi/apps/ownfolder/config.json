@@ -1,0 +1,1 @@
+{ "name": "Own folder", "available": true, "port": 8215, "id": "ownfolder", "version": "1.0.0", "categories": [], "short_desc": "x", "description": "x", "source": "https://example.com", "form_fields": [], "supported_architectures": ["amd64", "arm64"] }
