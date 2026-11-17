@@ -1014,6 +1014,12 @@ func ProbeRef(environment string) Ref {
 	return Ref{Kind: "connection.check", Scope: environment, Name: "probe"}
 }
 
+// AppOwnerRef is what the values of an app's owner's steps are sealed to on their
+// way to its agent, for that call alone (ADR 0105).
+func AppOwnerRef(environment string) Ref {
+	return Ref{Kind: "app.owner", Scope: environment, Name: "steps"}
+}
+
 // CertificatesRef is what the certificates the control plane proves by DNS-01 for
 // a server are sealed to on their way to its agent, apart from any resource's
 // values, and to in the agent's keeping (ADR 0088).

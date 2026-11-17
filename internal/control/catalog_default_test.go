@@ -252,7 +252,7 @@ func asBuiltIn(t *testing.T, f *fullServer, projects []string, commit string) {
 			}
 			p := proto.CloneOf(spec.(*resourcev1.Project))
 			p.Catalog.Catalog, p.Catalog.Repository, p.Catalog.Path, p.Catalog.Commit = "", "https://github.com/Dockwell/dockwell", "", commit
-			edits = append(edits, revision.Edit{Ref: resource.Ref{Kind: scope.ProjectKind, Scope: tree.Organization.ID, Name: name}, Spec: p})
+			edits = append(edits, revision.Edit{Ref: resource.Ref{Kind: scope.ProjectKind, Scope: tree.Organization.ID, Name: name}, Spec: p, Pin: true})
 		}
 		return nil
 	})

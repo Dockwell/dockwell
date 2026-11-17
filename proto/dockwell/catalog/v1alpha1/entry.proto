@@ -9,6 +9,8 @@ syntax = "proto3";
 // backups exist, so it may change without notice.
 package dockwell.catalog.v1alpha1;
 
+import "dockwell/resource/v1alpha1/specs.proto";
+
 // Entry is one app a catalog offers, at one version. It installs through the
 // same plan as any Compose file, into a project of its own. It runs no script
 // on a server, and every image in it is pinned by digest.
@@ -124,6 +126,48 @@ message Entry {
   // Numbered apart, as open work adds to this message. See
   // docs/adr/0084-what-an-app-needs-met-by-a-new-service-one-you-run-or-a-connection.md.
   repeated Need needs = 40;
+  // How the app's owner comes to exist, where Dockwell makes it once the app runs,
+  // or the app starts with a password everyone knows, or has no accounts of its
+  // own. Unset for an app whose admin its environment makes, which sign_in says,
+  // or whose first visitor makes its owner, which first_visitor_owns says. See
+  // docs/adr/0105-a-catalog-apps-owner-is-made-at-install.md.
+  Owner owner = 33;
+}
+
+// Owner is how a catalog app's owner comes to exist (ADR 0105).
+message Owner {
+  // The service the owner is made in, by its name in the Compose file, such as
+  // "gitea".
+  string service = 1;
+  // The email input, which an install starts from the installer's email. Empty for
+  // an app whose owner has no email, as known_user's.
+  string email_input = 2;
+  // The user input, for an app with user names, which starts from the email's
+  // local part, cut to user_pattern. Empty, the user is the email.
+  string user_input = 3;
+  // The secret input that holds the owner's password, which generate makes, as
+  // generate_as GENERATE_AS_PASSWORD writes it.
+  string password_input = 4;
+  // What makes the account, in order, once the service runs. Each names inputs as
+  // ${NAME}, and reads them from its environment, never its words.
+  repeated dockwell.resource.v1alpha1.OwnerStep steps = 5;
+  // What says the owner is made, such as a sign-in as the owner with the sealed
+  // password. Try again reads it first.
+  dockwell.resource.v1alpha1.OwnerCheck done = 6;
+  // What a user name may be, as a regular expression the whole name matches, such
+  // as "^[a-zA-Z0-9_.-]+$" for Gitea.
+  string user_pattern = 7;
+  // Steps that set a new password, for Rotate. Empty where the app has none.
+  repeated dockwell.resource.v1alpha1.OwnerStep reset_steps = 8;
+  // The app has no accounts of its own, as a database's web client.
+  bool none = 9;
+  // What the app starts with, where it starts with a password everyone knows, as
+  // Umami's admin and umami. steps then change them to the owner's.
+  string known_user = 10;
+  string known_password = 11;
+  // The steps succeeding isn't the owner being made, as an invite's: the owner is
+  // made only once done reads it too.
+  bool made_when_done = 12;
 }
 
 // Need is something an app reads from outside its own containers, such as a
@@ -415,6 +459,12 @@ message Signups {
   string variable = 2;
   // What closes them, such as "false".
   string closed = 3;
+  // Steps that close them through the app's own settings, for an app whose sign-ups
+  // no variable closes, run right after the owner's with the owner's session (ADR
+  // 0105). Empty where variable does.
+  repeated dockwell.resource.v1alpha1.OwnerStep steps = 4;
+  // What reads them closed, where steps close them.
+  dockwell.resource.v1alpha1.OwnerCheck check = 5;
 }
 
 // AddressVariable is a variable that follows the address an app is reached at
@@ -529,6 +579,10 @@ enum GenerateAs {
   // padding, as openssl rand -base64 writes them, for an app that decodes its
   // key.
   GENERATE_AS_BASE64 = 2;
+  // Letters and digits, as many as generate says, with at least one upper-case
+  // letter, one lower-case letter and one digit, for an app whose passwords must
+  // have each, as n8n's (ADR 0105).
+  GENERATE_AS_PASSWORD = 3;
 }
 
 // InputType is what an input takes.

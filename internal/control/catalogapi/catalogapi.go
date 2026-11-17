@@ -31,6 +31,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/changes"
 	"github.com/dockwell/dockwell/internal/control/composeapi"
+	"github.com/dockwell/dockwell/internal/control/holds"
 	newid "github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/registry"
 	"github.com/dockwell/dockwell/internal/resource/container"
@@ -79,6 +80,10 @@ type Handler struct {
 	// checks checks a connection's bucket before an install links an app to it
 	// (CheckWith). Nil checks nothing, and the plan says so.
 	checks ConnectionChecks
+	// holds works out whether an install is held, and owners makes their owners
+	// (ADR 0105). Nil where the control plane runs neither, as some tests.
+	holds  *holds.Holds
+	owners OwnerRetrier
 }
 
 // EntriesFrom has the catalog take the entries in dir, read each time, over
@@ -375,7 +380,10 @@ func (h *Handler) InstallCatalogEntry(ctx context.Context, req *connect.Request[
 	if err != nil {
 		return nil, h.internal(ctx, err)
 	}
-	filled, err := catalog.Fill(chosen, m.GetValues(), free.values)
+	// Its owner, where Dockwell makes it, starts from the email of the person
+	// installing it (ADR 0105).
+	ask := askOwner(ctx, chosen, m)
+	filled, err := catalog.Fill(ask.entry, ask.values, free.values)
 	if err == nil {
 		err = filled.Link(needed.Plain)
 	}
@@ -404,6 +412,7 @@ func (h *Handler) InstallCatalogEntry(ctx context.Context, req *connect.Request[
 			webIDs, address, pin.Address = map[string]string{web: webID}, catalog.AddressValues(chosen, at), at.Origin()
 		}
 	}
+	pin.Held, pin.SignupsOpen = heldAtInstall(entry), m.GetSignupsOpen()
 	shared, sharedOn, err := h.sharedEdits(ctx, needed, filled)
 	if err != nil {
 		return nil, err
@@ -412,6 +421,9 @@ func (h *Handler) InstallCatalogEntry(ctx context.Context, req *connect.Request[
 	users, err := h.userEdits(ctx, "", needed)
 	if err != nil {
 		return nil, h.internal(ctx, err)
+	}
+	if owner := ownerEdit(chosen, ask, filled); owner != nil {
+		users = append(users, owner)
 	}
 	servers := m.GetServers()
 	if len(servers) == 0 {
@@ -443,6 +455,8 @@ func (h *Handler) InstallCatalogEntry(ctx context.Context, req *connect.Request[
 		Architectures: entry.GetArchitectures(),
 		IDs:           webIDs,
 		Address:       address,
+		// Its sign-ups closed, where its owner is made (ADR 0105).
+		Env: closedSignups(chosen, ask, m.GetSignupsOpen()),
 	})
 	if err != nil {
 		return nil, err
@@ -616,6 +630,19 @@ func (h *Handler) installs(ctx context.Context, tx *store.Tx, s sourced) ([]*doc
 			}
 		}
 		if install.GetEnvironmentId() != "" {
+			// Its owner, where Dockwell makes it, and whether it's held (ADR 0105).
+			owner, err := h.ownerIn(ctx, tx, install.GetEnvironmentId())
+			if err != nil {
+				return nil, err
+			}
+			install.Owner = ownerProto(owner)
+			if h.holds != nil {
+				if install.Held, err = h.holds.Held(ctx, tx, install.GetEnvironmentId()); err != nil {
+					return nil, err
+				}
+			} else {
+				install.Held = pin.GetHeld() || owner != nil && !store.OwnerFinal(owner.state.State)
+			}
 			out = append(out, install)
 		}
 	}
@@ -852,6 +879,14 @@ func (h *Handler) upgrade(ctx context.Context, m *dockwellv1.UpgradeCatalogInsta
 		return nil, h.internal(ctx, err)
 	}
 	newPin.Address = cmp.Or(at.Origin(), pin.GetAddress())
+	// A release whose entry no longer makes its owner holds an install whose owner
+	// isn't made, as nothing will make it now; the changes hook keeps every other
+	// write's hold (ADR 0105).
+	if len(entry.GetOwner().GetSteps()) == 0 {
+		if newPin.Held, err = h.ownerUnmade(ctx, install.GetEnvironmentId()); err != nil {
+			return nil, h.internal(ctx, err)
+		}
+	}
 	// A port the release declares public that isn't yet is a person's to approve,
 	// and one that answered on every address and doesn't now says so (ADR 0101).
 	asked := newlyPublic(catalog.PublicPorts(chosen, filled.Variables), ranOnEveryAddress(chosen, old, oldVariables))

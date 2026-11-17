@@ -22,6 +22,8 @@ import (
 	"github.com/dockwell/dockwell/internal/control/catalogapi"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
+	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/scope"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
 )
@@ -1294,19 +1296,18 @@ func TestAnInstallWithNoRecordStaysAsItIs(t *testing.T) {
 
 func testAnInstallWithNoRecordStaysAsItIs(t *testing.T, backend store.Backend) {
 	u := startUpgrading(t, backend, testEntry(1, "1.0", firstRelease, ""))
-	p, err := u.c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "As it was", Edits: []*dockwellv1.Edit{{
-		Resource: &dockwellv1.ResourceRef{Kind: "project", Name: "thing"},
-		Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Project{Project: &resourcev1.Project{Catalog: &resourcev1.CatalogPin{
-			Entry: "thing", Version: "1.0", Release: 1, Values: map[string]string{"PORT": "18100"},
-			Catalog: catalogapi.DefaultName, Repository: snapshot.Repository, Path: snapshot.Path,
-		}}}},
-	}}}))
-	if err != nil {
-		t.Fatal(err)
-	}
-	u.applied(p.Msg.GetChange())
+	org := ""
+	_ = u.f.store.View(t.Context(), func(tx *store.Tx) error {
+		tree, err := scope.Load(t.Context(), tx)
+		org = tree.Organization.ID
+		return err
+	})
+	pinAsCatalogWrote(t, u.f, resource.Ref{Kind: scope.ProjectKind, Scope: org, Name: "thing"}, &resourcev1.Project{Catalog: &resourcev1.CatalogPin{
+		Entry: "thing", Version: "1.0", Release: 1, Values: map[string]string{"PORT": "18100"},
+		Catalog: catalogapi.DefaultName, Repository: snapshot.Repository, Path: snapshot.Path,
+	}})
 	u.release(testEntry(2, "2.0", secondRelease, ""))
-	_, err = u.cat.UpgradeCatalogInstall(t.Context(), connect.NewRequest(&dockwellv1.UpgradeCatalogInstallRequest{Id: "thing"}))
+	_, err := u.cat.UpgradeCatalogInstall(t.Context(), connect.NewRequest(&dockwellv1.UpgradeCatalogInstallRequest{Id: "thing"}))
 	if connect.CodeOf(err) != connect.CodeFailedPrecondition || reasonOf(err) != "no_record" || !strings.Contains(err.Error(), "can't tell that from what you changed") {
 		t.Errorf("upgrading with no record = %v", err)
 	}

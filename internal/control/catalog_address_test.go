@@ -298,10 +298,7 @@ func TestAnUnreadableFileHoldsUpOnlyWhatItWouldTell(t *testing.T) {
 	}
 	p := proto.CloneOf(spec.(*resourcev1.Project))
 	p.Catalog.File = []byte("services: [")
-	u.applied(propose(t, u.c, "A file from before", &dockwellv1.Edit{
-		Resource: &dockwellv1.ResourceRef{Kind: "project", Scope: found.Scope, Name: found.Name},
-		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Project{Project: p}},
-	}))
+	pinAsCatalogWrote(t, u.f, resource.Ref{Kind: "project", Scope: found.Scope, Name: found.Name}, p)
 	_, err := u.c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Route docs", Edits: []*dockwellv1.Edit{{
 		Resource: &dockwellv1.ResourceRef{Kind: string(route.Kind), Scope: u.env, Name: "docs"},
 		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Route{Route: &resourcev1.Route{Domain: "docs.example.com", Service: "web", Port: 80}}},

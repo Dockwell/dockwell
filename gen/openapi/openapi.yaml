@@ -1207,10 +1207,11 @@ paths:
             tags:
                 - CatalogService
             description: |-
-                OpenCatalogInstall plans opening an install that SetCatalogNeed held as it
-                 started empty: each of its routes answers again, and each port its services
-                 publish listens where it did, as the person who set it up asks. It's refused
-                 with the reason not_held when nothing of it is held (ADR 0084).
+                OpenCatalogInstall plans opening a held install: each of its routes answers
+                 again, and each port its services publish listens where it did, as the person
+                 who set it up asks. It clears the pin's held, and records an owner not yet made
+                 as opened (ADR 0084, 0105). It's refused with the reason not_held when nothing
+                 of it is held.
             operationId: CatalogService_OpenCatalogInstall
             parameters:
                 - name: id
@@ -1270,6 +1271,42 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/RestoreCatalogNeedResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/catalog/installs/{id}:retry-owner:
+        post:
+            tags:
+                - CatalogService
+            description: |-
+                RetryCatalogOwner tries again to make an install's owner, where it failed: it
+                 reads whether the owner is made first, and runs the entry's steps only where it
+                 isn't. It changes nothing Dockwell manages, as the owner is the app's, so it
+                 plans nothing (ADR 0105).
+            operationId: CatalogService_RetryCatalogOwner
+            parameters:
+                - name: id
+                  in: path
+                  description: The install's project, by name or ID.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/RetryCatalogOwnerRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/RetryCatalogOwnerResponse'
                 default:
                     description: Default error response
                     content:
@@ -1351,6 +1388,41 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/SetCatalogNeedResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/catalog/installs/{id}:set-owner-email:
+        post:
+            tags:
+                - CatalogService
+            description: |-
+                SetCatalogOwnerEmail plans giving the owner's email to an install a token made
+                 without one, which waits held for it. Once applied, Dockwell makes the owner
+                 (ADR 0105).
+            operationId: CatalogService_SetCatalogOwnerEmail
+            parameters:
+                - name: id
+                  in: path
+                  description: The install's project, by name or ID.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/SetCatalogOwnerEmailRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SetCatalogOwnerEmailResponse'
                 default:
                     description: Default error response
                     content:
@@ -9035,6 +9107,33 @@ components:
                         What signs each request, in a Dockwell-Signature header, so the endpoint
                          can tell it came from this install. Empty signs nothing.
             description: AlertWebhook sends each alert, and each that resolves, as JSON in a POST.
+        AppOwner:
+            type: object
+            properties:
+                service:
+                    type: string
+                    description: The service it's made in, by name.
+                email:
+                    type: string
+                    description: The owner's email and user. An empty user is the email.
+                user:
+                    type: string
+                password:
+                    type: string
+                    description: |-
+                        The environment's secret that holds the owner's password, by name. Its value
+                         reaches the agent for a step alone.
+                app:
+                    type: string
+                    description: What people call the app, such as "Gitea", for what a plan says.
+            description: |-
+                AppOwner is the owner's account in a catalog app, which Dockwell makes once the
+                 app runs (ADR 0105). It holds who the owner is, never how they're made: the
+                 steps come from the install's catalog entry at its pinned release, which the
+                 control plane reads as it runs them, so no write of this names a command.
+                 Whether it's made is what Dockwell observes, never a field here: the install
+                 stays held until then. Only the catalog writes one, and changes its email and
+                 user while it waits for them; deleting it leaves the account in the app.
         ApplyChangeRequest:
             type: object
             properties:
@@ -10345,6 +10444,17 @@ components:
                         The variables that follow its address which don't hold what that address
                          gives them, as "service/VARIABLE": a value a person set, or one a change the
                          address didn't pass through left behind. Empty where every one follows.
+                owner:
+                    allOf:
+                        - $ref: '#/components/schemas/CatalogOwner'
+                    description: |-
+                        Its owner, where Dockwell makes it, and how that stands (ADR 0105). Unset for an
+                         install with no AppOwner.
+                held:
+                    type: boolean
+                    description: |-
+                        True while it's held: its routes answer that it isn't open yet, and its ports
+                         listen on the server alone, until its owner is made or a person opens it.
             description: CatalogInstall is one project installed from the catalog.
         CatalogNeedOption:
             type: object
@@ -10461,6 +10571,33 @@ components:
                         Who the mail comes from, on a mail server's connection, such as
                          "notes@example.com".
             description: CatalogNeedOption is one way to meet an entry's need.
+        CatalogOwner:
+            type: object
+            properties:
+                email:
+                    type: string
+                    description: |-
+                        The owner's email and user. Empty email while an install by a token waits for
+                         one.
+                user:
+                    type: string
+                state:
+                    enum:
+                        - CATALOG_OWNER_STATE_UNSPECIFIED
+                        - CATALOG_OWNER_STATE_WAITING_EMAIL
+                        - CATALOG_OWNER_STATE_WAITING
+                        - CATALOG_OWNER_STATE_MADE
+                        - CATALOG_OWNER_STATE_FAILED
+                        - CATALOG_OWNER_STATE_OPENED
+                    type: string
+                    description: How it stands.
+                    format: enum
+                error:
+                    type: string
+                    description: |-
+                        What the app said where making it failed, with every value the steps sent
+                         hidden.
+            description: CatalogOwner is the owner's account in an install, as Dockwell makes it.
         CatalogPart:
             type: object
             properties:
@@ -10640,6 +10777,24 @@ components:
                          install's file gives it holds a value a person set, which stays. Empty for an
                          install from before Dockwell kept it, where only the file's value is
                          Dockwell's.
+                held:
+                    type: boolean
+                    description: |-
+                        The install is held: its routes answer that it isn't open yet, and its ports
+                         listen on the server alone, until a person opens it, as an app whose first
+                         visitor makes its owner is. Every write of the pin keeps it as it was, but
+                         OpenCatalogInstall's, which clears it (ADR 0105).
+                signupsOpen:
+                    type: boolean
+                    description: |-
+                        The person installed it with sign-ups open, so neither the install nor opening
+                         it closes them. Every write of the pin keeps it (ADR 0105).
+                opened:
+                    type: boolean
+                    description: |-
+                        A person opened it, so Dockwell releases a route or port its hold kept that's
+                         applied after, though the install has no owner Dockwell makes. Set by an applied
+                         OpenCatalogInstall, and kept by every write after (ADR 0105).
             description: |-
                 CatalogPin is what an install is pinned to: updates come from there, and each
                  is a plan. It holds no secret: those are the environment's, by reference.
@@ -14930,6 +15085,15 @@ components:
                          one Dockwell runs already, or by a connection. Empty needs nothing, as before.
                          Numbered apart, as open work adds to this message. See
                          docs/adr/0084-what-an-app-needs-met-by-a-new-service-one-you-run-or-a-connection.md.
+                owner:
+                    allOf:
+                        - $ref: '#/components/schemas/Owner'
+                    description: |-
+                        How the app's owner comes to exist, where Dockwell makes it once the app runs,
+                         or the app starts with a password everyone knows, or has no accounts of its
+                         own. Unset for an app whose admin its environment makes, which sign_in says,
+                         or whose first visitor makes its owner, which first_visitor_owns says. See
+                         docs/adr/0105-a-catalog-apps-owner-is-made-at-install.md.
             description: |-
                 Entry is one app a catalog offers, at one version. It installs through the
                  same plan as any Compose file, into a project of its own. It runs no script
@@ -18162,6 +18326,7 @@ components:
                         - GENERATE_AS_UNSPECIFIED
                         - GENERATE_AS_HEX
                         - GENERATE_AS_BASE64
+                        - GENERATE_AS_PASSWORD
                     type: string
                     description: |-
                         How a generated secret is written, for an app that reads it as a key: letters
@@ -18286,6 +18451,17 @@ components:
                          Dockwell runs already, which a database and user are made on for the app, as
                          GetCatalogEntry lists. A need left out takes its first option. Numbered apart,
                          as open work adds to this message.
+                ownerEmail:
+                    type: string
+                    description: |-
+                        The owner's email, for an entry whose owner Dockwell makes (ADR 0105). Empty
+                         takes the email of the person installing it; an install by a token with none
+                         waits held for one, as SetCatalogOwnerEmail gives it.
+                signupsOpen:
+                    type: boolean
+                    description: |-
+                        Leaves sign-ups open, where the entry says how they close, which the install
+                         does otherwise.
             description: InstallCatalogEntryRequest is an app to install.
         InstallCatalogEntryResponse:
             type: object
@@ -20872,6 +21048,178 @@ components:
                 terminal:
                     $ref: '#/components/schemas/Terminal'
             description: OpenTerminalResponse is the terminal, running.
+        Owner:
+            type: object
+            properties:
+                service:
+                    type: string
+                    description: |-
+                        The service the owner is made in, by its name in the Compose file, such as
+                         "gitea".
+                emailInput:
+                    type: string
+                    description: |-
+                        The email input, which an install starts from the installer's email. Empty for
+                         an app whose owner has no email, as known_user's.
+                userInput:
+                    type: string
+                    description: |-
+                        The user input, for an app with user names, which starts from the email's
+                         local part, cut to user_pattern. Empty, the user is the email.
+                passwordInput:
+                    type: string
+                    description: |-
+                        The secret input that holds the owner's password, which generate makes, as
+                         generate_as GENERATE_AS_PASSWORD writes it.
+                steps:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/OwnerStep'
+                    description: |-
+                        What makes the account, in order, once the service runs. Each names inputs as
+                         ${NAME}, and reads them from its environment, never its words.
+                done:
+                    allOf:
+                        - $ref: '#/components/schemas/OwnerCheck'
+                    description: |-
+                        What says the owner is made, such as a sign-in as the owner with the sealed
+                         password. Try again reads it first.
+                userPattern:
+                    type: string
+                    description: |-
+                        What a user name may be, as a regular expression the whole name matches, such
+                         as "^[a-zA-Z0-9_.-]+$" for Gitea.
+                resetSteps:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/OwnerStep'
+                    description: Steps that set a new password, for Rotate. Empty where the app has none.
+                none:
+                    type: boolean
+                    description: The app has no accounts of its own, as a database's web client.
+                knownUser:
+                    type: string
+                    description: |-
+                        What the app starts with, where it starts with a password everyone knows, as
+                         Umami's admin and umami. steps then change them to the owner's.
+                knownPassword:
+                    type: string
+                madeWhenDone:
+                    type: boolean
+                    description: |-
+                        The steps succeeding isn't the owner being made, as an invite's: the owner is
+                         made only once done reads it too.
+            description: Owner is how a catalog app's owner comes to exist (ADR 0105).
+        OwnerCheck:
+            type: object
+            properties:
+                request:
+                    $ref: '#/components/schemas/OwnerRequest'
+                status:
+                    type: integer
+                    description: The status that means yes, such as 200. Any 2xx unless set.
+                    format: uint32
+                contains:
+                    type: string
+                    description: Text the answer must hold too, where status alone can't say.
+                command:
+                    allOf:
+                        - $ref: '#/components/schemas/OwnerCommand'
+                    description: |-
+                        A command in the running container, in place of request, for an app that
+                         answers only its own loopback as it's reached: it means yes where it exits 0,
+                         and its output holds contains.
+            description: |-
+                OwnerCheck is a request, or a command, whose answer says something of the app,
+                 such as that its owner signs in.
+        OwnerCommand:
+            type: object
+            properties:
+                words:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        The command, word by word, such as ["gitea", "admin", "user", "create", ...].
+                         A word may be "$NAME" only inside a "sh -c" line, which reads it from the
+                         environment.
+                user:
+                    type: string
+                    description: The user it runs as, such as "git". Empty runs as the container's own.
+                oneOff:
+                    type: boolean
+                    description: |-
+                        Runs as a one-off container of the app's image, with its environment, mounts
+                         and networks, in place of in the running one.
+                capture:
+                    type: object
+                    additionalProperties:
+                        type: string
+                    description: |-
+                        What it prints that later steps read as inputs, by name: each a regular
+                         expression whose first group is the value, such as "password (\\S+)" for a
+                         password the app made up. It lives in the agent's memory for the call alone.
+            description: |-
+                OwnerCommand is a command run in the service's running container, as docker exec
+                 runs one. The inputs it names reach it in its environment, never its words.
+        OwnerRequest:
+            type: object
+            properties:
+                method:
+                    type: string
+                    description: GET unless set, or POST, PUT, PATCH or DELETE.
+                path:
+                    type: string
+                    description: The path, such as "/rest/owner/setup".
+                contentType:
+                    type: string
+                    description: |-
+                        What body holds: "application/json" or "application/x-www-form-urlencoded".
+                         A value body names is written as that type writes it.
+                body:
+                    type: string
+                    description: The body, naming inputs as ${NAME}.
+                headers:
+                    type: object
+                    additionalProperties:
+                        type: string
+                    description: |-
+                        Headers to send, such as X-Forwarded-Proto, naming inputs as ${NAME}, and
+                         ${DOCKWELL_OWNER_BASIC}, the owner's user, or email, and password as a Basic
+                         credential writes them, for a check that signs in as the owner.
+                expectStatus:
+                    type: integer
+                    description: The status it expects, such as 201. Any 2xx unless set. A 3xx always fails.
+                    format: uint32
+                capture:
+                    type: object
+                    additionalProperties:
+                        type: string
+                    description: |-
+                        Fields of its JSON answer, by a path of keys apart by dots, such as
+                         "data.token", that later steps read as inputs, by name.
+                port:
+                    type: integer
+                    description: The port in the container it goes to, such as 3000.
+                    format: uint32
+            description: |-
+                OwnerRequest is an HTTP request to the service's container, from its agent. It
+                 never follows a redirect.
+        OwnerStep:
+            type: object
+            properties:
+                command:
+                    $ref: '#/components/schemas/OwnerCommand'
+                request:
+                    $ref: '#/components/schemas/OwnerRequest'
+                unless:
+                    allOf:
+                        - $ref: '#/components/schemas/OwnerCheck'
+                    description: |-
+                        Skips the step where this reads yes, as a step that made what it makes on a try
+                         that stopped after it, such as a user that exists already, so a second try goes
+                         on to the steps after it.
+            description: OwnerStep is one step that makes an app's owner, or closes its sign-ups.
         PackageInstall:
             type: object
             properties:
@@ -23512,6 +23860,19 @@ components:
                 RestorePlan is what a step that restores a volume does: it says what comes
                  back, and what stops while it does. What's in the volume is replaced, and the
                  server keeps a copy of it for 7 days.
+        RetryCatalogOwnerRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The install's project, by name or ID.
+            description: RetryCatalogOwnerRequest names an install whose owner Dockwell couldn't make.
+        RetryCatalogOwnerResponse:
+            type: object
+            properties:
+                owner:
+                    $ref: '#/components/schemas/CatalogOwner'
+            description: RetryCatalogOwnerResponse says how it stands now.
         RevealSecretRequest:
             type: object
             properties:
@@ -26049,6 +26410,24 @@ components:
                         - $ref: '#/components/schemas/Change'
                     description: The change, planned, with its plan.
             description: SetCatalogNeedResponse carries the planned change.
+        SetCatalogOwnerEmailRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The install's project, by name or ID.
+                email:
+                    type: string
+                    description: The owner's email.
+            description: |-
+                SetCatalogOwnerEmailRequest gives the owner's email to an install a token made
+                 without one.
+        SetCatalogOwnerEmailResponse:
+            type: object
+            properties:
+                change:
+                    $ref: '#/components/schemas/Change'
+            description: SetCatalogOwnerEmailResponse carries the planned change.
         SetCatalogSourceRequest:
             type: object
             properties:
@@ -26566,6 +26945,18 @@ components:
                 closed:
                     type: string
                     description: What closes them, such as "false".
+                steps:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/OwnerStep'
+                    description: |-
+                        Steps that close them through the app's own settings, for an app whose sign-ups
+                         no variable closes, run right after the owner's with the owner's session (ADR
+                         0105). Empty where variable does.
+                check:
+                    allOf:
+                        - $ref: '#/components/schemas/OwnerCheck'
+                    description: What reads them closed, where steps close them.
             description: Signups is the variable that closes an app's sign-ups.
         SkipServiceUpdateRequest:
             type: object
@@ -26736,6 +27127,12 @@ components:
                     description: |-
                         Work that runs on a schedule, kind "task". Numbered in the block scheduled
                          tasks hold, as open work adds to this message.
+                appOwner:
+                    allOf:
+                        - $ref: '#/components/schemas/AppOwner'
+                    description: |-
+                        The owner's account in a catalog app, which Dockwell makes once the app runs,
+                         kind "app.owner" (ADR 0105). Numbered in the block an app's owner holds.
                 link:
                     allOf:
                         - $ref: '#/components/schemas/Link'

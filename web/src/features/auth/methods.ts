@@ -101,6 +101,8 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "CatalogService.backUpCatalogNeed": "may",
   "CatalogService.listCatalogNeedBackups": "read",
   "CatalogService.openCatalogInstall": "may",
+  "CatalogService.retryCatalogOwner": "unused",
+  "CatalogService.setCatalogOwnerEmail": "unused",
   "CatalogService.restoreCatalogNeed": "may",
   "CatalogService.removeCatalogSource": "may",
   "CatalogService.setCatalogCompanion": "may",

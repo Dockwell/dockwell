@@ -118,10 +118,42 @@ service CatalogService {
     };
   }
 
-  // OpenCatalogInstall plans opening an install that SetCatalogNeed held as it
-  // started empty: each of its routes answers again, and each port its services
-  // publish listens where it did, as the person who set it up asks. It's refused
-  // with the reason not_held when nothing of it is held (ADR 0084).
+  // RetryCatalogOwner tries again to make an install's owner, where it failed: it
+  // reads whether the owner is made first, and runs the entry's steps only where it
+  // isn't. It changes nothing Dockwell manages, as the owner is the app's, so it
+  // plans nothing (ADR 0105).
+  rpc RetryCatalogOwner(RetryCatalogOwnerRequest) returns (RetryCatalogOwnerResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.command) = {verb: "retry-owner"};
+    option (google.api.http) = {
+      post: "/v1/catalog/installs/{id}:retry-owner"
+      body: "*"
+    };
+  }
+
+  // SetCatalogOwnerEmail plans giving the owner's email to an install a token made
+  // without one, which waits held for it. Once applied, Dockwell makes the owner
+  // (ADR 0105).
+  rpc SetCatalogOwnerEmail(SetCatalogOwnerEmailRequest) returns (SetCatalogOwnerEmailResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.command) = {verb: "set-owner-email"};
+    option (google.api.http) = {
+      post: "/v1/catalog/installs/{id}:set-owner-email"
+      body: "*"
+    };
+  }
+
+  // OpenCatalogInstall plans opening a held install: each of its routes answers
+  // again, and each port its services publish listens where it did, as the person
+  // who set it up asks. It clears the pin's held, and records an owner not yet made
+  // as opened (ADR 0084, 0105). It's refused with the reason not_held when nothing
+  // of it is held.
   rpc OpenCatalogInstall(OpenCatalogInstallRequest) returns (OpenCatalogInstallResponse) {
     option (dockwell.v1.effect) = EFFECT_PLAN;
     option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
@@ -587,6 +619,65 @@ message CatalogInstall {
   // gives them, as "service/VARIABLE": a value a person set, or one a change the
   // address didn't pass through left behind. Empty where every one follows.
   repeated string address_kept = 12;
+  // Its owner, where Dockwell makes it, and how that stands (ADR 0105). Unset for an
+  // install with no AppOwner.
+  CatalogOwner owner = 13;
+  // True while it's held: its routes answer that it isn't open yet, and its ports
+  // listen on the server alone, until its owner is made or a person opens it.
+  bool held = 14;
+}
+
+// CatalogOwner is the owner's account in an install, as Dockwell makes it.
+message CatalogOwner {
+  // The owner's email and user. Empty email while an install by a token waits for
+  // one.
+  string email = 1;
+  string user = 2;
+  // How it stands.
+  CatalogOwnerState state = 3;
+  // What the app said where making it failed, with every value the steps sent
+  // hidden.
+  string error = 4;
+}
+
+// CatalogOwnerState is how making an install's owner stands.
+enum CatalogOwnerState {
+  CATALOG_OWNER_STATE_UNSPECIFIED = 0;
+  // An install by a token, waiting for the owner's email.
+  CATALOG_OWNER_STATE_WAITING_EMAIL = 1;
+  // Waiting for the app to run, or making it now.
+  CATALOG_OWNER_STATE_WAITING = 2;
+  // Made: the hold it kept is lifted.
+  CATALOG_OWNER_STATE_MADE = 3;
+  // Making it failed: the install stays held, and RetryCatalogOwner tries again.
+  CATALOG_OWNER_STATE_FAILED = 4;
+  // A person opened the install before its owner was made.
+  CATALOG_OWNER_STATE_OPENED = 5;
+}
+
+// RetryCatalogOwnerRequest names an install whose owner Dockwell couldn't make.
+message RetryCatalogOwnerRequest {
+  // The install's project, by name or ID.
+  string id = 1;
+}
+
+// RetryCatalogOwnerResponse says how it stands now.
+message RetryCatalogOwnerResponse {
+  CatalogOwner owner = 1;
+}
+
+// SetCatalogOwnerEmailRequest gives the owner's email to an install a token made
+// without one.
+message SetCatalogOwnerEmailRequest {
+  // The install's project, by name or ID.
+  string id = 1;
+  // The owner's email.
+  string email = 2;
+}
+
+// SetCatalogOwnerEmailResponse carries the planned change.
+message SetCatalogOwnerEmailResponse {
+  Change change = 1;
 }
 
 // CatalogWithdrawal is the release a catalog moved to below what an install runs.
@@ -646,6 +737,13 @@ message InstallCatalogEntryRequest {
   // GetCatalogEntry lists. A need left out takes its first option. Numbered apart,
   // as open work adds to this message.
   map<string, string> needs = 80;
+  // The owner's email, for an entry whose owner Dockwell makes (ADR 0105). Empty
+  // takes the email of the person installing it; an install by a token with none
+  // waits held for one, as SetCatalogOwnerEmail gives it.
+  string owner_email = 9;
+  // Leaves sign-ups open, where the entry says how they close, which the install
+  // does otherwise.
+  bool signups_open = 10;
 }
 
 // InstallCatalogEntryResponse carries the planned change.

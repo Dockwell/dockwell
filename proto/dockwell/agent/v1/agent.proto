@@ -600,6 +600,10 @@ message Hello {
   // each run's connector ID (ADR 0104). Numbered in the block ADR 0104 holds, 340 to
   // 349.
   bool reads_tunnels = 340;
+  // The agent makes a catalog app's owner, and reads whether it's made, with what
+  // the control plane sends for that call alone (ADR 0105). Numbered in the block
+  // an app's owner holds, 380 to 389.
+  bool makes_app_owners = 384;
 }
 
 // DesiredHeld is what an agent keeps of what its server should run.
@@ -905,6 +909,10 @@ message Call {
     // Read the Cloudflare tunnels cloudflared runs on the server now (ADR 0104).
     // ADR 0104 takes 340 to 349.
     ReadTunnelsCall read_tunnels = 340;
+    // Make a catalog app's owner, or read whether it's made (ADR 0105). An app's
+    // owner takes 380 to 389.
+    MakeAppOwnerCall make_app_owner = 380;
+    ReadAppOwnerCall read_app_owner = 382;
   }
 }
 
@@ -917,6 +925,60 @@ message ReadTunnelsCall {}
 // read in memory and dropped: no token is ever in it.
 message ReadTunnelsResult {
   repeated dockwell.v1.CloudflaredTunnel tunnels = 1;
+}
+
+// MakeAppOwnerCall asks the agent to run the steps that make an app's owner, in the
+// app's running container or to its container's port, once the service is
+// healthy: what the steps name, its secrets among it, is sealed to this stream's
+// delivery key as a step's values are, for this call alone, and never kept. See
+// docs/adr/0105-a-catalog-apps-owner-is-made-at-install.md.
+message MakeAppOwnerCall {
+  // The app's environment and service.
+  string environment = 1;
+  string service = 2;
+  // The steps, what reads it made, and how sign-ups close, from the install's
+  // catalog entry at its pinned release, with who the owner is and where the app is
+  // reached, and no value of a secret.
+  dockwell.resource.v1alpha1.OwnerRun owner = 3;
+  // The value of each input the steps name, by name, the owner's password among
+  // them, sealed.
+  bytes values = 4;
+  // Reads done first, and runs the steps only where it doesn't read made, as a
+  // second try does after one that may have stopped part-way.
+  bool check_first = 5;
+}
+
+// MakeAppOwnerResult is what came of it: whether it's made, and where it isn't,
+// what the app said, with every value the steps sent, and every value they
+// captured, hidden.
+message MakeAppOwnerResult {
+  // The owner is made: the steps succeeded, and done read it where the owner says
+  // made_when_done.
+  bool made = 1;
+  // Where the steps succeeded, but done doesn't read it made yet, as an invite's.
+  bool waiting = 2;
+  // The step that failed, from 1, and the sign-up steps' after the owner's.
+  int32 step = 3;
+  // What the app said, scrubbed, then cut to 512 bytes.
+  string said = 4;
+}
+
+// ReadAppOwnerCall asks the agent to read whether an app's owner is made, by the
+// owner's done, or whether its sign-ups are closed.
+message ReadAppOwnerCall {
+  string environment = 1;
+  string service = 2;
+  dockwell.resource.v1alpha1.OwnerRun owner = 3;
+  bytes values = 4;
+  // Reads the sign-ups' check in place of done.
+  bool signups = 5;
+}
+
+// ReadAppOwnerResult says what it read.
+message ReadAppOwnerResult {
+  bool yes = 1;
+  // Why it couldn't read, scrubbed, such as an app that doesn't answer yet.
+  string said = 2;
 }
 
 // ProbeConnectionCall asks the agent to check a connection from where an app is: in
@@ -2556,6 +2618,8 @@ message CallResult {
     ImageUpdatesResult image_updates = 250;
     ProbeConnectionResult probe_connection = 370;
     ReadTunnelsResult read_tunnels = 340;
+    MakeAppOwnerResult make_app_owner = 381;
+    ReadAppOwnerResult read_app_owner = 383;
   }
 }
 

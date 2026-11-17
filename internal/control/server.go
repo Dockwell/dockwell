@@ -71,12 +71,14 @@ import (
 	"github.com/dockwell/dockwell/internal/control/gitproviders"
 	"github.com/dockwell/dockwell/internal/control/health"
 	"github.com/dockwell/dockwell/internal/control/history"
+	"github.com/dockwell/dockwell/internal/control/holds"
 	"github.com/dockwell/dockwell/internal/control/identity"
 	"github.com/dockwell/dockwell/internal/control/images"
 	"github.com/dockwell/dockwell/internal/control/importapi"
 	logapi "github.com/dockwell/dockwell/internal/control/logs"
 	"github.com/dockwell/dockwell/internal/control/members"
 	"github.com/dockwell/dockwell/internal/control/opener"
+	"github.com/dockwell/dockwell/internal/control/owners"
 	"github.com/dockwell/dockwell/internal/control/processes"
 	"github.com/dockwell/dockwell/internal/control/publish"
 	"github.com/dockwell/dockwell/internal/control/registrylogins"
@@ -204,6 +206,10 @@ type Config struct {
 	ECR *registrylogins.ECR
 	// logins are the registry logins, read with Secrets from Store.
 	logins *registrylogins.Logins
+	// appHolds keeps held catalog installs held, and appOwners makes their owners
+	// (ADR 0105).
+	appHolds  *holds.Holds
+	appOwners *owners.Runner
 	// connections are the connections apps use (ADR 0099).
 	connections *connections.Connections
 	// ConnectionChecks checks a connection's bucket before an install links an app to
@@ -303,6 +309,8 @@ type Server struct {
 	changes *revision.Engine
 	// hosts gives each server its host (ADR 0064), once its agent runs the kind.
 	hosts *Hosts
+	// owners makes catalog apps' owners (ADR 0105).
+	owners *owners.Runner
 	// follower moves the catalog sources that follow a branch along it (ADR 0077),
 	// when Config.CatalogFollow asks it to.
 	follower *catalogapi.Follower
@@ -413,6 +421,25 @@ func New(cfg Config) (*Server, error) {
 			}
 		})
 	}
+	// A held catalog install stays held through every write, and Dockwell makes its
+	// owner where its entry says how (ADR 0105).
+	if cfg.Changes != nil && cfg.Store != nil && cfg.Secrets != nil {
+		cfg.appHolds = &holds.Holds{Keeper: cfg.Secrets}
+		cfg.Changes.SetEditHook(cfg.appHolds.Hook)
+		if cfg.Agents != nil {
+			agents := cfg.Agents
+			cfg.appOwners = &owners.Runner{
+				DB: cfg.Store, Keeper: cfg.Secrets, Engine: cfg.Changes, Holds: cfg.appHolds, Logger: cfg.Logger,
+				Agent: func(server string) (owners.Agent, bool) {
+					session, ok := agents.Session(server)
+					if !ok {
+						return nil, false
+					}
+					return session, true
+				},
+			}
+		}
+	}
 	api, err := apiRoutes(cfg, ui, ports, &logs, &backupHandler, &taskHandler, &evaluator, &updateKeeper, &autoupdates, &follower, &hooks, &gitApps)
 	if err != nil {
 		return nil, err
@@ -422,7 +449,7 @@ func New(cfg Config) (*Server, error) {
 		// refuses a person's that comes without (ADR 0049).
 		cfg.Changes.RequireRoles()
 	}
-	s := &Server{logger: cfg.Logger, api: api, logs: logs, backups: backupHandler, hooks: hooks, apps: gitApps, tasks: taskHandler, updates: updateKeeper, alerts: evaluator, manualAlerts: cfg.ManualAlerts, manualBackups: cfg.ManualBackups, public: cfg.Public, changes: cfg.Changes, store: cfg.Store, stepGrace: cfg.StepGrace, autoupdates: autoupdates, certificates: cfg.certificates, publisher: cfg.publisher}
+	s := &Server{logger: cfg.Logger, api: api, logs: logs, backups: backupHandler, hooks: hooks, apps: gitApps, tasks: taskHandler, updates: updateKeeper, alerts: evaluator, manualAlerts: cfg.ManualAlerts, manualBackups: cfg.ManualBackups, public: cfg.Public, changes: cfg.Changes, store: cfg.Store, stepGrace: cfg.StepGrace, autoupdates: autoupdates, certificates: cfg.certificates, publisher: cfg.publisher, owners: cfg.appOwners}
 	s.catalogs = follower
 	if cfg.Agents != nil {
 		agents := cfg.Agents
@@ -581,6 +608,17 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		catalogHandler.EntriesFrom(cfg.CatalogDir)
 		// A route that moves a catalog app's address moves what follows it (ADR 0103).
 		ch.Address = catalogHandler.FollowAddress
+		if cfg.appHolds != nil {
+			var retrier catalogapi.OwnerRetrier
+			if cfg.appOwners != nil {
+				retrier = cfg.appOwners
+			}
+			catalogHandler.SetHolds(cfg.appHolds, retrier)
+			if cfg.appOwners != nil {
+				// The steps that make an owner are its catalog entry's (ADR 0105).
+				cfg.appOwners.SetRuns(catalogHandler)
+			}
+		}
 		*followOut = catalogHandler.Follow(cfg.Changes)
 		follower := *followOut
 		if cfg.Fleet != nil {
@@ -1151,6 +1189,9 @@ func (s *Server) Run(ctx context.Context, ls Listeners) error {
 	}
 	if s.apps != nil {
 		api.Go(func() { s.apps.KeepWatching(apiCtx) })
+	}
+	if s.owners != nil {
+		api.Go(func() { s.owners.Run(apiCtx) })
 	}
 	if s.hosts != nil {
 		api.Go(func() { s.hosts.Run(apiCtx) })

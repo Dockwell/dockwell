@@ -15,6 +15,7 @@
 package catalogv1alpha1
 
 import (
+	v1alpha1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -447,6 +448,10 @@ const (
 	// padding, as openssl rand -base64 writes them, for an app that decodes its
 	// key.
 	GenerateAs_GENERATE_AS_BASE64 GenerateAs = 2
+	// Letters and digits, as many as generate says, with at least one upper-case
+	// letter, one lower-case letter and one digit, for an app whose passwords must
+	// have each, as n8n's (ADR 0105).
+	GenerateAs_GENERATE_AS_PASSWORD GenerateAs = 3
 )
 
 // Enum value maps for GenerateAs.
@@ -455,11 +460,13 @@ var (
 		0: "GENERATE_AS_UNSPECIFIED",
 		1: "GENERATE_AS_HEX",
 		2: "GENERATE_AS_BASE64",
+		3: "GENERATE_AS_PASSWORD",
 	}
 	GenerateAs_value = map[string]int32{
 		"GENERATE_AS_UNSPECIFIED": 0,
 		"GENERATE_AS_HEX":         1,
 		"GENERATE_AS_BASE64":      2,
+		"GENERATE_AS_PASSWORD":    3,
 	}
 )
 
@@ -671,7 +678,13 @@ type Entry struct {
 	// one Dockwell runs already, or by a connection. Empty needs nothing, as before.
 	// Numbered apart, as open work adds to this message. See
 	// docs/adr/0084-what-an-app-needs-met-by-a-new-service-one-you-run-or-a-connection.md.
-	Needs         []*Need `protobuf:"bytes,40,rep,name=needs,proto3" json:"needs,omitempty"`
+	Needs []*Need `protobuf:"bytes,40,rep,name=needs,proto3" json:"needs,omitempty"`
+	// How the app's owner comes to exist, where Dockwell makes it once the app runs,
+	// or the app starts with a password everyone knows, or has no accounts of its
+	// own. Unset for an app whose admin its environment makes, which sign_in says,
+	// or whose first visitor makes its owner, which first_visitor_owns says. See
+	// docs/adr/0105-a-catalog-apps-owner-is-made-at-install.md.
+	Owner         *Owner `protobuf:"bytes,33,opt,name=owner,proto3" json:"owner,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -930,6 +943,166 @@ func (x *Entry) GetNeeds() []*Need {
 	return nil
 }
 
+func (x *Entry) GetOwner() *Owner {
+	if x != nil {
+		return x.Owner
+	}
+	return nil
+}
+
+// Owner is how a catalog app's owner comes to exist (ADR 0105).
+type Owner struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The service the owner is made in, by its name in the Compose file, such as
+	// "gitea".
+	Service string `protobuf:"bytes,1,opt,name=service,proto3" json:"service,omitempty"`
+	// The email input, which an install starts from the installer's email. Empty for
+	// an app whose owner has no email, as known_user's.
+	EmailInput string `protobuf:"bytes,2,opt,name=email_input,json=emailInput,proto3" json:"email_input,omitempty"`
+	// The user input, for an app with user names, which starts from the email's
+	// local part, cut to user_pattern. Empty, the user is the email.
+	UserInput string `protobuf:"bytes,3,opt,name=user_input,json=userInput,proto3" json:"user_input,omitempty"`
+	// The secret input that holds the owner's password, which generate makes, as
+	// generate_as GENERATE_AS_PASSWORD writes it.
+	PasswordInput string `protobuf:"bytes,4,opt,name=password_input,json=passwordInput,proto3" json:"password_input,omitempty"`
+	// What makes the account, in order, once the service runs. Each names inputs as
+	// ${NAME}, and reads them from its environment, never its words.
+	Steps []*v1alpha1.OwnerStep `protobuf:"bytes,5,rep,name=steps,proto3" json:"steps,omitempty"`
+	// What says the owner is made, such as a sign-in as the owner with the sealed
+	// password. Try again reads it first.
+	Done *v1alpha1.OwnerCheck `protobuf:"bytes,6,opt,name=done,proto3" json:"done,omitempty"`
+	// What a user name may be, as a regular expression the whole name matches, such
+	// as "^[a-zA-Z0-9_.-]+$" for Gitea.
+	UserPattern string `protobuf:"bytes,7,opt,name=user_pattern,json=userPattern,proto3" json:"user_pattern,omitempty"`
+	// Steps that set a new password, for Rotate. Empty where the app has none.
+	ResetSteps []*v1alpha1.OwnerStep `protobuf:"bytes,8,rep,name=reset_steps,json=resetSteps,proto3" json:"reset_steps,omitempty"`
+	// The app has no accounts of its own, as a database's web client.
+	None bool `protobuf:"varint,9,opt,name=none,proto3" json:"none,omitempty"`
+	// What the app starts with, where it starts with a password everyone knows, as
+	// Umami's admin and umami. steps then change them to the owner's.
+	KnownUser     string `protobuf:"bytes,10,opt,name=known_user,json=knownUser,proto3" json:"known_user,omitempty"`
+	KnownPassword string `protobuf:"bytes,11,opt,name=known_password,json=knownPassword,proto3" json:"known_password,omitempty"`
+	// The steps succeeding isn't the owner being made, as an invite's: the owner is
+	// made only once done reads it too.
+	MadeWhenDone  bool `protobuf:"varint,12,opt,name=made_when_done,json=madeWhenDone,proto3" json:"made_when_done,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Owner) Reset() {
+	*x = Owner{}
+	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Owner) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Owner) ProtoMessage() {}
+
+func (x *Owner) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Owner.ProtoReflect.Descriptor instead.
+func (*Owner) Descriptor() ([]byte, []int) {
+	return file_dockwell_catalog_v1alpha1_entry_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *Owner) GetService() string {
+	if x != nil {
+		return x.Service
+	}
+	return ""
+}
+
+func (x *Owner) GetEmailInput() string {
+	if x != nil {
+		return x.EmailInput
+	}
+	return ""
+}
+
+func (x *Owner) GetUserInput() string {
+	if x != nil {
+		return x.UserInput
+	}
+	return ""
+}
+
+func (x *Owner) GetPasswordInput() string {
+	if x != nil {
+		return x.PasswordInput
+	}
+	return ""
+}
+
+func (x *Owner) GetSteps() []*v1alpha1.OwnerStep {
+	if x != nil {
+		return x.Steps
+	}
+	return nil
+}
+
+func (x *Owner) GetDone() *v1alpha1.OwnerCheck {
+	if x != nil {
+		return x.Done
+	}
+	return nil
+}
+
+func (x *Owner) GetUserPattern() string {
+	if x != nil {
+		return x.UserPattern
+	}
+	return ""
+}
+
+func (x *Owner) GetResetSteps() []*v1alpha1.OwnerStep {
+	if x != nil {
+		return x.ResetSteps
+	}
+	return nil
+}
+
+func (x *Owner) GetNone() bool {
+	if x != nil {
+		return x.None
+	}
+	return false
+}
+
+func (x *Owner) GetKnownUser() string {
+	if x != nil {
+		return x.KnownUser
+	}
+	return ""
+}
+
+func (x *Owner) GetKnownPassword() string {
+	if x != nil {
+		return x.KnownPassword
+	}
+	return ""
+}
+
+func (x *Owner) GetMadeWhenDone() bool {
+	if x != nil {
+		return x.MadeWhenDone
+	}
+	return false
+}
+
 // Need is something an app reads from outside its own containers, such as a
 // database, by the names it sets in the app's environment.
 type Need struct {
@@ -983,7 +1156,7 @@ type Need struct {
 
 func (x *Need) Reset() {
 	*x = Need{}
-	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[1]
+	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -995,7 +1168,7 @@ func (x *Need) String() string {
 func (*Need) ProtoMessage() {}
 
 func (x *Need) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[1]
+	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1008,7 +1181,7 @@ func (x *Need) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Need.ProtoReflect.Descriptor instead.
 func (*Need) Descriptor() ([]byte, []int) {
-	return file_dockwell_catalog_v1alpha1_entry_proto_rawDescGZIP(), []int{1}
+	return file_dockwell_catalog_v1alpha1_entry_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *Need) GetName() string {
@@ -1114,7 +1287,7 @@ type NeedAccept struct {
 
 func (x *NeedAccept) Reset() {
 	*x = NeedAccept{}
-	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[2]
+	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1126,7 +1299,7 @@ func (x *NeedAccept) String() string {
 func (*NeedAccept) ProtoMessage() {}
 
 func (x *NeedAccept) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[2]
+	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1139,7 +1312,7 @@ func (x *NeedAccept) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NeedAccept.ProtoReflect.Descriptor instead.
 func (*NeedAccept) Descriptor() ([]byte, []int) {
-	return file_dockwell_catalog_v1alpha1_entry_proto_rawDescGZIP(), []int{2}
+	return file_dockwell_catalog_v1alpha1_entry_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *NeedAccept) GetEngine() Engine {
@@ -1204,7 +1377,7 @@ type NeedSet struct {
 
 func (x *NeedSet) Reset() {
 	*x = NeedSet{}
-	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[3]
+	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1216,7 +1389,7 @@ func (x *NeedSet) String() string {
 func (*NeedSet) ProtoMessage() {}
 
 func (x *NeedSet) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[3]
+	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1229,7 +1402,7 @@ func (x *NeedSet) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NeedSet.ProtoReflect.Descriptor instead.
 func (*NeedSet) Descriptor() ([]byte, []int) {
-	return file_dockwell_catalog_v1alpha1_entry_proto_rawDescGZIP(), []int{3}
+	return file_dockwell_catalog_v1alpha1_entry_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *NeedSet) GetName() string {
@@ -1291,7 +1464,7 @@ type NeedWord struct {
 
 func (x *NeedWord) Reset() {
 	*x = NeedWord{}
-	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[4]
+	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1303,7 +1476,7 @@ func (x *NeedWord) String() string {
 func (*NeedWord) ProtoMessage() {}
 
 func (x *NeedWord) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[4]
+	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1316,7 +1489,7 @@ func (x *NeedWord) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NeedWord.ProtoReflect.Descriptor instead.
 func (*NeedWord) Descriptor() ([]byte, []int) {
-	return file_dockwell_catalog_v1alpha1_entry_proto_rawDescGZIP(), []int{4}
+	return file_dockwell_catalog_v1alpha1_entry_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *NeedWord) GetEngine() Engine {
@@ -1353,7 +1526,7 @@ type NeedTls struct {
 
 func (x *NeedTls) Reset() {
 	*x = NeedTls{}
-	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[5]
+	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1365,7 +1538,7 @@ func (x *NeedTls) String() string {
 func (*NeedTls) ProtoMessage() {}
 
 func (x *NeedTls) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[5]
+	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1378,7 +1551,7 @@ func (x *NeedTls) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NeedTls.ProtoReflect.Descriptor instead.
 func (*NeedTls) Descriptor() ([]byte, []int) {
-	return file_dockwell_catalog_v1alpha1_entry_proto_rawDescGZIP(), []int{5}
+	return file_dockwell_catalog_v1alpha1_entry_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *NeedTls) GetOn() string {
@@ -1411,7 +1584,7 @@ type Translation struct {
 
 func (x *Translation) Reset() {
 	*x = Translation{}
-	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[6]
+	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1423,7 +1596,7 @@ func (x *Translation) String() string {
 func (*Translation) ProtoMessage() {}
 
 func (x *Translation) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[6]
+	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1436,7 +1609,7 @@ func (x *Translation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Translation.ProtoReflect.Descriptor instead.
 func (*Translation) Descriptor() ([]byte, []int) {
-	return file_dockwell_catalog_v1alpha1_entry_proto_rawDescGZIP(), []int{6}
+	return file_dockwell_catalog_v1alpha1_entry_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *Translation) GetSummary() string {
@@ -1488,7 +1661,7 @@ type Companion struct {
 
 func (x *Companion) Reset() {
 	*x = Companion{}
-	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[7]
+	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1500,7 +1673,7 @@ func (x *Companion) String() string {
 func (*Companion) ProtoMessage() {}
 
 func (x *Companion) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[7]
+	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1513,7 +1686,7 @@ func (x *Companion) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Companion.ProtoReflect.Descriptor instead.
 func (*Companion) Descriptor() ([]byte, []int) {
-	return file_dockwell_catalog_v1alpha1_entry_proto_rawDescGZIP(), []int{7}
+	return file_dockwell_catalog_v1alpha1_entry_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *Companion) GetService() string {
@@ -1580,7 +1753,7 @@ type SignIn struct {
 
 func (x *SignIn) Reset() {
 	*x = SignIn{}
-	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[8]
+	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1592,7 +1765,7 @@ func (x *SignIn) String() string {
 func (*SignIn) ProtoMessage() {}
 
 func (x *SignIn) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[8]
+	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1605,7 +1778,7 @@ func (x *SignIn) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SignIn.ProtoReflect.Descriptor instead.
 func (*SignIn) Descriptor() ([]byte, []int) {
-	return file_dockwell_catalog_v1alpha1_entry_proto_rawDescGZIP(), []int{8}
+	return file_dockwell_catalog_v1alpha1_entry_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *SignIn) GetUser() string {
@@ -1651,14 +1824,20 @@ type Signups struct {
 	// The variable, such as "SIGNUPS_ALLOWED".
 	Variable string `protobuf:"bytes,2,opt,name=variable,proto3" json:"variable,omitempty"`
 	// What closes them, such as "false".
-	Closed        string `protobuf:"bytes,3,opt,name=closed,proto3" json:"closed,omitempty"`
+	Closed string `protobuf:"bytes,3,opt,name=closed,proto3" json:"closed,omitempty"`
+	// Steps that close them through the app's own settings, for an app whose sign-ups
+	// no variable closes, run right after the owner's with the owner's session (ADR
+	// 0105). Empty where variable does.
+	Steps []*v1alpha1.OwnerStep `protobuf:"bytes,4,rep,name=steps,proto3" json:"steps,omitempty"`
+	// What reads them closed, where steps close them.
+	Check         *v1alpha1.OwnerCheck `protobuf:"bytes,5,opt,name=check,proto3" json:"check,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Signups) Reset() {
 	*x = Signups{}
-	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[9]
+	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1670,7 +1849,7 @@ func (x *Signups) String() string {
 func (*Signups) ProtoMessage() {}
 
 func (x *Signups) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[9]
+	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1683,7 +1862,7 @@ func (x *Signups) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Signups.ProtoReflect.Descriptor instead.
 func (*Signups) Descriptor() ([]byte, []int) {
-	return file_dockwell_catalog_v1alpha1_entry_proto_rawDescGZIP(), []int{9}
+	return file_dockwell_catalog_v1alpha1_entry_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *Signups) GetService() string {
@@ -1705,6 +1884,20 @@ func (x *Signups) GetClosed() string {
 		return x.Closed
 	}
 	return ""
+}
+
+func (x *Signups) GetSteps() []*v1alpha1.OwnerStep {
+	if x != nil {
+		return x.Steps
+	}
+	return nil
+}
+
+func (x *Signups) GetCheck() *v1alpha1.OwnerCheck {
+	if x != nil {
+		return x.Check
+	}
+	return nil
 }
 
 // AddressVariable is a variable that follows the address an app is reached at
@@ -1731,7 +1924,7 @@ type AddressVariable struct {
 
 func (x *AddressVariable) Reset() {
 	*x = AddressVariable{}
-	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[10]
+	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1743,7 +1936,7 @@ func (x *AddressVariable) String() string {
 func (*AddressVariable) ProtoMessage() {}
 
 func (x *AddressVariable) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[10]
+	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1756,7 +1949,7 @@ func (x *AddressVariable) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddressVariable.ProtoReflect.Descriptor instead.
 func (*AddressVariable) Descriptor() ([]byte, []int) {
-	return file_dockwell_catalog_v1alpha1_entry_proto_rawDescGZIP(), []int{10}
+	return file_dockwell_catalog_v1alpha1_entry_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *AddressVariable) GetService() string {
@@ -1797,7 +1990,7 @@ type Screenshot struct {
 
 func (x *Screenshot) Reset() {
 	*x = Screenshot{}
-	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[11]
+	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1809,7 +2002,7 @@ func (x *Screenshot) String() string {
 func (*Screenshot) ProtoMessage() {}
 
 func (x *Screenshot) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[11]
+	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1822,7 +2015,7 @@ func (x *Screenshot) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Screenshot.ProtoReflect.Descriptor instead.
 func (*Screenshot) Descriptor() ([]byte, []int) {
-	return file_dockwell_catalog_v1alpha1_entry_proto_rawDescGZIP(), []int{11}
+	return file_dockwell_catalog_v1alpha1_entry_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *Screenshot) GetPath() string {
@@ -1861,7 +2054,7 @@ type Source struct {
 
 func (x *Source) Reset() {
 	*x = Source{}
-	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[12]
+	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1873,7 +2066,7 @@ func (x *Source) String() string {
 func (*Source) ProtoMessage() {}
 
 func (x *Source) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[12]
+	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1886,7 +2079,7 @@ func (x *Source) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Source.ProtoReflect.Descriptor instead.
 func (*Source) Descriptor() ([]byte, []int) {
-	return file_dockwell_catalog_v1alpha1_entry_proto_rawDescGZIP(), []int{12}
+	return file_dockwell_catalog_v1alpha1_entry_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *Source) GetRepository() string {
@@ -1966,7 +2159,7 @@ type Input struct {
 
 func (x *Input) Reset() {
 	*x = Input{}
-	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[13]
+	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1978,7 +2171,7 @@ func (x *Input) String() string {
 func (*Input) ProtoMessage() {}
 
 func (x *Input) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[13]
+	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1991,7 +2184,7 @@ func (x *Input) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Input.ProtoReflect.Descriptor instead.
 func (*Input) Descriptor() ([]byte, []int) {
-	return file_dockwell_catalog_v1alpha1_entry_proto_rawDescGZIP(), []int{13}
+	return file_dockwell_catalog_v1alpha1_entry_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *Input) GetName() string {
@@ -2096,7 +2289,7 @@ type Web struct {
 
 func (x *Web) Reset() {
 	*x = Web{}
-	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[14]
+	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2108,7 +2301,7 @@ func (x *Web) String() string {
 func (*Web) ProtoMessage() {}
 
 func (x *Web) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[14]
+	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2121,7 +2314,7 @@ func (x *Web) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Web.ProtoReflect.Descriptor instead.
 func (*Web) Descriptor() ([]byte, []int) {
-	return file_dockwell_catalog_v1alpha1_entry_proto_rawDescGZIP(), []int{14}
+	return file_dockwell_catalog_v1alpha1_entry_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *Web) GetService() string {
@@ -2135,7 +2328,7 @@ var File_dockwell_catalog_v1alpha1_entry_proto protoreflect.FileDescriptor
 
 const file_dockwell_catalog_v1alpha1_entry_proto_rawDesc = "" +
 	"\n" +
-	"%dockwell/catalog/v1alpha1/entry.proto\x12\x19dockwell.catalog.v1alpha1\"\x80\v\n" +
+	"%dockwell/catalog/v1alpha1/entry.proto\x12\x19dockwell.catalog.v1alpha1\x1a&dockwell/resource/v1alpha1/specs.proto\"\xb8\v\n" +
 	"\x05Entry\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x18\n" +
@@ -2175,10 +2368,29 @@ const file_dockwell_catalog_v1alpha1_entry_proto_rawDesc = "" +
 	"\x06readme\x18\x1e \x01(\tR\x06readme\x12V\n" +
 	"\ftranslations\x18\x1f \x03(\v22.dockwell.catalog.v1alpha1.Entry.TranslationsEntryR\ftranslations\x12$\n" +
 	"\rarchitectures\x18  \x03(\tR\rarchitectures\x125\n" +
-	"\x05needs\x18( \x03(\v2\x1f.dockwell.catalog.v1alpha1.NeedR\x05needs\x1ag\n" +
+	"\x05needs\x18( \x03(\v2\x1f.dockwell.catalog.v1alpha1.NeedR\x05needs\x126\n" +
+	"\x05owner\x18! \x01(\v2 .dockwell.catalog.v1alpha1.OwnerR\x05owner\x1ag\n" +
 	"\x11TranslationsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12<\n" +
-	"\x05value\x18\x02 \x01(\v2&.dockwell.catalog.v1alpha1.TranslationR\x05value:\x028\x01\"\xa2\x03\n" +
+	"\x05value\x18\x02 \x01(\v2&.dockwell.catalog.v1alpha1.TranslationR\x05value:\x028\x01\"\xec\x03\n" +
+	"\x05Owner\x12\x18\n" +
+	"\aservice\x18\x01 \x01(\tR\aservice\x12\x1f\n" +
+	"\vemail_input\x18\x02 \x01(\tR\n" +
+	"emailInput\x12\x1d\n" +
+	"\n" +
+	"user_input\x18\x03 \x01(\tR\tuserInput\x12%\n" +
+	"\x0epassword_input\x18\x04 \x01(\tR\rpasswordInput\x12;\n" +
+	"\x05steps\x18\x05 \x03(\v2%.dockwell.resource.v1alpha1.OwnerStepR\x05steps\x12:\n" +
+	"\x04done\x18\x06 \x01(\v2&.dockwell.resource.v1alpha1.OwnerCheckR\x04done\x12!\n" +
+	"\fuser_pattern\x18\a \x01(\tR\vuserPattern\x12F\n" +
+	"\vreset_steps\x18\b \x03(\v2%.dockwell.resource.v1alpha1.OwnerStepR\n" +
+	"resetSteps\x12\x12\n" +
+	"\x04none\x18\t \x01(\bR\x04none\x12\x1d\n" +
+	"\n" +
+	"known_user\x18\n" +
+	" \x01(\tR\tknownUser\x12%\n" +
+	"\x0eknown_password\x18\v \x01(\tR\rknownPassword\x12$\n" +
+	"\x0emade_when_done\x18\f \x01(\bR\fmadeWhenDone\"\xa2\x03\n" +
 	"\x04Need\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
 	"\x05label\x18\x02 \x01(\tR\x05label\x12?\n" +
@@ -2230,11 +2442,13 @@ const file_dockwell_catalog_v1alpha1_entry_proto_rawDesc = "" +
 	"\x0epassword_input\x18\x03 \x01(\tR\rpasswordInput\x12\x16\n" +
 	"\x06server\x18\x04 \x01(\tR\x06server\x12\x1d\n" +
 	"\n" +
-	"changed_in\x18\x05 \x01(\tR\tchangedIn\"W\n" +
+	"changed_in\x18\x05 \x01(\tR\tchangedIn\"\xd2\x01\n" +
 	"\aSignups\x12\x18\n" +
 	"\aservice\x18\x01 \x01(\tR\aservice\x12\x1a\n" +
 	"\bvariable\x18\x02 \x01(\tR\bvariable\x12\x16\n" +
-	"\x06closed\x18\x03 \x01(\tR\x06closed\"]\n" +
+	"\x06closed\x18\x03 \x01(\tR\x06closed\x12;\n" +
+	"\x05steps\x18\x04 \x03(\v2%.dockwell.resource.v1alpha1.OwnerStepR\x05steps\x12<\n" +
+	"\x05check\x18\x05 \x01(\v2&.dockwell.resource.v1alpha1.OwnerCheckR\x05check\"]\n" +
 	"\x0fAddressVariable\x12\x18\n" +
 	"\aservice\x18\x01 \x01(\tR\aservice\x12\x1a\n" +
 	"\bvariable\x18\x02 \x01(\tR\bvariable\x12\x14\n" +
@@ -2322,12 +2536,13 @@ const file_dockwell_catalog_v1alpha1_entry_proto_rawDesc = "" +
 	"\n" +
 	"Characters\x12\x1a\n" +
 	"\x16CHARACTERS_UNSPECIFIED\x10\x00\x12\x17\n" +
-	"\x13CHARACTERS_URL_SAFE\x10\x01*V\n" +
+	"\x13CHARACTERS_URL_SAFE\x10\x01*p\n" +
 	"\n" +
 	"GenerateAs\x12\x1b\n" +
 	"\x17GENERATE_AS_UNSPECIFIED\x10\x00\x12\x13\n" +
 	"\x0fGENERATE_AS_HEX\x10\x01\x12\x16\n" +
-	"\x12GENERATE_AS_BASE64\x10\x02*~\n" +
+	"\x12GENERATE_AS_BASE64\x10\x02\x12\x18\n" +
+	"\x14GENERATE_AS_PASSWORD\x10\x03*~\n" +
 	"\tInputType\x12\x1a\n" +
 	"\x16INPUT_TYPE_UNSPECIFIED\x10\x00\x12\x13\n" +
 	"\x0fINPUT_TYPE_TEXT\x10\x01\x12\x14\n" +
@@ -2350,62 +2565,71 @@ func file_dockwell_catalog_v1alpha1_entry_proto_rawDescGZIP() []byte {
 }
 
 var file_dockwell_catalog_v1alpha1_entry_proto_enumTypes = make([]protoimpl.EnumInfo, 7)
-var file_dockwell_catalog_v1alpha1_entry_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
+var file_dockwell_catalog_v1alpha1_entry_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
 var file_dockwell_catalog_v1alpha1_entry_proto_goTypes = []any{
-	(Kind)(0),               // 0: dockwell.catalog.v1alpha1.Kind
-	(Feature)(0),            // 1: dockwell.catalog.v1alpha1.Feature
-	(Engine)(0),             // 2: dockwell.catalog.v1alpha1.Engine
-	(Part)(0),               // 3: dockwell.catalog.v1alpha1.Part
-	(Characters)(0),         // 4: dockwell.catalog.v1alpha1.Characters
-	(GenerateAs)(0),         // 5: dockwell.catalog.v1alpha1.GenerateAs
-	(InputType)(0),          // 6: dockwell.catalog.v1alpha1.InputType
-	(*Entry)(nil),           // 7: dockwell.catalog.v1alpha1.Entry
-	(*Need)(nil),            // 8: dockwell.catalog.v1alpha1.Need
-	(*NeedAccept)(nil),      // 9: dockwell.catalog.v1alpha1.NeedAccept
-	(*NeedSet)(nil),         // 10: dockwell.catalog.v1alpha1.NeedSet
-	(*NeedWord)(nil),        // 11: dockwell.catalog.v1alpha1.NeedWord
-	(*NeedTls)(nil),         // 12: dockwell.catalog.v1alpha1.NeedTls
-	(*Translation)(nil),     // 13: dockwell.catalog.v1alpha1.Translation
-	(*Companion)(nil),       // 14: dockwell.catalog.v1alpha1.Companion
-	(*SignIn)(nil),          // 15: dockwell.catalog.v1alpha1.SignIn
-	(*Signups)(nil),         // 16: dockwell.catalog.v1alpha1.Signups
-	(*AddressVariable)(nil), // 17: dockwell.catalog.v1alpha1.AddressVariable
-	(*Screenshot)(nil),      // 18: dockwell.catalog.v1alpha1.Screenshot
-	(*Source)(nil),          // 19: dockwell.catalog.v1alpha1.Source
-	(*Input)(nil),           // 20: dockwell.catalog.v1alpha1.Input
-	(*Web)(nil),             // 21: dockwell.catalog.v1alpha1.Web
-	nil,                     // 22: dockwell.catalog.v1alpha1.Entry.TranslationsEntry
+	(Kind)(0),                   // 0: dockwell.catalog.v1alpha1.Kind
+	(Feature)(0),                // 1: dockwell.catalog.v1alpha1.Feature
+	(Engine)(0),                 // 2: dockwell.catalog.v1alpha1.Engine
+	(Part)(0),                   // 3: dockwell.catalog.v1alpha1.Part
+	(Characters)(0),             // 4: dockwell.catalog.v1alpha1.Characters
+	(GenerateAs)(0),             // 5: dockwell.catalog.v1alpha1.GenerateAs
+	(InputType)(0),              // 6: dockwell.catalog.v1alpha1.InputType
+	(*Entry)(nil),               // 7: dockwell.catalog.v1alpha1.Entry
+	(*Owner)(nil),               // 8: dockwell.catalog.v1alpha1.Owner
+	(*Need)(nil),                // 9: dockwell.catalog.v1alpha1.Need
+	(*NeedAccept)(nil),          // 10: dockwell.catalog.v1alpha1.NeedAccept
+	(*NeedSet)(nil),             // 11: dockwell.catalog.v1alpha1.NeedSet
+	(*NeedWord)(nil),            // 12: dockwell.catalog.v1alpha1.NeedWord
+	(*NeedTls)(nil),             // 13: dockwell.catalog.v1alpha1.NeedTls
+	(*Translation)(nil),         // 14: dockwell.catalog.v1alpha1.Translation
+	(*Companion)(nil),           // 15: dockwell.catalog.v1alpha1.Companion
+	(*SignIn)(nil),              // 16: dockwell.catalog.v1alpha1.SignIn
+	(*Signups)(nil),             // 17: dockwell.catalog.v1alpha1.Signups
+	(*AddressVariable)(nil),     // 18: dockwell.catalog.v1alpha1.AddressVariable
+	(*Screenshot)(nil),          // 19: dockwell.catalog.v1alpha1.Screenshot
+	(*Source)(nil),              // 20: dockwell.catalog.v1alpha1.Source
+	(*Input)(nil),               // 21: dockwell.catalog.v1alpha1.Input
+	(*Web)(nil),                 // 22: dockwell.catalog.v1alpha1.Web
+	nil,                         // 23: dockwell.catalog.v1alpha1.Entry.TranslationsEntry
+	(*v1alpha1.OwnerStep)(nil),  // 24: dockwell.resource.v1alpha1.OwnerStep
+	(*v1alpha1.OwnerCheck)(nil), // 25: dockwell.resource.v1alpha1.OwnerCheck
 }
 var file_dockwell_catalog_v1alpha1_entry_proto_depIdxs = []int32{
-	19, // 0: dockwell.catalog.v1alpha1.Entry.source:type_name -> dockwell.catalog.v1alpha1.Source
-	20, // 1: dockwell.catalog.v1alpha1.Entry.inputs:type_name -> dockwell.catalog.v1alpha1.Input
-	21, // 2: dockwell.catalog.v1alpha1.Entry.web:type_name -> dockwell.catalog.v1alpha1.Web
-	18, // 3: dockwell.catalog.v1alpha1.Entry.screenshots:type_name -> dockwell.catalog.v1alpha1.Screenshot
-	15, // 4: dockwell.catalog.v1alpha1.Entry.sign_in:type_name -> dockwell.catalog.v1alpha1.SignIn
-	16, // 5: dockwell.catalog.v1alpha1.Entry.signups:type_name -> dockwell.catalog.v1alpha1.Signups
-	17, // 6: dockwell.catalog.v1alpha1.Entry.address_variables:type_name -> dockwell.catalog.v1alpha1.AddressVariable
-	14, // 7: dockwell.catalog.v1alpha1.Entry.companions:type_name -> dockwell.catalog.v1alpha1.Companion
-	22, // 8: dockwell.catalog.v1alpha1.Entry.translations:type_name -> dockwell.catalog.v1alpha1.Entry.TranslationsEntry
-	8,  // 9: dockwell.catalog.v1alpha1.Entry.needs:type_name -> dockwell.catalog.v1alpha1.Need
-	9,  // 10: dockwell.catalog.v1alpha1.Need.accepts:type_name -> dockwell.catalog.v1alpha1.NeedAccept
-	10, // 11: dockwell.catalog.v1alpha1.Need.sets:type_name -> dockwell.catalog.v1alpha1.NeedSet
-	0,  // 12: dockwell.catalog.v1alpha1.Need.kind:type_name -> dockwell.catalog.v1alpha1.Kind
-	2,  // 13: dockwell.catalog.v1alpha1.NeedAccept.engine:type_name -> dockwell.catalog.v1alpha1.Engine
-	0,  // 14: dockwell.catalog.v1alpha1.NeedAccept.kind:type_name -> dockwell.catalog.v1alpha1.Kind
-	1,  // 15: dockwell.catalog.v1alpha1.NeedAccept.features:type_name -> dockwell.catalog.v1alpha1.Feature
-	3,  // 16: dockwell.catalog.v1alpha1.NeedSet.part:type_name -> dockwell.catalog.v1alpha1.Part
-	12, // 17: dockwell.catalog.v1alpha1.NeedSet.tls:type_name -> dockwell.catalog.v1alpha1.NeedTls
-	11, // 18: dockwell.catalog.v1alpha1.NeedSet.words:type_name -> dockwell.catalog.v1alpha1.NeedWord
-	2,  // 19: dockwell.catalog.v1alpha1.NeedWord.engine:type_name -> dockwell.catalog.v1alpha1.Engine
-	6,  // 20: dockwell.catalog.v1alpha1.Input.type:type_name -> dockwell.catalog.v1alpha1.InputType
-	5,  // 21: dockwell.catalog.v1alpha1.Input.generate_as:type_name -> dockwell.catalog.v1alpha1.GenerateAs
-	4,  // 22: dockwell.catalog.v1alpha1.Input.characters:type_name -> dockwell.catalog.v1alpha1.Characters
-	13, // 23: dockwell.catalog.v1alpha1.Entry.TranslationsEntry.value:type_name -> dockwell.catalog.v1alpha1.Translation
-	24, // [24:24] is the sub-list for method output_type
-	24, // [24:24] is the sub-list for method input_type
-	24, // [24:24] is the sub-list for extension type_name
-	24, // [24:24] is the sub-list for extension extendee
-	0,  // [0:24] is the sub-list for field type_name
+	20, // 0: dockwell.catalog.v1alpha1.Entry.source:type_name -> dockwell.catalog.v1alpha1.Source
+	21, // 1: dockwell.catalog.v1alpha1.Entry.inputs:type_name -> dockwell.catalog.v1alpha1.Input
+	22, // 2: dockwell.catalog.v1alpha1.Entry.web:type_name -> dockwell.catalog.v1alpha1.Web
+	19, // 3: dockwell.catalog.v1alpha1.Entry.screenshots:type_name -> dockwell.catalog.v1alpha1.Screenshot
+	16, // 4: dockwell.catalog.v1alpha1.Entry.sign_in:type_name -> dockwell.catalog.v1alpha1.SignIn
+	17, // 5: dockwell.catalog.v1alpha1.Entry.signups:type_name -> dockwell.catalog.v1alpha1.Signups
+	18, // 6: dockwell.catalog.v1alpha1.Entry.address_variables:type_name -> dockwell.catalog.v1alpha1.AddressVariable
+	15, // 7: dockwell.catalog.v1alpha1.Entry.companions:type_name -> dockwell.catalog.v1alpha1.Companion
+	23, // 8: dockwell.catalog.v1alpha1.Entry.translations:type_name -> dockwell.catalog.v1alpha1.Entry.TranslationsEntry
+	9,  // 9: dockwell.catalog.v1alpha1.Entry.needs:type_name -> dockwell.catalog.v1alpha1.Need
+	8,  // 10: dockwell.catalog.v1alpha1.Entry.owner:type_name -> dockwell.catalog.v1alpha1.Owner
+	24, // 11: dockwell.catalog.v1alpha1.Owner.steps:type_name -> dockwell.resource.v1alpha1.OwnerStep
+	25, // 12: dockwell.catalog.v1alpha1.Owner.done:type_name -> dockwell.resource.v1alpha1.OwnerCheck
+	24, // 13: dockwell.catalog.v1alpha1.Owner.reset_steps:type_name -> dockwell.resource.v1alpha1.OwnerStep
+	10, // 14: dockwell.catalog.v1alpha1.Need.accepts:type_name -> dockwell.catalog.v1alpha1.NeedAccept
+	11, // 15: dockwell.catalog.v1alpha1.Need.sets:type_name -> dockwell.catalog.v1alpha1.NeedSet
+	0,  // 16: dockwell.catalog.v1alpha1.Need.kind:type_name -> dockwell.catalog.v1alpha1.Kind
+	2,  // 17: dockwell.catalog.v1alpha1.NeedAccept.engine:type_name -> dockwell.catalog.v1alpha1.Engine
+	0,  // 18: dockwell.catalog.v1alpha1.NeedAccept.kind:type_name -> dockwell.catalog.v1alpha1.Kind
+	1,  // 19: dockwell.catalog.v1alpha1.NeedAccept.features:type_name -> dockwell.catalog.v1alpha1.Feature
+	3,  // 20: dockwell.catalog.v1alpha1.NeedSet.part:type_name -> dockwell.catalog.v1alpha1.Part
+	13, // 21: dockwell.catalog.v1alpha1.NeedSet.tls:type_name -> dockwell.catalog.v1alpha1.NeedTls
+	12, // 22: dockwell.catalog.v1alpha1.NeedSet.words:type_name -> dockwell.catalog.v1alpha1.NeedWord
+	2,  // 23: dockwell.catalog.v1alpha1.NeedWord.engine:type_name -> dockwell.catalog.v1alpha1.Engine
+	24, // 24: dockwell.catalog.v1alpha1.Signups.steps:type_name -> dockwell.resource.v1alpha1.OwnerStep
+	25, // 25: dockwell.catalog.v1alpha1.Signups.check:type_name -> dockwell.resource.v1alpha1.OwnerCheck
+	6,  // 26: dockwell.catalog.v1alpha1.Input.type:type_name -> dockwell.catalog.v1alpha1.InputType
+	5,  // 27: dockwell.catalog.v1alpha1.Input.generate_as:type_name -> dockwell.catalog.v1alpha1.GenerateAs
+	4,  // 28: dockwell.catalog.v1alpha1.Input.characters:type_name -> dockwell.catalog.v1alpha1.Characters
+	14, // 29: dockwell.catalog.v1alpha1.Entry.TranslationsEntry.value:type_name -> dockwell.catalog.v1alpha1.Translation
+	30, // [30:30] is the sub-list for method output_type
+	30, // [30:30] is the sub-list for method input_type
+	30, // [30:30] is the sub-list for extension type_name
+	30, // [30:30] is the sub-list for extension extendee
+	0,  // [0:30] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_catalog_v1alpha1_entry_proto_init() }
@@ -2419,7 +2643,7 @@ func file_dockwell_catalog_v1alpha1_entry_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_catalog_v1alpha1_entry_proto_rawDesc), len(file_dockwell_catalog_v1alpha1_entry_proto_rawDesc)),
 			NumEnums:      7,
-			NumMessages:   16,
+			NumMessages:   17,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

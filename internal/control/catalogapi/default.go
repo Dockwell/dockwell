@@ -140,7 +140,8 @@ func (h *Handler) builtInPins(ctx context.Context, name string, spec *resourcev1
 			next := proto.CloneOf(project)
 			next.Catalog.BuiltInCommit = pin.GetCommit()
 			next.Catalog.Catalog, next.Catalog.Repository, next.Catalog.Path, next.Catalog.Commit = name, spec.GetRepository(), spec.GetPath(), spec.GetCommit()
-			edits = append(edits, revision.Edit{Ref: resource.Ref{Kind: scope.ProjectKind, Scope: org, Name: p.Name}, Spec: next, Base: r.Revision})
+			// The catalog's own write: it changes which catalog the pin names (ADR 0105).
+			edits = append(edits, revision.Edit{Ref: resource.Ref{Kind: scope.ProjectKind, Scope: org, Name: p.Name}, Spec: next, Base: r.Revision, Pin: true})
 			moved = append(moved, p.Name)
 		}
 		return nil

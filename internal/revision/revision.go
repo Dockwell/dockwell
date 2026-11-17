@@ -144,6 +144,8 @@ type Engine struct {
 	publisher Publisher
 	// onRemoved hears of each server a change took out of the fleet (ADR 0090).
 	onRemoved func(server string)
+	// editHook adjusts every proposal's edits (SetEditHook).
+	editHook EditHook
 	// sources reads what a build's branch or tag names now, and detector how its
 	// commit builds (ADR 0046).
 	sources  Sources
@@ -246,6 +248,14 @@ func (e *Engine) clockNow() time.Time {
 	return time.Now()
 }
 
+// EditHook adjusts a proposal's edits before the engine works anything out from
+// them, in the transaction it reads in, and says what it did as notes.
+type EditHook func(ctx context.Context, tx *store.Tx, edits []Edit) ([]Edit, []Note, error)
+
+// SetEditHook has every proposal's edits go through fn, undos and rollbacks
+// planned anew among them. Set it before the engine plans anything.
+func (e *Engine) SetEditHook(fn EditHook) { e.editHook = fn }
+
 // Kinds is the registry the engine reads and checks specs with.
 func (e *Engine) Kinds() *resource.Registry { return e.kinds }
 
@@ -253,6 +263,16 @@ func (e *Engine) Kinds() *resource.Registry { return e.kinds }
 type Edit struct {
 	Ref  resource.Ref
 	Spec proto.Message
+	// Unholds says the edit may lift a catalog install's hold, as an applied
+	// OpenCatalogInstall does, which no other write of its pin may (ADR 0105).
+	Unholds bool
+	// Owner says the edit is the catalog's own write of an app's owner, as an
+	// install's or SetCatalogOwnerEmail's, which no other write may make (ADR 0105).
+	Owner bool
+	// Pin says the edit is the catalog's own write of a project's pin, as an
+	// install's or an upgrade's, which alone may change what the pin says the install
+	// runs and where it's reached (ADR 0105).
+	Pin bool
 	// Restart asks for the resource to restart, with its spec as it is.
 	Restart bool
 	// Restore asks for the resource's data to come back from a backup, with its
@@ -533,6 +553,9 @@ type Plan struct {
 	// Empties is the app it starts on an empty database of another engine, as
 	// Proposal.Empties says, which makes it destructive. Its fingerprint covers it.
 	Empties string `json:",omitempty"`
+	// Unholds says it lifts a catalog install's hold, as OpenCatalogInstall's does,
+	// which a person applies with a passkey, never a token alone (ADR 0105).
+	Unholds bool `json:",omitempty"`
 }
 
 // How a change's fingerprint is made, as its record says (ADR 0022).
@@ -1003,6 +1026,18 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 	if edits, err = e.withMovedValues(ctx, edits); err != nil {
 		return nil, err
 	}
+	// What the control plane keeps whatever an edit says, such as a held catalog
+	// install's hold (ADR 0105), before anything is worked out from the edits.
+	if e.editHook != nil {
+		var notes []Note
+		if err := e.db.View(ctx, func(tx *store.Tx) (err error) {
+			edits, notes, err = e.editHook(ctx, tx, edits)
+			return err
+		}); err != nil {
+			return nil, err
+		}
+		p.Notes = slices.Concat(p.Notes, notes)
+	}
 	// The caller reaches what they asked for before anything is worked out from it,
 	// as what's worked out may name what's elsewhere; and again below, with what it
 	// adds.
@@ -1158,7 +1193,7 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 	if err := e.pinBuilds(ctx, items, changeID); err != nil {
 		return nil, err
 	}
-	plan, err := e.plan(ctx, changeID, items, false, planWith{removal: p.Removes, rollout: p.Rollout, empties: p.Empties})
+	plan, err := e.plan(ctx, changeID, items, false, planWith{removal: p.Removes, rollout: p.Rollout, empties: p.Empties, unholds: slices.ContainsFunc(p.Edits, func(ed Edit) bool { return ed.Unholds })})
 	if err != nil {
 		return nil, err
 	}
@@ -2801,7 +2836,7 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 	}
 	ref := func(r resource.Ref) string { return fmt.Sprintf("%s|%s|%s", r.Kind, stable(r.Scope), r.Name) }
 
-	plan := &Plan{Removes: removal, Empties: with.empties}
+	plan := &Plan{Removes: removal, Empties: with.empties, Unholds: with.unholds}
 	// fp is the fingerprint, and plain the one an earlier version would
 	// have made, which differ only in how they digest a spec.
 	keyed, plain := sha256.New(), sha256.New()
@@ -4180,7 +4215,7 @@ func (e *Engine) commitOwned(ctx context.Context, c store.Change, asked *planRea
 	for i := range items {
 		items[i].rollback = rollback
 	}
-	plan, err := e.plan(ctx, c.ID, items, rollback, planWith{removal: removalIn(asked), waves: wavesIn(asked), empties: emptiesIn(asked)})
+	plan, err := e.plan(ctx, c.ID, items, rollback, planWith{removal: removalIn(asked), waves: wavesIn(asked), empties: emptiesIn(asked), unholds: unholdsIn(asked)})
 	if err != nil {
 		return nil, err
 	}
@@ -5454,7 +5489,7 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 			}
 		}
 	}
-	plan, err := e.plan(ctx, c.ID, items, false, planWith{removal: removalIn(planned), waves: wavesIn(planned), empties: emptiesIn(planned)})
+	plan, err := e.plan(ctx, c.ID, items, false, planWith{removal: removalIn(planned), waves: wavesIn(planned), empties: emptiesIn(planned), unholds: unholdsIn(planned)})
 	if err != nil {
 		e.letGo(ctx, changeID)
 		return nil, err

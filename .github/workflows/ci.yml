@@ -240,6 +240,15 @@ jobs:
             echo "TestAProbeChecksFromAnAppsNetworkOnRealDocker didn't pass, so a connection's check may not reach what the app reaches, or may reach the server. Read its output in Tests against Docker above."
             exit 1
           }
+      - name: An app's owner is made on its real image
+        if: steps.pick.outputs.run == 'true'
+        run: |
+          for app in gitea ghost n8n; do
+            grep -q -- "--- PASS: TestAnAppsOwnerIsMadeOnRealDocker/$app" "$RUNNER_TEMP/docker.out" || {
+              echo "TestAnAppsOwnerIsMadeOnRealDocker didn't pass on $app, so an install may not make $app's owner, and stays held. Read its output in Tests against Docker above."
+              exit 1
+            }
+          done
       # Dockwell's nftables table against the runner's kernel, as root, in a
       # network namespace of its own, so the runner's own firewall is never
       # touched (ADR 0052). It has to pass, not skip.

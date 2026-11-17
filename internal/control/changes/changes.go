@@ -217,6 +217,12 @@ type Also struct {
 	// SkipBackup leaves out the backup a database's move takes first
 	// (revision.Proposal).
 	SkipBackup bool
+	// Unholds are the edits that may lift a catalog install's hold, as an
+	// applied OpenCatalogInstall does (ADR 0105).
+	Unholds []resource.Ref
+	// Owners are the app owners the catalog writes, as an install makes one and
+	// SetCatalogOwnerEmail gives one its email, which no other write may (ADR 0105).
+	Owners []resource.Ref
 }
 
 // Adoption is a container a change takes on: its full ID, and what it is called.
@@ -265,6 +271,8 @@ func (h *Handler) proposeAlso(ctx context.Context, who revision.By, summary stri
 		edits[i].Public = also.Public[edits[i].Ref]
 		edits[i].SetsArchitectures = also.SetsArchitectures[edits[i].Ref]
 		edits[i].Backup = slices.Contains(also.BackUp, edits[i].Ref)
+		edits[i].Unholds = slices.Contains(also.Unholds, edits[i].Ref)
+		edits[i].Owner = slices.Contains(also.Owners, edits[i].Ref)
 		if chosen := also.IDs[edits[i].Ref]; chosen != "" {
 			edits[i].ID = chosen
 		}
@@ -469,7 +477,7 @@ func (h *Handler) ApplyChange(ctx context.Context, req *connect.Request[dockwell
 			return nil, stepUpNeeded(err, dockwellv1.StepUpAction_STEP_UP_ACTION_APPROVE_CHANGE, target)
 		}
 		giveBack = back
-	case r.State == store.ChangePlanned && (r.Plan.AsGoodAsRoot() || access || r.Plan.SendsKeys() || r.Plan.Removes != nil):
+	case r.State == store.ChangePlanned && (r.Plan.AsGoodAsRoot() || access || r.Plan.SendsKeys() || r.Plan.Removes != nil || r.Plan.Unholds):
 		// With no proof, the session's cover may stand in (ADR 0075).
 		back, err := h.auth.HoldStepUp(ctx, client, p, req.Msg.GetProof(), auth.StepUpApplyRootChange, r.ID)
 		if err != nil && !errors.Is(err, auth.ErrNeedsStepUp) && !errors.Is(err, auth.ErrNeedsSession) {

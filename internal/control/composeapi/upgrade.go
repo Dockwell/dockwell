@@ -146,7 +146,7 @@ func (h *Handler) PlanUpgrade(ctx context.Context, in Upgrade) (*dockwellv1.Chan
 		}
 		notes = append(notes, n)
 	}
-	place.made = []revision.Edit{{Ref: project, Spec: &resourcev1.Project{DisplayName: in.Name, Catalog: in.Pin}}}
+	place.made = []revision.Edit{{Ref: project, Spec: &resourcev1.Project{DisplayName: in.Name, Catalog: in.Pin}, Pin: true}}
 	req := &dockwellv1.ImportComposeRequest{Summary: in.Summary, Variables: in.Variables}
 	var backUp []resource.Ref
 	for _, v := range next.Volumes {

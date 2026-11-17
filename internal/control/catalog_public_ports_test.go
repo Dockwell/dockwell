@@ -20,6 +20,8 @@ import (
 	"github.com/dockwell/dockwell/internal/catalog"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
+	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/scope"
 	"github.com/dockwell/dockwell/internal/store"
 )
 
@@ -237,10 +239,8 @@ func (u *upgrading) asBeforeIn(project, service, entry string) {
 	u.applied(propose(u.t, u.c, "As before", &dockwellv1.Edit{
 		Resource: &dockwellv1.ResourceRef{Kind: "service", Scope: u.env, Name: service},
 		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: svc}},
-	}, &dockwellv1.Edit{
-		Resource: &dockwellv1.ResourceRef{Kind: "project", Scope: found.Scope, Name: found.Name},
-		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Project{Project: p}},
 	}))
+	pinAsCatalogWrote(u.t, u.f, resource.Ref{Kind: scope.ProjectKind, Scope: found.Scope, Name: found.Name}, p)
 }
 
 // toolEntry is publicEntry with a companion, tool, on its own port.

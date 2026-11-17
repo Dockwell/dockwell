@@ -12,13 +12,15 @@
 
 import type { GenEnum, GenFile, GenMessage } from "@bufbuild/protobuf/codegenv2";
 import { enumDesc, fileDesc, messageDesc } from "@bufbuild/protobuf/codegenv2";
+import type { OwnerCheck, OwnerStep } from "../../resource/v1alpha1/specs_pb";
+import { file_dockwell_resource_v1alpha1_specs } from "../../resource/v1alpha1/specs_pb";
 import type { Message } from "@bufbuild/protobuf";
 
 /**
  * Describes the file dockwell/catalog/v1alpha1/entry.proto.
  */
 export const file_dockwell_catalog_v1alpha1_entry: GenFile = /*@__PURE__*/
-  fileDesc("CiVkb2Nrd2VsbC9jYXRhbG9nL3YxYWxwaGExL2VudHJ5LnByb3RvEhlkb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExIq0ICgVFbnRyeRIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEg8KB3N1bW1hcnkYAyABKAkSEAoIY2F0ZWdvcnkYBCABKAkSDwoHdmVyc2lvbhgFIAEoCRIPCgdyZWxlYXNlGAYgASgNEhAKCGhvbWVwYWdlGAcgASgJEg8KB2xpY2Vuc2UYCCABKAkSEwoLYXBwX2xpY2Vuc2UYCSABKAkSMQoGc291cmNlGAogASgLMiEuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5Tb3VyY2USDwoHY29tcG9zZRgLIAEoCRIwCgZpbnB1dHMYDCADKAsyIC5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLklucHV0EisKA3dlYhgNIAEoCzIeLmRvY2t3ZWxsLmNhdGFsb2cudjFhbHBoYTEuV2ViEhMKC2ZpcnN0X3N0ZXBzGA4gASgJEhMKC2hvc3RfYWNjZXNzGA8gASgJEhEKCWRhdGFiYXNlcxgQIAMoCRITCgtkZXNjcmlwdGlvbhgRIAEoCRIMCgRpY29uGBIgASgJEjoKC3NjcmVlbnNob3RzGBMgAygLMiUuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5TY3JlZW5zaG90EhUKDWRvY3VtZW50YXRpb24YFCABKAkSEgoKYXBwX3NvdXJjZRgVIAEoCRIQCghmZWF0dXJlcxgWIAMoCRIyCgdzaWduX2luGBcgASgLMiEuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5TaWduSW4SGgoSZmlyc3RfdmlzaXRvcl9vd25zGBggASgIEjMKB3NpZ251cHMYGSABKAsyIi5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLlNpZ251cHMSRQoRYWRkcmVzc192YXJpYWJsZXMYGiADKAsyKi5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLkFkZHJlc3NWYXJpYWJsZRINCgVub3RlcxgbIAMoCRI4Cgpjb21wYW5pb25zGBwgAygLMiQuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5Db21wYW5pb24SDgoGcmVhZG1lGB4gASgJEkgKDHRyYW5zbGF0aW9ucxgfIAMoCzIyLmRvY2t3ZWxsLmNhdGFsb2cudjFhbHBoYTEuRW50cnkuVHJhbnNsYXRpb25zRW50cnkSFQoNYXJjaGl0ZWN0dXJlcxggIAMoCRIuCgVuZWVkcxgoIAMoCzIfLmRvY2t3ZWxsLmNhdGFsb2cudjFhbHBoYTEuTmVlZBpbChFUcmFuc2xhdGlvbnNFbnRyeRILCgNrZXkYASABKAkSNQoFdmFsdWUYAiABKAsyJi5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLlRyYW5zbGF0aW9uOgI4ASK7AgoETmVlZBIMCgRuYW1lGAEgASgJEg0KBWxhYmVsGAIgASgJEjYKB2FjY2VwdHMYAyADKAsyJS5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLk5lZWRBY2NlcHQSDwoHc2VydmljZRgEIAEoCRIQCghkYXRhYmFzZRgFIAEoCRIMCgR1c2VyGAYgASgJEjAKBHNldHMYByADKAsyIi5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLk5lZWRTZXQSEAoIc2V0X29uY2UYCCABKAgSLQoEa2luZBgyIAEoDjIfLmRvY2t3ZWxsLmNhdGFsb2cudjFhbHBoYTEuS2luZBIQCghvcHRpb25hbBgzIAEoCBIOCgZidWNrZXQYNCABKAkSGAoQcHJlc2lnbl9saWZldGltZRg1IAEoCSK2AQoKTmVlZEFjY2VwdBIxCgZlbmdpbmUYASABKA4yIS5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLkVuZ2luZRIQCgh2ZXJzaW9ucxgCIAEoCRItCgRraW5kGDIgASgOMh8uZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5LaW5kEjQKCGZlYXR1cmVzGDMgAygOMiIuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5GZWF0dXJlItcBCgdOZWVkU2V0EgwKBG5hbWUYASABKAkSLQoEcGFydBgCIAEoDjIfLmRvY2t3ZWxsLmNhdGFsb2cudjFhbHBoYTEuUGFydBIQCgh0ZW1wbGF0ZRgDIAEoCRIvCgN0bHMYBCABKAsyIi5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLk5lZWRUbHMSMgoFd29yZHMYBSADKAsyIy5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLk5lZWRXb3JkEhgKEGVtcHR5X3doZW5fdW5tZXQYMiABKAgiWgoITmVlZFdvcmQSMQoGZW5naW5lGAEgASgOMiEuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5FbmdpbmUSDAoEd29yZBgCIAEoCRINCgV2YWx1ZRgDIAEoCSIiCgdOZWVkVGxzEgoKAm9uGAEgASgJEgsKA29mZhgCIAEoCSJDCgtUcmFuc2xhdGlvbhIPCgdzdW1tYXJ5GAEgASgJEhMKC2Rlc2NyaXB0aW9uGAIgASgJEg4KBnJlYWRtZRgDIAEoCSJnCglDb21wYW5pb24SDwoHc2VydmljZRgBIAEoCRINCgVsYWJlbBgCIAEoCRIPCgdwdXJwb3NlGAMgASgJEgoKAm9uGAQgASgIEg4KBmlucHV0cxgFIAMoCRINCgVub3RlcxgGIAMoCSJmCgZTaWduSW4SDAoEdXNlchgBIAEoCRISCgp1c2VyX2lucHV0GAIgASgJEhYKDnBhc3N3b3JkX2lucHV0GAMgASgJEg4KBnNlcnZlchgEIAEoCRISCgpjaGFuZ2VkX2luGAUgASgJIjwKB1NpZ251cHMSDwoHc2VydmljZRgBIAEoCRIQCgh2YXJpYWJsZRgCIAEoCRIOCgZjbG9zZWQYAyABKAkiQwoPQWRkcmVzc1ZhcmlhYmxlEg8KB3NlcnZpY2UYASABKAkSEAoIdmFyaWFibGUYAiABKAkSDQoFdmFsdWUYAyABKAkiOwoKU2NyZWVuc2hvdBIMCgRwYXRoGAEgASgJEg8KB2NhcHRpb24YAiABKAkSDgoGc291cmNlGAMgASgJIjoKBlNvdXJjZRISCgpyZXBvc2l0b3J5GAEgASgJEgwKBHBhdGgYAiABKAkSDgoGY29tbWl0GAMgASgJIt4CCgVJbnB1dBIMCgRuYW1lGAEgASgJEg0KBWxhYmVsGAIgASgJEgwKBGhpbnQYAyABKAkSMgoEdHlwZRgEIAEoDjIkLmRvY2t3ZWxsLmNhdGFsb2cudjFhbHBoYTEuSW5wdXRUeXBlEhUKDWRlZmF1bHRfdmFsdWUYBSABKAkSEAoIb3B0aW9uYWwYBiABKAgSEAoIZ2VuZXJhdGUYByABKA0SDgoGbG9nZ2VkGAggASgIEjoKC2dlbmVyYXRlX2FzGFAgASgOMiUuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5HZW5lcmF0ZUFzEhIKCm1pbl9sZW5ndGgYUSABKA0SOQoKY2hhcmFjdGVycxhSIAEoDjIlLmRvY2t3ZWxsLmNhdGFsb2cudjFhbHBoYTEuQ2hhcmFjdGVycxIQCghzZXRfb25jZRgJIAEoCBIOCgZwdWJsaWMYUyABKAgiFgoDV2ViEg8KB3NlcnZpY2UYASABKAkqOAoES2luZBIUChBLSU5EX1VOU1BFQ0lGSUVEEAASCwoHS0lORF9TMxABEg0KCUtJTkRfU01UUBACKpsCCgdGZWF0dXJlEhcKE0ZFQVRVUkVfVU5TUEVDSUZJRUQQABIaChZGRUFUVVJFX1BSRVNJR05FRF9VUkxTEAESGAoURkVBVFVSRV9WSVJUVUFMX0hPU1QQAhIWChJGRUFUVVJFX1BBVEhfU1RZTEUQAxIVChFGRUFUVVJFX01VTFRJUEFSVBAEEhgKFEZFQVRVUkVfQkFUQ0hfREVMRVRFEAUSEAoMRkVBVFVSRV9DT1JTEAYSFwoTRkVBVFVSRV9QVUJMSUNfUkVBRBAHEhYKEkZFQVRVUkVfT0JKRUNUX0FDTBAIEhoKFkZFQVRVUkVfUFJFU0lHTkVEX1BPU1QQCRIZChVGRUFUVVJFX1NES19DSEVDS1NVTVMQCiqtAQoGRW5naW5lEhYKEkVOR0lORV9VTlNQRUNJRklFRBAAEhUKEUVOR0lORV9QT1NUR1JFU1FMEAESEAoMRU5HSU5FX01ZU1FMEAISEgoORU5HSU5FX01BUklBREIQAxIQCgxFTkdJTkVfUkVESVMQBBIRCg1FTkdJTkVfVkFMS0VZEAUSEgoORU5HSU5FX01PTkdPREIQBhIVChFFTkdJTkVfQ0xJQ0tIT1VTRRAHKpcDCgRQYXJ0EhQKEFBBUlRfVU5TUEVDSUZJRUQQABINCglQQVJUX0hPU1QQARINCglQQVJUX1BPUlQQAhIQCgxQQVJUX0FERFJFU1MQAxIRCg1QQVJUX0RBVEFCQVNFEAQSDQoJUEFSVF9VU0VSEAUSEQoNUEFSVF9QQVNTV09SRBAGEgwKCFBBUlRfVVJMEAcSDAoIUEFSVF9UTFMQCBITCg9QQVJUX0tFWV9QUkVGSVgQKBIPCgtQQVJUX0VOR0lORRApEhEKDVBBUlRfRU5EUE9JTlQQMhIPCgtQQVJUX1JFR0lPThAzEg8KC1BBUlRfQlVDS0VUEDQSFgoSUEFSVF9BQ0NFU1NfS0VZX0lEEDUSEwoPUEFSVF9TRUNSRVRfS0VZEDYSEwoPUEFSVF9QQVRIX1NUWUxFEDcSEwoPUEFSVF9QVUJMSUNfVVJMEDgSEQoNUEFSVF9TRUNVUklUWRA8Eg8KC1BBUlRfU0VOREVSED0SFAoQUEFSVF9TRU5ERVJfTkFNRRA+EgwKCFBBUlRfTUVUEEYqQQoKQ2hhcmFjdGVycxIaChZDSEFSQUNURVJTX1VOU1BFQ0lGSUVEEAASFwoTQ0hBUkFDVEVSU19VUkxfU0FGRRABKlYKCkdlbmVyYXRlQXMSGwoXR0VORVJBVEVfQVNfVU5TUEVDSUZJRUQQABITCg9HRU5FUkFURV9BU19IRVgQARIWChJHRU5FUkFURV9BU19CQVNFNjQQAip+CglJbnB1dFR5cGUSGgoWSU5QVVRfVFlQRV9VTlNQRUNJRklFRBAAEhMKD0lOUFVUX1RZUEVfVEVYVBABEhQKEElOUFVUX1RZUEVfRU1BSUwQAhITCg9JTlBVVF9UWVBFX1BPUlQQAxIVChFJTlBVVF9UWVBFX1NFQ1JFVBAEQv0BCh1jb20uZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMUIKRW50cnlQcm90b1ABWkpnaXRodWIuY29tL2RvY2t3ZWxsL2RvY2t3ZWxsL2dlbi9kb2Nrd2VsbC9jYXRhbG9nL3YxYWxwaGExO2NhdGFsb2d2MWFscGhhMaICA0RDWKoCGURvY2t3ZWxsLkNhdGFsb2cuVjFhbHBoYTHKAhlEb2Nrd2VsbFxDYXRhbG9nXFYxYWxwaGEx4gIlRG9ja3dlbGxcQ2F0YWxvZ1xWMWFscGhhMVxHUEJNZXRhZGF0YeoCG0RvY2t3ZWxsOjpDYXRhbG9nOjpWMWFscGhhMWIGcHJvdG8z");
+  fileDesc("CiVkb2Nrd2VsbC9jYXRhbG9nL3YxYWxwaGExL2VudHJ5LnByb3RvEhlkb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExIt4ICgVFbnRyeRIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEg8KB3N1bW1hcnkYAyABKAkSEAoIY2F0ZWdvcnkYBCABKAkSDwoHdmVyc2lvbhgFIAEoCRIPCgdyZWxlYXNlGAYgASgNEhAKCGhvbWVwYWdlGAcgASgJEg8KB2xpY2Vuc2UYCCABKAkSEwoLYXBwX2xpY2Vuc2UYCSABKAkSMQoGc291cmNlGAogASgLMiEuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5Tb3VyY2USDwoHY29tcG9zZRgLIAEoCRIwCgZpbnB1dHMYDCADKAsyIC5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLklucHV0EisKA3dlYhgNIAEoCzIeLmRvY2t3ZWxsLmNhdGFsb2cudjFhbHBoYTEuV2ViEhMKC2ZpcnN0X3N0ZXBzGA4gASgJEhMKC2hvc3RfYWNjZXNzGA8gASgJEhEKCWRhdGFiYXNlcxgQIAMoCRITCgtkZXNjcmlwdGlvbhgRIAEoCRIMCgRpY29uGBIgASgJEjoKC3NjcmVlbnNob3RzGBMgAygLMiUuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5TY3JlZW5zaG90EhUKDWRvY3VtZW50YXRpb24YFCABKAkSEgoKYXBwX3NvdXJjZRgVIAEoCRIQCghmZWF0dXJlcxgWIAMoCRIyCgdzaWduX2luGBcgASgLMiEuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5TaWduSW4SGgoSZmlyc3RfdmlzaXRvcl9vd25zGBggASgIEjMKB3NpZ251cHMYGSABKAsyIi5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLlNpZ251cHMSRQoRYWRkcmVzc192YXJpYWJsZXMYGiADKAsyKi5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLkFkZHJlc3NWYXJpYWJsZRINCgVub3RlcxgbIAMoCRI4Cgpjb21wYW5pb25zGBwgAygLMiQuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5Db21wYW5pb24SDgoGcmVhZG1lGB4gASgJEkgKDHRyYW5zbGF0aW9ucxgfIAMoCzIyLmRvY2t3ZWxsLmNhdGFsb2cudjFhbHBoYTEuRW50cnkuVHJhbnNsYXRpb25zRW50cnkSFQoNYXJjaGl0ZWN0dXJlcxggIAMoCRIuCgVuZWVkcxgoIAMoCzIfLmRvY2t3ZWxsLmNhdGFsb2cudjFhbHBoYTEuTmVlZBIvCgVvd25lchghIAEoCzIgLmRvY2t3ZWxsLmNhdGFsb2cudjFhbHBoYTEuT3duZXIaWwoRVHJhbnNsYXRpb25zRW50cnkSCwoDa2V5GAEgASgJEjUKBXZhbHVlGAIgASgLMiYuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5UcmFuc2xhdGlvbjoCOAEi6QIKBU93bmVyEg8KB3NlcnZpY2UYASABKAkSEwoLZW1haWxfaW5wdXQYAiABKAkSEgoKdXNlcl9pbnB1dBgDIAEoCRIWCg5wYXNzd29yZF9pbnB1dBgEIAEoCRI0CgVzdGVwcxgFIAMoCzIlLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLk93bmVyU3RlcBI0CgRkb25lGAYgASgLMiYuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuT3duZXJDaGVjaxIUCgx1c2VyX3BhdHRlcm4YByABKAkSOgoLcmVzZXRfc3RlcHMYCCADKAsyJS5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5Pd25lclN0ZXASDAoEbm9uZRgJIAEoCBISCgprbm93bl91c2VyGAogASgJEhYKDmtub3duX3Bhc3N3b3JkGAsgASgJEhYKDm1hZGVfd2hlbl9kb25lGAwgASgIIrsCCgROZWVkEgwKBG5hbWUYASABKAkSDQoFbGFiZWwYAiABKAkSNgoHYWNjZXB0cxgDIAMoCzIlLmRvY2t3ZWxsLmNhdGFsb2cudjFhbHBoYTEuTmVlZEFjY2VwdBIPCgdzZXJ2aWNlGAQgASgJEhAKCGRhdGFiYXNlGAUgASgJEgwKBHVzZXIYBiABKAkSMAoEc2V0cxgHIAMoCzIiLmRvY2t3ZWxsLmNhdGFsb2cudjFhbHBoYTEuTmVlZFNldBIQCghzZXRfb25jZRgIIAEoCBItCgRraW5kGDIgASgOMh8uZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5LaW5kEhAKCG9wdGlvbmFsGDMgASgIEg4KBmJ1Y2tldBg0IAEoCRIYChBwcmVzaWduX2xpZmV0aW1lGDUgASgJIrYBCgpOZWVkQWNjZXB0EjEKBmVuZ2luZRgBIAEoDjIhLmRvY2t3ZWxsLmNhdGFsb2cudjFhbHBoYTEuRW5naW5lEhAKCHZlcnNpb25zGAIgASgJEi0KBGtpbmQYMiABKA4yHy5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLktpbmQSNAoIZmVhdHVyZXMYMyADKA4yIi5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLkZlYXR1cmUi1wEKB05lZWRTZXQSDAoEbmFtZRgBIAEoCRItCgRwYXJ0GAIgASgOMh8uZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5QYXJ0EhAKCHRlbXBsYXRlGAMgASgJEi8KA3RscxgEIAEoCzIiLmRvY2t3ZWxsLmNhdGFsb2cudjFhbHBoYTEuTmVlZFRscxIyCgV3b3JkcxgFIAMoCzIjLmRvY2t3ZWxsLmNhdGFsb2cudjFhbHBoYTEuTmVlZFdvcmQSGAoQZW1wdHlfd2hlbl91bm1ldBgyIAEoCCJaCghOZWVkV29yZBIxCgZlbmdpbmUYASABKA4yIS5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLkVuZ2luZRIMCgR3b3JkGAIgASgJEg0KBXZhbHVlGAMgASgJIiIKB05lZWRUbHMSCgoCb24YASABKAkSCwoDb2ZmGAIgASgJIkMKC1RyYW5zbGF0aW9uEg8KB3N1bW1hcnkYASABKAkSEwoLZGVzY3JpcHRpb24YAiABKAkSDgoGcmVhZG1lGAMgASgJImcKCUNvbXBhbmlvbhIPCgdzZXJ2aWNlGAEgASgJEg0KBWxhYmVsGAIgASgJEg8KB3B1cnBvc2UYAyABKAkSCgoCb24YBCABKAgSDgoGaW5wdXRzGAUgAygJEg0KBW5vdGVzGAYgAygJImYKBlNpZ25JbhIMCgR1c2VyGAEgASgJEhIKCnVzZXJfaW5wdXQYAiABKAkSFgoOcGFzc3dvcmRfaW5wdXQYAyABKAkSDgoGc2VydmVyGAQgASgJEhIKCmNoYW5nZWRfaW4YBSABKAkiqQEKB1NpZ251cHMSDwoHc2VydmljZRgBIAEoCRIQCgh2YXJpYWJsZRgCIAEoCRIOCgZjbG9zZWQYAyABKAkSNAoFc3RlcHMYBCADKAsyJS5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5Pd25lclN0ZXASNQoFY2hlY2sYBSABKAsyJi5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5Pd25lckNoZWNrIkMKD0FkZHJlc3NWYXJpYWJsZRIPCgdzZXJ2aWNlGAEgASgJEhAKCHZhcmlhYmxlGAIgASgJEg0KBXZhbHVlGAMgASgJIjsKClNjcmVlbnNob3QSDAoEcGF0aBgBIAEoCRIPCgdjYXB0aW9uGAIgASgJEg4KBnNvdXJjZRgDIAEoCSI6CgZTb3VyY2USEgoKcmVwb3NpdG9yeRgBIAEoCRIMCgRwYXRoGAIgASgJEg4KBmNvbW1pdBgDIAEoCSLeAgoFSW5wdXQSDAoEbmFtZRgBIAEoCRINCgVsYWJlbBgCIAEoCRIMCgRoaW50GAMgASgJEjIKBHR5cGUYBCABKA4yJC5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLklucHV0VHlwZRIVCg1kZWZhdWx0X3ZhbHVlGAUgASgJEhAKCG9wdGlvbmFsGAYgASgIEhAKCGdlbmVyYXRlGAcgASgNEg4KBmxvZ2dlZBgIIAEoCBI6CgtnZW5lcmF0ZV9hcxhQIAEoDjIlLmRvY2t3ZWxsLmNhdGFsb2cudjFhbHBoYTEuR2VuZXJhdGVBcxISCgptaW5fbGVuZ3RoGFEgASgNEjkKCmNoYXJhY3RlcnMYUiABKA4yJS5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLkNoYXJhY3RlcnMSEAoIc2V0X29uY2UYCSABKAgSDgoGcHVibGljGFMgASgIIhYKA1dlYhIPCgdzZXJ2aWNlGAEgASgJKjgKBEtpbmQSFAoQS0lORF9VTlNQRUNJRklFRBAAEgsKB0tJTkRfUzMQARINCglLSU5EX1NNVFAQAiqbAgoHRmVhdHVyZRIXChNGRUFUVVJFX1VOU1BFQ0lGSUVEEAASGgoWRkVBVFVSRV9QUkVTSUdORURfVVJMUxABEhgKFEZFQVRVUkVfVklSVFVBTF9IT1NUEAISFgoSRkVBVFVSRV9QQVRIX1NUWUxFEAMSFQoRRkVBVFVSRV9NVUxUSVBBUlQQBBIYChRGRUFUVVJFX0JBVENIX0RFTEVURRAFEhAKDEZFQVRVUkVfQ09SUxAGEhcKE0ZFQVRVUkVfUFVCTElDX1JFQUQQBxIWChJGRUFUVVJFX09CSkVDVF9BQ0wQCBIaChZGRUFUVVJFX1BSRVNJR05FRF9QT1NUEAkSGQoVRkVBVFVSRV9TREtfQ0hFQ0tTVU1TEAoqrQEKBkVuZ2luZRIWChJFTkdJTkVfVU5TUEVDSUZJRUQQABIVChFFTkdJTkVfUE9TVEdSRVNRTBABEhAKDEVOR0lORV9NWVNRTBACEhIKDkVOR0lORV9NQVJJQURCEAMSEAoMRU5HSU5FX1JFRElTEAQSEQoNRU5HSU5FX1ZBTEtFWRAFEhIKDkVOR0lORV9NT05HT0RCEAYSFQoRRU5HSU5FX0NMSUNLSE9VU0UQByqXAwoEUGFydBIUChBQQVJUX1VOU1BFQ0lGSUVEEAASDQoJUEFSVF9IT1NUEAESDQoJUEFSVF9QT1JUEAISEAoMUEFSVF9BRERSRVNTEAMSEQoNUEFSVF9EQVRBQkFTRRAEEg0KCVBBUlRfVVNFUhAFEhEKDVBBUlRfUEFTU1dPUkQQBhIMCghQQVJUX1VSTBAHEgwKCFBBUlRfVExTEAgSEwoPUEFSVF9LRVlfUFJFRklYECgSDwoLUEFSVF9FTkdJTkUQKRIRCg1QQVJUX0VORFBPSU5UEDISDwoLUEFSVF9SRUdJT04QMxIPCgtQQVJUX0JVQ0tFVBA0EhYKElBBUlRfQUNDRVNTX0tFWV9JRBA1EhMKD1BBUlRfU0VDUkVUX0tFWRA2EhMKD1BBUlRfUEFUSF9TVFlMRRA3EhMKD1BBUlRfUFVCTElDX1VSTBA4EhEKDVBBUlRfU0VDVVJJVFkQPBIPCgtQQVJUX1NFTkRFUhA9EhQKEFBBUlRfU0VOREVSX05BTUUQPhIMCghQQVJUX01FVBBGKkEKCkNoYXJhY3RlcnMSGgoWQ0hBUkFDVEVSU19VTlNQRUNJRklFRBAAEhcKE0NIQVJBQ1RFUlNfVVJMX1NBRkUQASpwCgpHZW5lcmF0ZUFzEhsKF0dFTkVSQVRFX0FTX1VOU1BFQ0lGSUVEEAASEwoPR0VORVJBVEVfQVNfSEVYEAESFgoSR0VORVJBVEVfQVNfQkFTRTY0EAISGAoUR0VORVJBVEVfQVNfUEFTU1dPUkQQAyp+CglJbnB1dFR5cGUSGgoWSU5QVVRfVFlQRV9VTlNQRUNJRklFRBAAEhMKD0lOUFVUX1RZUEVfVEVYVBABEhQKEElOUFVUX1RZUEVfRU1BSUwQAhITCg9JTlBVVF9UWVBFX1BPUlQQAxIVChFJTlBVVF9UWVBFX1NFQ1JFVBAEQv0BCh1jb20uZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMUIKRW50cnlQcm90b1ABWkpnaXRodWIuY29tL2RvY2t3ZWxsL2RvY2t3ZWxsL2dlbi9kb2Nrd2VsbC9jYXRhbG9nL3YxYWxwaGExO2NhdGFsb2d2MWFscGhhMaICA0RDWKoCGURvY2t3ZWxsLkNhdGFsb2cuVjFhbHBoYTHKAhlEb2Nrd2VsbFxDYXRhbG9nXFYxYWxwaGEx4gIlRG9ja3dlbGxcQ2F0YWxvZ1xWMWFscGhhMVxHUEJNZXRhZGF0YeoCG0RvY2t3ZWxsOjpDYXRhbG9nOjpWMWFscGhhMWIGcHJvdG8z", [file_dockwell_resource_v1alpha1_specs]);
 
 /**
  * Entry is one app a catalog offers, at one version. It installs through the
@@ -298,6 +300,17 @@ export type Entry = Message<"dockwell.catalog.v1alpha1.Entry"> & {
    * @generated from field: repeated dockwell.catalog.v1alpha1.Need needs = 40;
    */
   needs: Need[];
+
+  /**
+   * How the app's owner comes to exist, where Dockwell makes it once the app runs,
+   * or the app starts with a password everyone knows, or has no accounts of its
+   * own. Unset for an app whose admin its environment makes, which sign_in says,
+   * or whose first visitor makes its owner, which first_visitor_owns says. See
+   * docs/adr/0105-a-catalog-apps-owner-is-made-at-install.md.
+   *
+   * @generated from field: dockwell.catalog.v1alpha1.Owner owner = 33;
+   */
+  owner?: Owner | undefined;
 };
 
 /**
@@ -306,6 +319,111 @@ export type Entry = Message<"dockwell.catalog.v1alpha1.Entry"> & {
  */
 export const EntrySchema: GenMessage<Entry> = /*@__PURE__*/
   messageDesc(file_dockwell_catalog_v1alpha1_entry, 0);
+
+/**
+ * Owner is how a catalog app's owner comes to exist (ADR 0105).
+ *
+ * @generated from message dockwell.catalog.v1alpha1.Owner
+ */
+export type Owner = Message<"dockwell.catalog.v1alpha1.Owner"> & {
+  /**
+   * The service the owner is made in, by its name in the Compose file, such as
+   * "gitea".
+   *
+   * @generated from field: string service = 1;
+   */
+  service: string;
+
+  /**
+   * The email input, which an install starts from the installer's email. Empty for
+   * an app whose owner has no email, as known_user's.
+   *
+   * @generated from field: string email_input = 2;
+   */
+  emailInput: string;
+
+  /**
+   * The user input, for an app with user names, which starts from the email's
+   * local part, cut to user_pattern. Empty, the user is the email.
+   *
+   * @generated from field: string user_input = 3;
+   */
+  userInput: string;
+
+  /**
+   * The secret input that holds the owner's password, which generate makes, as
+   * generate_as GENERATE_AS_PASSWORD writes it.
+   *
+   * @generated from field: string password_input = 4;
+   */
+  passwordInput: string;
+
+  /**
+   * What makes the account, in order, once the service runs. Each names inputs as
+   * ${NAME}, and reads them from its environment, never its words.
+   *
+   * @generated from field: repeated dockwell.resource.v1alpha1.OwnerStep steps = 5;
+   */
+  steps: OwnerStep[];
+
+  /**
+   * What says the owner is made, such as a sign-in as the owner with the sealed
+   * password. Try again reads it first.
+   *
+   * @generated from field: dockwell.resource.v1alpha1.OwnerCheck done = 6;
+   */
+  done?: OwnerCheck | undefined;
+
+  /**
+   * What a user name may be, as a regular expression the whole name matches, such
+   * as "^[a-zA-Z0-9_.-]+$" for Gitea.
+   *
+   * @generated from field: string user_pattern = 7;
+   */
+  userPattern: string;
+
+  /**
+   * Steps that set a new password, for Rotate. Empty where the app has none.
+   *
+   * @generated from field: repeated dockwell.resource.v1alpha1.OwnerStep reset_steps = 8;
+   */
+  resetSteps: OwnerStep[];
+
+  /**
+   * The app has no accounts of its own, as a database's web client.
+   *
+   * @generated from field: bool none = 9;
+   */
+  none: boolean;
+
+  /**
+   * What the app starts with, where it starts with a password everyone knows, as
+   * Umami's admin and umami. steps then change them to the owner's.
+   *
+   * @generated from field: string known_user = 10;
+   */
+  knownUser: string;
+
+  /**
+   * @generated from field: string known_password = 11;
+   */
+  knownPassword: string;
+
+  /**
+   * The steps succeeding isn't the owner being made, as an invite's: the owner is
+   * made only once done reads it too.
+   *
+   * @generated from field: bool made_when_done = 12;
+   */
+  madeWhenDone: boolean;
+};
+
+/**
+ * Describes the message dockwell.catalog.v1alpha1.Owner.
+ * Use `create(OwnerSchema)` to create a new message.
+ */
+export const OwnerSchema: GenMessage<Owner> = /*@__PURE__*/
+  messageDesc(file_dockwell_catalog_v1alpha1_entry, 1);
 
 /**
  * Need is something an app reads from outside its own containers, such as a
@@ -423,7 +541,7 @@ export type Need = Message<"dockwell.catalog.v1alpha1.Need"> & {
  * Use `create(NeedSchema)` to create a new message.
  */
 export const NeedSchema: GenMessage<Need> = /*@__PURE__*/
-  messageDesc(file_dockwell_catalog_v1alpha1_entry, 1);
+  messageDesc(file_dockwell_catalog_v1alpha1_entry, 2);
 
 /**
  * NeedAccept is an engine that meets a need, at the versions the app takes.
@@ -467,7 +585,7 @@ export type NeedAccept = Message<"dockwell.catalog.v1alpha1.NeedAccept"> & {
  * Use `create(NeedAcceptSchema)` to create a new message.
  */
 export const NeedAcceptSchema: GenMessage<NeedAccept> = /*@__PURE__*/
-  messageDesc(file_dockwell_catalog_v1alpha1_entry, 2);
+  messageDesc(file_dockwell_catalog_v1alpha1_entry, 3);
 
 /**
  * NeedSet is a name a need sets in the app's environment, and what it holds.
@@ -536,7 +654,7 @@ export type NeedSet = Message<"dockwell.catalog.v1alpha1.NeedSet"> & {
  * Use `create(NeedSetSchema)` to create a new message.
  */
 export const NeedSetSchema: GenMessage<NeedSet> = /*@__PURE__*/
-  messageDesc(file_dockwell_catalog_v1alpha1_entry, 3);
+  messageDesc(file_dockwell_catalog_v1alpha1_entry, 4);
 
 /**
  * NeedWord is an app's word for an engine, as an engine part writes it.
@@ -573,7 +691,7 @@ export type NeedWord = Message<"dockwell.catalog.v1alpha1.NeedWord"> & {
  * Use `create(NeedWordSchema)` to create a new message.
  */
 export const NeedWordSchema: GenMessage<NeedWord> = /*@__PURE__*/
-  messageDesc(file_dockwell_catalog_v1alpha1_entry, 4);
+  messageDesc(file_dockwell_catalog_v1alpha1_entry, 5);
 
 /**
  * NeedTls is how an app reads whether to use TLS.
@@ -601,7 +719,7 @@ export type NeedTls = Message<"dockwell.catalog.v1alpha1.NeedTls"> & {
  * Use `create(NeedTlsSchema)` to create a new message.
  */
 export const NeedTlsSchema: GenMessage<NeedTls> = /*@__PURE__*/
-  messageDesc(file_dockwell_catalog_v1alpha1_entry, 5);
+  messageDesc(file_dockwell_catalog_v1alpha1_entry, 6);
 
 /**
  * Translation is what an entry says in another language than its own, as its
@@ -637,7 +755,7 @@ export type Translation = Message<"dockwell.catalog.v1alpha1.Translation"> & {
  * Use `create(TranslationSchema)` to create a new message.
  */
 export const TranslationSchema: GenMessage<Translation> = /*@__PURE__*/
-  messageDesc(file_dockwell_catalog_v1alpha1_entry, 6);
+  messageDesc(file_dockwell_catalog_v1alpha1_entry, 7);
 
 /**
  * Companion is a service an app runs without, such as a database's admin tool,
@@ -700,7 +818,7 @@ export type Companion = Message<"dockwell.catalog.v1alpha1.Companion"> & {
  * Use `create(CompanionSchema)` to create a new message.
  */
 export const CompanionSchema: GenMessage<Companion> = /*@__PURE__*/
-  messageDesc(file_dockwell_catalog_v1alpha1_entry, 7);
+  messageDesc(file_dockwell_catalog_v1alpha1_entry, 8);
 
 /**
  * SignIn is how a person signs in to an app once it's installed.
@@ -752,7 +870,7 @@ export type SignIn = Message<"dockwell.catalog.v1alpha1.SignIn"> & {
  * Use `create(SignInSchema)` to create a new message.
  */
 export const SignInSchema: GenMessage<SignIn> = /*@__PURE__*/
-  messageDesc(file_dockwell_catalog_v1alpha1_entry, 8);
+  messageDesc(file_dockwell_catalog_v1alpha1_entry, 9);
 
 /**
  * Signups is the variable that closes an app's sign-ups.
@@ -780,6 +898,22 @@ export type Signups = Message<"dockwell.catalog.v1alpha1.Signups"> & {
    * @generated from field: string closed = 3;
    */
   closed: string;
+
+  /**
+   * Steps that close them through the app's own settings, for an app whose sign-ups
+   * no variable closes, run right after the owner's with the owner's session (ADR
+   * 0105). Empty where variable does.
+   *
+   * @generated from field: repeated dockwell.resource.v1alpha1.OwnerStep steps = 4;
+   */
+  steps: OwnerStep[];
+
+  /**
+   * What reads them closed, where steps close them.
+   *
+   * @generated from field: dockwell.resource.v1alpha1.OwnerCheck check = 5;
+   */
+  check?: OwnerCheck | undefined;
 };
 
 /**
@@ -787,7 +921,7 @@ export type Signups = Message<"dockwell.catalog.v1alpha1.Signups"> & {
  * Use `create(SignupsSchema)` to create a new message.
  */
 export const SignupsSchema: GenMessage<Signups> = /*@__PURE__*/
-  messageDesc(file_dockwell_catalog_v1alpha1_entry, 9);
+  messageDesc(file_dockwell_catalog_v1alpha1_entry, 10);
 
 /**
  * AddressVariable is a variable that follows the address an app is reached at
@@ -831,7 +965,7 @@ export type AddressVariable = Message<"dockwell.catalog.v1alpha1.AddressVariable
  * Use `create(AddressVariableSchema)` to create a new message.
  */
 export const AddressVariableSchema: GenMessage<AddressVariable> = /*@__PURE__*/
-  messageDesc(file_dockwell_catalog_v1alpha1_entry, 10);
+  messageDesc(file_dockwell_catalog_v1alpha1_entry, 11);
 
 /**
  * Screenshot is a preview a person can read before starting an installation.
@@ -868,7 +1002,7 @@ export type Screenshot = Message<"dockwell.catalog.v1alpha1.Screenshot"> & {
  * Use `create(ScreenshotSchema)` to create a new message.
  */
 export const ScreenshotSchema: GenMessage<Screenshot> = /*@__PURE__*/
-  messageDesc(file_dockwell_catalog_v1alpha1_entry, 11);
+  messageDesc(file_dockwell_catalog_v1alpha1_entry, 12);
 
 /**
  * Source is where an entry came from.
@@ -903,7 +1037,7 @@ export type Source = Message<"dockwell.catalog.v1alpha1.Source"> & {
  * Use `create(SourceSchema)` to create a new message.
  */
 export const SourceSchema: GenMessage<Source> = /*@__PURE__*/
-  messageDesc(file_dockwell_catalog_v1alpha1_entry, 12);
+  messageDesc(file_dockwell_catalog_v1alpha1_entry, 13);
 
 /**
  * Input is one thing an entry needs to know to install, named by the ${NAME}
@@ -1029,7 +1163,7 @@ export type Input = Message<"dockwell.catalog.v1alpha1.Input"> & {
  * Use `create(InputSchema)` to create a new message.
  */
 export const InputSchema: GenMessage<Input> = /*@__PURE__*/
-  messageDesc(file_dockwell_catalog_v1alpha1_entry, 13);
+  messageDesc(file_dockwell_catalog_v1alpha1_entry, 14);
 
 /**
  * Web says what a person opens once an entry is installed.
@@ -1050,7 +1184,7 @@ export type Web = Message<"dockwell.catalog.v1alpha1.Web"> & {
  * Use `create(WebSchema)` to create a new message.
  */
 export const WebSchema: GenMessage<Web> = /*@__PURE__*/
-  messageDesc(file_dockwell_catalog_v1alpha1_entry, 14);
+  messageDesc(file_dockwell_catalog_v1alpha1_entry, 15);
 
 /**
  * Kind is what an app speaks to, whatever product speaks it, beyond the databases
@@ -1481,6 +1615,15 @@ export enum GenerateAs {
    * @generated from enum value: GENERATE_AS_BASE64 = 2;
    */
   BASE64 = 2,
+
+  /**
+   * Letters and digits, as many as generate says, with at least one upper-case
+   * letter, one lower-case letter and one digit, for an app whose passwords must
+   * have each, as n8n's (ADR 0105).
+   *
+   * @generated from enum value: GENERATE_AS_PASSWORD = 3;
+   */
+  PASSWORD = 3,
 }
 
 /**

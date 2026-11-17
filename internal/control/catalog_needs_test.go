@@ -1335,6 +1335,13 @@ func TestUseAnotherDatabaseStartingEmptyHoldsTheRoute(t *testing.T) {
 		Resource: &dockwellv1.ResourceRef{Kind: "route", Scope: env, Name: "local"},
 		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Route{Route: &resourcev1.Route{Domain: "local.example.com", HostPort: 18190}}},
 	}))
+	// Its first visitor makes its owner, so it's held from its install: its routes
+	// are held as they're added, before any move (ADR 0105).
+	for _, name := range []string{"www", "adm", "local"} {
+		if got := ing.routes[resource.Ref{Kind: "route", Scope: env, Name: name}]; !got.GetHeld() {
+			t.Errorf("before the move, the ingress has the blog's route %s as %v", name, got)
+		}
+	}
 	res, err := cat.SetCatalogNeed(t.Context(), connect.NewRequest(&dockwellv1.SetCatalogNeedRequest{Id: "blog", Need: "db", Choice: choice, StartEmpty: true}))
 	if err != nil {
 		t.Fatal(err)
@@ -1353,7 +1360,9 @@ func TestUseAnotherDatabaseStartingEmptyHoldsTheRoute(t *testing.T) {
 			return s.GetResource().GetKind() == kind && s.GetResource().GetName() == name
 		})
 	}
-	if www, app := at("route", "www"), at("service", "app"); www < 0 || app < 0 || www > app {
+	// A route the move holds is held before the app restarts; one held already has
+	// no step.
+	if www, app := at("route", "www"), at("service", "app"); app < 0 || www > app {
 		t.Errorf("the route is held at step %d, and the app restarts at %d", www, app)
 	}
 	if len(notesOf(planned, "catalog_need_copies")) != 0 {
@@ -1407,7 +1416,8 @@ func TestUseAnotherDatabaseStartingEmptyHoldsTheRoute(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	applyReviewed(t, ch, opened.Msg.GetChange())
+	// Lifting a hold takes a person's passkey (ADR 0105).
+	applyAsRoot(t, b, opened.Msg.GetChange())
 	for _, name := range []string{"www", "adm", "local"} {
 		if got := ing.routes[resource.Ref{Kind: "route", Scope: env, Name: name}]; got.GetHeld() {
 			t.Errorf("opened, the ingress has the blog's route %s as %v", name, got)

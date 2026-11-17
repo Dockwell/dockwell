@@ -10,6 +10,7 @@ import (
 	"maps"
 	"slices"
 	"strings"
+	"time"
 
 	"connectrpc.com/connect"
 	"google.golang.org/protobuf/proto"
@@ -23,9 +24,11 @@ import (
 	"github.com/dockwell/dockwell/internal/control/composeapi"
 	"github.com/dockwell/dockwell/internal/database"
 	"github.com/dockwell/dockwell/internal/human"
+	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/link"
 	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/revision"
+	"github.com/dockwell/dockwell/internal/scope"
 	"github.com/dockwell/dockwell/internal/store"
 )
 
@@ -172,6 +175,9 @@ func (h *Handler) SetCatalogNeed(ctx context.Context, req *connect.Request[dockw
 	newPin.Given = pin.GetGiven()
 	// Its address stays as Dockwell last wrote it (ADR 0103).
 	newPin.Address = pin.GetAddress()
+	// A hold this move starts is the pin's, so it lasts until a person opens the
+	// install, and every later write keeps it (ADR 0105).
+	newPin.Held = moved.hold
 	// A port an install from before answered on every address moves to the server
 	// alone with it, as at an upgrade, which says so (#752's review, M1).
 	notes = append(notes, found.movedAlone(chosen, filled.Variables, old, oldVariables)...)
@@ -355,8 +361,43 @@ func (h *Handler) OpenCatalogInstall(ctx context.Context, req *connect.Request[d
 	}
 	install := found.install
 	env := install.GetEnvironmentId()
+	pin := install.GetPin()
+	// Its sign-ups close as it opens, where a variable closes them and it wasn't
+	// installed with them open (ADR 0105).
+	var signups *catalogv1.Signups
+	if entry, known := s.entryFor(pin); known && entry.GetSignups().GetVariable() != "" && !pin.GetSignupsOpen() {
+		signups = entry.GetSignups()
+	}
 	var edits []*dockwellv1.Edit
+	var unholds []resource.Ref
+	var owner *installOwner
 	err = h.db.View(ctx, func(tx *store.Tx) error {
+		var err error
+		if owner, err = h.ownerIn(ctx, tx, env); err != nil {
+			return err
+		}
+		// Its pin's hold, which no other write may clear, and every hold of it in this
+		// change: an Open carries its project, so the hold's hook holds none of its
+		// own edits again (the review's L7).
+		{
+			tree, err := scope.Load(ctx, tx)
+			if err != nil {
+				return err
+			}
+			r, err := tx.GetResource(ctx, string(scope.ProjectKind), tree.Organization.ID, install.GetProject())
+			if err != nil {
+				return err
+			}
+			spec, err := h.keeper.Decode(ctx, tx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec)
+			if err != nil {
+				return err
+			}
+			if p, ok := spec.(*resourcev1.Project); ok && p.GetCatalog() != nil {
+				p.Catalog.Held, p.Catalog.Opened = false, true
+				edits = append(edits, &dockwellv1.Edit{Resource: &dockwellv1.ResourceRef{Kind: string(scope.ProjectKind), Name: install.GetProject()}, Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Project{Project: p}}})
+				unholds = append(unholds, resource.Ref{Kind: scope.ProjectKind, Scope: tree.Organization.ID, Name: install.GetProject()})
+			}
+		}
 		for _, kind := range []string{"route", string(service.Kind)} {
 			list, err := tx.ListResources(ctx, env, kind)
 			if err != nil {
@@ -384,6 +425,13 @@ func (h *Handler) OpenCatalogInstall(ctx context.Context, req *connect.Request[d
 						opened = opened || p.GetHeld()
 						p.Held = false
 					}
+					if app := v.GetApp(); signups != nil && r.Name == signups.GetService() && app != nil && app.GetEnv()[signups.GetVariable()] != signups.GetClosed() {
+						if app.Env == nil {
+							app.Env = map[string]string{}
+						}
+						app.Env[signups.GetVariable()] = signups.GetClosed()
+						opened = true
+					}
 					if opened {
 						out = &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: v}}
 					}
@@ -393,17 +441,51 @@ func (h *Handler) OpenCatalogInstall(ctx context.Context, req *connect.Request[d
 				}
 			}
 		}
+		// A route to one of its ports on the server, from any environment, held as it
+		// published there (the re-check's N1).
+		if h.holds != nil {
+			stale, err := h.holds.HeldHostPortRoutes(ctx, tx, env)
+			if err != nil {
+				return err
+			}
+			for _, r := range stale {
+				if slices.ContainsFunc(edits, func(ed *dockwellv1.Edit) bool {
+					return ed.GetResource().GetKind() == string(r.Ref.Kind) && ed.GetResource().GetScope() == r.Ref.Scope && ed.GetResource().GetName() == r.Ref.Name
+				}) {
+					continue
+				}
+				spec := proto.CloneOf(r.Spec)
+				spec.Held = false
+				edits = append(edits, &dockwellv1.Edit{Resource: &dockwellv1.ResourceRef{Kind: string(r.Ref.Kind), Scope: r.Ref.Scope, Name: r.Ref.Name}, Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Route{Route: spec}}})
+			}
+		}
 		return nil
 	})
 	if err != nil {
 		return nil, h.internal(ctx, err)
 	}
-	if len(edits) == 0 {
+	pending := owner != nil && !store.OwnerFinal(owner.state.State)
+	if len(edits) <= len(unholds) && !pin.GetHeld() && !pending {
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s isn't held, so there's nothing to open", install.GetProject()), "not_held")
 	}
-	change, err := h.changes.Propose(ctx, "Open "+install.GetProject()+" to everyone", edits, nil, changes.Also{})
+	if len(edits) == 0 {
+		why := "isn't held"
+		if pending {
+			why = "has nothing routed or published to it yet"
+		}
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s %s, so there's nothing to open", install.GetProject(), why), "not_held")
+	}
+	change, err := h.changes.Propose(ctx, "Open "+install.GetProject()+" to everyone", edits, nil, changes.Also{Unholds: unholds})
 	if err != nil {
 		return nil, err
+	}
+	// The owner is opened once this change applies, never before.
+	if pending {
+		if err := h.db.Update(ctx, func(tx *store.Tx) error {
+			return tx.SetAppOwnerOpening(ctx, owner.res.ID, env, change.GetId(), time.Now())
+		}); err != nil {
+			return nil, h.internal(ctx, err)
+		}
 	}
 	return connect.NewResponse(&dockwellv1.OpenCatalogInstallResponse{Change: change}), nil
 }
