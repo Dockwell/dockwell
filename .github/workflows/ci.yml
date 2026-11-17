@@ -125,8 +125,9 @@ jobs:
   docker-go:
     name: Go on Docker
     runs-on: ubuntu-24.04
-    # 4 minutes at most, and half a minute for nftables.
-    timeout-minutes: 9
+    # 9 minutes at most since the owner proof on real Docker (#812) and #815's
+    # setup-link tests joined it, and half a minute for nftables.
+    timeout-minutes: 18
     # The drivers' tests against the runner's Docker Engine, beside docker compose
     # (ADR 0021).
     env:
