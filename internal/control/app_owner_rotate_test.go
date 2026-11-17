@@ -239,5 +239,16 @@ func TestAnEntryWithoutResetStepsSetsNoNewPassword(t *testing.T) {
 		if _, err := o.cat.ResetCatalogOwnerPassword(t.Context(), connect.NewRequest(&dockwellv1.ResetCatalogOwnerPasswordRequest{Id: "thing", Proof: proof})); reasonOf(err) != "no_reset" {
 			t.Errorf("without reset steps: %v", err)
 		}
+		// Changed in the app, the copy Dockwell keeps is forgotten by a plan, and the
+		// owner stays made.
+		o.applied(propose(t, o.c, "Forget Thing's owner password", &dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Kind: string(variable.SecretKind), Scope: o.env, Name: "OWNER_PASSWORD"}, Delete: true,
+		}))
+		if o.spec(variable.SecretKind, o.env, "OWNER_PASSWORD") != nil {
+			t.Error("the copy of the password is still kept")
+		}
+		if got := o.install().GetOwner().GetState(); got != dockwellv1.CatalogOwnerState_CATALOG_OWNER_STATE_MADE {
+			t.Errorf("forgetting the password left the owner %v", got)
+		}
 	})
 }
