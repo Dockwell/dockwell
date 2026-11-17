@@ -283,6 +283,13 @@ message ServiceInfo {
   // What the guessable secret is, for the state's words: a database's password,
   // another password, or a key. Unspecified where guessable_password is false.
   GuessableSecret guessable = 13;
+  // The port in its container that most likely serves its web pages, which Add a
+  // domain starts from: the port a route already sends to, else the one its
+  // health check asks over HTTP, else its first published port that isn't one
+  // known for something else, such as SSH's 22 or PostgreSQL's 5432, else its
+  // first published port. 0 when it publishes none and nothing names one, or
+  // it's on the server's own network, where the port is the server's.
+  uint32 web_port = 14;
   // What Dockwell last found newer than what it runs, and how its check stands.
   // Unset before its first check. See
   // docs/adr/0079-knowing-a-newer-version-of-an-app-is-out.md. Numbered apart,

@@ -1589,6 +1589,76 @@ describe("an app's overview", () => {
       expect(edits[0]).toMatchObject({ domain: "app.example.com", port: 3000 });
     });
 
+    it("starts from the port the control plane says serves its pages, never SSH's listed first (#791)", async () => {
+      const edits: { domain?: string; port?: number }[] = [];
+      const gitea = anApp(
+        "gitea",
+        "gitea/gitea:28.3.0",
+        {
+          ports: [
+            { hostPort: 2222, containerPort: 22 },
+            { hostPort: 3000, containerPort: 3000 },
+          ],
+        },
+        { webPort: 3000 },
+      );
+      const user = userEvent.setup();
+      renderAt(
+        "/apps/svc_gitea",
+        api([gitea], {
+          services: { listServices: () => ({ services: [gitea] }), listServiceRevisions: () => ({ revisions }) },
+          domains: { listDomains: () => ({ domains: [] }) },
+          changes: {
+            watchChange: feed<WatchChangeResponse>().stream,
+            discardChange: () => ({}),
+            proposeChange: (req) => {
+              edits.push(req.edits[0]?.spec?.kind.value as never);
+              return { change: webPlanned() };
+            },
+          },
+        }),
+      );
+      await user.click(await screen.findByRole("button", { name: "Add a domain" }));
+      const sheet = await screen.findByRole("dialog", { name: "Add a domain to gitea" });
+      const port = within(sheet).getByLabelText("Port in the app");
+      expect(port).toHaveValue("3000");
+      expect(
+        within(port)
+          .getAllByRole("option")
+          .map((o) => o.textContent),
+      ).toEqual(["3000", "22", "Another port"]);
+      await user.type(within(sheet).getByLabelText("Domain"), "git.example.com");
+      await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+      await screen.findByRole("dialog", { name: "Review plan" });
+      expect(edits[0]).toMatchObject({ domain: "git.example.com", port: 3000 });
+    });
+
+    it("offers the port its health check asks, though it doesn't publish it (#791)", async () => {
+      const checked = anApp(
+        "checked",
+        "ghcr.io/acme/shop:1.4",
+        { ports: [{ hostPort: 8080, containerPort: 8080 }] },
+        { webPort: 9090 },
+      );
+      const user = userEvent.setup();
+      renderAt(
+        "/apps/svc_checked",
+        api([checked], {
+          services: { listServices: () => ({ services: [checked] }), listServiceRevisions: () => ({ revisions }) },
+          domains: { listDomains: () => ({ domains: [] }) },
+        }),
+      );
+      await user.click(await screen.findByRole("button", { name: "Add a domain" }));
+      const sheet = await screen.findByRole("dialog", { name: "Add a domain to checked" });
+      const port = within(sheet).getByLabelText("Port in the app");
+      expect(port).toHaveValue("9090");
+      expect(
+        within(port)
+          .getAllByRole("option")
+          .map((o) => o.textContent),
+      ).toEqual(["9090", "8080", "Another port"]);
+    });
+
     it("says what an address is, in the server's words, rather than that a route needs a name", () => {
       for (const typed of ["192.168.1.10", "123", "1.2"]) expect(routeName(typed)).toMatch(/^route-[0-9-]+$/);
       expect(routeName("1a.example.com")).toBe("a-example-com");
