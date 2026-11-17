@@ -156,7 +156,9 @@ func originHeader(origin string) connect.UnaryInterceptorFunc {
 
 func TestClaimAndRecoverThroughTheCLI(t *testing.T) {
 	dir := t.TempDir()
-	out, _ := startRunWithOutput(t, dir, "/claim#")
+	// Wait for the last line of the claim message, not the link: under load the
+	// link can be read before the line after it is written.
+	out, _ := startRunWithOutput(t, dir, "for a new link.")
 	for _, want := range []string{
 		"This install has no owner yet. Claim it within 24 h",
 		"ssh -L ", ":127.0.0.1:", " mira@203.0.113.7",
