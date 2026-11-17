@@ -861,21 +861,25 @@ const (
 	// Moves a rule that pointed at an app's own port to the server's proxy, or takes
 	// it out where the zone's rule covers its name (Move it to Dockwell).
 	ProviderAction_PROVIDER_ACTION_MOVE_RULE ProviderAction = 9
+	// Keeps a rule no route publishes through any more, as names made in Cloudflare
+	// still go through it; routing says which. It writes nothing.
+	ProviderAction_PROVIDER_ACTION_KEEP_RULE ProviderAction = 10
 )
 
 // Enum value maps for ProviderAction.
 var (
 	ProviderAction_name = map[int32]string{
-		0: "PROVIDER_ACTION_UNSPECIFIED",
-		1: "PROVIDER_ACTION_CREATE_RECORD",
-		2: "PROVIDER_ACTION_DELETE_RECORD",
-		3: "PROVIDER_ACTION_REPLACE_RECORD",
-		4: "PROVIDER_ACTION_TAKE_ON_RECORD",
-		5: "PROVIDER_ACTION_RESTORE_RECORD",
-		6: "PROVIDER_ACTION_ADD_RULE",
-		7: "PROVIDER_ACTION_REMOVE_RULE",
-		8: "PROVIDER_ACTION_TAKE_ON_RULE",
-		9: "PROVIDER_ACTION_MOVE_RULE",
+		0:  "PROVIDER_ACTION_UNSPECIFIED",
+		1:  "PROVIDER_ACTION_CREATE_RECORD",
+		2:  "PROVIDER_ACTION_DELETE_RECORD",
+		3:  "PROVIDER_ACTION_REPLACE_RECORD",
+		4:  "PROVIDER_ACTION_TAKE_ON_RECORD",
+		5:  "PROVIDER_ACTION_RESTORE_RECORD",
+		6:  "PROVIDER_ACTION_ADD_RULE",
+		7:  "PROVIDER_ACTION_REMOVE_RULE",
+		8:  "PROVIDER_ACTION_TAKE_ON_RULE",
+		9:  "PROVIDER_ACTION_MOVE_RULE",
+		10: "PROVIDER_ACTION_KEEP_RULE",
 	}
 	ProviderAction_value = map[string]int32{
 		"PROVIDER_ACTION_UNSPECIFIED":    0,
@@ -888,6 +892,7 @@ var (
 		"PROVIDER_ACTION_REMOVE_RULE":    7,
 		"PROVIDER_ACTION_TAKE_ON_RULE":   8,
 		"PROVIDER_ACTION_MOVE_RULE":      9,
+		"PROVIDER_ACTION_KEEP_RULE":      10,
 	}
 )
 
@@ -11268,7 +11273,7 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\x1fHOST_ACCESS_KIND_HOST_PROCESSES\x10\xad\x01\x12#\n" +
 	"\x1eHOST_ACCESS_KIND_ROOT_TOGETHER\x10\xae\x01\x12!\n" +
 	"\x1cHOST_ACCESS_KIND_TUNNEL_RULE\x10\xd4\x02\x12)\n" +
-	"$HOST_ACCESS_KIND_CLOUDFLARE_TAKEOVER\x10\xd5\x02*\xe3\x02\n" +
+	"$HOST_ACCESS_KIND_CLOUDFLARE_TAKEOVER\x10\xd5\x02*\x82\x03\n" +
 	"\x0eProviderAction\x12\x1f\n" +
 	"\x1bPROVIDER_ACTION_UNSPECIFIED\x10\x00\x12!\n" +
 	"\x1dPROVIDER_ACTION_CREATE_RECORD\x10\x01\x12!\n" +
@@ -11279,7 +11284,9 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\x18PROVIDER_ACTION_ADD_RULE\x10\x06\x12\x1f\n" +
 	"\x1bPROVIDER_ACTION_REMOVE_RULE\x10\a\x12 \n" +
 	"\x1cPROVIDER_ACTION_TAKE_ON_RULE\x10\b\x12\x1d\n" +
-	"\x19PROVIDER_ACTION_MOVE_RULE\x10\t*\x99\x01\n" +
+	"\x19PROVIDER_ACTION_MOVE_RULE\x10\t\x12\x1d\n" +
+	"\x19PROVIDER_ACTION_KEEP_RULE\x10\n" +
+	"*\x99\x01\n" +
 	"\x10VolumeMoveMethod\x12\"\n" +
 	"\x1eVOLUME_MOVE_METHOD_UNSPECIFIED\x10\x00\x12\x1f\n" +
 	"\x1bVOLUME_MOVE_METHOD_IN_PLACE\x10\x01\x12#\n" +

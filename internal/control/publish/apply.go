@@ -44,7 +44,9 @@ func (p *Publisher) apply(ctx context.Context, changeID string, route revision.P
 	case resource.ProviderAddRule:
 		return p.addRule(ctx, changeID, s)
 	case resource.ProviderRemoveRule:
-		return p.removeRule(ctx, s)
+		return p.removeRule(ctx, s, route.Before.GetDomain())
+	case resource.ProviderKeepRule:
+		return "Kept " + s.Name + " in " + s.Target + ": " + s.Routing, nil
 	case resource.ProviderTakeOnRule, resource.ProviderMoveRule:
 	}
 	return "", fmt.Errorf("a step of kind %d at Cloudflare isn't one this control plane takes yet. Upgrade it, then try again", s.Action)
@@ -383,7 +385,7 @@ func (p *Publisher) addRule(ctx context.Context, changeID string, s resource.Pro
 
 // removeRule takes a rule Dockwell added out of a tunnel, only while it reads as
 // written: one changed in Cloudflare since stays, and is let go.
-func (p *Publisher) removeRule(ctx context.Context, s resource.ProviderStep) (string, error) {
+func (p *Publisher) removeRule(ctx context.Context, s resource.ProviderStep, leaving string) (string, error) {
 	t, err := p.target(ctx, s.Provider, strings.TrimPrefix(s.Name, "*."))
 	if err != nil {
 		return "", err
@@ -414,9 +416,9 @@ func (p *Publisher) removeRule(ctx context.Context, s resource.ProviderStep) (st
 		}
 		return s.Rule.Hostname + " was changed in Cloudflare since Dockwell added it, so it stays", nil
 	}
-	rt := Routing{}
-	if p.Panel != nil {
-		rt.Panel, rt.PanelService = p.Panel(ctx)
+	rt, err := p.removalRouting(ctx, t, s.Tunnel, doc, s.Rule.Service, leaving)
+	if err != nil {
+		return "", err
 	}
 	if rt.Serves(doc.Rules[i]) {
 		return "", ErrServesPanel
@@ -425,8 +427,10 @@ func (p *Publisher) removeRule(ctx context.Context, s resource.ProviderStep) (st
 	if err != nil {
 		return "", err
 	}
+	// A name made in Cloudflare since the plan that goes through the rule keeps it
+	// there, held, rather than failing the change (the review's M4).
 	if moved := rt.Check(doc.Rules, after.Rules, Edit{At: i}); len(moved) > 0 {
-		return "", fmt.Errorf("can't take %s out of %s: %w", s.Rule.Hostname, s.Target, moved[0])
+		return "Kept " + s.Rule.Hostname + " in " + s.Target + ": " + keptWords(moved), nil
 	}
 	if err := CheckSplice(read.Config, after.Raw(), i, false); err != nil {
 		return "", err

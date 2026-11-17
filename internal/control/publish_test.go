@@ -361,6 +361,53 @@ func TestTheLiveCheckOfAName(t *testing.T) {
 	}
 }
 
+// A name made in Cloudflare that points at the tunnel goes through the zone's rule:
+// removing the last route that published through it keeps the rule, and the plan
+// and Activity say why (the review's M4).
+func TestARuleStaysWhileANameMadeByHandUsesIt(t *testing.T) {
+	t.Parallel()
+	s := newPublishStand(t)
+	s.applied(t, propose(t, s.person, "Publish wiki", s.published("wiki", "wiki.example.com")))
+	files := s.cf.Put("example.com", cftest.Record{Type: "CNAME", Name: "files.example.com", Content: webOne + ".cfargotunnel.com", Proxied: true})
+
+	gone := propose(t, s.person, "Remove wiki", s.removed("wiki"))
+	steps := providerSteps(gone)
+	keep := slices.IndexFunc(steps, func(p *dockwellv1.ProviderStep) bool {
+		return p.GetAction() == dockwellv1.ProviderAction_PROVIDER_ACTION_KEEP_RULE
+	})
+	if len(steps) != 2 || keep < 0 || steps[keep].GetRouting() != "files.example.com goes through it, so it stays" ||
+		steps[1-keep].GetAction() != dockwellv1.ProviderAction_PROVIDER_ACTION_DELETE_RECORD {
+		t.Fatalf("the plan's steps at Cloudflare: %v", steps)
+	}
+	s.applied(t, gone)
+	if got := rulesOf(t, s.cf); !slices.Contains(got, "*.example.com=http://127.0.0.1:80") {
+		t.Fatalf("the rule went: %v", got)
+	}
+	if left := s.cf.Records("example.com"); len(left) != 1 || left[0].Name != "files.example.com" {
+		t.Fatalf("records left: %+v", left)
+	}
+	// Made between the plan and its apply, it makes the plan stale, and the plan made
+	// again keeps the rule.
+	s.applied(t, propose(t, s.person, "Publish docs", s.published("docs", "docs.example.com")))
+	s.cf.Remove("example.com", files)
+	removes := func(ch *dockwellv1.Change) bool {
+		return slices.ContainsFunc(providerSteps(ch), func(p *dockwellv1.ProviderStep) bool {
+			return p.GetAction() == dockwellv1.ProviderAction_PROVIDER_ACTION_REMOVE_RULE
+		})
+	}
+	last := propose(t, s.person, "Remove docs", s.removed("docs"))
+	if !removes(last) {
+		t.Fatalf("with no name made by hand: %v", providerSteps(last))
+	}
+	s.cf.Put("example.com", cftest.Record{Type: "CNAME", Name: "files.example.com", Content: webOne + ".cfargotunnel.com", Proxied: true})
+	if _, err := applyChange(t, s.person, &dockwellv1.ApplyChangeRequest{Id: last.GetId(), Fingerprint: last.GetPlan().GetFingerprint()}); err == nil {
+		t.Fatal("a plan made before the name was applied")
+	}
+	if again := propose(t, s.person, "Remove docs", s.removed("docs")); removes(again) {
+		t.Fatalf("planned again: %v", providerSteps(again))
+	}
+}
+
 // Ten checks of different names read Cloudflare once each after the first: only
 // the name's records, as what else a check reads is kept for 30 seconds. Once
 // Cloudflare says too many requests, checks read nothing for a minute (the

@@ -2050,6 +2050,9 @@ enum ProviderAction {
   // Moves a rule that pointed at an app's own port to the server's proxy, or takes
   // it out where the zone's rule covers its name (Move it to Dockwell).
   PROVIDER_ACTION_MOVE_RULE = 9;
+  // Keeps a rule no route publishes through any more, as names made in Cloudflare
+  // still go through it; routing says which. It writes nothing.
+  PROVIDER_ACTION_KEEP_RULE = 10;
 }
 
 // VolumeMove is how a step that makes a volume takes its data from another on its

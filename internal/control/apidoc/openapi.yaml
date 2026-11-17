@@ -15292,6 +15292,7 @@ components:
                         - PROVIDER_ACTION_REMOVE_RULE
                         - PROVIDER_ACTION_TAKE_ON_RULE
                         - PROVIDER_ACTION_MOVE_RULE
+                        - PROVIDER_ACTION_KEEP_RULE
                     type: string
                     description: What was done.
                     format: enum
@@ -22730,6 +22731,7 @@ components:
                         - PROVIDER_ACTION_REMOVE_RULE
                         - PROVIDER_ACTION_TAKE_ON_RULE
                         - PROVIDER_ACTION_MOVE_RULE
+                        - PROVIDER_ACTION_KEEP_RULE
                     type: string
                     description: What it does.
                     format: enum

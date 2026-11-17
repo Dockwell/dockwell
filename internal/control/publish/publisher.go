@@ -560,6 +560,62 @@ func (p *Publisher) proveTunnel(ctx context.Context, server string, t *target, t
 	return proved, nil
 }
 
+// removalRouting is what a rule's removal keeps where it goes: the panel's names,
+// the tunnel's own, and the zone's names pointing at the tunnel, but for names
+// Dockwell wrote, which go with their routes, and leaving, the route's own.
+func (p *Publisher) removalRouting(ctx context.Context, t *target, tunnel string, doc *Document, service, leaving string) (Routing, error) {
+	rt, err := p.routing(ctx, t, tunnel, doc, service, strings.ToLower(leaving))
+	if err != nil {
+		return Routing{}, err
+	}
+	var own []store.CloudflareRecord
+	if err := p.DB.View(ctx, func(tx *store.Tx) error {
+		var err error
+		own, err = tx.CloudflareRecordsIn(ctx, t.zone.ID)
+		return err
+	}); err != nil {
+		return Routing{}, err
+	}
+	rt.Names = slices.DeleteFunc(rt.Names, func(n string) bool {
+		return slices.ContainsFunc(own, func(r store.CloudflareRecord) bool { return strings.EqualFold(r.Name, n) })
+	})
+	return rt, nil
+}
+
+// removalMoves are the names removing rule would send elsewhere, read as Cloudflare
+// has its tunnel now.
+func (p *Publisher) removalMoves(ctx context.Context, t *target, rule *store.CloudflareRule, leaving string) ([]Moved, error) {
+	read, err := t.tunnels.ReadTunnelConfig(ctx, rule.Account, rule.TunnelID)
+	if err != nil {
+		return nil, fmt.Errorf("can't read the tunnel's routes at Cloudflare: %w", err)
+	}
+	doc, err := Parse(read.Config)
+	if err != nil {
+		return nil, err
+	}
+	i := doc.Index(rule.Hostname, rule.Path)
+	if i < 0 {
+		return nil, nil
+	}
+	rt, err := p.removalRouting(ctx, t, rule.TunnelID, doc, rule.Service, leaving)
+	if err != nil {
+		return nil, err
+	}
+	after, err := doc.Remove(i)
+	if err != nil {
+		return nil, err
+	}
+	return rt.Check(doc.Rules, after.Rules, Edit{At: i}), nil
+}
+
+// keptWords says why a rule stays, naming what goes through it.
+func keptWords(moved []Moved) string {
+	if len(moved) == 1 {
+		return moved[0].Name + " goes through it, so it stays"
+	}
+	return fmt.Sprintf("%s and %d other names go through it, so it stays", moved[0].Name, len(moved)-1)
+}
+
 // planRuleRemoval takes the zone's rule out of a tunnel once no route publishes
 // through it in the zone after the change.
 func (p *Publisher) planRuleRemoval(ctx context.Context, r revision.PublishRoute, inChange map[string]*resourcev1.Route) ([]resource.Step, error) {
@@ -606,16 +662,29 @@ func (p *Publisher) planRuleRemoval(ctx context.Context, r revision.PublishRoute
 		if stillUsed {
 			continue
 		}
-		tunnelName := rule.TunnelID
-		if t, err := p.target(ctx, rule.Provider, name); err == nil {
-			if info, err := t.tunnels.TunnelByID(ctx, rule.Account, rule.TunnelID); err == nil {
-				tunnelName = info.Name
-			}
+		t, err := p.target(ctx, rule.Provider, name)
+		if err != nil {
+			return nil, err
 		}
-		steps = append(steps, step(r, resource.ActionDelete, resource.ProviderStep{
+		tunnelName := rule.TunnelID
+		if info, err := t.tunnels.TunnelByID(ctx, rule.Account, rule.TunnelID); err == nil {
+			tunnelName = info.Name
+		}
+		ps := resource.ProviderStep{
 			Provider: rule.Provider, Action: resource.ProviderRemoveRule, Target: tunnelName, Name: rule.Hostname, Was: rule.Service,
-			Account: rule.Account, Tunnel: rule.TunnelID, Rule: &resource.ProviderRule{Hostname: rule.Hostname, Path: rule.Path, Service: rule.Service},
-		}))
+			Account: rule.Account, Tunnel: rule.TunnelID, ZoneID: t.zone.ID, Rule: &resource.ProviderRule{Hostname: rule.Hostname, Path: rule.Path, Service: rule.Service},
+		}
+		// Names made in Cloudflare that go through the rule keep it, as removing it
+		// would move them; the plan says which (the review's M4).
+		moved, err := p.removalMoves(ctx, t, rule, name)
+		if err != nil {
+			return nil, err
+		}
+		action := resource.ActionDelete
+		if len(moved) > 0 {
+			action, ps.Action, ps.Routing = resource.ActionNone, resource.ProviderKeepRule, keptWords(moved)
+		}
+		steps = append(steps, step(r, action, ps))
 	}
 	return steps, nil
 }
