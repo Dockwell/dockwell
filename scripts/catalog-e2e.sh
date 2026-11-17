@@ -706,7 +706,10 @@ sealed() {
     logs=$(docker logs "$c" 2>&1) || fail "docker logs $c failed"
     [[ "$logged" == true || "$logs" != *"$value"* ]] || fail "$service writes the secret $name in its log, which takes no passkey to read"
   done <<<"$holds"
-  [[ -n "$holds" ]] || [[ "$(jq '[.inputs[]? | select(.type == "INPUT_TYPE_SECRET")] | length' <<<"$entry")" == 0 ]] || fail "$id uses none of its secrets"
+  # The owner's own inputs reach only its steps, never a container (ADR 0105), so
+  # an app whose one secret is its owner's password holds none.
+  [[ -n "$holds" ]] || [[ "$(jq '(.owner // {}) as $o | [.inputs[]? | select(.type == "INPUT_TYPE_SECRET")
+    | select([.name] - [$o.emailInput, $o.userInput, $o.passwordInput] != [])] | length' <<<"$entry")" == 0 ]] || fail "$id uses none of its secrets"
 }
 
 # plan_install plans installing $id with its flags, and sets planned, change, installed
