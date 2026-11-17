@@ -6,6 +6,7 @@ import (
 	"context"
 	"net/netip"
 	"slices"
+	"strings"
 	"testing"
 
 	"connectrpc.com/connect"
@@ -53,6 +54,18 @@ func TestANewWebsitePublishedThroughTheTunnel(t *testing.T) {
 			return r.GetResource().GetKind() == "dns.provider" && r.GetResource().GetName() == "cloudflare"
 		}) {
 			t.Fatalf("the provider should serve the new website's project in the same plan: %v", ch.GetPlan().GetResources())
+		}
+		// What the provider serving the new website's project grants is said in words,
+		// naming the project, not its ID (the review's B-M5).
+		if !slices.ContainsFunc(ch.GetPlan().GetNotes(), func(n *dockwellv1.PlanNote) bool {
+			return strings.HasSuffix(n.GetMessage(), "from now on, so its developers can publish names in example.com") && strings.HasPrefix(n.GetMessage(), "cloudflare serves ") && !strings.Contains(n.GetMessage(), "prj_")
+		}) {
+			t.Fatalf("the plan should say what the provider grants: %v", ch.GetPlan().GetNotes())
+		}
+		for _, r := range ch.GetPlan().GetResources() {
+			if r.GetResource().GetKind() == "dns.provider" && slices.ContainsFunc(r.GetChanges(), func(c *dockwellv1.FieldChange) bool { return strings.Contains(c.GetPath(), "token") }) {
+				t.Fatalf("the provider's tokens show as a change: %v", r.GetChanges())
+			}
 		}
 		creates := stepsOf(ch, dockwellv1.ProviderAction_PROVIDER_ACTION_CREATE_RECORD)
 		if len(creates) != 2 {

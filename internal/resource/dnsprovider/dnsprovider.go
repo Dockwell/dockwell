@@ -203,6 +203,20 @@ func IsGlobalKey(s string) bool {
 	return true
 }
 
+// ChangesWhatsRead says an edit reaches what a provider's token writes for: its API,
+// its zones or a token. Which projects it serves, the zones it set to Full (strict)
+// and the records it puts back don't, so an edit of those alone rotates nothing,
+// and its plan shows no token as changed (ADR 0104, the review's B-M5).
+func (Type) ChangesWhatsRead(current, spec proto.Message) bool {
+	was, ok := current.(*resourcev1.DnsProvider)
+	is, same := spec.(*resourcev1.DnsProvider)
+	if !ok || !same {
+		return true
+	}
+	return was.GetProvider() != is.GetProvider() || !slices.Equal(was.GetZones(), is.GetZones()) ||
+		was.GetApiToken() != is.GetApiToken() || was.GetTunnelApiToken() != is.GetTunnelApiToken()
+}
+
 // DefaultNew spends a clear on a new provider, which has no second token to take
 // off.
 func (Type) DefaultNew(_ resource.Ref, spec proto.Message) {

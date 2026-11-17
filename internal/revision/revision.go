@@ -3350,7 +3350,54 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 	plan.Fingerprint = hex.EncodeToString(keyed.Sum(nil)[:16])
 	plan.plain = hex.EncodeToString(plain.Sum(nil)[:16])
 	plan.Notes = append(plan.Notes, keyNotes...)
+	plan.Notes = append(plan.Notes, e.providerGrants(ctx, items)...)
 	return plan, nil
+}
+
+// providerGrants says, in words, what a DNS provider serving another project grants:
+// that project's developers may publish names in each of its zones, as a new website
+// joins it (ADR 0104, the review's B-M5).
+func (e *Engine) providerGrants(ctx context.Context, items []item) []Note {
+	var out []Note
+	for i := range items {
+		it := &items[i]
+		after, ok := it.spec.(*resourcev1.DnsProvider)
+		if !ok || after == nil {
+			continue
+		}
+		before, _ := it.current.(*resourcev1.DnsProvider)
+		zones := human.List(after.GetZones())
+		for _, project := range after.GetProjects() {
+			if slices.Contains(before.GetProjects(), project) {
+				continue
+			}
+			name := e.projectName(ctx, items, project)
+			out = append(out, Note{
+				Reason: "provider_serves", Ref: it.ref, Names: []string{it.ref.Name, name},
+				Message: it.ref.Name + " serves " + name + " from now on, so its developers can publish names in " + zones,
+			})
+		}
+	}
+	return out
+}
+
+// projectName is a project's name, from the change where it makes it, or else as
+// it's kept.
+func (e *Engine) projectName(ctx context.Context, items []item, project string) string {
+	for i := range items {
+		if items[i].id == project && items[i].ref.Kind == scope.ProjectKind {
+			return items[i].ref.Name
+		}
+	}
+	name := project
+	_ = e.db.View(ctx, func(tx *store.Tx) error {
+		r, err := tx.GetResourceByID(ctx, project)
+		if err == nil {
+			name = r.Name
+		}
+		return err
+	})
+	return name
 }
 
 // unfinishedOn is the step of a resource that a run stopped partway didn't see end on
