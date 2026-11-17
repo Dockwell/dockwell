@@ -242,6 +242,31 @@ message Event {
   // plane was away, for an event with an action that starts "server.reconciled"
   // (ADR 0054).
   EventReconciled reconciled = 141;
+  // What Dockwell wrote at Cloudflare, or found gone there, for an event with an
+  // action that starts "cloudflare." (ADR 0104). Numbered in the block ADR 0104
+  // holds, 340 to 349.
+  EventCloudflare cloudflare = 340;
+}
+
+// EventCloudflare is one thing Dockwell wrote at Cloudflare, or found gone there.
+message EventCloudflare {
+  // The DNS provider whose token wrote it, by name.
+  string provider = 1;
+  // Where: the zone for a record, the tunnel's name for a rule.
+  string target = 2;
+  // The name, such as "wiki.example.com", or a rule's hostname.
+  string name = 3;
+  // What was done.
+  ProviderAction action = 4;
+  // It was found gone or changed, by the drift timer, not written.
+  bool drift = 5;
+  // The tunnel document's version after the write, for a rule.
+  int32 version = 6;
+  // The version Dockwell read before it wrote, where an edit made in Cloudflare
+  // between the two was replaced (cloudflare.replaced).
+  int32 read_version = 7;
+  // The change that wrote it, by its ID; empty for what the drift timer found.
+  string change_id = 8;
 }
 
 // EventReconciled is what a server's agent did, or couldn't do, on its own while

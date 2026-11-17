@@ -690,6 +690,38 @@ message ServerInventory {
   // port isn't taken from them (#688). Zero from an agent from before this.
   uint32 ephemeral_ports_low = 16;
   uint32 ephemeral_ports_high = 17;
+  // The Cloudflare tunnels cloudflared runs here, as the agent finds them (ADR 0104).
+  repeated CloudflaredTunnel tunnels = 18;
+}
+
+// CloudflaredTunnel is a Cloudflare tunnel cloudflared runs on a server, as its agent
+// reads it: the tunnel's ID and account from its connector token, or its config file,
+// and the ID of this run of cloudflared from its /ready. The token's secret is read
+// in memory and dropped; it never leaves the server (ADR 0104, section 3).
+message CloudflaredTunnel {
+  // The tunnel's ID at Cloudflare. Empty for a run of cloudflared whose tunnel the
+  // agent can't read, as one whose token file it can't open: cloudflared runs here
+  // all the same.
+  string tunnel_id = 1;
+  // The account it's in, by its tag; empty for one read from a config file.
+  string account_tag = 2;
+  // Whether its routes are a file on the server (locally managed), which Dockwell
+  // leaves alone, rather than kept at Cloudflare.
+  bool managed_in_file = 3;
+  // The ID of this run of cloudflared, as its /ready says, which Cloudflare's
+  // connections list carries: what proves the tunnel runs here. Empty where /ready
+  // couldn't be read. It changes each time cloudflared starts.
+  string connector_id = 4;
+  // How the tunnel reaches the server's proxy: "http://127.0.0.1:80" from the
+  // host's network, or "http://host.docker.internal:80" from a network of its own.
+  string reaches = 5;
+  // The range the tunnel's own network comes from, such as "172.18.0.0/16", which a
+  // route behind it believes. Empty on the host's network.
+  string network_range = 6;
+  // The container it runs in, by ID, or empty for a process on the host.
+  string container_id = 7;
+  // Its process ID on the server.
+  int32 pid = 8;
 }
 
 // Disk is one mounted filesystem.

@@ -1,0 +1,401 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package publish
+
+import (
+	"cmp"
+	"context"
+	"errors"
+	"net/http"
+	"strings"
+	"sync"
+	"time"
+
+	"google.golang.org/protobuf/types/known/timestamppb"
+
+	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/internal/control/dnsproviders"
+	"github.com/dockwell/dockwell/internal/resource/dnsprovider"
+	"github.com/dockwell/dockwell/internal/store"
+)
+
+// CheckAsk is a name to check before any plan: the server it's meant to reach, the
+// project it's for, and the way picked, if one was.
+type CheckAsk struct {
+	Server, Project, Name string
+	// Admin says the caller may see what Cloudflare holds: a record's content is the
+	// origin address public DNS hides, so below an admin the check says only that a
+	// name is taken (ADR 0104, M12).
+	Admin bool
+	Way   resourcev1.RouteWay
+}
+
+// cache keeps what a check reads that changes slowly, for about 30 seconds, so a
+// person typing reads only the name's records each time (ADR 0104, N12, and the
+// review's M3). Once Cloudflare says too many requests, checks read nothing for a
+// minute, leaving the token's rate to renewals and plans.
+type cache struct {
+	mu   sync.Mutex
+	data map[string]cached
+	slow time.Time
+}
+
+// slowFor is how long checks wait once Cloudflare says too many requests.
+const slowFor = time.Minute
+
+// waiting is a check while Cloudflare asks Dockwell to wait, with when checks read
+// it again, or nil when they read it now (the re-check's L11).
+func (p *Publisher) waiting(provider string) *dockwellv1.CloudflareCheck {
+	now := p.now()
+	p.cache.mu.Lock()
+	until := p.cache.slow
+	p.cache.mu.Unlock()
+	if !now.Before(until) {
+		return nil
+	}
+	return &dockwellv1.CloudflareCheck{Provider: provider, State: dockwellv1.CloudflareName_CLOUDFLARE_NAME_WAITING, ChecksAgain: timestamppb.New(until)}
+}
+
+// slowOn marks a 429 from Cloudflare, and gives err back.
+func (c *cache) slowOn(err error, now time.Time) error {
+	var api *dnsproviders.APIError
+	if errors.As(err, &api) && api.Status == http.StatusTooManyRequests {
+		c.mu.Lock()
+		c.slow = now.Add(slowFor)
+		c.mu.Unlock()
+	}
+	return err
+}
+
+type cached struct {
+	value any
+	at    time.Time
+}
+
+const cacheFor = 30 * time.Second
+
+// forget drops what's kept of key, as a write of Dockwell's own makes it old.
+func (c *cache) forget(key string) {
+	c.mu.Lock()
+	delete(c.data, key)
+	c.mu.Unlock()
+}
+
+// forgetUnder drops what's kept of every key that starts with prefix.
+func (c *cache) forgetUnder(prefix string) {
+	c.mu.Lock()
+	for k := range c.data {
+		if strings.HasPrefix(k, prefix) {
+			delete(c.data, k)
+		}
+	}
+	c.mu.Unlock()
+}
+
+func (c *cache) get(key string, now time.Time, read func() (any, error)) (any, error) {
+	c.mu.Lock()
+	if c.data == nil {
+		c.data = map[string]cached{}
+	}
+	if v, ok := c.data[key]; ok && now.Sub(v.at) < cacheFor {
+		c.mu.Unlock()
+		return v.value, nil
+	}
+	c.mu.Unlock()
+	v, err := read()
+	if err != nil {
+		return nil, c.slowOn(err, now)
+	}
+	c.mu.Lock()
+	c.data[key] = cached{value: v, at: now}
+	c.mu.Unlock()
+	return v, nil
+}
+
+// readFor reads through the cache under key where t is a live check's, and fresh
+// otherwise: a plan proves what it writes against what Cloudflare says now. The one
+// exception is a token's zone list, which target reads through the cache for plans
+// and applies too: zone IDs don't change, so a stale list can only name a zone that's
+// gone, and Cloudflare refuses a write there (the re-check's L12).
+func readFor[T any](p *Publisher, t *target, key string, read func() (T, error)) (T, error) {
+	if !t.cached {
+		v, err := read()
+		return v, p.cache.slowOn(err, p.now())
+	}
+	v, err := p.cache.get(key, p.now(), func() (any, error) { return read() })
+	if err != nil {
+		var zero T
+		return zero, err
+	}
+	return v.(T), nil //nolint:forcetypeassert // only read puts a value under key
+}
+
+// providerFor is the connected provider that serves project and holds name in a
+// zone, or "".
+func (p *Publisher) providerFor(ctx context.Context, project, name string) (string, error) {
+	all, err := p.Providers.All(ctx)
+	if err != nil {
+		return "", err
+	}
+	for i := range all {
+		spec := all[i].Spec
+		if !dnsprovider.Serves(spec, project) {
+			continue
+		}
+		for _, z := range spec.GetZones() {
+			if dnsprovider.Covers(z, name) {
+				return all[i].Name, nil
+			}
+		}
+	}
+	return "", nil
+}
+
+// Check says what a connected Cloudflare zone and the server's tunnels say of a name,
+// and each way in, with the one the check would take: nil where no connected
+// provider serving the project holds the name (ADR 0104, section 1).
+func (p *Publisher) Check(ctx context.Context, a CheckAsk) (out *dockwellv1.CloudflareCheck, err error) {
+	name := strings.ToLower(a.Name)
+	provider, err := p.providerFor(ctx, a.Project, name)
+	if err != nil || provider == "" {
+		return nil, err
+	}
+	if w := p.waiting(provider); w != nil {
+		return w, nil
+	}
+	// A 429 met on the way says so as a state, as the checks after it do.
+	defer func() {
+		if w := p.waiting(provider); err != nil && w != nil {
+			out, err = w, nil
+		}
+	}()
+	t, err := p.target(ctx, provider, name)
+	if err != nil {
+		return nil, err
+	}
+	t.cached = true
+	out = &dockwellv1.CloudflareCheck{Zone: t.zone.Name, Provider: provider, State: dockwellv1.CloudflareName_CLOUDFLARE_NAME_FREE}
+	now := p.now()
+	if mode, err := p.cache.get("ssl:"+t.zone.ID, now, func() (any, error) {
+		m, _, err := t.cf.SSLMode(ctx, t.zone)
+		return m, err
+	}); err == nil {
+		out.SslMode, _ = mode.(string)
+	}
+	there, err := t.cf.RecordsAt(ctx, t.zone, name)
+	if err != nil {
+		return nil, p.cache.slowOn(err, now)
+	}
+	var ours []store.CloudflareRecord
+	if err := p.DB.View(ctx, func(tx *store.Tx) error {
+		all, err := tx.CloudflareRecordsIn(ctx, t.zone.ID)
+		for i := range all {
+			if all[i].Name == name {
+				ours = append(ours, all[i])
+			}
+		}
+		return err
+	}); err != nil {
+		return nil, err
+	}
+	facts, err := p.Server(ctx, a.Server)
+	if err != nil {
+		return nil, err
+	}
+	for i := range there {
+		x := there[i]
+		if a.Admin {
+			out.Types = append(out.Types, x.Type)
+		}
+		if !addressLike(x.Type) {
+			continue
+		}
+		mine := false
+		for j := range ours {
+			if ours[j].ID == x.ID {
+				mine = true
+			}
+		}
+		switch {
+		case mine:
+			out.State = dockwellv1.CloudflareName_CLOUDFLARE_NAME_OURS
+		case pointsHere(x, facts):
+			out.State = dockwellv1.CloudflareName_CLOUDFLARE_NAME_TAKE_ON
+		default:
+			out.State = dockwellv1.CloudflareName_CLOUDFLARE_NAME_TAKEN
+		}
+		if a.Admin && !mine {
+			out.Record, out.RecordId = recordWords(x), x.ID
+		}
+	}
+	past := pastCertificate(t.zone.Name, name)
+	if past && out.State == dockwellv1.CloudflareName_CLOUDFLARE_NAME_FREE {
+		out.State = dockwellv1.CloudflareName_CLOUDFLARE_NAME_PAST_CERTIFICATE
+	}
+	out.Ways, out.Way = p.ways(ctx, a, t, name, facts, past)
+	return out, nil
+}
+
+// pointsHere says a record made by hand points where Dockwell would: at a tunnel, or
+// at one of the server's addresses.
+func pointsHere(r dnsproviders.Record, facts Facts) bool {
+	if r.Type == "CNAME" {
+		return strings.HasSuffix(r.Content, ".cfargotunnel.com")
+	}
+	for _, a := range facts.Public {
+		if a.Unmap().String() == r.Content {
+			return true
+		}
+	}
+	return false
+}
+
+// ways are the ways in for a name, each with why it's off, and the one to take:
+// the server's tunnel; then, where cloudflared runs that Dockwell can't use,
+// something else in front, never publishing the server's address; then Cloudflare's
+// proxy; then the server's own HTTPS (ADR 0104, section 2).
+func (p *Publisher) ways(ctx context.Context, a CheckAsk, t *target, name string, facts Facts, past bool) ([]*dockwellv1.WayOption, resourcev1.RouteWay) {
+	var out []*dockwellv1.WayOption
+	pick := resourcev1.RouteWay_ROUTE_WAY_UNSPECIFIED
+	runsCloudflared := false
+	found, err := p.cache.get("tunnels:"+a.Server, p.now(), func() (any, error) {
+		if p.Tunnels == nil {
+			return []*dockwellv1.CloudflaredTunnel(nil), nil
+		}
+		return p.Tunnels(ctx, a.Server)
+	})
+	tunnels, _ := found.([]*dockwellv1.CloudflaredTunnel)
+	if err != nil {
+		// Whether cloudflared runs there isn't known, so the server's address isn't
+		// published by default.
+		runsCloudflared = true
+	}
+	seen := map[string]bool{}
+	unread := false
+	for _, f := range tunnels {
+		runsCloudflared = true
+		if f.GetTunnelId() == "" {
+			unread = true
+			continue
+		}
+		if seen[f.GetTunnelId()] {
+			continue
+		}
+		seen[f.GetTunnelId()] = true
+		opt := &dockwellv1.WayOption{Way: resourcev1.RouteWay_ROUTE_WAY_SERVER_TUNNEL, Tunnel: f.GetTunnelId(), TunnelName: f.GetTunnelId()}
+		out = append(out, opt)
+		if f.GetManagedInFile() {
+			opt.Off = facts.Name + "'s tunnel is managed in a file, so Dockwell writes nothing at Cloudflare"
+			continue
+		}
+		if past {
+			opt.Off = name + " is past Cloudflare's free certificate"
+			continue
+		}
+		account := cmp.Or(f.GetAccountTag(), t.zone.Account)
+		if info, err := readFor(p, t, "info:"+f.GetTunnelId(), func() (dnsproviders.Tunnel, error) {
+			return t.tunnels.TunnelByID(ctx, account, f.GetTunnelId())
+		}); err == nil {
+			opt.TunnelName = info.Name
+		}
+		// Below an admin, a refusal says the tunnel's name and a fixed reason, never its
+		// rules, their services, other names or servers (ADR 0104, section 1, and the
+		// review's M7).
+		off := func(err error) string {
+			if a.Admin {
+				return offWords(err)
+			}
+			return "Dockwell can't publish through " + opt.TunnelName + " now. An admin can see why"
+		}
+		if _, err := p.proveTunnel(ctx, a.Server, t, f.GetTunnelId(), facts); err != nil {
+			opt.Off = off(err)
+			if denied(err) && a.Admin {
+				opt.Action, opt.ActionUrl = "Add it to this token", dnsproviders.TokenPage(t.zone.Account)
+			}
+			continue
+		}
+		doc, err := p.cache.get("doc:"+f.GetTunnelId(), p.now(), func() (any, error) {
+			cfg, err := t.tunnels.ReadTunnelConfig(ctx, account, f.GetTunnelId())
+			if err != nil {
+				return nil, err
+			}
+			return Parse(cfg.Config)
+		})
+		if err != nil {
+			opt.Off = off(err)
+			continue
+		}
+		d, _ := doc.(*Document)
+		rt, err := p.routing(ctx, t, f.GetTunnelId(), d, f.GetReaches(), name)
+		if err != nil {
+			opt.Off = off(err)
+			continue
+		}
+		need := NeedFor(d, rt, t.zone.Name, name)
+		var caught Caught
+		switch {
+		case errors.As(need.Refused, &caught):
+			opt.Off = opt.TunnelName + " sends it elsewhere"
+			if a.Admin {
+				opt.CaughtBy, opt.Off = caught.Rule.Hostname+", to "+caught.Rule.Service, caught.Error()
+			}
+		case need.Refused != nil && !a.Admin && errors.Is(need.Refused, ErrServesPanel):
+			opt.Off = opt.TunnelName + " serves the panel there"
+		case need.Refused != nil && !a.Admin:
+			opt.Off = opt.TunnelName + " would send another name elsewhere"
+		case need.Refused != nil:
+			opt.Off = need.Refused.Error()
+		case !need.Nothing:
+			opt.AddsRule = need.Rule.Hostname
+		}
+		if opt.Off == "" && pick == resourcev1.RouteWay_ROUTE_WAY_UNSPECIFIED {
+			pick = resourcev1.RouteWay_ROUTE_WAY_SERVER_TUNNEL
+		}
+	}
+	if unread {
+		out = append(out, &dockwellv1.WayOption{Way: resourcev1.RouteWay_ROUTE_WAY_SERVER_TUNNEL, Off: facts.Name + " runs cloudflared Dockwell can't read"})
+	}
+	public := len(facts.Public) > 0
+	proxy := &dockwellv1.WayOption{Way: resourcev1.RouteWay_ROUTE_WAY_PROXY}
+	own := &dockwellv1.WayOption{Way: resourcev1.RouteWay_ROUTE_WAY_OWN_HTTPS}
+	if !public {
+		proxy.Off = facts.Name + " has no public address"
+		own.Off = proxy.Off
+	} else if past {
+		proxy.Off = name + " is past Cloudflare's free certificate"
+	}
+	front := &dockwellv1.WayOption{Way: resourcev1.RouteWay_ROUTE_WAY_FRONT}
+	out = append(out, proxy, own, front)
+	switch {
+	case pick != resourcev1.RouteWay_ROUTE_WAY_UNSPECIFIED:
+	case runsCloudflared:
+		// A tunnel means its address is kept off DNS: never published by default.
+		pick = resourcev1.RouteWay_ROUTE_WAY_FRONT
+	case public && !past:
+		pick = resourcev1.RouteWay_ROUTE_WAY_PROXY
+	case public:
+		pick = resourcev1.RouteWay_ROUTE_WAY_OWN_HTTPS
+	default:
+		out = append(out, &dockwellv1.WayOption{Way: resourcev1.RouteWay_ROUTE_WAY_OWN_TUNNEL, Off: facts.Name + " has no public address and no tunnel", Action: "Add a tunnel"})
+	}
+	if a.Way != resourcev1.RouteWay_ROUTE_WAY_UNSPECIFIED {
+		pick = a.Way
+	}
+	return out, pick
+}
+
+// offWords is a refusal as a way's state, in a line.
+func offWords(err error) string {
+	s := err.Error()
+	if i := strings.Index(s, ". "); i > 0 {
+		s = s[:i]
+	}
+	return strings.TrimSuffix(s, ".")
+}
+
+// denied says Cloudflare refused for want of a right.
+func denied(err error) bool {
+	var api *dnsproviders.APIError
+	return errors.As(err, &api) && (api.Status == 403 || api.Code == 10000 || api.Code == 9109)
+}

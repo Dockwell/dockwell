@@ -17,6 +17,7 @@ import (
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/control/checks"
 	"github.com/dockwell/dockwell/internal/control/health"
+	"github.com/dockwell/dockwell/internal/control/publish"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/ingress"
 	"github.com/dockwell/dockwell/internal/resource/alert"
@@ -74,6 +75,8 @@ func (s *signals) of(ctx context.Context, r rule) ([]finding, error) {
 		return s.updates(ctx, r), nil
 	case resourcev1.AlertRule_CONDITION_CATALOG_SOURCE_STUCK:
 		return s.catalogsStuck(ctx), nil
+	case resourcev1.AlertRule_CONDITION_DOMAIN_UNPUBLISHED:
+		return s.unpublished(ctx, r)
 	case resourcev1.AlertRule_CONDITION_UNSPECIFIED:
 	}
 	return nil, fmt.Errorf("no signal for %v", r.spec.GetCondition())
@@ -112,6 +115,128 @@ func (s *signals) catalogsStuck(ctx context.Context) []finding {
 		out = append(out, f)
 	}
 	return out
+}
+
+// unpublished is what Dockwell published at Cloudflare that the drift timer found
+// gone or changed: one finding for each tunnel, and each zone's records, not one for
+// each domain, as a zone's rule gone takes every domain in it (ADR 0104).
+func (s *signals) unpublished(ctx context.Context, r rule) ([]finding, error) {
+	if s.e.DB == nil {
+		return nil, nil
+	}
+	var rules []store.CloudflareRule
+	var records []store.CloudflareRecord
+	var replaced []finding
+	if err := s.e.DB.View(ctx, func(tx *store.Tx) error {
+		var err error
+		if rules, err = tx.CloudflareRulesAll(ctx); err != nil {
+			return err
+		}
+		if records, err = tx.CloudflareRecordsAll(ctx); err != nil {
+			return err
+		}
+		replaced, err = s.editsReplaced(ctx, tx, r)
+		return err
+	}); err != nil {
+		return nil, err
+	}
+	byThing := map[string]*finding{}
+	var order []string
+	add := func(thing string, f finding) *finding {
+		if got, ok := byThing[thing]; ok {
+			return got
+		}
+		f.thing, f.path, f.verdict = thing, "/domains", fine
+		byThing[thing] = &f
+		order = append(order, thing)
+		return byThing[thing]
+	}
+	for i := range rules {
+		r := &rules[i]
+		f := add("cloudflare-tunnel:"+r.TunnelID+":"+r.Zone, finding{subjectID: r.TunnelID, subjectName: r.Zone})
+		if r.State == store.CloudflarePublished || f.verdict != fine {
+			continue
+		}
+		f.verdict = holds
+		switch r.State {
+		case store.CloudflareTunnelDeleted:
+			f.title = "The tunnel that served " + r.Zone + " was deleted in Cloudflare"
+			f.detail = "Every domain in " + r.Zone + " published through it can't be reached. Publish them another way from Domains."
+		case store.CloudflareUnreadable:
+			f.title, f.detail = cantRead(r.Zone)
+		default:
+			f.title = r.Hostname + " is gone from its tunnel"
+			f.detail = "Every domain in " + r.Zone + " published through it can't be reached. Put it back from Domains."
+		}
+	}
+	for i := range records {
+		r := &records[i]
+		if r.Type == "pending" {
+			continue
+		}
+		f := add("cloudflare-dns:"+r.ZoneID, finding{subjectID: r.ZoneID, subjectName: r.Zone})
+		if r.State == store.CloudflarePublished || f.verdict != fine {
+			continue
+		}
+		f.verdict = holds
+		if r.State == store.CloudflareUnreadable {
+			f.title, f.detail = cantRead(r.Zone)
+			continue
+		}
+		f.title = "A DNS record Dockwell wrote in " + r.Zone + " is gone"
+		f.detail = r.Name + "'s record was removed or changed in Cloudflare, so it may not reach its app. Put it back from Domains."
+	}
+	out := make([]finding, 0, len(order)+len(replaced))
+	for _, thing := range order {
+		out = append(out, *byThing[thing])
+	}
+	return append(out, replaced...), nil
+}
+
+// didTo is what Dockwell did to a tunnel's rule, in a word.
+func didTo(a dockwellv1.ProviderAction) string {
+	if a == dockwellv1.ProviderAction_PROVIDER_ACTION_REMOVE_RULE {
+		return "removed"
+	}
+	return "added"
+}
+
+// cantRead is the alert's words for a zone Dockwell can't read at Cloudflare.
+func cantRead(zone string) (title, detail string) {
+	return "Dockwell can't read " + zone + " at Cloudflare",
+		"Its DNS provider isn't connected, or Cloudflare refuses its token, so whether its domains reach their apps isn't known. Check the provider under Integrations."
+}
+
+// editsReplaced are edits made in Cloudflare that a write of Dockwell's replaced, in
+// the last hour, each said once: whoever made one isn't watching the change that
+// replaced it (ADR 0104, section 4).
+func (s *signals) editsReplaced(ctx context.Context, tx *store.Tx, r rule) ([]finding, error) {
+	events, err := tx.EventsSince(ctx, publish.ActionReplaced, s.now.Add(-changesBack), 100)
+	if err != nil {
+		return nil, err
+	}
+	var out []finding
+	for i := range events {
+		ev := &events[i]
+		cf, ok := publish.ReadEvent(ev)
+		if !ok {
+			continue
+		}
+		thing := "cloudflare-edit:" + ev.ID
+		told, err := tx.AlertTold(ctx, r.id, thing)
+		if err != nil {
+			return nil, err
+		}
+		if told {
+			continue
+		}
+		out = append(out, finding{
+			thing: thing, verdict: holds, since: ev.At, subjectID: ev.Subject, subjectName: cf.GetTarget(), path: "/domains",
+			title:  "An edit to the tunnel " + cf.GetTarget() + " in Cloudflare was replaced",
+			detail: "It was saved just as Dockwell " + didTo(cf.GetAction()) + " " + cf.GetName() + ", so what it changed is gone. Make the edit again in Cloudflare.",
+		})
+	}
+	return out, nil
 }
 
 // Revocation is a key a server that's gone had, which the control plane hasn't

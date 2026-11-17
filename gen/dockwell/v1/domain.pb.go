@@ -82,6 +82,122 @@ func (SigninProviderState) EnumDescriptor() ([]byte, []int) {
 	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{0}
 }
 
+// Capability is one thing a provider's token can do (ADR 0104, section 6).
+type Capability int32
+
+const (
+	Capability_CAPABILITY_UNSPECIFIED Capability = 0
+	// Writes DNS in the zones asked for.
+	Capability_CAPABILITY_DNS Capability = 1
+	// Publishes through the account's tunnels.
+	Capability_CAPABILITY_TUNNELS Capability = 2
+	// Reads each zone's SSL mode.
+	Capability_CAPABILITY_ZONE_SETTINGS Capability = 3
+	// Reads its own rights, which is what makes the rest checkable.
+	Capability_CAPABILITY_OWN_RIGHTS Capability = 4
+)
+
+// Enum value maps for Capability.
+var (
+	Capability_name = map[int32]string{
+		0: "CAPABILITY_UNSPECIFIED",
+		1: "CAPABILITY_DNS",
+		2: "CAPABILITY_TUNNELS",
+		3: "CAPABILITY_ZONE_SETTINGS",
+		4: "CAPABILITY_OWN_RIGHTS",
+	}
+	Capability_value = map[string]int32{
+		"CAPABILITY_UNSPECIFIED":   0,
+		"CAPABILITY_DNS":           1,
+		"CAPABILITY_TUNNELS":       2,
+		"CAPABILITY_ZONE_SETTINGS": 3,
+		"CAPABILITY_OWN_RIGHTS":    4,
+	}
+)
+
+func (x Capability) Enum() *Capability {
+	p := new(Capability)
+	*p = x
+	return p
+}
+
+func (x Capability) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (Capability) Descriptor() protoreflect.EnumDescriptor {
+	return file_dockwell_v1_domain_proto_enumTypes[1].Descriptor()
+}
+
+func (Capability) Type() protoreflect.EnumType {
+	return &file_dockwell_v1_domain_proto_enumTypes[1]
+}
+
+func (x Capability) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use Capability.Descriptor instead.
+func (Capability) EnumDescriptor() ([]byte, []int) {
+	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{1}
+}
+
+// CapabilityState is whether a token has a capability.
+type CapabilityState int32
+
+const (
+	CapabilityState_CAPABILITY_STATE_UNSPECIFIED CapabilityState = 0
+	// Its rights say it has it.
+	CapabilityState_CAPABILITY_STATE_HAS CapabilityState = 1
+	// Its rights say it doesn't.
+	CapabilityState_CAPABILITY_STATE_LACKS CapabilityState = 2
+	// Its rights couldn't be read, so it isn't known: never taken as present.
+	CapabilityState_CAPABILITY_STATE_UNKNOWN CapabilityState = 3
+)
+
+// Enum value maps for CapabilityState.
+var (
+	CapabilityState_name = map[int32]string{
+		0: "CAPABILITY_STATE_UNSPECIFIED",
+		1: "CAPABILITY_STATE_HAS",
+		2: "CAPABILITY_STATE_LACKS",
+		3: "CAPABILITY_STATE_UNKNOWN",
+	}
+	CapabilityState_value = map[string]int32{
+		"CAPABILITY_STATE_UNSPECIFIED": 0,
+		"CAPABILITY_STATE_HAS":         1,
+		"CAPABILITY_STATE_LACKS":       2,
+		"CAPABILITY_STATE_UNKNOWN":     3,
+	}
+)
+
+func (x CapabilityState) Enum() *CapabilityState {
+	p := new(CapabilityState)
+	*p = x
+	return p
+}
+
+func (x CapabilityState) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (CapabilityState) Descriptor() protoreflect.EnumDescriptor {
+	return file_dockwell_v1_domain_proto_enumTypes[2].Descriptor()
+}
+
+func (CapabilityState) Type() protoreflect.EnumType {
+	return &file_dockwell_v1_domain_proto_enumTypes[2]
+}
+
+func (x CapabilityState) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use CapabilityState.Descriptor instead.
+func (CapabilityState) EnumDescriptor() ([]byte, []int) {
+	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{2}
+}
+
 // DnsProviderState is what a DNS provider said of a token.
 type DnsProviderState int32
 
@@ -132,11 +248,11 @@ func (x DnsProviderState) String() string {
 }
 
 func (DnsProviderState) Descriptor() protoreflect.EnumDescriptor {
-	return file_dockwell_v1_domain_proto_enumTypes[1].Descriptor()
+	return file_dockwell_v1_domain_proto_enumTypes[3].Descriptor()
 }
 
 func (DnsProviderState) Type() protoreflect.EnumType {
-	return &file_dockwell_v1_domain_proto_enumTypes[1]
+	return &file_dockwell_v1_domain_proto_enumTypes[3]
 }
 
 func (x DnsProviderState) Number() protoreflect.EnumNumber {
@@ -145,7 +261,162 @@ func (x DnsProviderState) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use DnsProviderState.Descriptor instead.
 func (DnsProviderState) EnumDescriptor() ([]byte, []int) {
-	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{1}
+	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{3}
+}
+
+// CloudflareName is what Cloudflare holds at a name.
+type CloudflareName int32
+
+const (
+	CloudflareName_CLOUDFLARE_NAME_UNSPECIFIED CloudflareName = 0
+	// Nothing that stops a domain: free, or only records a CNAME sits beside.
+	CloudflareName_CLOUDFLARE_NAME_FREE CloudflareName = 1
+	// An A, AAAA or CNAME someone else made, which an admin may replace.
+	CloudflareName_CLOUDFLARE_NAME_TAKEN CloudflareName = 2
+	// Records Dockwell wrote for this route already.
+	CloudflareName_CLOUDFLARE_NAME_OURS CloudflareName = 3
+	// Two labels or more below the zone, past Cloudflare's free certificate, so the
+	// tunnel and the proxy can't serve it over HTTPS.
+	CloudflareName_CLOUDFLARE_NAME_PAST_CERTIFICATE CloudflareName = 4
+	// The record there points at this tunnel or server already, made by hand: an
+	// admin may take it on.
+	CloudflareName_CLOUDFLARE_NAME_TAKE_ON CloudflareName = 5
+	// Cloudflare answered too many requests, so checks read nothing until
+	// checks_again, leaving the token's rate to renewals and plans.
+	CloudflareName_CLOUDFLARE_NAME_WAITING CloudflareName = 6
+)
+
+// Enum value maps for CloudflareName.
+var (
+	CloudflareName_name = map[int32]string{
+		0: "CLOUDFLARE_NAME_UNSPECIFIED",
+		1: "CLOUDFLARE_NAME_FREE",
+		2: "CLOUDFLARE_NAME_TAKEN",
+		3: "CLOUDFLARE_NAME_OURS",
+		4: "CLOUDFLARE_NAME_PAST_CERTIFICATE",
+		5: "CLOUDFLARE_NAME_TAKE_ON",
+		6: "CLOUDFLARE_NAME_WAITING",
+	}
+	CloudflareName_value = map[string]int32{
+		"CLOUDFLARE_NAME_UNSPECIFIED":      0,
+		"CLOUDFLARE_NAME_FREE":             1,
+		"CLOUDFLARE_NAME_TAKEN":            2,
+		"CLOUDFLARE_NAME_OURS":             3,
+		"CLOUDFLARE_NAME_PAST_CERTIFICATE": 4,
+		"CLOUDFLARE_NAME_TAKE_ON":          5,
+		"CLOUDFLARE_NAME_WAITING":          6,
+	}
+)
+
+func (x CloudflareName) Enum() *CloudflareName {
+	p := new(CloudflareName)
+	*p = x
+	return p
+}
+
+func (x CloudflareName) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (CloudflareName) Descriptor() protoreflect.EnumDescriptor {
+	return file_dockwell_v1_domain_proto_enumTypes[4].Descriptor()
+}
+
+func (CloudflareName) Type() protoreflect.EnumType {
+	return &file_dockwell_v1_domain_proto_enumTypes[4]
+}
+
+func (x CloudflareName) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use CloudflareName.Descriptor instead.
+func (CloudflareName) EnumDescriptor() ([]byte, []int) {
+	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{4}
+}
+
+// PublishedState is where a name Dockwell published stands at Cloudflare.
+type PublishedState int32
+
+const (
+	PublishedState_PUBLISHED_STATE_UNSPECIFIED PublishedState = 0
+	// Its record and the tunnel's rule are there, as written.
+	PublishedState_PUBLISHED_STATE_PUBLISHED PublishedState = 1
+	// The tunnel's rule that served it is gone.
+	PublishedState_PUBLISHED_STATE_GONE_FROM_TUNNEL PublishedState = 2
+	// Its DNS record is gone.
+	PublishedState_PUBLISHED_STATE_RECORD_GONE PublishedState = 3
+	// Its record was changed in Cloudflare since Dockwell wrote it, so removal leaves
+	// it.
+	PublishedState_PUBLISHED_STATE_CHANGED PublishedState = 4
+	// Its tunnel runs on more than the route's server now.
+	PublishedState_PUBLISHED_STATE_TUNNEL_SHARED PublishedState = 5
+	// Made in Cloudflare by hand, pointing at this tunnel or server: Manage in
+	// Dockwell takes it on.
+	PublishedState_PUBLISHED_STATE_CAN_TAKE_ON PublishedState = 6
+	// A tunnel's rule made by hand that points at the app's own port: Move it to
+	// Dockwell sends it through the server's proxy.
+	PublishedState_PUBLISHED_STATE_CAN_MOVE PublishedState = 7
+	// The tunnel that served it was deleted in Cloudflare.
+	PublishedState_PUBLISHED_STATE_TUNNEL_DELETED PublishedState = 8
+	// Dockwell can't read it: its DNS provider isn't connected, or Cloudflare refuses
+	// the token.
+	PublishedState_PUBLISHED_STATE_UNREADABLE PublishedState = 9
+)
+
+// Enum value maps for PublishedState.
+var (
+	PublishedState_name = map[int32]string{
+		0: "PUBLISHED_STATE_UNSPECIFIED",
+		1: "PUBLISHED_STATE_PUBLISHED",
+		2: "PUBLISHED_STATE_GONE_FROM_TUNNEL",
+		3: "PUBLISHED_STATE_RECORD_GONE",
+		4: "PUBLISHED_STATE_CHANGED",
+		5: "PUBLISHED_STATE_TUNNEL_SHARED",
+		6: "PUBLISHED_STATE_CAN_TAKE_ON",
+		7: "PUBLISHED_STATE_CAN_MOVE",
+		8: "PUBLISHED_STATE_TUNNEL_DELETED",
+		9: "PUBLISHED_STATE_UNREADABLE",
+	}
+	PublishedState_value = map[string]int32{
+		"PUBLISHED_STATE_UNSPECIFIED":      0,
+		"PUBLISHED_STATE_PUBLISHED":        1,
+		"PUBLISHED_STATE_GONE_FROM_TUNNEL": 2,
+		"PUBLISHED_STATE_RECORD_GONE":      3,
+		"PUBLISHED_STATE_CHANGED":          4,
+		"PUBLISHED_STATE_TUNNEL_SHARED":    5,
+		"PUBLISHED_STATE_CAN_TAKE_ON":      6,
+		"PUBLISHED_STATE_CAN_MOVE":         7,
+		"PUBLISHED_STATE_TUNNEL_DELETED":   8,
+		"PUBLISHED_STATE_UNREADABLE":       9,
+	}
+)
+
+func (x PublishedState) Enum() *PublishedState {
+	p := new(PublishedState)
+	*p = x
+	return p
+}
+
+func (x PublishedState) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (PublishedState) Descriptor() protoreflect.EnumDescriptor {
+	return file_dockwell_v1_domain_proto_enumTypes[5].Descriptor()
+}
+
+func (PublishedState) Type() protoreflect.EnumType {
+	return &file_dockwell_v1_domain_proto_enumTypes[5]
+}
+
+func (x PublishedState) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use PublishedState.Descriptor instead.
+func (PublishedState) EnumDescriptor() ([]byte, []int) {
+	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{5}
 }
 
 // IngressProblem is why a server's routes aren't being served.
@@ -191,11 +462,11 @@ func (x IngressProblem) String() string {
 }
 
 func (IngressProblem) Descriptor() protoreflect.EnumDescriptor {
-	return file_dockwell_v1_domain_proto_enumTypes[2].Descriptor()
+	return file_dockwell_v1_domain_proto_enumTypes[6].Descriptor()
 }
 
 func (IngressProblem) Type() protoreflect.EnumType {
-	return &file_dockwell_v1_domain_proto_enumTypes[2]
+	return &file_dockwell_v1_domain_proto_enumTypes[6]
 }
 
 func (x IngressProblem) Number() protoreflect.EnumNumber {
@@ -204,7 +475,7 @@ func (x IngressProblem) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use IngressProblem.Descriptor instead.
 func (IngressProblem) EnumDescriptor() ([]byte, []int) {
-	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{2}
+	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{6}
 }
 
 // StrangerOutcome is what a stranger gets from a private route.
@@ -262,11 +533,11 @@ func (x StrangerOutcome) String() string {
 }
 
 func (StrangerOutcome) Descriptor() protoreflect.EnumDescriptor {
-	return file_dockwell_v1_domain_proto_enumTypes[3].Descriptor()
+	return file_dockwell_v1_domain_proto_enumTypes[7].Descriptor()
 }
 
 func (StrangerOutcome) Type() protoreflect.EnumType {
-	return &file_dockwell_v1_domain_proto_enumTypes[3]
+	return &file_dockwell_v1_domain_proto_enumTypes[7]
 }
 
 func (x StrangerOutcome) Number() protoreflect.EnumNumber {
@@ -275,7 +546,7 @@ func (x StrangerOutcome) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use StrangerOutcome.Descriptor instead.
 func (StrangerOutcome) EnumDescriptor() ([]byte, []int) {
-	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{3}
+	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{7}
 }
 
 // CertificateState is where a domain's certificate stands.
@@ -325,11 +596,11 @@ func (x CertificateState) String() string {
 }
 
 func (CertificateState) Descriptor() protoreflect.EnumDescriptor {
-	return file_dockwell_v1_domain_proto_enumTypes[4].Descriptor()
+	return file_dockwell_v1_domain_proto_enumTypes[8].Descriptor()
 }
 
 func (CertificateState) Type() protoreflect.EnumType {
-	return &file_dockwell_v1_domain_proto_enumTypes[4]
+	return &file_dockwell_v1_domain_proto_enumTypes[8]
 }
 
 func (x CertificateState) Number() protoreflect.EnumNumber {
@@ -338,7 +609,7 @@ func (x CertificateState) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use CertificateState.Descriptor instead.
 func (CertificateState) EnumDescriptor() ([]byte, []int) {
-	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{4}
+	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{8}
 }
 
 // CertificateProblem is why a certificate failed.
@@ -404,11 +675,11 @@ func (x CertificateProblem) String() string {
 }
 
 func (CertificateProblem) Descriptor() protoreflect.EnumDescriptor {
-	return file_dockwell_v1_domain_proto_enumTypes[5].Descriptor()
+	return file_dockwell_v1_domain_proto_enumTypes[9].Descriptor()
 }
 
 func (CertificateProblem) Type() protoreflect.EnumType {
-	return &file_dockwell_v1_domain_proto_enumTypes[5]
+	return &file_dockwell_v1_domain_proto_enumTypes[9]
 }
 
 func (x CertificateProblem) Number() protoreflect.EnumNumber {
@@ -417,7 +688,7 @@ func (x CertificateProblem) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use CertificateProblem.Descriptor instead.
 func (CertificateProblem) EnumDescriptor() ([]byte, []int) {
-	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{5}
+	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{9}
 }
 
 // ListSigninProvidersRequest asks for the sign-in providers the caller may use.
@@ -1071,9 +1342,11 @@ type DnsProviderInfo struct {
 	// Which provider's API, such as "cloudflare".
 	Provider string `protobuf:"bytes,3,opt,name=provider,proto3" json:"provider,omitempty"`
 	// The zones it writes in.
-	Zones         []string `protobuf:"bytes,4,rep,name=zones,proto3" json:"zones,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Zones []string `protobuf:"bytes,4,rep,name=zones,proto3" json:"zones,omitempty"`
+	// Whether it holds a second token, for tunnels alone (ADR 0104).
+	TunnelApiTokenSet bool `protobuf:"varint,5,opt,name=tunnel_api_token_set,json=tunnelApiTokenSet,proto3" json:"tunnel_api_token_set,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *DnsProviderInfo) Reset() {
@@ -1132,6 +1405,13 @@ func (x *DnsProviderInfo) GetZones() []string {
 		return x.Zones
 	}
 	return nil
+}
+
+func (x *DnsProviderInfo) GetTunnelApiTokenSet() bool {
+	if x != nil {
+		return x.TunnelApiTokenSet
+	}
+	return false
 }
 
 // CheckDnsProviderRequest is a token to check, or a saved provider to check
@@ -1220,7 +1500,15 @@ type CheckDnsProviderResponse struct {
 	// For each zone asked for, whether a record could be written there.
 	Zones []*DnsZoneCheck `protobuf:"bytes,3,rep,name=zones,proto3" json:"zones,omitempty"`
 	// The provider's own words, when it said no or couldn't be reached, in a line.
-	Detail        string `protobuf:"bytes,4,opt,name=detail,proto3" json:"detail,omitempty"`
+	Detail string `protobuf:"bytes,4,opt,name=detail,proto3" json:"detail,omitempty"`
+	// Each thing the token can do, checked on its own from its own rights (ADR 0104).
+	Capabilities []*ProviderCapability `protobuf:"bytes,5,rep,name=capabilities,proto3" json:"capabilities,omitempty"`
+	// How many tunnels the token may edit: Cloudflare Tunnel Edit covers every
+	// tunnel in its account.
+	Tunnels int32 `protobuf:"varint,6,opt,name=tunnels,proto3" json:"tunnels,omitempty"`
+	// The token holds a right that makes credentials, such as API Tokens Write, which
+	// a token Dockwell holds shouldn't (ADR 0099).
+	MakesTokens   bool `protobuf:"varint,7,opt,name=makes_tokens,json=makesTokens,proto3" json:"makes_tokens,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1283,6 +1571,102 @@ func (x *CheckDnsProviderResponse) GetDetail() string {
 	return ""
 }
 
+func (x *CheckDnsProviderResponse) GetCapabilities() []*ProviderCapability {
+	if x != nil {
+		return x.Capabilities
+	}
+	return nil
+}
+
+func (x *CheckDnsProviderResponse) GetTunnels() int32 {
+	if x != nil {
+		return x.Tunnels
+	}
+	return 0
+}
+
+func (x *CheckDnsProviderResponse) GetMakesTokens() bool {
+	if x != nil {
+		return x.MakesTokens
+	}
+	return false
+}
+
+// ProviderCapability is one thing a provider's token can do, checked on its own.
+type ProviderCapability struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// What it is.
+	Capability Capability `protobuf:"varint,1,opt,name=capability,proto3,enum=dockwell.v1.Capability" json:"capability,omitempty"`
+	// Whether the token has it.
+	State CapabilityState `protobuf:"varint,2,opt,name=state,proto3,enum=dockwell.v1.CapabilityState" json:"state,omitempty"`
+	// What's missing, in Cloudflare's words as its dashboard has them, such as "the
+	// token lacks Cloudflare Tunnel edit".
+	Detail string `protobuf:"bytes,3,opt,name=detail,proto3" json:"detail,omitempty"`
+	// Where the person fixes it: Cloudflare's page for editing the token, or making
+	// one.
+	FixUrl        string `protobuf:"bytes,4,opt,name=fix_url,json=fixUrl,proto3" json:"fix_url,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ProviderCapability) Reset() {
+	*x = ProviderCapability{}
+	mi := &file_dockwell_v1_domain_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ProviderCapability) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ProviderCapability) ProtoMessage() {}
+
+func (x *ProviderCapability) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_domain_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ProviderCapability.ProtoReflect.Descriptor instead.
+func (*ProviderCapability) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *ProviderCapability) GetCapability() Capability {
+	if x != nil {
+		return x.Capability
+	}
+	return Capability_CAPABILITY_UNSPECIFIED
+}
+
+func (x *ProviderCapability) GetState() CapabilityState {
+	if x != nil {
+		return x.State
+	}
+	return CapabilityState_CAPABILITY_STATE_UNSPECIFIED
+}
+
+func (x *ProviderCapability) GetDetail() string {
+	if x != nil {
+		return x.Detail
+	}
+	return ""
+}
+
+func (x *ProviderCapability) GetFixUrl() string {
+	if x != nil {
+		return x.FixUrl
+	}
+	return ""
+}
+
 // DnsZoneCheck is what writing a record in one zone came to.
 type DnsZoneCheck struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -1291,14 +1675,19 @@ type DnsZoneCheck struct {
 	// Whether a record was written there, and deleted.
 	Writes bool `protobuf:"varint,2,opt,name=writes,proto3" json:"writes,omitempty"`
 	// The provider's own words, when it couldn't.
-	Detail        string `protobuf:"bytes,3,opt,name=detail,proto3" json:"detail,omitempty"`
+	Detail string `protobuf:"bytes,3,opt,name=detail,proto3" json:"detail,omitempty"`
+	// Its SSL/TLS mode at Cloudflare, such as "flexible", "full" or "strict", or
+	// empty where it couldn't be read.
+	SslMode string `protobuf:"bytes,4,opt,name=ssl_mode,json=sslMode,proto3" json:"ssl_mode,omitempty"`
+	// The account that holds it: one token can reach zones in several.
+	AccountId     string `protobuf:"bytes,5,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *DnsZoneCheck) Reset() {
 	*x = DnsZoneCheck{}
-	mi := &file_dockwell_v1_domain_proto_msgTypes[13]
+	mi := &file_dockwell_v1_domain_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1310,7 +1699,7 @@ func (x *DnsZoneCheck) String() string {
 func (*DnsZoneCheck) ProtoMessage() {}
 
 func (x *DnsZoneCheck) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_domain_proto_msgTypes[13]
+	mi := &file_dockwell_v1_domain_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1323,7 +1712,7 @@ func (x *DnsZoneCheck) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DnsZoneCheck.ProtoReflect.Descriptor instead.
 func (*DnsZoneCheck) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{13}
+	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *DnsZoneCheck) GetZone() string {
@@ -1347,6 +1736,20 @@ func (x *DnsZoneCheck) GetDetail() string {
 	return ""
 }
 
+func (x *DnsZoneCheck) GetSslMode() string {
+	if x != nil {
+		return x.SslMode
+	}
+	return ""
+}
+
+func (x *DnsZoneCheck) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
 // CheckDomainRequest names a domain and the server it's meant to reach.
 type CheckDomainRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -1356,14 +1759,17 @@ type CheckDomainRequest struct {
 	Domain string `protobuf:"bytes,2,opt,name=domain,proto3" json:"domain,omitempty"`
 	// The project it's for, by ID, so a shared wildcard certificate that serves that
 	// project counts as covering the domain's companion. Empty for one not made yet.
-	ProjectId     string `protobuf:"bytes,3,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
+	ProjectId string `protobuf:"bytes,3,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
+	// The way the person picked, to check that way. Unset, the check picks the
+	// default and says why (ADR 0104).
+	Publish       *v1alpha1.RoutePublish `protobuf:"bytes,4,opt,name=publish,proto3" json:"publish,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *CheckDomainRequest) Reset() {
 	*x = CheckDomainRequest{}
-	mi := &file_dockwell_v1_domain_proto_msgTypes[14]
+	mi := &file_dockwell_v1_domain_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1375,7 +1781,7 @@ func (x *CheckDomainRequest) String() string {
 func (*CheckDomainRequest) ProtoMessage() {}
 
 func (x *CheckDomainRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_domain_proto_msgTypes[14]
+	mi := &file_dockwell_v1_domain_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1388,7 +1794,7 @@ func (x *CheckDomainRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CheckDomainRequest.ProtoReflect.Descriptor instead.
 func (*CheckDomainRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{14}
+	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *CheckDomainRequest) GetServerId() string {
@@ -1412,6 +1818,13 @@ func (x *CheckDomainRequest) GetProjectId() string {
 	return ""
 }
 
+func (x *CheckDomainRequest) GetPublish() *v1alpha1.RoutePublish {
+	if x != nil {
+		return x.Publish
+	}
+	return nil
+}
+
 // CheckDomainResponse says what DNS says of it.
 type CheckDomainResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -1424,13 +1837,16 @@ type CheckDomainResponse struct {
 	Companion string `protobuf:"bytes,2,opt,name=companion,proto3" json:"companion,omitempty"`
 	// Where the companion stands. Unset when there's no companion.
 	CompanionCheck *CompanionCheck `protobuf:"bytes,3,opt,name=companion_check,json=companionCheck,proto3" json:"companion_check,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// What Cloudflare holds at the name, and the ways in, where a connected DNS
+	// provider's zone holds it for the project. Unset otherwise (ADR 0104).
+	Cloudflare    *CloudflareCheck `protobuf:"bytes,4,opt,name=cloudflare,proto3" json:"cloudflare,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *CheckDomainResponse) Reset() {
 	*x = CheckDomainResponse{}
-	mi := &file_dockwell_v1_domain_proto_msgTypes[15]
+	mi := &file_dockwell_v1_domain_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1442,7 +1858,7 @@ func (x *CheckDomainResponse) String() string {
 func (*CheckDomainResponse) ProtoMessage() {}
 
 func (x *CheckDomainResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_domain_proto_msgTypes[15]
+	mi := &file_dockwell_v1_domain_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1455,7 +1871,7 @@ func (x *CheckDomainResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CheckDomainResponse.ProtoReflect.Descriptor instead.
 func (*CheckDomainResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{15}
+	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *CheckDomainResponse) GetCheck() *DomainCheck {
@@ -1477,6 +1893,257 @@ func (x *CheckDomainResponse) GetCompanionCheck() *CompanionCheck {
 		return x.CompanionCheck
 	}
 	return nil
+}
+
+func (x *CheckDomainResponse) GetCloudflare() *CloudflareCheck {
+	if x != nil {
+		return x.Cloudflare
+	}
+	return nil
+}
+
+// CloudflareCheck is what a connected Cloudflare zone, and the server's tunnel, say
+// of a name, before any plan (ADR 0104, section 1). Below an admin it says only
+// whether the name is taken: a record's content is the origin address public DNS
+// hides.
+type CloudflareCheck struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The connected zone that holds the name, such as "example.com".
+	Zone string `protobuf:"bytes,1,opt,name=zone,proto3" json:"zone,omitempty"`
+	// The DNS provider that writes it, by name.
+	Provider string `protobuf:"bytes,2,opt,name=provider,proto3" json:"provider,omitempty"`
+	// What's at the name.
+	State CloudflareName `protobuf:"varint,3,opt,name=state,proto3,enum=dockwell.v1.CloudflareName" json:"state,omitempty"`
+	// The record there, in words, such as "A 203.0.113.9": an admin's alone.
+	Record string `protobuf:"bytes,4,opt,name=record,proto3" json:"record,omitempty"`
+	// That record's ID, to agree to replace or take on: an admin's alone.
+	RecordId string `protobuf:"bytes,5,opt,name=record_id,json=recordId,proto3" json:"record_id,omitempty"`
+	// Every type at the name, such as "TXT" and "MX", which a CNAME sits beside: an
+	// admin's alone.
+	Types []string `protobuf:"bytes,6,rep,name=types,proto3" json:"types,omitempty"`
+	// The way the check would take, unless the person picks another.
+	Way v1alpha1.RouteWay `protobuf:"varint,7,opt,name=way,proto3,enum=dockwell.resource.v1alpha1.RouteWay" json:"way,omitempty"`
+	// Each way, with why one can't be taken and what fixes it.
+	Ways []*WayOption `protobuf:"bytes,8,rep,name=ways,proto3" json:"ways,omitempty"`
+	// The zone's SSL mode, such as "flexible".
+	SslMode string `protobuf:"bytes,9,opt,name=ssl_mode,json=sslMode,proto3" json:"ssl_mode,omitempty"`
+	// When checks read Cloudflare again, while it asks Dockwell to wait (state
+	// CLOUDFLARE_NAME_WAITING).
+	ChecksAgain   *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=checks_again,json=checksAgain,proto3" json:"checks_again,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CloudflareCheck) Reset() {
+	*x = CloudflareCheck{}
+	mi := &file_dockwell_v1_domain_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CloudflareCheck) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CloudflareCheck) ProtoMessage() {}
+
+func (x *CloudflareCheck) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_domain_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CloudflareCheck.ProtoReflect.Descriptor instead.
+func (*CloudflareCheck) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *CloudflareCheck) GetZone() string {
+	if x != nil {
+		return x.Zone
+	}
+	return ""
+}
+
+func (x *CloudflareCheck) GetProvider() string {
+	if x != nil {
+		return x.Provider
+	}
+	return ""
+}
+
+func (x *CloudflareCheck) GetState() CloudflareName {
+	if x != nil {
+		return x.State
+	}
+	return CloudflareName_CLOUDFLARE_NAME_UNSPECIFIED
+}
+
+func (x *CloudflareCheck) GetRecord() string {
+	if x != nil {
+		return x.Record
+	}
+	return ""
+}
+
+func (x *CloudflareCheck) GetRecordId() string {
+	if x != nil {
+		return x.RecordId
+	}
+	return ""
+}
+
+func (x *CloudflareCheck) GetTypes() []string {
+	if x != nil {
+		return x.Types
+	}
+	return nil
+}
+
+func (x *CloudflareCheck) GetWay() v1alpha1.RouteWay {
+	if x != nil {
+		return x.Way
+	}
+	return v1alpha1.RouteWay(0)
+}
+
+func (x *CloudflareCheck) GetWays() []*WayOption {
+	if x != nil {
+		return x.Ways
+	}
+	return nil
+}
+
+func (x *CloudflareCheck) GetSslMode() string {
+	if x != nil {
+		return x.SslMode
+	}
+	return ""
+}
+
+func (x *CloudflareCheck) GetChecksAgain() *timestamppb.Timestamp {
+	if x != nil {
+		return x.ChecksAgain
+	}
+	return nil
+}
+
+// WayOption is one way in for a domain, and whether it can be taken now.
+type WayOption struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The way.
+	Way v1alpha1.RouteWay `protobuf:"varint,1,opt,name=way,proto3,enum=dockwell.resource.v1alpha1.RouteWay" json:"way,omitempty"`
+	// The tunnel, by ID, for a tunnel's way.
+	Tunnel string `protobuf:"bytes,2,opt,name=tunnel,proto3" json:"tunnel,omitempty"`
+	// The tunnel's name, such as "web-1".
+	TunnelName string `protobuf:"bytes,3,opt,name=tunnel_name,json=tunnelName,proto3" json:"tunnel_name,omitempty"`
+	// Why it can't be taken now, as a state, such as "hz-1's tunnel is managed in a
+	// file, so Dockwell writes nothing at Cloudflare". Empty when it can.
+	Off string `protobuf:"bytes,4,opt,name=off,proto3" json:"off,omitempty"`
+	// What fixes it, such as "Add it to this token". Empty when nothing here does.
+	Action string `protobuf:"bytes,5,opt,name=action,proto3" json:"action,omitempty"`
+	// Where that action goes, such as Cloudflare's page for editing the token.
+	ActionUrl string `protobuf:"bytes,6,opt,name=action_url,json=actionUrl,proto3" json:"action_url,omitempty"`
+	// The rule the tunnel needs first, such as "*.example.com", added once per zone.
+	// Empty when a rule there reaches the server's proxy already.
+	AddsRule string `protobuf:"bytes,7,opt,name=adds_rule,json=addsRule,proto3" json:"adds_rule,omitempty"`
+	// The rule that catches the name first, when another does, such as
+	// "*.example.com, to http://127.0.0.1:8080": an admin's alone.
+	CaughtBy      string `protobuf:"bytes,8,opt,name=caught_by,json=caughtBy,proto3" json:"caught_by,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *WayOption) Reset() {
+	*x = WayOption{}
+	mi := &file_dockwell_v1_domain_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WayOption) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WayOption) ProtoMessage() {}
+
+func (x *WayOption) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_domain_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WayOption.ProtoReflect.Descriptor instead.
+func (*WayOption) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *WayOption) GetWay() v1alpha1.RouteWay {
+	if x != nil {
+		return x.Way
+	}
+	return v1alpha1.RouteWay(0)
+}
+
+func (x *WayOption) GetTunnel() string {
+	if x != nil {
+		return x.Tunnel
+	}
+	return ""
+}
+
+func (x *WayOption) GetTunnelName() string {
+	if x != nil {
+		return x.TunnelName
+	}
+	return ""
+}
+
+func (x *WayOption) GetOff() string {
+	if x != nil {
+		return x.Off
+	}
+	return ""
+}
+
+func (x *WayOption) GetAction() string {
+	if x != nil {
+		return x.Action
+	}
+	return ""
+}
+
+func (x *WayOption) GetActionUrl() string {
+	if x != nil {
+		return x.ActionUrl
+	}
+	return ""
+}
+
+func (x *WayOption) GetAddsRule() string {
+	if x != nil {
+		return x.AddsRule
+	}
+	return ""
+}
+
+func (x *WayOption) GetCaughtBy() string {
+	if x != nil {
+		return x.CaughtBy
+	}
+	return ""
 }
 
 // CompanionCheck is where a domain's companion stands: what DNS says of it, whether
@@ -1508,7 +2175,7 @@ type CompanionCheck struct {
 
 func (x *CompanionCheck) Reset() {
 	*x = CompanionCheck{}
-	mi := &file_dockwell_v1_domain_proto_msgTypes[16]
+	mi := &file_dockwell_v1_domain_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1520,7 +2187,7 @@ func (x *CompanionCheck) String() string {
 func (*CompanionCheck) ProtoMessage() {}
 
 func (x *CompanionCheck) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_domain_proto_msgTypes[16]
+	mi := &file_dockwell_v1_domain_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1533,7 +2200,7 @@ func (x *CompanionCheck) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CompanionCheck.ProtoReflect.Descriptor instead.
 func (*CompanionCheck) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{16}
+	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *CompanionCheck) GetCheck() *DomainCheck {
@@ -1593,7 +2260,7 @@ type ListDomainsRequest struct {
 
 func (x *ListDomainsRequest) Reset() {
 	*x = ListDomainsRequest{}
-	mi := &file_dockwell_v1_domain_proto_msgTypes[17]
+	mi := &file_dockwell_v1_domain_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1605,7 +2272,7 @@ func (x *ListDomainsRequest) String() string {
 func (*ListDomainsRequest) ProtoMessage() {}
 
 func (x *ListDomainsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_domain_proto_msgTypes[17]
+	mi := &file_dockwell_v1_domain_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1618,7 +2285,7 @@ func (x *ListDomainsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListDomainsRequest.ProtoReflect.Descriptor instead.
 func (*ListDomainsRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{17}
+	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *ListDomainsRequest) GetEnvironment() string {
@@ -1646,7 +2313,7 @@ type ListDomainsResponse struct {
 
 func (x *ListDomainsResponse) Reset() {
 	*x = ListDomainsResponse{}
-	mi := &file_dockwell_v1_domain_proto_msgTypes[18]
+	mi := &file_dockwell_v1_domain_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1658,7 +2325,7 @@ func (x *ListDomainsResponse) String() string {
 func (*ListDomainsResponse) ProtoMessage() {}
 
 func (x *ListDomainsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_domain_proto_msgTypes[18]
+	mi := &file_dockwell_v1_domain_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1671,7 +2338,7 @@ func (x *ListDomainsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListDomainsResponse.ProtoReflect.Descriptor instead.
 func (*ListDomainsResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{18}
+	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *ListDomainsResponse) GetDomains() []*Domain {
@@ -1695,14 +2362,17 @@ type Domain struct {
 	// Its routes, by path.
 	Routes []*DomainRoute `protobuf:"bytes,4,rep,name=routes,proto3" json:"routes,omitempty"`
 	// Where it stands on each server its routes run on.
-	Servers       []*DomainServer `protobuf:"bytes,5,rep,name=servers,proto3" json:"servers,omitempty"`
+	Servers []*DomainServer `protobuf:"bytes,5,rep,name=servers,proto3" json:"servers,omitempty"`
+	// What Dockwell published for it at Cloudflare, and whether it's still there
+	// (ADR 0104). Empty for a domain published by hand, or not at all.
+	Published     []*DomainPublished `protobuf:"bytes,6,rep,name=published,proto3" json:"published,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Domain) Reset() {
 	*x = Domain{}
-	mi := &file_dockwell_v1_domain_proto_msgTypes[19]
+	mi := &file_dockwell_v1_domain_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1714,7 +2384,7 @@ func (x *Domain) String() string {
 func (*Domain) ProtoMessage() {}
 
 func (x *Domain) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_domain_proto_msgTypes[19]
+	mi := &file_dockwell_v1_domain_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1727,7 +2397,7 @@ func (x *Domain) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Domain.ProtoReflect.Descriptor instead.
 func (*Domain) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{19}
+	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *Domain) GetName() string {
@@ -1761,6 +2431,105 @@ func (x *Domain) GetRoutes() []*DomainRoute {
 func (x *Domain) GetServers() []*DomainServer {
 	if x != nil {
 		return x.Servers
+	}
+	return nil
+}
+
+func (x *Domain) GetPublished() []*DomainPublished {
+	if x != nil {
+		return x.Published
+	}
+	return nil
+}
+
+// DomainPublished is one name Dockwell published at Cloudflare, as the drift timer
+// last read it.
+type DomainPublished struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The name, such as "wiki.example.com", or its companion.
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// The way in.
+	Way v1alpha1.RouteWay `protobuf:"varint,2,opt,name=way,proto3,enum=dockwell.resource.v1alpha1.RouteWay" json:"way,omitempty"`
+	// The tunnel's name, for a tunnel's way.
+	Tunnel string `protobuf:"bytes,3,opt,name=tunnel,proto3" json:"tunnel,omitempty"`
+	// Its DNS record, in words, such as "CNAME to web-1's tunnel, proxied".
+	Record string `protobuf:"bytes,4,opt,name=record,proto3" json:"record,omitempty"`
+	// Where it stands.
+	State PublishedState `protobuf:"varint,5,opt,name=state,proto3,enum=dockwell.v1.PublishedState" json:"state,omitempty"`
+	// When it was taken on, for a record or rule made in Cloudflare and taken on.
+	TakenOn       *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=taken_on,json=takenOn,proto3" json:"taken_on,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DomainPublished) Reset() {
+	*x = DomainPublished{}
+	mi := &file_dockwell_v1_domain_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DomainPublished) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DomainPublished) ProtoMessage() {}
+
+func (x *DomainPublished) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_domain_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DomainPublished.ProtoReflect.Descriptor instead.
+func (*DomainPublished) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *DomainPublished) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *DomainPublished) GetWay() v1alpha1.RouteWay {
+	if x != nil {
+		return x.Way
+	}
+	return v1alpha1.RouteWay(0)
+}
+
+func (x *DomainPublished) GetTunnel() string {
+	if x != nil {
+		return x.Tunnel
+	}
+	return ""
+}
+
+func (x *DomainPublished) GetRecord() string {
+	if x != nil {
+		return x.Record
+	}
+	return ""
+}
+
+func (x *DomainPublished) GetState() PublishedState {
+	if x != nil {
+		return x.State
+	}
+	return PublishedState_PUBLISHED_STATE_UNSPECIFIED
+}
+
+func (x *DomainPublished) GetTakenOn() *timestamppb.Timestamp {
+	if x != nil {
+		return x.TakenOn
 	}
 	return nil
 }
@@ -1812,7 +2581,7 @@ type DomainRoute struct {
 
 func (x *DomainRoute) Reset() {
 	*x = DomainRoute{}
-	mi := &file_dockwell_v1_domain_proto_msgTypes[20]
+	mi := &file_dockwell_v1_domain_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1824,7 +2593,7 @@ func (x *DomainRoute) String() string {
 func (*DomainRoute) ProtoMessage() {}
 
 func (x *DomainRoute) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_domain_proto_msgTypes[20]
+	mi := &file_dockwell_v1_domain_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1837,7 +2606,7 @@ func (x *DomainRoute) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DomainRoute.ProtoReflect.Descriptor instead.
 func (*DomainRoute) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{20}
+	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *DomainRoute) GetId() string {
@@ -1970,7 +2739,7 @@ type DomainServer struct {
 
 func (x *DomainServer) Reset() {
 	*x = DomainServer{}
-	mi := &file_dockwell_v1_domain_proto_msgTypes[21]
+	mi := &file_dockwell_v1_domain_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1982,7 +2751,7 @@ func (x *DomainServer) String() string {
 func (*DomainServer) ProtoMessage() {}
 
 func (x *DomainServer) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_domain_proto_msgTypes[21]
+	mi := &file_dockwell_v1_domain_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1995,7 +2764,7 @@ func (x *DomainServer) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DomainServer.ProtoReflect.Descriptor instead.
 func (*DomainServer) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{21}
+	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *DomainServer) GetServerId() string {
@@ -2069,7 +2838,7 @@ type IngressStatus struct {
 
 func (x *IngressStatus) Reset() {
 	*x = IngressStatus{}
-	mi := &file_dockwell_v1_domain_proto_msgTypes[22]
+	mi := &file_dockwell_v1_domain_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2081,7 +2850,7 @@ func (x *IngressStatus) String() string {
 func (*IngressStatus) ProtoMessage() {}
 
 func (x *IngressStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_domain_proto_msgTypes[22]
+	mi := &file_dockwell_v1_domain_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2094,7 +2863,7 @@ func (x *IngressStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IngressStatus.ProtoReflect.Descriptor instead.
 func (*IngressStatus) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{22}
+	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *IngressStatus) GetProxy() string {
@@ -2171,7 +2940,7 @@ type DomainStatus struct {
 
 func (x *DomainStatus) Reset() {
 	*x = DomainStatus{}
-	mi := &file_dockwell_v1_domain_proto_msgTypes[23]
+	mi := &file_dockwell_v1_domain_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2183,7 +2952,7 @@ func (x *DomainStatus) String() string {
 func (*DomainStatus) ProtoMessage() {}
 
 func (x *DomainStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_domain_proto_msgTypes[23]
+	mi := &file_dockwell_v1_domain_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2196,7 +2965,7 @@ func (x *DomainStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DomainStatus.ProtoReflect.Descriptor instead.
 func (*DomainStatus) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{23}
+	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *DomainStatus) GetDomain() string {
@@ -2250,7 +3019,7 @@ type StrangerCheck struct {
 
 func (x *StrangerCheck) Reset() {
 	*x = StrangerCheck{}
-	mi := &file_dockwell_v1_domain_proto_msgTypes[24]
+	mi := &file_dockwell_v1_domain_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2262,7 +3031,7 @@ func (x *StrangerCheck) String() string {
 func (*StrangerCheck) ProtoMessage() {}
 
 func (x *StrangerCheck) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_domain_proto_msgTypes[24]
+	mi := &file_dockwell_v1_domain_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2275,7 +3044,7 @@ func (x *StrangerCheck) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StrangerCheck.ProtoReflect.Descriptor instead.
 func (*StrangerCheck) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{24}
+	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *StrangerCheck) GetPath() string {
@@ -2329,7 +3098,7 @@ type Certificate struct {
 
 func (x *Certificate) Reset() {
 	*x = Certificate{}
-	mi := &file_dockwell_v1_domain_proto_msgTypes[25]
+	mi := &file_dockwell_v1_domain_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2341,7 +3110,7 @@ func (x *Certificate) String() string {
 func (*Certificate) ProtoMessage() {}
 
 func (x *Certificate) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_domain_proto_msgTypes[25]
+	mi := &file_dockwell_v1_domain_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2354,7 +3123,7 @@ func (x *Certificate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Certificate.ProtoReflect.Descriptor instead.
 func (*Certificate) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{25}
+	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *Certificate) GetState() CertificateState {
@@ -2442,35 +3211,76 @@ const file_dockwell_v1_domain_proto_rawDesc = "" +
 	"\tnext_time\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\bnextTime\"\x19\n" +
 	"\x17ListDnsProvidersRequest\"V\n" +
 	"\x18ListDnsProvidersResponse\x12:\n" +
-	"\tproviders\x18\x01 \x03(\v2\x1c.dockwell.v1.DnsProviderInfoR\tproviders\"g\n" +
+	"\tproviders\x18\x01 \x03(\v2\x1c.dockwell.v1.DnsProviderInfoR\tproviders\"\x98\x01\n" +
 	"\x0fDnsProviderInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1a\n" +
 	"\bprovider\x18\x03 \x01(\tR\bprovider\x12\x14\n" +
-	"\x05zones\x18\x04 \x03(\tR\x05zones\"\x82\x01\n" +
+	"\x05zones\x18\x04 \x03(\tR\x05zones\x12/\n" +
+	"\x14tunnel_api_token_set\x18\x05 \x01(\bR\x11tunnelApiTokenSet\"\x82\x01\n" +
 	"\x17CheckDnsProviderRequest\x12\x1a\n" +
 	"\bprovider\x18\x01 \x01(\tR\bprovider\x12!\n" +
 	"\tapi_token\x18\x02 \x01(\tB\x04\xc8\xf3\x18\x01R\bapiToken\x12\x14\n" +
 	"\x05zones\x18\x03 \x03(\tR\x05zones\x12\x12\n" +
-	"\x04name\x18\x04 \x01(\tR\x04name\"\xb2\x01\n" +
+	"\x04name\x18\x04 \x01(\tR\x04name\"\xb4\x02\n" +
 	"\x18CheckDnsProviderResponse\x123\n" +
 	"\x05state\x18\x01 \x01(\x0e2\x1d.dockwell.v1.DnsProviderStateR\x05state\x12\x18\n" +
 	"\areaches\x18\x02 \x03(\tR\areaches\x12/\n" +
 	"\x05zones\x18\x03 \x03(\v2\x19.dockwell.v1.DnsZoneCheckR\x05zones\x12\x16\n" +
-	"\x06detail\x18\x04 \x01(\tR\x06detail\"R\n" +
+	"\x06detail\x18\x04 \x01(\tR\x06detail\x12C\n" +
+	"\fcapabilities\x18\x05 \x03(\v2\x1f.dockwell.v1.ProviderCapabilityR\fcapabilities\x12\x18\n" +
+	"\atunnels\x18\x06 \x01(\x05R\atunnels\x12!\n" +
+	"\fmakes_tokens\x18\a \x01(\bR\vmakesTokens\"\xb2\x01\n" +
+	"\x12ProviderCapability\x127\n" +
+	"\n" +
+	"capability\x18\x01 \x01(\x0e2\x17.dockwell.v1.CapabilityR\n" +
+	"capability\x122\n" +
+	"\x05state\x18\x02 \x01(\x0e2\x1c.dockwell.v1.CapabilityStateR\x05state\x12\x16\n" +
+	"\x06detail\x18\x03 \x01(\tR\x06detail\x12\x17\n" +
+	"\afix_url\x18\x04 \x01(\tR\x06fixUrl\"\x8c\x01\n" +
 	"\fDnsZoneCheck\x12\x12\n" +
 	"\x04zone\x18\x01 \x01(\tR\x04zone\x12\x16\n" +
 	"\x06writes\x18\x02 \x01(\bR\x06writes\x12\x16\n" +
-	"\x06detail\x18\x03 \x01(\tR\x06detail\"h\n" +
+	"\x06detail\x18\x03 \x01(\tR\x06detail\x12\x19\n" +
+	"\bssl_mode\x18\x04 \x01(\tR\asslMode\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x05 \x01(\tR\taccountId\"\xac\x01\n" +
 	"\x12CheckDomainRequest\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x16\n" +
 	"\x06domain\x18\x02 \x01(\tR\x06domain\x12\x1d\n" +
 	"\n" +
-	"project_id\x18\x03 \x01(\tR\tprojectId\"\xa9\x01\n" +
+	"project_id\x18\x03 \x01(\tR\tprojectId\x12B\n" +
+	"\apublish\x18\x04 \x01(\v2(.dockwell.resource.v1alpha1.RoutePublishR\apublish\"\xe7\x01\n" +
 	"\x13CheckDomainResponse\x12.\n" +
 	"\x05check\x18\x01 \x01(\v2\x18.dockwell.v1.DomainCheckR\x05check\x12\x1c\n" +
 	"\tcompanion\x18\x02 \x01(\tR\tcompanion\x12D\n" +
-	"\x0fcompanion_check\x18\x03 \x01(\v2\x1b.dockwell.v1.CompanionCheckR\x0ecompanionCheck\"\xea\x01\n" +
+	"\x0fcompanion_check\x18\x03 \x01(\v2\x1b.dockwell.v1.CompanionCheckR\x0ecompanionCheck\x12<\n" +
+	"\n" +
+	"cloudflare\x18\x04 \x01(\v2\x1c.dockwell.v1.CloudflareCheckR\n" +
+	"cloudflare\"\xfd\x02\n" +
+	"\x0fCloudflareCheck\x12\x12\n" +
+	"\x04zone\x18\x01 \x01(\tR\x04zone\x12\x1a\n" +
+	"\bprovider\x18\x02 \x01(\tR\bprovider\x121\n" +
+	"\x05state\x18\x03 \x01(\x0e2\x1b.dockwell.v1.CloudflareNameR\x05state\x12\x16\n" +
+	"\x06record\x18\x04 \x01(\tR\x06record\x12\x1b\n" +
+	"\trecord_id\x18\x05 \x01(\tR\brecordId\x12\x14\n" +
+	"\x05types\x18\x06 \x03(\tR\x05types\x126\n" +
+	"\x03way\x18\a \x01(\x0e2$.dockwell.resource.v1alpha1.RouteWayR\x03way\x12*\n" +
+	"\x04ways\x18\b \x03(\v2\x16.dockwell.v1.WayOptionR\x04ways\x12\x19\n" +
+	"\bssl_mode\x18\t \x01(\tR\asslMode\x12=\n" +
+	"\fchecks_again\x18\n" +
+	" \x01(\v2\x1a.google.protobuf.TimestampR\vchecksAgain\"\xff\x01\n" +
+	"\tWayOption\x126\n" +
+	"\x03way\x18\x01 \x01(\x0e2$.dockwell.resource.v1alpha1.RouteWayR\x03way\x12\x16\n" +
+	"\x06tunnel\x18\x02 \x01(\tR\x06tunnel\x12\x1f\n" +
+	"\vtunnel_name\x18\x03 \x01(\tR\n" +
+	"tunnelName\x12\x10\n" +
+	"\x03off\x18\x04 \x01(\tR\x03off\x12\x16\n" +
+	"\x06action\x18\x05 \x01(\tR\x06action\x12\x1d\n" +
+	"\n" +
+	"action_url\x18\x06 \x01(\tR\tactionUrl\x12\x1b\n" +
+	"\tadds_rule\x18\a \x01(\tR\baddsRule\x12\x1b\n" +
+	"\tcaught_by\x18\b \x01(\tR\bcaughtBy\"\xea\x01\n" +
 	"\x0eCompanionCheck\x12.\n" +
 	"\x05check\x18\x01 \x01(\v2\x18.dockwell.v1.DomainCheckR\x05check\x12#\n" +
 	"\ranswers_alike\x18\x02 \x01(\bR\fanswersAlike\x123\n" +
@@ -2482,13 +3292,21 @@ const file_dockwell_v1_domain_proto_rawDesc = "" +
 	"\venvironment\x18\x01 \x01(\tR\venvironment\x12\x18\n" +
 	"\aservice\x18\x02 \x01(\tR\aservice\"D\n" +
 	"\x13ListDomainsResponse\x12-\n" +
-	"\adomains\x18\x01 \x03(\v2\x13.dockwell.v1.DomainR\adomains\"\xbc\x01\n" +
+	"\adomains\x18\x01 \x03(\v2\x13.dockwell.v1.DomainR\adomains\"\xf8\x01\n" +
 	"\x06Domain\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12%\n" +
 	"\x0eenvironment_id\x18\x02 \x01(\tR\renvironmentId\x12\x10\n" +
 	"\x03url\x18\x03 \x01(\tR\x03url\x120\n" +
 	"\x06routes\x18\x04 \x03(\v2\x18.dockwell.v1.DomainRouteR\x06routes\x123\n" +
-	"\aservers\x18\x05 \x03(\v2\x19.dockwell.v1.DomainServerR\aservers\"\xd0\x03\n" +
+	"\aservers\x18\x05 \x03(\v2\x19.dockwell.v1.DomainServerR\aservers\x12:\n" +
+	"\tpublished\x18\x06 \x03(\v2\x1c.dockwell.v1.DomainPublishedR\tpublished\"\xf7\x01\n" +
+	"\x0fDomainPublished\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x126\n" +
+	"\x03way\x18\x02 \x01(\x0e2$.dockwell.resource.v1alpha1.RouteWayR\x03way\x12\x16\n" +
+	"\x06tunnel\x18\x03 \x01(\tR\x06tunnel\x12\x16\n" +
+	"\x06record\x18\x04 \x01(\tR\x06record\x121\n" +
+	"\x05state\x18\x05 \x01(\x0e2\x1b.dockwell.v1.PublishedStateR\x05state\x125\n" +
+	"\btaken_on\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\atakenOn\"\xd0\x03\n" +
 	"\vDomainRoute\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x12\n" +
@@ -2545,14 +3363,45 @@ const file_dockwell_v1_domain_proto_rawDesc = "" +
 	"!SIGNIN_PROVIDER_STATE_UNSPECIFIED\x10\x00\x12\x1f\n" +
 	"\x1bSIGNIN_PROVIDER_STATE_FOUND\x10\x01\x12%\n" +
 	"!SIGNIN_PROVIDER_STATE_UNREACHABLE\x10\x02\x12\"\n" +
-	"\x1eSIGNIN_PROVIDER_STATE_UNUSABLE\x10\x03*\xc4\x02\n" +
+	"\x1eSIGNIN_PROVIDER_STATE_UNUSABLE\x10\x03*\xf5\x01\n" +
+	"\n" +
+	"Capability\x12\x1a\n" +
+	"\x16CAPABILITY_UNSPECIFIED\x10\x00\x12%\n" +
+	"\x0eCAPABILITY_DNS\x10\x01\x1a\x11\xa2\xbb\x18\rCan write DNS\x127\n" +
+	"\x12CAPABILITY_TUNNELS\x10\x02\x1a\x1f\xa2\xbb\x18\x1bCan publish through tunnels\x125\n" +
+	"\x18CAPABILITY_ZONE_SETTINGS\x10\x03\x1a\x17\xa2\xbb\x18\x13Reads zone settings\x124\n" +
+	"\x15CAPABILITY_OWN_RIGHTS\x10\x04\x1a\x19\xa2\xbb\x18\x15Checks its own rights*\xae\x01\n" +
+	"\x0fCapabilityState\x12 \n" +
+	"\x1cCAPABILITY_STATE_UNSPECIFIED\x10\x00\x12!\n" +
+	"\x14CAPABILITY_STATE_HAS\x10\x01\x1a\a\xa2\xbb\x18\x03Yes\x12'\n" +
+	"\x16CAPABILITY_STATE_LACKS\x10\x02\x1a\v\xa2\xbb\x18\aMissing\x12-\n" +
+	"\x18CAPABILITY_STATE_UNKNOWN\x10\x03\x1a\x0f\xa2\xbb\x18\vCan't check*\xc4\x02\n" +
 	"\x10DnsProviderState\x12\"\n" +
 	"\x1eDNS_PROVIDER_STATE_UNSPECIFIED\x10\x00\x120\n" +
 	"\x19DNS_PROVIDER_STATE_WRITES\x10\x01\x1a\x11\xa2\xbb\x18\rCan write DNS\x12/\n" +
 	"\x1aDNS_PROVIDER_STATE_REFUSED\x10\x02\x1a\x0f\xa2\xbb\x18\vWrong token\x126\n" +
 	"\x1dDNS_PROVIDER_STATE_CANT_WRITE\x10\x03\x1a\x13\xa2\xbb\x18\x0fCan't write DNS\x12@\n" +
 	"\x1eDNS_PROVIDER_STATE_UNREACHABLE\x10\x04\x1a\x1c\xa2\xbb\x18\x18Can't reach the provider\x12/\n" +
-	"\x1aDNS_PROVIDER_STATE_REACHES\x10\x05\x1a\x0f\xa2\xbb\x18\vToken works*\x95\x01\n" +
+	"\x1aDNS_PROVIDER_STATE_REACHES\x10\x05\x1a\x0f\xa2\xbb\x18\vToken works*\x8f\x03\n" +
+	"\x0eCloudflareName\x12\x1f\n" +
+	"\x1bCLOUDFLARE_NAME_UNSPECIFIED\x10\x00\x120\n" +
+	"\x14CLOUDFLARE_NAME_FREE\x10\x01\x1a\x16\xa2\xbb\x18\x12Free at Cloudflare\x122\n" +
+	"\x15CLOUDFLARE_NAME_TAKEN\x10\x02\x1a\x17\xa2\xbb\x18\x13Taken at Cloudflare\x12/\n" +
+	"\x14CLOUDFLARE_NAME_OURS\x10\x03\x1a\x15\xa2\xbb\x18\x11Already published\x12L\n" +
+	" CLOUDFLARE_NAME_PAST_CERTIFICATE\x10\x04\x1a&\xa2\xbb\x18\"Past Cloudflare's free certificate\x123\n" +
+	"\x17CLOUDFLARE_NAME_TAKE_ON\x10\x05\x1a\x16\xa2\xbb\x18\x12Made in Cloudflare\x12B\n" +
+	"\x17CLOUDFLARE_NAME_WAITING\x10\x06\x1a%\xa2\xbb\x18!Cloudflare asked Dockwell to wait*\x87\x05\n" +
+	"\x0ePublishedState\x12\x1f\n" +
+	"\x1bPUBLISHED_STATE_UNSPECIFIED\x10\x00\x12,\n" +
+	"\x19PUBLISHED_STATE_PUBLISHED\x10\x01\x1a\r\xa2\xbb\x18\tPublished\x12D\n" +
+	" PUBLISHED_STATE_GONE_FROM_TUNNEL\x10\x02\x1a\x1e\xa2\xbb\x18\x1aNot in the tunnel any more\x12I\n" +
+	"\x1bPUBLISHED_STATE_RECORD_GONE\x10\x03\x1a(\xa2\xbb\x18$Its DNS record is gone at Cloudflare\x126\n" +
+	"\x17PUBLISHED_STATE_CHANGED\x10\x04\x1a\x19\xa2\xbb\x18\x15Changed in Cloudflare\x12L\n" +
+	"\x1dPUBLISHED_STATE_TUNNEL_SHARED\x10\x05\x1a)\xa2\xbb\x18%Its tunnel runs on another server too\x127\n" +
+	"\x1bPUBLISHED_STATE_CAN_TAKE_ON\x10\x06\x1a\x16\xa2\xbb\x18\x12Made in Cloudflare\x12>\n" +
+	"\x18PUBLISHED_STATE_CAN_MOVE\x10\a\x1a \xa2\xbb\x18\x1cPoints at the app's own port\x12L\n" +
+	"\x1ePUBLISHED_STATE_TUNNEL_DELETED\x10\b\x1a(\xa2\xbb\x18$Its tunnel was deleted in Cloudflare\x12H\n" +
+	"\x1aPUBLISHED_STATE_UNREADABLE\x10\t\x1a(\xa2\xbb\x18$Dockwell can't read it at Cloudflare*\x95\x01\n" +
 	"\x0eIngressProblem\x12\x1f\n" +
 	"\x1bINGRESS_PROBLEM_UNSPECIFIED\x10\x00\x12\x1f\n" +
 	"\x1bINGRESS_PROBLEM_PORTS_TAKEN\x10\x01\x12 \n" +
@@ -2608,93 +3457,117 @@ func file_dockwell_v1_domain_proto_rawDescGZIP() []byte {
 	return file_dockwell_v1_domain_proto_rawDescData
 }
 
-var file_dockwell_v1_domain_proto_enumTypes = make([]protoimpl.EnumInfo, 6)
-var file_dockwell_v1_domain_proto_msgTypes = make([]protoimpl.MessageInfo, 26)
+var file_dockwell_v1_domain_proto_enumTypes = make([]protoimpl.EnumInfo, 10)
+var file_dockwell_v1_domain_proto_msgTypes = make([]protoimpl.MessageInfo, 30)
 var file_dockwell_v1_domain_proto_goTypes = []any{
 	(SigninProviderState)(0),            // 0: dockwell.v1.SigninProviderState
-	(DnsProviderState)(0),               // 1: dockwell.v1.DnsProviderState
-	(IngressProblem)(0),                 // 2: dockwell.v1.IngressProblem
-	(StrangerOutcome)(0),                // 3: dockwell.v1.StrangerOutcome
-	(CertificateState)(0),               // 4: dockwell.v1.CertificateState
-	(CertificateProblem)(0),             // 5: dockwell.v1.CertificateProblem
-	(*ListSigninProvidersRequest)(nil),  // 6: dockwell.v1.ListSigninProvidersRequest
-	(*ListSigninProvidersResponse)(nil), // 7: dockwell.v1.ListSigninProvidersResponse
-	(*SigninProviderInfo)(nil),          // 8: dockwell.v1.SigninProviderInfo
-	(*CheckSigninProviderRequest)(nil),  // 9: dockwell.v1.CheckSigninProviderRequest
-	(*CheckSigninProviderResponse)(nil), // 10: dockwell.v1.CheckSigninProviderResponse
-	(*ListCertificatesRequest)(nil),     // 11: dockwell.v1.ListCertificatesRequest
-	(*ListCertificatesResponse)(nil),    // 12: dockwell.v1.ListCertificatesResponse
-	(*CertificateInfo)(nil),             // 13: dockwell.v1.CertificateInfo
-	(*ListDnsProvidersRequest)(nil),     // 14: dockwell.v1.ListDnsProvidersRequest
-	(*ListDnsProvidersResponse)(nil),    // 15: dockwell.v1.ListDnsProvidersResponse
-	(*DnsProviderInfo)(nil),             // 16: dockwell.v1.DnsProviderInfo
-	(*CheckDnsProviderRequest)(nil),     // 17: dockwell.v1.CheckDnsProviderRequest
-	(*CheckDnsProviderResponse)(nil),    // 18: dockwell.v1.CheckDnsProviderResponse
-	(*DnsZoneCheck)(nil),                // 19: dockwell.v1.DnsZoneCheck
-	(*CheckDomainRequest)(nil),          // 20: dockwell.v1.CheckDomainRequest
-	(*CheckDomainResponse)(nil),         // 21: dockwell.v1.CheckDomainResponse
-	(*CompanionCheck)(nil),              // 22: dockwell.v1.CompanionCheck
-	(*ListDomainsRequest)(nil),          // 23: dockwell.v1.ListDomainsRequest
-	(*ListDomainsResponse)(nil),         // 24: dockwell.v1.ListDomainsResponse
-	(*Domain)(nil),                      // 25: dockwell.v1.Domain
-	(*DomainRoute)(nil),                 // 26: dockwell.v1.DomainRoute
-	(*DomainServer)(nil),                // 27: dockwell.v1.DomainServer
-	(*IngressStatus)(nil),               // 28: dockwell.v1.IngressStatus
-	(*DomainStatus)(nil),                // 29: dockwell.v1.DomainStatus
-	(*StrangerCheck)(nil),               // 30: dockwell.v1.StrangerCheck
-	(*Certificate)(nil),                 // 31: dockwell.v1.Certificate
-	(*timestamppb.Timestamp)(nil),       // 32: google.protobuf.Timestamp
-	(*DomainCheck)(nil),                 // 33: dockwell.v1.DomainCheck
-	(*v1alpha1.RouteSignIn)(nil),        // 34: dockwell.resource.v1alpha1.RouteSignIn
-	(*v1alpha1.RouteRedirect)(nil),      // 35: dockwell.resource.v1alpha1.RouteRedirect
+	(Capability)(0),                     // 1: dockwell.v1.Capability
+	(CapabilityState)(0),                // 2: dockwell.v1.CapabilityState
+	(DnsProviderState)(0),               // 3: dockwell.v1.DnsProviderState
+	(CloudflareName)(0),                 // 4: dockwell.v1.CloudflareName
+	(PublishedState)(0),                 // 5: dockwell.v1.PublishedState
+	(IngressProblem)(0),                 // 6: dockwell.v1.IngressProblem
+	(StrangerOutcome)(0),                // 7: dockwell.v1.StrangerOutcome
+	(CertificateState)(0),               // 8: dockwell.v1.CertificateState
+	(CertificateProblem)(0),             // 9: dockwell.v1.CertificateProblem
+	(*ListSigninProvidersRequest)(nil),  // 10: dockwell.v1.ListSigninProvidersRequest
+	(*ListSigninProvidersResponse)(nil), // 11: dockwell.v1.ListSigninProvidersResponse
+	(*SigninProviderInfo)(nil),          // 12: dockwell.v1.SigninProviderInfo
+	(*CheckSigninProviderRequest)(nil),  // 13: dockwell.v1.CheckSigninProviderRequest
+	(*CheckSigninProviderResponse)(nil), // 14: dockwell.v1.CheckSigninProviderResponse
+	(*ListCertificatesRequest)(nil),     // 15: dockwell.v1.ListCertificatesRequest
+	(*ListCertificatesResponse)(nil),    // 16: dockwell.v1.ListCertificatesResponse
+	(*CertificateInfo)(nil),             // 17: dockwell.v1.CertificateInfo
+	(*ListDnsProvidersRequest)(nil),     // 18: dockwell.v1.ListDnsProvidersRequest
+	(*ListDnsProvidersResponse)(nil),    // 19: dockwell.v1.ListDnsProvidersResponse
+	(*DnsProviderInfo)(nil),             // 20: dockwell.v1.DnsProviderInfo
+	(*CheckDnsProviderRequest)(nil),     // 21: dockwell.v1.CheckDnsProviderRequest
+	(*CheckDnsProviderResponse)(nil),    // 22: dockwell.v1.CheckDnsProviderResponse
+	(*ProviderCapability)(nil),          // 23: dockwell.v1.ProviderCapability
+	(*DnsZoneCheck)(nil),                // 24: dockwell.v1.DnsZoneCheck
+	(*CheckDomainRequest)(nil),          // 25: dockwell.v1.CheckDomainRequest
+	(*CheckDomainResponse)(nil),         // 26: dockwell.v1.CheckDomainResponse
+	(*CloudflareCheck)(nil),             // 27: dockwell.v1.CloudflareCheck
+	(*WayOption)(nil),                   // 28: dockwell.v1.WayOption
+	(*CompanionCheck)(nil),              // 29: dockwell.v1.CompanionCheck
+	(*ListDomainsRequest)(nil),          // 30: dockwell.v1.ListDomainsRequest
+	(*ListDomainsResponse)(nil),         // 31: dockwell.v1.ListDomainsResponse
+	(*Domain)(nil),                      // 32: dockwell.v1.Domain
+	(*DomainPublished)(nil),             // 33: dockwell.v1.DomainPublished
+	(*DomainRoute)(nil),                 // 34: dockwell.v1.DomainRoute
+	(*DomainServer)(nil),                // 35: dockwell.v1.DomainServer
+	(*IngressStatus)(nil),               // 36: dockwell.v1.IngressStatus
+	(*DomainStatus)(nil),                // 37: dockwell.v1.DomainStatus
+	(*StrangerCheck)(nil),               // 38: dockwell.v1.StrangerCheck
+	(*Certificate)(nil),                 // 39: dockwell.v1.Certificate
+	(*timestamppb.Timestamp)(nil),       // 40: google.protobuf.Timestamp
+	(*v1alpha1.RoutePublish)(nil),       // 41: dockwell.resource.v1alpha1.RoutePublish
+	(*DomainCheck)(nil),                 // 42: dockwell.v1.DomainCheck
+	(v1alpha1.RouteWay)(0),              // 43: dockwell.resource.v1alpha1.RouteWay
+	(*v1alpha1.RouteSignIn)(nil),        // 44: dockwell.resource.v1alpha1.RouteSignIn
+	(*v1alpha1.RouteRedirect)(nil),      // 45: dockwell.resource.v1alpha1.RouteRedirect
 }
 var file_dockwell_v1_domain_proto_depIdxs = []int32{
-	8,  // 0: dockwell.v1.ListSigninProvidersResponse.providers:type_name -> dockwell.v1.SigninProviderInfo
+	12, // 0: dockwell.v1.ListSigninProvidersResponse.providers:type_name -> dockwell.v1.SigninProviderInfo
 	0,  // 1: dockwell.v1.CheckSigninProviderResponse.state:type_name -> dockwell.v1.SigninProviderState
-	13, // 2: dockwell.v1.ListCertificatesResponse.certificates:type_name -> dockwell.v1.CertificateInfo
-	4,  // 3: dockwell.v1.CertificateInfo.state:type_name -> dockwell.v1.CertificateState
-	32, // 4: dockwell.v1.CertificateInfo.expire_time:type_name -> google.protobuf.Timestamp
-	32, // 5: dockwell.v1.CertificateInfo.next_time:type_name -> google.protobuf.Timestamp
-	16, // 6: dockwell.v1.ListDnsProvidersResponse.providers:type_name -> dockwell.v1.DnsProviderInfo
-	1,  // 7: dockwell.v1.CheckDnsProviderResponse.state:type_name -> dockwell.v1.DnsProviderState
-	19, // 8: dockwell.v1.CheckDnsProviderResponse.zones:type_name -> dockwell.v1.DnsZoneCheck
-	33, // 9: dockwell.v1.CheckDomainResponse.check:type_name -> dockwell.v1.DomainCheck
-	22, // 10: dockwell.v1.CheckDomainResponse.companion_check:type_name -> dockwell.v1.CompanionCheck
-	33, // 11: dockwell.v1.CompanionCheck.check:type_name -> dockwell.v1.DomainCheck
-	25, // 12: dockwell.v1.ListDomainsResponse.domains:type_name -> dockwell.v1.Domain
-	26, // 13: dockwell.v1.Domain.routes:type_name -> dockwell.v1.DomainRoute
-	27, // 14: dockwell.v1.Domain.servers:type_name -> dockwell.v1.DomainServer
-	34, // 15: dockwell.v1.DomainRoute.sign_in:type_name -> dockwell.resource.v1alpha1.RouteSignIn
-	35, // 16: dockwell.v1.DomainRoute.redirect:type_name -> dockwell.resource.v1alpha1.RouteRedirect
-	29, // 17: dockwell.v1.DomainServer.status:type_name -> dockwell.v1.DomainStatus
-	28, // 18: dockwell.v1.DomainServer.ingress:type_name -> dockwell.v1.IngressStatus
-	2,  // 19: dockwell.v1.IngressStatus.problem:type_name -> dockwell.v1.IngressProblem
-	31, // 20: dockwell.v1.DomainStatus.certificate:type_name -> dockwell.v1.Certificate
-	33, // 21: dockwell.v1.DomainStatus.dns:type_name -> dockwell.v1.DomainCheck
-	30, // 22: dockwell.v1.DomainStatus.strangers:type_name -> dockwell.v1.StrangerCheck
-	3,  // 23: dockwell.v1.StrangerCheck.outcome:type_name -> dockwell.v1.StrangerOutcome
-	4,  // 24: dockwell.v1.Certificate.state:type_name -> dockwell.v1.CertificateState
-	5,  // 25: dockwell.v1.Certificate.problem:type_name -> dockwell.v1.CertificateProblem
-	32, // 26: dockwell.v1.Certificate.expire_time:type_name -> google.protobuf.Timestamp
-	23, // 27: dockwell.v1.DomainService.ListDomains:input_type -> dockwell.v1.ListDomainsRequest
-	20, // 28: dockwell.v1.DomainService.CheckDomain:input_type -> dockwell.v1.CheckDomainRequest
-	11, // 29: dockwell.v1.DomainService.ListCertificates:input_type -> dockwell.v1.ListCertificatesRequest
-	14, // 30: dockwell.v1.DomainService.ListDnsProviders:input_type -> dockwell.v1.ListDnsProvidersRequest
-	17, // 31: dockwell.v1.DomainService.CheckDnsProvider:input_type -> dockwell.v1.CheckDnsProviderRequest
-	6,  // 32: dockwell.v1.DomainService.ListSigninProviders:input_type -> dockwell.v1.ListSigninProvidersRequest
-	9,  // 33: dockwell.v1.DomainService.CheckSigninProvider:input_type -> dockwell.v1.CheckSigninProviderRequest
-	24, // 34: dockwell.v1.DomainService.ListDomains:output_type -> dockwell.v1.ListDomainsResponse
-	21, // 35: dockwell.v1.DomainService.CheckDomain:output_type -> dockwell.v1.CheckDomainResponse
-	12, // 36: dockwell.v1.DomainService.ListCertificates:output_type -> dockwell.v1.ListCertificatesResponse
-	15, // 37: dockwell.v1.DomainService.ListDnsProviders:output_type -> dockwell.v1.ListDnsProvidersResponse
-	18, // 38: dockwell.v1.DomainService.CheckDnsProvider:output_type -> dockwell.v1.CheckDnsProviderResponse
-	7,  // 39: dockwell.v1.DomainService.ListSigninProviders:output_type -> dockwell.v1.ListSigninProvidersResponse
-	10, // 40: dockwell.v1.DomainService.CheckSigninProvider:output_type -> dockwell.v1.CheckSigninProviderResponse
-	34, // [34:41] is the sub-list for method output_type
-	27, // [27:34] is the sub-list for method input_type
-	27, // [27:27] is the sub-list for extension type_name
-	27, // [27:27] is the sub-list for extension extendee
-	0,  // [0:27] is the sub-list for field type_name
+	17, // 2: dockwell.v1.ListCertificatesResponse.certificates:type_name -> dockwell.v1.CertificateInfo
+	8,  // 3: dockwell.v1.CertificateInfo.state:type_name -> dockwell.v1.CertificateState
+	40, // 4: dockwell.v1.CertificateInfo.expire_time:type_name -> google.protobuf.Timestamp
+	40, // 5: dockwell.v1.CertificateInfo.next_time:type_name -> google.protobuf.Timestamp
+	20, // 6: dockwell.v1.ListDnsProvidersResponse.providers:type_name -> dockwell.v1.DnsProviderInfo
+	3,  // 7: dockwell.v1.CheckDnsProviderResponse.state:type_name -> dockwell.v1.DnsProviderState
+	24, // 8: dockwell.v1.CheckDnsProviderResponse.zones:type_name -> dockwell.v1.DnsZoneCheck
+	23, // 9: dockwell.v1.CheckDnsProviderResponse.capabilities:type_name -> dockwell.v1.ProviderCapability
+	1,  // 10: dockwell.v1.ProviderCapability.capability:type_name -> dockwell.v1.Capability
+	2,  // 11: dockwell.v1.ProviderCapability.state:type_name -> dockwell.v1.CapabilityState
+	41, // 12: dockwell.v1.CheckDomainRequest.publish:type_name -> dockwell.resource.v1alpha1.RoutePublish
+	42, // 13: dockwell.v1.CheckDomainResponse.check:type_name -> dockwell.v1.DomainCheck
+	29, // 14: dockwell.v1.CheckDomainResponse.companion_check:type_name -> dockwell.v1.CompanionCheck
+	27, // 15: dockwell.v1.CheckDomainResponse.cloudflare:type_name -> dockwell.v1.CloudflareCheck
+	4,  // 16: dockwell.v1.CloudflareCheck.state:type_name -> dockwell.v1.CloudflareName
+	43, // 17: dockwell.v1.CloudflareCheck.way:type_name -> dockwell.resource.v1alpha1.RouteWay
+	28, // 18: dockwell.v1.CloudflareCheck.ways:type_name -> dockwell.v1.WayOption
+	40, // 19: dockwell.v1.CloudflareCheck.checks_again:type_name -> google.protobuf.Timestamp
+	43, // 20: dockwell.v1.WayOption.way:type_name -> dockwell.resource.v1alpha1.RouteWay
+	42, // 21: dockwell.v1.CompanionCheck.check:type_name -> dockwell.v1.DomainCheck
+	32, // 22: dockwell.v1.ListDomainsResponse.domains:type_name -> dockwell.v1.Domain
+	34, // 23: dockwell.v1.Domain.routes:type_name -> dockwell.v1.DomainRoute
+	35, // 24: dockwell.v1.Domain.servers:type_name -> dockwell.v1.DomainServer
+	33, // 25: dockwell.v1.Domain.published:type_name -> dockwell.v1.DomainPublished
+	43, // 26: dockwell.v1.DomainPublished.way:type_name -> dockwell.resource.v1alpha1.RouteWay
+	5,  // 27: dockwell.v1.DomainPublished.state:type_name -> dockwell.v1.PublishedState
+	40, // 28: dockwell.v1.DomainPublished.taken_on:type_name -> google.protobuf.Timestamp
+	44, // 29: dockwell.v1.DomainRoute.sign_in:type_name -> dockwell.resource.v1alpha1.RouteSignIn
+	45, // 30: dockwell.v1.DomainRoute.redirect:type_name -> dockwell.resource.v1alpha1.RouteRedirect
+	37, // 31: dockwell.v1.DomainServer.status:type_name -> dockwell.v1.DomainStatus
+	36, // 32: dockwell.v1.DomainServer.ingress:type_name -> dockwell.v1.IngressStatus
+	6,  // 33: dockwell.v1.IngressStatus.problem:type_name -> dockwell.v1.IngressProblem
+	39, // 34: dockwell.v1.DomainStatus.certificate:type_name -> dockwell.v1.Certificate
+	42, // 35: dockwell.v1.DomainStatus.dns:type_name -> dockwell.v1.DomainCheck
+	38, // 36: dockwell.v1.DomainStatus.strangers:type_name -> dockwell.v1.StrangerCheck
+	7,  // 37: dockwell.v1.StrangerCheck.outcome:type_name -> dockwell.v1.StrangerOutcome
+	8,  // 38: dockwell.v1.Certificate.state:type_name -> dockwell.v1.CertificateState
+	9,  // 39: dockwell.v1.Certificate.problem:type_name -> dockwell.v1.CertificateProblem
+	40, // 40: dockwell.v1.Certificate.expire_time:type_name -> google.protobuf.Timestamp
+	30, // 41: dockwell.v1.DomainService.ListDomains:input_type -> dockwell.v1.ListDomainsRequest
+	25, // 42: dockwell.v1.DomainService.CheckDomain:input_type -> dockwell.v1.CheckDomainRequest
+	15, // 43: dockwell.v1.DomainService.ListCertificates:input_type -> dockwell.v1.ListCertificatesRequest
+	18, // 44: dockwell.v1.DomainService.ListDnsProviders:input_type -> dockwell.v1.ListDnsProvidersRequest
+	21, // 45: dockwell.v1.DomainService.CheckDnsProvider:input_type -> dockwell.v1.CheckDnsProviderRequest
+	10, // 46: dockwell.v1.DomainService.ListSigninProviders:input_type -> dockwell.v1.ListSigninProvidersRequest
+	13, // 47: dockwell.v1.DomainService.CheckSigninProvider:input_type -> dockwell.v1.CheckSigninProviderRequest
+	31, // 48: dockwell.v1.DomainService.ListDomains:output_type -> dockwell.v1.ListDomainsResponse
+	26, // 49: dockwell.v1.DomainService.CheckDomain:output_type -> dockwell.v1.CheckDomainResponse
+	16, // 50: dockwell.v1.DomainService.ListCertificates:output_type -> dockwell.v1.ListCertificatesResponse
+	19, // 51: dockwell.v1.DomainService.ListDnsProviders:output_type -> dockwell.v1.ListDnsProvidersResponse
+	22, // 52: dockwell.v1.DomainService.CheckDnsProvider:output_type -> dockwell.v1.CheckDnsProviderResponse
+	11, // 53: dockwell.v1.DomainService.ListSigninProviders:output_type -> dockwell.v1.ListSigninProvidersResponse
+	14, // 54: dockwell.v1.DomainService.CheckSigninProvider:output_type -> dockwell.v1.CheckSigninProviderResponse
+	48, // [48:55] is the sub-list for method output_type
+	41, // [41:48] is the sub-list for method input_type
+	41, // [41:41] is the sub-list for extension type_name
+	41, // [41:41] is the sub-list for extension extendee
+	0,  // [0:41] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_domain_proto_init() }
@@ -2709,8 +3582,8 @@ func file_dockwell_v1_domain_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_domain_proto_rawDesc), len(file_dockwell_v1_domain_proto_rawDesc)),
-			NumEnums:      6,
-			NumMessages:   26,
+			NumEnums:      10,
+			NumMessages:   30,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

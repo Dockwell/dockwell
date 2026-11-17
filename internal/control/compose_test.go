@@ -124,6 +124,7 @@ func (f *fullServer) addServerNamed(t *testing.T, name string, more func() []res
 		mounts:  e.Mountinfo,
 	}
 	s.certs = f.certLoader
+	s.tunnels = f.tunnels
 	// The test's server owns no address a check refuses, so one reaches what listens
 	// on this machine as an app's network holds it.
 	s.probes = &probe.Runner{Client: client, Binary: "/proc/self/exe", Own: func() ([]netip.Prefix, error) { return nil, nil }}

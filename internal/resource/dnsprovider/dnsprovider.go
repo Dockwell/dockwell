@@ -143,6 +143,25 @@ func (Type) Validate(spec proto.Message) error {
 	if IsGlobalKey(p.GetApiToken()) {
 		return ErrGlobalKey
 	}
+	// A second token, for tunnels alone, is held to the same (ADR 0104).
+	if strings.ContainsAny(p.GetTunnelApiToken(), " \t\r\n") {
+		return errors.New("the tunnels' API token has a space or a line break in it. Paste the token alone")
+	}
+	if IsGlobalKey(p.GetTunnelApiToken()) {
+		return ErrGlobalKey
+	}
+	strict := make([]string, 0, len(p.GetStrictZones()))
+	for _, z := range p.GetStrictZones() {
+		zone := Zone(z)
+		if !slices.Contains(zones, zone) {
+			return fmt.Errorf("%s is set to Full (strict), and isn't one of the provider's zones. Name only zones it writes in", z)
+		}
+		if !slices.Contains(strict, zone) {
+			strict = append(strict, zone)
+		}
+	}
+	slices.Sort(strict)
+	p.StrictZones = strict
 	for _, id := range p.GetProjects() {
 		if !strings.HasPrefix(id, "prj_") {
 			return fmt.Errorf("%q isn't a project's ID. A DNS provider names the projects it proves names for by ID, such as prj_…", id)
@@ -191,11 +210,23 @@ func (Type) CheckNew(spec proto.Message) error {
 func (Type) Keep(current, desired proto.Message) (resource.Kept, error) {
 	was, ok := current.(*resourcev1.DnsProvider)
 	is, same := desired.(*resourcev1.DnsProvider)
-	if !ok || !same || is.GetApiToken() != "" || was.GetApiToken() == "" {
+	if !ok || !same {
+		return resource.Kept{}, nil
+	}
+	keepMain := is.GetApiToken() == "" && was.GetApiToken() != ""
+	keepTunnel := is.GetTunnelApiToken() == "" && was.GetTunnelApiToken() != ""
+	if !keepMain && !keepTunnel {
 		return resource.Kept{}, nil
 	}
 	if is.GetProvider() != was.GetProvider() {
 		return resource.Kept{}, errors.New("the provider moves to another provider's API, so it needs a token for that one")
+	}
+	if keepTunnel {
+		// The second token, for tunnels, is kept the same way (ADR 0104).
+		is.TunnelApiToken = was.GetTunnelApiToken()
+	}
+	if !keepMain {
+		return resource.Kept{Reason: "kept_token", Words: "keeps the tunnels' token it was saved with, as the update left that out"}, nil
 	}
 	is.ApiToken = was.GetApiToken()
 	return resource.Kept{Reason: "kept_token", Words: "keeps the token it was saved with, as the update left that out"}, nil

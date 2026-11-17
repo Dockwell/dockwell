@@ -386,6 +386,10 @@ type Decision struct {
 	// sends its visitors is easy to miss among a plan's fields (ADR 0070). It never
 	// stops a plan, and the fingerprint covers the spec that says it.
 	Redirects *RouteRedirects `json:",omitempty"`
+	// Provider is a step the control plane takes at Cloudflare for a route, not on
+	// its server: a DNS record, or a tunnel's rule. Its server is the route's, to
+	// say where it belongs; nothing runs there (ADR 0104).
+	Provider *ProviderStep `json:",omitempty"`
 }
 
 // RouteRedirects is a route that answers every request with a redirect.
@@ -1224,7 +1228,10 @@ func (a Access) Leading(to string) Access {
 // warning that comes with every folder is a warning nobody reads (ADR 0028).
 func (a Access) AsGoodAsRoot() bool {
 	return a.SameAsRoot || a.Kind == AccessDocker || a.Kind == AccessNetwork || a.Kind == AccessBackupOf || a.Kind == AccessServerShell ||
-		a.Kind == AccessNetworkDriver && a.Driver == "host"
+		a.Kind == AccessNetworkDriver && a.Driver == "host" ||
+		// What someone else made at Cloudflare, which Dockwell may then delete
+		// (ADR 0104).
+		a.Kind == AccessCloudflareTakeover
 }
 
 // Who writes to a read-write server path, in its Access's Detail, where that's root
@@ -1339,6 +1346,17 @@ const (
 	// service in Detail. Anyone who reaches the server reaches it. Only a catalog
 	// install or upgrade that makes the port public says it (ADR 0101).
 	AccessPublicPort
+	// AccessTunnelRule is a rule Dockwell adds to a Cloudflare tunnel it shares with
+	// others, as the one in front of the panel: Path is the rule's hostname, such as
+	// "*.example.com", Detail the tunnel's name, Address where it sends, and Type
+	// what the routing check found of every other name. Once per zone, an admin's
+	// (ADR 0104).
+	AccessTunnelRule
+	// AccessCloudflareTakeover is something at Cloudflare that Dockwell didn't make,
+	// which it replaces or takes on, and so may delete later: Path is the name, Detail
+	// what's there, as "A 203.0.113.9" or "a rule in web-1". As good as root to
+	// apply: an admin's, with a passkey (ADR 0104).
+	AccessCloudflareTakeover
 )
 
 // NewAccess lists what to reaches that from doesn't: access it didn't
@@ -1627,6 +1645,14 @@ func AccessWords(a Access) string {
 		return "what it reaches of the server, with " + plain(a.Path) + ", which together are the same as root"
 	case AccessPublicPort:
 		return "the port " + plain(a.Path) + " on every address of the server, for " + plain(a.Detail) + ": anyone who reaches the server reaches it there"
+	case AccessTunnelRule:
+		out := "the rule " + plain(a.Path) + " in the tunnel " + plain(a.Detail) + ", which it shares with others, sending to " + plain(a.Address)
+		if a.Type != "" {
+			out += ". " + a.Type
+		}
+		return out
+	case AccessCloudflareTakeover:
+		return plain(a.Detail) + " at " + plain(a.Path) + ", made in Cloudflare by someone else, which Dockwell replaces or takes on, and may delete later"
 	}
 	return fmt.Sprintf("access(%d)", int(a.Kind))
 }
@@ -2835,4 +2861,70 @@ func Encode(spec proto.Message) ([]byte, error) {
 		b = []byte{}
 	}
 	return b, err
+}
+
+// ProviderAction is what a step at Cloudflare does (ADR 0104, section 8).
+type ProviderAction int
+
+// What a step at Cloudflare can do.
+const (
+	ProviderCreateRecord ProviderAction = iota + 1
+	ProviderDeleteRecord
+	ProviderReplaceRecord
+	ProviderTakeOnRecord
+	ProviderRestoreRecord
+	ProviderAddRule
+	ProviderRemoveRule
+	ProviderTakeOnRule
+	ProviderMoveRule
+	ProviderKeepRule
+)
+
+// ProviderStep is one thing the control plane writes, or removes, at Cloudflare for
+// a route. What a plan shows is in its first fields; the rest is what applying it
+// needs, which a plan worked out again, as a resumed change's is, finds again.
+type ProviderStep struct {
+	// Provider is the DNS provider whose token writes it, by name.
+	Provider string `json:",omitempty"`
+	Action   ProviderAction
+	// Target is the zone for a record, or the tunnel's name for a rule; Name the
+	// name it's for, or a rule's hostname.
+	Target, Name string
+	// Was is what's there now, To what it writes, in words; Routing what the routing
+	// check found of every other name, for a rule.
+	Was, To, Routing string `json:",omitempty"`
+
+	// ZoneID, Account and Tunnel say where it writes; Record is the record it
+	// writes, or the one it deletes, replaces or takes on, by its ID; Rule is the
+	// rule it adds, removes, takes on or moves, with At its index for a rule put
+	// back where it was.
+	ZoneID, Account, Tunnel string          `json:",omitempty"`
+	Record                  *ProviderRecord `json:",omitempty"`
+	Rule                    *ProviderRule   `json:",omitempty"`
+	// Pending names the store's row that kept a record made by hand before a
+	// replace deleted it, for a step that puts it back from there. It's never sent
+	// to Cloudflare.
+	Pending string `json:",omitempty"`
+}
+
+// ProviderRecord is a DNS record a step writes or acts on.
+type ProviderRecord struct {
+	ID, Type, Name, Content, Comment string `json:",omitempty"`
+	Proxied                          bool   `json:",omitempty"`
+	TTL                              int    `json:",omitempty"`
+}
+
+// ProviderRule is a tunnel's rule a step writes or acts on.
+type ProviderRule struct {
+	Hostname, Path, Service string `json:",omitempty"`
+	At                      int    `json:",omitempty"`
+}
+
+// Key tells a route's steps at Cloudflare apart from each other, and from its own
+// step on its server: its action, where, and the name.
+func (p *ProviderStep) Key() string {
+	if p == nil {
+		return ""
+	}
+	return fmt.Sprintf("%d|%s|%s", p.Action, p.Target, p.Name)
 }

@@ -140,6 +140,8 @@ type Engine struct {
 	// onUnit hears of each step that acted on a server's system service, by the
 	// server's ID.
 	onUnit func(server string)
+	// publisher plans and takes steps at Cloudflare (ADR 0104); nil takes none.
+	publisher Publisher
 	// onRemoved hears of each server a change took out of the fleet (ADR 0090).
 	onRemoved func(server string)
 	// sources reads what a build's branch or tag names now, and detector how its
@@ -2846,6 +2848,11 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 			return nil, err
 		}
 	}
+	// Each route's steps at Cloudflare, which the control plane takes (ADR 0104).
+	provided, err := e.publishing(ctx, changeID, items)
+	if err != nil {
+		return nil, err
+	}
 	for _, server := range servers {
 		its := byServer[server]
 		sp := ServerPlan{Server: server, Name: names[server]}
@@ -3172,6 +3179,30 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 				fmt.Fprintf(fp, "  rollout %t|%v|%v|%v|%v|%t|%d|%d|%d|%v|%v|%v|%v|%v|%d|%v|%t\n", r.Rolling, r.Ports, r.Volumes, r.Paths, r.ImageData, r.Chosen,
 					r.Drain, r.StopGrace, r.HealthyWithin, r.Others, r.CantTell, r.EditedRoutes, r.EarlyNetworks, r.Dropped, r.Soak, r.EarlyNames, r.HostNetwork)
 			}
+		}
+		// A route's steps at Cloudflare come first on its server, and the ones that take
+		// something away last, after the route is gone from it (ADR 0104, section 7).
+		var pre, post []resource.Step
+		for _, it := range its {
+			steps := provided[it.ref]
+			for j := range steps {
+				st := &steps[j]
+				p := st.Provider
+				fmt.Fprintf(fp, "provider %s|%s|%d|%s|%s|%s|%s|%s|%s\n", server, ref(st.Ref), p.Action, p.Provider, p.Target, p.Name, p.Was, p.To, p.Routing)
+				for k := range st.HostAccess {
+					a := &st.HostAccess[k]
+					fmt.Fprintf(fp, "  access %d|%s|%s|%s\n", a.Kind, a.Path, a.Detail, a.Address)
+				}
+				access[it.id] = append(access[it.id], resource.NewAccess(access[it.id], st.HostAccess)...)
+				if st.Action == resource.ActionDelete {
+					post = append(post, *st)
+				} else {
+					pre = append(pre, *st)
+				}
+			}
+		}
+		if len(pre)+len(post) > 0 {
+			sp.Steps = append(append(pre, sp.Steps...), post...)
 		}
 		if sp.UntilHealthy == sp.Downtime {
 			sp.UntilHealthy = 0
@@ -4366,7 +4397,7 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 		for i := range s.Steps {
 			q := queued{server: s.Server, name: s.Name, step: &s.Steps[i]}
 			if it, ok := byRef[q.step.Ref]; ok {
-				q.index = progress.index(s.Server, it.id)
+				q.index = progress.indexOf(s.Server, it.id, q.step.Provider.Key())
 			}
 			if q.step.Action == resource.ActionDelete && q.step.BackupFirst != nil {
 				// Its backup first, with the builds; the deletion itself, without it, last.
@@ -4479,7 +4510,8 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 		plain, detail = resource.Explain(err)
 		p, u := e.failed(c.ID, q.index, err)
 		var recorded bool
-		if untouched && it.rev == it.base {
+		// A step at Cloudflare deploys nothing on its server (ADR 0104).
+		if untouched && it.rev == it.base || q.step.Provider != nil {
 			recorded = e.recordProgress(ctx, c.ID)
 		} else {
 			recorded = e.deployed(ctx, c.ID, it, q.server, err, p)
@@ -4546,7 +4578,7 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 	// turn, as its steps run server by server.
 	lastAccess := map[string]int{}
 	for qi, q := range queue {
-		if e.guardsAccess(q.step.Ref.Kind) {
+		if e.guardsAccess(q.step.Ref.Kind) && q.step.Provider == nil {
 			lastAccess[q.server] = qi
 		}
 	}
@@ -4575,8 +4607,39 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 	stopped := func(err error, untouched bool) result {
 		return result{outcome: stopHere, err: err, untouched: untouched}
 	}
+	// runProvider takes a step at Cloudflare, which the control plane takes itself, not
+	// the route's server, with mu held but for the call (ADR 0104).
+	runProvider := func(qi int, q queued) result {
+		it := byRef[q.step.Ref]
+		if e.publisher == nil {
+			return stopped(fault.New(ErrInvalid, "this control plane doesn't publish at Cloudflare, so %s's step there didn't run", it.ref.Name), true)
+		}
+		_, u := e.step(c.ID, q.index, StepRunning, stepMessage(StepRunning, q.step, q.name))
+		e.announce(c.ID, u)
+		route, step := publishRouteOf(it, q.server), *q.step.Provider
+		callCtx, called := e.calling(ctx)
+		mu.Unlock()
+		said, err := e.publisher.Apply(callCtx, c.ID, route, step)
+		mu.Lock()
+		called()
+		switch {
+		case err == nil:
+		case e.stoppedBy(err):
+			return result{outcome: interrupted, err: interrupt(qi)}
+		default:
+			return stopped(err, true)
+		}
+		_, done := e.finished(c.ID, q.index, cmp.Or(said, stepMessage(StepDone, q.step, q.name)), q.step.Action)
+		if e.recordProgress(ctx, c.ID) {
+			e.announce(c.ID, done)
+		}
+		return result{}
+	}
 	// runOne carries out one step, with mu held.
 	runOne := func(qi int, q queued) result {
+		if q.step.Provider != nil {
+			return runProvider(qi, q)
+		}
 		it := byRef[q.step.Ref]
 		// A reboot or an agent's upgrade asked already, which a resume plans again
 		// while the server is still up, takes the server away: going is what it was

@@ -12,7 +12,7 @@ import type { Role } from "./auth_pb";
 import { file_dockwell_v1_auth } from "./auth_pb";
 import type { DrillResult } from "./backup_pb";
 import { file_dockwell_v1_backup } from "./backup_pb";
-import type { Actor, ActorKind, BackupMethod, Change, Surface } from "./change_pb";
+import type { Actor, ActorKind, BackupMethod, Change, ProviderAction, Surface } from "./change_pb";
 import { file_dockwell_v1_change } from "./change_pb";
 import type { GitHookDelivery } from "./githook_pb";
 import { file_dockwell_v1_githook } from "./githook_pb";
@@ -32,7 +32,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/event.proto.
  */
 export const file_dockwell_v1_event: GenFile = /*@__PURE__*/
-  fileDesc("Chdkb2Nrd2VsbC92MS9ldmVudC5wcm90bxILZG9ja3dlbGwudjEixwEKEUxpc3RFdmVudHNSZXF1ZXN0EhEKCXBhZ2Vfc2l6ZRgBIAEoBRISCgpwYWdlX3Rva2VuGAIgASgJEiUKBWtpbmRzGAMgAygOMhYuZG9ja3dlbGwudjEuRXZlbnRLaW5kEhEKCXNlcnZlcl9pZBgEIAEoCRITCgtyZXNvdXJjZV9pZBgFIAEoCRIQCghhY3Rvcl9pZBgGIAEoCRIqCgphY3Rvcl9raW5kGAcgASgOMhYuZG9ja3dlbGwudjEuQWN0b3JLaW5kIlEKEkxpc3RFdmVudHNSZXNwb25zZRIiCgZldmVudHMYASADKAsyEi5kb2Nrd2VsbC52MS5FdmVudBIXCg9uZXh0X3BhZ2VfdG9rZW4YAiABKAkiegoSQ291bnRFdmVudHNSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCRITCgtyZXNvdXJjZV9pZBgCIAEoCRIQCghhY3Rvcl9pZBgDIAEoCRIqCgphY3Rvcl9raW5kGAQgASgOMhYuZG9ja3dlbGwudjEuQWN0b3JLaW5kImEKE0NvdW50RXZlbnRzUmVzcG9uc2USKwoGY291bnRzGAEgAygLMhsuZG9ja3dlbGwudjEuRXZlbnRLaW5kQ291bnQSDQoFdG90YWwYAiABKAUSDgoGY2FwcGVkGAMgASgIIkUKDkV2ZW50S2luZENvdW50EiQKBGtpbmQYASABKA4yFi5kb2Nrd2VsbC52MS5FdmVudEtpbmQSDQoFY291bnQYAiABKAUitAEKEldhdGNoRXZlbnRzUmVxdWVzdBIRCglwYWdlX3NpemUYASABKAUSJQoFa2luZHMYAiADKA4yFi5kb2Nrd2VsbC52MS5FdmVudEtpbmQSEQoJc2VydmVyX2lkGAMgASgJEhMKC3Jlc291cmNlX2lkGAQgASgJEhAKCGFjdG9yX2lkGAUgASgJEioKCmFjdG9yX2tpbmQYBiABKA4yFi5kb2Nrd2VsbC52MS5BY3RvcktpbmQidQoTV2F0Y2hFdmVudHNSZXNwb25zZRIiCgZldmVudHMYASADKAsyEi5kb2Nrd2VsbC52MS5FdmVudBIPCgdyZW1vdmVkGAIgAygJEhAKCHNuYXBzaG90GAMgASgIEhcKD25leHRfcGFnZV90b2tlbhgEIAEoCSKwBgoFRXZlbnQSCgoCaWQYASABKAkSJAoEa2luZBgCIAEoDjIWLmRvY2t3ZWxsLnYxLkV2ZW50S2luZBIOCgZhY3Rpb24YAyABKAkSKAoEdGltZRgEIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASIQoFYWN0b3IYBSABKAsyEi5kb2Nrd2VsbC52MS5BY3RvchIlCgdzdXJmYWNlGAYgASgOMhQuZG9ja3dlbGwudjEuU3VyZmFjZRIjCgZjaGFuZ2UYByABKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2USKgoHc3ViamVjdBgIIAEoCzIZLmRvY2t3ZWxsLnYxLkV2ZW50U3ViamVjdBIoCgZoZWFsdGgYCSABKAsyGC5kb2Nrd2VsbC52MS5FdmVudEhlYWx0aBIoCgZiYWNrdXAYCiABKAsyGC5kb2Nrd2VsbC52MS5FdmVudEJhY2t1cBI3Cg5wdWJsaWNfYWRkcmVzcxgLIAEoCzIfLmRvY2t3ZWxsLnYxLkV2ZW50UHVibGljQWRkcmVzcxIqCgdwcm9jZXNzGB4gASgLMhkuZG9ja3dlbGwudjEuRXZlbnRQcm9jZXNzEiwKCHRlcm1pbmFsGBQgASgLMhouZG9ja3dlbGwudjEuRXZlbnRUZXJtaW5hbBIqCgdzZXR0aW5nGB8gASgLMhkuZG9ja3dlbGwudjEuRXZlbnRTZXR0aW5nEiQKBHB1c2gYbiABKAsyFi5kb2Nrd2VsbC52MS5FdmVudFB1c2gSJgoFYWxlcnQYWiABKAsyFy5kb2Nrd2VsbC52MS5FdmVudEFsZXJ0EiwKCHRhc2tfcnVuGIIBIAEoCzIZLmRvY2t3ZWxsLnYxLkV2ZW50VGFza1J1bhIoCgZtZW1iZXIYeCABKAsyGC5kb2Nrd2VsbC52MS5FdmVudE1lbWJlchI0CgxkZXNpcmVkX3NlbnQYjAEgASgLMh0uZG9ja3dlbGwudjEuRXZlbnREZXNpcmVkU2VudBIxCgpyZWNvbmNpbGVkGI0BIAEoCzIcLmRvY2t3ZWxsLnYxLkV2ZW50UmVjb25jaWxlZCJjCg9FdmVudFJlY29uY2lsZWQSEwoLc2VydmVyX25hbWUYASABKAkSDAoEa2luZBgCIAEoCRIMCgRuYW1lGAMgASgJEg4KBnJlYXNvbhgEIAEoCRIPCgdkcm9wcGVkGAUgASgNIuABCgxFdmVudFRhc2tSdW4SCgoCaWQYASABKAkSDAoEdGFzaxgCIAEoCRIUCgxkaXNwbGF5X25hbWUYAyABKAkSEwoLc2VydmVyX25hbWUYBCABKAkSKAoFc3RhdGUYBSABKA4yGS5kb2Nrd2VsbC52MS5UYXNrUnVuU3RhdGUSKgoGcmVhc29uGAYgASgOMhouZG9ja3dlbGwudjEuVGFza1J1blJlYXNvbhIRCglleGl0X2NvZGUYByABKAUSEwoLaHR0cF9zdGF0dXMYCCABKAUSDQoFZXJyb3IYCSABKAkiiAEKEEV2ZW50RGVzaXJlZFNlbnQSEQoJcmVzb3VyY2VzGAEgASgNEhMKC3dpdGhfdmFsdWVzGAIgASgNEhEKCW5ld19jYWNoZRgDIAEoCBITCgtzZXJ2ZXJfbmFtZRgEIAEoCRIPCgd1bmtub3duGAUgASgNEhMKC2ZpcnN0X2NhY2hlGAYgASgIIngKDEV2ZW50UHJvY2VzcxILCgNwaWQYASABKA0SDAoEbmFtZRgCIAEoCRIMCgR1c2VyGAQgASgJEhEKCWNvbnRhaW5lchgFIAEoCRIOCgZraWxsZWQYBiABKAgSDQoFZXJyb3IYByABKAlKBAgDEARSB2NvbW1hbmQidQoMRXZlbnRTZXR0aW5nEg8KB3NldHRpbmcYASABKAkSDQoFdmFsdWUYAiABKAkSEAoIcHJldmlvdXMYAyABKAkSFAoMYmVoaW5kX3Byb3h5GAQgASgIEh0KFXByZXZpb3VzX2JlaGluZF9wcm94eRgFIAEoCCLYAwoKRXZlbnRBbGVydBIKCgJpZBgBIAEoCRIMCgRydWxlGAIgASgJEkAKCHNldmVyaXR5GAMgASgOMi4uZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuQWxlcnRSdWxlLlNldmVyaXR5Eg0KBXRpdGxlGAQgASgJEhEKCXNlcnZlcl9pZBgFIAEoCRITCgtzZXJ2ZXJfbmFtZRgGIAEoCRIMCgRwYXRoGAcgASgJEi0KCW9wZW5fdGltZRgIIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASKQoFdW50aWwYCSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEg4KBnJlYXNvbhgKIAEoCRIOCgZkZXRhaWwYCyABKAkSQgoJY29uZGl0aW9uGAwgASgOMi8uZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuQWxlcnRSdWxlLkNvbmRpdGlvbhIUCgxzdWJqZWN0X25hbWUYDSABKAkSDwoHdmFyaWFudBgOIAEoCRINCgV3aGVyZRgPIAEoCRINCgV2YWx1ZRgQIAEoBRImCgp0YWtlbl9mcm9tGBEgASgLMhIuZG9ja3dlbGwudjEuQWN0b3IiuAEKDUV2ZW50VGVybWluYWwSCgoCaWQYASABKAkSDQoFdGl0bGUYAiABKAkSLQoJb3Blbl90aW1lGAMgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIlCgNlbmQYBCABKAsyGC5kb2Nrd2VsbC52MS5UZXJtaW5hbEVuZBINCgVlcnJvchgFIAEoCRIRCgljb250YWluZXIYBiABKAkSFAoMY29udGFpbmVyX2lkGAcgASgJIt0BCgtFdmVudEJhY2t1cBIKCgJpZBgBIAEoCRIOCgZ2b2x1bWUYAiABKAkSEwoLc2VydmVyX25hbWUYAyABKAkSKQoGbWV0aG9kGAQgASgOMhkuZG9ja3dlbGwudjEuQmFja3VwTWV0aG9kEhIKCnNpemVfYnl0ZXMYBSABKAMSDQoFZXJyb3IYBiABKAkSEwoLZGVzdGluYXRpb24YByABKAkSJwoFZHJpbGwYCCABKA4yGC5kb2Nrd2VsbC52MS5EcmlsbFJlc3VsdBIRCglzZXJ2ZXJfaWQYPCABKAkiTAoJRXZlbnRQdXNoEg8KB2hvb2tfaWQYASABKAkSLgoIZGVsaXZlcnkYAiABKAsyHC5kb2Nrd2VsbC52MS5HaXRIb29rRGVsaXZlcnkiNwoSRXZlbnRQdWJsaWNBZGRyZXNzEg8KB2FkZHJlc3MYASABKAkSEAoIcHJldmlvdXMYAiABKAki1AEKC0V2ZW50SGVhbHRoEhEKCXNlcnZlcl9pZBgBIAEoCRITCgtzZXJ2ZXJfbmFtZRgCIAEoCRInCgVzdGF0ZRgDIAEoDjIYLmRvY2t3ZWxsLnYxLkhlYWx0aFN0YXRlEioKCHByZXZpb3VzGAQgASgOMhguZG9ja3dlbGwudjEuSGVhbHRoU3RhdGUSDgoGb3V0cHV0GAUgASgJEg0KBWZsaXBzGAYgASgFEikKBXNpbmNlGAcgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCKlAQoMRXZlbnRTdWJqZWN0EgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSDQoFc2NvcGUYAyABKAkSDAoEcGF0aBgEIAEoCRIPCgd0b19wYXRoGGQgASgJEhMKC3dheV9iYWNrX2luGGUgASgIEhAKCGZvcl9nb29kGGYgASgIEhIKCnNpemVfYnl0ZXMYZyABKAQSEgoKdmFsdWVfbmFtZRg8IAEoCSKDAgoLRXZlbnRNZW1iZXISDQoFZW1haWwYASABKAkSDAoEbmFtZRgCIAEoCRIfCgRyb2xlGAMgASgOMhEuZG9ja3dlbGwudjEuUm9sZRISCgpwcm9qZWN0X2lkGAQgASgJEhQKDHByb2plY3RfbmFtZRgFIAEoCRIPCgdhZGRyZXNzGAYgASgJEigKDXByZXZpb3VzX3JvbGUYByABKA4yES5kb2Nrd2VsbC52MS5Sb2xlEhAKCHNlc3Npb25zGAggASgFEg4KBnRva2VucxgJIAEoBRIPCgdpbnZpdGVzGAogASgFEg8KB2NoYW5nZXMYCyABKAUSDQoFbGlua3MYDCABKAUq9AEKCUV2ZW50S2luZBIaChZFVkVOVF9LSU5EX1VOU1BFQ0lGSUVEEAASFQoRRVZFTlRfS0lORF9DSEFOR0UQARIVChFFVkVOVF9LSU5EX1NFUlZFUhACEhUKEUVWRU5UX0tJTkRfQUNDRVNTEAMSFQoRRVZFTlRfS0lORF9IRUFMVEgQBBIVChFFVkVOVF9LSU5EX0JBQ0tVUBAFEhcKE0VWRU5UX0tJTkRfU0VUVElOR1MQChITCg9FVkVOVF9LSU5EX1BVU0gQbhIUChBFVkVOVF9LSU5EX0FMRVJUEFoSFAoPRVZFTlRfS0lORF9UQVNLEIIBMukCCgxFdmVudFNlcnZpY2USdAoKTGlzdEV2ZW50cxIeLmRvY2t3ZWxsLnYxLkxpc3RFdmVudHNSZXF1ZXN0Gh8uZG9ja3dlbGwudjEuTGlzdEV2ZW50c1Jlc3BvbnNlIiWQAgGguxgBwLsYAsi7GALQuxgEgtPkkwIMEgovdjEvZXZlbnRzEn0KC0NvdW50RXZlbnRzEh8uZG9ja3dlbGwudjEuQ291bnRFdmVudHNSZXF1ZXN0GiAuZG9ja3dlbGwudjEuQ291bnRFdmVudHNSZXNwb25zZSIrkAIBoLsYAcC7GALIuxgC0LsYBILT5JMCEhIQL3YxL2V2ZW50czpjb3VudBJkCgtXYXRjaEV2ZW50cxIfLmRvY2t3ZWxsLnYxLldhdGNoRXZlbnRzUmVxdWVzdBogLmRvY2t3ZWxsLnYxLldhdGNoRXZlbnRzUmVzcG9uc2UiEKC7GAHAuxgCyLsYAtC7GAQwAUKjAQoPY29tLmRvY2t3ZWxsLnYxQgpFdmVudFByb3RvUAFaN2dpdGh1Yi5jb20vZG9ja3dlbGwvZG9ja3dlbGwvZ2VuL2RvY2t3ZWxsL3YxO2RvY2t3ZWxsdjGiAgNEWFiqAgtEb2Nrd2VsbC5WMcoCC0RvY2t3ZWxsXFYx4gIXRG9ja3dlbGxcVjFcR1BCTWV0YWRhdGHqAgxEb2Nrd2VsbDo6VjFiBnByb3RvMw", [file_dockwell_resource_v1alpha1_specs, file_dockwell_v1_auth, file_dockwell_v1_backup, file_dockwell_v1_change, file_dockwell_v1_githook, file_dockwell_v1_health, file_dockwell_v1_options, file_dockwell_v1_task, file_dockwell_v1_terminal, file_google_api_annotations, file_google_protobuf_timestamp]);
+  fileDesc("Chdkb2Nrd2VsbC92MS9ldmVudC5wcm90bxILZG9ja3dlbGwudjEixwEKEUxpc3RFdmVudHNSZXF1ZXN0EhEKCXBhZ2Vfc2l6ZRgBIAEoBRISCgpwYWdlX3Rva2VuGAIgASgJEiUKBWtpbmRzGAMgAygOMhYuZG9ja3dlbGwudjEuRXZlbnRLaW5kEhEKCXNlcnZlcl9pZBgEIAEoCRITCgtyZXNvdXJjZV9pZBgFIAEoCRIQCghhY3Rvcl9pZBgGIAEoCRIqCgphY3Rvcl9raW5kGAcgASgOMhYuZG9ja3dlbGwudjEuQWN0b3JLaW5kIlEKEkxpc3RFdmVudHNSZXNwb25zZRIiCgZldmVudHMYASADKAsyEi5kb2Nrd2VsbC52MS5FdmVudBIXCg9uZXh0X3BhZ2VfdG9rZW4YAiABKAkiegoSQ291bnRFdmVudHNSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCRITCgtyZXNvdXJjZV9pZBgCIAEoCRIQCghhY3Rvcl9pZBgDIAEoCRIqCgphY3Rvcl9raW5kGAQgASgOMhYuZG9ja3dlbGwudjEuQWN0b3JLaW5kImEKE0NvdW50RXZlbnRzUmVzcG9uc2USKwoGY291bnRzGAEgAygLMhsuZG9ja3dlbGwudjEuRXZlbnRLaW5kQ291bnQSDQoFdG90YWwYAiABKAUSDgoGY2FwcGVkGAMgASgIIkUKDkV2ZW50S2luZENvdW50EiQKBGtpbmQYASABKA4yFi5kb2Nrd2VsbC52MS5FdmVudEtpbmQSDQoFY291bnQYAiABKAUitAEKEldhdGNoRXZlbnRzUmVxdWVzdBIRCglwYWdlX3NpemUYASABKAUSJQoFa2luZHMYAiADKA4yFi5kb2Nrd2VsbC52MS5FdmVudEtpbmQSEQoJc2VydmVyX2lkGAMgASgJEhMKC3Jlc291cmNlX2lkGAQgASgJEhAKCGFjdG9yX2lkGAUgASgJEioKCmFjdG9yX2tpbmQYBiABKA4yFi5kb2Nrd2VsbC52MS5BY3RvcktpbmQidQoTV2F0Y2hFdmVudHNSZXNwb25zZRIiCgZldmVudHMYASADKAsyEi5kb2Nrd2VsbC52MS5FdmVudBIPCgdyZW1vdmVkGAIgAygJEhAKCHNuYXBzaG90GAMgASgIEhcKD25leHRfcGFnZV90b2tlbhgEIAEoCSLjBgoFRXZlbnQSCgoCaWQYASABKAkSJAoEa2luZBgCIAEoDjIWLmRvY2t3ZWxsLnYxLkV2ZW50S2luZBIOCgZhY3Rpb24YAyABKAkSKAoEdGltZRgEIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASIQoFYWN0b3IYBSABKAsyEi5kb2Nrd2VsbC52MS5BY3RvchIlCgdzdXJmYWNlGAYgASgOMhQuZG9ja3dlbGwudjEuU3VyZmFjZRIjCgZjaGFuZ2UYByABKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2USKgoHc3ViamVjdBgIIAEoCzIZLmRvY2t3ZWxsLnYxLkV2ZW50U3ViamVjdBIoCgZoZWFsdGgYCSABKAsyGC5kb2Nrd2VsbC52MS5FdmVudEhlYWx0aBIoCgZiYWNrdXAYCiABKAsyGC5kb2Nrd2VsbC52MS5FdmVudEJhY2t1cBI3Cg5wdWJsaWNfYWRkcmVzcxgLIAEoCzIfLmRvY2t3ZWxsLnYxLkV2ZW50UHVibGljQWRkcmVzcxIqCgdwcm9jZXNzGB4gASgLMhkuZG9ja3dlbGwudjEuRXZlbnRQcm9jZXNzEiwKCHRlcm1pbmFsGBQgASgLMhouZG9ja3dlbGwudjEuRXZlbnRUZXJtaW5hbBIqCgdzZXR0aW5nGB8gASgLMhkuZG9ja3dlbGwudjEuRXZlbnRTZXR0aW5nEiQKBHB1c2gYbiABKAsyFi5kb2Nrd2VsbC52MS5FdmVudFB1c2gSJgoFYWxlcnQYWiABKAsyFy5kb2Nrd2VsbC52MS5FdmVudEFsZXJ0EiwKCHRhc2tfcnVuGIIBIAEoCzIZLmRvY2t3ZWxsLnYxLkV2ZW50VGFza1J1bhIoCgZtZW1iZXIYeCABKAsyGC5kb2Nrd2VsbC52MS5FdmVudE1lbWJlchI0CgxkZXNpcmVkX3NlbnQYjAEgASgLMh0uZG9ja3dlbGwudjEuRXZlbnREZXNpcmVkU2VudBIxCgpyZWNvbmNpbGVkGI0BIAEoCzIcLmRvY2t3ZWxsLnYxLkV2ZW50UmVjb25jaWxlZBIxCgpjbG91ZGZsYXJlGNQCIAEoCzIcLmRvY2t3ZWxsLnYxLkV2ZW50Q2xvdWRmbGFyZSK3AQoPRXZlbnRDbG91ZGZsYXJlEhAKCHByb3ZpZGVyGAEgASgJEg4KBnRhcmdldBgCIAEoCRIMCgRuYW1lGAMgASgJEisKBmFjdGlvbhgEIAEoDjIbLmRvY2t3ZWxsLnYxLlByb3ZpZGVyQWN0aW9uEg0KBWRyaWZ0GAUgASgIEg8KB3ZlcnNpb24YBiABKAUSFAoMcmVhZF92ZXJzaW9uGAcgASgFEhEKCWNoYW5nZV9pZBgIIAEoCSJjCg9FdmVudFJlY29uY2lsZWQSEwoLc2VydmVyX25hbWUYASABKAkSDAoEa2luZBgCIAEoCRIMCgRuYW1lGAMgASgJEg4KBnJlYXNvbhgEIAEoCRIPCgdkcm9wcGVkGAUgASgNIuABCgxFdmVudFRhc2tSdW4SCgoCaWQYASABKAkSDAoEdGFzaxgCIAEoCRIUCgxkaXNwbGF5X25hbWUYAyABKAkSEwoLc2VydmVyX25hbWUYBCABKAkSKAoFc3RhdGUYBSABKA4yGS5kb2Nrd2VsbC52MS5UYXNrUnVuU3RhdGUSKgoGcmVhc29uGAYgASgOMhouZG9ja3dlbGwudjEuVGFza1J1blJlYXNvbhIRCglleGl0X2NvZGUYByABKAUSEwoLaHR0cF9zdGF0dXMYCCABKAUSDQoFZXJyb3IYCSABKAkiiAEKEEV2ZW50RGVzaXJlZFNlbnQSEQoJcmVzb3VyY2VzGAEgASgNEhMKC3dpdGhfdmFsdWVzGAIgASgNEhEKCW5ld19jYWNoZRgDIAEoCBITCgtzZXJ2ZXJfbmFtZRgEIAEoCRIPCgd1bmtub3duGAUgASgNEhMKC2ZpcnN0X2NhY2hlGAYgASgIIngKDEV2ZW50UHJvY2VzcxILCgNwaWQYASABKA0SDAoEbmFtZRgCIAEoCRIMCgR1c2VyGAQgASgJEhEKCWNvbnRhaW5lchgFIAEoCRIOCgZraWxsZWQYBiABKAgSDQoFZXJyb3IYByABKAlKBAgDEARSB2NvbW1hbmQidQoMRXZlbnRTZXR0aW5nEg8KB3NldHRpbmcYASABKAkSDQoFdmFsdWUYAiABKAkSEAoIcHJldmlvdXMYAyABKAkSFAoMYmVoaW5kX3Byb3h5GAQgASgIEh0KFXByZXZpb3VzX2JlaGluZF9wcm94eRgFIAEoCCLYAwoKRXZlbnRBbGVydBIKCgJpZBgBIAEoCRIMCgRydWxlGAIgASgJEkAKCHNldmVyaXR5GAMgASgOMi4uZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuQWxlcnRSdWxlLlNldmVyaXR5Eg0KBXRpdGxlGAQgASgJEhEKCXNlcnZlcl9pZBgFIAEoCRITCgtzZXJ2ZXJfbmFtZRgGIAEoCRIMCgRwYXRoGAcgASgJEi0KCW9wZW5fdGltZRgIIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASKQoFdW50aWwYCSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEg4KBnJlYXNvbhgKIAEoCRIOCgZkZXRhaWwYCyABKAkSQgoJY29uZGl0aW9uGAwgASgOMi8uZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuQWxlcnRSdWxlLkNvbmRpdGlvbhIUCgxzdWJqZWN0X25hbWUYDSABKAkSDwoHdmFyaWFudBgOIAEoCRINCgV3aGVyZRgPIAEoCRINCgV2YWx1ZRgQIAEoBRImCgp0YWtlbl9mcm9tGBEgASgLMhIuZG9ja3dlbGwudjEuQWN0b3IiuAEKDUV2ZW50VGVybWluYWwSCgoCaWQYASABKAkSDQoFdGl0bGUYAiABKAkSLQoJb3Blbl90aW1lGAMgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIlCgNlbmQYBCABKAsyGC5kb2Nrd2VsbC52MS5UZXJtaW5hbEVuZBINCgVlcnJvchgFIAEoCRIRCgljb250YWluZXIYBiABKAkSFAoMY29udGFpbmVyX2lkGAcgASgJIt0BCgtFdmVudEJhY2t1cBIKCgJpZBgBIAEoCRIOCgZ2b2x1bWUYAiABKAkSEwoLc2VydmVyX25hbWUYAyABKAkSKQoGbWV0aG9kGAQgASgOMhkuZG9ja3dlbGwudjEuQmFja3VwTWV0aG9kEhIKCnNpemVfYnl0ZXMYBSABKAMSDQoFZXJyb3IYBiABKAkSEwoLZGVzdGluYXRpb24YByABKAkSJwoFZHJpbGwYCCABKA4yGC5kb2Nrd2VsbC52MS5EcmlsbFJlc3VsdBIRCglzZXJ2ZXJfaWQYPCABKAkiTAoJRXZlbnRQdXNoEg8KB2hvb2tfaWQYASABKAkSLgoIZGVsaXZlcnkYAiABKAsyHC5kb2Nrd2VsbC52MS5HaXRIb29rRGVsaXZlcnkiNwoSRXZlbnRQdWJsaWNBZGRyZXNzEg8KB2FkZHJlc3MYASABKAkSEAoIcHJldmlvdXMYAiABKAki1AEKC0V2ZW50SGVhbHRoEhEKCXNlcnZlcl9pZBgBIAEoCRITCgtzZXJ2ZXJfbmFtZRgCIAEoCRInCgVzdGF0ZRgDIAEoDjIYLmRvY2t3ZWxsLnYxLkhlYWx0aFN0YXRlEioKCHByZXZpb3VzGAQgASgOMhguZG9ja3dlbGwudjEuSGVhbHRoU3RhdGUSDgoGb3V0cHV0GAUgASgJEg0KBWZsaXBzGAYgASgFEikKBXNpbmNlGAcgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCKlAQoMRXZlbnRTdWJqZWN0EgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSDQoFc2NvcGUYAyABKAkSDAoEcGF0aBgEIAEoCRIPCgd0b19wYXRoGGQgASgJEhMKC3dheV9iYWNrX2luGGUgASgIEhAKCGZvcl9nb29kGGYgASgIEhIKCnNpemVfYnl0ZXMYZyABKAQSEgoKdmFsdWVfbmFtZRg8IAEoCSKDAgoLRXZlbnRNZW1iZXISDQoFZW1haWwYASABKAkSDAoEbmFtZRgCIAEoCRIfCgRyb2xlGAMgASgOMhEuZG9ja3dlbGwudjEuUm9sZRISCgpwcm9qZWN0X2lkGAQgASgJEhQKDHByb2plY3RfbmFtZRgFIAEoCRIPCgdhZGRyZXNzGAYgASgJEigKDXByZXZpb3VzX3JvbGUYByABKA4yES5kb2Nrd2VsbC52MS5Sb2xlEhAKCHNlc3Npb25zGAggASgFEg4KBnRva2VucxgJIAEoBRIPCgdpbnZpdGVzGAogASgFEg8KB2NoYW5nZXMYCyABKAUSDQoFbGlua3MYDCABKAUq9AEKCUV2ZW50S2luZBIaChZFVkVOVF9LSU5EX1VOU1BFQ0lGSUVEEAASFQoRRVZFTlRfS0lORF9DSEFOR0UQARIVChFFVkVOVF9LSU5EX1NFUlZFUhACEhUKEUVWRU5UX0tJTkRfQUNDRVNTEAMSFQoRRVZFTlRfS0lORF9IRUFMVEgQBBIVChFFVkVOVF9LSU5EX0JBQ0tVUBAFEhcKE0VWRU5UX0tJTkRfU0VUVElOR1MQChITCg9FVkVOVF9LSU5EX1BVU0gQbhIUChBFVkVOVF9LSU5EX0FMRVJUEFoSFAoPRVZFTlRfS0lORF9UQVNLEIIBMukCCgxFdmVudFNlcnZpY2USdAoKTGlzdEV2ZW50cxIeLmRvY2t3ZWxsLnYxLkxpc3RFdmVudHNSZXF1ZXN0Gh8uZG9ja3dlbGwudjEuTGlzdEV2ZW50c1Jlc3BvbnNlIiWQAgGguxgBwLsYAsi7GALQuxgEgtPkkwIMEgovdjEvZXZlbnRzEn0KC0NvdW50RXZlbnRzEh8uZG9ja3dlbGwudjEuQ291bnRFdmVudHNSZXF1ZXN0GiAuZG9ja3dlbGwudjEuQ291bnRFdmVudHNSZXNwb25zZSIrkAIBoLsYAcC7GALIuxgC0LsYBILT5JMCEhIQL3YxL2V2ZW50czpjb3VudBJkCgtXYXRjaEV2ZW50cxIfLmRvY2t3ZWxsLnYxLldhdGNoRXZlbnRzUmVxdWVzdBogLmRvY2t3ZWxsLnYxLldhdGNoRXZlbnRzUmVzcG9uc2UiEKC7GAHAuxgCyLsYAtC7GAQwAUKjAQoPY29tLmRvY2t3ZWxsLnYxQgpFdmVudFByb3RvUAFaN2dpdGh1Yi5jb20vZG9ja3dlbGwvZG9ja3dlbGwvZ2VuL2RvY2t3ZWxsL3YxO2RvY2t3ZWxsdjGiAgNEWFiqAgtEb2Nrd2VsbC5WMcoCC0RvY2t3ZWxsXFYx4gIXRG9ja3dlbGxcVjFcR1BCTWV0YWRhdGHqAgxEb2Nrd2VsbDo6VjFiBnByb3RvMw", [file_dockwell_resource_v1alpha1_specs, file_dockwell_v1_auth, file_dockwell_v1_backup, file_dockwell_v1_change, file_dockwell_v1_githook, file_dockwell_v1_health, file_dockwell_v1_options, file_dockwell_v1_task, file_dockwell_v1_terminal, file_google_api_annotations, file_google_protobuf_timestamp]);
 
 /**
  * ListEventsRequest asks for a page of events. The filters narrow it, and
@@ -517,6 +517,15 @@ export type Event = Message<"dockwell.v1.Event"> & {
    * @generated from field: dockwell.v1.EventReconciled reconciled = 141;
    */
   reconciled?: EventReconciled | undefined;
+
+  /**
+   * What Dockwell wrote at Cloudflare, or found gone there, for an event with an
+   * action that starts "cloudflare." (ADR 0104). Numbered in the block ADR 0104
+   * holds, 340 to 349.
+   *
+   * @generated from field: dockwell.v1.EventCloudflare cloudflare = 340;
+   */
+  cloudflare?: EventCloudflare | undefined;
 };
 
 /**
@@ -525,6 +534,77 @@ export type Event = Message<"dockwell.v1.Event"> & {
  */
 export const EventSchema: GenMessage<Event> = /*@__PURE__*/
   messageDesc(file_dockwell_v1_event, 7);
+
+/**
+ * EventCloudflare is one thing Dockwell wrote at Cloudflare, or found gone there.
+ *
+ * @generated from message dockwell.v1.EventCloudflare
+ */
+export type EventCloudflare = Message<"dockwell.v1.EventCloudflare"> & {
+  /**
+   * The DNS provider whose token wrote it, by name.
+   *
+   * @generated from field: string provider = 1;
+   */
+  provider: string;
+
+  /**
+   * Where: the zone for a record, the tunnel's name for a rule.
+   *
+   * @generated from field: string target = 2;
+   */
+  target: string;
+
+  /**
+   * The name, such as "wiki.example.com", or a rule's hostname.
+   *
+   * @generated from field: string name = 3;
+   */
+  name: string;
+
+  /**
+   * What was done.
+   *
+   * @generated from field: dockwell.v1.ProviderAction action = 4;
+   */
+  action: ProviderAction;
+
+  /**
+   * It was found gone or changed, by the drift timer, not written.
+   *
+   * @generated from field: bool drift = 5;
+   */
+  drift: boolean;
+
+  /**
+   * The tunnel document's version after the write, for a rule.
+   *
+   * @generated from field: int32 version = 6;
+   */
+  version: number;
+
+  /**
+   * The version Dockwell read before it wrote, where an edit made in Cloudflare
+   * between the two was replaced (cloudflare.replaced).
+   *
+   * @generated from field: int32 read_version = 7;
+   */
+  readVersion: number;
+
+  /**
+   * The change that wrote it, by its ID; empty for what the drift timer found.
+   *
+   * @generated from field: string change_id = 8;
+   */
+  changeId: string;
+};
+
+/**
+ * Describes the message dockwell.v1.EventCloudflare.
+ * Use `create(EventCloudflareSchema)` to create a new message.
+ */
+export const EventCloudflareSchema: GenMessage<EventCloudflare> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_event, 8);
 
 /**
  * EventReconciled is what a server's agent did, or couldn't do, on its own while
@@ -573,7 +653,7 @@ export type EventReconciled = Message<"dockwell.v1.EventReconciled"> & {
  * Use `create(EventReconciledSchema)` to create a new message.
  */
 export const EventReconciledSchema: GenMessage<EventReconciled> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_event, 8);
+  messageDesc(file_dockwell_v1_event, 9);
 
 /**
  * EventTaskRun is a scheduled task's run that failed, or the one that succeeded
@@ -649,7 +729,7 @@ export type EventTaskRun = Message<"dockwell.v1.EventTaskRun"> & {
  * Use `create(EventTaskRunSchema)` to create a new message.
  */
 export const EventTaskRunSchema: GenMessage<EventTaskRun> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_event, 9);
+  messageDesc(file_dockwell_v1_event, 10);
 
 /**
  * EventDesiredSent says what the control plane sent a server's agent to keep, as
@@ -714,7 +794,7 @@ export type EventDesiredSent = Message<"dockwell.v1.EventDesiredSent"> & {
  * Use `create(EventDesiredSentSchema)` to create a new message.
  */
 export const EventDesiredSentSchema: GenMessage<EventDesiredSent> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_event, 10);
+  messageDesc(file_dockwell_v1_event, 11);
 
 /**
  * EventProcess is a process someone ended on a server.
@@ -772,7 +852,7 @@ export type EventProcess = Message<"dockwell.v1.EventProcess"> & {
  * Use `create(EventProcessSchema)` to create a new message.
  */
 export const EventProcessSchema: GenMessage<EventProcess> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_event, 11);
+  messageDesc(file_dockwell_v1_event, 12);
 
 /**
  * EventSetting is a setting of the install as someone changed it.
@@ -820,7 +900,7 @@ export type EventSetting = Message<"dockwell.v1.EventSetting"> & {
  * Use `create(EventSettingSchema)` to create a new message.
  */
 export const EventSettingSchema: GenMessage<EventSetting> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_event, 12);
+  messageDesc(file_dockwell_v1_event, 13);
 
 /**
  * EventAlert is an alert that fired or resolved, or a mute of a rule or a
@@ -950,7 +1030,7 @@ export type EventAlert = Message<"dockwell.v1.EventAlert"> & {
  * Use `create(EventAlertSchema)` to create a new message.
  */
 export const EventAlertSchema: GenMessage<EventAlert> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_event, 13);
+  messageDesc(file_dockwell_v1_event, 14);
 
 /**
  * EventTerminal is a terminal on a server, as its opening or closing tells of it.
@@ -1014,7 +1094,7 @@ export type EventTerminal = Message<"dockwell.v1.EventTerminal"> & {
  * Use `create(EventTerminalSchema)` to create a new message.
  */
 export const EventTerminalSchema: GenMessage<EventTerminal> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_event, 14);
+  messageDesc(file_dockwell_v1_event, 15);
 
 /**
  * EventBackup is what became of one backup.
@@ -1093,7 +1173,7 @@ export type EventBackup = Message<"dockwell.v1.EventBackup"> & {
  * Use `create(EventBackupSchema)` to create a new message.
  */
 export const EventBackupSchema: GenMessage<EventBackup> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_event, 15);
+  messageDesc(file_dockwell_v1_event, 16);
 
 /**
  * EventPush is what a push through a service's hook came to.
@@ -1121,7 +1201,7 @@ export type EventPush = Message<"dockwell.v1.EventPush"> & {
  * Use `create(EventPushSchema)` to create a new message.
  */
 export const EventPushSchema: GenMessage<EventPush> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_event, 16);
+  messageDesc(file_dockwell_v1_event, 17);
 
 /**
  * EventPublicAddress is a server's public address as a person changed it.
@@ -1149,7 +1229,7 @@ export type EventPublicAddress = Message<"dockwell.v1.EventPublicAddress"> & {
  * Use `create(EventPublicAddressSchema)` to create a new message.
  */
 export const EventPublicAddressSchema: GenMessage<EventPublicAddress> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_event, 17);
+  messageDesc(file_dockwell_v1_event, 18);
 
 /**
  * EventHealth is how a service's health changed on a server, as far as the
@@ -1221,7 +1301,7 @@ export type EventHealth = Message<"dockwell.v1.EventHealth"> & {
  * Use `create(EventHealthSchema)` to create a new message.
  */
 export const EventHealthSchema: GenMessage<EventHealth> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_event, 18);
+  messageDesc(file_dockwell_v1_event, 19);
 
 /**
  * EventSubject names what an event is about.
@@ -1307,7 +1387,7 @@ export type EventSubject = Message<"dockwell.v1.EventSubject"> & {
  * Use `create(EventSubjectSchema)` to create a new message.
  */
 export const EventSubjectSchema: GenMessage<EventSubject> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_event, 19);
+  messageDesc(file_dockwell_v1_event, 20);
 
 /**
  * EventMember is who a member's event is about, with what role, where.
@@ -1397,7 +1477,7 @@ export type EventMember = Message<"dockwell.v1.EventMember"> & {
  * Use `create(EventMemberSchema)` to create a new message.
  */
 export const EventMemberSchema: GenMessage<EventMember> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_event, 20);
+  messageDesc(file_dockwell_v1_event, 21);
 
 /**
  * EventKind sorts events, for filtering.

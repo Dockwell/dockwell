@@ -17,6 +17,7 @@ import (
 	"strings"
 
 	"connectrpc.com/connect"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
@@ -26,6 +27,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/certificates"
 	"github.com/dockwell/dockwell/internal/control/dnsproviders"
 	"github.com/dockwell/dockwell/internal/control/fleet"
+	"github.com/dockwell/dockwell/internal/control/publish"
 	"github.com/dockwell/dockwell/internal/control/signinproviders"
 	"github.com/dockwell/dockwell/internal/ingress"
 	"github.com/dockwell/dockwell/internal/resource"
@@ -65,6 +67,15 @@ type Handler struct {
 	Certificates *certificates.Manager
 	// Providers reads the sign-in providers, and checks an issuer. Nil keeps none.
 	Providers *signinproviders.Providers
+	// Cloudflare says what a connected Cloudflare zone holds at a name, and the ways
+	// in (ADR 0104); nil says nothing of it.
+	Cloudflare CloudflareChecker
+}
+
+// CloudflareChecker says what a connected Cloudflare zone holds at a name, and the
+// ways in.
+type CloudflareChecker interface {
+	Check(ctx context.Context, ask publish.CheckAsk) (*dockwellv1.CloudflareCheck, error)
 }
 
 var _ dockwellv1connect.DomainServiceHandler = (*Handler)(nil)
@@ -137,6 +148,18 @@ func (h *Handler) CheckDomain(ctx context.Context, req *connect.Request[dockwell
 	check := read(domain)
 	<-done
 	out := &dockwellv1.CheckDomainResponse{Check: resourcepb.DomainCheck(check), Companion: companion}
+	// What Cloudflare holds there, where a provider serving the project has the name:
+	// a check that couldn't be made says nothing, beside what DNS says (ADR 0104).
+	if h.Cloudflare != nil && req.Msg.GetProjectId() != "" {
+		admin, _ := callerProjects(ctx)
+		cf, err := h.Cloudflare.Check(ctx, publish.CheckAsk{
+			Server: srv.GetId(), Project: req.Msg.GetProjectId(), Name: domain, Admin: admin, Way: req.Msg.GetPublish().GetWay(),
+		})
+		if err != nil {
+			h.logger.WarnContext(ctx, "couldn't check a name at Cloudflare", slog.String("domain", domain), slog.String("error", err.Error()))
+		}
+		out.Cloudflare = cf
+	}
 	if companion != "" {
 		if out.CompanionCheck, err = h.companionCheck(ctx, req.Msg.GetProjectId(), check, other); err != nil {
 			return nil, err
@@ -208,6 +231,9 @@ func (h *Handler) add(ctx context.Context, tx *store.Tx, r *store.Resource, byNa
 		d = &dockwellv1.Domain{Name: name, EnvironmentId: r.Scope, Url: scheme + name}
 		byName[name] = d
 	}
+	if err := addPublished(ctx, tx, r.ID, rt, d); err != nil {
+		return err
+	}
 	var users []string
 	for _, u := range rt.GetAccess().GetUsers() {
 		users = append(users, u.GetName())
@@ -241,6 +267,66 @@ func (h *Handler) add(ctx context.Context, tx *store.Tx, r *store.Resource, byNa
 				d.Servers[i].RedirectUnserved = true
 			}
 		}
+	}
+	return nil
+}
+
+// addPublished says what Dockwell published at Cloudflare for a route, as the drift
+// timer last read it: each record, and whether the tunnel's rule that served it is
+// still there (ADR 0104).
+func addPublished(ctx context.Context, tx *store.Tx, routeID string, rt *resourcev1.Route, d *dockwellv1.Domain) error {
+	// A proxied record's content is the origin address public DNS hides, so below an
+	// admin a row says only the record's type (ADR 0104, M12, and the review's M7).
+	admin, _ := callerProjects(ctx)
+	pub := rt.GetPublish()
+	if pub == nil || pub.GetWay() == resourcev1.RouteWay_ROUTE_WAY_FRONT {
+		return nil
+	}
+	records, err := tx.CloudflareRecordsOf(ctx, routeID)
+	if err != nil {
+		return err
+	}
+	ruleState := store.CloudflarePublished
+	if pub.GetWay() == resourcev1.RouteWay_ROUTE_WAY_SERVER_TUNNEL {
+		rules, err := tx.CloudflareRulesOf(ctx, pub.GetTunnel())
+		if err != nil {
+			return err
+		}
+		for i := range rules {
+			if rules[i].State != store.CloudflarePublished && publish.HostMatches(rules[i].Hostname, rt.GetDomain()) {
+				ruleState = rules[i].State
+			}
+		}
+	}
+	for i := range records {
+		rec := &records[i]
+		if rec.Type == "pending" {
+			continue
+		}
+		words := rec.Type
+		if admin {
+			words += " " + rec.Content
+		}
+		if rec.Proxied {
+			words += ", proxied"
+		}
+		p := &dockwellv1.DomainPublished{Name: rec.Name, Way: pub.GetWay(), Tunnel: pub.GetTunnel(), Record: words, State: dockwellv1.PublishedState_PUBLISHED_STATE_PUBLISHED}
+		switch {
+		case ruleState == store.CloudflareTunnelDeleted:
+			p.State = dockwellv1.PublishedState_PUBLISHED_STATE_TUNNEL_DELETED
+		case ruleState == store.CloudflareUnreadable || rec.State == store.CloudflareUnreadable:
+			p.State = dockwellv1.PublishedState_PUBLISHED_STATE_UNREADABLE
+		case ruleState != store.CloudflarePublished:
+			p.State = dockwellv1.PublishedState_PUBLISHED_STATE_GONE_FROM_TUNNEL
+		case rec.State == store.CloudflareGone:
+			p.State = dockwellv1.PublishedState_PUBLISHED_STATE_RECORD_GONE
+		case rec.State == store.CloudflareChanged:
+			p.State = dockwellv1.PublishedState_PUBLISHED_STATE_CHANGED
+		}
+		if rec.TakenOnAt != nil {
+			p.TakenOn = timestamppb.New(*rec.TakenOnAt)
+		}
+		d.Published = append(d.Published, p)
 	}
 	return nil
 }

@@ -13,6 +13,7 @@ import (
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/control/checks"
+	"github.com/dockwell/dockwell/internal/control/publish"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
 )
@@ -128,5 +129,29 @@ func TestAKeyThatIsntRevokedSaysSo(t *testing.T) {
 	}
 	if out, err := (&signals{e: &Evaluator{}}).revocations(t.Context()); out != nil || err != nil {
 		t.Errorf("with no certificates, it watched %v, %v", out, err)
+	}
+}
+
+// An edit made in Cloudflare that a write of Dockwell's replaced raises the domain
+// alert once, naming the tunnel and what Dockwell added (the review's M5).
+func TestAnEditReplacedAtCloudflareIsSaid(t *testing.T) {
+	db, _ := storetest.Open(t, store.SQLite)
+	now := time.Date(2026, 11, 17, 9, 0, 0, 0, time.UTC)
+	if err := db.Update(t.Context(), func(tx *store.Tx) error {
+		return tx.RecordEvent(t.Context(), store.Event{
+			ID: "evt_race", At: now.Add(-time.Minute), Actor: "dockwell", Action: publish.ActionReplaced, Subject: "rte_1",
+			Detail: `{"provider":"cloudflare","target":"web-1","name":"*.example.com","action":6,"version":9,"read_version":7}`,
+		})
+	}); err != nil {
+		t.Fatal(err)
+	}
+	s := &signals{e: &Evaluator{DB: db}, now: now}
+	got, err := s.unpublished(t.Context(), rule{id: "alr_1"})
+	if err != nil || len(got) != 1 {
+		t.Fatalf("findings: %+v, %v", got, err)
+	}
+	if f := got[0]; f.verdict != holds || f.thing != "cloudflare-edit:evt_race" || f.title != "An edit to the tunnel web-1 in Cloudflare was replaced" ||
+		!strings.Contains(f.detail, "Make the edit again in Cloudflare") {
+		t.Errorf("the finding: %+v", f)
 	}
 }

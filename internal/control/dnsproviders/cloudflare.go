@@ -175,15 +175,18 @@ func (c *Cloudflare) Zones(ctx context.Context) ([]Zone, error) {
 	var out []Zone
 	for page := 1; page <= maxZonePages; page++ {
 		var got []struct {
-			ID   string `json:"id"`
-			Name string `json:"name"`
+			ID      string `json:"id"`
+			Name    string `json:"name"`
+			Account struct {
+				ID string `json:"id"`
+			} `json:"account"`
 		}
 		env, err := c.call(ctx, http.MethodGet, "/zones?per_page=50&page="+strconv.Itoa(page), nil, &got)
 		if err != nil {
 			return nil, err
 		}
 		for _, z := range got {
-			out = append(out, Zone{ID: z.ID, Name: strings.ToLower(z.Name)})
+			out = append(out, Zone{ID: z.ID, Name: strings.ToLower(z.Name), Account: z.Account.ID})
 		}
 		if env.Info == nil || page >= env.Info.TotalPages {
 			break
@@ -227,6 +230,9 @@ func (c *Cloudflare) TXTAt(ctx context.Context, zone Zone, name string) ([]TXT, 
 
 // Delete removes the record with id from zone.
 func (c *Cloudflare) Delete(ctx context.Context, zone Zone, id string) error {
+	if !recordID(id) {
+		return ErrNotARecordID
+	}
 	_, err := c.call(ctx, http.MethodDelete, "/zones/"+url.PathEscape(zone.ID)+"/dns_records/"+url.PathEscape(id), nil, nil)
 	return err
 }

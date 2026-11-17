@@ -35,7 +35,7 @@ func (h *Handler) ListDnsProviders(ctx context.Context, _ *connect.Request[dockw
 		return nil, err
 	}
 	for _, p := range shown {
-		out.Providers = append(out.Providers, &dockwellv1.DnsProviderInfo{Id: p.ID, Name: p.Name, Provider: p.Provider, Zones: p.Zones})
+		out.Providers = append(out.Providers, &dockwellv1.DnsProviderInfo{Id: p.ID, Name: p.Name, Provider: p.Provider, Zones: p.Zones, TunnelApiTokenSet: p.TunnelTokenSet})
 	}
 	return connect.NewResponse(out), nil
 }
@@ -100,7 +100,76 @@ func (h *Handler) CheckDnsProvider(ctx context.Context, req *connect.Request[doc
 	for _, z := range r.Zones {
 		out.Zones = append(out.Zones, &dockwellv1.DnsZoneCheck{Zone: z.Zone, Writes: z.Writes, Detail: z.Detail})
 	}
+	if cf, ok := api.(*dnsproviders.Cloudflare); ok && (r.State == dnsproviders.Writes || r.State == dnsproviders.Reaches || r.State == dnsproviders.CantWrite) {
+		var tunnels *dnsproviders.Cloudflare
+		if second := saved.Spec.GetTunnelApiToken(); second != "" && token == saved.Spec.GetApiToken() {
+			if t, err := h.DNS.APIFor(provider, second); err == nil {
+				tunnels, _ = t.(*dnsproviders.Cloudflare)
+			}
+		}
+		capabilities(ctx, cf, tunnels, r, out)
+	}
 	return connect.NewResponse(out), nil
+}
+
+// capabilities adds what a Cloudflare token can do for publishing, each right on its
+// own, from its own record, and each asked zone's SSL mode and account (ADR 0104,
+// section 6). tunnels is a second token for tunnels alone, which answers for them.
+func capabilities(ctx context.Context, cf, tunnels *dnsproviders.Cloudflare, r dnsproviders.Result, out *dockwellv1.CheckDnsProviderResponse) {
+	accounts := []string{}
+	accountOf := map[string]string{}
+	for _, z := range r.Found {
+		accountOf[z.Name] = z.Account
+		if z.Account != "" && !slices.Contains(accounts, z.Account) {
+			accounts = append(accounts, z.Account)
+		}
+	}
+	caps := cf.CheckCapabilities(ctx, accounts, r.State == dnsproviders.Writes)
+	if tunnels != nil {
+		second := tunnels.CheckCapabilities(ctx, accounts, false)
+		caps.Tunnels, caps.TunnelCount = second.Tunnels, second.TunnelCount
+		caps.MakesTokens = caps.MakesTokens || second.MakesTokens
+	}
+	out.Tunnels, out.MakesTokens = int32(min(caps.TunnelCount, 1<<30)), caps.MakesTokens //nolint:gosec // bounded
+	add := func(c dockwellv1.Capability, h dnsproviders.Have, lacks string) {
+		pc := &dockwellv1.ProviderCapability{Capability: c, State: haveOf(h)}
+		switch h {
+		case dnsproviders.Lacks:
+			pc.Detail, pc.FixUrl = lacks, caps.FixURL
+		case dnsproviders.Unknown:
+			pc.Detail, pc.FixUrl = "Can't check this token's rights", caps.FixURL
+		case dnsproviders.Has:
+		}
+		out.Capabilities = append(out.Capabilities, pc)
+	}
+	add(dockwellv1.Capability_CAPABILITY_OWN_RIGHTS, caps.OwnRights, "The token lacks API Tokens read, so its other rights can't be checked")
+	add(dockwellv1.Capability_CAPABILITY_DNS, caps.DNS, "The token lacks DNS edit")
+	add(dockwellv1.Capability_CAPABILITY_TUNNELS, caps.Tunnels, "The token lacks Cloudflare Tunnel edit")
+	add(dockwellv1.Capability_CAPABILITY_ZONE_SETTINGS, caps.ZoneSettings, "The token lacks Zone Settings read")
+	for _, zc := range out.Zones {
+		zc.AccountId = accountOf[zc.GetZone()]
+		if caps.ZoneSettings == dnsproviders.Lacks {
+			continue
+		}
+		for _, z := range r.Found {
+			if z.Name == zc.GetZone() {
+				if mode, _, err := cf.SSLMode(ctx, z); err == nil {
+					zc.SslMode = mode
+				}
+			}
+		}
+	}
+}
+
+func haveOf(h dnsproviders.Have) dockwellv1.CapabilityState {
+	switch h {
+	case dnsproviders.Has:
+		return dockwellv1.CapabilityState_CAPABILITY_STATE_HAS
+	case dnsproviders.Lacks:
+		return dockwellv1.CapabilityState_CAPABILITY_STATE_LACKS
+	case dnsproviders.Unknown:
+	}
+	return dockwellv1.CapabilityState_CAPABILITY_STATE_UNKNOWN
 }
 
 func stateOf(s dnsproviders.State) dockwellv1.DnsProviderState {

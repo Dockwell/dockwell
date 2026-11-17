@@ -48,6 +48,7 @@ var agentPackages = []string{
 	"internal/agent/signin",     // a route's sign-in with its provider, which the agent answers Caddy for (ADR 0087)
 	"internal/agent/terminal",   // a server's terminals, for a person (ADR 0037)
 	"internal/agent/system",     // a server's system services, read with its init's own tools (ADR 0067)
+	"internal/agent/tunnels",    // the Cloudflare tunnels cloudflared runs here, read from /proc, no SDK (ADR 0104)
 	"internal/agent/updates",    // a server's package updates, read with its own package manager (ADR 0043)
 	"internal/resource/host",    // a server's host, which installs its updates in a unit of its own (ADR 0064)
 	"internal/backup",           // taking and restoring backups on this server (ADR 0033)

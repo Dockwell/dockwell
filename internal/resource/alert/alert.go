@@ -258,6 +258,8 @@ func Word(c resourcev1.AlertRule_Condition) string {
 		return "an app's update"
 	case resourcev1.AlertRule_CONDITION_CATALOG_SOURCE_STUCK:
 		return "a catalog that can't follow its branch"
+	case resourcev1.AlertRule_CONDITION_DOMAIN_UNPUBLISHED:
+		return "a domain gone from Cloudflare"
 	default:
 		return "that condition"
 	}
@@ -297,6 +299,8 @@ func Title(r *resourcev1.AlertRule) string {
 		return "Update available"
 	case resourcev1.AlertRule_CONDITION_CATALOG_SOURCE_STUCK:
 		return "Catalog stuck"
+	case resourcev1.AlertRule_CONDITION_DOMAIN_UNPUBLISHED:
+		return "Domain unpublished"
 	default:
 		return "Unknown condition"
 	}
@@ -337,6 +341,8 @@ func Expression(r *resourcev1.AlertRule) string {
 		return "service.update != none"
 	case resourcev1.AlertRule_CONDITION_CATALOG_SOURCE_STUCK:
 		return "catalog.source.commit != branch"
+	case resourcev1.AlertRule_CONDITION_DOMAIN_UNPUBLISHED:
+		return "cloudflare.published != written"
 	default:
 		return ""
 	}
@@ -373,6 +379,7 @@ func Defaults() []Default {
 		// Off until a person turns it on: an update is news, not trouble (ADR 0079).
 		{"update-available", &resourcev1.AlertRule{Condition: resourcev1.AlertRule_CONDITION_UPDATE_AVAILABLE, Severity: warning, Disabled: true}},
 		{"catalog-source-stuck", &resourcev1.AlertRule{Condition: resourcev1.AlertRule_CONDITION_CATALOG_SOURCE_STUCK, Duration: "1h", Severity: warning, Repeat: "24h"}},
+		{"domain-unpublished", &resourcev1.AlertRule{Condition: resourcev1.AlertRule_CONDITION_DOMAIN_UNPUBLISHED, Severity: warning, Repeat: "24h"}},
 	}
 	return slices.Clip(rules)
 }

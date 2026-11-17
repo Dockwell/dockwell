@@ -1366,6 +1366,7 @@ func Methods() []*apicli.Method {
 				{Path: "server_id", Help: "The server, by ID."},
 				{Path: "domain", Help: "The domain, such as \"app.example.com\"."},
 				{Path: "project_id", Help: "The project it's for, by ID, so a shared wildcard certificate that serves that project counts as covering the domain's companion. Empty for one not made yet."},
+				{Path: "publish", Help: "The way the person picked, to check that way. Unset, the check picks the default and says why (ADR 0104)."},
 			},
 			Call: apicli.Unary[v1.CheckDomainRequest, v1.CheckDomainResponse](dockwellv1connect.DomainServiceCheckDomainProcedure),
 		},
@@ -4172,6 +4173,10 @@ func Kinds() []*apicli.Kind {
 				{Path: "redirect.temporary", Help: "True answers 302 Found, for a while. False, the default, answers 301 Moved Permanently, which browsers keep and search engines follow."},
 				{Path: "redirect.drop_path", Help: "True sends every request to to as it is. False, the default, keeps what follows the route's own path, and the query, after to's own path."},
 				{Path: "redirect.keep_prefix", Help: "For a route with a path that keeps what follows it: true keeps the route's own path too, so /old-blog/post goes to https://blog.example.com/old-blog/post. False, the default, strips it, so /old-blog/post goes to https://blog.example.com/post."},
+				{Path: "publish.way", Help: "The way in."},
+				{Path: "publish.tunnel", Help: "The tunnel, by its ID at Cloudflare, for ROUTE_WAY_SERVER_TUNNEL: one the route's server runs, proved by its connector's ID."},
+				{Path: "publish.provider", Help: "The DNS provider whose token writes it, by name. Its projects must hold the route's."},
+				{Path: "publish.takes_over", Help: "What a person agreed to replace or take on, made by someone else at Cloudflare: an admin's, with a passkey (HOST_ACCESS_KIND_CLOUDFLARE_TAKEOVER). Anything there that isn't named here stops the plan."},
 			},
 		},
 		{
@@ -4403,6 +4408,8 @@ func Kinds() []*apicli.Kind {
 				{Path: "zones", Help: "The zones it writes in, such as \"example.com\", each checked before it's saved."},
 				{Path: "api_token", Help: "The provider's API token: for Cloudflare, an API token with Zone:Read and DNS:Edit, scoped to its zones, not the Global API Key. Leave it out of an update to keep it.", Sensitive: true},
 				{Path: "projects", Help: "The projects whose routes' names it proves, by ID. Empty is none: proving a name by DNS works wherever it points, so an admin says which projects may."},
+				{Path: "tunnel_api_token", Help: "A second token for tunnels alone, for whoever wants one: Cloudflare Tunnel Edit, and API Tokens Read to check its own rights. Empty, the API token does tunnels too, as one token may carry both (ADR 0104, amending ADR 0099). Leave it out of an update to keep it.", Sensitive: true},
+				{Path: "strict_zones", Help: "The zones an admin set to Full (strict) through Dockwell, so Cloudflare reaches every proxied name in them over HTTPS with a certificate it checks. A zone's mode changes how all its proxied names are reached, so it's set here, on its own plan, never as a side effect of one domain (ADR 0104)."},
 			},
 		},
 		{

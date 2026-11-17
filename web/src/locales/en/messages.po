@@ -736,6 +736,9 @@ msgstr "Added the passkey {name} after signing in with a recovery code"
 msgid "Added the passkey {name} after signing in with an authenticator code"
 msgstr "Added the passkey {name} after signing in with an authenticator code"
 
+msgid "Added {name} to the tunnel {where}"
+msgstr "Added {name} to the tunnel {where}"
+
 msgid "Alert opened: {title}"
 msgstr "Alert opened: {title}"
 
@@ -987,6 +990,9 @@ msgstr "May have saved {path} on {server}"
 msgid "Moved ownership of this install"
 msgstr "Moved ownership of this install"
 
+msgid "Moved {name} in the tunnel {where} to the server's proxy"
+msgstr "Moved {name} in the tunnel {where} to the server's proxy"
+
 msgid "Moved {path} to {to} on {server}"
 msgstr "Moved {path} to {to} on {server}"
 
@@ -1026,6 +1032,12 @@ msgstr "Opened an app through the panel"
 msgid "Opened {name} through the panel"
 msgstr "Opened {name} through the panel"
 
+msgid "Published {name} at Cloudflare, in {where}"
+msgstr "Published {name} at Cloudflare, in {where}"
+
+msgid "Put back the DNS record for {name} at Cloudflare, in {where}"
+msgstr "Put back the DNS record for {name} at Cloudflare, in {where}"
+
 msgid "Put back {path} on {server}"
 msgstr "Put back {path} on {server}"
 
@@ -1056,6 +1068,12 @@ msgstr "Removed the GitHub App {name}"
 msgid "Removed the passkey {name}"
 msgstr "Removed the passkey {name}"
 
+msgid "Removed {name} from the tunnel {where}"
+msgstr "Removed {name} from the tunnel {where}"
+
+msgid "Removed {name}'s DNS record at Cloudflare, in {where}"
+msgstr "Removed {name}'s DNS record at Cloudflare, in {where}"
+
 msgid "Removed {server} from the fleet"
 msgstr "Removed {server} from the fleet"
 
@@ -1070,6 +1088,18 @@ msgstr "Removed {who}, with their sessions, tokens, invites and provider account
 
 msgid "Removed {who}, with their sessions, tokens, invites and provider accounts, and {changes, plural, one {# change they'd planned} other {# changes they'd planned}}"
 msgstr "Removed {who}, with their sessions, tokens, invites and provider accounts, and {changes, plural, one {# change they'd planned} other {# changes they'd planned}}"
+
+msgid "Replaced an edit made in Cloudflare"
+msgstr "Replaced an edit made in Cloudflare"
+
+msgid "Replaced an edit to {target} made in Cloudflare, adding {rule}"
+msgstr "Replaced an edit to {target} made in Cloudflare, adding {rule}"
+
+msgid "Replaced an edit to {target} made in Cloudflare, removing {rule}"
+msgstr "Replaced an edit to {target} made in Cloudflare, removing {rule}"
+
+msgid "Replaced the DNS record made in Cloudflare for {name}, in {where}"
+msgstr "Replaced the DNS record made in Cloudflare for {name}, in {where}"
 
 msgid "Resolved: {title}"
 msgstr "Resolved: {title}"
@@ -1186,6 +1216,9 @@ msgstr "Signed in"
 msgid "Signed out other sessions"
 msgstr "Signed out other sessions"
 
+msgid "Something Dockwell published at Cloudflare is gone"
+msgstr "Something Dockwell published at Cloudflare is gone"
+
 msgid "Stopped serving the panel on {previous}"
 msgstr "Stopped serving the panel on {previous}"
 
@@ -1237,6 +1270,12 @@ msgstr "Took back {who}'s role as {before}, which signed them out and revoked th
 msgid "Took back {who}'s role as {before}, which signed them out and revoked their tokens and invites"
 msgstr "Took back {who}'s role as {before}, which signed them out and revoked their tokens and invites"
 
+msgid "Took on the DNS record made in Cloudflare for {name}, in {where}"
+msgstr "Took on the DNS record made in Cloudflare for {name}, in {where}"
+
+msgid "Took on {name} in the tunnel {where}"
+msgstr "Took on {name} in the tunnel {where}"
+
 msgid "Took over the alert from {from}: {title}"
 msgstr "Took over the alert from {from}: {title}"
 
@@ -1282,6 +1321,15 @@ msgstr "Uploaded {path} to {server}, {size}"
 msgid "Uploaded {path} to {server}, {size}, and unpacked it into {to}"
 msgstr "Uploaded {path} to {server}, {size}, and unpacked it into {to}"
 
+msgid "What Dockwell published in {subject} at Cloudflare is gone"
+msgstr "What Dockwell published in {subject} at Cloudflare is gone"
+
+msgid "Wrote at Cloudflare for a domain"
+msgstr "Wrote at Cloudflare for a domain"
+
+msgid "Wrote {name} at Cloudflare, in {where}"
+msgstr "Wrote {name} at Cloudflare, in {where}"
+
 msgid "a server"
 msgstr "a server"
 
@@ -1290,6 +1338,11 @@ msgstr "an app"
 
 msgid "its server"
 msgstr "its server"
+
+#. placeholder {0}: cf.name
+#. placeholder {1}: cf.target
+msgid "{0} is gone from {1} at Cloudflare"
+msgstr "{0} is gone from {1} at Cloudflare"
 
 #. placeholder {0}: s.create
 msgid "{0} to create"

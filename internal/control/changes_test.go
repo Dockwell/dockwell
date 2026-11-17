@@ -32,6 +32,7 @@ import (
 	agentfiles "github.com/dockwell/dockwell/internal/agent/files"
 	"github.com/dockwell/dockwell/internal/agent/system"
 	"github.com/dockwell/dockwell/internal/agent/terminal"
+	"github.com/dockwell/dockwell/internal/agent/tunnels"
 	agentupdates "github.com/dockwell/dockwell/internal/agent/updates"
 	"github.com/dockwell/dockwell/internal/auth"
 	"github.com/dockwell/dockwell/internal/backup"
@@ -137,6 +138,8 @@ type testServer struct {
 	// keeps has its agent keep what its server runs (ADR 0054), each run in a new
 	// cache of its own, as an agent whose records were lost starts.
 	keeps bool
+	// tunnels finds what cloudflared runs on it (ADR 0104).
+	tunnels *tunnels.Finder
 }
 
 // addServer enrolls a server, hz-1, and connects its agent with fake
@@ -227,7 +230,7 @@ func (s *testServer) run(t *testing.T) {
 		Collector: collector,
 		Logger:    slog.New(slog.DiscardHandler), Dir: t.TempDir(), Identity: s.id, Build: buildinfo.Read(), Drivers: s.drivers, Logs: s.logs,
 		Docker: s.client, Hello: s.hello, Health: s.health, Files: s.disk, Updates: s.updates, Probe: s.probe, Probes: s.probes, OnePanel: s.onePanel, Panels: s.panels, Terminals: s.terms, Access: s.access,
-		System: s.system, Certificates: s.certs,
+		System: s.system, Certificates: s.certs, Tunnels: s.tunnels,
 	}
 	if cfg.Probe == nil {
 		cfg.Probe = answersEverything

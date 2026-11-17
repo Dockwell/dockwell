@@ -1790,6 +1790,15 @@ enum HostAccessKind {
   // privileged mode in path, which makes all of it the same as root. It comes
   // first, once for the app.
   HOST_ACCESS_KIND_ROOT_TOGETHER = 174;
+  // A rule Dockwell adds to a tunnel it shares with others, such as the one in front
+  // of the panel: "*.example.com", or a zone's apex, sent to the server's proxy,
+  // once per zone. An admin's, with the routing check's answer that every other
+  // name goes where it went. Numbered in the block ADR 0104 holds, 340 to 349.
+  HOST_ACCESS_KIND_TUNNEL_RULE = 340;
+  // Something at Cloudflare that Dockwell didn't make, which it replaces or takes
+  // on: a DNS record, or a tunnel's rule. Taking it on lets Dockwell delete it
+  // later. As good as root to apply: an admin's, with a passkey (ADR 0104).
+  HOST_ACCESS_KIND_CLOUDFLARE_TAKEOVER = 341;
 }
 
 // ServerPlan is the part of a plan on one server.
@@ -1989,6 +1998,61 @@ message PlanStep {
   // pass its sign-in cookies on to their apps (ADR 0087). It never stops a plan,
   // and the fingerprint leaves it out. Numbered in #598's block, 110 to 119.
   repeated string hand_edited_beside = 110;
+  // A step the control plane takes at Cloudflare for a route, not its server: a DNS
+  // record, or a tunnel's rule. Its server is the route's, to say where it belongs;
+  // nothing runs there. Cloudflare's steps run before the server's and come off after
+  // them (ADR 0104). Numbered in the block ADR 0104 holds, 340 to 349.
+  ProviderStep provider = 340;
+}
+
+// ProviderStep is one thing the control plane writes, or removes, at Cloudflare
+// for a route (ADR 0104, section 8).
+message ProviderStep {
+  // The DNS provider whose token it writes with, by name.
+  string provider = 1;
+  // What it does.
+  ProviderAction action = 2;
+  // Where: the zone, such as "example.com", for a record; the tunnel's name for a
+  // rule.
+  string target = 3;
+  // The name it's for, such as "wiki.example.com", or a rule's hostname, such as
+  // "*.example.com".
+  string name = 4;
+  // What's there now, in words, such as "A 203.0.113.9, made in Cloudflare".
+  string was = 5;
+  // What it writes, in words, such as "CNAME to web-1's tunnel, proxied", or
+  // "http://127.0.0.1:80".
+  string to = 6;
+  // For a tunnel's rule: what the routing check found of every other name, such as
+  // "Every other name in web-1, the panel's among them, goes where it went".
+  string routing = 7;
+}
+
+// What a ProviderStep does.
+enum ProviderAction {
+  PROVIDER_ACTION_UNSPECIFIED = 0;
+  // Writes a DNS record at a free name.
+  PROVIDER_ACTION_CREATE_RECORD = 1;
+  // Removes a record Dockwell wrote, or took on.
+  PROVIDER_ACTION_DELETE_RECORD = 2;
+  // Replaces a record Dockwell didn't make, keeping it whole so undo writes it back.
+  PROVIDER_ACTION_REPLACE_RECORD = 3;
+  // Takes on a record Dockwell didn't make, writing nothing.
+  PROVIDER_ACTION_TAKE_ON_RECORD = 4;
+  // Writes a record that was replaced or removed back as it was, for undo.
+  PROVIDER_ACTION_RESTORE_RECORD = 5;
+  // Adds a rule to a tunnel: a zone's, or its apex's.
+  PROVIDER_ACTION_ADD_RULE = 6;
+  // Removes a rule Dockwell added, or took on.
+  PROVIDER_ACTION_REMOVE_RULE = 7;
+  // Takes on a tunnel's rule Dockwell didn't make, writing nothing.
+  PROVIDER_ACTION_TAKE_ON_RULE = 8;
+  // Moves a rule that pointed at an app's own port to the server's proxy, or takes
+  // it out where the zone's rule covers its name (Move it to Dockwell).
+  PROVIDER_ACTION_MOVE_RULE = 9;
+  // Keeps a rule no route publishes through any more, as names made in Cloudflare
+  // still go through it; routing says which. It writes nothing.
+  PROVIDER_ACTION_KEEP_RULE = 10;
 }
 
 // VolumeMove is how a step that makes a volume takes its data from another on its

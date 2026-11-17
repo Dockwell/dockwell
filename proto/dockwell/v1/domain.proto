@@ -253,6 +253,8 @@ message DnsProviderInfo {
   string provider = 3;
   // The zones it writes in.
   repeated string zones = 4;
+  // Whether it holds a second token, for tunnels alone (ADR 0104).
+  bool tunnel_api_token_set = 5;
 }
 
 // CheckDnsProviderRequest is a token to check, or a saved provider to check
@@ -280,6 +282,52 @@ message CheckDnsProviderResponse {
   repeated DnsZoneCheck zones = 3;
   // The provider's own words, when it said no or couldn't be reached, in a line.
   string detail = 4;
+  // Each thing the token can do, checked on its own from its own rights (ADR 0104).
+  repeated ProviderCapability capabilities = 5;
+  // How many tunnels the token may edit: Cloudflare Tunnel Edit covers every
+  // tunnel in its account.
+  int32 tunnels = 6;
+  // The token holds a right that makes credentials, such as API Tokens Write, which
+  // a token Dockwell holds shouldn't (ADR 0099).
+  bool makes_tokens = 7;
+}
+
+// ProviderCapability is one thing a provider's token can do, checked on its own.
+message ProviderCapability {
+  // What it is.
+  Capability capability = 1;
+  // Whether the token has it.
+  CapabilityState state = 2;
+  // What's missing, in Cloudflare's words as its dashboard has them, such as "the
+  // token lacks Cloudflare Tunnel edit".
+  string detail = 3;
+  // Where the person fixes it: Cloudflare's page for editing the token, or making
+  // one.
+  string fix_url = 4;
+}
+
+// Capability is one thing a provider's token can do (ADR 0104, section 6).
+enum Capability {
+  CAPABILITY_UNSPECIFIED = 0;
+  // Writes DNS in the zones asked for.
+  CAPABILITY_DNS = 1 [(dockwell.v1.word) = "Can write DNS"];
+  // Publishes through the account's tunnels.
+  CAPABILITY_TUNNELS = 2 [(dockwell.v1.word) = "Can publish through tunnels"];
+  // Reads each zone's SSL mode.
+  CAPABILITY_ZONE_SETTINGS = 3 [(dockwell.v1.word) = "Reads zone settings"];
+  // Reads its own rights, which is what makes the rest checkable.
+  CAPABILITY_OWN_RIGHTS = 4 [(dockwell.v1.word) = "Checks its own rights"];
+}
+
+// CapabilityState is whether a token has a capability.
+enum CapabilityState {
+  CAPABILITY_STATE_UNSPECIFIED = 0;
+  // Its rights say it has it.
+  CAPABILITY_STATE_HAS = 1 [(dockwell.v1.word) = "Yes"];
+  // Its rights say it doesn't.
+  CAPABILITY_STATE_LACKS = 2 [(dockwell.v1.word) = "Missing"];
+  // Its rights couldn't be read, so it isn't known: never taken as present.
+  CAPABILITY_STATE_UNKNOWN = 3 [(dockwell.v1.word) = "Can't check"];
 }
 
 // DnsZoneCheck is what writing a record in one zone came to.
@@ -290,6 +338,11 @@ message DnsZoneCheck {
   bool writes = 2;
   // The provider's own words, when it couldn't.
   string detail = 3;
+  // Its SSL/TLS mode at Cloudflare, such as "flexible", "full" or "strict", or
+  // empty where it couldn't be read.
+  string ssl_mode = 4;
+  // The account that holds it: one token can reach zones in several.
+  string account_id = 5;
 }
 
 // DnsProviderState is what a DNS provider said of a token.
@@ -318,6 +371,9 @@ message CheckDomainRequest {
   // The project it's for, by ID, so a shared wildcard certificate that serves that
   // project counts as covering the domain's companion. Empty for one not made yet.
   string project_id = 3;
+  // The way the person picked, to check that way. Unset, the check picks the
+  // default and says why (ADR 0104).
+  dockwell.resource.v1alpha1.RoutePublish publish = 4;
 }
 
 // CheckDomainResponse says what DNS says of it.
@@ -331,6 +387,81 @@ message CheckDomainResponse {
   string companion = 2;
   // Where the companion stands. Unset when there's no companion.
   CompanionCheck companion_check = 3;
+  // What Cloudflare holds at the name, and the ways in, where a connected DNS
+  // provider's zone holds it for the project. Unset otherwise (ADR 0104).
+  CloudflareCheck cloudflare = 4;
+}
+
+// CloudflareCheck is what a connected Cloudflare zone, and the server's tunnel, say
+// of a name, before any plan (ADR 0104, section 1). Below an admin it says only
+// whether the name is taken: a record's content is the origin address public DNS
+// hides.
+message CloudflareCheck {
+  // The connected zone that holds the name, such as "example.com".
+  string zone = 1;
+  // The DNS provider that writes it, by name.
+  string provider = 2;
+  // What's at the name.
+  CloudflareName state = 3;
+  // The record there, in words, such as "A 203.0.113.9": an admin's alone.
+  string record = 4;
+  // That record's ID, to agree to replace or take on: an admin's alone.
+  string record_id = 5;
+  // Every type at the name, such as "TXT" and "MX", which a CNAME sits beside: an
+  // admin's alone.
+  repeated string types = 6;
+  // The way the check would take, unless the person picks another.
+  dockwell.resource.v1alpha1.RouteWay way = 7;
+  // Each way, with why one can't be taken and what fixes it.
+  repeated WayOption ways = 8;
+  // The zone's SSL mode, such as "flexible".
+  string ssl_mode = 9;
+  // When checks read Cloudflare again, while it asks Dockwell to wait (state
+  // CLOUDFLARE_NAME_WAITING).
+  google.protobuf.Timestamp checks_again = 10;
+}
+
+// CloudflareName is what Cloudflare holds at a name.
+enum CloudflareName {
+  CLOUDFLARE_NAME_UNSPECIFIED = 0;
+  // Nothing that stops a domain: free, or only records a CNAME sits beside.
+  CLOUDFLARE_NAME_FREE = 1 [(dockwell.v1.word) = "Free at Cloudflare"];
+  // An A, AAAA or CNAME someone else made, which an admin may replace.
+  CLOUDFLARE_NAME_TAKEN = 2 [(dockwell.v1.word) = "Taken at Cloudflare"];
+  // Records Dockwell wrote for this route already.
+  CLOUDFLARE_NAME_OURS = 3 [(dockwell.v1.word) = "Already published"];
+  // Two labels or more below the zone, past Cloudflare's free certificate, so the
+  // tunnel and the proxy can't serve it over HTTPS.
+  CLOUDFLARE_NAME_PAST_CERTIFICATE = 4 [(dockwell.v1.word) = "Past Cloudflare's free certificate"];
+  // The record there points at this tunnel or server already, made by hand: an
+  // admin may take it on.
+  CLOUDFLARE_NAME_TAKE_ON = 5 [(dockwell.v1.word) = "Made in Cloudflare"];
+  // Cloudflare answered too many requests, so checks read nothing until
+  // checks_again, leaving the token's rate to renewals and plans.
+  CLOUDFLARE_NAME_WAITING = 6 [(dockwell.v1.word) = "Cloudflare asked Dockwell to wait"];
+}
+
+// WayOption is one way in for a domain, and whether it can be taken now.
+message WayOption {
+  // The way.
+  dockwell.resource.v1alpha1.RouteWay way = 1;
+  // The tunnel, by ID, for a tunnel's way.
+  string tunnel = 2;
+  // The tunnel's name, such as "web-1".
+  string tunnel_name = 3;
+  // Why it can't be taken now, as a state, such as "hz-1's tunnel is managed in a
+  // file, so Dockwell writes nothing at Cloudflare". Empty when it can.
+  string off = 4;
+  // What fixes it, such as "Add it to this token". Empty when nothing here does.
+  string action = 5;
+  // Where that action goes, such as Cloudflare's page for editing the token.
+  string action_url = 6;
+  // The rule the tunnel needs first, such as "*.example.com", added once per zone.
+  // Empty when a rule there reaches the server's proxy already.
+  string adds_rule = 7;
+  // The rule that catches the name first, when another does, such as
+  // "*.example.com, to http://127.0.0.1:8080": an admin's alone.
+  string caught_by = 8;
 }
 
 // CompanionCheck is where a domain's companion stands: what DNS says of it, whether
@@ -387,6 +518,53 @@ message Domain {
   repeated DomainRoute routes = 4;
   // Where it stands on each server its routes run on.
   repeated DomainServer servers = 5;
+  // What Dockwell published for it at Cloudflare, and whether it's still there
+  // (ADR 0104). Empty for a domain published by hand, or not at all.
+  repeated DomainPublished published = 6;
+}
+
+// DomainPublished is one name Dockwell published at Cloudflare, as the drift timer
+// last read it.
+message DomainPublished {
+  // The name, such as "wiki.example.com", or its companion.
+  string name = 1;
+  // The way in.
+  dockwell.resource.v1alpha1.RouteWay way = 2;
+  // The tunnel's name, for a tunnel's way.
+  string tunnel = 3;
+  // Its DNS record, in words, such as "CNAME to web-1's tunnel, proxied".
+  string record = 4;
+  // Where it stands.
+  PublishedState state = 5;
+  // When it was taken on, for a record or rule made in Cloudflare and taken on.
+  google.protobuf.Timestamp taken_on = 6;
+}
+
+// PublishedState is where a name Dockwell published stands at Cloudflare.
+enum PublishedState {
+  PUBLISHED_STATE_UNSPECIFIED = 0;
+  // Its record and the tunnel's rule are there, as written.
+  PUBLISHED_STATE_PUBLISHED = 1 [(dockwell.v1.word) = "Published"];
+  // The tunnel's rule that served it is gone.
+  PUBLISHED_STATE_GONE_FROM_TUNNEL = 2 [(dockwell.v1.word) = "Not in the tunnel any more"];
+  // Its DNS record is gone.
+  PUBLISHED_STATE_RECORD_GONE = 3 [(dockwell.v1.word) = "Its DNS record is gone at Cloudflare"];
+  // Its record was changed in Cloudflare since Dockwell wrote it, so removal leaves
+  // it.
+  PUBLISHED_STATE_CHANGED = 4 [(dockwell.v1.word) = "Changed in Cloudflare"];
+  // Its tunnel runs on more than the route's server now.
+  PUBLISHED_STATE_TUNNEL_SHARED = 5 [(dockwell.v1.word) = "Its tunnel runs on another server too"];
+  // Made in Cloudflare by hand, pointing at this tunnel or server: Manage in
+  // Dockwell takes it on.
+  PUBLISHED_STATE_CAN_TAKE_ON = 6 [(dockwell.v1.word) = "Made in Cloudflare"];
+  // A tunnel's rule made by hand that points at the app's own port: Move it to
+  // Dockwell sends it through the server's proxy.
+  PUBLISHED_STATE_CAN_MOVE = 7 [(dockwell.v1.word) = "Points at the app's own port"];
+  // The tunnel that served it was deleted in Cloudflare.
+  PUBLISHED_STATE_TUNNEL_DELETED = 8 [(dockwell.v1.word) = "Its tunnel was deleted in Cloudflare"];
+  // Dockwell can't read it: its DNS provider isn't connected, or Cloudflare refuses
+  // the token.
+  PUBLISHED_STATE_UNREADABLE = 9 [(dockwell.v1.word) = "Dockwell can't read it at Cloudflare"];
 }
 
 // DomainRoute is one route of a domain.

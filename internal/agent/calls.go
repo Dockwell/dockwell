@@ -1040,6 +1040,12 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 		}
 		return &agentv1.CallResult{Result: &agentv1.CallResult_CheckRegistryLogin{CheckRegistryLogin: c.cfg.images.checkLogin(ctx, a, check.GetFirst())}}
 	}
+	if call.GetReadTunnels() != nil {
+		if c.cfg.Tunnels == nil {
+			return fail(errors.New("this agent doesn't read Cloudflare tunnels"))
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_ReadTunnels{ReadTunnels: &agentv1.ReadTunnelsResult{Tunnels: c.cfg.Tunnels.Find(ctx)}}}
+	}
 	if check := call.GetProbeConnection(); check != nil {
 		found, err := c.probeConnection(ctx, check)
 		if err != nil {

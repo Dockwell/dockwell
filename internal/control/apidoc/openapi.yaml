@@ -8518,6 +8518,7 @@ components:
                         - CONDITION_RESTORE_DRILL_LATE
                         - CONDITION_CATALOG_SOURCE_STUCK
                         - CONDITION_UPDATE_AVAILABLE
+                        - CONDITION_DOMAIN_UNPUBLISHED
                     type: string
                     description: What the rule watches for, and how much it matters, as it did when it fired.
                     format: enum
@@ -8916,6 +8917,7 @@ components:
                         - CONDITION_RESTORE_DRILL_LATE
                         - CONDITION_CATALOG_SOURCE_STUCK
                         - CONDITION_UPDATE_AVAILABLE
+                        - CONDITION_DOMAIN_UNPUBLISHED
                     type: string
                     description: What it watches for.
                     format: enum
@@ -11545,6 +11547,22 @@ components:
                 detail:
                     type: string
                     description: The provider's own words, when it said no or couldn't be reached, in a line.
+                capabilities:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ProviderCapability'
+                    description: Each thing the token can do, checked on its own from its own rights (ADR 0104).
+                tunnels:
+                    type: integer
+                    description: |-
+                        How many tunnels the token may edit: Cloudflare Tunnel Edit covers every
+                         tunnel in its account.
+                    format: int32
+                makesTokens:
+                    type: boolean
+                    description: |-
+                        The token holds a right that makes credentials, such as API Tokens Write, which
+                         a token Dockwell holds shouldn't (ADR 0099).
             description: CheckDnsProviderResponse says what the token may do.
         CheckDomainRequest:
             type: object
@@ -11560,6 +11578,12 @@ components:
                     description: |-
                         The project it's for, by ID, so a shared wildcard certificate that serves that
                          project counts as covering the domain's companion. Empty for one not made yet.
+                publish:
+                    allOf:
+                        - $ref: '#/components/schemas/RoutePublish'
+                    description: |-
+                        The way the person picked, to check that way. Unset, the check picks the
+                         default and says why (ADR 0104).
             description: CheckDomainRequest names a domain and the server it's meant to reach.
         CheckDomainResponse:
             type: object
@@ -11579,6 +11603,12 @@ components:
                     allOf:
                         - $ref: '#/components/schemas/CompanionCheck'
                     description: Where the companion stands. Unset when there's no companion.
+                cloudflare:
+                    allOf:
+                        - $ref: '#/components/schemas/CloudflareCheck'
+                    description: |-
+                        What Cloudflare holds at the name, and the ways in, where a connected DNS
+                         provider's zone holds it for the project. Unset otherwise (ADR 0104).
             description: CheckDomainResponse says what DNS says of it.
         CheckInviteRequest:
             type: object
@@ -11859,6 +11889,115 @@ components:
                 end:
                     $ref: '#/components/schemas/TerminalEnd'
             description: CloseTerminalResponse says how it ended.
+        CloudflareCheck:
+            type: object
+            properties:
+                zone:
+                    type: string
+                    description: The connected zone that holds the name, such as "example.com".
+                provider:
+                    type: string
+                    description: The DNS provider that writes it, by name.
+                state:
+                    enum:
+                        - CLOUDFLARE_NAME_UNSPECIFIED
+                        - CLOUDFLARE_NAME_FREE
+                        - CLOUDFLARE_NAME_TAKEN
+                        - CLOUDFLARE_NAME_OURS
+                        - CLOUDFLARE_NAME_PAST_CERTIFICATE
+                        - CLOUDFLARE_NAME_TAKE_ON
+                        - CLOUDFLARE_NAME_WAITING
+                    type: string
+                    description: What's at the name.
+                    format: enum
+                record:
+                    type: string
+                    description: 'The record there, in words, such as "A 203.0.113.9": an admin''s alone.'
+                recordId:
+                    type: string
+                    description: 'That record''s ID, to agree to replace or take on: an admin''s alone.'
+                types:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        Every type at the name, such as "TXT" and "MX", which a CNAME sits beside: an
+                         admin's alone.
+                way:
+                    enum:
+                        - ROUTE_WAY_UNSPECIFIED
+                        - ROUTE_WAY_SERVER_TUNNEL
+                        - ROUTE_WAY_OWN_TUNNEL
+                        - ROUTE_WAY_PROXY
+                        - ROUTE_WAY_OWN_HTTPS
+                        - ROUTE_WAY_FRONT
+                    type: string
+                    description: The way the check would take, unless the person picks another.
+                    format: enum
+                ways:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/WayOption'
+                    description: Each way, with why one can't be taken and what fixes it.
+                sslMode:
+                    type: string
+                    description: The zone's SSL mode, such as "flexible".
+                checksAgain:
+                    type: string
+                    description: |-
+                        When checks read Cloudflare again, while it asks Dockwell to wait (state
+                         CLOUDFLARE_NAME_WAITING).
+                    format: date-time
+            description: |-
+                CloudflareCheck is what a connected Cloudflare zone, and the server's tunnel, say
+                 of a name, before any plan (ADR 0104, section 1). Below an admin it says only
+                 whether the name is taken: a record's content is the origin address public DNS
+                 hides.
+        CloudflaredTunnel:
+            type: object
+            properties:
+                tunnelId:
+                    type: string
+                    description: |-
+                        The tunnel's ID at Cloudflare. Empty for a run of cloudflared whose tunnel the
+                         agent can't read, as one whose token file it can't open: cloudflared runs here
+                         all the same.
+                accountTag:
+                    type: string
+                    description: The account it's in, by its tag; empty for one read from a config file.
+                managedInFile:
+                    type: boolean
+                    description: |-
+                        Whether its routes are a file on the server (locally managed), which Dockwell
+                         leaves alone, rather than kept at Cloudflare.
+                connectorId:
+                    type: string
+                    description: |-
+                        The ID of this run of cloudflared, as its /ready says, which Cloudflare's
+                         connections list carries: what proves the tunnel runs here. Empty where /ready
+                         couldn't be read. It changes each time cloudflared starts.
+                reaches:
+                    type: string
+                    description: |-
+                        How the tunnel reaches the server's proxy: "http://127.0.0.1:80" from the
+                         host's network, or "http://host.docker.internal:80" from a network of its own.
+                networkRange:
+                    type: string
+                    description: |-
+                        The range the tunnel's own network comes from, such as "172.18.0.0/16", which a
+                         route behind it believes. Empty on the host's network.
+                containerId:
+                    type: string
+                    description: The container it runs in, by ID, or empty for a process on the host.
+                pid:
+                    type: integer
+                    description: Its process ID on the server.
+                    format: int32
+            description: |-
+                CloudflaredTunnel is a Cloudflare tunnel cloudflared runs on a server, as its agent
+                 reads it: the tunnel's ID and account from its connector token, or its config file,
+                 and the ID of this run of cloudflared from its /ready. The token's secret is read
+                 in memory and dropped; it never leaves the server (ADR 0104, section 3).
         Companion:
             type: object
             properties:
@@ -14002,6 +14141,22 @@ components:
                     description: |-
                         The projects whose routes' names it proves, by ID. Empty is none: proving a
                          name by DNS works wherever it points, so an admin says which projects may.
+                tunnelApiToken:
+                    type: string
+                    description: |-
+                        A second token for tunnels alone, for whoever wants one: Cloudflare Tunnel
+                         Edit, and API Tokens Read to check its own rights. Empty, the API token does
+                         tunnels too, as one token may carry both (ADR 0104, amending ADR 0099). Leave it
+                         out of an update to keep it.
+                strictZones:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        The zones an admin set to Full (strict) through Dockwell, so Cloudflare reaches
+                         every proxied name in them over HTTPS with a certificate it checks. A zone's
+                         mode changes how all its proxied names are reached, so it's set here, on its
+                         own plan, never as a side effect of one domain (ADR 0104).
             description: |-
                 DnsProvider is what writes the records of one or more DNS zones through a DNS
                  provider's API, so the control plane can prove a name by DNS-01 and get its
@@ -14025,6 +14180,9 @@ components:
                     items:
                         type: string
                     description: The zones it writes in.
+                tunnelApiTokenSet:
+                    type: boolean
+                    description: Whether it holds a second token, for tunnels alone (ADR 0104).
             description: DnsProviderInfo is a DNS provider, without its token.
         DnsZoneCheck:
             type: object
@@ -14038,6 +14196,14 @@ components:
                 detail:
                     type: string
                     description: The provider's own words, when it couldn't.
+                sslMode:
+                    type: string
+                    description: |-
+                        Its SSL/TLS mode at Cloudflare, such as "flexible", "full" or "strict", or
+                         empty where it couldn't be read.
+                accountId:
+                    type: string
+                    description: 'The account that holds it: one token can reach zones in several.'
             description: DnsZoneCheck is what writing a record in one zone came to.
         DockwellFirewallRule:
             type: object
@@ -14139,6 +14305,13 @@ components:
                     items:
                         $ref: '#/components/schemas/DomainServer'
                     description: Where it stands on each server its routes run on.
+                published:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DomainPublished'
+                    description: |-
+                        What Dockwell published for it at Cloudflare, and whether it's still there
+                         (ADR 0104). Empty for a domain published by hand, or not at all.
             description: Domain is one domain the routes of an environment serve.
         DomainCheck:
             type: object
@@ -14195,6 +14368,51 @@ components:
                         A record points at Cloudflare's proxy, which ends TLS, and blocks a
                          certificate over HTTP-01 or TLS-ALPN.
             description: DomainCheck is what DNS says of a domain, as a server sees it.
+        DomainPublished:
+            type: object
+            properties:
+                name:
+                    type: string
+                    description: The name, such as "wiki.example.com", or its companion.
+                way:
+                    enum:
+                        - ROUTE_WAY_UNSPECIFIED
+                        - ROUTE_WAY_SERVER_TUNNEL
+                        - ROUTE_WAY_OWN_TUNNEL
+                        - ROUTE_WAY_PROXY
+                        - ROUTE_WAY_OWN_HTTPS
+                        - ROUTE_WAY_FRONT
+                    type: string
+                    description: The way in.
+                    format: enum
+                tunnel:
+                    type: string
+                    description: The tunnel's name, for a tunnel's way.
+                record:
+                    type: string
+                    description: Its DNS record, in words, such as "CNAME to web-1's tunnel, proxied".
+                state:
+                    enum:
+                        - PUBLISHED_STATE_UNSPECIFIED
+                        - PUBLISHED_STATE_PUBLISHED
+                        - PUBLISHED_STATE_GONE_FROM_TUNNEL
+                        - PUBLISHED_STATE_RECORD_GONE
+                        - PUBLISHED_STATE_CHANGED
+                        - PUBLISHED_STATE_TUNNEL_SHARED
+                        - PUBLISHED_STATE_CAN_TAKE_ON
+                        - PUBLISHED_STATE_CAN_MOVE
+                        - PUBLISHED_STATE_TUNNEL_DELETED
+                        - PUBLISHED_STATE_UNREADABLE
+                    type: string
+                    description: Where it stands.
+                    format: enum
+                takenOn:
+                    type: string
+                    description: When it was taken on, for a record or rule made in Cloudflare and taken on.
+                    format: date-time
+            description: |-
+                DomainPublished is one name Dockwell published at Cloudflare, as the drift timer
+                 last read it.
         DomainRoute:
             type: object
             properties:
@@ -14916,6 +15134,13 @@ components:
                         What a server's agent did, or couldn't do, on its own while the control
                          plane was away, for an event with an action that starts "server.reconciled"
                          (ADR 0054).
+                cloudflare:
+                    allOf:
+                        - $ref: '#/components/schemas/EventCloudflare'
+                    description: |-
+                        What Dockwell wrote at Cloudflare, or found gone there, for an event with an
+                         action that starts "cloudflare." (ADR 0104). Numbered in the block ADR 0104
+                         holds, 340 to 349.
             description: Event is one thing that happened.
         EventAlert:
             type: object
@@ -14976,6 +15201,7 @@ components:
                         - CONDITION_RESTORE_DRILL_LATE
                         - CONDITION_CATALOG_SOURCE_STUCK
                         - CONDITION_UPDATE_AVAILABLE
+                        - CONDITION_DOMAIN_UNPUBLISHED
                     type: string
                     description: |-
                         What its title says, apart, for the panel to say in its own language: the
@@ -15051,6 +15277,51 @@ components:
                         The server, by ID, for its page. Numbered apart, as open work adds to this
                          message.
             description: EventBackup is what became of one backup.
+        EventCloudflare:
+            type: object
+            properties:
+                provider:
+                    type: string
+                    description: The DNS provider whose token wrote it, by name.
+                target:
+                    type: string
+                    description: 'Where: the zone for a record, the tunnel''s name for a rule.'
+                name:
+                    type: string
+                    description: The name, such as "wiki.example.com", or a rule's hostname.
+                action:
+                    enum:
+                        - PROVIDER_ACTION_UNSPECIFIED
+                        - PROVIDER_ACTION_CREATE_RECORD
+                        - PROVIDER_ACTION_DELETE_RECORD
+                        - PROVIDER_ACTION_REPLACE_RECORD
+                        - PROVIDER_ACTION_TAKE_ON_RECORD
+                        - PROVIDER_ACTION_RESTORE_RECORD
+                        - PROVIDER_ACTION_ADD_RULE
+                        - PROVIDER_ACTION_REMOVE_RULE
+                        - PROVIDER_ACTION_TAKE_ON_RULE
+                        - PROVIDER_ACTION_MOVE_RULE
+                        - PROVIDER_ACTION_KEEP_RULE
+                    type: string
+                    description: What was done.
+                    format: enum
+                drift:
+                    type: boolean
+                    description: It was found gone or changed, by the drift timer, not written.
+                version:
+                    type: integer
+                    description: The tunnel document's version after the write, for a rule.
+                    format: int32
+                readVersion:
+                    type: integer
+                    description: |-
+                        The version Dockwell read before it wrote, where an edit made in Cloudflare
+                         between the two was replaced (cloudflare.replaced).
+                    format: int32
+                changeId:
+                    type: string
+                    description: The change that wrote it, by its ID; empty for what the drift timer found.
+            description: EventCloudflare is one thing Dockwell wrote at Cloudflare, or found gone there.
         EventDesiredSent:
             type: object
             properties:
@@ -16855,6 +17126,8 @@ components:
                         - HOST_ACCESS_KIND_SECURITY_OPTION
                         - HOST_ACCESS_KIND_HOST_PROCESSES
                         - HOST_ACCESS_KIND_ROOT_TOGETHER
+                        - HOST_ACCESS_KIND_TUNNEL_RULE
+                        - HOST_ACCESS_KIND_CLOUDFLARE_TAKEOVER
                     type: string
                     description: What it is.
                     format: enum
@@ -21996,6 +22269,14 @@ components:
                          hand, by domain and path, which applying it doesn't write again, so they may
                          pass its sign-in cookies on to their apps (ADR 0087). It never stops a plan,
                          and the fingerprint leaves it out. Numbered in #598's block, 110 to 119.
+                provider:
+                    allOf:
+                        - $ref: '#/components/schemas/ProviderStep'
+                    description: |-
+                        A step the control plane takes at Cloudflare for a route, not its server: a DNS
+                         record, or a tunnel's rule. Its server is the route's, to say where it belongs;
+                         nothing runs there. Cloudflare's steps run before the server's and come off after
+                         them (ADR 0104). Numbered in the block ADR 0104 holds, 340 to 349.
             description: PlanStep is what applying does to one resource on one server.
         PlanStopPanelRequest:
             type: object
@@ -22378,6 +22659,39 @@ components:
                         - $ref: '#/components/schemas/Change'
                     description: The change, planned, with its plan.
             description: ProposeChangeResponse carries the planned change.
+        ProviderCapability:
+            type: object
+            properties:
+                capability:
+                    enum:
+                        - CAPABILITY_UNSPECIFIED
+                        - CAPABILITY_DNS
+                        - CAPABILITY_TUNNELS
+                        - CAPABILITY_ZONE_SETTINGS
+                        - CAPABILITY_OWN_RIGHTS
+                    type: string
+                    description: What it is.
+                    format: enum
+                state:
+                    enum:
+                        - CAPABILITY_STATE_UNSPECIFIED
+                        - CAPABILITY_STATE_HAS
+                        - CAPABILITY_STATE_LACKS
+                        - CAPABILITY_STATE_UNKNOWN
+                    type: string
+                    description: Whether the token has it.
+                    format: enum
+                detail:
+                    type: string
+                    description: |-
+                        What's missing, in Cloudflare's words as its dashboard has them, such as "the
+                         token lacks Cloudflare Tunnel edit".
+                fixUrl:
+                    type: string
+                    description: |-
+                        Where the person fixes it: Cloudflare's page for editing the token, or making
+                         one.
+            description: ProviderCapability is one thing a provider's token can do, checked on its own.
         ProviderLink:
             type: object
             properties:
@@ -22417,6 +22731,54 @@ components:
                 ProviderLink is an account at a sign-in provider that signs its person in to
                  Dockwell, kept by the provider's issuer and the account's subject, never by an
                  email address (ADR 0095).
+        ProviderStep:
+            type: object
+            properties:
+                provider:
+                    type: string
+                    description: The DNS provider whose token it writes with, by name.
+                action:
+                    enum:
+                        - PROVIDER_ACTION_UNSPECIFIED
+                        - PROVIDER_ACTION_CREATE_RECORD
+                        - PROVIDER_ACTION_DELETE_RECORD
+                        - PROVIDER_ACTION_REPLACE_RECORD
+                        - PROVIDER_ACTION_TAKE_ON_RECORD
+                        - PROVIDER_ACTION_RESTORE_RECORD
+                        - PROVIDER_ACTION_ADD_RULE
+                        - PROVIDER_ACTION_REMOVE_RULE
+                        - PROVIDER_ACTION_TAKE_ON_RULE
+                        - PROVIDER_ACTION_MOVE_RULE
+                        - PROVIDER_ACTION_KEEP_RULE
+                    type: string
+                    description: What it does.
+                    format: enum
+                target:
+                    type: string
+                    description: |-
+                        Where: the zone, such as "example.com", for a record; the tunnel's name for a
+                         rule.
+                name:
+                    type: string
+                    description: |-
+                        The name it's for, such as "wiki.example.com", or a rule's hostname, such as
+                         "*.example.com".
+                was:
+                    type: string
+                    description: What's there now, in words, such as "A 203.0.113.9, made in Cloudflare".
+                to:
+                    type: string
+                    description: |-
+                        What it writes, in words, such as "CNAME to web-1's tunnel, proxied", or
+                         "http://127.0.0.1:80".
+                routing:
+                    type: string
+                    description: |-
+                        For a tunnel's rule: what the routing check found of every other name, such as
+                         "Every other name in web-1, the panel's among them, goes where it went".
+            description: |-
+                ProviderStep is one thing the control plane writes, or removes, at Cloudflare
+                 for a route (ADR 0104, section 8).
         PublicAddress:
             type: object
             properties:
@@ -23667,6 +24029,15 @@ components:
                          it to a service: such a route names no service, port or host_port, and no
                          access, as nothing is behind it to protect. Its domain gets a certificate as
                          any route's does. See docs/adr/0070-redirects-from-one-domain-to-another.md.
+                publish:
+                    allOf:
+                        - $ref: '#/components/schemas/RoutePublish'
+                    description: |-
+                        How the domain is published at Cloudflare, where Dockwell writes its DNS record,
+                         and the tunnel's rule where one is needed, as steps of the change. Unset, Dockwell
+                         writes nothing at Cloudflare, as before. Only the control plane reads it: no
+                         server's proxy sees it. See docs/adr/0104-adding-a-domain-publishes-it.md.
+                         Numbered in the block ADR 0104 holds, 340 to 349.
             description: |-
                 Route sends a domain's traffic, or a path under it, to a port of a service
                  in the route's environment, or to a port on the server itself. It comes over
@@ -23768,6 +24139,39 @@ components:
                     description: The port on the server it goes to, when it goes to no service.
                     format: uint32
             description: RouteMove is a route leaving one service for another.
+        RoutePublish:
+            type: object
+            properties:
+                way:
+                    enum:
+                        - ROUTE_WAY_UNSPECIFIED
+                        - ROUTE_WAY_SERVER_TUNNEL
+                        - ROUTE_WAY_OWN_TUNNEL
+                        - ROUTE_WAY_PROXY
+                        - ROUTE_WAY_OWN_HTTPS
+                        - ROUTE_WAY_FRONT
+                    type: string
+                    description: The way in.
+                    format: enum
+                tunnel:
+                    type: string
+                    description: |-
+                        The tunnel, by its ID at Cloudflare, for ROUTE_WAY_SERVER_TUNNEL: one the
+                         route's server runs, proved by its connector's ID.
+                provider:
+                    type: string
+                    description: |-
+                        The DNS provider whose token writes it, by name. Its projects must hold the
+                         route's.
+                takesOver:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/TakeOver'
+                    description: |-
+                        What a person agreed to replace or take on, made by someone else at Cloudflare:
+                         an admin's, with a passkey (HOST_ACCESS_KIND_CLOUDFLARE_TAKEOVER). Anything
+                         there that isn't named here stops the plan.
+            description: How a route's domain is published at Cloudflare (ADR 0104).
         RouteRedirect:
             type: object
             properties:
@@ -24573,6 +24977,11 @@ components:
                 ephemeralPortsHigh:
                     type: integer
                     format: uint32
+                tunnels:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/CloudflaredTunnel'
+                    description: The Cloudflare tunnels cloudflared runs here, as the agent finds them (ADR 0104).
             description: 'ServerInventory is what a server is: its system and hardware.'
         ServerLogStatus:
             type: object
@@ -26734,6 +27143,25 @@ components:
                     type: string
                     description: Where it is, for the page before it. Opaque.
             description: SystemLogLine is one line of a server's system log.
+        TakeOver:
+            type: object
+            properties:
+                recordId:
+                    type: string
+                    description: The record's ID at Cloudflare.
+                tunnel:
+                    type: string
+                    description: The tunnel holding the rule, by ID.
+                hostname:
+                    type: string
+                    description: The rule's hostname.
+                path:
+                    type: string
+                    description: The rule's path, if it has one.
+            description: |-
+                A thing at Cloudflare that Dockwell didn't make, which a person agreed it may
+                 replace or take on: a DNS record by its ID, or a tunnel's rule, which has none, by
+                 its tunnel, hostname and path.
         Task:
             type: object
             properties:
@@ -27831,6 +28259,48 @@ components:
                         Why what it holds there can't be said now, such as its server not being
                          connected, or its driver keeping it elsewhere. Empty when it was read.
             description: VolumeOnServer is a volume on one server.
+        WayOption:
+            type: object
+            properties:
+                way:
+                    enum:
+                        - ROUTE_WAY_UNSPECIFIED
+                        - ROUTE_WAY_SERVER_TUNNEL
+                        - ROUTE_WAY_OWN_TUNNEL
+                        - ROUTE_WAY_PROXY
+                        - ROUTE_WAY_OWN_HTTPS
+                        - ROUTE_WAY_FRONT
+                    type: string
+                    description: The way.
+                    format: enum
+                tunnel:
+                    type: string
+                    description: The tunnel, by ID, for a tunnel's way.
+                tunnelName:
+                    type: string
+                    description: The tunnel's name, such as "web-1".
+                off:
+                    type: string
+                    description: |-
+                        Why it can't be taken now, as a state, such as "hz-1's tunnel is managed in a
+                         file, so Dockwell writes nothing at Cloudflare". Empty when it can.
+                action:
+                    type: string
+                    description: What fixes it, such as "Add it to this token". Empty when nothing here does.
+                actionUrl:
+                    type: string
+                    description: Where that action goes, such as Cloudflare's page for editing the token.
+                addsRule:
+                    type: string
+                    description: |-
+                        The rule the tunnel needs first, such as "*.example.com", added once per zone.
+                         Empty when a rule there reaches the server's proxy already.
+                caughtBy:
+                    type: string
+                    description: |-
+                        The rule that catches the name first, when another does, such as
+                         "*.example.com, to http://127.0.0.1:8080": an admin's alone.
+            description: WayOption is one way in for a domain, and whether it can be taken now.
         Web:
             type: object
             properties:
