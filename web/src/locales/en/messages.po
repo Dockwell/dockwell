@@ -4318,8 +4318,8 @@ msgstr "A rule made in Cloudflare in {tunnelName} sends it to the server's proxy
 msgid "A rule made in Cloudflare in {tunnelName} sends it to {service}"
 msgstr "A rule made in Cloudflare in {tunnelName} sends it to {service}"
 
-msgid "A tunnel only Dockwell writes, about 20 MB on {server}"
-msgstr "A tunnel only Dockwell writes, about 20 MB on {server}"
+msgid "A tunnel only Dockwell writes, about 20 MB on the server"
+msgstr "A tunnel only Dockwell writes, about 20 MB on the server"
 
 #. placeholder {0}: picked.addsRule
 #. placeholder {1}: picked.tunnelName
@@ -4342,8 +4342,11 @@ msgstr "Cloudflare asked Dockwell to wait"
 msgid "Cloudflare asked Dockwell to wait. It checks again at {at}"
 msgstr "Cloudflare asked Dockwell to wait. It checks again at {at}"
 
-msgid "Cloudflare ends HTTPS, and the tunnel reaches {server} through its proxy"
-msgstr "Cloudflare ends HTTPS, and the tunnel reaches {server} through its proxy"
+msgid "Cloudflare ends HTTPS, and the tunnel reaches the server at {reaches}"
+msgstr "Cloudflare ends HTTPS, and the tunnel reaches the server at {reaches}"
+
+msgid "Cloudflare ends HTTPS, and the tunnel reaches the server's proxy"
+msgstr "Cloudflare ends HTTPS, and the tunnel reaches the server's proxy"
 
 msgid "Dockwell writes nothing at Cloudflare. What's in front ends HTTPS"
 msgstr "Dockwell writes nothing at Cloudflare. What's in front ends HTTPS"
@@ -4437,11 +4440,14 @@ msgstr "{0} is on Cloudflare"
 msgid "{0} is set to Flexible, so Cloudflare reaches {server} over HTTP"
 msgstr "{0} is set to Flexible, so Cloudflare reaches {server} over HTTP"
 
+msgid "{domain} alone, without {companion}"
+msgstr "{domain} alone, without {companion}"
+
 msgid "{domain} is past Cloudflare's free certificate"
 msgstr "{domain} is past Cloudflare's free certificate"
 
-msgid "{zone}, with {companion} beside it"
-msgstr "{zone}, with {companion} beside it"
+msgid "{domain}, with {companion} beside it"
+msgstr "{domain}, with {companion} beside it"
 
 msgid "A file <0>docker compose</0> runs without Dockwell, with no secrets in it"
 msgstr "A file <0>docker compose</0> runs without Dockwell, with no secrets in it"
@@ -10081,6 +10087,15 @@ msgstr "<0>{source}</0> at <1>{target}</1>, read-only"
 msgid "<0>{source}</0>, read-only"
 msgstr "<0>{source}</0>, read-only"
 
+msgid "A certificate on the server"
+msgstr "A certificate on the server"
+
+msgid "Dockwell's own tunnel"
+msgstr "Dockwell's own tunnel"
+
+msgid "Ends at Cloudflare"
+msgstr "Ends at Cloudflare"
+
 msgid "SELinux label"
 msgstr "SELinux label"
 
@@ -10323,9 +10338,18 @@ msgctxt "a part a link meets"
 msgid "the secret key"
 msgstr "the secret key"
 
+msgid "the server's tunnel"
+msgstr "the server's tunnel"
+
+msgid "the tunnel {tunnel}"
+msgstr "the tunnel {tunnel}"
+
 msgctxt "a part a link meets"
 msgid "the user"
 msgstr "the user"
+
+msgid "through"
+msgstr "through"
 
 msgid "tmpfs"
 msgstr "tmpfs"
@@ -10552,6 +10576,9 @@ msgstr "Dockwell didn't make that network. Whatever else is on it, other project
 
 msgid "Dockwell didn't make that volume, and won't delete it. Whatever else mounts it shares what it holds."
 msgstr "Dockwell didn't make that volume, and won't delete it. Whatever else mounts it shares what it holds."
+
+msgid "Dockwell keeps it whole, so undo puts it back."
+msgstr "Dockwell keeps it whole, so undo puts it back."
 
 msgid "Dockwell moves it as {branch} moved."
 msgstr "Dockwell moves it as {branch} moved."
@@ -11284,6 +11311,9 @@ msgstr "{on} need nothing, so they take no step."
 
 msgid "{on} needs nothing, so it takes no step."
 msgstr "{on} needs nothing, so it takes no step."
+
+msgid "{path}'s {detail}, made in Cloudflare, becomes Dockwell's"
+msgstr "{path}'s {detail}, made in Cloudflare, becomes Dockwell's"
 
 msgid "{projects} can upgrade again, from the catalog each came from."
 msgstr "{projects} can upgrade again, from the catalog each came from."

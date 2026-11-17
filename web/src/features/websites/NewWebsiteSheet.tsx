@@ -133,6 +133,8 @@ export function NewWebsiteSheet({
     wayPicked && wayOf(cf.check, wayPicked.way, wayPicked.tunnel)?.off === "" ? wayPicked : pickedOf(cf.check);
   const wayTakeable = wayOf(cf.check, way.way, way.tunnel)?.off === "";
   const [waysOpen, setWaysOpen] = useState(false);
+  // The choice to leave a name's other half out, one step away in a connected zone.
+  const [companionOpen, setCompanionOpen] = useState(false);
   const [consent, setConsent] = useState<{ domain: string; items: TakeOverInit[] }>({ domain: "", items: [] });
   const takesOver = consent.domain === typed ? consent.items : [];
   const provider = cf.check?.provider || zones.find((z) => z.zone === zone)?.provider || "";
@@ -177,7 +179,7 @@ export function NewWebsiteSheet({
   };
   // www for a bare domain, or the bare domain for www, on by what DNS says of it.
   const companion = useCompanion(serverOf(fleet, server)?.id ?? "", typed);
-  const [alsoCompanion, setAlsoCompanion] = useCompanionChoice(companion);
+  const [alsoCompanion, setAlsoCompanion] = useCompanionChoice(companion, "", false, publishing);
 
   /** Takes you to the first field that was refused, ready to change, as New app does. */
   const revealError = () =>
@@ -243,6 +245,8 @@ export function NewWebsiteSheet({
       setWaysOpen(false);
       return;
     }
+    // The cards close as the plan opens, so a cancelled plan comes back to the way's line.
+    setWaysOpen(false);
     const publish = publishes ? publishOf(way.way, way.tunnel, provider, takesOver) : undefined;
     const { proof: _proof, ...wayFields } = routeOfWay(way.way, cf.check?.sslMode ?? "");
     const front = publishes ? { ...wayFields, ...(publish ? { publish } : {}) } : frontOf(behind, inFront, named);
@@ -391,6 +395,8 @@ export function NewWebsiteSheet({
                 sub={domain.trim().toLowerCase()}
                 zone={zone}
                 companion={cf.companion}
+                companionOn={alsoCompanion}
+                onCompanion={() => setCompanionOpen(true)}
                 failed={cf.failed}
                 onAgain={cf.again}
                 takesOver={takesOver}
@@ -449,14 +455,17 @@ export function NewWebsiteSheet({
             onLeave={onClose}
           />
         )}
-        <CompanionChoice
-          server={serverOf(fleet, server)}
-          read={companion}
-          on={alsoCompanion}
-          onChange={setAlsoCompanion}
-          tunnel={behind || publishes}
-          onLeave={onClose}
-        />
+        {/* In a connected zone, the name's line says its other half, with Change one step away. */}
+        {!publishing || companionOpen ? (
+          <CompanionChoice
+            server={serverOf(fleet, server)}
+            read={companion}
+            on={alsoCompanion}
+            onChange={setAlsoCompanion}
+            tunnel={behind || publishes}
+            onLeave={onClose}
+          />
+        ) : null}
         {several ? (
           <SelectField
             label={t`Server`}

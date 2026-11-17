@@ -40,6 +40,7 @@ export const colors = {
     "diff-remove-soft": "#fbe8e0",
     "link": "#2450d6",
     "selection": "#e8edfc",
+    "choice-on": "#eef2fd",
     "scrim": "#191c1a59"
   },
   "dark": {
@@ -78,6 +79,7 @@ export const colors = {
     "diff-remove-soft": "#36190f",
     "link": "#809dff",
     "selection": "#19244a",
+    "choice-on": "#1e2431",
     "scrim": "#000000a6"
   }
 } as const;

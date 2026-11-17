@@ -50,6 +50,7 @@ function publishApi(
   cloudflare: (req: CheckDomainRequest) => Check | undefined,
   edits: ProposeChangeRequest["edits"],
   asked: CheckDomainRequest[] = [],
+  companion = "",
 ): Api {
   const watch = feed<WatchServersResponse>();
   watch.push(changed(hz1), snapshotComplete);
@@ -74,7 +75,7 @@ function publishApi(
       checkDomain: (req) => {
         asked.push(req);
         const cf = cloudflare(req);
-        return { companion: "", ...(cf ? { cloudflare: cf } : {}) };
+        return { companion: req.domain === "example.com" ? companion : "", ...(cf ? { cloudflare: cf } : {}) };
       },
     },
     changes: {
@@ -377,5 +378,37 @@ describe("adding a domain in a connected zone (ADR 0104)", () => {
     expect(edits[0]?.spec?.kind.value).toMatchObject({
       publish: { takesOver: [{ tunnel: TUNNEL, hostname: "wiki.example.com" }] },
     });
+  });
+
+  it("closes the ways once one is picked, the one already picked too", async () => {
+    renderAt(
+      "/apps/svc_wordpress",
+      publishApi(() => free(), []),
+    );
+    const { user, sheet } = await openSheet();
+    await user.type(within(sheet).getByRole("textbox", { name: "Subdomain" }), "wiki");
+    await within(sheet).findByText(/^Through the tunnel web-1 on /, {}, { timeout: 3000 });
+    await user.click(within(sheet).getByRole("button", { name: "Change the way in" }));
+    const ways = within(sheet).getByRole("radiogroup", { name: "Way in" });
+    await user.click(within(ways).getByRole("radio", { name: /Through the tunnel web-1/ }));
+    expect(within(sheet).queryByRole("radiogroup", { name: "Way in" })).toBeNull();
+  });
+
+  it("says the zone itself with www beside it, and leaves www out one step away", async () => {
+    renderAt(
+      "/apps/svc_wordpress",
+      publishApi(() => free(), [], [], "www.example.com"),
+    );
+    const { user, sheet } = await openSheet();
+    const sub = within(sheet).getByRole("textbox", { name: "Subdomain" });
+    await user.type(sub, "x");
+    await user.clear(sub);
+    expect(
+      await within(sheet).findByText(/example.com, with www.example.com beside it/, {}, { timeout: 3000 }),
+    ).toBeVisible();
+    // No checkbox up front: Change opens the choice.
+    expect(within(sheet).queryByRole("checkbox")).toBeNull();
+    await user.click(within(sheet).getByRole("button", { name: "Change" }));
+    expect(await within(sheet).findByRole("checkbox", {}, { timeout: 3000 })).toBeVisible();
   });
 });

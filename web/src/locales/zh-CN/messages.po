@@ -4318,8 +4318,8 @@ msgstr "{tunnelName} 中在 Cloudflare 创建的规则把它发送到服务器�
 msgid "A rule made in Cloudflare in {tunnelName} sends it to {service}"
 msgstr "{tunnelName} 中在 Cloudflare 创建的规则把它发送到 {service}"
 
-msgid "A tunnel only Dockwell writes, about 20 MB on {server}"
-msgstr "只由 Dockwell 写入的隧道，在 {server} 上约占 20 MB"
+msgid "A tunnel only Dockwell writes, about 20 MB on the server"
+msgstr "只由 Dockwell 写入的隧道，在服务器上约占 20 MB"
 
 #. placeholder {0}: picked.addsRule
 #. placeholder {1}: picked.tunnelName
@@ -4342,8 +4342,11 @@ msgstr "Cloudflare 要求 Dockwell 稍候"
 msgid "Cloudflare asked Dockwell to wait. It checks again at {at}"
 msgstr "Cloudflare 要求 Dockwell 稍候。将在 {at} 再次检查"
 
-msgid "Cloudflare ends HTTPS, and the tunnel reaches {server} through its proxy"
-msgstr "Cloudflare 终止 HTTPS，隧道经由代理到达 {server}"
+msgid "Cloudflare ends HTTPS, and the tunnel reaches the server at {reaches}"
+msgstr "Cloudflare 终止 HTTPS，隧道经 {reaches} 到达服务器"
+
+msgid "Cloudflare ends HTTPS, and the tunnel reaches the server's proxy"
+msgstr "Cloudflare 终止 HTTPS，隧道到达服务器的代理"
 
 msgid "Dockwell writes nothing at Cloudflare. What's in front ends HTTPS"
 msgstr "Dockwell 不在 Cloudflare 写入任何内容。由前方的服务终止 HTTPS"
@@ -4437,11 +4440,14 @@ msgstr "{0} 在 Cloudflare 上"
 msgid "{0} is set to Flexible, so Cloudflare reaches {server} over HTTP"
 msgstr "{0} 设为灵活，因此 Cloudflare 通过 HTTP 访问 {server}"
 
+msgid "{domain} alone, without {companion}"
+msgstr "仅 {domain}，不含 {companion}"
+
 msgid "{domain} is past Cloudflare's free certificate"
 msgstr "{domain} 超出了 Cloudflare 免费证书的范围"
 
-msgid "{zone}, with {companion} beside it"
-msgstr "{zone}，以及旁边的 {companion}"
+msgid "{domain}, with {companion} beside it"
+msgstr "{domain}，并附带 {companion}"
 
 msgid "A file <0>docker compose</0> runs without Dockwell, with no secrets in it"
 msgstr "<0>docker compose</0> 无需 Dockwell 即可运行的文件，其中不含机密信息"
@@ -10081,6 +10087,15 @@ msgstr "<0>{source}</0> 挂载到 <1>{target}</1>，只读"
 msgid "<0>{source}</0>, read-only"
 msgstr "<0>{source}</0>，只读"
 
+msgid "A certificate on the server"
+msgstr "服务器上的证书"
+
+msgid "Dockwell's own tunnel"
+msgstr "Dockwell 自己的隧道"
+
+msgid "Ends at Cloudflare"
+msgstr "在 Cloudflare 终止"
+
 msgid "SELinux label"
 msgstr "SELinux 标签"
 
@@ -10323,9 +10338,18 @@ msgctxt "a part a link meets"
 msgid "the secret key"
 msgstr "私有访问密钥"
 
+msgid "the server's tunnel"
+msgstr "服务器的隧道"
+
+msgid "the tunnel {tunnel}"
+msgstr "隧道 {tunnel}"
+
 msgctxt "a part a link meets"
 msgid "the user"
 msgstr "用户"
+
+msgid "through"
+msgstr "经由"
 
 msgid "tmpfs"
 msgstr "tmpfs"
@@ -10552,6 +10576,9 @@ msgstr "该网络不是 Dockwell 创建的。网络上的其他内容（包括�
 
 msgid "Dockwell didn't make that volume, and won't delete it. Whatever else mounts it shares what it holds."
 msgstr "该卷不是 Dockwell 创建的，Dockwell 也不会删除它。其他挂载它的容器会共享其中的内容。"
+
+msgid "Dockwell keeps it whole, so undo puts it back."
+msgstr "Dockwell 会完整保留它，撤销即可恢复。"
 
 msgid "Dockwell moves it as {branch} moved."
 msgstr "{branch} 有了新提交，Dockwell 随之移动了它。"
@@ -11284,6 +11311,9 @@ msgstr "{on} 无需任何操作，因此没有步骤。"
 
 msgid "{on} needs nothing, so it takes no step."
 msgstr "{on} 无需任何操作，因此没有步骤。"
+
+msgid "{path}'s {detail}, made in Cloudflare, becomes Dockwell's"
+msgstr "{path} 的 {detail}（在 Cloudflare 中创建）将交由 Dockwell 管理"
 
 msgid "{projects} can upgrade again, from the catalog each came from."
 msgstr "{projects} 可以再次从各自的来源目录升级。"

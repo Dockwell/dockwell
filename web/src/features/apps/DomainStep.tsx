@@ -112,8 +112,9 @@ function RecordState({
   checking,
   domain,
   sub,
-  zone,
   companion,
+  companionOn = true,
+  onCompanion,
   takesOver,
   onTakesOver,
   onSub,
@@ -124,6 +125,10 @@ function RecordState({
   sub: string;
   zone: string;
   companion: string;
+  /** Whether the name's other half, www or the bare domain, answers beside it. */
+  companionOn?: boolean;
+  /** Opens the choice to leave the other half out, one step away. */
+  onCompanion?: () => void;
   takesOver: readonly TakeOverInit[];
   onTakesOver: (next: TakeOverInit[]) => void;
   onSub: (value: string) => void;
@@ -141,8 +146,15 @@ function RecordState({
   switch (check.state) {
     case CloudflareName.FREE:
       return (
-        <StateLine status="healthy">
-          {sub === "" && companion ? t`${zone}, with ${companion} beside it` : t`Free in Dockwell and at Cloudflare`}
+        <StateLine
+          status="healthy"
+          action={companion && onCompanion ? <Act onClick={onCompanion}>{t`Change`}</Act> : undefined}
+        >
+          {companion
+            ? companionOn
+              ? t`${domain}, with ${companion} beside it`
+              : t`${domain} alone, without ${companion}`
+            : t`Free in Dockwell and at Cloudflare`}
         </StateLine>
       );
     case CloudflareName.OURS:
@@ -309,12 +321,16 @@ function useWayWords(server: string, address: string) {
       }
       return t`None yet`;
     },
-    does: (way: RouteWay, flexible: boolean): string => {
+    does: (w: WayOption | undefined, way: RouteWay, flexible: boolean): string => {
+      // The server is named once, in the way's own line (the polish round).
+      const reaches = w?.reaches ?? "";
       switch (way) {
         case RouteWay.SERVER_TUNNEL:
-          return t`Cloudflare ends HTTPS, and the tunnel reaches ${server} through its proxy`;
+          return reaches
+            ? t`Cloudflare ends HTTPS, and the tunnel reaches the server at ${reaches}`
+            : t`Cloudflare ends HTTPS, and the tunnel reaches the server's proxy`;
         case RouteWay.OWN_TUNNEL:
-          return t`A tunnel only Dockwell writes, about 20 MB on ${server}`;
+          return t`A tunnel only Dockwell writes, about 20 MB on the server`;
         case RouteWay.PROXY:
           return flexible
             ? t`A proxied record to ${at}, which Cloudflare reaches over HTTP`
@@ -430,11 +446,15 @@ export function WayIn({
                   onWay(w.way, w.tunnel);
                   onOpen(false);
                 }}
+                // The way already picked closes the cards too, which no change event says.
+                onClick={() => {
+                  if (on) onOpen(false);
+                }}
               />
               <span className="domain-step-card-text">
                 <span className="domain-step-card-name">{words.name(w, w.way)}</span>
                 <span className="domain-step-card-hint">
-                  {off ? w.off : words.does(w.way, flexible)}
+                  {off ? w.off : words.does(w, w.way, flexible)}
                   {off && w.action ? (
                     <>
                       {" · "}
@@ -457,7 +477,7 @@ export function WayIn({
       </dt>
       <dd className="domain-step-way">
         <span>{takeable ? words.name(picked, way) : t`None yet`}</span>
-        {takeable ? <span className="domain-step-muted">{words.does(way, flexible)}</span> : null}
+        {takeable ? <span className="domain-step-muted">{words.does(picked, way, flexible)}</span> : null}
         {takeable && picked.addsRule ? (
           <StateLine status="unknown">{t`Adds ${picked.addsRule} to ${picked.tunnelName}, once`}</StateLine>
         ) : null}

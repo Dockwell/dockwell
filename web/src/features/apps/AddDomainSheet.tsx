@@ -279,6 +279,8 @@ export function AddDomainSheet({
     wayPicked && wayOf(cf.check, wayPicked.way, wayPicked.tunnel)?.off === "" ? wayPicked : pickedOf(cf.check);
   const wayTakeable = wayOf(cf.check, way.way, way.tunnel)?.off === "";
   const [waysOpen, setWaysOpen] = useState(false);
+  // The choice to leave a name's other half out, one step away in a connected zone.
+  const [companionOpen, setCompanionOpen] = useState(false);
   // What an admin agreed to replace or take on, for the name it was agreed for alone.
   const [consent, setConsent] = useState<{ domain: string; items: TakeOverInit[] }>({ domain: "", items: [] });
   const takesOver = consent.domain === typed ? consent.items : [];
@@ -299,7 +301,7 @@ export function AddDomainSheet({
     typed,
     places.place(environment)?.scope ?? "",
   );
-  const [chosenCompanion, setAlsoCompanion] = useCompanionChoice(companion, environment, true);
+  const [chosenCompanion, setAlsoCompanion] = useCompanionChoice(companion, environment, true, publishing);
   // www that redirects to this domain already needs nothing added.
   const companionAlready = (known.data?.domains ?? []).some(
     (d) => d.name === companion.companion && d.routes.some((r) => r.path === "" && sendsTo(r.redirect?.to, typed)),
@@ -445,6 +447,8 @@ export function AddDomainSheet({
       revealError();
       return;
     }
+    // The cards close as the plan opens, so a cancelled plan comes back to the way's line.
+    setWaysOpen(false);
     const front = () => frontOf(behind, inFront, named);
     // How a new route is reached: the way's own fields and what it publishes, or what's in front.
     const reached = (takes: readonly TakeOverInit[]) => {
@@ -700,6 +704,8 @@ export function AddDomainSheet({
                 sub={domain.trim().toLowerCase()}
                 zone={zone}
                 companion={cf.companion}
+                companionOn={alsoCompanion}
+                onCompanion={() => setCompanionOpen(true)}
                 failed={cf.failed}
                 onAgain={cf.again}
                 takesOver={takesOver}
@@ -832,17 +838,20 @@ export function AddDomainSheet({
             onLeave={onClose}
           />
         )}
-        <CompanionChoice
-          server={serverOf(fleet, server)}
-          read={companion}
-          on={alsoCompanion}
-          onChange={setAlsoCompanion}
-          tunnel={behind || publishes}
-          env={environment}
-          strict
-          already={companionAlready}
-          onLeave={onClose}
-        />
+        {/* In a connected zone, the name's line says its other half, with Change one step away. */}
+        {!publishing || companionOpen ? (
+          <CompanionChoice
+            server={serverOf(fleet, server)}
+            read={companion}
+            on={alsoCompanion}
+            onChange={setAlsoCompanion}
+            tunnel={behind || publishes}
+            env={environment}
+            strict
+            already={companionAlready}
+            onLeave={onClose}
+          />
+        ) : null}
         {leaves ? (
           <Callout tone="warning">
             <Trans>

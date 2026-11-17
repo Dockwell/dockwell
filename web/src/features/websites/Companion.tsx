@@ -73,14 +73,20 @@ export function heldElsewhere(check: CompanionCheck | undefined, env = ""): bool
 
 /**
  * Whether the companion is on: as a person chose it for that name, or else as DNS says,
- * on when it answers as the domain does. Another name starts again from DNS.
+ * on when it answers as the domain does. Another name starts again from DNS. A domain
+ * Dockwell publishes writes the companion's record too, so it starts on (ADR 0104).
  */
-export function useCompanionChoice(read: CompanionRead, env = "", strict = false): [boolean, (on: boolean) => void] {
+export function useCompanionChoice(
+  read: CompanionRead,
+  env = "",
+  strict = false,
+  publishing = false,
+): [boolean, (on: boolean) => void] {
   const [choice, setChoice] = useState<{ name: string; on: boolean }>();
   // For an app, anything that serves it already, its own environment's routes too,
   // keeps it: the box never turns a working domain into a redirect (ADR 0070).
   const free = read.companion !== "" && !(strict ? heldAtAll(read.check) : heldElsewhere(read.check, env));
-  const on = free && (choice?.name === read.companion ? choice.on : !!read.check?.answersAlike);
+  const on = free && (choice?.name === read.companion ? choice.on : publishing || !!read.check?.answersAlike);
   return [on, (next) => setChoice({ name: read.companion, on: next })];
 }
 

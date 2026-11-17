@@ -49,6 +49,10 @@
 /* A state: its shape and colour, a fact, and one action. */
 .domain-step-state {
   display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
+  /* A long name, as a server's or a tunnel's ID, wraps rather than runs past the sheet. */
+  overflow-wrap: anywhere;
   align-items: flex-start;
   gap: 6px;
   font-size: 12.5px;
@@ -104,6 +108,7 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
+  overflow-wrap: anywhere;
 }
 
 .is-phone .domain-step-facts {
@@ -137,7 +142,7 @@
 
 .domain-step-card.is-on {
   border-color: var(--action);
-  background: var(--cobalt-soft);
+  background: var(--choice-on);
 }
 
 .domain-step-card.is-off {
@@ -157,6 +162,7 @@
   flex-direction: column;
   gap: 2px;
   min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .domain-step-card-name {
