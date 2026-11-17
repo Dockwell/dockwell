@@ -482,6 +482,9 @@ func TestAPlanSaysWhenARouteGoesUnencrypted(t *testing.T) {
 	d := &Driver{}
 	secure, plain := spec("a.example.com", ""), &resourcev1.Route{Domain: "a.example.com", Service: "web", Port: 80, Tls: "off"}
 	plain2 := &resourcev1.Route{Domain: "a.example.com", Service: "web", Port: 8080, Tls: "off"}
+	tunnelled := &resourcev1.Route{Domain: "a.example.com", Service: "web", Port: 80, Tls: "off", TrustedProxies: []string{"127.0.0.1"}, Publish: &resourcev1.RoutePublish{
+		Way: resourcev1.RouteWay_ROUTE_WAY_SERVER_TUNNEL, Tunnel: "3f2d1c0b-4a5b-4c6d-8e7f-9a0b1c2d3e4f", Provider: "cloudflare",
+	}}
 	for _, tc := range []struct {
 		name            string
 		actual, desired proto.Message
@@ -493,6 +496,8 @@ func TestAPlanSaysWhenARouteGoesUnencrypted(t *testing.T) {
 		{"turning one on", plain, secure, false},
 		{"another change to a plain route", plain, plain2, false},
 		{"removing a plain route", plain, nil, false},
+		// A tunnel Dockwell proved runs on the server carries it there encrypted (ADR 0104).
+		{"a new route published through the server's tunnel", nil, tunnelled, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			dec, err := d.Plan(tc.actual, tc.desired, nil)

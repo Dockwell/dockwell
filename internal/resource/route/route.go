@@ -471,11 +471,11 @@ func (*Driver) Plan(actual, desired proto.Message, _ []resource.Change) (resourc
 		}
 		return dec, nil
 	case actual == nil:
-		dec := withAnswers(resource.Decision{Action: resource.ActionCreate, Unencrypted: plain(desired)}, desired)
+		dec := withAnswers(resource.Decision{Action: resource.ActionCreate, Unencrypted: unencrypted(desired)}, desired)
 		dec.Redirects = redirectsOf(nil, desired)
 		return dec, nil
 	}
-	dec := withAnswers(resource.Decision{Action: resource.ActionUpdate, Unencrypted: plain(desired) && !plain(actual)}, desired)
+	dec := withAnswers(resource.Decision{Action: resource.ActionUpdate, Unencrypted: unencrypted(desired) && !plain(actual)}, desired)
 	dec.Moves = moveOf(actual, desired)
 	if !proto.Equal(actual.(*resourcev1.Route).GetRedirect(), desired.(*resourcev1.Route).GetRedirect()) {
 		dec.Redirects = redirectsOf(actual, desired)
@@ -537,6 +537,17 @@ func withAnswers(dec resource.Decision, spec proto.Message) resource.Decision {
 
 // plain reports a route that takes no certificate.
 func plain(spec proto.Message) bool { return spec.(*resourcev1.Route).GetTls() == ingress.TLSOff }
+
+// unencrypted says the plan says a route takes traffic unencrypted: not one Dockwell
+// publishes through a tunnel it proved runs on the server, which carries it there
+// encrypted (ADR 0104, the review's B-M8).
+func unencrypted(spec proto.Message) bool {
+	switch spec.(*resourcev1.Route).GetPublish().GetWay() {
+	case resourcev1.RouteWay_ROUTE_WAY_SERVER_TUNNEL, resourcev1.RouteWay_ROUTE_WAY_OWN_TUNNEL:
+		return false
+	}
+	return plain(spec)
+}
 
 // Judge is Plan with what the server knows: what the step does to its
 // ingress, how long that takes, and what DNS says of the domain.

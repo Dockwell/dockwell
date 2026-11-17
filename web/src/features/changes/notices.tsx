@@ -1524,7 +1524,10 @@ export function useAsides(plan: Plan | undefined): Notice[] {
       if (step.redirects) {
         out.push({ key: `redirects-${key}`, title: words.redirects(step.redirects), notice: true });
       }
-      if (reloadsProxy(step)) out.push({ key: `reload-${key}`, title: `${words.reload(server.serverName)}.` });
+      // A server's proxy reloads once for all its routes, so it's said once.
+      if (reloadsProxy(step) && !out.some((n) => n.key === `reload-${server.serverId}`)) {
+        out.push({ key: `reload-${server.serverId}`, title: `${words.reload(server.serverName)}.` });
+      }
       if (step.restores) out.push({ key: `restores-${key}`, title: t`${name} gets back the data the server kept.` });
       if (step.hidesLogs) {
         out.push({
