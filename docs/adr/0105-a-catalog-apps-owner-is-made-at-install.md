@@ -1,6 +1,6 @@
 # 0105. A catalog app's owner is made at install
 
-- Status: Proposed (revised after review and its re-check).
+- Status: Accepted (2026-11-17, after a review and its re-check).
 - Amends:
   - [ADR 0029](0029-a-catalog-format-fed-from-other-catalogs.md), whose `first_visitor_owns` and `signups` the panel only said and offered;
   - [ADR 0054](0054-the-agent-keeps-its-desired-state.md), as an owner's password never enters the agent's desired state or its cache;
