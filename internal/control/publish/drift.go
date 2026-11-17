@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"slices"
 	"strings"
 	"time"
 
@@ -21,10 +22,14 @@ import (
 const (
 	ActionWrite = "cloudflare.write"
 	ActionGone  = "cloudflare.gone"
+	// ActionReplaced is an edit made in Cloudflare that a write of Dockwell's
+	// replaced, as it landed between Dockwell's read and its write: whoever made it
+	// isn't watching the change, so it raises an alert (ADR 0104, section 4).
+	ActionReplaced = "cloudflare.replaced"
 )
 
 // Actions are the actions this package writes on Activity.
-var Actions = []string{ActionWrite, ActionGone}
+var Actions = []string{ActionWrite, ActionGone, ActionReplaced}
 
 // told is what an event of this package keeps: never a token, nor a record's
 // content.
@@ -35,12 +40,14 @@ type told struct {
 	Action   int    `json:"action"`
 	Drift    bool   `json:"drift,omitempty"`
 	Version  int    `json:"version,omitempty"`
+	// ReadVersion is the version read before a write that replaced an edit.
+	ReadVersion int `json:"read_version,omitempty"`
 }
 
 // ReadEvent is an event of this package as the API says it: only this package writes
 // these actions, so what's read is what it wrote.
 func ReadEvent(e *store.Event) (*dockwellv1.EventCloudflare, bool) {
-	if e.Action != ActionWrite && e.Action != ActionGone {
+	if !slices.Contains(Actions, e.Action) {
 		return nil, false
 	}
 	var t told
@@ -49,7 +56,7 @@ func ReadEvent(e *store.Event) (*dockwellv1.EventCloudflare, bool) {
 	}
 	return &dockwellv1.EventCloudflare{
 		Provider: t.Provider, Target: t.Target, Name: t.Name, Action: dockwellv1.ProviderAction(t.Action), //nolint:gosec // a small enum
-		Drift: t.Drift, Version: int32(min(t.Version, 1<<30)), //nolint:gosec // bounded
+		Drift: t.Drift, Version: int32(min(t.Version, 1<<30)), ReadVersion: int32(min(t.ReadVersion, 1<<30)), //nolint:gosec // bounded
 	}, true
 }
 

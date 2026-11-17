@@ -761,6 +761,17 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
             tone: "warning",
           };
         }
+        case "cloudflare.replaced": {
+          // An edit saved in Cloudflare between Dockwell's read of a tunnel and its write, which the write replaced.
+          const cf = event.cloudflare;
+          return {
+            title: cf?.name
+              ? t`Replaced an edit to ${cf.target} made in Cloudflare, adding ${cf.name}`
+              : t`Replaced an edit made in Cloudflare`,
+            icon: "globe",
+            tone: "warning",
+          };
+        }
         case "dns_provider.check":
           // A saved DNS provider's token, used again to write and delete a record in its zones.
           return {

@@ -262,6 +262,9 @@ message EventCloudflare {
   bool drift = 5;
   // The tunnel document's version after the write, for a rule.
   int32 version = 6;
+  // The version Dockwell read before it wrote, where an edit made in Cloudflare
+  // between the two was replaced (cloudflare.replaced).
+  int32 read_version = 7;
 }
 
 // EventReconciled is what a server's agent did, or couldn't do, on its own while

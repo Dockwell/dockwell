@@ -42,7 +42,7 @@ func (p *Publisher) apply(ctx context.Context, changeID string, route revision.P
 	case resource.ProviderTakeOnRecord:
 		return p.takeOnRecord(ctx, changeID, route, s)
 	case resource.ProviderAddRule:
-		return p.addRule(ctx, changeID, s)
+		return p.addRule(ctx, changeID, route.ID, s)
 	case resource.ProviderRemoveRule:
 		return p.removeRule(ctx, s, route.Before.GetDomain())
 	case resource.ProviderKeepRule:
@@ -297,7 +297,7 @@ func (p *Publisher) lock(ctx context.Context, tunnel, holder string) (func(), er
 
 // addRule adds the zone's rule, or its apex's, to a tunnel, as the document reads
 // now: spliced into what was read, checked before it's written, and read back.
-func (p *Publisher) addRule(ctx context.Context, changeID string, s resource.ProviderStep) (string, error) {
+func (p *Publisher) addRule(ctx context.Context, changeID, routeID string, s resource.ProviderStep) (string, error) {
 	t, err := p.target(ctx, s.Provider, s.Name)
 	if err != nil {
 		// A rule's name is a wildcard; its zone is what follows the "*.".
@@ -377,6 +377,7 @@ func (p *Publisher) addRule(ctx context.Context, changeID string, s resource.Pro
 	// Each write that changes the document adds one to its version (Verified, 1): more
 	// says another write landed between Dockwell's read and its own.
 	if wrote.Version > read.Version+1 {
+		p.note(ctx, ActionReplaced, routeID, told{Provider: s.Provider, Target: s.Target, Name: s.Name, Action: int(s.Action), Version: wrote.Version, ReadVersion: read.Version})
 		return fmt.Sprintf("An edit made in Cloudflare between %s and %s was replaced. Dockwell kept what it read, and that's what's there now",
 			start.Format("15:04:05"), p.now().Format("15:04:05")), nil
 	}

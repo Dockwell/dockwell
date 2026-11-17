@@ -15303,6 +15303,12 @@ components:
                     type: integer
                     description: The tunnel document's version after the write, for a rule.
                     format: int32
+                readVersion:
+                    type: integer
+                    description: |-
+                        The version Dockwell read before it wrote, where an edit made in Cloudflare
+                         between the two was replaced (cloudflare.replaced).
+                    format: int32
             description: EventCloudflare is one thing Dockwell wrote at Cloudflare, or found gone there.
         EventDesiredSent:
             type: object

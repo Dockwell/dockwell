@@ -1079,6 +1079,14 @@ msgstr "已移除 {who}，连同其会话、令牌、邀请和登录提供方账
 msgid "Removed {who}, with their sessions, tokens, invites and provider accounts, and {changes, plural, one {# change they'd planned} other {# changes they'd planned}}"
 msgstr "已移除 {who}，连同其会话、令牌、邀请和登录提供方账户，以及其计划的 {changes, plural, other {# 项更改}}"
 
+msgid "Replaced an edit made in Cloudflare"
+msgstr "替换了在 Cloudflare 中所做的修改"
+
+#. placeholder {0}: cf.target
+#. placeholder {1}: cf.name
+msgid "Replaced an edit to {0} made in Cloudflare, adding {1}"
+msgstr "添加 {1} 时替换了在 Cloudflare 中对 {0} 所做的修改"
+
 msgid "Resolved: {title}"
 msgstr "已恢复：{title}"
 

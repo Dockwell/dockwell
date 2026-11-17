@@ -920,7 +920,10 @@ type EventCloudflare struct {
 	// It was found gone or changed, by the drift timer, not written.
 	Drift bool `protobuf:"varint,5,opt,name=drift,proto3" json:"drift,omitempty"`
 	// The tunnel document's version after the write, for a rule.
-	Version       int32 `protobuf:"varint,6,opt,name=version,proto3" json:"version,omitempty"`
+	Version int32 `protobuf:"varint,6,opt,name=version,proto3" json:"version,omitempty"`
+	// The version Dockwell read before it wrote, where an edit made in Cloudflare
+	// between the two was replaced (cloudflare.replaced).
+	ReadVersion   int32 `protobuf:"varint,7,opt,name=read_version,json=readVersion,proto3" json:"read_version,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -993,6 +996,13 @@ func (x *EventCloudflare) GetDrift() bool {
 func (x *EventCloudflare) GetVersion() int32 {
 	if x != nil {
 		return x.Version
+	}
+	return 0
+}
+
+func (x *EventCloudflare) GetReadVersion() int32 {
+	if x != nil {
+		return x.ReadVersion
 	}
 	return 0
 }
@@ -2447,14 +2457,15 @@ const file_dockwell_v1_event_proto_rawDesc = "" +
 	"reconciled\x12=\n" +
 	"\n" +
 	"cloudflare\x18\xd4\x02 \x01(\v2\x1c.dockwell.v1.EventCloudflareR\n" +
-	"cloudflare\"\xbe\x01\n" +
+	"cloudflare\"\xe1\x01\n" +
 	"\x0fEventCloudflare\x12\x1a\n" +
 	"\bprovider\x18\x01 \x01(\tR\bprovider\x12\x16\n" +
 	"\x06target\x18\x02 \x01(\tR\x06target\x12\x12\n" +
 	"\x04name\x18\x03 \x01(\tR\x04name\x123\n" +
 	"\x06action\x18\x04 \x01(\x0e2\x1b.dockwell.v1.ProviderActionR\x06action\x12\x14\n" +
 	"\x05drift\x18\x05 \x01(\bR\x05drift\x12\x18\n" +
-	"\aversion\x18\x06 \x01(\x05R\aversion\"\x8c\x01\n" +
+	"\aversion\x18\x06 \x01(\x05R\aversion\x12!\n" +
+	"\fread_version\x18\a \x01(\x05R\vreadVersion\"\x8c\x01\n" +
 	"\x0fEventReconciled\x12\x1f\n" +
 	"\vserver_name\x18\x01 \x01(\tR\n" +
 	"serverName\x12\x12\n" +

@@ -17,6 +17,7 @@ import (
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/control/checks"
 	"github.com/dockwell/dockwell/internal/control/health"
+	"github.com/dockwell/dockwell/internal/control/publish"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/ingress"
 	"github.com/dockwell/dockwell/internal/resource/alert"
@@ -75,7 +76,7 @@ func (s *signals) of(ctx context.Context, r rule) ([]finding, error) {
 	case resourcev1.AlertRule_CONDITION_CATALOG_SOURCE_STUCK:
 		return s.catalogsStuck(ctx), nil
 	case resourcev1.AlertRule_CONDITION_DOMAIN_UNPUBLISHED:
-		return s.unpublished(ctx)
+		return s.unpublished(ctx, r)
 	case resourcev1.AlertRule_CONDITION_UNSPECIFIED:
 	}
 	return nil, fmt.Errorf("no signal for %v", r.spec.GetCondition())
@@ -119,18 +120,22 @@ func (s *signals) catalogsStuck(ctx context.Context) []finding {
 // unpublished is what Dockwell published at Cloudflare that the drift timer found
 // gone or changed: one finding for each tunnel, and each zone's records, not one for
 // each domain, as a zone's rule gone takes every domain in it (ADR 0104).
-func (s *signals) unpublished(ctx context.Context) ([]finding, error) {
+func (s *signals) unpublished(ctx context.Context, r rule) ([]finding, error) {
 	if s.e.DB == nil {
 		return nil, nil
 	}
 	var rules []store.CloudflareRule
 	var records []store.CloudflareRecord
+	var replaced []finding
 	if err := s.e.DB.View(ctx, func(tx *store.Tx) error {
 		var err error
 		if rules, err = tx.CloudflareRulesAll(ctx); err != nil {
 			return err
 		}
-		records, err = tx.CloudflareRecordsAll(ctx)
+		if records, err = tx.CloudflareRecordsAll(ctx); err != nil {
+			return err
+		}
+		replaced, err = s.editsReplaced(ctx, tx, r)
 		return err
 	}); err != nil {
 		return nil, err
@@ -167,9 +172,41 @@ func (s *signals) unpublished(ctx context.Context) ([]finding, error) {
 			f.detail = r.Name + "'s record was removed or changed in Cloudflare, so it may not reach its app. Put it back from Domains."
 		}
 	}
-	out := make([]finding, 0, len(order))
+	out := make([]finding, 0, len(order)+len(replaced))
 	for _, thing := range order {
 		out = append(out, *byThing[thing])
+	}
+	return append(out, replaced...), nil
+}
+
+// editsReplaced are edits made in Cloudflare that a write of Dockwell's replaced, in
+// the last hour, each said once: whoever made one isn't watching the change that
+// replaced it (ADR 0104, section 4).
+func (s *signals) editsReplaced(ctx context.Context, tx *store.Tx, r rule) ([]finding, error) {
+	events, err := tx.EventsSince(ctx, publish.ActionReplaced, s.now.Add(-changesBack), 100)
+	if err != nil {
+		return nil, err
+	}
+	var out []finding
+	for i := range events {
+		ev := &events[i]
+		cf, ok := publish.ReadEvent(ev)
+		if !ok {
+			continue
+		}
+		thing := "cloudflare-edit:" + ev.ID
+		told, err := tx.AlertTold(ctx, r.id, thing)
+		if err != nil {
+			return nil, err
+		}
+		if told {
+			continue
+		}
+		out = append(out, finding{
+			thing: thing, verdict: holds, since: ev.At, subjectID: ev.Subject, subjectName: cf.GetTarget(), path: "/domains",
+			title:  "An edit to the tunnel " + cf.GetTarget() + " in Cloudflare was replaced",
+			detail: "It was saved just as Dockwell added " + cf.GetName() + ", so what it changed is gone. Make the edit again in Cloudflare.",
+		})
 	}
 	return out, nil
 }

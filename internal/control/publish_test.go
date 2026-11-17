@@ -302,6 +302,19 @@ func TestARaceWithTheDashboardIsSaid(t *testing.T) {
 	if !strings.HasSuffix(said, "was replaced. Dockwell kept what it read, and that's what's there now") {
 		t.Fatalf("the race should be said: %v", done.GetSteps())
 	}
+	// Activity keeps it, with the version read and the one written, for the alert
+	// that tells whoever made the edit (the review's M5).
+	ec := dockwellv1connect.NewEventServiceClient(s.b, s.b.origin, connect.WithProtoJSON())
+	events, err := ec.ListEvents(t.Context(), connect.NewRequest(&dockwellv1.ListEventsRequest{Kinds: []dockwellv1.EventKind{dockwellv1.EventKind_EVENT_KIND_HEALTH}}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.ContainsFunc(events.Msg.GetEvents(), func(e *dockwellv1.Event) bool {
+		cf := e.GetCloudflare()
+		return e.GetAction() == "cloudflare.replaced" && cf.GetTarget() == "web-1" && cf.GetName() == "*.example.com" && cf.GetReadVersion() == 7 && cf.GetVersion() == 9
+	}) {
+		t.Fatalf("Activity should keep the race: %v", events.Msg.GetEvents())
+	}
 	if got := rulesOf(t, s.cf); !slices.Contains(got, "*.example.com=http://127.0.0.1:80") {
 		t.Fatalf("Dockwell's rule: %v", got)
 	}

@@ -1079,6 +1079,14 @@ msgstr "Removed {who}, with their sessions, tokens, invites and provider account
 msgid "Removed {who}, with their sessions, tokens, invites and provider accounts, and {changes, plural, one {# change they'd planned} other {# changes they'd planned}}"
 msgstr "Removed {who}, with their sessions, tokens, invites and provider accounts, and {changes, plural, one {# change they'd planned} other {# changes they'd planned}}"
 
+msgid "Replaced an edit made in Cloudflare"
+msgstr "Replaced an edit made in Cloudflare"
+
+#. placeholder {0}: cf.target
+#. placeholder {1}: cf.name
+msgid "Replaced an edit to {0} made in Cloudflare, adding {1}"
+msgstr "Replaced an edit to {0} made in Cloudflare, adding {1}"
+
 msgid "Resolved: {title}"
 msgstr "Resolved: {title}"
 
