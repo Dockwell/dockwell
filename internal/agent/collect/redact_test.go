@@ -24,6 +24,12 @@ func TestRedactHidesSecretFlags(t *testing.T) {
 		{[]string{"cloudflared", "tunnel", "run", "--token-file", "/run/secrets/tunnel"}, []string{"cloudflared", "tunnel", "run", "--token-file", "/run/secrets/tunnel"}},
 		// Cut off where only the start was read: hidden all the same.
 		{[]string{"cloudflared", "tunnel", "run", "--token", tokenFixture[:20]}, []string{"cloudflared", "tunnel", "run", "--token", Hidden}},
+		{[]string{"sh", "-c", "cloudflared -token " + tokenFixture + " tunnel run"}, []string{"sh", "-c", "cloudflared -token " + Hidden + " tunnel run"}},
+		{[]string{"/usr/bin/cloudflared", "service", "install", tokenFixture}, []string{"/usr/bin/cloudflared", "service", "install", Hidden}},
+		{[]string{"sudo", "cloudflared", "service", "install", tokenFixture}, []string{"sudo", "cloudflared", "service", "install", Hidden}},
+		{[]string{"sudo", "sh", "-c", "cloudflared service install " + tokenFixture}, []string{"sudo", "sh", "-c", "cloudflared service install " + Hidden}},
+		// A flag that only ends in "token" isn't one.
+		{[]string{"sh", "-c", "app --no-token x"}, []string{"sh", "-c", "app --no-token x"}},
 		{[]string{"nginx", "-g", "daemon off;"}, []string{"nginx", "-g", "daemon off;"}},
 	} {
 		if got := redact(c.in); !slices.Equal(got, c.want) {
