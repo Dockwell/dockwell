@@ -82,6 +82,8 @@ func (p *Publisher) apply(ctx context.Context, changeID string, route revision.P
 		return p.addRule(ctx, changeID, route.ID, s)
 	case resource.ProviderRemoveRule:
 		return p.removeRule(ctx, changeID, route.ID, s, route.Before.GetDomain())
+	case resource.ProviderSetZoneMode:
+		return p.setZoneMode(ctx, changeID, s)
 	case resource.ProviderKeepRule:
 		return "Kept " + s.Name + " in " + s.Target + ": " + s.Routing, nil
 	case resource.ProviderTakeOnRule, resource.ProviderMoveRule:

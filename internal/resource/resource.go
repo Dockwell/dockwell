@@ -2887,6 +2887,7 @@ const (
 	ProviderTakeOnRule
 	ProviderMoveRule
 	ProviderKeepRule
+	ProviderSetZoneMode
 )
 
 // ProviderStep is one thing the control plane writes, or removes, at Cloudflare for
@@ -2914,6 +2915,9 @@ type ProviderStep struct {
 	// replace deleted it, for a step that puts it back from there. It's never sent
 	// to Cloudflare.
 	Pending string `json:",omitempty"`
+	// Mode is the SSL/TLS mode a step sets a zone to, such as "strict", or puts
+	// back.
+	Mode string `json:",omitempty"`
 }
 
 // ProviderRecord is a DNS record a step writes or acts on.

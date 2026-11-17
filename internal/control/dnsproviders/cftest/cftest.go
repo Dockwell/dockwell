@@ -10,6 +10,7 @@ package cftest
 
 import (
 	"bytes"
+	"cmp"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -347,6 +348,23 @@ func (a *API) zone(w http.ResponseWriter, r *http.Request, t Token, parts []stri
 			mode = "full"
 		}
 		succeed(w, map[string]any{"id": "ssl", "value": mode, "editable": true}, nil)
+	case len(parts) == 3 && parts[1] == "settings" && parts[2] == "ssl" && r.Method == http.MethodPatch:
+		if !t.has("Zone Settings Write") {
+			fail(w, http.StatusForbidden, 9109, "Unauthorized to access requested resource")
+			return
+		}
+		var body struct {
+			Value string `json:"value"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || !slices.Contains([]string{"off", "flexible", "full", "strict"}, body.Value) {
+			fail(w, http.StatusBadRequest, 1007, "Invalid value for zone setting ssl")
+			return
+		}
+		if a.SSL == nil {
+			a.SSL = map[string]string{}
+		}
+		a.SSL[zone] = body.Value
+		succeed(w, map[string]any{"id": "ssl", "value": body.Value, "editable": true}, nil)
 	case len(parts) >= 2 && parts[1] == "dns_records":
 		a.records2(w, r, t, zone, parts[2:])
 	default:
@@ -381,6 +399,9 @@ func (a *API) records2(w http.ResponseWriter, r *http.Request, t Token, zone str
 				continue
 			}
 			if c := q.Get("content"); c != "" && rec.Content != c {
+				continue
+			}
+			if q.Get("proxied") == "true" && !rec.Proxied {
 				continue
 			}
 			out = append(out, rec)
@@ -564,6 +585,23 @@ func (a *API) EditInPlace(zone, id string, change func(*Record)) {
 		change(&r)
 		a.records[zone][id] = r
 	}
+}
+
+// Mode is the zone's SSL mode, as the dashboard shows it.
+func (a *API) Mode(zone string) string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return cmp.Or(a.SSL[zone], "full")
+}
+
+// SetMode sets the zone's SSL mode, as someone in the dashboard does.
+func (a *API) SetMode(zone, mode string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.SSL == nil {
+		a.SSL = map[string]string{}
+	}
+	a.SSL[zone] = mode
 }
 
 // OnPut sets BeforePut while requests may be served.

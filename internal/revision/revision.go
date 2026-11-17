@@ -2905,13 +2905,36 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 	if err != nil {
 		return nil, err
 	}
+	// A DNS provider's steps at Cloudflare, as setting a zone's mode or putting a
+	// record back, belong to no server: the control plane takes them, so they go on
+	// its own server's plan, and its agent plans nothing for them (ADR 0104).
+	var controlOnly []*item
+	for i := range items {
+		if it := &items[i]; it.ref.Kind == dnsProviderKind && len(provided[it.ref]) > 0 {
+			controlOnly = append(controlOnly, it)
+		}
+	}
+	control := ""
+	if len(controlOnly) > 0 {
+		if control = e.ControlServer(); control == "" {
+			return nil, fault.New(ErrInvalid, "this control plane doesn't know its own server, so it can't take %s's steps at Cloudflare", controlOnly[0].ref.Name)
+		}
+		if !slices.Contains(servers, control) {
+			servers = append(servers, control)
+			more, err := e.serverNames(ctx, []string{control})
+			if err != nil {
+				return nil, err
+			}
+			maps.Copy(names, more)
+		}
+	}
 	for _, server := range servers {
 		its := byServer[server]
 		sp := ServerPlan{Server: server, Name: names[server]}
 		var steps []resource.Step
 		agent, online := e.agents.Agent(server)
 		sp.Offline = !online
-		if online {
+		if online && len(its) > 0 {
 			var err error
 			if steps, err = e.planOn(ctx, agent, server, sp.Name, its); err != nil {
 				if !rollback {
@@ -3235,7 +3258,11 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 		// A route's steps at Cloudflare come first on its server, and the ones that take
 		// something away last, after the route is gone from it (ADR 0104, section 7).
 		var pre, post []resource.Step
-		for _, it := range its {
+		withSteps := its
+		if server == control {
+			withSteps = slices.Concat(its, controlOnly)
+		}
+		for _, it := range withSteps {
 			steps := provided[it.ref]
 			for j := range steps {
 				st := &steps[j]

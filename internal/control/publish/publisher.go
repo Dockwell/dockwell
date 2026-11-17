@@ -214,7 +214,7 @@ func step(route revision.PublishRoute, action resource.Action, p resource.Provid
 // Plan works out each route's steps at Cloudflare: what it publishes after the
 // change against what Dockwell wrote for it, what Cloudflare holds at its name, and
 // what its tunnel's document needs.
-func (p *Publisher) Plan(ctx context.Context, changeID string, routes []revision.PublishRoute) (map[resource.Ref][]resource.Step, error) {
+func (p *Publisher) Plan(ctx context.Context, changeID string, routes []revision.PublishRoute, providers []revision.PublishProvider) (map[resource.Ref][]resource.Step, error) {
 	out := map[resource.Ref][]resource.Step{}
 	rules := map[string]bool{} // rules a route of this change adds already, by tunnel|hostname
 	inChange := map[string]*resourcev1.Route{}
@@ -227,6 +227,15 @@ func (p *Publisher) Plan(ctx context.Context, changeID string, routes []revision
 			return nil, err
 		}
 		out[r.Ref] = steps
+	}
+	for _, pp := range providers {
+		steps, err := p.planProvider(ctx, pp)
+		if err != nil {
+			return nil, err
+		}
+		if len(steps) > 0 {
+			out[pp.Ref] = steps
+		}
 	}
 	return out, nil
 }
