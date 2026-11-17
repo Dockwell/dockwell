@@ -17,6 +17,7 @@ import {
   type ListEventsRequest,
   PlanAction,
   PlannedResourceSchema,
+  ProviderAction,
   ResourceSchema,
   Role,
   StepProgressSchema,
@@ -345,6 +346,61 @@ describe("Activity", () => {
     expect(within(detail).getAllByRole("link", { name: "Open the variables and secrets" })).toHaveLength(1);
     await user.click(within(detail).getByRole("link", { name: "Open the variables and secrets" }));
     await waitFor(() => expect(router.state.location.search).toEqual({ environment: "env_prod" }));
+  });
+
+  it("says what each write at Cloudflare did, and when one replaced an edit made there", async () => {
+    const on = { id: "rte_wiki", name: "wiki", scope: "env_prod" };
+    const write = (id: string, action: ProviderAction, name: string, target: string, minutes: number) =>
+      auditEvent({
+        id,
+        kind: EventKind.CHANGE,
+        action: "cloudflare.write",
+        time: timestampFromDate(new Date(Date.now() - minutes * 60_000)),
+        subject: on,
+        cloudflare: { provider: "cloudflare", target, name, action, changeId: "chg_1" },
+      });
+    const events = [
+      write("evt_record", ProviderAction.CREATE_RECORD, "wiki.example.com", "example.com", 1),
+      write("evt_delete", ProviderAction.DELETE_RECORD, "docs.example.com", "example.com", 2),
+      write("evt_rule", ProviderAction.REMOVE_RULE, "*.example.com", "web-1", 3),
+      auditEvent({
+        id: "evt_replaced",
+        kind: EventKind.HEALTH,
+        action: "cloudflare.replaced",
+        time: timestampFromDate(new Date(Date.now() - 4 * 60_000)),
+        subject: on,
+        cloudflare: {
+          provider: "cloudflare",
+          target: "web-1",
+          name: "*.example.com",
+          action: ProviderAction.ADD_RULE,
+          version: 9,
+          readVersion: 7,
+        },
+      }),
+      auditEvent({
+        id: "evt_gone",
+        kind: EventKind.HEALTH,
+        action: "cloudflare.gone",
+        time: timestampFromDate(new Date(Date.now() - 5 * 60_000)),
+        subject: on,
+        cloudflare: {
+          provider: "cloudflare",
+          target: "example.com",
+          name: "wiki.example.com",
+          action: ProviderAction.CREATE_RECORD,
+          drift: true,
+        },
+      }),
+    ];
+    const watch = feed<WatchEventsResponse>();
+    watch.push(snapshot(events));
+    renderActivity(watch);
+    await screen.findByRole("row", { name: /Published wiki\.example\.com at Cloudflare, in example\.com/ });
+    await screen.findByRole("row", { name: /Removed docs\.example\.com's DNS record at Cloudflare, in example\.com/ });
+    await screen.findByRole("row", { name: /Removed \*\.example\.com from the tunnel web-1/ });
+    await screen.findByRole("row", { name: /Replaced an edit to web-1 made in Cloudflare, adding \*\.example\.com/ });
+    await screen.findByRole("row", { name: /wiki\.example\.com is gone from example\.com at Cloudflare/ });
   });
 
   it("says when a certificate's key went to a server, and when a server that went had its keys revoked", async () => {

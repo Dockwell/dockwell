@@ -3,6 +3,7 @@
 package publish
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -44,6 +45,8 @@ type told struct {
 	Version  int    `json:"version,omitempty"`
 	// ReadVersion is the version read before a write that replaced an edit.
 	ReadVersion int `json:"read_version,omitempty"`
+	// ChangeID is the change that wrote it; empty for the drift timer's.
+	ChangeID string `json:"change_id,omitempty"`
 }
 
 // ReadEvent is an event of this package as the API says it: only this package writes
@@ -59,24 +62,37 @@ func ReadEvent(e *store.Event) (*dockwellv1.EventCloudflare, bool) {
 	return &dockwellv1.EventCloudflare{
 		Provider: t.Provider, Target: t.Target, Name: t.Name, Action: dockwellv1.ProviderAction(t.Action), //nolint:gosec // a small enum
 		Drift: t.Drift, Version: int32(min(t.Version, 1<<30)), ReadVersion: int32(min(t.ReadVersion, 1<<30)), //nolint:gosec // bounded
+		ChangeId: t.ChangeID,
 	}, true
 }
 
 // note puts one thing at Cloudflare on Activity, for a route by its ID where there's
-// one.
+// one. Its actor is the person whose change wrote it, where t names one, and Dockwell
+// for what the drift timer found (the review's M9).
 func (p *Publisher) note(ctx context.Context, action, subject string, t told) {
 	detail, err := json.Marshal(t)
 	if err != nil {
 		return
 	}
-	_ = p.DB.Update(context.WithoutCancel(ctx), func(tx *store.Tx) error {
-		return tx.RecordEvent(ctx, store.Event{ID: id.New(id.Event), At: p.now(), Actor: "dockwell", Action: action, Subject: subject, Detail: string(detail)})
+	ctx = context.WithoutCancel(ctx)
+	_ = p.DB.Update(ctx, func(tx *store.Tx) error {
+		actor := "dockwell"
+		if t.ChangeID != "" {
+			if c, err := tx.GetChange(ctx, t.ChangeID); err == nil {
+				actor = cmp.Or(c.AppliedBy, c.ActsFor, c.Actor, actor)
+			}
+		}
+		return tx.RecordEvent(ctx, store.Event{ID: id.New(id.Event), At: p.now(), Actor: actor, Action: action, Subject: subject, Detail: string(detail)})
 	})
 }
 
-// noteWrite puts a step's write on Activity.
-func (p *Publisher) noteWrite(ctx context.Context, routeID string, s resource.ProviderStep, version int) {
-	p.note(ctx, ActionWrite, routeID, told{Provider: s.Provider, Target: s.Target, Name: s.Name, Action: int(s.Action), Version: version})
+// noteWrite puts a step's write on Activity, by what it did. A rule kept writes
+// nothing, so it isn't one.
+func (p *Publisher) noteWrite(ctx context.Context, changeID, routeID string, s resource.ProviderStep, version int) {
+	if s.Action == resource.ProviderKeepRule {
+		return
+	}
+	p.note(ctx, ActionWrite, routeID, told{Provider: s.Provider, Target: s.Target, Name: s.Name, Action: int(s.Action), Version: version, ChangeID: changeID})
 }
 
 // DriftEvery is how often the drift timer reads what Dockwell published.

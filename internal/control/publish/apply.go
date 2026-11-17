@@ -26,7 +26,7 @@ func (p *Publisher) Apply(ctx context.Context, changeID string, route revision.P
 	defer p.cache.forgetUnder("pointing:" + s.ZoneID)
 	said, err := p.apply(ctx, changeID, route, s)
 	if err == nil {
-		p.noteWrite(ctx, route.ID, s, 0)
+		p.noteWrite(ctx, changeID, route.ID, s, 0)
 	}
 	return said, err
 }
@@ -377,7 +377,7 @@ func (p *Publisher) addRule(ctx context.Context, changeID, routeID string, s res
 	// Each write that changes the document adds one to its version (Verified, 1): more
 	// says another write landed between Dockwell's read and its own.
 	if wrote.Version > read.Version+1 {
-		p.note(ctx, ActionReplaced, routeID, told{Provider: s.Provider, Target: s.Target, Name: s.Name, Action: int(s.Action), Version: wrote.Version, ReadVersion: read.Version})
+		p.note(ctx, ActionReplaced, routeID, told{Provider: s.Provider, Target: s.Target, Name: s.Name, Action: int(s.Action), Version: wrote.Version, ReadVersion: read.Version, ChangeID: changeID})
 		return fmt.Sprintf("An edit made in Cloudflare between %s and %s was replaced. Dockwell kept what it read, and that's what's there now",
 			start.Format("15:04:05"), p.now().Format("15:04:05")), nil
 	}

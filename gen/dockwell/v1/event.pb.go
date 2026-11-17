@@ -923,7 +923,9 @@ type EventCloudflare struct {
 	Version int32 `protobuf:"varint,6,opt,name=version,proto3" json:"version,omitempty"`
 	// The version Dockwell read before it wrote, where an edit made in Cloudflare
 	// between the two was replaced (cloudflare.replaced).
-	ReadVersion   int32 `protobuf:"varint,7,opt,name=read_version,json=readVersion,proto3" json:"read_version,omitempty"`
+	ReadVersion int32 `protobuf:"varint,7,opt,name=read_version,json=readVersion,proto3" json:"read_version,omitempty"`
+	// The change that wrote it, by its ID; empty for what the drift timer found.
+	ChangeId      string `protobuf:"bytes,8,opt,name=change_id,json=changeId,proto3" json:"change_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1005,6 +1007,13 @@ func (x *EventCloudflare) GetReadVersion() int32 {
 		return x.ReadVersion
 	}
 	return 0
+}
+
+func (x *EventCloudflare) GetChangeId() string {
+	if x != nil {
+		return x.ChangeId
+	}
+	return ""
 }
 
 // EventReconciled is what a server's agent did, or couldn't do, on its own while
@@ -2457,7 +2466,7 @@ const file_dockwell_v1_event_proto_rawDesc = "" +
 	"reconciled\x12=\n" +
 	"\n" +
 	"cloudflare\x18\xd4\x02 \x01(\v2\x1c.dockwell.v1.EventCloudflareR\n" +
-	"cloudflare\"\xe1\x01\n" +
+	"cloudflare\"\xfe\x01\n" +
 	"\x0fEventCloudflare\x12\x1a\n" +
 	"\bprovider\x18\x01 \x01(\tR\bprovider\x12\x16\n" +
 	"\x06target\x18\x02 \x01(\tR\x06target\x12\x12\n" +
@@ -2465,7 +2474,8 @@ const file_dockwell_v1_event_proto_rawDesc = "" +
 	"\x06action\x18\x04 \x01(\x0e2\x1b.dockwell.v1.ProviderActionR\x06action\x12\x14\n" +
 	"\x05drift\x18\x05 \x01(\bR\x05drift\x12\x18\n" +
 	"\aversion\x18\x06 \x01(\x05R\aversion\x12!\n" +
-	"\fread_version\x18\a \x01(\x05R\vreadVersion\"\x8c\x01\n" +
+	"\fread_version\x18\a \x01(\x05R\vreadVersion\x12\x1b\n" +
+	"\tchange_id\x18\b \x01(\tR\bchangeId\"\x8c\x01\n" +
 	"\x0fEventReconciled\x12\x1f\n" +
 	"\vserver_name\x18\x01 \x01(\tR\n" +
 	"serverName\x12\x12\n" +

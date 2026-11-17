@@ -13,6 +13,7 @@ import {
   GitHookOutcome,
   HealthState,
   IntentKind,
+  ProviderAction,
   Role,
   StepState,
 } from "@dockwell/api";
@@ -48,7 +49,8 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
       const change = event.change;
       if (event.kind === EventKind.CHANGE && change) return describeChange(change, summaries, i18n);
       const name = event.subject?.name ?? "";
-      if (event.kind === EventKind.HEALTH) return describeHealth(event, i18n);
+      // What the drift timer found at Cloudflare is a health event with words of its own, below.
+      if (event.kind === EventKind.HEALTH && !event.cloudflare) return describeHealth(event, i18n);
       if (event.kind === EventKind.PUSH) return describePush(event, i18n);
       if (event.kind === EventKind.ALERT) return describeAlert(event, i18n);
       const volume = event.backup?.volume ?? name;
@@ -741,14 +743,44 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
             icon: "key",
           };
         case "cloudflare.write": {
-          // A step a change took at Cloudflare: a DNS record, or a tunnel's rule (ADR 0104).
+          // A step a change took at Cloudflare, said for what it did: a DNS record, or a tunnel's rule (ADR 0104).
           const cf = event.cloudflare;
-          return {
-            title: cf?.name
-              ? t`Published ${cf.name} at Cloudflare, in ${cf.target}`
-              : t`Published a domain at Cloudflare`,
-            icon: "globe",
-          };
+          const name = cf?.name ?? "";
+          const where = cf?.target ?? "";
+          let title = t`Wrote ${name} at Cloudflare, in ${where}`;
+          switch (cf?.name ? cf.action : undefined) {
+            case undefined:
+              title = t`Wrote at Cloudflare for a domain`;
+              break;
+            case ProviderAction.CREATE_RECORD:
+              title = t`Published ${name} at Cloudflare, in ${where}`;
+              break;
+            case ProviderAction.DELETE_RECORD:
+              title = t`Removed ${name}'s DNS record at Cloudflare, in ${where}`;
+              break;
+            case ProviderAction.REPLACE_RECORD:
+              title = t`Replaced the DNS record made in Cloudflare for ${name}, in ${where}`;
+              break;
+            case ProviderAction.TAKE_ON_RECORD:
+              title = t`Took on the DNS record made in Cloudflare for ${name}, in ${where}`;
+              break;
+            case ProviderAction.RESTORE_RECORD:
+              title = t`Put back the DNS record for ${name} at Cloudflare, in ${where}`;
+              break;
+            case ProviderAction.ADD_RULE:
+              title = t`Added ${name} to the tunnel ${where}`;
+              break;
+            case ProviderAction.REMOVE_RULE:
+              title = t`Removed ${name} from the tunnel ${where}`;
+              break;
+            case ProviderAction.TAKE_ON_RULE:
+              title = t`Took on ${name} in the tunnel ${where}`;
+              break;
+            case ProviderAction.MOVE_RULE:
+              title = t`Moved ${name} in the tunnel ${where} to the server's proxy`;
+              break;
+          }
+          return { title, icon: "globe" };
         }
         case "cloudflare.gone": {
           // What the drift timer found gone at Cloudflare, which nothing puts back on its own.

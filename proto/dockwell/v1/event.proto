@@ -265,6 +265,8 @@ message EventCloudflare {
   // The version Dockwell read before it wrote, where an edit made in Cloudflare
   // between the two was replaced (cloudflare.replaced).
   int32 read_version = 7;
+  // The change that wrote it, by its ID; empty for what the drift timer found.
+  string change_id = 8;
 }
 
 // EventReconciled is what a server's agent did, or couldn't do, on its own while

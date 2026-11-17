@@ -736,6 +736,9 @@ msgstr "用恢复码登录后添加了通行密钥 {name}"
 msgid "Added the passkey {name} after signing in with an authenticator code"
 msgstr "用身份验证器验证码登录后添加了通行密钥 {name}"
 
+msgid "Added {name} to the tunnel {where}"
+msgstr "已将 {name} 添加到隧道 {where}"
+
 msgid "Alert opened: {title}"
 msgstr "告警触发：{title}"
 
@@ -987,6 +990,9 @@ msgstr "可能已保存 {server} 上的 {path}"
 msgid "Moved ownership of this install"
 msgstr "转移了此安装的所有权"
 
+msgid "Moved {name} in the tunnel {where} to the server's proxy"
+msgstr "已将隧道 {where} 中的 {name} 改为经由服务器的代理"
+
 msgid "Moved {path} to {to} on {server}"
 msgstr "已将 {server} 上的 {path} 移到 {to}"
 
@@ -1026,13 +1032,11 @@ msgstr "通过面板打开了一个应用"
 msgid "Opened {name} through the panel"
 msgstr "通过面板打开了 {name}"
 
-msgid "Published a domain at Cloudflare"
-msgstr "已在 Cloudflare 发布域名"
+msgid "Published {name} at Cloudflare, in {where}"
+msgstr "已在 Cloudflare 的 {where} 中发布 {name}"
 
-#. placeholder {0}: cf.name
-#. placeholder {1}: cf.target
-msgid "Published {0} at Cloudflare, in {1}"
-msgstr "已在 Cloudflare 的 {1} 中发布 {0}"
+msgid "Put back the DNS record for {name} at Cloudflare, in {where}"
+msgstr "已在 Cloudflare 的 {where} 中恢复 {name} 的 DNS 记录"
 
 msgid "Put back {path} on {server}"
 msgstr "已放回 {server} 上的 {path}"
@@ -1064,6 +1068,12 @@ msgstr "移除了 GitHub 应用 {name}"
 msgid "Removed the passkey {name}"
 msgstr "移除了通行密钥 {name}"
 
+msgid "Removed {name} from the tunnel {where}"
+msgstr "已从隧道 {where} 中移除 {name}"
+
+msgid "Removed {name}'s DNS record at Cloudflare, in {where}"
+msgstr "已在 Cloudflare 的 {where} 中移除 {name} 的 DNS 记录"
+
 msgid "Removed {server} from the fleet"
 msgstr "从集群中移除了 {server}"
 
@@ -1086,6 +1096,9 @@ msgstr "替换了在 Cloudflare 中所做的修改"
 #. placeholder {1}: cf.name
 msgid "Replaced an edit to {0} made in Cloudflare, adding {1}"
 msgstr "添加 {1} 时替换了在 Cloudflare 中对 {0} 所做的修改"
+
+msgid "Replaced the DNS record made in Cloudflare for {name}, in {where}"
+msgstr "已替换在 Cloudflare 的 {where} 中为 {name} 创建的 DNS 记录"
 
 msgid "Resolved: {title}"
 msgstr "已恢复：{title}"
@@ -1256,6 +1269,12 @@ msgstr "已收回 {who} 作为{before}的角色，这使其退出登录并撤销
 msgid "Took back {who}'s role as {before}, which signed them out and revoked their tokens and invites"
 msgstr "已收回 {who} 作为{before}的角色，这使其退出登录并撤销了其令牌和邀请"
 
+msgid "Took on the DNS record made in Cloudflare for {name}, in {where}"
+msgstr "已接管在 Cloudflare 的 {where} 中为 {name} 创建的 DNS 记录"
+
+msgid "Took on {name} in the tunnel {where}"
+msgstr "已接管隧道 {where} 中的 {name}"
+
 msgid "Took over the alert from {from}: {title}"
 msgstr "已从 {from} 接手告警：{title}"
 
@@ -1303,6 +1322,12 @@ msgstr "已上传 {path} 到 {server}，{size}，并解压到 {to}"
 
 msgid "What Dockwell published in {subject} at Cloudflare is gone"
 msgstr "Dockwell 在 Cloudflare 的 {subject} 中发布的内容已不在了"
+
+msgid "Wrote at Cloudflare for a domain"
+msgstr "已为一个域名在 Cloudflare 中写入"
+
+msgid "Wrote {name} at Cloudflare, in {where}"
+msgstr "已在 Cloudflare 的 {where} 中写入 {name}"
 
 msgid "a server"
 msgstr "一台服务器"

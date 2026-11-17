@@ -157,6 +157,26 @@ func TestPublishingThroughTheServersTunnel(t *testing.T) {
 	if got := rulesOf(t, s.cf); !slices.Equal(got, []string{"panel.example.com=http://127.0.0.1:7600", "*.example.com=http://127.0.0.1:80", "=http_status:404"}) {
 		t.Fatalf("web-1's rules: %v", got)
 	}
+	// Activity says each write by what it did, as the person whose change it was,
+	// with the change (the review's M9).
+	ec := dockwellv1connect.NewEventServiceClient(s.b, s.b.origin, connect.WithProtoJSON())
+	events, err := ec.ListEvents(t.Context(), connect.NewRequest(&dockwellv1.ListEventsRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	wrote := 0
+	for _, e := range events.Msg.GetEvents() {
+		if e.GetAction() != "cloudflare.write" {
+			continue
+		}
+		wrote++
+		if e.GetCloudflare().GetChangeId() != first.GetId() || e.GetActor().GetKind() != dockwellv1.ActorKind_ACTOR_KIND_USER {
+			t.Fatalf("a write on Activity: %v", e)
+		}
+	}
+	if wrote != 2 {
+		t.Fatalf("Activity has %d writes: %v", wrote, events.Msg.GetEvents())
+	}
 	doc, version := s.cf.Document(webOne)
 	if version != 8 || !strings.Contains(string(doc), `"noTLSVerify":true`) || !strings.Contains(string(doc), `"connectTimeout":10`) {
 		t.Fatalf("the document lost what it held, or moved more than once (%d): %s", version, doc)

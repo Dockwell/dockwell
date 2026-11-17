@@ -15311,6 +15311,9 @@ components:
                         The version Dockwell read before it wrote, where an edit made in Cloudflare
                          between the two was replaced (cloudflare.replaced).
                     format: int32
+                changeId:
+                    type: string
+                    description: The change that wrote it, by its ID; empty for what the drift timer found.
             description: EventCloudflare is one thing Dockwell wrote at Cloudflare, or found gone there.
         EventDesiredSent:
             type: object
