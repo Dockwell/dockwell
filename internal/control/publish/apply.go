@@ -81,7 +81,7 @@ func (p *Publisher) apply(ctx context.Context, changeID string, route revision.P
 	case resource.ProviderAddRule:
 		return p.addRule(ctx, changeID, route.ID, s)
 	case resource.ProviderRemoveRule:
-		return p.removeRule(ctx, s, route.Before.GetDomain())
+		return p.removeRule(ctx, changeID, route.ID, s, route.Before.GetDomain())
 	case resource.ProviderKeepRule:
 		return "Kept " + s.Name + " in " + s.Target + ": " + s.Routing, nil
 	case resource.ProviderTakeOnRule, resource.ProviderMoveRule:
@@ -477,7 +477,7 @@ func (p *Publisher) addRule(ctx context.Context, changeID, routeID string, s res
 
 // removeRule takes a rule Dockwell added out of a tunnel, only while it reads as
 // written: one changed in Cloudflare since stays, and is let go.
-func (p *Publisher) removeRule(ctx context.Context, s resource.ProviderStep, leaving string) (string, error) {
+func (p *Publisher) removeRule(ctx context.Context, changeID, routeID string, s resource.ProviderStep, leaving string) (string, error) {
 	t, err := p.target(ctx, s.Provider, strings.TrimPrefix(s.Name, "*."))
 	if err != nil {
 		return "", err
@@ -500,13 +500,16 @@ func (p *Publisher) removeRule(ctx context.Context, s resource.ProviderStep, lea
 	}
 	i := doc.Index(s.Rule.Hostname, s.Rule.Path)
 	if i < 0 {
-		return "", forget()
+		if err := forget(); err != nil {
+			return "", err
+		}
+		return "", letGo{s.Rule.Hostname + " was gone from " + s.Target + " already"}
 	}
 	if !SameService(doc.Rules[i].Service, s.Rule.Service) {
 		if err := forget(); err != nil {
 			return "", err
 		}
-		return s.Rule.Hostname + " was changed in Cloudflare since Dockwell added it, so it stays", nil
+		return "", letGo{s.Rule.Hostname + " was changed in Cloudflare since Dockwell added it, so it stays"}
 	}
 	rt, err := p.removalRouting(ctx, t, s.Tunnel, doc, s.Rule.Service, leaving)
 	if err != nil {
@@ -522,11 +525,12 @@ func (p *Publisher) removeRule(ctx context.Context, s resource.ProviderStep, lea
 	// A name made in Cloudflare since the plan that goes through the rule keeps it
 	// there, held, rather than failing the change (the review's M4).
 	if moved := rt.Check(doc.Rules, after.Rules, Edit{At: i}); len(moved) > 0 {
-		return "Kept " + s.Rule.Hostname + " in " + s.Target + ": " + keptWords(moved), nil
+		return "", letGo{"Kept " + s.Rule.Hostname + " in " + s.Target + ": " + keptWords(moved)}
 	}
 	if err := CheckSplice(read.Config, after.Raw(), i, false); err != nil {
 		return "", err
 	}
+	start := p.now()
 	defer p.cache.forget("doc:" + s.Tunnel)
 	wrote, err := t.tunnels.WriteTunnelConfig(ctx, s.Account, s.Tunnel, after.Raw())
 	if err != nil {
@@ -539,6 +543,14 @@ func (p *Publisher) removeRule(ctx context.Context, s resource.ProviderStep, lea
 		return tx.SawTunnel(ctx, s.Tunnel, s.Account, wrote.Version, p.now())
 	}); err != nil {
 		return "", err
+	}
+	// As adding a rule does: a version moved by more than one says an edit made in
+	// Cloudflare landed between the read and this write, which replaced it. Whoever
+	// made it isn't watching this change, so it's an alert too (the re-check's M5a).
+	if wrote.Version > read.Version+1 {
+		p.note(ctx, ActionReplaced, routeID, told{Provider: s.Provider, Target: s.Target, Name: s.Name, Action: int(s.Action), Version: wrote.Version, ReadVersion: read.Version, ChangeID: changeID})
+		return fmt.Sprintf("An edit made in Cloudflare between %s and %s was replaced. Dockwell kept what it read, and that's what's there now",
+			start.Format("15:04:05"), p.now().Format("15:04:05")), nil
 	}
 	return "", nil
 }

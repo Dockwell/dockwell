@@ -379,6 +379,21 @@ describe("Activity", () => {
         },
       }),
       auditEvent({
+        id: "evt_replaced_removing",
+        kind: EventKind.HEALTH,
+        action: "cloudflare.replaced",
+        time: timestampFromDate(new Date(Date.now() - 6 * 60_000)),
+        subject: on,
+        cloudflare: {
+          provider: "cloudflare",
+          target: "web-2",
+          name: "*.example.org",
+          action: ProviderAction.REMOVE_RULE,
+          version: 4,
+          readVersion: 2,
+        },
+      }),
+      auditEvent({
         id: "evt_gone",
         kind: EventKind.HEALTH,
         action: "cloudflare.gone",
@@ -401,6 +416,7 @@ describe("Activity", () => {
     await screen.findByRole("row", { name: /Removed \*\.example\.com from the tunnel web-1/ });
     await screen.findByRole("row", { name: /Replaced an edit to web-1 made in Cloudflare, adding \*\.example\.com/ });
     await screen.findByRole("row", { name: /wiki\.example\.com is gone from example\.com at Cloudflare/ });
+    await screen.findByRole("row", { name: /Replaced an edit to web-2 made in Cloudflare, removing \*\.example\.org/ });
   });
 
   it("says when a certificate's key went to a server, and when a server that went had its keys revoked", async () => {

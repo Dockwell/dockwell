@@ -796,10 +796,14 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
         case "cloudflare.replaced": {
           // An edit saved in Cloudflare between Dockwell's read of a tunnel and its write, which the write replaced.
           const cf = event.cloudflare;
+          const target = cf?.target ?? "";
+          const rule = cf?.name ?? "";
           return {
-            title: cf?.name
-              ? t`Replaced an edit to ${cf.target} made in Cloudflare, adding ${cf.name}`
-              : t`Replaced an edit made in Cloudflare`,
+            title: !cf?.name
+              ? t`Replaced an edit made in Cloudflare`
+              : cf.action === ProviderAction.REMOVE_RULE
+                ? t`Replaced an edit to ${target} made in Cloudflare, removing ${rule}`
+                : t`Replaced an edit to ${target} made in Cloudflare, adding ${rule}`,
             icon: "globe",
             tone: "warning",
           };

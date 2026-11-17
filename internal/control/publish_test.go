@@ -539,6 +539,43 @@ func TestTheLiveCheckReadsLittle(t *testing.T) {
 	}
 }
 
+// A save in the dashboard that lands between a removal's read and its write is
+// replaced by it: the step says so, and Activity keeps it for the alert (the
+// re-check's M5a).
+func TestARaceWithTheDashboardOnRemovalIsSaid(t *testing.T) {
+	t.Parallel()
+	s := newPublishStand(t)
+	s.applied(t, propose(t, s.person, "Publish wiki", s.published("wiki", "wiki.example.com")))
+	once := true
+	s.cf.OnPut(func(tunnel string) {
+		if !once {
+			return
+		}
+		once = false
+		doc, _ := s.cf.Document(tunnel)
+		s.cf.SetDocument(tunnel, json.RawMessage(strings.Replace(string(doc), `{"service":"http_status:404"}`, `{"hostname":"ssh.example.com","service":"ssh://127.0.0.1:22"},{"service":"http_status:404"}`, 1)))
+	})
+	done := s.applied(t, propose(t, s.person, "Remove wiki", s.removed("wiki")))
+	said := false
+	for _, st := range done.GetSteps() {
+		said = said || strings.HasPrefix(st.GetMessage(), "An edit made in Cloudflare between ")
+	}
+	if !said {
+		t.Fatalf("the race should be said: %v", done.GetSteps())
+	}
+	ec := dockwellv1connect.NewEventServiceClient(s.b, s.b.origin, connect.WithProtoJSON())
+	events, err := ec.ListEvents(t.Context(), connect.NewRequest(&dockwellv1.ListEventsRequest{Kinds: []dockwellv1.EventKind{dockwellv1.EventKind_EVENT_KIND_HEALTH}}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.ContainsFunc(events.Msg.GetEvents(), func(e *dockwellv1.Event) bool {
+		cf := e.GetCloudflare()
+		return e.GetAction() == "cloudflare.replaced" && cf.GetAction() == dockwellv1.ProviderAction_PROVIDER_ACTION_REMOVE_RULE && cf.GetName() == "*.example.com" && cf.GetVersion() == cf.GetReadVersion()+2
+	}) {
+		t.Fatalf("Activity should keep the race: %v", events.Msg.GetEvents())
+	}
+}
+
 // cloudflared whose tunnel the agent can't read, as one whose token is in a file
 // it can't open, still runs there: the check never picks publishing the server's
 // address, and says why the tunnel's way is off (the review's M1).

@@ -193,6 +193,14 @@ func (s *signals) unpublished(ctx context.Context, r rule) ([]finding, error) {
 	return append(out, replaced...), nil
 }
 
+// didTo is what Dockwell did to a tunnel's rule, in a word.
+func didTo(a dockwellv1.ProviderAction) string {
+	if a == dockwellv1.ProviderAction_PROVIDER_ACTION_REMOVE_RULE {
+		return "removed"
+	}
+	return "added"
+}
+
 // cantRead is the alert's words for a zone Dockwell can't read at Cloudflare.
 func cantRead(zone string) (title, detail string) {
 	return "Dockwell can't read " + zone + " at Cloudflare",
@@ -225,7 +233,7 @@ func (s *signals) editsReplaced(ctx context.Context, tx *store.Tx, r rule) ([]fi
 		out = append(out, finding{
 			thing: thing, verdict: holds, since: ev.At, subjectID: ev.Subject, subjectName: cf.GetTarget(), path: "/domains",
 			title:  "An edit to the tunnel " + cf.GetTarget() + " in Cloudflare was replaced",
-			detail: "It was saved just as Dockwell added " + cf.GetName() + ", so what it changed is gone. Make the edit again in Cloudflare.",
+			detail: "It was saved just as Dockwell " + didTo(cf.GetAction()) + " " + cf.GetName() + ", so what it changed is gone. Make the edit again in Cloudflare.",
 		})
 	}
 	return out, nil

@@ -1092,10 +1092,11 @@ msgstr "已移除 {who}，连同其会话、令牌、邀请和登录提供方账
 msgid "Replaced an edit made in Cloudflare"
 msgstr "替换了在 Cloudflare 中所做的修改"
 
-#. placeholder {0}: cf.target
-#. placeholder {1}: cf.name
-msgid "Replaced an edit to {0} made in Cloudflare, adding {1}"
-msgstr "添加 {1} 时替换了在 Cloudflare 中对 {0} 所做的修改"
+msgid "Replaced an edit to {target} made in Cloudflare, adding {rule}"
+msgstr "添加 {rule} 时替换了在 Cloudflare 中对 {target} 所做的修改"
+
+msgid "Replaced an edit to {target} made in Cloudflare, removing {rule}"
+msgstr "移除 {rule} 时替换了在 Cloudflare 中对 {target} 所做的修改"
 
 msgid "Replaced the DNS record made in Cloudflare for {name}, in {where}"
 msgstr "已替换在 Cloudflare 的 {where} 中为 {name} 创建的 DNS 记录"
