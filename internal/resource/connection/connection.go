@@ -2,7 +2,7 @@
 
 // Package connection is the "connection" kind: one set of values of one kind that
 // something uses, an app through a link, such as a bucket of S3-compatible storage
-// and the keys that reach it. It lives in the organization, on the control plane:
+// and the keys that reach it, or a mail server and who signs in to it. It lives in the organization, on the control plane:
 // its secrets go to a server only sealed with the values of an app linked to it, or
 // for the check of it from where the app is. See
 // docs/adr/0099-every-kind-of-thing-an-app-needs-met-the-same-three-ways.md.
@@ -69,22 +69,31 @@ var region = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,40}$`)
 // maxDisplayName bounds what the panel calls one: a few words.
 const maxDisplayName = 60
 
-// Validate refuses what can't reach a bucket, and a reach that says nothing, in words
-// that hold nothing of the keys.
+// Validate refuses what can't reach a bucket or a mail server, and a reach that says
+// nothing, in words that hold nothing of the keys.
 func (Type) Validate(spec proto.Message) error {
 	c := spec.(*resourcev1.ConnectionSpec) //nolint:forcetypeassert // the kind's own message
 	name := strings.TrimSpace(c.GetDisplayName())
 	switch {
 	case strings.ContainsAny(name, "\r\n") || len([]rune(name)) > maxDisplayName:
 		return fmt.Errorf("a connection's name is a few words on one line, at most %d characters", maxDisplayName)
-	case c.GetKind() != resourcev1.LinkKind_LINK_KIND_S3:
-		return errors.New("a connection reaches S3 storage for now. Set its kind to LINK_KIND_S3")
-	case c.GetS3() == nil:
+	case c.GetKind() == resourcev1.LinkKind_LINK_KIND_S3 && c.GetS3() == nil:
 		return errors.New("a connection to S3 storage needs its endpoint, bucket and keys")
+	case c.GetKind() == resourcev1.LinkKind_LINK_KIND_S3 && c.GetSmtp() != nil:
+		return errors.New("a connection to S3 storage holds no mail server. Leave smtp out")
+	case c.GetKind() == resourcev1.LinkKind_LINK_KIND_SMTP && c.GetSmtp() == nil:
+		return errors.New("a connection to a mail server needs its host, such as smtp.example.com")
+	case c.GetKind() == resourcev1.LinkKind_LINK_KIND_SMTP && c.GetS3() != nil:
+		return errors.New("a connection to a mail server holds no bucket. Leave s3 out")
+	case c.GetKind() != resourcev1.LinkKind_LINK_KIND_S3 && c.GetKind() != resourcev1.LinkKind_LINK_KIND_SMTP:
+		return errors.New("a connection reaches S3 storage or a mail server. Set its kind to LINK_KIND_S3 or LINK_KIND_SMTP")
 	}
 	c.DisplayName = name
 	if err := checkReach(c); err != nil {
 		return err
+	}
+	if c.GetKind() == resourcev1.LinkKind_LINK_KIND_SMTP {
+		return checkSMTP(c.GetSmtp())
 	}
 	return checkS3(c.GetS3())
 }
@@ -142,10 +151,18 @@ func checkS3(s *resourcev1.ConnectionS3) error {
 	return nil
 }
 
-// CheckNew asks a new connection for its keys. An update can leave them out, which
-// Keep fills in, so Validate can't.
+// CheckNew asks a new connection for its keys, or a mail server's for the password
+// of the user it signs in as. An update can leave them out, which Keep fills in, so
+// Validate can't.
 func (Type) CheckNew(spec proto.Message) error {
-	s := spec.(*resourcev1.ConnectionSpec).GetS3() //nolint:forcetypeassert // Validate saw it
+	c := spec.(*resourcev1.ConnectionSpec) //nolint:forcetypeassert // Validate saw it
+	if m := c.GetSmtp(); m != nil {
+		if m.GetUser() != "" && m.GetPassword() == "" {
+			return errors.New("a connection to a mail server that signs in needs the user's password")
+		}
+		return nil
+	}
+	s := c.GetS3()
 	if s.GetAccessKeyId() == "" || s.GetSecretKey() == "" {
 		return errors.New("a connection to S3 storage needs an access key's ID and its secret")
 	}
@@ -164,6 +181,9 @@ func (Type) Keep(current, desired proto.Message) (resource.Kept, error) {
 	is, same := desired.(*resourcev1.ConnectionSpec)
 	if !ok || !same {
 		return resource.Kept{}, nil
+	}
+	if was.GetSmtp() != nil && is.GetSmtp() != nil {
+		return keepSMTP(was.GetSmtp(), is.GetSmtp())
 	}
 	from, to := was.GetS3(), is.GetS3()
 	if from == nil || to == nil {
@@ -198,7 +218,7 @@ func (Type) Keep(current, desired proto.Message) (resource.Kept, error) {
 func (Type) ChangesWhatsRead(current, spec proto.Message) bool {
 	was, ok := current.(*resourcev1.ConnectionSpec)
 	is, same := spec.(*resourcev1.ConnectionSpec)
-	return !ok || !same || was.GetKind() != is.GetKind() || !proto.Equal(was.GetS3(), is.GetS3())
+	return !ok || !same || was.GetKind() != is.GetKind() || !proto.Equal(was.GetS3(), is.GetS3()) || !proto.Equal(was.GetSmtp(), is.GetSmtp())
 }
 
 // StampSaver records whether an install admin chose where the connection goes,
@@ -211,7 +231,7 @@ func (Type) StampSaver(current, spec proto.Message, installAdmin bool) {
 	if !ok {
 		return
 	}
-	if was, ok := current.(*resourcev1.ConnectionSpec); ok && !movesAddress(was.GetS3(), c.GetS3()) {
+	if was, ok := current.(*resourcev1.ConnectionSpec); ok && !movesAddress(was.GetS3(), c.GetS3()) && !movesServer(was.GetSmtp(), c.GetSmtp()) {
 		c.SavedBelowAdmin = was.GetSavedBelowAdmin()
 		return
 	}
@@ -247,8 +267,12 @@ func Reaches(c *resourcev1.ConnectionSpec, project string) bool {
 }
 
 // Part is one of a connection's values, by the part a link sets, and whether it's
-// one of its keys, which go only as a secret.
+// one of its keys, which go only as a secret. A mail server's security is written in
+// each app's own words, so it isn't one.
 func Part(c *resourcev1.ConnectionSpec, part resourcev1.LinkPart) (value string, secret, ok bool) {
+	if m := c.GetSmtp(); m != nil {
+		return smtpPart(m, part)
+	}
 	s := c.GetS3()
 	switch part {
 	case resourcev1.LinkPart_LINK_PART_ENDPOINT:

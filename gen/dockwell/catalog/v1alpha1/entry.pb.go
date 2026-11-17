@@ -290,6 +290,16 @@ const (
 	Part_PART_PATH_STYLE Part = 55
 	// Where objects are read from publicly, as a custom domain.
 	Part_PART_PUBLIC_URL Part = 56
+	// A mail server's parts, numbered from 60, beside its host, port, user,
+	// password and URL. How it's secured, in the app's words, as words give them
+	// for starttls, tls and none: one for each, under as many names as the app
+	// reads, as SMTP_SECURE for TLS from the start and SMTP_REQUIRE_TLS for
+	// STARTTLS.
+	Part_PART_SECURITY Part = 60
+	// Who the mail comes from, an address, such as "notes@example.com".
+	Part_PART_SENDER Part = 61
+	// The name the mail comes from, such as "Notes".
+	Part_PART_SENDER_NAME Part = 62
 	// Whether an optional need is met, in the app's words, as words give them for
 	// met and unmet, such as STORAGE_DRIVER's s3 and local. Set while unmet too.
 	Part_PART_MET Part = 70
@@ -316,6 +326,9 @@ var (
 		54: "PART_SECRET_KEY",
 		55: "PART_PATH_STYLE",
 		56: "PART_PUBLIC_URL",
+		60: "PART_SECURITY",
+		61: "PART_SENDER",
+		62: "PART_SENDER_NAME",
 		70: "PART_MET",
 	}
 	Part_value = map[string]int32{
@@ -337,6 +350,9 @@ var (
 		"PART_SECRET_KEY":    54,
 		"PART_PATH_STYLE":    55,
 		"PART_PUBLIC_URL":    56,
+		"PART_SECURITY":      60,
+		"PART_SENDER":        61,
+		"PART_SENDER_NAME":   62,
 		"PART_MET":           70,
 	}
 )
@@ -2271,7 +2287,7 @@ const file_dockwell_catalog_v1alpha1_entry_proto_rawDesc = "" +
 	"\fENGINE_REDIS\x10\x04\x12\x11\n" +
 	"\rENGINE_VALKEY\x10\x05\x12\x12\n" +
 	"\x0eENGINE_MONGODB\x10\x06\x12\x15\n" +
-	"\x11ENGINE_CLICKHOUSE\x10\a*\xdd\x02\n" +
+	"\x11ENGINE_CLICKHOUSE\x10\a*\x97\x03\n" +
 	"\x04Part\x12\x14\n" +
 	"\x10PART_UNSPECIFIED\x10\x00\x12\r\n" +
 	"\tPART_HOST\x10\x01\x12\r\n" +
@@ -2290,7 +2306,10 @@ const file_dockwell_catalog_v1alpha1_entry_proto_rawDesc = "" +
 	"\x12PART_ACCESS_KEY_ID\x105\x12\x13\n" +
 	"\x0fPART_SECRET_KEY\x106\x12\x13\n" +
 	"\x0fPART_PATH_STYLE\x107\x12\x13\n" +
-	"\x0fPART_PUBLIC_URL\x108\x12\f\n" +
+	"\x0fPART_PUBLIC_URL\x108\x12\x11\n" +
+	"\rPART_SECURITY\x10<\x12\x0f\n" +
+	"\vPART_SENDER\x10=\x12\x14\n" +
+	"\x10PART_SENDER_NAME\x10>\x12\f\n" +
 	"\bPART_MET\x10F*A\n" +
 	"\n" +
 	"Characters\x12\x1a\n" +

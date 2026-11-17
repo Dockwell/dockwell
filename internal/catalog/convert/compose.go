@@ -246,12 +246,20 @@ func rewrite(app App) (rewritten, error) {
 		return out, err
 	}
 	out.needs = needs
+	// A mail server its form declares, set by a need where the file allows, whose
+	// names are then no inputs (ADR 0099).
+	mail, mailSets := applyMail(root, serviceNames(doc), app, renames, taken)
+	if mail != nil {
+		out.needs = append(out.needs, mail)
+		needSets = append(needSets, mailSets...)
+	}
 	fields := slices.Clone(app.Fields)
 	for i := range fields {
 		if to, ok := renames[fields[i].Name]; ok {
 			fields[i].Name = to
 		}
 	}
+	fields = slices.DeleteFunc(fields, func(f Field) bool { return slices.Contains(mailSets, f.Name) })
 	made, err := sharedSecrets(root, fields, images)
 	if err != nil {
 		return out, err

@@ -173,6 +173,13 @@ message ConnectionInfo {
   // An install admin has marked it as serving more than one link, each app under a
   // prefix of its own (ConnectionSpec.shared).
   bool shared = 14;
+  // Where its mail server is, for a mail server's: its host, port and security,
+  // and who the mail comes from. Who it signs in as is never shown.
+  string host = 15;
+  uint32 port = 16;
+  dockwell.resource.v1alpha1.SmtpSecurity security = 17;
+  string sender = 18;
+  string sender_name = 19;
 }
 
 // ConnectionUse is one link to a connection, and the apps that read it.
@@ -210,15 +217,21 @@ message CheckConnectionRequest {
   bool presign = 6;
   // Where the check's object goes in the bucket, such as "outline/".
   string prefix = 7;
+  // A mail server as typed, checked by signing in, never by sending. A saved
+  // connection's user and password are kept where this leaves the password out,
+  // while its host, port, security and user stay.
+  dockwell.resource.v1alpha1.ConnectionSmtp smtp = 8 [(dockwell.resource.v1alpha1.sensitive) = true];
 }
 
 // CheckConnectionResponse is what a check found: codes, never a body.
 message CheckConnectionResponse {
   // It did everything asked of it.
   bool passed = 1;
-  // Where it stopped: write, read, presign or delete.
+  // Where it stopped: write, read, presign or delete for storage; connect, hello,
+  // tls or sign-in for a mail server.
   string step = 2;
-  // What the storage said, such as an S3 error's code, or what kept it from
+  // What the storage said, such as an S3 error's code, or a mail server's reply
+  // code and its enhanced code, such as "535 5.7.8", or what kept it from
   // answering: refused, timeout, unreachable or tls. Status is its HTTP status.
   string code = 3;
   int32 status = 4;

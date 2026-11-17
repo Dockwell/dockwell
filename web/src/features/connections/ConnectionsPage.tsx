@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { ChangeService, type ConnectionInfo, ConnectionReach } from "@dockwell/api";
+import { ChangeService, type ConnectionInfo, ConnectionReach, LinkKind } from "@dockwell/api";
 import { Button, Callout, Icon, PHONE_QUERY, Table, type TableColumn, useMediaQuery } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
@@ -13,7 +13,9 @@ import { useMay } from "../auth/may";
 import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
 import { ConnectionSheet } from "./ConnectionSheet";
-import { hostOf, PROVIDERS, type ProviderId, placeOf, provider } from "./providers";
+import { type MailProviderId, mailPlaceOf, mailProvider } from "./mail";
+import { hostOf, type ProviderId, placeOf, provider } from "./providers";
+import { ServiceTiles } from "./ServiceTiles";
 import { appsOf } from "./storage";
 import { useConnections, useProjectLabel } from "./useConnections";
 import "./Connections.css";
@@ -32,7 +34,7 @@ export function ConnectionsPage() {
   const mayAdd = may(ChangeService.method.proposeChange, { install: true });
   const query = useConnections();
   const connections = query.data?.connections ?? [];
-  const [adding, setAdding] = useState<ProviderId | "">();
+  const [adding, setAdding] = useState<ProviderId | MailProviderId | "">();
   const apps = new Set(connections.flatMap((c) => appsOf(c).map((a) => a.id))).size;
   const lead = query.isPending
     ? undefined
@@ -80,12 +82,18 @@ export function ConnectionsPage() {
           icon="key"
           title={t`No connections yet`}
           className="connections-empty"
-          choices={mayAdd.allowed ? <StoreTiles onPick={(id) => setAdding(id)} /> : undefined}
+          choices={
+            mayAdd.allowed ? (
+              <div className="connections-tiles">
+                <ServiceTiles onPick={(id) => setAdding(id)} pressed={false} />
+              </div>
+            ) : undefined
+          }
         >
           {mayAdd.allowed ? (
-            <Trans>A bucket's keys, pasted once, for any app to keep its files in</Trans>
+            <Trans>A bucket's keys or a mail server's sign-in, pasted once, for any app to use</Trans>
           ) : (
-            <Trans>An admin adds the buckets your apps may use.</Trans>
+            <Trans>An admin adds the buckets and mail servers your apps may use.</Trans>
           )}
         </EmptyState>
       ) : phone ? (
@@ -128,7 +136,7 @@ function ConnectionsTable({
 }) {
   const { t } = useLingui();
   const projectName = useProjectLabel();
-  const admin = connections.some((c) => c.endpoint !== "");
+  const admin = connections.some(seesWhere);
   const columns: TableColumn<ConnectionInfo>[] = [
     {
       key: "name",
@@ -167,8 +175,20 @@ function ConnectionsTable({
   return <Table columns={columns} rows={connections} onRowClick={onOpen} caption={t`Connections`} />;
 }
 
-/** Where a connection's bucket is: its store, or its endpoint's host, and the bucket. */
+/** Whether the caller sees where a connection is, as an admin does. */
+export function seesWhere(c: ConnectionInfo): boolean {
+  return c.endpoint !== "" || c.host !== "";
+}
+
+/**
+ * Where a connection's bucket is: its store, or its endpoint's host, and the bucket.
+ * A mail server's is its service, or its host, and who mail comes from.
+ */
 export function where(c: ConnectionInfo): string {
+  if (c.kind === LinkKind.SMTP) {
+    const p = c.host ? mailProvider(mailPlaceOf(c.host).provider) : undefined;
+    return [p?.name || c.host, c.sender].filter(Boolean).join(" · ");
+  }
   if (!c.endpoint) return "";
   const p = provider(placeOf(c.endpoint, c.region).provider);
   return [p.name || hostOf(c.endpoint), c.bucket].filter(Boolean).join(" · ");
@@ -176,6 +196,14 @@ export function where(c: ConnectionInfo): string {
 
 /** A connection's tile: its store's two letters. */
 export function Mark({ connection }: { connection: ConnectionInfo }) {
+  if (connection.kind === LinkKind.SMTP) {
+    const m = connection.host ? mailProvider(mailPlaceOf(connection.host).provider) : undefined;
+    return (
+      <span className="connection-mark" aria-hidden>
+        {m?.mark ?? "@"}
+      </span>
+    );
+  }
   const p = connection.endpoint ? provider(placeOf(connection.endpoint, connection.region).provider) : undefined;
   // Another store's tile is a plus where it's picked; saved, it's S3 storage.
   return (
@@ -194,7 +222,7 @@ function UsedBy({ connection }: { connection: ConnectionInfo }) {
   const apps = reading.map((a) =>
     reading.some((o) => o.id !== a.id && o.name === a.name) ? `${a.name} (${places.label(a.environment)})` : a.name,
   );
-  // Shared, more than one app may keep its files there, each under its own prefix.
+  // Shared, more than one app may use it.
   const shared = connection.shared
     ? ` · ${t({ message: "shared", context: "a connection more than one app may use" })}`
     : "";
@@ -215,23 +243,6 @@ function UsedBy({ connection }: { connection: ConnectionInfo }) {
       <span className="connections-mono connections-meta connections-apps" title={apps.join(", ")}>
         {apps.join(", ") || t`none`}
       </span>
-    </div>
-  );
-}
-
-/** The stores a connection is made for, each opening Add connection at it. */
-function StoreTiles({ onPick }: { onPick: (id: ProviderId) => void }) {
-  const { t } = useLingui();
-  return (
-    <div className="connection-store-grid connections-tiles">
-      {PROVIDERS.map((p) => (
-        <button key={p.id} type="button" className="connection-store" onClick={() => onPick(p.id)}>
-          <span className="connection-mark" aria-hidden>
-            {p.mark}
-          </span>
-          <span>{p.name || t`Another S3-compatible store`}</span>
-        </button>
-      ))}
     </div>
   );
 }

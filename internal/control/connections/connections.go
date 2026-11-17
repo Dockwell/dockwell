@@ -17,6 +17,7 @@ import (
 	"strings"
 
 	"connectrpc.com/connect"
+	"google.golang.org/protobuf/proto"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
@@ -313,6 +314,9 @@ func (s *Service) ListConnections(ctx context.Context, req *connect.Request[dock
 		case admin:
 			s3 := c.Spec.GetS3()
 			info.Endpoint, info.Region, info.Bucket, info.PathStyle, info.PublicUrl = s3.GetEndpoint(), s3.GetRegion(), s3.GetBucket(), s3.GetPathStyle(), s3.GetPublicUrl()
+			if m := c.Spec.GetSmtp(); m != nil {
+				info.Host, info.Port, info.Security = m.GetHost(), uint32(connection.Port(m)), connection.Security(m) //nolint:gosec // a port
+			}
 			info.Reach, info.Projects = c.Spec.GetReach(), c.Spec.GetProjects()
 		case mine != nil:
 			// Below an admin, which of the caller's own projects may use it, so the
@@ -327,6 +331,9 @@ func (s *Service) ListConnections(ctx context.Context, req *connect.Request[dock
 			// A grant on the whole install holds every project.
 			info.Reach, info.Projects = c.Spec.GetReach(), c.Spec.GetProjects()
 		}
+		// Who its mail comes from is what an app's card says it sends as, to whoever
+		// may see the connection; where it is stays an admin's.
+		info.Sender, info.SenderName = c.Spec.GetSmtp().GetSender(), c.Spec.GetSmtp().GetSenderName()
 		// Below an admin, only what reads it in the caller's own projects: another
 		// project's apps and links aren't theirs to see.
 		for _, u := range uses[c.Name] {
@@ -423,7 +430,7 @@ func (s *Service) CheckConnection(ctx context.Context, req *connect.Request[dock
 // server's own agent, which holds them already (ADR 0099, #710). Keys typed in the
 // request are the caller's to send anywhere.
 func (s *Service) mayHoldKeys(ctx context.Context, req *dockwellv1.CheckConnectionRequest, srv *dockwellv1.Server) error {
-	if req.GetName() == "" || req.GetS3().GetSecretKey() != "" || srv.GetControlServer() {
+	if req.GetName() == "" || req.GetS3().GetSecretKey() != "" || req.GetSmtp().GetPassword() != "" || srv.GetControlServer() {
 		return nil
 	}
 	runs, err := s.connections.ServersOf(ctx, req.GetName())
@@ -442,6 +449,16 @@ func (s *Service) mayHoldKeys(ctx context.Context, req *dockwellv1.CheckConnecti
 // URL where asked. It reaches a private address beyond the app's own networks only
 // where an install admin saved the connection (ADR 0099, #710).
 func probeOf(c *resourcev1.ConnectionSpec, prefix string, presign bool) probe.Request {
+	if m := c.GetSmtp(); m != nil {
+		// A mail server's check signs in and sends nothing (ADR 0099).
+		return probe.Request{
+			Kind: probe.KindSMTP, Private: connection.Private(c),
+			SMTP: &probe.SMTP{
+				Host: m.GetHost(), Port: connection.Port(m), Security: connection.SecurityWord(connection.Security(m)),
+				User: m.GetUser(), Password: m.GetPassword(),
+			},
+		}
+	}
 	s3 := c.GetS3()
 	return probe.Request{
 		Kind: probe.KindS3, Private: connection.Private(c),
@@ -455,6 +472,12 @@ func probeOf(c *resourcev1.ConnectionSpec, prefix string, presign bool) probe.Re
 // toCheck is the connection a check reaches: as typed, or a saved one with what's
 // typed in its place, whose keys go only where they were saved to go.
 func (s *Service) toCheck(ctx context.Context, req *dockwellv1.CheckConnectionRequest) (*resourcev1.ConnectionSpec, error) {
+	if req.GetS3() != nil && req.GetSmtp() != nil {
+		return nil, authapi.Invalid(errors.New("a check reaches S3 storage or a mail server, and this names both. Give one"))
+	}
+	if req.GetSmtp() != nil || req.GetName() != "" && req.GetS3() == nil && s.savedKind(ctx, req.GetName()) == resourcev1.LinkKind_LINK_KIND_SMTP {
+		return s.toCheckMail(ctx, req)
+	}
 	typed := &resourcev1.ConnectionSpec{Kind: resourcev1.LinkKind_LINK_KIND_S3, S3: req.GetS3()}
 	if typed.GetS3() == nil {
 		typed.S3 = &resourcev1.ConnectionS3{}
@@ -503,6 +526,76 @@ func (s *Service) toCheck(ctx context.Context, req *dockwellv1.CheckConnectionRe
 		return typed, nil
 	}
 	return nil, authapi.ReasonError(connect.CodeNotFound, fmt.Errorf("there's no connection %s. List them with ListConnections", req.GetName()), "not_found")
+}
+
+// savedKind is the kind of the saved connection named, or none where there's none.
+func (s *Service) savedKind(ctx context.Context, name string) resourcev1.LinkKind {
+	all, err := s.connections.All(ctx)
+	if err != nil {
+		return resourcev1.LinkKind_LINK_KIND_UNSPECIFIED
+	}
+	for _, c := range all {
+		if c.Name == name {
+			return c.Spec.GetKind()
+		}
+	}
+	return resourcev1.LinkKind_LINK_KIND_UNSPECIFIED
+}
+
+// toCheckMail is toCheck for a mail server: as typed, or a saved one with what's
+// typed in its place, whose user and password go only where they were saved to go.
+func (s *Service) toCheckMail(ctx context.Context, req *dockwellv1.CheckConnectionRequest) (*resourcev1.ConnectionSpec, error) {
+	typed := &resourcev1.ConnectionSpec{Kind: resourcev1.LinkKind_LINK_KIND_SMTP, Smtp: proto.CloneOf(req.GetSmtp())}
+	if typed.GetSmtp() == nil {
+		typed.Smtp = &resourcev1.ConnectionSmtp{}
+	}
+	if req.GetPrefix() != "" || req.GetPresign() {
+		return nil, authapi.Invalid(errors.New("a mail server's check takes no prefix or presigned URL, which only storage's does"))
+	}
+	if req.GetName() == "" {
+		if err := (connection.Type{}).Validate(typed); err != nil {
+			return nil, authapi.Invalid(err)
+		}
+		if err := (connection.Type{}).CheckNew(typed); err != nil {
+			return nil, authapi.Invalid(err)
+		}
+		return typed, nil
+	}
+	all, err := s.connections.All(ctx)
+	if err != nil {
+		return nil, err
+	}
+	i := slices.IndexFunc(all, func(c Saved) bool { return c.Name == req.GetName() })
+	if i < 0 {
+		return nil, authapi.ReasonError(connect.CodeNotFound, fmt.Errorf("there's no connection %s. List them with ListConnections", req.GetName()), "not_found")
+	}
+	saved := all[i].Spec
+	if saved.GetKind() != resourcev1.LinkKind_LINK_KIND_SMTP {
+		return nil, authapi.Invalid(fmt.Errorf("the connection %s reaches S3 storage, and this checks a mail server. Give its bucket instead", req.GetName()))
+	}
+	was, to := saved.GetSmtp(), typed.GetSmtp()
+	if req.GetSmtp() == nil {
+		to = proto.CloneOf(was)
+		to.User, to.Password = "", ""
+		typed.Smtp = to
+	}
+	if to.GetHost() == "" {
+		to.Host = was.GetHost()
+	}
+	if to.GetPort() == 0 && to.GetSecurity() == resourcev1.SmtpSecurity_SMTP_SECURITY_UNSPECIFIED {
+		to.Port, to.Security = was.GetPort(), was.GetSecurity()
+	}
+	// Checked as it's saved: where someone below an admin saved it, it reaches no
+	// private address (#710).
+	typed.SavedBelowAdmin = saved.GetSavedBelowAdmin()
+	if err := (connection.Type{}).Validate(typed); err != nil {
+		return nil, authapi.Invalid(err)
+	}
+	// What's kept goes only where it was saved to go, as an update keeps it.
+	if _, err := (connection.Type{}).Keep(saved, typed); err != nil {
+		return nil, authapi.Invalid(err)
+	}
+	return typed, nil
 }
 
 // session is the agent session of the server named, or of the only server.

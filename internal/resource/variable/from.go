@@ -94,8 +94,16 @@ func checkFrom(what string, from *resourcev1.ValueFrom, value string, secret boo
 // connectionParts are the parts a value may take from a connection, each with
 // whether it's one of its keys, which only a secret holds (ADR 0099). The prefix is
 // the link's own, read through it as the rest are, so the value can't drift from
-// what the link records (the re-check's N3).
+// what the link records (the re-check's N3). A mail server's sender is the link's
+// where it says one, and the connection's otherwise.
 var connectionParts = map[resourcev1.LinkPart]bool{
+	resourcev1.LinkPart_LINK_PART_HOST:          false,
+	resourcev1.LinkPart_LINK_PART_PORT:          false,
+	resourcev1.LinkPart_LINK_PART_SENDER:        false,
+	resourcev1.LinkPart_LINK_PART_SENDER_NAME:   false,
+	resourcev1.LinkPart_LINK_PART_USER:          true,
+	resourcev1.LinkPart_LINK_PART_PASSWORD:      true,
+	resourcev1.LinkPart_LINK_PART_URL:           true,
 	resourcev1.LinkPart_LINK_PART_KEY_PREFIX:    false,
 	resourcev1.LinkPart_LINK_PART_ENDPOINT:      false,
 	resourcev1.LinkPart_LINK_PART_REGION:        false,
@@ -103,6 +111,15 @@ var connectionParts = map[resourcev1.LinkPart]bool{
 	resourcev1.LinkPart_LINK_PART_PUBLIC_URL:    false,
 	resourcev1.LinkPart_LINK_PART_ACCESS_KEY_ID: true,
 	resourcev1.LinkPart_LINK_PART_SECRET_KEY:    true,
+}
+
+// ReadsLink says a value of part from a connection reads its link too: the prefix,
+// which the link owns, and a mail server's sender, which the link may say for its
+// app.
+func ReadsLink(part resourcev1.LinkPart) bool { return linkParts[part] }
+
+var linkParts = map[resourcev1.LinkPart]bool{
+	resourcev1.LinkPart_LINK_PART_KEY_PREFIX: true, resourcev1.LinkPart_LINK_PART_SENDER: true, resourcev1.LinkPart_LINK_PART_SENDER_NAME: true,
 }
 
 // ConnectionKind is the kind a value from a connection uses.
@@ -196,7 +213,7 @@ func fromUses(from *resourcev1.ValueFrom, revisions map[string]int64) []resource
 		// reaches every app that uses it in the same plan. The prefix is the link's,
 		// pinned too, so a change to it reaches the app the same way.
 		out := []resource.Use{{As: FromUse, Kind: ConnectionKind, Name: src.Connection.GetName(), Scope: src.Connection.GetScope(), Revision: int(revisions[FromUse])}}
-		if src.Connection.GetPart() == resourcev1.LinkPart_LINK_PART_KEY_PREFIX {
+		if ReadsLink(src.Connection.GetPart()) {
 			out = append(out, resource.Use{As: LinkUse, Kind: LinkKind, Name: src.Connection.GetLink(), Revision: int(revisions[LinkUse])})
 		}
 		return out

@@ -63,7 +63,7 @@ func TestAnOptionalStorageNeedPasses(t *testing.T) {
 func TestCheckRefusesAStorageNeed(t *testing.T) {
 	storage := func(e *catalogv1.Entry) *catalogv1.Need { return e.Needs[1] }
 	for want, change := range map[string]func(*catalogv1.Entry){
-		"which Dockwell doesn't meet yet": func(e *catalogv1.Entry) { storage(e).Kind = catalogv1.Kind_KIND_SMTP },
+		"which Dockwell doesn't meet yet": func(e *catalogv1.Entry) { storage(e).Kind = catalogv1.Kind(9) },
 		"only a database need takes":      func(e *catalogv1.Entry) { storage(e).Database = "uploads" },
 		"3 to 63 lowercase":               func(e *catalogv1.Entry) { storage(e).Bucket = "Up_Loads" },
 		"from 1s to 168h":                 func(e *catalogv1.Entry) { storage(e).PresignLifetime = "30d" },

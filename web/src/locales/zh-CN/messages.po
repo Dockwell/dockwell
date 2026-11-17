@@ -8013,6 +8013,9 @@ msgstr "复制它的数据"
 msgid "It serves another app already"
 msgstr "它已在为另一个应用服务"
 
+msgid "It serves another app already, and isn't shared"
+msgstr "它已在为另一个应用服务，且未共享"
+
 msgid "It serves another app already, and {app} can't keep to a prefix of the bucket"
 msgstr "它已在为另一个应用服务，而 {app} 无法限定在存储桶的某个前缀下"
 
@@ -8040,6 +8043,12 @@ msgstr "它自己的 {runs}，在 {app} 旁边"
 msgid "No connection this project may use"
 msgstr "没有此项目可以使用的连接"
 
+msgid "No mail server this project may use"
+msgstr "没有此项目可用的邮件服务器"
+
+msgid "No other mail server this project may use"
+msgstr "此项目没有其他可用的邮件服务器"
+
 msgid "Nothing else Dockwell runs takes it"
 msgstr "Dockwell 运行的其他服务都不适用"
 
@@ -8048,6 +8057,16 @@ msgstr "仅它的{what}"
 
 msgid "On its own disk"
 msgstr "在它自己的磁盘上"
+
+msgid "Sends as what {app} says"
+msgstr "以 {app} 自己设置的地址发信"
+
+#. placeholder {0}: c.sender
+msgid "Sends as {0}"
+msgstr "以 {0} 发信"
+
+msgid "Set by hand"
+msgstr "手动设置"
 
 msgid "Shares {named} in the project {where}"
 msgstr "共用项目 {where} 中的 {named}"
@@ -8079,6 +8098,10 @@ msgstr "它还能在哪里运行"
 
 msgid "objects under {prefix}"
 msgstr "对象位于 {prefix}"
+
+#. placeholder {0}: current.sender
+msgid "sends as {0}"
+msgstr "以 {0} 发信"
 
 msgid "{app} reads its storage as one URL, which a connection can't give yet"
 msgstr "{app} 以一个 URL 读取存储，连接还不能提供它"
@@ -8343,6 +8366,9 @@ msgstr "{short}（标签）"
 msgid "Any S3-compatible bucket"
 msgstr "任意兼容 S3 的存储桶"
 
+msgid "Any mail server"
+msgstr "任意邮件服务器"
+
 msgid "Checked from {app}'s server before it's planned"
 msgstr "在规划之前从 {app} 的服务器检查"
 
@@ -8355,6 +8381,9 @@ msgstr "需要{list}"
 
 msgid "No connection meets it yet"
 msgstr "还没有满足它的连接"
+
+msgid "Sends as {sender}"
+msgstr "以 {sender} 发信"
 
 msgid "Shared with other apps, each under its own prefix"
 msgstr "与其他应用共享，每个应用使用各自的前缀"
@@ -8370,6 +8399,10 @@ msgstr "浏览器表单上传"
 
 msgid "reading objects at its public address"
 msgstr "在公开地址读取对象"
+
+msgctxt "a connection more than one app may use"
+msgid "shared"
+msgstr "已共享"
 
 msgid "signed URLs"
 msgstr "签名 URL"
@@ -8391,6 +8424,9 @@ msgstr "浏览器直接上传"
 
 msgid "{app} keeps its files beside it"
 msgstr "{app} 将文件保存在它旁边"
+
+msgid "{app} sends no mail"
+msgstr "{app} 不发送邮件"
 
 msgctxt "catalog store"
 msgid "Added"
@@ -11478,9 +11514,6 @@ msgstr "文件夹，每个以斜杠结尾，例如 {app}/"
 msgid "It hands browsers signed links"
 msgstr "它向浏览器提供签名链接"
 
-msgid "It serves another app already, and isn't shared"
-msgstr "它已在为另一个应用服务，且未共享"
-
 msgid "Its values come from the connection, checked from where the app runs"
 msgstr "它的值来自连接，并从应用运行的位置检查"
 
@@ -11547,6 +11580,9 @@ msgstr "Dockwell 无法读取其连接"
 msgid "Each keeps its files under a prefix of its own"
 msgstr "每个应用把文件放在各自的前缀下"
 
+msgid "Each sends as any sender the server takes"
+msgstr "每个应用都可用服务器接受的任意发件人发信"
+
 msgid "Every project"
 msgstr "所有项目"
 
@@ -11570,6 +11606,9 @@ msgstr "允许多个应用使用"
 
 msgid "Names it sets"
 msgstr "设置的名称"
+
+msgid "No TLS"
+msgstr "不使用 TLS"
 
 msgid "No app reads it"
 msgstr "没有应用读取它"
@@ -11595,11 +11634,17 @@ msgstr "项目"
 msgid "Replace keys"
 msgstr "更换密钥"
 
+msgid "Replace password"
+msgstr "更换密码"
+
 msgid "Sealed, never shown"
 msgstr "已加密，从不显示"
 
 msgid "See every connection"
 msgstr "查看所有连接"
+
+msgid "Sends as"
+msgstr "发件人"
 
 msgid "Share it"
 msgstr "共享它"
@@ -11610,11 +11655,20 @@ msgstr "共享后可在它们旁边连接另一个应用。"
 msgid "Share the connection {label}"
 msgstr "共享连接 {label}"
 
+msgid "Sign-in"
+msgstr "登录"
+
 msgid "Stop sharing the connection {label}"
 msgstr "停止共享连接 {label}"
 
+msgid "TLS from the start"
+msgstr "一开始就用 TLS"
+
 msgid "Use in an app"
 msgstr "在应用中使用"
+
+msgid "What each app says"
+msgstr "由各应用自行设置"
 
 msgid "the server"
 msgstr "服务器"
@@ -11641,9 +11695,6 @@ msgstr "32 位字母和数字，与 Cloudflare 显示的一致"
 
 msgid "A bucket of S3-compatible storage, for apps to keep files in"
 msgstr "S3 兼容存储的存储桶，供应用存放文件"
-
-msgid "Another store"
-msgstr "其他存储"
 
 msgid "Bucket in the path"
 msgstr "存储桶放在路径中"
@@ -11685,9 +11736,6 @@ msgstr "仅限部分项目"
 msgid "Remove the connection {name}"
 msgstr "移除连接 {name}"
 
-msgid "Store"
-msgstr "存储服务"
-
 msgid "Their apps alone may use it."
 msgstr "只有这些项目的应用可以使用它。"
 
@@ -11725,17 +11773,14 @@ msgstr "{app} 的项目（安装后）"
 msgid "{links, plural, one {# link names it. Disconnect it under Used by first.} other {# links name it. Disconnect them under Used by first.}}"
 msgstr "{links, plural, other {有 # 个链接使用它。请先在“使用者”中断开。}}"
 
-msgid "A bucket's keys, pasted once, for any app to keep its files in"
-msgstr "粘贴一次存储桶的密钥，任何应用都可以用它存放文件"
+msgid "A bucket's keys or a mail server's sign-in, pasted once, for any app to use"
+msgstr "存储桶的密钥或邮件服务器的登录信息，粘贴一次，任何应用都可使用"
 
 msgid "Add connection"
 msgstr "添加连接"
 
-msgid "An admin adds the buckets your apps may use."
-msgstr "由管理员添加你的应用可以使用的存储桶。"
-
-msgid "Another S3-compatible store"
-msgstr "其他 S3 兼容存储"
+msgid "An admin adds the buckets and mail servers your apps may use."
+msgstr "管理员会添加你的应用可用的存储桶和邮件服务器。"
 
 msgid "No app yet"
 msgstr "尚无应用"
@@ -11755,16 +11800,66 @@ msgstr "尚无应用使用"
 msgid "none"
 msgstr "无"
 
-msgctxt "a connection more than one app may use"
-msgid "shared"
-msgstr "已共享"
-
 #. placeholder {0}: connections.length
 msgid "{0, plural, one {# connection} other {# connections}}"
 msgstr "{0, plural, other {# 个连接}}"
 
 msgid "{apps, plural, one {used by # app} other {used by # apps}}"
 msgstr "{apps, plural, other {被 # 个应用使用}}"
+
+msgid "A mail server, for apps to send mail through"
+msgstr "供应用发送邮件的邮件服务器"
+
+msgid "API key"
+msgstr "API 密钥"
+
+msgid "An email address alone, such as notes@example.com"
+msgstr "只填一个邮箱地址，例如 notes@example.com"
+
+msgid "Its name or address alone, with the port apart"
+msgstr "只填名称或地址，端口另填"
+
+msgid "Its saved password stays on these servers. Type it to pick any."
+msgstr "已保存的密码只留在这些服务器上。重新输入即可选择任意服务器。"
+
+msgid "Moved: type its password again"
+msgstr "已移动：请重新输入密码"
+
+msgid "Password kept back"
+msgstr "未发送密码"
+
+msgid "Send mail through {host}"
+msgstr "通过 {host} 发送邮件"
+
+msgid "Sender's name"
+msgstr "发件人名称"
+
+msgid "Server token"
+msgstr "服务器令牌"
+
+msgid "Signs in only to a private address, such as 10.0.0.5."
+msgstr "只向私有地址登录，例如 10.0.0.5。"
+
+msgid "Type the user and password"
+msgstr "请输入用户名和密码"
+
+msgid "Use TLS"
+msgstr "改用 TLS"
+
+msgid "Use port {alt}"
+msgstr "改用端口 {alt}"
+
+msgid "Without TLS, give the server's private address, such as 10.0.0.5, or use STARTTLS or TLS."
+msgstr "不使用 TLS 时，请填写服务器的私有地址，例如 10.0.0.5，或改用 STARTTLS 或 TLS。"
+
+msgid "Another S3-compatible store"
+msgstr "其他 S3 兼容存储"
+
+msgid "Another mail server"
+msgstr "其他邮件服务器"
+
+msgid "Mail"
+msgstr "邮件"
 
 msgid "Access denied"
 msgstr "拒绝访问"
@@ -11777,6 +11872,12 @@ msgstr "返回内容有误"
 
 msgid "Can't reach it"
 msgstr "无法访问"
+
+msgid "Can't reach port {port}"
+msgstr "无法连到端口 {port}"
+
+msgid "Can't sign in"
+msgstr "不可登录"
 
 msgid "Check the access key ID and its secret."
 msgstr "请检查访问密钥 ID 和对应的秘密。"
@@ -11793,18 +11894,60 @@ msgstr "请检查端点，以及服务器能否访问它。"
 msgid "Check the endpoint."
 msgstr "请检查端点。"
 
+msgid "Check the host and port."
+msgstr "请检查主机和端口。"
+
+msgid "Check the host."
+msgstr "请检查主机。"
+
+msgid "Clear the user, or use a server that signs one in."
+msgstr "清空用户名，或换一个支持登录的服务器。"
+
 #. placeholder {0}: c.region
 msgid "It answered from region {0}."
 msgstr "它从区域 {0} 应答。"
 
+msgid "It answered {code}. Check the user and password."
+msgstr "它返回了 {code}。请检查用户名和密码。"
+
+msgid "It answered, and Dockwell sent no mail."
+msgstr "它有响应，Dockwell 没有发送任何邮件。"
+
+msgid "It refused at its {step} step with {code}."
+msgstr "它在 {step} 这一步以 {code} 拒绝了。"
+
+msgid "It signs in only in ways Dockwell doesn't, which are PLAIN and LOGIN."
+msgstr "它只支持 Dockwell 不支持的登录方式。Dockwell 支持 PLAIN 和 LOGIN。"
+
+msgid "It took the connection and answered nothing, so apps can't send through it. The port may want TLS from the start."
+msgstr "它接受了连接但没有任何响应，所以应用无法通过它发信。这个端口可能需要一开始就用 TLS。"
+
+msgid "It took the connection and never finished TLS, so apps can't send through it. The port may want STARTTLS."
+msgstr "它接受了连接但 TLS 一直没有完成，所以应用无法通过它发信。这个端口可能需要 STARTTLS。"
+
+msgid "It took the connection on port {port} and answered nothing, so apps can't send through it. That port may want TLS from the start."
+msgstr "它在端口 {port} 接受了连接但没有任何响应，所以应用无法通过它发信。这个端口可能需要一开始就用 TLS。"
+
+msgid "It took the sign-in, and Dockwell sent no mail."
+msgstr "登录成功，Dockwell 没有发送任何邮件。"
+
 msgid "Keys refused"
 msgstr "密钥被拒绝"
+
+msgid "No STARTTLS"
+msgstr "不支持 STARTTLS"
 
 msgid "No answer"
 msgstr "无应答"
 
+msgid "No app can use it either. Give the address apps reach the server at."
+msgstr "任何应用也都用不了它。请填写应用访问该服务器所用的地址。"
+
 msgid "No app can use it either. Give the address apps reach the store at."
 msgstr "任何应用也都无法使用它。请填写应用访问该存储所用的地址。"
+
+msgid "No greeting"
+msgstr "没有问候响应"
 
 msgid "No such bucket"
 msgstr "没有这个存储桶"
@@ -11816,6 +11959,19 @@ msgstr "访问方式"
 msgid "Reached from {0}"
 msgstr "已从 {0} 访问成功"
 
+msgid "Sign-in refused"
+msgstr "登录被拒绝"
+
+msgid "Signs no one in"
+msgstr "不接受登录"
+
+msgctxt "a step of a mail server's check"
+msgid "TLS"
+msgstr "TLS"
+
+msgid "TLS never finished"
+msgstr "TLS 未完成"
+
 msgid "The bucket gave back something other than what was written."
 msgstr "存储桶返回的内容与写入的不同。"
 
@@ -11826,8 +11982,24 @@ msgstr "存储桶以 {0} 拒绝了检查。"
 msgid "The keys may not write in this bucket."
 msgstr "这些密钥无权写入此存储桶。"
 
+msgid "This server can't reach port {port}, so apps on it can't send mail through it."
+msgstr "这台服务器连不到端口 {port}，所以其上的应用无法通过它发信。"
+
+msgid "This server can't reach the port, so apps on it can't send mail through it."
+msgstr "这台服务器连不到该端口，所以其上的应用无法通过它发信。"
+
+msgctxt "a mail server's, with its sign-in"
+msgid "URL"
+msgstr "URL"
+
 msgid "Untrusted certificate"
 msgstr "证书不受信任"
+
+msgid "Use TLS on port 465, or a server that offers STARTTLS."
+msgstr "请在 465 端口使用 TLS，或换一个支持 STARTTLS 的服务器。"
+
+msgid "Without TLS, Dockwell sends a password only to a private address. Use STARTTLS or TLS."
+msgstr "不使用 TLS 时，Dockwell 只向私有地址发送密码。请使用 STARTTLS 或 TLS。"
 
 msgid "Wrote, read and deleted a test object."
 msgstr "已写入、读取并删除一个测试对象。"
@@ -11838,8 +12010,31 @@ msgstr "访问密钥 ID"
 msgid "bucket"
 msgstr "存储桶"
 
+msgctxt "a step of a mail server's check"
+msgid "connecting"
+msgstr "连接"
+
 msgid "endpoint"
 msgstr "端点"
+
+msgctxt "a step of a mail server's check"
+msgid "greeting"
+msgstr "问候"
+
+msgctxt "a mail server's"
+msgid "host"
+msgstr "主机"
+
+msgid "no code"
+msgstr "无返回码"
+
+msgctxt "a mail server's"
+msgid "password"
+msgstr "密码"
+
+msgctxt "a mail server's"
+msgid "port"
+msgstr "端口"
 
 msgctxt "where in a bucket an app keeps its files"
 msgid "prefix"
@@ -11853,6 +12048,24 @@ msgstr "区域"
 
 msgid "secret access key"
 msgstr "秘密访问密钥"
+
+msgctxt "how a mail server's connection is secured"
+msgid "security"
+msgstr "加密方式"
+
+msgid "sender"
+msgstr "发件人"
+
+msgid "sender's name"
+msgstr "发件人名称"
+
+msgctxt "a step of a mail server's check"
+msgid "sign-in"
+msgstr "登录"
+
+msgctxt "who signs in to a mail server"
+msgid "user"
+msgstr "用户名"
 
 msgid "Add a user to {name}"
 msgstr "为 {name} 添加用户"
@@ -12125,9 +12338,6 @@ msgstr "{servers}，未加密"
 
 msgid "Can do anything"
 msgstr "拥有全部权限"
-
-msgid "Can't sign in"
-msgstr "不可登录"
 
 msgid "Change {who}'s password"
 msgstr "修改 {who} 的密码"
@@ -17074,9 +17284,6 @@ msgstr "S3、R2、B2、MinIO 或任何 S3 API。备份在离开服务器之前�
 
 msgid "S3-compatible storage"
 msgstr "S3 兼容存储"
-
-msgid "Sign-in"
-msgstr "登录"
 
 msgid "Sign-in provider"
 msgstr "登录提供方"

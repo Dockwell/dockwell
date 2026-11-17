@@ -2436,15 +2436,17 @@ export type ProbeConnectionResult = Message<"dockwell.agent.v1.ProbeConnectionRe
   passed: boolean;
 
   /**
-   * Where it stopped, such as write, read, presign or delete.
+   * Where it stopped, such as write, read, presign or delete, or a mail server's
+   * connect, hello, tls or sign-in.
    *
    * @generated from field: string step = 2;
    */
   step: string;
 
   /**
-   * What the service said, such as an S3 error's code, or what kept it from
-   * answering: refused, timeout, unreachable or tls. Status is its HTTP status.
+   * What the service said, such as an S3 error's code or a mail server's reply
+   * code, or what kept it from answering: refused, timeout, unreachable or tls.
+   * Status is its HTTP status.
    *
    * @generated from field: string code = 3;
    */

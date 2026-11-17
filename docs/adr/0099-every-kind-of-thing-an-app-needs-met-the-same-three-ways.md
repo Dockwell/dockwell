@@ -333,3 +333,32 @@ ADR 0084's table holds for every kind, with these for what's new:
 ### Numbers
 
 `Need.kind`, `features`, `optional`, `bucket`, `empty_when_unmet` and `presign_lifetime`, and the `Kind` and `Feature` enums, in the format's `proto/dockwell/catalog/v1alpha1/entry.proto`; the S3 parts from 50, the SMTP parts from 60 and `PART_MET` 70 in `Part`, free on main and every branch (`PART_ENGINE` 41 is on `t3/part-engine`), so `LinkPart` keeps the same numbers; the `connection` and `provider.account` kinds, `reach` on each Integrations kind, and fields on `Link`, `BackupDestination`, `DnsProvider`, `AlertEmail` and `RegistryLogin` in slice 4. The agent protocol's and the API's blocks come from the lead before slice 2. Migrations take main's next number when they land.
+
+### SMTP, as built
+
+- **The need.** A `KIND_SMTP` need sets a host and port with how the app secures them, or a URL. It sets a user and password together or neither, and a sender and its name where the app reads them.
+  - The new parts are `PART_SECURITY` 60, `PART_SENDER` 61 and `PART_SENDER_NAME` 62, with `LinkPart` at the same numbers.
+  - Security's words are for starttls, tls and none, each name with a word for all three.
+  - `catalog.Check` refuses a need that sets a host and no security, and one with a bucket, features, a service or a database.
+- **Which connections a need takes.** A connection secured one way is offered only where the need's words tell that way apart from each other one, under one name or another (`catalog.SecurityWhy`). An app told only to use TLS from the start can't require STARTTLS, so it takes TLS alone, and the sheet says "the app can't be told to require STARTTLS".
+- **The connection.** `ConnectionSpec.smtp` 8 holds a `ConnectionSmtp`: host, port, security, user and password (both sensitive), sender and sender name.
+  - `SmtpSecurity` has `AlertEmail.Security`'s numbers, so moving alert email is a copy. The port defaults by security: 587, 465 and 25.
+  - Signing in without TLS is refused but to a private address, judged by its range. No name is taken for near, though of one label: Docker's DNS may hand it on to the server's own resolvers. The check, which reads the address it reached, takes the app's own networks too, and an install refuses to link where the check refuses.
+  - An edit that leaves the user and password out keeps them while the host, port and security stay. One without the other is refused, saved or not.
+  - `ConnectionInfo` 15 to 19 list the host, port and security to an admin, and the sender to whoever may see the connection. Who signs in is never listed.
+- **The link.** A link to a mail server reads the host, port, user, password, URL, sender and its name through the connection, the user and password as secrets.
+  - Its security is written once in the app's words, so changing the connection's security, or its kind, is refused while a link tells its app the security.
+  - `Link.sender` 94 and `sender_name` 95 are the app's own From, read through the link. An upgrade, or a move to another connection, keeps them.
+- **Sharing.** As for storage, a connection serves one app unless an admin shares it. A mail server keeps no files, so the prefix rules don't apply, and its notes say apps may send through it side by side.
+- **The check.** `probe.KindSMTP` runs in the probe's container on the app's networks, through netguard.
+  - It connects, says EHLO, secures the connection as set, signs in with AUTH PLAIN or LOGIN where a user is set, and quits. It never says MAIL, RCPT or DATA.
+  - `internal/smtpauth` signs in for it, and for alert email.
+  - A password goes without TLS only to a private address or one on the app's networks.
+  - The answer is the step (connect, hello, tls or sign-in) and the reply code with its enhanced code, as `535 5.7.8`, never the reply's text. Otherwise it's `no-starttls`, `no-sign-in`, `mechanisms` or `clear`.
+  - `CheckConnectionRequest.smtp` 8 checks one as typed. The agent protocol gains no number, as the probe's request is JSON. An install checks the connection before linking, as for storage.
+- **Converters.** `convert.mailDrafts` is a reviewed table by store and app, read from each app's documentation.
+  - It takes only declared fields, only where the host, port and security are all declared and used whole in the environment.
+  - The need is optional unless the store marks the fields required, and its sender stays an input.
+  - Of the stores as surveyed, Runtipi's Plausible qualifies, and takes TLS alone. 1Panel's one app with mail fields, Outline, declares no security, and no Dokploy template declares a host, port and security together, so they stay inputs.
+- **Upgrades.** A release that takes as a need what a person typed as inputs keeps the typed values under their names, as the app's own (`own` in the pin), with a note, by hand or as an automatic update. An install's pin records the inputs a person gave a value (`CatalogPin.given`, 85), so a value counts where a person gave it, a sender or a port alone among them, and never where a release suggested it and no one changed it. For an install from before that record, any value counts but whether it's met, a port, how it's secured and where a bucket goes, and the note says only what it ran with. The card reads "Set by hand · Use a connection". This holds for storage too.
+- **Not yet.** Send a test is the next slice, with an RPC of its own. Mailpit outside production, per-app accounts (Stalwart), provider keys and the 15-minute read come later; storage has no 15-minute read yet either.

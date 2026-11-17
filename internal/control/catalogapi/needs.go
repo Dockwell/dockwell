@@ -50,6 +50,7 @@ func needOptions(e *catalogv1.Entry, ways map[string][]catalog.Way) []*dockwellv
 			if c := w.Connection; c != nil {
 				o.Connection, o.ConnectionLabel = c.Name, c.Label
 				o.ConnectionShared = c.Shared && c.Serves
+				o.ConnectionSender = c.Sender
 			}
 			if w.From != nil {
 				o.Entry, o.EntryName = w.From.GetId(), w.From.GetName()

@@ -236,6 +236,15 @@ var kindParts = map[catalogv1.Kind]map[catalogv1.Part]bool{
 		catalogv1.Part_PART_ACCESS_KEY_ID: true, catalogv1.Part_PART_SECRET_KEY: true, catalogv1.Part_PART_PATH_STYLE: true,
 		catalogv1.Part_PART_PUBLIC_URL: true, catalogv1.Part_PART_KEY_PREFIX: true, catalogv1.Part_PART_URL: true,
 	},
+	catalogv1.Kind_KIND_SMTP: {
+		catalogv1.Part_PART_HOST: true, catalogv1.Part_PART_PORT: true, catalogv1.Part_PART_USER: true, catalogv1.Part_PART_PASSWORD: true,
+		catalogv1.Part_PART_URL: true, catalogv1.Part_PART_SECURITY: true, catalogv1.Part_PART_SENDER: true, catalogv1.Part_PART_SENDER_NAME: true,
+	},
+}
+
+// smtpOnly are the parts only a mail server has, which a database need can't set.
+var smtpOnly = map[catalogv1.Part]bool{
+	catalogv1.Part_PART_SECURITY: true, catalogv1.Part_PART_SENDER: true, catalogv1.Part_PART_SENDER_NAME: true,
 }
 
 // s3Features are the features an S3 need may ask for.
@@ -251,7 +260,11 @@ var s3Features = map[catalogv1.Feature]bool{
 // bucket's name, a signed URL's lifetime, and the parts that sign in to it.
 func checkKindNeed(n *catalogv1.Need, services map[string]any) error {
 	name, kind := n.GetName(), n.GetKind()
-	if kind != catalogv1.Kind_KIND_S3 {
+	switch kind {
+	case catalogv1.Kind_KIND_SMTP:
+		return checkMailNeed(n, services)
+	case catalogv1.Kind_KIND_S3:
+	default:
 		return fmt.Errorf("the need %s is for %s, which Dockwell doesn't meet yet. Leave it to inputs for now", name, cmp.Or(catalogv1.Kind_name[int32(kind)], kind.String()))
 	}
 	switch {
@@ -299,6 +312,81 @@ func checkKindNeed(n *catalogv1.Need, services map[string]any) error {
 		return fmt.Errorf("the need %s is met by %s, its own S3 storage, which Dockwell can't run as a need's yet. Leave service out, and keep %s as a service of the app's", name, n.GetService(), n.GetService())
 	}
 	return nil
+}
+
+// checkMailNeed refuses a need of a mail server an install couldn't meet as it says
+// (ADR 0099): it takes its kind alone, sets where to connect and how it's secured,
+// or a URL, and signs in with a user and a password together. It's met by a
+// connection, so it brings no service of its own.
+func checkMailNeed(n *catalogv1.Need, services map[string]any) error {
+	name := n.GetName()
+	switch {
+	case n.GetDatabase() != "" || n.GetUser() != "" || n.GetSetOnce():
+		return fmt.Errorf("the need %s is for a mail server, and names a database, a user or set_once, which only a database need takes. Take them out", name)
+	case n.GetBucket() != "" || n.GetPresignLifetime() != "":
+		return fmt.Errorf("the need %s is for a mail server, and names a bucket or how long signed URLs last, which only S3 storage takes. Take them out", name)
+	case n.GetService() != "":
+		return fmt.Errorf("the need %s is met by %s, its own mail server, which Dockwell can't run as a need's yet. Leave service out, and keep %s as a service of the app's", name, n.GetService(), n.GetService())
+	}
+	for _, a := range n.GetAccepts() {
+		if a.GetEngine() != catalogv1.Engine_ENGINE_UNSPECIFIED || a.GetVersions() != "" || a.GetKind() != catalogv1.Kind_KIND_SMTP || len(a.GetFeatures()) > 0 {
+			return fmt.Errorf("the need %s is for a mail server, and accepts what isn't: give accepts the kind KIND_SMTP alone, or leave accepts out", name)
+		}
+	}
+	parts := map[catalogv1.Part]bool{}
+	for _, s := range n.GetSets() {
+		parts[s.GetPart()] = true
+	}
+	switch {
+	case !parts[catalogv1.Part_PART_URL] && (!parts[catalogv1.Part_PART_HOST] || !parts[catalogv1.Part_PART_PORT]):
+		return fmt.Errorf("the need %s is for a mail server, and sets too little to reach one. Set its host, port and security, or a URL", name)
+	case parts[catalogv1.Part_PART_HOST] && !parts[catalogv1.Part_PART_SECURITY]:
+		// An app told nothing of TLS may send its password before STARTTLS, or with
+		// none where a server between strips it (ADR 0099).
+		return fmt.Errorf("the need %s sets a mail server's host, and not how the app secures it. Set PART_SECURITY under each name the app reads it by, as SMTP_SECURE and SMTP_REQUIRE_TLS", name)
+	case parts[catalogv1.Part_PART_USER] != parts[catalogv1.Part_PART_PASSWORD]:
+		return fmt.Errorf("the need %s signs in to a mail server with a user and a password, and sets one of them. Set both, or neither", name)
+	}
+	if _, clash := services[name]; clash {
+		return fmt.Errorf("the need %s brings in a service of its name when it's met otherwise, and its Compose file has a service called %s already. Rename the need", name, name)
+	}
+	return nil
+}
+
+// SecurityWhy is why a mail server's need can't take a connection secured as
+// security is ("starttls", "tls" or "none"), or "" where it can: the app's words for
+// it must tell it apart from each other security, under one name or another, or the
+// app could take one for another, as an app told only to use TLS from the start
+// upgrades to STARTTLS only if the server offers it, and a server between can strip
+// that offer (ADR 0099).
+func SecurityWhy(n *catalogv1.Need, security string) string {
+	var sets []*catalogv1.NeedSet
+	for _, s := range n.GetSets() {
+		if s.GetPart() == catalogv1.Part_PART_SECURITY {
+			sets = append(sets, s)
+		}
+	}
+	if len(sets) == 0 {
+		// A need of a URL alone says its security in the URL's scheme, and no app
+		// reads smtp:// as requiring STARTTLS.
+		if security == "starttls" {
+			return "the app can't be told to require STARTTLS"
+		}
+		return ""
+	}
+	for _, other := range []string{"starttls", "tls", "none"} {
+		if other == security {
+			continue
+		}
+		if !slices.ContainsFunc(sets, func(s *catalogv1.NeedSet) bool { return fixedWord(s, security) != fixedWord(s, other) }) {
+			return map[string]string{
+				"starttls": "the app can't be told to require STARTTLS",
+				"tls":      "the app can't be told to use TLS from the start",
+				"none":     "the app can't be told to go without TLS",
+			}[security]
+		}
+	}
+	return ""
 }
 
 // checkOptional refuses what only an optional need says on one that isn't, and an
@@ -412,6 +500,8 @@ func checkSet(e *catalogv1.Entry, n *catalogv1.Need, s *catalogv1.NeedSet, input
 		return fmt.Errorf("the need %s sets %s as %s, which isn't a part of what it needs. Use one of its own, such as PART_ENDPOINT", need, name, part)
 	case n.GetKind() == catalogv1.Kind_KIND_UNSPECIFIED && part != catalogv1.Part_PART_KEY_PREFIX && part != catalogv1.Part_PART_URL && kindParts[catalogv1.Kind_KIND_S3][part]:
 		return fmt.Errorf("the need %s sets %s as %s, which only S3 storage has. Set the need's kind, or use a database's part", need, name, part)
+	case n.GetKind() == catalogv1.Kind_KIND_UNSPECIFIED && smtpOnly[part]:
+		return fmt.Errorf("the need %s sets %s as %s, which only a mail server has. Set the need's kind to KIND_SMTP, or use a database's part", need, name, part)
 	case s.GetTemplate() != "" && part != catalogv1.Part_PART_URL:
 		return fmt.Errorf("the need %s writes %s from a template, which only a URL takes", need, name)
 	case s.GetTemplate() != "" && n.GetKind() != catalogv1.Kind_KIND_UNSPECIFIED:
@@ -447,6 +537,7 @@ func checkSet(e *catalogv1.Entry, n *catalogv1.Need, s *catalogv1.NeedSet, input
 var valueWords = map[catalogv1.Part]map[string]bool{
 	catalogv1.Part_PART_MET:        {"met": false, "unmet": true},
 	catalogv1.Part_PART_PATH_STYLE: {"on": false, "off": false},
+	catalogv1.Part_PART_SECURITY:   {"starttls": false, "tls": false, "none": false},
 }
 
 // checkSetWords refuses a part with a fixed set of values without the app's word for
@@ -479,7 +570,7 @@ func checkSetWords(n *catalogv1.Need, s *catalogv1.NeedSet) error {
 		return nil
 	case s.GetPart() != catalogv1.Part_PART_ENGINE:
 		if len(s.GetWords()) > 0 {
-			return fmt.Errorf("the need %s gives %s words, which only an engine part, PART_MET and PART_PATH_STYLE read. Take words away", need, name)
+			return fmt.Errorf("the need %s gives %s words, which only an engine part, PART_MET, PART_PATH_STYLE and PART_SECURITY read. Take words away", need, name)
 		}
 		return nil
 	}
@@ -683,6 +774,12 @@ type Way struct {
 type ConnectionWay struct {
 	// Name is the connection's, and Label what the panel calls it.
 	Name, Label string
+	// Kind is what it reaches, as the need's kind: S3 storage unless it says.
+	Kind catalogv1.Kind
+	// Security is how a mail server's is secured, as a need's words name it:
+	// starttls, tls or none. Sender is who its mail comes from, and SenderName the
+	// name, unless a link says its app's own.
+	Security, Sender, SenderName string
 	// PathStyle says the connection puts the bucket in the path, which a need's
 	// path-style set says in the app's word.
 	PathStyle bool
@@ -723,6 +820,11 @@ func keepsToPrefix(n *catalogv1.Need) bool {
 func servesWhy(n *catalogv1.Need, c *ConnectionWay) string {
 	switch {
 	case !c.Serves:
+		return ""
+	case n.GetKind() == catalogv1.Kind_KIND_SMTP && !c.Shared:
+		// A mail server keeps no files, so a shared one has nothing to keep apart.
+		return "it serves another app already, and isn't shared"
+	case n.GetKind() == catalogv1.Kind_KIND_SMTP:
 		return ""
 	case !keepsToPrefix(n):
 		return "it serves another app already, and this app can't keep to a prefix of the bucket, so their files would mix"
@@ -880,13 +982,18 @@ func WaysWith(e *catalogv1.Entry, lookup Lookup, candidates []Candidate, on stri
 // can't where it can't.
 func WithConnections(e *catalogv1.Entry, ways map[string][]Way, conns []ConnectionWay) map[string][]Way {
 	for _, n := range e.GetNeeds() {
-		if n.GetKind() != catalogv1.Kind_KIND_S3 {
+		if n.GetKind() != catalogv1.Kind_KIND_S3 && n.GetKind() != catalogv1.Kind_KIND_SMTP {
 			continue
 		}
 		for i := range conns {
 			c := conns[i]
+			if cmp.Or(c.Kind, catalogv1.Kind_KIND_S3) != n.GetKind() {
+				continue
+			}
 			w := Way{Need: n, Connection: &c}
 			switch {
+			case n.GetKind() == catalogv1.Kind_KIND_SMTP:
+				w.Why = cmp.Or(SecurityWhy(n, c.Security), servesWhy(n, &c))
 			case slices.ContainsFunc(n.GetSets(), func(s *catalogv1.NeedSet) bool { return s.GetPart() == catalogv1.Part_PART_URL }):
 				w.Why = "the app reads its storage as one URL, which a connection can't give yet"
 			default:
@@ -1274,6 +1381,9 @@ type ReadFrom struct {
 // prefix its objects keep to, as plain values. It returns the need's pin and its
 // plain names.
 func connectedNeed(n *catalogv1.Need, c ConnectionWay, out *Needed, adds *[]*catalogv1.Input) (*resourcev1.PinnedNeed, []string, error) {
+	if n.GetKind() == catalogv1.Kind_KIND_SMTP {
+		return mailNeed(n, c, out, adds)
+	}
 	l := &resourcev1.Link{Label: cmp.Or(n.GetLabel(), "Storage"), Connection: c.Name, Kind: resourcev1.LinkKind_LINK_KIND_S3, Prefix: c.Prefix}
 	// What the app asks of the bucket goes with the link, so a check of it tries each
 	// (the slice 1 review, M4). The two enums share their numbers.
@@ -1323,6 +1433,47 @@ func connectedNeed(n *catalogv1.Need, c ConnectionWay, out *Needed, adds *[]*cat
 	return &resourcev1.PinnedNeed{Connection: c.Name, Prefix: c.Prefix, Plain: plain}, plain, nil
 }
 
+// mailNeed is connectedNeed for a mail server: a link to the connection, named for
+// the need, which sets each name it reads, a user and a password as secrets; the
+// app's word for whether it's met and for the connection's security as plain values.
+// The sender is the connection's until the link says one of its app's own, which an
+// install keeps (ADR 0099).
+func mailNeed(n *catalogv1.Need, c ConnectionWay, out *Needed, adds *[]*catalogv1.Input) (*resourcev1.PinnedNeed, []string, error) {
+	l := &resourcev1.Link{Label: cmp.Or(n.GetLabel(), "Mail"), Connection: c.Name, Kind: resourcev1.LinkKind_LINK_KIND_SMTP}
+	var plain []string
+	literal := func(name, value string) {
+		*adds = append(*adds, &catalogv1.Input{Name: name, Label: name, Type: catalogv1.InputType_INPUT_TYPE_TEXT, DefaultValue: value, Optional: true})
+		plain = append(plain, name)
+	}
+	for _, s := range n.GetSets() {
+		name, part := s.GetName(), s.GetPart()
+		switch part {
+		case catalogv1.Part_PART_MET:
+			literal(name, fixedWord(s, "met"))
+		case catalogv1.Part_PART_SECURITY:
+			literal(name, fixedWord(s, c.Security))
+			l.Sets = append(l.Sets, &resourcev1.LinkSet{Name: name, Part: resourcev1.LinkPart_LINK_PART_SECURITY})
+		case catalogv1.Part_PART_HOST, catalogv1.Part_PART_PORT, catalogv1.Part_PART_SENDER, catalogv1.Part_PART_SENDER_NAME:
+			literal(name, "")
+			out.Read[name] = ReadFrom{Connection: c.Name, Link: n.GetName(), Part: resourcev1.LinkPart(part)}
+			l.Sets = append(l.Sets, &resourcev1.LinkSet{Name: name, Part: resourcev1.LinkPart(part)})
+		case catalogv1.Part_PART_USER, catalogv1.Part_PART_PASSWORD, catalogv1.Part_PART_URL:
+			// Who signs in goes only as a secret, which no plan shows, as a provider's
+			// user is often its key's ID.
+			*adds = append(*adds, &catalogv1.Input{Name: name, Label: name, Type: catalogv1.InputType_INPUT_TYPE_SECRET, Generate: 32})
+			out.Read[name] = ReadFrom{Connection: c.Name, Link: n.GetName(), Part: resourcev1.LinkPart(part), Secret: true}
+			l.Sets = append(l.Sets, &resourcev1.LinkSet{Name: name, Part: resourcev1.LinkPart(part)})
+		default:
+			return nil, nil, fmt.Errorf("the need %s sets %s as %s, which a connection can't meet yet", n.GetName(), name, part)
+		}
+	}
+	out.Links[n.GetName()] = l
+	if c.Widens && !slices.Contains(out.Reaches, c.Name) {
+		out.Reaches = append(out.Reaches, c.Name)
+	}
+	return &resourcev1.PinnedNeed{Connection: c.Name, Plain: plain}, plain, nil
+}
+
 // ownNeed is what a need the app's own values meet adds, as a Disconnect left them:
 // the app's word for met, and its path style and prefix as the pin kept them, as
 // plain values; and an input of no meaning for each name a connection gave it,
@@ -1342,9 +1493,17 @@ func ownNeed(n *catalogv1.Need, p *resourcev1.PinnedNeed, out *Needed, adds *[]*
 		switch s.GetPart() {
 		case catalogv1.Part_PART_MET:
 			literal(name, fixedWord(s, "met"))
-		case catalogv1.Part_PART_PATH_STYLE, catalogv1.Part_PART_KEY_PREFIX:
+		case catalogv1.Part_PART_PATH_STYLE, catalogv1.Part_PART_KEY_PREFIX, catalogv1.Part_PART_SECURITY:
 			literal(name, "")
 		case catalogv1.Part_PART_ACCESS_KEY_ID, catalogv1.Part_PART_SECRET_KEY:
+			*adds = append(*adds, &catalogv1.Input{Name: name, Label: name, Type: catalogv1.InputType_INPUT_TYPE_SECRET, Generate: 32})
+			out.Kept[name] = true
+		case catalogv1.Part_PART_USER, catalogv1.Part_PART_PASSWORD, catalogv1.Part_PART_URL:
+			if n.GetKind() != catalogv1.Kind_KIND_SMTP {
+				literal(name, "")
+				out.Kept[name] = false
+				continue
+			}
 			*adds = append(*adds, &catalogv1.Input{Name: name, Label: name, Type: catalogv1.InputType_INPUT_TYPE_SECRET, Generate: 32})
 			out.Kept[name] = true
 		default:

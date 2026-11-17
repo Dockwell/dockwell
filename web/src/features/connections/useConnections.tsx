@@ -12,6 +12,7 @@ import { useLingui } from "@lingui/react/macro";
 import { useMemo } from "react";
 
 import { useAllResources } from "../projects/useProjects";
+import { MAIL_STEPS } from "./mail";
 
 /** Every connection the caller may see, or those an environment's project may use. */
 export function useConnections(environment = "") {
@@ -41,11 +42,14 @@ export const SILENT: readonly string[] = ["timeout", "unreachable"];
 
 /**
  * What a check found, as a state and a line: Reached from a server, or the fact and
- * its fix in the words a person acts on, never the bucket's own body.
+ * its fix in the words a person acts on, never the bucket's own body. A mail server's
+ * says what stopped it by its reply code alone (ADR 0099).
  */
 export function useCheckWords() {
   const { t } = useLingui();
-  return (c: CheckConnectionResponse): { passed: boolean; state: string; line: string } => {
+  const mailWords = useMailCheckWords();
+  return (c: CheckConnectionResponse, mail?: MailCheck): { passed: boolean; state: string; line: string } => {
+    if (mail || MAIL_STEPS.includes(c.step)) return mailWords(c, mail ?? {});
     if (c.passed) {
       return {
         passed: true,
@@ -90,6 +94,110 @@ export function useCheckWords() {
   };
 }
 
+/** What the panel knows of a mail server's check beyond its answer. */
+export interface MailCheck {
+  /** The port it checked, where known. */
+  port?: number | undefined;
+  /** It was sent a user to sign in as: only then does a pass say it took one. */
+  signedIn?: boolean | undefined;
+}
+
+/**
+ * What a check of a mail server found: Reached from a server, which sent nothing, or
+ * what stopped it, what that means, and the fix.
+ */
+function useMailCheckWords() {
+  const { t } = useLingui();
+  const stepWords: Record<string, string> = {
+    connect: t({ message: "connecting", context: "a step of a mail server's check" }),
+    hello: t({ message: "greeting", context: "a step of a mail server's check" }),
+    tls: t({ message: "TLS", context: "a step of a mail server's check" }),
+    "sign-in": t({ message: "sign-in", context: "a step of a mail server's check" }),
+  };
+  return (c: CheckConnectionResponse, m: MailCheck): { passed: boolean; state: string; line: string } => {
+    if (c.passed) {
+      return {
+        passed: true,
+        state: c.server ? t`Reached from ${c.server}` : t`Reached`,
+        // Only a check sent a user signed in (the SMTP review's L2).
+        line: m.signedIn
+          ? t`It took the sign-in, and Dockwell sent no mail.`
+          : t`It answered, and Dockwell sent no mail.`,
+      };
+    }
+    const said = c.words;
+    const port = m.port ? String(m.port) : "";
+    // It took the connection and said nothing, as a server that wants TLS from the
+    // start does to a plain one (the SMTP review's L3).
+    if (c.code === "timeout" && c.step === "hello") {
+      return {
+        passed: false,
+        state: t`No greeting`,
+        line: port
+          ? t`It took the connection on port ${port} and answered nothing, so apps can't send through it. That port may want TLS from the start.`
+          : t`It took the connection and answered nothing, so apps can't send through it. The port may want TLS from the start.`,
+      };
+    }
+    if (c.code === "timeout" && c.step === "tls") {
+      return {
+        passed: false,
+        state: t`TLS never finished`,
+        line: t`It took the connection and never finished TLS, so apps can't send through it. The port may want STARTTLS.`,
+      };
+    }
+    switch (c.code) {
+      case "refused":
+        return {
+          passed: false,
+          state: t`Address refused`,
+          line: `${said ? `${said}. ` : ""}${t`No app can use it either. Give the address apps reach the server at.`}`,
+        };
+      case "timeout":
+        return {
+          passed: false,
+          state: port ? t`Can't reach port ${port}` : t`No answer`,
+          line: port
+            ? t`This server can't reach port ${port}, so apps on it can't send mail through it.`
+            : t`This server can't reach the port, so apps on it can't send mail through it.`,
+        };
+      case "unreachable":
+        return { passed: false, state: t`Can't reach it`, line: said || t`Check the host and port.` };
+      case "tls":
+        return { passed: false, state: t`Untrusted certificate`, line: t`Check the host.` };
+      case "no-starttls":
+        return {
+          passed: false,
+          state: t`No STARTTLS`,
+          line: t`Use TLS on port 465, or a server that offers STARTTLS.`,
+        };
+      case "clear":
+        return {
+          passed: false,
+          state: t`Password kept back`,
+          line: t`Without TLS, Dockwell sends a password only to a private address. Use STARTTLS or TLS.`,
+        };
+      case "no-sign-in":
+        return {
+          passed: false,
+          state: t`Signs no one in`,
+          line: t`Clear the user, or use a server that signs one in.`,
+        };
+      case "mechanisms":
+        return {
+          passed: false,
+          state: t`Can't sign in`,
+          line: t`It signs in only in ways Dockwell doesn't, which are PLAIN and LOGIN.`,
+        };
+    }
+    const code = c.code || t`no code`;
+    if (c.step === "sign-in") {
+      return { passed: false, state: t`Sign-in refused`, line: t`It answered ${code}. Check the user and password.` };
+    }
+    const step = stepWords[c.step] ?? c.step;
+    return { passed: false, state: t`Refused`, line: t`It refused at its ${step} step with ${code}.` };
+  };
+}
+
 /** A check's state, as a badge: healthy where it passed, down where the bucket refused, unknown where nothing answered. */
 export function CheckBadge({ check }: { check: CheckConnectionResponse }) {
   const words = useCheckWords()(check);
@@ -120,6 +228,14 @@ export function usePartWords(): Record<number, string> {
     [LinkPart.PUBLIC_URL]: t`public address`,
     [LinkPart.PATH_STYLE]: t`bucket in the path`,
     [LinkPart.KEY_PREFIX]: t({ message: "prefix", context: "where in a bucket an app keeps its files" }),
+    [LinkPart.HOST]: t({ message: "host", context: "a mail server's" }),
+    [LinkPart.PORT]: t({ message: "port", context: "a mail server's" }),
+    [LinkPart.USER]: t({ message: "user", context: "who signs in to a mail server" }),
+    [LinkPart.PASSWORD]: t({ message: "password", context: "a mail server's" }),
+    [LinkPart.URL]: t({ message: "URL", context: "a mail server's, with its sign-in" }),
+    [LinkPart.SECURITY]: t({ message: "security", context: "how a mail server's connection is secured" }),
+    [LinkPart.SENDER]: t`sender`,
+    [LinkPart.SENDER_NAME]: t`sender's name`,
   };
 }
 

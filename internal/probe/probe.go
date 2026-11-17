@@ -36,7 +36,8 @@ const maxRequest = 64 << 10
 
 // Kinds of connection a probe checks.
 const (
-	KindS3 = "s3"
+	KindS3   = "s3"
+	KindSMTP = "smtp"
 )
 
 // Request is one check, as the agent writes it on the probe's input.
@@ -45,6 +46,8 @@ type Request struct {
 	Kind string `json:"kind"`
 	// S3 is an S3 bucket to check, for KindS3.
 	S3 *S3 `json:"s3,omitempty"`
+	// SMTP is a mail server to check, for KindSMTP.
+	SMTP *SMTP `json:"smtp,omitempty"`
 	// Allow are the networks the app is on, which the probe reaches though
 	// they're private, as the app does. Refuse are the server's own addresses,
 	// which it never reaches.
@@ -58,9 +61,11 @@ type Request struct {
 type Result struct {
 	// Passed says the connection did everything asked of it.
 	Passed bool `json:"passed"`
-	// Step is where it stopped, such as connect, write, read, presign or delete.
+	// Step is where it stopped, such as connect, write, read, presign or delete,
+	// or a mail server's hello, tls or sign-in.
 	Step string `json:"step,omitempty"`
-	// Code is what the service said, such as an S3 error's Code, or what kept it
+	// Code is what the service said, such as an S3 error's Code or a mail
+	// server's reply code and its enhanced code, as "535 5.7.8", or what kept it
 	// from answering: refused, timeout, unreachable or tls. Status is its HTTP
 	// status, where it had one.
 	Code   string `json:"code,omitempty"`
@@ -100,11 +105,17 @@ func Main(in io.Reader, out, errs io.Writer) int {
 // guard. An error is a request no check can run.
 func Check(ctx context.Context, req *Request) (Result, error) {
 	guard := netguard.Options{Allow: req.Allow, Refuse: req.Refuse, Private: req.Private, Timeout: CheckWait}
-	if req.Kind != KindS3 {
-		return Result{}, fmt.Errorf("the probe doesn't check %q", req.Kind)
+	switch req.Kind {
+	case KindS3:
+		if req.S3 == nil {
+			return Result{}, errors.New("the probe was asked of S3 with no bucket")
+		}
+		return checkS3(ctx, req.S3, guard), nil
+	case KindSMTP:
+		if err := req.SMTP.valid(); err != nil {
+			return Result{}, err
+		}
+		return checkSMTP(ctx, req.SMTP, guard), nil
 	}
-	if req.S3 == nil {
-		return Result{}, errors.New("the probe was asked of S3 with no bucket")
-	}
-	return checkS3(ctx, req.S3, guard), nil
+	return Result{}, fmt.Errorf("the probe doesn't check %q", req.Kind)
 }

@@ -88,7 +88,8 @@ var agentPackages = []string{
 	"internal/resource/service",
 	"internal/resource/variable", // the names and kinds a service's Validate checks what it uses by
 	"internal/resource/volume",
-	"internal/task", // scheduled tasks, which each agent runs on its own clock (ADR 0053)
+	"internal/smtpauth", // signing in to a mail server, which a connection's check does from an app's networks (ADR 0099)
+	"internal/task",     // scheduled tasks, which each agent runs on its own clock (ADR 0053)
 	"internal/ticket",
 	"internal/volumetool", // reading and writing a volume's bytes, in a throwaway container (ADR 0033)
 }

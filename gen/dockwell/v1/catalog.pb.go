@@ -692,6 +692,9 @@ type CatalogNeedOption struct {
 	// The connection is shared and another app keeps its files there already, each
 	// under its own prefix, as this app would (ConnectionSpec.shared).
 	ConnectionShared bool `protobuf:"varint,92,opt,name=connection_shared,json=connectionShared,proto3" json:"connection_shared,omitempty"`
+	// Who the mail comes from, on a mail server's connection, such as
+	// "notes@example.com".
+	ConnectionSender string `protobuf:"bytes,93,opt,name=connection_sender,json=connectionSender,proto3" json:"connection_sender,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
@@ -871,6 +874,13 @@ func (x *CatalogNeedOption) GetConnectionShared() bool {
 		return x.ConnectionShared
 	}
 	return false
+}
+
+func (x *CatalogNeedOption) GetConnectionSender() string {
+	if x != nil {
+		return x.ConnectionSender
+	}
+	return ""
 }
 
 // CatalogPart is one service an entry installs.
@@ -3553,7 +3563,7 @@ const file_dockwell_v1_catalog_proto_rawDesc = "" +
 	"\x05needs\x18P \x03(\v2\x1e.dockwell.v1.CatalogNeedOptionR\x05needs\x1a9\n" +
 	"\vValuesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xb6\x05\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xe3\x05\n" +
 	"\x11CatalogNeedOption\x12\x12\n" +
 	"\x04need\x18\x01 \x01(\tR\x04need\x12\x16\n" +
 	"\x06choice\x18\x02 \x01(\tR\x06choice\x129\n" +
@@ -3584,7 +3594,8 @@ const file_dockwell_v1_catalog_proto_rawDesc = "" +
 	"connection\x18Z \x01(\tR\n" +
 	"connection\x12)\n" +
 	"\x10connection_label\x18[ \x01(\tR\x0fconnectionLabel\x12+\n" +
-	"\x11connection_shared\x18\\ \x01(\bR\x10connectionShared\"\xf9\x03\n" +
+	"\x11connection_shared\x18\\ \x01(\bR\x10connectionShared\x12+\n" +
+	"\x11connection_sender\x18] \x01(\tR\x10connectionSender\"\xf9\x03\n" +
 	"\vCatalogPart\x12\x18\n" +
 	"\aservice\x18\x01 \x01(\tR\aservice\x12\x14\n" +
 	"\x05image\x18\x02 \x01(\tR\x05image\x12\x1a\n" +

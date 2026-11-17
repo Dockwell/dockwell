@@ -1,0 +1,51 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Release 1 of notes-mail.yaml, which asked for its mail server's settings as
+# inputs a person typed, before release 2 took them as a need (ADR 0099).
+id: notes
+name: Notes
+summary: Keeps your notes
+description: |-
+  Notes keeps your notes, and mails a sign-in link where it has a mail server.
+category: productivity
+version: "1.1.0"
+release: 1
+license: AGPL-3.0-only
+appLicense: MIT
+source:
+  repository: https://github.com/Dockwell/catalog
+  path: entries/notes.yaml
+web:
+  service: notes
+inputs:
+  - name: PORT
+    label: Port on this server
+    type: INPUT_TYPE_PORT
+    defaultValue: "3210"
+  - { name: MAIL_TRANSPORT, label: Mail transport, type: INPUT_TYPE_TEXT, defaultValue: log }
+  - { name: SMTP_HOST, label: SMTP host, type: INPUT_TYPE_TEXT, optional: true }
+  - { name: SMTP_PORT, label: SMTP port, type: INPUT_TYPE_TEXT, optional: true }
+  - { name: SMTP_SECURE, label: TLS from the start, type: INPUT_TYPE_TEXT, defaultValue: "false" }
+  - { name: SMTP_REQUIRE_TLS, label: Require STARTTLS, type: INPUT_TYPE_TEXT, defaultValue: "true" }
+  - { name: SMTP_USER, label: SMTP user, type: INPUT_TYPE_TEXT, optional: true }
+  - { name: SMTP_PASSWORD, label: SMTP password, type: INPUT_TYPE_SECRET, optional: true }
+  - { name: MAIL_FROM, label: Sender, type: INPUT_TYPE_TEXT, optional: true }
+compose: |
+  services:
+    notes:
+      image: ghost:6.72.0@sha256:c0d83a8d45222b3f37a897572000050ab8e6e507d3eee5a35b3ef8345c7293d6
+      restart: always
+      environment:
+        MAIL_TRANSPORT: ${MAIL_TRANSPORT}
+        SMTP_HOST: ${SMTP_HOST}
+        SMTP_PORT: ${SMTP_PORT}
+        SMTP_SECURE: ${SMTP_SECURE}
+        SMTP_REQUIRE_TLS: ${SMTP_REQUIRE_TLS}
+        SMTP_USER: ${SMTP_USER}
+        SMTP_PASSWORD: ${SMTP_PASSWORD}
+        MAIL_FROM: ${MAIL_FROM}
+      ports:
+        - "127.0.0.1:${PORT}:3210"
+      volumes:
+        - data:/data
+  volumes:
+    data: {}

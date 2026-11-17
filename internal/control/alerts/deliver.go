@@ -34,6 +34,7 @@ import (
 	"github.com/dockwell/dockwell/internal/netguard"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/alert"
+	"github.com/dockwell/dockwell/internal/smtpauth"
 )
 
 // TelegramAPI is where a Telegram channel's bot sends.
@@ -545,49 +546,14 @@ func (s *Sender) email(ctx context.Context, e *resourcev1.AlertEmail, m Message)
 // authFor is how Dockwell signs in to an SMTP server that offers it: PLAIN, or
 // LOGIN, as Exchange offers alone; or why it can't.
 func authFor(c *smtp.Client, e *resourcev1.AlertEmail, host string) (smtp.Auth, string) {
-	ok, params := c.Extension("AUTH")
-	mechs := strings.Fields(strings.ToUpper(params))
+	auth, offered, mechs := smtpauth.Pick(c, e.GetUsername(), e.GetPassword(), host, false)
 	switch {
-	case !ok:
+	case !offered:
 		return nil, "the server doesn't offer to sign in, so Dockwell sent nothing. Clear the channel's user, or use a server that takes one"
-	case slices.Contains(mechs, "PLAIN"):
-		return smtp.PlainAuth("", e.GetUsername(), e.GetPassword(), host), ""
-	case slices.Contains(mechs, "LOGIN"):
-		return &loginAuth{user: e.GetUsername(), password: e.GetPassword(), host: host}, ""
+	case auth == nil:
+		return nil, clip("the server signs in with " + strings.Join(mechs, ", ") + ", and Dockwell with PLAIN or LOGIN, so it sent nothing")
 	}
-	return nil, clip("the server signs in with " + strings.Join(mechs, ", ") + ", and Dockwell with PLAIN or LOGIN, so it sent nothing")
-}
-
-// loginAuth signs in with AUTH LOGIN: the user, then the password, each as the
-// server asks, only over TLS to the server the channel names, as PlainAuth does.
-type loginAuth struct {
-	user, password, host string
-	step                 int
-}
-
-func (a *loginAuth) Start(server *smtp.ServerInfo) (string, []byte, error) {
-	if !server.TLS {
-		return "", nil, errors.New("dockwell sends a password only over TLS")
-	}
-	if server.Name != a.host {
-		return "", nil, errors.New("the server isn't the one the channel names")
-	}
-	a.step = 0
-	return "LOGIN", nil, nil
-}
-
-func (a *loginAuth) Next(_ []byte, more bool) ([]byte, error) {
-	if !more {
-		return nil, nil
-	}
-	a.step++
-	switch a.step {
-	case 1:
-		return []byte(a.user), nil
-	case 2:
-		return []byte(a.password), nil
-	}
-	return nil, errors.New("the server asked for more than a user and a password")
+	return auth, ""
 }
 
 func (s *Sender) tlsFor(host string) *tls.Config {

@@ -44,10 +44,13 @@ func (h *Handler) setStorageNeed(ctx context.Context, s sourced, f found, entry 
 	was := pin.GetNeeds()[need.GetName()]
 	what := strings.ToLower(cmp.Or(need.GetLabel(), need.GetName()))
 	name, ok := strings.CutPrefix(m.GetChoice(), catalog.ChoiceConnection)
+	// A mail server keeps no files, so nothing stays behind or starts empty: the app
+	// sends through the one it's given from then on.
+	mail := need.GetKind() == catalogv1.Kind_KIND_SMTP
 	// Back onto the bucket its own values name, as after a Disconnect, its files are
 	// there already: nothing starts empty (slice 2 review, L3).
-	back := false
-	if ok && was.GetOwn() {
+	back := mail
+	if ok && was.GetOwn() && !mail {
 		var err error
 		if back, err = h.namesBucket(ctx, install.GetEnvironmentId(), name); err != nil {
 			return nil, h.internal(ctx, err)
@@ -77,10 +80,17 @@ func (h *Handler) setStorageNeed(ctx context.Context, s sourced, f found, entry 
 	if err != nil {
 		return nil, err
 	}
+	if mail {
+		// The sender the app's link says for it stays, whichever server it sends
+		// through.
+		if err := h.keepSenders(ctx, install.GetEnvironmentId(), needed); err != nil {
+			return nil, h.internal(ctx, err)
+		}
+	}
 	// Back onto its own bucket, its files are where it kept them only under the prefix
 	// it kept to: where the need sets one and its own value isn't the prefix the link
 	// sets, it starts empty there, which it must be asked to (slice 2 re-check, N4).
-	if back {
+	if back && !mail {
 		kept, set, err := h.ownPrefix(ctx, install.GetEnvironmentId(), need)
 		if err != nil {
 			return nil, h.internal(ctx, err)
@@ -159,10 +169,15 @@ func (h *Handler) setStorageNeed(ctx context.Context, s sourced, f found, entry 
 	notes = append(notes, f.movedAlone(chosen, filled.Variables, old, oldVariables)...)
 	newPin := pinTo(entry, s.origins[entry.GetId()], filled, choice)
 	newPin.Version, newPin.Release, newPin.File, newPin.Needs, newPin.Written = pin.GetVersion(), pin.GetRelease(), pin.GetFile(), needed.Pinned, needed.Written
+	newPin.Given = pin.GetGiven()
+	summary := fmt.Sprintf("Connect %s's %s to %s", install.GetProject(), what, labelOf(name))
+	if mail {
+		summary = fmt.Sprintf("Send %s's mail through %s", install.GetProject(), labelOf(name))
+	}
 	change, err := h.imports.PlanUpgrade(ctx, composeapi.Upgrade{
 		Project:     install.GetProjectId(),
 		Environment: install.GetEnvironmentId(),
-		Summary:     fmt.Sprintf("Connect %s's %s to %s", install.GetProject(), what, labelOf(name)),
+		Summary:     summary,
 		FromRelease: pin.GetVersion(),
 		Release:     pin.GetVersion(),
 		Name:        f.display,
@@ -183,6 +198,37 @@ func (h *Handler) setStorageNeed(ctx context.Context, s sourced, f found, entry 
 		return nil, err
 	}
 	return connect.NewResponse(&dockwellv1.SetCatalogNeedResponse{Change: change}), nil
+}
+
+// keepSenders gives each link to a mail server an install's needs make the sender its
+// link in env says for its app now, so an upgrade or another connection keeps who the
+// app's mail comes from (ADR 0099).
+func (h *Handler) keepSenders(ctx context.Context, env string, needed *catalog.Needed) error {
+	if h.db == nil || env == "" {
+		return nil
+	}
+	return h.db.View(ctx, func(tx *store.Tx) error {
+		for name, l := range needed.Links {
+			if l.GetKind() != resourcev1.LinkKind_LINK_KIND_SMTP {
+				continue
+			}
+			r, err := tx.GetResource(ctx, string(variable.LinkKind), env, name)
+			if errors.Is(err, store.ErrNotFound) || err == nil && r.Spec == nil {
+				continue
+			}
+			if err != nil {
+				return err
+			}
+			var had resourcev1.Link
+			if err := proto.Unmarshal(r.Spec, &had); err != nil {
+				return err
+			}
+			if had.GetKind() == resourcev1.LinkKind_LINK_KIND_SMTP {
+				l.Sender, l.SenderName = had.GetSender(), had.GetSenderName()
+			}
+		}
+		return nil
+	})
 }
 
 // StartsEmptyNote is a plan note's reason for an app that starts empty where its need

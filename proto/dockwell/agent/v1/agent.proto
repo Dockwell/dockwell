@@ -921,10 +921,12 @@ message ProbeConnectionCall {
 message ProbeConnectionResult {
   // It did everything asked of it.
   bool passed = 1;
-  // Where it stopped, such as write, read, presign or delete.
+  // Where it stopped, such as write, read, presign or delete, or a mail server's
+  // connect, hello, tls or sign-in.
   string step = 2;
-  // What the service said, such as an S3 error's code, or what kept it from
-  // answering: refused, timeout, unreachable or tls. Status is its HTTP status.
+  // What the service said, such as an S3 error's code or a mail server's reply
+  // code, or what kept it from answering: refused, timeout, unreachable or tls.
+  // Status is its HTTP status.
   string code = 3;
   int32 status = 4;
   // The service's own message, where it holds nothing of the request.

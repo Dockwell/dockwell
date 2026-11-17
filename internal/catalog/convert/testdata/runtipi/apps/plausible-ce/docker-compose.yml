@@ -1,0 +1,12 @@
+services:
+  plausible-ce:
+    image: example/plausible:2.1.5
+    ports:
+      - ${APP_PORT}:8000
+    environment:
+      - MAILER_EMAIL=${PLAUSIBLE_MAILER_EMAIL:-plausible@example.com}
+      - SMTP_HOST_ADDR=${PLAUSIBLE_SMTP_HOST_ADDR}
+      - SMTP_HOST_PORT=${PLAUSIBLE_SMTP_HOST_PORT}
+      - SMTP_USER_NAME=${PLAUSIBLE_SMTP_USER_NAME}
+      - SMTP_USER_PWD=${PLAUSIBLE_SMTP_USER_PWD}
+      - SMTP_HOST_SSL_ENABLED=${PLAUSIBLE_SMTP_HOST_SSL_ENABLED:-false}

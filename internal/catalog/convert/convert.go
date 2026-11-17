@@ -112,6 +112,9 @@ type App struct {
 	// Needs are what it takes from another app, such as a database server, which the
 	// entry asks of a need rather than of a field (ADR 0084).
 	Needs []NeedDraft
+	// Mail is the mail server its form declares, which the entry asks of a need of a
+	// mail server where its file allows (ADR 0099). Nil for none.
+	Mail *MailDraft
 	// Shipped says whether a path relative to the Compose file is a file or folder
 	// the source ships beside it, as opposed to one the app makes as it runs.
 	Shipped func(rel string) bool

@@ -4458,10 +4458,12 @@ type ProbeConnectionResult struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// It did everything asked of it.
 	Passed bool `protobuf:"varint,1,opt,name=passed,proto3" json:"passed,omitempty"`
-	// Where it stopped, such as write, read, presign or delete.
+	// Where it stopped, such as write, read, presign or delete, or a mail server's
+	// connect, hello, tls or sign-in.
 	Step string `protobuf:"bytes,2,opt,name=step,proto3" json:"step,omitempty"`
-	// What the service said, such as an S3 error's code, or what kept it from
-	// answering: refused, timeout, unreachable or tls. Status is its HTTP status.
+	// What the service said, such as an S3 error's code or a mail server's reply
+	// code, or what kept it from answering: refused, timeout, unreachable or tls.
+	// Status is its HTTP status.
 	Code   string `protobuf:"bytes,3,opt,name=code,proto3" json:"code,omitempty"`
 	Status int32  `protobuf:"varint,4,opt,name=status,proto3" json:"status,omitempty"`
 	// The service's own message, where it holds nothing of the request.

@@ -5,6 +5,7 @@ package catalogapi
 import (
 	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"maps"
@@ -129,7 +130,9 @@ func (h *Handler) appOf(ctx context.Context, project string, n *catalogv1.Need) 
 // the connection the project it makes (Widens, ADR 0099). An install is an admin's,
 // and nothing else asks. One that names other projects is never widened.
 func (h *Handler) connectionWays(ctx context.Context, e *catalogv1.Entry, project string, asked map[string]string) ([]catalog.ConnectionWay, []string, error) {
-	if h.db == nil || h.keeper == nil || !slices.ContainsFunc(e.GetNeeds(), func(n *catalogv1.Need) bool { return n.GetKind() == catalogv1.Kind_KIND_S3 }) {
+	if h.db == nil || h.keeper == nil || !slices.ContainsFunc(e.GetNeeds(), func(n *catalogv1.Need) bool {
+		return n.GetKind() == catalogv1.Kind_KIND_S3 || n.GetKind() == catalogv1.Kind_KIND_SMTP
+	}) {
 		return nil, nil, nil
 	}
 	projectID, projectName := "", project
@@ -171,7 +174,8 @@ func (h *Handler) connectionWays(ctx context.Context, e *catalogv1.Entry, projec
 	var out []catalog.ConnectionWay
 	for i := range all {
 		c := &all[i]
-		if c.Spec.GetKind() != resourcev1.LinkKind_LINK_KIND_S3 {
+		kind := catalogv1.Kind(c.Spec.GetKind()) // the two enums share their numbers
+		if kind != catalogv1.Kind_KIND_S3 && kind != catalogv1.Kind_KIND_SMTP {
 			continue
 		}
 		reaches := c.Spec.GetReach() == resourcev1.ConnectionReach_CONNECTION_REACH_EVERY || projectID != "" && connection.Reaches(c.Spec, projectID)
@@ -196,8 +200,18 @@ func (h *Handler) connectionWays(ctx context.Context, e *catalogv1.Entry, projec
 		// to a prefix may take it beside apps that keep to theirs, under a prefix none
 		// of them holds (ADR 0099).
 		held := connections.Holds(values, c.Spec)
+		if m := c.Spec.GetSmtp(); m != nil {
+			// A mail server keeps no files: it serves an app where a link reads it.
+			out = append(out, catalog.ConnectionWay{
+				Name: c.Name, Label: cmp.Or(c.Spec.GetDisplayName(), c.Name), Kind: kind,
+				Security: connection.SecurityWord(connection.Security(m)), Sender: m.GetSender(), SenderName: m.GetSenderName(),
+				Named:  namedForEnvironment(c.Name, all, environments),
+				Serves: len(uses[c.Name]) > 0, Shared: c.Spec.GetShared(), Apart: true, Widens: widens,
+			})
+			continue
+		}
 		out = append(out, catalog.ConnectionWay{
-			Name: c.Name, Label: cmp.Or(c.Spec.GetDisplayName(), c.Name), PathStyle: c.Spec.GetS3().GetPathStyle(),
+			Name: c.Name, Label: cmp.Or(c.Spec.GetDisplayName(), c.Name), Kind: kind, PathStyle: c.Spec.GetS3().GetPathStyle(),
 			Prefix: link.FreePrefix(prefixFor(projectName), taken),
 			Named:  namedForEnvironment(c.Name, all, environments),
 			Serves: len(taken) > 0 || held,
@@ -376,4 +390,155 @@ func (h *Handler) prefixesKept(ctx context.Context, env, project string, e *cata
 		return nil
 	})
 	return out, notes, err
+}
+
+// givenNames are the inputs a person gave a value: those was says, with each of
+// values. An install from before kept none, so its pin's stay unknown, as all its
+// values count as given (the SMTP re-check's N1).
+func givenNames(was *resourcev1.CatalogPin, values map[string]string) *resourcev1.GivenNames {
+	if was != nil && was.GetGiven() == nil {
+		return nil
+	}
+	names := slices.Collect(maps.Keys(values))
+	names = append(names, was.GetGiven().GetNames()...)
+	slices.Sort(names)
+	return &resourcev1.GivenNames{Names: slices.Compact(names)}
+}
+
+// TypedKeptNote is a plan note's reason where an upgrade keeps the values a person
+// typed for what a release now takes as a need, as the app's own (ADR 0099).
+const TypedKeptNote = "catalog_need_typed_kept"
+
+// typedOwn is an install's pinned needs with each need of a kind beyond the
+// databases a release adds met by the app's own values, where a person typed any of
+// them as inputs of the release before: a mail server's host, say, or its sender or
+// port alone. The upgrade keeps each value under its name, and never drops what a
+// person gave (#754). pin is the install's: its values, and the names a person gave
+// a value, where it keeps them. A release's suggestion no one changed isn't typed (the
+// SMTP re-check's N1 and N3). kinds are those names, each with whether it's a secret,
+// which the release's need may hold otherwise.
+func (h *Handler) typedOwn(ctx context.Context, env, project string, e *catalogv1.Entry, pinned map[string]*resourcev1.PinnedNeed, pin *resourcev1.CatalogPin) (map[string]*resourcev1.PinnedNeed, map[string]bool, []revision.Note, error) {
+	values := pin.GetValues()
+	// Where the pin says which values a person gave, those alone are typed. An install
+	// from before keeps none, so any value counts but those a release often gave by
+	// default, and the note says only what it ran with.
+	var given map[string]bool
+	if g := pin.GetGiven(); g != nil {
+		given = map[string]bool{}
+		for _, name := range g.GetNames() {
+			given[name] = true
+		}
+	}
+	if h.db == nil || h.keeper == nil || env == "" {
+		return pinned, nil, nil, nil
+	}
+	out := maps.Clone(pinned)
+	kinds := map[string]bool{}
+	var notes []revision.Note
+	err := h.db.View(ctx, func(tx *store.Tx) error {
+		for _, n := range e.GetNeeds() {
+			if _, had := pinned[n.GetName()]; had || n.GetKind() == catalogv1.Kind_KIND_UNSPECIFIED {
+				continue
+			}
+			typed := false
+			held := map[string]bool{}
+			for _, s := range n.GetSets() {
+				value, secret, ok := values[s.GetName()], false, false
+				if _, typed := values[s.GetName()]; typed {
+					ok = true
+				} else {
+					var err error
+					if value, secret, ok, err = h.envValue(ctx, tx, env, s.GetName()); err != nil {
+						return err
+					}
+				}
+				if !ok {
+					continue
+				}
+				held[s.GetName()] = secret
+				if given != nil {
+					typed = typed || given[s.GetName()] && value != ""
+				} else {
+					typed = typed || !releaseSays[s.GetPart()] && value != ""
+				}
+			}
+			if !typed {
+				continue
+			}
+			if out == nil {
+				out = map[string]*resourcev1.PinnedNeed{}
+			}
+			out[n.GetName()] = &resourcev1.PinnedNeed{Own: true}
+			maps.Copy(kinds, held)
+			what := strings.ToLower(cmp.Or(n.GetLabel(), n.GetName()))
+			words := "%s keeps the %s settings you typed, under their names. Use a connection on its page to have Dockwell keep them"
+			if given == nil {
+				words = "%s keeps the %s settings it ran with, under their names. Use a connection on its page to have Dockwell keep them"
+			}
+			notes = append(notes, revision.Note{Reason: TypedKeptNote, Message: fmt.Sprintf(words, project, what)})
+		}
+		return nil
+	})
+	return out, kinds, notes, err
+}
+
+// releaseSays are the parts whose value a release before gave by default as often as a
+// person did: whether it's met, a port, how it's secured and where a bucket goes. A
+// pin from before keeps no word of what was given, so for it these don't count as
+// typed alone; any other part a person gave a value, as a sender alone, does (the
+// SMTP review's H2).
+var releaseSays = map[catalogv1.Part]bool{
+	catalogv1.Part_PART_MET: true, catalogv1.Part_PART_PORT: true, catalogv1.Part_PART_SECURITY: true,
+	catalogv1.Part_PART_PATH_STYLE: true, catalogv1.Part_PART_TLS: true,
+}
+
+// envValue is the value of name in env, as a variable holds it plainly or a secret
+// holds it sealed, and whether it's a secret's. ok is false where env holds neither,
+// or one that reads its value from elsewhere.
+func (h *Handler) envValue(ctx context.Context, tx *store.Tx, env, name string) (value string, secret, ok bool, err error) {
+	for _, kind := range []string{string(variable.VariableKind), string(variable.SecretKind)} {
+		r, err := tx.GetResource(ctx, kind, env, name)
+		if errors.Is(err, store.ErrNotFound) || err == nil && r.Spec == nil {
+			continue
+		}
+		if err != nil {
+			return "", false, false, err
+		}
+		spec, err := h.keeper.Decode(ctx, tx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec)
+		if err != nil {
+			return "", false, false, err
+		}
+		switch v := spec.(type) {
+		case *resourcev1.Variable:
+			return v.GetValue(), false, v.GetFrom() == nil, nil
+		case *resourcev1.Secret:
+			return v.GetValue(), true, v.GetFrom() == nil, nil
+		}
+	}
+	return "", false, false, nil
+}
+
+// keepKinds makes each name typedOwn kept the kind a person typed it as: the
+// release's need may take a user as a secret that a person typed as plain text. A
+// secret is the environment's already, which the install writes none of; a plain
+// value is carried from the pin, as any input's is.
+func keepKinds(needed *catalog.Needed, kinds map[string]bool) {
+	for name, secret := range kinds {
+		if secret {
+			needed.Kept[name] = true
+		} else {
+			delete(needed.Kept, name)
+		}
+		for _, in := range needed.Entry.GetInputs() {
+			if in.GetName() != name {
+				continue
+			}
+			switch {
+			case secret && in.GetType() != catalogv1.InputType_INPUT_TYPE_SECRET:
+				in.Type, in.Generate, in.DefaultValue = catalogv1.InputType_INPUT_TYPE_SECRET, 32, ""
+			case !secret && in.GetType() == catalogv1.InputType_INPUT_TYPE_SECRET:
+				in.Type, in.Generate, in.Optional = catalogv1.InputType_INPUT_TYPE_TEXT, 0, true
+			}
+		}
+	}
 }
