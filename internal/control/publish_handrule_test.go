@@ -19,10 +19,10 @@ import (
 
 // takingOver is wiki's publish through web-1 with consent to take over the tunnel's
 // rule for wiki.example.com, made by hand.
-func (s *publishStand) takingOver(name, domain string) *dockwellv1.Edit {
-	e := s.published(name, domain)
+func (s *publishStand) takingOver(name string) *dockwellv1.Edit {
+	e := s.published(name, "wiki.example.com")
 	pub := e.GetSpec().GetRoute().GetPublish()
-	pub.TakesOver = append(pub.TakesOver, &resourcev1.TakeOver{Tunnel: webOne, Hostname: domain})
+	pub.TakesOver = append(pub.TakesOver, &resourcev1.TakeOver{Tunnel: webOne, Hostname: "wiki.example.com"})
 	return e
 }
 
@@ -58,7 +58,7 @@ func TestARuleMadeByHandIsTakenOnAndPutBack(t *testing.T) {
 		if steps := stepsOf(propose(t, s.person, "Publish wiki", s.published("wiki", "wiki.example.com")), dockwellv1.ProviderAction_PROVIDER_ACTION_TAKE_ON_RULE); len(steps) != 0 {
 			t.Fatalf("taken on without consent: %v", steps)
 		}
-		ch := propose(t, s.person, "Publish wiki", s.takingOver("wiki", "wiki.example.com"))
+		ch := propose(t, s.person, "Publish wiki", s.takingOver("wiki"))
 		if steps := stepsOf(ch, dockwellv1.ProviderAction_PROVIDER_ACTION_TAKE_ON_RULE); len(steps) != 1 || steps[0].GetWas() != "http://127.0.0.1:80" || !takesOver(ch, "wiki.example.com") {
 			t.Fatalf("taking it on: %v", providerSteps(ch))
 		}
@@ -120,7 +120,7 @@ func TestMovingARuleToDockwellByTakingItOut(t *testing.T) {
 		if err == nil || !strings.Contains(err.Error(), "points at the app's own port, http://127.0.0.1:8080") || !strings.Contains(err.Error(), "move it to Dockwell") {
 			t.Fatalf("without consent: %v", err)
 		}
-		ch := propose(t, s.person, "Publish wiki", s.takingOver("wiki", "wiki.example.com"))
+		ch := propose(t, s.person, "Publish wiki", s.takingOver("wiki"))
 		if steps := stepsOf(ch, dockwellv1.ProviderAction_PROVIDER_ACTION_MOVE_RULE); len(steps) != 1 || !strings.HasPrefix(steps[0].GetRouting(), "Takes it out") || !takesOver(ch, "wiki.example.com") {
 			t.Fatalf("moving it: %v", providerSteps(ch))
 		}
@@ -144,7 +144,7 @@ func TestMovingARuleToDockwellByPointingIt(t *testing.T) {
 		withAppsPort(s)
 		withHand := `{"ingress":[{"hostname":"panel.example.com","service":"http://127.0.0.1:7600"},{"hostname":"wiki.example.com","service":"http://127.0.0.1:8080","originRequest":{"noTLSVerify":true}},{"service":"http_status:404"}]}`
 		s.cf.SetDocument(webOne, json.RawMessage(withHand))
-		ch := propose(t, s.person, "Publish wiki", s.takingOver("wiki", "wiki.example.com"))
+		ch := propose(t, s.person, "Publish wiki", s.takingOver("wiki"))
 		if steps := stepsOf(ch, dockwellv1.ProviderAction_PROVIDER_ACTION_MOVE_RULE); len(steps) != 1 || !strings.HasPrefix(steps[0].GetRouting(), "Points it at the server's proxy") {
 			t.Fatalf("moving it: %v", providerSteps(ch))
 		}

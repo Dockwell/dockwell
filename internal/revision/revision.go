@@ -1196,7 +1196,7 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 	if err := e.pinBuilds(ctx, items, changeID); err != nil {
 		return nil, err
 	}
-	plan, err := e.plan(ctx, changeID, items, false, planWith{removal: p.Removes, rollout: p.Rollout, empties: p.Empties, unholds: slices.ContainsFunc(p.Edits, func(ed Edit) bool { return ed.Unholds })})
+	plan, err := e.plan(ctx, changeID, items, false, planWith{removal: p.Removes, rollout: p.Rollout, empties: p.Empties, unholds: slices.ContainsFunc(p.Edits, func(ed Edit) bool { return ed.Unholds }), reverts: reverts})
 	if err != nil {
 		return nil, err
 	}
@@ -2901,7 +2901,7 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 		}
 	}
 	// Each route's steps at Cloudflare, which the control plane takes (ADR 0104).
-	provided, err := e.publishing(ctx, changeID, items)
+	provided, err := e.publishing(ctx, changeID, items, with.reverts)
 	if err != nil {
 		return nil, err
 	}
@@ -4259,7 +4259,7 @@ func (e *Engine) commitOwned(ctx context.Context, c store.Change, asked *planRea
 	for i := range items {
 		items[i].rollback = rollback
 	}
-	plan, err := e.plan(ctx, c.ID, items, rollback, planWith{removal: removalIn(asked), waves: wavesIn(asked), empties: emptiesIn(asked), unholds: unholdsIn(asked)})
+	plan, err := e.plan(ctx, c.ID, items, rollback, planWith{removal: removalIn(asked), waves: wavesIn(asked), empties: emptiesIn(asked), unholds: unholdsIn(asked), reverts: c.Reverts})
 	if err != nil {
 		return nil, err
 	}
@@ -5533,7 +5533,7 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 			}
 		}
 	}
-	plan, err := e.plan(ctx, c.ID, items, false, planWith{removal: removalIn(planned), waves: wavesIn(planned), empties: emptiesIn(planned), unholds: unholdsIn(planned)})
+	plan, err := e.plan(ctx, c.ID, items, false, planWith{removal: removalIn(planned), waves: wavesIn(planned), empties: emptiesIn(planned), unholds: unholdsIn(planned), reverts: c.Reverts})
 	if err != nil {
 		e.letGo(ctx, changeID)
 		return nil, err

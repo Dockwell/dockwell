@@ -2922,6 +2922,9 @@ type ProviderStep struct {
 	// Skip says the plan found the step can't be taken, as a kept record whose name
 	// holds another now: it writes nothing, and Routing says why.
 	Skip bool `json:",omitempty"`
+	// HandOverTo is the route, by ID, a record goes on with, as a domain moved from
+	// one route to another in one change: the store's alone, nothing at Cloudflare.
+	HandOverTo string `json:",omitempty"`
 }
 
 // ProviderRecord is a DNS record a step writes or acts on.

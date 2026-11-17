@@ -152,6 +152,23 @@ func (p *Publisher) target(ctx context.Context, provider, name string) (*target,
 // which Cloudflare would send a zone's names to as well.
 var ErrShared = errors.New("its names go to whichever connection answers")
 
+// handedOver says the record id is Dockwell's own, of another route of the change
+// that publishes name no more, while route publishes it now.
+func (p *Publisher) handedOver(ctx context.Context, id, route, name string, inChange map[string]*resourcev1.Route) bool {
+	var row store.CloudflareRecord
+	if err := p.DB.View(ctx, func(tx *store.Tx) error {
+		var err error
+		row, err = tx.CloudflareRecordByID(ctx, id)
+		return err
+	}); err != nil || row.RouteID == route {
+		return false
+	}
+	if _, ok := inChange[row.RouteID]; !ok {
+		return false
+	}
+	return publishedElsewhere(inChange, row.RouteID, name, "") == route
+}
+
 // AdminCaller says the caller ctx carries is an admin of the install, or that it
 // carries none, as the control plane's own work does.
 func AdminCaller(ctx context.Context) bool {
@@ -226,15 +243,15 @@ func (p *Publisher) Plan(ctx context.Context, changeID string, routes []revision
 	out := map[resource.Ref][]resource.Step{}
 	rules := map[string]bool{} // rules a route of this change adds already, by tunnel|hostname
 	inChange := map[string]*resourcev1.Route{}
-	for _, r := range routes {
-		inChange[r.ID] = r.After
+	for i := range routes {
+		inChange[routes[i].ID] = routes[i].After
 	}
-	for _, r := range routes {
-		steps, err := p.planRoute(ctx, r, rules, inChange)
+	for i := range routes {
+		steps, err := p.planRoute(ctx, routes[i], rules, inChange)
 		if err != nil {
 			return nil, err
 		}
-		out[r.Ref] = steps
+		out[routes[i].Ref] = steps
 	}
 	for _, pp := range providers {
 		steps, err := p.planProvider(ctx, pp)
@@ -263,7 +280,7 @@ func (p *Publisher) planRoute(ctx context.Context, r revision.PublishRoute, rule
 	var steps []resource.Step
 	keep := map[string]bool{} // written records this plan keeps, by ID
 	if pub := r.After.GetPublish(); pub != nil && pub.GetWay() != resourcev1.RouteWay_ROUTE_WAY_FRONT {
-		pre, kept, err := p.planWrites(ctx, r, pub, written, rules)
+		pre, kept, err := p.planWrites(ctx, r, pub, written, rules, inChange)
 		if err != nil {
 			return nil, err
 		}
@@ -313,6 +330,26 @@ func (p *Publisher) planRoute(ctx context.Context, r revision.PublishRoute, rule
 		if w.TakenOnAt != nil {
 			words += ", made in Cloudflare and taken on " + w.TakenOnAt.Format("2 January")
 		}
+		// A domain moved to another route of the change goes on with it, as it is (the
+		// review's M1).
+		if to := publishedElsewhere(inChange, r.ID, w.Name, ""); to != "" {
+			steps = append(steps, step(r, resource.ActionNone, resource.ProviderStep{
+				Provider: w.Provider, Action: resource.ProviderTakeOnRecord, Target: w.Zone, Name: w.Name, Was: words, ZoneID: w.ZoneID, Record: rec,
+				HandOverTo: to, Routing: "It goes on with the route that publishes " + w.Name + " now, as it is",
+			}))
+			continue
+		}
+		// A name the route still serves keeps its record, let go as it is, unless this
+		// undoes the change that wrote it; one taken on is let go by that undo too, as
+		// it was there before (the review's H2).
+		undoingIt := r.Reverts != "" && r.Reverts == w.ChangeID
+		if keepsName(r, w.Name) && (!undoingIt || w.TakenOnAt != nil) || undoingIt && w.TakenOnAt != nil {
+			steps = append(steps, step(r, resource.ActionNone, resource.ProviderStep{
+				Provider: w.Provider, Action: resource.ProviderDeleteRecord, Target: w.Zone, Name: w.Name, Was: words, ZoneID: w.ZoneID, Record: rec,
+				Mode: letGoRule, Routing: "Dockwell lets go of it, and it stays as it is",
+			}))
+			continue
+		}
 		steps = append(steps, step(r, resource.ActionDelete, resource.ProviderStep{
 			Provider: w.Provider, Action: resource.ProviderDeleteRecord, Target: w.Zone, Name: w.Name, Was: words, ZoneID: w.ZoneID, Record: rec,
 		}))
@@ -349,7 +386,7 @@ func (p *Publisher) planRoute(ctx context.Context, r revision.PublishRoute, rule
 }
 
 // planWrites plans what a route publishes: its records, and its tunnel's rule.
-func (p *Publisher) planWrites(ctx context.Context, r revision.PublishRoute, pub *resourcev1.RoutePublish, written []store.CloudflareRecord, rules map[string]bool) ([]resource.Step, map[string]bool, error) {
+func (p *Publisher) planWrites(ctx context.Context, r revision.PublishRoute, pub *resourcev1.RoutePublish, written []store.CloudflareRecord, rules map[string]bool, inChange map[string]*resourcev1.Route) ([]resource.Step, map[string]bool, error) {
 	name := strings.ToLower(r.After.GetDomain())
 	project, err := p.ProjectOf(ctx, r.Environment)
 	if err != nil {
@@ -420,6 +457,14 @@ func (p *Publisher) planWrites(ctx context.Context, r revision.PublishRoute, pub
 			}
 			conflict = &x
 			break
+		}
+		// Dockwell's own record of a route this change moves the name from goes on with
+		// this one, as it is: the other route's step hands it over (the review's M1).
+		if conflict != nil && p.handedOver(ctx, conflict.ID, r.ID, name, inChange) {
+			if conflict.Type != d.Type || conflict.Content != d.Content || conflict.Proxied != d.Proxied {
+				return nil, nil, fmt.Errorf("%s moves to this route in this change, published another way. Move it as it is, then change how it's published in another change", name)
+			}
+			continue
 		}
 		switch {
 		case conflict == nil || conflict.Comment == comment && conflict.Type == d.Type && conflict.Content == d.Content:
@@ -720,7 +765,7 @@ func (p *Publisher) planRuleRemoval(ctx context.Context, r revision.PublishRoute
 	name := strings.ToLower(r.Before.GetDomain())
 	// The rule for the name made by hand that the route took on or moved comes out,
 	// or goes back as it was (ADR 0104, section 8).
-	hand, err := p.planHandRuleRemoval(ctx, r, was.GetTunnel(), name)
+	hand, err := p.planHandRuleRemoval(ctx, r, inChange, was.GetTunnel(), name)
 	if err != nil {
 		return nil, err
 	}
@@ -734,8 +779,10 @@ func (p *Publisher) planRuleRemoval(ctx context.Context, r revision.PublishRoute
 	steps := hand
 	for i := range held {
 		rule := &held[i]
-		// A rule made by hand is the route's own to settle, above.
-		if rule.TakenOnAt != nil || !HostMatches(rule.Hostname, name) {
+		// A rule made by hand is the route's own to settle, above. A route that still
+		// serves the name, publishing it no more, keeps what brings it in, unless this
+		// undoes the change that added it (the review's H2).
+		if rule.TakenOnAt != nil || !HostMatches(rule.Hostname, name) || keepsName(r, name) && r.Reverts != rule.ChangeID {
 			continue
 		}
 		stillUsed := false

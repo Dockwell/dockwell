@@ -26,8 +26,11 @@ type PublishRoute struct {
 	ID          string
 	Server      string
 	Environment string
-	Before      *resourcev1.Route
-	After       *resourcev1.Route
+	// Reverts is the change this one undoes or rolls back, if any: what that change
+	// took on is let go, as it was before it.
+	Reverts string
+	Before  *resourcev1.Route
+	After   *resourcev1.Route
 }
 
 // dnsProviderKind is the kind whose changes can take steps at Cloudflare of their
@@ -62,7 +65,7 @@ func (e *Engine) SetPublisher(p Publisher) { e.publisher = p }
 
 // publishing gathers the change's routes that publish, before or after, and plans
 // their steps at Cloudflare, by route.
-func (e *Engine) publishing(ctx context.Context, changeID string, items []item) (map[resource.Ref][]resource.Step, error) {
+func (e *Engine) publishing(ctx context.Context, changeID string, items []item, reverts string) (map[resource.Ref][]resource.Step, error) {
 	var routes []PublishRoute
 	var providers []PublishProvider
 	for i := range items {
@@ -85,6 +88,7 @@ func (e *Engine) publishing(ctx context.Context, changeID string, items []item) 
 		if len(it.servers) > 0 {
 			pr.Server = it.servers[0]
 		}
+		pr.Reverts = reverts
 		routes = append(routes, pr)
 	}
 	if e.publisher == nil {

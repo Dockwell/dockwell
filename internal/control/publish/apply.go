@@ -76,10 +76,16 @@ func (p *Publisher) apply(ctx context.Context, changeID string, route revision.P
 	case resource.ProviderCreateRecord, resource.ProviderRestoreRecord:
 		return p.createRecord(ctx, changeID, route, s, "")
 	case resource.ProviderDeleteRecord:
+		if s.Mode == letGoRule {
+			return p.letGoOfRecord(ctx, s)
+		}
 		return p.deleteRecord(ctx, s)
 	case resource.ProviderReplaceRecord:
 		return p.replaceRecord(ctx, changeID, route, s)
 	case resource.ProviderTakeOnRecord:
+		if s.HandOverTo != "" {
+			return p.handOverRecord(ctx, changeID, s)
+		}
 		return p.takeOnRecord(ctx, changeID, route, s)
 	case resource.ProviderAddRule:
 		return p.addRule(ctx, changeID, route.ID, route.Server, s)
@@ -347,6 +353,39 @@ func (p *Publisher) replaceRecord(ctx context.Context, changeID string, route re
 		}
 		return nil
 	})
+}
+
+// letGoOfRecord stops holding a record, leaving it at Cloudflare as it is: what it
+// replaced, if anything, stays kept (keepBackup).
+func (p *Publisher) letGoOfRecord(ctx context.Context, s resource.ProviderStep) (string, error) {
+	if err := p.DB.Update(ctx, func(tx *store.Tx) error {
+		if err := p.keepBackup(ctx, tx, s.Record.ID); err != nil {
+			return err
+		}
+		return tx.DeleteCloudflareRecord(ctx, s.Record.ID)
+	}); err != nil {
+		return "", err
+	}
+	return "", letGo{"Dockwell let go of " + s.Name + "'s record, which stays as it is"}
+}
+
+// handOverRecord has a record go on with another route of the change, as it is: the
+// store's alone.
+func (p *Publisher) handOverRecord(ctx context.Context, changeID string, s resource.ProviderStep) (string, error) {
+	if err := p.DB.Update(ctx, func(tx *store.Tx) error {
+		row, err := tx.CloudflareRecordByID(ctx, s.Record.ID)
+		if errors.Is(err, store.ErrNotFound) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		row.RouteID, row.ChangeID = s.HandOverTo, changeID
+		return tx.PutCloudflareRecord(ctx, row)
+	}); err != nil {
+		return "", err
+	}
+	return "", letGo{s.Name + "'s record goes on with the route that publishes it now"}
 }
 
 // pending is the store's ID for what a replace kept of a record before deleting it:

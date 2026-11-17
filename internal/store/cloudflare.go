@@ -32,6 +32,13 @@ const (
 	// took out of its tunnel since, kept whole so undo puts it back where it was.
 	// Dockwell holds it in no tunnel, and no listing of held rules names it.
 	CloudflareRuleKept = "kept"
+	// CloudflareRuleMoving is a rule made by hand that a step of Move it to Dockwell
+	// is writing: kept whole before the write, so a step cut short finishes, or puts
+	// it back. No listing of held rules names it.
+	CloudflareRuleMoving = "moving"
+	// CloudflareTunnelUnproven is a rule whose tunnel Dockwell can't prove runs on its
+	// server alone now: run more than once in ways that disagree, or not connected.
+	CloudflareTunnelUnproven = "tunnel_unproven"
 )
 
 // CloudflareRecord is a DNS record Dockwell wrote or took on, as it wrote it.
@@ -230,12 +237,12 @@ func (t *Tx) PutCloudflareRule(ctx context.Context, r CloudflareRule) error {
 
 // CloudflareRulesOf lists the rules Dockwell holds in a tunnel.
 func (t *Tx) CloudflareRulesOf(ctx context.Context, tunnelID string) ([]CloudflareRule, error) {
-	return t.cloudflareRules(ctx, `WHERE tunnel_id = ? AND state <> 'kept' ORDER BY hostname, path`, tunnelID)
+	return t.cloudflareRules(ctx, `WHERE tunnel_id = ? AND state NOT IN ('kept', 'moving') ORDER BY hostname, path`, tunnelID)
 }
 
 // CloudflareRulesAll lists every rule Dockwell holds, for the drift timer.
 func (t *Tx) CloudflareRulesAll(ctx context.Context) ([]CloudflareRule, error) {
-	return t.cloudflareRules(ctx, `WHERE state <> 'kept' ORDER BY tunnel_id, hostname, path`)
+	return t.cloudflareRules(ctx, `WHERE state NOT IN ('kept', 'moving') ORDER BY tunnel_id, hostname, path`)
 }
 
 // CloudflareRuleAt returns what's recorded of a rule in a tunnel for hostname and

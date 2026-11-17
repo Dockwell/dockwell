@@ -53,6 +53,9 @@ type planWith struct {
 	empties string
 	// unholds says the change lifts a catalog install's hold (Plan.Unholds).
 	unholds bool
+	// reverts is the change this one undoes or rolls back, if any, which publishing
+	// reads to put back what that change took on (ADR 0104).
+	reverts string
 }
 
 // wavesOf is how plan runs over the servers that take a step, in the order the
