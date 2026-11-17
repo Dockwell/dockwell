@@ -281,6 +281,9 @@ const (
 	// The record there points at this tunnel or server already, made by hand: an
 	// admin may take it on.
 	CloudflareName_CLOUDFLARE_NAME_TAKE_ON CloudflareName = 5
+	// Cloudflare answered too many requests, so checks read nothing until
+	// checks_again, leaving the token's rate to renewals and plans.
+	CloudflareName_CLOUDFLARE_NAME_WAITING CloudflareName = 6
 )
 
 // Enum value maps for CloudflareName.
@@ -292,6 +295,7 @@ var (
 		3: "CLOUDFLARE_NAME_OURS",
 		4: "CLOUDFLARE_NAME_PAST_CERTIFICATE",
 		5: "CLOUDFLARE_NAME_TAKE_ON",
+		6: "CLOUDFLARE_NAME_WAITING",
 	}
 	CloudflareName_value = map[string]int32{
 		"CLOUDFLARE_NAME_UNSPECIFIED":      0,
@@ -300,6 +304,7 @@ var (
 		"CLOUDFLARE_NAME_OURS":             3,
 		"CLOUDFLARE_NAME_PAST_CERTIFICATE": 4,
 		"CLOUDFLARE_NAME_TAKE_ON":          5,
+		"CLOUDFLARE_NAME_WAITING":          6,
 	}
 )
 
@@ -1921,7 +1926,10 @@ type CloudflareCheck struct {
 	// Each way, with why one can't be taken and what fixes it.
 	Ways []*WayOption `protobuf:"bytes,8,rep,name=ways,proto3" json:"ways,omitempty"`
 	// The zone's SSL mode, such as "flexible".
-	SslMode       string `protobuf:"bytes,9,opt,name=ssl_mode,json=sslMode,proto3" json:"ssl_mode,omitempty"`
+	SslMode string `protobuf:"bytes,9,opt,name=ssl_mode,json=sslMode,proto3" json:"ssl_mode,omitempty"`
+	// When checks read Cloudflare again, while it asks Dockwell to wait (state
+	// CLOUDFLARE_NAME_WAITING).
+	ChecksAgain   *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=checks_again,json=checksAgain,proto3" json:"checks_again,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2017,6 +2025,13 @@ func (x *CloudflareCheck) GetSslMode() string {
 		return x.SslMode
 	}
 	return ""
+}
+
+func (x *CloudflareCheck) GetChecksAgain() *timestamppb.Timestamp {
+	if x != nil {
+		return x.ChecksAgain
+	}
+	return nil
 }
 
 // WayOption is one way in for a domain, and whether it can be taken now.
@@ -3242,7 +3257,7 @@ const file_dockwell_v1_domain_proto_rawDesc = "" +
 	"\x0fcompanion_check\x18\x03 \x01(\v2\x1b.dockwell.v1.CompanionCheckR\x0ecompanionCheck\x12<\n" +
 	"\n" +
 	"cloudflare\x18\x04 \x01(\v2\x1c.dockwell.v1.CloudflareCheckR\n" +
-	"cloudflare\"\xbe\x02\n" +
+	"cloudflare\"\xfd\x02\n" +
 	"\x0fCloudflareCheck\x12\x12\n" +
 	"\x04zone\x18\x01 \x01(\tR\x04zone\x12\x1a\n" +
 	"\bprovider\x18\x02 \x01(\tR\bprovider\x121\n" +
@@ -3252,7 +3267,9 @@ const file_dockwell_v1_domain_proto_rawDesc = "" +
 	"\x05types\x18\x06 \x03(\tR\x05types\x126\n" +
 	"\x03way\x18\a \x01(\x0e2$.dockwell.resource.v1alpha1.RouteWayR\x03way\x12*\n" +
 	"\x04ways\x18\b \x03(\v2\x16.dockwell.v1.WayOptionR\x04ways\x12\x19\n" +
-	"\bssl_mode\x18\t \x01(\tR\asslMode\"\xff\x01\n" +
+	"\bssl_mode\x18\t \x01(\tR\asslMode\x12=\n" +
+	"\fchecks_again\x18\n" +
+	" \x01(\v2\x1a.google.protobuf.TimestampR\vchecksAgain\"\xff\x01\n" +
 	"\tWayOption\x126\n" +
 	"\x03way\x18\x01 \x01(\x0e2$.dockwell.resource.v1alpha1.RouteWayR\x03way\x12\x16\n" +
 	"\x06tunnel\x18\x02 \x01(\tR\x06tunnel\x12\x1f\n" +
@@ -3365,14 +3382,15 @@ const file_dockwell_v1_domain_proto_rawDesc = "" +
 	"\x1aDNS_PROVIDER_STATE_REFUSED\x10\x02\x1a\x0f\xa2\xbb\x18\vWrong token\x126\n" +
 	"\x1dDNS_PROVIDER_STATE_CANT_WRITE\x10\x03\x1a\x13\xa2\xbb\x18\x0fCan't write DNS\x12@\n" +
 	"\x1eDNS_PROVIDER_STATE_UNREACHABLE\x10\x04\x1a\x1c\xa2\xbb\x18\x18Can't reach the provider\x12/\n" +
-	"\x1aDNS_PROVIDER_STATE_REACHES\x10\x05\x1a\x0f\xa2\xbb\x18\vToken works*\xcb\x02\n" +
+	"\x1aDNS_PROVIDER_STATE_REACHES\x10\x05\x1a\x0f\xa2\xbb\x18\vToken works*\x8f\x03\n" +
 	"\x0eCloudflareName\x12\x1f\n" +
 	"\x1bCLOUDFLARE_NAME_UNSPECIFIED\x10\x00\x120\n" +
 	"\x14CLOUDFLARE_NAME_FREE\x10\x01\x1a\x16\xa2\xbb\x18\x12Free at Cloudflare\x122\n" +
 	"\x15CLOUDFLARE_NAME_TAKEN\x10\x02\x1a\x17\xa2\xbb\x18\x13Taken at Cloudflare\x12/\n" +
 	"\x14CLOUDFLARE_NAME_OURS\x10\x03\x1a\x15\xa2\xbb\x18\x11Already published\x12L\n" +
 	" CLOUDFLARE_NAME_PAST_CERTIFICATE\x10\x04\x1a&\xa2\xbb\x18\"Past Cloudflare's free certificate\x123\n" +
-	"\x17CLOUDFLARE_NAME_TAKE_ON\x10\x05\x1a\x16\xa2\xbb\x18\x12Made in Cloudflare*\x87\x05\n" +
+	"\x17CLOUDFLARE_NAME_TAKE_ON\x10\x05\x1a\x16\xa2\xbb\x18\x12Made in Cloudflare\x12B\n" +
+	"\x17CLOUDFLARE_NAME_WAITING\x10\x06\x1a%\xa2\xbb\x18!Cloudflare asked Dockwell to wait*\x87\x05\n" +
 	"\x0ePublishedState\x12\x1f\n" +
 	"\x1bPUBLISHED_STATE_UNSPECIFIED\x10\x00\x12,\n" +
 	"\x19PUBLISHED_STATE_PUBLISHED\x10\x01\x1a\r\xa2\xbb\x18\tPublished\x12D\n" +
@@ -3509,46 +3527,47 @@ var file_dockwell_v1_domain_proto_depIdxs = []int32{
 	4,  // 16: dockwell.v1.CloudflareCheck.state:type_name -> dockwell.v1.CloudflareName
 	43, // 17: dockwell.v1.CloudflareCheck.way:type_name -> dockwell.resource.v1alpha1.RouteWay
 	28, // 18: dockwell.v1.CloudflareCheck.ways:type_name -> dockwell.v1.WayOption
-	43, // 19: dockwell.v1.WayOption.way:type_name -> dockwell.resource.v1alpha1.RouteWay
-	42, // 20: dockwell.v1.CompanionCheck.check:type_name -> dockwell.v1.DomainCheck
-	32, // 21: dockwell.v1.ListDomainsResponse.domains:type_name -> dockwell.v1.Domain
-	34, // 22: dockwell.v1.Domain.routes:type_name -> dockwell.v1.DomainRoute
-	35, // 23: dockwell.v1.Domain.servers:type_name -> dockwell.v1.DomainServer
-	33, // 24: dockwell.v1.Domain.published:type_name -> dockwell.v1.DomainPublished
-	43, // 25: dockwell.v1.DomainPublished.way:type_name -> dockwell.resource.v1alpha1.RouteWay
-	5,  // 26: dockwell.v1.DomainPublished.state:type_name -> dockwell.v1.PublishedState
-	40, // 27: dockwell.v1.DomainPublished.taken_on:type_name -> google.protobuf.Timestamp
-	44, // 28: dockwell.v1.DomainRoute.sign_in:type_name -> dockwell.resource.v1alpha1.RouteSignIn
-	45, // 29: dockwell.v1.DomainRoute.redirect:type_name -> dockwell.resource.v1alpha1.RouteRedirect
-	37, // 30: dockwell.v1.DomainServer.status:type_name -> dockwell.v1.DomainStatus
-	36, // 31: dockwell.v1.DomainServer.ingress:type_name -> dockwell.v1.IngressStatus
-	6,  // 32: dockwell.v1.IngressStatus.problem:type_name -> dockwell.v1.IngressProblem
-	39, // 33: dockwell.v1.DomainStatus.certificate:type_name -> dockwell.v1.Certificate
-	42, // 34: dockwell.v1.DomainStatus.dns:type_name -> dockwell.v1.DomainCheck
-	38, // 35: dockwell.v1.DomainStatus.strangers:type_name -> dockwell.v1.StrangerCheck
-	7,  // 36: dockwell.v1.StrangerCheck.outcome:type_name -> dockwell.v1.StrangerOutcome
-	8,  // 37: dockwell.v1.Certificate.state:type_name -> dockwell.v1.CertificateState
-	9,  // 38: dockwell.v1.Certificate.problem:type_name -> dockwell.v1.CertificateProblem
-	40, // 39: dockwell.v1.Certificate.expire_time:type_name -> google.protobuf.Timestamp
-	30, // 40: dockwell.v1.DomainService.ListDomains:input_type -> dockwell.v1.ListDomainsRequest
-	25, // 41: dockwell.v1.DomainService.CheckDomain:input_type -> dockwell.v1.CheckDomainRequest
-	15, // 42: dockwell.v1.DomainService.ListCertificates:input_type -> dockwell.v1.ListCertificatesRequest
-	18, // 43: dockwell.v1.DomainService.ListDnsProviders:input_type -> dockwell.v1.ListDnsProvidersRequest
-	21, // 44: dockwell.v1.DomainService.CheckDnsProvider:input_type -> dockwell.v1.CheckDnsProviderRequest
-	10, // 45: dockwell.v1.DomainService.ListSigninProviders:input_type -> dockwell.v1.ListSigninProvidersRequest
-	13, // 46: dockwell.v1.DomainService.CheckSigninProvider:input_type -> dockwell.v1.CheckSigninProviderRequest
-	31, // 47: dockwell.v1.DomainService.ListDomains:output_type -> dockwell.v1.ListDomainsResponse
-	26, // 48: dockwell.v1.DomainService.CheckDomain:output_type -> dockwell.v1.CheckDomainResponse
-	16, // 49: dockwell.v1.DomainService.ListCertificates:output_type -> dockwell.v1.ListCertificatesResponse
-	19, // 50: dockwell.v1.DomainService.ListDnsProviders:output_type -> dockwell.v1.ListDnsProvidersResponse
-	22, // 51: dockwell.v1.DomainService.CheckDnsProvider:output_type -> dockwell.v1.CheckDnsProviderResponse
-	11, // 52: dockwell.v1.DomainService.ListSigninProviders:output_type -> dockwell.v1.ListSigninProvidersResponse
-	14, // 53: dockwell.v1.DomainService.CheckSigninProvider:output_type -> dockwell.v1.CheckSigninProviderResponse
-	47, // [47:54] is the sub-list for method output_type
-	40, // [40:47] is the sub-list for method input_type
-	40, // [40:40] is the sub-list for extension type_name
-	40, // [40:40] is the sub-list for extension extendee
-	0,  // [0:40] is the sub-list for field type_name
+	40, // 19: dockwell.v1.CloudflareCheck.checks_again:type_name -> google.protobuf.Timestamp
+	43, // 20: dockwell.v1.WayOption.way:type_name -> dockwell.resource.v1alpha1.RouteWay
+	42, // 21: dockwell.v1.CompanionCheck.check:type_name -> dockwell.v1.DomainCheck
+	32, // 22: dockwell.v1.ListDomainsResponse.domains:type_name -> dockwell.v1.Domain
+	34, // 23: dockwell.v1.Domain.routes:type_name -> dockwell.v1.DomainRoute
+	35, // 24: dockwell.v1.Domain.servers:type_name -> dockwell.v1.DomainServer
+	33, // 25: dockwell.v1.Domain.published:type_name -> dockwell.v1.DomainPublished
+	43, // 26: dockwell.v1.DomainPublished.way:type_name -> dockwell.resource.v1alpha1.RouteWay
+	5,  // 27: dockwell.v1.DomainPublished.state:type_name -> dockwell.v1.PublishedState
+	40, // 28: dockwell.v1.DomainPublished.taken_on:type_name -> google.protobuf.Timestamp
+	44, // 29: dockwell.v1.DomainRoute.sign_in:type_name -> dockwell.resource.v1alpha1.RouteSignIn
+	45, // 30: dockwell.v1.DomainRoute.redirect:type_name -> dockwell.resource.v1alpha1.RouteRedirect
+	37, // 31: dockwell.v1.DomainServer.status:type_name -> dockwell.v1.DomainStatus
+	36, // 32: dockwell.v1.DomainServer.ingress:type_name -> dockwell.v1.IngressStatus
+	6,  // 33: dockwell.v1.IngressStatus.problem:type_name -> dockwell.v1.IngressProblem
+	39, // 34: dockwell.v1.DomainStatus.certificate:type_name -> dockwell.v1.Certificate
+	42, // 35: dockwell.v1.DomainStatus.dns:type_name -> dockwell.v1.DomainCheck
+	38, // 36: dockwell.v1.DomainStatus.strangers:type_name -> dockwell.v1.StrangerCheck
+	7,  // 37: dockwell.v1.StrangerCheck.outcome:type_name -> dockwell.v1.StrangerOutcome
+	8,  // 38: dockwell.v1.Certificate.state:type_name -> dockwell.v1.CertificateState
+	9,  // 39: dockwell.v1.Certificate.problem:type_name -> dockwell.v1.CertificateProblem
+	40, // 40: dockwell.v1.Certificate.expire_time:type_name -> google.protobuf.Timestamp
+	30, // 41: dockwell.v1.DomainService.ListDomains:input_type -> dockwell.v1.ListDomainsRequest
+	25, // 42: dockwell.v1.DomainService.CheckDomain:input_type -> dockwell.v1.CheckDomainRequest
+	15, // 43: dockwell.v1.DomainService.ListCertificates:input_type -> dockwell.v1.ListCertificatesRequest
+	18, // 44: dockwell.v1.DomainService.ListDnsProviders:input_type -> dockwell.v1.ListDnsProvidersRequest
+	21, // 45: dockwell.v1.DomainService.CheckDnsProvider:input_type -> dockwell.v1.CheckDnsProviderRequest
+	10, // 46: dockwell.v1.DomainService.ListSigninProviders:input_type -> dockwell.v1.ListSigninProvidersRequest
+	13, // 47: dockwell.v1.DomainService.CheckSigninProvider:input_type -> dockwell.v1.CheckSigninProviderRequest
+	31, // 48: dockwell.v1.DomainService.ListDomains:output_type -> dockwell.v1.ListDomainsResponse
+	26, // 49: dockwell.v1.DomainService.CheckDomain:output_type -> dockwell.v1.CheckDomainResponse
+	16, // 50: dockwell.v1.DomainService.ListCertificates:output_type -> dockwell.v1.ListCertificatesResponse
+	19, // 51: dockwell.v1.DomainService.ListDnsProviders:output_type -> dockwell.v1.ListDnsProvidersResponse
+	22, // 52: dockwell.v1.DomainService.CheckDnsProvider:output_type -> dockwell.v1.CheckDnsProviderResponse
+	11, // 53: dockwell.v1.DomainService.ListSigninProviders:output_type -> dockwell.v1.ListSigninProvidersResponse
+	14, // 54: dockwell.v1.DomainService.CheckSigninProvider:output_type -> dockwell.v1.CheckSigninProviderResponse
+	48, // [48:55] is the sub-list for method output_type
+	41, // [41:48] is the sub-list for method input_type
+	41, // [41:41] is the sub-list for extension type_name
+	41, // [41:41] is the sub-list for extension extendee
+	0,  // [0:41] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_domain_proto_init() }

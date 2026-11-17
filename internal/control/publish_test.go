@@ -525,12 +525,17 @@ func TestTheLiveCheckReadsLittle(t *testing.T) {
 	}
 
 	s.cf.Limit(func(string) bool { return true })
-	if c := check("busy.example.com"); c != nil {
+	// Waiting says so, with when checks read Cloudflare again, from the 429 on (the
+	// re-check's L11).
+	waiting := func(c *dockwellv1.CloudflareCheck) bool {
+		return c.GetState() == dockwellv1.CloudflareName_CLOUDFLARE_NAME_WAITING && c.GetChecksAgain().AsTime().After(time.Now())
+	}
+	if c := check("busy.example.com"); !waiting(c) {
 		t.Fatalf("a check Cloudflare refused: %v", c)
 	}
 	before = asked()
 	for range 3 {
-		if c := check("busy.example.com"); c != nil {
+		if c := check("busy.example.com"); !waiting(c) {
 			t.Fatalf("a check while waiting: %v", c)
 		}
 	}

@@ -416,6 +416,9 @@ message CloudflareCheck {
   repeated WayOption ways = 8;
   // The zone's SSL mode, such as "flexible".
   string ssl_mode = 9;
+  // When checks read Cloudflare again, while it asks Dockwell to wait (state
+  // CLOUDFLARE_NAME_WAITING).
+  google.protobuf.Timestamp checks_again = 10;
 }
 
 // CloudflareName is what Cloudflare holds at a name.
@@ -433,6 +436,9 @@ enum CloudflareName {
   // The record there points at this tunnel or server already, made by hand: an
   // admin may take it on.
   CLOUDFLARE_NAME_TAKE_ON = 5 [(dockwell.v1.word) = "Made in Cloudflare"];
+  // Cloudflare answered too many requests, so checks read nothing until
+  // checks_again, leaving the token's rate to renewals and plans.
+  CLOUDFLARE_NAME_WAITING = 6 [(dockwell.v1.word) = "Cloudflare asked Dockwell to wait"];
 }
 
 // WayOption is one way in for a domain, and whether it can be taken now.

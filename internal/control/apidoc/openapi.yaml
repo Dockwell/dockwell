@@ -11906,6 +11906,7 @@ components:
                         - CLOUDFLARE_NAME_OURS
                         - CLOUDFLARE_NAME_PAST_CERTIFICATE
                         - CLOUDFLARE_NAME_TAKE_ON
+                        - CLOUDFLARE_NAME_WAITING
                     type: string
                     description: What's at the name.
                     format: enum
@@ -11941,6 +11942,12 @@ components:
                 sslMode:
                     type: string
                     description: The zone's SSL mode, such as "flexible".
+                checksAgain:
+                    type: string
+                    description: |-
+                        When checks read Cloudflare again, while it asks Dockwell to wait (state
+                         CLOUDFLARE_NAME_WAITING).
+                    format: date-time
             description: |-
                 CloudflareCheck is what a connected Cloudflare zone, and the server's tunnel, say
                  of a name, before any plan (ADR 0104, section 1). Below an admin it says only

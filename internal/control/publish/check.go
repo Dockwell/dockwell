@@ -11,6 +11,8 @@ import (
 	"sync"
 	"time"
 
+	"google.golang.org/protobuf/types/known/timestamppb"
+
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/control/dnsproviders"
@@ -42,11 +44,17 @@ type cache struct {
 // slowFor is how long checks wait once Cloudflare says too many requests.
 const slowFor = time.Minute
 
-// slowed says checks wait now.
-func (c *cache) slowed(now time.Time) bool {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return now.Before(c.slow)
+// waiting is a check while Cloudflare asks Dockwell to wait, with when checks read
+// it again, or nil when they read it now (the re-check's L11).
+func (p *Publisher) waiting(provider string) *dockwellv1.CloudflareCheck {
+	now := p.now()
+	p.cache.mu.Lock()
+	until := p.cache.slow
+	p.cache.mu.Unlock()
+	if !now.Before(until) {
+		return nil
+	}
+	return &dockwellv1.CloudflareCheck{Provider: provider, State: dockwellv1.CloudflareName_CLOUDFLARE_NAME_WAITING, ChecksAgain: timestamppb.New(until)}
 }
 
 // slowOn marks a 429 from Cloudflare, and gives err back.
@@ -106,7 +114,10 @@ func (c *cache) get(key string, now time.Time, read func() (any, error)) (any, e
 }
 
 // readFor reads through the cache under key where t is a live check's, and fresh
-// otherwise: a plan proves what it writes against what Cloudflare says now.
+// otherwise: a plan proves what it writes against what Cloudflare says now. The one
+// exception is a token's zone list, which target reads through the cache for plans
+// and applies too: zone IDs don't change, so a stale list can only name a zone that's
+// gone, and Cloudflare refuses a write there (the re-check's L12).
 func readFor[T any](p *Publisher, t *target, key string, read func() (T, error)) (T, error) {
 	if !t.cached {
 		v, err := read()
@@ -144,22 +155,27 @@ func (p *Publisher) providerFor(ctx context.Context, project, name string) (stri
 // Check says what a connected Cloudflare zone and the server's tunnels say of a name,
 // and each way in, with the one the check would take: nil where no connected
 // provider serving the project holds the name (ADR 0104, section 1).
-func (p *Publisher) Check(ctx context.Context, a CheckAsk) (*dockwellv1.CloudflareCheck, error) {
+func (p *Publisher) Check(ctx context.Context, a CheckAsk) (out *dockwellv1.CloudflareCheck, err error) {
 	name := strings.ToLower(a.Name)
-	if p.cache.slowed(p.now()) {
-		// Said once, as the 429 that started the wait was.
-		return nil, nil
-	}
 	provider, err := p.providerFor(ctx, a.Project, name)
 	if err != nil || provider == "" {
 		return nil, err
 	}
+	if w := p.waiting(provider); w != nil {
+		return w, nil
+	}
+	// A 429 met on the way says so as a state, as the checks after it do.
+	defer func() {
+		if w := p.waiting(provider); err != nil && w != nil {
+			out, err = w, nil
+		}
+	}()
 	t, err := p.target(ctx, provider, name)
 	if err != nil {
 		return nil, err
 	}
 	t.cached = true
-	out := &dockwellv1.CloudflareCheck{Zone: t.zone.Name, Provider: provider, State: dockwellv1.CloudflareName_CLOUDFLARE_NAME_FREE}
+	out = &dockwellv1.CloudflareCheck{Zone: t.zone.Name, Provider: provider, State: dockwellv1.CloudflareName_CLOUDFLARE_NAME_FREE}
 	now := p.now()
 	if mode, err := p.cache.get("ssl:"+t.zone.ID, now, func() (any, error) {
 		m, _, err := t.cf.SSLMode(ctx, t.zone)
