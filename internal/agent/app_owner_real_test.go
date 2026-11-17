@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"maps"
 	"net/http"
 	"strconv"
 	"strings"
@@ -71,6 +72,15 @@ func giteaOwner() *resourcev1.OwnerRun {
 	}
 }
 
+// giteaReset sets a new password for Gitea's owner, as its entry's reset steps do:
+// the make's steps after the user, with a token Gitea makes, then deleted signing in
+// with the new password (ADR 0105, Rotate).
+func giteaReset() *resourcev1.OwnerRun {
+	o := giteaOwner()
+	o.Steps = o.GetSteps()[1:]
+	return o
+}
+
 // ghostScript asks Ghost from inside its container, on its own loopback, which is
 // the only address whose X-Forwarded-Proto Ghost believes, as the address its url
 // says, so a Ghost reached at an https address answers rather than redirects (the
@@ -97,7 +107,7 @@ func ghostStep(method, path, body string) *resourcev1.OwnerCommand {
 // secret there either.
 func TestTheOwnersStepsAreOnesAnEntryMayHold(t *testing.T) {
 	t.Parallel()
-	for name, o := range map[string]*resourcev1.OwnerRun{"gitea": giteaOwner(), "ghost": ghostOwner(), "n8n": n8nOwner()} {
+	for name, o := range map[string]*resourcev1.OwnerRun{"gitea": giteaOwner(), "gitea reset": giteaReset(), "ghost": ghostOwner(), "n8n": n8nOwner()} {
 		if err := ownerstep.Check(o.GetSteps()); err != nil {
 			t.Errorf("%s: %v", name, err)
 		}
@@ -233,6 +243,25 @@ func TestAnAppsOwnerIsMadeOnRealDocker(t *testing.T) {
 		}
 		if res := ownerstep.Run(t.Context(), target, giteaOwner(), values, true); !res.Made {
 			t.Errorf("a second run, reading done first: %+v", res)
+		}
+		// A new password, by the reset steps: the new one signs in, done reads it, and
+		// the one before is refused.
+		fresh := maps.Clone(values)
+		fresh["OWNER_PASSWORD"] = newPassword() + "n"
+		if res := ownerstep.Run(t.Context(), target, giteaReset(), fresh, false); !res.Made {
+			t.Fatalf("setting a new password for Gitea's owner: %+v", res)
+		}
+		if got := basicStatus(t, "http://"+addr+"/api/v1/user", "owner", fresh["OWNER_PASSWORD"]); got != http.StatusOK {
+			t.Errorf("the owner signs in to Gitea with the new password: %d", got)
+		}
+		if got := basicStatus(t, "http://"+addr+"/api/v1/user", "owner", password); got != http.StatusUnauthorized {
+			t.Errorf("the password before still signs in: %d", got)
+		}
+		if yes, _ := ownerstep.Read(t.Context(), target, giteaReset(), giteaReset().GetDone(), fresh); !yes {
+			t.Error("done doesn't read the new password signs in")
+		}
+		if yes, _ := ownerstep.Read(t.Context(), target, giteaReset(), giteaReset().GetDone(), values); yes {
+			t.Error("done reads the password before signs in")
 		}
 	})
 	t.Run("ghost", func(t *testing.T) {
