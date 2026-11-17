@@ -361,16 +361,37 @@ type Front struct {
 	TrustedProxies []string
 	PlainForAnyone bool
 	Access         *resourcev1.RouteAccess
+	// Publish is how its domain is published at Cloudflare (ADR 0104), and Proof the
+	// DNS provider that proves its certificate (ADR 0088), if either is set.
+	Publish *resourcev1.RoutePublish
+	Proof   string
 }
 
 // FrontOf is the front a route has.
 func FrontOf(r *resourcev1.Route) Front {
-	return Front{TLS: r.GetTls(), TrustedProxies: r.GetTrustedProxies(), PlainForAnyone: r.GetPlainForAnyone(), Access: proto.CloneOf(r.GetAccess())}
+	return Front{
+		TLS: r.GetTls(), TrustedProxies: r.GetTrustedProxies(), PlainForAnyone: r.GetPlainForAnyone(), Access: proto.CloneOf(r.GetAccess()),
+		Publish: proto.CloneOf(r.GetPublish()), Proof: r.GetProof(),
+	}
+}
+
+// redirectPublish is how a name that redirects to a website is published: the same
+// way as the website's own, taking over nothing of its own.
+func redirectPublish(p *resourcev1.RoutePublish) *resourcev1.RoutePublish {
+	if p == nil {
+		return nil
+	}
+	out := proto.CloneOf(p)
+	out.TakesOver = nil
+	return out
 }
 
 // Resources writes what serves a website at a domain. Check it first.
 func Resources(w *resourcev1.Website, domain string, front Front) Serving {
-	r := &resourcev1.Route{Domain: domain, Tls: front.TLS, TrustedProxies: front.TrustedProxies, PlainForAnyone: front.PlainForAnyone, Access: front.Access}
+	r := &resourcev1.Route{
+		Domain: domain, Tls: front.TLS, TrustedProxies: front.TrustedProxies, PlainForAnyone: front.PlainForAnyone, Access: front.Access,
+		Publish: proto.CloneOf(front.Publish), Proof: front.Proof,
+	}
 	out := Serving{Route: r, Redirects: map[string]*resourcev1.Route{}, Services: map[string]*resourcev1.Service{}, Networks: map[string]*resourcev1.Network{}}
 	// Visitors reach a site behind a tunnel over HTTPS too, so only a site served
 	// over plain HTTP to anyone sends them to http://.
@@ -381,7 +402,7 @@ func Resources(w *resourcev1.Website, domain string, front Front) Serving {
 	for _, from := range w.GetRedirectFrom() {
 		out.Redirects[from] = &resourcev1.Route{
 			Domain: from, Tls: front.TLS, TrustedProxies: front.TrustedProxies, PlainForAnyone: front.PlainForAnyone,
-			Redirect: &resourcev1.RouteRedirect{To: scheme + domain},
+			Redirect: &resourcev1.RouteRedirect{To: scheme + domain}, Publish: redirectPublish(front.Publish), Proof: front.Proof,
 		}
 	}
 	switch KindOf(w) {

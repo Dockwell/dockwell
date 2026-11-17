@@ -242,6 +242,11 @@ message CreateWebsiteRequest {
   repeated string servers = 6;
   // What the change is for, for the timeline. Empty says what it makes.
   string summary = 7;
+  // How its domain, and the names that redirect to it, are published at
+  // Cloudflare (ADR 0104), as a route's publish says. Where the provider doesn't
+  // serve the website's new project yet, the same change adds it, which takes an
+  // admin.
+  dockwell.resource.v1alpha1.RoutePublish publish = 8;
 }
 
 // CreateWebsiteResponse carries the planned change.
@@ -263,6 +268,11 @@ message UpdateWebsiteRequest {
   // Empty keeps the one it has. Moving it to one of redirect_from, as making www
   // the main domain does, takes it out of that list in the same change.
   string domain = 4;
+  // How its domain, and the names that redirect to it, are published at
+  // Cloudflare (ADR 0104). Unset keeps how they're published now. Where the
+  // provider doesn't serve the website's project, the same change adds it, which
+  // takes an admin.
+  dockwell.resource.v1alpha1.RoutePublish publish = 5;
 }
 
 // UpdateWebsiteResponse carries the planned change.

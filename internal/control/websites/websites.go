@@ -31,10 +31,12 @@ import (
 	"github.com/dockwell/dockwell/internal/control/agentapi"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/changes"
+	"github.com/dockwell/dockwell/internal/control/dnsproviders"
 	"github.com/dockwell/dockwell/internal/control/place"
 	"github.com/dockwell/dockwell/internal/fault"
 	"github.com/dockwell/dockwell/internal/ingress"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/dnsprovider"
 	"github.com/dockwell/dockwell/internal/resource/network"
 	"github.com/dockwell/dockwell/internal/resource/route"
 	"github.com/dockwell/dockwell/internal/resource/service"
@@ -53,6 +55,9 @@ type Handler struct {
 	keeper  *secrets.Keeper
 	agents  *agentapi.Agents
 	logger  *slog.Logger
+	// DNS are the connected DNS providers, which a website's domain is published
+	// through (ADR 0104); nil publishes nothing.
+	DNS *dnsproviders.Providers
 
 	// What each server last found of what its websites send to, by server and
 	// target, so a list asks no server more than once in reachFresh.
@@ -431,8 +436,15 @@ func (h *Handler) CreateWebsite(ctx context.Context, req *connect.Request[dockwe
 		return nil, authapi.Invalid(refused)
 	}
 	made[0].Spec = &resourcev1.Project{DisplayName: domain, Website: spec}
-	serving := website.Resources(spec, domain, website.Front{TLS: m.GetTls(), TrustedProxies: m.GetTrustedProxies(), PlainForAnyone: m.GetPlainForAnyone()})
+	front := publishedFront(website.Front{TLS: m.GetTls(), TrustedProxies: m.GetTrustedProxies(), PlainForAnyone: m.GetPlainForAnyone()}, m.GetPublish())
+	serving := website.Resources(spec, domain, front)
 	edits := puts(env, serving, m.GetServers(), redirectNames(serving, nil, nil))
+	// A provider that doesn't serve the new project yet serves it from this change.
+	served, err := h.servedBy(ctx, m.GetPublish(), made[0].ID)
+	if err != nil {
+		return nil, err
+	}
+	edits = append(edits, served...)
 	summary := cmp.Or(strings.TrimSpace(m.GetSummary()), "Add the website "+domain)
 	notes := append(folderNotes(env, spec), frontNotes(serving, nil)...)
 	c, err := h.changes.Propose(ctx, summary, edits, serversField, changes.Also{Edits: made, Notes: notes})
@@ -440,6 +452,44 @@ func (h *Handler) CreateWebsite(ctx context.Context, req *connect.Request[dockwe
 		return nil, err
 	}
 	return connect.NewResponse(&dockwellv1.CreateWebsiteResponse{Change: c}), nil
+}
+
+// publishedFront is a website's front with how its domain is published, where publish
+// says (ADR 0104): through Cloudflare's proxy with a certificate of its own, the
+// provider proves it by DNS (ADR 0088), as a proxied name can't be proven over HTTP
+// at the server.
+func publishedFront(front website.Front, publish *resourcev1.RoutePublish) website.Front {
+	if publish == nil {
+		return front
+	}
+	front.Publish = proto.CloneOf(publish)
+	if publish.GetWay() == resourcev1.RouteWay_ROUTE_WAY_PROXY && front.TLS == "" {
+		front.Proof = publish.GetProvider()
+	}
+	return front
+}
+
+// servedBy is the edit that has publish's DNS provider serve project, where it
+// doesn't yet: an admin's, as a provider is, so the plan shows it as its own step.
+// Its tokens are left out, so the provider keeps them.
+func (h *Handler) servedBy(ctx context.Context, publish *resourcev1.RoutePublish, project string) ([]*dockwellv1.Edit, error) {
+	if publish.GetProvider() == "" || h.DNS == nil || project == "" {
+		return nil, nil
+	}
+	saved, err := h.DNS.Named(ctx, publish.GetProvider())
+	if err != nil {
+		return nil, authapi.Invalid(fmt.Errorf("%s isn't a connected DNS provider. Connect it under Integrations, or pick another", publish.GetProvider()))
+	}
+	if dnsprovider.Serves(saved.Spec, project) {
+		return nil, nil
+	}
+	spec := proto.CloneOf(saved.Spec)
+	spec.ApiToken, spec.TunnelApiToken = "", ""
+	spec.Projects = append(spec.Projects, project)
+	return []*dockwellv1.Edit{{
+		Resource: &dockwellv1.ResourceRef{Kind: string(dnsprovider.Kind), Name: saved.Name},
+		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_DnsProvider{DnsProvider: spec}},
+	}}, nil
 }
 
 // freeName is a project's name that nothing has, nor had: a project deleted before
@@ -524,8 +574,12 @@ func (h *Handler) UpdateWebsite(ctx context.Context, req *connect.Request[dockwe
 	if err := overlaps(all, s.project.ID, root, php, s.placed); err != nil {
 		return nil, authapi.Invalid(err)
 	}
-	serving := website.Resources(spec, domain, website.FrontOf(s.rt))
+	serving := website.Resources(spec, domain, publishedFront(website.FrontOf(s.rt), m.GetPublish()))
 	keepEdits(serving, s)
+	served, err := h.servedBy(ctx, m.GetPublish(), s.project.ID)
+	if err != nil {
+		return nil, err
+	}
 	// A website made at its domain is named for it, and follows it.
 	display := s.spec.GetDisplayName()
 	if display == was {
@@ -537,6 +591,7 @@ func (h *Handler) UpdateWebsite(ctx context.Context, req *connect.Request[dockwe
 	}}
 	// What it makes runs where its route does, and what it has stays there.
 	edits = append(edits, puts(s.env, serving, s.placed, redirectNames(serving, s.redirects, s.routes))...)
+	edits = append(edits, served...)
 	// Deletions run last, in reverse: its services go before the networks they
 	// were on.
 	for _, r := range s.networks {

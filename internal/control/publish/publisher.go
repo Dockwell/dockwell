@@ -260,8 +260,15 @@ func (p *Publisher) Plan(ctx context.Context, changeID string, routes []revision
 	for i := range routes {
 		inChange[routes[i].ID] = routes[i].After
 	}
+	// What the change's own providers serve after it, by name.
+	serving := map[string]*resourcev1.DnsProvider{}
+	for _, pp := range providers {
+		if pp.After != nil {
+			serving[pp.Ref.Name] = pp.After
+		}
+	}
 	for i := range routes {
-		steps, err := p.planRoute(ctx, routes[i], rules, inChange)
+		steps, err := p.planRoute(ctx, routes[i], rules, inChange, serving)
 		if err != nil {
 			return nil, err
 		}
@@ -279,7 +286,7 @@ func (p *Publisher) Plan(ctx context.Context, changeID string, routes []revision
 	return out, nil
 }
 
-func (p *Publisher) planRoute(ctx context.Context, r revision.PublishRoute, rules map[string]bool, inChange map[string]*resourcev1.Route) ([]resource.Step, error) {
+func (p *Publisher) planRoute(ctx context.Context, r revision.PublishRoute, rules map[string]bool, inChange map[string]*resourcev1.Route, serving map[string]*resourcev1.DnsProvider) ([]resource.Step, error) {
 	var written, kept []store.CloudflareRecord
 	if err := p.DB.View(ctx, func(tx *store.Tx) error {
 		var err error
@@ -294,7 +301,7 @@ func (p *Publisher) planRoute(ctx context.Context, r revision.PublishRoute, rule
 	var steps []resource.Step
 	keep := map[string]bool{} // written records this plan keeps, by ID
 	if pub := r.After.GetPublish(); pub != nil && pub.GetWay() != resourcev1.RouteWay_ROUTE_WAY_FRONT {
-		pre, kept, err := p.planWrites(ctx, r, pub, written, rules, inChange)
+		pre, kept, err := p.planWrites(ctx, r, pub, written, rules, inChange, serving)
 		if err != nil {
 			return nil, err
 		}
@@ -411,18 +418,22 @@ func (p *Publisher) planRoute(ctx context.Context, r revision.PublishRoute, rule
 }
 
 // planWrites plans what a route publishes: its records, and its tunnel's rule.
-func (p *Publisher) planWrites(ctx context.Context, r revision.PublishRoute, pub *resourcev1.RoutePublish, written []store.CloudflareRecord, rules map[string]bool, inChange map[string]*resourcev1.Route) ([]resource.Step, map[string]bool, error) {
+func (p *Publisher) planWrites(ctx context.Context, r revision.PublishRoute, pub *resourcev1.RoutePublish, written []store.CloudflareRecord, rules map[string]bool, inChange map[string]*resourcev1.Route, serving map[string]*resourcev1.DnsProvider) ([]resource.Step, map[string]bool, error) {
 	name := strings.ToLower(r.After.GetDomain())
-	project, err := p.ProjectOf(ctx, r.Environment)
-	if err != nil {
-		return nil, nil, err
+	project := r.Project
+	if project == "" {
+		var err error
+		if project, err = p.ProjectOf(ctx, r.Environment); err != nil {
+			return nil, nil, err
+		}
 	}
 	t, err := p.target(ctx, pub.GetProvider(), name)
 	if err != nil {
 		return nil, nil, err
 	}
 	// Writing at Cloudflare follows the provider's reach (ADR 0104, section 5).
-	if !dnsprovider.Serves(t.spec, project) {
+	// A provider this change has serve the project counts, as a new website's does.
+	if !dnsprovider.Serves(t.spec, project) && !dnsprovider.Serves(serving[t.provider], project) {
 		return nil, nil, fmt.Errorf("the DNS provider %s doesn't serve this route's project, so %s can't be published through it. An admin adds the project to the provider", t.provider, name)
 	}
 	way := pub.GetWay()

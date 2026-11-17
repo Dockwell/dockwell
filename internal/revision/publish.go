@@ -11,6 +11,7 @@ import (
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/fault"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/scope"
 )
 
 // Publishing a route's domain at Cloudflare is steps of the route's change, which
@@ -29,6 +30,9 @@ type PublishRoute struct {
 	// Reverts is the change this one undoes or rolls back, if any: what that change
 	// took on is let go, as it was before it.
 	Reverts string
+	// Project is the environment's project, where the change makes the environment,
+	// as a new website's: empty otherwise, and read from the store.
+	Project string
 	Before  *resourcev1.Route
 	After   *resourcev1.Route
 }
@@ -89,6 +93,11 @@ func (e *Engine) publishing(ctx context.Context, changeID string, items []item, 
 			pr.Server = it.servers[0]
 		}
 		pr.Reverts = reverts
+		for j := range items {
+			if items[j].ref.Kind == scope.EnvironmentKind && items[j].id == pr.Environment {
+				pr.Project = items[j].ref.Scope
+			}
+		}
 		routes = append(routes, pr)
 	}
 	if e.publisher == nil {
