@@ -308,7 +308,15 @@ func TestCloudflareLive(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		tokenFile := filepath.Join(t.TempDir(), "token")
+		// The token's file is on a mount of its own where there's one, as a Docker
+		// secret is inside a container's root, so the agent must cross into it.
+		tokenDir := t.TempDir()
+		if dir, err := os.MkdirTemp("/dev/shm", "dockwell-live-"); err == nil && onAMount("/dev/shm") {
+			tokenDir = dir
+			t.Cleanup(func() { os.RemoveAll(dir) })
+			t.Log("cloudflared reads its token from a file on a mount of its own")
+		}
+		tokenFile := filepath.Join(tokenDir, "token")
 		if err := os.WriteFile(tokenFile, []byte(base64.StdEncoding.EncodeToString(token)), 0o600); err != nil {
 			t.Fatal(err)
 		}
@@ -375,4 +383,18 @@ func TestCloudflareLive(t *testing.T) {
 		}
 		t.Fatalf("the connections list never carried the connector %s", ready.ConnectorID)
 	})
+}
+
+// onAMount says /proc/self/mountinfo lists dir as a mount.
+func onAMount(dir string) bool {
+	b, err := os.ReadFile("/proc/self/mountinfo")
+	if err != nil {
+		return false
+	}
+	for line := range strings.SplitSeq(string(b), "\n") {
+		if f := strings.Fields(line); len(f) > 4 && f[4] == dir {
+			return true
+		}
+	}
+	return false
 }
