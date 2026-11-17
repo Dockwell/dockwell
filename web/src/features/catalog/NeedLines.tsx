@@ -30,7 +30,7 @@ import { useAllVariables } from "../variables/VariablesPage";
 import type { CardRow } from "./CardRows";
 import { NeedBackups } from "./NeedBackups";
 import { engineName } from "./needs";
-import { isStorage, Reason, useMayLink } from "./StorageNeed";
+import { isMail, isStorage, Reason, useMayLink } from "./StorageNeed";
 
 /**
  * What meets each of an install's needs, on its app's card, as rows (#722): the need,
@@ -215,9 +215,138 @@ export function useNeedRows(entry: Entry | undefined, install: CatalogInstall): 
     };
   };
 
+  /**
+   * A mail need's row on an install's card (ADR 0099): the connection it sends
+   * through and who its mail comes from, the values a person typed, or nothing; and
+   * the way to a connection, which lists each one the install's project may use, one
+   * that serves another app unshared, or whose security the app can't be told, off
+   * with why. A mail server keeps no files, so a move takes one plan.
+   */
+  const mailRow = (need: Need): CardRow => {
+    const pinned = install.pin?.needs[need.name];
+    const on = pinned?.connection ?? "";
+    const isOpen = open === need.name;
+    const listed: readonly ConnectionInfo[] = connections.data?.connections ?? [];
+    const current = listed.find((c) => c.name === on);
+    const candidates = listed.filter(
+      (c) =>
+        c.kind === LinkKind.SMTP &&
+        c.name !== on &&
+        (c.reach === ConnectionReach.EVERY || c.projects.includes(install.projectId)),
+    );
+    let value: ReactNode;
+    if (on) {
+      value = (
+        <>
+          <Link to="/connections/$name" params={{ name: on }}>
+            {on}
+          </Link>
+          {current?.sender ? <span className="card-row-quiet"> · {t`sends as ${current.sender}`}</span> : null}
+        </>
+      );
+    } else if (pinned?.own) {
+      value = <Trans>Set by hand</Trans>;
+    } else {
+      value = <Trans>Not set</Trans>;
+    }
+    return {
+      key: `need-${need.name}`,
+      label: need.label,
+      value,
+      action: (
+        <Button
+          variant="ghost"
+          size="sm"
+          aria-expanded={isOpen}
+          onClick={() => setOpen(isOpen ? undefined : need.name)}
+          {...mayLink.off}
+        >
+          {on ? (
+            <Trans>Use another connection</Trans>
+          ) : pinned?.own ? (
+            <Trans>Use a connection</Trans>
+          ) : (
+            <Trans>Set up</Trans>
+          )}
+        </Button>
+      ),
+      under:
+        addingFor === need.name ? (
+          <ConnectionSheet
+            onClose={() => setAddingFor(undefined)}
+            onSaved={() => {
+              setAddingFor(undefined);
+              void connections.refetch();
+            }}
+            existing={listed}
+            project={install.projectId}
+            kind="mail"
+          />
+        ) : isOpen ? (
+          <ul className="catalog-need-line-ways" aria-label={t`Connections it can use`}>
+            {candidates.map((c) => {
+              // The server says why one can't meet it, its security among it; one it
+              // didn't list, as one only this project may use, is off where another
+              // app uses it unshared, as the server refuses that too.
+              const said = (options ?? []).find((o) => o.need === need.name && o.connection === c.name);
+              const serves = c.uses.some((u) => !(u.environment === install.environmentId && u.link === need.name));
+              const why = said?.why || (serves && !c.shared ? t`It serves another app already, and isn't shared` : "");
+              return (
+                <li key={c.name}>
+                  <span className="catalog-need-line-way">
+                    <span>{c.displayName || c.name}</span>
+                    {why ? (
+                      <span className="catalog-need-line-now is-reason">
+                        <Reason why={why} />
+                      </span>
+                    ) : (
+                      <span className="catalog-need-line-now">
+                        {c.sender ? t`Sends as ${c.sender}` : t`Sends as what ${app} says`}
+                      </span>
+                    )}
+                  </span>
+                  <code>{c.name}</code>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => use(need.name, `connection:${c.name}`)}
+                    {...(why ? { disabled: true } : mayLink.off)}
+                  >
+                    <Trans>Use it</Trans>
+                  </Button>
+                </li>
+              );
+            })}
+            {candidates.length === 0 ? (
+              <li className="catalog-need-line-none">
+                <span className="catalog-need-line-now">
+                  {on ? (
+                    <Trans>No other mail server this project may use</Trans>
+                  ) : (
+                    <Trans>No mail server this project may use</Trans>
+                  )}
+                </span>
+              </li>
+            ) : null}
+            {mayLink.allowed ? (
+              <li className="catalog-need-line-add">
+                <Button variant="ghost" size="sm" icon="plus" onClick={() => setAddingFor(need.name)}>
+                  <Trans>Add a connection</Trans>
+                </Button>
+              </li>
+            ) : null}
+          </ul>
+        ) : undefined,
+    };
+  };
+
   const rows: CardRow[] = [];
   for (const need of needs) {
     const pinned = install.pin?.needs[need.name];
+    if (isMail(need)) {
+      rows.push(mailRow(need));
+      continue;
+    }
     if (isStorage(need)) {
       rows.push(
         storageRow({
@@ -236,6 +365,7 @@ export function useNeedRows(entry: Entry | undefined, install: CatalogInstall): 
                 }}
                 existing={connections.data?.connections ?? []}
                 project={install.projectId}
+                kind="storage"
               />
             ) : undefined,
         }),

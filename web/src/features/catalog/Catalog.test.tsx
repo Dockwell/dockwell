@@ -864,6 +864,100 @@ describe("A database's admin tool", () => {
     );
   });
 
+  it("sets up an app's mail from its card, through a connection its project may use, with who it sends as", async () => {
+    const user = userEvent.setup();
+    const asked: { need: string; choice: string; startEmpty: boolean }[] = [];
+    const withMail = create(EntrySchema, {
+      ...withTools,
+      companions: [],
+      needs: [
+        create(NeedSchema, {
+          name: "mail",
+          label: "Mail",
+          kind: Kind.SMTP,
+          optional: true,
+          sets: [{ name: "SMTP_HOST", part: Part.HOST }],
+        }),
+      ],
+    });
+    const installed = (mail: object) => ({
+      installs: [
+        {
+          project: "postgres",
+          projectId: "prj_1",
+          environmentId: ENV,
+          pin: { entry: "postgres", version: "17.11", release: 5, needs: { mail } },
+          webServiceId: "svc_db",
+          name: "PostgreSQL",
+          companions: {},
+        },
+      ],
+    });
+    const connections = [
+      create(ConnectionInfoSchema, {
+        name: "relay",
+        displayName: "Resend",
+        kind: LinkKind.SMTP,
+        reach: ConnectionReach.EVERY,
+        sender: "notes@example.com",
+      }),
+      create(ConnectionInfoSchema, {
+        name: "busy",
+        kind: LinkKind.SMTP,
+        reach: ConnectionReach.EVERY,
+        uses: [{ link: "mail", environment: "env_other", project: "prj_2" }],
+      }),
+      // Storage's is no way to send mail.
+      create(ConnectionInfoSchema, { name: "uploads", kind: LinkKind.S3, reach: ConnectionReach.EVERY }),
+    ];
+    const render = (mail: object) =>
+      renderAt("/apps/svc_db", {
+        ...api({
+          getCatalogEntry: () => ({ entry: withMail, project: "postgres", needs: [] }),
+          listCatalogInstalls: () => installed(mail),
+          setCatalogNeed: (req) => {
+            asked.push({ need: req.need, choice: req.choice, startEmpty: req.startEmpty });
+            throw new ConnectError("nothing more to do here", Code.FailedPrecondition);
+          },
+        }),
+        connections: { listConnections: () => ({ connections }) },
+        resources: places(),
+        services: { listServices: () => ({ services: [anApp("db", "postgres:17.11")] }) },
+      });
+
+    const { container, unmount } = render({ unset: true });
+    const panel = await screen.findByRole("region", { name: "From the catalog" });
+    const row = await waitFor(() => rowLabelled(panel, "Mail"));
+    expect(row).toHaveTextContent("Not set");
+    await user.click(within(row).getByRole("button", { name: "Set up" }));
+    const ways = within(row).getByRole("list", { name: "Connections it can use" });
+    expect(ways).not.toHaveTextContent("uploads");
+    const busy = within(ways)
+      .getAllByRole("listitem")
+      .find((li) => li.textContent?.includes("busy"));
+    expect(busy).toHaveTextContent("It serves another app already");
+    const relay = within(ways)
+      .getAllByRole("listitem")
+      .find((li) => li.textContent?.includes("Resend"));
+    expect(relay).toHaveTextContent("Sends as notes@example.com");
+    await expectAccessible(container);
+    await user.click(within(relay as HTMLElement).getByRole("button", { name: "Use it" }));
+    await waitFor(() => expect(asked).toEqual([{ need: "mail", choice: "connection:relay", startEmpty: false }]));
+    unmount();
+
+    // What a person typed before the release took it as a need is theirs (#754).
+    const typed = render({ own: true });
+    const own = await waitFor(() => rowLabelled(screen.getByRole("region", { name: "From the catalog" }), "Mail"));
+    expect(own).toHaveTextContent("Set by hand");
+    expect(within(own).getByRole("button", { name: "Use a connection" })).toBeVisible();
+    typed.unmount();
+
+    render({ connection: "relay" });
+    const on = await waitFor(() => rowLabelled(screen.getByRole("region", { name: "From the catalog" }), "Mail"));
+    expect(on).toHaveTextContent("relay · sends as notes@example.com");
+    expect(within(on).getByRole("button", { name: "Use another connection" })).toBeVisible();
+  });
+
   it("connects an app's storage from its card to a connection its project may use, one serving another app off", async () => {
     const user = userEvent.setup();
     const asked: { need: string; choice: string; startEmpty: boolean }[] = [];

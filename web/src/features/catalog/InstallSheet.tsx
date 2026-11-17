@@ -85,7 +85,7 @@ import {
   takesLine,
 } from "./needs";
 import { type OwnFault, ownFault, ownRule, strongValue } from "./ownSecret";
-import { isStorage, StorageNeed } from "./StorageNeed";
+import { isConnected, isMail, StorageNeed } from "./StorageNeed";
 import { stranger, useOrigins, useSourceNames } from "./useCatalog";
 // The form is New app's, so its fields sit apart the same way, however the sheet is reached.
 import "../apps/Apps.css";
@@ -633,6 +633,7 @@ export function InstallSheet({
         }}
         existing={connections.data?.connections ?? []}
         forInstall={app}
+        kind={needs.some((n) => n.name === need && isMail(n)) ? "mail" : "storage"}
       />
     );
   }
@@ -813,7 +814,7 @@ export function InstallSheet({
                 const options = needOptions.get(need.name) ?? [];
                 const usable = options.filter((o) => o.why === "");
                 const pick = pickOf(need.name);
-                if (isStorage(need)) {
+                if (isConnected(need)) {
                   return (
                     <StorageNeed
                       key={need.name}

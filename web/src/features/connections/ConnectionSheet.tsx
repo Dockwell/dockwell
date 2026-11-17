@@ -10,7 +10,7 @@ import {
   ConnectionService,
   LinkKind,
 } from "@dockwell/api";
-import { Advanced, Button, Callout, cx, SelectField, Sheet, StatusBadge, Switch, TextField } from "@dockwell/ui";
+import { Advanced, Button, Callout, SelectField, Sheet, StatusBadge, Switch, TextField } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -21,30 +21,17 @@ import { useMay } from "../auth/may";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { useAllResources } from "../projects/useProjects";
 import { useFleetView } from "../servers/useFleet";
-import { BUCKET, freeConnectionName, PROVIDERS, type ProviderId, placeOf, provider, R2_ACCOUNT } from "./providers";
+import { MailConnectionSheet } from "./MailConnectionSheet";
+import { isMailProvider, type MailProviderId, mailPlaceOf } from "./mail";
+import { BUCKET, freeConnectionName, type ProviderId, placeOf, provider, R2_ACCOUNT } from "./providers";
+import { type ConnectionKindPick, ServiceTiles } from "./ServiceTiles";
 import { checkServer, SILENT, useCheckWords, useConnections } from "./useConnections";
 import "./Connections.css";
 
 /** How long typing pauses before a connection is checked. */
 const CHECK_AFTER_MS = 700;
 
-/**
- * Adds a connection to S3-compatible storage, or changes one, as a plan (ADR 0099).
- * A person picks the store, types what only they know (an account ID or a region,
- * the bucket and the keys), and the bucket is checked from a server as they type:
- * the check writes, reads and deletes a small object, and says Reached before
- * anything is planned. Its name, which projects may use it, its public address
- * and whether its bucket goes in the path are under Advanced, at defaults.
- */
-export function ConnectionSheet({
-  onClose,
-  onSaved,
-  existing = [],
-  editing,
-  project,
-  start,
-  forInstall,
-}: {
+interface SheetProps {
   onClose: () => void;
   /** Where to go once the plan applies, with the connection's name. */
   onSaved?: (name: string) => void;
@@ -54,14 +41,83 @@ export function ConnectionSheet({
   editing?: ConnectionInfo | undefined;
   /** The project a new one reaches by default, as when it's added for an app there. */
   project?: string | undefined;
-  /** The store a new one starts at, as a tile picked on Connections. */
-  start?: ProviderId | undefined;
   /**
    * The app an install sheet adds it for, which has no project yet: a new one reaches
    * the project its install makes, which that install's plan gives it (ADR 0099), and
    * any others picked.
    */
   forInstall?: string | undefined;
+}
+
+/**
+ * Adds a connection, to storage or a mail server, or changes one, as a plan (ADR
+ * 0099): the service a person picks, as a tile, says which form follows. A saved
+ * connection keeps its kind, and an app's need offers its own kind alone.
+ */
+export function ConnectionSheet({
+  start,
+  kind,
+  ...props
+}: SheetProps & {
+  /** The service a new one starts at, as a tile picked on Connections. */
+  start?: ProviderId | MailProviderId | undefined;
+  /** What it reaches, where that's settled, as for an app's mail. */
+  kind?: ConnectionKindPick | undefined;
+}) {
+  const first: MailProviderId | undefined = props.editing
+    ? props.editing.kind === LinkKind.SMTP
+      ? mailPlaceOf(props.editing.host).provider
+      : undefined
+    : start !== undefined && isMailProvider(start)
+      ? start
+      : kind === "mail"
+        ? "resend"
+        : undefined;
+  const [mail, setMail] = useState<MailProviderId | undefined>(first);
+  const [store, setStore] = useState<ProviderId | undefined>(
+    start !== undefined && !isMailProvider(start) ? start : undefined,
+  );
+  if (mail) {
+    return (
+      <MailConnectionSheet
+        {...props}
+        start={mail}
+        only={kind === "mail" ? "mail" : undefined}
+        onPickStore={(id) => {
+          setStore(id);
+          setMail(undefined);
+        }}
+      />
+    );
+  }
+  return <StorageSheet {...props} start={store} only={kind} onPickMail={setMail} />;
+}
+
+/**
+ * Adds a connection to S3-compatible storage, or changes one, as a plan (ADR 0099).
+ * A person picks the store, types what only they know (an account ID or a region,
+ * the bucket and the keys), and the bucket is checked from a server as they type:
+ * the check writes, reads and deletes a small object, and says Reached before
+ * anything is planned. Its name, which projects may use it, its public address
+ * and whether its bucket goes in the path are under Advanced, at defaults.
+ */
+function StorageSheet({
+  onClose,
+  onSaved,
+  existing = [],
+  editing,
+  project,
+  start,
+  forInstall,
+  only,
+  onPickMail,
+}: SheetProps & {
+  /** The store a new one starts at, as a tile picked on Connections. */
+  start?: ProviderId | undefined;
+  /** Storage alone, as for an app's storage: mail's tiles don't show. */
+  only?: ConnectionKindPick | undefined;
+  /** Picking a mail tile goes to a mail server's form. */
+  onPickMail: (id: MailProviderId) => void;
 }) {
   const { t } = useLingui();
   const sheet = useChangeSheet();
@@ -290,27 +346,12 @@ export function ConnectionSheet({
       }
     >
       <div className="connection-sheet">
-        <fieldset className="connection-stores" disabled={editing !== undefined}>
-          <legend>
-            <Trans>Store</Trans>
-          </legend>
-          <div className="connection-store-grid">
-            {PROVIDERS.map((x) => (
-              <button
-                key={x.id}
-                type="button"
-                className={cx("connection-store", store === x.id && "is-picked")}
-                aria-pressed={store === x.id}
-                onClick={() => pick(x.id)}
-              >
-                <span className="connection-mark" aria-hidden>
-                  {x.mark}
-                </span>
-                <span>{x.name || t`Another store`}</span>
-              </button>
-            ))}
-          </div>
-        </fieldset>
+        <ServiceTiles
+          picked={store}
+          onPick={(id) => (isMailProvider(id) ? onPickMail(id) : pick(id))}
+          only={editing ? "storage" : only}
+          disabled={editing !== undefined}
+        />
         {p.account ? (
           <TextField
             label={t`Account ID`}

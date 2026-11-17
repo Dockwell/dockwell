@@ -15,6 +15,16 @@ export function isStorage(need: Need): boolean {
   return need.kind === Kind.S3;
 }
 
+/** Whether a need is for a mail server, which a connection meets (ADR 0099). */
+export function isMail(need: Need): boolean {
+  return need.kind === Kind.SMTP;
+}
+
+/** Whether a connection meets a need: storage's or a mail server's. */
+export function isConnected(need: Need): boolean {
+  return isStorage(need) || isMail(need);
+}
+
 /** What a need asks of a bucket, each once, such as signed URLs. */
 export function needFeatures(need: Need): Feature[] {
   return [...new Set(need.accepts.flatMap((a) => a.features))].sort((a, b) => a - b);
@@ -49,11 +59,11 @@ export function useFeatureLine(need: Need): string {
 }
 
 /**
- * A storage need on the install sheet (ADR 0099): what meets it in a line, with
- * Change, or, while changing or with nothing picked, its ways, each a card to pick:
- * the app's own disk where the need is optional, and each connection the new project
- * may use, one that can't meet it off with why. An install admin adds a connection
- * from here, which then meets it.
+ * A storage or mail need on the install sheet (ADR 0099): what meets it in a line,
+ * with Change, or, while changing or with nothing picked, its ways, each a card to
+ * pick: the app's own disk, or no mail, where the need is optional, and each
+ * connection the new project may use, one that can't meet it off with why. An install
+ * admin adds a connection from here, which then meets it.
  */
 export function StorageNeed({
   need,
@@ -82,7 +92,10 @@ export function StorageNeed({
   const { t } = useLingui();
   const id = useId();
   const may = useMayLink();
-  const takes = useFeatureLine(need);
+  const mail = isMail(need);
+  const features = useFeatureLine(need);
+  const takes = mail ? t`Any mail server` : features;
+  const unsetWords = mail ? t`Not set` : t`On its own disk`;
   const own = options.find((o) => o.choice === UNSET);
   const connections = options.filter((o) => o.connection !== "");
   const usable = connections.filter((o) => o.why === "");
@@ -103,11 +116,11 @@ export function StorageNeed({
           {need.label}
         </span>
         <span className="catalog-chosen-value">
-          <span>{picked.choice === UNSET ? t`On its own disk` : label}</span>
+          <span>{picked.choice === UNSET ? unsetWords : label}</span>
           {canChange ? (
             picked.choice === UNSET ? (
               <button type="button" className="catalog-change" onClick={onChange}>
-                <Trans>Use a connection</Trans>
+                {mail ? <Trans>Set up</Trans> : <Trans>Use a connection</Trans>}
               </button>
             ) : (
               <button type="button" className="catalog-change" aria-label={t`Change ${what}`} onClick={onChange}>
@@ -129,11 +142,9 @@ export function StorageNeed({
         {own ? (
           <label className={cx("catalog-need-server", value === UNSET && "is-picked")}>
             <input type="radio" name={id} value={UNSET} checked={value === UNSET} onChange={() => onPick(UNSET)} />
-            <span className="catalog-need-server-name">
-              <Trans>On its own disk</Trans>
-            </span>
+            <span className="catalog-need-server-name">{unsetWords}</span>
             <span className="catalog-need-server-state">
-              <Trans>{app} keeps its files beside it</Trans>
+              {mail ? <Trans>{app} sends no mail</Trans> : <Trans>{app} keeps its files beside it</Trans>}
             </span>
           </label>
         ) : null}
@@ -157,6 +168,8 @@ export function StorageNeed({
             <span className="catalog-need-server-state">
               {o.why ? (
                 <Reason why={o.why} />
+              ) : mail ? (
+                <MailState option={o} app={app} />
               ) : o.connectionShared ? (
                 t`Shared with other apps, each under its own prefix`
               ) : (
@@ -176,6 +189,20 @@ export function StorageNeed({
         {add ? <span>{add}</span> : null}
       </span>
     </fieldset>
+  );
+}
+
+/** A mail server's way, as a line: who the app's mail comes from, and whether it's shared. */
+function MailState({ option, app }: { option: CatalogNeedOption; app: string }) {
+  const { t } = useLingui();
+  const sender = option.connectionSender;
+  const shared = option.connectionShared
+    ? ` · ${t({ message: "shared", context: "a connection more than one app may use" })}`
+    : "";
+  return (
+    <>
+      {sender ? `${t`Sends as ${sender}`}${shared}` : `${t`Checked from ${app}'s server before it's planned`}${shared}`}
+    </>
   );
 }
 

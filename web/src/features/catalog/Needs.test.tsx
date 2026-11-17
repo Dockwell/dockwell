@@ -526,3 +526,93 @@ describe("The way the sheet shows is the way it sends (slice 2 review, H1)", () 
     expect(asked?.needs["storage"]).toBe("connection:uploads");
   });
 });
+
+// WordPress given an optional mail server, as ADR 0099 writes one.
+const withMail = create(EntrySchema, {
+  ...wordpress,
+  needs: [
+    ...wordpress.needs,
+    create(NeedSchema, {
+      name: "mail",
+      label: "Mail",
+      kind: Kind.SMTP,
+      optional: true,
+      sets: [
+        { name: "SMTP_HOST", part: Part.HOST },
+        { name: "SMTP_PASSWORD", part: Part.PASSWORD },
+      ],
+    }),
+  ],
+});
+const noMail = create(CatalogNeedOptionSchema, { need: "mail", choice: "unset" });
+const relay = create(CatalogNeedOptionSchema, {
+  need: "mail",
+  choice: "connection:relay",
+  connection: "relay",
+  connectionLabel: "Resend · notes@example.com",
+  connectionSender: "notes@example.com",
+});
+const plain = create(CatalogNeedOptionSchema, {
+  need: "mail",
+  choice: "connection:plain",
+  connection: "plain",
+  connectionLabel: "Office relay",
+  why: "the app can't be told to require STARTTLS",
+});
+
+function mailApi(more: Api["catalog"] = {}): Api {
+  const options = [ownMariaDB, noMail, relay, plain];
+  const base = api(options, more);
+  return {
+    ...base,
+    catalog: {
+      ...base.catalog,
+      getCatalogEntry: () => ({
+        entry: withMail,
+        project: "wordpress",
+        values: { PORT: "8085" },
+        parts: [{ service: "wordpress", image: "wordpress:7.1.3-apache", opens: true }],
+        needs: options,
+      }),
+      ...more,
+    },
+    connections: { listConnections: () => ({ connections: [] }) },
+  };
+}
+
+describe("An app's mail as it's installed (ADR 0099)", () => {
+  it("installs with no mail by default, sets up a connection with who it sends as, one that can't off with why", async () => {
+    const user = userEvent.setup();
+    let asked: InstallCatalogEntryRequest | undefined;
+    const change = create(ChangeSchema, { id: "chg_wp", summary: "Install WordPress", state: ChangeState.PLANNED });
+    const { container } = renderAt(
+      "/catalog/wordpress/install",
+      mailApi({
+        installCatalogEntry: (req) => {
+          asked = req;
+          return { change };
+        },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "Install WordPress" });
+    const row = await within(sheet).findByRole("group", { name: "Mail" });
+    expect(row).toHaveTextContent("Not set");
+    await user.click(within(row).getByRole("button", { name: "Set up" }));
+    const picker = within(sheet).getByRole("group", { name: "Mail" });
+    expect(picker).toHaveTextContent("Any mail server");
+    expect(within(picker).getByRole("radio", { name: /Not set/ })).toBeChecked();
+    expect(picker).toHaveTextContent("WordPress sends no mail");
+    expect(
+      within(picker)
+        .getByRole("radio", { name: /Resend/ })
+        .closest("label"),
+    ).toHaveTextContent("Sends as notes@example.com");
+    expect(within(picker).getByRole("radio", { name: /Office relay/ })).toBeDisabled();
+    expect(picker).toHaveTextContent("The app can't be told to require STARTTLS");
+    await expectAccessible(container);
+    await user.click(within(picker).getByRole("radio", { name: /Resend/ }));
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    await waitFor(() => expect(asked).toBeDefined());
+    expect(asked?.needs).toEqual({ db: "new:mariadb", mail: "connection:relay" });
+  });
+});

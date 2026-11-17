@@ -8013,6 +8013,9 @@ msgstr "Copies its data"
 msgid "It serves another app already"
 msgstr "It serves another app already"
 
+msgid "It serves another app already, and isn't shared"
+msgstr "It serves another app already, and isn't shared"
+
 msgid "It serves another app already, and {app} can't keep to a prefix of the bucket"
 msgstr "It serves another app already, and {app} can't keep to a prefix of the bucket"
 
@@ -8040,6 +8043,12 @@ msgstr "Its own {runs}, beside {app}"
 msgid "No connection this project may use"
 msgstr "No connection this project may use"
 
+msgid "No mail server this project may use"
+msgstr "No mail server this project may use"
+
+msgid "No other mail server this project may use"
+msgstr "No other mail server this project may use"
+
 msgid "Nothing else Dockwell runs takes it"
 msgstr "Nothing else Dockwell runs takes it"
 
@@ -8048,6 +8057,16 @@ msgstr "Of its {what} alone"
 
 msgid "On its own disk"
 msgstr "On its own disk"
+
+msgid "Sends as what {app} says"
+msgstr "Sends as what {app} says"
+
+#. placeholder {0}: c.sender
+msgid "Sends as {0}"
+msgstr "Sends as {0}"
+
+msgid "Set by hand"
+msgstr "Set by hand"
 
 msgid "Shares {named} in the project {where}"
 msgstr "Shares {named} in the project {where}"
@@ -8079,6 +8098,10 @@ msgstr "Where else it can run"
 
 msgid "objects under {prefix}"
 msgstr "objects under {prefix}"
+
+#. placeholder {0}: current.sender
+msgid "sends as {0}"
+msgstr "sends as {0}"
 
 msgid "{app} reads its storage as one URL, which a connection can't give yet"
 msgstr "{app} reads its storage as one URL, which a connection can't give yet"
@@ -8343,6 +8366,9 @@ msgstr "{short} (tag)"
 msgid "Any S3-compatible bucket"
 msgstr "Any S3-compatible bucket"
 
+msgid "Any mail server"
+msgstr "Any mail server"
+
 msgid "Checked from {app}'s server before it's planned"
 msgstr "Checked from {app}'s server before it's planned"
 
@@ -8355,6 +8381,9 @@ msgstr "Needs {list}"
 
 msgid "No connection meets it yet"
 msgstr "No connection meets it yet"
+
+msgid "Sends as {sender}"
+msgstr "Sends as {sender}"
 
 msgid "Shared with other apps, each under its own prefix"
 msgstr "Shared with other apps, each under its own prefix"
@@ -8370,6 +8399,10 @@ msgstr "form uploads from browsers"
 
 msgid "reading objects at its public address"
 msgstr "reading objects at its public address"
+
+msgctxt "a connection more than one app may use"
+msgid "shared"
+msgstr "shared"
 
 msgid "signed URLs"
 msgstr "signed URLs"
@@ -8391,6 +8424,9 @@ msgstr "uploads straight from browsers"
 
 msgid "{app} keeps its files beside it"
 msgstr "{app} keeps its files beside it"
+
+msgid "{app} sends no mail"
+msgstr "{app} sends no mail"
 
 msgctxt "catalog store"
 msgid "Added"
@@ -11478,9 +11514,6 @@ msgstr "Folders, each ending with a slash, such as {app}/"
 msgid "It hands browsers signed links"
 msgstr "It hands browsers signed links"
 
-msgid "It serves another app already, and isn't shared"
-msgstr "It serves another app already, and isn't shared"
-
 msgid "Its values come from the connection, checked from where the app runs"
 msgstr "Its values come from the connection, checked from where the app runs"
 
@@ -11547,6 +11580,9 @@ msgstr "Dockwell can't read its connections"
 msgid "Each keeps its files under a prefix of its own"
 msgstr "Each keeps its files under a prefix of its own"
 
+msgid "Each sends as any sender the server takes"
+msgstr "Each sends as any sender the server takes"
+
 msgid "Every project"
 msgstr "Every project"
 
@@ -11570,6 +11606,9 @@ msgstr "More than one app may use it"
 
 msgid "Names it sets"
 msgstr "Names it sets"
+
+msgid "No TLS"
+msgstr "No TLS"
 
 msgid "No app reads it"
 msgstr "No app reads it"
@@ -11595,11 +11634,17 @@ msgstr "Projects"
 msgid "Replace keys"
 msgstr "Replace keys"
 
+msgid "Replace password"
+msgstr "Replace password"
+
 msgid "Sealed, never shown"
 msgstr "Sealed, never shown"
 
 msgid "See every connection"
 msgstr "See every connection"
+
+msgid "Sends as"
+msgstr "Sends as"
 
 msgid "Share it"
 msgstr "Share it"
@@ -11610,11 +11655,20 @@ msgstr "Share it to link another app beside them."
 msgid "Share the connection {label}"
 msgstr "Share the connection {label}"
 
+msgid "Sign-in"
+msgstr "Sign-in"
+
 msgid "Stop sharing the connection {label}"
 msgstr "Stop sharing the connection {label}"
 
+msgid "TLS from the start"
+msgstr "TLS from the start"
+
 msgid "Use in an app"
 msgstr "Use in an app"
+
+msgid "What each app says"
+msgstr "What each app says"
 
 msgid "the server"
 msgstr "the server"
@@ -11641,9 +11695,6 @@ msgstr "32 letters and digits, as Cloudflare shows it"
 
 msgid "A bucket of S3-compatible storage, for apps to keep files in"
 msgstr "A bucket of S3-compatible storage, for apps to keep files in"
-
-msgid "Another store"
-msgstr "Another store"
 
 msgid "Bucket in the path"
 msgstr "Bucket in the path"
@@ -11685,9 +11736,6 @@ msgstr "Only some projects"
 msgid "Remove the connection {name}"
 msgstr "Remove the connection {name}"
 
-msgid "Store"
-msgstr "Store"
-
 msgid "Their apps alone may use it."
 msgstr "Their apps alone may use it."
 
@@ -11725,17 +11773,14 @@ msgstr "{app}'s project, once it's installed"
 msgid "{links, plural, one {# link names it. Disconnect it under Used by first.} other {# links name it. Disconnect them under Used by first.}}"
 msgstr "{links, plural, one {# link names it. Disconnect it under Used by first.} other {# links name it. Disconnect them under Used by first.}}"
 
-msgid "A bucket's keys, pasted once, for any app to keep its files in"
-msgstr "A bucket's keys, pasted once, for any app to keep its files in"
+msgid "A bucket's keys or a mail server's sign-in, pasted once, for any app to use"
+msgstr "A bucket's keys or a mail server's sign-in, pasted once, for any app to use"
 
 msgid "Add connection"
 msgstr "Add connection"
 
-msgid "An admin adds the buckets your apps may use."
-msgstr "An admin adds the buckets your apps may use."
-
-msgid "Another S3-compatible store"
-msgstr "Another S3-compatible store"
+msgid "An admin adds the buckets and mail servers your apps may use."
+msgstr "An admin adds the buckets and mail servers your apps may use."
 
 msgid "No app yet"
 msgstr "No app yet"
@@ -11755,16 +11800,66 @@ msgstr "no app uses them yet"
 msgid "none"
 msgstr "none"
 
-msgctxt "a connection more than one app may use"
-msgid "shared"
-msgstr "shared"
-
 #. placeholder {0}: connections.length
 msgid "{0, plural, one {# connection} other {# connections}}"
 msgstr "{0, plural, one {# connection} other {# connections}}"
 
 msgid "{apps, plural, one {used by # app} other {used by # apps}}"
 msgstr "{apps, plural, one {used by # app} other {used by # apps}}"
+
+msgid "A mail server, for apps to send mail through"
+msgstr "A mail server, for apps to send mail through"
+
+msgid "API key"
+msgstr "API key"
+
+msgid "An email address alone, such as notes@example.com"
+msgstr "An email address alone, such as notes@example.com"
+
+msgid "Its name or address alone, with the port apart"
+msgstr "Its name or address alone, with the port apart"
+
+msgid "Its saved password stays on these servers. Type it to pick any."
+msgstr "Its saved password stays on these servers. Type it to pick any."
+
+msgid "Moved: type its password again"
+msgstr "Moved: type its password again"
+
+msgid "Password kept back"
+msgstr "Password kept back"
+
+msgid "Send mail through {host}"
+msgstr "Send mail through {host}"
+
+msgid "Sender's name"
+msgstr "Sender's name"
+
+msgid "Server token"
+msgstr "Server token"
+
+msgid "Signs in only to a private address, such as 10.0.0.5."
+msgstr "Signs in only to a private address, such as 10.0.0.5."
+
+msgid "Type the user and password"
+msgstr "Type the user and password"
+
+msgid "Use TLS"
+msgstr "Use TLS"
+
+msgid "Use port {alt}"
+msgstr "Use port {alt}"
+
+msgid "Without TLS, give the server's private address, such as 10.0.0.5, or use STARTTLS or TLS."
+msgstr "Without TLS, give the server's private address, such as 10.0.0.5, or use STARTTLS or TLS."
+
+msgid "Another S3-compatible store"
+msgstr "Another S3-compatible store"
+
+msgid "Another mail server"
+msgstr "Another mail server"
+
+msgid "Mail"
+msgstr "Mail"
 
 msgid "Access denied"
 msgstr "Access denied"
@@ -11777,6 +11872,12 @@ msgstr "Answered wrongly"
 
 msgid "Can't reach it"
 msgstr "Can't reach it"
+
+msgid "Can't reach port {port}"
+msgstr "Can't reach port {port}"
+
+msgid "Can't sign in"
+msgstr "Can't sign in"
 
 msgid "Check the access key ID and its secret."
 msgstr "Check the access key ID and its secret."
@@ -11793,18 +11894,60 @@ msgstr "Check the endpoint, and that the server can reach it."
 msgid "Check the endpoint."
 msgstr "Check the endpoint."
 
+msgid "Check the host and port."
+msgstr "Check the host and port."
+
+msgid "Check the host."
+msgstr "Check the host."
+
+msgid "Clear the user, or use a server that signs one in."
+msgstr "Clear the user, or use a server that signs one in."
+
 #. placeholder {0}: c.region
 msgid "It answered from region {0}."
 msgstr "It answered from region {0}."
 
+msgid "It answered {code}. Check the user and password."
+msgstr "It answered {code}. Check the user and password."
+
+msgid "It answered, and Dockwell sent no mail."
+msgstr "It answered, and Dockwell sent no mail."
+
+msgid "It refused at its {step} step with {code}."
+msgstr "It refused at its {step} step with {code}."
+
+msgid "It signs in only in ways Dockwell doesn't, which are PLAIN and LOGIN."
+msgstr "It signs in only in ways Dockwell doesn't, which are PLAIN and LOGIN."
+
+msgid "It took the connection and answered nothing, so apps can't send through it. The port may want TLS from the start."
+msgstr "It took the connection and answered nothing, so apps can't send through it. The port may want TLS from the start."
+
+msgid "It took the connection and never finished TLS, so apps can't send through it. The port may want STARTTLS."
+msgstr "It took the connection and never finished TLS, so apps can't send through it. The port may want STARTTLS."
+
+msgid "It took the connection on port {port} and answered nothing, so apps can't send through it. That port may want TLS from the start."
+msgstr "It took the connection on port {port} and answered nothing, so apps can't send through it. That port may want TLS from the start."
+
+msgid "It took the sign-in, and Dockwell sent no mail."
+msgstr "It took the sign-in, and Dockwell sent no mail."
+
 msgid "Keys refused"
 msgstr "Keys refused"
+
+msgid "No STARTTLS"
+msgstr "No STARTTLS"
 
 msgid "No answer"
 msgstr "No answer"
 
+msgid "No app can use it either. Give the address apps reach the server at."
+msgstr "No app can use it either. Give the address apps reach the server at."
+
 msgid "No app can use it either. Give the address apps reach the store at."
 msgstr "No app can use it either. Give the address apps reach the store at."
+
+msgid "No greeting"
+msgstr "No greeting"
 
 msgid "No such bucket"
 msgstr "No such bucket"
@@ -11816,6 +11959,19 @@ msgstr "Reached"
 msgid "Reached from {0}"
 msgstr "Reached from {0}"
 
+msgid "Sign-in refused"
+msgstr "Sign-in refused"
+
+msgid "Signs no one in"
+msgstr "Signs no one in"
+
+msgctxt "a step of a mail server's check"
+msgid "TLS"
+msgstr "TLS"
+
+msgid "TLS never finished"
+msgstr "TLS never finished"
+
 msgid "The bucket gave back something other than what was written."
 msgstr "The bucket gave back something other than what was written."
 
@@ -11826,8 +11982,24 @@ msgstr "The bucket refused the check with {0}."
 msgid "The keys may not write in this bucket."
 msgstr "The keys may not write in this bucket."
 
+msgid "This server can't reach port {port}, so apps on it can't send mail through it."
+msgstr "This server can't reach port {port}, so apps on it can't send mail through it."
+
+msgid "This server can't reach the port, so apps on it can't send mail through it."
+msgstr "This server can't reach the port, so apps on it can't send mail through it."
+
+msgctxt "a mail server's, with its sign-in"
+msgid "URL"
+msgstr "URL"
+
 msgid "Untrusted certificate"
 msgstr "Untrusted certificate"
+
+msgid "Use TLS on port 465, or a server that offers STARTTLS."
+msgstr "Use TLS on port 465, or a server that offers STARTTLS."
+
+msgid "Without TLS, Dockwell sends a password only to a private address. Use STARTTLS or TLS."
+msgstr "Without TLS, Dockwell sends a password only to a private address. Use STARTTLS or TLS."
 
 msgid "Wrote, read and deleted a test object."
 msgstr "Wrote, read and deleted a test object."
@@ -11838,8 +12010,31 @@ msgstr "access key ID"
 msgid "bucket"
 msgstr "bucket"
 
+msgctxt "a step of a mail server's check"
+msgid "connecting"
+msgstr "connecting"
+
 msgid "endpoint"
 msgstr "endpoint"
+
+msgctxt "a step of a mail server's check"
+msgid "greeting"
+msgstr "greeting"
+
+msgctxt "a mail server's"
+msgid "host"
+msgstr "host"
+
+msgid "no code"
+msgstr "no code"
+
+msgctxt "a mail server's"
+msgid "password"
+msgstr "password"
+
+msgctxt "a mail server's"
+msgid "port"
+msgstr "port"
 
 msgctxt "where in a bucket an app keeps its files"
 msgid "prefix"
@@ -11853,6 +12048,24 @@ msgstr "region"
 
 msgid "secret access key"
 msgstr "secret access key"
+
+msgctxt "how a mail server's connection is secured"
+msgid "security"
+msgstr "security"
+
+msgid "sender"
+msgstr "sender"
+
+msgid "sender's name"
+msgstr "sender's name"
+
+msgctxt "a step of a mail server's check"
+msgid "sign-in"
+msgstr "sign-in"
+
+msgctxt "who signs in to a mail server"
+msgid "user"
+msgstr "user"
 
 msgid "Add a user to {name}"
 msgstr "Add a user to {name}"
@@ -12125,9 +12338,6 @@ msgstr "{servers}, unencrypted"
 
 msgid "Can do anything"
 msgstr "Can do anything"
-
-msgid "Can't sign in"
-msgstr "Can't sign in"
 
 msgid "Change {who}'s password"
 msgstr "Change {who}'s password"
@@ -17074,9 +17284,6 @@ msgstr "S3, R2, B2, MinIO or any S3 API. Backups are sealed before they leave."
 
 msgid "S3-compatible storage"
 msgstr "S3-compatible storage"
-
-msgid "Sign-in"
-msgstr "Sign-in"
 
 msgid "Sign-in provider"
 msgstr "Sign-in provider"
