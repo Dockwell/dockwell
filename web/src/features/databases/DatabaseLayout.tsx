@@ -19,6 +19,7 @@ import { usePlaces, useServices } from "../apps/useServices";
 import { useSignedIn } from "../auth/useAuthState";
 import { OpenAppButton } from "../catalog/access";
 import { useServiceLabel } from "../catalog/Companions";
+import { useUpgradeUnavailable } from "../catalog/useCatalog";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { useAgoNow } from "../servers/useFleet";
 import { EmptyState } from "../shell/EmptyState";
@@ -148,13 +149,18 @@ function DatabaseFrame({ db, children }: { db: Database; children: ReactNode }) 
   const onLocalhost = useSignedIn()?.rpId === "localhost";
   const tool = useServices().data?.find((s) => s.id === install?.webServiceId && s.id !== db.id);
   const next = install?.upgrade?.version ?? "";
-  const upgrade = install?.upgrade
-    ? () =>
-        sheet.open({
-          kind: "plan",
-          make: () => createClient(CatalogService, transport).upgradeCatalogInstall({ id: install.projectId }),
-        })
-    : undefined;
+  // A release that can't be planned where it runs offers nothing to take; the note
+  // under the header says why (#771's review, M2).
+  const unavailableOf = useUpgradeUnavailable();
+  const unavailable = install ? unavailableOf(install) : "";
+  const upgrade =
+    install?.upgrade && !unavailable
+      ? () =>
+          sheet.open({
+            kind: "plan",
+            make: () => createClient(CatalogService, transport).upgradeCatalogInstall({ id: install.projectId }),
+          })
+      : undefined;
   // An action on what you can see stays where it is, off, with why (ADR 0059).
   const mayUpgrade = useMay()(CatalogService.method.upgradeCatalogInstall, { project: install?.projectId ?? "" });
   const upgradeWords =
@@ -178,6 +184,7 @@ function DatabaseFrame({ db, children }: { db: Database; children: ReactNode }) 
     place && !place.isDefault ? t`in ${placeName}` : "",
     others ? t`beside ${others}` : "",
     !db.volume ? t`not in a volume` : newest ? t`backed up ${ago}` : db.volumeExternal ? "" : t`not backed up yet`,
+    unavailable,
   ]
     .filter(Boolean)
     .join(" · ");

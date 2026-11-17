@@ -1538,6 +1538,7 @@ var codes = []struct {
 	{revision.ErrBusy, connect.CodeFailedPrecondition, "busy"},
 	{revision.ErrCantUndo, connect.CodeFailedPrecondition, "cant_undo"},
 	{revision.ErrOffline, connect.CodeUnavailable, "server_offline"},
+	{revision.ErrUnavailable, connect.CodeUnavailable, "not_known_yet"},
 	{revision.ErrStopping, connect.CodeUnavailable, "stopping"},
 	{resource.ErrLost, connect.CodeUnavailable, "server_offline"},
 	{resource.ErrNotConnected, connect.CodeUnavailable, "server_offline"},

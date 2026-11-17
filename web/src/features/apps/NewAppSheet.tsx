@@ -2829,6 +2829,7 @@ export function RunsOnField({
   servers,
   unfit,
   hint,
+  action,
 }: {
   value: readonly string[];
   onChange: (next: readonly string[]) => void;
@@ -2838,6 +2839,8 @@ export function RunsOnField({
   unfit?: (server: NonNullable<ReturnType<typeof useFleetView>["servers"]>[number]) => string | undefined;
   /** One line under the servers, such as which architectures the app runs on. */
   hint?: string | undefined;
+  /** What to do where none can be chosen, such as Add server, under the error. */
+  action?: ReactNode;
 }) {
   const { t } = useLingui();
   const id = useId();
@@ -2872,6 +2875,7 @@ export function RunsOnField({
           {error}
         </span>
       ) : null}
+      {action ? <div>{action}</div> : null}
     </fieldset>
   );
 }

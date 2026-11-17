@@ -64,6 +64,10 @@ var (
 	ErrCantUndo = errors.New("the change can't be undone")
 	// ErrOffline means a server the plan touches isn't connected.
 	ErrOffline = errors.New("a server in the plan isn't connected")
+	// ErrUnavailable means what the plan needs to know isn't known yet, as a server
+	// that hasn't reported its architecture, and a plan made again shortly may go
+	// ahead; an automatic update tries again within its window (#771).
+	ErrUnavailable = errors.New("what the plan needs isn't known yet")
 	// ErrInvalid means an edit doesn't make sense.
 	ErrInvalid = errors.New("the change isn't valid")
 	// ErrNotFound means there's no such change.

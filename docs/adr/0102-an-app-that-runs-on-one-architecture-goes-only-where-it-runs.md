@@ -33,8 +33,13 @@ A fleet may run amd64 and arm64 servers side by side. Such an app runs on any am
 ### The panel
 
 - **The install form** offers only the servers the app runs on: a server of another architecture shows it beside its name, one that hasn't said shows "Architecture not known yet", and neither can be chosen. A line under the servers says "Runs on amd64 alone."
-- **With one server it can't take,** the form says why and plans nothing: "This app runs on amd64 alone, and pi-1 is arm64. Add a server it runs on."
-- **With a fleet where no server fits,** it says so and plans nothing: "Runs on amd64 alone, and none of your servers is amd64. Add an amd64 server."
+- **Where no server can take it,** one alone or a whole fleet, the form says why, plans nothing, and offers Add server, which opens over the form, so the new server is offered there once its agent reports (#771).
+- **Removing a server** offers to move its apps only to a server each of them runs on, with the reason beside the others; where none fits, moving them isn't offered, saying why (#771). No picker in the panel moves an existing app between servers otherwise.
+
+### Updates (#771)
+
+- **A server that hasn't said its architecture** is refused as unavailable, not invalid, so an automatic update tries again within its window, as it does for a server that's offline.
+- **A release that drops the architecture of a server an install runs on** is shown as unavailable, saying why (`AvailableUpdate.unavailable`, 14): "Release 5 runs on amd64 alone, and web runs on pi-1, which is arm64". The install's card offers no upgrade, it doesn't count among the apps' updates, and an automatic update leaves it.
 
 ## What we turned down
 

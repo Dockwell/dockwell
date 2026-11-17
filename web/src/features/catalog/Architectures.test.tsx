@@ -3,6 +3,7 @@
 import { create } from "@bufbuild/protobuf";
 import { EntrySchema, InputType, ServerInventorySchema, type WatchServersResponse } from "@dockwell/api";
 import { screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
 import { expectAccessible } from "../../test/a11y";
@@ -69,10 +70,11 @@ describe("An app that runs on one architecture", () => {
     renderAt("/catalog/amd-app/install", withServers({ id: "srv_1", name: "pi-1", architecture: "arm64" }));
     const sheet = await screen.findByRole("dialog", { name: "Install Amd App" });
     const runsOn = await within(sheet).findByRole("group", { name: "Runs on" });
-    expect(within(runsOn).getByRole("alert")).toHaveTextContent(
-      "This app runs on amd64 alone, and pi-1 is arm64. Add a server it runs on.",
-    );
+    expect(within(runsOn).getByRole("alert")).toHaveTextContent("This app runs on amd64 alone, and pi-1 is arm64.");
     expect(within(sheet).getByRole("button", { name: /Review plan/ })).toBeDisabled();
+    // Adding a server is the way on, from here (#771).
+    await userEvent.setup().click(within(runsOn).getByRole("button", { name: "Add server" }));
+    expect(await screen.findByRole("dialog", { name: "Add a server" })).toBeVisible();
   });
 
   it("says when no server of a fleet can take it, and plans nothing", async () => {
@@ -88,8 +90,10 @@ describe("An app that runs on one architecture", () => {
     expect(within(runsOn).getByRole("checkbox", { name: /pi-1/ })).toBeDisabled();
     expect(within(runsOn).getByRole("checkbox", { name: /pi-2/ })).toBeDisabled();
     expect(within(runsOn).getByRole("alert")).toHaveTextContent(
-      "Runs on amd64 alone, and none of your servers is amd64. Add an amd64 server.",
+      "Runs on amd64 alone, and none of your servers is amd64.",
     );
     expect(within(sheet).getByRole("button", { name: /Review plan/ })).toBeDisabled();
+    await userEvent.setup().click(within(runsOn).getByRole("button", { name: "Add server" }));
+    expect(await screen.findByRole("dialog", { name: "Add a server" })).toBeVisible();
   });
 });

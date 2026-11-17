@@ -1038,7 +1038,12 @@ type AvailableUpdate struct {
 	// version, its new digest, its commit, or "release:7" for a catalog release whose
 	// version stays, or names a tag that moves, such as latest, so skipping one
 	// release never skips the next (ADR 0085). Other stores' work takes 90 to 99 here.
-	SkipAs        string `protobuf:"bytes,90,opt,name=skip_as,json=skipAs,proto3" json:"skip_as,omitempty"`
+	SkipAs string `protobuf:"bytes,90,opt,name=skip_as,json=skipAs,proto3" json:"skip_as,omitempty"`
+	// Why it can't be planned where the app runs, such as "Release 5 runs on amd64
+	// alone, and web runs on pi-1, which is arm64", so it's shown with no update
+	// action and an automatic update leaves it. Empty when it can. See
+	// docs/adr/0102-an-app-that-runs-on-one-architecture-goes-only-where-it-runs.md.
+	Unavailable   string `protobuf:"bytes,14,opt,name=unavailable,proto3" json:"unavailable,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1171,6 +1176,13 @@ func (x *AvailableUpdate) GetSkipAs() string {
 	return ""
 }
 
+func (x *AvailableUpdate) GetUnavailable() string {
+	if x != nil {
+		return x.Unavailable
+	}
+	return ""
+}
+
 var File_dockwell_v1_service_update_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_service_update_proto_rawDesc = "" +
@@ -1220,7 +1232,7 @@ const file_dockwell_v1_service_update_proto_rawDesc = "" +
 	"\x06source\x18\a \x01(\x0e2\x19.dockwell.v1.UpdateSourceR\x06source\x12;\n" +
 	"\vsnooze_time\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"snoozeTime\x12+\n" +
-	"\x11withdrawn_version\x18\t \x01(\tR\x10withdrawnVersion\"\x88\x04\n" +
+	"\x11withdrawn_version\x18\t \x01(\tR\x10withdrawnVersion\"\xaa\x04\n" +
 	"\x0fAvailableUpdate\x12+\n" +
 	"\x04kind\x18\x01 \x01(\x0e2\x17.dockwell.v1.UpdateKindR\x04kind\x12!\n" +
 	"\ffrom_version\x18\x02 \x01(\tR\vfromVersion\x12\x1d\n" +
@@ -1240,7 +1252,8 @@ const file_dockwell_v1_service_update_proto_rawDesc = "" +
 	"\x0fcatalog_release\x18\v \x01(\rR\x0ecatalogRelease\x12\x1b\n" +
 	"\tto_commit\x18\f \x01(\tR\btoCommit\x12\x18\n" +
 	"\askipped\x18\r \x01(\bR\askipped\x12\x17\n" +
-	"\askip_as\x18Z \x01(\tR\x06skipAs*\x80\x02\n" +
+	"\askip_as\x18Z \x01(\tR\x06skipAs\x12 \n" +
+	"\vunavailable\x18\x0e \x01(\tR\vunavailable*\x80\x02\n" +
 	"\n" +
 	"UpdateKind\x12\x1b\n" +
 	"\x17UPDATE_KIND_UNSPECIFIED\x10\x00\x12 \n" +

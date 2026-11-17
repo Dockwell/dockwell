@@ -437,6 +437,13 @@ func TestAnAutomaticUpdateOfACatalogInstallUpgradesIt(t *testing.T) {
 			t.Fatalf("a catalog release found at %v, taken on its own on 2026-11-15: %v, web runs %s", found, err, u.web().Config.Image)
 		}
 	}
+	// One that can't be planned where web runs, as a release that drops its server's
+	// architecture, is left, and nothing is recorded, so the window still takes one
+	// that can (#771).
+	r.Updates = &newer{found: map[string]services.Newer{web.GetId(): {Image: secondRelease, Kind: "minor", Catalog: true, Found: time.Date(2026, 11, 12, 3, 0, 0, 0, time.UTC), Unavailable: "Release 2 runs on arm64 alone, and web runs on hz-1, which is amd64"}}}
+	if err := r.Tick(t.Context()); err != nil || u.web().Config.Image != firstRelease {
+		t.Fatalf("a catalog release that can't be planned where web runs, taken on its own: %v, web runs %s", err, u.web().Config.Image)
+	}
 	r.Updates = &newer{found: map[string]services.Newer{web.GetId(): {Image: secondRelease, Kind: "minor", Catalog: true, Found: time.Date(2026, 11, 12, 3, 0, 0, 0, time.UTC)}}}
 	if err := r.Tick(t.Context()); err != nil {
 		t.Fatal(err)

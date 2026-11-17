@@ -43,6 +43,7 @@ import { BackUpSheet } from "../backups/BackUpSheet";
 import { usePolicies } from "../backups/PoliciesPanel";
 import { useMethodWord, useScheduleWords } from "../backups/words";
 import { CompanionsPanel } from "../catalog/Companions";
+import { useUpgradeUnavailable } from "../catalog/useCatalog";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { useFleetView } from "../servers/useFleet";
 import { useReveals } from "../variables/useReveal";
@@ -216,7 +217,13 @@ function UpgradeNote({ db }: { db: Database }) {
   const install = useOwnInstall(db);
   const how = useBackupHow(db);
   const next = install?.upgrade?.version ?? "";
-  if (!install?.upgrade) return null;
+  // A release that can't be planned where it runs is no upgrade to take: the page's
+  // header says why, on every tab, and a phone's, which has no room for it, here
+  // (#771's review, M2).
+  const unavailableOf = useUpgradeUnavailable();
+  const unavailable = install ? unavailableOf(install) : "";
+  const phone = useMediaQuery(PHONE_QUERY);
+  if (!install?.upgrade || (unavailable && !phone)) return null;
   const engine = engineName(db.engine);
   const dumpOf = how.database || engine;
   const now = install.pin?.version ?? "";
@@ -225,9 +232,11 @@ function UpgradeNote({ db }: { db: Database }) {
       tone="info"
       title={next === now ? t`A change to how ${engine} ${now} runs is out` : t`${engine} ${next} is out`}
     >
-      {how.known && how.dump
-        ? t`Its plan backs up the data with ${dumpOf}'s dump first; undoing it keeps the data as ${next} left it.`
-        : t`Its plan backs up its volumes first; undoing it keeps the data as ${next} left it.`}
+      {unavailable
+        ? `${unavailable}.`
+        : how.known && how.dump
+          ? t`Its plan backs up the data with ${dumpOf}'s dump first; undoing it keeps the data as ${next} left it.`
+          : t`Its plan backs up its volumes first; undoing it keeps the data as ${next} left it.`}
     </Callout>
   );
 }

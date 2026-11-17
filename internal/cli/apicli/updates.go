@@ -42,6 +42,10 @@ func newerWords(u *dockwellv1.ServiceUpdate, now time.Time) string {
 			skipped = append(skipped, a.GetToVersion())
 			continue
 		}
+		// One that can't be planned where the app runs says so, and why (#771).
+		if a.GetUnavailable() != "" {
+			step += ", unavailable: " + a.GetUnavailable()
+		}
 		offers = append(offers, step)
 	}
 	var out string

@@ -41,9 +41,16 @@ export function snoozedUntil(update: ServiceUpdate | undefined, now: number): Da
   return until && until.getTime() > now ? until : undefined;
 }
 
-/** Whether an app's update counts: something newer that isn't skipped, while it isn't snoozed. */
+/**
+ * Whether an app's update counts: something newer that isn't skipped, while it isn't
+ * snoozed, and that can be planned where the app runs: a release that drops its
+ * server's architecture is shown, with why, but offers nothing to do (#771).
+ */
 export function counts(update: ServiceUpdate | undefined, now: number): boolean {
-  return update?.check === UpdateCheck.AVAILABLE && offered(update) !== undefined && !snoozedUntil(update, now);
+  const first = offered(update);
+  return (
+    update?.check === UpdateCheck.AVAILABLE && first !== undefined && !first.unavailable && !snoozedUntil(update, now)
+  );
 }
 
 /** The apps whose updates count. */

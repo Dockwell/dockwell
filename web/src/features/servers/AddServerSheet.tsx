@@ -53,10 +53,13 @@ export function joinCommand(releases: string, controlPlane: string, ticket = "<t
 export function AddServerSheet({
   control,
   onClose,
+  overForm = false,
 }: {
   /** The control server, whose release the new one's agent takes. */
   control: { id: string; name: string } | undefined;
   onClose: () => void;
+  /** It's opened over a form, which opening the new server in its place would lose, so that opens in a new tab (#771's review, L5). */
+  overForm?: boolean;
 }) {
   const { t } = useLingui();
   const transport = useTransport();
@@ -182,7 +185,13 @@ export function AddServerSheet({
             labelIsState
           />
           {joinedId ? (
-            <RouterButtonLink to="/servers/$serverId" params={{ serverId: joinedId }} size="sm" icon="arrow-right">
+            <RouterButtonLink
+              to="/servers/$serverId"
+              params={{ serverId: joinedId }}
+              size="sm"
+              icon="arrow-right"
+              {...(overForm ? { target: "_blank", rel: "noreferrer" } : {})}
+            >
               <Trans>Open {joinedName}</Trans>
             </RouterButtonLink>
           ) : null}

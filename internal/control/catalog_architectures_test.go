@@ -16,6 +16,7 @@ import (
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/store"
 )
@@ -112,15 +113,35 @@ func TestAnAppRunsOnlyWhereItsArchitectureRuns(t *testing.T) {
 	if err := move("srv_other"); err == nil || !strings.Contains(err.Error(), "web runs on "+here+" alone, and edge-1 is "+other+", so its images have no build there and it wouldn't start. Put web on") {
 		t.Errorf("moving web to a server of the other architecture: %v", err)
 	}
-	if err := move("srv_silent"); err == nil || !strings.Contains(err.Error(), "web runs on "+here+" alone, and edge-2 hasn't said its architecture yet") {
-		t.Errorf("moving web to a server that hasn't said its architecture: %v", err)
+	// Unknown for now, not wrong, so it's unavailable: an automatic update tries
+	// again within its window (#771).
+	if err := move("srv_silent"); err == nil || !strings.Contains(err.Error(), "web runs on "+here+" alone, and edge-2 hasn't said its architecture yet") || connect.CodeOf(err) != connect.CodeUnavailable {
+		t.Errorf("moving web to a server that hasn't said its architecture: %v (%v)", err, connect.CodeOf(err))
 	}
 
 	// A release that runs on the other architecture alone can't be planned where web
 	// runs now.
 	u.release(archEntry(2, "2.0", secondRelease, other))
-	if _, err := u.cat.UpgradeCatalogInstall(t.Context(), connect.NewRequest(&dockwellv1.UpgradeCatalogInstallRequest{Id: "thing"})); err == nil || !strings.Contains(err.Error(), "web runs on "+other+" alone") {
+	// The upgrade is refused in the words the list of updates gives it, from the same
+	// function (#771's review, H1), naming the release by its version (L3).
+	if _, err := u.cat.UpgradeCatalogInstall(t.Context(), connect.NewRequest(&dockwellv1.UpgradeCatalogInstallRequest{Id: "thing"})); err == nil || !strings.Contains(err.Error(), "2.0 runs on "+other+" alone, and web runs on ") || !strings.Contains(err.Error(), ", so thing stays on 1.0") {
 		t.Errorf("an upgrade to a release that drops this architecture: %v", err)
+	}
+	// The update is shown as unavailable, saying why, so nothing offers to take it
+	// and an automatic update leaves it (#771).
+	updates := dockwellv1connect.NewServiceUpdateServiceClient(u.b, u.b.origin, connect.WithProtoJSON())
+	listed, err := updates.ListServiceUpdates(t.Context(), connect.NewRequest(&dockwellv1.ListServiceUpdatesRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var why string
+	for _, s := range listed.Msg.GetServices() {
+		if s.GetResource().GetName() == "web" && len(s.GetUpdate().GetAvailable()) > 0 {
+			why = s.GetUpdate().GetAvailable()[0].GetUnavailable()
+		}
+	}
+	if !strings.HasPrefix(why, "2.0 runs on "+other+" alone, and web runs on ") || !strings.HasSuffix(why, "which is "+here) {
+		t.Errorf("web's update to release 2 says it's unavailable as %q", why)
 	}
 
 	// A release that runs anywhere takes the limit away, so web may go where it's asked,
@@ -233,5 +254,70 @@ func TestAnEditThatLeavesArchitecturesOutKeepsThem(t *testing.T) {
 	u.applied(ch)
 	if got, _ := archSpec(t, u); !slices.Equal(got.GetArchitectures(), []string{runtime.GOARCH}) {
 		t.Errorf("after an edit that left architectures out, web runs on %v, want %s kept", got.GetArchitectures(), runtime.GOARCH)
+	}
+}
+
+// An update is unavailable only by the release's own services, the ones its upgrade
+// places: a sidecar a person added beside them, on a server of another architecture,
+// is untouched by the upgrade, so it neither hides the update nor refuses the upgrade
+// (#771's review, H1).
+func TestAnUpdateIsUnavailableOnlyByTheReleasesOwnServices(t *testing.T) {
+	t.Parallel()
+	here, other := runtime.GOARCH, otherArch()
+	u := startUpgrading(t, store.SQLite, archEntry(1, "1.0", firstRelease, here))
+	report := func(id, arch string) {
+		t.Helper()
+		inv, err := proto.Marshal(&dockwellv1.ServerInventory{Architecture: arch})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := u.f.store.Update(t.Context(), func(tx *store.Tx) error {
+			return tx.SaveServerReport(t.Context(), id, store.ServerReport{Inventory: inv}, time.Now())
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	pullsAnything(u.f.addServerNamed(t, "edge-3", nil, nil))
+	var first, second string
+	if err := u.f.store.View(t.Context(), func(tx *store.Tx) error {
+		list, err := tx.ListServers(t.Context())
+		for _, s := range list {
+			if s.Name == "edge-3" {
+				second = s.ID
+			} else {
+				first = s.ID
+			}
+		}
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	p, err := u.c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Add a sidecar", Edits: []*dockwellv1.Edit{{
+		Resource: &dockwellv1.ResourceRef{Kind: "service", Scope: u.env, Name: "sidecar"},
+		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{Image: "alpine:latest"}}}}},
+		Servers:  []string{second},
+	}}}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	u.applied(p.Msg.GetChange())
+	report(first, here)
+	report(second, other)
+
+	u.release(archEntry(2, "2.0", secondRelease, here))
+	updates := dockwellv1connect.NewServiceUpdateServiceClient(u.b, u.b.origin, connect.WithProtoJSON())
+	listed, err := updates.ListServiceUpdates(t.Context(), connect.NewRequest(&dockwellv1.ListServiceUpdatesRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, s := range listed.Msg.GetServices() {
+		if s.GetResource().GetName() == "web" && len(s.GetUpdate().GetAvailable()) > 0 {
+			if why := s.GetUpdate().GetAvailable()[0].GetUnavailable(); why != "" {
+				t.Errorf("a sidecar beside the release's services hides its update: %q", why)
+			}
+		}
+	}
+	if _, err := u.cat.UpgradeCatalogInstall(t.Context(), connect.NewRequest(&dockwellv1.UpgradeCatalogInstallRequest{Id: "thing"})); err != nil {
+		t.Errorf("the upgrade, beside a sidecar on a server of another architecture: %v", err)
 	}
 }

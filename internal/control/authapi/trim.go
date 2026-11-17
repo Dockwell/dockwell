@@ -9,6 +9,7 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/internal/catalog"
 	"github.com/dockwell/dockwell/internal/store"
 )
 
@@ -86,6 +87,45 @@ func trimMessage(m protoreflect.Message) {
 			return true
 		}
 		trimMessage(v.Message())
+		return true
+	})
+}
+
+// briefs reports a caller below an admin on the whole install, who isn't shown a
+// server's architecture (ADR 0049), so an update's reason that names one is told
+// in brief (#771's review, L2).
+func briefs(ctx context.Context) bool {
+	grants, ok := grantsFrom(ctx)
+	return ok && store.RoleRank(highestOn(grants)) < store.RoleRank(store.RoleAdmin)
+}
+
+// brief tells each update a message holds that can't be planned where its app runs
+// without the server's architecture: "1.5.0 doesn't run on the server web is on".
+func brief(msg any) {
+	if pm, ok := msg.(proto.Message); ok {
+		briefMessage(pm.ProtoReflect())
+	}
+}
+
+func briefMessage(m protoreflect.Message) {
+	if a, ok := m.Interface().(*dockwellv1.AvailableUpdate); ok {
+		if a.GetUnavailable() != "" {
+			a.Unavailable = catalog.UnfitBrief(a.GetUnavailable())
+		}
+		return
+	}
+	m.Range(func(fd protoreflect.FieldDescriptor, v protoreflect.Value) bool {
+		if fd.Kind() != protoreflect.MessageKind || fd.IsMap() {
+			return true
+		}
+		if fd.IsList() {
+			list := v.List()
+			for i := range list.Len() {
+				briefMessage(list.Get(i).Message())
+			}
+			return true
+		}
+		briefMessage(v.Message())
 		return true
 	})
 }

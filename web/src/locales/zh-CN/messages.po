@@ -7692,6 +7692,9 @@ msgstr "已有名为 {name} 的项目"
 msgid "A project named {name} was here before, and its data may come back"
 msgstr "之前有过名为 {name} 的项目，它的数据可能会回来"
 
+msgid "Add server"
+msgstr "添加服务器"
+
 msgid "App you open"
 msgstr "你打开的应用"
 
@@ -7805,8 +7808,8 @@ msgstr "正在读取来源"
 msgid "Restarts {0}"
 msgstr "重启：{0}"
 
-msgid "Runs on {archList} alone, and none of your servers is {archList}. Add an {archList} server."
-msgstr "只能在 {archList} 上运行，而你的服务器都不是 {archList}。请添加一台 {archList} 服务器。"
+msgid "Runs on {archList} alone, and none of your servers is {archList}."
+msgstr "只能在 {archList} 上运行，而你的服务器都不是 {archList}。"
 
 msgid "Runs on {archList} alone."
 msgstr "只能在 {archList} 上运行。"
@@ -7839,8 +7842,8 @@ msgstr "例如 512M 或 2G。"
 msgid "Take away the space at its start or end."
 msgstr "请去掉开头或结尾的空格。"
 
-msgid "This app runs on {archList} alone, and {onlyName} is {onlyUnfit}. Add a server it runs on."
-msgstr "此应用只能在 {archList} 上运行，而 {onlyName} 是 {onlyUnfit}。请添加一台它能运行的服务器。"
+msgid "This app runs on {archList} alone, and {onlyName} is {onlyUnfit}."
+msgstr "此应用只能在 {archList} 上运行，而 {onlyName} 是 {onlyUnfit}。"
 
 msgid "Upgrade {upgraded}"
 msgstr "升级 {upgraded}"
@@ -13942,9 +13945,6 @@ msgstr "{used} / {total}"
 msgid "{without, plural, one {# without a region} other {# without a region}}"
 msgstr "{without, plural, other {# 台没有区域}}"
 
-msgid "Add server"
-msgstr "添加服务器"
-
 msgid "Files"
 msgstr "文件"
 
@@ -15518,6 +15518,18 @@ msgstr "卷在那边从空开始，数据留在原处"
 
 msgid "{apps, plural, one {# app runs on it} other {# apps run on it}}"
 msgstr "{apps, plural, other {上面运行着 # 个应用}}"
+
+msgid "{differing} run on different architectures, so no one server takes them all"
+msgstr "{differing} 运行在不同的架构上，因此没有一台服务器能全部接收"
+
+msgid "{unfitApp} runs on {unfitRunsOn} alone, and no other server has said it's {unfitRunsOn} yet"
+msgstr "{unfitApp} 只能在 {unfitRunsOn} 上运行，而尚无其他服务器报告自己是 {unfitRunsOn}"
+
+msgid "{unfitApp} runs on {unfitRunsOn} alone, and no other server is {unfitRunsOn}"
+msgstr "{unfitApp} 只能在 {unfitRunsOn} 上运行，而没有其他服务器是 {unfitRunsOn}"
+
+msgid "{unfitApp} runs on {unfitRunsOn} alone."
+msgstr "{unfitApp} 只能在 {unfitRunsOn} 上运行。"
 
 msgid "Add one to reach an app at a name of yours"
 msgstr "添加一个，用你自己的域名访问应用"

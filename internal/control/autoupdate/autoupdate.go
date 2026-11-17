@@ -144,8 +144,15 @@ func (r *Runner) Tick(ctx context.Context) error {
 	for i := range list {
 		d := &list[i]
 		if err := r.update(ctx, d); err != nil && ctx.Err() == nil {
-			r.Logger.WarnContext(ctx, "can't update a service on its own; it tries again in its next window",
-				slog.String("service", d.name), slog.String("error", err.Error()))
+			// What it can't plan now, as a server that's offline or hasn't said its
+			// architecture, isn't recorded, so it's tried again within the window
+			// (#771's review, L4); anything else waits for the next.
+			attrs := []any{slog.String("service", d.name), slog.String("error", err.Error())}
+			if connect.CodeOf(err) == connect.CodeUnavailable {
+				r.Logger.WarnContext(ctx, "can't update a service on its own; it tries again within its window", attrs...)
+			} else {
+				r.Logger.WarnContext(ctx, "can't update a service on its own; it tries again in its next window", attrs...)
+			}
 		}
 	}
 	return ctx.Err()
@@ -242,6 +249,12 @@ func (r *Runner) update(ctx context.Context, d *due) error {
 	// say whether it's newer or lower, so a person takes it (the release-wait
 	// re-check, N2).
 	if newer.Renumbered {
+		return nil
+	}
+	// A release that can't be planned where the app runs, as one that drops its
+	// server's architecture, is no update at all here: it waits for the catalog or
+	// a person, and nothing is recorded, so a release that can is taken (#771).
+	if newer.Unavailable != "" {
 		return nil
 	}
 	a := d.spec.GetAutoUpdate()

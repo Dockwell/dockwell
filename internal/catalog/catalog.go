@@ -1224,3 +1224,26 @@ func checkArchitectures(arch []string) error {
 func RunsOn(e *catalogv1.Entry, arch string) bool {
 	return len(e.GetArchitectures()) == 0 || slices.Contains(e.GetArchitectures(), arch)
 }
+
+// UnfitWords says why a release of an entry can't be planned where a service of its
+// install runs, as one on amd64 alone can't on an arm64 server it's on (ADR 0102):
+// "1.5.0 runs on arm64 alone, and web runs on web-3, which is amd64". release is
+// how the reader knows it, its version, or "Release 2 of 1.5.0" where the version
+// stays (#771's review, L3).
+func UnfitWords(release string, runsOn []string, service, server, serverArch string) string {
+	return fmt.Sprintf("%s runs on %s alone, and %s runs on %s, which is %s", release, strings.Join(runsOn, " or "), service, server, serverArch)
+}
+
+// unfitWords reads what UnfitWords wrote: the release, and the service.
+var unfitWords = regexp.MustCompile(`^(.+?) runs on \S+(?: or \S+)* alone, and (\S+) runs on \S+, which is \S+$`)
+
+// UnfitBrief is UnfitWords for someone below an admin, who isn't shown a server's
+// architecture (ADR 0049): "1.5.0 doesn't run on the server web is on". Words it
+// can't read say only that the release doesn't run there (#771's review, L2).
+func UnfitBrief(words string) string {
+	m := unfitWords.FindStringSubmatch(words)
+	if m == nil {
+		return "This release doesn't run on the server the app is on"
+	}
+	return fmt.Sprintf("%s doesn't run on the server %s is on", m[1], m[2])
+}
