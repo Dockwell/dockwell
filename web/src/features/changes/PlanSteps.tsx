@@ -26,6 +26,7 @@ import { useControlPlaneNow } from "../servers/useFleet";
 import { DockerStops } from "./DockerStops";
 import { MachineWords } from "./FailureNotice";
 import { PanelLine, PanelPlan } from "./PanelPlan";
+import { ProviderMeta, useProviderLine } from "./ProviderSteps";
 import {
   intentOf,
   isFleet,
@@ -238,6 +239,7 @@ function StepRow({
 }) {
   const { t } = useLingui();
   const time = useTimeWords();
+  const providerLine = useProviderLine();
   const name = step.resource?.name ?? step.resourceId;
   const look = live ? words.step(live.state) : undefined;
   const planning = !live;
@@ -273,6 +275,9 @@ function StepRow({
             <span className="plan-step-activity">{activity}</span>
           ) : intent ? (
             <MachineWords>{words.intent(intent, tenseOf(live?.state))}</MachineWords>
+          ) : step.provider ? (
+            // A step at Cloudflare, for the route: where it runs is its own to say.
+            providerLine(step.provider, live?.state === StepState.DONE ? "done" : "plan")
           ) : step.backupFirst ? (
             <BackupFirstLine first={step.backupFirst} name={name} />
           ) : step.reboot ? (
@@ -373,6 +378,7 @@ function StepRow({
         </span>
       ) : null}
       {said ? <span className="plan-step-meta">{said}</span> : null}
+      {planning && step.provider ? <ProviderMeta step={step.provider} /> : null}
       {planning && step.install ? <InstallList install={step.install} server={server} serverId={serverId} /> : null}
       {planning && step.reboot ? <RebootPlan reboot={step.reboot} server={server} serverId={serverId} /> : null}
       {planning && step.unit ? <UnitPlan unit={step.unit} server={server} serverId={serverId} /> : null}

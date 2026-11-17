@@ -16,6 +16,7 @@ import { type CSSProperties, type ReactNode, useState } from "react";
 
 import { formatBytes } from "../../lib/format";
 import { useTimeWords } from "../../lib/time";
+import { StateLine } from "../apps/DomainStep";
 import { DestinationSheet } from "../backups/DestinationSheet";
 import { useDestinations } from "../backups/DestinationsPanel";
 import { DnsProviderSheet } from "../dns/DnsProviderSheet";
@@ -31,6 +32,7 @@ import { useGitHubApps } from "./github";
 import "../backups/Backups.css";
 import "./Settings.css";
 import { useMay } from "../auth/may";
+import { useChangeSheet } from "../changes/ChangeSheet";
 import { ReadFailed } from "../shell/ReadFailed";
 
 const CLOUDFLARE =
@@ -522,7 +524,7 @@ function LoginCard({
   );
 }
 
-/** A DNS provider an admin connected, with the zones it writes in. */
+/** A DNS provider an admin connected, with the zones it writes in, and the records made by hand it keeps a copy of. */
 function ProviderCard({
   provider: p,
   onManage,
@@ -533,6 +535,30 @@ function ProviderCard({
   manage: { off?: string; disabled?: true };
 }) {
   const { t } = useLingui();
+  const sheet = useChangeSheet();
+  // Putting a kept record back is the provider's own plan, which sends the rest of it as it is (ADR 0104).
+  const putBack = (id: string, name: string) =>
+    sheet.open({
+      kind: "propose",
+      summary: t`Put the record for ${name} back at Cloudflare`,
+      edits: [
+        {
+          resource: { kind: "dns.provider", name: p.name },
+          spec: {
+            kind: {
+              case: "dnsProvider",
+              value: {
+                provider: p.provider || "cloudflare",
+                zones: p.zones,
+                projects: p.projects,
+                strictZones: p.strictZones,
+                putBack: [id],
+              },
+            },
+          },
+        },
+      ],
+    });
   return (
     <Card
       icon="globe"
@@ -546,6 +572,36 @@ function ProviderCard({
           <span className="integrations-sub">
             <code>{p.zones.join(", ")}</code>
           </span>
+          {p.kept.length > 0 ? (
+            <ul className="integrations-kept" aria-label={t`Records kept`}>
+              {p.kept.map((k) => {
+                const name = k.name;
+                return (
+                  <li key={k.id}>
+                    <StateLine
+                      status={k.nameFree ? "degraded" : "unknown"}
+                      action={
+                        k.nameFree && !manage.disabled ? (
+                          <button
+                            type="button"
+                            className="domain-step-act"
+                            aria-label={t`Put the record for ${name} back`}
+                            onClick={() => putBack(k.id, name)}
+                          >
+                            <Trans>Put it back</Trans>
+                          </button>
+                        ) : undefined
+                      }
+                    >
+                      {k.nameFree
+                        ? t`Kept: ${name}, ${k.record}`
+                        : t`Kept: ${name}, ${k.record}. The name holds something else now`}
+                    </StateLine>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : null}
         </>
       }
       action={

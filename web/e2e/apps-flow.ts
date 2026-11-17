@@ -428,12 +428,12 @@ export async function appsFlow(
           };
           look();
         }),
-      { settled: "TLS ends in front", frames: 60 * 300 },
+      { settled: "HTTPS ends in front", frames: 60 * 300 },
     );
     await review.getByRole("button", { name: /Apply plan/ }).click();
     const row = page.locator(".plan-reach-row", { hasText: tunnelled });
     await row.waitFor({ timeout: 180_000 });
-    await row.getByText("TLS ends in front").waitFor({ timeout: 120_000 });
+    await row.getByText("HTTPS ends in front").waitFor({ timeout: 120_000 });
     await row.getByText(/point your tunnel's service at http:\/\/127\.0\.0\.1:80/).waitFor();
     const tops = await moved;
     if (Math.max(...tops) - Math.min(...tops) > 1) fail(`the plan moves as a domain arrives: ${tops.join(", ")}`);

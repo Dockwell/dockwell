@@ -2,7 +2,7 @@
 
 import { createClient } from "@connectrpc/connect";
 import { useTransport } from "@connectrpc/connect-query";
-import { type Change, ChangeState, type Server, WebsiteService } from "@dockwell/api";
+import { type Change, ChangeState, RouteWay, type Server, WebsiteService } from "@dockwell/api";
 import {
   Advanced,
   Button,
@@ -20,10 +20,22 @@ import { type FormEvent, useEffect, useId, useMemo, useRef, useState } from "rea
 
 import { reasonOf, sentence } from "../../lib/errors";
 import { onApple } from "../../lib/platform";
+import { nameIn } from "../apps/AddDomainSheet";
 import { useTunnelSwitchName } from "../apps/DomainNote";
 import { DomainRecord } from "../apps/DomainRecord";
+import { DomainName, NameState, WayIn } from "../apps/DomainStep";
 import { formRefusal, proxyList, refusedField } from "../apps/domains";
 import { FrontFields, frontOf, type InFront } from "../apps/FrontFields";
+import {
+  pickedOf,
+  publishOf,
+  routeOfWay,
+  type TakeOverInit,
+  useCloudflareCheck,
+  useInstallAdmin,
+  useZones,
+  wayOf,
+} from "../apps/publish";
 import { type Opening, PlanView } from "../changes/ChangeSheet";
 import { type FleetState, useFleet } from "../servers/useFleet";
 import { CompanionChoice, useCompanion, useCompanionChoice } from "./Companion";
@@ -98,8 +110,37 @@ export function NewWebsiteSheet({
   const switchName = useTunnelSwitchName();
   const missingWords = useMissingWords();
   const servesWords = useServesWords();
-  const typed = domain.trim().toLowerCase();
+  // A name in a zone a connected provider writes in, published for you: an admin makes a
+  // website, and its plan adds the website's project to that provider (ADR 0104).
+  const admin = useInstallAdmin();
+  const { zones } = useZones("", mayCreate.allowed && admin);
+  const [zonePicked, setZonePicked] = useState<string>();
+  const zone =
+    zones.length === 0
+      ? ""
+      : zonePicked !== undefined && (zonePicked === "" || zones.some((z) => z.zone === zonePicked))
+        ? zonePicked
+        : (zones[0]?.zone ?? "");
+  const publishing = zone !== "";
+  const typed = nameIn(domain, zone);
   const several = servers.length > 1;
+  const cf = useCloudflareCheck(serverOf(fleet, server)?.id ?? "", typed, "", publishing);
+  const [wayPicked, setWayPicked] = useState<{ way: RouteWay; tunnel: string }>();
+  const way =
+    wayPicked && wayOf(cf.check, wayPicked.way, wayPicked.tunnel)?.off === "" ? wayPicked : pickedOf(cf.check);
+  const wayTakeable = wayOf(cf.check, way.way, way.tunnel)?.off === "";
+  const [waysOpen, setWaysOpen] = useState(false);
+  const [consent, setConsent] = useState<{ domain: string; items: TakeOverInit[] }>({ domain: "", items: [] });
+  const takesOver = consent.domain === typed ? consent.items : [];
+  const provider = cf.check?.provider || zones.find((z) => z.zone === zone)?.provider || "";
+  const publishes = publishing && cf.check !== undefined && wayTakeable && way.way !== RouteWay.FRONT;
+  const behind = publishing ? way.way === RouteWay.FRONT : noCertificate;
+  // The folder follows the name until it's typed, as /var/www/<domain>.
+  const follow = (name: string) => {
+    if (rootTyped.current) return;
+    setSettings((was) => ({ ...was, root: name ? `/var/www/${name}` : "" }));
+    setFieldError((said) => (said?.field === "root" ? undefined : said));
+  };
   // www for a bare domain, or the bare domain for www, on by what DNS says of it.
   const companion = useCompanion(serverOf(fleet, server)?.id ?? "", typed);
   const [alsoCompanion, setAlsoCompanion] = useCompanionChoice(companion);
@@ -126,7 +167,7 @@ export function NewWebsiteSheet({
     const said = formRefusal(raw, wanted);
     const at = refusedField(said, { domain: wanted, port: settings.port, onServer: settings.serves === "port" });
     if (at === "domain") return setDomainError(said);
-    if (at === "proxies" && noCertificate && inFront === "proxy") return setProxiesError(said);
+    if (at === "proxies" && behind && inFront === "proxy") return setProxiesError(said);
     const target = servesField(said, settings.serves) || (at === "port" && settings.serves === "port" ? "port" : "");
     if (target) return setFieldError({ field: target, said });
     setFailure(said);
@@ -139,7 +180,7 @@ export function NewWebsiteSheet({
     const domainOk = typed !== "" && !/\s/.test(typed);
     const gap = missing(settings);
     const named = proxyList(proxies);
-    const proxiesOk = !noCertificate || inFront !== "proxy" || named.length > 0;
+    const proxiesOk = !behind || inFront !== "proxy" || named.length > 0;
     const serverOk = !several || server !== "";
     setDomainError(domainOk ? undefined : t`Name the domain, such as blog.example.com.`);
     setFieldError(gap ? { field: gap.field, said: missingWords(gap) } : undefined);
@@ -150,7 +191,11 @@ export function NewWebsiteSheet({
       revealError();
       return;
     }
-    const front = frontOf(noCertificate, inFront, named);
+    // A name in a connected zone waits for the check, and a way that can't be taken says why.
+    if (publishing && (cf.checking || (cf.check && !wayTakeable))) return;
+    const publish = publishes ? publishOf(way.way, way.tunnel, provider, takesOver) : undefined;
+    const { proof: _proof, ...wayFields } = routeOfWay(way.way, cf.check?.sslMode ?? "");
+    const front = publishes ? { ...wayFields, ...(publish ? { publish } : {}) } : frontOf(behind, inFront, named);
     const website = { ...specOf(settings), redirectFrom: alsoCompanion ? [companion.companion] : [] };
     setBusy(true);
     let change: Change | undefined;
@@ -220,11 +265,13 @@ export function NewWebsiteSheet({
       initialFocusRef={field}
       title={t`New website`}
       subtitle={
-        !noCertificate
-          ? t`People reach it at its domain, over HTTPS`
-          : inFront === "anyone"
-            ? t`People reach it at its domain, over plain HTTP`
-            : t`People reach it at its domain, through what's in front of this server`
+        publishing
+          ? t`Static files or PHP, served by Caddy on a server`
+          : !noCertificate
+            ? t`People reach it at its domain, over HTTPS`
+            : inFront === "anyone"
+              ? t`People reach it at its domain, over plain HTTP`
+              : t`People reach it at its domain, through what's in front of this server`
       }
       onClose={onClose}
       className={cx("app-sheet", phone && "is-phone")}
@@ -261,40 +308,100 @@ export function NewWebsiteSheet({
         {/* Lets Enter in a field do what the button in the sheet's footer does. */}
         <button type="submit" hidden />
         {failure ? <Callout tone="critical">{failure}</Callout> : null}
-        <TextField
-          ref={field}
-          label={t`Domain`}
-          mono
-          autoCapitalize="none"
-          autoCorrect="off"
-          spellCheck={false}
-          placeholder="blog.example.com"
-          value={domain}
-          error={domainError}
-          onChange={(event) => {
-            setDomain(event.target.value);
-            setDomainError(undefined);
-            // The folder follows the domain until it's typed, as /var/www/<domain>.
-            const name = event.target.value.trim().toLowerCase();
-            if (!rootTyped.current) {
-              setSettings((was) => ({ ...was, root: name ? `/var/www/${name}` : "" }));
-              setFieldError((said) => (said?.field === "root" ? undefined : said));
-            }
-          }}
-        />
-        <DomainRecord
-          server={serverOf(fleet, server)}
-          domain={typed}
-          tunnel={noCertificate}
-          tunnelName={switchName}
-          onLeave={onClose}
-        />
+        {zones.length > 0 ? (
+          <DomainName
+            field={field}
+            sub={domain}
+            onSub={(value) => {
+              const low = value.trim().toLowerCase();
+              const into = zone !== "" ? zones.find((z) => low.endsWith(`.${z.zone}`)) : undefined;
+              const sub = into ? low.slice(0, -(into.zone.length + 1)) : value;
+              if (into) setZonePicked(into.zone);
+              setDomain(sub);
+              setDomainError(undefined);
+              follow(nameIn(sub, into?.zone ?? zone));
+            }}
+            zone={zone}
+            onZone={(next) => {
+              const whole = next === "" && zone !== "" && domain.trim() !== "" ? typed : domain;
+              setDomain(whole);
+              setZonePicked(next);
+              setWayPicked(undefined);
+              setDomainError(undefined);
+              follow(nameIn(whole, next));
+            }}
+            zones={zones}
+            error={domainError}
+          >
+            {publishing ? (
+              <NameState
+                check={cf.check}
+                checking={cf.checking}
+                domain={typed}
+                sub={domain.trim().toLowerCase()}
+                zone={zone}
+                companion={cf.companion}
+                takesOver={takesOver}
+                onTakesOver={(items) => setConsent({ domain: typed, items })}
+                onSub={(value) => {
+                  setDomain(value);
+                  setDomainError(undefined);
+                  follow(nameIn(value, zone));
+                }}
+              />
+            ) : null}
+          </DomainName>
+        ) : (
+          <TextField
+            ref={field}
+            label={t`Domain`}
+            mono
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            placeholder="blog.example.com"
+            value={domain}
+            error={domainError}
+            onChange={(event) => {
+              setDomain(event.target.value);
+              setDomainError(undefined);
+              // The folder follows the domain until it's typed, as /var/www/<domain>.
+              const name = event.target.value.trim().toLowerCase();
+              if (!rootTyped.current) {
+                setSettings((was) => ({ ...was, root: name ? `/var/www/${name}` : "" }));
+                setFieldError((said) => (said?.field === "root" ? undefined : said));
+              }
+            }}
+          />
+        )}
+        {publishing ? (
+          <WayIn
+            check={cf.check}
+            way={way.way}
+            tunnel={way.tunnel}
+            onWay={(next, tunnel) => setWayPicked({ way: next, tunnel })}
+            open={waysOpen}
+            onOpen={setWaysOpen}
+            server={serverOf(fleet, server)?.name ?? ""}
+            admin={false}
+            onStrict={() => undefined}
+            onLeave={onClose}
+          />
+        ) : (
+          <DomainRecord
+            server={serverOf(fleet, server)}
+            domain={typed}
+            tunnel={noCertificate}
+            tunnelName={switchName}
+            onLeave={onClose}
+          />
+        )}
         <CompanionChoice
           server={serverOf(fleet, server)}
           read={companion}
           on={alsoCompanion}
           onChange={setAlsoCompanion}
-          tunnel={noCertificate}
+          tunnel={behind || publishes}
           onLeave={onClose}
         />
         {several ? (
@@ -341,36 +448,40 @@ export function NewWebsiteSheet({
           errors={fieldErrors}
           onChange={onFields}
         />
-        {/* HTTPS is on, with its certificate coming by itself: what's in front is one step away. */}
-        <Advanced
-          label={t`HTTPS`}
-          summary={
-            !noCertificate
-              ? t`On, with a certificate that comes by itself`
-              : inFront === "anyone"
-                ? t`Off: plain HTTP to anyone`
-                : t`Handled in front of this server`
-          }
-          open={httpsOpen}
-          onOpenChange={setHttpsOpen}
-        >
-          <FrontFields
-            behind="website"
-            noCertificate={noCertificate}
-            onNoCertificate={setNoCertificate}
-            inFront={inFront}
-            onInFront={(value) => {
-              setInFront(value);
-              setProxiesError(undefined);
-            }}
-            proxies={proxies}
-            onProxies={(value) => {
-              setProxies(value);
-              setProxiesError(undefined);
-            }}
-            proxiesError={proxiesError}
-          />
-        </Advanced>
+        {/* HTTPS is on, with its certificate coming by itself: what's in front is one step away. In a
+            connected zone, the way in says it, and what's in front is asked only for Something else in front. */}
+        {publishing && !behind ? null : (
+          <Advanced
+            label={t`HTTPS`}
+            summary={
+              !behind
+                ? t`On, with a certificate that comes by itself`
+                : inFront === "anyone"
+                  ? t`Off: plain HTTP to anyone`
+                  : t`Handled in front of this server`
+            }
+            open={httpsOpen}
+            onOpenChange={setHttpsOpen}
+          >
+            <FrontFields
+              behind="website"
+              fixed={publishing}
+              noCertificate={publishing || noCertificate}
+              onNoCertificate={setNoCertificate}
+              inFront={inFront}
+              onInFront={(value) => {
+                setInFront(value);
+                setProxiesError(undefined);
+              }}
+              proxies={proxies}
+              onProxies={(value) => {
+                setProxies(value);
+                setProxiesError(undefined);
+              }}
+              proxiesError={proxiesError}
+            />
+          </Advanced>
+        )}
       </form>
     </Sheet>
   );

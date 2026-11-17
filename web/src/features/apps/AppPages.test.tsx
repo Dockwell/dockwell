@@ -3048,7 +3048,7 @@ describe("an app's overview", () => {
       }),
     );
     const running = await screen.findByRole("region", { name: "What runs" });
-    expect(await within(running).findByText("TLS ends in front")).toBeVisible();
+    expect(await within(running).findByText("HTTPS ends in front")).toBeVisible();
     expect(within(running).queryByText("Issuing")).toBeNull();
     expect(within(running).getByRole("link", { name: "Open app.example.com" })).toHaveAttribute(
       "href",

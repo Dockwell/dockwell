@@ -2318,6 +2318,9 @@ msgstr "URL"
 msgid "A route runs on the one server its DNS points at."
 msgstr "路由运行在其 DNS 指向的那台服务器上。"
 
+msgid "A tunnel on this server"
+msgstr "此服务器上的隧道"
+
 msgid "Add a domain"
 msgstr "添加域名"
 
@@ -2331,14 +2334,23 @@ msgctxt "a port typed in"
 msgid "Another port"
 msgstr "其他端口"
 
+msgid "Another proxy"
+msgstr "其他代理"
+
 msgid "App"
 msgstr "应用"
+
+msgid "Change the port it reaches"
+msgstr "更改它到达的端口"
 
 msgid "Choose an app"
 msgstr "选择应用"
 
 msgid "Choose the app this domain reaches."
 msgstr "请选择这个域名要到达的应用。"
+
+msgid "Cloudflare's proxy"
+msgstr "Cloudflare 代理"
 
 msgid "Domain"
 msgstr "域名"
@@ -2385,11 +2397,17 @@ msgstr "请以地址或范围的形式，写明连接此服务器的来源。"
 msgid "Nothing changes until you apply the plan"
 msgstr "应用计划之前不会有任何更改"
 
+msgid "Nothing: plain HTTP to anyone"
+msgstr "前面没有：向任何人提供明文 HTTP"
+
 msgid "Off: plain HTTP to anyone"
 msgstr "关闭：对任何人使用普通 HTTP"
 
 msgid "On, with a certificate that comes by itself"
 msgstr "开启，证书自动签发"
+
+msgid "People reach the app at this name"
+msgstr "人们通过这个名称访问该应用"
 
 msgid "People reach the app at this name, over HTTPS"
 msgstr "用户通过这个域名以 HTTPS 访问应用"
@@ -2421,6 +2439,9 @@ msgstr "应用内端口"
 msgid "Port on the server"
 msgstr "服务器上的端口"
 
+msgid "Reaches"
+msgstr "可访问"
+
 msgid "Redirect"
 msgstr "重定向"
 
@@ -2439,6 +2460,9 @@ msgstr "将 {wanted} 发送到 {name}"
 msgid "Send {wanted} to {name}, and point {followsApp} at it"
 msgstr "将 {wanted} 发送到 {name}，并让 {followsApp} 指向它"
 
+msgid "Set {zone} to Full (strict)"
+msgstr "将 {zone} 设为完全（严格）"
+
 msgid "Visitors are sent on, such as from an old domain."
 msgstr "访客会被转到别处，例如来自旧域名的访客。"
 
@@ -2453,6 +2477,12 @@ msgstr "它在服务器上监听的端口，例如 8080；80 端口归代理使�
 
 msgid "What the app listens on, such as 80."
 msgstr "应用监听的端口，例如 80。"
+
+msgid "What's in front"
+msgstr "前面是什么"
+
+msgid "{name} on port {port}"
+msgstr "{name} 的端口 {port}"
 
 msgid "{typed} goes to {leavesApp} now. Going on moves it here, and it leaves {leavesApp}."
 msgstr "{typed} 目前指向 {leavesApp}。继续操作会将它移到这里，并离开 {leavesApp}。"
@@ -4114,6 +4144,9 @@ msgstr "前面的隧道或代理负责 HTTPS"
 msgid "Expired"
 msgstr "已过期"
 
+msgid "HTTPS ends in front"
+msgstr "HTTPS 在前方终止"
+
 msgid "Issuing"
 msgstr "签发中"
 
@@ -4143,9 +4176,6 @@ msgstr "端口 <0>{port}</0>"
 
 msgid "Renewal failing"
 msgstr "续期失败"
-
-msgid "TLS ends in front"
-msgstr "TLS 在前端终止"
 
 msgid "The certificate on <0>{server}</0> ran out {when}, so browsers refuse it. <1>Check its page</1>"
 msgstr "<0>{server}</0> 上的证书已于 {when} 过期，浏览器会拒绝访问。<1>查看其页面</1>"
@@ -4248,6 +4278,134 @@ msgstr "你的域名"
 
 msgid "{name} points at Cloudflare's proxy"
 msgstr "{name} 指向 Cloudflare 的代理"
+
+msgid "A DNS-only record to {server}, which gets its own certificate"
+msgstr "指向 {server} 的仅 DNS 记录，由它自己获取证书"
+
+msgid "A proxied record to {server}, and a certificate by DNS"
+msgstr "指向 {server} 的代理记录，证书通过 DNS 获取"
+
+msgid "A proxied record to {server}, which Cloudflare reaches over HTTP"
+msgstr "指向 {server} 的代理记录，Cloudflare 通过 HTTP 访问它"
+
+msgid "A record exists: {record}, made in Cloudflare"
+msgstr "已有记录：{record}，在 Cloudflare 中创建"
+
+msgid "A tunnel only Dockwell writes, about 20 MB on {server}"
+msgstr "只由 Dockwell 写入的隧道，在 {server} 上约占 20 MB"
+
+#. placeholder {0}: picked.addsRule
+#. placeholder {1}: picked.tunnelName
+msgid "Adds {0} to {1}, once"
+msgstr "将 {0} 添加到 {1}，仅一次"
+
+msgctxt "a domain in no connected zone"
+msgid "Another domain"
+msgstr "其他域名"
+
+msgid "Change the way in"
+msgstr "更改访问方式"
+
+msgid "Checking Dockwell and Cloudflare"
+msgstr "正在检查 Dockwell 和 Cloudflare"
+
+msgid "Cloudflare asked Dockwell to wait"
+msgstr "Cloudflare 要求 Dockwell 稍候"
+
+msgid "Cloudflare asked Dockwell to wait. It checks again at {at}"
+msgstr "Cloudflare 要求 Dockwell 稍候。将在 {at} 再次检查"
+
+msgid "Cloudflare ends HTTPS, and the tunnel reaches {server}"
+msgstr "Cloudflare 终止 HTTPS，隧道到达 {server}"
+
+msgid "Dockwell writes nothing at Cloudflare. What's in front ends HTTPS"
+msgstr "Dockwell 不在 Cloudflare 写入任何内容。由前方的服务终止 HTTPS"
+
+msgid "Dockwell's own tunnel on {server}"
+msgstr "{server} 上 Dockwell 自己的隧道"
+
+msgid "Free in Dockwell and at Cloudflare"
+msgstr "在 Dockwell 和 Cloudflare 中均未被占用"
+
+msgid "Keep it"
+msgstr "保留"
+
+msgid "Leave it"
+msgstr "不处理"
+
+msgid "Made in Cloudflare and pointing here. An admin can take it on"
+msgstr "在 Cloudflare 中创建并指向这里。管理员可以接管它"
+
+msgid "Made in Cloudflare and pointing here: {record}"
+msgstr "在 Cloudflare 中创建并指向这里：{record}"
+
+msgid "None yet"
+msgstr "还没有"
+
+msgid "Published already"
+msgstr "已经发布"
+
+msgid "Replace it"
+msgstr "替换它"
+
+msgid "Replaces {record}, made in Cloudflare. Undo puts it back"
+msgstr "将替换在 Cloudflare 中创建的 {record}。撤销会把它恢复"
+
+msgid "Something else in front"
+msgstr "前方有其他服务"
+
+msgid "Subdomain"
+msgstr "子域名"
+
+msgid "Take it on"
+msgstr "接管它"
+
+msgid "Taken at Cloudflare"
+msgstr "在 Cloudflare 中已被占用"
+
+msgid "Takes on {record}, made in Cloudflare"
+msgstr "将接管在 Cloudflare 中创建的 {record}"
+
+msgid "This server's own HTTPS"
+msgstr "这台服务器自己的 HTTPS"
+
+msgid "Through Cloudflare's proxy"
+msgstr "通过 Cloudflare 的代理"
+
+msgid "Through the tunnel on {server}"
+msgstr "通过 {server} 上的隧道"
+
+msgid "Through the tunnel {tunnel} on {server}"
+msgstr "通过 {server} 上的隧道 {tunnel}"
+
+msgid "Use Full (strict)"
+msgstr "使用完全（严格）"
+
+msgid "Use {next}"
+msgstr "使用 {next}"
+
+msgid "Use {under}"
+msgstr "使用 {under}"
+
+msgid "Way in"
+msgstr "访问方式"
+
+msgid "Zone"
+msgstr "区域"
+
+#. placeholder {0}: check.zone
+msgid "{0} is on Cloudflare"
+msgstr "{0} 在 Cloudflare 上"
+
+#. placeholder {0}: check.zone
+msgid "{0} is set to Flexible, so Cloudflare reaches {server} over HTTP"
+msgstr "{0} 设为灵活，因此 Cloudflare 通过 HTTP 访问 {server}"
+
+msgid "{domain} is past Cloudflare's free certificate"
+msgstr "{domain} 超出了 Cloudflare 免费证书的范围"
+
+msgid "{zone}, with {companion} beside it"
+msgstr "{zone}，以及旁边的 {companion}"
 
 msgid "A file <0>docker compose</0> runs without Dockwell, with no secrets in it"
 msgstr "<0>docker compose</0> 无需 Dockwell 即可运行的文件，其中不含机密信息"
@@ -4378,23 +4536,14 @@ msgstr "{path} 是文件"
 msgid "{path} is root's, and an app never runs as root"
 msgstr "{path} 属于 root，而应用不会以 root 运行"
 
-msgid "A tunnel on this server"
-msgstr "此服务器上的隧道"
-
 msgid "An address or a range, such as 10.77.0.0/24 for a tunnel on a bridge. That proxy needs a network of its own, not Docker's default bridge. Separate several with commas."
 msgstr "地址或范围，例如隧道在桥接网络上时的 10.77.0.0/24。该代理需要自己的网络，而不是 Docker 默认的 bridge。多个之间用逗号分隔。"
-
-msgid "Another proxy"
-msgstr "其他代理"
 
 msgid "Anyone who can reach this server"
 msgstr "任何能访问此服务器的人"
 
 msgid "Cloudflare connects to this server's port 80."
 msgstr "Cloudflare 连接此服务器的 80 端口。"
-
-msgid "Cloudflare's proxy"
-msgstr "Cloudflare 代理"
 
 msgid "For a private network with nothing in front."
 msgstr "用于前面没有其他服务的私有网络。"
@@ -4413,9 +4562,6 @@ msgstr "此服务器不使用证书，流量以未加密方式到达。"
 
 msgid "What connects to this server"
 msgstr "连接此服务器的来源"
-
-msgid "What's in front"
-msgstr "前面是什么"
 
 msgid "You name what connects to this server."
 msgstr "由你写明连接此服务器的来源。"
@@ -7880,9 +8026,6 @@ msgstr "打开 {app}"
 msgid "Public"
 msgstr "公开"
 
-msgid "Reaches"
-msgstr "可访问"
-
 msgid "Reading the sources"
 msgstr "正在读取来源"
 
@@ -7956,9 +8099,6 @@ msgstr "请使用 base64 编码的 {0} 个字节。"
 #. placeholder {0}: input.generate
 msgid "Use {0} hex digits."
 msgstr "请使用 {0} 位十六进制数字。"
-
-msgid "Use {next}"
-msgstr "使用 {next}"
 
 msgid "What it installs"
 msgstr "安装内容"
@@ -9546,6 +9686,87 @@ msgstr "{waves}，依次进行"
 
 msgid "{waves}, {pause} apart"
 msgstr "{waves}，每批间隔 {pause}"
+
+msgid "Add {name} to the tunnel {target} at Cloudflare"
+msgstr "在 Cloudflare 将 {name} 添加到隧道 {target}"
+
+msgid "Added {name} to the tunnel {target} at Cloudflare"
+msgstr "已在 Cloudflare 将 {name} 添加到隧道 {target}"
+
+msgid "At Cloudflare"
+msgstr "在 Cloudflare"
+
+msgid "From {was}"
+msgstr "原为 {was}"
+
+msgid "Keep {name} in the tunnel {target}"
+msgstr "在隧道 {target} 中保留 {name}"
+
+msgid "Kept {name} in the tunnel {target}"
+msgstr "已在隧道 {target} 中保留 {name}"
+
+msgid "Move {name} in the tunnel {target} to the server's proxy"
+msgstr "将隧道 {target} 中的 {name} 改为经由服务器的代理"
+
+msgid "Moved {name} in the tunnel {target} to the server's proxy"
+msgstr "已将隧道 {target} 中的 {name} 改为经由服务器的代理"
+
+msgid "Now {was}"
+msgstr "现为 {was}"
+
+msgid "Put back the DNS record for {name} at Cloudflare"
+msgstr "在 Cloudflare 恢复 {name} 的 DNS 记录"
+
+msgid "Put back {name} in the tunnel {target}"
+msgstr "在隧道 {target} 中恢复 {name}"
+
+msgid "Remove the DNS record for {name} at Cloudflare"
+msgstr "在 Cloudflare 移除 {name} 的 DNS 记录"
+
+msgid "Remove {name} from the tunnel {target} at Cloudflare"
+msgstr "在 Cloudflare 从隧道 {target} 中移除 {name}"
+
+msgid "Removed the DNS record for {name} at Cloudflare"
+msgstr "已在 Cloudflare 移除 {name} 的 DNS 记录"
+
+msgid "Removed {name} from the tunnel {target} at Cloudflare"
+msgstr "已在 Cloudflare 从隧道 {target} 中移除 {name}"
+
+msgid "Replace the DNS record for {name} at Cloudflare, keeping what was there"
+msgstr "在 Cloudflare 替换 {name} 的 DNS 记录，并保留原有记录"
+
+msgid "Replaced the DNS record for {name} at Cloudflare, keeping what was there"
+msgstr "已在 Cloudflare 替换 {name} 的 DNS 记录，并保留原有记录"
+
+msgid "Set {name} to {to} at Cloudflare"
+msgstr "在 Cloudflare 将 {name} 设为 {to}"
+
+msgid "Take on the DNS record for {name}, made in Cloudflare"
+msgstr "接管在 Cloudflare 中创建的 {name} 的 DNS 记录"
+
+msgid "Take on {name} in the tunnel {target}, made in Cloudflare"
+msgstr "接管隧道 {target} 中在 Cloudflare 创建的 {name}"
+
+msgid "Took on the DNS record for {name}, made in Cloudflare"
+msgstr "已接管在 Cloudflare 中创建的 {name} 的 DNS 记录"
+
+msgid "Took on {name} in the tunnel {target}, made in Cloudflare"
+msgstr "已接管隧道 {target} 中在 Cloudflare 创建的 {name}"
+
+msgid "Write the DNS record for {name} at Cloudflare"
+msgstr "在 Cloudflare 写入 {name} 的 DNS 记录"
+
+msgid "Write {name} at Cloudflare"
+msgstr "在 Cloudflare 写入 {name}"
+
+msgid "Writes {to}"
+msgstr "写入 {to}"
+
+msgid "Wrote the DNS record for {name} at Cloudflare"
+msgstr "已在 Cloudflare 写入 {name} 的 DNS 记录"
+
+msgid "Wrote {name} at Cloudflare"
+msgstr "已在 Cloudflare 写入 {name}"
 
 msgid "Backed up only on {server}"
 msgstr "只在 {server} 上有备份"
@@ -11971,9 +12192,6 @@ msgstr "尚无应用"
 msgid "No connections yet"
 msgstr "尚无连接"
 
-msgid "None yet"
-msgstr "还没有"
-
 msgid "The page tries again by itself."
 msgstr "页面会自动重试。"
 
@@ -12757,6 +12975,10 @@ msgstr "无法读取你的应用"
 msgid "Certificates"
 msgstr "证书"
 
+#. placeholder {0}: domain.name
+msgid "Check DNS for {0} now"
+msgstr "立即检查 {0} 的 DNS"
+
 msgid "DNS"
 msgstr "DNS"
 
@@ -12787,6 +13009,9 @@ msgstr "还没有域名"
 
 msgid "Not served on {server}"
 msgstr "{server} 上未提供此重定向"
+
+msgid "Reading DNS"
+msgstr "正在读取 DNS"
 
 msgid "Redirects to {where}"
 msgstr "重定向到 {where}"
@@ -12829,6 +13054,39 @@ msgstr "{count, plural, other {# 个域名}}"
 
 msgid "{days, plural, one {in # day} other {in # days}}"
 msgstr "{days, plural, other {# 天后}}"
+
+msgid "Changed in Cloudflare, so removing it leaves it"
+msgstr "已在 Cloudflare 中更改，因此移除时会保留它"
+
+msgid "Dockwell can't prove its tunnel runs on this server"
+msgstr "Dockwell 无法证明它的隧道运行在这台服务器上"
+
+msgid "Dockwell can't read it at Cloudflare"
+msgstr "Dockwell 无法在 Cloudflare 读取它"
+
+msgid "Its DNS record is gone at Cloudflare"
+msgstr "它在 Cloudflare 的 DNS 记录已不存在"
+
+msgid "Its tunnel runs on another server too"
+msgstr "它的隧道也在另一台服务器上运行"
+
+msgid "Its tunnel was deleted in Cloudflare"
+msgstr "它的隧道已在 Cloudflare 中删除"
+
+msgid "Its tunnel's rule points at the app's own port"
+msgstr "它的隧道规则指向应用自己的端口"
+
+msgid "Made in Cloudflare, pointing here"
+msgstr "在 Cloudflare 中创建，指向这里"
+
+msgid "Not in the tunnel any more"
+msgstr "已不在隧道中"
+
+msgid "Put it back"
+msgstr "恢复"
+
+msgid "Put {name} back at Cloudflare"
+msgstr "在 Cloudflare 恢复 {name}"
 
 msgid "Can't tell where it points"
 msgstr "无法判断指向哪里"
@@ -14846,9 +15104,6 @@ msgstr "计划接管"
 
 msgid "Plan taking on all {inProject} of {project}"
 msgstr "计划接管 {project} 的全部 {inProject} 个容器"
-
-msgid "Take it on"
-msgstr "接管它"
 
 msgid "Taking it on doesn't restart it or touch its volumes; its environment comes in sealed."
 msgstr "接管不会重启它，也不会动它的卷；它的环境变量会被加密封存。"
@@ -17250,9 +17505,6 @@ msgstr "安装到其他账户"
 msgid "Installed on"
 msgstr "已安装到"
 
-msgid "Keep it"
-msgstr "保留"
-
 #. placeholder {0}: i.account
 msgid "Let every project build through {0}"
 msgstr "让所有项目通过 {0} 构建"
@@ -17428,6 +17680,14 @@ msgstr "如何在其后设置路由"
 msgid "Integrations"
 msgstr "集成"
 
+#. placeholder {0}: k.record
+msgid "Kept: {name}, {0}"
+msgstr "已保留：{name}，{0}"
+
+#. placeholder {0}: k.record
+msgid "Kept: {name}, {0}. The name holds something else now"
+msgstr "已保留：{name}，{0}。这个名称现在有其他记录"
+
 msgid "Loading registry logins"
 msgstr "正在加载镜像仓库登录"
 
@@ -17455,9 +17715,18 @@ msgstr "来自 GitHub 的私有镜像，例如 Actions 推送的镜像。"
 msgid "Private images, and pulls past Docker Hub's limits."
 msgstr "私有镜像，以及不受 Docker Hub 拉取限制的拉取。"
 
+msgid "Put the record for {name} back"
+msgstr "恢复 {name} 的记录"
+
+msgid "Put the record for {name} back at Cloudflare"
+msgstr "在 Cloudflare 恢复 {name} 的记录"
+
 #. placeholder {0}: words.ago(uploaded, now)
 msgid "Received a backup {0}"
 msgstr "{0}收到一份备份"
+
+msgid "Records kept"
+msgstr "保留的记录"
 
 msgid "Registries"
 msgstr "镜像仓库"
@@ -18820,9 +19089,6 @@ msgstr "只有在你立即运行时才会运行。"
 msgid "It runs with /bin/sh as root, so applying it takes your passkey."
 msgstr "它以 root 身份用 /bin/sh 运行，因此应用时需要你的通行密钥。"
 
-msgid "Leave it"
-msgstr "不处理"
-
 msgid "Method"
 msgstr "方法"
 
@@ -20024,6 +20290,9 @@ msgstr "访问者经由此服务器前面的隧道或代理在其域名上访问
 msgid "Something listening on this server, such as port 3000."
 msgstr "此服务器上正在监听的服务，例如端口 3000。"
 
+msgid "Static files or PHP, served by Caddy on a server"
+msgstr "静态文件或 PHP，由服务器上的 Caddy 提供"
+
 msgid "Such as WordPress, run by PHP-FPM of its own."
 msgstr "例如 WordPress，由独立的 PHP-FPM 运行。"
 
@@ -20139,8 +20408,8 @@ msgstr "它说"
 msgid "No domain, so no certificate"
 msgstr "没有域名，因此没有证书"
 
-msgid "None, as TLS ends in front"
-msgstr "无，TLS 在前端终止"
+msgid "None, as HTTPS ends in front"
+msgstr "无，HTTPS 在前方终止"
 
 msgid "Not known yet"
 msgstr "尚不清楚"

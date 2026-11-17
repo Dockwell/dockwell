@@ -1,0 +1,189 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+/* The name: a subdomain and a zone, side by side, then the state under them (ADR 0104). */
+.domain-step-name {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.domain-step-row {
+  display: flex;
+  gap: var(--space-2);
+  align-items: flex-start;
+}
+
+.domain-step-sub {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.domain-step-zone {
+  position: relative;
+  flex: 0 0 200px;
+  min-width: 0;
+}
+
+/* On a phone the two stack, as the M-Domain-Add mock has them. */
+@media (max-width: 420px) {
+  .domain-step-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .domain-step-zone {
+    flex-basis: auto;
+  }
+}
+
+.is-phone .domain-step-row {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.is-phone .domain-step-zone {
+  flex-basis: auto;
+}
+
+/* A state: its shape and colour, a fact, and one action. */
+.domain-step-state {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 12.5px;
+  line-height: 18px;
+  color: var(--ink-muted);
+}
+
+/* On the first line, as a state's words may wrap. */
+.domain-step-glyph {
+  display: inline-flex;
+  flex: none;
+  align-self: flex-start;
+  margin-top: 5px;
+}
+
+.domain-step-act {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--link);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.domain-step-muted {
+  font-size: 12.5px;
+  line-height: 18px;
+  color: var(--ink-muted);
+}
+
+/* The way in, and what it reaches, as facts with Change beside each. */
+.domain-step-facts {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr) max-content;
+  gap: var(--space-3);
+  align-items: baseline;
+  margin: 0;
+  font-size: 14px;
+}
+
+.domain-step-facts dt {
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+
+.domain-step-facts dd {
+  margin: 0;
+  min-width: 0;
+}
+
+.domain-step-way {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.is-phone .domain-step-facts {
+  grid-template-columns: 80px minmax(0, 1fr) max-content;
+}
+
+/* Under Change: every way as a card. */
+.domain-step-ways {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.domain-step-ways-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.domain-step-card {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.domain-step-card.is-on {
+  border-color: var(--action);
+  background: var(--cobalt-soft);
+}
+
+.domain-step-card.is-off {
+  cursor: default;
+}
+
+.domain-step-card input {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin: 2px 0 0;
+  accent-color: var(--action);
+}
+
+.domain-step-card-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.domain-step-card-name {
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--ink);
+}
+
+.domain-step-card-hint {
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--ink-muted);
+}
+
+.domain-step-card.is-off .domain-step-card-name {
+  color: var(--ink-muted);
+}
+
+/* Change, as a link beside the fact it changes. */
+.domain-step-change {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--link);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: underline;
+  cursor: pointer;
+}

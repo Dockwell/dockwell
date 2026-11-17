@@ -1509,3 +1509,13 @@
     padding-right: 4px;
   }
 }
+
+/* The records made by hand a DNS provider keeps a copy of, each with Put it back (ADR 0104). */
+.integrations-kept {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: var(--space-1) 0 0;
+  padding: 0;
+  list-style: none;
+}

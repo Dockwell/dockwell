@@ -168,7 +168,7 @@ export async function domainsFlow(page: Page, { origin, step, shoot }: DomainsFl
   await row("shop.example.com").getByRole("link", { name: "adminer" }).waitFor();
   await row("bad.example.com").getByText("Failed", { exact: true }).waitFor();
   await row("new.example.com").getByText("Issuing").waitFor();
-  await row("tunnel.example.com").getByText("TLS ends in front").waitFor();
+  await row("tunnel.example.com").getByText("HTTPS ends in front").waitFor();
   await row("gone.example.com").getByText("Not connected").waitFor();
   await row("old.example.com").getByText("Expired").waitFor();
   await row("old.example.com")

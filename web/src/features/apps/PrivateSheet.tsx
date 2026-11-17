@@ -738,6 +738,8 @@ export function routeAsItIs(domain: string, r: DomainRoute) {
     held: r.held,
     // How it's published at Cloudflare stays (ADR 0104): left out, the plan takes its records away.
     ...(r.publish ? { publish: r.publish } : {}),
+    // A route that redirects stays one.
+    ...(r.redirect ? { redirect: r.redirect } : {}),
     ...(isPrivate(r)
       ? {
           access: {

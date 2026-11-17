@@ -292,7 +292,7 @@ export async function websitesFlow(page: Page, { origin, step, shoot }: Websites
   await row("blog.example.net").getByText("Valid").waitFor({ timeout: 15_000 });
   await row("blog.example.net").getByText("· 61 days left").waitFor();
   await row("tools.example.net").getByText("Port 3000 on the server").waitFor();
-  await row("tools.example.net").getByText("TLS ends in front").waitFor();
+  await row("tools.example.net").getByText("HTTPS ends in front").waitFor();
   await page
     .getByText(/^5 sites( on |$)/)
     .first()

@@ -69,7 +69,8 @@ import "../apps/Apps.css";
 import "./Domains.css";
 import { phoneWordClass } from "../apps/Health";
 import { useServicesWatch } from "../apps/ServicesLive";
-import { dnsOf, useDnsWord } from "./dns";
+import { DnsReadsContext, useDnsOf, useDnsReads, useDnsReadsHere, useDnsWord } from "./dns";
+import { PublishedNote } from "./Published";
 
 /** The list's place, in its URL: its filters. */
 export interface DomainsSearch {
@@ -186,6 +187,8 @@ export function DomainsPage({
   }, [query, search, onSearch]);
 
   const read = readOf(domains);
+  // DNS no server has read yet is read as the page opens, and any row's on Check now (#791).
+  const dnsReads = useDnsReads(domains.last?.domains ?? [], read === "read");
   // The names of what's there hold, as an app's do, past how long how it is can be believed.
   const all = domains.last?.domains;
   const sayWhere = places.showsEnvironment || places.severalProjects;
@@ -415,131 +418,137 @@ export function DomainsPage({
   }
 
   return (
-    <Page
-      title={t`Domains`}
-      back="/more"
-      // The line is held while they load, so the list doesn't move when it lands; with none, nothing will,
-      // and the empty state sits under the title as Websites' does.
-      lead={
-        pending ? (
-          <span aria-hidden="true">&nbsp;</span>
-        ) : count === 0 ? undefined : (
-          <>
-            {[total, trouble].filter(Boolean).join(" · ")}
-            {showFirst ? <> {showFirst}</> : null}
-          </>
-        )
-      }
-      status={reconnecting ? <Reconnecting /> : undefined}
-      className="apps-page domains-page"
-      actions={canAdd ? add() : undefined}
-    >
-      <section className={cx("apps-section", count > 0 && "has-filters")} aria-label={t`Domains`}>
-        {count > 0 ? (
-          <div className="apps-filters">
-            <TextField
-              className="apps-filter"
-              size={phone ? "lg" : "sm"}
-              icon="search"
-              type="search"
-              placeholder={t`Filter domains`}
-              aria-label={t`Filter domains`}
-              value={typed}
-              onChange={(event) => setTyped(event.target.value)}
-            />
-            <SelectField
-              aria-label={t`State`}
-              size="sm"
-              className="domains-state-filter"
-              value={search.state ?? ""}
-              // Nothing can be sorted by how it stands while nobody can say.
-              disabled={read === "failed"}
-              options={[
-                { value: "", label: t`All states` },
-                ...DOMAIN_GROUPS.map((group) => ({ value: group, label: states[group] })),
-              ]}
-              onChange={(event) => onSearch?.({ ...search, state: (event.target.value as DomainGroup) || undefined })}
-            />
-            {fleet ? (
-              <SelectField
-                aria-label={t`Server`}
-                size="sm"
-                className="apps-server-filter"
-                value={search.server ?? ""}
-                options={[
-                  { value: "", label: t`All servers` },
-                  ...(servers ?? []).map((s) => ({ value: s.id, label: s.name })),
-                ]}
-                onChange={(event) => onSearch?.({ ...search, server: event.target.value || undefined })}
+    <DnsReadsContext.Provider value={dnsReads}>
+      <Page
+        title={t`Domains`}
+        back="/more"
+        // The line is held while they load, so the list doesn't move when it lands; with none, nothing will,
+        // and the empty state sits under the title as Websites' does.
+        lead={
+          pending ? (
+            <span aria-hidden="true">&nbsp;</span>
+          ) : count === 0 ? undefined : (
+            <>
+              {[total, trouble].filter(Boolean).join(" · ")}
+              {showFirst ? <> {showFirst}</> : null}
+            </>
+          )
+        }
+        status={reconnecting ? <Reconnecting /> : undefined}
+        className="apps-page domains-page"
+        actions={canAdd ? add() : undefined}
+      >
+        <section className={cx("apps-section", count > 0 && "has-filters")} aria-label={t`Domains`}>
+          {count > 0 ? (
+            <div className="apps-filters">
+              <TextField
+                className="apps-filter"
+                size={phone ? "lg" : "sm"}
+                icon="search"
+                type="search"
+                placeholder={t`Filter domains`}
+                aria-label={t`Filter domains`}
+                value={typed}
+                onChange={(event) => setTyped(event.target.value)}
               />
-            ) : null}
-          </div>
-        ) : null}
-        {phone && canAdd ? (
-          <>
-            <div className="apps-phone-head">
-              <h2 className="dw-text-heading apps-phone-count">{total}</h2>
-              {add()}
+              <SelectField
+                aria-label={t`State`}
+                size="sm"
+                className="domains-state-filter"
+                value={search.state ?? ""}
+                // Nothing can be sorted by how it stands while nobody can say.
+                disabled={read === "failed"}
+                options={[
+                  { value: "", label: t`All states` },
+                  ...DOMAIN_GROUPS.map((group) => ({ value: group, label: states[group] })),
+                ]}
+                onChange={(event) => onSearch?.({ ...search, state: (event.target.value as DomainGroup) || undefined })}
+              />
+              {fleet ? (
+                <SelectField
+                  aria-label={t`Server`}
+                  size="sm"
+                  className="apps-server-filter"
+                  value={search.server ?? ""}
+                  options={[
+                    { value: "", label: t`All servers` },
+                    ...(servers ?? []).map((s) => ({ value: s.id, label: s.name })),
+                  ]}
+                  onChange={(event) => onSearch?.({ ...search, server: event.target.value || undefined })}
+                />
+              ) : null}
             </div>
-            {/* The line is held, so the list stays put as things go wrong, and as the way to bring them up arrives. */}
-            <p className="domains-phone-trouble">
-              {trouble ? <span className="apps-phone-trouble">{trouble}</span> : <span aria-hidden="true">&nbsp;</span>}
-              {showFirst}
-            </p>
-          </>
+          ) : null}
+          {phone && canAdd ? (
+            <>
+              <div className="apps-phone-head">
+                <h2 className="dw-text-heading apps-phone-count">{total}</h2>
+                {add()}
+              </div>
+              {/* The line is held, so the list stays put as things go wrong, and as the way to bring them up arrives. */}
+              <p className="domains-phone-trouble">
+                {trouble ? (
+                  <span className="apps-phone-trouble">{trouble}</span>
+                ) : (
+                  <span aria-hidden="true">&nbsp;</span>
+                )}
+                {showFirst}
+              </p>
+            </>
+          ) : null}
+          {/* What goes wrong later moves nothing on the screen, so someone not looking at it has to be told. */}
+          <p className="dw-sr" aria-live="polite">
+            {later && outOfPlace ? t`${later}. Show them first puts them at the top of the list.` : later}
+          </p>
+          {domains.unread && all !== undefined ? (
+            <Callout tone="info" shape="dashed-ring" className="apps-unread">
+              <UnreadWords {...domains.unread} />
+            </Callout>
+          ) : null}
+          {services.error ? (
+            <Callout
+              tone="warning"
+              title={t`Can't read your apps`}
+              actions={
+                <Button onClick={() => void services.refetch()} loading={services.isFetching}>
+                  <Trans>Try again</Trans>
+                </Button>
+              }
+            >
+              <Trans>Until then, a domain doesn't lead to its app, and you can't add one here.</Trans>
+            </Callout>
+          ) : null}
+          {/* Every domain's, whatever the filters show, so it stays put while someone types. */}
+          {phone || count === 0 || read !== "read" ? (
+            body
+          ) : (
+            <div className="domains-layout">
+              <div className="domains-main">{body}</div>
+              <Certificates standings={standings} />
+            </div>
+          )}
+        </section>
+        {/* ?add opens it only for someone who may plan a change (ADR 0059). */}
+        {adding && mayAdd.allowed ? <AddDomainSheet apps={apps} onClose={() => setAdding(false)} /> : null}
+        {privateAt ? (
+          <PrivateSheet
+            domain={privateAt.domain}
+            route={privateAt.route}
+            onClose={() => choosePrivate(undefined)}
+            service={byName.get(appKey(privateAt.domain.environmentId, privateAt.route.service))}
+            all={all ?? []}
+            onOther={choosePrivate}
+          />
         ) : null}
-        {/* What goes wrong later moves nothing on the screen, so someone not looking at it has to be told. */}
-        <p className="dw-sr" aria-live="polite">
-          {later && outOfPlace ? t`${later}. Show them first puts them at the top of the list.` : later}
-        </p>
-        {domains.unread && all !== undefined ? (
-          <Callout tone="info" shape="dashed-ring" className="apps-unread">
-            <UnreadWords {...domains.unread} />
-          </Callout>
+        {moving?.service ? (
+          <AddDomainSheet
+            service={moving.service}
+            start={moveBehindOf(moving.domain, moving.route)}
+            onClose={() => setMoving(undefined)}
+          />
         ) : null}
-        {services.error ? (
-          <Callout
-            tone="warning"
-            title={t`Can't read your apps`}
-            actions={
-              <Button onClick={() => void services.refetch()} loading={services.isFetching}>
-                <Trans>Try again</Trans>
-              </Button>
-            }
-          >
-            <Trans>Until then, a domain doesn't lead to its app, and you can't add one here.</Trans>
-          </Callout>
-        ) : null}
-        {/* Every domain's, whatever the filters show, so it stays put while someone types. */}
-        {phone || count === 0 || read !== "read" ? (
-          body
-        ) : (
-          <div className="domains-layout">
-            <div className="domains-main">{body}</div>
-            <Certificates standings={standings} />
-          </div>
-        )}
-      </section>
-      {/* ?add opens it only for someone who may plan a change (ADR 0059). */}
-      {adding && mayAdd.allowed ? <AddDomainSheet apps={apps} onClose={() => setAdding(false)} /> : null}
-      {privateAt ? (
-        <PrivateSheet
-          domain={privateAt.domain}
-          route={privateAt.route}
-          onClose={() => choosePrivate(undefined)}
-          service={byName.get(appKey(privateAt.domain.environmentId, privateAt.route.service))}
-          all={all ?? []}
-          onOther={choosePrivate}
-        />
-      ) : null}
-      {moving?.service ? (
-        <AddDomainSheet
-          service={moving.service}
-          start={moveBehindOf(moving.domain, moving.route)}
-          onClose={() => setMoving(undefined)}
-        />
-      ) : null}
-    </Page>
+      </Page>
+    </DnsReadsContext.Provider>
   );
 }
 
@@ -753,17 +762,39 @@ function RowBadge({ row, read }: { row: Row; read: DomainRead }) {
 
 /** What DNS says of a domain, as Domains-List's column has it: whether it leads here, and the addresses it found. */
 function DnsCell({ domain, read }: { domain: Domain; read: DomainRead }) {
-  const word = useDnsWord()(dnsOf(domain));
+  const { t } = useLingui();
+  const reads = useDnsReadsHere();
+  const checking = reads?.checking(domain) ?? false;
+  const word = useDnsWord()(useDnsOf()(domain));
   // What it last said may no longer be so, and the status says once that nobody can tell.
   if (read !== "read") return <span aria-hidden="true">–</span>;
   return (
     <span className="dw-cell">
       {/* Its longest word fits the column by a pixel or two, so it wraps where a font or a language runs wider. */}
-      <StatusBadge status={word.status} label={word.word} labelIsState className="domains-dns-word" />
+      <StatusBadge
+        status={checking ? "deploying" : word.status}
+        label={checking ? t`Reading DNS` : word.word}
+        labelIsState
+        className="domains-dns-word"
+      />
       {word.found ? (
         <code className="dw-cell-sub domains-dns-found" title={word.found}>
           {word.found}
         </code>
+      ) : null}
+      {reads?.again && !checking ? (
+        <button
+          type="button"
+          className="dw-cell-sub domains-check-now"
+          aria-label={t`Check DNS for ${domain.name} now`}
+          onClick={(event) => {
+            // The row opens what it routes to; this reads DNS alone.
+            event.stopPropagation();
+            reads.again?.(domain);
+          }}
+        >
+          <Trans>Check now</Trans>
+        </button>
       ) : null}
     </span>
   );
@@ -805,13 +836,18 @@ function Certificates({ standings }: { standings: readonly Standing[] }) {
   if (renewing > 0) facts.push([t`Renewal failing`, String(renewing)]);
   if (issuing > 0) facts.push([t`Issuing`, String(issuing)]);
   if (failed > 0) facts.push([t`Failed`, String(failed)]);
-  if (inFront > 0) facts.push([t`TLS ends in front`, String(inFront)]);
+  if (inFront > 0) facts.push([t`HTTPS ends in front`, String(inFront)]);
   if (away > 0) facts.push([t`Not connected`, String(away)]);
   return (
     <Panel
       className="domains-certificates"
       title={t`Certificates`}
-      actions={<span className="domains-certificates-meta">{t`Renewed automatically`}</span>}
+      actions={
+        // Only a certificate here is renewed: one that ends in front has none to renew (#791).
+        valid + renewing + issuing > 0 ? (
+          <span className="domains-certificates-meta">{t`Renewed automatically`}</span>
+        ) : undefined
+      }
     >
       <dl className="domains-facts">
         {facts.map(([term, value], i) => (
@@ -860,6 +896,7 @@ function DomainsTable({
             <Folded row={row} />
             <Unserved row={row} />
             <RowNote row={row} read={read} onMoveBehind={onMoveBehind} />
+            {row.first ? <PublishedNote domain={row.domain} /> : null}
           </div>
         ),
       },
@@ -940,7 +977,7 @@ function PhoneRow({
   const [status, word] = useDomainState(row.domain, row.look, row.silent, read);
   const target = useTargetWords()(row.route);
   // Where its DNS leads, as the wide list's column says it, once a server has read it and the list can be believed.
-  const check = dnsOf(row.domain);
+  const check = useDnsOf()(row.domain);
   const dns = useDnsWord()(check);
   const { tone, shape } = STATUS[status];
   const says = fleet || environment?.(row.domain.environmentId);
@@ -996,6 +1033,7 @@ function PhoneRow({
       <Folded row={row} />
       <Unserved row={row} />
       <RowNote row={row} read={read} onMoveBehind={onMoveBehind} />
+      {row.first ? <PublishedNote domain={row.domain} /> : null}
     </div>
   );
 }

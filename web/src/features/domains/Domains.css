@@ -288,3 +288,31 @@
 .domains-folded-trouble {
   color: var(--warning);
 }
+
+/* Reads a row's DNS again now, under what it last said (#791). */
+.domains-check-now {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--link);
+  font: inherit;
+  font-size: 12px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* Where what Dockwell published at Cloudflare stands, where it isn't as written (ADR 0104). */
+.domains-published {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  white-space: normal;
+}
+
+/* Its words and action wrap beside the glyph, rather than past the cell. */
+.domains-published .domain-step-state {
+  display: flex;
+  min-width: 0;
+}

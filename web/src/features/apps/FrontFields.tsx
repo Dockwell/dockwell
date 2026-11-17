@@ -46,6 +46,7 @@ export function FrontFields({
   onProxies,
   proxiesError,
   behind = "app",
+  fixed = false,
 }: {
   noCertificate: boolean;
   onNoCertificate: (on: boolean) => void;
@@ -56,6 +57,8 @@ export function FrontFields({
   proxiesError: string | undefined;
   /** What's behind the route, which reads the visitor's address. */
   behind?: "app" | "website";
+  /** Whether the way in says already that the server takes no certificate, so there's no switch. */
+  fixed?: boolean;
 }) {
   const { t } = useLingui();
   const switchName = useTunnelSwitchName();
@@ -87,13 +90,15 @@ export function FrontFields({
 
   return (
     <>
-      <Switch
-        className="app-front-switch"
-        label={switchName}
-        description={t`This server takes no certificate, and traffic reaches it unencrypted.`}
-        checked={noCertificate}
-        onChange={onNoCertificate}
-      />
+      {fixed ? null : (
+        <Switch
+          className="app-front-switch"
+          label={switchName}
+          description={t`This server takes no certificate, and traffic reaches it unencrypted.`}
+          checked={noCertificate}
+          onChange={onNoCertificate}
+        />
+      )}
       {noCertificate ? (
         <fieldset className="app-front">
           <legend className="dw-field-label">

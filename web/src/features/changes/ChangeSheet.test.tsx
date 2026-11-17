@@ -1771,7 +1771,7 @@ describe("the plan sheet, once it runs", () => {
       const done = await screen.findByRole("dialog", { name: "web is deployed" });
       const link = await within(done).findByRole("link", { name: "app.example.com" });
       expect(link).toHaveAttribute("href", "https://app.example.com");
-      expect(link.closest(".plan-reach-row")).toHaveTextContent("TLS ends in front");
+      expect(link.closest(".plan-reach-row")).toHaveTextContent("HTTPS ends in front");
       await user.click(within(done).getByRole("button", { name: "Copy app.example.com" }));
       expect(await navigator.clipboard.readText()).toBe("https://app.example.com");
       expect(done).not.toHaveTextContent("Nothing outside");

@@ -1,0 +1,412 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
+import { timestampDate } from "@bufbuild/protobuf/wkt";
+import { type CloudflareCheck, CloudflareName, RouteWay, type WayOption } from "@dockwell/api";
+import { cx, Glyph, SelectField, STATUS, type Status, TextField } from "@dockwell/ui";
+import { Trans, useLingui } from "@lingui/react/macro";
+import { Link } from "@tanstack/react-router";
+import type { ReactNode, Ref } from "react";
+
+import { nextName, oneLabel, type TakeOverInit, wayOf, type Zone } from "./publish";
+
+import "./DomainStep.css";
+
+/** A state under the field it's about: its shape and colour, a fact, and one action at most. */
+export function StateLine({ status, children, action }: { status: Status; children: ReactNode; action?: ReactNode }) {
+  return (
+    <span className="domain-step-state">
+      <span className={cx("domain-step-glyph", `dw-tone-${STATUS[status].tone}`)}>
+        <Glyph shape={STATUS[status].shape} size={8} />
+      </span>
+      <span>
+        {children}
+        {action ? <> · {action}</> : null}
+      </span>
+    </span>
+  );
+}
+
+/** An action in a state line: a link-like button that does it here. */
+function Act({ onClick, children }: { onClick: () => void; children: ReactNode }) {
+  return (
+    <button type="button" className="domain-step-act" onClick={onClick}>
+      {children}
+    </button>
+  );
+}
+
+/**
+ * The name, as a subdomain and a zone a connected DNS provider writes in (ADR 0104,
+ * section 1): `wiki` and `.example.com`, or a whole name typed under Another domain.
+ */
+export function DomainName({
+  sub,
+  onSub,
+  zone,
+  onZone,
+  zones,
+  error,
+  readOnly,
+  field,
+  children,
+}: {
+  sub: string;
+  onSub: (value: string) => void;
+  /** The zone picked, or "" for another domain. */
+  zone: string;
+  onZone: (zone: string) => void;
+  zones: readonly Zone[];
+  error?: string;
+  readOnly?: boolean;
+  field?: Ref<HTMLInputElement>;
+  /** The state under the field. */
+  children?: ReactNode;
+}) {
+  const { t } = useLingui();
+  return (
+    <div className="domain-step-name">
+      <span className="dw-field-label" id="domain-step-label">
+        <Trans>Domain</Trans>
+      </span>
+      <div className="domain-step-row">
+        <TextField
+          ref={field}
+          className="domain-step-sub"
+          aria-label={zone ? t`Subdomain` : t`Domain`}
+          aria-describedby="domain-step-label"
+          mono
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
+          placeholder={zone ? "" : "shop.example.net"}
+          value={sub}
+          readOnly={readOnly}
+          error={error}
+          onChange={(event) => onSub(event.target.value)}
+        />
+        <SelectField
+          className="domain-step-zone"
+          aria-label={t`Zone`}
+          mono
+          value={zone}
+          disabled={readOnly}
+          options={[
+            ...zones.map((z) => ({ value: z.zone, label: `.${z.zone}` })),
+            { value: "", label: t({ message: "Another domain", context: "a domain in no connected zone" }) },
+          ]}
+          onChange={(event) => onZone(event.target.value)}
+        />
+      </div>
+      {children}
+    </div>
+  );
+}
+
+/**
+ * What a connected zone says of a name, as a state and its one action (ADR 0104, section
+ * 1 and the States mock): free, taken with a free name beside it, past Cloudflare's free
+ * certificate with one that's under it, or made in Cloudflare and pointing here.
+ */
+export function NameState({
+  check,
+  checking,
+  domain,
+  sub,
+  zone,
+  companion,
+  takesOver,
+  onTakesOver,
+  onSub,
+}: {
+  check: CloudflareCheck | undefined;
+  checking: boolean;
+  domain: string;
+  sub: string;
+  zone: string;
+  companion: string;
+  takesOver: readonly TakeOverInit[];
+  onTakesOver: (next: TakeOverInit[]) => void;
+  onSub: (value: string) => void;
+}) {
+  const { t } = useLingui();
+  if (!check) {
+    return checking && domain !== "" ? (
+      <StateLine status="deploying">
+        <Trans>Checking Dockwell and Cloudflare</Trans>
+      </StateLine>
+    ) : null;
+  }
+  const consented = check.recordId !== "" && takesOver.some((o) => o.recordId === check.recordId);
+  const record = check.record;
+  switch (check.state) {
+    case CloudflareName.FREE:
+      return (
+        <StateLine status="healthy">
+          {sub === "" && companion ? t`${zone}, with ${companion} beside it` : t`Free in Dockwell and at Cloudflare`}
+        </StateLine>
+      );
+    case CloudflareName.OURS:
+      return (
+        <StateLine status="healthy">
+          <Trans>Published already</Trans>
+        </StateLine>
+      );
+    case CloudflareName.TAKEN: {
+      if (check.recordId === "") {
+        const next = nextName(sub || "www");
+        return (
+          <StateLine status="down" action={<Act onClick={() => onSub(next)}>{t`Use ${next}`}</Act>}>
+            <Trans>Taken at Cloudflare</Trans>
+          </StateLine>
+        );
+      }
+      return consented ? (
+        <StateLine status="degraded" action={<Act onClick={() => onTakesOver([])}>{t`Keep it`}</Act>}>
+          {t`Replaces ${record}, made in Cloudflare. Undo puts it back`}
+        </StateLine>
+      ) : (
+        <StateLine
+          status="degraded"
+          action={<Act onClick={() => onTakesOver([{ recordId: check.recordId }])}>{t`Replace it`}</Act>}
+        >
+          {t`A record exists: ${record}, made in Cloudflare`}
+        </StateLine>
+      );
+    }
+    case CloudflareName.TAKE_ON:
+      if (check.recordId === "") {
+        return (
+          <StateLine status="degraded">
+            <Trans>Made in Cloudflare and pointing here. An admin can take it on</Trans>
+          </StateLine>
+        );
+      }
+      return consented ? (
+        <StateLine status="healthy" action={<Act onClick={() => onTakesOver([])}>{t`Leave it`}</Act>}>
+          {t`Takes on ${record}, made in Cloudflare`}
+        </StateLine>
+      ) : (
+        <StateLine
+          status="degraded"
+          action={<Act onClick={() => onTakesOver([{ recordId: check.recordId }])}>{t`Take it on`}</Act>}
+        >
+          {t`Made in Cloudflare and pointing here: ${record}`}
+        </StateLine>
+      );
+    case CloudflareName.PAST_CERTIFICATE: {
+      const under = oneLabel(sub);
+      return (
+        <StateLine status="down" action={<Act onClick={() => onSub(under)}>{t`Use ${under}`}</Act>}>
+          {t`${domain} is past Cloudflare's free certificate`}
+        </StateLine>
+      );
+    }
+    case CloudflareName.WAITING: {
+      const at = check.checksAgain ? timestampDate(check.checksAgain).toLocaleTimeString() : "";
+      return (
+        <StateLine status="unknown">
+          {at ? t`Cloudflare asked Dockwell to wait. It checks again at ${at}` : t`Cloudflare asked Dockwell to wait`}
+        </StateLine>
+      );
+    }
+  }
+  return null;
+}
+
+/** What each way is called, and what it does, in a line each. */
+function useWayWords(server: string) {
+  const { t } = useLingui();
+  return {
+    name: (w: WayOption | undefined, way: RouteWay): string => {
+      const tunnel = w?.tunnelName || w?.tunnel || "";
+      switch (way) {
+        case RouteWay.SERVER_TUNNEL:
+          return tunnel ? t`Through the tunnel ${tunnel} on ${server}` : t`Through the tunnel on ${server}`;
+        case RouteWay.OWN_TUNNEL:
+          return t`Dockwell's own tunnel on ${server}`;
+        case RouteWay.PROXY:
+          return t`Through Cloudflare's proxy`;
+        case RouteWay.OWN_HTTPS:
+          return t`This server's own HTTPS`;
+        case RouteWay.FRONT:
+          return t`Something else in front`;
+      }
+      return t`None yet`;
+    },
+    does: (way: RouteWay, flexible: boolean): string => {
+      switch (way) {
+        case RouteWay.SERVER_TUNNEL:
+          return t`Cloudflare ends HTTPS, and the tunnel reaches ${server}`;
+        case RouteWay.OWN_TUNNEL:
+          return t`A tunnel only Dockwell writes, about 20 MB on ${server}`;
+        case RouteWay.PROXY:
+          return flexible
+            ? t`A proxied record to ${server}, which Cloudflare reaches over HTTP`
+            : t`A proxied record to ${server}, and a certificate by DNS`;
+        case RouteWay.OWN_HTTPS:
+          return t`A DNS-only record to ${server}, which gets its own certificate`;
+        case RouteWay.FRONT:
+          return t`Dockwell writes nothing at Cloudflare. What's in front ends HTTPS`;
+      }
+      return "";
+    },
+  };
+}
+
+/** What fixes a way that's off: a page at Cloudflare, or the catalog's tunnel. */
+function OffAction({ option, onLeave }: { option: WayOption; onLeave: () => void }) {
+  if (option.action === "") return null;
+  if (option.actionUrl !== "") {
+    return (
+      <a className="domain-step-act" href={option.actionUrl} target="_blank" rel="noreferrer">
+        {option.action}
+      </a>
+    );
+  }
+  if (option.way === RouteWay.OWN_TUNNEL) {
+    return (
+      <Link className="domain-step-act" to="/catalog/$entryId" params={{ entryId: "cloudflared" }} onClick={onLeave}>
+        {option.action}
+      </Link>
+    );
+  }
+  return null;
+}
+
+/** The ways a person can pick, each once: the server's tunnels, then the rest in the check's order. */
+function choices(check: CloudflareCheck): WayOption[] {
+  return check.ways.filter((w, i) => check.ways.findIndex((o) => o.way === w.way && o.tunnel === w.tunnel) === i);
+}
+
+/**
+ * How the name is reached, decided for the person in one line with Change beside it
+ * (ADR 0104, section 2): the check's default, why it isn't the first where it isn't,
+ * and, under Change, every way as a card, one that can't be taken saying why with what
+ * fixes it.
+ */
+export function WayIn({
+  check,
+  way,
+  tunnel,
+  onWay,
+  open,
+  onOpen,
+  server,
+  admin,
+  onStrict,
+  onLeave,
+}: {
+  check: CloudflareCheck | undefined;
+  way: RouteWay;
+  tunnel: string;
+  onWay: (way: RouteWay, tunnel: string) => void;
+  /** Whether the ways show as cards. */
+  open: boolean;
+  onOpen: (open: boolean) => void;
+  /** The server's name. */
+  server: string;
+  /** Whether the caller may set the zone to Full (strict). */
+  admin: boolean;
+  onStrict: () => void;
+  onLeave: () => void;
+}) {
+  const { t } = useLingui();
+  const words = useWayWords(server);
+  if (!check || check.ways.length === 0) return null;
+  const flexible = check.sslMode === "flexible";
+  const picked = wayOf(check, way, tunnel);
+  const takeable = picked !== undefined && picked.off === "";
+  // Why the default isn't the server's tunnel, where it runs one Dockwell can't use.
+  const tunnelOff =
+    way !== RouteWay.SERVER_TUNNEL
+      ? check.ways.find((w) => w.way === RouteWay.SERVER_TUNNEL && w.off !== "")
+      : undefined;
+  const flexibleLine =
+    flexible && way === RouteWay.PROXY ? (
+      <StateLine status="degraded" action={admin ? <Act onClick={onStrict}>{t`Use Full (strict)`}</Act> : undefined}>
+        {t`${check.zone} is set to Flexible, so Cloudflare reaches ${server} over HTTP`}
+      </StateLine>
+    ) : null;
+
+  if (open) {
+    return (
+      <div className="domain-step-ways" role="radiogroup" aria-labelledby="domain-step-way">
+        <div className="domain-step-ways-head">
+          <span id="domain-step-way" className="dw-field-label">
+            <Trans>Way in</Trans>
+          </span>
+          <span className="domain-step-muted">{t`${check.zone} is on Cloudflare`}</span>
+        </div>
+        {choices(check).map((w) => {
+          const on = w.way === way && (w.tunnel === "" || w.tunnel === tunnel);
+          const off = w.off !== "";
+          return (
+            <label key={`${w.way}-${w.tunnel}`} className={cx("domain-step-card", on && "is-on", off && "is-off")}>
+              <input
+                type="radio"
+                name="domain-step-way"
+                checked={on}
+                disabled={off}
+                onChange={() => {
+                  onWay(w.way, w.tunnel);
+                  onOpen(false);
+                }}
+              />
+              <span className="domain-step-card-text">
+                <span className="domain-step-card-name">{words.name(w, w.way)}</span>
+                <span className="domain-step-card-hint">
+                  {off ? w.off : words.does(w.way, flexible)}
+                  {off && w.action ? (
+                    <>
+                      {" · "}
+                      <OffAction option={w} onLeave={onLeave} />
+                    </>
+                  ) : null}
+                </span>
+              </span>
+            </label>
+          );
+        })}
+      </div>
+    );
+  }
+
+  return (
+    <dl className="domain-step-facts">
+      <dt>
+        <Trans>Way in</Trans>
+      </dt>
+      <dd className="domain-step-way">
+        <span>{takeable ? words.name(picked, way) : t`None yet`}</span>
+        {takeable ? <span className="domain-step-muted">{words.does(way, flexible)}</span> : null}
+        {takeable && picked.addsRule ? (
+          <StateLine status="unknown">{t`Adds ${picked.addsRule} to ${picked.tunnelName}, once`}</StateLine>
+        ) : null}
+        {!takeable && picked ? (
+          <StateLine status="down" action={picked.action ? <OffAction option={picked} onLeave={onLeave} /> : undefined}>
+            {picked.off}
+          </StateLine>
+        ) : null}
+        {takeable && tunnelOff ? (
+          <StateLine
+            status="unknown"
+            action={tunnelOff.action ? <OffAction option={tunnelOff} onLeave={onLeave} /> : undefined}
+          >
+            {tunnelOff.off}
+          </StateLine>
+        ) : null}
+        {flexibleLine}
+      </dd>
+      <dd>
+        <button
+          type="button"
+          className="domain-step-change"
+          aria-label={t`Change the way in`}
+          onClick={() => onOpen(true)}
+        >
+          <Trans>Change</Trans>
+        </button>
+      </dd>
+    </dl>
+  );
+}

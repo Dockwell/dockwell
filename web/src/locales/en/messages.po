@@ -2318,6 +2318,9 @@ msgstr "A URL"
 msgid "A route runs on the one server its DNS points at."
 msgstr "A route runs on the one server its DNS points at."
 
+msgid "A tunnel on this server"
+msgstr "A tunnel on this server"
+
 msgid "Add a domain"
 msgstr "Add a domain"
 
@@ -2331,14 +2334,23 @@ msgctxt "a port typed in"
 msgid "Another port"
 msgstr "Another port"
 
+msgid "Another proxy"
+msgstr "Another proxy"
+
 msgid "App"
 msgstr "App"
+
+msgid "Change the port it reaches"
+msgstr "Change the port it reaches"
 
 msgid "Choose an app"
 msgstr "Choose an app"
 
 msgid "Choose the app this domain reaches."
 msgstr "Choose the app this domain reaches."
+
+msgid "Cloudflare's proxy"
+msgstr "Cloudflare's proxy"
 
 msgid "Domain"
 msgstr "Domain"
@@ -2385,11 +2397,17 @@ msgstr "Name what connects to this server, as an address or a range."
 msgid "Nothing changes until you apply the plan"
 msgstr "Nothing changes until you apply the plan"
 
+msgid "Nothing: plain HTTP to anyone"
+msgstr "Nothing: plain HTTP to anyone"
+
 msgid "Off: plain HTTP to anyone"
 msgstr "Off: plain HTTP to anyone"
 
 msgid "On, with a certificate that comes by itself"
 msgstr "On, with a certificate that comes by itself"
+
+msgid "People reach the app at this name"
+msgstr "People reach the app at this name"
 
 msgid "People reach the app at this name, over HTTPS"
 msgstr "People reach the app at this name, over HTTPS"
@@ -2421,6 +2439,9 @@ msgstr "Port in the app"
 msgid "Port on the server"
 msgstr "Port on the server"
 
+msgid "Reaches"
+msgstr "Reaches"
+
 msgid "Redirect"
 msgstr "Redirect"
 
@@ -2439,6 +2460,9 @@ msgstr "Send {wanted} to {name}"
 msgid "Send {wanted} to {name}, and point {followsApp} at it"
 msgstr "Send {wanted} to {name}, and point {followsApp} at it"
 
+msgid "Set {zone} to Full (strict)"
+msgstr "Set {zone} to Full (strict)"
+
 msgid "Visitors are sent on, such as from an old domain."
 msgstr "Visitors are sent on, such as from an old domain."
 
@@ -2453,6 +2477,12 @@ msgstr "What it listens on on the server, such as 8080; 80 is the proxy's."
 
 msgid "What the app listens on, such as 80."
 msgstr "What the app listens on, such as 80."
+
+msgid "What's in front"
+msgstr "What's in front"
+
+msgid "{name} on port {port}"
+msgstr "{name} on port {port}"
 
 msgid "{typed} goes to {leavesApp} now. Going on moves it here, and it leaves {leavesApp}."
 msgstr "{typed} goes to {leavesApp} now. Going on moves it here, and it leaves {leavesApp}."
@@ -4114,6 +4144,9 @@ msgstr "A tunnel or a proxy in front handles HTTPS"
 msgid "Expired"
 msgstr "Expired"
 
+msgid "HTTPS ends in front"
+msgstr "HTTPS ends in front"
+
 msgid "Issuing"
 msgstr "Issuing"
 
@@ -4143,9 +4176,6 @@ msgstr "Port <0>{port}</0>"
 
 msgid "Renewal failing"
 msgstr "Renewal failing"
-
-msgid "TLS ends in front"
-msgstr "TLS ends in front"
 
 msgid "The certificate on <0>{server}</0> ran out {when}, so browsers refuse it. <1>Check its page</1>"
 msgstr "The certificate on <0>{server}</0> ran out {when}, so browsers refuse it. <1>Check its page</1>"
@@ -4248,6 +4278,134 @@ msgstr "your domain"
 
 msgid "{name} points at Cloudflare's proxy"
 msgstr "{name} points at Cloudflare's proxy"
+
+msgid "A DNS-only record to {server}, which gets its own certificate"
+msgstr "A DNS-only record to {server}, which gets its own certificate"
+
+msgid "A proxied record to {server}, and a certificate by DNS"
+msgstr "A proxied record to {server}, and a certificate by DNS"
+
+msgid "A proxied record to {server}, which Cloudflare reaches over HTTP"
+msgstr "A proxied record to {server}, which Cloudflare reaches over HTTP"
+
+msgid "A record exists: {record}, made in Cloudflare"
+msgstr "A record exists: {record}, made in Cloudflare"
+
+msgid "A tunnel only Dockwell writes, about 20 MB on {server}"
+msgstr "A tunnel only Dockwell writes, about 20 MB on {server}"
+
+#. placeholder {0}: picked.addsRule
+#. placeholder {1}: picked.tunnelName
+msgid "Adds {0} to {1}, once"
+msgstr "Adds {0} to {1}, once"
+
+msgctxt "a domain in no connected zone"
+msgid "Another domain"
+msgstr "Another domain"
+
+msgid "Change the way in"
+msgstr "Change the way in"
+
+msgid "Checking Dockwell and Cloudflare"
+msgstr "Checking Dockwell and Cloudflare"
+
+msgid "Cloudflare asked Dockwell to wait"
+msgstr "Cloudflare asked Dockwell to wait"
+
+msgid "Cloudflare asked Dockwell to wait. It checks again at {at}"
+msgstr "Cloudflare asked Dockwell to wait. It checks again at {at}"
+
+msgid "Cloudflare ends HTTPS, and the tunnel reaches {server}"
+msgstr "Cloudflare ends HTTPS, and the tunnel reaches {server}"
+
+msgid "Dockwell writes nothing at Cloudflare. What's in front ends HTTPS"
+msgstr "Dockwell writes nothing at Cloudflare. What's in front ends HTTPS"
+
+msgid "Dockwell's own tunnel on {server}"
+msgstr "Dockwell's own tunnel on {server}"
+
+msgid "Free in Dockwell and at Cloudflare"
+msgstr "Free in Dockwell and at Cloudflare"
+
+msgid "Keep it"
+msgstr "Keep it"
+
+msgid "Leave it"
+msgstr "Leave it"
+
+msgid "Made in Cloudflare and pointing here. An admin can take it on"
+msgstr "Made in Cloudflare and pointing here. An admin can take it on"
+
+msgid "Made in Cloudflare and pointing here: {record}"
+msgstr "Made in Cloudflare and pointing here: {record}"
+
+msgid "None yet"
+msgstr "None yet"
+
+msgid "Published already"
+msgstr "Published already"
+
+msgid "Replace it"
+msgstr "Replace it"
+
+msgid "Replaces {record}, made in Cloudflare. Undo puts it back"
+msgstr "Replaces {record}, made in Cloudflare. Undo puts it back"
+
+msgid "Something else in front"
+msgstr "Something else in front"
+
+msgid "Subdomain"
+msgstr "Subdomain"
+
+msgid "Take it on"
+msgstr "Take it on"
+
+msgid "Taken at Cloudflare"
+msgstr "Taken at Cloudflare"
+
+msgid "Takes on {record}, made in Cloudflare"
+msgstr "Takes on {record}, made in Cloudflare"
+
+msgid "This server's own HTTPS"
+msgstr "This server's own HTTPS"
+
+msgid "Through Cloudflare's proxy"
+msgstr "Through Cloudflare's proxy"
+
+msgid "Through the tunnel on {server}"
+msgstr "Through the tunnel on {server}"
+
+msgid "Through the tunnel {tunnel} on {server}"
+msgstr "Through the tunnel {tunnel} on {server}"
+
+msgid "Use Full (strict)"
+msgstr "Use Full (strict)"
+
+msgid "Use {next}"
+msgstr "Use {next}"
+
+msgid "Use {under}"
+msgstr "Use {under}"
+
+msgid "Way in"
+msgstr "Way in"
+
+msgid "Zone"
+msgstr "Zone"
+
+#. placeholder {0}: check.zone
+msgid "{0} is on Cloudflare"
+msgstr "{0} is on Cloudflare"
+
+#. placeholder {0}: check.zone
+msgid "{0} is set to Flexible, so Cloudflare reaches {server} over HTTP"
+msgstr "{0} is set to Flexible, so Cloudflare reaches {server} over HTTP"
+
+msgid "{domain} is past Cloudflare's free certificate"
+msgstr "{domain} is past Cloudflare's free certificate"
+
+msgid "{zone}, with {companion} beside it"
+msgstr "{zone}, with {companion} beside it"
 
 msgid "A file <0>docker compose</0> runs without Dockwell, with no secrets in it"
 msgstr "A file <0>docker compose</0> runs without Dockwell, with no secrets in it"
@@ -4378,23 +4536,14 @@ msgstr "{path} is a file"
 msgid "{path} is root's, and an app never runs as root"
 msgstr "{path} is root's, and an app never runs as root"
 
-msgid "A tunnel on this server"
-msgstr "A tunnel on this server"
-
 msgid "An address or a range, such as 10.77.0.0/24 for a tunnel on a bridge. That proxy needs a network of its own, not Docker's default bridge. Separate several with commas."
 msgstr "An address or a range, such as 10.77.0.0/24 for a tunnel on a bridge. That proxy needs a network of its own, not Docker's default bridge. Separate several with commas."
-
-msgid "Another proxy"
-msgstr "Another proxy"
 
 msgid "Anyone who can reach this server"
 msgstr "Anyone who can reach this server"
 
 msgid "Cloudflare connects to this server's port 80."
 msgstr "Cloudflare connects to this server's port 80."
-
-msgid "Cloudflare's proxy"
-msgstr "Cloudflare's proxy"
 
 msgid "For a private network with nothing in front."
 msgstr "For a private network with nothing in front."
@@ -4413,9 +4562,6 @@ msgstr "This server takes no certificate, and traffic reaches it unencrypted."
 
 msgid "What connects to this server"
 msgstr "What connects to this server"
-
-msgid "What's in front"
-msgstr "What's in front"
 
 msgid "You name what connects to this server."
 msgstr "You name what connects to this server."
@@ -7880,9 +8026,6 @@ msgstr "Open {app}"
 msgid "Public"
 msgstr "Public"
 
-msgid "Reaches"
-msgstr "Reaches"
-
 msgid "Reading the sources"
 msgstr "Reading the sources"
 
@@ -7956,9 +8099,6 @@ msgstr "Use {0} bytes in base64."
 #. placeholder {0}: input.generate
 msgid "Use {0} hex digits."
 msgstr "Use {0} hex digits."
-
-msgid "Use {next}"
-msgstr "Use {next}"
 
 msgid "What it installs"
 msgstr "What it installs"
@@ -9546,6 +9686,87 @@ msgstr "{waves}, one after another"
 
 msgid "{waves}, {pause} apart"
 msgstr "{waves}, {pause} apart"
+
+msgid "Add {name} to the tunnel {target} at Cloudflare"
+msgstr "Add {name} to the tunnel {target} at Cloudflare"
+
+msgid "Added {name} to the tunnel {target} at Cloudflare"
+msgstr "Added {name} to the tunnel {target} at Cloudflare"
+
+msgid "At Cloudflare"
+msgstr "At Cloudflare"
+
+msgid "From {was}"
+msgstr "From {was}"
+
+msgid "Keep {name} in the tunnel {target}"
+msgstr "Keep {name} in the tunnel {target}"
+
+msgid "Kept {name} in the tunnel {target}"
+msgstr "Kept {name} in the tunnel {target}"
+
+msgid "Move {name} in the tunnel {target} to the server's proxy"
+msgstr "Move {name} in the tunnel {target} to the server's proxy"
+
+msgid "Moved {name} in the tunnel {target} to the server's proxy"
+msgstr "Moved {name} in the tunnel {target} to the server's proxy"
+
+msgid "Now {was}"
+msgstr "Now {was}"
+
+msgid "Put back the DNS record for {name} at Cloudflare"
+msgstr "Put back the DNS record for {name} at Cloudflare"
+
+msgid "Put back {name} in the tunnel {target}"
+msgstr "Put back {name} in the tunnel {target}"
+
+msgid "Remove the DNS record for {name} at Cloudflare"
+msgstr "Remove the DNS record for {name} at Cloudflare"
+
+msgid "Remove {name} from the tunnel {target} at Cloudflare"
+msgstr "Remove {name} from the tunnel {target} at Cloudflare"
+
+msgid "Removed the DNS record for {name} at Cloudflare"
+msgstr "Removed the DNS record for {name} at Cloudflare"
+
+msgid "Removed {name} from the tunnel {target} at Cloudflare"
+msgstr "Removed {name} from the tunnel {target} at Cloudflare"
+
+msgid "Replace the DNS record for {name} at Cloudflare, keeping what was there"
+msgstr "Replace the DNS record for {name} at Cloudflare, keeping what was there"
+
+msgid "Replaced the DNS record for {name} at Cloudflare, keeping what was there"
+msgstr "Replaced the DNS record for {name} at Cloudflare, keeping what was there"
+
+msgid "Set {name} to {to} at Cloudflare"
+msgstr "Set {name} to {to} at Cloudflare"
+
+msgid "Take on the DNS record for {name}, made in Cloudflare"
+msgstr "Take on the DNS record for {name}, made in Cloudflare"
+
+msgid "Take on {name} in the tunnel {target}, made in Cloudflare"
+msgstr "Take on {name} in the tunnel {target}, made in Cloudflare"
+
+msgid "Took on the DNS record for {name}, made in Cloudflare"
+msgstr "Took on the DNS record for {name}, made in Cloudflare"
+
+msgid "Took on {name} in the tunnel {target}, made in Cloudflare"
+msgstr "Took on {name} in the tunnel {target}, made in Cloudflare"
+
+msgid "Write the DNS record for {name} at Cloudflare"
+msgstr "Write the DNS record for {name} at Cloudflare"
+
+msgid "Write {name} at Cloudflare"
+msgstr "Write {name} at Cloudflare"
+
+msgid "Writes {to}"
+msgstr "Writes {to}"
+
+msgid "Wrote the DNS record for {name} at Cloudflare"
+msgstr "Wrote the DNS record for {name} at Cloudflare"
+
+msgid "Wrote {name} at Cloudflare"
+msgstr "Wrote {name} at Cloudflare"
 
 msgid "Backed up only on {server}"
 msgstr "Backed up only on {server}"
@@ -11971,9 +12192,6 @@ msgstr "No app yet"
 msgid "No connections yet"
 msgstr "No connections yet"
 
-msgid "None yet"
-msgstr "None yet"
-
 msgid "The page tries again by itself."
 msgstr "The page tries again by itself."
 
@@ -12757,6 +12975,10 @@ msgstr "Can't read your apps"
 msgid "Certificates"
 msgstr "Certificates"
 
+#. placeholder {0}: domain.name
+msgid "Check DNS for {0} now"
+msgstr "Check DNS for {0} now"
+
 msgid "DNS"
 msgstr "DNS"
 
@@ -12787,6 +13009,9 @@ msgstr "No domains yet"
 
 msgid "Not served on {server}"
 msgstr "Not served on {server}"
+
+msgid "Reading DNS"
+msgstr "Reading DNS"
 
 msgid "Redirects to {where}"
 msgstr "Redirects to {where}"
@@ -12829,6 +13054,39 @@ msgstr "{count, plural, one {# domain} other {# domains}}"
 
 msgid "{days, plural, one {in # day} other {in # days}}"
 msgstr "{days, plural, one {in # day} other {in # days}}"
+
+msgid "Changed in Cloudflare, so removing it leaves it"
+msgstr "Changed in Cloudflare, so removing it leaves it"
+
+msgid "Dockwell can't prove its tunnel runs on this server"
+msgstr "Dockwell can't prove its tunnel runs on this server"
+
+msgid "Dockwell can't read it at Cloudflare"
+msgstr "Dockwell can't read it at Cloudflare"
+
+msgid "Its DNS record is gone at Cloudflare"
+msgstr "Its DNS record is gone at Cloudflare"
+
+msgid "Its tunnel runs on another server too"
+msgstr "Its tunnel runs on another server too"
+
+msgid "Its tunnel was deleted in Cloudflare"
+msgstr "Its tunnel was deleted in Cloudflare"
+
+msgid "Its tunnel's rule points at the app's own port"
+msgstr "Its tunnel's rule points at the app's own port"
+
+msgid "Made in Cloudflare, pointing here"
+msgstr "Made in Cloudflare, pointing here"
+
+msgid "Not in the tunnel any more"
+msgstr "Not in the tunnel any more"
+
+msgid "Put it back"
+msgstr "Put it back"
+
+msgid "Put {name} back at Cloudflare"
+msgstr "Put {name} back at Cloudflare"
 
 msgid "Can't tell where it points"
 msgstr "Can't tell where it points"
@@ -14846,9 +15104,6 @@ msgstr "Plan taking it on"
 
 msgid "Plan taking on all {inProject} of {project}"
 msgstr "Plan taking on all {inProject} of {project}"
-
-msgid "Take it on"
-msgstr "Take it on"
 
 msgid "Taking it on doesn't restart it or touch its volumes; its environment comes in sealed."
 msgstr "Taking it on doesn't restart it or touch its volumes; its environment comes in sealed."
@@ -17250,9 +17505,6 @@ msgstr "Install on another account"
 msgid "Installed on"
 msgstr "Installed on"
 
-msgid "Keep it"
-msgstr "Keep it"
-
 #. placeholder {0}: i.account
 msgid "Let every project build through {0}"
 msgstr "Let every project build through {0}"
@@ -17428,6 +17680,14 @@ msgstr "How to route behind it"
 msgid "Integrations"
 msgstr "Integrations"
 
+#. placeholder {0}: k.record
+msgid "Kept: {name}, {0}"
+msgstr "Kept: {name}, {0}"
+
+#. placeholder {0}: k.record
+msgid "Kept: {name}, {0}. The name holds something else now"
+msgstr "Kept: {name}, {0}. The name holds something else now"
+
 msgid "Loading registry logins"
 msgstr "Loading registry logins"
 
@@ -17455,9 +17715,18 @@ msgstr "Private images from GitHub, such as those Actions push."
 msgid "Private images, and pulls past Docker Hub's limits."
 msgstr "Private images, and pulls past Docker Hub's limits."
 
+msgid "Put the record for {name} back"
+msgstr "Put the record for {name} back"
+
+msgid "Put the record for {name} back at Cloudflare"
+msgstr "Put the record for {name} back at Cloudflare"
+
 #. placeholder {0}: words.ago(uploaded, now)
 msgid "Received a backup {0}"
 msgstr "Received a backup {0}"
+
+msgid "Records kept"
+msgstr "Records kept"
 
 msgid "Registries"
 msgstr "Registries"
@@ -18820,9 +19089,6 @@ msgstr "It runs only when you run it now."
 msgid "It runs with /bin/sh as root, so applying it takes your passkey."
 msgstr "It runs with /bin/sh as root, so applying it takes your passkey."
 
-msgid "Leave it"
-msgstr "Leave it"
-
 msgid "Method"
 msgstr "Method"
 
@@ -20024,6 +20290,9 @@ msgstr "People reach it at its domain, through what's in front of this server"
 msgid "Something listening on this server, such as port 3000."
 msgstr "Something listening on this server, such as port 3000."
 
+msgid "Static files or PHP, served by Caddy on a server"
+msgstr "Static files or PHP, served by Caddy on a server"
+
 msgid "Such as WordPress, run by PHP-FPM of its own."
 msgstr "Such as WordPress, run by PHP-FPM of its own."
 
@@ -20139,8 +20408,8 @@ msgstr "It says"
 msgid "No domain, so no certificate"
 msgstr "No domain, so no certificate"
 
-msgid "None, as TLS ends in front"
-msgstr "None, as TLS ends in front"
+msgid "None, as HTTPS ends in front"
+msgstr "None, as HTTPS ends in front"
 
 msgid "Not known yet"
 msgstr "Not known yet"

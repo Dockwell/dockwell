@@ -93,6 +93,7 @@ import { followChange } from "./follow";
 import { type Notice, needsConfirming, needsPasskey, useAsides, useDataLeft, useRisks, useWarnings } from "./notices";
 import { panelName } from "./PanelPlan";
 import { PlanSteps } from "./PlanSteps";
+import { CloudflareSteps } from "./ProviderSteps";
 import {
   canUndo,
   changeTo,
@@ -1497,7 +1498,7 @@ function PlanBody({
           />
         </section>
       )}
-      {showSteps ? <PlanSteps plan={plan} progress={steps} /> : null}
+      {showSteps ? <PlanSteps plan={plan} progress={steps} /> : <CloudflareSteps plan={plan} />}
       {phase === "review" ? (
         <Effects
           phone={phone}
