@@ -1,0 +1,72 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# A test entry with an optional mail server, as ADR 0099 writes one: SMTP_SECURE
+# for TLS from the start and SMTP_REQUIRE_TLS for STARTTLS, as Nodemailer reads
+# them. Release 1 asked for the same settings as inputs. The names are the test's
+# own.
+id: notes
+name: Notes
+summary: Keeps your notes
+description: |-
+  Notes keeps your notes, and mails a sign-in link where it has a mail server.
+category: productivity
+version: "1.2.0"
+release: 2
+license: AGPL-3.0-only
+appLicense: MIT
+source:
+  repository: https://github.com/Dockwell/catalog
+  path: entries/notes.yaml
+web:
+  service: notes
+inputs:
+  - name: PORT
+    label: Port on this server
+    type: INPUT_TYPE_PORT
+    defaultValue: "3210"
+needs:
+  - name: mail
+    label: Mail
+    kind: KIND_SMTP
+    optional: true
+    sets:
+      - name: MAIL_TRANSPORT
+        part: PART_MET
+        words:
+          - { value: met, word: smtp }
+          - { value: unmet, word: log }
+      - name: SMTP_HOST
+        part: PART_HOST
+      - name: SMTP_PORT
+        part: PART_PORT
+      - name: SMTP_SECURE
+        part: PART_SECURITY
+        words: [{ value: tls, word: "true" }, { value: starttls, word: "false" }, { value: none, word: "false" }]
+      - name: SMTP_REQUIRE_TLS
+        part: PART_SECURITY
+        words: [{ value: tls, word: "false" }, { value: starttls, word: "true" }, { value: none, word: "false" }]
+      - name: SMTP_USER
+        part: PART_USER
+      - name: SMTP_PASSWORD
+        part: PART_PASSWORD
+      - name: MAIL_FROM
+        part: PART_SENDER
+compose: |
+  services:
+    notes:
+      image: ghost:6.72.0@sha256:c0d83a8d45222b3f37a897572000050ab8e6e507d3eee5a35b3ef8345c7293d6
+      restart: unless-stopped
+      environment:
+        MAIL_TRANSPORT: ${MAIL_TRANSPORT}
+        SMTP_HOST: ${SMTP_HOST}
+        SMTP_PORT: ${SMTP_PORT}
+        SMTP_SECURE: ${SMTP_SECURE}
+        SMTP_REQUIRE_TLS: ${SMTP_REQUIRE_TLS}
+        SMTP_USER: ${SMTP_USER}
+        SMTP_PASSWORD: ${SMTP_PASSWORD}
+        MAIL_FROM: ${MAIL_FROM}
+      ports:
+        - "127.0.0.1:${PORT}:3210"
+      volumes:
+        - data:/data
+  volumes:
+    data: {}

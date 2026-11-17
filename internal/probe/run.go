@@ -374,10 +374,15 @@ func (c *capped) Write(p []byte) (int, error) {
 // are, and as a URL, base64 or JSON would write them. What's left of one where
 // the cap cut it short goes too.
 func withoutKeys(said string, req Request) string {
-	if req.S3 == nil {
-		return said
+	var keys []string
+	if req.S3 != nil {
+		keys = append(keys, req.S3.SecretKey, req.S3.AccessKey)
 	}
-	for _, key := range []string{req.S3.SecretKey, req.S3.AccessKey} {
+	if req.SMTP != nil && req.SMTP.User != "" {
+		// AUTH PLAIN writes the user and the password as one, in base64.
+		keys = append(keys, "\x00"+req.SMTP.User+"\x00"+req.SMTP.Password, req.SMTP.Password, req.SMTP.User)
+	}
+	for _, key := range keys {
 		if key == "" {
 			continue
 		}

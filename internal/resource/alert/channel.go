@@ -427,14 +427,16 @@ func NtfyServer(n *resourcev1.AlertNtfy) string {
 // Nearby reports a host on this server or its private network, by its address or
 // a name only such a network gives.
 func Nearby(host string) bool {
-	if host == "localhost" || !strings.Contains(host, ".") {
-		return true
-	}
+	// An address is judged by its range alone, before any rule for names: an IPv6
+	// literal has no dot, and is no name of one label (the SMTP review's H1).
 	if addr, err := netip.ParseAddr(strings.Trim(host, "[]")); err == nil {
 		addr = addr.Unmap()
 		// Carrier-grade NAT's, as a tailnet's are, is a private network too, as
 		// netguard counts it.
 		return addr.IsLoopback() || addr.IsPrivate() || cgnat.Contains(addr)
+	}
+	if host == "localhost" || !strings.Contains(host, ".") {
+		return true
 	}
 	for _, suffix := range []string{".internal", ".lan", ".local", ".home.arpa"} {
 		if strings.HasSuffix(host, suffix) {

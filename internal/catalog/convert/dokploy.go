@@ -108,6 +108,7 @@ func dokployApps(ctx context.Context, t *tree, root string) ([]App, error) {
 func dokployRead(t *tree, name string) App {
 	at := path.Join("blueprints", name)
 	app := App{ID: strings.NewReplacer("_", "-", ".", "-").Replace(strings.ToLower(name)), Name: name, Path: at, Web: true}
+	app.Mail = mailFor("dokploy", app.ID)
 	file, err := t.readFile(path.Join(at, "docker-compose.yml"))
 	if err != nil {
 		app.LeftOut, app.Class = err.Error(), ClassFile

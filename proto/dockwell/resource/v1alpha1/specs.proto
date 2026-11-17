@@ -646,6 +646,11 @@ message CatalogPin {
   // and keeps it. A secret with no word here, as an install from before this kept
   // them, is Dockwell's while it has a template.
   map<string, ValueTemplate> written = 83;
+  // The inputs a person gave a value, by name, rather than took from the release's
+  // suggestion, so an upgrade that takes them as a need keeps as theirs only what
+  // they typed (ADR 0099). Unset for an install from before this was kept, whose
+  // values all count as given.
+  GivenNames given = 85;
 }
 
 // PinnedNeed is how an install met one of its entry's needs.
@@ -1610,7 +1615,7 @@ message ConnectionSpec {
   string display_name = 1;
   // What kind of thing it reaches.
   LinkKind kind = 2;
-  // S3-compatible storage, for KIND_S3.
+  // S3-compatible storage, for LINK_KIND_S3.
   ConnectionS3 s3 = 3;
   // Which projects may use it. Unset reaches none.
   ConnectionReach reach = 4;
@@ -1626,6 +1631,8 @@ message ConnectionSpec {
   // prefix of its own: a need that keeps to a prefix is offered it though another
   // app uses it already. Unset, it serves one link (ADR 0099).
   bool shared = 7;
+  // A mail server, for LINK_KIND_SMTP.
+  ConnectionSmtp smtp = 8;
 }
 
 // ConnectionReach says which projects may use a connection, said, never implied.
@@ -1654,6 +1661,46 @@ message ConnectionS3 {
   bool path_style = 6;
   // Where objects are read from publicly, such as a custom domain. Empty is none.
   string public_url = 7;
+}
+
+// GivenNames are the names of the inputs a person gave a value, as a catalog pin
+// keeps them.
+message GivenNames {
+  repeated string names = 1;
+}
+
+// ConnectionSmtp is a mail server an app sends through, and who it signs in as. A
+// check signs in and sends nothing (ADR 0099).
+message ConnectionSmtp {
+  // The server's name or address alone, such as "smtp.example.com".
+  string host = 1;
+  // Its port: 587 for STARTTLS and 465 for TLS unless set, and 25 for none.
+  uint32 port = 2;
+  // How the connection is secured.
+  SmtpSecurity security = 3;
+  // Who it signs in as, and the password. Empty signs in as no one. Leave the
+  // password out of an update to keep it, while the server, its port, its
+  // security and the user stay.
+  string user = 4 [(sensitive) = true];
+  string password = 5 [(sensitive) = true];
+  // Who the mail comes from, an address, such as "notes@example.com", unless a
+  // link says its own.
+  string sender = 6;
+  // The name it comes from, such as "Notes". Empty is none.
+  string sender_name = 7;
+}
+
+// SmtpSecurity is how a connection to a mail server is secured. Its numbers are
+// AlertEmail.Security's.
+enum SmtpSecurity {
+  // STARTTLS, unless set.
+  SMTP_SECURITY_UNSPECIFIED = 0;
+  // A plain connection that STARTTLS makes TLS, as on port 587.
+  SMTP_SECURITY_STARTTLS = 1;
+  // TLS from the start, as on port 465.
+  SMTP_SECURITY_TLS = 2;
+  // No TLS: signing in is refused but on a private address.
+  SMTP_SECURITY_NONE = 3;
 }
 
 // RegistryLogin is what signs in to a container registry, so an app can pull an
@@ -2112,6 +2159,10 @@ message Link {
   // What the app needs of what it reaches, which the check tries, such as presigned
   // URLs.
   repeated LinkFeature features = 93;
+  // Who the app's mail comes from, an address, and the name, on a mail server's
+  // connection, in place of the connection's own. Empty takes the connection's.
+  string sender = 94;
+  string sender_name = 95;
 }
 
 // LinkKind is what a link reaches beyond a database, numbered as the catalog
@@ -2196,5 +2247,9 @@ enum LinkPart {
   LINK_PART_SECRET_KEY = 54;
   LINK_PART_PATH_STYLE = 55;
   LINK_PART_PUBLIC_URL = 56;
+  // A mail server's parts, numbered as the catalog format's Part (ADR 0099).
+  LINK_PART_SECURITY = 60;
+  LINK_PART_SENDER = 61;
+  LINK_PART_SENDER_NAME = 62;
   LINK_PART_MET = 70;
 }

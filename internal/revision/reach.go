@@ -288,6 +288,17 @@ func (e *Engine) checkConnectionLinks(ctx context.Context, tx *store.Tx, items [
 			return fault.New(ErrInvalid, "link %s in %s still uses the connection %s, which this change deletes. Disconnect it on the connection's page first%s",
 				l.ref.Name, where, it.ref.Name, also)
 		}
+		if before, _ := it.current.(*resourcev1.ConnectionSpec); before.GetKind() != after.GetKind() {
+			return fault.New(ErrInvalid, "link %s in %s still uses the connection %s, which this change makes another kind of connection. Disconnect it on the connection's page first, or add a connection of the new kind",
+				l.ref.Name, where, it.ref.Name)
+		}
+		// Each app was told the connection's security in its own words, which a
+		// link writes once, so it can't change under them.
+		if before, _ := it.current.(*resourcev1.ConnectionSpec); writesSecurity(l.Link) &&
+			connection.Security(before.GetSmtp()) != connection.Security(after.GetSmtp()) {
+			return fault.New(ErrInvalid, "link %s in %s tells its app how the connection %s is secured, in the app's own words, so its security stays while the link uses it. Disconnect it on the connection's page first, or add a connection with the new security",
+				l.ref.Name, where, it.ref.Name)
+		}
 		if project := projectOfScope(ctx, tx, items, l.ref.Scope); !connection.Reaches(after, project) {
 			name := whichScope(ctx, tx, project)
 			return fault.New(ErrInvalid, "link %s in %s still uses the connection %s, which this change takes away from %s. Disconnect it on the connection's page first, or keep %s in its reach",
@@ -295,6 +306,12 @@ func (e *Engine) checkConnectionLinks(ctx context.Context, tx *store.Tx, items [
 		}
 	}
 	return nil
+}
+
+// writesSecurity says a link to a mail server tells its app the connection's security,
+// which it writes in the app's words.
+func writesSecurity(l *resourcev1.Link) bool {
+	return slices.ContainsFunc(l.GetSets(), func(s *resourcev1.LinkSet) bool { return s.GetPart() == resourcev1.LinkPart_LINK_PART_SECURITY })
 }
 
 // checkLinkPrefix refuses a link to a connection where its app would keep its files
@@ -325,6 +342,11 @@ func (e *Engine) checkLinkPrefix(ctx context.Context, tx *store.Tx, items []item
 		if err := e.checkOneApp(ctx, tx, items, it, l, links); err != nil {
 			return err
 		}
+	}
+	// A mail server keeps no files, so apps a shared one serves have nothing to keep
+	// apart.
+	if l.GetKind() == resourcev1.LinkKind_LINK_KIND_SMTP {
+		return nil
 	}
 	// The suggestion comes from links in places the person may see alone, so it says
 	// nothing of another project's prefixes (the slice 1 re-check, N3), and is offered

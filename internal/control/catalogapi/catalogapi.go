@@ -385,7 +385,7 @@ func (h *Handler) InstallCatalogEntry(ctx context.Context, req *connect.Request[
 		return nil, h.internal(ctx, err)
 	}
 	pin := pinTo(entry, from, filled, choice)
-	pin.Needs, pin.Written = needed.Pinned, needed.Written
+	pin.Needs, pin.Written, pin.Given = needed.Pinned, needed.Written, givenNames(nil, m.GetValues())
 	shared, sharedOn, err := h.sharedEdits(ctx, needed, filled)
 	if err != nil {
 		return nil, err
@@ -738,9 +738,19 @@ func (h *Handler) upgrade(ctx context.Context, m *dockwellv1.UpgradeCatalogInsta
 	if err != nil {
 		return nil, h.internal(ctx, err)
 	}
+	// What a person typed for what the release now takes as a need stays theirs.
+	pinned, typedKinds, typedNotes, err := h.typedOwn(ctx, install.GetEnvironmentId(), install.GetProject(), entry, pinned, pin)
+	if err != nil {
+		return nil, h.internal(ctx, err)
+	}
+	keptNotes = append(keptNotes, typedNotes...)
 	needed, needNotes, err := h.meetNeeds(ctx, s, entry, m.GetValues(), nil, pinned, nil, install.GetProject(), server, found.running())
 	if err != nil {
 		return nil, err
+	}
+	keepKinds(needed, typedKinds)
+	if err := h.keepSenders(ctx, install.GetEnvironmentId(), needed); err != nil {
+		return nil, h.internal(ctx, err)
 	}
 	pinNotes = append(pinNotes, keptNotes...)
 	pinNotes = append(pinNotes, needNotes...)
@@ -805,7 +815,7 @@ func (h *Handler) upgrade(ctx context.Context, m *dockwellv1.UpgradeCatalogInsta
 		return nil, h.internal(ctx, err)
 	}
 	newPin := pinTo(entry, s.origins[entry.GetId()], filled, choice)
-	newPin.Needs, newPin.Written = needed.Pinned, needed.Written
+	newPin.Needs, newPin.Written, newPin.Given = needed.Pinned, needed.Written, givenNames(pin, m.GetValues())
 	// A port the release declares public that isn't yet is a person's to approve,
 	// and one that answered on every address and doesn't now says so (ADR 0101).
 	asked := newlyPublic(catalog.PublicPorts(chosen, filled.Variables), ranOnEveryAddress(chosen, old, oldVariables))
@@ -938,7 +948,7 @@ func (h *Handler) SetCatalogCompanion(ctx context.Context, req *connect.Request[
 	}
 	file = ran.GetCompose()
 	newPin := proto.CloneOf(pin)
-	newPin.Values, newPin.Companions = values, next
+	newPin.Values, newPin.Companions, newPin.Given = values, next, givenNames(pin, m.GetValues())
 	oldVariables, oldStands, err := catalog.Given(old)
 	if err != nil {
 		return nil, h.internal(ctx, err)

@@ -340,6 +340,16 @@ enum Part {
   PART_PATH_STYLE = 55;
   // Where objects are read from publicly, as a custom domain.
   PART_PUBLIC_URL = 56;
+  // A mail server's parts, numbered from 60, beside its host, port, user,
+  // password and URL. How it's secured, in the app's words, as words give them
+  // for starttls, tls and none: one for each, under as many names as the app
+  // reads, as SMTP_SECURE for TLS from the start and SMTP_REQUIRE_TLS for
+  // STARTTLS.
+  PART_SECURITY = 60;
+  // Who the mail comes from, an address, such as "notes@example.com".
+  PART_SENDER = 61;
+  // The name the mail comes from, such as "Notes".
+  PART_SENDER_NAME = 62;
   // Whether an optional need is met, in the app's words, as words give them for
   // met and unmet, such as STORAGE_DRIVER's s3 and local. Set while unmet too.
   PART_MET = 70;

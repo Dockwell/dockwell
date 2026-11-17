@@ -45,7 +45,8 @@ func TestABucketConnectionIsTaken(t *testing.T) {
 // hold nothing of its keys.
 func TestAConnectionThatCantReachABucketIsRefused(t *testing.T) {
 	for want, change := range map[string]func(*resourcev1.ConnectionSpec){
-		"S3 storage for now":                  func(c *resourcev1.ConnectionSpec) { c.Kind = resourcev1.LinkKind_LINK_KIND_SMTP },
+		"S3 storage or a mail server":         func(c *resourcev1.ConnectionSpec) { c.Kind = resourcev1.LinkKind(9) },
+		"a mail server needs its host":        func(c *resourcev1.ConnectionSpec) { c.Kind = resourcev1.LinkKind_LINK_KIND_SMTP },
 		"isn't an endpoint":                   func(c *resourcev1.ConnectionSpec) { c.S3.Endpoint = "ftp://files.example.com?key=the-secret" },
 		"with a user or password in it":       func(c *resourcev1.ConnectionSpec) { c.S3.Endpoint = "https://key:the-secret@files.example.com" },
 		"isn't a bucket's name":               func(c *resourcev1.ConnectionSpec) { c.S3.Bucket = "Up_Loads" },

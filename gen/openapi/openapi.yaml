@@ -10430,6 +10430,11 @@ components:
                     description: |-
                         The connection is shared and another app keeps its files there already, each
                          under its own prefix, as this app would (ConnectionSpec.shared).
+                connectionSender:
+                    type: string
+                    description: |-
+                        Who the mail comes from, on a mail server's connection, such as
+                         "notes@example.com".
             description: CatalogNeedOption is one way to meet an entry's need.
         CatalogPart:
             type: object
@@ -10592,6 +10597,14 @@ components:
                          change of need reads a secret whose template is another as one a person set,
                          and keeps it. A secret with no word here, as an install from before this kept
                          them, is Dockwell's while it has a template.
+                given:
+                    allOf:
+                        - $ref: '#/components/schemas/GivenNames'
+                    description: |-
+                        The inputs a person gave a value, by name, rather than took from the release's
+                         suggestion, so an upgrade that takes them as a need keeps as theirs only what
+                         they typed (ADR 0099). Unset for an install from before this was kept, whose
+                         values all count as given.
             description: |-
                 CatalogPin is what an install is pinned to: updates come from there, and each
                  is a plan. It holds no secret: those are the environment's, by reference.
@@ -11387,6 +11400,13 @@ components:
                 prefix:
                     type: string
                     description: Where the check's object goes in the bucket, such as "outline/".
+                smtp:
+                    allOf:
+                        - $ref: '#/components/schemas/ConnectionSmtp'
+                    description: |-
+                        A mail server as typed, checked by signing in, never by sending. A saved
+                         connection's user and password are kept where this leaves the password out,
+                         while its host, port, security and user stay.
             description: CheckConnectionRequest is a connection to check, as typed, or a saved one again.
         CheckConnectionResponse:
             type: object
@@ -11396,11 +11416,14 @@ components:
                     description: It did everything asked of it.
                 step:
                     type: string
-                    description: 'Where it stopped: write, read, presign or delete.'
+                    description: |-
+                        Where it stopped: write, read, presign or delete for storage; connect, hello,
+                         tls or sign-in for a mail server.
                 code:
                     type: string
                     description: |-
-                        What the storage said, such as an S3 error's code, or what kept it from
+                        What the storage said, such as an S3 error's code, or a mail server's reply
+                         code and its enhanced code, such as "535 5.7.8", or what kept it from
                          answering: refused, timeout, unreachable or tls. Status is its HTTP status.
                 status:
                     type: integer
@@ -12033,6 +12056,9 @@ components:
                             - LINK_PART_SECRET_KEY
                             - LINK_PART_PATH_STYLE
                             - LINK_PART_PUBLIC_URL
+                            - LINK_PART_SECURITY
+                            - LINK_PART_SENDER
+                            - LINK_PART_SENDER_NAME
                             - LINK_PART_MET
                         type: string
                         format: enum
@@ -12106,6 +12132,9 @@ components:
                             - LINK_PART_SECRET_KEY
                             - LINK_PART_PATH_STYLE
                             - LINK_PART_PUBLIC_URL
+                            - LINK_PART_SECURITY
+                            - LINK_PART_SENDER
+                            - LINK_PART_SENDER_NAME
                             - LINK_PART_MET
                         type: string
                         format: enum
@@ -12190,6 +12219,26 @@ components:
                     description: |-
                         An install admin has marked it as serving more than one link, each app under a
                          prefix of its own (ConnectionSpec.shared).
+                host:
+                    type: string
+                    description: |-
+                        Where its mail server is, for a mail server's: its host, port and security,
+                         and who the mail comes from. Who it signs in as is never shown.
+                port:
+                    type: integer
+                    format: uint32
+                security:
+                    enum:
+                        - SMTP_SECURITY_UNSPECIFIED
+                        - SMTP_SECURITY_STARTTLS
+                        - SMTP_SECURITY_TLS
+                        - SMTP_SECURITY_NONE
+                    type: string
+                    format: enum
+                sender:
+                    type: string
+                senderName:
+                    type: string
             description: |-
                 ConnectionInfo is a connection as a caller may see it: never its keys. Below an
                  admin, its name, kind and what it reaches alone.
@@ -12221,6 +12270,9 @@ components:
                         - LINK_PART_SECRET_KEY
                         - LINK_PART_PATH_STYLE
                         - LINK_PART_PUBLIC_URL
+                        - LINK_PART_SECURITY
+                        - LINK_PART_SENDER
+                        - LINK_PART_SENDER_NAME
                         - LINK_PART_MET
                     type: string
                     description: The part it reads, such as the bucket.
@@ -12259,6 +12311,9 @@ components:
                         - LINK_PART_SECRET_KEY
                         - LINK_PART_PATH_STYLE
                         - LINK_PART_PUBLIC_URL
+                        - LINK_PART_SECURITY
+                        - LINK_PART_SENDER
+                        - LINK_PART_SENDER_NAME
                         - LINK_PART_MET
                     type: string
                     description: Which of its values, such as its secret key.
@@ -12295,6 +12350,44 @@ components:
                     type: string
                     description: Where objects are read from publicly, such as a custom domain. Empty is none.
             description: ConnectionS3 is a bucket of S3-compatible storage and the keys that reach it.
+        ConnectionSmtp:
+            type: object
+            properties:
+                host:
+                    type: string
+                    description: The server's name or address alone, such as "smtp.example.com".
+                port:
+                    type: integer
+                    description: 'Its port: 587 for STARTTLS and 465 for TLS unless set, and 25 for none.'
+                    format: uint32
+                security:
+                    enum:
+                        - SMTP_SECURITY_UNSPECIFIED
+                        - SMTP_SECURITY_STARTTLS
+                        - SMTP_SECURITY_TLS
+                        - SMTP_SECURITY_NONE
+                    type: string
+                    description: How the connection is secured.
+                    format: enum
+                user:
+                    type: string
+                    description: |-
+                        Who it signs in as, and the password. Empty signs in as no one. Leave the
+                         password out of an update to keep it, while the server, its port, its
+                         security and the user stay.
+                password:
+                    type: string
+                sender:
+                    type: string
+                    description: |-
+                        Who the mail comes from, an address, such as "notes@example.com", unless a
+                         link says its own.
+                senderName:
+                    type: string
+                    description: The name it comes from, such as "Notes". Empty is none.
+            description: |-
+                ConnectionSmtp is a mail server an app sends through, and who it signs in as. A
+                 check signs in and sends nothing (ADR 0099).
         ConnectionSpec:
             type: object
             properties:
@@ -12312,7 +12405,7 @@ components:
                 s3:
                     allOf:
                         - $ref: '#/components/schemas/ConnectionS3'
-                    description: S3-compatible storage, for KIND_S3.
+                    description: S3-compatible storage, for LINK_KIND_S3.
                 reach:
                     enum:
                         - CONNECTION_REACH_UNSPECIFIED
@@ -12341,6 +12434,10 @@ components:
                         An install admin has marked it as serving more than one link, each app under a
                          prefix of its own: a need that keeps to a prefix is offered it though another
                          app uses it already. Unset, it serves one link (ADR 0099).
+                smtp:
+                    allOf:
+                        - $ref: '#/components/schemas/ConnectionSmtp'
+                    description: A mail server, for LINK_KIND_SMTP.
             description: |-
                 ConnectionSpec is one set of values of one kind that something uses, kind
                  "connection": an app through a link, or Dockwell itself (ADR 0099). It lives in the
@@ -12387,6 +12484,9 @@ components:
                             - LINK_PART_SECRET_KEY
                             - LINK_PART_PATH_STYLE
                             - LINK_PART_PUBLIC_URL
+                            - LINK_PART_SECURITY
+                            - LINK_PART_SENDER
+                            - LINK_PART_SENDER_NAME
                             - LINK_PART_MET
                         type: string
                         format: enum
@@ -16571,6 +16671,16 @@ components:
                         The commit the build is of, in full. Dockwell sets it as a change is
                          planned, from what ref names then, unless the edit names one.
             description: GitSource is a Git repository Dockwell builds from.
+        GivenNames:
+            type: object
+            properties:
+                names:
+                    type: array
+                    items:
+                        type: string
+            description: |-
+                GivenNames are the names of the inputs a person gave a value, as a catalog pin
+                 keeps them.
         GoogleProtobufAny:
             type: object
             properties:
@@ -18294,6 +18404,13 @@ components:
                     description: |-
                         What the app needs of what it reaches, which the check tries, such as presigned
                          URLs.
+                sender:
+                    type: string
+                    description: |-
+                        Who the app's mail comes from, an address, and the name, on a mail server's
+                         connection, in place of the connection's own. Empty takes the connection's.
+                senderName:
+                    type: string
             description: |-
                 Link is how one of an app's needs is met, such as its database: what meets it,
                  and the variables and secrets it sets in its environment, which the app's
@@ -18345,6 +18462,9 @@ components:
                         - LINK_PART_SECRET_KEY
                         - LINK_PART_PATH_STYLE
                         - LINK_PART_PUBLIC_URL
+                        - LINK_PART_SECURITY
+                        - LINK_PART_SENDER
+                        - LINK_PART_SENDER_NAME
                         - LINK_PART_MET
                     type: string
                     description: What it holds.
@@ -19818,6 +19938,9 @@ components:
                         - PART_SECRET_KEY
                         - PART_PATH_STYLE
                         - PART_PUBLIC_URL
+                        - PART_SECURITY
+                        - PART_SENDER
+                        - PART_SENDER_NAME
                         - PART_MET
                     type: string
                     description: What it holds.

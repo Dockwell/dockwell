@@ -78,6 +78,9 @@ func (s *Service) ConnectStorage(ctx context.Context, req *connect.Request[dockw
 		return nil, authapi.ReasonError(connect.CodeNotFound, fmt.Errorf("there's no connection %s this project may use. Ask an admin to add one, or let this project use it", m.GetConnection()), "not_found")
 	}
 	conn := all[i]
+	if conn.Spec.GetKind() != resourcev1.LinkKind_LINK_KIND_S3 {
+		return nil, authapi.Invalid(fmt.Errorf("the connection %s is a mail server, and Connect storage links S3 storage. Set up the app's mail on its page instead", conn.Name))
+	}
 	linkName := cmp.Or(m.GetLink(), "storage")
 	if err := resource.CheckLabel("link", linkName, "storage"); err != nil {
 		return nil, authapi.Invalid(err)
@@ -504,6 +507,9 @@ func checkWords(c *dockwellv1.CheckConnectionResponse) string {
 // where that isn't the app's server.
 func checkWordsFrom(c *dockwellv1.CheckConnectionResponse, who string) string {
 	Who := strings.ToUpper(who[:1]) + who[1:]
+	if mailStep(c.GetStep()) {
+		return mailWords(c, who, Who)
+	}
 	switch c.GetCode() {
 	case probe.CodeRefused:
 		return Who + " sends nothing to that address: " + cmp.Or(c.GetWords(), "it's one Dockwell keeps the app from")
@@ -530,6 +536,9 @@ func checkFix(c *dockwellv1.CheckConnectionResponse) string {
 
 // checkFixFrom is checkFix for a check from who.
 func checkFixFrom(c *dockwellv1.CheckConnectionResponse, who string) string {
+	if mailStep(c.GetStep()) {
+		return mailFix(c, who)
+	}
 	switch c.GetCode() {
 	case "SignatureDoesNotMatch", "InvalidAccessKeyId", "AccessDenied":
 		return "Check the connection's keys, and that they may write in its bucket"
@@ -539,6 +548,76 @@ func checkFixFrom(c *dockwellv1.CheckConnectionResponse, who string) string {
 		return "Check the connection's endpoint, and that " + who + " can reach it"
 	case probe.CodeTLS:
 		return "Check the connection's endpoint"
+	}
+	return "Check the connection on Connections"
+}
+
+// mailStep says a check stopped at one of a mail server's steps.
+func mailStep(step string) bool {
+	switch step {
+	case probe.StepConnect, probe.StepHello, probe.StepTLS, probe.StepSignIn:
+		return true
+	}
+	return false
+}
+
+// mailWords is checkWordsFrom for a mail server: what stopped it, by its reply code
+// alone, never the server's words, which may say the user back.
+func mailWords(c *dockwellv1.CheckConnectionResponse, who, subject string) string {
+	switch {
+	case c.GetCode() == probe.CodeTimeout && c.GetStep() == probe.StepHello:
+		// It took the connection and said nothing, as a server that wants TLS from
+		// the start does to a plain one (the SMTP review's L3).
+		return "The mail server took the connection from " + who + " and answered nothing, so apps can't send mail through it as set"
+	case c.GetCode() == probe.CodeTimeout && c.GetStep() == probe.StepTLS:
+		return "The mail server took the connection from " + who + " and never finished TLS, so apps can't send mail through it as set"
+	}
+	switch c.GetCode() {
+	case probe.CodeRefused:
+		return subject + " sends nothing to that address: " + cmp.Or(c.GetWords(), "it's one Dockwell keeps the app from")
+	case probe.CodeTimeout:
+		return "The mail server didn't answer from " + who + " in time"
+	case probe.CodeUnreachable:
+		return subject + " can't reach the mail server: " + cmp.Or(c.GetWords(), "nothing answered")
+	case probe.CodeTLS:
+		return "The mail server has a certificate " + who + " doesn't trust"
+	case probe.CodeNoStartTLS:
+		return "The mail server doesn't offer STARTTLS"
+	case probe.CodeClear:
+		return "The connection signs in without TLS to an address that isn't private, so Dockwell sent no password"
+	case probe.CodeNoSignIn:
+		return "The mail server signs no one in"
+	case probe.CodeMechanisms:
+		return "The mail server signs in only in ways Dockwell doesn't, which are PLAIN and LOGIN"
+	}
+	switch c.GetStep() {
+	case probe.StepSignIn:
+		return "The mail server refused the user and password, with " + cmp.Or(c.GetCode(), "no code")
+	case probe.StepTLS:
+		return "The mail server refused STARTTLS, with " + cmp.Or(c.GetCode(), "no code")
+	}
+	return "The mail server refused the check at its " + c.GetStep() + " step, with " + cmp.Or(c.GetCode(), "no code")
+}
+
+// mailFix is checkFixFrom for a mail server.
+func mailFix(c *dockwellv1.CheckConnectionResponse, who string) string {
+	switch {
+	case c.GetCode() == probe.CodeTimeout && c.GetStep() == probe.StepHello:
+		return "If its port wants TLS from the start, as 465 does, choose TLS"
+	case c.GetCode() == probe.CodeTimeout && c.GetStep() == probe.StepTLS:
+		return "If its port wants a plain start, as 587 does, choose STARTTLS"
+	case c.GetCode() == probe.CodeTimeout || c.GetCode() == probe.CodeUnreachable:
+		return "Check the connection's host and port, and that " + who + " can reach it. Many providers take port 2525 where 587 is blocked"
+	case c.GetCode() == probe.CodeRefused, c.GetCode() == probe.CodeTLS:
+		return "Check the connection's host"
+	case c.GetCode() == probe.CodeNoStartTLS:
+		return "Use TLS on port 465, or a server that offers STARTTLS"
+	case c.GetCode() == probe.CodeClear:
+		return "Use STARTTLS or TLS"
+	case c.GetCode() == probe.CodeNoSignIn:
+		return "Clear the connection's user, or use a server that signs one in"
+	case c.GetStep() == probe.StepSignIn:
+		return "Check the connection's user and password"
 	}
 	return "Check the connection on Connections"
 }

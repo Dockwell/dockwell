@@ -494,6 +494,9 @@ message CatalogNeedOption {
   // The connection is shared and another app keeps its files there already, each
   // under its own prefix, as this app would (ConnectionSpec.shared).
   bool connection_shared = 92;
+  // Who the mail comes from, on a mail server's connection, such as
+  // "notes@example.com".
+  string connection_sender = 93;
 }
 
 // CatalogPart is one service an entry installs.

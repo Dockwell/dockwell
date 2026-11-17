@@ -282,14 +282,32 @@ func (k *Keeper) written(ctx context.Context, tx *store.Tx, scopeID string, kind
 			tr.connection = src.Connection.GetName()
 			return "", errFromConnection
 		}
-		if src.Connection.GetPart() == resourcev1.LinkPart_LINK_PART_KEY_PREFIX {
+		part := src.Connection.GetPart()
+		if variable.ReadsLink(part) {
 			i := slices.IndexFunc(uses, func(u resource.Use) bool { return u.As == variable.LinkUse })
 			if i < 0 {
-				return "", errors.New("a value of a link's prefix names no link")
+				return "", fmt.Errorf("a value of a link's %s names no link", part)
 			}
-			return k.linkPrefix(ctx, tx, scopeID, uses[i])
+			l, err := k.linkAt(ctx, tx, scopeID, uses[i])
+			if err != nil {
+				return "", err
+			}
+			// A mail server's sender is the link's where it says one, for its app alone,
+			// and the connection's otherwise.
+			switch part {
+			case resourcev1.LinkPart_LINK_PART_SENDER:
+				if l.GetSender() != "" {
+					return l.GetSender(), nil
+				}
+			case resourcev1.LinkPart_LINK_PART_SENDER_NAME:
+				if l.GetSenderName() != "" {
+					return l.GetSenderName(), nil
+				}
+			default:
+				return l.GetPrefix(), nil
+			}
 		}
-		return k.connectionPart(ctx, tx, uses[0], src.Connection.GetPart())
+		return k.connectionPart(ctx, tx, uses[0], part)
 	}
 	return "", errors.New("a value says it comes from somewhere, and not where")
 }
@@ -329,36 +347,36 @@ func (k *Keeper) connectionPart(ctx context.Context, tx *store.Tx, u resource.Us
 	return value, nil
 }
 
-// linkPrefix is the prefix a link keeps its app's files under, read at the revision
-// a value pins: the link owns it, so the value can't say other than the link does
-// (ADR 0099, the re-check's N3).
-func (k *Keeper) linkPrefix(ctx context.Context, tx *store.Tx, scopeID string, u resource.Use) (string, error) {
+// linkAt is a link as a value pins it, for what the link owns: the prefix it keeps
+// its app's files under, so the value can't say other than the link does (ADR 0099,
+// the re-check's N3), and the sender it says for its app.
+func (k *Keeper) linkAt(ctx context.Context, tx *store.Tx, scopeID string, u resource.Use) (*resourcev1.Link, error) {
 	r, err := tx.GetResource(ctx, string(u.Kind), cmp.Or(u.Scope, scopeID), u.Name)
 	if errors.Is(err, store.ErrNotFound) {
-		return "", fmt.Errorf("there's no link %s for %s", u.Name, u.As)
+		return nil, fmt.Errorf("there's no link %s for %s", u.Name, u.As)
 	}
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	if u.Revision <= 0 {
-		return "", fmt.Errorf("%s uses the link %s at no revision; plan the change again", u.As, u.Name)
+		return nil, fmt.Errorf("%s uses the link %s at no revision; plan the change again", u.As, u.Name)
 	}
 	rev, err := tx.GetRevision(ctx, r.ID, u.Revision)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	if rev.Spec == nil {
-		return "", fmt.Errorf("%s uses the link %s at revision %d, which deleted it", u.As, u.Name, u.Revision)
+		return nil, fmt.Errorf("%s uses the link %s at revision %d, which deleted it", u.As, u.Name, u.Revision)
 	}
 	spec, err := k.Decode(ctx, tx, store.InRevision(r.ID, string(u.Kind), rev.Revision), rev.Spec)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	l, ok := spec.(*resourcev1.Link)
 	if !ok {
-		return "", fmt.Errorf("%s isn't a link", u.Name)
+		return nil, fmt.Errorf("%s isn't a link", u.Name)
 	}
-	return l.GetPrefix(), nil
+	return l, nil
 }
 
 // Revealed is a secret's value, as RevealSecret returns it.

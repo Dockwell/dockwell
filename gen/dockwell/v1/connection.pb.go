@@ -434,7 +434,14 @@ type ConnectionInfo struct {
 	Held bool `protobuf:"varint,13,opt,name=held,proto3" json:"held,omitempty"`
 	// An install admin has marked it as serving more than one link, each app under a
 	// prefix of its own (ConnectionSpec.shared).
-	Shared        bool `protobuf:"varint,14,opt,name=shared,proto3" json:"shared,omitempty"`
+	Shared bool `protobuf:"varint,14,opt,name=shared,proto3" json:"shared,omitempty"`
+	// Where its mail server is, for a mail server's: its host, port and security,
+	// and who the mail comes from. Who it signs in as is never shown.
+	Host          string                `protobuf:"bytes,15,opt,name=host,proto3" json:"host,omitempty"`
+	Port          uint32                `protobuf:"varint,16,opt,name=port,proto3" json:"port,omitempty"`
+	Security      v1alpha1.SmtpSecurity `protobuf:"varint,17,opt,name=security,proto3,enum=dockwell.resource.v1alpha1.SmtpSecurity" json:"security,omitempty"`
+	Sender        string                `protobuf:"bytes,18,opt,name=sender,proto3" json:"sender,omitempty"`
+	SenderName    string                `protobuf:"bytes,19,opt,name=sender_name,json=senderName,proto3" json:"sender_name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -567,6 +574,41 @@ func (x *ConnectionInfo) GetShared() bool {
 	return false
 }
 
+func (x *ConnectionInfo) GetHost() string {
+	if x != nil {
+		return x.Host
+	}
+	return ""
+}
+
+func (x *ConnectionInfo) GetPort() uint32 {
+	if x != nil {
+		return x.Port
+	}
+	return 0
+}
+
+func (x *ConnectionInfo) GetSecurity() v1alpha1.SmtpSecurity {
+	if x != nil {
+		return x.Security
+	}
+	return v1alpha1.SmtpSecurity(0)
+}
+
+func (x *ConnectionInfo) GetSender() string {
+	if x != nil {
+		return x.Sender
+	}
+	return ""
+}
+
+func (x *ConnectionInfo) GetSenderName() string {
+	if x != nil {
+		return x.SenderName
+	}
+	return ""
+}
+
 // ConnectionUse is one link to a connection, and the apps that read it.
 type ConnectionUse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -691,7 +733,11 @@ type CheckConnectionRequest struct {
 	// one does.
 	Presign bool `protobuf:"varint,6,opt,name=presign,proto3" json:"presign,omitempty"`
 	// Where the check's object goes in the bucket, such as "outline/".
-	Prefix        string `protobuf:"bytes,7,opt,name=prefix,proto3" json:"prefix,omitempty"`
+	Prefix string `protobuf:"bytes,7,opt,name=prefix,proto3" json:"prefix,omitempty"`
+	// A mail server as typed, checked by signing in, never by sending. A saved
+	// connection's user and password are kept where this leaves the password out,
+	// while its host, port, security and user stay.
+	Smtp          *v1alpha1.ConnectionSmtp `protobuf:"bytes,8,opt,name=smtp,proto3" json:"smtp,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -775,14 +821,23 @@ func (x *CheckConnectionRequest) GetPrefix() string {
 	return ""
 }
 
+func (x *CheckConnectionRequest) GetSmtp() *v1alpha1.ConnectionSmtp {
+	if x != nil {
+		return x.Smtp
+	}
+	return nil
+}
+
 // CheckConnectionResponse is what a check found: codes, never a body.
 type CheckConnectionResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// It did everything asked of it.
 	Passed bool `protobuf:"varint,1,opt,name=passed,proto3" json:"passed,omitempty"`
-	// Where it stopped: write, read, presign or delete.
+	// Where it stopped: write, read, presign or delete for storage; connect, hello,
+	// tls or sign-in for a mail server.
 	Step string `protobuf:"bytes,2,opt,name=step,proto3" json:"step,omitempty"`
-	// What the storage said, such as an S3 error's code, or what kept it from
+	// What the storage said, such as an S3 error's code, or a mail server's reply
+	// code and its enhanced code, such as "535 5.7.8", or what kept it from
 	// answering: refused, timeout, unreachable or tls. Status is its HTTP status.
 	Code   string `protobuf:"bytes,3,opt,name=code,proto3" json:"code,omitempty"`
 	Status int32  `protobuf:"varint,4,opt,name=status,proto3" json:"status,omitempty"`
@@ -916,7 +971,7 @@ const file_dockwell_v1_connection_proto_rawDesc = "" +
 	"\aproject\x18\x01 \x01(\tR\aproject\x12 \n" +
 	"\venvironment\x18\x02 \x01(\tR\venvironment\"X\n" +
 	"\x17ListConnectionsResponse\x12=\n" +
-	"\vconnections\x18\x01 \x03(\v2\x1b.dockwell.v1.ConnectionInfoR\vconnections\"\xd6\x03\n" +
+	"\vconnections\x18\x01 \x03(\v2\x1b.dockwell.v1.ConnectionInfoR\vconnections\"\xfd\x04\n" +
 	"\x0eConnectionInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12!\n" +
@@ -934,7 +989,13 @@ const file_dockwell_v1_connection_proto_rawDesc = "" +
 	"\bprojects\x18\v \x03(\tR\bprojects\x12.\n" +
 	"\x04uses\x18\f \x03(\v2\x1a.dockwell.v1.ConnectionUseR\x04uses\x12\x12\n" +
 	"\x04held\x18\r \x01(\bR\x04held\x12\x16\n" +
-	"\x06shared\x18\x0e \x01(\bR\x06shared\"\xd6\x02\n" +
+	"\x06shared\x18\x0e \x01(\bR\x06shared\x12\x12\n" +
+	"\x04host\x18\x0f \x01(\tR\x04host\x12\x12\n" +
+	"\x04port\x18\x10 \x01(\rR\x04port\x12D\n" +
+	"\bsecurity\x18\x11 \x01(\x0e2(.dockwell.resource.v1alpha1.SmtpSecurityR\bsecurity\x12\x16\n" +
+	"\x06sender\x18\x12 \x01(\tR\x06sender\x12\x1f\n" +
+	"\vsender_name\x18\x13 \x01(\tR\n" +
+	"senderName\"\xd6\x02\n" +
 	"\rConnectionUse\x12\x17\n" +
 	"\alink_id\x18\x01 \x01(\tR\x06linkId\x12\x12\n" +
 	"\x04link\x18\x02 \x01(\tR\x04link\x12 \n" +
@@ -946,7 +1007,7 @@ const file_dockwell_v1_connection_proto_rawDesc = "" +
 	"\x04apps\x18\b \x03(\tR\x04apps\x1a]\n" +
 	"\tSetsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12:\n" +
-	"\x05value\x18\x02 \x01(\x0e2$.dockwell.resource.v1alpha1.LinkPartR\x05value:\x028\x01\"\xea\x01\n" +
+	"\x05value\x18\x02 \x01(\x0e2$.dockwell.resource.v1alpha1.LinkPartR\x05value:\x028\x01\"\xb0\x02\n" +
 	"\x16CheckConnectionRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12>\n" +
 	"\x02s3\x18\x02 \x01(\v2(.dockwell.resource.v1alpha1.ConnectionS3B\x04\xc8\xf3\x18\x01R\x02s3\x12\x16\n" +
@@ -954,7 +1015,8 @@ const file_dockwell_v1_connection_proto_rawDesc = "" +
 	"\venvironment\x18\x04 \x01(\tR\venvironment\x12\x10\n" +
 	"\x03app\x18\x05 \x01(\tR\x03app\x12\x18\n" +
 	"\apresign\x18\x06 \x01(\bR\apresign\x12\x16\n" +
-	"\x06prefix\x18\a \x01(\tR\x06prefix\"\xd1\x01\n" +
+	"\x06prefix\x18\a \x01(\tR\x06prefix\x12D\n" +
+	"\x04smtp\x18\b \x01(\v2*.dockwell.resource.v1alpha1.ConnectionSmtpB\x04\xc8\xf3\x18\x01R\x04smtp\"\xd1\x01\n" +
 	"\x17CheckConnectionResponse\x12\x16\n" +
 	"\x06passed\x18\x01 \x01(\bR\x06passed\x12\x12\n" +
 	"\x04step\x18\x02 \x01(\tR\x04step\x12\x12\n" +
@@ -1001,8 +1063,10 @@ var file_dockwell_v1_connection_proto_goTypes = []any{
 	(*Change)(nil),                    // 12: dockwell.v1.Change
 	(v1alpha1.LinkKind)(0),            // 13: dockwell.resource.v1alpha1.LinkKind
 	(v1alpha1.ConnectionReach)(0),     // 14: dockwell.resource.v1alpha1.ConnectionReach
-	(*v1alpha1.ConnectionS3)(nil),     // 15: dockwell.resource.v1alpha1.ConnectionS3
-	(v1alpha1.LinkPart)(0),            // 16: dockwell.resource.v1alpha1.LinkPart
+	(v1alpha1.SmtpSecurity)(0),        // 15: dockwell.resource.v1alpha1.SmtpSecurity
+	(*v1alpha1.ConnectionS3)(nil),     // 16: dockwell.resource.v1alpha1.ConnectionS3
+	(*v1alpha1.ConnectionSmtp)(nil),   // 17: dockwell.resource.v1alpha1.ConnectionSmtp
+	(v1alpha1.LinkPart)(0),            // 18: dockwell.resource.v1alpha1.LinkPart
 }
 var file_dockwell_v1_connection_proto_depIdxs = []int32{
 	10, // 0: dockwell.v1.ConnectStorageRequest.sets:type_name -> dockwell.v1.ConnectStorageRequest.SetsEntry
@@ -1013,23 +1077,25 @@ var file_dockwell_v1_connection_proto_depIdxs = []int32{
 	13, // 5: dockwell.v1.ConnectionInfo.kind:type_name -> dockwell.resource.v1alpha1.LinkKind
 	14, // 6: dockwell.v1.ConnectionInfo.reach:type_name -> dockwell.resource.v1alpha1.ConnectionReach
 	7,  // 7: dockwell.v1.ConnectionInfo.uses:type_name -> dockwell.v1.ConnectionUse
-	11, // 8: dockwell.v1.ConnectionUse.sets:type_name -> dockwell.v1.ConnectionUse.SetsEntry
-	15, // 9: dockwell.v1.CheckConnectionRequest.s3:type_name -> dockwell.resource.v1alpha1.ConnectionS3
-	16, // 10: dockwell.v1.ConnectStorageRequest.SetsEntry.value:type_name -> dockwell.resource.v1alpha1.LinkPart
-	16, // 11: dockwell.v1.ConnectionUse.SetsEntry.value:type_name -> dockwell.resource.v1alpha1.LinkPart
-	4,  // 12: dockwell.v1.ConnectionService.ListConnections:input_type -> dockwell.v1.ListConnectionsRequest
-	8,  // 13: dockwell.v1.ConnectionService.CheckConnection:input_type -> dockwell.v1.CheckConnectionRequest
-	0,  // 14: dockwell.v1.ConnectionService.ConnectStorage:input_type -> dockwell.v1.ConnectStorageRequest
-	2,  // 15: dockwell.v1.ConnectionService.DisconnectStorage:input_type -> dockwell.v1.DisconnectStorageRequest
-	5,  // 16: dockwell.v1.ConnectionService.ListConnections:output_type -> dockwell.v1.ListConnectionsResponse
-	9,  // 17: dockwell.v1.ConnectionService.CheckConnection:output_type -> dockwell.v1.CheckConnectionResponse
-	1,  // 18: dockwell.v1.ConnectionService.ConnectStorage:output_type -> dockwell.v1.ConnectStorageResponse
-	3,  // 19: dockwell.v1.ConnectionService.DisconnectStorage:output_type -> dockwell.v1.DisconnectStorageResponse
-	16, // [16:20] is the sub-list for method output_type
-	12, // [12:16] is the sub-list for method input_type
-	12, // [12:12] is the sub-list for extension type_name
-	12, // [12:12] is the sub-list for extension extendee
-	0,  // [0:12] is the sub-list for field type_name
+	15, // 8: dockwell.v1.ConnectionInfo.security:type_name -> dockwell.resource.v1alpha1.SmtpSecurity
+	11, // 9: dockwell.v1.ConnectionUse.sets:type_name -> dockwell.v1.ConnectionUse.SetsEntry
+	16, // 10: dockwell.v1.CheckConnectionRequest.s3:type_name -> dockwell.resource.v1alpha1.ConnectionS3
+	17, // 11: dockwell.v1.CheckConnectionRequest.smtp:type_name -> dockwell.resource.v1alpha1.ConnectionSmtp
+	18, // 12: dockwell.v1.ConnectStorageRequest.SetsEntry.value:type_name -> dockwell.resource.v1alpha1.LinkPart
+	18, // 13: dockwell.v1.ConnectionUse.SetsEntry.value:type_name -> dockwell.resource.v1alpha1.LinkPart
+	4,  // 14: dockwell.v1.ConnectionService.ListConnections:input_type -> dockwell.v1.ListConnectionsRequest
+	8,  // 15: dockwell.v1.ConnectionService.CheckConnection:input_type -> dockwell.v1.CheckConnectionRequest
+	0,  // 16: dockwell.v1.ConnectionService.ConnectStorage:input_type -> dockwell.v1.ConnectStorageRequest
+	2,  // 17: dockwell.v1.ConnectionService.DisconnectStorage:input_type -> dockwell.v1.DisconnectStorageRequest
+	5,  // 18: dockwell.v1.ConnectionService.ListConnections:output_type -> dockwell.v1.ListConnectionsResponse
+	9,  // 19: dockwell.v1.ConnectionService.CheckConnection:output_type -> dockwell.v1.CheckConnectionResponse
+	1,  // 20: dockwell.v1.ConnectionService.ConnectStorage:output_type -> dockwell.v1.ConnectStorageResponse
+	3,  // 21: dockwell.v1.ConnectionService.DisconnectStorage:output_type -> dockwell.v1.DisconnectStorageResponse
+	18, // [18:22] is the sub-list for method output_type
+	14, // [14:18] is the sub-list for method input_type
+	14, // [14:14] is the sub-list for extension type_name
+	14, // [14:14] is the sub-list for extension extendee
+	0,  // [0:14] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_connection_proto_init() }

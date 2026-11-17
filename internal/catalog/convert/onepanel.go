@@ -130,6 +130,7 @@ func onePanelRead(t *tree, dir string) App {
 	appDir := path.Join("apps", dir)
 	// An entry's ID takes dashes where 1Panel's keys take underscores.
 	app := App{ID: strings.ReplaceAll(strings.ToLower(dir), "_", "-"), Name: dir, Path: appDir}
+	app.Mail = mailFor("onepanel", app.ID)
 	var meta onePanelApp
 	if err := readYAML(t, path.Join(appDir, "data.yml"), &meta); err != nil {
 		app.LeftOut, app.Class = err.Error(), ClassFile

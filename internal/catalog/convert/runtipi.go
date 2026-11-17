@@ -135,6 +135,7 @@ func runtipiApps(ctx context.Context, t *tree, root string) ([]App, error) {
 func runtipiRead(t *tree, dir string) App {
 	at := path.Join("apps", dir)
 	app := App{ID: strings.NewReplacer("_", "-", ".", "-").Replace(strings.ToLower(dir)), Name: dir, Path: at}
+	app.Mail = mailFor("runtipi", app.ID)
 	raw, err := t.readFile(path.Join(at, "config.json"))
 	if err != nil {
 		app.LeftOut, app.Class = err.Error(), ClassFile

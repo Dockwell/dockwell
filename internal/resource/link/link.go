@@ -21,6 +21,7 @@ import (
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/backup/s3"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/connection"
 )
 
 // Kind is the link kind.
@@ -74,6 +75,8 @@ func (Type) Validate(spec proto.Message) error {
 		return errors.New("a link needs a label on one line, such as Database")
 	case l.GetPrefix() != "" || len(l.GetFeatures()) > 0:
 		return errors.New("a link to a database takes no prefix or features, which a link to storage does")
+	case l.GetSender() != "" || l.GetSenderName() != "":
+		return errors.New("a link to a database takes no sender, which a link to a mail server does")
 	case l.GetService() == "":
 		return errors.New("a link needs the service that meets it, by name")
 	case l.GetMeetsEnvironment() != "" && !strings.HasPrefix(l.GetMeetsEnvironment(), "env_"):
@@ -123,17 +126,25 @@ var connectionParts = map[resourcev1.LinkPart]bool{
 	resourcev1.LinkPart_LINK_PART_PATH_STYLE: true, resourcev1.LinkPart_LINK_PART_MET: true, resourcev1.LinkPart_LINK_PART_KEY_PREFIX: true,
 }
 
+// smtpParts are the parts a link to a mail server sets, beside PART_MET and
+// PART_SECURITY, which it writes in the app's own words.
+var smtpParts = map[resourcev1.LinkPart]bool{
+	resourcev1.LinkPart_LINK_PART_HOST: true, resourcev1.LinkPart_LINK_PART_PORT: true, resourcev1.LinkPart_LINK_PART_USER: true,
+	resourcev1.LinkPart_LINK_PART_PASSWORD: true, resourcev1.LinkPart_LINK_PART_URL: true, resourcev1.LinkPart_LINK_PART_SENDER: true,
+	resourcev1.LinkPart_LINK_PART_SENDER_NAME: true, resourcev1.LinkPart_LINK_PART_SECURITY: true, resourcev1.LinkPart_LINK_PART_MET: true,
+}
+
 // ReadThrough marks a link as what a value of its prefix reads (ADR 0099): a change
 // to it takes in what reads it.
 func (Type) ReadThrough() {}
 
 // ChangesWhatsRead says whether a change reaches the values that read the link: what
-// they read of it is a link to a connection's prefix. A database's link is read
-// through the database, as before.
+// they read of it is a link to a connection's prefix, or the sender a link to a mail
+// server says for its app. A database's link is read through the database, as before.
 func (Type) ChangesWhatsRead(current, spec proto.Message) bool {
 	was, ok := current.(*resourcev1.Link)
 	is, same := spec.(*resourcev1.Link)
-	return !ok || !same || was.GetPrefix() != is.GetPrefix()
+	return !ok || !same || was.GetPrefix() != is.GetPrefix() || was.GetSender() != is.GetSender() || was.GetSenderName() != is.GetSenderName()
 }
 
 // KeepsToPrefix says whether a link's app keeps its files under the link's prefix: it
@@ -170,9 +181,13 @@ func validateToConnection(l *resourcev1.Link) error {
 	case strings.TrimSpace(l.GetLabel()) == "" || strings.ContainsAny(l.GetLabel(), "\r\n"):
 		return errors.New("a link needs a label on one line, such as Storage")
 	case l.GetConnection() == "":
-		return errors.New("a link to storage names the connection that meets it")
+		return errors.New("a link to storage or a mail server names the connection that meets it")
+	case l.GetKind() == resourcev1.LinkKind_LINK_KIND_SMTP:
+		return validateToMail(l)
 	case l.GetKind() != resourcev1.LinkKind_LINK_KIND_S3:
-		return errors.New("a link to a connection reaches S3 storage for now. Set its kind to LINK_KIND_S3")
+		return errors.New("a link to a connection reaches S3 storage or a mail server. Set its kind to LINK_KIND_S3 or LINK_KIND_SMTP")
+	case l.GetSender() != "" || l.GetSenderName() != "":
+		return errors.New("a link to storage takes no sender, which a link to a mail server does")
 	case l.GetService() != "" || l.GetMeetsEnvironment() != "" || l.GetEngine() != resourcev1.LinkEngine_LINK_ENGINE_UNSPECIFIED ||
 		len(l.GetAccepts()) > 0 || l.GetDatabaseName() != "" || l.GetUser() != "" || l.GetSetOnce():
 		return errors.New("a link to a connection names no service, environment, engine, database or user, which only a link to a database does")
@@ -229,7 +244,7 @@ func (Type) Ties(name string, spec proto.Message) []resource.Ref {
 	}
 	for _, s := range l.GetSets() {
 		kind := resource.Kind("variable")
-		if Secret(s) {
+		if SecretIn(l, s) {
 			kind = "secret"
 		}
 		out = append(out, resource.Ref{Kind: kind, Name: s.GetName()})
@@ -251,6 +266,48 @@ func Secret(s *resourcev1.LinkSet) bool {
 	default:
 		return false
 	}
+}
+
+// SecretIn is Secret for a set of the link l: a mail server's user is one of its
+// keys too, as a provider's key ID often is, so it goes only as a secret.
+func SecretIn(l *resourcev1.Link, s *resourcev1.LinkSet) bool {
+	return Secret(s) || l.GetKind() == resourcev1.LinkKind_LINK_KIND_SMTP && s.GetPart() == resourcev1.LinkPart_LINK_PART_USER
+}
+
+// validateToMail refuses a link to a mail server that says what only a link to a
+// database or to storage does, sets what a mail server doesn't have, or names a
+// sender that isn't an address alone (ADR 0099).
+func validateToMail(l *resourcev1.Link) error {
+	switch {
+	case l.GetService() != "" || l.GetMeetsEnvironment() != "" || l.GetEngine() != resourcev1.LinkEngine_LINK_ENGINE_UNSPECIFIED ||
+		len(l.GetAccepts()) > 0 || l.GetDatabaseName() != "" || l.GetUser() != "" || l.GetSetOnce():
+		return errors.New("a link to a connection names no service, environment, engine, database or user, which only a link to a database does")
+	case l.GetPrefix() != "" || len(l.GetFeatures()) > 0:
+		return errors.New("a link to a mail server takes no prefix or features, which a link to storage does")
+	case len(l.GetSets()) == 0:
+		return errors.New("a link needs the names it sets, such as SMTP_HOST")
+	}
+	if err := connection.CheckSender(l.GetSender()); err != nil {
+		return err
+	}
+	if err := connection.CheckSenderName(l.GetSenderName()); err != nil {
+		return err
+	}
+	seen := map[string]bool{}
+	for _, s := range l.GetSets() {
+		switch {
+		case !envName.MatchString(s.GetName()):
+			return fmt.Errorf("%q isn't a name a service can read, such as SMTP_HOST", s.GetName())
+		case seen[s.GetName()]:
+			return fmt.Errorf("a link sets %s twice", s.GetName())
+		case !smtpParts[s.GetPart()]:
+			return fmt.Errorf("a link to a mail server sets %s as %s, which a mail server doesn't have", s.GetName(), s.GetPart())
+		case s.GetTemplate() != "" || s.GetTlsOn() != "" || s.GetTlsOff() != "":
+			return fmt.Errorf("a link to a mail server writes %s as the connection holds it, with no template or TLS words", s.GetName())
+		}
+		seen[s.GetName()] = true
+	}
+	return nil
 }
 
 // A comparator is one test of a version: an operator, and the dotted numbers it
