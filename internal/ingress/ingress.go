@@ -153,6 +153,11 @@ type Route struct {
 	// Held is true when it answers that the app isn't open yet and sends nothing
 	// on, until a person opens it (ADR 0084).
 	Held bool
+	// Setup is where a held route asks its agent whether a visitor came through its
+	// setup link, as an address it dials, in place of answering everyone that it
+	// isn't open; empty for none. The key's hash is the agent's to keep (SignIns), as
+	// the proxy holds none of it (ADR 0105).
+	Setup string
 }
 
 // Redirect is where a route sends each request instead of an upstream: To, with
@@ -418,6 +423,16 @@ func (m *Manager) Observe(ctx context.Context, ref resource.Ref) (*resourcev1.Ro
 	}
 	r := routes[i]
 	out := &resourcev1.Route{Domain: r.Domain, Path: r.Path, TrustedProxies: proxyNames(r.TrustedProxies, r.EdgeProxies), PlainForAnyone: r.PlainForAnyone, Held: r.Held, Access: accessSpec(r)}
+	if r.Setup != "" {
+		// The key's hash is the agent's, as a sign-in's provider is: what it keeps, or
+		// after the agent started again an empty one, which applies the route again.
+		out.Setup = &resourcev1.RouteSetup{}
+		if m.SignIns != nil {
+			if kept := m.SignIns.GetSetup(id); kept != nil {
+				out.Setup = kept
+			}
+		}
+	}
 	if r.SignIn != "" {
 		// Who may sign in is the agent's, not the proxy's: what it keeps, or, as after
 		// the agent started again, an empty one, which reads as a difference and
@@ -1080,6 +1095,18 @@ func (m *Manager) put(ctx context.Context, ref resource.Ref, spec *resourcev1.Ro
 			return fmt.Errorf("can't keep how the route %s signs people in: %w", ref.Name, err)
 		}
 	}
+	// A held route's setup link is the agent's to check, before the proxy asks
+	// (ADR 0105).
+	if setup := spec.GetSetup(); spec.GetHeld() && setup.GetKeyHash() != "" {
+		dial, err := m.signInDial()
+		if err != nil {
+			return fmt.Errorf("the route %s has a setup link: %w", ref.Name, err)
+		}
+		r.Setup = dial
+		if err := m.SignIns.PutSetup(r.ID, spec.GetDomain(), spec.GetPath(), setup); err != nil {
+			return fmt.Errorf("can't keep the route %s's setup link: %w", ref.Name, err)
+		}
+	}
 	m.logReplaced(ctx, r)
 	if !r.Plain {
 		if err := m.noteDomain(ctx, r.Domain); err != nil {
@@ -1095,6 +1122,9 @@ func (m *Manager) put(ctx context.Context, ref resource.Ref, spec *resourcev1.Ro
 	}
 	if signIn == nil && m.SignIns != nil {
 		m.SignIns.Drop(r.ID)
+	}
+	if r.Setup == "" && m.SignIns != nil {
+		m.SignIns.DropSetup(r.ID)
 	}
 	if signIn != nil {
 		if err := m.rewriteBeside(ctx, r); err != nil {

@@ -68,3 +68,13 @@ describe("what asks for the typed code (ADR 0064)", () => {
     expect(needsConfirming(plan({}))).toBe(true);
   });
 });
+
+describe("what asks for a passkey up front (ADR 0105)", () => {
+  it("asks for an Open whose owner isn't made, as who reaches it first takes it", () => {
+    const open = create(PlanSchema, {
+      notes: [{ reason: "opens_to_everyone", message: "Anyone who reaches git.example.com first takes Gitea" }],
+    });
+    expect(needsPasskey(open)).toBe(true);
+    expect(needsPasskey(create(PlanSchema, { notes: [{ reason: "owner_held", message: "Held" }] }))).toBe(false);
+  });
+});

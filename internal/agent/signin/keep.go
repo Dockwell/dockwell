@@ -31,6 +31,8 @@ type Keep struct {
 
 	mu     sync.Mutex
 	routes map[string]kept
+	// setups are held routes' setup links (ADR 0105), by the same IDs.
+	setups map[string]keptSetup
 }
 
 // kept is a route as Put was given it, and as Server reads it.

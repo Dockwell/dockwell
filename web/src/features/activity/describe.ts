@@ -109,6 +109,25 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
         }
         return { title: t`A backup of ${volume} wasn't checked`, icon: "archive", tone: "warning" };
       }
+      // What became of making a catalog app's owner (ADR 0105): who, and what the app
+      // said where it failed, scrubbed.
+      if (event.action.startsWith("app_owner.")) {
+        const owned = event.appOwner;
+        const app = owned?.app || t`an app`;
+        const who = owned?.email || owned?.user || "";
+        switch (event.action) {
+          case "app_owner.made":
+            return { title: who ? t`Made ${app}'s owner, ${who}` : t`Made ${app}'s owner`, icon: "user" };
+          case "app_owner.failed":
+            return {
+              title: owned?.error ? t`Couldn't make ${app}'s owner: ${owned.error}` : t`Couldn't make ${app}'s owner`,
+              icon: "user",
+              tone: "critical",
+            };
+          case "app_owner.opened":
+            return { title: t`${app} opened to everyone before its owner was made`, icon: "user", tone: "warning" };
+        }
+      }
       const task = event.taskRun?.displayName || event.taskRun?.task || name;
       const server = name || event.subject?.id || t`a server`;
       const resourceName = event.reconciled?.name ?? "";

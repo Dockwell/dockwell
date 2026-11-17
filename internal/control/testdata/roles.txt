@@ -81,6 +81,7 @@ CatalogService.SetCatalogCompanion             plan         developer  developer
 CatalogService.SetCatalogNeed                  plan         developer  developer  project
 CatalogService.SetCatalogOwnerEmail            plan         developer  developer  project
 CatalogService.SetCatalogSource                plan         admin      admin      install
+CatalogService.SetUpCatalogInstall             apply        developer  admin      project  session
 CatalogService.UpgradeCatalogInstall           plan         developer  developer  project
 ChangeService.AdoptDrift                       plan         developer  developer  project
 ChangeService.ApplyChange                      apply        developer  admin      project

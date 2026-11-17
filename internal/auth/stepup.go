@@ -131,6 +131,10 @@ const (
 	// whoever reaches it in by itself, as an admin tool does. Its target is the
 	// service's ID. A proof opens it once (ADR 0061).
 	StepUpOpenService StepUpAction = "service.open"
+	// StepUpSetUpCatalogInstall makes a setup link to a held catalog install's
+	// domain, which lets one browser through its hold for an hour. Its target is the
+	// install's project ID (ADR 0105).
+	StepUpSetUpCatalogInstall StepUpAction = "catalog.set_up"
 	// StepUpSetPanelDomain sets or clears the panel's domain (ADR 0063). Its
 	// target is the domain, or the one it clears.
 	StepUpSetPanelDomain StepUpAction = "settings.panel_domain"
@@ -181,17 +185,18 @@ var stepUpActions = map[StepUpAction]struct {
 	StepUpOpenTerminal:     {"opening a terminal on", true},
 	StepUpApproveChange:    {"approving", true},
 	// A move's target has its two paths on two lines, which doing puts in words.
-	StepUpMakeWayBackIn:     {"making", true},
-	StepUpMoveWayBackIn:     {"moving", true},
-	StepUpDeleteWayBackIn:   {"deleting", true},
-	StepUpRestoreWayBackIn:  {"putting back", true},
-	StepUpInvite:            {"inviting", true},
-	StepUpChangeRole:        {"changing the role of", true},
-	StepUpRemoveMember:      {"removing", true},
-	StepUpTransferOwnership: {"transferring ownership to", true},
-	StepUpAddServer:         {"adding a server", false},
-	StepUpOpenService:       {"opening", true},
-	StepUpSetPanelDomain:    {"setting the panel's domain to", true},
+	StepUpMakeWayBackIn:       {"making", true},
+	StepUpMoveWayBackIn:       {"moving", true},
+	StepUpDeleteWayBackIn:     {"deleting", true},
+	StepUpRestoreWayBackIn:    {"putting back", true},
+	StepUpInvite:              {"inviting", true},
+	StepUpChangeRole:          {"changing the role of", true},
+	StepUpRemoveMember:        {"removing", true},
+	StepUpTransferOwnership:   {"transferring ownership to", true},
+	StepUpAddServer:           {"adding a server", false},
+	StepUpOpenService:         {"opening", true},
+	StepUpSetUpCatalogInstall: {"making a setup link to", true},
+	StepUpSetPanelDomain:      {"setting the panel's domain to", true},
 	// A sign-in link to the domain, for the person asking.
 	StepUpSignInOnPanelDomain: {"signing in on", true},
 	StepUpSetPolicy:           {"choosing how often to be asked for a passkey", false},

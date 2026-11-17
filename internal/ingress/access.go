@@ -164,6 +164,12 @@ type SignIns interface {
 	Drop(id string)
 	// Get returns what it keeps of a route, as Put was given it, or nil.
 	Get(id string) *resourcev1.RouteSignIn
+	// PutSetup keeps a held route's setup link, at its domain and path (ADR 0105).
+	PutSetup(id, domain, path string, s *resourcev1.RouteSetup) error
+	// DropSetup forgets a route's setup link, if it has one.
+	DropSetup(id string)
+	// GetSetup returns a route's setup link, as PutSetup was given it, or nil.
+	GetSetup(id string) *resourcev1.RouteSetup
 }
 
 // SignInAsker is a proxy that can ask an agent whether a visitor has signed in.

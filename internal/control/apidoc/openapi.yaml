@@ -1429,6 +1429,46 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/catalog/installs/{id}:set-up:
+        post:
+            tags:
+                - CatalogService
+            description: |-
+                SetUpCatalogInstall gives a held install's domain a setup link: a key, good once
+                 and for an hour, which lets the browser that opens it through the hold, to set
+                 the app up on its real domain, and no one else. It writes the key's hash on the
+                 install's held routes of the domain, as a change it applies at once, and returns
+                 the address with the key, which is on no change. It takes a signed-in person and
+                 a passkey (ADR 0105). It's refused with the reason not_held where the install
+                 isn't held, and no_https where the domain isn't reached over HTTPS, where the
+                 link's cookie wouldn't be kept.
+            operationId: CatalogService_SetUpCatalogInstall
+            parameters:
+                - name: id
+                  in: path
+                  description: The install's project, by name or ID.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/SetUpCatalogInstallRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SetUpCatalogInstallResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/catalog/installs/{id}:upgrade:
         post:
             tags:
@@ -2886,6 +2926,7 @@ paths:
                             - EVENT_KIND_PUSH
                             - EVENT_KIND_ALERT
                             - EVENT_KIND_TASK
+                            - EVENT_KIND_APP_OWNER
                         type: string
                         format: enum
                 - name: serverId
@@ -9938,6 +9979,7 @@ components:
                         - STEP_UP_ACTION_SET_STEP_UP_POLICY
                         - STEP_UP_ACTION_SET_STEP_UP_FLOOR
                         - STEP_UP_ACTION_LINK_PROVIDER
+                        - STEP_UP_ACTION_SET_UP_CATALOG_INSTALL
                         - STEP_UP_ACTION_REVEAL_SERVICE_VALUE
                     type: string
                     description: The action.
@@ -10597,6 +10639,11 @@ components:
                     description: |-
                         What the app said where making it failed, with every value the steps sent
                          hidden.
+                setUp:
+                    type: boolean
+                    description: |-
+                        The app reads set up, by the owner's done, while it's held: a person set it up
+                         through the setup link, so it's theirs to open to everyone.
             description: CatalogOwner is the owner's account in an install, as Dockwell makes it.
         CatalogPart:
             type: object
@@ -15179,6 +15226,7 @@ components:
                         - EVENT_KIND_PUSH
                         - EVENT_KIND_ALERT
                         - EVENT_KIND_TASK
+                        - EVENT_KIND_APP_OWNER
                     type: string
                     description: What sort of event it is.
                     format: enum
@@ -15305,6 +15353,12 @@ components:
                         What Dockwell wrote at Cloudflare, or found gone there, for an event with an
                          action that starts "cloudflare." (ADR 0104). Numbered in the block ADR 0104
                          holds, 340 to 349.
+                appOwner:
+                    allOf:
+                        - $ref: '#/components/schemas/EventAppOwner'
+                    description: |-
+                        What became of making a catalog app's owner, for an event with an action that
+                         starts "app_owner." (ADR 0105). Its subject is the app.owner resource.
             description: Event is one thing that happened.
         EventAlert:
             type: object
@@ -15393,6 +15447,38 @@ components:
                 EventAlert is an alert that fired or resolved, or a mute of a rule or a
                  server that began or ended. Its subject is what the alert is about, and its
                  server is the one it's on.
+        EventAppOwner:
+            type: object
+            properties:
+                app:
+                    type: string
+                    description: The app, as its catalog names it, such as "Gitea".
+                email:
+                    type: string
+                    description: 'Who the owner is: their email, and their user where the app has user names.'
+                user:
+                    type: string
+                state:
+                    enum:
+                        - CATALOG_OWNER_STATE_UNSPECIFIED
+                        - CATALOG_OWNER_STATE_WAITING_EMAIL
+                        - CATALOG_OWNER_STATE_WAITING
+                        - CATALOG_OWNER_STATE_MADE
+                        - CATALOG_OWNER_STATE_FAILED
+                        - CATALOG_OWNER_STATE_OPENED
+                    type: string
+                    description: How it stands now.
+                    format: enum
+                error:
+                    type: string
+                    description: What the app said, with every value the steps sent hidden, where it failed.
+                tries:
+                    type: integer
+                    description: How many times Dockwell has tried.
+                    format: int32
+            description: |-
+                EventAppOwner says what became of making a catalog app's owner: made, failed with
+                 what the app said, scrubbed, or opened by a person before it was made.
         EventBackup:
             type: object
             properties:
@@ -15599,6 +15685,7 @@ components:
                         - EVENT_KIND_PUSH
                         - EVENT_KIND_ALERT
                         - EVENT_KIND_TASK
+                        - EVENT_KIND_APP_OWNER
                     type: string
                     format: enum
                 count:
@@ -24365,6 +24452,14 @@ components:
                          a person opens it, as an app whose first visitor makes its owner is held while it
                          starts on an empty database, so its owner sets it up first, opening it through
                          the panel (ADR 0084).
+                setup:
+                    allOf:
+                        - $ref: '#/components/schemas/RouteSetup'
+                    description: |-
+                        A held route's setup link: whoever opens it with the key, until then, gets
+                         through the hold, and no one else (ADR 0105). Only SetUpCatalogInstall writes
+                         it; the install, a retry and the release clear it, and every other write keeps
+                         it as it was.
                 proof:
                     type: string
                     description: |-
@@ -24593,6 +24688,19 @@ components:
                     type: integer
                     format: uint32
             description: RouteRedirects is a route that answers every request with a redirect.
+        RouteSetup:
+            type: object
+            properties:
+                keyHash:
+                    type: string
+                    description: The key's SHA-256, in hex.
+                until:
+                    type: string
+                    description: When it stops working, in Unix seconds, an hour at most after it was made.
+            description: |-
+                RouteSetup is a held route's setup link: the hash of a key a person was given,
+                 and how long it works. The key itself is on no change: the person's browser has it
+                 (ADR 0105).
         RouteSignIn:
             type: object
             properties:
@@ -26696,6 +26804,37 @@ components:
                         - $ref: '#/components/schemas/Settings'
                     description: The settings.
             description: SetTimeZoneResponse carries the settings as they now are.
+        SetUpCatalogInstallRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The install's project, by name or ID.
+                domain:
+                    type: string
+                    description: The domain, one of the install's held routes'. Empty takes its first.
+                proof:
+                    type: string
+                    description: |-
+                        The proof from FinishStepUp, for setting this install up, by its project's ID.
+                         It works once, within a minute, in the session that made it. Without one, the
+                         call is refused with needs_step_up once nothing else refuses it.
+            description: SetUpCatalogInstallRequest asks for a setup link to a held install's domain.
+        SetUpCatalogInstallResponse:
+            type: object
+            properties:
+                url:
+                    type: string
+                    description: 'The address to open, with the key: https://<domain>/.well-known/dockwell-setup?key=...'
+                until:
+                    type: string
+                    description: When it stops working.
+                    format: date-time
+                change:
+                    allOf:
+                        - $ref: '#/components/schemas/Change'
+                    description: The change that wrote the key's hash on the routes.
+            description: SetUpCatalogInstallResponse is the link and the change that made it.
         Settings:
             type: object
             properties:

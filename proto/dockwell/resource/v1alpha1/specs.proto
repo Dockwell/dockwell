@@ -1403,6 +1403,16 @@ message NetworkMember {
   string alias = 3;
 }
 
+// RouteSetup is a held route's setup link: the hash of a key a person was given,
+// and how long it works. The key itself is on no change: the person's browser has it
+// (ADR 0105).
+message RouteSetup {
+  // The key's SHA-256, in hex.
+  string key_hash = 1;
+  // When it stops working, in Unix seconds, an hour at most after it was made.
+  int64 until = 2;
+}
+
 // Route sends a domain's traffic, or a path under it, to a port of a service
 // in the route's environment, or to a port on the server itself. It comes over
 // HTTPS with a certificate Dockwell gets for the domain, unless tls says TLS
@@ -1463,6 +1473,11 @@ message Route {
   // starts on an empty database, so its owner sets it up first, opening it through
   // the panel (ADR 0084).
   bool held = 80;
+  // A held route's setup link: whoever opens it with the key, until then, gets
+  // through the hold, and no one else (ADR 0105). Only SetUpCatalogInstall writes
+  // it; the install, a retry and the release clear it, and every other write keeps
+  // it as it was.
+  RouteSetup setup = 81;
   // How the domain proves itself for its certificate (ADR 0088): empty for
   // automatic, which is DNS-01 where a DNS provider whose zone holds it serves the
   // route's project and the internet can't reach this server at the name, and

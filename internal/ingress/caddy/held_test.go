@@ -75,3 +75,31 @@ func TestAHeldRouteSendsNothingOnRealCaddy(t *testing.T) {
 		t.Errorf("an opened route reaches %v", got)
 	}
 }
+
+// A held route with a setup link asks its agent in place of answering everyone, and
+// reads back held, with where it asks; with the link gone, it answers as before.
+func TestAHeldRouteWithASetupLinkReadsBack(t *testing.T) {
+	r := ingress.Route{ID: "dockwell.env.www", Domain: "app.example.net", Upstreams: []string{"172.30.0.2:80"}, Held: true, Setup: "unix//run/dockwell/signin.sock"}
+	written := routeJSON(r)
+	if first := written.Handle[0]; first.Handler != "reverse_proxy" || first.Rewrite == nil || first.Rewrite.URI != "/setup/dockwell.env.www" {
+		t.Fatalf("a held route's first step is %+v", first)
+	}
+	b, err := json.Marshal(written)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, ok := readRoute(b)
+	if !ok || got.Edited || !got.Held || got.Setup != r.Setup || !slices.Equal(got.Upstreams, r.Upstreams) {
+		t.Errorf("it reads back as %+v", got)
+	}
+	// Another route's step in its place is a hand edit, not a setup link.
+	moved := strings.Replace(string(b), "/setup/dockwell.env.www", "/setup/dockwell.env.other", 1)
+	if got, _ := readRoute(json.RawMessage(moved)); got.Setup != "" {
+		t.Errorf("a step naming another route reads back as %+v", got)
+	}
+	r.Setup = ""
+	plain, _ := json.Marshal(routeJSON(r))
+	if got, _ := readRoute(plain); !got.Held || got.Setup != "" || got.Edited {
+		t.Errorf("without the link it reads back as %+v", got)
+	}
+}

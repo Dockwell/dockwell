@@ -224,6 +224,30 @@ func (h *Holds) Hook(ctx context.Context, tx *store.Tx, edits []revision.Edit) (
 			ed.Spec = spec
 		}
 	}
+	// A held route's setup link is SetUpCatalogInstall's alone to write, and goes
+	// with the hold: every other write keeps it as it's stored while the route is
+	// held, and clears it once it isn't, as the release does (ADR 0105).
+	for i := range out {
+		ed := &out[i]
+		spec, ok := ed.Spec.(*resourcev1.Route)
+		if !ok || ed.SetsUp || ed.Reverses || ed.Restores {
+			continue
+		}
+		var want *resourcev1.RouteSetup
+		if spec.GetHeld() {
+			stored, err := v.storedRoute(ed.Ref)
+			if err != nil {
+				return nil, nil, err
+			}
+			want = stored.GetSetup()
+		}
+		if proto.Equal(spec.GetSetup(), want) {
+			continue
+		}
+		spec = proto.CloneOf(spec)
+		spec.Setup = proto.CloneOf(want)
+		ed.Spec = spec
+	}
 	// A route to a port on the server, made before a held install published on it,
 	// dials the held app on 127.0.0.1 from now on, so it's held too, in this change
 	// (the re-check's N1). Loopback ports count, as the route dials loopback.
@@ -399,6 +423,23 @@ func (v *view) storedPin(name string) (*resourcev1.CatalogPin, error) {
 	}
 	p, _ := spec.(*resourcev1.Project)
 	return p.GetCatalog(), nil
+}
+
+// storedRoute is a route as it's stored, nil for one that isn't there yet.
+func (v *view) storedRoute(ref resource.Ref) (*resourcev1.Route, error) {
+	r, err := v.tx.GetResource(v.ctx, string(ref.Kind), ref.Scope, ref.Name)
+	if errors.Is(err, store.ErrNotFound) {
+		return nil, nil
+	}
+	if err != nil || r.Spec == nil {
+		return nil, err
+	}
+	spec, err := v.h.Keeper.Decode(v.ctx, v.tx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec)
+	if err != nil {
+		return nil, err
+	}
+	rt, _ := spec.(*resourcev1.Route)
+	return rt, nil
 }
 
 // pin is a project's pin as the edits leave it, and whether an edit unholds it.

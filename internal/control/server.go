@@ -606,6 +606,10 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		catalogSources := &catalogapi.Sources{Dir: cfg.CatalogSources, Client: cfg.CatalogClient}
 		catalogHandler := catalogapi.New(imports, ch, cfg.Store, cfg.Secrets, catalogSources, cfg.Build.Commit, cfg.Logger)
 		catalogHandler.EntriesFrom(cfg.CatalogDir)
+		if cfg.Auth != nil {
+			// A setup link takes a person's passkey (ADR 0105).
+			catalogHandler.SetStepUps(cfg.Auth)
+		}
 		// A route that moves a catalog app's address moves what follows it (ADR 0103).
 		ch.Address = catalogHandler.FollowAddress
 		if cfg.appHolds != nil {

@@ -37,6 +37,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/fleet"
 	"github.com/dockwell/dockwell/internal/control/githooks"
 	"github.com/dockwell/dockwell/internal/control/health"
+	"github.com/dockwell/dockwell/internal/control/owners"
 	"github.com/dockwell/dockwell/internal/control/paging"
 	"github.com/dockwell/dockwell/internal/control/place"
 	"github.com/dockwell/dockwell/internal/control/processes"
@@ -120,6 +121,9 @@ var (
 	backupActions = backups.Actions
 	// A scheduled task's run is an event; making or changing the task is a change (ADR 0053).
 	taskActions = tasks.Actions
+	// What became of making an app's owner is observed, so an event; the install that
+	// asked for it is a change (ADR 0105).
+	ownerActions = owners.Actions
 	// An alert is the control plane's record, and a mute no change (ADR 0044).
 	alertActions = alerts.Actions
 	// What a push came to is an event, and the deploy it applied a change (ADR 0046).
@@ -318,6 +322,7 @@ func kindOfAction(action string) dockwellv1.EventKind {
 		{dockwellv1.EventKind_EVENT_KIND_BACKUP, backupActions},
 		{dockwellv1.EventKind_EVENT_KIND_SETTINGS, settingsActions},
 		{dockwellv1.EventKind_EVENT_KIND_TASK, taskActions},
+		{dockwellv1.EventKind_EVENT_KIND_APP_OWNER, ownerActions},
 		{dockwellv1.EventKind_EVENT_KIND_ALERT, alertActions},
 		{dockwellv1.EventKind_EVENT_KIND_PUSH, pushActions},
 		{dockwellv1.EventKind_EVENT_KIND_CHANGE, changeActions},
@@ -757,6 +762,18 @@ func FromAudit(a *store.Event, look actors.Lookup) *dockwellv1.Event {
 		e.Push = push
 		return e
 	}
+	if slices.Contains(ownerActions, a.Action) {
+		// Only internal/control/owners writes these, and what it writes holds no
+		// value an owner's steps sent, and what the app said scrubbed.
+		e.Kind = dockwellv1.EventKind_EVENT_KIND_APP_OWNER
+		e.Subject = &dockwellv1.EventSubject{Id: a.Subject, Name: look.Name(a.Subject), Scope: look.Scope(a.Subject)}
+		e.AppOwner = &dockwellv1.EventAppOwner{}
+		if told, ok := owners.ReadTold(a.Detail); ok {
+			e.AppOwner.App, e.AppOwner.Email, e.AppOwner.User = told.App, told.Email, told.User
+			e.AppOwner.State, e.AppOwner.Error, e.AppOwner.Tries = ownerStates[told.State], told.Error, int32(told.Tries) //nolint:gosec // a count of tries
+		}
+		return e
+	}
 	if slices.Contains(taskActions, a.Action) {
 		// Only internal/control/tasks writes these, and what it writes holds nothing
 		// a run printed.
@@ -909,13 +926,16 @@ func filter(kinds []dockwellv1.EventKind, serverID, resourceID, actorID string, 
 	if every || want[dockwellv1.EventKind_EVENT_KIND_TASK] {
 		f.Actions = append(f.Actions, taskActions...)
 	}
+	if every || want[dockwellv1.EventKind_EVENT_KIND_APP_OWNER] {
+		f.Actions = append(f.Actions, ownerActions...)
+	}
 	if every || want[dockwellv1.EventKind_EVENT_KIND_ALERT] {
 		f.Actions = append(f.Actions, alertActions...)
 	}
 	if every || want[dockwellv1.EventKind_EVENT_KIND_PUSH] {
 		f.Actions = append(f.Actions, pushActions...)
 	}
-	f.ResourceActions = slices.Concat(healthActions, backupActions, alertActions, taskActions, pushActions, changeActions)
+	f.ResourceActions = slices.Concat(healthActions, backupActions, alertActions, taskActions, ownerActions, pushActions, changeActions)
 	if actorID != "" {
 		a, ok := actors.Store(actorID)
 		if !ok {
@@ -948,4 +968,13 @@ func (h *Handler) internal(ctx context.Context, err error) error {
 	}
 	h.logger.ErrorContext(ctx, "event call failed", slog.String("error", err.Error()))
 	return connect.NewError(connect.CodeInternal, errors.New("the control plane couldn't read the timeline; try again, and check its logs if it keeps failing"))
+}
+
+// ownerStates are an owner's states, as the store says them, as the API does.
+var ownerStates = map[string]dockwellv1.CatalogOwnerState{
+	store.OwnerWaitingEmail: dockwellv1.CatalogOwnerState_CATALOG_OWNER_STATE_WAITING_EMAIL,
+	store.OwnerWaiting:      dockwellv1.CatalogOwnerState_CATALOG_OWNER_STATE_WAITING,
+	store.OwnerMade:         dockwellv1.CatalogOwnerState_CATALOG_OWNER_STATE_MADE,
+	store.OwnerFailed:       dockwellv1.CatalogOwnerState_CATALOG_OWNER_STATE_FAILED,
+	store.OwnerOpened:       dockwellv1.CatalogOwnerState_CATALOG_OWNER_STATE_OPENED,
 }

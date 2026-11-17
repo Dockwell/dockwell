@@ -765,8 +765,14 @@ func routeJSON(r ingress.Route) route {
 	handle = append(handle, h)
 	if r.Held {
 		// Its answer comes first, and ends the request, so nothing goes on; the steps
-		// after it stay, so reading the route back reads where it sends.
-		handle = append([]handler{heldHandler()}, handle...)
+		// after it stay, so reading the route back reads where it sends. With a setup
+		// link, the route's agent answers in its place, and lets through the browser
+		// that came with its key (ADR 0105).
+		first := heldHandler()
+		if r.Setup != "" {
+			first = setupAsk(r)
+		}
+		handle = append([]handler{first}, handle...)
 	}
 	return route{ID: r.ID, Match: match, Terminal: true, Handle: handle}
 }
@@ -1055,9 +1061,72 @@ func heldHandler() handler {
 	return handler{Handler: "static_response", StatusCode: http.StatusServiceUnavailable, Body: heldBody}
 }
 
+// setupAsk asks a held route's agent whether a visitor came through its setup link,
+// as forward_auth does: a 2xx answer goes on to the rest of the route, its own access
+// included, and any other goes back to the visitor as it is, the link's page and
+// cookie or "isn't open yet". An agent that doesn't answer is 502, never the app.
+func setupAsk(r ingress.Route) handler {
+	return handler{
+		Handler:   "reverse_proxy",
+		Upstreams: []upstream{{Dial: r.Setup}},
+		Rewrite:   &rewrite{Method: http.MethodGet, URI: setupURI(r.ID)},
+		Headers: &headers{Request: &headerOps{Set: map[string][]string{
+			"X-Forwarded-Method": {"{http.request.method}"},
+			"X-Forwarded-Uri":    {"{http.request.uri}"},
+		}}},
+		HandleResponse: []responseHandler{{Match: &responseMatch{StatusCode: []int{2}}, Routes: []beliefRoute{
+			{Handle: []map[string]any{{"handler": "vars"}}},
+		}}},
+	}
+}
+
+// setupURI is what a held route's step asks its agent, which names the route.
+func setupURI(id string) string { return "/setup/" + id }
+
 // unheld is a route's JSON without the answer a held route gives first, and whether
-// it had one.
-func unheld(raw json.RawMessage) (json.RawMessage, bool) {
+// it had one, with where its setup link asks where it has one.
+func unheld(raw json.RawMessage) (json.RawMessage, bool, string) {
+	if rest, dial, ok := withoutSetup(raw); ok {
+		return rest, true, dial
+	}
+	rest, held := unheldStatic(raw)
+	return rest, held, ""
+}
+
+// withoutSetup is a route's JSON without a held route's setup step, and where it
+// asks, where its first step is one.
+func withoutSetup(raw json.RawMessage) (json.RawMessage, string, bool) {
+	var top map[string]json.RawMessage
+	var r struct {
+		Handle []json.RawMessage `json:"handle"`
+	}
+	if json.Unmarshal(raw, &top) != nil || json.Unmarshal(raw, &r) != nil || len(r.Handle) < 2 {
+		return raw, "", false
+	}
+	var first handler
+	if json.Unmarshal(r.Handle[0], &first) != nil || first.Handler != "reverse_proxy" || first.Rewrite == nil ||
+		!strings.HasPrefix(first.Rewrite.URI, "/setup/") || len(first.Upstreams) != 1 {
+		return raw, "", false
+	}
+	id := routeID(raw)
+	if first.Rewrite.URI != setupURI(id) {
+		return raw, "", false
+	}
+	rest, err := json.Marshal(r.Handle[1:])
+	if err != nil {
+		return raw, "", false
+	}
+	top["handle"] = rest
+	out, err := json.Marshal(top)
+	if err != nil {
+		return raw, "", false
+	}
+	return out, first.Upstreams[0].Dial, true
+}
+
+// unheldStatic is a route's JSON without the answer a held route with no setup link
+// gives first, and whether it had one.
+func unheldStatic(raw json.RawMessage) (json.RawMessage, bool) {
 	var top map[string]json.RawMessage
 	var r struct {
 		Handle []json.RawMessage `json:"handle"`
@@ -1739,7 +1808,7 @@ func readRoute(raw json.RawMessage) (ingress.Route, bool) {
 		return ingress.Route{}, false
 	}
 	out := ingress.Route{ID: id}
-	raw, out.Held = unheld(raw)
+	raw, out.Held, out.Setup = unheld(raw)
 	var r route
 	if err := json.Unmarshal(raw, &r); err != nil || len(r.Match) == 0 || len(r.Match) > 2 || len(r.Match[0].Host) != 1 || len(r.Handle) == 0 || len(r.Handle) > 5 {
 		out.Edited = true

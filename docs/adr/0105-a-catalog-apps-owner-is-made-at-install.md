@@ -187,6 +187,13 @@ A held app needs a way in for the person setting it up, and for no one else. Of 
   - A test proves each.
 - **On the page.** The page counts the hour down, and says "Set up · Open it to everyone" when `done` reads it set up.
 - **Fallbacks.** Open on localhost and the SSH tunnel command stay as fallbacks.
+- **As built in slice 2:**
+  - The proxy asks the route's agent at `/setup/<route>` through `forward_auth`, over the sign-in's socket, in place of the held answer. The agent keeps each route's key hash and end (`signin.Keep.PutSetup`) and its cookie key, made on the server, and remembers each key used until its link ends. A link that says more than an hour works for an hour.
+  - The cookie is named `__Host-dw_<12 hex>`, from a hash of the route apart from its sign-in's, the shape every route's proxy already strips on the way to the app and from what the app sets. A name of its own would have needed a new rule on every route, and a route written before it would have read as edited.
+  - The link's page is a 403 that goes on to the route's path by itself, never a 2xx, which would send the key on to the app.
+  - `Edit.SetsUp` marks the two writes of `Route.setup`: `SetUpCatalogInstall`'s and `RetryCatalogOwner`'s, which clears it. Every other write keeps it while the route is held, and drops it with the hold, which is how the release and Open clear it.
+  - `SetUpCatalogInstall` proposes and applies its change as the person asking, so the change is theirs. It needs a person (`needs_session`), a developer's in an open environment and an admin's in a protected one, as every method a token can't call is.
+  - The page counts the hour down from what `SetUpCatalogInstall` answers, kept in the tab, as a domain's routes don't carry the link. `DomainRoute.setup_until` would let any tab count it down, and needs a number.
 
 ### Vaultwarden: held until its owner has registered
 
@@ -279,7 +286,9 @@ These were checked against main, every pushed branch and the local worktrees on 
   - `InstallCatalogEntryRequest.owner_email` = 9 and `signups_open` = 10.
   - `CatalogInstall.owner` = 13, with the new message `CatalogOwner` (email, user, state, error, set up), and `CatalogInstall.held` = 14. #789 takes 11 and 12.
   - The new RPCs `RetryCatalogOwner`, `ResetCatalogOwnerPassword`, `SetUpCatalogInstall` and `SetCatalogOwnerEmail`, each with a decision in the panel's methods.
-- **Events:** `Event.app_owner` = 150 and `EventKind.EVENT_KIND_APP_OWNER` = 150.
+- **Events:** `Event.app_owner` = 150 and `EventKind.EVENT_KIND_APP_OWNER` = 150, with the new message `EventAppOwner`: `app` 1, `email` 2, `user` 3, `state` 4, `error` 5 and `tries` 6. The actions are `app_owner.made`, `app_owner.failed` and `app_owner.opened`, each once, as an owner turns to it.
+- **Step-up:** `StepUpAction.STEP_UP_ACTION_SET_UP_CATALOG_INSTALL` = 260, by the install's project ID. 260 to 269 are this record's.
+- **`CatalogOwner.set_up`** = 5: a failed owner's app reads set up, by its `done`, while a setup link to it works.
 - **Agent protocol:**
   - 380 `MakeAppOwnerCall` and 381 `MakeAppOwnerResult`;
   - 382 `ReadAppOwnerCall` and 383 `ReadAppOwnerResult`, for `done` and `signups.check`;
@@ -287,7 +296,7 @@ These were checked against main, every pushed branch and the local worktrees on 
   - 385 to 389 kept for this record.
 - **Store:** migration `0048_app_owners.sql` (`app_owners`, with the states `waiting_email`, `waiting`, `made`, `failed` and `opened`, and the changes that open it while they're planned). It follows ADR 0104's `0046_cloudflare.sql` and the fix to Cloudflare's pending-row index, which takes 0047.
 - **Plans:** `Plan.unholds`, a plan that lifts a hold, which ApplyChange takes from a person with a passkey, never a token.
-- **Note reasons** (words, no numbers): `owner_made`, `owner_failed`, `owner_held`, `signups_closed`, `known_password` and `setup_link`.
+- **Note reasons** (words, no numbers): `owner_made`, `owner_failed`, `owner_held`, `signups_closed`, `known_password`, `setup_link`, and `opens_to_everyone`, an Open whose owner isn't made, which the panel asks a passkey for up front.
 
 ## What we turned down
 
@@ -312,7 +321,7 @@ These were checked against main, every pushed branch and the local worktrees on 
 
 1. This record, the proto and migration 0048, `AppOwner`, the agent's call, the scrubbing and its test, and the steps for Gitea, Ghost and n8n, proven on real images in CI's Docker job. Sign-ups close at install. The hold as a fact worked out from the install's own state, kept by every pin write, with routes, host-port routes and ports.
 2. The setup link, Umami's known password, Memos' and new-api's sign-ups, WordPress (which needs ADR 0103), Uptime Kuma and Plausible held, `done` and the page's states, and converted apps.
-3. The rest of the 13, Vaultwarden's invite, Rotate, and installs from before.
+3. The rest of the 13, Vaultwarden's invite, Rotate, and installs from before. Rotate moved here from the page's states of slice 2: no entry has `reset_steps` yet, and a real rotate keeps a pending password beside the current one, which needs its own store.
 4. Converters' default credentials and admin passwords, and overlays for the store apps used most.
 
 ## Review

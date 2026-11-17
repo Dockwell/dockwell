@@ -838,6 +838,13 @@ msgstr "Confirmed which environments are protected"
 msgid "Couldn't delete {path} on {server}"
 msgstr "Couldn't delete {path} on {server}"
 
+msgid "Couldn't make {app}'s owner"
+msgstr "Couldn't make {app}'s owner"
+
+#. placeholder {0}: owned.error
+msgid "Couldn't make {app}'s owner: {0}"
+msgstr "Couldn't make {app}'s owner: {0}"
+
 msgid "Couldn't make {path} on {server}"
 msgstr "Couldn't make {path} on {server}"
 
@@ -956,6 +963,12 @@ msgstr "Made a one-time sign-in link for {name}"
 
 msgid "Made new recovery codes"
 msgstr "Made new recovery codes"
+
+msgid "Made {app}'s owner"
+msgstr "Made {app}'s owner"
+
+msgid "Made {app}'s owner, {who}"
+msgstr "Made {app}'s owner, {who}"
 
 msgid "Made {path} on {server}"
 msgstr "Made {path} on {server}"
@@ -1363,6 +1376,9 @@ msgstr "{0} to restart"
 #. placeholder {0}: s.change
 msgid "{0} to update"
 msgstr "{0} to update"
+
+msgid "{app} opened to everyone before its owner was made"
+msgstr "{app} opened to everyone before its owner was made"
 
 msgid "{count, plural, one {It changed once in {span}.} other {It changed # times in {span}.}}"
 msgstr "{count, plural, one {It changed once in {span}.} other {It changed # times in {span}.}}"
@@ -8162,6 +8178,79 @@ msgstr "{app} reads its storage as one URL, which a connection can't give yet"
 msgid "{there} in {project}"
 msgstr "{there} in {project}"
 
+msgid "Another email"
+msgstr "Another email"
+
+msgid "As {who}, once {runs} runs. Until then, only people in this project reach it."
+msgstr "As {who}, once {runs} runs. Until then, only people in this project reach it."
+
+msgid "As {who}. Until then, only people in this project reach it."
+msgstr "As {who}. Until then, only people in this project reach it."
+
+msgid "Held"
+msgstr "Held"
+
+msgid "Held until its owner account exists"
+msgstr "Held until its owner account exists"
+
+msgid "Held until you set it up"
+msgstr "Held until you set it up"
+
+msgid "It's held until Dockwell makes its owner account."
+msgstr "It's held until Dockwell makes its owner account."
+
+msgid "It's held until then."
+msgstr "It's held until then."
+
+msgid "Make it as {mine}"
+msgstr "Make it as {mine}"
+
+msgid "Make the owner"
+msgstr "Make the owner"
+
+msgid "Making its owner"
+msgstr "Making its owner"
+
+msgid "Making {app}'s owner account"
+msgstr "Making {app}'s owner account"
+
+msgid "Needs its owner's email"
+msgstr "Needs its owner's email"
+
+msgid "New setup link"
+msgstr "New setup link"
+
+msgid "Only people in this project reach it until you open it to everyone."
+msgstr "Only people in this project reach it until you open it to everyone."
+
+msgid "Only people in this project reach it, through the panel."
+msgstr "Only people in this project reach it, through the panel."
+
+msgid "Owner not made"
+msgstr "Owner not made"
+
+msgid "Owner's email"
+msgstr "Owner's email"
+
+msgid "Set it up at {secure}"
+msgstr "Set it up at {secure}"
+
+msgid "Set it up yourself"
+msgstr "Set it up yourself"
+
+msgid "Your setup link to {secure} works for {left} min. Everyone else finds it isn't open yet."
+msgstr "Your setup link to {secure} works for {left} min. Everyone else finds it isn't open yet."
+
+#. placeholder {0}: domains.join(", ")
+msgid "{0} answers that it isn't open yet, so only people in this project reach it."
+msgstr "{0} answers that it isn't open yet, so only people in this project reach it."
+
+msgid "{app} is set up"
+msgstr "{app} is set up"
+
+msgid "{app} waits for its owner's email"
+msgstr "{app} waits for its owner's email"
+
 msgid "1Panel's app store"
 msgstr "1Panel's app store"
 
@@ -8526,6 +8615,10 @@ msgstr "Close sign-ups"
 
 msgid "Close sign-ups to {app}"
 msgstr "Close sign-ups to {app}"
+
+msgctxt "sign-ups"
+msgid "Closed"
+msgstr "Closed"
 
 msgid "Copy the SSH tunnel command"
 msgstr "Copy the SSH tunnel command"
