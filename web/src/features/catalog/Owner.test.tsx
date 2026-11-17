@@ -204,6 +204,65 @@ describe("An install's owner, on its app's page (ADR 0105)", () => {
   });
 });
 
+describe("A setup link, as the panel offers it (the review's M6 and L5)", () => {
+  /** The app page of a held Gitea whose domains' routes are as given. */
+  function heldAt(routes: Record<string, unknown>[], names = ["git.example.com"]): Api {
+    return {
+      ...api({ held: true }),
+      domains: {
+        listDomains: () => ({
+          domains: names.map((name) => ({
+            name,
+            environmentId: ENV,
+            routes: routes.map((r) => ({ id: `rte_${name}`, name: "www", service: "gitea", held: true, ...r })),
+          })),
+        }),
+      },
+    };
+  }
+
+  it("offers no link to a domain only this server reaches, and opens the app through the panel instead", async () => {
+    renderAt("/apps/svc_gitea", heldAt([{ tls: "off", plainForAnyone: false, trustedProxies: [] }]));
+    expect(await screen.findByText("Held until you set it up")).toBeVisible();
+    expect(screen.queryByRole("button", { name: /Set it up at/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open Gitea" })).toBeVisible();
+  });
+
+  it("offers it behind a proxy the route names", async () => {
+    renderAt("/apps/svc_gitea", heldAt([{ tls: "off", plainForAnyone: false, trustedProxies: ["127.0.0.1"] }]));
+    expect(await screen.findByRole("button", { name: "Set it up at git.example.com" })).toBeVisible();
+  });
+
+  it("counts a live link down on any page, as the domain's routes say when it ends", async () => {
+    const until = BigInt(Math.floor(Date.now() / 1000) + 30 * 60);
+    renderAt("/apps/svc_gitea", heldAt([{ tls: "", setupUntil: until }]));
+    expect(await screen.findByText(/Your setup link to git.example.com works for 30 min/)).toBeVisible();
+    expect(screen.getByRole("button", { name: "New setup link" })).toBeVisible();
+  });
+
+  it("names the first of several domains, and how many more", async () => {
+    renderAt("/apps/svc_gitea", heldAt([{ tls: "" }], ["git.example.com", "code.example.com"]));
+    expect(
+      await screen.findByText(
+        "git.example.com and 1 more answer that it isn't open yet, so only people in this project reach it.",
+      ),
+    ).toBeVisible();
+  });
+
+  it("says a long failure's step and last words, with all of it a step away", async () => {
+    const user = userEvent.setup();
+    const error =
+      'Step 1: OCI runtime exec failed: \\"sh -c gitea admin user create --admin --username \\"$OWNER_USER\\" --random-password\\": executable file not found in $PATH';
+    renderAt(
+      "/apps/svc_gitea",
+      api({ held: true, owner: { email: "mira@example.com", state: CatalogOwnerState.FAILED, error } }),
+    );
+    expect(await screen.findByText("Step 1: executable file not found in $PATH")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "All of it" }));
+    expect(screen.getByText(/--username "\$OWNER_USER" --random-password/)).toBeVisible();
+  });
+});
+
 describe("Sign-ups an install closed (ADR 0105)", () => {
   it("read closed as the service runs them, with nothing to do", async () => {
     const closedGitea = clone(EntrySchema, gitea);

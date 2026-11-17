@@ -155,6 +155,22 @@ func TestASetupLinkIsLiveWhenItComesBackAndGoesForGood(t *testing.T) {
 	if got.Msg.GetChange().GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
 		t.Errorf("the link came back with its change %v", got.Msg.GetChange().GetState())
 	}
+	// A domain's routes say when its link ends, and nothing of its key.
+	domains, err := dockwellv1connect.NewDomainServiceClient(o.b, o.b.origin, connect.WithProtoJSON()).ListDomains(t.Context(), connect.NewRequest(&dockwellv1.ListDomainsRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var until int64
+	for _, d := range domains.Msg.GetDomains() {
+		for _, r := range d.GetRoutes() {
+			if r.GetName() == "www" {
+				until = r.GetSetupUntil()
+			}
+		}
+	}
+	if until == 0 || until != o.route("www").GetSetup().GetUntil() || strings.Contains(prototext.Format(domains.Msg), o.route("www").GetSetup().GetKeyHash()) {
+		t.Errorf("the domain's route says the link ends at %d, want %d, and nothing of its hash", until, o.route("www").GetSetup().GetUntil())
+	}
 	if _, err := o.cat.RetryCatalogOwner(t.Context(), connect.NewRequest(&dockwellv1.RetryCatalogOwnerRequest{Id: "thing"})); err != nil {
 		t.Fatal(err)
 	}

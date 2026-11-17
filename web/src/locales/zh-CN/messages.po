@@ -8202,6 +8202,10 @@ msgstr "在 Dockwell 创建所有者账号之前，它暂不开放。"
 msgid "It's held until then."
 msgstr "在此之前它暂不开放。"
 
+msgctxt "a long text, shown whole"
+msgid "Less"
+msgstr "收起"
+
 msgid "Make it as {mine}"
 msgstr "以 {mine} 创建"
 
@@ -8241,7 +8245,12 @@ msgstr "自行设置"
 msgid "Your setup link to {secure} works for {left} min. Everyone else finds it isn't open yet."
 msgstr "你的 {secure} 设置链接还可用 {left} 分钟。其他人看到的仍是尚未开放。"
 
-#. placeholder {0}: domains.join(", ")
+#. placeholder {0}: domains[0]
+#. placeholder {1}: domains.length - 1
+msgid "{0} and {1} more answer that it isn't open yet, so only people in this project reach it."
+msgstr "{0} 及另外 {1} 个域名显示尚未开放，因此只有此项目的成员可以访问。"
+
+#. placeholder {0}: domains[0]
 msgid "{0} answers that it isn't open yet, so only people in this project reach it."
 msgstr "{0} 显示尚未开放，因此只有此项目的成员可以访问。"
 

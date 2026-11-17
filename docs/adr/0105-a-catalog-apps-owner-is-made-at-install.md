@@ -188,12 +188,18 @@ A held app needs a way in for the person setting it up, and for no one else. Of 
 - **On the page.** The page counts the hour down, and says "Set up · Open it to everyone" when `done` reads it set up.
 - **Fallbacks.** Open on localhost and the SSH tunnel command stay as fallbacks.
 - **As built in slice 2:**
-  - The proxy asks the route's agent at `/setup/<route>` through `forward_auth`, over the sign-in's socket, in place of the held answer. The agent keeps each route's key hash and end (`signin.Keep.PutSetup`) and its cookie key, made on the server, and remembers each key used until its link ends. A link that says more than an hour works for an hour.
+  - The proxy asks the route's agent at `/setup/<route>` through `forward_auth`, over the sign-in's socket, in place of the held answer. The agent keeps each route's key hash and end (`signin.Keep.PutSetup`) and its cookie key, made on the server.
+  - A key works once across a restart: the agent keeps each used key's hash in its data folder, beside the routes' cookie keys, until its link ends.
+  - A link's end is the control plane's, held once, when the agent is given it, to an hour from then, and read with a minute's leeway, so a clock a little apart neither locks a browser out nor keeps a link longer.
+  - One use sets a cookie for every held route of the domain with the key's hash, path routes included.
+  - Caddy's default log deletes `key`, `code` and `state` from every request address it writes, so a link whose agent didn't answer leaves no working key in the ingress's log.
   - The cookie is named `__Host-dw_<12 hex>`, from a hash of the route apart from its sign-in's, the shape every route's proxy already strips on the way to the app and from what the app sets. A name of its own would have needed a new rule on every route, and a route written before it would have read as edited.
   - The link's page is a 403 that goes on to the route's path by itself, never a 2xx, which would send the key on to the app.
   - `Edit.SetsUp` marks the two writes of `Route.setup`: `SetUpCatalogInstall`'s and `RetryCatalogOwner`'s, which clears it. Every other write keeps it while the route is held, and drops it with the hold, which is how the release and Open clear it.
-  - `SetUpCatalogInstall` proposes and applies its change as the person asking, so the change is theirs. It needs a person (`needs_session`), a developer's in an open environment and an admin's in a protected one, as every method a token can't call is.
-  - The page counts the hour down from what `SetUpCatalogInstall` answers, kept in the tab, as a domain's routes don't carry the link. `DomainRoute.setup_until` would let any tab count it down, and needs a number.
+  - `SetUpCatalogInstall` proposes and applies its change as the person asking, so the change is theirs, and gives the link back once the change has applied on its server, a minute at most, so the first click works. It needs a person (`needs_session`), a developer's in an open environment and an admin's in a protected one, as every method a token can't call is.
+  - Whether a domain is reached over HTTPS is `route.PlainAtTheBrowser`, which the panel mirrors: every held route of the domain must pass it.
+  - `RetryCatalogOwner` takes the link away first, as a change it applies, so in a protected environment it's an admin's. An undo or a rollback keeps only the link stored now, never an older one.
+  - The page counts the hour down from `DomainRoute.setup_until`, the link's end alone, so any page shows it.
 
 ### Vaultwarden: held until its owner has registered
 
@@ -288,7 +294,8 @@ These were checked against main, every pushed branch and the local worktrees on 
   - The new RPCs `RetryCatalogOwner`, `ResetCatalogOwnerPassword`, `SetUpCatalogInstall` and `SetCatalogOwnerEmail`, each with a decision in the panel's methods.
 - **Events:** `Event.app_owner` = 150 and `EventKind.EVENT_KIND_APP_OWNER` = 150, with the new message `EventAppOwner`: `app` 1, `email` 2, `user` 3, `state` 4, `error` 5 and `tries` 6. The actions are `app_owner.made`, `app_owner.failed` and `app_owner.opened`, each once, as an owner turns to it.
 - **Step-up:** `StepUpAction.STEP_UP_ACTION_SET_UP_CATALOG_INSTALL` = 260, by the install's project ID. 260 to 269 are this record's.
-- **`CatalogOwner.set_up`** = 5: a failed owner's app reads set up, by its `done`, while a setup link to it works.
+- **`CatalogOwner.set_up`** = 5: a failed owner's app reads set up, by its `done`, while a setup link to it works. What was read goes once the link ends, the owner leaves failed, or it's tried again.
+- **`DomainRoute.setup_until`** = 114: when a held route's setup link ends, in Unix seconds, and never its key or hash.
 - **Agent protocol:**
   - 380 `MakeAppOwnerCall` and 381 `MakeAppOwnerResult`;
   - 382 `ReadAppOwnerCall` and 383 `ReadAppOwnerResult`, for `done` and `signups.check`;

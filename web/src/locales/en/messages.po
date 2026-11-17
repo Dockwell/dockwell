@@ -8202,6 +8202,10 @@ msgstr "It's held until Dockwell makes its owner account."
 msgid "It's held until then."
 msgstr "It's held until then."
 
+msgctxt "a long text, shown whole"
+msgid "Less"
+msgstr "Less"
+
 msgid "Make it as {mine}"
 msgstr "Make it as {mine}"
 
@@ -8241,7 +8245,12 @@ msgstr "Set it up yourself"
 msgid "Your setup link to {secure} works for {left} min. Everyone else finds it isn't open yet."
 msgstr "Your setup link to {secure} works for {left} min. Everyone else finds it isn't open yet."
 
-#. placeholder {0}: domains.join(", ")
+#. placeholder {0}: domains[0]
+#. placeholder {1}: domains.length - 1
+msgid "{0} and {1} more answer that it isn't open yet, so only people in this project reach it."
+msgstr "{0} and {1} more answer that it isn't open yet, so only people in this project reach it."
+
+#. placeholder {0}: domains[0]
 msgid "{0} answers that it isn't open yet, so only people in this project reach it."
 msgstr "{0} answers that it isn't open yet, so only people in this project reach it."
 

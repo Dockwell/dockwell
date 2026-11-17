@@ -593,6 +593,9 @@ message DomainRoute {
   // The proxies in front it believes, as Route.trusted_proxies names them, so what
   // reads a route has all of it.
   repeated string trusted_proxies = 81;
+  // When its setup link stops working, in Unix seconds, while it's held and has
+  // one; 0 otherwise. Never the link's key, nor its hash (ADR 0105).
+  int64 setup_until = 114;
   // Who it lets in, as addresses and ranges, as Route.access says: anyone else
   // gets 403. Empty lets in everyone it answers (ADR 0087).
   repeated string allow = 110;

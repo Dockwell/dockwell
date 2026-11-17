@@ -138,14 +138,18 @@ function Held({ service, install, app }: { service: ServiceInfo; install: Catalo
   const { open, may } = useOpen(install);
   const held = useAppDomains(service).domains.filter((d) => d.routes.some((r) => r.held));
   const domains = held.map((d) => d.name);
-  // A setup link needs a domain a browser reaches over HTTPS, where its cookie is kept (ADR 0105).
-  const secure = held.find((d) => d.routes.some((r) => r.held && (r.tls !== "off" || !r.plainForAnyone)))?.name;
+  // A setup link needs a domain every held route of which a browser reaches over
+  // HTTPS, where its cookie is kept, as the server's rule says (ADR 0105; the review's M6).
+  const secureDomain = held.find((d) => d.routes.filter((r) => r.held).every(overHTTPS));
+  const secure = secureDomain?.name;
   const web = install.webServiceId === service.id;
   // The port that serves its pages, which the control plane works out (#791).
   const port = service.webPort || appOf(service)?.ports.find((p) => p.held)?.containerPort;
   const owned = install.owner !== undefined;
   const link = useSetupLink(install);
-  const left = useMinutesLeft(link.until);
+  // When the domain's link ends, as its routes say, so any tab counts it down.
+  const routesUntil = Math.max(0, ...(secureDomain?.routes ?? []).map((r) => Number(r.setupUntil)));
+  const left = useMinutesLeft(Math.max(routesUntil, link.until));
   if (install.owner?.setUp) {
     return (
       <Callout
@@ -200,8 +204,13 @@ function Held({ service, install, app }: { service: ServiceInfo; install: Catalo
         <Trans>
           Your setup link to {secure} works for {left} min. Everyone else finds it isn't open yet.
         </Trans>
-      ) : domains.length > 0 ? (
-        <Trans>{domains.join(", ")} answers that it isn't open yet, so only people in this project reach it.</Trans>
+      ) : domains.length > 1 ? (
+        <Trans>
+          {domains[0]} and {domains.length - 1} more answer that it isn't open yet, so only people in this project reach
+          it.
+        </Trans>
+      ) : domains.length === 1 ? (
+        <Trans>{domains[0]} answers that it isn't open yet, so only people in this project reach it.</Trans>
       ) : (
         <Trans>Only people in this project reach it, through the panel.</Trans>
       )}
@@ -209,27 +218,26 @@ function Held({ service, install, app }: { service: ServiceInfo; install: Catalo
   );
 }
 
-/** Where this tab keeps when a setup link it made ends, by install, so a reload counts it down too. */
-const untilKey = (project: string) => `dockwell.setup-until.${project}`;
-
-function keptUntil(project: string): number {
-  try {
-    return Number(window.sessionStorage.getItem(untilKey(project)) ?? 0) || 0;
-  } catch {
-    return 0;
-  }
+/**
+ * Whether a browser reaches a route over HTTPS, as the server's route.PlainAtTheBrowser
+ * says the other way round: a certificate here, or plain HTTP behind a proxy it names
+ * and that answers no one else.
+ */
+export function overHTTPS(r: { tls: string; plainForAnyone: boolean; trustedProxies: readonly string[] }): boolean {
+  return !(r.tls === "off" && (r.plainForAnyone || r.trustedProxies.length === 0));
 }
 
 /**
  * A held install's setup link: making one, with a passkey, opens it in a tab of its
- * own; until says how long the one this tab made works, in Unix seconds.
+ * own once the server has it; until says when the one this page made ends, in Unix
+ * seconds, until the domain's routes say it.
  */
 function useSetupLink(install: CatalogInstall) {
   const transport = useTransport();
   const queries = useQueryClient();
   const explain = useAuthError();
   const may = useMay()(CatalogService.method.setUpCatalogInstall, { project: install.projectId });
-  const [until, setUntil] = useState(() => keptUntil(install.projectId));
+  const [until, setUntil] = useState(0);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string>();
   const make = async (domain: string) => {
@@ -248,13 +256,7 @@ function useSetupLink(install: CatalogInstall) {
       } else {
         window.open(res.url, "_blank", "noopener,noreferrer");
       }
-      const ends = Number(res.until?.seconds ?? 0n);
-      setUntil(ends);
-      try {
-        window.sessionStorage.setItem(untilKey(install.projectId), String(ends));
-      } catch {
-        // A tab that keeps nothing counts down until it's reloaded.
-      }
+      setUntil(Number(res.until?.seconds ?? 0n));
       await queries.invalidateQueries();
     } catch (err) {
       tab?.close();
@@ -316,7 +318,12 @@ function OwnerFailed({ install, app, onByHand }: { install: CatalogInstall; app:
       setBusy(false);
     }
   };
-  const said = install.owner?.error ?? "";
+  // What the app said, without a shell's quoting, and where it's long, its step and
+  // its last words, with the whole of it a step away (the review's L5).
+  const said = (install.owner?.error ?? "").replaceAll('\\"', '"');
+  const step = said.match(/^Step \d+: /)?.[0] ?? "";
+  const short = said.length > 120 && said.includes(": ") ? step + said.slice(said.lastIndexOf(": ") + 2) : said;
+  const [whole, setWhole] = useState(false);
   return (
     <Callout
       className="catalog-owner-callout"
@@ -333,7 +340,19 @@ function OwnerFailed({ install, app, onByHand }: { install: CatalogInstall; app:
         </>
       }
     >
-      {problem ?? (said ? <code className="catalog-owner-said">{said}</code> : <Trans>It's held until then.</Trans>)}
+      {problem ??
+        (said ? (
+          <>
+            <code className="catalog-owner-said">{whole ? said : short}</code>{" "}
+            {short !== said ? (
+              <Button variant="ghost" size="sm" aria-expanded={whole} onClick={() => setWhole(!whole)}>
+                {whole ? <Trans context="a long text, shown whole">Less</Trans> : <Trans>All of it</Trans>}
+              </Button>
+            ) : null}
+          </>
+        ) : (
+          <Trans>It's held until then.</Trans>
+        ))}
     </Callout>
   );
 }
