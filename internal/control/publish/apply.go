@@ -562,8 +562,33 @@ func (p *Publisher) removeRule(ctx context.Context, changeID, routeID string, s 
 	if err != nil {
 		return "", err
 	}
+	// A rule made by hand that the route took on is kept whole before the write, as
+	// a move is (the re-check's A-M1), so a write that lands with no answer can't
+	// lose it: the run again, or the rollback, finds it kept.
+	var held store.CloudflareRule
+	takenOn := false
+	if err := p.DB.View(ctx, func(tx *store.Tx) error {
+		var err error
+		held, err = tx.CloudflareRuleAt(ctx, s.Tunnel, s.Rule.Hostname, s.Rule.Path)
+		if errors.Is(err, store.ErrNotFound) {
+			return nil
+		}
+		takenOn = err == nil && held.TakenOnAt != nil
+		return err
+	}); err != nil {
+		return "", err
+	}
 	i := doc.Index(s.Rule.Hostname, s.Rule.Path)
 	if i < 0 {
+		if takenOn && (held.State == store.CloudflareRuleKept || readKept(held.Replaced).Elem != nil) {
+			if held.State != store.CloudflareRuleKept {
+				held.State = store.CloudflareRuleKept
+				if err := p.DB.Update(ctx, func(tx *store.Tx) error { return tx.PutCloudflareRule(ctx, held) }); err != nil {
+					return "", err
+				}
+			}
+			return "", letGo{s.Rule.Hostname + " was gone from " + s.Target + " already"}
+		}
 		if err := forget(); err != nil {
 			return "", err
 		}
@@ -594,10 +619,25 @@ func (p *Publisher) removeRule(ctx context.Context, changeID, routeID string, s 
 	if err := CheckSplice(read.Config, after.Raw(), i, false); err != nil {
 		return "", err
 	}
+	was := held
+	if takenOn {
+		kept := held
+		kept.State, kept.Replaced = store.CloudflareRuleKept, keptRule{Elem: doc.Elem(i), At: i}.String()
+		if err := p.DB.Update(ctx, func(tx *store.Tx) error { return tx.PutCloudflareRule(ctx, kept) }); err != nil {
+			return "", err
+		}
+	}
 	start := p.now()
 	defer p.cache.forget("doc:" + s.Tunnel)
 	wrote, err := t.tunnels.WriteTunnelConfig(ctx, s.Account, s.Tunnel, after.Raw())
 	if err != nil {
+		// Refused, it wrote nothing, so the rule is still there and held as it was.
+		// With no answer it may have landed, so what's kept stays kept, for the run
+		// again or the rollback to read.
+		var api *dnsproviders.APIError
+		if takenOn && errors.As(err, &api) && api.Status >= 400 && api.Status < 500 {
+			_ = p.DB.Update(ctx, func(tx *store.Tx) error { return tx.PutCloudflareRule(ctx, was) })
+		}
 		return "", fmt.Errorf("can't write %s's routes: %w", s.Target, err)
 	}
 	if err := p.DB.Update(ctx, func(tx *store.Tx) error {

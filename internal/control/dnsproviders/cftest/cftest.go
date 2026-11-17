@@ -55,6 +55,9 @@ type API struct {
 	// the stand-in unlocked: a test writes there, as someone in the dashboard would
 	// between Dockwell's read and its write.
 	BeforePut func(tunnel string)
+	// LosePut writes a tunnel's configuration where it says yes, then answers 502, as
+	// a write whose answer was lost on its way back: Dockwell can't tell it landed.
+	LosePut func(tunnel string) bool
 }
 
 // Token is what a token may do.
@@ -555,6 +558,10 @@ func (a *API) tunnels(w http.ResponseWriter, r *http.Request, t Token, parts []s
 			a.mu.Lock()
 		}
 		a.setDocument(tun, body.Config)
+		if a.LosePut != nil && a.LosePut(tun.ID) {
+			w.WriteHeader(http.StatusBadGateway)
+			return
+		}
 		succeed(w, map[string]any{"tunnel_id": tun.ID, "version": tun.Version, "config": tun.Config, "source": "cloudflare"}, nil)
 	default:
 		fail(w, http.StatusNotFound, 7003, "Could not route")
