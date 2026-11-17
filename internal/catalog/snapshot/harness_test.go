@@ -485,3 +485,31 @@ func TestACheckSaysWhatItsFarEndRefuses(t *testing.T) {
 		}
 	}
 }
+
+// adminCompanion is an entry whose web service is a companion an install leaves out
+// unless asked, as mysql's phpMyAdmin is: a database, and an admin tool beside it that
+// answers on the server alone, on ADMIN_PORT (ADR 0076).
+func adminCompanion(version string) string {
+	compose := "services:\n  db:\n    image: example/sql:" + version + "@sha256:" + strings.Repeat("cd", 32) +
+		"\n  admin:\n    image: example/sql-admin:" + version + "@sha256:" + strings.Repeat("ab", 32) +
+		"\n    ports:\n      - \"127.0.0.1:${ADMIN_PORT}:8080\"\n"
+	raw, _ := json.Marshal(map[string]any{
+		"id": "sql", "name": "sql", "version": version, "release": 1, "web": map[string]string{"service": "admin"},
+		"companions": []map[string]any{{"service": "admin", "label": "Admin", "purpose": "Browse its tables", "inputs": []string{"ADMIN_PORT"}}},
+		"inputs":     []map[string]any{{"name": "ADMIN_PORT", "type": "INPUT_TYPE_PORT", "defaultValue": "18090"}},
+		"compose":    compose,
+	})
+	return string(raw)
+}
+
+// An entry whose web service is a companion an install leaves out, proven with the
+// floor alone, has it turned on, so what the entry opens runs and is proven, its port
+// with it. Before, the floor installed the default, which runs no admin, then asked
+// for it: "Docker runs ” for phpmyadmin, want one container" (catalog#31, mysql).
+func TestTheFloorTurnsOnTheCompanionAnEntryOpens(t *testing.T) {
+	w := newWorld(t, map[string][]string{"sql": {adminCompanion("1.0.0"), adminCompanion("1.1.0")}}, nil)
+	out, err := w.run("sql")
+	if err != nil || !strings.Contains(out, "catalog-e2e: ok") {
+		t.Errorf("an entry whose web service is a companion: %v\n%s", err, out)
+	}
+}
