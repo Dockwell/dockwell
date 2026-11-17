@@ -554,6 +554,11 @@ enum PublishedState {
   // A tunnel's rule made by hand that points at the app's own port: Move it to
   // Dockwell sends it through the server's proxy.
   PUBLISHED_STATE_CAN_MOVE = 7 [(dockwell.v1.word) = "Points at the app's own port"];
+  // The tunnel that served it was deleted in Cloudflare.
+  PUBLISHED_STATE_TUNNEL_DELETED = 8 [(dockwell.v1.word) = "Its tunnel was deleted in Cloudflare"];
+  // Dockwell can't read it: its DNS provider isn't connected, or Cloudflare refuses
+  // the token.
+  PUBLISHED_STATE_UNREADABLE = 9 [(dockwell.v1.word) = "Dockwell can't read it at Cloudflare"];
 }
 
 // DomainRoute is one route of a domain.

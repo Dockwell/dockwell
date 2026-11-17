@@ -20,7 +20,7 @@ CREATE TABLE cloudflare_records (
   change_id   TEXT NOT NULL,      -- the change that wrote it, or took it on
   taken_on_at INTEGER,            -- set for a record made by hand and taken on
   replaced    TEXT NOT NULL DEFAULT '', -- the record it replaced, whole, as JSON, for undo
-  state       TEXT NOT NULL DEFAULT 'published', -- published, gone or changed, as last read
+  state       TEXT NOT NULL DEFAULT 'published', -- published, gone, changed, tunnel_deleted or unreadable, as last read
   checked_at  INTEGER,
   created_at  INTEGER NOT NULL
 );

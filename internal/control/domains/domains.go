@@ -283,7 +283,7 @@ func addPublished(ctx context.Context, tx *store.Tx, routeID string, rt *resourc
 	if err != nil {
 		return err
 	}
-	ruleGone := false
+	ruleState := store.CloudflarePublished
 	if pub.GetWay() == resourcev1.RouteWay_ROUTE_WAY_SERVER_TUNNEL {
 		rules, err := tx.CloudflareRulesOf(ctx, pub.GetTunnel())
 		if err != nil {
@@ -291,7 +291,7 @@ func addPublished(ctx context.Context, tx *store.Tx, routeID string, rt *resourc
 		}
 		for i := range rules {
 			if rules[i].State != store.CloudflarePublished && publish.HostMatches(rules[i].Hostname, rt.GetDomain()) {
-				ruleGone = true
+				ruleState = rules[i].State
 			}
 		}
 	}
@@ -306,7 +306,11 @@ func addPublished(ctx context.Context, tx *store.Tx, routeID string, rt *resourc
 		}
 		p := &dockwellv1.DomainPublished{Name: rec.Name, Way: pub.GetWay(), Tunnel: pub.GetTunnel(), Record: words, State: dockwellv1.PublishedState_PUBLISHED_STATE_PUBLISHED}
 		switch {
-		case ruleGone:
+		case ruleState == store.CloudflareTunnelDeleted:
+			p.State = dockwellv1.PublishedState_PUBLISHED_STATE_TUNNEL_DELETED
+		case ruleState == store.CloudflareUnreadable || rec.State == store.CloudflareUnreadable:
+			p.State = dockwellv1.PublishedState_PUBLISHED_STATE_UNREADABLE
+		case ruleState != store.CloudflarePublished:
 			p.State = dockwellv1.PublishedState_PUBLISHED_STATE_GONE_FROM_TUNNEL
 		case rec.State == store.CloudflareGone:
 			p.State = dockwellv1.PublishedState_PUBLISHED_STATE_RECORD_GONE

@@ -97,7 +97,7 @@ type target struct {
 func (p *Publisher) target(ctx context.Context, provider, name string) (*target, error) {
 	saved, err := p.Providers.Named(ctx, provider)
 	if err != nil {
-		return nil, fmt.Errorf("%s names the DNS provider %s, which isn't connected", name, provider)
+		return nil, Unreadable{fmt.Errorf("%s names the DNS provider %s, which isn't connected", name, provider)}
 	}
 	api, err := p.Providers.APIFor(saved.Spec.GetProvider(), saved.Spec.GetApiToken())
 	if err != nil {
@@ -128,7 +128,11 @@ func (p *Publisher) target(ctx context.Context, provider, name string) (*target,
 	sum := sha256.Sum256([]byte(saved.Spec.GetApiToken()))
 	zones, err := readFor(p, &target{cached: true}, "zones:"+provider+":"+hex.EncodeToString(sum[:8]), func() ([]dnsproviders.Zone, error) { return cf.Zones(ctx) })
 	if err != nil {
-		return nil, fmt.Errorf("can't read %s's zones at Cloudflare: %w", provider, err)
+		err = fmt.Errorf("can't read %s's zones at Cloudflare: %w", provider, err)
+		if refused(err) {
+			err = Unreadable{err}
+		}
+		return nil, err
 	}
 	for _, z := range zones {
 		if z.Name == zoneName {
@@ -136,7 +140,20 @@ func (p *Publisher) target(ctx context.Context, provider, name string) (*target,
 			return t, nil
 		}
 	}
-	return nil, fmt.Errorf("%s's token doesn't reach %s at Cloudflare any more. Check the provider again under Integrations", provider, zoneName)
+	return nil, Unreadable{fmt.Errorf("%s's token doesn't reach %s at Cloudflare any more. Check the provider again under Integrations", provider, zoneName)}
+}
+
+// Unreadable is a reason Dockwell can't read what it published at all, short of
+// someone fixing it: its provider isn't connected any more, or Cloudflare refuses the
+// token. Anything else may pass on its own.
+type Unreadable struct{ error }
+
+func (u Unreadable) Unwrap() error { return u.error }
+
+// refused says Cloudflare refused the token, or a right it needs.
+func refused(err error) bool {
+	var api *dnsproviders.APIError
+	return errors.As(err, &api) && (api.Refused() || denied(err))
 }
 
 // desired is a record a route's publishing writes.

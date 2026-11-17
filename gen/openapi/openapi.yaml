@@ -14394,6 +14394,8 @@ components:
                         - PUBLISHED_STATE_TUNNEL_SHARED
                         - PUBLISHED_STATE_CAN_TAKE_ON
                         - PUBLISHED_STATE_CAN_MOVE
+                        - PUBLISHED_STATE_TUNNEL_DELETED
+                        - PUBLISHED_STATE_UNREADABLE
                     type: string
                     description: Where it stands.
                     format: enum

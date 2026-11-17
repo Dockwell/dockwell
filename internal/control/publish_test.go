@@ -492,6 +492,57 @@ func TestTheCheckWithCloudflaredItCantRead(t *testing.T) {
 	}
 }
 
+// One tunnel or zone that can't be read never stops the drift timer: a token
+// Cloudflare refuses, and a tunnel deleted there, each mark the domain's row and the
+// rest is read; a 429 ends the tick (the review's M6).
+func TestDriftGoesOnPastWhatItCantRead(t *testing.T) {
+	t.Parallel()
+	s := newPublishStand(t)
+	s.applied(t, propose(t, s.person, "Publish wiki", s.published("wiki", "wiki.example.com")))
+	dc := dockwellv1connect.NewDomainServiceClient(s.b, s.b.origin, connect.WithProtoJSON())
+	stateOf := func() dockwellv1.PublishedState {
+		t.Helper()
+		listed, err := dc.ListDomains(t.Context(), connect.NewRequest(&dockwellv1.ListDomainsRequest{}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, d := range listed.Msg.GetDomains() {
+			if d.GetName() == "wiki.example.com" && len(d.GetPublished()) == 1 {
+				return d.GetPublished()[0].GetState()
+			}
+		}
+		t.Fatalf("no row for wiki: %v", listed.Msg.GetDomains())
+		return 0
+	}
+	drift := s.f.server.publisher.Drift
+
+	token := s.cf.Tokens[dnsToken]
+	s.cf.SetToken(dnsToken, nil)
+	if err := drift(t.Context()); err != nil {
+		t.Fatalf("a refused token: %v", err)
+	}
+	if got := stateOf(); got != dockwellv1.PublishedState_PUBLISHED_STATE_UNREADABLE {
+		t.Fatalf("with its token refused: %v", got)
+	}
+
+	s.cf.SetToken(dnsToken, &token)
+	s.cf.DeleteTunnel(webOne)
+	if err := drift(t.Context()); err != nil {
+		t.Fatalf("a deleted tunnel: %v", err)
+	}
+	if got := stateOf(); got != dockwellv1.PublishedState_PUBLISHED_STATE_TUNNEL_DELETED {
+		t.Fatalf("with its tunnel deleted: %v", got)
+	}
+
+	s.cf.Limit(func(string) bool { return true })
+	if err := drift(t.Context()); err == nil || !strings.Contains(err.Error(), "429") && !strings.Contains(err.Error(), "throttling") {
+		t.Fatalf("a 429: %v", err)
+	}
+	if got := stateOf(); got != dockwellv1.PublishedState_PUBLISHED_STATE_TUNNEL_DELETED {
+		t.Fatalf("a 429 marked the row: %v", got)
+	}
+}
+
 // A save in a stale dashboard tab takes the zone's rule out of the tunnel, and a
 // record is deleted by hand: the drift timer marks both, Activity says so, and the
 // domain's row says where it stands; proposing the route again puts it back (ADR

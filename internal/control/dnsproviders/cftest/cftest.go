@@ -94,6 +94,9 @@ type Tunnel struct {
 	// Connectors are the cloudflared runs that hold it, each with the addresses
 	// its connections came from.
 	Connectors []Connector
+	// Deleted says it was deleted: it still reads, with deleted_at, as Cloudflare's
+	// do, and its configuration answers 404 with 1055.
+	Deleted bool
 }
 
 // Connector is one run of cloudflared, by the ID its /ready gives.
@@ -489,8 +492,10 @@ func (a *API) tunnels(w http.ResponseWriter, r *http.Request, t Token, parts []s
 			fail(w, http.StatusBadRequest, 1022, "This tunnel has active connections. Please stop all cloudflared replicas, or wait a few minutes for connections to close, then try again.")
 			return
 		}
-		delete(a.Tunnels, tun.ID)
+		tun.Deleted = true
 		succeed(w, a.tunnelJSON(tun), nil)
+	case tun.Deleted && len(parts) == 2 && parts[1] == "configurations":
+		fail(w, http.StatusNotFound, 1055, "Tunnel not found")
 	case len(parts) == 2 && parts[1] == "connections" && r.Method == http.MethodGet:
 		var out []map[string]any
 		for _, c := range tun.Connectors {
@@ -543,7 +548,32 @@ func (a *API) tunnelJSON(t *Tunnel) map[string]any {
 	if len(t.Connectors) > 0 {
 		status = "healthy"
 	}
-	return map[string]any{"id": t.ID, "name": t.Name, "status": status, "config_src": src, "account_tag": Account}
+	out := map[string]any{"id": t.ID, "name": t.Name, "status": status, "config_src": src, "account_tag": Account, "deleted_at": nil}
+	if t.Deleted {
+		out["status"], out["deleted_at"] = "inactive", "2026-11-17T09:00:00Z"
+	}
+	return out
+}
+
+// SetToken sets what token may do while requests may be served; nil revokes it.
+func (a *API) SetToken(token string, t *Token) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if t == nil {
+		delete(a.Tokens, token)
+		return
+	}
+	a.Tokens[token] = *t
+}
+
+// DeleteTunnel deletes the tunnel id, as the dashboard does once its connections
+// closed.
+func (a *API) DeleteTunnel(id string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if t := a.Tunnels[id]; t != nil {
+		t.Deleted, t.Connectors = true, nil
+	}
 }
 
 // validate checks a document as Cloudflare does: a catch-all last and nowhere

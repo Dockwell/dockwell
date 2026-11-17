@@ -352,6 +352,11 @@ const (
 	// A tunnel's rule made by hand that points at the app's own port: Move it to
 	// Dockwell sends it through the server's proxy.
 	PublishedState_PUBLISHED_STATE_CAN_MOVE PublishedState = 7
+	// The tunnel that served it was deleted in Cloudflare.
+	PublishedState_PUBLISHED_STATE_TUNNEL_DELETED PublishedState = 8
+	// Dockwell can't read it: its DNS provider isn't connected, or Cloudflare refuses
+	// the token.
+	PublishedState_PUBLISHED_STATE_UNREADABLE PublishedState = 9
 )
 
 // Enum value maps for PublishedState.
@@ -365,6 +370,8 @@ var (
 		5: "PUBLISHED_STATE_TUNNEL_SHARED",
 		6: "PUBLISHED_STATE_CAN_TAKE_ON",
 		7: "PUBLISHED_STATE_CAN_MOVE",
+		8: "PUBLISHED_STATE_TUNNEL_DELETED",
+		9: "PUBLISHED_STATE_UNREADABLE",
 	}
 	PublishedState_value = map[string]int32{
 		"PUBLISHED_STATE_UNSPECIFIED":      0,
@@ -375,6 +382,8 @@ var (
 		"PUBLISHED_STATE_TUNNEL_SHARED":    5,
 		"PUBLISHED_STATE_CAN_TAKE_ON":      6,
 		"PUBLISHED_STATE_CAN_MOVE":         7,
+		"PUBLISHED_STATE_TUNNEL_DELETED":   8,
+		"PUBLISHED_STATE_UNREADABLE":       9,
 	}
 )
 
@@ -3363,7 +3372,7 @@ const file_dockwell_v1_domain_proto_rawDesc = "" +
 	"\x15CLOUDFLARE_NAME_TAKEN\x10\x02\x1a\x17\xa2\xbb\x18\x13Taken at Cloudflare\x12/\n" +
 	"\x14CLOUDFLARE_NAME_OURS\x10\x03\x1a\x15\xa2\xbb\x18\x11Already published\x12L\n" +
 	" CLOUDFLARE_NAME_PAST_CERTIFICATE\x10\x04\x1a&\xa2\xbb\x18\"Past Cloudflare's free certificate\x123\n" +
-	"\x17CLOUDFLARE_NAME_TAKE_ON\x10\x05\x1a\x16\xa2\xbb\x18\x12Made in Cloudflare*\xef\x03\n" +
+	"\x17CLOUDFLARE_NAME_TAKE_ON\x10\x05\x1a\x16\xa2\xbb\x18\x12Made in Cloudflare*\x87\x05\n" +
 	"\x0ePublishedState\x12\x1f\n" +
 	"\x1bPUBLISHED_STATE_UNSPECIFIED\x10\x00\x12,\n" +
 	"\x19PUBLISHED_STATE_PUBLISHED\x10\x01\x1a\r\xa2\xbb\x18\tPublished\x12D\n" +
@@ -3372,7 +3381,9 @@ const file_dockwell_v1_domain_proto_rawDesc = "" +
 	"\x17PUBLISHED_STATE_CHANGED\x10\x04\x1a\x19\xa2\xbb\x18\x15Changed in Cloudflare\x12L\n" +
 	"\x1dPUBLISHED_STATE_TUNNEL_SHARED\x10\x05\x1a)\xa2\xbb\x18%Its tunnel runs on another server too\x127\n" +
 	"\x1bPUBLISHED_STATE_CAN_TAKE_ON\x10\x06\x1a\x16\xa2\xbb\x18\x12Made in Cloudflare\x12>\n" +
-	"\x18PUBLISHED_STATE_CAN_MOVE\x10\a\x1a \xa2\xbb\x18\x1cPoints at the app's own port*\x95\x01\n" +
+	"\x18PUBLISHED_STATE_CAN_MOVE\x10\a\x1a \xa2\xbb\x18\x1cPoints at the app's own port\x12L\n" +
+	"\x1ePUBLISHED_STATE_TUNNEL_DELETED\x10\b\x1a(\xa2\xbb\x18$Its tunnel was deleted in Cloudflare\x12H\n" +
+	"\x1aPUBLISHED_STATE_UNREADABLE\x10\t\x1a(\xa2\xbb\x18$Dockwell can't read it at Cloudflare*\x95\x01\n" +
 	"\x0eIngressProblem\x12\x1f\n" +
 	"\x1bINGRESS_PROBLEM_UNSPECIFIED\x10\x00\x12\x1f\n" +
 	"\x1bINGRESS_PROBLEM_PORTS_TAKEN\x10\x01\x12 \n" +

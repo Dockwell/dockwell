@@ -154,8 +154,17 @@ func (s *signals) unpublished(ctx context.Context, r rule) ([]finding, error) {
 	for i := range rules {
 		r := &rules[i]
 		f := add("cloudflare-tunnel:"+r.TunnelID+":"+r.Zone, finding{subjectID: r.TunnelID, subjectName: r.Zone})
-		if r.State != store.CloudflarePublished && f.verdict == fine {
-			f.verdict = holds
+		if r.State == store.CloudflarePublished || f.verdict != fine {
+			continue
+		}
+		f.verdict = holds
+		switch r.State {
+		case store.CloudflareTunnelDeleted:
+			f.title = "The tunnel that served " + r.Zone + " was deleted in Cloudflare"
+			f.detail = "Every domain in " + r.Zone + " published through it can't be reached. Publish them another way from Domains."
+		case store.CloudflareUnreadable:
+			f.title, f.detail = cantRead(r.Zone)
+		default:
 			f.title = r.Hostname + " is gone from its tunnel"
 			f.detail = "Every domain in " + r.Zone + " published through it can't be reached. Put it back from Domains."
 		}
@@ -166,17 +175,28 @@ func (s *signals) unpublished(ctx context.Context, r rule) ([]finding, error) {
 			continue
 		}
 		f := add("cloudflare-dns:"+r.ZoneID, finding{subjectID: r.ZoneID, subjectName: r.Zone})
-		if r.State != store.CloudflarePublished && f.verdict == fine {
-			f.verdict = holds
-			f.title = "A DNS record Dockwell wrote in " + r.Zone + " is gone"
-			f.detail = r.Name + "'s record was removed or changed in Cloudflare, so it may not reach its app. Put it back from Domains."
+		if r.State == store.CloudflarePublished || f.verdict != fine {
+			continue
 		}
+		f.verdict = holds
+		if r.State == store.CloudflareUnreadable {
+			f.title, f.detail = cantRead(r.Zone)
+			continue
+		}
+		f.title = "A DNS record Dockwell wrote in " + r.Zone + " is gone"
+		f.detail = r.Name + "'s record was removed or changed in Cloudflare, so it may not reach its app. Put it back from Domains."
 	}
 	out := make([]finding, 0, len(order)+len(replaced))
 	for _, thing := range order {
 		out = append(out, *byThing[thing])
 	}
 	return append(out, replaced...), nil
+}
+
+// cantRead is the alert's words for a zone Dockwell can't read at Cloudflare.
+func cantRead(zone string) (title, detail string) {
+	return "Dockwell can't read " + zone + " at Cloudflare",
+		"Its DNS provider isn't connected, or Cloudflare refuses its token, so whether its domains reach their apps isn't known. Check the provider under Integrations."
 }
 
 // editsReplaced are edits made in Cloudflare that a write of Dockwell's replaced, in

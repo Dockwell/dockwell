@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // What publishing a domain asks of Cloudflare beyond DNS-01's TXT records: a
@@ -227,6 +228,15 @@ type Tunnel struct {
 	// API, and "local" for one whose routes are a file on its server.
 	ConfigSource string `json:"config_src"`
 	AccountTag   string `json:"account_tag"`
+	// DeletedAt is set on a tunnel deleted in Cloudflare, which still reads.
+	DeletedAt *time.Time `json:"deleted_at"`
+}
+
+// TunnelGone says Cloudflare answered that a tunnel isn't there: deleted, its
+// configuration read answers 404 with 1055, and one never there 1003.
+func TunnelGone(err error) bool {
+	var api *APIError
+	return errors.As(err, &api) && (api.Status == http.StatusNotFound || api.Code == 1055 || api.Code == 1003)
 }
 
 // TunnelByID reads one tunnel of account.

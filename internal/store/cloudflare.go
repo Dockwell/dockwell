@@ -20,6 +20,11 @@ const (
 	CloudflarePublished = "published"
 	CloudflareGone      = "gone"
 	CloudflareChanged   = "changed"
+	// CloudflareTunnelDeleted is a rule whose tunnel was deleted in Cloudflare.
+	CloudflareTunnelDeleted = "tunnel_deleted"
+	// CloudflareUnreadable is what Dockwell can't read: its provider isn't connected
+	// any more, or Cloudflare refuses the token.
+	CloudflareUnreadable = "unreadable"
 )
 
 // CloudflareRecord is a DNS record Dockwell wrote or took on, as it wrote it.
