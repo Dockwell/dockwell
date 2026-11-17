@@ -733,6 +733,12 @@ func standsAlone(cf *composeFile, name string, inEnv bool) error {
 		}
 		if key != "services" {
 			if err := walk(top[key]); err != nil {
+				// A YAML extension a service merges in, such as a shared environment,
+				// says where it is: Dockwell writes such a value from a template only in
+				// a service's own environment (#570's review, L1).
+				if strings.HasPrefix(key, "x-") {
+					return fmt.Errorf("the secret %s is inside a longer value in %s, a YAML extension a service merges in, where Dockwell can't write it from a template. Write the value into each service's environment", name, key)
+				}
 				return err
 			}
 			continue

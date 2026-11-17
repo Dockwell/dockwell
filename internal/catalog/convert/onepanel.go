@@ -117,7 +117,7 @@ func onePanelApps(ctx context.Context, t *tree, root string) ([]App, error) {
 			return nil, err
 		}
 		if d.IsDir() {
-			out = append(out, onePanelRead(t, d.Name()))
+			out = append(out, readSafely(d.Name(), path.Join("apps", d.Name()), func() App { return onePanelRead(t, d.Name()) }))
 		}
 	}
 	if len(out) == 0 {

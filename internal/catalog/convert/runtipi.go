@@ -100,7 +100,7 @@ func runtipiApps(ctx context.Context, t *tree, root string) ([]App, error) {
 			return nil, err
 		}
 		if d.IsDir() && t.isFile(path.Join("apps", d.Name(), "config.json")) {
-			out = append(out, runtipiRead(t, d.Name()))
+			out = append(out, readSafely(d.Name(), path.Join("apps", d.Name()), func() App { return runtipiRead(t, d.Name()) }))
 		}
 	}
 	if len(out) == 0 {

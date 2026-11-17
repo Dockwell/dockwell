@@ -123,6 +123,32 @@ The catalog's check lets such a value through:
 
 Dokploy's count takes in LibreChat too: its config holds `$${OPENROUTER_KEY}`, a `$` of its own the app reads from its environment, which the check now reads as Compose does, not as the secret written in.
 
+#### A value Dokploy makes up inside a longer one
+
+*Added with the next slice of #570, 16 Nov 2026.*
+
+Dokploy's converter left out a template that makes up a value inside a longer one in the app's environment, before the catalog's check saw it. That's 54 of its apps, such as calcom's `database_url = "postgresql://calcom:${postgres_password}@postgres:5432/calendso"` and snipe-it's `APP_KEY = "base64:${app_key}"`.
+
+- **The converter hands it on.** The value made up inside is an input of its own, which the longer value names, `${POSTGRES_PASSWORD}`. The catalog then writes the longer value from a template, as above.
+- **Which input:** the one a value of its own already is, as `POSTGRES_PASSWORD=${postgres_password}` beside the URL. Otherwise a new one under the variable's name, with `_SECRET` after it where that's taken, so snipe-it's key is `APP_KEY_SECRET` and its `APP_KEY` is the secret the app reads. A helper written inline is named for the value or variable it's in and for what it makes, so `ADMIN=${email}:${password:16}` asks for `ADMIN_EMAIL` and generates `ADMIN_PASSWORD`, and silverbullet's `SB_USER=admin:${password}` reads `SB_USER_PASSWORD`. A variable is one value however many values use it, as Dokploy works it out once.
+- **Generated as the template asks:** `${password:32}` 32 letters and digits, `${hash:32}` 32 hex digits, `${base64:32}` 32 bytes in base64.
+- **A short value is an identifier, not a secret.** A value made up inside a longer one that asks for fewer than 16 characters, and a `${hash:N}` under 16 anywhere, leaves the app out. Dockwell generates a secret of at least 16, and inside a value its length is part of what the app reads: akaunting's `${hash:3}_` is a table prefix, which at 16 hex digits makes an index name longer than MySQL takes. Nor is a prefix something a person may rotate.
+- **Encoded only in a URL,** by the template's rule above: `base64:${APP_KEY_SECRET}` is a line of text, so a key's `+`, `/` and `=` stay as they are.
+- **A variable the Compose file names itself,** as `TZ=${timezone}` or `DATABASE_URL=${db_url}`, comes to what Dokploy writes for it, as a value of the template's environment does. Before, it was never worked out, and became an empty input of its own lowercase name, which the catalog's check refused (linkstack) or left a person to fill.
+  - **A plain value is a person's to set,** such as syncthing's time zone, confluence's and geoserver's memory sizes, geoserver's database name, and mediafetch's public URL and output folder. It stays an input under the name an install had it by before, `UPPER(name)`, with the template's value as its default, and in the file where it's left empty: `TZ=${TIMEZONE:-America/Sao_Paulo}`. So an upgrade carries what a person set.
+  - **A secret the template writes out,** such as geoserver's `geoserver_secure`, is generated, as any written-out secret is. A domain it routes is the app's address, as before.
+- **A licence key is no value Dockwell makes.** A value made up for a key or variable named for a licence leaves the app out: fivem's template makes up `license_key`, where FiveM needs the key Cfx.re's keymaster issues, so a generated one would read as done while the server refuses it.
+- **Still left out:** a value made up inside a file the template mounts, as a file isn't written from a template.
+- **Tests:** apps shaped as calcom's, plane's and snipe-it's install from a Dokploy repository. A password of every character a URL treats apart parses back out of each URL, a generated one too, and a key of `+`, `/` and `=` reaches `APP_KEY` as it is.
+
+Dokploy goes from 432 to 467 of 612: 34 of the 54, and linkstack, whose Compose file names the template's variables itself. The other 20 of the 54 stop at a second reason:
+- **A YAML extension, 2:** the value is in a top-level extension, such as `x-chatwoot-base`, that a service's environment merges in, where Dockwell writes no value from a template (chatwoot, shopware). The reason names the extension and the template's own value.
+- **The catalog's own check, 1:** JSON (dokploy-prom-monitoring-extension).
+- **A value made up into a file too, 3:** livekit, pre0-22-5-supabase and wazuh.
+- **Compose Dockwell can't run yet, 4:** a variable with no value (calcom, peerdb), `links` (plane), and three replicas (windmill).
+- **What an entry can't say yet, 5:** an ID that starts with a digit (3dokploy), `build` (brightbean-studio), a bind outside the app's folder (ethora-core), a folder inside another (fonoster), and an image from a variable (triggerdotdev).
+- **A value Dockwell doesn't make yet, 5:** a random port (teable), a UUID (trypost), a table prefix of 3 hex digits (akaunting), and an instance's ID of 8 (puppetflow, puppetflow-postgres).
+
 The ones still out:
 - **Not one URL or a line of text:** GitLab's two omnibus configs and HyperDX's JSON.
 - **Outside a service's environment:** 1Panel's cloudreve, and Dokploy's dify, openpanel and reloop.

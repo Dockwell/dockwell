@@ -7,10 +7,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"maps"
 	"net/url"
 	"path"
 	"regexp"
+	"runtime/debug"
 	"slices"
 	"strings"
 	"time"
@@ -118,8 +120,18 @@ func readLeftOut(raw []byte, format string) (leftOutRecord, bool) {
 // its adapter reads, converts it, and returns what's kept of it: each entry as
 // <id>.yaml, and leftOutFile; and with a third round, the logos of the apps that
 // convert, by the names they're kept by in the folder media (storeIcons).
-func (s *Sources) convertOne(ctx context.Context, spec *resourcev1.CatalogSource) (map[string][]byte, map[string][]byte, error) {
+func (s *Sources) convertOne(ctx context.Context, spec *resourcev1.CatalogSource) (_, _ map[string][]byte, err error) {
 	store, _ := convert.StoreOf(formatOf(spec))
+	// A store is a stranger's, read with nobody watching once a source follows a
+	// branch: whatever reading it stops on leaves this commit unread, saying so, and
+	// never stops the control plane (#570's review, H1).
+	defer func() {
+		if p := recover(); p != nil {
+			s.log().ErrorContext(ctx, "reading a catalog source stopped on what Dockwell didn't expect, so its commit isn't read",
+				slog.String("url", spec.GetRepository()), slog.String("commit", spec.GetCommit()), slog.String("panic", fmt.Sprint(p)), slog.String("stack", string(debug.Stack())))
+			err = fmt.Errorf("reading it as %s stopped on what Dockwell didn't expect (%v)", store.Name, p)
+		}
+	}()
 	// Fetching and converting each have a budget of their own, so a slow host leaves
 	// converting its time, and a heavy commit can't take the fetch's.
 	parent := ctx
@@ -133,9 +145,19 @@ func (s *Sources) convertOne(ctx context.Context, spec *resourcev1.CatalogSource
 	src, snap, byPath := got.Source, got.Snapshot, got.ByPath
 	converting, done := context.WithTimeout(parent, convertWait)
 	defer done()
-	run, err := convert.OnServer(converting, store, got.Listing, src, got.Time, s.releaseBefore(spec))
+	onServer := s.OnServer
+	if onServer == nil {
+		onServer = convert.OnServer
+	}
+	run, err := onServer(converting, store, got.Listing, src, got.Time, s.releaseBefore(spec))
 	if err != nil {
 		return nil, nil, fmt.Errorf("reading it as %s: %w", store.Name, err)
+	}
+	for i := range run.Results {
+		if r := &run.Results[i]; r.Panic != "" {
+			s.log().ErrorContext(ctx, "reading a catalog source's app stopped on what Dockwell didn't expect, so the app is left out",
+				slog.String("url", spec.GetRepository()), slog.String("commit", spec.GetCommit()), slog.String("app", r.Path), slog.String("panic", r.Panic))
+		}
 	}
 	images := storeMedia(ctx, snap, run, byPath, func(file string) string {
 		return cmp.Or(fileAt(spec.GetRepository(), spec.GetCommit(), file), repositoryPage(spec.GetRepository()))
@@ -664,4 +686,12 @@ type Digests interface {
 func (h *Handler) PinWith(d Digests) *Handler {
 	h.digests = d
 	return h
+}
+
+// log is the logger New gave, or the default for Sources no handler has.
+func (s *Sources) log() *slog.Logger {
+	if s.logger == nil {
+		return slog.Default()
+	}
+	return s.logger
 }

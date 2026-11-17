@@ -96,7 +96,7 @@ func dokployApps(ctx context.Context, t *tree, root string) ([]App, error) {
 			return nil, err
 		}
 		if d.IsDir() {
-			out = append(out, dokployRead(t, d.Name()))
+			out = append(out, readSafely(d.Name(), path.Join("blueprints", d.Name()), func() App { return dokployRead(t, d.Name()) }))
 		}
 	}
 	if len(out) == 0 {
@@ -135,6 +135,14 @@ func dokployRead(t *tree, name string) App {
 	var tmpl dokployTemplate
 	if _, err := toml.Decode(string(raw), &tmpl); err != nil {
 		app.LeftOut, app.Class = "reading its template.toml: "+err.Error(), ClassFile
+		return app
+	}
+	// A NUL is no part of any value, and the converter marks what it makes up inside
+	// a longer value with them, so a template that writes one, as TOML's \u0000, is
+	// left out before anything's worked out (#570's review, H1).
+	var all any
+	if _, err := toml.Decode(string(raw), &all); err != nil || holdsNUL(all) {
+		app.LeftOut, app.Class = "its template.toml holds a NUL character, which no value has", ClassFile
 		return app
 	}
 	shipped, err := t.shipped(at)
@@ -231,6 +239,7 @@ func dokployCompose(file []byte, t *dokployTemplate) ([]byte, []Field, map[strin
 	for _, kv := range env {
 		keys = append(keys, kv[0])
 		key, value := kv[0], kv[1]
+		ev.key = key
 		text, made, err := ev.value(value)
 		if err != nil {
 			return nil, nil, nil, fmt.Errorf("its template's %s %w", key, err)
@@ -244,6 +253,9 @@ func dokployCompose(file []byte, t *dokployTemplate) ([]byte, []Field, map[strin
 				f.Kind = Secret
 			}
 			fields = append(fields, f)
+		case made == nil && insideMarks.MatchString(text):
+			// What it makes up inside it is an input of its own (named below).
+			literal[key] = localHTTP(text)
 		case made == nil:
 			if literal[key], err = writtenOut(key, localHTTP(text)); err != nil {
 				return nil, nil, nil, err
@@ -253,6 +265,9 @@ func dokployCompose(file []byte, t *dokployTemplate) ([]byte, []Field, map[strin
 		case !inputLike.MatchString(key):
 			return nil, nil, nil, leave(ClassCantSay, "its template's %s makes up a value, under a name an entry's input can't take", key)
 		default:
+			if err := licenceKey(made.field, key, made.id); err != nil {
+				return nil, nil, nil, fmt.Errorf("its template's %s %w", key, err)
+			}
 			claimed[made.id] = key
 			f := made.field
 			f.Name, f.Label = key, labelOf(key)
@@ -273,14 +288,40 @@ func dokployCompose(file []byte, t *dokployTemplate) ([]byte, []Field, map[strin
 		}
 	})
 	for _, name := range slices.Sorted(maps.Keys(direct)) {
-		text, made, err := ev.expand("${"+name+"}", name, 0)
+		ev.key = strings.ToUpper(name)
+		// The variable's own value, worked out with the variable as its holder, as the
+		// environment's values are; "${name}" with name as its holder never was
+		// (#570's review, L3).
+		text, made, err := ev.expand(fmt.Sprint(t.Variables[name]), name, 0)
 		switch {
 		case err != nil:
 			return nil, nil, nil, fmt.Errorf("its template's %s %w", name, err)
+		case made == nil && insideMarks.MatchString(text):
+			literal[name] = localHTTP(text)
 		case made == nil:
-			if literal[name], err = writtenOut(name, localHTTP(text)); err != nil {
+			written, err := writtenOut(name, localHTTP(text))
+			if err != nil {
 				return nil, nil, nil, err
 			}
+			literal[name] = written
+			// A plain value of the template's is a person's to set, as a time zone or
+			// a memory size is: an input under the name an install made before this
+			// had it by, so an upgrade carries what they set, with the template's value
+			// as its default, and in the file where they leave it empty (#570's
+			// re-check, H-A). A secret the template writes out is generated, as above.
+			// A domain the template routes is the address the app answers at, as
+			// before.
+			input := strings.ToUpper(name)
+			_, host := ev.hosts[name]
+			if host || written != localHTTP(text) || !inputLike.MatchString(input) || slices.ContainsFunc(fields, func(f Field) bool { return f.Name == input }) {
+				break
+			}
+			f := Field{Name: input, Label: labelOf(input), Kind: Text, Optional: true}
+			if !strings.Contains(written, "$") {
+				f.Default = written
+			}
+			literal[name] = "${" + input + ":-" + written + "}"
+			fields = append(fields, f)
 		case claimed[made.id] != "":
 			literal[name] = "${" + claimed[made.id] + "}"
 		default:
@@ -288,11 +329,76 @@ func dokployCompose(file []byte, t *dokployTemplate) ([]byte, []Field, map[strin
 			if !inputLike.MatchString(input) {
 				return nil, nil, nil, leave(ClassCantSay, "its template's %s makes up a value, under a name an entry's input can't take", name)
 			}
+			if err := licenceKey(made.field, name); err != nil {
+				return nil, nil, nil, fmt.Errorf("its template's %s %w", name, err)
+			}
 			claimed[made.id] = input
 			literal[name] = "${" + input + "}"
 			f := made.field
 			f.Name = input
 			fields = append(fields, f)
+		}
+	}
+	// Each value made up inside a longer one is an input: the one a value of its own
+	// already is, as POSTGRES_PASSWORD=${postgres_password} is beside a URL that holds
+	// it, or one of its own, generated as the template asks (${base64:32} 32 bytes in
+	// base64), under its variable's name, or the name of the value it was made in,
+	// with _SECRET after it where that's taken. The longer value names it, and the
+	// catalog writes it from a template (#570).
+	var insideNames [][2]string // each input a longer value names, and the template's own word for it
+	if len(ev.inside) > 0 {
+		used := usedNames(doc.Content[0])
+		for _, k := range keys {
+			used[k] = true
+		}
+		for _, f := range fields {
+			used[f.Name] = true
+		}
+		names := make([]string, len(ev.inside))
+		for i, m := range ev.inside {
+			word := m.id
+			if strings.ContainsRune(m.id, 0) {
+				word = m.near
+			}
+			if names[i] = claimed[m.id]; names[i] != "" {
+				insideNames = append(insideNames, [2]string{names[i], word})
+				continue
+			}
+			base, other := strings.ToUpper(m.id), strings.ToUpper(m.id)+"_SECRET"
+			if strings.ContainsRune(m.id, 0) {
+				// A helper written inline is named for the variable or the value it's
+				// written in, and for what it makes: ADMIN=${email}:${password:16}
+				// makes ADMIN_EMAIL and ADMIN_PASSWORD (#570's review, L2).
+				base = strings.ToUpper(m.near) + "_" + strings.ToUpper(m.field.Label)
+				other = base
+			}
+			if !inputLike.MatchString(base) {
+				return nil, nil, nil, leave(ClassCantSay, "its template makes up a value inside a longer one, under a name an entry's input can't take")
+			}
+			// APP_KEY=base64:${app_key} makes APP_KEY_SECRET, the secret part of the
+			// app's APP_KEY, where the value's own name is taken.
+			names[i] = freeName(base, used, other)
+			claimed[m.id] = names[i]
+			insideNames = append(insideNames, [2]string{names[i], word})
+			f := m.field
+			f.Name, f.Label = names[i], labelOf(names[i])
+			fields = append(fields, f)
+		}
+		for k, v := range literal {
+			var stray bool
+			literal[k] = insideMarks.ReplaceAllStringFunc(v, func(mark string) string {
+				i, err := strconv.Atoi(insideMarks.FindStringSubmatch(mark)[1])
+				if err != nil || i >= len(names) {
+					stray = true
+					return mark
+				}
+				return "${" + names[i] + "}"
+			})
+			// Only the converter writes a mark; any other leaves the app out, never a
+			// value read past the end of names (#570's review, H1).
+			if stray {
+				return nil, nil, nil, leave(ClassFile, "its template's %s holds a NUL character, which no value has", k)
+			}
 		}
 	}
 	// A folder Dokploy keeps beside a template, in its files folder, which the app
@@ -319,6 +425,9 @@ func dokployCompose(file []byte, t *dokployTemplate) ([]byte, []Field, map[strin
 		// loopback until a person adds one.
 		n.Value = localHTTP(n.Value)
 	})
+	if err := insideExtension(doc.Content[0], insideNames); err != nil {
+		return nil, nil, nil, err
+	}
 	// A variable the template doesn't set, which Dokploy lets a person set.
 	asked := askedFields(doc.Content[0], fields)
 	walkScalars(doc.Content[0], func(n *yaml.Node) {
@@ -335,13 +444,40 @@ func dokployCompose(file []byte, t *dokployTemplate) ([]byte, []Field, map[strin
 		switch {
 		case err != nil:
 			return nil, nil, nil, fmt.Errorf("its template's file %s: %w", m.path, err)
-		case made != nil:
+		case made != nil || insideMarks.MatchString(text):
 			return nil, nil, nil, leave(ClassInside, "its template writes a value it makes up into its file %s, which an upgrade and a rotation couldn't reach", m.path)
 		}
 		files[m.path] = text
 	}
 	out, err := encodeFile(doc)
 	return out, fields, files, err
+}
+
+// insideExtension refuses a value with one made up inside it that lands in a YAML
+// extension at the file's top, such as chatwoot's x-chatwoot-base, which a service's
+// environment merges in: the catalog writes such a value from a template only in a
+// service's own environment, so it says where the value is and which of the
+// template's values it is, rather than a name the converter made (#570's review, L1).
+func insideExtension(root *yaml.Node, inside [][2]string) error {
+	for i := 0; i+1 < len(root.Content); i += 2 {
+		key := root.Content[i].Value
+		if !strings.HasPrefix(key, "x-") {
+			continue
+		}
+		var hit string
+		walkScalars(root.Content[i+1], func(n *yaml.Node) {
+			for _, in := range inside {
+				ref := "${" + in[0] + "}"
+				if v := strings.TrimSpace(n.Value); hit == "" && strings.Contains(v, ref) && v != ref && !strings.HasSuffix(v, "="+ref) {
+					hit = in[1]
+				}
+			}
+		})
+		if hit != "" {
+			return leave(ClassInside, "its template puts a value it makes up, %s, inside a longer one in %s, a YAML extension a service's environment merges in, where Dockwell can't write it from a template", hit, key)
+		}
+	}
+	return nil
 }
 
 // A dokployMount is a file a template writes into its files folder, which its
@@ -440,6 +576,9 @@ type made struct {
 	// id is what makes two uses of it one value: the variable it's held in.
 	id    string
 	field Field
+	// near is the variable, or else the key of the environment's value, it was
+	// made inline in, which names its input.
+	near string
 }
 
 // dokployEval works out what a template's values come to.
@@ -450,11 +589,62 @@ type dokployEval struct {
 	hosts     map[string]string
 	firstHost string
 	inline    int
+	// inside are the values made up inside a longer one, in the order met, each
+	// written there as insideMark(i) until dokployCompose names the input it becomes.
+	inside []*made
 	// calls and written are the work its values have taken so far: how many times a
 	// variable was worked out, and how many bytes that wrote, each bounded, as
 	// variables that each name another ten times stand for gigabytes in a template of
 	// a few hundred bytes.
 	calls, written int
+	// key is the value of the template's environment being worked out.
+	key string
+}
+
+// insideMark stands in a value for the i-th value made up inside a longer one, until
+// it's named. A template that holds a NUL itself, as TOML's \u0000 writes one, is left
+// out before it's read (holdsNUL), so a mark is the converter's own.
+func insideMark(i int) string { return "\x00inside" + strconv.Itoa(i) + "\x00" }
+
+var insideMarks = regexp.MustCompile(`\x00inside(\d+)\x00`)
+
+// holdsNUL says a decoded template holds a NUL, in a key or a value, at any depth.
+func holdsNUL(v any) bool {
+	switch v := v.(type) {
+	case string:
+		return strings.ContainsRune(v, 0)
+	case map[string]any:
+		for k, x := range v {
+			if strings.ContainsRune(k, 0) || holdsNUL(x) {
+				return true
+			}
+		}
+	case []any:
+		for _, x := range v {
+			if holdsNUL(x) {
+				return true
+			}
+		}
+	case []map[string]any:
+		for _, x := range v {
+			if holdsNUL(x) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// mark is the mark of a value made up inside a longer one, the same for each use of
+// one variable.
+func (ev *dokployEval) mark(m *made) string {
+	for i, had := range ev.inside {
+		if had.id == m.id {
+			return insideMark(i)
+		}
+	}
+	ev.inside = append(ev.inside, m)
+	return insideMark(len(ev.inside) - 1)
 }
 
 // What working out one template's values may take: a value is a variable's text, a
@@ -523,7 +713,9 @@ func (ev *dokployEval) expandOnce(expr, holder string, depth int) (string, *made
 			id := holder
 			if id == "" {
 				ev.inline++
-				id = "inline " + strconv.Itoa(ev.inline)
+				// A NUL first, as no template's key has one (holdsNUL), so no variable
+				// named "inline 1" shares it (#570's re-check, N3).
+				id = "\x00inline " + strconv.Itoa(ev.inline)
 			}
 			return "", &made{id: id, field: f}, nil
 		}
@@ -532,6 +724,7 @@ func (ev *dokployEval) expandOnce(expr, holder string, depth int) (string, *made
 		}
 	}
 	var failed error
+	helpers := 0
 	text := token.ReplaceAllStringFunc(expr, func(t string) string {
 		name := t[2 : len(t)-1]
 		if address, ok := ev.hosts[name]; ok {
@@ -546,20 +739,83 @@ func (ev *dokployEval) expandOnce(expr, holder string, depth int) (string, *made
 			case err != nil:
 				failed = err
 			case m != nil:
-				failed = leave(ClassInside, "puts a value it makes up, %s, inside a longer one, which an upgrade and a rotation couldn't reach", name)
+				// Made up inside a longer value, as a connection URL holds its
+				// password: an input of its own, which the value names (#570).
+				if err := shortInside(m.field); err != nil {
+					failed = err
+					return t
+				}
+				return ev.mark(m)
 			}
 			return s
 		}
 		if f, ok, err := helper(name); ok || err != nil {
-			if err == nil && f.Kind == Text {
+			switch {
+			case err != nil:
+				failed = err
+			case f.Kind == Text:
 				// A user's name inside a longer value, which is no secret.
 				return f.Default
+			case shortInside(f) != nil:
+				failed = shortInside(f)
+			default:
+				helpers++
+				m := &made{field: f, near: ev.key}
+				if holder != "" {
+					// Written inside a variable, it's the variable's, which Dokploy works
+					// out once: each use of the variable reads the one value, by its place
+					// in the variable's text (#570's review, H2). A NUL is in no
+					// template's key (holdsNUL), so the id is no variable's.
+					m.id, m.near = holder+"\x00"+strconv.Itoa(helpers), holder
+				} else {
+					ev.inline++
+					m.id = "\x00inline " + strconv.Itoa(ev.inline)
+				}
+				return ev.mark(m)
 			}
-			failed = cmp.Or(err, leave(ClassInside, "puts a value it makes up inside a longer one, which an upgrade and a rotation couldn't reach"))
 		}
 		return t
 	})
 	return text, nil, failed
+}
+
+// licenceKey refuses a value made up for a licence key, as fivem's template makes one
+// for the key Cfx.re issues: only the app's vendor issues a licence key, so one
+// Dockwell generates would read as done while the app refuses it (#570's re-check,
+// N1). names are the value's names, the template's and the environment's.
+func licenceKey(f Field, names ...string) error {
+	if f.Kind != Generated {
+		return nil
+	}
+	for _, n := range names {
+		if u := strings.ToUpper(n); strings.Contains(u, "LICENSE") || strings.Contains(u, "LICENCE") {
+			return leave(ClassMadeUp, "makes up a licence key, which only the app's vendor issues, so the app would refuse one Dockwell generates")
+		}
+	}
+	return nil
+}
+
+// minMadeUp is the fewest characters, or bytes in base64, a value made up inside a
+// longer one may ask for, as Dockwell generates a secret of at least as many.
+const minMadeUp = 16
+
+// shortInside refuses a value made up inside a longer one that asks for fewer than
+// minMadeUp: Dockwell would generate it longer than the app expects, as a password
+// whole may be, but inside a value its length is part of what the app reads, as a
+// table prefix's is (#570's review, H3).
+func shortInside(f Field) error {
+	if f.Kind != Generated || f.Length == 0 || f.Length >= minMadeUp {
+		return nil
+	}
+	unit := "characters"
+	switch f.As {
+	case catalogv1.GenerateAs_GENERATE_AS_HEX:
+		unit = "hex digits"
+	case catalogv1.GenerateAs_GENERATE_AS_BASE64:
+		unit = "bytes in base64"
+	case catalogv1.GenerateAs_GENERATE_AS_UNSPECIFIED:
+	}
+	return leave(ClassMadeUp, "makes up %d %s inside a longer value, fewer than the %d of a secret Dockwell generates, so the value would come out longer than the app reads", f.Length, unit, minMadeUp)
 }
 
 // helper reads one of Dokploy's helpers for a value it makes up.
@@ -579,6 +835,12 @@ func helper(call string) (Field, bool, error) {
 	case "password":
 		return Field{Label: "Password", Kind: Generated, Length: n}, true, nil
 	case "hash":
+		if n > 0 && n < minMadeUp {
+			// A few hex digits are an identifier, such as akaunting's table prefix or an
+			// instance's ID, not a secret a person may rotate, and a secret Dockwell
+			// generates is longer than the app expects (#570's review, H3).
+			return Field{}, true, leave(ClassMadeUp, "makes up %d hex digits, an identifier such as a table prefix or an instance's ID rather than a secret, which Dockwell doesn't make yet", n)
+		}
 		return Field{Label: "Key", Kind: Generated, Length: n, As: catalogv1.GenerateAs_GENERATE_AS_HEX}, true, nil
 	case "base64":
 		return Field{Label: "Key", Kind: Generated, Length: n, As: catalogv1.GenerateAs_GENERATE_AS_BASE64}, true, nil

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -260,4 +261,57 @@ func communitySource(t *testing.T, cat dockwellv1connect.CatalogServiceClient) *
 	}
 	t.Fatalf("no source community in %v", res.Msg.GetSources())
 	return nil
+}
+
+// A look at a source that panics is logged with the source's name, its state says
+// so, and the follow loop carries on: another source still moves as its branch moved,
+// and the control plane never stops (#570's review, H1). A source is a stranger's
+// repository, read with nobody watching.
+func TestALookThatPanicsLeavesTheFollowLoopRunning(t *testing.T) {
+	every, first, tick := catalogapi.FollowEvery, catalogapi.FollowFirst, catalogapi.FollowTick
+	catalogapi.FollowEvery, catalogapi.FollowFirst, catalogapi.FollowTick = 50*time.Millisecond, 0, 20*time.Millisecond
+	t.Cleanup(func() { catalogapi.FollowEvery, catalogapi.FollowFirst, catalogapi.FollowTick = every, first, tick })
+	broken, fine := gitfetchtest.New(t), gitfetchtest.New(t)
+	broken.Commit(map[string]string{"notes-src.yaml": sourceEntry("notes-src", 1)})
+	fine.Commit(map[string]string{"other-src.yaml": sourceEntry("other-src", 1)})
+	logs := &syncBuffer{}
+	f := startFullConfig(t, store.SQLite, nil, slog.New(slog.NewTextHandler(logs, nil)), nil, logapi.Options{}, func(c *Config) { c.CatalogFollow = true })
+	var panicked atomic.Bool
+	f.server.catalogs.BeforeLook(func(name string) {
+		if name == "community" {
+			panicked.Store(true)
+			panic("index out of range [7] with length 1")
+		}
+	})
+	b := signedIn(t, f)
+	c := changeClient(b, b.origin)
+	cat := catalogClient(b)
+	for name, repo := range map[string]*gitfetchtest.Repo{"community": broken, "other": fine} {
+		res, err := cat.SetCatalogSource(t.Context(), connect.NewRequest(&dockwellv1.SetCatalogSourceRequest{Name: name, Repository: repo.URL, Follow: "main"}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		apply(t, c, res.Msg.GetChange())
+	}
+	waitFor(t, "a look at community that panics", panicked.Load)
+	two := fine.Commit(map[string]string{"other-src.yaml": sourceEntry("other-src", 2)})
+	other := func() *dockwellv1.CatalogSourceInfo {
+		res, err := cat.ListCatalogSources(t.Context(), connect.NewRequest(&dockwellv1.ListCatalogSourcesRequest{}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, s := range res.Msg.GetSources() {
+			if s.GetName() == "other" {
+				return s
+			}
+		}
+		return nil
+	}
+	waitFor(t, "other to follow main after community's look panicked", func() bool { return other().GetSource().GetCommit() == two })
+	if p := communitySource(t, cat).GetProblem(); !strings.Contains(p, "stopped on what Dockwell didn't expect") {
+		t.Errorf("community's state says %q", p)
+	}
+	if got := logs.String(); !strings.Contains(got, "looking at a catalog source stopped on what Dockwell didn't expect") || !strings.Contains(got, "source=community") {
+		t.Errorf("the log doesn't name the source:\n%s", got)
+	}
 }

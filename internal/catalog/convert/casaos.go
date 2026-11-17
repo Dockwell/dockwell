@@ -73,7 +73,7 @@ func casaosApps(ctx context.Context, t *tree, root string) ([]App, error) {
 			return nil, err
 		}
 		if d.IsDir() && t.isFile(path.Join("Apps", d.Name(), "docker-compose.yml")) {
-			out = append(out, casaosRead(t, d.Name()))
+			out = append(out, readSafely(d.Name(), path.Join("Apps", d.Name()), func() App { return casaosRead(t, d.Name()) }))
 		}
 	}
 	if len(out) == 0 {

@@ -89,6 +89,7 @@ func New(imports *composeapi.Handler, ch *changes.Handler, db *store.DB, keeper 
 	if sources == nil {
 		sources = &Sources{}
 	}
+	sources.logger = logger
 	return &Handler{imports: imports, changes: ch, db: db, keeper: keeper, sources: sources, commit: commit, logger: logger}
 }
 

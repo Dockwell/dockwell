@@ -81,6 +81,9 @@ func copyrightOf(src Source) string {
 
 // App is one app as an adapter reads it, before it's an entry.
 type App struct {
+	// Panic is what reading it panicked with, where it did (readSafely), for the
+	// control plane to log beside the source.
+	Panic    string
 	ID       string
 	Name     string
 	Version  string
@@ -190,6 +193,9 @@ type Field struct {
 type Result struct {
 	ID   string
 	Path string
+	// Panic is what reading or converting it panicked with, where it did, for the
+	// control plane to log beside the source; the app is left out, saying so.
+	Panic string
 	// Entry is the converted entry, nil when the app was left out.
 	Entry *catalogv1.Entry
 	// Date is when this release of the entry was made.
@@ -312,7 +318,7 @@ func (c *Converter) convert(ctx context.Context, app App) Result {
 		return r
 	}
 	if app.LeftOut != "" {
-		r.LeftOut, r.Class = app.LeftOut, cmp.Or(app.Class, ClassCantSay)
+		r.LeftOut, r.Class, r.Panic = app.LeftOut, cmp.Or(app.Class, ClassCantSay), app.Panic
 		return r
 	}
 	if !c.OnServer && unversioned[app.Version] {

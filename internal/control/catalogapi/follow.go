@@ -8,9 +8,11 @@ import (
 	"fmt"
 	"log/slog"
 	"math/rand/v2"
+	"runtime/debug"
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"connectrpc.com/connect"
@@ -67,6 +69,8 @@ type Follower struct {
 	looking sync.Mutex
 	mu      sync.Mutex
 	state   map[string]*followState
+	// beforeLook, where a test sets it, runs as a look starts, by the source's name.
+	beforeLook atomic.Pointer[func(name string)]
 }
 
 // followState is what the follower knows of a source since the control plane started.
@@ -137,12 +141,37 @@ func (f *Follower) due(ctx context.Context) {
 		wait := now.Before(s.next)
 		f.mu.Unlock()
 		if !wait {
-			_, _ = f.look(ctx, st.name, false)
+			f.lookSafely(ctx, st.name)
 		}
 		if ctx.Err() != nil {
 			return
 		}
 	}
+}
+
+// lookSafely looks at a source on the hour, and carries on to the next if the look
+// panics, saying which source it was: a source is a stranger's repository, so
+// nothing in one stops the follow loop or the control plane (#570's review, H1). The
+// source waits as a failed look's does.
+func (f *Follower) lookSafely(ctx context.Context, name string) {
+	defer func() {
+		if p := recover(); p != nil {
+			f.h.logger.ErrorContext(ctx, "looking at a catalog source stopped on what Dockwell didn't expect, so it stays where it is",
+				slog.String("source", name), slog.String("panic", fmt.Sprint(p)), slog.String("stack", string(debug.Stack())))
+			_ = f.failed(ctx, name, f.h.sources.now(), "", fmt.Sprintf("Looking at it stopped on what Dockwell didn't expect (%v). It stays where it is, and Dockwell looks again later.", p))
+		}
+	}()
+	_, _ = f.look(ctx, name, false)
+}
+
+// BeforeLook sets what runs as each look starts, by the source's name: a test's way
+// to make one panic. Nil sets none.
+func (f *Follower) BeforeLook(hook func(name string)) {
+	if hook == nil {
+		f.beforeLook.Store(nil)
+		return
+	}
+	f.beforeLook.Store(&hook)
 }
 
 // stateOf is a source's state, made empty the first time. f.mu is held.
@@ -163,6 +192,9 @@ func (f *Follower) stateOf(name string) *followState {
 func (f *Follower) look(ctx context.Context, name string, asked bool) (string, error) {
 	f.looking.Lock()
 	defer f.looking.Unlock()
+	if hook := f.beforeLook.Load(); hook != nil {
+		(*hook)(name)
+	}
 	list, err := f.h.storedSources(ctx)
 	if err != nil {
 		return "", err
