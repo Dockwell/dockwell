@@ -151,9 +151,13 @@ var Stores = []Store{
 		Format: FormatRuntipi, ID: "runtipi", Label: "Runtipi", Name: "Runtipi's app store", License: "GPL-3.0-only", Root: "apps",
 		Upstream: "https://github.com/runtipi/runtipi-appstore", Layout: "Runtipi's format",
 		Homepage: "https://runtipi.io", Branch: "master",
-		// apps/<id>/ with its config.json, its Compose file, and metadata/ with its
-		// logo and description.
-		Descend: func(p string, depth int) bool { return strings.HasPrefix(p+"/", "apps/") && depth <= 3 },
+		// apps/<id>/ with its config.json, its Compose file, metadata/ with its logo and
+		// description, and data/, the files Runtipi copies into the app's folder as it
+		// installs, which the app binds.
+		Descend: func(p string, depth int) bool {
+			parts := strings.Split(p, "/")
+			return parts[0] == "apps" && (depth <= 3 || depth <= 7 && len(parts) > 2 && parts[2] == "data")
+		},
 		Want: func(p string) bool {
 			parts := strings.Split(p, "/")
 			switch {

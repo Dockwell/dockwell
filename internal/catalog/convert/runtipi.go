@@ -63,14 +63,37 @@ var runtipiCategories = map[string]string{
 }
 
 // runtipiData is where Runtipi keeps an app's own data on the server, which an entry
-// keeps in named volumes of its own: ${APP_DATA_DIR}/data/<name>, or ${APP_DATA_DIR}/<name>.
-var runtipiData = regexp.MustCompile(`\$\{APP_DATA_DIR\}(/data)?(/|$)`)
+// keeps in named volumes of its own: ${APP_DATA_DIR}/data/<name>, ${APP_DATA_DIR}/<name>,
+// or the whole folder, ${APP_DATA_DIR}, as ./data.
+var runtipiData = regexp.MustCompile(`\$\{APP_DATA_DIR\}((/data)?/|:|$)`)
+
+// runtipiByHand are apps a review found can't start as converted, for a reason the
+// converter can't read from their files, and why.
+var runtipiByHand = map[string]string{
+	// Its image makes /cache as root's, which Docker copies into the new volume, and
+	// it runs as 1000, so it can't write there (#570's Runtipi review, H2).
+	"tubearchivist": "its volume at /cache would be root's, where it runs as user 1000 and writes there; Runtipi makes the folder for that user before it starts, and an entry gives a volume an owner only from a store's own script",
+}
+
+// runtipiFillsItself are apps whose image writes its own starting files into an
+// empty folder, so each ran on an empty volume before Runtipi's files were carried,
+// and still does: the files Runtipi ships for them aren't copied until #778, and a
+// folder of them the app writes to, or the whole folder they land in, doesn't leave
+// them out (#570's Runtipi recheck, N1).
+var runtipiFillsItself = map[string]bool{
+	"calibre-web":     true, // starts with an empty config, and a library a person names at /books
+	"dashy":           true, // its image's user-data, conf.yml with it, is copied into a new volume
+	"homeassistant-1": true, // writes a default configuration.yaml into an empty /config
+	"nodered":         true, // writes its default settings.js into an empty /data
+	"searxng":         true, // its entrypoint writes settings.yml when there's none
+}
 
 // runtipiPlatform are the variables Runtipi fills in that an entry can say in its own
 // terms: the address it answers at, as Coolify's are, with the port a field asks for,
-// and the server's time zone, which a container reads as UTC unless told. The rest of
-// Runtipi's own, such as ${NETWORK_INTERFACE}, leave the app out, as an entry can't
-// know them.
+// and the server's time zone, which a container reads as UTC unless told. The hosts
+// it fills in are runtipiHosts', and its resolver dropRuntipiDNS's. The rest of
+// Runtipi's own, such as ${NETWORK_INTERFACE} or its own folder, leave the app out,
+// as an entry can't know them.
 var runtipiPlatform = strings.NewReplacer(
 	"${APP_PROTOCOL:-http}", "http",
 	"${APP_PROTOCOL:-https}", "http",
@@ -136,6 +159,10 @@ func runtipiRead(t *tree, dir string) App {
 	if b, err := t.readFile(path.Join(at, "metadata", "description.md")); err == nil {
 		app.Readme = string(b)
 	}
+	if why := runtipiByHand[app.ID]; why != "" {
+		app.LeftOut, app.Class = why, ClassCantSay
+		return app
+	}
 	switch {
 	case meta.Available != nil && !*meta.Available, meta.Deprecated:
 		app.LeftOut, app.Class = "Runtipi marks it as one to leave out", ClassSkipped
@@ -162,7 +189,7 @@ func runtipiRead(t *tree, dir string) App {
 		app.LeftOut, app.Class = err.Error(), classOf(err, ClassCantSay)
 		return app
 	}
-	if app.Compose, err = runtipiCompose(file); err != nil {
+	if app.Compose, err = runtipiCompose(file, dir); err != nil {
 		app.LeftOut, app.Class = err.Error(), classOf(err, ClassCantSay)
 		return app
 	}
@@ -170,9 +197,10 @@ func runtipiRead(t *tree, dir string) App {
 		fields = append(fields, mediaField)
 	}
 	app.Fields = fields
-	// Runtipi writes no file beside its Compose file that the app binds: a folder it
-	// binds is one the app makes as it runs.
-	app.Shipped = func(string) bool { return false }
+	if err := runtipiShipped(t, &app, at, file); err != nil {
+		app.LeftOut, app.Class = err.Error(), classOf(err, ClassShipped)
+		return app
+	}
 	if app.Version == "" || unversioned[app.Version] {
 		app.Version = webTag(app.Compose, app.Fields)
 	}
@@ -246,7 +274,7 @@ func plainDefault(v any) string {
 // runtipiCompose writes what Runtipi does at an install into the file: its own data
 // folder as the app's folder, which becomes named volumes, the address the app
 // answers at, and no network or label of Runtipi's own.
-func runtipiCompose(file []byte) ([]byte, error) {
+func runtipiCompose(file []byte, id string) ([]byte, error) {
 	doc, err := parseFile(file)
 	if err != nil {
 		return nil, err
@@ -255,20 +283,39 @@ func runtipiCompose(file []byte) ([]byte, error) {
 		return nil, err
 	}
 	root := doc.Content[0]
-	var climbing string
+	var climbing, ownFolder, fromInside, noHost string
 	walkScalars(root, func(n *yaml.Node) {
 		v := braceVars(n.Value)
 		if climbsAfter(runtipiData, v) || climbsAfter(runtipiMedia, v) {
 			climbing = cmp.Or(climbing, n.Value)
 		}
-		v = runtipiData.ReplaceAllString(v, "./data$2")
-		n.Value = inFolder(runtipiMedia, runtipiPlatform.Replace(v), "${MEDIA_DIR}")
+		v = inFolder(runtipiData, v, "./data")
+		v, hosts := runtipiHosts(v, id)
+		if !hosts {
+			noHost = cmp.Or(noHost, n.Value)
+		}
+		v = inFolder(runtipiMedia, runtipiPlatform.Replace(v), "${MEDIA_DIR}")
+		if strings.Contains(v, "${ROOT_FOLDER_HOST}") {
+			ownFolder = cmp.Or(ownFolder, n.Value)
+		}
+		if strings.Contains(v, "${INTERNAL_IP}") || strings.Contains(v, "${APP_HOST}") {
+			fromInside = cmp.Or(fromInside, n.Value)
+		}
+		n.Value = v
 	})
-	if climbing != "" {
+	switch {
+	case climbing != "":
 		return nil, leave(ClassCantSay, "it names %s, which climbs out of the folder it starts in", climbing)
+	case ownFolder != "":
+		return nil, leave(ClassPlatform, "it binds Runtipi's own folder on the server, %s, which Dockwell has nothing like", ownFolder)
+	case fromInside != "":
+		return nil, leave(ClassPlatform, "it names the server's address, %s, which an entry has none of to give", fromInside)
+	case noHost != "":
+		return nil, leave(ClassPlatform, "it accepts only hosts Runtipi's own proxy answers, %s, which leaves it none", noHost)
 	}
 	for _, name := range serviceNames(doc) {
 		svc := service(doc, name)
+		dropRuntipiDNS(svc)
 		if nets := mapGet(svc, "networks"); nets != nil {
 			switch nets.Kind {
 			case yaml.SequenceNode:
@@ -313,4 +360,173 @@ func dropRuntipiLabels(labels *yaml.Node) {
 		labels.Content = slices.DeleteFunc(labels.Content, func(n *yaml.Node) bool { return strings.HasPrefix(n.Value, "runtipi.") })
 	default:
 	}
+}
+
+// runtipiOwnHost are Runtipi's names for a host only its own proxy answers to,
+// <app>.<local domain>, which a list of hosts or origins an app accepts drops.
+var runtipiOwnHost = regexp.MustCompile(`\$\{(APP_)?LOCAL_DOMAIN\}`)
+
+// runtipiServerURL is the server's address in Runtipi's words in a URL a person's
+// browser opens the app at, at the app's own port, which an entry says as localhost,
+// as it says ${APP_DOMAIN}; runtipiServerItem is the same as an item of a list of
+// hosts. At another port it's a container reaching the server, which isn't
+// localhost there (#570's Runtipi review, M2).
+var (
+	runtipiServerURL  = regexp.MustCompile(`(https?://)\$\{(?:INTERNAL_IP|APP_HOST)\}(:\$\{APP_PORT\})`)
+	runtipiServerItem = regexp.MustCompile(`^\$\{(?:INTERNAL_IP|APP_HOST)\}(:\$\{APP_PORT\})$`)
+)
+
+// envKey is the name before a value in a list of environment, KEY=value.
+var envKey = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*=`)
+
+// runtipiHosts writes what Runtipi fills in about the app and the server as an entry
+// says it: the app's ID as it is, the user it runs as as 1000, as the store's other
+// apps write it, and the server's address where a browser opens the app as
+// localhost. A list of hosts or origins the app accepts drops Runtipi's own and
+// names each once, and says false where none is left. The server's address anywhere
+// else is left as it is, which leaves the app out: inside a container, localhost is
+// the container.
+func runtipiHosts(v, id string) (string, bool) {
+	v = strings.NewReplacer("${APP_ID}", id, "${TIPI_UID}", "1000", "${TIPI_GID}", "1000").Replace(v)
+	asked := v
+	v = runtipiServerURL.ReplaceAllString(v, "${1}localhost${2}")
+	if !strings.Contains(v, ",") || v == asked && !runtipiOwnHost.MatchString(v) && !strings.Contains(v, "${INTERNAL_IP}") && !strings.Contains(v, "${APP_HOST}") {
+		return v, true
+	}
+	key := envKey.FindString(v)
+	// Each host once, as Dockwell says it: the server's address and ${APP_DOMAIN} are
+	// both localhost.
+	var items, said []string
+	for _, item := range strings.Split(strings.TrimPrefix(v, key), ",") {
+		if runtipiOwnHost.MatchString(item) {
+			continue
+		}
+		item = runtipiServerItem.ReplaceAllString(item, "localhost${1}")
+		if as := runtipiPlatform.Replace(item); !slices.Contains(said, as) {
+			items, said = append(items, item), append(said, as)
+		}
+	}
+	// A list of Runtipi's own hosts alone leaves none, which an app reads as no host
+	// at all, or as every one (#570's Runtipi review, L1).
+	return key + strings.Join(items, ","), len(items) > 0
+}
+
+// dropRuntipiDNS drops the resolver Runtipi sets for a service, its own setting,
+// so the service asks the server's own, as every container Dockwell runs does.
+func dropRuntipiDNS(svc *yaml.Node) {
+	dns := mapGet(svc, "dns")
+	switch {
+	case dns == nil:
+	case dns.Kind == yaml.ScalarNode && dns.Value == "${DNS_IP}":
+		mapDel(svc, "dns")
+	case dns.Kind == yaml.SequenceNode:
+		dns.Content = slices.DeleteFunc(dns.Content, func(n *yaml.Node) bool { return n.Value == "${DNS_IP}" })
+		if len(dns.Content) == 0 {
+			mapDel(svc, "dns")
+		}
+	}
+}
+
+// runtipiUse is a path in the app's data folder its Compose file names, after
+// ${APP_DATA_DIR}: "" for the folder itself, /data/<path> for a path in what its
+// store ships, or another.
+var runtipiUse = regexp.MustCompile(`\$\{?APP_DATA_DIR\}?([^\s:'"]*)`)
+
+// runtipiShipped gives the app the files its store ships in its data/ folder,
+// which Runtipi copies into ${APP_DATA_DIR}/data as it installs: a file or a
+// read-only folder the app binds, at ${APP_DATA_DIR}/data/<path>, is one Dockwell
+// writes, as the other stores' are (ADR 0085), and a folder the app writes to stays
+// out, as theirs do. ./data/<path> is that path, so a file is fetched by its own
+// path in the store. What Runtipi does more than copy leaves the app out: a binding
+// of the whole folder its files land in, and a .template, which Runtipi fills in
+// with the app's values.
+func runtipiShipped(t *tree, app *App, at string, file []byte) error {
+	if runtipiFillsItself[app.ID] {
+		app.Shipped = func(string) bool { return false }
+		return nil
+	}
+	dir := path.Join(at, "data")
+	ships := map[string]bool{}
+	if t.isDir(dir) {
+		var err error
+		if ships, err = t.shipped(dir); err != nil {
+			return leave(ClassFile, "%s", err)
+		}
+	}
+	// What the file names in data/, as ./data/<path>, and what it names elsewhere in
+	// the app's folder, which Runtipi ships nothing into.
+	elsewhere := map[string]bool{}
+	whole := ""
+	for _, m := range runtipiUse.FindAllStringSubmatch(string(file), -1) {
+		rest := path.Clean("/" + m[1])
+		switch {
+		case rest == "/" || rest == "/data":
+			whole = cmp.Or(whole, m[0])
+			elsewhere[path.Join("data", strings.TrimPrefix(rest, "/"))] = true
+		case !strings.HasPrefix(rest, "/data/"):
+			elsewhere[path.Join("data", rest)] = true
+		}
+	}
+	if whole != "" && len(ships) > 0 {
+		return leave(ClassShipped, "it binds %s, the folder Runtipi copies the files its store ships into as it installs, which Dockwell would copy into its volume. It doesn't yet", whole)
+	}
+	var templates []string
+	for rel := range ships {
+		if strings.HasSuffix(rel, ".template") {
+			templates = append(templates, rel)
+		}
+	}
+	slices.Sort(templates)
+	for _, m := range runtipiUse.FindAllStringSubmatch(string(file), -1) {
+		named := strings.TrimPrefix(path.Clean("/"+m[1]), "/data/")
+		for _, tmpl := range templates {
+			if made := strings.TrimSuffix(tmpl, ".template"); made == named || strings.HasPrefix(made, named+"/") {
+				return leave(ClassShipped, "it ships data/%s, which Runtipi fills in with the app's values as it installs, and Dockwell doesn't yet", tmpl)
+			}
+		}
+	}
+	inData := func(rel string) (string, bool) {
+		in, ok := strings.CutPrefix(rel, "data/")
+		return in, ok && !elsewhere[rel] && ships[in]
+	}
+	app.Shipped = func(rel string) bool {
+		_, ok := inData(rel)
+		return ok
+	}
+	// Each file Runtipi ships is a file as it is.
+	app.LiteralFiles = true
+	// A checkout closes once its store is read, so what it ships is read with it; a
+	// commit in memory reads, or asks for, a file as a container mounts it.
+	var read map[string][]byte
+	if t.mem == nil {
+		read = map[string][]byte{}
+		for rel := range ships {
+			if b, err := t.readFile(path.Join(dir, rel)); err == nil && len(b) <= maxShipped {
+				read[rel] = b
+			}
+		}
+	}
+	app.ReadShipped = func(rel string) ([]byte, error) {
+		in, ok := inData(rel)
+		switch {
+		case !ok:
+			return nil, fmt.Errorf("%s isn't a file it ships", rel)
+		case read != nil && read[in] == nil:
+			return nil, fmt.Errorf("it ships %s, which is a folder, or over %d KiB", rel, maxShipped>>10)
+		case read != nil:
+			return read[in], nil
+		}
+		return t.readFile(path.Join(dir, in))
+	}
+	app.ShippedUnder = func(rel string) []string {
+		var out []string
+		for p := range ships {
+			if full := path.Join("data", p); strings.HasPrefix(full, rel+"/") && t.isFile(path.Join(dir, p)) {
+				out = append(out, full)
+			}
+		}
+		slices.Sort(out)
+		return out
+	}
+	return nil
 }

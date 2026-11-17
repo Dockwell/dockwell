@@ -1,0 +1,25 @@
+services:
+  tracker:
+    container_name: tracker
+    image: example/tracker:2.1.0
+    hostname: ${APP_ID}
+    dns:
+      - ${DNS_IP}
+    environment:
+      - PUID=${TIPI_UID}
+      - PGID=$TIPI_GID
+      - CSRF_TRUSTED_ORIGINS=${APP_PROTOCOL:-http}://${APP_DOMAIN},http://${INTERNAL_IP}:${APP_PORT}
+      - ALLOWED_HOSTS=${APP_LOCAL_DOMAIN},${APP_DOMAIN},${APP_HOST}:${APP_PORT}
+      - CALLBACK_URL=http://${INTERNAL_IP}:${APP_PORT}/callback
+      - LOCAL_ORIGINS=https://tracker.${LOCAL_DOMAIN},https://${APP_DOMAIN}
+    volumes:
+      - ${APP_DATA_DIR}:/config
+    ports:
+      - ${APP_PORT}:8080
+    networks:
+      - tipi_main_network
+  tracker-worker:
+    image: example/tracker-worker:2.1.0
+    dns: ${DNS_IP}
+    networks:
+      - tipi_main_network
