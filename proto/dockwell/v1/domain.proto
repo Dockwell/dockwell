@@ -516,6 +516,9 @@ message WayOption {
   // The rule that catches the name first, when another does, such as
   // "*.example.com, to http://127.0.0.1:8080": an admin's alone.
   string caught_by = 8;
+  // Where the server's tunnel reaches its proxy, such as "http://127.0.0.1:80", for
+  // a server tunnel's option, as the agent found its run.
+  string reaches = 9;
 }
 
 // CompanionCheck is where a domain's companion stands: what DNS says of it, whether

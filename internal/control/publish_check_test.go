@@ -132,3 +132,24 @@ func TestDomainsReadDNSOncePerZone(t *testing.T) {
 		}
 	}
 }
+
+// The server's tunnel says where it reaches the server's proxy, for the way line, and
+// a record through it reads by the tunnel's name, never its ID (the polish round).
+func TestATunnelWayAndItsRecordReadInWords(t *testing.T) {
+	t.Parallel()
+	s := newPublishStand(t)
+	var reaches string
+	for _, w := range s.checkWiki(t, false).GetWays() {
+		if w.GetWay() == resourcev1.RouteWay_ROUTE_WAY_SERVER_TUNNEL {
+			reaches = w.GetReaches()
+		}
+	}
+	if reaches != "http://127.0.0.1:80" {
+		t.Fatalf("where the tunnel reaches: %q", reaches)
+	}
+	ch := propose(t, s.person, "Publish wiki", s.published("wiki", "wiki.example.com"))
+	creates := stepsOf(ch, dockwellv1.ProviderAction_PROVIDER_ACTION_CREATE_RECORD)
+	if len(creates) != 1 || creates[0].GetTo() != "CNAME to web-1's tunnel, proxied" {
+		t.Fatalf("the record's words: %v", providerSteps(ch))
+	}
+}

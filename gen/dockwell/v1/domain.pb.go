@@ -2291,7 +2291,10 @@ type WayOption struct {
 	AddsRule string `protobuf:"bytes,7,opt,name=adds_rule,json=addsRule,proto3" json:"adds_rule,omitempty"`
 	// The rule that catches the name first, when another does, such as
 	// "*.example.com, to http://127.0.0.1:8080": an admin's alone.
-	CaughtBy      string `protobuf:"bytes,8,opt,name=caught_by,json=caughtBy,proto3" json:"caught_by,omitempty"`
+	CaughtBy string `protobuf:"bytes,8,opt,name=caught_by,json=caughtBy,proto3" json:"caught_by,omitempty"`
+	// Where the server's tunnel reaches its proxy, such as "http://127.0.0.1:80", for
+	// a server tunnel's option, as the agent found its run.
+	Reaches       string `protobuf:"bytes,9,opt,name=reaches,proto3" json:"reaches,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2378,6 +2381,13 @@ func (x *WayOption) GetAddsRule() string {
 func (x *WayOption) GetCaughtBy() string {
 	if x != nil {
 		return x.CaughtBy
+	}
+	return ""
+}
+
+func (x *WayOption) GetReaches() string {
+	if x != nil {
+		return x.Reaches
 	}
 	return ""
 }
@@ -3580,7 +3590,7 @@ const file_dockwell_v1_domain_proto_rawDesc = "" +
 	"\bhostname\x18\x03 \x01(\tR\bhostname\x12\x12\n" +
 	"\x04path\x18\x04 \x01(\tR\x04path\x12\x18\n" +
 	"\aservice\x18\x05 \x01(\tR\aservice\x12#\n" +
-	"\rreaches_proxy\x18\x06 \x01(\bR\freachesProxy\"\xff\x01\n" +
+	"\rreaches_proxy\x18\x06 \x01(\bR\freachesProxy\"\x99\x02\n" +
 	"\tWayOption\x126\n" +
 	"\x03way\x18\x01 \x01(\x0e2$.dockwell.resource.v1alpha1.RouteWayR\x03way\x12\x16\n" +
 	"\x06tunnel\x18\x02 \x01(\tR\x06tunnel\x12\x1f\n" +
@@ -3591,7 +3601,8 @@ const file_dockwell_v1_domain_proto_rawDesc = "" +
 	"\n" +
 	"action_url\x18\x06 \x01(\tR\tactionUrl\x12\x1b\n" +
 	"\tadds_rule\x18\a \x01(\tR\baddsRule\x12\x1b\n" +
-	"\tcaught_by\x18\b \x01(\tR\bcaughtBy\"\xea\x01\n" +
+	"\tcaught_by\x18\b \x01(\tR\bcaughtBy\x12\x18\n" +
+	"\areaches\x18\t \x01(\tR\areaches\"\xea\x01\n" +
 	"\x0eCompanionCheck\x12.\n" +
 	"\x05check\x18\x01 \x01(\v2\x18.dockwell.v1.DomainCheckR\x05check\x12#\n" +
 	"\ranswers_alike\x18\x02 \x01(\bR\fanswersAlike\x123\n" +

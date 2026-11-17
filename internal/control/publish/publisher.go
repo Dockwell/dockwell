@@ -239,6 +239,25 @@ func pastCertificate(zone, name string) bool {
 	return rest != name && strings.Contains(rest, ".")
 }
 
+// writesWords says what a record Dockwell writes is, naming a tunnel by its name, as
+// "CNAME to web-1's tunnel, proxied", never by its ID (the polish round).
+func (p *Publisher) writesWords(ctx context.Context, t *target, r dnsproviders.Record) string {
+	if r.Type != "CNAME" || !strings.HasSuffix(r.Content, ".cfargotunnel.com") {
+		return recordWords(r)
+	}
+	id := strings.TrimSuffix(r.Content, ".cfargotunnel.com")
+	name := id
+	if info, err := readFor(p, t, "info:"+id, func() (dnsproviders.Tunnel, error) {
+		return t.tunnels.TunnelByID(ctx, t.zone.Account, id)
+	}); err == nil && info.Name != "" {
+		name = info.Name
+	}
+	if r.Proxied {
+		return "CNAME to " + name + "'s tunnel, proxied"
+	}
+	return "CNAME to " + name + "'s tunnel"
+}
+
 func recordWords(r dnsproviders.Record) string {
 	if r.Proxied {
 		return r.Type + " " + r.Content + ", proxied"
@@ -475,7 +494,7 @@ func (p *Publisher) planWrites(ctx context.Context, r revision.PublishRoute, pub
 	}
 	for _, d := range want {
 		base := resource.ProviderStep{
-			Provider: t.provider, Target: t.zone.Name, Name: name, To: recordWords(d), ZoneID: t.zone.ID,
+			Provider: t.provider, Target: t.zone.Name, Name: name, To: p.writesWords(ctx, t, d), ZoneID: t.zone.ID,
 			Record: &resource.ProviderRecord{Type: d.Type, Name: d.Name, Content: d.Content, Proxied: d.Proxied, TTL: d.TTL, Comment: d.Comment},
 		}
 		// Ours, as wanted: nothing to do.

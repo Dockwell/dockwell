@@ -340,7 +340,7 @@ func (p *Publisher) ways(ctx context.Context, a CheckAsk, t *target, name string
 			continue
 		}
 		seen[f.GetTunnelId()] = true
-		opt := &dockwellv1.WayOption{Way: resourcev1.RouteWay_ROUTE_WAY_SERVER_TUNNEL, Tunnel: f.GetTunnelId(), TunnelName: f.GetTunnelId()}
+		opt := &dockwellv1.WayOption{Way: resourcev1.RouteWay_ROUTE_WAY_SERVER_TUNNEL, Tunnel: f.GetTunnelId(), TunnelName: f.GetTunnelId(), Reaches: f.GetReaches()}
 		out = append(out, opt)
 		if f.GetManagedInFile() {
 			opt.Off = facts.Name + "'s tunnel is managed in a file, so Dockwell writes nothing at Cloudflare"
