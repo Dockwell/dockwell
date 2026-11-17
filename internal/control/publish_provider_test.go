@@ -402,3 +402,36 @@ func TestDriftSaysWhenItCantProveTheTunnel(t *testing.T) {
 		})
 	})
 }
+
+// Listing DNS providers reads Cloudflare only for an admin, who sees what they keep,
+// and once in 30 seconds for each kept name; below an admin it reads nothing (the
+// review's M5).
+func TestListingProvidersReadsCloudflareOnlyForAnAdmin(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		s := newPublishStandOn(t, backend)
+		id := s.cf.Put("example.com", byHandCNAME)
+		s.applied(t, propose(t, s.person, "Publish vpn", s.published("vpn", "vpn.example.com", &resourcev1.TakeOver{RecordId: id})))
+		recs := s.cf.Records("example.com")
+		s.cf.EditInPlace("example.com", recs[0].ID, func(r *cftest.Record) { r.Proxied = false })
+		s.applied(t, propose(t, s.person, "Remove vpn", s.removed("vpn")))
+		before := len(s.cf.Calls())
+		for range 2 {
+			if kept := s.providerInfo(t).GetKept(); len(kept) != 1 {
+				t.Fatalf("an admin's list: %v", kept)
+			}
+		}
+		if n := len(s.cf.Calls()) - before; n != 1 {
+			t.Fatalf("two lists by an admin read Cloudflare %d times: %q", n, s.cf.Calls()[before:])
+		}
+		hold := aMember(t, s.f)
+		hold(store.Grant{ProjectID: s.project, Role: store.RoleDeveloper})
+		before = len(s.cf.Calls())
+		if kept := s.providerInfo(t).GetKept(); len(kept) != 0 {
+			t.Fatalf("a developer sees what's kept: %v", kept)
+		}
+		if n := len(s.cf.Calls()) - before; n != 0 {
+			t.Fatalf("a developer's list read Cloudflare %d times", n)
+		}
+	})
+}

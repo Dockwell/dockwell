@@ -38,7 +38,9 @@ func (h *Handler) ListDnsProviders(ctx context.Context, _ *connect.Request[dockw
 	admin, _ := callerProjects(ctx)
 	for _, p := range shown {
 		info := &dockwellv1.DnsProviderInfo{Id: p.ID, Name: p.Name, Provider: p.Provider, Zones: p.Zones, TunnelApiTokenSet: p.TunnelTokenSet, Projects: p.Projects}
-		if h.Cloudflare != nil {
+		// What a provider keeps is an admin's alone, as the trim below an admin drops it,
+		// so nothing is read at Cloudflare for anyone else (the review's M5).
+		if h.Cloudflare != nil && admin {
 			// A list that can't say what's kept still lists the provider.
 			if kept, err := h.Cloudflare.Kept(ctx, p.Name, admin); err == nil {
 				info.Kept = kept

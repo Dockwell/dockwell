@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -336,6 +337,10 @@ func (p *Publisher) Kept(ctx context.Context, provider string, admin bool) ([]*d
 	}); err != nil {
 		return nil, err
 	}
+	// Whether each name is free is read through the check's 30 s cache, and the list
+	// waits on Cloudflare for a few seconds at most.
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
 	out := make([]*dockwellv1.KeptRecord, 0, len(kept))
 	for i := range kept {
 		k := &kept[i]
@@ -346,7 +351,8 @@ func (p *Publisher) Kept(ctx context.Context, provider string, admin bool) ([]*d
 			rec.Record = recordWords(old)
 		}
 		if t, err := p.target(ctx, provider, k.Name); err == nil {
-			if there, err := t.cf.RecordsAt(ctx, t.zone, k.Name); err == nil {
+			t.cached = true
+			if there, err := readFor(p, t, "at:"+t.zone.ID+":"+k.Name, func() ([]dnsproviders.Record, error) { return t.cf.RecordsAt(ctx, t.zone, k.Name) }); err == nil {
 				rec.NameFree = !slices.ContainsFunc(there, func(x dnsproviders.Record) bool { return addressLike(x.Type) })
 			}
 		}
