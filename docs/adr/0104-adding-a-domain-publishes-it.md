@@ -315,6 +315,11 @@ Checked again on 2026-11-17, after the re-check, with a second scratch tunnel, a
 10. **The apex takes its own rule.** A rule for `example.com` saved before the wildcard and after it. cloudflared's own matcher (`tunnel ingress rule`, offline) sends the apex past `*.example.com` to its own rule, and a name two labels down to the wildcard. No apex DNS record was touched, as the test zone's apex is the owner's; a CNAME at an apex that holds an A or AAAA follows from 81053 (4) and needs Replace it.
 11. **A token reads its own rights.** `/accounts/{account}/tokens/verify` answered the token's ID and status, and `/accounts/{account}/tokens/<that ID>` answered its policies: each with its effect, its permission groups by ID and name, and its scope (the account, or all the account's zones). The rights are named "Write" in the API. The token held Account API Tokens Write, which includes reading, so whether API Tokens Read alone is enough is still to check.
 
+Slice 1's first commit made these checks a test, `TestCloudflareLive` in `internal/control/dnsproviders`, which runs when `DOCKWELL_TEST_CLOUDFLARE` names a guard to a scratch zone (and `DOCKWELL_TEST_CLOUDFLARED` names cloudflared). It passed on 2026-11-17, reading the connector's ID with the agent's own `/ready` reader, and found two more:
+
+12. **Records filter by their comment's start** (`comment.startswith`), so the drift timer lists Dockwell's records in a zone in one call.
+13. **A tunnel whose connector just stopped can't be deleted** for a minute or so, while its connections close: "This tunnel has active connections" (1022). Deleting one, as removing a server does in slice 3, tries again until they've closed.
+
 **What changed in this ADR because of it:**
 
 - One `*.zone` rule serves every depth, so the rule per level went (section 4). A name past the first level is a state in the check, as Cloudflare's edge certificate doesn't cover it (section 1).
