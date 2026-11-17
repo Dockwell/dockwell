@@ -208,8 +208,8 @@ func (r *Runner) Tick(ctx context.Context) error {
 	if err := r.record(ctx, states...); err != nil {
 		return err
 	}
-	for _, j := range jobs {
-		ready, failed, err := r.ready(ctx, j)
+	for i := range jobs {
+		ready, failed, err := r.ready(ctx, jobs[i])
 		if err != nil {
 			return err
 		}
@@ -597,12 +597,13 @@ func (r *Runner) record(ctx context.Context, states ...store.AppOwnerState) erro
 		return nil
 	}
 	return r.DB.Update(ctx, func(tx *store.Tx) error {
-		for _, st := range states {
+		for i := range states {
+			st := &states[i]
 			before, err := tx.AppOwnerStates(ctx, []string{st.ResourceID})
 			if err != nil {
 				return err
 			}
-			wrote, err := tx.SetAppOwnerState(ctx, st)
+			wrote, err := tx.SetAppOwnerState(ctx, *st)
 			if err != nil {
 				return err
 			}
@@ -612,11 +613,11 @@ func (r *Runner) record(ctx context.Context, states ...store.AppOwnerState) erro
 			}
 			switch st.State {
 			case store.OwnerMade:
-				err = r.recordEvent(ctx, tx, ActionMade, st)
+				err = r.recordEvent(ctx, tx, ActionMade, *st)
 			case store.OwnerFailed:
-				err = r.recordEvent(ctx, tx, ActionFailed, st)
+				err = r.recordEvent(ctx, tx, ActionFailed, *st)
 			case store.OwnerOpened:
-				err = r.recordEvent(ctx, tx, ActionOpened, st)
+				err = r.recordEvent(ctx, tx, ActionOpened, *st)
 			}
 			if err != nil {
 				return err
@@ -889,13 +890,12 @@ func (r *Runner) Release(ctx context.Context, environment string) error {
 	}
 	by := revision.By{Actor: revision.SystemActor, Via: revision.ViaAutomatic}
 	summary, note := "Open "+project+": its owner exists", revision.Note{Reason: "owner_made", Message: project + "'s owner exists, so what its hold kept answers everyone again"}
-	notes := []revision.Note{note}
 	if !owned {
 		summary, note = "Open "+project+": a person opened it", revision.Note{Reason: "install_opened", Message: "A person opened " + project + ", so what its hold kept after that answers everyone too"}
 	}
 	plan, err := r.Engine.Propose(ctx, revision.Proposal{
 		Summary: summary, Actor: by.Actor, Via: by.Via, Edits: edits,
-		Notes: notes,
+		Notes: []revision.Note{note},
 	})
 	if err != nil {
 		return err

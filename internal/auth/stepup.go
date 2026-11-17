@@ -138,7 +138,7 @@ const (
 	// StepUpResetCatalogOwnerPassword sets a new password for a catalog install's
 	// owner, which the person may then reveal. Its target is the install's project
 	// ID (ADR 0105).
-	StepUpResetCatalogOwnerPassword StepUpAction = "catalog.reset_owner_password"
+	StepUpResetCatalogOwnerPassword StepUpAction = "catalog.reset_owner_password" //nolint:gosec // an action's name, never a credential
 	// StepUpSetPanelDomain sets or clears the panel's domain (ADR 0063). Its
 	// target is the domain, or the one it clears.
 	StepUpSetPanelDomain StepUpAction = "settings.panel_domain"

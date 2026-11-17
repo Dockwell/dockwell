@@ -109,8 +109,8 @@ func Where(where string, answer []byte, values map[string]string) (bool, error) 
 			doc = d[p.key]
 		case []any:
 			if !p.pick {
-				n, err := strconv.Atoi(p.key)
-				if err != nil || n < 0 || n >= len(d) {
+				n, ok := index(p.key, len(d))
+				if !ok {
 					return false, nil
 				}
 				doc = d[n]
@@ -135,6 +135,12 @@ func Where(where string, answer []byte, values map[string]string) (bool, error) 
 	}
 	got, ok := scalar(doc)
 	return ok && got == Fill(want, values, same), nil
+}
+
+// index is a key as an index of a list of n, where it's one.
+func index(key string, n int) (int, bool) {
+	i, err := strconv.Atoi(key)
+	return i, err == nil && i >= 0 && i < n
 }
 
 // scalar is a JSON scalar as text: a string as it is, a number as it's written

@@ -46,7 +46,8 @@ func (r *Runner) rotations(ctx context.Context, tx *store.Tx) ([]job, error) {
 	}
 	now := r.now()
 	var jobs []job
-	for _, st := range list {
+	for i := range list {
+		st := &list[i]
 		if st.State != store.OwnerMade {
 			continue
 		}
@@ -121,8 +122,9 @@ func (r *Runner) readyRotation(ctx context.Context, j job, runs Runs) (*job, *st
 		return nil, nil, nil
 	}
 	if err != nil {
+		// It can't be set, so the current one stays, and the rotation ends saying so.
 		r.endRotation(ctx, j, "Dockwell can't open the new password it kept")
-		return nil, nil, nil
+		return nil, nil, nil //nolint:nilerr // ended, with what it says
 	}
 	j.pending = string(pending)
 	clear(pending)

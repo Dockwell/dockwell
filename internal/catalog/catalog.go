@@ -673,7 +673,7 @@ func checkOwner(e *catalogv1.Entry, cf *composeFile, inputs map[string]*catalogv
 	}
 	password := inputs[o.GetPasswordInput()]
 	switch {
-	case o.GetKnownPassword() == "" && !(o.GetMadeWhenDone() && o.GetPasswordInput() == "") && (password == nil || !Secret(password) || password.GetGenerate() == 0):
+	case o.GetKnownPassword() == "" && (!o.GetMadeWhenDone() || o.GetPasswordInput() != "") && (password == nil || !Secret(password) || password.GetGenerate() == 0):
 		return fmt.Errorf("its owner's password is %s, which isn't a secret input Dockwell generates", o.GetPasswordInput())
 	case o.GetEmailInput() != "" && (inputs[o.GetEmailInput()] == nil || inputs[o.GetEmailInput()].GetType() != catalogv1.InputType_INPUT_TYPE_EMAIL):
 		return fmt.Errorf("its owner's email is %s, which isn't an email input of its own", o.GetEmailInput())
@@ -1236,7 +1236,7 @@ func fill(e *catalogv1.Entry, given, suggested map[string]string, held map[strin
 			return nil, fmt.Errorf("%s takes no input %s. It takes %s", e.GetName(), name, names(e))
 		}
 		if in := e.GetInputs()[i]; in.GetHashOf() != "" && strings.TrimSpace(given[name]) != "" {
-			return nil, fmt.Errorf("Dockwell writes %s from %s for %s. Leave %s out", name, in.GetHashOf(), e.GetName(), name)
+			return nil, fmt.Errorf("%s is what Dockwell writes from %s for %s. Leave %s out", name, in.GetHashOf(), e.GetName(), name)
 		}
 		if in := e.GetInputs()[i]; !Asks(in) && held[name] && strings.TrimSpace(given[name]) != "" {
 			return nil, fmt.Errorf("an upgrade keeps the %s that Dockwell generated for %s. Leave %s out, and set a new value on the secret's page", name, e.GetName(), name)

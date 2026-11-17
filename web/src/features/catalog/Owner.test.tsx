@@ -253,7 +253,9 @@ describe("A new owner's password (ADR 0105)", () => {
   };
   const resettable = clone(EntrySchema, gitea);
   if (resettable.owner) {
-    resettable.owner.resetSteps = [create(OwnerStepSchema, { step: { case: "request", value: { path: "/password" } } })];
+    resettable.owner.resetSteps = [
+      create(OwnerStepSchema, { step: { case: "request", value: { path: "/password" } } }),
+    ];
   }
 
   it("is made with a passkey where the entry says how, and says so while it's set", async () => {
@@ -295,7 +297,9 @@ describe("A new owner's password (ADR 0105)", () => {
     expect(within(card).queryByText(/Changed it in Gitea/)).not.toBeInTheDocument();
     await user.click(await within(card).findByRole("button", { name: "Make a new password" }));
     await waitFor(() => expect(asked).toEqual([expect.objectContaining({ id: "prj_1" })]));
-    expect(await within(card).findByText("Setting a new password in Gitea. The current one works until then.")).toBeVisible();
+    expect(
+      await within(card).findByText("Setting a new password in Gitea. The current one works until then."),
+    ).toBeVisible();
     expect(within(card).getByRole("button", { name: "Setting a new password" })).toHaveAttribute("aria-busy", "true");
   });
 
@@ -329,7 +333,9 @@ describe("A new owner's password (ADR 0105)", () => {
           changes: {
             proposeChange: (req: { edits: { resource?: unknown; delete: boolean }[] }) => {
               proposed.push(req);
-              return { change: { id: "chg_forget", summary: "Forget Gitea's owner password", plan: { fingerprint: "f" } } };
+              return {
+                change: { id: "chg_forget", summary: "Forget Gitea's owner password", plan: { fingerprint: "f" } },
+              };
             },
           },
         },

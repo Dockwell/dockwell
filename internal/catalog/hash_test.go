@@ -34,7 +34,7 @@ func verifyPHC(t *testing.T, phc, secret string) bool {
 	if err1 != nil || err2 != nil {
 		t.Fatalf("its salt or key isn't base64 without padding: %v %v", err1, err2)
 	}
-	got := argon2.IDKey([]byte(secret), salt, tm, m, p, uint32(len(key))) //nolint:gosec // a key of 32 bytes
+	got := argon2.IDKey([]byte(secret), salt, tm, m, p, uint32(len(key)))
 	return subtle.ConstantTimeCompare(got, key) == 1
 }
 

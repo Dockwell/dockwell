@@ -52,7 +52,7 @@ func (h *Handler) ResetCatalogOwnerPassword(ctx context.Context, req *connect.Re
 		return nil, h.internal(ctx, err)
 	}
 	if o == nil {
-		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("Dockwell doesn't make %s's owner, so it keeps no password to change", install.GetProject()), "no_owner")
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s's owner isn't one Dockwell makes, so it keeps no password to change", install.GetProject()), "no_owner")
 	}
 	if o.state.State != store.OwnerMade {
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s's owner isn't made yet, so it has no password to change", install.GetProject()), "not_made")
@@ -69,7 +69,7 @@ func (h *Handler) ResetCatalogOwnerPassword(ctx context.Context, req *connect.Re
 	in := passwordInput(entry)
 	if len(entry.GetOwner().GetResetSteps()) == 0 || in.GetGenerate() <= 0 {
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition,
-			fmt.Errorf("Dockwell can't set a new password in %s. Change it in %s, then forget the copy Dockwell keeps", app, app), "no_reset")
+			fmt.Errorf("%s doesn't say how Dockwell sets a new password. Change it in %s, then forget the copy Dockwell keeps", app, app), "no_reset")
 	}
 	client, _ := authapi.ClientFrom(ctx)
 	target := install.GetProjectId()

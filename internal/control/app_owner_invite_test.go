@@ -3,6 +3,7 @@
 package control
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"fmt"
@@ -131,7 +132,7 @@ func verifies(phc, secret string) bool {
 	}
 	salt, err1 := b64raw(parts[4])
 	key, err2 := b64raw(parts[5])
-	return err1 == nil && err2 == nil && string(argon2.IDKey([]byte(secret), salt, tm, m, p, uint32(len(key)))) == string(key) //nolint:gosec // 32 bytes
+	return err1 == nil && err2 == nil && bytes.Equal(argon2.IDKey([]byte(secret), salt, tm, m, p, uint32(len(key))), key)
 }
 
 // An invite's owner: the install seals a generated admin token and runs its Argon2id
