@@ -74,7 +74,9 @@ func lostThenDown(t *testing.T, backend store.Backend) (*owning, *downApp, *cloc
 	o.rotateOwner()
 	o.look()
 	d.setDown(true)
-	for range 20 {
+	// More than an hour down, and on until the owner says why neither reads, as a
+	// look under load may find its read still running.
+	for i := 0; i < 20 || i < 80 && o.install().GetOwner().GetError() == ""; i++ {
 		c.add(owners.Poll + time.Second)
 		o.look()
 	}
