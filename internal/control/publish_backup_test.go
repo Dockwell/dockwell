@@ -4,6 +4,7 @@ package control
 
 import (
 	"context"
+	"encoding/json"
 	"net/netip"
 	"strings"
 	"testing"
@@ -12,6 +13,7 @@ import (
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/internal/control/dnsproviders"
 	"github.com/dockwell/dockwell/internal/control/dnsproviders/cftest"
 	"github.com/dockwell/dockwell/internal/control/publish"
 	"github.com/dockwell/dockwell/internal/resource"
@@ -257,6 +259,55 @@ func TestAReplaceRunAgainKeepsTheBackup(t *testing.T) {
 		}
 		if inRow, _ := s.backupHeld(t, routeID, byHandCNAME.Content); !inRow {
 			t.Fatal("running the replace again dropped the backup")
+		}
+	})
+}
+
+// Two records made by hand kept at one name, as a dual-stack name's A and AAAA
+// replaced and then given back leave: removing the route keeps both, puts back the
+// one the name has room for, and keeps the other listed, with no change failing on
+// the store (migration 0047).
+func TestTwoKeptBackupsAtOneName(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		s := newPublishStandOn(t, backend)
+		id := s.cf.Put("example.com", byHandCNAME)
+		s.applied(t, propose(t, s.person, "Publish vpn", s.published("vpn", "vpn.example.com", &resourcev1.TakeOver{RecordId: id})))
+		recs := s.cf.Records("example.com")
+		if len(recs) != 1 {
+			t.Fatalf("after publishing: %+v", recs)
+		}
+		routeID := routeIDOf(t, recs[0])
+		// A second record made by hand, kept at the same name by a step a crash cut
+		// short: an A, which can't sit beside the CNAME.
+		other, err := json.Marshal(dnsproviders.Record{ID: "rec-hand-a", Type: "A", Name: "vpn.example.com", Content: "203.0.113.9", TTL: 300, Comment: "by hand too"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := s.f.store.Update(t.Context(), func(tx *store.Tx) error {
+			return tx.PutCloudflareRecord(t.Context(), store.CloudflareRecord{
+				ID: "pending:rec-hand-a", Provider: "cloudflare", ZoneID: cftest.ZoneID("example.com"), Zone: "example.com", Name: "vpn.example.com",
+				Type: store.CloudflarePendingType, Content: "203.0.113.9", RouteID: routeID, ChangeID: "chg_cut", Replaced: string(other), State: "pending",
+			})
+		}); err != nil {
+			t.Fatal(err)
+		}
+		done := s.applyAndWait(t, propose(t, s.person, "Remove vpn", s.removed("vpn")))
+		cnameKept, cnameThere := s.backupHeld(t, routeID, byHandCNAME.Content)
+		aKept, aThere := s.backupHeld(t, routeID, "203.0.113.9")
+		got := s.cf.Records("example.com")
+		t.Logf("the removal ended %v: %s; Cloudflare holds %+v", done.GetState(), done.GetError(), got)
+		if !cnameKept && !cnameThere || !aKept && !aThere {
+			t.Fatalf("a record made by hand is lost: CNAME kept %t there %t, A kept %t there %t", cnameKept, cnameThere, aKept, aThere)
+		}
+		if done.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+			t.Fatalf("the removal ended %v: %s", done.GetState(), done.GetError())
+		}
+		if len(got) != 1 || got[0].Comment != "by hand" {
+			t.Fatalf("the CNAME made by hand should be back, alone: %+v", got)
+		}
+		if !aKept {
+			t.Fatal("the A made by hand should still be kept")
 		}
 	})
 }

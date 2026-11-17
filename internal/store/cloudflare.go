@@ -71,7 +71,7 @@ func (t *Tx) PutCloudflareRecord(ctx context.Context, r CloudflareRecord) error 
 		r.ID, r.Provider, r.ZoneID, r.Zone, strings.ToLower(r.Name), r.Type, r.Content, boolInt(r.Proxied), r.TTL, r.Comment, r.RouteID, r.ChangeID,
 		nullMillis(r.TakenOnAt), r.Replaced, r.State, nullMillis(r.CheckedAt), millis(r.CreatedAt))
 	if t.unique(err) {
-		return fmt.Errorf("a record of %s at %s: %w", r.Type, r.Name, ErrConflict)
+		return fmt.Errorf("a %s record at %s is kept already under another ID, so this one can't be kept beside it, and the change stops here. Plan it again, and if it stops the same way, report it: %w", r.Type, r.Name, ErrConflict)
 	}
 	if err != nil {
 		return fmt.Errorf("can't record the DNS record at %s: %w", r.Name, err)
