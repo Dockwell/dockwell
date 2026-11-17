@@ -35,6 +35,28 @@ func (s *publishStand) failedApply(t *testing.T, ch *dockwellv1.Change) {
 	}
 }
 
+// settled waits until no change is applying, as a rollback goes on after its change
+// says it failed, and a plan made meanwhile would be refused as stale.
+func (s *publishStand) settled(t *testing.T) {
+	t.Helper()
+	deadline := time.Now().Add(30 * time.Second)
+	for {
+		listed, err := s.person.ListChanges(t.Context(), connect.NewRequest(&dockwellv1.ListChangesRequest{}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !slices.ContainsFunc(listed.Msg.GetChanges(), func(c *dockwellv1.Change) bool {
+			return c.GetState() == dockwellv1.ChangeState_CHANGE_STATE_APPLYING
+		}) {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("a change is still applying")
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+}
+
 // documentIs waits for the tunnel's document to read want, as a rollback ends after
 // the change says it failed.
 func (s *publishStand) documentIs(t *testing.T, want, why string) {
@@ -65,6 +87,7 @@ func TestAMoveWhoseAnswerIsLostPutsTheRuleBack(t *testing.T) {
 		s.loseNextPut()
 		s.failedApply(t, propose(t, s.person, "Publish wiki", s.takingOver("wiki")))
 		s.documentIs(t, withHand, "the rollback should put the rule made by hand back whole")
+		s.settled(t)
 		// And moved again, then removed, it's back as it was.
 		s.applied(t, propose(t, s.person, "Publish wiki", s.takingOver("wiki")))
 		s.applied(t, propose(t, s.person, "Remove wiki", s.removed("wiki")))
@@ -87,6 +110,7 @@ func TestARemovalWhoseAnswerIsLostKeepsTheRuleMadeByHand(t *testing.T) {
 		s.loseNextPut()
 		s.failedApply(t, propose(t, s.person, "Remove wiki", s.removed("wiki")))
 		s.documentIs(t, withHand, "the rollback should put the rule made by hand back whole")
+		s.settled(t)
 		// Removed again, then undone, it's back whole.
 		done := s.applied(t, propose(t, s.person, "Remove wiki", s.removed("wiki")))
 		undo, err := s.person.UndoChange(t.Context(), connect.NewRequest(&dockwellv1.UndoChangeRequest{Id: done.GetId()}))
