@@ -545,6 +545,7 @@ func unencrypted(spec proto.Message) bool {
 	switch spec.(*resourcev1.Route).GetPublish().GetWay() {
 	case resourcev1.RouteWay_ROUTE_WAY_SERVER_TUNNEL, resourcev1.RouteWay_ROUTE_WAY_OWN_TUNNEL:
 		return false
+	case resourcev1.RouteWay_ROUTE_WAY_UNSPECIFIED, resourcev1.RouteWay_ROUTE_WAY_PROXY, resourcev1.RouteWay_ROUTE_WAY_OWN_HTTPS, resourcev1.RouteWay_ROUTE_WAY_FRONT:
 	}
 	return plain(spec)
 }
