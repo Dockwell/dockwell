@@ -130,6 +130,7 @@ Rules for every step:
 - **An install from before this record** has no `AppOwner` and no `held`, so it's never held. Its entry gaining owner steps in a release changes nothing for it; only "Make my account" adds an `AppOwner`.
 - **An upgrade to a release whose entry lost its owner steps** keeps the install's `AppOwner`. Where its row isn't made, the upgrade sets `CatalogPin.held`, so the install stays held after the steps are gone.
 - **An upgrade to a release whose entry gained owner steps** adds nothing to an install from before. It runs the steps for no install whose `AppOwner` is already made.
+- **Deleting an `AppOwner` that isn't made or opened** sets `CatalogPin.held` in the same change, whatever path deletes it, a whole-spec write included, so removing the owner never lifts the hold. The changes handler enforces it, as it keeps `held`.
 
 **Every pin write keeps the hold.** Every write of a pin keeps `held` and `signups_open` as they were. That covers an install, an upgrade (one by a person, and one ADR 0100 applies by itself), `SetCatalogNeed`, `SetCatalogStorage`, a companion, and a change that writes the project's spec directly. The one exception is an applied `OpenCatalogInstall`. The changes handler enforces it for every write, as it keeps `PortMapping.held` (below), so a path that rebuilds the pin, as `pinTo` does on main, can't drop them.
 
@@ -151,7 +152,8 @@ No change clears a hold in the same write that asks for the owner. Only an obser
 - a route added after the install, a host-port route, a ports edit, a new mapping, a whole-spec edit and a tunnel rule;
 - an upgrade, an automatic upgrade, `SetCatalogNeed`, `SetCatalogStorage` and a direct write of the project's spec, each keeping `held` and `signups_open`;
 - an entry that gains owner steps, which holds no install from before;
-- an entry that loses them, which leaves a failed install held.
+- an entry that loses them, which leaves a failed install held;
+- a whole-spec write that drops an `AppOwner` not yet made, which leaves the install held.
 
 **The release.** When a hold lifts by an observed fact, the control plane releases what it held as a change of its own, made by Dockwell and applied at once, as automatic updates are: "Gitea's owner exists: blog.example.com answers it". The release also clears `Route.setup`. There's nothing to release where nothing was routed or published, as on most fresh installs.
 
