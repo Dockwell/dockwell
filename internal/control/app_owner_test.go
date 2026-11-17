@@ -32,6 +32,7 @@ import (
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/catalogsource"
 	"github.com/dockwell/dockwell/internal/resource/route"
+	"github.com/dockwell/dockwell/internal/revision"
 	"github.com/dockwell/dockwell/internal/scope"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
@@ -871,4 +872,23 @@ func TestARoutePlannedWhileHeldIsReleasedOnceTheInstallIsOpened(t *testing.T) {
 			t.Error("a write of the pin took back that it was opened")
 		}
 	})
+}
+
+// pinAsCatalogWrote writes a project's pin as the catalog once did, as Dockwell's own
+// change: only the catalog's own write changes what a pin says it runs, its values
+// and where it's reached, so a test that sets up an install from before writes it
+// so (ADR 0105, the re-check's N2).
+func pinAsCatalogWrote(t *testing.T, f *fullServer, ref resource.Ref, project *resourcev1.Project) {
+	t.Helper()
+	plan, err := f.engine.Propose(context.WithoutCancel(t.Context()), revision.Proposal{
+		Summary: "As the catalog wrote it", Actor: revision.SystemActor, Via: revision.ViaAutomatic,
+		Edits: []revision.Edit{{Ref: ref, Spec: project, Pin: true}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.engine.Apply(t.Context(), plan.Change); err != nil {
+		t.Fatal(err)
+	}
+	f.engine.Wait()
 }

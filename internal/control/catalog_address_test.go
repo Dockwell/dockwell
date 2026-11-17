@@ -16,7 +16,6 @@ import (
 	logapi "github.com/dockwell/dockwell/internal/control/logs"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/route"
-	"github.com/dockwell/dockwell/internal/revision"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
 )
@@ -299,20 +298,8 @@ func TestAnUnreadableFileHoldsUpOnlyWhatItWouldTell(t *testing.T) {
 	}
 	p := proto.CloneOf(spec.(*resourcev1.Project))
 	p.Catalog.File = []byte("services: [")
-	// As the catalog wrote it once: only its own write changes a pin's file (ADR
-	// 0105, the re-check's N2).
-	plan, err := u.f.engine.Propose(t.Context(), revision.Proposal{
-		Summary: "A file from before", Actor: revision.SystemActor, Via: revision.ViaAutomatic,
-		Edits: []revision.Edit{{Ref: resource.Ref{Kind: "project", Scope: found.Scope, Name: found.Name}, Spec: p, Pin: true}},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := u.f.engine.Apply(t.Context(), plan.Change); err != nil {
-		t.Fatal(err)
-	}
-	u.f.engine.Wait()
-	_, err = u.c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Route docs", Edits: []*dockwellv1.Edit{{
+	pinAsCatalogWrote(t, u.f, resource.Ref{Kind: "project", Scope: found.Scope, Name: found.Name}, p)
+	_, err := u.c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Route docs", Edits: []*dockwellv1.Edit{{
 		Resource: &dockwellv1.ResourceRef{Kind: string(route.Kind), Scope: u.env, Name: "docs"},
 		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Route{Route: &resourcev1.Route{Domain: "docs.example.com", Service: "web", Port: 80}}},
 	}}}))
