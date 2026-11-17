@@ -356,8 +356,19 @@ func (p *Publisher) planRoute(ctx context.Context, r revision.PublishRoute, rule
 		// A name the route still serves keeps its record, let go as it is, unless this
 		// undoes the change that wrote it; one taken on is let go by that undo too, as
 		// it was there before (the review's H2).
+		// Only what was taken on is let go. Dockwell's own record goes as before, unless
+		// a rule made by hand that this lets go still sends the name through it (the
+		// re-check's A-M3), so nothing of Dockwell's is left at Cloudflare for good.
 		undoingIt := r.Reverts != "" && r.Reverts == w.ChangeID
-		if keepsName(r, w.Name) && (!undoingIt || w.TakenOnAt != nil) || undoingIt && w.TakenOnAt != nil {
+		letGo := w.TakenOnAt != nil && (keepsName(r, w.Name) || undoingIt)
+		if !letGo && w.TakenOnAt == nil && keepsName(r, w.Name) && !undoingIt {
+			hand, err := p.handRuleLetGo(ctx, r, w.Name)
+			if err != nil {
+				return nil, err
+			}
+			letGo = hand
+		}
+		if letGo {
 			steps = append(steps, step(r, resource.ActionNone, resource.ProviderStep{
 				Provider: w.Provider, Action: resource.ProviderDeleteRecord, Target: w.Zone, Name: w.Name, Was: words, ZoneID: w.ZoneID, Record: rec,
 				Mode: letGoRule, Routing: "Dockwell lets go of it, and it stays as it is",
@@ -758,6 +769,36 @@ func keptWords(moved []Moved) string {
 	return fmt.Sprintf("%s and %d other names go through it, so it stays", moved[0].Name, len(moved)-1)
 }
 
+// handRuleLetGo says a rule made by hand that the route took on for name is let go,
+// as it still serves the name: the record that sends the name to it is still needed.
+func (p *Publisher) handRuleLetGo(ctx context.Context, r revision.PublishRoute, name string) (bool, error) {
+	was := r.Before.GetPublish()
+	if was.GetWay() != resourcev1.RouteWay_ROUTE_WAY_SERVER_TUNNEL {
+		return false, nil
+	}
+	held, found, err := p.heldRule(ctx, was.GetTunnel(), strings.ToLower(name))
+	if err != nil || !found {
+		return false, err
+	}
+	return held.TakenOnAt != nil && held.State != store.CloudflareRuleKept && !readKept(held.Replaced).Moved, nil
+}
+
+// recordLetGoAt says the route took on a record made by hand at name, which is let
+// go as the route still serves the name: the zone's rule it goes through is still needed.
+func (p *Publisher) recordLetGoAt(ctx context.Context, routeID, name string) (bool, error) {
+	needed := false
+	err := p.DB.View(ctx, func(tx *store.Tx) error {
+		recs, err := tx.CloudflareRecordsOf(ctx, routeID)
+		for i := range recs {
+			if strings.EqualFold(recs[i].Name, name) && recs[i].TakenOnAt != nil && recs[i].Type != store.CloudflarePendingType {
+				needed = true
+			}
+		}
+		return err
+	})
+	return needed, err
+}
+
 // planRuleRemoval takes the zone's rule out of a tunnel once no route publishes
 // through it in the zone after the change.
 func (p *Publisher) planRuleRemoval(ctx context.Context, r revision.PublishRoute, inChange map[string]*resourcev1.Route) ([]resource.Step, error) {
@@ -796,8 +837,20 @@ func (p *Publisher) planRuleRemoval(ctx context.Context, r revision.PublishRoute
 		// A rule made by hand is the route's own to settle, above. A route that still
 		// serves the name, publishing it no more, keeps what brings it in, unless this
 		// undoes the change that added it (the review's H2).
-		if rule.TakenOnAt != nil || !HostMatches(rule.Hostname, name) || keepsName(r, name) && r.Reverts != rule.ChangeID {
+		if rule.TakenOnAt != nil || !HostMatches(rule.Hostname, name) {
 			continue
+		}
+		// Dockwell's own zone rule goes as before, unless a record made by hand that
+		// this lets go still points the name at the tunnel through it (the re-check's
+		// A-M3).
+		if keepsName(r, name) && r.Reverts != rule.ChangeID {
+			needed, err := p.recordLetGoAt(ctx, r.ID, name)
+			if err != nil {
+				return nil, err
+			}
+			if needed {
+				continue
+			}
 		}
 		stillUsed := false
 		for id, other := range all {
