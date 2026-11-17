@@ -81,6 +81,9 @@ func copyrightOf(src Source) string {
 
 // App is one app as an adapter reads it, before it's an entry.
 type App struct {
+	// Architectures are those its store says it runs on, of the ones Dockwell's
+	// servers run, empty for both (ADR 0102).
+	Architectures []string
 	// Panic is what reading it panicked with, where it did (readSafely), for the
 	// control plane to log beside the source.
 	Panic    string
@@ -355,7 +358,7 @@ func (c *Converter) convert(ctx context.Context, app App) Result {
 	if c.OnServer {
 		file, err = tagged(rw.file)
 	} else {
-		file, notes, err = c.pin(ctx, rw.file)
+		file, notes, err = c.pin(ctx, rw.file, app.Architectures)
 	}
 	if err != nil {
 		var young youngError
@@ -379,6 +382,8 @@ func (c *Converter) convert(ctx context.Context, app App) Result {
 		Compose:  string(file),
 		Inputs:   rw.inputs,
 		Needs:    rw.needs,
+		// Where it runs, as its store says (ADR 0102).
+		Architectures: app.Architectures,
 	}
 	if svc := serviceOf(file, rw.web); svc != "" {
 		e.Web = &catalogv1.Web{Service: svc}
@@ -454,7 +459,16 @@ var platforms = []string{"linux/amd64", "linux/arm64"}
 // version, or a tag pushed again, whose new build waits its own 14 days while entries
 // keep the one before. A build that says no believable date counts from when the
 // converter first saw it.
-func (c *Converter) pin(ctx context.Context, file []byte) ([]byte, []string, error) {
+func (c *Converter) pin(ctx context.Context, file []byte, arch []string) ([]byte, []string, error) {
+	// Each image runs on each architecture the app says it runs on, both where it
+	// names none (ADR 0102).
+	want := platforms
+	if len(arch) > 0 {
+		want = nil
+		for _, a := range arch {
+			want = append(want, "linux/"+a)
+		}
+	}
 	doc, err := parseFile(file)
 	if err != nil {
 		return nil, nil, err
@@ -516,8 +530,8 @@ func (c *Converter) pin(ctx context.Context, file []byte) ([]byte, []string, err
 		if err != nil {
 			return nil, nil, leaveForNow(ClassAgeUnknown, "the platforms %s runs on aren't known: %v. It converts on a later run", image, err)
 		}
-		if missing := slices.DeleteFunc(slices.Clone(platforms), func(p string) bool { return slices.Contains(has, p) }); len(missing) > 0 {
-			return nil, nil, leave(ClassArch, "%s runs on %s, and not %s, where an entry runs on amd64 and arm64 both", image, strings.Join(has, " and "), strings.Join(missing, " or "))
+		if missing := slices.DeleteFunc(slices.Clone(want), func(p string) bool { return slices.Contains(has, p) }); len(missing) > 0 {
+			return nil, nil, leave(ClassArch, "%s runs on %s, and not %s, which its app says it runs on", image, strings.Join(has, " and "), strings.Join(missing, " or "))
 		}
 		// Plain, and with no comment after it, as the catalog reads a pin by its line.
 		if r.digest == "" {
@@ -844,4 +858,27 @@ func homepage(address string) string {
 		return address
 	}
 	return ""
+}
+
+// architecturesOf is what a store says an app runs on, as an entry says it (ADR
+// 0102): the architectures of Dockwell's servers it names, empty for both or where
+// it names none, as a store that says nothing means any. One that names only others,
+// such as arm/v7, is refused, saying so. store is the store's name for people.
+func architecturesOf(store string, said []string) ([]string, error) {
+	if len(said) == 0 {
+		return nil, nil
+	}
+	var out []string
+	for _, a := range catalog.Architectures {
+		if slices.Contains(said, a) {
+			out = append(out, a)
+		}
+	}
+	switch len(out) {
+	case 0:
+		return nil, leave(ClassArch, "%s says it runs on %s alone, where Dockwell's servers run amd64 or arm64", store, strings.Join(said, " and "))
+	case len(catalog.Architectures):
+		return nil, nil
+	}
+	return out, nil
 }

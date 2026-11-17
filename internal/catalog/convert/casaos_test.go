@@ -56,7 +56,11 @@ func TestOnServerReadsCasaOSsStore(t *testing.T) {
 	if !slices.Equal(notes.Screenshots, want) {
 		t.Errorf("notes' screenshots = %v, want %v: another app's file and another host's address never count", notes.Screenshots, want)
 	}
-	for id, class := range map[string]Class{"amdonly": ClassArch, "other": ClassAnotherApp, "whole": ClassCantSay} {
+	// One its store says runs on amd64 alone converts, saying so (ADR 0102).
+	if r := got["amdonly"]; r.Entry == nil || !slices.Equal(r.Entry.GetArchitectures(), []string{"amd64"}) {
+		t.Errorf("amdonly: %v, left out %q, want it converted for amd64 alone", r.Entry.GetArchitectures(), r.LeftOut)
+	}
+	for id, class := range map[string]Class{"other": ClassAnotherApp, "whole": ClassCantSay} {
 		if r := got[id]; r.Entry != nil || r.Class != class {
 			t.Errorf("%s: class %q (%s), want %q", id, r.Class, r.LeftOut, class)
 		}

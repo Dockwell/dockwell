@@ -118,7 +118,11 @@ func TestOnServerConvertsWithoutAPerson(t *testing.T) {
 	if r := got["withdb"]; r.Entry == nil || len(r.Entry.GetNeeds()) != 1 {
 		t.Errorf("withdb: needs %v, left out %q, want it converted with its database as a need", r.Entry.GetNeeds(), r.LeftOut)
 	}
-	for id, class := range map[string]Class{"scripted": ClassScripts, "amd64only": ClassArch, "shipped": ClassShipped} {
+	// One 1Panel says runs on amd64 alone converts, saying so (ADR 0102).
+	if r := got["amd64only"]; r.Entry == nil || !slices.Equal(r.Entry.GetArchitectures(), []string{"amd64"}) {
+		t.Errorf("amd64only: %v, left out %q, want it converted for amd64 alone", r.Entry.GetArchitectures(), r.LeftOut)
+	}
+	for id, class := range map[string]Class{"scripted": ClassScripts, "shipped": ClassShipped} {
 		if r := got[id]; r.Entry != nil || r.Class != class {
 			t.Errorf("%s: class %q (%s), want %q", id, r.Class, r.LeftOut, class)
 		}

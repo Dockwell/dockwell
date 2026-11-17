@@ -418,6 +418,8 @@ func (h *Handler) InstallCatalogEntry(ctx context.Context, req *connect.Request[
 		Reaches:    needed.Reaches,
 		// What the entry declares public, which a person approves (ADR 0101).
 		Public: catalog.PublicPorts(chosen, filled.Variables),
+		// Where it runs, which each of its services takes (ADR 0102).
+		Architectures: entry.GetArchitectures(),
 	})
 	if err != nil {
 		return nil, err
@@ -778,12 +780,20 @@ func (h *Handler) upgrade(ctx context.Context, m *dockwellv1.UpgradeCatalogInsta
 	// and one that answered on every address and doesn't now says so (ADR 0101).
 	asked := newlyPublic(catalog.PublicPorts(chosen, filled.Variables), ranOnEveryAddress(chosen, old, oldVariables))
 	pinNotes = append(pinNotes, found.movedAlone(chosen, filled.Variables, old, oldVariables)...)
+	// Where the release runs, which each of its services takes, so a release that
+	// drops the architecture of a server the install is on can't be planned there
+	// (ADR 0102).
+	runs := slices.Clone(entry.GetArchitectures())
+	if runs == nil {
+		runs = []string{}
+	}
 	return h.imports.PlanUpgrade(ctx, composeapi.Upgrade{
-		Project:     install.GetProjectId(),
-		Environment: install.GetEnvironmentId(),
-		Summary:     cmp.Or(summary, upgradeSummary(install.GetProject(), pin, entry)),
-		FromRelease: pin.GetVersion(),
-		Release:     entry.GetVersion(),
+		Architectures: &runs,
+		Project:       install.GetProjectId(),
+		Environment:   install.GetEnvironmentId(),
+		Summary:       cmp.Or(summary, upgradeSummary(install.GetProject(), pin, entry)),
+		FromRelease:   pin.GetVersion(),
+		Release:       entry.GetVersion(),
 
 		FromCatalogRelease: pin.GetRelease(),
 		CatalogRelease:     entry.GetRelease(),

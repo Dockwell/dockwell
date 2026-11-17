@@ -140,14 +140,16 @@ func runtipiRead(t *tree, dir string) App {
 	case meta.Available != nil && !*meta.Available, meta.Deprecated:
 		app.LeftOut, app.Class = "Runtipi marks it as one to leave out", ClassSkipped
 		return app
-	case len(meta.Arch) > 0 && (!slices.Contains(meta.Arch, "amd64") || !slices.Contains(meta.Arch, "arm64")):
-		app.LeftOut, app.Class = fmt.Sprintf("Runtipi says it runs on %s alone, where an entry runs on amd64 and arm64 both", strings.Join(meta.Arch, " and ")), ClassArch
-		return app
 	case meta.UID != nil || meta.GID != nil:
 		app.LeftOut, app.Class = "Runtipi gives its data folder to another user on the server as it installs, which an entry can't do yet", ClassScripts
 		return app
 	case meta.GenerateVapidKeys:
 		app.LeftOut, app.Class = "Runtipi makes a pair of keys for it at install, which Dockwell doesn't make yet", ClassMadeUp
+		return app
+	}
+	var archErr error
+	if app.Architectures, archErr = architecturesOf("Runtipi", meta.Arch); archErr != nil {
+		app.LeftOut, app.Class = archErr.Error(), ClassArch
 		return app
 	}
 	file, err := t.readFile(path.Join(at, "docker-compose.yml"))

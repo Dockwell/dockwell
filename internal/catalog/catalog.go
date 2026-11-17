@@ -431,6 +431,9 @@ func check(e *catalogv1.Entry, byTag bool) error {
 	if err := checkPresentation(e); err != nil {
 		return err
 	}
+	if err := checkArchitectures(e.GetArchitectures()); err != nil {
+		return err
+	}
 	images := 0
 	for line := range strings.Lines(e.GetCompose()) {
 		if strings.HasPrefix(strings.TrimSpace(line), "image:") {
@@ -1194,4 +1197,30 @@ func generate(n int) (string, error) {
 		b.WriteByte(generated[i.Int64()])
 	}
 	return b.String(), nil
+}
+
+// Architectures are the CPU architectures an entry may say it runs on, as a server's
+// inventory names them, which are those Dockwell's agent runs on (ADR 0102).
+var Architectures = []string{"amd64", "arm64"}
+
+// checkArchitectures refuses an architecture Dockwell's agent doesn't run on, and one
+// named twice (ADR 0102).
+func checkArchitectures(arch []string) error {
+	seen := map[string]bool{}
+	for _, a := range arch {
+		if !slices.Contains(Architectures, a) {
+			return fmt.Errorf("it says it runs on %q, which isn't an architecture Dockwell runs on. Name amd64 or arm64, or leave architectures out for both", a)
+		}
+		if seen[a] {
+			return fmt.Errorf("it names %s twice in architectures. Name each once", a)
+		}
+		seen[a] = true
+	}
+	return nil
+}
+
+// RunsOn says an entry runs on a server of the architecture arch, as its
+// inventory names it: any, where the entry names none (ADR 0102).
+func RunsOn(e *catalogv1.Entry, arch string) bool {
+	return len(e.GetArchitectures()) == 0 || slices.Contains(e.GetArchitectures(), arch)
 }

@@ -68,6 +68,7 @@ import { lentRangeOf, type PortHolder, useServerPorts } from "../servers/ports";
 import { useFleetView } from "../servers/useFleet";
 import { CopyAsCommand } from "../system/CopyCommand";
 import { Facts, useEntryFacts } from "./access";
+import { unfitOn } from "./architectures";
 import { type EngineGroup, groupOf } from "./engines";
 import { nextFree } from "./freeName";
 import { projectLink } from "./media";
@@ -400,8 +401,34 @@ export function InstallSheet({
   const pickOf = (name: string) => pickedWay(needOptions.get(name) ?? [], needPicks[name]);
   const unmet = needs.find((need) => pickOf(need.name) === undefined);
   const unmetShares = unmet !== undefined && (needOptions.get(unmet.name) ?? []).some((o) => o.why === "");
+  // Where it runs, as its catalog says: a server of another architecture, or one that
+  // hasn't said its own yet, can't be chosen, and the only server's says why it can't
+  // go there (ADR 0102). The control plane refuses the same.
+  const runsOn = entry?.architectures ?? [];
+  const unfitWords = (why: string | undefined) =>
+    why === undefined ? undefined : why === "unknown" ? t`Architecture not known yet` : why;
+  const onlyUnfit = !fleet && only ? unfitOn(runsOn, only) : undefined;
+  const onlyName = only?.name ?? "";
+  const archList = runsOn.join(" or ");
+  const runsOnHint = runsOn.length > 0 ? t`Runs on ${archList} alone.` : undefined;
+  const fitting = (servers ?? []).filter((s) => unfitOn(runsOn, s) === undefined).map((s) => s.id);
+  // A fleet where no server can take it says so, and plans nothing (#570's arm64
+  // review, M5).
+  const noneFit = fleet && runsOn.length > 0 && (servers ?? []).length > 0 && fitting.length === 0;
+  const runsOnKey = runsOn.join(" ");
+  // A server chosen before the app's architectures were read, which it can't run on,
+  // is chosen no longer.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: runsOnKey stands for runsOn
+  useEffect(() => {
+    setChosenServers((chosen) => {
+      const kept = chosen.filter((s) => fitting.includes(s));
+      return kept.length === chosen.length ? chosen : kept;
+    });
+  }, [runsOnKey, servers]);
   const ready =
     entry !== undefined &&
+    onlyUnfit === undefined &&
+    !noneFit &&
     !got.isPlaceholderData &&
     !unmet &&
     origins.data !== undefined &&
@@ -736,11 +763,31 @@ export function InstallSheet({
                     setChosenServers(next);
                     setServersError(undefined);
                   }}
-                  error={serversError}
                   servers={servers ?? []}
+                  unfit={(server) => unfitWords(unfitOn(runsOn, server))}
+                  hint={runsOnHint}
+                  error={
+                    serversError ??
+                    (noneFit
+                      ? t`Runs on ${archList} alone, and none of your servers is ${archList}. Add an ${archList} server.`
+                      : undefined)
+                  }
                 />
               ) : only ? (
-                <Chosen label={t`Runs on`} value={only.name} />
+                <Chosen
+                  label={t`Runs on`}
+                  value={only.name}
+                  tone={onlyUnfit === undefined ? undefined : "warning"}
+                  state={
+                    onlyUnfit === undefined ? undefined : (
+                      <span className="dw-field-error" role="alert">
+                        {onlyUnfit === "unknown"
+                          ? t`${onlyName} hasn't said its architecture yet, so it can't take this app. It does once its agent connects.`
+                          : t`This app runs on ${archList} alone, and ${onlyName} is ${onlyUnfit}. Add a server it runs on.`}
+                      </span>
+                    )
+                  }
+                />
               ) : null}
               {top.map(line)}
               {needs.map((need) => {

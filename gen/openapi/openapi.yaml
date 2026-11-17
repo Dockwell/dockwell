@@ -14552,6 +14552,15 @@ components:
                          entry's own words, field by field, with an empty field reading as the entry's
                          own. Only the languages the panel speaks are kept. ListCatalogEntries leaves out
                          each one's description and readme, as GetCatalogEntry has them.
+                architectures:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        The CPU architectures the app runs on, as a server's inventory names them:
+                         "amd64", "arm64". Empty, it runs on both. An install goes only on a server of
+                         one of them. See
+                         docs/adr/0102-an-app-that-runs-on-one-architecture-goes-only-where-it-runs.md.
                 needs:
                     type: array
                     items:
@@ -24971,6 +24980,16 @@ components:
                          plane keeps it: its servers never see it, so changing it alone restarts
                          nothing. See docs/adr/0081-an-apps-own-values-shown-and-its-secrets-kept.md.
                          Numbered apart, as open work adds to this message.
+                architectures:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        The CPU architectures it runs on, as a server's inventory names them: "amd64",
+                         "arm64". A plan refuses to place it on a server that reports another, or none
+                         yet. Empty, it runs anywhere. A catalog install and upgrade copy their entry's.
+                         Only the control plane keeps it: its servers never see it. See
+                         docs/adr/0102-an-app-that-runs-on-one-architecture-goes-only-where-it-runs.md.
             description: |-
                 Service is anything that runs in an environment, placed on servers: for
                  now an app from an image, run as one container on each server it is

@@ -64,7 +64,7 @@ The offline converter has a person's overlays: our own summary and category for 
 
 - **An entry's summary is the store's own line about the app,** cut to 160 characters, shown as the store wrote it, as what a source says is shown as text. Its category is the converter's guess from the store's tags, or `other`. Overlays carry our own words for a catalog that's published, as ADR 0029 asks; a converted copy on one install isn't published.
 - **What an app reaches on its server is written from what the converter finds,** in its `host_access`, rather than leaving it out until a person looks. The plan is where a person looks: host access needs their approval, and a passkey where it's as good as root, as for any install.
-- **An app that runs on amd64 alone is still left out,** as the catalog is one for the whole fleet. Offering it per server is later work.
+- **An app that runs on amd64 alone was left out,** as the catalog is one for the whole fleet. [ADR 0102](0102-an-app-that-runs-on-one-architecture-goes-only-where-it-runs.md) offers it, on the servers it runs on.
 
 ### Images are pinned when an install is planned
 
@@ -136,4 +136,4 @@ WordPress from Dockwell's own, from 1Panel's app store and from Coolify's templa
 - The control plane carries three adapters and their parsers (YAML, TOML, JSON), in the full build alone, and a refresh runs them on whatever a store's branch says next, within the bounds above.
 - A store's change that breaks its adapter leaves the source where it was, as a commit that can't be read does, rather than breaking anyone's server.
 - A plan for a converted entry needs its server's agent connected, to pin its images.
-- Still to build: a store's own icons once a source reads media (ADR 0077), following each preset's branch once sources follow one (ADR 0077), and an app that runs on amd64 alone offered for amd64 servers.
+- Still to build: a store's own icons once a source reads media (ADR 0077), following each preset's branch once sources follow one (ADR 0077). An app that runs on amd64 alone is offered for amd64 servers by ADR 0102.

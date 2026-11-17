@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"slices"
 	"strings"
 	"time"
 
@@ -111,6 +112,9 @@ func (*Driver) CheckName(name string) error { return resource.CheckLabel("servic
 // that mean the same compare equal.
 func (d *Driver) Validate(spec proto.Message) error {
 	svc := spec.(*resourcev1.Service)
+	if err := tidyArchitectures(svc); err != nil {
+		return err
+	}
 	if svc.GetBuild() != nil && svc.GetRuntime() != nil {
 		return errors.New("an app builds its image from Git or runs from a folder, not both. Remove its build or its runtime")
 	}
@@ -616,15 +620,16 @@ func (*Driver) WriterOf(spec proto.Message) string {
 
 // OnServer is a service as its server has it: without its runtime, which only
 // the control plane keeps, as the container it decides is written already (ADR
-// 0058), its automatic updates, which the control plane applies (ADR 0080), or
-// which of its values reads show, which only the control plane serves (ADR 0081).
+// 0058), its automatic updates, which the control plane applies (ADR 0080), which
+// of its values reads show, which only the control plane serves (ADR 0081), or the
+// architectures it runs on, which only the control plane's plans read (ADR 0102).
 func (*Driver) OnServer(spec proto.Message) proto.Message {
 	svc := spec.(*resourcev1.Service)
-	if svc.GetRuntime() == nil && svc.GetAutoUpdate() == nil && len(svc.GetShownEnv()) == 0 {
+	if svc.GetRuntime() == nil && svc.GetAutoUpdate() == nil && len(svc.GetShownEnv()) == 0 && len(svc.GetArchitectures()) == 0 {
 		return spec
 	}
 	out := proto.CloneOf(svc)
-	out.Runtime, out.AutoUpdate, out.ShownEnv = nil, nil, nil
+	out.Runtime, out.AutoUpdate, out.ShownEnv, out.Architectures = nil, nil, nil, nil
 	return out
 }
 
@@ -641,13 +646,15 @@ func (d *Driver) Readopted(current, observed proto.Message) proto.Message {
 	out := d.readoptedRuntime(current, observed)
 	cur := current.(*resourcev1.Service)
 	a := cur.GetAutoUpdate()
-	if a == nil && len(cur.GetShownEnv()) == 0 || out == nil {
+	if a == nil && len(cur.GetShownEnv()) == 0 && len(cur.GetArchitectures()) == 0 || out == nil {
 		return out
 	}
 	kept := proto.CloneOf(out.(*resourcev1.Service))
 	if a != nil {
 		kept.AutoUpdate = proto.CloneOf(a)
 	}
+	// Where it runs is the control plane's alone, as its server never has it.
+	kept.Architectures = slices.Clone(cur.GetArchitectures())
 	kept.ShownEnv = keptShown(cur, kept)
 	return kept
 }
@@ -862,3 +869,36 @@ func (d *Driver) Ready(ctx context.Context) error { return d.Containers.Ready(ct
 
 // ReadyKey is the containers' runtime's.
 func (d *Driver) ReadyKey() any { return d.Containers.ReadyKey() }
+
+// HoldUnset keeps the architectures a service runs on where an edit leaves them out:
+// they're a fact about its images, not a choice an edit makes by omission (ADR
+// 0102; #570's arm64 review, M2).
+func (*Driver) HoldUnset(current, desired proto.Message) {
+	c, d := current.(*resourcev1.Service), desired.(*resourcev1.Service)
+	if len(d.GetArchitectures()) == 0 && len(c.GetArchitectures()) > 0 {
+		d.Architectures = slices.Clone(c.GetArchitectures())
+	}
+}
+
+// tidyArchitectures keeps a service's architectures to those Dockwell's agent runs
+// on, each once and sorted, and refuses any other (ADR 0102).
+func tidyArchitectures(svc *resourcev1.Service) error {
+	if len(svc.GetArchitectures()) == 0 {
+		svc.Architectures = nil
+		return nil
+	}
+	for _, a := range svc.GetArchitectures() {
+		if a != "amd64" && a != "arm64" {
+			return fmt.Errorf("a service runs on amd64 or arm64, not %q. Name one of them in architectures, or leave it empty to run anywhere", a)
+		}
+	}
+	out := slices.Clone(svc.GetArchitectures())
+	slices.Sort(out)
+	svc.Architectures = slices.Compact(out)
+	// Both is anywhere, as an entry has it, so it's held to nothing a server lacks
+	// (#570's arm64 review, L1).
+	if slices.Equal(svc.Architectures, []string{"amd64", "arm64"}) {
+		svc.Architectures = nil
+	}
+	return nil
+}

@@ -1749,6 +1749,16 @@ type Keeper interface {
 	Keep(current, desired proto.Message) (Kept, error)
 }
 
+// Holder is a kind whose resources hold a fact about what they run, which an edit
+// that leaves it out keeps, as a service holds the architectures its images run on
+// (ADR 0102): a script, a hand-written file or a client older than the field would
+// otherwise drop it unseen. Only an edit that says it sets it (revision.Edit) clears
+// it. Like a Keeper, it's for what a caller wrote, so adopting drift, putting back a
+// revision and a restore don't ask it.
+type Holder interface {
+	HoldUnset(current, desired proto.Message)
+}
+
 // Opener is a Claimer whose resources can keep out some of those who reach what they
 // claim, as a private route does (ADR 0087). A Claim's Key covers itself and the Keys
 // under it, after a "/", as a domain's route covers its paths, and what serves a Key

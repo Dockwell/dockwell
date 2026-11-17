@@ -112,6 +112,11 @@ message Entry {
   // own. Only the languages the panel speaks are kept. ListCatalogEntries leaves out
   // each one's description and readme, as GetCatalogEntry has them.
   map<string, Translation> translations = 31;
+  // The CPU architectures the app runs on, as a server's inventory names them:
+  // "amd64", "arm64". Empty, it runs on both. An install goes only on a server of
+  // one of them. See
+  // docs/adr/0102-an-app-that-runs-on-one-architecture-goes-only-where-it-runs.md.
+  repeated string architectures = 32;
   // What the app reads from outside its own containers, such as a MySQL-compatible
   // database, each met as a person installs it: by a new one beside the app, by
   // one Dockwell runs already, or by a connection. Empty needs nothing, as before.

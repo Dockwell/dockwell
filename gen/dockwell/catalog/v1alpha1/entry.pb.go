@@ -644,6 +644,11 @@ type Entry struct {
 	// own. Only the languages the panel speaks are kept. ListCatalogEntries leaves out
 	// each one's description and readme, as GetCatalogEntry has them.
 	Translations map[string]*Translation `protobuf:"bytes,31,rep,name=translations,proto3" json:"translations,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	// The CPU architectures the app runs on, as a server's inventory names them:
+	// "amd64", "arm64". Empty, it runs on both. An install goes only on a server of
+	// one of them. See
+	// docs/adr/0102-an-app-that-runs-on-one-architecture-goes-only-where-it-runs.md.
+	Architectures []string `protobuf:"bytes,32,rep,name=architectures,proto3" json:"architectures,omitempty"`
 	// What the app reads from outside its own containers, such as a MySQL-compatible
 	// database, each met as a person installs it: by a new one beside the app, by
 	// one Dockwell runs already, or by a connection. Empty needs nothing, as before.
@@ -890,6 +895,13 @@ func (x *Entry) GetReadme() string {
 func (x *Entry) GetTranslations() map[string]*Translation {
 	if x != nil {
 		return x.Translations
+	}
+	return nil
+}
+
+func (x *Entry) GetArchitectures() []string {
+	if x != nil {
+		return x.Architectures
 	}
 	return nil
 }
@@ -2099,8 +2111,7 @@ var File_dockwell_catalog_v1alpha1_entry_proto protoreflect.FileDescriptor
 
 const file_dockwell_catalog_v1alpha1_entry_proto_rawDesc = "" +
 	"\n" +
-	"%dockwell/catalog/v1alpha1/entry.proto\x12\x19dockwell.catalog.v1alpha1\"\xda\n" +
-	"\n" +
+	"%dockwell/catalog/v1alpha1/entry.proto\x12\x19dockwell.catalog.v1alpha1\"\x80\v\n" +
 	"\x05Entry\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x18\n" +
@@ -2138,7 +2149,8 @@ const file_dockwell_catalog_v1alpha1_entry_proto_rawDesc = "" +
 	"companions\x18\x1c \x03(\v2$.dockwell.catalog.v1alpha1.CompanionR\n" +
 	"companions\x12\x16\n" +
 	"\x06readme\x18\x1e \x01(\tR\x06readme\x12V\n" +
-	"\ftranslations\x18\x1f \x03(\v22.dockwell.catalog.v1alpha1.Entry.TranslationsEntryR\ftranslations\x125\n" +
+	"\ftranslations\x18\x1f \x03(\v22.dockwell.catalog.v1alpha1.Entry.TranslationsEntryR\ftranslations\x12$\n" +
+	"\rarchitectures\x18  \x03(\tR\rarchitectures\x125\n" +
 	"\x05needs\x18( \x03(\v2\x1f.dockwell.catalog.v1alpha1.NeedR\x05needs\x1ag\n" +
 	"\x11TranslationsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12<\n" +

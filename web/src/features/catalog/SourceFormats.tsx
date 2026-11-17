@@ -147,7 +147,7 @@ const KINDS: Readonly<Record<string, MessageDescriptor>> = {
   shipped: msg`Ship files beside their Compose file`,
   "another-app": msg`Use another app's database`,
   "no-version": msg`Name no version that stays put`,
-  arch: msg`Run on amd64 alone`,
+  arch: msg`Run on neither amd64 nor arm64`,
   platform: msg`Use a value their store fills in`,
   "cant-say": msg`Ask for what an entry can't say yet`,
   "cant-run": msg`Ask for what Dockwell can't run yet`,
@@ -169,7 +169,6 @@ const NEEDS: Readonly<Record<string, MessageDescriptor>> = {
   shipped: msg`Install once Dockwell carries their files along`,
   "another-app": msg`Install once Dockwell connects them to a database`,
   "no-version": msg`Install once Dockwell pins their moving tag by digest`,
-  arch: msg`Install once Dockwell offers them for amd64 servers`,
   platform: msg`Install once Dockwell fills in what their store does`,
   skipped: msg`Their store keeps them out of its own list`,
 };
