@@ -587,6 +587,9 @@ enum PublishedState {
   // Dockwell can't read it: its DNS provider isn't connected, or Cloudflare refuses
   // the token.
   PUBLISHED_STATE_UNREADABLE = 9 [(dockwell.v1.word) = "Dockwell can't read it at Cloudflare"];
+  // Dockwell can't prove its tunnel runs on the route's server alone: run more than
+  // once there in ways that disagree, or not connected.
+  PUBLISHED_STATE_TUNNEL_UNPROVEN = 10 [(dockwell.v1.word) = "Dockwell can't prove its tunnel runs on this server"];
 }
 
 // DomainRoute is one route of a domain.

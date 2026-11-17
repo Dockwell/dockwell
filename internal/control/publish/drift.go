@@ -200,7 +200,7 @@ func (p *Publisher) driftTunnel(ctx context.Context, tunnel string, held []store
 	if err != nil {
 		return err
 	}
-	shared, err := p.sharedNow(ctx, t, tunnel, held)
+	proof, known, err := p.proofNow(ctx, t, tunnel, held)
 	if err != nil {
 		return err
 	}
@@ -210,39 +210,53 @@ func (p *Publisher) driftTunnel(ctx context.Context, tunnel string, held []store
 			return store.CloudflareGone
 		case !SameService(doc.Rules[at].Service, r.Service):
 			return store.CloudflareChanged
-		case shared:
-			return store.CloudflareTunnelShared
+		case known:
+			return proof
+		case r.State == store.CloudflareTunnelShared || r.State == store.CloudflareTunnelUnproven:
+			// Nothing could be read of the tunnel this tick, so what was found stands.
+			return r.State
 		}
 		return store.CloudflarePublished
 	}, cfg.Version)
 }
 
-// sharedNow says the tunnel runs somewhere besides the server its rules were
-// written for, as a second server that joined it since: Cloudflare then sends the
-// zone's names to whichever answers (ADR 0104, section 3). Where a server's tunnels
-// can't be read now, as its agent is away, nothing is said of it.
-func (p *Publisher) sharedNow(ctx context.Context, t *target, tunnel string, held []store.CloudflareRule) (bool, error) {
+// proofNow proves the tunnel on the servers its rules were written for, as a plan
+// does, and says what the drift timer marks them: published, run elsewhere
+// (tunnel_shared), or not proved on its server alone (tunnel_unproven). known is
+// false where a server's tunnels or facts can't be read now, as its agent is away,
+// which says nothing either way (the review's M2).
+func (p *Publisher) proofNow(ctx context.Context, t *target, tunnel string, held []store.CloudflareRule) (state string, known bool, err error) {
 	var servers []string
 	for i := range held {
 		if s := held[i].ServerID; s != "" && !slices.Contains(servers, s) {
 			servers = append(servers, s)
 		}
 	}
+	state, known = store.CloudflarePublished, len(servers) > 0
 	for _, server := range servers {
 		facts, err := p.Server(ctx, server)
 		if err != nil {
+			known = false
 			continue
 		}
 		_, err = p.proveTunnel(ctx, server, t, tunnel, facts)
 		var api *dnsproviders.APIError
 		switch {
+		case err == nil:
 		case errors.Is(err, ErrShared):
-			return true, nil
+			return store.CloudflareTunnelShared, true, nil
+		case errors.Is(err, ErrUnproven):
+			state = store.CloudflareTunnelUnproven
 		case errors.As(err, &api) && api.Status == http.StatusTooManyRequests:
-			return false, err
+			return "", false, err
+		default:
+			known = false
 		}
 	}
-	return false, nil
+	if state == store.CloudflareTunnelUnproven {
+		known = true
+	}
+	return state, known, nil
 }
 
 // markRules marks each of a tunnel's rules with what stateOf finds, putting each one
@@ -272,7 +286,7 @@ func (p *Publisher) markRules(ctx context.Context, tunnel string, held []store.C
 				continue
 			}
 			// A tunnel run elsewhere too isn't something gone: the alert says it.
-			if state != store.CloudflarePublished && state != store.CloudflareTunnelShared && r.State == store.CloudflarePublished {
+			if state != store.CloudflarePublished && state != store.CloudflareTunnelShared && state != store.CloudflareTunnelUnproven && r.State == store.CloudflarePublished {
 				gone = append(gone, told{Provider: r.Provider, Target: r.Zone, Name: r.Hostname, Action: int(resource.ProviderAddRule), Drift: true, Version: max(version, 0)})
 			}
 			if err := tx.MarkCloudflareRule(ctx, r.TunnelID, r.Hostname, r.Path, state, now); err != nil {

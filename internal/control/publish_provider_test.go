@@ -3,9 +3,12 @@
 package control
 
 import (
+	"encoding/base64"
+	"io/fs"
 	"slices"
 	"strings"
 	"testing"
+	"testing/fstest"
 
 	"connectrpc.com/connect"
 
@@ -325,5 +328,65 @@ func TestDriftSaysATunnelRunsElsewhereToo(t *testing.T) {
 		if got := stateOf(); got != dockwellv1.PublishedState_PUBLISHED_STATE_PUBLISHED {
 			t.Fatalf("once it's gone from there: %v", got)
 		}
+	})
+}
+
+// wikiState is wiki.example.com's published state on the domain's row.
+func (s *publishStand) wikiState(t *testing.T) dockwellv1.PublishedState {
+	t.Helper()
+	dc := dockwellv1connect.NewDomainServiceClient(s.b, s.b.origin, connect.WithProtoJSON())
+	listed, err := dc.ListDomains(t.Context(), connect.NewRequest(&dockwellv1.ListDomainsRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, d := range listed.Msg.GetDomains() {
+		if d.GetName() == "wiki.example.com" && len(d.GetPublished()) == 1 {
+			return d.GetPublished()[0].GetState()
+		}
+	}
+	t.Fatal("no row for wiki")
+	return 0
+}
+
+// The drift timer never reads a tunnel it can't prove as published: one connected
+// wholly from another server runs elsewhere, and one run again on the same server in
+// a way that disagrees, as a fake cloudflared in a container claiming its ID, can't be
+// proved there (the review's M2).
+func TestDriftSaysWhenItCantProveTheTunnel(t *testing.T) {
+	t.Parallel()
+	t.Run("moved wholly to another server", func(t *testing.T) {
+		t.Parallel()
+		storetest.Each(t, func(t *testing.T, backend store.Backend) {
+			s := newPublishStandOn(t, backend)
+			s.applied(t, propose(t, s.person, "Publish wiki", s.published("wiki", "wiki.example.com")))
+			s.cf.Disconnect(webOne, "connector-hz-1")
+			s.cf.Connect(webOne, cftest.Connector{ID: "connector-elsewhere"})
+			if err := s.f.server.publisher.Drift(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			if got := s.wikiState(t); got != dockwellv1.PublishedState_PUBLISHED_STATE_TUNNEL_SHARED {
+				t.Fatalf("a tunnel connected from elsewhere alone: %v", got)
+			}
+		})
+	})
+	t.Run("a second run on the same server that disagrees", func(t *testing.T) {
+		t.Parallel()
+		storetest.Each(t, func(t *testing.T, backend store.Backend) {
+			s := newPublishStandOn(t, backend)
+			s.applied(t, propose(t, s.person, "Publish wiki", s.published("wiki", "wiki.example.com")))
+			token := base64.StdEncoding.EncodeToString([]byte(`{"a":"` + cftest.Account + `","t":"` + webOne + `","s":"made-up"}`))
+			s.proc.add(fstest.MapFS{
+				"200/stat":      {Data: []byte("200 (cloudflared) S 1 1 1 0 -1 4194560 100 0 0 0 1 1 0 0 20 0 9 0 600 1000 100")},
+				"200/cmdline":   {Data: []byte("cloudflared\x00tunnel\x00run\x00--token\x00" + token + "\x00")},
+				"200/ns/net":    {Data: []byte("net:[2]"), Mode: fs.ModeSymlink},
+				"200/net/route": {Data: []byte("Iface\tDestination\tGateway\tFlags\tRefCnt\tUse\tMetric\tMask\tMTU\tWindow\tIRTT\neth0\t000012AC\t00000000\t0001\t0\t0\t0\t0000FFFF\t0\t0\t0\n")},
+			})
+			if err := s.f.server.publisher.Drift(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			if got := s.wikiState(t); got != dockwellv1.PublishedState_PUBLISHED_STATE_TUNNEL_UNPROVEN {
+				t.Fatalf("a fake run beside the real one: %v", got)
+			}
+		})
 	})
 }

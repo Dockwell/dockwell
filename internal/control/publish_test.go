@@ -7,10 +7,13 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"io/fs"
+	"maps"
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"testing/fstest"
@@ -39,6 +42,41 @@ const panelDoc = `{"ingress":[{"hostname":"panel.example.com","service":"http://
 type publishStand struct {
 	*dnsStand
 	cf *cftest.API
+	// proc is what the server's agent reads as /proc, which a test may add a run to.
+	proc *swapFS
+}
+
+// swapFS is a /proc a test changes while the agent reads it.
+type swapFS struct {
+	mu sync.Mutex
+	m  fstest.MapFS
+}
+
+func (s *swapFS) Open(name string) (fs.File, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.m.Open(name)
+}
+
+func (s *swapFS) ReadLink(name string) (string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.m.ReadLink(name)
+}
+
+func (s *swapFS) Lstat(name string) (fs.FileInfo, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.m.Lstat(name)
+}
+
+// add puts files in it, as a process that started.
+func (s *swapFS) add(files fstest.MapFS) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	next := maps.Clone(s.m)
+	maps.Copy(next, files)
+	s.m = next
 }
 
 func newPublishStand(t *testing.T) *publishStand {
@@ -63,14 +101,19 @@ func newPublishStandRunning(t *testing.T, cmdline string) *publishStand {
 
 func newPublishStandIn(t *testing.T, backend store.Backend, cmdline string) *publishStand {
 	t.Helper()
+	proc := &swapFS{m: fstest.MapFS{
+		"self/ns/net": {Data: []byte("net:[1]"), Mode: fs.ModeSymlink},
+		"100/stat":    {Data: []byte("100 (cloudflared) S 1 1 1 0 -1 4194560 100 0 0 0 1 1 0 0 20 0 9 0 500 1000 100")},
+		"100/cmdline": {Data: []byte(cmdline)},
+		"100/ns/net":  {Data: []byte("net:[1]"), Mode: fs.ModeSymlink},
+	}}
 	finder := &tunnels.Finder{
-		Proc: fstest.MapFS{
-			"self/ns/net": {Data: []byte("net:[1]"), Mode: fs.ModeSymlink},
-			"100/stat":    {Data: []byte("100 (cloudflared) S 1 1 1 0 -1 4194560 100 0 0 0 1 1 0 0 20 0 9 0 500 1000 100")},
-			"100/cmdline": {Data: []byte(cmdline)},
-			"100/ns/net":  {Data: []byte("net:[1]"), Mode: fs.ModeSymlink},
-		},
-		ReadyIn: func(context.Context, int, string) (tunnels.Ready, error) {
+		Proc: proc,
+		// Only the server's own run answers its /ready, as a run of a test's own makes up.
+		ReadyIn: func(_ context.Context, pid int, _ string) (tunnels.Ready, error) {
+			if pid != 100 {
+				return tunnels.Ready{}, errors.New("nothing answers there")
+			}
 			return tunnels.Ready{Connections: 4, ConnectorID: "connector-hz-1"}, nil
 		},
 	}
@@ -84,7 +127,7 @@ func newPublishStandIn(t *testing.T, backend store.Backend, cmdline string) *pub
 	applyConfirmed(t, s.person, propose(t, s.person, "Publish through Cloudflare", dnsEdit("cloudflare", &resourcev1.DnsProvider{
 		Provider: "cloudflare", Zones: []string{"example.com"}, ApiToken: dnsToken, Projects: []string{s.project},
 	})))
-	return &publishStand{dnsStand: s, cf: cf}
+	return &publishStand{dnsStand: s, cf: cf, proc: proc}
 }
 
 func (s *publishStand) published(name, domain string, takes ...*resourcev1.TakeOver) *dockwellv1.Edit {

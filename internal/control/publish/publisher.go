@@ -149,8 +149,22 @@ func (p *Publisher) target(ctx context.Context, provider, name string) (*target,
 }
 
 // ErrShared is a tunnel connected from somewhere besides the server it's proved on,
-// which Cloudflare would send a zone's names to as well.
+// or from there no more, which Cloudflare sends a zone's names to.
 var ErrShared = errors.New("its names go to whichever connection answers")
+
+// ErrUnproven is a tunnel Dockwell can't prove runs on the server alone: run more
+// than once there in ways that disagree, unread, or not connected.
+var ErrUnproven = errors.New("Dockwell can't prove it runs on the server alone") //nolint:staticcheck // the product's name
+
+// proofFailed is a tunnel's proof refused in words, of a kind (ErrShared or
+// ErrUnproven) the drift timer marks.
+type proofFailed struct {
+	said string
+	kind error
+}
+
+func (p proofFailed) Error() string        { return p.said }
+func (p proofFailed) Is(target error) bool { return target == p.kind }
 
 // handedOver says the record id is Dockwell's own, of another route of the change
 // that publishes name no more, while route publishes it now.
@@ -627,17 +641,17 @@ func (p *Publisher) proveTunnel(ctx context.Context, server string, t *target, t
 		}
 	}
 	if len(here) == 0 {
-		return nil, fmt.Errorf("%s doesn't run that tunnel. Pick a way in under Change", facts.Name)
+		return nil, proofFailed{facts.Name + " doesn't run that tunnel. Pick a way in under Change", ErrShared}
 	}
 	if slices.ContainsFunc(here, func(f *dockwellv1.CloudflaredTunnel) bool { return f.GetManagedInFile() }) {
-		return nil, fmt.Errorf("%s's tunnel is managed in a file, so Dockwell writes nothing at Cloudflare", facts.Name)
+		return nil, proofFailed{facts.Name + "'s tunnel is managed in a file, so Dockwell writes nothing at Cloudflare", ErrUnproven}
 	}
 	// Each run of the tunnel here gets names from Cloudflare, so a rule's service has
 	// to reach apps from every one of them: runs that reach apps differently, or say
 	// different accounts, leave no one service to write (the review's M2).
 	for _, f := range here[1:] {
 		if f.GetReaches() != here[0].GetReaches() || f.GetNetworkRange() != here[0].GetNetworkRange() || f.GetAccountTag() != here[0].GetAccountTag() {
-			return nil, fmt.Errorf("the tunnel runs more than once on %s, and its runs reach apps differently, so Dockwell can't pick where its rule sends a name. Keep one of them", facts.Name)
+			return nil, proofFailed{fmt.Sprintf("the tunnel runs more than once on %s, and its runs reach apps differently, so Dockwell can't pick where its rule sends a name. Keep one of them", facts.Name), ErrUnproven}
 		}
 	}
 	account := cmp.Or(here[0].GetAccountTag(), t.zone.Account)
@@ -648,7 +662,7 @@ func (p *Publisher) proveTunnel(ctx context.Context, server string, t *target, t
 		return nil, fmt.Errorf("can't read the tunnel's connections at Cloudflare: %w", err)
 	}
 	if len(connectors) == 0 {
-		return nil, fmt.Errorf("the tunnel isn't connected from %s now, so Dockwell can't tell it runs there", facts.Name)
+		return nil, proofFailed{fmt.Sprintf("the tunnel isn't connected from %s now, so Dockwell can't tell it runs there", facts.Name), ErrUnproven}
 	}
 	ids := map[string]*dockwellv1.CloudflaredTunnel{}
 	unread := false
@@ -663,10 +677,10 @@ func (p *Publisher) proveTunnel(ctx context.Context, server string, t *target, t
 	// other server leaves from the same address (ADR 0104, section 3).
 	byAddress := len(ids) == 0
 	if byAddress && len(facts.SharesWith) > 0 {
-		return nil, fmt.Errorf("%s and %s share an address, so Dockwell can't tell which runs the tunnel", facts.Name, strings.Join(facts.SharesWith, ", "))
+		return nil, proofFailed{fmt.Sprintf("%s and %s share an address, so Dockwell can't tell which runs the tunnel", facts.Name, strings.Join(facts.SharesWith, ", ")), ErrUnproven}
 	}
 	if !byAddress && unread {
-		return nil, fmt.Errorf("the tunnel runs more than once on %s, and Dockwell can't read one of its runs, so it can't tell which is real. Keep one of them", facts.Name)
+		return nil, proofFailed{fmt.Sprintf("the tunnel runs more than once on %s, and Dockwell can't read one of its runs, so it can't tell which is real. Keep one of them", facts.Name), ErrUnproven}
 	}
 	var proved *dockwellv1.CloudflaredTunnel
 	for _, c := range connectors {
@@ -677,13 +691,13 @@ func (p *Publisher) proveTunnel(ctx context.Context, server string, t *target, t
 		if byAddress && len(c.Connections) > 0 && !slices.ContainsFunc(c.Connections, func(conn dnsproviders.Connection) bool { return !slices.Contains(facts.WaysOut, conn.OriginIP) }) {
 			continue
 		}
-		return nil, fmt.Errorf("the tunnel runs on %s and somewhere else too, so Dockwell can't send a name to one of them: %w", facts.Name, ErrShared)
+		return nil, proofFailed{fmt.Sprintf("the tunnel runs on %s and somewhere else too, so Dockwell can't send a name to one of them", facts.Name), ErrShared}
 	}
 	if byAddress {
 		return here[0], nil
 	}
 	if proved == nil {
-		return nil, fmt.Errorf("the tunnel isn't connected from %s now, so Dockwell can't tell it runs there", facts.Name)
+		return nil, proofFailed{fmt.Sprintf("the tunnel isn't connected from %s now, so Dockwell can't tell it runs there", facts.Name), ErrUnproven}
 	}
 	return proved, nil
 }

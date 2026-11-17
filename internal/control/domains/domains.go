@@ -321,6 +321,8 @@ func addPublished(ctx context.Context, tx *store.Tx, routeID string, rt *resourc
 			p.State = dockwellv1.PublishedState_PUBLISHED_STATE_TUNNEL_DELETED
 		case ruleState == store.CloudflareTunnelShared:
 			p.State = dockwellv1.PublishedState_PUBLISHED_STATE_TUNNEL_SHARED
+		case ruleState == store.CloudflareTunnelUnproven:
+			p.State = dockwellv1.PublishedState_PUBLISHED_STATE_TUNNEL_UNPROVEN
 		case ruleState == store.CloudflareUnreadable || rec.State == store.CloudflareUnreadable:
 			p.State = dockwellv1.PublishedState_PUBLISHED_STATE_UNREADABLE
 		case ruleState != store.CloudflarePublished:

@@ -14639,6 +14639,7 @@ components:
                         - PUBLISHED_STATE_CAN_MOVE
                         - PUBLISHED_STATE_TUNNEL_DELETED
                         - PUBLISHED_STATE_UNREADABLE
+                        - PUBLISHED_STATE_TUNNEL_UNPROVEN
                     type: string
                     description: Where it stands.
                     format: enum
