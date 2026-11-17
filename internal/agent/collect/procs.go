@@ -416,6 +416,13 @@ func cgroupOf(b []byte) (container, unit string) {
 	return "", unit
 }
 
+// ContainerInCgroup reads the Docker container a process runs in from its cgroup file, or
+// "" for one on the host.
+func ContainerInCgroup(cgroup []byte) string {
+	c, _ := cgroupOf(cgroup)
+	return c
+}
+
 // parsePasswd reads /etc/passwd's names by user ID. A container's is whatever its
 // image wrote, so a name is at most maxUserName bytes of what prints, and one
 // that holds anything else names nobody.

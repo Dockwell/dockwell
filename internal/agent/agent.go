@@ -36,6 +36,7 @@ import (
 	"github.com/dockwell/dockwell/internal/agent/hosttool"
 	"github.com/dockwell/dockwell/internal/agent/system"
 	"github.com/dockwell/dockwell/internal/agent/terminal"
+	"github.com/dockwell/dockwell/internal/agent/tunnels"
 	"github.com/dockwell/dockwell/internal/agent/updates"
 	"github.com/dockwell/dockwell/internal/buildinfo"
 	"github.com/dockwell/dockwell/internal/delivery"
@@ -122,6 +123,9 @@ type Config struct {
 	Docker *docker.Client
 	// Probes checks a connection from where an app is (ADR 0099). Nil checks none.
 	Probes *probe.Runner
+	// Tunnels finds the Cloudflare tunnels cloudflared runs here (ADR 0104). Nil
+	// finds none.
+	Tunnels *tunnels.Finder
 	// Backups takes and removes backups of this server's volumes. Nil takes none.
 	Backups BackupTaker
 	// Databases reads this server's databases, each in its own container (ADR
@@ -670,7 +674,11 @@ func session(ctx context.Context, cfg Config) (err error) {
 	}
 	offered := readyKinds(ctx, cfg.Drivers)
 	offered.log(ctx, cfg.Logger)
-	hello := &agentv1.Hello{Build: cfg.Build.Proto(), Inventory: cfg.Collector.Inventory(ctx), DeliveryKey: key.Public(), WritesReferences: true, ServesRedirects: true, GuardsWaysIn: true, MakesFolders: true, OwnSettings: true, WritesFiles: true, OwnsVolumes: true, Updates: cfg.Updates != nil, FollowsPace: true, ReadsOnepanel: cfg.OnePanel != nil, ManagesFiles: true, TransfersFiles: true, PagesListings: true, FirstPasswords: true, Forwards: cfg.Docker != nil, Drills: cfg.Backups != nil, ActsOnUnits: cfg.System != nil, RegistryLogins: true, BuildLogins: true, BuildGitAuth: true, Links: cfg.Docker != nil, ReadsPanels: cfg.Panels != nil, StopsPanels: cfg.Docker != nil, RemakesSwarmApps: cfg.Docker != nil, RunsHostAccess: cfg.Docker != nil, ReadsTakenReferences: true, ChecksPanelDomains: cfg.Panels != nil, KeepsRoutesPrivate: true, SignsIn: true, OneDatabaseBackups: cfg.Backups != nil, VolumeMoves: cfg.Backups != nil, LoadsCertificates: cfg.Certificates != nil, UpgradesItself: cfg.UpgradesItself, ProbesConnections: cfg.Probes != nil}
+	inventory := cfg.Collector.Inventory(ctx)
+	if cfg.Tunnels != nil {
+		inventory.Tunnels = cfg.Tunnels.Find(ctx)
+	}
+	hello := &agentv1.Hello{Build: cfg.Build.Proto(), Inventory: inventory, ReadsTunnels: cfg.Tunnels != nil, DeliveryKey: key.Public(), WritesReferences: true, ServesRedirects: true, GuardsWaysIn: true, MakesFolders: true, OwnSettings: true, WritesFiles: true, OwnsVolumes: true, Updates: cfg.Updates != nil, FollowsPace: true, ReadsOnepanel: cfg.OnePanel != nil, ManagesFiles: true, TransfersFiles: true, PagesListings: true, FirstPasswords: true, Forwards: cfg.Docker != nil, Drills: cfg.Backups != nil, ActsOnUnits: cfg.System != nil, RegistryLogins: true, BuildLogins: true, BuildGitAuth: true, Links: cfg.Docker != nil, ReadsPanels: cfg.Panels != nil, StopsPanels: cfg.Docker != nil, RemakesSwarmApps: cfg.Docker != nil, RunsHostAccess: cfg.Docker != nil, ReadsTakenReferences: true, ChecksPanelDomains: cfg.Panels != nil, KeepsRoutesPrivate: true, SignsIn: true, OneDatabaseBackups: cfg.Backups != nil, VolumeMoves: cfg.Backups != nil, LoadsCertificates: cfg.Certificates != nil, UpgradesItself: cfg.UpgradesItself, ProbesConnections: cfg.Probes != nil}
 	if cfg.Updates != nil {
 		// A server whose host reboots says which boot it's on, so a reboot passes once
 		// it connects from another (ADR 0064).

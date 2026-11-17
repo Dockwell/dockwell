@@ -596,6 +596,10 @@ message Hello {
   // The agent checks a connection from where an app is, in a container of its own
   // binary (ADR 0099). Numbered in the block every kind holds, 370 to 379.
   bool probes_connections = 371;
+  // The agent reads the Cloudflare tunnels cloudflared runs on its server now, with
+  // each run's connector ID (ADR 0104). Numbered in the block ADR 0104 holds, 340 to
+  // 349.
+  bool reads_tunnels = 340;
 }
 
 // DesiredHeld is what an agent keeps of what its server should run.
@@ -898,7 +902,21 @@ message Call {
     // Check a connection from where an app is (ADR 0099). Every kind of need takes
     // 370 to 379.
     ProbeConnectionCall probe_connection = 370;
+    // Read the Cloudflare tunnels cloudflared runs on the server now (ADR 0104).
+    // ADR 0104 takes 340 to 349.
+    ReadTunnelsCall read_tunnels = 340;
   }
+}
+
+// ReadTunnelsCall asks which Cloudflare tunnels cloudflared runs on the server now,
+// each with the connector ID of its run, which changes as cloudflared restarts.
+message ReadTunnelsCall {}
+
+// ReadTunnelsResult is what the agent found: each tunnel's ID, the ID of the run of
+// cloudflared that holds it, and where its routes live. A connector token's secret is
+// read in memory and dropped: no token is ever in it.
+message ReadTunnelsResult {
+  repeated dockwell.v1.CloudflaredTunnel tunnels = 1;
 }
 
 // ProbeConnectionCall asks the agent to check a connection from where an app is: in
@@ -2537,6 +2555,7 @@ message CallResult {
     // What image_updates found.
     ImageUpdatesResult image_updates = 250;
     ProbeConnectionResult probe_connection = 370;
+    ReadTunnelsResult read_tunnels = 340;
   }
 }
 

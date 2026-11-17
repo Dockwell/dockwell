@@ -326,17 +326,28 @@ func TestCloudflareLive(t *testing.T) {
 				t.Error("cloudflared's log holds the tunnel's secret")
 			}
 		}()
+		// The agent's own finder, on this machine's /proc: it reads the token from its
+		// file inside cloudflared's root, and the connector's ID from its /ready.
+		finder := &tunnels.Finder{Proc: os.DirFS("/proc"), ReadIn: tunnels.ReadInRoot, ReadyIn: tunnels.ReadyInNetwork}
 		var ready tunnels.Ready
 		deadline := time.Now().Add(time.Minute)
-		for time.Now().Before(deadline) {
-			ready, err = tunnels.ReadReady(ctx, metrics, nil)
-			if err == nil && ready.Connections > 0 {
-				break
+		for time.Now().Before(deadline) && ready.ConnectorID == "" {
+			for _, found := range finder.Find(ctx) {
+				// Matched by the scratch tunnel's ID, as the cloudflared started may be a
+				// wrapper that runs the real one as its child.
+				if found.GetTunnelId() == tunnel.ID && found.GetConnectorId() != "" {
+					if strings.Contains(found.String(), secret) {
+						t.Fatal("what the agent found holds the tunnel's secret")
+					}
+					ready.ConnectorID = found.GetConnectorId()
+				}
 			}
-			time.Sleep(time.Second)
+			if ready.ConnectorID == "" {
+				time.Sleep(time.Second)
+			}
 		}
 		if ready.ConnectorID == "" {
-			t.Fatalf("cloudflared's /ready gave no connector ID: %v", err)
+			t.Fatalf("the agent's finder didn't find the scratch tunnel's cloudflared with a connector ID; it found %v", finder.Find(ctx))
 		}
 		for time.Now().Before(deadline) {
 			connectors, err := cf.TunnelConnectors(ctx, account, tunnel.ID)
