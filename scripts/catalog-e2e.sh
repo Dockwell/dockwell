@@ -1007,7 +1007,11 @@ for id in "$@"; do
     # full proof, which slice 3 leaves to a person, as with the floor.
     not_upgraded+=("$id")
   fi
-  ((proved)) || prove
+  # An entry whose owner Dockwell makes is installed fresh as well, as an upgrade
+  # makes no owner for an install from before, so its steps run here too (ADR 0105).
+  if ((!proved)) || jq -e '(.owner.steps // []) | length > 0' <<<"$entry" >/dev/null; then
+    prove
+  fi
   rm -f "${catalog_dir:?}/${id:?}.yaml"
   # Its secrets' values go with the entry; cleanup takes the folder they were in.
   if [[ -n "$input_file" ]]; then rm -f -- "$input_file"; fi
