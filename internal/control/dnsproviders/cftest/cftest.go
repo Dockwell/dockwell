@@ -47,6 +47,9 @@ type API struct {
 	// FailCreate answers a write of a record at a name it says with 500, writing
 	// nothing, as a POST that failed after the delete before it landed.
 	FailCreate func(name string) bool
+	// TooMany answers each request it says yes to with 429, as Cloudflare's rate
+	// limit does, given "METHOD path".
+	TooMany func(asked string) bool
 	// BeforePut runs as a tunnel's configuration is written, before it's taken, with
 	// the stand-in unlocked: a test writes there, as someone in the dashboard would
 	// between Dockwell's read and its write.
@@ -225,6 +228,20 @@ func (t Token) has(names ...string) bool {
 	return slices.ContainsFunc(t.rights(), func(r string) bool { return slices.Contains(names, r) })
 }
 
+// Calls are the requests asked so far, as Asked logs them.
+func (a *API) Calls() []string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return slices.Clone(a.Asked)
+}
+
+// Limit sets TooMany while requests may be served.
+func (a *API) Limit(tooMany func(asked string) bool) {
+	a.mu.Lock()
+	a.TooMany = tooMany
+	a.mu.Unlock()
+}
+
 func (a *API) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	a.mu.Lock()
 	locked := true
@@ -234,6 +251,10 @@ func (a *API) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 	a.Asked = append(a.Asked, r.Method+" "+r.URL.Path)
+	if a.TooMany != nil && a.TooMany(r.Method+" "+r.URL.Path) {
+		fail(w, http.StatusTooManyRequests, 971, "Please wait and consider throttling your request speed")
+		return
+	}
 	token, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
 	t, known := a.Tokens[token]
 	if !ok || !known {

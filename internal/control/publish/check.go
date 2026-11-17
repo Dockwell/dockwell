@@ -5,6 +5,7 @@ package publish
 import (
 	"context"
 	"errors"
+	"net/http"
 	"strings"
 	"sync"
 	"time"
@@ -28,10 +29,34 @@ type CheckAsk struct {
 }
 
 // cache keeps what a check reads that changes slowly, for about 30 seconds, so a
-// person typing reads only the name's records each time (ADR 0104, N12).
+// person typing reads only the name's records each time (ADR 0104, N12, and the
+// review's M3). Once Cloudflare says too many requests, checks read nothing for a
+// minute, leaving the token's rate to renewals and plans.
 type cache struct {
 	mu   sync.Mutex
 	data map[string]cached
+	slow time.Time
+}
+
+// slowFor is how long checks wait once Cloudflare says too many requests.
+const slowFor = time.Minute
+
+// slowed says checks wait now.
+func (c *cache) slowed(now time.Time) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return now.Before(c.slow)
+}
+
+// note marks a 429 from Cloudflare, and gives err back.
+func (c *cache) note(err error, now time.Time) error {
+	var api *dnsproviders.APIError
+	if errors.As(err, &api) && api.Status == http.StatusTooManyRequests {
+		c.mu.Lock()
+		c.slow = now.Add(slowFor)
+		c.mu.Unlock()
+	}
+	return err
 }
 
 type cached struct {
@@ -48,6 +73,17 @@ func (c *cache) forget(key string) {
 	c.mu.Unlock()
 }
 
+// forgetUnder drops what's kept of every key that starts with prefix.
+func (c *cache) forgetUnder(prefix string) {
+	c.mu.Lock()
+	for k := range c.data {
+		if strings.HasPrefix(k, prefix) {
+			delete(c.data, k)
+		}
+	}
+	c.mu.Unlock()
+}
+
 func (c *cache) get(key string, now time.Time, read func() (any, error)) (any, error) {
 	c.mu.Lock()
 	if c.data == nil {
@@ -60,12 +96,27 @@ func (c *cache) get(key string, now time.Time, read func() (any, error)) (any, e
 	c.mu.Unlock()
 	v, err := read()
 	if err != nil {
-		return nil, err
+		return nil, c.note(err, now)
 	}
 	c.mu.Lock()
 	c.data[key] = cached{value: v, at: now}
 	c.mu.Unlock()
 	return v, nil
+}
+
+// readFor reads through the cache under key where t is a live check's, and fresh
+// otherwise: a plan proves what it writes against what Cloudflare says now.
+func readFor[T any](p *Publisher, t *target, key string, read func() (T, error)) (T, error) {
+	if !t.cached {
+		v, err := read()
+		return v, p.cache.note(err, p.now())
+	}
+	v, err := p.cache.get(key, p.now(), func() (any, error) { return read() })
+	if err != nil {
+		var zero T
+		return zero, err
+	}
+	return v.(T), nil //nolint:forcetypeassert // only read puts a value under key
 }
 
 // providerFor is the connected provider that serves project and holds name in a
@@ -94,6 +145,10 @@ func (p *Publisher) providerFor(ctx context.Context, project, name string) (stri
 // provider serving the project holds the name (ADR 0104, section 1).
 func (p *Publisher) Check(ctx context.Context, a CheckAsk) (*dockwellv1.CloudflareCheck, error) {
 	name := strings.ToLower(a.Name)
+	if p.cache.slowed(p.now()) {
+		// Said once, as the 429 that started the wait was.
+		return nil, nil
+	}
 	provider, err := p.providerFor(ctx, a.Project, name)
 	if err != nil || provider == "" {
 		return nil, err
@@ -102,6 +157,7 @@ func (p *Publisher) Check(ctx context.Context, a CheckAsk) (*dockwellv1.Cloudfla
 	if err != nil {
 		return nil, err
 	}
+	t.cached = true
 	out := &dockwellv1.CloudflareCheck{Zone: t.zone.Name, Provider: provider, State: dockwellv1.CloudflareName_CLOUDFLARE_NAME_FREE}
 	now := p.now()
 	if mode, err := p.cache.get("ssl:"+t.zone.ID, now, func() (any, error) {
@@ -112,7 +168,7 @@ func (p *Publisher) Check(ctx context.Context, a CheckAsk) (*dockwellv1.Cloudfla
 	}
 	there, err := t.cf.RecordsAt(ctx, t.zone, name)
 	if err != nil {
-		return nil, err
+		return nil, p.cache.note(err, now)
 	}
 	var ours []store.CloudflareRecord
 	if err := p.DB.View(ctx, func(tx *store.Tx) error {
@@ -228,7 +284,9 @@ func (p *Publisher) ways(ctx context.Context, a CheckAsk, t *target, name string
 			continue
 		}
 		account := f.GetAccountTag()
-		if info, err := t.tunnels.TunnelByID(ctx, account, f.GetTunnelId()); err == nil {
+		if info, err := readFor(p, t, "info:"+f.GetTunnelId(), func() (dnsproviders.Tunnel, error) {
+			return t.tunnels.TunnelByID(ctx, account, f.GetTunnelId())
+		}); err == nil {
 			opt.TunnelName = info.Name
 		}
 		doc, err := p.cache.get("doc:"+f.GetTunnelId(), p.now(), func() (any, error) {

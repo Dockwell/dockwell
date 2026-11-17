@@ -5,6 +5,8 @@ package publish
 import (
 	"cmp"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -88,6 +90,8 @@ type target struct {
 	cf       *dnsproviders.Cloudflare
 	tunnels  *dnsproviders.Cloudflare
 	zone     dnsproviders.Zone
+	// cached says it's a live check's, whose reads may be up to 30 seconds old.
+	cached bool
 }
 
 func (p *Publisher) target(ctx context.Context, provider, name string) (*target, error) {
@@ -120,7 +124,9 @@ func (p *Publisher) target(ctx context.Context, provider, name string) (*target,
 	if zoneName == "" {
 		return nil, fmt.Errorf("%s is in none of %s's zones, so Dockwell can't publish it there", name, provider)
 	}
-	zones, err := cf.Zones(ctx)
+	// A token's zones change seldom; a new token reads them again.
+	sum := sha256.Sum256([]byte(saved.Spec.GetApiToken()))
+	zones, err := readFor(p, &target{cached: true}, "zones:"+provider+":"+hex.EncodeToString(sum[:8]), func() ([]dnsproviders.Zone, error) { return cf.Zones(ctx) })
 	if err != nil {
 		return nil, fmt.Errorf("can't read %s's zones at Cloudflare: %w", provider, err)
 	}
@@ -457,7 +463,9 @@ func (p *Publisher) routing(ctx context.Context, t *target, tunnel string, doc *
 			rt.Names = append(rt.Names, r.Hostname)
 		}
 	}
-	pointing, err := t.cf.RecordsPointingAt(ctx, t.zone, tunnel+".cfargotunnel.com")
+	pointing, err := readFor(p, t, "pointing:"+t.zone.ID+":"+tunnel, func() ([]dnsproviders.Record, error) {
+		return t.cf.RecordsPointingAt(ctx, t.zone, tunnel+".cfargotunnel.com")
+	})
 	if err != nil {
 		return Routing{}, fmt.Errorf("can't read which names point at the tunnel: %w", err)
 	}
@@ -505,7 +513,9 @@ func (p *Publisher) proveTunnel(ctx context.Context, server string, t *target, t
 		}
 	}
 	account := cmp.Or(here[0].GetAccountTag(), t.zone.Account)
-	connectors, err := t.tunnels.TunnelConnectors(ctx, account, tunnel)
+	connectors, err := readFor(p, t, "connectors:"+tunnel, func() ([]dnsproviders.Connector, error) {
+		return t.tunnels.TunnelConnectors(ctx, account, tunnel)
+	})
 	if err != nil {
 		return nil, fmt.Errorf("can't read the tunnel's connections at Cloudflare: %w", err)
 	}

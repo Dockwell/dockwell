@@ -21,6 +21,9 @@ import (
 // again after a control plane stopped midway finds what it wrote (ADR 0104, section
 // 8).
 func (p *Publisher) Apply(ctx context.Context, changeID string, route revision.PublishRoute, s resource.ProviderStep) (string, error) {
+	// A live check reads which names point at a tunnel again after any write here,
+	// whatever came of it.
+	defer p.cache.forgetUnder("pointing:" + s.ZoneID)
 	said, err := p.apply(ctx, changeID, route, s)
 	if err == nil {
 		p.noteWrite(ctx, route.ID, s, 0)

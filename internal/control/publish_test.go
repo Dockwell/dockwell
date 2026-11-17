@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"io/fs"
 	"slices"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -357,6 +358,51 @@ func TestTheLiveCheckOfAName(t *testing.T) {
 	hold(store.Grant{ProjectID: s.project, Role: store.RoleDeveloper})
 	if taken := check("vpn.example.com"); taken.GetState() != dockwellv1.CloudflareName_CLOUDFLARE_NAME_TAKEN || taken.GetRecord() != "" || taken.GetRecordId() != "" || len(taken.GetTypes()) != 0 {
 		t.Fatalf("taken, as a developer sees it: %v", taken)
+	}
+}
+
+// Ten checks of different names read Cloudflare once each after the first: only
+// the name's records, as what else a check reads is kept for 30 seconds. Once
+// Cloudflare says too many requests, checks read nothing for a minute (the
+// review's M3).
+func TestTheLiveCheckReadsLittle(t *testing.T) {
+	t.Parallel()
+	s := newPublishStand(t)
+	dc := dockwellv1connect.NewDomainServiceClient(s.b, s.b.origin, connect.WithProtoJSON())
+	check := func(name string) *dockwellv1.CloudflareCheck {
+		t.Helper()
+		got, err := dc.CheckDomain(t.Context(), connect.NewRequest(&dockwellv1.CheckDomainRequest{ServerId: s.server, Domain: name, ProjectId: s.project}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return got.Msg.GetCloudflare()
+	}
+	asked := func() int { return len(s.cf.Calls()) }
+	if check("app-0.example.com").GetWay() != resourcev1.RouteWay_ROUTE_WAY_SERVER_TUNNEL {
+		t.Fatal("the first check found no way through the tunnel")
+	}
+	before := asked()
+	for i := 1; i <= 10; i++ {
+		if c := check("app-" + strconv.Itoa(i) + ".example.com"); c.GetWay() != resourcev1.RouteWay_ROUTE_WAY_SERVER_TUNNEL {
+			t.Fatalf("check %d: %v", i, c)
+		}
+	}
+	if n := asked() - before; n != 10 {
+		t.Fatalf("ten checks asked Cloudflare %d times: %q", n, s.cf.Calls()[before:])
+	}
+
+	s.cf.Limit(func(string) bool { return true })
+	if c := check("busy.example.com"); c != nil {
+		t.Fatalf("a check Cloudflare refused: %v", c)
+	}
+	before = asked()
+	for range 3 {
+		if c := check("busy.example.com"); c != nil {
+			t.Fatalf("a check while waiting: %v", c)
+		}
+	}
+	if n := asked() - before; n != 0 {
+		t.Fatalf("checks asked Cloudflare %d times while waiting", n)
 	}
 }
 
