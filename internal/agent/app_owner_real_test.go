@@ -72,15 +72,19 @@ func giteaOwner() *resourcev1.OwnerRun {
 }
 
 // ghostScript asks Ghost from inside its container, on its own loopback, which is
-// the only address whose X-Forwarded-Proto Ghost believes, so a Ghost reached at an
-// https address answers rather than redirects (the review's M4). It reads every
-// value from its environment, and the method, path and body from its arguments,
-// which hold none: the body names values as {{NAME}}, which it fills from there.
+// the only address whose X-Forwarded-Proto Ghost believes, as the address its url
+// says, so a Ghost reached at an https address answers rather than redirects (the
+// review's M4). Its url is what Ghost checks a request against, and follows the
+// app's domain as an address variable (ADR 0103), so it holds where the install
+// has no domain, as an address given as an input. It reads every value from its
+// environment, and the method, path and body from its arguments, which hold none:
+// the body names values as {{NAME}}, which it fills from there. It's the one
+// Dockwell/catalog's ghost entry holds.
 const ghostScript = `const [m, p, b] = process.argv.slice(1);
 const body = b ? b.replace(/\{\{(\w+)\}\}/g, (_, k) => JSON.stringify(process.env[k] || "").slice(1, -1)) : "";
-const h = process.env.DOCKWELL_HOST, s = process.env.DOCKWELL_SCHEME;
+const u = new URL(process.env.url);
 const r = require("http").request({host: "127.0.0.1", port: 2368, path: p, method: m, headers: {
-  "Host": h, "X-Forwarded-Proto": s, "Origin": s + "://" + h, "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body)}},
+  "Host": u.host, "X-Forwarded-Proto": u.protocol.slice(0, -1), "Origin": u.origin, "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body)}},
   res => { let out = ""; res.on("data", d => out += d); res.on("end", () => { console.log(res.statusCode + " " + out); process.exit(res.statusCode < 300 ? 0 : 1); }); });
 r.on("error", e => { console.error(e.message); process.exit(1); });
 r.end(body);`
