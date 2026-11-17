@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Add a domain, phone</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/dockwell/tokens.css">
+<link rel="stylesheet" href="ds/dockwell/components/bundle.css">
+<script src="ds/dockwell/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--link)}a:hover{text-decoration:underline}
+</style>
+</helmet>
+<div data-theme="{{theme}}" style="width: 390px; height: 844px; overflow: hidden; position: relative; display: flex; flex-direction: column; background: var(--canvas); color: var(--ink); font-family: var(--font-sans);">
+<div style="position: absolute; inset: 0; z-index: var(--z-sheet); background: var(--scrim); display: flex; padding: 8px; box-sizing: border-box;">
+<div style="width: 100%; height: 100%;">
+<x-import component-from-global-scope="Dockwell.Sheet" inline="{{yes}}" title="Add a domain to wordpress" subtitle="People reach the app at this name" footer="{{footer}}" on-close="{{noop}}">
+<div style="display: flex; flex-direction: column; gap: 20px;">
+
+<div style="display: flex; flex-direction: column; gap: 6px;">
+<span class="dw-field-label">Domain</span>
+<div style="display: flex; flex-direction: column; gap: 8px; align-items: stretch;">
+<div style="flex: 1 1 auto; min-width: 0;"><x-import component-from-global-scope="Dockwell.TextField" aria-label="Subdomain" default-value="wiki" mono="{{yes}}"></x-import></div>
+<div style="flex: 0 0 auto;"><div class="dw-input" style="position: relative;">
+<select class="dw-input-el" aria-label="Zone" style="appearance: none; -webkit-appearance: none; padding-right: 32px; cursor: pointer; font-family: var(--font-mono); font-size: 13px;"><option>.example.com</option><option>.example.org</option><option>Another domain</option></select>
+<span style="position: absolute; right: 10px; top: 8px; display: flex; color: var(--ink-muted); pointer-events: none;"><x-import component-from-global-scope="Dockwell.Icon" name="chevron-up-down" size="{{14}}"></x-import></span>
+</div></div>
+</div>
+<span style="display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--ink-muted);"><span style="display: flex; color: var(--healthy);"><x-import component-from-global-scope="Dockwell.Glyph" shape="circle" size="{{8}}"></x-import></span>Free in Dockwell and at Cloudflare</span>
+</div>
+
+<dl style="margin: 0; display: grid; grid-template-columns: 80px minmax(0, 1fr) max-content; gap: 12px 12px; align-items: baseline; font-size: 14px;">
+<dt style="color: var(--ink-muted); font-size: 13px;">Way in</dt>
+<dd style="margin: 0; display: flex; flex-direction: column; gap: 2px; min-width: 0;"><span>Through the tunnel <code style="font-size: 13px;">web-1</code> on hz-1</span><span style="font-size: 12.5px; color: var(--ink-muted);">Cloudflare ends HTTPS, and the tunnel reaches hz-1 at <code style="font-size: 12px;">http://127.0.0.1:80</code></span></dd>
+<dd style="margin: 0;"><a href="Domain-Add-Ways.dc.html" style="font-size: 13px; font-weight: 500;">Change</a></dd>
+<dt style="color: var(--ink-muted); font-size: 13px;">Reaches</dt>
+<dd style="margin: 0;">wordpress on port 80</dd>
+<dd style="margin: 0;"><a href="#" style="font-size: 13px; font-weight: 500;">Change</a></dd>
+</dl>
+
+<button type="button" aria-expanded="false" style="display: flex; align-items: center; gap: 8px; padding: 10px 0 0; border: 0; border-top: 1px solid var(--line); background: none; color: var(--ink); font: inherit; font-size: 14px; text-align: left; cursor: pointer;"><x-import component-from-global-scope="Dockwell.Icon" name="chevron-right" size="{{14}}"></x-import><span style="font-weight: 550;">Advanced</span><span style="font-size: 12.5px; color: var(--ink-muted);">Path / · Answers only hz-1’s tunnel</span></button>
+
+<div style="display: flex; flex-direction: column; gap: 12px; padding-top: 20px; border-top: 1px solid var(--line);">
+<div style="display: flex; align-items: baseline; justify-content: space-between; gap: 8px;"><h3 class="label" style="margin: 0;">Plan</h3><span style="font-size: 12.5px; color: var(--ink-muted);">On hz-1, and at Cloudflare</span></div>
+<x-import component-from-global-scope="Dockwell.PlanDiff" resources="{{plan}}" impact="Every other name in web-1, the panel’s among them, goes where it went"></x-import>
+</div>
+
+</div>
+</x-import>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const h = React.createElement, DW = window.Dockwell;
+    const zones = [
+      { value: 'example.com', label: '.example.com' },
+      { value: 'example.org', label: '.example.org' },
+      { value: '', label: 'Another domain' }
+    ];
+    const plan = [
+      { id: 'dns', action: 'create', kind: 'domain', kindLabel: 'DNS', name: 'wiki.example.com', expanded: false, changes: [{ path: 'CNAME', to: 'web-1’s tunnel, proxied' }] },
+      { id: 'tun', action: 'update', kind: 'route', kindLabel: 'Tunnel', name: 'web-1', changes: [{ path: 'adds, once', to: '*.example.com' }, { path: 'to', to: 'http://127.0.0.1:80' }] },
+      { id: 'route', action: 'create', kind: 'domain', kindLabel: 'Domain', name: 'wiki.example.com', changes: [{ path: 'reaches', to: 'wordpress:80' }, { path: 'HTTPS', to: 'Ends at Cloudflare' }] },
+      { id: 'url', action: 'update', kind: 'app', kindLabel: 'App', name: 'wordpress', changes: [{ path: 'URL follows the app’s address', to: 'https://wiki.example.com' }, { path: 'restarts', to: 'wordpress' }] }
+    ];
+    const footer = h(React.Fragment, null,
+      h(DW.Button, { variant: 'ghost' }, 'Cancel'),
+      h(DW.Button, { variant: 'primary', kbd: '⌘↵' }, 'Review plan'));
+    return {
+      theme: this.props.theme ?? 'light',
+      zones, plan, footer, yes: true,
+      noop: () => {}
+    };
+  }
+}
+</script>
+</body>
+</html>
