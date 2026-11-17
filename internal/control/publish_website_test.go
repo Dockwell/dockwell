@@ -10,6 +10,7 @@ import (
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
 )
@@ -72,4 +73,29 @@ func TestANewWebsitePublishedThroughTheTunnel(t *testing.T) {
 			t.Fatalf("records after the move: %v", got)
 		}
 	})
+}
+
+// A new website has no project yet, so an admin's check reads every provider's zones,
+// as the plan adds the project to the provider; a developer's says nothing of
+// Cloudflare (ADR 0104, the lead's decision on websites).
+func TestANewWebsitesNameIsCheckedInEveryZoneForAnAdmin(t *testing.T) {
+	t.Parallel()
+	s := newPublishStand(t)
+	dc := dockwellv1connect.NewDomainServiceClient(s.b, s.b.origin, connect.WithProtoJSON())
+	got, err := dc.CheckDomain(t.Context(), connect.NewRequest(&dockwellv1.CheckDomainRequest{ServerId: s.server, Domain: "docs.example.com"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cf := got.Msg.GetCloudflare(); cf.GetZone() != "example.com" || cf.GetProvider() != "cloudflare" || cf.GetState() != dockwellv1.CloudflareName_CLOUDFLARE_NAME_FREE {
+		t.Fatalf("an admin's check with no project: %v", cf)
+	}
+	hold := aMember(t, s.f)
+	hold(store.Grant{ProjectID: s.project, Role: store.RoleDeveloper})
+	got, err = dc.CheckDomain(t.Context(), connect.NewRequest(&dockwellv1.CheckDomainRequest{ServerId: s.server, Domain: "docs.example.com"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cf := got.Msg.GetCloudflare(); cf != nil {
+		t.Fatalf("a developer's check with no project reads Cloudflare: %v", cf)
+	}
 }

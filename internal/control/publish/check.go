@@ -132,7 +132,8 @@ func readFor[T any](p *Publisher, t *target, key string, read func() (T, error))
 }
 
 // providerFor is the connected provider that serves project and holds name in a
-// zone, or "".
+// zone, or "". No project, for an admin's new website, takes any provider's zone, as
+// its plan adds the project to the provider (ADR 0104, the lead's decision on websites).
 func (p *Publisher) providerFor(ctx context.Context, project, name string) (string, error) {
 	all, err := p.Providers.All(ctx)
 	if err != nil {
@@ -140,7 +141,7 @@ func (p *Publisher) providerFor(ctx context.Context, project, name string) (stri
 	}
 	for i := range all {
 		spec := all[i].Spec
-		if !dnsprovider.Serves(spec, project) {
+		if project != "" && !dnsprovider.Serves(spec, project) {
 			continue
 		}
 		for _, z := range spec.GetZones() {
@@ -157,6 +158,9 @@ func (p *Publisher) providerFor(ctx context.Context, project, name string) (stri
 // provider serving the project holds the name (ADR 0104, section 1).
 func (p *Publisher) Check(ctx context.Context, a CheckAsk) (out *dockwellv1.CloudflareCheck, err error) {
 	name := strings.ToLower(a.Name)
+	if a.Project == "" && !a.Admin {
+		return nil, nil
+	}
 	provider, err := p.providerFor(ctx, a.Project, name)
 	if err != nil || provider == "" {
 		return nil, err
@@ -377,7 +381,10 @@ func (p *Publisher) ways(ctx context.Context, a CheckAsk, t *target, name string
 	case public:
 		pick = resourcev1.RouteWay_ROUTE_WAY_OWN_HTTPS
 	default:
+		// No way in: the check says so as the way it takes, with what fixes it, so the
+		// panel shows the reason and never a way it can't name.
 		out = append(out, &dockwellv1.WayOption{Way: resourcev1.RouteWay_ROUTE_WAY_OWN_TUNNEL, Off: facts.Name + " has no public address and no tunnel", Action: "Add a tunnel"})
+		pick = resourcev1.RouteWay_ROUTE_WAY_OWN_TUNNEL
 	}
 	if a.Way != resourcev1.RouteWay_ROUTE_WAY_UNSPECIFIED {
 		pick = a.Way

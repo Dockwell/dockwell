@@ -1968,7 +1968,9 @@ type CheckDomainResponse struct {
 	// Where the companion stands. Unset when there's no companion.
 	CompanionCheck *CompanionCheck `protobuf:"bytes,3,opt,name=companion_check,json=companionCheck,proto3" json:"companion_check,omitempty"`
 	// What Cloudflare holds at the name, and the ways in, where a connected DNS
-	// provider's zone holds it for the project. Unset otherwise (ADR 0104).
+	// provider's zone holds it for the project, or, for an admin who names no project,
+	// as for a new website whose plan adds its project to the provider, where any
+	// provider's zone holds it. Unset otherwise (ADR 0104).
 	Cloudflare    *CloudflareCheck `protobuf:"bytes,4,opt,name=cloudflare,proto3" json:"cloudflare,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

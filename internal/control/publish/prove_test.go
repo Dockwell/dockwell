@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/control/dnsproviders"
 	"github.com/dockwell/dockwell/internal/control/dnsproviders/cftest"
@@ -116,5 +117,19 @@ func TestFullStrictWordsAreBounded(t *testing.T) {
 	}
 	if got := listed(atRisk, len(atRisk)); strings.Count(got, ".example.com") != 20 {
 		t.Fatalf("an approval names 20: %s", got)
+	}
+}
+
+// A server with no public address and no tunnel has no way in: the check takes that as
+// its way, with why and what fixes it, so the panel never shows a way it can't name.
+func TestNoWayInIsTheWayTaken(t *testing.T) {
+	p, tg := proving(t, nil)
+	ways, way := p.ways(t.Context(), CheckAsk{Server: "hz-1", Name: "wiki.example.com", Admin: true}, tg, "wiki.example.com", Facts{Name: "hz-1"}, false)
+	if way != resourcev1.RouteWay_ROUTE_WAY_OWN_TUNNEL {
+		t.Fatalf("the way taken: %v", way)
+	}
+	last := ways[len(ways)-1]
+	if last.GetWay() != way || last.GetOff() != "hz-1 has no public address and no tunnel" || last.GetAction() != "Add a tunnel" {
+		t.Fatalf("the way taken should say why and what fixes it: %v", ways)
 	}
 }

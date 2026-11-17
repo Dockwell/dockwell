@@ -153,8 +153,10 @@ func (h *Handler) CheckDomain(ctx context.Context, req *connect.Request[dockwell
 	out := &dockwellv1.CheckDomainResponse{Check: resourcepb.DomainCheck(check), Companion: companion}
 	// What Cloudflare holds there, where a provider serving the project has the name:
 	// a check that couldn't be made says nothing, beside what DNS says (ADR 0104).
-	if h.Cloudflare != nil && req.Msg.GetProjectId() != "" {
-		admin, _ := callerProjects(ctx)
+	// An admin naming no project, as for a new website, which the plan adds to the
+	// provider, is checked against every provider's zones.
+	admin, _ := callerProjects(ctx)
+	if h.Cloudflare != nil && (req.Msg.GetProjectId() != "" || admin) {
 		cf, err := h.Cloudflare.Check(ctx, publish.CheckAsk{
 			Server: srv.GetId(), Project: req.Msg.GetProjectId(), Name: domain, Admin: admin, Way: req.Msg.GetPublish().GetWay(),
 		})

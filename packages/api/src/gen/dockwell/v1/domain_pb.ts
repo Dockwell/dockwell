@@ -785,7 +785,9 @@ export type CheckDomainResponse = Message<"dockwell.v1.CheckDomainResponse"> & {
 
   /**
    * What Cloudflare holds at the name, and the ways in, where a connected DNS
-   * provider's zone holds it for the project. Unset otherwise (ADR 0104).
+   * provider's zone holds it for the project, or, for an admin who names no project,
+   * as for a new website whose plan adds its project to the provider, where any
+   * provider's zone holds it. Unset otherwise (ADR 0104).
    *
    * @generated from field: dockwell.v1.CloudflareCheck cloudflare = 4;
    */
