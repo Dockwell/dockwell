@@ -91,7 +91,16 @@ import { BecauseNotice, FailureNotice, MachineWords } from "./FailureNotice";
 import { useFieldRows } from "./fields";
 import { followChange } from "./follow";
 import { MiddleName, NamedLine } from "./MiddleName";
-import { type Notice, needsConfirming, needsPasskey, useAsides, useDataLeft, useRisks, useWarnings } from "./notices";
+import {
+  type Notice,
+  needsChangedFirst,
+  needsConfirming,
+  needsPasskey,
+  useAsides,
+  useDataLeft,
+  useRisks,
+  useWarnings,
+} from "./notices";
 import { panelName } from "./PanelPlan";
 import { PlanSteps } from "./PlanSteps";
 import { CloudflareSteps } from "./ProviderSteps";
@@ -514,6 +523,9 @@ function ChangeSheet({
   const [failure, setFailure] = useState<unknown>();
   const [busy, setBusy] = useState<Busy>();
   const [typed, setTyped] = useState("");
+  // An Open of an app that signs in with a password everyone knows waits for the
+  // person to say they changed it (the review's M2).
+  const [changedFirst, setChangedFirst] = useState(false);
   const [witnessed, setWitnessed] = useState(opening.kind !== "change" || opening.witnessed === true);
   const queryClient = useQueryClient();
   const rows = useFieldRows();
@@ -606,7 +618,7 @@ function ChangeSheet({
       return !known || known.connection !== Connection.CONNECTED;
     })
     .map((s) => s.serverName);
-  const canApply = confirmed && offline.length === 0;
+  const canApply = confirmed && offline.length === 0 && (!needsChangedFirst(plan) || changedFirst);
   // A plan the reader's role doesn't cover waits for an admin or the owner, and
   // someone else's in a protected environment, an admin approves with a
   // passkey, however it was planned: the API says which (ADR 0049).
@@ -846,6 +858,14 @@ function ChangeSheet({
       </div>
     ) : (
       <>
+        {needsChangedFirst(plan) ? (
+          <Switch
+            className="plan-changed-first"
+            label={t`I changed its password`}
+            checked={changedFirst}
+            onChange={setChangedFirst}
+          />
+        ) : null}
         {offline.length > 0 ? (
           <span className="dw-sheet-note">
             <Trans>{offline.join(", ")} has to reconnect first</Trans>

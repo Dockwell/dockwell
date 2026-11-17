@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
+	"time"
 
 	"google.golang.org/protobuf/proto"
 
@@ -23,12 +24,14 @@ import (
 )
 
 // A new password's reset steps run up to RotateTries times, a look of RotateAfter
-// apart, while the outcome isn't known; then its done is read every Poll, both
-// passwords kept, up to RotateReads times in all before the new one is given up.
+// apart, while the outcome isn't known. Then done is read with each password every
+// Poll, until store.RotateStuck reads in all, and every RotateSlow after that, with
+// no end: both are kept sealed until one reads signing in, or a person settles it
+// (ADR 0105, the review's H1).
 const (
 	RotateTries = 3
 	RotateAfter = 3 * Every
-	RotateReads = 12
+	RotateSlow  = time.Hour
 )
 
 // NoteOwnerPassword is the note of the change that keeps an owner's new password.
@@ -38,36 +41,45 @@ const NoteOwnerPassword = "owner_password"
 // look found it.
 var errRotationGone = errors.New("this rotation ended")
 
-// rotations finds the new passwords to set, or whose outcome to read, now.
-func (r *Runner) rotations(ctx context.Context, tx *store.Tx) ([]job, error) {
+// rotateWait is how long after its last read a rotation is read again.
+func rotateWait(tries int) time.Duration {
+	switch {
+	case tries < RotateTries:
+		return RotateAfter
+	case tries < store.RotateStuck:
+		return Poll
+	default:
+		return RotateSlow
+	}
+}
+
+// rotations finds the new passwords to set, or whose outcome to read, now, and the
+// rotations to end, whose owner is gone or isn't made: those can't be read, and
+// nothing they'd set is anyone's now (the review's L3).
+func (r *Runner) rotations(ctx context.Context, tx *store.Tx) ([]job, []job, error) {
 	list, err := tx.AppOwnersRotating(ctx)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	now := r.now()
-	var jobs []job
+	var jobs, ends []job
 	for i := range list {
 		st := &list[i]
-		if st.State != store.OwnerMade {
-			continue
-		}
-		wait := RotateAfter
-		if st.RotateTries >= RotateTries {
-			wait = Poll
-		}
-		if st.RotateTries > 0 && now.Sub(st.UpdatedAt) < wait {
-			continue
-		}
+		this := job{id: st.ResourceID, environment: st.Environment, rotation: st.Rotation, tries: st.RotateTries, since: st.UpdatedAt}
 		res, err := tx.GetResource(ctx, string(appowner.Kind), st.Environment, appowner.Name)
-		if errors.Is(err, store.ErrNotFound) || err == nil && (res.ID != st.ResourceID || res.Spec == nil) {
+		if errors.Is(err, store.ErrNotFound) || err == nil && (res.ID != st.ResourceID || res.Spec == nil) || st.State != store.OwnerMade {
+			ends = append(ends, this)
 			continue
 		}
 		if err != nil {
-			return nil, err
+			return nil, nil, err
+		}
+		if st.RotateTries > 0 && now.Sub(st.UpdatedAt) < rotateWait(st.RotateTries) {
+			continue
 		}
 		spec, err := r.Keeper.Decode(ctx, tx, store.InRevision(res.ID, res.Kind, res.Revision), res.Spec)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		owner, ok := spec.(*resourcev1.AppOwner)
 		if !ok {
@@ -75,35 +87,46 @@ func (r *Runner) rotations(ctx context.Context, tx *store.Tx) ([]job, error) {
 		}
 		server, err := liveServer(ctx, tx, st.Environment, owner.GetService())
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if server == "" {
 			continue
 		}
-		jobs = append(jobs, job{id: st.ResourceID, environment: st.Environment, server: server, tries: st.RotateTries, since: st.UpdatedAt, rotation: st.Rotation})
+		this.server = server
+		jobs = append(jobs, this)
 	}
-	return jobs, nil
+	return jobs, ends, nil
 }
 
 // readyRotation reads what sets a new password, the values its steps name, which
 // hold the current password, and the new one, opened for this rotation alone.
-func (r *Runner) readyRotation(ctx context.Context, j job, runs Runs) (*job, *store.AppOwnerState, error) {
-	resets, ok := runs.(ResetRuns)
-	if !ok {
-		return nil, nil, nil
-	}
-	run, plain, secretNames, err := resets.OwnerResetRun(ctx, j.environment)
-	if err != nil {
-		if ctx.Err() != nil {
-			return nil, nil, ctx.Err()
+// Where the reset steps can't be read, as after an upgrade to a release without
+// them, done alone is read, from the run that makes the owner. Where nothing reads,
+// or the new one can't be opened now, it waits for the next look: nothing but a
+// password read signing in ends a rotation (the review's H1).
+func (r *Runner) readyRotation(ctx context.Context, j job, runs Runs) (*job, error) {
+	var run *resourcev1.OwnerRun
+	var plain map[string]string
+	var secretNames []string
+	var err error
+	if resets, ok := runs.(ResetRuns); ok {
+		if run, plain, secretNames, err = resets.OwnerResetRun(ctx, j.environment); err != nil {
+			run = nil
 		}
-		// Nothing reads which one signs in, so the current one stays.
-		r.endRotation(ctx, j, cut(err.Error()))
-		return nil, nil, nil
 	}
-	if run.GetPassword() == "" {
-		r.endRotation(ctx, j, "its catalog entry names no password input for its owner")
-		return nil, nil, nil
+	if run == nil {
+		j.readsOnly = true
+		if run, plain, secretNames, err = runs.OwnerRun(ctx, j.environment); err != nil {
+			if ctx.Err() != nil {
+				return nil, ctx.Err()
+			}
+			r.logger().WarnContext(ctx, "can't read which password an app's owner takes now; reading again later", slog.String("environment", j.environment), slog.String("error", err.Error()))
+			return nil, nil
+		}
+	}
+	if run.GetPassword() == "" || run.GetDone() == nil {
+		r.logger().WarnContext(ctx, "an app's owner has a new password and nothing to read it with; reading again later", slog.String("environment", j.environment))
+		return nil, nil
 	}
 	var pending []byte
 	err = r.DB.View(ctx, func(tx *store.Tx) error {
@@ -119,27 +142,31 @@ func (r *Runner) readyRotation(ctx context.Context, j job, runs Runs) (*job, *st
 		return err
 	})
 	if errors.Is(err, errRotationGone) {
-		return nil, nil, nil
+		return nil, nil
 	}
 	if err != nil {
-		// It can't be set, so the current one stays, and the rotation ends saying so.
-		r.endRotation(ctx, j, "Dockwell can't open the new password it kept")
-		return nil, nil, nil //nolint:nilerr // ended, with what it says
+		r.logger().WarnContext(ctx, "can't open an app owner's new password now; trying again later", slog.String("environment", j.environment), slog.String("error", err.Error()))
+		return nil, nil
 	}
 	j.pending = string(pending)
 	clear(pending)
 	values, err := r.secrets(ctx, j.environment, plain, secretNames)
 	if err != nil {
 		j.pending = ""
-		return nil, nil, err
+		r.logger().WarnContext(ctx, "can't read the secrets an app owner's new password needs; trying again later", slog.String("environment", j.environment), slog.String("error", err.Error()))
+		return nil, nil
 	}
 	j.owner, j.values = run, values
-	return &j, nil, nil
+	return &j, nil
 }
 
-// rotate runs the entry's reset steps with the new password, then keeps whichever
-// password signs in, by the steps' answer or, where that's lost or a step said no,
-// by done: both are kept until one signs in (ADR 0105).
+// rotate runs the entry's reset steps with the new password, a few times at most,
+// then keeps whichever password reads signing in: the steps' answer made, or done
+// read with each. Only a password read signing in ends a rotation: the new one is
+// kept, or the current one stays and the new one goes. A no, or no answer, keeps
+// both sealed and reads again later; past store.RotateStuck reads, the owner says
+// why, and a person may show the new one or keep the current one (ADR 0105, the
+// review's H1).
 func (r *Runner) rotate(ctx context.Context, j job) {
 	a, ok := r.agentFor(j.server)
 	if !ok {
@@ -148,8 +175,12 @@ func (r *Runner) rotate(ctx context.Context, j job) {
 	withPending := maps.Clone(j.values)
 	withPending[j.owner.GetPassword()] = j.pending
 	defer clear(withPending)
+	// What the app says is scrubbed of both passwords (the review's L2).
+	both := maps.Clone(j.values)
+	both[BothPasswordsKey] = j.pending
+	defer clear(both)
 	said := ""
-	if j.tries < RotateTries {
+	if !j.readsOnly && j.tries < RotateTries {
 		// A try after the first reads whether the new one signs in already.
 		got, err := a.MakeAppOwner(ctx, j.environment, j.owner.GetService(), j.owner, withPending, j.tries > 0)
 		switch {
@@ -157,31 +188,48 @@ func (r *Runner) rotate(ctx context.Context, j job) {
 			r.keepPending(ctx, j)
 			return
 		case err == nil && !got.GetWaiting():
-			said = ownerstep.Scrub(fmt.Appendf(nil, "Step %d: %s", got.GetStep(), got.GetSaid()), withPending, nil, j.owner)
-			// Its steps ran part of the way, so the outcome is read below.
+			// A step said no, part of the way: which one the app has is read below.
+			said = ownerstep.Scrub(fmt.Appendf(nil, "Step %d: %s", got.GetStep(), got.GetSaid()), both, nil, j.owner)
 		default:
-			// The answer was lost, or the app doesn't answer yet: try again.
+			// No answer, or the app doesn't answer yet: try again.
 			r.countRotation(ctx, j, "")
 			return
 		}
 	}
-	newSigns, errNew := a.ReadAppOwner(ctx, j.environment, j.owner.GetService(), j.owner, withPending, false)
-	if errNew == nil && newSigns.GetYes() {
+	newRead, errNew := a.ReadAppOwner(ctx, j.environment, j.owner.GetService(), j.owner, withPending, false)
+	if errNew == nil && newRead.GetYes() {
 		r.keepPending(ctx, j)
 		return
 	}
-	oldSigns, errOld := a.ReadAppOwner(ctx, j.environment, j.owner.GetService(), j.owner, j.values, false)
-	if errOld == nil && oldSigns.GetYes() {
+	oldRead, errOld := a.ReadAppOwner(ctx, j.environment, j.owner.GetService(), j.owner, j.values, false)
+	if errOld == nil && oldRead.GetYes() {
 		// The app kept the password it had, so that one stays.
 		r.endRotation(ctx, j, cut(cmp.Or(said, "The app kept the password it had")))
 		return
 	}
-	if j.tries+1 >= RotateReads {
-		r.endRotation(ctx, j, cut(cmp.Or(said, "Neither password signed in, so Dockwell keeps the one it had")))
-		return
+	// Neither reads signing in. Until a person is asked, it says nothing; then why,
+	// as no answer, or the app's no.
+	why := ""
+	if j.tries+1 >= store.RotateStuck {
+		read := "Neither password signs in now"
+		switch {
+		case errNew != nil || errOld != nil:
+			read = "Dockwell can't read which password it takes now: its server's agent doesn't answer"
+		case newRead.GetSaid() != "":
+			read += ": " + ownerstep.Scrub([]byte(newRead.GetSaid()), both, nil, j.owner)
+		}
+		why = read
+		if said != "" {
+			why = said + ". " + read
+		}
+		why = cut(why)
 	}
-	r.countRotation(ctx, j, cut(said))
+	r.countRotation(ctx, j, why)
 }
+
+// BothPasswordsKey names the new password in what a refusal is scrubbed of, beside
+// the current one, which the values hold.
+const BothPasswordsKey = "DOCKWELL_NEW_PASSWORD" //nolint:gosec // a value's name, never a credential
 
 // keepPending puts the new password in place of the current one, as a change of
 // Dockwell's applied at once, then ends the rotation. Where the change can't apply,
@@ -203,6 +251,9 @@ func (r *Runner) commit(ctx context.Context, j job) error {
 	var project string
 	err := r.DB.View(ctx, func(tx *store.Tx) error {
 		res, err := tx.GetResource(ctx, string(variable.SecretKind), j.environment, name)
+		if err == nil && res.Spec == nil {
+			err = fmt.Errorf("%w: its password's secret %s was deleted", store.ErrNotFound, name)
+		}
 		if err != nil {
 			return fmt.Errorf("can't read the secret %s: %w", name, err)
 		}

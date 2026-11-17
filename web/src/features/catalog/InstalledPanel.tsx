@@ -130,7 +130,7 @@ export function InstalledPanel({ service }: { service: ServiceInfo }) {
       >
         {/* An install whose owner Dockwell makes, or that's held until a person sets it up, says
             which (ADR 0105); a hold of its own routes alone, as a new empty database's, is ADR 0084's. */}
-        {ownerStatus(install) && ownerStatus(install) !== "made" ? (
+        {(ownerStatus(install) && ownerStatus(install) !== "made") || (install.owner?.unsetLeft.length ?? 0) > 0 ? (
           <OwnerCallout service={service} install={install} entry={entry} />
         ) : (
           <HeldRoutes service={service} install={install} />

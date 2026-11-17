@@ -1202,6 +1202,42 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/catalog/installs/{id}:keep-owner-password:
+        post:
+            tags:
+                - CatalogService
+            description: |-
+                KeepCatalogOwnerPassword ends a rotation whose outcome isn't known, keeping the
+                 current password and forgetting the new one. It takes a signed-in person and a
+                 passkey, and is refused with the reason not_rotating where none is being set
+                 (ADR 0105).
+            operationId: CatalogService_KeepCatalogOwnerPassword
+            parameters:
+                - name: id
+                  in: path
+                  description: The install's project, by name or ID.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/KeepCatalogOwnerPasswordRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/KeepCatalogOwnerPasswordResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/catalog/installs/{id}:open:
         post:
             tags:
@@ -1348,6 +1384,42 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/RetryCatalogOwnerResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/catalog/installs/{id}:reveal-pending-owner-password:
+        post:
+            tags:
+                - CatalogService
+            description: |-
+                RevealCatalogOwnerPendingPassword says the new password a rotation keeps sealed
+                 beside the current one, where neither reads signing in, so a person can try it.
+                 It takes a signed-in person and a passkey, and goes to no log, event or cache
+                 (ADR 0105).
+            operationId: CatalogService_RevealCatalogOwnerPendingPassword
+            parameters:
+                - name: id
+                  in: path
+                  description: The install's project, by name or ID.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/RevealCatalogOwnerPendingPasswordRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/RevealCatalogOwnerPendingPasswordResponse'
                 default:
                     description: Default error response
                     content:
@@ -1504,6 +1576,43 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/SetUpCatalogInstallResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/catalog/installs/{id}:settle-owner:
+        post:
+            tags:
+                - CatalogService
+            description: |-
+                SettleCatalogOwner plans taking out of a made owner's service what its entry
+                 says only making the owner needed, such as Vaultwarden's ADMIN_TOKEN, where
+                 Dockwell couldn't (CatalogOwner.unset_left). It changes nothing until the plan
+                 is applied, and is refused with the reason settled where nothing is left
+                 (ADR 0105).
+            operationId: CatalogService_SettleCatalogOwner
+            parameters:
+                - name: id
+                  in: path
+                  description: The install's project, by name or ID.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/SettleCatalogOwnerRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SettleCatalogOwnerResponse'
                 default:
                     description: Default error response
                     content:
@@ -9264,6 +9373,15 @@ components:
                 app:
                     type: string
                     description: What people call the app, such as "Gitea", for what a plan says.
+                heldSecrets:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        The environment's secrets its steps read, by name, which it holds as references
+                         while the owner isn't made, so none can be deleted then. Dockwell clears them
+                         once the owner is made or opened, so a person may forget a password they
+                         changed in the app (ADR 0105).
             description: |-
                 AppOwner is the owner's account in a catalog app, which Dockwell makes once the
                  app runs (ADR 0105). It holds who the owner is, never how they're made: the
@@ -10078,6 +10196,8 @@ components:
                         - STEP_UP_ACTION_LINK_PROVIDER
                         - STEP_UP_ACTION_SET_UP_CATALOG_INSTALL
                         - STEP_UP_ACTION_RESET_CATALOG_OWNER_PASSWORD
+                        - STEP_UP_ACTION_REVEAL_CATALOG_OWNER_PENDING_PASSWORD
+                        - STEP_UP_ACTION_KEEP_CATALOG_OWNER_PASSWORD
                         - STEP_UP_ACTION_REVEAL_SERVICE_VALUE
                     type: string
                     description: The action.
@@ -10746,7 +10866,17 @@ components:
                     type: boolean
                     description: |-
                         A new password is being set, by the entry's reset steps: until it's known
-                         which the app takes, the current one is the one revealed.
+                         which the app takes, the current one is the one revealed. With error, neither
+                         has read signing in for an hour, and a person may show the new one or keep the
+                         current one.
+                unsetLeft:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        The variables of the owner's service its entry takes out once the owner is made,
+                         as Vaultwarden's ADMIN_TOKEN, that Dockwell has failed to take out for an hour:
+                         SettleCatalogOwner plans it.
             description: CatalogOwner is the owner's account in an install, as Dockwell makes it.
         CatalogPart:
             type: object
@@ -19118,6 +19248,24 @@ components:
                         The labels a server joining with it gets (ADR 0091). Numbered in the block
                          labels hold, 20 to 29.
             description: JoinTicket is a ticket that adds one server, without its secret.
+        KeepCatalogOwnerPasswordRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The install's project, by name or ID.
+                proof:
+                    type: string
+                    description: |-
+                        The proof from FinishStepUp, for this install's project, by its ID. Without
+                         one, the call is refused with needs_step_up once nothing else refuses it.
+            description: KeepCatalogOwnerPasswordRequest asks to keep the current password.
+        KeepCatalogOwnerPasswordResponse:
+            type: object
+            properties:
+                owner:
+                    $ref: '#/components/schemas/CatalogOwner'
+            description: KeepCatalogOwnerPasswordResponse says how the owner stands now.
         KeptRecord:
             type: object
             properties:
@@ -24262,6 +24410,26 @@ components:
                 owner:
                     $ref: '#/components/schemas/CatalogOwner'
             description: RetryCatalogOwnerResponse says how it stands now.
+        RevealCatalogOwnerPendingPasswordRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The install's project, by name or ID.
+                proof:
+                    type: string
+                    description: |-
+                        The proof from FinishStepUp, for this install's project, by its ID. Without
+                         one, the call is refused with needs_step_up once nothing else refuses it.
+            description: RevealCatalogOwnerPendingPasswordRequest asks for a rotation's new password.
+        RevealCatalogOwnerPendingPasswordResponse:
+            type: object
+            properties:
+                password:
+                    type: string
+            description: |-
+                RevealCatalogOwnerPendingPasswordResponse is the new password, for the person
+                 asking alone.
         RevealSecretRequest:
             type: object
             properties:
@@ -27179,6 +27347,21 @@ components:
                          sets none. Unset is off. Numbered apart, as open work adds to this message
                          (ADR 0080).
             description: Settings are the install's own settings.
+        SettleCatalogOwnerRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The install's project, by name or ID.
+            description: |-
+                SettleCatalogOwnerRequest asks for the plan that takes out what only making the
+                 owner needed.
+        SettleCatalogOwnerResponse:
+            type: object
+            properties:
+                change:
+                    $ref: '#/components/schemas/Change'
+            description: SettleCatalogOwnerResponse is the planned change.
         SharedName:
             type: object
             properties:

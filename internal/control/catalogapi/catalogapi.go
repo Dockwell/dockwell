@@ -842,7 +842,20 @@ func (h *Handler) upgrade(ctx context.Context, m *dockwellv1.UpgradeCatalogInsta
 	if err != nil {
 		return nil, h.internal(ctx, err)
 	}
-	filled, err := catalog.Carry(chosen, pin, m.GetValues(), free.values, found.held)
+	// A made owner's password that a person forgot stays forgotten: an upgrade never
+	// generates one the app never had (the review's L1).
+	held := found.held
+	if pw := chosen.GetOwner().GetPasswordInput(); pw != "" && !held[pw] {
+		made, err := h.ownerMade(ctx, install.GetEnvironmentId())
+		if err != nil {
+			return nil, h.internal(ctx, err)
+		}
+		if made {
+			held = maps.Clone(held)
+			held[pw] = true
+		}
+	}
+	filled, err := catalog.Carry(chosen, pin, m.GetValues(), free.values, held)
 	if err == nil {
 		err = filled.Link(needed.Plain)
 	}

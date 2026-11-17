@@ -139,6 +139,12 @@ const (
 	// owner, which the person may then reveal. Its target is the install's project
 	// ID (ADR 0105).
 	StepUpResetCatalogOwnerPassword StepUpAction = "catalog.reset_owner_password" //nolint:gosec // an action's name, never a credential
+	// StepUpRevealCatalogOwnerPendingPassword shows a rotation's new password, kept
+	// beside the current one. Its target is the install's project ID (ADR 0105).
+	StepUpRevealCatalogOwnerPendingPassword StepUpAction = "catalog.reveal_pending_owner_password"
+	// StepUpKeepCatalogOwnerPassword keeps the current password and forgets a
+	// rotation's new one. Its target is the install's project ID (ADR 0105).
+	StepUpKeepCatalogOwnerPassword StepUpAction = "catalog.keep_owner_password"
 	// StepUpSetPanelDomain sets or clears the panel's domain (ADR 0063). Its
 	// target is the domain, or the one it clears.
 	StepUpSetPanelDomain StepUpAction = "settings.panel_domain"
@@ -189,19 +195,21 @@ var stepUpActions = map[StepUpAction]struct {
 	StepUpOpenTerminal:     {"opening a terminal on", true},
 	StepUpApproveChange:    {"approving", true},
 	// A move's target has its two paths on two lines, which doing puts in words.
-	StepUpMakeWayBackIn:             {"making", true},
-	StepUpMoveWayBackIn:             {"moving", true},
-	StepUpDeleteWayBackIn:           {"deleting", true},
-	StepUpRestoreWayBackIn:          {"putting back", true},
-	StepUpInvite:                    {"inviting", true},
-	StepUpChangeRole:                {"changing the role of", true},
-	StepUpRemoveMember:              {"removing", true},
-	StepUpTransferOwnership:         {"transferring ownership to", true},
-	StepUpAddServer:                 {"adding a server", false},
-	StepUpOpenService:               {"opening", true},
-	StepUpSetUpCatalogInstall:       {"making a setup link to", true},
-	StepUpResetCatalogOwnerPassword: {"setting a new owner's password for", true},
-	StepUpSetPanelDomain:            {"setting the panel's domain to", true},
+	StepUpMakeWayBackIn:                     {"making", true},
+	StepUpMoveWayBackIn:                     {"moving", true},
+	StepUpDeleteWayBackIn:                   {"deleting", true},
+	StepUpRestoreWayBackIn:                  {"putting back", true},
+	StepUpInvite:                            {"inviting", true},
+	StepUpChangeRole:                        {"changing the role of", true},
+	StepUpRemoveMember:                      {"removing", true},
+	StepUpTransferOwnership:                 {"transferring ownership to", true},
+	StepUpAddServer:                         {"adding a server", false},
+	StepUpOpenService:                       {"opening", true},
+	StepUpSetUpCatalogInstall:               {"making a setup link to", true},
+	StepUpResetCatalogOwnerPassword:         {"setting a new owner's password for", true},
+	StepUpRevealCatalogOwnerPendingPassword: {"revealing the new owner's password for", true},
+	StepUpKeepCatalogOwnerPassword:          {"keeping the owner's current password for", true},
+	StepUpSetPanelDomain:                    {"setting the panel's domain to", true},
 	// A sign-in link to the domain, for the person asking.
 	StepUpSignInOnPanelDomain: {"signing in on", true},
 	StepUpSetPolicy:           {"choosing how often to be asked for a passkey", false},

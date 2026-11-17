@@ -412,7 +412,7 @@ func (c *Converter) convert(ctx context.Context, app App) Result {
 	if in := app.SignIn.GetPasswordInput(); in != "" && e.GetWeb() != nil && slices.ContainsFunc(e.GetInputs(), func(i *catalogv1.Input) bool { return i.GetName() == in }) {
 		e.SignIn = proto.CloneOf(app.SignIn)
 	} else if app.KnownPassword != "" && e.GetWeb() != nil {
-		e.Owner = &catalogv1.Owner{KnownUser: cmp.Or(app.KnownUser, "admin"), KnownPassword: app.KnownPassword}
+		e.Owner = &catalogv1.Owner{KnownUser: app.KnownUser, KnownPassword: app.KnownPassword}
 	}
 	if own := c.ownImage(e); own != "" && !c.OnServer {
 		return fail(leave(ClassOwn, "it runs %s, as Dockwell's own entry does, so it stays out until the reviewed list says whether they're one app", own), "")

@@ -3833,7 +3833,12 @@ type AppOwner struct {
 	// reaches the agent for a step alone.
 	Password string `protobuf:"bytes,4,opt,name=password,proto3" json:"password,omitempty"`
 	// What people call the app, such as "Gitea", for what a plan says.
-	App           string `protobuf:"bytes,12,opt,name=app,proto3" json:"app,omitempty"`
+	App string `protobuf:"bytes,12,opt,name=app,proto3" json:"app,omitempty"`
+	// The environment's secrets its steps read, by name, which it holds as references
+	// while the owner isn't made, so none can be deleted then. Dockwell clears them
+	// once the owner is made or opened, so a person may forget a password they
+	// changed in the app (ADR 0105).
+	HeldSecrets   []string `protobuf:"bytes,13,rep,name=held_secrets,json=heldSecrets,proto3" json:"held_secrets,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3901,6 +3906,13 @@ func (x *AppOwner) GetApp() string {
 		return x.App
 	}
 	return ""
+}
+
+func (x *AppOwner) GetHeldSecrets() []string {
+	if x != nil {
+		return x.HeldSecrets
+	}
+	return nil
 }
 
 // OwnerRun is what the control plane sends an agent to make an app's owner, or read
@@ -10947,13 +10959,14 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\x05value\x18\x02 \x01(\v2&.dockwell.resource.v1alpha1.PinnedNeedR\x05value:\x028\x01\x1ae\n" +
 	"\fWrittenEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12?\n" +
-	"\x05value\x18\x02 \x01(\v2).dockwell.resource.v1alpha1.ValueTemplateR\x05value:\x028\x01\"\xf2\x01\n" +
+	"\x05value\x18\x02 \x01(\v2).dockwell.resource.v1alpha1.ValueTemplateR\x05value:\x028\x01\"\x95\x02\n" +
 	"\bAppOwner\x12\x18\n" +
 	"\aservice\x18\x01 \x01(\tR\aservice\x12\x14\n" +
 	"\x05email\x18\x02 \x01(\tR\x05email\x12\x12\n" +
 	"\x04user\x18\x03 \x01(\tR\x04user\x12\x1a\n" +
 	"\bpassword\x18\x04 \x01(\tR\bpassword\x12\x10\n" +
-	"\x03app\x18\f \x01(\tR\x03appJ\x04\b\x05\x10\x06J\x04\b\x06\x10\aJ\x04\b\a\x10\bJ\x04\b\b\x10\tJ\x04\b\t\x10\n" +
+	"\x03app\x18\f \x01(\tR\x03app\x12!\n" +
+	"\fheld_secrets\x18\r \x03(\tR\vheldSecretsJ\x04\b\x05\x10\x06J\x04\b\x06\x10\aJ\x04\b\a\x10\bJ\x04\b\b\x10\tJ\x04\b\t\x10\n" +
 	"J\x04\b\n" +
 	"\x10\vJ\x04\b\v\x10\fR\x05stepsR\x04doneR\x0emade_when_doneR\x06valuesR\asecretsR\rsignups_stepsR\rsignups_check\"\xcc\x03\n" +
 	"\bOwnerRun\x12\x18\n" +

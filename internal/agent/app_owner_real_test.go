@@ -144,7 +144,7 @@ func vaultOwner() *resourcev1.OwnerRun {
 		}
 	}
 	invite := jsonRequest(80, http.MethodPost, "/admin/invite", `{"email":"${OWNER_EMAIL}"}`, map[string]string{"Cookie": "VW_ADMIN=${VW_SESSION}"})
-	invite.Unless = users("[email=${OWNER_EMAIL}].email=${OWNER_EMAIL}")
+	invite.Unless = users("[email=${OWNER_EMAIL}].object=user")
 	login := &resourcev1.OwnerStep{Step: &resourcev1.OwnerStep_Request{Request: vaultSignIn()}}
 	return &resourcev1.OwnerRun{
 		Service: "web", Email: "owner@example.com", MadeWhenDone: true,
@@ -452,7 +452,8 @@ func TestAnAppsOwnerIsMadeOnRealDocker(t *testing.T) {
 		}
 		addr, _ := target.Address(t.Context(), 80)
 		answers(t, "http://"+addr+"/alive")
-		values := map[string]string{"OWNER_EMAIL": "owner@example.com", "ADMIN_TOKEN_PLAIN": token}
+		// An email in mixed case, which Vaultwarden keeps in lower case (the review's M3).
+		values := map[string]string{"OWNER_EMAIL": "Owner@Example.com", "ADMIN_TOKEN_PLAIN": token}
 		// Vaultwarden's own check takes the token against the PHC Dockwell wrote, and
 		// refuses another.
 		wrong := maps.Clone(values)

@@ -695,6 +695,11 @@ message AppOwner {
   reserved "steps", "done", "made_when_done", "values", "secrets", "signups_steps", "signups_check";
   // What people call the app, such as "Gitea", for what a plan says.
   string app = 12;
+  // The environment's secrets its steps read, by name, which it holds as references
+  // while the owner isn't made, so none can be deleted then. Dockwell clears them
+  // once the owner is made or opened, so a person may forget a password they
+  // changed in the app (ADR 0105).
+  repeated string held_secrets = 13;
 }
 
 // OwnerRun is what the control plane sends an agent to make an app's owner, or read

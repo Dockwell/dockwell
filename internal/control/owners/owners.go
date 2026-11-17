@@ -148,6 +148,9 @@ type job struct {
 	// pending is it, which values never hold: they hold the current one
 	// (ADR 0105).
 	rotation, pending string
+	// readsOnly reads which password signs in and runs no reset step, where the
+	// reset steps can't be read.
+	readsOnly bool
 }
 
 // Runs reads what makes an environment's install's owner from its catalog entry at
@@ -170,6 +173,13 @@ type Unsets interface {
 	OwnerUnset(ctx context.Context, environment string) (string, []string, error)
 }
 
+// RunsNow is what the runner reads what makes an owner from, as a test wraps it.
+func (r *Runner) RunsNow() Runs {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.runs
+}
+
 // SetRuns has the runner read what makes an owner from runs.
 func (r *Runner) SetRuns(runs Runs) {
 	r.mu.Lock()
@@ -181,7 +191,7 @@ func (r *Runner) SetRuns(runs Runs) {
 // holds of installs no longer held kept. A make runs on its own, as waiting for an
 // app to come up takes minutes.
 func (r *Runner) Tick(ctx context.Context) error {
-	var jobs []job
+	var jobs, ends []job
 	var states []store.AppOwnerState
 	var released []string
 	err := r.DB.View(ctx, func(tx *store.Tx) error {
@@ -191,16 +201,21 @@ func (r *Runner) Tick(ctx context.Context) error {
 		}
 		for _, p := range tree.Projects {
 			for _, e := range p.Environments {
+				// One environment's error leaves every other's to go on (the review's H2).
 				js, ss, err := r.look(ctx, tx, e.ID)
 				if err != nil {
-					return err
+					r.logger().WarnContext(ctx, "can't look at an app's owner now; looking again", slog.String("environment", e.ID), slog.String("error", err.Error()))
+					continue
 				}
 				jobs, states = append(jobs, js...), append(states, ss...)
 			}
 		}
-		js, err := r.rotations(ctx, tx)
-		jobs = append(jobs, js...)
-		return err
+		js, es, err := r.rotations(ctx, tx)
+		if err != nil {
+			r.logger().WarnContext(ctx, "can't look at apps' owners' new passwords now; looking again", slog.String("error", err.Error()))
+		}
+		jobs, ends = append(jobs, js...), es
+		return nil
 	})
 	if err != nil {
 		return err
@@ -208,14 +223,22 @@ func (r *Runner) Tick(ctx context.Context) error {
 	if err := r.record(ctx, states...); err != nil {
 		return err
 	}
+	for i := range ends {
+		r.endRotation(ctx, ends[i], "")
+	}
 	for i := range jobs {
+		// A job's error is that job's alone: the rest go on (the review's H2).
 		ready, failed, err := r.ready(ctx, jobs[i])
 		if err != nil {
-			return err
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			r.logger().WarnContext(ctx, "can't make an app's owner now; trying again", slog.String("environment", jobs[i].environment), slog.String("error", err.Error()))
+			continue
 		}
 		if failed != nil {
 			if err := r.record(ctx, *failed); err != nil {
-				return err
+				r.logger().WarnContext(ctx, "can't record what came of making an app's owner", slog.String("error", err.Error()))
 			}
 			continue
 		}
@@ -223,6 +246,8 @@ func (r *Runner) Tick(ctx context.Context) error {
 			r.start(ctx, *ready)
 		}
 	}
+	// What only making an owner needed goes, once it's made or opened (the review's M1).
+	r.settleAll(ctx)
 	// Whatever an owner made or opened lifted, released, as a change of Dockwell's.
 	err = r.DB.View(ctx, func(tx *store.Tx) error {
 		tree, err := scope.Load(ctx, tx)
@@ -416,7 +441,8 @@ func (r *Runner) ready(ctx context.Context, j job) (*job, *store.AppOwnerState, 
 		return nil, nil, nil
 	}
 	if j.rotation != "" {
-		return r.readyRotation(ctx, j, runs)
+		ready, err := r.readyRotation(ctx, j, runs)
+		return ready, nil, err
 	}
 	run, plain, secretNames, err := runs.OwnerRun(ctx, j.environment)
 	if err != nil && j.setUp {
@@ -434,11 +460,24 @@ func (r *Runner) ready(ctx context.Context, j job) (*job, *store.AppOwnerState, 
 		return nil, nil, nil
 	}
 	values, err := r.secrets(ctx, j.environment, plain, secretNames)
+	var gone secretGone
+	if errors.As(err, &gone) && !j.setUp {
+		// That owner fails alone, saying how to fix it (the review's H2).
+		return nil, &store.AppOwnerState{ResourceID: j.id, Environment: j.environment, State: store.OwnerFailed, Error: cut(gone.Error()), Tries: j.tries, UpdatedAt: r.now()}, nil
+	}
 	if err != nil {
 		return nil, nil, err
 	}
 	j.owner, j.values = run, values
 	return &j, nil, nil
+}
+
+// secretGone is a secret an owner's steps read that isn't there: deleted, or never
+// made.
+type secretGone struct{ name string }
+
+func (g secretGone) Error() string {
+	return fmt.Sprintf("its secret %s, which the owner's steps read, was deleted. Undo that change on Activity, then try again", g.name)
 }
 
 // secrets adds to plain the values of the secrets the owner's steps name.
@@ -450,6 +489,9 @@ func (r *Runner) secrets(ctx context.Context, environment string, plain map[stri
 	err := r.DB.View(ctx, func(tx *store.Tx) error {
 		for _, name := range secretNames {
 			res, err := tx.GetResource(ctx, string(variable.SecretKind), environment, name)
+			if errors.Is(err, store.ErrNotFound) || err == nil && res.Spec == nil {
+				return secretGone{name: name}
+			}
 			if err != nil {
 				return fmt.Errorf("can't read the secret %s the owner's steps name: %w", name, err)
 			}
@@ -503,12 +545,6 @@ func (r *Runner) start(ctx context.Context, j job) {
 		st := r.make(ctx, j)
 		if err := r.record(context.WithoutCancel(ctx), st); err != nil {
 			r.logger().WarnContext(ctx, "can't record what came of making an app's owner", slog.String("error", err.Error()))
-			return
-		}
-		if st.State == store.OwnerMade {
-			if err := r.Unset(context.WithoutCancel(ctx), j.environment); err != nil {
-				r.logger().WarnContext(ctx, "can't take out what only making an app's owner needed", slog.String("environment", j.environment), slog.String("error", err.Error()))
-			}
 		}
 	}()
 }
@@ -635,7 +671,7 @@ const (
 )
 
 // Actions are the events the runner records.
-var Actions = []string{ActionMade, ActionFailed, ActionOpened}
+var Actions = []string{ActionMade, ActionFailed, ActionOpened, ActionUnsetFailed}
 
 // Told is what an event says of an owner, in its detail: who, and how it stands,
 // with what the app said scrubbed, and never a value its steps sent.
@@ -782,78 +818,6 @@ func (r *Runner) releases(ctx context.Context, tx *store.Tx, environment string)
 	}
 	return out, nil
 }
-
-// Unset takes out of an environment's owner's service what its entry says only
-// making the owner needed, once it's made, as a change of Dockwell's applied at
-// once: Vaultwarden's ADMIN_TOKEN, which turns its admin page off (ADR 0105). It
-// changes nothing where the service sets none of it.
-func (r *Runner) Unset(ctx context.Context, environment string) error {
-	r.mu.Lock()
-	runs := r.runs
-	r.mu.Unlock()
-	u, ok := runs.(Unsets)
-	if !ok {
-		return nil
-	}
-	name, names, err := u.OwnerUnset(ctx, environment)
-	if err != nil || len(names) == 0 {
-		return err
-	}
-	var edit *revision.Edit
-	var project string
-	err = r.DB.View(ctx, func(tx *store.Tx) error {
-		res, err := tx.GetResource(ctx, string(service.Kind), environment, name)
-		if errors.Is(err, store.ErrNotFound) {
-			return nil
-		}
-		if err != nil || res.Spec == nil {
-			return err
-		}
-		spec, err := r.Keeper.Decode(ctx, tx, store.InRevision(res.ID, res.Kind, res.Revision), res.Spec)
-		if err != nil {
-			return err
-		}
-		svc, ok := spec.(*resourcev1.Service)
-		if !ok {
-			return nil
-		}
-		changed := false
-		for _, n := range names {
-			for _, m := range []map[string]string{svc.GetApp().GetEnv(), svc.GetVariables(), svc.GetSecrets()} {
-				if _, ok := m[n]; ok {
-					delete(m, n)
-					changed = true
-				}
-			}
-		}
-		if changed {
-			edit = &revision.Edit{Ref: resource.Ref{Kind: service.Kind, Scope: environment, Name: name}, Spec: svc, Base: res.Revision}
-		}
-		project, err = projectOf(ctx, tx, environment)
-		return err
-	})
-	if err != nil || edit == nil {
-		return err
-	}
-	by := revision.By{Actor: revision.SystemActor, Via: revision.ViaAutomatic}
-	plan, err := r.Engine.Propose(ctx, revision.Proposal{
-		Summary: "Take " + strings.Join(names, ", ") + " out of " + project + ": its owner exists", Actor: by.Actor, Via: by.Via,
-		Edits: []revision.Edit{*edit},
-		Notes: []revision.Note{{Reason: NoteOwnerUnset, Message: project + "'s owner exists, so " + strings.Join(names, ", ") + " goes from " + name + ", as only making the owner needed it", Names: names}},
-	})
-	if err != nil {
-		return err
-	}
-	if err := r.Engine.Apply(ctx, plan.Change); err != nil {
-		_ = r.Engine.Discard(context.WithoutCancel(ctx), plan.Change, by)
-		return err
-	}
-	return nil
-}
-
-// NoteOwnerUnset is the note of the change that takes out what only making an
-// owner needed.
-const NoteOwnerUnset = "owner_unset"
 
 // Release opens what an environment's hold kept, now that its owner is made or
 // opened, or a person opened its install, as a change of Dockwell's, applied at once.

@@ -3,6 +3,7 @@
 package catalogapi
 
 import (
+	"strings"
 	"testing"
 
 	catalogv1 "github.com/dockwell/dockwell/gen/dockwell/catalog/v1alpha1"
@@ -34,6 +35,31 @@ func TestAConvertedAppIsHeldUnlessItsEntrySaysHowItsOwned(t *testing.T) {
 	} {
 		if got := heldAtInstall(c.e, c.converted); got != c.held {
 			t.Errorf("%s: held %v, want %v", name, got, c.held)
+		}
+	}
+}
+
+// An Open of a store's app that signs in with a password everyone knows says so, with
+// the user where the store gives one, and never "admin" where it doesn't; an app whose
+// steps change it, or with none, says nothing of it (the review's M2 and L4).
+func TestAnOpenSaysAPasswordEveryoneKnows(t *testing.T) {
+	t.Parallel()
+	steps := []*resourcev1.OwnerStep{{Step: &resourcev1.OwnerStep_Request{Request: &resourcev1.OwnerRequest{Path: "/setup", Port: 80}}}}
+	for name, c := range map[string]struct {
+		owner *catalogv1.Owner
+		want  string
+	}{
+		"a user and a password": {owner: &catalogv1.Owner{KnownUser: "admin", KnownPassword: "changeme"}, want: "It signs in as admin with a password everyone knows. Change it in Kiosk first"},
+		"a password alone":      {owner: &catalogv1.Owner{KnownPassword: "1234"}, want: "It signs in with a password everyone knows. Change it in Kiosk first"},
+		"steps that change it":  {owner: &catalogv1.Owner{KnownUser: "admin", KnownPassword: "umami", Steps: steps}},
+		"no password known":     {owner: &catalogv1.Owner{Steps: steps}},
+	} {
+		note := knownPasswordNote(&catalogv1.Entry{Owner: c.owner}, "Kiosk")
+		switch {
+		case c.want == "" && note != nil:
+			t.Errorf("%s: %v", name, note)
+		case c.want != "" && (note == nil || note.Reason != NoteKnownPassword || !strings.HasPrefix(note.Message, c.want)):
+			t.Errorf("%s: %v, want %q", name, note, c.want)
 		}
 	}
 }

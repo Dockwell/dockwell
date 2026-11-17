@@ -102,6 +102,15 @@ function quietInstall(plan: Plan): boolean {
   );
 }
 
+/**
+ * Whether applying a plan asks the person to say they changed a password everyone
+ * knows first: an Open of a store's app that signs in with one (ADR 0105, the
+ * review's M2).
+ */
+export function needsChangedFirst(plan: Plan | undefined): boolean {
+  return plan?.notes.some((n) => n.reason === "known_password") ?? false;
+}
+
 /** Whether applying a plan asks for a passkey, as the control plane decides it: anything as good as root does. */
 export function needsPasskey(plan: Plan | undefined): boolean {
   // An install's maintainer scripts run as root, which its plan says by what it installs.

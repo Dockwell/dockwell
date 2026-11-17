@@ -171,6 +171,57 @@ service CatalogService {
     };
   }
 
+  // RevealCatalogOwnerPendingPassword says the new password a rotation keeps sealed
+  // beside the current one, where neither reads signing in, so a person can try it.
+  // It takes a signed-in person and a passkey, and goes to no log, event or cache
+  // (ADR 0105).
+  rpc RevealCatalogOwnerPendingPassword(RevealCatalogOwnerPendingPasswordRequest) returns (RevealCatalogOwnerPendingPasswordResponse) {
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.command) = {verb: "reveal-pending-owner-password"};
+    option (dockwell.v1.needs_session) = true;
+    option (google.api.http) = {
+      post: "/v1/catalog/installs/{id}:reveal-pending-owner-password"
+      body: "*"
+    };
+  }
+
+  // KeepCatalogOwnerPassword ends a rotation whose outcome isn't known, keeping the
+  // current password and forgetting the new one. It takes a signed-in person and a
+  // passkey, and is refused with the reason not_rotating where none is being set
+  // (ADR 0105).
+  rpc KeepCatalogOwnerPassword(KeepCatalogOwnerPasswordRequest) returns (KeepCatalogOwnerPasswordResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.command) = {verb: "keep-owner-password"};
+    option (dockwell.v1.needs_session) = true;
+    option (google.api.http) = {
+      post: "/v1/catalog/installs/{id}:keep-owner-password"
+      body: "*"
+    };
+  }
+
+  // SettleCatalogOwner plans taking out of a made owner's service what its entry
+  // says only making the owner needed, such as Vaultwarden's ADMIN_TOKEN, where
+  // Dockwell couldn't (CatalogOwner.unset_left). It changes nothing until the plan
+  // is applied, and is refused with the reason settled where nothing is left
+  // (ADR 0105).
+  rpc SettleCatalogOwner(SettleCatalogOwnerRequest) returns (SettleCatalogOwnerResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.command) = {verb: "settle-owner"};
+    option (google.api.http) = {
+      post: "/v1/catalog/installs/{id}:settle-owner"
+      body: "*"
+    };
+  }
+
   // SetUpCatalogInstall gives a held install's domain a setup link: a key, good once
   // and for an hour, which lets the browser that opens it through the hold, to set
   // the app up on its real domain, and no one else. It writes the key's hash on the
@@ -685,8 +736,14 @@ message CatalogOwner {
   // through the setup link, so it's theirs to open to everyone.
   bool set_up = 5;
   // A new password is being set, by the entry's reset steps: until it's known
-  // which the app takes, the current one is the one revealed.
+  // which the app takes, the current one is the one revealed. With error, neither
+  // has read signing in for an hour, and a person may show the new one or keep the
+  // current one.
   bool rotating = 6;
+  // The variables of the owner's service its entry takes out once the owner is made,
+  // as Vaultwarden's ADMIN_TOKEN, that Dockwell has failed to take out for an hour:
+  // SettleCatalogOwner plans it.
+  repeated string unset_left = 7;
 }
 
 // CatalogOwnerState is how making an install's owner stands.
@@ -717,6 +774,47 @@ message ResetCatalogOwnerPasswordRequest {
 // new password is set.
 message ResetCatalogOwnerPasswordResponse {
   CatalogOwner owner = 1;
+}
+
+// RevealCatalogOwnerPendingPasswordRequest asks for a rotation's new password.
+message RevealCatalogOwnerPendingPasswordRequest {
+  // The install's project, by name or ID.
+  string id = 1;
+  // The proof from FinishStepUp, for this install's project, by its ID. Without
+  // one, the call is refused with needs_step_up once nothing else refuses it.
+  string proof = 2;
+}
+
+// RevealCatalogOwnerPendingPasswordResponse is the new password, for the person
+// asking alone.
+message RevealCatalogOwnerPendingPasswordResponse {
+  string password = 1 [(dockwell.resource.v1alpha1.sensitive) = true];
+}
+
+// KeepCatalogOwnerPasswordRequest asks to keep the current password.
+message KeepCatalogOwnerPasswordRequest {
+  // The install's project, by name or ID.
+  string id = 1;
+  // The proof from FinishStepUp, for this install's project, by its ID. Without
+  // one, the call is refused with needs_step_up once nothing else refuses it.
+  string proof = 2;
+}
+
+// KeepCatalogOwnerPasswordResponse says how the owner stands now.
+message KeepCatalogOwnerPasswordResponse {
+  CatalogOwner owner = 1;
+}
+
+// SettleCatalogOwnerRequest asks for the plan that takes out what only making the
+// owner needed.
+message SettleCatalogOwnerRequest {
+  // The install's project, by name or ID.
+  string id = 1;
+}
+
+// SettleCatalogOwnerResponse is the planned change.
+message SettleCatalogOwnerResponse {
+  Change change = 1;
 }
 
 // SetUpCatalogInstallRequest asks for a setup link to a held install's domain.

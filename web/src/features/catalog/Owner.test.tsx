@@ -5,6 +5,7 @@ import {
   CatalogOwnerState,
   EntrySchema,
   InputType,
+  OwnerSchema,
   OwnerStepSchema,
   SignupsSchema,
   type WatchServersResponse,
@@ -349,6 +350,101 @@ describe("A new owner's password (ADR 0105)", () => {
       resource: { kind: "secret", scope: ENV, name: "OWNER_PASSWORD" },
       delete: true,
     });
+  });
+});
+
+describe("The review of slice 3 (ADR 0105)", () => {
+  const variables = {
+    listVariables: () => ({
+      environmentId: ENV,
+      variables: [{ id: "sec_o", name: "OWNER_PASSWORD", secret: true, revision: 1n }],
+    }),
+  };
+  const resettable = clone(EntrySchema, gitea);
+  if (resettable.owner) {
+    resettable.owner.resetSteps = [
+      create(OwnerStepSchema, { step: { case: "request", value: { path: "/password" } } }),
+    ];
+  }
+  const withEntry = (entry: typeof gitea) => ({
+    listCatalogEntries: () => ({ entries: [entry] }),
+    getCatalogEntry: () => ({ entry, project: "gitea", values: {}, parts: [] }),
+  });
+
+  it("a rotation neither password reads signing in for shows the new one, or keeps the current one, with a passkey", async () => {
+    const user = userEvent.setup();
+    const shown: string[] = [];
+    const kept: string[] = [];
+    renderAt(
+      "/apps/svc_gitea",
+      api(
+        {
+          owner: {
+            email: "mira@example.com",
+            user: "mira",
+            state: CatalogOwnerState.MADE,
+            rotating: true,
+            error: "Neither password signs in now",
+          },
+        },
+        {
+          variables,
+          catalog: {
+            ...withEntry(resettable),
+            revealCatalogOwnerPendingPassword: (req: { id: string }) => {
+              shown.push(req.id);
+              return { password: "Nw4Rt8Yp2Lk6Mq9Zx3Vb7Cd5" };
+            },
+            keepCatalogOwnerPassword: (req: { id: string }) => {
+              kept.push(req.id);
+              return { owner: { state: CatalogOwnerState.MADE } };
+            },
+          },
+        },
+      ),
+    );
+    const card = await screen.findByRole("region", { name: "Owner" });
+    expect(await within(card).findByText(/Neither password signs in now/)).toBeVisible();
+    await user.click(within(card).getByRole("button", { name: "Show the new one" }));
+    expect(await within(card).findByText("Nw4Rt8Yp2Lk6Mq9Zx3Vb7Cd5")).toBeVisible();
+    await user.click(within(card).getByRole("button", { name: "Keep the current one" }));
+    await waitFor(() => expect(kept).toEqual(["prj_1"]));
+    expect(shown).toEqual(["prj_1"]);
+  });
+
+  it("what only making the owner needed, still set an hour on, a plan turns off", async () => {
+    const user = userEvent.setup();
+    const asked: string[] = [];
+    renderAt(
+      "/apps/svc_gitea",
+      api(
+        { owner: { email: "mira@example.com", state: CatalogOwnerState.MADE, unsetLeft: ["ADMIN_TOKEN"] } },
+        {
+          variables,
+          catalog: {
+            settleCatalogOwner: (req: { id: string }) => {
+              asked.push(req.id);
+              return {
+                change: { id: "chg_settle", summary: "Take ADMIN_TOKEN out of gitea", plan: { fingerprint: "f" } },
+              };
+            },
+          },
+        },
+      ),
+    );
+    expect(await screen.findByText("Gitea still takes ADMIN_TOKEN")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Turn it off" }));
+    await waitFor(() => expect(asked).toEqual(["prj_1"]));
+  });
+
+  it("a store's app with a password everyone knows shows it to copy while it's held", async () => {
+    const kiosk = clone(EntrySchema, gitea);
+    kiosk.owner = create(OwnerSchema, { knownUser: "admin", knownPassword: "changeme" });
+    renderAt("/apps/svc_gitea", api({ held: true }, { catalog: withEntry(kiosk) }, true));
+    expect(await screen.findByText(/which everyone knows/)).toBeVisible();
+    expect(screen.getByText("admin")).toBeVisible();
+    expect(screen.getByText("changeme")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Copy the password" })).toBeVisible();
   });
 });
 

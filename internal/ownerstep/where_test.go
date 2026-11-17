@@ -43,6 +43,23 @@ func TestWhereReadsAPathAndAPick(t *testing.T) {
 	}
 }
 
+// An owner's email in any case picks Vaultwarden's user, which it keeps in lower
+// case, so the invite's skip reads the user there on a second run (the review's M3).
+func TestWherePicksAnEmailInAnyCase(t *testing.T) {
+	t.Parallel()
+	users := []byte(`[{"email":"owner@example.com","_status":1,"object":"user"}]`)
+	vals := map[string]string{"OWNER_EMAIL": "Owner@Example.com"}
+	for where, want := range map[string]bool{
+		"[email=${OWNER_EMAIL}].object=user": true,
+		"[email=${OWNER_EMAIL}]._status=1":   true,
+		"[email=${OWNER_EMAIL}]._status=0":   false,
+	} {
+		if got, err := Where(where, users, vals); err != nil || got != want {
+			t.Errorf("Where(%q) = %v, %v, want %v", where, got, err, want)
+		}
+	}
+}
+
 // A where is a small grammar, never an expression: anything else is refused as the
 // catalog checks an entry.
 func TestAWhereThatIsntOneIsRefused(t *testing.T) {

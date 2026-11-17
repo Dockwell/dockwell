@@ -357,6 +357,23 @@ const NoteOpensToEveryone = "opens_to_everyone"
 // The panel asks for a passkey up front where a plan has it, too.
 const NoteKnownPassword = "known_password"
 
+// knownPasswordNote is what an Open of an entry that starts with a password
+// everyone knows, which no steps change, says: who it signs in as, where the store
+// says, and to change it first. The held page shows the pair to copy, and Open waits
+// for the person to say they changed it (ADR 0105, the review's M2 and L4). Nil for
+// any other entry.
+func knownPasswordNote(entry *catalogv1.Entry, app string) *revision.Note {
+	o := entry.GetOwner()
+	if o.GetKnownPassword() == "" || len(o.GetSteps()) > 0 {
+		return nil
+	}
+	who := "It signs in"
+	if o.GetKnownUser() != "" {
+		who = "It signs in as " + o.GetKnownUser()
+	}
+	return &revision.Note{Reason: NoteKnownPassword, Message: who + " with a password everyone knows. Change it in " + app + " first: its held page shows it"}
+}
+
 // OpenCatalogInstall plans opening an install that SetCatalogNeed held as it started
 // empty: each held route answers again, and each held port listens where it did, as
 // the person who set it up asks (ADR 0084).
@@ -378,12 +395,10 @@ func (h *Handler) OpenCatalogInstall(ctx context.Context, req *connect.Request[d
 	app := cmp.Or(install.GetName(), pin.GetEntry())
 	// A store's app that starts with a password everyone knows, which no steps
 	// change (ADR 0105).
-	var knownUser string
-	if entry, known := s.entryFor(pin); known {
+	var known *revision.Note
+	if entry, found := s.entryFor(pin); found {
 		app = cmp.Or(entry.GetName(), app)
-		if o := entry.GetOwner(); o.GetKnownPassword() != "" && len(o.GetSteps()) == 0 {
-			knownUser = cmp.Or(o.GetKnownUser(), "admin")
-		}
+		known = knownPasswordNote(entry, app)
 		if entry.GetSignups().GetVariable() != "" && !pin.GetSignupsOpen() {
 			signups = entry.GetSignups()
 		}
@@ -506,8 +521,8 @@ func (h *Handler) OpenCatalogInstall(ctx context.Context, req *connect.Request[d
 	// Who reaches it first takes it, where its owner isn't made: the plan says so, and
 	// a person applies it with a passkey (ADR 0105, "Installs by token").
 	var notes []revision.Note
-	if knownUser != "" {
-		notes = append(notes, revision.Note{Reason: NoteKnownPassword, Message: "It signs in as " + knownUser + " with a password everyone knows. Change it in " + app + " first, through the panel"})
+	if known != nil {
+		notes = append(notes, *known)
 	} else if owner == nil || !store.OwnerFinal(owner.state.State) {
 		where := "it"
 		switch {

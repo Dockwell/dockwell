@@ -25,6 +25,7 @@ import { useAuthError } from "../auth/messages";
 import { withStepUpIfAsked } from "../auth/stepUp";
 import { useSignedInUser } from "../auth/useAuthState";
 import { useChangeSheet } from "../changes/ChangeSheet";
+import { CopyButton } from "../servers/CopyButton";
 import { useReveals } from "../variables/useReveal";
 import { OpenAppButton } from "./access";
 
@@ -97,6 +98,10 @@ export function OwnerCallout({
   useInstallsWhileMaking(status !== undefined && status !== "made");
   const [byHand, setByHand] = useState(false);
   const app = entry?.name || install.name || install.pin?.entry || "";
+  // What only making the owner needed, still set an hour on (the review's M1).
+  if ((install.owner?.unsetLeft.length ?? 0) > 0 && (status === "made" || status === undefined)) {
+    return <UnsetLeft install={install} app={app} />;
+  }
   switch (status) {
     case "email":
       return <OwnerEmail install={install} app={app} />;
@@ -105,12 +110,12 @@ export function OwnerCallout({
     case "failed":
       // Set up by hand through its setup link, as its done reads, it's theirs to open.
       return byHand || install.owner?.setUp ? (
-        <Held service={service} install={install} app={app} />
+        <Held service={service} install={install} app={app} entry={entry} />
       ) : (
         <OwnerFailed install={install} app={app} onByHand={() => setByHand(true)} />
       );
     case "held":
-      return <Held service={service} install={install} app={app} />;
+      return <Held service={service} install={install} app={app} entry={entry} />;
     default:
       return null;
   }
@@ -134,7 +139,17 @@ function useOpen(install: CatalogInstall) {
  * alone, so only people in this project reach it, through the panel, until a person
  * opens it to everyone.
  */
-function Held({ service, install, app }: { service: ServiceInfo; install: CatalogInstall; app: string }) {
+function Held({
+  service,
+  install,
+  app,
+  entry,
+}: {
+  service: ServiceInfo;
+  install: CatalogInstall;
+  app: string;
+  entry: Entry | undefined;
+}) {
   const { t } = useLingui();
   const { open, may } = useOpen(install);
   const held = useAppDomains(service).domains.filter((d) => d.routes.some((r) => r.held));
@@ -151,6 +166,8 @@ function Held({ service, install, app }: { service: ServiceInfo; install: Catalo
   // When the domain's link ends, as its routes say, so any tab counts it down.
   const routesUntil = Math.max(0, ...(secureDomain?.routes ?? []).map((r) => Number(r.setupUntil)));
   const left = useMinutesLeft(Math.max(routesUntil, link.until));
+  const o = entry?.owner;
+  const known = o?.knownPassword && o.steps.length === 0 ? { user: o.knownUser, password: o.knownPassword } : undefined;
   if (install.owner?.setUp) {
     return (
       <Callout
@@ -201,6 +218,25 @@ function Held({ service, install, app }: { service: ServiceInfo; install: Catalo
     >
       {link.problem ? (
         link.problem
+      ) : known ? (
+        // A store's app that signs in with a password everyone knows: the pair to
+        // copy, to change it before opening it (the review's M2).
+        <span className="catalog-known-sign-in">
+          {known.user ? (
+            <Trans>
+              Signs in as <code>{known.user}</code>
+              <CopyButton text={known.user} label={t`Copy the user`} /> with <code>{known.password}</code>
+              <CopyButton text={known.password} label={t`Copy the password`} />, which everyone knows. Change it in{" "}
+              {app}, then open it.
+            </Trans>
+          ) : (
+            <Trans>
+              Signs in with <code>{known.password}</code>
+              <CopyButton text={known.password} label={t`Copy the password`} />, which everyone knows. Change it in{" "}
+              {app}, then open it.
+            </Trans>
+          )}
+        </span>
       ) : left > 0 && secure ? (
         <Trans>
           Your setup link to {secure} works for {left} min. Everyone else finds it isn't open yet.
@@ -455,6 +491,91 @@ function useNewPassword(install: CatalogInstall) {
 }
 
 /**
+ * A rotation neither password has read signing in for an hour: show the new one
+ * with a passkey, to try it, or keep the current one and forget the new one
+ * (ADR 0105, the review's H1). What's shown stays in this page's memory alone.
+ */
+function useSettleRotation(install: CatalogInstall) {
+  const transport = useTransport();
+  const queries = useQueryClient();
+  const explain = useAuthError();
+  const may = useMay();
+  const mayShow = may(CatalogService.method.revealCatalogOwnerPendingPassword, { project: install.projectId });
+  const mayKeep = may(CatalogService.method.keepCatalogOwnerPassword, { project: install.projectId });
+  const [busy, setBusy] = useState(false);
+  const [shown, setShown] = useState<string>();
+  const [problem, setProblem] = useState<string>();
+  const client = createClient(CatalogService, transport);
+  const run = async (what: () => Promise<void>) => {
+    setBusy(true);
+    setProblem(undefined);
+    try {
+      await what();
+    } catch (err) {
+      setProblem(explain(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const show = () =>
+    run(async () => {
+      const res = await withStepUpIfAsked(
+        transport,
+        StepUpAction.REVEAL_CATALOG_OWNER_PENDING_PASSWORD,
+        install.projectId,
+        (proof) => client.revealCatalogOwnerPendingPassword({ id: install.projectId, proof }),
+      );
+      setShown(res.password);
+    });
+  const keep = () =>
+    run(async () => {
+      await withStepUpIfAsked(transport, StepUpAction.KEEP_CATALOG_OWNER_PASSWORD, install.projectId, (proof) =>
+        client.keepCatalogOwnerPassword({ id: install.projectId, proof }),
+      );
+      setShown(undefined);
+      await queries.invalidateQueries();
+    });
+  return { show, keep, busy, shown, problem, mayShow, mayKeep };
+}
+
+/**
+ * What only making an install's owner needed, as Vaultwarden's ADMIN_TOKEN, that
+ * Dockwell has failed to take out for an hour: the plan that takes it out
+ * (ADR 0105, the review's M1).
+ */
+function UnsetLeft({ install, app }: { install: CatalogInstall; app: string }) {
+  const { t, i18n } = useLingui();
+  const transport = useTransport();
+  const sheet = useChangeSheet();
+  const may = useMay()(CatalogService.method.settleCatalogOwner, { project: install.projectId });
+  const names = new Intl.ListFormat(i18n.locale, { type: "conjunction" }).format(install.owner?.unsetLeft ?? []);
+  return (
+    <Callout
+      className="catalog-owner-callout"
+      tone="warning"
+      title={t`${app} still takes ${names}`}
+      actions={
+        <Button
+          variant="primary"
+          size="sm"
+          onClick={() =>
+            sheet.open({
+              kind: "plan",
+              make: () => createClient(CatalogService, transport).settleCatalogOwner({ id: install.projectId }),
+            })
+          }
+          {...may.off}
+        >
+          <Trans>Turn it off</Trans>
+        </Button>
+      }
+    >
+      <Trans>Only making its owner needed it, and Dockwell couldn't take it out.</Trans>
+    </Callout>
+  );
+}
+
+/**
  * The owner Dockwell made: who, to copy, and the password, which a passkey reveals
  * in place, on the page of what a person opens. Where the entry says how, a new
  * password is a button away; where it doesn't, a person who changed it in the app
@@ -472,6 +593,7 @@ export function OwnerCard({ entry, install }: { entry: Entry; install: CatalogIn
   const mayPropose = useMay()(ChangeService.method.proposeChange, { environment });
   const sheet = useChangeSheet();
   const fresh = useNewPassword(install);
+  const settle = useSettleRotation(install);
   const owner = install.owner;
   const rotating = owner?.rotating ?? false;
   // Read again while a new password is being set, as its outcome is observed after.
@@ -496,7 +618,40 @@ export function OwnerCard({ entry, install }: { entry: Entry; install: CatalogIn
       edits: [{ resource: { kind: "secret", scope: environment, name: secretName }, delete: true }],
     });
   let note: ReactNode;
-  if (rotating) {
+  if (rotating && owner.error) {
+    // Neither password has read signing in for an hour: a person settles it (the
+    // review's H1).
+    note = (
+      <span className="catalog-owner-stuck">
+        {settle.problem ?? owner.error}{" "}
+        {settle.shown ? (
+          <>
+            <code>{settle.shown}</code>
+            <CopyButton text={settle.shown} label={t`Copy the new password`} />
+          </>
+        ) : (
+          <Button
+            variant="ghost"
+            size="sm"
+            loading={settle.busy}
+            onClick={() => void settle.show()}
+            {...settle.mayShow.off}
+          >
+            <Trans>Show the new one</Trans>
+          </Button>
+        )}
+        <Button
+          variant="ghost"
+          size="sm"
+          loading={settle.busy}
+          onClick={() => void settle.keep()}
+          {...settle.mayKeep.off}
+        >
+          <Trans>Keep the current one</Trans>
+        </Button>
+      </span>
+    );
+  } else if (rotating) {
     note = <Trans>Setting a new password in {app}. The current one works until then.</Trans>;
   } else if (fresh.problem) {
     note = fresh.problem;

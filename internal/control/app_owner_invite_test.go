@@ -29,7 +29,7 @@ import (
 // inviteEntry is an app whose owner registers through an invite, as Vaultwarden's:
 // its admin token is generated and sealed, its service runs the token's Argon2id
 // hash, and once the owner has registered, the release takes the hash out.
-func inviteEntry(image string) string {
+func inviteEntry() string {
 	return fmt.Sprintf(`id: thing
 name: Thing
 summary: Something whose owner registers
@@ -92,7 +92,7 @@ compose: |
         - data:/data
   volumes:
     data: {}
-`, image)
+`, firstRelease)
 }
 
 // inviteApp is an agent for an app whose owner registers once invited: its steps
@@ -143,7 +143,7 @@ func verifies(phc, secret string) bool {
 func TestAnInvitesOwnerIsMadeOnceTheyveRegistered(t *testing.T) {
 	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
-		o := startOwning(t, backend, inviteEntry(firstRelease), &dockwellv1.InstallCatalogEntryRequest{Id: "thing"})
+		o := startOwning(t, backend, inviteEntry(), &dockwellv1.InstallCatalogEntryRequest{Id: "thing"})
 		app := &inviteApp{}
 		o.f.server.owners.SetAgent(func(string) (owners.Agent, bool) { return app, true })
 		var mu sync.Mutex

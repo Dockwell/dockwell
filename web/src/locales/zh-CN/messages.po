@@ -869,6 +869,13 @@ msgstr "无法保存 {server} 上的 {path}"
 msgid "Couldn't stop PID {pid} on {server}"
 msgstr "无法在 {server} 上停止 PID {pid}"
 
+msgid "Couldn't take out what only making {app}'s owner needed"
+msgstr "未能移除仅在创建 {app} 所有者时需要的设置"
+
+#. placeholder {0}: owned.error
+msgid "Couldn't take out what only making {app}'s owner needed: {0}"
+msgstr "未能移除仅在创建 {app} 所有者时需要的设置：{0}"
+
 msgid "Couldn't upload {path} to {server}"
 msgstr "无法上传 {path} 到 {server}"
 
@@ -8420,6 +8427,12 @@ msgstr "所有者为 {who}。在此之前，只有此项目的成员可以访问
 msgid "Changed it in {app}? <0>Forget it</0>"
 msgstr "已在 {app} 中修改？<0>忘掉它</0>"
 
+msgid "Copy the new password"
+msgstr "复制新密码"
+
+msgid "Copy the user"
+msgstr "复制用户名"
+
 msgid "Forget {app}'s owner password"
 msgstr "忘掉 {app} 的所有者密码"
 
@@ -8437,6 +8450,9 @@ msgstr "在 Dockwell 创建所有者账号之前，它暂不开放。"
 
 msgid "It's held until then."
 msgstr "在此之前它暂不开放。"
+
+msgid "Keep the current one"
+msgstr "保留当前密码"
 
 msgctxt "a long text, shown whole"
 msgid "Less"
@@ -8463,6 +8479,9 @@ msgstr "需要所有者邮箱"
 msgid "New setup link"
 msgstr "新的设置链接"
 
+msgid "Only making its owner needed it, and Dockwell couldn't take it out."
+msgstr "只有创建所有者时需要它，而 Dockwell 未能将其移除。"
+
 msgid "Only people in this project reach it until you open it to everyone."
 msgstr "在你向所有人开放之前，只有此项目的成员可以访问。"
 
@@ -8487,6 +8506,21 @@ msgstr "正在设置新密码"
 msgid "Setting a new password in {app}. The current one works until then."
 msgstr "正在 {app} 中设置新密码。在此之前，当前密码仍然有效。"
 
+msgid "Show the new one"
+msgstr "显示新密码"
+
+#. placeholder {0}: known.user
+#. placeholder {1}: known.password
+msgid "Signs in as <0>{0}</0><1/> with <2>{1}</2><3/>, which everyone knows. Change it in {app}, then open it."
+msgstr "以 <0>{0}</0><1/> 和人人皆知的 <2>{1}</2><3/> 登录。请先在 {app} 中修改，再开放它。"
+
+#. placeholder {0}: known.password
+msgid "Signs in with <0>{0}</0><1/>, which everyone knows. Change it in {app}, then open it."
+msgstr "使用人人皆知的 <0>{0}</0><1/> 登录。请先在 {app} 中修改，再开放它。"
+
+msgid "Turn it off"
+msgstr "关闭它"
+
 msgid "Your setup link to {secure} works for {left} min. Everyone else finds it isn't open yet."
 msgstr "你的 {secure} 设置链接还可用 {left} 分钟。其他人看到的仍是尚未开放。"
 
@@ -8505,6 +8539,9 @@ msgstr "{app} 已设置完成"
 #. placeholder {0}: owner.error
 msgid "{app} kept its password. {0}"
 msgstr "{app} 保留了原密码。{0}"
+
+msgid "{app} still takes {names}"
+msgstr "{app} 仍在使用 {names}"
 
 msgid "{app} waits for its owner's email"
 msgstr "{app} 正在等待所有者邮箱"
@@ -9102,6 +9139,9 @@ msgstr "正在 {server} 上接管 {name} 的域名"
 
 msgid "How this works"
 msgstr "工作原理"
+
+msgid "I changed its password"
+msgstr "我已修改它的密码"
 
 msgid "If you close this without keeping it, the change goes back on its own."
 msgstr "如果你不保留就关闭，这项更改会自动撤回。"
