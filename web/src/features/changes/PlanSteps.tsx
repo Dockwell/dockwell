@@ -26,7 +26,7 @@ import { useControlPlaneNow } from "../servers/useFleet";
 import { DockerStops } from "./DockerStops";
 import { MachineWords } from "./FailureNotice";
 import { PanelLine, PanelPlan } from "./PanelPlan";
-import { ProviderMeta, useProviderLine } from "./ProviderSteps";
+import { ProviderMeta, useProviderLine, writesAt } from "./ProviderSteps";
 import {
   intentOf,
   isFleet,
@@ -277,7 +277,7 @@ function StepRow({
             <MachineWords>{words.intent(intent, tenseOf(live?.state))}</MachineWords>
           ) : step.provider ? (
             // A step at Cloudflare, for the route: where it runs is its own to say.
-            providerLine(step.provider, live?.state === StepState.DONE ? "done" : "plan")
+            providerLine(step.provider, live?.state === StepState.DONE ? "done" : "plan", writesAt(step))
           ) : step.backupFirst ? (
             <BackupFirstLine first={step.backupFirst} name={name} />
           ) : step.reboot ? (

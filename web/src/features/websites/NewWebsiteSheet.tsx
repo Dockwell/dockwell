@@ -28,6 +28,7 @@ import { formRefusal, proxyList, refusedField } from "../apps/domains";
 import { FrontFields, frontOf, type InFront } from "../apps/FrontFields";
 import {
   pickedOf,
+  publicAddressOf,
   publishOf,
   routeOfWay,
   type TakeOverInit,
@@ -103,6 +104,8 @@ export function NewWebsiteSheet({
   const [failure, setFailure] = useState<string>();
   const [busy, setBusy] = useState(false);
   const [plan, setPlan] = useState<Opening>();
+  // Review plan pressed while the check reads Cloudflare goes on once it has.
+  const [waiting, setWaiting] = useState(false);
   const [httpsOpen, setHttpsOpen] = useState(false);
   const field = useRef<HTMLInputElement>(null);
   const form = useRef<HTMLFormElement>(null);
@@ -113,7 +116,7 @@ export function NewWebsiteSheet({
   // A name in a zone a connected provider writes in, published for you: an admin makes a
   // website, and its plan adds the website's project to that provider (ADR 0104).
   const admin = useInstallAdmin();
-  const { zones } = useZones("", mayCreate.allowed && admin);
+  const { zones, providers } = useZones("", mayCreate.allowed && admin);
   const [zonePicked, setZonePicked] = useState<string>();
   const zone =
     zones.length === 0
@@ -134,6 +137,37 @@ export function NewWebsiteSheet({
   const takesOver = consent.domain === typed ? consent.items : [];
   const provider = cf.check?.provider || zones.find((z) => z.zone === zone)?.provider || "";
   const publishes = publishing && cf.check !== undefined && wayTakeable && way.way !== RouteWay.FRONT;
+  const providerInfo = providers.find((p) => p.name === provider && p.provider !== "");
+  /** Sets the zone to Full (strict) on its DNS provider's own plan (ADR 0104, section 2). */
+  const toStrict = () => {
+    if (!providerInfo) return;
+    const p = providerInfo;
+    setPlan({
+      kind: "propose",
+      summary: t`Set ${zone} to Full (strict)`,
+      edits: [
+        {
+          resource: { kind: "dns.provider", name: p.name },
+          spec: {
+            kind: {
+              case: "dnsProvider",
+              value: {
+                provider: "cloudflare",
+                zones: p.zones,
+                projects: p.projects,
+                strictZones: [...new Set([...p.strictZones, zone])],
+              },
+            },
+          },
+        },
+      ],
+      retryLabel: t`Edit and try again`,
+      onClose: () => {
+        setPlan(undefined);
+        cf.again();
+      },
+    });
+  };
   const behind = publishing ? way.way === RouteWay.FRONT : noCertificate;
   // The folder follows the name until it's typed, as /var/www/<domain>.
   const follow = (name: string) => {
@@ -173,6 +207,13 @@ export function NewWebsiteSheet({
     setFailure(said);
   };
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: it goes on once the check is in, and submit is new each time.
+  useEffect(() => {
+    if (!waiting || cf.checking) return;
+    setWaiting(false);
+    void submit();
+  }, [waiting, cf.checking]);
+
   const submit = async (event?: FormEvent) => {
     event?.preventDefault();
     // Enter and Ctrl+Enter follow the role, as the button does.
@@ -192,7 +233,16 @@ export function NewWebsiteSheet({
       return;
     }
     // A name in a connected zone waits for the check, and a way that can't be taken says why.
-    if (publishing && (cf.checking || (cf.check && !wayTakeable))) return;
+    // A name in a connected zone waits for the check, then plans the way it took; one
+    // that can't be taken, or a check Cloudflare couldn't answer, says why under the name.
+    if (publishing && cf.checking) {
+      setWaiting(true);
+      return;
+    }
+    if (publishing && (cf.failed || (cf.check && !wayTakeable))) {
+      setWaysOpen(false);
+      return;
+    }
     const publish = publishes ? publishOf(way.way, way.tunnel, provider, takesOver) : undefined;
     const { proof: _proof, ...wayFields } = routeOfWay(way.way, cf.check?.sslMode ?? "");
     const front = publishes ? { ...wayFields, ...(publish ? { publish } : {}) } : frontOf(behind, inFront, named);
@@ -287,7 +337,7 @@ export function NewWebsiteSheet({
           <Button
             variant="primary"
             size={phone ? "lg" : "md"}
-            loading={busy}
+            loading={busy || waiting}
             kbd={phone ? undefined : onApple() ? "⌘↵" : "Ctrl ↵"}
             onClick={() => void submit()}
             {...mayCreate.off}
@@ -341,6 +391,8 @@ export function NewWebsiteSheet({
                 sub={domain.trim().toLowerCase()}
                 zone={zone}
                 companion={cf.companion}
+                failed={cf.failed}
+                onAgain={cf.again}
                 takesOver={takesOver}
                 onTakesOver={(items) => setConsent({ domain: typed, items })}
                 onSub={(value) => {
@@ -383,8 +435,9 @@ export function NewWebsiteSheet({
             open={waysOpen}
             onOpen={setWaysOpen}
             server={serverOf(fleet, server)?.name ?? ""}
-            admin={false}
-            onStrict={() => undefined}
+            address={publicAddressOf(serverOf(fleet, server))}
+            admin={admin && providerInfo !== undefined}
+            onStrict={toStrict}
             onLeave={onClose}
           />
         ) : (

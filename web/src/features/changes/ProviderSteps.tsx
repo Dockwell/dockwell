@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { type Plan, ProviderAction, type ProviderStep } from "@dockwell/api";
+import { type Plan, PlanAction, type PlanStep, ProviderAction, type ProviderStep } from "@dockwell/api";
 import { Trans, useLingui } from "@lingui/react/macro";
 
 /** Whether a step is done, or still to do, for how its line reads. */
@@ -10,11 +10,27 @@ export type ProviderTense = "plan" | "done";
  * What a step at Cloudflare does, in a line that says where it runs (ADR 0104, section
  * 10): a DNS record, a tunnel's rule, or a zone's mode.
  */
-export function useProviderLine(): (p: ProviderStep, tense: ProviderTense) => string {
+export function useProviderLine(): (p: ProviderStep, tense: ProviderTense, writes?: boolean) => string {
   const { t } = useLingui();
-  return (p, tense) => {
+  return (p, tense, writes = true) => {
     const { name, target, to } = p;
     const done = tense === "done";
+    // A step that writes nothing lets go of what's there, or hands it over, as it is
+    // (the review's B-M3).
+    if (!writes) {
+      switch (p.action) {
+        case ProviderAction.DELETE_RECORD:
+        case ProviderAction.TAKE_ON_RECORD:
+          return done
+            ? t`Left the DNS record for ${name} as it is at Cloudflare`
+            : t`Leave the DNS record for ${name} as it is at Cloudflare`;
+        case ProviderAction.REMOVE_RULE:
+        case ProviderAction.KEEP_RULE:
+          return done
+            ? t`Left ${name} in the tunnel ${target} as it is`
+            : t`Leave ${name} in the tunnel ${target} as it is`;
+      }
+    }
     switch (p.action) {
       case ProviderAction.CREATE_RECORD:
         return done
@@ -79,8 +95,15 @@ export function ProviderMeta({ step }: { step: ProviderStep }) {
 }
 
 /** Every step a plan takes at Cloudflare, in the order they run. */
-export function providerStepsOf(plan: Plan | undefined): ProviderStep[] {
-  return (plan?.servers ?? []).flatMap((s) => s.steps.flatMap((st) => (st.provider ? [st.provider] : [])));
+export function providerStepsOf(plan: Plan | undefined): { step: ProviderStep; writes: boolean }[] {
+  return (plan?.servers ?? []).flatMap((s) =>
+    s.steps.flatMap((st) => (st.provider ? [{ step: st.provider, writes: writesAt(st) }] : [])),
+  );
+}
+
+/** Whether a step at Cloudflare writes there: one planned as no action lets go, or hands over. */
+export function writesAt(step: PlanStep): boolean {
+  return step.action !== PlanAction.NONE;
 }
 
 /**
@@ -99,10 +122,12 @@ export function CloudflareSteps({ plan }: { plan: Plan | undefined }) {
         <Trans>At Cloudflare</Trans>
       </h3>
       <ol className="plan-steps">
-        {steps.map((step) => (
-          <li key={`${step.action}-${step.target}-${step.name}`} className="plan-step">
+        {steps.map(({ step, writes }, i) => (
+          // Two steps can share an action and a name, as an A and an AAAA record do.
+          // biome-ignore lint/suspicious/noArrayIndexKey: the plan's order is the steps' own, and never moves.
+          <li key={`${i}-${step.action}-${step.name}`} className="plan-step">
             <span className="plan-step-what">
-              <span className="plan-step-line">{line(step, "plan")}</span>
+              <span className="plan-step-line">{line(step, "plan", writes)}</span>
             </span>
             <ProviderMeta step={step} />
           </li>

@@ -12,6 +12,7 @@ import {
   type NeedStorage,
 } from "@dockwell/api";
 import type { PlanChange, PlanValue } from "@dockwell/ui";
+import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { type ReactNode, useMemo } from "react";
 
@@ -143,6 +144,7 @@ export function useFieldRows(): FieldRows {
       password: t`password in`,
       // Which of its own values an app shows, which Dockwell keeps beside them (ADR 0081).
       shown_env: t`shows the values of`,
+      projects: t`serves`,
     };
     // How a route signs people in (ADR 0087), apart from labels, as a route with them
     // never reads as one row.
@@ -159,6 +161,11 @@ export function useFieldRows(): FieldRows {
       "build.git.commit": (value) => value.slice(0, 7),
       "build.git.ref": shownRef,
       image: shownImage,
+      // A DNS provider's projects by count, not their IDs: the plan's note names the one it gains (the review's B-M5).
+      projects: (value) => {
+        const count = value === "" ? 0 : value.split(",").length;
+        return plural(count, { one: "# project", other: "# projects" });
+      },
     };
     const kinds: Readonly<Record<string, string>> = {
       "database.user": t`database user`,

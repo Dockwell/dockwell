@@ -107,7 +107,7 @@ export function DomainName({
  * 1 and the States mock): free, taken with a free name beside it, past Cloudflare's free
  * certificate with one that's under it, or made in Cloudflare and pointing here.
  */
-export function NameState({
+function RecordState({
   check,
   checking,
   domain,
@@ -161,13 +161,20 @@ export function NameState({
         );
       }
       return consented ? (
-        <StateLine status="degraded" action={<Act onClick={() => onTakesOver([])}>{t`Keep it`}</Act>}>
+        <StateLine
+          status="degraded"
+          action={<Act onClick={() => onTakesOver(takesOver.filter((o) => !o.recordId))}>{t`Keep it`}</Act>}
+        >
           {t`Replaces ${record}, made in Cloudflare. Undo puts it back`}
         </StateLine>
       ) : (
         <StateLine
           status="degraded"
-          action={<Act onClick={() => onTakesOver([{ recordId: check.recordId }])}>{t`Replace it`}</Act>}
+          action={
+            <Act
+              onClick={() => onTakesOver([...takesOver.filter((o) => !o.recordId), { recordId: check.recordId }])}
+            >{t`Replace it`}</Act>
+          }
         >
           {t`A record exists: ${record}, made in Cloudflare`}
         </StateLine>
@@ -182,13 +189,20 @@ export function NameState({
         );
       }
       return consented ? (
-        <StateLine status="healthy" action={<Act onClick={() => onTakesOver([])}>{t`Leave it`}</Act>}>
+        <StateLine
+          status="healthy"
+          action={<Act onClick={() => onTakesOver(takesOver.filter((o) => !o.recordId))}>{t`Leave it`}</Act>}
+        >
           {t`Takes on ${record}, made in Cloudflare`}
         </StateLine>
       ) : (
         <StateLine
           status="degraded"
-          action={<Act onClick={() => onTakesOver([{ recordId: check.recordId }])}>{t`Take it on`}</Act>}
+          action={
+            <Act
+              onClick={() => onTakesOver([...takesOver.filter((o) => !o.recordId), { recordId: check.recordId }])}
+            >{t`Take it on`}</Act>
+          }
         >
           {t`Made in Cloudflare and pointing here: ${record}`}
         </StateLine>
@@ -213,9 +227,71 @@ export function NameState({
   return null;
 }
 
-/** What each way is called, and what it does, in a line each. */
-function useWayWords(server: string) {
+/**
+ * What a connected zone says of a name, as a state and its one action (ADR 0104, section
+ * 1 and the States mock): its record, then the tunnel's rule made by hand that serves
+ * it, for an admin to take on or move to Dockwell. A check that couldn't be made says
+ * so, with Check again, rather than nothing (the review's B-M1).
+ */
+export function NameState(
+  props: Parameters<typeof RecordState>[0] & {
+    /** Why the check couldn't be made, or "". */
+    failed: string;
+    onAgain: () => void;
+  },
+) {
   const { t } = useLingui();
+  const { check, failed, onAgain, takesOver, onTakesOver } = props;
+  if (failed) {
+    return (
+      <StateLine status="degraded" action={<Act onClick={onAgain}>{t`Check again`}</Act>}>
+        {failed}
+      </StateLine>
+    );
+  }
+  const hand = check?.handRule;
+  const ruleConsented =
+    hand !== undefined && takesOver.some((o) => o.hostname === hand.hostname && o.tunnel === hand.tunnel);
+  const rule = hand
+    ? { tunnel: hand.tunnel, hostname: hand.hostname, ...(hand.path ? { path: hand.path } : {}) }
+    : undefined;
+  const withoutRule = () => takesOver.filter((o) => !o.hostname);
+  const tunnelName = hand?.tunnelName ?? "";
+  const service = hand?.service ?? "";
+  return (
+    <>
+      <RecordState {...props} />
+      {hand && rule ? (
+        ruleConsented ? (
+          <StateLine status="healthy" action={<Act onClick={() => onTakesOver(withoutRule())}>{t`Leave it`}</Act>}>
+            {hand.reachesProxy
+              ? t`Takes on the rule made in Cloudflare in ${tunnelName}. Undo puts it back`
+              : t`Moves the rule made in Cloudflare in ${tunnelName} to the server's proxy. Undo puts it back`}
+          </StateLine>
+        ) : (
+          <StateLine
+            status="degraded"
+            action={
+              <Act onClick={() => onTakesOver([...withoutRule(), rule])}>
+                {hand.reachesProxy ? t`Take it on` : t`Move it to Dockwell`}
+              </Act>
+            }
+          >
+            {hand.reachesProxy
+              ? t`A rule made in Cloudflare in ${tunnelName} sends it to the server's proxy`
+              : t`A rule made in Cloudflare in ${tunnelName} sends it to ${service}`}
+          </StateLine>
+        )
+      ) : null}
+    </>
+  );
+}
+
+/** What each way is called, and what it does, in a line each. */
+function useWayWords(server: string, address: string) {
+  const { t } = useLingui();
+  // A record points at the server's address, where it's known (the review's B-L4).
+  const at = address || server;
   return {
     name: (w: WayOption | undefined, way: RouteWay): string => {
       const tunnel = w?.tunnelName || w?.tunnel || "";
@@ -236,15 +312,15 @@ function useWayWords(server: string) {
     does: (way: RouteWay, flexible: boolean): string => {
       switch (way) {
         case RouteWay.SERVER_TUNNEL:
-          return t`Cloudflare ends HTTPS, and the tunnel reaches ${server}`;
+          return t`Cloudflare ends HTTPS, and the tunnel reaches ${server} through its proxy`;
         case RouteWay.OWN_TUNNEL:
           return t`A tunnel only Dockwell writes, about 20 MB on ${server}`;
         case RouteWay.PROXY:
           return flexible
-            ? t`A proxied record to ${server}, which Cloudflare reaches over HTTP`
-            : t`A proxied record to ${server}, and a certificate by DNS`;
+            ? t`A proxied record to ${at}, which Cloudflare reaches over HTTP`
+            : t`A proxied record to ${at}, and a certificate by DNS`;
         case RouteWay.OWN_HTTPS:
-          return t`A DNS-only record to ${server}, which gets its own certificate`;
+          return t`A DNS-only record to ${at}, which gets its own certificate`;
         case RouteWay.FRONT:
           return t`Dockwell writes nothing at Cloudflare. What's in front ends HTTPS`;
       }
@@ -292,6 +368,7 @@ export function WayIn({
   open,
   onOpen,
   server,
+  address = "",
   admin,
   onStrict,
   onLeave,
@@ -305,13 +382,15 @@ export function WayIn({
   onOpen: (open: boolean) => void;
   /** The server's name. */
   server: string;
+  /** The server's public address, where it's known. */
+  address?: string;
   /** Whether the caller may set the zone to Full (strict). */
   admin: boolean;
   onStrict: () => void;
   onLeave: () => void;
 }) {
   const { t } = useLingui();
-  const words = useWayWords(server);
+  const words = useWayWords(server, address);
   if (!check || check.ways.length === 0) return null;
   const flexible = check.sslMode === "flexible";
   const picked = wayOf(check, way, tunnel);
@@ -388,9 +467,17 @@ export function WayIn({
           </StateLine>
         ) : null}
         {takeable && tunnelOff ? (
+          // A default that moved off the server's tunnel says why as a warning, with what
+          // fixes it, or Change where a rule catches the name first (the review's B-L3).
           <StateLine
-            status="unknown"
-            action={tunnelOff.action ? <OffAction option={tunnelOff} onLeave={onLeave} /> : undefined}
+            status="degraded"
+            action={
+              tunnelOff.action ? (
+                <OffAction option={tunnelOff} onLeave={onLeave} />
+              ) : tunnelOff.caughtBy ? (
+                <Act onClick={() => onOpen(true)}>{t`Change`}</Act>
+              ) : undefined
+            }
           >
             {tunnelOff.off}
           </StateLine>

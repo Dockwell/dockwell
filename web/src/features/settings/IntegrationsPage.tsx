@@ -524,6 +524,9 @@ function LoginCard({
   );
 }
 
+/** How many kept records a provider's card shows before Show more. */
+const KEPT_SHOWN = 3;
+
 /** A DNS provider an admin connected, with the zones it writes in, and the records made by hand it keeps a copy of. */
 function ProviderCard({
   provider: p,
@@ -536,6 +539,9 @@ function ProviderCard({
 }) {
   const { t } = useLingui();
   const sheet = useChangeSheet();
+  // A few kept records show; the rest are one step away (the review's B-L8).
+  const [allKept, setAllKept] = useState(false);
+  const hidden = p.kept.length - KEPT_SHOWN;
   // Putting a kept record back is the provider's own plan, which sends the rest of it as it is (ADR 0104).
   const putBack = (id: string, name: string) =>
     sheet.open({
@@ -574,7 +580,7 @@ function ProviderCard({
           </span>
           {p.kept.length > 0 ? (
             <ul className="integrations-kept" aria-label={t`Records kept`}>
-              {p.kept.map((k) => {
+              {p.kept.slice(0, allKept ? p.kept.length : KEPT_SHOWN).map((k) => {
                 const name = k.name;
                 return (
                   <li key={k.id}>
@@ -595,11 +601,18 @@ function ProviderCard({
                     >
                       {k.nameFree
                         ? t`Kept: ${name}, ${k.record}`
-                        : t`Kept: ${name}, ${k.record}. The name holds something else now`}
+                        : t`Kept: ${name}, ${k.record}. Put back once its name is free`}
                     </StateLine>
                   </li>
                 );
               })}
+              {p.kept.length > KEPT_SHOWN && !allKept ? (
+                <li>
+                  <button type="button" className="domain-step-act" onClick={() => setAllKept(true)}>
+                    {t`Show ${hidden} more`}
+                  </button>
+                </li>
+              ) : null}
             </ul>
           ) : null}
         </>

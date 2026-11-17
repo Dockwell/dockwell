@@ -198,7 +198,7 @@ describe("records kept at Cloudflare", () => {
     const card = await screen.findByRole("article", { name: "Cloudflare" });
     const kept = await within(card).findByRole("list", { name: "Records kept" });
     expect(kept).toHaveTextContent("Kept: vpn.example.com, CNAME elsewhere.example.net");
-    expect(kept).toHaveTextContent("Kept: mail.example.com, A 203.0.113.9. The name holds something else now");
+    expect(kept).toHaveTextContent("Kept: mail.example.com, A 203.0.113.9. Put back once its name is free");
     expect(within(kept).queryByRole("button", { name: "Put the record for mail.example.com back" })).toBeNull();
     await user.click(within(kept).getByRole("button", { name: "Put the record for vpn.example.com back" }));
     await waitFor(() => expect(proposed).toHaveBeenCalled());

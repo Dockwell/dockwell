@@ -2,11 +2,19 @@
 
 import { ChangeService, type Domain, type DomainPublished, PublishedState } from "@dockwell/api";
 import { Trans, useLingui } from "@lingui/react/macro";
+import { createContext, useContext } from "react";
 
 import { StateLine } from "../apps/DomainStep";
 import { routeAsItIs } from "../apps/PrivateSheet";
 import { useMay } from "../auth/may";
 import { useChangeSheet } from "../changes/ChangeSheet";
+
+/**
+ * Opens Add a domain on a name, for an admin, where taking on or moving what was made
+ * in Cloudflare happens with the live check (the review's B-M4). Unset where the
+ * caller can't, or the name reaches no app.
+ */
+export const ManageNameContext = createContext<((domain: Domain) => void) | undefined>(undefined);
 
 /** What a name Dockwell published at Cloudflare has come to, in a few words. */
 function useStateWord(): (state: PublishedState) => string {
@@ -47,6 +55,8 @@ function putsBack(p: DomainPublished): boolean {
  * it back where its routes, proposed as they are, write what's gone again.
  */
 export function PublishedNote({ domain }: { domain: Domain }) {
+  const manage = useContext(ManageNameContext);
+  const onManage = manage ? () => manage(domain) : undefined;
   const { t } = useLingui();
   const word = useStateWord();
   const sheet = useChangeSheet();
@@ -75,7 +85,23 @@ export function PublishedNote({ domain }: { domain: Domain }) {
             p.state === PublishedState.CAN_TAKE_ON || p.state === PublishedState.CAN_MOVE ? "unknown" : "degraded"
           }
           action={
-            putsBack(p) && may ? (
+            (p.state === PublishedState.CAN_TAKE_ON || p.state === PublishedState.CAN_MOVE) && onManage ? (
+              // Taken on, or moved, where the live check is, with an admin's consent (the review's B-M4).
+              <button
+                type="button"
+                className="domain-step-act"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onManage();
+                }}
+              >
+                {p.state === PublishedState.CAN_MOVE ? (
+                  <Trans>Move it to Dockwell</Trans>
+                ) : (
+                  <Trans>Manage in Dockwell</Trans>
+                )}
+              </button>
+            ) : putsBack(p) && may ? (
               <button
                 type="button"
                 className="domain-step-act"

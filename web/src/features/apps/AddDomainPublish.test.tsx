@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type { MessageInitShape } from "@bufbuild/protobuf";
+import { Code, ConnectError } from "@connectrpc/connect";
 import {
   type CheckDomainRequest,
   type CloudflareCheckSchema,
@@ -298,5 +299,83 @@ describe("adding a domain in a connected zone (ADR 0104)", () => {
     const route = edits[0]?.spec?.kind.value as { publish?: unknown };
     expect(route).toMatchObject({ domain: "shop.example.net", service: "wordpress" });
     expect(route.publish).toBeUndefined();
+  });
+
+  it("says a check Cloudflare couldn't answer, with Check again, and never plans a plain route", async () => {
+    const edits: ProposeChangeRequest["edits"] = [];
+    let answered = false;
+    renderAt(
+      "/apps/svc_wordpress",
+      publishApi(() => (answered ? free() : { provider: "cloudflare" }), edits),
+    );
+    const { user, sheet } = await openSheet();
+    await user.type(within(sheet).getByRole("textbox", { name: "Subdomain" }), "wiki");
+    expect(await within(sheet).findByText(/Couldn't read Cloudflare/, {}, { timeout: 3000 })).toBeVisible();
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    expect(edits).toHaveLength(0);
+    answered = true;
+    await user.click(within(sheet).getByRole("button", { name: "Check again" }));
+    expect(await within(sheet).findByText("Free in Dockwell and at Cloudflare", {}, { timeout: 3000 })).toBeVisible();
+  });
+
+  it("says why a check was refused, as the control plane words it", async () => {
+    const edits: ProposeChangeRequest["edits"] = [];
+    const api = publishApi(() => free(), edits);
+    api.domains = {
+      ...api.domains,
+      checkDomain: () => {
+        throw new ConnectError(
+          "you've checked 60 domains in the last minute. Wait a minute, then check again",
+          Code.ResourceExhausted,
+        );
+      },
+    };
+    renderAt("/apps/svc_wordpress", api);
+    const { user, sheet } = await openSheet();
+    await user.type(within(sheet).getByRole("textbox", { name: "Subdomain" }), "wiki");
+    expect(
+      await within(sheet).findByText(/checked 60 domains in the last minute/, {}, { timeout: 3000 }),
+    ).toBeVisible();
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    expect(edits).toHaveLength(0);
+  });
+
+  it("moves a tunnel rule made by hand to Dockwell, with an admin's consent", async () => {
+    const edits: ProposeChangeRequest["edits"] = [];
+    renderAt(
+      "/apps/svc_wordpress",
+      publishApi(
+        () =>
+          free({
+            ways: throughWebOne.map((w) => ({ ...w, addsRule: "" })),
+            handRule: {
+              tunnel: TUNNEL,
+              tunnelName: "web-1",
+              hostname: "wiki.example.com",
+              service: "http://127.0.0.1:8080",
+              reachesProxy: false,
+            },
+          }),
+        edits,
+      ),
+    );
+    const { user, sheet } = await openSheet();
+    await user.type(within(sheet).getByRole("textbox", { name: "Subdomain" }), "wiki");
+    expect(
+      await within(sheet).findByText(
+        /A rule made in Cloudflare in web-1 sends it to http:\/\/127.0.0.1:8080/,
+        {},
+        { timeout: 3000 },
+      ),
+    ).toBeVisible();
+    await user.click(within(sheet).getByRole("button", { name: "Move it to Dockwell" }));
+    expect(sheet).toHaveTextContent(
+      "Moves the rule made in Cloudflare in web-1 to the server's proxy. Undo puts it back",
+    );
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    await screen.findByRole("dialog", { name: "Review plan" });
+    expect(edits[0]?.spec?.kind.value).toMatchObject({
+      publish: { takesOver: [{ tunnel: TUNNEL, hostname: "wiki.example.com" }] },
+    });
   });
 });

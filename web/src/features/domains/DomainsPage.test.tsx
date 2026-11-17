@@ -898,24 +898,24 @@ describe("DNS and certificates, as Domains-List has them", () => {
     expect(panel).not.toHaveTextContent("Failed");
   });
 
-  it("reads DNS no server has read as the page opens, and any row's again on Check now", async () => {
+  it("reads every row's DNS in one list as the page opens, and a row's in full on Check now", async () => {
     const user = userEvent.setup();
-    const asked: string[] = [];
+    const asked: { domain: string; projectId: string }[] = [];
+    let readAll = 0;
     const domains = [aDomain({ name: "app.example.com", certificate: issued })];
     renderAt(
       "/domains",
       api(domains, {
         more: {
           domains: {
-            listDomains: () => ({ domains }),
+            listDomains: (req) => {
+              if (!req.readDns) return { domains };
+              readAll++;
+              return { domains: domains.map((d) => ({ ...d, dns: { state: DomainCheckState.NO_RECORD, found: [] } })) };
+            },
             checkDomain: (req) => {
-              asked.push(req.domain);
-              return {
-                check: {
-                  state: asked.length > 1 ? DomainCheckState.POINTS_HERE : DomainCheckState.NO_RECORD,
-                  found: [],
-                },
-              };
+              asked.push({ domain: req.domain, projectId: req.projectId });
+              return { check: { state: DomainCheckState.POINTS_HERE, found: [] } };
             },
           },
         },
@@ -923,10 +923,12 @@ describe("DNS and certificates, as Domains-List has them", () => {
     );
     const row = await rowOf(/app\.example\.com/);
     await waitFor(() => expect(row).toHaveTextContent("No record yet"));
-    expect(asked).toEqual(["app.example.com"]);
+    // One list for the page, and no check per row (the review's B-M2).
+    expect(readAll).toBe(1);
+    expect(asked).toEqual([]);
     await user.click(within(row).getByRole("button", { name: "Check DNS for app.example.com now" }));
     await waitFor(() => expect(row).toHaveTextContent("Points here"));
-    expect(asked).toHaveLength(2);
+    expect(asked).toEqual([{ domain: "app.example.com", projectId: "prj_1" }]);
   });
 
   it("says what Dockwell published at Cloudflare is gone, and puts it back as the routes are", async () => {

@@ -54,6 +54,7 @@ import { validPort } from "./form";
 import { routeAsItIs } from "./PrivateSheet";
 import {
   pickedOf,
+  publicAddressOf,
   publishOf,
   routeOfWay,
   type TakeOverInit,
@@ -143,6 +144,7 @@ export function AddDomainSheet({
   apps,
   onClose,
   start,
+  named,
 }: {
   /** The app it's for, when it's opened from one. */
   service?: ServiceInfo;
@@ -151,6 +153,8 @@ export function AddDomainSheet({
   onClose: () => void;
   /** A domain that needs moving behind a tunnel, as it's refused a certificate. */
   start?: MoveBehind;
+  /** A name to start from, as Domains opens it on one made in Cloudflare to take on. */
+  named?: string;
 }) {
   const { t } = useLingui();
   const transport = useTransport();
@@ -215,7 +219,17 @@ export function AddDomainSheet({
   // What the Server field shows is what the plan sends: the one picked while it's a
   // choice there, or else the first, as the field shows it.
   const server = servers.some((s) => s.serverId === serverPicked) ? serverPicked : (servers[0]?.serverId ?? "");
-  const [domain, setDomain] = useState(start?.domain ?? "");
+  const [domain, setDomain] = useState(start?.domain ?? named ?? "");
+  // A name given whole starts in its zone, as the subdomain under it, once the zones are read.
+  const placed = useRef(false);
+  if (named && !placed.current && zones.length > 0) {
+    placed.current = true;
+    const into = zones.find((z) => named === z.zone || named.endsWith(`.${z.zone}`));
+    if (into) {
+      setZonePicked(into.zone);
+      setDomain(named === into.zone ? "" : named.slice(0, -(into.zone.length + 1)));
+    }
+  }
   const [port, setPort] = useState(start?.port ?? portOf(service));
   // What you typed stays as you choose another app. What it started from follows.
   const portTyped = useRef(false);
@@ -275,6 +289,7 @@ export function AddDomainSheet({
   // as it was, with what's in front said under Advanced.
   const publishes = publishing && cf.check !== undefined && wayTakeable && way.way !== RouteWay.FRONT;
   const behind = publishing ? way.way === RouteWay.FRONT : noCertificate;
+  const serverName = serverOf(fleetServers, server)?.name ?? "";
   const held = known.data?.domains.find((d) => d.name === typed)?.routes.find((route) => route.path === "");
   const leaves = !start && !redirecting && held && held.service !== name ? held : undefined;
   // www for a bare domain, or the bare domain for www, redirecting to it, on by what DNS
@@ -419,8 +434,10 @@ export function AddDomainSheet({
     setPortError(portOk ? undefined : t`Use a port from 1 to 65535.`);
     setProxiesError(proxiesOk ? undefined : t`Name what connects to this server, as an address or a range.`);
     setFailure(undefined);
-    // A way in that can't be taken says why, with what fixes it, under the name.
-    if (publishing && cf.check && !wayTakeable) {
+    // A way in that can't be taken says why, with what fixes it, under the name; so
+    // does a check Cloudflare couldn't answer, with Check again. Neither plans a plain
+    // route in a connected zone: Another domain is a person's own choice (the review's B-M1).
+    if (publishing && (cf.failed || (cf.check && !wayTakeable))) {
       setWaysOpen(false);
       return;
     }
@@ -683,6 +700,8 @@ export function AddDomainSheet({
                 sub={domain.trim().toLowerCase()}
                 zone={zone}
                 companion={cf.companion}
+                failed={cf.failed}
+                onAgain={cf.again}
                 takesOver={takesOver}
                 onTakesOver={(items) => setConsent({ domain: typed, items })}
                 onSub={(value) => {
@@ -799,6 +818,7 @@ export function AddDomainSheet({
             open={waysOpen}
             onOpen={setWaysOpen}
             server={serverOf(fleet, server)?.name ?? ""}
+            address={publicAddressOf(serverOf(fleet, server))}
             admin={admin && providerInfo !== undefined}
             onStrict={toStrict}
             onLeave={onClose}
@@ -929,6 +949,44 @@ export function AddDomainSheet({
           </Advanced>
         ) : null}
         {/* Something else in front: what it is, one step away, as the way says there's no certificate. */}
+        {/* What the way sets, one step away: the path, and who the route believes (the review's B-L5). */}
+        {publishes ? (
+          <Advanced
+            label={t`Advanced`}
+            summary={
+              way.way === RouteWay.PROXY
+                ? t`Path / · Answers only Cloudflare`
+                : way.way === RouteWay.OWN_HTTPS
+                  ? t`Path / · Answers anyone`
+                  : t`Path / · Answers only ${serverName}'s tunnel`
+            }
+          >
+            <dl className="domain-step-facts">
+              <dt>
+                <Trans>Path</Trans>
+              </dt>
+              <dd>
+                <code>/</code>
+              </dd>
+              <dd />
+              <dt>
+                <Trans>Believes</Trans>
+              </dt>
+              <dd>
+                {way.way === RouteWay.PROXY ? (
+                  <Trans>Cloudflare's addresses, for who a visitor is</Trans>
+                ) : way.way === RouteWay.OWN_HTTPS ? (
+                  <Trans>No proxy: each visitor reaches it as themselves</Trans>
+                ) : (
+                  <Trans>
+                    The tunnel on <code>127.0.0.1</code>, for who a visitor is
+                  </Trans>
+                )}
+              </dd>
+              <dd />
+            </dl>
+          </Advanced>
+        ) : null}
         {publishing && behind ? (
           <Advanced
             label={t`What's in front`}

@@ -561,6 +561,8 @@ describe("New website", () => {
     expect(await within(sheet).findByText("Through Cloudflare's proxy", {}, { timeout: 3000 })).toBeVisible();
     // A website not made yet has no project: an admin's check reads every zone.
     expect(checks.at(-1)).toMatchObject({ domain: "docs.example.com", projectId: "" });
+    // It asks for a way, which an admin's check reads in every zone; Domains asks for none.
+    expect(checks.some((c) => c.domain === "docs.example.com" && c.publish !== undefined)).toBe(true);
     // Nothing to point by hand.
     expect(sheet).not.toHaveTextContent(/Make this record/);
     await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));

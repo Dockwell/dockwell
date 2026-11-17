@@ -2340,6 +2340,9 @@ msgstr "其他代理"
 msgid "App"
 msgstr "应用"
 
+msgid "Believes"
+msgstr "信任"
+
 msgid "Change the port it reaches"
 msgstr "更改它到达的端口"
 
@@ -2348,6 +2351,9 @@ msgstr "选择应用"
 
 msgid "Choose the app this domain reaches."
 msgstr "请选择这个域名要到达的应用。"
+
+msgid "Cloudflare's addresses, for who a visitor is"
+msgstr "Cloudflare 的地址，用来识别访问者"
 
 msgid "Cloudflare's proxy"
 msgstr "Cloudflare 代理"
@@ -2394,6 +2400,9 @@ msgstr "请填写域名，例如 app.example.com。"
 msgid "Name what connects to this server, as an address or a range."
 msgstr "请以地址或范围的形式，写明连接此服务器的来源。"
 
+msgid "No proxy: each visitor reaches it as themselves"
+msgstr "没有代理：每位访问者以自己的身份访问"
+
 msgid "Nothing changes until you apply the plan"
 msgstr "应用计划之前不会有任何更改"
 
@@ -2405,6 +2414,15 @@ msgstr "关闭：对任何人使用普通 HTTP"
 
 msgid "On, with a certificate that comes by itself"
 msgstr "开启，证书自动签发"
+
+msgid "Path / · Answers anyone"
+msgstr "路径 / · 响应任何人"
+
+msgid "Path / · Answers only Cloudflare"
+msgstr "路径 / · 只响应 Cloudflare"
+
+msgid "Path / · Answers only {serverName}'s tunnel"
+msgstr "路径 / · 只响应 {serverName} 的隧道"
 
 msgid "People reach the app at this name"
 msgstr "人们通过这个名称访问该应用"
@@ -2462,6 +2480,9 @@ msgstr "将 {wanted} 发送到 {name}，并让 {followsApp} 指向它"
 
 msgid "Set {zone} to Full (strict)"
 msgstr "将 {zone} 设为完全（严格）"
+
+msgid "The tunnel on <0>127.0.0.1</0>, for who a visitor is"
+msgstr "<0>127.0.0.1</0> 上的隧道，用来识别访问者"
 
 msgid "Visitors are sent on, such as from an old domain."
 msgstr "访客会被转到别处，例如来自旧域名的访客。"
@@ -4279,17 +4300,23 @@ msgstr "你的域名"
 msgid "{name} points at Cloudflare's proxy"
 msgstr "{name} 指向 Cloudflare 的代理"
 
-msgid "A DNS-only record to {server}, which gets its own certificate"
-msgstr "指向 {server} 的仅 DNS 记录，由它自己获取证书"
+msgid "A DNS-only record to {at}, which gets its own certificate"
+msgstr "指向 {at} 的仅 DNS 记录，由它自己获取证书"
 
-msgid "A proxied record to {server}, and a certificate by DNS"
-msgstr "指向 {server} 的代理记录，证书通过 DNS 获取"
+msgid "A proxied record to {at}, and a certificate by DNS"
+msgstr "指向 {at} 的代理记录，证书通过 DNS 获取"
 
-msgid "A proxied record to {server}, which Cloudflare reaches over HTTP"
-msgstr "指向 {server} 的代理记录，Cloudflare 通过 HTTP 访问它"
+msgid "A proxied record to {at}, which Cloudflare reaches over HTTP"
+msgstr "指向 {at} 的代理记录，Cloudflare 通过 HTTP 访问它"
 
 msgid "A record exists: {record}, made in Cloudflare"
 msgstr "已有记录：{record}，在 Cloudflare 中创建"
+
+msgid "A rule made in Cloudflare in {tunnelName} sends it to the server's proxy"
+msgstr "{tunnelName} 中在 Cloudflare 创建的规则把它发送到服务器的代理"
+
+msgid "A rule made in Cloudflare in {tunnelName} sends it to {service}"
+msgstr "{tunnelName} 中在 Cloudflare 创建的规则把它发送到 {service}"
 
 msgid "A tunnel only Dockwell writes, about 20 MB on {server}"
 msgstr "只由 Dockwell 写入的隧道，在 {server} 上约占 20 MB"
@@ -4315,8 +4342,8 @@ msgstr "Cloudflare 要求 Dockwell 稍候"
 msgid "Cloudflare asked Dockwell to wait. It checks again at {at}"
 msgstr "Cloudflare 要求 Dockwell 稍候。将在 {at} 再次检查"
 
-msgid "Cloudflare ends HTTPS, and the tunnel reaches {server}"
-msgstr "Cloudflare 终止 HTTPS，隧道到达 {server}"
+msgid "Cloudflare ends HTTPS, and the tunnel reaches {server} through its proxy"
+msgstr "Cloudflare 终止 HTTPS，隧道经由代理到达 {server}"
 
 msgid "Dockwell writes nothing at Cloudflare. What's in front ends HTTPS"
 msgstr "Dockwell 不在 Cloudflare 写入任何内容。由前方的服务终止 HTTPS"
@@ -4338,6 +4365,12 @@ msgstr "在 Cloudflare 中创建并指向这里。管理员可以接管它"
 
 msgid "Made in Cloudflare and pointing here: {record}"
 msgstr "在 Cloudflare 中创建并指向这里：{record}"
+
+msgid "Move it to Dockwell"
+msgstr "移交给 Dockwell"
+
+msgid "Moves the rule made in Cloudflare in {tunnelName} to the server's proxy. Undo puts it back"
+msgstr "将 {tunnelName} 中在 Cloudflare 创建的规则改为经由服务器的代理。撤销会把它恢复"
 
 msgid "None yet"
 msgstr "还没有"
@@ -4362,6 +4395,9 @@ msgstr "接管它"
 
 msgid "Taken at Cloudflare"
 msgstr "在 Cloudflare 中已被占用"
+
+msgid "Takes on the rule made in Cloudflare in {tunnelName}. Undo puts it back"
+msgstr "将接管 {tunnelName} 中在 Cloudflare 创建的规则。撤销会把它恢复"
 
 msgid "Takes on {record}, made in Cloudflare"
 msgstr "将接管在 Cloudflare 中创建的 {record}"
@@ -5908,6 +5944,9 @@ msgstr "静态网站"
 #. placeholder {2}: p.source
 msgid "{0} {1}, from {2}"
 msgstr "{0} {1}，来自 {2}"
+
+msgid "Couldn't read Cloudflare"
+msgstr "无法读取 Cloudflare"
 
 msgid "Changed {field}"
 msgstr "已更改 {field}"
@@ -9705,6 +9744,18 @@ msgstr "在隧道 {target} 中保留 {name}"
 msgid "Kept {name} in the tunnel {target}"
 msgstr "已在隧道 {target} 中保留 {name}"
 
+msgid "Leave the DNS record for {name} as it is at Cloudflare"
+msgstr "在 Cloudflare 保留 {name} 的 DNS 记录不变"
+
+msgid "Leave {name} in the tunnel {target} as it is"
+msgstr "在隧道 {target} 中保留 {name} 不变"
+
+msgid "Left the DNS record for {name} as it is at Cloudflare"
+msgstr "已在 Cloudflare 保留 {name} 的 DNS 记录不变"
+
+msgid "Left {name} in the tunnel {target} as it is"
+msgstr "已在隧道 {target} 中保留 {name} 不变"
+
 msgid "Move {name} in the tunnel {target} to the server's proxy"
 msgstr "将隧道 {target} 中的 {name} 改为经由服务器的代理"
 
@@ -10198,6 +10249,9 @@ msgstr "规则"
 msgid "runs no entrypoint"
 msgstr "不运行入口点"
 
+msgid "serves"
+msgstr "服务于"
+
 msgid "shared memory"
 msgstr "共享内存"
 
@@ -10305,6 +10359,9 @@ msgstr "存储桶是否在路径中"
 
 msgid "yes"
 msgstr "是"
+
+msgid "{count, plural, one {# project} other {# projects}}"
+msgstr "{count, plural, other {# 个项目}}"
 
 msgid "{label}, at the bucket's root"
 msgstr "{label}，存储桶根目录"
@@ -13079,6 +13136,9 @@ msgstr "它的隧道规则指向应用自己的端口"
 msgid "Made in Cloudflare, pointing here"
 msgstr "在 Cloudflare 中创建，指向这里"
 
+msgid "Manage in Dockwell"
+msgstr "在 Dockwell 中管理"
+
 msgid "Not in the tunnel any more"
 msgstr "已不在隧道中"
 
@@ -14839,9 +14899,6 @@ msgstr "其中运行的内容不受影响。"
 #. placeholder {0}: idle.length
 msgid "{0, plural, one {# with nothing running} other {# with nothing running}}"
 msgstr "{0, plural, other {# 个没有在运行}}"
-
-msgid "{count, plural, one {# project} other {# projects}}"
-msgstr "{count, plural, other {# 个项目}}"
 
 msgid "a website"
 msgstr "一个网站"
@@ -17685,8 +17742,8 @@ msgid "Kept: {name}, {0}"
 msgstr "已保留：{name}，{0}"
 
 #. placeholder {0}: k.record
-msgid "Kept: {name}, {0}. The name holds something else now"
-msgstr "已保留：{name}，{0}。这个名称现在有其他记录"
+msgid "Kept: {name}, {0}. Put back once its name is free"
+msgstr "已保留：{name}，{0}。名称空出后可以恢复"
 
 msgid "Loading registry logins"
 msgstr "正在加载镜像仓库登录"
@@ -17736,6 +17793,9 @@ msgstr "S3、R2、B2、MinIO 或任何 S3 API。备份在离开服务器之前�
 
 msgid "S3-compatible storage"
 msgstr "S3 兼容存储"
+
+msgid "Show {hidden} more"
+msgstr "再显示 {hidden} 条"
 
 msgid "Sign-in provider"
 msgstr "登录提供方"

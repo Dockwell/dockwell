@@ -384,6 +384,7 @@ export function PrivateSheet({
                 // (ADR 0104): the sheet sends the whole route.
                 held: route.held,
                 ...(route.publish ? { publish: route.publish } : {}),
+                ...(route.proof ? { proof: route.proof } : {}),
                 ...(opens ? {} : { access }),
               },
             },
@@ -740,6 +741,8 @@ export function routeAsItIs(domain: string, r: DomainRoute) {
     ...(r.publish ? { publish: r.publish } : {}),
     // A route that redirects stays one.
     ...(r.redirect ? { redirect: r.redirect } : {}),
+    // How it proves its name stays, as a proxy's proves by DNS (the review's B-L7).
+    ...(r.proof ? { proof: r.proof } : {}),
     ...(isPrivate(r)
       ? {
           access: {

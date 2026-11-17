@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { create } from "@bufbuild/protobuf";
-import { PlanSchema, ProviderAction, StepProgressSchema, StepState } from "@dockwell/api";
+import { PlanAction, PlanSchema, ProviderAction, StepProgressSchema, StepState } from "@dockwell/api";
 import { screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
@@ -70,5 +70,45 @@ describe("steps at Cloudflare", () => {
       {},
     );
     expect(screen.getByText("Wrote the DNS record for wiki.example.com at Cloudflare")).toBeVisible();
+  });
+
+  it("says a step that writes nothing leaves what's there as it is, not that it removes it", () => {
+    const letGo = create(PlanSchema, {
+      servers: [
+        {
+          serverId: "srv_1",
+          serverName: "hz-1",
+          steps: [
+            {
+              resourceId: "rte_1:cf:1",
+              resource: { kind: "route", name: "wiki" },
+              action: PlanAction.NONE,
+              provider: {
+                provider: "cloudflare",
+                action: ProviderAction.DELETE_RECORD,
+                target: "example.com",
+                name: "wiki.example.com",
+                routing: "Dockwell lets go of it, and it stays as it is",
+              },
+            },
+            {
+              resourceId: "rte_1:cf:2",
+              resource: { kind: "route", name: "wiki" },
+              action: PlanAction.DELETE,
+              provider: {
+                provider: "cloudflare",
+                action: ProviderAction.DELETE_RECORD,
+                target: "example.com",
+                name: "old.example.com",
+              },
+            },
+          ],
+        },
+      ],
+    });
+    renderWithApi(<CloudflareSteps plan={letGo} />, {});
+    const rows = within(screen.getByRole("region", { name: "At Cloudflare" })).getAllByRole("listitem");
+    expect(rows[0]).toHaveTextContent("Leave the DNS record for wiki.example.com as it is at Cloudflare");
+    expect(rows[1]).toHaveTextContent("Remove the DNS record for old.example.com at Cloudflare");
   });
 });

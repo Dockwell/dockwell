@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { createQueryOptions, useTransport } from "@connectrpc/connect-query";
+import { createClient } from "@connectrpc/connect";
+import { useQuery, useTransport } from "@connectrpc/connect-query";
 import { type Domain, type DomainCheck, DomainCheckState, DomainService } from "@dockwell/api";
 import type { Status } from "@dockwell/ui";
 import { useLingui } from "@lingui/react/macro";
-import { useQueries } from "@tanstack/react-query";
 import { createContext, useContext, useState } from "react";
 
 import { useMay } from "../auth/may";
@@ -59,52 +59,62 @@ export function useDnsWord(): (check: DomainCheck | undefined) => DnsWord {
   };
 }
 
-/** How many domains the page reads DNS for as it opens, inside CheckDomain's 60 a minute. */
-const READ_ON_OPEN = 40;
-
 /** What the page read of a domain's DNS itself, and the way to read it again. */
 export interface DnsReads {
   /** What it read, or undefined where it read nothing. */
   of: (domain: Domain) => DomainCheck | undefined;
   /** Whether it's reading it now. */
   checking: (domain: Domain) => boolean;
-  /** Reads it again, or for the first time, now. Undefined for someone who can't check a name. */
+  /** Reads it again now, in full. Undefined for someone who can't check a name. */
   again?: (domain: Domain) => void;
 }
 
 /**
- * DNS read from the page (#791): as it opens, for each domain no server has read yet,
- * and again for any on Check now, from the control plane as a plan's check reads it.
+ * DNS read from the page (#791): as it opens, every domain at once, in one list from
+ * the control plane, which reads each connected zone once and keeps it a while, so the
+ * page spends no Cloudflare check per row and none of the person's live checks; and a
+ * row's in full on Check now (the review's B-M2).
  */
-export function useDnsReads(domains: readonly Domain[], on: boolean): DnsReads {
+export function useDnsReads(on: boolean, projectOf: (environment: string) => string): DnsReads {
   const transport = useTransport();
   const allowed = useMay()(DomainService.method.checkDomain).allowed;
-  const [asked, setAsked] = useState<ReadonlySet<string>>(new Set());
-  const unread = domains.filter((d) => !dnsOf(d) && d.servers.length > 0).slice(0, READ_ON_OPEN);
-  const wanted = domains.filter((d) => d.servers.length > 0 && (asked.has(d.name) || unread.includes(d)));
-  const reads = useQueries({
-    queries: wanted.map((domain) => ({
-      ...createQueryOptions(
-        DomainService.method.checkDomain,
-        { serverId: domain.servers[0]?.serverId ?? "", domain: domain.name },
-        { transport },
-      ),
-      enabled: on && allowed,
-      retry: false,
-      staleTime: 30_000,
-    })),
-  });
-  const at = (domain: Domain) => wanted.findIndex((d) => d.name === domain.name);
+  const listed = useQuery(
+    DomainService.method.listDomains,
+    { readDns: true },
+    { enabled: on, retry: false, staleTime: 30_000 },
+  );
+  const [checked, setChecked] = useState<ReadonlyMap<string, DomainCheck>>(new Map());
+  const [checking, setChecking] = useState<ReadonlySet<string>>(new Set());
+  const read = new Map((listed.data?.domains ?? []).flatMap((d) => (d.dns ? [[d.name, d.dns] as const] : [])));
   return {
-    of: (domain) => reads[at(domain)]?.data?.check,
-    checking: (domain) => reads[at(domain)]?.isFetching ?? false,
-    again: allowed
-      ? (domain) => {
-          const i = at(domain);
-          if (i >= 0) void reads[i]?.refetch();
-          else setAsked((was) => new Set([...was, domain.name]));
-        }
-      : undefined,
+    of: (domain) => checked.get(domain.name) ?? read.get(domain.name),
+    checking: (domain) => checking.has(domain.name) || (listed.isFetching && !read.has(domain.name)),
+    again:
+      allowed && on
+        ? (domain) => {
+            const server = domain.servers[0]?.serverId ?? "";
+            if (server === "") return;
+            setChecking((was) => new Set([...was, domain.name]));
+            // In full, past what's kept, as the person asked for it now.
+            void createClient(DomainService, transport)
+              .checkDomain(
+                { serverId: server, domain: domain.name, projectId: projectOf(domain.environmentId) },
+                { headers: { "Cache-Control": "no-cache" } },
+              )
+              .then((answer) => {
+                const check = answer.check;
+                if (check) setChecked((was) => new Map([...was, [domain.name, check]]));
+              })
+              .catch(() => undefined)
+              .finally(() =>
+                setChecking((was) => {
+                  const next = new Set(was);
+                  next.delete(domain.name);
+                  return next;
+                }),
+              );
+          }
+        : undefined,
   };
 }
 
