@@ -822,7 +822,7 @@ func session(ctx context.Context, cfg Config) (err error) {
 	// When the control plane ends the stream, Send only says EOF; the
 	// reason comes from Receive.
 	sendStats := func() error {
-		stats := cfg.Collector.Stats(time.Now())
+		stats := cfg.Collector.Stats(ctx, time.Now())
 		stats.Interval = durationpb.New(interval)
 		err := send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_Stats{Stats: stats}})
 		if !errors.Is(err, io.EOF) {
