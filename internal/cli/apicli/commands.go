@@ -305,28 +305,45 @@ func holdsOthers(kind resource.Kind) bool {
 var productNouns = map[resource.Kind]string{
 	"service":       "app",
 	"route":         "domain",
-	"task":          "scheduled task",
 	"alert.check":   "uptime check",
 	"alert.rule":    "alert rule",
 	"alert.channel": "alert channel",
 	"dns.provider":  "DNS provider",
 }
 
+// deletes are the kinds the panel deletes, as it says of an app, a task, a volume or
+// a project; every other kind it removes, as a variable or a connection.
+var deletes = map[resource.Kind]bool{"service": true, "task": true, "volume": true, "project": true, "environment": true}
+
 // changeVerbs are the words a change's title starts with for each command.
 var changeVerbs = map[string]string{"create": "Add", "update": "Change", "delete": "Remove"}
 
 // changeSummary is what a change the CLI proposes is titled, unless --summary says
-// otherwise, in the product's words: "Add the app web", "Change the scheduled task
-// backup", and for a route, "Add the domain git.example.com to gitea" (#796).
+// otherwise, in the words the panel titles the same change, so Activity reads one
+// way whichever made it (#796): "Run nginx:1.27 as web", "Send git.example.com to
+// gitea", "Run backup on a schedule", "Change the app web", "Delete the task backup",
+// "Remove the variable LOG_LEVEL".
 func changeSummary(verb string, kind resource.Kind, name string, spec *resourcev1.Spec) string {
-	start := cmp.Or(changeVerbs[verb], capitalize(verb))
-	if r := spec.GetRoute(); r != nil && r.GetDomain() != "" {
+	if verb == "create" {
 		switch {
-		case verb == "create" && r.GetService() != "":
-			return start + " the domain " + r.GetDomain() + " to " + r.GetService()
-		default:
-			return start + " the domain " + r.GetDomain()
+		case spec.GetService().GetApp().GetImage() != "":
+			return "Run " + spec.GetService().GetApp().GetImage() + " as " + name
+		case spec.GetRoute().GetDomain() != "" && spec.GetRoute().GetService() != "":
+			return "Send " + spec.GetRoute().GetDomain() + " to " + spec.GetRoute().GetService()
+		case kind == "task":
+			return "Run " + name + " on a schedule"
 		}
+	}
+	start := cmp.Or(changeVerbs[verb], capitalize(verb))
+	if verb == "delete" && deletes[kind] {
+		start = "Delete"
+		if kind == "service" {
+			// As the panel's Delete says of an app: by its name alone.
+			return start + " " + name
+		}
+	}
+	if d := spec.GetRoute().GetDomain(); d != "" {
+		return start + " the domain " + d
 	}
 	noun := cmp.Or(productNouns[kind], kindWords(kind))
 	return start + " the " + noun + " " + name
