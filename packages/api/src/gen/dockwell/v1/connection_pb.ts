@@ -351,8 +351,8 @@ export type ConnectionInfo = Message<"dockwell.v1.ConnectionInfo"> & {
    * Its last check from each server it's checked from, as saved: the control plane
    * checks each connection once it's saved or changed, with the full check, and every
    * 6 hours after with one that writes nothing, whose step is "list" for storage;
-   * from each server an app linked to it runs on, or the control server where none
-   * does; and keeps a check someone runs of it as saved too. Only its revision's,
+   * from each server an app linked to it runs on, on that app's networks, or the
+   * control server where none does; and keeps a check someone runs of it as saved too. Only its revision's,
    * newest first, kept in memory, so none until the first after a start. Below an
    * admin, whether each passed and when, alone.
    *
@@ -519,9 +519,11 @@ export type CheckConnectionResponse = Message<"dockwell.v1.CheckConnectionRespon
 
   /**
    * Where it stopped: write, read, presign or delete for storage; connect, hello,
-   * tls or sign-in for a mail server. A check on a schedule reads storage alone, as
-   * one list, and says "list" whether it passed or not: it saw no object, and
-   * passes where AccessDenied answered, as the keys work and may not list.
+   * tls or sign-in for a mail server. A check on a schedule reads storage alone and
+   * says "list" whether it passed or not, as it saw no object: one list, or where
+   * AccessDenied answers that, a read of an object that isn't there. NoSuchKey on
+   * that passes; AccessDenied on both fails with that code, unconfirmed rather than
+   * refused, and "agent-update" is an agent that can't run the scheduled read.
    *
    * @generated from field: string step = 2;
    */

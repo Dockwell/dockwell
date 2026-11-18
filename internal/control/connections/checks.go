@@ -18,43 +18,49 @@ import (
 // Checker checks each saved connection on a schedule and keeps each one's last
 // check from each server, in memory (#799): once it's saved or changed, with Check's
 // full check, which writes, reads and deletes an object or signs in; and every Every
-// after, with a check that writes nothing (ADR 0099): storage's one signed list, and
-// a mail server's sign-in, which sends nothing. Each goes through the server's agent,
+// after, with a check that writes nothing (ADR 0099): storage's signed read, and a
+// mail server's sign-in, which sends nothing. Each goes through the server's agent,
 // as Check's does, so it reaches only what the agent's guard lets a check reach.
 //
-// A connection is checked from each server an app linked to it runs on, as the app
-// reaches it, or from the control server where none does, as its keys go nowhere
-// else. One check of a connection runs at a time, and Slots at once in all. A
-// provider that says it's had too many requests, or that refuses the keys or the
-// sign-in, is asked half as often each time, down to once in Every times 4, until
-// it answers again: a revoked password tried every 6 hours could lock its account
-// (ADR 0099's checks back off after a refusal).
+// A connection is checked from each server an app linked to it runs on, on that
+// app's networks, as the app reaches it, or from the control server where none
+// does, as its keys go nowhere else. One check of a connection runs at a time, and
+// one at a time on each server, so the agent's other place is always a person's
+// Check's or an install's (#799's review, M4). A provider that says it's had too many
+// requests, or that refuses the keys or the sign-in, is asked half as often each
+// time, down to once in Every times 4, until it answers again: a revoked password
+// tried every 6 hours could lock its account. A check no server could run is owed,
+// and tried again at the next look, then less often while it can't run (M1).
 type Checker struct {
 	s *Service
-	// Every is how often each connection is checked again; Tick how often the
-	// schedule is looked at; Slots how many connections are checked at once.
+	// Every is how often each connection is checked again, and Tick how often the
+	// schedule is looked at.
 	Every time.Duration
 	Tick  time.Duration
-	Slots int
 	// Now is the clock, for a test; nil is time.Now.
 	Now func() time.Time
 
-	// saved, servers and probe read the saved connections, say where one is
-	// checked from, and check it from a server: the store's, the fleet's and an
-	// agent's, but in a test.
+	// listed, saved, targets and probe read the saved connections, say where one
+	// is checked from, and check it there: the store's, the fleet's and an agent's,
+	// but in a test.
 	listed  func(ctx context.Context) ([]Saved, error)
-	saved   func(ctx context.Context) ([]Saved, error)
-	servers func(ctx context.Context, name string) []string
-	probe   func(ctx context.Context, c Saved, server string, full bool) (*dockwellv1.CheckConnectionResponse, error)
+	saved   func(ctx context.Context) ([]Saved, []string, error)
+	targets func(ctx context.Context, name string) []Target
+	probe   func(ctx context.Context, c Saved, at Target, full bool) (*dockwellv1.CheckConnectionResponse, error)
 
-	mu      sync.Mutex
-	results map[string]map[string]kept // by connection name, then server ID
-	plans   map[string]*plan           // by connection name
+	mu sync.Mutex
+	// results and plans are by connection ID, so one deleted and saved again under
+	// its name starts afresh (#799's review, L2); results then by server ID.
+	results map[string]map[string]kept
+	plans   map[string]*plan
 	running sync.WaitGroup
-	slots   chan struct{}
+	// slots holds one place for each server a check of the schedule runs on.
+	slots map[string]chan struct{}
 	// looked is once the first look after a start has run: a connection it finds
 	// after that was saved since, and gets the full check.
 	looked bool
+	// unread are the connections the control plane can't open, said once each.
+	unread map[string]bool
 }
 
 // kept is a connection's last check from one server, and the revision it checked.
@@ -65,33 +71,41 @@ type kept struct {
 
 // plan is when a connection is checked next.
 type plan struct {
-	// busy is while a check of it runs.
-	busy bool
-	// revision is the revision last checked, and tried when, by the schedule.
+	// busy is while a check of it runs; gone, that it was deleted meanwhile.
+	busy, gone bool
+	// revision is the revision the plan is for, and checked whether a check of it
+	// was answered, at tried, by the schedule.
 	revision int
+	checked  bool
 	tried    time.Time
+	// owed is the full check, for a connection saved or changed since the first
+	// look after a start, until a server answers it (#799's review, M1).
+	owed bool
+	// retry is when a check no server could run is tried again, and missed how many
+	// in a row couldn't run, each putting the next twice as far off, from Tick.
+	retry  time.Time
+	missed int
 	// limited is how many checks in a row a provider has turned away, for its rate
 	// or the keys, up to 2: each puts the next twice as far off.
 	limited int
-	// fresh is a connection saved since the first look after a start, not checked
-	// yet: its first check is the full one.
-	fresh bool
 }
 
 // Every's and the rest's defaults.
 const (
 	checkEvery = 6 * time.Hour
 	checkTick  = time.Minute
-	checkSlots = 2
 	// checkWait is how long one check may take, from a server's agent.
 	checkWait = 2 * time.Minute
+	// maxMissed caps how far off a check no server could run is put: 2^6 ticks, an
+	// hour.
+	maxMissed = 6
 )
 
 func newChecker(s *Service) *Checker {
-	c := &Checker{s: s, Every: checkEvery, Tick: checkTick, Slots: checkSlots}
+	c := &Checker{s: s, Every: checkEvery, Tick: checkTick}
 	c.listed = func(ctx context.Context) ([]Saved, error) { return s.connections.Revisions(ctx) }
-	c.saved = func(ctx context.Context) ([]Saved, error) { return s.connections.All(ctx) }
-	c.servers = c.from
+	c.saved = func(ctx context.Context) ([]Saved, []string, error) { return s.connections.Readable(ctx) }
+	c.targets = c.from
 	c.probe = s.checkSaved
 	return c
 }
@@ -120,7 +134,8 @@ func (c *Checker) Run(ctx context.Context) {
 }
 
 // Check starts a check of each connection that's due, and returns without waiting
-// for them; Wait waits.
+// for them; Wait waits. It holds its lock only over what it keeps: the store and the
+// fleet are read outside it (#799's review, L4).
 func (c *Checker) Check(ctx context.Context) {
 	listed, err := c.listed(ctx)
 	if err != nil {
@@ -130,167 +145,208 @@ func (c *Checker) Check(ctx context.Context) {
 		return
 	}
 	now := c.clock()
-	// What's due, by name, at its revision: a look at names and revisions alone,
-	// which opens no secret, as nothing is due most minutes.
-	due := map[string]int{}
-	full := map[string]bool{}
-	c.mu.Lock()
-	saved := map[string]bool{}
-	for _, conn := range listed {
-		saved[conn.Name] = true
-	}
-	// A connection that's gone keeps no checks.
-	for name := range c.results {
-		if !saved[name] {
-			delete(c.results, name)
-		}
-	}
-	for name := range c.plans {
-		if !saved[name] {
-			delete(c.plans, name)
-		}
-	}
-	if c.plans == nil {
-		c.plans = map[string]*plan{}
-	}
-	for _, conn := range listed {
-		p := c.plans[conn.Name]
-		if p == nil {
-			// One the first look after a start finds may be saved long since: it's
-			// read. One a later look finds was saved since, and gets the full check.
-			p = &plan{fresh: c.looked}
-			c.plans[conn.Name] = p
-		}
-		if !p.busy && c.due(p, conn.Revision, now) {
-			due[conn.Name] = conn.Revision
-			// Saved or changed since: the full check, as Check's, which writes and
-			// reads an object. On its schedule: a read that writes nothing (ADR 0099).
-			full[conn.Name] = p.fresh || (p.revision != 0 && p.revision != conn.Revision)
-		}
-	}
-	c.looked = true
-	c.mu.Unlock()
+	due, full := c.dueNow(listed, now)
 	if len(due) == 0 {
 		return
 	}
-	all, err := c.saved(ctx)
+	all, unread, err := c.saved(ctx)
 	if err != nil {
 		if ctx.Err() == nil {
 			c.logger().WarnContext(ctx, "can't read the connections to check them; the next look tries again", slog.String("error", err.Error()))
 		}
 		return
 	}
+	c.sayUnread(ctx, unread)
+	type start struct {
+		conn Saved
+		at   []Target
+	}
+	var starts []start
+	opened := map[string]bool{}
+	for _, conn := range all {
+		opened[conn.ID] = true
+		if rev, ok := due[conn.ID]; !ok || rev != conn.Revision {
+			continue
+		}
+		if at := c.targets(ctx, conn.Name); len(at) > 0 {
+			starts = append(starts, start{conn, at})
+		}
+		// Nothing can check it now, so nothing went out: the next look asks again.
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.slots == nil {
-		c.slots = make(chan struct{}, max(1, c.Slots))
+		c.slots = map[string]chan struct{}{}
 	}
-	for _, conn := range all {
-		p := c.plans[conn.Name]
-		if rev, ok := due[conn.Name]; !ok || rev != conn.Revision || p == nil || p.busy {
+	// One that can't be opened waits as one no server could check does, rather
+	// than open every connection again each minute.
+	for id := range due {
+		if p := c.plans[id]; p != nil && !opened[id] {
+			c.missedOne(p, now)
+		}
+	}
+	for _, s := range starts {
+		p := c.plans[s.conn.ID]
+		if p == nil || p.busy || p.gone || p.revision != s.conn.Revision {
 			continue
 		}
-		servers := c.servers(ctx, conn.Name)
-		if len(servers) == 0 {
-			// Nothing can check it now, so nothing went out: the next look asks again.
-			continue
+		for _, t := range s.at {
+			if c.slots[t.Server] == nil {
+				c.slots[t.Server] = make(chan struct{}, 1)
+			}
 		}
 		p.busy = true
 		c.running.Add(1)
-		go c.checkOne(ctx, conn, servers, full[conn.Name])
+		go c.checkOne(ctx, s.conn, s.at, full[s.conn.ID])
 	}
 }
 
-// Wait returns once the checks started have.
-func (c *Checker) Wait() { c.running.Wait() }
+// dueNow says, under the lock, which connections are due, by ID at their revision,
+// and which of those get the full check; it drops what's gone, but for one whose
+// check is running, which goes once it ends.
+func (c *Checker) dueNow(listed []Saved, now time.Time) (due map[string]int, full map[string]bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	due, full = map[string]int{}, map[string]bool{}
+	saved := map[string]bool{}
+	for _, conn := range listed {
+		saved[conn.ID] = true
+	}
+	for id, p := range c.plans {
+		if saved[id] {
+			continue
+		}
+		if p.busy {
+			p.gone = true
+			continue
+		}
+		delete(c.plans, id)
+		delete(c.results, id)
+	}
+	if c.plans == nil {
+		c.plans = map[string]*plan{}
+	}
+	for _, conn := range listed {
+		p := c.plans[conn.ID]
+		if p == nil {
+			// One the first look after a start finds may be saved long since: it's
+			// read. One a later look finds was saved since, and is owed the full check.
+			p = &plan{revision: conn.Revision, owed: c.looked}
+			c.plans[conn.ID] = p
+		}
+		if p.revision != conn.Revision && !p.busy {
+			// Changed since, checked or not: the full check is owed, at once.
+			p.revision, p.owed, p.checked = conn.Revision, true, false
+			p.retry, p.missed = time.Time{}, 0
+		}
+		if !p.busy && c.due(p, now) {
+			due[conn.ID] = conn.Revision
+			full[conn.ID] = p.owed
+		}
+	}
+	c.looked = true
+	return due, full
+}
 
-// due says a connection is checked now: it's never been, it's changed since, or its
-// last check is Every old, or more after a provider turned checks away.
-func (c *Checker) due(p *plan, revision int, now time.Time) bool {
-	if p.revision != revision || p.tried.IsZero() {
+// due says a connection is checked now: one no server could check, once its wait
+// is over; one not checked at its revision; one whose last check is Every old, or
+// more after a provider turned checks away.
+func (c *Checker) due(p *plan, now time.Time) bool {
+	if !p.retry.IsZero() {
+		return !now.Before(p.retry)
+	}
+	if !p.checked {
 		return true
 	}
 	return !now.Before(p.tried.Add(c.Every << p.limited))
 }
 
-// from is the servers a connection is checked from now, by ID: each connected one an
-// app linked to it runs on, or the control server where none does.
-func (c *Checker) from(ctx context.Context, name string) []string {
+// missedOne puts off a connection no server could check, by Tick at first, then
+// twice as long each time, up to an hour: at the next look, then less often while
+// its servers can't run it, as an agent busy with checks of its own.
+func (c *Checker) missedOne(p *plan, now time.Time) {
+	p.missed = min(p.missed+1, maxMissed)
+	p.retry = now.Add(c.Tick << (p.missed - 1))
+}
+
+// sayUnread logs each connection the control plane can't open, once, so the rest
+// are checked and the log doesn't grow each minute (#799's review, L1).
+func (c *Checker) sayUnread(ctx context.Context, names []string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	now := map[string]bool{}
+	for _, name := range names {
+		now[name] = true
+		if c.unread[name] {
+			continue
+		}
+		c.logger().WarnContext(ctx, "can't open the connection to check it, so it isn't checked until it's saved again. Save its keys again from its page",
+			slog.String("connection", name))
+	}
+	c.unread = now
+}
+
+// Wait returns once the checks started have.
+func (c *Checker) Wait() { c.running.Wait() }
+
+// from is where a connection is checked from now: each connected server an app
+// linked to it runs on, on that app's networks, or the control server, on a network
+// of the check's own, where none does.
+func (c *Checker) from(ctx context.Context, name string) []Target {
 	if c.s.fleet == nil {
 		return nil
 	}
-	runs, err := c.s.connections.ServersOf(ctx, name)
+	linked, err := c.s.connections.Targets(ctx, name)
 	if err != nil {
 		return nil
 	}
-	var linked, control []string
+	var on, control []Target
 	for _, srv := range c.s.fleet.List() {
 		if srv.GetConnection() != dockwellv1.Connection_CONNECTION_CONNECTED {
 			continue
 		}
-		if runs[srv.GetId()] {
-			linked = append(linked, srv.GetId())
+		if t, ok := linked[srv.GetId()]; ok {
+			on = append(on, t)
 		}
 		if srv.GetControlServer() {
-			control = append(control, srv.GetId())
+			control = append(control, Target{Server: srv.GetId()})
 		}
 	}
-	if len(linked) > 0 {
-		slices.Sort(linked)
-		return linked
+	if len(on) > 0 {
+		slices.SortFunc(on, func(a, b Target) int { return strings.Compare(a.Server, b.Server) })
+		return on
 	}
 	return control
 }
 
-// checkOne checks a connection from each of servers, in turn, in one of the slots.
-func (c *Checker) checkOne(ctx context.Context, conn Saved, servers []string, full bool) {
+// checkOne checks a connection from each of its targets, in turn, each in its
+// server's one place.
+func (c *Checker) checkOne(ctx context.Context, conn Saved, targets []Target, full bool) {
 	defer c.running.Done()
-	name, revision := conn.Name, conn.Revision
 	got := map[string]kept{}
 	limited := false
-	defer func() {
+	defer c.done(conn, targets, full, got, &limited)
+	for _, t := range targets {
 		c.mu.Lock()
-		defer c.mu.Unlock()
-		p := c.plans[name]
-		if p == nil {
-			return // removed while it ran
-		}
-		p.busy, p.fresh = false, false
-		p.revision, p.tried = revision, c.clock()
-		switch {
-		case limited:
-			p.limited = min(p.limited+1, 2)
-		case len(got) > 0:
-			p.limited = 0
-		}
-		if len(got) == 0 {
+		slot := c.slots[t.Server]
+		c.mu.Unlock()
+		select {
+		case slot <- struct{}{}:
+		case <-ctx.Done():
 			return
 		}
-		// What it found replaces what was kept, so a server that no longer runs a
-		// linked app keeps none.
-		if c.results == nil {
-			c.results = map[string]map[string]kept{}
-		}
-		c.results[name] = got
-	}()
-	select {
-	case c.slots <- struct{}{}:
-	case <-ctx.Done():
-		return
-	}
-	defer func() { <-c.slots }()
-	for _, srv := range servers {
 		one, cancel := context.WithTimeout(ctx, checkWait)
-		answer, err := c.probe(one, conn, srv, full)
+		answer, err := c.probe(one, conn, t, full)
 		cancel()
+		<-slot
 		if err != nil {
 			if ctx.Err() == nil {
-				c.logger().WarnContext(ctx, "can't check the connection now; it's checked again at the next schedule",
-					slog.String("connection", name), slog.String("server", srv), slog.String("error", err.Error()))
+				c.logger().WarnContext(ctx, "can't check the connection now; it's tried again at the next look",
+					slog.String("connection", conn.Name), slog.String("server", t.Server), slog.String("error", err.Error()))
 			}
 			continue
 		}
-		got[srv] = kept{revision: revision, check: answer}
+		got[t.Server] = kept{revision: conn.Revision, check: answer}
 		if TurnedAway(answer) {
 			limited = true
 			break // the provider asked for fewer, or refused: the other servers wait too
@@ -298,10 +354,67 @@ func (c *Checker) checkOne(ctx context.Context, conn Saved, servers []string, fu
 	}
 }
 
+// done keeps what a check found. One no server answered isn't done: a full check
+// stays owed and it's tried again soon (#799's review, M1). Each server's last
+// result stays until that server answers again, or stops being one it's checked
+// from (L3).
+func (c *Checker) done(conn Saved, targets []Target, full bool, got map[string]kept, limited *bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	p := c.plans[conn.ID]
+	if p == nil {
+		return
+	}
+	p.busy = false
+	if p.gone {
+		delete(c.plans, conn.ID)
+		delete(c.results, conn.ID)
+		return
+	}
+	now := c.clock()
+	from := map[string]bool{}
+	for _, t := range targets {
+		from[t.Server] = true
+	}
+	if c.results == nil {
+		c.results = map[string]map[string]kept{}
+	}
+	held := c.results[conn.ID]
+	for srv := range held {
+		if !from[srv] {
+			delete(held, srv)
+		}
+	}
+	if len(got) == 0 {
+		c.missedOne(p, now)
+		return
+	}
+	if held == nil {
+		held = map[string]kept{}
+		c.results[conn.ID] = held
+	}
+	for srv, k := range got {
+		held[srv] = k
+	}
+	if p.revision != conn.Revision {
+		return // changed while it ran: the next look checks the new one
+	}
+	p.checked, p.tried = true, now
+	p.retry, p.missed = time.Time{}, 0
+	if full {
+		p.owed = false
+	}
+	if *limited {
+		p.limited = min(p.limited+1, 2)
+	} else {
+		p.limited = 0
+	}
+}
+
 // record keeps a check of a saved connection, as saved, from a server: one a
 // person ran, which leaves the schedule as it is, but for a provider's limit.
-func (c *Checker) record(name string, revision int, server string, check *dockwellv1.CheckConnectionResponse) {
-	if revision == 0 || check == nil {
+func (c *Checker) record(conn Saved, server string, check *dockwellv1.CheckConnectionResponse) {
+	if conn.ID == "" || conn.Revision == 0 || check == nil {
 		return
 	}
 	c.mu.Lock()
@@ -309,21 +422,22 @@ func (c *Checker) record(name string, revision int, server string, check *dockwe
 	if c.results == nil {
 		c.results = map[string]map[string]kept{}
 	}
-	if c.results[name] == nil {
-		c.results[name] = map[string]kept{}
+	if c.results[conn.ID] == nil {
+		c.results[conn.ID] = map[string]kept{}
 	}
-	c.results[name][server] = kept{revision: revision, check: proto.CloneOf(check)}
-	if p := c.plans[name]; p != nil && TurnedAway(check) {
+	c.results[conn.ID][server] = kept{revision: conn.Revision, check: proto.CloneOf(check)}
+	if p := c.plans[conn.ID]; p != nil && TurnedAway(check) {
 		p.limited = min(p.limited+1, 2)
 	}
 }
 
-// Of is a connection's checks of revision, newest first, each its own copy.
-func (c *Checker) Of(name string, revision int) []*dockwellv1.CheckConnectionResponse {
+// Of is a connection's checks of revision, by its ID, newest first, each its own
+// copy.
+func (c *Checker) Of(id string, revision int) []*dockwellv1.CheckConnectionResponse {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	var out []*dockwellv1.CheckConnectionResponse
-	for _, k := range c.results[name] {
+	for _, k := range c.results[id] {
 		if k.revision == revision {
 			out = append(out, proto.CloneOf(k.check))
 		}
@@ -356,17 +470,20 @@ func Limited(r *dockwellv1.CheckConnectionResponse) bool {
 
 // Refused says a check's keys or sign-in were refused: S3's word that the key or
 // its signature is wrong (R2 says Unauthorized for a key it doesn't know), or that
-// it may not, or a mail server's 530, 534 or 535. A scheduled read that AccessDenied
-// answered passed, so it isn't one.
+// it may not, or a mail server's 530, 534 or 535. A scheduled read that can't
+// confirm the keys without writing, as AccessDenied answered both its reads, isn't
+// one: the keys may work, and reads don't lock an account.
 func Refused(r *dockwellv1.CheckConnectionResponse) bool {
 	if r.GetPassed() {
 		return false
 	}
-	switch r.GetCode() {
-	case "InvalidAccessKeyId", "SignatureDoesNotMatch", "Unauthorized", "AccessDenied", "InvalidToken", "ExpiredToken":
+	code := r.GetCode()
+	switch code {
+	case "AccessDenied":
+		return r.GetStep() != "list"
+	case "InvalidAccessKeyId", "SignatureDoesNotMatch", "Unauthorized", "InvalidToken", "ExpiredToken":
 		return true
 	}
-	code := r.GetCode()
 	return strings.HasPrefix(code, "530") || strings.HasPrefix(code, "534") || strings.HasPrefix(code, "535")
 }
 

@@ -201,7 +201,26 @@ func (c *Connections) Uses(ctx context.Context) (map[string][]*dockwellv1.Connec
 // ServersOf are the servers, by ID, that run an app linked to the connection named:
 // one that reads a name a link to it sets.
 func (c *Connections) ServersOf(ctx context.Context, name string) (map[string]bool, error) {
-	out := map[string]bool{}
+	at, err := c.Targets(ctx, name)
+	out := make(map[string]bool, len(at))
+	for srv := range at {
+		out[srv] = true
+	}
+	return out, err
+}
+
+// Target is where a connection is checked from on a server: an app linked to it
+// there, by its environment's ID and its service's name, on that app's networks and
+// under its link's prefix, as the app reaches it (#799's review, M2).
+type Target struct {
+	Server, Environment, App, Prefix string
+}
+
+// Targets are, by server ID, an app linked to the connection named on each server
+// it runs on: of several, the first by environment and name, so a look picks the
+// same one each time.
+func (c *Connections) Targets(ctx context.Context, name string) (map[string]Target, error) {
+	out := map[string]Target{}
 	err := c.db.View(ctx, func(tx *store.Tx) error {
 		links, err := tx.ListKind(ctx, string(link.Kind))
 		if err != nil {
@@ -240,8 +259,12 @@ func (c *Connections) ServersOf(ctx context.Context, name string) (map[string]bo
 				if err != nil {
 					return err
 				}
+				t := Target{Environment: r.Scope, App: users[j].Name, Prefix: l.GetPrefix()}
 				for _, srv := range placed {
-					out[srv] = true
+					t.Server = srv
+					if was, ok := out[srv]; !ok || t.Environment+"/"+t.App < was.Environment+"/"+was.App {
+						out[srv] = t
+					}
 				}
 			}
 		}
@@ -362,7 +385,7 @@ func (s *Service) ListConnections(ctx context.Context, req *connect.Request[dock
 		info.Sender, info.SenderName = c.Spec.GetSmtp().GetSender(), c.Spec.GetSmtp().GetSenderName()
 		// Its last checks; below an admin, whether each passed and when, alone: where
 		// it's checked from, and what its provider said, stay an admin's (#799).
-		for _, check := range s.checks.Of(c.Name, c.Revision) {
+		for _, check := range s.checks.Of(c.ID, c.Revision) {
 			if !admin {
 				check = &dockwellv1.CheckConnectionResponse{Passed: check.GetPassed(), Time: check.GetTime()}
 			}
@@ -424,7 +447,7 @@ func reachesAny(c *resourcev1.ConnectionSpec, projects map[string]bool) bool {
 // An admin's connection may reach a private address, such as a NAS on the server's
 // network, as ADR 0084's connections may.
 func (s *Service) CheckConnection(ctx context.Context, req *connect.Request[dockwellv1.CheckConnectionRequest]) (*connect.Response[dockwellv1.CheckConnectionResponse], error) {
-	got, srv, revision, err := s.check(ctx, req.Msg)
+	got, srv, ref, err := s.check(ctx, req.Msg)
 	if err != nil {
 		return nil, err
 	}
@@ -432,39 +455,40 @@ func (s *Service) CheckConnection(ctx context.Context, req *connect.Request[dock
 	// one the schedule makes, so it's kept as its last from that server (#799).
 	m := req.Msg
 	if m.GetName() != "" && m.GetS3() == nil && m.GetSmtp() == nil && m.GetEnvironment() == "" && m.GetPrefix() == "" && !m.GetPresign() {
-		s.checks.record(m.GetName(), revision, srv.GetId(), got)
+		s.checks.record(ref, srv.GetId(), got)
 	}
 	return connect.NewResponse(got), nil
 }
 
-// check is CheckConnection's check, with the server that made it and the revision of
-// the saved connection it checked, 0 for one as typed.
-func (s *Service) check(ctx context.Context, msg *dockwellv1.CheckConnectionRequest) (*dockwellv1.CheckConnectionResponse, *dockwellv1.Server, int, error) {
+// check is CheckConnection's check, with the server that made it and the saved
+// connection it checked, by ID and revision, none for one as typed.
+func (s *Service) check(ctx context.Context, msg *dockwellv1.CheckConnectionRequest) (*dockwellv1.CheckConnectionResponse, *dockwellv1.Server, Saved, error) {
 	// Read before the check, so a change saved while it runs leaves it an older
 	// revision's, which is never shown as the newer's.
-	revision := s.savedRevision(ctx, msg.GetName())
+	id, revision := s.savedRef(ctx, msg.GetName())
+	ref := Saved{ID: id, Name: msg.GetName(), Revision: revision}
 	spec, err := s.toCheck(ctx, msg)
 	if err != nil {
-		return nil, nil, 0, err
+		return nil, nil, Saved{}, err
 	}
 	if (msg.GetEnvironment() == "") != (msg.GetApp() == "") {
-		return nil, nil, 0, authapi.Invalid(errors.New("a check from an app names its environment and its service, or neither for a network of the check's own"))
+		return nil, nil, Saved{}, authapi.Invalid(errors.New("a check from an app names its environment and its service, or neither for a network of the check's own"))
 	}
 	if err := link.CheckPrefix(msg.GetPrefix()); err != nil {
-		return nil, nil, 0, authapi.Invalid(err)
+		return nil, nil, Saved{}, authapi.Invalid(err)
 	}
 	session, srv, err := s.session(ctx, msg.GetServer())
 	if err != nil {
-		return nil, nil, 0, err
+		return nil, nil, Saved{}, err
 	}
 	if err := s.mayHoldKeys(ctx, msg, srv); err != nil {
-		return nil, nil, 0, err
+		return nil, nil, Saved{}, err
 	}
 	got, err := s.probe(ctx, session, srv, msg.GetEnvironment(), msg.GetApp(), probeOf(spec, msg.GetPrefix(), msg.GetPresign()))
 	if err != nil {
-		return nil, nil, 0, err
+		return nil, nil, Saved{}, err
 	}
-	return got, srv, revision, nil
+	return got, srv, ref, nil
 }
 
 // probe runs a check through a server's agent, and says what it found, at when it
@@ -488,27 +512,44 @@ func (s *Service) probe(ctx context.Context, session *agentapi.Session, srv *doc
 	}, nil
 }
 
-// checkSaved checks a saved connection as it's saved, from a server the checker
-// chose, which runs an app linked to it or is the control server, without reading
-// the connections again: Check's full check once it's saved or changed, and on its
-// schedule one that writes nothing (ADR 0099): storage's one signed list, and a mail
-// server's sign-in, which sends nothing, as Check's does.
-func (s *Service) checkSaved(ctx context.Context, c Saved, server string, full bool) (*dockwellv1.CheckConnectionResponse, error) {
-	session, srv, err := s.session(ctx, server)
+// checkSaved checks a saved connection as it's saved, from where the checker chose:
+// a server that runs an app linked to it, on that app's networks and under its
+// link's prefix, as the app reaches it, or the control server, on a network of the
+// check's own, where no app is linked (#799's review, M2). Check's full check once
+// it's saved or changed, and on its schedule one that writes nothing (ADR 0099):
+// storage's one signed read, and a mail server's sign-in, which sends nothing.
+func (s *Service) checkSaved(ctx context.Context, c Saved, at Target, full bool) (*dockwellv1.CheckConnectionResponse, error) {
+	session, srv, err := s.session(ctx, at.Server)
 	if err != nil {
 		return nil, err
 	}
-	if full {
-		return s.probe(ctx, session, srv, "", "", probeOf(c.Spec, "", false))
+	req := probeOf(c.Spec, at.Prefix, false)
+	if !full {
+		req = scheduledProbe(c.Spec, at.Prefix)
 	}
-	return s.probe(ctx, session, srv, "", "", scheduledProbe(c.Spec))
+	got, err := s.probe(ctx, session, srv, at.Environment, at.App, req)
+	if err != nil && req.Kind == probe.KindS3Read && strings.Contains(err.Error(), "stopped before it finished") {
+		// An agent from before the scheduled read refuses its kind, and says only
+		// that its check stopped: kept as that server's state, so the panel says to
+		// update its agent, rather than show an older pass (#799's review, L5).
+		return &dockwellv1.CheckConnectionResponse{
+			Step: probe.StepList, Code: CodeAgentUpdate, Server: srv.GetName(),
+			Words: fmt.Sprintf("the agent on %s couldn't run the scheduled check. Update its agent from the server's page", srv.GetName()),
+			Time:  timestamppb.New(s.checks.clock()),
+		}, nil
+	}
+	return got, err
 }
+
+// CodeAgentUpdate is a scheduled check a server's agent couldn't run, as one from
+// before the scheduled read: the agent needs an update.
+const CodeAgentUpdate = "agent-update"
 
 // scheduledProbe is a check on a schedule: storage's reads the bucket and writes
 // nothing, as a write a versioned bucket keeps, or Object Lock refuses to delete,
 // four times a day would; a mail server's is Check's own, which sends nothing.
-func scheduledProbe(c *resourcev1.ConnectionSpec) probe.Request {
-	r := probeOf(c, "", false)
+func scheduledProbe(c *resourcev1.ConnectionSpec, prefix string) probe.Request {
+	r := probeOf(c, prefix, false)
 	if r.Kind == probe.KindS3 {
 		r.Kind = probe.KindS3Read
 	}
@@ -619,21 +660,23 @@ func (s *Service) toCheck(ctx context.Context, req *dockwellv1.CheckConnectionRe
 	return nil, authapi.ReasonError(connect.CodeNotFound, fmt.Errorf("there's no connection %s. List them with ListConnections", req.GetName()), "not_found")
 }
 
-// savedRevision is the revision of the saved connection named, or 0 where there's none.
-func (s *Service) savedRevision(ctx context.Context, name string) int {
+// savedRef is the ID and revision of the saved connection named, or none where
+// there's none: from the names and revisions alone, which opens no secret, so a Check
+// decodes the connections once, in toCheck (#799's review, L7).
+func (s *Service) savedRef(ctx context.Context, name string) (string, int) {
 	if name == "" {
-		return 0
+		return "", 0
 	}
-	all, err := s.connections.All(ctx)
+	all, err := s.connections.Revisions(ctx)
 	if err != nil {
-		return 0
+		return "", 0
 	}
 	for _, c := range all {
 		if c.Name == name {
-			return c.Revision
+			return c.ID, c.Revision
 		}
 	}
-	return 0
+	return "", 0
 }
 
 // savedKind is the kind of the saved connection named, or none where there's none.
