@@ -51,6 +51,9 @@ type Images interface {
 type Engine interface {
 	Apply(ctx context.Context, changeID string) error
 	Discard(ctx context.Context, changeID string, by revision.By) error
+	// TakesAPerson says a step of kind changes who reaches a server, which no
+	// update applies on its own (ADR 0052, #850's review, L2).
+	TakesAPerson(kind string) bool
 }
 
 // Runner looks each minute for services whose window is open and that have an
@@ -316,7 +319,7 @@ func (r *Runner) update(ctx context.Context, d *due) error {
 	switch plan := c.GetPlan(); {
 	case len(plan.GetResources()) == 0 && len(plan.GetServers()) == 0:
 		return errors.Join(r.Engine.Discard(ctx, c.GetId(), revision.By{Actor: revision.SystemActor, Via: revision.ViaAutomatic}), r.record(ctx, d.id, tried{Opens: d.opens}))
-	case needsPerson(c) || shared:
+	case needsPerson(c, r.Engine.TakesAPerson) || shared:
 		r.Logger.InfoContext(ctx, "an automatic update needs a person to apply it, so it's left planned", slog.String("service", d.name), slog.String("change", c.GetId()))
 		return r.record(ctx, d.id, tried{Opens: d.opens, Change: c.GetId()})
 	}
@@ -375,10 +378,18 @@ func movesData(d *due, image string) bool {
 // needsPerson says a plan asks for a person: one that destroys data, lets two
 // containers write to one place or reaches what a container can reach on its
 // server, waits for an admin, or moves a database's data to another release, as a
-// catalog release can, whatever its kind (ADR 0080).
-func needsPerson(c *dockwellv1.Change) bool {
+// catalog release can, whatever its kind (ADR 0080). So does one that changes who
+// reaches a server, by a step of a kind takesAPerson says so of, which takes a
+// person's passkey (ADR 0052): a firewall rule stopped being destructive for
+// that alone with #850.
+func needsPerson(c *dockwellv1.Change, takesAPerson func(kind string) bool) bool {
 	if c.GetPlan().GetDestructive() || c.GetPlan().GetHostAccess() || c.GetWaits() != "" {
 		return true
+	}
+	for _, r := range c.GetPlan().GetResources() {
+		if takesAPerson(r.GetResource().GetKind()) {
+			return true
+		}
 	}
 	// A release that needs what the install didn't makes a database no one asked for,
 	// and one that moves a port to the server alone leaves whoever reached it there

@@ -73,6 +73,10 @@ type Manager struct {
 	// Pins says what keeps the server reachable beyond the table's own: SSH from
 	// where people come in now, and the control plane's ports on its server.
 	Pins func(ctx context.Context) (Pins, error)
+	// Proxied are the ports a proxy on the control server holds for the panel
+	// and its agents, behind one: ways in for WaysIn, but not the control
+	// plane's own, so no rule of them is refused (#850's review, H1).
+	Proxied []uint16
 	// Tunnels lists the server's WireGuard tunnels, for a plan that turns deny
 	// everything else on to say which the policy would drop. Nil lists none.
 	Tunnels func(ctx context.Context) []Tunnel
@@ -100,6 +104,12 @@ type Manager struct {
 	deadManGrace time.Duration
 	// readWait replaces readWait, for a test.
 	readWait time.Duration
+
+	// planned is the read of the server that the checks of the plans under way
+	// share, while planning counts any (#850's review, L3).
+	plannedMu sync.Mutex
+	planning  int
+	planned   *plannedRead
 
 	mu        sync.Mutex
 	confirmed confirmedState
@@ -1176,25 +1186,87 @@ func (m *Manager) CheckRule(actual, desired *resourcev1.FirewallRule) error {
 	})
 }
 
-// WaysIn are the TCP ports someone reaches the server by, for the firewall's
-// plan to warn only of a rule that may close one (#850): every port SSH listens
-// on now, or Dockwell keeps pinned for it, and on the control server the
-// control plane's own. known is false where SSH's ports can't be read, as with
-// an SSH server Dockwell can't see or no sshd -T.
-func (m *Manager) WaysIn() (ports []uint16, known bool) {
+// WaysIn are the ways into the server, for the firewall's plan to warn only of
+// a rule that may close one (#850):
+//   - over TCP, every port SSH listens on now, or Dockwell keeps pinned for it,
+//     and on the control server the control plane's own and those a proxy holds
+//     for it. Unknown where SSH's ports can't be read, as with an SSH server
+//     Dockwell can't see, or one sshd -T names and nothing listens on;
+//   - over UDP, the tunnels' ports, such as WireGuard's. Unknown where a tunnel's
+//     port can't be read, or there's no reading them.
+func (m *Manager) WaysIn() firewall.Ways {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*readWait)
 	defer cancel()
-	h := m.readHost(ctx)
-	if m.Pins == nil || h.pinsErr != nil || len(h.pins.SSHPorts) == 0 {
-		return nil, false
+	read := m.plannedHost(ctx)
+	var ways firewall.Ways
+	if m.Pins != nil && read.host.pinsErr == nil && len(read.host.pins.SSHPorts) > 0 {
+		m.mu.Lock()
+		kept := slices.Clone(m.confirmed.Pinned.SSHPorts)
+		m.mu.Unlock()
+		for _, p := range slices.Concat(read.host.pins.SSHPorts, kept, read.host.pins.Own, m.Proxied) {
+			ways.TCP = appendNew(ways.TCP, p)
+		}
+		ways.TCPKnown = true
 	}
-	m.mu.Lock()
-	kept := slices.Clone(m.confirmed.Pinned.SSHPorts)
-	m.mu.Unlock()
-	for _, p := range slices.Concat(h.pins.SSHPorts, kept, h.pins.Own) {
-		ports = appendNew(ports, p)
+	if read.tunnelsRead {
+		ways.UDPKnown = true
+		for _, t := range read.tunnels {
+			if t.Port == 0 {
+				ways.UDP, ways.UDPKnown = nil, false
+				break
+			}
+			ways.UDP = appendNew(ways.UDP, t.Port)
+		}
 	}
-	return ports, true
+	return ways
+}
+
+// Planning shares one read of the server among the firewall's checks of the
+// plans made until done is called: a change's rules are planned one after
+// another, each with three checks, and each read scans every process's sockets
+// (#850's review, L3). Outside it, each check reads the server anew, so one
+// made after someone signs in over SSH sees them.
+func (m *Manager) Planning() (done func()) {
+	m.plannedMu.Lock()
+	m.planning++
+	m.plannedMu.Unlock()
+	var once sync.Once
+	return func() {
+		once.Do(func() {
+			m.plannedMu.Lock()
+			defer m.plannedMu.Unlock()
+			m.planning--
+			if m.planning == 0 {
+				m.planned = nil
+			}
+		})
+	}
+}
+
+// plannedRead is a read of the server for plans: the pins, Docker's networks,
+// and the tunnels.
+type plannedRead struct {
+	host        hostNow
+	tunnels     []Tunnel
+	tunnelsRead bool
+}
+
+// plannedHost reads the server for a plan, or gives the read the plans under
+// way share. A change applied is judged on a read of its own.
+func (m *Manager) plannedHost(ctx context.Context) plannedRead {
+	m.plannedMu.Lock()
+	defer m.plannedMu.Unlock()
+	if m.planning > 0 && m.planned != nil {
+		return *m.planned
+	}
+	read := plannedRead{host: m.readHost(ctx)}
+	if m.Tunnels != nil {
+		read.tunnels, read.tunnelsRead = m.Tunnels(ctx), true
+	}
+	if m.planning > 0 {
+		m.planned = &read
+	}
+	return read
 }
 
 // Tunnel is a WireGuard tunnel on the server.
@@ -1237,7 +1309,8 @@ func (m *Manager) StaysAfterPolicy(desired *resourcev1.FirewallPolicy) *resource
 func (m *Manager) stays(fn func(*state), turnsOn bool) *resource.AccessStays {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*readWait)
 	defer cancel()
-	h := m.readHost(ctx)
+	read := m.plannedHost(ctx)
+	h := read.host
 	if h.pinsErr != nil {
 		return nil
 	}
@@ -1273,13 +1346,13 @@ func (m *Manager) stays(fn func(*state), turnsOn bool) *resource.AccessStays {
 	}
 	// A tunnel the policy drops: as it's turned on, each whose port no rule
 	// allows; under it already, one whose allow this edit takes away.
-	if m.Tunnels != nil && next.Policy.GetDenyEverythingElse() {
+	if read.tunnelsRead && next.Policy.GetDenyEverythingElse() {
 		allowedIn := func(s state, port uint16) bool {
 			return port != 0 && slices.ContainsFunc(slices.Collect(maps.Values(s.Rules)), func(r *resourcev1.FirewallRule) bool {
 				return !isDeny(r) && protocolOf(r) == "udp" && portOf(r) == port
 			})
 		}
-		for _, t := range m.Tunnels(ctx) {
+		for _, t := range read.tunnels {
 			switch {
 			case allowedIn(next, t.Port) || (!turnsOn && !allowedIn(before, t.Port)):
 			case t.Port == 0:
@@ -1307,7 +1380,7 @@ func (m *Manager) CheckPolicy(desired *resourcev1.FirewallPolicy) error {
 func (m *Manager) checkPlan(fn func(*state)) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*readWait)
 	defer cancel()
-	h := m.readHost(ctx)
+	h := m.plannedHost(ctx).host
 	if h.pinsErr != nil {
 		return fmt.Errorf("can't tell what keeps the server reachable, so Dockwell won't narrow it: %w", h.pinsErr)
 	}

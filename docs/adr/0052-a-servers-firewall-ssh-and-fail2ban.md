@@ -188,13 +188,30 @@ fail2ban is read where it's installed: its jails and recent bans, through `fail2
 
 ### What "may cut off access" means (#850)
 
-A plan warns that it may cut off access, which makes it destructive (the typed code beside the passkey, and no API token), only for a rule that can close a way into the server:
+A plan warns that it may cut off access, which makes it destructive (the typed code beside the passkey), only for a rule that can close a way into the server: a deny of a way in, or an allow of one that's deleted, narrowed or moved, each over its own protocol. The ways in are:
 
-- **A deny of one of its ports, or an allow of one that's deleted, narrowed or moved,** over TCP. Those ports are every port SSH listens on now, as the pin reads them (what the SSH server holds, what systemd holds for it, or what `sshd -T` says), those Dockwell keeps pinned, and on the control server the control plane's own: the panel's and its agents' listeners.
-- **A deny of any other port warns nothing:** a database's under external access ([ADR 0038](0038-databases.md)), or an app's. Neither can cut anyone off the server, and a warning on each would stop meaning anything.
-- **Where SSH's ports can't be read,** as under an SSH server the pin can't see, with no `sshd -T`, or on a server that isn't connected, which the control plane plans without its agent, every deny and every deleted or narrowed allow warns, as before. Not knowing is the case the warning is for.
+- **Over TCP, SSH's ports:**
+  - every port SSH listens on now, as the pin reads them: what the SSH server holds, or what systemd holds for it;
+  - what `sshd -T` names, only where something listens on that port beyond loopback, as inetd does for sshd. An sshd installed but stopped answers `sshd -T` too, and on such a server people come in some other way, so its ports aren't taken as known;
+  - those Dockwell keeps pinned.
+- **Over TCP, on the control server,** the control plane's own listeners, the panel's and its agents'. Behind a proxy (`--behind-proxy`, or the setting), 443 and 80 count too, as the proxy holds them for the panel and for agents that join through its domain. They aren't the control plane's own, so a rule of them is warned of, not refused.
+- **Over UDP, the tunnels' ports,** such as WireGuard's.
 
-The agent judges it, where the ports are known (`firewall.Reacher`, beside `Checker`). The refusals this record sets out stand as they were, and so do the confirmation timer and the passkey every change takes.
+**What warns nothing:** a deny of any other port, such as a database's under external access ([ADR 0038](0038-databases.md)) or an app's. Neither can cut anyone off the server, and a warning on each would stop meaning anything.
+
+**Where the ways in over a protocol can't be read,** every deny and every deleted or narrowed allow over it warns, as before:
+- over TCP, where SSH's ports aren't found;
+- over UDP, where a tunnel's port can't be read;
+- on a server that isn't connected, which the control plane plans without its agent.
+
+Not knowing is the case the warning is for.
+
+**Who judges it:** the agent, where the ports are known (`firewall.Reacher`, beside `Checker`). A plan's checks share one read of the server's processes, from the start of the agent's plan to its end; a check outside a plan reads afresh.
+
+**What stays as it was:**
+- The refusals this record sets out.
+- The confirmation timer.
+- The passkey, which every change of who reaches a server takes, whether or not it warns. So automatic updates and push-to-deploy leave such a plan for a person, as `TouchesAccess` says. The CLI says so before asking, rather than calling it destructive.
 
 ### Who may change them
 

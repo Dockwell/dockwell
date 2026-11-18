@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -690,6 +691,48 @@ func testARuleThatBlocksSSHFromEverywhereIsFlagged(t *testing.T, backend store.B
 	if w := p.Steps()[0].Warnings; len(w) != 1 || w[0] != resource.WarningMayLockOut {
 		t.Errorf("warnings: %v", w)
 	}
+}
+
+// proxied is a firewall on a control server whose panel is behind a proxy on
+// 443 and 80, with SSH on 22 and the control plane on 7600 and 7601.
+type proxied struct{ *firewall.Fake }
+
+func (proxied) WaysIn() firewall.Ways {
+	return firewall.Ways{TCP: []uint16{22, 7600, 7601, 443, 80}, TCPKnown: true, UDPKnown: true}
+}
+
+// Behind a proxy, its port is how the panel and its agents come in: a deny of
+// 443, a narrowing of its allow and its allow deleted each may cut off access,
+// so the plan is destructive. A deny of a database's port isn't (#850's review, H1).
+func TestAProxysPortIsAWayIn(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		e, f, _ := setup(t, backend, "srv_A")
+		f["srv_A"].agent = resource.Local{Drivers: resource.NewRegistry(&firewall.Driver{Backend: proxied{firewall.NewFake()}})}
+		mayCutOff := func(p *Plan) bool {
+			return slices.Contains(p.Steps()[0].Warnings, resource.WarningMayLockOut) && p.Destructive()
+		}
+		deny := func(name string, port uint32) Edit {
+			return Edit{
+				Ref:  resource.Ref{Kind: firewall.Kind, Scope: "srv_A", Name: name},
+				Spec: &resourcev1.FirewallRule{Port: port, Action: resourcev1.FirewallAction_FIREWALL_ACTION_DENY},
+			}
+		}
+		if p := propose(t, e, "Close the proxy", deny("no-https", 443)); !mayCutOff(p) {
+			t.Errorf("a deny of 443 behind a proxy: warnings %v, destructive %v", p.Steps()[0].Warnings, p.Destructive())
+		}
+		if p := propose(t, e, "Close postgres", deny("no-pg", 5432)); mayCutOff(p) || p.Destructive() {
+			t.Errorf("a deny of 5432: warnings %v, destructive %v", p.Steps()[0].Warnings, p.Destructive())
+		}
+		apply(t, e, propose(t, e, "Open https", rule("srv_A", "https", 443)))
+		if p := propose(t, e, "Narrow https", rule("srv_A", "https", 443, "203.0.113.7")); !mayCutOff(p) {
+			t.Errorf("narrowing the allow of 443: warnings %v, destructive %v", p.Steps()[0].Warnings, p.Destructive())
+		}
+		gone := rule("srv_A", "https", 443)
+		gone.Spec = nil
+		if p := propose(t, e, "Remove https", gone); !mayCutOff(p) {
+			t.Errorf("deleting the allow of 443: warnings %v, destructive %v", p.Steps()[0].Warnings, p.Destructive())
+		}
+	})
 }
 
 // hooked wraps an agent to watch or disturb each step it applies, and

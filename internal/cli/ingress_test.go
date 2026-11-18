@@ -22,6 +22,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	"github.com/dockwell/dockwell/internal/cli/apicli"
 	"github.com/dockwell/dockwell/internal/control"
 	"github.com/dockwell/dockwell/internal/datadir"
 	"github.com/dockwell/dockwell/internal/ingress/caddy"
@@ -566,5 +567,36 @@ func TestOwnPortsAreEveryListener(t *testing.T) {
 	got = ownPorts(control.Listeners{API: api, Agents: agents}, runFlags{domain: "panel.example.com", httpsListen: ":8443", httpListen: "127.0.0.1:8080"})
 	if want := []int{port(api), port(agents), 8443, 8080}; !slices.Equal(got, want) {
 		t.Errorf("handed over, got %v, want %v", got, want)
+	}
+}
+
+// Behind a proxy, the ports it holds for the panel and its agents are ways in
+// for the firewall's plan; with no proxy, or no domain, there are none (#850's
+// review, H1).
+func TestAProxysPortsAreWaysIn(t *testing.T) {
+	if got := proxiedPorts(runFlags{domain: "panel.example.com", behindProxy: true}); !slices.Equal(got, []int{443, 80}) {
+		t.Errorf("behind a proxy: %v, want 443 and 80", got)
+	}
+	for _, f := range []runFlags{{domain: "panel.example.com"}, {behindProxy: true}, {}} {
+		if got := proxiedPorts(f); got != nil {
+			t.Errorf("%+v: %v, want none", f, got)
+		}
+	}
+}
+
+// The CLI knows, before it asks, the kinds whose plans take a person's passkey,
+// as the control plane does (#850's review, L2).
+func TestTheCLIKnowsWhatTakesAPerson(t *testing.T) {
+	kinds := controlKinds("", func() string { return "" })
+	var want []string
+	for _, k := range kinds.Kinds() {
+		if typ, err := kinds.Type(k); err == nil && resource.TakesAPerson(typ) {
+			want = append(want, string(k))
+		}
+	}
+	slices.Sort(want)
+	got := slices.Sorted(slices.Values(apicli.AccessKinds))
+	if !slices.Equal(got, want) {
+		t.Errorf("the CLI's kinds that take a person are %v, want %v", got, want)
 	}
 }

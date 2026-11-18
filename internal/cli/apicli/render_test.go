@@ -504,9 +504,14 @@ func TestWhatNeedsAPersonSaysWhatItIs(t *testing.T) {
 		{"the panel", access(dockwellv1.HostAccessKind_HOST_ACCESS_KIND_PANEL_DOMAIN), "moves the panel's domain behind Caddy"},
 		{"a server path", access(dockwellv1.HostAccessKind_HOST_ACCESS_KIND_SERVER_PATH), "gives a container more access to its server"},
 		{"destructive", &dockwellv1.Plan{Destructive: true}, "destroys data, may cut off access, or lets two containers write to one place"},
+		// A firewall rule takes a person whatever it does, and says so, not "more access for a container" (#850's review, L2).
+		{"a firewall rule", &dockwellv1.Plan{Resources: []*dockwellv1.PlannedResource{{Resource: &dockwellv1.ResourceRef{Kind: "firewall.rule", Name: "pg-deny"}}}}, "changes who reaches a server"},
 		{"both", access(dockwellv1.HostAccessKind_HOST_ACCESS_KIND_SERVER_PATH, dockwellv1.HostAccessKind_HOST_ACCESS_KIND_DOMAIN, dockwellv1.HostAccessKind_HOST_ACCESS_KIND_DOMAIN), "gives a container more access to its server and takes a domain another environment held"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			if !needsPerson(tc.plan) {
+				t.Errorf("%s doesn't need a person", tc.name)
+			}
 			if got := whyPerson(tc.plan); got != tc.want {
 				t.Errorf("whyPerson = %q, want %q", got, tc.want)
 			}

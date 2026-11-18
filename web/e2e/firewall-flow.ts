@@ -31,17 +31,21 @@ const ufwStatus = [
   "",
 ].join("\n");
 
-/** sshd -T on an Ubuntu 24.04 cloud image whose cloud-init turned passwords off, cut to what the agent reads. */
-const sshdT = [
-  "port 22",
-  "permitrootlogin without-password",
-  "pubkeyauthentication yes",
-  "passwordauthentication no",
-  "kbdinteractiveauthentication no",
-  "authorizedkeyscommand none",
-  "gssapiauthentication no",
-  "",
-].join("\n");
+/**
+ * sshd -T on an Ubuntu 24.04 cloud image whose cloud-init turned passwords off, cut to what the agent reads,
+ * with SSH on port, where the stand listens (#850's review, L1).
+ */
+const sshdT = (port: number) =>
+  [
+    `port ${port}`,
+    "permitrootlogin without-password",
+    "pubkeyauthentication yes",
+    "passwordauthentication no",
+    "kbdinteractiveauthentication no",
+    "authorizedkeyscommand none",
+    "gssapiauthentication no",
+    "",
+  ].join("\n");
 
 /** fail2ban-client 1.0.2 with an sshd jail that reads the journal and bans two addresses. */
 const fail2banClient = `case "$*" in
@@ -64,7 +68,7 @@ esac
  * they stand in for, for DOCKWELL_TEST_TOOLS, and returns dir: ufw and nft;
  * sshd, with the files it reads under etc/ssh; and fail2ban-client.
  */
-export function hostTools(dir: string): string {
+export function hostTools(dir: string, sshPort = 22): string {
   const sbin = join(dir, "usr", "sbin");
   const bin = join(dir, "usr", "bin");
   const ssh = join(dir, "etc", "ssh");
@@ -75,7 +79,7 @@ export function hostTools(dir: string): string {
   writeFileSync(join(sbin, "nft"), `#!/bin/sh\necho '{"nftables": []}'\n`, { mode: 0o755 });
   writeFileSync(
     join(sbin, "sshd"),
-    `#!/bin/sh\ncase "$1" in\n-T) cat <<'EOF'\n${sshdT}EOF\n;;\n-V) echo 'OpenSSH_9.6p1 Ubuntu-3ubuntu13.5, OpenSSL 3.0.13 30 Jan 2024' >&2 ;;\nesac\n`,
+    `#!/bin/sh\ncase "$1" in\n-T) cat <<'EOF'\n${sshdT(sshPort)}EOF\n;;\n-V) echo 'OpenSSH_9.6p1 Ubuntu-3ubuntu13.5, OpenSSL 3.0.13 30 Jan 2024' >&2 ;;\nesac\n`,
     { mode: 0o755 },
   );
   writeFileSync(

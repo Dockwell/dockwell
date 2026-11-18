@@ -537,7 +537,7 @@ func runControl(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logg
 		}
 	}
 	wg.Go(func() {
-		agentErr = runAgent(agentCtx, stdio, g, logger, dir, own, build, panel, ownPorts(ls, f))
+		agentErr = runAgent(agentCtx, stdio, g, logger, dir, own, build, panel, ownPorts(ls, f), proxiedPorts(f))
 		cancel()
 	})
 	// A test asks no CA beyond the machine: only one it was given.
@@ -578,6 +578,19 @@ func ownPorts(ls control.Listeners, f runFlags) []int {
 		}
 	}
 	return out
+}
+
+// proxiedPorts are the ports a proxy on this server holds for the panel and the
+// agents that join through its domain, behind one: 443, where the panel's
+// address sends people, and 80, which sends them there. They're ways into the
+// server for the firewall's plan (#850's review, H1), though not the control
+// plane's own, so no rule of them is refused. A tunnel holds none, and the
+// warning they bring is then only careful.
+func proxiedPorts(f runFlags) []int {
+	if f.domain == "" || !f.behindProxy {
+		return nil
+	}
+	return []int{443, 80}
 }
 
 // onPublicPorts reports a panel on ports 80 or 443, which only one process can

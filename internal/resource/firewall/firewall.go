@@ -42,13 +42,23 @@ type Checker interface {
 	CheckPolicy(desired *resourcev1.FirewallPolicy) error
 }
 
-// Reacher is a backend that knows the TCP ports someone reaches the server by:
-// SSH's, and on the control server the control plane's own, for the panel and
-// its agents. Plan warns only for a rule that may close one of them (#850,
-// ADR 0052). known is false where SSH's ports can't be read, and then every
-// deny and narrowing warns, as not knowing is what the warning is for.
+// Ways are the ports someone reaches a server by, over TCP and over UDP, each
+// known or not. Where one isn't known, every deny and narrowing over it warns,
+// as not knowing is what the warning is for.
+type Ways struct {
+	// TCP are SSH's ports, and on the control server the control plane's own,
+	// with those a proxy holds for the panel and its agents.
+	TCP      []uint16
+	TCPKnown bool
+	// UDP are the tunnels' ports, such as WireGuard's.
+	UDP      []uint16
+	UDPKnown bool
+}
+
+// Reacher is a backend that knows the ways into the server. Plan warns only for
+// a rule that may close one of them (#850, ADR 0052).
 type Reacher interface {
-	WaysIn() (ports []uint16, known bool)
+	WaysIn() Ways
 }
 
 // Waiter is a backend whose changes wait for their confirmation: the change's
@@ -204,10 +214,10 @@ func covers(sources, others []string) bool {
 }
 
 // mayCutOff says whether an edit may close a way into the server: a deny of one
-// of the ports it's reached by, or an allow of one that the edit deletes or
-// narrows (#850). A deny of another port, such as a database's under external
-// access, can't cut anyone off. Where the backend can't say which ports those
-// are, any deny or narrowing may.
+// of the ports it's reached by, over that protocol, or an allow of one that the
+// edit deletes or narrows (#850). A deny of another port, such as a database's
+// under external access, can't cut anyone off. Where the backend can't say which
+// ports those are, any deny or narrowing over that protocol may.
 func mayCutOff(backend Backend, was, r *resourcev1.FirewallRule) bool {
 	deny := r.GetAction() == resourcev1.FirewallAction_FIREWALL_ACTION_DENY
 	narrowed := narrows(was, r)
@@ -218,19 +228,18 @@ func mayCutOff(backend Backend, was, r *resourcev1.FirewallRule) bool {
 	if !ok {
 		return true
 	}
-	ports, known := reacher.WaysIn()
-	if !known {
-		return true
-	}
-	return deny && reaches(r, ports) || narrowed && reaches(was, ports)
+	ways := reacher.WaysIn()
+	return deny && reaches(r, ways) || narrowed && reaches(was, ways)
 }
 
-// reaches says whether a rule's port is one of ports, over TCP.
-func reaches(r *resourcev1.FirewallRule, ports []uint16) bool {
+// reaches says whether a rule's port may be a way in, over its protocol: one
+// of the ways' ports, or any where they aren't known.
+func reaches(r *resourcev1.FirewallRule, ways Ways) bool {
+	ports, known := ways.TCP, ways.TCPKnown
 	if r.GetProtocol() == resourcev1.Protocol_PROTOCOL_UDP {
-		return false
+		ports, known = ways.UDP, ways.UDPKnown
 	}
-	return slices.ContainsFunc(ports, func(p uint16) bool { return uint32(p) == r.GetPort() })
+	return !known || slices.ContainsFunc(ports, func(p uint16) bool { return uint32(p) == r.GetPort() })
 }
 
 // Apply puts or deletes the rule.

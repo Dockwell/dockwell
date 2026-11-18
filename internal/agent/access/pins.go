@@ -191,8 +191,10 @@ func (r *PinReader) Read(ctx context.Context) (Pins, error) {
 		return Pins{Own: slices.Clone(r.Own)}, fmt.Errorf("can't read the server's processes in /proc: %w", err)
 	}
 	var sockets []socket
+	// Every port anything listens on beyond loopback, whoever holds it.
+	listening := map[uint16]bool{}
 	for _, file := range []string{"net/tcp", "net/tcp6"} {
-		err := r.scan(file, holders, &sockets)
+		err := r.scan(file, holders, &sockets, listening)
 		if file == "net/tcp6" && errors.Is(err, fs.ErrNotExist) {
 			continue // the kernel has no IPv6
 		}
@@ -210,7 +212,14 @@ func (r *PinReader) Read(ctx context.Context) (Pins, error) {
 		pins.SSHPorts = appendNew(pins.SSHPorts, port)
 	}
 	if len(pins.SSHPorts) == 0 {
-		pins.SSHPorts = r.configuredPorts(ctx)
+		// What sshd -T says counts only where something listens on it, as inetd
+		// does for sshd: an sshd installed but stopped answers too, and on such a
+		// server people come in some other way (#850's review, L1).
+		for _, port := range r.configuredPorts(ctx) {
+			if listening[port] {
+				pins.SSHPorts = appendNew(pins.SSHPorts, port)
+			}
+		}
 	}
 	for _, s := range sockets {
 		if s.listening || !s.signedIn || !slices.Contains(pins.SSHPorts, s.local.Port()) || s.peer.Addr().IsLoopback() || s.local.Addr().IsLoopback() {
@@ -225,7 +234,7 @@ func (r *PinReader) Read(ctx context.Context) (Pins, error) {
 
 // scan reads one of /proc/net's socket tables a line at a time, keeping the
 // sockets an SSH server's process holds.
-func (r *PinReader) scan(file string, holders map[string]*held, out *[]socket) error {
+func (r *PinReader) scan(file string, holders map[string]*held, out *[]socket, listening map[uint16]bool) error {
 	f, err := r.Proc.Open(file)
 	if err != nil {
 		return err
@@ -237,6 +246,11 @@ func (r *PinReader) scan(file string, holders map[string]*held, out *[]socket) e
 		fields := strings.Fields(sc.Text())
 		if len(fields) < 10 {
 			continue
+		}
+		if fields[3] == "0A" {
+			if local, ok := address(fields[1]); ok && !local.Addr().IsLoopback() {
+				listening[local.Port()] = true
+			}
 		}
 		h, ok := holders[fields[9]]
 		if !ok {

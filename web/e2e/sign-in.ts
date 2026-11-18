@@ -30,6 +30,7 @@ import { type ChildProcess, execFileSync, spawn } from "node:child_process";
 import { createHmac } from "node:crypto";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
+import { type AddressInfo, createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
@@ -59,8 +60,13 @@ const port = 7650 + Math.floor(Math.random() * 300);
 const origin = `http://localhost:${port}`;
 const data = mkdtempSync(join(tmpdir(), "dockwell-e2e-"));
 const catalogDir = mkdtempSync(join(tmpdir(), "dockwell-e2e-catalog-"));
+// Something listening beyond loopback on the port the stand's sshd -T names, as the agent counts SSH's ports from
+// sshd -T only where something does, so a deny of another port isn't a lock-out (#850's review, L1).
+const sshStandIn = createServer((socket) => socket.end());
+await new Promise<void>((listening) => sshStandIn.listen(0, "0.0.0.0", listening));
+sshStandIn.unref();
 // The agent's stand-ins for the server's own tools, such as ufw, as a test runs none of the machine's.
-const tools = hostTools(mkdtempSync(join(tmpdir(), "dockwell-e2e-tools-")));
+const tools = hostTools(mkdtempSync(join(tmpdir(), "dockwell-e2e-tools-")), (sshStandIn.address() as AddressInfo).port);
 // What the fake engine's containers use, as a flow writes it, laid out as /sys/fs/cgroup (#797).
 const cgroups = mkdtempSync(join(tmpdir(), "dockwell-e2e-cgroup-"));
 

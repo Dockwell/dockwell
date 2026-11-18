@@ -182,10 +182,21 @@ func TestSSHIsFoundHoweverItRuns(t *testing.T) {
 			systemctl: map[string]string{"sshd.socket": "[::]:22 (Stream)"},
 			want:      "[22]",
 		},
+		// What sshd -T names counts only where something listens on it (#850's review, L1).
 		"inetd, with sshd -T": {
 			proc: newProc().process("50", "inetd", "1", "1001").socket("net/tcp", listen22),
 			sshd: "port 22\nport 2200\naddressfamily any",
-			want: "[22 2200]",
+			want: "[22]",
+		},
+		"sshd -T, with nothing listening": {
+			proc: newProc(),
+			sshd: "port 22\naddressfamily any",
+			want: "[]",
+		},
+		"sshd -T, listened on only on loopback": {
+			proc: newProc().process("50", "inetd", "1", "1001").socket("net/tcp", "   0: 0100007F:0016 00000000:0000 0A 00000000:00000000 00:00000000 00000000     0        0 1001"),
+			sshd: "port 22",
+			want: "[]",
 		},
 		"none": {proc: newProc(), want: "[]"},
 	}

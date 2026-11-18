@@ -431,8 +431,24 @@ func empty(p *dockwellv1.Plan) bool {
 }
 
 // needsPerson reports a plan that only a signed-in person may apply: one
-// that is destructive, or gives a container more of its server.
-func needsPerson(p *dockwellv1.Plan) bool { return p.GetDestructive() || p.GetHostAccess() }
+// that is destructive, gives a container more of its server, or changes who
+// reaches a server.
+func needsPerson(p *dockwellv1.Plan) bool {
+	return p.GetDestructive() || p.GetHostAccess() || touchesAccess(p)
+}
+
+// AccessKinds are the kinds whose steps change who reaches a server, or who
+// gets onto it, which take a person's passkey whatever they do (ADR 0052). The
+// server refuses a token any plan with one, so the CLI says so before asking
+// (#850's review, L2). A test in internal/cli holds it to the control plane's.
+var AccessKinds = []string{"firewall.rule", "firewall.policy", "fail2ban.jail"}
+
+// touchesAccess reports a plan with a step of one of AccessKinds.
+func touchesAccess(p *dockwellv1.Plan) bool {
+	return slices.ContainsFunc(p.GetResources(), func(r *dockwellv1.PlannedResource) bool {
+		return slices.Contains(AccessKinds, r.GetResource().GetKind())
+	})
+}
 
 // needsPerson stops at a plan no API token may apply, and says where a
 // person can. The CLI signs in with an API token, even after dockwell
@@ -445,6 +461,9 @@ func (r *runner) needsPerson(c *dockwellv1.Change) error {
 // whyPerson says what about a plan needs a person, from what it does.
 func whyPerson(p *dockwellv1.Plan) string {
 	var why []string
+	if touchesAccess(p) {
+		why = append(why, "changes who reaches a server")
+	}
 	if p.GetDestructive() {
 		why = append(why, "destroys data, may cut off access, or lets two containers write to one place")
 	}
