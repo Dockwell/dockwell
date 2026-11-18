@@ -180,7 +180,10 @@ describe("ServerOverview", () => {
     const disks = await screen.findByRole("region", { name: "Disk usage" });
     await within(disks).findByText("Docker isn't running", { exact: false });
     expect(within(disks).getByText("/")).toBeVisible();
-    expect(disks).toHaveTextContent("/dev/sda1 · ext4");
+    // The device's own name is on hover, not in the line (#800).
+    expect(within(disks).getByText("/")).toHaveAttribute("title", "/dev/sda1");
+    expect(disks).toHaveTextContent("/ext4");
+    expect(disks).not.toHaveTextContent("/dev/sda1");
     expect(disks).toHaveTextContent("38% of 160 GB used");
     expect(within(disks).getByRole("img", { name: "/: 61 GB used, 99 GB free, of 160 GB" })).toBeVisible();
     expect(disks).toHaveTextContent("Used61 GBFree99 GB");

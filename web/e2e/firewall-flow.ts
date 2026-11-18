@@ -200,7 +200,7 @@ export async function firewallFlow(page: Page, { origin, step, shoot, env }: Fir
   const jail = page.getByRole("dialog", { name: /^(The sshd jail on|Protect SSH on) / });
   const tries = jail.getByLabel("Failed sign-ins that ban an address");
   await tries.fill("3");
-  await jail.getByRole("button", { name: "Plan it" }).click();
+  await jail.getByRole("button", { name: "Review plan" }).click();
   const jailPlan = onTop(page.getByRole("dialog", { name: "Review plan" }));
   await jailPlan.getByRole("button", { name: /Apply plan/ }).click();
   // The browser's virtual authenticator gives the passkey a jail takes; no timer follows.
@@ -229,7 +229,7 @@ export async function firewallFlow(page: Page, { origin, step, shoot, env }: Fir
   await rules.getByRole("button", { name: "Add a rule" }).click();
   const add = page.getByRole("dialog", { name: /^Add a rule to / });
   await add.getByLabel("Port").fill("8443");
-  await add.getByRole("button", { name: "Plan it" }).click();
+  await add.getByRole("button", { name: "Review plan" }).click();
   const plan = onTop(page.getByRole("dialog", { name: "Review plan" }));
   await plan.getByRole("button", { name: /Apply plan/ }).click();
   // The browser's virtual authenticator gives the passkey the change takes. Then the server waits.

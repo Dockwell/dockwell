@@ -473,7 +473,7 @@ describe("fail2ban on a server's Firewall tab", () => {
     await user.type(tries, "3");
     await user.selectOptions(within(sheet).getByLabelText("Counted within"), "1h");
     await user.selectOptions(within(sheet).getByLabelText("Banned for"), "forever");
-    await user.click(within(sheet).getByRole("button", { name: "Plan it" }));
+    await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
     await waitFor(() => expect(proposed).toHaveBeenCalledTimes(1));
     const req = proposed.mock.calls[0]?.[0];
     expect(req?.summary).toBe("Protect SSH on hz-1 with fail2ban");
@@ -531,7 +531,7 @@ describe("fail2ban on a server's Firewall tab", () => {
     const tries = within(sheet).getByLabelText("Failed sign-ins that ban an address");
     await user.clear(tries);
     await user.type(tries, "6");
-    await user.click(within(sheet).getByRole("button", { name: "Plan it" }));
+    await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
     await waitFor(() => expect(proposed).toHaveBeenCalledTimes(1));
     expect(proposed.mock.calls[0]?.[0]?.edits[0]?.spec?.kind.value).toMatchObject({
       filter: "sshd",
@@ -565,7 +565,7 @@ describe("fail2ban on a server's Firewall tab", () => {
     expect(sheet).toHaveTextContent(
       "SSH's ports couldn't be read: this closes fail2ban's own sshd port, 22 unless set otherwise.",
     );
-    await user.click(within(sheet).getByRole("button", { name: "Plan it" }));
+    await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
     await waitFor(() => expect(proposed).toHaveBeenCalledTimes(1));
     expect(proposed.mock.calls[0]?.[0]?.edits[0]?.spec?.kind.value).toMatchObject({
       ports: [],
@@ -592,7 +592,7 @@ describe("fail2ban on a server's Firewall tab", () => {
     expect(within(sheet).getByLabelText("Failed sign-ins that ban an address")).toHaveValue("5");
     expect(within(sheet).getByLabelText("Counted within")).toHaveValue("10m");
     expect(within(sheet).getByLabelText("Banned for")).toHaveValue("1h");
-    await user.click(within(sheet).getByRole("button", { name: "Plan it" }));
+    await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
     await waitFor(() => expect(proposed).toHaveBeenCalledTimes(1));
     expect(proposed.mock.calls[0]?.[0]?.summary).toBe("Change the sshd jail on hz-1");
 
@@ -644,7 +644,7 @@ describe("fail2ban on a server's Firewall tab", () => {
     const sheet = await screen.findByRole("dialog", { name: "Protect SSH on hz-1" });
     await user.clear(within(sheet).getByLabelText("Failed sign-ins that ban an address"));
     await user.type(within(sheet).getByLabelText("Failed sign-ins that ban an address"), "3");
-    await user.click(within(sheet).getByRole("button", { name: "Plan it" }));
+    await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
     const plan = await screen.findByRole("dialog", { name: "Review plan" });
     await user.click(within(plan).getByRole("button", { name: /Apply plan/ }));
     await screen.findByRole("heading", { name: "Applying" });

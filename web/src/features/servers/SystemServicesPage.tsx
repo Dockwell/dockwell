@@ -3,6 +3,7 @@
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import {
   Connection,
+  FileService,
   type Server,
   SystemInit,
   SystemServiceAction,
@@ -26,15 +27,19 @@ import {
   useMediaQuery,
 } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
+import { Link } from "@tanstack/react-router";
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 
 import { sentence } from "../../lib/errors";
 import { formatBytes } from "../../lib/format";
+import { RouterButtonLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
+import { useMay } from "../auth/may";
 import { AgentOutdated, isAgentOutdated } from "./AgentOutdated";
 import { ServerFrame } from "./ServerFrame";
 import { SystemLog } from "./SystemLog";
 import {
+  fileOf,
   inView,
   isMasked,
   isRunning,
@@ -401,12 +406,13 @@ function RowAction({
  * A unit's name and what it says it is, and for one that failed, the line its own
  * process wrote that says why, or what an action on it said as it failed.
  */
-function Name({ service, acts }: { service: SystemServiceInfo; acts?: UnitActions }) {
+function Name({ service, acts, server }: { service: SystemServiceInfo; acts?: UnitActions; server?: Server }) {
   const { t } = useLingui();
   const failure = acts?.failure?.name === service.name ? acts.failure.why : "";
   // The unit's own words first, which only an admin reads, then what the action said.
   const own = service.state === SystemServiceState.FAILED ? whyLine(service.why) : "";
   const why = own || failure;
+  const open = useFileLink(server, own);
   return (
     <div className="dw-cell procs-cell">
       <span className="sys-name">
@@ -419,8 +425,40 @@ function Name({ service, acts }: { service: SystemServiceInfo; acts?: UnitAction
           {why}
         </span>
       ) : null}
+      {open ? (
+        <Link
+          className="sys-why-open"
+          to="/servers/$serverId/files"
+          params={{ serverId: open.serverId }}
+          search={open.search}
+          onClick={(event) => event.stopPropagation()}
+        >
+          {open.label}
+        </Link>
+      ) : null}
     </div>
   );
+}
+
+/**
+ * Where a failure line's file opens, at its line, in the server's Files (#800): for
+ * someone who may read its files, and only where the line names one.
+ */
+function useFileLink(
+  server: Server | undefined,
+  why: string,
+): { serverId: string; search: { file: string; line?: number }; label: string } | undefined {
+  const { t } = useLingui();
+  const may = useMay()(FileService.method.listFiles).allowed;
+  const file = why ? fileOf(why) : undefined;
+  if (!server || !may || !file) return undefined;
+  const name = file.path.split("/").at(-1) ?? file.path;
+  const line = file.line;
+  return {
+    serverId: server.id,
+    search: line ? { file: file.path, line } : { file: file.path },
+    label: line ? t`Open ${name} at line ${line}` : t`Open ${name}`,
+  };
 }
 
 function ServiceTable({
@@ -443,7 +481,7 @@ function ServiceTable({
   const { t, i18n } = useLingui();
   const atBoot = useAtBoot();
   const columns: TableColumn<SystemServiceInfo>[] = [
-    { key: "name", header: t`Service`, render: (s) => <Name service={s} acts={acts} /> },
+    { key: "name", header: t`Service`, render: (s) => <Name service={s} acts={acts} server={server} /> },
     { key: "state", header: t`State`, width: 220, render: (s) => <State service={s} acts={acts} /> },
     { key: "atBoot", header: t`At boot`, width: 112, muted: true, render: (s) => atBoot(s.atBoot) },
     {
@@ -559,6 +597,7 @@ function ServiceSheet({
   const failure = acts.failure?.name === service.name ? acts.failure : undefined;
   const failedAgo = service.since ? time.ago(timestampDate(service.since), now) : "";
   const why = whyLine(service.why);
+  const open = useFileLink(server, failed ? why : "");
   return (
     <Sheet open title={service.name} subtitle={t`On ${server.name}`} onClose={onClose}>
       <div className="sys-sheet">
@@ -578,7 +617,22 @@ function ServiceSheet({
           <Callout
             tone="critical"
             title={failedAgo ? t`Failed ${failedAgo}` : t`Failed`}
-            actions={button(SystemServiceAction.RESTART, "primary")}
+            actions={
+              <>
+                {open ? (
+                  <RouterButtonLink
+                    size="sm"
+                    to="/servers/$serverId/files"
+                    params={{ serverId: open.serverId }}
+                    search={open.search}
+                    icon="file"
+                  >
+                    {open.label}
+                  </RouterButtonLink>
+                ) : null}
+                {button(SystemServiceAction.RESTART, "primary")}
+              </>
+            }
           >
             {why ? <code className="sys-why">{why}</code> : service.result ? <code>{service.result}</code> : null}
           </Callout>

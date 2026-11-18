@@ -26,6 +26,8 @@ interface FileViewerProps {
   path: string;
   /** The folder on show, which closing the file goes back to. */
   folder: string;
+  /** The line to mark and bring into view, from 1, as an error that names it links here (#800). */
+  line?: number | undefined;
 }
 
 /**
@@ -34,7 +36,7 @@ interface FileViewerProps {
  * of it stays in the cache once it closes. What it shows is text in a field,
  * whatever the file's name says: nothing in a file runs here.
  */
-export function FileViewer({ serverId, path, folder }: FileViewerProps) {
+export function FileViewer({ serverId, path, folder, line }: FileViewerProps) {
   const { t, i18n } = useLingui();
   const phone = useMediaQuery(PHONE_QUERY);
   const navigate = useNavigate();
@@ -106,7 +108,13 @@ export function FileViewer({ serverId, path, folder }: FileViewerProps) {
               </Trans>
             </Callout>
           </div>
-          <CodeField className="files-code" aria-label={t`Contents of ${name}`} value={read.content} readOnly />
+          <CodeField
+            className="files-code"
+            aria-label={t`Contents of ${name}`}
+            value={read.content}
+            markedLine={line}
+            readOnly
+          />
         </>
       );
     }
@@ -118,11 +126,27 @@ export function FileViewer({ serverId, path, folder }: FileViewerProps) {
               <Trans>Update the agent on this server to edit {name} here. You can still read it.</Trans>
             </Callout>
           </div>
-          <CodeField className="files-code" aria-label={t`Contents of ${name}`} value={read.content} readOnly />
+          <CodeField
+            className="files-code"
+            aria-label={t`Contents of ${name}`}
+            value={read.content}
+            markedLine={line}
+            readOnly
+          />
         </>
       );
     }
-    return <Editor serverId={serverId} path={path} name={name} read={read} onSaved={setSaved} onEdited={setEdited} />;
+    return (
+      <Editor
+        serverId={serverId}
+        path={path}
+        name={name}
+        read={read}
+        line={line}
+        onSaved={setSaved}
+        onEdited={setEdited}
+      />
+    );
   };
   return (
     <Panel
@@ -180,6 +204,7 @@ interface EditorProps {
   path: string;
   name: string;
   read: ReadFileResponse;
+  line: number | undefined;
   onSaved: (file: FileEntry | undefined) => void;
   onEdited: (edited: boolean) => void;
 }
@@ -201,7 +226,7 @@ function baseOf(read: ReadFileResponse): Base {
  * asks first. A session that ends takes the page with it and asks nobody, so what
  * you typed is held for when you sign in again.
  */
-function Editor({ serverId, path, name, read, onSaved, onEdited }: EditorProps) {
+function Editor({ serverId, path, name, read, line, onSaved, onEdited }: EditorProps) {
   const { t } = useLingui();
   const phone = useMediaQuery(PHONE_QUERY);
   const transport = useTransport();
@@ -467,6 +492,7 @@ function Editor({ serverId, path, name, read, onSaved, onEdited }: EditorProps) 
         className="files-code"
         aria-label={t`Contents of ${name}`}
         value={draft}
+        markedLine={line}
         readOnly={offer !== undefined}
         onChange={(event) => change(event.target.value)}
         onKeyDown={onKeyDown}

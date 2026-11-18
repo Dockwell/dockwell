@@ -227,7 +227,7 @@ describe("Overview with no servers", () => {
     await expectAccessible(container);
     await user.click(screen.getByRole("button", { name: "Add server" }));
     const sheet = await screen.findByRole("dialog", { name: "Add a server" });
-    expect(within(sheet).getByRole("button", { name: "Make the command" })).toBeEnabled();
+    expect(await within(sheet).findByRole("button", { name: "Show the command" })).toBeEnabled();
   });
 });
 

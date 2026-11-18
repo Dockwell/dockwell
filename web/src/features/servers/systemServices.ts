@@ -132,6 +132,21 @@ export function whyLine(why: readonly string[]): string {
   return why.find((l) => WRONG.test(l)) ?? why.at(-1) ?? "";
 }
 
+/**
+ * The file a failure line names, and its line where it says one, as nginx's
+ * "unknown directive in /etc/nginx/sites-enabled/default:12" does: a path with a
+ * line, or a path under /etc, which is where a service's settings are.
+ */
+export function fileOf(why: string): { path: string; line?: number } | undefined {
+  for (const m of why.matchAll(/(\/(?:[\w.@+-]+\/)*[\w.@+-]+)(?::(\d+))?/g)) {
+    const path = m[1] ?? "";
+    const line = m[2] ? Number(m[2]) : undefined;
+    if (line !== undefined && line > 0) return { path, line };
+    if (path.startsWith("/etc/") && !path.endsWith("/")) return { path };
+  }
+  return undefined;
+}
+
 /** Whether a unit is masked: nothing starts it until it's unmasked. */
 export function isMasked(s: SystemServiceInfo): boolean {
   return s.atBoot === "masked" || s.atBoot === "masked-runtime";

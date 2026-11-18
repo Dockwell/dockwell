@@ -418,7 +418,6 @@ describe("Servers", () => {
       const sheet = await screen.findByRole("dialog", { name: "Add a server" });
       expect(sheet).toHaveTextContent("Nothing on web-1 changes.");
       expect(sheet).not.toHaveTextContent("dockwell token create");
-      await user.click(within(sheet).getByRole("button", { name: "Make the command" }));
 
       expect(
         await within(sheet).findByText(
@@ -446,7 +445,6 @@ describe("Servers", () => {
 
       await user.click(await screen.findByRole("button", { name: "Add server" }));
       const sheet = await screen.findByRole("dialog", { name: "Add a server" });
-      await user.click(within(sheet).getByRole("button", { name: "Make the command" }));
       expect(await within(sheet).findByText("Only servers on web-1's network can join")).toBeVisible();
       expect(sheet).toHaveTextContent("It joins through 203.0.113.7:7443, a private address.");
       await user.click(within(sheet).getByRole("button", { name: "Set public address" }));
@@ -468,7 +466,6 @@ describe("Servers", () => {
       });
       await user.click(await screen.findByRole("button", { name: "Add server" }));
       const sheet = await screen.findByRole("dialog", { name: "Add a server" });
-      await user.click(within(sheet).getByRole("button", { name: "Make the command" }));
       expect(await within(sheet).findByText("dockwell join TICKET")).toBeVisible();
       expect(within(sheet).getByText("dockwell run", { selector: ".copy-command code" })).toBeVisible();
       expect(sheet).toHaveTextContent("Install the agent of 0.2.1-dev as dockwell first");
@@ -482,7 +479,6 @@ describe("Servers", () => {
       renderServers([web1, web2()], "/servers", { ...release, ...passkey([]), servers: api.servers });
       await user.click(await screen.findByRole("button", { name: "Add server" }));
       const sheet = await screen.findByRole("dialog", { name: "Add a server" });
-      await user.click(within(sheet).getByRole("button", { name: "Make the command" }));
       expect(await within(sheet).findByText("This command expired")).toBeVisible();
       expect(within(sheet).getByRole("button", { name: "Make a new command" })).toBeEnabled();
     });
@@ -497,7 +493,8 @@ describe("Servers", () => {
       });
       await user.click(await screen.findByRole("button", { name: "Add server" }));
       const sheet = await screen.findByRole("dialog", { name: "Add a server" });
-      expect(within(sheet).getByRole("button", { name: "Make the command" })).toBeEnabled();
+      // Without a passkey to give, the way to it again stays.
+      expect(await within(sheet).findByRole("button", { name: "Show the command" })).toBeEnabled();
     });
 
     it("says nothing was made when the passkey doesn't confirm it", async () => {
@@ -507,11 +504,10 @@ describe("Servers", () => {
       renderServers([web1, web2()], "/servers", { ...release, ...passkey([]), servers: api.servers });
       await user.click(await screen.findByRole("button", { name: "Add server" }));
       const sheet = await screen.findByRole("dialog", { name: "Add a server" });
-      await user.click(within(sheet).getByRole("button", { name: "Make the command" }));
       expect(
         await within(sheet).findByText("Your passkey didn't confirm it, so there's no command yet. Try again."),
       ).toBeVisible();
-      expect(within(sheet).getByRole("button", { name: "Make the command" })).toBeEnabled();
+      expect(within(sheet).getByRole("button", { name: "Show the command" })).toBeEnabled();
     });
   });
 
@@ -704,6 +700,14 @@ describe("Servers", () => {
         (o) => o.value,
       );
       expect(offered).toEqual(["pool:db", "region:us", "pool:", "region:"]);
+      // And in view, a click each (#800).
+      const quick = within(sheet).getByRole("list", { name: "Labels to add" });
+      expect(
+        within(quick)
+          .getAllByRole("button")
+          .map((b) => b.textContent),
+      ).toEqual(["pool:db", "region:us"]);
+      expect(sheet).toHaveTextContent("Nothing restarts");
       expect(within(sheet).getByRole("button", { name: "Review plan" })).toBeDisabled();
 
       await user.click(within(sheet).getByRole("button", { name: "Remove pool:web" }));
@@ -720,6 +724,27 @@ describe("Servers", () => {
       expect(plan).not.toHaveTextContent("tier=db");
       expect(plan).not.toHaveTextContent("server.host");
       expect(plan).toHaveTextContent("web-1 · no step, nothing goes down");
+    });
+
+    it("offers the keys a fleet is grouped by where it has no labels yet", async () => {
+      const user = userEvent.setup();
+      renderServers([web1, web2()], "/servers/srv_1");
+      await user.click(await screen.findByRole("button", { name: "Add labels" }));
+      const sheet = await screen.findByRole("dialog", { name: "Labels of web-1" });
+      const quick = within(sheet).getByRole("list", { name: "Labels to add" });
+      expect(
+        within(quick)
+          .getAllByRole("button")
+          .map((b) => b.textContent),
+      ).toEqual(["region:", "pool:", "role:", "env:"]);
+      // A key leaves its value to type.
+      await user.click(within(quick).getByRole("button", { name: "region:" }));
+      const field = within(sheet).getByRole("combobox", { name: "Labels" });
+      expect(field).toHaveValue("region:");
+      expect(field).toHaveFocus();
+      await user.type(field, "eu{Enter}");
+      expect(within(quick).queryByRole("button", { name: "region:" })).toBeNull();
+      expect(within(sheet).getByRole("button", { name: "Review plan" })).toBeEnabled();
     });
 
     it("gives a new server labels as it joins", async () => {
@@ -755,10 +780,14 @@ describe("Servers", () => {
 
       await user.click(await screen.findByRole("button", { name: "Add server" }));
       const sheet = await screen.findByRole("dialog", { name: "Add a server" });
+      // The command comes first, as the sheet opens (#800); labels are a step away, and make it again.
+      await within(sheet).findByText("Waiting for the server to join");
+      expect(made.at(-1)?.labels).toEqual([]);
+      await user.click(within(sheet).getByRole("button", { name: "Add labels" }));
       const field = within(sheet).getByRole("combobox", { name: /^Labels/ });
       await user.type(field, "region:eu{Enter}pool:web{Enter}");
-      await user.click(within(sheet).getByRole("button", { name: "Make the command" }));
-      await within(sheet).findByText("Waiting for the server to join");
+      await user.click(within(sheet).getByRole("button", { name: "Make it with these labels" }));
+      await within(sheet).findByText("Joins with");
       expect(made.at(-1)?.labels).toEqual(["pool:web", "region:eu"]);
       expect(sheet).toHaveTextContent("Joins withpool:webregion:eu");
     });

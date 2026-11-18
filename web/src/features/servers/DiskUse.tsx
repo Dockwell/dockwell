@@ -189,10 +189,11 @@ function PlainDisk({ disk, server }: { disk: DiskUsage; server: Server }) {
   return (
     <div className="disk">
       <div className="disk-head">
-        <code className="disk-mount">{mount}</code>
-        {info ? (
-          <span className="disk-device">{[info.device, info.filesystem].filter(Boolean).join(" · ")}</span>
-        ) : null}
+        {/* The device's own name is for whoever asks, on hover; the mount is what a person knows it by (#800). */}
+        <code className="disk-mount" title={info?.device || undefined}>
+          {mount}
+        </code>
+        {info?.filesystem ? <span className="disk-device">{info.filesystem}</span> : null}
         <span className="disk-share">{t`${share} of ${size} used`}</span>
       </div>
       <div className="disk-bar" role="img" aria-label={t`${mount}: ${used} used, ${free} free, of ${size}`}>

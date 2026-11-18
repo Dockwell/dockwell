@@ -110,3 +110,30 @@ describe("taking on a record made in Cloudflare (ADR 0104, section 5)", () => {
     expect(needsConfirming(takeover)).toBe(false);
   });
 });
+
+describe("what a removal asks (#800)", () => {
+  /** A removal of web-2 whose one step is what these fields say. */
+  const removal = (step: Record<string, unknown>) =>
+    create(PlanSchema, {
+      destructive: true,
+      removes: { serverId: "srv_2", serverName: "web-2" },
+      resources: [{ id: "res_0", resource: { kind: "service", scope: "env_1", name: "web" } }],
+      servers: [{ serverId: "srv_2", serverName: "web-2", steps: [{ resourceId: "res_0", ...step }] }],
+    });
+
+  it("asks for the passkey alone where it destroys nothing more", () => {
+    const p = removal({ action: PlanAction.DELETE });
+    expect(needsConfirming(p)).toBe(false);
+    expect(needsPasskey(p)).toBe(true);
+  });
+
+  it("asks for the code too where a step destroys data, warns, or lets two containers write to one place", () => {
+    expect(needsConfirming(removal({ action: PlanAction.DELETE, destroysData: true }))).toBe(true);
+    expect(needsConfirming(removal({ action: PlanAction.UPDATE, warnings: [{ message: "Its volume goes" }] }))).toBe(
+      true,
+    );
+    expect(needsConfirming(removal({ action: PlanAction.REPLACE, rollout: { rolling: true, chosen: true } }))).toBe(
+      true,
+    );
+  });
+});

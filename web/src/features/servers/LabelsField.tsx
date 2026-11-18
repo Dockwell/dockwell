@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type { Server } from "@dockwell/api";
-import { useLingui } from "@lingui/react/macro";
 import { type ReactNode, useMemo } from "react";
 
 import { LabelChips } from "./LabelChips";
-import { fleetLabels, isProblem, labelSuggestions, labelText, MAX_LABELS, parseLabel } from "./labels";
+import { fleetLabels, isProblem, labelSuggestions, labelText, MAX_LABELS, parseLabel, quickLabels } from "./labels";
 
 /**
  * A server's labels to edit, as chips, offering the labels the fleet uses: a key
@@ -29,7 +28,6 @@ export function LabelsField({
   shownLabel?: boolean;
   optional?: boolean;
 }) {
-  const { t } = useLingui();
   const used = useMemo(() => fleetLabels(fleet), [fleet]);
   const keys = Object.keys(labels).sort();
   return (
@@ -51,7 +49,9 @@ export function LabelsField({
         return !Object.hasOwn(labels, read.key) && keys.length >= MAX_LABELS ? { kind: "too-many" } : undefined;
       }}
       suggestions={labelSuggestions(used, labels)}
-      placeholder={t`key:value`}
+      // What the fleet uses, or where it uses none yet, the keys a fleet is grouped by most (#800).
+      quick={quickLabels(used, labels)}
+      placeholder="region:eu"
       hint={hint}
       shownLabel={shownLabel}
       optional={optional}

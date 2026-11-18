@@ -115,13 +115,28 @@
 
 .fleet-action-card {
   display: flex;
-  align-items: flex-start;
+  flex-direction: column;
   gap: var(--space-3);
   padding: 12px 14px;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   background: var(--surface);
+}
+
+.fleet-action-card-pick {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
   cursor: pointer;
+}
+
+.fleet-action-card.is-disabled .fleet-action-card-pick {
+  cursor: not-allowed;
+}
+
+/* The card's own choice, such as which updates, under its words. */
+.fleet-action-card-choice {
+  padding-inline-start: 29px;
 }
 
 .fleet-action-card.is-picked {
@@ -130,7 +145,6 @@
 }
 
 .fleet-action-card.is-disabled {
-  cursor: not-allowed;
   opacity: 0.6;
 }
 
@@ -243,7 +257,14 @@
   font-family: var(--font-mono);
 }
 
-/* The summary, beside the form while there's room, staying in view as it scrolls. */
+/* The summary and the recent actions, beside the form while there's room, the summary staying in view as it scrolls. */
+.fleet-side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
 .fleet-summary {
   position: sticky;
   top: var(--space-6);
@@ -253,6 +274,64 @@
   .fleet-summary {
     position: static;
   }
+}
+
+/* A handful of servers, by name, each with its state. */
+.fleet-target-names {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fleet-recent-all {
+  color: var(--link);
+  font-size: 13px;
+}
+
+.fleet-recent-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fleet-recent-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--line);
+}
+
+.fleet-recent-item:first-child {
+  border-top: 0;
+}
+
+.fleet-recent-summary {
+  min-width: 0;
+  color: var(--ink);
+  font-weight: 550;
+  overflow-wrap: anywhere;
+}
+
+.fleet-recent-when {
+  grid-row: 1;
+  grid-column: 2;
+  color: var(--ink-muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.fleet-recent-meta {
+  grid-column: 1 / -1;
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+
+.fleet-recent-item.is-failed .fleet-recent-meta {
+  color: var(--critical);
 }
 
 .fleet-summary-draft {
@@ -304,4 +383,16 @@
   color: var(--ink-muted);
   font-size: 12px;
   text-align: center;
+}
+
+/* A long server name wraps rather than widening the page (#738). */
+.fleet-target-names li {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.fleet-target-names .dw-status {
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }

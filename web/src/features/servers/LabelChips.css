@@ -38,6 +38,50 @@
   white-space: nowrap;
 }
 
+/* What the fleet uses, or keys to start from, a click each under the field. */
+.label-chips-quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.label-chips-quick li {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.label-chips-pick {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  text-align: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 26px;
+  padding: 0 8px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--ink-muted);
+  font: inherit;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.label-chips-pick:hover {
+  border-style: solid;
+  color: var(--ink);
+}
+
+.label-chips-pick:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
 .labels-sheet-form {
   display: flex;
   flex-direction: column;

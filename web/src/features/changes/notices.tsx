@@ -81,8 +81,11 @@ function accessOf(plan: Plan): HostAccess[] {
  */
 export function needsConfirming(plan: Plan | undefined): boolean {
   if (!plan) return false;
-  if (plan.destructive) return true;
   const access = accessOf(plan);
+  // A removal that destroys nothing more is confirmed by its passkey alone, which it always asks (#800):
+  // the plan says it's for good, and a second code to type says nothing more.
+  if (plan.removes && !access.some(asGoodAsRoot) && !removalDestroysMore(plan)) return false;
+  if (plan.destructive) return true;
   if (access.some(asGoodAsRoot)) return true;
   if (quietInstall(plan)) return false;
   // An action on a system service says what it reaches: the typed code only for what stops everything, may cut
@@ -92,6 +95,16 @@ export function needsConfirming(plan: Plan | undefined): boolean {
   // Stopping the panel an import came from reaches nothing new, and its undo starts it again (ADR 0089).
   if (plan.resources.length > 0 && plan.resources.every((r) => r.panel !== undefined)) return false;
   return plan.hostAccess && access.length === 0;
+}
+
+/** Whether a removal's steps destroy data, warn, or let two containers write to one place, beside the removal itself. */
+function removalDestroysMore(plan: Plan): boolean {
+  return plan.servers.some((server) =>
+    server.steps.some(
+      (step) =>
+        step.destroysData || step.warnings.length > 0 || (step.rollout?.rolling === true && step.rollout.chosen),
+    ),
+  );
 }
 
 /**
@@ -900,9 +913,8 @@ export function useRisks(plan: Plan | undefined, applied = false): Notice[] {
     out.push({
       key: "removes",
       title: t`${name} leaves the fleet for good`,
-      detail: removes.compromised
-        ? t`It's revoked as this applies, before any step, and its agent is refused from then on.`
-        : t`It's revoked once its steps have passed, and its agent is refused from then on.`,
+      // When it's revoked is the switch's to say, just above (#800).
+      detail: t`Its agent is refused from then on.`,
     });
   }
   // A plan that says it destroys data, with no step of it to say which.
