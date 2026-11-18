@@ -336,6 +336,9 @@ func startFullConfig(t *testing.T, backend store.Backend, public https.Source, l
 		ManualBackups: true,
 		// A test checks connections on their schedule itself (#799).
 		ManualConnectionChecks: true,
+		// A test looks at apps' owners itself, with Tick and Wait: the control plane's
+		// own look would make an owner beside it (#854).
+		ManualOwners: true,
 	}
 	// Cloudflare's stand-in, the one DNS provider a test reaches (ADR 0088).
 	cloudflare := cftest.New(dnsToken, "example.com", "example.org")

@@ -162,6 +162,10 @@ type Config struct {
 	// ManualConnectionChecks leaves checking each connection on its schedule to a
 	// test, which calls the checker itself (#799).
 	ManualConnectionChecks bool
+	// ManualOwners leaves looking at catalog apps' owners to a test, which calls
+	// the runner's Tick and Wait itself: the control plane's own look, as it
+	// starts and every 10 s, would make an owner beside the test's (#854).
+	ManualOwners bool
 	// AgentHosts are the names and addresses agents dial; the agent
 	// listener's certificate is valid for them.
 	AgentHosts []string
@@ -305,6 +309,8 @@ type Server struct {
 	manualConnectionChecks bool
 	manualAlerts           bool
 	manualBackups          bool
+	// manualOwners leaves the owners' looks to a test (#854).
+	manualOwners bool
 	// backups takes backups, and those under way end with the control plane.
 	backups *backups.Handler
 	// hooks deploys on push, and what deploys wait for ends with the control plane.
@@ -463,7 +469,7 @@ func New(cfg Config) (*Server, error) {
 		// refuses a person's that comes without (ADR 0049).
 		cfg.Changes.RequireRoles()
 	}
-	s := &Server{logger: cfg.Logger, api: api, logs: logs, backups: backupHandler, hooks: hooks, apps: gitApps, tasks: taskHandler, updates: updateKeeper, alerts: evaluator, manualAlerts: cfg.ManualAlerts, manualBackups: cfg.ManualBackups, public: cfg.Public, changes: cfg.Changes, store: cfg.Store, stepGrace: cfg.StepGrace, autoupdates: autoupdates, certificates: cfg.certificates, publisher: cfg.publisher, owners: cfg.appOwners}
+	s := &Server{logger: cfg.Logger, api: api, logs: logs, backups: backupHandler, hooks: hooks, apps: gitApps, tasks: taskHandler, updates: updateKeeper, alerts: evaluator, manualAlerts: cfg.ManualAlerts, manualBackups: cfg.ManualBackups, manualOwners: cfg.ManualOwners, public: cfg.Public, changes: cfg.Changes, store: cfg.Store, stepGrace: cfg.StepGrace, autoupdates: autoupdates, certificates: cfg.certificates, publisher: cfg.publisher, owners: cfg.appOwners}
 	s.catalogs = follower
 	s.connectionChecks, s.manualConnectionChecks = *cfg.connectionChecks, cfg.ManualConnectionChecks
 	if cfg.Agents != nil {
@@ -1216,7 +1222,7 @@ func (s *Server) Run(ctx context.Context, ls Listeners) error {
 	if s.apps != nil {
 		api.Go(func() { s.apps.KeepWatching(apiCtx) })
 	}
-	if s.owners != nil {
+	if s.owners != nil && !s.manualOwners {
 		api.Go(func() { s.owners.Run(apiCtx) })
 	}
 	if s.hosts != nil {
