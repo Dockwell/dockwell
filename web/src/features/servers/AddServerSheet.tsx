@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { timestampDate } from "@bufbuild/protobuf/wkt";
-import { createClient } from "@connectrpc/connect";
+import { createClient, type Transport } from "@connectrpc/connect";
 import { useQuery, useTransport } from "@connectrpc/connect-query";
 import {
   Connection,
+  type CreateJoinTicketResponse,
   JoinReach,
   type JoinTicket,
   JoinTicketState,
@@ -44,9 +45,52 @@ export function joinCommand(releases: string, controlPlane: string, ticket = "<t
   return install ? `${install} --join ${ticket}` : undefined;
 }
 
+/** A ticket on its way, started in the click that opens the sheet (#800). */
+export type JoinStart = Promise<CreateJoinTicketResponse>;
+
 /**
- * Adds a server as Add-Server has it: opening it makes the ticket, with a passkey, as
- * the click that opened it is the one the passkey asks for, and shows the one command
+ * Starts making a ticket, passkey and all, in the click that opens the sheet: the
+ * browser lets a passkey be asked for in that click's own activation, which Safari
+ * insists on, and an effect after the sheet renders is past it.
+ */
+export function startJoinTicket(transport: Transport, labels: readonly string[] = []): JoinStart {
+  const client = createClient(ServerService, transport);
+  const started = withStepUpIfAsked(transport, StepUpAction.ADD_SERVER, "", (proof) =>
+    client.createJoinTicket({ proof, labels: [...labels] }),
+  );
+  // The sheet takes it as it mounts; until then, a refusal isn't a stray error.
+  started.catch(() => {});
+  return started;
+}
+
+/** A ticket a click elsewhere started, such as the command bar's, for the Servers page to take as it opens. */
+let handed: JoinStart | undefined;
+
+/** Starts a ticket in a click that goes to /servers?add, which the page takes as it opens the sheet. */
+export function handOverJoinTicket(transport: Transport): void {
+  handed = startJoinTicket(transport);
+}
+
+/**
+ * What opens the sheet: start() in the click handler, then the sheet takes what it
+ * started. Where nobody may make a ticket, it starts nothing. takeHanded takes a
+ * ticket a click elsewhere started, once.
+ */
+export function useJoinStart(takeHanded = false): { started: JoinStart | undefined; start: () => void } {
+  const transport = useTransport();
+  const may = useMay()(ServerService.method.createJoinTicket).allowed;
+  const [started, setStarted] = useState<JoinStart | undefined>(() => {
+    if (!takeHanded) return undefined;
+    const it = handed;
+    handed = undefined;
+    return it;
+  });
+  return { started, start: () => setStarted(may ? startJoinTicket(transport) : undefined) };
+}
+
+/**
+ * Adds a server as Add-Server has it: the click that opens it starts the ticket, with
+ * a passkey, so the browser lets the passkey be asked for there, and it shows the one command
  * to run on the new server with it in place (#800); then it waits, and says when the
  * server has joined, with the way to its page. Labels to join with are a step away,
  * and make the command again. What the ticket's address means for a server elsewhere
@@ -56,7 +100,10 @@ export function AddServerSheet({
   control,
   onClose,
   overForm = false,
+  started,
 }: {
+  /** The ticket the click that opened it started, from useJoinStart; without one, Show the command makes it. */
+  started?: JoinStart | undefined;
   /** The control server, whose release the new one's agent takes. */
   control: { id: string; name: string } | undefined;
   onClose: () => void;
@@ -115,14 +162,20 @@ export function AddServerSheet({
   const joined = servers?.find((s) => s.id === joinedId);
   const joinedName = joined?.name || read.data?.ticket?.serverName || joinedId;
 
-  const make = async () => {
-    if (busy) return;
+  const make = (asked?: JoinStart) => {
+    if (busy && !asked) return;
+    void take(
+      asked ??
+        withStepUpIfAsked(transport, StepUpAction.ADD_SERVER, "", (proof) =>
+          client.createJoinTicket({ proof, labels: labelTexts(labels) }),
+        ),
+    );
+  };
+  const take = async (asked: JoinStart) => {
     setBusy(true);
     setFailure(undefined);
     try {
-      const res = await withStepUpIfAsked(transport, StepUpAction.ADD_SERVER, "", (proof) =>
-        client.createJoinTicket({ proof, labels: labelTexts(labels) }),
-      );
+      const res = await asked;
       if (res.ticket) {
         setMade({ ticket: res.ticket, value: res.value });
         setLabelling(false);
@@ -139,14 +192,14 @@ export function AddServerSheet({
     }
   };
 
-  // The command on open (#800): once, as the sheet opens, for someone who may make it.
-  const asked = useRef(false);
-  // biome-ignore lint/correctness/useExhaustiveDependencies: make runs once, as the sheet opens.
+  // The command on open (#800): what the opening click started, taken once.
+  const taken = useRef<JoinStart>(undefined);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: each ticket the click started is taken once.
   useEffect(() => {
-    if (asked.current || !mayMake.allowed) return;
-    asked.current = true;
-    void make();
-  }, [mayMake.allowed]);
+    if (!started || taken.current === started) return;
+    taken.current = started;
+    make(started);
+  }, [started]);
 
   const labelsField = (
     <LabelsField
@@ -190,7 +243,7 @@ export function AddServerSheet({
         {/* Where the passkey was turned down, or isn't this person's to give, the way to it again. */}
         {busy ? null : (
           <div className="servers-add-make">
-            <Button variant="primary" icon="key" onClick={() => void make()} {...mayMake.off}>
+            <Button variant="primary" icon="key" onClick={() => make()} {...mayMake.off}>
               <Trans>Show the command</Trans>
             </Button>
             <span className="servers-add-meta">
@@ -261,7 +314,7 @@ export function AddServerSheet({
               <Button size="sm" variant="ghost" onClick={() => setLabelling(false)}>
                 <Trans>Cancel</Trans>
               </Button>
-              <Button size="sm" icon="key" loading={busy} onClick={() => void make()} {...mayMake.off}>
+              <Button size="sm" icon="key" loading={busy} onClick={() => make()} {...mayMake.off}>
                 <Trans>Make it with these labels</Trans>
               </Button>
             </div>
@@ -297,7 +350,7 @@ export function AddServerSheet({
           {expired ? (
             <>
               <StatusBadge status="stopped" label={t`This command expired`} labelIsState />
-              <Button size="sm" icon="key" loading={busy} onClick={() => void make()} {...mayMake.off}>
+              <Button size="sm" icon="key" loading={busy} onClick={() => make()} {...mayMake.off}>
                 <Trans>Make a new command</Trans>
               </Button>
             </>

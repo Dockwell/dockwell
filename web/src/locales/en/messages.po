@@ -19448,6 +19448,9 @@ msgstr "Show the activity of {name}"
 msgid "Show what happened on {name}"
 msgstr "Show what happened on {name}"
 
+msgid "Shows the command to run on it"
+msgstr "Shows the command to run on it"
+
 msgid "Use the dark theme"
 msgstr "Use the dark theme"
 

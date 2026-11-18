@@ -497,6 +497,47 @@ describe("Servers", () => {
       expect(await within(sheet).findByRole("button", { name: "Show the command" })).toBeEnabled();
     });
 
+    it("starts the ticket in the click that opens it, and makes none where no click did", async () => {
+      stubPasskeys();
+      const user = userEvent.setup();
+      const api = tickets(JoinReach.ANYWHERE, [{}]);
+      // Opened from its address, no click started anything: the way to it is a button.
+      const { unmount } = renderServers([web1, web2()], "/servers?add=1", {
+        ...release,
+        ...passkey([]),
+        servers: api.servers,
+      });
+      const sheet = await screen.findByRole("dialog", { name: "Add a server" });
+      expect(within(sheet).getByRole("button", { name: "Show the command" })).toBeEnabled();
+      expect(api.made).toHaveLength(0);
+      await user.click(within(sheet).getByRole("button", { name: "Show the command" }));
+      expect(await within(sheet).findByText("Waiting for the server to join")).toBeVisible();
+      unmount();
+
+      // From Add server, the click starts it, once: the sheet takes it rather than asking again.
+      const clicked = tickets(JoinReach.ANYWHERE, [{}]);
+      renderServers([web1, web2()], "/servers", { ...release, ...passkey([]), servers: clicked.servers });
+      await user.click(await screen.findByRole("button", { name: "Add server" }));
+      const opened = await screen.findByRole("dialog", { name: "Add a server" });
+      expect(await within(opened).findByText("Waiting for the server to join")).toBeVisible();
+      // Without a proof, then with the passkey's: one ticket.
+      expect(clicked.made.map((r) => r.proof)).toEqual(["", "proof-1"]);
+    });
+
+    it("adds a server from the command bar, from any page, with the ticket its click started", async () => {
+      stubPasskeys();
+      const user = userEvent.setup();
+      const api = tickets(JoinReach.ANYWHERE, [{}]);
+      renderServers([web1, web2()], "/servers/srv_1", { ...release, ...passkey([]), servers: api.servers });
+      await screen.findByRole("heading", { level: 1, name: "web-1" });
+      await user.click(screen.getByRole("button", { name: "Search or run a command" }));
+      const bar = screen.getByRole("dialog", { name: "Command bar" });
+      await user.click(await within(bar).findByRole("option", { name: /Add a server/ }));
+      const sheet = await screen.findByRole("dialog", { name: "Add a server" });
+      expect(await within(sheet).findByText("Waiting for the server to join")).toBeVisible();
+      expect(api.made.map((r) => r.proof)).toEqual(["", "proof-1"]);
+    });
+
     it("says nothing was made when the passkey doesn't confirm it", async () => {
       stubPasskeys({ get: "NotAllowedError" });
       const user = userEvent.setup();

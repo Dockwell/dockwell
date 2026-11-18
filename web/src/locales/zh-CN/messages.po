@@ -19448,6 +19448,9 @@ msgstr "显示 {name} 的动态"
 msgid "Show what happened on {name}"
 msgstr "显示 {name} 上发生的事"
 
+msgid "Shows the command to run on it"
+msgstr "显示要在新服务器上运行的命令"
+
 msgid "Use the dark theme"
 msgstr "使用深色主题"
 
