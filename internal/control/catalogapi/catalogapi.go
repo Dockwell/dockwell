@@ -36,6 +36,7 @@ import (
 	"github.com/dockwell/dockwell/internal/registry"
 	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
+	"github.com/dockwell/dockwell/internal/resource/route"
 	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/resource/variable"
 	"github.com/dockwell/dockwell/internal/revision"
@@ -408,9 +409,19 @@ func (h *Handler) InstallCatalogEntry(ctx context.Context, req *connect.Request[
 	// 0103).
 	var webIDs map[string]string
 	var address map[string]map[string]string
+	// A route asked with the install, to its web service, planned in the same change
+	// (#792): where the app is reached is its domain.
+	routeEdit, routeAt, err := installRoute(chosen, m.GetRoute())
+	if err != nil {
+		return nil, err
+	}
 	if web := chosen.GetWeb().GetService(); web != "" && len(chosen.GetAddressVariables()) > 0 {
 		webID := newid.New(newid.Service)
-		if at := h.installAddress(chosen, filled.Variables, webID); at.Host != "" {
+		at := routeAt
+		if at.Host == "" {
+			at = h.installAddress(chosen, filled.Variables, webID)
+		}
+		if at.Host != "" {
 			webIDs, address, pin.Address = map[string]string{web: webID}, catalog.AddressValues(chosen, at), at.Origin()
 		}
 	}
@@ -426,6 +437,9 @@ func (h *Handler) InstallCatalogEntry(ctx context.Context, req *connect.Request[
 	}
 	if owner := ownerEdit(chosen, ask, filled); owner != nil {
 		users = append(users, owner)
+	}
+	if routeEdit != nil {
+		users = append(users, routeEdit)
 	}
 	servers := m.GetServers()
 	if len(servers) == 0 {
@@ -459,6 +473,8 @@ func (h *Handler) InstallCatalogEntry(ctx context.Context, req *connect.Request[
 		Address:       address,
 		// Its sign-ups closed, where its owner is made (ADR 0105).
 		Env: closedSignups(chosen, ask, m.GetSignupsOpen()),
+		// The DNS provider that publishes the route it asked for serves its project too (#792).
+		Serves: routeServes(m.GetRoute()),
 	})
 	if err != nil {
 		return nil, err
@@ -1597,4 +1613,74 @@ func (h *Handler) internal(ctx context.Context, err error) error {
 	}
 	h.logger.ErrorContext(ctx, "catalog call failed", slog.String("error", err.Error()))
 	return connect.NewError(connect.CodeInternal, errors.New("the control plane couldn't complete the request; try again, and check its logs if it keeps failing"))
+}
+
+// installRoute is the route an install asks for to its app's web service (#792): its
+// domain, how it's reached and what it publishes, as asked, with its service, port
+// and name the install's own. A redirect, a port on the server, or a route to an app
+// with no web service is refused; everything else is checked as any route edit is,
+// in the install's change. It says where the app is reached through it.
+func installRoute(entry *catalogv1.Entry, asked *resourcev1.Route) (*dockwellv1.Edit, catalog.Address, error) {
+	if asked == nil {
+		return nil, catalog.Address{}, nil
+	}
+	web := entry.GetWeb().GetService()
+	port := catalog.WebTarget(entry)
+	domain := strings.ToLower(strings.TrimSpace(asked.GetDomain()))
+	switch {
+	case web == "" || port == 0:
+		return nil, catalog.Address{}, authapi.Invalid(fmt.Errorf("%s has no web page to send a domain to. Install it without one", entry.GetName()))
+	case asked.GetRedirect() != nil:
+		return nil, catalog.Address{}, authapi.Invalid(errors.New("an install's route sends its domain to the app, never a redirect. Add a redirect on Domains once it's installed"))
+	case asked.GetHostPort() != 0 || asked.GetService() != "" || asked.GetPort() != 0:
+		return nil, catalog.Address{}, authapi.Invalid(errors.New("an install's route goes to the app's web page, which the install says. Leave its service, port and port on the server out"))
+	case domain == "":
+		return nil, catalog.Address{}, authapi.Invalid(errors.New("an install's route needs its domain, such as wiki.example.com"))
+	}
+	r := proto.CloneOf(asked)
+	r.Domain, r.Service, r.Port = domain, web, port
+	edit := &dockwellv1.Edit{
+		Resource: &dockwellv1.ResourceRef{Kind: string(route.Kind), Name: routeNameFor(domain)},
+		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Route{Route: r}},
+	}
+	at := catalog.DomainAddress(domain)
+	if r.GetTls() == "off" && r.GetPlainForAnyone() {
+		at.Scheme = "http"
+	}
+	return edit, at, nil
+}
+
+// routeNameFor is a route's name for a domain, as the panel names one: its labels
+// joined by dashes, starting with a letter, 63 characters at most.
+func routeNameFor(domain string) string {
+	var b strings.Builder
+	dash := false
+	for _, r := range strings.ToLower(domain) {
+		if r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '-' {
+			b.WriteRune(r)
+			dash = false
+			continue
+		}
+		if !dash {
+			b.WriteByte('-')
+			dash = true
+		}
+	}
+	name := strings.TrimLeft(b.String(), "0123456789-")
+	if name == "" {
+		name = "route-" + strings.Trim(b.String(), "-")
+	}
+	if len(name) > 63 {
+		name = name[:63]
+	}
+	return strings.TrimRight(name, "-")
+}
+
+// routeServes is the DNS provider a route an install asks for publishes through, by
+// name, which then serves the project the install makes (#792).
+func routeServes(r *resourcev1.Route) []string {
+	if p := r.GetPublish().GetProvider(); p != "" {
+		return []string{p}
+	}
+	return nil
 }

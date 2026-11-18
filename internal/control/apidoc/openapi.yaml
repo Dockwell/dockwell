@@ -18678,6 +18678,14 @@ components:
                     description: |-
                         Leaves sign-ups open, where the entry says how they close, which the install
                          does otherwise.
+                route:
+                    allOf:
+                        - $ref: '#/components/schemas/Route'
+                    description: |-
+                        A route to the app's web service, planned in the same change: its domain, and how
+                         it's reached and published, as a route edit says them (ADR 0104). The install
+                         sets its service, port and name, refuses a redirect or a port on the server, and
+                         checks it as any route edit is checked, holds included (#792).
             description: InstallCatalogEntryRequest is an app to install.
         InstallCatalogEntryResponse:
             type: object

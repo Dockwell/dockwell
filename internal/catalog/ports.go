@@ -56,6 +56,12 @@ func readPort(v any) (publishedPort, bool) {
 		if protocol, ok := p["protocol"].(string); ok && protocol != "" {
 			out.protocol = protocol
 		}
+		switch target := p["target"].(type) {
+		case string:
+			out.target = target
+		case int:
+			out.target = strconv.Itoa(target)
+		}
 		return out, out.host != ""
 	}
 	return publishedPort{}, false
@@ -385,4 +391,26 @@ func mergesPorts(v *yaml.Node) bool {
 	default:
 	}
 	return false
+}
+
+// WebTarget is the port in its web service's container that the entry publishes on
+// the server, as a route to the app sends to it, or 0 where it publishes none (#792).
+func WebTarget(e *catalogv1.Entry) uint32 {
+	cf, err := readCompose(e.GetCompose())
+	if err != nil {
+		return 0
+	}
+	d, _ := cf.services[e.GetWeb().GetService()].(map[string]any)
+	list, _ := d["ports"].([]any)
+	for _, v := range list {
+		p, ok := readPort(v)
+		if !ok || (p.protocol != "" && p.protocol != "tcp") {
+			continue
+		}
+		target, _, _ := strings.Cut(p.target, "/")
+		if n, err := strconv.ParseUint(target, 10, 16); err == nil && n > 0 {
+			return uint32(n)
+		}
+	}
+	return 0
 }

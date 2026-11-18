@@ -661,6 +661,7 @@ func Methods() []*apicli.Method {
 				{Path: "needs", Help: "How to meet each of the entry's needs, by the need's name: \"new\" for a new one beside the app, of the engine its first option has, \"new:<engine>\" for one of another engine it takes (postgresql, mysql, mariadb, redis, valkey, mongodb or clickhouse), or \"service:<project>/<environment>/<service>\" for a server Dockwell runs already, which a database and user are made on for the app, as dockwell catalog get lists. A need left out takes its first option. Numbered apart, as open work adds to this message."},
 				{Path: "owner_email", Help: "The owner's email, for an entry whose owner Dockwell makes (ADR 0105). Empty takes the email of the person installing it; an install by a token with none waits held for one, as dockwell catalog set-owner-email gives it."},
 				{Path: "signups_open", Help: "Leaves sign-ups open, where the entry says how they close, which the install does otherwise."},
+				{Path: "route", Help: "A route to the app's web service, planned in the same change: its domain, and how it's reached and published, as a route edit says them (ADR 0104). The install sets its service, port and name, refuses a redirect or a port on the server, and checks it as any route edit is checked, holds included (#792)."},
 			},
 			Call: apicli.Unary[v1.InstallCatalogEntryRequest, v1.InstallCatalogEntryResponse](dockwellv1connect.CatalogServiceInstallCatalogEntryProcedure),
 		},
