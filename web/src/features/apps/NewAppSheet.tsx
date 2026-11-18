@@ -71,7 +71,7 @@ import { nextFree } from "../catalog/freeName";
 import { type Opening, PlanView } from "../changes/ChangeSheet";
 import { registryOf, useRegistryLogins } from "../registries/registries";
 import { type PortHolder, type ServerPorts, useServerPorts } from "../servers/ports";
-import { useFleetView } from "../servers/useFleet";
+import { useFleet, useFleetView } from "../servers/useFleet";
 import { useGitRepositories } from "../settings/github";
 import { CopyAsCommand } from "../system/CopyCommand";
 import { useRuntimes } from "../websites/website";
@@ -2822,6 +2822,41 @@ function ComposePreview({ check }: { check: CheckComposeResponse | undefined }) 
 }
 
 /** Where it runs, once there is a choice (PRD principle 4). There is no scheduler yet, so a person says. */
+type FleetServer = NonNullable<ReturnType<typeof useFleetView>["servers"]>[number];
+
+/**
+ * The server a new app runs on unless a person says otherwise (#792): of those
+ * connected that can take it, the one with the most free memory, by each one's
+ * free bytes, and why, as the field says it. Undefined where none can.
+ */
+export function defaultServer(
+  servers: readonly FleetServer[],
+  free: (id: string) => number,
+  unfit?: (server: FleetServer) => string | undefined,
+): { id: string; why: "only" | "memory" } | undefined {
+  const can = servers.filter((s) => s.connection === Connection.CONNECTED && unfit?.(s) === undefined);
+  const best = [...can].sort((a, b) => free(b.id) - free(a.id) || a.name.localeCompare(b.name))[0];
+  if (!best) return undefined;
+  return { id: best.id, why: can.length === 1 ? "only" : "memory" };
+}
+
+/** Each server's free memory, in bytes, by ID, as its latest stats say: -1 where they say nothing. */
+function useFreeMemory(): (id: string) => number {
+  const fleet = useFleet();
+  const servers = fleet.status === "connecting" ? [] : fleet.servers;
+  return (id) => {
+    const stats = servers.find((s) => s.id === id)?.stats;
+    if (!stats || stats.memoryTotalBytes === 0n) return -1;
+    return Number(stats.memoryTotalBytes - stats.memoryUsedBytes);
+  };
+}
+
+/**
+ * Where a new app runs: chosen at once, as the connected server that can take it
+ * with the most free memory, said in one line with Change (#792); or, once a person
+ * changes it, a box for each server, where one that's offline or can't take the app
+ * can't be ticked and says why.
+ */
 export function RunsOnField({
   value,
   onChange,
@@ -2844,6 +2879,56 @@ export function RunsOnField({
 }) {
   const { t } = useLingui();
   const id = useId();
+  // Until a person changes it, it's the default: chosen as the servers are read, and
+  // said in one line.
+  const [open, setOpen] = useState(false);
+  const free = useFreeMemory();
+  // The default, once picked, holds still as stats come in.
+  const [auto, setAuto] = useState<ReturnType<typeof defaultServer>>();
+  const best = open ? undefined : defaultServer(servers, free, unfit);
+  const bestKey = best ? `${best.id} ${best.why}` : "";
+  // biome-ignore lint/correctness/useExhaustiveDependencies: bestKey stands for best
+  useEffect(() => {
+    if (best && value.length === 0) {
+      setAuto(best);
+      onChange([best.id]);
+    }
+  }, [bestKey, value.length]);
+  const change = (next: readonly string[]) => {
+    setOpen(true);
+    onChange(next);
+  };
+  const autoServer =
+    !open && auto && value.length === 1 && value[0] === auto.id ? servers.find((s) => s.id === auto.id) : undefined;
+  if (autoServer && auto) {
+    return (
+      <fieldset className="app-section" aria-labelledby={id}>
+        <span id={id} className="dw-field-label">
+          <Trans>Runs on</Trans>
+        </span>
+        <span className="app-runs-auto">
+          <code className="app-server-name">{autoServer.name}</code>
+          <span className="app-runs-auto-why">
+            {auto.why === "only" ? t`the only server that can take it` : t`most free memory`}
+          </span>
+          <button
+            type="button"
+            className="app-runs-auto-change"
+            aria-label={t`Change where it runs`}
+            onClick={() => setOpen(true)}
+          >
+            <Trans>Change</Trans>
+          </button>
+        </span>
+        {hint ? <span className="dw-field-hint">{hint}</span> : null}
+        {error ? (
+          <span className="dw-field-error" role="alert">
+            {error}
+          </span>
+        ) : null}
+      </fieldset>
+    );
+  }
   return (
     <fieldset className="app-section" aria-labelledby={id}>
       <span id={id} className="dw-field-label">
@@ -2851,20 +2936,20 @@ export function RunsOnField({
       </span>
       <div className="app-servers">
         {servers.map((server) => {
-          const why = unfit?.(server);
+          const offline = server.connection !== Connection.CONNECTED;
+          const why = unfit?.(server) ?? (offline ? t`Offline, so it can't take a new app now` : undefined);
           return (
-            <label key={server.id} className="app-check is-server">
+            <label key={server.id} className={cx("app-check is-server", why !== undefined && "is-off")}>
               <input
                 type="checkbox"
                 checked={value.includes(server.id)}
-                disabled={why !== undefined}
+                disabled={why !== undefined && !value.includes(server.id)}
                 onChange={(event) =>
-                  onChange(event.target.checked ? [...value, server.id] : value.filter((s) => s !== server.id))
+                  change(event.target.checked ? [...value, server.id] : value.filter((s) => s !== server.id))
                 }
               />
               <code className="app-server-name">{server.name}</code>
               {why !== undefined ? <Tag words>{why}</Tag> : null}
-              {server.connection === Connection.CONNECTED ? null : <Tag words>{t`Offline`}</Tag>}
             </label>
           );
         })}
