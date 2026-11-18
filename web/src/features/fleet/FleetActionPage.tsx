@@ -788,7 +788,9 @@ function RecentFleetActions() {
   // a plan with waves. PAGES bounds what one look reads: past it, an install with that much else since its last
   // fleet action shows none, and a filter on the server is the way past that (#800's review, L3).
   const changes = useAnyQuery({
-    queryKey: ["recent-fleet-actions"],
+    // Under ChangeService's own key, so sign-out drops it with the rest and a change applied reads it again
+    // (#800's re-check, N1).
+    queryKey: ["connect-query", { serviceName: ChangeService.typeName, methodName: "RecentFleetActions" }],
     retry: false,
     queryFn: async ({ signal }) => {
       const client = createClient(ChangeService, transport);
